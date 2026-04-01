@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 
-const LOGO_URL = "https://media.base44.com/images/public/69cd2741578c9b5ce655395b/2f58e4dcf_Untitleddesign3.png";
+const LOGO_URL = "https://media.base44.com/images/public/69cd2741578c9b5ce655395b/08899f1a1_Untitleddesign3.png";
 const HTML_URL = "https://rawcdn.githack.com/chainwavestudios-cyber/agentbmaninvest/main/agentbman-pitchbook-v3.html";
 
 export default function Home() {
@@ -90,42 +90,6 @@ export default function Home() {
         nav.prepend(logoImg);
       }
     }
-
-    // --- AUDIT SECTION: Add logo next to 92/100 circle ---
-    // Find the element showing "92" score
-    const scoreEls = document.querySelectorAll('*');
-    for (const el of scoreEls) {
-      if (el.children.length === 0 && el.textContent.trim() === '92') {
-        // Go up to find the score circle container
-        let container = el.parentElement;
-        let depth = 0;
-        while (container && depth < 4) {
-          if (container.style?.borderRadius?.includes('50%') || 
-              window.getComputedStyle(container).borderRadius === '50%' ||
-              container.className?.includes('circle') ||
-              container.className?.includes('score') ||
-              container.className?.includes('ring')) {
-            break;
-          }
-          container = container.parentElement;
-          depth++;
-        }
-        // Insert logo next to the found container's parent
-        const wrapper = container?.parentElement;
-        if (wrapper && !wrapper.querySelector('.rosie-audit-logo')) {
-          const auditLogo = document.createElement('img');
-          auditLogo.src = LOGO;
-          auditLogo.className = 'rosie-audit-logo';
-          auditLogo.style.cssText = 'height: 120px; width: auto; object-fit: contain; margin-left: 24px; display: inline-block; vertical-align: middle;';
-          wrapper.style.display = 'flex';
-          wrapper.style.alignItems = 'center';
-          wrapper.style.flexWrap = 'wrap';
-          wrapper.appendChild(auditLogo);
-        }
-        break;
-      }
-    }
-  }
 
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', applyChanges);
