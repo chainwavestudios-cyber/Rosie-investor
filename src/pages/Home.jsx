@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 
-const LOGO_URL = "https://media.base44.com/images/public/69cd2741578c9b5ce655395b/39a31f9b9_Untitleddesign3.png";
 const HTML_URL = "https://rawcdn.githack.com/chainwavestudios-cyber/agentbmaninvest/main/agentbman-pitchbook-v3.html";
 
 export default function Home() {
@@ -15,23 +14,37 @@ export default function Home() {
         const injectedScript = `
 <script>
 (function() {
-  const LOGO = "${LOGO_URL}";
-
   function applyChanges() {
-    // Find the smallest element that contains "Investor Overview" + "2026"
-    // and replace only its innerHTML with our logo (preserving surrounding nav structure)
-    const allElements = Array.from(document.querySelectorAll('*'));
-    for (const el of allElements) {
+    // Target the circular hero badge: an element with rounded/circle styling
+    // that contains an img AND text "Rosie" (the label below the badge)
+    // It sits above the main headline, NOT inside nav/header
+    const allDivs = document.querySelectorAll('div, section, figure');
+    for (const el of allDivs) {
       const text = el.textContent || '';
+      const style = el.getAttribute('style') || '';
+      const cls = el.className || '';
+      // The badge container has "Rosie" text and is small
       if (
-        text.length < 200 &&
-        (text.includes('Investor Overview') || text.includes('INVESTOR OVERVIEW')) &&
-        text.includes('2026') &&
-        !el._rosieReplaced
+        text.trim().length < 30 &&
+        text.includes('Rosie') &&
+        el.querySelector('img') &&
+        !el._rosieBadgeHidden
       ) {
-        el._rosieReplaced = true;
-        el.innerHTML = '<img src="' + LOGO + '" style="height:70px;width:auto;object-fit:contain;display:block;" />';
-        break;
+        // Make sure it's not inside nav/header
+        let parent = el.parentElement;
+        let inNav = false;
+        let depth = 0;
+        while (parent && depth < 6) {
+          const tag = (parent.tagName || '').toLowerCase();
+          if (tag === 'nav' || tag === 'header') { inNav = true; break; }
+          parent = parent.parentElement;
+          depth++;
+        }
+        if (!inNav) {
+          el._rosieBadgeHidden = true;
+          el.style.display = 'none';
+          break;
+        }
       }
     }
   }
@@ -41,8 +54,8 @@ export default function Home() {
   } else {
     applyChanges();
   }
-  setTimeout(applyChanges, 300);
-  setTimeout(applyChanges, 1000);
+  setTimeout(applyChanges, 500);
+  setTimeout(applyChanges, 1500);
 })();
 </script>
 `;
