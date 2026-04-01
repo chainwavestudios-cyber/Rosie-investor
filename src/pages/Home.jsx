@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 
-const LOGO_URL = "https://media.base44.com/images/public/69cd2741578c9b5ce655395b/39a31f9b9_Untitleddesign3.png";
-const HTML_URL = "https://rawcdn.githack.com/chainwavestudios-cyber/agentbmaninvest/main/agentbman-pitchbook-v3.html";
+const NEW_LOGO_URL = "https://media.base44.com/images/public/69cd2741578c9b5ce655395b/d28cac677_Untitleddesign3.png";
+const HTML_URL = "https://raw.githubusercontent.com/chainwavestudios-cyber/agentbmaninvest/main/agentbman-pitchbook-v3.html";
 
 export default function Home() {
   const [blobUrl, setBlobUrl] = useState(null);
@@ -12,27 +12,35 @@ export default function Home() {
       .then((html) => {
         let modified = html.replaceAll("AgentBman", "Rosie").replaceAll("agentbman", "rosie");
 
+        // After text replacement, "Investor Overview · 2026" is in nav brand block
+        // Use a TreeWalker to find that exact text node, walk up to the brand container, replace it
         const injectedScript = `
 <script>
 (function() {
-  const LOGO = "${LOGO_URL}";
+  const LOGO = "${NEW_LOGO_URL}";
 
   function applyChanges() {
-    // Find the nav brand block: small container with "INVESTOR OVERVIEW" text inside nav
-    const nav = document.querySelector('nav, header');
-    if (!nav) return;
-
-    // Walk all elements inside nav, find the one with "INVESTOR OVERVIEW" text
-    const navEls = nav.querySelectorAll('*');
-    for (const el of navEls) {
-      const text = (el.textContent || '').trim();
-      if (
-        text.includes('INVESTOR OVERVIEW') &&
-        text.length < 100 &&
-        !el._rosieReplaced
-      ) {
-        el._rosieReplaced = true;
-        el.innerHTML = '<img src="' + LOGO + '" style="height:55px;width:auto;object-fit:contain;display:block;" />';
+    // Use TreeWalker to find the text node with "Investor Overview · 2026"
+    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null, false);
+    let node;
+    while ((node = walker.nextNode())) {
+      const text = node.nodeValue || '';
+      if (text.includes('Investor Overview') && text.includes('2026')) {
+        // Walk up to find a container that's inside nav and has sibling icon/img
+        let el = node.parentElement;
+        // Go up a few levels to find the brand container (the one that holds icon + name + subtitle)
+        for (let i = 0; i < 4; i++) {
+          if (!el || !el.parentElement) break;
+          const parent = el.parentElement;
+          const tag = (parent.tagName || '').toLowerCase();
+          // Stop if we'd go above the nav
+          if (tag === 'nav' || tag === 'header') break;
+          el = parent;
+        }
+        if (el && !el._rosieReplaced) {
+          el._rosieReplaced = true;
+          el.innerHTML = '<img src="' + LOGO + '" style="height:55px;width:auto;object-fit:contain;display:block;" />';
+        }
         break;
       }
     }
@@ -43,8 +51,8 @@ export default function Home() {
   } else {
     applyChanges();
   }
-  setTimeout(applyChanges, 500);
-  setTimeout(applyChanges, 1500);
+  setTimeout(applyChanges, 300);
+  setTimeout(applyChanges, 1000);
 })();
 </script>
 `;
@@ -54,7 +62,6 @@ export default function Home() {
         const blob = new Blob([modified], { type: "text/html" });
         const url = URL.createObjectURL(blob);
         setBlobUrl(url);
-
         return () => URL.revokeObjectURL(url);
       });
   }, []);
