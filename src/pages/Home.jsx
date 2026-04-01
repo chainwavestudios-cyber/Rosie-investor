@@ -17,7 +17,9 @@ export default function Home() {
 (function() {
   const LOGO = "${LOGO_URL}";
 
-  function applyTopLeftLogo() {
+  function applyChanges() {
+    // Find the smallest element that contains "Investor Overview" + "2026"
+    // and replace only its innerHTML with our logo (preserving surrounding nav structure)
     const allElements = Array.from(document.querySelectorAll('*'));
     for (const el of allElements) {
       const text = el.textContent || '';
@@ -34,48 +36,13 @@ export default function Home() {
     }
   }
 
-  function applyHeroLogo() {
-    // Find the element containing "The AI Engine" and insert logo before it (at 3x size, no circle)
-    const allElements = Array.from(document.querySelectorAll('*'));
-    for (const el of allElements) {
-      const text = el.textContent || '';
-      if (
-        text.includes('The AI Engine') &&
-        text.includes('Behind Every Lead') &&
-        !el._heroLogoAdded
-      ) {
-        // Walk up to find a reasonable container parent
-        let target = el;
-        for (let i = 0; i < 4; i++) {
-          const p = target.parentElement;
-          if (!p || p.tagName === 'BODY') break;
-          if ((p.textContent || '').length < 500) target = p;
-          else break;
-        }
-        if (!target._heroLogoAdded) {
-          target._heroLogoAdded = true;
-          const wrapper = document.createElement('div');
-          wrapper.style.cssText = 'display:flex;justify-content:center;margin-bottom:24px;';
-          wrapper.innerHTML = '<img src="' + LOGO + '" style="height:240px;width:auto;object-fit:contain;" />';
-          target.parentElement.insertBefore(wrapper, target);
-        }
-        break;
-      }
-    }
-  }
-
-  function applyAll() {
-    applyTopLeftLogo();
-    applyHeroLogo();
-  }
-
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', applyAll);
+    document.addEventListener('DOMContentLoaded', applyChanges);
   } else {
-    applyAll();
+    applyChanges();
   }
-  setTimeout(applyAll, 300);
-  setTimeout(applyAll, 1000);
+  setTimeout(applyChanges, 300);
+  setTimeout(applyChanges, 1000);
 })();
 </script>
 `;
