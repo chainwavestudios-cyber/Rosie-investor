@@ -38,16 +38,21 @@ export default function Home() {
     }
 
     // Insert hero logo image below the main headline
-    const allEls = document.querySelectorAll('h1, h2, [class*="hero"] h1, [class*="hero"] h2');
+    const allEls = document.querySelectorAll('*');
     for (const el of allEls) {
       const text = (el.textContent || '').toLowerCase();
-      if (text.includes('ai engine') && text.includes('every lead') && !el._heroLogoAdded) {
-        el._heroLogoAdded = true;
+      if (text.includes('ai engine') && text.includes('every lead')) {
+        // Check if image already added to avoid duplicates
+        if (el.nextElementSibling && el.nextElementSibling.tagName === 'IMG' && el.nextElementSibling.src.includes('d28cac677')) {
+          return;
+        }
         const img = document.createElement('img');
         img.src = HERO_LOGO_URL;
         img.style.cssText = 'display:block;margin:24px auto 0;width:180px;height:auto;';
-        el.insertAdjacentElement('afterend', img);
-        break;
+        if (el.parentNode) {
+          el.parentNode.insertBefore(img, el.nextSibling);
+        }
+        return;
       }
     }
   }
