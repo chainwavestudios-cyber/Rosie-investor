@@ -11,7 +11,7 @@ export default function Home() {
     fetch(HTML_URL)
       .then((r) => r.text())
       .then((html) => {
-        let modified = html.replaceAll("AgentBman", "Rosie").replaceAll("agentbman", "rosie").replaceAll("50.5 GW → 330GW (2032)", "50.5 GW → 330GW").replaceAll("Installed in 2025 alone · $200B+ US market", "2025 → 2032 · Global Market").replaceAll("2024 → 2032", "2026 → 2032");
+        let modified = html.replaceAll("AgentBman", "Rosie").replaceAll("agentbman", "rosie").replaceAll("50.5 GW", "50.5 GW → 330GW").replaceAll("Installed in 2023 alone · $200B+ US market", "2025 → 2032 · Global Market").replaceAll("Installed in 2025 alone · $200B+ US market", "2025 → 2032 · Global Market").replaceAll("2024 → 2032", "2026 → 2032");
 
         const injectedScript = `
 <script>
