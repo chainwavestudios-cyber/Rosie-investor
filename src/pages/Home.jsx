@@ -11,7 +11,7 @@ export default function Home() {
     fetch(HTML_URL)
       .then((r) => r.text())
       .then((html) => {
-        let modified = html.replaceAll("AgentBman", "Rosie").replaceAll("agentbman", "rosie").replaceAll("Installed in 2023 alone", "Installed in 2025 alone");
+        let modified = html.replaceAll("AgentBman", "Rosie").replaceAll("agentbman", "rosie").replaceAll("Installed in 2023 alone", "Installed in 2025 alone").replaceAll("50.5 GW", "50.5 GW → 330GW (2032)");
 
         const injectedScript = `
 <script>
