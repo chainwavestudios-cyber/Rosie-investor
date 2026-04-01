@@ -18,23 +18,19 @@ export default function Home() {
   const LOGO = "${LOGO_URL}";
 
   function applyChanges() {
-    // Find the top-left brand block: contains lightning bolt icon + "Rosie" + "Investor Overview · 2026"
-    // Strategy: find any element with short text containing "Investor Overview" and hide/replace its container
+    // Find the smallest element that contains "Investor Overview" + "2026"
+    // and replace only its innerHTML with our logo (preserving surrounding nav structure)
     const allElements = Array.from(document.querySelectorAll('*'));
     for (const el of allElements) {
       const text = el.textContent || '';
       if (
-        text.length < 300 &&
+        text.length < 200 &&
         (text.includes('Investor Overview') || text.includes('INVESTOR OVERVIEW')) &&
-        text.includes('2026')
+        text.includes('2026') &&
+        !el._rosieReplaced
       ) {
-        if (!el._rosieReplaced) {
-          el._rosieReplaced = true;
-          const logoImg = document.createElement('img');
-          logoImg.src = LOGO;
-          logoImg.style.cssText = 'height: 80px; width: auto; object-fit: contain; display: block;';
-          el.replaceWith(logoImg);
-        }
+        el._rosieReplaced = true;
+        el.innerHTML = '<img src="' + LOGO + '" style="height:70px;width:auto;object-fit:contain;display:block;" />';
         break;
       }
     }
@@ -47,7 +43,6 @@ export default function Home() {
   }
   setTimeout(applyChanges, 300);
   setTimeout(applyChanges, 1000);
-  setTimeout(applyChanges, 2500);
 })();
 </script>
 `;
