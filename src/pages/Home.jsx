@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 
 const LOGO_URL = "https://media.base44.com/images/public/69cd2741578c9b5ce655395b/39a31f9b9_Untitleddesign3.png";
+const HERO_LOGO_URL = "https://media.base44.com/images/public/69cd2741578c9b5ce655395b/d28cac677_Untitleddesign3.png"; "https://media.base44.com/images/public/69cd2741578c9b5ce655395b/39a31f9b9_Untitleddesign3.png";
 const HTML_URL = "https://rawcdn.githack.com/chainwavestudios-cyber/agentbmaninvest/main/agentbman-pitchbook-v3.html";
 
 export default function Home() {
@@ -22,7 +23,6 @@ export default function Home() {
     const nav = document.querySelector('nav, header');
     if (!nav) return;
 
-    // Walk all elements inside nav, find the one with "INVESTOR OVERVIEW" text
     const navEls = nav.querySelectorAll('*');
     for (const el of navEls) {
       const text = (el.textContent || '').trim();
@@ -33,6 +33,20 @@ export default function Home() {
       ) {
         el._rosieReplaced = true;
         el.innerHTML = '<img src="' + LOGO + '" style="height:55px;width:auto;object-fit:contain;display:block;" />';
+        break;
+      }
+    }
+
+    // Insert hero logo image below the main headline
+    const allEls = document.querySelectorAll('h1, h2, [class*="hero"] h1, [class*="hero"] h2');
+    for (const el of allEls) {
+      const text = (el.textContent || '').toLowerCase();
+      if (text.includes('ai engine') && text.includes('every lead') && !el._heroLogoAdded) {
+        el._heroLogoAdded = true;
+        const img = document.createElement('img');
+        img.src = HERO_LOGO_URL;
+        img.style.cssText = 'display:block;margin:24px auto 0;width:180px;height:auto;';
+        el.insertAdjacentElement('afterend', img);
         break;
       }
     }
