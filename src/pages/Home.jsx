@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 
-const LOGO_URL = "https://media.base44.com/images/public/69cd2741578c9b5ce655395b/08899f1a1_Untitleddesign3.png";
+const LOGO_URL = "https://media.base44.com/images/public/69cd2741578c9b5ce655395b/39a31f9b9_Untitleddesign3.png";
 const HTML_URL = "https://rawcdn.githack.com/chainwavestudios-cyber/agentbmaninvest/main/agentbman-pitchbook-v3.html";
 
 export default function Home() {
@@ -10,95 +10,44 @@ export default function Home() {
     fetch(HTML_URL)
       .then((r) => r.text())
       .then((html) => {
-        // Replace all AgentBman with Rosie
         let modified = html.replaceAll("AgentBman", "Rosie").replaceAll("agentbman", "rosie");
 
-        // Remove top-left header text "Rosie\nInvestor Overview · 2026" or similar nav branding
-        // Replace the nav/header brand area with the Rosie logo at 2x size
-        // The HTML likely has a nav logo section - inject a style override + logo replacement
-        const logoReplacement = `
-          <style>
-            .nav-brand-text, .brand-text, [class*="brand"] span, [class*="nav"] .logo-text { display: none !important; }
-          </style>
-        `;
-
-        // Inject logo into <head>
-        modified = modified.replace("</head>", `${logoReplacement}</head>`);
-
-        // Replace the top-left brand/logo section
-        // Look for common patterns: a nav logo that shows the company name
-        // We'll inject a script that runs after load to do DOM manipulation
         const injectedScript = `
 <script>
 (function() {
   const LOGO = "${LOGO_URL}";
 
   function applyChanges() {
-    // --- TOP LEFT LOGO ---
-    // Find nav/header elements containing "Rosie" or "Investor Overview" text
-    const allElements = document.querySelectorAll('*');
+    // Find the top-left brand block: contains lightning bolt icon + "Rosie" + "Investor Overview · 2026"
+    // Strategy: find any element with short text containing "Investor Overview" and hide/replace its container
+    const allElements = Array.from(document.querySelectorAll('*'));
     for (const el of allElements) {
-      if (el.children.length === 0) {
-        // Leaf node text
-        if (el.textContent.trim() === 'Rosie' || el.textContent.trim() === 'AgentBman') {
-          // Check if it's in a nav/header context
-          let parent = el.parentElement;
-          let depth = 0;
-          while (parent && depth < 5) {
-            const tag = parent.tagName?.toLowerCase();
-            if (tag === 'nav' || tag === 'header' || parent.className?.includes?.('nav') || parent.className?.includes?.('header')) {
-              el.style.display = 'none';
-              break;
-            }
-            parent = parent.parentElement;
-            depth++;
-          }
+      const text = el.textContent || '';
+      if (
+        text.length < 300 &&
+        (text.includes('Investor Overview') || text.includes('INVESTOR OVERVIEW')) &&
+        text.includes('2026')
+      ) {
+        if (!el._rosieReplaced) {
+          el._rosieReplaced = true;
+          const logoImg = document.createElement('img');
+          logoImg.src = LOGO;
+          logoImg.style.cssText = 'height: 80px; width: auto; object-fit: contain; display: block;';
+          el.replaceWith(logoImg);
         }
-        if (el.textContent.includes('Investor Overview') || el.textContent.includes('Equity Partner')) {
-          let parent = el.parentElement;
-          let depth = 0;
-          while (parent && depth < 5) {
-            const tag = parent.tagName?.toLowerCase();
-            if (tag === 'nav' || tag === 'header' || parent.className?.includes?.('nav') || parent.className?.includes?.('header')) {
-              el.style.display = 'none';
-              break;
-            }
-            parent = parent.parentElement;
-            depth++;
-          }
-        }
+        break;
       }
     }
-
-    // Find the first nav or header and insert big logo
-    const nav = document.querySelector('nav, header');
-    if (nav) {
-      // Hide existing text children
-      nav.querySelectorAll('span, p, div').forEach(el => {
-        if (el.children.length === 0 && (el.textContent.includes('Rosie') || el.textContent.includes('Investor') || el.textContent.includes('Equity'))) {
-          el.style.display = 'none';
-        }
-      });
-      // Remove any existing logo img and replace with Rosie logo
-      const existingLogo = nav.querySelector('img');
-      const logoImg = document.createElement('img');
-      logoImg.src = LOGO;
-      logoImg.style.cssText = 'height: 80px; width: auto; object-fit: contain;';
-      if (existingLogo) {
-        existingLogo.replaceWith(logoImg);
-      } else {
-        nav.prepend(logoImg);
-      }
-    }
+  }
 
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', applyChanges);
   } else {
     applyChanges();
   }
-  // Also run after a short delay to handle any dynamic rendering
-  setTimeout(applyChanges, 500);
-  setTimeout(applyChanges, 1500);
+  setTimeout(applyChanges, 300);
+  setTimeout(applyChanges, 1000);
+  setTimeout(applyChanges, 2500);
 })();
 </script>
 `;
