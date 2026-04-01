@@ -12,6 +12,21 @@ export default function Home() {
       .then((r) => r.text())
       .then((html) => {
         let modified = html.replaceAll("AgentBman", "Rosie").replaceAll("agentbman", "rosie").replaceAll("50.5 GW", "50.5 GW → 330GW").replaceAll("Installed in 2023 alone · $200B+ US market", "2025 → 2032 · Global Market").replaceAll("Installed in 2025 alone · $200B+ US market", "2025 → 2032 · Global Market").replaceAll("2024 → 2032", "2026 → 2032");
+        
+        // Swap Solar and Voice Agent sections
+        const tempPlaceholder = "__TEMP_SOLAR_SECTION__";
+        modified = modified.replace(
+          /☀️[\s\S]*?Rosie ingests daily solar permit filings from 50\+ city portals\. These are leads already proven to be buying solar\./,
+          tempPlaceholder
+        );
+        modified = modified.replace(
+          /📞[\s\S]*?We offer 15× cost advantage with zero infrastructure for the customer\./,
+          "☀️\nUS Solar Installation\n50.5 GW → 330GW\n2025 → 2032 · Global Market\n▲ 22% CAGR\nRosie ingests daily solar permit filings from 50+ city portals. These are leads already proven to be buying solar."
+        );
+        modified = modified.replace(
+          tempPlaceholder,
+          "📞\nAI Voice Agent Market\n$4.1B → $18B\n2024 → 2030 · Outbound + Inbound\n▲ 28.3% CAGR\nOur AI voice agents run at $0.01/min — vs industry average $0.15/min. We offer 15× cost advantage with zero infrastructure for the customer."
+        );
 
         const injectedScript = `
 <script>
