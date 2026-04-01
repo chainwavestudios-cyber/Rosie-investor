@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 
-const LOGO_URL = "https://media.base44.com/images/public/69cd2741578c9b5ce655395b/bcae207f6_Untitleddesign2.png";
+const LOGO_URL = "https://media.base44.com/images/public/69cd2741578c9b5ce655395b/0ae3f947a_openart-image_1775055476433_7d75c3a6_1775055476634_b0313d02.png";
 const HTML_URL = "https://rawcdn.githack.com/chainwavestudios-cyber/agentbmaninvest/main/agentbman-pitchbook-v3.html";
 
 export default function Home() {
