@@ -18,40 +18,22 @@ export default function Home() {
   const LOGO = "${LOGO_URL}";
 
   function applyChanges() {
-    // 1. TOP-LEFT NAV: Replace the nav img with our logo
+    // Find the nav brand block: small container with "INVESTOR OVERVIEW" text inside nav
     const nav = document.querySelector('nav, header');
-    if (nav) {
-      const existingImg = nav.querySelector('img');
-      if (existingImg && !existingImg._rosieReplaced) {
-        existingImg._rosieReplaced = true;
-        existingImg.src = LOGO;
-        existingImg.style.cssText = 'height: 60px; width: auto; object-fit: contain;';
-      }
-    }
+    if (!nav) return;
 
-    // 2. HERO BADGE: Hide the circular badge above the headline (has img + "Rosie" text, NOT in nav)
-    const containers = document.querySelectorAll('div, section, figure');
-    for (const el of containers) {
+    // Walk all elements inside nav, find the one with "INVESTOR OVERVIEW" text
+    const navEls = nav.querySelectorAll('*');
+    for (const el of navEls) {
       const text = (el.textContent || '').trim();
       if (
-        text.length < 30 &&
-        text.includes('Rosie') &&
-        el.querySelector('img') &&
-        !el._rosieBadgeHidden
+        text.includes('INVESTOR OVERVIEW') &&
+        text.length < 100 &&
+        !el._rosieReplaced
       ) {
-        let inNav = false;
-        let parent = el.parentElement;
-        for (let i = 0; i < 6; i++) {
-          if (!parent) break;
-          const tag = (parent.tagName || '').toLowerCase();
-          if (tag === 'nav' || tag === 'header') { inNav = true; break; }
-          parent = parent.parentElement;
-        }
-        if (!inNav) {
-          el._rosieBadgeHidden = true;
-          el.style.display = 'none';
-          break;
-        }
+        el._rosieReplaced = true;
+        el.innerHTML = '<img src="' + LOGO + '" style="height:55px;width:auto;object-fit:contain;display:block;" />';
+        break;
       }
     }
   }
