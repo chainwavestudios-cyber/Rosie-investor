@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 
 const LOGO_URL = "https://media.base44.com/images/public/69cd2741578c9b5ce655395b/39a31f9b9_Untitleddesign3.png";
 const HERO_LOGO_URL = "https://media.base44.com/images/public/69cd2741578c9b5ce655395b/d28cac677_Untitleddesign3.png"; "https://media.base44.com/images/public/69cd2741578c9b5ce655395b/39a31f9b9_Untitleddesign3.png";
@@ -6,6 +7,7 @@ const HTML_URL = "https://rawcdn.githack.com/chainwavestudios-cyber/agentbmaninv
 
 export default function Home() {
   const [blobUrl, setBlobUrl] = useState(null);
+  const navigate = useNavigate();
 
   useEffect(() => {
     fetch(HTML_URL)
@@ -79,12 +81,27 @@ export default function Home() {
   }, []);
 
   return (
-    <div className="w-full h-screen">
+    <div className="w-full h-screen" style={{ position: 'relative' }}>
       {blobUrl ? (
         <iframe src={blobUrl} className="w-full h-full border-0" title="Rosie Pitchbook" />
       ) : (
         <div className="w-full h-full flex items-center justify-center text-gray-500">Loading...</div>
       )}
+      <button
+        onClick={() => navigate('/portal-login')}
+        style={{
+          position: 'fixed', top: '16px', right: '20px',
+          background: 'linear-gradient(135deg, #b8933a, #d4aa50)',
+          color: '#0a0f1e', border: 'none', borderRadius: '2px',
+          padding: '10px 22px', cursor: 'pointer',
+          fontSize: '11px', fontWeight: '700', letterSpacing: '2px',
+          textTransform: 'uppercase', fontFamily: 'Georgia, serif',
+          zIndex: 9999, boxShadow: '0 4px 20px rgba(184,147,58,0.4)',
+          display: 'flex', alignItems: 'center', gap: '8px',
+        }}
+      >
+        🔐 Investor Data Portal
+      </button>
     </div>
   );
 }
