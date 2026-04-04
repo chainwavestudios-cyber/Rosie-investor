@@ -4,13 +4,13 @@ import { queryClientInstance } from '@/lib/query-client'
 import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
 import PageNotFound from './lib/PageNotFound';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
-import { PortalAuthProvider } from '@/lib/PortalAuthContext';
-import PortalLogin from './pages/PortalLogin';
-import InvestorPortal from './pages/InvestorPortal';
-import AdminDashboard from './pages/AdminDashboard';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 // Add page imports here
 import Home from './pages/Home';
+import PortalLogin from './pages/PortalLogin';
+import InvestorPortal from './pages/InvestorPortal';
+import AdminDashboard from './pages/AdminDashboard';
+import { PortalAuthProvider } from '@/lib/PortalAuthContext';
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
@@ -52,16 +52,14 @@ const AuthenticatedApp = () => {
 function App() {
 
   return (
-    <AuthProvider>
-      <PortalAuthProvider>
-        <QueryClientProvider client={queryClientInstance}>
-          <Router>
-            <AuthenticatedApp />
-          </Router>
-          <Toaster />
-        </QueryClientProvider>
-      </PortalAuthProvider>
-    </AuthProvider>
+    <AuthProvider><PortalAuthProvider>
+      <QueryClientProvider client={queryClientInstance}>
+        <Router>
+          <AuthenticatedApp />
+        </Router>
+        <Toaster />
+      </QueryClientProvider>
+    </PortalAuthProvider></AuthProvider>
   )
 }
 
