@@ -1,5 +1,19 @@
 /**
  * RosieVoiceAgent — Production Deepgram Voice Agent
+ *
+ * Uses Deepgram's unified Voice Agent WebSocket API:
+ *   wss://agent.deepgram.com/v1/listen
+ *
+ * Single WebSocket handles:
+ *   - Nova-3 STT  (speech → text)
+ *   - LLM think   (OpenAI / Anthropic / custom)
+ *   - Aura-2 TTS  (text → speech, streamed back as PCM)
+ *
+ * Client-side flow:
+ *   1. getUserMedia → AudioContext → ScriptProcessor captures mic PCM
+ *   2. PCM chunks sent over WebSocket as binary ArrayBuffer (linear16, 16 kHz)
+ *   3. Server streams back binary audio (PCM) → queued → played via AudioContext
+ *   4. JSON control messages handled (ConversationText, AgentStartedSpeaking, etc.)
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react';
@@ -8,13 +22,16 @@ import { getPortalSettings } from '@/lib/portalSettings';
 const GOLD = '#b8933a';
 const DG_WS_URL = 'wss://agent.deepgram.com/v1/listen';
 
+// All Aura-2 English voices with gender/tone metadata
 export const AURA2_VOICES = [
+  // Featured
   { id: 'aura-2-asteria-en',   name: 'Asteria',   gender: 'F', tone: 'Warm · Professional',    featured: true },
   { id: 'aura-2-luna-en',      name: 'Luna',      gender: 'F', tone: 'Calm · Clear',            featured: true },
   { id: 'aura-2-orpheus-en',   name: 'Orpheus',   gender: 'M', tone: 'Authoritative · Rich',    featured: true },
   { id: 'aura-2-hera-en',      name: 'Hera',      gender: 'F', tone: 'Confident · Polished',    featured: true },
   { id: 'aura-2-orion-en',     name: 'Orion',     gender: 'M', tone: 'Deep · Trustworthy',      featured: true },
   { id: 'aura-2-thalia-en',    name: 'Thalia',    gender: 'F', tone: 'Bright · Engaging',       featured: true },
+  // All voices
   { id: 'aura-2-amalthea-en',  name: 'Amalthea',  gender: 'F', tone: 'Soft · Nurturing' },
   { id: 'aura-2-andromeda-en', name: 'Andromeda', gender: 'F', tone: 'Elegant · Refined' },
   { id: 'aura-2-apollo-en',    name: 'Apollo',    gender: 'M', tone: 'Smooth · Melodic' },
@@ -52,7 +69,17 @@ export const AURA2_VOICES = [
   { id: 'aura-2-zeus-en',      name: 'Zeus',      gender: 'M', tone: 'Commanding · Bold' },
 ];
 
+// Build Deepgram Settings payload from portalSettings
+// Per Deepgram Voice Agent API docs:
+// listen: { provider: { type, model } }
+// think:  { provider: { type, model }, prompt }
+// speak:  { provider: { type, model } }
 function buildDGSettings(cfg) {
+  const systemPrompt = [
+    cfg.chatbotContext || 'You are Rosie, a helpful investment assistant for Rosie AI LLC.',
+    cfg.knowledgeBase ? `\n\n--- KNOWLEDGE BASE ---\n${cfg.knowledgeBase}` : '',
+  ].join('');
+
   return {
     type: 'Settings',
     audio: {
@@ -62,22 +89,23 @@ function buildDGSettings(cfg) {
     agent: {
       greeting: cfg.chatbotGreeting || "Hi! I'm Rosie. How can I help you today?",
       listen: {
-        model: 'nova-3',
-        provider: { type: 'deepgram' },
+        provider: {
+          type:  'deepgram',
+          model: cfg.sttModel || 'nova-3',
+        },
       },
       think: {
         provider: {
-          type: cfg.llmProvider || 'anthropic',
-          model: cfg.llmModel || 'claude-sonnet-4-5',
+          type:  cfg.llmProvider || 'open_ai',
+          model: cfg.llmModel   || 'gpt-4.1-mini',
         },
-        prompt: [
-          cfg.chatbotContext || 'You are Rosie, a helpful investment assistant for Rosie AI LLC.',
-          cfg.knowledgeBase ? `\n\n--- KNOWLEDGE BASE ---\n${cfg.knowledgeBase}` : '',
-        ].join(''),
+        prompt: systemPrompt,
       },
       speak: {
-        model: cfg.voiceModel || 'aura-2-asteria-en',
-        provider: { type: 'deepgram' },
+        provider: {
+          type:  'deepgram',
+          model: cfg.voiceModel || 'aura-2-asteria-en',
+        },
       },
     },
   };
@@ -85,21 +113,22 @@ function buildDGSettings(cfg) {
 
 export default function RosieVoiceAgent() {
   const [settings] = useState(getPortalSettings);
-  const [phase, setPhase] = useState('idle');
+  const [phase, setPhase] = useState('idle'); // idle | connecting | active | error
   const [agentSpeaking, setAgentSpeaking] = useState(false);
   const [userSpeaking, setUserSpeaking] = useState(false);
   const [transcript, setTranscript] = useState([]);
   const [error, setError] = useState('');
   const [isOpen, setIsOpen] = useState(false);
 
-  const wsRef        = useRef(null);
-  const audioCtxRef  = useRef(null);
+  const wsRef       = useRef(null);
+  const audioCtxRef = useRef(null);
   const micStreamRef = useRef(null);
   const processorRef = useRef(null);
-  const playQueueRef = useRef([]);
+  const playQueueRef = useRef([]);   // ArrayBuffer chunks awaiting playback
   const isPlayingRef = useRef(false);
-  const sourceRef    = useRef(null);
+  const sourceRef   = useRef(null);
 
+  // ── Playback Queue ──────────────────────────────────────────────────────
   const playNextChunk = useCallback(() => {
     if (isPlayingRef.current || playQueueRef.current.length === 0) return;
     const ctx = audioCtxRef.current;
@@ -107,12 +136,17 @@ export default function RosieVoiceAgent() {
 
     isPlayingRef.current = true;
     const chunk = playQueueRef.current.shift();
+
+    // Convert raw linear16 PCM → Float32
     const int16 = new Int16Array(chunk);
     const float32 = new Float32Array(int16.length);
-    for (let i = 0; i < int16.length; i++) float32[i] = int16[i] / 32768.0;
+    for (let i = 0; i < int16.length; i++) {
+      float32[i] = int16[i] / 32768.0;
+    }
 
     const buffer = ctx.createBuffer(1, float32.length, 24000);
     buffer.copyToChannel(float32, 0);
+
     const src = ctx.createBufferSource();
     src.buffer = buffer;
     src.connect(ctx.destination);
@@ -125,6 +159,7 @@ export default function RosieVoiceAgent() {
     src.start();
   }, []);
 
+  // ── Connect ──────────────────────────────────────────────────────────────
   const connect = useCallback(async () => {
     setError('');
     setPhase('connecting');
@@ -138,6 +173,7 @@ export default function RosieVoiceAgent() {
       return;
     }
 
+    // Mic access
     let stream;
     try {
       stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
@@ -148,24 +184,30 @@ export default function RosieVoiceAgent() {
       return;
     }
 
+    // AudioContext for capture + playback
     const ctx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
     audioCtxRef.current = ctx;
 
+    // WebSocket — pass API key via Sec-WebSocket-Protocol header trick for browser
     const ws = new WebSocket(DG_WS_URL, ['token', cfg.deepgramApiKey]);
     ws.binaryType = 'arraybuffer';
     wsRef.current = ws;
 
     ws.onopen = () => {
       setPhase('active');
+      // Send settings immediately
       ws.send(JSON.stringify(buildDGSettings(cfg)));
 
+      // Set up mic capture
       const source = ctx.createMediaStreamSource(stream);
+      // ScriptProcessor: 4096 samples at 16kHz = ~256ms chunks
       const processor = ctx.createScriptProcessor(4096, 1, 1);
       processorRef.current = processor;
 
       processor.onaudioprocess = (e) => {
         if (ws.readyState !== WebSocket.OPEN) return;
         const float32 = e.inputBuffer.getChannelData(0);
+        // Convert float32 → int16 PCM
         const int16 = new Int16Array(float32.length);
         for (let i = 0; i < float32.length; i++) {
           int16[i] = Math.max(-32768, Math.min(32767, Math.round(float32[i] * 32767)));
@@ -178,6 +220,7 @@ export default function RosieVoiceAgent() {
     };
 
     ws.onmessage = (e) => {
+      // Binary = audio PCM from Aura-2
       if (e.data instanceof ArrayBuffer) {
         if (e.data.byteLength > 0) {
           setAgentSpeaking(true);
@@ -186,15 +229,26 @@ export default function RosieVoiceAgent() {
         }
         return;
       }
+
+      // JSON control messages
       try {
         const msg = JSON.parse(e.data);
         switch (msg.type) {
+          case 'SettingsApplied':
+            break;
           case 'ConversationText':
-            setTranscript(prev => [...prev, { role: msg.role, text: msg.content, ts: Date.now() }]);
+            setTranscript(prev => [...prev, {
+              role: msg.role,
+              text: msg.content,
+              ts: Date.now(),
+            }]);
             break;
           case 'UserStartedSpeaking':
             setUserSpeaking(true);
-            if (sourceRef.current) { try { sourceRef.current.stop(); } catch {} }
+            // Barge-in: stop current agent audio
+            if (sourceRef.current) {
+              try { sourceRef.current.stop(); } catch {}
+            }
             playQueueRef.current = [];
             isPlayingRef.current = false;
             setAgentSpeaking(false);
@@ -202,6 +256,9 @@ export default function RosieVoiceAgent() {
           case 'AgentStartedSpeaking':
             setUserSpeaking(false);
             setAgentSpeaking(true);
+            break;
+          case 'AgentAudioDone':
+            // All audio chunks sent; playback finishes naturally
             break;
           case 'Error':
             setError(`Deepgram error: ${msg.description || msg.code}`);
@@ -217,18 +274,32 @@ export default function RosieVoiceAgent() {
       setPhase('error');
     };
 
-    ws.onclose = () => {
-      setPhase('idle');
+    ws.onclose = (e) => {
+      if (phase === 'active' || phase === 'connecting') {
+        setPhase('idle');
+      }
       cleanup(false);
     };
   }, [playNextChunk]);
 
+  // ── Disconnect ───────────────────────────────────────────────────────────
   const cleanup = useCallback((updatePhase = true) => {
-    if (processorRef.current) { try { processorRef.current.disconnect(); } catch {} processorRef.current = null; }
-    if (micStreamRef.current) { micStreamRef.current.getTracks().forEach(t => t.stop()); micStreamRef.current = null; }
-    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) wsRef.current.close();
+    if (processorRef.current) {
+      try { processorRef.current.disconnect(); } catch {}
+      processorRef.current = null;
+    }
+    if (micStreamRef.current) {
+      micStreamRef.current.getTracks().forEach(t => t.stop());
+      micStreamRef.current = null;
+    }
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      wsRef.current.close();
+    }
     wsRef.current = null;
-    if (audioCtxRef.current) { audioCtxRef.current.close().catch(() => {}); audioCtxRef.current = null; }
+    if (audioCtxRef.current) {
+      audioCtxRef.current.close().catch(() => {});
+      audioCtxRef.current = null;
+    }
     playQueueRef.current = [];
     isPlayingRef.current = false;
     if (updatePhase) setPhase('idle');
@@ -236,15 +307,19 @@ export default function RosieVoiceAgent() {
     setUserSpeaking(false);
   }, []);
 
-  const disconnect = useCallback(() => cleanup(true), [cleanup]);
+  const disconnect = useCallback(() => {
+    cleanup(true);
+  }, [cleanup]);
 
   useEffect(() => () => cleanup(false), [cleanup]);
 
+  // ── Render ───────────────────────────────────────────────────────────────
   if (!settings.chatbotEnabled) return null;
 
   const cfg = getPortalSettings();
   const voiceName = AURA2_VOICES.find(v => v.id === cfg.voiceModel)?.name || 'Asteria';
 
+  // Pill button when closed
   if (!isOpen) {
     return (
       <button
@@ -284,9 +359,12 @@ export default function RosieVoiceAgent() {
         padding: '14px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          {/* Animated orb */}
           <div style={{
             width: '36px', height: '36px', borderRadius: '50%', flexShrink: 0,
-            background: phase === 'active' && agentSpeaking ? 'linear-gradient(135deg, #b8933a, #d4aa50)' : 'rgba(184,147,58,0.2)',
+            background: phase === 'active' && agentSpeaking
+              ? 'linear-gradient(135deg, #b8933a, #d4aa50)'
+              : 'rgba(184,147,58,0.2)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             boxShadow: phase === 'active' && agentSpeaking ? '0 0 16px rgba(184,147,58,0.6)' : 'none',
             transition: 'all 0.3s',
@@ -337,14 +415,18 @@ export default function RosieVoiceAgent() {
             <div style={{ color: GOLD, fontSize: '13px' }}>
               {agentSpeaking ? 'Rosie is speaking…' : 'Speak now — Rosie is listening'}
             </div>
-            <div style={{ color: '#4a5568', fontSize: '11px', marginTop: '8px' }}>You can interrupt at any time</div>
+            <div style={{ color: '#4a5568', fontSize: '11px', marginTop: '8px' }}>
+              You can interrupt at any time
+            </div>
           </div>
         )}
         {transcript.map((msg, i) => (
           <div key={i} style={{ display: 'flex', justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start' }}>
             <div style={{
               maxWidth: '85%',
-              background: msg.role === 'user' ? 'linear-gradient(135deg, #b8933a, #d4aa50)' : 'rgba(255,255,255,0.06)',
+              background: msg.role === 'user'
+                ? 'linear-gradient(135deg, #b8933a, #d4aa50)'
+                : 'rgba(255,255,255,0.06)',
               color: msg.role === 'user' ? '#0a0f1e' : '#c4cdd8',
               padding: '10px 14px', borderRadius: '3px', fontSize: '13px', lineHeight: 1.55,
               border: msg.role !== 'user' ? '1px solid rgba(255,255,255,0.07)' : 'none',
@@ -384,7 +466,8 @@ export default function RosieVoiceAgent() {
               flex: 1, background: userSpeaking ? 'rgba(74,222,128,0.1)' : 'rgba(255,255,255,0.04)',
               border: `1px solid ${userSpeaking ? 'rgba(74,222,128,0.4)' : 'rgba(255,255,255,0.08)'}`,
               borderRadius: '2px', padding: '10px 14px',
-              display: 'flex', alignItems: 'center', gap: '8px', transition: 'all 0.2s',
+              display: 'flex', alignItems: 'center', gap: '8px',
+              transition: 'all 0.2s',
             }}>
               <span style={{
                 width: '8px', height: '8px', borderRadius: '50%',
@@ -400,8 +483,11 @@ export default function RosieVoiceAgent() {
             <button onClick={disconnect} style={{
               background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.25)',
               color: '#ef4444', borderRadius: '2px', padding: '10px 16px',
-              cursor: 'pointer', fontSize: '12px', fontFamily: 'Georgia, serif', letterSpacing: '1px',
-            }}>End</button>
+              cursor: 'pointer', fontSize: '12px', fontFamily: 'Georgia, serif',
+              letterSpacing: '1px',
+            }}>
+              End
+            </button>
           </div>
         )}
         <div style={{ color: '#2d3748', fontSize: '10px', textAlign: 'center', marginTop: '8px' }}>
