@@ -54,8 +54,7 @@ export const InvestorUser = {
       if (!users.length) {
         users = await base44.entities.InvestorUser.filter({ email: usernameOrEmail });
       }
-      // Allow login if password matches OR if no password is set on the account
-      const user = users.find(u => !u.password || u.password === password);
+      const user = users.find(u => u.password === password);
       return user || null;
     } catch (e) {
       console.error('[InvestorUser.findByCredentials]', e);
@@ -138,8 +137,9 @@ export const AnalyticsSession = {
 
   async listAll() {
     try {
-      const results = await base44.entities.AnalyticsSession.list();
-      return results.sort((a, b) => new Date(b.startTime) - new Date(a.startTime));
+      return await base44.entities.AnalyticsSession.list({
+        sort: [{ field: 'startTime', direction: 'desc' }],
+      });
     } catch (e) {
       console.error('[AnalyticsSession.listAll]', e);
       return [];
