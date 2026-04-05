@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { usePortalAuth } from '@/lib/PortalAuthContext';
 import analytics from '@/lib/analytics';
+import { getPortalSettings } from '@/lib/portalSettings';
 
 const LOGO_URL = "https://media.base44.com/images/public/69cd2741578c9b5ce655395b/39a31f9b9_Untitleddesign3.png";
 
@@ -942,10 +943,17 @@ export default function InvestorPortal() {
 // ─── Portal Home / Overview ───────────────────────────────────────────────
 // ─── Raise Progress Bars ─────────────────────────────────────────────────
 function RaiseProgress() {
-  const TOTAL_RAISE = 2500000;
-  const COMMITTED = 875000;
-  const INVESTED = 500000;
-  const INVESTED_TARGET = 500000;
+  const [s, setS] = useState(getPortalSettings());
+  useEffect(() => {
+    const handler = (e) => setS(e.detail);
+    window.addEventListener('portalSettingsChanged', handler);
+    return () => window.removeEventListener('portalSettingsChanged', handler);
+  }, []);
+
+  const TOTAL_RAISE = Number(s.totalRaise) || 2500000;
+  const COMMITTED = Number(s.committedCapital) || 0;
+  const INVESTED = Number(s.investedCapital) || 0;
+  const INVESTED_TARGET = Number(s.investedTarget) || 500000;
 
   const committedPct = Math.min((COMMITTED / TOTAL_RAISE) * 100, 100);
   const investedPct = Math.min((INVESTED / INVESTED_TARGET) * 100, 100);
@@ -996,9 +1004,17 @@ function RaiseProgress() {
 
 // ─── Rosie AI Chat Bot ────────────────────────────────────────────────────
 function RosieChat() {
-  const [messages, setMessages] = useState([
-    { role: 'assistant', text: "Hi! I'm Rosie, Rosie AI's investment assistant. I can answer questions about our platform, the investment opportunity, terms, market data, or the subscription process. What would you like to know?" }
-  ]);
+  const [settings, setSettings] = useState(getPortalSettings());
+  useEffect(() => {
+    const handler = (e) => setSettings(e.detail);
+    window.addEventListener('portalSettingsChanged', handler);
+    return () => window.removeEventListener('portalSettingsChanged', handler);
+  }, []);
+
+  const [messages, setMessages] = useState(() => {
+    const s = getPortalSettings();
+    return [{ role: 'assistant', text: s.chatbotGreeting }];
+  });
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
@@ -1016,20 +1032,7 @@ function RosieChat() {
     setLoading(true);
 
     try {
-      const systemPrompt = `You are Rosie, the AI investment assistant for Rosie AI LLC — an enterprise AI voice agent platform. 
-You help accredited investors understand the investment opportunity. Be concise, professional, and confident.
-
-Key facts:
-- Raise: $2.5M SAFE Note, $15M valuation cap, 20% discount
-- Minimum investment: $25,000
-- Rosie AI automates sales calls using AI — 15x cheaper than human SDRs at $0.01/min
-- Market: AI Voice API growing from $4.1B to $40B by 2032 (38.46% CAGR)
-- Current ARR: $380K, 47+ clients, 1.2M+ calls processed
-- Projections: $2.1M ARR by 2026, $22M by 2028
-- Contact: Investors@RosieAI.com | 216-332-4234
-- Address: 1234 Main St, Cleveland, OH
-
-Keep answers to 2-4 sentences unless detail is requested. Be warm but professional.`;
+      const systemPrompt = settings.chatbotContext || `You are Rosie, the investment assistant for Rosie AI LLC. Be concise and professional.`;
 
       const res = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
@@ -1066,6 +1069,8 @@ Keep answers to 2-4 sentences unless detail is requested. Be warm but profession
     'What is the minimum investment?',
     'How do I subscribe?',
   ];
+
+  if (!settings.chatbotEnabled) return null;
 
   if (!isOpen) {
     return (
@@ -1216,6 +1221,13 @@ Keep answers to 2-4 sentences unless detail is requested. Be warm but profession
 
 // ─── Portal Home ──────────────────────────────────────────────────────────
 function PortalHome({ setActiveTab }) {
+  const [s, setS] = useState(getPortalSettings());
+  useEffect(() => {
+    const handler = (e) => setS(e.detail);
+    window.addEventListener('portalSettingsChanged', handler);
+    return () => window.removeEventListener('portalSettingsChanged', handler);
+  }, []);
+
   const navCards = [
     { tab: 'offering',     icon: '📊', title: 'Investment Offering',      desc: 'Full memorandum, financials, team & terms. Download PDF.' },
     { tab: 'subscription', icon: '✍️', title: 'Subscription Agreements', desc: 'Execute docs & request DocuSign. Min. $25K.' },
@@ -1232,13 +1244,13 @@ function PortalHome({ setActiveTab }) {
         <div>
           {/* Header */}
           <p style={{ color: GOLD, fontSize: '10px', letterSpacing: '4px', textTransform: 'uppercase', marginBottom: '10px', margin: '0 0 10px' }}>
-            Confidential · Authorized Access Only
+            {s.portalTagline}
           </p>
           <h1 style={{ color: '#e8e0d0', fontSize: '30px', fontWeight: 'normal', margin: '0 0 12px', lineHeight: 1.2, fontFamily: 'Georgia, serif' }}>
-            Welcome to the Rosie AI<br />Investor Data Portal
+            {s.portalHeadline?.split('\n').map((line, i) => <span key={i}>{line}{i === 0 ? <br /> : null}</span>)}
           </h1>
           <p style={{ color: '#6b7280', fontSize: '14px', lineHeight: 1.65, margin: '0 0 28px', maxWidth: '560px' }}>
-            This secure portal gives authorized investors access to all materials, documents, and updates on the Rosie AI investment opportunity. Use the tabs above or the navigation below to explore.
+            {s.portalSubtext}
           </p>
 
           {/* Raise Progress Bars */}
@@ -1280,13 +1292,13 @@ function PortalHome({ setActiveTab }) {
             <div style={{ color: GOLD, fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '12px' }}>
               Investor Relations
             </div>
-            <div style={{ color: '#c4cdd8', fontSize: '13px', fontWeight: 'bold', marginBottom: '6px' }}>Rosie AI LLC</div>
+            <div style={{ color: '#c4cdd8', fontSize: '13px', fontWeight: 'bold', marginBottom: '6px' }}>{s.companyName}</div>
             <div style={{ color: '#6b7280', fontSize: '12px', lineHeight: 2 }}>
-              1234 Main St<br />
-              Cleveland, OH<br />
-              <a href="tel:2163324234" style={{ color: '#8a9ab8', textDecoration: 'none' }}>216-332-4234</a><br />
-              <a href="mailto:Investors@RosieAI.com" style={{ color: GOLD, textDecoration: 'none', fontSize: '12px' }}>
-                Investors@RosieAI.com
+              {s.address1}<br />
+              {s.address2}<br />
+              <a href={`tel:${s.phone?.replace(/\D/g,'')}`} style={{ color: '#8a9ab8', textDecoration: 'none' }}>{s.phone}</a><br />
+              <a href={`mailto:${s.email}`} style={{ color: GOLD, textDecoration: 'none', fontSize: '12px' }}>
+                {s.email}
               </a>
             </div>
           </div>
@@ -1296,7 +1308,7 @@ function PortalHome({ setActiveTab }) {
       {/* Disclosure */}
       <div style={{ paddingTop: '24px', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
         <p style={{ color: '#2d3748', fontSize: '11px', lineHeight: 1.7, margin: 0 }}>
-          <strong style={{ color: '#374151' }}>Important Disclosure:</strong> The information contained in this portal is strictly confidential and intended solely for authorized investors. This material does not constitute an offer to sell securities. Investment involves risk. Past performance is not indicative of future results. Please review all risk factors before investing.
+          <strong style={{ color: '#374151' }}>Important Disclosure:</strong> {s.disclosureText}
         </p>
       </div>
 
