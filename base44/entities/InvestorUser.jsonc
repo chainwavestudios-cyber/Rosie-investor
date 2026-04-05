@@ -1,0 +1,41 @@
+{
+  "name": "InvestorUser",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "title": "Full Name"
+    },
+    "username": {
+      "type": "string",
+      "title": "Username"
+    },
+    "email": {
+      "type": "string",
+      "title": "Email"
+    },
+    "password": {
+      "type": "string",
+      "title": "Password"
+    },
+    "role": {
+      "type": "string",
+      "title": "Role",
+      "enum": [
+        "investor",
+        "admin"
+      ],
+      "default": "investor"
+    },
+    "company": {
+      "type": "string",
+      "title": "Company / Fund"
+    }
+  },
+  "required": [
+    "name",
+    "username",
+    "password",
+    "role"
+  ]
+}
