@@ -523,22 +523,84 @@ function PortalControls() {
                 </div>
                 <F label="Active Voice Model ID" value={s.voiceModel} onChange={e=>upd('voiceModel',e.target.value)} placeholder="aura-2-asteria-en" mono={true} />
               </div>
+              {/* STT Model */}
+              <div style={{ marginBottom:'16px' }}>
+                <label style={ls}>STT Model (Speech-to-Text) — included in $4.50/hr</label>
+                <select value={s.sttModel||'nova-3'} onChange={e=>upd('sttModel',e.target.value)} style={{ ...inp, cursor:'pointer' }}>
+                  <option value="nova-3">Nova-3 — best accuracy (recommended)</option>
+                  <option value="nova-2">Nova-2 — proven, reliable</option>
+                  <option value="flux-general-en">Flux — lowest latency (Early Access)</option>
+                </select>
+              </div>
+
               {/* LLM */}
               <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'16px', marginBottom:'16px' }}>
                 <div>
                   <label style={ls}>LLM Provider</label>
-                  <select value={s.llmProvider||'anthropic'} onChange={e=>upd('llmProvider',e.target.value)} style={{ ...inp, cursor:'pointer' }}>
-                    <option value="anthropic">Anthropic (Claude)</option>
+                  <select value={s.llmProvider||'open_ai'} onChange={e=>{ upd('llmProvider',e.target.value); upd('llmModel', e.target.value==='open_ai'?'gpt-4.1-mini': e.target.value==='anthropic'?'claude-4-5-haiku-latest': e.target.value==='google'?'gemini-2.5-flash-lite': e.target.value==='nvidia'?'nemotron-3-nano-30B-A3B': 'openai/gpt-oss-20b'); }} style={{ ...inp, cursor:'pointer' }}>
                     <option value="open_ai">OpenAI (GPT)</option>
+                    <option value="anthropic">Anthropic (Claude)</option>
+                    <option value="google">Google (Gemini)</option>
+                    <option value="nvidia">NVIDIA (Nemotron)</option>
                     <option value="groq">Groq</option>
                   </select>
                 </div>
                 <div>
-                  <label style={ls}>LLM Model</label>
-                  <select value={s.llmModel||'claude-sonnet-4-5'} onChange={e=>upd('llmModel',e.target.value)} style={{ ...inp, cursor:'pointer' }}>
-                    {(!s.llmProvider||s.llmProvider==='anthropic') && <><option value="claude-sonnet-4-5">claude-sonnet-4-5</option><option value="claude-haiku-4-5-20251001">claude-haiku-4-5</option><option value="claude-opus-4-5">claude-opus-4-5</option></>}
-                    {s.llmProvider==='open_ai' && <><option value="gpt-4o-mini">gpt-4o-mini</option><option value="gpt-4o">gpt-4o</option></>}
-                    {s.llmProvider==='groq' && <><option value="llama-3.1-8b-instant">llama-3.1-8b-instant</option><option value="llama-3.3-70b-versatile">llama-3.3-70b-versatile</option></>}
+                  <label style={ls}>LLM Model — Standard tier = $4.50/hr · Advanced = higher</label>
+                  <select value={s.llmModel} onChange={e=>upd('llmModel',e.target.value)} style={{ ...inp, cursor:'pointer' }}>
+                    {(s.llmProvider==='open_ai'||!s.llmProvider) && <>
+                      <optgroup label="Standard Tier (included in $4.50/hr)">
+                        <option value="gpt-4.1-nano">GPT-4.1 nano — fastest, cheapest</option>
+                        <option value="gpt-4.1-mini">GPT-4.1 mini — recommended</option>
+                        <option value="gpt-4o-mini">GPT-4o mini</option>
+                        <option value="gpt-5-nano">GPT-5 nano</option>
+                        <option value="gpt-5-mini">GPT-5 mini</option>
+                        <option value="gpt-5.4-nano">GPT-5.4 nano</option>
+                        <option value="gpt-5.4-mini">GPT-5.4 mini</option>
+                      </optgroup>
+                      <optgroup label="Advanced Tier (extra cost)">
+                        <option value="gpt-4.1">GPT-4.1</option>
+                        <option value="gpt-4o">GPT-4o</option>
+                        <option value="gpt-5">GPT-5</option>
+                        <option value="gpt-5.4">GPT-5.4</option>
+                        <option value="gpt-5.2-chat-latest">GPT-5.2 Instant</option>
+                        <option value="gpt-5.3-chat-latest">GPT-5.3 Instant</option>
+                      </optgroup>
+                    </>}
+                    {s.llmProvider==='anthropic' && <>
+                      <optgroup label="Standard Tier">
+                        <option value="claude-4-5-haiku-latest">Claude Haiku 4.5 — fastest</option>
+                        <option value="claude-3-5-haiku-latest">Claude Haiku 3.5</option>
+                      </optgroup>
+                      <optgroup label="Advanced Tier (extra cost)">
+                        <option value="claude-sonnet-4-5">Claude Sonnet 4.5</option>
+                        <option value="claude-sonnet-4-6">Claude Sonnet 4.6</option>
+                        <option value="claude-sonnet-4-20250514">Claude Sonnet 4</option>
+                      </optgroup>
+                    </>}
+                    {s.llmProvider==='google' && <>
+                      <optgroup label="Standard Tier">
+                        <option value="gemini-2.5-flash-lite">Gemini 2.5 Flash Lite — cheapest</option>
+                        <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
+                        <option value="gemini-2.0-flash">Gemini 2.0 Flash</option>
+                        <option value="gemini-3-flash-preview">Gemini 3.0 Flash</option>
+                        <option value="gemini-3.1-flash-lite-preview">Gemini 3.1 Flash Lite</option>
+                      </optgroup>
+                      <optgroup label="Advanced Tier (extra cost)">
+                        <option value="gemini-3-pro-preview">Gemini 3.0 Pro</option>
+                      </optgroup>
+                    </>}
+                    {s.llmProvider==='nvidia' && <>
+                      <optgroup label="Standard Tier">
+                        <option value="nemotron-3-nano-30B-A3B">Nemotron 3 Nano 30B — fastest</option>
+                        <option value="llama-nemotron-super-49B">Llama Nemotron Super 49B</option>
+                      </optgroup>
+                    </>}
+                    {s.llmProvider==='groq' && <>
+                      <optgroup label="Standard Tier">
+                        <option value="openai/gpt-oss-20b">GPT OSS 20B (via Groq)</option>
+                      </optgroup>
+                    </>}
                   </select>
                 </div>
               </div>
