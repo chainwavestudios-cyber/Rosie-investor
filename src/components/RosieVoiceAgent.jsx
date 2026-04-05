@@ -20,7 +20,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { getPortalSettings } from '@/lib/portalSettings';
 
 const GOLD = '#b8933a';
-const DG_WS_URL = 'wss://agent.deepgram.com/v1/agent';
+const DG_WS_URL = 'wss://agent.deepgram.com/v1/agent/converse';
 
 // All Aura-2 English voices with gender/tone metadata
 export const AURA2_VOICES = [
@@ -74,11 +74,15 @@ export const AURA2_VOICES = [
 // listen: { provider: { type, model } }
 // think:  { provider: { type, model }, prompt }
 // speak:  { provider: { type, model } }
-function buildDGSettings(cfg) {
+function buildDGSettings(cfg, userName) {
   const systemPrompt = [
     cfg.chatbotContext || 'You are Rosie, a helpful investment assistant for Rosie AI LLC.',
     cfg.knowledgeBase ? `\n\n--- KNOWLEDGE BASE ---\n${cfg.knowledgeBase}` : '',
   ].join('');
+
+  // Personalise greeting with investor's name
+  const firstName = (userName || 'there').split(' ')[0];
+  const greeting = `Hello ${firstName}, welcome to Rosie AI. I'm Rosie, your investment assistant. How can I help you today?`;
 
   return {
     type: 'Settings',
@@ -87,7 +91,7 @@ function buildDGSettings(cfg) {
       output: { encoding: 'linear16', sample_rate: 24000, container: 'none' },
     },
     agent: {
-      greeting: cfg.chatbotGreeting || "Hi! I'm Rosie. How can I help you today?",
+      greeting,
       listen: {
         provider: {
           type:  'deepgram',
@@ -111,14 +115,14 @@ function buildDGSettings(cfg) {
   };
 }
 
-export default function RosieVoiceAgent() {
+export default function RosieVoiceAgent({ userName = 'there' }) {
   const [settings] = useState(getPortalSettings);
   const [phase, setPhase] = useState('idle'); // idle | connecting | active | error
   const [agentSpeaking, setAgentSpeaking] = useState(false);
   const [userSpeaking, setUserSpeaking] = useState(false);
   const [transcript, setTranscript] = useState([]);
   const [error, setError] = useState('');
-  const [isOpen, setIsOpen] = useState(false);
+  const [isOpen, setIsOpen] = useState(true);
 
   const wsRef       = useRef(null);
   const audioCtxRef = useRef(null);
@@ -188,15 +192,16 @@ export default function RosieVoiceAgent() {
     const ctx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
     audioCtxRef.current = ctx;
 
-    // WebSocket — pass API key via Sec-WebSocket-Protocol header trick for browser
-    const ws = new WebSocket(DG_WS_URL, ['token', cfg.deepgramApiKey]);
+    // Pass API key as query param — required for browser WebSocket (no custom headers)
+    const wsUrl = `${DG_WS_URL}?token=${encodeURIComponent(cfg.deepgramApiKey)}`;
+    const ws = new WebSocket(wsUrl);
     ws.binaryType = 'arraybuffer';
     wsRef.current = ws;
 
     ws.onopen = () => {
       setPhase('active');
       // Send settings immediately
-      ws.send(JSON.stringify(buildDGSettings(cfg)));
+      ws.send(JSON.stringify(buildDGSettings(cfg, userName)));
 
       // Set up mic capture
       const source = ctx.createMediaStreamSource(stream);
@@ -312,6 +317,19 @@ export default function RosieVoiceAgent() {
   }, [cleanup]);
 
   useEffect(() => () => cleanup(false), [cleanup]);
+
+  // ── Auto-connect on mount ────────────────────────────────────────────────
+  useEffect(() => {
+    // Small delay so portalSettings can load from Base44 first
+    const timer = setTimeout(() => {
+      const cfg = getPortalSettings();
+      if (cfg.deepgramApiKey && cfg.chatbotEnabled) {
+        connect();
+      }
+      // If no API key, show idle state so user sees the UI but not an error
+    }, 800);
+    return () => clearTimeout(timer);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Render ───────────────────────────────────────────────────────────────
   if (!settings.chatbotEnabled) return null;
