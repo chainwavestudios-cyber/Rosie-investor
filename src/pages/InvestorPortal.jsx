@@ -2,8 +2,9 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { usePortalAuth } from '@/lib/PortalAuthContext';
 import analytics from '@/lib/analytics';
-import { getPortalSettings } from '@/lib/portalSettings';
+import { getPortalSettings, loadPortalSettings } from '@/lib/portalSettings';
 import RosieVoiceAgent from '@/components/RosieVoiceAgent';
+import { InvestorUpdateDB, DocusignRequestDB } from '@/api/entities';
 
 const LOGO_URL = "https://media.base44.com/images/public/69cd2741578c9b5ce655395b/39a31f9b9_Untitleddesign3.png";
 
@@ -84,7 +85,17 @@ function DocusignModal({ onClose }) {
   });
   const [submitted, setSubmitted] = useState(false);
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
+    try {
+      await DocusignRequestDB.create({
+        ...form,
+        submittedByUsername: sessionStorage.getItem('rosie_portal_auth')
+          ? JSON.parse(sessionStorage.getItem('rosie_portal_auth')).username
+          : 'unknown',
+      });
+    } catch (e) {
+      console.error('DocuSign save failed:', e);
+    }
     analytics.trackDownload('DocuSign Request - ' + form.firstName + ' ' + form.lastName, 'docusign_request');
     setSubmitted(true);
   };
@@ -633,7 +644,7 @@ const SUBSCRIPTION_DOC = {
   pages: [
     { title: 'Cover Page & Parties', content: '<p><strong>SIMPLE AGREEMENT FOR FUTURE EQUITY (SAFE)</strong></p><p>This Simple Agreement for Future Equity (this <em>"SAFE"</em>) is entered into as of the date last signed below, between:</p><p><strong>Rosie AI LLC</strong>, a limited liability company organized under the laws of the State of Ohio (the <em>"Company"</em>), and the investor identified on the signature page (the <em>"Investor"</em>).</p><p>This SAFE is one of a series of SAFEs being issued by the Company to investors in connection with a financing round.</p><p><strong>Valuation Cap:</strong> $15,000,000<br><strong>Discount Rate:</strong> 20%<br><strong>Minimum Investment:</strong> $25,000</p>' },
     { title: 'Investment Terms', content: '<p>The Company is issuing this SAFE in exchange for the payment by the Investor of the <strong>Purchase Amount</strong> indicated on the signature page.</p><p><strong>Section 1. Events.</strong></p><p><em>(a) Equity Financing.</em> If there is an Equity Financing before the termination of this SAFE, on the initial closing of such Equity Financing, this SAFE will automatically convert into the number of shares of Safe Preferred Stock equal to the Purchase Amount divided by the Conversion Price.</p><p><em>Conversion Price</em> means the lower of: (i) the Safe Price, or (ii) the Discount Price.</p><p><strong>Safe Price</strong> means the price per share equal to the Valuation Cap divided by the Diluted Shares Outstanding immediately prior to the closing of the Equity Financing.</p>' },
-    { title: 'Liquidity Event', content: '<p><strong>(b) Liquidity Event.</strong> If there is a Liquidity Event before the termination of this SAFE, the Investor will, at the Investor\'s option, either: (i) receive a cash payment equal to the Purchase Amount, or (ii) automatically receive from the Company a number of shares of Common Stock equal to the Purchase Amount divided by the Liquidity Price.</p><p><em>Liquidity Price</em> means the price per share equal to the Valuation Cap divided by the Diluted Shares Outstanding immediately prior to the Liquidity Event.</p><p>The Company shall provide the Investor with written notice of a Liquidity Event at least ten (10) business days prior to the anticipated closing date.</p>' },
+    { title: 'Liquidity Event', content: '<p><strong>(b) Liquidity Event.</strong> If there is a Liquidity Event before the termination of this SAFE, the Investor will, at the Investor's option, either: (i) receive a cash payment equal to the Purchase Amount, or (ii) automatically receive from the Company a number of shares of Common Stock equal to the Purchase Amount divided by the Liquidity Price.</p><p><em>Liquidity Price</em> means the price per share equal to the Valuation Cap divided by the Diluted Shares Outstanding immediately prior to the Liquidity Event.</p><p>The Company shall provide the Investor with written notice of a Liquidity Event at least ten (10) business days prior to the anticipated closing date.</p>' },
     { title: 'Dissolution Event', content: '<p><strong>(c) Dissolution Event.</strong> If there is a Dissolution Event before the termination of this SAFE, the Company will pay an amount equal to the Purchase Amount, due and payable to the Investor immediately prior to, or concurrent with, the consummation of the Dissolution Event.</p><p>The Purchase Amount will be paid prior to any payment to holders of outstanding Capital Stock by reason of their ownership of such Capital Stock.</p><p>If immediately prior to the consummation of the Dissolution Event, the assets of the Company legally available for distribution to the Investor and all holders of all other SAFEs are insufficient to permit the payment of the Purchase Amount and all such other amounts, then the entire assets of the Company legally available for distribution will be distributed with equal priority among the Investor and all other SAFE holders on a pro rata basis.</p>' },
     { title: 'Company Representations', content: '<p><strong>Section 2. Company Representations.</strong></p><p>In connection with the issuance of this SAFE, the Company represents and warrants to the Investor, as of the date hereof, as follows:</p><p><em>(a)</em> The Company is a limited liability company duly organized, validly existing and in good standing under the laws of its state of formation, and has the power and authority to own, lease and operate its properties and carry on its business.</p><p><em>(b)</em> The execution, delivery and performance by the Company of this SAFE is within the power of the Company and has been duly authorized by all necessary actions on the part of the Company.</p><p><em>(c)</em> This SAFE constitutes a legal, valid and binding obligation of the Company, enforceable against the Company in accordance with its terms.</p>' },
     { title: 'Investor Representations', content: '<p><strong>Section 3. Investor Representations.</strong></p><p><em>(a)</em> The Investor has full legal capacity, power and authority to execute and deliver this SAFE and to perform its obligations hereunder.</p><p><em>(b)</em> The Investor is an <strong>accredited investor</strong> as such term is defined in Rule 501(a) of Regulation D under the Securities Act of 1933, as amended.</p><p><em>(c)</em> The Investor has been advised that this SAFE has not been registered under the Securities Act, or any state securities laws and, therefore, cannot be resold unless it is registered under the Securities Act and applicable state securities laws or unless an exemption from such registration requirements is available.</p><p><em>(d)</em> The Investor is purchasing this SAFE for its own account, for investment purposes only and not with a view to, or for, resale, distribution or fractionalization thereof.</p>' },
@@ -868,56 +879,63 @@ function MarketData() {
 }
 
 // ─── Tab: Investor Updates ────────────────────────────────────────────────
-const UPDATES_KEY = 'rosie_investor_updates';
-
 function InvestorUpdates({ isAdmin }) {
   const [updates, setUpdates] = useState([]);
   const [showForm, setShowForm] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [form, setForm] = useState({ title: '', content: '', category: 'General Update' });
 
-  useEffect(() => {
-    loadUpdates();
-  }, []);
+  useEffect(() => { loadUpdates(); }, []);
 
-  function loadUpdates() {
+  async function loadUpdates() {
+    setLoading(true);
     try {
-      const raw = localStorage.getItem(UPDATES_KEY);
-      const arr = raw ? JSON.parse(raw) : getSampleUpdates();
-      setUpdates(arr.sort((a, b) => new Date(b.date) - new Date(a.date)));
-    } catch {
-      setUpdates(getSampleUpdates());
+      const arr = await InvestorUpdateDB.list();
+      if (arr.length === 0) {
+        // Seed sample updates on first load
+        await seedSampleUpdates();
+        const seeded = await InvestorUpdateDB.list();
+        setUpdates(seeded);
+      } else {
+        setUpdates(arr);
+      }
+    } catch (e) {
+      console.error('loadUpdates:', e);
+    } finally {
+      setLoading(false);
     }
   }
 
-  function getSampleUpdates() {
-    return [
-      { id: 1, title: 'Q1 2025 Performance Update', content: 'We are pleased to report strong Q1 2025 results. Revenue grew 47% QoQ to $95K MRR. We onboarded 12 new enterprise clients in solar and insurance verticals. Product shipped 3 major releases including our new Workflow Manager and Apify integration.', date: '2025-04-01', category: 'Financial Update', author: 'Management Team' },
-      { id: 2, title: 'New Partnership: Major Telecom Provider', content: 'Rosie AI has signed a strategic partnership with a top-10 US telecom provider, granting us preferred API access and co-marketing opportunities. This partnership is expected to reduce our per-call infrastructure cost by an additional 30% and open access to their enterprise client network.', date: '2025-03-15', category: 'Partnership', author: 'Management Team' },
-      { id: 3, title: 'Product Launch: Rosie 2.0', content: 'Today we launched Rosie 2.0, our most significant platform update to date. Highlights include our new real-time conversation AI engine with <150ms latency, redesigned campaign management dashboard, and native HubSpot and Salesforce bi-directional sync. Early feedback from beta users has been exceptional.', date: '2025-02-28', category: 'Product Update', author: 'Product Team' },
+  async function seedSampleUpdates() {
+    const samples = [
+      { title: 'Q1 2025 Performance Update', content: 'We are pleased to report strong Q1 2025 results. Revenue grew 47% QoQ to $95K MRR. We onboarded 12 new enterprise clients in solar and insurance verticals. Product shipped 3 major releases including our new Workflow Manager and Apify integration.', category: 'Financial Update', author: 'Management Team', publishedAt: '2025-04-01T00:00:00.000Z' },
+      { title: 'New Partnership: Major Telecom Provider', content: 'Rosie AI has signed a strategic partnership with a top-10 US telecom provider, granting us preferred API access and co-marketing opportunities. This partnership is expected to reduce our per-call infrastructure cost by an additional 30% and open access to their enterprise client network.', category: 'Partnership', author: 'Management Team', publishedAt: '2025-03-15T00:00:00.000Z' },
+      { title: 'Product Launch: Rosie 2.0', content: 'Today we launched Rosie 2.0, our most significant platform update to date. Highlights include our new real-time conversation AI engine with less than 150ms latency, redesigned campaign management dashboard, and native HubSpot and Salesforce bi-directional sync. Early feedback from beta users has been exceptional.', category: 'Product Update', author: 'Product Team', publishedAt: '2025-02-28T00:00:00.000Z' },
     ];
+    for (const s of samples) {
+      try { await InvestorUpdateDB.create(s); } catch {}
+    }
   }
 
-  function postUpdate() {
-    const newUpdate = {
-      id: Date.now(),
-      title: form.title,
-      content: form.content,
-      category: form.category,
-      date: new Date().toISOString().split('T')[0],
-      author: 'Admin',
-    };
-    const current = [...updates, newUpdate].sort((a, b) => new Date(b.date) - new Date(a.date));
-    setUpdates(current);
-    localStorage.setItem(UPDATES_KEY, JSON.stringify(current));
-    setForm({ title: '', content: '', category: 'General Update' });
-    setShowForm(false);
+  async function postUpdate() {
+    try {
+      await InvestorUpdateDB.create({ title: form.title, content: form.content, category: form.category, author: 'Admin' });
+      setForm({ title: '', content: '', category: 'General Update' });
+      setShowForm(false);
+      loadUpdates();
+    } catch (e) {
+      console.error('postUpdate:', e);
+    }
   }
 
-  function deleteUpdate(id) {
+  async function deleteUpdate(id) {
     if (!window.confirm('Delete this update?')) return;
-    const filtered = updates.filter(u => u.id !== id);
-    setUpdates(filtered);
-    localStorage.setItem(UPDATES_KEY, JSON.stringify(filtered));
+    try {
+      await InvestorUpdateDB.delete(id);
+      setUpdates(prev => prev.filter(u => u.id !== id));
+    } catch (e) {
+      console.error('deleteUpdate:', e);
+    }
   }
 
   const categoryColors = {
@@ -1099,6 +1117,7 @@ export default function InvestorPortal() {
 function RaiseProgress() {
   const [s, setS] = useState(getPortalSettings());
   useEffect(() => {
+    loadPortalSettings().then(setS);
     const handler = (e) => setS(e.detail);
     window.addEventListener('portalSettingsChanged', handler);
     return () => window.removeEventListener('portalSettingsChanged', handler);
@@ -1160,6 +1179,7 @@ function RaiseProgress() {
 function PortalHome({ setActiveTab }) {
   const [s, setS] = useState(getPortalSettings());
   useEffect(() => {
+    loadPortalSettings().then(setS);
     const handler = (e) => setS(e.detail);
     window.addEventListener('portalSettingsChanged', handler);
     return () => window.removeEventListener('portalSettingsChanged', handler);
