@@ -9,26 +9,38 @@ export default function PortalLogin() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const { portalLogin } = usePortalAuth();
+  const { portalLogin, isPortalLoading } = usePortalAuth();
   const navigate = useNavigate();
+
+  if (isPortalLoading) {
+    return (
+      <div style={{ minHeight:'100vh', background:'#0a0f1e', display:'flex', alignItems:'center', justifyContent:'center' }}>
+        <div style={{ width:'28px', height:'28px', border:'3px solid rgba(184,147,58,0.2)', borderTop:'3px solid #b8933a', borderRadius:'50%', animation:'spin 0.8s linear infinite' }} />
+        <style>{`@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}`}</style>
+      </div>
+    );
+  }
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
     setLoading(true);
-    
-    await new Promise(r => setTimeout(r, 600));
-    const result = portalLogin(username, password);
-    setLoading(false);
-    
-    if (result.success) {
-      if (result.user.role === 'admin') {
-        navigate('/admin');
+    try {
+      const result = await portalLogin(username, password);
+      if (result.success) {
+        if (result.user.role === 'admin') {
+          // Admins who accidentally hit /portal-login still land correctly
+          navigate('/admin');
+        } else {
+          navigate('/portal');
+        }
       } else {
-        navigate('/portal');
+        setError(result.error || 'Invalid credentials');
       }
-    } else {
-      setError(result.error);
+    } catch (err) {
+      setError('Login failed — please try again');
+    } finally {
+      setLoading(false);
     }
   };
 
