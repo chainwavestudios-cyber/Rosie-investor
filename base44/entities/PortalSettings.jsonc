@@ -1,0 +1,115 @@
+{
+  "name": "PortalSettings",
+  "type": "object",
+  "properties": {
+    "key": {
+      "type": "string",
+      "title": "Key",
+      "default": "global"
+    },
+    "totalRaise": {
+      "type": "number",
+      "title": "Total Raise Target"
+    },
+    "committedCapital": {
+      "type": "number",
+      "title": "Committed Capital"
+    },
+    "investedCapital": {
+      "type": "number",
+      "title": "Invested Capital"
+    },
+    "investedTarget": {
+      "type": "number",
+      "title": "Invested Capital Target"
+    },
+    "companyName": {
+      "type": "string",
+      "title": "Company Name"
+    },
+    "address1": {
+      "type": "string",
+      "title": "Address Line 1"
+    },
+    "address2": {
+      "type": "string",
+      "title": "Address Line 2"
+    },
+    "phone": {
+      "type": "string",
+      "title": "Phone"
+    },
+    "email": {
+      "type": "string",
+      "title": "Investor Email"
+    },
+    "voiceModel": {
+      "type": "string",
+      "title": "Voice Model (Aura-2 ID)"
+    },
+    "llmProvider": {
+      "type": "string",
+      "title": "LLM Provider"
+    },
+    "llmModel": {
+      "type": "string",
+      "title": "LLM Model"
+    },
+    "chatbotEnabled": {
+      "type": "boolean",
+      "title": "Chatbot Enabled"
+    },
+    "chatbotGreeting": {
+      "type": "string",
+      "title": "Chatbot Greeting",
+      "format": "textarea"
+    },
+    "chatbotContext": {
+      "type": "string",
+      "title": "System Prompt",
+      "format": "textarea"
+    },
+    "knowledgeBase": {
+      "type": "string",
+      "title": "Knowledge Base",
+      "format": "textarea"
+    },
+    "portalTagline": {
+      "type": "string",
+      "title": "Portal Tagline"
+    },
+    "portalHeadline": {
+      "type": "string",
+      "title": "Portal Headline"
+    },
+    "portalSubtext": {
+      "type": "string",
+      "title": "Portal Subtext",
+      "format": "textarea"
+    },
+    "disclosureText": {
+      "type": "string",
+      "title": "Disclosure Text",
+      "format": "textarea"
+    },
+    "showCalculator": {
+      "type": "boolean",
+      "title": "Show Calculator"
+    },
+    "showMarketData": {
+      "type": "boolean",
+      "title": "Show Market Data Tab"
+    },
+    "showSubscription": {
+      "type": "boolean",
+      "title": "Show Subscription Tab"
+    },
+    "portalActive": {
+      "type": "boolean",
+      "title": "Portal Active"
+    }
+  },
+  "required": [
+    "key"
+  ]
+}
