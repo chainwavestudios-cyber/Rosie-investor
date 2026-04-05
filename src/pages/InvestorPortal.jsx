@@ -940,52 +940,368 @@ export default function InvestorPortal() {
 }
 
 // ─── Portal Home / Overview ───────────────────────────────────────────────
+// ─── Raise Progress Bars ─────────────────────────────────────────────────
+function RaiseProgress() {
+  const TOTAL_RAISE = 2500000;
+  const COMMITTED = 875000;
+  const INVESTED = 500000;
+  const INVESTED_TARGET = 500000;
+
+  const committedPct = Math.min((COMMITTED / TOTAL_RAISE) * 100, 100);
+  const investedPct = Math.min((INVESTED / INVESTED_TARGET) * 100, 100);
+
+  const fmt = (n) => n >= 1000000
+    ? `$${(n / 1000000).toFixed(2)}M`
+    : `$${(n / 1000).toFixed(0)}K`;
+
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '32px' }}>
+      {[
+        {
+          label: 'Committed Capital',
+          current: COMMITTED,
+          total: TOTAL_RAISE,
+          pct: committedPct,
+          color: GOLD,
+          sub: `${fmt(COMMITTED)} of ${fmt(TOTAL_RAISE)} raise`,
+        },
+        {
+          label: 'Invested Capital',
+          current: INVESTED,
+          total: INVESTED_TARGET,
+          pct: investedPct,
+          color: '#4ade80',
+          sub: `${fmt(INVESTED)} of ${fmt(INVESTED_TARGET)} deployed`,
+        },
+      ].map(({ label, current, total, pct, color, sub }) => (
+        <div key={label} style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '2px', padding: '20px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '10px' }}>
+            <span style={{ color: '#8a9ab8', fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase' }}>{label}</span>
+            <span style={{ color, fontSize: '22px', fontWeight: 'bold' }}>{Math.round(pct)}%</span>
+          </div>
+          <div style={{ background: 'rgba(255,255,255,0.06)', borderRadius: '2px', height: '6px', marginBottom: '10px', overflow: 'hidden' }}>
+            <div style={{
+              background: `linear-gradient(90deg, ${color}88, ${color})`,
+              width: `${pct}%`, height: '100%', borderRadius: '2px',
+              transition: 'width 1s ease',
+              boxShadow: `0 0 8px ${color}66`,
+            }} />
+          </div>
+          <div style={{ color: '#4a5568', fontSize: '11px' }}>{sub}</div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ─── Rosie AI Chat Bot ────────────────────────────────────────────────────
+function RosieChat() {
+  const [messages, setMessages] = useState([
+    { role: 'assistant', text: "Hi! I'm Rosie, Rosie AI's investment assistant. I can answer questions about our platform, the investment opportunity, terms, market data, or the subscription process. What would you like to know?" }
+  ]);
+  const [input, setInput] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [isOpen, setIsOpen] = useState(false);
+  const bottomRef = useRef(null);
+
+  useEffect(() => {
+    if (bottomRef.current) bottomRef.current.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
+
+  const sendMessage = async () => {
+    if (!input.trim() || loading) return;
+    const userMsg = input.trim();
+    setInput('');
+    setMessages(prev => [...prev, { role: 'user', text: userMsg }]);
+    setLoading(true);
+
+    try {
+      const systemPrompt = `You are Rosie, the AI investment assistant for Rosie AI LLC — an enterprise AI voice agent platform. 
+You help accredited investors understand the investment opportunity. Be concise, professional, and confident.
+
+Key facts:
+- Raise: $2.5M SAFE Note, $15M valuation cap, 20% discount
+- Minimum investment: $25,000
+- Rosie AI automates sales calls using AI — 15x cheaper than human SDRs at $0.01/min
+- Market: AI Voice API growing from $4.1B to $40B by 2032 (38.46% CAGR)
+- Current ARR: $380K, 47+ clients, 1.2M+ calls processed
+- Projections: $2.1M ARR by 2026, $22M by 2028
+- Contact: Investors@RosieAI.com | 216-332-4234
+- Address: 1234 Main St, Cleveland, OH
+
+Keep answers to 2-4 sentences unless detail is requested. Be warm but professional.`;
+
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 1000,
+          system: systemPrompt,
+          messages: [
+            ...messages.filter(m => m.role !== 'system').map(m => ({
+              role: m.role === 'assistant' ? 'assistant' : 'user',
+              content: m.text
+            })),
+            { role: 'user', content: userMsg }
+          ]
+        })
+      });
+      const data = await res.json();
+      const reply = data.content?.[0]?.text || "I'm having trouble connecting right now. Please email Investors@RosieAI.com for assistance.";
+      setMessages(prev => [...prev, { role: 'assistant', text: reply }]);
+    } catch {
+      setMessages(prev => [...prev, { role: 'assistant', text: "I'm having trouble connecting. Please email Investors@RosieAI.com for assistance." }]);
+    }
+    setLoading(false);
+  };
+
+  const handleKey = (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+  };
+
+  const quickQuestions = [
+    'What are the investment terms?',
+    'How does Rosie AI work?',
+    'What is the minimum investment?',
+    'How do I subscribe?',
+  ];
+
+  if (!isOpen) {
+    return (
+      <button
+        onClick={() => setIsOpen(true)}
+        style={{
+          position: 'fixed', bottom: '32px', right: '32px',
+          background: 'linear-gradient(135deg, #b8933a, #d4aa50)',
+          color: '#0a0f1e', border: 'none', borderRadius: '50px',
+          padding: '14px 24px', cursor: 'pointer',
+          fontSize: '13px', fontWeight: '700', letterSpacing: '1px',
+          boxShadow: '0 8px 32px rgba(184,147,58,0.5)',
+          display: 'flex', alignItems: 'center', gap: '10px',
+          zIndex: 500, fontFamily: 'Georgia, serif',
+        }}
+      >
+        <span style={{ fontSize: '18px' }}>🤖</span> Talk to Rosie
+      </button>
+    );
+  }
+
+  return (
+    <div style={{
+      position: 'fixed', bottom: '24px', right: '24px',
+      width: '380px', height: '520px',
+      background: '#0d1b2a', border: '1px solid rgba(184,147,58,0.3)',
+      borderRadius: '4px', display: 'flex', flexDirection: 'column',
+      boxShadow: '0 24px 80px rgba(0,0,0,0.7)',
+      zIndex: 500, overflow: 'hidden',
+      fontFamily: 'Georgia, serif',
+    }}>
+      {/* Chat Header */}
+      <div style={{
+        background: 'linear-gradient(135deg, rgba(184,147,58,0.2), rgba(184,147,58,0.08))',
+        borderBottom: '1px solid rgba(184,147,58,0.2)',
+        padding: '14px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <div style={{
+            width: '34px', height: '34px', background: 'linear-gradient(135deg, #b8933a, #d4aa50)',
+            borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: '16px', flexShrink: 0,
+          }}>🤖</div>
+          <div>
+            <div style={{ color: GOLD, fontSize: '13px', fontWeight: 'bold' }}>Rosie AI Assistant</div>
+            <div style={{ color: '#4ade80', fontSize: '10px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <span style={{ width: '6px', height: '6px', background: '#4ade80', borderRadius: '50%', display: 'inline-block' }} />
+              Online · Investment Q&A
+            </div>
+          </div>
+        </div>
+        <button onClick={() => setIsOpen(false)} style={{ background: 'none', border: 'none', color: '#6b7280', cursor: 'pointer', fontSize: '18px', lineHeight: 1 }}>×</button>
+      </div>
+
+      {/* Messages */}
+      <div style={{ flex: 1, overflowY: 'auto', padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+        {messages.map((msg, i) => (
+          <div key={i} style={{ display: 'flex', justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start' }}>
+            <div style={{
+              maxWidth: '85%',
+              background: msg.role === 'user'
+                ? 'linear-gradient(135deg, #b8933a, #d4aa50)'
+                : 'rgba(255,255,255,0.06)',
+              color: msg.role === 'user' ? '#0a0f1e' : '#c4cdd8',
+              padding: '10px 14px', borderRadius: '3px',
+              fontSize: '13px', lineHeight: 1.55,
+              border: msg.role === 'assistant' ? '1px solid rgba(255,255,255,0.07)' : 'none',
+            }}>
+              {msg.text}
+            </div>
+          </div>
+        ))}
+        {loading && (
+          <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
+            <div style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.07)', padding: '10px 16px', borderRadius: '3px', color: GOLD, fontSize: '18px', letterSpacing: '3px' }}>
+              ···
+            </div>
+          </div>
+        )}
+        <div ref={bottomRef} />
+      </div>
+
+      {/* Quick Questions */}
+      {messages.length <= 1 && (
+        <div style={{ padding: '0 16px 12px', display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+          {quickQuestions.map(q => (
+            <button key={q} onClick={() => {
+              setMessages(prev => [...prev, { role: 'user', text: q }]);
+              setLoading(true);
+              fetch('https://api.anthropic.com/v1/messages', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  model: 'claude-sonnet-4-20250514',
+                  max_tokens: 1000,
+                  system: `You are Rosie, the AI investment assistant for Rosie AI LLC — an enterprise AI voice agent platform. Be concise, professional, and confident. Key facts: Raise: $2.5M SAFE Note, $15M valuation cap, 20% discount. Minimum investment: $25,000. Rosie AI automates sales calls using AI — 15x cheaper than human SDRs at $0.01/min. Market: AI Voice API growing from $4.1B to $40B by 2032 (38.46% CAGR). Current ARR: $380K, 47+ clients. Contact: Investors@RosieAI.com | 216-332-4234. Keep answers to 2-4 sentences.`,
+                  messages: [{ role: 'user', content: q }]
+                })
+              }).then(r => r.json()).then(data => {
+                const reply = data.content?.[0]?.text || 'Please email Investors@RosieAI.com for assistance.';
+                setMessages(prev => [...prev, { role: 'assistant', text: reply }]);
+                setLoading(false);
+              }).catch(() => {
+                setMessages(prev => [...prev, { role: 'assistant', text: 'Please email Investors@RosieAI.com for assistance.' }]);
+                setLoading(false);
+              });
+            }}
+              style={{
+                background: 'rgba(184,147,58,0.1)', border: '1px solid rgba(184,147,58,0.25)',
+                color: '#b8933a', borderRadius: '20px', padding: '5px 12px',
+                fontSize: '11px', cursor: 'pointer', fontFamily: 'Georgia, serif',
+              }}
+              onMouseEnter={e => e.currentTarget.style.background = 'rgba(184,147,58,0.2)'}
+              onMouseLeave={e => e.currentTarget.style.background = 'rgba(184,147,58,0.1)'}
+            >{q}</button>
+          ))}
+        </div>
+      )}
+
+      {/* Input */}
+      <div style={{ padding: '12px 16px', borderTop: '1px solid rgba(255,255,255,0.07)', display: 'flex', gap: '8px' }}>
+        <input
+          value={input}
+          onChange={e => setInput(e.target.value)}
+          onKeyDown={handleKey}
+          placeholder="Ask about the investment..."
+          style={{
+            flex: 1, background: 'rgba(255,255,255,0.05)',
+            border: '1px solid rgba(255,255,255,0.1)', borderRadius: '2px',
+            padding: '9px 12px', color: '#e8e0d0', fontSize: '13px',
+            outline: 'none', fontFamily: 'Georgia, serif',
+          }}
+        />
+        <button
+          onClick={sendMessage}
+          disabled={loading || !input.trim()}
+          style={{
+            background: loading || !input.trim() ? 'rgba(184,147,58,0.3)' : 'linear-gradient(135deg, #b8933a, #d4aa50)',
+            color: '#0a0f1e', border: 'none', borderRadius: '2px',
+            width: '38px', cursor: loading ? 'not-allowed' : 'pointer',
+            fontSize: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}
+        >→</button>
+      </div>
+    </div>
+  );
+}
+
+// ─── Portal Home ──────────────────────────────────────────────────────────
 function PortalHome({ setActiveTab }) {
+  const navCards = [
+    { tab: 'offering',     icon: '📊', title: 'Investment Offering',      desc: 'Full memorandum, financials, team & terms. Download PDF.' },
+    { tab: 'subscription', icon: '✍️', title: 'Subscription Agreements', desc: 'Execute docs & request DocuSign. Min. $25K.' },
+    { tab: 'market',       icon: '📈', title: 'Market Data',              desc: 'M&A comps, SaaS multiples & AI voice trends.' },
+    { tab: 'updates',      icon: '📬', title: 'Investor Updates',         desc: 'Chronological management updates & milestones.' },
+  ];
+
   return (
     <div>
-      {/* Welcome */}
-      <div style={{ marginBottom: '48px' }}>
-        <p style={{ color: GOLD, fontSize: '11px', letterSpacing: '4px', textTransform: 'uppercase', marginBottom: '12px' }}>Confidential — Authorized Access Only</p>
-        <h1 style={{ color: '#e8e0d0', fontSize: '36px', fontWeight: 'normal', margin: '0 0 16px', lineHeight: 1.2 }}>
-          Welcome to the Rosie AI<br />Investor Data Portal
-        </h1>
-        <p style={{ color: '#8a9ab8', fontSize: '16px', lineHeight: 1.7, maxWidth: '640px', margin: 0 }}>
-          This secure portal provides authorized investors with comprehensive access to all materials, documents, and updates related to the Rosie AI investment opportunity. Navigate through the tabs above to explore our offering.
-        </p>
-      </div>
+      {/* ── Top two-column layout ── */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: '32px', marginBottom: '32px', alignItems: 'start' }}>
 
-      {/* Portal Guide Cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '20px', marginBottom: '48px' }}>
-        {[
-          { tab: 'offering', icon: '📊', title: 'Investment Offering', desc: 'Access our complete investment memorandum including financials, market analysis, team bios, and investment terms. Download a PDF copy for your records.' },
-          { tab: 'subscription', icon: '✍️', title: 'Subscription Agreements', desc: 'Review and execute subscription documents. Request a DocuSign package to begin your investment. Minimum investment $25,000.' },
-          { tab: 'market', icon: '📈', title: 'Market Data', desc: 'Explore comparable SaaS company data, M&A transaction history, and AI voice market trends that support our valuation thesis.' },
-          { tab: 'updates', icon: '📬', title: 'Investor Updates', desc: 'Chronological updates from management including quarterly performance, product launches, partnerships, and key milestones.' },
-        ].map(({ tab, icon, title, desc }) => (
-          <button key={tab} onClick={() => setActiveTab(tab)} style={{
-            background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)',
-            borderRadius: '2px', padding: '28px', textAlign: 'left', cursor: 'pointer',
-            transition: 'all 0.2s', color: 'inherit',
-          }}
-          onMouseEnter={e => { e.currentTarget.style.borderColor = 'rgba(184,147,58,0.3)'; e.currentTarget.style.background = 'rgba(184,147,58,0.06)'; }}
-          onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)'; e.currentTarget.style.background = 'rgba(255,255,255,0.03)'; }}
-          >
-            <div style={{ fontSize: '32px', marginBottom: '12px' }}>{icon}</div>
-            <h3 style={{ color: GOLD, margin: '0 0 10px', fontFamily: 'Georgia, serif', fontWeight: 'normal', fontSize: '16px' }}>{title}</h3>
-            <p style={{ color: '#6b7280', fontSize: '13px', lineHeight: 1.6, margin: 0 }}>{desc}</p>
-          </button>
-        ))}
-      </div>
+        {/* LEFT: Header + Raise bars + Calculator */}
+        <div>
+          {/* Header */}
+          <p style={{ color: GOLD, fontSize: '10px', letterSpacing: '4px', textTransform: 'uppercase', marginBottom: '10px', margin: '0 0 10px' }}>
+            Confidential · Authorized Access Only
+          </p>
+          <h1 style={{ color: '#e8e0d0', fontSize: '30px', fontWeight: 'normal', margin: '0 0 12px', lineHeight: 1.2, fontFamily: 'Georgia, serif' }}>
+            Welcome to the Rosie AI<br />Investor Data Portal
+          </h1>
+          <p style={{ color: '#6b7280', fontSize: '14px', lineHeight: 1.65, margin: '0 0 28px', maxWidth: '560px' }}>
+            This secure portal gives authorized investors access to all materials, documents, and updates on the Rosie AI investment opportunity. Use the tabs above or the navigation below to explore.
+          </p>
 
-      {/* Investor Calculator */}
-      <InvestorCalculator />
+          {/* Raise Progress Bars */}
+          <RaiseProgress />
+
+          {/* Investor Calculator */}
+          <InvestorCalculator />
+        </div>
+
+        {/* RIGHT: Nav cards (4 narrow tall) + Contact */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          {navCards.map(({ tab, icon, title, desc }) => (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              style={{
+                background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)',
+                borderRadius: '2px', padding: '16px 18px', textAlign: 'left', cursor: 'pointer',
+                color: 'inherit', display: 'flex', gap: '14px', alignItems: 'flex-start',
+                transition: 'all 0.15s',
+              }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor = 'rgba(184,147,58,0.35)'; e.currentTarget.style.background = 'rgba(184,147,58,0.07)'; }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)'; e.currentTarget.style.background = 'rgba(255,255,255,0.03)'; }}
+            >
+              <span style={{ fontSize: '20px', lineHeight: 1, marginTop: '2px', flexShrink: 0 }}>{icon}</span>
+              <div>
+                <div style={{ color: GOLD, fontSize: '13px', fontWeight: 'bold', marginBottom: '3px', fontFamily: 'Georgia, serif' }}>{title}</div>
+                <div style={{ color: '#5a6a7e', fontSize: '11px', lineHeight: 1.5 }}>{desc}</div>
+              </div>
+              <span style={{ marginLeft: 'auto', color: '#3a4a5e', fontSize: '14px', flexShrink: 0 }}>→</span>
+            </button>
+          ))}
+
+          {/* Contact Card */}
+          <div style={{
+            background: 'rgba(184,147,58,0.06)', border: '1px solid rgba(184,147,58,0.18)',
+            borderRadius: '2px', padding: '18px 18px', marginTop: '4px',
+          }}>
+            <div style={{ color: GOLD, fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '12px' }}>
+              Investor Relations
+            </div>
+            <div style={{ color: '#c4cdd8', fontSize: '13px', fontWeight: 'bold', marginBottom: '6px' }}>Rosie AI LLC</div>
+            <div style={{ color: '#6b7280', fontSize: '12px', lineHeight: 2 }}>
+              1234 Main St<br />
+              Cleveland, OH<br />
+              <a href="tel:2163324234" style={{ color: '#8a9ab8', textDecoration: 'none' }}>216-332-4234</a><br />
+              <a href="mailto:Investors@RosieAI.com" style={{ color: GOLD, textDecoration: 'none', fontSize: '12px' }}>
+                Investors@RosieAI.com
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
 
       {/* Disclosure */}
-      <div style={{ marginTop: '48px', paddingTop: '32px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
-        <p style={{ color: '#2d3748', fontSize: '11px', lineHeight: 1.7 }}>
-          <strong style={{ color: '#374151' }}>Important Disclosure:</strong> The information contained in this portal is strictly confidential and intended solely for the use of authorized investors. This material does not constitute an offer to sell or a solicitation of an offer to buy any securities. Investment involves risk. Past performance is not indicative of future results. All projections are forward-looking statements and are not guarantees. Please review all risk factors before investing.
+      <div style={{ paddingTop: '24px', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+        <p style={{ color: '#2d3748', fontSize: '11px', lineHeight: 1.7, margin: 0 }}>
+          <strong style={{ color: '#374151' }}>Important Disclosure:</strong> The information contained in this portal is strictly confidential and intended solely for authorized investors. This material does not constitute an offer to sell securities. Investment involves risk. Past performance is not indicative of future results. Please review all risk factors before investing.
         </p>
       </div>
+
+      {/* Floating AI Chat */}
+      <RosieChat />
     </div>
   );
 }
