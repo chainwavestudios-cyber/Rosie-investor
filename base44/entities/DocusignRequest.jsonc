@@ -1,0 +1,63 @@
+{
+  "name": "DocusignRequest",
+  "type": "object",
+  "properties": {
+    "firstName": {
+      "type": "string",
+      "title": "First Name"
+    },
+    "lastName": {
+      "type": "string",
+      "title": "Last Name"
+    },
+    "email": {
+      "type": "string",
+      "title": "Email"
+    },
+    "mailingAddress": {
+      "type": "string",
+      "title": "Mailing Address"
+    },
+    "amountToInvest": {
+      "type": "number",
+      "title": "Amount to Invest"
+    },
+    "investmentType": {
+      "type": "string",
+      "title": "Investment Type",
+      "enum": [
+        "Cash",
+        "IRA"
+      ]
+    },
+    "fundingType": {
+      "type": "string",
+      "title": "Funding Type",
+      "enum": [
+        "Wire",
+        "Check"
+      ]
+    },
+    "submittedAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Submitted At"
+    },
+    "status": {
+      "type": "string",
+      "title": "Status",
+      "enum": [
+        "pending",
+        "sent",
+        "executed"
+      ],
+      "default": "pending"
+    }
+  },
+  "required": [
+    "firstName",
+    "lastName",
+    "email",
+    "amountToInvest"
+  ]
+}
