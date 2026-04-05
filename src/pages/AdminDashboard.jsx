@@ -772,7 +772,8 @@ export default function AdminDashboard() {
               </thead>
               <tbody>
                 {users.map(user => {
-                  const stats = analytics.getUserStats(user.email || user.username);
+                  const userSessions = allSessions.filter(s => s.userEmail === (user.email || user.username) || s.username === user.username);
+                  const stats = analytics.computeUserStats(userSessions);
                   return (
                     <tr key={user.username||user.email}
                       style={{ borderBottom:'1px solid rgba(255,255,255,0.05)' }}
@@ -810,7 +811,8 @@ export default function AdminDashboard() {
             {investorUsers.length === 0
               ? <p style={{ color:'#4a5568', textAlign:'center', padding:'60px' }}>No investor users yet.</p>
               : investorUsers.map(user => {
-                const stats = analytics.getUserStats(user.email || user.username);
+                const userSessions = allSessions.filter(s => s.userEmail === (user.email || user.username) || s.username === user.username);
+                const stats = analytics.computeUserStats(userSessions);
                 const maxPT = Math.max(...Object.values(stats.pageTime), 1);
                 return (
                   <div key={user.username||user.email} style={{ background:'rgba(255,255,255,0.03)', border:'1px solid rgba(255,255,255,0.08)', borderRadius:'2px', padding:'24px', marginBottom:'16px' }}>
