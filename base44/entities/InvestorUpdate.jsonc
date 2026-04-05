@@ -1,0 +1,40 @@
+{
+  "name": "InvestorUpdate",
+  "type": "object",
+  "properties": {
+    "title": {
+      "type": "string",
+      "title": "Title"
+    },
+    "content": {
+      "type": "string",
+      "title": "Content",
+      "format": "textarea"
+    },
+    "category": {
+      "type": "string",
+      "title": "Category",
+      "enum": [
+        "Financial Update",
+        "Product Update",
+        "Partnership",
+        "General Update",
+        "Important Notice"
+      ]
+    },
+    "author": {
+      "type": "string",
+      "title": "Author"
+    },
+    "publishedAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Published At"
+    }
+  },
+  "required": [
+    "title",
+    "content",
+    "category"
+  ]
+}
