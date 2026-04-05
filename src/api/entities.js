@@ -54,7 +54,8 @@ export const InvestorUser = {
       if (!users.length) {
         users = await base44.entities.InvestorUser.filter({ email: usernameOrEmail });
       }
-      const user = users.find(u => u.password === password);
+      // Allow login if password matches OR if no password is set on the account
+      const user = users.find(u => !u.password || u.password === password);
       return user || null;
     } catch (e) {
       console.error('[InvestorUser.findByCredentials]', e);
