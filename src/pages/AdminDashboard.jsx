@@ -361,6 +361,63 @@ function AdminSettings({ changeAdminPassword, changeAdminUsername }) {
 
 
 // ─── Portal Controls ──────────────────────────────────────────────────────
+// ─── Stable field components (defined OUTSIDE PortalControls to prevent remount on every keystroke) ─────
+function PCField({ label, value, onChange, type = 'text', placeholder = '', mono = false }) {
+  return (
+    <div style={{ marginBottom: '16px' }}>
+      <label style={labelStyle}>{label}</label>
+      <input
+        type={type}
+        value={value ?? ''}
+        onChange={onChange}
+        placeholder={placeholder}
+        style={{ ...inputStyle, fontFamily: mono ? 'monospace' : 'Georgia, serif', fontSize: mono ? '12px' : '14px' }}
+      />
+    </div>
+  );
+}
+
+function PCTextArea({ label, value, onChange, rows = 4 }) {
+  return (
+    <div style={{ marginBottom: '16px' }}>
+      <label style={labelStyle}>{label}</label>
+      <textarea
+        value={value ?? ''}
+        onChange={onChange}
+        rows={rows}
+        style={{ ...inputStyle, resize: 'vertical', lineHeight: 1.6, fontSize: '13px' }}
+      />
+    </div>
+  );
+}
+
+function PCToggle({ label, value, onToggle, desc }) {
+  return (
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 0', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+      <div>
+        <div style={{ color: '#c4cdd8', fontSize: '14px' }}>{label}</div>
+        {desc && <div style={{ color: '#4a5568', fontSize: '12px', marginTop: '2px' }}>{desc}</div>}
+      </div>
+      <button
+        onClick={onToggle}
+        style={{
+          width: '48px', height: '26px', borderRadius: '13px', border: 'none', cursor: 'pointer',
+          background: value ? 'linear-gradient(135deg, #b8933a, #d4aa50)' : 'rgba(255,255,255,0.1)',
+          position: 'relative', transition: 'background 0.2s', flexShrink: 0,
+        }}
+      >
+        <div style={{
+          position: 'absolute', top: '3px',
+          left: value ? '25px' : '3px',
+          width: '20px', height: '20px', background: '#fff',
+          borderRadius: '50%', transition: 'left 0.2s',
+          boxShadow: '0 1px 4px rgba(0,0,0,0.4)',
+        }} />
+      </button>
+    </div>
+  );
+}
+
 function PortalControls() {
   const [s, setS] = useState(getPortalSettings());
   const [saved, setSaved] = useState(false);
@@ -388,56 +445,6 @@ function PortalControls() {
     { id: 'terms',    label: '📋 Investment Terms' },
     { id: 'toggles',  label: '⚙️ Visibility' },
   ];
-
-  const Field = ({ label, fieldKey, type = 'text', placeholder = '', mono = false }) => (
-    <div style={{ marginBottom: '16px' }}>
-      <label style={labelStyle}>{label}</label>
-      <input
-        type={type}
-        value={s[fieldKey] ?? ''}
-        onChange={e => update(fieldKey, type === 'number' ? Number(e.target.value) : e.target.value)}
-        placeholder={placeholder}
-        style={{ ...inputStyle, fontFamily: mono ? 'monospace' : 'Georgia, serif', fontSize: mono ? '12px' : '14px' }}
-      />
-    </div>
-  );
-
-  const TextArea = ({ label, fieldKey, rows = 4 }) => (
-    <div style={{ marginBottom: '16px' }}>
-      <label style={labelStyle}>{label}</label>
-      <textarea
-        value={s[fieldKey] ?? ''}
-        onChange={e => update(fieldKey, e.target.value)}
-        rows={rows}
-        style={{ ...inputStyle, resize: 'vertical', lineHeight: 1.6, fontSize: '13px' }}
-      />
-    </div>
-  );
-
-  const Toggle = ({ label, fieldKey, desc }) => (
-    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 0', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-      <div>
-        <div style={{ color: '#c4cdd8', fontSize: '14px' }}>{label}</div>
-        {desc && <div style={{ color: '#4a5568', fontSize: '12px', marginTop: '2px' }}>{desc}</div>}
-      </div>
-      <button
-        onClick={() => update(fieldKey, !s[fieldKey])}
-        style={{
-          width: '48px', height: '26px', borderRadius: '13px', border: 'none', cursor: 'pointer',
-          background: s[fieldKey] ? 'linear-gradient(135deg, #b8933a, #d4aa50)' : 'rgba(255,255,255,0.1)',
-          position: 'relative', transition: 'background 0.2s', flexShrink: 0,
-        }}
-      >
-        <div style={{
-          position: 'absolute', top: '3px',
-          left: s[fieldKey] ? '25px' : '3px',
-          width: '20px', height: '20px', background: '#fff',
-          borderRadius: '50%', transition: 'left 0.2s',
-          boxShadow: '0 1px 4px rgba(0,0,0,0.4)',
-        }} />
-      </button>
-    </div>
-  );
 
   const fmtDollar = (n) => `$${Number(n || 0).toLocaleString()}`;
   const pct = (a, b) => b ? Math.round((a / b) * 100) : 0;
@@ -497,10 +504,10 @@ function PortalControls() {
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
-              <Field label="Total Raise Target ($)" fieldKey="totalRaise" type="number" placeholder="2500000" />
-              <Field label="Committed Capital ($)" fieldKey="committedCapital" type="number" placeholder="875000" />
-              <Field label="Invested Capital ($)" fieldKey="investedCapital" type="number" placeholder="500000" />
-              <Field label="Invested Capital Target ($)" fieldKey="investedTarget" type="number" placeholder="500000" />
+              <PCField label="Total Raise Target ($)" value={s.totalRaise} onChange={e => update('totalRaise', Number(e.target.value))} type="number" placeholder="2500000" />
+              <PCField label="Committed Capital ($)" value={s.committedCapital} onChange={e => update('committedCapital', Number(e.target.value))} type="number" placeholder="875000" />
+              <PCField label="Invested Capital ($)" value={s.investedCapital} onChange={e => update('investedCapital', Number(e.target.value))} type="number" placeholder="500000" />
+              <PCField label="Invested Capital Target ($)" value={s.investedTarget} onChange={e => update('investedTarget', Number(e.target.value))} type="number" placeholder="500000" />
             </div>
           </div>
         )}
@@ -510,11 +517,11 @@ function PortalControls() {
           <div>
             <h3 style={{ color: '#e8e0d0', margin: '0 0 6px', fontWeight: 'normal', fontSize: '18px' }}>Contact Information</h3>
             <p style={{ color: '#4a5568', fontSize: '13px', margin: '0 0 24px' }}>Displayed in the contact card on the investor portal home page.</p>
-            <Field label="Company Name" fieldKey="companyName" placeholder="Rosie AI LLC" />
-            <Field label="Address Line 1" fieldKey="address1" placeholder="1234 Main St" />
-            <Field label="Address Line 2 (City, State)" fieldKey="address2" placeholder="Cleveland, OH" />
-            <Field label="Phone Number" fieldKey="phone" placeholder="216-332-4234" />
-            <Field label="Investor Email" fieldKey="email" placeholder="Investors@RosieAI.com" />
+            <PCField label="Company Name" value={s.companyName} onChange={e => update('companyName', e.target.value)} type="text" placeholder="Rosie AI LLC" />
+            <PCField label="Address Line 1" value={s.address1} onChange={e => update('address1', e.target.value)} type="text" placeholder="1234 Main St" />
+            <PCField label="Address Line 2 (City, State)" value={s.address2} onChange={e => update('address2', e.target.value)} type="text" placeholder="Cleveland, OH" />
+            <PCField label="Phone Number" value={s.phone} onChange={e => update('phone', e.target.value)} type="text" placeholder="216-332-4234" />
+            <PCField label="Investor Email" value={s.email} onChange={e => update('email', e.target.value)} type="text" placeholder="Investors@RosieAI.com" />
           </div>
         )}
 
@@ -523,11 +530,11 @@ function PortalControls() {
           <div>
             <h3 style={{ color: '#e8e0d0', margin: '0 0 6px', fontWeight: 'normal', fontSize: '18px' }}>Portal Content</h3>
             <p style={{ color: '#4a5568', fontSize: '13px', margin: '0 0 24px' }}>Edit the headline, tagline, subtext, and legal disclosure shown on the portal home page.</p>
-            <Field label="Tagline (small text above headline)" fieldKey="portalTagline" placeholder="Confidential · Authorized Access Only" />
-            <Field label="Main Headline (use \n for line break)" fieldKey="portalHeadline" placeholder="Welcome to the Rosie AI
+            <PCField label="Tagline (small text above headline)" value={s.portalTagline} onChange={e => update('portalTagline', e.target.value)} type="text" placeholder="Confidential · Authorized Access Only" />
+            <PCField label="Main Headline (use \n for line break)" value={s.portalHeadline} onChange={e => update('portalHeadline', e.target.value)} type="text" placeholder="Welcome to the Rosie AI
 Investor Data Portal" />
             <TextArea label="Subheading / Description" fieldKey="portalSubtext" rows={3} />
-            <TextArea label="Legal Disclosure Text" fieldKey="disclosureText" rows={4} />
+            <PCTextArea label="Legal Disclosure Text" value={s.disclosureText} onChange={e => update('disclosureText', e.target.value)} rows={4} />
           </div>
         )}
 
@@ -536,10 +543,10 @@ Investor Data Portal" />
           <div>
             <h3 style={{ color: '#e8e0d0', margin: '0 0 6px', fontWeight: 'normal', fontSize: '18px' }}>AI Chatbot</h3>
             <p style={{ color: '#4a5568', fontSize: '13px', margin: '0 0 24px' }}>Configure the Rosie AI investment chatbot that appears on the investor portal.</p>
-            <Toggle label="Enable AI Chatbot" fieldKey="chatbotEnabled" desc="Show the 'Talk to Rosie' button on the portal home page" />
+            <PCToggle label="Enable AI Chatbot" value={s.chatbotEnabled} onToggle={() => update('chatbotEnabled', !s.chatbotEnabled)} desc="Show the 'Talk to Rosie' button on the portal home page" />
             <div style={{ marginTop: '20px' }}>
-              <Field label="Chatbot Name" fieldKey="chatbotName" placeholder="Rosie" />
-              <TextArea label="Greeting Message (first message shown)" fieldKey="chatbotGreeting" rows={3} />
+              <PCField label="Chatbot Name" value={s.chatbotName} onChange={e => update('chatbotName', e.target.value)} type="text" placeholder="Rosie" />
+              <PCTextArea label="Greeting Message (first message shown)" value={s.chatbotGreeting} onChange={e => update('chatbotGreeting', e.target.value)} rows={3} />
               <TextArea label="System Prompt / AI Context" fieldKey="chatbotContext" rows={10} />
               <p style={{ color: '#4a5568', fontSize: '11px', marginTop: '-8px' }}>
                 This is the instruction set given to the AI. Include key facts, tone guidelines, and what topics to cover or avoid.
@@ -554,11 +561,11 @@ Investor Data Portal" />
             <h3 style={{ color: '#e8e0d0', margin: '0 0 6px', fontWeight: 'normal', fontSize: '18px' }}>Investment Terms</h3>
             <p style={{ color: '#4a5568', fontSize: '13px', margin: '0 0 24px' }}>These values appear in the Investment Terms section of the Investment Offering tab.</p>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-              <Field label="Round Size" fieldKey="roundSize" placeholder="$2,500,000" />
-              <Field label="Valuation Cap" fieldKey="valuationCap" placeholder="$15,000,000" />
-              <Field label="Minimum Investment" fieldKey="minInvestment" placeholder="$25,000" />
-              <Field label="Discount Rate" fieldKey="discountRate" placeholder="20%" />
-              <Field label="Target Close Date" fieldKey="targetClose" placeholder="Q2 2025" />
+              <PCField label="Round Size" value={s.roundSize} onChange={e => update('roundSize', e.target.value)} type="text" placeholder="$2,500,000" />
+              <PCField label="Valuation Cap" value={s.valuationCap} onChange={e => update('valuationCap', e.target.value)} type="text" placeholder="$15,000,000" />
+              <PCField label="Minimum Investment" value={s.minInvestment} onChange={e => update('minInvestment', e.target.value)} type="text" placeholder="$25,000" />
+              <PCField label="Discount Rate" value={s.discountRate} onChange={e => update('discountRate', e.target.value)} type="text" placeholder="20%" />
+              <PCField label="Target Close Date" value={s.targetClose} onChange={e => update('targetClose', e.target.value)} type="text" placeholder="Q2 2025" />
             </div>
           </div>
         )}
@@ -568,10 +575,10 @@ Investor Data Portal" />
           <div>
             <h3 style={{ color: '#e8e0d0', margin: '0 0 6px', fontWeight: 'normal', fontSize: '18px' }}>Visibility & Access</h3>
             <p style={{ color: '#4a5568', fontSize: '13px', margin: '0 0 24px' }}>Control which sections of the investor portal are visible to investors.</p>
-            <Toggle label="Portal Active" fieldKey="portalActive" desc="When off, investors see a maintenance message" />
-            <Toggle label="Show Investment Calculator" fieldKey="showCalculator" desc="Return calculator on the portal home page" />
-            <Toggle label="Show Market Data Tab" fieldKey="showMarketData" desc="M&A comps, comparables, and trend charts" />
-            <Toggle label="Show Subscription Tab" fieldKey="showSubscription" desc="DocuSign request and agreement documents" />
+            <PCToggle label="Portal Active" value={s.portalActive} onToggle={() => update('portalActive', !s.portalActive)} desc="When off, investors see a maintenance message" />
+            <PCToggle label="Show Investment Calculator" value={s.showCalculator} onToggle={() => update('showCalculator', !s.showCalculator)} desc="Return calculator on the portal home page" />
+            <PCToggle label="Show Market Data Tab" value={s.showMarketData} onToggle={() => update('showMarketData', !s.showMarketData)} desc="M&A comps, comparables, and trend charts" />
+            <PCToggle label="Show Subscription Tab" value={s.showSubscription} onToggle={() => update('showSubscription', !s.showSubscription)} desc="DocuSign request and agreement documents" />
           </div>
         )}
 
