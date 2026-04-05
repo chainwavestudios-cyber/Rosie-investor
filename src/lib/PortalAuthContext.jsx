@@ -10,8 +10,9 @@ const USERS_KEY = 'rosie_portal_users';
 const PORTAL_AUTH_KEY = 'rosie_portal_auth';
 
 const DEFAULT_ADMIN = {
+  username: 'admin',
   email: 'admin@rosieai.com',
-  password: 'Rosie2025!',
+  password: 'RosieAdmin2025!',
   name: 'Admin',
   role: 'admin',
   createdAt: new Date().toISOString(),
@@ -22,7 +23,7 @@ function getUsers() {
     const raw = localStorage.getItem(USERS_KEY);
     const users = raw ? JSON.parse(raw) : [];
     // Ensure admin always exists
-    if (!users.find(u => u.role === 'admin')) {
+    if (!users.find(u => u.username === 'admin' || u.role === 'admin')) {
       users.push(DEFAULT_ADMIN);
       localStorage.setItem(USERS_KEY, JSON.stringify(users));
     }
@@ -53,11 +54,14 @@ export const PortalAuthProvider = ({ children }) => {
     setIsPortalLoading(false);
   }, []);
 
-  const portalLogin = (email, password) => {
+  const portalLogin = (username, password) => {
     const users = getUsers();
-    const user = users.find(u => u.email.toLowerCase() === email.toLowerCase() && u.password === password);
+    const user = users.find(u => 
+      (u.username?.toLowerCase() === username.toLowerCase() || u.email?.toLowerCase() === username.toLowerCase()) 
+      && u.password === password
+    );
     if (!user) {
-      return { success: false, error: 'Invalid email or password' };
+      return { success: false, error: 'Invalid username or password' };
     }
     const { password: _, ...safeUser } = user;
     setPortalUser(safeUser);
@@ -74,7 +78,10 @@ export const PortalAuthProvider = ({ children }) => {
 
   const addUser = (userData) => {
     const users = getUsers();
-    if (users.find(u => u.email.toLowerCase() === userData.email.toLowerCase())) {
+    if (userData.username && users.find(u => u.username?.toLowerCase() === userData.username.toLowerCase())) {
+      return { success: false, error: 'Username already taken' };
+    }
+    if (userData.email && users.find(u => u.email?.toLowerCase() === userData.email.toLowerCase())) {
       return { success: false, error: 'User with this email already exists' };
     }
     const newUser = {
@@ -87,9 +94,9 @@ export const PortalAuthProvider = ({ children }) => {
     return { success: true };
   };
 
-  const removeUser = (email) => {
+  const removeUser = (identifier) => {
     const users = getUsers();
-    const filtered = users.filter(u => u.email !== email);
+    const filtered = users.filter(u => u.email !== identifier && u.username !== identifier);
     saveUsers(filtered);
   };
 
@@ -108,6 +115,33 @@ export const PortalAuthProvider = ({ children }) => {
     return { success: false, error: 'User not found' };
   };
 
+  const changeAdminPassword = (currentPassword, newPassword) => {
+    const users = getUsers();
+    const adminIdx = users.findIndex(u => u.role === 'admin');
+    if (adminIdx < 0) return { success: false, error: 'Admin not found' };
+    if (users[adminIdx].password !== currentPassword) {
+      return { success: false, error: 'Current password is incorrect' };
+    }
+    users[adminIdx].password = newPassword;
+    saveUsers(users);
+    return { success: true };
+  };
+
+  const changeAdminUsername = (currentPassword, newUsername) => {
+    const users = getUsers();
+    const adminIdx = users.findIndex(u => u.role === 'admin');
+    if (adminIdx < 0) return { success: false, error: 'Admin not found' };
+    if (users[adminIdx].password !== currentPassword) {
+      return { success: false, error: 'Current password is incorrect' };
+    }
+    if (users.find((u, i) => i !== adminIdx && u.username?.toLowerCase() === newUsername.toLowerCase())) {
+      return { success: false, error: 'Username already taken' };
+    }
+    users[adminIdx].username = newUsername;
+    saveUsers(users);
+    return { success: true };
+  };
+
   return (
     <PortalAuthContext.Provider value={{
       portalUser,
@@ -119,6 +153,8 @@ export const PortalAuthProvider = ({ children }) => {
       removeUser,
       getAllUsers,
       updateUser,
+      changeAdminPassword,
+      changeAdminUsername,
     }}>
       {children}
     </PortalAuthContext.Provider>
