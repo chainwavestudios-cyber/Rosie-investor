@@ -619,7 +619,7 @@ function AdminSettings({ changeAdminPassword, changeAdminUsername }) {
   return (
     <div>
       <h2 style={{ color:'#e8e0d0', margin:'0 0 8px', fontSize:'20px', fontWeight:'normal' }}>Admin Settings</h2>
-      <p style={{ color:'#6b7280', fontSize:'13px', margin:'0 0 32px' }}>Manage admin login credentials. Default: username <span style={{ color:GOLD }}>admin</span>, password <span style={{ color:GOLD }}>RosieAdmin2025!</span></p>
+      <p style={{ color:'#6b7280', fontSize:'13px', margin:'0 0 32px' }}>Manage admin login credentials. Username: <span style={{ color:GOLD }}>admin</span></p>
       <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'32px' }}>
         <div style={{ background:'rgba(255,255,255,0.03)', border:'1px solid rgba(255,255,255,0.08)', borderRadius:'2px', padding:'28px' }}>
           <h3 style={{ color:GOLD, fontSize:'12px', letterSpacing:'2px', textTransform:'uppercase', margin:'0 0 20px' }}>Change Admin Username</h3>
@@ -643,7 +643,7 @@ function AdminSettings({ changeAdminPassword, changeAdminUsername }) {
 
 // ─── Main Admin Dashboard ─────────────────────────────────────────────────
 export default function AdminDashboard() {
-  const { portalUser, isAdmin, portalLogout, getAllUsers, removeUser, changeAdminPassword, changeAdminUsername } = usePortalAuth();
+  const { portalUser, isAdmin, isPortalLoading, portalLogout, getAllUsers, removeUser, changeAdminPassword, changeAdminUsername } = usePortalAuth();
   const [view, setView]           = useState('users');
   const [users, setUsers]         = useState([]);
   const [showAdd, setShowAdd]     = useState(false);
@@ -676,14 +676,27 @@ export default function AdminDashboard() {
   }, [getAllUsers]);
 
   useEffect(() => {
-    if (false) { navigate('/portal-login'); return; }
+    if (isPortalLoading) return; // wait for auth to resolve
+    if (!portalUser || !isAdmin) {
+      navigate('/admin-login');
+      return;
+    }
     load();
-    // Refresh analytics every 30s
     const interval = setInterval(load, 30000);
     return () => clearInterval(interval);
-  }, [portalUser, isAdmin, load]);
+  }, [portalUser, isAdmin, isPortalLoading, load]);
 
-  // if (!portalUser || !isAdmin) return null;
+  // Show spinner while auth resolves — prevents flash-redirect
+  if (isPortalLoading) {
+    return (
+      <div style={{ minHeight:'100vh', background:'#060c18', display:'flex', alignItems:'center', justifyContent:'center' }}>
+        <div style={{ width:'32px', height:'32px', border:'3px solid rgba(184,147,58,0.2)', borderTop:'3px solid #b8933a', borderRadius:'50%', animation:'spin 0.8s linear infinite' }} />
+        <style>{`@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}`}</style>
+      </div>
+    );
+  }
+
+  if (!portalUser || !isAdmin) return null;
 
   // global and allSessions come from state, loaded async
   const investorUsers = users.filter(u => u.role === 'investor');
