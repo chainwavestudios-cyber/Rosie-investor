@@ -2,7 +2,8 @@ import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { usePortalAuth } from '@/lib/PortalAuthContext';
 import analytics from '@/lib/analytics';
-import { getPortalSettings, savePortalSettings, resetPortalSettings } from '@/lib/portalSettings';
+import { getPortalSettings, loadPortalSettings, savePortalSettings, resetPortalSettings } from '@/lib/portalSettings';
+import { DocusignRequestDB } from '@/api/entities';
 
 const LOGO = "https://media.base44.com/images/public/69cd2741578c9b5ce655395b/39a31f9b9_Untitleddesign3.png";
 const GOLD = '#b8933a';
@@ -46,9 +47,18 @@ function Toggle({ label, value, onToggle, desc }) {
 
 // ─── User Activity Modal ──────────────────────────────────────────────────
 function UserActivityModal({ user, onClose }) {
-  const sessions = analytics.getUserSessions(user.email || user.username);
-  const stats    = analytics.getUserStats(user.email || user.username);
-  const [tab, setTab] = useState('sessions');
+  const [sessions, setSessions] = useState([]);
+  const [stats, setStats]       = useState({ sessionCount:0, totalTime:0, totalDownloads:0, totalDocViews:0, pageTime:{}, sectionTime:{}, logins:[], lastSeen:null, firstSeen:null });
+  const [tab, setTab]           = useState('sessions');
+  const [loading, setLoading]   = useState(true);
+
+  useEffect(() => {
+    analytics.getUserSessions(user.email || user.username).then(sess => {
+      setSessions(sess);
+      setStats(analytics.computeUserStats(sess));
+      setLoading(false);
+    });
+  }, [user]);
 
   const kpis = [
     { label:'Total Sessions',  value: stats.sessionCount,                          color: GOLD    },
@@ -71,6 +81,7 @@ function UserActivityModal({ user, onClose }) {
           <button onClick={onClose} style={{ background:'none', border:'none', color:'#6b7280', cursor:'pointer', fontSize:'22px', lineHeight:1, marginTop:'-4px' }}>×</button>
         </div>
 
+        {loading && <div style={{ padding:'20px', textAlign:'center', color:'#6b7280' }}>Loading analytics…</div>}
         {/* KPIs */}
         <div style={{ display:'grid', gridTemplateColumns:'repeat(6,1fr)', gap:'12px', padding:'20px 28px', borderBottom:'1px solid rgba(255,255,255,0.07)', flexShrink:0 }}>
           {kpis.map(k => (
@@ -286,15 +297,116 @@ function AddUserForm({ onAdd, onClose }) {
   );
 }
 
+
+// ─── DocuSign Requests View ───────────────────────────────────────────────
+function DocusignRequestsView() {
+  const [requests, setRequests] = useState([]);
+  const [loading, setLoading]   = useState(true);
+
+  useEffect(() => {
+    DocusignRequestDB.list().then(r => { setRequests(r); setLoading(false); });
+  }, []);
+
+  const updateStatus = async (id, status) => {
+    try {
+      await DocusignRequestDB.updateStatus(id, status);
+      setRequests(prev => prev.map(r => r.id === id ? { ...r, status } : r));
+    } catch (e) {
+      console.error('updateStatus:', e);
+    }
+  };
+
+  const statusColors = {
+    pending:   { bg: 'rgba(245,158,11,0.12)', color: '#f59e0b', border: 'rgba(245,158,11,0.3)' },
+    sent:      { bg: 'rgba(96,165,250,0.12)',  color: '#60a5fa', border: 'rgba(96,165,250,0.3)' },
+    executed:  { bg: 'rgba(74,222,128,0.12)',  color: '#4ade80', border: 'rgba(74,222,128,0.3)' },
+    cancelled: { bg: 'rgba(239,68,68,0.12)',   color: '#ef4444', border: 'rgba(239,68,68,0.3)' },
+  };
+
+  return (
+    <div>
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'24px' }}>
+        <div>
+          <h2 style={{ color:'#e8e0d0', margin:'0 0 4px', fontSize:'20px', fontWeight:'normal' }}>DocuSign Requests</h2>
+          <p style={{ color:'#6b7280', fontSize:'13px', margin:0 }}>All investor subscription requests. Update status as you process each one.</p>
+        </div>
+        <div style={{ color:GOLD, fontSize:'24px', fontWeight:'bold' }}>{requests.length}</div>
+      </div>
+
+      {loading && <p style={{ color:'#6b7280', textAlign:'center', padding:'40px' }}>Loading requests…</p>}
+
+      {!loading && requests.length === 0 && (
+        <p style={{ color:'#4a5568', textAlign:'center', padding:'60px' }}>No DocuSign requests yet. They will appear here as investors submit the subscription form.</p>
+      )}
+
+      {!loading && requests.length > 0 && (
+        <div>
+          {/* Summary stats */}
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:'12px', marginBottom:'24px' }}>
+            {['pending','sent','executed','cancelled'].map(status => {
+              const count = requests.filter(r => r.status === status).length;
+              const sc = statusColors[status];
+              return (
+                <div key={status} style={{ background:sc.bg, border:`1px solid ${sc.border}`, borderRadius:'2px', padding:'16px', textAlign:'center' }}>
+                  <div style={{ color:sc.color, fontSize:'28px', fontWeight:'bold' }}>{count}</div>
+                  <div style={{ color:'#6b7280', fontSize:'10px', textTransform:'uppercase', letterSpacing:'1px', marginTop:'4px' }}>{status}</div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Request cards */}
+          {requests.map(req => {
+            const sc = statusColors[req.status] || statusColors.pending;
+            return (
+              <div key={req.id} style={{ background:'rgba(255,255,255,0.03)', border:'1px solid rgba(255,255,255,0.08)', borderRadius:'2px', padding:'20px', marginBottom:'12px' }}>
+                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', flexWrap:'wrap', gap:'12px' }}>
+                  <div style={{ flex:1 }}>
+                    <div style={{ display:'flex', alignItems:'center', gap:'12px', marginBottom:'8px' }}>
+                      <span style={{ color:'#e8e0d0', fontWeight:'bold', fontSize:'16px' }}>{req.firstName} {req.lastName}</span>
+                      <span style={{ background:sc.bg, color:sc.color, border:`1px solid ${sc.border}`, fontSize:'10px', padding:'3px 10px', borderRadius:'2px', textTransform:'uppercase', letterSpacing:'1px' }}>{req.status}</span>
+                    </div>
+                    <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:'12px', fontSize:'13px' }}>
+                      <div><span style={{ color:'#4a5568' }}>Email: </span><span style={{ color:'#8a9ab8' }}>{req.email}</span></div>
+                      <div><span style={{ color:'#4a5568' }}>Amount: </span><span style={{ color:GOLD, fontWeight:'bold' }}>${Number(req.amountToInvest||0).toLocaleString()}</span></div>
+                      <div><span style={{ color:'#4a5568' }}>Type: </span><span style={{ color:'#c4cdd8' }}>{req.investmentType} · {req.fundingType}</span></div>
+                      <div><span style={{ color:'#4a5568' }}>Address: </span><span style={{ color:'#8a9ab8' }}>{req.mailingAddress||'—'}</span></div>
+                      <div><span style={{ color:'#4a5568' }}>Submitted: </span><span style={{ color:'#6b7280' }}>{analytics.formatDateTime(req.submittedAt)}</span></div>
+                      <div><span style={{ color:'#4a5568' }}>By: </span><span style={{ color:'#6b7280' }}>@{req.submittedByUsername||'unknown'}</span></div>
+                    </div>
+                  </div>
+                  <div style={{ display:'flex', flexDirection:'column', gap:'8px', flexShrink:0 }}>
+                    <label style={{ color:'#4a5568', fontSize:'10px', letterSpacing:'1px', textTransform:'uppercase' }}>Update Status</label>
+                    <select
+                      value={req.status}
+                      onChange={e => updateStatus(req.id, e.target.value)}
+                      style={{ background:'rgba(255,255,255,0.05)', border:'1px solid rgba(255,255,255,0.12)', borderRadius:'2px', padding:'8px 12px', color:'#e8e0d0', fontSize:'12px', cursor:'pointer', outline:'none' }}>
+                      <option value="pending">Pending</option>
+                      <option value="sent">DocuSign Sent</option>
+                      <option value="executed">Executed</option>
+                      <option value="cancelled">Cancelled</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Portal Controls ──────────────────────────────────────────────────────
 function PortalControls() {
   const [s, setS] = useState(getPortalSettings);
+  useEffect(() => { loadPortalSettings().then(setS); }, []);
   const [saved, setSaved] = useState(false);
   const [sec, setSec] = useState('raise');
 
   const upd = (k,v) => setS(prev=>({...prev,[k]:v}));
-  const save = () => { savePortalSettings(s); setSaved(true); setTimeout(()=>setSaved(false),2500); };
-  const reset = () => { if (!window.confirm('Reset ALL portal settings to defaults?')) return; resetPortalSettings(); setS(getPortalSettings()); };
+  const save = async () => { await savePortalSettings(s); setSaved(true); setTimeout(()=>setSaved(false),2500); };
+  const reset = async () => { if (!window.confirm('Reset ALL portal settings to defaults?')) return; await resetPortalSettings(); setS(getPortalSettings()); };
 
   const fmt = n => `$${Number(n||0).toLocaleString()}`;
   const pct = (a,b) => b ? Math.min(100, Math.round((a/b)*100)) : 0;
@@ -532,16 +644,35 @@ function AdminSettings({ changeAdminPassword, changeAdminUsername }) {
 // ─── Main Admin Dashboard ─────────────────────────────────────────────────
 export default function AdminDashboard() {
   const { portalUser, isAdmin, portalLogout, getAllUsers, removeUser, changeAdminPassword, changeAdminUsername } = usePortalAuth();
-  const [view, setView]         = useState('users');
-  const [users, setUsers]       = useState([]);
-  const [showAdd, setShowAdd]   = useState(false);
-  const [selUser, setSelUser]   = useState(null);
-  const [aData, setAData]       = useState(null);
+  const [view, setView]           = useState('users');
+  const [users, setUsers]         = useState([]);
+  const [showAdd, setShowAdd]     = useState(false);
+  const [selUser, setSelUser]     = useState(null);
+  const [allSessions, setAllSessions] = useState([]);
+  const [globalStats, setGlobalStats] = useState({ totalSessions:0, totalTime:0, totalDownloads:0, totalDocViews:0 });
+  const [docusignRequests, setDocusignRequests] = useState([]);
   const navigate = useNavigate();
 
-  const load = useCallback(() => {
-    setUsers(getAllUsers());
-    setAData(analytics.getAllData());
+  const load = useCallback(async () => {
+    try {
+      const [usersData, sessions] = await Promise.all([
+        getAllUsers(),
+        analytics.getAllSessions(),
+      ]);
+      setUsers(usersData);
+      // Parse JSON fields on sessions
+      const parsed = sessions.map(s => ({
+        ...s,
+        pages:     typeof s.pages     === 'string' ? JSON.parse(s.pages     || '[]') : (s.pages     || []),
+        downloads: typeof s.downloads === 'string' ? JSON.parse(s.downloads || '[]') : (s.downloads || []),
+        docViews:  typeof s.docViews  === 'string' ? JSON.parse(s.docViews  || '[]') : (s.docViews  || []),
+      }));
+      setAllSessions(parsed);
+      const global = await analytics.computeGlobalStats(parsed);
+      setGlobalStats(global);
+    } catch (e) {
+      console.error('[Admin] load error:', e);
+    }
   }, [getAllUsers]);
 
   useEffect(() => {
@@ -554,7 +685,7 @@ export default function AdminDashboard() {
 
   if (!portalUser || !isAdmin) return null;
 
-  const global = analytics.getGlobalStats();
+  // global and allSessions come from state, loaded async
   const investorUsers = users.filter(u => u.role === 'investor');
 
   const recentSessions = (aData?.sessions || [])
@@ -580,7 +711,7 @@ export default function AdminDashboard() {
 
       {/* Sub Nav */}
       <div style={{ background:DARK, borderBottom:'1px solid rgba(255,255,255,0.07)', padding:'0 40px', display:'flex', gap:'0' }}>
-        {[['users','User Management'],['analytics','Engagement Analytics'],['activity','Recent Activity'],['portal','Portal Controls'],['settings','Admin Settings']].map(([id,label]) => (
+        {[['users','User Management'],['analytics','Engagement Analytics'],['activity','Recent Activity'],['docusign','DocuSign Requests'],['portal','Portal Controls'],['settings','Admin Settings']].map(([id,label]) => (
           <button key={id} onClick={()=>setView(id)} style={{ background:'none', border:'none', borderBottom: view===id?`2px solid ${GOLD}`:'2px solid transparent', color: view===id?GOLD:'#6b7280', padding:'14px 20px', cursor:'pointer', fontSize:'12px', letterSpacing:'1px' }}>{label}</button>
         ))}
       </div>
@@ -590,10 +721,10 @@ export default function AdminDashboard() {
         <div style={{ display:'grid', gridTemplateColumns:'repeat(5,1fr)', gap:'14px', marginBottom:'32px' }}>
           {[
             { label:'Investors',      value: investorUsers.length,                       icon:'👥', color:GOLD },
-            { label:'Total Sessions', value: global.totalSessions,                       icon:'🔐', color:'#60a5fa' },
-            { label:'Time Spent',     value: analytics.formatDuration(global.totalTime), icon:'⏱',  color:'#4ade80' },
-            { label:'Downloads',      value: global.totalDownloads,                      icon:'📥', color:'#f59e0b' },
-            { label:'Docs Viewed',    value: global.totalDocViews,                       icon:'📄', color:'#a78bfa' },
+            { label:'Total Sessions', value: globalStats.totalSessions,                       icon:'🔐', color:'#60a5fa' },
+            { label:'Time Spent',     value: analytics.formatDuration(globalStats.totalTime), icon:'⏱',  color:'#4ade80' },
+            { label:'Downloads',      value: globalStats.totalDownloads,                      icon:'📥', color:'#f59e0b' },
+            { label:'Docs Viewed',    value: globalStats.totalDocViews,                       icon:'📄', color:'#a78bfa' },
           ].map(({ label,value,icon,color }) => (
             <div key={label} style={{ background:'rgba(255,255,255,0.03)', border:'1px solid rgba(255,255,255,0.08)', borderRadius:'2px', padding:'18px' }}>
               <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
@@ -742,6 +873,11 @@ export default function AdminDashboard() {
               ))
             }
           </div>
+        )}
+
+        {/* ── DocuSign Requests ── */}
+        {view === 'docusign' && (
+          <DocusignRequestsView />
         )}
 
         {/* ── Portal Controls ── */}
