@@ -12,7 +12,7 @@ const PORTAL_AUTH_KEY = 'rosie_portal_auth';
 const DEFAULT_ADMIN = {
   username: 'admin',
   email: 'admin@rosieai.com',
-  password: 'password',
+  password: 'RosieAdmin2025!',
   name: 'Admin',
   role: 'admin',
   createdAt: new Date().toISOString(),
@@ -22,14 +22,11 @@ function getUsers() {
   try {
     const raw = localStorage.getItem(USERS_KEY);
     const users = raw ? JSON.parse(raw) : [];
-    const adminIdx = users.findIndex(u => u.username === 'admin' || u.role === 'admin');
-    if (adminIdx < 0) {
+    // Ensure admin always exists
+    if (!users.find(u => u.username === 'admin' || u.role === 'admin')) {
       users.push(DEFAULT_ADMIN);
-    } else {
-      // Always keep admin credentials in sync with DEFAULT_ADMIN
-      users[adminIdx] = { ...users[adminIdx], ...DEFAULT_ADMIN };
+      localStorage.setItem(USERS_KEY, JSON.stringify(users));
     }
-    localStorage.setItem(USERS_KEY, JSON.stringify(users));
     return users;
   } catch {
     return [DEFAULT_ADMIN];
@@ -51,7 +48,7 @@ export const PortalAuthProvider = ({ children }) => {
       if (saved) {
         const user = JSON.parse(saved);
         setPortalUser(user);
-        analytics.startSession(user.email, user.name);
+        analytics.startSession(user.email, user.name, user.username);
       }
     } catch {}
     setIsPortalLoading(false);
@@ -69,7 +66,7 @@ export const PortalAuthProvider = ({ children }) => {
     const { password: _, ...safeUser } = user;
     setPortalUser(safeUser);
     sessionStorage.setItem(PORTAL_AUTH_KEY, JSON.stringify(safeUser));
-    analytics.startSession(safeUser.email, safeUser.name);
+    analytics.startSession(safeUser.email, safeUser.name, safeUser.username);
     return { success: true, user: safeUser };
   };
 
