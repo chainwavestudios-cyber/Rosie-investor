@@ -2,7 +2,7 @@
  * RosieVoiceAgent — Production Deepgram Voice Agent
  *
  * Uses Deepgram's unified Voice Agent WebSocket API:
- *   wss://agent.deepgram.com/v1/listen
+ *   wss://agent.deepgram.com/v1/agent
  *
  * Single WebSocket handles:
  *   - Nova-3 STT  (speech → text)
@@ -20,7 +20,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { getPortalSettings } from '@/lib/portalSettings';
 
 const GOLD = '#b8933a';
-const DG_WS_URL = 'wss://agent.deepgram.com/v1/listen';
+const DG_WS_URL = 'wss://agent.deepgram.com/v1/agent';
 
 // All Aura-2 English voices with gender/tone metadata
 export const AURA2_VOICES = [
