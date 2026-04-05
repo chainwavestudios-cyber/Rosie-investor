@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { usePortalAuth } from '@/lib/PortalAuthContext';
 import analytics from '@/lib/analytics';
 import { getPortalSettings } from '@/lib/portalSettings';
+import RosieVoiceAgent from '@/components/RosieVoiceAgent';
 
 const LOGO_URL = "https://media.base44.com/images/public/69cd2741578c9b5ce655395b/39a31f9b9_Untitleddesign3.png";
 
@@ -218,21 +219,42 @@ function downloadTabAsPDF(title) {
 // ─── Tab: Investment Offering ─────────────────────────────────────────────
 function InvestmentOffering() {
   const [activeSection, setActiveSection] = useState('overview');
-  const sectionRef = useRef(null);
 
   const sections = [
-    { id: 'overview', label: 'Executive Overview' },
-    { id: 'opportunity', label: 'The Opportunity' },
-    { id: 'product', label: 'Product & Technology' },
-    { id: 'market', label: 'Market Analysis' },
-    { id: 'traction', label: 'Traction & Metrics' },
-    { id: 'team', label: 'Team' },
-    { id: 'financials', label: 'Financial Projections' },
-    { id: 'terms', label: 'Investment Terms' },
-    { id: 'use-of-funds', label: 'Use of Funds' },
-    { id: 'risk', label: 'Risk Factors' },
+    { id: 'overview',     label: 'Executive Overview',     pageNum: 1  },
+    { id: 'opportunity',  label: 'The Opportunity',        pageNum: 2  },
+    { id: 'product',      label: 'Product & Technology',   pageNum: 3  },
+    { id: 'market',       label: 'Market Analysis',        pageNum: 4  },
+    { id: 'traction',     label: 'Traction & Metrics',     pageNum: 5  },
+    { id: 'team',         label: 'Team',                   pageNum: 6  },
+    { id: 'financials',   label: 'Financial Projections',  pageNum: 7  },
+    { id: 'terms',        label: 'Investment Terms',       pageNum: 8  },
+    { id: 'use-of-funds', label: 'Use of Funds',           pageNum: 9  },
+    { id: 'risk',         label: 'Risk Factors',           pageNum: 10 },
   ];
 
+  // Open the offering memo as a tracked document on mount
+  const docIdRef = useRef(null);
+  useEffect(() => {
+    docIdRef.current = analytics.trackDocumentOpen('Investment Offering Memorandum', 'offering');
+    analytics.trackDocumentPageView(docIdRef.current, 1);
+    // Also fire a section track so it appears in the section heat-map
+    analytics.trackSection('offering-overview');
+    return () => {
+      if (docIdRef.current) analytics.trackDocumentClose(docIdRef.current);
+    };
+  }, []);
+
+  // Every sidebar section switch = a new doc page view + section track
+  const goToSection = (id) => {
+    const sec = sections.find(s => s.id === id);
+    if (!sec || id === activeSection) return;
+    if (docIdRef.current) analytics.trackDocumentPageView(docIdRef.current, sec.pageNum);
+    analytics.trackSection('offering-' + id);
+    setActiveSection(id);
+  };
+
+  // Keep old useEffect for section tracking (belt-and-suspenders)
   useEffect(() => {
     analytics.trackSection('investment-' + activeSection);
   }, [activeSection]);
@@ -460,7 +482,7 @@ function InvestmentOffering() {
         paddingRight: '0',
       }}>
         {sections.map(({ id, label }) => (
-          <button key={id} onClick={() => setActiveSection(id)} style={{
+          <button key={id} onClick={() => goToSection(id)} style={{
             display: 'block', width: '100%', textAlign: 'left',
             background: activeSection === id ? 'rgba(184,147,58,0.12)' : 'transparent',
             border: 'none', borderLeft: activeSection === id ? `3px solid ${GOLD}` : '3px solid transparent',
@@ -501,90 +523,216 @@ function InvestmentOffering() {
 const h2 = { color: '#e8e0d0', fontSize: '20px', marginTop: 0, marginBottom: '16px', fontFamily: 'Georgia, serif', fontWeight: 'normal' };
 const bodyText = { color: '#8a9ab8', lineHeight: 1.7, fontSize: '14px', marginBottom: '16px' };
 
+// ─── Document Viewer with full page-level tracking ────────────────────────
+function DocumentViewer({ doc, onClose }) {
+  const [currentPage, setCurrentPage] = useState(1);
+  const docIdRef = useRef(null);
+
+  // Full document content pages
+  const pages = doc.pages;
+  const totalPages = pages.length;
+
+  useEffect(() => {
+    // Open tracking
+    docIdRef.current = analytics.trackDocumentOpen(doc.name, doc.type);
+    analytics.trackDocumentPageView(docIdRef.current, 1);
+    return () => {
+      // Close tracking on unmount
+      if (docIdRef.current) analytics.trackDocumentClose(docIdRef.current);
+    };
+  }, []);
+
+  const goToPage = (n) => {
+    const p = Math.max(1, Math.min(n, totalPages));
+    if (p !== currentPage) {
+      analytics.trackDocumentPageView(docIdRef.current, p);
+      setCurrentPage(p);
+    }
+  };
+
+  const handleDownload = () => {
+    analytics.trackDownload(doc.name + '.pdf', 'pdf');
+    // Trigger print dialog as PDF
+    const win = window.open('', '_blank');
+    win.document.write(`<html><head><title>${doc.name}</title><style>
+      body{font-family:Georgia,serif;color:#111;padding:40px;max-width:700px;margin:0 auto}
+      h1{color:#b8933a;border-bottom:2px solid #b8933a;padding-bottom:12px}
+      h2{color:#1a1a2e;margin-top:32px} p{line-height:1.7} table{width:100%;border-collapse:collapse}
+      td,th{border:1px solid #ddd;padding:8px;text-align:left} th{background:#f5f5f5}
+    </style></head><body>
+    <h1>${doc.name}</h1>
+    ${pages.map((pg, i) => `<div style="page-break-inside:avoid"><h2>Section ${i+1}: ${pg.title}</h2>${pg.content}</div>`).join('')}
+    </body></html>`);
+    win.document.close();
+    setTimeout(() => win.print(), 500);
+  };
+
+  const page = pages[currentPage - 1];
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.9)', zIndex: 9998, display: 'flex', flexDirection: 'column' }}>
+      {/* Doc Header */}
+      <div style={{ background: '#0a0f1e', borderBottom: '1px solid rgba(184,147,58,0.3)', padding: '14px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+          <span style={{ color: '#6b7280', fontSize: '11px', letterSpacing: '2px', textTransform: 'uppercase' }}>Document Viewer</span>
+          <span style={{ color: GOLD, fontSize: '14px', fontWeight: 'bold' }}>{doc.name}</span>
+        </div>
+        <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+          <button onClick={handleDownload} style={{ background: 'rgba(184,147,58,0.15)', color: GOLD, border: '1px solid rgba(184,147,58,0.3)', borderRadius: '2px', padding: '7px 18px', cursor: 'pointer', fontSize: '12px', letterSpacing: '1px' }}>
+            ↓ Download PDF
+          </button>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#6b7280', cursor: 'pointer', fontSize: '22px', lineHeight: 1 }}>×</button>
+        </div>
+      </div>
+
+      {/* Doc Body */}
+      <div style={{ flex: 1, overflow: 'hidden', display: 'flex' }}>
+        {/* Page nav sidebar */}
+        <div style={{ width: '160px', background: '#0d1b2a', borderRight: '1px solid rgba(255,255,255,0.07)', overflowY: 'auto', padding: '12px 8px', flexShrink: 0 }}>
+          {pages.map((pg, i) => (
+            <button key={i} onClick={() => goToPage(i + 1)} style={{
+              display: 'block', width: '100%', textAlign: 'left',
+              background: currentPage === i+1 ? 'rgba(184,147,58,0.15)' : 'transparent',
+              border: 'none', borderLeft: currentPage === i+1 ? `2px solid ${GOLD}` : '2px solid transparent',
+              color: currentPage === i+1 ? GOLD : '#6b7280',
+              padding: '10px 10px', cursor: 'pointer', fontSize: '11px', lineHeight: 1.4,
+              transition: 'all 0.1s',
+            }}>
+              <div style={{ color: '#4a5568', fontSize: '10px', marginBottom: '2px' }}>PAGE {i+1}</div>
+              {pg.title}
+            </button>
+          ))}
+        </div>
+
+        {/* Page content */}
+        <div style={{ flex: 1, overflowY: 'auto', padding: '40px 60px', background: '#0a1020' }}>
+          <div style={{ maxWidth: '680px', margin: '0 auto' }}>
+            <div style={{ color: '#4a5568', fontSize: '10px', letterSpacing: '3px', textTransform: 'uppercase', marginBottom: '8px' }}>Page {currentPage} of {totalPages}</div>
+            <h2 style={{ color: '#e8e0d0', fontSize: '22px', fontFamily: 'Georgia, serif', fontWeight: 'normal', marginBottom: '24px', paddingBottom: '16px', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>{page.title}</h2>
+            <div style={{ color: '#c4cdd8', lineHeight: 1.8, fontSize: '14px' }} dangerouslySetInnerHTML={{ __html: page.content }} />
+          </div>
+        </div>
+      </div>
+
+      {/* Pagination controls */}
+      <div style={{ background: '#0a0f1e', borderTop: '1px solid rgba(255,255,255,0.07)', padding: '12px 24px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '16px', flexShrink: 0 }}>
+        <button onClick={() => goToPage(1)} disabled={currentPage === 1} style={{ background: 'none', border: '1px solid rgba(255,255,255,0.1)', color: currentPage===1?'#2d3748':'#8a9ab8', borderRadius: '2px', padding: '6px 12px', cursor: currentPage===1?'not-allowed':'pointer', fontSize: '12px' }}>«</button>
+        <button onClick={() => goToPage(currentPage - 1)} disabled={currentPage === 1} style={{ background: 'none', border: '1px solid rgba(255,255,255,0.1)', color: currentPage===1?'#2d3748':'#8a9ab8', borderRadius: '2px', padding: '6px 14px', cursor: currentPage===1?'not-allowed':'pointer', fontSize: '12px' }}>‹ Prev</button>
+        <span style={{ color: '#6b7280', fontSize: '13px', minWidth: '120px', textAlign: 'center' }}>Page {currentPage} / {totalPages}</span>
+        <button onClick={() => goToPage(currentPage + 1)} disabled={currentPage === totalPages} style={{ background: 'none', border: '1px solid rgba(255,255,255,0.1)', color: currentPage===totalPages?'#2d3748':'#8a9ab8', borderRadius: '2px', padding: '6px 14px', cursor: currentPage===totalPages?'not-allowed':'pointer', fontSize: '12px' }}>Next ›</button>
+        <button onClick={() => goToPage(totalPages)} disabled={currentPage === totalPages} style={{ background: 'none', border: '1px solid rgba(255,255,255,0.1)', color: currentPage===totalPages?'#2d3748':'#8a9ab8', borderRadius: '2px', padding: '6px 12px', cursor: currentPage===totalPages?'not-allowed':'pointer', fontSize: '12px' }}>»</button>
+      </div>
+    </div>
+  );
+}
+
+// Document definitions — each page is a section with title + HTML content
+const SUBSCRIPTION_DOC = {
+  name: 'SAFE Note — Subscription Agreement',
+  type: 'subscription',
+  pages: [
+    { title: 'Cover Page & Parties', content: '<p><strong>SIMPLE AGREEMENT FOR FUTURE EQUITY (SAFE)</strong></p><p>This Simple Agreement for Future Equity (this <em>"SAFE"</em>) is entered into as of the date last signed below, between:</p><p><strong>Rosie AI LLC</strong>, a limited liability company organized under the laws of the State of Ohio (the <em>"Company"</em>), and the investor identified on the signature page (the <em>"Investor"</em>).</p><p>This SAFE is one of a series of SAFEs being issued by the Company to investors in connection with a financing round.</p><p><strong>Valuation Cap:</strong> $15,000,000<br><strong>Discount Rate:</strong> 20%<br><strong>Minimum Investment:</strong> $25,000</p>' },
+    { title: 'Investment Terms', content: '<p>The Company is issuing this SAFE in exchange for the payment by the Investor of the <strong>Purchase Amount</strong> indicated on the signature page.</p><p><strong>Section 1. Events.</strong></p><p><em>(a) Equity Financing.</em> If there is an Equity Financing before the termination of this SAFE, on the initial closing of such Equity Financing, this SAFE will automatically convert into the number of shares of Safe Preferred Stock equal to the Purchase Amount divided by the Conversion Price.</p><p><em>Conversion Price</em> means the lower of: (i) the Safe Price, or (ii) the Discount Price.</p><p><strong>Safe Price</strong> means the price per share equal to the Valuation Cap divided by the Diluted Shares Outstanding immediately prior to the closing of the Equity Financing.</p>' },
+    { title: 'Liquidity Event', content: '<p><strong>(b) Liquidity Event.</strong> If there is a Liquidity Event before the termination of this SAFE, the Investor will, at the Investor's option, either: (i) receive a cash payment equal to the Purchase Amount, or (ii) automatically receive from the Company a number of shares of Common Stock equal to the Purchase Amount divided by the Liquidity Price.</p><p><em>Liquidity Price</em> means the price per share equal to the Valuation Cap divided by the Diluted Shares Outstanding immediately prior to the Liquidity Event.</p><p>The Company shall provide the Investor with written notice of a Liquidity Event at least ten (10) business days prior to the anticipated closing date.</p>' },
+    { title: 'Dissolution Event', content: '<p><strong>(c) Dissolution Event.</strong> If there is a Dissolution Event before the termination of this SAFE, the Company will pay an amount equal to the Purchase Amount, due and payable to the Investor immediately prior to, or concurrent with, the consummation of the Dissolution Event.</p><p>The Purchase Amount will be paid prior to any payment to holders of outstanding Capital Stock by reason of their ownership of such Capital Stock.</p><p>If immediately prior to the consummation of the Dissolution Event, the assets of the Company legally available for distribution to the Investor and all holders of all other SAFEs are insufficient to permit the payment of the Purchase Amount and all such other amounts, then the entire assets of the Company legally available for distribution will be distributed with equal priority among the Investor and all other SAFE holders on a pro rata basis.</p>' },
+    { title: 'Company Representations', content: '<p><strong>Section 2. Company Representations.</strong></p><p>In connection with the issuance of this SAFE, the Company represents and warrants to the Investor, as of the date hereof, as follows:</p><p><em>(a)</em> The Company is a limited liability company duly organized, validly existing and in good standing under the laws of its state of formation, and has the power and authority to own, lease and operate its properties and carry on its business.</p><p><em>(b)</em> The execution, delivery and performance by the Company of this SAFE is within the power of the Company and has been duly authorized by all necessary actions on the part of the Company.</p><p><em>(c)</em> This SAFE constitutes a legal, valid and binding obligation of the Company, enforceable against the Company in accordance with its terms.</p>' },
+    { title: 'Investor Representations', content: '<p><strong>Section 3. Investor Representations.</strong></p><p><em>(a)</em> The Investor has full legal capacity, power and authority to execute and deliver this SAFE and to perform its obligations hereunder.</p><p><em>(b)</em> The Investor is an <strong>accredited investor</strong> as such term is defined in Rule 501(a) of Regulation D under the Securities Act of 1933, as amended.</p><p><em>(c)</em> The Investor has been advised that this SAFE has not been registered under the Securities Act, or any state securities laws and, therefore, cannot be resold unless it is registered under the Securities Act and applicable state securities laws or unless an exemption from such registration requirements is available.</p><p><em>(d)</em> The Investor is purchasing this SAFE for its own account, for investment purposes only and not with a view to, or for, resale, distribution or fractionalization thereof.</p>' },
+    { title: 'Miscellaneous Provisions', content: '<p><strong>Section 4. Miscellaneous.</strong></p><p><em>(a) Governing Law.</em> This SAFE shall be governed by and construed in accordance with the laws of the State of Ohio, without regard to conflicts of law provisions.</p><p><em>(b) Entire Agreement.</em> This SAFE constitutes the full and entire understanding and agreement between the parties with regard to the subject matter hereof.</p><p><em>(c) Amendments.</em> Any provision of this SAFE may be amended, waived or modified only upon the written consent of the Company and the Investor.</p><p><em>(d) Notices.</em> Any notice required or permitted by this SAFE will be in writing and will be deemed sufficient upon delivery by email with read receipt or by nationally recognized overnight courier.</p>' },
+    { title: 'Signature Page', content: '<p>IN WITNESS WHEREOF, the undersigned have executed this SAFE as of the date indicated by the Company below.</p><br><p><strong>ROSIE AI LLC</strong></p><p>By: ___________________________<br>Name: _________________________<br>Title: __________________________<br>Date: __________________________</p><br><p><strong>INVESTOR</strong></p><p>By: ___________________________<br>Name: _________________________<br>Title/Entity: ____________________<br>Address: _______________________<br>Email: _________________________<br>Date: __________________________<br>Purchase Amount: $ ______________</p><br><p style="color:#888;font-size:12px">This document is for informational purposes. Please contact Investors@RosieAI.com to obtain an executable copy.</p>' },
+  ]
+};
+
+const ACCREDITATION_DOC = {
+  name: 'Accredited Investor Questionnaire',
+  type: 'accreditation',
+  pages: [
+    { title: 'Introduction & Purpose', content: '<p><strong>ACCREDITED INVESTOR QUESTIONNAIRE</strong></p><p>This Accredited Investor Questionnaire (this <em>"Questionnaire"</em>) is required to be completed by each prospective investor in Rosie AI LLC (the <em>"Company"</em>) prior to making an investment.</p><p>The purpose of this Questionnaire is to confirm that you qualify as an <strong>"accredited investor"</strong> as defined in Rule 501(a) of Regulation D promulgated under the Securities Act of 1933, as amended (the <em>"Securities Act"</em>).</p><p>The Company is relying on your answers to determine whether the exemption from registration provided by Regulation D is available for the offering. Please complete all applicable sections accurately and completely.</p>' },
+    { title: 'Definition of Accredited Investor', content: '<p><strong>An "Accredited Investor" includes any person who meets ONE OR MORE of the following criteria:</strong></p><table><tr><th>Category</th><th>Requirement</th></tr><tr><td>Individual Net Worth</td><td>Net worth exceeding $1,000,000 (excluding primary residence), either individually or jointly with spouse</td></tr><tr><td>Individual Income</td><td>Individual income exceeding $200,000 in each of the two most recent years, with a reasonable expectation of reaching same in current year</td></tr><tr><td>Joint Income</td><td>Joint income with spouse exceeding $300,000 in each of the two most recent years</td></tr><tr><td>Entity</td><td>Entity with assets exceeding $5,000,000 not formed for specific purpose of acquiring securities offered</td></tr><tr><td>Professional Certification</td><td>Holds Series 7, 65, or 82 license in good standing</td></tr></table>' },
+    { title: 'Investor Certification', content: '<p><strong>CERTIFICATION</strong></p><p>The undersigned certifies that the information provided in this Questionnaire is true and correct in all material respects as of the date hereof. The undersigned agrees to notify the Company immediately if any such information becomes inaccurate at any time prior to the closing of the investment.</p><p>The undersigned acknowledges that:</p><ul style="line-height:2"><li>The Company will rely on the accuracy of this Questionnaire</li><li>The securities have not been registered under the Securities Act</li><li>The investment involves substantial risk and may result in total loss</li><li>The securities are illiquid and there is no guarantee of any return</li><li>Investor has conducted their own independent due diligence</li></ul><p><br><strong>Signature: ________________________</strong><br>Date: _____________________________<br>Print Name: _______________________<br>Entity (if applicable): _______________</p>' },
+  ]
+};
+
 // ─── Tab: Subscription Agreements ────────────────────────────────────────
 function SubscriptionAgreements() {
   const [showDocusign, setShowDocusign] = useState(false);
+  const [viewingDoc, setViewingDoc] = useState(null);
+
+  const openDoc = (doc) => {
+    analytics.trackSection('subscription-view-' + doc.type);
+    setViewingDoc(doc);
+  };
+
+  const closeDoc = () => {
+    setViewingDoc(null);
+  };
 
   return (
     <div id="portal-tab-content" style={{ position: 'relative' }}>
       {showDocusign && <DocusignModal onClose={() => setShowDocusign(false)} />}
+      {viewingDoc && <DocumentViewer doc={viewingDoc} onClose={closeDoc} />}
 
       <h2 style={h2}>Subscription Agreements</h2>
       <p style={bodyText}>
-        To participate in the Rosie AI investment round, you must complete and execute a Subscription Agreement. 
-        Review the documents below carefully. To proceed, request a DocuSign package or download the agreement for your records.
+        To participate in the Rosie AI investment round, review and execute the Subscription Agreement and Accredited Investor Questionnaire below.
+        Click <strong style={{ color: GOLD }}>View Document</strong> to read on-screen with full page tracking, or <strong style={{ color: GOLD }}>Download PDF</strong> for your records.
+        When ready, request a DocuSign package to execute electronically.
       </p>
 
-      <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '2px', padding: '24px', marginBottom: '20px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
-            <div style={{ width: '44px', height: '44px', background: 'rgba(184,147,58,0.15)', borderRadius: '2px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px' }}>📄</div>
-            <div>
-              <div style={{ color: '#e8e0d0', fontWeight: 'bold', marginBottom: '4px' }}>SAFE Note — Subscription Agreement</div>
-              <div style={{ color: '#6b7280', fontSize: '12px' }}>Rev. March 2025 · 12 pages · PDF</div>
+      {/* Document cards */}
+      {[
+        { doc: SUBSCRIPTION_DOC,   badge: 'Required', desc: 'SAFE Note — Subscription Agreement · 8 pages · Rev. March 2025' },
+        { doc: ACCREDITATION_DOC,  badge: 'Required', desc: 'Accredited Investor Questionnaire · 3 pages · SEC Rule 501(a)' },
+      ].map(({ doc, badge, desc }) => (
+        <div key={doc.type} style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.09)', borderRadius: '2px', padding: '20px 24px', marginBottom: '16px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+            <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
+              <div style={{ width: '44px', height: '44px', background: 'rgba(184,147,58,0.15)', borderRadius: '2px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px', flexShrink: 0 }}>📄</div>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                  <span style={{ color: '#e8e0d0', fontWeight: 'bold', fontSize: '14px' }}>{doc.name}</span>
+                  <span style={{ background: 'rgba(239,68,68,0.12)', color: '#ef4444', fontSize: '10px', padding: '2px 8px', borderRadius: '2px', letterSpacing: '1px' }}>{badge}</span>
+                </div>
+                <div style={{ color: '#6b7280', fontSize: '12px' }}>{desc}</div>
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: '10px', flexShrink: 0 }}>
+              <button
+                onClick={() => openDoc(doc)}
+                style={{ background: 'rgba(184,147,58,0.12)', color: GOLD, border: `1px solid rgba(184,147,58,0.3)`, borderRadius: '2px', padding: '8px 18px', cursor: 'pointer', fontSize: '12px', letterSpacing: '0.5px' }}>
+                📖 View Document
+              </button>
+              <button
+                onClick={() => {
+                  analytics.trackDownload(doc.name + '.pdf', 'pdf');
+                  const win = window.open('', '_blank');
+                  win.document.write(`<html><head><title>${doc.name}</title><style>body{font-family:Georgia,serif;color:#111;padding:40px;max-width:700px;margin:0 auto}h1{color:#b8933a;border-bottom:2px solid #b8933a;padding-bottom:12px}h2{color:#1a1a2e;margin-top:32px}p{line-height:1.7}table{width:100%;border-collapse:collapse}td,th{border:1px solid #ddd;padding:8px}th{background:#f5f5f5}</style></head><body><h1>${doc.name}</h1>${doc.pages.map((pg,i)=>`<h2>Section ${i+1}: ${pg.title}</h2>${pg.content}`).join('')}</body></html>`);
+                  win.document.close(); setTimeout(() => win.print(), 500);
+                }}
+                style={{ background: 'transparent', color: '#8a9ab8', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '2px', padding: '8px 18px', cursor: 'pointer', fontSize: '12px' }}>
+                ↓ Download
+              </button>
             </div>
           </div>
-          <button
-            onClick={() => { analytics.trackDownload('Subscription Agreement.pdf', 'pdf'); alert('Downloading Subscription Agreement...'); }}
-            style={{ background: 'transparent', border: `1px solid ${GOLD}`, color: GOLD, borderRadius: '2px', padding: '8px 20px', cursor: 'pointer', fontSize: '12px', letterSpacing: '1px' }}>
-            ↓ Download
-          </button>
         </div>
-      </div>
+      ))}
 
-      <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '2px', padding: '24px', marginBottom: '32px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
-            <div style={{ width: '44px', height: '44px', background: 'rgba(184,147,58,0.15)', borderRadius: '2px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px' }}>📋</div>
-            <div>
-              <div style={{ color: '#e8e0d0', fontWeight: 'bold', marginBottom: '4px' }}>Investor Accreditation Letter</div>
-              <div style={{ color: '#6b7280', fontSize: '12px' }}>Required · 3 pages · PDF</div>
-            </div>
-          </div>
-          <button
-            onClick={() => { analytics.trackDownload('Accreditation Letter.pdf', 'pdf'); alert('Downloading Accreditation Letter...'); }}
-            style={{ background: 'transparent', border: `1px solid ${GOLD}`, color: GOLD, borderRadius: '2px', padding: '8px 20px', cursor: 'pointer', fontSize: '12px', letterSpacing: '1px' }}>
-            ↓ Download
-          </button>
-        </div>
-      </div>
-
-      <div style={{ textAlign: 'center', padding: '32px', background: 'rgba(184,147,58,0.06)', border: '1px solid rgba(184,147,58,0.2)', borderRadius: '2px' }}>
+      {/* DocuSign CTA */}
+      <div style={{ textAlign: 'center', padding: '32px', background: 'rgba(184,147,58,0.06)', border: '1px solid rgba(184,147,58,0.2)', borderRadius: '2px', marginTop: '24px' }}>
         <div style={{ fontSize: '36px', marginBottom: '12px' }}>✍️</div>
         <h3 style={{ color: GOLD, marginBottom: '12px', fontFamily: 'Georgia, serif', fontWeight: 'normal' }}>Ready to Subscribe?</h3>
-        <p style={{ color: '#8a9ab8', fontSize: '13px', marginBottom: '24px', maxWidth: '400px', margin: '0 auto 24px' }}>
-          Request a DocuSign package and our team will send you a fully executed digital subscription agreement within 1 business day.
+        <p style={{ color: '#8a9ab8', fontSize: '13px', margin: '0 auto 24px', maxWidth: '400px' }}>
+          After reviewing the documents above, request a DocuSign package to execute your subscription electronically. Our team will respond within 1 business day.
         </p>
         <button
-          onClick={() => setShowDocusign(true)}
-          style={{
-            background: 'linear-gradient(135deg, #b8933a, #d4aa50)',
-            color: DARK, border: 'none', borderRadius: '2px',
-            padding: '14px 36px', cursor: 'pointer',
-            fontSize: '12px', letterSpacing: '3px', textTransform: 'uppercase',
-            fontWeight: '700',
-          }}>
+          onClick={() => { analytics.trackSection('subscription-docusign-request'); setShowDocusign(true); }}
+          style={{ background: 'linear-gradient(135deg, #b8933a, #d4aa50)', color: DARK, border: 'none', borderRadius: '2px', padding: '14px 36px', cursor: 'pointer', fontSize: '12px', letterSpacing: '3px', textTransform: 'uppercase', fontWeight: '700' }}>
           Request DocuSign
         </button>
       </div>
-
-      {/* Floating Download */}
-      <button
-        onClick={() => downloadTabAsPDF('Subscription Agreements')}
-        style={{
-          position: 'fixed', bottom: '32px', right: '32px',
-          background: 'linear-gradient(135deg, #b8933a, #d4aa50)',
-          color: DARK, border: 'none', borderRadius: '2px',
-          padding: '14px 24px', cursor: 'pointer',
-          fontSize: '11px', letterSpacing: '2px', textTransform: 'uppercase',
-          fontWeight: '700', boxShadow: '0 8px 32px rgba(184,147,58,0.4)',
-          zIndex: 100,
-        }}>
-        ↓ Download PDF
-      </button>
     </div>
   );
 }
+
 
 // ─── Tab: Market Data ─────────────────────────────────────────────────────
 function MarketData() {
@@ -875,9 +1023,15 @@ export default function InvestorPortal() {
     if (!portalUser) { navigate('/portal-login'); return; }
     analytics.trackPageView('portal');
     analytics.trackSection('home');
+
+    // Track session end on tab close / navigate away
+    const handleUnload = () => analytics.endSession();
+    window.addEventListener('beforeunload', handleUnload);
+    return () => window.removeEventListener('beforeunload', handleUnload);
   }, [portalUser]);
 
   useEffect(() => {
+    // Each tab switch = new section
     analytics.trackSection(activeTab);
   }, [activeTab]);
 
@@ -1002,223 +1156,6 @@ function RaiseProgress() {
   );
 }
 
-// ─── Rosie AI Chat Bot ────────────────────────────────────────────────────
-function RosieChat() {
-  const [settings, setSettings] = useState(getPortalSettings());
-  useEffect(() => {
-    const handler = (e) => setSettings(e.detail);
-    window.addEventListener('portalSettingsChanged', handler);
-    return () => window.removeEventListener('portalSettingsChanged', handler);
-  }, []);
-
-  const [messages, setMessages] = useState(() => {
-    const s = getPortalSettings();
-    return [{ role: 'assistant', text: s.chatbotGreeting }];
-  });
-  const [input, setInput] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [isOpen, setIsOpen] = useState(false);
-  const bottomRef = useRef(null);
-
-  useEffect(() => {
-    if (bottomRef.current) bottomRef.current.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
-
-  const sendMessage = async () => {
-    if (!input.trim() || loading) return;
-    const userMsg = input.trim();
-    setInput('');
-    setMessages(prev => [...prev, { role: 'user', text: userMsg }]);
-    setLoading(true);
-
-    try {
-      const systemPrompt = settings.chatbotContext || `You are Rosie, the investment assistant for Rosie AI LLC. Be concise and professional.`;
-
-      const res = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514',
-          max_tokens: 1000,
-          system: systemPrompt,
-          messages: [
-            ...messages.filter(m => m.role !== 'system').map(m => ({
-              role: m.role === 'assistant' ? 'assistant' : 'user',
-              content: m.text
-            })),
-            { role: 'user', content: userMsg }
-          ]
-        })
-      });
-      const data = await res.json();
-      const reply = data.content?.[0]?.text || "I'm having trouble connecting right now. Please email Investors@RosieAI.com for assistance.";
-      setMessages(prev => [...prev, { role: 'assistant', text: reply }]);
-    } catch {
-      setMessages(prev => [...prev, { role: 'assistant', text: "I'm having trouble connecting. Please email Investors@RosieAI.com for assistance." }]);
-    }
-    setLoading(false);
-  };
-
-  const handleKey = (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
-  };
-
-  const quickQuestions = [
-    'What are the investment terms?',
-    'How does Rosie AI work?',
-    'What is the minimum investment?',
-    'How do I subscribe?',
-  ];
-
-  if (!settings.chatbotEnabled) return null;
-
-  if (!isOpen) {
-    return (
-      <button
-        onClick={() => setIsOpen(true)}
-        style={{
-          position: 'fixed', bottom: '32px', right: '32px',
-          background: 'linear-gradient(135deg, #b8933a, #d4aa50)',
-          color: '#0a0f1e', border: 'none', borderRadius: '50px',
-          padding: '14px 24px', cursor: 'pointer',
-          fontSize: '13px', fontWeight: '700', letterSpacing: '1px',
-          boxShadow: '0 8px 32px rgba(184,147,58,0.5)',
-          display: 'flex', alignItems: 'center', gap: '10px',
-          zIndex: 500, fontFamily: 'Georgia, serif',
-        }}
-      >
-        <span style={{ fontSize: '18px' }}>🤖</span> Talk to Rosie
-      </button>
-    );
-  }
-
-  return (
-    <div style={{
-      position: 'fixed', bottom: '24px', right: '24px',
-      width: '380px', height: '520px',
-      background: '#0d1b2a', border: '1px solid rgba(184,147,58,0.3)',
-      borderRadius: '4px', display: 'flex', flexDirection: 'column',
-      boxShadow: '0 24px 80px rgba(0,0,0,0.7)',
-      zIndex: 500, overflow: 'hidden',
-      fontFamily: 'Georgia, serif',
-    }}>
-      {/* Chat Header */}
-      <div style={{
-        background: 'linear-gradient(135deg, rgba(184,147,58,0.2), rgba(184,147,58,0.08))',
-        borderBottom: '1px solid rgba(184,147,58,0.2)',
-        padding: '14px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <div style={{
-            width: '34px', height: '34px', background: 'linear-gradient(135deg, #b8933a, #d4aa50)',
-            borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: '16px', flexShrink: 0,
-          }}>🤖</div>
-          <div>
-            <div style={{ color: GOLD, fontSize: '13px', fontWeight: 'bold' }}>Rosie AI Assistant</div>
-            <div style={{ color: '#4ade80', fontSize: '10px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-              <span style={{ width: '6px', height: '6px', background: '#4ade80', borderRadius: '50%', display: 'inline-block' }} />
-              Online · Investment Q&A
-            </div>
-          </div>
-        </div>
-        <button onClick={() => setIsOpen(false)} style={{ background: 'none', border: 'none', color: '#6b7280', cursor: 'pointer', fontSize: '18px', lineHeight: 1 }}>×</button>
-      </div>
-
-      {/* Messages */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-        {messages.map((msg, i) => (
-          <div key={i} style={{ display: 'flex', justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start' }}>
-            <div style={{
-              maxWidth: '85%',
-              background: msg.role === 'user'
-                ? 'linear-gradient(135deg, #b8933a, #d4aa50)'
-                : 'rgba(255,255,255,0.06)',
-              color: msg.role === 'user' ? '#0a0f1e' : '#c4cdd8',
-              padding: '10px 14px', borderRadius: '3px',
-              fontSize: '13px', lineHeight: 1.55,
-              border: msg.role === 'assistant' ? '1px solid rgba(255,255,255,0.07)' : 'none',
-            }}>
-              {msg.text}
-            </div>
-          </div>
-        ))}
-        {loading && (
-          <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
-            <div style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.07)', padding: '10px 16px', borderRadius: '3px', color: GOLD, fontSize: '18px', letterSpacing: '3px' }}>
-              ···
-            </div>
-          </div>
-        )}
-        <div ref={bottomRef} />
-      </div>
-
-      {/* Quick Questions */}
-      {messages.length <= 1 && (
-        <div style={{ padding: '0 16px 12px', display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-          {quickQuestions.map(q => (
-            <button key={q} onClick={() => {
-              setMessages(prev => [...prev, { role: 'user', text: q }]);
-              setLoading(true);
-              fetch('https://api.anthropic.com/v1/messages', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  model: 'claude-sonnet-4-20250514',
-                  max_tokens: 1000,
-                  system: `You are Rosie, the AI investment assistant for Rosie AI LLC — an enterprise AI voice agent platform. Be concise, professional, and confident. Key facts: Raise: $2.5M SAFE Note, $15M valuation cap, 20% discount. Minimum investment: $25,000. Rosie AI automates sales calls using AI — 15x cheaper than human SDRs at $0.01/min. Market: AI Voice API growing from $4.1B to $40B by 2032 (38.46% CAGR). Current ARR: $380K, 47+ clients. Contact: Investors@RosieAI.com | 216-332-4234. Keep answers to 2-4 sentences.`,
-                  messages: [{ role: 'user', content: q }]
-                })
-              }).then(r => r.json()).then(data => {
-                const reply = data.content?.[0]?.text || 'Please email Investors@RosieAI.com for assistance.';
-                setMessages(prev => [...prev, { role: 'assistant', text: reply }]);
-                setLoading(false);
-              }).catch(() => {
-                setMessages(prev => [...prev, { role: 'assistant', text: 'Please email Investors@RosieAI.com for assistance.' }]);
-                setLoading(false);
-              });
-            }}
-              style={{
-                background: 'rgba(184,147,58,0.1)', border: '1px solid rgba(184,147,58,0.25)',
-                color: '#b8933a', borderRadius: '20px', padding: '5px 12px',
-                fontSize: '11px', cursor: 'pointer', fontFamily: 'Georgia, serif',
-              }}
-              onMouseEnter={e => e.currentTarget.style.background = 'rgba(184,147,58,0.2)'}
-              onMouseLeave={e => e.currentTarget.style.background = 'rgba(184,147,58,0.1)'}
-            >{q}</button>
-          ))}
-        </div>
-      )}
-
-      {/* Input */}
-      <div style={{ padding: '12px 16px', borderTop: '1px solid rgba(255,255,255,0.07)', display: 'flex', gap: '8px' }}>
-        <input
-          value={input}
-          onChange={e => setInput(e.target.value)}
-          onKeyDown={handleKey}
-          placeholder="Ask about the investment..."
-          style={{
-            flex: 1, background: 'rgba(255,255,255,0.05)',
-            border: '1px solid rgba(255,255,255,0.1)', borderRadius: '2px',
-            padding: '9px 12px', color: '#e8e0d0', fontSize: '13px',
-            outline: 'none', fontFamily: 'Georgia, serif',
-          }}
-        />
-        <button
-          onClick={sendMessage}
-          disabled={loading || !input.trim()}
-          style={{
-            background: loading || !input.trim() ? 'rgba(184,147,58,0.3)' : 'linear-gradient(135deg, #b8933a, #d4aa50)',
-            color: '#0a0f1e', border: 'none', borderRadius: '2px',
-            width: '38px', cursor: loading ? 'not-allowed' : 'pointer',
-            fontSize: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center',
-          }}
-        >→</button>
-      </div>
-    </div>
-  );
-}
-
 // ─── Portal Home ──────────────────────────────────────────────────────────
 function PortalHome({ setActiveTab }) {
   const [s, setS] = useState(getPortalSettings());
@@ -1313,7 +1250,7 @@ function PortalHome({ setActiveTab }) {
       </div>
 
       {/* Floating AI Chat */}
-      <RosieChat />
+      <RosieVoiceAgent />
     </div>
   );
 }
