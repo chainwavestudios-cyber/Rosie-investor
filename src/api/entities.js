@@ -99,7 +99,7 @@ export const InvestorUser = {
         await base44.entities.InvestorUser.create({
           username: 'admin',
           email: 'admin@rosieai.com',
-          password: 'RosieAdmin2025!',
+          password: 'password',
           name: 'Admin',
           role: 'admin',
           company: 'Rosie AI LLC',
