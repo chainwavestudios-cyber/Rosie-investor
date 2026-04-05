@@ -21,13 +21,13 @@ const inputStyle = {
 
 // ─── Add User Form ────────────────────────────────────────────────────────
 function AddUserForm({ onAdd, onClose }) {
-  const [form, setForm] = useState({ name: '', email: '', password: '', role: 'investor', company: '' });
+  const [form, setForm] = useState({ name: '', username: '', email: '', password: '', role: 'investor', company: '' });
   const [error, setError] = useState('');
   const { addUser } = usePortalAuth();
 
   const handleSubmit = () => {
-    if (!form.name || !form.email || !form.password) {
-      setError('Name, email, and password are required.');
+    if (!form.name || !form.username || !form.password) {
+      setError('Name, username, and password are required.');
       return;
     }
     const result = addUser(form);
@@ -52,7 +52,11 @@ function AddUserForm({ onAdd, onClose }) {
           <input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} style={inputStyle} placeholder="John Smith" />
         </div>
         <div style={{ marginBottom: '16px' }}>
-          <label style={labelStyle}>Email Address</label>
+          <label style={labelStyle}>Username</label>
+          <input type="text" value={form.username} onChange={e => setForm({ ...form, username: e.target.value })} style={inputStyle} placeholder="john-smith" />
+        </div>
+        <div style={{ marginBottom: '16px' }}>
+          <label style={labelStyle}>Email Address (Optional)</label>
           <input type="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} style={inputStyle} placeholder="investor@example.com" />
         </div>
         <div style={{ marginBottom: '16px' }}>
@@ -185,6 +189,159 @@ function UserDetailModal({ user, onClose }) {
             </div>
           ))
         )}
+
+        {/* ── Settings View ── */}
+        {activeView === 'settings' && (
+          <AdminSettings
+            changeAdminPassword={changeAdminPassword}
+            changeAdminUsername={changeAdminUsername}
+          />
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Admin Settings ──────────────────────────────────────────────────────
+function AdminSettings({ changeAdminPassword, changeAdminUsername }) {
+  const [pwForm, setPwForm] = useState({ current: '', newPw: '', confirm: '' });
+  const [unForm, setUnForm] = useState({ current: '', newUsername: '' });
+  const [pwMsg, setPwMsg] = useState(null);
+  const [unMsg, setUnMsg] = useState(null);
+
+  const handleChangePassword = () => {
+    setPwMsg(null);
+    if (!pwForm.current || !pwForm.newPw || !pwForm.confirm) {
+      setPwMsg({ type: 'error', text: 'All fields are required.' }); return;
+    }
+    if (pwForm.newPw !== pwForm.confirm) {
+      setPwMsg({ type: 'error', text: 'New passwords do not match.' }); return;
+    }
+    if (pwForm.newPw.length < 8) {
+      setPwMsg({ type: 'error', text: 'New password must be at least 8 characters.' }); return;
+    }
+    const result = changeAdminPassword(pwForm.current, pwForm.newPw);
+    if (result.success) {
+      setPwMsg({ type: 'success', text: 'Password updated successfully.' });
+      setPwForm({ current: '', newPw: '', confirm: '' });
+    } else {
+      setPwMsg({ type: 'error', text: result.error });
+    }
+  };
+
+  const handleChangeUsername = () => {
+    setUnMsg(null);
+    if (!unForm.current || !unForm.newUsername) {
+      setUnMsg({ type: 'error', text: 'All fields are required.' }); return;
+    }
+    if (unForm.newUsername.length < 3) {
+      setUnMsg({ type: 'error', text: 'Username must be at least 3 characters.' }); return;
+    }
+    const result = changeAdminUsername(unForm.current, unForm.newUsername);
+    if (result.success) {
+      setUnMsg({ type: 'success', text: 'Username updated successfully.' });
+      setUnForm({ current: '', newUsername: '' });
+    } else {
+      setUnMsg({ type: 'error', text: result.error });
+    }
+  };
+
+  const msgStyle = (type) => ({
+    background: type === 'success' ? 'rgba(74,222,128,0.1)' : 'rgba(220,60,60,0.12)',
+    border: type === 'success' ? '1px solid rgba(74,222,128,0.3)' : '1px solid rgba(220,60,60,0.3)',
+    borderRadius: '2px', padding: '10px 14px',
+    color: type === 'success' ? '#4ade80' : '#ff8a8a',
+    fontSize: '13px', marginBottom: '16px'
+  });
+
+  return (
+    <div>
+      <h2 style={{ color: '#e8e0d0', margin: '0 0 8px', fontSize: '20px', fontWeight: 'normal' }}>Admin Settings</h2>
+      <p style={{ color: '#6b7280', fontSize: '13px', margin: '0 0 36px' }}>
+        Manage admin login credentials. Default username: <span style={{ color: GOLD }}>admin</span>
+      </p>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '32px' }}>
+
+        {/* Change Username */}
+        <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '2px', padding: '28px' }}>
+          <h3 style={{ color: GOLD, fontSize: '12px', letterSpacing: '2px', textTransform: 'uppercase', margin: '0 0 20px' }}>
+            Change Admin Username
+          </h3>
+          <div style={{ marginBottom: '14px' }}>
+            <label style={labelStyle}>Current Password (to verify)</label>
+            <input
+              type="password" value={unForm.current}
+              onChange={e => setUnForm({ ...unForm, current: e.target.value })}
+              style={inputStyle} placeholder="••••••••"
+            />
+          </div>
+          <div style={{ marginBottom: '20px' }}>
+            <label style={labelStyle}>New Username</label>
+            <input
+              type="text" value={unForm.newUsername}
+              onChange={e => setUnForm({ ...unForm, newUsername: e.target.value })}
+              style={inputStyle} placeholder="new-username"
+            />
+          </div>
+          {unMsg && <div style={msgStyle(unMsg.type)}>{unMsg.text}</div>}
+          <button onClick={handleChangeUsername} style={{
+            width: '100%', background: 'linear-gradient(135deg, #b8933a, #d4aa50)',
+            color: DARK, border: 'none', borderRadius: '2px', padding: '12px',
+            cursor: 'pointer', fontWeight: '700', fontSize: '12px',
+            letterSpacing: '2px', textTransform: 'uppercase'
+          }}>Update Username</button>
+        </div>
+
+        {/* Change Password */}
+        <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '2px', padding: '28px' }}>
+          <h3 style={{ color: GOLD, fontSize: '12px', letterSpacing: '2px', textTransform: 'uppercase', margin: '0 0 20px' }}>
+            Change Admin Password
+          </h3>
+          <div style={{ marginBottom: '14px' }}>
+            <label style={labelStyle}>Current Password</label>
+            <input
+              type="password" value={pwForm.current}
+              onChange={e => setPwForm({ ...pwForm, current: e.target.value })}
+              style={inputStyle} placeholder="••••••••"
+            />
+          </div>
+          <div style={{ marginBottom: '14px' }}>
+            <label style={labelStyle}>New Password</label>
+            <input
+              type="password" value={pwForm.newPw}
+              onChange={e => setPwForm({ ...pwForm, newPw: e.target.value })}
+              style={inputStyle} placeholder="Min. 8 characters"
+            />
+          </div>
+          <div style={{ marginBottom: '20px' }}>
+            <label style={labelStyle}>Confirm New Password</label>
+            <input
+              type="password" value={pwForm.confirm}
+              onChange={e => setPwForm({ ...pwForm, confirm: e.target.value })}
+              style={inputStyle} placeholder="••••••••"
+            />
+          </div>
+          {pwMsg && <div style={msgStyle(pwMsg.type)}>{pwMsg.text}</div>}
+          <button onClick={handleChangePassword} style={{
+            width: '100%', background: 'linear-gradient(135deg, #b8933a, #d4aa50)',
+            color: DARK, border: 'none', borderRadius: '2px', padding: '12px',
+            cursor: 'pointer', fontWeight: '700', fontSize: '12px',
+            letterSpacing: '2px', textTransform: 'uppercase'
+          }}>Update Password</button>
+        </div>
+      </div>
+
+      {/* Current credentials info box */}
+      <div style={{ marginTop: '32px', background: 'rgba(184,147,58,0.06)', border: '1px solid rgba(184,147,58,0.2)', borderRadius: '2px', padding: '20px' }}>
+        <div style={{ color: GOLD, fontSize: '11px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '12px' }}>Default Credentials (first login)</div>
+        <div style={{ display: 'flex', gap: '40px', flexWrap: 'wrap' }}>
+          <div><span style={{ color: '#4a5568', fontSize: '12px' }}>Username: </span><span style={{ color: '#e8e0d0', fontFamily: 'monospace', fontSize: '14px' }}>admin</span></div>
+          <div><span style={{ color: '#4a5568', fontSize: '12px' }}>Password: </span><span style={{ color: '#e8e0d0', fontFamily: 'monospace', fontSize: '14px' }}>RosieAdmin2025!</span></div>
+        </div>
+        <p style={{ color: '#4a5568', fontSize: '11px', marginTop: '12px', marginBottom: 0 }}>
+          ⚠ Change these credentials immediately after first login.
+        </p>
       </div>
     </div>
   );
@@ -192,7 +349,7 @@ function UserDetailModal({ user, onClose }) {
 
 // ─── Main Admin Dashboard ─────────────────────────────────────────────────
 export default function AdminDashboard() {
-  const { portalUser, isAdmin, portalLogout, getAllUsers, removeUser } = usePortalAuth();
+  const { portalUser, isAdmin, portalLogout, getAllUsers, removeUser, changeAdminPassword, changeAdminUsername } = usePortalAuth();
   const [activeView, setActiveView] = useState('users');
   const [users, setUsers] = useState([]);
   const [showAddUser, setShowAddUser] = useState(false);
@@ -246,7 +403,7 @@ export default function AdminDashboard() {
 
       {/* Sub Nav */}
       <div style={{ background: '#0a0f1e', borderBottom: '1px solid rgba(255,255,255,0.07)', padding: '0 40px', display: 'flex', gap: '0' }}>
-        {[['users', 'User Management'], ['analytics', 'Engagement Analytics'], ['activity', 'Recent Activity']].map(([id, label]) => (
+        {[['users', 'User Management'], ['analytics', 'Engagement Analytics'], ['activity', 'Recent Activity'], ['settings', 'Admin Settings']].map(([id, label]) => (
           <button key={id} onClick={() => setActiveView(id)} style={{
             background: 'none', border: 'none',
             borderBottom: activeView === id ? `2px solid ${GOLD}` : '2px solid transparent',
@@ -423,6 +580,14 @@ export default function AdminDashboard() {
               </div>
             )}
           </div>
+        )}
+
+        {/* ── Settings View ── */}
+        {activeView === 'settings' && (
+          <AdminSettings
+            changeAdminPassword={changeAdminPassword}
+            changeAdminUsername={changeAdminUsername}
+          />
         )}
       </div>
     </div>
