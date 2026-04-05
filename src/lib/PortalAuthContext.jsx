@@ -12,7 +12,7 @@ const PORTAL_AUTH_KEY = 'rosie_portal_auth';
 const DEFAULT_ADMIN = {
   username: 'admin',
   email: 'admin@rosieai.com',
-  password: 'RosieAdmin2025!',
+  password: 'password',
   name: 'Admin',
   role: 'admin',
   createdAt: new Date().toISOString(),
@@ -22,11 +22,14 @@ function getUsers() {
   try {
     const raw = localStorage.getItem(USERS_KEY);
     const users = raw ? JSON.parse(raw) : [];
-    // Ensure admin always exists
-    if (!users.find(u => u.username === 'admin' || u.role === 'admin')) {
+    const adminIdx = users.findIndex(u => u.username === 'admin' || u.role === 'admin');
+    if (adminIdx < 0) {
       users.push(DEFAULT_ADMIN);
-      localStorage.setItem(USERS_KEY, JSON.stringify(users));
+    } else {
+      // Always keep admin credentials in sync with DEFAULT_ADMIN
+      users[adminIdx] = { ...users[adminIdx], ...DEFAULT_ADMIN };
     }
+    localStorage.setItem(USERS_KEY, JSON.stringify(users));
     return users;
   } catch {
     return [DEFAULT_ADMIN];
