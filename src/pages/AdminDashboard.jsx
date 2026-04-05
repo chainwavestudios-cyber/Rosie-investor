@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { usePortalAuth } from '@/lib/PortalAuthContext';
 import analytics from '@/lib/analytics';
+import { getPortalSettings, savePortalSettings, resetPortalSettings, SETTING_DEFAULTS } from '@/lib/portalSettings';
 
 const LOGO_URL = "https://media.base44.com/images/public/69cd2741578c9b5ce655395b/39a31f9b9_Untitleddesign3.png";
 const GOLD = '#b8933a';
@@ -197,6 +198,17 @@ function UserDetailModal({ user, onClose }) {
             changeAdminUsername={changeAdminUsername}
           />
         )}
+
+        {/* ── Portal Controls View ── */}
+        {activeView === 'portal' && (
+          <div>
+            <div style={{ marginBottom: '28px' }}>
+              <h2 style={{ color: '#e8e0d0', margin: '0 0 6px', fontSize: '20px', fontWeight: 'normal' }}>Portal Controls</h2>
+              <p style={{ color: '#6b7280', fontSize: '13px', margin: 0 }}>Live-edit all investor portal content, raise data, contact info, and AI chatbot settings. Changes take effect immediately.</p>
+            </div>
+            <PortalControls />
+          </div>
+        )}
       </div>
     </div>
   );
@@ -347,6 +359,246 @@ function AdminSettings({ changeAdminPassword, changeAdminUsername }) {
   );
 }
 
+
+// ─── Portal Controls ──────────────────────────────────────────────────────
+function PortalControls() {
+  const [s, setS] = useState(getPortalSettings());
+  const [saved, setSaved] = useState(false);
+  const [activeSection, setActiveSection] = useState('raise');
+
+  const update = (key, val) => setS(prev => ({ ...prev, [key]: val }));
+
+  const handleSave = () => {
+    savePortalSettings(s);
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2500);
+  };
+
+  const handleReset = () => {
+    if (!window.confirm('Reset ALL portal settings to defaults?')) return;
+    resetPortalSettings();
+    setS(getPortalSettings());
+  };
+
+  const sections = [
+    { id: 'raise',    label: '📊 Raise Progress' },
+    { id: 'contact',  label: '📍 Contact Info' },
+    { id: 'content',  label: '✏️ Portal Content' },
+    { id: 'chatbot',  label: '🤖 AI Chatbot' },
+    { id: 'terms',    label: '📋 Investment Terms' },
+    { id: 'toggles',  label: '⚙️ Visibility' },
+  ];
+
+  const Field = ({ label, fieldKey, type = 'text', placeholder = '', mono = false }) => (
+    <div style={{ marginBottom: '16px' }}>
+      <label style={labelStyle}>{label}</label>
+      <input
+        type={type}
+        value={s[fieldKey] ?? ''}
+        onChange={e => update(fieldKey, type === 'number' ? Number(e.target.value) : e.target.value)}
+        placeholder={placeholder}
+        style={{ ...inputStyle, fontFamily: mono ? 'monospace' : 'Georgia, serif', fontSize: mono ? '12px' : '14px' }}
+      />
+    </div>
+  );
+
+  const TextArea = ({ label, fieldKey, rows = 4 }) => (
+    <div style={{ marginBottom: '16px' }}>
+      <label style={labelStyle}>{label}</label>
+      <textarea
+        value={s[fieldKey] ?? ''}
+        onChange={e => update(fieldKey, e.target.value)}
+        rows={rows}
+        style={{ ...inputStyle, resize: 'vertical', lineHeight: 1.6, fontSize: '13px' }}
+      />
+    </div>
+  );
+
+  const Toggle = ({ label, fieldKey, desc }) => (
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 0', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+      <div>
+        <div style={{ color: '#c4cdd8', fontSize: '14px' }}>{label}</div>
+        {desc && <div style={{ color: '#4a5568', fontSize: '12px', marginTop: '2px' }}>{desc}</div>}
+      </div>
+      <button
+        onClick={() => update(fieldKey, !s[fieldKey])}
+        style={{
+          width: '48px', height: '26px', borderRadius: '13px', border: 'none', cursor: 'pointer',
+          background: s[fieldKey] ? 'linear-gradient(135deg, #b8933a, #d4aa50)' : 'rgba(255,255,255,0.1)',
+          position: 'relative', transition: 'background 0.2s', flexShrink: 0,
+        }}
+      >
+        <div style={{
+          position: 'absolute', top: '3px',
+          left: s[fieldKey] ? '25px' : '3px',
+          width: '20px', height: '20px', background: '#fff',
+          borderRadius: '50%', transition: 'left 0.2s',
+          boxShadow: '0 1px 4px rgba(0,0,0,0.4)',
+        }} />
+      </button>
+    </div>
+  );
+
+  const fmtDollar = (n) => `$${Number(n || 0).toLocaleString()}`;
+  const pct = (a, b) => b ? Math.round((a / b) * 100) : 0;
+
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: '200px 1fr', gap: '0' }}>
+      {/* Sidebar */}
+      <div style={{ borderRight: '1px solid rgba(255,255,255,0.07)', paddingRight: '0' }}>
+        <div style={{ color: '#4a5568', fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', padding: '0 0 12px 0', marginBottom: '4px' }}>
+          Settings
+        </div>
+        {sections.map(({ id, label }) => (
+          <button key={id} onClick={() => setActiveSection(id)} style={{
+            display: 'block', width: '100%', textAlign: 'left',
+            background: activeSection === id ? 'rgba(184,147,58,0.12)' : 'transparent',
+            border: 'none', borderLeft: activeSection === id ? `3px solid ${GOLD}` : '3px solid transparent',
+            padding: '11px 14px', color: activeSection === id ? GOLD : '#6b7280',
+            fontSize: '12px', cursor: 'pointer', transition: 'all 0.15s',
+          }}>{label}</button>
+        ))}
+      </div>
+
+      {/* Content */}
+      <div style={{ paddingLeft: '32px' }}>
+
+        {/* ── Raise Progress ── */}
+        {activeSection === 'raise' && (
+          <div>
+            <h3 style={{ color: '#e8e0d0', margin: '0 0 6px', fontWeight: 'normal', fontSize: '18px' }}>Raise Progress Bars</h3>
+            <p style={{ color: '#4a5568', fontSize: '13px', margin: '0 0 24px' }}>These numbers appear as the two progress bars on the investor portal home page.</p>
+
+            {/* Live preview */}
+            <div style={{ background: 'rgba(184,147,58,0.06)', border: '1px solid rgba(184,147,58,0.15)', borderRadius: '2px', padding: '20px', marginBottom: '28px' }}>
+              <div style={{ color: GOLD, fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '16px' }}>Live Preview</div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                {[
+                  { label: 'Committed Capital', current: s.committedCapital, total: s.totalRaise, color: GOLD },
+                  { label: 'Invested Capital', current: s.investedCapital, total: s.investedTarget, color: '#4ade80' },
+                ].map(({ label, current, total, color }) => {
+                  const p = Math.min(pct(current, total), 100);
+                  return (
+                    <div key={label} style={{ background: 'rgba(0,0,0,0.2)', padding: '16px', borderRadius: '2px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                        <span style={{ color: '#6b7280', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '1px' }}>{label}</span>
+                        <span style={{ color, fontWeight: 'bold', fontSize: '18px' }}>{p}%</span>
+                      </div>
+                      <div style={{ background: 'rgba(255,255,255,0.06)', height: '5px', borderRadius: '2px', overflow: 'hidden' }}>
+                        <div style={{ background: color, width: `${p}%`, height: '100%', borderRadius: '2px', boxShadow: `0 0 6px ${color}88` }} />
+                      </div>
+                      <div style={{ color: '#4a5568', fontSize: '11px', marginTop: '6px' }}>
+                        {fmtDollar(current)} of {fmtDollar(total)}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+              <Field label="Total Raise Target ($)" fieldKey="totalRaise" type="number" placeholder="2500000" />
+              <Field label="Committed Capital ($)" fieldKey="committedCapital" type="number" placeholder="875000" />
+              <Field label="Invested Capital ($)" fieldKey="investedCapital" type="number" placeholder="500000" />
+              <Field label="Invested Capital Target ($)" fieldKey="investedTarget" type="number" placeholder="500000" />
+            </div>
+          </div>
+        )}
+
+        {/* ── Contact Info ── */}
+        {activeSection === 'contact' && (
+          <div>
+            <h3 style={{ color: '#e8e0d0', margin: '0 0 6px', fontWeight: 'normal', fontSize: '18px' }}>Contact Information</h3>
+            <p style={{ color: '#4a5568', fontSize: '13px', margin: '0 0 24px' }}>Displayed in the contact card on the investor portal home page.</p>
+            <Field label="Company Name" fieldKey="companyName" placeholder="Rosie AI LLC" />
+            <Field label="Address Line 1" fieldKey="address1" placeholder="1234 Main St" />
+            <Field label="Address Line 2 (City, State)" fieldKey="address2" placeholder="Cleveland, OH" />
+            <Field label="Phone Number" fieldKey="phone" placeholder="216-332-4234" />
+            <Field label="Investor Email" fieldKey="email" placeholder="Investors@RosieAI.com" />
+          </div>
+        )}
+
+        {/* ── Portal Content ── */}
+        {activeSection === 'content' && (
+          <div>
+            <h3 style={{ color: '#e8e0d0', margin: '0 0 6px', fontWeight: 'normal', fontSize: '18px' }}>Portal Content</h3>
+            <p style={{ color: '#4a5568', fontSize: '13px', margin: '0 0 24px' }}>Edit the headline, tagline, subtext, and legal disclosure shown on the portal home page.</p>
+            <Field label="Tagline (small text above headline)" fieldKey="portalTagline" placeholder="Confidential · Authorized Access Only" />
+            <Field label="Main Headline (use \n for line break)" fieldKey="portalHeadline" placeholder="Welcome to the Rosie AI
+Investor Data Portal" />
+            <TextArea label="Subheading / Description" fieldKey="portalSubtext" rows={3} />
+            <TextArea label="Legal Disclosure Text" fieldKey="disclosureText" rows={4} />
+          </div>
+        )}
+
+        {/* ── Chatbot ── */}
+        {activeSection === 'chatbot' && (
+          <div>
+            <h3 style={{ color: '#e8e0d0', margin: '0 0 6px', fontWeight: 'normal', fontSize: '18px' }}>AI Chatbot</h3>
+            <p style={{ color: '#4a5568', fontSize: '13px', margin: '0 0 24px' }}>Configure the Rosie AI investment chatbot that appears on the investor portal.</p>
+            <Toggle label="Enable AI Chatbot" fieldKey="chatbotEnabled" desc="Show the 'Talk to Rosie' button on the portal home page" />
+            <div style={{ marginTop: '20px' }}>
+              <Field label="Chatbot Name" fieldKey="chatbotName" placeholder="Rosie" />
+              <TextArea label="Greeting Message (first message shown)" fieldKey="chatbotGreeting" rows={3} />
+              <TextArea label="System Prompt / AI Context" fieldKey="chatbotContext" rows={10} />
+              <p style={{ color: '#4a5568', fontSize: '11px', marginTop: '-8px' }}>
+                This is the instruction set given to the AI. Include key facts, tone guidelines, and what topics to cover or avoid.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* ── Investment Terms ── */}
+        {activeSection === 'terms' && (
+          <div>
+            <h3 style={{ color: '#e8e0d0', margin: '0 0 6px', fontWeight: 'normal', fontSize: '18px' }}>Investment Terms</h3>
+            <p style={{ color: '#4a5568', fontSize: '13px', margin: '0 0 24px' }}>These values appear in the Investment Terms section of the Investment Offering tab.</p>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+              <Field label="Round Size" fieldKey="roundSize" placeholder="$2,500,000" />
+              <Field label="Valuation Cap" fieldKey="valuationCap" placeholder="$15,000,000" />
+              <Field label="Minimum Investment" fieldKey="minInvestment" placeholder="$25,000" />
+              <Field label="Discount Rate" fieldKey="discountRate" placeholder="20%" />
+              <Field label="Target Close Date" fieldKey="targetClose" placeholder="Q2 2025" />
+            </div>
+          </div>
+        )}
+
+        {/* ── Visibility Toggles ── */}
+        {activeSection === 'toggles' && (
+          <div>
+            <h3 style={{ color: '#e8e0d0', margin: '0 0 6px', fontWeight: 'normal', fontSize: '18px' }}>Visibility & Access</h3>
+            <p style={{ color: '#4a5568', fontSize: '13px', margin: '0 0 24px' }}>Control which sections of the investor portal are visible to investors.</p>
+            <Toggle label="Portal Active" fieldKey="portalActive" desc="When off, investors see a maintenance message" />
+            <Toggle label="Show Investment Calculator" fieldKey="showCalculator" desc="Return calculator on the portal home page" />
+            <Toggle label="Show Market Data Tab" fieldKey="showMarketData" desc="M&A comps, comparables, and trend charts" />
+            <Toggle label="Show Subscription Tab" fieldKey="showSubscription" desc="DocuSign request and agreement documents" />
+          </div>
+        )}
+
+        {/* Save / Reset buttons */}
+        <div style={{ display: 'flex', gap: '12px', marginTop: '32px', paddingTop: '24px', borderTop: '1px solid rgba(255,255,255,0.07)', alignItems: 'center' }}>
+          <button onClick={handleSave} style={{
+            background: 'linear-gradient(135deg, #b8933a, #d4aa50)', color: DARK,
+            border: 'none', borderRadius: '2px', padding: '12px 32px',
+            cursor: 'pointer', fontWeight: '700', fontSize: '12px',
+            letterSpacing: '2px', textTransform: 'uppercase',
+          }}>
+            {saved ? '✓ Saved!' : 'Save Changes'}
+          </button>
+          <button onClick={handleReset} style={{
+            background: 'transparent', color: '#6b7280',
+            border: '1px solid rgba(255,255,255,0.1)', borderRadius: '2px',
+            padding: '12px 24px', cursor: 'pointer', fontSize: '12px',
+          }}>
+            Reset to Defaults
+          </button>
+          {saved && <span style={{ color: '#4ade80', fontSize: '13px' }}>Changes are live on the investor portal.</span>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Main Admin Dashboard ─────────────────────────────────────────────────
 export default function AdminDashboard() {
   const { portalUser, isAdmin, portalLogout, getAllUsers, removeUser, changeAdminPassword, changeAdminUsername } = usePortalAuth();
@@ -403,7 +655,7 @@ export default function AdminDashboard() {
 
       {/* Sub Nav */}
       <div style={{ background: '#0a0f1e', borderBottom: '1px solid rgba(255,255,255,0.07)', padding: '0 40px', display: 'flex', gap: '0' }}>
-        {[['users', 'User Management'], ['analytics', 'Engagement Analytics'], ['activity', 'Recent Activity'], ['settings', 'Admin Settings']].map(([id, label]) => (
+        {[['users', 'User Management'], ['analytics', 'Engagement Analytics'], ['activity', 'Recent Activity'], ['portal', 'Portal Controls'], ['settings', 'Admin Settings']].map(([id, label]) => (
           <button key={id} onClick={() => setActiveView(id)} style={{
             background: 'none', border: 'none',
             borderBottom: activeView === id ? `2px solid ${GOLD}` : '2px solid transparent',
@@ -588,6 +840,17 @@ export default function AdminDashboard() {
             changeAdminPassword={changeAdminPassword}
             changeAdminUsername={changeAdminUsername}
           />
+        )}
+
+        {/* ── Portal Controls View ── */}
+        {activeView === 'portal' && (
+          <div>
+            <div style={{ marginBottom: '28px' }}>
+              <h2 style={{ color: '#e8e0d0', margin: '0 0 6px', fontSize: '20px', fontWeight: 'normal' }}>Portal Controls</h2>
+              <p style={{ color: '#6b7280', fontSize: '13px', margin: 0 }}>Live-edit all investor portal content, raise data, contact info, and AI chatbot settings. Changes take effect immediately.</p>
+            </div>
+            <PortalControls />
+          </div>
         )}
       </div>
     </div>
