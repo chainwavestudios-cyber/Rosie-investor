@@ -701,7 +701,7 @@ export default function AdminDashboard() {
   // global and allSessions come from state, loaded async
   const investorUsers = users.filter(u => u.role === 'investor');
 
-  const recentSessions = (aData?.sessions || [])
+  const recentSessions = allSessions
     .filter(s => s.startTime)
     .sort((a,b) => new Date(b.startTime) - new Date(a.startTime))
     .slice(0, 15);
