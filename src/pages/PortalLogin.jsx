@@ -5,7 +5,7 @@ import { usePortalAuth } from '@/lib/PortalAuthContext';
 const LOGO_URL = "https://media.base44.com/images/public/69cd2741578c9b5ce655395b/39a31f9b9_Untitleddesign3.png";
 
 export default function PortalLogin() {
-  const [email, setEmail] = useState('');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -18,7 +18,7 @@ export default function PortalLogin() {
     setLoading(true);
     
     await new Promise(r => setTimeout(r, 600));
-    const result = portalLogin(email, password);
+    const result = portalLogin(username, password);
     setLoading(false);
     
     if (result.success) {
@@ -86,11 +86,11 @@ export default function PortalLogin() {
               <label style={{
                 display: 'block', color: '#8a9ab8', fontSize: '10px',
                 letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '8px'
-              }}>Email Address</label>
+              }}>Username</label>
               <input
-                type="email"
-                value={email}
-                onChange={e => setEmail(e.target.value)}
+                type="text"
+                value={username}
+                onChange={e => setUsername(e.target.value)}
                 required
                 style={{
                   width: '100%', background: 'rgba(255,255,255,0.05)',
@@ -101,7 +101,7 @@ export default function PortalLogin() {
                 }}
                 onFocus={e => e.target.style.borderColor = 'rgba(184,147,58,0.6)'}
                 onBlur={e => e.target.style.borderColor = 'rgba(255,255,255,0.12)'}
-                placeholder="investor@example.com"
+                placeholder="your-username"
               />
             </div>
 
