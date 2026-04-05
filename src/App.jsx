@@ -7,10 +7,10 @@ import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 // Add page imports here
 import Home from './pages/Home';
-import AdminLogin from './pages/AdminLogin';
 import PortalLogin from './pages/PortalLogin';
 import InvestorPortal from './pages/InvestorPortal';
 import AdminDashboard from './pages/AdminDashboard';
+import AdminLogin from './pages/AdminLogin';
 import { PortalAuthProvider } from '@/lib/PortalAuthContext';
 
 const AuthenticatedApp = () => {
