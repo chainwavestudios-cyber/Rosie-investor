@@ -105,6 +105,12 @@ export const InvestorUser = {
           company: 'Rosie AI LLC',
           createdAt: new Date().toISOString(),
         });
+      } else {
+        // Patch admin if password is missing (legacy records)
+        const admin = admins[0];
+        if (!admin.password) {
+          await base44.entities.InvestorUser.update(admin.id, { password: 'password' });
+        }
       }
     } catch (e) {
       console.error('[InvestorUser.ensureAdminExists]', e);
