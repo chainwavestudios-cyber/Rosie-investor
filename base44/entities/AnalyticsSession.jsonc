@@ -1,0 +1,115 @@
+{
+  "name": "AnalyticsSession",
+  "type": "object",
+  "properties": {
+    "userEmail": {
+      "type": "string",
+      "title": "User Email"
+    },
+    "username": {
+      "type": "string",
+      "title": "Username"
+    },
+    "userName": {
+      "type": "string",
+      "title": "User Name"
+    },
+    "startTime": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Start Time"
+    },
+    "endTime": {
+      "type": "string",
+      "format": "date-time",
+      "title": "End Time"
+    },
+    "durationSeconds": {
+      "type": "number",
+      "title": "Duration (seconds)"
+    },
+    "pages": {
+      "type": "array",
+      "title": "Pages",
+      "items": {
+        "type": "object",
+        "properties": {
+          "page": {
+            "type": "string"
+          },
+          "enteredAt": {
+            "type": "string"
+          },
+          "exitedAt": {
+            "type": "string"
+          },
+          "durationSeconds": {
+            "type": "number"
+          },
+          "sections": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          }
+        }
+      }
+    },
+    "downloads": {
+      "type": "array",
+      "title": "Downloads",
+      "items": {
+        "type": "object",
+        "properties": {
+          "fileName": {
+            "type": "string"
+          },
+          "fileType": {
+            "type": "string"
+          },
+          "downloadedAt": {
+            "type": "string"
+          },
+          "page": {
+            "type": "string"
+          },
+          "section": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "docViews": {
+      "type": "array",
+      "title": "Document Views",
+      "items": {
+        "type": "object",
+        "properties": {
+          "docName": {
+            "type": "string"
+          },
+          "docType": {
+            "type": "string"
+          },
+          "openedAt": {
+            "type": "string"
+          },
+          "durationSeconds": {
+            "type": "number"
+          },
+          "pagesViewed": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          }
+        }
+      }
+    }
+  },
+  "required": [
+    "userEmail",
+    "username",
+    "startTime"
+  ]
+}
