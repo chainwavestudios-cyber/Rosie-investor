@@ -1,4 +1,4 @@
-/**
+Rosie voyage/**
  * RosieVoiceAgent — Production Deepgram Voice Agent
  *
  * Uses Deepgram's unified Voice Agent WebSocket API:
@@ -122,7 +122,7 @@ export default function RosieVoiceAgent({ userName = 'there' }) {
   const [userSpeaking, setUserSpeaking] = useState(false);
   const [transcript, setTranscript] = useState([]);
   const [error, setError] = useState('');
-  const [isOpen, setIsOpen] = useState(true);
+  const [isOpen, setIsOpen] = useState(false);
 
   const wsRef       = useRef(null);
   const audioCtxRef = useRef(null);
@@ -318,18 +318,8 @@ export default function RosieVoiceAgent({ userName = 'there' }) {
 
   useEffect(() => () => cleanup(false), [cleanup]);
 
-  // ── Auto-connect on mount ────────────────────────────────────────────────
-  useEffect(() => {
-    // Small delay so portalSettings can load from Base44 first
-    const timer = setTimeout(() => {
-      const cfg = getPortalSettings();
-      if (cfg.deepgramApiKey && cfg.chatbotEnabled) {
-        connect();
-      }
-      // If no API key, show idle state so user sees the UI but not an error
-    }, 800);
-    return () => clearTimeout(timer);
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  // ── Auto-connect when panel opens ──────────────────────────────────────
+  // (no auto-open on mount — user clicks the pill to start)
 
   // ── Render ───────────────────────────────────────────────────────────────
   if (!settings.chatbotEnabled) return null;
