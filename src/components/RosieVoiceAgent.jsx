@@ -1,4 +1,4 @@
-Rosie voyage/**
+/**
  * RosieVoiceAgent — Production Deepgram Voice Agent
  *
  * Uses Deepgram's unified Voice Agent WebSocket API:
