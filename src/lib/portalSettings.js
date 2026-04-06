@@ -1,3 +1,16 @@
+/**
+ * Portal Settings — Base44 Backend with localStorage fallback
+ *
+ * Strategy:
+ *  1. Try to load from Base44 PortalSettings entity on mount
+ *  2. Always also mirror to localStorage as backup
+ *  3. On save: write to Base44 AND localStorage
+ *  4. On load failure: fall back to localStorage, then defaults
+ *
+ * This means settings ALWAYS persist even if Base44 entity
+ * isn't configured or has a query issue.
+ */
+
 import { PortalSettingsDB } from '@/api/entities';
 
 const LS_KEY = 'rosie_portal_settings_v2';
@@ -55,6 +68,7 @@ Keep responses to 2-4 sentences unless more detail is requested.`,
 
 // In-memory cache
 let _cache = null;
+// Track Base44 record ID once we find/create it
 let _recordId = null;
 
 function readFromLS() {
@@ -72,37 +86,43 @@ function writeToLS(settings) {
 }
 
 function cleanForDB(settings) {
+  // Remove Base44 internal fields before saving
   const clean = { ...settings };
   delete clean.id;
   delete clean.created_date;
   delete clean.updated_date;
+  // Do NOT delete clean.key — that's the settingsKey field in our schema
   return clean;
 }
 
 /** Load from Base44 (falls back to localStorage → defaults) */
 export async function loadPortalSettings() {
+  // Return cache if available
   if (_cache) return _cache;
 
+  // Try Base44 first
   try {
     const row = await PortalSettingsDB.get();
     if (row) {
       _recordId = row.id;
       const { key: _k, ...rowData } = cleanForDB(row);
-      const merged = { ...SETTING_DEFAULTS, ...rowData };
+    const merged = { ...SETTING_DEFAULTS, ...rowData };
       _cache = merged;
-      writeToLS(merged);
+      writeToLS(merged); // keep localStorage in sync
       return merged;
     }
   } catch (e) {
     console.warn('[portalSettings] Base44 load failed, using localStorage:', e.message);
   }
 
+  // Fall back to localStorage
   const lsData = readFromLS();
   if (lsData) {
     _cache = lsData;
     return lsData;
   }
 
+  // Fall back to defaults
   _cache = { ...SETTING_DEFAULTS };
   return _cache;
 }
@@ -119,15 +139,17 @@ export async function savePortalSettings(updates) {
   const current = _cache || getPortalSettings();
   const merged  = { ...current, ...updates };
 
+  // Always save to localStorage immediately (guaranteed persistence)
   writeToLS(merged);
   _cache = merged;
 
+  // Broadcast to any open portal tabs
   window.dispatchEvent(new CustomEvent('portalSettingsChanged', { detail: merged }));
 
+  // Try Base44 in background — don't block the UI on this
   try {
     if (_recordId) {
-      const { base44 } = await import('@/api/base44Client');
-      await base44.entities.PortalSettings.update(_recordId, cleanForDB(merged));
+      await base44EntityUpdate(_recordId, cleanForDB(merged));
     } else {
       const created = await PortalSettingsDB.save(cleanForDB(merged));
       if (created?.id) _recordId = created.id;
@@ -137,6 +159,12 @@ export async function savePortalSettings(updates) {
   }
 
   return { success: true };
+}
+
+// Direct Base44 update helper
+async function base44EntityUpdate(id, data) {
+  const { base44 } = await import('@/api/base44Client');
+  return await base44.entities.PortalSettings.update(id, data);
 }
 
 /** Reset to defaults */
