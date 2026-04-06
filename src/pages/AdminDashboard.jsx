@@ -725,9 +725,9 @@ export default function AdminDashboard() {
       // Parse JSON fields on sessions
       const parsed = sessions.map(s => ({
         ...s,
-        pages:     typeof s.pages     === 'string' ? JSON.parse(s.pages     || '[]') : (s.pages     || []),
-        downloads: typeof s.downloads === 'string' ? JSON.parse(s.downloads || '[]') : (s.downloads || []),
-        docViews:  typeof s.docViews  === 'string' ? JSON.parse(s.docViews  || '[]') : (s.docViews  || []),
+        pages:     Array.isArray(s.pages)     ? s.pages     : [],
+        downloads: Array.isArray(s.downloads) ? s.downloads : [],
+        docViews:  Array.isArray(s.docViews)  ? s.docViews  : [],
       }));
       setAllSessions(parsed);
       const global = await analytics.computeGlobalStats(parsed);
