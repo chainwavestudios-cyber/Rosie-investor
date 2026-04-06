@@ -68,9 +68,9 @@ function snapshot(s, closing = false) {
     startTime:       s.startTime,
     endTime:         closing ? nowTs : s.endTime,
     durationSeconds: closing ? secondsSince(s.startTime) : (s.durationSeconds || 0),
-    pages:           JSON.stringify(pages),
-    downloads:       JSON.stringify(s.downloads || []),
-    docViews:        JSON.stringify(s.docViews  || []),
+    pages:     pages,
+    downloads: s.downloads || [],
+    docViews:  s.docViews  || [],
   };
 }
 
@@ -259,9 +259,9 @@ export const analytics = {
     // Parse JSON fields
     return sessions.map(s => ({
       ...s,
-      pages:     typeof s.pages     === 'string' ? JSON.parse(s.pages     || '[]') : (s.pages     || []),
-      downloads: typeof s.downloads === 'string' ? JSON.parse(s.downloads || '[]') : (s.downloads || []),
-      docViews:  typeof s.docViews  === 'string' ? JSON.parse(s.docViews  || '[]') : (s.docViews  || []),
+      pages:     Array.isArray(s.pages)     ? s.pages     : [],
+      downloads: Array.isArray(s.downloads) ? s.downloads : [],
+      docViews:  Array.isArray(s.docViews)  ? s.docViews  : [],
     }));
   },
 
@@ -309,8 +309,8 @@ export const analytics = {
     const sessions = allSessions || await AnalyticsSession.listAll();
     const parsed = sessions.map(s => ({
       ...s,
-      downloads: typeof s.downloads === 'string' ? JSON.parse(s.downloads || '[]') : (s.downloads || []),
-      docViews:  typeof s.docViews  === 'string' ? JSON.parse(s.docViews  || '[]') : (s.docViews  || []),
+      downloads: Array.isArray(s.downloads) ? s.downloads : [],
+      docViews:  Array.isArray(s.docViews)  ? s.docViews  : [],
     }));
     return {
       totalSessions:  parsed.length,
