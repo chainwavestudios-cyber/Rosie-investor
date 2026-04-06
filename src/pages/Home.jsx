@@ -90,7 +90,7 @@ export default function Home() {
       <button
         onClick={() => navigate('/portal-login')}
         style={{
-          position: 'fixed', top: '16px', right: '20px',
+          position: 'fixed', bottom: '32px', right: '32px',
           background: 'linear-gradient(135deg, #b8933a, #d4aa50)',
           color: '#0a0f1e', border: 'none', borderRadius: '2px',
           padding: '10px 22px', cursor: 'pointer',
