@@ -86,11 +86,12 @@ function writeToLS(settings) {
 }
 
 function cleanForDB(settings) {
-  // Remove internal Base44 fields before saving
+  // Remove Base44 internal fields before saving
   const clean = { ...settings };
   delete clean.id;
   delete clean.created_date;
   delete clean.updated_date;
+  // Do NOT delete clean.key — that's the settingsKey field in our schema
   return clean;
 }
 
@@ -104,7 +105,8 @@ export async function loadPortalSettings() {
     const row = await PortalSettingsDB.get();
     if (row) {
       _recordId = row.id;
-      const merged = { ...SETTING_DEFAULTS, ...cleanForDB(row) };
+      const { key: _k, ...rowData } = cleanForDB(row);
+    const merged = { ...SETTING_DEFAULTS, ...rowData };
       _cache = merged;
       writeToLS(merged); // keep localStorage in sync
       return merged;
