@@ -191,4 +191,40 @@ export default function Home() {
 
 })();
 </script>
-`
+`;
+
+        modified = modified.replace("</body>", `${injectedScript}</body>`);
+
+        const blob = new Blob([modified], { type: "text/html" });
+        const url = URL.createObjectURL(blob);
+        setBlobUrl(url);
+
+        return () => URL.revokeObjectURL(url);
+      });
+  }, []);
+
+  return (
+    <div className="w-full h-screen" style={{ position: 'relative' }}>
+      {blobUrl ? (
+        <iframe src={blobUrl} className="w-full h-full border-0" title="Rosie Pitchbook" />
+      ) : (
+        <div className="w-full h-full flex items-center justify-center text-gray-500">Loading...</div>
+      )}
+      <button
+        onClick={() => navigate('/portal-login')}
+        style={{
+          position: 'fixed', bottom: '32px', right: '32px',
+          background: 'linear-gradient(135deg, #b8933a, #d4aa50)',
+          color: '#0a0f1e', border: 'none', borderRadius: '2px',
+          padding: '10px 22px', cursor: 'pointer',
+          fontSize: '11px', fontWeight: '700', letterSpacing: '2px',
+          textTransform: 'uppercase', fontFamily: 'Georgia, serif',
+          zIndex: 9999, boxShadow: '0 4px 20px rgba(184,147,58,0.4)',
+          display: 'flex', alignItems: 'center', gap: '8px',
+        }}
+      >
+        🔐 Investor Data Portal
+      </button>
+    </div>
+  );
+}
