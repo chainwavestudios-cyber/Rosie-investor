@@ -174,15 +174,14 @@ export const AnalyticsSession = {
 };
 
 // ─── PortalSettings ───────────────────────────────────────────────────────
-// Single-row config: settingsKey = "global"
-// All settings fields as individual columns
+// Single-row config: key = "global"
 
 const SETTINGS_KEY = 'global';
 
 export const PortalSettingsDB = {
   async get() {
     try {
-      const results = await base44.entities.PortalSettings.filter({ settingsKey: SETTINGS_KEY });
+      const results = await base44.entities.PortalSettings.filter({ key: SETTINGS_KEY });
       return results[0] || null;
     } catch (e) {
       console.error('[PortalSettings.get]', e);
@@ -197,7 +196,7 @@ export const PortalSettingsDB = {
         return await base44.entities.PortalSettings.update(existing.id, settings);
       } else {
         return await base44.entities.PortalSettings.create({
-          settingsKey: SETTINGS_KEY,
+          key: SETTINGS_KEY,
           ...settings,
         });
       }
