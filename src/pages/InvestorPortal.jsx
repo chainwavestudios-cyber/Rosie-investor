@@ -370,60 +370,19 @@ function InvestmentOffering() {
     team: (
       <div>
         <h2 style={h2}>Team</h2>
-        <p style={bodyText}>Our leadership team combines deep expertise in AI, enterprise SaaS, and revenue operations. Core founding partners are in place; key execution roles are being filled as we deploy capital.</p>
-
-        {/* Named team members */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px', margin: '28px 0' }}>
+        <p style={bodyText}>Our team combines deep expertise in AI, enterprise SaaS, and sales technology:</p>
+        <div style={{ marginTop: '20px' }}>
           {[
-            {
-              photo: '/zhang-wei.jpg',
-              name: 'Zhang Wei',
-              title: 'Chief Technology Engineer',
-              badge: 'Equity Partner',
-              bio: 'Full-stack AI architect with 15+ years building enterprise voice and NLP systems. Previously led engineering at multiple AI-native SaaS companies. Responsible for all platform architecture, model development, and technical infrastructure.',
-            },
-            {
-              photo: '/stephani-scheidt.jpg',
-              name: 'Stephani Scheidt',
-              title: 'Director of Sales',
-              badge: 'Managing Partner',
-              bio: 'Revenue leader with a proven track record scaling B2B SaaS sales organizations from $0 to $20M+ ARR. Expert in outbound automation, enterprise deal cycles, and channel partnership development across insurance, solar, and fintech verticals.',
-            },
-          ].map(({ photo, name, title, badge, bio }) => (
-            <div key={name} style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '2px', padding: '24px' }}>
-              <div style={{ display: 'flex', gap: '16px', alignItems: 'flex-start', marginBottom: '14px' }}>
-                <img
-                  src={photo}
-                  alt={name}
-                  style={{ width: '72px', height: '72px', borderRadius: '50%', objectFit: 'cover', objectPosition: 'top', flexShrink: 0, border: '2px solid rgba(184,147,58,0.4)' }}
-                />
-                <div>
-                  <div style={{ color: '#e8e0d0', fontWeight: 'bold', fontSize: '16px', marginBottom: '3px' }}>{name}</div>
-                  <div style={{ color: GOLD, fontSize: '13px', marginBottom: '4px' }}>{title}</div>
-                  <span style={{ background: 'rgba(184,147,58,0.15)', color: GOLD, fontSize: '10px', padding: '2px 8px', borderRadius: '2px', letterSpacing: '1px', textTransform: 'uppercase' }}>{badge}</span>
-                </div>
-              </div>
-              <p style={{ color: '#8a9ab8', fontSize: '13px', lineHeight: 1.65, margin: 0 }}>{bio}</p>
-            </div>
-          ))}
-        </div>
-
-        {/* Roles to be hired */}
-        <div style={{ marginTop: '8px' }}>
-          <div style={{ color: '#4a5568', fontSize: '10px', letterSpacing: '3px', textTransform: 'uppercase', marginBottom: '14px' }}>Open Roles — To Be Hired May 2026</div>
-          {[
-            { title: 'Chief Executive Officer', desc: 'Experienced B2B SaaS CEO to lead company strategy, investor relations, and enterprise partnerships.' },
-            { title: 'Chief Revenue Officer', desc: 'Senior revenue leader to own GTM strategy, enterprise sales, and strategic channel development.' },
-            { title: 'VP of Customer Success', desc: 'Customer success executive to drive onboarding, retention, and expansion across our growing client base.' },
-          ].map(({ title, desc }) => (
-            <div key={title} style={{ display: 'flex', gap: '16px', padding: '14px 0', borderBottom: '1px solid rgba(255,255,255,0.05)', alignItems: 'flex-start' }}>
-              <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: 'rgba(255,255,255,0.05)', border: '1px dashed rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, color: '#4a5568', fontSize: '16px' }}>+</div>
+            { name: 'Leadership Team', role: 'Serial entrepreneurs with 3+ successful exits in AI & SaaS' },
+            { name: 'Engineering', role: 'Former engineers from Google, Amazon Web Services, and Twilio' },
+            { name: 'Sales & GTM', role: 'Built and scaled SDR teams at Fortune 500 companies' },
+            { name: 'Advisors', role: 'Board-level executives from leading AI and telecom companies' },
+          ].map(({ name, role }) => (
+            <div key={name} style={{ display: 'flex', gap: '16px', padding: '16px 0', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+              <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: 'rgba(184,147,58,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, color: GOLD, fontSize: '18px' }}>👤</div>
               <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '4px' }}>
-                  <span style={{ color: '#c4cdd8', fontWeight: 'bold', fontSize: '14px' }}>{title}</span>
-                  <span style={{ background: 'rgba(96,165,250,0.1)', color: '#60a5fa', fontSize: '9px', padding: '2px 8px', borderRadius: '2px', letterSpacing: '1px', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>To Be Hired · May 2026</span>
-                </div>
-                <div style={{ color: '#6b7280', fontSize: '13px' }}>{desc}</div>
+                <div style={{ color: '#e8e0d0', fontWeight: 'bold', marginBottom: '4px' }}>{name}</div>
+                <div style={{ color: '#8a9ab8', fontSize: '13px' }}>{role}</div>
               </div>
             </div>
           ))}
