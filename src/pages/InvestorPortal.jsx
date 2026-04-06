@@ -13,6 +13,19 @@ const GOLD2 = '#d4aa50';
 const DARK = '#0a0f1e';
 const DARKER = '#060c18';
 
+const h2 = { color: '#e8e0d0', fontSize: '20px', marginTop: 0, marginBottom: '16px', fontFamily: 'Georgia, serif', fontWeight: 'normal' };
+const bodyText = { color: '#8a9ab8', lineHeight: 1.7, fontSize: '14px', marginBottom: '16px' };
+const labelStyle = {
+  display: 'block', color: '#8a9ab8', fontSize: '10px',
+  letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '6px'
+};
+const inputStyle = {
+  width: '100%', background: 'rgba(255,255,255,0.05)',
+  border: '1px solid rgba(255,255,255,0.12)', borderRadius: '2px',
+  padding: '10px 14px', color: '#e8e0d0', fontSize: '14px',
+  outline: 'none', boxSizing: 'border-box'
+};
+
 // ─── Investor Calculator ───────────────────────────────────────────────────
 function InvestorCalculator() {
   const [investment, setInvestment] = useState(50000);
@@ -191,16 +204,6 @@ function DocusignModal({ onClose }) {
   );
 }
 
-const labelStyle = {
-  display: 'block', color: '#8a9ab8', fontSize: '10px',
-  letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '6px'
-};
-const inputStyle = {
-  width: '100%', background: 'rgba(255,255,255,0.05)',
-  border: '1px solid rgba(255,255,255,0.12)', borderRadius: '2px',
-  padding: '10px 14px', color: '#e8e0d0', fontSize: '14px',
-  outline: 'none', boxSizing: 'border-box'
-};
 
 // ─── PDF Download helper ──────────────────────────────────────────────────
 function downloadTabAsPDF(title) {
@@ -531,8 +534,6 @@ function InvestmentOffering() {
   );
 }
 
-const h2 = { color: '#e8e0d0', fontSize: '20px', marginTop: 0, marginBottom: '16px', fontFamily: 'Georgia, serif', fontWeight: 'normal' };
-const bodyText = { color: '#8a9ab8', lineHeight: 1.7, fontSize: '14px', marginBottom: '16px' };
 
 // ─── Document Viewer with full page-level tracking ────────────────────────
 function DocumentViewer({ doc, onClose }) {
