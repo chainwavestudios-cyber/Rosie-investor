@@ -1,27 +1,27 @@
 /**
  * RosieVoiceAgent — Production Deepgram Voice Agent
- * UPDATES:
- * 1. Auth Fix: Implemented Sec-WebSocket-Protocol ['token.deepgram.com', key].
- * 2. Personalization: Added Supabase fetch for user's first name.
+ * FIXES:
+ * 1. Removed Supabase dependency.
+ * 2. Auth: Fixed 1006/1005 via Sec-WebSocket-Protocol ['token.deepgram.com', key].
  * 3. Schema: Strict 24kHz sync and v1 provider nesting.
  * 4. Key: 44294c0c2f0ebbcc81b853151056111226b853e9
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { getPortalSettings, refreshPortalSettings } from '@/lib/portalSettings';
-import { supabase } from '@/lib/supabaseClient'; // Ensure this points to your Supabase config
 
 const GOLD = '#b8933a';
 const DG_WS_URL = 'wss://agent.deepgram.com/v1/agent/converse';
 const TEMP_KEY = '44294c0c2f0ebbcc81b853151056111226b853e9';
 
-function buildDGSettings(cfg, firstName) {
+function buildDGSettings(cfg, userName) {
   const systemPrompt = [
     cfg.chatbotContext || 'You are Rosie, a helpful investment assistant for Rosie AI LLC.',
     cfg.knowledgeBase ? `\n\n--- KNOWLEDGE BASE ---\n${cfg.knowledgeBase}` : '',
   ].join('');
 
-  // Personalization logic
+  // Personalization logic using the prop
+  const firstName = (userName || 'there').split(' ')[0];
   const greeting = `Hello ${firstName}, welcome back to Rosie AI. I'm Rosie, your investment assistant. How can I help you today?`;
 
   return {
@@ -36,7 +36,11 @@ function buildDGSettings(cfg, firstName) {
       },
       think: [ 
         {
-          provider: { type: 'open_ai', version: 'v1', model: 'gpt-4o-mini' },
+          provider: { 
+            type: 'open_ai', 
+            version: 'v1', 
+            model: 'gpt-4o-mini' 
+          },
           prompt: systemPrompt,
         }
       ],
@@ -48,9 +52,8 @@ function buildDGSettings(cfg, firstName) {
   };
 }
 
-export default function RosieVoiceAgent({ userId }) {
+export default function RosieVoiceAgent({ userName = 'there' }) {
   const [settings] = useState(() => getPortalSettings());
-  const [firstName, setFirstName] = useState('there'); // Default greeting
   const [phase, setPhase] = useState('idle'); 
   const [agentSpeaking, setAgentSpeaking] = useState(false);
   const [transcript, setTranscript] = useState([]);
@@ -65,21 +68,6 @@ export default function RosieVoiceAgent({ userId }) {
   const isPlayingRef = useRef(false);
   const sourceRef    = useRef(null);
   const phaseRef     = useRef('idle');
-
-  // FETCH NAME FROM SUPABASE
-  useEffect(() => {
-    async function getUserName() {
-      if (!userId) return;
-      const { data, error: dbError } = await supabase
-        .from('profiles') // Replace with your actual table name
-        .select('first_name')
-        .eq('id', userId)
-        .single();
-      
-      if (data?.first_name) setFirstName(data.first_name);
-    }
-    getUserName();
-  }, [userId]);
 
   const playNextChunk = useCallback(() => {
     if (isPlayingRef.current || playQueueRef.current.length === 0) return;
@@ -128,6 +116,7 @@ export default function RosieVoiceAgent({ userId }) {
     /**
      * ✅ AUTH FIX: USE SEC-WEBSOCKET-PROTOCOL
      * This passes the key via the sub-protocol header, which browsers allow.
+     * The array format [protocol, key] is standard for token-based WS auth.
      */
     const ws = new WebSocket(DG_WS_URL, ['token.deepgram.com', activeKey]);
     ws.binaryType = 'arraybuffer';
@@ -147,8 +136,7 @@ export default function RosieVoiceAgent({ userId }) {
         const msg = JSON.parse(e.data);
         switch (msg.type) {
           case 'Welcome':
-            // Send settings with the name we fetched from Supabase
-            ws.send(JSON.stringify(buildDGSettings(cfg, firstName)));
+            ws.send(JSON.stringify(buildDGSettings(cfg, userName)));
             break;
           case 'SettingsApplied':
             phaseRef.current = 'active';
@@ -194,7 +182,7 @@ export default function RosieVoiceAgent({ userId }) {
       }
       cleanup(false);
     };
-  }, [playNextChunk, firstName]);
+  }, [playNextChunk, userName]);
 
   const cleanup = useCallback((updatePhase = true) => {
     if (processorRef.current) processorRef.current.disconnect();
