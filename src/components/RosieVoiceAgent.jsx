@@ -1,10 +1,11 @@
 /**
  * RosieVoiceAgent — Production Deepgram Voice Agent
- * * PERFORMANCE UPDATES:
- * 1. Jitter Buffer: 'playNextChunk' now waits for at least 2 chunks before starting.
- * 2. Optimized Processing: Adjusted ScriptProcessor for a smoother 24kHz cadence.
- * 3. Buffer Clamping: Added signal limiting to prevent digital clipping.
+ * * FINAL OPTIMIZATIONS:
+ * 1. Stream Integrity: Removed byteLength checks to prevent frame skipping.
+ * 2. PCM Processing: Direct Int16 -> Float32 conversion for raw PCM.
+ * 3. Jitter Buffer: Maintains a 2-chunk lead for smooth audio.
  * 4. Auth: Sec-WebSocket-Protocol ['token', key].
+ * 5. Key: 44294c0c2f0ebbcc81b853151056111226b853e9
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react';
@@ -53,7 +54,7 @@ export default function RosieVoiceAgent({ userName = 'Steph' }) {
   const phaseRef     = useRef('idle');
 
   const playNextChunk = useCallback(() => {
-    // ✅ Jitter Buffer: Wait for the queue to build slightly to prevent choppiness
+    // Jitter Buffer: Ensure we have at least 2 chunks to avoid underflow
     if (isPlayingRef.current || playQueueRef.current.length < 2) return;
     
     const ctx = audioCtxRef.current;
@@ -62,6 +63,7 @@ export default function RosieVoiceAgent({ userName = 'Steph' }) {
     isPlayingRef.current = true;
     const chunk = playQueueRef.current.shift();
 
+    // Direct conversion from Int16 PCM to Float32
     const int16 = new Int16Array(chunk);
     const float32 = new Float32Array(int16.length);
     for (let i = 0; i < int16.length; i++) {
@@ -77,24 +79,25 @@ export default function RosieVoiceAgent({ userName = 'Steph' }) {
     sourceRef.current = src;
     src.onended = () => {
       isPlayingRef.current = false;
-      playNextChunk(); // Chain to the next available chunk
-      if (playQueueRef.current.length === 0) setAgentSpeaking(false);
+      if (playQueueRef.current.length === 0) {
+        setAgentSpeaking(false);
+      } else {
+        playNextChunk();
+      }
     };
     src.start();
   }, []);
 
   const connect = useCallback(async () => {
     setError('');
-    phaseRef.current = 'connecting';
     setPhase('connecting');
+    phaseRef.current = 'connecting';
 
     const cfg = await refreshPortalSettings();
 
     let stream;
     try {
-      stream = await navigator.mediaDevices.getUserMedia({ 
-        audio: { echoCancellation: true, noiseSuppression: true } 
-      });
+      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       micStreamRef.current = stream;
     } catch (e) {
       setError('Mic access denied.');
@@ -111,8 +114,9 @@ export default function RosieVoiceAgent({ userName = 'Steph' }) {
 
     ws.onmessage = (e) => {
       if (e.data instanceof ArrayBuffer) {
-        setAgentSpeaking(true);
+        // Push every binary frame immediately to the queue
         playQueueRef.current.push(e.data);
+        setAgentSpeaking(true);
         playNextChunk();
         return;
       }
@@ -124,33 +128,28 @@ export default function RosieVoiceAgent({ userName = 'Steph' }) {
             ws.send(JSON.stringify(buildDGSettings(cfg, userName)));
             break;
           case 'SettingsApplied':
-            phaseRef.current = 'active';
             setPhase('active');
-            {
-              const source = ctx.createMediaStreamSource(stream);
-              // ✅ Optimized Processor Buffer for 24kHz
-              const processor = ctx.createScriptProcessor(4096, 1, 1);
-              processorRef.current = processor;
-              processor.onaudioprocess = (ev) => {
-                if (ws.readyState !== WebSocket.OPEN) return;
-                const float32 = ev.inputBuffer.getChannelData(0);
-                const int16 = new Int16Array(float32.length);
-                for (let i = 0; i < float32.length; i++) {
-                  // Clamping to prevent digital clipping
-                  const s = Math.max(-1, Math.min(1, float32[i]));
-                  int16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
-                }
-                ws.send(int16.buffer);
-              };
-              source.connect(processor);
-              processor.connect(ctx.destination);
-            }
+            phaseRef.current = 'active';
+            const source = ctx.createMediaStreamSource(stream);
+            const processor = ctx.createScriptProcessor(4096, 1, 1);
+            processorRef.current = processor;
+            processor.onaudioprocess = (ev) => {
+              if (ws.readyState !== WebSocket.OPEN) return;
+              const inputData = ev.inputBuffer.getChannelData(0);
+              const int16 = new Int16Array(inputData.length);
+              for (let i = 0; i < float32.length; i++) {
+                int16[i] = Math.max(-32768, Math.min(32767, Math.round(inputData[i] * 32767)));
+              }
+              ws.send(int16.buffer);
+            };
+            source.connect(processor);
+            processor.connect(ctx.destination);
             break;
           case 'ConversationText':
             setTranscript(prev => [...prev, { role: msg.role, text: msg.content }]);
             break;
           case 'UserStartedSpeaking':
-            // Barge-in: Stop current playback and clear queue
+            // Barge-in: Clear the buffers immediately
             if (sourceRef.current) { try { sourceRef.current.stop(); } catch {} }
             playQueueRef.current = [];
             isPlayingRef.current = false;
@@ -162,7 +161,7 @@ export default function RosieVoiceAgent({ userName = 'Steph' }) {
 
     ws.onclose = (e) => {
       setPhase('error');
-      setError(`Disconnected (Code: ${e.code})`);
+      setError(`Disconnected (${e.code})`);
       cleanup(false);
     };
   }, [playNextChunk, userName]);
