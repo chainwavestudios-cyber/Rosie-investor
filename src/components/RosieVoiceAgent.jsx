@@ -91,6 +91,7 @@ function buildDGSettings(cfg, userName) {
       output: { encoding: 'linear16', sample_rate: 24000, container: 'none' },
     },
     agent: {
+      language: 'en',
       greeting,
       listen: {
         provider: {
@@ -201,30 +202,7 @@ export default function RosieVoiceAgent({ userName = 'there' }) {
     wsRef.current = ws;
 
     ws.onopen = () => {
-      phaseRef.current = 'active';
-      setPhase('active');
-      // Send settings immediately
-      ws.send(JSON.stringify(buildDGSettings(cfg, userName)));
-
-      // Set up mic capture
-      const source = ctx.createMediaStreamSource(stream);
-      // ScriptProcessor: 4096 samples at 16kHz = ~256ms chunks
-      const processor = ctx.createScriptProcessor(4096, 1, 1);
-      processorRef.current = processor;
-
-      processor.onaudioprocess = (e) => {
-        if (ws.readyState !== WebSocket.OPEN) return;
-        const float32 = e.inputBuffer.getChannelData(0);
-        // Convert float32 → int16 PCM
-        const int16 = new Int16Array(float32.length);
-        for (let i = 0; i < float32.length; i++) {
-          int16[i] = Math.max(-32768, Math.min(32767, Math.round(float32[i] * 32767)));
-        }
-        ws.send(int16.buffer);
-      };
-
-      source.connect(processor);
-      processor.connect(ctx.destination);
+      // WS open — wait for Welcome before sending settings or audio
     };
 
     ws.onmessage = (e) => {
@@ -242,7 +220,31 @@ export default function RosieVoiceAgent({ userName = 'there' }) {
       try {
         const msg = JSON.parse(e.data);
         switch (msg.type) {
+          case 'Welcome':
+            // Per Deepgram docs: send Settings only after Welcome
+            ws.send(JSON.stringify(buildDGSettings(cfg, userName)));
+            break;
           case 'SettingsApplied':
+            // Settings confirmed — now safe to go active and start mic
+            phaseRef.current = 'active';
+            setPhase('active');
+            {
+              const source = ctx.createMediaStreamSource(stream);
+              // ScriptProcessor: 4096 samples at 16kHz ≈ 256ms chunks
+              const processor = ctx.createScriptProcessor(4096, 1, 1);
+              processorRef.current = processor;
+              processor.onaudioprocess = (ev) => {
+                if (ws.readyState !== WebSocket.OPEN) return;
+                const float32 = ev.inputBuffer.getChannelData(0);
+                const int16 = new Int16Array(float32.length);
+                for (let i = 0; i < float32.length; i++) {
+                  int16[i] = Math.max(-32768, Math.min(32767, Math.round(float32[i] * 32767)));
+                }
+                ws.send(int16.buffer);
+              };
+              source.connect(processor);
+              processor.connect(ctx.destination);
+            }
             break;
           case 'ConversationText':
             setTranscript(prev => [...prev, {
