@@ -646,7 +646,7 @@ function SubscriptionAgreements() {
                 </div>
               </div>
               <iframe
-                src={selectedDoc.url + '#toolbar=1&navpanes=1&scrollbar=1'}
+                src={`https://docs.google.com/viewer?url=${encodeURIComponent(selectedDoc.url)}&embedded=true`}
                 style={{ flex: 1, width: '100%', minHeight: '560px', border: 'none', background: '#fff' }}
                 title={selectedDoc.name}
               />
