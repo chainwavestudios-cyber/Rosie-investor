@@ -17,10 +17,10 @@
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { getPortalSettings } from '@/lib/portalSettings';
+import { getPortalSettings, refreshPortalSettings } from '@/lib/portalSettings';
 
 const GOLD = '#b8933a';
-const DG_WS_URL = 'wss://agent.deepgram.com/v1/agent/converse';
+const DG_WS_URL = 'wss://api.deepgram.com/v1/agent/converse';
 
 // All Aura-2 English voices with gender/tone metadata
 export const AURA2_VOICES = [
@@ -124,13 +124,14 @@ export default function RosieVoiceAgent({ userName = 'there' }) {
   const [error, setError] = useState('');
   const [isOpen, setIsOpen] = useState(false);
 
-  const wsRef       = useRef(null);
-  const audioCtxRef = useRef(null);
+  const wsRef        = useRef(null);
+  const audioCtxRef  = useRef(null);
   const micStreamRef = useRef(null);
   const processorRef = useRef(null);
   const playQueueRef = useRef([]);   // ArrayBuffer chunks awaiting playback
   const isPlayingRef = useRef(false);
-  const sourceRef   = useRef(null);
+  const sourceRef    = useRef(null);
+  const phaseRef     = useRef('idle'); // mirrors phase state, avoids stale closures in ws handlers
 
   // ── Playback Queue ──────────────────────────────────────────────────────
   const playNextChunk = useCallback(() => {
@@ -166,10 +167,11 @@ export default function RosieVoiceAgent({ userName = 'there' }) {
   // ── Connect ──────────────────────────────────────────────────────────────
   const connect = useCallback(async () => {
     setError('');
+    phaseRef.current = 'connecting';
     setPhase('connecting');
     setTranscript([]);
 
-    const cfg = getPortalSettings();
+    const cfg = await refreshPortalSettings();
 
     if (!cfg.deepgramApiKey) {
       setError('No Deepgram API key configured. Ask the admin to add one in Portal Controls → AI Chatbot.');
@@ -199,6 +201,7 @@ export default function RosieVoiceAgent({ userName = 'there' }) {
     wsRef.current = ws;
 
     ws.onopen = () => {
+      phaseRef.current = 'active';
       setPhase('active');
       // Send settings immediately
       ws.send(JSON.stringify(buildDGSettings(cfg, userName)));
@@ -275,14 +278,35 @@ export default function RosieVoiceAgent({ userName = 'there' }) {
     };
 
     ws.onerror = () => {
-      setError('WebSocket connection failed. Check your API key and network.');
-      setPhase('error');
+      // onerror gives no detail in the browser — the close event has the actual reason
     };
 
     ws.onclose = (e) => {
-      if (phase === 'active' || phase === 'connecting') {
-        setPhase('idle');
+      if (phaseRef.current === 'error') {
+        // Already handled
+        cleanup(false);
+        return;
       }
+      if (phaseRef.current === 'active') {
+        phaseRef.current = 'idle';
+        setPhase('idle');
+        cleanup(false);
+        return;
+      }
+      // Failed during connecting — decode the close code for a useful message
+      let msg;
+      if (e.code === 1008 || e.code === 4001 || e.code === 4003) {
+        msg = `Invalid or unauthorized API key (code ${e.code}). Check the Deepgram key in Portal Controls.`;
+      } else if (e.code === 1006) {
+        msg = `Connection refused (code 1006). This usually means an invalid API key or network issue. Verify the key at console.deepgram.com.`;
+      } else if (e.reason) {
+        msg = `Connection closed: ${e.reason} (code ${e.code})`;
+      } else {
+        msg = `WebSocket closed unexpectedly (code ${e.code}). Check your API key and network.`;
+      }
+      phaseRef.current = 'error';
+      setError(msg);
+      setPhase('error');
       cleanup(false);
     };
   }, [playNextChunk]);

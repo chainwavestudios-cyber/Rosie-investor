@@ -402,11 +402,29 @@ function PortalControls() {
   const [s, setS] = useState(getPortalSettings);
   useEffect(() => { loadPortalSettings().then(setS); }, []);
   const [saved, setSaved] = useState(false);
+  const [saveError, setSaveError] = useState('');
   const [sec, setSec] = useState('raise');
 
   const upd = (k,v) => setS(prev=>({...prev,[k]:v}));
-  const save = async () => { await savePortalSettings(s); setSaved(true); setTimeout(()=>setSaved(false),2500); };
-  const reset = async () => { if (!window.confirm('Reset ALL portal settings to defaults?')) return; await resetPortalSettings(); setS(getPortalSettings()); };
+  const save = async () => {
+    setSaveError('');
+    try {
+      await savePortalSettings(s);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2500);
+    } catch (e) {
+      setSaveError('Save failed — check that all required fields exist on the PortalSettings entity in Base44.');
+    }
+  };
+  const reset = async () => {
+    if (!window.confirm('Reset ALL portal settings to defaults?')) return;
+    try {
+      await resetPortalSettings();
+      setS(getPortalSettings());
+    } catch (e) {
+      setSaveError('Reset failed — database error.');
+    }
+  };
 
   const fmt = n => `$${Number(n||0).toLocaleString()}`;
   const pct = (a,b) => b ? Math.min(100, Math.round((a/b)*100)) : 0;
@@ -645,6 +663,7 @@ function PortalControls() {
             Reset to Defaults
           </button>
           {saved && <span style={{ color:'#4ade80', fontSize:'13px' }}>Changes are live on the investor portal.</span>}
+          {saveError && <span style={{ color:'#ef4444', fontSize:'13px' }}>{saveError}</span>}
         </div>
       </div>
     </div>

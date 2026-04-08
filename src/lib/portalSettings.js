@@ -1,19 +1,22 @@
 /**
- * Portal Settings — Base44 Backend with localStorage fallback
+ * Portal Settings — Base44 Database Only
  *
- * Strategy:
- *  1. Try to load from Base44 PortalSettings entity on mount
- *  2. Always also mirror to localStorage as backup
- *  3. On save: write to Base44 AND localStorage
- *  4. On load failure: fall back to localStorage, then defaults
+ * All settings are stored in and loaded from the Base44 PortalSettings entity.
+ * No localStorage. An in-memory session cache prevents redundant DB calls.
  *
- * This means settings ALWAYS persist even if Base44 entity
- * isn't configured or has a query issue.
+ * Required fields on the PortalSettings entity in Base44:
+ *   key (string) — always "global", used to identify the single settings row
+ *   totalRaise, committedCapital, investedCapital, investedTarget (number)
+ *   companyName, address1, address2, phone, email (string)
+ *   portalTagline, portalHeadline, portalSubtext, disclosureText (string)
+ *   roundSize, valuationCap, minInvestment, discountRate, targetClose (string)
+ *   chatbotEnabled (boolean)
+ *   chatbotName, deepgramApiKey, llmProvider, llmModel, sttModel, voiceModel (string)
+ *   chatbotGreeting, chatbotContext, knowledgeBase (string)
+ *   showCalculator, showMarketData, showSubscription, portalActive (boolean)
  */
 
 import { PortalSettingsDB } from '@/api/entities';
-
-const LS_KEY = 'rosie_portal_settings_v2';
 
 export const SETTING_DEFAULTS = {
   totalRaise:        2500000,
@@ -66,116 +69,87 @@ Keep responses to 2-4 sentences unless more detail is requested.`,
   portalActive:     true,
 };
 
-// In-memory cache
+// In-memory session cache — cleared on refresh, never written to disk
 let _cache = null;
-// Track Base44 record ID once we find/create it
+// Base44 record ID once loaded
 let _recordId = null;
 
-function readFromLS() {
-  try {
-    const raw = localStorage.getItem(LS_KEY);
-    if (raw) return { ...SETTING_DEFAULTS, ...JSON.parse(raw) };
-  } catch {}
-  return null;
-}
-
-function writeToLS(settings) {
-  try {
-    localStorage.setItem(LS_KEY, JSON.stringify(settings));
-  } catch {}
-}
-
 function cleanForDB(settings) {
-  // Remove Base44 internal fields before saving
   const clean = { ...settings };
   delete clean.id;
   delete clean.created_date;
   delete clean.updated_date;
-  // Do NOT delete clean.key — that's the settingsKey field in our schema
   return clean;
 }
 
-/** Load from Base44 (falls back to localStorage → defaults) */
+/** Load settings from Base44. Uses session cache to avoid redundant DB calls. */
 export async function loadPortalSettings() {
-  // Return cache if available
   if (_cache) return _cache;
 
-  // Try Base44 first
   try {
     const row = await PortalSettingsDB.get();
     if (row) {
       _recordId = row.id;
       const { key: _k, ...rowData } = cleanForDB(row);
-    const merged = { ...SETTING_DEFAULTS, ...rowData };
-      _cache = merged;
-      writeToLS(merged); // keep localStorage in sync
-      return merged;
+      _cache = { ...SETTING_DEFAULTS, ...rowData };
+      return _cache;
     }
   } catch (e) {
-    console.warn('[portalSettings] Base44 load failed, using localStorage:', e.message);
+    console.error('[portalSettings] Failed to load from database:', e.message);
   }
 
-  // Fall back to localStorage
-  const lsData = readFromLS();
-  if (lsData) {
-    _cache = lsData;
-    return lsData;
-  }
-
-  // Fall back to defaults
+  // No record yet — use defaults until admin saves for the first time
   _cache = { ...SETTING_DEFAULTS };
   return _cache;
 }
 
-/** Synchronous read — returns cache or localStorage or defaults */
-export function getPortalSettings() {
-  if (_cache) return _cache;
-  const lsData = readFromLS();
-  return lsData || { ...SETTING_DEFAULTS };
+/** Force a fresh load from Base44, bypassing the session cache. */
+export async function refreshPortalSettings() {
+  _cache = null;
+  return loadPortalSettings();
 }
 
-/** Save to both Base44 AND localStorage */
-export async function savePortalSettings(updates) {
-  const current = _cache || getPortalSettings();
-  const merged  = { ...current, ...updates };
+/** Synchronous read — returns session cache or defaults. Call loadPortalSettings() first. */
+export function getPortalSettings() {
+  return _cache || { ...SETTING_DEFAULTS };
+}
 
-  // Always save to localStorage immediately (guaranteed persistence)
-  writeToLS(merged);
+/** Save settings to Base44 and update the session cache. */
+export async function savePortalSettings(updates) {
+  const current = _cache || { ...SETTING_DEFAULTS };
+  const merged  = { ...current, ...updates };
   _cache = merged;
 
-  // Broadcast to any open portal tabs
+  // Broadcast to other components in this tab
   window.dispatchEvent(new CustomEvent('portalSettingsChanged', { detail: merged }));
 
-  // Try Base44 in background — don't block the UI on this
   try {
     if (_recordId) {
-      await base44EntityUpdate(_recordId, cleanForDB(merged));
+      const { base44 } = await import('@/api/base44Client');
+      await base44.entities.PortalSettings.update(_recordId, cleanForDB(merged));
     } else {
       const created = await PortalSettingsDB.save(cleanForDB(merged));
       if (created?.id) _recordId = created.id;
     }
   } catch (e) {
-    console.warn('[portalSettings] Base44 save failed (localStorage backup used):', e.message);
+    console.error('[portalSettings] Failed to save to database:', e.message);
+    throw e;
   }
 
   return { success: true };
 }
 
-// Direct Base44 update helper
-async function base44EntityUpdate(id, data) {
-  const { base44 } = await import('@/api/base44Client');
-  return await base44.entities.PortalSettings.update(id, data);
-}
-
-/** Reset to defaults */
+/** Reset all settings to defaults and persist to Base44. */
 export async function resetPortalSettings() {
   _cache = { ...SETTING_DEFAULTS };
   _recordId = null;
-  writeToLS(_cache);
   window.dispatchEvent(new CustomEvent('portalSettingsChanged', { detail: _cache }));
   try {
     await PortalSettingsDB.save(cleanForDB(_cache));
-  } catch {}
+  } catch (e) {
+    console.error('[portalSettings] Failed to reset in database:', e.message);
+    throw e;
+  }
 }
 
 export { _cache as _settingsCache };
