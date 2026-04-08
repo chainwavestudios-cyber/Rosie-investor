@@ -1,10 +1,9 @@
 /**
  * RosieVoiceAgent — Production Deepgram Voice Agent
- * * CRITICAL BUG FIXES:
- * 1. Correct Loop Index: Fixed the inputData.length typo to prevent buffer corruption.
- * 2. Feedback Loop: Removed processor.connect(ctx.destination) to kill the mic echo.
- * 3. Timing: Switched back to precise time-scheduling for zero-gap playback.
- * 4. Key: 44294c0c2f0ebbcc81b853151056111226b853e9
+ * UPDATES:
+ * 1. Investor Script: New greeting tailored for the investor platform.
+ * 2. Bug Fixes: (Already applied) Loop index, Echo/Feedback fix, High-precision timing.
+ * 3. Key: 44294c0c2f0ebbcc81b853151056111226b853e9
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react';
@@ -15,9 +14,14 @@ const DG_WS_URL = 'wss://agent.deepgram.com/v1/agent/converse';
 const TEMP_KEY = '44294c0c2f0ebbcc81b853151056111226b853e9';
 
 function buildDGSettings(cfg, userName) {
-  const firstName = (userName || 'Steph').split(' ')[0];
+  // Get the first name or default to 'there'
+  const name = (userName || 'there').split(' ')[0];
+
+  // YOUR NEW INVESTOR SCRIPT
+  const greeting = `Hi ${name}, I'm Rosie. I simplify the path from prospect to lead through seamless, automated engagement tools. You’ve reached our investor platform! I’m here to provide any insights or data you need and help you explore the vision behind the tech. What questions do you have?`;
+
   const systemPrompt = [
-    cfg.chatbotContext || 'You are Rosie, a helpful investment assistant.',
+    cfg.chatbotContext || 'You are Rosie, a helpful investment assistant for Rosie AI LLC.',
     cfg.knowledgeBase ? `\n\n--- KNOWLEDGE BASE ---\n${cfg.knowledgeBase}` : '',
   ].join('');
 
@@ -29,9 +33,12 @@ function buildDGSettings(cfg, userName) {
     },
     agent: {
       listen: { provider: { type: 'deepgram', version: 'v1', model: 'nova-2', language: 'en-US' } },
-      think: [{ provider: { type: 'open_ai', version: 'v1', model: 'gpt-4o-mini' }, prompt: systemPrompt }],
+      think: [{ 
+        provider: { type: 'open_ai', version: 'v1', model: 'gpt-4o-mini' }, 
+        prompt: systemPrompt 
+      }],
       speak: { provider: { type: 'deepgram', version: 'v1', model: cfg.voiceModel || 'aura-asteria-en' } },
-      greeting: `Hello ${firstName}, I'm Rosie. How can I assist you today?`,
+      greeting: greeting, // Dynamically injected script
     },
   };
 }
@@ -68,16 +75,14 @@ export default function RosieVoiceAgent({ userName = 'Steph' }) {
     src.connect(ctx.destination);
     sourceRef.current = src;
 
-    // Time-accurate scheduling to prevent gaps
     const now = ctx.currentTime;
     if (nextStartTimeRef.current < now) {
-      nextStartTimeRef.current = now + 0.05; // Tiny 50ms initial buffer
+      nextStartTimeRef.current = now + 0.05; 
     }
     src.start(nextStartTimeRef.current);
     nextStartTimeRef.current += buffer.duration;
 
     src.onended = () => {
-        // Only set speaking false if we've reached the end of the scheduled audio
         if (ctx.currentTime >= nextStartTimeRef.current - 0.01) {
             setAgentSpeaking(false);
         }
@@ -124,7 +129,6 @@ export default function RosieVoiceAgent({ userName = 'Steph' }) {
           case 'SettingsApplied':
             setPhase('active');
             const source = ctx.createMediaStreamSource(stream);
-            // 4096 samples at 24kHz is ~170ms chunks
             const processor = ctx.createScriptProcessor(4096, 1, 1);
             processorRef.current = processor;
             
@@ -133,7 +137,7 @@ export default function RosieVoiceAgent({ userName = 'Steph' }) {
               const inputData = ev.inputBuffer.getChannelData(0);
               const int16 = new Int16Array(inputData.length);
               
-              for (let i = 0; i < inputData.length; i++) { // ✅ Corrected Length Fix
+              for (let i = 0; i < inputData.length; i++) {
                 const s = Math.max(-1, Math.min(1, inputData[i]));
                 int16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
               }
@@ -141,12 +145,6 @@ export default function RosieVoiceAgent({ userName = 'Steph' }) {
             };
 
             source.connect(processor);
-            
-            /** * ✅ FEEDBACK FIX: 
-             * Do NOT connect to ctx.destination. 
-             * We connect to a GainNode with 0 volume to keep the processor clock running 
-             * in browsers that require a destination to trigger onaudioprocess.
-             */
             const silence = ctx.createGain();
             silence.gain.value = 0;
             processor.connect(silence);
@@ -157,7 +155,6 @@ export default function RosieVoiceAgent({ userName = 'Steph' }) {
             setTranscript(prev => [...prev, { role: msg.role, text: msg.content }]);
             break;
           case 'UserStartedSpeaking':
-            // Interrupt: Kill the audio clock and stop sources
             if (sourceRef.current) { try { sourceRef.current.stop(); } catch {} }
             nextStartTimeRef.current = 0;
             setAgentSpeaking(false);
