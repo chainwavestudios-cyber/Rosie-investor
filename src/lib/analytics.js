@@ -59,9 +59,9 @@ function snapshot(s, closing = false) {
     });
   }
 
+  // Never include id — flush() decides create vs update separately
   return {
-    id:              s.id,          // Base44 record ID (set after first create)
-    sessionId:       s.sessionId,   // our generated ID
+    sessionId:       s.sessionId,
     userEmail:       s.userEmail,
     username:        s.username,
     userName:        s.userName,

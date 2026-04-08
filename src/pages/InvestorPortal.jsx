@@ -1041,6 +1041,13 @@ export default function InvestorPortal() {
   useEffect(() => {
     if (isPortalLoading) return; // wait for auth init
     if (!portalUser) { navigate('/portal-login'); return; }
+
+    // Start a session if there isn't one (e.g. auth restored from sessionStorage,
+    // user opened a new tab, or analytics session was otherwise missing)
+    if (!analytics.getCurrentSession()) {
+      analytics.startSession(portalUser.email, portalUser.name, portalUser.username);
+    }
+
     analytics.trackPageView('portal');
     analytics.trackSection('home');
 
