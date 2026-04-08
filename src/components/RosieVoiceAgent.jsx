@@ -195,8 +195,10 @@ export default function RosieVoiceAgent({ userName = 'there' }) {
     const ctx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
     audioCtxRef.current = ctx;
 
-    // Pass API key as query param — required for browser WebSocket (no custom headers)
-    const wsUrl = `${DG_WS_URL}?token=${encodeURIComponent(cfg.deepgramApiKey)}`;
+    // Deepgram browser auth: pass API key as query param (browsers can't set WS headers)
+    const apiKey = (cfg.deepgramApiKey || '').trim();
+    const wsUrl = `${DG_WS_URL}?token=${encodeURIComponent(apiKey)}`;
+    console.log('[Rosie] Connecting to:', DG_WS_URL, '| key length:', apiKey.length);
     const ws = new WebSocket(wsUrl);
     ws.binaryType = 'arraybuffer';
     wsRef.current = ws;
@@ -295,16 +297,18 @@ export default function RosieVoiceAgent({ userName = 'there' }) {
         cleanup(false);
         return;
       }
-      // Failed during connecting — decode the close code for a useful message
+      // Failed during connecting — show the exact close code and reason
+      console.error('[Rosie] WS closed. code:', e.code, 'reason:', e.reason, 'wasClean:', e.wasClean);
+      const reason = e.reason ? ` "${e.reason}"` : '';
       let msg;
       if (e.code === 1008 || e.code === 4001 || e.code === 4003) {
-        msg = `Invalid or unauthorized API key (code ${e.code}). Check the Deepgram key in Portal Controls.`;
+        msg = `Unauthorized API key (code ${e.code}${reason}). Check the Deepgram key in Portal Controls → AI Chatbot.`;
       } else if (e.code === 1006) {
-        msg = `Connection refused (code 1006). This usually means an invalid API key or network issue. Verify the key at console.deepgram.com.`;
-      } else if (e.reason) {
-        msg = `Connection closed: ${e.reason} (code ${e.code})`;
+        msg = `Connection failed (code 1006${reason}) — server rejected the connection. Check that your Deepgram API key is valid at console.deepgram.com and has Voice Agent access.`;
+      } else if (e.code === 1000) {
+        msg = `Server closed the connection normally (code 1000${reason}). The API key may be invalid or missing Voice Agent permissions.`;
       } else {
-        msg = `WebSocket closed unexpectedly (code ${e.code}). Check your API key and network.`;
+        msg = `WebSocket closed (code ${e.code}${reason}). Verify your Deepgram API key in Portal Controls → AI Chatbot.`;
       }
       phaseRef.current = 'error';
       setError(msg);
