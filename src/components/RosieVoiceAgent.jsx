@@ -1,10 +1,9 @@
 /**
  * RosieVoiceAgent — Production Deepgram Voice Agent
- * * Updates:
- * - Hardcoded Temp API Key for testing
- * - Endpoint: wss://api.deepgram.com/v1/agent/converse
- * - Fixed LLM Model: gpt-4o-mini
- * - Fixed Settings Schema
+ * Updates:
+ * - Hardcoded Active API Key: 44294c0c2f0ebbcc81b853151056111226b853e9
+ * - Fixed Settings Schema: Nested providers and 'think' array
+ * - Fixed Field Names: 'instructions' -> 'prompt'
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react';
@@ -12,8 +11,8 @@ import { getPortalSettings, refreshPortalSettings } from '@/lib/portalSettings';
 
 const GOLD = '#b8933a';
 const DG_WS_URL = 'wss://agent.deepgram.com/v1/agent/converse';
-// YOUR TEMP KEY
-const TEMP_KEY = '092aa81ccc2ed9f89a6aa448a5fee102f6043567';
+// PERMANENT KEY
+const TEMP_KEY = '44294c0c2f0ebbcc81b853151056111226b853e9';
 
 export const AURA_VOICES = [
   { id: 'aura-asteria-en',   name: 'Asteria',   gender: 'F', tone: 'Warm · Professional',    featured: true },
@@ -42,19 +41,26 @@ function buildDGSettings(cfg, userName) {
       output: { encoding: 'linear16', sample_rate: 24000, container: 'none' },
     },
     agent: {
-      language: 'en',
-      greeting,
       listen: {
-        model: 'nova-3', 
+        provider: { 
+          type: 'deepgram', 
+          model: 'nova-2' // Fixed nested provider structure
+        }, 
       },
-      think: {
-        provider: { type: 'open_ai' },
-        model: 'gpt-4o-mini', 
-        instructions: systemPrompt,
-      },
+      think: [ // Schema requires an array for think steps
+        {
+          provider: { type: 'open_ai' },
+          model: 'gpt-4o-mini', 
+          prompt: systemPrompt, // Corrected from 'instructions' to 'prompt'
+        }
+      ],
       speak: {
-        model: cfg.voiceModel || 'aura-asteria-en',
+        provider: {
+          type: 'deepgram',
+          model: cfg.voiceModel || 'aura-asteria-en',
+        }
       },
+      greeting: greeting,
     },
   };
 }
@@ -113,15 +119,7 @@ export default function RosieVoiceAgent({ userName = 'there' }) {
     setTranscript([]);
 
     const cfg = await refreshPortalSettings();
-    
-    // Priority: Temp Key -> Settings Key
-    const activeKey = TEMP_KEY || cfg.deepgramApiKey;
-
-    if (!activeKey) {
-      setError('No API key available.');
-      setPhase('error');
-      return;
-    }
+    const activeKey = TEMP_KEY; // Hardcoded per request
 
     let stream;
     try {
@@ -136,6 +134,7 @@ export default function RosieVoiceAgent({ userName = 'there' }) {
     const ctx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
     audioCtxRef.current = ctx;
 
+    // Correct Auth via token parameter
     const wsUrl = `${DG_WS_URL}?token=${activeKey}`;
     const ws = new WebSocket(wsUrl);
     ws.binaryType = 'arraybuffer';
@@ -155,6 +154,7 @@ export default function RosieVoiceAgent({ userName = 'there' }) {
         const msg = JSON.parse(e.data);
         switch (msg.type) {
           case 'Welcome':
+            // Send updated settings immediately
             ws.send(JSON.stringify(buildDGSettings(cfg, userName)));
             break;
           case 'SettingsApplied':
@@ -208,8 +208,6 @@ export default function RosieVoiceAgent({ userName = 'there' }) {
       cleanup(false);
     };
 
-    ws.onerror = (err) => console.error("WS Error:", err);
-
   }, [playNextChunk, userName]);
 
   const cleanup = useCallback((updatePhase = true) => {
@@ -242,7 +240,6 @@ export default function RosieVoiceAgent({ userName = 'there' }) {
 
   return (
     <div style={containerStyle}>
-      {/* Header */}
       <div style={headerStyle}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <div style={{ ...orbStyle, background: phase === 'active' && agentSpeaking ? GOLD : 'rgba(184,147,58,0.2)' }}>🎙</div>
@@ -254,7 +251,6 @@ export default function RosieVoiceAgent({ userName = 'there' }) {
         <button onClick={() => { disconnect(); setIsOpen(false); }} style={closeBtnStyle}>×</button>
       </div>
 
-      {/* Transcript Area */}
       <div style={transcriptAreaStyle}>
         {transcript.map((msg, i) => (
           <div key={i} style={{ display: 'flex', justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start' }}>
@@ -266,7 +262,6 @@ export default function RosieVoiceAgent({ userName = 'there' }) {
         {error && <div style={errorStyle}>⚠ {error}</div>}
       </div>
 
-      {/* Footer */}
       <div style={footerStyle}>
         {(phase === 'idle' || phase === 'error') ? (
           <button onClick={connect} style={actionBtnStyle}>Start Conversation</button>
