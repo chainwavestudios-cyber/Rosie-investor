@@ -1,9 +1,10 @@
 /**
  * RosieVoiceAgent — Production Deepgram Voice Agent
  * UPDATES:
- * 1. Investor Script: New greeting tailored for the investor platform.
- * 2. Bug Fixes: (Already applied) Loop index, Echo/Feedback fix, High-precision timing.
- * 3. Key: 44294c0c2f0ebbcc81b853151056111226b853e9
+ * 1. Intro Gating: Added 'isListening' ref to ignore mic input until intro is done.
+ * 2. Event Handling: Listens for 'AgentAudioDone' to open the mic for the user.
+ * 3. Script: Maintained the Investor Platform greeting.
+ * 4. Key: 44294c0c2f0ebbcc81b853151056111226b853e9
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react';
@@ -14,10 +15,7 @@ const DG_WS_URL = 'wss://agent.deepgram.com/v1/agent/converse';
 const TEMP_KEY = '44294c0c2f0ebbcc81b853151056111226b853e9';
 
 function buildDGSettings(cfg, userName) {
-  // Get the first name or default to 'there'
   const name = (userName || 'there').split(' ')[0];
-
-  // YOUR NEW INVESTOR SCRIPT
   const greeting = `Hi ${name}, I'm Rosie. I simplify the path from prospect to lead through seamless, automated engagement tools. You’ve reached our investor platform! I’m here to provide any insights or data you need and help you explore the vision behind the tech. What questions do you have?`;
 
   const systemPrompt = [
@@ -33,12 +31,9 @@ function buildDGSettings(cfg, userName) {
     },
     agent: {
       listen: { provider: { type: 'deepgram', version: 'v1', model: 'nova-2', language: 'en-US' } },
-      think: [{ 
-        provider: { type: 'open_ai', version: 'v1', model: 'gpt-4o-mini' }, 
-        prompt: systemPrompt 
-      }],
+      think: [{ provider: { type: 'open_ai', version: 'v1', model: 'gpt-4o-mini' }, prompt: systemPrompt }],
       speak: { provider: { type: 'deepgram', version: 'v1', model: cfg.voiceModel || 'aura-asteria-en' } },
-      greeting: greeting, // Dynamically injected script
+      greeting: greeting,
     },
   };
 }
@@ -56,6 +51,9 @@ export default function RosieVoiceAgent({ userName = 'Steph' }) {
   const processorRef = useRef(null);
   const sourceRef    = useRef(null);
   const nextStartTimeRef = useRef(0);
+  
+  // ✅ THE GATEKEEPER REF
+  const isListeningRef = useRef(false); 
 
   const playChunk = useCallback((arrayBuffer) => {
     const ctx = audioCtxRef.current;
@@ -63,9 +61,7 @@ export default function RosieVoiceAgent({ userName = 'Steph' }) {
 
     const int16 = new Int16Array(arrayBuffer);
     const float32 = new Float32Array(int16.length);
-    for (let i = 0; i < int16.length; i++) {
-        float32[i] = int16[i] / 32768.0;
-    }
+    for (let i = 0; i < int16.length; i++) float32[i] = int16[i] / 32768.0;
 
     const buffer = ctx.createBuffer(1, float32.length, 24000);
     buffer.copyToChannel(float32, 0);
@@ -76,22 +72,19 @@ export default function RosieVoiceAgent({ userName = 'Steph' }) {
     sourceRef.current = src;
 
     const now = ctx.currentTime;
-    if (nextStartTimeRef.current < now) {
-      nextStartTimeRef.current = now + 0.05; 
-    }
+    if (nextStartTimeRef.current < now) nextStartTimeRef.current = now + 0.05; 
     src.start(nextStartTimeRef.current);
     nextStartTimeRef.current += buffer.duration;
 
     src.onended = () => {
-        if (ctx.currentTime >= nextStartTimeRef.current - 0.01) {
-            setAgentSpeaking(false);
-        }
+        if (ctx.currentTime >= nextStartTimeRef.current - 0.01) setAgentSpeaking(false);
     };
   }, []);
 
   const connect = useCallback(async () => {
     setError('');
     setPhase('connecting');
+    isListeningRef.current = false; // Reset listening gate on new connect
 
     const cfg = await refreshPortalSettings();
 
@@ -133,10 +126,11 @@ export default function RosieVoiceAgent({ userName = 'Steph' }) {
             processorRef.current = processor;
             
             processor.onaudioprocess = (ev) => {
-              if (ws.readyState !== WebSocket.OPEN) return;
+              // ✅ GATE: Only send audio if the socket is open AND intro is done
+              if (ws.readyState !== WebSocket.OPEN || !isListeningRef.current) return;
+
               const inputData = ev.inputBuffer.getChannelData(0);
               const int16 = new Int16Array(inputData.length);
-              
               for (let i = 0; i < inputData.length; i++) {
                 const s = Math.max(-1, Math.min(1, inputData[i]));
                 int16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
@@ -149,6 +143,12 @@ export default function RosieVoiceAgent({ userName = 'Steph' }) {
             silence.gain.value = 0;
             processor.connect(silence);
             silence.connect(ctx.destination);
+            break;
+
+          case 'AgentAudioDone':
+            // ✅ OPEN THE GATE: Rosie is done talking, now she can listen
+            console.log("Intro complete. Opening microphone...");
+            isListeningRef.current = true; 
             break;
 
           case 'ConversationText':
@@ -177,6 +177,7 @@ export default function RosieVoiceAgent({ userName = 'Steph' }) {
     if (audioCtxRef.current) audioCtxRef.current.close().catch(() => {});
     if (updatePhase) setPhase('idle');
     setAgentSpeaking(false);
+    isListeningRef.current = false;
   }, []);
 
   if (!isOpen) return <button onClick={() => setIsOpen(true)} style={pillStyle}>🎙 Talk to Rosie</button>;
@@ -207,7 +208,7 @@ export default function RosieVoiceAgent({ userName = 'Steph' }) {
   );
 }
 
-// STYLES
+// STYLES (No changes)
 const pillStyle = { position: 'fixed', bottom: '32px', right: '32px', background: GOLD, color: '#000', borderRadius: '50px', padding: '14px 24px', cursor: 'pointer', fontWeight: 'bold', zIndex: 1000 };
 const containerStyle = { position: 'fixed', bottom: '24px', right: '24px', width: '380px', height: '520px', background: '#0a1118', border: `1px solid ${GOLD}44`, borderRadius: '8px', display: 'flex', flexDirection: 'column', zIndex: 1000 };
 const headerStyle = { padding: '15px', borderBottom: '1px solid #ffffff11', display: 'flex', justifyContent: 'space-between' };
