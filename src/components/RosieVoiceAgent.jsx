@@ -1,88 +1,85 @@
 /**
  * RosieVoiceAgent — Production Deepgram Voice Agent
- * * FIXES:
- * 1. Sample Rate: Updated to 24000Hz across Settings and AudioContext.
- * 2. Auth: Standard ?token= query parameter.
- * 3. Schema: Strict v1 versioning and nested provider models.
+ * UPDATES:
+ * 1. Auth Fix: Implemented Sec-WebSocket-Protocol ['token.deepgram.com', key].
+ * 2. Personalization: Added Supabase fetch for user's first name.
+ * 3. Schema: Strict 24kHz sync and v1 provider nesting.
  * 4. Key: 44294c0c2f0ebbcc81b853151056111226b853e9
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { getPortalSettings, refreshPortalSettings } from '@/lib/portalSettings';
+import { supabase } from '@/lib/supabaseClient'; // Ensure this points to your Supabase config
 
 const GOLD = '#b8933a';
 const DG_WS_URL = 'wss://agent.deepgram.com/v1/agent/converse';
 const TEMP_KEY = '44294c0c2f0ebbcc81b853151056111226b853e9';
 
-function buildDGSettings(cfg, userName) {
+function buildDGSettings(cfg, firstName) {
   const systemPrompt = [
-    cfg.chatbotContext || 'You are Rosie, a helpful investment assistant.',
+    cfg.chatbotContext || 'You are Rosie, a helpful investment assistant for Rosie AI LLC.',
     cfg.knowledgeBase ? `\n\n--- KNOWLEDGE BASE ---\n${cfg.knowledgeBase}` : '',
   ].join('');
 
-  const firstName = (userName || 'there').split(' ')[0];
-  const greeting = `Hello ${firstName}, I'm Rosie. How can I help you today?`;
+  // Personalization logic
+  const greeting = `Hello ${firstName}, welcome back to Rosie AI. I'm Rosie, your investment assistant. How can I help you today?`;
 
   return {
     type: 'Settings',
     audio: {
-      input: { 
-        encoding: 'linear16', 
-        sample_rate: 24000 // ✅ MATCHED TO AUDIOCONTEXT
-      },
-      output: { 
-        encoding: 'linear16', 
-        sample_rate: 24000, 
-        container: 'none' 
-      },
+      input: { encoding: 'linear16', sample_rate: 24000 },
+      output: { encoding: 'linear16', sample_rate: 24000, container: 'none' },
     },
     agent: {
-      listen: { 
-        provider: { 
-          type: 'deepgram', 
-          version: 'v1', 
-          model: 'nova-2', 
-          language: 'en-US' 
-        } 
+      listen: {
+        provider: { type: 'deepgram', version: 'v1', model: 'nova-2', language: 'en-US' }, 
       },
-      think: [
-        { 
-          provider: { 
-            type: 'open_ai', 
-            version: 'v1', 
-            model: 'gpt-4o-mini' 
-          }, 
-          prompt: systemPrompt 
+      think: [ 
+        {
+          provider: { type: 'open_ai', version: 'v1', model: 'gpt-4o-mini' },
+          prompt: systemPrompt,
         }
       ],
-      speak: { 
-        provider: { 
-          type: 'deepgram', 
-          version: 'v1', 
-          model: cfg.voiceModel || 'aura-asteria-en' 
-        } 
+      speak: {
+        provider: { type: 'deepgram', version: 'v1', model: cfg.voiceModel || 'aura-asteria-en' }
       },
-      greeting
+      greeting: greeting,
     },
   };
 }
 
-export default function RosieVoiceAgent({ userName = 'there' }) {
+export default function RosieVoiceAgent({ userId }) {
   const [settings] = useState(() => getPortalSettings());
-  const [phase, setPhase] = useState('idle');
+  const [firstName, setFirstName] = useState('there'); // Default greeting
+  const [phase, setPhase] = useState('idle'); 
   const [agentSpeaking, setAgentSpeaking] = useState(false);
   const [transcript, setTranscript] = useState([]);
   const [error, setError] = useState('');
   const [isOpen, setIsOpen] = useState(false);
 
-  const wsRef = useRef(null);
-  const audioCtxRef = useRef(null);
+  const wsRef        = useRef(null);
+  const audioCtxRef  = useRef(null);
   const micStreamRef = useRef(null);
   const processorRef = useRef(null);
-  const playQueueRef = useRef([]);
+  const playQueueRef = useRef([]);   
   const isPlayingRef = useRef(false);
-  const sourceRef = useRef(null);
-  const phaseRef = useRef('idle');
+  const sourceRef    = useRef(null);
+  const phaseRef     = useRef('idle');
+
+  // FETCH NAME FROM SUPABASE
+  useEffect(() => {
+    async function getUserName() {
+      if (!userId) return;
+      const { data, error: dbError } = await supabase
+        .from('profiles') // Replace with your actual table name
+        .select('first_name')
+        .eq('id', userId)
+        .single();
+      
+      if (data?.first_name) setFirstName(data.first_name);
+    }
+    getUserName();
+  }, [userId]);
 
   const playNextChunk = useCallback(() => {
     if (isPlayingRef.current || playQueueRef.current.length === 0) return;
@@ -93,7 +90,6 @@ export default function RosieVoiceAgent({ userName = 'there' }) {
     const int16 = new Int16Array(chunk);
     const float32 = new Float32Array(int16.length);
     for (let i = 0; i < int16.length; i++) float32[i] = int16[i] / 32768.0;
-    
     const buffer = ctx.createBuffer(1, float32.length, 24000);
     buffer.copyToChannel(float32, 0);
     const src = ctx.createBufferSource();
@@ -110,8 +106,8 @@ export default function RosieVoiceAgent({ userName = 'there' }) {
 
   const connect = useCallback(async () => {
     setError('');
-    setPhase('connecting');
     phaseRef.current = 'connecting';
+    setPhase('connecting');
 
     const cfg = await refreshPortalSettings();
     const activeKey = TEMP_KEY;
@@ -126,11 +122,14 @@ export default function RosieVoiceAgent({ userName = 'there' }) {
       return;
     }
 
-    // ✅ MATCHED TO SETTINGS
     const ctx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 24000 });
     audioCtxRef.current = ctx;
 
-    const ws = new WebSocket(`${DG_WS_URL}?token=${activeKey}`);
+    /**
+     * ✅ AUTH FIX: USE SEC-WEBSOCKET-PROTOCOL
+     * This passes the key via the sub-protocol header, which browsers allow.
+     */
+    const ws = new WebSocket(DG_WS_URL, ['token.deepgram.com', activeKey]);
     ws.binaryType = 'arraybuffer';
     wsRef.current = ws;
 
@@ -148,27 +147,28 @@ export default function RosieVoiceAgent({ userName = 'there' }) {
         const msg = JSON.parse(e.data);
         switch (msg.type) {
           case 'Welcome':
-            ws.send(JSON.stringify(buildDGSettings(cfg, userName)));
+            // Send settings with the name we fetched from Supabase
+            ws.send(JSON.stringify(buildDGSettings(cfg, firstName)));
             break;
           case 'SettingsApplied':
-            setPhase('active');
             phaseRef.current = 'active';
-            const source = ctx.createMediaStreamSource(stream);
-            const processor = ctx.createScriptProcessor(4096, 1, 1);
-            processorRef.current = processor;
-            
-            processor.onaudioprocess = (ev) => {
-              if (ws.readyState !== WebSocket.OPEN) return;
-              const inputData = ev.inputBuffer.getChannelData(0);
-              const int16 = new Int16Array(inputData.length);
-              for (let i = 0; i < inputData.length; i++) {
-                const s = Math.max(-1, Math.min(1, inputData[i]));
-                int16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
-              }
-              ws.send(int16.buffer);
-            };
-            source.connect(processor);
-            processor.connect(ctx.destination);
+            setPhase('active');
+            {
+              const source = ctx.createMediaStreamSource(stream);
+              const processor = ctx.createScriptProcessor(4096, 1, 1);
+              processorRef.current = processor;
+              processor.onaudioprocess = (ev) => {
+                if (ws.readyState !== WebSocket.OPEN) return;
+                const float32 = ev.inputBuffer.getChannelData(0);
+                const int16 = new Int16Array(float32.length);
+                for (let i = 0; i < float32.length; i++) {
+                  int16[i] = Math.max(-32768, Math.min(32767, Math.round(float32[i] * 32767)));
+                }
+                ws.send(int16.buffer);
+              };
+              source.connect(processor);
+              processor.connect(ctx.destination);
+            }
             break;
           case 'ConversationText':
             setTranscript(prev => [...prev, { role: msg.role, text: msg.content }]);
@@ -180,20 +180,21 @@ export default function RosieVoiceAgent({ userName = 'there' }) {
             setAgentSpeaking(false);
             break;
           case 'Error':
-            setError(`${msg.description} (${msg.code})`);
+            setError(`Deepgram error: ${msg.description || msg.message}`);
             break;
         }
       } catch (err) {}
     };
 
     ws.onclose = (e) => {
+      console.warn("WS Close Code:", e.code, "Reason:", e.reason);
       if (phaseRef.current !== 'error') {
-        setError(`Disconnected: ${e.code}`);
+        setError(`Disconnected (${e.code}).`);
         setPhase('error');
       }
       cleanup(false);
     };
-  }, [playNextChunk, userName]);
+  }, [playNextChunk, firstName]);
 
   const cleanup = useCallback((updatePhase = true) => {
     if (processorRef.current) processorRef.current.disconnect();
@@ -205,6 +206,7 @@ export default function RosieVoiceAgent({ userName = 'there' }) {
   }, []);
 
   const disconnect = useCallback(() => cleanup(true), [cleanup]);
+  useEffect(() => () => cleanup(false), [cleanup]);
 
   if (!isOpen) return <button onClick={() => setIsOpen(true)} style={pillStyle}>🎙 Talk to Rosie</button>;
 
@@ -213,7 +215,7 @@ export default function RosieVoiceAgent({ userName = 'there' }) {
       <div style={headerStyle}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <div style={{ ...orbStyle, background: phase === 'active' && agentSpeaking ? GOLD : 'rgba(184,147,58,0.2)' }}>🎙</div>
-          <div style={{ color: GOLD, fontSize: '13px', fontWeight: 'bold' }}>Rosie AI ({phase})</div>
+          <div style={{ color: GOLD, fontSize: '13px', fontWeight: 'bold' }}>Rosie AI</div>
         </div>
         <button onClick={() => { disconnect(); setIsOpen(false); }} style={closeBtnStyle}>×</button>
       </div>
@@ -235,14 +237,14 @@ export default function RosieVoiceAgent({ userName = 'there' }) {
 }
 
 // STYLES
-const pillStyle = { position: 'fixed', bottom: '32px', right: '32px', background: GOLD, color: '#000', borderRadius: '50px', padding: '14px 24px', cursor: 'pointer', fontWeight: 'bold' };
-const containerStyle = { position: 'fixed', bottom: '24px', right: '24px', width: '350px', height: '500px', background: '#0a1118', border: `1px solid ${GOLD}44`, borderRadius: '8px', display: 'flex', flexDirection: 'column' };
+const pillStyle = { position: 'fixed', bottom: '32px', right: '32px', background: GOLD, color: '#000', borderRadius: '50px', padding: '14px 24px', cursor: 'pointer', fontWeight: 'bold', zIndex: 1000 };
+const containerStyle = { position: 'fixed', bottom: '24px', right: '24px', width: '380px', height: '520px', background: '#0a1118', border: `1px solid ${GOLD}44`, borderRadius: '8px', display: 'flex', flexDirection: 'column', zIndex: 1000 };
 const headerStyle = { padding: '15px', borderBottom: '1px solid #ffffff11', display: 'flex', justifyContent: 'space-between' };
 const orbStyle = { width: '30px', height: '30px', borderRadius: '50%' };
-const closeBtnStyle = { background: 'none', border: 'none', color: '#666', cursor: 'pointer' };
+const closeBtnStyle = { background: 'none', border: 'none', color: '#666', cursor: 'pointer', fontSize: '20px' };
 const transcriptAreaStyle = { flex: 1, overflowY: 'auto', padding: '15px' };
-const bubbleStyle = { padding: '8px 12px', borderRadius: '12px', fontSize: '13px' };
-const errorStyle = { color: '#ff4444', fontSize: '11px', textAlign: 'center' };
+const bubbleStyle = { padding: '8px 12px', borderRadius: '12px', fontSize: '13px', maxWidth: '80%', display: 'inline-block' };
+const errorStyle = { color: '#ff4444', fontSize: '11px', textAlign: 'center', marginTop: '10px' };
 const footerStyle = { padding: '15px' };
-const actionBtnStyle = { width: '100%', padding: '12px', background: GOLD, border: 'none', fontWeight: 'bold' };
-const endBtnStyle = { width: '100%', padding: '12px', background: '#ff444422', color: '#ff4444', border: '1px solid #ff444444' };
+const actionBtnStyle = { width: '100%', padding: '12px', background: GOLD, border: 'none', fontWeight: 'bold', cursor: 'pointer' };
+const endBtnStyle = { width: '100%', padding: '12px', background: '#ff444422', color: '#ff4444', border: '1px solid #ff444444', cursor: 'pointer' };
