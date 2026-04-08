@@ -60,7 +60,7 @@ function buildDGSettings(cfg, userName) {
 }
 
 export default function RosieVoiceAgent({ userName = 'there' }) {
-  const [settings] = useState(getPortalSettings);
+  const [settings] = useState(() => getPortalSettings());
   const [phase, setPhase] = useState('idle'); 
   const [agentSpeaking, setAgentSpeaking] = useState(false);
   const [userSpeaking, setUserSpeaking] = useState(false);
