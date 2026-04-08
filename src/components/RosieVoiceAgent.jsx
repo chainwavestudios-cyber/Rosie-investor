@@ -1,11 +1,10 @@
 /**
  * RosieVoiceAgent — Production Deepgram Voice Agent
- * * FINAL OPTIMIZATIONS:
- * 1. Stream Integrity: Removed byteLength checks to prevent frame skipping.
- * 2. PCM Processing: Direct Int16 -> Float32 conversion for raw PCM.
- * 3. Jitter Buffer: Maintains a 2-chunk lead for smooth audio.
- * 4. Auth: Sec-WebSocket-Protocol ['token', key].
- * 5. Key: 44294c0c2f0ebbcc81b853151056111226b853e9
+ * * CRITICAL BUG FIXES:
+ * 1. Correct Loop Index: Fixed the inputData.length typo to prevent buffer corruption.
+ * 2. Feedback Loop: Removed processor.connect(ctx.destination) to kill the mic echo.
+ * 3. Timing: Switched back to precise time-scheduling for zero-gap playback.
+ * 4. Key: 44294c0c2f0ebbcc81b853151056111226b853e9
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react';
@@ -48,23 +47,14 @@ export default function RosieVoiceAgent({ userName = 'Steph' }) {
   const audioCtxRef  = useRef(null);
   const micStreamRef = useRef(null);
   const processorRef = useRef(null);
-  const playQueueRef = useRef([]);   
-  const isPlayingRef = useRef(false);
   const sourceRef    = useRef(null);
-  const phaseRef     = useRef('idle');
+  const nextStartTimeRef = useRef(0);
 
-  const playNextChunk = useCallback(() => {
-    // Jitter Buffer: Ensure we have at least 2 chunks to avoid underflow
-    if (isPlayingRef.current || playQueueRef.current.length < 2) return;
-    
+  const playChunk = useCallback((arrayBuffer) => {
     const ctx = audioCtxRef.current;
     if (!ctx) return;
 
-    isPlayingRef.current = true;
-    const chunk = playQueueRef.current.shift();
-
-    // Direct conversion from Int16 PCM to Float32
-    const int16 = new Int16Array(chunk);
+    const int16 = new Int16Array(arrayBuffer);
     const float32 = new Float32Array(int16.length);
     for (let i = 0; i < int16.length; i++) {
         float32[i] = int16[i] / 32768.0;
@@ -77,21 +67,26 @@ export default function RosieVoiceAgent({ userName = 'Steph' }) {
     src.buffer = buffer;
     src.connect(ctx.destination);
     sourceRef.current = src;
+
+    // Time-accurate scheduling to prevent gaps
+    const now = ctx.currentTime;
+    if (nextStartTimeRef.current < now) {
+      nextStartTimeRef.current = now + 0.05; // Tiny 50ms initial buffer
+    }
+    src.start(nextStartTimeRef.current);
+    nextStartTimeRef.current += buffer.duration;
+
     src.onended = () => {
-      isPlayingRef.current = false;
-      if (playQueueRef.current.length === 0) {
-        setAgentSpeaking(false);
-      } else {
-        playNextChunk();
-      }
+        // Only set speaking false if we've reached the end of the scheduled audio
+        if (ctx.currentTime >= nextStartTimeRef.current - 0.01) {
+            setAgentSpeaking(false);
+        }
     };
-    src.start();
   }, []);
 
   const connect = useCallback(async () => {
     setError('');
     setPhase('connecting');
-    phaseRef.current = 'connecting';
 
     const cfg = await refreshPortalSettings();
 
@@ -107,6 +102,7 @@ export default function RosieVoiceAgent({ userName = 'Steph' }) {
 
     const ctx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 24000 });
     audioCtxRef.current = ctx;
+    nextStartTimeRef.current = 0;
 
     const ws = new WebSocket(DG_WS_URL, ['token', TEMP_KEY]);
     ws.binaryType = 'arraybuffer';
@@ -114,10 +110,8 @@ export default function RosieVoiceAgent({ userName = 'Steph' }) {
 
     ws.onmessage = (e) => {
       if (e.data instanceof ArrayBuffer) {
-        // Push every binary frame immediately to the queue
-        playQueueRef.current.push(e.data);
         setAgentSpeaking(true);
-        playNextChunk();
+        playChunk(e.data);
         return;
       }
 
@@ -129,30 +123,43 @@ export default function RosieVoiceAgent({ userName = 'Steph' }) {
             break;
           case 'SettingsApplied':
             setPhase('active');
-            phaseRef.current = 'active';
             const source = ctx.createMediaStreamSource(stream);
+            // 4096 samples at 24kHz is ~170ms chunks
             const processor = ctx.createScriptProcessor(4096, 1, 1);
             processorRef.current = processor;
+            
             processor.onaudioprocess = (ev) => {
               if (ws.readyState !== WebSocket.OPEN) return;
               const inputData = ev.inputBuffer.getChannelData(0);
               const int16 = new Int16Array(inputData.length);
-              for (let i = 0; i < float32.length; i++) {
-                int16[i] = Math.max(-32768, Math.min(32767, Math.round(inputData[i] * 32767)));
+              
+              for (let i = 0; i < inputData.length; i++) { // ✅ Corrected Length Fix
+                const s = Math.max(-1, Math.min(1, inputData[i]));
+                int16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
               }
               ws.send(int16.buffer);
             };
+
             source.connect(processor);
-            processor.connect(ctx.destination);
+            
+            /** * ✅ FEEDBACK FIX: 
+             * Do NOT connect to ctx.destination. 
+             * We connect to a GainNode with 0 volume to keep the processor clock running 
+             * in browsers that require a destination to trigger onaudioprocess.
+             */
+            const silence = ctx.createGain();
+            silence.gain.value = 0;
+            processor.connect(silence);
+            silence.connect(ctx.destination);
             break;
+
           case 'ConversationText':
             setTranscript(prev => [...prev, { role: msg.role, text: msg.content }]);
             break;
           case 'UserStartedSpeaking':
-            // Barge-in: Clear the buffers immediately
+            // Interrupt: Kill the audio clock and stop sources
             if (sourceRef.current) { try { sourceRef.current.stop(); } catch {} }
-            playQueueRef.current = [];
-            isPlayingRef.current = false;
+            nextStartTimeRef.current = 0;
             setAgentSpeaking(false);
             break;
         }
@@ -164,7 +171,7 @@ export default function RosieVoiceAgent({ userName = 'Steph' }) {
       setError(`Disconnected (${e.code})`);
       cleanup(false);
     };
-  }, [playNextChunk, userName]);
+  }, [playChunk, userName]);
 
   const cleanup = useCallback((updatePhase = true) => {
     if (processorRef.current) processorRef.current.disconnect();
@@ -173,8 +180,6 @@ export default function RosieVoiceAgent({ userName = 'Steph' }) {
     if (audioCtxRef.current) audioCtxRef.current.close().catch(() => {});
     if (updatePhase) setPhase('idle');
     setAgentSpeaking(false);
-    playQueueRef.current = [];
-    isPlayingRef.current = false;
   }, []);
 
   if (!isOpen) return <button onClick={() => setIsOpen(true)} style={pillStyle}>🎙 Talk to Rosie</button>;
