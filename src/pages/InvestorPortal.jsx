@@ -535,206 +535,131 @@ function InvestmentOffering() {
 }
 
 
-// ─── Document Viewer with full page-level tracking ────────────────────────
-function DocumentViewer({ doc, onClose }) {
-  const [currentPage, setCurrentPage] = useState(1);
-  const docIdRef = useRef(null);
-
-  // Full document content pages
-  const pages = doc.pages;
-  const totalPages = pages.length;
-
-  useEffect(() => {
-    // Open tracking
-    docIdRef.current = analytics.trackDocumentOpen(doc.name, doc.type);
-    analytics.trackDocumentPageView(docIdRef.current, 1);
-    return () => {
-      // Close tracking on unmount
-      if (docIdRef.current) analytics.trackDocumentClose(docIdRef.current);
-    };
-  }, []);
-
-  const goToPage = (n) => {
-    const p = Math.max(1, Math.min(n, totalPages));
-    if (p !== currentPage) {
-      analytics.trackDocumentPageView(docIdRef.current, p);
-      setCurrentPage(p);
-    }
-  };
-
-  const handleDownload = () => {
-    analytics.trackDownload(doc.name + '.pdf', 'pdf');
-    // Trigger print dialog as PDF
-    const win = window.open('', '_blank');
-    win.document.write(`<html><head><title>${doc.name}</title><style>
-      body{font-family:Georgia,serif;color:#111;padding:40px;max-width:700px;margin:0 auto}
-      h1{color:#b8933a;border-bottom:2px solid #b8933a;padding-bottom:12px}
-      h2{color:#1a1a2e;margin-top:32px} p{line-height:1.7} table{width:100%;border-collapse:collapse}
-      td,th{border:1px solid #ddd;padding:8px;text-align:left} th{background:#f5f5f5}
-    </style></head><body>
-    <h1>${doc.name}</h1>
-    ${pages.map((pg, i) => `<div style="page-break-inside:avoid"><h2>Section ${i+1}: ${pg.title}</h2>${pg.content}</div>`).join('')}
-    </body></html>`);
-    win.document.close();
-    setTimeout(() => win.print(), 500);
-  };
-
-  const page = pages[currentPage - 1];
-
-  return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.9)', zIndex: 9998, display: 'flex', flexDirection: 'column' }}>
-      {/* Doc Header */}
-      <div style={{ background: '#0a0f1e', borderBottom: '1px solid rgba(184,147,58,0.3)', padding: '14px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-          <span style={{ color: '#6b7280', fontSize: '11px', letterSpacing: '2px', textTransform: 'uppercase' }}>Document Viewer</span>
-          <span style={{ color: GOLD, fontSize: '14px', fontWeight: 'bold' }}>{doc.name}</span>
-        </div>
-        <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-          <button onClick={handleDownload} style={{ background: 'rgba(184,147,58,0.15)', color: GOLD, border: '1px solid rgba(184,147,58,0.3)', borderRadius: '2px', padding: '7px 18px', cursor: 'pointer', fontSize: '12px', letterSpacing: '1px' }}>
-            ↓ Download PDF
-          </button>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#6b7280', cursor: 'pointer', fontSize: '22px', lineHeight: 1 }}>×</button>
-        </div>
-      </div>
-
-      {/* Doc Body */}
-      <div style={{ flex: 1, overflow: 'hidden', display: 'flex' }}>
-        {/* Page nav sidebar */}
-        <div style={{ width: '160px', background: '#0d1b2a', borderRight: '1px solid rgba(255,255,255,0.07)', overflowY: 'auto', padding: '12px 8px', flexShrink: 0 }}>
-          {pages.map((pg, i) => (
-            <button key={i} onClick={() => goToPage(i + 1)} style={{
-              display: 'block', width: '100%', textAlign: 'left',
-              background: currentPage === i+1 ? 'rgba(184,147,58,0.15)' : 'transparent',
-              border: 'none', borderLeft: currentPage === i+1 ? `2px solid ${GOLD}` : '2px solid transparent',
-              color: currentPage === i+1 ? GOLD : '#6b7280',
-              padding: '10px 10px', cursor: 'pointer', fontSize: '11px', lineHeight: 1.4,
-              transition: 'all 0.1s',
-            }}>
-              <div style={{ color: '#4a5568', fontSize: '10px', marginBottom: '2px' }}>PAGE {i+1}</div>
-              {pg.title}
-            </button>
-          ))}
-        </div>
-
-        {/* Page content */}
-        <div style={{ flex: 1, overflowY: 'auto', padding: '40px 60px', background: '#0a1020' }}>
-          <div style={{ maxWidth: '680px', margin: '0 auto' }}>
-            <div style={{ color: '#4a5568', fontSize: '10px', letterSpacing: '3px', textTransform: 'uppercase', marginBottom: '8px' }}>Page {currentPage} of {totalPages}</div>
-            <h2 style={{ color: '#e8e0d0', fontSize: '22px', fontFamily: 'Georgia, serif', fontWeight: 'normal', marginBottom: '24px', paddingBottom: '16px', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>{page.title}</h2>
-            <div style={{ color: '#c4cdd8', lineHeight: 1.8, fontSize: '14px' }} dangerouslySetInnerHTML={{ __html: page.content }} />
-          </div>
-        </div>
-      </div>
-
-      {/* Pagination controls */}
-      <div style={{ background: '#0a0f1e', borderTop: '1px solid rgba(255,255,255,0.07)', padding: '12px 24px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '16px', flexShrink: 0 }}>
-        <button onClick={() => goToPage(1)} disabled={currentPage === 1} style={{ background: 'none', border: '1px solid rgba(255,255,255,0.1)', color: currentPage===1?'#2d3748':'#8a9ab8', borderRadius: '2px', padding: '6px 12px', cursor: currentPage===1?'not-allowed':'pointer', fontSize: '12px' }}>«</button>
-        <button onClick={() => goToPage(currentPage - 1)} disabled={currentPage === 1} style={{ background: 'none', border: '1px solid rgba(255,255,255,0.1)', color: currentPage===1?'#2d3748':'#8a9ab8', borderRadius: '2px', padding: '6px 14px', cursor: currentPage===1?'not-allowed':'pointer', fontSize: '12px' }}>‹ Prev</button>
-        <span style={{ color: '#6b7280', fontSize: '13px', minWidth: '120px', textAlign: 'center' }}>Page {currentPage} / {totalPages}</span>
-        <button onClick={() => goToPage(currentPage + 1)} disabled={currentPage === totalPages} style={{ background: 'none', border: '1px solid rgba(255,255,255,0.1)', color: currentPage===totalPages?'#2d3748':'#8a9ab8', borderRadius: '2px', padding: '6px 14px', cursor: currentPage===totalPages?'not-allowed':'pointer', fontSize: '12px' }}>Next ›</button>
-        <button onClick={() => goToPage(totalPages)} disabled={currentPage === totalPages} style={{ background: 'none', border: '1px solid rgba(255,255,255,0.1)', color: currentPage===totalPages?'#2d3748':'#8a9ab8', borderRadius: '2px', padding: '6px 12px', cursor: currentPage===totalPages?'not-allowed':'pointer', fontSize: '12px' }}>»</button>
-      </div>
-    </div>
-  );
-}
-
-// Document definitions — each page is a section with title + HTML content
-const SUBSCRIPTION_DOC = {
-  name: 'SAFE Note — Subscription Agreement',
-  type: 'subscription',
-  pages: [
-    { title: 'Cover Page & Parties', content: '<p><strong>SIMPLE AGREEMENT FOR FUTURE EQUITY (SAFE)</strong></p><p>This Simple Agreement for Future Equity (this <em>"SAFE"</em>) is entered into as of the date last signed below, between:</p><p><strong>Rosie AI LLC</strong>, a limited liability company organized under the laws of the State of Ohio (the <em>"Company"</em>), and the investor identified on the signature page (the <em>"Investor"</em>).</p><p>This SAFE is one of a series of SAFEs being issued by the Company to investors in connection with a financing round.</p><p><strong>Valuation Cap:</strong> $15,000,000<br><strong>Discount Rate:</strong> 20%<br><strong>Minimum Investment:</strong> $25,000</p>' },
-    { title: 'Investment Terms', content: '<p>The Company is issuing this SAFE in exchange for the payment by the Investor of the <strong>Purchase Amount</strong> indicated on the signature page.</p><p><strong>Section 1. Events.</strong></p><p><em>(a) Equity Financing.</em> If there is an Equity Financing before the termination of this SAFE, on the initial closing of such Equity Financing, this SAFE will automatically convert into the number of shares of Safe Preferred Stock equal to the Purchase Amount divided by the Conversion Price.</p><p><em>Conversion Price</em> means the lower of: (i) the Safe Price, or (ii) the Discount Price.</p><p><strong>Safe Price</strong> means the price per share equal to the Valuation Cap divided by the Diluted Shares Outstanding immediately prior to the closing of the Equity Financing.</p>' },
-    { title: 'Liquidity Event', content: "<p><strong>(b) Liquidity Event.</strong> If there is a Liquidity Event before the termination of this SAFE, the Investor will, at the Investor's option, either: (i) receive a cash payment equal to the Purchase Amount, or (ii) automatically receive from the Company a number of shares of Common Stock equal to the Purchase Amount divided by the Liquidity Price.</p><p><em>Liquidity Price</em> means the price per share equal to the Valuation Cap divided by the Diluted Shares Outstanding immediately prior to the Liquidity Event.</p><p>The Company shall provide the Investor with written notice of a Liquidity Event at least ten (10) business days prior to the anticipated closing date.</p>" },
-    { title: 'Dissolution Event', content: '<p><strong>(c) Dissolution Event.</strong> If there is a Dissolution Event before the termination of this SAFE, the Company will pay an amount equal to the Purchase Amount, due and payable to the Investor immediately prior to, or concurrent with, the consummation of the Dissolution Event.</p><p>The Purchase Amount will be paid prior to any payment to holders of outstanding Capital Stock by reason of their ownership of such Capital Stock.</p><p>If immediately prior to the consummation of the Dissolution Event, the assets of the Company legally available for distribution to the Investor and all holders of all other SAFEs are insufficient to permit the payment of the Purchase Amount and all such other amounts, then the entire assets of the Company legally available for distribution will be distributed with equal priority among the Investor and all other SAFE holders on a pro rata basis.</p>' },
-    { title: 'Company Representations', content: '<p><strong>Section 2. Company Representations.</strong></p><p>In connection with the issuance of this SAFE, the Company represents and warrants to the Investor, as of the date hereof, as follows:</p><p><em>(a)</em> The Company is a limited liability company duly organized, validly existing and in good standing under the laws of its state of formation, and has the power and authority to own, lease and operate its properties and carry on its business.</p><p><em>(b)</em> The execution, delivery and performance by the Company of this SAFE is within the power of the Company and has been duly authorized by all necessary actions on the part of the Company.</p><p><em>(c)</em> This SAFE constitutes a legal, valid and binding obligation of the Company, enforceable against the Company in accordance with its terms.</p>' },
-    { title: 'Investor Representations', content: '<p><strong>Section 3. Investor Representations.</strong></p><p><em>(a)</em> The Investor has full legal capacity, power and authority to execute and deliver this SAFE and to perform its obligations hereunder.</p><p><em>(b)</em> The Investor is an <strong>accredited investor</strong> as such term is defined in Rule 501(a) of Regulation D under the Securities Act of 1933, as amended.</p><p><em>(c)</em> The Investor has been advised that this SAFE has not been registered under the Securities Act, or any state securities laws and, therefore, cannot be resold unless it is registered under the Securities Act and applicable state securities laws or unless an exemption from such registration requirements is available.</p><p><em>(d)</em> The Investor is purchasing this SAFE for its own account, for investment purposes only and not with a view to, or for, resale, distribution or fractionalization thereof.</p>' },
-    { title: 'Miscellaneous Provisions', content: '<p><strong>Section 4. Miscellaneous.</strong></p><p><em>(a) Governing Law.</em> This SAFE shall be governed by and construed in accordance with the laws of the State of Ohio, without regard to conflicts of law provisions.</p><p><em>(b) Entire Agreement.</em> This SAFE constitutes the full and entire understanding and agreement between the parties with regard to the subject matter hereof.</p><p><em>(c) Amendments.</em> Any provision of this SAFE may be amended, waived or modified only upon the written consent of the Company and the Investor.</p><p><em>(d) Notices.</em> Any notice required or permitted by this SAFE will be in writing and will be deemed sufficient upon delivery by email with read receipt or by nationally recognized overnight courier.</p>' },
-    { title: 'Signature Page', content: '<p>IN WITNESS WHEREOF, the undersigned have executed this SAFE as of the date indicated by the Company below.</p><br><p><strong>ROSIE AI LLC</strong></p><p>By: ___________________________<br>Name: _________________________<br>Title: __________________________<br>Date: __________________________</p><br><p><strong>INVESTOR</strong></p><p>By: ___________________________<br>Name: _________________________<br>Title/Entity: ____________________<br>Address: _______________________<br>Email: _________________________<br>Date: __________________________<br>Purchase Amount: $ ______________</p><br><p style="color:#888;font-size:12px">This document is for informational purposes. Please contact Investors@RosieAI.com to obtain an executable copy.</p>' },
-  ]
-};
-
-const ACCREDITATION_DOC = {
-  name: 'Accredited Investor Questionnaire',
-  type: 'accreditation',
-  pages: [
-    { title: 'Introduction & Purpose', content: '<p><strong>ACCREDITED INVESTOR QUESTIONNAIRE</strong></p><p>This Accredited Investor Questionnaire (this <em>"Questionnaire"</em>) is required to be completed by each prospective investor in Rosie AI LLC (the <em>"Company"</em>) prior to making an investment.</p><p>The purpose of this Questionnaire is to confirm that you qualify as an <strong>"accredited investor"</strong> as defined in Rule 501(a) of Regulation D promulgated under the Securities Act of 1933, as amended (the <em>"Securities Act"</em>).</p><p>The Company is relying on your answers to determine whether the exemption from registration provided by Regulation D is available for the offering. Please complete all applicable sections accurately and completely.</p>' },
-    { title: 'Definition of Accredited Investor', content: '<p><strong>An "Accredited Investor" includes any person who meets ONE OR MORE of the following criteria:</strong></p><table><tr><th>Category</th><th>Requirement</th></tr><tr><td>Individual Net Worth</td><td>Net worth exceeding $1,000,000 (excluding primary residence), either individually or jointly with spouse</td></tr><tr><td>Individual Income</td><td>Individual income exceeding $200,000 in each of the two most recent years, with a reasonable expectation of reaching same in current year</td></tr><tr><td>Joint Income</td><td>Joint income with spouse exceeding $300,000 in each of the two most recent years</td></tr><tr><td>Entity</td><td>Entity with assets exceeding $5,000,000 not formed for specific purpose of acquiring securities offered</td></tr><tr><td>Professional Certification</td><td>Holds Series 7, 65, or 82 license in good standing</td></tr></table>' },
-    { title: 'Investor Certification', content: '<p><strong>CERTIFICATION</strong></p><p>The undersigned certifies that the information provided in this Questionnaire is true and correct in all material respects as of the date hereof. The undersigned agrees to notify the Company immediately if any such information becomes inaccurate at any time prior to the closing of the investment.</p><p>The undersigned acknowledges that:</p><ul style="line-height:2"><li>The Company will rely on the accuracy of this Questionnaire</li><li>The securities have not been registered under the Securities Act</li><li>The investment involves substantial risk and may result in total loss</li><li>The securities are illiquid and there is no guarantee of any return</li><li>Investor has conducted their own independent due diligence</li></ul><p><br><strong>Signature: ________________________</strong><br>Date: _____________________________<br>Print Name: _______________________<br>Entity (if applicable): _______________</p>' },
-  ]
-};
+// ─── PDF Documents ───────────────────────────────────────────────────────
+const PDF_DOCS = [
+  {
+    id: 'subscription',
+    name: 'Subscription Agreement',
+    type: 'subscription',
+    badge: 'Required',
+    desc: 'SAFE Note — Subscription Agreement · 7 pages · Rosie AI LLC',
+    url: 'https://media.base44.com/files/public/69cd2741578c9b5ce655395b/088aa5ef3_RosieAI_Subscription_Agreement.pdf',
+    totalPages: 7,
+  },
+  {
+    id: 'accreditation',
+    name: 'Investor Questionnaire',
+    type: 'accreditation',
+    badge: 'Required',
+    desc: 'Accredited Investor Questionnaire · 7 pages · SEC Rule 501(a)',
+    url: 'https://media.base44.com/files/public/69cd2741578c9b5ce655395b/903902aa1_RosieAI_Investor_Questionnaire.pdf',
+    totalPages: 7,
+  },
+];
 
 // ─── Tab: Subscription Agreements ────────────────────────────────────────
 function SubscriptionAgreements() {
+  const [selectedDoc, setSelectedDoc] = useState(null);
   const [showDocusign, setShowDocusign] = useState(false);
-  const [viewingDoc, setViewingDoc] = useState(null);
+  const docIdRef = useRef(null);
 
   const openDoc = (doc) => {
+    // Close previous
+    if (docIdRef.current) analytics.trackDocumentClose(docIdRef.current);
+    docIdRef.current = analytics.trackDocumentOpen(doc.name, doc.type);
+    analytics.trackDocumentPageView(docIdRef.current, 1);
     analytics.trackSection('subscription-view-' + doc.type);
-    setViewingDoc(doc);
+    setSelectedDoc(doc);
   };
 
   const closeDoc = () => {
-    setViewingDoc(null);
+    if (docIdRef.current) { analytics.trackDocumentClose(docIdRef.current); docIdRef.current = null; }
+    setSelectedDoc(null);
+  };
+
+  const handleDownload = (doc) => {
+    analytics.trackDownload(doc.name + '.pdf', 'pdf');
+    const a = document.createElement('a');
+    a.href = doc.url;
+    a.download = doc.name + '.pdf';
+    a.target = '_blank';
+    a.click();
   };
 
   return (
     <div id="portal-tab-content" style={{ position: 'relative' }}>
       {showDocusign && <DocusignModal onClose={() => setShowDocusign(false)} />}
-      {viewingDoc && <DocumentViewer doc={viewingDoc} onClose={closeDoc} />}
 
-      <h2 style={h2}>Subscription Agreements</h2>
-      <p style={bodyText}>
-        To participate in the Rosie AI investment round, review and execute the Subscription Agreement and Accredited Investor Questionnaire below.
-        Click <strong style={{ color: GOLD }}>View Document</strong> to read on-screen with full page tracking, or <strong style={{ color: GOLD }}>Download PDF</strong> for your records.
-        When ready, request a DocuSign package to execute electronically.
-      </p>
+      <div style={{ display: 'flex', gap: '0', minHeight: '600px' }}>
+        {/* Sidebar */}
+        <div style={{ width: '220px', flexShrink: 0, borderRight: '1px solid rgba(255,255,255,0.08)' }}>
+          <div style={{ color: '#4a5568', fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', padding: '0 0 12px 16px', marginBottom: '4px' }}>Documents</div>
+          {PDF_DOCS.map(doc => (
+            <button key={doc.id} onClick={() => openDoc(doc)} style={{
+              display: 'block', width: '100%', textAlign: 'left',
+              background: selectedDoc?.id === doc.id ? 'rgba(184,147,58,0.12)' : 'transparent',
+              border: 'none', borderLeft: selectedDoc?.id === doc.id ? `3px solid ${GOLD}` : '3px solid transparent',
+              padding: '14px 16px', cursor: 'pointer', transition: 'all 0.15s',
+            }}>
+              <div style={{ color: selectedDoc?.id === doc.id ? GOLD : '#c4cdd8', fontSize: '13px', fontWeight: selectedDoc?.id === doc.id ? 'bold' : 'normal', marginBottom: '3px' }}>{doc.name}</div>
+              <div style={{ color: '#4a5568', fontSize: '11px' }}>{doc.badge} · {doc.totalPages} pages</div>
+            </button>
+          ))}
 
-      {/* Document cards */}
-      {[
-        { doc: SUBSCRIPTION_DOC,   badge: 'Required', desc: 'SAFE Note — Subscription Agreement · 8 pages · Rev. March 2025' },
-        { doc: ACCREDITATION_DOC,  badge: 'Required', desc: 'Accredited Investor Questionnaire · 3 pages · SEC Rule 501(a)' },
-      ].map(({ doc, badge, desc }) => (
-        <div key={doc.type} style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.09)', borderRadius: '2px', padding: '20px 24px', marginBottom: '16px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
-            <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
-              <div style={{ width: '44px', height: '44px', background: 'rgba(184,147,58,0.15)', borderRadius: '2px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px', flexShrink: 0 }}>📄</div>
-              <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
-                  <span style={{ color: '#e8e0d0', fontWeight: 'bold', fontSize: '14px' }}>{doc.name}</span>
-                  <span style={{ background: 'rgba(239,68,68,0.12)', color: '#ef4444', fontSize: '10px', padding: '2px 8px', borderRadius: '2px', letterSpacing: '1px' }}>{badge}</span>
-                </div>
-                <div style={{ color: '#6b7280', fontSize: '12px' }}>{desc}</div>
-              </div>
-            </div>
-            <div style={{ display: 'flex', gap: '10px', flexShrink: 0 }}>
-              <button
-                onClick={() => openDoc(doc)}
-                style={{ background: 'rgba(184,147,58,0.12)', color: GOLD, border: `1px solid rgba(184,147,58,0.3)`, borderRadius: '2px', padding: '8px 18px', cursor: 'pointer', fontSize: '12px', letterSpacing: '0.5px' }}>
-                📖 View Document
+          <div style={{ padding: '16px', marginTop: '16px', borderTop: '1px solid rgba(255,255,255,0.07)' }}>
+            <div style={{ color: '#4a5568', fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '10px' }}>Downloads</div>
+            {PDF_DOCS.map(doc => (
+              <button key={doc.id} onClick={() => handleDownload(doc)} style={{
+                display: 'block', width: '100%', textAlign: 'left', background: 'transparent',
+                border: 'none', color: '#8a9ab8', padding: '6px 0', cursor: 'pointer', fontSize: '12px',
+              }}>
+                ↓ {doc.name}
               </button>
-              <button
-                onClick={() => {
-                  analytics.trackDownload(doc.name + '.pdf', 'pdf');
-                  const win = window.open('', '_blank');
-                  win.document.write(`<html><head><title>${doc.name}</title><style>body{font-family:Georgia,serif;color:#111;padding:40px;max-width:700px;margin:0 auto}h1{color:#b8933a;border-bottom:2px solid #b8933a;padding-bottom:12px}h2{color:#1a1a2e;margin-top:32px}p{line-height:1.7}table{width:100%;border-collapse:collapse}td,th{border:1px solid #ddd;padding:8px}th{background:#f5f5f5}</style></head><body><h1>${doc.name}</h1>${doc.pages.map((pg,i)=>`<h2>Section ${i+1}: ${pg.title}</h2>${pg.content}`).join('')}</body></html>`);
-                  win.document.close(); setTimeout(() => win.print(), 500);
-                }}
-                style={{ background: 'transparent', color: '#8a9ab8', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '2px', padding: '8px 18px', cursor: 'pointer', fontSize: '12px' }}>
-                ↓ Download
-              </button>
-            </div>
+            ))}
           </div>
         </div>
-      ))}
+
+        {/* Main viewer */}
+        <div style={{ flex: 1, paddingLeft: '0' }}>
+          {!selectedDoc ? (
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', minHeight: '500px', gap: '16px' }}>
+              <div style={{ fontSize: '48px' }}>📄</div>
+              <div style={{ color: '#6b7280', fontSize: '14px' }}>Select a document from the sidebar to view it</div>
+              <div style={{ display: 'flex', gap: '12px', marginTop: '8px' }}>
+                {PDF_DOCS.map(doc => (
+                  <button key={doc.id} onClick={() => openDoc(doc)} style={{ background: 'rgba(184,147,58,0.12)', color: GOLD, border: `1px solid rgba(184,147,58,0.3)`, borderRadius: '2px', padding: '10px 20px', cursor: 'pointer', fontSize: '12px' }}>
+                    📖 {doc.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 20px', borderBottom: '1px solid rgba(255,255,255,0.07)', background: 'rgba(0,0,0,0.2)' }}>
+                <div>
+                  <span style={{ color: GOLD, fontWeight: 'bold', fontSize: '14px' }}>{selectedDoc.name}</span>
+                  <span style={{ color: '#6b7280', fontSize: '12px', marginLeft: '12px' }}>{selectedDoc.totalPages} pages</span>
+                </div>
+                <div style={{ display: 'flex', gap: '10px' }}>
+                  <button onClick={() => handleDownload(selectedDoc)} style={{ background: 'rgba(184,147,58,0.15)', color: GOLD, border: `1px solid rgba(184,147,58,0.3)`, borderRadius: '2px', padding: '7px 16px', cursor: 'pointer', fontSize: '12px' }}>↓ Download PDF</button>
+                  <button onClick={closeDoc} style={{ background: 'none', border: '1px solid rgba(255,255,255,0.1)', color: '#6b7280', borderRadius: '2px', padding: '7px 12px', cursor: 'pointer', fontSize: '14px' }}>×</button>
+                </div>
+              </div>
+              <iframe
+                src={selectedDoc.url + '#toolbar=1&navpanes=1&scrollbar=1'}
+                style={{ flex: 1, width: '100%', minHeight: '560px', border: 'none', background: '#fff' }}
+                title={selectedDoc.name}
+              />
+            </div>
+          )}
+        </div>
+      </div>
 
       {/* DocuSign CTA */}
       <div style={{ textAlign: 'center', padding: '32px', background: 'rgba(184,147,58,0.06)', border: '1px solid rgba(184,147,58,0.2)', borderRadius: '2px', marginTop: '24px' }}>
         <div style={{ fontSize: '36px', marginBottom: '12px' }}>✍️</div>
         <h3 style={{ color: GOLD, marginBottom: '12px', fontFamily: 'Georgia, serif', fontWeight: 'normal' }}>Ready to Subscribe?</h3>
-        <p style={{ color: '#8a9ab8', fontSize: '13px', margin: '0 auto 24px', maxWidth: '400px' }}>
-          After reviewing the documents above, request a DocuSign package to execute your subscription electronically. Our team will respond within 1 business day.
-        </p>
+        <p style={{ color: '#8a9ab8', fontSize: '13px', margin: '0 auto 24px', maxWidth: '400px' }}>After reviewing the documents above, request a DocuSign package to execute your subscription electronically. Our team will respond within 1 business day.</p>
         <button
           onClick={() => { analytics.trackSection('subscription-docusign-request'); setShowDocusign(true); }}
           style={{ background: 'linear-gradient(135deg, #b8933a, #d4aa50)', color: DARK, border: 'none', borderRadius: '2px', padding: '14px 36px', cursor: 'pointer', fontSize: '12px', letterSpacing: '3px', textTransform: 'uppercase', fontWeight: '700' }}>
