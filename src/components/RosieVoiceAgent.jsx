@@ -1,9 +1,10 @@
 /**
  * RosieVoiceAgent — Production Deepgram Voice Agent
- * Updates:
- * - Hardcoded Active API Key: 44294c0c2f0ebbcc81b853151056111226b853e9
- * - Fixed Settings Schema: Nested providers and 'think' array
- * - Fixed Field Names: 'instructions' -> 'prompt'
+ * * CRITICAL UPDATES:
+ * 1. Auth: Switched to WebSocket Sub-protocol ['token', key] to prevent 1006 errors in browsers.
+ * 2. Versioning: Added required 'version: v1' to all provider objects.
+ * 3. Schema: Structured 'think' as an array and replaced 'instructions' with 'prompt'.
+ * 4. Key: Permanently hardcoded 44294c0c2f0ebbcc81b853151056111226b853e9.
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react';
@@ -44,19 +45,25 @@ function buildDGSettings(cfg, userName) {
       listen: {
         provider: { 
           type: 'deepgram', 
-          model: 'nova-2' // Fixed nested provider structure
+          version: 'v1', 
+          model: 'nova-2',
+          language: 'en-US' 
         }, 
       },
-      think: [ // Schema requires an array for think steps
+      think: [ 
         {
-          provider: { type: 'open_ai' },
+          provider: { 
+            type: 'open_ai',
+            version: 'v1' 
+          },
           model: 'gpt-4o-mini', 
-          prompt: systemPrompt, // Corrected from 'instructions' to 'prompt'
+          prompt: systemPrompt,
         }
       ],
       speak: {
         provider: {
           type: 'deepgram',
+          version: 'v1',
           model: cfg.voiceModel || 'aura-asteria-en',
         }
       },
@@ -119,7 +126,7 @@ export default function RosieVoiceAgent({ userName = 'there' }) {
     setTranscript([]);
 
     const cfg = await refreshPortalSettings();
-    const activeKey = TEMP_KEY; // Hardcoded per request
+    const activeKey = TEMP_KEY;
 
     let stream;
     try {
@@ -134,9 +141,8 @@ export default function RosieVoiceAgent({ userName = 'there' }) {
     const ctx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
     audioCtxRef.current = ctx;
 
-    // Correct Auth via token parameter
-    const wsUrl = `${DG_WS_URL}?token=${activeKey}`;
-    const ws = new WebSocket(wsUrl);
+    // Use sub-protocol ['token', key] for browser-compatible Auth
+    const ws = new WebSocket(DG_WS_URL, ['token', activeKey]);
     ws.binaryType = 'arraybuffer';
     wsRef.current = ws;
 
@@ -152,9 +158,10 @@ export default function RosieVoiceAgent({ userName = 'there' }) {
 
       try {
         const msg = JSON.parse(e.data);
+        console.log("DG Message:", msg.type, msg);
+
         switch (msg.type) {
           case 'Welcome':
-            // Send updated settings immediately
             ws.send(JSON.stringify(buildDGSettings(cfg, userName)));
             break;
           case 'SettingsApplied':
@@ -192,15 +199,19 @@ export default function RosieVoiceAgent({ userName = 'there' }) {
             setAgentSpeaking(true);
             break;
           case 'Error':
-            setError(`Deepgram error: ${msg.message || msg.description}`);
+            console.error("Deepgram Error Detail:", msg);
+            setError(`Deepgram error: ${msg.description || msg.message}`);
             break;
           default:
             break;
         }
-      } catch {}
+      } catch (err) {
+        console.error("Parse Error:", err);
+      }
     };
 
     ws.onclose = (e) => {
+      console.warn("WS Closed:", e.code, e.reason);
       if (phaseRef.current !== 'error') {
         setError(`Disconnected (Code: ${e.code}).`);
         setPhase('error');
@@ -208,13 +219,16 @@ export default function RosieVoiceAgent({ userName = 'there' }) {
       cleanup(false);
     };
 
+    ws.onerror = (err) => {
+      console.error("WS Socket Error:", err);
+    };
+
   }, [playNextChunk, userName]);
 
   const cleanup = useCallback((updatePhase = true) => {
     if (processorRef.current) { processorRef.current.disconnect(); processorRef.current = null; }
     if (micStreamRef.current) { micStreamRef.current.getTracks().forEach(t => t.stop()); micStreamRef.current = null; }
-    if (wsRef.current) wsRef.current.close();
-    wsRef.current = null;
+    if (wsRef.current) { wsRef.current.close(); wsRef.current = null; }
     if (audioCtxRef.current) { audioCtxRef.current.close().catch(() => {}); audioCtxRef.current = null; }
     playQueueRef.current = [];
     isPlayingRef.current = false;
