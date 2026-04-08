@@ -4,12 +4,11 @@
   "properties": {
     "key": {
       "type": "string",
-      "title": "Key",
-      "default": "global"
+      "title": "Key"
     },
     "totalRaise": {
       "type": "number",
-      "title": "Total Raise Target"
+      "title": "Total Raise"
     },
     "committedCapital": {
       "type": "number",
@@ -21,7 +20,7 @@
     },
     "investedTarget": {
       "type": "number",
-      "title": "Invested Capital Target"
+      "title": "Invested Target"
     },
     "companyName": {
       "type": "string",
@@ -41,38 +40,7 @@
     },
     "email": {
       "type": "string",
-      "title": "Investor Email"
-    },
-    "voiceModel": {
-      "type": "string",
-      "title": "Voice Model (Aura-2 ID)"
-    },
-    "llmProvider": {
-      "type": "string",
-      "title": "LLM Provider"
-    },
-    "llmModel": {
-      "type": "string",
-      "title": "LLM Model"
-    },
-    "chatbotEnabled": {
-      "type": "boolean",
-      "title": "Chatbot Enabled"
-    },
-    "chatbotGreeting": {
-      "type": "string",
-      "title": "Chatbot Greeting",
-      "format": "textarea"
-    },
-    "chatbotContext": {
-      "type": "string",
-      "title": "System Prompt",
-      "format": "textarea"
-    },
-    "knowledgeBase": {
-      "type": "string",
-      "title": "Knowledge Base",
-      "format": "textarea"
+      "title": "Email"
     },
     "portalTagline": {
       "type": "string",
@@ -92,17 +60,80 @@
       "title": "Disclosure Text",
       "format": "textarea"
     },
+    "roundSize": {
+      "type": "string",
+      "title": "Round Size"
+    },
+    "valuationCap": {
+      "type": "string",
+      "title": "Valuation Cap"
+    },
+    "minInvestment": {
+      "type": "string",
+      "title": "Min Investment"
+    },
+    "discountRate": {
+      "type": "string",
+      "title": "Discount Rate"
+    },
+    "targetClose": {
+      "type": "string",
+      "title": "Target Close"
+    },
+    "chatbotEnabled": {
+      "type": "boolean",
+      "title": "Chatbot Enabled"
+    },
+    "chatbotName": {
+      "type": "string",
+      "title": "Chatbot Name"
+    },
+    "deepgramApiKey": {
+      "type": "string",
+      "title": "Deepgram API Key"
+    },
+    "llmProvider": {
+      "type": "string",
+      "title": "LLM Provider"
+    },
+    "llmModel": {
+      "type": "string",
+      "title": "LLM Model"
+    },
+    "sttModel": {
+      "type": "string",
+      "title": "STT Model"
+    },
+    "voiceModel": {
+      "type": "string",
+      "title": "Voice Model"
+    },
+    "chatbotGreeting": {
+      "type": "string",
+      "title": "Chatbot Greeting",
+      "format": "textarea"
+    },
+    "chatbotContext": {
+      "type": "string",
+      "title": "Chatbot Context",
+      "format": "textarea"
+    },
+    "knowledgeBase": {
+      "type": "string",
+      "title": "Knowledge Base",
+      "format": "textarea"
+    },
     "showCalculator": {
       "type": "boolean",
       "title": "Show Calculator"
     },
     "showMarketData": {
       "type": "boolean",
-      "title": "Show Market Data Tab"
+      "title": "Show Market Data"
     },
     "showSubscription": {
       "type": "boolean",
-      "title": "Show Subscription Tab"
+      "title": "Show Subscription"
     },
     "portalActive": {
       "type": "boolean",
