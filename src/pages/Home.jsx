@@ -1,6 +1,6 @@
 import { useNavigate } from "react-router-dom";
 
-const HTML_URL = "https://htmlpreview.github.io/?https://raw.githubusercontent.com/chainwavestudios-cyber/Rosie-investor/main/agentbman-pitchbook-v3.html";
+const HTML_URL = "https://cdn.jsdelivr.net/gh/chainwavestudios-cyber/Rosie-investor@main/agentbman-pitchbook-v3.html"; "https://htmlpreview.github.io/?https://raw.githubusercontent.com/chainwavestudios-cyber/Rosie-investor/main/agentbman-pitchbook-v3.html";
 
 export default function Home() {
   const navigate = useNavigate();
