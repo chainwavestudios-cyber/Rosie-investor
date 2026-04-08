@@ -1,9 +1,9 @@
 /**
  * RosieVoiceAgent — Production Deepgram Voice Agent
- * * 1008 / DATA-0000 FIXES:
- * 1. Audio Resampling: Forced AudioContext to 16kHz to match Settings.
- * 2. Buffer Integrity: Switched to a cleaner Float32 -> Int16 conversion.
- * 3. Flow Control: Audio only starts pumping AFTER 'SettingsApplied' is confirmed.
+ * * FIXES:
+ * 1. Sample Rate: Updated to 24000Hz across Settings and AudioContext.
+ * 2. Auth: Standard ?token= query parameter.
+ * 3. Schema: Strict v1 versioning and nested provider models.
  * 4. Key: 44294c0c2f0ebbcc81b853151056111226b853e9
  */
 
@@ -21,18 +21,47 @@ function buildDGSettings(cfg, userName) {
   ].join('');
 
   const firstName = (userName || 'there').split(' ')[0];
-  const greeting = `Hello ${firstName}, I'm Rosie. How can I help you?`;
+  const greeting = `Hello ${firstName}, I'm Rosie. How can I help you today?`;
 
   return {
     type: 'Settings',
     audio: {
-      input: { encoding: 'linear16', sample_rate: 16000 },
-      output: { encoding: 'linear16', sample_rate: 24000, container: 'none' },
+      input: { 
+        encoding: 'linear16', 
+        sample_rate: 24000 // ✅ MATCHED TO AUDIOCONTEXT
+      },
+      output: { 
+        encoding: 'linear16', 
+        sample_rate: 24000, 
+        container: 'none' 
+      },
     },
     agent: {
-      listen: { provider: { type: 'deepgram', version: 'v1', model: 'nova-2', language: 'en-US' } },
-      think: [{ provider: { type: 'open_ai', version: 'v1', model: 'gpt-4o-mini' }, prompt: systemPrompt }],
-      speak: { provider: { type: 'deepgram', version: 'v1', model: cfg.voiceModel || 'aura-asteria-en' } },
+      listen: { 
+        provider: { 
+          type: 'deepgram', 
+          version: 'v1', 
+          model: 'nova-2', 
+          language: 'en-US' 
+        } 
+      },
+      think: [
+        { 
+          provider: { 
+            type: 'open_ai', 
+            version: 'v1', 
+            model: 'gpt-4o-mini' 
+          }, 
+          prompt: systemPrompt 
+        }
+      ],
+      speak: { 
+        provider: { 
+          type: 'deepgram', 
+          version: 'v1', 
+          model: cfg.voiceModel || 'aura-asteria-en' 
+        } 
+      },
       greeting
     },
   };
@@ -55,7 +84,6 @@ export default function RosieVoiceAgent({ userName = 'there' }) {
   const sourceRef = useRef(null);
   const phaseRef = useRef('idle');
 
-  // AUDIO PLAYBACK LOGIC
   const playNextChunk = useCallback(() => {
     if (isPlayingRef.current || playQueueRef.current.length === 0) return;
     const ctx = audioCtxRef.current;
@@ -65,6 +93,7 @@ export default function RosieVoiceAgent({ userName = 'there' }) {
     const int16 = new Int16Array(chunk);
     const float32 = new Float32Array(int16.length);
     for (let i = 0; i < int16.length; i++) float32[i] = int16[i] / 32768.0;
+    
     const buffer = ctx.createBuffer(1, float32.length, 24000);
     buffer.copyToChannel(float32, 0);
     const src = ctx.createBufferSource();
@@ -89,11 +118,7 @@ export default function RosieVoiceAgent({ userName = 'there' }) {
 
     let stream;
     try {
-      stream = await navigator.mediaDevices.getUserMedia({ audio: { 
-        echoCancellation: true, 
-        noiseSuppression: true, 
-        autoGainControl: true 
-      }});
+      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       micStreamRef.current = stream;
     } catch (e) {
       setError('Mic access denied.');
@@ -101,8 +126,8 @@ export default function RosieVoiceAgent({ userName = 'there' }) {
       return;
     }
 
-    // CRITICAL: Force 16kHz context to avoid sample-rate mismatch 400s/1008s
-    const ctx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
+    // ✅ MATCHED TO SETTINGS
+    const ctx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 24000 });
     audioCtxRef.current = ctx;
 
     const ws = new WebSocket(`${DG_WS_URL}?token=${activeKey}`);
@@ -125,38 +150,26 @@ export default function RosieVoiceAgent({ userName = 'there' }) {
           case 'Welcome':
             ws.send(JSON.stringify(buildDGSettings(cfg, userName)));
             break;
-
           case 'SettingsApplied':
             setPhase('active');
             phaseRef.current = 'active';
-            // ONLY START MIC AFTER SETTINGS ARE APPLIED
             const source = ctx.createMediaStreamSource(stream);
             const processor = ctx.createScriptProcessor(4096, 1, 1);
             processorRef.current = processor;
             
             processor.onaudioprocess = (ev) => {
               if (ws.readyState !== WebSocket.OPEN) return;
-              
               const inputData = ev.inputBuffer.getChannelData(0);
-              // Check if audio data is not empty (Troubleshooting Step 2)
-              let hasAudio = false;
               const int16 = new Int16Array(inputData.length);
-              
               for (let i = 0; i < inputData.length; i++) {
                 const s = Math.max(-1, Math.min(1, inputData[i]));
                 int16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
-                if (int16[i] !== 0) hasAudio = true;
               }
-
-              // Only send if the buffer isn't pure silence to save bandwidth/noise
-              if (hasAudio) {
-                ws.send(int16.buffer);
-              }
+              ws.send(int16.buffer);
             };
             source.connect(processor);
             processor.connect(ctx.destination);
             break;
-
           case 'ConversationText':
             setTranscript(prev => [...prev, { role: msg.role, text: msg.content }]);
             break;
@@ -167,7 +180,6 @@ export default function RosieVoiceAgent({ userName = 'there' }) {
             setAgentSpeaking(false);
             break;
           case 'Error':
-            console.error("Deepgram 1008 Data Error:", msg);
             setError(`${msg.description} (${msg.code})`);
             break;
         }
@@ -176,7 +188,7 @@ export default function RosieVoiceAgent({ userName = 'there' }) {
 
     ws.onclose = (e) => {
       if (phaseRef.current !== 'error') {
-        setError(`Connection lost: ${e.code}`);
+        setError(`Disconnected: ${e.code}`);
         setPhase('error');
       }
       cleanup(false);
@@ -222,7 +234,7 @@ export default function RosieVoiceAgent({ userName = 'there' }) {
   );
 }
 
-// STYLES (Minimal for brevity)
+// STYLES
 const pillStyle = { position: 'fixed', bottom: '32px', right: '32px', background: GOLD, color: '#000', borderRadius: '50px', padding: '14px 24px', cursor: 'pointer', fontWeight: 'bold' };
 const containerStyle = { position: 'fixed', bottom: '24px', right: '24px', width: '350px', height: '500px', background: '#0a1118', border: `1px solid ${GOLD}44`, borderRadius: '8px', display: 'flex', flexDirection: 'column' };
 const headerStyle = { padding: '15px', borderBottom: '1px solid #ffffff11', display: 'flex', justifyContent: 'space-between' };
