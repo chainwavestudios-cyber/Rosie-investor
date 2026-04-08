@@ -11,7 +11,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { getPortalSettings, refreshPortalSettings } from '@/lib/portalSettings';
 
 const GOLD = '#b8933a';
-const DG_WS_URL = 'wss://api.deepgram.com/v1/agent/converse';
+const DG_WS_URL = 'wss://agent.deepgram.com/agent';
 // YOUR TEMP KEY
 const TEMP_KEY = '092aa81ccc2ed9f89a6aa448a5fee102f6043567';
 
