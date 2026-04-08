@@ -1,10 +1,10 @@
 /**
  * RosieVoiceAgent — Production Deepgram Voice Agent
- * FIXES:
- * 1. Removed Supabase dependency.
- * 2. Auth: Fixed 1006/1005 via Sec-WebSocket-Protocol ['token.deepgram.com', key].
- * 3. Schema: Strict 24kHz sync and v1 provider nesting.
- * 4. Key: 44294c0c2f0ebbcc81b853151056111226b853e9
+ * * FIXES:
+ * 1. Auth: Standardizing Sub-protocol to ['token', key]. (Try 'token.deepgram.com' if this fails).
+ * 2. URL: Removed trailing backticks/extra chars from the URL.
+ * 3. 24kHz Sync: AudioContext and Settings locked to 24000.
+ * 4. Hardcoded Key: 44294c0c2f0ebbcc81b853151056111226b853e9
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react';
@@ -15,19 +15,16 @@ const DG_WS_URL = 'wss://agent.deepgram.com/v1/agent/converse';
 const TEMP_KEY = '44294c0c2f0ebbcc81b853151056111226b853e9';
 
 function buildDGSettings(cfg, userName) {
+  const firstName = (userName || 'Steph').split(' ')[0];
   const systemPrompt = [
-    cfg.chatbotContext || 'You are Rosie, a helpful investment assistant for Rosie AI LLC.',
+    cfg.chatbotContext || 'You are Rosie, a helpful investment assistant.',
     cfg.knowledgeBase ? `\n\n--- KNOWLEDGE BASE ---\n${cfg.knowledgeBase}` : '',
   ].join('');
-
-  // Personalization logic using the prop
-  const firstName = (userName || 'there').split(' ')[0];
-  const greeting = `Hello ${firstName}, welcome back to Rosie AI. I'm Rosie, your investment assistant. How can I help you today?`;
 
   return {
     type: 'Settings',
     audio: {
-      input: { encoding: 'linear16', sample_rate: 24000 },
+      input:  { encoding: 'linear16', sample_rate: 24000 },
       output: { encoding: 'linear16', sample_rate: 24000, container: 'none' },
     },
     agent: {
@@ -36,24 +33,19 @@ function buildDGSettings(cfg, userName) {
       },
       think: [ 
         {
-          provider: { 
-            type: 'open_ai', 
-            version: 'v1', 
-            model: 'gpt-4o-mini' 
-          },
+          provider: { type: 'open_ai', version: 'v1', model: 'gpt-4o-mini' },
           prompt: systemPrompt,
         }
       ],
       speak: {
         provider: { type: 'deepgram', version: 'v1', model: cfg.voiceModel || 'aura-asteria-en' }
       },
-      greeting: greeting,
+      greeting: `Hello ${firstName}, I'm Rosie. How can I assist you today?`,
     },
   };
 }
 
-export default function RosieVoiceAgent({ userName = 'there' }) {
-  const [settings] = useState(() => getPortalSettings());
+export default function RosieVoiceAgent({ userName = 'Steph' }) {
   const [phase, setPhase] = useState('idle'); 
   const [agentSpeaking, setAgentSpeaking] = useState(false);
   const [transcript, setTranscript] = useState([]);
@@ -67,7 +59,6 @@ export default function RosieVoiceAgent({ userName = 'there' }) {
   const playQueueRef = useRef([]);   
   const isPlayingRef = useRef(false);
   const sourceRef    = useRef(null);
-  const phaseRef     = useRef('idle');
 
   const playNextChunk = useCallback(() => {
     if (isPlayingRef.current || playQueueRef.current.length === 0) return;
@@ -94,7 +85,6 @@ export default function RosieVoiceAgent({ userName = 'there' }) {
 
   const connect = useCallback(async () => {
     setError('');
-    phaseRef.current = 'connecting';
     setPhase('connecting');
 
     const cfg = await refreshPortalSettings();
@@ -114,11 +104,11 @@ export default function RosieVoiceAgent({ userName = 'there' }) {
     audioCtxRef.current = ctx;
 
     /**
-     * ✅ AUTH FIX: USE SEC-WEBSOCKET-PROTOCOL
-     * This passes the key via the sub-protocol header, which browsers allow.
-     * The array format [protocol, key] is standard for token-based WS auth.
+     * ✅ AUTH RE-FIX: 
+     * We use 'token' as the sub-protocol name. 
+     * If you still get 1006, swap 'token' for 'token.deepgram.com'.
      */
-    const ws = new WebSocket(DG_WS_URL, ['token.deepgram.com', activeKey]);
+    const ws = new WebSocket(DG_WS_URL, ['token', activeKey]);
     ws.binaryType = 'arraybuffer';
     wsRef.current = ws;
 
@@ -139,24 +129,21 @@ export default function RosieVoiceAgent({ userName = 'there' }) {
             ws.send(JSON.stringify(buildDGSettings(cfg, userName)));
             break;
           case 'SettingsApplied':
-            phaseRef.current = 'active';
             setPhase('active');
-            {
-              const source = ctx.createMediaStreamSource(stream);
-              const processor = ctx.createScriptProcessor(4096, 1, 1);
-              processorRef.current = processor;
-              processor.onaudioprocess = (ev) => {
-                if (ws.readyState !== WebSocket.OPEN) return;
-                const float32 = ev.inputBuffer.getChannelData(0);
-                const int16 = new Int16Array(float32.length);
-                for (let i = 0; i < float32.length; i++) {
-                  int16[i] = Math.max(-32768, Math.min(32767, Math.round(float32[i] * 32767)));
-                }
-                ws.send(int16.buffer);
-              };
-              source.connect(processor);
-              processor.connect(ctx.destination);
-            }
+            const source = ctx.createMediaStreamSource(stream);
+            const processor = ctx.createScriptProcessor(4096, 1, 1);
+            processorRef.current = processor;
+            processor.onaudioprocess = (ev) => {
+              if (ws.readyState !== WebSocket.OPEN) return;
+              const float32 = ev.inputBuffer.getChannelData(0);
+              const int16 = new Int16Array(float32.length);
+              for (let i = 0; i < float32.length; i++) {
+                int16[i] = Math.max(-32768, Math.min(32767, Math.round(float32[i] * 32767)));
+              }
+              ws.send(int16.buffer);
+            };
+            source.connect(processor);
+            processor.connect(ctx.destination);
             break;
           case 'ConversationText':
             setTranscript(prev => [...prev, { role: msg.role, text: msg.content }]);
@@ -175,11 +162,9 @@ export default function RosieVoiceAgent({ userName = 'there' }) {
     };
 
     ws.onclose = (e) => {
-      console.warn("WS Close Code:", e.code, "Reason:", e.reason);
-      if (phaseRef.current !== 'error') {
-        setError(`Disconnected (${e.code}).`);
-        setPhase('error');
-      }
+      if (e.code === 1006) setError("Connection failed (1006). Check key validity or protocol string.");
+      else setError(`Disconnected (${e.code}).`);
+      setPhase('error');
       cleanup(false);
     };
   }, [playNextChunk, userName]);
@@ -193,9 +178,6 @@ export default function RosieVoiceAgent({ userName = 'there' }) {
     setAgentSpeaking(false);
   }, []);
 
-  const disconnect = useCallback(() => cleanup(true), [cleanup]);
-  useEffect(() => () => cleanup(false), [cleanup]);
-
   if (!isOpen) return <button onClick={() => setIsOpen(true)} style={pillStyle}>🎙 Talk to Rosie</button>;
 
   return (
@@ -205,7 +187,7 @@ export default function RosieVoiceAgent({ userName = 'there' }) {
           <div style={{ ...orbStyle, background: phase === 'active' && agentSpeaking ? GOLD : 'rgba(184,147,58,0.2)' }}>🎙</div>
           <div style={{ color: GOLD, fontSize: '13px', fontWeight: 'bold' }}>Rosie AI</div>
         </div>
-        <button onClick={() => { disconnect(); setIsOpen(false); }} style={closeBtnStyle}>×</button>
+        <button onClick={() => { cleanup(); setIsOpen(false); }} style={closeBtnStyle}>×</button>
       </div>
       <div style={transcriptAreaStyle}>
         {transcript.map((msg, i) => (
@@ -218,7 +200,7 @@ export default function RosieVoiceAgent({ userName = 'there' }) {
         {error && <div style={errorStyle}>⚠ {error}</div>}
       </div>
       <div style={footerStyle}>
-        {phase === 'active' ? <button onClick={disconnect} style={endBtnStyle}>End Call</button> : <button onClick={connect} style={actionBtnStyle}>Start</button>}
+        {phase === 'active' ? <button onClick={() => cleanup()} style={endBtnStyle}>End Call</button> : <button onClick={connect} style={actionBtnStyle}>Start</button>}
       </div>
     </div>
   );
