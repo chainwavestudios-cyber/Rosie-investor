@@ -20,7 +20,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { getPortalSettings, refreshPortalSettings } from '@/lib/portalSettings';
 
 const GOLD = '#b8933a';
-const DG_WS_URL = 'wss://api.deepgram.com/v1/agent/converse';
+const DG_WS_URL = 'wss://agent.deepgram.com/v1/agent/converse';
 
 // All Aura-2 English voices with gender/tone metadata
 export const AURA2_VOICES = [
