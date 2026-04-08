@@ -1112,7 +1112,7 @@ export default function InvestorPortal() {
 
       {/* Content */}
       <div style={{ maxWidth: '1100px', margin: '0 auto', padding: '48px 40px' }}>
-        {activeTab === 'home' && <PortalHome setActiveTab={setActiveTab} />}
+        {activeTab === 'home' && <PortalHome setActiveTab={setActiveTab} portalUser={portalUser} />}
         {activeTab === 'offering' && <InvestmentOffering />}
         {activeTab === 'subscription' && <SubscriptionAgreements />}
         {activeTab === 'market' && <MarketData />}
@@ -1186,7 +1186,7 @@ function RaiseProgress() {
 }
 
 // ─── Portal Home ──────────────────────────────────────────────────────────
-function PortalHome({ setActiveTab }) {
+function PortalHome({ setActiveTab, portalUser }) {
   const [s, setS] = useState(getPortalSettings());
   useEffect(() => {
     loadPortalSettings().then(setS);
