@@ -1,13 +1,21 @@
 import { useNavigate } from "react-router-dom";
+import { useState, useEffect } from "react";
 
-const HTML_URL = "https://cdn.jsdelivr.net/gh/chainwavestudios-cyber/Rosie-investor@main/agentbman-pitchbook-v3.html"; "https://htmlpreview.github.io/?https://raw.githubusercontent.com/chainwavestudios-cyber/Rosie-investor/main/agentbman-pitchbook-v3.html";
+const HTML_URL = "https://cdn.jsdelivr.net/gh/chainwavestudios-cyber/Rosie-investor@main/agentbman-pitchbook-v3.html";
 
 export default function Home() {
   const navigate = useNavigate();
+  const [htmlContent, setHtmlContent] = useState('');
+
+  useEffect(() => {
+    fetch(HTML_URL)
+      .then(r => r.text())
+      .then(setHtmlContent);
+  }, []);
 
   return (
     <div className="w-full h-screen" style={{ position: 'relative' }}>
-      <iframe src={HTML_URL} className="w-full h-full border-0" title="Rosie Pitchbook" />
+      <iframe srcDoc={htmlContent} className="w-full h-full border-0" title="Rosie Pitchbook" />
       <button
         onClick={() => navigate('/portal-login')}
         style={{
