@@ -205,335 +205,112 @@ function DocusignModal({ onClose }) {
 }
 
 
-// ─── PDF Download helper ──────────────────────────────────────────────────
-function downloadTabAsPDF(title) {
-  analytics.trackDownload(title + '.pdf', 'pdf');
-  const content = document.getElementById('portal-tab-content');
-  if (!content) return;
-  
-  // Simple print-based PDF
-  const printWindow = window.open('', '_blank');
-  printWindow.document.write(`
-    <html><head><title>${title}</title>
-    <style>
-      body { font-family: Georgia, serif; color: #1a1a2e; padding: 40px; }
-      h1 { color: #b8933a; } h2 { color: #1a1a2e; }
-      * { print-color-adjust: exact; }
-    </style>
-    </head><body>
-    <h1>Rosie AI — ${title}</h1>
-    <p style="color:#888;font-size:12px;">Generated: ${new Date().toLocaleDateString()}</p>
-    ${content.innerText.replace(/\n/g, '<br/>')}
-    </body></html>
-  `);
-  printWindow.document.close();
-  printWindow.print();
-}
+const PPM_PDF_URL = 'https://media.base44.com/files/public/69cd2741578c9b5ce655395b/4be131d5b_RosieAI_PPM_revised3.pdf';
 
-// ─── Tab: Investment Offering ─────────────────────────────────────────────
+const PPM_INDEX = [
+  { id: 'cover',         label: 'Cover Page',                       page: 1  },
+  { id: 'notices',       label: 'Notices',                          page: 2  },
+  { id: 'summary',       label: 'Summary of Terms',                 page: 4  },
+  { id: 'focus',         label: 'Focus of the Offering',            page: 5  },
+  { id: 'revenue',       label: 'Revenue Projections & Milestones', page: 6  },
+  { id: 'subscribe',     label: 'How to Subscribe',                 page: 7  },
+  { id: 'intro',         label: 'Rosie AI Introduction',            page: 9  },
+  { id: 'positioning',   label: 'Unique Positioning',               page: 10 },
+  { id: 'leadership',    label: 'Leadership & Architects',          page: 12 },
+  { id: 'orgchart',      label: 'Organizational Chart',             page: 14 },
+  { id: 'capitalization',label: 'Capitalization & Management',      page: 15 },
+  { id: 'fiduciary',     label: 'Fiduciary Responsibilities',        page: 16 },
+  { id: 'risk-mgmt',     label: 'Risk Management & Exit Strategy',  page: 18 },
+  { id: 'terms',         label: 'Terms of the Offering',            page: 19 },
+  { id: 'subscribing',   label: 'Subscribing to the Offering',      page: 20 },
+  { id: 'proceeds',      label: 'Use of Investor Proceeds',         page: 22 },
+  { id: 'rights',        label: 'Rights & Liabilities',             page: 25 },
+  { id: 'alloc',         label: 'Allocation & Distributions',       page: 26 },
+  { id: 'sub-proc',      label: 'Subscription Procedures',          page: 28 },
+  { id: 'risk-factors',  label: 'Risk Factors',                     page: 42 },
+  { id: 'erisa',         label: 'ERISA Considerations',             page: 50 },
+  { id: 'state-notices', label: 'State-Specific Legal Notices',     page: 44 },
+  { id: 'additional',    label: 'Additional Information',           page: 53 },
+];
+
+// ─── Tab: Investment Offering (PDF PPM) ──────────────────────────────────
 function InvestmentOffering() {
-  const [activeSection, setActiveSection] = useState('overview');
-
-  const sections = [
-    { id: 'overview',     label: 'Executive Overview',     pageNum: 1  },
-    { id: 'opportunity',  label: 'The Opportunity',        pageNum: 2  },
-    { id: 'product',      label: 'Product & Technology',   pageNum: 3  },
-    { id: 'market',       label: 'Market Analysis',        pageNum: 4  },
-    { id: 'traction',     label: 'Traction & Metrics',     pageNum: 5  },
-    { id: 'team',         label: 'Team',                   pageNum: 6  },
-    { id: 'financials',   label: 'Financial Projections',  pageNum: 7  },
-    { id: 'terms',        label: 'Investment Terms',       pageNum: 8  },
-    { id: 'use-of-funds', label: 'Use of Funds',           pageNum: 9  },
-    { id: 'risk',         label: 'Risk Factors',           pageNum: 10 },
-  ];
-
-  // Open the offering memo as a tracked document on mount
+  const [activeSection, setActiveSection] = useState('cover');
   const docIdRef = useRef(null);
+
   useEffect(() => {
-    docIdRef.current = analytics.trackDocumentOpen('Investment Offering Memorandum', 'offering');
+    docIdRef.current = analytics.trackDocumentOpen('Private Placement Memorandum', 'ppm');
     analytics.trackDocumentPageView(docIdRef.current, 1);
-    // Also fire a section track so it appears in the section heat-map
-    analytics.trackSection('offering-overview');
-    return () => {
-      if (docIdRef.current) analytics.trackDocumentClose(docIdRef.current);
-    };
+    analytics.trackSection('offering-cover');
+    return () => { if (docIdRef.current) analytics.trackDocumentClose(docIdRef.current); };
   }, []);
 
-  // Every sidebar section switch = a new doc page view + section track
-  const goToSection = (id) => {
-    const sec = sections.find(s => s.id === id);
-    if (!sec || id === activeSection) return;
-    if (docIdRef.current) analytics.trackDocumentPageView(docIdRef.current, sec.pageNum);
-    analytics.trackSection('offering-' + id);
-    setActiveSection(id);
+  const goToSection = (sec) => {
+    if (sec.id === activeSection) return;
+    if (docIdRef.current) analytics.trackDocumentPageView(docIdRef.current, sec.page);
+    analytics.trackSection('offering-' + sec.id);
+    setActiveSection(sec.id);
   };
 
-  // Keep old useEffect for section tracking (belt-and-suspenders)
-  useEffect(() => {
-    analytics.trackSection('investment-' + activeSection);
-  }, [activeSection]);
-
-  const sectionContent = {
-    overview: (
-      <div>
-        <h2 style={h2}>Executive Overview</h2>
-        <p style={bodyText}>Rosie AI is an enterprise-grade AI voice agent platform designed to power the full revenue cycle for SMBs and mid-market companies. Our platform automates inbound and outbound calls, qualifies leads in real-time, routes prospects, and closes deals — all without human intervention.</p>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px', margin: '28px 0' }}>
-          {[
-            { label: 'Target Raise', value: '$2.5M', sub: 'SAFE Note' },
-            { label: 'Valuation Cap', value: '$15M', sub: 'Pre-Money' },
-            { label: 'Min Investment', value: '$25,000', sub: 'Per Investor' },
-          ].map(({ label, value, sub }) => (
-            <div key={label} style={{ background: 'rgba(184,147,58,0.08)', border: '1px solid rgba(184,147,58,0.2)', padding: '20px', textAlign: 'center', borderRadius: '2px' }}>
-              <div style={{ color: '#6b7280', fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '8px' }}>{label}</div>
-              <div style={{ color: GOLD, fontSize: '24px', fontWeight: 'bold' }}>{value}</div>
-              <div style={{ color: '#4a5568', fontSize: '11px', marginTop: '4px' }}>{sub}</div>
-            </div>
-          ))}
-        </div>
-        <p style={bodyText}>Rosie leverages proprietary AI models tuned for natural sales conversations, integrating seamlessly with leading CRM platforms (Salesforce, HubSpot, Zoho) and telephony providers. Our cost advantage is 15x vs. industry standard human SDRs, with full AI call stacks at $0.01/minute.</p>
-      </div>
-    ),
-    opportunity: (
-      <div>
-        <h2 style={h2}>The Opportunity</h2>
-        <p style={bodyText}>The AI voice agent market is at an inflection point. As enterprises demand scale, speed, and cost efficiency in their go-to-market motions, Rosie AI fills a $40B+ total addressable market by 2032 (38.46% CAGR).</p>
-        <ul style={{ color: '#c4cdd8', lineHeight: 2, paddingLeft: '20px' }}>
-          <li>Traditional SDRs cost $6,000–$10,000/month fully loaded; Rosie costs pennies per call</li>
-          <li>75% of sales calls go unanswered — Rosie's 24/7 agents capture all opportunities</li>
-          <li>Growing demand across insurance, real estate, solar, healthcare, and SaaS verticals</li>
-          <li>AI voice API market expanding from $4.1B (2025) to $40B (2032)</li>
-        </ul>
-      </div>
-    ),
-    product: (
-      <div>
-        <h2 style={h2}>Product & Technology</h2>
-        <p style={bodyText}>Rosie's platform is built on a proprietary AI stack with the following core capabilities:</p>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', margin: '20px 0' }}>
-          {[
-            { title: 'AI Voice Engine', desc: 'Natural language processing optimized for sales conversations with <200ms latency' },
-            { title: 'Workflow Manager', desc: 'No-code campaign builder for complex multi-step outreach sequences' },
-            { title: 'CRM Integration', desc: 'Native connectors for Salesforce, HubSpot, Zoho, and custom APIs' },
-            { title: 'Apify Web Scraping', desc: 'Automated prospect enrichment from 50+ data sources' },
-            { title: 'SMS Campaigns', desc: 'Omnichannel follow-up combining voice and SMS touchpoints' },
-            { title: 'Real-Time Analytics', desc: 'Live dashboards with call scoring, conversion tracking, and ROI analysis' },
-          ].map(({ title, desc }) => (
-            <div key={title} style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', padding: '16px', borderRadius: '2px' }}>
-              <div style={{ color: GOLD, fontSize: '13px', fontWeight: 'bold', marginBottom: '8px' }}>{title}</div>
-              <div style={{ color: '#8a9ab8', fontSize: '13px', lineHeight: 1.5 }}>{desc}</div>
-            </div>
-          ))}
-        </div>
-      </div>
-    ),
-    market: (
-      <div>
-        <h2 style={h2}>Market Analysis</h2>
-        <p style={bodyText}>Our target market spans five high-velocity verticals with acute demand for AI-driven outreach automation:</p>
-        {[
-          { segment: 'AI Voice API Market', size: '$40B', cagr: '38.46%', year: '2032' },
-          { segment: 'Solar Industry Outreach', size: '$190B', cagr: '17.35%', year: '2032' },
-          { segment: 'Insurance Lead Gen', size: 'High Value', cagr: '30.82%', year: '2032' },
-          { segment: 'SaaS Sales Automation', size: 'Enterprise', cagr: '35.64%', year: '2032' },
-        ].map(({ segment, size, cagr, year }) => (
-          <div key={segment} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 0', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-            <span style={{ color: '#c4cdd8', fontSize: '14px' }}>{segment}</span>
-            <div style={{ display: 'flex', gap: '24px', textAlign: 'right' }}>
-              <div><div style={{ color: GOLD, fontWeight: 'bold' }}>{size}</div><div style={{ color: '#4a5568', fontSize: '11px' }}>by {year}</div></div>
-              <div><div style={{ color: '#4ade80', fontWeight: 'bold' }}>{cagr}</div><div style={{ color: '#4a5568', fontSize: '11px' }}>CAGR</div></div>
-            </div>
-          </div>
-        ))}
-      </div>
-    ),
-    traction: (
-      <div>
-        <h2 style={h2}>Traction & Metrics</h2>
-        <p style={bodyText}>Rosie AI has demonstrated strong early product-market fit with the following key metrics:</p>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '16px', margin: '24px 0' }}>
-          {[
-            { label: 'Active Clients', value: '47+', icon: '👥' },
-            { label: 'Calls Processed', value: '1.2M+', icon: '📞' },
-            { label: 'Avg Cost Per Call', value: '$0.01', icon: '💰' },
-            { label: 'Conversion Lift vs SDR', value: '3.2x', icon: '📈' },
-          ].map(({ label, value, icon }) => (
-            <div key={label} style={{ background: 'rgba(184,147,58,0.06)', border: '1px solid rgba(184,147,58,0.15)', padding: '24px', textAlign: 'center', borderRadius: '2px' }}>
-              <div style={{ fontSize: '28px', marginBottom: '8px' }}>{icon}</div>
-              <div style={{ color: GOLD, fontSize: '28px', fontWeight: 'bold', marginBottom: '4px' }}>{value}</div>
-              <div style={{ color: '#6b7280', fontSize: '12px', letterSpacing: '1px' }}>{label}</div>
-            </div>
-          ))}
-        </div>
-      </div>
-    ),
-    team: (
-      <div>
-        <h2 style={h2}>Team</h2>
-        <p style={bodyText}>Our team combines deep expertise in AI, enterprise SaaS, and sales technology:</p>
-        <div style={{ marginTop: '20px' }}>
-          {[
-            { name: 'Leadership Team', role: 'Serial entrepreneurs with 3+ successful exits in AI & SaaS' },
-            { name: 'Engineering', role: 'Former engineers from Google, Amazon Web Services, and Twilio' },
-            { name: 'Sales & GTM', role: 'Built and scaled SDR teams at Fortune 500 companies' },
-            { name: 'Advisors', role: 'Board-level executives from leading AI and telecom companies' },
-          ].map(({ name, role }) => (
-            <div key={name} style={{ display: 'flex', gap: '16px', padding: '16px 0', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-              <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: 'rgba(184,147,58,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, color: GOLD, fontSize: '18px' }}>👤</div>
-              <div>
-                <div style={{ color: '#e8e0d0', fontWeight: 'bold', marginBottom: '4px' }}>{name}</div>
-                <div style={{ color: '#8a9ab8', fontSize: '13px' }}>{role}</div>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    ),
-    financials: (
-      <div>
-        <h2 style={h2}>Financial Projections</h2>
-        <p style={bodyText}>Pro-forma projections based on current growth trajectory and planned deployment of raised capital:</p>
-        <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '20px', fontSize: '13px' }}>
-          <thead>
-            <tr style={{ borderBottom: '2px solid rgba(184,147,58,0.3)' }}>
-              {['Metric', '2025 (Act.)', '2026', '2027', '2028'].map(h => (
-                <th key={h} style={{ color: GOLD, padding: '10px 8px', textAlign: h === 'Metric' ? 'left' : 'right', fontSize: '11px', letterSpacing: '1px' }}>{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {[
-              ['ARR', '$380K', '$2.1M', '$7.8M', '$22M'],
-              ['Customers', '47', '280', '850', '2,400'],
-              ['Gross Margin', '72%', '76%', '79%', '82%'],
-              ['MoM Growth', '18%', '22%', '15%', '12%'],
-            ].map(([metric, ...vals]) => (
-              <tr key={metric} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                <td style={{ color: '#c4cdd8', padding: '12px 8px' }}>{metric}</td>
-                {vals.map((v, i) => <td key={i} style={{ color: i === 0 ? '#8a9ab8' : '#e8e0d0', padding: '12px 8px', textAlign: 'right' }}>{v}</td>)}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    ),
-    terms: (
-      <div>
-        <h2 style={h2}>Investment Terms</h2>
-        {[
-          ['Instrument', 'SAFE Note (Simple Agreement for Future Equity)'],
-          ['Total Round Size', '$2,500,000'],
-          ['Valuation Cap', '$15,000,000 (Pre-Money)'],
-          ['Discount Rate', '20% at next priced round'],
-          ['Minimum Investment', '$25,000'],
-          ['Target Close', 'Q2 2025'],
-          ['Pro-Rata Rights', 'Yes, for investors $100K+'],
-          ['Information Rights', 'Quarterly financials + annual audit'],
-          ['Most Favored Nation', 'Standard MFN clause included'],
-        ].map(([term, value]) => (
-          <div key={term} style={{ display: 'flex', justifyContent: 'space-between', padding: '12px 0', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-            <span style={{ color: '#8a9ab8', fontSize: '13px' }}>{term}</span>
-            <span style={{ color: '#e8e0d0', fontSize: '13px', textAlign: 'right', maxWidth: '60%' }}>{value}</span>
-          </div>
-        ))}
-      </div>
-    ),
-    'use-of-funds': (
-      <div>
-        <h2 style={h2}>Use of Funds</h2>
-        <p style={bodyText}>The $2.5M raise will be deployed across three primary investment areas over 18 months:</p>
-        <div style={{ marginTop: '24px' }}>
-          {[
-            { label: 'Product & Engineering', pct: 45, color: GOLD, detail: 'AI model improvements, platform scaling, new integrations' },
-            { label: 'Sales & Marketing', pct: 35, color: '#4ade80', detail: 'GTM expansion, channel partnerships, brand awareness' },
-            { label: 'Operations & G&A', pct: 20, color: '#60a5fa', detail: 'Infrastructure, compliance, team growth' },
-          ].map(({ label, pct, color, detail }) => (
-            <div key={label} style={{ marginBottom: '20px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
-                <span style={{ color: '#c4cdd8', fontSize: '13px' }}>{label}</span>
-                <span style={{ color, fontWeight: 'bold' }}>{pct}%</span>
-              </div>
-              <div style={{ background: 'rgba(255,255,255,0.08)', borderRadius: '2px', height: '8px' }}>
-                <div style={{ background: color, width: `${pct}%`, height: '100%', borderRadius: '2px' }} />
-              </div>
-              <div style={{ color: '#4a5568', fontSize: '12px', marginTop: '4px' }}>{detail}</div>
-            </div>
-          ))}
-        </div>
-      </div>
-    ),
-    risk: (
-      <div>
-        <h2 style={h2}>Risk Factors</h2>
-        <p style={bodyText}>Investing in early-stage companies involves significant risk. Prospective investors should carefully consider the following:</p>
-        {[
-          'Early-stage company with limited operating history',
-          'AI regulatory environment is evolving rapidly',
-          'Competitive landscape includes well-funded incumbents',
-          'Dependence on key personnel and technology partners',
-          'Revenue concentration risk in early customer base',
-          'Capital requirements may exceed current projections',
-          'Illiquid investment — no public market for shares',
-        ].map((risk, i) => (
-          <div key={i} style={{ display: 'flex', gap: '12px', padding: '10px 0', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-            <span style={{ color: '#ef4444', flexShrink: 0 }}>⚠</span>
-            <span style={{ color: '#8a9ab8', fontSize: '13px', lineHeight: 1.5 }}>{risk}</span>
-          </div>
-        ))}
-        <p style={{ color: '#4a5568', fontSize: '11px', marginTop: '20px', lineHeight: 1.6 }}>
-          This is not an offer to sell securities. Investment in Rosie AI is available only to accredited investors under applicable securities laws. Please consult your financial and legal advisors.
-        </p>
-      </div>
-    ),
+  const handleDownload = () => {
+    analytics.trackDownload('RosieAI_PPM.pdf', 'pdf');
+    const a = document.createElement('a');
+    a.href = PPM_PDF_URL;
+    a.download = 'RosieAI_PPM.pdf';
+    a.target = '_blank';
+    a.click();
   };
+
+  const activeSec = PPM_INDEX.find(s => s.id === activeSection) || PPM_INDEX[0];
+  const iframeSrc = `https://docs.google.com/viewer?url=${encodeURIComponent(PPM_PDF_URL)}&embedded=true#page=${activeSec.page}`;
 
   return (
-    <div style={{ display: 'flex', gap: '0', minHeight: '600px' }}>
-      {/* Sidebar */}
-      <div style={{
-        width: '220px', flexShrink: 0,
-        borderRight: '1px solid rgba(255,255,255,0.08)',
-        paddingRight: '0',
-      }}>
-        {sections.map(({ id, label }) => (
-          <button key={id} onClick={() => goToSection(id)} style={{
+    <div style={{ display: 'flex', gap: '0', minHeight: '700px' }}>
+      {/* Sidebar index */}
+      <div style={{ width: '220px', flexShrink: 0, borderRight: '1px solid rgba(255,255,255,0.08)', overflowY: 'auto', maxHeight: '80vh' }}>
+        <div style={{ color: '#4a5568', fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', padding: '0 0 10px 16px' }}>Table of Contents</div>
+        {PPM_INDEX.map(sec => (
+          <button key={sec.id} onClick={() => goToSection(sec)} style={{
             display: 'block', width: '100%', textAlign: 'left',
-            background: activeSection === id ? 'rgba(184,147,58,0.12)' : 'transparent',
-            border: 'none', borderLeft: activeSection === id ? `3px solid ${GOLD}` : '3px solid transparent',
-            padding: '12px 16px', color: activeSection === id ? GOLD : '#6b7280',
-            fontSize: '12px', letterSpacing: '0.5px', cursor: 'pointer',
-            transition: 'all 0.15s',
+            background: activeSection === sec.id ? 'rgba(184,147,58,0.12)' : 'transparent',
+            border: 'none', borderLeft: activeSection === sec.id ? `3px solid ${GOLD}` : '3px solid transparent',
+            padding: '10px 14px', cursor: 'pointer', transition: 'all 0.12s',
           }}>
-            {label}
+            <div style={{ color: activeSection === sec.id ? GOLD : '#c4cdd8', fontSize: '12px', lineHeight: 1.3 }}>{sec.label}</div>
+            <div style={{ color: '#4a5568', fontSize: '10px', marginTop: '2px' }}>p. {sec.page}</div>
           </button>
         ))}
+        <div style={{ padding: '16px', borderTop: '1px solid rgba(255,255,255,0.07)', marginTop: '8px' }}>
+          <button onClick={handleDownload} style={{ width: '100%', background: 'rgba(184,147,58,0.15)', color: GOLD, border: `1px solid rgba(184,147,58,0.3)`, borderRadius: '2px', padding: '10px', cursor: 'pointer', fontSize: '12px' }}>
+            ↓ Download PPM
+          </button>
+        </div>
       </div>
 
-      {/* Content */}
-      <div id="portal-tab-content" style={{ flex: 1, paddingLeft: '36px', paddingRight: '8px', overflowY: 'auto' }}>
-        {sectionContent[activeSection]}
+      {/* PDF Viewer */}
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 20px', borderBottom: '1px solid rgba(255,255,255,0.07)', background: 'rgba(0,0,0,0.2)', flexShrink: 0 }}>
+          <div>
+            <span style={{ color: GOLD, fontWeight: 'bold', fontSize: '14px' }}>Rosie AI — Private Placement Memorandum</span>
+            <span style={{ color: '#6b7280', fontSize: '12px', marginLeft: '12px' }}>53 pages · 506c PPM</span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#6b7280', fontSize: '12px' }}>
+            <span>Viewing: {activeSec.label} (p.{activeSec.page})</span>
+            <button onClick={handleDownload} style={{ background: 'rgba(184,147,58,0.15)', color: GOLD, border: `1px solid rgba(184,147,58,0.3)`, borderRadius: '2px', padding: '6px 14px', cursor: 'pointer', fontSize: '11px', marginLeft: '8px' }}>
+              ↓ Download
+            </button>
+          </div>
+        </div>
+        <iframe
+          key={activeSection}
+          src={iframeSrc}
+          style={{ flex: 1, width: '100%', minHeight: '640px', border: 'none', background: '#fff' }}
+          title="Investment Offering PPM"
+        />
       </div>
-
-      {/* Floating Download */}
-      <button
-        onClick={() => downloadTabAsPDF('Investment Offering')}
-        style={{
-          position: 'fixed', bottom: '32px', right: '32px',
-          background: 'linear-gradient(135deg, #b8933a, #d4aa50)',
-          color: DARK, border: 'none', borderRadius: '2px',
-          padding: '14px 24px', cursor: 'pointer',
-          fontSize: '11px', letterSpacing: '2px', textTransform: 'uppercase',
-          fontWeight: '700', boxShadow: '0 8px 32px rgba(184,147,58,0.4)',
-          display: 'flex', alignItems: 'center', gap: '8px',
-          zIndex: 100,
-        }}
-      >
-        ↓ Download PDF
-      </button>
     </div>
   );
 }
-
 
 // ─── PDF Documents ───────────────────────────────────────────────────────
 const PDF_DOCS = [
