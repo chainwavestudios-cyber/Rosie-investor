@@ -1,14 +1,14 @@
 import { useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
 
-const HTML_URL = "https://cdn.jsdelivr.net/gh/chainwavestudios-cyber/Rosie-investor@main/agentbman-pitchbook-v3.html";
+const HTML_URL = "https://raw.githubusercontent.com/chainwavestudios-cyber/Rosie-investor/main/agentbman-pitchbook-v3.html";
 
 export default function Home() {
   const navigate = useNavigate();
   const [htmlContent, setHtmlContent] = useState('');
 
   useEffect(() => {
-    fetch(HTML_URL)
+    fetch(HTML_URL + '?t=' + Date.now(), { cache: 'no-store' })
       .then(r => r.text())
       .then(setHtmlContent);
   }, []);
