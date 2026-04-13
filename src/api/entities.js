@@ -287,6 +287,16 @@ export const SignNowRequestDB = {
     }
   },
 
+  async listAll() {
+    try {
+      const results = await base44.entities.SignNowRequest.list();
+      return results.sort((a, b) => new Date(b.sentAt) - new Date(a.sentAt));
+    } catch (e) {
+      console.error('[SignNowRequest.listAll]', e);
+      return [];
+    }
+  },
+
   async updateStatus(id, status) {
     try {
       return await base44.entities.SignNowRequest.update(id, { status });
