@@ -61,32 +61,70 @@ Deno.serve(async (req) => {
       const documentGroupId = createData.data?.unique_id;
       if (!documentGroupId) throw new Error('No document group ID returned: ' + JSON.stringify(createData));
 
-      // Get document IDs from the created group
-      const docs = createData.data?.documents || [];
-      // Build invite actions for each document that has roles
-      const inviteActions = docs.map(doc => ({
-        email: signerEmail,
-        role_name: signerRole || 'Recipient 1',
-        action: 'sign',
-        document_id: doc.id,
-        allow_reassign: 0,
-        decline_by_signature: 0,
-      }));
+      // Fetch the template's routing details and substitute the investor's email for "Unassigned Email 1"
+      const templateRes = await fetch(`${SIGNNOW_BASE}/documentgroup/template/${documentGroupTemplateId}`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      const templateData = await templateRes.json();
+      const templateRouting = templateData.routing_details;
 
-      // Step 2: Send field invite on the document group using routing details
-      const finalRoutingDetails = routingDetails || {
-        invite_steps: [{
-          order: 1,
-          invite_actions: inviteActions,
-          invite_emails: [{
-            email: signerEmail,
-            subject: 'Investment Documents — Signature Required',
-            message: message || `Dear ${signerName}, please review and sign the attached investment documents.`,
-            expiration_days: 30,
-            reminder: 4,
-          }],
-        }],
-      };
+      // Deep-clone and replace "Unassigned Email 1" with the actual signer email
+      const routingJson = JSON.stringify(templateRouting).replace(/Unassigned Email 1/g, signerEmail);
+      const builtRouting = JSON.parse(routingJson);
+
+      // Remap template document_ids to the newly created group's document_ids
+      // The created group documents are in createData.data.documents
+      const createdDocs = createData.data?.documents || [];
+      // Build a map from template doc name -> new doc id
+      const docNameToNewId = {};
+      for (const doc of createdDocs) {
+        docNameToNewId[doc.document_name || doc.name] = doc.id;
+      }
+      // Also build index-based fallback
+      const createdDocIds = createdDocs.map(d => d.id);
+
+      // Collect all unique template doc IDs referenced in routing
+      const templateDocIds = [];
+      for (const step of (builtRouting?.invite_steps || [])) {
+        for (const action of (step.invite_actions || [])) {
+          if (action.document_id && !templateDocIds.includes(action.document_id)) {
+            templateDocIds.push(action.document_id);
+          }
+        }
+      }
+      // Map template doc id -> new doc id by position
+      const templateIdToNewId = {};
+      templateDocIds.forEach((tId, i) => {
+        templateIdToNewId[tId] = createdDocIds[i] || createdDocIds[0];
+      });
+
+      // Strip null/empty authentication and remap document_ids
+      for (const step of (builtRouting?.invite_steps || [])) {
+        for (const action of (step.invite_actions || [])) {
+          if (action.authentication && action.authentication.type == null) {
+            delete action.authentication;
+          }
+          if (action.document_id && templateIdToNewId[action.document_id]) {
+            action.document_id = templateIdToNewId[action.document_id];
+          }
+        }
+      }
+
+      // Update invite_emails subject/message for the signer
+      if (builtRouting?.invite_steps) {
+        for (const step of builtRouting.invite_steps) {
+          for (const email of (step.invite_emails || [])) {
+            if (email.email === signerEmail) {
+              email.subject = 'Investment Documents — Signature Required';
+              email.message = message || `Dear ${signerName}, please review and sign the attached investment documents.`;
+              email.expiration_days = 30;
+            }
+          }
+        }
+      }
+
+      // Step 2: Send field invite on the document group
+      const finalRoutingDetails = routingDetails || builtRouting;
 
       const inviteRes = await fetch(`${SIGNNOW_BASE}/documentgroup/${documentGroupId}/groupinvite`, {
         method: 'POST',
