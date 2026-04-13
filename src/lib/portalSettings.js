@@ -124,7 +124,10 @@ export async function savePortalSettings(updates) {
   window.dispatchEvent(new CustomEvent('portalSettingsChanged', { detail: merged }));
 
   try {
-    if (_recordId) {
+    // Always fetch the canonical record ID to avoid stale cache pointing at wrong row
+    const row = await PortalSettingsDB.get();
+    if (row?.id) {
+      _recordId = row.id;
       const { base44 } = await import('@/api/base44Client');
       await base44.entities.PortalSettings.update(_recordId, cleanForDB(merged));
     } else {

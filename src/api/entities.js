@@ -191,7 +191,9 @@ export const PortalSettingsDB = {
   async get() {
     try {
       const results = await base44.entities.PortalSettings.filter({ key: SETTINGS_KEY });
-      return results[0] || null;
+      if (!results.length) return null;
+      // Always use the most recently updated record (handles duplicate rows)
+      return results.sort((a, b) => new Date(b.updated_date) - new Date(a.updated_date))[0];
     } catch (e) {
       console.error('[PortalSettings.get]', e);
       return null;
