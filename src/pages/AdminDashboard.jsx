@@ -53,11 +53,14 @@ function UserActivityModal({ user, onClose }) {
   const [loading, setLoading]   = useState(true);
 
   useEffect(() => {
-    analytics.getUserSessions(user.email || user.username).then(sess => {
+    setLoading(true);
+    // Query by email if available, then by username — getUserSessions merges both
+    const identifier = (user.email || user.username || '').toLowerCase().trim();
+    analytics.getUserSessions(identifier).then(sess => {
       setSessions(sess);
       setStats(analytics.computeUserStats(sess));
       setLoading(false);
-    });
+    }).catch(() => setLoading(false));
   }, [user]);
 
   const kpis = [
@@ -741,15 +744,9 @@ export default function AdminDashboard() {
         analytics.getAllSessions(),
       ]);
       setUsers(usersData);
-      // Parse JSON fields on sessions
-      const parsed = sessions.map(s => ({
-        ...s,
-        pages:     Array.isArray(s.pages)     ? s.pages     : [],
-        downloads: Array.isArray(s.downloads) ? s.downloads : [],
-        docViews:  Array.isArray(s.docViews)  ? s.docViews  : [],
-      }));
-      setAllSessions(parsed);
-      const global = await analytics.computeGlobalStats(parsed);
+      // Sessions are already parsed by analytics.getAllSessions()
+      setAllSessions(sessions);
+      const global = await analytics.computeGlobalStats(sessions);
       setGlobalStats(global);
     } catch (e) {
       console.error('[Admin] load error:', e);
@@ -767,6 +764,18 @@ export default function AdminDashboard() {
     return () => clearInterval(interval);
   }, [portalUser, isAdmin, isPortalLoading, load]);
 
+  // Match a session to a user by normalised email OR username
+  const matchesUser = useCallback((session, user) => {
+    const norm = v => (v || '').toLowerCase().trim();
+    const sEmail    = norm(session.userEmail);
+    const sUsername = norm(session.username);
+    const uEmail    = norm(user.email);
+    const uUsername = norm(user.username);
+    return (uEmail && sEmail && sEmail === uEmail)
+        || (uUsername && sUsername && sUsername === uUsername)
+        || (uEmail && sUsername && sUsername === uEmail);  // edge: stored email in username field
+  }, []);
+
   // Show spinner while auth resolves — prevents flash-redirect
   if (isPortalLoading) {
     return (
@@ -779,7 +788,6 @@ export default function AdminDashboard() {
 
   if (!portalUser || !isAdmin) return null;
 
-  // global and allSessions come from state, loaded async
   const investorUsers = users.filter(u => u.role === 'investor');
 
   const recentSessions = allSessions
@@ -853,7 +861,7 @@ export default function AdminDashboard() {
               </thead>
               <tbody>
                 {users.map(user => {
-                  const userSessions = allSessions.filter(s => s.userEmail === (user.email || user.username) || s.username === user.username);
+                  const userSessions = allSessions.filter(s => matchesUser(s, user));
                   const stats = analytics.computeUserStats(userSessions);
                   return (
                     <tr key={user.username||user.email}
@@ -892,7 +900,7 @@ export default function AdminDashboard() {
             {investorUsers.length === 0
               ? <p style={{ color:'#4a5568', textAlign:'center', padding:'60px' }}>No investor users yet.</p>
               : investorUsers.map(user => {
-                const userSessions = allSessions.filter(s => s.userEmail === (user.email || user.username) || s.username === user.username);
+                const userSessions = allSessions.filter(s => matchesUser(s, user));
                 const stats = analytics.computeUserStats(userSessions);
                 const maxPT = Math.max(...Object.values(stats.pageTime), 1);
                 return (
