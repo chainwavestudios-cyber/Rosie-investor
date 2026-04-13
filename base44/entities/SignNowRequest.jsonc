@@ -1,0 +1,49 @@
+{
+  "name": "SignNowRequest",
+  "type": "object",
+  "properties": {
+    "userId": {
+      "type": "string",
+      "title": "User ID"
+    },
+    "userName": {
+      "type": "string",
+      "title": "Investor Full Name"
+    },
+    "userEmail": {
+      "type": "string",
+      "title": "Investor Email"
+    },
+    "sentAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Sent At"
+    },
+    "status": {
+      "type": "string",
+      "title": "Status",
+      "enum": [
+        "pending",
+        "sent",
+        "partial",
+        "completed",
+        "declined",
+        "error"
+      ],
+      "default": "pending"
+    },
+    "documents": {
+      "type": "string",
+      "title": "Documents (JSON)",
+      "format": "textarea"
+    },
+    "requestedBy": {
+      "type": "string",
+      "title": "Requested By"
+    }
+  },
+  "required": [
+    "userId",
+    "userName"
+  ]
+}

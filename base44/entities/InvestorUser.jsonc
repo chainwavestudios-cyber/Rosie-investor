@@ -30,6 +30,56 @@
     "company": {
       "type": "string",
       "title": "Company / Fund"
+    },
+    "phone": {
+      "type": "string",
+      "title": "Phone Number"
+    },
+    "address": {
+      "type": "string",
+      "title": "Mailing Address"
+    },
+    "investmentType": {
+      "type": "string",
+      "title": "Investment Type",
+      "enum": [
+        "cash",
+        "ira"
+      ],
+      "default": "cash"
+    },
+    "iraInformation": {
+      "type": "string",
+      "title": "IRA Information",
+      "format": "textarea"
+    },
+    "notes": {
+      "type": "string",
+      "title": "Internal Admin Notes",
+      "format": "textarea"
+    },
+    "signnowRequested": {
+      "type": "boolean",
+      "title": "SignNow Requested",
+      "default": false
+    },
+    "status": {
+      "type": "string",
+      "title": "Status",
+      "enum": [
+        "prospect",
+        "investor"
+      ],
+      "default": "prospect"
+    },
+    "investmentAmount": {
+      "type": "number",
+      "title": "Investment Amount ($)"
+    },
+    "investmentDate": {
+      "type": "string",
+      "format": "date",
+      "title": "Investment Date"
     }
   },
   "required": [

@@ -138,6 +138,55 @@
     "portalActive": {
       "type": "boolean",
       "title": "Portal Active"
+    },
+    "signnowClientId": {
+      "type": "string",
+      "title": "SignNow Client ID"
+    },
+    "signnowClientSecret": {
+      "type": "string",
+      "title": "SignNow Client Secret"
+    },
+    "signnowUsername": {
+      "type": "string",
+      "title": "SignNow Username"
+    },
+    "signnowPassword": {
+      "type": "string",
+      "title": "SignNow Password"
+    },
+    "signnowAccessToken": {
+      "type": "string",
+      "title": "SignNow Access Token",
+      "format": "textarea"
+    },
+    "signnowTemplate1Id": {
+      "type": "string",
+      "title": "SignNow Template 1 ID"
+    },
+    "signnowTemplate1Name": {
+      "type": "string",
+      "title": "SignNow Template 1 Name",
+      "default": "Investor Questionnaire"
+    },
+    "signnowTemplate2Id": {
+      "type": "string",
+      "title": "SignNow Template 2 ID"
+    },
+    "signnowTemplate2Name": {
+      "type": "string",
+      "title": "SignNow Template 2 Name",
+      "default": "Subscription Agreement"
+    },
+    "signnowSignerRole": {
+      "type": "string",
+      "title": "SignNow Signer Role",
+      "default": "Signer 1"
+    },
+    "signnowInviteMessage": {
+      "type": "string",
+      "title": "SignNow Invite Message",
+      "format": "textarea"
     }
   },
   "required": [
