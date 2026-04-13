@@ -207,6 +207,17 @@ function DocusignModal({ onClose }) {
 
 const PPM_PDF_URL = 'https://media.base44.com/files/public/69cd2741578c9b5ce655395b/4be131d5b_RosieAI_PPM_revised3.pdf';
 
+async function downloadFile(url, filename) {
+  const res = await fetch(url);
+  const blob = await res.blob();
+  const blobUrl = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = blobUrl;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(blobUrl);
+}
+
 const PPM_INDEX = [
   { id: 'cover',         label: 'Cover Page',                       page: 1  },
   { id: 'notices',       label: 'Notices',                          page: 2  },
@@ -260,11 +271,7 @@ function InvestmentOffering() {
 
   const handleDownload = () => {
     analytics.trackDownload('RosieAI_PPM.pdf', 'pdf');
-    const a = document.createElement('a');
-    a.href = PPM_PDF_URL;
-    a.download = 'RosieAI_PPM.pdf';
-    a.target = '_blank';
-    a.click();
+    downloadFile(PPM_PDF_URL, 'RosieAI_PPM.pdf');
   };
 
   const activeSec = PPM_INDEX.find(s => s.id === activeSection) || PPM_INDEX[0];
@@ -366,11 +373,7 @@ function SubscriptionAgreements() {
 
   const handleDownload = (doc) => {
     analytics.trackDownload(doc.name + '.pdf', 'pdf');
-    const a = document.createElement('a');
-    a.href = doc.url;
-    a.download = doc.name + '.pdf';
-    a.target = '_blank';
-    a.click();
+    downloadFile(doc.url, doc.name + '.pdf');
   };
 
   return (
