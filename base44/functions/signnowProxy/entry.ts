@@ -35,6 +35,69 @@ Deno.serve(async (req) => {
       return Response.json(data);
     }
 
+    // ─── Inspect Document Group Template ─────────────────────────────
+    if (action === 'inspectDocGroupTemplate') {
+      const { accessToken, templateId } = body;
+      const res = await fetch(`${SIGNNOW_BASE}/documentgroup/template/${templateId}`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      const data = await res.json();
+      return Response.json({ status: res.status, data });
+    }
+
+    // ─── Send Document Group Invite ───────────────────────────────────
+    if (action === 'sendDocumentGroupInvite') {
+      const { accessToken, documentGroupTemplateId, signerEmail, signerName, signerRole, message, routingDetails } = body;
+
+      // Step 1: Create a document group from the template (V2 API)
+      const createRes = await fetch(`${SIGNNOW_BASE}/v2/document-group-templates/${documentGroupTemplateId}/document-group`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ group_name: `Investment Docs — ${signerName}` }),
+      });
+      const createData = await createRes.json();
+      if (!createRes.ok) throw new Error(JSON.stringify(createData) || `Create doc group failed (${createRes.status})`);
+
+      const documentGroupId = createData.data?.unique_id;
+      if (!documentGroupId) throw new Error('No document group ID returned: ' + JSON.stringify(createData));
+
+      // Get document IDs from the created group
+      const docs = createData.data?.documents || [];
+      // Build invite actions for each document that has roles
+      const inviteActions = docs.map(doc => ({
+        email: signerEmail,
+        role_name: signerRole || 'Recipient 1',
+        action: 'sign',
+        document_id: doc.id,
+        allow_reassign: 0,
+        decline_by_signature: 0,
+      }));
+
+      // Step 2: Send field invite on the document group using routing details
+      const finalRoutingDetails = routingDetails || {
+        invite_steps: [{
+          order: 1,
+          invite_actions: inviteActions,
+          invite_emails: [{
+            email: signerEmail,
+            subject: 'Investment Documents — Signature Required',
+            message: message || `Dear ${signerName}, please review and sign the attached investment documents.`,
+            expiration_days: 30,
+            reminder: 4,
+          }],
+        }],
+      };
+
+      const inviteRes = await fetch(`${SIGNNOW_BASE}/documentgroup/${documentGroupId}/groupinvite`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(finalRoutingDetails),
+      });
+      const inviteData = await inviteRes.json();
+      if (!inviteRes.ok) throw new Error(JSON.stringify(inviteData) || `Send group invite failed (${inviteRes.status})`);
+      return Response.json({ documentGroupId, ...inviteData });
+    }
+
     // ─── Send Invite ──────────────────────────────────────────────────
     if (action === 'sendInvite') {
       const { accessToken, documentId, signerEmail, signerName, message } = body;

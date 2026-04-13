@@ -34,8 +34,33 @@ export async function signnowDownloadDocument(accessToken, documentId) {
   return new Blob([response.data], { type: 'application/pdf' });
 }
 
-// ─── Full send flow: create doc from template + send invite ──────────────
+// ─── Send Document Group Template invite ─────────────────────────────────
+export async function signnowSendDocumentGroupInvite(accessToken, documentGroupTemplateId, signerEmail, signerName, message = '') {
+  return proxy('sendDocumentGroupInvite', { accessToken, documentGroupTemplateId, signerEmail, signerName, message });
+}
+
+// ─── Full send flow ───────────────────────────────────────────────────────
+// Supports both document group templates (single ID = all docs) and regular templates
 export async function signnowSendDocuments(accessToken, templates, signerEmail, signerName) {
+  // If there's only one template and it looks like a doc group template, use the group flow
+  // We detect this by trying the group flow first for template1
+  if (templates.length >= 1) {
+    try {
+      const result = await signnowSendDocumentGroupInvite(
+        accessToken,
+        templates[0].templateId,
+        signerEmail,
+        signerName,
+        `Dear ${signerName}, please review and sign the attached investment documents.`
+      );
+      // Success — all docs sent as a group
+      return templates.map(tpl => ({ name: tpl.name, documentGroupId: result.documentGroupId, status: 'sent', sentAt: new Date().toISOString() }));
+    } catch (e) {
+      // Fall back to per-template flow
+    }
+  }
+
+  // Fallback: individual template flow
   const results = [];
   for (const tpl of templates) {
     try {
@@ -44,9 +69,8 @@ export async function signnowSendDocuments(accessToken, templates, signerEmail, 
         tpl.templateId,
         `${tpl.name} — ${signerName} — ${new Date().toLocaleDateString()}`
       );
-      const documentId = docData.id;
-      await signnowSendInvite(accessToken, documentId, signerEmail, signerName);
-      results.push({ name: tpl.name, documentId, status: 'sent', sentAt: new Date().toISOString() });
+      await signnowSendInvite(accessToken, docData.id, signerEmail, signerName);
+      results.push({ name: tpl.name, documentId: docData.id, status: 'sent', sentAt: new Date().toISOString() });
     } catch (e) {
       results.push({ name: tpl.name, error: e.message, status: 'error' });
     }
