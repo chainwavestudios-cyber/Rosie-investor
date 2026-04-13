@@ -31,7 +31,7 @@ Deno.serve(async (req) => {
         body: JSON.stringify({ document_name: documentName }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.message || `Create from template failed (${res.status})`);
+      if (!res.ok) throw new Error(JSON.stringify(data) || `Create from template failed (${res.status})`);
       return Response.json(data);
     }
 
