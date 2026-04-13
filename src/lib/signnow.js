@@ -54,7 +54,11 @@ export async function signnowSendDocuments(accessToken, _templates, signerEmail,
       });
       results.push({ name: tpl.name, documentGroupId: result.documentGroupId, status: 'sent', sentAt: new Date().toISOString() });
     } catch (e) {
-      results.push({ name: tpl.name, error: e.message, status: 'error' });
+      // Extract SignNow error from backend response if available
+      let errorMsg = e.message;
+      if (e.response?.data?.error) errorMsg = e.response.data.error;
+      else if (e.response?.data) errorMsg = JSON.stringify(e.response.data);
+      results.push({ name: tpl.name, error: errorMsg, status: 'error' });
     }
   }
   return results;
