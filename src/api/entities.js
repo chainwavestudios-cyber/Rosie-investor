@@ -252,6 +252,51 @@ export const InvestorUpdateDB = {
   },
 };
 
+// ─── SignNowRequest ───────────────────────────────────────────────────────
+
+export const SignNowRequestDB = {
+  async create(data) {
+    try {
+      return await base44.entities.SignNowRequest.create({
+        ...data,
+        sentAt: new Date().toISOString(),
+        status: data.status || 'pending',
+      });
+    } catch (e) {
+      console.error('[SignNowRequest.create]', e);
+      throw e;
+    }
+  },
+
+  async list() {
+    try {
+      return await base44.entities.SignNowRequest.list();
+    } catch (e) {
+      console.error('[SignNowRequest.list]', e);
+      return [];
+    }
+  },
+
+  async listForEmail(email) {
+    try {
+      const results = await base44.entities.SignNowRequest.filter({ userEmail: email });
+      return results.sort((a, b) => new Date(b.sentAt) - new Date(a.sentAt));
+    } catch (e) {
+      console.error('[SignNowRequest.listForEmail]', e);
+      return [];
+    }
+  },
+
+  async updateStatus(id, status) {
+    try {
+      return await base44.entities.SignNowRequest.update(id, { status });
+    } catch (e) {
+      console.error('[SignNowRequest.updateStatus]', e);
+      throw e;
+    }
+  },
+};
+
 // ─── DocusignRequest ──────────────────────────────────────────────────────
 // Fields: firstName, lastName, email, mailingAddress,
 //         amountToInvest, investmentType, fundingType,
