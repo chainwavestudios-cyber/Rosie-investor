@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { usePortalAuth } from '@/lib/PortalAuthContext';
 import analytics from '@/lib/analytics';
 import { getPortalSettings, loadPortalSettings, savePortalSettings, resetPortalSettings } from '@/lib/portalSettings';
-import { DocusignRequestDB } from '@/api/entities';
+import { DocusignRequestDB, InvestorUser } from '@/api/entities';
 
 const LOGO = "https://media.base44.com/images/public/69cd2741578c9b5ce655395b/39a31f9b9_Untitleddesign3.png";
 const GOLD = '#b8933a';
@@ -253,6 +253,66 @@ function UserActivityModal({ user, onClose }) {
               }
             </div>
           )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Edit User Form ──────────────────────────────────────────────────────
+function EditUserForm({ user, onSave, onClose }) {
+  const [form, setForm] = useState({
+    name: user.name || '',
+    email: user.email || '',
+    password: '',
+    company: user.company || '',
+    role: user.role || 'investor',
+  });
+  const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  const submit = async () => {
+    setSaving(true); setError('');
+    try {
+      const updates = {
+        name: form.name,
+        email: form.email.trim().toLowerCase(),
+        company: form.company,
+        role: form.role,
+      };
+      if (form.password.trim()) updates.password = form.password.trim();
+      await InvestorUser.update(user.id, updates);
+      onSave();
+      onClose();
+    } catch (e) {
+      setError('Save failed — ' + e.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.8)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:9999, padding:'20px' }}>
+      <div style={{ background:'#0d1b2a', border:'1px solid rgba(184,147,58,0.3)', borderRadius:'2px', padding:'36px', maxWidth:'480px', width:'100%', boxShadow:'0 40px 100px rgba(0,0,0,0.8)' }}>
+        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'24px' }}>
+          <h3 style={{ color:GOLD, margin:0, fontSize:'13px', letterSpacing:'2px', textTransform:'uppercase' }}>Edit User — @{user.username}</h3>
+          <button onClick={onClose} style={{ background:'none', border:'none', color:'#6b7280', cursor:'pointer', fontSize:'20px' }}>×</button>
+        </div>
+        <F label="Full Name" value={form.name} onChange={e=>setForm({...form,name:e.target.value})} />
+        <F label="Email Address" value={form.email} onChange={e=>setForm({...form,email:e.target.value})} type="email" />
+        <F label="New Password (leave blank to keep current)" value={form.password} onChange={e=>setForm({...form,password:e.target.value})} placeholder="Enter new password" />
+        <F label="Company / Fund" value={form.company} onChange={e=>setForm({...form,company:e.target.value})} />
+        <div style={{ marginBottom:'24px' }}>
+          <label style={ls}>Role</label>
+          <select value={form.role} onChange={e=>setForm({...form,role:e.target.value})} style={{ ...inp, cursor:'pointer' }}>
+            <option value="investor">Investor</option>
+            <option value="admin">Admin</option>
+          </select>
+        </div>
+        {error && <div style={{ background:'rgba(220,60,60,0.12)', border:'1px solid rgba(220,60,60,0.3)', borderRadius:'2px', padding:'10px 14px', color:'#ff8a8a', fontSize:'13px', marginBottom:'16px' }}>{error}</div>}
+        <div style={{ display:'flex', gap:'12px' }}>
+          <button onClick={submit} disabled={saving} style={{ flex:1, background:'linear-gradient(135deg,#b8933a,#d4aa50)', color:DARK, border:'none', borderRadius:'2px', padding:'12px', cursor:'pointer', fontWeight:'bold', fontSize:'12px', letterSpacing:'2px', textTransform:'uppercase' }}>{saving ? 'Saving…' : 'Save Changes'}</button>
+          <button onClick={onClose} style={{ padding:'12px 20px', background:'transparent', color:'#6b7280', border:'1px solid rgba(255,255,255,0.12)', borderRadius:'2px', cursor:'pointer', fontSize:'12px' }}>Cancel</button>
         </div>
       </div>
     </div>
@@ -732,6 +792,7 @@ export default function AdminDashboard() {
   const [users, setUsers]         = useState([]);
   const [showAdd, setShowAdd]     = useState(false);
   const [selUser, setSelUser]     = useState(null);
+  const [editUser, setEditUser]   = useState(null);
   const [allSessions, setAllSessions] = useState([]);
   const [globalStats, setGlobalStats] = useState({ totalSessions:0, totalTime:0, totalDownloads:0, totalDocViews:0 });
   const [docusignRequests, setDocusignRequests] = useState([]);
@@ -843,6 +904,7 @@ export default function AdminDashboard() {
         {/* Modals */}
         {showAdd && <AddUserForm onAdd={load} onClose={()=>setShowAdd(false)} />}
         {selUser && <UserActivityModal user={selUser} onClose={()=>setSelUser(null)} />}
+        {editUser && <EditUserForm user={editUser} onSave={load} onClose={()=>setEditUser(null)} />}
 
         {/* ── Users ── */}
         {view === 'users' && (
@@ -879,6 +941,7 @@ export default function AdminDashboard() {
                       <td style={{ padding:'12px 12px' }}>
                         <div style={{ display:'flex', gap:'8px' }}>
                           <button onClick={()=>setSelUser(user)} style={{ background:'rgba(184,147,58,0.15)', color:GOLD, border:'1px solid rgba(184,147,58,0.3)', borderRadius:'2px', padding:'5px 12px', cursor:'pointer', fontSize:'11px' }}>📊 Activity</button>
+                          <button onClick={()=>setEditUser(user)} style={{ background:'rgba(96,165,250,0.1)', color:'#60a5fa', border:'1px solid rgba(96,165,250,0.2)', borderRadius:'2px', padding:'5px 12px', cursor:'pointer', fontSize:'11px' }}>✏️ Edit</button>
                           {user.role !== 'admin' && <button onClick={()=>{ if(window.confirm(`Remove ${user.name}?`)){removeUser(user.email||user.username);load();} }} style={{ background:'rgba(239,68,68,0.1)', color:'#ef4444', border:'1px solid rgba(239,68,68,0.2)', borderRadius:'2px', padding:'5px 12px', cursor:'pointer', fontSize:'11px' }}>Remove</button>}
                         </div>
                       </td>

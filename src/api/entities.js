@@ -49,12 +49,18 @@ export const InvestorUser = {
 
   async findByCredentials(usernameOrEmail, password) {
     try {
-      // Try username first
-      let users = await base44.entities.InvestorUser.filter({ username: usernameOrEmail });
+      const input = (usernameOrEmail || '').trim().toLowerCase();
+      const pass = (password || '').trim();
+      // Try username first (case-insensitive)
+      let users = await base44.entities.InvestorUser.filter({ username: input });
       if (!users.length) {
-        users = await base44.entities.InvestorUser.filter({ email: usernameOrEmail });
+        users = await base44.entities.InvestorUser.filter({ email: input });
       }
-      const user = users.find(u => u.password === password);
+      // Also try original casing if lowercase didn't match
+      if (!users.length) {
+        users = await base44.entities.InvestorUser.filter({ username: usernameOrEmail.trim() });
+      }
+      const user = users.find(u => (u.password || '').trim() === pass);
       return user || null;
     } catch (e) {
       console.error('[InvestorUser.findByCredentials]', e);
@@ -66,6 +72,9 @@ export const InvestorUser = {
     try {
       return await base44.entities.InvestorUser.create({
         ...userData,
+        username: (userData.username || '').trim(),
+        email: (userData.email || '').trim().toLowerCase(),
+        password: (userData.password || '').trim(),
         createdAt: new Date().toISOString(),
       });
     } catch (e) {
