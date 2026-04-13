@@ -59,6 +59,7 @@ Deno.serve(async (req) => {
       if (!createRes.ok) throw new Error(JSON.stringify(createData) || `Create doc group failed (${createRes.status})`);
 
       const documentGroupId = createData.data?.unique_id;
+      console.log('[signnow] createData:', JSON.stringify(createData));
       if (!documentGroupId) throw new Error('No document group ID returned: ' + JSON.stringify(createData));
 
       // Fetch the template's routing details and substitute the investor's email for "Unassigned Email 1"
@@ -125,6 +126,9 @@ Deno.serve(async (req) => {
 
       // Step 2: Send field invite on the document group
       const finalRoutingDetails = routingDetails || builtRouting;
+
+      console.log('[signnow] Sending group invite to documentGroupId:', documentGroupId);
+      console.log('[signnow] Routing payload:', JSON.stringify(finalRoutingDetails));
 
       const inviteRes = await fetch(`${SIGNNOW_BASE}/documentgroup/${documentGroupId}/groupinvite`, {
         method: 'POST',
