@@ -237,6 +237,12 @@ const PPM_INDEX = [
 function InvestmentOffering() {
   const [activeSection, setActiveSection] = useState('cover');
   const docIdRef = useRef(null);
+  const activeIdx = PPM_INDEX.findIndex(s => s.id === activeSection);
+
+  const goToIdx = (idx) => {
+    if (idx < 0 || idx >= PPM_INDEX.length) return;
+    goToSection(PPM_INDEX[idx]);
+  };
 
   useEffect(() => {
     docIdRef.current = analytics.trackDocumentOpen('Private Placement Memorandum', 'ppm');
@@ -263,6 +269,8 @@ function InvestmentOffering() {
 
   const activeSec = PPM_INDEX.find(s => s.id === activeSection) || PPM_INDEX[0];
   const iframeSrc = `https://docs.google.com/viewer?url=${encodeURIComponent(PPM_PDF_URL)}&embedded=true#page=${activeSec.page}`;
+  const isFirst = activeIdx === 0;
+  const isLast = activeIdx === PPM_INDEX.length - 1;
 
   return (
     <div style={{ display: 'flex', gap: '0', minHeight: '700px' }}>
@@ -295,8 +303,10 @@ function InvestmentOffering() {
             <span style={{ color: '#6b7280', fontSize: '12px', marginLeft: '12px' }}>53 pages · 506c PPM</span>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#6b7280', fontSize: '12px' }}>
-            <span>Viewing: {activeSec.label} (p.{activeSec.page})</span>
-            <button onClick={handleDownload} style={{ background: 'rgba(184,147,58,0.15)', color: GOLD, border: `1px solid rgba(184,147,58,0.3)`, borderRadius: '2px', padding: '6px 14px', cursor: 'pointer', fontSize: '11px', marginLeft: '8px' }}>
+            <button onClick={() => goToIdx(activeIdx - 1)} disabled={isFirst} style={{ background: isFirst ? 'rgba(255,255,255,0.03)' : 'rgba(255,255,255,0.08)', color: isFirst ? '#3a4a5e' : '#c4cdd8', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '2px', padding: '5px 12px', cursor: isFirst ? 'default' : 'pointer', fontSize: '13px' }}>‹ Prev</button>
+            <span style={{ minWidth: '160px', textAlign: 'center' }}>{activeSec.label} (p.{activeSec.page})</span>
+            <button onClick={() => goToIdx(activeIdx + 1)} disabled={isLast} style={{ background: isLast ? 'rgba(255,255,255,0.03)' : 'rgba(255,255,255,0.08)', color: isLast ? '#3a4a5e' : '#c4cdd8', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '2px', padding: '5px 12px', cursor: isLast ? 'default' : 'pointer', fontSize: '13px' }}>Next ›</button>
+            <button onClick={handleDownload} style={{ background: 'rgba(184,147,58,0.15)', color: GOLD, border: `1px solid rgba(184,147,58,0.3)`, borderRadius: '2px', padding: '6px 14px', cursor: 'pointer', fontSize: '11px', marginLeft: '4px' }}>
               ↓ Download
             </button>
           </div>
