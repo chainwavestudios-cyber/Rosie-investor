@@ -95,6 +95,25 @@ async function flush(session, closing = false) {
   }
 }
 
+// ─── JSON field parser (Base44 may return arrays as JSON strings) ─────────
+
+function parseJsonField(value) {
+  if (Array.isArray(value)) return value;
+  if (typeof value === 'string' && value.trim().startsWith('[')) {
+    try { return JSON.parse(value); } catch { return []; }
+  }
+  return [];
+}
+
+function parseSessionFields(s) {
+  return {
+    ...s,
+    pages:     parseJsonField(s.pages),
+    downloads: parseJsonField(s.downloads),
+    docViews:  parseJsonField(s.docViews),
+  };
+}
+
 // ─── Public API ───────────────────────────────────────────────────────────
 
 export const analytics = {
@@ -248,70 +267,77 @@ export const analytics = {
   // ── Read API (used by AdminDashboard) ─────────────────────────────────
 
   async getAllSessions() {
-    return await AnalyticsSession.listAll();
+    const sessions = await AnalyticsSession.listAll();
+    return sessions.map(parseSessionFields);
   },
 
   async getUserSessions(emailOrUsername) {
-    let sessions = await AnalyticsSession.listForUser(emailOrUsername);
-    if (!sessions.length) {
-      sessions = await AnalyticsSession.listForUsername(emailOrUsername);
-    }
-    // Parse JSON fields
-    return sessions.map(s => ({
-      ...s,
-      pages:     Array.isArray(s.pages)     ? s.pages     : [],
-      downloads: Array.isArray(s.downloads) ? s.downloads : [],
-      docViews:  Array.isArray(s.docViews)  ? s.docViews  : [],
-    }));
+    const normalised = (emailOrUsername || '').toLowerCase().trim();
+    // Fetch by both email and username in parallel, then dedupe by id
+    const [byEmail, byUsername] = await Promise.all([
+      AnalyticsSession.listForUser(normalised),
+      AnalyticsSession.listForUsername(normalised),
+    ]);
+    const seen = new Set();
+    const merged = [...byEmail, ...byUsername].filter(s => {
+      const key = s.id || s.sessionId;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+    return merged
+      .map(parseSessionFields)
+      .sort((a, b) => new Date(b.startTime) - new Date(a.startTime));
   },
 
   computeUserStats(sessions) {
-    const totalTime       = sessions.reduce((s, sess) => s + (sess.durationSeconds || 0), 0);
-    const totalDownloads  = sessions.reduce((s, sess) => s + (sess.downloads?.length  || 0), 0);
-    const totalDocViews   = sessions.reduce((s, sess) => s + (sess.docViews?.length   || 0), 0);
-    const allPages        = sessions.flatMap(s => s.pages || []);
+    // Sort descending by startTime so index 0 is always the most recent session
+    const sorted = [...sessions].sort((a, b) => new Date(b.startTime) - new Date(a.startTime));
+
+    const totalTime       = sorted.reduce((s, sess) => s + (sess.durationSeconds || 0), 0);
+    const totalDownloads  = sorted.reduce((s, sess) => s + (sess.downloads?.length  || 0), 0);
+    const totalDocViews   = sorted.reduce((s, sess) => s + (sess.docViews?.length   || 0), 0);
+    const allPages        = sorted.flatMap(s => s.pages || []);
 
     const pageTime = {};
     allPages.forEach(p => {
-      pageTime[p.page] = (pageTime[p.page] || 0) + (p.durationSeconds || 0);
+      if (p.page) pageTime[p.page] = (pageTime[p.page] || 0) + (p.durationSeconds || 0);
     });
 
     const sectionTime = {};
     allPages.forEach(p => {
       (p.sections || []).forEach(sec => {
-        const k = `${p.page} › ${sec.section}`;
-        sectionTime[k] = (sectionTime[k] || 0) + (sec.durationSeconds || 0);
+        if (sec.section) {
+          const k = `${p.page} › ${sec.section}`;
+          sectionTime[k] = (sectionTime[k] || 0) + (sec.durationSeconds || 0);
+        }
       });
     });
 
-    const logins = sessions.map(s => ({
+    const logins = sorted.map(s => ({
       date: s.startTime,
-      duration: s.durationSeconds,
+      duration: s.durationSeconds || 0,
       pagesCount: s.pages?.length || 0,
       downloadsCount: s.downloads?.length || 0,
       docViewsCount: s.docViews?.length || 0,
     }));
 
     return {
-      sessionCount:  sessions.length,
+      sessionCount:  sorted.length,
       totalTime,
       totalDownloads,
       totalDocViews,
       pageTime,
       sectionTime,
       logins,
-      lastSeen:  sessions.length > 0 ? sessions[0].startTime : null,
-      firstSeen: sessions.length > 0 ? sessions[sessions.length - 1].startTime : null,
+      lastSeen:  sorted.length > 0 ? sorted[0].startTime : null,
+      firstSeen: sorted.length > 0 ? sorted[sorted.length - 1].startTime : null,
     };
   },
 
   async computeGlobalStats(allSessions) {
-    const sessions = allSessions || await AnalyticsSession.listAll();
-    const parsed = sessions.map(s => ({
-      ...s,
-      downloads: Array.isArray(s.downloads) ? s.downloads : [],
-      docViews:  Array.isArray(s.docViews)  ? s.docViews  : [],
-    }));
+    const raw = allSessions || await AnalyticsSession.listAll();
+    const parsed = raw.map(parseSessionFields);
     return {
       totalSessions:  parsed.length,
       totalTime:      parsed.reduce((t, s) => t + (s.durationSeconds || 0), 0),
