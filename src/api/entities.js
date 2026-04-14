@@ -1,349 +1,88 @@
 /**
  * Base44 Entities API Layer
- * 
- * All database reads/writes go through here.
- * Uses base44.entities.* for every operation.
- * 
- * Entities needed in your Base44 dashboard (Data → New Entity):
- *   - InvestorUser
- *   - AnalyticsSession
- *   - PortalSettings
- *   - InvestorUpdate
- *   - DocusignRequest
+ * Entities needed in Base44 dashboard (Data → New Entity):
+ *   - InvestorUser, AnalyticsSession, PortalSettings, InvestorUpdate
+ *   - SignNowRequest
+ *   - ContactNote       ← NEW
+ *   - Appointment       ← NEW
+ *   - AccreditationDocument ← NEW
  */
-
 import { base44 } from './base44Client';
 
-// ─── InvestorUser ─────────────────────────────────────────────────────────
-// Fields: name, username, email, password, role, company, createdAt
-
 export const InvestorUser = {
-  async list() {
-    try {
-      return await base44.entities.InvestorUser.list();
-    } catch (e) {
-      console.error('[InvestorUser.list]', e);
-      return [];
-    }
-  },
-
-  async findByUsername(username) {
-    try {
-      const results = await base44.entities.InvestorUser.filter({ username });
-      return results[0] || null;
-    } catch (e) {
-      console.error('[InvestorUser.findByUsername]', e);
-      return null;
-    }
-  },
-
-  async findByEmail(email) {
-    try {
-      const results = await base44.entities.InvestorUser.filter({ email });
-      return results[0] || null;
-    } catch (e) {
-      console.error('[InvestorUser.findByEmail]', e);
-      return null;
-    }
-  },
-
+  async list() { try { return await base44.entities.InvestorUser.list(); } catch(e){ return []; } },
+  async findByUsername(u) { try { const r=await base44.entities.InvestorUser.filter({username:u}); return r[0]||null; } catch{ return null; } },
+  async findByEmail(e) { try { const r=await base44.entities.InvestorUser.filter({email:e}); return r[0]||null; } catch{ return null; } },
   async findByCredentials(usernameOrEmail, password) {
     try {
-      const input = (usernameOrEmail || '').trim().toLowerCase();
-      const pass = (password || '').trim();
-      // Try username first (case-insensitive)
-      let users = await base44.entities.InvestorUser.filter({ username: input });
-      if (!users.length) {
-        users = await base44.entities.InvestorUser.filter({ email: input });
-      }
-      // Also try original casing if lowercase didn't match
-      if (!users.length) {
-        users = await base44.entities.InvestorUser.filter({ username: usernameOrEmail.trim() });
-      }
-      const user = users.find(u => (u.password || '').trim() === pass);
-      return user || null;
-    } catch (e) {
-      console.error('[InvestorUser.findByCredentials]', e);
-      return null;
-    }
+      const input=(usernameOrEmail||'').trim().toLowerCase(), pass=(password||'').trim();
+      let users=await base44.entities.InvestorUser.filter({username:input});
+      if(!users.length) users=await base44.entities.InvestorUser.filter({email:input});
+      if(!users.length) users=await base44.entities.InvestorUser.filter({username:usernameOrEmail.trim()});
+      return users.find(u=>(u.password||'').trim()===pass)||null;
+    } catch{ return null; }
   },
-
-  async create(userData) {
-    try {
-      return await base44.entities.InvestorUser.create({
-        ...userData,
-        username: (userData.username || '').trim(),
-        email: (userData.email || '').trim().toLowerCase(),
-        password: (userData.password || '').trim(),
-        createdAt: new Date().toISOString(),
-      });
-    } catch (e) {
-      console.error('[InvestorUser.create]', e);
-      throw e;
-    }
-  },
-
-  async update(id, updates) {
-    try {
-      return await base44.entities.InvestorUser.update(id, updates);
-    } catch (e) {
-      console.error('[InvestorUser.update]', e);
-      throw e;
-    }
-  },
-
-  async delete(id) {
-    try {
-      return await base44.entities.InvestorUser.delete(id);
-    } catch (e) {
-      console.error('[InvestorUser.delete]', e);
-      throw e;
-    }
-  },
-
+  async create(d) { try { return await base44.entities.InvestorUser.create({...d,username:(d.username||'').trim(),email:(d.email||'').trim().toLowerCase(),password:(d.password||'').trim(),createdAt:new Date().toISOString()}); } catch(e){ throw e; } },
+  async update(id,u) { try { return await base44.entities.InvestorUser.update(id,u); } catch(e){ throw e; } },
+  async delete(id) { try { return await base44.entities.InvestorUser.delete(id); } catch(e){ throw e; } },
   async ensureAdminExists() {
     try {
-      const admins = await base44.entities.InvestorUser.filter({ role: 'admin' });
-      if (!admins.length) {
-        await base44.entities.InvestorUser.create({
-          username: 'admin',
-          email: 'admin@rosieai.com',
-          password: 'password',
-          name: 'Admin',
-          role: 'admin',
-          company: 'Rosie AI LLC',
-          createdAt: new Date().toISOString(),
-        });
-      } else {
-        // Patch admin if password is missing (legacy records)
-        const admin = admins[0];
-        if (!admin.password) {
-          await base44.entities.InvestorUser.update(admin.id, { password: 'password' });
-        }
-      }
-    } catch (e) {
-      console.error('[InvestorUser.ensureAdminExists]', e);
-    }
+      const a=await base44.entities.InvestorUser.filter({role:'admin'});
+      if(!a.length) await base44.entities.InvestorUser.create({username:'admin',email:'admin@rosieai.com',password:'password',name:'Admin',role:'admin',company:'Rosie AI LLC',createdAt:new Date().toISOString()});
+      else if(!a[0].password) await base44.entities.InvestorUser.update(a[0].id,{password:'password'});
+    } catch{}
   },
 };
-
-// ─── AnalyticsSession ─────────────────────────────────────────────────────
-// Fields: userEmail, username, userName, startTime, endTime,
-//         durationSeconds, pages (JSON), downloads (JSON), docViews (JSON)
 
 export const AnalyticsSession = {
-  async create(sessionData) {
-    try {
-      return await base44.entities.AnalyticsSession.create(sessionData);
-    } catch (e) {
-      console.error('[AnalyticsSession.create]', e);
-      return null;
-    }
-  },
-
-  async update(id, updates) {
-    try {
-      return await base44.entities.AnalyticsSession.update(id, updates);
-    } catch (e) {
-      console.error('[AnalyticsSession.update]', e);
-      return null;
-    }
-  },
-
-  async listAll() {
-    try {
-      return await base44.entities.AnalyticsSession.list({
-        sort: [{ field: 'startTime', direction: 'desc' }],
-      });
-    } catch (e) {
-      console.error('[AnalyticsSession.listAll]', e);
-      return [];
-    }
-  },
-
-  async listForUser(userEmail) {
-    try {
-      const results = await base44.entities.AnalyticsSession.filter({ userEmail });
-      return results.sort((a, b) => new Date(b.startTime) - new Date(a.startTime));
-    } catch (e) {
-      console.error('[AnalyticsSession.listForUser]', e);
-      return [];
-    }
-  },
-
-  async listForUsername(username) {
-    try {
-      const results = await base44.entities.AnalyticsSession.filter({ username });
-      return results.sort((a, b) => new Date(b.startTime) - new Date(a.startTime));
-    } catch (e) {
-      console.error('[AnalyticsSession.listForUsername]', e);
-      return [];
-    }
-  },
+  async create(d) { try { return await base44.entities.AnalyticsSession.create(d); } catch{ return null; } },
+  async update(id,u) { try { return await base44.entities.AnalyticsSession.update(id,u); } catch{ return null; } },
+  async listAll() { try { return await base44.entities.AnalyticsSession.list({sort:[{field:'startTime',direction:'desc'}]}); } catch{ return []; } },
+  async listForUser(e) { try { const r=await base44.entities.AnalyticsSession.filter({userEmail:e}); return r.sort((a,b)=>new Date(b.startTime)-new Date(a.startTime)); } catch{ return []; } },
+  async listForUsername(u) { try { const r=await base44.entities.AnalyticsSession.filter({username:u}); return r.sort((a,b)=>new Date(b.startTime)-new Date(a.startTime)); } catch{ return []; } },
 };
 
-// ─── PortalSettings ───────────────────────────────────────────────────────
-// Single-row config: key = "global"
-
-const SETTINGS_KEY = 'global';
-
+const SETTINGS_KEY='global';
 export const PortalSettingsDB = {
-  async get() {
-    try {
-      const results = await base44.entities.PortalSettings.filter({ key: SETTINGS_KEY });
-      if (!results.length) return null;
-      // Always use the most recently updated record (handles duplicate rows)
-      return results.sort((a, b) => new Date(b.updated_date) - new Date(a.updated_date))[0];
-    } catch (e) {
-      console.error('[PortalSettings.get]', e);
-      return null;
-    }
-  },
-
-  async save(settings) {
-    try {
-      const existing = await PortalSettingsDB.get();
-      if (existing?.id) {
-        return await base44.entities.PortalSettings.update(existing.id, settings);
-      } else {
-        return await base44.entities.PortalSettings.create({
-          key: SETTINGS_KEY,
-          ...settings,
-        });
-      }
-    } catch (e) {
-      console.error('[PortalSettings.save]', e);
-      throw e;
-    }
-  },
+  async get() { try { const r=await base44.entities.PortalSettings.filter({key:SETTINGS_KEY}); if(!r.length)return null; return r.sort((a,b)=>new Date(b.updated_date)-new Date(a.updated_date))[0]; } catch{ return null; } },
+  async save(s) { try { const e=await PortalSettingsDB.get(); if(e?.id)return await base44.entities.PortalSettings.update(e.id,s); return await base44.entities.PortalSettings.create({key:SETTINGS_KEY,...s}); } catch(e){ throw e; } },
 };
-
-// ─── InvestorUpdate ───────────────────────────────────────────────────────
-// Fields: title, content, category, author, publishedAt
 
 export const InvestorUpdateDB = {
-  async list() {
-    try {
-      const results = await base44.entities.InvestorUpdate.list();
-      return results.sort((a, b) => new Date(b.publishedAt) - new Date(a.publishedAt));
-    } catch (e) {
-      console.error('[InvestorUpdate.list]', e);
-      return [];
-    }
-  },
-
-  async create(updateData) {
-    try {
-      return await base44.entities.InvestorUpdate.create({
-        ...updateData,
-        publishedAt: new Date().toISOString(),
-      });
-    } catch (e) {
-      console.error('[InvestorUpdate.create]', e);
-      throw e;
-    }
-  },
-
-  async delete(id) {
-    try {
-      return await base44.entities.InvestorUpdate.delete(id);
-    } catch (e) {
-      console.error('[InvestorUpdate.delete]', e);
-      throw e;
-    }
-  },
+  async list() { try { const r=await base44.entities.InvestorUpdate.list(); return r.sort((a,b)=>new Date(b.publishedAt)-new Date(a.publishedAt)); } catch{ return []; } },
+  async create(d) { try { return await base44.entities.InvestorUpdate.create({...d,publishedAt:new Date().toISOString()}); } catch(e){ throw e; } },
+  async delete(id) { try { return await base44.entities.InvestorUpdate.delete(id); } catch(e){ throw e; } },
 };
-
-// ─── SignNowRequest ───────────────────────────────────────────────────────
 
 export const SignNowRequestDB = {
-  async create(data) {
-    try {
-      return await base44.entities.SignNowRequest.create({
-        ...data,
-        sentAt: new Date().toISOString(),
-        status: data.status || 'pending',
-      });
-    } catch (e) {
-      console.error('[SignNowRequest.create]', e);
-      throw e;
-    }
-  },
-
-  async list() {
-    try {
-      return await base44.entities.SignNowRequest.list();
-    } catch (e) {
-      console.error('[SignNowRequest.list]', e);
-      return [];
-    }
-  },
-
-  async listForEmail(email) {
-    try {
-      const results = await base44.entities.SignNowRequest.filter({ userEmail: email });
-      return results.sort((a, b) => new Date(b.sentAt) - new Date(a.sentAt));
-    } catch (e) {
-      console.error('[SignNowRequest.listForEmail]', e);
-      return [];
-    }
-  },
-
-  async listAll() {
-    try {
-      const results = await base44.entities.SignNowRequest.list();
-      return results.sort((a, b) => new Date(b.sentAt) - new Date(a.sentAt));
-    } catch (e) {
-      console.error('[SignNowRequest.listAll]', e);
-      return [];
-    }
-  },
-
-  async updateStatus(id, status) {
-    try {
-      return await base44.entities.SignNowRequest.update(id, { status });
-    } catch (e) {
-      console.error('[SignNowRequest.updateStatus]', e);
-      throw e;
-    }
-  },
+  async create(d) { try { return await base44.entities.SignNowRequest.create({...d,sentAt:new Date().toISOString(),status:d.status||'pending'}); } catch(e){ throw e; } },
+  async list() { try { return await base44.entities.SignNowRequest.list(); } catch{ return []; } },
+  async listForEmail(e) { try { const r=await base44.entities.SignNowRequest.filter({userEmail:e}); return r.sort((a,b)=>new Date(b.sentAt)-new Date(a.sentAt)); } catch{ return []; } },
+  async listAll() { try { const r=await base44.entities.SignNowRequest.list(); return r.sort((a,b)=>new Date(b.sentAt)-new Date(a.sentAt)); } catch{ return []; } },
+  async updateStatus(id,s) { try { return await base44.entities.SignNowRequest.update(id,{status:s}); } catch(e){ throw e; } },
 };
 
-// ─── DocusignRequest ──────────────────────────────────────────────────────
-// Fields: firstName, lastName, email, mailingAddress,
-//         amountToInvest, investmentType, fundingType,
-//         submittedAt, status, submittedByUsername
+// ─── ContactNote ───────────────────────────────────────────────────────────
+export const ContactNoteDB = {
+  async create(d) { try { return await base44.entities.ContactNote.create({...d,createdAt:new Date().toISOString()}); } catch(e){ throw e; } },
+  async listForInvestor(investorId) { try { const r=await base44.entities.ContactNote.filter({investorId}); return r.sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt)); } catch{ return []; } },
+  async delete(id) { try { return await base44.entities.ContactNote.delete(id); } catch(e){ throw e; } },
+};
 
-export const DocusignRequestDB = {
-  async create(formData) {
-    try {
-      return await base44.entities.DocusignRequest.create({
-        ...formData,
-        submittedAt: new Date().toISOString(),
-        status: 'pending',
-      });
-    } catch (e) {
-      console.error('[DocusignRequest.create]', e);
-      throw e;
-    }
-  },
+// ─── Appointment ───────────────────────────────────────────────────────────
+export const AppointmentDB = {
+  async create(d) { try { return await base44.entities.Appointment.create({...d,createdAt:new Date().toISOString()}); } catch(e){ throw e; } },
+  async listAll() { try { const r=await base44.entities.Appointment.list(); return r.sort((a,b)=>new Date(a.scheduledAt)-new Date(b.scheduledAt)); } catch{ return []; } },
+  async listForInvestor(investorId) { try { const r=await base44.entities.Appointment.filter({investorId}); return r.sort((a,b)=>new Date(a.scheduledAt)-new Date(b.scheduledAt)); } catch{ return []; } },
+  async update(id,u) { try { return await base44.entities.Appointment.update(id,u); } catch(e){ throw e; } },
+  async delete(id) { try { return await base44.entities.Appointment.delete(id); } catch(e){ throw e; } },
+};
 
-  async list() {
-    try {
-      const results = await base44.entities.DocusignRequest.list();
-      return results.sort((a, b) => new Date(b.submittedAt) - new Date(a.submittedAt));
-    } catch (e) {
-      console.error('[DocusignRequest.list]', e);
-      return [];
-    }
-  },
-
-  async updateStatus(id, status) {
-    try {
-      return await base44.entities.DocusignRequest.update(id, { status });
-    } catch (e) {
-      console.error('[DocusignRequest.updateStatus]', e);
-      throw e;
-    }
-  },
+// ─── AccreditationDocument ─────────────────────────────────────────────────
+export const AccreditationDocDB = {
+  async create(d) { try { return await base44.entities.AccreditationDocument.create({...d,uploadedAt:new Date().toISOString(),status:'pending'}); } catch(e){ throw e; } },
+  async listForInvestor(investorId) { try { const r=await base44.entities.AccreditationDocument.filter({investorId}); return r.sort((a,b)=>new Date(b.uploadedAt)-new Date(a.uploadedAt)); } catch{ return []; } },
+  async listAll() { try { const r=await base44.entities.AccreditationDocument.list(); return r.sort((a,b)=>new Date(b.uploadedAt)-new Date(a.uploadedAt)); } catch{ return []; } },
+  async updateStatus(id,status,adminNotes) { try { return await base44.entities.AccreditationDocument.update(id,{status,adminNotes}); } catch(e){ throw e; } },
+  async delete(id) { try { return await base44.entities.AccreditationDocument.delete(id); } catch(e){ throw e; } },
 };
