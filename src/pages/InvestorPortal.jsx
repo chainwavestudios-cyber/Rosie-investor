@@ -648,16 +648,7 @@ function PortalHome({ setActiveTab, portalUser, onRequestDocuments }) {
           <InvestorCalculator />
         </div>
         <div style={{ display:'flex', flexDirection:'column', gap:'10px' }}>
-          {navCards.map(({ tab,icon,title,desc }) => (
-            <button key={tab} onClick={()=>setActiveTab(tab)} style={{ background:'rgba(255,255,255,0.03)', border:'1px solid rgba(255,255,255,0.08)', borderRadius:'2px', padding:'16px 18px', textAlign:'left', cursor:'pointer', color:'inherit', display:'flex', gap:'14px', alignItems:'flex-start', transition:'all 0.15s' }}
-              onMouseEnter={e=>{ e.currentTarget.style.borderColor='rgba(184,147,58,0.35)'; e.currentTarget.style.background='rgba(184,147,58,0.07)'; }}
-              onMouseLeave={e=>{ e.currentTarget.style.borderColor='rgba(255,255,255,0.08)'; e.currentTarget.style.background='rgba(255,255,255,0.03)'; }}>
-              <span style={{ fontSize:'20px', lineHeight:1, marginTop:'2px', flexShrink:0 }}>{icon}</span>
-              <div><div style={{ color:GOLD, fontSize:'13px', fontWeight:'bold', marginBottom:'3px', fontFamily:'Georgia, serif' }}>{title}</div><div style={{ color:'#5a6a7e', fontSize:'11px', lineHeight:1.5 }}>{desc}</div></div>
-              <span style={{ marginLeft:'auto', color:'#3a4a5e', fontSize:'14px', flexShrink:0 }}>→</span>
-            </button>
-          ))}
-          <div style={{ background:'rgba(184,147,58,0.06)', border:'1px solid rgba(184,147,58,0.18)', borderRadius:'2px', padding:'18px', marginTop:'4px' }}>
+          <div style={{ background:'rgba(184,147,58,0.06)', border:'1px solid rgba(184,147,58,0.18)', borderRadius:'2px', padding:'18px' }}>
             <div style={{ color:GOLD, fontSize:'10px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'12px' }}>Investor Relations</div>
             <div style={{ color:'#c4cdd8', fontSize:'13px', fontWeight:'bold', marginBottom:'6px' }}>{s.companyName}</div>
             <div style={{ color:'#6b7280', fontSize:'12px', lineHeight:2 }}>
