@@ -1,0 +1,44 @@
+{
+  "name": "ContactNote",
+  "type": "object",
+  "properties": {
+    "investorId": {
+      "type": "string",
+      "title": "Investor ID"
+    },
+    "investorEmail": {
+      "type": "string",
+      "title": "Investor Email"
+    },
+    "type": {
+      "type": "string",
+      "title": "Type",
+      "enum": [
+        "note",
+        "call",
+        "sms",
+        "voicemail",
+        "email"
+      ]
+    },
+    "content": {
+      "type": "string",
+      "title": "Content",
+      "format": "textarea"
+    },
+    "createdAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Created At"
+    },
+    "createdBy": {
+      "type": "string",
+      "title": "Created By"
+    }
+  },
+  "required": [
+    "investorId",
+    "content",
+    "type"
+  ]
+}

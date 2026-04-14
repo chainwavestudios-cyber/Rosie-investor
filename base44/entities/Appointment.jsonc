@@ -1,0 +1,68 @@
+{
+  "name": "Appointment",
+  "type": "object",
+  "properties": {
+    "investorId": {
+      "type": "string",
+      "title": "Investor ID"
+    },
+    "investorEmail": {
+      "type": "string",
+      "title": "Investor Email"
+    },
+    "investorName": {
+      "type": "string",
+      "title": "Investor Name"
+    },
+    "title": {
+      "type": "string",
+      "title": "Title"
+    },
+    "type": {
+      "type": "string",
+      "title": "Type",
+      "enum": [
+        "call",
+        "meeting",
+        "follow-up",
+        "demo",
+        "other"
+      ]
+    },
+    "scheduledAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Scheduled At"
+    },
+    "durationMinutes": {
+      "type": "number",
+      "title": "Duration (minutes)",
+      "default": 30
+    },
+    "notes": {
+      "type": "string",
+      "title": "Notes",
+      "format": "textarea"
+    },
+    "status": {
+      "type": "string",
+      "title": "Status",
+      "enum": [
+        "scheduled",
+        "completed",
+        "cancelled",
+        "no-show"
+      ],
+      "default": "scheduled"
+    },
+    "createdBy": {
+      "type": "string",
+      "title": "Created By"
+    }
+  },
+  "required": [
+    "investorId",
+    "title",
+    "scheduledAt"
+  ]
+}

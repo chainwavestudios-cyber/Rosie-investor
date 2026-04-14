@@ -1,0 +1,71 @@
+{
+  "name": "AccreditationDocument",
+  "type": "object",
+  "properties": {
+    "investorId": {
+      "type": "string",
+      "title": "Investor ID"
+    },
+    "investorEmail": {
+      "type": "string",
+      "title": "Investor Email"
+    },
+    "investorName": {
+      "type": "string",
+      "title": "Investor Name"
+    },
+    "fileName": {
+      "type": "string",
+      "title": "File Name"
+    },
+    "docType": {
+      "type": "string",
+      "title": "Document Type",
+      "enum": [
+        "tax_return",
+        "bank_statement",
+        "cpa_letter",
+        "other"
+      ]
+    },
+    "fileData": {
+      "type": "string",
+      "title": "File Data (Base64)",
+      "format": "textarea"
+    },
+    "fileSize": {
+      "type": "number",
+      "title": "File Size (bytes)"
+    },
+    "mimeType": {
+      "type": "string",
+      "title": "MIME Type"
+    },
+    "uploadedAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Uploaded At"
+    },
+    "status": {
+      "type": "string",
+      "title": "Status",
+      "enum": [
+        "pending",
+        "under_review",
+        "approved",
+        "rejected"
+      ],
+      "default": "pending"
+    },
+    "adminNotes": {
+      "type": "string",
+      "title": "Admin Notes",
+      "format": "textarea"
+    }
+  },
+  "required": [
+    "investorId",
+    "fileName",
+    "docType"
+  ]
+}
