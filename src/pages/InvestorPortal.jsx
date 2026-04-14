@@ -548,27 +548,6 @@ function SubscriptionAgreements({ onRequestDocuments }) {
   );
 }
 
-// ─── Market Data ──────────────────────────────────────────────────────────
-function MarketData() {
-  const [activeView, setActiveView] = useState('ma');
-  const maDeals = [{ acquirer:'Salesforce',target:'Slack',year:'2021',value:'$27.7B',sector:'SaaS/Collaboration',multiple:'26x ARR' },{ acquirer:'Microsoft',target:'Nuance',year:'2021',value:'$19.7B',sector:'AI Voice/NLP',multiple:'10x ARR' },{ acquirer:'Adobe',target:'Figma',year:'2022',value:'$20B',sector:'SaaS/Design',multiple:'50x ARR' },{ acquirer:'ServiceNow',target:'Intellibot',year:'2021',value:'$1.35B',sector:'AI Automation',multiple:'12x ARR' },{ acquirer:'Zoom',target:'Kites',year:'2021',value:'Undisclosed',sector:'AI Voice',multiple:'N/A' },{ acquirer:'Twilio',target:'Segment',year:'2020',value:'$3.2B',sector:'Data/SaaS',multiple:'12x ARR' }];
-  const comparables = [{ company:'Gong.io',type:'Revenue Intelligence AI',arr:'$300M+',valuation:'$7.25B',multiple:'24x',stage:'Late Stage' },{ company:'Chorus.ai',type:'Conversation Intelligence',arr:'$50M',valuation:'$575M',multiple:'11.5x',stage:'Acquired by ZoomInfo' },{ company:'Outreach.io',type:'Sales Engagement AI',arr:'$220M',valuation:'$4.4B',multiple:'20x',stage:'Late Stage' },{ company:'Salesloft',type:'Revenue Workflow AI',arr:'$200M+',valuation:'$2.3B',multiple:'11.5x',stage:'Late Stage' },{ company:'Rosie AI',type:'AI Voice Agent Platform',arr:'$380K',valuation:'$15M (Cap)',multiple:'39x (Cap)',stage:'🔵 Current Round' }];
-  return (
-    <div id="portal-tab-content">
-      <h2 style={h2s}>Market Data</h2>
-      <p style={bodyText}>Comprehensive market analysis covering SaaS M&A activity, comparable company valuations, and AI voice segment growth data.</p>
-      <div style={{ display:'flex', gap:'8px', marginBottom:'28px' }}>
-        {[['ma','M&A Transactions'],['comp','Comparable Companies'],['trends','Market Trends']].map(([id,label]) => (
-          <button key={id} onClick={()=>setActiveView(id)} style={{ padding:'8px 20px', background:activeView===id?GOLD:'rgba(255,255,255,0.05)', color:activeView===id?DARK:'#8a9ab8', border:'none', borderRadius:'2px', cursor:'pointer', fontSize:'12px', letterSpacing:'1px', fontWeight:activeView===id?'bold':'normal' }}>{label}</button>
-        ))}
-      </div>
-      {activeView==='ma' && (<div style={{ overflowX:'auto' }}><table style={{ width:'100%', borderCollapse:'collapse', fontSize:'13px' }}><thead><tr style={{ borderBottom:'2px solid rgba(184,147,58,0.3)' }}>{['Acquirer','Target','Year','Value','Sector','Multiple'].map(h=><th key={h} style={{ color:GOLD, padding:'10px 12px', textAlign:'left', fontSize:'10px', letterSpacing:'1.5px', textTransform:'uppercase' }}>{h}</th>)}</tr></thead><tbody>{maDeals.map((d,i)=><tr key={i} style={{ borderBottom:'1px solid rgba(255,255,255,0.05)' }}><td style={{ color:'#e8e0d0', padding:'12px' }}>{d.acquirer}</td><td style={{ color:'#c4cdd8', padding:'12px' }}>{d.target}</td><td style={{ color:'#6b7280', padding:'12px' }}>{d.year}</td><td style={{ color:GOLD, padding:'12px', fontWeight:'bold' }}>{d.value}</td><td style={{ color:'#8a9ab8', padding:'12px' }}>{d.sector}</td><td style={{ color:'#4ade80', padding:'12px' }}>{d.multiple}</td></tr>)}</tbody></table></div>)}
-      {activeView==='comp' && (<div style={{ overflowX:'auto' }}><table style={{ width:'100%', borderCollapse:'collapse', fontSize:'13px' }}><thead><tr style={{ borderBottom:'2px solid rgba(184,147,58,0.3)' }}>{['Company','Category','ARR','Valuation','Multiple','Stage'].map(h=><th key={h} style={{ color:GOLD, padding:'10px 12px', textAlign:'left', fontSize:'10px', letterSpacing:'1.5px', textTransform:'uppercase' }}>{h}</th>)}</tr></thead><tbody>{comparables.map((c,i)=><tr key={i} style={{ borderBottom:'1px solid rgba(255,255,255,0.05)', background:c.company==='Rosie AI'?'rgba(184,147,58,0.1)':'transparent' }}><td style={{ color:c.company==='Rosie AI'?GOLD:'#e8e0d0', padding:'12px', fontWeight:c.company==='Rosie AI'?'bold':'normal' }}>{c.company}</td><td style={{ color:'#8a9ab8', padding:'12px' }}>{c.type}</td><td style={{ color:'#c4cdd8', padding:'12px' }}>{c.arr}</td><td style={{ color:'#e8e0d0', padding:'12px' }}>{c.valuation}</td><td style={{ color:'#4ade80', padding:'12px' }}>{c.multiple}</td><td style={{ color:'#6b7280', padding:'12px' }}>{c.stage}</td></tr>)}</tbody></table></div>)}
-      {activeView==='trends' && (<div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'20px' }}>{[{ title:'AI Voice Market', stat:'$40B by 2032', desc:'Growing at 38.46% CAGR driven by enterprise automation demand' },{ title:'SaaS M&A Multiples', stat:'10–50x ARR', desc:'Premium multiples for AI-native platforms vs. traditional SaaS' },{ title:'Sales Automation Adoption', stat:'68% of enterprise', desc:'Use AI tools in their SDR workflow as of 2024' },{ title:'Average Cost Reduction', stat:'15x cheaper', desc:'AI voice vs. human SDR in equivalent qualified pipeline generation' }].map(({ title, stat, desc })=>(<div key={title} style={{ background:'rgba(255,255,255,0.03)', border:'1px solid rgba(255,255,255,0.08)', padding:'20px', borderRadius:'2px' }}><div style={{ color:GOLD, fontSize:'12px', letterSpacing:'1px', marginBottom:'8px', textTransform:'uppercase' }}>{title}</div><div style={{ color:'#e8e0d0', fontSize:'22px', fontWeight:'bold', marginBottom:'8px' }}>{stat}</div><div style={{ color:'#6b7280', fontSize:'13px', lineHeight:1.5 }}>{desc}</div></div>))}</div>)}
-    </div>
-  );
-}
-
 // ─── Investor Updates ─────────────────────────────────────────────────────
 function InvestorUpdates({ isAdmin }) {
   const [updates, setUpdates]  = useState([]);
@@ -654,7 +633,6 @@ function PortalHome({ setActiveTab, portalUser, onRequestDocuments }) {
     { tab:'account', icon:'👤', title:'My Account', desc:'View your investment summary, documents, accreditation, and contact info.' },
     { tab:'offering', icon:'📊', title:'Investment Offering', desc:'Full memorandum, financials, team & terms. Download PDF.' },
     { tab:'subscription', icon:'✍️', title:'Subscription Agreements', desc:'Review and execute investment documents via SignNow.' },
-    { tab:'market', icon:'📈', title:'Market Data', desc:'M&A comps, SaaS multiples & AI voice trends.' },
     { tab:'updates', icon:'📬', title:'Investor Updates', desc:'Chronological management updates & milestones.' },
   ];
   return (
@@ -704,7 +682,6 @@ const TABS = [
   { id:'account',      label:'Account' },
   { id:'offering',     label:'Investment Offering' },
   { id:'subscription', label:'Subscription Agreements' },
-  { id:'market',       label:'Market Data' },
   { id:'updates',      label:'Investor Updates' },
 ];
 
@@ -765,7 +742,6 @@ export default function InvestorPortal() {
         {activeTab === 'account'      && <AccountTab portalUser={portalUser} />}
         {activeTab === 'offering'     && <InvestmentOffering />}
         {activeTab === 'subscription' && <SubscriptionAgreements onRequestDocuments={()=>setShowRequestDocs(true)} />}
-        {activeTab === 'market'       && <MarketData />}
         {activeTab === 'updates'      && <InvestorUpdates isAdmin={isAdmin} />}
       </div>
     </div>
