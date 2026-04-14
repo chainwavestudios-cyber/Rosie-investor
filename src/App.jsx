@@ -45,8 +45,8 @@ const AuthenticatedApp = () => {
       <Route path="/portal-login" element={<PortalLogin />} />
       <Route path="/portal" element={<InvestorPortal />} />
       <Route path="/admin" element={<AdminDashboard />} />
-      <Route path="/market" element={<MarketData />} />
       <Route path="/admin-login" element={<AdminLogin />} />
+      <Route path="/market-data" element={<MarketData />} />
       <Route path="*" element={<PageNotFound />} />
     </Routes>
   );
