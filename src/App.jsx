@@ -11,7 +11,6 @@ import PortalLogin from './pages/PortalLogin';
 import InvestorPortal from './pages/InvestorPortal';
 import AdminDashboard from './pages/AdminDashboard';
 import AdminLogin from './pages/AdminLogin';
-import MarketData from './pages/MarketData';
 import { PortalAuthProvider } from '@/lib/PortalAuthContext';
 
 const AuthenticatedApp = () => {
@@ -46,8 +45,6 @@ const AuthenticatedApp = () => {
       <Route path="/portal" element={<InvestorPortal />} />
       <Route path="/admin" element={<AdminDashboard />} />
       <Route path="/admin-login" element={<AdminLogin />} />
-      <Route path="/market" element={<MarketData />} />
-      <Route path="/market-data" element={<MarketData />} />
       <Route path="*" element={<PageNotFound />} />
     </Routes>
   );
