@@ -37,6 +37,9 @@ Deno.serve(async (req) => {
         From: TWILIO_FROM_NUMBER,
         Url: 'https://handler.twilio.com/twiml/EH3e342efae704e27b4c9bc7c98529a044',
         Record: 'false',
+        // Answering Machine Detection
+        MachineDetection: 'Enable',
+        MachineDetectionTimeout: '5',
       });
 
       const twimlAppSid = Deno.env.get('TWILIO_TWIML_APP_SID');
@@ -67,14 +70,16 @@ Deno.serve(async (req) => {
       return Response.json({ status: data.status });
     }
 
-    // Get call status
+    // Get call status (includes AMD result in answered_by field)
     if (action === 'getCallStatus') {
       const { callSid } = body;
       const res = await fetch(`${twilioBase}/Calls/${callSid}.json`, {
         headers: { Authorization: twilioAuth },
       });
       const data = await res.json();
-      return Response.json({ status: data.status, duration: data.duration });
+      // answered_by: 'human' | 'machine_start' | 'machine_end_beep' | 'machine_end_silence' | 'machine_end_other' | 'fax' | 'unknown'
+      const isVoicemail = data.answered_by && data.answered_by.startsWith('machine');
+      return Response.json({ status: data.status, duration: data.duration, answeredBy: data.answered_by, isVoicemail });
     }
 
     return Response.json({ error: 'Unknown action' }, { status: 400 });
