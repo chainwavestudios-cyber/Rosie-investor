@@ -8,11 +8,10 @@ const DARK = '#0a0f1e';
 
 const STATUS_FILTERS = [
   { id: 'all', label: 'All Leads' },
-  { id: 'lead', label: '🔵 Lead' },
   { id: 'interested', label: '⭐ Interested' },
   { id: 'not_available', label: '📵 Not Available' },
   { id: 'callback_later', label: '📅 Call Back Later' },
-  { id: 'prospect', label: '🔵 Prospect' },
+  { id: 'prospect', label: '🚀 Prospect' },
 ];
 
 const STATUS_COLORS = {
@@ -71,19 +70,28 @@ function CSVUploadModal({ onClose, onImported }) {
   const handleImport = async () => {
     setImporting(true);
     let count = 0;
-    for (const row of rows) {
-      const lead = {
+    const BATCH = 50;
+    const validRows = rows.filter(row => row[mapping.firstName] || row[mapping.lastName]);
+    for (let i = 0; i < validRows.length; i += BATCH) {
+      const batch = validRows.slice(i, i + BATCH).map(row => ({
         firstName: row[mapping.firstName] || '',
         lastName: row[mapping.lastName] || '',
         email: row[mapping.email] || '',
         phone: row[mapping.phone] || '',
         state: row[mapping.state] || '',
         status: 'lead',
-      };
-      if (!lead.firstName && !lead.lastName) continue;
-      try { await base44.entities.Lead.create(lead); count++; } catch {}
+      }));
+      try {
+        await base44.entities.Lead.bulkCreate(batch);
+        count += batch.length;
+        setImportCount(count);
+      } catch {
+        // fallback: try one by one for this batch
+        for (const lead of batch) {
+          try { await base44.entities.Lead.create(lead); count++; setImportCount(count); } catch {}
+        }
+      }
     }
-    setImportCount(count);
     setImporting(false);
     setStep('done');
     onImported && onImported();
@@ -174,9 +182,12 @@ export default function LeadsTab() {
   const loadLeads = async () => {
     setLoading(true);
     try {
-      const all = await base44.entities.Lead.list('-created_date', 500);
-      // Exclude permanently not_interested
-      setLeads(all.filter(l => l.status !== 'not_interested'));
+      const all = await base44.entities.Lead.list('-created_date', 2000);
+      // Exclude permanently not_interested, sort: never-called first (by created_date), then called leads sorted by lastCalledAt asc (oldest call = first to call again)
+      const active = all.filter(l => l.status !== 'not_interested');
+      const neverCalled = active.filter(l => !l.lastCalledAt).sort((a,b) => new Date(a.created_date) - new Date(b.created_date));
+      const called = active.filter(l => l.lastCalledAt).sort((a,b) => new Date(a.lastCalledAt) - new Date(b.lastCalledAt));
+      setLeads([...neverCalled, ...called]);
     } catch(e) { console.error(e); }
     setLoading(false);
   };
@@ -184,7 +195,14 @@ export default function LeadsTab() {
   const handleDialNumber = (lead) => {
     setDialerLead(lead);
     setShowDialer(true);
-    if (selectedLead) setSelectedLead(null);
+    setSelectedLead(lead); // open contact card at the same time
+  };
+
+  // Called after a call ends — stamp lastCalledAt and re-sort
+  const handleCallLogged = async (leadId) => {
+    const now = new Date().toISOString();
+    try { await base44.entities.Lead.update(leadId, { lastCalledAt: now }); } catch {}
+    await loadLeads();
   };
 
   const filteredLeads = leads.filter(l => {
@@ -200,6 +218,7 @@ export default function LeadsTab() {
   STATUS_FILTERS.forEach(f => {
     counts[f.id] = f.id === 'all' ? leads.length : leads.filter(l => l.status === f.id).length;
   });
+  const uncalledCount = leads.filter(l => !l.lastCalledAt).length;
 
   const inp = { background:'rgba(255,255,255,0.05)', border:'1px solid rgba(255,255,255,0.12)', borderRadius:'2px', padding:'8px 14px', color:'#e8e0d0', fontSize:'13px', outline:'none', fontFamily:'Georgia, serif' };
 
@@ -218,7 +237,7 @@ export default function LeadsTab() {
         <TwilioDialer
           initialLead={dialerLead}
           onClose={() => { setShowDialer(false); setDialerLead(null); }}
-          onCallLogged={loadLeads}
+          onCallLogged={handleCallLogged}
         />
       )}
 
@@ -226,7 +245,7 @@ export default function LeadsTab() {
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:'24px', flexWrap:'wrap', gap:'12px' }}>
         <div>
           <h2 style={{ color:'#e8e0d0', margin:'0 0 4px', fontSize:'20px', fontWeight:'normal' }}>Leads</h2>
-          <p style={{ color:'#6b7280', fontSize:'13px', margin:0 }}>Import and manage leads. Click a name to open the contact card. Click a phone number to dial.</p>
+          <p style={{ color:'#6b7280', fontSize:'13px', margin:0 }}>Never-called leads appear first. After a call, leads move to the back. Click a phone number to dial &amp; open the contact card.</p>
         </div>
         <div style={{ display:'flex', gap:'10px', flexWrap:'wrap' }}>
           <button onClick={() => setShowDialer(true)} style={{ background:'rgba(74,222,128,0.12)', color:'#4ade80', border:'1px solid rgba(74,222,128,0.3)', borderRadius:'2px', padding:'9px 18px', cursor:'pointer', fontSize:'12px' }}>📞 Open Dialer</button>
@@ -262,7 +281,7 @@ export default function LeadsTab() {
           <table style={{ width:'100%', borderCollapse:'collapse', fontSize:'13px' }}>
             <thead>
               <tr style={{ borderBottom:'2px solid rgba(184,147,58,0.3)' }}>
-                {['Status','Name','Email','Phone','State','Callback',''].map(h => (
+                {['Status','Name','Email','Phone','State','Last Called','Callback',''].map(h => (
                   <th key={h} style={{ color:GOLD, padding:'10px 12px', textAlign:'left', fontSize:'10px', letterSpacing:'1.5px', textTransform:'uppercase', whiteSpace:'nowrap' }}>{h}</th>
                 ))}
               </tr>
@@ -293,6 +312,9 @@ export default function LeadsTab() {
                       ) : '—'}
                     </td>
                     <td style={{ padding:'12px', color:'#8a9ab8', fontSize:'12px' }}>{lead.state || '—'}</td>
+                    <td style={{ padding:'12px', color:'#f59e0b', fontSize:'11px' }}>
+                      {lead.lastCalledAt ? new Date(lead.lastCalledAt).toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}) : <span style={{ color:'#4a5568' }}>Never</span>}
+                    </td>
                     <td style={{ padding:'12px', color:'#a78bfa', fontSize:'11px' }}>
                       {lead.callbackAt ? new Date(lead.callbackAt).toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}) : '—'}
                     </td>

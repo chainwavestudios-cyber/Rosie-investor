@@ -41,6 +41,11 @@
       "format": "date-time",
       "title": "Call Back At"
     },
+    "lastCalledAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Last Called At"
+    },
     "notes": {
       "type": "string",
       "title": "Notes",
