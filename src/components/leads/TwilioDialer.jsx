@@ -13,9 +13,19 @@ export default function TwilioDialer({ initialLead, onClose, onCallLogged }) {
   const [muted, setMuted] = useState(false);
   const [keypadInput, setKeypadInput] = useState('');
   const [error, setError] = useState('');
+  const [microphones, setMicrophones] = useState([]);
+  const [selectedMic, setSelectedMic] = useState('');
   const timerRef = useRef(null);
   const startTimeRef = useRef(null);
   const pollRef = useRef(null);
+
+  useEffect(() => {
+    navigator.mediaDevices?.enumerateDevices().then(devices => {
+      const mics = devices.filter(d => d.kind === 'audioinput');
+      setMicrophones(mics);
+      if (mics.length > 0) setSelectedMic(mics[0].deviceId);
+    }).catch(() => {});
+  }, []);
 
   const displayNumber = lead?.phone || manualNumber;
 
@@ -123,6 +133,19 @@ export default function TwilioDialer({ initialLead, onClose, onCallLogged }) {
           </div>
         ) : (
           <input value={manualNumber} onChange={e=>setManualNumber(e.target.value)} placeholder="Enter number…" style={{ width:'100%', background:'rgba(255,255,255,0.05)', border:'1px solid rgba(255,255,255,0.15)', borderRadius:'4px', padding:'10px', color:'#e8e0d0', fontSize:'18px', textAlign:'center', outline:'none', boxSizing:'border-box', marginBottom:'12px', letterSpacing:'3px' }} />
+        )}
+
+        {/* Microphone selector */}
+        {microphones.length > 1 && callStatus === 'idle' && (
+          <div style={{ marginBottom:'12px' }}>
+            <label style={{ display:'block', color:'#6b7280', fontSize:'10px', letterSpacing:'1.5px', textTransform:'uppercase', marginBottom:'5px' }}>🎙 Microphone</label>
+            <select value={selectedMic} onChange={e => setSelectedMic(e.target.value)}
+              style={{ width:'100%', background:'rgba(255,255,255,0.05)', border:'1px solid rgba(255,255,255,0.12)', borderRadius:'4px', padding:'7px 10px', color:'#e8e0d0', fontSize:'12px', outline:'none', cursor:'pointer', boxSizing:'border-box' }}>
+              {microphones.map(mic => (
+                <option key={mic.deviceId} value={mic.deviceId}>{mic.label || `Microphone ${microphones.indexOf(mic) + 1}`}</option>
+              ))}
+            </select>
+          </div>
         )}
 
         {/* Status */}
