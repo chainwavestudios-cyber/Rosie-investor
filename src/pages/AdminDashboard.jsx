@@ -846,24 +846,28 @@ export default function AdminDashboard() {
 
   return (
     <div style={{ minHeight:'100vh', background:'#060c18', fontFamily:'Georgia, serif', color:'#e8e0d0' }}>
-      <nav style={{ background:DARK, borderBottom:'1px solid rgba(184,147,58,0.2)', padding:'0 40px', display:'flex', alignItems:'center', justifyContent:'space-between', height:'64px', position:'sticky', top:0, zIndex:200 }}>
-        <div style={{ display:'flex', alignItems:'center', gap:'20px' }}>
-          <img src={LOGO} alt="Rosie AI" style={{ height:'38px', width:'auto' }} />
-          <div style={{ width:'1px', height:'24px', background:'rgba(184,147,58,0.3)' }} />
-          <span style={{ color:GOLD, fontSize:'10px', letterSpacing:'4px', textTransform:'uppercase' }}>Admin Dashboard</span>
-          {/* ── Dropdown Navigation ── */}
-          <div style={{ display:'flex', alignItems:'center', gap:'8px', marginLeft:'16px' }}>
-            <label style={{ color:'#4a5568', fontSize:'10px', letterSpacing:'2px', textTransform:'uppercase' }}>View</label>
-            <select value={view} onChange={e => handleViewChange(e.target.value)}
-              style={{ background:'rgba(255,255,255,0.06)', border:'1px solid rgba(184,147,58,0.3)', borderRadius:'2px', color:GOLD, padding:'6px 32px 6px 12px', fontSize:'12px', cursor:'pointer', fontFamily:'Georgia, serif', outline:'none', appearance:'none', WebkitAppearance:'none', backgroundImage:`url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23b8933a'/%3E%3C/svg%3E")`, backgroundRepeat:'no-repeat', backgroundPosition:'right 10px center' }}>
-              {VIEWS.map(v => <option key={v.id} value={v.id}>{v.label}</option>)}
-            </select>
+      <nav style={{ background:DARK, borderBottom:'1px solid rgba(184,147,58,0.2)', position:'sticky', top:0, zIndex:200 }}>
+        {/* Top bar */}
+        <div style={{ padding:'0 40px', display:'flex', alignItems:'center', justifyContent:'space-between', height:'56px' }}>
+          <div style={{ display:'flex', alignItems:'center', gap:'16px' }}>
+            <img src={LOGO} alt="Rosie AI" style={{ height:'34px', width:'auto' }} />
+            <div style={{ width:'1px', height:'20px', background:'rgba(184,147,58,0.3)' }} />
+            <span style={{ color:GOLD, fontSize:'10px', letterSpacing:'4px', textTransform:'uppercase' }}>Admin Dashboard</span>
+          </div>
+          <div style={{ display:'flex', gap:'10px', alignItems:'center' }}>
+            <button onClick={load} style={{ background:'rgba(255,255,255,0.05)', color:'#8a9ab8', border:'1px solid rgba(255,255,255,0.1)', borderRadius:'2px', padding:'6px 14px', cursor:'pointer', fontSize:'11px' }}>↻ Refresh</button>
+            <button onClick={() => navigate('/portal')} style={{ background:'rgba(255,255,255,0.05)', color:'#8a9ab8', border:'1px solid rgba(255,255,255,0.1)', borderRadius:'2px', padding:'6px 14px', cursor:'pointer', fontSize:'11px' }}>← Portal</button>
+            <button onClick={() => { portalLogout(); navigate('/'); }} style={{ background:'transparent', color:'#6b7280', border:'1px solid rgba(255,255,255,0.1)', borderRadius:'2px', padding:'6px 14px', cursor:'pointer', fontSize:'11px' }}>Logout</button>
           </div>
         </div>
-        <div style={{ display:'flex', gap:'10px', alignItems:'center' }}>
-          <button onClick={load} style={{ background:'rgba(255,255,255,0.05)', color:'#8a9ab8', border:'1px solid rgba(255,255,255,0.1)', borderRadius:'2px', padding:'6px 16px', cursor:'pointer', fontSize:'11px' }}>↻ Refresh</button>
-          <button onClick={() => navigate('/portal')} style={{ background:'rgba(255,255,255,0.05)', color:'#8a9ab8', border:'1px solid rgba(255,255,255,0.1)', borderRadius:'2px', padding:'6px 16px', cursor:'pointer', fontSize:'11px' }}>← Portal</button>
-          <button onClick={() => { portalLogout(); navigate('/'); }} style={{ background:'transparent', color:'#6b7280', border:'1px solid rgba(255,255,255,0.1)', borderRadius:'2px', padding:'6px 16px', cursor:'pointer', fontSize:'11px' }}>Logout</button>
+        {/* Tab Navigation */}
+        <div style={{ display:'flex', overflowX:'auto', borderTop:'1px solid rgba(255,255,255,0.05)', scrollbarWidth:'none' }}>
+          {VIEWS.map(v => (
+            <button key={v.id} onClick={() => handleViewChange(v.id)}
+              style={{ background:'none', border:'none', borderBottom:view===v.id?`2px solid ${GOLD}`:'2px solid transparent', color:view===v.id?GOLD:'#6b7280', padding:'10px 18px', cursor:'pointer', fontSize:'11px', letterSpacing:'1px', whiteSpace:'nowrap', flexShrink:0, transition:'color 0.15s' }}>
+              {v.label}
+            </button>
+          ))}
         </div>
       </nav>
 
