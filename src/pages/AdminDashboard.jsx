@@ -8,6 +8,8 @@ import { signnowSendDocuments, signnowGetToken } from '@/lib/signnow';
 import LeadsTab from '@/components/leads/LeadsTab';
 import TwilioDialer from '@/components/leads/TwilioDialer';
 import PortalAccessTab from '@/components/admin/PortalAccessTab';
+import ProspectPipeline from '@/components/admin/ProspectPipeline';
+import UpcomingReminders from '@/components/admin/UpcomingReminders';
 import { base44 } from '@/api/base44Client';
 
 const LOGO = 'https://media.base44.com/images/public/69cd2741578c9b5ce655395b/39a31f9b9_Untitleddesign3.png';
@@ -871,26 +873,35 @@ export default function AdminDashboard() {
         </div>
       </nav>
 
-      <div style={{ maxWidth:'1400px', margin:'0 auto', padding:'40px' }}>
-        {/* KPIs */}
-        <div style={{ display:'grid', gridTemplateColumns:'repeat(5,1fr)', gap:'14px', marginBottom:'32px' }}>
-          {[
-            { label:'Total Clients',  value:nonAdminUsers.length,                                                  icon:'👥', color:GOLD    },
-            { label:'Investors',      value:nonAdminUsers.filter(u=>u.status==='investor').length,                  icon:'✅', color:'#4ade80' },
-            { label:'Potential Investors', value:nonAdminUsers.filter(u=>(u.status||'prospect')==='prospect').length, icon:'🔷', color:'#a78bfa' },
-            { label:'Total Sessions', value:globalStats.totalSessions,                                              icon:'🔐', color:'#f59e0b' },
-            { label:'Time Spent',     value:analytics.formatDuration(globalStats.totalTime),                        icon:'⏱',  color:'#a78bfa' },
-          ].map(({label,value,icon,color}) => (
-            <div key={label} style={{ background:'rgba(255,255,255,0.03)', border:'1px solid rgba(255,255,255,0.08)', borderRadius:'2px', padding:'18px' }}>
-              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
-                <div>
-                  <div style={{ color:'#6b7280', fontSize:'10px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'8px' }}>{label}</div>
-                  <div style={{ color, fontSize:'26px', fontWeight:'bold' }}>{value}</div>
+      <div style={{ maxWidth:'1600px', margin:'0 auto', padding:'24px 32px' }}>
+        {/* Top row: reminders sidebar + KPIs */}
+        <div style={{ display:'flex', gap:'16px', marginBottom:'24px', alignItems:'flex-start' }}>
+          {/* Reminders sidebar */}
+          <UpcomingReminders
+            onOpenLeadCard={(lead) => { /* open lead contact card via LeadsTab — pass through */ }}
+            onOpenUserCard={(investorId) => { const u = users.find(u => u.id === investorId); if (u) setContactCard(u); }}
+            onOpenDialer={(lead) => { setDialerLead(lead); setShowDialer(true); }}
+          />
+          {/* KPIs */}
+          <div style={{ flex:1, display:'grid', gridTemplateColumns:'repeat(5,1fr)', gap:'10px' }}>
+            {[
+              { label:'Total Clients',  value:nonAdminUsers.length,                                                  icon:'👥', color:GOLD    },
+              { label:'Investors',      value:nonAdminUsers.filter(u=>u.status==='investor').length,                  icon:'✅', color:'#4ade80' },
+              { label:'Potential Investors', value:nonAdminUsers.filter(u=>(u.status||'prospect')==='prospect').length, icon:'🔷', color:'#a78bfa' },
+              { label:'Total Sessions', value:globalStats.totalSessions,                                              icon:'🔐', color:'#f59e0b' },
+              { label:'Time Spent',     value:analytics.formatDuration(globalStats.totalTime),                        icon:'⏱',  color:'#a78bfa' },
+            ].map(({label,value,icon,color}) => (
+              <div key={label} style={{ background:'rgba(255,255,255,0.03)', border:'1px solid rgba(255,255,255,0.08)', borderRadius:'2px', padding:'12px 14px' }}>
+                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                  <div>
+                    <div style={{ color:'#6b7280', fontSize:'9px', letterSpacing:'1.5px', textTransform:'uppercase', marginBottom:'5px' }}>{label}</div>
+                    <div style={{ color, fontSize:'20px', fontWeight:'bold' }}>{value}</div>
+                  </div>
+                  <span style={{ fontSize:'18px' }}>{icon}</span>
                 </div>
-                <span style={{ fontSize:'22px' }}>{icon}</span>
               </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
 
         {showAdd && <AddUserForm onAdd={load} onClose={() => setShowAdd(false)} />}
@@ -914,10 +925,9 @@ export default function AdminDashboard() {
         {/* ── CRM ── */}
         {view === 'users' && (
           <div>
-            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'24px', flexWrap:'wrap', gap:'12px' }}>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'20px', flexWrap:'wrap', gap:'12px' }}>
               <div>
                 <h2 style={{ color:'#e8e0d0', margin:'0 0 4px', fontSize:'20px', fontWeight:'normal' }}>CRM — Client Management</h2>
-                <p style={{ color:'#6b7280', fontSize:'13px', margin:0 }}>Click any row to open the full contact card.</p>
               </div>
               <div style={{ display:'flex', gap:'8px', alignItems:'center', flexWrap:'wrap' }}>
                 <div style={{ display:'flex', gap:'4px' }}>
@@ -928,62 +938,73 @@ export default function AdminDashboard() {
                     </button>
                   ))}
                 </div>
-                <button onClick={() => handleViewChange('calendar')}
-                  style={{ padding:'7px 14px', background:view==='calendar'?'rgba(96,165,250,0.2)':'rgba(255,255,255,0.05)', border:`1px solid ${view==='calendar'?'#60a5fa':'rgba(255,255,255,0.12)'}`, borderRadius:'2px', color:view==='calendar'?'#60a5fa':'#6b7280', cursor:'pointer', fontSize:'11px' }}>
-                  📅 Calendar
-                </button>
-                <button onClick={() => setShowAdd(true)} style={{ background:'linear-gradient(135deg,#b8933a,#d4aa50)', color:DARK, border:'none', borderRadius:'2px', padding:'10px 20px', cursor:'pointer', fontSize:'12px', letterSpacing:'2px', textTransform:'uppercase', fontWeight:'700' }}>+ Add Client</button>
+                {filterStatus !== 'prospect' && (
+                  <button onClick={() => setShowAdd(true)} style={{ background:'linear-gradient(135deg,#b8933a,#d4aa50)', color:DARK, border:'none', borderRadius:'2px', padding:'8px 18px', cursor:'pointer', fontSize:'11px', letterSpacing:'2px', textTransform:'uppercase', fontWeight:'700' }}>+ Add Client</button>
+                )}
               </div>
             </div>
-            <div style={{ overflowX:'auto' }}>
-              <table style={{ width:'100%', borderCollapse:'collapse', fontSize:'13px' }}>
-                <thead>
-                  <tr style={{ borderBottom:'2px solid rgba(184,147,58,0.3)' }}>
-                    {['Status','Name','Contact','Sessions','Last Active',''].map(h => (
-                      <th key={h} style={{ color:GOLD, padding:'10px 12px', textAlign:'left', fontSize:'10px', letterSpacing:'1.5px', textTransform:'uppercase', whiteSpace:'nowrap' }}>{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredUsers.map(user => {
-                    const us  = allSessions.filter(s => matchesUser(s, user));
-                    const st  = analytics.computeUserStats(us);
-                    const status = user.status || 'prospect';
-                    return (
-                      <tr key={user.username||user.email}
-                        onClick={() => setContactCard(user)}
-                        style={{ borderBottom:'1px solid rgba(255,255,255,0.05)', cursor:'pointer', transition:'background 0.1s' }}
-                        onMouseEnter={e => e.currentTarget.style.background = 'rgba(184,147,58,0.05)'}
-                        onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                        <td style={{ padding:'14px 12px' }}><StatusBadge status={status} /></td>
-                        <td style={{ padding:'14px 12px' }}>
-                          <div style={{ color:'#e8e0d0', fontWeight:'bold' }}>{user.name}</div>
-                          <div style={{ color:'#4a5568', fontSize:'11px', fontFamily:'monospace' }}>@{user.username}</div>
-                        </td>
-                        <td style={{ padding:'14px 12px' }}>
-                          <div style={{ color:'#8a9ab8', fontSize:'12px' }}>{user.email||'—'}</div>
-                          {user.phone ? (
-                            <button onClick={e => { e.stopPropagation(); setDialerLead({ firstName: user.name, lastName: '', phone: user.phone, id: user.id }); setShowDialer(true); }}
-                              style={{ background:'rgba(74,222,128,0.08)', color:'#4ade80', border:'1px solid rgba(74,222,128,0.2)', borderRadius:'2px', padding:'2px 8px', cursor:'pointer', fontSize:'11px', fontFamily:'monospace', marginTop:'2px' }}>
-                              📞 {user.phone}
-                            </button>
-                          ) : <div style={{ color:'#6b7280', fontSize:'12px' }}>—</div>}
-                        </td>
-                        <td style={{ padding:'14px 12px', color:'#60a5fa', fontWeight:'bold' }}>{st.sessionCount}</td>
-                        <td style={{ padding:'14px 12px', color:'#6b7280', fontSize:'12px' }}>{analytics.formatDate(st.lastSeen)}</td>
-                        <td style={{ padding:'14px 12px' }}>
-                          <div style={{ display:'flex', gap:'6px' }}>
-                            <button onClick={e => { e.stopPropagation(); setContactCard(user); }} style={{ background:'rgba(184,147,58,0.15)', color:GOLD, border:'1px solid rgba(184,147,58,0.3)', borderRadius:'2px', padding:'5px 12px', cursor:'pointer', fontSize:'11px' }}>Open Card →</button>
-                            {user.role !== 'admin' && <button onClick={e => { e.stopPropagation(); if(window.confirm(`Remove ${user.name}?`)){ removeUser(user.email||user.username); load(); } }} style={{ background:'rgba(239,68,68,0.08)', color:'#ef4444', border:'1px solid rgba(239,68,68,0.2)', borderRadius:'2px', padding:'5px 10px', cursor:'pointer', fontSize:'11px' }}>✕</button>}
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-              {filteredUsers.length === 0 && <p style={{ color:'#4a5568', textAlign:'center', padding:'40px' }}>No clients found.</p>}
-            </div>
+
+            {/* Pipeline for Potential Investors */}
+            {filterStatus === 'prospect' ? (
+              <ProspectPipeline
+                users={nonAdminUsers.filter(u => (u.status||'prospect') === 'prospect')}
+                onOpenCard={(user) => setContactCard(user)}
+                onOpenDialer={(user) => { setDialerLead({ firstName: user.name, lastName: '', phone: user.phone, id: user.id }); setShowDialer(true); }}
+                onAddExisting={() => setShowAdd(true)}
+                onRefresh={load}
+              />
+            ) : (
+              /* Normal table for All / Investors */
+              <div style={{ overflowX:'auto' }}>
+                <table style={{ width:'100%', borderCollapse:'collapse', fontSize:'13px' }}>
+                  <thead>
+                    <tr style={{ borderBottom:'2px solid rgba(184,147,58,0.3)' }}>
+                      {['Status','Name','Contact','Sessions','Last Active',''].map(h => (
+                        <th key={h} style={{ color:GOLD, padding:'10px 12px', textAlign:'left', fontSize:'10px', letterSpacing:'1.5px', textTransform:'uppercase', whiteSpace:'nowrap' }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredUsers.map(user => {
+                      const us  = allSessions.filter(s => matchesUser(s, user));
+                      const st  = analytics.computeUserStats(us);
+                      const status = user.status || 'prospect';
+                      return (
+                        <tr key={user.username||user.email}
+                          onClick={() => setContactCard(user)}
+                          style={{ borderBottom:'1px solid rgba(255,255,255,0.05)', cursor:'pointer', transition:'background 0.1s' }}
+                          onMouseEnter={e => e.currentTarget.style.background = 'rgba(184,147,58,0.05)'}
+                          onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                          <td style={{ padding:'14px 12px' }}><StatusBadge status={status} /></td>
+                          <td style={{ padding:'14px 12px' }}>
+                            <div style={{ color:'#e8e0d0', fontWeight:'bold' }}>{user.name}</div>
+                            <div style={{ color:'#4a5568', fontSize:'11px', fontFamily:'monospace' }}>@{user.username}</div>
+                          </td>
+                          <td style={{ padding:'14px 12px' }}>
+                            <div style={{ color:'#8a9ab8', fontSize:'12px' }}>{user.email||'—'}</div>
+                            {user.phone ? (
+                              <button onClick={e => { e.stopPropagation(); setDialerLead({ firstName: user.name, lastName: '', phone: user.phone, id: user.id }); setShowDialer(true); }}
+                                style={{ background:'rgba(74,222,128,0.08)', color:'#4ade80', border:'1px solid rgba(74,222,128,0.2)', borderRadius:'2px', padding:'2px 8px', cursor:'pointer', fontSize:'11px', fontFamily:'monospace', marginTop:'2px' }}>
+                                📞 {user.phone}
+                              </button>
+                            ) : <div style={{ color:'#6b7280', fontSize:'12px' }}>—</div>}
+                          </td>
+                          <td style={{ padding:'14px 12px', color:'#60a5fa', fontWeight:'bold' }}>{st.sessionCount}</td>
+                          <td style={{ padding:'14px 12px', color:'#6b7280', fontSize:'12px' }}>{analytics.formatDate(st.lastSeen)}</td>
+                          <td style={{ padding:'14px 12px' }}>
+                            <div style={{ display:'flex', gap:'6px' }}>
+                              <button onClick={e => { e.stopPropagation(); setContactCard(user); }} style={{ background:'rgba(184,147,58,0.15)', color:GOLD, border:'1px solid rgba(184,147,58,0.3)', borderRadius:'2px', padding:'5px 12px', cursor:'pointer', fontSize:'11px' }}>Open Card →</button>
+                              {user.role !== 'admin' && <button onClick={e => { e.stopPropagation(); if(window.confirm(`Remove ${user.name}?`)){ removeUser(user.email||user.username); load(); } }} style={{ background:'rgba(239,68,68,0.08)', color:'#ef4444', border:'1px solid rgba(239,68,68,0.2)', borderRadius:'2px', padding:'5px 10px', cursor:'pointer', fontSize:'11px' }}>✕</button>}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+                {filteredUsers.length === 0 && <p style={{ color:'#4a5568', textAlign:'center', padding:'40px' }}>No clients found.</p>}
+              </div>
+            )}
           </div>
         )}
 
