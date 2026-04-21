@@ -3,7 +3,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 const PortalAuthContext = createContext();
 const SESSION_KEY = 'rosie_portal_auth';
 
-// Hardcoded admin — always works, zero DB dependency
+// Hardcoded admin base profile
 const ADMIN_USER = {
   username: 'admin',
   name: 'Admin',
@@ -11,7 +11,21 @@ const ADMIN_USER = {
   role: 'admin',
   company: 'Rosie AI LLC',
 };
-const ADMIN_PASSWORD = 'password';
+const ADMIN_PASSWORD_DEFAULT = 'password';
+const ADMIN_CREDS_KEY = 'rosie_admin_creds';
+
+// Load admin creds from localStorage (persists across reloads)
+const getAdminCreds = () => {
+  try {
+    const saved = localStorage.getItem(ADMIN_CREDS_KEY);
+    if (saved) return JSON.parse(saved);
+  } catch {}
+  return { username: 'admin', password: ADMIN_PASSWORD_DEFAULT };
+};
+
+const saveAdminCreds = (creds) => {
+  localStorage.setItem(ADMIN_CREDS_KEY, JSON.stringify(creds));
+};
 
 export const PortalAuthProvider = ({ children }) => {
   const [portalUser, setPortalUser]   = useState(null);
@@ -31,8 +45,9 @@ export const PortalAuthProvider = ({ children }) => {
   const portalLogin = async (usernameOrEmail, password) => {
     const u = (usernameOrEmail || '').toLowerCase().trim();
 
-    // Admin check — hardcoded, never hits DB
-    if ((u === 'admin' || u === 'admin@rosieai.com') && password === ADMIN_PASSWORD) {
+    // Admin check — credentials stored in localStorage
+    const adminCreds = getAdminCreds();
+    if ((u === adminCreds.username || u === 'admin@rosieai.com') && password === adminCreds.password) {
       setPortalUser(ADMIN_USER);
       sessionStorage.setItem(SESSION_KEY, JSON.stringify(ADMIN_USER));
       // Fire analytics in background — don't let it block login
@@ -122,19 +137,25 @@ export const PortalAuthProvider = ({ children }) => {
     }
   };
 
-  const changeAdminPassword = async (currentPassword, newPassword) => {
-    if (currentPassword !== ADMIN_PASSWORD) {
+  const changeAdminPassword = (currentPassword, newPassword) => {
+    const creds = getAdminCreds();
+    if (currentPassword !== creds.password) {
       return { success: false, error: 'Current password is incorrect' };
     }
-    // Note: hardcoded admin password can only be changed by updating this file
-    // For full persistence, store in Base44 PortalSettings
-    return { success: true, note: 'Password change requires code update for hardcoded admin' };
+    saveAdminCreds({ ...creds, password: newPassword });
+    return { success: true };
   };
 
-  const changeAdminUsername = async (currentPassword, newUsername) => {
-    if (currentPassword !== ADMIN_PASSWORD) {
+  const changeAdminUsername = (currentPassword, newUsername) => {
+    const creds = getAdminCreds();
+    if (currentPassword !== creds.password) {
       return { success: false, error: 'Current password is incorrect' };
     }
+    saveAdminCreds({ ...creds, username: newUsername });
+    // Update session to reflect new username
+    const updatedUser = { ...ADMIN_USER, username: newUsername };
+    setPortalUser(updatedUser);
+    sessionStorage.setItem(SESSION_KEY, JSON.stringify(updatedUser));
     return { success: true };
   };
 
