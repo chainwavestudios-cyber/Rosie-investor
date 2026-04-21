@@ -1,0 +1,27 @@
+{
+  "name": "ContactList",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "title": "List Name"
+    },
+    "description": {
+      "type": "string",
+      "title": "Description"
+    },
+    "leadCount": {
+      "type": "number",
+      "title": "Lead Count",
+      "default": 0
+    },
+    "importedAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Imported At"
+    }
+  },
+  "required": [
+    "name"
+  ]
+}

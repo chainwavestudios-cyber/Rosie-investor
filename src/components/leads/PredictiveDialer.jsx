@@ -28,6 +28,11 @@ const STATUS_LABEL = {
 };
 
 export default function PredictiveDialer({ onClose, onCallLogged }) {
+  const [contactLists, setContactLists] = useState([]);
+  const [selectedListId, setSelectedListId] = useState('');
+  const [lineCount, setLineCount] = useState(3);
+  const [started, setStarted] = useState(false);
+
   const [leads, setLeads] = useState([]);
   const [queue, setQueue] = useState([]);
   const [queueIndex, setQueueIndex] = useState(0);
@@ -49,7 +54,7 @@ export default function PredictiveDialer({ onClose, onCallLogged }) {
   runningRef.current = running;
 
   useEffect(() => {
-    loadLeads();
+    loadContactLists();
     navigator.mediaDevices?.enumerateDevices().then(devices => {
       const mics = devices.filter(d => d.kind === 'audioinput');
       setMicrophones(mics);
@@ -61,10 +66,20 @@ export default function PredictiveDialer({ onClose, onCallLogged }) {
     };
   }, []);
 
-  const loadLeads = async () => {
+  const loadContactLists = async () => {
+    try {
+      const lists = await base44.entities.ContactList.list('-created_date', 100);
+      setContactLists(lists);
+      if (lists.length > 0) setSelectedListId(lists[0].id);
+    } catch (e) {
+      addLog('error', 'Failed to load contact lists: ' + e.message);
+    }
+  };
+
+  const loadLeads = async (listId) => {
     setLoadingLeads(true);
     try {
-      const all = await base44.entities.Lead.list('-created_date', 2000);
+      const all = await base44.entities.Lead.filter({ contactListId: listId });
       const dialable = all.filter(l => l.phone && l.status !== 'not_interested' && l.status !== 'converted');
       const neverCalled = dialable.filter(l => !l.lastCalledAt).sort((a, b) => new Date(a.created_date) - new Date(b.created_date));
       const called = dialable.filter(l => l.lastCalledAt).sort((a, b) => new Date(a.lastCalledAt) - new Date(b.lastCalledAt));
@@ -76,6 +91,12 @@ export default function PredictiveDialer({ onClose, onCallLogged }) {
       addLog('error', 'Failed to load leads: ' + e.message);
     }
     setLoadingLeads(false);
+  };
+
+  const handleStart = async () => {
+    if (!selectedListId) return;
+    await loadLeads(selectedListId);
+    setStarted(true);
   };
 
   const addLog = (type, msg) => {
@@ -196,8 +217,8 @@ export default function PredictiveDialer({ onClose, onCallLogged }) {
     setRunning(true);
     runningRef.current = true;
     const remaining = queueRef.current.length - queueIndexRef.current;
-    addLog('system', `Starting predictive dialer — ${remaining} leads in queue`);
-    for (let i = 0; i < NUM_LINES; i++) {
+    addLog('system', `Starting predictive dialer — ${remaining} leads in queue (${lineCount} lines)`);
+    for (let i = 0; i < lineCount; i++) {
       setTimeout(() => dialLine(i), i * 800);
     }
   };
@@ -225,6 +246,45 @@ export default function PredictiveDialer({ onClose, onCallLogged }) {
 
   const remaining = Math.max(0, queue.length - queueIndex);
 
+  // Setup screen
+  if (!started) {
+    return (
+      <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.92)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000, fontFamily: 'Georgia, serif', padding: '20px' }}>
+        <div style={{ background: '#0d1b2a', border: `1px solid rgba(184,147,58,0.4)`, borderRadius: '8px', width: '100%', maxWidth: '500px', boxShadow: '0 40px 120px rgba(0,0,0,0.9)' }}>
+          <div style={{ padding: '28px' }}>
+            <h2 style={{ color: GOLD, margin: '0 0 24px', fontSize: '16px', letterSpacing: '3px', textTransform: 'uppercase' }}>Predictive Dialer Setup</h2>
+
+            <div style={{ marginBottom: '20px' }}>
+              <label style={{ display: 'block', color: '#8a9ab8', fontSize: '11px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '8px' }}>Select Contact List</label>
+              <select value={selectedListId} onChange={e => setSelectedListId(e.target.value)} style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '2px', padding: '10px', color: '#e8e0d0', fontSize: '13px', outline: 'none', cursor: 'pointer', boxSizing: 'border-box' }}>
+                <option value="">— Choose a list —</option>
+                {contactLists.map(list => (
+                  <option key={list.id} value={list.id}>{list.name} ({list.leadCount} leads)</option>
+                ))}
+              </select>
+              {contactLists.length === 0 && <div style={{ color: '#f59e0b', fontSize: '12px', marginTop: '8px' }}>📊 No contact lists yet. Import CSV from the Leads tab.</div>}
+            </div>
+
+            <div style={{ marginBottom: '20px' }}>
+              <label style={{ display: 'block', color: '#8a9ab8', fontSize: '11px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '8px' }}>Number of Lines</label>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                {[2, 3].map(n => (
+                  <button key={n} onClick={() => setLineCount(n)} style={{ flex: 1, padding: '10px', borderRadius: '4px', border: `2px solid ${lineCount === n ? GOLD : 'rgba(255,255,255,0.12)'}`, background: lineCount === n ? `rgba(184,147,58,0.15)` : 'transparent', color: lineCount === n ? GOLD : '#6b7280', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}>{n} Lines</button>
+                ))}
+              </div>
+              <div style={{ color: '#4a5568', fontSize: '11px', marginTop: '8px' }}>💡 Use 2 lines if another computer is using direct dial. Use 3 for max efficiency.</div>
+            </div>
+
+            <div style={{ display: 'flex', gap: '12px' }}>
+              <button onClick={handleStart} disabled={!selectedListId || loadingLeads} style={{ flex: 1, background: !selectedListId ? 'rgba(184,147,58,0.2)' : 'linear-gradient(135deg,#b8933a,#d4aa50)', color: DARK, border: 'none', borderRadius: '4px', padding: '12px', cursor: !selectedListId ? 'not-allowed' : 'pointer', fontWeight: 'bold', fontSize: '12px', letterSpacing: '2px', textTransform: 'uppercase' }}>{loadingLeads ? 'Loading…' : 'Launch Dialer'}</button>
+              <button onClick={onClose} style={{ padding: '12px 20px', background: 'transparent', color: '#6b7280', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.92)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000, fontFamily: 'Georgia, serif', padding: '20px' }}>
       <div style={{ background: '#0d1b2a', border: `1px solid rgba(184,147,58,0.4)`, borderRadius: '8px', width: '100%', maxWidth: '900px', maxHeight: '90vh', display: 'flex', flexDirection: 'column', boxShadow: '0 40px 120px rgba(0,0,0,0.9)' }}>
@@ -234,7 +294,7 @@ export default function PredictiveDialer({ onClose, onCallLogged }) {
           <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
             <div style={{ width: '12px', height: '12px', borderRadius: '50%', background: running ? '#4ade80' : '#4a5568', boxShadow: running ? '0 0 10px #4ade80' : 'none' }} />
             <span style={{ color: GOLD, fontSize: '13px', letterSpacing: '3px', textTransform: 'uppercase' }}>Predictive Dialer</span>
-            <span style={{ background: 'rgba(184,147,58,0.15)', color: GOLD, border: '1px solid rgba(184,147,58,0.3)', borderRadius: '2px', padding: '2px 10px', fontSize: '11px' }}>{NUM_LINES} Lines</span>
+            <span style={{ background: 'rgba(184,147,58,0.15)', color: GOLD, border: '1px solid rgba(184,147,58,0.3)', borderRadius: '2px', padding: '2px 10px', fontSize: '11px' }}>{lineCount} Lines</span>
             <span style={{ background: 'rgba(167,139,250,0.15)', color: '#a78bfa', border: '1px solid rgba(167,139,250,0.3)', borderRadius: '2px', padding: '2px 10px', fontSize: '11px' }}>AMD On</span>
           </div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#6b7280', cursor: 'pointer', fontSize: '22px' }}>×</button>
@@ -259,9 +319,9 @@ export default function PredictiveDialer({ onClose, onCallLogged }) {
               ))}
             </div>
 
-            {/* 3 Lines */}
+            {/* Lines */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              {lines.map((line, i) => {
+              {lines.slice(0, lineCount).map((line, i) => {
                 const col = LINE_COLORS[line.status] || '#4a5568';
                 return (
                   <div key={i} style={{ background: 'rgba(255,255,255,0.03)', border: `1px solid ${line.status === 'connected' ? 'rgba(74,222,128,0.3)' : line.status === 'calling' ? 'rgba(245,158,11,0.3)' : line.status === 'voicemail' ? 'rgba(167,139,250,0.3)' : 'rgba(255,255,255,0.07)'}`, borderLeft: `4px solid ${col}`, borderRadius: '4px', padding: '14px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>

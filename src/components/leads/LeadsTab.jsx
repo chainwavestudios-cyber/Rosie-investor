@@ -27,10 +27,12 @@ function CSVUploadModal({ onClose, onImported }) {
   const [headers, setHeaders] = useState([]);
   const [rows, setRows] = useState([]);
   const [mapping, setMapping] = useState({ firstName:'', lastName:'', email:'', phone:'', state:'' });
-  const [step, setStep] = useState('upload'); // upload | map | preview | done
+  const [step, setStep] = useState('listName'); // listName | upload | map | preview | done
+  const [listName, setListName] = useState('');
   const [importing, setImporting] = useState(false);
   const [importCount, setImportCount] = useState(0);
   const [skippedCount, setSkippedCount] = useState(0);
+  const [deleteOld, setDeleteOld] = useState(false);
   const fileRef = useRef(null);
 
   const parseCSV = (text) => {
@@ -71,13 +73,29 @@ function CSVUploadModal({ onClose, onImported }) {
   };
 
   const handleImport = async () => {
+    if (!listName.trim()) return;
     setImporting(true);
     let count = 0;
     let skipped = 0;
     const BATCH = 50;
 
-    // Fetch existing leads to build dedup sets (by phone and email)
-    const existing = await base44.entities.Lead.list('-created_date', 2000);
+    // Delete old leads if requested
+    if (deleteOld) {
+      const oldLeads = await base44.entities.Lead.list('-created_date', 5000);
+      for (const lead of oldLeads) {
+        try { await base44.entities.Lead.delete(lead.id); } catch {}
+      }
+    }
+
+    // Create the contact list
+    const listRecord = await base44.entities.ContactList.create({
+      name: listName.trim(),
+      importedAt: new Date().toISOString(),
+      leadCount: 0,
+    });
+
+    // Fetch existing leads (from THIS list only) to build dedup sets
+    const existing = await base44.entities.Lead.filter({ contactListId: listRecord.id });
     const existingPhones = new Set(existing.map(l => (l.phone || '').replace(/\D/g,'')).filter(Boolean));
     const existingEmails = new Set(existing.map(l => (l.email || '').toLowerCase().trim()).filter(Boolean));
 
@@ -86,7 +104,6 @@ function CSVUploadModal({ onClose, onImported }) {
       const email = (row[mapping.email] || '').toLowerCase().trim();
       const hasName = row[mapping.firstName] || row[mapping.lastName];
       if (!hasName) return false;
-      // Skip if phone or email already exists
       if (phone && existingPhones.has(phone)) { skipped++; return false; }
       if (email && existingEmails.has(email)) { skipped++; return false; }
       return true;
@@ -100,6 +117,7 @@ function CSVUploadModal({ onClose, onImported }) {
         phone: row[mapping.phone] || '',
         state: row[mapping.state] || '',
         status: 'lead',
+        contactListId: listRecord.id,
       }));
       try {
         await base44.entities.Lead.bulkCreate(batch);
@@ -111,6 +129,10 @@ function CSVUploadModal({ onClose, onImported }) {
         }
       }
     }
+
+    // Update ContactList with final count
+    try { await base44.entities.ContactList.update(listRecord.id, { leadCount: count }); } catch {}
+
     setSkippedCount(skipped);
     setImporting(false);
     setStep('done');
@@ -128,6 +150,19 @@ function CSVUploadModal({ onClose, onImported }) {
           <button onClick={onClose} style={{ background:'none', border:'none', color:'#6b7280', cursor:'pointer', fontSize:'20px' }}>×</button>
         </div>
         <div style={{ padding:'28px' }}>
+          {step === 'listName' && (
+            <div>
+              <div style={{ color:'#8a9ab8', fontSize:'13px', marginBottom:'16px' }}>Give this import list a name.</div>
+              <input value={listName} onChange={e=>setListName(e.target.value)} placeholder="e.g., Q2 2025 Leads, Cold Calls List…" style={{ ...inp, marginBottom:'16px' }} />
+              <div style={{ background:'rgba(245,158,11,0.1)', border:'1px solid rgba(245,158,11,0.3)', borderRadius:'2px', padding:'12px', marginBottom:'16px', color:'#f59e0b', fontSize:'12px' }}>
+                <label style={{ display:'flex', alignItems:'center', gap:'8px', cursor:'pointer' }}>
+                  <input type="checkbox" checked={deleteOld} onChange={e=>setDeleteOld(e.target.checked)} style={{ cursor:'pointer' }} />
+                  Delete all existing leads first (clean slate)
+                </label>
+              </div>
+              <button onClick={() => setStep('upload')} disabled={!listName.trim()} style={{ width:'100%', background:!listName.trim()?'rgba(184,147,58,0.2)':'linear-gradient(135deg,#b8933a,#d4aa50)', color:DARK, border:'none', borderRadius:'2px', padding:'12px', cursor:!listName.trim()?'not-allowed':'pointer', fontWeight:'700', fontSize:'12px', letterSpacing:'2px', textTransform:'uppercase' }}>Continue</button>
+            </div>
+          )}
           {step === 'upload' && (
             <div>
               <div style={{ border:'2px dashed rgba(184,147,58,0.3)', borderRadius:'4px', padding:'48px', textAlign:'center', cursor:'pointer' }} onClick={() => fileRef.current?.click()}>

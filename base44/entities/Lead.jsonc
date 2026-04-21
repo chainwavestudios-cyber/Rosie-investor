@@ -55,6 +55,10 @@
     "convertedToInvestorUserId": {
       "type": "string",
       "title": "Converted Investor User ID"
+    },
+    "contactListId": {
+      "type": "string",
+      "title": "Contact List ID"
     }
   },
   "required": [
