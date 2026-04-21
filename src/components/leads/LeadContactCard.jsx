@@ -102,7 +102,7 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber 
   const fullName = `${lead.firstName} ${lead.lastName}`;
   const isProspect = editLead.status === 'prospect';
 
-  const TABS = [['overview', '👤 Overview'], ['actions', '⚡ Actions'], ['history', '📋 History']];
+  const TABS = [['overview', '👤 Overview'], ['actions', '⚡ Actions'], ['notes', '📝 Notes'], ['history', '📋 History']];
 
   return (
     <>
@@ -227,12 +227,25 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber 
                 <div><div style={{ color:'#ef4444', fontWeight:'bold', fontSize:'14px', marginBottom:'3px' }}>Not Interested</div><div style={{ color:'#6b7280', fontSize:'12px' }}>Permanently remove this lead from the list.</div></div>
               </button>
 
-              {/* Add note */}
-              <div style={{ background:'rgba(255,255,255,0.02)', border:'1px solid rgba(255,255,255,0.08)', borderRadius:'2px', padding:'18px 20px', marginTop:'8px' }}>
-                <div style={{ color:'#8a9ab8', fontSize:'10px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'12px' }}>Add Note</div>
-                <textarea value={noteContent} onChange={e=>setNoteContent(e.target.value)} rows={3} placeholder="Log a note…" style={{ ...inp, resize:'vertical', marginBottom:'10px' }} />
-                <button onClick={addNote} disabled={!noteContent.trim()} style={{ background:'rgba(184,147,58,0.15)', color:GOLD, border:`1px solid rgba(184,147,58,0.3)`, borderRadius:'2px', padding:'8px 20px', cursor:'pointer', fontSize:'12px' }}>Save Note</button>
+            </div>
+          )}
+
+          {/* NOTES */}
+          {tab === 'notes' && (
+            <div>
+              <div style={{ color:GOLD, fontSize:'10px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'16px' }}>Notes</div>
+              <div style={{ background:'rgba(255,255,255,0.02)', border:'1px solid rgba(255,255,255,0.08)', borderRadius:'2px', padding:'16px', marginBottom:'20px' }}>
+                <textarea value={noteContent} onChange={e=>setNoteContent(e.target.value)} rows={3} placeholder="Write a note…" style={{ ...inp, resize:'vertical', marginBottom:'10px' }} />
+                <button onClick={addNote} disabled={!noteContent.trim()} style={{ background:'linear-gradient(135deg,#b8933a,#d4aa50)', color:DARK, border:'none', borderRadius:'2px', padding:'9px 24px', cursor:'pointer', fontWeight:'bold', fontSize:'11px', letterSpacing:'2px', textTransform:'uppercase' }}>Save Note</button>
               </div>
+              {loading && <p style={{ color:'#6b7280', textAlign:'center' }}>Loading…</p>}
+              {!loading && history.filter(h=>h.type==='note').length === 0 && <p style={{ color:'#4a5568', textAlign:'center', padding:'24px' }}>No notes yet.</p>}
+              {history.filter(h=>h.type==='note').map(h => (
+                <div key={h.id} style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', padding:'12px 16px', background:'rgba(255,255,255,0.02)', border:'1px solid rgba(255,255,255,0.07)', borderRadius:'2px', marginBottom:'8px', gap:'16px' }}>
+                  <p style={{ color:'#c4cdd8', fontSize:'13px', margin:0, lineHeight:1.6, whiteSpace:'pre-wrap', flex:1 }}>{h.content}</p>
+                  <span style={{ color:'#4a5568', fontSize:'11px', whiteSpace:'nowrap', flexShrink:0 }}>{h.created_date ? new Date(h.created_date).toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}) : ''}</span>
+                </div>
+              ))}
             </div>
           )}
 
@@ -242,20 +255,13 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber 
               <div style={{ color:GOLD, fontSize:'10px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'16px' }}>Contact History</div>
               {loading && <p style={{ color:'#6b7280', textAlign:'center' }}>Loading…</p>}
               {!loading && history.length === 0 && <p style={{ color:'#4a5568', textAlign:'center', padding:'40px' }}>No history yet. Use the Actions tab to log interactions.</p>}
-              {history.map((h, i) => (
-                <div key={h.id} style={{ display:'flex', gap:'14px', marginBottom:'14px' }}>
-                  <div style={{ display:'flex', flexDirection:'column', alignItems:'center', width:'24px', flexShrink:0 }}>
-                    <div style={{ fontSize:'18px' }}>{HISTORY_ICONS[h.type] || '📝'}</div>
-                    {i < history.length-1 && <div style={{ width:'1px', flex:1, background:'rgba(255,255,255,0.06)', marginTop:'4px' }} />}
-                  </div>
-                  <div style={{ flex:1, background:'rgba(255,255,255,0.02)', border:'1px solid rgba(255,255,255,0.06)', borderRadius:'2px', padding:'12px 16px' }}>
-                    <div style={{ display:'flex', justifyContent:'space-between', marginBottom:'4px' }}>
-                      <span style={{ color:GOLD, fontSize:'10px', textTransform:'uppercase', letterSpacing:'1px' }}>{h.type.replace('_',' ')}</span>
-                      <span style={{ color:'#4a5568', fontSize:'11px' }}>{h.created_date ? new Date(h.created_date).toLocaleString() : ''}</span>
-                    </div>
-                    <p style={{ color:'#c4cdd8', fontSize:'13px', margin:0, lineHeight:1.6, whiteSpace:'pre-wrap' }}>{h.content}</p>
-                    {h.callDurationSeconds > 0 && <div style={{ color:'#8a9ab8', fontSize:'11px', marginTop:'4px' }}>Duration: {Math.floor(h.callDurationSeconds/60)}m {h.callDurationSeconds%60}s</div>}
-                  </div>
+              {history.map(h => (
+                <div key={h.id} style={{ display:'flex', alignItems:'center', gap:'10px', padding:'8px 12px', borderBottom:'1px solid rgba(255,255,255,0.05)', fontSize:'12px' }}>
+                  <span style={{ fontSize:'14px', flexShrink:0 }}>{HISTORY_ICONS[h.type] || '📝'}</span>
+                  <span style={{ color:GOLD, fontSize:'10px', textTransform:'uppercase', letterSpacing:'1px', whiteSpace:'nowrap', flexShrink:0, minWidth:'80px' }}>{h.type.replace('_',' ')}</span>
+                  <span style={{ color:'#c4cdd8', flex:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{h.content}</span>
+                  {h.callDurationSeconds > 0 && <span style={{ color:'#8a9ab8', whiteSpace:'nowrap', flexShrink:0 }}>{Math.floor(h.callDurationSeconds/60)}m {h.callDurationSeconds%60}s</span>}
+                  <span style={{ color:'#4a5568', whiteSpace:'nowrap', flexShrink:0 }}>{h.created_date ? new Date(h.created_date).toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}) : ''}</span>
                 </div>
               ))}
             </div>

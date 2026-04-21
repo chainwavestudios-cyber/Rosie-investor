@@ -13,17 +13,45 @@ export const InvestorUser = {
   async list() { try { return await base44.entities.InvestorUser.list(); } catch(e){ return []; } },
   async findByUsername(u) { try { const r=await base44.entities.InvestorUser.filter({username:u}); return r[0]||null; } catch{ return null; } },
   async findByEmail(e) { try { const r=await base44.entities.InvestorUser.filter({email:e}); return r[0]||null; } catch{ return null; } },
+  async hashPassword(password) {
+    try {
+      const res = await base44.functions.invoke('hashPassword', { action: 'hash', password });
+      return res.data?.hash || password;
+    } catch { return password; }
+  },
+  async verifyPassword(password, storedHash) {
+    try {
+      // Legacy plaintext
+      if (!storedHash?.includes(':')) return storedHash === password;
+      const res = await base44.functions.invoke('hashPassword', { action: 'verify', password, hash: storedHash });
+      return res.data?.valid === true;
+    } catch { return false; }
+  },
   async findByCredentials(usernameOrEmail, password) {
     try {
       const input=(usernameOrEmail||'').trim().toLowerCase(), pass=(password||'').trim();
       let users=await base44.entities.InvestorUser.filter({username:input});
       if(!users.length) users=await base44.entities.InvestorUser.filter({email:input});
       if(!users.length) users=await base44.entities.InvestorUser.filter({username:usernameOrEmail.trim()});
-      return users.find(u=>(u.password||'').trim()===pass)||null;
+      for (const u of users) {
+        const valid = await InvestorUser.verifyPassword(pass, (u.password||'').trim());
+        if (valid) return u;
+      }
+      return null;
     } catch{ return null; }
   },
-  async create(d) { try { return await base44.entities.InvestorUser.create({...d,username:(d.username||'').trim(),email:(d.email||'').trim().toLowerCase(),password:(d.password||'').trim(),createdAt:new Date().toISOString()}); } catch(e){ throw e; } },
-  async update(id,u) { try { return await base44.entities.InvestorUser.update(id,u); } catch(e){ throw e; } },
+  async create(d) {
+    try {
+      const hashed = d.password ? await InvestorUser.hashPassword((d.password||'').trim()) : '';
+      return await base44.entities.InvestorUser.create({...d,username:(d.username||'').trim(),email:(d.email||'').trim().toLowerCase(),password:hashed,createdAt:new Date().toISOString()});
+    } catch(e){ throw e; }
+  },
+  async update(id,u) {
+    try {
+      if (u.password) u = { ...u, password: await InvestorUser.hashPassword(u.password) };
+      return await base44.entities.InvestorUser.update(id,u);
+    } catch(e){ throw e; }
+  },
   async delete(id) { try { return await base44.entities.InvestorUser.delete(id); } catch(e){ throw e; } },
   async ensureAdminExists() {
     try {
