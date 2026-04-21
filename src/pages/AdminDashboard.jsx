@@ -5,6 +5,7 @@ import analytics from '@/lib/analytics';
 import { getPortalSettings, loadPortalSettings, savePortalSettings } from '@/lib/portalSettings';
 import { SignNowRequestDB, InvestorUser, ContactNoteDB, AppointmentDB, AccreditationDocDB } from '@/api/entities';
 import { signnowSendDocuments, signnowGetToken } from '@/lib/signnow';
+import DateTimePicker from '@/components/admin/DateTimePicker';
 import LeadsTab from '@/components/leads/LeadsTab';
 import TwilioDialer from '@/components/leads/TwilioDialer';
 import PortalAccessTab from '@/components/admin/PortalAccessTab';
@@ -461,11 +462,22 @@ function ContactCardModal({ user, onClose, onSave, allSessions, matchesUser }) {
                       {['call','meeting','follow-up','demo','other'].map(t => <option key={t} value={t}>{t.charAt(0).toUpperCase()+t.slice(1)}</option>)}
                     </select>
                   </div>
-                  <F label="Date & Time" value={apptForm.scheduledAt} onChange={e=>setApptForm({...apptForm,scheduledAt:e.target.value})} type="datetime-local" />
-                  <F label="Duration (minutes)" value={apptForm.durationMinutes} onChange={e=>setApptForm({...apptForm,durationMinutes:Number(e.target.value)})} type="number" />
+                </div>
+                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'0 16px' }}>
+                  <DateTimePicker
+                    label="Date & Time"
+                    value={apptForm.scheduledAt}
+                    onChange={iso => setApptForm(f => ({...f, scheduledAt: iso}))}
+                  />
+                  <div style={{ marginBottom:'16px' }}>
+                    <label style={ls}>Duration</label>
+                    <select value={apptForm.durationMinutes} onChange={e=>setApptForm({...apptForm,durationMinutes:Number(e.target.value)})} style={{ ...inp, cursor:'pointer' }}>
+                      {[15,30,45,60,90,120].map(d=><option key={d} value={d}>{d} min</option>)}
+                    </select>
+                  </div>
                 </div>
                 <TA label="Notes" value={apptForm.notes} onChange={e=>setApptForm({...apptForm,notes:e.target.value})} rows={2} placeholder="Agenda, talking points…" />
-                <button onClick={addAppt} disabled={!apptForm.title||!apptForm.scheduledAt} style={{ background:'linear-gradient(135deg,#b8933a,#d4aa50)', color:DARK, border:'none', borderRadius:'2px', padding:'9px 24px', cursor:'pointer', fontWeight:'bold', fontSize:'11px', letterSpacing:'2px', textTransform:'uppercase' }}>Book Appointment</button>
+                <button onClick={addAppt} disabled={!apptForm.title||!apptForm.scheduledAt} style={{ background: (!apptForm.title||!apptForm.scheduledAt) ? 'rgba(184,147,58,0.3)' : 'linear-gradient(135deg,#b8933a,#d4aa50)', color:DARK, border:'none', borderRadius:'2px', padding:'9px 24px', cursor: (!apptForm.title||!apptForm.scheduledAt) ? 'not-allowed' : 'pointer', fontWeight:'bold', fontSize:'11px', letterSpacing:'2px', textTransform:'uppercase' }}>Book Appointment</button>
               </div>
 
               {/* Appointments list */}

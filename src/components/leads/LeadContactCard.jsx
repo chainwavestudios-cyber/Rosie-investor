@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import MigrateLeadModal from './MigrateLeadModal';
+import DateTimePicker from '@/components/admin/DateTimePicker';
 
 const GOLD = '#b8933a';
 const DARK = '#0a0f1e';
@@ -211,9 +212,11 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber 
                   <span style={{ fontSize:'28px' }}>📅</span>
                   <div><div style={{ color:'#a78bfa', fontWeight:'bold', fontSize:'14px', marginBottom:'3px' }}>Call Back Later</div><div style={{ color:'#6b7280', fontSize:'12px' }}>Log a callback time and move to callback list.</div></div>
                 </div>
-                <div style={{ display:'flex', gap:'10px', alignItems:'center' }}>
-                  <input type="datetime-local" value={callbackDate} onChange={e=>setCallbackDate(e.target.value)} style={{ ...inp, flex:1 }} />
-                  <button onClick={handleCallbackLater} style={{ background:'rgba(167,139,250,0.2)', color:'#a78bfa', border:'1px solid rgba(167,139,250,0.4)', borderRadius:'2px', padding:'10px 20px', cursor:'pointer', fontSize:'12px', whiteSpace:'nowrap' }}>Set Callback</button>
+                <div style={{ display:'flex', gap:'10px', alignItems:'flex-end' }}>
+                  <div style={{ flex:1 }}>
+                    <DateTimePicker value={callbackDate} onChange={iso => setCallbackDate(iso)} />
+                  </div>
+                  <button onClick={handleCallbackLater} style={{ background:'rgba(167,139,250,0.2)', color:'#a78bfa', border:'1px solid rgba(167,139,250,0.4)', borderRadius:'2px', padding:'10px 20px', cursor:'pointer', fontSize:'12px', whiteSpace:'nowrap', marginBottom:'16px' }}>Set Callback</button>
                 </div>
               </div>
 
