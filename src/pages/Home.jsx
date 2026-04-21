@@ -12,11 +12,15 @@ export default function Home() {
   const [input, setInput] = useState('');
   const [error, setError] = useState('');
 
+  const [loadingHtml, setLoadingHtml] = useState(false);
+
   useEffect(() => {
     if (!unlocked) return;
+    setLoadingHtml(true);
     fetch(HTML_URL + '?t=' + Date.now(), { cache: 'no-store' })
       .then(r => r.text())
-      .then(setHtmlContent);
+      .then(html => { setHtmlContent(html); setLoadingHtml(false); })
+      .catch(() => setLoadingHtml(false));
   }, [unlocked]);
 
   const handleSubmit = (e) => {
@@ -59,9 +63,15 @@ export default function Home() {
   }
 
   return (
-    <div className="w-full h-screen" style={{ position: 'relative' }}>
-      <iframe srcDoc={htmlContent} className="w-full h-full border-0" title="Rosie Pitchbook" />
-      <button
+    <div className="w-full h-screen" style={{ position: 'relative', background: '#060c18' }}>
+      {loadingHtml && (
+        <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#060c18', zIndex: 10 }}>
+          <div style={{ width: '36px', height: '36px', border: '3px solid rgba(184,147,58,0.2)', borderTop: '3px solid #b8933a', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+          <style>{`@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}`}</style>
+        </div>
+      )}
+      {htmlContent && <iframe srcDoc={htmlContent} className="w-full h-full border-0" title="Rosie Pitchbook" style={{ display: loadingHtml ? 'none' : 'block' }} />}
+      {!loadingHtml && htmlContent && <button
         onClick={() => navigate('/portal-login')}
         style={{
           position: 'fixed', bottom: '32px', left: '32px',
@@ -75,7 +85,7 @@ export default function Home() {
         }}
       >
         🔐 Investor Data Portal
-      </button>
+      </button>}
     </div>
   );
 }
