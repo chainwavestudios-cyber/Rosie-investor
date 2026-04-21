@@ -1,0 +1,58 @@
+{
+  "name": "Lead",
+  "type": "object",
+  "properties": {
+    "firstName": {
+      "type": "string",
+      "title": "First Name"
+    },
+    "lastName": {
+      "type": "string",
+      "title": "Last Name"
+    },
+    "email": {
+      "type": "string",
+      "title": "Email"
+    },
+    "phone": {
+      "type": "string",
+      "title": "Phone"
+    },
+    "state": {
+      "type": "string",
+      "title": "State"
+    },
+    "status": {
+      "type": "string",
+      "title": "Status",
+      "enum": [
+        "lead",
+        "interested",
+        "not_available",
+        "callback_later",
+        "not_interested",
+        "prospect",
+        "investor"
+      ],
+      "default": "lead"
+    },
+    "callbackAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Call Back At"
+    },
+    "notes": {
+      "type": "string",
+      "title": "Notes",
+      "format": "textarea"
+    },
+    "convertedToInvestorUserId": {
+      "type": "string",
+      "title": "Converted Investor User ID"
+    }
+  },
+  "required": [
+    "firstName",
+    "lastName"
+  ]
+}

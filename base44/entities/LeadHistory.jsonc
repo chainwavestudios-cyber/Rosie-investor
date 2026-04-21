@@ -1,0 +1,44 @@
+{
+  "name": "LeadHistory",
+  "type": "object",
+  "properties": {
+    "leadId": {
+      "type": "string",
+      "title": "Lead ID"
+    },
+    "type": {
+      "type": "string",
+      "title": "Type",
+      "enum": [
+        "call",
+        "not_available",
+        "interested",
+        "callback_later",
+        "not_interested",
+        "status_change",
+        "note"
+      ],
+      "default": "note"
+    },
+    "content": {
+      "type": "string",
+      "title": "Content"
+    },
+    "callDurationSeconds": {
+      "type": "number",
+      "title": "Call Duration (seconds)"
+    },
+    "twilioCallSid": {
+      "type": "string",
+      "title": "Twilio Call SID"
+    },
+    "createdBy": {
+      "type": "string",
+      "title": "Created By"
+    }
+  },
+  "required": [
+    "leadId",
+    "type"
+  ]
+}
