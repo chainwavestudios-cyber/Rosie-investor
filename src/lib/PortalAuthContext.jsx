@@ -97,8 +97,8 @@ export const PortalAuthProvider = ({ children }) => {
       await InvestorUser.create({ ...userData, role: userData.role || 'investor' });
       return { success: true };
     } catch (e) {
-      console.error('[PortalAuth] addUser:', e);
-      return { success: false, error: 'Failed to create user' };
+      console.error('[PortalAuth] addUser error:', e);
+      return { success: false, error: e?.response?.data?.error || e?.message || 'Failed to create user' };
     }
   };
 

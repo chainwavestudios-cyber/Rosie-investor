@@ -43,7 +43,7 @@ export const InvestorUser = {
   async create(d) {
     try {
       const hashed = d.password ? await InvestorUser.hashPassword((d.password||'').trim()) : '';
-      return await base44.entities.InvestorUser.create({...d,username:(d.username||'').trim(),email:(d.email||'').trim().toLowerCase(),password:hashed,createdAt:new Date().toISOString()});
+      return await base44.entities.InvestorUser.create({...d,username:(d.username||'').trim(),email:(d.email||'').trim().toLowerCase(),password:hashed});
     } catch(e){ throw e; }
   },
   async update(id,u) {
@@ -56,7 +56,7 @@ export const InvestorUser = {
   async ensureAdminExists() {
     try {
       const a=await base44.entities.InvestorUser.filter({role:'admin'});
-      if(!a.length) await base44.entities.InvestorUser.create({username:'admin',email:'admin@rosieai.com',password:'password',name:'Admin',role:'admin',company:'Rosie AI LLC',createdAt:new Date().toISOString()});
+      if(!a.length) await base44.entities.InvestorUser.create({username:'admin',email:'admin@rosieai.com',password:'password',name:'Admin',role:'admin',company:'Rosie AI LLC'});
       else if(!a[0].password) await base44.entities.InvestorUser.update(a[0].id,{password:'password'});
     } catch{}
   },

@@ -728,8 +728,9 @@ function AddUserForm({ onAdd, onClose }) {
   const { addUser } = usePortalAuth();
   const submit = async () => {
     if (!form.name||!form.username||!form.password) { setError('Name, username, and password are required.'); return; }
+    setError('');
     const result = await addUser(form);
-    if (result.success) { onAdd(); onClose(); } else { setError(result.error); }
+    if (result.success) { onAdd(); onClose(); } else { setError(result.error || 'Failed to create user'); }
   };
   return (
     <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.85)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:9999, padding:'20px' }}>
