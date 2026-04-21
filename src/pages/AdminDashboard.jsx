@@ -5,6 +5,9 @@ import analytics from '@/lib/analytics';
 import { getPortalSettings, loadPortalSettings, savePortalSettings } from '@/lib/portalSettings';
 import { SignNowRequestDB, InvestorUser, ContactNoteDB, AppointmentDB, AccreditationDocDB } from '@/api/entities';
 import { signnowSendDocuments, signnowGetToken } from '@/lib/signnow';
+import LeadsTab from '@/components/leads/LeadsTab';
+import TwilioDialer from '@/components/leads/TwilioDialer';
+import { base44 } from '@/api/base44Client';
 
 const LOGO = 'https://media.base44.com/images/public/69cd2741578c9b5ce655395b/39a31f9b9_Untitleddesign3.png';
 const GOLD = '#b8933a';
@@ -69,6 +72,8 @@ function ContactCardModal({ user, onClose, onSave, allSessions, matchesUser }) {
   const [editUser, setEditUser] = useState({ ...user });
   const [saving, setSaving]   = useState(false);
   const [saveMsg, setSaveMsg] = useState('');
+  const [dialerLead, setDialerLead] = useState(null);
+  const [showDialerLocal, setShowDialerLocal] = useState(false);
 
   useEffect(() => {
     loadAll();
@@ -141,7 +146,24 @@ function ContactCardModal({ user, onClose, onSave, allSessions, matchesUser }) {
   const apptTypeColors = { call:GOLD, meeting:'#60a5fa', 'follow-up':'#4ade80', demo:'#f59e0b', other:'#8a9ab8' };
   const docStatusColors = { pending:'#f59e0b', under_review:'#60a5fa', approved:'#4ade80', rejected:'#ef4444' };
 
+  const handleCallLogged = async (leadId) => {
+    // Also log in ContactNote for CRM history
+    try {
+      await ContactNoteDB.create({ investorId: user.id, investorEmail: user.email, type: 'call', content: `Outbound call via Twilio dialer`, createdBy: 'admin' });
+      const ns = await ContactNoteDB.listForInvestor(user.id);
+      setNotes(ns);
+    } catch {}
+  };
+
   return (
+    <>
+    {showDialerLocal && (
+      <TwilioDialer
+        initialLead={dialerLead}
+        onClose={() => { setShowDialerLocal(false); setDialerLead(null); }}
+        onCallLogged={handleCallLogged}
+      />
+    )}
     <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.9)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:9999, padding:'16px' }}>
       <div style={{ background:'#0d1b2a', border:'1px solid rgba(184,147,58,0.3)', borderRadius:'4px', width:'100%', maxWidth:'900px', maxHeight:'94vh', display:'flex', flexDirection:'column', boxShadow:'0 40px 120px rgba(0,0,0,0.9)' }}>
 
@@ -157,7 +179,15 @@ function ContactCardModal({ user, onClose, onSave, allSessions, matchesUser }) {
             </div>
             <StatusBadge status={user.status || 'prospect'} />
           </div>
-          <button onClick={onClose} style={{ background:'rgba(255,255,255,0.05)', border:'1px solid rgba(255,255,255,0.1)', color:'#6b7280', cursor:'pointer', fontSize:'20px', width:'36px', height:'36px', borderRadius:'4px', display:'flex', alignItems:'center', justifyContent:'center' }}>×</button>
+          <div style={{ display:'flex', gap:'8px', alignItems:'center' }}>
+            {user.phone && (
+              <button onClick={() => { setDialerLead({ firstName: user.name, lastName: '', phone: user.phone, id: user.id }); setShowDialerLocal(true); }}
+                style={{ background:'rgba(74,222,128,0.12)', color:'#4ade80', border:'1px solid rgba(74,222,128,0.3)', borderRadius:'2px', padding:'8px 14px', cursor:'pointer', fontSize:'12px', fontWeight:'bold' }}>
+                📞 {user.phone}
+              </button>
+            )}
+            <button onClick={onClose} style={{ background:'rgba(255,255,255,0.05)', border:'1px solid rgba(255,255,255,0.1)', color:'#6b7280', cursor:'pointer', fontSize:'20px', width:'36px', height:'36px', borderRadius:'4px', display:'flex', alignItems:'center', justifyContent:'center' }}>×</button>
+          </div>
         </div>
 
         {/* Tabs */}
@@ -463,6 +493,7 @@ function ContactCardModal({ user, onClose, onSave, allSessions, matchesUser }) {
         </div>
       </div>
     </div>
+    </>
   );
 }
 
@@ -745,6 +776,7 @@ function AddUserForm({ onAdd, onClose }) {
 // ─── MAIN ADMIN DASHBOARD ─────────────────────────────────────────────────
 const VIEWS = [
   { id:'users',    label:'CRM / Clients' },
+  { id:'leads',    label:'Leads' },
   { id:'calendar', label:'Calendar' },
   { id:'analytics',label:'Analytics' },
   { id:'activity', label:'Recent Activity' },
@@ -764,6 +796,8 @@ export default function AdminDashboard() {
   const [globalStats, setGlobalStats] = useState({ totalSessions:0, totalTime:0, totalDownloads:0, totalDocViews:0 });
   const [filterStatus, setFilterStatus] = useState('all');
   const [portalSettings, setPortalSettings] = useState({});
+  const [dialerLead, setDialerLead] = useState(null);
+  const [showDialer, setShowDialer] = useState(false);
   const navigate = useNavigate();
 
   const handleViewChange = (v) => { setView(v); localStorage.setItem('admin_view', v); };
@@ -857,6 +891,13 @@ export default function AdminDashboard() {
             matchesUser={matchesUser}
           />
         )}
+        {showDialer && (
+          <TwilioDialer
+            initialLead={dialerLead}
+            onClose={() => { setShowDialer(false); setDialerLead(null); }}
+            onCallLogged={() => {}}
+          />
+        )}
 
         {/* ── CRM ── */}
         {view === 'users' && (
@@ -909,7 +950,12 @@ export default function AdminDashboard() {
                         </td>
                         <td style={{ padding:'14px 12px' }}>
                           <div style={{ color:'#8a9ab8', fontSize:'12px' }}>{user.email||'—'}</div>
-                          <div style={{ color:'#6b7280', fontSize:'12px' }}>{user.phone||'—'}</div>
+                          {user.phone ? (
+                            <button onClick={e => { e.stopPropagation(); setDialerLead({ firstName: user.name, lastName: '', phone: user.phone, id: user.id }); setShowDialer(true); }}
+                              style={{ background:'rgba(74,222,128,0.08)', color:'#4ade80', border:'1px solid rgba(74,222,128,0.2)', borderRadius:'2px', padding:'2px 8px', cursor:'pointer', fontSize:'11px', fontFamily:'monospace', marginTop:'2px' }}>
+                              📞 {user.phone}
+                            </button>
+                          ) : <div style={{ color:'#6b7280', fontSize:'12px' }}>—</div>}
                         </td>
                         <td style={{ padding:'14px 12px', color:'#60a5fa', fontWeight:'bold' }}>{st.sessionCount}</td>
                         <td style={{ padding:'14px 12px', color:'#6b7280', fontSize:'12px' }}>{analytics.formatDate(st.lastSeen)}</td>
@@ -993,6 +1039,7 @@ export default function AdminDashboard() {
           </div>
         )}
 
+        {view === 'leads'            && <LeadsTab />}
         {view === 'signnow'          && <SignNowRequestsView settings={portalSettings} />}
         {view === 'signnow-settings' && <SignNowSettings settings={portalSettings} onSettingsSaved={s => setPortalSettings(s)} />}
         {view === 'portal'           && <div><div style={{ marginBottom:'28px' }}><h2 style={{ color:'#e8e0d0', margin:'0 0 6px', fontSize:'20px', fontWeight:'normal' }}>Portal Controls</h2></div><PortalControls /></div>}

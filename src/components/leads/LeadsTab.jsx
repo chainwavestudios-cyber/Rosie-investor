@@ -1,0 +1,314 @@
+import { useState, useEffect, useRef } from 'react';
+import { base44 } from '@/api/base44Client';
+import LeadContactCard from './LeadContactCard';
+import TwilioDialer from './TwilioDialer';
+
+const GOLD = '#b8933a';
+const DARK = '#0a0f1e';
+
+const STATUS_FILTERS = [
+  { id: 'all', label: 'All Leads' },
+  { id: 'lead', label: '🔵 Lead' },
+  { id: 'interested', label: '⭐ Interested' },
+  { id: 'not_available', label: '📵 Not Available' },
+  { id: 'callback_later', label: '📅 Call Back Later' },
+  { id: 'prospect', label: '🔵 Prospect' },
+];
+
+const STATUS_COLORS = {
+  lead: '#60a5fa', interested: '#f59e0b', not_available: '#8a9ab8',
+  callback_later: '#a78bfa', prospect: '#60a5fa', investor: '#4ade80', not_interested: '#ef4444',
+};
+
+// ─── CSV Upload ───────────────────────────────────────────────────────────
+function CSVUploadModal({ onClose, onImported }) {
+  const [file, setFile] = useState(null);
+  const [headers, setHeaders] = useState([]);
+  const [rows, setRows] = useState([]);
+  const [mapping, setMapping] = useState({ firstName:'', lastName:'', email:'', phone:'', state:'' });
+  const [step, setStep] = useState('upload'); // upload | map | preview | done
+  const [importing, setImporting] = useState(false);
+  const [importCount, setImportCount] = useState(0);
+  const fileRef = useRef(null);
+
+  const parseCSV = (text) => {
+    const lines = text.trim().split('\n');
+    const hdrs = lines[0].split(',').map(h => h.trim().replace(/"/g,''));
+    const data = lines.slice(1).map(line => {
+      const vals = line.split(',').map(v => v.trim().replace(/"/g,''));
+      const obj = {};
+      hdrs.forEach((h, i) => { obj[h] = vals[i] || ''; });
+      return obj;
+    });
+    return { hdrs, data };
+  };
+
+  const handleFile = (e) => {
+    const f = e.target.files[0];
+    if (!f) return;
+    setFile(f);
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const { hdrs, data } = parseCSV(ev.target.result);
+      setHeaders(hdrs);
+      setRows(data);
+      // Auto-map common names
+      const autoMap = { firstName:'', lastName:'', email:'', phone:'', state:'' };
+      hdrs.forEach(h => {
+        const hl = h.toLowerCase();
+        if (/first.*name|firstname/i.test(hl)) autoMap.firstName = h;
+        else if (/last.*name|lastname/i.test(hl)) autoMap.lastName = h;
+        else if (/email/i.test(hl)) autoMap.email = h;
+        else if (/phone|mobile|cell/i.test(hl)) autoMap.phone = h;
+        else if (/state|st$/i.test(hl)) autoMap.state = h;
+      });
+      setMapping(autoMap);
+      setStep('map');
+    };
+    reader.readAsText(f);
+  };
+
+  const handleImport = async () => {
+    setImporting(true);
+    let count = 0;
+    for (const row of rows) {
+      const lead = {
+        firstName: row[mapping.firstName] || '',
+        lastName: row[mapping.lastName] || '',
+        email: row[mapping.email] || '',
+        phone: row[mapping.phone] || '',
+        state: row[mapping.state] || '',
+        status: 'lead',
+      };
+      if (!lead.firstName && !lead.lastName) continue;
+      try { await base44.entities.Lead.create(lead); count++; } catch {}
+    }
+    setImportCount(count);
+    setImporting(false);
+    setStep('done');
+    onImported && onImported();
+  };
+
+  const FIELDS = [['firstName','First Name'],['lastName','Last Name'],['email','Email'],['phone','Phone'],['state','State']];
+  const inp = { width:'100%', background:'rgba(255,255,255,0.05)', border:'1px solid rgba(255,255,255,0.12)', borderRadius:'2px', padding:'8px 12px', color:'#e8e0d0', fontSize:'13px', outline:'none', boxSizing:'border-box', fontFamily:'Georgia, serif' };
+
+  return (
+    <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.85)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:9999, padding:'20px' }}>
+      <div style={{ background:'#0d1b2a', border:'1px solid rgba(184,147,58,0.3)', borderRadius:'4px', width:'100%', maxWidth:'600px', maxHeight:'90vh', overflowY:'auto', boxShadow:'0 40px 100px rgba(0,0,0,0.8)', fontFamily:'Georgia, serif' }}>
+        <div style={{ padding:'24px 28px', borderBottom:'1px solid rgba(255,255,255,0.07)', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+          <h3 style={{ color:GOLD, margin:0, fontSize:'13px', letterSpacing:'2px', textTransform:'uppercase' }}>Import Leads from CSV</h3>
+          <button onClick={onClose} style={{ background:'none', border:'none', color:'#6b7280', cursor:'pointer', fontSize:'20px' }}>×</button>
+        </div>
+        <div style={{ padding:'28px' }}>
+          {step === 'upload' && (
+            <div>
+              <div style={{ border:'2px dashed rgba(184,147,58,0.3)', borderRadius:'4px', padding:'48px', textAlign:'center', cursor:'pointer' }} onClick={() => fileRef.current?.click()}>
+                <input ref={fileRef} type="file" accept=".csv" onChange={handleFile} style={{ display:'none' }} />
+                <div style={{ fontSize:'48px', marginBottom:'12px' }}>📊</div>
+                <div style={{ color:'#8a9ab8', fontSize:'14px', marginBottom:'6px' }}>Click to upload a CSV file</div>
+                <div style={{ color:'#4a5568', fontSize:'12px' }}>Supports comma-separated files with headers</div>
+              </div>
+            </div>
+          )}
+
+          {step === 'map' && (
+            <div>
+              <div style={{ color:'#8a9ab8', fontSize:'12px', marginBottom:'20px' }}>Map your CSV columns to lead fields. Found <strong style={{ color:GOLD }}>{rows.length} rows</strong>.</div>
+              {FIELDS.map(([key, label]) => (
+                <div key={key} style={{ marginBottom:'14px' }}>
+                  <label style={{ display:'block', color:'#8a9ab8', fontSize:'10px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'6px' }}>{label}</label>
+                  <select value={mapping[key]} onChange={e => setMapping({...mapping,[key]:e.target.value})} style={{ ...inp, cursor:'pointer' }}>
+                    <option value="">— Skip —</option>
+                    {headers.map(h => <option key={h} value={h}>{h}</option>)}
+                  </select>
+                </div>
+              ))}
+              {/* Preview */}
+              {rows.length > 0 && (
+                <div style={{ marginTop:'20px', background:'rgba(0,0,0,0.2)', borderRadius:'4px', padding:'14px', overflowX:'auto' }}>
+                  <div style={{ color:'#4a5568', fontSize:'10px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'8px' }}>Preview (first 3 rows)</div>
+                  {rows.slice(0,3).map((row, i) => (
+                    <div key={i} style={{ display:'flex', gap:'12px', padding:'6px 0', borderTop:i>0?'1px solid rgba(255,255,255,0.04)':'none', fontSize:'12px', color:'#8a9ab8', flexWrap:'wrap' }}>
+                      <span>{row[mapping.firstName]} {row[mapping.lastName]}</span>
+                      <span>|</span><span>{row[mapping.email]||'—'}</span>
+                      <span>|</span><span>{row[mapping.phone]||'—'}</span>
+                      <span>|</span><span>{row[mapping.state]||'—'}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div style={{ display:'flex', gap:'12px', marginTop:'24px' }}>
+                <button onClick={handleImport} disabled={importing || !mapping.firstName} style={{ flex:1, background:'linear-gradient(135deg,#b8933a,#d4aa50)', color:DARK, border:'none', borderRadius:'2px', padding:'12px', cursor:'pointer', fontWeight:'700', fontSize:'12px', letterSpacing:'2px', textTransform:'uppercase' }}>{importing ? `Importing… (${importCount})` : `Import ${rows.length} Leads`}</button>
+                <button onClick={onClose} style={{ padding:'12px 20px', background:'transparent', color:'#6b7280', border:'1px solid rgba(255,255,255,0.12)', borderRadius:'2px', cursor:'pointer', fontSize:'12px' }}>Cancel</button>
+              </div>
+            </div>
+          )}
+
+          {step === 'done' && (
+            <div style={{ textAlign:'center', padding:'32px 0' }}>
+              <div style={{ fontSize:'52px', marginBottom:'16px' }}>✅</div>
+              <h3 style={{ color:'#4ade80', fontFamily:'Georgia,serif', fontWeight:'normal', marginBottom:'8px' }}>Import Complete!</h3>
+              <p style={{ color:'#8a9ab8', fontSize:'14px' }}>Successfully imported <strong style={{ color:GOLD }}>{importCount}</strong> leads.</p>
+              <button onClick={onClose} style={{ background:'linear-gradient(135deg,#b8933a,#d4aa50)', color:DARK, border:'none', borderRadius:'2px', padding:'12px 32px', cursor:'pointer', fontWeight:'700', fontSize:'12px', letterSpacing:'2px', textTransform:'uppercase', marginTop:'16px' }}>Done</button>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Main Leads Tab ───────────────────────────────────────────────────────
+export default function LeadsTab() {
+  const [leads, setLeads] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState('all');
+  const [showUpload, setShowUpload] = useState(false);
+  const [selectedLead, setSelectedLead] = useState(null);
+  const [dialerLead, setDialerLead] = useState(null);
+  const [showDialer, setShowDialer] = useState(false);
+  const [search, setSearch] = useState('');
+
+  useEffect(() => { loadLeads(); }, []);
+
+  const loadLeads = async () => {
+    setLoading(true);
+    try {
+      const all = await base44.entities.Lead.list('-created_date', 500);
+      // Exclude permanently not_interested
+      setLeads(all.filter(l => l.status !== 'not_interested'));
+    } catch(e) { console.error(e); }
+    setLoading(false);
+  };
+
+  const handleDialNumber = (lead) => {
+    setDialerLead(lead);
+    setShowDialer(true);
+    if (selectedLead) setSelectedLead(null);
+  };
+
+  const filteredLeads = leads.filter(l => {
+    if (filter !== 'all' && l.status !== filter) return false;
+    if (search) {
+      const q = search.toLowerCase();
+      return `${l.firstName} ${l.lastName} ${l.email} ${l.phone} ${l.state}`.toLowerCase().includes(q);
+    }
+    return true;
+  });
+
+  const counts = {};
+  STATUS_FILTERS.forEach(f => {
+    counts[f.id] = f.id === 'all' ? leads.length : leads.filter(l => l.status === f.id).length;
+  });
+
+  const inp = { background:'rgba(255,255,255,0.05)', border:'1px solid rgba(255,255,255,0.12)', borderRadius:'2px', padding:'8px 14px', color:'#e8e0d0', fontSize:'13px', outline:'none', fontFamily:'Georgia, serif' };
+
+  return (
+    <div style={{ fontFamily:'Georgia, serif' }}>
+      {showUpload && <CSVUploadModal onClose={() => setShowUpload(false)} onImported={loadLeads} />}
+      {selectedLead && (
+        <LeadContactCard
+          lead={selectedLead}
+          onClose={() => setSelectedLead(null)}
+          onUpdate={loadLeads}
+          onDialNumber={handleDialNumber}
+        />
+      )}
+      {showDialer && (
+        <TwilioDialer
+          initialLead={dialerLead}
+          onClose={() => { setShowDialer(false); setDialerLead(null); }}
+          onCallLogged={loadLeads}
+        />
+      )}
+
+      {/* Header */}
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:'24px', flexWrap:'wrap', gap:'12px' }}>
+        <div>
+          <h2 style={{ color:'#e8e0d0', margin:'0 0 4px', fontSize:'20px', fontWeight:'normal' }}>Leads</h2>
+          <p style={{ color:'#6b7280', fontSize:'13px', margin:0 }}>Import and manage leads. Click a name to open the contact card. Click a phone number to dial.</p>
+        </div>
+        <div style={{ display:'flex', gap:'10px', flexWrap:'wrap' }}>
+          <button onClick={() => setShowDialer(true)} style={{ background:'rgba(74,222,128,0.12)', color:'#4ade80', border:'1px solid rgba(74,222,128,0.3)', borderRadius:'2px', padding:'9px 18px', cursor:'pointer', fontSize:'12px' }}>📞 Open Dialer</button>
+          <button onClick={() => setShowUpload(true)} style={{ background:'linear-gradient(135deg,#b8933a,#d4aa50)', color:DARK, border:'none', borderRadius:'2px', padding:'10px 20px', cursor:'pointer', fontSize:'12px', letterSpacing:'2px', textTransform:'uppercase', fontWeight:'700' }}>📊 Import CSV</button>
+        </div>
+      </div>
+
+      {/* Filter tabs */}
+      <div style={{ display:'flex', gap:'0', borderBottom:'1px solid rgba(255,255,255,0.07)', marginBottom:'20px', overflowX:'auto' }}>
+        {STATUS_FILTERS.map(f => (
+          <button key={f.id} onClick={() => setFilter(f.id)}
+            style={{ background:'none', border:'none', borderBottom:filter===f.id?`2px solid ${GOLD}`:'2px solid transparent', color:filter===f.id?GOLD:'#6b7280', padding:'10px 16px', cursor:'pointer', fontSize:'12px', letterSpacing:'1px', whiteSpace:'nowrap' }}>
+            {f.label} <span style={{ color:filter===f.id?GOLD:'#4a5568', fontSize:'11px' }}>({counts[f.id]||0})</span>
+          </button>
+        ))}
+      </div>
+
+      {/* Search */}
+      <div style={{ marginBottom:'16px' }}>
+        <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search by name, email, phone, state…" style={{ ...inp, width:'100%', boxSizing:'border-box' }} />
+      </div>
+
+      {/* Table */}
+      {loading ? (
+        <div style={{ textAlign:'center', padding:'60px', color:'#6b7280' }}>Loading…</div>
+      ) : filteredLeads.length === 0 ? (
+        <div style={{ textAlign:'center', padding:'60px' }}>
+          <div style={{ fontSize:'48px', marginBottom:'12px' }}>📋</div>
+          <div style={{ color:'#4a5568', fontSize:'14px' }}>{leads.length === 0 ? 'No leads yet. Import a CSV to get started.' : 'No leads match this filter.'}</div>
+        </div>
+      ) : (
+        <div style={{ overflowX:'auto' }}>
+          <table style={{ width:'100%', borderCollapse:'collapse', fontSize:'13px' }}>
+            <thead>
+              <tr style={{ borderBottom:'2px solid rgba(184,147,58,0.3)' }}>
+                {['Status','Name','Email','Phone','State','Callback',''].map(h => (
+                  <th key={h} style={{ color:GOLD, padding:'10px 12px', textAlign:'left', fontSize:'10px', letterSpacing:'1.5px', textTransform:'uppercase', whiteSpace:'nowrap' }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {filteredLeads.map(lead => {
+                const sc = STATUS_COLORS[lead.status] || '#8a9ab8';
+                const name = `${lead.firstName} ${lead.lastName}`;
+                return (
+                  <tr key={lead.id}
+                    style={{ borderBottom:'1px solid rgba(255,255,255,0.05)', cursor:'pointer', transition:'background 0.1s' }}
+                    onMouseEnter={e => e.currentTarget.style.background = 'rgba(184,147,58,0.05)'}
+                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                    onClick={() => setSelectedLead(lead)}>
+                    <td style={{ padding:'12px' }}>
+                      <span style={{ background:`${sc}22`, color:sc, border:`1px solid ${sc}55`, padding:'3px 10px', borderRadius:'2px', fontSize:'10px', letterSpacing:'1px', textTransform:'uppercase', whiteSpace:'nowrap' }}>
+                        {lead.status?.replace('_',' ')}
+                      </span>
+                    </td>
+                    <td style={{ padding:'12px', color:'#e8e0d0', fontWeight:'bold' }}>{name}</td>
+                    <td style={{ padding:'12px', color:'#8a9ab8', fontSize:'12px' }}>{lead.email || '—'}</td>
+                    <td style={{ padding:'12px' }}>
+                      {lead.phone ? (
+                        <button onClick={e => { e.stopPropagation(); handleDialNumber(lead); }}
+                          style={{ background:'rgba(74,222,128,0.1)', color:'#4ade80', border:'1px solid rgba(74,222,128,0.25)', borderRadius:'2px', padding:'4px 10px', cursor:'pointer', fontSize:'12px', fontFamily:'monospace' }}>
+                          📞 {lead.phone}
+                        </button>
+                      ) : '—'}
+                    </td>
+                    <td style={{ padding:'12px', color:'#8a9ab8', fontSize:'12px' }}>{lead.state || '—'}</td>
+                    <td style={{ padding:'12px', color:'#a78bfa', fontSize:'11px' }}>
+                      {lead.callbackAt ? new Date(lead.callbackAt).toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}) : '—'}
+                    </td>
+                    <td style={{ padding:'12px' }}>
+                      <button onClick={e => { e.stopPropagation(); setSelectedLead(lead); }}
+                        style={{ background:'rgba(184,147,58,0.15)', color:GOLD, border:'1px solid rgba(184,147,58,0.3)', borderRadius:'2px', padding:'5px 12px', cursor:'pointer', fontSize:'11px' }}>
+                        Open →
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
