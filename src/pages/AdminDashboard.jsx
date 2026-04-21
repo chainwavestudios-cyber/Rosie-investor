@@ -51,8 +51,8 @@ function Tog({ label, value, onToggle, desc }) {
 function StatusBadge({ status }) {
   const isInvestor = status === 'investor';
   return (
-    <span style={{ display:'inline-block', padding:'3px 10px', borderRadius:'2px', background:isInvestor?'rgba(74,222,128,0.12)':'rgba(96,165,250,0.12)', color:isInvestor?'#4ade80':'#60a5fa', fontSize:'10px', letterSpacing:'1px', textTransform:'uppercase', whiteSpace:'nowrap' }}>
-      {isInvestor ? '✅ Investor' : '🔵 Prospect'}
+    <span style={{ display:'inline-block', padding:'3px 10px', borderRadius:'2px', background:isInvestor?'rgba(74,222,128,0.12)':'rgba(167,139,250,0.12)', color:isInvestor?'#4ade80':'#a78bfa', fontSize:'10px', letterSpacing:'1px', textTransform:'uppercase', whiteSpace:'nowrap' }}>
+      {isInvestor ? '✅ Investor' : '🔷 Potential Investor'}
     </span>
   );
 }
@@ -213,7 +213,7 @@ function ContactCardModal({ user, onClose, onSave, allSessions, matchesUser }) {
                     {['prospect','investor'].map(s => (
                       <button key={s} onClick={() => setEditUser({...editUser, status:s})}
                         style={{ flex:1, padding:'9px', border:`1px solid ${editUser.status===s?GOLD:'rgba(255,255,255,0.12)'}`, borderRadius:'2px', background:editUser.status===s?'rgba(184,147,58,0.15)':'transparent', color:editUser.status===s?GOLD:'#6b7280', cursor:'pointer', fontSize:'11px', textTransform:'uppercase', letterSpacing:'2px' }}>
-                        {s==='prospect'?'🔵 Prospect':'✅ Investor'}
+                        {s==='prospect'?'🔷 Potential Investor':'✅ Investor'}
                       </button>
                     ))}
                   </div>
@@ -734,7 +734,7 @@ function AddUserForm({ onAdd, onClose }) {
         <div style={{ display:'flex', gap:'8px', marginBottom:'24px' }}>
           {['prospect','investor'].map(s => (
             <button key={s} onClick={() => setForm({...form,status:s})} style={{ flex:1, padding:'10px', border:`1px solid ${form.status===s?GOLD:'rgba(255,255,255,0.12)'}`, borderRadius:'2px', background:form.status===s?'rgba(184,147,58,0.15)':'transparent', color:form.status===s?GOLD:'#6b7280', cursor:'pointer', fontSize:'12px', textTransform:'uppercase', letterSpacing:'2px' }}>
-              {s==='prospect'?'🔵 Prospect':'✅ Investor'}
+              {s==='prospect'?'🔷 Potential Investor':'✅ Investor'}
             </button>
           ))}
         </div>
@@ -865,7 +865,7 @@ export default function AdminDashboard() {
           {[
             { label:'Total Clients',  value:nonAdminUsers.length,                                                  icon:'👥', color:GOLD    },
             { label:'Investors',      value:nonAdminUsers.filter(u=>u.status==='investor').length,                  icon:'✅', color:'#4ade80' },
-            { label:'Prospects',      value:nonAdminUsers.filter(u=>(u.status||'prospect')==='prospect').length,    icon:'🔵', color:'#60a5fa' },
+            { label:'Potential Investors', value:nonAdminUsers.filter(u=>(u.status||'prospect')==='prospect').length, icon:'🔷', color:'#a78bfa' },
             { label:'Total Sessions', value:globalStats.totalSessions,                                              icon:'🔐', color:'#f59e0b' },
             { label:'Time Spent',     value:analytics.formatDuration(globalStats.totalTime),                        icon:'⏱',  color:'#a78bfa' },
           ].map(({label,value,icon,color}) => (
@@ -909,7 +909,7 @@ export default function AdminDashboard() {
               </div>
               <div style={{ display:'flex', gap:'8px', alignItems:'center', flexWrap:'wrap' }}>
                 <div style={{ display:'flex', gap:'4px' }}>
-                  {[['all','All'],['prospect','Prospects'],['investor','Investors']].map(([s,l]) => (
+                  {[['all','All'],['prospect','Potential Investors'],['investor','Investors']].map(([s,l]) => (
                     <button key={s} onClick={() => setFilterStatus(s)}
                       style={{ padding:'7px 14px', background:filterStatus===s?'rgba(184,147,58,0.2)':'rgba(255,255,255,0.05)', border:`1px solid ${filterStatus===s?GOLD:'rgba(255,255,255,0.12)'}`, borderRadius:'2px', color:filterStatus===s?GOLD:'#6b7280', cursor:'pointer', fontSize:'11px', letterSpacing:'1px' }}>
                       {l}

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
+import MigrateLeadModal from './MigrateLeadModal';
 
 const GOLD = '#b8933a';
 const DARK = '#0a0f1e';
@@ -12,7 +13,7 @@ const STATUS_LABELS = {
   not_available: { label: '📵 Not Available', color: '#8a9ab8' },
   callback_later: { label: '📅 Call Back Later', color: '#a78bfa' },
   not_interested: { label: '❌ Not Interested', color: '#ef4444' },
-  prospect: { label: '🔵 Prospect', color: '#60a5fa' },
+  prospect: { label: '🚀 Prospect (Ready to Migrate)', color: '#a78bfa' },
   investor: { label: '✅ Investor', color: '#4ade80' },
 };
 
@@ -30,6 +31,7 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber 
   const [noteContent, setNoteContent] = useState('');
   const [callbackDate, setCallbackDate] = useState('');
   const [loading, setLoading] = useState(true);
+  const [showMigrate, setShowMigrate] = useState(false);
 
   useEffect(() => { loadHistory(); }, [lead.id]);
 
@@ -98,10 +100,24 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber 
 
   const statusInfo = STATUS_LABELS[editLead.status] || STATUS_LABELS.lead;
   const fullName = `${lead.firstName} ${lead.lastName}`;
+  const isProspect = editLead.status === 'prospect';
 
   const TABS = [['overview', '👤 Overview'], ['actions', '⚡ Actions'], ['history', '📋 History']];
 
   return (
+    <>
+    {showMigrate && (
+      <MigrateLeadModal
+        lead={lead}
+        history={history}
+        onClose={() => setShowMigrate(false)}
+        onMigrated={(newUser) => {
+          setShowMigrate(false);
+          onUpdate && onUpdate();
+          onClose();
+        }}
+      />
+    )}
     <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.9)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:9999, padding:'16px' }}>
       <div style={{ background:'#0d1b2a', border:'1px solid rgba(184,147,58,0.3)', borderRadius:'4px', width:'100%', maxWidth:'780px', maxHeight:'92vh', display:'flex', flexDirection:'column', boxShadow:'0 40px 120px rgba(0,0,0,0.9)' }}>
 
@@ -118,6 +134,12 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber 
             <span style={{ background:`${statusInfo.color}22`, color:statusInfo.color, border:`1px solid ${statusInfo.color}55`, padding:'3px 12px', borderRadius:'2px', fontSize:'11px', letterSpacing:'1px' }}>{statusInfo.label}</span>
           </div>
           <div style={{ display:'flex', gap:'8px', alignItems:'center' }}>
+            {isProspect && (
+              <button onClick={() => setShowMigrate(true)}
+                style={{ background:'linear-gradient(135deg,#7c3aed,#a855f7)', color:'#fff', border:'none', borderRadius:'2px', padding:'8px 16px', cursor:'pointer', fontSize:'12px', fontWeight:'bold', letterSpacing:'1px' }}>
+                🚀 Migrate to CRM
+              </button>
+            )}
             {lead.phone && (
               <button onClick={() => onDialNumber && onDialNumber(lead)} style={{ background:'rgba(74,222,128,0.15)', color:'#4ade80', border:'1px solid rgba(74,222,128,0.3)', borderRadius:'2px', padding:'8px 16px', cursor:'pointer', fontSize:'12px', fontWeight:'bold' }}>
                 📞 {lead.phone}
@@ -241,5 +263,6 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber 
         </div>
       </div>
     </div>
+    </>
   );
 }
