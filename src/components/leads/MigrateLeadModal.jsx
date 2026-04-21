@@ -50,7 +50,7 @@ export default function MigrateLeadModal({ lead, history, onClose, onMigrated })
 
       // 3. Mark lead as converted
       await base44.entities.Lead.update(lead.id, {
-        status: 'prospect',
+        status: 'converted',
         convertedToInvestorUserId: newUser.id,
       });
 

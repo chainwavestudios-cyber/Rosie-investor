@@ -12,11 +12,13 @@ const STATUS_FILTERS = [
   { id: 'not_available', label: '📵 Not Available' },
   { id: 'callback_later', label: '📅 Call Back Later' },
   { id: 'prospect', label: '🚀 Prospect' },
+  { id: 'converted', label: '✅ Converted' },
 ];
 
 const STATUS_COLORS = {
   lead: '#60a5fa', interested: '#f59e0b', not_available: '#8a9ab8',
   callback_later: '#a78bfa', prospect: '#60a5fa', investor: '#4ade80', not_interested: '#ef4444',
+  converted: '#4ade80',
 };
 
 // ─── CSV Upload ───────────────────────────────────────────────────────────
@@ -203,10 +205,13 @@ export default function LeadsTab() {
     try {
       const all = await base44.entities.Lead.list('-created_date', 2000);
       // Exclude permanently not_interested, sort: never-called first (by created_date), then called leads sorted by lastCalledAt asc (oldest call = first to call again)
+      // Exclude permanently not_interested; keep converted at end
       const active = all.filter(l => l.status !== 'not_interested');
-      const neverCalled = active.filter(l => !l.lastCalledAt).sort((a,b) => new Date(a.created_date) - new Date(b.created_date));
-      const called = active.filter(l => l.lastCalledAt).sort((a,b) => new Date(a.lastCalledAt) - new Date(b.lastCalledAt));
-      setLeads([...neverCalled, ...called]);
+      const converted = active.filter(l => l.status === 'converted').sort((a,b) => new Date(b.created_date) - new Date(a.created_date));
+      const nonConverted = active.filter(l => l.status !== 'converted');
+      const neverCalled = nonConverted.filter(l => !l.lastCalledAt).sort((a,b) => new Date(a.created_date) - new Date(b.created_date));
+      const called = nonConverted.filter(l => l.lastCalledAt).sort((a,b) => new Date(a.lastCalledAt) - new Date(b.lastCalledAt));
+      setLeads([...neverCalled, ...called, ...converted]);
     } catch(e) { console.error(e); }
     setLoading(false);
   };

@@ -32,7 +32,8 @@
         "callback_later",
         "not_interested",
         "prospect",
-        "investor"
+        "investor",
+        "converted"
       ],
       "default": "lead"
     },

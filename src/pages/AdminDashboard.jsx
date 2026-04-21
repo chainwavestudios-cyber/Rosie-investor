@@ -7,6 +7,7 @@ import { SignNowRequestDB, InvestorUser, ContactNoteDB, AppointmentDB, Accredita
 import { signnowSendDocuments, signnowGetToken } from '@/lib/signnow';
 import LeadsTab from '@/components/leads/LeadsTab';
 import TwilioDialer from '@/components/leads/TwilioDialer';
+import PortalAccessTab from '@/components/admin/PortalAccessTab';
 import { base44 } from '@/api/base44Client';
 
 const LOGO = 'https://media.base44.com/images/public/69cd2741578c9b5ce655395b/39a31f9b9_Untitleddesign3.png';
@@ -140,6 +141,7 @@ function ContactCardModal({ user, onClose, onSave, allSessions, matchesUser }) {
   const TABS = [
     ['overview','👤 Overview'], ['history','📞 History'], ['activity','📊 Activity'],
     ['documents','📄 Documents'], ['accreditation','🔐 Accreditation'], ['calendar','📅 Calendar'],
+    ['portal','🔑 Portal Access'],
   ];
 
   const noteTypeIcons = { note:'📝', call:'📞', sms:'💬', voicemail:'📳', email:'✉️' };
@@ -436,6 +438,11 @@ function ContactCardModal({ user, onClose, onSave, allSessions, matchesUser }) {
                 );
               })}
             </div>
+          )}
+
+          {/* PORTAL ACCESS */}
+          {tab === 'portal' && (
+            <PortalAccessTab user={user} onClose={onClose} onSave={onSave} />
           )}
 
           {/* CALENDAR */}

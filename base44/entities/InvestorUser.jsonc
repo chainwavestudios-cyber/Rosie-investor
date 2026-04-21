@@ -80,6 +80,11 @@
       "type": "string",
       "format": "date",
       "title": "Investment Date"
+    },
+    "accessExpiresAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Access Expires At"
     }
   },
   "required": [
