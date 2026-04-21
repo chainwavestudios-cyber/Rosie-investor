@@ -25,7 +25,7 @@ Deno.serve(async (req) => {
       const params = new URLSearchParams({
         To: to,
         From: TWILIO_FROM_NUMBER,
-        Url: 'https://handler.twilio.com/twiml/EH0000000000000000000000000000', // placeholder TwiML
+        Url: 'https://handler.twilio.com/twiml/EH3e342efae704e27b4c9bc7c98529a044',
         StatusCallback: '',
         Record: 'false',
       });

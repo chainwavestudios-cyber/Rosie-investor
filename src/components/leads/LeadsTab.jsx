@@ -28,6 +28,7 @@ function CSVUploadModal({ onClose, onImported }) {
   const [step, setStep] = useState('upload'); // upload | map | preview | done
   const [importing, setImporting] = useState(false);
   const [importCount, setImportCount] = useState(0);
+  const [skippedCount, setSkippedCount] = useState(0);
   const fileRef = useRef(null);
 
   const parseCSV = (text) => {
@@ -70,8 +71,25 @@ function CSVUploadModal({ onClose, onImported }) {
   const handleImport = async () => {
     setImporting(true);
     let count = 0;
+    let skipped = 0;
     const BATCH = 50;
-    const validRows = rows.filter(row => row[mapping.firstName] || row[mapping.lastName]);
+
+    // Fetch existing leads to build dedup sets (by phone and email)
+    const existing = await base44.entities.Lead.list('-created_date', 2000);
+    const existingPhones = new Set(existing.map(l => (l.phone || '').replace(/\D/g,'')).filter(Boolean));
+    const existingEmails = new Set(existing.map(l => (l.email || '').toLowerCase().trim()).filter(Boolean));
+
+    const validRows = rows.filter(row => {
+      const phone = (row[mapping.phone] || '').replace(/\D/g,'');
+      const email = (row[mapping.email] || '').toLowerCase().trim();
+      const hasName = row[mapping.firstName] || row[mapping.lastName];
+      if (!hasName) return false;
+      // Skip if phone or email already exists
+      if (phone && existingPhones.has(phone)) { skipped++; return false; }
+      if (email && existingEmails.has(email)) { skipped++; return false; }
+      return true;
+    });
+
     for (let i = 0; i < validRows.length; i += BATCH) {
       const batch = validRows.slice(i, i + BATCH).map(row => ({
         firstName: row[mapping.firstName] || '',
@@ -86,12 +104,12 @@ function CSVUploadModal({ onClose, onImported }) {
         count += batch.length;
         setImportCount(count);
       } catch {
-        // fallback: try one by one for this batch
         for (const lead of batch) {
           try { await base44.entities.Lead.create(lead); count++; setImportCount(count); } catch {}
         }
       }
     }
+    setSkippedCount(skipped);
     setImporting(false);
     setStep('done');
     onImported && onImported();
@@ -157,6 +175,7 @@ function CSVUploadModal({ onClose, onImported }) {
               <div style={{ fontSize:'52px', marginBottom:'16px' }}>✅</div>
               <h3 style={{ color:'#4ade80', fontFamily:'Georgia,serif', fontWeight:'normal', marginBottom:'8px' }}>Import Complete!</h3>
               <p style={{ color:'#8a9ab8', fontSize:'14px' }}>Successfully imported <strong style={{ color:GOLD }}>{importCount}</strong> leads.</p>
+              {skippedCount > 0 && <p style={{ color:'#6b7280', fontSize:'13px', marginTop:'4px' }}>Skipped <strong style={{ color:'#f59e0b' }}>{skippedCount}</strong> duplicates (matched by phone or email).</p>}
               <button onClick={onClose} style={{ background:'linear-gradient(135deg,#b8933a,#d4aa50)', color:DARK, border:'none', borderRadius:'2px', padding:'12px 32px', cursor:'pointer', fontWeight:'700', fontSize:'12px', letterSpacing:'2px', textTransform:'uppercase', marginTop:'16px' }}>Done</button>
             </div>
           )}
