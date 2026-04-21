@@ -926,9 +926,7 @@ export default function AdminDashboard() {
         {view === 'users' && (
           <div>
             <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'20px', flexWrap:'wrap', gap:'12px' }}>
-              <div>
-                <h2 style={{ color:'#e8e0d0', margin:'0 0 4px', fontSize:'20px', fontWeight:'normal' }}>CRM — Client Management</h2>
-              </div>
+              <div />
               <div style={{ display:'flex', gap:'8px', alignItems:'center', flexWrap:'wrap' }}>
                 <div style={{ display:'flex', gap:'4px' }}>
                   {[['all','All'],['prospect','Potential Investors'],['investor','Investors']].map(([s,l]) => (

@@ -76,7 +76,7 @@ export default function UpcomingReminders({ onOpenLeadCard, onOpenUserCard, onOp
       </div>
 
       {/* List */}
-      <div style={{ overflowY: 'auto', maxHeight: 'calc(100vh - 200px)' }}>
+      <div style={{ overflowY: 'auto', maxHeight: 'calc(100vh - 120px)' }}>
         {loading && <div style={{ color: '#6b7280', fontSize: '12px', padding: '16px', textAlign: 'center' }}>Loading…</div>}
         {!loading && items.length === 0 && (
           <div style={{ color: '#4a5568', fontSize: '11px', padding: '20px', textAlign: 'center' }}>No upcoming reminders</div>
