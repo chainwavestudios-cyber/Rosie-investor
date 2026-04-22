@@ -75,31 +75,6 @@
     "contactListId": {
       "type": "string",
       "title": "Contact List ID"
-    },
-    "score": {
-      "type": "number",
-      "title": "Lead Score",
-      "default": 0
-    },
-    "emailOpened": {
-      "type": "boolean",
-      "title": "Email Opened",
-      "default": false
-    },
-    "emailClicked": {
-      "type": "boolean",
-      "title": "Email Link Clicked",
-      "default": false
-    },
-    "visitedConsumerSite": {
-      "type": "boolean",
-      "title": "Visited Consumer Website",
-      "default": false
-    },
-    "visitedInvestorPage": {
-      "type": "boolean",
-      "title": "Visited Investor Page",
-      "default": false
     }
   },
   "required": [
