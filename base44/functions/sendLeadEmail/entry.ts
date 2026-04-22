@@ -4,7 +4,7 @@ const MJ_KEY = Deno.env.get('MAILJET_API_KEY');
 const MJ_SECRET = Deno.env.get('MAILJET_API_SECRET');
 const MJ_FROM_EMAIL = Deno.env.get('MAILJET_FROM_EMAIL');
 const MJ_FROM_NAME = Deno.env.get('MAILJET_FROM_NAME') || 'Rosie AI';
-const TEMPLATE_ID = 13933762;
+const TEMPLATE_ID = 7951003;
 
 Deno.serve(async (req) => {
   const base44 = createClientFromRequest(req);
