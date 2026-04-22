@@ -31,7 +31,7 @@ Deno.serve(async (req) => {
           From: { Email: FROM_EMAIL, Name: FROM_NAME },
           To: [{ Email: leadEmail, Name: leadName || '' }],
           Subject: subject,
-          TemplateID: 'email',
+          TemplateID: 13933762,
           TemplateLanguage: true,
           Variables: { firstname: firstName },
           CustomID: customId,
