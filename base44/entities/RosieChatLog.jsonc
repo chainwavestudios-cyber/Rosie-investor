@@ -1,0 +1,46 @@
+{
+  "name": "RosieChatLog",
+  "type": "object",
+  "properties": {
+    "investorId": {
+      "type": "string",
+      "title": "Investor ID"
+    },
+    "investorEmail": {
+      "type": "string",
+      "title": "Investor Email"
+    },
+    "investorName": {
+      "type": "string",
+      "title": "Investor Name"
+    },
+    "sessionId": {
+      "type": "string",
+      "title": "Session ID"
+    },
+    "role": {
+      "type": "string",
+      "title": "Role",
+      "enum": [
+        "user",
+        "assistant"
+      ],
+      "default": "user"
+    },
+    "content": {
+      "type": "string",
+      "title": "Message Content",
+      "format": "textarea"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Timestamp"
+    }
+  },
+  "required": [
+    "investorId",
+    "role",
+    "content"
+  ]
+}

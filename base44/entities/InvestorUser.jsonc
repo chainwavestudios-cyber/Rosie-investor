@@ -85,6 +85,16 @@
       "type": "string",
       "format": "date-time",
       "title": "Access Expires At"
+    },
+    "starRating": {
+      "type": "number",
+      "title": "Star Rating (1-5)",
+      "default": 0
+    },
+    "engagementScore": {
+      "type": "number",
+      "title": "Engagement Score",
+      "default": 0
     }
   },
   "required": [

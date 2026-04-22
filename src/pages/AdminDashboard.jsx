@@ -4,6 +4,8 @@ import { usePortalAuth } from '@/lib/PortalAuthContext';
 import analytics from '@/lib/analytics';
 import { getPortalSettings, loadPortalSettings, savePortalSettings } from '@/lib/portalSettings';
 import { SignNowRequestDB, InvestorUser, ContactNoteDB, AppointmentDB, AccreditationDocDB } from '@/api/entities';
+import RosieTab from '@/components/admin/RosieTab';
+import { computeEngagementScore, getScoreColor, getScoreLabel } from '@/lib/engagementScore';
 import { signnowSendDocuments, signnowGetToken } from '@/lib/signnow';
 import DateTimePicker from '@/components/admin/DateTimePicker';
 import LeadsTab from '@/components/leads/LeadsTab';
@@ -94,6 +96,18 @@ function ContactCardModal({ user, onClose, onSave, allSessions, matchesUser }) {
     ]);
     setNotes(ns); setAppts(ap); setAccDocs(ad); setSnReqs(sn); setSessions(sess);
     setStats(analytics.computeUserStats(sess));
+
+    // Auto-update engagement score
+    try {
+      const rosieCount = await base44.entities.RosieChatLog.filter({ investorId: user.id });
+      const hasRosie = rosieCount.length > 0;
+      const hasSignNow = sn.some(r => r.status !== 'pending');
+      const newScore = computeEngagementScore(sess, hasSignNow, hasRosie);
+      if (newScore !== user.engagementScore) {
+        await base44.entities.InvestorUser.update(user.id, { engagementScore: newScore });
+      }
+    } catch {}
+
     setLoading(false);
   };
 
@@ -144,7 +158,7 @@ function ContactCardModal({ user, onClose, onSave, allSessions, matchesUser }) {
   const TABS = [
     ['overview','👤 Overview'], ['history','📞 History'], ['activity','📊 Activity'],
     ['documents','📄 Documents'], ['accreditation','🔐 Accreditation'], ['calendar','📅 Calendar'],
-    ['portal','🔑 Portal Access'],
+    ['portal','🔑 Portal Access'], ['rosie','🤖 Rosie AI'],
   ];
 
   const noteTypeIcons = { note:'📝', call:'📞', sms:'💬', voicemail:'📳', email:'✉️' };
@@ -183,6 +197,19 @@ function ContactCardModal({ user, onClose, onSave, allSessions, matchesUser }) {
               <div style={{ color:'#6b7280', fontSize:'12px', marginTop:'2px' }}>@{user.username} · {user.email}</div>
             </div>
             <StatusBadge status={user.status || 'prospect'} />
+            {/* Engagement score badge */}
+            {(() => {
+              const sc = user.engagementScore || 0;
+              const col = getScoreColor(sc);
+              return (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: `${col}15`, border: `1px solid ${col}44`, borderRadius: '20px', padding: '4px 10px' }}>
+                  <div style={{ width: '22px', height: '22px', borderRadius: '50%', border: `2px solid ${col}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <span style={{ color: col, fontSize: '9px', fontWeight: 'bold' }}>{sc}</span>
+                  </div>
+                  <span style={{ color: col, fontSize: '11px', letterSpacing: '0.5px' }}>{getScoreLabel(sc)}</span>
+                </div>
+              );
+            })()}
           </div>
           <div style={{ display:'flex', gap:'8px', alignItems:'center' }}>
             {user.phone && (
@@ -447,6 +474,9 @@ function ContactCardModal({ user, onClose, onSave, allSessions, matchesUser }) {
           {tab === 'portal' && (
             <PortalAccessTab user={user} onClose={onClose} onSave={onSave} />
           )}
+
+          {/* ROSIE AI */}
+          {tab === 'rosie' && <RosieTab user={user} />}
 
           {/* CALENDAR */}
           {tab === 'calendar' && (
@@ -992,7 +1022,7 @@ export default function AdminDashboard() {
                 <table style={{ width:'100%', borderCollapse:'collapse', fontSize:'13px' }}>
                   <thead>
                     <tr style={{ borderBottom:'2px solid rgba(184,147,58,0.3)' }}>
-                      {['Status','Name','Contact','Sessions','Last Active',''].map(h => (
+                      {['Status','Name','Score','Contact','Sessions','Last Active',''].map(h => (
                         <th key={h} style={{ color:GOLD, padding:'10px 12px', textAlign:'left', fontSize:'10px', letterSpacing:'1.5px', textTransform:'uppercase', whiteSpace:'nowrap' }}>{h}</th>
                       ))}
                     </tr>
@@ -1012,6 +1042,20 @@ export default function AdminDashboard() {
                           <td style={{ padding:'14px 12px' }}>
                             <div style={{ color:'#e8e0d0', fontWeight:'bold' }}>{user.name}</div>
                             <div style={{ color:'#4a5568', fontSize:'11px', fontFamily:'monospace' }}>@{user.username}</div>
+                          </td>
+                          <td style={{ padding:'14px 12px' }}>
+                            {(() => {
+                              const sc = user.engagementScore || 0;
+                              const col = getScoreColor(sc);
+                              return (
+                                <div style={{ display:'flex', alignItems:'center', gap:'6px' }}>
+                                  <div style={{ width:'28px', height:'28px', borderRadius:'50%', border:`2px solid ${col}`, display:'flex', alignItems:'center', justifyContent:'center', background:`${col}15` }}>
+                                    <span style={{ color:col, fontSize:'10px', fontWeight:'bold' }}>{sc}</span>
+                                  </div>
+                                  <span style={{ color:col, fontSize:'11px' }}>{getScoreLabel(sc)}</span>
+                                </div>
+                              );
+                            })()}
                           </td>
                           <td style={{ padding:'14px 12px' }}>
                             <div style={{ color:'#8a9ab8', fontSize:'12px' }}>{user.email||'—'}</div>

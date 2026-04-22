@@ -9,6 +9,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { getPortalSettings, refreshPortalSettings } from '@/lib/portalSettings';
+import { base44 } from '@/api/base44Client';
 
 const GOLD = '#b8933a';
 const DG_WS_URL = 'wss://agent.deepgram.com/v1/agent/converse';
@@ -38,12 +39,13 @@ function buildDGSettings(cfg, userName) {
   };
 }
 
-export default function RosieVoiceAgent({ userName = 'Steph' }) {
+export default function RosieVoiceAgent({ userName = 'Steph', investorId = null, investorEmail = null }) {
   const [phase, setPhase] = useState('idle'); 
   const [agentSpeaking, setAgentSpeaking] = useState(false);
   const [transcript, setTranscript] = useState([]);
   const [error, setError] = useState('');
   const [isOpen, setIsOpen] = useState(false);
+  const sessionIdRef = useRef(`rosie-${Date.now()}`);
 
   const wsRef        = useRef(null);
   const audioCtxRef  = useRef(null);
@@ -153,6 +155,18 @@ export default function RosieVoiceAgent({ userName = 'Steph' }) {
 
           case 'ConversationText':
             setTranscript(prev => [...prev, { role: msg.role, text: msg.content }]);
+            // Log to RosieChatLog if we have an investor ID
+            if (investorId) {
+              base44.entities.RosieChatLog.create({
+                investorId,
+                investorEmail: investorEmail || '',
+                investorName: userName,
+                sessionId: sessionIdRef.current,
+                role: msg.role === 'user' ? 'user' : 'assistant',
+                content: msg.content,
+                timestamp: new Date().toISOString(),
+              }).catch(() => {});
+            }
             break;
           case 'UserStartedSpeaking':
             if (sourceRef.current) { try { sourceRef.current.stop(); } catch {} }

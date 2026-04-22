@@ -662,7 +662,11 @@ function PortalHome({ setActiveTab, portalUser, onRequestDocuments }) {
       <div style={{ paddingTop:'24px', borderTop:'1px solid rgba(255,255,255,0.05)' }}>
         <p style={{ color:'#2d3748', fontSize:'11px', lineHeight:1.7, margin:0 }}><strong style={{ color:'#374151' }}>Important Disclosure:</strong> {s.disclosureText}</p>
       </div>
-      <RosieVoiceAgent userName={portalUser?.name||portalUser?.username||'Investor'} />
+      <RosieVoiceAgent 
+        userName={portalUser?.name||portalUser?.username||'Investor'} 
+        investorId={portalUser?.id}
+        investorEmail={portalUser?.email}
+      />
     </div>
   );
 }
