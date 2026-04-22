@@ -531,13 +531,10 @@ export default function PredictiveDialer({ contactLists, onClose, onCallLogged }
     }, settings.maxRingTime * 1000);
 
     try {
-      // Get public callback URL for this app (for status callback)
-      const callbackUrl = `${window.location.origin}/api/callbacks/twilio-call-status`;
-      
       const res = await base44.functions.invoke('twilioCallWithCPA', {
         toNumber: lead.phone,
         fromNumber: fromNumber,
-        statusCallbackUrl: callbackUrl,
+        statusCallbackUrl: 'https://www.rosieai.tech/api/apps/69ac768167fa5ab007eb6ae7/functions/callEventWebhook',
       });
       const sid = res.data?.callSid;
       if (!sid) throw new Error('No call SID returned');
