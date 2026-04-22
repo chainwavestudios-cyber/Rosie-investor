@@ -384,10 +384,11 @@ export default function PredictiveDialer({ contactLists, onClose, onCallLogged }
       }
     }
 
-    // Connect via Twilio Client
+    // Connect via Twilio Client — join the existing call
     try {
-      twilioDevice.connect({ params: { CallSid: callSid } });
+      const connection = await twilioDevice.connect({ params: { CallSid: callSid } });
       updateLine(lineIdx, { status: 'connected' });
+      setActiveCall(connection);
 
       if (lead?.id) {
         try {
