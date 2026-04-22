@@ -3,7 +3,6 @@ import { base44 } from '@/api/base44Client';
 
 const GOLD = '#b8933a';
 const DARK = '#0a0f1e';
-const NUM_LINES = 3;
 
 const LINE_DEFAULT = { lead: null, callSid: null, status: 'idle', duration: 0 };
 
@@ -27,21 +26,168 @@ const STATUS_LABEL = {
   ended: 'Ended', voicemail: 'Voicemail ↩', no_answer: 'No Answer',
 };
 
+const LOG_COLORS = { call: '#f59e0b', connected: '#4ade80', ended: '#6b7280', voicemail: '#a78bfa', error: '#ef4444', system: '#60a5fa' };
+
+function useIsMobile() {
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 640);
+  useEffect(() => {
+    const handler = () => setIsMobile(window.innerWidth < 640);
+    window.addEventListener('resize', handler);
+    return () => window.removeEventListener('resize', handler);
+  }, []);
+  return isMobile;
+}
+
+// ── Setup Screen ──────────────────────────────────────────────────────────
+function SetupScreen({ contactLists, selectedListId, setSelectedListId, lineCount, setLineCount, onStart, onClose, loading }) {
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.95)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000, fontFamily: 'Georgia, serif', padding: '16px' }}>
+      <div style={{ background: '#0d1b2a', border: `1px solid rgba(184,147,58,0.4)`, borderRadius: '12px', width: '100%', maxWidth: '460px', boxShadow: '0 40px 120px rgba(0,0,0,0.9)' }}>
+        <div style={{ padding: '24px' }}>
+          {/* Header */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+            <h2 style={{ color: GOLD, margin: 0, fontSize: '15px', letterSpacing: '2px', textTransform: 'uppercase' }}>Predictive Dialer</h2>
+            <button onClick={onClose} style={{ background: 'rgba(255,255,255,0.08)', border: 'none', color: '#8a9ab8', cursor: 'pointer', fontSize: '18px', width: '32px', height: '32px', borderRadius: '6px' }}>×</button>
+          </div>
+
+          {/* Contact List */}
+          <div style={{ marginBottom: '20px' }}>
+            <label style={{ display: 'block', color: '#8a9ab8', fontSize: '11px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '8px' }}>Contact List</label>
+            <select value={selectedListId} onChange={e => setSelectedListId(e.target.value)}
+              style={{ width: '100%', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '8px', padding: '12px', color: '#e8e0d0', fontSize: '14px', outline: 'none', cursor: 'pointer', boxSizing: 'border-box' }}>
+              <option value="">— Choose a list —</option>
+              {contactLists.map(list => (
+                <option key={list.id} value={list.id}>{list.name} ({list.leadCount || 0} leads)</option>
+              ))}
+            </select>
+            {contactLists.length === 0 && (
+              <div style={{ color: '#f59e0b', fontSize: '12px', marginTop: '8px' }}>📊 No lists yet — import a CSV from the Leads tab first.</div>
+            )}
+          </div>
+
+          {/* Line Count */}
+          <div style={{ marginBottom: '24px' }}>
+            <label style={{ display: 'block', color: '#8a9ab8', fontSize: '11px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '8px' }}>Simultaneous Lines</label>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              {[1, 2, 3].map(n => (
+                <button key={n} onClick={() => setLineCount(n)}
+                  style={{ flex: 1, padding: '14px 0', borderRadius: '8px', border: `2px solid ${lineCount === n ? GOLD : 'rgba(255,255,255,0.1)'}`, background: lineCount === n ? `rgba(184,147,58,0.15)` : 'transparent', color: lineCount === n ? GOLD : '#6b7280', cursor: 'pointer', fontSize: '18px', fontWeight: 'bold', transition: 'all 0.15s' }}>
+                  {n}
+                </button>
+              ))}
+            </div>
+            <div style={{ color: '#4a5568', fontSize: '11px', marginTop: '8px' }}>
+              {lineCount === 1 ? '📱 Good for mobile use' : lineCount === 2 ? '💡 Use when another device is also dialing' : '⚡ Max throughput — desktop recommended'}
+            </div>
+          </div>
+
+          {/* Actions */}
+          <div style={{ display: 'flex', gap: '10px' }}>
+            <button onClick={onStart} disabled={!selectedListId || loading}
+              style={{ flex: 1, background: !selectedListId ? 'rgba(184,147,58,0.2)' : 'linear-gradient(135deg,#b8933a,#d4aa50)', color: DARK, border: 'none', borderRadius: '8px', padding: '15px', cursor: !selectedListId ? 'not-allowed' : 'pointer', fontWeight: 'bold', fontSize: '14px', letterSpacing: '1px' }}>
+              {loading ? 'Loading…' : '▶ Launch Dialer'}
+            </button>
+            <button onClick={onClose}
+              style={{ padding: '15px 20px', background: 'rgba(255,255,255,0.05)', color: '#6b7280', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '8px', cursor: 'pointer', fontSize: '13px' }}>
+              Cancel
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Line Card (mobile-friendly) ───────────────────────────────────────────
+function LineCard({ line, index, onHangup }) {
+  const col = LINE_COLORS[line.status] || '#4a5568';
+  const isActive = line.status === 'connected' || line.status === 'calling';
+  return (
+    <div style={{
+      background: 'rgba(255,255,255,0.03)',
+      border: `1px solid ${line.status === 'connected' ? 'rgba(74,222,128,0.35)' : line.status === 'calling' ? 'rgba(245,158,11,0.35)' : line.status === 'voicemail' ? 'rgba(167,139,250,0.3)' : 'rgba(255,255,255,0.07)'}`,
+      borderLeft: `4px solid ${col}`,
+      borderRadius: '10px',
+      padding: '14px 16px',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: '12px',
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1, minWidth: 0 }}>
+        <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: col, flexShrink: 0, boxShadow: isActive ? `0 0 8px ${col}` : 'none' }} />
+        <div style={{ minWidth: 0 }}>
+          <div style={{ color: '#e8e0d0', fontSize: '14px', fontWeight: 'bold', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {line.lead ? `${line.lead.firstName} ${line.lead.lastName}` : `Line ${index + 1}`}
+          </div>
+          {line.lead?.phone && <div style={{ color: '#6b7280', fontSize: '12px', fontFamily: 'monospace', marginTop: '2px' }}>{line.lead.phone}</div>}
+        </div>
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
+        {(line.status === 'connected' || line.status === 'ended') && (
+          <div style={{ color: '#4ade80', fontFamily: 'monospace', fontSize: '15px', fontWeight: 'bold' }}>{formatDuration(line.duration)}</div>
+        )}
+        <span style={{ color: col, fontSize: '11px', textTransform: 'uppercase', letterSpacing: '1px', whiteSpace: 'nowrap' }}>{STATUS_LABEL[line.status] || 'Idle'}</span>
+        {isActive && line.callSid && (
+          <button onClick={() => onHangup(line.callSid)}
+            style={{ background: 'rgba(239,68,68,0.15)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '6px', padding: '5px 10px', cursor: 'pointer', fontSize: '13px' }}>
+            📵
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Stats Row ─────────────────────────────────────────────────────────────
+function StatsRow({ total, dialed, remaining }) {
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: '8px' }}>
+      {[[total, 'Total', GOLD], [dialed, 'Dialed', '#60a5fa'], [remaining, 'Left', '#a78bfa']].map(([v, l, c]) => (
+        <div key={l} style={{ background: 'rgba(0,0,0,0.25)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '8px', padding: '10px', textAlign: 'center' }}>
+          <div style={{ color: c, fontSize: '20px', fontWeight: 'bold' }}>{v}</div>
+          <div style={{ color: '#4a5568', fontSize: '10px', letterSpacing: '1px', textTransform: 'uppercase', marginTop: '2px' }}>{l}</div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ── Log Panel ─────────────────────────────────────────────────────────────
+function LogPanel({ logs, style }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', ...style }}>
+      <div style={{ padding: '10px 14px', borderBottom: '1px solid rgba(255,255,255,0.07)', color: GOLD, fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', flexShrink: 0 }}>Activity Log</div>
+      <div style={{ flex: 1, overflowY: 'auto', padding: '6px' }}>
+        {logs.length === 0 && <div style={{ color: '#4a5568', fontSize: '12px', padding: '20px', textAlign: 'center' }}>No activity yet</div>}
+        {logs.map((log, i) => (
+          <div key={i} style={{ padding: '5px 8px', borderBottom: '1px solid rgba(255,255,255,0.04)', fontSize: '11px' }}>
+            <div style={{ color: LOG_COLORS[log.type] || '#8a9ab8', marginBottom: '1px' }}>{log.msg}</div>
+            <div style={{ color: '#4a5568', fontSize: '10px' }}>{log.time}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── Main Dialer ───────────────────────────────────────────────────────────
 export default function PredictiveDialer({ onClose, onCallLogged }) {
+  const isMobile = useIsMobile();
+
   const [contactLists, setContactLists] = useState([]);
   const [selectedListId, setSelectedListId] = useState('');
-  const [lineCount, setLineCount] = useState(3);
+  const [lineCount, setLineCount] = useState(isMobile ? 1 : 3);
   const [started, setStarted] = useState(false);
+  const [mobileTab, setMobileTab] = useState('lines'); // 'lines' | 'log'
 
   const [leads, setLeads] = useState([]);
   const [queue, setQueue] = useState([]);
   const [queueIndex, setQueueIndex] = useState(0);
-  const [lines, setLines] = useState(() => Array.from({ length: NUM_LINES }, () => ({ ...LINE_DEFAULT })));
+  const [lines, setLines] = useState(() => Array.from({ length: 3 }, () => ({ ...LINE_DEFAULT })));
   const [running, setRunning] = useState(false);
-  const [microphones, setMicrophones] = useState([]);
-  const [selectedMic, setSelectedMic] = useState('');
   const [logs, setLogs] = useState([]);
-  const [loadingLeads, setLoadingLeads] = useState(true);
+  const [loadingLeads, setLoadingLeads] = useState(false);
 
   const linesRef = useRef(lines);
   const queueRef = useRef([]);
@@ -54,11 +200,9 @@ export default function PredictiveDialer({ onClose, onCallLogged }) {
   runningRef.current = running;
 
   useEffect(() => {
-    loadContactLists();
-    navigator.mediaDevices?.enumerateDevices().then(devices => {
-      const mics = devices.filter(d => d.kind === 'audioinput');
-      setMicrophones(mics);
-      if (mics.length > 0) setSelectedMic(mics[0].deviceId);
+    base44.entities.ContactList.list('-created_date', 100).then(lists => {
+      setContactLists(lists);
+      if (lists.length > 0) setSelectedListId(lists[0].id);
     }).catch(() => {});
     return () => {
       Object.values(timersRef.current).forEach(clearInterval);
@@ -66,14 +210,8 @@ export default function PredictiveDialer({ onClose, onCallLogged }) {
     };
   }, []);
 
-  const loadContactLists = async () => {
-    try {
-      const lists = await base44.entities.ContactList.list('-created_date', 100);
-      setContactLists(lists);
-      if (lists.length > 0) setSelectedListId(lists[0].id);
-    } catch (e) {
-      addLog('error', 'Failed to load contact lists: ' + e.message);
-    }
+  const addLog = (type, msg) => {
+    setLogs(prev => [{ type, msg, time: new Date().toLocaleTimeString() }, ...prev].slice(0, 80));
   };
 
   const loadLeads = async (listId) => {
@@ -97,10 +235,6 @@ export default function PredictiveDialer({ onClose, onCallLogged }) {
     if (!selectedListId) return;
     await loadLeads(selectedListId);
     setStarted(true);
-  };
-
-  const addLog = (type, msg) => {
-    setLogs(prev => [{ type, msg, time: new Date().toLocaleTimeString() }, ...prev].slice(0, 60));
   };
 
   const getNextLead = () => {
@@ -134,6 +268,10 @@ export default function PredictiveDialer({ onClose, onCallLogged }) {
     });
   };
 
+  const hangupLine = async (callSid) => {
+    try { await base44.functions.invoke('twilioCall', { action: 'hangupCall', callSid }); } catch {}
+  };
+
   const dialLine = useCallback(async (lineIdx) => {
     const lead = getNextLead();
     if (!lead) {
@@ -161,44 +299,35 @@ export default function PredictiveDialer({ onClose, onCallLogged }) {
 
       startLineTimer(lineIdx);
       addLog('connected', `Line ${lineIdx + 1}: Connected — ${lead.firstName} ${lead.lastName}`);
-
-      // Stamp lastCalledAt
       try { await base44.entities.Lead.update(lead.id, { lastCalledAt: new Date().toISOString() }); } catch {}
 
-      // Poll for status + AMD voicemail detection
       pollsRef.current[lineIdx] = setInterval(async () => {
         try {
           const s = await base44.functions.invoke('twilioCall', { action: 'getCallStatus', callSid: sid });
           const { status, isVoicemail } = s.data || {};
 
-          // ── Voicemail detected → hang up immediately ──
           if (isVoicemail) {
             clearInterval(pollsRef.current[lineIdx]);
             clearInterval(timersRef.current[lineIdx]);
             try { await base44.functions.invoke('twilioCall', { action: 'hangupCall', callSid: sid }); } catch {}
-            addLog('voicemail', `Line ${lineIdx + 1}: Voicemail detected — hung up (${lead.firstName} ${lead.lastName})`);
+            addLog('voicemail', `Line ${lineIdx + 1}: Voicemail — skipped (${lead.firstName} ${lead.lastName})`);
             endLine(lineIdx, 'voicemail');
             setTimeout(() => { if (runningRef.current) dialLine(lineIdx); }, 1000);
             return;
           }
 
-          // ── Call ended naturally ──
           if (['completed', 'failed', 'no-answer', 'busy', 'canceled'].includes(status)) {
             clearInterval(pollsRef.current[lineIdx]);
             clearInterval(timersRef.current[lineIdx]);
             const dur = linesRef.current[lineIdx]?.duration || 0;
-
             try {
               await base44.entities.LeadHistory.create({
-                leadId: lead.id,
-                type: 'call',
+                leadId: lead.id, type: 'call',
                 content: `Predictive dialer call — ${formatDuration(dur)}`,
-                callDurationSeconds: dur,
-                twilioCallSid: sid,
+                callDurationSeconds: dur, twilioCallSid: sid,
               });
               onCallLogged && onCallLogged(lead.id);
             } catch {}
-
             addLog('ended', `Line ${lineIdx + 1}: Ended — ${lead.firstName} ${lead.lastName} (${formatDuration(dur)})`);
             endLine(lineIdx, 'ended');
             setTimeout(() => { if (runningRef.current) dialLine(lineIdx); }, 1500);
@@ -216,11 +345,9 @@ export default function PredictiveDialer({ onClose, onCallLogged }) {
   const startDialing = () => {
     setRunning(true);
     runningRef.current = true;
-    const remaining = queueRef.current.length - queueIndexRef.current;
-    addLog('system', `Starting predictive dialer — ${remaining} leads in queue (${lineCount} lines)`);
-    for (let i = 0; i < lineCount; i++) {
-      setTimeout(() => dialLine(i), i * 800);
-    }
+    const rem = queueRef.current.length - queueIndexRef.current;
+    addLog('system', `Starting — ${rem} leads, ${lineCount} line${lineCount > 1 ? 's' : ''}`);
+    for (let i = 0; i < lineCount; i++) setTimeout(() => dialLine(i), i * 800);
   };
 
   const stopDialing = async () => {
@@ -233,7 +360,7 @@ export default function PredictiveDialer({ onClose, onCallLogged }) {
         try { await base44.functions.invoke('twilioCall', { action: 'hangupCall', callSid: line.callSid }); } catch {}
       }
     });
-    setLines(Array.from({ length: NUM_LINES }, () => ({ ...LINE_DEFAULT })));
+    setLines(Array.from({ length: 3 }, () => ({ ...LINE_DEFAULT })));
     addLog('system', 'Dialer stopped.');
   };
 
@@ -246,56 +373,100 @@ export default function PredictiveDialer({ onClose, onCallLogged }) {
 
   const remaining = Math.max(0, queue.length - queueIndex);
 
-  // Setup screen
+  // ── Setup screen ────────────────────────────────────────────────────────
   if (!started) {
     return (
-      <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.92)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000, fontFamily: 'Georgia, serif', padding: '20px' }}>
-        <div style={{ background: '#0d1b2a', border: `1px solid rgba(184,147,58,0.4)`, borderRadius: '8px', width: '100%', maxWidth: '500px', boxShadow: '0 40px 120px rgba(0,0,0,0.9)' }}>
-          <div style={{ padding: '28px' }}>
-            <h2 style={{ color: GOLD, margin: '0 0 24px', fontSize: '16px', letterSpacing: '3px', textTransform: 'uppercase' }}>Predictive Dialer Setup</h2>
+      <SetupScreen
+        contactLists={contactLists}
+        selectedListId={selectedListId}
+        setSelectedListId={setSelectedListId}
+        lineCount={lineCount}
+        setLineCount={setLineCount}
+        onStart={handleStart}
+        onClose={onClose}
+        loading={loadingLeads}
+      />
+    );
+  }
 
-            <div style={{ marginBottom: '20px' }}>
-              <label style={{ display: 'block', color: '#8a9ab8', fontSize: '11px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '8px' }}>Select Contact List</label>
-              <select value={selectedListId} onChange={e => setSelectedListId(e.target.value)} style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '2px', padding: '10px', color: '#e8e0d0', fontSize: '13px', outline: 'none', cursor: 'pointer', boxSizing: 'border-box' }}>
-                <option value="">— Choose a list —</option>
-                {contactLists.map(list => (
-                  <option key={list.id} value={list.id}>{list.name} ({list.leadCount} leads)</option>
-                ))}
-              </select>
-              {contactLists.length === 0 && <div style={{ color: '#f59e0b', fontSize: '12px', marginTop: '8px' }}>📊 No contact lists yet. Import CSV from the Leads tab.</div>}
-            </div>
+  // ── Mobile layout ───────────────────────────────────────────────────────
+  if (isMobile) {
+    return (
+      <div style={{ position: 'fixed', inset: 0, background: '#060c18', zIndex: 10000, fontFamily: 'Georgia, serif', display: 'flex', flexDirection: 'column' }}>
 
-            <div style={{ marginBottom: '20px' }}>
-              <label style={{ display: 'block', color: '#8a9ab8', fontSize: '11px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '8px' }}>Number of Lines</label>
-              <div style={{ display: 'flex', gap: '8px' }}>
-                {[2, 3].map(n => (
-                  <button key={n} onClick={() => setLineCount(n)} style={{ flex: 1, padding: '10px', borderRadius: '4px', border: `2px solid ${lineCount === n ? GOLD : 'rgba(255,255,255,0.12)'}`, background: lineCount === n ? `rgba(184,147,58,0.15)` : 'transparent', color: lineCount === n ? GOLD : '#6b7280', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}>{n} Lines</button>
-                ))}
-              </div>
-              <div style={{ color: '#4a5568', fontSize: '11px', marginTop: '8px' }}>💡 Use 2 lines if another computer is using direct dial. Use 3 for max efficiency.</div>
-            </div>
-
-            <div style={{ display: 'flex', gap: '12px' }}>
-              <button onClick={handleStart} disabled={!selectedListId || loadingLeads} style={{ flex: 1, background: !selectedListId ? 'rgba(184,147,58,0.2)' : 'linear-gradient(135deg,#b8933a,#d4aa50)', color: DARK, border: 'none', borderRadius: '4px', padding: '12px', cursor: !selectedListId ? 'not-allowed' : 'pointer', fontWeight: 'bold', fontSize: '12px', letterSpacing: '2px', textTransform: 'uppercase' }}>{loadingLeads ? 'Loading…' : 'Launch Dialer'}</button>
-              <button onClick={onClose} style={{ padding: '12px 20px', background: 'transparent', color: '#6b7280', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}>Cancel</button>
-            </div>
+        {/* Mobile Header */}
+        <div style={{ background: '#0d1b2a', borderBottom: '1px solid rgba(184,147,58,0.25)', padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: running ? '#4ade80' : '#4a5568', boxShadow: running ? '0 0 8px #4ade80' : 'none' }} />
+            <span style={{ color: GOLD, fontSize: '13px', letterSpacing: '2px', textTransform: 'uppercase' }}>Dialer</span>
+            <span style={{ background: 'rgba(184,147,58,0.15)', color: GOLD, border: '1px solid rgba(184,147,58,0.3)', borderRadius: '4px', padding: '2px 8px', fontSize: '10px' }}>{lineCount} Line{lineCount > 1 ? 's' : ''}</span>
           </div>
+          <button onClick={onClose} style={{ background: 'rgba(255,255,255,0.08)', border: 'none', color: '#8a9ab8', cursor: 'pointer', fontSize: '18px', width: '34px', height: '34px', borderRadius: '8px' }}>×</button>
+        </div>
+
+        {/* Stats */}
+        <div style={{ padding: '12px 16px', flexShrink: 0 }}>
+          <StatsRow total={queue.length} dialed={queueIndex} remaining={remaining} />
+        </div>
+
+        {/* Tab bar */}
+        <div style={{ display: 'flex', borderBottom: '1px solid rgba(255,255,255,0.07)', flexShrink: 0 }}>
+          {[['lines', '📞 Lines'], ['log', '📋 Log']].map(([id, label]) => (
+            <button key={id} onClick={() => setMobileTab(id)}
+              style={{ flex: 1, background: 'none', border: 'none', borderBottom: mobileTab === id ? `2px solid ${GOLD}` : '2px solid transparent', color: mobileTab === id ? GOLD : '#6b7280', padding: '10px', cursor: 'pointer', fontSize: '13px', fontFamily: 'Georgia, serif' }}>
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {/* Tab content */}
+        <div style={{ flex: 1, overflowY: 'auto', padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          {mobileTab === 'lines' && (
+            <>
+              {lines.slice(0, lineCount).map((line, i) => (
+                <LineCard key={i} line={line} index={i} onHangup={hangupLine} />
+              ))}
+            </>
+          )}
+          {mobileTab === 'log' && (
+            <LogPanel logs={logs} style={{ flex: 1, background: 'rgba(0,0,0,0.2)', borderRadius: '10px', overflow: 'hidden' }} />
+          )}
+        </div>
+
+        {/* Bottom controls */}
+        <div style={{ padding: '12px 16px', borderTop: '1px solid rgba(255,255,255,0.07)', background: '#0d1b2a', flexShrink: 0, display: 'flex', gap: '10px' }}>
+          {!running ? (
+            <button onClick={startDialing} disabled={loadingLeads || remaining === 0}
+              style={{ flex: 1, background: (loadingLeads || remaining === 0) ? 'rgba(74,222,128,0.2)' : 'linear-gradient(135deg,#22c55e,#16a34a)', color: '#fff', border: 'none', borderRadius: '10px', padding: '16px', cursor: (loadingLeads || remaining === 0) ? 'not-allowed' : 'pointer', fontWeight: 'bold', fontSize: '15px' }}>
+              {loadingLeads ? 'Loading…' : remaining === 0 ? 'Queue Empty' : `▶ Start (${remaining})`}
+            </button>
+          ) : (
+            <button onClick={stopDialing}
+              style={{ flex: 1, background: 'linear-gradient(135deg,#ef4444,#b91c1c)', color: '#fff', border: 'none', borderRadius: '10px', padding: '16px', cursor: 'pointer', fontWeight: 'bold', fontSize: '15px' }}>
+              ■ Stop
+            </button>
+          )}
+          <button onClick={resetQueue} disabled={running}
+            style={{ padding: '16px 18px', background: 'rgba(255,255,255,0.06)', color: '#8a9ab8', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px', cursor: running ? 'not-allowed' : 'pointer', fontSize: '16px' }}>
+            ↺
+          </button>
         </div>
       </div>
     );
   }
 
+  // ── Desktop layout ──────────────────────────────────────────────────────
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.92)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000, fontFamily: 'Georgia, serif', padding: '20px' }}>
-      <div style={{ background: '#0d1b2a', border: `1px solid rgba(184,147,58,0.4)`, borderRadius: '8px', width: '100%', maxWidth: '900px', maxHeight: '90vh', display: 'flex', flexDirection: 'column', boxShadow: '0 40px 120px rgba(0,0,0,0.9)' }}>
+      <div style={{ background: '#0d1b2a', border: `1px solid rgba(184,147,58,0.4)`, borderRadius: '10px', width: '100%', maxWidth: '900px', maxHeight: '90vh', display: 'flex', flexDirection: 'column', boxShadow: '0 40px 120px rgba(0,0,0,0.9)' }}>
 
         {/* Header */}
-        <div style={{ padding: '18px 24px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(0,0,0,0.25)', borderRadius: '8px 8px 0 0' }}>
+        <div style={{ padding: '16px 24px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(0,0,0,0.25)', borderRadius: '10px 10px 0 0' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
             <div style={{ width: '12px', height: '12px', borderRadius: '50%', background: running ? '#4ade80' : '#4a5568', boxShadow: running ? '0 0 10px #4ade80' : 'none' }} />
             <span style={{ color: GOLD, fontSize: '13px', letterSpacing: '3px', textTransform: 'uppercase' }}>Predictive Dialer</span>
-            <span style={{ background: 'rgba(184,147,58,0.15)', color: GOLD, border: '1px solid rgba(184,147,58,0.3)', borderRadius: '2px', padding: '2px 10px', fontSize: '11px' }}>{lineCount} Lines</span>
-            <span style={{ background: 'rgba(167,139,250,0.15)', color: '#a78bfa', border: '1px solid rgba(167,139,250,0.3)', borderRadius: '2px', padding: '2px 10px', fontSize: '11px' }}>AMD On</span>
+            <span style={{ background: 'rgba(184,147,58,0.15)', color: GOLD, border: '1px solid rgba(184,147,58,0.3)', borderRadius: '4px', padding: '2px 10px', fontSize: '11px' }}>{lineCount} Lines</span>
+            <span style={{ background: 'rgba(167,139,250,0.15)', color: '#a78bfa', border: '1px solid rgba(167,139,250,0.3)', borderRadius: '4px', padding: '2px 10px', fontSize: '11px' }}>AMD On</span>
           </div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#6b7280', cursor: 'pointer', fontSize: '22px' }}>×</button>
         </div>
@@ -303,101 +474,37 @@ export default function PredictiveDialer({ onClose, onCallLogged }) {
         <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
 
           {/* Left panel */}
-          <div style={{ flex: 1, padding: '20px', display: 'flex', flexDirection: 'column', gap: '16px', overflowY: 'auto' }}>
+          <div style={{ flex: 1, padding: '20px', display: 'flex', flexDirection: 'column', gap: '14px', overflowY: 'auto' }}>
+            <StatsRow total={queue.length} dialed={queueIndex} remaining={remaining} />
 
-            {/* Stats */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: '10px' }}>
-              {[
-                [queue.length, 'Total Leads', GOLD],
-                [queueIndex, 'Dialed', '#60a5fa'],
-                [remaining, 'Remaining', '#a78bfa'],
-              ].map(([v, l, c]) => (
-                <div key={l} style={{ background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '4px', padding: '12px', textAlign: 'center' }}>
-                  <div style={{ color: c, fontSize: '22px', fontWeight: 'bold' }}>{v}</div>
-                  <div style={{ color: '#4a5568', fontSize: '10px', letterSpacing: '1px', textTransform: 'uppercase', marginTop: '3px' }}>{l}</div>
-                </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              {lines.slice(0, lineCount).map((line, i) => (
+                <LineCard key={i} line={line} index={i} onHangup={hangupLine} />
               ))}
             </div>
 
-            {/* Lines */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              {lines.slice(0, lineCount).map((line, i) => {
-                const col = LINE_COLORS[line.status] || '#4a5568';
-                return (
-                  <div key={i} style={{ background: 'rgba(255,255,255,0.03)', border: `1px solid ${line.status === 'connected' ? 'rgba(74,222,128,0.3)' : line.status === 'calling' ? 'rgba(245,158,11,0.3)' : line.status === 'voicemail' ? 'rgba(167,139,250,0.3)' : 'rgba(255,255,255,0.07)'}`, borderLeft: `4px solid ${col}`, borderRadius: '4px', padding: '14px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1, minWidth: 0 }}>
-                      <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: col, flexShrink: 0, boxShadow: line.status === 'connected' ? `0 0 8px ${col}` : 'none' }} />
-                      <div style={{ minWidth: 0 }}>
-                        <div style={{ color: '#e8e0d0', fontSize: '13px', fontWeight: 'bold', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          {line.lead ? `${line.lead.firstName} ${line.lead.lastName}` : `Line ${i + 1}`}
-                        </div>
-                        {line.lead?.phone && <div style={{ color: '#6b7280', fontSize: '11px', fontFamily: 'monospace' }}>{line.lead.phone}</div>}
-                      </div>
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0 }}>
-                      {(line.status === 'connected' || line.status === 'ended') && (
-                        <div style={{ color: '#4ade80', fontFamily: 'monospace', fontSize: '14px', fontWeight: 'bold' }}>{formatDuration(line.duration)}</div>
-                      )}
-                      <span style={{ color: col, fontSize: '10px', textTransform: 'uppercase', letterSpacing: '1px' }}>{STATUS_LABEL[line.status] || 'Idle'}</span>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-
-            {/* Mic selector */}
-            {microphones.length > 1 && (
-              <div>
-                <label style={{ display: 'block', color: '#6b7280', fontSize: '10px', letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: '5px' }}>🎙 Microphone</label>
-                <select value={selectedMic} onChange={e => setSelectedMic(e.target.value)} disabled={running}
-                  style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '4px', padding: '8px 10px', color: '#e8e0d0', fontSize: '12px', outline: 'none', cursor: 'pointer', boxSizing: 'border-box' }}>
-                  {microphones.map(mic => (
-                    <option key={mic.deviceId} value={mic.deviceId}>{mic.label || `Microphone ${microphones.indexOf(mic) + 1}`}</option>
-                  ))}
-                </select>
-              </div>
-            )}
-
             {/* Controls */}
-            <div style={{ display: 'flex', gap: '10px' }}>
+            <div style={{ display: 'flex', gap: '10px', marginTop: 'auto' }}>
               {!running ? (
                 <button onClick={startDialing} disabled={loadingLeads || remaining === 0}
-                  style={{ flex: 1, background: (loadingLeads || remaining === 0) ? 'rgba(74,222,128,0.2)' : 'linear-gradient(135deg,#22c55e,#16a34a)', color: '#fff', border: 'none', borderRadius: '6px', padding: '14px', cursor: (loadingLeads || remaining === 0) ? 'not-allowed' : 'pointer', fontWeight: 'bold', fontSize: '14px' }}>
-                  {loadingLeads ? 'Loading Leads…' : remaining === 0 ? 'Queue Empty' : `▶ Start Dialing (${remaining} leads)`}
+                  style={{ flex: 1, background: (loadingLeads || remaining === 0) ? 'rgba(74,222,128,0.2)' : 'linear-gradient(135deg,#22c55e,#16a34a)', color: '#fff', border: 'none', borderRadius: '8px', padding: '14px', cursor: (loadingLeads || remaining === 0) ? 'not-allowed' : 'pointer', fontWeight: 'bold', fontSize: '14px' }}>
+                  {loadingLeads ? 'Loading…' : remaining === 0 ? 'Queue Empty' : `▶ Start Dialing (${remaining} leads)`}
                 </button>
               ) : (
                 <button onClick={stopDialing}
-                  style={{ flex: 1, background: 'linear-gradient(135deg,#ef4444,#b91c1c)', color: '#fff', border: 'none', borderRadius: '6px', padding: '14px', cursor: 'pointer', fontWeight: 'bold', fontSize: '14px' }}>
+                  style={{ flex: 1, background: 'linear-gradient(135deg,#ef4444,#b91c1c)', color: '#fff', border: 'none', borderRadius: '8px', padding: '14px', cursor: 'pointer', fontWeight: 'bold', fontSize: '14px' }}>
                   ■ Stop Dialer
                 </button>
               )}
               <button onClick={resetQueue} disabled={running}
-                style={{ padding: '14px 16px', background: 'rgba(255,255,255,0.05)', color: '#8a9ab8', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', cursor: running ? 'not-allowed' : 'pointer', fontSize: '12px' }}>
+                style={{ padding: '14px 16px', background: 'rgba(255,255,255,0.05)', color: '#8a9ab8', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', cursor: running ? 'not-allowed' : 'pointer', fontSize: '14px' }}>
                 ↺ Reset
-              </button>
-              <button onClick={loadLeads} disabled={running || loadingLeads}
-                style={{ padding: '14px 16px', background: 'rgba(255,255,255,0.05)', color: '#8a9ab8', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', cursor: running ? 'not-allowed' : 'pointer', fontSize: '12px' }}>
-                ↻
               </button>
             </div>
           </div>
 
-          {/* Right: Activity Log */}
-          <div style={{ width: '300px', borderLeft: '1px solid rgba(255,255,255,0.07)', display: 'flex', flexDirection: 'column' }}>
-            <div style={{ padding: '12px 16px', borderBottom: '1px solid rgba(255,255,255,0.07)', color: GOLD, fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase' }}>Activity Log</div>
-            <div style={{ flex: 1, overflowY: 'auto', padding: '8px' }}>
-              {logs.length === 0 && <div style={{ color: '#4a5568', fontSize: '12px', padding: '20px', textAlign: 'center' }}>No activity yet</div>}
-              {logs.map((log, i) => {
-                const logColors = { call: '#f59e0b', connected: '#4ade80', ended: '#6b7280', voicemail: '#a78bfa', error: '#ef4444', system: '#60a5fa' };
-                return (
-                  <div key={i} style={{ padding: '6px 8px', borderBottom: '1px solid rgba(255,255,255,0.04)', fontSize: '11px' }}>
-                    <div style={{ color: logColors[log.type] || '#8a9ab8', marginBottom: '2px' }}>{log.msg}</div>
-                    <div style={{ color: '#4a5568', fontSize: '10px' }}>{log.time}</div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
+          {/* Log panel */}
+          <LogPanel logs={logs} style={{ width: '280px', borderLeft: '1px solid rgba(255,255,255,0.07)' }} />
         </div>
       </div>
     </div>
