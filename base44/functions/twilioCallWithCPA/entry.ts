@@ -40,7 +40,7 @@ Deno.serve(async (req) => {
         'To': toNumber,
         'From': resolvedFromNumber,
         'MachineDetection': 'DetectMessageEnd',
-        'MachineDetectionTimeout': '5',
+        'MachineDetectionTimeout': '5000',
         'MachineDetectionSpeechThreshold': '5000',
         'MachineDetectionSpeechEndThreshold': '1800',
         'StatusCallback': statusCallbackUrl,
