@@ -458,6 +458,7 @@ function InvestmentOffering() {
   const activeSec = PPM_INDEX.find(s => s.id === activeSection) || PPM_INDEX[0];
   useEffect(() => { docIdRef.current=analytics.trackDocumentOpen('Private Placement Memorandum','ppm'); analytics.trackDocumentPageView(docIdRef.current,1); return ()=>{ if(docIdRef.current)analytics.trackDocumentClose(docIdRef.current); }; }, []);
   const goToSection = (sec) => { if(sec.id===activeSection)return; if(docIdRef.current)analytics.trackDocumentPageView(docIdRef.current,sec.page); setActiveSection(sec.id); };
+  useEffect(() => { if(docIdRef.current)analytics.trackDocumentPageView(docIdRef.current,activeSec.page); }, [activeSection, activeSec.page]);
   return (
     <div style={{ display:'flex', gap:'0', minHeight:'700px' }}>
       <div style={{ width:'220px', flexShrink:0, borderRight:'1px solid rgba(255,255,255,0.08)', overflowY:'auto', maxHeight:'80vh' }}>
@@ -482,7 +483,7 @@ function InvestmentOffering() {
             <button onClick={()=>downloadFile(PPM_PDF_URL,'RosieAI_PPM.pdf')} style={{ background:'rgba(184,147,58,0.15)', color:GOLD, border:`1px solid rgba(184,147,58,0.3)`, borderRadius:'2px', padding:'6px 14px', cursor:'pointer', fontSize:'11px', marginLeft:'4px' }}>↓ Download</button>
           </div>
         </div>
-        <iframe key={activeSection} src={`https://docs.google.com/viewer?url=${encodeURIComponent(PPM_PDF_URL)}&embedded=true#page=${activeSec.page}`} style={{ flex:1, width:'100%', minHeight:'640px', border:'none', background:'#fff' }} title="Investment Offering PPM" />
+        <iframe src={`https://docs.google.com/viewer?url=${encodeURIComponent(PPM_PDF_URL)}&embedded=true#page=${activeSec.page}`} style={{ flex:1, width:'100%', minHeight:'640px', border:'none', background:'#fff' }} title="Investment Offering PPM" key={`ppm-${activeSec.page}`} />
       </div>
     </div>
   );
