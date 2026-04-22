@@ -651,6 +651,7 @@ export default function PredictiveDialer({ contactLists, onClose, onCallLogged }
       { lead: null, callSid: null, status: 'idle', duration: 0 },
       { lead: null, callSid: null, status: 'idle', duration: 0 },
     ]);
+    setQueueIndex(queue.length); // Prevent further dialing by moving index to end
     addLog('system', 'Dialer stopped.');
   };
 

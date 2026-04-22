@@ -39,7 +39,6 @@ Deno.serve(async (req) => {
       body: new URLSearchParams({
         'To': toNumber,
         'From': resolvedFromNumber,
-        'Url': 'http://twimlets.com/holdmusic?Bucket=com.twilio.music.classical',
         'MachineDetection': 'DetectMessageEnd',
         'MachineDetectionTimeout': '5',
         'MachineDetectionSpeechThreshold': '5000',
