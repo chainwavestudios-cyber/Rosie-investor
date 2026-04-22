@@ -3,6 +3,7 @@ import { base44 } from '@/api/base44Client';
 import MigrateLeadModal from './MigrateLeadModal';
 import DateTimePicker from '@/components/admin/DateTimePicker';
 import LeadEmailTab from './LeadEmailTab';
+import ZoomBookingModal from '@/components/ZoomBookingModal';
 
 const GOLD = '#b8933a';
 const DARK = '#0a0f1e';
@@ -45,6 +46,7 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber 
   // Note entry in overview
   const [quickNote, setQuickNote] = useState('');
   const [addingNote, setAddingNote] = useState(false);
+  const [showZoom, setShowZoom] = useState(false);
 
   useEffect(() => { loadHistory(); }, [lead.id]);
 
@@ -162,6 +164,9 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber 
         onMigrated={() => { setShowMigrate(false); onUpdate && onUpdate(); onClose(); }}
       />
     )}
+    {showZoom && (
+      <ZoomBookingModal isOpen={showZoom} onClose={() => setShowZoom(false)} buttonLabel="Book Zoom Call" />
+    )}
     <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.9)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:9999, padding:'16px' }}>
       <div style={{ background:'#0d1b2a', border:'1px solid rgba(184,147,58,0.3)', borderRadius:'4px', width:'100%', maxWidth:'820px', maxHeight:'92vh', display:'flex', flexDirection:'column', boxShadow:'0 40px 120px rgba(0,0,0,0.9)' }}>
 
@@ -195,6 +200,10 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber 
             </button>
             {emailMsg && <span style={{ fontSize:'11px', color: emailMsg.startsWith('Error') ? '#ef4444' : '#4ade80' }}>{emailMsg}</span>}
 
+            <button onClick={() => setShowZoom(true)}
+              style={{ background:'rgba(96,165,250,0.15)', color:'#60a5fa', border:'1px solid rgba(96,165,250,0.3)', borderRadius:'2px', padding:'7px 14px', cursor:'pointer', fontSize:'11px', fontWeight:'bold' }}>
+              📅 Book Zoom
+            </button>
             {isProspect && (
               <button onClick={() => setShowMigrate(true)}
                 style={{ background:'linear-gradient(135deg,#7c3aed,#a855f7)', color:'#fff', border:'none', borderRadius:'2px', padding:'7px 14px', cursor:'pointer', fontSize:'11px', fontWeight:'bold', letterSpacing:'1px' }}>

@@ -11,6 +11,7 @@ import DateTimePicker from '@/components/admin/DateTimePicker';
 import LeadsTab from '@/components/leads/LeadsTab';
 import TwilioDialer from '@/components/leads/TwilioDialer';
 import PortalAccessTab from '@/components/admin/PortalAccessTab';
+import ZoomBookingModal from '@/components/ZoomBookingModal';
 import ProspectPipeline from '@/components/admin/ProspectPipeline';
 import UpcomingReminders from '@/components/admin/UpcomingReminders';
 import InvestorAnalyticsTab from '@/components/admin/InvestorAnalyticsTab';
@@ -81,6 +82,7 @@ function ContactCardModal({ user, onClose, onSave, allSessions, matchesUser }) {
   const [saveMsg, setSaveMsg] = useState('');
   const [dialerLead, setDialerLead] = useState(null);
   const [showDialerLocal, setShowDialerLocal] = useState(false);
+  const [showZoom, setShowZoom] = useState(false);
 
   useEffect(() => {
     loadAll();
@@ -184,6 +186,9 @@ function ContactCardModal({ user, onClose, onSave, allSessions, matchesUser }) {
         onCallLogged={handleCallLogged}
       />
     )}
+    {showZoom && (
+      <ZoomBookingModal isOpen={showZoom} onClose={() => setShowZoom(false)} buttonLabel="Book Zoom Call" />
+    )}
     <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.9)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:9999, padding:'16px' }}>
       <div style={{ background:'#0d1b2a', border:'1px solid rgba(184,147,58,0.3)', borderRadius:'4px', width:'100%', maxWidth:'900px', maxHeight:'94vh', display:'flex', flexDirection:'column', boxShadow:'0 40px 120px rgba(0,0,0,0.9)' }}>
 
@@ -213,6 +218,10 @@ function ContactCardModal({ user, onClose, onSave, allSessions, matchesUser }) {
             })()}
           </div>
           <div style={{ display:'flex', gap:'8px', alignItems:'center' }}>
+            <button onClick={() => setShowZoom(true)}
+              style={{ background:'rgba(96,165,250,0.12)', color:'#60a5fa', border:'1px solid rgba(96,165,250,0.3)', borderRadius:'2px', padding:'8px 14px', cursor:'pointer', fontSize:'12px', fontWeight:'bold' }}>
+              📅 Book Zoom
+            </button>
             {user.phone && (
               <button onClick={() => { setDialerLead({ firstName: user.name, lastName: '', phone: user.phone, id: user.id }); setShowDialerLocal(true); }}
                 style={{ background:'rgba(74,222,128,0.12)', color:'#4ade80', border:'1px solid rgba(74,222,128,0.3)', borderRadius:'2px', padding:'8px 14px', cursor:'pointer', fontSize:'12px', fontWeight:'bold' }}>

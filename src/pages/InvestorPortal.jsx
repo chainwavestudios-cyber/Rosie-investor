@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { usePortalAuth } from '@/lib/PortalAuthContext';
+import ZoomBookingModal from '@/components/ZoomBookingModal';
 import analytics from '@/lib/analytics';
 import { getPortalSettings, loadPortalSettings } from '@/lib/portalSettings';
 import RosieVoiceAgent from '@/components/RosieVoiceAgent';
@@ -685,6 +686,7 @@ export default function InvestorPortal() {
   const { portalUser, portalLogout, isAdmin, isPortalLoading } = usePortalAuth();
   const [activeTab, setActiveTab]       = useState('home');
   const [showRequestDocs, setShowRequestDocs] = useState(false);
+  const [showZoom, setShowZoom] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -715,6 +717,9 @@ export default function InvestorPortal() {
       {showRequestDocs && (
         <RequestDocumentsModal portalUser={portalUser} onClose={()=>setShowRequestDocs(false)} onSuccess={()=>setActiveTab('account')} />
       )}
+      {showZoom && (
+        <ZoomBookingModal isOpen={showZoom} onClose={() => setShowZoom(false)} buttonLabel="Book Live Demo" />
+      )}
       <nav style={{ background:DARK, borderBottom:'1px solid rgba(184,147,58,0.2)', padding:'0 32px', display:'flex', alignItems:'center', justifyContent:'space-between', height:'64px', position:'sticky', top:0, zIndex:200 }}>
         <div style={{ display:'flex', alignItems:'center', gap:'20px' }}>
           <img src={LOGO_URL} alt="Rosie AI" style={{ height:'38px', width:'auto' }} />
@@ -722,6 +727,7 @@ export default function InvestorPortal() {
           <span style={{ color:GOLD, fontSize:'10px', letterSpacing:'4px', textTransform:'uppercase' }}>Investor Portal</span>
         </div>
         <div style={{ display:'flex', alignItems:'center', gap:'10px', flexWrap:'nowrap' }}>
+          <button onClick={()=>setShowZoom(true)} style={{ background:'rgba(96,165,250,0.15)', color:'#60a5fa', border:'1px solid rgba(96,165,250,0.3)', borderRadius:'2px', padding:'9px 16px', cursor:'pointer', fontWeight:'700', fontSize:'11px', letterSpacing:'1.5px', textTransform:'uppercase', whiteSpace:'nowrap' }}>📅 Book Live Demo</button>
           <button onClick={()=>setShowRequestDocs(true)} style={{ background:'linear-gradient(135deg,#b8933a,#d4aa50)', color:DARK, border:'none', borderRadius:'2px', padding:'9px 16px', cursor:'pointer', fontWeight:'700', fontSize:'11px', letterSpacing:'1.5px', textTransform:'uppercase', whiteSpace:'nowrap' }}>✍️ Request Investment Documents</button>
           <span style={{ color:'#6b7280', fontSize:'12px', whiteSpace:'nowrap' }}>{portalUser.name||portalUser.email}</span>
           {isAdmin && <button onClick={()=>navigate('/admin')} style={{ background:'rgba(184,147,58,0.15)', color:GOLD, border:'1px solid rgba(184,147,58,0.3)', borderRadius:'2px', padding:'6px 14px', cursor:'pointer', fontSize:'11px' }}>Admin</button>}
