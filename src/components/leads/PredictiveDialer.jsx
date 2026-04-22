@@ -322,6 +322,21 @@ export default function PredictiveDialer({ contactLists, onClose, onCallLogged }
     }
   };
 
+  const handleReset = async () => {
+    if (!started || !selectedListId) return;
+    addLog('system', 'Resetting list…');
+    queueIndexRef.current = 0;
+    setQueueIndex(0);
+    setStats({ dialed: 0, humans: 0, voicemails: 0, abandoned: 0 });
+    setLines([
+      { lead: null, callSid: null, status: 'idle', duration: 0 },
+      { lead: null, callSid: null, status: 'idle', duration: 0 },
+      { lead: null, callSid: null, status: 'idle', duration: 0 },
+    ]);
+    await loadLeads(selectedListId);
+    addLog('system', `Reset complete — ${queueRef.current.length} leads ready.`);
+  };
+
   const getNextLead = () => {
     const idx = queueIndexRef.current;
     const q = queueRef.current;
@@ -666,22 +681,28 @@ export default function PredictiveDialer({ contactLists, onClose, onCallLogged }
         <>
           <SettingsPanel settings={settings} onChange={setSettings} />
 
-          {/* List selector + Launch */}
-          {!started && (
-            <div style={{ display: 'flex', gap: '10px', marginBottom: '16px' }}>
-              <select value={selectedListId} onChange={e => setSelectedListId(e.target.value)}
-                style={{ flex: 1, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '6px', padding: '10px 12px', color: '#e8e0d0', fontSize: '13px', outline: 'none', cursor: 'pointer' }}>
-                <option value="">— Select Contact List —</option>
-                {contactLists.map(list => (
-                  <option key={list.id} value={list.id}>{list.name} ({list.leadCount || 0} leads)</option>
-                ))}
-              </select>
+          {/* List selector + Launch + Reset */}
+          <div style={{ display: 'flex', gap: '10px', marginBottom: '16px' }}>
+            <select value={selectedListId} onChange={e => setSelectedListId(e.target.value)}
+              style={{ flex: 1, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '6px', padding: '10px 12px', color: '#e8e0d0', fontSize: '13px', outline: 'none', cursor: 'pointer' }}>
+              <option value="">— Select Contact List —</option>
+              {contactLists.map(list => (
+                <option key={list.id} value={list.id}>{list.name} ({list.leadCount || 0} leads)</option>
+              ))}
+            </select>
+            {!started && (
               <button onClick={handleStart} disabled={!selectedListId}
                 style={{ padding: '10px 24px', background: !selectedListId ? 'rgba(184,147,58,0.2)' : 'linear-gradient(135deg,#b8933a,#d4aa50)', color: DARK, border: 'none', borderRadius: '6px', cursor: !selectedListId ? 'not-allowed' : 'pointer', fontWeight: 'bold', fontSize: '12px', letterSpacing: '1px', whiteSpace: 'nowrap' }}>
                 Load Leads
               </button>
-            </div>
-          )}
+            )}
+            {started && (
+              <button onClick={handleReset}
+                style={{ padding: '10px 24px', background: 'rgba(96,165,250,0.15)', color: '#60a5fa', border: '1px solid rgba(96,165,250,0.3)', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px', letterSpacing: '1px', whiteSpace: 'nowrap' }}>
+                ↻ Reset
+              </button>
+            )}
+          </div>
         </>
       )}
 
