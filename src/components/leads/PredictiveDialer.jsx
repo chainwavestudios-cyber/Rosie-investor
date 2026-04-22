@@ -53,10 +53,17 @@ const blankLine = () => ({ lead: null, callSid: null, status: 'idle', duration: 
 
 // Load Twilio SDK once
 const loadTwilioDevice = async () => {
+  // Already loaded
   if (window.Twilio?.Device) return window.Twilio.Device;
+
+  // Load the SDK
   await new Promise((resolve, reject) => {
     if (document.querySelector('script[data-twilio]')) {
-      resolve();
+      // Script tag exists but may still be loading — wait for it
+      const existing = document.querySelector('script[data-twilio]');
+      if (window.Twilio) { resolve(); return; }
+      existing.addEventListener('load', resolve);
+      existing.addEventListener('error', () => reject(new Error('Twilio SDK failed to load')));
       return;
     }
     const s = document.createElement('script');
@@ -66,7 +73,14 @@ const loadTwilioDevice = async () => {
     s.onerror = () => reject(new Error('Failed to load Twilio SDK'));
     document.body.appendChild(s);
   });
-  return window.Twilio.Device;
+
+  // v1.15 exposes window.Twilio.Device directly
+  if (window.Twilio?.Device) return window.Twilio.Device;
+
+  // Fallback — some builds expose it differently
+  if (window.Device) return window.Device;
+
+  throw new Error('Twilio SDK loaded but Device not found — check SDK version');
 };
 
 // ── Settings Panel ────────────────────────────────────────────────────────
@@ -273,7 +287,8 @@ export default function PredictiveDialer({ contactLists, onClose, onCallLogged, 
         const tokenRes = await base44.functions.invoke('twilioClientToken', {});
         if (!tokenRes?.data?.token) throw new Error('No token received from twilioClientToken');
 
-        Device.setup(tokenRes.data.token, {
+        const token = tokenRes.data.token;
+        Device.setup(token, {
           enableRingingState: true,
           codecPreferences: ['opus', 'pcmu'],
           fakeLocalDTMF: true,
