@@ -8,12 +8,6 @@ const TEMPLATE_ID = 7951003;
 
 Deno.serve(async (req) => {
   const base44 = createClientFromRequest(req);
-  
-  // Authenticate user first (required for asServiceRole to work)
-  const user = await base44.auth.me();
-  if (!user) {
-    return Response.json({ error: 'Unauthorized' }, { status: 401 });
-  }
 
   const { leadId, toEmail, toName, firstName } = await req.json();
   if (!toEmail || !leadId) return Response.json({ error: 'Missing toEmail or leadId' }, { status: 400 });
@@ -53,7 +47,7 @@ Deno.serve(async (req) => {
   const messageUUID = msgInfo.To?.[0]?.MessageUUID || '';
 
   // Log to EmailLog entity
-  const logEntry = await base44.entities.EmailLog.create({
+  const logEntry = await base44.asServiceRole.entities.EmailLog.create({
     leadId,
     toEmail,
     toName: toName || firstName || '',
@@ -67,15 +61,15 @@ Deno.serve(async (req) => {
   });
 
   // Award initial 5 points to the lead
-  const leads = await base44.entities.Lead.filter({ id: leadId });
+  const leads = await base44.asServiceRole.entities.Lead.filter({ id: leadId });
   const lead = leads[0];
   if (lead) {
     const currentScore = lead.engagementScore || 0;
-    await base44.entities.Lead.update(leadId, {
+    await base44.asServiceRole.entities.Lead.update(leadId, {
       engagementScore: currentScore + 5,
     });
     // Log in LeadHistory
-    await base44.entities.LeadHistory.create({
+    await base44.asServiceRole.entities.LeadHistory.create({
       leadId,
       type: 'note',
       content: `📧 Email sent via Mailjet template. +5 engagement points.`,
