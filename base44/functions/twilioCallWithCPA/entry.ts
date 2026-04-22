@@ -23,6 +23,19 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'Missing toNumber or fromNumber' }, { status: 400 });
     }
 
+    // Validate phone numbers (basic E.164 format)
+    const isValidPhone = (phone) => /^\+?1?\d{10,15}$/.test(phone.replace(/\D/g, ''));
+    if (!isValidPhone(toNumber)) {
+      return Response.json({ error: `Invalid toNumber format: ${toNumber}` }, { status: 400 });
+    }
+    if (!isValidPhone(resolvedFromNumber || fromNumber)) {
+      return Response.json({ error: `Invalid fromNumber format: ${fromNumber}` }, { status: 400 });
+    }
+
+    if (!statusCallbackUrl) {
+      return Response.json({ error: 'Missing statusCallbackUrl' }, { status: 400 });
+    }
+
     // Resolve fromNumber if it's a key (e.g., 'TWILIO_FROM_NUMBER')
     let resolvedFromNumber = fromNumber;
     if (fromNumber.startsWith('TWILIO_FROM_NUMBER')) {
@@ -34,6 +47,12 @@ Deno.serve(async (req) => {
 
     const auth = btoa(`${ACCOUNT_SID}:${AUTH_TOKEN}`);
 
+    // Normalize phone numbers to E.164 format for Twilio
+    const toE164 = '+1' + toNumber.replace(/\D/g, '').slice(-10);
+    const fromE164 = '+1' + resolvedFromNumber.replace(/\D/g, '').slice(-10);
+
+    console.log(`[Twilio Call] To: ${toE164}, From: ${fromE164}`);
+
     // Make call with StatusCallback for real-time AMD updates
     const res = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${ACCOUNT_SID}/Calls.json`, {
       method: 'POST',
@@ -42,8 +61,8 @@ Deno.serve(async (req) => {
         'Content-Type': 'application/x-www-form-urlencoded',
       },
       body: new URLSearchParams({
-        'To': toNumber,
-        'From': resolvedFromNumber,
+        'To': toE164,
+        'From': fromE164,
         'MachineDetection': 'DetectMessageEnd',
         'MachineDetectionTimeout': '5000',
         'MachineDetectionSpeechThreshold': '5000',
@@ -57,8 +76,8 @@ Deno.serve(async (req) => {
     const data = await res.json();
 
     if (!res.ok) {
-      console.error('[Twilio API Error]', data);
-      return Response.json({ error: 'Twilio API error', details: data }, { status: 500 });
+      console.error('[Twilio Error]', res.status, JSON.stringify(data));
+      return Response.json({ error: `Twilio error: ${data.message || data.details || 'Unknown'}`, code: data.code, details: data }, { status: 500 });
     }
 
     return Response.json({
