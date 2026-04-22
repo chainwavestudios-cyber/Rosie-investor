@@ -9,7 +9,6 @@ const DARK = '#0a0f1e';
 
 const STATUS_FILTERS = [
   { id: 'all', label: 'All Leads' },
-  { id: 'lead', label: '🔵 Lead' },
   { id: 'prospect', label: '🚀 Prospect' },
   { id: 'not_available', label: '📵 Not Available' },
   { id: 'callback_later', label: '📅 Call Back Later' },
@@ -224,12 +223,67 @@ function CSVUploadModal({ onClose, onImported }) {
   );
 }
 
+// ─── New Lead Modal ───────────────────────────────────────────────────────
+function NewLeadModal({ onClose, onCreated }) {
+  const [form, setForm] = useState({ firstName:'', lastName:'', email:'', phone:'', phone2:'', state:'', address:'', bestTimeToCall:'' });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const inp = { width:'100%', background:'rgba(255,255,255,0.05)', border:'1px solid rgba(255,255,255,0.12)', borderRadius:'2px', padding:'8px 12px', color:'#e8e0d0', fontSize:'13px', outline:'none', boxSizing:'border-box', fontFamily:'Georgia, serif' };
+  const ls = { display:'block', color:'#8a9ab8', fontSize:'10px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'4px' };
+
+  const handleSave = async () => {
+    if (!form.firstName.trim() || !form.lastName.trim()) { setError('First and last name are required.'); return; }
+    setSaving(true); setError('');
+    try {
+      const lead = await base44.entities.Lead.create({ ...form, status: 'lead' });
+      onCreated && onCreated(lead);
+      onClose();
+    } catch(e) { setError('Error: ' + e.message); }
+    setSaving(false);
+  };
+
+  return (
+    <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.85)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:9999, padding:'20px' }}>
+      <div style={{ background:'#0d1b2a', border:'1px solid rgba(184,147,58,0.3)', borderRadius:'4px', width:'100%', maxWidth:'520px', boxShadow:'0 40px 100px rgba(0,0,0,0.8)', fontFamily:'Georgia, serif' }}>
+        <div style={{ padding:'20px 24px', borderBottom:'1px solid rgba(255,255,255,0.07)', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+          <h3 style={{ color:GOLD, margin:0, fontSize:'13px', letterSpacing:'2px', textTransform:'uppercase' }}>+ New Lead</h3>
+          <button onClick={onClose} style={{ background:'none', border:'none', color:'#6b7280', cursor:'pointer', fontSize:'20px' }}>×</button>
+        </div>
+        <div style={{ padding:'24px', display:'grid', gridTemplateColumns:'1fr 1fr', gap:'12px' }}>
+          {[['firstName','First Name *'],['lastName','Last Name *'],['phone','Phone'],['phone2','Alt Phone'],['email','Email'],['state','State']].map(([k,label]) => (
+            <div key={k}>
+              <label style={ls}>{label}</label>
+              <input value={form[k]} onChange={e=>setForm({...form,[k]:e.target.value})} style={inp} placeholder={label.replace(' *','')} />
+            </div>
+          ))}
+          <div style={{ gridColumn:'1/-1' }}>
+            <label style={ls}>Address</label>
+            <input value={form.address} onChange={e=>setForm({...form,address:e.target.value})} style={inp} placeholder="Street address…" />
+          </div>
+          <div style={{ gridColumn:'1/-1' }}>
+            <label style={ls}>Best Time to Call</label>
+            <input value={form.bestTimeToCall} onChange={e=>setForm({...form,bestTimeToCall:e.target.value})} style={inp} placeholder="e.g. mornings, after 3pm…" />
+          </div>
+          {error && <div style={{ gridColumn:'1/-1', color:'#ef4444', fontSize:'12px' }}>{error}</div>}
+          <div style={{ gridColumn:'1/-1', display:'flex', gap:'10px' }}>
+            <button onClick={handleSave} disabled={saving} style={{ flex:1, background:'linear-gradient(135deg,#b8933a,#d4aa50)', color:DARK, border:'none', borderRadius:'2px', padding:'11px', cursor:'pointer', fontWeight:'700', fontSize:'12px', letterSpacing:'2px', textTransform:'uppercase' }}>
+              {saving ? 'Saving…' : 'Create Lead'}
+            </button>
+            <button onClick={onClose} style={{ padding:'11px 20px', background:'transparent', color:'#6b7280', border:'1px solid rgba(255,255,255,0.12)', borderRadius:'2px', cursor:'pointer', fontSize:'12px' }}>Cancel</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Main Leads Tab ───────────────────────────────────────────────────────
 export default function LeadsTab() {
   const [leads, setLeads] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all');
   const [showUpload, setShowUpload] = useState(false);
+  const [showNewLead, setShowNewLead] = useState(false);
   const [selectedLead, setSelectedLead] = useState(null);
   const [dialerLead, setDialerLead] = useState(null);
   const [showDialer, setShowDialer] = useState(false);
@@ -299,6 +353,7 @@ export default function LeadsTab() {
   return (
     <div style={{ fontFamily:'Georgia, serif' }}>
       {showUpload && <CSVUploadModal onClose={() => setShowUpload(false)} onImported={loadLeads} />}
+      {showNewLead && <NewLeadModal onClose={() => setShowNewLead(false)} onCreated={loadLeads} />}
       {selectedLead && (
         <LeadContactCard
           lead={selectedLead}
@@ -324,6 +379,7 @@ export default function LeadsTab() {
         <div style={{ display:'flex', gap:'10px', flexWrap:'wrap' }}>
           <button onClick={() => setShowDialer(true)} style={{ background:'rgba(74,222,128,0.12)', color:'#4ade80', border:'1px solid rgba(74,222,128,0.3)', borderRadius:'2px', padding:'9px 18px', cursor:'pointer', fontSize:'12px' }}>📞 Direct Dialer</button>
           <button onClick={() => setShowPredictive(p => !p)} style={{ background: showPredictive ? 'rgba(184,147,58,0.25)' : 'rgba(167,139,250,0.12)', color: showPredictive ? GOLD : '#a78bfa', border:`1px solid ${showPredictive ? 'rgba(184,147,58,0.5)' : 'rgba(167,139,250,0.3)'}`, borderRadius:'2px', padding:'9px 18px', cursor:'pointer', fontSize:'12px' }}>⚡ {showPredictive ? 'Hide' : 'Predictive Dialer'}</button>
+          <button onClick={() => setShowNewLead(true)} style={{ background:'rgba(74,222,128,0.12)', color:'#4ade80', border:'1px solid rgba(74,222,128,0.3)', borderRadius:'2px', padding:'9px 18px', cursor:'pointer', fontSize:'12px' }}>+ New Lead</button>
           <button onClick={() => setShowUpload(true)} style={{ background:'linear-gradient(135deg,#b8933a,#d4aa50)', color:DARK, border:'none', borderRadius:'2px', padding:'10px 20px', cursor:'pointer', fontSize:'12px', letterSpacing:'2px', textTransform:'uppercase', fontWeight:'700' }}>📊 Import CSV</button>
         </div>
       </div>
@@ -364,7 +420,7 @@ export default function LeadsTab() {
       ) : filteredLeads.length === 0 ? (
         <div style={{ textAlign:'center', padding:'60px' }}>
           <div style={{ fontSize:'48px', marginBottom:'12px' }}>📋</div>
-          <div style={{ color:'#4a5568', fontSize:'14px' }}>{leads.length === 0 ? 'No leads yet. Import a CSV to get started.' : 'No leads match this filter.'}</div>
+          <div style={{ color:'#4a5568', fontSize:'14px' }}>{leads.length === 0 ? 'No leads yet. Click "+ New Lead" or import a CSV to get started.' : 'No leads match this filter.'}</div>
         </div>
       ) : (
         <div style={{ overflowX:'auto' }}>
