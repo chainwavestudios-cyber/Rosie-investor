@@ -23,15 +23,6 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'Missing toNumber or fromNumber' }, { status: 400 });
     }
 
-    // Validate phone numbers (basic E.164 format)
-    const isValidPhone = (phone) => /^\+?1?\d{10,15}$/.test(phone.replace(/\D/g, ''));
-    if (!isValidPhone(toNumber)) {
-      return Response.json({ error: `Invalid toNumber format: ${toNumber}` }, { status: 400 });
-    }
-    if (!isValidPhone(resolvedFromNumber || fromNumber)) {
-      return Response.json({ error: `Invalid fromNumber format: ${fromNumber}` }, { status: 400 });
-    }
-
     if (!statusCallbackUrl) {
       return Response.json({ error: 'Missing statusCallbackUrl' }, { status: 400 });
     }
@@ -43,6 +34,15 @@ Deno.serve(async (req) => {
       if (!resolvedFromNumber) {
         return Response.json({ error: `Environment variable ${fromNumber} not set` }, { status: 500 });
       }
+    }
+
+    // Validate phone numbers (basic E.164 format)
+    const isValidPhone = (phone) => /^\+?1?\d{10,15}$/.test(phone.replace(/\D/g, ''));
+    if (!isValidPhone(toNumber)) {
+      return Response.json({ error: `Invalid toNumber format: ${toNumber}` }, { status: 400 });
+    }
+    if (!isValidPhone(resolvedFromNumber)) {
+      return Response.json({ error: `Invalid fromNumber format: ${resolvedFromNumber}` }, { status: 400 });
     }
 
     const auth = btoa(`${ACCOUNT_SID}:${AUTH_TOKEN}`);
