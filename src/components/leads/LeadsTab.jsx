@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { base44 } from '@/api/base44Client';
-import LeadContactCard from './LeadContactCard';
+import LeadContactCard from './LeadContactCard.jsx';
 import TwilioDialer from './TwilioDialer';
 import PredictiveDialer from './PredictiveDialer';
 
@@ -371,7 +371,7 @@ export default function LeadsTab() {
           <table style={{ width:'100%', borderCollapse:'collapse', fontSize:'13px' }}>
             <thead>
               <tr style={{ borderBottom:'2px solid rgba(184,147,58,0.3)' }}>
-                {['Status','Name','Email','Phone','State','Last Called','Callback',''].map(h => (
+                {['Status','Score','Name','Email','Phone','State','Last Called','Callback',''].map(h => (
                   <th key={h} style={{ color:GOLD, padding:'10px 12px', textAlign:'left', fontSize:'10px', letterSpacing:'1.5px', textTransform:'uppercase', whiteSpace:'nowrap' }}>{h}</th>
                 ))}
               </tr>
@@ -393,6 +393,21 @@ export default function LeadsTab() {
                       {lead.status === 'abandoned' && (
                         <div style={{ color:'#ef4444', fontSize:'9px', marginTop:'3px', letterSpacing:'0.5px' }}>⚠ Needs callback</div>
                       )}
+                    </td>
+                    <td style={{ padding:'12px' }}>
+                      {(() => {
+                        const s = lead.score || 0;
+                        const color = s >= 40 ? '#ef4444' : s >= 25 ? '#f59e0b' : s >= 10 ? '#4ade80' : '#60a5fa';
+                        return (
+                          <div style={{ display:'flex', alignItems:'center', gap:'4px' }}>
+                            <div style={{ width:'26px', height:'26px', borderRadius:'50%', border:`2px solid ${color}`, background:`${color}15`, display:'flex', alignItems:'center', justifyContent:'center' }}>
+                              <span style={{ color, fontSize:'9px', fontWeight:'bold' }}>{s}</span>
+                            </div>
+                            {lead.emailOpened && <span title="Email Opened" style={{ fontSize:'12px' }}>📬</span>}
+                            {lead.emailClicked && <span title="Link Clicked" style={{ fontSize:'12px' }}>🖱️</span>}
+                          </div>
+                        );
+                      })()}
                     </td>
                     <td style={{ padding:'12px', color:'#e8e0d0', fontWeight:'bold' }}>{name}</td>
                     <td style={{ padding:'12px', color:'#8a9ab8', fontSize:'12px' }}>{lead.email || '—'}</td>
