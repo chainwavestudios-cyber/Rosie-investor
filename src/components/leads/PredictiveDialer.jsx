@@ -534,7 +534,7 @@ export default function PredictiveDialer({ contactLists, onClose, onCallLogged }
       const res = await base44.functions.invoke('twilioCallWithCPA', {
         toNumber: lead.phone,
         fromNumber: fromNumber,
-        statusCallbackUrl: 'https://www.rosieai.tech/api/apps/69ac768167fa5ab007eb6ae7/functions/callEventWebhook',
+        statusCallbackUrl: 'https://www.rosieai.tech/api/apps/69cd2741578c9b5ce655395b/functions/twilioCallCallback',
       });
       const sid = res.data?.callSid;
       if (!sid) throw new Error('No call SID returned');
