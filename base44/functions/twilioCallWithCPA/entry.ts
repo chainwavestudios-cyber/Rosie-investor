@@ -22,6 +22,15 @@ Deno.serve(async (req) => {
     return Response.json({ error: 'Missing toNumber or fromNumber' }, { status: 400 });
   }
 
+  // Resolve fromNumber if it's a key (e.g., 'TWILIO_FROM_NUMBER')
+  let resolvedFromNumber = fromNumber;
+  if (fromNumber.startsWith('TWILIO_FROM_NUMBER')) {
+    resolvedFromNumber = Deno.env.get(fromNumber);
+    if (!resolvedFromNumber) {
+      return Response.json({ error: `Environment variable ${fromNumber} not set` }, { status: 500 });
+    }
+  }
+
   const auth = btoa(`${ACCOUNT_SID}:${AUTH_TOKEN}`);
 
   try {
@@ -34,7 +43,7 @@ Deno.serve(async (req) => {
       },
       body: new URLSearchParams({
         'To': toNumber,
-        'From': fromNumber,
+        'From': resolvedFromNumber,
         'Url': 'http://twimlets.com/holdmusic?Bucket=com.twilio.music.classical',
         'MachineDetection': 'DetectMessageEnd',
         'MachineDetectionTimeout': '5',
