@@ -328,6 +328,18 @@ export default function LeadsTab() {
     await loadLeads();
   };
 
+  // Called by PredictiveDialer the instant a human answers — opens contact card immediately
+  const handleLeadConnected = async (lead) => {
+    if (!lead) return;
+    // Fetch fresh lead data so card has latest info
+    try {
+      const fresh = await base44.entities.Lead.filter({ id: lead.id });
+      setSelectedLead(fresh?.[0] || lead);
+    } catch {
+      setSelectedLead(lead);
+    }
+  };
+
   const handleDeleteList = async (listId) => {
     if (!window.confirm('Delete this list and all its leads?')) return;
     try {
@@ -444,6 +456,7 @@ export default function LeadsTab() {
             contactLists={contactLists}
             onClose={() => setShowPredictive(false)}
             onCallLogged={handleCallLogged}
+            onLeadConnected={handleLeadConnected}
           />
         </div>
       )}
