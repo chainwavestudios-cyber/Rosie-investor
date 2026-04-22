@@ -1,9 +1,9 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { loadPortalSettings, savePortalSettings } from './portalSettings';
 
 const PortalAuthContext = createContext();
 const SESSION_KEY = 'rosie_portal_auth';
 
-// Hardcoded admin base profile
 const ADMIN_USER = {
   username: 'admin',
   name: 'Admin',
@@ -11,51 +11,50 @@ const ADMIN_USER = {
   role: 'admin',
   company: 'Rosie AI LLC',
 };
+
 const ADMIN_PASSWORD_DEFAULT = 'password';
-const ADMIN_CREDS_KEY = 'rosie_admin_creds';
-
-// Load admin creds from localStorage (persists across reloads)
-const getAdminCreds = () => {
-  try {
-    const saved = localStorage.getItem(ADMIN_CREDS_KEY);
-    if (saved) return JSON.parse(saved);
-  } catch {}
-  return { username: 'admin', password: ADMIN_PASSWORD_DEFAULT };
-};
-
-const saveAdminCreds = (creds) => {
-  localStorage.setItem(ADMIN_CREDS_KEY, JSON.stringify(creds));
-};
+const ADMIN_USERNAME_DEFAULT = 'admin';
 
 export const PortalAuthProvider = ({ children }) => {
   const [portalUser, setPortalUser]   = useState(null);
   const [isPortalLoading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Restore session on page load
     try {
       const saved = sessionStorage.getItem(SESSION_KEY);
-      if (saved) {
-        setPortalUser(JSON.parse(saved));
-      }
+      if (saved) setPortalUser(JSON.parse(saved));
     } catch {}
     setLoading(false);
   }, []);
 
+  // Load admin creds from DB (PortalSettings)
+  const getAdminCreds = async () => {
+    try {
+      const settings = await loadPortalSettings();
+      return {
+        username: settings.adminUsername || ADMIN_USERNAME_DEFAULT,
+        password: settings.adminPassword || ADMIN_PASSWORD_DEFAULT,
+      };
+    } catch {
+      return { username: ADMIN_USERNAME_DEFAULT, password: ADMIN_PASSWORD_DEFAULT };
+    }
+  };
+
   const portalLogin = async (usernameOrEmail, password) => {
     const u = (usernameOrEmail || '').toLowerCase().trim();
 
-    // Admin check — credentials stored in localStorage
-    const adminCreds = getAdminCreds();
-    if ((u === adminCreds.username || u === 'admin@rosieai.com') && password === adminCreds.password) {
-      setPortalUser(ADMIN_USER);
-      sessionStorage.setItem(SESSION_KEY, JSON.stringify(ADMIN_USER));
-      // Fire analytics in background — don't let it block login
+    // Admin check — credentials stored in DB via PortalSettings
+    const adminCreds = await getAdminCreds();
+    const adminUsername = (adminCreds.username || ADMIN_USERNAME_DEFAULT).toLowerCase();
+    if ((u === adminUsername || u === 'admin@rosieai.com') && password === adminCreds.password) {
+      const adminUserWithUsername = { ...ADMIN_USER, username: adminCreds.username || ADMIN_USERNAME_DEFAULT };
+      setPortalUser(adminUserWithUsername);
+      sessionStorage.setItem(SESSION_KEY, JSON.stringify(adminUserWithUsername));
       try {
         const { analytics } = await import('./analytics');
-        analytics.startSession(ADMIN_USER.email, ADMIN_USER.name, ADMIN_USER.username);
+        analytics.startSession(adminUserWithUsername.email, adminUserWithUsername.name, adminUserWithUsername.username);
       } catch {}
-      return { success: true, user: ADMIN_USER };
+      return { success: true, user: adminUserWithUsername };
     }
 
     // Investor users — from Base44
@@ -137,26 +136,34 @@ export const PortalAuthProvider = ({ children }) => {
     }
   };
 
-  const changeAdminPassword = (currentPassword, newPassword) => {
-    const creds = getAdminCreds();
+  // Store admin password in DB so it works across all devices
+  const changeAdminPassword = async (currentPassword, newPassword) => {
+    const creds = await getAdminCreds();
     if (currentPassword !== creds.password) {
       return { success: false, error: 'Current password is incorrect' };
     }
-    saveAdminCreds({ ...creds, password: newPassword });
-    return { success: true };
+    try {
+      await savePortalSettings({ adminPassword: newPassword });
+      return { success: true };
+    } catch (e) {
+      return { success: false, error: 'Failed to save: ' + e.message };
+    }
   };
 
-  const changeAdminUsername = (currentPassword, newUsername) => {
-    const creds = getAdminCreds();
+  const changeAdminUsername = async (currentPassword, newUsername) => {
+    const creds = await getAdminCreds();
     if (currentPassword !== creds.password) {
       return { success: false, error: 'Current password is incorrect' };
     }
-    saveAdminCreds({ ...creds, username: newUsername });
-    // Update session to reflect new username
-    const updatedUser = { ...ADMIN_USER, username: newUsername };
-    setPortalUser(updatedUser);
-    sessionStorage.setItem(SESSION_KEY, JSON.stringify(updatedUser));
-    return { success: true };
+    try {
+      await savePortalSettings({ adminUsername: newUsername });
+      const updatedUser = { ...ADMIN_USER, username: newUsername };
+      setPortalUser(updatedUser);
+      sessionStorage.setItem(SESSION_KEY, JSON.stringify(updatedUser));
+      return { success: true };
+    } catch (e) {
+      return { success: false, error: 'Failed to save: ' + e.message };
+    }
   };
 
   return (

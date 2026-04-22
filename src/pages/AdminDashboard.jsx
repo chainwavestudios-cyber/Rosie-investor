@@ -710,17 +710,40 @@ function AdminSettings({ changeAdminPassword, changeAdminUsername }) {
   const [unForm, setUnForm] = useState({ current:'', newUsername:'' });
   const [pwMsg,  setPwMsg]  = useState(null);
   const [unMsg,  setUnMsg]  = useState(null);
+  const [pwSaving, setPwSaving] = useState(false);
+  const [unSaving, setUnSaving] = useState(false);
   const ms = t => ({ background:t==='success'?'rgba(74,222,128,0.1)':'rgba(220,60,60,0.12)', border:`1px solid ${t==='success'?'rgba(74,222,128,0.3)':'rgba(220,60,60,0.3)'}`, borderRadius:'2px', padding:'10px 14px', color:t==='success'?'#4ade80':'#ff8a8a', fontSize:'13px', marginBottom:'16px' });
+
+  const handleChangeUsername = async () => {
+    setUnSaving(true); setUnMsg(null);
+    const r = await changeAdminUsername(unForm.current, unForm.newUsername);
+    if (r.success) { setUnMsg({type:'success',text:'Username updated!'}); setUnForm({current:'',newUsername:''}); }
+    else setUnMsg({type:'error',text:r.error});
+    setUnSaving(false);
+  };
+
+  const handleChangePassword = async () => {
+    if (pwForm.newPw !== pwForm.confirm) { setPwMsg({type:'error',text:'Passwords do not match'}); return; }
+    setPwSaving(true); setPwMsg(null);
+    const r = await changeAdminPassword(pwForm.current, pwForm.newPw);
+    if (r.success) { setPwMsg({type:'success',text:'Password updated!'}); setPwForm({current:'',newPw:'',confirm:''}); }
+    else setPwMsg({type:'error',text:r.error});
+    setPwSaving(false);
+  };
+
   return (
     <div>
       <h2 style={{ color:'#e8e0d0', margin:'0 0 32px', fontSize:'20px', fontWeight:'normal' }}>Admin Settings</h2>
+      <div style={{ background:'rgba(96,165,250,0.08)', border:'1px solid rgba(96,165,250,0.2)', borderRadius:'2px', padding:'12px 16px', marginBottom:'24px', color:'#60a5fa', fontSize:'12px' }}>
+        ℹ️ Admin credentials are stored in the database and work across all devices/browsers.
+      </div>
       <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'32px' }}>
         <div style={{ background:'rgba(255,255,255,0.03)', border:'1px solid rgba(255,255,255,0.08)', borderRadius:'2px', padding:'28px' }}>
           <h3 style={{ color:GOLD, fontSize:'12px', letterSpacing:'2px', textTransform:'uppercase', margin:'0 0 20px' }}>Change Admin Username</h3>
           <F label="Current Password" value={unForm.current} onChange={e=>setUnForm({...unForm,current:e.target.value})} type="password" />
           <F label="New Username" value={unForm.newUsername} onChange={e=>setUnForm({...unForm,newUsername:e.target.value})} />
           {unMsg && <div style={ms(unMsg.type)}>{unMsg.text}</div>}
-          <button onClick={()=>{ const r=changeAdminUsername(unForm.current,unForm.newUsername); if(r.success){setUnMsg({type:'success',text:'Updated.'});setUnForm({current:'',newUsername:''});}else setUnMsg({type:'error',text:r.error}); }} style={{ width:'100%', background:'linear-gradient(135deg,#b8933a,#d4aa50)', color:DARK, border:'none', borderRadius:'2px', padding:'12px', cursor:'pointer', fontWeight:'700', fontSize:'12px', letterSpacing:'2px', textTransform:'uppercase' }}>Update Username</button>
+          <button onClick={handleChangeUsername} disabled={unSaving} style={{ width:'100%', background:'linear-gradient(135deg,#b8933a,#d4aa50)', color:DARK, border:'none', borderRadius:'2px', padding:'12px', cursor:'pointer', fontWeight:'700', fontSize:'12px', letterSpacing:'2px', textTransform:'uppercase' }}>{unSaving ? 'Saving…' : 'Update Username'}</button>
         </div>
         <div style={{ background:'rgba(255,255,255,0.03)', border:'1px solid rgba(255,255,255,0.08)', borderRadius:'2px', padding:'28px' }}>
           <h3 style={{ color:GOLD, fontSize:'12px', letterSpacing:'2px', textTransform:'uppercase', margin:'0 0 20px' }}>Change Admin Password</h3>
@@ -728,7 +751,7 @@ function AdminSettings({ changeAdminPassword, changeAdminUsername }) {
           <F label="New Password" value={pwForm.newPw} onChange={e=>setPwForm({...pwForm,newPw:e.target.value})} type="password" />
           <F label="Confirm New Password" value={pwForm.confirm} onChange={e=>setPwForm({...pwForm,confirm:e.target.value})} type="password" />
           {pwMsg && <div style={ms(pwMsg.type)}>{pwMsg.text}</div>}
-          <button onClick={()=>{ if(pwForm.newPw!==pwForm.confirm){setPwMsg({type:'error',text:'Passwords do not match'});return;} const r=changeAdminPassword(pwForm.current,pwForm.newPw); if(r.success){setPwMsg({type:'success',text:'Updated.'});setPwForm({current:'',newPw:'',confirm:''});}else setPwMsg({type:'error',text:r.error}); }} style={{ width:'100%', background:'linear-gradient(135deg,#b8933a,#d4aa50)', color:DARK, border:'none', borderRadius:'2px', padding:'12px', cursor:'pointer', fontWeight:'700', fontSize:'12px', letterSpacing:'2px', textTransform:'uppercase' }}>Update Password</button>
+          <button onClick={handleChangePassword} disabled={pwSaving} style={{ width:'100%', background:'linear-gradient(135deg,#b8933a,#d4aa50)', color:DARK, border:'none', borderRadius:'2px', padding:'12px', cursor:'pointer', fontWeight:'700', fontSize:'12px', letterSpacing:'2px', textTransform:'uppercase' }}>{pwSaving ? 'Saving…' : 'Update Password'}</button>
         </div>
       </div>
     </div>

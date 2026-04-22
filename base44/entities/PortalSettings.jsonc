@@ -6,6 +6,14 @@
       "type": "string",
       "title": "Key"
     },
+    "adminUsername": {
+      "type": "string",
+      "title": "Admin Username"
+    },
+    "adminPassword": {
+      "type": "string",
+      "title": "Admin Password"
+    },
     "totalRaise": {
       "type": "number",
       "title": "Total Raise"
