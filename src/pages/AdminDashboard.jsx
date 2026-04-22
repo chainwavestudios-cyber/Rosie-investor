@@ -83,6 +83,8 @@ function ContactCardModal({ user, onClose, onSave, allSessions, matchesUser }) {
   const [dialerLead, setDialerLead] = useState(null);
   const [showDialerLocal, setShowDialerLocal] = useState(false);
   const [showZoom, setShowZoom] = useState(false);
+  const [sendingEmail, setSendingEmail] = useState(false);
+  const [emailMsg, setEmailMsg] = useState('');
 
   useEffect(() => {
     loadAll();
@@ -177,6 +179,24 @@ function ContactCardModal({ user, onClose, onSave, allSessions, matchesUser }) {
     } catch {}
   };
 
+  const sendEmail = async () => {
+    if (!editUser.email) { setEmailMsg('No email address on file.'); return; }
+    setSendingEmail(true); setEmailMsg('');
+    try {
+      await base44.functions.invoke('sendLeadEmail', {
+        investorId: user.id,
+        toEmail: editUser.email,
+        toName: user.name,
+        firstName: user.name.split(' ')[0],
+      });
+      setEmailMsg('✓ Email sent!');
+      setTimeout(() => setEmailMsg(''), 3000);
+    } catch (e) {
+      setEmailMsg('Error: ' + (e.response?.data?.error || e.message));
+    }
+    setSendingEmail(false);
+  };
+
   return (
     <>
     {showDialerLocal && (
@@ -218,6 +238,11 @@ function ContactCardModal({ user, onClose, onSave, allSessions, matchesUser }) {
             })()}
           </div>
           <div style={{ display:'flex', gap:'8px', alignItems:'center' }}>
+            <button onClick={sendEmail} disabled={sendingEmail || !editUser.email}
+              style={{ background:'rgba(96,165,250,0.12)', color:'#60a5fa', border:'1px solid rgba(96,165,250,0.3)', borderRadius:'2px', padding:'8px 14px', cursor: editUser.email ? 'pointer' : 'not-allowed', fontSize:'12px', fontWeight:'bold', opacity: editUser.email ? 1 : 0.5 }}>
+              {sendingEmail ? '⏳ Sending…' : '✉️ Send Email'}
+            </button>
+            {emailMsg && <span style={{ fontSize:'11px', color: emailMsg.startsWith('Error') ? '#ef4444' : '#4ade80' }}>{emailMsg}</span>}
             <button onClick={() => setShowZoom(true)}
               style={{ background:'rgba(96,165,250,0.12)', color:'#60a5fa', border:'1px solid rgba(96,165,250,0.3)', borderRadius:'2px', padding:'8px 14px', cursor:'pointer', fontSize:'12px', fontWeight:'bold' }}>
               📅 Book Zoom
