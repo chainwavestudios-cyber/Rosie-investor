@@ -64,20 +64,26 @@ export default function TwilioDialer({ initialLead, onClose, onCallLogged }) {
       const res = await base44.functions.invoke('twilioCall', { action: 'makeCall', to });
       const sid = res.data?.callSid;
       setCallSid(sid);
-      startTimer();
-      setCallStatus('connected');
 
-      // Poll for status
+      // Poll for status until answered or ended
       pollRef.current = setInterval(async () => {
         try {
           const s = await base44.functions.invoke('twilioCall', { action: 'getCallStatus', callSid: sid });
-          if (['completed', 'failed', 'no-answer', 'busy', 'canceled'].includes(s.data?.status)) {
+          const status = s.data?.status;
+
+          // When call is answered, transition to connected
+          if (status === 'in-progress') {
+            startTimer();
+            setCallStatus('connected');
+          }
+          // When call ends, stop polling
+          else if (['completed', 'failed', 'no-answer', 'busy', 'canceled'].includes(status)) {
             clearInterval(pollRef.current);
             stopTimer();
             setCallStatus('ended');
           }
         } catch {}
-      }, 3000);
+      }, 1000);
     } catch (e) {
       setError(e.message || 'Call failed');
       setCallStatus('idle');
