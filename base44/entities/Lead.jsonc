@@ -18,21 +18,31 @@
       "type": "string",
       "title": "Phone"
     },
+    "phone2": {
+      "type": "string",
+      "title": "Alt Phone"
+    },
+    "address": {
+      "type": "string",
+      "title": "Address"
+    },
     "state": {
       "type": "string",
       "title": "State"
+    },
+    "bestTimeToCall": {
+      "type": "string",
+      "title": "Best Time to Call"
     },
     "status": {
       "type": "string",
       "title": "Status",
       "enum": [
         "lead",
-        "interested",
         "not_available",
         "callback_later",
         "not_interested",
         "prospect",
-        "investor",
         "converted",
         "abandoned"
       ],

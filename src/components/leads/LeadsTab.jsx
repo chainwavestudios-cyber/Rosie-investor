@@ -9,17 +9,17 @@ const DARK = '#0a0f1e';
 
 const STATUS_FILTERS = [
   { id: 'all', label: 'All Leads' },
-  { id: 'interested', label: '⭐ Interested' },
+  { id: 'lead', label: '🔵 Lead' },
+  { id: 'prospect', label: '🚀 Prospect' },
   { id: 'not_available', label: '📵 Not Available' },
   { id: 'callback_later', label: '📅 Call Back Later' },
-  { id: 'prospect', label: '🚀 Prospect' },
   { id: 'converted', label: '✅ Converted' },
   { id: 'abandoned', label: '⚠️ Abandoned' },
 ];
 
 const STATUS_COLORS = {
-  lead: '#60a5fa', interested: '#f59e0b', not_available: '#8a9ab8',
-  callback_later: '#a78bfa', prospect: '#60a5fa', investor: '#4ade80', not_interested: '#ef4444',
+  lead: '#60a5fa', not_available: '#8a9ab8',
+  callback_later: '#a78bfa', prospect: '#a78bfa', not_interested: '#ef4444',
   converted: '#4ade80', abandoned: '#ef4444',
 };
 
