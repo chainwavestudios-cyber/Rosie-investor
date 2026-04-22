@@ -20,7 +20,7 @@ export default function MigrateLeadModal({ lead, history, onClose, onMigrated })
     setMigrating(true); setError('');
 
     try {
-      // 1. Create the InvestorUser record
+      // 1. Create the InvestorUser record (migrate score + badges)
       const newUser = await base44.entities.InvestorUser.create({
         name: `${lead.firstName} ${lead.lastName}`,
         username: username.trim().toLowerCase(),
@@ -32,6 +32,8 @@ export default function MigrateLeadModal({ lead, history, onClose, onMigrated })
         role: 'investor',
         status: 'prospect',
         investmentType: 'cash',
+        engagementScore: lead.engagementScore || 0,
+        starRating: 0,
       });
 
       // 2. Migrate all lead history → ContactNotes on the new user
@@ -58,8 +60,16 @@ export default function MigrateLeadModal({ lead, history, onClose, onMigrated })
       await base44.entities.LeadHistory.create({
         leadId: lead.id,
         type: 'status_change',
-        content: `Migrated to CRM as Potential Investor. Portal username: ${username.trim().toLowerCase()}`,
+        content: `Migrated to CRM as Potential Investor. Portal username: ${username.trim().toLowerCase()}. Score migrated: ${lead.engagementScore || 0} pts.`,
       });
+
+      // 5. Place in first pipeline stage ('reviewing') via localStorage
+      try {
+        const STAGE_KEY = 'prospect_pipeline_stages';
+        const stageMap = JSON.parse(localStorage.getItem(STAGE_KEY) || '{}');
+        stageMap[newUser.id] = 'reviewing';
+        localStorage.setItem(STAGE_KEY, JSON.stringify(stageMap));
+      } catch {}
 
       onMigrated && onMigrated(newUser);
     } catch (e) {
@@ -90,6 +100,8 @@ export default function MigrateLeadModal({ lead, history, onClose, onMigrated })
               <li>All lead history &amp; notes will be migrated to their contact card</li>
               <li>They will receive a portal login with the credentials below</li>
               <li>The lead will be marked as converted in the Leads tab</li>
+              <li>Engagement score (<strong style={{ color: GOLD }}>{lead.engagementScore || 0} pts</strong>) will carry over to CRM</li>
+              <li>They will be placed in the <strong style={{ color: '#60a5fa' }}>Reviewing Info</strong> stage of the pipeline</li>
             </ul>
           </div>
 

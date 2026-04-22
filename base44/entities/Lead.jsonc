@@ -75,6 +75,26 @@
     "contactListId": {
       "type": "string",
       "title": "Contact List ID"
+    },
+    "engagementScore": {
+      "type": "number",
+      "title": "Engagement Score",
+      "default": 0
+    },
+    "badgeEmailOpened": {
+      "type": "boolean",
+      "title": "Badge: Email Opened",
+      "default": false
+    },
+    "badgeConsumerWebsite": {
+      "type": "boolean",
+      "title": "Badge: Visited Consumer Website",
+      "default": false
+    },
+    "badgeInvestorPage": {
+      "type": "boolean",
+      "title": "Badge: Visited Investor Page",
+      "default": false
     }
   },
   "required": [

@@ -394,7 +394,17 @@ export default function LeadsTab() {
                         <div style={{ color:'#ef4444', fontSize:'9px', marginTop:'3px', letterSpacing:'0.5px' }}>⚠ Needs callback</div>
                       )}
                     </td>
-                    <td style={{ padding:'12px', color:'#e8e0d0', fontWeight:'bold' }}>{name}</td>
+                    <td style={{ padding:'12px' }}>
+                      <div style={{ color:'#e8e0d0', fontWeight:'bold' }}>{name}</div>
+                      {(lead.engagementScore > 0 || lead.badgeEmailOpened || lead.badgeConsumerWebsite || lead.badgeInvestorPage) && (
+                        <div style={{ display:'flex', gap:'4px', marginTop:'3px', flexWrap:'wrap' }}>
+                          {lead.engagementScore > 0 && <span style={{ background:'rgba(184,147,58,0.15)', color:GOLD, border:'1px solid rgba(184,147,58,0.3)', borderRadius:'20px', padding:'1px 7px', fontSize:'9px', fontWeight:'bold' }}>⭐ {lead.engagementScore}</span>}
+                          {lead.badgeEmailOpened && <span style={{ background:'rgba(74,222,128,0.12)', color:'#4ade80', borderRadius:'20px', padding:'1px 7px', fontSize:'9px' }}>📬</span>}
+                          {lead.badgeConsumerWebsite && <span style={{ background:'rgba(96,165,250,0.12)', color:'#60a5fa', borderRadius:'20px', padding:'1px 7px', fontSize:'9px' }}>🌐</span>}
+                          {lead.badgeInvestorPage && <span style={{ background:'rgba(167,139,250,0.12)', color:'#a78bfa', borderRadius:'20px', padding:'1px 7px', fontSize:'9px' }}>💼</span>}
+                        </div>
+                      )}
+                    </td>
                     <td style={{ padding:'12px', color:'#8a9ab8', fontSize:'12px' }}>{lead.email || '—'}</td>
                     <td style={{ padding:'12px' }}>
                       {lead.phone ? (

@@ -1,0 +1,83 @@
+{
+  "name": "EmailLog",
+  "type": "object",
+  "properties": {
+    "leadId": {
+      "type": "string",
+      "title": "Lead ID"
+    },
+    "investorId": {
+      "type": "string",
+      "title": "Investor ID"
+    },
+    "toEmail": {
+      "type": "string",
+      "title": "To Email"
+    },
+    "toName": {
+      "type": "string",
+      "title": "To Name"
+    },
+    "subject": {
+      "type": "string",
+      "title": "Subject"
+    },
+    "templateId": {
+      "type": "string",
+      "title": "Template ID"
+    },
+    "messageId": {
+      "type": "string",
+      "title": "Mailjet Message ID"
+    },
+    "messageUUID": {
+      "type": "string",
+      "title": "Mailjet Message UUID"
+    },
+    "status": {
+      "type": "string",
+      "title": "Status",
+      "enum": [
+        "sent",
+        "delivered",
+        "opened",
+        "clicked",
+        "bounced",
+        "spam"
+      ],
+      "default": "sent"
+    },
+    "openedAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Opened At"
+    },
+    "clickedAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Clicked At"
+    },
+    "clickedUrl": {
+      "type": "string",
+      "title": "Clicked URL"
+    },
+    "sentAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Sent At"
+    },
+    "sentBy": {
+      "type": "string",
+      "title": "Sent By"
+    },
+    "pointsAwarded": {
+      "type": "boolean",
+      "title": "Points Awarded",
+      "default": false
+    }
+  },
+  "required": [
+    "toEmail",
+    "status"
+  ]
+}

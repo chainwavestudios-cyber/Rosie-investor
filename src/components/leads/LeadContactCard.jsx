@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import MigrateLeadModal from './MigrateLeadModal';
 import DateTimePicker from '@/components/admin/DateTimePicker';
+import LeadEmailTab from './LeadEmailTab';
 
 const GOLD = '#b8933a';
 const DARK = '#0a0f1e';
@@ -31,6 +32,8 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber 
   const [saveMsg, setSaveMsg] = useState('');
   const [loading, setLoading] = useState(true);
   const [showMigrate, setShowMigrate] = useState(false);
+  const [sendingEmail, setSendingEmail] = useState(false);
+  const [emailMsg, setEmailMsg] = useState('');
 
   // Actions state
   const [prospectNote, setProspectNote] = useState('');
@@ -125,6 +128,26 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber 
     setAddingNote(false);
   };
 
+  const sendEmail = async () => {
+    if (!editLead.email) { setEmailMsg('No email address on file.'); return; }
+    setSendingEmail(true); setEmailMsg('');
+    try {
+      await base44.functions.invoke('sendLeadEmail', {
+        leadId: lead.id,
+        toEmail: editLead.email,
+        toName: `${lead.firstName} ${lead.lastName}`,
+        firstName: lead.firstName,
+      });
+      setEmailMsg('✓ Email sent!');
+      await loadHistory();
+      onUpdate && onUpdate();
+      setTimeout(() => setEmailMsg(''), 3000);
+    } catch (e) {
+      setEmailMsg('Error: ' + (e.response?.data?.error || e.message));
+    }
+    setSendingEmail(false);
+  };
+
   const statusInfo = STATUS_LABELS[editLead.status] || STATUS_LABELS.lead;
   const fullName = `${lead.firstName} ${lead.lastName}`;
   const isProspect = editLead.status === 'prospect';
@@ -153,7 +176,25 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber 
               <div style={{ color:'#6b7280', fontSize:'11px', marginTop:'1px' }}>{lead.email}{lead.state ? ` · ${lead.state}` : ''}</div>
             </div>
           </div>
-          <div style={{ display:'flex', gap:'8px', alignItems:'center' }}>
+          <div style={{ display:'flex', gap:'8px', alignItems:'center', flexWrap:'wrap' }}>
+            {/* Engagement Score Badge */}
+            {(editLead.engagementScore > 0) && (
+              <div style={{ background:'rgba(184,147,58,0.15)', border:'1px solid rgba(184,147,58,0.4)', borderRadius:'20px', padding:'4px 10px', fontSize:'11px', color:GOLD, fontWeight:'bold' }}>
+                ⭐ {editLead.engagementScore} pts
+              </div>
+            )}
+            {/* Activity Badges */}
+            {editLead.badgeEmailOpened && <span title="Email Opened" style={{ background:'rgba(74,222,128,0.15)', border:'1px solid rgba(74,222,128,0.3)', borderRadius:'20px', padding:'3px 8px', fontSize:'10px', color:'#4ade80' }}>📬 Email Opened</span>}
+            {editLead.badgeConsumerWebsite && <span title="Visited Consumer Website" style={{ background:'rgba(96,165,250,0.15)', border:'1px solid rgba(96,165,250,0.3)', borderRadius:'20px', padding:'3px 8px', fontSize:'10px', color:'#60a5fa' }}>🌐 Consumer Site</span>}
+            {editLead.badgeInvestorPage && <span title="Visited Investor Page" style={{ background:'rgba(167,139,250,0.15)', border:'1px solid rgba(167,139,250,0.3)', borderRadius:'20px', padding:'3px 8px', fontSize:'10px', color:'#a78bfa' }}>💼 Investor Page</span>}
+
+            {/* Send Email */}
+            <button onClick={sendEmail} disabled={sendingEmail || !editLead.email}
+              style={{ background:'rgba(96,165,250,0.15)', color:'#60a5fa', border:'1px solid rgba(96,165,250,0.3)', borderRadius:'2px', padding:'7px 14px', cursor: editLead.email ? 'pointer' : 'not-allowed', fontSize:'11px', fontWeight:'bold', opacity: editLead.email ? 1 : 0.5 }}>
+              {sendingEmail ? '⏳ Sending…' : '✉️ Send Email'}
+            </button>
+            {emailMsg && <span style={{ fontSize:'11px', color: emailMsg.startsWith('Error') ? '#ef4444' : '#4ade80' }}>{emailMsg}</span>}
+
             {isProspect && (
               <button onClick={() => setShowMigrate(true)}
                 style={{ background:'linear-gradient(135deg,#7c3aed,#a855f7)', color:'#fff', border:'none', borderRadius:'2px', padding:'7px 14px', cursor:'pointer', fontSize:'11px', fontWeight:'bold', letterSpacing:'1px' }}>
@@ -172,7 +213,7 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber 
 
         {/* Tabs */}
         <div style={{ display:'flex', borderBottom:'1px solid rgba(255,255,255,0.07)', flexShrink:0 }}>
-          {[['overview','👤 Overview'],['actions','⚡ Actions']].map(([id,label]) => (
+          {[['overview','👤 Overview'],['actions','⚡ Actions'],['email','✉️ Emails']].map(([id,label]) => (
             <button key={id} onClick={() => setTab(id)} style={{ background:'none', border:'none', borderBottom:tab===id?`2px solid ${GOLD}`:'2px solid transparent', color:tab===id?GOLD:'#6b7280', padding:'11px 20px', cursor:'pointer', fontSize:'11px', letterSpacing:'1px' }}>{label}</button>
           ))}
         </div>
@@ -273,6 +314,11 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber 
                 </div>
               </div>
             </div>
+          )}
+
+          {/* ── EMAILS ── */}
+          {tab === 'email' && (
+            <LeadEmailTab lead={editLead} onUpdate={() => { onUpdate && onUpdate(); }} />
           )}
 
           {/* ── ACTIONS ── */}
