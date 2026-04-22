@@ -9,31 +9,35 @@ const AUTH_TOKEN = Deno.env.get('TWILIO_AUTH_TOKEN');
  */
 
 Deno.serve(async (req) => {
-  const base44 = createClientFromRequest(req);
-  const user = await base44.auth.me();
-
-  if (user?.role !== 'admin') {
-    return Response.json({ error: 'Forbidden' }, { status: 403 });
-  }
-
-  const { toNumber, fromNumber, statusCallbackUrl } = await req.json();
-
-  if (!toNumber || !fromNumber) {
-    return Response.json({ error: 'Missing toNumber or fromNumber' }, { status: 400 });
-  }
-
-  // Resolve fromNumber if it's a key (e.g., 'TWILIO_FROM_NUMBER')
-  let resolvedFromNumber = fromNumber;
-  if (fromNumber.startsWith('TWILIO_FROM_NUMBER')) {
-    resolvedFromNumber = Deno.env.get(fromNumber);
-    if (!resolvedFromNumber) {
-      return Response.json({ error: `Environment variable ${fromNumber} not set` }, { status: 500 });
-    }
-  }
-
-  const auth = btoa(`${ACCOUNT_SID}:${AUTH_TOKEN}`);
-
   try {
+    const base44 = createClientFromRequest(req);
+    const user = await base44.auth.me();
+
+    if (!user) {
+      return Response.json({ error: 'Unauthorized - not authenticated' }, { status: 401 });
+    }
+
+    if (user.role !== 'admin') {
+      return Response.json({ error: 'Forbidden - admin access required' }, { status: 403 });
+    }
+
+    const { toNumber, fromNumber, statusCallbackUrl } = await req.json();
+
+    if (!toNumber || !fromNumber) {
+      return Response.json({ error: 'Missing toNumber or fromNumber' }, { status: 400 });
+    }
+
+    // Resolve fromNumber if it's a key (e.g., 'TWILIO_FROM_NUMBER')
+    let resolvedFromNumber = fromNumber;
+    if (fromNumber.startsWith('TWILIO_FROM_NUMBER')) {
+      resolvedFromNumber = Deno.env.get(fromNumber);
+      if (!resolvedFromNumber) {
+        return Response.json({ error: `Environment variable ${fromNumber} not set` }, { status: 500 });
+      }
+    }
+
+    const auth = btoa(`${ACCOUNT_SID}:${AUTH_TOKEN}`);
+
     // Make call with StatusCallback for real-time AMD updates
     const res = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${ACCOUNT_SID}/Calls.json`, {
       method: 'POST',
@@ -58,6 +62,7 @@ Deno.serve(async (req) => {
     const data = await res.json();
 
     if (!res.ok) {
+      console.error('[Twilio API Error]', data);
       return Response.json({ error: 'Twilio API error', details: data }, { status: 500 });
     }
 
