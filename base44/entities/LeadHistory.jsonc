@@ -11,10 +11,12 @@
       "title": "Type",
       "enum": [
         "call",
+        "connected",
         "not_available",
         "interested",
         "callback_later",
         "not_interested",
+        "abandoned",
         "status_change",
         "note"
       ],

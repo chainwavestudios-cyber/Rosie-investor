@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
 import LeadContactCard from './LeadContactCard';
 import TwilioDialer from './TwilioDialer';
+import PredictiveDialer from './PredictiveDialer';
 
 const GOLD = '#b8933a';
 const DARK = '#0a0f1e';
@@ -13,12 +14,13 @@ const STATUS_FILTERS = [
   { id: 'callback_later', label: '📅 Call Back Later' },
   { id: 'prospect', label: '🚀 Prospect' },
   { id: 'converted', label: '✅ Converted' },
+  { id: 'abandoned', label: '⚠️ Abandoned' },
 ];
 
 const STATUS_COLORS = {
   lead: '#60a5fa', interested: '#f59e0b', not_available: '#8a9ab8',
   callback_later: '#a78bfa', prospect: '#60a5fa', investor: '#4ade80', not_interested: '#ef4444',
-  converted: '#4ade80',
+  converted: '#4ade80', abandoned: '#ef4444',
 };
 
 // ─── CSV Upload ───────────────────────────────────────────────────────────
@@ -231,9 +233,14 @@ export default function LeadsTab() {
   const [selectedLead, setSelectedLead] = useState(null);
   const [dialerLead, setDialerLead] = useState(null);
   const [showDialer, setShowDialer] = useState(false);
+  const [showPredictive, setShowPredictive] = useState(false);
+  const [contactLists, setContactLists] = useState([]);
   const [search, setSearch] = useState('');
 
-  useEffect(() => { loadLeads(); }, []);
+  useEffect(() => {
+    loadLeads();
+    base44.entities.ContactList.list('-created_date', 100).then(setContactLists).catch(() => {});
+  }, []);
 
   const loadLeads = async () => {
     setLoading(true);
@@ -301,25 +308,41 @@ export default function LeadsTab() {
       )}
 
       {/* Header */}
-      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:'24px', flexWrap:'wrap', gap:'12px' }}>
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:'16px', flexWrap:'wrap', gap:'12px' }}>
         <div>
           <h2 style={{ color:'#e8e0d0', margin:'0 0 4px', fontSize:'20px', fontWeight:'normal' }}>Leads</h2>
-          <p style={{ color:'#6b7280', fontSize:'13px', margin:0 }}>Never-called leads appear first. After a call, leads move to the back. Click a phone number to dial &amp; open the contact card.</p>
+          <p style={{ color:'#6b7280', fontSize:'13px', margin:0 }}>Never-called leads appear first. Abandoned calls need manual callback.</p>
         </div>
         <div style={{ display:'flex', gap:'10px', flexWrap:'wrap' }}>
-          <button onClick={() => setShowDialer(true)} style={{ background:'rgba(74,222,128,0.12)', color:'#4ade80', border:'1px solid rgba(74,222,128,0.3)', borderRadius:'2px', padding:'9px 18px', cursor:'pointer', fontSize:'12px' }}>📞 Open Dialer</button>
+          <button onClick={() => setShowDialer(true)} style={{ background:'rgba(74,222,128,0.12)', color:'#4ade80', border:'1px solid rgba(74,222,128,0.3)', borderRadius:'2px', padding:'9px 18px', cursor:'pointer', fontSize:'12px' }}>📞 Direct Dialer</button>
+          <button onClick={() => setShowPredictive(p => !p)} style={{ background: showPredictive ? 'rgba(184,147,58,0.25)' : 'rgba(167,139,250,0.12)', color: showPredictive ? GOLD : '#a78bfa', border:`1px solid ${showPredictive ? 'rgba(184,147,58,0.5)' : 'rgba(167,139,250,0.3)'}`, borderRadius:'2px', padding:'9px 18px', cursor:'pointer', fontSize:'12px' }}>⚡ {showPredictive ? 'Hide' : 'Predictive Dialer'}</button>
           <button onClick={() => setShowUpload(true)} style={{ background:'linear-gradient(135deg,#b8933a,#d4aa50)', color:DARK, border:'none', borderRadius:'2px', padding:'10px 20px', cursor:'pointer', fontSize:'12px', letterSpacing:'2px', textTransform:'uppercase', fontWeight:'700' }}>📊 Import CSV</button>
         </div>
       </div>
 
+      {/* Predictive Dialer Panel */}
+      {showPredictive && (
+        <div style={{ background:'rgba(0,0,0,0.3)', border:'1px solid rgba(184,147,58,0.25)', borderRadius:'8px', padding:'20px', marginBottom:'20px' }}>
+          <PredictiveDialer
+            contactLists={contactLists}
+            onClose={() => setShowPredictive(false)}
+            onCallLogged={handleCallLogged}
+          />
+        </div>
+      )}
+
       {/* Filter tabs */}
       <div style={{ display:'flex', gap:'0', borderBottom:'1px solid rgba(255,255,255,0.07)', marginBottom:'20px', overflowX:'auto' }}>
-        {STATUS_FILTERS.map(f => (
-          <button key={f.id} onClick={() => setFilter(f.id)}
-            style={{ background:'none', border:'none', borderBottom:filter===f.id?`2px solid ${GOLD}`:'2px solid transparent', color:filter===f.id?GOLD:'#6b7280', padding:'10px 16px', cursor:'pointer', fontSize:'12px', letterSpacing:'1px', whiteSpace:'nowrap' }}>
-            {f.label} <span style={{ color:filter===f.id?GOLD:'#4a5568', fontSize:'11px' }}>({counts[f.id]||0})</span>
-          </button>
-        ))}
+        {STATUS_FILTERS.map(f => {
+          const isAbandoned = f.id === 'abandoned';
+          const hasAbandoned = isAbandoned && (counts['abandoned'] || 0) > 0;
+          return (
+            <button key={f.id} onClick={() => setFilter(f.id)}
+              style={{ background: hasAbandoned && filter !== f.id ? 'rgba(239,68,68,0.06)' : 'none', border:'none', borderBottom:filter===f.id?`2px solid ${isAbandoned ? '#ef4444' : GOLD}`:'2px solid transparent', color:filter===f.id?(isAbandoned?'#ef4444':GOLD):(hasAbandoned?'#ef4444':'#6b7280'), padding:'10px 16px', cursor:'pointer', fontSize:'12px', letterSpacing:'1px', whiteSpace:'nowrap' }}>
+              {f.label} <span style={{ fontSize:'11px' }}>({counts[f.id]||0})</span>
+            </button>
+          );
+        })}
       </div>
 
       {/* Search */}
@@ -359,6 +382,9 @@ export default function LeadsTab() {
                       <span style={{ background:`${sc}22`, color:sc, border:`1px solid ${sc}55`, padding:'3px 10px', borderRadius:'2px', fontSize:'10px', letterSpacing:'1px', textTransform:'uppercase', whiteSpace:'nowrap' }}>
                         {lead.status?.replace('_',' ')}
                       </span>
+                      {lead.status === 'abandoned' && (
+                        <div style={{ color:'#ef4444', fontSize:'9px', marginTop:'3px', letterSpacing:'0.5px' }}>⚠ Needs callback</div>
+                      )}
                     </td>
                     <td style={{ padding:'12px', color:'#e8e0d0', fontWeight:'bold' }}>{name}</td>
                     <td style={{ padding:'12px', color:'#8a9ab8', fontSize:'12px' }}>{lead.email || '—'}</td>

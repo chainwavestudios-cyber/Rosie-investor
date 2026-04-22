@@ -29,12 +29,15 @@ Deno.serve(async (req) => {
 
     // Initiate outbound call
     if (action === 'makeCall') {
-      const { to } = body;
+      const { to, fromLine } = body;
       if (!to) return Response.json({ error: 'Phone number required' }, { status: 400 });
+
+      // Allow specifying which from-number to use (for multi-line predictive dialer)
+      const fromNumber = fromLine ? (Deno.env.get(fromLine) || TWILIO_FROM_NUMBER) : TWILIO_FROM_NUMBER;
 
       const params = new URLSearchParams({
         To: to,
-        From: TWILIO_FROM_NUMBER,
+        From: fromNumber,
         Url: 'https://handler.twilio.com/twiml/EH3e342efae704e27b4c9bc7c98529a044',
         Record: 'false',
         // Answering Machine Detection
