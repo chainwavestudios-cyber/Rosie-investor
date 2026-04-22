@@ -8,6 +8,12 @@ const TEMPLATE_ID = 7951003;
 
 Deno.serve(async (req) => {
   const base44 = createClientFromRequest(req);
+  
+  // Authenticate user first (required for asServiceRole to work)
+  const user = await base44.auth.me();
+  if (!user) {
+    return Response.json({ error: 'Unauthorized' }, { status: 401 });
+  }
 
   const { leadId, toEmail, toName, firstName } = await req.json();
   if (!toEmail || !leadId) return Response.json({ error: 'Missing toEmail or leadId' }, { status: 400 });
