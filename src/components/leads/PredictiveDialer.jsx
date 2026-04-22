@@ -164,12 +164,7 @@ function LineCard({ line, index, onConnect, onHangup, isWinner }) {
           <div style={{ color: isHuman ? '#4ade80' : '#8a9ab8', fontFamily: 'monospace', fontSize: '14px', fontWeight: 'bold' }}>{formatDuration(line.duration)}</div>
         )}
         <span style={{ color: col, fontSize: '11px', textTransform: 'uppercase', letterSpacing: '1px', whiteSpace: 'nowrap' }}>{STATUS_LABEL[line.status] || 'Idle'}</span>
-        {isHuman && (
-          <button onClick={() => onConnect(index)}
-            style={{ background: 'linear-gradient(135deg,#22c55e,#16a34a)', color: '#fff', border: 'none', borderRadius: '6px', padding: '7px 14px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold', animation: 'pulse 1s infinite' }}>
-            🎧 Connect Audio
-          </button>
-        )}
+
         {isActive && line.callSid && !isHuman && (
           <button onClick={() => onHangup(line.callSid)}
             style={{ background: 'rgba(239,68,68,0.15)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '6px', padding: '5px 10px', cursor: 'pointer', fontSize: '12px' }}>
@@ -583,17 +578,15 @@ export default function PredictiveDialer({ contactLists, onClose, onCallLogged }
             return;
           }
 
-          // AMD Result: human answered — auto-connect
+          // AMD Result: human answered — auto-connect immediately
           if (answeredBy === 'human') {
             clearInterval(pollsRef.current[lineIdx]);
             clearTimeout(ringTimersRef.current[lineIdx]);
             addLog('human', `Line ${lineIdx + 1}: 🟢 HUMAN ANSWERED (CPA) — ${lead.firstName} ${lead.lastName}`);
             updateLine(lineIdx, { status: 'human', callSid: sid, amdResult: 'human' });
             
-            // Auto-connect agent after a short delay
-            setTimeout(async () => {
-              await handleAutoConnect(lineIdx, lead, sid);
-            }, 500);
+            // Auto-connect agent immediately (no delay)
+            await handleAutoConnect(lineIdx, lead, sid);
             return;
           }
 
