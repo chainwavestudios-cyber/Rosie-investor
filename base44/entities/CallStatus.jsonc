@@ -1,0 +1,43 @@
+{
+  "name": "CallStatus",
+  "type": "object",
+  "properties": {
+    "callSid": {
+      "type": "string",
+      "title": "Twilio Call SID",
+      "description": "Unique Twilio call identifier"
+    },
+    "answeredBy": {
+      "type": "string",
+      "title": "Answered By",
+      "description": "AMD result: human, machine_end_beep, machine_start, etc.",
+      "enum": [
+        "human",
+        "machine_end_beep",
+        "machine_start",
+        "unknown"
+      ]
+    },
+    "status": {
+      "type": "string",
+      "title": "Call Status",
+      "enum": [
+        "initiated",
+        "ringing",
+        "answered",
+        "completed"
+      ],
+      "default": "initiated"
+    },
+    "updatedAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Updated At"
+    }
+  },
+  "required": [
+    "callSid",
+    "status",
+    "updatedAt"
+  ]
+}
