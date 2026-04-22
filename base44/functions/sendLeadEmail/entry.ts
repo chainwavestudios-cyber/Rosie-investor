@@ -47,7 +47,7 @@ Deno.serve(async (req) => {
   const messageUUID = msgInfo.To?.[0]?.MessageUUID || '';
 
   // Log to EmailLog entity
-  const logEntry = await base44.asServiceRole.entities.EmailLog.create({
+  const logEntry = await base44.entities.EmailLog.create({
     leadId,
     toEmail,
     toName: toName || firstName || '',
@@ -61,15 +61,15 @@ Deno.serve(async (req) => {
   });
 
   // Award initial 5 points to the lead
-  const leads = await base44.asServiceRole.entities.Lead.filter({ id: leadId });
+  const leads = await base44.entities.Lead.filter({ id: leadId });
   const lead = leads[0];
   if (lead) {
     const currentScore = lead.engagementScore || 0;
-    await base44.asServiceRole.entities.Lead.update(leadId, {
+    await base44.entities.Lead.update(leadId, {
       engagementScore: currentScore + 5,
     });
     // Log in LeadHistory
-    await base44.asServiceRole.entities.LeadHistory.create({
+    await base44.entities.LeadHistory.create({
       leadId,
       type: 'note',
       content: `📧 Email sent via Mailjet template. +5 engagement points.`,
