@@ -11,15 +11,6 @@ const AUTH_TOKEN = Deno.env.get('TWILIO_AUTH_TOKEN');
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
-    const user = await base44.auth.me();
-
-    if (!user) {
-      return Response.json({ error: 'Unauthorized - not authenticated' }, { status: 401 });
-    }
-
-    if (user.role !== 'admin') {
-      return Response.json({ error: 'Forbidden - admin access required' }, { status: 403 });
-    }
 
     const { toNumber, fromNumber, statusCallbackUrl } = await req.json();
 
