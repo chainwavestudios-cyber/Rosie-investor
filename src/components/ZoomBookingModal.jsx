@@ -1,10 +1,8 @@
 const GOLD = '#b8933a';
 const DARK = '#0a0f1e';
 
-export default function ZoomBookingModal({ isOpen, onClose, buttonLabel = 'Book Zoom' }) {
+export default function ZoomBookingModal({ isOpen, onClose, buttonLabel = 'Book Zoom', zoomUrl = 'https://scheduler.zoom.us/stephani-sterling' }) {
   if (!isOpen) return null;
-
-  const zoomUrl = 'https://scheduler.zoom.us/stephani-sterling';
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: '20px' }}>

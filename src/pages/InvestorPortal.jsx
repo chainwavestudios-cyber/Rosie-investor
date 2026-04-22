@@ -718,7 +718,7 @@ export default function InvestorPortal() {
         <RequestDocumentsModal portalUser={portalUser} onClose={()=>setShowRequestDocs(false)} onSuccess={()=>setActiveTab('account')} />
       )}
       {showZoom && (
-        <ZoomBookingModal isOpen={showZoom} onClose={() => setShowZoom(false)} buttonLabel="Book Live Demo" />
+        <ZoomBookingModal isOpen={showZoom} onClose={() => setShowZoom(false)} buttonLabel="Book Live Demo" zoomUrl="https://scheduler.zoom.us/stephani-sterling" />
       )}
       <nav style={{ background:DARK, borderBottom:'1px solid rgba(184,147,58,0.2)', padding:'0 32px', display:'flex', alignItems:'center', justifyContent:'space-between', height:'64px', position:'sticky', top:0, zIndex:200 }}>
         <div style={{ display:'flex', alignItems:'center', gap:'20px' }}>
