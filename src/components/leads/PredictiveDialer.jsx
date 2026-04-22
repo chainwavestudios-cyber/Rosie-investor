@@ -332,7 +332,80 @@ export default function PredictiveDialer({ contactLists, onClose, onCallLogged }
     try { await base44.functions.invoke('twilioCall', { action: 'hangupCall', callSid }); } catch {}
   };
 
-  // Connect to a human-answered line using Twilio Client SDK
+  // Auto-connect when human answers (called from CPA detection)
+  const handleAutoConnect = async (lineIdx, lead, callSid) => {
+    if (!twilioDevice) return;
+
+    addLog('human', `Line ${lineIdx + 1}: 🎧 Auto-connecting agent…`);
+    setStats(s => ({ ...s, humans: s.humans + 1 }));
+
+    // Hang up all other active lines
+    for (let i = 0; i < 3; i++) {
+      if (i === lineIdx) continue;
+      const line = linesRef.current[i];
+      if (line.callSid && ['calling', 'ringing', 'connected', 'human'].includes(line.status)) {
+        if (line.status === 'human' && line.lead?.id) {
+          addLog('abandoned', `Line ${i + 1}: Abandoned — ${line.lead.firstName} ${line.lead.lastName}`);
+          setStats(s => ({ ...s, abandoned: s.abandoned + 1 }));
+          try {
+            await base44.entities.Lead.update(line.lead.id, { status: 'abandoned', lastCalledAt: new Date().toISOString() });
+            await base44.entities.LeadHistory.create({
+              leadId: line.lead.id, type: 'call',
+              content: `⚠️ ABANDONED — Another line connected first.`,
+              callDurationSeconds: line.duration, twilioCallSid: line.callSid,
+            });
+            onCallLogged && onCallLogged(line.lead.id);
+          } catch {}
+        }
+        await hangupCall(line.callSid);
+        cleanLine(i, line.status === 'human' ? 'abandoned' : 'ended');
+      }
+    }
+
+    // Connect via Twilio Client
+    try {
+      twilioDevice.connect({ params: { CallSid: callSid } });
+      updateLine(lineIdx, { status: 'connected' });
+
+      if (lead?.id) {
+        try {
+          await base44.entities.Lead.update(lead.id, { lastCalledAt: new Date().toISOString() });
+          await base44.entities.LeadHistory.create({
+            leadId: lead.id, type: 'connected',
+            content: `Auto-connected via Twilio CPA`,
+            twilioCallSid: callSid,
+          });
+        } catch {}
+      }
+    } catch (e) {
+      addLog('error', `Auto-connect failed: ${e.message}`);
+      return;
+    }
+
+    // Poll for call end
+    pollsRef.current[lineIdx] = setInterval(async () => {
+      try {
+        const s = await base44.functions.invoke('twilioCall', { action: 'getCallStatus', callSid });
+        if (['completed', 'failed', 'no-answer', 'busy', 'canceled'].includes(s.data?.status)) {
+          clearInterval(pollsRef.current[lineIdx]);
+          const dur = linesRef.current[lineIdx]?.duration || 0;
+          try {
+            await base44.entities.LeadHistory.create({
+              leadId: lead.id, type: 'call',
+              content: `Call ended — ${formatDuration(dur)}`,
+              callDurationSeconds: dur, twilioCallSid: callSid,
+            });
+            onCallLogged && onCallLogged(lead.id);
+          } catch {}
+          cleanLine(lineIdx, 'ended');
+          addLog('ended', `Call ended — ${lead?.firstName} ${lead?.lastName} (${formatDuration(dur)})`);
+          startWrapUp();
+        }
+      } catch {}
+    }, 3000);
+  };
+
+  // Manual connect for edge cases (if needed)
   const handleConnect = async (winnerIdx) => {
     if (!twilioDevice) {
       addLog('error', 'Twilio not ready yet. Please wait…');
@@ -345,72 +418,7 @@ export default function PredictiveDialer({ contactLists, onClose, onCallLogged }
       return;
     }
 
-    addLog('human', `Line ${winnerIdx + 1}: 🎧 Agent connecting via Twilio…`);
-    setStats(s => ({ ...s, humans: s.humans + 1 }));
-
-    // Hang up all other active lines, mark them abandoned if they had a human answer
-    for (let i = 0; i < 3; i++) {
-      if (i === winnerIdx) continue;
-      const line = linesRef.current[i];
-      if (line.callSid && ['calling', 'ringing', 'connected', 'human'].includes(line.status)) {
-        if (line.status === 'human' && line.lead?.id) {
-          addLog('abandoned', `Line ${i + 1}: Abandoned — ${line.lead.firstName} ${line.lead.lastName}`);
-          setStats(s => ({ ...s, abandoned: s.abandoned + 1 }));
-          try {
-            await base44.entities.Lead.update(line.lead.id, { status: 'abandoned', lastCalledAt: new Date().toISOString() });
-            await base44.entities.LeadHistory.create({
-              leadId: line.lead.id, type: 'call',
-              content: `⚠️ ABANDONED — Agent took another line.`,
-              callDurationSeconds: line.duration, twilioCallSid: line.callSid,
-            });
-            onCallLogged && onCallLogged(line.lead.id);
-          } catch {}
-        }
-        await hangupCall(line.callSid);
-        cleanLine(i, line.status === 'human' ? 'abandoned' : 'ended');
-      }
-    }
-
-    // Use Twilio Client to answer the waiting call (instead of just logging it)
-    try {
-      twilioDevice.connect({ params: { CallSid: winnerLine.callSid } });
-      updateLine(winnerIdx, { status: 'connected' });
-
-      if (winnerLine.lead?.id) {
-        try {
-          await base44.entities.Lead.update(winnerLine.lead.id, { lastCalledAt: new Date().toISOString() });
-          await base44.entities.LeadHistory.create({
-            leadId: winnerLine.lead.id, type: 'connected',
-            content: `Agent connected via Twilio Client SDK`,
-            twilioCallSid: winnerLine.callSid,
-          });
-        } catch {}
-      }
-    } catch (e) {
-      addLog('error', `Connect failed: ${e.message}`);
-    }
-
-    // Poll for call end
-    pollsRef.current[winnerIdx] = setInterval(async () => {
-      try {
-        const s = await base44.functions.invoke('twilioCall', { action: 'getCallStatus', callSid: winnerLine.callSid });
-        if (['completed', 'failed', 'no-answer', 'busy', 'canceled'].includes(s.data?.status)) {
-          clearInterval(pollsRef.current[winnerIdx]);
-          const dur = linesRef.current[winnerIdx]?.duration || 0;
-          try {
-            await base44.entities.LeadHistory.create({
-              leadId: winnerLine.lead.id, type: 'call',
-              content: `Call ended — ${formatDuration(dur)}`,
-              callDurationSeconds: dur, twilioCallSid: winnerLine.callSid,
-            });
-            onCallLogged && onCallLogged(winnerLine.lead.id);
-          } catch {}
-          cleanLine(winnerIdx, 'ended');
-          addLog('ended', `Call ended — ${winnerLine.lead?.firstName} ${winnerLine.lead?.lastName} (${formatDuration(dur)})`);
-          startWrapUp();
-        }
-      } catch {}
-    }, 3000);
+    await handleAutoConnect(winnerIdx, winnerLine.lead, winnerLine.callSid);
   };
 
   const startWrapUp = () => {
@@ -528,12 +536,17 @@ export default function PredictiveDialer({ contactLists, onClose, onCallLogged }
             return;
           }
 
-          // AMD Result: human answered
+          // AMD Result: human answered — auto-connect
           if (answeredBy === 'human') {
             clearInterval(pollsRef.current[lineIdx]);
             clearTimeout(ringTimersRef.current[lineIdx]);
             addLog('human', `Line ${lineIdx + 1}: 🟢 HUMAN ANSWERED (CPA) — ${lead.firstName} ${lead.lastName}`);
             updateLine(lineIdx, { status: 'human', callSid: sid, amdResult: 'human' });
+            
+            // Auto-connect agent after a short delay
+            setTimeout(async () => {
+              await handleAutoConnect(lineIdx, lead, sid);
+            }, 500);
             return;
           }
 
