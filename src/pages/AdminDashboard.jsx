@@ -13,6 +13,7 @@ import TwilioDialer from '@/components/leads/TwilioDialer';
 import PortalAccessTab from '@/components/admin/PortalAccessTab';
 import ProspectPipeline from '@/components/admin/ProspectPipeline';
 import UpcomingReminders from '@/components/admin/UpcomingReminders';
+import InvestorAnalyticsTab from '@/components/admin/InvestorAnalyticsTab';
 import { base44 } from '@/api/base44Client';
 
 const LOGO = 'https://media.base44.com/images/public/69cd2741578c9b5ce655395b/39a31f9b9_Untitleddesign3.png';
@@ -156,7 +157,7 @@ function ContactCardModal({ user, onClose, onSave, allSessions, matchesUser }) {
   };
 
   const TABS = [
-    ['overview','👤 Overview'], ['history','📞 History'], ['activity','📊 Activity'],
+    ['overview','👤 Overview'], ['history','📞 History'], ['analytics','📊 Analytics'],
     ['documents','📄 Documents'], ['accreditation','🔐 Accreditation'], ['calendar','📅 Calendar'],
     ['portal','🔑 Portal Access'], ['rosie','🤖 Rosie AI'],
   ];
@@ -342,68 +343,9 @@ function ContactCardModal({ user, onClose, onSave, allSessions, matchesUser }) {
             </div>
           )}
 
-          {/* ACTIVITY */}
-          {tab === 'activity' && (
-            <div>
-              {loading && <p style={{ color:'#6b7280', textAlign:'center' }}>Loading…</p>}
-              {/* KPIs */}
-              <div style={{ display:'grid', gridTemplateColumns:'repeat(6,1fr)', gap:'10px', marginBottom:'20px' }}>
-                {[
-                  [stats.sessionCount,'Sessions',GOLD],
-                  [analytics.formatDuration(stats.totalTime),'Time','#4ade80'],
-                  [stats.totalDownloads,'Downloads','#60a5fa'],
-                  [stats.totalDocViews,'Doc Views','#f59e0b'],
-                  [analytics.formatDate(stats.firstSeen),'First Login','#8a9ab8'],
-                  [analytics.formatDate(stats.lastSeen),'Last Login','#8a9ab8'],
-                ].map(([v,l,c]) => (
-                  <div key={l} style={{ background:'rgba(0,0,0,0.2)', padding:'10px', textAlign:'center', borderRadius:'2px' }}>
-                    <div style={{ color:c, fontSize:'16px', fontWeight:'bold', marginBottom:'3px' }}>{v}</div>
-                    <div style={{ color:'#4a5568', fontSize:'9px', letterSpacing:'1px', textTransform:'uppercase' }}>{l}</div>
-                  </div>
-                ))}
-              </div>
-
-              {/* All downloads */}
-              {(() => {
-                const allDownloads = sessions.flatMap(s => (s.downloads||[]).map(d => ({ ...d, sessionStart: s.startTime })));
-                return allDownloads.length > 0 ? (
-                  <div style={{ background:'rgba(96,165,250,0.05)', border:'1px solid rgba(96,165,250,0.15)', borderRadius:'2px', padding:'16px', marginBottom:'16px' }}>
-                    <div style={{ color:'#60a5fa', fontSize:'10px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'12px' }}>📥 All Downloads ({allDownloads.length})</div>
-                    {allDownloads.map((d,i) => (
-                      <div key={i} style={{ display:'flex', justifyContent:'space-between', padding:'6px 0', borderBottom:'1px solid rgba(255,255,255,0.04)', fontSize:'12px' }}>
-                        <span style={{ color:'#c4cdd8' }}>{d.fileName}</span>
-                        <span style={{ color:'#4a5568' }}>{d.downloadedAt ? new Date(d.downloadedAt).toLocaleString() : ''}</span>
-                      </div>
-                    ))}
-                  </div>
-                ) : null;
-              })()}
-
-              {/* Sessions */}
-              {sessions.length === 0 ? <p style={{ color:'#4a5568', textAlign:'center', padding:'40px' }}>No sessions yet.</p> :
-                sessions.map((sess, i) => (
-                  <div key={i} style={{ background:'rgba(255,255,255,0.02)', border:'1px solid rgba(255,255,255,0.06)', borderRadius:'2px', padding:'14px 18px', marginBottom:'8px' }}>
-                    <div style={{ display:'flex', justifyContent:'space-between', marginBottom:'4px' }}>
-                      <span style={{ color:'#e8e0d0', fontSize:'13px' }}>{analytics.formatDateTime(sess.startTime)}</span>
-                      <span style={{ color:GOLD, fontWeight:'bold' }}>{analytics.formatDuration(sess.durationSeconds)}</span>
-                    </div>
-                    <div style={{ color:'#6b7280', fontSize:'11px', display:'flex', gap:'16px' }}>
-                      <span>📄 {sess.pages?.length||0} pages</span>
-                      <span>📥 {sess.downloads?.length||0} downloads</span>
-                      <span>👁 {sess.docViews?.length||0} doc views</span>
-                      {!sess.endTime && <span style={{ color:'#4ade80' }}>● Active Now</span>}
-                    </div>
-                    {(sess.downloads||[]).length > 0 && (
-                      <div style={{ marginTop:'8px', display:'flex', flexWrap:'wrap', gap:'4px' }}>
-                        {(sess.downloads||[]).map((d,di) => (
-                          <span key={di} style={{ background:'rgba(96,165,250,0.1)', color:'#60a5fa', fontSize:'10px', padding:'2px 8px', borderRadius:'2px' }}>↓ {d.fileName}</span>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                ))
-              }
-            </div>
+          {/* ANALYTICS */}
+          {tab === 'analytics' && (
+            <InvestorAnalyticsTab user={editUser} sessions={sessions} stats={stats} />
           )}
 
           {/* DOCUMENTS */}
@@ -1089,37 +1031,81 @@ export default function AdminDashboard() {
         {view === 'calendar' && <GlobalCalendar />}
 
         {/* ── Analytics ── */}
-        {view === 'analytics' && (
-          <div>
-            <h2 style={{ color:'#e8e0d0', margin:'0 0 24px', fontSize:'20px', fontWeight:'normal' }}>Engagement Analytics</h2>
-            {nonAdminUsers.length === 0 ? <p style={{ color:'#4a5568', textAlign:'center', padding:'60px' }}>No users yet.</p> :
-              nonAdminUsers.map(user => {
-                const us = allSessions.filter(s => matchesUser(s, user));
-                const st = analytics.computeUserStats(us);
-                return (
-                  <div key={user.username||user.email} style={{ background:'rgba(255,255,255,0.03)', border:'1px solid rgba(255,255,255,0.08)', borderRadius:'2px', padding:'24px', marginBottom:'16px', cursor:'pointer' }}
-                    onClick={() => { setContactCard(user); }}>
-                    <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:'12px', flexWrap:'wrap', gap:'12px' }}>
-                      <div>
-                        <div style={{ color:'#e8e0d0', fontSize:'16px', fontWeight:'bold' }}>{user.name}</div>
-                        <div style={{ color:'#6b7280', fontSize:'12px' }}>@{user.username} · Last seen: {analytics.formatDate(st.lastSeen)}</div>
-                      </div>
-                      <div style={{ display:'flex', gap:'20px' }}>
-                        {[[st.sessionCount,'Sessions',GOLD],[analytics.formatDuration(st.totalTime),'Time','#4ade80'],[st.totalDownloads,'Downloads','#60a5fa']].map(([v,l,c]) => (
-                          <div key={l} style={{ textAlign:'center' }}>
-                            <div style={{ color:c, fontWeight:'bold', fontSize:'18px' }}>{v}</div>
-                            <div style={{ color:'#4a5568', fontSize:'10px', textTransform:'uppercase', letterSpacing:'1px' }}>{l}</div>
+        {view === 'analytics' && (() => {
+          // Compute all users with scores, sorted by score desc
+          const ranked = nonAdminUsers.map(user => {
+            const us = allSessions.filter(s => matchesUser(s, user));
+            const st = analytics.computeUserStats(us);
+            return { user, us, st, score: user.engagementScore || 0 };
+          }).sort((a, b) => b.score - a.score);
+          const top10 = ranked.slice(0, 10);
+
+          return (
+            <div>
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'24px' }}>
+                <div>
+                  <h2 style={{ color:'#e8e0d0', margin:'0 0 4px', fontSize:'20px', fontWeight:'normal' }}>Engagement Analytics</h2>
+                  <p style={{ color:'#6b7280', fontSize:'13px', margin:0 }}>Top 10 most active investors ranked by engagement score.</p>
+                </div>
+              </div>
+              {nonAdminUsers.length === 0 ? <p style={{ color:'#4a5568', textAlign:'center', padding:'60px' }}>No users yet.</p> :
+                top10.map(({ user, us, st, score }, rank) => {
+                  const col = getScoreColor(score);
+                  const medals = ['🥇','🥈','🥉'];
+                  return (
+                    <div key={user.username||user.email}
+                      style={{ background:'rgba(255,255,255,0.03)', border:`1px solid ${rank===0?'rgba(184,147,58,0.35)':'rgba(255,255,255,0.08)'}`, borderRadius:'4px', padding:'18px 22px', marginBottom:'10px', cursor:'pointer', transition:'background 0.15s' }}
+                      onClick={() => setContactCard(user)}
+                      onMouseEnter={e => e.currentTarget.style.background = 'rgba(184,147,58,0.05)'}
+                      onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.03)'}>
+                      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', flexWrap:'wrap', gap:'12px' }}>
+                        {/* Rank + Name */}
+                        <div style={{ display:'flex', alignItems:'center', gap:'14px' }}>
+                          <div style={{ width:'32px', textAlign:'center', fontSize:'20px', flexShrink:0 }}>
+                            {medals[rank] || <span style={{ color:'#4a5568', fontSize:'14px', fontWeight:'bold' }}>#{rank+1}</span>}
                           </div>
-                        ))}
+                          <div style={{ width:'40px', height:'40px', borderRadius:'50%', background:`${col}20`, border:`2px solid ${col}55`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:'16px', flexShrink:0 }}>
+                            {(user.name||'?')[0].toUpperCase()}
+                          </div>
+                          <div>
+                            <div style={{ color:'#e8e0d0', fontSize:'15px', fontWeight:'bold' }}>{user.name}</div>
+                            <div style={{ color:'#4a5568', fontSize:'11px' }}>@{user.username} · {analytics.formatDate(st.lastSeen)}</div>
+                          </div>
+                          <StatusBadge status={user.status||'prospect'} />
+                        </div>
+
+                        {/* Score */}
+                        <div style={{ display:'flex', alignItems:'center', gap:'8px', background:`${col}15`, border:`1px solid ${col}44`, borderRadius:'20px', padding:'6px 14px' }}>
+                          <div style={{ width:'26px', height:'26px', borderRadius:'50%', border:`2px solid ${col}`, display:'flex', alignItems:'center', justifyContent:'center' }}>
+                            <span style={{ color:col, fontSize:'10px', fontWeight:'bold' }}>{score}</span>
+                          </div>
+                          <span style={{ color:col, fontSize:'13px', fontWeight:'bold' }}>{getScoreLabel(score)}</span>
+                        </div>
+
+                        {/* Stats */}
+                        <div style={{ display:'flex', gap:'20px' }}>
+                          {[
+                            [st.sessionCount,'Logins',GOLD],
+                            [analytics.formatDuration(st.totalTime),'Time','#4ade80'],
+                            [st.totalDownloads,'Downloads','#60a5fa'],
+                            [st.totalDocViews,'Doc Views','#f59e0b'],
+                          ].map(([v,l,c]) => (
+                            <div key={l} style={{ textAlign:'center' }}>
+                              <div style={{ color:c, fontWeight:'bold', fontSize:'16px' }}>{v}</div>
+                              <div style={{ color:'#4a5568', fontSize:'9px', textTransform:'uppercase', letterSpacing:'1px', marginTop:'1px' }}>{l}</div>
+                            </div>
+                          ))}
+                        </div>
+
+                        <span style={{ color:GOLD, fontSize:'11px' }}>Open Card →</span>
                       </div>
                     </div>
-                    <span style={{ color:GOLD, fontSize:'11px' }}>Click to open full contact card →</span>
-                  </div>
-                );
-              })
-            }
-          </div>
-        )}
+                  );
+                })
+              }
+            </div>
+          );
+        })()}
 
         {/* ── Recent Activity ── */}
         {view === 'activity' && (
