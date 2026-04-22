@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { Device } from '@twilio/voice-sdk';
 import { base44 } from '@/api/base44Client';
 
 // ── Constants ─────────────────────────────────────────────────────────────
-const GOLD = '#b8933a';
-const DARK = '#0a0f1e';
+const GOLD         = '#b8933a';
+const DARK         = '#0a0f1e';
 const CALLBACK_URL = 'https://www.rosieai.tech/api/apps/69cd2741578c9b5ce655395b/functions/twilioCallCallback';
 
 const DEFAULT_SETTINGS = {
@@ -50,38 +51,6 @@ const fmtTime = (d) =>
   new Date(d).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', second: '2-digit' });
 
 const blankLine = () => ({ lead: null, callSid: null, status: 'idle', duration: 0, amdResult: null });
-
-// Load Twilio SDK once
-const loadTwilioDevice = async () => {
-  // Already loaded
-  if (window.Twilio?.Device) return window.Twilio.Device;
-
-  // Load the SDK
-  await new Promise((resolve, reject) => {
-    if (document.querySelector('script[data-twilio]')) {
-      // Script tag exists but may still be loading — wait for it
-      const existing = document.querySelector('script[data-twilio]');
-      if (window.Twilio) { resolve(); return; }
-      existing.addEventListener('load', resolve);
-      existing.addEventListener('error', () => reject(new Error('Twilio SDK failed to load')));
-      return;
-    }
-    const s = document.createElement('script');
-    s.src = 'https://sdk.twilio.com/js/client/v1.15.0/twilio.min.js';
-    s.dataset.twilio = '1';
-    s.onload = resolve;
-    s.onerror = () => reject(new Error('Failed to load Twilio SDK'));
-    document.body.appendChild(s);
-  });
-
-  // v1.15 exposes window.Twilio.Device directly
-  if (window.Twilio?.Device) return window.Twilio.Device;
-
-  // Fallback — some builds expose it differently
-  if (window.Device) return window.Device;
-
-  throw new Error('Twilio SDK loaded but Device not found — check SDK version');
-};
 
 // ── Settings Panel ────────────────────────────────────────────────────────
 function SettingsPanel({ settings, onChange }) {
@@ -131,10 +100,10 @@ function SettingsPanel({ settings, onChange }) {
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
         {[
-          ['Wrap-Up Time (sec)', 'wrapUpTime', 0, 300, 'After-call pause before next dial'],
-          ['Max Ring Time (sec)', 'maxRingTime', 10, 60, 'Recommended: 19–20s'],
-          ['Max Attempts', 'maxAttempts', 1, 40, 'Per number before skipping'],
-          ['Retry Period (min)', 'retryPeriodMinutes', 1, 43200, 'Wait before redialing'],
+          ['Wrap-Up Time (sec)', 'wrapUpTime',         0,     300,   'After-call pause before next dial'],
+          ['Max Ring Time (sec)', 'maxRingTime',        10,    60,    'Recommended: 19–20s'],
+          ['Max Attempts',        'maxAttempts',        1,     40,    'Per number before skipping'],
+          ['Retry Period (min)',   'retryPeriodMinutes', 1,     43200, 'Wait before redialing'],
         ].map(([label, key, min, max, hint]) => (
           <div key={key}>
             <label style={{ display: 'block', color: '#8a9ab8', fontSize: '10px', letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: '6px' }}>{label}</label>
@@ -151,7 +120,7 @@ function SettingsPanel({ settings, onChange }) {
 
 // ── Line Card ─────────────────────────────────────────────────────────────
 function LineCard({ line, index, onHangup }) {
-  const col = LINE_COLORS[line.status] || '#4a5568';
+  const col      = LINE_COLORS[line.status] || '#4a5568';
   const isHuman  = line.status === 'human' || line.status === 'connected';
   const isActive = ['calling', 'ringing', 'connected', 'human'].includes(line.status);
 
@@ -164,12 +133,10 @@ function LineCard({ line, index, onHangup }) {
       display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px',
       transition: 'all 0.2s',
       boxShadow: isHuman ? '0 0 20px rgba(74,222,128,0.2)' : 'none',
-      animation: isHuman ? 'humanPulse 1s ease-in-out 3' : 'none',
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1, minWidth: 0 }}>
         <div style={{
-          width: '10px', height: '10px', borderRadius: '50%',
-          background: col, flexShrink: 0,
+          width: '10px', height: '10px', borderRadius: '50%', background: col, flexShrink: 0,
           boxShadow: isActive ? `0 0 8px ${col}` : 'none',
           animation: isActive && !isHuman ? 'pulse 1.5s infinite' : 'none',
         }} />
@@ -209,14 +176,12 @@ function LineCard({ line, index, onHangup }) {
 
 // ── Log Panel ─────────────────────────────────────────────────────────────
 function LogPanel({ logs }) {
-  const ref = useRef(null);
-  // Auto-scroll to top on new logs (newest first)
   return (
     <div style={{ background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: '10px', overflow: 'hidden' }}>
       <div style={{ padding: '10px 14px', borderBottom: '1px solid rgba(255,255,255,0.07)', color: GOLD, fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase' }}>
         Activity Log
       </div>
-      <div ref={ref} style={{ maxHeight: '220px', overflowY: 'auto', padding: '4px' }}>
+      <div style={{ maxHeight: '220px', overflowY: 'auto', padding: '4px' }}>
         {logs.length === 0 && (
           <div style={{ color: '#4a5568', fontSize: '12px', padding: '20px', textAlign: 'center' }}>No activity yet</div>
         )}
@@ -233,35 +198,35 @@ function LogPanel({ logs }) {
 
 // ── Main Predictive Dialer ────────────────────────────────────────────────
 export default function PredictiveDialer({ contactLists, onClose, onCallLogged, onLeadConnected }) {
-  const [settings, setSettings]           = useState(DEFAULT_SETTINGS);
-  const [showSettings, setShowSettings]   = useState(true);
-  const [selectedListId, setSelectedListId] = useState('');
-  const [started, setStarted]             = useState(false);
-  const [running, setRunning]             = useState(false);
-  const [lines, setLines]                 = useState([blankLine(), blankLine(), blankLine()]);
-  const [logs, setLogs]                   = useState([]);
+  const [settings, setSettings]               = useState(DEFAULT_SETTINGS);
+  const [showSettings, setShowSettings]       = useState(true);
+  const [selectedListId, setSelectedListId]   = useState('');
+  const [started, setStarted]                 = useState(false);
+  const [running, setRunning]                 = useState(false);
+  const [lines, setLines]                     = useState([blankLine(), blankLine(), blankLine()]);
+  const [logs, setLogs]                       = useState([]);
   const [wrapUpCountdown, setWrapUpCountdown] = useState(0);
-  const [stats, setStats]                 = useState({ dialed: 0, humans: 0, voicemails: 0, abandoned: 0 });
-  const [queue, setQueue]                 = useState([]);
-  const [queueIndex, setQueueIndex]       = useState(0);
-  const [twilioDevice, setTwilioDevice]   = useState(null);
-  const [activeCall, setActiveCall]       = useState(null);
-  const [deviceReady, setDeviceReady]     = useState(false);
+  const [stats, setStats]                     = useState({ dialed: 0, humans: 0, voicemails: 0, abandoned: 0 });
+  const [queue, setQueue]                     = useState([]);
+  const [queueIndex, setQueueIndex]           = useState(0);
+  const [twilioDevice, setTwilioDevice]       = useState(null);
+  const [activeCall, setActiveCall]           = useState(null);
+  const [deviceReady, setDeviceReady]         = useState(false);
 
-  // Refs so async callbacks always see latest state
-  const linesRef         = useRef(lines);
-  const queueRef         = useRef([]);
-  const queueIndexRef    = useRef(0);
-  const runningRef       = useRef(false);
-  const settingsRef      = useRef(settings);
-  const timersRef        = useRef({});   // duration tick timers
-  const pollsRef         = useRef({});   // AMD poll intervals
-  const ringTimersRef    = useRef({});   // max-ring timeouts
-  const wrapTimerRef     = useRef(null);
-  const connectingRef    = useRef(false); // prevents double auto-connect race
+  const linesRef       = useRef(lines);
+  const queueRef       = useRef([]);
+  const queueIndexRef  = useRef(0);
+  const runningRef     = useRef(false);
+  const settingsRef    = useRef(settings);
+  const timersRef      = useRef({});
+  const pollsRef       = useRef({});
+  const ringTimersRef  = useRef({});
+  const wrapTimerRef   = useRef(null);
+  const connectingRef  = useRef(false);
+  const deviceRef      = useRef(null);
 
-  linesRef.current   = lines;
-  runningRef.current = running;
+  linesRef.current    = lines;
+  runningRef.current  = running;
   settingsRef.current = settings;
 
   // ── Logging ──────────────────────────────────────────────────────────
@@ -271,50 +236,60 @@ export default function PredictiveDialer({ contactLists, onClose, onCallLogged, 
 
   // ── Twilio Device Init ────────────────────────────────────────────────
   useEffect(() => {
-    let device = null;
-
     const init = async () => {
+      // Request microphone
       try {
-        // Request microphone
         await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
       } catch {
-        addLog('error', '🎤 Microphone access denied — calls won\'t connect');
+        addLog('error', '🎤 Microphone access denied — please allow mic and refresh');
         return;
       }
 
+      // Get access token
+      let token;
       try {
-        const Device = await loadTwilioDevice();
         const tokenRes = await base44.functions.invoke('twilioClientToken', {});
-        if (!tokenRes?.data?.token) throw new Error('No token received from twilioClientToken');
+        token = tokenRes?.data?.token;
+        if (!token) throw new Error('No token returned');
+      } catch (e) {
+        addLog('error', `Token fetch failed: ${e.message}`);
+        return;
+      }
 
-        const token = tokenRes.data.token;
-        Device.setup(token, {
-          enableRingingState: true,
+      // Initialize Twilio Device v2
+      try {
+        const device = new Device(token, {
           codecPreferences: ['opus', 'pcmu'],
           fakeLocalDTMF: true,
-          debug: false,
+          enableRingingState: true,
+          logLevel: 'error',
         });
 
-        Device.on('ready', () => {
-          addLog('system', '📞 Twilio device ready');
+        device.on('registered', () => {
+          addLog('system', '📞 Twilio ready');
           setDeviceReady(true);
         });
-        Device.on('error', (err) => addLog('error', `Twilio error: ${err.message}`));
-        Device.on('connect', (conn) => {
-          addLog('connected', '🎧 Audio connected');
-          setActiveCall(conn);
+        device.on('error', (err) => {
+          addLog('error', `Twilio: ${err.message || err.description || 'Unknown error'}`);
         });
-        Device.on('disconnect', () => {
-          addLog('system', 'Audio disconnected');
-          setActiveCall(null);
+        device.on('incoming', (call) => {
+          addLog('system', `Incoming call from ${call.parameters.From}`);
         });
-        Device.on('offline', () => {
-          addLog('error', 'Twilio device went offline');
+        device.on('tokenWillExpire', async () => {
+          try {
+            const res = await base44.functions.invoke('twilioClientToken', {});
+            if (res?.data?.token) device.updateToken(res.data.token);
+          } catch {}
+        });
+        device.on('unregistered', () => {
+          addLog('error', 'Twilio device unregistered');
           setDeviceReady(false);
         });
 
-        device = Device;
-        setTwilioDevice(Device);
+        await device.register();
+        deviceRef.current = device;
+        setTwilioDevice(device);
+
       } catch (e) {
         addLog('error', `Twilio init failed: ${e.message}`);
       }
@@ -327,7 +302,7 @@ export default function PredictiveDialer({ contactLists, onClose, onCallLogged, 
       Object.values(pollsRef.current).forEach(clearInterval);
       Object.values(ringTimersRef.current).forEach(clearTimeout);
       clearInterval(wrapTimerRef.current);
-      try { device?.destroy(); } catch {}
+      try { deviceRef.current?.destroy(); } catch {}
     };
   }, [addLog]);
 
@@ -423,21 +398,18 @@ export default function PredictiveDialer({ contactLists, onClose, onCallLogged, 
     try { await base44.functions.invoke('twilioCall', { action: 'hangupCall', callSid }); } catch {}
   };
 
-  // ── AMD Polling — reads CallStatus entity written by webhook ──────────
-  // Polls every 800ms (much faster than the old 2500ms Twilio REST poll)
+  // ── AMD Poll — reads CallStatus entity written by webhook ─────────────
   const startAMDPoll = (lineIdx, sid, lead, attempts) => {
     clearInterval(pollsRef.current[lineIdx]);
 
     pollsRef.current[lineIdx] = setInterval(async () => {
       try {
-        // Only poll if line is still in ringing/calling state
         const currentLine = linesRef.current[lineIdx];
         if (!['ringing', 'calling'].includes(currentLine.status)) {
           clearInterval(pollsRef.current[lineIdx]);
           return;
         }
 
-        // Read from CallStatus entity — written by the webhook in real-time
         const results = await base44.entities.CallStatus.filter({ callSid: sid });
         if (!results?.length) return;
 
@@ -445,7 +417,7 @@ export default function PredictiveDialer({ contactLists, onClose, onCallLogged, 
         const answeredBy = record.answeredBy || '';
         const status     = record.status     || '';
 
-        // ── HUMAN DETECTED — connect instantly ────────────────────────
+        // ── HUMAN — connect instantly ─────────────────────────────────
         if (answeredBy === 'human') {
           clearInterval(pollsRef.current[lineIdx]);
           clearTimeout(ringTimersRef.current[lineIdx]);
@@ -455,28 +427,21 @@ export default function PredictiveDialer({ contactLists, onClose, onCallLogged, 
           return;
         }
 
-        // ── VOICEMAIL DETECTED — hang up and move on ──────────────────
+        // ── VOICEMAIL — hang up and move on ──────────────────────────
         if (['machine_end_beep', 'machine_end_silence', 'machine_end_other'].includes(answeredBy)) {
           clearInterval(pollsRef.current[lineIdx]);
           clearTimeout(ringTimersRef.current[lineIdx]);
           addLog('voicemail', `Line ${lineIdx + 1}: 📬 Voicemail — ${lead.firstName} ${lead.lastName}`);
           setStats(s => ({ ...s, voicemails: s.voicemails + 1 }));
           await hangupCall(sid);
-          try {
-            await base44.entities.LeadHistory.create({
-              leadId: lead.id, type: 'not_available',
-              content: `Voicemail detected (attempt #${attempts})`,
-              twilioCallSid: sid,
-            });
-          } catch {}
-          // Clean up CallStatus record
+          base44.entities.LeadHistory.create({ leadId: lead.id, type: 'not_available', content: `Voicemail detected (attempt #${attempts})`, twilioCallSid: sid }).catch(() => {});
           try { await base44.entities.CallStatus.delete(record.id); } catch {}
           cleanLine(lineIdx, 'voicemail');
           setTimeout(() => { if (runningRef.current) dialLine(lineIdx); }, 1000);
           return;
         }
 
-        // ── FAX / UNKNOWN machine ────────────────────────────────────
+        // ── FAX / MACHINE START ───────────────────────────────────────
         if (answeredBy === 'fax' || answeredBy === 'machine_start') {
           clearInterval(pollsRef.current[lineIdx]);
           clearTimeout(ringTimersRef.current[lineIdx]);
@@ -488,31 +453,24 @@ export default function PredictiveDialer({ contactLists, onClose, onCallLogged, 
           return;
         }
 
-        // ── CALL ENDED before AMD finished ───────────────────────────
+        // ── CALL ENDED before AMD ─────────────────────────────────────
         if (['completed', 'failed', 'no-answer', 'busy', 'canceled'].includes(status)) {
           clearInterval(pollsRef.current[lineIdx]);
           clearTimeout(ringTimersRef.current[lineIdx]);
           addLog('no_answer', `Line ${lineIdx + 1}: ${status} — ${lead.firstName} ${lead.lastName}`);
-          try {
-            await base44.entities.LeadHistory.create({
-              leadId: lead.id, type: 'not_available',
-              content: `Call ${status} (attempt #${attempts})`,
-              twilioCallSid: sid,
-            });
-            await base44.entities.CallStatus.delete(record.id);
-          } catch {}
+          base44.entities.LeadHistory.create({ leadId: lead.id, type: 'not_available', content: `Call ${status} (attempt #${attempts})`, twilioCallSid: sid }).catch(() => {});
+          try { await base44.entities.CallStatus.delete(record.id); } catch {}
           cleanLine(lineIdx, 'no_answer');
           setTimeout(() => { if (runningRef.current) dialLine(lineIdx); }, 1200);
         }
       } catch {}
-    }, 800); // Poll every 800ms for near-instant detection
+    }, 800);
   };
 
   // ── Auto-Connect: hang up other lines, connect agent audio ───────────
   const handleAutoConnect = async (lineIdx, lead, callSid) => {
-    // Prevent race condition if two lines detect human simultaneously
     if (connectingRef.current) {
-      addLog('system', `Line ${lineIdx + 1}: Another line already connecting — abandoning this one`);
+      addLog('system', `Line ${lineIdx + 1}: Another line already connecting — dropping this one`);
       await hangupCall(callSid);
       cleanLine(lineIdx, 'abandoned');
       return;
@@ -522,7 +480,7 @@ export default function PredictiveDialer({ contactLists, onClose, onCallLogged, 
     addLog('human', `Line ${lineIdx + 1}: 🎧 Connecting agent…`);
     setStats(s => ({ ...s, humans: s.humans + 1 }));
 
-    // Hang up ALL other active lines immediately
+    // Hang up all other lines in parallel — fire and don't wait
     const hangupPromises = [];
     for (let i = 0; i < 3; i++) {
       if (i === lineIdx) continue;
@@ -551,32 +509,42 @@ export default function PredictiveDialer({ contactLists, onClose, onCallLogged, 
       }
       cleanLine(i, 'ended');
     }
-
-    // Fire all hangups in parallel — don't wait, connect agent first
     Promise.all(hangupPromises).catch(() => {});
 
-    // Connect agent audio to the winning call
+    // Connect agent audio
     try {
-      if (!twilioDevice) throw new Error('Twilio device not ready');
+      const device = deviceRef.current;
+      if (!device) throw new Error('Twilio device not ready');
 
-      const connection = await twilioDevice.connect({ params: { CallSid: callSid } });
+      // v2 SDK: device.connect() returns a Call object
+      const call = await device.connect({ params: { CallSid: callSid } });
+
+      call.on('disconnect', () => {
+        addLog('system', 'Call audio disconnected');
+        setActiveCall(null);
+      });
+      call.on('error', (err) => {
+        addLog('error', `Call error: ${err.message}`);
+      });
+
       updateLine(lineIdx, { status: 'connected' });
-      setActiveCall(connection);
-      addLog('connected', `Line ${lineIdx + 1}: 🎧 Audio connected to ${lead.firstName} ${lead.lastName}`);
+      setActiveCall(call);
+      addLog('connected', `Line ${lineIdx + 1}: 🎧 Connected — ${lead.firstName} ${lead.lastName}`);
 
-      // Open the contact card immediately so agent can see who they're talking to
+      // Open contact card immediately
       onLeadConnected?.(lead);
 
+      // Log to lead history
       if (lead?.id) {
         base44.entities.Lead.update(lead.id, { lastCalledAt: new Date().toISOString() }).catch(() => {});
         base44.entities.LeadHistory.create({
           leadId: lead.id, type: 'connected',
-          content: `Connected via predictive dialer (AMD)`,
+          content: `Connected via predictive dialer`,
           twilioCallSid: callSid,
         }).catch(() => {});
       }
 
-      // Poll for call end (every 3s is fine once connected)
+      // Poll for call end
       pollsRef.current[lineIdx] = setInterval(async () => {
         try {
           const s = await base44.functions.invoke('twilioCall', { action: 'getCallStatus', callSid });
@@ -599,12 +567,12 @@ export default function PredictiveDialer({ contactLists, onClose, onCallLogged, 
       }, 3000);
 
     } catch (e) {
-      addLog('error', `Auto-connect failed: ${e.message}`);
+      addLog('error', `Connect failed: ${e.message}`);
       connectingRef.current = false;
     }
   };
 
-  // ── Wrap-Up Timer ─────────────────────────────────────────────────────
+  // ── Wrap-Up ───────────────────────────────────────────────────────────
   const startWrapUp = () => {
     const wrapTime = settingsRef.current.wrapUpTime;
     if (wrapTime <= 0) { resumeDialing(); return; }
@@ -639,7 +607,6 @@ export default function PredictiveDialer({ contactLists, onClose, onCallLogged, 
     const lead = getNextLead();
     if (!lead) {
       addLog('system', `Line ${lineIdx + 1}: Queue exhausted`);
-      // Check if all lines are done
       setTimeout(() => {
         const anyActive = linesRef.current.some(l =>
           ['calling', 'ringing', 'connected', 'human'].includes(l.status)
@@ -653,7 +620,7 @@ export default function PredictiveDialer({ contactLists, onClose, onCallLogged, 
       return;
     }
 
-    const s = settingsRef.current;
+    const s          = settingsRef.current;
     const fromNumber = s.lines[lineIdx] || 'TWILIO_FROM_NUMBER';
 
     updateLine(lineIdx, { lead, callSid: null, status: 'calling', duration: 0, amdResult: null });
@@ -661,25 +628,16 @@ export default function PredictiveDialer({ contactLists, onClose, onCallLogged, 
     setStats(prev => ({ ...prev, dialed: prev.dialed + 1 }));
 
     const attempts = (lead.callAttempts || 0) + 1;
-    base44.entities.Lead.update(lead.id, {
-      lastCalledAt: new Date().toISOString(),
-      callAttempts: attempts,
-    }).catch(() => {});
-    base44.entities.LeadHistory.create({
-      leadId: lead.id, type: 'call',
-      content: `Predictive dialer attempt #${attempts} — Line ${lineIdx + 1}`,
-    }).catch(() => {});
+    base44.entities.Lead.update(lead.id, { lastCalledAt: new Date().toISOString(), callAttempts: attempts }).catch(() => {});
+    base44.entities.LeadHistory.create({ leadId: lead.id, type: 'call', content: `Predictive dialer attempt #${attempts} — Line ${lineIdx + 1}` }).catch(() => {});
 
-    // Max ring timeout — bail if no answer
+    // Max ring timeout
     ringTimersRef.current[lineIdx] = setTimeout(async () => {
       const cur = linesRef.current[lineIdx];
       if (['ringing', 'calling'].includes(cur.status) && cur.lead?.id === lead.id) {
         addLog('no_answer', `Line ${lineIdx + 1}: No answer (${s.maxRingTime}s) — ${lead.firstName} ${lead.lastName}`);
         if (cur.callSid) await hangupCall(cur.callSid);
-        base44.entities.LeadHistory.create({
-          leadId: lead.id, type: 'not_available',
-          content: `No answer after ${s.maxRingTime}s (attempt #${attempts})`,
-        }).catch(() => {});
+        base44.entities.LeadHistory.create({ leadId: lead.id, type: 'not_available', content: `No answer after ${s.maxRingTime}s (attempt #${attempts})` }).catch(() => {});
         cleanLine(lineIdx, 'no_answer');
         setTimeout(() => { if (runningRef.current) dialLine(lineIdx); }, 1000);
       }
@@ -698,9 +656,8 @@ export default function PredictiveDialer({ contactLists, onClose, onCallLogged, 
 
       updateLine(lineIdx, { callSid: sid, status: 'ringing' });
       startLineTimer(lineIdx);
-      addLog('call', `Line ${lineIdx + 1}: Ringing… (${sid.slice(-6)})`);
+      addLog('call', `Line ${lineIdx + 1}: Ringing… (AMD active)`);
 
-      // Start fast AMD poll — reads webhook result from CallStatus entity
       startAMDPoll(lineIdx, sid, lead, attempts);
 
     } catch (e) {
@@ -709,12 +666,12 @@ export default function PredictiveDialer({ contactLists, onClose, onCallLogged, 
       cleanLine(lineIdx, 'no_answer');
       setTimeout(() => { if (runningRef.current) dialLine(lineIdx); }, 2000);
     }
-  }, []); // stable ref — uses refs internally
+  }, []);
 
   // ── Start / Stop ──────────────────────────────────────────────────────
   const startDialing = () => {
     if (!deviceReady) {
-      addLog('error', 'Twilio device not ready yet — please wait a moment');
+      addLog('error', 'Twilio not ready — please wait a moment and try again');
       return;
     }
     connectingRef.current = false;
@@ -729,7 +686,7 @@ export default function PredictiveDialer({ contactLists, onClose, onCallLogged, 
 
   const stopDialing = async () => {
     setRunning(false);
-    runningRef.current = false;
+    runningRef.current  = false;
     connectingRef.current = false;
     clearInterval(wrapTimerRef.current);
     setWrapUpCountdown(0);
@@ -737,14 +694,12 @@ export default function PredictiveDialer({ contactLists, onClose, onCallLogged, 
     Object.values(timersRef.current).forEach(clearInterval);
     Object.values(ringTimersRef.current).forEach(clearTimeout);
 
-    // Hang up all active calls
     for (const line of linesRef.current) {
       if (line.callSid && ['calling', 'ringing', 'connected', 'human'].includes(line.status)) {
         await hangupCall(line.callSid);
       }
     }
     if (activeCall) { try { activeCall.disconnect(); } catch {} }
-
     setLines([blankLine(), blankLine(), blankLine()]);
     addLog('system', '■ Dialer stopped');
   };
@@ -755,26 +710,23 @@ export default function PredictiveDialer({ contactLists, onClose, onCallLogged, 
 
   return (
     <div style={{ fontFamily: 'Georgia, serif' }}>
-      <style>{`
-        @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.6} }
-        @keyframes humanPulse { 0%{box-shadow:0 0 0 rgba(74,222,128,0.4)} 50%{box-shadow:0 0 25px rgba(74,222,128,0.6)} 100%{box-shadow:0 0 0 rgba(74,222,128,0.4)} }
-      `}</style>
+      <style>{`@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.5} }`}</style>
 
       {/* Header */}
       <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', justifyContent: 'space-between', alignItems: isMobile ? 'stretch' : 'center', gap: '10px', marginBottom: '16px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
           <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: running ? '#4ade80' : '#4a5568', boxShadow: running ? '0 0 8px #4ade80' : 'none' }} />
           <h3 style={{ color: GOLD, margin: 0, fontSize: '13px', letterSpacing: '3px', textTransform: 'uppercase' }}>Predictive Dialer</h3>
-          {!deviceReady && <span style={{ background: 'rgba(245,158,11,0.15)', color: '#f59e0b', border: '1px solid rgba(245,158,11,0.3)', borderRadius: '4px', padding: '2px 8px', fontSize: '10px' }}>Initializing…</span>}
-          {deviceReady && !running && <span style={{ background: 'rgba(74,222,128,0.1)', color: '#4ade80', border: '1px solid rgba(74,222,128,0.2)', borderRadius: '4px', padding: '2px 8px', fontSize: '10px' }}>Ready</span>}
+          {!deviceReady && <span style={{ background: 'rgba(245,158,11,0.15)', color: '#f59e0b', border: '1px solid rgba(245,158,11,0.3)', borderRadius: '4px', padding: '2px 8px', fontSize: '10px', animation: 'pulse 1.5s infinite' }}>⏳ Initializing…</span>}
+          {deviceReady && !running && <span style={{ background: 'rgba(74,222,128,0.1)', color: '#4ade80', border: '1px solid rgba(74,222,128,0.2)', borderRadius: '4px', padding: '2px 8px', fontSize: '10px' }}>✓ Ready</span>}
           {running && <span style={{ background: 'rgba(74,222,128,0.15)', color: '#4ade80', border: '1px solid rgba(74,222,128,0.3)', borderRadius: '4px', padding: '2px 10px', fontSize: '10px', animation: 'pulse 2s infinite' }}>● LIVE</span>}
           {wrapUpCountdown > 0 && <span style={{ background: 'rgba(245,158,11,0.15)', color: '#f59e0b', border: '1px solid rgba(245,158,11,0.3)', borderRadius: '4px', padding: '2px 10px', fontSize: '11px' }}>⏱ Wrap-up: {wrapUpCountdown}s</span>}
         </div>
         <div style={{ display: 'flex', gap: '8px' }}>
-          <button onClick={() => setShowSettings(s => !s)} style={{ flex: isMobile ? 1 : 0, background: 'rgba(255,255,255,0.06)', color: '#8a9ab8', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', padding: '6px 12px', cursor: 'pointer', fontSize: '11px' }}>
+          <button onClick={() => setShowSettings(s => !s)} style={{ background: 'rgba(255,255,255,0.06)', color: '#8a9ab8', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', padding: '6px 12px', cursor: 'pointer', fontSize: '11px' }}>
             ⚙️ {showSettings ? 'Hide' : 'Settings'}
           </button>
-          <button onClick={onClose} style={{ flex: isMobile ? 1 : 0, background: 'rgba(255,255,255,0.06)', color: '#6b7280', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', padding: '6px 12px', cursor: 'pointer', fontSize: '11px' }}>✕ Close</button>
+          <button onClick={onClose} style={{ background: 'rgba(255,255,255,0.06)', color: '#6b7280', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', padding: '6px 12px', cursor: 'pointer', fontSize: '11px' }}>✕</button>
         </div>
       </div>
 
@@ -785,8 +737,7 @@ export default function PredictiveDialer({ contactLists, onClose, onCallLogged, 
           <div style={{ display: 'flex', gap: '10px', marginBottom: '16px' }}>
             <select value={selectedListId} onChange={e => setSelectedListId(e.target.value)} style={{
               flex: 1, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.15)',
-              borderRadius: '6px', padding: '10px 12px', color: '#e8e0d0', fontSize: '13px',
-              outline: 'none', cursor: 'pointer',
+              borderRadius: '6px', padding: '10px 12px', color: '#e8e0d0', fontSize: '13px', outline: 'none', cursor: 'pointer',
             }}>
               <option value="">— Select Contact List —</option>
               {contactLists.map(list => (
@@ -797,8 +748,7 @@ export default function PredictiveDialer({ contactLists, onClose, onCallLogged, 
               <button onClick={handleStart} disabled={!selectedListId} style={{
                 padding: '10px 24px', whiteSpace: 'nowrap', fontWeight: 'bold', fontSize: '12px', letterSpacing: '1px',
                 background: !selectedListId ? 'rgba(184,147,58,0.2)' : `linear-gradient(135deg,${GOLD},#d4aa50)`,
-                color: DARK, border: 'none', borderRadius: '6px',
-                cursor: !selectedListId ? 'not-allowed' : 'pointer',
+                color: DARK, border: 'none', borderRadius: '6px', cursor: !selectedListId ? 'not-allowed' : 'pointer',
               }}>Load Leads</button>
             ) : (
               <button onClick={handleReset} style={{
@@ -815,11 +765,11 @@ export default function PredictiveDialer({ contactLists, onClose, onCallLogged, 
       {started && (
         <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2,1fr)' : 'repeat(5,1fr)', gap: '8px', marginBottom: '14px' }}>
           {[
-            [queue.length,      'Total',     GOLD],
-            [queueIndex,        'Dialed',    '#60a5fa'],
-            [remaining,         'Remaining', '#a78bfa'],
-            [stats.humans,      'Connected', '#4ade80'],
-            [stats.abandoned,   'Abandoned', '#ef4444'],
+            [queue.length,    'Total',     GOLD],
+            [queueIndex,      'Dialed',    '#60a5fa'],
+            [remaining,       'Remaining', '#a78bfa'],
+            [stats.humans,    'Connected', '#4ade80'],
+            [stats.abandoned, 'Abandoned', '#ef4444'],
           ].map(([v, label, color]) => (
             <div key={label} style={{ background: 'rgba(0,0,0,0.25)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '8px', padding: isMobile ? '6px' : '8px', textAlign: 'center' }}>
               <div style={{ color, fontSize: isMobile ? '16px' : '18px', fontWeight: 'bold' }}>{v}</div>
@@ -842,25 +792,19 @@ export default function PredictiveDialer({ contactLists, onClose, onCallLogged, 
       {started && (
         <div style={{ display: 'flex', gap: '10px', marginBottom: '14px' }}>
           {!running ? (
-            <button
-              onClick={startDialing}
+            <button onClick={startDialing}
               disabled={remaining === 0 || wrapUpCountdown > 0 || !deviceReady}
               style={{
                 flex: 1, fontWeight: 'bold', fontSize: isMobile ? '14px' : '13px',
                 padding: isMobile ? '14px 10px' : '13px',
-                border: 'none', borderRadius: '8px', cursor: (remaining === 0 || wrapUpCountdown > 0 || !deviceReady) ? 'not-allowed' : 'pointer',
+                border: 'none', borderRadius: '8px',
+                cursor: (remaining === 0 || wrapUpCountdown > 0 || !deviceReady) ? 'not-allowed' : 'pointer',
                 background: (remaining === 0 || wrapUpCountdown > 0 || !deviceReady)
                   ? 'rgba(74,222,128,0.2)'
                   : 'linear-gradient(135deg,#22c55e,#16a34a)',
                 color: '#fff',
               }}>
-              {!deviceReady
-                ? '⏳ Initializing…'
-                : remaining === 0
-                ? '✓ Queue Empty'
-                : wrapUpCountdown > 0
-                ? `⏱ Wrap-up: ${wrapUpCountdown}s`
-                : `▶ Start Dialing (${remaining} leads)`}
+              {!deviceReady ? '⏳ Initializing…' : remaining === 0 ? '✓ Queue Empty' : wrapUpCountdown > 0 ? `⏱ Wrap-up: ${wrapUpCountdown}s` : `▶ Start Dialing (${remaining} leads)`}
             </button>
           ) : (
             <button onClick={stopDialing} style={{
@@ -868,9 +812,7 @@ export default function PredictiveDialer({ contactLists, onClose, onCallLogged, 
               padding: isMobile ? '14px 10px' : '13px',
               background: 'linear-gradient(135deg,#ef4444,#b91c1c)',
               color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer',
-            }}>
-              ■ Stop Dialer
-            </button>
+            }}>■ Stop Dialer</button>
           )}
         </div>
       )}
