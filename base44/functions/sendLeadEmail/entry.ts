@@ -8,8 +8,6 @@ const TEMPLATE_ID = 13933762;
 
 Deno.serve(async (req) => {
   const base44 = createClientFromRequest(req);
-  const user = await base44.auth.me();
-  if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
 
   const { leadId, toEmail, toName, firstName } = await req.json();
   if (!toEmail || !leadId) return Response.json({ error: 'Missing toEmail or leadId' }, { status: 400 });
@@ -58,7 +56,7 @@ Deno.serve(async (req) => {
     messageUUID,
     status: 'sent',
     sentAt: new Date().toISOString(),
-    sentBy: user.email,
+    sentBy: 'admin',
     pointsAwarded: false,
   });
 
