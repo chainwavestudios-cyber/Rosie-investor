@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { base44 } from '@/api/base44Client';
 import LeadContactCard from './LeadContactCard';
 import TwilioDialer from './TwilioDialer';
@@ -280,11 +280,19 @@ export default function LeadsTab() {
     return true;
   });
 
+  useEffect(() => { setPage(1); }, [filter, search]);
+
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 30;
+
   const counts = {};
   STATUS_FILTERS.forEach(f => {
     counts[f.id] = f.id === 'all' ? leads.length : leads.filter(l => l.status === f.id).length;
   });
   const uncalledCount = leads.filter(l => !l.lastCalledAt).length;
+
+  const totalPages = Math.max(1, Math.ceil(filteredLeads.length / PAGE_SIZE));
+  const pagedLeads = filteredLeads.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   const inp = { background:'rgba(255,255,255,0.05)', border:'1px solid rgba(255,255,255,0.12)', borderRadius:'2px', padding:'8px 14px', color:'#e8e0d0', fontSize:'13px', outline:'none', fontFamily:'Georgia, serif' };
 
@@ -369,7 +377,7 @@ export default function LeadsTab() {
               </tr>
             </thead>
             <tbody>
-              {filteredLeads.map(lead => {
+              {pagedLeads.map(lead => {
                 const sc = STATUS_COLORS[lead.status] || '#8a9ab8';
                 const name = `${lead.firstName} ${lead.lastName}`;
                 return (
@@ -414,6 +422,17 @@ export default function LeadsTab() {
               })}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div style={{ display:'flex', justifyContent:'center', alignItems:'center', gap:'8px', marginTop:'20px' }}>
+          <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
+            style={{ background:'rgba(255,255,255,0.05)', color: page===1?'#4a5568':'#e8e0d0', border:'1px solid rgba(255,255,255,0.1)', borderRadius:'2px', padding:'6px 14px', cursor:page===1?'not-allowed':'pointer', fontSize:'12px' }}>← Prev</button>
+          <span style={{ color:'#8a9ab8', fontSize:'12px' }}>Page {page} of {totalPages} &nbsp;·&nbsp; {filteredLeads.length} leads</span>
+          <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages}
+            style={{ background:'rgba(255,255,255,0.05)', color:page===totalPages?'#4a5568':'#e8e0d0', border:'1px solid rgba(255,255,255,0.1)', borderRadius:'2px', padding:'6px 14px', cursor:page===totalPages?'not-allowed':'pointer', fontSize:'12px' }}>Next →</button>
         </div>
       )}
     </div>
