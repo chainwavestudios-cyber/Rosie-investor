@@ -290,6 +290,9 @@ export default function LeadsTab() {
   const [showPredictive, setShowPredictive] = useState(false);
   const [contactLists, setContactLists] = useState([]);
   const [search, setSearch] = useState('');
+  const [tab, setTab] = useState('leads'); // 'leads' or 'lists'
+  const [editingListId, setEditingListId] = useState(null);
+  const [editingListName, setEditingListName] = useState('');
 
   useEffect(() => {
     loadLeads();
@@ -325,6 +328,47 @@ export default function LeadsTab() {
     await loadLeads();
   };
 
+  const handleDeleteList = async (listId) => {
+    if (!window.confirm('Delete this list and all its leads?')) return;
+    try {
+      const leadsInList = await base44.entities.Lead.filter({ contactListId: listId });
+      for (const lead of leadsInList) {
+        try { await base44.entities.Lead.delete(lead.id); } catch {}
+      }
+      await base44.entities.ContactList.delete(listId);
+      setContactLists(prev => prev.filter(l => l.id !== listId));
+      loadLeads();
+    } catch(e) { console.error('Delete failed:', e); }
+  };
+
+  const handleResetList = async (listId) => {
+    if (!window.confirm('Reset all leads in this list (clear all statuses & call counts)?')) return;
+    try {
+      const leadsInList = await base44.entities.Lead.filter({ contactListId: listId });
+      for (const lead of leadsInList) {
+        try {
+          await base44.entities.Lead.update(lead.id, {
+            status: 'lead',
+            lastCalledAt: null,
+            callAttempts: 0,
+            callbackAt: null,
+          });
+        } catch {}
+      }
+      loadLeads();
+    } catch(e) { console.error('Reset failed:', e); }
+  };
+
+  const handleUpdateListName = async (listId, newName) => {
+    if (!newName.trim()) return;
+    try {
+      await base44.entities.ContactList.update(listId, { name: newName.trim() });
+      setContactLists(prev => prev.map(l => l.id === listId ? {...l, name: newName.trim()} : l));
+      setEditingListId(null);
+      setEditingListName('');
+    } catch(e) { console.error('Update failed:', e); }
+  };
+
   const filteredLeads = leads.filter(l => {
     if (filter !== 'all' && l.status !== filter) return false;
     if (search) {
@@ -352,6 +396,12 @@ export default function LeadsTab() {
 
   return (
     <div style={{ fontFamily:'Georgia, serif' }}>
+      {/* Tabs */}
+      <div style={{ display:'flex', borderBottom:'1px solid rgba(255,255,255,0.07)', marginBottom:'20px', gap:'0' }}>
+        <button onClick={() => setTab('leads')} style={{ background:'none', border:'none', borderBottom:tab==='leads'?`2px solid ${GOLD}`:'2px solid transparent', color:tab==='leads'?GOLD:'#6b7280', padding:'10px 16px', cursor:'pointer', fontSize:'11px', letterSpacing:'1px', whiteSpace:'nowrap' }}>📋 Leads</button>
+        <button onClick={() => setTab('lists')} style={{ background:'none', border:'none', borderBottom:tab==='lists'?`2px solid ${GOLD}`:'2px solid transparent', color:tab==='lists'?GOLD:'#6b7280', padding:'10px 16px', cursor:'pointer', fontSize:'11px', letterSpacing:'1px', whiteSpace:'nowrap' }}>📁 Lists ({contactLists.length})</button>
+      </div>
+
       {showUpload && <CSVUploadModal onClose={() => setShowUpload(false)} onImported={loadLeads} />}
       {showNewLead && <NewLeadModal onClose={() => setShowNewLead(false)} onCreated={loadLeads} />}
       {selectedLead && (
@@ -370,6 +420,9 @@ export default function LeadsTab() {
         />
       )}
 
+      {/* LEADS TAB */}
+      {tab === 'leads' && (
+      <>
       {/* Header */}
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:'16px', flexWrap:'wrap', gap:'12px' }}>
         <div>
@@ -500,6 +553,56 @@ export default function LeadsTab() {
           <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages}
             style={{ background:'rgba(255,255,255,0.05)', color:page===totalPages?'#4a5568':'#e8e0d0', border:'1px solid rgba(255,255,255,0.1)', borderRadius:'2px', padding:'6px 14px', cursor:page===totalPages?'not-allowed':'pointer', fontSize:'12px' }}>Next →</button>
         </div>
+      )}
+      </>
+      )}
+
+      {/* LISTS TAB */}
+      {tab === 'lists' && (
+      <div>
+        <div style={{ marginBottom:'24px' }}>
+          <h2 style={{ color:'#e8e0d0', margin:'0 0 4px', fontSize:'20px', fontWeight:'normal' }}>Contact Lists</h2>
+          <p style={{ color:'#6b7280', fontSize:'13px', margin:0 }}>Manage your lead lists. Edit names, reset stats, or delete entire lists.</p>
+        </div>
+        {contactLists.length === 0 ? (
+          <div style={{ textAlign:'center', padding:'60px', background:'rgba(0,0,0,0.15)', border:'1px solid rgba(255,255,255,0.06)', borderRadius:'4px', color:'#4a5568' }}>
+            <div style={{ fontSize:'48px', marginBottom:'12px' }}>📁</div>
+            <div style={{ fontSize:'14px' }}>No lists yet. Import a CSV to create one.</div>
+          </div>
+        ) : (
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(280px, 1fr))', gap:'12px' }}>
+            {contactLists.map(list => (
+              <div key={list.id} style={{ background:'rgba(0,0,0,0.2)', border:'1px solid rgba(255,255,255,0.07)', borderRadius:'4px', padding:'16px' }}>
+                {editingListId === list.id ? (
+                  <div>
+                    <input
+                      value={editingListName}
+                      onChange={e => setEditingListName(e.target.value)}
+                      style={{ background:'rgba(255,255,255,0.05)', border:'1px solid rgba(255,255,255,0.15)', borderRadius:'2px', padding:'8px 12px', color:'#e8e0d0', fontSize:'13px', width:'100%', boxSizing:'border-box', marginBottom:'8px', outline:'none', fontFamily:'Georgia,serif' }}
+                    />
+                    <div style={{ display:'flex', gap:'6px' }}>
+                      <button onClick={() => handleUpdateListName(list.id, editingListName)} style={{ flex:1, background:'linear-gradient(135deg,#4ade80,#22c55e)', color:'#000', border:'none', borderRadius:'2px', padding:'6px', cursor:'pointer', fontSize:'11px', fontWeight:'bold' }}>Save</button>
+                      <button onClick={() => setEditingListId(null)} style={{ flex:1, background:'rgba(255,255,255,0.05)', color:'#6b7280', border:'1px solid rgba(255,255,255,0.1)', borderRadius:'2px', padding:'6px', cursor:'pointer', fontSize:'11px' }}>Cancel</button>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <div style={{ color:'#e8e0d0', fontSize:'15px', fontWeight:'bold', marginBottom:'8px' }}>{list.name}</div>
+                    <div style={{ color:'#6b7280', fontSize:'12px', marginBottom:'12px' }}>
+                      📄 {list.leadCount || 0} leads · Imported {list.importedAt ? new Date(list.importedAt).toLocaleDateString() : 'unknown'}
+                    </div>
+                    <div style={{ display:'flex', gap:'6px', flexWrap:'wrap' }}>
+                      <button onClick={() => { setEditingListId(list.id); setEditingListName(list.name); }} style={{ flex:1, background:'rgba(96,165,250,0.15)', color:'#60a5fa', border:'1px solid rgba(96,165,250,0.3)', borderRadius:'2px', padding:'6px', cursor:'pointer', fontSize:'10px', letterSpacing:'0.5px' }}>✎ Edit</button>
+                      <button onClick={() => handleResetList(list.id)} style={{ flex:1, background:'rgba(245,158,11,0.15)', color:'#f59e0b', border:'1px solid rgba(245,158,11,0.3)', borderRadius:'2px', padding:'6px', cursor:'pointer', fontSize:'10px', letterSpacing:'0.5px' }}>↻ Reset</button>
+                      <button onClick={() => handleDeleteList(list.id)} style={{ flex:1, background:'rgba(239,68,68,0.15)', color:'#ef4444', border:'1px solid rgba(239,68,68,0.3)', borderRadius:'2px', padding:'6px', cursor:'pointer', fontSize:'10px', letterSpacing:'0.5px' }}>✕ Delete</button>
+                    </div>
+                  </>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
       )}
     </div>
   );
