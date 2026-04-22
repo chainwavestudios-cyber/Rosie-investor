@@ -308,9 +308,18 @@ export default function PredictiveDialer({ contactLists, onClose, onCallLogged }
   const handleStart = async () => {
     if (!selectedListId) return;
     addLog('system', 'Loading leads…');
-    await loadLeads(selectedListId);
-    setStarted(true);
-    setShowSettings(false);
+    try {
+      const loaded = await loadLeads(selectedListId);
+      if (!loaded || loaded.length === 0) {
+        addLog('error', 'No dialable leads found in this list.');
+        return;
+      }
+      setStarted(true);
+      setShowSettings(false);
+      addLog('system', `Loaded ${loaded.length} leads — ready to dial.`);
+    } catch (e) {
+      addLog('error', `Load failed: ${e.message}`);
+    }
   };
 
   const getNextLead = () => {
