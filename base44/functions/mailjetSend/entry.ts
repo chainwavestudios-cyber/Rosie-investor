@@ -11,14 +11,15 @@ Deno.serve(async (req) => {
     const user = await base44.auth.me();
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
 
-    const { leadId, leadEmail, leadName, subject, body } = await req.json();
-    if (!leadId || !leadEmail || !subject || !body) {
+    const { leadId, leadEmail, leadName, leadFirstName, subject } = await req.json();
+    if (!leadId || !leadEmail || !subject) {
       return Response.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
     const customId = `lead_${leadId}_${Date.now()}`;
+    const firstName = leadFirstName || (leadName || '').split(' ')[0] || '';
 
-    // Send via Mailjet API v3.1
+    // Send via Mailjet API v3.1 using template
     const mjRes = await fetch('https://api.mailjet.com/v3.1/send', {
       method: 'POST',
       headers: {
@@ -30,8 +31,9 @@ Deno.serve(async (req) => {
           From: { Email: FROM_EMAIL, Name: FROM_NAME },
           To: [{ Email: leadEmail, Name: leadName || '' }],
           Subject: subject,
-          HTMLPart: body,
-          TextPart: body.replace(/<[^>]*>/g, ''),
+          TemplateID: 13933762,
+          TemplateLanguage: true,
+          Variables: { firstname: firstName },
           CustomID: customId,
           TrackOpens: 'enabled',
           TrackClicks: 'enabled',
@@ -54,7 +56,7 @@ Deno.serve(async (req) => {
       leadEmail,
       leadName: leadName || '',
       subject,
-      body,
+      body: `[Template 13933762] Dear ${firstName},…`,
       messageId,
       messageUuid,
       customId,

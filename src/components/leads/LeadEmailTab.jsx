@@ -14,7 +14,6 @@ export default function LeadEmailTab({ lead, onScoreUpdate }) {
   const [loading, setLoading] = useState(true);
   const [composing, setComposing] = useState(false);
   const [subject, setSubject] = useState('');
-  const [body, setBody] = useState('');
   const [sending, setSending] = useState(false);
   const [sendMsg, setSendMsg] = useState('');
   const [expandedEmail, setExpandedEmail] = useState(null);
@@ -33,7 +32,7 @@ export default function LeadEmailTab({ lead, onScoreUpdate }) {
   };
 
   const handleSend = async () => {
-    if (!subject.trim() || !body.trim()) return;
+    if (!subject.trim()) return;
     if (!lead.email) { setSendMsg('⚠ Lead has no email address.'); return; }
     setSending(true); setSendMsg('');
     try {
@@ -41,11 +40,11 @@ export default function LeadEmailTab({ lead, onScoreUpdate }) {
         leadId: lead.id,
         leadEmail: lead.email,
         leadName: `${lead.firstName} ${lead.lastName}`,
+        leadFirstName: lead.firstName,
         subject: subject.trim(),
-        body: body.trim(),
       });
       setSendMsg('✅ Email sent! +5 points awarded.');
-      setSubject(''); setBody(''); setComposing(false);
+      setSubject(''); setComposing(false);
       await loadEmails();
       onScoreUpdate && onScoreUpdate();
     } catch(e) {
@@ -129,16 +128,15 @@ export default function LeadEmailTab({ lead, onScoreUpdate }) {
             <label style={ls}>Subject</label>
             <input value={subject} onChange={e => setSubject(e.target.value)} placeholder="Email subject…" style={inp} />
           </div>
-          <div style={{ marginBottom: '12px' }}>
-            <label style={ls}>Message</label>
-            <textarea value={body} onChange={e => setBody(e.target.value)} rows={6} placeholder="Write your message here…" style={{ ...inp, resize: 'vertical', lineHeight: 1.6 }} />
+          <div style={{ background: 'rgba(96,165,250,0.07)', border: '1px solid rgba(96,165,250,0.2)', borderRadius: '2px', padding: '10px 14px', marginBottom: '12px', color: '#8a9ab8', fontSize: '12px' }}>
+            📄 Using template <strong style={{ color: '#60a5fa' }}>13933762</strong> — body is pre-filled. Will open with <em>Dear {lead.firstName},</em>
           </div>
           <div style={{ display: 'flex', gap: '10px' }}>
-            <button onClick={handleSend} disabled={sending || !subject.trim() || !body.trim() || !lead.email}
-              style={{ background: (!subject.trim() || !body.trim() || !lead.email) ? 'rgba(184,147,58,0.2)' : 'linear-gradient(135deg,#b8933a,#d4aa50)', color: DARK, border: 'none', borderRadius: '2px', padding: '9px 22px', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px', letterSpacing: '1px' }}>
+            <button onClick={handleSend} disabled={sending || !subject.trim() || !lead.email}
+              style={{ background: (!subject.trim() || !lead.email) ? 'rgba(184,147,58,0.2)' : 'linear-gradient(135deg,#b8933a,#d4aa50)', color: DARK, border: 'none', borderRadius: '2px', padding: '9px 22px', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px', letterSpacing: '1px' }}>
               {sending ? 'Sending…' : '📤 Send Email'}
             </button>
-            <button onClick={() => { setComposing(false); setSubject(''); setBody(''); }}
+            <button onClick={() => { setComposing(false); setSubject(''); }}
               style={{ background: 'transparent', color: '#6b7280', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '2px', padding: '9px 16px', cursor: 'pointer', fontSize: '12px' }}>
               Cancel
             </button>
