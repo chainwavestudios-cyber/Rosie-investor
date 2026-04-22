@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { base44 } from '@/api/base44Client';
-import LeadContactCard from './LeadContactCard.jsx';
+import LeadContactCard from './LeadContactCard';
 import TwilioDialer from './TwilioDialer';
 import PredictiveDialer from './PredictiveDialer';
 
