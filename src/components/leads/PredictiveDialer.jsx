@@ -12,6 +12,17 @@ const loadTwilioClient = async () => {
   });
 };
 
+// Request microphone permission for mobile
+const requestMicrophonePermission = async () => {
+  try {
+    await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
+    return true;
+  } catch (e) {
+    console.error('Microphone permission denied:', e);
+    return false;
+  }
+};
+
 const GOLD = '#b8933a';
 const DARK = '#0a0f1e';
 
@@ -231,23 +242,34 @@ export default function PredictiveDialer({ contactLists, onClose, onCallLogged }
   useEffect(() => {
     // Initialize Twilio Device
     const initTwilio = async () => {
+      // Request microphone on mobile
+      const hasMic = await requestMicrophonePermission();
+      if (!hasMic) {
+        addLog('error', '🎤 Please allow microphone access');
+        return;
+      }
+
       const Device = await loadTwilioClient();
       try {
         const tokenRes = await base44.functions.invoke('twilioClientToken', {});
-        Device.setup(tokenRes.data.token, { enableRingingState: true });
-        Device.on('ready', () => addLog('system', '📞 Twilio ready — agent can receive calls'));
-        Device.on('error', (error) => addLog('error', `Twilio error: ${error.message}`));
+        Device.setup(tokenRes.data.token, { 
+          enableRingingState: true,
+          codecPreferences: ['opus', 'pcmu'],
+          fakeLocalDTMF: true,
+        });
+        Device.on('ready', () => addLog('system', '📞 Ready'));
+        Device.on('error', (error) => addLog('error', `Error: ${error.message}`));
         Device.on('connect', (connection) => {
-          addLog('connected', 'Call connected');
+          addLog('connected', '🎧 Connected');
           setActiveCall(connection);
         });
         Device.on('disconnect', () => {
-          addLog('system', 'Call disconnected');
+          addLog('system', 'Disconnected');
           setActiveCall(null);
         });
         setTwilioDevice(Device);
       } catch (e) {
-        addLog('error', `Twilio init failed: ${e.message}`);
+        addLog('error', `Init failed: ${e.message}`);
       }
     };
     initTwilio();
@@ -258,7 +280,7 @@ export default function PredictiveDialer({ contactLists, onClose, onCallLogged }
       clearInterval(wrapTimerRef.current);
       if (twilioDevice) twilioDevice.destroy();
     };
-  }, []);
+  }, [addLog]);
 
   const loadLeads = async (listId) => {
     const all = await base44.entities.Lead.filter({ contactListId: listId });
@@ -609,12 +631,14 @@ export default function PredictiveDialer({ contactLists, onClose, onCallLogged }
 
   const remaining = Math.max(0, queue.length - queueIndex);
 
+  const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
+
   return (
     <div style={{ fontFamily: 'Georgia, serif' }}>
       <style>{`@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.7} }`}</style>
 
       {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+      <div style={{ display: 'flex', flexDirection:isMobile?'column':'row', justifyContent: 'space-between', alignItems:isMobile?'stretch':'center', gap:'10px', marginBottom: '16px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: running ? '#4ade80' : '#4a5568', boxShadow: running ? '0 0 8px #4ade80' : 'none' }} />
           <h3 style={{ color: GOLD, margin: 0, fontSize: '13px', letterSpacing: '3px', textTransform: 'uppercase' }}>Predictive Dialer</h3>
@@ -622,8 +646,8 @@ export default function PredictiveDialer({ contactLists, onClose, onCallLogged }
           {wrapUpCountdown > 0 && <span style={{ background: 'rgba(245,158,11,0.15)', color: '#f59e0b', border: '1px solid rgba(245,158,11,0.3)', borderRadius: '4px', padding: '2px 10px', fontSize: '11px' }}>⏱ Wrap-up: {wrapUpCountdown}s</span>}
         </div>
         <div style={{ display: 'flex', gap: '8px' }}>
-          <button onClick={() => setShowSettings(s => !s)} style={{ background: 'rgba(255,255,255,0.06)', color: '#8a9ab8', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', padding: '6px 12px', cursor: 'pointer', fontSize: '11px' }}>⚙️ {showSettings ? 'Hide' : 'Settings'}</button>
-          <button onClick={onClose} style={{ background: 'rgba(255,255,255,0.06)', color: '#6b7280', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', padding: '6px 12px', cursor: 'pointer', fontSize: '12px' }}>✕ Close</button>
+          <button onClick={() => setShowSettings(s => !s)} style={{ flex:isMobile?1:0, background: 'rgba(255,255,255,0.06)', color: '#8a9ab8', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', padding:isMobile?'8px 12px':'6px 12px', cursor: 'pointer', fontSize:isMobile?'12px':'11px' }}>⚙️ {showSettings ? 'Hide' : 'Show'}</button>
+          <button onClick={onClose} style={{ flex:isMobile?1:0, background: 'rgba(255,255,255,0.06)', color: '#6b7280', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', padding:isMobile?'8px 12px':'6px 12px', cursor: 'pointer', fontSize:isMobile?'12px':'11px' }}>✕</button>
         </div>
       </div>
 
@@ -653,11 +677,11 @@ export default function PredictiveDialer({ contactLists, onClose, onCallLogged }
 
       {/* Stats */}
       {started && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '8px', marginBottom: '14px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns:isMobile?'repeat(2,1fr)':'repeat(5,1fr)', gap: '8px', marginBottom: '14px' }}>
           {[[queue.length, 'Total', GOLD], [queueIndex, 'Dialed', '#60a5fa'], [remaining, 'Remaining', '#a78bfa'], [stats.humans, 'Humans', '#4ade80'], [stats.abandoned, 'Abandoned', '#ef4444']].map(([v, l, c]) => (
-            <div key={l} style={{ background: 'rgba(0,0,0,0.25)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '8px', padding: '8px', textAlign: 'center' }}>
-              <div style={{ color: c, fontSize: '18px', fontWeight: 'bold' }}>{v}</div>
-              <div style={{ color: '#4a5568', fontSize: '9px', letterSpacing: '1px', textTransform: 'uppercase', marginTop: '2px' }}>{l}</div>
+            <div key={l} style={{ background: 'rgba(0,0,0,0.25)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '8px', padding:isMobile?'6px':'8px', textAlign: 'center' }}>
+              <div style={{ color: c, fontSize:isMobile?'16px':'18px', fontWeight: 'bold' }}>{v}</div>
+              <div style={{ color: '#4a5568', fontSize:isMobile?'8px':'9px', letterSpacing: '1px', textTransform: 'uppercase', marginTop: '2px' }}>{l}</div>
             </div>
           ))}
         </div>
@@ -677,13 +701,13 @@ export default function PredictiveDialer({ contactLists, onClose, onCallLogged }
         <div style={{ display: 'flex', gap: '10px', marginBottom: '14px' }}>
           {!running ? (
             <button onClick={startDialing} disabled={remaining === 0 || wrapUpCountdown > 0}
-              style={{ flex: 1, background: (remaining === 0 || wrapUpCountdown > 0) ? 'rgba(74,222,128,0.2)' : 'linear-gradient(135deg,#22c55e,#16a34a)', color: '#fff', border: 'none', borderRadius: '8px', padding: '13px', cursor: (remaining === 0 || wrapUpCountdown > 0) ? 'not-allowed' : 'pointer', fontWeight: 'bold', fontSize: '13px' }}>
-              {remaining === 0 ? '✓ Queue Empty' : wrapUpCountdown > 0 ? `Wrap-up: ${wrapUpCountdown}s…` : `▶ Start Dialing (${remaining} leads)`}
+              style={{ flex: 1, background: (remaining === 0 || wrapUpCountdown > 0) ? 'rgba(74,222,128,0.2)' : 'linear-gradient(135deg,#22c55e,#16a34a)', color: '#fff', border: 'none', borderRadius: '8px', padding:isMobile?'14px 10px':'13px', cursor: (remaining === 0 || wrapUpCountdown > 0) ? 'not-allowed' : 'pointer', fontWeight: 'bold', fontSize:isMobile?'14px':'13px' }}>
+              {isMobile ? '▶ Start' : remaining === 0 ? '✓ Queue Empty' : wrapUpCountdown > 0 ? `Wrap-up: ${wrapUpCountdown}s…` : `▶ Start Dialing (${remaining} leads)`}
             </button>
           ) : (
             <button onClick={stopDialing}
-              style={{ flex: 1, background: 'linear-gradient(135deg,#ef4444,#b91c1c)', color: '#fff', border: 'none', borderRadius: '8px', padding: '13px', cursor: 'pointer', fontWeight: 'bold', fontSize: '13px' }}>
-              ■ Stop Dialer
+              style={{ flex: 1, background: 'linear-gradient(135deg,#ef4444,#b91c1c)', color: '#fff', border: 'none', borderRadius: '8px', padding:isMobile?'14px 10px':'13px', cursor: 'pointer', fontWeight: 'bold', fontSize:isMobile?'14px':'13px' }}>
+              ■ {isMobile ? 'Stop' : 'Stop Dialer'}
             </button>
           )}
         </div>

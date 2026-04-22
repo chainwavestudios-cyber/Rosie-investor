@@ -853,11 +853,13 @@ export default function AdminDashboard() {
   const filteredUsers  = nonAdminUsers.filter(u => filterStatus === 'all' || (u.status||'prospect') === filterStatus);
   const recentSessions = allSessions.filter(s=>s.startTime).sort((a,b)=>new Date(b.startTime)-new Date(a.startTime)).slice(0,15);
 
+  const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
+
   return (
     <div style={{ minHeight:'100vh', background:'#060c18', fontFamily:'Georgia, serif', color:'#e8e0d0' }}>
       <nav style={{ background:DARK, borderBottom:'1px solid rgba(184,147,58,0.2)', position:'sticky', top:0, zIndex:200 }}>
         {/* Top bar */}
-        <div style={{ padding:'0 40px', display:'flex', alignItems:'center', justifyContent:'space-between', height:'56px' }}>
+        <div style={{ padding:isMobile ? '0 16px' : '0 40px', display:'flex', alignItems:'center', justifyContent:'space-between', height:'56px', gap:'8px' }}>
           <div style={{ display:'flex', alignItems:'center', gap:'16px' }}>
             <img src={LOGO} alt="Rosie AI" style={{ height:'34px', width:'auto' }} />
             <div style={{ width:'1px', height:'20px', background:'rgba(184,147,58,0.3)' }} />
@@ -873,16 +875,16 @@ export default function AdminDashboard() {
         <div style={{ display:'flex', overflowX:'auto', borderTop:'1px solid rgba(255,255,255,0.05)', scrollbarWidth:'none' }}>
           {VIEWS.map(v => (
             <button key={v.id} onClick={() => handleViewChange(v.id)}
-              style={{ background:'none', border:'none', borderBottom:view===v.id?`2px solid ${GOLD}`:'2px solid transparent', color:view===v.id?GOLD:'#6b7280', padding:'10px 18px', cursor:'pointer', fontSize:'11px', letterSpacing:'1px', whiteSpace:'nowrap', flexShrink:0, transition:'color 0.15s' }}>
+              style={{ background:'none', border:'none', borderBottom:view===v.id?`2px solid ${GOLD}`:'2px solid transparent', color:view===v.id?GOLD:'#6b7280', padding:isMobile?'8px 10px':'10px 18px', cursor:'pointer', fontSize:isMobile?'9px':'11px', letterSpacing:'1px', whiteSpace:'nowrap', flexShrink:0, transition:'color 0.15s' }}>
               {v.label}
             </button>
           ))}
         </div>
       </nav>
 
-      <div style={{ maxWidth:'1600px', margin:'0 auto', padding:'24px 32px' }}>
+      <div style={{ maxWidth:'1600px', margin:'0 auto', padding:isMobile?'12px 16px':'24px 32px' }}>
         {/* Top row: reminders sidebar + KPIs */}
-        <div style={{ display:'flex', gap:'16px', marginBottom:'24px', alignItems:'flex-start' }}>
+        <div style={{ display:isMobile?'flex':'flex', flexDirection:isMobile?'column':'row', gap:'16px', marginBottom:'24px', alignItems:'flex-start' }}>
           {/* Reminders sidebar */}
           <UpcomingReminders
             onOpenLeadCard={(lead) => { /* open lead contact card via LeadsTab — pass through */ }}
@@ -890,7 +892,7 @@ export default function AdminDashboard() {
             onOpenDialer={(lead) => { setDialerLead(lead); setShowDialer(true); }}
           />
           {/* KPIs */}
-          <div style={{ flex:1, display:'grid', gridTemplateColumns:'repeat(5,1fr)', gap:'10px' }}>
+          <div style={{ flex:1, display:'grid', gridTemplateColumns:isMobile?'repeat(2,1fr)':'repeat(5,1fr)', gap:'10px' }}>
             {[
               { label:'Total Clients',  value:nonAdminUsers.length,                                                  icon:'👥', color:GOLD    },
               { label:'Investors',      value:nonAdminUsers.filter(u=>u.status==='investor').length,                  icon:'✅', color:'#4ade80' },
