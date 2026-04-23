@@ -1,17 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { base44 } from '@/api/base44Client';
 
-/* global Twilio */
-
-const waitForTwilio = () => new Promise((resolve, reject) => {
-  if (typeof Twilio !== 'undefined') return resolve();
-  let attempts = 0;
-  const interval = setInterval(() => {
-    attempts++;
-    if (typeof Twilio !== 'undefined') { clearInterval(interval); resolve(); }
-    else if (attempts > 20) { clearInterval(interval); reject(new Error('Twilio SDK failed to load')); }
-  }, 500);
-});
+import { Device } from '@twilio/voice-sdk';
 
 // ── Constants ─────────────────────────────────────────────────────────────
 const GOLD         = '#b8933a';
@@ -274,10 +264,8 @@ export default function PredictiveDialer({ contactLists, onClose, onCallLogged, 
       }
 
       // Initialize Twilio Device v2
-      addLog('system', '⏳ Loading Twilio SDK…');
-      await waitForTwilio();
       try {
-        const device = new Twilio.Device(token, {
+        const device = new Device(token, {
           codecPreferences: ['opus', 'pcmu'],
           fakeLocalDTMF: true,
           enableRingingState: true,
