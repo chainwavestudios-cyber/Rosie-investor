@@ -1,0 +1,42 @@
+{
+  "name": "Script",
+  "type": "object",
+  "properties": {
+    "contactId": {
+      "type": "string",
+      "title": "Contact ID"
+    },
+    "contactType": {
+      "type": "string",
+      "title": "Contact Type",
+      "enum": [
+        "lead",
+        "investor"
+      ],
+      "default": "lead"
+    },
+    "name": {
+      "type": "string",
+      "title": "Script Name"
+    },
+    "content": {
+      "type": "string",
+      "title": "Script Content",
+      "format": "textarea"
+    },
+    "color": {
+      "type": "string",
+      "title": "Text Color",
+      "default": "#e8e0d0"
+    },
+    "fontSize": {
+      "type": "number",
+      "title": "Font Size",
+      "default": 14
+    }
+  },
+  "required": [
+    "contactId",
+    "name"
+  ]
+}
