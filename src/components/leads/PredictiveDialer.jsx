@@ -6,7 +6,7 @@ import { Device } from '@twilio/voice-sdk';
 // ── Constants ─────────────────────────────────────────────────────────────
 const GOLD         = '#b8933a';
 const DARK         = '#0a0f1e';
-const CALLBACK_URL = 'https://investors.rosieai.tech/api/apps/69cd2741578c9b5ce655395b/functions/twilioCallCallback';
+const CALLBACK_URL = 'https://www.rosieai.tech/api/apps/69cd2741578c9b5ce655395b/functions/twilioCallCallback';
 
 const DEFAULT_SETTINGS = {
   lineCount: 2,
@@ -425,43 +425,17 @@ export default function PredictiveDialer({ contactLists, onClose, onCallLogged, 
         const answeredBy = record.answeredBy || '';
         const status     = record.status     || '';
 
-        // ── HUMAN — connect instantly ─────────────────────────────────
-        if (answeredBy === 'human') {
+        // ── ANSWERED — connect immediately, no AMD wait ──────────────
+        if (status === 'in-progress' && !connectingRef.current) {
           clearInterval(pollsRef.current[lineIdx]);
           clearTimeout(ringTimersRef.current[lineIdx]);
-          addLog('human', `Line ${lineIdx + 1}: 🟢 HUMAN ANSWERED — ${lead.firstName} ${lead.lastName}`);
+          addLog('human', `Line ${lineIdx + 1}: 🟢 ANSWERED — ${lead.firstName} ${lead.lastName}`);
           updateLine(lineIdx, { status: 'human', amdResult: 'human' });
           await handleAutoConnect(lineIdx, lead, sid, linesRef.current[lineIdx]?.conferenceName);
           return;
         }
 
-        // ── VOICEMAIL — hang up and move on ──────────────────────────
-        if (['machine_end_beep', 'machine_end_silence', 'machine_end_other'].includes(answeredBy)) {
-          clearInterval(pollsRef.current[lineIdx]);
-          clearTimeout(ringTimersRef.current[lineIdx]);
-          addLog('voicemail', `Line ${lineIdx + 1}: 📬 Voicemail — ${lead.firstName} ${lead.lastName}`);
-          setStats(s => ({ ...s, voicemails: s.voicemails + 1 }));
-          await hangupCall(sid);
-          base44.entities.LeadHistory.create({ leadId: lead.id, type: 'not_available', content: `Voicemail detected (attempt #${attempts})`, twilioCallSid: sid }).catch(() => {});
-          try { await base44.entities.CallStatus.delete(record.id); } catch {}
-          cleanLine(lineIdx, 'voicemail');
-          setTimeout(() => { if (runningRef.current) dialLine(lineIdx); }, 1000);
-          return;
-        }
-
-        // ── FAX / MACHINE START ───────────────────────────────────────
-        if (answeredBy === 'fax' || answeredBy === 'machine_start') {
-          clearInterval(pollsRef.current[lineIdx]);
-          clearTimeout(ringTimersRef.current[lineIdx]);
-          addLog('voicemail', `Line ${lineIdx + 1}: 🤖 Machine/Fax — hanging up`);
-          await hangupCall(sid);
-          try { await base44.entities.CallStatus.delete(record.id); } catch {}
-          cleanLine(lineIdx, 'voicemail');
-          setTimeout(() => { if (runningRef.current) dialLine(lineIdx); }, 1000);
-          return;
-        }
-
-        // ── CALL ENDED before AMD ─────────────────────────────────────
+        // ── CALL ENDED ────────────────────────────────────────────────
         if (['completed', 'failed', 'no-answer', 'busy', 'canceled'].includes(status)) {
           clearInterval(pollsRef.current[lineIdx]);
           clearTimeout(ringTimersRef.current[lineIdx]);
@@ -659,6 +633,7 @@ export default function PredictiveDialer({ contactLists, onClose, onCallLogged, 
         fromNumber,
         statusCallbackUrl: CALLBACK_URL,
         conferenceName: confName,
+        skipAMD: true,
       });
 
       const sid = res.data?.callSid;
