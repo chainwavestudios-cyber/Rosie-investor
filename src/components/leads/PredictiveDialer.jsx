@@ -431,7 +431,7 @@ export default function PredictiveDialer({ contactLists, onClose, onCallLogged, 
           clearTimeout(ringTimersRef.current[lineIdx]);
           addLog('human', `Line ${lineIdx + 1}: 🟢 HUMAN ANSWERED — ${lead.firstName} ${lead.lastName}`);
           updateLine(lineIdx, { status: 'human', amdResult: 'human' });
-          await handleAutoConnect(lineIdx, lead, sid);
+          await handleAutoConnect(lineIdx, lead, sid, linesRef.current[lineIdx]?.conferenceName);
           return;
         }
 
@@ -476,7 +476,7 @@ export default function PredictiveDialer({ contactLists, onClose, onCallLogged, 
   };
 
   // ── Auto-Connect: hang up other lines, connect agent audio ───────────
-  const handleAutoConnect = async (lineIdx, lead, callSid) => {
+  const handleAutoConnect = async (lineIdx, lead, callSid, conferenceName) => {
     if (connectingRef.current) {
       addLog('system', `Line ${lineIdx + 1}: Another line already connecting — dropping this one`);
       await hangupCall(callSid);
@@ -524,8 +524,8 @@ export default function PredictiveDialer({ contactLists, onClose, onCallLogged, 
       const device = deviceRef.current;
       if (!device) throw new Error('Twilio device not ready');
 
-      // v2 SDK: device.connect() returns a Call object
-      const call = await device.connect({ params: { CallSid: callSid } });
+      // v2 SDK: join the conference the lead is already in
+      const call = await device.connect({ params: { ConferenceName: conferenceName || callSid } });
 
       call.on('disconnect', () => {
         addLog('system', 'Call audio disconnected');
@@ -653,16 +653,18 @@ export default function PredictiveDialer({ contactLists, onClose, onCallLogged, 
 
     // Make the call
     try {
+      const confName = `call_${Date.now()}_${lineIdx}`;
       const res = await base44.functions.invoke('twilioCallWithCPA', {
         toNumber: lead.phone,
         fromNumber,
         statusCallbackUrl: CALLBACK_URL,
+        conferenceName: confName,
       });
 
       const sid = res.data?.callSid;
       if (!sid) throw new Error(res.data?.error || 'No call SID returned');
 
-      updateLine(lineIdx, { callSid: sid, status: 'ringing' });
+      updateLine(lineIdx, { callSid: sid, status: 'ringing', conferenceName: confName });
       startLineTimer(lineIdx);
       addLog('call', `Line ${lineIdx + 1}: Ringing… (AMD active)`);
 
