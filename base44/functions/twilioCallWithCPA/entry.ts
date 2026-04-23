@@ -11,13 +11,6 @@ const AUTH_TOKEN  = Deno.env.get('TWILIO_AUTH_TOKEN');
 
 Deno.serve(async (req) => {
   try {
-    const base44 = createClientFromRequest(req);
-    const user = await base44.auth.me();
-
-    if (!user) {
-      return Response.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
     const body = await req.json();
     const { toNumber, fromNumber, statusCallbackUrl } = body;
 
@@ -32,7 +25,7 @@ Deno.serve(async (req) => {
     // Resolve fromNumber env key (e.g. 'TWILIO_FROM_NUMBER') to actual number
     let resolvedFrom = fromNumber;
     if (fromNumber.startsWith('TWILIO_FROM_NUMBER')) {
-      resolvedFrom = Deno.env.get(fromNumber) || '';
+      resolvedFrom = Deno.env.get(fromNumber) || Deno.env.get('TWILIO_FROM_NUMBER') || '';
       if (!resolvedFrom) {
         return Response.json({ error: `Env variable not set: ${fromNumber}` }, { status: 500 });
       }
