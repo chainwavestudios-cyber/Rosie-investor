@@ -406,7 +406,7 @@ export default function PredictiveDialer({ contactLists, onClose, onCallLogged, 
     try { await base44.functions.invoke('twilioCall', { action: 'hangupCall', callSid }); } catch {}
   };
 
-  // ── AMD Poll — reads CallStatus entity written by webhook ─────────────
+  // ── Poll CallStatus entity — keyed by conferenceName ────────────────
   const startAMDPoll = (lineIdx, sid, lead, attempts) => {
     clearInterval(pollsRef.current[lineIdx]);
 
@@ -418,20 +418,29 @@ export default function PredictiveDialer({ contactLists, onClose, onCallLogged, 
           return;
         }
 
-        const results = await base44.entities.CallStatus.filter({ callSid: sid });
-        if (!results?.length) return;
+        const confName = linesRef.current[lineIdx]?.conferenceName;
+        if (!confName) return;
 
-        const record     = results[0];
-        const answeredBy = record.answeredBy || '';
-        const status     = record.status     || '';
+        // Conference callback writes record keyed by conferenceName
+        const results = await base44.entities.CallStatus.filter({ callSid: confName });
+        if (!results?.length) {
+          // Also check by actual callSid as fallback
+          const bySid = await base44.entities.CallStatus.filter({ callSid: sid });
+          if (!bySid?.length) return;
+        }
 
-        // ── ANSWERED — connect immediately, no AMD wait ──────────────
+        const record = results[0] || (await base44.entities.CallStatus.filter({ callSid: sid }))[0];
+        if (!record) return;
+        const status = record.status || '';
+
+        // ── ANSWERED — connect immediately ───────────────────────────
         if (status === 'in-progress' && !connectingRef.current) {
           clearInterval(pollsRef.current[lineIdx]);
           clearTimeout(ringTimersRef.current[lineIdx]);
           addLog('human', `Line ${lineIdx + 1}: 🟢 ANSWERED — ${lead.firstName} ${lead.lastName}`);
-          updateLine(lineIdx, { status: 'human', amdResult: 'human' });
-          await handleAutoConnect(lineIdx, lead, sid, linesRef.current[lineIdx]?.conferenceName);
+          updateLine(lineIdx, { status: 'human' });
+          try { await base44.entities.CallStatus.delete(record.id); } catch {}
+          await handleAutoConnect(lineIdx, lead, sid, confName);
           return;
         }
 
