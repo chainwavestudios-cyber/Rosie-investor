@@ -1,65 +1,72 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 
 /**
- * Twilio Call Status Callback Webhook
- * Receives AMD results and call events in real-time from Twilio
- * Saves results to CallStatus entity so frontend can poll instantly
+ * Twilio callback — handles both conference participant events and call status events
+ * Conference fires: participant-join, participant-leave, conference-start, conference-end
+ * We use participant-join to detect when the lead answers
  */
-
 Deno.serve(async (req) => {
   if (req.method !== 'POST') {
-    return new Response('Method not allowed', { status: 405 });
+    return new Response('OK', { status: 200 });
   }
 
   try {
     const formData = await req.text();
     const params = new URLSearchParams(formData);
 
-    const callSid     = params.get('CallSid')     || '';
-    const callStatus  = params.get('CallStatus')  || '';
-    const answeredBy  = params.get('AnsweredBy')  || '';
-    const duration    = params.get('CallDuration') || '0';
+    const statusCallbackEvent = params.get('StatusCallbackEvent') || '';
+    const callSid     = params.get('CallSid')      || params.get('ConferenceSid') || '';
+    const callStatus  = params.get('CallStatus')   || '';
+    const confSid     = params.get('ConferenceSid') || '';
+    const friendlyName = params.get('FriendlyName') || ''; // this is the conferenceName
 
-    console.log(`[Twilio Callback] SID=${callSid} Status=${callStatus} AnsweredBy=${answeredBy}`);
+    console.log(`[Callback] Event=${statusCallbackEvent} CallSid=${callSid} ConfSid=${confSid} FriendlyName=${friendlyName} Status=${callStatus}`);
 
-    if (!callSid) {
-      return new Response('Missing CallSid', { status: 400 });
-    }
-
-    // Save to CallStatus entity so the frontend poll picks it up instantly
-    try {
-      const base44 = createClientFromRequest(req);
-
-      // Try to find existing record first
-      const existing = await base44.asServiceRole.entities.CallStatus.filter({ callSid });
-
-      if (existing && existing.length > 0) {
-        await base44.asServiceRole.entities.CallStatus.update(existing[0].id, {
-          status: callStatus,
-          answeredBy: answeredBy || existing[0].answeredBy,
-          duration: parseInt(duration),
-          updatedAt: new Date().toISOString(),
-        });
-      } else {
-        await base44.asServiceRole.entities.CallStatus.create({
-          callSid,
-          status: callStatus,
-          answeredBy,
-          duration: parseInt(duration),
-          updatedAt: new Date().toISOString(),
-        });
+    // Conference participant joined = lead answered
+    if (statusCallbackEvent === 'participant-join' && friendlyName) {
+      try {
+        const base44 = createClientFromRequest(req);
+        // Store by conference name so frontend can look it up
+        const existing = await base44.asServiceRole.entities.CallStatus.filter({ callSid: friendlyName });
+        if (existing?.length > 0) {
+          await base44.asServiceRole.entities.CallStatus.update(existing[0].id, {
+            status: 'in-progress',
+            answeredBy: 'human',
+            updatedAt: new Date().toISOString(),
+          });
+        } else {
+          await base44.asServiceRole.entities.CallStatus.create({
+            callSid: friendlyName, // use conference name as key
+            status: 'in-progress',
+            answeredBy: 'human',
+            duration: 0,
+            updatedAt: new Date().toISOString(),
+          });
+        }
+        console.log(`[Callback] Participant joined conference ${friendlyName} — marked in-progress`);
+      } catch (dbErr) {
+        console.error('[Callback] DB error:', dbErr.message);
       }
-    } catch (dbErr) {
-      // Don't fail the webhook if DB write fails — Twilio needs 200
-      console.error('[Twilio Callback] DB error:', dbErr.message);
     }
 
-    // Always return 200 to Twilio immediately
+    // Conference ended
+    if (statusCallbackEvent === 'conference-end' && friendlyName) {
+      try {
+        const base44 = createClientFromRequest(req);
+        const existing = await base44.asServiceRole.entities.CallStatus.filter({ callSid: friendlyName });
+        if (existing?.length > 0) {
+          await base44.asServiceRole.entities.CallStatus.update(existing[0].id, {
+            status: 'completed',
+            updatedAt: new Date().toISOString(),
+          });
+        }
+      } catch {}
+    }
+
     return new Response('OK', { status: 200 });
 
   } catch (e) {
-    console.error('[Twilio Callback] Error:', e.message);
-    // Still return 200 so Twilio doesn't retry flood
+    console.error('[Callback] Error:', e.message);
     return new Response('OK', { status: 200 });
   }
 });
