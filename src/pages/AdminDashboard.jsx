@@ -17,6 +17,7 @@ import UpcomingReminders from '@/components/admin/UpcomingReminders';
 import InvestorAnalyticsTab from '@/components/admin/InvestorAnalyticsTab';
 import RecentInvestorEvents from '@/components/admin/RecentInvestorEvents';
 import { base44 } from '@/api/base44Client';
+import ScriptTab from '@/components/leads/ScriptTab';
 
 const LOGO = 'https://media.base44.com/images/public/69cd2741578c9b5ce655395b/39a31f9b9_Untitleddesign3.png';
 const GOLD = '#b8933a';
@@ -164,7 +165,7 @@ function ContactCardModal({ user, onClose, onSave, allSessions, matchesUser }) {
   const TABS = [
     ['overview','👤 Overview'], ['history','📞 History'], ['analytics','📊 Analytics'],
     ['documents','📄 Documents'], ['accreditation','🔐 Accreditation'], ['calendar','📅 Calendar'],
-    ['portal','🔑 Portal Access'], ['rosie','🤖 Rosie AI'],
+    ['portal','🔑 Portal Access'], ['rosie','🤖 Rosie AI'], ['script','📝 Script'],
   ];
 
   const noteTypeIcons = { note:'📝', call:'📞', sms:'💬', voicemail:'📳', email:'✉️' };
@@ -454,6 +455,9 @@ function ContactCardModal({ user, onClose, onSave, allSessions, matchesUser }) {
 
           {/* ROSIE AI */}
           {tab === 'rosie' && <RosieTab user={user} />}
+
+          {/* SCRIPT */}
+          {tab === 'script' && <ScriptTab contactId={user.id} contactType="investor" />}
 
           {/* CALENDAR */}
           {tab === 'calendar' && (
@@ -928,53 +932,33 @@ export default function AdminDashboard() {
       </nav>
 
       <div style={{ maxWidth:'1600px', margin:'0 auto', padding:isMobile?'12px 16px':'24px 32px' }}>
-        {/* KPIs + Reminders — only on CRM and Leads tabs */}
-        {(view === 'users' || view === 'leads') && (
-          <>
-          <div style={{ display:'grid', gridTemplateColumns:isMobile?'repeat(3,1fr)':'repeat(6,1fr)', gap:'6px', marginBottom:'8px' }}>
+        {/* KPIs */}
+        <div style={{ display:'grid', gridTemplateColumns:isMobile?'repeat(2,1fr)':'repeat(5,1fr)', gap:'10px', marginBottom:'16px' }}>
             {[
-              { label:'Total Clients',       value:nonAdminUsers.length,                                                    icon:'👥', color:GOLD      },
-              { label:'Investors',           value:nonAdminUsers.filter(u=>u.status==='investor').length,                   icon:'✅', color:'#4ade80' },
-              { label:'Potential Investors', value:nonAdminUsers.filter(u=>(u.status||'prospect')==='prospect').length,     icon:'🔷', color:'#a78bfa' },
-              { label:'Total Sessions',      value:globalStats.totalSessions,                                               icon:'🔐', color:'#f59e0b' },
-              { label:'Time Spent',          value:analytics.formatDuration(globalStats.totalTime),                         icon:'⏱',  color:'#a78bfa' },
+              { label:'Total Clients',  value:nonAdminUsers.length,                                                  icon:'👥', color:GOLD    },
+              { label:'Investors',      value:nonAdminUsers.filter(u=>u.status==='investor').length,                  icon:'✅', color:'#4ade80' },
+              { label:'Potential Investors', value:nonAdminUsers.filter(u=>(u.status||'prospect')==='prospect').length, icon:'🔷', color:'#a78bfa' },
+              { label:'Total Sessions', value:globalStats.totalSessions,                                              icon:'🔐', color:'#f59e0b' },
+              { label:'Time Spent',     value:analytics.formatDuration(globalStats.totalTime),                        icon:'⏱',  color:'#a78bfa' },
             ].map(({label,value,icon,color}) => (
-              <div key={label} style={{ background:'rgba(255,255,255,0.03)', border:'1px solid rgba(255,255,255,0.08)', borderRadius:'2px', padding:'6px 10px' }}>
+              <div key={label} style={{ background:'rgba(255,255,255,0.03)', border:'1px solid rgba(255,255,255,0.08)', borderRadius:'2px', padding:'12px 14px' }}>
                 <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
                   <div>
-                    <div style={{ color:'#6b7280', fontSize:'8px', letterSpacing:'1px', textTransform:'uppercase', marginBottom:'2px' }}>{label}</div>
-                    <div style={{ color, fontSize:'14px', fontWeight:'bold' }}>{value}</div>
+                    <div style={{ color:'#6b7280', fontSize:'9px', letterSpacing:'1.5px', textTransform:'uppercase', marginBottom:'5px' }}>{label}</div>
+                    <div style={{ color, fontSize:'20px', fontWeight:'bold' }}>{value}</div>
                   </div>
-                  <span style={{ fontSize:'12px' }}>{icon}</span>
+                  <span style={{ fontSize:'18px' }}>{icon}</span>
                 </div>
               </div>
             ))}
-            {/* SignNow alert card */}
-            <div style={{ background: newSignNowCount > 0 ? 'rgba(245,158,11,0.08)' : 'rgba(255,255,255,0.03)', border: newSignNowCount > 0 ? '1px solid rgba(245,158,11,0.35)' : '1px solid rgba(255,255,255,0.08)', borderRadius:'2px', padding:'6px 10px' }}>
-              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-                <div>
-                  <div style={{ color:'#6b7280', fontSize:'8px', letterSpacing:'1px', textTransform:'uppercase', marginBottom:'2px' }}>SignNow</div>
-                  <div style={{ color: newSignNowCount > 0 ? '#f59e0b' : '#4a5568', fontSize:'14px', fontWeight:'bold' }}>{newSignNowCount} New</div>
-                </div>
-                <span style={{ fontSize:'12px' }}>✍️</span>
-              </div>
-              {newSignNowCount > 0 && (
-                <button onClick={() => { SignNowRequestDB.listAll().then(reqs => { localStorage.setItem('sn_dismissed_count', reqs.length); setNewSignNowCount(0); }); }}
-                  style={{ background:'rgba(245,158,11,0.2)', color:'#f59e0b', border:'1px solid rgba(245,158,11,0.3)', borderRadius:'2px', padding:'1px 6px', cursor:'pointer', fontSize:'8px', letterSpacing:'1px', marginTop:'2px' }}>
-                  Clear
-                </button>
-              )}
-            </div>
-          </div>
+        </div>
 
-          {/* Upcoming appointments — only on CRM and Leads */}
-          <UpcomingReminders
-            onOpenLeadCard={(lead) => { /* open lead contact card via LeadsTab */ }}
-            onOpenUserCard={(investorId) => { const u = users.find(u => u.id === investorId); if (u) setContactCard(u); }}
-            onOpenDialer={(lead) => { setDialerLead(lead); setShowDialer(true); }}
-          />
-          </>
-        )}
+        {/* Upcoming appointments — horizontal full width */}
+        <UpcomingReminders
+          onOpenLeadCard={(lead) => { /* open lead contact card via LeadsTab */ }}
+          onOpenUserCard={(investorId) => { const u = users.find(u => u.id === investorId); if (u) setContactCard(u); }}
+          onOpenDialer={(lead) => { setDialerLead(lead); setShowDialer(true); }}
+        />
 
         {/* CRM sidebar panels */}
         {crmSidebar === 'activity' && (
