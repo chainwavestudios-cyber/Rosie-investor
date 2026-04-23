@@ -1,7 +1,4 @@
-import { createClient } from 'npm:@base44/sdk@0.8.25';
-
-// Use service role client directly — Mailjet webhooks have no auth token
-const base44 = createClient({ serviceRole: true });
+import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 
 Deno.serve(async (req) => {
   let events = [];
@@ -12,14 +9,19 @@ Deno.serve(async (req) => {
     return new Response('OK', { status: 200 });
   }
 
-  console.log(`[Mailjet] Received ${events.length} event(s)`);
+  console.log(`[Mailjet] Received ${events.length} event(s):`, JSON.stringify(events[0] || {}));
+
+  // Use asServiceRole — bypasses auth requirement for webhook calls
+  const base44 = createClientFromRequest(req).asServiceRole;
 
   for (const evt of events) {
     const { event, email, MessageID, CustomID, url, time } = evt;
-
     console.log(`[Mailjet] Event=${event} CustomID=${CustomID} email=${email}`);
 
-    if (!CustomID) continue; // CustomID = leadId
+    if (!CustomID) {
+      console.log('[Mailjet] No CustomID — skipping (test event)');
+      continue;
+    }
 
     const leadId = CustomID;
     const messageId = String(MessageID || '');
@@ -30,9 +32,7 @@ Deno.serve(async (req) => {
       const log = logs.find(l => l.messageId === messageId) || logs[logs.length - 1];
 
       if (event === 'open') {
-        if (log) {
-          await base44.entities.EmailLog.update(log.id, { status: 'opened', openedAt: eventTime });
-        }
+        if (log) await base44.entities.EmailLog.update(log.id, { status: 'opened', openedAt: eventTime });
         const leads = await base44.entities.Lead.filter({ id: leadId });
         const lead = leads[0];
         if (lead && !lead.badgeEmailOpened) {
@@ -48,9 +48,7 @@ Deno.serve(async (req) => {
         console.log(`[Mailjet] Open recorded for lead ${leadId}`);
 
       } else if (event === 'click') {
-        if (log) {
-          await base44.entities.EmailLog.update(log.id, { status: 'clicked', clickedAt: eventTime, clickedUrl: url || '' });
-        }
+        if (log) await base44.entities.EmailLog.update(log.id, { status: 'clicked', clickedAt: eventTime, clickedUrl: url || '' });
         const leads = await base44.entities.Lead.filter({ id: leadId });
         const lead = leads[0];
         if (lead) {
