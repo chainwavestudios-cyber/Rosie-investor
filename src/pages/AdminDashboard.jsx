@@ -15,6 +15,7 @@ import ZoomBookingModal from '@/components/ZoomBookingModal';
 import ProspectPipeline from '@/components/admin/ProspectPipeline';
 import UpcomingReminders from '@/components/admin/UpcomingReminders';
 import InvestorAnalyticsTab from '@/components/admin/InvestorAnalyticsTab';
+import RecentInvestorEvents from '@/components/admin/RecentInvestorEvents';
 import { base44 } from '@/api/base44Client';
 
 const LOGO = 'https://media.base44.com/images/public/69cd2741578c9b5ce655395b/39a31f9b9_Untitleddesign3.png';
@@ -917,16 +918,8 @@ export default function AdminDashboard() {
       </nav>
 
       <div style={{ maxWidth:'1600px', margin:'0 auto', padding:isMobile?'12px 16px':'24px 32px' }}>
-        {/* Top row: reminders sidebar + KPIs */}
-        <div style={{ display:isMobile?'flex':'flex', flexDirection:isMobile?'column':'row', gap:'16px', marginBottom:'24px', alignItems:'flex-start' }}>
-          {/* Reminders sidebar */}
-          <UpcomingReminders
-            onOpenLeadCard={(lead) => { /* open lead contact card via LeadsTab — pass through */ }}
-            onOpenUserCard={(investorId) => { const u = users.find(u => u.id === investorId); if (u) setContactCard(u); }}
-            onOpenDialer={(lead) => { setDialerLead(lead); setShowDialer(true); }}
-          />
-          {/* KPIs */}
-          <div style={{ flex:1, display:'grid', gridTemplateColumns:isMobile?'repeat(2,1fr)':'repeat(5,1fr)', gap:'10px' }}>
+        {/* KPIs */}
+        <div style={{ display:'grid', gridTemplateColumns:isMobile?'repeat(2,1fr)':'repeat(5,1fr)', gap:'10px', marginBottom:'16px' }}>
             {[
               { label:'Total Clients',  value:nonAdminUsers.length,                                                  icon:'👥', color:GOLD    },
               { label:'Investors',      value:nonAdminUsers.filter(u=>u.status==='investor').length,                  icon:'✅', color:'#4ade80' },
@@ -944,8 +937,19 @@ export default function AdminDashboard() {
                 </div>
               </div>
             ))}
-          </div>
         </div>
+
+        {/* Upcoming appointments — horizontal full width */}
+        <UpcomingReminders
+          onOpenLeadCard={(lead) => { /* open lead contact card via LeadsTab */ }}
+          onOpenUserCard={(investorId) => { const u = users.find(u => u.id === investorId); if (u) setContactCard(u); }}
+          onOpenDialer={(lead) => { setDialerLead(lead); setShowDialer(true); }}
+        />
+
+        {/* Recent investor activity */}
+        <RecentInvestorEvents
+          onOpenUserCard={(investorId) => { const u = users.find(u => u.id === investorId); if (u) setContactCard(u); }}
+        />
 
         {showAdd && <AddUserForm onAdd={load} onClose={() => setShowAdd(false)} />}
         {contactCard && (
