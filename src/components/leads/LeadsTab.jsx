@@ -278,8 +278,6 @@ function NewLeadModal({ onClose, onCreated }) {
 }
 
 // ─── Main Leads Tab ───────────────────────────────────────────────────────
-import LeadActivityFeed from '@/components/leads/LeadActivityFeed';
-
 export default function LeadsTab() {
   const [leads, setLeads] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -295,11 +293,34 @@ export default function LeadsTab() {
   const [tab, setTab] = useState('leads'); // 'leads' or 'lists'
   const [editingListId, setEditingListId] = useState(null);
   const [editingListName, setEditingListName] = useState('');
+  const [sidebarView, setSidebarView] = useState('leads'); // 'leads' | 'activity' | 'email'
+  const [emailFilter, setEmailFilter] = useState('all'); // 'all' | 'sent' | 'opened' | 'clicked'
+  const [emailLogs, setEmailLogs] = useState([]);
+  const [leadHistory, setLeadHistory] = useState([]);
+  const [activityLoading, setActivityLoading] = useState(false);
 
   useEffect(() => {
     loadLeads();
+    loadActivity();
     base44.entities.ContactList.list('-created_date', 100).then(setContactLists).catch(() => {});
   }, []);
+
+  const loadActivity = async () => {
+    setActivityLoading(true);
+    try {
+      const [history, logs] = await Promise.all([
+        base44.entities.LeadHistory.list('-created_date', 150).catch(() => []),
+        base44.entities.EmailLog.list('-sentAt', 200).catch(() => []),
+      ]);
+      // Get lead names
+      const allLeads = await base44.entities.Lead.list('-created_date', 2000);
+      const leadsMap = {};
+      allLeads.forEach(l => { leadsMap[l.id] = l; });
+      setLeadHistory(history.map(h => ({ ...h, lead: leadsMap[h.leadId] })));
+      setEmailLogs(logs.map(l => ({ ...l, lead: leadsMap[l.leadId] })));
+    } catch(e) { console.error(e); }
+    setActivityLoading(false);
+  };
 
   const loadLeads = async () => {
     setLoading(true);
@@ -408,13 +429,72 @@ export default function LeadsTab() {
 
   const inp = { background:'rgba(255,255,255,0.05)', border:'1px solid rgba(255,255,255,0.12)', borderRadius:'2px', padding:'8px 14px', color:'#e8e0d0', fontSize:'13px', outline:'none', fontFamily:'Georgia, serif' };
 
+  const fmtTime = (dt) => {
+    if (!dt) return '—';
+    const d = new Date(dt);
+    const diff = Date.now() - d;
+    if (diff < 3600000) return `${Math.floor(diff/60000)}m ago`;
+    if (diff < 86400000) return `${Math.floor(diff/3600000)}h ago`;
+    return d.toLocaleString('en-US', { month:'short', day:'numeric', hour:'numeric', minute:'2-digit' });
+  };
+
+  const ACTIVITY_ICONS = {
+    note: '📬', call: '📞', connected: '🟢', not_available: '📵',
+    prospect: '🚀', voicemail: '📳', not_interested: '❌', converted: '✅',
+    email_open: '📬', email_click: '🔗',
+  };
+  const ACTIVITY_COLORS = {
+    note: '#4ade80', call: GOLD, connected: '#4ade80', not_available: '#8a9ab8',
+    prospect: '#a78bfa', voicemail: '#f59e0b', not_interested: '#ef4444', converted: '#4ade80',
+    email_open: '#4ade80', email_click: '#60a5fa',
+  };
+
+  const getHistoryType = (h) => {
+    if (h.type === 'note' && h.content?.includes('Email opened')) return 'email_open';
+    if (h.type === 'note' && h.content?.includes('link clicked')) return 'email_click';
+    return h.type;
+  };
+
+  const filteredEmailLogs = emailLogs.filter(l => {
+    if (emailFilter === 'all') return true;
+    if (emailFilter === 'sent') return ['sent','delivered'].includes(l.status);
+    if (emailFilter === 'opened') return l.status === 'opened';
+    if (emailFilter === 'clicked') return l.status === 'clicked';
+    return true;
+  });
+
   return (
-    <div style={{ fontFamily:'Georgia, serif' }}>
-      {/* Tabs */}
-      <div style={{ display:'flex', borderBottom:'1px solid rgba(255,255,255,0.07)', marginBottom:'20px', gap:'0' }}>
-        <button onClick={() => setTab('leads')} style={{ background:'none', border:'none', borderBottom:tab==='leads'?`2px solid ${GOLD}`:'2px solid transparent', color:tab==='leads'?GOLD:'#6b7280', padding:'10px 16px', cursor:'pointer', fontSize:'11px', letterSpacing:'1px', whiteSpace:'nowrap' }}>📋 Leads</button>
-        <button onClick={() => setTab('lists')} style={{ background:'none', border:'none', borderBottom:tab==='lists'?`2px solid ${GOLD}`:'2px solid transparent', color:tab==='lists'?GOLD:'#6b7280', padding:'10px 16px', cursor:'pointer', fontSize:'11px', letterSpacing:'1px', whiteSpace:'nowrap' }}>📁 Lists ({contactLists.length})</button>
+    <div style={{ fontFamily:'Georgia, serif', display:'flex', gap:'0', minHeight:'600px' }}>
+
+      {/* ── SIDEBAR ── */}
+      <div style={{ width:'200px', flexShrink:0, borderRight:'1px solid rgba(255,255,255,0.07)', paddingRight:'0' }}>
+        {/* Sidebar nav */}
+        <div style={{ padding:'0 0 12px 0' }}>
+          {[
+            { id:'leads',    icon:'📋', label:'Leads' },
+            { id:'lists',    icon:'📁', label:`Lists (${contactLists.length})` },
+            { id:'activity', icon:'⚡', label:'Activity Feed' },
+            { id:'email',    icon:'✉️',  label:'Email Activity' },
+          ].map(item => (
+            <button key={item.id} onClick={() => { setSidebarView(item.id); setTab(item.id === 'lists' ? 'lists' : 'leads'); }}
+              style={{ display:'block', width:'100%', textAlign:'left', background: sidebarView===item.id ? 'rgba(184,147,58,0.1)' : 'transparent', border:'none', borderLeft: sidebarView===item.id ? `3px solid ${GOLD}` : '3px solid transparent', padding:'10px 14px', color: sidebarView===item.id ? GOLD : '#6b7280', fontSize:'12px', cursor:'pointer', letterSpacing:'0.5px', transition:'all 0.15s' }}>
+              {item.icon} {item.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Dialer buttons */}
+        <div style={{ padding:'12px', borderTop:'1px solid rgba(255,255,255,0.07)' }}>
+          <div style={{ color:'#4a5568', fontSize:'9px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'8px' }}>Dialers</div>
+          <button onClick={() => setShowDialer(true)} style={{ display:'block', width:'100%', background:'rgba(74,222,128,0.1)', color:'#4ade80', border:'1px solid rgba(74,222,128,0.25)', borderRadius:'2px', padding:'8px 10px', cursor:'pointer', fontSize:'11px', marginBottom:'6px', textAlign:'left' }}>📞 Direct Dialer</button>
+          <button onClick={() => setShowPredictive(p => !p)} style={{ display:'block', width:'100%', background: showPredictive ? 'rgba(184,147,58,0.2)' : 'rgba(167,139,250,0.1)', color: showPredictive ? GOLD : '#a78bfa', border:`1px solid ${showPredictive ? 'rgba(184,147,58,0.4)' : 'rgba(167,139,250,0.25)'}`, borderRadius:'2px', padding:'8px 10px', cursor:'pointer', fontSize:'11px', marginBottom:'6px', textAlign:'left' }}>⚡ {showPredictive ? 'Hide Predictive' : 'Predictive Dialer'}</button>
+          <button onClick={() => setShowNewLead(true)} style={{ display:'block', width:'100%', background:'rgba(96,165,250,0.1)', color:'#60a5fa', border:'1px solid rgba(96,165,250,0.25)', borderRadius:'2px', padding:'8px 10px', cursor:'pointer', fontSize:'11px', marginBottom:'6px', textAlign:'left' }}>+ New Lead</button>
+          <button onClick={() => setShowUpload(true)} style={{ display:'block', width:'100%', background:'linear-gradient(135deg,#b8933a,#d4aa50)', color:DARK, border:'none', borderRadius:'2px', padding:'8px 10px', cursor:'pointer', fontSize:'11px', fontWeight:'700', textAlign:'left' }}>📊 Import CSV</button>
+        </div>
       </div>
+
+      {/* ── MAIN CONTENT ── */}
+      <div style={{ flex:1, paddingLeft:'24px', minWidth:0 }}>
 
       {showUpload && <CSVUploadModal onClose={() => setShowUpload(false)} onImported={loadLeads} />}
       {showNewLead && <NewLeadModal onClose={() => setShowNewLead(false)} onCreated={loadLeads} />}
@@ -435,21 +515,12 @@ export default function LeadsTab() {
       )}
 
       {/* LEADS TAB */}
-      {tab === 'leads' && (
+      {sidebarView === 'leads' && tab === 'leads' && (
       <>
-      <LeadActivityFeed onOpenLead={(lead) => setSelectedLead(lead)} />
       {/* Header */}
-      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:'16px', flexWrap:'wrap', gap:'12px' }}>
-        <div>
-          <h2 style={{ color:'#e8e0d0', margin:'0 0 4px', fontSize:'20px', fontWeight:'normal' }}>Leads</h2>
-          <p style={{ color:'#6b7280', fontSize:'13px', margin:0 }}>Never-called leads appear first. Abandoned calls need manual callback.</p>
-        </div>
-        <div style={{ display:'flex', gap:'10px', flexWrap:'wrap' }}>
-          <button onClick={() => setShowDialer(true)} style={{ background:'rgba(74,222,128,0.12)', color:'#4ade80', border:'1px solid rgba(74,222,128,0.3)', borderRadius:'2px', padding:'9px 18px', cursor:'pointer', fontSize:'12px' }}>📞 Direct Dialer</button>
-          <button onClick={() => setShowPredictive(p => !p)} style={{ background: showPredictive ? 'rgba(184,147,58,0.25)' : 'rgba(167,139,250,0.12)', color: showPredictive ? GOLD : '#a78bfa', border:`1px solid ${showPredictive ? 'rgba(184,147,58,0.5)' : 'rgba(167,139,250,0.3)'}`, borderRadius:'2px', padding:'9px 18px', cursor:'pointer', fontSize:'12px' }}>⚡ {showPredictive ? 'Hide' : 'Predictive Dialer'}</button>
-          <button onClick={() => setShowNewLead(true)} style={{ background:'rgba(74,222,128,0.12)', color:'#4ade80', border:'1px solid rgba(74,222,128,0.3)', borderRadius:'2px', padding:'9px 18px', cursor:'pointer', fontSize:'12px' }}>+ New Lead</button>
-          <button onClick={() => setShowUpload(true)} style={{ background:'linear-gradient(135deg,#b8933a,#d4aa50)', color:DARK, border:'none', borderRadius:'2px', padding:'10px 20px', cursor:'pointer', fontSize:'12px', letterSpacing:'2px', textTransform:'uppercase', fontWeight:'700' }}>📊 Import CSV</button>
-        </div>
+      <div style={{ marginBottom:'16px' }}>
+        <h2 style={{ color:'#e8e0d0', margin:'0 0 4px', fontSize:'20px', fontWeight:'normal' }}>Leads</h2>
+        <p style={{ color:'#6b7280', fontSize:'13px', margin:0 }}>Never-called leads appear first. Abandoned calls need manual callback.</p>
       </div>
 
       {/* Predictive Dialer Panel */}
@@ -573,8 +644,89 @@ export default function LeadsTab() {
       </>
       )}
 
+      {/* ACTIVITY FEED */}
+      {sidebarView === 'activity' && (
+        <div>
+          <div style={{ marginBottom:'16px' }}>
+            <h2 style={{ color:'#e8e0d0', margin:'0 0 4px', fontSize:'20px', fontWeight:'normal' }}>Lead Activity Feed</h2>
+            <p style={{ color:'#6b7280', fontSize:'13px', margin:0 }}>All calls, connections, status changes and email events.</p>
+          </div>
+          {activityLoading && <div style={{ color:'#6b7280', textAlign:'center', padding:'40px' }}>Loading…</div>}
+          {!activityLoading && leadHistory.length === 0 && <div style={{ color:'#4a5568', textAlign:'center', padding:'40px' }}>No activity yet.</div>}
+          <div style={{ maxHeight:'70vh', overflowY:'auto' }}>
+            {leadHistory.map((h, i) => {
+              const type = getHistoryType(h);
+              const icon = ACTIVITY_ICONS[type] || '📌';
+              const color = ACTIVITY_COLORS[type] || '#8a9ab8';
+              const name = h.lead ? `${h.lead.firstName} ${h.lead.lastName}` : h.leadId;
+              return (
+                <div key={h.id || i}
+                  onClick={() => h.lead && setSelectedLead(h.lead)}
+                  style={{ display:'grid', gridTemplateColumns:'24px 1fr 120px', gap:'0 10px', alignItems:'center', padding:'8px 12px', borderBottom:'1px solid rgba(255,255,255,0.04)', cursor: h.lead ? 'pointer' : 'default', transition:'background 0.1s' }}
+                  onMouseEnter={e => { if(h.lead) e.currentTarget.style.background='rgba(255,255,255,0.03)'; }}
+                  onMouseLeave={e => e.currentTarget.style.background='transparent'}>
+                  <span style={{ fontSize:'13px', textAlign:'center' }}>{icon}</span>
+                  <div>
+                    <span style={{ color:'#e8e0d0', fontSize:'12px', fontWeight:'bold', marginRight:'6px' }}>{name}</span>
+                    <span style={{ color, fontSize:'10px' }}>{type.replace('_',' ')}</span>
+                    {h.content && <span style={{ color:'#4a5568', fontSize:'10px', marginLeft:'6px' }}>· {h.content.slice(0,80)}</span>}
+                  </div>
+                  <div style={{ color:'#6b7280', fontSize:'10px', textAlign:'right' }}>{fmtTime(h.createdAt || h.created_date)}</div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* EMAIL ACTIVITY */}
+      {sidebarView === 'email' && (
+        <div>
+          <div style={{ marginBottom:'16px' }}>
+            <h2 style={{ color:'#e8e0d0', margin:'0 0 4px', fontSize:'20px', fontWeight:'normal' }}>Email Activity</h2>
+            <p style={{ color:'#6b7280', fontSize:'13px', margin:0 }}>Track sent, opened, and clicked emails.</p>
+          </div>
+          {/* Filter tabs */}
+          <div style={{ display:'flex', gap:'0', borderBottom:'1px solid rgba(255,255,255,0.07)', marginBottom:'16px' }}>
+            {[['all','All'],['sent','Sent'],['opened','Opened'],['clicked','Clicked']].map(([id,label]) => (
+              <button key={id} onClick={() => setEmailFilter(id)}
+                style={{ background:'none', border:'none', borderBottom:emailFilter===id?`2px solid ${GOLD}`:'2px solid transparent', color:emailFilter===id?GOLD:'#6b7280', padding:'8px 14px', cursor:'pointer', fontSize:'11px', letterSpacing:'1px' }}>
+                {label} ({emailLogs.filter(l => id==='all'||(['sent','delivered'].includes(l.status)&&id==='sent')||(l.status===id)).length})
+              </button>
+            ))}
+          </div>
+          {activityLoading && <div style={{ color:'#6b7280', textAlign:'center', padding:'40px' }}>Loading…</div>}
+          {!activityLoading && filteredEmailLogs.length === 0 && <div style={{ color:'#4a5568', textAlign:'center', padding:'40px' }}>No emails match this filter.</div>}
+          <div style={{ maxHeight:'70vh', overflowY:'auto' }}>
+            {filteredEmailLogs.map((log, i) => {
+              const statusColors = { sent:'#8a9ab8', delivered:'#60a5fa', opened:'#4ade80', clicked:'#f59e0b', bounced:'#ef4444', spam:'#ef4444' };
+              const statusIcons = { sent:'📤', delivered:'✉️', opened:'📬', clicked:'🔗', bounced:'⚠️', spam:'🚫' };
+              const sc = statusColors[log.status] || '#8a9ab8';
+              const si = statusIcons[log.status] || '✉️';
+              const name = log.lead ? `${log.lead.firstName} ${log.lead.lastName}` : log.toName || log.toEmail;
+              return (
+                <div key={log.id || i}
+                  onClick={() => log.lead && setSelectedLead(log.lead)}
+                  style={{ display:'grid', gridTemplateColumns:'24px 1fr 80px 120px', gap:'0 10px', alignItems:'center', padding:'8px 12px', borderBottom:'1px solid rgba(255,255,255,0.04)', cursor: log.lead ? 'pointer' : 'default', background: log.status==='opened'?'rgba(74,222,128,0.04)': log.status==='clicked'?'rgba(245,158,11,0.04)':'transparent' }}
+                  onMouseEnter={e => { if(log.lead) e.currentTarget.style.opacity='0.8'; }}
+                  onMouseLeave={e => e.currentTarget.style.opacity='1'}>
+                  <span style={{ fontSize:'13px', textAlign:'center' }}>{si}</span>
+                  <div>
+                    <span style={{ color:'#e8e0d0', fontSize:'12px', fontWeight:'bold', marginRight:'6px' }}>{name}</span>
+                    <span style={{ color:'#4a5568', fontSize:'10px' }}>{log.toEmail}</span>
+                    {log.clickedUrl && <span style={{ color:'#60a5fa', fontSize:'9px', display:'block', marginTop:'1px' }}>{log.clickedUrl.slice(0,60)}</span>}
+                  </div>
+                  <span style={{ color:sc, fontSize:'10px', textTransform:'uppercase', letterSpacing:'0.5px', textAlign:'center' }}>{log.status}</span>
+                  <div style={{ color:'#6b7280', fontSize:'10px', textAlign:'right' }}>{fmtTime(log.openedAt || log.clickedAt || log.sentAt)}</div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* LISTS TAB */}
-      {tab === 'lists' && (
+      {sidebarView === 'lists' && tab === 'lists' && (
       <div>
         <div style={{ marginBottom:'24px' }}>
           <h2 style={{ color:'#e8e0d0', margin:'0 0 4px', fontSize:'20px', fontWeight:'normal' }}>Contact Lists</h2>
@@ -620,6 +772,7 @@ export default function LeadsTab() {
         )}
       </div>
       )}
+      </div>
     </div>
   );
 }
