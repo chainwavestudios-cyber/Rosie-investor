@@ -262,7 +262,7 @@ function ContactCardModal({ user, onClose, onSave, allSessions, matchesUser }) {
         {/* Tabs */}
         <div style={{ display:'flex', borderBottom:'1px solid rgba(255,255,255,0.07)', overflowX:'auto', flexShrink:0 }}>
           {TABS.map(([id,label]) => (
-            <button key={id} onClick={() => setTab(id)} style={{ background:'none', border:'none', borderBottom:tab===id?`2px solid ${GOLD}`:'2px solid transparent', color:tab===id?GOLD:'#6b7280', padding:'12px 16px', cursor:'pointer', fontSize:'11px', letterSpacing:'1px', whiteSpace:'nowrap' }}>{label}</button>
+            <button key={id} onClick={() => setTab(id)} style={{ background:'none', border:'none', borderBottom:tab===id?`2px solid ${GOLD}`:'2px solid transparent', color:tab===id?GOLD:'#6b7280', padding:'10px 12px', cursor:'pointer', fontSize:'10px', letterSpacing:'0.5px', whiteSpace:'nowrap' }}>{label}</button>
           ))}
         </div>
 
