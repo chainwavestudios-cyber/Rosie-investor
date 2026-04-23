@@ -7,7 +7,11 @@ Deno.serve(async (req) => {
 
   let events = [];
   try {
-    const body = await req.json();
+    let body = await req.json();
+    // Handle double-encoded JSON (body is a string instead of array/object)
+    if (typeof body === 'string') {
+      try { body = JSON.parse(body); } catch {}
+    }
     events = Array.isArray(body) ? body : [body];
   } catch {
     return new Response('OK', { status: 200 });
