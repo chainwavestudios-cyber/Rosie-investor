@@ -850,7 +850,7 @@ export default function AdminDashboard() {
   const [portalSettings, setPortalSettings] = useState({});
   const [dialerLead, setDialerLead] = useState(null);
   const [showDialer, setShowDialer] = useState(false);
-  const [crmSidebar, setCrmSidebar] = useState('activity'); // 'activity' | 'signnow'
+  const [crmSidebar, setCrmSidebar] = useState('investors');
   const [activityFilter, setActivityFilter] = useState('all');
   const [newSignNowCount, setNewSignNowCount] = useState(0);
   const [signNowAlertDismissed, setSignNowAlertDismissed] = useState(() => parseInt(localStorage.getItem('sn_dismissed_count') || '0'));
@@ -929,7 +929,7 @@ export default function AdminDashboard() {
 
       <div style={{ maxWidth:'1600px', margin:'0 auto', padding:isMobile?'12px 16px':'24px 32px' }}>
         {/* KPIs */}
-        <div style={{ display:'grid', gridTemplateColumns:isMobile?'repeat(2,1fr)':'repeat(5,1fr)', gap:'8px', marginBottom:'10px' }}>
+        <div style={{ display:'grid', gridTemplateColumns:isMobile?'repeat(2,1fr)':'repeat(6,1fr)', gap:'8px', marginBottom:'10px' }}>
             {[
               { label:'Total Clients',  value:nonAdminUsers.length,                                                  icon:'👥', color:GOLD    },
               { label:'Investors',      value:nonAdminUsers.filter(u=>u.status==='investor').length,                  icon:'✅', color:'#4ade80' },
@@ -947,18 +947,34 @@ export default function AdminDashboard() {
                 </div>
               </div>
             ))}
+            {/* SignNow alert card */}
+            <div style={{ background: newSignNowCount > 0 ? 'rgba(245,158,11,0.08)' : 'rgba(255,255,255,0.03)', border: newSignNowCount > 0 ? '1px solid rgba(245,158,11,0.35)' : '1px solid rgba(255,255,255,0.08)', borderRadius:'2px', padding:'8px 12px' }}>
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom: newSignNowCount > 0 ? '4px' : '0' }}>
+                <div>
+                  <div style={{ color:'#6b7280', fontSize:'8px', letterSpacing:'1.5px', textTransform:'uppercase', marginBottom:'3px' }}>SignNow</div>
+                  <div style={{ color: newSignNowCount > 0 ? '#f59e0b' : '#4a5568', fontSize:'16px', fontWeight:'bold' }}>{newSignNowCount} New</div>
+                </div>
+                <span style={{ fontSize:'14px' }}>✍️</span>
+              </div>
+              {newSignNowCount > 0 && (
+                <button onClick={() => {
+                  SignNowRequestDB.listAll().then(reqs => {
+                    localStorage.setItem('sn_dismissed_count', reqs.length);
+                    setNewSignNowCount(0);
+                  });
+                }} style={{ background:'rgba(245,158,11,0.2)', color:'#f59e0b', border:'1px solid rgba(245,158,11,0.3)', borderRadius:'2px', padding:'2px 8px', cursor:'pointer', fontSize:'9px', letterSpacing:'1px' }}>
+                  Clear
+                </button>
+              )}
+            </div>
         </div>
 
-        {/* Upcoming appointments — show on CRM and main views, not leads */}
-        {view !== 'leads' && (
-          <UpcomingReminders
-            onOpenLeadCard={(lead) => { /* open lead contact card via LeadsTab */ }}
-            onOpenUserCard={(investorId) => { const u = users.find(u => u.id === investorId); if (u) setContactCard(u); }}
-            onOpenDialer={(lead) => { setDialerLead(lead); setShowDialer(true); }}
-          />
-        )}
-
-
+        {/* Upcoming appointments — horizontal full width */}
+        <UpcomingReminders
+          onOpenLeadCard={(lead) => { /* open lead contact card via LeadsTab */ }}
+          onOpenUserCard={(investorId) => { const u = users.find(u => u.id === investorId); if (u) setContactCard(u); }}
+          onOpenDialer={(lead) => { setDialerLead(lead); setShowDialer(true); }}
+        />
 
         {showAdd && <AddUserForm onAdd={load} onClose={() => setShowAdd(false)} />}
         {contactCard && (
@@ -982,22 +998,20 @@ export default function AdminDashboard() {
         {view === 'users' && (
           <div style={{ display:'flex', gap:'0' }}>
             {/* CRM Sidebar */}
-            <div style={{ width:'190px', flexShrink:0, borderRight:'1px solid rgba(255,255,255,0.07)' }}>
-              <div style={{ padding:'0 0 12px 0' }}>
-                {[
-                  { id:'activity', icon:'⚡', label:'Investor Activity' },
-                  { id:'signnow',  icon:'✍️',  label:`SignNow${newSignNowCount > 0 ? ` (${newSignNowCount})` : ''}` },
-                ].map(item => (
-                  <button key={item.id} onClick={() => setCrmSidebar(item.id)}
-                    style={{ display:'block', width:'100%', textAlign:'left', background: crmSidebar===item.id ? 'rgba(184,147,58,0.1)' : 'transparent', border:'none', borderLeft: crmSidebar===item.id ? `3px solid ${GOLD}` : '3px solid transparent', padding:'10px 14px', color: crmSidebar===item.id ? GOLD : (item.id==='signnow'&&newSignNowCount>0?'#f59e0b':'#6b7280'), fontSize:'12px', cursor:'pointer', letterSpacing:'0.5px', transition:'all 0.15s' }}>
-                    {item.icon} {item.label}
-                  </button>
-                ))}
-              </div>
-              {/* Activity filter */}
+            <div style={{ width:'180px', flexShrink:0, borderRight:'1px solid rgba(255,255,255,0.07)' }}>
+              {[
+                { id:'investors', icon:'👥', label:'Investors' },
+                { id:'activity',  icon:'⚡', label:'Investor Activity' },
+              ].map(item => (
+                <button key={item.id} onClick={() => setCrmSidebar(item.id)}
+                  style={{ display:'block', width:'100%', textAlign:'left', background: crmSidebar===item.id ? 'rgba(184,147,58,0.1)' : 'transparent', border:'none', borderLeft: crmSidebar===item.id ? `3px solid ${GOLD}` : '3px solid transparent', padding:'10px 14px', color: crmSidebar===item.id ? GOLD : '#6b7280', fontSize:'12px', cursor:'pointer', letterSpacing:'0.5px', transition:'all 0.15s' }}>
+                  {item.icon} {item.label}
+                </button>
+              ))}
+              {/* Activity filters */}
               {crmSidebar === 'activity' && (
-                <div style={{ padding:'12px', borderTop:'1px solid rgba(255,255,255,0.07)' }}>
-                  <div style={{ color:'#4a5568', fontSize:'9px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'8px' }}>Filter</div>
+                <div style={{ padding:'8px 12px', borderTop:'1px solid rgba(255,255,255,0.07)', marginTop:'4px' }}>
+                  <div style={{ color:'#4a5568', fontSize:'9px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'6px' }}>Filter</div>
                   {[
                     ['all',           'All Activity'],
                     ['login',         '🔐 Portal Logins'],
@@ -1008,7 +1022,7 @@ export default function AdminDashboard() {
                     ['questionnaire', '📋 Questionnaire'],
                   ].map(([id, label]) => (
                     <button key={id} onClick={() => setActivityFilter(id)}
-                      style={{ display:'block', width:'100%', textAlign:'left', background: activityFilter===id ? 'rgba(255,255,255,0.06)' : 'transparent', border:'none', borderRadius:'2px', padding:'6px 10px', color: activityFilter===id ? '#e8e0d0' : '#4a5568', fontSize:'11px', cursor:'pointer', marginBottom:'2px' }}>
+                      style={{ display:'block', width:'100%', textAlign:'left', background: activityFilter===id ? 'rgba(255,255,255,0.06)' : 'transparent', border:'none', borderRadius:'2px', padding:'5px 10px', color: activityFilter===id ? '#e8e0d0' : '#4a5568', fontSize:'11px', cursor:'pointer', marginBottom:'1px' }}>
                       {label}
                     </button>
                   ))}
@@ -1017,37 +1031,15 @@ export default function AdminDashboard() {
             </div>
             {/* CRM Main */}
             <div style={{ flex:1, paddingLeft:'24px', minWidth:0 }}>
-
-              {/* Sidebar panels */}
+              {/* Investor Activity panel */}
               {crmSidebar === 'activity' && (
                 <RecentInvestorEvents
                   filter={activityFilter}
                   onOpenUserCard={(investorId) => { const u = users.find(u => u.id === investorId); if (u) setContactCard(u); }}
                 />
               )}
-              {crmSidebar === 'signnow' && (
-                <div>
-                  {newSignNowCount > 0 && (
-                    <div style={{ background:'rgba(245,158,11,0.1)', border:'1px solid rgba(245,158,11,0.35)', borderRadius:'4px', padding:'14px 18px', marginBottom:'16px', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-                      <div>
-                        <div style={{ color:'#f59e0b', fontSize:'13px', fontWeight:'bold', marginBottom:'2px' }}>✍️ {newSignNowCount} New SignNow Request{newSignNowCount > 1 ? 's' : ''}</div>
-                        <div style={{ color:'#8a9ab8', fontSize:'11px' }}>New signature requests since last cleared</div>
-                      </div>
-                      <button onClick={() => {
-                        SignNowRequestDB.listAll().then(reqs => {
-                          localStorage.setItem('sn_dismissed_count', reqs.length);
-                          setNewSignNowCount(0);
-                          setSignNowAlertDismissed(reqs.length);
-                        });
-                      }} style={{ background:'rgba(245,158,11,0.2)', color:'#f59e0b', border:'1px solid rgba(245,158,11,0.4)', borderRadius:'2px', padding:'6px 14px', cursor:'pointer', fontSize:'11px' }}>
-                        Clear
-                      </button>
-                    </div>
-                  )}
-                  <SignNowRequestsView settings={portalSettings} />
-                </div>
-              )}
-
+              {/* Investors table */}
+              {crmSidebar === 'investors' && (
           <div>
             <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'20px', flexWrap:'wrap', gap:'12px' }}>
               <div />
@@ -1142,7 +1134,8 @@ export default function AdminDashboard() {
               </div>
             )}
           </div>
-          </div>
+              )}
+            </div>
           </div>
         )}
 
