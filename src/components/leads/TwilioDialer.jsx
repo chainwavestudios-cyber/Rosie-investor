@@ -137,10 +137,9 @@ export default function TwilioDialer({ initialLead, onClose, onCallLogged }) {
 
     try {
       // Make the outbound call via Twilio REST API (server-side)
-      const res = await base44.functions.invoke('twilioCallWithCPA', {
+      const res = await base44.functions.invoke('twilioCall', {
+        action: 'makeCall',
         toNumber: to,
-        fromNumber: 'TWILIO_FROM_NUMBER',
-        statusCallbackUrl: 'https://www.rosieai.tech/api/apps/69cd2741578c9b5ce655395b/functions/twilioCallCallback',
       });
 
       const sid = res.data?.callSid;
