@@ -1,6 +1,10 @@
-import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
+import { createClientFromRequest, createClient } from 'npm:@base44/sdk@0.8.25';
 
 Deno.serve(async (req) => {
+  if (req.method !== 'POST') {
+    return new Response('OK', { status: 200 });
+  }
+
   let events = [];
   try {
     const body = await req.json();
@@ -11,8 +15,13 @@ Deno.serve(async (req) => {
 
   console.log(`[Mailjet] Received ${events.length} event(s):`, JSON.stringify(events[0] || {}));
 
-  // Use asServiceRole — bypasses auth requirement for webhook calls
-  const base44 = createClientFromRequest(req).asServiceRole;
+  // For webhook calls from Mailjet (no user token), fall back to app-id-only client
+  let base44;
+  try {
+    base44 = createClientFromRequest(req).asServiceRole;
+  } catch {
+    base44 = createClient({ appId: Deno.env.get('BASE44_APP_ID') }).asServiceRole;
+  }
 
   for (const evt of events) {
     const { event, email, MessageID, CustomID, url, time } = evt;
