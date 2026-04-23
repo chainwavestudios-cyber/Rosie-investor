@@ -139,7 +139,7 @@ export default function TwilioDialer({ initialLead, onClose, onCallLogged }) {
       // Make the outbound call via Twilio REST API (server-side)
       const res = await base44.functions.invoke('twilioCall', {
         action: 'makeCall',
-        toNumber: to,
+        to,
       });
 
       const sid = res.data?.callSid;
