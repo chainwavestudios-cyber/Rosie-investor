@@ -3,6 +3,16 @@ import { base44 } from '@/api/base44Client';
 
 /* global Twilio */
 
+const waitForTwilio = () => new Promise((resolve, reject) => {
+  if (typeof Twilio !== 'undefined') return resolve();
+  let attempts = 0;
+  const interval = setInterval(() => {
+    attempts++;
+    if (typeof Twilio !== 'undefined') { clearInterval(interval); resolve(); }
+    else if (attempts > 20) { clearInterval(interval); reject(new Error('Twilio SDK failed to load')); }
+  }, 500);
+});
+
 const GOLD = '#b8933a';
 const DARK = '#0a0f1e';
 
@@ -73,6 +83,9 @@ export default function TwilioDialer({ initialLead, onClose, onCallLogged }) {
         const tokenRes = await base44.functions.invoke('twilioClientToken', {});
         const token = tokenRes?.data?.token;
         if (!token) throw new Error('No token received');
+
+        setStatusMsg('Loading Twilio SDK…');
+        await waitForTwilio();
 
         device = new Twilio.Device(token, {
           codecPreferences: ['opus', 'pcmu'],
