@@ -61,19 +61,20 @@ Deno.serve(async (req) => {
   });
 
   // Award initial 5 points to the lead
-  const leads = await base44.asServiceRole.entities.Lead.filter({ id: leadId });
-  const lead = leads[0];
-  if (lead) {
-    const currentScore = lead.engagementScore || 0;
-    await base44.asServiceRole.entities.Lead.update(leadId, {
-      engagementScore: currentScore + 5,
-    });
-    // Log in LeadHistory
-    await base44.asServiceRole.entities.LeadHistory.create({
-      leadId,
-      type: 'note',
-      content: `📧 Email sent via Mailjet template. +5 engagement points.`,
-    });
+  try {
+    const lead = await base44.asServiceRole.entities.Lead.get(leadId);
+    if (lead) {
+      await base44.asServiceRole.entities.Lead.update(leadId, {
+        engagementScore: (lead.engagementScore || 0) + 5,
+      });
+      await base44.asServiceRole.entities.LeadHistory.create({
+        leadId,
+        type: 'note',
+        content: `📧 Email sent via Mailjet template. +5 engagement points.`,
+      });
+    }
+  } catch (e) {
+    console.warn('[sendLeadEmail] Could not update lead score:', e.message);
   }
 
   return Response.json({ success: true, messageId, messageUUID, logId: logEntry.id });
