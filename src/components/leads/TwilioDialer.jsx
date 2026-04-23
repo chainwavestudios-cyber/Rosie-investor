@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
 
-/* global Twilio */
+import { Device } from '@twilio/voice-sdk';
 
 const GOLD = '#b8933a';
 const DARK = '#0a0f1e';
@@ -74,7 +74,7 @@ export default function TwilioDialer({ initialLead, onClose, onCallLogged }) {
         const token = tokenRes?.data?.token;
         if (!token) throw new Error('No token received');
 
-        device = new Twilio.Device(token, {
+        device = new Device(token, {
           codecPreferences: ['opus', 'pcmu'],
           fakeLocalDTMF: true,
           enableRingingState: true,
