@@ -136,39 +136,27 @@ export default function TwilioDialer({ initialLead, onClose, onCallLogged }) {
     setKeypadInput('');
 
     try {
-      // Make the outbound call via Twilio REST API (server-side)
-      const res = await base44.functions.invoke('twilioCall', {
-        action: 'makeCall',
-        to,
-      });
-
-      const sid = res.data?.callSid;
-      if (!sid) throw new Error(res.data?.error || 'No call SID returned');
-
-      setCallSid(sid);
-      setCallStatus('ringing');
-      setStatusMsg('Ringing…');
-
-      // Connect browser audio to the outbound call
-      const call = await deviceRef.current.connect({ params: { CallSid: sid } });
+      // Connect directly via the Voice SDK — TwiML app handles the outbound leg
+      const call = await deviceRef.current.connect({ params: { To: to } });
       callRef.current = call;
-
-      call.on('accept', () => {
-        setCallStatus('connected');
-        setStatusMsg('Connected');
-        startTimer();
-      });
 
       call.on('ringing', () => {
         setCallStatus('ringing');
         setStatusMsg('Ringing…');
       });
 
+      call.on('accept', (c) => {
+        setCallSid(c.parameters?.CallSid || null);
+        setCallStatus('connected');
+        setStatusMsg('Connected');
+        startTimer();
+      });
+
       call.on('disconnect', () => {
         stopTimer();
         setCallStatus('ended');
         setStatusMsg('Call Ended');
-        logCall(sid);
+        logCall(callRef.current?.parameters?.CallSid);
       });
 
       call.on('error', (err) => {
@@ -187,13 +175,11 @@ export default function TwilioDialer({ initialLead, onClose, onCallLogged }) {
   // ── Hangup ────────────────────────────────────────────────────────────
   const hangup = () => {
     stopTimer();
+    const sid = callRef.current?.parameters?.CallSid;
     try { callRef.current?.disconnect(); } catch {}
-    if (callSid) {
-      base44.functions.invoke('twilioCall', { action: 'hangupCall', callSid }).catch(() => {});
-    }
     setCallStatus('ended');
     setStatusMsg('Call Ended');
-    logCall(callSid);
+    logCall(sid);
   };
 
   // ── Log call to lead history ──────────────────────────────────────────
