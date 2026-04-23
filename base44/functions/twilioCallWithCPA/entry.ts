@@ -1,7 +1,6 @@
 /**
  * twilioCallWithCPA — Predictive dialer outbound call
  * Puts the lead into a conference room so agent can join when answered
- * No AMD — connects immediately on answer
  */
 const ACCOUNT_SID = Deno.env.get('TWILIO_ACCOUNT_SID') || '';
 const AUTH_TOKEN  = Deno.env.get('TWILIO_AUTH_TOKEN')  || '';
@@ -13,7 +12,6 @@ Deno.serve(async (req) => {
     const { toNumber, fromNumber, statusCallbackUrl, conferenceName } = body;
 
     if (!toNumber) return Response.json({ error: 'Missing toNumber' }, { status: 400 });
-    if (!statusCallbackUrl) return Response.json({ error: 'Missing statusCallbackUrl' }, { status: 400 });
     if (!ACCOUNT_SID || !AUTH_TOKEN) return Response.json({ error: 'Twilio credentials not configured' }, { status: 500 });
 
     let resolvedFrom = fromNumber || FROM_NUMBER;
@@ -27,11 +25,16 @@ Deno.serve(async (req) => {
 
     const confName = conferenceName || `call_${Date.now()}`;
 
-    // TwiML: lead joins conference immediately on answer, no hold music, no beep
+    // Conference status callback fires when participant joins/leaves
+    // This is reliable — unlike per-call StatusCallback which Twilio ignores on conference calls
+    const confCallbackParam = statusCallbackUrl
+      ? `statusCallbackEvent="start end join leave" statusCallback="${statusCallbackUrl}" statusCallbackMethod="POST"`
+      : '';
+
     const leadTwiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Dial>
-    <Conference startConferenceOnEnter="false" endConferenceOnExit="true" beep="false" waitUrl="">
+    <Conference startConferenceOnEnter="false" endConferenceOnExit="true" beep="false" waitUrl="" ${confCallbackParam}>
       ${confName}
     </Conference>
   </Dial>
@@ -51,10 +54,6 @@ Deno.serve(async (req) => {
           'To':   toE164,
           'From': fromE164,
           'Url':  twimlUrl,
-          // Status callback fires on answered/completed so frontend can connect agent
-          'StatusCallback':       statusCallbackUrl,
-          'StatusCallbackEvent':  'initiated ringing answered completed',
-          'StatusCallbackMethod': 'POST',
         }).toString(),
       }
     );
