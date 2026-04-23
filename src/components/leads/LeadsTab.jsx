@@ -278,6 +278,8 @@ function NewLeadModal({ onClose, onCreated }) {
 }
 
 // ─── Main Leads Tab ───────────────────────────────────────────────────────
+import LeadActivityFeed from '@/components/leads/LeadActivityFeed';
+
 export default function LeadsTab() {
   const [leads, setLeads] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -435,6 +437,7 @@ export default function LeadsTab() {
       {/* LEADS TAB */}
       {tab === 'leads' && (
       <>
+      <LeadActivityFeed onOpenLead={(lead) => setSelectedLead(lead)} />
       {/* Header */}
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:'16px', flexWrap:'wrap', gap:'12px' }}>
         <div>
