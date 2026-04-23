@@ -211,6 +211,8 @@ export default function PredictiveDialer({ contactLists, onClose, onCallLogged, 
   const [twilioDevice, setTwilioDevice]       = useState(null);
   const [activeCall, setActiveCall]           = useState(null);
   const [deviceReady, setDeviceReady]         = useState(false);
+  const [micDevices, setMicDevices]           = useState([]);
+  const [selectedMicId, setSelectedMicId]     = useState('');
 
   const linesRef       = useRef(lines);
   const queueRef       = useRef([]);
@@ -238,7 +240,11 @@ export default function PredictiveDialer({ contactLists, onClose, onCallLogged, 
     const init = async () => {
       // Request microphone
       try {
-        await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
+        await navigator.mediaDevices.getUserMedia({ audio: true });
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const mics = devices.filter(d => d.kind === 'audioinput');
+        setMicDevices(mics);
+        if (mics.length > 0) setSelectedMicId(mics[0].deviceId);
       } catch {
         addLog('error', '🎤 Microphone access denied — please allow mic and refresh');
         return;
@@ -262,6 +268,7 @@ export default function PredictiveDialer({ contactLists, onClose, onCallLogged, 
           fakeLocalDTMF: true,
           enableRingingState: true,
           logLevel: 'error',
+          ...(selectedMicId ? { audioConstraints: { deviceId: { exact: selectedMicId } } } : {}),
         });
 
         device.on('registered', () => {
@@ -733,6 +740,15 @@ export default function PredictiveDialer({ contactLists, onClose, onCallLogged, 
       {showSettings && (
         <>
           <SettingsPanel settings={settings} onChange={setSettings} />
+          {micDevices.length > 0 && (
+            <div style={{ background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: '10px', padding: '14px 16px', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <span style={{ color: '#8a9ab8', fontSize: '10px', letterSpacing: '1.5px', textTransform: 'uppercase', flexShrink: 0 }}>🎙 Microphone</span>
+              <select value={selectedMicId} onChange={e => setSelectedMicId(e.target.value)}
+                style={{ flex: 1, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '6px', padding: '7px 10px', color: '#e8e0d0', fontSize: '12px', outline: 'none', cursor: 'pointer' }}>
+                {micDevices.map(d => <option key={d.deviceId} value={d.deviceId}>{d.label || `Mic ${d.deviceId.slice(0, 6)}`}</option>)}
+              </select>
+            </div>
+          )}
           <div style={{ display: 'flex', gap: '10px', marginBottom: '16px' }}>
             <select value={selectedListId} onChange={e => setSelectedListId(e.target.value)} style={{
               flex: 1, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.15)',

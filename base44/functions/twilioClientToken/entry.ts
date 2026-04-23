@@ -17,15 +17,6 @@ const TWIML_APP_SID = Deno.env.get('TWILIO_TWIML_APP_SID') || '';
  */
 
 Deno.serve(async (req) => {
-  // Auth check — only logged-in users can get a token
-  try {
-    const base44 = createClientFromRequest(req);
-    const user = await base44.auth.me();
-    if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
-  } catch {
-    return Response.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
   // Validate env vars
   if (!ACCOUNT_SID || !API_KEY || !API_SECRET) {
     console.error('[ClientToken] Missing Twilio credentials');

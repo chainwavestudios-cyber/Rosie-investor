@@ -7,13 +7,15 @@ const DARK = '#0a0f1e';
 export default function TwilioDialer({ initialLead, onClose, onCallLogged }) {
   const [lead, setLead]               = useState(initialLead || null);
   const [manualNumber, setManualNumber] = useState('');
-  const [callStatus, setCallStatus]   = useState('idle'); // idle | initializing | ready | calling | ringing | connected | ended
+  const [callStatus, setCallStatus]   = useState('idle');
   const [callSid, setCallSid]         = useState(null);
   const [duration, setDuration]       = useState(0);
   const [muted, setMuted]             = useState(false);
   const [keypadInput, setKeypadInput] = useState('');
   const [error, setError]             = useState('');
   const [statusMsg, setStatusMsg]     = useState('Initializing…');
+  const [micDevices, setMicDevices]   = useState([]);
+  const [selectedMicId, setSelectedMicId] = useState('');
 
   const timerRef     = useRef(null);
   const startTimeRef = useRef(null);
@@ -52,7 +54,11 @@ export default function TwilioDialer({ initialLead, onClose, onCallLogged }) {
       setStatusMsg('Requesting microphone…');
 
       try {
-        await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
+        await navigator.mediaDevices.getUserMedia({ audio: true });
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const mics = devices.filter(d => d.kind === 'audioinput');
+        setMicDevices(mics);
+        if (mics.length > 0) setSelectedMicId(mics[0].deviceId);
       } catch {
         setError('Microphone access denied — please allow mic and refresh');
         setCallStatus('idle');
@@ -71,6 +77,7 @@ export default function TwilioDialer({ initialLead, onClose, onCallLogged }) {
           fakeLocalDTMF: true,
           enableRingingState: true,
           logLevel: 'error',
+          ...(selectedMicId ? { audioConstraints: { deviceId: { exact: selectedMicId } } } : {}),
         });
 
         device.on('registered', () => {
@@ -259,6 +266,16 @@ export default function TwilioDialer({ initialLead, onClose, onCallLogged }) {
             disabled={isActive}
             style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '4px', padding: '10px', color: '#e8e0d0', fontSize: '18px', textAlign: 'center', outline: 'none', boxSizing: 'border-box', marginBottom: '12px', letterSpacing: '3px' }}
           />
+        )}
+
+        {/* Mic selector */}
+        {micDevices.length > 1 && !isActive && (
+          <div style={{ marginBottom: '12px' }}>
+            <select value={selectedMicId} onChange={e => setSelectedMicId(e.target.value)}
+              style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '4px', padding: '6px 10px', color: '#8a9ab8', fontSize: '11px', outline: 'none', cursor: 'pointer' }}>
+              {micDevices.map(d => <option key={d.deviceId} value={d.deviceId}>🎙 {d.label || `Mic ${d.deviceId.slice(0,6)}`}</option>)}
+            </select>
+          </div>
         )}
 
         {/* Status */}
