@@ -222,7 +222,7 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber 
         </div>
 
         {/* Tabs */}
-        <div style={{ display:'flex', borderBottom:'1px solid rgba(255,255,255,0.07)', flexShrink:0 }}>
+        <div style={{ display:'flex', borderBottom:'1px solid rgba(255,255,255,0.07)', flexShrink:0, overflowX:'auto', scrollbarWidth:'none' }}>
           {[['overview','👤 Overview'],['actions','⚡ Actions'],['email','✉️ Emails'],['script','📝 Script']].map(([id,label]) => (
             <button key={id} onClick={() => setTab(id)} style={{ background:'none', border:'none', borderBottom:tab===id?`2px solid ${GOLD}`:'2px solid transparent', color:tab===id?GOLD:'#6b7280', padding:'11px 20px', cursor:'pointer', fontSize:'11px', letterSpacing:'1px' }}>{label}</button>
           ))}
