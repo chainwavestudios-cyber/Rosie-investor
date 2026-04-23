@@ -6,7 +6,7 @@ import { Device } from '@twilio/voice-sdk';
 // ── Constants ─────────────────────────────────────────────────────────────
 const GOLD         = '#b8933a';
 const DARK         = '#0a0f1e';
-const CALLBACK_URL = 'https://www.rosieai.tech/api/apps/69cd2741578c9b5ce655395b/functions/twilioCallCallback';
+const CALLBACK_URL = 'https://investors.rosieai.tech/api/apps/69cd2741578c9b5ce655395b/functions/twilioCallCallback';
 
 const DEFAULT_SETTINGS = {
   lineCount: 2,
