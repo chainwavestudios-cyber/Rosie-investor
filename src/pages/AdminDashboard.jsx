@@ -929,7 +929,7 @@ export default function AdminDashboard() {
 
       <div style={{ maxWidth:'1600px', margin:'0 auto', padding:isMobile?'12px 16px':'24px 32px' }}>
         {/* KPIs */}
-        <div style={{ display:'grid', gridTemplateColumns:isMobile?'repeat(2,1fr)':'repeat(5,1fr)', gap:'10px', marginBottom:'16px' }}>
+        <div style={{ display:'grid', gridTemplateColumns:isMobile?'repeat(2,1fr)':'repeat(5,1fr)', gap:'8px', marginBottom:'10px' }}>
             {[
               { label:'Total Clients',  value:nonAdminUsers.length,                                                  icon:'👥', color:GOLD    },
               { label:'Investors',      value:nonAdminUsers.filter(u=>u.status==='investor').length,                  icon:'✅', color:'#4ade80' },
@@ -937,54 +937,28 @@ export default function AdminDashboard() {
               { label:'Total Sessions', value:globalStats.totalSessions,                                              icon:'🔐', color:'#f59e0b' },
               { label:'Time Spent',     value:analytics.formatDuration(globalStats.totalTime),                        icon:'⏱',  color:'#a78bfa' },
             ].map(({label,value,icon,color}) => (
-              <div key={label} style={{ background:'rgba(255,255,255,0.03)', border:'1px solid rgba(255,255,255,0.08)', borderRadius:'2px', padding:'12px 14px' }}>
+              <div key={label} style={{ background:'rgba(255,255,255,0.03)', border:'1px solid rgba(255,255,255,0.08)', borderRadius:'2px', padding:'8px 12px' }}>
                 <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
                   <div>
-                    <div style={{ color:'#6b7280', fontSize:'9px', letterSpacing:'1.5px', textTransform:'uppercase', marginBottom:'5px' }}>{label}</div>
-                    <div style={{ color, fontSize:'20px', fontWeight:'bold' }}>{value}</div>
+                    <div style={{ color:'#6b7280', fontSize:'8px', letterSpacing:'1.5px', textTransform:'uppercase', marginBottom:'3px' }}>{label}</div>
+                    <div style={{ color, fontSize:'16px', fontWeight:'bold' }}>{value}</div>
                   </div>
-                  <span style={{ fontSize:'18px' }}>{icon}</span>
+                  <span style={{ fontSize:'14px' }}>{icon}</span>
                 </div>
               </div>
             ))}
         </div>
 
-        {/* Upcoming appointments — horizontal full width */}
-        <UpcomingReminders
-          onOpenLeadCard={(lead) => { /* open lead contact card via LeadsTab */ }}
-          onOpenUserCard={(investorId) => { const u = users.find(u => u.id === investorId); if (u) setContactCard(u); }}
-          onOpenDialer={(lead) => { setDialerLead(lead); setShowDialer(true); }}
-        />
-
-        {/* CRM sidebar panels */}
-        {crmSidebar === 'activity' && (
-          <RecentInvestorEvents
-            filter={activityFilter}
+        {/* Upcoming appointments — show on CRM and main views, not leads */}
+        {view !== 'leads' && (
+          <UpcomingReminders
+            onOpenLeadCard={(lead) => { /* open lead contact card via LeadsTab */ }}
             onOpenUserCard={(investorId) => { const u = users.find(u => u.id === investorId); if (u) setContactCard(u); }}
+            onOpenDialer={(lead) => { setDialerLead(lead); setShowDialer(true); }}
           />
         )}
-        {crmSidebar === 'signnow' && (
-          <div>
-            {newSignNowCount > 0 && (
-              <div style={{ background:'rgba(245,158,11,0.1)', border:'1px solid rgba(245,158,11,0.35)', borderRadius:'4px', padding:'14px 18px', marginBottom:'16px', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-                <div>
-                  <div style={{ color:'#f59e0b', fontSize:'13px', fontWeight:'bold', marginBottom:'2px' }}>✍️ {newSignNowCount} New SignNow Request{newSignNowCount > 1 ? 's' : ''}</div>
-                  <div style={{ color:'#8a9ab8', fontSize:'11px' }}>New signature requests since last cleared</div>
-                </div>
-                <button onClick={() => {
-                  SignNowRequestDB.listAll().then(reqs => {
-                    localStorage.setItem('sn_dismissed_count', reqs.length);
-                    setNewSignNowCount(0);
-                    setSignNowAlertDismissed(reqs.length);
-                  });
-                }} style={{ background:'rgba(245,158,11,0.2)', color:'#f59e0b', border:'1px solid rgba(245,158,11,0.4)', borderRadius:'2px', padding:'6px 14px', cursor:'pointer', fontSize:'11px' }}>
-                  Clear
-                </button>
-              </div>
-            )}
-            <SignNowRequestsView settings={portalSettings} />
-          </div>
-        )}
+
+
 
         {showAdd && <AddUserForm onAdd={load} onClose={() => setShowAdd(false)} />}
         {contactCard && (
@@ -1043,6 +1017,37 @@ export default function AdminDashboard() {
             </div>
             {/* CRM Main */}
             <div style={{ flex:1, paddingLeft:'24px', minWidth:0 }}>
+
+              {/* Sidebar panels */}
+              {crmSidebar === 'activity' && (
+                <RecentInvestorEvents
+                  filter={activityFilter}
+                  onOpenUserCard={(investorId) => { const u = users.find(u => u.id === investorId); if (u) setContactCard(u); }}
+                />
+              )}
+              {crmSidebar === 'signnow' && (
+                <div>
+                  {newSignNowCount > 0 && (
+                    <div style={{ background:'rgba(245,158,11,0.1)', border:'1px solid rgba(245,158,11,0.35)', borderRadius:'4px', padding:'14px 18px', marginBottom:'16px', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                      <div>
+                        <div style={{ color:'#f59e0b', fontSize:'13px', fontWeight:'bold', marginBottom:'2px' }}>✍️ {newSignNowCount} New SignNow Request{newSignNowCount > 1 ? 's' : ''}</div>
+                        <div style={{ color:'#8a9ab8', fontSize:'11px' }}>New signature requests since last cleared</div>
+                      </div>
+                      <button onClick={() => {
+                        SignNowRequestDB.listAll().then(reqs => {
+                          localStorage.setItem('sn_dismissed_count', reqs.length);
+                          setNewSignNowCount(0);
+                          setSignNowAlertDismissed(reqs.length);
+                        });
+                      }} style={{ background:'rgba(245,158,11,0.2)', color:'#f59e0b', border:'1px solid rgba(245,158,11,0.4)', borderRadius:'2px', padding:'6px 14px', cursor:'pointer', fontSize:'11px' }}>
+                        Clear
+                      </button>
+                    </div>
+                  )}
+                  <SignNowRequestsView settings={portalSettings} />
+                </div>
+              )}
+
           <div>
             <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'20px', flexWrap:'wrap', gap:'12px' }}>
               <div />
