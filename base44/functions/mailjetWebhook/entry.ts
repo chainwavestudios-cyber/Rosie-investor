@@ -10,7 +10,7 @@ Deno.serve(async (req) => {
     return new Response('OK', { status: 200 });
   }
 
-  const base44 = createClientFromRequest(req);
+  const base44 = createClientFromRequest(req, { serviceRole: true });
 
   for (const evt of events) {
     const { event, email, MessageID, CustomID, url, time } = evt;
@@ -22,27 +22,27 @@ Deno.serve(async (req) => {
 
     try {
       // Find the EmailLog by messageId or leadId
-      const logs = await base44.asServiceRole.entities.EmailLog.filter({ leadId });
+      const logs = await base44.entities.EmailLog.filter({ leadId });
       const log = logs.find(l => l.messageId === messageId) || logs[logs.length - 1];
 
       if (event === 'open') {
         if (log) {
-          await base44.asServiceRole.entities.EmailLog.update(log.id, {
+          await base44.entities.EmailLog.update(log.id, {
             status: 'opened',
             openedAt: eventTime,
           });
         }
 
         // Fetch lead and award points + badge (only once)
-        const leads = await base44.asServiceRole.entities.Lead.filter({ id: leadId });
+        const leads = await base44.entities.Lead.filter({ id: leadId });
         const lead = leads[0];
         if (lead && !lead.badgeEmailOpened) {
           const currentScore = lead.engagementScore || 0;
-          await base44.asServiceRole.entities.Lead.update(leadId, {
+          await base44.entities.Lead.update(leadId, {
             badgeEmailOpened: true,
             engagementScore: currentScore + 10,
           });
-          await base44.asServiceRole.entities.LeadHistory.create({
+          await base44.entities.LeadHistory.create({
             leadId,
             type: 'note',
             content: `📬 Email opened (verified via Mailjet webhook). +10 engagement points.`,
@@ -51,7 +51,7 @@ Deno.serve(async (req) => {
 
       } else if (event === 'click') {
         if (log) {
-          await base44.asServiceRole.entities.EmailLog.update(log.id, {
+          await base44.entities.EmailLog.update(log.id, {
             status: 'clicked',
             clickedAt: eventTime,
             clickedUrl: url || '',
@@ -59,7 +59,7 @@ Deno.serve(async (req) => {
         }
 
         // Check if clicked URL suggests consumer or investor page
-        const leads = await base44.asServiceRole.entities.Lead.filter({ id: leadId });
+        const leads = await base44.entities.Lead.filter({ id: leadId });
         const lead = leads[0];
         if (lead) {
           const updates = {};
@@ -71,13 +71,13 @@ Deno.serve(async (req) => {
             updates.badgeInvestorPage = true;
           }
           if (Object.keys(updates).length > 0) {
-            await base44.asServiceRole.entities.Lead.update(leadId, updates);
+            await base44.entities.Lead.update(leadId, updates);
           }
           // +5 for click
-          await base44.asServiceRole.entities.Lead.update(leadId, {
+          await base44.entities.Lead.update(leadId, {
             engagementScore: (lead.engagementScore || 0) + 5,
           });
-          await base44.asServiceRole.entities.LeadHistory.create({
+          await base44.entities.LeadHistory.create({
             leadId,
             type: 'note',
             content: `🔗 Email link clicked: ${url || 'unknown'}. +5 engagement points.`,
@@ -86,15 +86,15 @@ Deno.serve(async (req) => {
 
       } else if (event === 'sent') {
         if (log) {
-          await base44.asServiceRole.entities.EmailLog.update(log.id, { status: 'delivered' });
+          await base44.entities.EmailLog.update(log.id, { status: 'delivered' });
         }
       } else if (event === 'bounce') {
         if (log) {
-          await base44.asServiceRole.entities.EmailLog.update(log.id, { status: 'bounced' });
+          await base44.entities.EmailLog.update(log.id, { status: 'bounced' });
         }
       } else if (event === 'spam') {
         if (log) {
-          await base44.asServiceRole.entities.EmailLog.update(log.id, { status: 'spam' });
+          await base44.entities.EmailLog.update(log.id, { status: 'spam' });
         }
       }
     } catch (e) {
