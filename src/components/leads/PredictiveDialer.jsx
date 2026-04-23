@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { base44 } from '@/api/base44Client';
 
-import { Device } from '@twilio/voice-sdk';
+/* global Twilio */
 
 // ── Constants ─────────────────────────────────────────────────────────────
 const GOLD         = '#b8933a';
@@ -265,7 +265,7 @@ export default function PredictiveDialer({ contactLists, onClose, onCallLogged, 
 
       // Initialize Twilio Device v2
       try {
-        const device = new Device(token, {
+        const device = new Twilio.Device(token, {
           codecPreferences: ['opus', 'pcmu'],
           fakeLocalDTMF: true,
           enableRingingState: true,
