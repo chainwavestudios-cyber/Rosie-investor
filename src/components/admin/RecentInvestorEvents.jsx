@@ -24,7 +24,7 @@ const EVENT_TYPES = {
   download: { icon: '📥', color: '#34d399', label: 'Downloaded Doc' },
 };
 
-export default function RecentInvestorEvents({ onOpenUserCard }) {
+export default function RecentInvestorEvents({ onOpenUserCard, filter = 'all' }) {
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -129,8 +129,8 @@ export default function RecentInvestorEvents({ onOpenUserCard }) {
       )}
 
       {/* Event rows */}
-      <div style={{ maxHeight: '280px', overflowY: 'auto' }}>
-        {events.map((evt, i) => {
+      <div style={{ maxHeight: '500px', overflowY: 'auto' }}>
+        {events.filter(evt => filter === 'all' || evt.type === filter).map((evt, i) => {
           const et = EVENT_TYPES[evt.type] || EVENT_TYPES.login;
           return (
             <div key={i} style={{
