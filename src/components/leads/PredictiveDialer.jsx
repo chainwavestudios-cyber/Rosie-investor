@@ -502,6 +502,20 @@ export default function PredictiveDialer({ contactLists, onClose, onCallLogged, 
     }
     Promise.all(hangupPromises).catch(() => {});
 
+    // Verify the call is actually in-progress before connecting
+    // This prevents connecting to a voicemail line that fired participant-join first
+    try {
+      const statusCheck = await base44.functions.invoke('twilioCall', { action: 'getCallStatus', callSid });
+      const liveStatus = statusCheck.data?.status || '';
+      if (!['in-progress'].includes(liveStatus)) {
+        addLog('system', `Line ${lineIdx + 1}: Call is ${liveStatus} — not a live human, skipping`);
+        connectingRef.current = false;
+        cleanLine(lineIdx, 'voicemail');
+        setTimeout(() => { if (runningRef.current) dialLine(lineIdx); }, 1000);
+        return;
+      }
+    } catch {}
+
     // Connect agent audio
     try {
       const device = deviceRef.current;
