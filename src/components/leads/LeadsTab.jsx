@@ -293,34 +293,12 @@ export default function LeadsTab() {
   const [tab, setTab] = useState('leads'); // 'leads' or 'lists'
   const [editingListId, setEditingListId] = useState(null);
   const [editingListName, setEditingListName] = useState('');
-  const [sidebarView, setSidebarView] = useState('leads'); // 'leads' | 'activity' | 'email'
-  const [emailFilter, setEmailFilter] = useState('all'); // 'all' | 'sent' | 'opened' | 'clicked'
-  const [emailLogs, setEmailLogs] = useState([]);
-  const [leadHistory, setLeadHistory] = useState([]);
-  const [activityLoading, setActivityLoading] = useState(false);
+  const [sidebarView, setSidebarView] = useState('leads'); // 'leads' | 'lists'
 
   useEffect(() => {
     loadLeads();
-    loadActivity();
     base44.entities.ContactList.list('-created_date', 100).then(setContactLists).catch(() => {});
   }, []);
-
-  const loadActivity = async () => {
-    setActivityLoading(true);
-    try {
-      const [history, logs] = await Promise.all([
-        base44.entities.LeadHistory.list('-created_date', 150).catch(() => []),
-        base44.entities.EmailLog.list('-sentAt', 200).catch(() => []),
-      ]);
-      // Get lead names
-      const allLeads = await base44.entities.Lead.list('-created_date', 2000);
-      const leadsMap = {};
-      allLeads.forEach(l => { leadsMap[l.id] = l; });
-      setLeadHistory(history.map(h => ({ ...h, lead: leadsMap[h.leadId] })));
-      setEmailLogs(logs.map(l => ({ ...l, lead: leadsMap[l.leadId] })));
-    } catch(e) { console.error(e); }
-    setActivityLoading(false);
-  };
 
   const loadLeads = async () => {
     setLoading(true);
@@ -438,30 +416,7 @@ export default function LeadsTab() {
     return d.toLocaleString('en-US', { month:'short', day:'numeric', hour:'numeric', minute:'2-digit' });
   };
 
-  const ACTIVITY_ICONS = {
-    note: '📬', call: '📞', connected: '🟢', not_available: '📵',
-    prospect: '🚀', voicemail: '📳', not_interested: '❌', converted: '✅',
-    email_open: '📬', email_click: '🔗',
-  };
-  const ACTIVITY_COLORS = {
-    note: '#4ade80', call: GOLD, connected: '#4ade80', not_available: '#8a9ab8',
-    prospect: '#a78bfa', voicemail: '#f59e0b', not_interested: '#ef4444', converted: '#4ade80',
-    email_open: '#4ade80', email_click: '#60a5fa',
-  };
 
-  const getHistoryType = (h) => {
-    if (h.type === 'note' && h.content?.includes('Email opened')) return 'email_open';
-    if (h.type === 'note' && h.content?.includes('link clicked')) return 'email_click';
-    return h.type;
-  };
-
-  const filteredEmailLogs = emailLogs.filter(l => {
-    if (emailFilter === 'all') return true;
-    if (emailFilter === 'sent') return ['sent','delivered'].includes(l.status);
-    if (emailFilter === 'opened') return l.status === 'opened';
-    if (emailFilter === 'clicked') return l.status === 'clicked';
-    return true;
-  });
 
   return (
     <div style={{ fontFamily:'Georgia, serif', display:'flex', gap:'0', minHeight:'600px' }}>
@@ -471,10 +426,8 @@ export default function LeadsTab() {
         {/* Sidebar nav */}
         <div style={{ padding:'0 0 12px 0' }}>
           {[
-            { id:'leads',    icon:'📋', label:'Leads' },
-            { id:'lists',    icon:'📁', label:`Lists (${contactLists.length})` },
-            { id:'activity', icon:'⚡', label:'Activity Feed' },
-            { id:'email',    icon:'✉️',  label:'Email Activity' },
+            { id:'leads', icon:'📋', label:'Leads' },
+            { id:'lists', icon:'📁', label:`Lists (${contactLists.length})` },
           ].map(item => (
             <button key={item.id} onClick={() => { setSidebarView(item.id); setTab(item.id === 'lists' ? 'lists' : 'leads'); }}
               style={{ display:'block', width:'100%', textAlign:'left', background: sidebarView===item.id ? 'rgba(184,147,58,0.1)' : 'transparent', border:'none', borderLeft: sidebarView===item.id ? `3px solid ${GOLD}` : '3px solid transparent', padding:'10px 14px', color: sidebarView===item.id ? GOLD : '#6b7280', fontSize:'12px', cursor:'pointer', letterSpacing:'0.5px', transition:'all 0.15s' }}>
@@ -642,87 +595,6 @@ export default function LeadsTab() {
         </div>
       )}
       </>
-      )}
-
-      {/* ACTIVITY FEED */}
-      {sidebarView === 'activity' && (
-        <div>
-          <div style={{ marginBottom:'16px' }}>
-            <h2 style={{ color:'#e8e0d0', margin:'0 0 4px', fontSize:'20px', fontWeight:'normal' }}>Lead Activity Feed</h2>
-            <p style={{ color:'#6b7280', fontSize:'13px', margin:0 }}>All calls, connections, status changes and email events.</p>
-          </div>
-          {activityLoading && <div style={{ color:'#6b7280', textAlign:'center', padding:'40px' }}>Loading…</div>}
-          {!activityLoading && leadHistory.length === 0 && <div style={{ color:'#4a5568', textAlign:'center', padding:'40px' }}>No activity yet.</div>}
-          <div style={{ maxHeight:'70vh', overflowY:'auto' }}>
-            {leadHistory.map((h, i) => {
-              const type = getHistoryType(h);
-              const icon = ACTIVITY_ICONS[type] || '📌';
-              const color = ACTIVITY_COLORS[type] || '#8a9ab8';
-              const name = h.lead ? `${h.lead.firstName} ${h.lead.lastName}` : h.leadId;
-              return (
-                <div key={h.id || i}
-                  onClick={() => h.lead && setSelectedLead(h.lead)}
-                  style={{ display:'grid', gridTemplateColumns:'24px 1fr 120px', gap:'0 10px', alignItems:'center', padding:'8px 12px', borderBottom:'1px solid rgba(255,255,255,0.04)', cursor: h.lead ? 'pointer' : 'default', transition:'background 0.1s' }}
-                  onMouseEnter={e => { if(h.lead) e.currentTarget.style.background='rgba(255,255,255,0.03)'; }}
-                  onMouseLeave={e => e.currentTarget.style.background='transparent'}>
-                  <span style={{ fontSize:'13px', textAlign:'center' }}>{icon}</span>
-                  <div>
-                    <span style={{ color:'#e8e0d0', fontSize:'12px', fontWeight:'bold', marginRight:'6px' }}>{name}</span>
-                    <span style={{ color, fontSize:'10px' }}>{type.replace('_',' ')}</span>
-                    {h.content && <span style={{ color:'#4a5568', fontSize:'10px', marginLeft:'6px' }}>· {h.content.slice(0,80)}</span>}
-                  </div>
-                  <div style={{ color:'#6b7280', fontSize:'10px', textAlign:'right' }}>{fmtTime(h.createdAt || h.created_date)}</div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* EMAIL ACTIVITY */}
-      {sidebarView === 'email' && (
-        <div>
-          <div style={{ marginBottom:'16px' }}>
-            <h2 style={{ color:'#e8e0d0', margin:'0 0 4px', fontSize:'20px', fontWeight:'normal' }}>Email Activity</h2>
-            <p style={{ color:'#6b7280', fontSize:'13px', margin:0 }}>Track sent, opened, and clicked emails.</p>
-          </div>
-          {/* Filter tabs */}
-          <div style={{ display:'flex', gap:'0', borderBottom:'1px solid rgba(255,255,255,0.07)', marginBottom:'16px' }}>
-            {[['all','All'],['sent','Sent'],['opened','Opened'],['clicked','Clicked']].map(([id,label]) => (
-              <button key={id} onClick={() => setEmailFilter(id)}
-                style={{ background:'none', border:'none', borderBottom:emailFilter===id?`2px solid ${GOLD}`:'2px solid transparent', color:emailFilter===id?GOLD:'#6b7280', padding:'8px 14px', cursor:'pointer', fontSize:'11px', letterSpacing:'1px' }}>
-                {label} ({emailLogs.filter(l => id==='all'||(['sent','delivered'].includes(l.status)&&id==='sent')||(l.status===id)).length})
-              </button>
-            ))}
-          </div>
-          {activityLoading && <div style={{ color:'#6b7280', textAlign:'center', padding:'40px' }}>Loading…</div>}
-          {!activityLoading && filteredEmailLogs.length === 0 && <div style={{ color:'#4a5568', textAlign:'center', padding:'40px' }}>No emails match this filter.</div>}
-          <div style={{ maxHeight:'70vh', overflowY:'auto' }}>
-            {filteredEmailLogs.map((log, i) => {
-              const statusColors = { sent:'#8a9ab8', delivered:'#60a5fa', opened:'#4ade80', clicked:'#f59e0b', bounced:'#ef4444', spam:'#ef4444' };
-              const statusIcons = { sent:'📤', delivered:'✉️', opened:'📬', clicked:'🔗', bounced:'⚠️', spam:'🚫' };
-              const sc = statusColors[log.status] || '#8a9ab8';
-              const si = statusIcons[log.status] || '✉️';
-              const name = log.lead ? `${log.lead.firstName} ${log.lead.lastName}` : log.toName || log.toEmail;
-              return (
-                <div key={log.id || i}
-                  onClick={() => log.lead && setSelectedLead(log.lead)}
-                  style={{ display:'grid', gridTemplateColumns:'24px 1fr 80px 120px', gap:'0 10px', alignItems:'center', padding:'8px 12px', borderBottom:'1px solid rgba(255,255,255,0.04)', cursor: log.lead ? 'pointer' : 'default', background: log.status==='opened'?'rgba(74,222,128,0.04)': log.status==='clicked'?'rgba(245,158,11,0.04)':'transparent' }}
-                  onMouseEnter={e => { if(log.lead) e.currentTarget.style.opacity='0.8'; }}
-                  onMouseLeave={e => e.currentTarget.style.opacity='1'}>
-                  <span style={{ fontSize:'13px', textAlign:'center' }}>{si}</span>
-                  <div>
-                    <span style={{ color:'#e8e0d0', fontSize:'12px', fontWeight:'bold', marginRight:'6px' }}>{name}</span>
-                    <span style={{ color:'#4a5568', fontSize:'10px' }}>{log.toEmail}</span>
-                    {log.clickedUrl && <span style={{ color:'#60a5fa', fontSize:'9px', display:'block', marginTop:'1px' }}>{log.clickedUrl.slice(0,60)}</span>}
-                  </div>
-                  <span style={{ color:sc, fontSize:'10px', textTransform:'uppercase', letterSpacing:'0.5px', textAlign:'center' }}>{log.status}</span>
-                  <div style={{ color:'#6b7280', fontSize:'10px', textAlign:'right' }}>{fmtTime(log.openedAt || log.clickedAt || log.sentAt)}</div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
       )}
 
       {/* LISTS TAB */}
