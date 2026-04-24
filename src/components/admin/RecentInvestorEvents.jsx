@@ -98,8 +98,12 @@ export default function RecentInvestorEvents({ onOpenUserCard, filter = 'all' })
         });
       });
 
-      // Rosie AI chats
+      // Rosie AI chats — dedupe by sessionId or investorId+date combo
+      const seenRosie = new Set();
       rosieLogs.forEach(log => {
+        const key = log.sessionId || `${log.investorId}_${(log.createdAt||log.created_date||'').slice(0,13)}`;
+        if (seenRosie.has(key)) return;
+        seenRosie.add(key);
         evts.push({
           type: 'rosie',
           name: log.investorName || log.investorEmail || 'Unknown',
