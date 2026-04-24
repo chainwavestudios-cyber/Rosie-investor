@@ -40,11 +40,20 @@ export default function RecentInvestorEvents({ onOpenUserCard, filter = 'all' })
 
       const evts = [];
 
+      // Deduplicate sessions by sessionId before processing
+      const seenSessionIds = new Set();
+      const dedupedSessions = sessions.filter(s => {
+        const key = s.sessionId || s.id;
+        if (!key || seenSessionIds.has(key)) return false;
+        seenSessionIds.add(key);
+        return true;
+      });
+
       // Portal logins and page views from sessions
-      sessions.forEach(sess => {
+      dedupedSessions.forEach(sess => {
         if (!sess.startTime) return;
 
-        // Login event
+        // Login event — one per session only
         evts.push({
           type: 'login',
           name: sess.userName || sess.userEmail || sess.username,
