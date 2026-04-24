@@ -46,7 +46,27 @@ function AccessTab({ lead, onUpdate, onSave }) {
       const last4 = (lead.phone || '').replace(/\D/g, '').slice(-4) || '0000';
       const newUsername = `${nameSlug}${last4}`;
 
-      // Save ONLY the credentials to the Lead record — do NOT create InvestorUser yet
+      // Create InvestorUser so they can log in
+      const hashRes = await fetch(
+        'https://investors.rosieai.tech/api/apps/69cd2741578c9b5ce655395b/functions/hashPassword',
+        { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'hash', password: newUsername }) }
+      );
+      const hashData = await hashRes.json();
+      const hashedPassword = hashData?.hash || newUsername;
+
+      const existing = await base44.entities.InvestorUser.filter({ username: newUsername });
+      if (existing?.length > 0) {
+        await base44.entities.InvestorUser.update(existing[0].id, {
+          email: lead.email || '', name: `${lead.firstName} ${lead.lastName}`, password: hashedPassword, leadId: lead.id,
+        });
+      } else {
+        await base44.entities.InvestorUser.create({
+          username: newUsername, email: lead.email || '', name: `${lead.firstName} ${lead.lastName}`,
+          password: hashedPassword, role: 'investor', status: 'prospect', leadId: lead.id,
+        });
+      }
+
+      // Save to lead
       await onSave({ portalPasscode: newUsername });
 
       // Log it

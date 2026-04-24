@@ -20,7 +20,7 @@ export default function MigrateLeadModal({ lead, history, onClose, onMigrated })
     setMigrating(true); setError('');
 
     try {
-      // 1. Create the InvestorUser record with the provided credentials
+      // 1. Create the InvestorUser record (migrate score + badges)
       const newUser = await base44.entities.InvestorUser.create({
         name: `${lead.firstName} ${lead.lastName}`,
         username: username.trim().toLowerCase(),
@@ -34,8 +34,6 @@ export default function MigrateLeadModal({ lead, history, onClose, onMigrated })
         investmentType: 'cash',
         engagementScore: lead.engagementScore || 0,
         starRating: 0,
-        // Link back to the original lead
-        leadId: lead.id,
       });
 
       // 2. Migrate all lead history → ContactNotes on the new user
@@ -52,7 +50,7 @@ export default function MigrateLeadModal({ lead, history, onClose, onMigrated })
         } catch {}
       }
 
-      // 3. Mark lead as archived (not converted) and link to investor user
+      // 3. Mark lead as converted
       await base44.entities.Lead.update(lead.id, {
         status: 'converted',
         convertedToInvestorUserId: newUser.id,
@@ -99,11 +97,10 @@ export default function MigrateLeadModal({ lead, history, onClose, onMigrated })
             <div style={{ color:GOLD, fontSize:'11px', letterSpacing:'1px', marginBottom:'6px' }}>What will happen:</div>
             <ul style={{ color:'#8a9ab8', fontSize:'12px', lineHeight:2, margin:0, paddingLeft:'16px' }}>
               <li>A new <strong style={{ color:'#e8e0d0' }}>Potential Investor</strong> will be created in CRM/Clients</li>
-              <li>All lead history, notes, calls, &amp; engagement badges will migrate</li>
-              <li>Portal login credentials set below — they can access investors.rosieai.tech</li>
-              <li>A referral code for rosieai.tech is auto-generated for tracking</li>
-              <li>The lead will be marked as converted in the Leads tab (and archived)</li>
-              <li>Engagement score (<strong style={{ color: GOLD }}>{lead.engagementScore || 0} pts</strong>) carries over to CRM</li>
+              <li>All lead history &amp; notes will be migrated to their contact card</li>
+              <li>They will receive a portal login with the credentials below</li>
+              <li>The lead will be marked as converted in the Leads tab</li>
+              <li>Engagement score (<strong style={{ color: GOLD }}>{lead.engagementScore || 0} pts</strong>) will carry over to CRM</li>
               <li>They will be placed in the <strong style={{ color: '#60a5fa' }}>Reviewing Info</strong> stage of the pipeline</li>
             </ul>
           </div>
