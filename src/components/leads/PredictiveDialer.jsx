@@ -466,12 +466,47 @@ export default function PredictiveDialer({ contactLists, onClose, onCallLogged, 
       cleanLine(lineIdx, 'abandoned');
       return;
     }
+
+    // ── Wait 1.5s then verify it's a live human, not voicemail ──────────
+    // Voicemail systems answer instantly; humans take a moment to say hello
+    addLog('system', `Line ${lineIdx + 1}: Verifying live answer…`);
+    await new Promise(r => setTimeout(r, 1500));
+
+    try {
+      const statusCheck = await base44.functions.invoke('twilioCall', { action: 'getCallStatus', callSid });
+      const liveStatus = statusCheck.data?.status || '';
+      const answeredBy = statusCheck.data?.answeredBy || '';
+
+      // If Twilio AMD already detected a machine, skip
+      if (answeredBy && answeredBy.startsWith('machine')) {
+        addLog('system', `Line ${lineIdx + 1}: Machine detected — skipping`);
+        await hangupCall(callSid);
+        cleanLine(lineIdx, 'voicemail');
+        setTimeout(() => { if (runningRef.current) dialLine(lineIdx); }, 1000);
+        return;
+      }
+
+      if (!['in-progress'].includes(liveStatus)) {
+        addLog('system', `Line ${lineIdx + 1}: Call is ${liveStatus} — skipping`);
+        cleanLine(lineIdx, 'no_answer');
+        setTimeout(() => { if (runningRef.current) dialLine(lineIdx); }, 1000);
+        return;
+      }
+    } catch {}
+
+    // Call looks like a live human — lock and connect
+    if (connectingRef.current) {
+      addLog('system', `Line ${lineIdx + 1}: Another line beat us — dropping`);
+      await hangupCall(callSid);
+      cleanLine(lineIdx, 'abandoned');
+      return;
+    }
     connectingRef.current = true;
 
     addLog('human', `Line ${lineIdx + 1}: 🎧 Connecting agent…`);
     setStats(s => ({ ...s, humans: s.humans + 1 }));
 
-    // Hang up all other lines in parallel — fire and don't wait
+    // Hang up all other lines in parallel
     const hangupPromises = [];
     for (let i = 0; i < 3; i++) {
       if (i === lineIdx) continue;
@@ -501,20 +536,6 @@ export default function PredictiveDialer({ contactLists, onClose, onCallLogged, 
       cleanLine(i, 'ended');
     }
     Promise.all(hangupPromises).catch(() => {});
-
-    // Verify the call is actually in-progress before connecting
-    // This prevents connecting to a voicemail line that fired participant-join first
-    try {
-      const statusCheck = await base44.functions.invoke('twilioCall', { action: 'getCallStatus', callSid });
-      const liveStatus = statusCheck.data?.status || '';
-      if (!['in-progress'].includes(liveStatus)) {
-        addLog('system', `Line ${lineIdx + 1}: Call is ${liveStatus} — not a live human, skipping`);
-        connectingRef.current = false;
-        cleanLine(lineIdx, 'voicemail');
-        setTimeout(() => { if (runningRef.current) dialLine(lineIdx); }, 1000);
-        return;
-      }
-    } catch {}
 
     // Connect agent audio
     try {
@@ -831,6 +852,24 @@ export default function PredictiveDialer({ contactLists, onClose, onCallLogged, 
               color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer',
             }}>■ Stop Dialer</button>
           )}
+        </div>
+      )}
+
+      {/* Active call hangup button — prominent, always visible when on a call */}
+      {activeCall && (
+        <div style={{ marginBottom: '12px' }}>
+          <button onClick={() => {
+            try { activeCall.disconnect(); } catch {}
+            setActiveCall(null);
+            connectingRef.current = false;
+            addLog('system', '📵 Agent hung up');
+          }} style={{
+            width: '100%', padding: '14px', fontWeight: 'bold', fontSize: '14px',
+            background: 'linear-gradient(135deg,#ef4444,#b91c1c)',
+            color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer',
+            boxShadow: '0 0 20px rgba(239,68,68,0.5)',
+            letterSpacing: '1px',
+          }}>📵 HANG UP LIVE CALL</button>
         </div>
       )}
 
