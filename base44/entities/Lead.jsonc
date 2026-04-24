@@ -99,6 +99,11 @@
     "portalPasscode": {
       "type": "string",
       "title": "Portal Passcode"
+    },
+    "lastSiteVisit": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Last Site Visit"
     }
   },
   "required": [
