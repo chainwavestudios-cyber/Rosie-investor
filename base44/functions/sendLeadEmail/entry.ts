@@ -62,7 +62,8 @@ Deno.serve(async (req) => {
 
   // Award initial 5 points to the lead
   try {
-    const lead = await base44.asServiceRole.entities.Lead.get(leadId);
+    const leads = await base44.asServiceRole.entities.Lead.list();
+    const lead = leads.find(l => l.id === leadId);
     if (lead) {
       await base44.asServiceRole.entities.Lead.update(leadId, {
         engagementScore: (lead.engagementScore || 0) + 5,
