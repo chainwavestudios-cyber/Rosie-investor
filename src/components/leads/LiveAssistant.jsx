@@ -3,7 +3,7 @@ import { base44 } from '@/api/base44Client';
 
 const GOLD = '#b8933a';
 const DARK = '#0a0f1e';
-const DEEPGRAM_API_KEY = import.meta.env.VITE_DEEPGRAM_API_KEY;
+const DEEPGRAM_API_KEY = import.meta.env.VITE_DEEPGRAM_API_KEY || '';
 
 // ── Trigger keywords that auto-surface KB answers ─────────────────────────
 const TRIGGER_PATTERNS = [
@@ -161,18 +161,12 @@ export default function LiveAssistant({ isCallActive = false }) {
       const recentTranscript = (allTranscript || transcriptRef.current)
         .slice(-10).map(t => t.text).join(' ');
 
-      const res = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model: 'claude-haiku-4-5-20251001',
-          max_tokens: 300,
-          system: `You are a real-time sales assistant helping during a live investor call. Answer questions concisely based on the knowledge base below. If the answer isn't in the KB, give a helpful general response. Keep answers under 3 sentences — the agent needs to speak naturally.\n\nKNOWLEDGE BASE:\n${kbContext}`,
-          messages: [{ role: 'user', content: `Recent conversation: "${recentTranscript}"\n\nQuestion/trigger: "${question}"\n\nProvide a brief, natural-sounding answer the agent can use right now.` }],
-        }),
+      const res = await base44.functions.invoke('liveAssistantAI', {
+        question,
+        transcript: allTranscript || transcriptRef.current,
+        kbEntries,
       });
-      const data = await res.json();
-      const answer = data?.content?.[0]?.text || 'No answer found.';
+      const answer = res?.data?.answer || res?.data?.error || 'No answer found.';
       setAiAnswer(answer);
     } catch (e) {
       setAiAnswer('Error getting answer: ' + e.message);
