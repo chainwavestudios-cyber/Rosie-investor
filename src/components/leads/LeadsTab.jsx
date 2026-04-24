@@ -3,6 +3,7 @@ import { base44 } from '@/api/base44Client';
 import LeadContactCard from './LeadContactCard';
 import TwilioDialer from './TwilioDialer';
 import PredictiveDialer from './PredictiveDialer';
+import WebsiteEngagementTab from './WebsiteEngagementTab';
 import SiteVisitsTab from './SiteVisitsTab';
 
 const GOLD = '#b8933a';
@@ -478,6 +479,7 @@ export default function LeadsTab() {
             { id:'activity', icon:'⚡', label:'Activity Feed' },
             { id:'email',    icon:'✉️',  label:'Email Activity' },
             { id:'sitevisits', icon:'🌐', label:'Site Visits' },
+            { id:'engagement', icon:'📊', label:'Web Engagement' },
           ].map(item => (
             <button key={item.id} onClick={() => { setSidebarView(item.id); setTab(item.id === 'lists' ? 'lists' : 'leads'); }}
               style={{ display:'block', width:'100%', textAlign:'left', background: sidebarView===item.id ? 'rgba(184,147,58,0.1)' : 'transparent', border:'none', borderLeft: sidebarView===item.id ? `3px solid ${GOLD}` : '3px solid transparent', padding:'10px 14px', color: sidebarView===item.id ? GOLD : '#6b7280', fontSize:'12px', cursor:'pointer', letterSpacing:'0.5px', transition:'all 0.15s' }}>
@@ -742,6 +744,11 @@ export default function LeadsTab() {
             if (leads?.[0]) setSelectedLead(leads[0]);
           } catch {}
         }} />
+      )}
+
+      {/* WEBSITE ENGAGEMENT */}
+      {sidebarView === 'engagement' && (
+        <WebsiteEngagementTab onOpenLead={(lead) => setSelectedLead(lead)} />
       )}
 
       {/* LISTS TAB */}
