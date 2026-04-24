@@ -3,7 +3,7 @@ import { base44 } from '@/api/base44Client';
 import MigrateLeadModal from './MigrateLeadModal';
 import DateTimePicker from '@/components/admin/DateTimePicker';
 import LeadEmailTab from './LeadEmailTab';
-import ScriptTab from './ScriptTab';
+import ScriptViewer from '@/components/scripts/ScriptViewer';
 import InvestorWebsiteTab from './InvestorWebsiteTab';
 import WebsiteHistoryTab from './WebsiteHistoryTab';
 import ZoomBookingModal from '@/components/ZoomBookingModal';
@@ -366,7 +366,7 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
           )}
 
           {tab === 'script' && (
-            <ScriptTab contactId={lead.id} contactType="lead" />
+            <ScriptViewer lead={editLead} />
           )}
 
           {/* ── ACTIONS ── */}
