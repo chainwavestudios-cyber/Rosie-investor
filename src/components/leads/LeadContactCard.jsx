@@ -28,6 +28,142 @@ function historyColor(type) {
   return map[type] || '#6b7280';
 }
 
+function OverviewTab({ editLead, setEditLead, saving, saveMsg, saveProfile, updateStatus, quickNote, setQuickNote, addQuickNote, addingNote, history, loading }) {
+  const [editing, setEditing] = useState(false);
+  const GOLD = '#b8933a';
+  const DARK = '#0a0f1e';
+  const inp = { width:'100%', background:'rgba(255,255,255,0.05)', border:'1px solid rgba(255,255,255,0.15)', borderRadius:'4px', padding:'9px 12px', color:'#e8e0d0', fontSize:'13px', outline:'none', boxSizing:'border-box', fontFamily:'Georgia, serif' };
+  const ls = { display:'block', color:'#4a5568', fontSize:'9px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'5px' };
+
+  const STATUS_LABELS = {
+    lead:     { label: '🔵 Lead',     color: '#60a5fa' },
+    prospect: { label: '🚀 Prospect', color: '#a78bfa' },
+  };
+  const HISTORY_ICONS = { call:'📞', not_available:'📵', callback_later:'📅', not_interested:'❌', status_change:'🔄', note:'📝', prospect:'🚀', connected:'🟢' };
+  const historyColor = (type) => ({ call:'#60a5fa', not_available:'#8a9ab8', callback_later:'#a78bfa', not_interested:'#ef4444', status_change:GOLD, note:'#c4cdd8', prospect:'#a78bfa', connected:'#4ade80' })[type] || '#6b7280';
+
+  const InfoRow = ({ icon, label, value, color }) => (
+    <div style={{ display:'flex', alignItems:'center', gap:'10px', padding:'8px 12px', background:'rgba(255,255,255,0.02)', borderRadius:'4px', border:'1px solid rgba(255,255,255,0.05)' }}>
+      <span style={{ fontSize:'16px', flexShrink:0 }}>{icon}</span>
+      <div style={{ minWidth:0 }}>
+        <div style={{ color:'#4a5568', fontSize:'9px', letterSpacing:'1.5px', textTransform:'uppercase', marginBottom:'1px' }}>{label}</div>
+        <div style={{ color: color || '#e8e0d0', fontSize:'13px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{value || <span style={{ color:'#4a5568', fontStyle:'italic' }}>—</span>}</div>
+      </div>
+    </div>
+  );
+
+  return (
+    <div style={{ display:'flex', flexDirection:'column', gap:'14px' }}>
+
+      {/* Status + Edit row */}
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+        <div style={{ display:'flex', gap:'6px' }}>
+          {['lead','prospect'].map(s => {
+            const si = STATUS_LABELS[s];
+            const active = editLead.status === s;
+            return (
+              <button key={s} onClick={() => updateStatus(s, 'status_change', `Status changed to ${s}`)}
+                style={{ padding:'6px 16px', border:`1px solid ${active ? si.color : 'rgba(255,255,255,0.1)'}`, borderRadius:'20px', background:active ? `${si.color}22` : 'transparent', color:active ? si.color : '#6b7280', cursor:'pointer', fontSize:'12px', fontWeight:active?'bold':'normal', transition:'all 0.15s' }}>
+                {si.label}
+              </button>
+            );
+          })}
+        </div>
+        <button onClick={() => setEditing(e => !e)}
+          style={{ background: editing ? 'rgba(184,147,58,0.2)' : 'rgba(255,255,255,0.05)', color: editing ? GOLD : '#8a9ab8', border:`1px solid ${editing ? 'rgba(184,147,58,0.4)' : 'rgba(255,255,255,0.1)'}`, borderRadius:'4px', padding:'6px 14px', cursor:'pointer', fontSize:'11px', letterSpacing:'0.5px' }}>
+          {editing ? '✕ Cancel Edit' : '✏️ Edit'}
+        </button>
+      </div>
+
+      {/* Contact info — view mode */}
+      {!editing && (
+        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'8px' }}>
+          <InfoRow icon="👤" label="First Name" value={editLead.firstName} />
+          <InfoRow icon="👤" label="Last Name" value={editLead.lastName} />
+          <InfoRow icon="📞" label="Phone" value={editLead.phone} color="#4ade80" />
+          <InfoRow icon="📱" label="Alt Phone" value={editLead.phone2} />
+          <InfoRow icon="✉️" label="Email" value={editLead.email} color="#60a5fa" />
+          <InfoRow icon="📍" label="State" value={editLead.state} />
+          {editLead.address && <div style={{ gridColumn:'1/-1' }}><InfoRow icon="🏠" label="Address" value={editLead.address} /></div>}
+          {editLead.bestTimeToCall && <div style={{ gridColumn:'1/-1' }}><InfoRow icon="⏰" label="Best Time to Call" value={editLead.bestTimeToCall} /></div>}
+          {editLead.callbackAt && <div style={{ gridColumn:'1/-1' }}><InfoRow icon="📅" label="Callback Scheduled" value={new Date(editLead.callbackAt).toLocaleString('en-US',{weekday:'short',month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})} color="#a78bfa" /></div>}
+        </div>
+      )}
+
+      {/* Edit mode */}
+      {editing && (
+        <div style={{ background:'rgba(0,0,0,0.15)', border:'1px solid rgba(255,255,255,0.08)', borderRadius:'6px', padding:'16px' }}>
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:'10px 14px' }}>
+            {[['firstName','First Name','👤'],['lastName','Last Name','👤'],['phone','Phone','📞'],['phone2','Alt Phone','📱'],['email','Email','✉️'],['state','State','📍']].map(([k,label,icon]) => (
+              <div key={k}>
+                <label style={ls}>{icon} {label}</label>
+                <input value={editLead[k]||''} onChange={e=>setEditLead({...editLead,[k]:e.target.value})} style={inp} placeholder={label} />
+              </div>
+            ))}
+            <div style={{ gridColumn:'1/-1' }}>
+              <label style={ls}>🏠 Address</label>
+              <input value={editLead.address||''} onChange={e=>setEditLead({...editLead,address:e.target.value})} style={inp} placeholder="Street address…" />
+            </div>
+            <div>
+              <label style={ls}>⏰ Best Time to Call</label>
+              <input value={editLead.bestTimeToCall||''} onChange={e=>setEditLead({...editLead,bestTimeToCall:e.target.value})} style={inp} placeholder="e.g. mornings, after 3pm…" />
+            </div>
+          </div>
+          <div style={{ display:'flex', gap:'10px', alignItems:'center', marginTop:'14px' }}>
+            <button onClick={async () => { await saveProfile(); setEditing(false); }} disabled={saving}
+              style={{ background:'linear-gradient(135deg,#b8933a,#d4aa50)', color:DARK, border:'none', borderRadius:'4px', padding:'9px 24px', cursor:'pointer', fontWeight:'bold', fontSize:'12px', letterSpacing:'1.5px', textTransform:'uppercase' }}>
+              {saving ? 'Saving…' : '💾 Save Changes'}
+            </button>
+            <button onClick={() => setEditing(false)}
+              style={{ background:'transparent', color:'#6b7280', border:'1px solid rgba(255,255,255,0.1)', borderRadius:'4px', padding:'9px 16px', cursor:'pointer', fontSize:'12px' }}>
+              Cancel
+            </button>
+            {saveMsg && <span style={{ color:saveMsg.startsWith('Error')?'#ef4444':'#4ade80', fontSize:'12px' }}>{saveMsg}</span>}
+          </div>
+        </div>
+      )}
+
+      {/* Notes & Activity */}
+      <div style={{ borderTop:'1px solid rgba(255,255,255,0.06)', paddingTop:'14px' }}>
+        <div style={{ color:GOLD, fontSize:'10px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'10px' }}>📋 Notes & Activity</div>
+        <div style={{ display:'flex', gap:'8px', marginBottom:'12px' }}>
+          <input value={quickNote} onChange={e=>setQuickNote(e.target.value)}
+            onKeyDown={e=>{ if(e.key==='Enter'&&quickNote.trim()) addQuickNote(); }}
+            placeholder="Add a note and press Enter or Save…"
+            style={{ ...inp, flex:1 }} />
+          <button onClick={addQuickNote} disabled={!quickNote.trim()||addingNote}
+            style={{ background:'rgba(184,147,58,0.15)', color:GOLD, border:`1px solid rgba(184,147,58,0.3)`, borderRadius:'4px', padding:'8px 16px', cursor:'pointer', fontSize:'12px', whiteSpace:'nowrap' }}>
+            Save
+          </button>
+        </div>
+        <div style={{ display:'flex', flexDirection:'column', gap:'4px', maxHeight:'300px', overflowY:'auto', paddingRight:'4px' }}>
+          {loading && <p style={{ color:'#6b7280', fontSize:'12px', textAlign:'center', padding:'16px' }}>Loading…</p>}
+          {!loading && history.length === 0 && <p style={{ color:'#4a5568', fontSize:'12px', textAlign:'center', padding:'20px' }}>No activity yet.</p>}
+          {history.map(h => {
+            const icon = HISTORY_ICONS[h.type] || '📝';
+            const color = historyColor(h.type);
+            return (
+              <div key={h.id} style={{ display:'flex', alignItems:'flex-start', gap:'8px', padding:'8px 10px', background:'rgba(255,255,255,0.02)', border:'1px solid rgba(255,255,255,0.04)', borderRadius:'4px' }}>
+                <span style={{ fontSize:'13px', flexShrink:0, marginTop:'1px' }}>{icon}</span>
+                <div style={{ flex:1, minWidth:0 }}>
+                  <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', gap:'8px' }}>
+                    <span style={{ color, fontSize:'10px', textTransform:'uppercase', letterSpacing:'1px' }}>{h.type.replace(/_/g,' ')}</span>
+                    <span style={{ color:'#4a5568', fontSize:'10px', whiteSpace:'nowrap' }}>
+                      {h.created_date ? new Date(h.created_date).toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}) : ''}
+                    </span>
+                  </div>
+                  {h.content && <div style={{ color:'#c4cdd8', fontSize:'12px', marginTop:'2px', lineHeight:1.5, whiteSpace:'pre-wrap' }}>{h.content}</div>}
+                  {h.type==='call' && h.callDurationSeconds > 0 && <div style={{ color:'#8a9ab8', fontSize:'11px', marginTop:'2px' }}>⏱ {Math.floor(h.callDurationSeconds/60)}m {h.callDurationSeconds%60}s</div>}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber, dialerRef, onResume, isDialerPaused }) {
   const [tab, setTab] = useState('overview');
   const [history, setHistory] = useState([]);
@@ -259,97 +395,15 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
 
           {/* ── OVERVIEW ── */}
           {tab === 'overview' && (
-            <div style={{ display:'flex', flexDirection:'column', gap:'16px' }}>
-
-              {/* Status tabs */}
-              <div style={{ display:'flex', gap:'6px' }}>
-                {['lead','prospect'].map(s => {
-                  const si = STATUS_LABELS[s];
-                  const active = editLead.status === s;
-                  return (
-                    <button key={s} onClick={() => updateStatus(s, 'status_change', `Status changed to ${s}`)}
-                      style={{ padding:'7px 18px', border:`1px solid ${active ? si.color : 'rgba(255,255,255,0.1)'}`, borderRadius:'20px', background:active ? `${si.color}22` : 'transparent', color:active ? si.color : '#6b7280', cursor:'pointer', fontSize:'12px', fontWeight:active?'bold':'normal', transition:'all 0.15s' }}>
-                      {si.label}
-                    </button>
-                  );
-                })}
-              </div>
-
-              {/* Contact info — compact grid */}
-              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:'8px 12px' }}>
-                {[['firstName','First Name'],['lastName','Last Name'],['phone','Phone'],['phone2','Alt Phone'],['email','Email'],['state','State / Province']].map(([k,label]) => (
-                  <div key={k}>
-                    <label style={ls}>{label}</label>
-                    <input value={editLead[k]||''} onChange={e=>setEditLead({...editLead,[k]:e.target.value})} style={inp} placeholder={label} />
-                  </div>
-                ))}
-                <div style={{ gridColumn:'1/-1' }}>
-                  <label style={ls}>Address</label>
-                  <input value={editLead.address||''} onChange={e=>setEditLead({...editLead,address:e.target.value})} style={inp} placeholder="Street address…" />
-                </div>
-                <div>
-                  <label style={ls}>Best Time to Call</label>
-                  <input value={editLead.bestTimeToCall||''} onChange={e=>setEditLead({...editLead,bestTimeToCall:e.target.value})} style={inp} placeholder="e.g. mornings, after 3pm…" />
-                </div>
-                <div style={{ display:'flex', alignItems:'flex-end', gap:'8px' }}>
-                  <button onClick={saveProfile} disabled={saving}
-                    style={{ background:'linear-gradient(135deg,#b8933a,#d4aa50)', color:DARK, border:'none', borderRadius:'2px', padding:'8px 20px', cursor:'pointer', fontWeight:'bold', fontSize:'11px', letterSpacing:'2px', textTransform:'uppercase', whiteSpace:'nowrap' }}>
-                    {saving ? 'Saving…' : 'Save'}
-                  </button>
-                  {saveMsg && <span style={{ color:saveMsg.startsWith('Error')?'#ef4444':'#4ade80', fontSize:'12px' }}>{saveMsg}</span>}
-                </div>
-              </div>
-
-              {/* Divider */}
-              <div style={{ borderTop:'1px solid rgba(255,255,255,0.07)', paddingTop:'16px' }}>
-                <div style={{ color:GOLD, fontSize:'10px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'10px' }}>Notes & Activity</div>
-
-                {/* Quick note entry */}
-                <div style={{ display:'flex', gap:'8px', marginBottom:'14px' }}>
-                  <input
-                    value={quickNote}
-                    onChange={e => setQuickNote(e.target.value)}
-                    onKeyDown={e => { if (e.key === 'Enter' && quickNote.trim()) addQuickNote(); }}
-                    placeholder="Add a note and press Enter or Save…"
-                    style={{ ...inp, flex:1 }}
-                  />
-                  <button onClick={addQuickNote} disabled={!quickNote.trim() || addingNote}
-                    style={{ background:'rgba(184,147,58,0.2)', color:GOLD, border:`1px solid rgba(184,147,58,0.4)`, borderRadius:'2px', padding:'8px 16px', cursor:'pointer', fontSize:'12px', whiteSpace:'nowrap' }}>
-                    Save
-                  </button>
-                </div>
-
-                {/* Chronological log: notes + all history events */}
-                <div style={{ display:'flex', flexDirection:'column', gap:'4px', maxHeight:'320px', overflowY:'auto', paddingRight:'4px' }}>
-                  {loading && <p style={{ color:'#6b7280', fontSize:'12px', textAlign:'center', padding:'16px' }}>Loading…</p>}
-                  {!loading && history.length === 0 && (
-                    <p style={{ color:'#4a5568', fontSize:'12px', textAlign:'center', padding:'24px' }}>No activity yet.</p>
-                  )}
-                  {history.map(h => {
-                    const icon = HISTORY_ICONS[h.type] || '📝';
-                    const color = historyColor(h.type);
-                    const isCall = h.type === 'call';
-                    return (
-                      <div key={h.id} style={{ display:'flex', alignItems:'flex-start', gap:'8px', padding:'8px 10px', background:'rgba(255,255,255,0.02)', border:'1px solid rgba(255,255,255,0.05)', borderRadius:'2px' }}>
-                        <span style={{ fontSize:'13px', flexShrink:0, marginTop:'1px' }}>{icon}</span>
-                        <div style={{ flex:1, minWidth:0 }}>
-                          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', gap:'8px' }}>
-                            <span style={{ color, fontSize:'10px', textTransform:'uppercase', letterSpacing:'1px', flexShrink:0 }}>{h.type.replace(/_/g,' ')}</span>
-                            <span style={{ color:'#4a5568', fontSize:'10px', whiteSpace:'nowrap', flexShrink:0 }}>
-                              {h.created_date ? new Date(h.created_date).toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}) : ''}
-                            </span>
-                          </div>
-                          {h.content && <div style={{ color:'#c4cdd8', fontSize:'12px', marginTop:'2px', lineHeight:1.5, whiteSpace:'pre-wrap' }}>{h.content}</div>}
-                          {isCall && h.callDurationSeconds > 0 && (
-                            <div style={{ color:'#8a9ab8', fontSize:'11px', marginTop:'2px' }}>⏱ {Math.floor(h.callDurationSeconds/60)}m {h.callDurationSeconds%60}s</div>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
+            <OverviewTab
+              editLead={editLead} setEditLead={setEditLead}
+              saving={saving} saveMsg={saveMsg}
+              saveProfile={saveProfile}
+              updateStatus={updateStatus}
+              quickNote={quickNote} setQuickNote={setQuickNote}
+              addQuickNote={addQuickNote} addingNote={addingNote}
+              history={history} loading={loading}
+            />
           )}
 
           {/* ── EMAILS ── */}
