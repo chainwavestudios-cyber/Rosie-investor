@@ -7,10 +7,10 @@ Deno.serve(async (req) => {
     const { question, transcript, kbEntries } = await req.json();
 
     const kbContext = kbEntries?.length > 0
-      ? kbEntries.map((e) => `Q: ${e.question}\nA: ${e.answer}`).join('\n\n')
+      ? kbEntries.map((e: any) => `Q: ${e.question}\nA: ${e.answer}`).join('\n\n')
       : 'No knowledge base entries yet.';
 
-    const recentTranscript = (transcript || []).slice(-8).map((t) => t.text).join(' ');
+    const recentTranscript = (transcript || []).slice(-8).map((t: any) => t.text).join(' ');
 
     const res = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
