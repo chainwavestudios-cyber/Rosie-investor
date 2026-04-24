@@ -17,7 +17,7 @@ import UpcomingReminders from '@/components/admin/UpcomingReminders';
 import InvestorAnalyticsTab from '@/components/admin/InvestorAnalyticsTab';
 import RecentInvestorEvents from '@/components/admin/RecentInvestorEvents';
 import { base44 } from '@/api/base44Client';
-import ScriptTab from '@/components/leads/ScriptTab';
+import ScriptViewer from '@/components/scripts/ScriptViewer';
 
 const LOGO = 'https://media.base44.com/images/public/69cd2741578c9b5ce655395b/39a31f9b9_Untitleddesign3.png';
 const GOLD = '#b8933a';
@@ -457,7 +457,7 @@ function ContactCardModal({ user, onClose, onSave, allSessions, matchesUser }) {
           {tab === 'rosie' && <RosieTab user={user} />}
 
           {/* SCRIPT */}
-          {tab === 'script' && <ScriptTab contactId={user.id} contactType="investor" />}
+          {tab === 'script' && <ScriptViewer lead={{ firstName: user.name?.split(' ')[0] || '', lastName: user.name?.split(' ').slice(1).join(' ') || '' }} />}
 
           {/* CALENDAR */}
           {tab === 'calendar' && (

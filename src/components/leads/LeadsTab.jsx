@@ -3,6 +3,7 @@ import { base44 } from '@/api/base44Client';
 import LeadContactCard from './LeadContactCard';
 import TwilioDialer from './TwilioDialer';
 import PredictiveDialer from './PredictiveDialer';
+import GlobalScriptEditor from '@/components/scripts/GlobalScriptEditor';
 
 const GOLD = '#b8933a';
 const DARK = '#0a0f1e';
@@ -474,6 +475,7 @@ export default function LeadsTab() {
           {[
             { id:'leads',    icon:'📋', label:'Leads' },
             { id:'lists',    icon:'📁', label:`Lists (${contactLists.length})` },
+            { id:'scripts',  icon:'📝', label:'Scripts' },
             { id:'activity', icon:'⚡', label:'Activity Feed' },
             { id:'email',    icon:'✉️',  label:'Email Activity' },
           ].map(item => (
@@ -651,6 +653,17 @@ export default function LeadsTab() {
       </>
       )}
 
+      {/* SCRIPTS */}
+      {sidebarView === 'scripts' && (
+        <div>
+          <div style={{ marginBottom:'16px' }}>
+            <h2 style={{ color:'#e8e0d0', margin:'0 0 4px', fontSize:'20px', fontWeight:'normal' }}>Script Library</h2>
+            <p style={{ color:'#6b7280', fontSize:'13px', margin:0 }}>Create and edit your call scripts. Use <span style={{ color:'#b8933a', fontFamily:'monospace' }}>{'{{firstname}}'}</span> and <span style={{ color:'#b8933a', fontFamily:'monospace' }}>{'{{lastname}}'}</span> to auto-fill the contact's name.</p>
+          </div>
+          <GlobalScriptEditor />
+        </div>
+      )}
+
       {/* ACTIVITY FEED */}
       {sidebarView === 'activity' && (
         <div>
@@ -783,4 +796,3 @@ export default function LeadsTab() {
     </div>
   );
 }
-

@@ -1,0 +1,46 @@
+{
+  "name": "GlobalScript",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "title": "Script Name"
+    },
+    "scriptType": {
+      "type": "string",
+      "title": "Script Type",
+      "enum": [
+        "open",
+        "followup",
+        "highlights",
+        "close",
+        "load",
+        "custom"
+      ],
+      "default": "custom"
+    },
+    "content": {
+      "type": "string",
+      "title": "Script Content",
+      "format": "textarea"
+    },
+    "color": {
+      "type": "string",
+      "title": "Text Color",
+      "default": "#e8e0d0"
+    },
+    "fontSize": {
+      "type": "number",
+      "title": "Font Size",
+      "default": 14
+    },
+    "sortOrder": {
+      "type": "number",
+      "title": "Sort Order",
+      "default": 0
+    }
+  },
+  "required": [
+    "name"
+  ]
+}
