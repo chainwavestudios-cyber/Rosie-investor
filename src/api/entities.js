@@ -65,7 +65,7 @@ export const InvestorUser = {
 export const AnalyticsSession = {
   async create(d) { try { return await base44.entities.AnalyticsSession.create(d); } catch{ return null; } },
   async update(id,u) { try { return await base44.entities.AnalyticsSession.update(id,u); } catch{ return null; } },
-  async listAll() { try { return await base44.entities.AnalyticsSession.list({sort:[{field:'startTime',direction:'desc'}]}); } catch{ return []; } },
+  async listAll() { try { return await base44.entities.AnalyticsSession.list('-startTime', 500); } catch{ return []; } },
   async listForUser(e) { try { const r=await base44.entities.AnalyticsSession.filter({userEmail:e}); return r.sort((a,b)=>new Date(b.startTime)-new Date(a.startTime)); } catch{ return []; } },
   async listForUsername(u) { try { const r=await base44.entities.AnalyticsSession.filter({username:u}); return r.sort((a,b)=>new Date(b.startTime)-new Date(a.startTime)); } catch{ return []; } },
 };
