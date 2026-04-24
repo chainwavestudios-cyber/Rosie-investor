@@ -29,6 +29,10 @@
       ],
       "default": "initiated"
     },
+    "duration": {
+      "type": "number",
+      "title": "Duration (seconds)"
+    },
     "updatedAt": {
       "type": "string",
       "format": "date-time",

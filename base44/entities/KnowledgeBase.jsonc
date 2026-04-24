@@ -1,0 +1,27 @@
+{
+  "name": "KnowledgeBase",
+  "type": "object",
+  "properties": {
+    "question": {
+      "type": "string",
+      "title": "Question"
+    },
+    "answer": {
+      "type": "string",
+      "title": "Answer",
+      "format": "textarea"
+    },
+    "category": {
+      "type": "string",
+      "title": "Category"
+    },
+    "tags": {
+      "type": "string",
+      "title": "Tags"
+    }
+  },
+  "required": [
+    "question",
+    "answer"
+  ]
+}

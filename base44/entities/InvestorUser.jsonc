@@ -95,6 +95,10 @@
       "type": "number",
       "title": "Engagement Score",
       "default": 0
+    },
+    "leadId": {
+      "type": "string",
+      "title": "Lead ID"
     }
   },
   "required": [
