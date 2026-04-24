@@ -7,8 +7,11 @@ const GOLD = '#b8933a';
 const applyTokens = (text, lead) => {
   if (!text) return '';
   return text
-    .replace(/\{\{firstname\}\}/gi, lead?.firstName || '')
-    .replace(/\{\{lastname\}\}/gi, lead?.lastName || '');
+    .replace(/\{\{\s*firstname\s*\}\}/gi, lead?.firstName || '')
+    .replace(/\{\{\s*lastname\s*\}\}/gi, lead?.lastName || '')
+    .replace(/\{\{\s*first_name\s*\}\}/gi, lead?.firstName || '')
+    .replace(/\{\{\s*last_name\s*\}\}/gi, lead?.lastName || '')
+    .replace(/\{\{\s*name\s*\}\}/gi, `${lead?.firstName || ''} ${lead?.lastName || ''}`.trim());
 };
 
 export default function ScriptViewer({ lead }) {

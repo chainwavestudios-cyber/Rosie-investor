@@ -134,7 +134,12 @@ export default function GlobalScriptEditor() {
   };
 
   const substituteTokens = (text, firstName = '{{firstname}}', lastName = '{{lastname}}') =>
-    (text || '').replace(/\{\{firstname\}\}/gi, firstName).replace(/\{\{lastname\}\}/gi, lastName);
+    (text || '')
+      .replace(/\{\{\s*firstname\s*\}\}/gi, firstName)
+      .replace(/\{\{\s*lastname\s*\}\}/gi, lastName)
+      .replace(/\{\{\s*first_name\s*\}\}/gi, firstName)
+      .replace(/\{\{\s*last_name\s*\}\}/gi, lastName)
+      .replace(/\{\{\s*name\s*\}\}/gi, `${firstName} ${lastName}`.trim());
 
   const editorContent = (
     <div style={{ display:'flex', flexDirection:'column', height: expanded ? 'calc(100vh - 80px)' : '100%', minHeight: 0 }}>
@@ -244,7 +249,7 @@ export default function GlobalScriptEditor() {
           </div>
 
           {/* Preview panel */}
-          {(active.content || '').match(/\{\{firstname\}\}|\{\{lastname\}\}/i) && (
+          {(active.content || '').match(/\{\{.*?(firstname|lastname|first_name|last_name|name).*?\}\}/i) && (
             <div style={{ marginTop:'12px', flexShrink:0 }}>
               <div style={{ color:'#4a5568', fontSize:'9px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'6px' }}>Preview (sample name)</div>
               <div style={{
