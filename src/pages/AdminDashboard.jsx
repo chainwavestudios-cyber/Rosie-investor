@@ -533,51 +533,112 @@ function ContactCardModal({ user, onClose, onSave, allSessions, matchesUser }) {
 
 // ─── GLOBAL CALENDAR VIEW ─────────────────────────────────────────────────
 function GlobalCalendar() {
-  const [appts, setAppts] = useState([]);
+  const [appts, setAppts]   = useState([]);
+  const [leads, setLeads]   = useState([]);
   const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState('all'); // 'all' | 'investors' | 'leads'
 
   useEffect(() => {
-    AppointmentDB.listAll().then(a => { setAppts(a); setLoading(false); });
+    Promise.all([
+      AppointmentDB.listAll(),
+      base44.entities.Lead.list('-created_date', 2000),
+    ]).then(([a, l]) => {
+      setAppts(a);
+      setLeads(l);
+      setLoading(false);
+    });
   }, []);
 
-  const future = appts.filter(a => new Date(a.scheduledAt) >= new Date());
-  const past   = appts.filter(a => new Date(a.scheduledAt) < new Date());
-  const sc = { scheduled:GOLD, completed:'#4ade80', cancelled:'#4a5568', 'no-show':'#ef4444' };
+  const now = new Date();
 
-  const ApptRow = ({ appt }) => (
-    <div style={{ background:'rgba(255,255,255,0.02)', border:'1px solid rgba(255,255,255,0.07)', borderRadius:'2px', padding:'16px 20px', marginBottom:'8px', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+  // Build unified event list
+  // Investor appointments
+  const invEvents = appts.map(a => ({
+    id: a.id, type: 'investor',
+    title: a.title || 'Appointment',
+    name: a.investorName || '',
+    dateTime: a.scheduledAt,
+    status: a.status || 'scheduled',
+    notes: a.notes || '',
+    phone: null,
+  }));
+
+  // Lead callbacks — exclude callback_later, only include explicit callbackAt
+  const leadEvents = leads
+    .filter(l => l.callbackAt && l.status !== 'callback_later' && l.status !== 'converted' && l.status !== 'not_interested')
+    .map(l => ({
+      id: l.id, type: 'lead',
+      title: 'Lead Callback',
+      name: `${l.firstName} ${l.lastName}`,
+      dateTime: l.callbackAt,
+      status: 'scheduled',
+      notes: '',
+      phone: l.phone,
+    }));
+
+  const allEvents = [...invEvents, ...leadEvents]
+    .filter(e => filter === 'all' || e.type === filter)
+    .sort((a, b) => new Date(a.dateTime) - new Date(b.dateTime));
+
+  const future = allEvents.filter(e => new Date(e.dateTime) >= now);
+  const past   = allEvents.filter(e => new Date(e.dateTime) < now);
+
+  const typeColor = { investor: '#60a5fa', lead: '#a78bfa' };
+  const statusColor = { scheduled: GOLD, completed: '#4ade80', cancelled: '#4a5568', 'no-show': '#ef4444' };
+
+  const EventRow = ({ evt }) => (
+    <div style={{ background:'rgba(255,255,255,0.02)', border:'1px solid rgba(255,255,255,0.07)', borderLeft:`3px solid ${typeColor[evt.type]}`, borderRadius:'2px', padding:'14px 18px', marginBottom:'8px', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
       <div>
-        <div style={{ color:'#e8e0d0', fontWeight:'bold', marginBottom:'3px' }}>{appt.title}</div>
-        <div style={{ color:'#8a9ab8', fontSize:'12px' }}>{appt.investorName} · {new Date(appt.scheduledAt).toLocaleString('en-US',{weekday:'short',month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})}</div>
-        {appt.notes && <div style={{ color:'#4a5568', fontSize:'11px', marginTop:'2px' }}>{appt.notes}</div>}
+        <div style={{ display:'flex', alignItems:'center', gap:'8px', marginBottom:'3px' }}>
+          <span style={{ color: typeColor[evt.type], fontSize:'9px', textTransform:'uppercase', letterSpacing:'1px', background:`${typeColor[evt.type]}18`, padding:'1px 6px', borderRadius:'2px' }}>
+            {evt.type === 'investor' ? '👤 Investor' : '🎯 Lead'}
+          </span>
+          <span style={{ color:'#e8e0d0', fontWeight:'bold' }}>{evt.title}</span>
+        </div>
+        <div style={{ color:'#8a9ab8', fontSize:'12px' }}>
+          {evt.name} · {new Date(evt.dateTime).toLocaleString('en-US',{weekday:'short',month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})}
+        </div>
+        {evt.phone && <div style={{ color:'#4ade80', fontSize:'11px', fontFamily:'monospace', marginTop:'2px' }}>📞 {evt.phone}</div>}
+        {evt.notes && <div style={{ color:'#4a5568', fontSize:'11px', marginTop:'2px' }}>{evt.notes}</div>}
       </div>
-      <span style={{ color:sc[appt.status||'scheduled'], fontSize:'11px', textTransform:'uppercase', letterSpacing:'1px' }}>● {appt.status||'scheduled'}</span>
+      <span style={{ color: statusColor[evt.status] || GOLD, fontSize:'11px', textTransform:'uppercase', letterSpacing:'1px', flexShrink:0 }}>● {evt.status}</span>
     </div>
   );
 
   return (
     <div>
-      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'24px' }}>
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'20px' }}>
         <div>
           <h2 style={{ color:'#e8e0d0', margin:'0 0 4px', fontSize:'20px', fontWeight:'normal' }}>Calendar</h2>
-          <p style={{ color:'#6b7280', fontSize:'13px', margin:0 }}>All scheduled appointments across all investors.</p>
+          <p style={{ color:'#6b7280', fontSize:'13px', margin:0 }}>Upcoming appointments and lead callbacks.</p>
         </div>
-        <div style={{ color:GOLD, fontSize:'28px', fontWeight:'bold' }}>{future.length} upcoming</div>
+        <div style={{ color:GOLD, fontSize:'24px', fontWeight:'bold' }}>{future.length} upcoming</div>
       </div>
+
+      {/* Filter tabs */}
+      <div style={{ display:'flex', gap:'0', borderBottom:'1px solid rgba(255,255,255,0.07)', marginBottom:'20px' }}>
+        {[['all','All'],['investor','👤 Investors'],['lead','🎯 Leads']].map(([id,label]) => (
+          <button key={id} onClick={() => setFilter(id)}
+            style={{ background:'none', border:'none', borderBottom: filter===id ? `2px solid ${GOLD}` : '2px solid transparent', color: filter===id ? GOLD : '#6b7280', padding:'8px 16px', cursor:'pointer', fontSize:'11px', letterSpacing:'0.5px' }}>
+            {label}
+          </button>
+        ))}
+      </div>
+
       {loading && <p style={{ color:'#6b7280', textAlign:'center', padding:'40px' }}>Loading…</p>}
       {!loading && (
         <>
           {future.length > 0 && (
             <div style={{ marginBottom:'32px' }}>
-              <div style={{ color:GOLD, fontSize:'10px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'14px', paddingBottom:'8px', borderBottom:'1px solid rgba(184,147,58,0.2)' }}>📅 Upcoming</div>
-              {future.map(a => <ApptRow key={a.id} appt={a} />)}
+              <div style={{ color:GOLD, fontSize:'10px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'14px', paddingBottom:'8px', borderBottom:'1px solid rgba(184,147,58,0.2)' }}>📅 Upcoming ({future.length})</div>
+              {future.map(e => <EventRow key={`${e.type}-${e.id}`} evt={e} />)}
             </div>
           )}
-          {future.length === 0 && <p style={{ color:'#4a5568', textAlign:'center', padding:'40px' }}>No upcoming appointments.</p>}
+          {future.length === 0 && <p style={{ color:'#4a5568', textAlign:'center', padding:'40px' }}>No upcoming appointments or callbacks.</p>}
           {past.length > 0 && (
             <div style={{ opacity:0.5 }}>
-              <div style={{ color:'#6b7280', fontSize:'10px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'14px', paddingBottom:'8px', borderBottom:'1px solid rgba(255,255,255,0.07)' }}>✓ Past</div>
-              {past.slice(0,10).map(a => <ApptRow key={a.id} appt={a} />)}
+              <div style={{ color:'#6b7280', fontSize:'10px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'14px', paddingBottom:'8px', borderBottom:'1px solid rgba(255,255,255,0.07)' }}>✓ Past ({past.length})</div>
+              {past.slice(0,15).map(e => <EventRow key={`${e.type}-${e.id}`} evt={e} />)}
             </div>
           )}
         </>
