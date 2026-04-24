@@ -1,9 +1,6 @@
-import { createClient } from 'npm:@base44/sdk@0.8.25';
-
-const base44 = createClient({ serviceRole: true });
+import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 
 Deno.serve(async (req) => {
-  // Allow CORS from rosieai.tech
   const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
@@ -14,53 +11,56 @@ Deno.serve(async (req) => {
 
   try {
     const { ref, page, referrer, timeOnPage, sessionId, siteType = 'consumer' } = await req.json();
+    if (!ref) return new Response(JSON.stringify({ ok: true }), { headers: corsHeaders });
 
-    if (!ref) return new Response(JSON.stringify({ error: 'Missing ref' }), { status: 400, headers: corsHeaders });
+    console.log(`[SiteVisit] ref=${ref} page=${page} siteType=${siteType} time=${timeOnPage}`);
 
-    console.log(`[SiteVisit] ref=${ref} page=${page} siteType=${siteType}`);
+    const base44 = createClientFromRequest(req).asServiceRole;
 
     // Look up lead by portalPasscode
     const leads = await base44.entities.Lead.filter({ portalPasscode: ref });
     const lead = leads?.[0];
 
     if (!lead) {
-      console.log(`[SiteVisit] No lead found for passcode: ${ref}`);
+      console.log(`[SiteVisit] No lead found for ref: ${ref}`);
+      // Still log the visit without a lead link so it shows up
+      await base44.entities.SiteVisit.create({
+        leadId:     '',
+        leadName:   ref,
+        passcode:   ref,
+        page:       page || '/',
+        referrer:   referrer || '',
+        timeOnPage: timeOnPage || 0,
+        sessionId:  sessionId || '',
+        siteType,
+        visitedAt:  new Date().toISOString(),
+      });
       return new Response(JSON.stringify({ ok: true }), { headers: corsHeaders });
     }
 
-    // Log the visit
     await base44.entities.SiteVisit.create({
-      leadId:      lead.id,
-      leadName:    `${lead.firstName} ${lead.lastName}`,
-      passcode:    ref,
-      page:        page || '/',
-      referrer:    referrer || '',
-      timeOnPage:  timeOnPage || 0,
-      sessionId:   sessionId || '',
-      siteType:    siteType, // 'consumer' or 'investor'
-      visitedAt:   new Date().toISOString(),
+      leadId:     lead.id,
+      leadName:   `${lead.firstName} ${lead.lastName}`,
+      passcode:   ref,
+      page:       page || '/',
+      referrer:   referrer || '',
+      timeOnPage: timeOnPage || 0,
+      sessionId:  sessionId || '',
+      siteType,
+      visitedAt:  new Date().toISOString(),
     });
 
-    // Update lead engagement score
+    // Update lead engagement
     await base44.entities.Lead.update(lead.id, {
-      badgeConsumerWebsite: siteType === 'consumer' ? true : lead.badgeConsumerWebsite,
-      badgeInvestorPage:    siteType === 'investor' ? true : lead.badgeInvestorPage,
-      engagementScore:      (lead.engagementScore || 0) + 2,
-      lastSiteVisit:        new Date().toISOString(),
+      badgeConsumerWebsite: siteType === 'consumer' ? true : (lead.badgeConsumerWebsite || false),
+      engagementScore: (lead.engagementScore || 0) + 2,
     });
 
-    // Log to LeadHistory
-    await base44.entities.LeadHistory.create({
-      leadId:  lead.id,
-      type:    'note',
-      content: `🌐 Visited ${siteType} site — ${page || '/'} (+2 engagement)`,
-    });
-
-    console.log(`[SiteVisit] Logged visit for ${lead.firstName} ${lead.lastName}`);
+    console.log(`[SiteVisit] Logged for ${lead.firstName} ${lead.lastName}`);
     return new Response(JSON.stringify({ ok: true, leadId: lead.id }), { headers: corsHeaders });
 
   } catch (e) {
     console.error('[SiteVisit] Error:', e.message);
-    return new Response(JSON.stringify({ error: e.message }), { status: 500, headers: corsHeaders });
+    return new Response(JSON.stringify({ ok: true }), { headers: corsHeaders });
   }
 });
