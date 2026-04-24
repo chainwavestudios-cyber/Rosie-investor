@@ -496,7 +496,7 @@ const PDF_DOCS = [
   { id:'accreditation', name:'Investor Questionnaire',   badge:'Required', url:'https://media.base44.com/files/public/69cd2741578c9b5ce655395b/903902aa1_RosieAI_Investor_Questionnaire.pdf', totalPages:7 },
 ];
 
-function SubscriptionAgreements({ onRequestDocuments }) {
+function SubscriptionAgreements({ onRequestDocuments, setActiveTab }) {
   const [selectedDoc, setSelectedDoc] = useState(null);
   const docIdRef = useRef(null);
   const openDoc  = (doc) => { if(docIdRef.current)analytics.trackDocumentClose(docIdRef.current); docIdRef.current=analytics.trackDocumentOpen(doc.name,doc.id); setSelectedDoc(doc); };
@@ -504,6 +504,12 @@ function SubscriptionAgreements({ onRequestDocuments }) {
   const handleDownload = (doc) => { downloadFile(doc.url, doc.name+'.pdf'); };
   return (
     <div id="portal-tab-content">
+      {selectedDoc && (
+        <div style={{ marginBottom:'24px', padding:'12px 16px', background:'rgba(184,147,58,0.08)', border:'1px solid rgba(184,147,58,0.2)', borderRadius:'2px', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+          <span style={{ color:'#c4cdd8', fontSize:'12px' }}>📄 Viewing: <strong style={{ color:GOLD }}>{selectedDoc.name}</strong></span>
+          <button onClick={closeDoc} style={{ background:'none', border:'none', color:'#6b7280', cursor:'pointer', fontSize:'14px' }}>×</button>
+        </div>
+      )}
       <div style={{ display:'flex', gap:'0', minHeight:'600px' }}>
         <div style={{ width:'220px', flexShrink:0, borderRight:'1px solid rgba(255,255,255,0.08)' }}>
           <div style={{ color:'#4a5568', fontSize:'10px', letterSpacing:'2px', textTransform:'uppercase', padding:'0 0 12px 16px', marginBottom:'4px' }}>Documents</div>
@@ -743,7 +749,7 @@ export default function InvestorPortal() {
         {activeTab === 'home'         && <PortalHome setActiveTab={setActiveTab} portalUser={portalUser} onRequestDocuments={()=>setShowRequestDocs(true)} />}
         {activeTab === 'account'      && <AccountTab portalUser={portalUser} />}
         {activeTab === 'offering'     && <InvestmentOffering />}
-        {activeTab === 'subscription' && <SubscriptionAgreements onRequestDocuments={()=>setShowRequestDocs(true)} />}
+        {activeTab === 'subscription' && <SubscriptionAgreements onRequestDocuments={()=>setShowRequestDocs(true)} setActiveTab={setActiveTab} />}
         {activeTab === 'updates'      && <InvestorUpdates isAdmin={isAdmin} />}
       </div>
     </div>
