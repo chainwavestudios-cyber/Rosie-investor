@@ -293,12 +293,30 @@ export default function LeadsTab() {
   const [tab, setTab] = useState('leads'); // 'leads' or 'lists'
   const [editingListId, setEditingListId] = useState(null);
   const [editingListName, setEditingListName] = useState('');
-  const [sidebarView, setSidebarView] = useState('leads'); // 'leads' | 'lists'
+  const [sidebarView, setSidebarView] = useState('leads'); // 'leads' | 'lists' | 'email'
+  const [emailLogs, setEmailLogs] = useState([]);
+  const [emailLoading, setEmailLoading] = useState(false);
+  const [emailFilter, setEmailFilter] = useState('all');
+  const [emailSelected, setEmailSelected] = useState(new Set());
+  const [emailDeleting, setEmailDeleting] = useState(false);
 
   useEffect(() => {
     loadLeads();
     base44.entities.ContactList.list('-created_date', 100).then(setContactLists).catch(() => {});
   }, []);
+
+  const loadEmailLogs = async () => {
+    setEmailLoading(true);
+    try {
+      const logs = await base44.entities.EmailLog.list('-created_date', 1000);
+      setEmailLogs(logs);
+    } catch {}
+    setEmailLoading(false);
+  };
+
+  useEffect(() => {
+    if (sidebarView === 'email') loadEmailLogs();
+  }, [sidebarView]);
 
   const loadLeads = async () => {
     setLoading(true);
@@ -428,8 +446,9 @@ export default function LeadsTab() {
           {[
             { id:'leads', icon:'📋', label:'Leads' },
             { id:'lists', icon:'📁', label:`Lists (${contactLists.length})` },
+            { id:'email', icon:'✉️', label:'Email Activity' },
           ].map(item => (
-            <button key={item.id} onClick={() => { setSidebarView(item.id); setTab(item.id === 'lists' ? 'lists' : 'leads'); }}
+            <button key={item.id} onClick={() => { setSidebarView(item.id); setTab(item.id === 'lists' ? 'lists' : item.id === 'leads' ? 'leads' : 'email'); }}
               style={{ display:'block', width:'100%', textAlign:'left', background: sidebarView===item.id ? 'rgba(184,147,58,0.1)' : 'transparent', border:'none', borderLeft: sidebarView===item.id ? `3px solid ${GOLD}` : '3px solid transparent', padding:'10px 14px', color: sidebarView===item.id ? GOLD : '#6b7280', fontSize:'12px', cursor:'pointer', letterSpacing:'0.5px', transition:'all 0.15s' }}>
               {item.icon} {item.label}
             </button>
@@ -595,6 +614,103 @@ export default function LeadsTab() {
         </div>
       )}
       </>
+      )}
+
+      {/* EMAIL ACTIVITY TAB */}
+      {sidebarView === 'email' && (
+        <div>
+          <div style={{ marginBottom:'16px', display:'flex', justifyContent:'space-between', alignItems:'flex-start', flexWrap:'wrap', gap:'8px' }}>
+            <div>
+              <h2 style={{ color:'#e8e0d0', margin:'0 0 4px', fontSize:'20px', fontWeight:'normal' }}>Email Activity</h2>
+              <p style={{ color:'#6b7280', fontSize:'13px', margin:0 }}>All lead email events — sent, opened, clicked, and more.</p>
+            </div>
+            <div style={{ display:'flex', gap:'8px', alignItems:'center' }}>
+              {emailSelected.size > 0 && (
+                <button onClick={async () => {
+                  setEmailDeleting(true);
+                  await Promise.all([...emailSelected].map(id => base44.entities.EmailLog.delete(id)));
+                  setEmailSelected(new Set());
+                  await loadEmailLogs();
+                  setEmailDeleting(false);
+                }} disabled={emailDeleting}
+                  style={{ background:'rgba(239,68,68,0.15)', color:'#ef4444', border:'1px solid rgba(239,68,68,0.3)', borderRadius:'2px', padding:'5px 12px', cursor:'pointer', fontSize:'11px', fontWeight:'bold' }}>
+                  {emailDeleting ? 'Deleting…' : `🗑 Delete (${emailSelected.size})`}
+                </button>
+              )}
+              <button onClick={() => setEmailSelected(emailSelected.size === emailLogs.filter(l => emailFilter === 'all' || (emailFilter === 'sent' ? ['sent','delivered'].includes(l.status) : l.status === emailFilter)).length ? new Set() : new Set(emailLogs.filter(l => emailFilter === 'all' || (emailFilter === 'sent' ? ['sent','delivered'].includes(l.status) : l.status === emailFilter)).map(l => l.id)))}
+                style={{ background:'rgba(255,255,255,0.06)', color:'#8a9ab8', border:'1px solid rgba(255,255,255,0.1)', borderRadius:'2px', padding:'5px 12px', cursor:'pointer', fontSize:'10px' }}>
+                {emailSelected.size > 0 ? 'Deselect All' : 'Select All'}
+              </button>
+              <button onClick={loadEmailLogs} style={{ background:'rgba(255,255,255,0.05)', color:'#6b7280', border:'1px solid rgba(255,255,255,0.1)', borderRadius:'2px', padding:'5px 10px', cursor:'pointer', fontSize:'11px' }}>↻</button>
+            </div>
+          </div>
+
+          {/* Filter tabs */}
+          <div style={{ display:'flex', gap:'0', borderBottom:'1px solid rgba(255,255,255,0.07)', marginBottom:'16px', overflowX:'auto' }}>
+            {[['all','All'],['sent','Sent/Delivered'],['opened','Opened'],['clicked','Clicked'],['bounced','Bounced'],['blocked','Blocked'],['spam','Spam']].map(([id, label]) => {
+              const count = emailLogs.filter(l => id === 'all' ? true : id === 'sent' ? ['sent','delivered'].includes(l.status) : l.status === id).length;
+              return (
+                <button key={id} onClick={() => { setEmailFilter(id); setEmailSelected(new Set()); }}
+                  style={{ background:'none', border:'none', borderBottom:emailFilter===id?`2px solid ${GOLD}`:'2px solid transparent', color:emailFilter===id?GOLD:'#6b7280', padding:'8px 14px', cursor:'pointer', fontSize:'11px', letterSpacing:'1px', whiteSpace:'nowrap' }}>
+                  {label} ({count})
+                </button>
+              );
+            })}
+          </div>
+
+          {emailLoading ? (
+            <div style={{ color:'#6b7280', textAlign:'center', padding:'40px' }}>Loading…</div>
+          ) : (() => {
+            const STATUS_CFG = {
+              sent:      { color:'#60a5fa', icon:'📤', label:'Sent' },
+              delivered: { color:'#4ade80', icon:'✅', label:'Delivered' },
+              opened:    { color:'#f59e0b', icon:'📬', label:'Opened' },
+              clicked:   { color:'#a78bfa', icon:'🔗', label:'Clicked' },
+              bounced:   { color:'#ef4444', icon:'❌', label:'Bounced' },
+              blocked:   { color:'#f97316', icon:'🚫', label:'Blocked' },
+              spam:      { color:'#ef4444', icon:'⚠️', label:'Spam' },
+            };
+            const filtered = emailLogs.filter(l =>
+              emailFilter === 'all' ? true :
+              emailFilter === 'sent' ? ['sent','delivered'].includes(l.status) :
+              l.status === emailFilter
+            );
+            if (filtered.length === 0) return (
+              <div style={{ textAlign:'center', padding:'60px', color:'#4a5568' }}>No email records match this filter.</div>
+            );
+            return (
+              <div style={{ display:'flex', flexDirection:'column', gap:'6px', maxHeight:'65vh', overflowY:'auto' }}>
+                {filtered.map(log => {
+                  const sc = STATUS_CFG[log.status] || STATUS_CFG.sent;
+                  const isSelected = emailSelected.has(log.id);
+                  return (
+                    <div key={log.id}
+                      onClick={() => setEmailSelected(prev => { const n = new Set(prev); n.has(log.id) ? n.delete(log.id) : n.add(log.id); return n; })}
+                      style={{ background: isSelected ? 'rgba(239,68,68,0.06)' : 'rgba(255,255,255,0.02)', border:`1px solid ${isSelected ? 'rgba(239,68,68,0.4)' : sc.color + '33'}`, borderLeft:`3px solid ${isSelected ? '#ef4444' : sc.color}`, borderRadius:'4px', padding:'10px 14px', cursor:'pointer', display:'flex', gap:'10px', alignItems:'flex-start' }}>
+                      {/* Checkbox */}
+                      <div style={{ width:'14px', height:'14px', borderRadius:'2px', border:`2px solid ${isSelected ? '#ef4444' : '#4a5568'}`, background: isSelected ? '#ef4444' : 'transparent', flexShrink:0, display:'flex', alignItems:'center', justifyContent:'center', marginTop:'2px' }}>
+                        {isSelected && <span style={{ color:'#fff', fontSize:'9px' }}>✓</span>}
+                      </div>
+                      <span style={{ fontSize:'14px', flexShrink:0 }}>{sc.icon}</span>
+                      <div style={{ flex:1, minWidth:0 }}>
+                        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', flexWrap:'wrap', gap:'4px' }}>
+                          <div style={{ color:'#e8e0d0', fontSize:'12px', fontWeight:'bold' }}>{log.toName || log.toEmail}</div>
+                          <span style={{ background:`${sc.color}22`, color:sc.color, border:`1px solid ${sc.color}44`, borderRadius:'20px', padding:'1px 8px', fontSize:'9px', letterSpacing:'1px' }}>{sc.label}</span>
+                        </div>
+                        <div style={{ color:'#6b7280', fontSize:'11px' }}>{log.toEmail}</div>
+                        {log.openedAt && <div style={{ color:'#f59e0b', fontSize:'10px', marginTop:'2px' }}>📬 Opened: {new Date(log.openedAt).toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})}</div>}
+                        {log.clickedAt && <div style={{ color:'#a78bfa', fontSize:'10px', marginTop:'2px' }}>🔗 {log.clickedUrl || 'Link clicked'} — {new Date(log.clickedAt).toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})}</div>}
+                      </div>
+                      <div style={{ color:'#4a5568', fontSize:'10px', flexShrink:0, textAlign:'right' }}>
+                        {log.sentAt ? new Date(log.sentAt).toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}) : ''}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })()}
+        </div>
       )}
 
       {/* LISTS TAB */}
