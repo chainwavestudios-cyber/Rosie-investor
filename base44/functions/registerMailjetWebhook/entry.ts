@@ -5,7 +5,7 @@ const MJ_SECRET = Deno.env.get('MAILJET_API_SECRET');
 
 const WEBHOOK_URL = 'https://investors.rosieai.tech/api/apps/69cd2741578c9b5ce655395b/functions/mailjetWebhook';
 
-const EVENT_TYPES = ['open', 'click', 'bounce', 'spam', 'sent', 'blocked', 'unsub']; // v2
+const EVENT_TYPES = ['open', 'click', 'bounce', 'spam', 'sent', 'blocked', 'unsub'];
 
 Deno.serve(async (req) => {
   const base44 = createClientFromRequest(req);
@@ -14,7 +14,7 @@ Deno.serve(async (req) => {
 
   const auth = btoa(`${MJ_KEY}:${MJ_SECRET}`);
 
-  // First, list existing webhooks so we don't duplicate
+  // List existing webhooks
   const listRes = await fetch('https://api.mailjet.com/v3/REST/eventcallbackurl', {
     headers: { 'Authorization': `Basic ${auth}` }
   });
@@ -26,24 +26,29 @@ Deno.serve(async (req) => {
   const results = [];
 
   for (const eventType of EVENT_TYPES) {
-    // Check if already registered, alive, and on version 2
-    const alreadyExists = existing.find(w => w.EventType === eventType && w.Url === WEBHOOK_URL && w.Status === 'alive' && w.Version === 2);
+    // Only skip if alive AND version 2
+    const alreadyExists = existing.find(w =>
+      w.EventType === eventType &&
+      w.Url === WEBHOOK_URL &&
+      w.Status === 'alive' &&
+      w.Version === 2
+    );
     if (alreadyExists) {
       results.push({ eventType, status: 'already_exists', id: alreadyExists.ID });
       continue;
     }
 
-    // Delete any old/dead webhook for this event type
-    const old = existing.find(w => w.EventType === eventType);
-    if (old) {
-      await fetch(`https://api.mailjet.com/v3/REST/eventcallbackurl/${old.ID}`, {
+    // Delete ALL old webhooks for this event type (dead or version 1)
+    const old = existing.filter(w => w.EventType === eventType);
+    for (const o of old) {
+      await fetch(`https://api.mailjet.com/v3/REST/eventcallbackurl/${o.ID}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Basic ${auth}` }
       });
-      console.log(`[RegisterWebhook] Deleted old webhook for ${eventType} (ID: ${old.ID})`);
+      console.log(`[RegisterWebhook] Deleted old webhook for ${eventType} (ID: ${o.ID}, Status: ${o.Status}, Version: ${o.Version})`);
     }
 
-    // Register new webhook
+    // Register fresh webhook as alive, version 2
     const regRes = await fetch('https://api.mailjet.com/v3/REST/eventcallbackurl', {
       method: 'POST',
       headers: {
