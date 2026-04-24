@@ -159,7 +159,7 @@ function LogPanel({ logs }) {
   );
 }
 
-const PredictiveDialer = forwardRef(function PredictiveDialer({ contactLists, onClose, onCallLogged, onLeadConnected }, ref) {
+const PredictiveDialer = forwardRef(function PredictiveDialer({ contactLists, onClose, onCallLogged, onLeadConnected, onPaused, onResumed }, ref) {
   const [settings, setSettings]               = useState(DEFAULT_SETTINGS);
   const [showSettings, setShowSettings]       = useState(true);
   const [selectedListId, setSelectedListId]   = useState('');
@@ -223,6 +223,7 @@ const PredictiveDialer = forwardRef(function PredictiveDialer({ contactLists, on
       connectingRef.current = false;
       setRunning(true);
       runningRef.current = true;
+      onResumed?.();
       addLog('system', '▶ Dialer resumed');
       settingsRef.current.lines.forEach((_, i) => {
         const line = linesRef.current[i];
@@ -451,6 +452,7 @@ const PredictiveDialer = forwardRef(function PredictiveDialer({ contactLists, on
     runningRef.current = false;
     setPaused(true);
     pausedRef.current = true;
+    onPaused?.();
     clearInterval(wrapTimerRef.current);
     setWrapUpCountdown(0);
     // Hang up other ringing lines
