@@ -854,7 +854,7 @@ export default function AdminDashboard() {
   const [portalSettings, setPortalSettings] = useState({});
   const [dialerLead, setDialerLead] = useState(null);
   const [showDialer, setShowDialer] = useState(false);
-  const [crmSidebar, setCrmSidebar] = useState('activity'); // 'activity' | 'signnow'
+  const [crmSidebar, setCrmSidebar] = useState('investors'); // 'investors' | 'activity'
   const [activityFilter, setActivityFilter] = useState('all');
   const [newSignNowCount, setNewSignNowCount] = useState(0);
   const [signNowAlertDismissed, setSignNowAlertDismissed] = useState(() => parseInt(localStorage.getItem('sn_dismissed_count') || '0'));
@@ -959,33 +959,25 @@ export default function AdminDashboard() {
           </>
         )}
 
-        {/* CRM sidebar panels */}
-        {view === 'users' && crmSidebar === 'activity' && (
-          <RecentInvestorEvents
-            filter={activityFilter}
-            onOpenUserCard={(investorId) => { const u = users.find(u => u.id === investorId); if (u) setContactCard(u); }}
-          />
-        )}
-        {view === 'users' && crmSidebar === 'signnow' && (
-          <div>
-            {newSignNowCount > 0 && (
-              <div style={{ background:'rgba(245,158,11,0.1)', border:'1px solid rgba(245,158,11,0.35)', borderRadius:'4px', padding:'14px 18px', marginBottom:'16px', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-                <div>
-                  <div style={{ color:'#f59e0b', fontSize:'13px', fontWeight:'bold', marginBottom:'2px' }}>✍️ {newSignNowCount} New SignNow Request{newSignNowCount > 1 ? 's' : ''}</div>
-                  <div style={{ color:'#8a9ab8', fontSize:'11px' }}>New signature requests since last cleared</div>
-                </div>
-                <button onClick={() => {
-                  SignNowRequestDB.listAll().then(reqs => {
-                    localStorage.setItem('sn_dismissed_count', reqs.length);
-                    setNewSignNowCount(0);
-                    setSignNowAlertDismissed(reqs.length);
-                  });
-                }} style={{ background:'rgba(245,158,11,0.2)', color:'#f59e0b', border:'1px solid rgba(245,158,11,0.4)', borderRadius:'2px', padding:'6px 14px', cursor:'pointer', fontSize:'11px' }}>
-                  Clear
-                </button>
+        {/* SignNow KPI alert — always visible on users tab */}
+        {view === 'users' && newSignNowCount > 0 && (
+          <div style={{ background:'rgba(245,158,11,0.1)', border:'1px solid rgba(245,158,11,0.35)', borderRadius:'4px', padding:'12px 18px', marginBottom:'12px', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+            <div style={{ display:'flex', alignItems:'center', gap:'10px' }}>
+              <span style={{ fontSize:'16px' }}>✍️</span>
+              <div>
+                <div style={{ color:'#f59e0b', fontSize:'13px', fontWeight:'bold' }}>{newSignNowCount} New SignNow Signature Request{newSignNowCount > 1 ? 's' : ''}</div>
+                <div style={{ color:'#8a9ab8', fontSize:'11px' }}>New since last cleared</div>
               </div>
-            )}
-            <SignNowRequestsView settings={portalSettings} />
+            </div>
+            <button onClick={() => {
+              SignNowRequestDB.listAll().then(reqs => {
+                localStorage.setItem('sn_dismissed_count', reqs.length);
+                setNewSignNowCount(0);
+                setSignNowAlertDismissed(reqs.length);
+              });
+            }} style={{ background:'rgba(245,158,11,0.2)', color:'#f59e0b', border:'1px solid rgba(245,158,11,0.4)', borderRadius:'2px', padding:'6px 14px', cursor:'pointer', fontSize:'11px' }}>
+              Clear
+            </button>
           </div>
         )}
 
@@ -1015,16 +1007,16 @@ export default function AdminDashboard() {
             <div style={{ width:'190px', flexShrink:0, borderRight:'1px solid rgba(255,255,255,0.07)' }}>
               <div style={{ padding:'0 0 12px 0' }}>
                 {[
-                  { id:'activity', icon:'⚡', label:'Investor Activity' },
-                  { id:'signnow',  icon:'✍️',  label:`SignNow${newSignNowCount > 0 ? ` (${newSignNowCount})` : ''}` },
+                  { id:'investors', icon:'👥', label:'Investors' },
+                  { id:'activity',  icon:'⚡', label:'Investor Activity' },
                 ].map(item => (
                   <button key={item.id} onClick={() => setCrmSidebar(item.id)}
-                    style={{ display:'block', width:'100%', textAlign:'left', background: crmSidebar===item.id ? 'rgba(184,147,58,0.1)' : 'transparent', border:'none', borderLeft: crmSidebar===item.id ? `3px solid ${GOLD}` : '3px solid transparent', padding:'10px 14px', color: crmSidebar===item.id ? GOLD : (item.id==='signnow'&&newSignNowCount>0?'#f59e0b':'#6b7280'), fontSize:'12px', cursor:'pointer', letterSpacing:'0.5px', transition:'all 0.15s' }}>
+                    style={{ display:'block', width:'100%', textAlign:'left', background: crmSidebar===item.id ? 'rgba(184,147,58,0.1)' : 'transparent', border:'none', borderLeft: crmSidebar===item.id ? `3px solid ${GOLD}` : '3px solid transparent', padding:'10px 14px', color: crmSidebar===item.id ? GOLD : '#6b7280', fontSize:'12px', cursor:'pointer', letterSpacing:'0.5px', transition:'all 0.15s' }}>
                     {item.icon} {item.label}
                   </button>
                 ))}
               </div>
-              {/* Activity filter */}
+              {/* Activity filter — only when activity tab is active */}
               {crmSidebar === 'activity' && (
                 <div style={{ padding:'12px', borderTop:'1px solid rgba(255,255,255,0.07)' }}>
                   <div style={{ color:'#4a5568', fontSize:'9px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'8px' }}>Filter</div>
@@ -1045,103 +1037,115 @@ export default function AdminDashboard() {
                 </div>
               )}
             </div>
-            {/* CRM Main */}
-            <div style={{ flex:1, paddingLeft:'24px', minWidth:0 }}>
-          <div>
-            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'20px', flexWrap:'wrap', gap:'12px' }}>
-              <div />
-              <div style={{ display:'flex', gap:'8px', alignItems:'center', flexWrap:'wrap' }}>
-                <div style={{ display:'flex', gap:'4px' }}>
-                  {[['all','All'],['prospect','Potential Investors'],['investor','Investors']].map(([s,l]) => (
-                    <button key={s} onClick={() => setFilterStatus(s)}
-                      style={{ padding:'7px 14px', background:filterStatus===s?'rgba(184,147,58,0.2)':'rgba(255,255,255,0.05)', border:`1px solid ${filterStatus===s?GOLD:'rgba(255,255,255,0.12)'}`, borderRadius:'2px', color:filterStatus===s?GOLD:'#6b7280', cursor:'pointer', fontSize:'11px', letterSpacing:'1px' }}>
-                      {l}
-                    </button>
-                  ))}
-                </div>
-                {filterStatus !== 'prospect' && (
-                  <button onClick={() => setShowAdd(true)} style={{ background:'linear-gradient(135deg,#b8933a,#d4aa50)', color:DARK, border:'none', borderRadius:'2px', padding:'8px 18px', cursor:'pointer', fontSize:'11px', letterSpacing:'2px', textTransform:'uppercase', fontWeight:'700' }}>+ Add Client</button>
-                )}
-              </div>
-            </div>
 
-            {/* Pipeline for Potential Investors */}
-            {filterStatus === 'prospect' ? (
-              <ProspectPipeline
-                users={nonAdminUsers.filter(u => (u.status||'prospect') === 'prospect')}
-                onOpenCard={(user) => setContactCard(user)}
-                onOpenDialer={(user) => { setDialerLead({ firstName: user.name, lastName: '', phone: user.phone, id: user.id }); setShowDialer(true); }}
-                onAddExisting={() => setShowAdd(true)}
-                onRefresh={load}
-              />
-            ) : (
-              /* Normal table for All / Investors */
-              <div style={{ overflowX:'auto' }}>
-                <table style={{ width:'100%', borderCollapse:'collapse', fontSize:'13px' }}>
-                  <thead>
-                    <tr style={{ borderBottom:'2px solid rgba(184,147,58,0.3)' }}>
-                      {['Status','Name','Score','Contact','Sessions','Last Active',''].map(h => (
-                        <th key={h} style={{ color:GOLD, padding:'10px 12px', textAlign:'left', fontSize:'10px', letterSpacing:'1.5px', textTransform:'uppercase', whiteSpace:'nowrap' }}>{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredUsers.map(user => {
-                      const us  = allSessions.filter(s => matchesUser(s, user));
-                      const st  = analytics.computeUserStats(us);
-                      const status = user.status || 'prospect';
-                      return (
-                        <tr key={user.username||user.email}
-                          onClick={() => setContactCard(user)}
-                          style={{ borderBottom:'1px solid rgba(255,255,255,0.05)', cursor:'pointer', transition:'background 0.1s' }}
-                          onMouseEnter={e => e.currentTarget.style.background = 'rgba(184,147,58,0.05)'}
-                          onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                          <td style={{ padding:'14px 12px' }}><StatusBadge status={status} /></td>
-                          <td style={{ padding:'14px 12px' }}>
-                            <div style={{ color:'#e8e0d0', fontWeight:'bold' }}>{user.name}</div>
-                            <div style={{ color:'#4a5568', fontSize:'11px', fontFamily:'monospace' }}>@{user.username}</div>
-                          </td>
-                          <td style={{ padding:'14px 12px' }}>
-                            {(() => {
-                              const sc = user.engagementScore || 0;
-                              const col = getScoreColor(sc);
-                              return (
-                                <div style={{ display:'flex', alignItems:'center', gap:'6px' }}>
-                                  <div style={{ width:'28px', height:'28px', borderRadius:'50%', border:`2px solid ${col}`, display:'flex', alignItems:'center', justifyContent:'center', background:`${col}15` }}>
-                                    <span style={{ color:col, fontSize:'10px', fontWeight:'bold' }}>{sc}</span>
+            {/* CRM Main Content */}
+            <div style={{ flex:1, paddingLeft:'24px', minWidth:0 }}>
+
+              {/* ── Investors Table ── */}
+              {crmSidebar === 'investors' && (
+                <div>
+                  <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'20px', flexWrap:'wrap', gap:'12px' }}>
+                    <div />
+                    <div style={{ display:'flex', gap:'8px', alignItems:'center', flexWrap:'wrap' }}>
+                      <div style={{ display:'flex', gap:'4px' }}>
+                        {[['all','All'],['prospect','Potential Investors'],['investor','Investors']].map(([s,l]) => (
+                          <button key={s} onClick={() => setFilterStatus(s)}
+                            style={{ padding:'7px 14px', background:filterStatus===s?'rgba(184,147,58,0.2)':'rgba(255,255,255,0.05)', border:`1px solid ${filterStatus===s?GOLD:'rgba(255,255,255,0.12)'}`, borderRadius:'2px', color:filterStatus===s?GOLD:'#6b7280', cursor:'pointer', fontSize:'11px', letterSpacing:'1px' }}>
+                            {l}
+                          </button>
+                        ))}
+                      </div>
+                      {filterStatus !== 'prospect' && (
+                        <button onClick={() => setShowAdd(true)} style={{ background:'linear-gradient(135deg,#b8933a,#d4aa50)', color:DARK, border:'none', borderRadius:'2px', padding:'8px 18px', cursor:'pointer', fontSize:'11px', letterSpacing:'2px', textTransform:'uppercase', fontWeight:'700' }}>+ Add Client</button>
+                      )}
+                    </div>
+                  </div>
+
+                  {filterStatus === 'prospect' ? (
+                    <ProspectPipeline
+                      users={nonAdminUsers.filter(u => (u.status||'prospect') === 'prospect')}
+                      onOpenCard={(user) => setContactCard(user)}
+                      onOpenDialer={(user) => { setDialerLead({ firstName: user.name, lastName: '', phone: user.phone, id: user.id }); setShowDialer(true); }}
+                      onAddExisting={() => setShowAdd(true)}
+                      onRefresh={load}
+                    />
+                  ) : (
+                    <div style={{ overflowX:'auto' }}>
+                      <table style={{ width:'100%', borderCollapse:'collapse', fontSize:'13px' }}>
+                        <thead>
+                          <tr style={{ borderBottom:'2px solid rgba(184,147,58,0.3)' }}>
+                            {['Status','Name','Score','Contact','Sessions','Last Active',''].map(h => (
+                              <th key={h} style={{ color:GOLD, padding:'10px 12px', textAlign:'left', fontSize:'10px', letterSpacing:'1.5px', textTransform:'uppercase', whiteSpace:'nowrap' }}>{h}</th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {filteredUsers.map(user => {
+                            const us  = allSessions.filter(s => matchesUser(s, user));
+                            const st  = analytics.computeUserStats(us);
+                            const status = user.status || 'prospect';
+                            return (
+                              <tr key={user.username||user.email}
+                                onClick={() => setContactCard(user)}
+                                style={{ borderBottom:'1px solid rgba(255,255,255,0.05)', cursor:'pointer', transition:'background 0.1s' }}
+                                onMouseEnter={e => e.currentTarget.style.background = 'rgba(184,147,58,0.05)'}
+                                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                                <td style={{ padding:'14px 12px' }}><StatusBadge status={status} /></td>
+                                <td style={{ padding:'14px 12px' }}>
+                                  <div style={{ color:'#e8e0d0', fontWeight:'bold' }}>{user.name}</div>
+                                  <div style={{ color:'#4a5568', fontSize:'11px', fontFamily:'monospace' }}>@{user.username}</div>
+                                </td>
+                                <td style={{ padding:'14px 12px' }}>
+                                  {(() => {
+                                    const sc = user.engagementScore || 0;
+                                    const col = getScoreColor(sc);
+                                    return (
+                                      <div style={{ display:'flex', alignItems:'center', gap:'6px' }}>
+                                        <div style={{ width:'28px', height:'28px', borderRadius:'50%', border:`2px solid ${col}`, display:'flex', alignItems:'center', justifyContent:'center', background:`${col}15` }}>
+                                          <span style={{ color:col, fontSize:'10px', fontWeight:'bold' }}>{sc}</span>
+                                        </div>
+                                        <span style={{ color:col, fontSize:'11px' }}>{getScoreLabel(sc)}</span>
+                                      </div>
+                                    );
+                                  })()}
+                                </td>
+                                <td style={{ padding:'14px 12px' }}>
+                                  <div style={{ color:'#8a9ab8', fontSize:'12px' }}>{user.email||'—'}</div>
+                                  {user.phone ? (
+                                    <button onClick={e => { e.stopPropagation(); setDialerLead({ firstName: user.name, lastName: '', phone: user.phone, id: user.id }); setShowDialer(true); }}
+                                      style={{ background:'rgba(74,222,128,0.08)', color:'#4ade80', border:'1px solid rgba(74,222,128,0.2)', borderRadius:'2px', padding:'2px 8px', cursor:'pointer', fontSize:'11px', fontFamily:'monospace', marginTop:'2px' }}>
+                                      📞 {user.phone}
+                                    </button>
+                                  ) : <div style={{ color:'#6b7280', fontSize:'12px' }}>—</div>}
+                                </td>
+                                <td style={{ padding:'14px 12px', color:'#60a5fa', fontWeight:'bold' }}>{st.sessionCount}</td>
+                                <td style={{ padding:'14px 12px', color:'#6b7280', fontSize:'12px' }}>{analytics.formatDate(st.lastSeen)}</td>
+                                <td style={{ padding:'14px 12px' }}>
+                                  <div style={{ display:'flex', gap:'6px' }}>
+                                    <button onClick={e => { e.stopPropagation(); setContactCard(user); }} style={{ background:'rgba(184,147,58,0.15)', color:GOLD, border:'1px solid rgba(184,147,58,0.3)', borderRadius:'2px', padding:'5px 12px', cursor:'pointer', fontSize:'11px' }}>Open Card →</button>
+                                    {user.role !== 'admin' && <button onClick={e => { e.stopPropagation(); if(window.confirm(`Remove ${user.name}?`)){ removeUser(user.email||user.username); load(); } }} style={{ background:'rgba(239,68,68,0.08)', color:'#ef4444', border:'1px solid rgba(239,68,68,0.2)', borderRadius:'2px', padding:'5px 10px', cursor:'pointer', fontSize:'11px' }}>✕</button>}
                                   </div>
-                                  <span style={{ color:col, fontSize:'11px' }}>{getScoreLabel(sc)}</span>
-                                </div>
-                              );
-                            })()}
-                          </td>
-                          <td style={{ padding:'14px 12px' }}>
-                            <div style={{ color:'#8a9ab8', fontSize:'12px' }}>{user.email||'—'}</div>
-                            {user.phone ? (
-                              <button onClick={e => { e.stopPropagation(); setDialerLead({ firstName: user.name, lastName: '', phone: user.phone, id: user.id }); setShowDialer(true); }}
-                                style={{ background:'rgba(74,222,128,0.08)', color:'#4ade80', border:'1px solid rgba(74,222,128,0.2)', borderRadius:'2px', padding:'2px 8px', cursor:'pointer', fontSize:'11px', fontFamily:'monospace', marginTop:'2px' }}>
-                                📞 {user.phone}
-                              </button>
-                            ) : <div style={{ color:'#6b7280', fontSize:'12px' }}>—</div>}
-                          </td>
-                          <td style={{ padding:'14px 12px', color:'#60a5fa', fontWeight:'bold' }}>{st.sessionCount}</td>
-                          <td style={{ padding:'14px 12px', color:'#6b7280', fontSize:'12px' }}>{analytics.formatDate(st.lastSeen)}</td>
-                          <td style={{ padding:'14px 12px' }}>
-                            <div style={{ display:'flex', gap:'6px' }}>
-                              <button onClick={e => { e.stopPropagation(); setContactCard(user); }} style={{ background:'rgba(184,147,58,0.15)', color:GOLD, border:'1px solid rgba(184,147,58,0.3)', borderRadius:'2px', padding:'5px 12px', cursor:'pointer', fontSize:'11px' }}>Open Card →</button>
-                              {user.role !== 'admin' && <button onClick={e => { e.stopPropagation(); if(window.confirm(`Remove ${user.name}?`)){ removeUser(user.email||user.username); load(); } }} style={{ background:'rgba(239,68,68,0.08)', color:'#ef4444', border:'1px solid rgba(239,68,68,0.2)', borderRadius:'2px', padding:'5px 10px', cursor:'pointer', fontSize:'11px' }}>✕</button>}
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-                {filteredUsers.length === 0 && <p style={{ color:'#4a5568', textAlign:'center', padding:'40px' }}>No clients found.</p>}
-              </div>
-            )}
-          </div>
-          </div>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                      {filteredUsers.length === 0 && <p style={{ color:'#4a5568', textAlign:'center', padding:'40px' }}>No clients found.</p>}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* ── Investor Activity ── */}
+              {crmSidebar === 'activity' && (
+                <RecentInvestorEvents
+                  filter={activityFilter}
+                  onOpenUserCard={(investorId) => { const u = users.find(u => u.id === investorId); if (u) setContactCard(u); }}
+                />
+              )}
+
+            </div>
           </div>
         )}
 
