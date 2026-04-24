@@ -533,116 +533,233 @@ function ContactCardModal({ user, onClose, onSave, allSessions, matchesUser }) {
 
 // ─── GLOBAL CALENDAR VIEW ─────────────────────────────────────────────────
 function GlobalCalendar() {
-  const [appts, setAppts]   = useState([]);
-  const [leads, setLeads]   = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState('all'); // 'all' | 'investors' | 'leads'
+  const [allAppts, setAllAppts] = useState([]);
+  const [allLeads, setAllLeads] = useState([]);
+  const [loading, setLoading]   = useState(true);
+  const [weekOffset, setWeekOffset] = useState(0);
+  const [dragging, setDragging] = useState(null); // { appt, sourceDay }
+  const [dragOver, setDragOver] = useState(null);  // day index
+  const [filter, setFilter] = useState('all');
 
   useEffect(() => {
     Promise.all([
       AppointmentDB.listAll(),
       base44.entities.Lead.list('-created_date', 2000),
-    ]).then(([a, l]) => {
-      setAppts(a);
-      setLeads(l);
-      setLoading(false);
-    });
+    ]).then(([a, l]) => { setAllAppts(a); setAllLeads(l); setLoading(false); });
   }, []);
 
-  const now = new Date();
+  // Build 7 days starting from today + weekOffset*7
+  const today = new Date();
+  today.setHours(0,0,0,0);
+  const startDay = new Date(today);
+  startDay.setDate(startDay.getDate() + weekOffset * 7);
+
+  const days = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(startDay);
+    d.setDate(d.getDate() + i);
+    return d;
+  });
+
+  const isToday = (d) => d.toDateString() === new Date().toDateString();
 
   // Build unified event list
-  // Investor appointments
-  const invEvents = appts.map(a => ({
-    id: a.id, type: 'investor',
+  const invEvents = allAppts.map(a => ({
+    id: a.id, type: 'investor', raw: a,
     title: a.title || 'Appointment',
     name: a.investorName || '',
-    dateTime: a.scheduledAt,
+    dateTime: new Date(a.scheduledAt),
     status: a.status || 'scheduled',
     notes: a.notes || '',
     phone: null,
+    color: '#60a5fa',
   }));
 
-  // Lead callbacks — exclude callback_later, only include explicit callbackAt
-  const leadEvents = leads
+  const leadEvents = allLeads
     .filter(l => l.callbackAt && l.status !== 'callback_later' && l.status !== 'converted' && l.status !== 'not_interested')
     .map(l => ({
-      id: l.id, type: 'lead',
+      id: l.id, type: 'lead', raw: l,
       title: 'Lead Callback',
       name: `${l.firstName} ${l.lastName}`,
-      dateTime: l.callbackAt,
+      dateTime: new Date(l.callbackAt),
       status: 'scheduled',
       notes: '',
       phone: l.phone,
+      color: '#a78bfa',
     }));
 
   const allEvents = [...invEvents, ...leadEvents]
-    .filter(e => filter === 'all' || e.type === filter)
-    .sort((a, b) => new Date(a.dateTime) - new Date(b.dateTime));
+    .filter(e => filter === 'all' || e.type === filter);
 
-  const future = allEvents.filter(e => new Date(e.dateTime) >= now);
-  const past   = allEvents.filter(e => new Date(e.dateTime) < now);
+  const eventsForDay = (day) => {
+    return allEvents.filter(e => e.dateTime.toDateString() === day.toDateString())
+      .sort((a, b) => a.dateTime - b.dateTime);
+  };
 
-  const typeColor = { investor: '#60a5fa', lead: '#a78bfa' };
-  const statusColor = { scheduled: GOLD, completed: '#4ade80', cancelled: '#4a5568', 'no-show': '#ef4444' };
+  const statusColors = { scheduled: GOLD, completed: '#4ade80', cancelled: '#4a5568', 'no-show': '#ef4444' };
 
-  const EventRow = ({ evt }) => (
-    <div style={{ background:'rgba(255,255,255,0.02)', border:'1px solid rgba(255,255,255,0.07)', borderLeft:`3px solid ${typeColor[evt.type]}`, borderRadius:'2px', padding:'14px 18px', marginBottom:'8px', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-      <div>
-        <div style={{ display:'flex', alignItems:'center', gap:'8px', marginBottom:'3px' }}>
-          <span style={{ color: typeColor[evt.type], fontSize:'9px', textTransform:'uppercase', letterSpacing:'1px', background:`${typeColor[evt.type]}18`, padding:'1px 6px', borderRadius:'2px' }}>
-            {evt.type === 'investor' ? '👤 Investor' : '🎯 Lead'}
-          </span>
-          <span style={{ color:'#e8e0d0', fontWeight:'bold' }}>{evt.title}</span>
-        </div>
-        <div style={{ color:'#8a9ab8', fontSize:'12px' }}>
-          {evt.name} · {new Date(evt.dateTime).toLocaleString('en-US',{weekday:'short',month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})}
-        </div>
-        {evt.phone && <div style={{ color:'#4ade80', fontSize:'11px', fontFamily:'monospace', marginTop:'2px' }}>📞 {evt.phone}</div>}
-        {evt.notes && <div style={{ color:'#4a5568', fontSize:'11px', marginTop:'2px' }}>{evt.notes}</div>}
-      </div>
-      <span style={{ color: statusColor[evt.status] || GOLD, fontSize:'11px', textTransform:'uppercase', letterSpacing:'1px', flexShrink:0 }}>● {evt.status}</span>
-    </div>
-  );
+  const handleDrop = async (targetDay, evt) => {
+    evt.preventDefault();
+    setDragOver(null);
+    if (!dragging) return;
+    const appt = dragging;
+    setDragging(null);
+    if (appt.type !== 'investor') return; // only move investor appts
+
+    // Keep same time, change date
+    const orig = new Date(appt.raw.scheduledAt);
+    const newDate = new Date(targetDay);
+    newDate.setHours(orig.getHours(), orig.getMinutes(), 0, 0);
+
+    // Optimistic update
+    setAllAppts(prev => prev.map(a => a.id === appt.id ? { ...a, scheduledAt: newDate.toISOString() } : a));
+
+    try {
+      await AppointmentDB.update(appt.id, { scheduledAt: newDate.toISOString() });
+    } catch (e) {
+      console.error('Failed to move appointment:', e);
+      // Revert
+      setAllAppts(prev => prev.map(a => a.id === appt.id ? appt.raw : a));
+    }
+  };
+
+  const totalUpcoming = allEvents.filter(e => e.dateTime >= today).length;
 
   return (
-    <div>
-      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'20px' }}>
+    <div style={{ fontFamily:'Georgia, serif' }}>
+      {/* Header */}
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'16px', flexWrap:'wrap', gap:'10px' }}>
         <div>
-          <h2 style={{ color:'#e8e0d0', margin:'0 0 4px', fontSize:'20px', fontWeight:'normal' }}>Calendar</h2>
-          <p style={{ color:'#6b7280', fontSize:'13px', margin:0 }}>Upcoming appointments and lead callbacks.</p>
+          <h2 style={{ color:'#e8e0d0', margin:'0 0 2px', fontSize:'20px', fontWeight:'normal' }}>📅 Calendar</h2>
+          <p style={{ color:'#6b7280', fontSize:'12px', margin:0 }}>Drag appointments between days to reschedule</p>
         </div>
-        <div style={{ color:GOLD, fontSize:'24px', fontWeight:'bold' }}>{future.length} upcoming</div>
-      </div>
-
-      {/* Filter tabs */}
-      <div style={{ display:'flex', gap:'0', borderBottom:'1px solid rgba(255,255,255,0.07)', marginBottom:'20px' }}>
-        {[['all','All'],['investor','👤 Investors'],['lead','🎯 Leads']].map(([id,label]) => (
-          <button key={id} onClick={() => setFilter(id)}
-            style={{ background:'none', border:'none', borderBottom: filter===id ? `2px solid ${GOLD}` : '2px solid transparent', color: filter===id ? GOLD : '#6b7280', padding:'8px 16px', cursor:'pointer', fontSize:'11px', letterSpacing:'0.5px' }}>
-            {label}
+        <div style={{ display:'flex', gap:'8px', alignItems:'center', flexWrap:'wrap' }}>
+          {/* Filter */}
+          {[['all','All'],['investor','👤 Investors'],['lead','🎯 Leads']].map(([id,label]) => (
+            <button key={id} onClick={() => setFilter(id)}
+              style={{ background: filter===id ? 'rgba(184,147,58,0.15)' : 'transparent', border: filter===id ? `1px solid ${GOLD}` : '1px solid rgba(255,255,255,0.1)', color: filter===id ? GOLD : '#6b7280', borderRadius:'4px', padding:'4px 10px', cursor:'pointer', fontSize:'11px' }}>
+              {label}
+            </button>
+          ))}
+          <div style={{ color:GOLD, fontWeight:'bold', fontSize:'14px', marginLeft:'8px' }}>{totalUpcoming} upcoming</div>
+          {/* Week nav */}
+          <button onClick={() => setWeekOffset(0)}
+            style={{ background:'rgba(255,255,255,0.05)', color:'#8a9ab8', border:'1px solid rgba(255,255,255,0.1)', borderRadius:'4px', padding:'4px 10px', cursor:'pointer', fontSize:'11px' }}>
+            Today
           </button>
-        ))}
+          <button onClick={() => setWeekOffset(w => w - 1)}
+            style={{ background:'rgba(255,255,255,0.05)', color:'#8a9ab8', border:'1px solid rgba(255,255,255,0.1)', borderRadius:'4px', padding:'4px 8px', cursor:'pointer', fontSize:'13px' }}>
+            ‹
+          </button>
+          <button onClick={() => setWeekOffset(w => w + 1)}
+            style={{ background:'rgba(255,255,255,0.05)', color:'#8a9ab8', border:'1px solid rgba(255,255,255,0.1)', borderRadius:'4px', padding:'4px 8px', cursor:'pointer', fontSize:'13px' }}>
+            ›
+          </button>
+        </div>
       </div>
 
-      {loading && <p style={{ color:'#6b7280', textAlign:'center', padding:'40px' }}>Loading…</p>}
+      {loading && <div style={{ color:'#6b7280', textAlign:'center', padding:'60px' }}>Loading…</div>}
+
       {!loading && (
-        <>
-          {future.length > 0 && (
-            <div style={{ marginBottom:'32px' }}>
-              <div style={{ color:GOLD, fontSize:'10px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'14px', paddingBottom:'8px', borderBottom:'1px solid rgba(184,147,58,0.2)' }}>📅 Upcoming ({future.length})</div>
-              {future.map(e => <EventRow key={`${e.type}-${e.id}`} evt={e} />)}
-            </div>
-          )}
-          {future.length === 0 && <p style={{ color:'#4a5568', textAlign:'center', padding:'40px' }}>No upcoming appointments or callbacks.</p>}
-          {past.length > 0 && (
-            <div style={{ opacity:0.5 }}>
-              <div style={{ color:'#6b7280', fontSize:'10px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'14px', paddingBottom:'8px', borderBottom:'1px solid rgba(255,255,255,0.07)' }}>✓ Past ({past.length})</div>
-              {past.slice(0,15).map(e => <EventRow key={`${e.type}-${e.id}`} evt={e} />)}
-            </div>
-          )}
-        </>
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(7,1fr)', gap:'6px', minHeight:'500px' }}>
+          {days.map((day, i) => {
+            const dayEvents = eventsForDay(day);
+            const isT = isToday(day);
+            const isPast = day < today && !isT;
+            const isDropTarget = dragOver === i;
+
+            return (
+              <div key={i}
+                onDragOver={e => { e.preventDefault(); setDragOver(i); }}
+                onDragLeave={() => setDragOver(null)}
+                onDrop={e => handleDrop(day, e)}
+                style={{
+                  background: isDropTarget ? 'rgba(184,147,58,0.1)' : isT ? 'rgba(184,147,58,0.06)' : 'rgba(255,255,255,0.02)',
+                  border: isDropTarget ? `2px dashed ${GOLD}` : isT ? `1px solid rgba(184,147,58,0.35)` : '1px solid rgba(255,255,255,0.06)',
+                  borderRadius:'6px',
+                  padding:'8px',
+                  minHeight:'120px',
+                  opacity: isPast ? 0.6 : 1,
+                  transition:'background 0.15s, border 0.15s',
+                }}>
+                {/* Day header */}
+                <div style={{ marginBottom:'8px', textAlign:'center' }}>
+                  <div style={{ color: isT ? GOLD : '#6b7280', fontSize:'9px', letterSpacing:'1.5px', textTransform:'uppercase' }}>
+                    {day.toLocaleDateString('en-US', { weekday:'short' })}
+                  </div>
+                  <div style={{ color: isT ? GOLD : isPast ? '#4a5568' : '#e8e0d0', fontSize:'18px', fontWeight: isT ? 'bold' : 'normal', lineHeight:1.2 }}>
+                    {day.getDate()}
+                  </div>
+                  {isT && <div style={{ width:'6px', height:'6px', borderRadius:'50%', background:GOLD, margin:'2px auto 0' }} />}
+                </div>
+
+                {/* Events */}
+                <div style={{ display:'flex', flexDirection:'column', gap:'4px' }}>
+                  {dayEvents.map(evt => (
+                    <div key={`${evt.type}-${evt.id}`}
+                      draggable={evt.type === 'investor'}
+                      onDragStart={() => setDragging(evt)}
+                      onDragEnd={() => { setDragging(null); setDragOver(null); }}
+                      style={{
+                        background: `${evt.color}18`,
+                        border: `1px solid ${evt.color}44`,
+                        borderLeft: `3px solid ${evt.color}`,
+                        borderRadius:'3px',
+                        padding:'5px 7px',
+                        cursor: evt.type === 'investor' ? 'grab' : 'default',
+                        userSelect:'none',
+                        opacity: dragging?.id === evt.id ? 0.4 : 1,
+                        transition:'opacity 0.15s',
+                      }}>
+                      <div style={{ color:'#e8e0d0', fontSize:'10px', fontWeight:'bold', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+                        {evt.name}
+                      </div>
+                      <div style={{ color: evt.color, fontSize:'9px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+                        {evt.title}
+                      </div>
+                      <div style={{ color:'#6b7280', fontSize:'9px', marginTop:'1px' }}>
+                        {evt.dateTime.toLocaleTimeString('en-US', { hour:'numeric', minute:'2-digit' })}
+                      </div>
+                      {evt.phone && <div style={{ color:'#4ade80', fontSize:'9px', fontFamily:'monospace' }}>{evt.phone}</div>}
+                      {evt.type === 'investor' && (
+                        <div style={{ color: statusColors[evt.status] || GOLD, fontSize:'8px', textTransform:'uppercase', letterSpacing:'0.5px', marginTop:'2px' }}>
+                          ● {evt.status}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                  {dayEvents.length === 0 && (
+                    <div style={{ color:'#2d3748', fontSize:'10px', textAlign:'center', padding:'8px 0', borderTop:'1px dashed rgba(255,255,255,0.04)', marginTop:'4px' }}>
+                      —
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
       )}
+
+      {/* Past appointments */}
+      {!loading && weekOffset === 0 && (() => {
+        const past = allEvents.filter(e => e.dateTime < today).sort((a,b) => b.dateTime - a.dateTime).slice(0,8);
+        if (!past.length) return null;
+        return (
+          <div style={{ marginTop:'24px', opacity:0.5 }}>
+            <div style={{ color:'#6b7280', fontSize:'10px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'10px', paddingBottom:'6px', borderBottom:'1px solid rgba(255,255,255,0.06)' }}>✓ Past</div>
+            <div style={{ display:'flex', flexDirection:'column', gap:'4px' }}>
+              {past.map(evt => (
+                <div key={`past-${evt.type}-${evt.id}`} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'8px 12px', background:'rgba(255,255,255,0.02)', borderRadius:'4px', borderLeft:`3px solid ${evt.color}` }}>
+                  <div>
+                    <span style={{ color:'#e8e0d0', fontSize:'12px', fontWeight:'bold', marginRight:'8px' }}>{evt.name}</span>
+                    <span style={{ color: evt.color, fontSize:'10px' }}>{evt.title}</span>
+                  </div>
+                  <span style={{ color:'#4a5568', fontSize:'10px' }}>{evt.dateTime.toLocaleDateString('en-US',{month:'short',day:'numeric'})}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
@@ -970,17 +1087,53 @@ export default function AdminDashboard() {
   return (
     <div style={{ minHeight:'100vh', background:'#060c18', fontFamily:'Georgia, serif', color:'#e8e0d0' }}>
       <nav style={{ background:DARK, borderBottom:'1px solid rgba(184,147,58,0.2)', position:'sticky', top:0, zIndex:200 }}>
-        {/* Top bar */}
-        <div style={{ padding:isMobile ? '0 16px' : '0 40px', display:'flex', alignItems:'center', justifyContent:'space-between', height:'56px', gap:'8px' }}>
-          <div style={{ display:'flex', alignItems:'center', gap:'16px' }}>
-            <img src={LOGO} alt="Rosie AI" style={{ height:'34px', width:'auto' }} />
-            <div style={{ width:'1px', height:'20px', background:'rgba(184,147,58,0.3)' }} />
-            <span style={{ color:GOLD, fontSize:'10px', letterSpacing:'4px', textTransform:'uppercase' }}>Admin Dashboard</span>
+        {/* Top bar with inline KPIs */}
+        <div style={{ padding:isMobile ? '0 12px' : '0 24px', display:'flex', alignItems:'center', justifyContent:'space-between', height:'52px', gap:'8px' }}>
+          {/* Left: Logo + title */}
+          <div style={{ display:'flex', alignItems:'center', gap:'10px', flexShrink:0 }}>
+            <img src={LOGO} alt="Rosie AI" style={{ height:'28px', width:'auto' }} />
+            {!isMobile && <><div style={{ width:'1px', height:'16px', background:'rgba(184,147,58,0.3)' }} />
+            <span style={{ color:GOLD, fontSize:'8px', letterSpacing:'3px', textTransform:'uppercase' }}>Admin Dashboard</span></>}
           </div>
-          <div style={{ display:'flex', gap:'10px', alignItems:'center' }}>
-            <button onClick={load} style={{ background:'rgba(255,255,255,0.05)', color:'#8a9ab8', border:'1px solid rgba(255,255,255,0.1)', borderRadius:'2px', padding:'6px 14px', cursor:'pointer', fontSize:'11px' }}>↻ Refresh</button>
-            <button onClick={() => navigate('/portal')} style={{ background:'rgba(255,255,255,0.05)', color:'#8a9ab8', border:'1px solid rgba(255,255,255,0.1)', borderRadius:'2px', padding:'6px 14px', cursor:'pointer', fontSize:'11px' }}>← Portal</button>
-            <button onClick={() => { portalLogout(); navigate('/'); }} style={{ background:'transparent', color:'#6b7280', border:'1px solid rgba(255,255,255,0.1)', borderRadius:'2px', padding:'6px 14px', cursor:'pointer', fontSize:'11px' }}>Logout</button>
+          {/* Center: KPI strip — visible on all tabs */}
+          {!isMobile && (
+            <div style={{ display:'flex', alignItems:'center', gap:'0', flex:1, justifyContent:'center' }}>
+              {[
+                { label:'Clients',   value:nonAdminUsers.length,                                                  icon:'👥', color:GOLD      },
+                { label:'Investors', value:nonAdminUsers.filter(u=>u.status==='investor').length,                 icon:'✅', color:'#4ade80' },
+                { label:'Prospects', value:nonAdminUsers.filter(u=>(u.status||'prospect')==='prospect').length,   icon:'🔷', color:'#a78bfa' },
+                { label:'Sessions',  value:globalStats.totalSessions,                                             icon:'🔐', color:'#f59e0b' },
+                { label:'Time',      value:analytics.formatDuration(globalStats.totalTime),                       icon:'⏱',  color:'#a78bfa' },
+              ].map(({label,value,icon,color}) => (
+                <div key={label} style={{ display:'flex', alignItems:'center', gap:'5px', padding:'4px 12px', borderRight:'1px solid rgba(255,255,255,0.05)', flexShrink:0 }}>
+                  <span style={{ fontSize:'11px' }}>{icon}</span>
+                  <div>
+                    <div style={{ color, fontSize:'13px', fontWeight:'bold', lineHeight:1.1 }}>{value}</div>
+                    <div style={{ color:'#4a5568', fontSize:'7px', letterSpacing:'1px', textTransform:'uppercase' }}>{label}</div>
+                  </div>
+                </div>
+              ))}
+              {/* SignNow — always visible, shows 0 when cleared */}
+              <div style={{ display:'flex', alignItems:'center', gap:'5px', padding:'4px 12px', flexShrink:0, background: newSignNowCount > 0 ? 'rgba(245,158,11,0.1)' : 'transparent', borderRadius:'3px' }}>
+                <span style={{ fontSize:'11px' }}>✍️</span>
+                <div>
+                  <div style={{ color: newSignNowCount > 0 ? '#f59e0b' : '#4a5568', fontSize:'13px', fontWeight:'bold', lineHeight:1.1 }}>{newSignNowCount}</div>
+                  <div style={{ color:'#4a5568', fontSize:'7px', letterSpacing:'1px', textTransform:'uppercase' }}>SignNow</div>
+                </div>
+                {newSignNowCount > 0 && (
+                  <button onClick={() => { SignNowRequestDB.listAll().then(reqs => { localStorage.setItem('sn_dismissed_count', reqs.length); setNewSignNowCount(0); setSignNowAlertDismissed(reqs.length); }); }}
+                    style={{ background:'rgba(245,158,11,0.15)', color:'#f59e0b', border:'1px solid rgba(245,158,11,0.3)', borderRadius:'2px', padding:'1px 5px', cursor:'pointer', fontSize:'7px', marginLeft:'2px' }}>
+                    Clear
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+          {/* Right: Actions */}
+          <div style={{ display:'flex', gap:'6px', alignItems:'center', flexShrink:0 }}>
+            <button onClick={load} style={{ background:'rgba(255,255,255,0.05)', color:'#8a9ab8', border:'1px solid rgba(255,255,255,0.1)', borderRadius:'2px', padding:'5px 10px', cursor:'pointer', fontSize:'10px' }}>↻</button>
+            <button onClick={() => navigate('/portal')} style={{ background:'rgba(255,255,255,0.05)', color:'#8a9ab8', border:'1px solid rgba(255,255,255,0.1)', borderRadius:'2px', padding:'5px 10px', cursor:'pointer', fontSize:'10px' }}>Portal</button>
+            <button onClick={() => { portalLogout(); navigate('/'); }} style={{ background:'transparent', color:'#6b7280', border:'1px solid rgba(255,255,255,0.1)', borderRadius:'2px', padding:'5px 10px', cursor:'pointer', fontSize:'10px' }}>Logout</button>
           </div>
         </div>
         {/* Tab Navigation */}
@@ -996,49 +1149,13 @@ export default function AdminDashboard() {
 
       <div style={{ maxWidth:'1600px', margin:'0 auto', padding:isMobile?'12px 16px':'24px 32px' }}>
 
-        {/* KPIs + Reminders — only on users/leads tabs */}
+        {/* Upcoming appointments — only on CRM/Leads tabs */}
         {(view === 'users' || view === 'leads') && (
-          <>
-            <div style={{ display:'flex', gap:'8px', alignItems:'center', marginBottom:'10px', flexWrap:'wrap' }}>
-              {[
-                { label:'Total Clients',       value:nonAdminUsers.length,                                                   icon:'👥', color:GOLD      },
-                { label:'Investors',            value:nonAdminUsers.filter(u=>u.status==='investor').length,                   icon:'✅', color:'#4ade80'  },
-                { label:'Potential Investors',  value:nonAdminUsers.filter(u=>(u.status||'prospect')==='prospect').length,    icon:'🔷', color:'#a78bfa'  },
-                { label:'Total Sessions',       value:globalStats.totalSessions,                                               icon:'🔐', color:'#f59e0b'  },
-                { label:'Time Spent',           value:analytics.formatDuration(globalStats.totalTime),                         icon:'⏱',  color:'#a78bfa'  },
-              ].map(({label,value,icon,color}) => (
-                <div key={label} style={{ background:'rgba(255,255,255,0.03)', border:'1px solid rgba(255,255,255,0.08)', borderRadius:'2px', padding:'5px 10px', display:'flex', alignItems:'center', gap:'6px', flexShrink:0 }}>
-                  <span style={{ fontSize:'12px' }}>{icon}</span>
-                  <span style={{ color:'#6b7280', fontSize:'9px', letterSpacing:'1px', textTransform:'uppercase' }}>{label}</span>
-                  <span style={{ color, fontSize:'13px', fontWeight:'bold' }}>{value}</span>
-                </div>
-              ))}
-              {/* SignNow KPI — inline in the KPI strip */}
-              {newSignNowCount > 0 && (
-                <div style={{ background:'rgba(245,158,11,0.08)', border:'1px solid rgba(245,158,11,0.35)', borderRadius:'2px', padding:'5px 10px', display:'flex', alignItems:'center', gap:'10px', flexShrink:0 }}>
-                  <span style={{ fontSize:'12px' }}>✍️</span>
-                  <div>
-                    <div style={{ color:'#f59e0b', fontSize:'13px', fontWeight:'bold', lineHeight:1.2 }}>{newSignNowCount} New SignNow Signature Request{newSignNowCount > 1 ? 's' : ''}</div>
-                    <div style={{ color:'#8a9ab8', fontSize:'9px', letterSpacing:'1px', textTransform:'uppercase' }}>New since last cleared</div>
-                  </div>
-                  <button onClick={() => {
-                    SignNowRequestDB.listAll().then(reqs => {
-                      localStorage.setItem('sn_dismissed_count', reqs.length);
-                      setNewSignNowCount(0);
-                      setSignNowAlertDismissed(reqs.length);
-                    });
-                  }} style={{ background:'rgba(245,158,11,0.2)', color:'#f59e0b', border:'1px solid rgba(245,158,11,0.4)', borderRadius:'2px', padding:'3px 10px', cursor:'pointer', fontSize:'10px', whiteSpace:'nowrap' }}>
-                    Clear
-                  </button>
-                </div>
-              )}
-            </div>
-            <UpcomingReminders
-              onOpenLeadCard={(lead) => {}}
-              onOpenUserCard={(investorId) => { const u = users.find(u => u.id === investorId); if (u) setContactCard(u); }}
-              onOpenDialer={(lead) => { setDialerLead(lead); setShowDialer(true); }}
-            />
-          </>
+          <UpcomingReminders
+            onOpenLeadCard={(lead) => {}}
+            onOpenUserCard={(investorId) => { const u = users.find(u => u.id === investorId); if (u) setContactCard(u); }}
+            onOpenDialer={(lead) => { setDialerLead(lead); setShowDialer(true); }}
+          />
         )}
 
 
