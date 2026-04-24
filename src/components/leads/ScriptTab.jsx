@@ -22,7 +22,8 @@ const TEXT_COLORS = [
   { label: 'Gray', value: '#8a9ab8' },
 ];
 
-export default function ScriptTab({ contactId, contactType = 'lead' }) {
+export default function ScriptTab({ contactId, contactType = 'lead', lead }) {
+  const firstName = lead?.firstName || '';
   const [scripts, setScripts] = useState([]);
   const [activeId, setActiveId] = useState(null);
   const [expanded, setExpanded] = useState(false);
@@ -199,7 +200,7 @@ export default function ScriptTab({ contactId, contactType = 'lead' }) {
           <textarea
             value={activeScript.content || ''}
             onChange={e => updateActive({ content: e.target.value })}
-            placeholder="Type your script here…"
+            placeholder="Type your script here… Use {{name}} for the contact's first name."
             style={{
               flex:1,
               width:'100%',
@@ -214,9 +215,37 @@ export default function ScriptTab({ contactId, contactType = 'lead' }) {
               resize:'none',
               fontFamily:'Georgia, serif',
               boxSizing:'border-box',
-              minHeight: expanded ? '0' : '300px',
+              minHeight: expanded ? '0' : '160px',
             }}
           />
+          {/* Live preview with {{name}} substituted */}
+          {firstName && (activeScript.content || '').includes('{{name}}') && (
+            <div style={{ marginTop:'10px', flexShrink:0 }}>
+              <div style={{ color:'#4a5568', fontSize:'9px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'6px' }}>
+                Preview — <span style={{ color:GOLD }}>{firstName}</span>
+              </div>
+              <div style={{
+                background:'rgba(184,147,58,0.05)',
+                border:'1px solid rgba(184,147,58,0.2)',
+                borderRadius:'4px',
+                padding:'14px 16px',
+                color: activeScript.color || '#e8e0d0',
+                fontSize: `${activeScript.fontSize || 14}px`,
+                lineHeight: 1.7,
+                fontFamily:'Georgia, serif',
+                whiteSpace:'pre-wrap',
+                maxHeight:'160px',
+                overflowY:'auto',
+              }}>
+                {(activeScript.content || '').replace(/\{\{name\}\}/g, firstName)}
+              </div>
+            </div>
+          )}
+          {/* Token hint */}
+          <div style={{ marginTop:'6px', color:'#4a5568', fontSize:'10px', flexShrink:0 }}>
+            Tip: use <span style={{ color:GOLD, fontFamily:'monospace' }}>{'{{name}}'}</span> to auto-insert the contact's first name
+            {firstName ? <span style={{ color:'#6b7280' }}> → <span style={{ color:'#e8e0d0' }}>{firstName}</span></span> : <span style={{ color:'#6b7280' }}> (no contact loaded)</span>}
+          </div>
         </>
       )}
     </div>
