@@ -8,10 +8,7 @@ const applyTokens = (text, lead) => {
   if (!text) return '';
   return text
     .replace(/\{\{\s*firstname\s*\}\}/gi, lead?.firstName || '')
-    .replace(/\{\{\s*lastname\s*\}\}/gi, lead?.lastName || '')
-    .replace(/\{\{\s*first_name\s*\}\}/gi, lead?.firstName || '')
-    .replace(/\{\{\s*last_name\s*\}\}/gi, lead?.lastName || '')
-    .replace(/\{\{\s*name\s*\}\}/gi, `${lead?.firstName || ''} ${lead?.lastName || ''}`.trim());
+    .replace(/\{\{\s*lastname\s*\}\}/gi, lead?.lastName || '');
 };
 
 export default function ScriptViewer({ lead }) {
