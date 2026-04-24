@@ -5,30 +5,73 @@ const MJ_SECRET     = Deno.env.get('MAILJET_API_SECRET');
 const MJ_FROM_EMAIL = Deno.env.get('MAILJET_FROM_EMAIL');
 const MJ_FROM_NAME  = Deno.env.get('MAILJET_FROM_NAME') || 'Rosie AI';
 const TEMPLATE_ID   = 7949342;
-const PORTAL_URL    = Deno.env.get('INVESTOR_PORTAL_URL') || 'https://investors.rosieai.tech';
-
-// Generate a random 6-character alphanumeric passcode
-function generatePasscode(length = 6) {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no 0/O/1/I confusion
-  return Array.from({ length }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
-}
+const INVESTORS_SITE = 'https://investors.rosieai.tech';
+const CONSUMER_SITE  = 'https://www.rosieai.tech';
 
 Deno.serve(async (req) => {
   const base44 = createClientFromRequest(req);
 
-  const { leadId, toEmail, toName, firstName, passcode: providedPasscode, customVariables } = await req.json();
+  const { leadId, toEmail, toName, firstName, customVariables } = await req.json();
   if (!toEmail || !leadId) return Response.json({ error: 'Missing toEmail or leadId' }, { status: 400 });
 
-  // Generate passcode if not provided
-  // Build passcode: firstname + last 4 of phone (e.g. "john3324")
-  // Fetch the lead to get phone number
+  // ── Build username: firstname + last4 of phone ──────────────────────
   let phoneDigits = '0000';
+  let leadData = null;
   try {
-    const lead = await base44.asServiceRole.entities.Lead.get(leadId);
-    phoneDigits = (lead?.phone || '').replace(/\D/g, '').slice(-4) || '0000';
+    const leads = await base44.asServiceRole.entities.Lead.filter({ id: leadId });
+    leadData = leads?.[0];
+    phoneDigits = (leadData?.phone || '').replace(/\D/g, '').slice(-4) || '0000';
   } catch {}
   const nameSlug = (firstName || 'user').toLowerCase().replace(/[^a-z]/g, '');
-  const passcode = providedPasscode || `${nameSlug}${phoneDigits}`;
+  const username = `${nameSlug}${phoneDigits}`;
+  const password = username; // password same as username for simplicity
+
+  console.log(`[sendLeadEmail] Generating username: ${username} for ${toEmail}`);
+
+  // ── Create or update InvestorUser so they can log in ────────────────
+  try {
+    const hashRes = await fetch(
+      `${INVESTORS_SITE}/api/apps/69cd2741578c9b5ce655395b/functions/hashPassword`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'hash', password }),
+      }
+    );
+    const hashData = await hashRes.json();
+    const hashedPassword = hashData?.hash || password;
+
+    const existing = await base44.asServiceRole.entities.InvestorUser.filter({ username });
+    if (existing?.length > 0) {
+      await base44.asServiceRole.entities.InvestorUser.update(existing[0].id, {
+        email: toEmail.toLowerCase().trim(),
+        password: hashedPassword,
+        name: toName || firstName || toEmail,
+      });
+    } else {
+      await base44.asServiceRole.entities.InvestorUser.create({
+        username,
+        email:    toEmail.toLowerCase().trim(),
+        name:     toName || firstName || toEmail,
+        password: hashedPassword,
+        role:     'investor',
+        status:   'prospect',
+        leadId,
+      });
+    }
+    // Save username on lead
+    await base44.asServiceRole.entities.Lead.update(leadId, {
+      portalPasscode: username,
+      status: 'prospect',
+    });
+    console.log(`[sendLeadEmail] InvestorUser created/updated: ${username}`);
+  } catch (e) {
+    console.warn('[sendLeadEmail] Could not create InvestorUser:', e.message);
+  }
+
+  // ── Build URLs ────────────────────────────────────────────────────────
+  const loginUrl     = `${INVESTORS_SITE}/portal-login?username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}`;
+  const consumerUrl  = `${CONSUMER_SITE}?ref=${username}`;
 
   const auth = btoa(`${MJ_KEY}:${MJ_SECRET}`);
 
@@ -40,11 +83,11 @@ Deno.serve(async (req) => {
       TemplateLanguage: true,
       Variables: {
         firstname:      firstName || '',
-        passcode:       passcode,
-        portal_url:     PORTAL_URL,
-        login_url:      `${PORTAL_URL}?email=${encodeURIComponent(toEmail)}&code=${passcode}`,
-        consumer_url:   `https://rosieai.tech?ref=${passcode}`,
-        // Spread any additional custom variables passed from frontend
+        username:       username,
+        passcode:       username,
+        login_url:      loginUrl,
+        consumer_url:   consumerUrl,
+        portal_url:     INVESTORS_SITE,
         ...(customVariables || {}),
       },
       CustomID: leadId,
@@ -58,7 +101,6 @@ Deno.serve(async (req) => {
   });
 
   const data = await res.json();
-
   if (!res.ok || data.Messages?.[0]?.Status !== 'success') {
     return Response.json({ error: 'Mailjet send failed', details: data }, { status: 500 });
   }
@@ -67,13 +109,8 @@ Deno.serve(async (req) => {
   const messageId  = String(msgInfo.To?.[0]?.MessageID || '');
   const messageUUID = msgInfo.To?.[0]?.MessageUUID || '';
 
-  // Save passcode on the lead so portal login can verify it
-  try {
-    await base44.asServiceRole.entities.Lead.update(leadId, { portalPasscode: passcode });
-  } catch {}
-
-  // Log to EmailLog entity
-  const logEntry = await base44.asServiceRole.entities.EmailLog.create({
+  // Log to EmailLog
+  await base44.asServiceRole.entities.EmailLog.create({
     leadId, toEmail,
     toName: toName || firstName || '',
     templateId: String(TEMPLATE_ID),
@@ -81,24 +118,21 @@ Deno.serve(async (req) => {
     status: 'sent',
     sentAt: new Date().toISOString(),
     sentBy: 'admin',
-    pointsAwarded: false,
-  });
+  }).catch(() => {});
 
-  // Award initial 5 points to the lead
+  // Update lead score
   try {
-    const lead = await base44.asServiceRole.entities.Lead.get(leadId);
+    const lead = leadData || (await base44.asServiceRole.entities.Lead.filter({ id: leadId }))?.[0];
     if (lead) {
       await base44.asServiceRole.entities.Lead.update(leadId, {
         engagementScore: (lead.engagementScore || 0) + 5,
       });
       await base44.asServiceRole.entities.LeadHistory.create({
         leadId, type: 'note',
-        content: `📧 Email sent. Passcode: ${passcode}. +5 engagement points.`,
+        content: `📧 Email sent. Username: ${username}. Consumer link: ${consumerUrl}. +5 engagement.`,
       });
     }
-  } catch (e) {
-    console.warn('[sendLeadEmail] Could not update lead score:', e.message);
-  }
+  } catch {}
 
-  return Response.json({ success: true, messageId, messageUUID, logId: logEntry.id, passcode });
+  return Response.json({ success: true, messageId, messageUUID, username, loginUrl });
 });
