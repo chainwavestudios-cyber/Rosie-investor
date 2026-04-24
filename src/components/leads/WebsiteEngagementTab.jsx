@@ -1,66 +1,87 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
 
 const GOLD = '#b8933a';
 
 function fmt(dt) {
   if (!dt) return '—';
-  return new Date(dt).toLocaleString('en-US', { month:'short', day:'numeric', hour:'numeric', minute:'2-digit' });
+  const d = new Date(dt);
+  const diff = Date.now() - d;
+  if (diff < 60000) return 'just now';
+  if (diff < 3600000) return `${Math.floor(diff/60000)}m ago`;
+  if (diff < 86400000) return `${Math.floor(diff/3600000)}h ago`;
+  return d.toLocaleString('en-US', { month:'short', day:'numeric', hour:'numeric', minute:'2-digit' });
 }
 
 function fmtDur(secs) {
-  if (!secs || secs < 1) return '< 1s';
+  if (!secs || secs < 1) return '';
   if (secs < 60) return `${secs}s`;
-  if (secs < 3600) return `${Math.floor(secs/60)}m ${secs%60}s`;
-  return `${Math.floor(secs/3600)}h ${Math.floor((secs%3600)/60)}m`;
+  return `${Math.floor(secs/60)}m ${secs%60}s`;
 }
 
-export default function InvestorWebsiteTab({ lead, user }) {
-  // lead = LeadContactCard, user = InvestorContactCard
-  // username comes from lead.portalPasscode or user.username
-  const username = lead?.portalPasscode || user?.username || null;
-  const refCode  = lead?.portalPasscode || user?.username || null;
-
-  const [site, setSite] = useState('investors'); // 'investors' | 'consumer'
-  const [sessions, setSessions] = useState([]);
+export default function WebsiteEngagementTab({ onOpenLead }) {
+  const [site, setSite] = useState('investors');
+  const [investorSessions, setInvestorSessions] = useState([]);
   const [consumerVisits, setConsumerVisits] = useState([]);
   const [loading, setLoading] = useState(true);
+  const intervalRef = useRef(null);
 
-  useEffect(() => { load(); }, [username, refCode]);
+  useEffect(() => {
+    load();
+    intervalRef.current = setInterval(load, 15000);
+    return () => clearInterval(intervalRef.current);
+  }, []);
 
   const load = async () => {
-    setLoading(true);
     try {
-      if (username) {
-        const s = await base44.entities.AnalyticsSession.filter({ username });
-        s.sort((a, b) => new Date(b.startTime) - new Date(a.startTime));
-        setSessions(s);
-      }
-      if (refCode) {
-        const v = await base44.entities.SiteVisit.filter({ passcode: refCode });
-        v.sort((a, b) => new Date(b.visitedAt) - new Date(a.visitedAt));
-        setConsumerVisits(v);
-      }
+      // Investor site: get recent AnalyticsSession records that have a leadId or are prospects
+      // We identify prospect sessions by cross-referencing InvestorUser.status === 'prospect'
+      const [allSessions, allLeads, siteVisits] = await Promise.all([
+        base44.entities.AnalyticsSession.list('-startTime', 200).catch(() => []),
+        base44.entities.Lead.filter({ status: 'prospect' }).catch(() => []),
+        base44.entities.SiteVisit.list('-visitedAt', 200).catch(() => []),
+      ]);
+
+      // Build username → lead map
+      const usernameToLead = {};
+      allLeads.forEach(l => { if (l.portalPasscode) usernameToLead[l.portalPasscode] = l; });
+
+      // Filter sessions to only prospects
+      const prospectSessions = allSessions.filter(s => usernameToLead[s.username]);
+      prospectSessions.forEach(s => { s._lead = usernameToLead[s.username]; });
+
+      setInvestorSessions(prospectSessions);
+      setConsumerVisits(siteVisits);
     } catch (e) { console.error(e); }
     setLoading(false);
   };
 
-  // Stats for investors site
-  const totalTime    = sessions.reduce((s, x) => s + (x.durationSeconds || 0), 0);
-  const totalPages   = sessions.reduce((s, x) => s + (x.pages?.length || 0), 0);
-  const lastVisit    = sessions[0]?.startTime || null;
-
-  // Stats for consumer site
-  const cTotalTime  = consumerVisits.reduce((s, x) => s + (x.timeOnPage || 0), 0);
-  const cUniqPages  = [...new Set(consumerVisits.map(v => v.page))].length;
-
-  const noData = site === 'investors' ? sessions.length === 0 : consumerVisits.length === 0;
+  const openLead = async (leadId) => {
+    if (!leadId || !onOpenLead) return;
+    try {
+      const leads = await base44.entities.Lead.filter({ id: leadId });
+      if (leads?.[0]) onOpenLead(leads[0]);
+    } catch {}
+  };
 
   return (
     <div>
+      {/* Header */}
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'12px' }}>
+        <div>
+          <h2 style={{ color:'#e8e0d0', margin:'0 0 2px', fontSize:'18px', fontWeight:'normal' }}>Website Engagement</h2>
+          <p style={{ color:'#6b7280', fontSize:'12px', margin:0 }}>Prospect activity · auto-refreshes every 15s</p>
+        </div>
+        <div style={{ display:'flex', alignItems:'center', gap:'6px' }}>
+          <div style={{ width:'7px', height:'7px', borderRadius:'50%', background:'#4ade80', boxShadow:'0 0 5px #4ade80', animation:'pulse 2s infinite' }} />
+          <span style={{ color:'#4ade80', fontSize:'10px' }}>LIVE</span>
+          <style>{`@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.3}}`}</style>
+        </div>
+      </div>
+
       {/* Site toggle */}
       <div style={{ display:'flex', gap:'0', borderBottom:'1px solid rgba(255,255,255,0.07)', marginBottom:'16px' }}>
-        {[['investors','💼 Investors Site'],['consumer','🌐 Consumer Site']].map(([id,label]) => (
+        {[['investors',`💼 Investors Site (${investorSessions.length})`],['consumer',`🌐 Consumer Site (${consumerVisits.length})`]].map(([id,label]) => (
           <button key={id} onClick={() => setSite(id)}
             style={{ background:'none', border:'none', borderBottom: site===id ? `2px solid ${GOLD}` : '2px solid transparent', color: site===id ? GOLD : '#6b7280', padding:'8px 16px', cursor:'pointer', fontSize:'11px', letterSpacing:'0.5px', whiteSpace:'nowrap' }}>
             {label}
@@ -68,75 +89,46 @@ export default function InvestorWebsiteTab({ lead, user }) {
         ))}
       </div>
 
-      {/* No username warning */}
-      {!username && !refCode && (
-        <div style={{ background:'rgba(245,158,11,0.08)', border:'1px solid rgba(245,158,11,0.25)', borderRadius:'4px', padding:'12px 16px', marginBottom:'16px', color:'#f59e0b', fontSize:'12px' }}>
-          ⚠️ No username/passcode assigned yet. Send the prospect email to generate one.
-        </div>
-      )}
+      {loading && <div style={{ color:'#6b7280', textAlign:'center', padding:'30px' }}>Loading…</div>}
 
-      {/* Username display */}
-      {username && (
-        <div style={{ background:'rgba(0,0,0,0.15)', border:'1px solid rgba(255,255,255,0.06)', borderRadius:'4px', padding:'8px 12px', marginBottom:'12px', display:'flex', gap:'16px', fontSize:'11px' }}>
-          <span style={{ color:'#4a5568' }}>Username:</span>
-          <span style={{ color:GOLD, fontFamily:'monospace' }}>{username}</span>
-          {site === 'consumer' && refCode && <>
-            <span style={{ color:'#4a5568' }}>Ref code:</span>
-            <span style={{ color:'#60a5fa', fontFamily:'monospace' }}>{refCode}</span>
-          </>}
-        </div>
-      )}
-
-      {/* ── INVESTORS SITE ── */}
-      {site === 'investors' && (
+      {/* Investors site sessions */}
+      {site === 'investors' && !loading && (
         <>
-          {/* Stats */}
-          <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:'8px', marginBottom:'16px' }}>
-            {[
-              ['Sessions',   sessions.length,   GOLD],
-              ['Pages Viewed', totalPages,       '#60a5fa'],
-              ['Time Spent', fmtDur(totalTime),  '#4ade80'],
-              ['Last Visit', lastVisit ? fmt(lastVisit) : '—', '#f59e0b'],
-            ].map(([label, val, color]) => (
-              <div key={label} style={{ background:'rgba(0,0,0,0.2)', border:'1px solid rgba(255,255,255,0.06)', borderRadius:'4px', padding:'8px', textAlign:'center' }}>
-                <div style={{ color, fontSize: label==='Last Visit'?'11px':'16px', fontWeight:'bold' }}>{val}</div>
-                <div style={{ color:'#4a5568', fontSize:'9px', letterSpacing:'1px', textTransform:'uppercase', marginTop:'2px' }}>{label}</div>
-              </div>
-            ))}
-          </div>
-
-          {loading && <div style={{ color:'#6b7280', textAlign:'center', padding:'30px' }}>Loading…</div>}
-          {!loading && noData && (
+          {investorSessions.length === 0 && (
             <div style={{ color:'#4a5568', textAlign:'center', padding:'30px' }}>
               <div style={{ fontSize:'28px', marginBottom:'8px' }}>💼</div>
-              No visits to investors.rosieai.tech yet.
+              No prospect sessions yet on investors.rosieai.tech
             </div>
           )}
-
-          <div style={{ maxHeight:'340px', overflowY:'auto' }}>
-            {sessions.map((s, i) => (
-              <div key={s.id || i} style={{ background:'rgba(0,0,0,0.15)', border:'1px solid rgba(255,255,255,0.05)', borderRadius:'4px', padding:'12px 14px', marginBottom:'8px' }}>
-                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'8px' }}>
-                  <div style={{ display:'flex', gap:'12px', alignItems:'center' }}>
-                    <span style={{ color:'#e8e0d0', fontSize:'12px', fontWeight:'bold' }}>Session {i + 1}</span>
-                    <span style={{ color:'#4ade80', fontSize:'11px' }}>{fmtDur(s.durationSeconds)}</span>
-                    <span style={{ color:'#60a5fa', fontSize:'11px' }}>{s.pages?.length || 0} pages</span>
+          <div style={{ maxHeight:'65vh', overflowY:'auto' }}>
+            {investorSessions.map((s, i) => (
+              <div key={s.id || i}
+                onClick={() => s._lead && openLead(s._lead.id)}
+                style={{ background:'rgba(255,255,255,0.02)', border:'1px solid rgba(255,255,255,0.06)', borderRadius:'6px', padding:'12px 14px', marginBottom:'8px', cursor: s._lead ? 'pointer' : 'default' }}
+                onMouseEnter={e => { if(s._lead) e.currentTarget.style.background='rgba(255,255,255,0.04)'; }}
+                onMouseLeave={e => e.currentTarget.style.background='rgba(255,255,255,0.02)'}>
+                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:'6px' }}>
+                  <div>
+                    <span style={{ color:'#e8e0d0', fontSize:'13px', fontWeight:'bold', marginRight:'8px' }}>
+                      {s._lead ? `${s._lead.firstName} ${s._lead.lastName}` : s.username}
+                    </span>
+                    <span style={{ color:'#a78bfa', fontSize:'10px', fontFamily:'monospace' }}>{s.username}</span>
                   </div>
                   <span style={{ color:'#6b7280', fontSize:'10px' }}>{fmt(s.startTime)}</span>
                 </div>
-                {/* Pages visited */}
+                <div style={{ display:'flex', gap:'12px', flexWrap:'wrap', fontSize:'11px' }}>
+                  {s.durationSeconds > 0 && <span style={{ color:'#4ade80' }}>⏱ {fmtDur(s.durationSeconds)}</span>}
+                  {s.pages?.length > 0 && <span style={{ color:'#60a5fa' }}>📄 {s.pages.length} pages</span>}
+                  {s.downloads?.length > 0 && <span style={{ color:'#f59e0b' }}>📥 {s.downloads.length} downloads</span>}
+                </div>
                 {s.pages?.length > 0 && (
-                  <div style={{ display:'flex', flexWrap:'wrap', gap:'4px' }}>
-                    {s.pages.map((p, j) => (
-                      <span key={j} style={{ background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.07)', borderRadius:'3px', padding:'2px 8px', fontSize:'10px', color:'#8a9ab8' }}>
-                        {p.page || p.section || '/'}{p.durationSeconds > 0 ? ` · ${fmtDur(p.durationSeconds)}` : ''}
+                  <div style={{ display:'flex', flexWrap:'wrap', gap:'3px', marginTop:'6px' }}>
+                    {s.pages.slice(0,4).map((p, j) => (
+                      <span key={j} style={{ background:'rgba(0,0,0,0.2)', border:'1px solid rgba(255,255,255,0.06)', borderRadius:'3px', padding:'1px 6px', fontSize:'9px', color:'#6b7280' }}>
+                        {p.page || p.section || '/'}
                       </span>
                     ))}
-                  </div>
-                )}
-                {s.downloads?.length > 0 && (
-                  <div style={{ marginTop:'6px', color:'#f59e0b', fontSize:'10px' }}>
-                    📥 Downloads: {s.downloads.map(d => d.fileName || d.name).join(', ')}
+                    {s.pages.length > 4 && <span style={{ color:'#4a5568', fontSize:'9px' }}>+{s.pages.length-4}</span>}
                   </div>
                 )}
               </div>
@@ -145,56 +137,29 @@ export default function InvestorWebsiteTab({ lead, user }) {
         </>
       )}
 
-      {/* ── CONSUMER SITE ── */}
-      {site === 'consumer' && (
+      {/* Consumer site visits */}
+      {site === 'consumer' && !loading && (
         <>
-          {/* Stats */}
-          <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:'8px', marginBottom:'16px' }}>
-            {[
-              ['Page Views',   consumerVisits.length, GOLD],
-              ['Unique Pages', cUniqPages,            '#60a5fa'],
-              ['Time Spent',   fmtDur(cTotalTime),    '#4ade80'],
-              ['Last Visit',   consumerVisits[0]?.visitedAt ? fmt(consumerVisits[0].visitedAt) : '—', '#f59e0b'],
-            ].map(([label, val, color]) => (
-              <div key={label} style={{ background:'rgba(0,0,0,0.2)', border:'1px solid rgba(255,255,255,0.06)', borderRadius:'4px', padding:'8px', textAlign:'center' }}>
-                <div style={{ color, fontSize: label==='Last Visit'?'11px':'16px', fontWeight:'bold' }}>{val}</div>
-                <div style={{ color:'#4a5568', fontSize:'9px', letterSpacing:'1px', textTransform:'uppercase', marginTop:'2px' }}>{label}</div>
-              </div>
-            ))}
-          </div>
-
-          {loading && <div style={{ color:'#6b7280', textAlign:'center', padding:'30px' }}>Loading…</div>}
-          {!loading && noData && (
+          {consumerVisits.length === 0 && (
             <div style={{ color:'#4a5568', textAlign:'center', padding:'30px' }}>
               <div style={{ fontSize:'28px', marginBottom:'8px' }}>🌐</div>
-              No visits to rosieai.tech yet via this ref code.
+              No tracked visits to rosieai.tech yet
             </div>
           )}
-
-          <div style={{ maxHeight:'340px', overflowY:'auto' }}>
-            {/* Group by sessionId */}
-            {Object.values(consumerVisits.reduce((acc, v) => {
-              const key = v.sessionId || v.visitedAt;
-              if (!acc[key]) acc[key] = { visitedAt: v.visitedAt, pages: [], totalTime: 0 };
-              acc[key].pages.push(v);
-              acc[key].totalTime += v.timeOnPage || 0;
-              return acc;
-            }, {})).map((group, i) => (
-              <div key={i} style={{ background:'rgba(0,0,0,0.15)', border:'1px solid rgba(255,255,255,0.05)', borderRadius:'4px', padding:'12px 14px', marginBottom:'8px' }}>
-                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'6px' }}>
-                  <div style={{ display:'flex', gap:'12px', alignItems:'center' }}>
-                    <span style={{ color:'#e8e0d0', fontSize:'12px', fontWeight:'bold' }}>Visit {i + 1}</span>
-                    {group.totalTime > 0 && <span style={{ color:'#4ade80', fontSize:'11px' }}>{fmtDur(group.totalTime)}</span>}
-                    <span style={{ color:'#60a5fa', fontSize:'11px' }}>{group.pages.length} page{group.pages.length !== 1 ? 's' : ''}</span>
+          <div style={{ maxHeight:'65vh', overflowY:'auto' }}>
+            {consumerVisits.map((v, i) => (
+              <div key={v.id || i}
+                onClick={() => v.leadId && openLead(v.leadId)}
+                style={{ background:'rgba(255,255,255,0.02)', border:'1px solid rgba(255,255,255,0.06)', borderRadius:'6px', padding:'10px 14px', marginBottom:'6px', cursor: v.leadId ? 'pointer' : 'default' }}
+                onMouseEnter={e => { if(v.leadId) e.currentTarget.style.background='rgba(255,255,255,0.04)'; }}
+                onMouseLeave={e => e.currentTarget.style.background='rgba(255,255,255,0.02)'}>
+                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                  <div style={{ display:'flex', gap:'8px', alignItems:'center' }}>
+                    <span style={{ color:'#e8e0d0', fontSize:'12px', fontWeight:'bold' }}>{v.leadName || v.passcode}</span>
+                    <span style={{ color:'#60a5fa', fontSize:'10px', background:'rgba(96,165,250,0.1)', padding:'1px 6px', borderRadius:'3px' }}>{v.page}</span>
+                    {v.timeOnPage > 0 && <span style={{ color:'#4ade80', fontSize:'10px' }}>{fmtDur(v.timeOnPage)}</span>}
                   </div>
-                  <span style={{ color:'#6b7280', fontSize:'10px' }}>{fmt(group.visitedAt)}</span>
-                </div>
-                <div style={{ display:'flex', flexWrap:'wrap', gap:'4px' }}>
-                  {group.pages.map((p, j) => (
-                    <span key={j} style={{ background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.07)', borderRadius:'3px', padding:'2px 8px', fontSize:'10px', color:'#8a9ab8' }}>
-                      {p.page}{p.timeOnPage > 0 ? ` · ${fmtDur(p.timeOnPage)}` : ''}
-                    </span>
-                  ))}
+                  <span style={{ color:'#6b7280', fontSize:'10px' }}>{fmt(v.visitedAt)}</span>
                 </div>
               </div>
             ))}
