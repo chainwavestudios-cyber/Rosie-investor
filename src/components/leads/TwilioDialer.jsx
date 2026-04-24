@@ -136,9 +136,9 @@ export default function TwilioDialer({ initialLead, onClose, onCallLogged }) {
     setKeypadInput('');
 
     try {
-      // Connect directly via the Voice SDK — TwiML app handles the outbound leg
-      const call = await deviceRef.current.connect({ params: { To: to } });
-      callRef.current = call;
+       // Connect via Twilio Device with proper backend routing
+       const call = await deviceRef.current.connect({ params: { To: to, callerId: 'auto' } });
+       callRef.current = call;
 
       call.on('ringing', () => {
         setCallStatus('ringing');
