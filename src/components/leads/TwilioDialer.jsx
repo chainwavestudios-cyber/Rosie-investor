@@ -6,7 +6,7 @@ import { Device } from '@twilio/voice-sdk';
 const GOLD = '#b8933a';
 const DARK = '#0a0f1e';
 
-export default function TwilioDialer({ initialLead, onClose, onCallLogged }) {
+export default function TwilioDialer({ initialLead, onClose, onCallLogged, onCallStart, onCallEnd }) {
   const [lead, setLead]               = useState(initialLead || null);
   const [manualNumber, setManualNumber] = useState('');
   const [callStatus, setCallStatus]   = useState('idle');
@@ -63,7 +63,7 @@ export default function TwilioDialer({ initialLead, onClose, onCallLogged }) {
         if (mics.length > 0) setSelectedMicId(mics[0].deviceId);
       } catch {
         setError('Microphone access denied — please allow mic and refresh');
-        setCallStatus('idle');
+        setCallStatus('idle'); onCallEnd?.();
         return;
       }
 
@@ -136,9 +136,9 @@ export default function TwilioDialer({ initialLead, onClose, onCallLogged }) {
     setKeypadInput('');
 
     try {
-       // Connect via Twilio Device with proper backend routing
-       const call = await deviceRef.current.connect({ params: { To: to, callerId: 'auto' } });
-       callRef.current = call;
+      // Connect directly via the Voice SDK — TwiML app handles the outbound leg
+      const call = await deviceRef.current.connect({ params: { To: to } });
+      callRef.current = call;
 
       call.on('ringing', () => {
         setCallStatus('ringing');
@@ -147,7 +147,7 @@ export default function TwilioDialer({ initialLead, onClose, onCallLogged }) {
 
       call.on('accept', (c) => {
         setCallSid(c.parameters?.CallSid || null);
-        setCallStatus('connected');
+        setCallStatus('connected'); onCallStart?.();
         setStatusMsg('Connected');
         startTimer();
       });
