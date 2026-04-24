@@ -27,7 +27,8 @@ export default function UpcomingReminders({ onOpenLeadCard, onOpenUserCard, onOp
       const future = [];
 
       leads.forEach(l => {
-        if (l.callbackAt && new Date(l.callbackAt) > now) {
+        // Only show scheduled callbacks for PROSPECTS (interested leads), not "call_back_later" (just busy) leads
+        if (l.callbackAt && new Date(l.callbackAt) > now && l.status === 'prospect') {
           future.push({ type: 'lead', id: l.id, name: `${l.firstName} ${l.lastName}`, phone: l.phone, dateTime: l.callbackAt, raw: l });
         }
       });
@@ -55,7 +56,7 @@ export default function UpcomingReminders({ onOpenLeadCard, onOpenUserCard, onOp
     }}>
       {/* Header */}
       <div style={{ padding: '10px 16px', borderBottom: minimized ? 'none' : '1px solid rgba(255,255,255,0.07)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <span style={{ color: GOLD, fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase' }}>📅 Upcoming Appointments & Callbacks</span>
+        <span style={{ color: GOLD, fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase' }}>📅 Upcoming Appointments & Scheduled Callbacks</span>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           {!minimized && <span style={{ color: '#6b7280', fontSize: '11px' }}>{items.length} scheduled</span>}
           <button onClick={() => setMinimized(m => !m)}
