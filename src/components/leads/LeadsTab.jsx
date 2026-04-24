@@ -301,6 +301,7 @@ export default function LeadsTab() {
   const [leadHistory, setLeadHistory] = useState([]);
   const [activityLoading, setActivityLoading] = useState(false);
   const dialerRef = useRef(null);
+  const [isDialerPaused, setIsDialerPaused] = useState(false);
 
   useEffect(() => {
     loadLeads();
@@ -510,8 +511,10 @@ export default function LeadsTab() {
           onUpdate={loadLeads}
           onDialNumber={handleDialNumber}
           dialerRef={dialerRef}
+          isDialerPaused={isDialerPaused}
           onResume={() => {
             setSelectedLead(null);
+            setIsDialerPaused(false);
             dialerRef.current?.resumeDialer();
           }}
         />
@@ -542,6 +545,8 @@ export default function LeadsTab() {
             onClose={() => setShowPredictive(false)}
             onCallLogged={handleCallLogged}
             onLeadConnected={handleLeadConnected}
+            onPaused={() => setIsDialerPaused(true)}
+            onResumed={() => setIsDialerPaused(false)}
           />
         </div>
       )}
