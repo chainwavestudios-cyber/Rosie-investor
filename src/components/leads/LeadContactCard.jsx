@@ -231,7 +231,7 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
                 <button
                   onClick={async () => {
                     // Save the contact card first
-                    await handleSave?.();
+                    await saveProfile?.();
                     // Hangup the call
                     dialerRef.current?.hangupActiveCall?.();
                     // Resume dialer and close card
