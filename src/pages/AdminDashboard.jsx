@@ -950,6 +950,25 @@ export default function AdminDashboard() {
                   <span style={{ color, fontSize:'13px', fontWeight:'bold' }}>{value}</span>
                 </div>
               ))}
+              {/* SignNow KPI — inline in the KPI strip */}
+              {newSignNowCount > 0 && (
+                <div style={{ background:'rgba(245,158,11,0.08)', border:'1px solid rgba(245,158,11,0.35)', borderRadius:'2px', padding:'5px 10px', display:'flex', alignItems:'center', gap:'10px', flexShrink:0 }}>
+                  <span style={{ fontSize:'12px' }}>✍️</span>
+                  <div>
+                    <div style={{ color:'#f59e0b', fontSize:'13px', fontWeight:'bold', lineHeight:1.2 }}>{newSignNowCount} New SignNow Signature Request{newSignNowCount > 1 ? 's' : ''}</div>
+                    <div style={{ color:'#8a9ab8', fontSize:'9px', letterSpacing:'1px', textTransform:'uppercase' }}>New since last cleared</div>
+                  </div>
+                  <button onClick={() => {
+                    SignNowRequestDB.listAll().then(reqs => {
+                      localStorage.setItem('sn_dismissed_count', reqs.length);
+                      setNewSignNowCount(0);
+                      setSignNowAlertDismissed(reqs.length);
+                    });
+                  }} style={{ background:'rgba(245,158,11,0.2)', color:'#f59e0b', border:'1px solid rgba(245,158,11,0.4)', borderRadius:'2px', padding:'3px 10px', cursor:'pointer', fontSize:'10px', whiteSpace:'nowrap' }}>
+                    Clear
+                  </button>
+                </div>
+              )}
             </div>
             <UpcomingReminders
               onOpenLeadCard={(lead) => {}}
@@ -959,27 +978,7 @@ export default function AdminDashboard() {
           </>
         )}
 
-        {/* SignNow KPI alert — always visible on users tab */}
-        {view === 'users' && newSignNowCount > 0 && (
-          <div style={{ background:'rgba(245,158,11,0.1)', border:'1px solid rgba(245,158,11,0.35)', borderRadius:'4px', padding:'12px 18px', marginBottom:'12px', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-            <div style={{ display:'flex', alignItems:'center', gap:'10px' }}>
-              <span style={{ fontSize:'16px' }}>✍️</span>
-              <div>
-                <div style={{ color:'#f59e0b', fontSize:'13px', fontWeight:'bold' }}>{newSignNowCount} New SignNow Signature Request{newSignNowCount > 1 ? 's' : ''}</div>
-                <div style={{ color:'#8a9ab8', fontSize:'11px' }}>New since last cleared</div>
-              </div>
-            </div>
-            <button onClick={() => {
-              SignNowRequestDB.listAll().then(reqs => {
-                localStorage.setItem('sn_dismissed_count', reqs.length);
-                setNewSignNowCount(0);
-                setSignNowAlertDismissed(reqs.length);
-              });
-            }} style={{ background:'rgba(245,158,11,0.2)', color:'#f59e0b', border:'1px solid rgba(245,158,11,0.4)', borderRadius:'2px', padding:'6px 14px', cursor:'pointer', fontSize:'11px' }}>
-              Clear
-            </button>
-          </div>
-        )}
+
 
 
         {showAdd && <AddUserForm onAdd={load} onClose={() => setShowAdd(false)} />}
