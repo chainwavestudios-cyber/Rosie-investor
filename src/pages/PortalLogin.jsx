@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { usePortalAuth } from '@/lib/PortalAuthContext';
 
@@ -11,6 +11,26 @@ export default function PortalLogin() {
   const [loading, setLoading] = useState(false);
   const { portalLogin, isPortalLoading } = usePortalAuth();
   const navigate = useNavigate();
+
+  // Auto-login from URL params (?username=john3356&password=john3356)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const autoUser = params.get('username');
+    const autoPass = params.get('password');
+    if (autoUser && autoPass) {
+      setUsername(autoUser);
+      setPassword(autoPass);
+      setLoading(true);
+      portalLogin(autoUser, autoPass).then(result => {
+        if (result.success) {
+          navigate(result.user.role === 'admin' ? '/admin' : '/portal');
+        } else {
+          setError(result.error || 'Auto-login failed');
+          setLoading(false);
+        }
+      }).catch(() => { setLoading(false); });
+    }
+  }, []);
 
   if (isPortalLoading) {
     return (
