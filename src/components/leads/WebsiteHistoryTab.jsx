@@ -69,22 +69,21 @@ export default function WebsiteHistoryTab({ lead }) {
       )}
 
       {/* Stats */}
-      <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:'8px', marginBottom:'14px' }}>
-        {site === 'investors' ? [
-          ['Sessions', sessions.length, GOLD],
-          ['Pages', sessions.reduce((s,x) => s+(x.pages?.length||0),0), '#60a5fa'],
-          ['Time', fmtDur(invTotalTime), '#4ade80'],
-        ] : [
-          ['Page Views', consumerVisits.length, GOLD],
-          ['Unique Pages', [...new Set(consumerVisits.map(v=>v.page))].length, '#60a5fa'],
-          ['Time', fmtDur(conTotalTime), '#4ade80'],
-        ]).map(([label,val,color]) => (
-          <div key={label} style={{ background:'rgba(0,0,0,0.2)', border:'1px solid rgba(255,255,255,0.06)', borderRadius:'4px', padding:'8px', textAlign:'center' }}>
-            <div style={{ color, fontSize:'15px', fontWeight:'bold' }}>{val}</div>
-            <div style={{ color:'#4a5568', fontSize:'9px', letterSpacing:'1px', textTransform:'uppercase', marginTop:'2px' }}>{label}</div>
+      {(() => {
+        const statRows = site === 'investors'
+          ? [['Sessions', sessions.length, GOLD],['Pages', sessions.reduce((s,x) => s+(x.pages?.length||0),0), '#60a5fa'],['Time', fmtDur(invTotalTime), '#4ade80']]
+          : [['Page Views', consumerVisits.length, GOLD],['Unique Pages', [...new Set(consumerVisits.map(v=>v.page))].length, '#60a5fa'],['Time', fmtDur(conTotalTime), '#4ade80']];
+        return (
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:'8px', marginBottom:'14px' }}>
+            {statRows.map(([label,val,color]) => (
+              <div key={label} style={{ background:'rgba(0,0,0,0.2)', border:'1px solid rgba(255,255,255,0.06)', borderRadius:'4px', padding:'8px', textAlign:'center' }}>
+                <div style={{ color, fontSize:'15px', fontWeight:'bold' }}>{val}</div>
+                <div style={{ color:'#4a5568', fontSize:'9px', letterSpacing:'1px', textTransform:'uppercase', marginTop:'2px' }}>{label}</div>
+              </div>
+            ))}
           </div>
-        ))}
-      </div>
+        );
+      })()}
 
       {loading && <div style={{ color:'#6b7280', textAlign:'center', padding:'20px' }}>Loading…</div>}
 
