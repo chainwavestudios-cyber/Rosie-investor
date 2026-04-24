@@ -1,0 +1,51 @@
+{
+  "name": "SiteVisit",
+  "type": "object",
+  "properties": {
+    "leadId": {
+      "type": "string",
+      "title": "Lead ID"
+    },
+    "leadName": {
+      "type": "string",
+      "title": "Lead Name"
+    },
+    "passcode": {
+      "type": "string",
+      "title": "Passcode"
+    },
+    "page": {
+      "type": "string",
+      "title": "Page"
+    },
+    "referrer": {
+      "type": "string",
+      "title": "Referrer"
+    },
+    "timeOnPage": {
+      "type": "number",
+      "title": "Time On Page (seconds)"
+    },
+    "sessionId": {
+      "type": "string",
+      "title": "Session ID"
+    },
+    "siteType": {
+      "type": "string",
+      "title": "Site Type",
+      "enum": [
+        "consumer",
+        "investor"
+      ],
+      "default": "consumer"
+    },
+    "visitedAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Visited At"
+    }
+  },
+  "required": [
+    "leadId"
+  ]
+}
