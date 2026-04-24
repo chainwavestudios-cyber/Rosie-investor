@@ -20,6 +20,8 @@ export default function LeadEmailTab({ lead, onUpdate }) {
   const [replyText, setReplyText] = useState('');
   const [sendingReply, setSendingReply] = useState(false);
   const [replyMsg, setReplyMsg] = useState('');
+  const [selected, setSelected] = useState(new Set());
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     loadEmails();
@@ -34,12 +36,37 @@ export default function LeadEmailTab({ lead, onUpdate }) {
     setLoading(false);
   };
 
+  const toggleSelect = (id) => {
+    setSelected(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  };
+
+  const toggleAll = () => {
+    if (selected.size === emails.length) {
+      setSelected(new Set());
+    } else {
+      setSelected(new Set(emails.map(e => e.id)));
+    }
+  };
+
+  const deleteSelected = async () => {
+    if (selected.size === 0) return;
+    setDeleting(true);
+    try {
+      await Promise.all([...selected].map(id => base44.entities.EmailLog.delete(id)));
+      setSelected(new Set());
+      await loadEmails();
+    } catch {}
+    setDeleting(false);
+  };
+
   const handleSendReply = async (emailLog) => {
     if (!replyText.trim()) return;
     setSendingReply(true); setReplyMsg('');
     try {
-      // Send reply as a plain email via Mailjet
-      const MJ_KEY = ''; // handled server-side
       await base44.functions.invoke('sendLeadEmail', {
         leadId: lead.id,
         toEmail: lead.email,
@@ -49,8 +76,7 @@ export default function LeadEmailTab({ lead, onUpdate }) {
         isReply: true,
       });
       setReplyMsg('✓ Reply sent! +20 pts');
-      // Award 20 points for reply
-      const updated = await base44.entities.Lead.update(lead.id, {
+      await base44.entities.Lead.update(lead.id, {
         engagementScore: (lead.engagementScore || 0) + 20,
       });
       await base44.entities.LeadHistory.create({
@@ -73,9 +99,25 @@ export default function LeadEmailTab({ lead, onUpdate }) {
 
   return (
     <div>
-      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'16px' }}>
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'12px' }}>
         <div style={{ color: GOLD, fontSize:'10px', letterSpacing:'2px', textTransform:'uppercase' }}>Email History</div>
-        <div style={{ color:'#6b7280', fontSize:'11px' }}>{emails.length} email{emails.length !== 1 ? 's' : ''}</div>
+        <div style={{ display:'flex', alignItems:'center', gap:'8px' }}>
+          <span style={{ color:'#6b7280', fontSize:'11px' }}>{emails.length} email{emails.length !== 1 ? 's' : ''}</span>
+          {emails.length > 0 && (
+            <>
+              <button onClick={toggleAll}
+                style={{ background:'rgba(255,255,255,0.06)', color:'#8a9ab8', border:'1px solid rgba(255,255,255,0.1)', borderRadius:'2px', padding:'3px 10px', cursor:'pointer', fontSize:'10px' }}>
+                {selected.size === emails.length ? 'Deselect All' : 'Select All'}
+              </button>
+              {selected.size > 0 && (
+                <button onClick={deleteSelected} disabled={deleting}
+                  style={{ background:'rgba(239,68,68,0.15)', color:'#ef4444', border:'1px solid rgba(239,68,68,0.3)', borderRadius:'2px', padding:'3px 10px', cursor:'pointer', fontSize:'10px', fontWeight:'bold' }}>
+                  {deleting ? 'Deleting…' : `🗑 Delete (${selected.size})`}
+                </button>
+              )}
+            </>
+          )}
+        </div>
       </div>
 
       {emails.length === 0 && (
@@ -89,10 +131,17 @@ export default function LeadEmailTab({ lead, onUpdate }) {
         {emails.map(email => {
           const sc = STATUS_CONFIG[email.status] || STATUS_CONFIG.sent;
           const isOpen = replyingTo === email.id;
+          const isSelected = selected.has(email.id);
           return (
-            <div key={email.id} style={{ background:'rgba(255,255,255,0.02)', border:`1px solid ${sc.color}33`, borderLeft:`3px solid ${sc.color}`, borderRadius:'4px', padding:'12px 16px' }}>
+            <div key={email.id}
+              style={{ background: isSelected ? 'rgba(239,68,68,0.06)' : 'rgba(255,255,255,0.02)', border:`1px solid ${isSelected ? 'rgba(239,68,68,0.4)' : sc.color + '33'}`, borderLeft:`3px solid ${isSelected ? '#ef4444' : sc.color}`, borderRadius:'4px', padding:'12px 16px', cursor:'pointer', transition:'all 0.15s' }}
+              onClick={() => toggleSelect(email.id)}>
               <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:'8px', marginBottom:'6px' }}>
                 <div style={{ display:'flex', alignItems:'center', gap:'8px' }}>
+                  {/* Checkbox */}
+                  <div style={{ width:'14px', height:'14px', borderRadius:'2px', border:`2px solid ${isSelected ? '#ef4444' : '#4a5568'}`, background: isSelected ? '#ef4444' : 'transparent', flexShrink:0, display:'flex', alignItems:'center', justifyContent:'center' }}>
+                    {isSelected && <span style={{ color:'#fff', fontSize:'10px', lineHeight:1 }}>✓</span>}
+                  </div>
                   <span style={{ fontSize:'16px' }}>{sc.icon}</span>
                   <div>
                     <div style={{ color:'#e8e0d0', fontSize:'13px', fontWeight:'bold' }}>
@@ -113,7 +162,6 @@ export default function LeadEmailTab({ lead, onUpdate }) {
                 </div>
               </div>
 
-              {/* Open / Click details */}
               {email.openedAt && (
                 <div style={{ color:'#f59e0b', fontSize:'11px', marginBottom:'3px' }}>
                   📬 Opened: {new Date(email.openedAt).toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})}
@@ -124,25 +172,22 @@ export default function LeadEmailTab({ lead, onUpdate }) {
                   🔗 Clicked: {email.clickedUrl || ''} — {new Date(email.clickedAt).toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})}
                 </div>
               )}
-
-              {/* Sent by */}
               {email.sentBy && (
                 <div style={{ color:'#4a5568', fontSize:'10px', marginTop:'4px' }}>
                   Sent by: {email.sentBy}
                 </div>
               )}
 
-              {/* Reply button */}
-              <div style={{ marginTop:'8px' }}>
+              {/* Reply button — stop propagation so clicking it doesn't toggle select */}
+              <div style={{ marginTop:'8px' }} onClick={e => e.stopPropagation()}>
                 <button onClick={() => setReplyingTo(isOpen ? null : email.id)}
                   style={{ background:'rgba(96,165,250,0.12)', color:'#60a5fa', border:'1px solid rgba(96,165,250,0.25)', borderRadius:'2px', padding:'5px 14px', cursor:'pointer', fontSize:'11px' }}>
                   {isOpen ? 'Cancel' : '↩ Reply'}
                 </button>
               </div>
 
-              {/* Reply form */}
               {isOpen && (
-                <div style={{ marginTop:'12px' }}>
+                <div style={{ marginTop:'12px' }} onClick={e => e.stopPropagation()}>
                   <textarea
                     value={replyText}
                     onChange={e => setReplyText(e.target.value)}
