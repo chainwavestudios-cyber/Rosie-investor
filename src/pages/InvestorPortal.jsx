@@ -492,7 +492,7 @@ function InvestmentOffering() {
 
 // ─── Subscription Agreements ──────────────────────────────────────────────
 const PDF_DOCS = [
-  { id:'subscription',  name:'Subscription Agreement',  badge:'Required', url:'https://media.base44.com/files/public/69cd2741578c9b5ce655395b/7986e2b4e_Subscription_Agreement_Updated.pdf', totalPages:10 },
+  { id:'subscription',  name:'Subscription Agreement',  badge:'Required', url:'https://media.base44.com/files/public/69cd2741578c9b5ce655395b/d291387c6_Subscription_Agreement_Updated1.pdf', totalPages:10 },
   { id:'accreditation', name:'Investor Questionnaire',   badge:'Required', url:'https://media.base44.com/files/public/69cd2741578c9b5ce655395b/903902aa1_RosieAI_Investor_Questionnaire.pdf', totalPages:7 },
 ];
 
