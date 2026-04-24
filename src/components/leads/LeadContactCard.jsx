@@ -4,6 +4,7 @@ import MigrateLeadModal from './MigrateLeadModal';
 import DateTimePicker from '@/components/admin/DateTimePicker';
 import LeadEmailTab from './LeadEmailTab';
 import ScriptTab from './ScriptTab';
+import InvestorWebsiteTab from './InvestorWebsiteTab';
 import WebsiteHistoryTab from './WebsiteHistoryTab';
 import ZoomBookingModal from '@/components/ZoomBookingModal';
 
@@ -231,7 +232,7 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
                 <button
                   onClick={async () => {
                     // Save the contact card first
-                    await saveProfile?.();
+                    await handleSave?.();
                     // Hangup the call
                     dialerRef.current?.hangupActiveCall?.();
                     // Resume dialer and close card
@@ -248,7 +249,7 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
 
         {/* Tabs */}
         <div style={{ display:'flex', borderBottom:'1px solid rgba(255,255,255,0.07)', flexShrink:0 }}>
-          {[['overview','👤 Overview'],['actions','⚡ Actions'],['email','✉️ Emails'],['website','🌐 Website'],['script','📝 Script']].map(([id,label]) => (
+          {[['overview','👤 Overview'],['actions','⚡ Actions'],['email','✉️ Emails'],['invsite','💼 Inv. Site'],['script','📝 Script']].map(([id,label]) => (
             <button key={id} onClick={() => setTab(id)} style={{ background:'none', border:'none', borderBottom:tab===id?`2px solid ${GOLD}`:'2px solid transparent', color:tab===id?GOLD:'#6b7280', padding:'11px 20px', cursor:'pointer', fontSize:'11px', letterSpacing:'1px' }}>{label}</button>
           ))}
         </div>
@@ -358,6 +359,10 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
 
           {tab === 'website' && (
             <WebsiteHistoryTab lead={editLead} />
+          )}
+
+          {tab === 'invsite' && (
+            <InvestorWebsiteTab lead={editLead} />
           )}
 
           {tab === 'script' && (
