@@ -11,6 +11,7 @@ function fmt(dt) {
 export default function UpcomingReminders({ onOpenLeadCard, onOpenUserCard, onOpenDialer }) {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [minimized, setMinimized] = useState(false);
 
   useEffect(() => { loadAll(); }, []);
 
@@ -53,13 +54,20 @@ export default function UpcomingReminders({ onOpenLeadCard, onOpenUserCard, onOp
       marginBottom: '16px',
     }}>
       {/* Header */}
-      <div style={{ padding: '10px 16px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <div style={{ padding: '10px 16px', borderBottom: minimized ? 'none' : '1px solid rgba(255,255,255,0.07)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <span style={{ color: GOLD, fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase' }}>📅 Upcoming Appointments & Callbacks</span>
-        <span style={{ color: '#6b7280', fontSize: '11px' }}>{items.length} scheduled</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          {!minimized && <span style={{ color: '#6b7280', fontSize: '11px' }}>{items.length} scheduled</span>}
+          <button onClick={() => setMinimized(m => !m)}
+            style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '3px', color: '#8a9ab8', cursor: 'pointer', fontSize: '12px', padding: '2px 8px', lineHeight: 1.4 }}
+            title={minimized ? 'Expand' : 'Minimize'}>
+            {minimized ? '▼' : '▲'}
+          </button>
+        </div>
       </div>
 
       {/* Horizontal scroll row */}
-      <div style={{ overflowX: 'auto', display: 'flex', gap: '0', scrollbarWidth: 'thin' }}>
+      <div style={{ overflowX: 'auto', display: minimized ? 'none' : 'flex', gap: '0', scrollbarWidth: 'thin' }}>
         {loading && <div style={{ color: '#6b7280', fontSize: '12px', padding: '16px', whiteSpace: 'nowrap' }}>Loading…</div>}
         {!loading && items.length === 0 && (
           <div style={{ color: '#4a5568', fontSize: '11px', padding: '16px 20px', whiteSpace: 'nowrap' }}>No upcoming appointments or callbacks</div>
