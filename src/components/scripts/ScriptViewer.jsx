@@ -7,6 +7,8 @@ const GOLD = '#b8933a';
 const applyTokens = (text, lead) => {
   if (!text) return '';
   return text
+    .replace(/\{\{\s*first\s*name\s*\}\}/gi, lead?.firstName || '')
+    .replace(/\{\{\s*last\s*name\s*\}\}/gi, lead?.lastName || '')
     .replace(/\{\{\s*firstname\s*\}\}/gi, lead?.firstName || '')
     .replace(/\{\{\s*lastname\s*\}\}/gi, lead?.lastName || '');
 };
