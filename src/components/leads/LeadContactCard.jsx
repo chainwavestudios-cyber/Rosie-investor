@@ -26,7 +26,7 @@ function historyColor(type) {
   return map[type] || '#6b7280';
 }
 
-export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber }) {
+export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber, dialerRef, onResume }) {
   const [tab, setTab] = useState('overview');
   const [history, setHistory] = useState([]);
   const [editLead, setEditLead] = useState({ ...lead });
@@ -217,12 +217,36 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber 
                 📞 {lead.phone || editLead.phone}
               </button>
             )}
+            {/* Dialer controls — only show when dialer is paused on this call */}
+            {dialerRef?.current?.isPaused?.() && (
+              <div style={{ display:'flex', gap:'6px', marginRight:'4px' }}>
+                <button
+                  onClick={() => {
+                    dialerRef.current?.hangupActiveCall?.();
+                  }}
+                  style={{ background:'rgba(239,68,68,0.15)', color:'#ef4444', border:'1px solid rgba(239,68,68,0.4)', borderRadius:'4px', padding:'5px 12px', cursor:'pointer', fontSize:'11px', fontWeight:'bold', letterSpacing:'0.5px' }}>
+                  📵 Hang Up
+                </button>
+                <button
+                  onClick={async () => {
+                    // Save the contact card first
+                    await handleSave?.();
+                    // Hangup the call
+                    dialerRef.current?.hangupActiveCall?.();
+                    // Resume dialer and close card
+                    onResume?.();
+                  }}
+                  style={{ background:'linear-gradient(135deg,#22c55e,#16a34a)', color:'#fff', border:'none', borderRadius:'4px', padding:'5px 14px', cursor:'pointer', fontSize:'11px', fontWeight:'bold', letterSpacing:'0.5px', boxShadow:'0 0 12px rgba(74,222,128,0.3)' }}>
+                  ▶ Resume & Save
+                </button>
+              </div>
+            )}
             <button onClick={onClose} style={{ background:'rgba(255,255,255,0.05)', border:'1px solid rgba(255,255,255,0.1)', color:'#6b7280', cursor:'pointer', fontSize:'20px', width:'34px', height:'34px', borderRadius:'4px', display:'flex', alignItems:'center', justifyContent:'center' }}>×</button>
           </div>
         </div>
 
         {/* Tabs */}
-        <div style={{ display:'flex', borderBottom:'1px solid rgba(255,255,255,0.07)', flexShrink:0, overflowX:'auto', scrollbarWidth:'none' }}>
+        <div style={{ display:'flex', borderBottom:'1px solid rgba(255,255,255,0.07)', flexShrink:0 }}>
           {[['overview','👤 Overview'],['actions','⚡ Actions'],['email','✉️ Emails'],['script','📝 Script']].map(([id,label]) => (
             <button key={id} onClick={() => setTab(id)} style={{ background:'none', border:'none', borderBottom:tab===id?`2px solid ${GOLD}`:'2px solid transparent', color:tab===id?GOLD:'#6b7280', padding:'11px 20px', cursor:'pointer', fontSize:'11px', letterSpacing:'1px' }}>{label}</button>
           ))}
