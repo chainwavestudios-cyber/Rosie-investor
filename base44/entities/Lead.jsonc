@@ -95,6 +95,10 @@
       "type": "boolean",
       "title": "Badge: Visited Investor Page",
       "default": false
+    },
+    "portalPasscode": {
+      "type": "string",
+      "title": "Portal Passcode"
     }
   },
   "required": [
