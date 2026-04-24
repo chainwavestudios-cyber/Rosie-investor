@@ -28,6 +28,140 @@ function historyColor(type) {
   return map[type] || '#6b7280';
 }
 
+function AccessTab({ lead, onUpdate, onSave }) {
+  const GOLD = '#b8933a';
+  const DARK = '#0a0f1e';
+  const [generating, setGenerating] = useState(false);
+  const [copied, setCopied] = useState('');
+
+  const username = lead?.portalPasscode || '';
+  const investorUrl = username ? `https://investors.rosieai.tech/portal-login?username=${encodeURIComponent(username)}&password=${encodeURIComponent(username)}` : '';
+  const consumerUrl = username ? `https://www.rosieai.tech?ref=${username}` : '';
+
+  const generate = async () => {
+    setGenerating(true);
+    try {
+      // Build username: firstname + last 4 of phone
+      const nameSlug = (lead.firstName || 'user').toLowerCase().replace(/[^a-z]/g, '');
+      const last4 = (lead.phone || '').replace(/\D/g, '').slice(-4) || '0000';
+      const newUsername = `${nameSlug}${last4}`;
+
+      // Create InvestorUser so they can log in
+      const hashRes = await fetch(
+        'https://investors.rosieai.tech/api/apps/69cd2741578c9b5ce655395b/functions/hashPassword',
+        { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'hash', password: newUsername }) }
+      );
+      const hashData = await hashRes.json();
+      const hashedPassword = hashData?.hash || newUsername;
+
+      const existing = await base44.entities.InvestorUser.filter({ username: newUsername });
+      if (existing?.length > 0) {
+        await base44.entities.InvestorUser.update(existing[0].id, {
+          email: lead.email || '', name: `${lead.firstName} ${lead.lastName}`, password: hashedPassword, leadId: lead.id,
+        });
+      } else {
+        await base44.entities.InvestorUser.create({
+          username: newUsername, email: lead.email || '', name: `${lead.firstName} ${lead.lastName}`,
+          password: hashedPassword, role: 'investor', status: 'prospect', leadId: lead.id,
+        });
+      }
+
+      // Save to lead
+      await onSave({ portalPasscode: newUsername });
+
+      // Log it
+      await base44.entities.LeadHistory.create({
+        leadId: lead.id, type: 'note',
+        content: `🔑 Access credentials generated. Username: ${newUsername}`,
+      });
+    } catch(e) { console.error(e); }
+    setGenerating(false);
+  };
+
+  const copy = (text, key) => {
+    navigator.clipboard.writeText(text);
+    setCopied(key);
+    setTimeout(() => setCopied(''), 2000);
+  };
+
+  const inp = { width:'100%', background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.1)', borderRadius:'4px', padding:'9px 12px', color:'#e8e0d0', fontSize:'12px', outline:'none', fontFamily:'monospace', boxSizing:'border-box', cursor:'text' };
+
+  return (
+    <div style={{ display:'flex', flexDirection:'column', gap:'16px' }}>
+
+      {/* Generate button */}
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+        <div>
+          <div style={{ color:'#e8e0d0', fontSize:'14px', marginBottom:'3px' }}>Access Credentials</div>
+          <div style={{ color:'#6b7280', fontSize:'11px' }}>Generate a unique username and tracking links for this lead</div>
+        </div>
+        <button onClick={generate} disabled={generating}
+          style={{ background: generating ? 'rgba(184,147,58,0.2)' : 'linear-gradient(135deg,#b8933a,#d4aa50)', color:DARK, border:'none', borderRadius:'6px', padding:'9px 18px', cursor: generating ? 'not-allowed' : 'pointer', fontWeight:'bold', fontSize:'12px', letterSpacing:'1px', whiteSpace:'nowrap' }}>
+          {generating ? '⏳ Generating…' : username ? '🔄 Regenerate' : '⚡ Generate Access'}
+        </button>
+      </div>
+
+      {!username && (
+        <div style={{ background:'rgba(245,158,11,0.07)', border:'1px solid rgba(245,158,11,0.2)', borderRadius:'6px', padding:'14px 16px', color:'#f59e0b', fontSize:'12px', textAlign:'center' }}>
+          No credentials yet — click Generate Access to create them
+        </div>
+      )}
+
+      {username && (
+        <>
+          {/* Username */}
+          <div>
+            <div style={{ color:'#6b7280', fontSize:'9px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'6px' }}>🔑 Username (investors.rosieai.tech)</div>
+            <div style={{ display:'flex', gap:'6px' }}>
+              <input readOnly value={username} style={inp} />
+              <button onClick={() => copy(username, 'username')}
+                style={{ background:'rgba(255,255,255,0.06)', color: copied==='username' ? '#4ade80' : '#8a9ab8', border:'1px solid rgba(255,255,255,0.1)', borderRadius:'4px', padding:'8px 12px', cursor:'pointer', fontSize:'11px', whiteSpace:'nowrap' }}>
+                {copied==='username' ? '✓ Copied' : 'Copy'}
+              </button>
+            </div>
+            <div style={{ color:'#4a5568', fontSize:'10px', marginTop:'4px' }}>Password is the same as username</div>
+          </div>
+
+          {/* Investor site auto-login URL */}
+          <div>
+            <div style={{ color:'#6b7280', fontSize:'9px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'6px' }}>💼 Investor Site Auto-Login URL</div>
+            <div style={{ display:'flex', gap:'6px' }}>
+              <input readOnly value={investorUrl} style={{ ...inp, fontSize:'10px' }} />
+              <button onClick={() => copy(investorUrl, 'invUrl')}
+                style={{ background:'rgba(96,165,250,0.1)', color: copied==='invUrl' ? '#4ade80' : '#60a5fa', border:'1px solid rgba(96,165,250,0.25)', borderRadius:'4px', padding:'8px 12px', cursor:'pointer', fontSize:'11px', whiteSpace:'nowrap' }}>
+                {copied==='invUrl' ? '✓ Copied' : 'Copy'}
+              </button>
+            </div>
+            <div style={{ color:'#4a5568', fontSize:'10px', marginTop:'4px' }}>Clicking this auto-logs them in</div>
+          </div>
+
+          {/* Consumer site ref URL */}
+          <div>
+            <div style={{ color:'#6b7280', fontSize:'9px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'6px' }}>🌐 Consumer Site Referral URL</div>
+            <div style={{ display:'flex', gap:'6px' }}>
+              <input readOnly value={consumerUrl} style={{ ...inp, fontSize:'10px' }} />
+              <button onClick={() => copy(consumerUrl, 'conUrl')}
+                style={{ background:'rgba(167,139,250,0.1)', color: copied==='conUrl' ? '#4ade80' : '#a78bfa', border:'1px solid rgba(167,139,250,0.25)', borderRadius:'4px', padding:'8px 12px', cursor:'pointer', fontSize:'11px', whiteSpace:'nowrap' }}>
+                {copied==='conUrl' ? '✓ Copied' : 'Copy'}
+              </button>
+            </div>
+            <div style={{ color:'#4a5568', fontSize:'10px', marginTop:'4px' }}>Tracks their visits to rosieai.tech</div>
+          </div>
+
+          {/* Status */}
+          <div style={{ background:'rgba(74,222,128,0.06)', border:'1px solid rgba(74,222,128,0.2)', borderRadius:'6px', padding:'10px 14px', display:'flex', gap:'10px', alignItems:'center' }}>
+            <span style={{ fontSize:'18px' }}>✅</span>
+            <div>
+              <div style={{ color:'#4ade80', fontSize:'12px', fontWeight:'bold' }}>Access Active</div>
+              <div style={{ color:'#6b7280', fontSize:'10px' }}>Portal account exists · tracking enabled</div>
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 function OverviewTab({ editLead, setEditLead, saving, saveMsg, saveProfile, updateStatus, quickNote, setQuickNote, addQuickNote, addingNote, history, loading }) {
   const [editing, setEditing] = useState(false);
   const GOLD = '#b8933a';
@@ -387,7 +521,7 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
 
         {/* Tabs */}
         <div style={{ display:'flex', borderBottom:'1px solid rgba(255,255,255,0.07)', flexShrink:0 }}>
-          {[['overview','👤 Overview'],['actions','⚡ Actions'],['email','✉️ Emails'],['invsite','💼 Inv. Site'],['script','📝 Script']].map(([id,label]) => (
+          {[['overview','👤 Overview'],['actions','⚡ Actions'],['email','✉️ Emails'],['access','🔑 Access'],['invsite','💼 Inv. Site'],['script','📝 Script']].map(([id,label]) => (
             <button key={id} onClick={() => setTab(id)} style={{ background:'none', border:'none', borderBottom:tab===id?`2px solid ${GOLD}`:'2px solid transparent', color:tab===id?GOLD:'#6b7280', padding:'11px 20px', cursor:'pointer', fontSize:'11px', letterSpacing:'1px' }}>{label}</button>
           ))}
         </div>
@@ -415,6 +549,15 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
 
           {tab === 'website' && (
             <WebsiteHistoryTab lead={editLead} />
+          )}
+
+          {tab === 'access' && (
+            <AccessTab lead={editLead} onUpdate={(updates) => setEditLead(prev => ({ ...prev, ...updates }))} onSave={async (updates) => {
+              try {
+                await base44.entities.Lead.update(lead.id, updates);
+                setEditLead(prev => ({ ...prev, ...updates }));
+              } catch(e) { console.error(e); }
+            }} />
           )}
 
           {tab === 'invsite' && (
