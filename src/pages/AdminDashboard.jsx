@@ -532,7 +532,7 @@ function ContactCardModal({ user, onClose, onSave, allSessions, matchesUser }) {
 }
 
 // ─── GLOBAL CALENDAR VIEW ─────────────────────────────────────────────────
-function GlobalCalendar() {
+function GlobalCalendar({ users = [], setContactCard, setView }) {
   const [allAppts, setAllAppts] = useState([]);
   const [allLeads, setAllLeads] = useState([]);
   const [loading, setLoading]   = useState(true);
@@ -1346,7 +1346,7 @@ export default function AdminDashboard() {
         )}
 
         {/* ── Calendar ── */}
-        {view === 'calendar' && <GlobalCalendar />}
+        {view === 'calendar' && <GlobalCalendar users={users} setContactCard={setContactCard} setView={handleViewChange} />}
 
         {/* ── Analytics ── */}
         {view === 'analytics' && (() => {
