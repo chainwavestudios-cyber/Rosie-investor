@@ -5,6 +5,7 @@ import TwilioDialer from './TwilioDialer';
 import PredictiveDialer from './PredictiveDialer';
 import WebsiteEngagementTab from './WebsiteEngagementTab';
 import GlobalScriptEditor from '@/components/scripts/GlobalScriptEditor';
+import TwilioDialer2 from './TwilioDialer2';
 import LiveAssistant from './LiveAssistant';
 import SiteVisitsTab from './SiteVisitsTab';
 
@@ -306,6 +307,8 @@ export default function LeadsTab() {
   const dialerRef = useRef(null);
   const [isDialerPaused, setIsDialerPaused] = useState(false);
   const [isCallActive, setIsCallActive] = useState(false);
+  const [showDialer2, setShowDialer2] = useState(false);
+  const [dialerLead2, setDialerLead2] = useState(null);
 
   useEffect(() => {
     loadLeads();
@@ -503,6 +506,7 @@ export default function LeadsTab() {
         <div style={{ padding:'12px', borderTop:'1px solid rgba(255,255,255,0.07)' }}>
           <div style={{ color:'#4a5568', fontSize:'9px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'8px' }}>Dialers</div>
           <button onClick={() => setShowDialer(true)} style={{ display:'block', width:'100%', background:'rgba(74,222,128,0.1)', color:'#4ade80', border:'1px solid rgba(74,222,128,0.25)', borderRadius:'2px', padding:'8px 10px', cursor:'pointer', fontSize:'11px', marginBottom:'6px', textAlign:'left' }}>📞 Direct Dialer</button>
+          <button onClick={() => setShowDialer2(true)} style={{ display:'block', width:'100%', background:'rgba(74,222,128,0.07)', color:'#4ade80', border:'1px solid rgba(74,222,128,0.2)', borderRadius:'2px', padding:'8px 10px', cursor:'pointer', fontSize:'11px', marginBottom:'6px', textAlign:'left' }}>📞 Direct Dialer 2 · Monitor</button>
           <button onClick={() => setShowPredictive(p => !p)} style={{ display:'block', width:'100%', background: showPredictive ? 'rgba(184,147,58,0.2)' : 'rgba(167,139,250,0.1)', color: showPredictive ? GOLD : '#a78bfa', border:`1px solid ${showPredictive ? 'rgba(184,147,58,0.4)' : 'rgba(167,139,250,0.25)'}`, borderRadius:'2px', padding:'8px 10px', cursor:'pointer', fontSize:'11px', marginBottom:'6px', textAlign:'left' }}>⚡ {showPredictive ? 'Hide Predictive' : 'Predictive Dialer'}</button>
           <button onClick={() => setShowNewLead(true)} style={{ display:'block', width:'100%', background:'rgba(96,165,250,0.1)', color:'#60a5fa', border:'1px solid rgba(96,165,250,0.25)', borderRadius:'2px', padding:'8px 10px', cursor:'pointer', fontSize:'11px', marginBottom:'6px', textAlign:'left' }}>+ New Lead</button>
           <button onClick={() => setShowUpload(true)} style={{ display:'block', width:'100%', background:'linear-gradient(135deg,#b8933a,#d4aa50)', color:DARK, border:'none', borderRadius:'2px', padding:'8px 10px', cursor:'pointer', fontSize:'11px', fontWeight:'700', textAlign:'left' }}>📊 Import CSV</button>
@@ -857,6 +861,15 @@ export default function LeadsTab() {
       </div>
       )}
       </div>
+      {/* TwilioDialer2 */}
+      {showDialer2 && (
+        <TwilioDialer2
+          initialLead={dialerLead2}
+          onClose={() => { setShowDialer2(false); setDialerLead2(null); }}
+          onCallLogged={handleCallLogged}
+        />
+      )}
+
       {/* Live Assistant — floating widget */}
       <LiveAssistant isCallActive={isCallActive} />
     </div>
