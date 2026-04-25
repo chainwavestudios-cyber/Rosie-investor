@@ -597,27 +597,32 @@ function GlobalCalendar() {
 
   const statusColors = { scheduled: GOLD, completed: '#4ade80', cancelled: '#4a5568', 'no-show': '#ef4444' };
 
-  const handleDrop = async (targetDay, evt) => {
-    evt.preventDefault();
+  const handleDrop = async (targetDay, e) => {
+    e.preventDefault();
+    e.stopPropagation();
     setDragOver(null);
-    if (!dragging) return;
+    if (!dragging || dragging.type !== 'investor') return;
     const appt = dragging;
     setDragging(null);
-    if (appt.type !== 'investor') return; // only move investor appts
 
-    // Keep same time, change date
-    const orig = new Date(appt.raw.scheduledAt);
+    // Keep same time, just move the date
+    const orig = new Date(appt.dateTime);
     const newDate = new Date(targetDay);
     newDate.setHours(orig.getHours(), orig.getMinutes(), 0, 0);
 
+    // Skip if same day
+    if (newDate.toDateString() === orig.toDateString()) return;
+
     // Optimistic update
-    setAllAppts(prev => prev.map(a => a.id === appt.id ? { ...a, scheduledAt: newDate.toISOString() } : a));
+    setAllAppts(prev => prev.map(a => a.id === appt.id
+      ? { ...a, scheduledAt: newDate.toISOString() }
+      : a
+    ));
 
     try {
       await AppointmentDB.update(appt.id, { scheduledAt: newDate.toISOString() });
     } catch (e) {
       console.error('Failed to move appointment:', e);
-      // Revert
       setAllAppts(prev => prev.map(a => a.id === appt.id ? appt.raw : a));
     }
   };
@@ -669,8 +674,8 @@ function GlobalCalendar() {
 
             return (
               <div key={i}
-                onDragOver={e => { e.preventDefault(); setDragOver(i); }}
-                onDragLeave={() => setDragOver(null)}
+                onDragOver={e => { e.preventDefault(); e.stopPropagation(); setDragOver(i); }}
+                onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) setDragOver(null); }}
                 onDrop={e => handleDrop(day, e)}
                 style={{
                   background: isDropTarget ? 'rgba(184,147,58,0.1)' : isT ? 'rgba(184,147,58,0.06)' : 'rgba(255,255,255,0.02)',
@@ -697,19 +702,31 @@ function GlobalCalendar() {
                   {dayEvents.map(evt => (
                     <div key={`${evt.type}-${evt.id}`}
                       draggable={evt.type === 'investor'}
-                      onDragStart={() => setDragging(evt)}
+                      onDragStart={(e) => { e.stopPropagation(); setDragging(evt); }}
                       onDragEnd={() => { setDragging(null); setDragOver(null); }}
+                      onClick={() => {
+                        if (evt.type === 'investor') {
+                          const u = users.find(u => u.id === evt.id);
+                          if (u) setContactCard(u);
+                        } else if (evt.type === 'lead') {
+                          base44.entities.Lead.filter({ id: evt.id }).then(leads => {
+                            if (leads?.[0]) setView('leads');
+                          }).catch(() => {});
+                        }
+                      }}
                       style={{
                         background: `${evt.color}18`,
                         border: `1px solid ${evt.color}44`,
                         borderLeft: `3px solid ${evt.color}`,
                         borderRadius:'3px',
                         padding:'5px 7px',
-                        cursor: evt.type === 'investor' ? 'grab' : 'default',
+                        cursor: 'pointer',
                         userSelect:'none',
                         opacity: dragging?.id === evt.id ? 0.4 : 1,
-                        transition:'opacity 0.15s',
-                      }}>
+                        transition:'all 0.15s',
+                      }}
+                      onMouseEnter={e => e.currentTarget.style.background = `${evt.color}30`}
+                      onMouseLeave={e => e.currentTarget.style.background = `${evt.color}18`}>
                       <div style={{ color:'#e8e0d0', fontSize:'10px', fontWeight:'bold', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
                         {evt.name}
                       </div>
