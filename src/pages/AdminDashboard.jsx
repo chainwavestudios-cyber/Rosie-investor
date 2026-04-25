@@ -18,6 +18,7 @@ import InvestorAnalyticsTab from '@/components/admin/InvestorAnalyticsTab';
 import RecentInvestorEvents from '@/components/admin/RecentInvestorEvents';
 import { base44 } from '@/api/base44Client';
 import InvestorWebsiteTab from '@/components/leads/InvestorWebsiteTab';
+import ResearchTab from '@/components/leads/ResearchTab';
 import ScriptViewer from '@/components/scripts/ScriptViewer';
 
 const LOGO = 'https://media.base44.com/images/public/69cd2741578c9b5ce655395b/39a31f9b9_Untitleddesign3.png';
@@ -166,7 +167,7 @@ function ContactCardModal({ user, onClose, onSave, allSessions, matchesUser }) {
   const TABS = [
     ['overview','👤 Overview'], ['history','📞 History'], ['analytics','📊 Analytics'],
     ['documents','📄 Documents'], ['accreditation','🔐 Accreditation'], ['calendar','📅 Calendar'],
-    ['portal','🔑 Portal Access'], ['rosie','🤖 Rosie AI'], ['invsite','💼 Inv. Site'], ['script','📝 Script'],
+    ['portal','🔑 Portal Access'], ['rosie','🤖 Rosie AI'], ['invsite','💼 Inv. Site'], ['research','🔍 Research'], ['script','📝 Script'],
   ];
 
   const noteTypeIcons = { note:'📝', call:'📞', sms:'💬', voicemail:'📳', email:'✉️' };
@@ -459,6 +460,7 @@ function ContactCardModal({ user, onClose, onSave, allSessions, matchesUser }) {
 
           {/* SCRIPT */}
           {tab === 'invsite' && <InvestorWebsiteTab user={user} />}
+          {tab === 'research' && <ResearchTab user={user} />}
           {tab === 'script' && <ScriptViewer lead={{ firstName: user.name?.split(' ')[0] || '', lastName: user.name?.split(' ').slice(1).join(' ') || '' }} />}
 
           {/* CALENDAR */}
