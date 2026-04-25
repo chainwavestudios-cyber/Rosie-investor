@@ -70,7 +70,7 @@ function AccessTab({ lead, onUpdate, onSave }) {
       } else {
         await base44.entities.InvestorUser.create({
           username: newUsername, email: lead.email || '', name: `${lead.firstName} ${lead.lastName}`,
-          password: hashedPassword, role: 'investor', status: 'prospect', leadId: lead.id,
+          password: hashedPassword, role: 'guest', status: 'info_only', siteAccess: 'info_only', leadId: lead.id,
         });
       }
 
