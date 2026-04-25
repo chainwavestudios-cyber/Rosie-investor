@@ -18,11 +18,16 @@ const TRIGGER_PATTERNS = [
 
 const QUESTION_PATTERN = /\b(what|how|why|when|where|who|can|could|would|is|are|do|does|will|should|have|has|tell me|explain)\b.{5,80}\?/gi;
 
-export default function LiveAssistant({ isCallActive = false, lead = null }) {
+export default function LiveAssistant({ isCallActive = false, lead = null, currentLead = null }) {
   const [visible, setVisible]           = useState(true);
   const [minimized, setMinimized]       = useState(false);
   const [position, setPosition]         = useState({ x: window.innerWidth - 420, y: 80 });
   const [width, setWidth]               = useState(400);
+  const [expanded, setExpanded]         = useState(false); // wide mode
+  const [summarizing, setSummarizing]   = useState(false);
+  const [summary, setSummary]           = useState('');
+  const [savingNotes, setSavingNotes]   = useState(false);
+  const [saveMsg, setSaveMsg]           = useState('');
   const [transcript, setTranscript]     = useState([]);
   const [aiAnswer, setAiAnswer]         = useState('');
   const [aiLoading, setAiLoading]       = useState(false);
@@ -67,12 +72,14 @@ export default function LiveAssistant({ isCallActive = false, lead = null }) {
     if (!isCallActive && listening) stopListening();
   }, [isCallActive]);
 
+  const activeLead = currentLead || lead;
+
   // Auto-research when call connects with a lead
   useEffect(() => {
-    if (isCallActive && lead && !research && !researchLoading) {
+    if (isCallActive && activeLead && !research && !researchLoading) {
       runResearch();
     }
-  }, [isCallActive, lead]);
+  }, [isCallActive, activeLead]);
 
   const loadKB = async () => {
     try {
@@ -226,14 +233,15 @@ export default function LiveAssistant({ isCallActive = false, lead = null }) {
     setResearchLoading(true);
     setResearch(null);
     try {
-      const name = lead ? `${lead.firstName} ${lead.lastName}` : 'Unknown';
-      const location = lead?.state || lead?.address || '';
+      const l = currentLead || lead;
+      const name = l ? `${l.firstName} ${l.lastName}` : 'Unknown';
+      const location = l?.state || l?.address || '';
       const res = await base44.functions.invoke('liveAssistantResearch', {
         name,
-        email: lead?.email || '',
-        phone: lead?.phone || '',
+        email: l?.email || '',
+        phone: l?.phone || '',
         location,
-        notes: lead?.notes || '',
+        notes: l?.notes || '',
       });
       setResearch(res?.data || null);
     } catch(e) { setResearch({ error: e.message }); }
@@ -243,12 +251,56 @@ export default function LiveAssistant({ isCallActive = false, lead = null }) {
   const sentimentColor = { positive:'#4ade80', neutral:'#f59e0b', negative:'#ef4444' };
   const sentimentLabel = { positive:'😊 Positive', neutral:'😐 Neutral', negative:'😟 Negative' };
 
+  const summarizeCall = async () => {
+    setSummarizing(true);
+    setSummary('');
+    try {
+      const fullTranscript = transcriptRef.current.map(t => t.text).join(' ');
+      const res = await base44.functions.invoke('liveAssistantAI', {
+        question: `Summarize this sales call in 3-5 bullet points. Include: main topics discussed, investor's questions/concerns, their level of interest, and recommended next steps.
+
+Transcript: "${fullTranscript}"`,
+        transcript: transcriptRef.current,
+        kbEntries,
+        mode: 'summary',
+      });
+      setSummary(res?.data?.answer || 'No summary generated.');
+    } catch(e) { setSummary('Error: ' + e.message); }
+    setSummarizing(false);
+  };
+
+  const saveToNotes = async () => {
+    const l = currentLead || lead;
+    if (!l?.id) { setSaveMsg('No lead selected'); setTimeout(() => setSaveMsg(''), 2000); return; }
+    setSavingNotes(true);
+    try {
+      const noteContent = summary
+        ? `📋 Call Summary:\n${summary}\n\n📝 Full Transcript:\n${transcriptRef.current.map(t => t.text).join(' ')}`
+        : `📝 Call Transcript:\n${transcriptRef.current.map(t => t.text).join(' ')}`;
+      await base44.entities.LeadHistory.create({
+        leadId: l.id,
+        type: 'note',
+        content: noteContent.slice(0, 2000),
+      });
+      setSaveMsg('Saved to notes ✓');
+    } catch(e) { setSaveMsg('Error: ' + e.message); }
+    setSavingNotes(false);
+    setTimeout(() => setSaveMsg(''), 3000);
+  };
+
   // Drag
   const onMouseDown = (e) => {
     if (e.target.closest('button,input,textarea,select')) return;
     dragRef.current = { dragging:true, startX:e.clientX, startY:e.clientY, origX:position.x, origY:position.y };
     e.preventDefault();
   };
+  useEffect(() => {
+    const newW = expanded ? Math.min(820, window.innerWidth - 40) : 400;
+    setWidth(newW);
+    // Reposition if going off screen
+    setPosition(p => ({ x: Math.min(p.x, window.innerWidth - newW - 10), y: p.y }));
+  }, [expanded]);
+
   useEffect(() => {
     const onMove = (e) => {
       if (!dragRef.current.dragging) return;
@@ -289,6 +341,10 @@ export default function LiveAssistant({ isCallActive = false, lead = null }) {
             <button onClick={() => setCoachMode(c => !c)}
               title="Coach mode"
               style={{ background: coachMode ? 'rgba(167,139,250,0.2)' : 'rgba(255,255,255,0.05)', border:`1px solid ${coachMode ? 'rgba(167,139,250,0.4)' : 'rgba(255,255,255,0.1)'}`, color: coachMode ? '#a78bfa' : '#6b7280', borderRadius:'4px', padding:'3px 7px', cursor:'pointer', fontSize:'11px' }}>🎯</button>
+            <button onClick={() => setExpanded(e => !e)} title={expanded ? 'Collapse' : 'Expand'}
+              style={{ background: expanded ? 'rgba(184,147,58,0.15)' : 'none', border: expanded ? `1px solid rgba(184,147,58,0.3)` : 'none', color: expanded ? GOLD : '#6b7280', cursor:'pointer', fontSize:'12px', padding:'2px 6px', borderRadius:'3px' }}>
+              {expanded ? '⊡' : '⊞'}
+            </button>
             <button onClick={() => setMinimized(m => !m)} style={{ background:'none', border:'none', color:'#6b7280', cursor:'pointer', fontSize:'14px', padding:'0 3px' }}>{minimized ? '▲' : '▼'}</button>
             <button onClick={() => setVisible(false)} style={{ background:'none', border:'none', color:'#6b7280', cursor:'pointer', fontSize:'16px', padding:'0 3px' }}>×</button>
           </div>
@@ -360,33 +416,55 @@ export default function LiveAssistant({ isCallActive = false, lead = null }) {
               </div>
             )}
 
-            {/* Detected questions — clickable boxes */}
-            {detectedQs.length > 0 && (
-              <div style={{ padding:'8px 12px', borderBottom:'1px solid rgba(255,255,255,0.06)', background:'rgba(245,158,11,0.04)' }}>
-                <div style={{ color:'#f59e0b', fontSize:'9px', letterSpacing:'1.5px', textTransform:'uppercase', marginBottom:'5px' }}>❓ Detected Questions</div>
-                <div style={{ display:'flex', flexDirection:'column', gap:'3px' }}>
-                  {detectedQs.slice(-4).map((q, i) => (
-                    <button key={i} onClick={() => askAI(q, transcriptRef.current)}
-                      style={{ background: activeQuestion === q ? 'rgba(245,158,11,0.15)' : 'rgba(255,255,255,0.03)', border:`1px solid ${activeQuestion === q ? 'rgba(245,158,11,0.4)' : 'rgba(255,255,255,0.08)'}`, borderRadius:'4px', padding:'5px 9px', cursor:'pointer', color: activeQuestion === q ? '#f59e0b' : '#8a9ab8', fontSize:'10px', textAlign:'left', lineHeight:1.4, transition:'all 0.15s' }}
-                      onMouseEnter={e => { if(activeQuestion !== q) e.currentTarget.style.borderColor='rgba(245,158,11,0.3)'; }}
-                      onMouseLeave={e => { if(activeQuestion !== q) e.currentTarget.style.borderColor='rgba(255,255,255,0.08)'; }}>
-                      {q.length > 70 ? q.slice(0, 70) + '…' : q}
+            {/* Main content area — side-by-side when expanded */}
+            <div style={{ display: expanded ? 'flex' : 'block' }}>
+
+              {/* Questions panel — side panel when expanded, inline when collapsed */}
+              {detectedQs.length > 0 && (
+                <div style={{
+                  ...(expanded ? {
+                    width:'220px', flexShrink:0, borderRight:'1px solid rgba(255,255,255,0.06)',
+                    background:'rgba(245,158,11,0.03)', display:'flex', flexDirection:'column',
+                  } : {
+                    borderBottom:'1px solid rgba(255,255,255,0.06)', background:'rgba(245,158,11,0.03)'
+                  }),
+                  padding:'10px',
+                }}>
+                  <div style={{ color:'#f59e0b', fontSize:'9px', letterSpacing:'1.5px', textTransform:'uppercase', marginBottom:'6px', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                    <span>❓ Questions ({detectedQs.length})</span>
+                    <button onClick={() => setDetectedQs([])} style={{ background:'none', border:'none', color:'#4a5568', cursor:'pointer', fontSize:'10px' }}>Clear</button>
+                  </div>
+                  <div style={{ display:'flex', flexDirection:'column', gap:'4px', overflowY:'auto', maxHeight: expanded ? '400px' : '120px' }}>
+                    {detectedQs.map((q, i) => (
+                      <button key={i} onClick={() => askAI(q, transcriptRef.current)}
+                        style={{
+                          background: activeQuestion === q ? 'rgba(245,158,11,0.2)' : 'rgba(255,255,255,0.03)',
+                          border:`1px solid ${activeQuestion === q ? 'rgba(245,158,11,0.5)' : 'rgba(255,255,255,0.08)'}`,
+                          borderLeft: activeQuestion === q ? '3px solid #f59e0b' : '3px solid transparent',
+                          borderRadius:'4px', padding:'6px 8px', cursor:'pointer',
+                          color: activeQuestion === q ? '#f59e0b' : '#8a9ab8',
+                          fontSize:'10px', textAlign:'left', lineHeight:1.4, transition:'all 0.15s',
+                        }}
+                        onMouseEnter={e => { if(activeQuestion !== q) { e.currentTarget.style.borderColor='rgba(245,158,11,0.3)'; e.currentTarget.style.color='#e8e0d0'; } }}
+                        onMouseLeave={e => { if(activeQuestion !== q) { e.currentTarget.style.borderColor='rgba(255,255,255,0.08)'; e.currentTarget.style.color='#8a9ab8'; } }}>
+                        {q.length > (expanded ? 80 : 60) ? q.slice(0, expanded ? 80 : 60) + '…' : q}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Right side — tabs + content */}
+              <div style={{ flex:1, minWidth:0 }}>
+                {/* Tabs */}
+                <div style={{ display:'flex', borderBottom:'1px solid rgba(255,255,255,0.06)' }}>
+                  {[['assistant','🧠 AI'],['transcript','📝 Transcript'],['kb','📚 KB']].map(([id,label]) => (
+                    <button key={id} onClick={() => setActiveTab(id)}
+                      style={{ flex:1, background:'none', border:'none', borderBottom: activeTab===id ? `2px solid ${GOLD}` : '2px solid transparent', color: activeTab===id ? GOLD : '#6b7280', padding:'7px 4px', cursor:'pointer', fontSize:'10px', letterSpacing:'0.5px' }}>
+                      {label}
                     </button>
                   ))}
                 </div>
-                <button onClick={() => setDetectedQs([])} style={{ marginTop:'4px', background:'none', border:'none', color:'#4a5568', cursor:'pointer', fontSize:'9px' }}>Clear</button>
-              </div>
-            )}
-
-            {/* Tabs */}
-            <div style={{ display:'flex', borderBottom:'1px solid rgba(255,255,255,0.06)' }}>
-              {[['assistant','🧠 AI'],['transcript','📝 Transcript'],['kb','📚 KB']].map(([id,label]) => (
-                <button key={id} onClick={() => setActiveTab(id)}
-                  style={{ flex:1, background:'none', border:'none', borderBottom: activeTab===id ? `2px solid ${GOLD}` : '2px solid transparent', color: activeTab===id ? GOLD : '#6b7280', padding:'7px 4px', cursor:'pointer', fontSize:'10px', letterSpacing:'0.5px' }}>
-                  {label}
-                </button>
-              ))}
-            </div>
 
             {/* Assistant tab */}
             {activeTab === 'assistant' && (
@@ -424,16 +502,41 @@ export default function LiveAssistant({ isCallActive = false, lead = null }) {
                   </div>
                 ))}
                 {transcript.length > 0 && (
-                  <button onClick={() => { setTranscript([]); transcriptRef.current = []; setDetectedQs([]); setSentiment(null); }}
-                    style={{ marginTop:'6px', background:'transparent', color:'#4a5568', border:'1px solid rgba(255,255,255,0.08)', borderRadius:'3px', padding:'3px 8px', cursor:'pointer', fontSize:'9px' }}>
-                    Clear
-                  </button>
+                  <div style={{ marginTop:'8px', display:'flex', gap:'5px', flexWrap:'wrap', alignItems:'center' }}>
+                    <button onClick={() => { setTranscript([]); transcriptRef.current = []; setDetectedQs([]); setSentiment(null); setSummary(''); }}
+                      style={{ background:'transparent', color:'#4a5568', border:'1px solid rgba(255,255,255,0.08)', borderRadius:'3px', padding:'3px 8px', cursor:'pointer', fontSize:'9px' }}>
+                      Clear
+                    </button>
+                    <button onClick={summarizeCall} disabled={summarizing}
+                      style={{ background:'rgba(184,147,58,0.12)', color:GOLD, border:`1px solid rgba(184,147,58,0.3)`, borderRadius:'3px', padding:'3px 10px', cursor:'pointer', fontSize:'9px', fontWeight:'bold' }}>
+                      {summarizing ? '⏳ Summarizing…' : '📋 Summarize Call'}
+                    </button>
+                    <button onClick={saveToNotes} disabled={savingNotes || transcript.length === 0}
+                      style={{ background:'rgba(74,222,128,0.1)', color:'#4ade80', border:'1px solid rgba(74,222,128,0.25)', borderRadius:'3px', padding:'3px 10px', cursor:'pointer', fontSize:'9px', fontWeight:'bold' }}>
+                      {savingNotes ? '⏳ Saving…' : '💾 Save to Notes'}
+                    </button>
+                    {saveMsg && <span style={{ color: saveMsg.includes('✓') ? '#4ade80' : '#ef4444', fontSize:'9px' }}>{saveMsg}</span>}
+                  </div>
+                )}
+
+                {/* Summary box */}
+                {summary && (
+                  <div style={{ marginTop:'8px', background:'rgba(184,147,58,0.06)', border:'1px solid rgba(184,147,58,0.2)', borderRadius:'4px', padding:'8px 10px' }}>
+                    <div style={{ color:GOLD, fontSize:'9px', letterSpacing:'1px', textTransform:'uppercase', marginBottom:'5px' }}>📋 Call Summary</div>
+                    <div style={{ color:'#c4cdd8', fontSize:'11px', lineHeight:1.6, whiteSpace:'pre-wrap' }}>{summary}</div>
+                    <button onClick={saveToNotes} disabled={savingNotes}
+                      style={{ marginTop:'6px', background:'rgba(74,222,128,0.1)', color:'#4ade80', border:'1px solid rgba(74,222,128,0.25)', borderRadius:'3px', padding:'3px 10px', cursor:'pointer', fontSize:'9px' }}>
+                      {savingNotes ? '⏳' : '💾 Save Summary to Notes'}
+                    </button>
+                  </div>
                 )}
               </div>
             )}
 
             {/* KB tab */}
             {activeTab === 'kb' && <KBEditor kbEntries={kbEntries} onUpdate={loadKB} />}
+              </div>{/* end right side */}
+            </div>{/* end main content area */}
           </>
         )}
       </div>
