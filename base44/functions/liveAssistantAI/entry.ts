@@ -13,7 +13,10 @@ Deno.serve(async (req) => {
     let systemPrompt: string;
     let userContent: string;
 
-    if (mode === 'coach') {
+    if (mode === 'summary') {
+      systemPrompt = `You are a sales call analyst. Summarize the call transcript into 3-5 bullet points covering: key topics discussed, investor questions/concerns, interest level, and recommended next steps. Be concise and actionable.`;
+      userContent = question;
+    } else if (mode === 'coach') {
       systemPrompt = `You are a real-time sales coach listening to a live investor call. Give ONE brief, actionable coaching tip in 1-2 sentences. Focus on: tone/energy, next best talking point, handling objections, or building rapport. Be direct and conversational — the agent is reading this live.\n\nKNOWLEDGE BASE:\n${kbContext}`;
       userContent = question;
     } else {
