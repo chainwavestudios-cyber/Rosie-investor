@@ -301,6 +301,7 @@ export default function LeadsTab() {
   const [emailLogs, setEmailLogs] = useState([]);
   const [leadHistory, setLeadHistory] = useState([]);
   const [activityLoading, setActivityLoading] = useState(false);
+  const [archivedLeads, setArchivedLeads] = useState([]);
   const dialerRef = useRef(null);
   const [isDialerPaused, setIsDialerPaused] = useState(false);
   const [isCallActive, setIsCallActive] = useState(false);
@@ -334,12 +335,16 @@ export default function LeadsTab() {
       const all = await base44.entities.Lead.list('-created_date', 2000);
       // Exclude permanently not_interested, sort: never-called first (by created_date), then called leads sorted by lastCalledAt asc (oldest call = first to call again)
       // Exclude permanently not_interested; keep converted at end
-      const active = all.filter(l => l.status !== 'not_interested');
+      // Exclude migrated and not_interested from main list
+      const active = all.filter(l => l.status !== 'not_interested' && !l.migratedToPortal && !l.convertedToInvestorUserId);
+      // Archived/migrated leads
+      const archived = all.filter(l => l.migratedToPortal || l.convertedToInvestorUserId);
       const converted = active.filter(l => l.status === 'converted').sort((a,b) => new Date(b.created_date) - new Date(a.created_date));
       const nonConverted = active.filter(l => l.status !== 'converted');
       const neverCalled = nonConverted.filter(l => !l.lastCalledAt).sort((a,b) => new Date(a.created_date) - new Date(b.created_date));
       const called = nonConverted.filter(l => l.lastCalledAt).sort((a,b) => new Date(a.lastCalledAt) - new Date(b.lastCalledAt));
       setLeads([...neverCalled, ...called, ...converted]);
+      setArchivedLeads(archived || []);
     } catch(e) { console.error(e); }
     setLoading(false);
   };
@@ -483,6 +488,7 @@ export default function LeadsTab() {
             { id:'email',    icon:'✉️',  label:'Email Activity' },
             { id:'sitevisits', icon:'🌐', label:'Site Visits' },
             { id:'engagement', icon:'📊', label:'Web Engagement' },
+            { id:'archived',   icon:'📦', label:`Archived (${archivedLeads.length})` },
           ].map(item => (
             <button key={item.id} onClick={() => { setSidebarView(item.id); setTab(item.id === 'lists' ? 'lists' : 'leads'); }}
               style={{ display:'block', width:'100%', textAlign:'left', background: sidebarView===item.id ? 'rgba(184,147,58,0.1)' : 'transparent', border:'none', borderLeft: sidebarView===item.id ? `3px solid ${GOLD}` : '3px solid transparent', padding:'10px 14px', color: sidebarView===item.id ? GOLD : '#6b7280', fontSize:'12px', cursor:'pointer', letterSpacing:'0.5px', transition:'all 0.15s' }}>
@@ -759,6 +765,41 @@ export default function LeadsTab() {
       {/* WEBSITE ENGAGEMENT */}
       {sidebarView === 'engagement' && (
         <WebsiteEngagementTab onOpenLead={(lead) => setSelectedLead(lead)} />
+      )}
+
+      {/* ARCHIVED LEADS */}
+      {sidebarView === 'archived' && (
+        <div>
+          <div style={{ marginBottom:'16px' }}>
+            <h2 style={{ color:'#e8e0d0', margin:'0 0 4px', fontSize:'20px', fontWeight:'normal' }}>📦 Archived Leads</h2>
+            <p style={{ color:'#6b7280', fontSize:'13px', margin:0 }}>Leads that have been migrated to CRM. Read-only.</p>
+          </div>
+          {archivedLeads.length === 0 && <div style={{ color:'#4a5568', textAlign:'center', padding:'40px' }}>No archived leads yet.</div>}
+          <div style={{ overflowX:'auto' }}>
+            <table style={{ width:'100%', borderCollapse:'collapse', fontSize:'13px' }}>
+              <thead>
+                <tr style={{ borderBottom:'2px solid rgba(184,147,58,0.3)' }}>
+                  {['Name','Email','Phone','State','Migrated'].map(h => (
+                    <th key={h} style={{ color:GOLD, padding:'10px 12px', textAlign:'left', fontSize:'10px', letterSpacing:'1.5px', textTransform:'uppercase' }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {archivedLeads.map(lead => (
+                  <tr key={lead.id} style={{ borderBottom:'1px solid rgba(255,255,255,0.05)', opacity:0.7 }}>
+                    <td style={{ padding:'10px 12px', color:'#8a9ab8' }}>{lead.firstName} {lead.lastName}</td>
+                    <td style={{ padding:'10px 12px', color:'#8a9ab8', fontSize:'12px' }}>{lead.email || '—'}</td>
+                    <td style={{ padding:'10px 12px', color:'#8a9ab8', fontFamily:'monospace', fontSize:'12px' }}>{lead.phone || '—'}</td>
+                    <td style={{ padding:'10px 12px', color:'#8a9ab8', fontSize:'12px' }}>{lead.state || '—'}</td>
+                    <td style={{ padding:'10px 12px' }}>
+                      <span style={{ background:'rgba(74,222,128,0.1)', color:'#4ade80', border:'1px solid rgba(74,222,128,0.25)', borderRadius:'3px', padding:'2px 8px', fontSize:'10px' }}>✅ Migrated to CRM</span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
       )}
 
       {/* LISTS TAB */}
