@@ -438,7 +438,7 @@ function InvestorCalculator() {
 }
 
 // ─── PPM / Investment Offering ────────────────────────────────────────────
-const PPM_PDF_URL = 'https://media.base44.com/files/public/69cd2741578c9b5ce655395b/53e70eeb2_RosieAI_PPM_final1.pdf';
+const PPM_PDF_URL = 'https://media.base44.com/files/public/69cd2741578c9b5ce655395b/8a4e869dd_RosieAI_PPM_final2.pdf';
 async function downloadFile(url, filename) {
   analytics.trackDownload(filename, 'pdf');
   const res=await fetch(url); const blob=await res.blob(); const u=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=u; a.download=filename; a.click(); URL.revokeObjectURL(u);
