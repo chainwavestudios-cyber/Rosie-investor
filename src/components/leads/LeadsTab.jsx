@@ -309,6 +309,8 @@ export default function LeadsTab() {
   const [isCallActive, setIsCallActive] = useState(false);
   const [showDialer2, setShowDialer2] = useState(false);
   const [dialerLead2, setDialerLead2] = useState(null);
+  const [dialerPicker, setDialerPicker] = useState(null); // lead waiting for dialer choice
+  const [filteredLeads, setFilteredLeads] = useState([]); // ordered list for next/prev nav
 
   useEffect(() => {
     loadLeads();
@@ -347,16 +349,31 @@ export default function LeadsTab() {
       const nonConverted = active.filter(l => l.status !== 'converted');
       const neverCalled = nonConverted.filter(l => !l.lastCalledAt).sort((a,b) => new Date(a.created_date) - new Date(b.created_date));
       const called = nonConverted.filter(l => l.lastCalledAt).sort((a,b) => new Date(a.lastCalledAt) - new Date(b.lastCalledAt));
-      setLeads([...neverCalled, ...called, ...converted]);
+      const ordered = [...neverCalled, ...called, ...converted];
+      setLeads(ordered);
+      setFilteredLeads(ordered);
       setArchivedLeads(archived || []);
     } catch(e) { console.error(e); }
     setLoading(false);
   };
 
   const handleDialNumber = (lead) => {
-    setDialerLead(lead);
-    setShowDialer(true);
-    setSelectedLead(lead); // open contact card at the same time
+    setDialerPicker(lead); // show dialer picker popup
+    setSelectedLead(lead); // open contact card
+  };
+
+  const handleNextLead = () => {
+    if (!selectedLead) return;
+    const idx = filteredLeads.findIndex(l => l.id === selectedLead.id);
+    const next = filteredLeads[idx + 1];
+    if (next) setSelectedLead(next);
+  };
+
+  const handlePrevLead = () => {
+    if (!selectedLead) return;
+    const idx = filteredLeads.findIndex(l => l.id === selectedLead.id);
+    const prev = filteredLeads[idx - 1];
+    if (prev) setSelectedLead(prev);
   };
 
   // Called after a call ends — stamp lastCalledAt and re-sort
@@ -506,7 +523,7 @@ export default function LeadsTab() {
         <div style={{ padding:'12px', borderTop:'1px solid rgba(255,255,255,0.07)' }}>
           <div style={{ color:'#4a5568', fontSize:'9px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'8px' }}>Dialers</div>
           <button onClick={() => setShowDialer(true)} style={{ display:'block', width:'100%', background:'rgba(74,222,128,0.1)', color:'#4ade80', border:'1px solid rgba(74,222,128,0.25)', borderRadius:'2px', padding:'8px 10px', cursor:'pointer', fontSize:'11px', marginBottom:'6px', textAlign:'left' }}>📞 Direct Dialer</button>
-          <button onClick={() => setShowDialer2(true)} style={{ display:'block', width:'100%', background:'rgba(74,222,128,0.07)', color:'#4ade80', border:'1px solid rgba(74,222,128,0.2)', borderRadius:'2px', padding:'8px 10px', cursor:'pointer', fontSize:'11px', marginBottom:'6px', textAlign:'left' }}>📞 Direct Dialer 2 · Monitor</button>
+          <button onClick={() => setShowDialer2(true)} style={{ display:'block', width:'100%', background:'rgba(59,130,246,0.1)', color:'#60a5fa', border:'1px solid rgba(59,130,246,0.25)', borderRadius:'2px', padding:'8px 10px', cursor:'pointer', fontSize:'11px', marginBottom:'6px', textAlign:'left' }}>📞 Dialer 2 · Monitor</button>
           <button onClick={() => setShowPredictive(p => !p)} style={{ display:'block', width:'100%', background: showPredictive ? 'rgba(184,147,58,0.2)' : 'rgba(167,139,250,0.1)', color: showPredictive ? GOLD : '#a78bfa', border:`1px solid ${showPredictive ? 'rgba(184,147,58,0.4)' : 'rgba(167,139,250,0.25)'}`, borderRadius:'2px', padding:'8px 10px', cursor:'pointer', fontSize:'11px', marginBottom:'6px', textAlign:'left' }}>⚡ {showPredictive ? 'Hide Predictive' : 'Predictive Dialer'}</button>
           <button onClick={() => setShowNewLead(true)} style={{ display:'block', width:'100%', background:'rgba(96,165,250,0.1)', color:'#60a5fa', border:'1px solid rgba(96,165,250,0.25)', borderRadius:'2px', padding:'8px 10px', cursor:'pointer', fontSize:'11px', marginBottom:'6px', textAlign:'left' }}>+ New Lead</button>
           <button onClick={() => setShowUpload(true)} style={{ display:'block', width:'100%', background:'linear-gradient(135deg,#b8933a,#d4aa50)', color:DARK, border:'none', borderRadius:'2px', padding:'8px 10px', cursor:'pointer', fontSize:'11px', fontWeight:'700', textAlign:'left' }}>📊 Import CSV</button>
@@ -532,6 +549,10 @@ export default function LeadsTab() {
             setIsCallActive(false);
             dialerRef.current?.resumeDialer();
           }}
+          onNextLead={handleNextLead}
+          onPrevLead={handlePrevLead}
+          currentLeadIndex={filteredLeads.findIndex(l => l.id === selectedLead.id)}
+          totalLeads={filteredLeads.length}
         />
       )}
       {showDialer && (
@@ -861,6 +882,33 @@ export default function LeadsTab() {
       </div>
       )}
       </div>
+      {/* Dialer Picker Popup */}
+      {dialerPicker && (
+        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.7)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:99999 }}>
+          <div style={{ background:'#0d1b2a', border:'1px solid rgba(184,147,58,0.4)', borderRadius:'8px', padding:'24px', minWidth:'280px', fontFamily:'Georgia, serif', boxShadow:'0 20px 60px rgba(0,0,0,0.8)' }}>
+            <div style={{ color:'#b8933a', fontSize:'12px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'6px' }}>📞 Call {dialerPicker.firstName} {dialerPicker.lastName}</div>
+            <div style={{ color:'#4ade80', fontFamily:'monospace', fontSize:'16px', fontWeight:'bold', marginBottom:'20px' }}>{dialerPicker.phone}</div>
+            <div style={{ display:'flex', flexDirection:'column', gap:'8px', marginBottom:'16px' }}>
+              <button onClick={() => {
+                setDialerLead(dialerPicker);
+                setShowDialer(true);
+                setDialerPicker(null);
+              }} style={{ background:'linear-gradient(135deg,#22c55e,#16a34a)', color:'#fff', border:'none', borderRadius:'6px', padding:'12px', cursor:'pointer', fontSize:'13px', fontWeight:'bold' }}>
+                📞 Dialer 1
+              </button>
+              <button onClick={() => {
+                setDialerLead2(dialerPicker);
+                setShowDialer2(true);
+                setDialerPicker(null);
+              }} style={{ background:'linear-gradient(135deg,#3b82f6,#1d4ed8)', color:'#fff', border:'none', borderRadius:'6px', padding:'12px', cursor:'pointer', fontSize:'13px', fontWeight:'bold' }}>
+                📞 Dialer 2 · Monitor
+              </button>
+            </div>
+            <button onClick={() => setDialerPicker(null)} style={{ width:'100%', background:'transparent', color:'#6b7280', border:'1px solid rgba(255,255,255,0.1)', borderRadius:'6px', padding:'8px', cursor:'pointer', fontSize:'12px' }}>Cancel</button>
+          </div>
+        </div>
+      )}
+
       {/* TwilioDialer2 */}
       {showDialer2 && (
         <TwilioDialer2
@@ -871,7 +919,7 @@ export default function LeadsTab() {
       )}
 
       {/* Live Assistant — floating widget */}
-      <LiveAssistant isCallActive={isCallActive} />
+      <LiveAssistant isCallActive={isCallActive} currentLead={selectedLead} />
     </div>
   );
 }
