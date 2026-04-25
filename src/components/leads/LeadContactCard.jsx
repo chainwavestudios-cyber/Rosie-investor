@@ -35,7 +35,12 @@ function AccessTab({ lead, onUpdate, onSave }) {
   const [copied, setCopied] = useState('');
 
   const username = lead?.portalPasscode || '';
-  const investorUrl = username ? `https://investors.rosieai.tech/portal-login?username=${encodeURIComponent(username)}&password=${encodeURIComponent(username)}` : '';
+  const lastNameForUrl = (lead?.lastName || '').toLowerCase().replace(/[^a-z]/g, '');
+  const sitePassword  = username ? `${lastNameForUrl}#2026` : '';
+  // Info site - username only to auto-login
+  const investorUrl   = username ? `https://investors.rosieai.tech/portal-login?username=${encodeURIComponent(username)}` : '';
+  // Portal - full credentials (for admin reference)
+  const portalUrl     = username ? `https://investors.rosieai.tech/portal-login?username=${encodeURIComponent(username)}&password=${encodeURIComponent(sitePassword)}` : '';
   const consumerUrl = username ? `https://www.rosieai.tech?ref=${username}` : '';
 
   const generate = async () => {
@@ -45,14 +50,17 @@ function AccessTab({ lead, onUpdate, onSave }) {
       const nameSlug = (lead.firstName || 'user').toLowerCase().replace(/[^a-z]/g, '');
       const last4 = (lead.phone || '').replace(/\D/g, '').slice(-4) || '0000';
       const newUsername = `${nameSlug}${last4}`;
+      // Password = lastname#2026 all lowercase
+      const lastNameSlug = (lead.lastName || '').toLowerCase().replace(/[^a-z]/g, '');
+      const newPassword = `${lastNameSlug}#2026`;
 
       // Create InvestorUser so they can log in
       const hashRes = await fetch(
         'https://investors.rosieai.tech/api/apps/69cd2741578c9b5ce655395b/functions/hashPassword',
-        { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'hash', password: newUsername }) }
+        { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'hash', password: newPassword }) }
       );
       const hashData = await hashRes.json();
-      const hashedPassword = hashData?.hash || newUsername;
+      const hashedPassword = hashData?.hash || newPassword;
 
       const existing = await base44.entities.InvestorUser.filter({ username: newUsername });
       if (existing?.length > 0) {
@@ -122,9 +130,9 @@ function AccessTab({ lead, onUpdate, onSave }) {
             <div style={{ color:'#4a5568', fontSize:'10px', marginTop:'4px' }}>Password is the same as username</div>
           </div>
 
-          {/* Investor site auto-login URL */}
+          {/* Investor site URL - username only */}
           <div>
-            <div style={{ color:'#6b7280', fontSize:'9px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'6px' }}>💼 Investor Site Auto-Login URL</div>
+            <div style={{ color:'#6b7280', fontSize:'9px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'6px' }}>💼 Investors Site URL (Username Auto-Fill)</div>
             <div style={{ display:'flex', gap:'6px' }}>
               <input readOnly value={investorUrl} style={{ ...inp, fontSize:'10px' }} />
               <button onClick={() => copy(investorUrl, 'invUrl')}
@@ -132,7 +140,28 @@ function AccessTab({ lead, onUpdate, onSave }) {
                 {copied==='invUrl' ? '✓ Copied' : 'Copy'}
               </button>
             </div>
-            <div style={{ color:'#4a5568', fontSize:'10px', marginTop:'4px' }}>Clicking this auto-logs them in</div>
+            <div style={{ color:'#4a5568', fontSize:'10px', marginTop:'4px' }}>Username pre-filled — they enter it to access the site</div>
+          </div>
+
+          {/* Portal credentials - admin reference */}
+          <div>
+            <div style={{ color:'#6b7280', fontSize:'9px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'6px' }}>🔐 Portal Credentials (Admin Reference)</div>
+            <div style={{ display:'flex', gap:'8px', marginBottom:'4px' }}>
+              <div style={{ flex:1, background:'rgba(0,0,0,0.15)', border:'1px solid rgba(255,255,255,0.07)', borderRadius:'4px', padding:'7px 10px' }}>
+                <div style={{ color:'#4a5568', fontSize:'8px', textTransform:'uppercase', letterSpacing:'1px', marginBottom:'2px' }}>Username</div>
+                <div style={{ color:GOLD, fontFamily:'monospace', fontSize:'12px' }}>{username}</div>
+              </div>
+              <div style={{ flex:1, background:'rgba(0,0,0,0.15)', border:'1px solid rgba(255,255,255,0.07)', borderRadius:'4px', padding:'7px 10px' }}>
+                <div style={{ color:'#4a5568', fontSize:'8px', textTransform:'uppercase', letterSpacing:'1px', marginBottom:'2px' }}>Password</div>
+                <div style={{ color:'#e8e0d0', fontFamily:'monospace', fontSize:'12px' }}>{sitePassword}</div>
+              </div>
+              <button onClick={() => copy(`Username: ${username}
+Password: ${sitePassword}`, 'creds')}
+                style={{ background:'rgba(255,255,255,0.05)', color: copied==='creds' ? '#4ade80' : '#8a9ab8', border:'1px solid rgba(255,255,255,0.1)', borderRadius:'4px', padding:'8px 10px', cursor:'pointer', fontSize:'10px', whiteSpace:'nowrap' }}>
+                {copied==='creds' ? '✓' : 'Copy'}
+              </button>
+            </div>
+            <div style={{ color:'#4a5568', fontSize:'10px' }}>Portal password = lastname#2026 · Not shared with lead until migrated</div>
           </div>
 
           {/* Consumer site ref URL */}
