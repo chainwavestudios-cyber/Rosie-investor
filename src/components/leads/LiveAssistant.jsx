@@ -3,7 +3,7 @@ import { base44 } from '@/api/base44Client';
 
 const GOLD = '#b8933a';
 const DARK = '#0a0f1e';
-const DEEPGRAM_API_KEY = import.meta.env.VITE_DEEPGRAM_API_KEY || '';
+// API key fetched from backend to avoid exposing it in frontend
 
 // ── Trigger keywords that auto-surface KB answers ─────────────────────────
 const TRIGGER_PATTERNS = [
@@ -71,6 +71,11 @@ export default function LiveAssistant({ isCallActive = false }) {
     if (listening) return;
     setError('');
     try {
+      // Fetch API key from backend
+      const tokenRes = await base44.functions.invoke('deepgramToken', {});
+      const apiKey = tokenRes?.data?.key || tokenRes?.data?.api_key || '';
+      if (!apiKey) { setError('Could not get Deepgram API key. Check backend function.'); return; }
+
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: { deviceId: selectedMic ? { exact: selectedMic } : undefined },
       });
@@ -79,7 +84,7 @@ export default function LiveAssistant({ isCallActive = false }) {
       // Open Deepgram WebSocket
       const ws = new WebSocket(
         `wss://api.deepgram.com/v1/listen?model=nova-2&language=en-US&smart_format=true&interim_results=true&endpointing=300`,
-        ['token', DEEPGRAM_API_KEY]
+        ['token', apiKey]
       );
 
       ws.onopen = () => {
