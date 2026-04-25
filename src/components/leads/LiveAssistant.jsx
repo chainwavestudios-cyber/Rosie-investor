@@ -3,9 +3,7 @@ import { base44 } from '@/api/base44Client';
 
 const GOLD = '#b8933a';
 const DARK = '#0a0f1e';
-// API key fetched from backend to avoid exposing it in frontend
 
-// ── Trigger keywords that auto-surface KB answers ─────────────────────────
 const TRIGGER_PATTERNS = [
   /minimum investment/i, /how much/i, /what.s the minimum/i,
   /what.s the return/i, /roi/i, /returns/i, /yield/i,
@@ -15,50 +13,66 @@ const TRIGGER_PATTERNS = [
   /what do you do/i, /tell me about/i, /explain/i,
   /fees/i, /cost/i, /charge/i, /commission/i,
   /regulation/i, /sec/i, /registered/i, /legal/i,
-  /rosie/i, /the company/i, /your company/i,
   /portal/i, /access/i, /how do i/i,
 ];
 
-export default function LiveAssistant({ isCallActive = false }) {
-  const [visible, setVisible]         = useState(true);
-  const [minimized, setMinimized]     = useState(false);
-  const [position, setPosition]       = useState({ x: window.innerWidth - 380, y: 80 });
-  const [transcript, setTranscript]   = useState([]);
-  const [aiAnswer, setAiAnswer]       = useState('');
-  const [aiLoading, setAiLoading]     = useState(false);
-  const [listening, setListening]     = useState(false);
-  const [micDevices, setMicDevices]   = useState([]);
-  const [selectedMic, setSelectedMic] = useState('');
-  const [kbEntries, setKbEntries]     = useState([]);
-  const [manualQ, setManualQ]         = useState('');
-  const [activeTab, setActiveTab]     = useState('assistant'); // 'assistant' | 'transcript' | 'kb'
-  const [error, setError]             = useState('');
+const QUESTION_PATTERN = /\b(what|how|why|when|where|who|can|could|would|is|are|do|does|will|should|have|has|tell me|explain)\b.{5,80}\?/gi;
 
-  const wsRef         = useRef(null);
-  const streamRef     = useRef(null);
-  const processorRef  = useRef(null);
-  const contextRef    = useRef(null);
-  const dragRef       = useRef({ dragging: false, startX: 0, startY: 0, origX: 0, origY: 0 });
-  const transcriptRef = useRef([]);
+export default function LiveAssistant({ isCallActive = false, lead = null }) {
+  const [visible, setVisible]           = useState(true);
+  const [minimized, setMinimized]       = useState(false);
+  const [position, setPosition]         = useState({ x: window.innerWidth - 420, y: 80 });
+  const [width, setWidth]               = useState(400);
+  const [transcript, setTranscript]     = useState([]);
+  const [aiAnswer, setAiAnswer]         = useState('');
+  const [aiLoading, setAiLoading]       = useState(false);
+  const [listening, setListening]       = useState(false);
+  const [micDevices, setMicDevices]     = useState([]);
+  const [selectedMic, setSelectedMic]   = useState('');
+  const [kbEntries, setKbEntries]       = useState([]);
+  const [manualQ, setManualQ]           = useState('');
+  const [activeTab, setActiveTab]       = useState('assistant');
+  const [error, setError]               = useState('');
+  const [detectedQs, setDetectedQs]     = useState([]);
+  const [coachMode, setCoachMode]       = useState(false);
+  const [coachTip, setCoachTip]         = useState('');
+  const [coachLoading, setCoachLoading] = useState(false);
+  const [showResearch, setShowResearch] = useState(false);
+  const [research, setResearch]         = useState(null);
+  const [researchLoading, setResearchLoading] = useState(false);
+  const [sentiment, setSentiment]       = useState(null); // 'positive' | 'neutral' | 'negative'
+  const [activeQuestion, setActiveQuestion] = useState(null);
+
+  const wsRef          = useRef(null);
+  const streamRef      = useRef(null);
+  const processorRef   = useRef(null);
+  const contextRef     = useRef(null);
+  const dragRef        = useRef({ dragging:false, startX:0, startY:0, origX:0, origY:0 });
+  const transcriptRef  = useRef([]);
   const lastTriggerRef = useRef(0);
+  const lastCoachRef   = useRef(0);
 
-  // Load mic devices and KB on mount
   useEffect(() => {
     navigator.mediaDevices.enumerateDevices().then(devs => {
       const mics = devs.filter(d => d.kind === 'audioinput');
       setMicDevices(mics);
-      // Default to internal mic (usually index 1, or label contains 'built-in')
       const internal = mics.find(m => /built.in|internal|macbook/i.test(m.label)) || mics[1] || mics[0];
       if (internal) setSelectedMic(internal.deviceId);
     });
     loadKB();
   }, []);
 
-  // Auto-start when call becomes active
   useEffect(() => {
     if (isCallActive && !listening) startListening();
     if (!isCallActive && listening) stopListening();
   }, [isCallActive]);
+
+  // Auto-research when call connects with a lead
+  useEffect(() => {
+    if (isCallActive && lead && !research && !researchLoading) {
+      runResearch();
+    }
+  }, [isCallActive, lead]);
 
   const loadKB = async () => {
     try {
@@ -71,25 +85,29 @@ export default function LiveAssistant({ isCallActive = false }) {
     if (listening) return;
     setError('');
     try {
-      // Fetch API key from backend
-      const tokenRes = await base44.functions.invoke('deepgramToken', {});
-      const apiKey = tokenRes?.data?.key || tokenRes?.data?.api_key || '';
-      if (!apiKey) { setError('Could not get Deepgram API key. Check backend function.'); return; }
-
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: { deviceId: selectedMic ? { exact: selectedMic } : undefined },
       });
       streamRef.current = stream;
 
-      // Open Deepgram WebSocket
+      let dgKey = '';
+      try {
+        const tokenRes = await base44.functions.invoke('deepgramToken', {});
+        dgKey = tokenRes?.data?.key || '';
+        if (!dgKey) throw new Error('No key');
+      } catch(e) {
+        setError('Could not get Deepgram token: ' + e.message);
+        stream.getTracks().forEach(t => t.stop());
+        return;
+      }
+
       const ws = new WebSocket(
         `wss://api.deepgram.com/v1/listen?model=nova-2&language=en-US&smart_format=true&interim_results=true&endpointing=300`,
-        ['token', apiKey]
+        ['token', dgKey]
       );
 
       ws.onopen = () => {
         setListening(true);
-        // Set up audio processor to send PCM to Deepgram
         const audioCtx = new AudioContext({ sampleRate: 16000 });
         contextRef.current = audioCtx;
         const source = audioCtx.createMediaStreamSource(stream);
@@ -99,9 +117,7 @@ export default function LiveAssistant({ isCallActive = false }) {
           if (ws.readyState !== WebSocket.OPEN) return;
           const input = e.inputBuffer.getChannelData(0);
           const pcm = new Int16Array(input.length);
-          for (let i = 0; i < input.length; i++) {
-            pcm[i] = Math.max(-32768, Math.min(32767, input[i] * 32768));
-          }
+          for (let i = 0; i < input.length; i++) pcm[i] = Math.max(-32768, Math.min(32767, input[i] * 32768));
           ws.send(pcm.buffer);
         };
         source.connect(processor);
@@ -115,24 +131,23 @@ export default function LiveAssistant({ isCallActive = false }) {
           if (!alt?.transcript) return;
           const text = alt.transcript.trim();
           if (!text) return;
-          const isFinal = data.is_final;
-          if (isFinal) {
+          if (data.is_final) {
             const entry = { text, time: new Date(), final: true };
-            const newTranscript = [...transcriptRef.current, entry];
-            transcriptRef.current = newTranscript;
-            setTranscript([...newTranscript]);
-            checkForTrigger(text, newTranscript);
+            const newT = [...transcriptRef.current, entry];
+            transcriptRef.current = newT;
+            setTranscript([...newT]);
+            detectQuestions(text);
+            checkTrigger(text, newT);
+            if (coachMode) checkCoach(newT);
+            analyzeSentiment(text);
           }
         } catch {}
       };
 
       ws.onerror = () => setError('Deepgram connection error');
-      ws.onclose = () => { setListening(false); };
+      ws.onclose = () => setListening(false);
       wsRef.current = ws;
-
-    } catch (e) {
-      setError(`Mic error: ${e.message}`);
-    }
+    } catch(e) { setError(`Mic error: ${e.message}`); }
   };
 
   const stopListening = () => {
@@ -143,59 +158,102 @@ export default function LiveAssistant({ isCallActive = false }) {
     setListening(false);
   };
 
-  const checkForTrigger = useCallback(async (text, allTranscript) => {
+  // Detect questions in transcript and show as clickable boxes
+  const detectQuestions = (text) => {
+    const matches = [...(text.matchAll(QUESTION_PATTERN) || [])];
+    if (matches.length > 0) {
+      const newQs = matches.map(m => m[0].trim());
+      setDetectedQs(prev => {
+        const all = [...prev, ...newQs].filter((q, i, arr) => arr.indexOf(q) === i).slice(-6);
+        return all;
+      });
+    }
+  };
+
+  const checkTrigger = useCallback(async (text, allT) => {
     const now = Date.now();
-    if (now - lastTriggerRef.current < 3000) return; // debounce 3s
-    const triggered = TRIGGER_PATTERNS.some(p => p.test(text));
-    if (!triggered) return;
+    if (now - lastTriggerRef.current < 3000) return;
+    if (!TRIGGER_PATTERNS.some(p => p.test(text))) return;
     lastTriggerRef.current = now;
-    await askAI(text, allTranscript);
+    await askAI(text, allT);
   }, [kbEntries]);
 
-  const askAI = async (question, allTranscript) => {
+  // Coach mode - analyze pitch and give real-time suggestions
+  const checkCoach = async (allT) => {
+    const now = Date.now();
+    if (now - lastCoachRef.current < 15000) return; // coach every 15s max
+    lastCoachRef.current = now;
+    setCoachLoading(true);
+    try {
+      const recent = allT.slice(-15).map(t => t.text).join(' ');
+      const res = await base44.functions.invoke('liveAssistantAI', {
+        question: `Analyze this sales conversation and give ONE brief coaching tip (max 2 sentences). Focus on tone, pacing, next best thing to say, or objection handling. Be direct and actionable.\n\nConversation: "${recent}"`,
+        transcript: allT,
+        kbEntries,
+        mode: 'coach',
+      });
+      if (res?.data?.answer) setCoachTip(res.data.answer);
+    } catch {}
+    setCoachLoading(false);
+  };
+
+  // Sentiment analysis from transcript
+  const analyzeSentiment = (text) => {
+    const positive = /great|interesting|sounds good|tell me more|exciting|love|definitely|yes|absolutely|of course|how do i/i.test(text);
+    const negative = /no|not interested|too much|can't|don't|expensive|risky|worried|concerned|don't think/i.test(text);
+    if (positive) setSentiment('positive');
+    else if (negative) setSentiment('negative');
+    else setSentiment('neutral');
+  };
+
+  const askAI = async (question, allT) => {
     setAiLoading(true);
     setAiAnswer('');
     setActiveTab('assistant');
+    setActiveQuestion(question);
     try {
-      // Build KB context
-      const kbContext = kbEntries.length > 0
-        ? kbEntries.map(e => `Q: ${e.question}\nA: ${e.answer}`).join('\n\n')
-        : 'No knowledge base entries yet.';
-
-      // Last 10 transcript lines for context
-      const recentTranscript = (allTranscript || transcriptRef.current)
-        .slice(-10).map(t => t.text).join(' ');
-
       const res = await base44.functions.invoke('liveAssistantAI', {
         question,
-        transcript: allTranscript || transcriptRef.current,
+        transcript: (allT || transcriptRef.current).slice(-10),
         kbEntries,
       });
-      const answer = res?.data?.answer || res?.data?.error || 'No answer found.';
-      setAiAnswer(answer);
-    } catch (e) {
-      setAiAnswer('Error getting answer: ' + e.message);
-    }
+      setAiAnswer(res?.data?.answer || 'No answer found.');
+    } catch(e) { setAiAnswer('Error: ' + e.message); }
     setAiLoading(false);
   };
 
-  const handleManualAsk = () => {
-    if (!manualQ.trim()) return;
-    askAI(manualQ, transcriptRef.current);
-    setManualQ('');
+  const runResearch = async () => {
+    setResearchLoading(true);
+    setResearch(null);
+    try {
+      const name = lead ? `${lead.firstName} ${lead.lastName}` : 'Unknown';
+      const location = lead?.state || lead?.address || '';
+      const res = await base44.functions.invoke('liveAssistantResearch', {
+        name,
+        email: lead?.email || '',
+        phone: lead?.phone || '',
+        location,
+        notes: lead?.notes || '',
+      });
+      setResearch(res?.data || null);
+    } catch(e) { setResearch({ error: e.message }); }
+    setResearchLoading(false);
   };
 
-  // Drag logic
+  const sentimentColor = { positive:'#4ade80', neutral:'#f59e0b', negative:'#ef4444' };
+  const sentimentLabel = { positive:'😊 Positive', neutral:'😐 Neutral', negative:'😟 Negative' };
+
+  // Drag
   const onMouseDown = (e) => {
-    if (e.target.closest('button') || e.target.closest('input') || e.target.closest('textarea')) return;
-    dragRef.current = { dragging: true, startX: e.clientX, startY: e.clientY, origX: position.x, origY: position.y };
+    if (e.target.closest('button,input,textarea,select')) return;
+    dragRef.current = { dragging:true, startX:e.clientX, startY:e.clientY, origX:position.x, origY:position.y };
     e.preventDefault();
   };
   useEffect(() => {
     const onMove = (e) => {
       if (!dragRef.current.dragging) return;
       setPosition({
-        x: Math.max(0, Math.min(window.innerWidth - 360, dragRef.current.origX + e.clientX - dragRef.current.startX)),
+        x: Math.max(0, Math.min(window.innerWidth - width, dragRef.current.origX + e.clientX - dragRef.current.startX)),
         y: Math.max(0, Math.min(window.innerHeight - 60, dragRef.current.origY + e.clientY - dragRef.current.startY)),
       });
     };
@@ -203,34 +261,42 @@ export default function LiveAssistant({ isCallActive = false }) {
     window.addEventListener('mousemove', onMove);
     window.addEventListener('mouseup', onUp);
     return () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
-  }, []);
+  }, [width]);
 
   if (!visible) return (
     <button onClick={() => setVisible(true)} style={{ position:'fixed', bottom:'20px', right:'20px', zIndex:99998, background:GOLD, color:DARK, border:'none', borderRadius:'50%', width:'48px', height:'48px', fontSize:'20px', cursor:'pointer', boxShadow:'0 4px 20px rgba(184,147,58,0.5)' }}>🧠</button>
   );
 
   return (
-    <div style={{ position:'fixed', left:`${position.x}px`, top:`${position.y}px`, zIndex:99998, width:'360px', fontFamily:'Georgia, serif', userSelect:'none' }}>
-      <div style={{ background:'#0d1b2a', border:'1px solid rgba(184,147,58,0.4)', borderRadius:'8px', boxShadow:'0 8px 40px rgba(0,0,0,0.7)', overflow:'hidden' }}>
+    <div style={{ position:'fixed', left:`${position.x}px`, top:`${position.y}px`, zIndex:99998, width:`${width}px`, fontFamily:'Georgia, serif', userSelect:'none' }}>
+      <style>{`@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}} @keyframes fadeIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}`}</style>
+      <div style={{ background:'#0d1b2a', border:'1px solid rgba(184,147,58,0.4)', borderRadius:'10px', boxShadow:'0 8px 40px rgba(0,0,0,0.7)', overflow:'hidden' }}>
 
-        {/* Header — drag handle */}
+        {/* Header */}
         <div onMouseDown={onMouseDown} style={{ padding:'10px 14px', background:'rgba(184,147,58,0.1)', borderBottom:'1px solid rgba(184,147,58,0.2)', cursor:'grab', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
           <div style={{ display:'flex', alignItems:'center', gap:'8px' }}>
             <div style={{ width:'8px', height:'8px', borderRadius:'50%', background: listening ? '#4ade80' : '#4a5568', boxShadow: listening ? '0 0 8px #4ade80' : 'none', animation: listening ? 'pulse 1.5s infinite' : 'none' }} />
             <span style={{ color:GOLD, fontSize:'11px', letterSpacing:'2px', textTransform:'uppercase' }}>🧠 Live Assistant</span>
             {isCallActive && <span style={{ background:'rgba(74,222,128,0.15)', color:'#4ade80', fontSize:'9px', padding:'1px 6px', borderRadius:'3px', border:'1px solid rgba(74,222,128,0.3)' }}>LIVE</span>}
+            {sentiment && <span style={{ background:`${sentimentColor[sentiment]}18`, color:sentimentColor[sentiment], fontSize:'9px', padding:'1px 6px', borderRadius:'3px', border:`1px solid ${sentimentColor[sentiment]}44` }}>{sentimentLabel[sentiment]}</span>}
           </div>
-          <div style={{ display:'flex', gap:'4px' }}>
-            <button onClick={() => setMinimized(m => !m)} style={{ background:'none', border:'none', color:'#6b7280', cursor:'pointer', fontSize:'14px', padding:'0 4px' }}>{minimized ? '▲' : '▼'}</button>
-            <button onClick={() => setVisible(false)} style={{ background:'none', border:'none', color:'#6b7280', cursor:'pointer', fontSize:'16px', padding:'0 4px' }}>×</button>
+          <div style={{ display:'flex', gap:'4px', alignItems:'center' }}>
+            {/* Research button */}
+            <button onClick={() => { setShowResearch(r => !r); if (!research && !researchLoading) runResearch(); }}
+              title="Research lead"
+              style={{ background: showResearch ? 'rgba(96,165,250,0.2)' : 'rgba(255,255,255,0.05)', border:`1px solid ${showResearch ? 'rgba(96,165,250,0.4)' : 'rgba(255,255,255,0.1)'}`, color: showResearch ? '#60a5fa' : '#6b7280', borderRadius:'4px', padding:'3px 7px', cursor:'pointer', fontSize:'11px' }}>🔍</button>
+            {/* Coach toggle */}
+            <button onClick={() => setCoachMode(c => !c)}
+              title="Coach mode"
+              style={{ background: coachMode ? 'rgba(167,139,250,0.2)' : 'rgba(255,255,255,0.05)', border:`1px solid ${coachMode ? 'rgba(167,139,250,0.4)' : 'rgba(255,255,255,0.1)'}`, color: coachMode ? '#a78bfa' : '#6b7280', borderRadius:'4px', padding:'3px 7px', cursor:'pointer', fontSize:'11px' }}>🎯</button>
+            <button onClick={() => setMinimized(m => !m)} style={{ background:'none', border:'none', color:'#6b7280', cursor:'pointer', fontSize:'14px', padding:'0 3px' }}>{minimized ? '▲' : '▼'}</button>
+            <button onClick={() => setVisible(false)} style={{ background:'none', border:'none', color:'#6b7280', cursor:'pointer', fontSize:'16px', padding:'0 3px' }}>×</button>
           </div>
         </div>
 
         {!minimized && (
           <>
-            <style>{`@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}`}</style>
-
-            {/* Mic selector + start/stop */}
+            {/* Mic + controls */}
             <div style={{ padding:'8px 12px', borderBottom:'1px solid rgba(255,255,255,0.06)', display:'flex', gap:'6px', alignItems:'center' }}>
               <select value={selectedMic} onChange={e => setSelectedMic(e.target.value)}
                 style={{ flex:1, background:'rgba(255,255,255,0.05)', border:'1px solid rgba(255,255,255,0.1)', borderRadius:'4px', padding:'4px 8px', color:'#e8e0d0', fontSize:'10px', outline:'none', cursor:'pointer' }}>
@@ -244,9 +310,77 @@ export default function LiveAssistant({ isCallActive = false }) {
 
             {error && <div style={{ background:'rgba(239,68,68,0.1)', color:'#ef4444', fontSize:'10px', padding:'6px 12px' }}>{error}</div>}
 
+            {/* Research panel */}
+            {showResearch && (
+              <div style={{ padding:'10px 12px', borderBottom:'1px solid rgba(255,255,255,0.06)', background:'rgba(96,165,250,0.05)', animation:'fadeIn 0.2s ease' }}>
+                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'8px' }}>
+                  <span style={{ color:'#60a5fa', fontSize:'10px', letterSpacing:'1.5px', textTransform:'uppercase' }}>🔍 Lead Research</span>
+                  <button onClick={runResearch} disabled={researchLoading}
+                    style={{ background:'rgba(96,165,250,0.1)', color:'#60a5fa', border:'1px solid rgba(96,165,250,0.25)', borderRadius:'3px', padding:'2px 8px', cursor:'pointer', fontSize:'9px' }}>
+                    {researchLoading ? '⏳' : '↻ Refresh'}
+                  </button>
+                </div>
+                {researchLoading && <div style={{ color:'#4a5568', fontSize:'11px', textAlign:'center', padding:'10px' }}>Researching…</div>}
+                {research?.error && <div style={{ color:'#ef4444', fontSize:'10px' }}>{research.error}</div>}
+                {research && !research.error && (
+                  <div style={{ display:'flex', flexDirection:'column', gap:'6px', maxHeight:'200px', overflowY:'auto' }}>
+                    {research.summary && <div style={{ color:'#e8e0d0', fontSize:'11px', lineHeight:1.5, background:'rgba(0,0,0,0.15)', borderRadius:'4px', padding:'7px 9px' }}>{research.summary}</div>}
+                    {research.businessOwner && <div style={{ color:'#f59e0b', fontSize:'10px' }}>💼 {research.businessOwner}</div>}
+                    {research.nearbyBusinesses?.length > 0 && (
+                      <div>
+                        <div style={{ color:'#4a5568', fontSize:'9px', textTransform:'uppercase', letterSpacing:'1px', marginBottom:'3px' }}>Nearby</div>
+                        <div style={{ display:'flex', flexWrap:'wrap', gap:'3px' }}>
+                          {research.nearbyBusinesses.map((b, i) => (
+                            <span key={i} style={{ background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.08)', borderRadius:'3px', padding:'1px 6px', fontSize:'9px', color:'#8a9ab8' }}>{b}</span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {research.universities?.length > 0 && (
+                      <div style={{ color:'#a78bfa', fontSize:'10px' }}>🎓 {research.universities.join(', ')}</div>
+                    )}
+                    {research.talkingPoints?.length > 0 && (
+                      <div>
+                        <div style={{ color:'#4a5568', fontSize:'9px', textTransform:'uppercase', letterSpacing:'1px', marginBottom:'3px' }}>💬 Talking Points</div>
+                        {research.talkingPoints.map((tp, i) => (
+                          <div key={i} style={{ color:'#4ade80', fontSize:'10px', padding:'2px 0' }}>• {tp}</div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Coach tip */}
+            {coachMode && (coachTip || coachLoading) && (
+              <div style={{ padding:'8px 12px', borderBottom:'1px solid rgba(255,255,255,0.06)', background:'rgba(167,139,250,0.06)', animation:'fadeIn 0.2s ease' }}>
+                <div style={{ color:'#a78bfa', fontSize:'9px', letterSpacing:'1.5px', textTransform:'uppercase', marginBottom:'4px' }}>🎯 Coach</div>
+                {coachLoading ? <div style={{ color:'#4a5568', fontSize:'11px' }}>Analyzing…</div> : <div style={{ color:'#e8e0d0', fontSize:'11px', lineHeight:1.5 }}>{coachTip}</div>}
+              </div>
+            )}
+
+            {/* Detected questions — clickable boxes */}
+            {detectedQs.length > 0 && (
+              <div style={{ padding:'8px 12px', borderBottom:'1px solid rgba(255,255,255,0.06)', background:'rgba(245,158,11,0.04)' }}>
+                <div style={{ color:'#f59e0b', fontSize:'9px', letterSpacing:'1.5px', textTransform:'uppercase', marginBottom:'5px' }}>❓ Detected Questions</div>
+                <div style={{ display:'flex', flexDirection:'column', gap:'3px' }}>
+                  {detectedQs.slice(-4).map((q, i) => (
+                    <button key={i} onClick={() => askAI(q, transcriptRef.current)}
+                      style={{ background: activeQuestion === q ? 'rgba(245,158,11,0.15)' : 'rgba(255,255,255,0.03)', border:`1px solid ${activeQuestion === q ? 'rgba(245,158,11,0.4)' : 'rgba(255,255,255,0.08)'}`, borderRadius:'4px', padding:'5px 9px', cursor:'pointer', color: activeQuestion === q ? '#f59e0b' : '#8a9ab8', fontSize:'10px', textAlign:'left', lineHeight:1.4, transition:'all 0.15s' }}
+                      onMouseEnter={e => { if(activeQuestion !== q) e.currentTarget.style.borderColor='rgba(245,158,11,0.3)'; }}
+                      onMouseLeave={e => { if(activeQuestion !== q) e.currentTarget.style.borderColor='rgba(255,255,255,0.08)'; }}>
+                      {q.length > 70 ? q.slice(0, 70) + '…' : q}
+                    </button>
+                  ))}
+                </div>
+                <button onClick={() => setDetectedQs([])} style={{ marginTop:'4px', background:'none', border:'none', color:'#4a5568', cursor:'pointer', fontSize:'9px' }}>Clear</button>
+              </div>
+            )}
+
             {/* Tabs */}
             <div style={{ display:'flex', borderBottom:'1px solid rgba(255,255,255,0.06)' }}>
-              {[['assistant','🧠 Assistant'],['transcript','📝 Transcript'],['kb','📚 KB']].map(([id,label]) => (
+              {[['assistant','🧠 AI'],['transcript','📝 Transcript'],['kb','📚 KB']].map(([id,label]) => (
                 <button key={id} onClick={() => setActiveTab(id)}
                   style={{ flex:1, background:'none', border:'none', borderBottom: activeTab===id ? `2px solid ${GOLD}` : '2px solid transparent', color: activeTab===id ? GOLD : '#6b7280', padding:'7px 4px', cursor:'pointer', fontSize:'10px', letterSpacing:'0.5px' }}>
                   {label}
@@ -257,62 +391,41 @@ export default function LiveAssistant({ isCallActive = false }) {
             {/* Assistant tab */}
             {activeTab === 'assistant' && (
               <div style={{ padding:'12px' }}>
-                {/* AI Answer */}
                 <div style={{ minHeight:'80px', background:'rgba(0,0,0,0.2)', border:'1px solid rgba(255,255,255,0.07)', borderRadius:'6px', padding:'10px 12px', marginBottom:'10px' }}>
-                  {aiLoading && (
-                    <div style={{ display:'flex', alignItems:'center', gap:'8px', color:'#6b7280', fontSize:'12px' }}>
-                      <div style={{ width:'6px', height:'6px', borderRadius:'50%', background:GOLD, animation:'pulse 0.8s infinite' }} />
-                      Thinking…
-                    </div>
-                  )}
-                  {!aiLoading && !aiAnswer && (
-                    <div style={{ color:'#4a5568', fontSize:'11px', textAlign:'center', paddingTop:'16px' }}>
-                      {listening ? '🎙 Listening… ask something or trigger keywords will auto-detect' : 'Start listening to activate AI suggestions'}
-                    </div>
-                  )}
+                  {aiLoading && <div style={{ display:'flex', alignItems:'center', gap:'8px', color:'#6b7280', fontSize:'12px' }}><div style={{ width:'6px', height:'6px', borderRadius:'50%', background:GOLD, animation:'pulse 0.8s infinite' }} />Thinking…</div>}
+                  {!aiLoading && !aiAnswer && <div style={{ color:'#4a5568', fontSize:'11px', textAlign:'center', paddingTop:'16px' }}>{listening ? '🎙 Listening for triggers or questions…' : 'Start listening or ask manually'}</div>}
                   {!aiLoading && aiAnswer && (
-                    <div style={{ color:'#e8e0d0', fontSize:'12px', lineHeight:1.6 }}>{aiAnswer}</div>
+                    <div style={{ animation:'fadeIn 0.2s ease' }}>
+                      {activeQuestion && <div style={{ color:'#f59e0b', fontSize:'9px', marginBottom:'5px', fontStyle:'italic' }}>Re: "{activeQuestion.slice(0, 50)}…"</div>}
+                      <div style={{ color:'#e8e0d0', fontSize:'12px', lineHeight:1.6 }}>{aiAnswer}</div>
+                    </div>
                   )}
                 </div>
-
-                {/* Manual question */}
                 <div style={{ display:'flex', gap:'6px' }}>
                   <input value={manualQ} onChange={e => setManualQ(e.target.value)}
-                    onKeyDown={e => { if (e.key === 'Enter') handleManualAsk(); }}
+                    onKeyDown={e => { if(e.key==='Enter' && manualQ.trim()) { askAI(manualQ, transcriptRef.current); setManualQ(''); } }}
                     placeholder="Ask anything…"
                     style={{ flex:1, background:'rgba(255,255,255,0.05)', border:'1px solid rgba(255,255,255,0.12)', borderRadius:'4px', padding:'6px 10px', color:'#e8e0d0', fontSize:'11px', outline:'none', fontFamily:'Georgia, serif' }} />
-                  <button onClick={handleManualAsk} disabled={!manualQ.trim() || aiLoading}
-                    style={{ background:'linear-gradient(135deg,#b8933a,#d4aa50)', color:DARK, border:'none', borderRadius:'4px', padding:'6px 12px', cursor:'pointer', fontSize:'11px', fontWeight:'bold' }}>
-                    Ask
-                  </button>
+                  <button onClick={() => { if(manualQ.trim()) { askAI(manualQ, transcriptRef.current); setManualQ(''); } }} disabled={!manualQ.trim() || aiLoading}
+                    style={{ background:'linear-gradient(135deg,#b8933a,#d4aa50)', color:DARK, border:'none', borderRadius:'4px', padding:'6px 12px', cursor:'pointer', fontSize:'11px', fontWeight:'bold' }}>Ask</button>
                 </div>
-
-                {/* Trigger keywords hint */}
-                <div style={{ marginTop:'8px', color:'#4a5568', fontSize:'9px', lineHeight:1.5 }}>
-                  Auto-triggers: returns, minimum, risk, fees, accredited, how long, liquidity…
-                </div>
+                <div style={{ marginTop:'6px', color:'#4a5568', fontSize:'9px' }}>Auto-triggers: returns · minimum · risk · fees · accredited · liquidity…</div>
               </div>
             )}
 
             {/* Transcript tab */}
             {activeTab === 'transcript' && (
-              <div style={{ padding:'8px 12px', maxHeight:'220px', overflowY:'auto' }}>
-                {transcript.length === 0 && (
-                  <div style={{ color:'#4a5568', fontSize:'11px', textAlign:'center', padding:'20px' }}>
-                    {listening ? 'Waiting for speech…' : 'Start listening to see transcript'}
-                  </div>
-                )}
+              <div style={{ padding:'8px 12px', maxHeight:'240px', overflowY:'auto' }}>
+                {transcript.length === 0 && <div style={{ color:'#4a5568', fontSize:'11px', textAlign:'center', padding:'20px' }}>{listening ? 'Waiting for speech…' : 'Start listening'}</div>}
                 {[...transcript].reverse().map((t, i) => (
-                  <div key={i} style={{ marginBottom:'6px', fontSize:'11px' }}>
-                    <span style={{ color:'#4a5568', fontSize:'9px', marginRight:'6px' }}>
-                      {t.time.toLocaleTimeString('en-US', { hour:'numeric', minute:'2-digit', second:'2-digit' })}
-                    </span>
+                  <div key={i} style={{ marginBottom:'6px', fontSize:'11px', animation:'fadeIn 0.2s ease' }}>
+                    <span style={{ color:'#4a5568', fontSize:'9px', marginRight:'6px' }}>{t.time.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',second:'2-digit'})}</span>
                     <span style={{ color:'#c4cdd8' }}>{t.text}</span>
                   </div>
                 ))}
                 {transcript.length > 0 && (
-                  <button onClick={() => { setTranscript([]); transcriptRef.current = []; }}
-                    style={{ marginTop:'8px', background:'transparent', color:'#4a5568', border:'1px solid rgba(255,255,255,0.08)', borderRadius:'3px', padding:'3px 8px', cursor:'pointer', fontSize:'9px' }}>
+                  <button onClick={() => { setTranscript([]); transcriptRef.current = []; setDetectedQs([]); setSentiment(null); }}
+                    style={{ marginTop:'6px', background:'transparent', color:'#4a5568', border:'1px solid rgba(255,255,255,0.08)', borderRadius:'3px', padding:'3px 8px', cursor:'pointer', fontSize:'9px' }}>
                     Clear
                   </button>
                 )}
@@ -320,9 +433,7 @@ export default function LiveAssistant({ isCallActive = false }) {
             )}
 
             {/* KB tab */}
-            {activeTab === 'kb' && (
-              <KBEditor kbEntries={kbEntries} onUpdate={loadKB} />
-            )}
+            {activeTab === 'kb' && <KBEditor kbEntries={kbEntries} onUpdate={loadKB} />}
           </>
         )}
       </div>
@@ -330,10 +441,15 @@ export default function LiveAssistant({ isCallActive = false }) {
   );
 }
 
+// ── KB Editor with URL + File support ────────────────────────────────────────
 function KBEditor({ kbEntries, onUpdate }) {
-  const [q, setQ] = useState('');
-  const [a, setA] = useState('');
+  const [q, setQ]           = useState('');
+  const [a, setA]           = useState('');
+  const [url, setUrl]       = useState('');
   const [saving, setSaving] = useState(false);
+  const [scraping, setScraping] = useState(false);
+  const [mode, setMode]     = useState('manual'); // 'manual' | 'url' | 'file'
+  const fileRef             = useRef(null);
   const GOLD = '#b8933a';
   const DARK = '#0a0f1e';
   const inp = { width:'100%', background:'rgba(255,255,255,0.05)', border:'1px solid rgba(255,255,255,0.12)', borderRadius:'4px', padding:'6px 9px', color:'#e8e0d0', fontSize:'11px', outline:'none', fontFamily:'Georgia, serif', boxSizing:'border-box', resize:'none' };
@@ -341,43 +457,134 @@ function KBEditor({ kbEntries, onUpdate }) {
   const save = async () => {
     if (!q.trim() || !a.trim()) return;
     setSaving(true);
-    try {
-      await base44.entities.KnowledgeBase.create({ question: q.trim(), answer: a.trim() });
-      setQ(''); setA('');
-      onUpdate();
-    } catch {}
+    try { await base44.entities.KnowledgeBase.create({ question:q.trim(), answer:a.trim(), category:'manual' }); setQ(''); setA(''); onUpdate(); } catch {}
     setSaving(false);
+  };
+
+  const scrapeUrl = async () => {
+    if (!url.trim()) return;
+    setScraping(true);
+    try {
+      const res = await base44.functions.invoke('kbScrapeUrl', { url: url.trim() });
+      const entries = res?.data?.entries || [];
+      for (const e of entries) {
+        await base44.entities.KnowledgeBase.create({ question: e.question, answer: e.answer, category: 'url', source: url.trim() });
+      }
+      setUrl('');
+      onUpdate();
+    } catch(e) { console.error(e); }
+    setScraping(false);
+  };
+
+  const handleFile = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setScraping(true);
+    try {
+      const base64 = await new Promise((res, rej) => {
+        const r = new FileReader();
+        r.onload = () => res(r.result.split(',')[1]);
+        r.onerror = rej;
+        r.readAsDataURL(file);
+      });
+      const result = await base44.functions.invoke('kbExtractFile', {
+        fileName: file.name,
+        fileType: file.type,
+        base64,
+      });
+      const entries = result?.data?.entries || [];
+      for (const e of entries) {
+        await base44.entities.KnowledgeBase.create({ question: e.question, answer: e.answer, category: 'document', source: file.name });
+      }
+      onUpdate();
+    } catch(e) { console.error(e); }
+    setScraping(false);
+    if (fileRef.current) fileRef.current.value = '';
   };
 
   const del = async (id) => {
     try { await base44.entities.KnowledgeBase.delete(id); onUpdate(); } catch {}
   };
 
+  const grouped = kbEntries.reduce((acc, e) => {
+    const cat = e.category || 'manual';
+    if (!acc[cat]) acc[cat] = [];
+    acc[cat].push(e);
+    return acc;
+  }, {});
+
+  const catColors = { manual:'#60a5fa', url:'#4ade80', document:'#f59e0b' };
+  const catIcons  = { manual:'✍️', url:'🌐', document:'📄' };
+
   return (
-    <div style={{ padding:'10px 12px', maxHeight:'280px', overflowY:'auto' }}>
-      {/* Add entry */}
-      <div style={{ marginBottom:'10px', background:'rgba(0,0,0,0.15)', borderRadius:'4px', padding:'8px' }}>
-        <input value={q} onChange={e => setQ(e.target.value)} placeholder="Question / trigger phrase…" style={{ ...inp, marginBottom:'5px' }} />
-        <textarea value={a} onChange={e => setA(e.target.value)} placeholder="Answer…" rows={2} style={inp} />
-        <button onClick={save} disabled={saving || !q.trim() || !a.trim()}
-          style={{ marginTop:'5px', background:'linear-gradient(135deg,#b8933a,#d4aa50)', color:DARK, border:'none', borderRadius:'3px', padding:'5px 14px', cursor:'pointer', fontSize:'10px', fontWeight:'bold' }}>
-          {saving ? 'Saving…' : '+ Add to KB'}
-        </button>
+    <div style={{ padding:'10px 12px', maxHeight:'360px', overflowY:'auto' }}>
+      {/* Mode tabs */}
+      <div style={{ display:'flex', gap:'4px', marginBottom:'10px' }}>
+        {[['manual','✍️ Manual'],['url','🌐 URL'],['file','📄 File']].map(([id,label]) => (
+          <button key={id} onClick={() => setMode(id)}
+            style={{ flex:1, background: mode===id ? 'rgba(184,147,58,0.15)' : 'rgba(255,255,255,0.03)', border:`1px solid ${mode===id ? GOLD : 'rgba(255,255,255,0.08)'}`, color: mode===id ? GOLD : '#6b7280', borderRadius:'4px', padding:'4px', cursor:'pointer', fontSize:'9px', letterSpacing:'0.5px' }}>
+            {label}
+          </button>
+        ))}
       </div>
 
-      {/* Entries */}
-      {kbEntries.length === 0 && <div style={{ color:'#4a5568', fontSize:'11px', textAlign:'center', padding:'10px' }}>No KB entries yet</div>}
-      {kbEntries.map(e => (
-        <div key={e.id} style={{ marginBottom:'6px', background:'rgba(255,255,255,0.02)', border:'1px solid rgba(255,255,255,0.06)', borderRadius:'4px', padding:'7px 9px' }}>
-          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
-            <div style={{ flex:1, minWidth:0 }}>
-              <div style={{ color:GOLD, fontSize:'10px', fontWeight:'bold', marginBottom:'2px' }}>Q: {e.question}</div>
-              <div style={{ color:'#8a9ab8', fontSize:'10px', lineHeight:1.4 }}>A: {e.answer}</div>
-            </div>
-            <button onClick={() => del(e.id)} style={{ background:'none', border:'none', color:'#4a5568', cursor:'pointer', fontSize:'13px', marginLeft:'6px', flexShrink:0 }}>×</button>
+      {/* Manual Q&A */}
+      {mode === 'manual' && (
+        <div style={{ marginBottom:'10px', background:'rgba(0,0,0,0.15)', borderRadius:'4px', padding:'8px' }}>
+          <input value={q} onChange={e => setQ(e.target.value)} placeholder="Question / trigger…" style={{ ...inp, marginBottom:'5px' }} />
+          <textarea value={a} onChange={e => setA(e.target.value)} placeholder="Answer…" rows={2} style={inp} />
+          <button onClick={save} disabled={saving || !q.trim() || !a.trim()}
+            style={{ marginTop:'5px', background:'linear-gradient(135deg,#b8933a,#d4aa50)', color:DARK, border:'none', borderRadius:'3px', padding:'5px 14px', cursor:'pointer', fontSize:'10px', fontWeight:'bold' }}>
+            {saving ? 'Saving…' : '+ Add'}
+          </button>
+        </div>
+      )}
+
+      {/* URL scraper */}
+      {mode === 'url' && (
+        <div style={{ marginBottom:'10px', background:'rgba(0,0,0,0.15)', borderRadius:'4px', padding:'8px' }}>
+          <input value={url} onChange={e => setUrl(e.target.value)} placeholder="https://your-faq-page.com" style={{ ...inp, marginBottom:'5px' }} />
+          <div style={{ color:'#4a5568', fontSize:'9px', marginBottom:'6px' }}>AI will scrape the page and extract Q&A pairs automatically</div>
+          <button onClick={scrapeUrl} disabled={scraping || !url.trim()}
+            style={{ background:'rgba(74,222,128,0.15)', color:'#4ade80', border:'1px solid rgba(74,222,128,0.3)', borderRadius:'3px', padding:'5px 14px', cursor:'pointer', fontSize:'10px', fontWeight:'bold' }}>
+            {scraping ? '⏳ Scraping…' : '🌐 Scrape & Import'}
+          </button>
+        </div>
+      )}
+
+      {/* File upload */}
+      {mode === 'file' && (
+        <div style={{ marginBottom:'10px', background:'rgba(0,0,0,0.15)', borderRadius:'4px', padding:'8px' }}>
+          <input ref={fileRef} type="file" accept=".pdf,.txt,.doc,.docx" onChange={handleFile} style={{ display:'none' }} />
+          <button onClick={() => fileRef.current?.click()} disabled={scraping}
+            style={{ width:'100%', background:'rgba(245,158,11,0.1)', color:'#f59e0b', border:'1px solid rgba(245,158,11,0.25)', borderRadius:'4px', padding:'10px', cursor:'pointer', fontSize:'10px' }}>
+            {scraping ? '⏳ Extracting…' : '📄 Upload PDF or Doc'}
+          </button>
+          <div style={{ color:'#4a5568', fontSize:'9px', marginTop:'4px', textAlign:'center' }}>AI extracts knowledge from your document</div>
+        </div>
+      )}
+
+      {/* Entries grouped by category */}
+      {Object.entries(grouped).map(([cat, entries]) => (
+        <div key={cat} style={{ marginBottom:'8px' }}>
+          <div style={{ color: catColors[cat] || '#8a9ab8', fontSize:'9px', textTransform:'uppercase', letterSpacing:'1.5px', marginBottom:'4px' }}>
+            {catIcons[cat] || '📌'} {cat} ({entries.length})
           </div>
+          {entries.map(e => (
+            <div key={e.id} style={{ marginBottom:'4px', background:'rgba(255,255,255,0.02)', border:'1px solid rgba(255,255,255,0.06)', borderRadius:'4px', padding:'6px 9px', borderLeft:`3px solid ${catColors[cat] || '#8a9ab8'}` }}>
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
+                <div style={{ flex:1, minWidth:0 }}>
+                  <div style={{ color:GOLD, fontSize:'10px', fontWeight:'bold', marginBottom:'2px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>Q: {e.question}</div>
+                  <div style={{ color:'#8a9ab8', fontSize:'10px', lineHeight:1.4, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>A: {e.answer}</div>
+                  {e.source && <div style={{ color:'#4a5568', fontSize:'8px', marginTop:'1px' }}>{e.source}</div>}
+                </div>
+                <button onClick={() => del(e.id)} style={{ background:'none', border:'none', color:'#4a5568', cursor:'pointer', fontSize:'13px', marginLeft:'6px', flexShrink:0 }}>×</button>
+              </div>
+            </div>
+          ))}
         </div>
       ))}
+      {kbEntries.length === 0 && <div style={{ color:'#4a5568', fontSize:'11px', textAlign:'center', padding:'10px' }}>No KB entries yet</div>}
     </div>
   );
 }
