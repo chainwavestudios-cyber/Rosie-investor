@@ -438,7 +438,7 @@ function InvestorCalculator() {
 }
 
 // ─── PPM / Investment Offering ────────────────────────────────────────────
-const PPM_PDF_URL = 'https://media.base44.com/files/public/69cd2741578c9b5ce655395b/89e7cc34c_RosieAI_PPM_final5.pdf';
+const PPM_PDF_URL = 'https://media.base44.com/files/public/69cd2741578c9b5ce655395b/c7588e9ef_RosieAI_PPM_final5pdf2.pdf';
 async function downloadFile(url, filename) {
   analytics.trackDownload(filename, 'pdf');
   const res=await fetch(url); const blob=await res.blob(); const u=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=u; a.download=filename; a.click(); URL.revokeObjectURL(u);
@@ -476,7 +476,7 @@ function InvestmentOffering() {
       </div>
       <div style={{ flex:1, display:'flex', flexDirection:'column' }}>
         <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'10px 20px', borderBottom:'1px solid rgba(255,255,255,0.07)', background:'rgba(0,0,0,0.2)', flexShrink:0 }}>
-          <div><span style={{ color:GOLD, fontWeight:'bold', fontSize:'14px' }}>Rosie AI — Private Placement Memorandum</span><span style={{ color:'#6b7280', fontSize:'12px', marginLeft:'12px' }}>53 pages · 506c PPM</span></div>
+          <div><span style={{ color:GOLD, fontWeight:'bold', fontSize:'14px' }}>Rosie AI — Private Placement Memorandum</span><span style={{ color:'#6b7280', fontSize:'12px', marginLeft:'12px' }}>56 pages · 506c PPM</span></div>
           <div style={{ display:'flex', alignItems:'center', gap:'8px' }}>
             <button onClick={()=>{ if(activeIdx>0)goToSection(PPM_INDEX[activeIdx-1]); }} disabled={activeIdx===0} style={{ background:activeIdx===0?'rgba(255,255,255,0.03)':'rgba(255,255,255,0.08)', color:activeIdx===0?'#3a4a5e':'#c4cdd8', border:'1px solid rgba(255,255,255,0.1)', borderRadius:'2px', padding:'5px 12px', cursor:activeIdx===0?'default':'pointer', fontSize:'13px' }}>‹ Prev</button>
             <span style={{ minWidth:'160px', textAlign:'center', color:'#6b7280', fontSize:'12px' }}>{activeSec.label} (p.{activeSec.page})</span>
