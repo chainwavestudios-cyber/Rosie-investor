@@ -438,7 +438,7 @@ function InvestorCalculator() {
 }
 
 // ─── PPM / Investment Offering ────────────────────────────────────────────
-const PPM_PDF_URL = 'https://media.base44.com/files/public/69cd2741578c9b5ce655395b/8a4e869dd_RosieAI_PPM_final2.pdf';
+const PPM_PDF_URL = 'https://media.base44.com/files/public/69cd2741578c9b5ce655395b/89e7cc34c_RosieAI_PPM_final5.pdf';
 async function downloadFile(url, filename) {
   analytics.trackDownload(filename, 'pdf');
   const res=await fetch(url); const blob=await res.blob(); const u=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=u; a.download=filename; a.click(); URL.revokeObjectURL(u);
@@ -494,6 +494,7 @@ function InvestmentOffering() {
 const PDF_DOCS = [
   { id:'subscription',  name:'Subscription Agreement',  badge:'Required', url:'https://media.base44.com/files/public/69cd2741578c9b5ce655395b/d291387c6_Subscription_Agreement_Updated1.pdf', totalPages:10 },
   { id:'accreditation', name:'Investor Questionnaire',   badge:'Required', url:'https://media.base44.com/files/public/69cd2741578c9b5ce655395b/903902aa1_RosieAI_Investor_Questionnaire.pdf', totalPages:7 },
+  { id:'operating',     name:'LLC Operating Agreement',  badge:'Member Document', url:'https://media.base44.com/files/public/69cd2741578c9b5ce655395b/57c1e246d_RosieAI_Operating_Agreement.docx', totalPages:null },
 ];
 
 function SubscriptionAgreements({ onRequestDocuments, setActiveTab }) {
@@ -535,13 +536,13 @@ function SubscriptionAgreements({ onRequestDocuments, setActiveTab }) {
           ) : (
             <div style={{ display:'flex', flexDirection:'column', height:'100%' }}>
               <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'12px 20px', borderBottom:'1px solid rgba(255,255,255,0.07)', background:'rgba(0,0,0,0.2)' }}>
-                <div><span style={{ color:GOLD, fontWeight:'bold', fontSize:'14px' }}>{selectedDoc.name}</span><span style={{ color:'#6b7280', fontSize:'12px', marginLeft:'12px' }}>{selectedDoc.totalPages} pages</span></div>
+                <div><span style={{ color:GOLD, fontWeight:'bold', fontSize:'14px' }}>{selectedDoc.name}</span>{selectedDoc.totalPages && <span style={{ color:'#6b7280', fontSize:'12px', marginLeft:'12px' }}>{selectedDoc.totalPages} pages</span>}</div>
                 <div style={{ display:'flex', gap:'10px' }}>
                   <button onClick={()=>handleDownload(selectedDoc)} style={{ background:'rgba(184,147,58,0.15)', color:GOLD, border:`1px solid rgba(184,147,58,0.3)`, borderRadius:'2px', padding:'7px 16px', cursor:'pointer', fontSize:'12px' }}>↓ Download PDF</button>
                   <button onClick={closeDoc} style={{ background:'none', border:'1px solid rgba(255,255,255,0.1)', color:'#6b7280', borderRadius:'2px', padding:'7px 12px', cursor:'pointer', fontSize:'14px' }}>×</button>
                 </div>
               </div>
-              <iframe src={`https://docs.google.com/viewer?url=${encodeURIComponent(selectedDoc.url)}&embedded=true`} style={{ flex:1, width:'100%', minHeight:'560px', border:'none', background:'#fff' }} title={selectedDoc.name} />
+              <iframe src={`https://docs.google.com/viewer?url=${encodeURIComponent(selectedDoc.url)}&embedded=true`} style={{ flex:1, width:'100%', minHeight:'560px', border:'none', background:'#fff' }} title={selectedDoc.name} key={selectedDoc.id} />
             </div>
           )}
         </div>
@@ -684,7 +685,7 @@ const TABS = [
   { id:'home',         label:'Overview' },
   { id:'account',      label:'Account' },
   { id:'offering',     label:'Investment Offering' },
-  { id:'subscription', label:'Subscription Agreements' },
+  { id:'subscription', label:'LLC Documents' },
   { id:'updates',      label:'Investor Updates' },
 ];
 
