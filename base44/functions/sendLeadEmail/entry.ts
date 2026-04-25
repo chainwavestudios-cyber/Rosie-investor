@@ -24,7 +24,9 @@ Deno.serve(async (req) => {
   } catch {}
   const nameSlug = (firstName || 'user').toLowerCase().replace(/[^a-z]/g, '');
   const username = `${nameSlug}${phoneDigits}`;
-  const password = username; // password same as username for simplicity
+  // Password = lastname#2026 (all lowercase) for portal access
+  const lastNameRaw = (leadData?.lastName || '').toLowerCase().replace(/[^a-z]/g, '');
+  const password = `${lastNameRaw}#2026`;
 
   console.log(`[sendLeadEmail] Generating username: ${username} for ${toEmail}`);
 
@@ -70,8 +72,8 @@ Deno.serve(async (req) => {
   }
 
   // ── Build URLs ────────────────────────────────────────────────────────
-  const loginUrl     = `${INVESTORS_SITE}/portal-login?username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}`;
-  const consumerUrl  = `${CONSUMER_SITE}?ref=${username}`;
+  const loginUrl    = `${INVESTORS_SITE}/portal-login?username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}`;
+  const consumerUrl = `${CONSUMER_SITE}?ref=${username}`;
 
   const auth = btoa(`${MJ_KEY}:${MJ_SECRET}`);
 
