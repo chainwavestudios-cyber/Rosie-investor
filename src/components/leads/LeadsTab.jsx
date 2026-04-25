@@ -310,7 +310,7 @@ export default function LeadsTab() {
   const [showDialer2, setShowDialer2] = useState(false);
   const [dialerLead2, setDialerLead2] = useState(null);
   const [dialerPicker, setDialerPicker] = useState(null); // lead waiting for dialer choice
-  const [filteredLeads, setFilteredLeads] = useState([]); // ordered list for next/prev nav
+  const [navLeads, setNavLeads] = useState([]); // ordered list for next/prev navigation
 
   useEffect(() => {
     loadLeads();
@@ -351,7 +351,7 @@ export default function LeadsTab() {
       const called = nonConverted.filter(l => l.lastCalledAt).sort((a,b) => new Date(a.lastCalledAt) - new Date(b.lastCalledAt));
       const ordered = [...neverCalled, ...called, ...converted];
       setLeads(ordered);
-      setFilteredLeads(ordered);
+      setNavLeads(ordered);
       setArchivedLeads(archived || []);
     } catch(e) { console.error(e); }
     setLoading(false);
@@ -364,15 +364,15 @@ export default function LeadsTab() {
 
   const handleNextLead = () => {
     if (!selectedLead) return;
-    const idx = filteredLeads.findIndex(l => l.id === selectedLead.id);
-    const next = filteredLeads[idx + 1];
+    const idx = navLeads.findIndex(l => l.id === selectedLead.id);
+    const next = navLeads[idx + 1];
     if (next) setSelectedLead(next);
   };
 
   const handlePrevLead = () => {
     if (!selectedLead) return;
-    const idx = filteredLeads.findIndex(l => l.id === selectedLead.id);
-    const prev = filteredLeads[idx - 1];
+    const idx = navLeads.findIndex(l => l.id === selectedLead.id);
+    const prev = navLeads[idx - 1];
     if (prev) setSelectedLead(prev);
   };
 
@@ -551,8 +551,8 @@ export default function LeadsTab() {
           }}
           onNextLead={handleNextLead}
           onPrevLead={handlePrevLead}
-          currentLeadIndex={filteredLeads.findIndex(l => l.id === selectedLead.id)}
-          totalLeads={filteredLeads.length}
+          currentLeadIndex={navLeads.findIndex(l => l.id === selectedLead.id)}
+          totalLeads={navLeads.length}
         />
       )}
       {showDialer && (
