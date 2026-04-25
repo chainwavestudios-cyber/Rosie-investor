@@ -104,6 +104,11 @@
       "type": "string",
       "format": "date-time",
       "title": "Last Site Visit"
+    },
+    "migratedToPortal": {
+      "type": "boolean",
+      "title": "Migrated to Portal",
+      "default": false
     }
   },
   "required": [
