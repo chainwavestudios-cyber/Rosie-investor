@@ -56,15 +56,15 @@ Deno.serve(async (req) => {
         email:    toEmail.toLowerCase().trim(),
         name:     toName || firstName || toEmail,
         password: hashedPassword,
-        role:     'investor',
-        status:   'prospect',
+        role:     'guest',
+        status:   'info_only',
         leadId,
       });
     }
     // Save username on lead
     await base44.asServiceRole.entities.Lead.update(leadId, {
       portalPasscode: username,
-      status: 'prospect',
+      status: 'info_only',
     });
     console.log(`[sendLeadEmail] InvestorUser created/updated: ${username}`);
   } catch (e) {
