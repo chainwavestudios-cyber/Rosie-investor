@@ -438,7 +438,7 @@ function InvestorCalculator() {
 }
 
 // ─── PPM / Investment Offering ────────────────────────────────────────────
-const PPM_PDF_URL = 'https://media.base44.com/files/public/69cd2741578c9b5ce655395b/c7588e9ef_RosieAI_PPM_final5pdf2.pdf';
+const PPM_PDF_URL = 'https://media.base44.com/files/public/69cd2741578c9b5ce655395b/185a63a2f_RosieAI_PPM_final5pdf2.pdf';
 async function downloadFile(url, filename) {
   analytics.trackDownload(filename, 'pdf');
   const res=await fetch(url); const blob=await res.blob(); const u=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=u; a.download=filename; a.click(); URL.revokeObjectURL(u);
@@ -492,7 +492,7 @@ function InvestmentOffering() {
 
 // ─── Subscription Agreements ──────────────────────────────────────────────
 const PDF_DOCS = [
-  { id:'subscription',  name:'Subscription Agreement',  badge:'Required', url:'https://media.base44.com/files/public/69cd2741578c9b5ce655395b/d291387c6_Subscription_Agreement_Updated1.pdf', totalPages:10 },
+  { id:'subscription',  name:'Subscription Agreement',  badge:'Required', url:'https://media.base44.com/files/public/69cd2741578c9b5ce655395b/4234964e8_Subscription_Agreement_Updated1.pdf', totalPages:10 },
   { id:'accreditation', name:'Investor Questionnaire',   badge:'Required', url:'https://media.base44.com/files/public/69cd2741578c9b5ce655395b/903902aa1_RosieAI_Investor_Questionnaire.pdf', totalPages:7 },
   { id:'operating',     name:'LLC Operating Agreement',  badge:'Member Document', url:'https://media.base44.com/files/public/69cd2741578c9b5ce655395b/57c1e246d_RosieAI_Operating_Agreement.docx', totalPages:null },
 ];
