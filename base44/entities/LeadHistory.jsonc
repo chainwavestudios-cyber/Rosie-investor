@@ -18,7 +18,9 @@
         "not_interested",
         "abandoned",
         "status_change",
-        "note"
+        "note",
+        "transcript",
+        "call_report"
       ],
       "default": "note"
     },
