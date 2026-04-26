@@ -269,7 +269,7 @@ function ContactCardModal({ user, onClose, onSave, allSessions, matchesUser }) {
         </div>
 
         {/* Body */}
-        <div style={{ flex:1, overflowY:'auto', padding:'24px 28px' }}>
+        <div style={{ flex:1, overflow: tab === 'script' ? 'hidden' : 'auto', padding: tab === 'script' ? '0' : '24px 28px', display:'flex', flexDirection:'column', minHeight:0 }}>
 
           {/* OVERVIEW */}
           {tab === 'overview' && (
@@ -461,7 +461,7 @@ function ContactCardModal({ user, onClose, onSave, allSessions, matchesUser }) {
           {/* SCRIPT */}
           {tab === 'invsite' && <InvestorWebsiteTab user={user} />}
           {tab === 'research' && <ResearchTab user={user} />}
-          {tab === 'script' && <ScriptAssistant user={user} />}
+          {tab === 'script' && <div style={{ flex:1, minHeight:0, overflow:'hidden', display:'flex', flexDirection:'column' }}><ScriptAssistant user={user} /></div>}
 
           {/* CALENDAR */}
           {tab === 'calendar' && (
