@@ -192,7 +192,7 @@ Password: ${sitePassword}`, 'creds')}
   );
 }
 
-function OverviewTab({ editLead, setEditLead, saving, saveMsg, saveProfile, updateStatus, quickNote, setQuickNote, addQuickNote, addingNote, history, loading }) {
+function OverviewTab({ editLead, setEditLead, saving, saveMsg, saveProfile, updateStatus, quickNote, setQuickNote, addQuickNote, addingNote, history, loading, isArchived }) {
   const [editing, setEditing] = useState(false);
   const GOLD = '#b8933a';
   const DARK = '#0a0f1e';
@@ -220,7 +220,7 @@ function OverviewTab({ editLead, setEditLead, saving, saveMsg, saveProfile, upda
     <div style={{ display:'flex', flexDirection:'column', gap:'14px' }}>
 
       {/* Status + Edit row */}
-      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+      {!isArchived && <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
         <div style={{ display:'flex', gap:'6px' }}>
           {['lead','prospect'].map(s => {
             const si = STATUS_LABELS[s];
@@ -237,7 +237,7 @@ function OverviewTab({ editLead, setEditLead, saving, saveMsg, saveProfile, upda
           style={{ background: editing ? 'rgba(184,147,58,0.2)' : 'rgba(255,255,255,0.05)', color: editing ? GOLD : '#8a9ab8', border:`1px solid ${editing ? 'rgba(184,147,58,0.4)' : 'rgba(255,255,255,0.1)'}`, borderRadius:'4px', padding:'6px 14px', cursor:'pointer', fontSize:'11px', letterSpacing:'0.5px' }}>
           {editing ? '✕ Cancel Edit' : '✏️ Edit'}
         </button>
-      </div>
+      </div>}
 
       {/* Contact info — view mode */}
       {!editing && (
@@ -290,7 +290,7 @@ function OverviewTab({ editLead, setEditLead, saving, saveMsg, saveProfile, upda
       {/* Notes & Activity */}
       <div style={{ borderTop:'1px solid rgba(255,255,255,0.06)', paddingTop:'14px' }}>
         <div style={{ color:GOLD, fontSize:'10px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'10px' }}>📋 Notes & Activity</div>
-        <div style={{ display:'flex', gap:'8px', marginBottom:'12px' }}>
+        {!isArchived && <div style={{ display:'flex', gap:'8px', marginBottom:'12px' }}>
           <input value={quickNote} onChange={e=>setQuickNote(e.target.value)}
             onKeyDown={e=>{ if(e.key==='Enter'&&quickNote.trim()) addQuickNote(); }}
             placeholder="Add a note and press Enter or Save…"
@@ -299,7 +299,7 @@ function OverviewTab({ editLead, setEditLead, saving, saveMsg, saveProfile, upda
             style={{ background:'rgba(184,147,58,0.15)', color:GOLD, border:`1px solid rgba(184,147,58,0.3)`, borderRadius:'4px', padding:'8px 16px', cursor:'pointer', fontSize:'12px', whiteSpace:'nowrap' }}>
             Save
           </button>
-        </div>
+        </div>}
         <div style={{ display:'flex', flexDirection:'column', gap:'4px', maxHeight:'300px', overflowY:'auto', paddingRight:'4px' }}>
           {loading && <p style={{ color:'#6b7280', fontSize:'12px', textAlign:'center', padding:'16px' }}>Loading…</p>}
           {!loading && history.length === 0 && <p style={{ color:'#4a5568', fontSize:'12px', textAlign:'center', padding:'20px' }}>No activity yet.</p>}
@@ -329,6 +329,8 @@ function OverviewTab({ editLead, setEditLead, saving, saveMsg, saveProfile, upda
 }
 
 export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber, dialerRef, onResume, isDialerPaused, onNextLead, onPrevLead, currentLeadIndex, totalLeads }) {
+  // Archived = migrated to CRM — card is read-only
+  const isArchived = !!(lead.migratedToPortal || lead.convertedToInvestorUserId || lead.status === 'converted');
   const [tab, setTab] = useState('overview');
   const [history, setHistory] = useState([]);
   const [editLead, setEditLead] = useState({ ...lead });
@@ -473,7 +475,16 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
       </div>
     )}
     <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.9)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:9999, padding:'16px' }}>
-      <div style={{ background:'#0d1b2a', border:'1px solid rgba(184,147,58,0.3)', borderRadius:'4px', width:'100%', maxWidth:'820px', maxHeight:'92vh', display:'flex', flexDirection:'column', boxShadow:'0 40px 120px rgba(0,0,0,0.9)' }}>
+      <div style={{ background:'#0d1b2a', border:`1px solid ${isArchived ? 'rgba(245,158,11,0.3)' : 'rgba(184,147,58,0.3)'}`, borderRadius:'4px', width:'100%', maxWidth:'820px', maxHeight:'92vh', display:'flex', flexDirection:'column', boxShadow:'0 40px 120px rgba(0,0,0,0.9)' }}>
+
+        {/* Archived banner */}
+        {isArchived && (
+          <div style={{ background:'rgba(245,158,11,0.1)', borderBottom:'1px solid rgba(245,158,11,0.25)', padding:'8px 24px', display:'flex', alignItems:'center', gap:'10px', flexShrink:0 }}>
+            <span style={{ fontSize:'14px' }}>📦</span>
+            <span style={{ color:'#f59e0b', fontSize:'12px', fontWeight:'bold', letterSpacing:'0.5px' }}>Archived — Migrated to CRM</span>
+            <span style={{ color:'#6b7280', fontSize:'11px' }}>This lead is read-only. Edit from the Potential Investor card in the CRM.</span>
+          </div>
+        )}
 
         {/* Header */}
         <div style={{ padding:'16px 24px', borderBottom:'1px solid rgba(255,255,255,0.07)', display:'flex', justifyContent:'space-between', alignItems:'center', background:'rgba(0,0,0,0.2)', flexShrink:0 }}>
@@ -499,23 +510,23 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
             {editLead.badgeInvestorPage && <span title="Visited Investor Page" style={{ background:'rgba(167,139,250,0.15)', border:'1px solid rgba(167,139,250,0.3)', borderRadius:'20px', padding:'3px 8px', fontSize:'10px', color:'#a78bfa' }}>💼 Investor Page</span>}
 
             {/* Send Email */}
-            <button onClick={sendEmail} disabled={sendingEmail || !editLead.email}
+            <button onClick={sendEmail} disabled={isArchived || sendingEmail || !editLead.email}
               style={{ background:'rgba(96,165,250,0.15)', color:'#60a5fa', border:'1px solid rgba(96,165,250,0.3)', borderRadius:'2px', padding:'7px 14px', cursor: editLead.email ? 'pointer' : 'not-allowed', fontSize:'11px', fontWeight:'bold', opacity: editLead.email ? 1 : 0.5 }}>
               {sendingEmail ? '⏳ Sending…' : '✉️ Send Email'}
             </button>
             {emailMsg && <span style={{ fontSize:'11px', color: emailMsg.startsWith('Error') ? '#ef4444' : '#4ade80' }}>{emailMsg}</span>}
 
-            <button onClick={() => setShowZoom(true)}
-              style={{ background:'rgba(96,165,250,0.15)', color:'#60a5fa', border:'1px solid rgba(96,165,250,0.3)', borderRadius:'2px', padding:'7px 14px', cursor:'pointer', fontSize:'11px', fontWeight:'bold' }}>
+            <button onClick={() => !isArchived && setShowZoom(true)}
+              style={{ background:'rgba(96,165,250,0.15)', color: isArchived ? '#4a5568' : '#60a5fa', border:'1px solid rgba(96,165,250,0.3)', borderRadius:'2px', padding:'7px 14px', cursor: isArchived ? 'not-allowed' : 'pointer', fontSize:'11px', fontWeight:'bold', opacity: isArchived ? 0.4 : 1 }}>
               📅 Book Zoom
             </button>
-            {isProspect && (
+            {isProspect && !isArchived && (
               <button onClick={() => setShowMigrate(true)}
                 style={{ background:'linear-gradient(135deg,#7c3aed,#a855f7)', color:'#fff', border:'none', borderRadius:'2px', padding:'7px 14px', cursor:'pointer', fontSize:'11px', fontWeight:'bold', letterSpacing:'1px' }}>
                 🚀 Migrate to CRM
               </button>
             )}
-            {(lead.phone || editLead.phone) && (
+            {(lead.phone || editLead.phone) && !isArchived && (
               <button onClick={() => onDialNumber && onDialNumber(lead)}
                 style={{ background:'rgba(74,222,128,0.15)', color:'#4ade80', border:'1px solid rgba(74,222,128,0.3)', borderRadius:'2px', padding:'7px 14px', cursor:'pointer', fontSize:'11px', fontWeight:'bold' }}>
                 📞 {lead.phone || editLead.phone}
@@ -555,7 +566,7 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
 
         {/* Tabs */}
         <div style={{ display:'flex', borderBottom:'1px solid rgba(255,255,255,0.07)', flexShrink:0 }}>
-          {[['overview','👤 Overview'],['actions','⚡ Actions'],['email','✉️ Emails'],['access','🔑 Access'],['cluster','🌐 Cluster'],['research','🔍 Research'],['script','📝 Script']].map(([id,label]) => (
+          {[['overview','👤 Overview'],['actions','⚡ Actions'],['email','✉️ Emails'],['access','🔑 Access'],['cluster','🌐 Cluster'],['research','🔍 Research'],['script','📝 Script']].filter(([id]) => !(isArchived && id === 'actions')).map(([id,label]) => (
             <button key={id} onClick={() => setTab(id)} style={{ background:'none', border:'none', borderBottom:tab===id?`2px solid ${GOLD}`:'2px solid transparent', color:tab===id?GOLD:'#6b7280', padding:'11px 20px', cursor:'pointer', fontSize:'11px', letterSpacing:'1px' }}>{label}</button>
           ))}
         </div>
@@ -573,6 +584,7 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
               quickNote={quickNote} setQuickNote={setQuickNote}
               addQuickNote={addQuickNote} addingNote={addingNote}
               history={history} loading={loading}
+              isArchived={isArchived}
             />
           )}
 
