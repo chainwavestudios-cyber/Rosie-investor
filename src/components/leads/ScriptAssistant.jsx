@@ -123,6 +123,16 @@ export default function ScriptAssistant({ lead, user }) {
   const [intent, setIntent]           = useState(null);
   const [intentRunning, setIntentRunning] = useState(false);
 
+  // AI feature toggles
+  const [aiEnabled, setAiEnabled]     = useState(false); // master AI switch
+  const [autoQA, setAutoQA]           = useState(true);  // auto keyword Q&A
+  const [coachEnabled, setCoachEnabled] = useState(true); // coach tips
+  const [intentEnabled, setIntentEnabled] = useState(true); // duck/cow intent
+
+  // Post-call report
+  const [reportSaving, setReportSaving] = useState(false);
+  const [reportSaved, setReportSaved]   = useState(false);
+
   const wsRef         = useRef(null);
   const streamRef     = useRef(null);
   const processorRef  = useRef(null);
@@ -202,12 +212,79 @@ export default function ScriptAssistant({ lead, user }) {
     } catch (e) { setError(`Mic error: ${e.message}`); }
   };
 
-  const stopListening = () => {
+  const stopListening = async () => {
     try { wsRef.current?.close(); }    catch {}
     try { processorRef.current?.disconnect(); } catch {}
     try { contextRef.current?.close(); }  catch {}
     try { streamRef.current?.getTracks().forEach(t => t.stop()); } catch {}
     setListening(false);
+
+    const finalTranscript = transcriptRef.current;
+    if (!finalTranscript || finalTranscript.length < 2) return;
+    const l = lead || user;
+    if (!l?.id) return;
+
+    setReportSaving(true);
+    setReportSaved(false);
+    try {
+      const transcriptText = finalTranscript.map(t =>
+        `[${new Date(t.time).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',second:'2-digit'})}] ${t.text}`
+      ).join('\n');
+
+      const entity = lead ? base44.entities.LeadHistory : base44.entities.ContactNote;
+
+      // 1. Save raw transcript
+      if (lead) {
+        await entity.create({ leadId: l.id, type: 'transcript', content: transcriptText });
+      } else {
+        await entity.create({ investorId: l.id, investorEmail: l.email, type: 'note', content: `📝 TRANSCRIPT:\n${transcriptText}` });
+      }
+
+      // 2. Generate AI report
+      const res = await base44.functions.invoke('liveAssistantAI', {
+        question: `You are analyzing a completed sales call transcript. Generate a structured call report with these exact sections:
+
+## Call Summary
+2-3 sentence overview of what was discussed.
+
+## Prospect Interest Level
+Rate: Hot / Warm / Cold — and explain why in 1-2 sentences.
+
+## Key Questions Asked
+List every question the prospect asked, verbatim or close to it.
+
+## Objections & Concerns
+List any objections or hesitations raised.
+
+## Highlights
+3-5 bullet points of the most important moments or statements.
+
+## Recommended Next Steps
+Specific, actionable next steps for this prospect.
+
+## Transcript
+(clean, readable version — remove filler words, organize by speaker if possible)
+
+Transcript to analyze:
+"${finalTranscript.map(t => t.text).join(' ')}"`,
+        transcript: finalTranscript,
+        kbEntries: [],
+        mode: 'summary',
+      });
+
+      const report = res?.data?.answer || '';
+      if (report && lead) {
+        await entity.create({ leadId: l.id, type: 'call_report', content: report });
+      } else if (report) {
+        await entity.create({ investorId: l.id, investorEmail: l.email, type: 'note', content: `📋 CALL REPORT:\n${report}` });
+      }
+
+      setReportSaved(true);
+      setTimeout(() => setReportSaved(false), 4000);
+    } catch (e) {
+      console.error('Auto-save failed:', e);
+    }
+    setReportSaving(false);
   };
 
   const detectQuestions = (text) => {
@@ -217,14 +294,16 @@ export default function ScriptAssistant({ lead, user }) {
   };
 
   const checkTrigger = useCallback(async (text, allT) => {
+    if (!aiEnabled || !autoQA) return;
     const now = Date.now();
     if (now - lastTrigger.current < 3000) return;
     if (!TRIGGER_PATTERNS.some(p => p.test(text))) return;
     lastTrigger.current = now;
     await askAI(text, allT);
-  }, [kbEntries]);
+  }, [kbEntries, aiEnabled, autoQA]);
 
   const checkCoach = async (allT) => {
+    if (!aiEnabled || !coachMode || !coachEnabled) return;
     const now = Date.now();
     if (now - lastCoach.current < 15000) return;
     lastCoach.current = now;
@@ -239,6 +318,7 @@ export default function ScriptAssistant({ lead, user }) {
 
   // Intent engine — runs every 20s, uses haiku (cheap + fast)
   const checkIntent = async (allT) => {
+    if (!aiEnabled || !intentEnabled) return;
     const now = Date.now();
     if (now - lastIntent.current < 20000) return;
     if (allT.length < 3) return; // need some transcript first
@@ -350,28 +430,50 @@ export default function ScriptAssistant({ lead, user }) {
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
 
       {/* AI Header */}
-      <div style={{ padding: '7px 10px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0, flexWrap: 'wrap' }}>
-        <div style={{ width: '7px', height: '7px', borderRadius: '50%', background: listening ? '#4ade80' : '#4a5568', boxShadow: listening ? '0 0 6px #4ade80' : 'none', animation: listening ? 'pulse 1.5s infinite' : 'none', flexShrink: 0 }} />
-        <span style={{ color: GOLD, fontSize: '10px', letterSpacing: '1.5px', textTransform: 'uppercase' }}>🧠 AI Assistant</span>
-        {intentRunning && <span style={{ color: '#6b7280', fontSize: '9px' }}>reading intent…</span>}
-
-        <div style={{ marginLeft: 'auto', display: 'flex', gap: '4px', alignItems: 'center' }}>
-          {/* Coach Mode button */}
-          <button onClick={() => setCoachMode(c => !c)}
-            style={{ background: coachMode ? 'rgba(167,139,250,0.2)' : 'rgba(255,255,255,0.05)', border: `1px solid ${coachMode ? 'rgba(167,139,250,0.5)' : 'rgba(255,255,255,0.1)'}`, color: coachMode ? '#a78bfa' : '#6b7280', borderRadius: '4px', padding: '3px 8px', cursor: 'pointer', fontSize: '9px', fontWeight: 'bold', letterSpacing: '0.5px', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
-            {coachMode ? '🎯 Coach ON' : '🎯 Coach Mode'}
-          </button>
-          {/* Mic select */}
-          <select value={selectedMic} onChange={e => setSelectedMic(e.target.value)}
-            style={{ ...inp, padding: '3px 6px', fontSize: '9px', cursor: 'pointer', maxWidth: '110px' }}>
-            {micDevices.map(d => <option key={d.deviceId} value={d.deviceId}>{d.label?.slice(0, 18) || 'Mic…'}</option>)}
-          </select>
-          {/* Start/stop */}
-          <button onClick={listening ? stopListening : startListening}
-            style={{ background: listening ? 'rgba(239,68,68,0.15)' : 'rgba(74,222,128,0.15)', color: listening ? '#ef4444' : '#4ade80', border: `1px solid ${listening ? 'rgba(239,68,68,0.3)' : 'rgba(74,222,128,0.3)'}`, borderRadius: '4px', padding: '3px 8px', cursor: 'pointer', fontSize: '10px', whiteSpace: 'nowrap' }}>
-            {listening ? '⏹ Stop' : '🎙 Listen'}
-          </button>
+      <div style={{ padding: '7px 10px', borderBottom: '1px solid rgba(255,255,255,0.07)', flexShrink: 0 }}>
+        {/* Row 1: status + mic + listen */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', marginBottom: aiEnabled ? '6px' : '0' }}>
+          <div style={{ width: '7px', height: '7px', borderRadius: '50%', background: listening ? '#4ade80' : '#4a5568', boxShadow: listening ? '0 0 6px #4ade80' : 'none', animation: listening ? 'pulse 1.5s infinite' : 'none', flexShrink: 0 }} />
+          <span style={{ color: GOLD, fontSize: '10px', letterSpacing: '1.5px', textTransform: 'uppercase' }}>🧠 AI Assistant</span>
+          {reportSaving && <span style={{ color: '#f59e0b', fontSize: '9px' }}>⏳ Saving report…</span>}
+          {reportSaved  && <span style={{ color: '#4ade80', fontSize: '9px' }}>✓ Report saved</span>}
+          {intentRunning && <span style={{ color: '#6b7280', fontSize: '9px' }}>reading intent…</span>}
+          <div style={{ marginLeft: 'auto', display: 'flex', gap: '4px', alignItems: 'center' }}>
+            {/* Master AI toggle */}
+            <button onClick={() => setAiEnabled(v => !v)}
+              style={{ background: aiEnabled ? 'rgba(184,147,58,0.2)' : 'rgba(255,255,255,0.05)', border: `1px solid ${aiEnabled ? 'rgba(184,147,58,0.5)' : 'rgba(255,255,255,0.1)'}`, color: aiEnabled ? GOLD : '#6b7280', borderRadius: '4px', padding: '3px 8px', cursor: 'pointer', fontSize: '9px', fontWeight: 'bold', letterSpacing: '0.5px', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
+              {aiEnabled ? '🧠 AI ON' : '🧠 AI OFF'}
+            </button>
+            {/* Mic select */}
+            <select value={selectedMic} onChange={e => setSelectedMic(e.target.value)}
+              style={{ ...inp, padding: '3px 6px', fontSize: '9px', cursor: 'pointer', maxWidth: '110px' }}>
+              {micDevices.map(d => <option key={d.deviceId} value={d.deviceId}>{d.label?.slice(0, 18) || 'Mic…'}</option>)}
+            </select>
+            {/* Listen/Stop */}
+            <button onClick={listening ? stopListening : startListening}
+              style={{ background: listening ? 'rgba(239,68,68,0.15)' : 'rgba(74,222,128,0.15)', color: listening ? '#ef4444' : '#4ade80', border: `1px solid ${listening ? 'rgba(239,68,68,0.3)' : 'rgba(74,222,128,0.3)'}`, borderRadius: '4px', padding: '3px 8px', cursor: 'pointer', fontSize: '10px', whiteSpace: 'nowrap' }}>
+              {listening ? '⏹ Stop' : '🎙 Listen'}
+            </button>
+          </div>
         </div>
+        {/* Row 2: AI sub-toggles (only when AI is on) */}
+        {aiEnabled && (
+          <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+            {[
+              ['❓ Auto Q&A', autoQA,      () => setAutoQA(v => !v),      'rgba(245,158,11,0.2)', 'rgba(245,158,11,0.5)', '#f59e0b'],
+              ['🎯 Coach',    coachMode,   () => setCoachMode(v => !v),   'rgba(167,139,250,0.2)', 'rgba(167,139,250,0.5)', '#a78bfa'],
+              ['🦆 Intent',   intentEnabled, () => setIntentEnabled(v => !v), 'rgba(96,165,250,0.2)', 'rgba(96,165,250,0.5)', '#60a5fa'],
+            ].map(([label, active, toggle, bg, border, color]) => (
+              <button key={label} onClick={toggle}
+                style={{ background: active ? bg : 'rgba(255,255,255,0.03)', border: `1px solid ${active ? border : 'rgba(255,255,255,0.08)'}`, color: active ? color : '#4a5568', borderRadius: '4px', padding: '2px 8px', cursor: 'pointer', fontSize: '9px', whiteSpace: 'nowrap' }}>
+                {label}
+              </button>
+            ))}
+            <span style={{ color: '#4a5568', fontSize: '9px', alignSelf: 'center', marginLeft: '4px' }}>
+              {listening ? '● Transcribing always' : 'Transcript auto-saves on stop'}
+            </span>
+          </div>
+        )}
       </div>
 
       {error && <div style={{ background: 'rgba(239,68,68,0.08)', color: '#ef4444', fontSize: '10px', padding: '5px 10px', flexShrink: 0 }}>{error}</div>}
