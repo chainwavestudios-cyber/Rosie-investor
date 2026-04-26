@@ -35,7 +35,7 @@ function findRelevantKB(question: string, kbEntries: any[], topN = 8): any[] {
 
 Deno.serve(async (req) => {
   try {
-    const { question, transcript, kbEntries, mode } = await req.json();
+    const { question, transcript, kbEntries, mode, existingProfile, intentRules, coachRules } = await req.json();
     const recentTranscript = (transcript || []).slice(-10).map((t: any) => t.text).join(' ');
 
     // ── INTENT ENGINE ─────────────────────────────────────────────────
@@ -48,8 +48,8 @@ Deno.serve(async (req) => {
           max_tokens: 300,
           system: `You are an expert sales intent analyzer. Classify the prospect based on the recent conversation.
 
-DUCK: Argumentative, skeptical, raises objections, tries to prove things wrong, combative.
-COW: Agreeable, curious, open-minded, says things like "that's interesting", "really?", asks genuine questions, believes what you say.
+DUCK: ${intentRules?.duckDefinition || 'Argumentative, skeptical, raises objections, tries to prove things wrong, combative.'}
+COW: ${intentRules?.cowDefinition || 'Agreeable, curious, open-minded, says things like "that\'s interesting", "really?", asks genuine questions, believes what you say.'}
 
 Respond ONLY with this exact JSON (no markdown, no extra text):
 {"animalType":"duck or cow or unknown","animalConfidence":0-100,"buyingIntent":0-100,"questionQuality":0-100,"intentLabel":"hot or warm or cold or uncertain","signals":["signal1","signal2"],"coachTip":"one sentence tip for the salesperson right now"}`,
@@ -78,12 +78,63 @@ Respond ONLY with this exact JSON (no markdown, no extra text):
         body: JSON.stringify({
           model: 'claude-haiku-4-5-20251001',
           max_tokens: 150,
-          system: `You are a real-time sales coach on a live investor call. Give ONE actionable tip in 1-2 sentences. Be direct — the agent reads this mid-call. Focus on: next talking point, handling the last objection, building rapport, or timing a close.${kbContext ? `\n\nRelevant knowledge:\n${kbContext}` : ''}`,
+          system: `You are a real-time sales coach on a live investor call. ${coachRules?.style || 'Give ONE actionable tip in 1-2 sentences. Be direct — the agent reads this mid-call.'} Focus on: ${coachRules?.focusAreas || 'next talking point, handling the last objection, building rapport, or timing a close'}.${coachRules?.additionalContext ? `\n\nContext: ${coachRules.additionalContext}` : ''}${kbContext ? `\n\nRelevant knowledge:\n${kbContext}` : ''}`,
           messages: [{ role: 'user', content: `Live conversation:\n"${recentTranscript}"\n\nCoaching tip:` }],
         }),
       });
       const data = await res.json();
       return Response.json({ answer: data?.content?.[0]?.text || '' });
+    }
+
+    // ── CLIENT PROFILE MODE ──────────────────────────────────────────
+    if (mode === 'profile') {
+      const existing = (() => { try { return JSON.parse(existingProfile || '{}'); } catch { return {}; } })();
+      const fullTranscript = (transcript || []).map((t: any) => t.text).join(' ');
+
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_KEY, 'anthropic-version': '2023-06-01' },
+        body: JSON.stringify({
+          model: 'claude-haiku-4-5-20251001',
+          max_tokens: 600,
+          system: `You are analyzing a sales call to build a persistent client profile. Based on the transcript, determine behavioral traits. Merge with any existing profile data.
+
+Return ONLY this exact JSON (no markdown):
+{
+  "animalType": "duck or cow or unknown",
+  "animalConfidence": 0-100,
+  "overallIntentLabel": "hot or warm or cold",
+  "traits": {
+    "asksLotOfQuestions": true/false,
+    "quickToInterrupt": true/false,
+    "asksBuyingQuestions": true/false,
+    "talksALot": true/false,
+    "asksTechnicalQuestions": true/false,
+    "raisesObjections": true/false,
+    "agreeable": true/false,
+    "priceConscious": true/false,
+    "decisionMaker": true/false
+  },
+  "keyObservations": ["observation1", "observation2", "observation3"],
+  "recommendedApproach": "one sentence on how to handle this prospect next call",
+  "callCount": ${(existing.callCount || 0) + 1},
+  "lastCallSummary": "2-3 sentence summary of this specific call"
+}`,
+          messages: [{ role: 'user', content: `Existing profile:
+${JSON.stringify(existing, null, 2)}
+
+Call transcript:
+"${fullTranscript.slice(0, 4000)}"` }],
+        }),
+      });
+      const data = await res.json();
+      const text2 = data?.content?.[0]?.text || '{}';
+      try {
+        const profile = JSON.parse(text2.replace(/```json|```/g, '').trim());
+        return Response.json({ profile });
+      } catch {
+        return Response.json({ profile: existing });
+      }
     }
 
     // ── SUMMARY MODE ──────────────────────────────────────────────────
