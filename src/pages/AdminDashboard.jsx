@@ -89,6 +89,28 @@ function ContactCardModal({ user, onClose, onSave, allSessions, matchesUser }) {
   const [showZoom, setShowZoom] = useState(false);
   const [sendingEmail, setSendingEmail] = useState(false);
   const [emailMsg, setEmailMsg] = useState('');
+  // Tab highlight: track which tabs have been viewed and when
+  const [viewedTabs, setViewedTabs] = useState(() => {
+    try { return JSON.parse(user.lastViewedTabs || '{}'); } catch { return {}; }
+  });
+
+  // Mark a tab as viewed — update local state + DB
+  const markTabViewed = async (tabId) => {
+    const now = new Date().toISOString();
+    const updated = { ...viewedTabs, [tabId]: now };
+    setViewedTabs(updated);
+    try {
+      await base44.entities.InvestorUser.update(user.id, { lastViewedTabs: JSON.stringify(updated) });
+    } catch {}
+  };
+
+  // A tab has new activity if lastActivityAt is newer than when we last viewed that tab
+  const tabHasNew = (tabId) => {
+    if (!user.lastActivityAt) return false;
+    const lastViewed = viewedTabs[tabId];
+    if (!lastViewed) return true; // never viewed
+    return new Date(user.lastActivityAt) > new Date(lastViewed);
+  };
 
   useEffect(() => {
     loadAll();
@@ -167,7 +189,7 @@ function ContactCardModal({ user, onClose, onSave, allSessions, matchesUser }) {
   const TABS = [
     ['overview','👤 Overview'], ['history','📞 History'], ['analytics','📊 Analytics'],
     ['documents','📄 Documents'], ['accreditation','🔐 Accreditation'], ['calendar','📅 Calendar'],
-    ['portal','🔑 Portal Access'], ['rosie','🤖 Rosie AI'], ['cluster','🌐 Cluster'], ['research','🔍 Research'], ['script','📝 Script'],
+    ['portal','🔑 Portal Access'], ['rosie','🤖 Rosie AI'], ['sitestats','📊 Site Stats'], ['research','🔍 Research'], ['script','📝 Script'],
   ];
 
   const noteTypeIcons = { note:'📝', call:'📞', sms:'💬', voicemail:'📳', email:'✉️' };
@@ -263,9 +285,18 @@ function ContactCardModal({ user, onClose, onSave, allSessions, matchesUser }) {
 
         {/* Tabs */}
         <div style={{ display:'flex', borderBottom:'1px solid rgba(255,255,255,0.07)', overflowX:'auto', flexShrink:0 }}>
-          {TABS.map(([id,label]) => (
-            <button key={id} onClick={() => setTab(id)} style={{ background:'none', border:'none', borderBottom:tab===id?`2px solid ${GOLD}`:'2px solid transparent', color:tab===id?GOLD:'#6b7280', padding:'10px 12px', cursor:'pointer', fontSize:'10px', letterSpacing:'0.5px', whiteSpace:'nowrap' }}>{label}</button>
-          ))}
+          {TABS.map(([id,label]) => {
+            const hasNew = tabHasNew(id) && id !== tab;
+            return (
+              <button key={id} onClick={() => { setTab(id); markTabViewed(id); }}
+                style={{ background:'none', border:'none', borderBottom:tab===id?`2px solid ${GOLD}`:'2px solid transparent', color:tab===id?GOLD:'#6b7280', padding:'10px 12px', cursor:'pointer', fontSize:'10px', letterSpacing:'0.5px', whiteSpace:'nowrap', position:'relative' }}>
+                {label}
+                {hasNew && (
+                  <span style={{ position:'absolute', top:'6px', right:'4px', width:'6px', height:'6px', borderRadius:'50%', background:'#ef4444', display:'block' }} />
+                )}
+              </button>
+            );
+          })}
         </div>
 
         {/* Body */}
@@ -477,7 +508,7 @@ function ContactCardModal({ user, onClose, onSave, allSessions, matchesUser }) {
           {tab === 'rosie' && <RosieTab user={user} />}
 
           {/* SCRIPT */}
-          {tab === 'cluster' && <InvestorWebsiteTab user={user} />}
+          {tab === 'sitestats' && <InvestorWebsiteTab user={user} />}
           {tab === 'research' && <ResearchTab user={user} />}
           {tab === 'script' && <ScriptAssistant user={user} />}
 
