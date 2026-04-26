@@ -20,6 +20,7 @@ import { base44 } from '@/api/base44Client';
 import InvestorWebsiteTab from '@/components/leads/InvestorWebsiteTab';
 import ResearchTab from '@/components/leads/ResearchTab';
 import ScriptAssistant from '@/components/leads/ScriptAssistant';
+import MarketingTab from '@/components/admin/MarketingTab';
 
 const LOGO = 'https://media.base44.com/images/public/69cd2741578c9b5ce655395b/39a31f9b9_Untitleddesign3.png';
 const GOLD = '#b8933a';
@@ -1634,6 +1635,7 @@ function CoachRulesTuner() {
 const VIEWS = [
   { id:'users',    label:'CRM / Clients' },
   { id:'leads',    label:'Leads' },
+  { id:'marketing', label:'📣 Marketing' },
   { id:'calendar', label:'Calendar' },
   { id:'analytics',label:'Analytics' },
   { id:'activity', label:'Recent Activity' },
@@ -2059,6 +2061,7 @@ export default function AdminDashboard() {
         )}
 
         {view === 'leads'            && <LeadsTab />}
+        {view === 'marketing'        && <MarketingTab />}
         {view === 'kb'               && <KnowledgeBaseManager />}
         {view === 'signnow'          && <SignNowRequestsView settings={portalSettings} />}
         {view === 'signnow-settings' && <SignNowSettings settings={portalSettings} onSettingsSaved={s => setPortalSettings(s)} />}
