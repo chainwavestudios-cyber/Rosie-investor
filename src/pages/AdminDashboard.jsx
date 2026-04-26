@@ -1149,12 +1149,364 @@ function AddUserForm({ onAdd, onClose }) {
 }
 
 // ─── MAIN ADMIN DASHBOARD ─────────────────────────────────────────────────
+
+// ─── Knowledge Base Manager ───────────────────────────────────────────────
+function KnowledgeBaseManager() {
+  const [entries, setEntries]       = useState([]);
+  const [loading, setLoading]       = useState(true);
+  const [section, setSection]       = useState('entries'); // entries | add | upload | scrape
+  const [search, setSearch]         = useState('');
+  const [filterCat, setFilterCat]   = useState('all');
+
+  // Add manual Q&A
+  const [q, setQ]       = useState('');
+  const [a, setA]       = useState('');
+  const [cat, setCat]   = useState('faq');
+  const [tags, setTags] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [saveMsg, setSaveMsg] = useState('');
+
+  // File upload
+  const [uploading, setUploading]   = useState(false);
+  const [uploadMsg, setUploadMsg]   = useState('');
+  const [uploadProgress, setUploadProgress] = useState('');
+  const fileRef = useRef(null);
+
+  // URL scrape
+  const [scrapeUrl, setScrapeUrl]   = useState('');
+  const [scraping, setScraping]     = useState(false);
+  const [scrapeMsg, setScrapeMsg]   = useState('');
+
+  // Delete
+  const [deleting, setDeleting]     = useState(null);
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const all = await base44.entities.KnowledgeBase.list('-created_date', 1000);
+      setEntries(all || []);
+    } catch {}
+    setLoading(false);
+  };
+
+  useEffect(() => { load(); }, []);
+
+  const addManual = async () => {
+    if (!q.trim() || !a.trim()) return;
+    setSaving(true); setSaveMsg('');
+    try {
+      await base44.entities.KnowledgeBase.create({
+        question: q.trim(), answer: a.trim(), category: cat,
+        tags: tags.trim(), source: 'manual',
+      });
+      setQ(''); setA(''); setTags('');
+      setSaveMsg('✓ Entry added');
+      await load();
+    } catch (e) { setSaveMsg('Error: ' + e.message); }
+    setSaving(false);
+    setTimeout(() => setSaveMsg(''), 3000);
+  };
+
+  const handleFileUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = '';
+    setUploading(true); setUploadMsg(''); setUploadProgress('Reading file…');
+    try {
+      const base64 = await new Promise((res, rej) => {
+        const r = new FileReader();
+        r.onload = () => res(r.result.split(',')[1]);
+        r.onerror = () => rej(new Error('Read failed'));
+        r.readAsDataURL(file);
+      });
+      setUploadProgress(`Processing "${file.name}" with AI — this may take 30-60s for large documents…`);
+      const result = await base44.functions.invoke('kbExtractFile', {
+        fileName: file.name, fileType: file.type, base64,
+      });
+      const extracted = result?.data?.entries || [];
+      setUploadProgress(`Saving ${extracted.length} entries…`);
+      let saved = 0;
+      for (const entry of extracted) {
+        try {
+          await base44.entities.KnowledgeBase.create({
+            question: entry.question, answer: entry.answer,
+            category: entry.category || 'faq', source: file.name,
+            tags: entry.tags || '',
+          });
+          saved++;
+        } catch {}
+      }
+      setUploadMsg(`✓ Extracted and saved ${saved} entries from "${file.name}"`);
+      await load();
+    } catch (e) { setUploadMsg('Error: ' + e.message); }
+    setUploading(false); setUploadProgress('');
+    setTimeout(() => setUploadMsg(''), 6000);
+  };
+
+  const handleScrape = async () => {
+    if (!scrapeUrl.trim()) return;
+    setScraping(true); setScrapeMsg('Fetching and analyzing page…');
+    try {
+      const result = await base44.functions.invoke('kbScrapeUrl', { url: scrapeUrl.trim() });
+      const extracted = result?.data?.entries || [];
+      let saved = 0;
+      for (const entry of extracted) {
+        try {
+          await base44.entities.KnowledgeBase.create({
+            question: entry.question, answer: entry.answer,
+            category: entry.category || 'faq', source: scrapeUrl.trim(),
+            tags: entry.tags || '',
+          });
+          saved++;
+        } catch {}
+      }
+      setScrapeMsg(`✓ Scraped and saved ${saved} entries from ${scrapeUrl}`);
+      setScrapeUrl('');
+      await load();
+    } catch (e) { setScrapeMsg('Error: ' + e.message); }
+    setScraping(false);
+    setTimeout(() => setScrapeMsg(''), 6000);
+  };
+
+  const deleteEntry = async (id) => {
+    setDeleting(id);
+    try { await base44.entities.KnowledgeBase.delete(id); await load(); } catch {}
+    setDeleting(null);
+  };
+
+  const deleteAll = async () => {
+    if (!window.confirm('Delete ALL knowledge base entries? This cannot be undone.')) return;
+    setLoading(true);
+    for (const e of entries) {
+      try { await base44.entities.KnowledgeBase.delete(e.id); } catch {}
+    }
+    await load();
+  };
+
+  const CATEGORIES = ['all','faq','financials','product','team','market','legal','process','risk','company','pricing','manual','raw_document'];
+  const CAT_COLORS = { faq:'#60a5fa', financials:'#4ade80', product:'#a78bfa', team:'#f59e0b', market:'#f59e0b', legal:'#ef4444', process:'#8a9ab8', risk:'#ef4444', company:'#60a5fa', pricing:'#4ade80', manual:GOLD, raw_document:'#4a5568' };
+
+  const filtered = entries
+    .filter(e => filterCat === 'all' || e.category === filterCat)
+    .filter(e => !search || `${e.question} ${e.answer} ${e.tags || ''}`.toLowerCase().includes(search.toLowerCase()));
+
+  const sources = [...new Set(entries.filter(e => e.source).map(e => e.source))];
+  const inp2 = { width:'100%', background:'rgba(255,255,255,0.05)', border:'1px solid rgba(255,255,255,0.1)', borderRadius:'4px', padding:'10px 14px', color:'#e8e0d0', fontSize:'13px', outline:'none', fontFamily:'Georgia, serif', boxSizing:'border-box' };
+  const ta2  = { ...inp2, resize:'vertical', minHeight:'80px' };
+
+  return (
+    <div style={{ fontFamily:'Georgia, serif' }}>
+      {/* Header */}
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:'24px' }}>
+        <div>
+          <h2 style={{ color:'#e8e0d0', margin:'0 0 6px', fontSize:'22px', fontWeight:'normal' }}>🧠 Knowledge Base</h2>
+          <p style={{ color:'#6b7280', fontSize:'13px', margin:0 }}>
+            {entries.filter(e => e.category !== 'raw_document').length} entries · {sources.length} sources · Used by <strong style={{ color:GOLD }}>Rosie AI</strong> and the <strong style={{ color:'#a78bfa' }}>Live Call Assistant</strong>
+          </p>
+        </div>
+        <div style={{ display:'flex', gap:'8px' }}>
+          <button onClick={load} style={{ background:'rgba(255,255,255,0.05)', color:'#8a9ab8', border:'1px solid rgba(255,255,255,0.1)', borderRadius:'4px', padding:'8px 14px', cursor:'pointer', fontSize:'12px' }}>↻ Refresh</button>
+          <button onClick={deleteAll} style={{ background:'rgba(239,68,68,0.1)', color:'#ef4444', border:'1px solid rgba(239,68,68,0.25)', borderRadius:'4px', padding:'8px 14px', cursor:'pointer', fontSize:'12px' }}>🗑 Clear All</button>
+        </div>
+      </div>
+
+      {/* Section tabs */}
+      <div style={{ display:'flex', gap:'0', borderBottom:'1px solid rgba(255,255,255,0.08)', marginBottom:'28px' }}>
+        {[['entries','📋 Entries'],['add','✏️ Add Q&A'],['upload','📄 Upload Document'],['scrape','🌐 Scrape Website']].map(([id,label]) => (
+          <button key={id} onClick={() => setSection(id)}
+            style={{ background:'none', border:'none', borderBottom:section===id?`2px solid ${GOLD}`:'2px solid transparent', color:section===id?GOLD:'#6b7280', padding:'10px 20px', cursor:'pointer', fontSize:'12px', letterSpacing:'0.5px', whiteSpace:'nowrap' }}>
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {/* ── ENTRIES ── */}
+      {section === 'entries' && (
+        <div>
+          {/* Filters */}
+          <div style={{ display:'flex', gap:'10px', marginBottom:'16px', flexWrap:'wrap', alignItems:'center' }}>
+            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search entries…"
+              style={{ ...inp2, width:'260px', padding:'8px 12px', fontSize:'12px' }} />
+            <select value={filterCat} onChange={e => setFilterCat(e.target.value)}
+              style={{ ...inp2, width:'160px', padding:'8px 12px', fontSize:'12px', cursor:'pointer' }}>
+              {CATEGORIES.map(c => <option key={c} value={c}>{c === 'all' ? `All Categories (${entries.length})` : `${c} (${entries.filter(e=>e.category===c).length})`}</option>)}
+            </select>
+          </div>
+
+          {loading && <p style={{ color:'#6b7280', textAlign:'center', padding:'40px' }}>Loading…</p>}
+          {!loading && filtered.length === 0 && (
+            <div style={{ textAlign:'center', padding:'60px', color:'#4a5568' }}>
+              <div style={{ fontSize:'48px', marginBottom:'12px' }}>🧠</div>
+              <p>No entries yet. Upload a document, scrape a URL, or add Q&A manually.</p>
+            </div>
+          )}
+
+          <div style={{ display:'flex', flexDirection:'column', gap:'8px' }}>
+            {filtered.slice(0, 100).map(e => (
+              <div key={e.id} style={{ background:'rgba(255,255,255,0.02)', border:'1px solid rgba(255,255,255,0.07)', borderRadius:'4px', padding:'12px 16px', display:'flex', gap:'14px', alignItems:'flex-start' }}>
+                <div style={{ flex:1, minWidth:0 }}>
+                  <div style={{ display:'flex', gap:'8px', alignItems:'center', marginBottom:'4px', flexWrap:'wrap' }}>
+                    {e.category && (
+                      <span style={{ background:`${CAT_COLORS[e.category]||'#6b7280'}18`, color:CAT_COLORS[e.category]||'#6b7280', border:`1px solid ${CAT_COLORS[e.category]||'#6b7280'}44`, borderRadius:'10px', padding:'1px 8px', fontSize:'10px', letterSpacing:'0.5px', textTransform:'uppercase', flexShrink:0 }}>{e.category}</span>
+                    )}
+                    {e.source && <span style={{ color:'#4a5568', fontSize:'10px', fontStyle:'italic', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', maxWidth:'200px' }}>{e.source}</span>}
+                    {e.tags && <span style={{ color:'#6b7280', fontSize:'10px' }}>#{e.tags}</span>}
+                  </div>
+                  <div style={{ color:'#e8e0d0', fontSize:'13px', fontWeight:'bold', marginBottom:'4px', lineHeight:1.4 }}>
+                    {e.question?.startsWith('[') ? <span style={{ color:'#4a5568' }}>{e.question}</span> : `Q: ${e.question}`}
+                  </div>
+                  {e.category !== 'raw_document' && (
+                    <div style={{ color:'#8a9ab8', fontSize:'12px', lineHeight:1.5, overflow:'hidden', display:'-webkit-box', WebkitLineClamp:3, WebkitBoxOrient:'vertical' }}>
+                      A: {e.answer}
+                    </div>
+                  )}
+                </div>
+                <button onClick={() => deleteEntry(e.id)} disabled={deleting === e.id}
+                  style={{ background:'none', border:'none', color:deleting===e.id?'#4a5568':'#ef444466', cursor:'pointer', fontSize:'16px', padding:'2px 4px', flexShrink:0 }}>
+                  {deleting === e.id ? '…' : '×'}
+                </button>
+              </div>
+            ))}
+            {filtered.length > 100 && (
+              <p style={{ color:'#4a5568', fontSize:'12px', textAlign:'center', padding:'8px' }}>Showing 100 of {filtered.length} — refine search to see more</p>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── ADD Q&A ── */}
+      {section === 'add' && (
+        <div style={{ maxWidth:'640px' }}>
+          <h3 style={{ color:'#e8e0d0', fontWeight:'normal', margin:'0 0 20px', fontSize:'16px' }}>Add Manual Q&A Entry</h3>
+
+          <div style={{ marginBottom:'16px' }}>
+            <label style={ls}>Question / Keyword / Topic</label>
+            <input value={q} onChange={e => setQ(e.target.value)} placeholder="What is the minimum investment?" style={inp2} />
+          </div>
+          <div style={{ marginBottom:'16px' }}>
+            <label style={ls}>Answer</label>
+            <textarea value={a} onChange={e => setA(e.target.value)} placeholder="The minimum investment is $25,000…" rows={5} style={ta2} />
+          </div>
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'16px', marginBottom:'20px' }}>
+            <div>
+              <label style={ls}>Category</label>
+              <select value={cat} onChange={e => setCat(e.target.value)} style={{ ...inp2, cursor:'pointer' }}>
+                {['faq','financials','product','team','market','legal','process','risk','company','pricing','manual'].map(c => (
+                  <option key={c} value={c}>{c.charAt(0).toUpperCase()+c.slice(1)}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label style={ls}>Tags (optional)</label>
+              <input value={tags} onChange={e => setTags(e.target.value)} placeholder="minimum, investment, amount" style={inp2} />
+            </div>
+          </div>
+          {saveMsg && <div style={{ background:saveMsg.startsWith('✓')?'rgba(74,222,128,0.1)':'rgba(239,68,68,0.1)', border:`1px solid ${saveMsg.startsWith('✓')?'rgba(74,222,128,0.3)':'rgba(239,68,68,0.3)'}`, borderRadius:'4px', padding:'10px 14px', color:saveMsg.startsWith('✓')?'#4ade80':'#ef4444', fontSize:'13px', marginBottom:'16px' }}>{saveMsg}</div>}
+          <button onClick={addManual} disabled={saving || !q.trim() || !a.trim()}
+            style={{ background:'linear-gradient(135deg,#b8933a,#d4aa50)', color:DARK, border:'none', borderRadius:'4px', padding:'12px 32px', cursor:'pointer', fontWeight:'700', fontSize:'12px', letterSpacing:'2px', textTransform:'uppercase' }}>
+            {saving ? 'Saving…' : '+ Add Entry'}
+          </button>
+        </div>
+      )}
+
+      {/* ── UPLOAD DOCUMENT ── */}
+      {section === 'upload' && (
+        <div style={{ maxWidth:'640px' }}>
+          <h3 style={{ color:'#e8e0d0', fontWeight:'normal', margin:'0 0 8px', fontSize:'16px' }}>Upload Document</h3>
+          <p style={{ color:'#6b7280', fontSize:'13px', margin:'0 0 24px', lineHeight:1.7 }}>
+            Upload a PDF, Word doc, or text file. The AI will read the entire document and extract every useful Q&A pair automatically. A 56-page document produces 60-100+ entries.
+          </p>
+
+          <div
+            onClick={() => !uploading && fileRef.current?.click()}
+            style={{ border:`2px dashed ${uploading?'rgba(184,147,58,0.5)':'rgba(255,255,255,0.15)'}`, borderRadius:'8px', padding:'48px', textAlign:'center', cursor:uploading?'default':'pointer', background:'rgba(255,255,255,0.02)', transition:'all 0.2s' }}
+            onMouseEnter={e => { if (!uploading) e.currentTarget.style.borderColor = GOLD; e.currentTarget.style.background = 'rgba(184,147,58,0.04)'; }}
+            onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.15)'; e.currentTarget.style.background = 'rgba(255,255,255,0.02)'; }}>
+            <input ref={fileRef} type="file" accept=".pdf,.doc,.docx,.txt,.md,.csv" onChange={handleFileUpload} style={{ display:'none' }} />
+            <div style={{ fontSize:'48px', marginBottom:'12px' }}>{uploading ? '⏳' : '📄'}</div>
+            <div style={{ color: uploading ? GOLD : '#e8e0d0', fontSize:'15px', marginBottom:'6px', fontWeight:'bold' }}>
+              {uploading ? uploadProgress || 'Processing…' : 'Click to select a file'}
+            </div>
+            <div style={{ color:'#4a5568', fontSize:'12px' }}>PDF, Word (.docx), TXT, Markdown, CSV — max 10MB</div>
+          </div>
+
+          {uploadMsg && (
+            <div style={{ marginTop:'16px', background:uploadMsg.startsWith('✓')?'rgba(74,222,128,0.1)':'rgba(239,68,68,0.1)', border:`1px solid ${uploadMsg.startsWith('✓')?'rgba(74,222,128,0.3)':'rgba(239,68,68,0.3)'}`, borderRadius:'4px', padding:'12px 16px', color:uploadMsg.startsWith('✓')?'#4ade80':'#ef4444', fontSize:'13px' }}>
+              {uploadMsg}
+            </div>
+          )}
+
+          {/* Sources already loaded */}
+          {sources.length > 0 && (
+            <div style={{ marginTop:'28px' }}>
+              <div style={{ color:'#6b7280', fontSize:'10px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'10px' }}>Documents Already Loaded ({sources.length})</div>
+              {sources.map(src => {
+                const count = entries.filter(e => e.source === src && e.category !== 'raw_document').length;
+                return (
+                  <div key={src} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'8px 12px', background:'rgba(255,255,255,0.02)', border:'1px solid rgba(255,255,255,0.06)', borderRadius:'4px', marginBottom:'4px' }}>
+                    <div>
+                      <span style={{ color:'#c4cdd8', fontSize:'13px' }}>{src}</span>
+                      <span style={{ color:'#4a5568', fontSize:'11px', marginLeft:'10px' }}>{count} entries</span>
+                    </div>
+                    <button
+                      onClick={async () => {
+                        if (!window.confirm(`Delete all entries from "${src}"?`)) return;
+                        const toDelete = entries.filter(e => e.source === src);
+                        for (const e of toDelete) { try { await base44.entities.KnowledgeBase.delete(e.id); } catch {} }
+                        await load();
+                      }}
+                      style={{ background:'none', border:'none', color:'#ef444466', cursor:'pointer', fontSize:'13px' }}>
+                      × Remove
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── SCRAPE WEBSITE ── */}
+      {section === 'scrape' && (
+        <div style={{ maxWidth:'640px' }}>
+          <h3 style={{ color:'#e8e0d0', fontWeight:'normal', margin:'0 0 8px', fontSize:'16px' }}>Scrape Website</h3>
+          <p style={{ color:'#6b7280', fontSize:'13px', margin:'0 0 24px', lineHeight:1.7 }}>
+            Enter a URL and the AI will fetch the page, strip the noise, and extract every useful Q&A pair. Works best on product pages, FAQs, about pages, and documentation.
+          </p>
+
+          <div style={{ display:'flex', gap:'10px', marginBottom:'16px' }}>
+            <input value={scrapeUrl} onChange={e => setScrapeUrl(e.target.value)}
+              placeholder="https://www.rosieai.tech/about"
+              onKeyDown={e => { if (e.key === 'Enter' && !scraping) handleScrape(); }}
+              style={{ ...inp2, flex:1 }} />
+            <button onClick={handleScrape} disabled={scraping || !scrapeUrl.trim()}
+              style={{ background:'linear-gradient(135deg,#b8933a,#d4aa50)', color:DARK, border:'none', borderRadius:'4px', padding:'10px 20px', cursor:'pointer', fontWeight:'700', fontSize:'12px', whiteSpace:'nowrap' }}>
+              {scraping ? '⏳ Scraping…' : '🌐 Scrape'}
+            </button>
+          </div>
+
+          {scrapeMsg && (
+            <div style={{ background:scrapeMsg.startsWith('✓')?'rgba(74,222,128,0.1)':'rgba(239,68,68,0.1)', border:`1px solid ${scrapeMsg.startsWith('✓')?'rgba(74,222,128,0.3)':'rgba(239,68,68,0.3)'}`, borderRadius:'4px', padding:'12px 16px', color:scrapeMsg.startsWith('✓')?'#4ade80':'#ef4444', fontSize:'13px', marginBottom:'16px' }}>
+              {scrapeMsg}
+            </div>
+          )}
+
+          <div style={{ background:'rgba(96,165,250,0.06)', border:'1px solid rgba(96,165,250,0.15)', borderRadius:'4px', padding:'14px 16px', fontSize:'12px', color:'#8a9ab8', lineHeight:1.8 }}>
+            <strong style={{ color:'#60a5fa' }}>Tip:</strong> Scrape multiple pages for best coverage — home page, features, pricing, FAQ, about. Each URL is processed separately and its entries are tagged with the source URL so you can remove them later.
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 const VIEWS = [
   { id:'users',    label:'CRM / Clients' },
   { id:'leads',    label:'Leads' },
   { id:'calendar', label:'Calendar' },
   { id:'analytics',label:'Analytics' },
   { id:'activity', label:'Recent Activity' },
+  { id:'kb',       label:'🧠 Knowledge Base' },
   { id:'signnow',  label:'SignNow Requests' },
   { id:'portal',   label:'Portal Controls' },
   { id:'signnow-settings', label:'SignNow Settings' },
@@ -1576,6 +1928,7 @@ export default function AdminDashboard() {
         )}
 
         {view === 'leads'            && <LeadsTab />}
+        {view === 'kb'               && <KnowledgeBaseManager />}
         {view === 'signnow'          && <SignNowRequestsView settings={portalSettings} />}
         {view === 'signnow-settings' && <SignNowSettings settings={portalSettings} onSettingsSaved={s => setPortalSettings(s)} />}
         {view === 'portal'           && <div><div style={{ marginBottom:'28px' }}><h2 style={{ color:'#e8e0d0', margin:'0 0 6px', fontSize:'20px', fontWeight:'normal' }}>Portal Controls</h2></div><PortalControls /></div>}
