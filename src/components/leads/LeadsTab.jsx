@@ -475,6 +475,23 @@ export default function LeadsTab() {
   });
 
   return (
+    <>
+    {selectedLead && (
+      <LeadContactCard
+        lead={selectedLead}
+        onClose={() => setSelectedLead(null)}
+        onUpdate={loadLeads}
+        onDialNumber={handleDialNumber}
+        dialerRef={dialerRef}
+        isDialerPaused={isDialerPaused}
+        onResume={() => {
+          setSelectedLead(null);
+          setIsDialerPaused(false);
+          setIsCallActive(false);
+          dialerRef.current?.resumeDialer();
+        }}
+      />
+    )}
     <div style={{ fontFamily:'Georgia, serif', display:'flex', gap:'0', minHeight:'600px' }}>
 
       {/* ── SIDEBAR ── */}
@@ -513,22 +530,6 @@ export default function LeadsTab() {
 
       {showUpload && <CSVUploadModal onClose={() => setShowUpload(false)} onImported={loadLeads} />}
       {showNewLead && <NewLeadModal onClose={() => setShowNewLead(false)} onCreated={loadLeads} />}
-      {selectedLead && (
-        <LeadContactCard
-          lead={selectedLead}
-          onClose={() => setSelectedLead(null)}
-          onUpdate={loadLeads}
-          onDialNumber={handleDialNumber}
-          dialerRef={dialerRef}
-          isDialerPaused={isDialerPaused}
-          onResume={() => {
-            setSelectedLead(null);
-            setIsDialerPaused(false);
-            setIsCallActive(false);
-            dialerRef.current?.resumeDialer();
-          }}
-        />
-      )}
       {showDialer && (
         <TwilioDialer
           initialLead={dialerLead}
@@ -858,5 +859,6 @@ export default function LeadsTab() {
       </div>
       {/* AI Assistant integrated into Script tab */}
     </div>
+    </>
   );
 }
