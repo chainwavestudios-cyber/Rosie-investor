@@ -22,7 +22,9 @@ Deno.serve(async (req) => {
 
       if (!CustomID) { console.log('[Mailjet] No CustomID — skipping'); continue; }
 
-      const leadId    = CustomID;
+      // CustomID may be "leadId:intro" for intro emails or just "leadId"
+      const isIntroEmail = (CustomID || '').includes(':intro');
+      const leadId    = isIntroEmail ? CustomID.split(':')[0] : CustomID;
       const messageId = String(MessageID || '');
       const eventTime = time ? new Date(time * 1000).toISOString() : new Date().toISOString();
 
@@ -62,14 +64,20 @@ Deno.serve(async (req) => {
         if (event === 'open') {
           if (log) await base44.asServiceRole.entities.EmailLog.update(log.id, { status: 'opened', openedAt: eventTime });
 
-          if (lead && !lead.badgeEmailOpened) {
-            await base44.asServiceRole.entities.Lead.update(leadId, {
-              badgeEmailOpened: true,
-              engagementScore:  (lead.engagementScore || 0) + 10,
-            });
+          if (lead) {
+            const updates: any = { engagementScore: (lead.engagementScore || 0) + 10 };
+            if (!lead.badgeEmailOpened) updates.badgeEmailOpened = true;
+            // If this is the intro email, tag as opened_intro_email
+            if (isIntroEmail && lead.status !== 'opened_intro_email') {
+              updates.status = 'opened_intro_email';
+              updates.badgeIntroEmailOpened = true;
+            }
+            await base44.asServiceRole.entities.Lead.update(leadId, updates);
+            const historyContent = isIntroEmail
+              ? `📬 Intro email opened (Mailjet webhook). +10 engagement points.`
+              : `📬 Email opened (Mailjet webhook). +10 engagement points.`;
             await base44.asServiceRole.entities.LeadHistory.create({
-              leadId, type: 'note',
-              content: `📬 Email opened (Mailjet webhook). +10 engagement points.`,
+              leadId, type: 'note', content: historyContent,
             });
           }
 
