@@ -15,8 +15,10 @@ const inp = { width:'100%', background:'rgba(255,255,255,0.05)', border:'1px sol
 const ls = { display:'block', color:'#8a9ab8', fontSize:'10px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'4px' };
 
 const STATUS_LABELS = {
-  lead:     { label: '🔵 Lead',     color: '#60a5fa' },
-  prospect: { label: '🚀 Prospect', color: '#a78bfa' },
+  lead:               { label: '🔵 Lead',              color: '#60a5fa' },
+  prospect:           { label: '🚀 Prospect',           color: '#a78bfa' },
+  intro_email_sent:   { label: '📧 Intro Email Sent',   color: '#f59e0b' },
+  opened_intro_email: { label: '📬 Opened Intro Email', color: '#4ade80' },
 };
 
 const HISTORY_ICONS = {
@@ -200,8 +202,10 @@ function OverviewTab({ editLead, setEditLead, saving, saveMsg, saveProfile, upda
   const ls = { display:'block', color:'#4a5568', fontSize:'9px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'5px' };
 
   const STATUS_LABELS = {
-    lead:     { label: '🔵 Lead',     color: '#60a5fa' },
-    prospect: { label: '🚀 Prospect', color: '#a78bfa' },
+    lead:               { label: '🔵 Lead',              color: '#60a5fa' },
+    prospect:           { label: '🚀 Prospect',           color: '#a78bfa' },
+    intro_email_sent:   { label: '📧 Intro Email Sent',   color: '#f59e0b' },
+    opened_intro_email: { label: '📬 Opened Intro Email', color: '#4ade80' },
   };
   const HISTORY_ICONS = { call:'📞', not_available:'📵', callback_later:'📅', not_interested:'❌', status_change:'🔄', note:'📝', prospect:'🚀', connected:'🟢' };
   const historyColor = (type) => ({ call:'#60a5fa', not_available:'#8a9ab8', callback_later:'#a78bfa', not_interested:'#ef4444', status_change:GOLD, note:'#c4cdd8', prospect:'#a78bfa', connected:'#4ade80' })[type] || '#6b7280';
@@ -222,8 +226,9 @@ function OverviewTab({ editLead, setEditLead, saving, saveMsg, saveProfile, upda
       {/* Status + Edit row */}
       {!isArchived && <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
         <div style={{ display:'flex', gap:'6px' }}>
-          {['lead','prospect'].map(s => {
+          {['lead','prospect','intro_email_sent','opened_intro_email'].map(s => {
             const si = STATUS_LABELS[s];
+            if (!si) return null;
             const active = editLead.status === s;
             return (
               <button key={s} onClick={() => updateStatus(s, 'status_change', `Status changed to ${s}`)}
@@ -481,6 +486,7 @@ function LeadHistoryTab({ lead, history, onNoteAdded }) {
     { label: 'Last Visit', value: fmtDT(lead.lastSiteVisit) },
     { label: 'Portal User', value: lead.portalPasscode || '—' },
     { label: 'Email Opened', value: lead.badgeEmailOpened ? '✓ Yes' : 'No' },
+    { label: 'Intro Email Opened', value: lead.badgeIntroEmailOpened ? '✓ Yes' : 'No' },
     { label: 'Consumer Site', value: lead.badgeConsumerWebsite ? '✓ Yes' : 'No' },
     { label: 'Investor Page', value: lead.badgeInvestorPage ? '✓ Yes' : 'No' },
   ] : null;
@@ -618,6 +624,7 @@ function LeadHistoryTab({ lead, history, onNoteAdded }) {
                   ['🕐 Last Visit',     lead.lastSiteVisit ? fmtDT(lead.lastSiteVisit) : 'Never',  '#60a5fa'],
                   ['🔑 Portal User',    lead.portalPasscode || 'Not assigned',                       GOLD],
                   ['📬 Email Opened',   lead.badgeEmailOpened ? '✓ Yes' : 'Not yet',                lead.badgeEmailOpened ? '#4ade80' : '#4a5568'],
+                  ['🌟 Intro Opened',   lead.badgeIntroEmailOpened ? '✓ Yes' : 'Not yet',           lead.badgeIntroEmailOpened ? '#4ade80' : '#4a5568'],
                   ['🌐 Consumer Site',  lead.badgeConsumerWebsite ? '✓ Visited' : 'Not yet',        lead.badgeConsumerWebsite ? '#4ade80' : '#4a5568'],
                   ['💼 Investor Page',  lead.badgeInvestorPage ? '✓ Visited' : 'Not yet',          lead.badgeInvestorPage ? '#4ade80' : '#4a5568'],
                   ['⭐ Engagement',     `${lead.engagementScore || 0} pts`,                         GOLD],
@@ -816,6 +823,7 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
             )}
             {/* Activity Badges */}
             {editLead.badgeEmailOpened && <span title="Email Opened" style={{ background:'rgba(74,222,128,0.15)', border:'1px solid rgba(74,222,128,0.3)', borderRadius:'20px', padding:'3px 8px', fontSize:'10px', color:'#4ade80' }}>📬 Email Opened</span>}
+            {editLead.badgeIntroEmailOpened && <span title="Intro Email Opened" style={{ background:'rgba(74,222,128,0.2)', border:'2px solid rgba(74,222,128,0.5)', borderRadius:'20px', padding:'3px 10px', fontSize:'10px', color:'#4ade80', fontWeight:'bold' }}>🌟 Intro Email Opened</span>}
             {editLead.badgeConsumerWebsite && <span title="Visited Consumer Website" style={{ background:'rgba(96,165,250,0.15)', border:'1px solid rgba(96,165,250,0.3)', borderRadius:'20px', padding:'3px 8px', fontSize:'10px', color:'#60a5fa' }}>🌐 Consumer Site</span>}
             {editLead.badgeInvestorPage && <span title="Visited Investor Page" style={{ background:'rgba(167,139,250,0.15)', border:'1px solid rgba(167,139,250,0.3)', borderRadius:'20px', padding:'3px 8px', fontSize:'10px', color:'#a78bfa' }}>💼 Investor Page</span>}
 
