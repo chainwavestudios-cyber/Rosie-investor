@@ -329,9 +329,115 @@ function OverviewTab({ editLead, setEditLead, saving, saveMsg, saveProfile, upda
 }
 
 
+
+// ── Client Info Tab ───────────────────────────────────────────────────────────
+function ClientInfoTab({ lead, onUpdate }) {
+  const GOLD = '#b8933a';
+  const profile = (() => { try { return JSON.parse(lead?.clientProfile || '{}'); } catch { return {}; } })();
+  const hasProfile = Object.keys(profile).length > 0;
+
+  const animalColor = profile.animalType === 'duck' ? '#f59e0b' : profile.animalType === 'cow' ? '#4ade80' : '#6b7280';
+  const intentColor = { hot:'#4ade80', warm:'#f59e0b', cold:'#8a9ab8' }[profile.overallIntentLabel] || '#6b7280';
+
+  const TraitRow = ({ label, value, trueColor = '#4ade80', falseColor = '#4a5568' }) => (
+    <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'7px 0', borderBottom:'1px solid rgba(255,255,255,0.04)' }}>
+      <span style={{ color:'#8a9ab8', fontSize:'12px' }}>{label}</span>
+      <span style={{ fontSize:'12px', fontWeight:'bold', color: value ? trueColor : falseColor }}>
+        {value ? '✓ Yes' : '—'}
+      </span>
+    </div>
+  );
+
+  if (!hasProfile) return (
+    <div style={{ textAlign:'center', padding:'48px 24px' }}>
+      <div style={{ fontSize:'48px', marginBottom:'16px' }}>🔍</div>
+      <h3 style={{ color:'#4a5568', fontWeight:'normal', marginBottom:'10px' }}>No profile yet</h3>
+      <p style={{ color:'#374151', fontSize:'13px', maxWidth:'360px', margin:'0 auto', lineHeight:1.7 }}>
+        The client profile builds automatically after each call. Make a call with the AI Assistant active to generate the first profile.
+      </p>
+    </div>
+  );
+
+  return (
+    <div>
+      {/* Animal + Intent header */}
+      <div style={{ display:'flex', gap:'16px', marginBottom:'20px' }}>
+        {/* Animal card */}
+        <div style={{ flex:1, background:'rgba(0,0,0,0.2)', border:`1px solid ${animalColor}33`, borderRadius:'4px', padding:'20px', textAlign:'center' }}>
+          <div style={{ fontSize:'52px', marginBottom:'8px' }}>
+            {profile.animalType === 'duck' ? '🦆' : profile.animalType === 'cow' ? '🐄' : '❓'}
+          </div>
+          <div style={{ color:animalColor, fontSize:'16px', fontWeight:'bold', marginBottom:'4px' }}>
+            {profile.animalType === 'duck' ? 'Duck' : profile.animalType === 'cow' ? 'Cow' : 'Unknown'}
+          </div>
+          <div style={{ color:'#6b7280', fontSize:'11px' }}>
+            {profile.animalType === 'duck' ? 'Skeptic — argues, challenges, pushes back' : profile.animalType === 'cow' ? 'Believer — curious, agreeable, open-minded' : 'Not enough data yet'}
+          </div>
+          {profile.animalConfidence > 0 && (
+            <div style={{ marginTop:'8px', color:'#4a5568', fontSize:'10px' }}>{profile.animalConfidence}% confidence</div>
+          )}
+        </div>
+
+        {/* Intent card */}
+        <div style={{ flex:1, background:'rgba(0,0,0,0.2)', border:`1px solid ${intentColor}33`, borderRadius:'4px', padding:'20px' }}>
+          <div style={{ color:'#6b7280', fontSize:'10px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'12px' }}>Overall Intent</div>
+          <div style={{ color:intentColor, fontSize:'22px', fontWeight:'bold', marginBottom:'8px', textTransform:'capitalize' }}>
+            {profile.overallIntentLabel || '—'}
+          </div>
+          <div style={{ color:'#6b7280', fontSize:'10px', letterSpacing:'1px', textTransform:'uppercase', marginBottom:'6px', marginTop:'16px' }}>Calls Analyzed</div>
+          <div style={{ color:GOLD, fontSize:'20px', fontWeight:'bold' }}>{profile.callCount || 1}</div>
+        </div>
+      </div>
+
+      {/* Behavioral traits */}
+      <div style={{ background:'rgba(0,0,0,0.15)', border:'1px solid rgba(255,255,255,0.07)', borderRadius:'4px', padding:'16px', marginBottom:'16px' }}>
+        <div style={{ color:GOLD, fontSize:'10px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'12px' }}>Behavioral Traits</div>
+        <TraitRow label="Asks a lot of questions"     value={profile.traits?.asksLotOfQuestions} />
+        <TraitRow label="Quick to interrupt"          value={profile.traits?.quickToInterrupt}   trueColor='#f59e0b' />
+        <TraitRow label="Asks buying questions"       value={profile.traits?.asksBuyingQuestions} />
+        <TraitRow label="Talks a lot"                 value={profile.traits?.talksALot} />
+        <TraitRow label="Asks technical questions"    value={profile.traits?.asksTechnicalQuestions} />
+        <TraitRow label="Raises objections"           value={profile.traits?.raisesObjections}  trueColor='#ef4444' />
+        <TraitRow label="Generally agreeable"         value={profile.traits?.agreeable} />
+        <TraitRow label="Price conscious"             value={profile.traits?.priceConscious}    trueColor='#f59e0b' />
+        <TraitRow label="Decision maker"              value={profile.traits?.decisionMaker} />
+      </div>
+
+      {/* Key observations */}
+      {profile.keyObservations?.length > 0 && (
+        <div style={{ background:'rgba(0,0,0,0.15)', border:'1px solid rgba(255,255,255,0.07)', borderRadius:'4px', padding:'16px', marginBottom:'16px' }}>
+          <div style={{ color:GOLD, fontSize:'10px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'10px' }}>Key Observations</div>
+          {profile.keyObservations.map((obs, i) => (
+            <div key={i} style={{ display:'flex', gap:'8px', padding:'5px 0', borderBottom:'1px solid rgba(255,255,255,0.04)' }}>
+              <span style={{ color:GOLD, fontSize:'12px', flexShrink:0 }}>›</span>
+              <span style={{ color:'#c4cdd8', fontSize:'12px', lineHeight:1.5 }}>{obs}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Recommended approach */}
+      {profile.recommendedApproach && (
+        <div style={{ background:'rgba(96,165,250,0.06)', border:'1px solid rgba(96,165,250,0.2)', borderRadius:'4px', padding:'14px 16px', marginBottom:'16px' }}>
+          <div style={{ color:'#60a5fa', fontSize:'10px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'6px' }}>Recommended Approach — Next Call</div>
+          <p style={{ color:'#c4cdd8', fontSize:'13px', margin:0, lineHeight:1.6 }}>{profile.recommendedApproach}</p>
+        </div>
+      )}
+
+      {/* Last call summary */}
+      {profile.lastCallSummary && (
+        <div style={{ background:'rgba(184,147,58,0.05)', border:'1px solid rgba(184,147,58,0.15)', borderRadius:'4px', padding:'14px 16px' }}>
+          <div style={{ color:GOLD, fontSize:'10px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'6px' }}>Last Call Summary</div>
+          <p style={{ color:'#8a9ab8', fontSize:'12px', margin:0, lineHeight:1.6 }}>{profile.lastCallSummary}</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Lead History Tab ─────────────────────────────────────────────────────────
 function LeadHistoryTab({ lead, history, onNoteAdded }) {
-  const [sub, setSub]         = useState('notes');
+  const [sub, setSub]         = useState('clientinfo');
   const [note, setNote]       = useState('');
   const [saving, setSaving]   = useState(false);
   const [emails, setEmails]   = useState([]);
@@ -385,6 +491,7 @@ function LeadHistoryTab({ lead, history, onNoteAdded }) {
   const inp = { width:'100%', background:'rgba(255,255,255,0.05)', border:'1px solid rgba(255,255,255,0.1)', borderRadius:'4px', padding:'8px 12px', color:'#e8e0d0', fontSize:'12px', outline:'none', fontFamily:'Georgia, serif', boxSizing:'border-box', resize:'vertical' };
 
   const SUB_TABS = [
+    ['clientinfo',  '🦆 Client Info', ''],
     ['notes',       '📝 My Notes', notes.length],
     ['emails',      '✉️ Emails',   emails.length || ''],
     ['transcripts', '🎙 Transcripts', transcripts.length],
@@ -406,6 +513,11 @@ function LeadHistoryTab({ lead, history, onNoteAdded }) {
       </div>
 
       <div style={{ flex:1, overflowY:'auto' }}>
+
+        {/* ── CLIENT INFO ── */}
+        {sub === 'clientinfo' && (
+          <ClientInfoTab lead={lead} onUpdate={onNoteAdded} />
+        )}
 
         {/* ── MY NOTES ── */}
         {sub === 'notes' && (
@@ -528,6 +640,7 @@ function LeadHistoryTab({ lead, history, onNoteAdded }) {
 export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber, dialerRef, onResume, isDialerPaused, onNextLead, onPrevLead, currentLeadIndex, totalLeads }) {
   // Archived = migrated to CRM — card is read-only
   const isArchived = !!(lead.migratedToPortal || lead.convertedToInvestorUserId || lead.status === 'converted');
+  const [cardExpanded, setCardExpanded] = useState(false);
   const [tab, setTab] = useState('overview');
   const [history, setHistory] = useState([]);
   const [editLead, setEditLead] = useState({ ...lead });
@@ -671,8 +784,8 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
         <ZoomBookingModal isOpen={showZoom} onClose={() => setShowZoom(false)} buttonLabel="Book Zoom Call" zoomUrl="https://scheduler.zoom.us/stephani-sterling" />
       </div>
     )}
-    <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.9)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:9999, padding:'16px' }}>
-      <div style={{ background:'#0d1b2a', border:`1px solid ${isArchived ? 'rgba(245,158,11,0.3)' : 'rgba(184,147,58,0.3)'}`, borderRadius:'4px', width:'100%', maxWidth:'820px', maxHeight:'92vh', display:'flex', flexDirection:'column', boxShadow:'0 40px 120px rgba(0,0,0,0.9)' }}>
+    <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.9)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:9999, padding: cardExpanded ? '0' : '16px' }}>
+      <div style={{ background:'#0d1b2a', border:`1px solid ${isArchived ? 'rgba(245,158,11,0.3)' : 'rgba(184,147,58,0.3)'}`, borderRadius:'4px', width:'100%', maxWidth: cardExpanded ? '100vw' : '820px', maxHeight: cardExpanded ? '100vh' : '92vh', height: cardExpanded ? '100vh' : undefined, display:'flex', flexDirection:'column', boxShadow:'0 40px 120px rgba(0,0,0,0.9)', transition:'all 0.2s ease' }}>
 
         {/* Archived banner */}
         {isArchived && (
@@ -808,7 +921,7 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
           )}
 
           {tab === 'script' && (
-            <ScriptAssistant lead={editLead} />
+            <ScriptAssistant lead={editLead} onExpandCard={() => setCardExpanded(e => !e)} isCardExpanded={cardExpanded} />
           )}
 
           {/* ── ACTIONS ── */}
