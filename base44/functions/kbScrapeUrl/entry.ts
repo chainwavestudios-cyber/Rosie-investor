@@ -1,25 +1,14 @@
 const ANTHROPIC_KEY = Deno.env.get('ANTHROPIC_API_KEY') || '';
 
-function chunkText(text: string, chunkSize = 3000, overlap = 300): string[] {
-  const chunks: string[] = [];
-  let i = 0;
-  while (i < text.length) {
-    chunks.push(text.slice(i, i + chunkSize));
-    i += chunkSize - overlap;
-  }
-  return chunks;
-}
-
 Deno.serve(async (req) => {
   try {
     const { url } = await req.json();
     if (!url) return Response.json({ error: 'Missing url' }, { status: 400 });
 
-    // Fetch the page
     const pageRes = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0 (compatible; RosieAI/1.0)' } });
     const html = await pageRes.text();
 
-    // Strip HTML thoroughly
+    // Strip noise
     const fullText = html
       .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
       .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
@@ -30,12 +19,15 @@ Deno.serve(async (req) => {
       .replace(/\s+/g, ' ')
       .trim();
 
-    const chunks = chunkText(fullText);
     const allEntries: any[] = [];
+    const chunkSize = 4000;
+    const overlap = 400;
+    let i = 0;
 
-    for (let i = 0; i < chunks.length; i++) {
-      const chunk = chunks[i];
-      if (chunk.trim().length < 100) continue; // skip near-empty chunks
+    while (i < fullText.length) {
+      const chunk = fullText.slice(i, i + chunkSize);
+      i += chunkSize - overlap;
+      if (chunk.trim().length < 100) continue;
 
       const res = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
@@ -45,19 +37,10 @@ Deno.serve(async (req) => {
           max_tokens: 4000,
           messages: [{
             role: 'user',
-            content: `Extract ALL useful information from this webpage section into Q&A pairs for a sales knowledge base. Be thorough — capture every fact, feature, benefit, price, process, or detail. Don't skip anything.
-
-Return ONLY a JSON array:
-[{"question": "...", "answer": "...", "category": "product|pricing|process|faq|company|market"}]
-
-Webpage section ${i + 1} of ${chunks.length} from ${url}:
-${chunk}
-
-Respond with only the JSON array.`
+            content: `Extract ALL useful information from this webpage section into Q&A pairs for a sales knowledge base. Capture every fact, feature, benefit, price, process, or detail. Return ONLY a JSON array:\n[{"question":"...","answer":"...","category":"product|pricing|process|faq|company|market"}]\n\nFrom ${url}:\n${chunk}\n\nJSON only:`
           }],
         }),
       });
-
       const data = await res.json();
       const text = data?.content?.[0]?.text || '[]';
       try {
@@ -66,7 +49,7 @@ Respond with only the JSON array.`
       } catch {}
     }
 
-    // Store raw content too
+    // Store raw as fallback
     allEntries.push({
       question: `[FULL PAGE] ${url}`,
       answer: fullText.slice(0, 12000),
