@@ -71,7 +71,7 @@ function AccessTab({ lead, onUpdate, onSave }) {
       } else {
         await base44.entities.InvestorUser.create({
           username: newUsername, email: lead.email || '', name: `${lead.firstName} ${lead.lastName}`,
-          password: hashedPassword, role: 'guest', status: 'info_only', siteAccess: 'info_only', leadId: lead.id,
+          password: hashedPassword, role: 'investor', status: 'prospect', siteAccess: 'info_only', leadId: lead.id,
         });
       }
 
@@ -555,13 +555,13 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
 
         {/* Tabs */}
         <div style={{ display:'flex', borderBottom:'1px solid rgba(255,255,255,0.07)', flexShrink:0 }}>
-          {[['overview','👤 Overview'],['actions','⚡ Actions'],['email','✉️ Emails'],['access','🔑 Access'],['invsite','💼 Inv. Site'],['research','🔍 Research'],['script','📝 Script']].map(([id,label]) => (
+          {[['overview','👤 Overview'],['actions','⚡ Actions'],['email','✉️ Emails'],['access','🔑 Access'],['cluster','🌐 Cluster'],['research','🔍 Research'],['script','📝 Script']].map(([id,label]) => (
             <button key={id} onClick={() => setTab(id)} style={{ background:'none', border:'none', borderBottom:tab===id?`2px solid ${GOLD}`:'2px solid transparent', color:tab===id?GOLD:'#6b7280', padding:'11px 20px', cursor:'pointer', fontSize:'11px', letterSpacing:'1px' }}>{label}</button>
           ))}
         </div>
 
         {/* Body */}
-        <div style={{ flex:1, overflow: tab === 'script' ? 'hidden' : 'auto', padding: tab === 'script' ? '0' : '20px 24px', display:'flex', flexDirection:'column', minHeight:0 }}>
+        <div style={{ flex:1, overflowY:'auto', padding:'20px 24px' }}>
 
           {/* ── OVERVIEW ── */}
           {tab === 'overview' && (
@@ -594,7 +594,7 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
             }} />
           )}
 
-          {tab === 'invsite' && (
+          {tab === 'cluster' && (
             <InvestorWebsiteTab lead={editLead} />
           )}
 
@@ -603,9 +603,7 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
           )}
 
           {tab === 'script' && (
-            <div style={{ flex:1, minHeight:0, overflow:'hidden', display:'flex', flexDirection:'column' }}>
-              <ScriptAssistant lead={editLead} />
-            </div>
+            <ScriptAssistant lead={editLead} />
           )}
 
           {/* ── ACTIONS ── */}
