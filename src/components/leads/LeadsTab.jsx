@@ -17,12 +17,15 @@ const STATUS_FILTERS = [
   { id: 'callback_later', label: '📅 Call Back Later' },
   { id: 'converted', label: '✅ Converted' },
   { id: 'abandoned', label: '⚠️ Abandoned' },
+  { id: 'intro_email_sent', label: '📧 Intro Email Sent' },
+  { id: 'opened_intro_email', label: '📬 Opened Intro Email' },
 ];
 
 const STATUS_COLORS = {
   lead: '#60a5fa', not_available: '#8a9ab8',
   callback_later: '#a78bfa', prospect: '#a78bfa', not_interested: '#ef4444',
   converted: '#4ade80', abandoned: '#ef4444',
+  intro_email_sent: '#f59e0b', opened_intro_email: '#4ade80',
 };
 
 // ─── CSV Upload ───────────────────────────────────────────────────────────
@@ -503,6 +506,7 @@ export default function LeadsTab() {
             { id:'lists',    icon:'📁', label:`Lists (${contactLists.length})` },
             { id:'activity', icon:'⚡', label:'Activity Feed' },
             { id:'email',    icon:'✉️',  label:'Email Activity' },
+            { id:'intro_email', icon:'📬', label:'Intro Email' },
             { id:'sitevisits', icon:'🌐', label:'Site Visits' },
             { id:'engagement', icon:'📊', label:'Web Engagement' },
             { id:'archived',   icon:'📦', label:`Archived (${archivedLeads.length})` },
@@ -621,9 +625,10 @@ export default function LeadsTab() {
                     </td>
                     <td style={{ padding:'12px' }}>
                       <div style={{ color:'#e8e0d0', fontWeight:'bold' }}>{name}</div>
-                      {(lead.engagementScore > 0 || lead.badgeEmailOpened || lead.badgeConsumerWebsite || lead.badgeInvestorPage) && (
+                      {(lead.engagementScore > 0 || lead.badgeEmailOpened || lead.badgeIntroEmailOpened || lead.badgeConsumerWebsite || lead.badgeInvestorPage) && (
                         <div style={{ display:'flex', gap:'4px', marginTop:'3px', flexWrap:'wrap' }}>
                           {lead.engagementScore > 0 && <span style={{ background:'rgba(184,147,58,0.15)', color:GOLD, border:'1px solid rgba(184,147,58,0.3)', borderRadius:'20px', padding:'1px 7px', fontSize:'9px', fontWeight:'bold' }}>⭐ {lead.engagementScore}</span>}
+                          {lead.badgeIntroEmailOpened && <span style={{ background:'rgba(74,222,128,0.2)', color:'#4ade80', border:'2px solid rgba(74,222,128,0.4)', borderRadius:'20px', padding:'1px 7px', fontSize:'9px', fontWeight:'bold' }}>🌟 Intro</span>}
                           {lead.badgeEmailOpened && <span style={{ background:'rgba(74,222,128,0.12)', color:'#4ade80', borderRadius:'20px', padding:'1px 7px', fontSize:'9px' }}>📬</span>}
                           {lead.badgeConsumerWebsite && <span style={{ background:'rgba(96,165,250,0.12)', color:'#60a5fa', borderRadius:'20px', padding:'1px 7px', fontSize:'9px' }}>🌐</span>}
                           {lead.badgeInvestorPage && <span style={{ background:'rgba(167,139,250,0.12)', color:'#a78bfa', borderRadius:'20px', padding:'1px 7px', fontSize:'9px' }}>💼</span>}
@@ -753,6 +758,84 @@ export default function LeadsTab() {
           </div>
         </div>
       )}
+
+      {/* INTRO EMAIL */}
+      {sidebarView === 'intro_email' && (() => {
+        const introSent    = emailLogs.filter(l => l.isIntroEmail);
+        const introOpened  = emailLogs.filter(l => l.isIntroEmail && l.status === 'opened');
+        const introClicked = emailLogs.filter(l => l.isIntroEmail && l.status === 'clicked');
+        // Also leads with opened_intro_email status (from webhook)
+        return (
+          <div>
+            <div style={{ marginBottom: '16px' }}>
+              <h2 style={{ color: '#e8e0d0', margin: '0 0 4px', fontSize: '20px', fontWeight: 'normal' }}>📬 Intro Email</h2>
+              <p style={{ color: '#6b7280', fontSize: '13px', margin: 0 }}>Leads that received and opened the intro email (template #7961149).</p>
+            </div>
+            {/* Stats */}
+            <div style={{ display: 'flex', gap: '10px', marginBottom: '20px', flexWrap: 'wrap' }}>
+              {[
+                { label: 'Sent', value: leads.filter(l => l.status === 'intro_email_sent' || l.status === 'opened_intro_email').length, color: '#f59e0b', icon: '📧' },
+                { label: 'Opened', value: leads.filter(l => l.status === 'opened_intro_email').length, color: '#4ade80', icon: '📬' },
+              ].map(({ label, value, color, icon }) => (
+                <div key={label} style={{ background: `${color}10`, border: `1px solid ${color}30`, borderRadius: '4px', padding: '10px 16px', display: 'flex', gap: '8px', alignItems: 'center' }}>
+                  <span>{icon}</span>
+                  <div>
+                    <div style={{ color, fontSize: '20px', fontWeight: 'bold', lineHeight: 1 }}>{value}</div>
+                    <div style={{ color: '#6b7280', fontSize: '9px', textTransform: 'uppercase', letterSpacing: '1px' }}>{label}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            {/* List of leads that opened the intro email */}
+            <div style={{ marginBottom: '12px' }}>
+              <div style={{ color: '#4ade80', fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '10px' }}>📬 Opened Intro Email</div>
+              {leads.filter(l => l.status === 'opened_intro_email').length === 0 ? (
+                <div style={{ color: '#4a5568', fontSize: '13px', padding: '20px 0' }}>No leads have opened the intro email yet.</div>
+              ) : (
+                leads.filter(l => l.status === 'opened_intro_email').map(lead => (
+                  <div key={lead.id}
+                    onClick={() => setSelectedLead(lead)}
+                    style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 12px', borderBottom: '1px solid rgba(255,255,255,0.04)', cursor: 'pointer', borderRadius: '3px', marginBottom: '2px', background: 'rgba(74,222,128,0.04)', border: '1px solid rgba(74,222,128,0.12)' }}
+                    onMouseEnter={e => e.currentTarget.style.background = 'rgba(74,222,128,0.08)'}
+                    onMouseLeave={e => e.currentTarget.style.background = 'rgba(74,222,128,0.04)'}>
+                    <div>
+                      <span style={{ color: '#e8e0d0', fontSize: '13px', fontWeight: 'bold', marginRight: '8px' }}>{lead.firstName} {lead.lastName}</span>
+                      <span style={{ color: '#4a5568', fontSize: '11px' }}>{lead.email}</span>
+                      {lead.state && <span style={{ color: GOLD, fontSize: '10px', marginLeft: '8px', background: 'rgba(184,147,58,0.12)', padding: '1px 6px', borderRadius: '2px' }}>{lead.state}</span>}
+                    </div>
+                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                      {lead.engagementScore > 0 && <span style={{ color: GOLD, fontSize: '11px', fontWeight: 'bold' }}>⭐ {lead.engagementScore}</span>}
+                      <span style={{ background: 'rgba(74,222,128,0.15)', color: '#4ade80', border: '1px solid rgba(74,222,128,0.3)', borderRadius: '20px', padding: '2px 8px', fontSize: '10px' }}>📬 Opened</span>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+            {/* List of leads that were sent the intro email but haven't opened */}
+            <div style={{ marginTop: '20px' }}>
+              <div style={{ color: '#f59e0b', fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '10px' }}>📧 Sent (Not Yet Opened)</div>
+              {leads.filter(l => l.status === 'intro_email_sent').length === 0 ? (
+                <div style={{ color: '#4a5568', fontSize: '13px', padding: '20px 0' }}>No pending intro emails.</div>
+              ) : (
+                leads.filter(l => l.status === 'intro_email_sent').map(lead => (
+                  <div key={lead.id}
+                    onClick={() => setSelectedLead(lead)}
+                    style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 12px', borderBottom: '1px solid rgba(255,255,255,0.04)', cursor: 'pointer', borderRadius: '3px', marginBottom: '2px', background: 'rgba(245,158,11,0.03)', border: '1px solid rgba(245,158,11,0.1)' }}
+                    onMouseEnter={e => e.currentTarget.style.background = 'rgba(245,158,11,0.06)'}
+                    onMouseLeave={e => e.currentTarget.style.background = 'rgba(245,158,11,0.03)'}>
+                    <div>
+                      <span style={{ color: '#e8e0d0', fontSize: '13px', fontWeight: 'bold', marginRight: '8px' }}>{lead.firstName} {lead.lastName}</span>
+                      <span style={{ color: '#4a5568', fontSize: '11px' }}>{lead.email}</span>
+                      {lead.state && <span style={{ color: GOLD, fontSize: '10px', marginLeft: '8px', background: 'rgba(184,147,58,0.12)', padding: '1px 6px', borderRadius: '2px' }}>{lead.state}</span>}
+                    </div>
+                    <span style={{ background: 'rgba(245,158,11,0.15)', color: '#f59e0b', border: '1px solid rgba(245,158,11,0.3)', borderRadius: '20px', padding: '2px 8px', fontSize: '10px' }}>📧 Sent</span>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* SITE VISITS */}
       {sidebarView === 'sitevisits' && (
