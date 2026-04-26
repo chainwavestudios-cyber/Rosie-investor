@@ -1312,7 +1312,7 @@ function KnowledgeBaseManager() {
 
       {/* Section tabs */}
       <div style={{ display:'flex', gap:'0', borderBottom:'1px solid rgba(255,255,255,0.08)', marginBottom:'28px' }}>
-        {[['entries','📋 Entries'],['add','✏️ Add Q&A'],['upload','📄 Upload Document'],['scrape','🌐 Scrape Website']].map(([id,label]) => (
+        {[['entries','📋 Entries'],['add','✏️ Add Q&A'],['upload','📄 Upload Document'],['scrape','🌐 Scrape Website'],['intent','🦆 Intent Engine'],['coach','🎯 Coach Rules']].map(([id,label]) => (
           <button key={id} onClick={() => setSection(id)}
             style={{ background:'none', border:'none', borderBottom:section===id?`2px solid ${GOLD}`:'2px solid transparent', color:section===id?GOLD:'#6b7280', padding:'10px 20px', cursor:'pointer', fontSize:'12px', letterSpacing:'0.5px', whiteSpace:'nowrap' }}>
             {label}
@@ -1496,6 +1496,137 @@ function KnowledgeBaseManager() {
           </div>
         </div>
       )}
+
+      {/* ── INTENT ENGINE TUNING ── */}
+      {section === 'intent' && (
+        <IntentEngineTuner />
+      )}
+
+      {/* ── COACH RULES TUNING ── */}
+      {section === 'coach' && (
+        <CoachRulesTuner />
+      )}
+
+    </div>
+  );
+}
+
+// ─── Intent Engine Tuner ──────────────────────────────────────────────────
+function IntentEngineTuner() {
+  const [s, setS]       = useState(getPortalSettings);
+  const [saved, setSaved] = useState(false);
+  useEffect(() => { loadPortalSettings().then(setS); }, []);
+
+  const duckDef = s.intentDuckDefinition || 'Argumentative, skeptical, raises objections, tries to prove things wrong, combative tone, says things like "that won't work", "I doubt that", "prove it".';
+  const cowDef  = s.intentCowDefinition  || 'Agreeable, curious, open-minded, says things like "that's interesting", "really?", "wow", asks genuine questions, believes what you say, enthusiastic listener.';
+  const triggers = s.intentTriggerKeywords || 'minimum investment, how much, returns, roi, risk, guaranteed, lock-up, liquidity, accredited, fees, cost, sec, regulation';
+  const interval = s.intentIntervalSeconds || 20;
+
+  const save = async () => {
+    await savePortalSettings({ ...s, intentDuckDefinition: duckDef2, intentCowDefinition: cowDef2, intentTriggerKeywords: triggers2, intentIntervalSeconds: Number(interval2) });
+    setSaved(true); setTimeout(() => setSaved(false), 2000);
+  };
+
+  const [duckDef2, setDuckDef2]     = useState(duckDef);
+  const [cowDef2, setCowDef2]       = useState(cowDef);
+  const [triggers2, setTriggers2]   = useState(triggers);
+  const [interval2, setInterval2]   = useState(interval);
+
+  const ta = { width:'100%', background:'rgba(255,255,255,0.05)', border:'1px solid rgba(255,255,255,0.1)', borderRadius:'4px', padding:'10px 14px', color:'#e8e0d0', fontSize:'13px', outline:'none', fontFamily:'Georgia, serif', boxSizing:'border-box', resize:'vertical' };
+  const inp3 = { ...ta, minHeight:'unset', resize:'none' };
+
+  return (
+    <div style={{ maxWidth:'700px' }}>
+      <h3 style={{ color:'#e8e0d0', fontWeight:'normal', margin:'0 0 8px', fontSize:'16px' }}>🦆 Intent Engine Tuning</h3>
+      <p style={{ color:'#6b7280', fontSize:'13px', margin:'0 0 24px', lineHeight:1.7 }}>
+        The intent engine runs every <strong style={{ color:GOLD }}>{interval2}s</strong> during a live call and classifies the prospect as a Duck (skeptic) or Cow (believer). It also scores buying intent and question quality. Tune the definitions and what triggers Q&A lookups below.
+      </p>
+
+      <div style={{ background:'rgba(245,158,11,0.06)', border:'1px solid rgba(245,158,11,0.2)', borderRadius:'4px', padding:'20px', marginBottom:'20px' }}>
+        <div style={{ color:'#f59e0b', fontSize:'10px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'14px' }}>🦆 Duck Definition</div>
+        <textarea value={duckDef2} onChange={e => setDuckDef2(e.target.value)} rows={4} style={ta} />
+        <div style={{ color:'#6b7280', fontSize:'11px', marginTop:'6px' }}>Describe what behaviors and phrases identify a Duck (skeptic/arguer). The AI uses this exact text.</div>
+      </div>
+
+      <div style={{ background:'rgba(74,222,128,0.06)', border:'1px solid rgba(74,222,128,0.2)', borderRadius:'4px', padding:'20px', marginBottom:'20px' }}>
+        <div style={{ color:'#4ade80', fontSize:'10px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'14px' }}>🐄 Cow Definition</div>
+        <textarea value={cowDef2} onChange={e => setCowDef2(e.target.value)} rows={4} style={ta} />
+        <div style={{ color:'#6b7280', fontSize:'11px', marginTop:'6px' }}>Describe what behaviors and phrases identify a Cow (believer/agreeable). The AI uses this exact text.</div>
+      </div>
+
+      <div style={{ background:'rgba(0,0,0,0.2)', border:'1px solid rgba(255,255,255,0.07)', borderRadius:'4px', padding:'20px', marginBottom:'20px' }}>
+        <div style={{ color:GOLD, fontSize:'10px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'14px' }}>❓ Auto Q&A Trigger Keywords</div>
+        <textarea value={triggers2} onChange={e => setTriggers2(e.target.value)} rows={3} style={ta} />
+        <div style={{ color:'#6b7280', fontSize:'11px', marginTop:'6px' }}>Comma-separated keywords. When detected in the transcript, the AI instantly looks up an answer from the KB. These replace the hardcoded patterns.</div>
+      </div>
+
+      <div style={{ background:'rgba(0,0,0,0.2)', border:'1px solid rgba(255,255,255,0.07)', borderRadius:'4px', padding:'20px', marginBottom:'24px' }}>
+        <div style={{ color:GOLD, fontSize:'10px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'14px' }}>⏱ Intent Check Interval (seconds)</div>
+        <input type="number" value={interval2} onChange={e => setInterval2(e.target.value)} min={10} max={60} style={{ ...inp3, width:'120px' }} />
+        <div style={{ color:'#6b7280', fontSize:'11px', marginTop:'6px' }}>How often the intent engine runs during a live call. Default: 20s. Lower = more responsive but more API calls.</div>
+      </div>
+
+      <div style={{ display:'flex', gap:'12px', alignItems:'center' }}>
+        <button onClick={save} style={{ background:'linear-gradient(135deg,#b8933a,#d4aa50)', color:DARK, border:'none', borderRadius:'4px', padding:'12px 28px', cursor:'pointer', fontWeight:'700', fontSize:'12px', letterSpacing:'2px', textTransform:'uppercase' }}>Save Rules</button>
+        {saved && <span style={{ color:'#4ade80', fontSize:'13px' }}>✓ Saved — live on next call</span>}
+      </div>
+    </div>
+  );
+}
+
+// ─── Coach Rules Tuner ────────────────────────────────────────────────────
+function CoachRulesTuner() {
+  const [s, setS]       = useState(getPortalSettings);
+  const [saved, setSaved] = useState(false);
+  useEffect(() => { loadPortalSettings().then(setS); }, []);
+
+  const [focus, setFocus]       = useState(s.coachFocusAreas     || 'next talking point, handling the last objection raised, building rapport, timing a close, addressing price concerns, reinforcing credibility');
+  const [style, setStyle]       = useState(s.coachStyle          || 'Be direct and conversational. The agent reads this live mid-call. Maximum 2 sentences. Start with the action, not the reason.');
+  const [interval, setInterval] = useState(s.coachIntervalSeconds || 15);
+  const [context, setContext]   = useState(s.coachAdditionalContext || '');
+
+  const save = async () => {
+    await savePortalSettings({ ...s, coachFocusAreas: focus, coachStyle: style, coachIntervalSeconds: Number(interval), coachAdditionalContext: context });
+    setSaved(true); setTimeout(() => setSaved(false), 2000);
+  };
+
+  const ta = { width:'100%', background:'rgba(255,255,255,0.05)', border:'1px solid rgba(255,255,255,0.1)', borderRadius:'4px', padding:'10px 14px', color:'#e8e0d0', fontSize:'13px', outline:'none', fontFamily:'Georgia, serif', boxSizing:'border-box', resize:'vertical' };
+
+  return (
+    <div style={{ maxWidth:'700px' }}>
+      <h3 style={{ color:'#e8e0d0', fontWeight:'normal', margin:'0 0 8px', fontSize:'16px' }}>🎯 Coach Mode Rules</h3>
+      <p style={{ color:'#6b7280', fontSize:'13px', margin:'0 0 24px', lineHeight:1.7 }}>
+        Coach mode fires every <strong style={{ color:GOLD }}>{interval}s</strong> when enabled on a live call and gives the agent one real-time tip. Tune what the coach focuses on and how it communicates.
+      </p>
+
+      <div style={{ background:'rgba(167,139,250,0.06)', border:'1px solid rgba(167,139,250,0.2)', borderRadius:'4px', padding:'20px', marginBottom:'20px' }}>
+        <div style={{ color:'#a78bfa', fontSize:'10px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'14px' }}>🎯 Focus Areas</div>
+        <textarea value={focus} onChange={e => setFocus(e.target.value)} rows={3} style={ta} />
+        <div style={{ color:'#6b7280', fontSize:'11px', marginTop:'6px' }}>What the coach should focus tips on. Comma-separated or written naturally — the AI reads this directly.</div>
+      </div>
+
+      <div style={{ background:'rgba(0,0,0,0.2)', border:'1px solid rgba(255,255,255,0.07)', borderRadius:'4px', padding:'20px', marginBottom:'20px' }}>
+        <div style={{ color:GOLD, fontSize:'10px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'14px' }}>🗣 Coaching Style</div>
+        <textarea value={style} onChange={e => setStyle(e.target.value)} rows={3} style={ta} />
+        <div style={{ color:'#6b7280', fontSize:'11px', marginTop:'6px' }}>Instructions for tone and format of coach tips. This is injected directly into the coach prompt.</div>
+      </div>
+
+      <div style={{ background:'rgba(0,0,0,0.2)', border:'1px solid rgba(255,255,255,0.07)', borderRadius:'4px', padding:'20px', marginBottom:'20px' }}>
+        <div style={{ color:GOLD, fontSize:'10px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'14px' }}>📋 Additional Context for Coach</div>
+        <textarea value={context} onChange={e => setContext(e.target.value)} rows={4} style={ta} placeholder="E.g. Our minimum investment is $25,000. Always mention the Q3 close deadline. Never mention competitors by name..." />
+        <div style={{ color:'#6b7280', fontSize:'11px', marginTop:'6px' }}>Any specific facts, rules, or context the coach should always be aware of. Added to every coach prompt.</div>
+      </div>
+
+      <div style={{ background:'rgba(0,0,0,0.2)', border:'1px solid rgba(255,255,255,0.07)', borderRadius:'4px', padding:'20px', marginBottom:'24px' }}>
+        <div style={{ color:GOLD, fontSize:'10px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'14px' }}>⏱ Coach Interval (seconds)</div>
+        <input type="number" value={interval} onChange={e => setInterval(e.target.value)} min={10} max={60} style={{ width:'120px', background:'rgba(255,255,255,0.05)', border:'1px solid rgba(255,255,255,0.1)', borderRadius:'4px', padding:'8px 12px', color:'#e8e0d0', fontSize:'13px', outline:'none' }} />
+        <div style={{ color:'#6b7280', fontSize:'11px', marginTop:'6px' }}>How often coach tips fire. Default: 15s.</div>
+      </div>
+
+      <div style={{ display:'flex', gap:'12px', alignItems:'center' }}>
+        <button onClick={save} style={{ background:'linear-gradient(135deg,#b8933a,#d4aa50)', color:DARK, border:'none', borderRadius:'4px', padding:'12px 28px', cursor:'pointer', fontWeight:'700', fontSize:'12px', letterSpacing:'2px', textTransform:'uppercase' }}>Save Rules</button>
+        {saved && <span style={{ color:'#4ade80', fontSize:'13px' }}>✓ Saved — live on next call</span>}
+      </div>
     </div>
   );
 }
