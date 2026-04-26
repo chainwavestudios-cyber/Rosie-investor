@@ -1517,8 +1517,8 @@ function IntentEngineTuner() {
   const [saved, setSaved] = useState(false);
   useEffect(() => { loadPortalSettings().then(setS); }, []);
 
-  const duckDef = s.intentDuckDefinition || 'Argumentative, skeptical, raises objections, tries to prove things wrong, combative tone, says things like "that won't work", "I doubt that", "prove it".';
-  const cowDef  = s.intentCowDefinition  || 'Agreeable, curious, open-minded, says things like "that's interesting", "really?", "wow", asks genuine questions, believes what you say, enthusiastic listener.';
+  const duckDef = s.intentDuckDefinition || `Argumentative, skeptical, raises objections, tries to prove things wrong, combative tone, says things like "that won't work", "I doubt that", "prove it".`;
+  const cowDef  = s.intentCowDefinition  || `Agreeable, curious, open-minded, says things like "that's interesting", "really?", "wow", asks genuine questions, believes what you say, enthusiastic listener.`;
   const triggers = s.intentTriggerKeywords || 'minimum investment, how much, returns, roi, risk, guaranteed, lock-up, liquidity, accredited, fees, cost, sec, regulation';
   const interval = s.intentIntervalSeconds || 20;
 
