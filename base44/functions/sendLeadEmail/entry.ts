@@ -56,15 +56,17 @@ Deno.serve(async (req) => {
         email:    toEmail.toLowerCase().trim(),
         name:     toName || firstName || toEmail,
         password: hashedPassword,
-        role:     'guest',
-        status:   'info_only',
+        role:     'investor',
+        status:   'prospect',
+        siteAccess: 'info_only', // info site only until manually migrated
         leadId,
       });
     }
-    // Save username on lead
+    // Save username on lead — preserve existing status, do NOT override it
     await base44.asServiceRole.entities.Lead.update(leadId, {
       portalPasscode: username,
-      status: 'info_only',
+      // status intentionally NOT changed — emailing the investor site link
+      // does not make this a different pipeline stage. The lead remains a lead.
     });
     console.log(`[sendLeadEmail] InvestorUser created/updated: ${username}`);
   } catch (e) {
