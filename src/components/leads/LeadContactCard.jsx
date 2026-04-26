@@ -561,7 +561,7 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
         </div>
 
         {/* Body */}
-        <div style={{ flex:1, overflowY:'auto', padding:'20px 24px' }}>
+        <div style={{ flex:1, overflow: tab === 'script' ? 'hidden' : 'auto', padding: tab === 'script' ? '0' : '20px 24px', display:'flex', flexDirection:'column', minHeight:0 }}>
 
           {/* ── OVERVIEW ── */}
           {tab === 'overview' && (
@@ -603,7 +603,9 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
           )}
 
           {tab === 'script' && (
-            <ScriptAssistant lead={editLead} />
+            <div style={{ flex:1, minHeight:0, overflow:'hidden', display:'flex', flexDirection:'column' }}>
+              <ScriptAssistant lead={editLead} />
+            </div>
           )}
 
           {/* ── ACTIONS ── */}
