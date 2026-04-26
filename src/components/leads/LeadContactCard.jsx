@@ -520,7 +520,7 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
               style={{ background:'rgba(96,165,250,0.15)', color: isArchived ? '#4a5568' : '#60a5fa', border:'1px solid rgba(96,165,250,0.3)', borderRadius:'2px', padding:'7px 14px', cursor: isArchived ? 'not-allowed' : 'pointer', fontSize:'11px', fontWeight:'bold', opacity: isArchived ? 0.4 : 1 }}>
               📅 Book Zoom
             </button>
-            {isProspect && !isArchived && (
+            {!isArchived && (
               <button onClick={() => setShowMigrate(true)}
                 style={{ background:'linear-gradient(135deg,#7c3aed,#a855f7)', color:'#fff', border:'none', borderRadius:'2px', padding:'7px 14px', cursor:'pointer', fontSize:'11px', fontWeight:'bold', letterSpacing:'1px' }}>
                 🚀 Migrate to CRM
@@ -566,7 +566,7 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
 
         {/* Tabs */}
         <div style={{ display:'flex', borderBottom:'1px solid rgba(255,255,255,0.07)', flexShrink:0 }}>
-          {[['overview','👤 Overview'],['actions','⚡ Actions'],['email','✉️ Emails'],['access','🔑 Access'],['cluster','🌐 Cluster'],['research','🔍 Research'],['script','📝 Script']].filter(([id]) => !(isArchived && id === 'actions')).map(([id,label]) => (
+          {[['overview','👤 Overview'],['actions','⚡ Actions'],['email','✉️ Emails'],['access','🔑 Access'],['sitestats','📊 Site Stats'],['research','🔍 Research'],['script','📝 Script']].filter(([id]) => !(isArchived && id === 'actions')).map(([id,label]) => (
             <button key={id} onClick={() => setTab(id)} style={{ background:'none', border:'none', borderBottom:tab===id?`2px solid ${GOLD}`:'2px solid transparent', color:tab===id?GOLD:'#6b7280', padding:'11px 20px', cursor:'pointer', fontSize:'11px', letterSpacing:'1px' }}>{label}</button>
           ))}
         </div>
@@ -606,7 +606,7 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
             }} />
           )}
 
-          {tab === 'cluster' && (
+          {tab === 'sitestats' && (
             <InvestorWebsiteTab lead={editLead} />
           )}
 
