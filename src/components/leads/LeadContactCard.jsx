@@ -3,7 +3,7 @@ import { base44 } from '@/api/base44Client';
 import MigrateLeadModal from './MigrateLeadModal';
 import DateTimePicker from '@/components/admin/DateTimePicker';
 import LeadEmailTab from './LeadEmailTab';
-import ScriptViewer from '@/components/scripts/ScriptViewer';
+import ScriptAssistant from './ScriptAssistant';
 import ResearchTab from './ResearchTab';
 import InvestorWebsiteTab from './InvestorWebsiteTab';
 import WebsiteHistoryTab from './WebsiteHistoryTab';
@@ -328,7 +328,7 @@ function OverviewTab({ editLead, setEditLead, saving, saveMsg, saveProfile, upda
   );
 }
 
-export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber, dialerRef, onResume, isDialerPaused }) {
+export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber, dialerRef, onResume, isDialerPaused, onNextLead, onPrevLead, currentLeadIndex, totalLeads }) {
   const [tab, setTab] = useState('overview');
   const [history, setHistory] = useState([]);
   const [editLead, setEditLead] = useState({ ...lead });
@@ -521,26 +521,30 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
                 📞 {lead.phone || editLead.phone}
               </button>
             )}
-            {/* Dialer controls — only show when dialer is paused on this call */}
+            {/* Lead navigation ‹ 3/47 › */}
+            {totalLeads > 1 && (
+              <div style={{ display:'flex', alignItems:'center', gap:'3px', marginRight:'4px' }}>
+                <button onClick={onPrevLead} disabled={currentLeadIndex <= 0}
+                  style={{ background:'rgba(255,255,255,0.05)', color: currentLeadIndex <= 0 ? '#2d3748' : '#8a9ab8', border:'1px solid rgba(255,255,255,0.08)', borderRadius:'4px', padding:'4px 7px', cursor: currentLeadIndex <= 0 ? 'not-allowed' : 'pointer', fontSize:'14px' }}>‹</button>
+                <span style={{ color:'#4a5568', fontSize:'10px', minWidth:'36px', textAlign:'center' }}>{currentLeadIndex + 1}/{totalLeads}</span>
+                <button onClick={onNextLead} disabled={currentLeadIndex >= totalLeads - 1}
+                  style={{ background:'rgba(255,255,255,0.05)', color: currentLeadIndex >= totalLeads - 1 ? '#2d3748' : '#8a9ab8', border:'1px solid rgba(255,255,255,0.08)', borderRadius:'4px', padding:'4px 7px', cursor: currentLeadIndex >= totalLeads - 1 ? 'not-allowed' : 'pointer', fontSize:'14px' }}>›</button>
+              </div>
+            )}
+
+            {/* Dialer controls — show when call active */}
             {isDialerPaused && (
-              <div style={{ display:'flex', gap:'6px', marginRight:'4px' }}>
-                <button
-                  onClick={() => {
-                    dialerRef.current?.hangupActiveCall?.();
-                  }}
-                  style={{ background:'rgba(239,68,68,0.15)', color:'#ef4444', border:'1px solid rgba(239,68,68,0.4)', borderRadius:'4px', padding:'5px 12px', cursor:'pointer', fontSize:'11px', fontWeight:'bold', letterSpacing:'0.5px' }}>
+              <div style={{ display:'flex', gap:'5px', marginRight:'4px' }}>
+                <button onClick={() => { dialerRef.current?.hangupActiveCall?.(); }}
+                  style={{ background:'rgba(239,68,68,0.15)', color:'#ef4444', border:'1px solid rgba(239,68,68,0.4)', borderRadius:'4px', padding:'5px 10px', cursor:'pointer', fontSize:'11px', fontWeight:'bold' }}>
                   📵 Hang Up
                 </button>
-                <button
-                  onClick={async () => {
-                    // Save the contact card first
-                    await saveProfile?.();
-                    // Hangup the call
-                    dialerRef.current?.hangupActiveCall?.();
-                    // Resume dialer and close card
-                    onResume?.();
-                  }}
-                  style={{ background:'linear-gradient(135deg,#22c55e,#16a34a)', color:'#fff', border:'none', borderRadius:'4px', padding:'5px 14px', cursor:'pointer', fontSize:'11px', fontWeight:'bold', letterSpacing:'0.5px', boxShadow:'0 0 12px rgba(74,222,128,0.3)' }}>
+                <button onClick={() => { dialerRef.current?.hangupActiveCall?.(); onNextLead?.(); }}
+                  style={{ background:'rgba(59,130,246,0.15)', color:'#60a5fa', border:'1px solid rgba(59,130,246,0.35)', borderRadius:'4px', padding:'5px 10px', cursor:'pointer', fontSize:'11px', fontWeight:'bold' }}>
+                  📵 → Next
+                </button>
+                <button onClick={async () => { await saveProfile?.(); dialerRef.current?.hangupActiveCall?.(); onResume?.(); }}
+                  style={{ background:'linear-gradient(135deg,#22c55e,#16a34a)', color:'#fff', border:'none', borderRadius:'4px', padding:'5px 12px', cursor:'pointer', fontSize:'11px', fontWeight:'bold', boxShadow:'0 0 10px rgba(74,222,128,0.25)' }}>
                   ▶ Resume & Save
                 </button>
               </div>
@@ -599,7 +603,7 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
           )}
 
           {tab === 'script' && (
-            <ScriptViewer lead={editLead} />
+            <ScriptAssistant lead={editLead} />
           )}
 
           {/* ── ACTIONS ── */}
