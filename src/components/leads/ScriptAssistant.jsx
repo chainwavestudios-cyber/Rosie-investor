@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { base44 } from '@/api/base44Client';
+import { getPortalSettings, loadPortalSettings } from '@/lib/portalSettings';
 
 const GOLD = '#b8933a';
 const DARK = '#0a0f1e';
@@ -17,12 +18,20 @@ const applyTokens = (text, lead, user) => {
 
 const QUESTION_PATTERN = /\b(what|how|why|when|where|who|can|could|would|is|are|do|does|will|should|have|has|tell me|explain)\b.{5,80}\?/gi;
 
-const TRIGGER_PATTERNS = [
-  /minimum investment/i, /how much/i, /what.s the minimum/i,
-  /return/i, /roi/i, /yield/i, /is it safe/i, /risk/i,
-  /guaranteed/i, /how long/i, /lock.?up/i, /liquidity/i,
-  /accredited/i, /fees/i, /cost/i, /regulation/i, /sec/i,
+const DEFAULT_TRIGGER_KEYWORDS = [
+  'minimum investment','how much','what is the minimum',
+  'return','roi','yield','is it safe','risk',
+  'guaranteed','how long','lock-up','liquidity',
+  'accredited','fees','cost','regulation','sec',
 ];
+
+// Build trigger patterns from portal settings or defaults
+function buildTriggerPatterns(cfg) {
+  const keywords = cfg?.intentTriggerKeywords
+    ? cfg.intentTriggerKeywords.split(',').map(k => k.trim()).filter(Boolean)
+    : DEFAULT_TRIGGER_KEYWORDS;
+  return keywords.map(k => new RegExp(k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i'));
+}
 
 // ── Duck/Cow Intent Display ───────────────────────────────────────────────
 function IntentMeter({ intent }) {
@@ -86,7 +95,7 @@ function IntentMeter({ intent }) {
   );
 }
 
-export default function ScriptAssistant({ lead, user }) {
+export default function ScriptAssistant({ lead, user, onExpandCard, isCardExpanded }) {
   // Layout
   const [layout, setLayout]           = useState('side');   // 'side' | 'top' | 'fullscript' | 'fullai'
   const [scriptWidth, setScriptWidth] = useState(52);       // percent
@@ -123,6 +132,9 @@ export default function ScriptAssistant({ lead, user }) {
   const [intent, setIntent]           = useState(null);
   const [intentRunning, setIntentRunning] = useState(false);
 
+  // Portal settings (for tuned rules)
+  const [portalCfg, setPortalCfg]     = useState(getPortalSettings);
+
   // AI feature toggles
   const [aiEnabled, setAiEnabled]     = useState(false); // master AI switch
   const [autoQA, setAutoQA]           = useState(true);  // auto keyword Q&A
@@ -148,6 +160,7 @@ export default function ScriptAssistant({ lead, user }) {
       .catch(() => {}).finally(() => setLoadingScripts(false));
     base44.entities.KnowledgeBase.list('-created_date', 500)
       .then(r => setKbEntries(r || [])).catch(() => {});
+    loadPortalSettings().then(setPortalCfg).catch(() => {});
     navigator.mediaDevices.enumerateDevices().then(devs => {
       const mics = devs.filter(d => d.kind === 'audioinput');
       setMicDevices(mics);
@@ -279,6 +292,26 @@ Transcript to analyze:
         await entity.create({ investorId: l.id, investorEmail: l.email, type: 'note', content: `📋 CALL REPORT:\n${report}` });
       }
 
+      // 3. Update client profile
+      try {
+        const existingProfile = lead?.clientProfile || user?.clientProfile || '';
+        const profileRes = await base44.functions.invoke('liveAssistantAI', {
+          transcript: finalTranscript,
+          kbEntries: [],
+          mode: 'profile',
+          existingProfile,
+        });
+        const newProfile = profileRes?.data?.profile;
+        if (newProfile) {
+          const profileJson = JSON.stringify(newProfile);
+          if (lead) {
+            await base44.entities.Lead.update(l.id, { clientProfile: profileJson });
+          } else {
+            await base44.entities.InvestorUser.update(l.id, { clientProfile: profileJson });
+          }
+        }
+      } catch (e) { console.warn('Profile update failed:', e); }
+
       setReportSaved(true);
       setTimeout(() => setReportSaved(false), 4000);
     } catch (e) {
@@ -297,7 +330,8 @@ Transcript to analyze:
     if (!aiEnabled || !autoQA) return;
     const now = Date.now();
     if (now - lastTrigger.current < 3000) return;
-    if (!TRIGGER_PATTERNS.some(p => p.test(text))) return;
+    const patterns = buildTriggerPatterns(portalCfg);
+    if (!patterns.some(p => p.test(text))) return;
     lastTrigger.current = now;
     await askAI(text, allT);
   }, [kbEntries, aiEnabled, autoQA]);
@@ -311,6 +345,11 @@ Transcript to analyze:
       const res = await base44.functions.invoke('liveAssistantAI', {
         question: allT.slice(-12).map(t => t.text).join(' '),
         transcript: allT, kbEntries, mode: 'coach',
+        coachRules: {
+          focusAreas:        portalCfg.coachFocusAreas        || '',
+          style:             portalCfg.coachStyle              || '',
+          additionalContext: portalCfg.coachAdditionalContext  || '',
+        },
       });
       if (res?.data?.answer) setCoachTip(res.data.answer);
     } catch {}
@@ -327,6 +366,10 @@ Transcript to analyze:
     try {
       const res = await base44.functions.invoke('liveAssistantAI', {
         transcript: allT, kbEntries: [], mode: 'intent',
+        intentRules: {
+          duckDefinition: portalCfg.intentDuckDefinition || '',
+          cowDefinition:  portalCfg.intentCowDefinition  || '',
+        },
       });
       if (res?.data?.intent) setIntent(res.data.intent);
     } catch {}
@@ -595,49 +638,79 @@ Transcript to analyze:
   );
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: expanded ? '80vh' : '100%', transition: 'height 0.2s ease' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       <style>{`@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}`}</style>
 
       {/* Toolbar */}
       <div style={{ display: 'flex', gap: '6px', alignItems: 'center', marginBottom: '8px', flexShrink: 0, flexWrap: 'wrap' }}>
         <span style={{ color: '#4a5568', fontSize: '9px', textTransform: 'uppercase', letterSpacing: '1px' }}>Layout</span>
         <LayoutBtn id="side"       label="Side by side"        icon="⬜⬜" />
-        <LayoutBtn id="top"        label="Script top, AI below" icon="🔲" />
+        <LayoutBtn id="top"        label="AI top, Script below" icon="🔲" />
         <LayoutBtn id="fullscript" label="Script only"          icon="📝" />
         <LayoutBtn id="fullai"     label="AI only"              icon="🧠" />
 
-        {/* Expand/collapse toggle */}
-        <button onClick={() => setExpanded(e => !e)} title={expanded ? 'Collapse' : 'Expand larger'}
-          style={{ marginLeft: 'auto', background: expanded ? 'rgba(96,165,250,0.15)' : 'rgba(255,255,255,0.05)', border: `1px solid ${expanded ? 'rgba(96,165,250,0.4)' : 'rgba(255,255,255,0.1)'}`, color: expanded ? '#60a5fa' : '#6b7280', borderRadius: '4px', padding: '4px 10px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>
-          {expanded ? '⊟ Collapse' : '⊞ Expand'}
-        </button>
+        {/* Expand/collapse entire contact card */}
+        {onExpandCard && (
+          <button onClick={onExpandCard} title={isCardExpanded ? 'Collapse card' : 'Expand card'}
+            style={{ marginLeft: 'auto', background: isCardExpanded ? 'rgba(96,165,250,0.15)' : 'rgba(255,255,255,0.05)', border: `1px solid ${isCardExpanded ? 'rgba(96,165,250,0.4)' : 'rgba(255,255,255,0.1)'}`, color: isCardExpanded ? '#60a5fa' : '#6b7280', borderRadius: '4px', padding: '4px 10px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>
+            {isCardExpanded ? '⊟ Collapse Card' : '⊞ Expand Card'}
+          </button>
+        )}
       </div>
 
       {/* Main area */}
       <div ref={containerRef} style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: layout === 'top' ? 'column' : 'row', position: 'relative' }}>
 
-        {/* Script panel */}
-        {layout !== 'fullai' && (
-          <div style={{ ...(layout === 'side' ? { width: `${scriptWidth}%` } : layout === 'top' ? { height: `${scriptWidth}%` } : { flex: 1 }), overflow: 'hidden', flexShrink: 0 }}>
-            {scriptPanelJSX}
-          </div>
+        {/* TOP layout: AI on top (sticky), script scrolls below */}
+        {layout === 'top' && (
+          <>
+            {/* AI panel — fixed height at top, does not scroll with script */}
+            <div style={{ height: `${100 - scriptWidth}%`, overflow: 'hidden', flexShrink: 0, borderBottom: '6px solid rgba(255,255,255,0.05)', cursor: 'default' }}>
+              {aiPanelJSX}
+            </div>
+            {/* Draggable divider */}
+            <div onMouseDown={onDividerMouseDown}
+              style={{ height: '6px', flexShrink: 0, background: 'rgba(255,255,255,0.05)', cursor: 'row-resize', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'background 0.15s' }}
+              onMouseEnter={e => e.currentTarget.style.background = 'rgba(184,147,58,0.3)'}
+              onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}>
+              <div style={{ background: 'rgba(255,255,255,0.15)', borderRadius: '2px', width: '3px', height: '30px' }} />
+            </div>
+            {/* Script panel — scrollable below */}
+            <div style={{ flex: 1, overflow: 'hidden', minHeight: 0 }}>
+              {scriptPanelJSX}
+            </div>
+          </>
         )}
 
-        {/* Draggable divider */}
-        {(layout === 'side' || layout === 'top') && (
-          <div onMouseDown={onDividerMouseDown}
-            style={{ [layout === 'side' ? 'width' : 'height']: '6px', flexShrink: 0, background: 'rgba(255,255,255,0.05)', cursor: layout === 'side' ? 'col-resize' : 'row-resize', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'background 0.15s' }}
-            onMouseEnter={e => e.currentTarget.style.background = 'rgba(184,147,58,0.3)'}
-            onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}>
-            <div style={{ background: 'rgba(255,255,255,0.15)', borderRadius: '2px', [layout === 'side' ? 'width' : 'height']: '3px', [layout === 'side' ? 'height' : 'width']: '30px' }} />
-          </div>
+        {/* SIDE layout */}
+        {layout === 'side' && (
+          <>
+            {/* Script panel — independent scroll */}
+            <div style={{ width: `${scriptWidth}%`, overflow: 'hidden', flexShrink: 0 }}>
+              {scriptPanelJSX}
+            </div>
+            {/* Draggable divider */}
+            <div onMouseDown={onDividerMouseDown}
+              style={{ width: '6px', flexShrink: 0, background: 'rgba(255,255,255,0.05)', cursor: 'col-resize', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'background 0.15s' }}
+              onMouseEnter={e => e.currentTarget.style.background = 'rgba(184,147,58,0.3)'}
+              onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}>
+              <div style={{ background: 'rgba(255,255,255,0.15)', borderRadius: '2px', width: '3px', height: '30px' }} />
+            </div>
+            {/* AI panel — independent scroll */}
+            <div style={{ flex: 1, overflow: 'hidden', minWidth: 0 }}>
+              {aiPanelJSX}
+            </div>
+          </>
         )}
 
-        {/* AI panel */}
-        {layout !== 'fullscript' && (
-          <div style={{ flex: 1, overflow: 'hidden', minWidth: 0, minHeight: 0 }}>
-            {aiPanelJSX}
-          </div>
+        {/* FULLSCRIPT layout */}
+        {layout === 'fullscript' && (
+          <div style={{ flex: 1, overflow: 'hidden' }}>{scriptPanelJSX}</div>
+        )}
+
+        {/* FULLAI layout */}
+        {layout === 'fullai' && (
+          <div style={{ flex: 1, overflow: 'hidden' }}>{aiPanelJSX}</div>
         )}
       </div>
     </div>
