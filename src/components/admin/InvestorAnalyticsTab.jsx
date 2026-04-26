@@ -28,6 +28,7 @@ export default function InvestorAnalyticsTab({ user, sessions, stats }) {
   const hasPPM = allDocViews.some(d => /ppm|circular|offering/i.test(d.docName || ''));
   const hasSubscription = allDocViews.some(d => /subscription|sub agreement/i.test(d.docName || ''));
   const hasQuestionnaire = allDocViews.some(d => /questionnaire|questionaire|accreditation/i.test(d.docName || ''));
+  const hasOperatingAgreement = allDocViews.some(d => /operating agreement|operating/i.test(d.docName || ''));
   const ppmDoc = allDocViews.find(d => /ppm|circular|offering/i.test(d.docName || ''));
   const ppmPct = ppmDoc && ppmDoc.pagesViewed && ppmDoc.totalPages ? ppmDoc.pagesViewed.length / ppmDoc.totalPages : 0;
   const uniqueDownloads = new Set(allDownloads.map(d => d.fileName)).size;
@@ -61,8 +62,13 @@ export default function InvestorAnalyticsTab({ user, sessions, stats }) {
           <div style={{ color:'#8a9ab8', fontSize:'12px' }}>Engagement Score · {analytics.formatDate(stats.firstSeen)} → {analytics.formatDate(stats.lastSeen)}</div>
         </div>
         <div style={{ flex:1 }} />
-        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr 1fr', gap:'12px', textAlign:'center' }}>
-          {[[stats.sessionCount,'Logins',GOLD],[fmt(stats.totalTime),'Time','#4ade80'],[stats.totalDownloads,'Downloads','#60a5fa'],[stats.totalDocViews,'Doc Views','#f59e0b']].map(([v,l,c]) => (
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(6,1fr)', gap:'12px', textAlign:'center' }}>
+          {(() => {
+            const now = Date.now();
+            const sessionsThisWeek = sessions.filter(s => s.startTime && (now - new Date(s.startTime).getTime()) < 7*24*60*60*1000);
+            const sessionsToday = sessions.filter(s => s.startTime && new Date(s.startTime).toDateString() === new Date().toDateString());
+            return [[stats.sessionCount,'Total Logins',GOLD],[sessionsThisWeek.length,'This Week','#a78bfa'],[sessionsToday.length,'Today','#f59e0b'],[fmt(stats.totalTime),'Time','#4ade80'],[stats.totalDownloads,'Downloads','#60a5fa'],[stats.totalDocViews,'Doc Views','#f59e0b']];
+          })().map(([v,l,c]) => (
             <div key={l}>
               <div style={{ color:c, fontWeight:'bold', fontSize:'18px' }}>{v}</div>
               <div style={{ color:'#4a5568', fontSize:'9px', textTransform:'uppercase', letterSpacing:'1px' }}>{l}</div>
@@ -80,6 +86,7 @@ export default function InvestorAnalyticsTab({ user, sessions, stats }) {
         <ScoreRow label="Read PPM / Circular / Offering doc" points={10} earned={hasPPM} />
         <ScoreRow label="Read Subscription docs" points={10} earned={hasSubscription} />
         <ScoreRow label="Read Investor Questionnaire" points={10} earned={hasQuestionnaire} />
+        <ScoreRow label="Read Operating Agreement" points={10} earned={hasOperatingAgreement} />
         <ScoreRow label="75%+ of PPM viewed" points={5} earned={ppmPct >= 0.75} />
         <ScoreRow label={`Downloaded ${uniqueDownloads} document${uniqueDownloads!==1?'s':''}`} points={uniqueDownloads>=3?20:uniqueDownloads===2?15:uniqueDownloads===1?10:0} earned={uniqueDownloads > 0} />
         <ScoreRow label="SignNow documents sent" points={40} earned={(user.signnowRequested)} />
