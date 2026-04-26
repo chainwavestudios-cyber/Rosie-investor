@@ -555,33 +555,25 @@ function AccountTab({ portalUser }) {
   );
 }
 
-// ─── Investment Calculator ────────────────────────────────────────────────
-function InvestorCalculator() {
-  const [investment, setInvestment] = useState(50000);
-  const [multiple, setMultiple]     = useState(5);
+
+
+// ─── Rosie Inline Chat (replaces calculator on Overview tab) ─────────────
+function RosieInlineChat({ portalUser }) {
   return (
-    <div style={{ background:'rgba(184,147,58,0.06)', border:'1px solid rgba(184,147,58,0.2)', borderRadius:'2px', padding:'32px', marginTop:'40px' }}>
-      <h3 style={{ color:GOLD, fontSize:'12px', letterSpacing:'3px', textTransform:'uppercase', margin:'0 0 24px' }}>Investment Return Calculator</h3>
-      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'24px', marginBottom:'24px' }}>
-        <div>
-          <label style={{ color:'#8a9ab8', fontSize:'11px', letterSpacing:'2px', textTransform:'uppercase', display:'block', marginBottom:'8px' }}>Investment Amount</label>
-          <input type="number" value={investment} onChange={e=>setInvestment(Number(e.target.value))} min={25000} step={5000} style={{ width:'100%', background:'rgba(255,255,255,0.05)', border:'1px solid rgba(255,255,255,0.12)', borderRadius:'2px', padding:'12px 16px', color:'#e8e0d0', fontSize:'16px', outline:'none', boxSizing:'border-box' }} />
-        </div>
-        <div>
-          <label style={{ color:'#8a9ab8', fontSize:'11px', letterSpacing:'2px', textTransform:'uppercase', display:'block', marginBottom:'8px' }}>Return Multiple (x)</label>
-          <input type="range" min={2} max={20} value={multiple} onChange={e=>setMultiple(Number(e.target.value))} style={{ width:'100%', accentColor:GOLD, marginTop:'8px' }} />
-          <div style={{ color:GOLD, fontSize:'20px', fontWeight:'bold', textAlign:'center' }}>{multiple}x</div>
-        </div>
+    <div style={{ marginTop:'32px', background:'rgba(184,147,58,0.04)', border:'1px solid rgba(184,147,58,0.18)', borderRadius:'4px', overflow:'hidden' }}>
+      <div style={{ padding:'14px 20px', borderBottom:'1px solid rgba(184,147,58,0.12)', display:'flex', alignItems:'center', gap:'10px' }}>
+        <div style={{ width:'8px', height:'8px', borderRadius:'50%', background:'#4ade80', boxShadow:'0 0 6px #4ade80' }} />
+        <span style={{ color:GOLD, fontSize:'11px', letterSpacing:'2px', textTransform:'uppercase', fontWeight:'bold' }}>Rosie AI — Investor Assistant</span>
+        <span style={{ color:'#4a5568', fontSize:'11px', marginLeft:'auto' }}>Ask me anything about this investment</span>
       </div>
-      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:'16px' }}>
-        {[{ label:'Initial Investment', value:`$${investment.toLocaleString()}`, color:'#8a9ab8' },{ label:'Projected Return', value:`$${(investment*multiple).toLocaleString()}`, color:GOLD },{ label:'Net Profit', value:`$${((investment*multiple)-investment).toLocaleString()}`, color:'#4ade80' }].map(({ label, value, color }) => (
-          <div key={label} style={{ background:'rgba(0,0,0,0.2)', padding:'16px', textAlign:'center', borderRadius:'2px' }}>
-            <div style={{ color:'#5a6a7e', fontSize:'10px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'8px' }}>{label}</div>
-            <div style={{ color, fontSize:'20px', fontWeight:'bold' }}>{value}</div>
-          </div>
-        ))}
+      <div style={{ padding:'0' }}>
+        <RosieVoiceAgent
+          userName={portalUser?.name || portalUser?.username || 'Investor'}
+          investorId={portalUser?.id}
+          investorEmail={portalUser?.email}
+          inline={true}
+        />
       </div>
-      <p style={{ color:'#4a5568', fontSize:'11px', marginTop:'16px', textAlign:'center' }}>* Projections are illustrative only and do not constitute a guarantee of returns.</p>
     </div>
   );
 }
@@ -803,7 +795,7 @@ function PortalHome({ setActiveTab, portalUser, onRequestDocuments }) {
           </h1>
           <p style={{ color:'#6b7280', fontSize:'14px', lineHeight:1.65, margin:'0 0 28px', maxWidth:'560px' }}>{s.portalSubtext}</p>
           <RaiseProgress />
-          <InvestorCalculator />
+          <RosieInlineChat portalUser={portalUser} />
         </div>
         <div style={{ display:'flex', flexDirection:'column', gap:'10px' }}>
           <div style={{ background:'rgba(184,147,58,0.06)', border:'1px solid rgba(184,147,58,0.18)', borderRadius:'2px', padding:'18px' }}>
@@ -820,11 +812,7 @@ function PortalHome({ setActiveTab, portalUser, onRequestDocuments }) {
       <div style={{ paddingTop:'24px', borderTop:'1px solid rgba(255,255,255,0.05)' }}>
         <p style={{ color:'#2d3748', fontSize:'11px', lineHeight:1.7, margin:0 }}><strong style={{ color:'#374151' }}>Important Disclosure:</strong> {s.disclosureText}</p>
       </div>
-      <RosieVoiceAgent 
-        userName={portalUser?.name||portalUser?.username||'Investor'} 
-        investorId={portalUser?.id}
-        investorEmail={portalUser?.email}
-      />
+
     </div>
   );
 }
