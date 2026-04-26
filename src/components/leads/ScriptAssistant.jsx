@@ -318,7 +318,7 @@ export default function ScriptAssistant({ lead, user }) {
   const inp = { background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '4px', padding: '6px 10px', color: '#e8e0d0', fontSize: '11px', outline: 'none', fontFamily: 'Georgia, serif' };
 
   // ── Script Panel ──────────────────────────────────────────────────────
-  const ScriptPanel = () => (
+  const scriptPanelJSX = (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
       <div style={{ display: 'flex', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.07)', overflowX: 'auto', flexShrink: 0, scrollbarWidth: 'none' }}>
         {scripts.map(s => (
@@ -346,7 +346,7 @@ export default function ScriptAssistant({ lead, user }) {
   );
 
   // ── AI Panel ──────────────────────────────────────────────────────────
-  const AIPanel = () => (
+  const aiPanelJSX = (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
 
       {/* AI Header */}
@@ -517,7 +517,7 @@ export default function ScriptAssistant({ lead, user }) {
         {/* Script panel */}
         {layout !== 'fullai' && (
           <div style={{ ...(layout === 'side' ? { width: `${scriptWidth}%` } : layout === 'top' ? { height: `${scriptWidth}%` } : { flex: 1 }), overflow: 'hidden', flexShrink: 0 }}>
-            <ScriptPanel />
+            {scriptPanelJSX}
           </div>
         )}
 
@@ -534,7 +534,7 @@ export default function ScriptAssistant({ lead, user }) {
         {/* AI panel */}
         {layout !== 'fullscript' && (
           <div style={{ flex: 1, overflow: 'hidden', minWidth: 0, minHeight: 0 }}>
-            <AIPanel />
+            {aiPanelJSX}
           </div>
         )}
       </div>
