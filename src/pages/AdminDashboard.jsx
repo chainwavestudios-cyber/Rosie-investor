@@ -941,7 +941,7 @@ function PortalControls() {
   useEffect(() => { loadPortalSettings().then(setS); }, []);
   const upd  = (k,v) => setS(prev=>({...prev,[k]:v}));
   const save = async () => { setSaveError(''); try { await savePortalSettings(s); setSaved(true); setTimeout(()=>setSaved(false),2500); } catch(e) { setSaveError('Save failed — '+e.message); } };
-  const sections = [['raise','📊 Raise Progress'],['contact','📍 Contact'],['content','✏️ Content'],['terms','📋 Terms'],['toggles','⚙️ Visibility']];
+  const sections = [['raise','📊 Raise Progress'],['contact','📍 Contact'],['content','✏️ Content'],['terms','📋 Terms'],['rosie','🤖 Rosie AI'],['toggles','⚙️ Visibility']];
   return (
     <div style={{ display:'grid', gridTemplateColumns:'180px 1fr', gap:'0' }}>
       <div style={{ borderRight:'1px solid rgba(255,255,255,0.07)' }}>
@@ -952,7 +952,78 @@ function PortalControls() {
         {sec==='contact' && <div><h3 style={{ color:'#e8e0d0', margin:'0 0 20px', fontWeight:'normal' }}>Contact Info</h3><F label="Company Name" value={s.companyName} onChange={e=>upd('companyName',e.target.value)} /><F label="Address Line 1" value={s.address1} onChange={e=>upd('address1',e.target.value)} /><F label="Address Line 2" value={s.address2} onChange={e=>upd('address2',e.target.value)} /><F label="Phone" value={s.phone} onChange={e=>upd('phone',e.target.value)} /><F label="Email" value={s.email} onChange={e=>upd('email',e.target.value)} /></div>}
         {sec==='content' && <div><h3 style={{ color:'#e8e0d0', margin:'0 0 20px', fontWeight:'normal' }}>Portal Content</h3><F label="Tagline" value={s.portalTagline} onChange={e=>upd('portalTagline',e.target.value)} /><F label="Headline" value={s.portalHeadline} onChange={e=>upd('portalHeadline',e.target.value)} /><TA label="Subheading" value={s.portalSubtext} onChange={e=>upd('portalSubtext',e.target.value)} rows={3} /><TA label="Legal Disclosure" value={s.disclosureText} onChange={e=>upd('disclosureText',e.target.value)} rows={4} /></div>}
         {sec==='terms' && <div><h3 style={{ color:'#e8e0d0', margin:'0 0 20px', fontWeight:'normal' }}>Investment Terms</h3><div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'0 16px' }}><F label="Round Size" value={s.roundSize} onChange={e=>upd('roundSize',e.target.value)} /><F label="Valuation Cap" value={s.valuationCap} onChange={e=>upd('valuationCap',e.target.value)} /><F label="Min Investment" value={s.minInvestment} onChange={e=>upd('minInvestment',e.target.value)} /><F label="Discount Rate" value={s.discountRate} onChange={e=>upd('discountRate',e.target.value)} /><F label="Target Close" value={s.targetClose} onChange={e=>upd('targetClose',e.target.value)} /></div></div>}
-        {sec==='toggles' && <div><h3 style={{ color:'#e8e0d0', margin:'0 0 20px', fontWeight:'normal' }}>Visibility</h3><Tog label="Portal Active" value={s.portalActive} onToggle={()=>upd('portalActive',!s.portalActive)} /><Tog label="Show Investment Calculator" value={s.showCalculator} onToggle={()=>upd('showCalculator',!s.showCalculator)} /><Tog label="Show Market Data Tab" value={s.showMarketData} onToggle={()=>upd('showMarketData',!s.showMarketData)} /><Tog label="Show Subscription Tab" value={s.showSubscription} onToggle={()=>upd('showSubscription',!s.showSubscription)} /></div>}
+        {sec==='rosie' && (
+          <div>
+            <h3 style={{ color:'#e8e0d0', margin:'0 0 6px', fontWeight:'normal' }}>Rosie AI Voice Agent</h3>
+            <p style={{ color:'#4a5568', fontSize:'12px', margin:'0 0 24px' }}>Configure the Rosie AI voice assistant that lives inside the investor portal.</p>
+
+            {/* API Keys */}
+            <div style={{ background:'rgba(0,0,0,0.2)', border:'1px solid rgba(255,255,255,0.07)', borderRadius:'4px', padding:'20px', marginBottom:'20px' }}>
+              <div style={{ color:GOLD, fontSize:'10px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'16px' }}>API Configuration</div>
+              <F label="Deepgram API Key" value={s.deepgramApiKey||''} onChange={e=>upd('deepgramApiKey',e.target.value)} placeholder="Your Deepgram API key" type="password" />
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'0 16px' }}>
+                <div style={{ marginBottom:'16px' }}>
+                  <label style={ls}>LLM Provider</label>
+                  <select value={s.llmProvider||'open_ai'} onChange={e=>upd('llmProvider',e.target.value)} style={{ ...inp, cursor:'pointer' }}>
+                    <option value="open_ai">OpenAI</option>
+                    <option value="anthropic">Anthropic</option>
+                  </select>
+                </div>
+                <div style={{ marginBottom:'16px' }}>
+                  <label style={ls}>LLM Model</label>
+                  <select value={s.llmModel||'gpt-4.1-mini'} onChange={e=>upd('llmModel',e.target.value)} style={{ ...inp, cursor:'pointer' }}>
+                    <option value="gpt-4.1-mini">GPT-4.1 Mini (fast, cheap)</option>
+                    <option value="gpt-4o-mini">GPT-4o Mini</option>
+                    <option value="gpt-4o">GPT-4o (most capable)</option>
+                    <option value="claude-haiku-4-5-20251001">Claude Haiku (fast)</option>
+                    <option value="claude-sonnet-4-6">Claude Sonnet</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            {/* Voice settings */}
+            <div style={{ background:'rgba(0,0,0,0.2)', border:'1px solid rgba(255,255,255,0.07)', borderRadius:'4px', padding:'20px', marginBottom:'20px' }}>
+              <div style={{ color:GOLD, fontSize:'10px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'16px' }}>Voice Settings</div>
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'0 16px' }}>
+                <div style={{ marginBottom:'16px' }}>
+                  <label style={ls}>STT Model (Speech-to-Text)</label>
+                  <select value={s.sttModel||'nova-3'} onChange={e=>upd('sttModel',e.target.value)} style={{ ...inp, cursor:'pointer' }}>
+                    <option value="nova-3">Nova-3 (latest)</option>
+                    <option value="nova-2">Nova-2</option>
+                    <option value="nova-2-general">Nova-2 General</option>
+                  </select>
+                </div>
+                <div style={{ marginBottom:'16px' }}>
+                  <label style={ls}>Voice Model (Text-to-Speech)</label>
+                  <select value={s.voiceModel||'aura-2-asteria-en'} onChange={e=>upd('voiceModel',e.target.value)} style={{ ...inp, cursor:'pointer' }}>
+                    <option value="aura-2-asteria-en">Asteria (Female, Warm)</option>
+                    <option value="aura-2-luna-en">Luna (Female, Soft)</option>
+                    <option value="aura-2-stella-en">Stella (Female, Bright)</option>
+                    <option value="aura-2-athena-en">Athena (Female, Confident)</option>
+                    <option value="aura-2-hera-en">Hera (Female, Authoritative)</option>
+                    <option value="aura-2-orion-en">Orion (Male, Professional)</option>
+                    <option value="aura-2-arcas-en">Arcas (Male, Warm)</option>
+                    <option value="aura-asteria-en">Asteria v1</option>
+                    <option value="aura-luna-en">Luna v1</option>
+                  </select>
+                </div>
+              </div>
+              <F label="Agent Name" value={s.chatbotName||'Rosie'} onChange={e=>upd('chatbotName',e.target.value)} placeholder="Rosie" />
+            </div>
+
+            {/* Personality */}
+            <div style={{ background:'rgba(0,0,0,0.2)', border:'1px solid rgba(255,255,255,0.07)', borderRadius:'4px', padding:'20px', marginBottom:'20px' }}>
+              <div style={{ color:GOLD, fontSize:'10px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'16px' }}>Personality & Knowledge</div>
+              <TA label="Opening Greeting" value={s.chatbotGreeting||''} onChange={e=>upd('chatbotGreeting',e.target.value)} rows={3} placeholder="Hi! I'm Rosie..." />
+              <TA label="System Prompt / Personality" value={s.chatbotContext||''} onChange={e=>upd('chatbotContext',e.target.value)} rows={6} placeholder="You are Rosie, an AI investment assistant for Rosie AI LLC..." />
+              <TA label="Knowledge Base" value={s.knowledgeBase||''} onChange={e=>upd('knowledgeBase',e.target.value)} rows={8} placeholder="Paste additional facts, FAQs, or context Rosie should know..." />
+            </div>
+
+            <Tog label="Rosie AI Enabled on Portal" value={s.chatbotEnabled !== false} onToggle={()=>upd('chatbotEnabled',!s.chatbotEnabled)} />
+          </div>
+        )}
+        {sec==='toggles' && <div><h3 style={{ color:'#e8e0d0', margin:'0 0 20px', fontWeight:'normal' }}>Visibility</h3><Tog label="Portal Active" value={s.portalActive} onToggle={()=>upd('portalActive',!s.portalActive)} /><Tog label="Show Market Data Tab" value={s.showMarketData} onToggle={()=>upd('showMarketData',!s.showMarketData)} /><Tog label="Show Subscription Tab" value={s.showSubscription} onToggle={()=>upd('showSubscription',!s.showSubscription)} /></div>}
         <div style={{ display:'flex', gap:'12px', marginTop:'32px', paddingTop:'24px', borderTop:'1px solid rgba(255,255,255,0.07)', alignItems:'center' }}>
           <button onClick={save} style={{ background:'linear-gradient(135deg,#b8933a,#d4aa50)', color:DARK, border:'none', borderRadius:'2px', padding:'12px 32px', cursor:'pointer', fontWeight:'700', fontSize:'12px', letterSpacing:'2px', textTransform:'uppercase' }}>{saved?'✓ Saved!':'Save Changes'}</button>
           {saved && <span style={{ color:'#4ade80', fontSize:'13px' }}>Live on portal.</span>}
