@@ -39,12 +39,12 @@ function buildDGSettings(cfg, userName) {
   };
 }
 
-export default function RosieVoiceAgent({ userName = 'Steph', investorId = null, investorEmail = null }) {
+export default function RosieVoiceAgent({ userName = 'Steph', investorId = null, investorEmail = null, inline = false }) {
   const [phase, setPhase] = useState('idle'); 
   const [agentSpeaking, setAgentSpeaking] = useState(false);
   const [transcript, setTranscript] = useState([]);
   const [error, setError] = useState('');
-  const [isOpen, setIsOpen] = useState(false);
+  const [isOpen, setIsOpen] = useState(false); // ignored when inline=true
   const sessionIdRef = useRef(`rosie-${Date.now()}`);
 
   const wsRef        = useRef(null);
@@ -194,30 +194,57 @@ export default function RosieVoiceAgent({ userName = 'Steph', investorId = null,
     isListeningRef.current = false;
   }, []);
 
-  if (!isOpen) return <button onClick={() => setIsOpen(true)} style={pillStyle}>🎙 Talk to Rosie</button>;
+  // Floating mode — pill button toggles the fixed widget
+  if (!inline && !isOpen) return <button onClick={() => setIsOpen(true)} style={pillStyle}>🎙 Talk to Rosie</button>;
 
-  return (
-    <div style={containerStyle}>
-      <div style={headerStyle}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <div style={{ ...orbStyle, background: phase === 'active' && agentSpeaking ? GOLD : 'rgba(184,147,58,0.2)' }}>🎙</div>
-          <div style={{ color: GOLD, fontSize: '13px', fontWeight: 'bold' }}>Rosie AI</div>
-        </div>
-        <button onClick={() => { cleanup(); setIsOpen(false); }} style={closeBtnStyle}>×</button>
-      </div>
-      <div style={transcriptAreaStyle}>
+  // Shared inner content (used by both modes)
+  const chatBody = (
+    <>
+      <div style={{ flex:1, overflowY:'auto', padding:'16px', minHeight: inline ? '220px' : undefined }}>
+        {transcript.length === 0 && (
+          <div style={{ color:'#4a5568', fontSize:'12px', textAlign:'center', padding:'24px 0', fontStyle:'italic' }}>
+            {phase === 'active' ? 'Rosie is ready — start speaking…' : 'Click Start to connect with Rosie'}
+          </div>
+        )}
         {transcript.map((msg, i) => (
-          <div key={i} style={{ textAlign: msg.role === 'user' ? 'right' : 'left', margin: '10px 0' }}>
-            <span style={{ ...bubbleStyle, background: msg.role === 'user' ? GOLD : '#222', color: msg.role === 'user' ? '#000' : '#fff' }}>
+          <div key={i} style={{ textAlign: msg.role === 'user' ? 'right' : 'left', margin: '8px 0' }}>
+            <span style={{ ...bubbleStyle, background: msg.role === 'user' ? GOLD : 'rgba(255,255,255,0.07)', color: msg.role === 'user' ? '#000' : '#e8e0d0', border: msg.role !== 'user' ? '1px solid rgba(255,255,255,0.08)' : 'none' }}>
               {msg.text}
             </span>
           </div>
         ))}
         {error && <div style={errorStyle}>⚠ {error}</div>}
       </div>
-      <div style={footerStyle}>
-        {phase === 'active' ? <button onClick={() => cleanup()} style={endBtnStyle}>End Call</button> : <button onClick={connect} style={actionBtnStyle}>Start</button>}
+      <div style={{ padding:'12px 16px', borderTop:'1px solid rgba(255,255,255,0.06)', display:'flex', gap:'8px' }}>
+        {phase === 'active'
+          ? <button onClick={() => cleanup()} style={{ ...actionBtnStyle, background:'rgba(239,68,68,0.15)', color:'#ef4444', border:'1px solid rgba(239,68,68,0.3)' }}>⏹ End Session</button>
+          : <button onClick={connect} style={actionBtnStyle}>🎙 Start Talking to Rosie</button>
+        }
+        {agentSpeaking && <span style={{ color:GOLD, fontSize:'11px', alignSelf:'center', animation:'pulse 1s infinite' }}>Rosie speaking…</span>}
       </div>
+    </>
+  );
+
+  // Inline mode — renders inside the page layout, no fixed positioning
+  if (inline) {
+    return (
+      <div style={{ display:'flex', flexDirection:'column', background:'rgba(0,0,0,0.2)' }}>
+        {chatBody}
+      </div>
+    );
+  }
+
+  // Floating mode — fixed position widget
+  return (
+    <div style={containerStyle}>
+      <div style={headerStyle}>
+        <div style={{ display:'flex', alignItems:'center', gap:'10px' }}>
+          <div style={{ ...orbStyle, background: phase === 'active' && agentSpeaking ? GOLD : 'rgba(184,147,58,0.2)' }}>🎙</div>
+          <div style={{ color:GOLD, fontSize:'13px', fontWeight:'bold' }}>Rosie AI</div>
+        </div>
+        <button onClick={() => { cleanup(); setIsOpen(false); }} style={closeBtnStyle}>×</button>
+      </div>
+      {chatBody}
     </div>
   );
 }
