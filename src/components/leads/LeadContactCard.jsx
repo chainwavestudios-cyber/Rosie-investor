@@ -328,6 +328,203 @@ function OverviewTab({ editLead, setEditLead, saving, saveMsg, saveProfile, upda
   );
 }
 
+
+// ── Lead History Tab ─────────────────────────────────────────────────────────
+function LeadHistoryTab({ lead, history, onNoteAdded }) {
+  const [sub, setSub]         = useState('notes');
+  const [note, setNote]       = useState('');
+  const [saving, setSaving]   = useState(false);
+  const [emails, setEmails]   = useState([]);
+  const [loadingEmails, setLoadingEmails] = useState(false);
+  const GOLD = '#b8933a';
+
+  const fmtDT = (iso) => iso ? new Date(iso).toLocaleString('en-US', { month:'short', day:'numeric', year:'numeric', hour:'numeric', minute:'2-digit' }) : '';
+  const fmtDur = (s) => !s ? '' : s < 60 ? `${s}s` : `${Math.floor(s/60)}m ${s%60}s`;
+
+  useEffect(() => {
+    if (sub === 'emails' && emails.length === 0) loadEmails();
+  }, [sub]);
+
+  const loadEmails = async () => {
+    setLoadingEmails(true);
+    try {
+      const logs = await base44.entities.EmailLog.filter({ leadId: lead.id });
+      setEmails(logs.sort((a,b) => new Date(b.sentAt) - new Date(a.sentAt)));
+    } catch {}
+    setLoadingEmails(false);
+  };
+
+  const addNote = async () => {
+    if (!note.trim()) return;
+    setSaving(true);
+    try {
+      await base44.entities.LeadHistory.create({ leadId: lead.id, type: 'note', content: note.trim(), createdBy: 'admin' });
+      setNote('');
+      onNoteAdded && onNoteAdded();
+    } catch {}
+    setSaving(false);
+  };
+
+  // Filter history by sub-tab
+  const notes       = history.filter(h => ['note','status_change','call','connected','not_available','callback_later','not_interested','abandoned','interested'].includes(h.type));
+  const transcripts = history.filter(h => h.type === 'transcript');
+  const reports     = history.filter(h => h.type === 'call_report');
+
+  // Site access summary from lead fields
+  const siteAccessSummary = lead.lastSiteVisit ? [
+    { label: 'Last Visit', value: fmtDT(lead.lastSiteVisit) },
+    { label: 'Portal User', value: lead.portalPasscode || '—' },
+    { label: 'Email Opened', value: lead.badgeEmailOpened ? '✓ Yes' : 'No' },
+    { label: 'Consumer Site', value: lead.badgeConsumerWebsite ? '✓ Yes' : 'No' },
+    { label: 'Investor Page', value: lead.badgeInvestorPage ? '✓ Yes' : 'No' },
+  ] : null;
+
+  const typeColor = { call:'#60a5fa', connected:'#4ade80', not_available:'#8a9ab8', callback_later:'#a78bfa', not_interested:'#ef4444', status_change:GOLD, note:'#c4cdd8', interested:'#4ade80', abandoned:'#ef4444' };
+  const typeIcon  = { call:'📞', connected:'✅', not_available:'📵', callback_later:'🔁', not_interested:'🚫', status_change:'🔄', note:'📝', interested:'🌟', abandoned:'⛔', transcript:'🎙', call_report:'📋' };
+
+  const inp = { width:'100%', background:'rgba(255,255,255,0.05)', border:'1px solid rgba(255,255,255,0.1)', borderRadius:'4px', padding:'8px 12px', color:'#e8e0d0', fontSize:'12px', outline:'none', fontFamily:'Georgia, serif', boxSizing:'border-box', resize:'vertical' };
+
+  const SUB_TABS = [
+    ['notes',       '📝 My Notes', notes.length],
+    ['emails',      '✉️ Emails',   emails.length || ''],
+    ['transcripts', '🎙 Transcripts', transcripts.length],
+    ['reports',     '📋 Reports',  reports.length],
+    ['siteaccess',  '🌐 Site Access', ''],
+  ];
+
+  return (
+    <div style={{ display:'flex', flexDirection:'column', height:'100%' }}>
+      {/* Sub-tabs */}
+      <div style={{ display:'flex', borderBottom:'1px solid rgba(255,255,255,0.07)', marginBottom:'16px', flexShrink:0 }}>
+        {SUB_TABS.map(([id, label, count]) => (
+          <button key={id} onClick={() => setSub(id)}
+            style={{ background:'none', border:'none', borderBottom:sub===id?`2px solid ${GOLD}`:'2px solid transparent', color:sub===id?GOLD:'#6b7280', padding:'8px 14px', cursor:'pointer', fontSize:'10px', letterSpacing:'0.5px', whiteSpace:'nowrap', position:'relative' }}>
+            {label}
+            {count > 0 && <span style={{ marginLeft:'5px', background:'rgba(184,147,58,0.2)', color:GOLD, borderRadius:'10px', padding:'0px 5px', fontSize:'9px' }}>{count}</span>}
+          </button>
+        ))}
+      </div>
+
+      <div style={{ flex:1, overflowY:'auto' }}>
+
+        {/* ── MY NOTES ── */}
+        {sub === 'notes' && (
+          <div>
+            <div style={{ display:'flex', gap:'8px', marginBottom:'16px' }}>
+              <textarea value={note} onChange={e=>setNote(e.target.value)} placeholder="Add a note…" rows={2} style={inp}
+                onKeyDown={e=>{ if(e.key==='Enter'&&e.metaKey) addNote(); }} />
+              <button onClick={addNote} disabled={saving||!note.trim()}
+                style={{ background:'linear-gradient(135deg,#b8933a,#d4aa50)', color:'#0a0f1e', border:'none', borderRadius:'4px', padding:'8px 14px', cursor:'pointer', fontSize:'11px', fontWeight:'bold', whiteSpace:'nowrap', alignSelf:'flex-start' }}>
+                {saving ? '…' : '+ Add'}
+              </button>
+            </div>
+            {notes.length === 0 && <p style={{ color:'#4a5568', textAlign:'center', padding:'24px' }}>No notes yet.</p>}
+            {notes.map((h, i) => {
+              const color = typeColor[h.type] || '#6b7280';
+              const icon  = typeIcon[h.type]  || '📝';
+              return (
+                <div key={h.id||i} style={{ display:'flex', gap:'12px', marginBottom:'12px' }}>
+                  <div style={{ fontSize:'16px', flexShrink:0, marginTop:'2px' }}>{icon}</div>
+                  <div style={{ flex:1, background:'rgba(255,255,255,0.02)', border:'1px solid rgba(255,255,255,0.06)', borderRadius:'4px', padding:'10px 12px' }}>
+                    <div style={{ display:'flex', justifyContent:'space-between', marginBottom:'4px' }}>
+                      <span style={{ color, fontSize:'10px', textTransform:'uppercase', letterSpacing:'1px' }}>{h.type.replace(/_/g,' ')}</span>
+                      <span style={{ color:'#4a5568', fontSize:'10px' }}>{fmtDT(h.created_date)}</span>
+                    </div>
+                    <p style={{ color:'#c4cdd8', fontSize:'12px', margin:0, lineHeight:1.6, whiteSpace:'pre-wrap' }}>{h.content}</p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* ── EMAILS ── */}
+        {sub === 'emails' && (
+          <div>
+            {loadingEmails && <p style={{ color:'#6b7280', textAlign:'center', padding:'24px' }}>Loading…</p>}
+            {!loadingEmails && emails.length === 0 && <p style={{ color:'#4a5568', textAlign:'center', padding:'24px' }}>No emails sent yet.</p>}
+            {emails.map((log, i) => (
+              <div key={log.id||i} style={{ background:'rgba(255,255,255,0.02)', border:'1px solid rgba(255,255,255,0.06)', borderRadius:'4px', padding:'12px 14px', marginBottom:'8px' }}>
+                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'6px' }}>
+                  <div style={{ display:'flex', gap:'8px', alignItems:'center' }}>
+                    <span style={{ fontSize:'14px' }}>✉️</span>
+                    <span style={{ color:{ sent:'#60a5fa', delivered:'#4ade80', opened:'#4ade80', clicked:'#f59e0b', bounced:'#ef4444', spam:'#ef4444' }[log.status]||'#8a9ab8', fontSize:'11px', fontWeight:'bold', textTransform:'uppercase' }}>{log.status}</span>
+                  </div>
+                  <span style={{ color:'#4a5568', fontSize:'10px' }}>{fmtDT(log.sentAt)}</span>
+                </div>
+                {log.openedAt  && <div style={{ color:'#4ade80', fontSize:'11px' }}>📬 Opened: {fmtDT(log.openedAt)}</div>}
+                {log.clickedAt && <div style={{ color:'#f59e0b', fontSize:'11px', marginTop:'2px' }}>🔗 Clicked: {fmtDT(log.clickedAt)}{log.clickedUrl ? ` — ${log.clickedUrl}` : ''}</div>}
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* ── TRANSCRIPTS ── */}
+        {sub === 'transcripts' && (
+          <div>
+            {transcripts.length === 0 && <p style={{ color:'#4a5568', textAlign:'center', padding:'24px' }}>No call transcripts yet. Transcripts are auto-saved when you stop listening.</p>}
+            {transcripts.map((h, i) => (
+              <div key={h.id||i} style={{ background:'rgba(0,0,0,0.2)', border:'1px solid rgba(255,255,255,0.06)', borderRadius:'4px', marginBottom:'12px', overflow:'hidden' }}>
+                <div style={{ padding:'8px 12px', borderBottom:'1px solid rgba(255,255,255,0.05)', display:'flex', justifyContent:'space-between', alignItems:'center', background:'rgba(96,165,250,0.06)' }}>
+                  <span style={{ color:'#60a5fa', fontSize:'10px', letterSpacing:'1px', textTransform:'uppercase' }}>🎙 Call Transcript</span>
+                  <span style={{ color:'#4a5568', fontSize:'10px' }}>{fmtDT(h.created_date)}</span>
+                </div>
+                <pre style={{ color:'#8a9ab8', fontSize:'11px', lineHeight:1.7, margin:0, padding:'12px', whiteSpace:'pre-wrap', fontFamily:'monospace', maxHeight:'300px', overflowY:'auto' }}>{h.content}</pre>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* ── CALL REPORTS ── */}
+        {sub === 'reports' && (
+          <div>
+            {reports.length === 0 && <p style={{ color:'#4a5568', textAlign:'center', padding:'24px' }}>No call reports yet. Reports are auto-generated when you stop listening.</p>}
+            {reports.map((h, i) => (
+              <div key={h.id||i} style={{ background:'rgba(184,147,58,0.04)', border:'1px solid rgba(184,147,58,0.15)', borderRadius:'4px', marginBottom:'12px', overflow:'hidden' }}>
+                <div style={{ padding:'8px 12px', borderBottom:'1px solid rgba(184,147,58,0.1)', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                  <span style={{ color:GOLD, fontSize:'10px', letterSpacing:'1px', textTransform:'uppercase' }}>📋 Call Report</span>
+                  <span style={{ color:'#4a5568', fontSize:'10px' }}>{fmtDT(h.created_date)}</span>
+                </div>
+                <div style={{ color:'#c4cdd8', fontSize:'12px', lineHeight:1.8, padding:'14px', whiteSpace:'pre-wrap' }}>{h.content}</div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* ── SITE ACCESS ── */}
+        {sub === 'siteaccess' && (
+          <div>
+            <div style={{ background:'rgba(0,0,0,0.15)', border:'1px solid rgba(255,255,255,0.06)', borderRadius:'4px', padding:'12px 16px', marginBottom:'14px', fontSize:'11px', color:'#6b7280' }}>
+              Summary view only — visit <strong style={{ color:GOLD }}>📊 Site Stats</strong> tab for full page-by-page detail.
+            </div>
+            {!lead.lastSiteVisit && !lead.portalPasscode && (
+              <p style={{ color:'#4a5568', textAlign:'center', padding:'24px' }}>No site activity yet. Send the prospect email to enable tracking.</p>
+            )}
+            {(lead.lastSiteVisit || lead.portalPasscode) && (
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'8px' }}>
+                {[
+                  ['🕐 Last Visit',     lead.lastSiteVisit ? fmtDT(lead.lastSiteVisit) : 'Never',  '#60a5fa'],
+                  ['🔑 Portal User',    lead.portalPasscode || 'Not assigned',                       GOLD],
+                  ['📬 Email Opened',   lead.badgeEmailOpened ? '✓ Yes' : 'Not yet',                lead.badgeEmailOpened ? '#4ade80' : '#4a5568'],
+                  ['🌐 Consumer Site',  lead.badgeConsumerWebsite ? '✓ Visited' : 'Not yet',        lead.badgeConsumerWebsite ? '#4ade80' : '#4a5568'],
+                  ['💼 Investor Page',  lead.badgeInvestorPage ? '✓ Visited' : 'Not yet',          lead.badgeInvestorPage ? '#4ade80' : '#4a5568'],
+                  ['⭐ Engagement',     `${lead.engagementScore || 0} pts`,                         GOLD],
+                ].map(([label, value, color]) => (
+                  <div key={label} style={{ background:'rgba(255,255,255,0.02)', border:'1px solid rgba(255,255,255,0.06)', borderRadius:'4px', padding:'10px 12px' }}>
+                    <div style={{ color:'#4a5568', fontSize:'9px', textTransform:'uppercase', letterSpacing:'1px', marginBottom:'4px' }}>{label}</div>
+                    <div style={{ color, fontSize:'13px', fontWeight:'bold' }}>{value}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+      </div>
+    </div>
+  );
+}
+
 export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber, dialerRef, onResume, isDialerPaused, onNextLead, onPrevLead, currentLeadIndex, totalLeads }) {
   // Archived = migrated to CRM — card is read-only
   const isArchived = !!(lead.migratedToPortal || lead.convertedToInvestorUserId || lead.status === 'converted');
@@ -566,7 +763,7 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
 
         {/* Tabs */}
         <div style={{ display:'flex', borderBottom:'1px solid rgba(255,255,255,0.07)', flexShrink:0 }}>
-          {[['overview','👤 Overview'],['actions','⚡ Actions'],['email','✉️ Emails'],['access','🔑 Access'],['sitestats','📊 Site Stats'],['research','🔍 Research'],['script','📝 Script']].filter(([id]) => !(isArchived && id === 'actions')).map(([id,label]) => (
+          {[['overview','👤 Overview'],['history','📋 History'],['actions','⚡ Actions'],['access','🔑 Access'],['sitestats','📊 Site Stats'],['research','🔍 Research'],['script','📝 Script']].filter(([id]) => !(isArchived && id === 'actions')).map(([id,label]) => (
             <button key={id} onClick={() => setTab(id)} style={{ background:'none', border:'none', borderBottom:tab===id?`2px solid ${GOLD}`:'2px solid transparent', color:tab===id?GOLD:'#6b7280', padding:'11px 20px', cursor:'pointer', fontSize:'11px', letterSpacing:'1px' }}>{label}</button>
           ))}
         </div>
@@ -588,13 +785,9 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
             />
           )}
 
-          {/* ── EMAILS ── */}
-          {tab === 'email' && (
-            <LeadEmailTab lead={editLead} onUpdate={() => { onUpdate && onUpdate(); }} />
-          )}
-
-          {tab === 'website' && (
-            <WebsiteHistoryTab lead={editLead} />
+          {/* ── HISTORY ── */}
+          {tab === 'history' && (
+            <LeadHistoryTab lead={editLead} history={history} onNoteAdded={loadHistory} />
           )}
 
           {tab === 'access' && (
