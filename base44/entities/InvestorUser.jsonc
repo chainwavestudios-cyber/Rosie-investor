@@ -99,6 +99,33 @@
     "leadId": {
       "type": "string",
       "title": "Lead ID"
+    },
+    "pipelineStage": {
+      "type": "string",
+      "title": "Pipeline Stage",
+      "enum": [
+        "reviewing",
+        "read",
+        "callback",
+        "preclose",
+        "load"
+      ],
+      "default": "reviewing"
+    },
+    "migratedAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Migrated At"
+    },
+    "lastActivityAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Last Activity At"
+    },
+    "lastViewedTabs": {
+      "type": "string",
+      "format": "textarea",
+      "title": "Last Viewed Tabs (JSON)"
     }
   },
   "required": [

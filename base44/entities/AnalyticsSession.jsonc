@@ -14,6 +14,10 @@
       "type": "string",
       "title": "User Name"
     },
+    "investorId": {
+      "type": "string",
+      "title": "Investor ID"
+    },
     "startTime": {
       "type": "string",
       "format": "date-time",

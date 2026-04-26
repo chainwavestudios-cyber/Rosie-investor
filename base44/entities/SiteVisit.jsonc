@@ -43,6 +43,10 @@
       "type": "string",
       "format": "date-time",
       "title": "Visited At"
+    },
+    "investorId": {
+      "type": "string",
+      "title": "Investor ID"
     }
   },
   "required": [
