@@ -425,7 +425,7 @@ export default function ScriptAssistant({ lead, user }) {
   );
 
   return (
-    <div style={{ display:'flex', flexDirection:'column', height:'100%' }}>
+    <div style={{ display:'flex', flexDirection:'column', height:'100%', minHeight:0, flex:1 }}>
       <style>{`@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}`}</style>
 
       {/* Layout toolbar */}
@@ -438,7 +438,7 @@ export default function ScriptAssistant({ lead, user }) {
       </div>
 
       {/* Main area */}
-      <div ref={containerRef} style={{ flex:1, overflow:'hidden', display:'flex', flexDirection: layout==='top' ? 'column' : 'row', position:'relative' }}>
+      <div ref={containerRef} style={{ flex:1, minHeight:0, overflow:'hidden', display:'flex', flexDirection: layout==='top' ? 'column' : 'row', position:'relative' }}>
 
         {/* Script panel */}
         {layout !== 'fullai' && (
