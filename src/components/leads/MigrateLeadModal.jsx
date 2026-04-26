@@ -64,14 +64,23 @@ export default function MigrateLeadModal({ lead, history, onClose, onMigrated })
         });
       }
 
-      // 3. Migrate all lead history → ContactNotes
+      // 3. Migrate all lead history → ContactNotes in admin History tab
       for (const h of (history || [])) {
         try {
+          // Map lead history types to contact note types
+          const noteType = (() => {
+            if (['call', 'connected'].includes(h.type)) return 'call';
+            if (h.type === 'sms') return 'sms';
+            if (h.type === 'email' || (h.content || '').includes('Email sent')) return 'email';
+            return 'note';
+          })();
+          // Format the label for clarity
+          const typeLabel = h.type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
           await base44.entities.ContactNote.create({
             investorId:    investorUser.id,
             investorEmail: investorUser.email,
-            type:          ['call','connected'].includes(h.type) ? 'call' : 'note',
-            content:       `[Migrated] ${h.content || ''}`,
+            type:          noteType,
+            content:       `[From Lead History · ${typeLabel}] ${h.content || ''}`,
             createdAt:     h.created_date,
             createdBy:     h.createdBy || 'admin',
           });
