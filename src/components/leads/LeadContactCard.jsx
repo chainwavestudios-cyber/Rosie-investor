@@ -1,930 +1,692 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { base44 } from '@/api/base44Client';
-import MigrateLeadModal from './MigrateLeadModal';
-import DateTimePicker from '@/components/admin/DateTimePicker';
-import LeadEmailTab from './LeadEmailTab';
-import ScriptAssistant from './ScriptAssistant';
-import ResearchTab from './ResearchTab';
-import InvestorWebsiteTab from './InvestorWebsiteTab';
-import WebsiteHistoryTab from './WebsiteHistoryTab';
-import ZoomBookingModal from '@/components/ZoomBookingModal';
 
 const GOLD = '#b8933a';
 const DARK = '#0a0f1e';
-const inp = { width:'100%', background:'rgba(255,255,255,0.05)', border:'1px solid rgba(255,255,255,0.12)', borderRadius:'2px', padding:'8px 12px', color:'#e8e0d0', fontSize:'13px', outline:'none', boxSizing:'border-box', fontFamily:'Georgia, serif' };
-const ls = { display:'block', color:'#8a9ab8', fontSize:'10px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'4px' };
 
-const STATUS_LABELS = {
-  lead:     { label: '🔵 Lead',     color: '#60a5fa' },
-  prospect: { label: '🚀 Prospect', color: '#a78bfa' },
+const applyTokens = (text, lead, user) => {
+  if (!text) return '';
+  const first = lead?.firstName || user?.name?.split(' ')[0] || '';
+  const last  = lead?.lastName  || user?.name?.split(' ').slice(1).join(' ') || '';
+  return text
+    .replace(/\{\{\s*first\s*name\s*\}\}/gi, first)
+    .replace(/\{\{\s*last\s*name\s*\}\}/gi, last)
+    .replace(/\{\{\s*firstname\s*\}\}/gi, first)
+    .replace(/\{\{\s*lastname\s*\}\}/gi, last);
 };
 
-const HISTORY_ICONS = {
-  call: '📞', not_available: '📵', callback_later: '📅',
-  not_interested: '❌', status_change: '🔄', note: '📝', prospect: '🚀',
-};
+const QUESTION_PATTERN = /\b(what|how|why|when|where|who|can|could|would|is|are|do|does|will|should|have|has|tell me|explain)\b.{5,80}\?/gi;
 
-function historyColor(type) {
-  const map = { call:'#60a5fa', not_available:'#8a9ab8', callback_later:'#a78bfa', not_interested:'#ef4444', status_change:GOLD, note:'#c4cdd8', prospect:'#a78bfa' };
-  return map[type] || '#6b7280';
-}
+const TRIGGER_PATTERNS = [
+  /minimum investment/i, /how much/i, /what.s the minimum/i,
+  /return/i, /roi/i, /yield/i, /is it safe/i, /risk/i,
+  /guaranteed/i, /how long/i, /lock.?up/i, /liquidity/i,
+  /accredited/i, /fees/i, /cost/i, /regulation/i, /sec/i,
+];
 
-function AccessTab({ lead, onUpdate, onSave }) {
-  const GOLD = '#b8933a';
-  const DARK = '#0a0f1e';
-  const [generating, setGenerating] = useState(false);
-  const [copied, setCopied] = useState('');
+// ── Duck/Cow Intent Display ───────────────────────────────────────────────
+function IntentMeter({ intent }) {
+  if (!intent) return null;
+  const { animalType, buyingIntent = 50, questionQuality = 50, intentLabel, signals = [], coachTip } = intent;
 
-  const username = lead?.portalPasscode || '';
-  const lastNameForUrl = (lead?.lastName || '').toLowerCase().replace(/[^a-z]/g, '');
-  const sitePassword  = username ? `${lastNameForUrl}#2026` : '';
-  // Info site - username only to auto-login
-  const investorUrl   = username ? `https://investors.rosieai.tech/portal-login?username=${encodeURIComponent(username)}` : '';
-  // Portal - full credentials (for admin reference)
-  const portalUrl     = username ? `https://investors.rosieai.tech/portal-login?username=${encodeURIComponent(username)}&password=${encodeURIComponent(sitePassword)}` : '';
-  const consumerUrl = username ? `https://www.rosieai.tech?ref=${username}` : '';
+  const intentColor = { hot: '#4ade80', warm: '#f59e0b', cold: '#ef4444', uncertain: '#8a9ab8' }[intentLabel] || '#8a9ab8';
 
-  const generate = async () => {
-    setGenerating(true);
-    try {
-      // Build username: firstname + last 4 of phone
-      const nameSlug = (lead.firstName || 'user').toLowerCase().replace(/[^a-z]/g, '');
-      const last4 = (lead.phone || '').replace(/\D/g, '').slice(-4) || '0000';
-      const newUsername = `${nameSlug}${last4}`;
-      // Password = lastname#2026 all lowercase
-      const lastNameSlug = (lead.lastName || '').toLowerCase().replace(/[^a-z]/g, '');
-      const newPassword = `${lastNameSlug}#2026`;
-
-      // Create InvestorUser so they can log in
-      const hashRes = await fetch(
-        'https://investors.rosieai.tech/api/apps/69cd2741578c9b5ce655395b/functions/hashPassword',
-        { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'hash', password: newPassword }) }
-      );
-      const hashData = await hashRes.json();
-      const hashedPassword = hashData?.hash || newPassword;
-
-      const existing = await base44.entities.InvestorUser.filter({ username: newUsername });
-      if (existing?.length > 0) {
-        await base44.entities.InvestorUser.update(existing[0].id, {
-          email: lead.email || '', name: `${lead.firstName} ${lead.lastName}`, password: hashedPassword, leadId: lead.id,
-        });
-      } else {
-        await base44.entities.InvestorUser.create({
-          username: newUsername, email: lead.email || '', name: `${lead.firstName} ${lead.lastName}`,
-          password: hashedPassword, role: 'investor', status: 'prospect', siteAccess: 'info_only', leadId: lead.id,
-        });
-      }
-
-      // Save to lead
-      await onSave({ portalPasscode: newUsername });
-
-      // Log it
-      await base44.entities.LeadHistory.create({
-        leadId: lead.id, type: 'note',
-        content: `🔑 Access credentials generated. Username: ${newUsername}`,
-      });
-    } catch(e) { console.error(e); }
-    setGenerating(false);
-  };
-
-  const copy = (text, key) => {
-    navigator.clipboard.writeText(text);
-    setCopied(key);
-    setTimeout(() => setCopied(''), 2000);
-  };
-
-  const inp = { width:'100%', background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.1)', borderRadius:'4px', padding:'9px 12px', color:'#e8e0d0', fontSize:'12px', outline:'none', fontFamily:'monospace', boxSizing:'border-box', cursor:'text' };
-
-  return (
-    <div style={{ display:'flex', flexDirection:'column', gap:'16px' }}>
-
-      {/* Generate button */}
-      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-        <div>
-          <div style={{ color:'#e8e0d0', fontSize:'14px', marginBottom:'3px' }}>Access Credentials</div>
-          <div style={{ color:'#6b7280', fontSize:'11px' }}>Generate a unique username and tracking links for this lead</div>
-        </div>
-        <button onClick={generate} disabled={generating}
-          style={{ background: generating ? 'rgba(184,147,58,0.2)' : 'linear-gradient(135deg,#b8933a,#d4aa50)', color:DARK, border:'none', borderRadius:'6px', padding:'9px 18px', cursor: generating ? 'not-allowed' : 'pointer', fontWeight:'bold', fontSize:'12px', letterSpacing:'1px', whiteSpace:'nowrap' }}>
-          {generating ? '⏳ Generating…' : username ? '🔄 Regenerate' : '⚡ Generate Access'}
-        </button>
+  const Bar = ({ value, color, label }) => (
+    <div style={{ marginBottom: '6px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2px' }}>
+        <span style={{ color: '#6b7280', fontSize: '9px', textTransform: 'uppercase', letterSpacing: '1px' }}>{label}</span>
+        <span style={{ color, fontSize: '9px', fontWeight: 'bold' }}>{value}%</span>
       </div>
-
-      {!username && (
-        <div style={{ background:'rgba(245,158,11,0.07)', border:'1px solid rgba(245,158,11,0.2)', borderRadius:'6px', padding:'14px 16px', color:'#f59e0b', fontSize:'12px', textAlign:'center' }}>
-          No credentials yet — click Generate Access to create them
-        </div>
-      )}
-
-      {username && (
-        <>
-          {/* Username */}
-          <div>
-            <div style={{ color:'#6b7280', fontSize:'9px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'6px' }}>🔑 Username (investors.rosieai.tech)</div>
-            <div style={{ display:'flex', gap:'6px' }}>
-              <input readOnly value={username} style={inp} />
-              <button onClick={() => copy(username, 'username')}
-                style={{ background:'rgba(255,255,255,0.06)', color: copied==='username' ? '#4ade80' : '#8a9ab8', border:'1px solid rgba(255,255,255,0.1)', borderRadius:'4px', padding:'8px 12px', cursor:'pointer', fontSize:'11px', whiteSpace:'nowrap' }}>
-                {copied==='username' ? '✓ Copied' : 'Copy'}
-              </button>
-            </div>
-            <div style={{ color:'#4a5568', fontSize:'10px', marginTop:'4px' }}>Password is the same as username</div>
-          </div>
-
-          {/* Investor site URL - username only */}
-          <div>
-            <div style={{ color:'#6b7280', fontSize:'9px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'6px' }}>💼 Investors Site URL (Username Auto-Fill)</div>
-            <div style={{ display:'flex', gap:'6px' }}>
-              <input readOnly value={investorUrl} style={{ ...inp, fontSize:'10px' }} />
-              <button onClick={() => copy(investorUrl, 'invUrl')}
-                style={{ background:'rgba(96,165,250,0.1)', color: copied==='invUrl' ? '#4ade80' : '#60a5fa', border:'1px solid rgba(96,165,250,0.25)', borderRadius:'4px', padding:'8px 12px', cursor:'pointer', fontSize:'11px', whiteSpace:'nowrap' }}>
-                {copied==='invUrl' ? '✓ Copied' : 'Copy'}
-              </button>
-            </div>
-            <div style={{ color:'#4a5568', fontSize:'10px', marginTop:'4px' }}>Username pre-filled — they enter it to access the site</div>
-          </div>
-
-          {/* Portal credentials - admin reference */}
-          <div>
-            <div style={{ color:'#6b7280', fontSize:'9px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'6px' }}>🔐 Portal Credentials (Admin Reference)</div>
-            <div style={{ display:'flex', gap:'8px', marginBottom:'4px' }}>
-              <div style={{ flex:1, background:'rgba(0,0,0,0.15)', border:'1px solid rgba(255,255,255,0.07)', borderRadius:'4px', padding:'7px 10px' }}>
-                <div style={{ color:'#4a5568', fontSize:'8px', textTransform:'uppercase', letterSpacing:'1px', marginBottom:'2px' }}>Username</div>
-                <div style={{ color:GOLD, fontFamily:'monospace', fontSize:'12px' }}>{username}</div>
-              </div>
-              <div style={{ flex:1, background:'rgba(0,0,0,0.15)', border:'1px solid rgba(255,255,255,0.07)', borderRadius:'4px', padding:'7px 10px' }}>
-                <div style={{ color:'#4a5568', fontSize:'8px', textTransform:'uppercase', letterSpacing:'1px', marginBottom:'2px' }}>Password</div>
-                <div style={{ color:'#e8e0d0', fontFamily:'monospace', fontSize:'12px' }}>{sitePassword}</div>
-              </div>
-              <button onClick={() => copy(`Username: ${username}
-Password: ${sitePassword}`, 'creds')}
-                style={{ background:'rgba(255,255,255,0.05)', color: copied==='creds' ? '#4ade80' : '#8a9ab8', border:'1px solid rgba(255,255,255,0.1)', borderRadius:'4px', padding:'8px 10px', cursor:'pointer', fontSize:'10px', whiteSpace:'nowrap' }}>
-                {copied==='creds' ? '✓' : 'Copy'}
-              </button>
-            </div>
-            <div style={{ color:'#4a5568', fontSize:'10px' }}>Portal password = lastname#2026 · Not shared with lead until migrated</div>
-          </div>
-
-          {/* Consumer site ref URL */}
-          <div>
-            <div style={{ color:'#6b7280', fontSize:'9px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'6px' }}>🌐 Consumer Site Referral URL</div>
-            <div style={{ display:'flex', gap:'6px' }}>
-              <input readOnly value={consumerUrl} style={{ ...inp, fontSize:'10px' }} />
-              <button onClick={() => copy(consumerUrl, 'conUrl')}
-                style={{ background:'rgba(167,139,250,0.1)', color: copied==='conUrl' ? '#4ade80' : '#a78bfa', border:'1px solid rgba(167,139,250,0.25)', borderRadius:'4px', padding:'8px 12px', cursor:'pointer', fontSize:'11px', whiteSpace:'nowrap' }}>
-                {copied==='conUrl' ? '✓ Copied' : 'Copy'}
-              </button>
-            </div>
-            <div style={{ color:'#4a5568', fontSize:'10px', marginTop:'4px' }}>Tracks their visits to rosieai.tech</div>
-          </div>
-
-          {/* Status */}
-          <div style={{ background:'rgba(74,222,128,0.06)', border:'1px solid rgba(74,222,128,0.2)', borderRadius:'6px', padding:'10px 14px', display:'flex', gap:'10px', alignItems:'center' }}>
-            <span style={{ fontSize:'18px' }}>✅</span>
-            <div>
-              <div style={{ color:'#4ade80', fontSize:'12px', fontWeight:'bold' }}>Access Active</div>
-              <div style={{ color:'#6b7280', fontSize:'10px' }}>Portal account exists · tracking enabled</div>
-            </div>
-          </div>
-        </>
-      )}
-    </div>
-  );
-}
-
-function OverviewTab({ editLead, setEditLead, saving, saveMsg, saveProfile, updateStatus, quickNote, setQuickNote, addQuickNote, addingNote, history, loading, isArchived }) {
-  const [editing, setEditing] = useState(false);
-  const GOLD = '#b8933a';
-  const DARK = '#0a0f1e';
-  const inp = { width:'100%', background:'rgba(255,255,255,0.05)', border:'1px solid rgba(255,255,255,0.15)', borderRadius:'4px', padding:'9px 12px', color:'#e8e0d0', fontSize:'13px', outline:'none', boxSizing:'border-box', fontFamily:'Georgia, serif' };
-  const ls = { display:'block', color:'#4a5568', fontSize:'9px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'5px' };
-
-  const STATUS_LABELS = {
-    lead:     { label: '🔵 Lead',     color: '#60a5fa' },
-    prospect: { label: '🚀 Prospect', color: '#a78bfa' },
-  };
-  const HISTORY_ICONS = { call:'📞', not_available:'📵', callback_later:'📅', not_interested:'❌', status_change:'🔄', note:'📝', prospect:'🚀', connected:'🟢' };
-  const historyColor = (type) => ({ call:'#60a5fa', not_available:'#8a9ab8', callback_later:'#a78bfa', not_interested:'#ef4444', status_change:GOLD, note:'#c4cdd8', prospect:'#a78bfa', connected:'#4ade80' })[type] || '#6b7280';
-
-  const InfoRow = ({ icon, label, value, color }) => (
-    <div style={{ display:'flex', alignItems:'center', gap:'10px', padding:'8px 12px', background:'rgba(255,255,255,0.02)', borderRadius:'4px', border:'1px solid rgba(255,255,255,0.05)' }}>
-      <span style={{ fontSize:'16px', flexShrink:0 }}>{icon}</span>
-      <div style={{ minWidth:0 }}>
-        <div style={{ color:'#4a5568', fontSize:'9px', letterSpacing:'1.5px', textTransform:'uppercase', marginBottom:'1px' }}>{label}</div>
-        <div style={{ color: color || '#e8e0d0', fontSize:'13px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{value || <span style={{ color:'#4a5568', fontStyle:'italic' }}>—</span>}</div>
+      <div style={{ height: '4px', background: 'rgba(255,255,255,0.07)', borderRadius: '2px' }}>
+        <div style={{ height: '100%', width: `${value}%`, background: `linear-gradient(90deg, ${color}88, ${color})`, borderRadius: '2px', transition: 'width 0.5s ease' }} />
       </div>
     </div>
   );
 
   return (
-    <div style={{ display:'flex', flexDirection:'column', gap:'14px' }}>
+    <div style={{ padding: '8px 10px', background: 'rgba(0,0,0,0.2)', borderBottom: '1px solid rgba(255,255,255,0.06)', flexShrink: 0 }}>
+      <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-start' }}>
 
-      {/* Status + Edit row */}
-      {!isArchived && <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-        <div style={{ display:'flex', gap:'6px' }}>
-          {['lead','prospect'].map(s => {
-            const si = STATUS_LABELS[s];
-            const active = editLead.status === s;
-            return (
-              <button key={s} onClick={() => updateStatus(s, 'status_change', `Status changed to ${s}`)}
-                style={{ padding:'6px 16px', border:`1px solid ${active ? si.color : 'rgba(255,255,255,0.1)'}`, borderRadius:'20px', background:active ? `${si.color}22` : 'transparent', color:active ? si.color : '#6b7280', cursor:'pointer', fontSize:'12px', fontWeight:active?'bold':'normal', transition:'all 0.15s' }}>
-                {si.label}
-              </button>
-            );
-          })}
+        {/* Animal */}
+        <div style={{ textAlign: 'center', flexShrink: 0, minWidth: '52px' }}>
+          <div style={{ fontSize: '28px', lineHeight: 1, marginBottom: '2px' }}>
+            {animalType === 'duck' ? '🦆' : animalType === 'cow' ? '🐄' : '❓'}
+          </div>
+          <div style={{ fontSize: '8px', textTransform: 'uppercase', letterSpacing: '1px', color: animalType === 'duck' ? '#f59e0b' : animalType === 'cow' ? '#4ade80' : '#6b7280', fontWeight: 'bold' }}>
+            {animalType === 'duck' ? 'Duck' : animalType === 'cow' ? 'Cow' : 'Reading…'}
+          </div>
+          <div style={{ fontSize: '7px', color: '#4a5568', marginTop: '1px' }}>
+            {animalType === 'duck' ? 'Skeptic' : animalType === 'cow' ? 'Believer' : ''}
+          </div>
         </div>
-        <button onClick={() => setEditing(e => !e)}
-          style={{ background: editing ? 'rgba(184,147,58,0.2)' : 'rgba(255,255,255,0.05)', color: editing ? GOLD : '#8a9ab8', border:`1px solid ${editing ? 'rgba(184,147,58,0.4)' : 'rgba(255,255,255,0.1)'}`, borderRadius:'4px', padding:'6px 14px', cursor:'pointer', fontSize:'11px', letterSpacing:'0.5px' }}>
-          {editing ? '✕ Cancel Edit' : '✏️ Edit'}
-        </button>
-      </div>}
 
-      {/* Contact info — view mode */}
-      {!editing && (
-        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'8px' }}>
-          <InfoRow icon="👤" label="First Name" value={editLead.firstName} />
-          <InfoRow icon="👤" label="Last Name" value={editLead.lastName} />
-          <InfoRow icon="📞" label="Phone" value={editLead.phone} color="#4ade80" />
-          <InfoRow icon="📱" label="Alt Phone" value={editLead.phone2} />
-          <InfoRow icon="✉️" label="Email" value={editLead.email} color="#60a5fa" />
-          <InfoRow icon="📍" label="State" value={editLead.state} />
-          {editLead.address && <div style={{ gridColumn:'1/-1' }}><InfoRow icon="🏠" label="Address" value={editLead.address} /></div>}
-          {editLead.bestTimeToCall && <div style={{ gridColumn:'1/-1' }}><InfoRow icon="⏰" label="Best Time to Call" value={editLead.bestTimeToCall} /></div>}
-          {editLead.callbackAt && <div style={{ gridColumn:'1/-1' }}><InfoRow icon="📅" label="Callback Scheduled" value={new Date(editLead.callbackAt).toLocaleString('en-US',{weekday:'short',month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})} color="#a78bfa" /></div>}
-        </div>
-      )}
-
-      {/* Edit mode */}
-      {editing && (
-        <div style={{ background:'rgba(0,0,0,0.15)', border:'1px solid rgba(255,255,255,0.08)', borderRadius:'6px', padding:'16px' }}>
-          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:'10px 14px' }}>
-            {[['firstName','First Name','👤'],['lastName','Last Name','👤'],['phone','Phone','📞'],['phone2','Alt Phone','📱'],['email','Email','✉️'],['state','State','📍']].map(([k,label,icon]) => (
-              <div key={k}>
-                <label style={ls}>{icon} {label}</label>
-                <input value={editLead[k]||''} onChange={e=>setEditLead({...editLead,[k]:e.target.value})} style={inp} placeholder={label} />
-              </div>
+        {/* Meters */}
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <Bar value={buyingIntent} color={intentColor} label="Buying Intent" />
+          <Bar value={questionQuality} color="#a78bfa" label="Question Quality" />
+          <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', marginTop: '4px' }}>
+            <span style={{ background: `${intentColor}22`, border: `1px solid ${intentColor}44`, color: intentColor, fontSize: '8px', padding: '1px 6px', borderRadius: '10px', textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: 'bold' }}>
+              {intentLabel || 'analyzing'}
+            </span>
+            {signals.slice(0, 2).map((s, i) => (
+              <span key={i} style={{ background: 'rgba(255,255,255,0.04)', color: '#6b7280', fontSize: '8px', padding: '1px 6px', borderRadius: '10px' }}>{s}</span>
             ))}
-            <div style={{ gridColumn:'1/-1' }}>
-              <label style={ls}>🏠 Address</label>
-              <input value={editLead.address||''} onChange={e=>setEditLead({...editLead,address:e.target.value})} style={inp} placeholder="Street address…" />
-            </div>
-            <div>
-              <label style={ls}>⏰ Best Time to Call</label>
-              <input value={editLead.bestTimeToCall||''} onChange={e=>setEditLead({...editLead,bestTimeToCall:e.target.value})} style={inp} placeholder="e.g. mornings, after 3pm…" />
-            </div>
           </div>
-          <div style={{ display:'flex', gap:'10px', alignItems:'center', marginTop:'14px' }}>
-            <button onClick={async () => { await saveProfile(); setEditing(false); }} disabled={saving}
-              style={{ background:'linear-gradient(135deg,#b8933a,#d4aa50)', color:DARK, border:'none', borderRadius:'4px', padding:'9px 24px', cursor:'pointer', fontWeight:'bold', fontSize:'12px', letterSpacing:'1.5px', textTransform:'uppercase' }}>
-              {saving ? 'Saving…' : '💾 Save Changes'}
-            </button>
-            <button onClick={() => setEditing(false)}
-              style={{ background:'transparent', color:'#6b7280', border:'1px solid rgba(255,255,255,0.1)', borderRadius:'4px', padding:'9px 16px', cursor:'pointer', fontSize:'12px' }}>
-              Cancel
-            </button>
-            {saveMsg && <span style={{ color:saveMsg.startsWith('Error')?'#ef4444':'#4ade80', fontSize:'12px' }}>{saveMsg}</span>}
-          </div>
-        </div>
-      )}
-
-      {/* Notes & Activity */}
-      <div style={{ borderTop:'1px solid rgba(255,255,255,0.06)', paddingTop:'14px' }}>
-        <div style={{ color:GOLD, fontSize:'10px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'10px' }}>📋 Notes & Activity</div>
-        {!isArchived && <div style={{ display:'flex', gap:'8px', marginBottom:'12px' }}>
-          <input value={quickNote} onChange={e=>setQuickNote(e.target.value)}
-            onKeyDown={e=>{ if(e.key==='Enter'&&quickNote.trim()) addQuickNote(); }}
-            placeholder="Add a note and press Enter or Save…"
-            style={{ ...inp, flex:1 }} />
-          <button onClick={addQuickNote} disabled={!quickNote.trim()||addingNote}
-            style={{ background:'rgba(184,147,58,0.15)', color:GOLD, border:`1px solid rgba(184,147,58,0.3)`, borderRadius:'4px', padding:'8px 16px', cursor:'pointer', fontSize:'12px', whiteSpace:'nowrap' }}>
-            Save
-          </button>
-        </div>}
-        <div style={{ display:'flex', flexDirection:'column', gap:'4px', maxHeight:'300px', overflowY:'auto', paddingRight:'4px' }}>
-          {loading && <p style={{ color:'#6b7280', fontSize:'12px', textAlign:'center', padding:'16px' }}>Loading…</p>}
-          {!loading && history.length === 0 && <p style={{ color:'#4a5568', fontSize:'12px', textAlign:'center', padding:'20px' }}>No activity yet.</p>}
-          {history.map(h => {
-            const icon = HISTORY_ICONS[h.type] || '📝';
-            const color = historyColor(h.type);
-            return (
-              <div key={h.id} style={{ display:'flex', alignItems:'flex-start', gap:'8px', padding:'8px 10px', background:'rgba(255,255,255,0.02)', border:'1px solid rgba(255,255,255,0.04)', borderRadius:'4px' }}>
-                <span style={{ fontSize:'13px', flexShrink:0, marginTop:'1px' }}>{icon}</span>
-                <div style={{ flex:1, minWidth:0 }}>
-                  <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', gap:'8px' }}>
-                    <span style={{ color, fontSize:'10px', textTransform:'uppercase', letterSpacing:'1px' }}>{h.type.replace(/_/g,' ')}</span>
-                    <span style={{ color:'#4a5568', fontSize:'10px', whiteSpace:'nowrap' }}>
-                      {h.created_date ? new Date(h.created_date).toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}) : ''}
-                    </span>
-                  </div>
-                  {h.content && <div style={{ color:'#c4cdd8', fontSize:'12px', marginTop:'2px', lineHeight:1.5, whiteSpace:'pre-wrap' }}>{h.content}</div>}
-                  {h.type==='call' && h.callDurationSeconds > 0 && <div style={{ color:'#8a9ab8', fontSize:'11px', marginTop:'2px' }}>⏱ {Math.floor(h.callDurationSeconds/60)}m {h.callDurationSeconds%60}s</div>}
-                </div>
-              </div>
-            );
-          })}
         </div>
       </div>
+
+      {/* Coach tip from intent */}
+      {coachTip && (
+        <div style={{ marginTop: '6px', padding: '5px 8px', background: 'rgba(167,139,250,0.06)', border: '1px solid rgba(167,139,250,0.15)', borderRadius: '4px' }}>
+          <span style={{ color: '#a78bfa', fontSize: '8px', textTransform: 'uppercase', letterSpacing: '1px' }}>💡 </span>
+          <span style={{ color: '#c4cdd8', fontSize: '10px' }}>{coachTip}</span>
+        </div>
+      )}
     </div>
   );
 }
 
+export default function ScriptAssistant({ lead, user }) {
+  // Layout
+  const [layout, setLayout]           = useState('side');   // 'side' | 'top' | 'fullscript' | 'fullai'
+  const [scriptWidth, setScriptWidth] = useState(52);       // percent
+  const [expanded, setExpanded]       = useState(false);    // full-height expand
+  const isDraggingDivider             = useRef(false);
+  const containerRef                  = useRef(null);
 
-// ── Lead History Tab ─────────────────────────────────────────────────────────
-function LeadHistoryTab({ lead, history, onNoteAdded }) {
-  const [sub, setSub]         = useState('notes');
-  const [note, setNote]       = useState('');
-  const [saving, setSaving]   = useState(false);
-  const [emails, setEmails]   = useState([]);
-  const [loadingEmails, setLoadingEmails] = useState(false);
-  const GOLD = '#b8933a';
+  // Script
+  const [scripts, setScripts]         = useState([]);
+  const [activeId, setActiveId]       = useState(null);
+  const [loadingScripts, setLoadingScripts] = useState(true);
 
-  const fmtDT = (iso) => iso ? new Date(iso).toLocaleString('en-US', { month:'short', day:'numeric', year:'numeric', hour:'numeric', minute:'2-digit' }) : '';
-  const fmtDur = (s) => !s ? '' : s < 60 ? `${s}s` : `${Math.floor(s/60)}m ${s%60}s`;
+  // AI / STT
+  const [listening, setListening]     = useState(false);
+  const [transcript, setTranscript]   = useState([]);
+  const [detectedQs, setDetectedQs]   = useState([]);
+  const [activeQ, setActiveQ]         = useState(null);
+  const [aiAnswer, setAiAnswer]       = useState('');
+  const [aiLoading, setAiLoading]     = useState(false);
+  const [manualQ, setManualQ]         = useState('');
+  const [kbEntries, setKbEntries]     = useState([]);
+  const [micDevices, setMicDevices]   = useState([]);
+  const [selectedMic, setSelectedMic] = useState('');
+  const [coachMode, setCoachMode]     = useState(false);
+  const [coachTip, setCoachTip]       = useState('');
+  const [summary, setSummary]         = useState('');
+  const [summarizing, setSummarizing] = useState(false);
+  const [savingNotes, setSavingNotes] = useState(false);
+  const [saveMsg, setSaveMsg]         = useState('');
+  const [aiTab, setAiTab]             = useState('ai');     // 'ai' | 'transcript' | 'kb'
+  const [error, setError]             = useState('');
+
+  // Intent engine
+  const [intent, setIntent]           = useState(null);
+  const [intentRunning, setIntentRunning] = useState(false);
+
+  // AI feature toggles
+  const [aiEnabled, setAiEnabled]     = useState(false); // master AI switch
+  const [autoQA, setAutoQA]           = useState(true);  // auto keyword Q&A
+  const [coachEnabled, setCoachEnabled] = useState(true); // coach tips
+  const [intentEnabled, setIntentEnabled] = useState(true); // duck/cow intent
+
+  // Post-call report
+  const [reportSaving, setReportSaving] = useState(false);
+  const [reportSaved, setReportSaved]   = useState(false);
+
+  const wsRef         = useRef(null);
+  const streamRef     = useRef(null);
+  const processorRef  = useRef(null);
+  const contextRef    = useRef(null);
+  const transcriptRef = useRef([]);
+  const lastTrigger   = useRef(0);
+  const lastCoach     = useRef(0);
+  const lastIntent    = useRef(0);
 
   useEffect(() => {
-    if (sub === 'emails' && emails.length === 0) loadEmails();
-  }, [sub]);
+    base44.entities.GlobalScript.list('sortOrder', 200)
+      .then(r => { setScripts(r || []); if (r?.length) setActiveId(r[0].id); })
+      .catch(() => {}).finally(() => setLoadingScripts(false));
+    base44.entities.KnowledgeBase.list('-created_date', 500)
+      .then(r => setKbEntries(r || [])).catch(() => {});
+    navigator.mediaDevices.enumerateDevices().then(devs => {
+      const mics = devs.filter(d => d.kind === 'audioinput');
+      setMicDevices(mics);
+      const bh       = mics.find(m => /blackhole/i.test(m.label));
+      const internal = mics.find(m => /built.in|internal|macbook/i.test(m.label));
+      setSelectedMic((bh || internal || mics[0])?.deviceId || '');
+    });
+    return () => stopListening();
+  }, []);
 
-  const loadEmails = async () => {
-    setLoadingEmails(true);
+  const active   = scripts.find(s => s.id === activeId) || scripts[0];
+  const rendered = active ? applyTokens(active.content, lead, user) : '';
+
+  // ── STT ──────────────────────────────────────────────────────────────
+  const startListening = async () => {
+    setError('');
     try {
-      const logs = await base44.entities.EmailLog.filter({ leadId: lead.id });
-      setEmails(logs.sort((a,b) => new Date(b.sentAt) - new Date(a.sentAt)));
-    } catch {}
-    setLoadingEmails(false);
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: { deviceId: selectedMic ? { exact: selectedMic } : undefined } });
+      streamRef.current = stream;
+      const tokenRes = await base44.functions.invoke('deepgramToken', {});
+      const dgKey    = tokenRes?.data?.key || '';
+      if (!dgKey) throw new Error('No Deepgram token');
+
+      const ws = new WebSocket(
+        `wss://api.deepgram.com/v1/listen?model=nova-2&language=en-US&smart_format=true&interim_results=true&endpointing=300`,
+        ['token', dgKey]
+      );
+      ws.onopen = () => {
+        setListening(true);
+        const ctx  = new AudioContext({ sampleRate: 16000 });
+        contextRef.current = ctx;
+        const src  = ctx.createMediaStreamSource(stream);
+        const proc = ctx.createScriptProcessor(4096, 1, 1);
+        processorRef.current = proc;
+        proc.onaudioprocess = e => {
+          if (ws.readyState !== WebSocket.OPEN) return;
+          const input = e.inputBuffer.getChannelData(0);
+          const pcm   = new Int16Array(input.length);
+          for (let i = 0; i < input.length; i++) pcm[i] = Math.max(-32768, Math.min(32767, input[i] * 32768));
+          ws.send(pcm.buffer);
+        };
+        src.connect(proc); proc.connect(ctx.destination);
+      };
+      ws.onmessage = e => {
+        try {
+          const data = JSON.parse(e.data);
+          const text = data?.channel?.alternatives?.[0]?.transcript?.trim();
+          if (!text || !data.is_final) return;
+          const entry = { text, time: new Date() };
+          const newT  = [...transcriptRef.current, entry];
+          transcriptRef.current = newT;
+          setTranscript([...newT]);
+          detectQuestions(text);
+          checkTrigger(text, newT);
+          if (coachMode) checkCoach(newT);
+          checkIntent(newT);
+        } catch {}
+      };
+      ws.onerror  = () => setError('Deepgram error — check mic selection');
+      ws.onclose  = () => setListening(false);
+      wsRef.current = ws;
+    } catch (e) { setError(`Mic error: ${e.message}`); }
   };
 
-  const addNote = async () => {
-    if (!note.trim()) return;
-    setSaving(true);
+  const stopListening = async () => {
+    try { wsRef.current?.close(); }    catch {}
+    try { processorRef.current?.disconnect(); } catch {}
+    try { contextRef.current?.close(); }  catch {}
+    try { streamRef.current?.getTracks().forEach(t => t.stop()); } catch {}
+    setListening(false);
+
+    const finalTranscript = transcriptRef.current;
+    if (!finalTranscript || finalTranscript.length < 2) return;
+    const l = lead || user;
+    if (!l?.id) return;
+
+    setReportSaving(true);
+    setReportSaved(false);
     try {
-      await base44.entities.LeadHistory.create({ leadId: lead.id, type: 'note', content: note.trim(), createdBy: 'admin' });
-      setNote('');
-      onNoteAdded && onNoteAdded();
-    } catch {}
-    setSaving(false);
+      const transcriptText = finalTranscript.map(t =>
+        `[${new Date(t.time).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',second:'2-digit'})}] ${t.text}`
+      ).join('\n');
+
+      const entity = lead ? base44.entities.LeadHistory : base44.entities.ContactNote;
+
+      // 1. Save raw transcript
+      if (lead) {
+        await entity.create({ leadId: l.id, type: 'transcript', content: transcriptText });
+      } else {
+        await entity.create({ investorId: l.id, investorEmail: l.email, type: 'note', content: `📝 TRANSCRIPT:\n${transcriptText}` });
+      }
+
+      // 2. Generate AI report
+      const res = await base44.functions.invoke('liveAssistantAI', {
+        question: `You are analyzing a completed sales call transcript. Generate a structured call report with these exact sections:
+
+## Call Summary
+2-3 sentence overview of what was discussed.
+
+## Prospect Interest Level
+Rate: Hot / Warm / Cold — and explain why in 1-2 sentences.
+
+## Key Questions Asked
+List every question the prospect asked, verbatim or close to it.
+
+## Objections & Concerns
+List any objections or hesitations raised.
+
+## Highlights
+3-5 bullet points of the most important moments or statements.
+
+## Recommended Next Steps
+Specific, actionable next steps for this prospect.
+
+## Transcript
+(clean, readable version — remove filler words, organize by speaker if possible)
+
+Transcript to analyze:
+"${finalTranscript.map(t => t.text).join(' ')}"`,
+        transcript: finalTranscript,
+        kbEntries: [],
+        mode: 'summary',
+      });
+
+      const report = res?.data?.answer || '';
+      if (report && lead) {
+        await entity.create({ leadId: l.id, type: 'call_report', content: report });
+      } else if (report) {
+        await entity.create({ investorId: l.id, investorEmail: l.email, type: 'note', content: `📋 CALL REPORT:\n${report}` });
+      }
+
+      setReportSaved(true);
+      setTimeout(() => setReportSaved(false), 4000);
+    } catch (e) {
+      console.error('Auto-save failed:', e);
+    }
+    setReportSaving(false);
   };
 
-  // Filter history by sub-tab
-  const notes       = history.filter(h => ['note','status_change','call','connected','not_available','callback_later','not_interested','abandoned','interested'].includes(h.type));
-  const transcripts = history.filter(h => h.type === 'transcript');
-  const reports     = history.filter(h => h.type === 'call_report');
+  const detectQuestions = (text) => {
+    const matches = [...(text.matchAll(QUESTION_PATTERN) || [])].map(m => m[0].trim());
+    if (matches.length > 0)
+      setDetectedQs(prev => [...prev, ...matches].filter((q, i, a) => a.indexOf(q) === i).slice(-8));
+  };
 
-  // Site access summary from lead fields
-  const siteAccessSummary = lead.lastSiteVisit ? [
-    { label: 'Last Visit', value: fmtDT(lead.lastSiteVisit) },
-    { label: 'Portal User', value: lead.portalPasscode || '—' },
-    { label: 'Email Opened', value: lead.badgeEmailOpened ? '✓ Yes' : 'No' },
-    { label: 'Consumer Site', value: lead.badgeConsumerWebsite ? '✓ Yes' : 'No' },
-    { label: 'Investor Page', value: lead.badgeInvestorPage ? '✓ Yes' : 'No' },
-  ] : null;
+  const checkTrigger = useCallback(async (text, allT) => {
+    if (!aiEnabled || !autoQA) return;
+    const now = Date.now();
+    if (now - lastTrigger.current < 3000) return;
+    if (!TRIGGER_PATTERNS.some(p => p.test(text))) return;
+    lastTrigger.current = now;
+    await askAI(text, allT);
+  }, [kbEntries, aiEnabled, autoQA]);
 
-  const typeColor = { call:'#60a5fa', connected:'#4ade80', not_available:'#8a9ab8', callback_later:'#a78bfa', not_interested:'#ef4444', status_change:GOLD, note:'#c4cdd8', interested:'#4ade80', abandoned:'#ef4444' };
-  const typeIcon  = { call:'📞', connected:'✅', not_available:'📵', callback_later:'🔁', not_interested:'🚫', status_change:'🔄', note:'📝', interested:'🌟', abandoned:'⛔', transcript:'🎙', call_report:'📋' };
+  const checkCoach = async (allT) => {
+    if (!aiEnabled || !coachMode || !coachEnabled) return;
+    const now = Date.now();
+    if (now - lastCoach.current < 15000) return;
+    lastCoach.current = now;
+    try {
+      const res = await base44.functions.invoke('liveAssistantAI', {
+        question: allT.slice(-12).map(t => t.text).join(' '),
+        transcript: allT, kbEntries, mode: 'coach',
+      });
+      if (res?.data?.answer) setCoachTip(res.data.answer);
+    } catch {}
+  };
 
-  const inp = { width:'100%', background:'rgba(255,255,255,0.05)', border:'1px solid rgba(255,255,255,0.1)', borderRadius:'4px', padding:'8px 12px', color:'#e8e0d0', fontSize:'12px', outline:'none', fontFamily:'Georgia, serif', boxSizing:'border-box', resize:'vertical' };
+  // Intent engine — runs every 20s, uses haiku (cheap + fast)
+  const checkIntent = async (allT) => {
+    if (!aiEnabled || !intentEnabled) return;
+    const now = Date.now();
+    if (now - lastIntent.current < 20000) return;
+    if (allT.length < 3) return; // need some transcript first
+    lastIntent.current = now;
+    setIntentRunning(true);
+    try {
+      const res = await base44.functions.invoke('liveAssistantAI', {
+        transcript: allT, kbEntries: [], mode: 'intent',
+      });
+      if (res?.data?.intent) setIntent(res.data.intent);
+    } catch {}
+    setIntentRunning(false);
+  };
 
-  const SUB_TABS = [
-    ['notes',       '📝 My Notes', notes.length],
-    ['emails',      '✉️ Emails',   emails.length || ''],
-    ['transcripts', '🎙 Transcripts', transcripts.length],
-    ['reports',     '📋 Reports',  reports.length],
-    ['siteaccess',  '🌐 Site Access', ''],
-  ];
+  const askAI = async (question, allT) => {
+    setAiLoading(true); setAiAnswer(''); setActiveQ(question); setAiTab('ai');
+    try {
+      const res = await base44.functions.invoke('liveAssistantAI', {
+        question, transcript: (allT || transcriptRef.current).slice(-10), kbEntries,
+      });
+      setAiAnswer(res?.data?.answer || 'No answer found.');
+    } catch (e) { setAiAnswer('Error: ' + e.message); }
+    setAiLoading(false);
+  };
 
-  return (
-    <div style={{ display:'flex', flexDirection:'column', height:'100%' }}>
-      {/* Sub-tabs */}
-      <div style={{ display:'flex', borderBottom:'1px solid rgba(255,255,255,0.07)', marginBottom:'16px', flexShrink:0 }}>
-        {SUB_TABS.map(([id, label, count]) => (
-          <button key={id} onClick={() => setSub(id)}
-            style={{ background:'none', border:'none', borderBottom:sub===id?`2px solid ${GOLD}`:'2px solid transparent', color:sub===id?GOLD:'#6b7280', padding:'8px 14px', cursor:'pointer', fontSize:'10px', letterSpacing:'0.5px', whiteSpace:'nowrap', position:'relative' }}>
+  const summarizeCall = async () => {
+    setSummarizing(true); setSummary('');
+    try {
+      const res = await base44.functions.invoke('liveAssistantAI', {
+        question: `Summarize this sales call in bullet points covering: main topics, investor questions/concerns, interest level, recommended next steps.\n\nTranscript: "${transcriptRef.current.map(t => t.text).join(' ')}"`,
+        transcript: transcriptRef.current, kbEntries, mode: 'summary',
+      });
+      setSummary(res?.data?.answer || '');
+    } catch (e) { setSummary('Error: ' + e.message); }
+    setSummarizing(false);
+  };
+
+  const saveToNotes = async () => {
+    const l = lead || user;
+    if (!l?.id) { setSaveMsg('No contact selected'); setTimeout(() => setSaveMsg(''), 2000); return; }
+    setSavingNotes(true);
+    try {
+      const content = summary
+        ? `📋 Call Summary:\n${summary}\n\n📝 Transcript:\n${transcriptRef.current.map(t => t.text).join(' ')}`
+        : `📝 Call Transcript:\n${transcriptRef.current.map(t => t.text).join(' ')}`;
+      const entity = lead ? base44.entities.LeadHistory : base44.entities.ContactNote;
+      await entity.create(lead
+        ? { leadId: l.id, type: 'note', content: content.slice(0, 2000) }
+        : { investorId: l.id, type: 'note', content: content.slice(0, 2000) }
+      );
+      setSaveMsg('✓ Saved to notes');
+    } catch (e) { setSaveMsg('Error: ' + e.message); }
+    setSavingNotes(false);
+    setTimeout(() => setSaveMsg(''), 3000);
+  };
+
+  // Divider drag
+  const onDividerMouseDown = (e) => { isDraggingDivider.current = true; e.preventDefault(); };
+  useEffect(() => {
+    const onMove = (e) => {
+      if (!isDraggingDivider.current || !containerRef.current) return;
+      const rect = containerRef.current.getBoundingClientRect();
+      if (layout === 'side') {
+        const pct = Math.round(((e.clientX - rect.left) / rect.width) * 100);
+        setScriptWidth(Math.max(25, Math.min(75, pct)));
+      } else {
+        const pct = Math.round(((e.clientY - rect.top) / rect.height) * 100);
+        setScriptWidth(Math.max(20, Math.min(80, pct)));
+      }
+    };
+    const onUp = () => { isDraggingDivider.current = false; };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+    return () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
+  }, [layout]);
+
+  const inp = { background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '4px', padding: '6px 10px', color: '#e8e0d0', fontSize: '11px', outline: 'none', fontFamily: 'Georgia, serif' };
+
+  // ── Script Panel ──────────────────────────────────────────────────────
+  const scriptPanelJSX = (
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
+      <div style={{ display: 'flex', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.07)', overflowX: 'auto', flexShrink: 0, scrollbarWidth: 'none' }}>
+        {scripts.map(s => (
+          <button key={s.id} onClick={() => setActiveId(s.id)}
+            style={{ background: activeId === s.id ? 'rgba(184,147,58,0.1)' : 'none', border: 'none', borderBottom: activeId === s.id ? `2px solid ${GOLD}` : '2px solid transparent', color: activeId === s.id ? GOLD : '#6b7280', padding: '7px 12px', cursor: 'pointer', fontSize: '11px', whiteSpace: 'nowrap', flexShrink: 0 }}>
+            {s.name}
+          </button>
+        ))}
+      </div>
+      {loadingScripts && <div style={{ color: '#6b7280', fontSize: '12px', textAlign: 'center', padding: '24px' }}>Loading…</div>}
+      {!loadingScripts && scripts.length === 0 && (
+        <div style={{ color: '#4a5568', fontSize: '12px', textAlign: 'center', padding: '24px' }}>No scripts yet. Create them in the Scripts sidebar tab.</div>
+      )}
+      {active && (
+        <div style={{ flex: 1, overflowY: 'auto', padding: '14px', background: 'rgba(0,0,0,0.15)', color: active.color || '#e8e0d0', fontSize: `${active.fontSize || 14}px`, lineHeight: 1.8, fontFamily: 'Georgia, serif', whiteSpace: 'pre-wrap' }}>
+          {rendered}
+        </div>
+      )}
+      {(lead || user) && (
+        <div style={{ padding: '6px 10px', borderTop: '1px solid rgba(255,255,255,0.05)', color: '#4a5568', fontSize: '9px', flexShrink: 0 }}>
+          Showing for: <span style={{ color: GOLD }}>{lead?.firstName || user?.name?.split(' ')[0]} {lead?.lastName || user?.name?.split(' ').slice(1).join(' ')}</span>
+        </div>
+      )}
+    </div>
+  );
+
+  // ── AI Panel ──────────────────────────────────────────────────────────
+  const aiPanelJSX = (
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
+
+      {/* AI Header */}
+      <div style={{ padding: '7px 10px', borderBottom: '1px solid rgba(255,255,255,0.07)', flexShrink: 0 }}>
+        {/* Row 1: status + mic + listen */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', marginBottom: aiEnabled ? '6px' : '0' }}>
+          <div style={{ width: '7px', height: '7px', borderRadius: '50%', background: listening ? '#4ade80' : '#4a5568', boxShadow: listening ? '0 0 6px #4ade80' : 'none', animation: listening ? 'pulse 1.5s infinite' : 'none', flexShrink: 0 }} />
+          <span style={{ color: GOLD, fontSize: '10px', letterSpacing: '1.5px', textTransform: 'uppercase' }}>🧠 AI Assistant</span>
+          {reportSaving && <span style={{ color: '#f59e0b', fontSize: '9px' }}>⏳ Saving report…</span>}
+          {reportSaved  && <span style={{ color: '#4ade80', fontSize: '9px' }}>✓ Report saved</span>}
+          {intentRunning && <span style={{ color: '#6b7280', fontSize: '9px' }}>reading intent…</span>}
+          <div style={{ marginLeft: 'auto', display: 'flex', gap: '4px', alignItems: 'center' }}>
+            {/* Master AI toggle */}
+            <button onClick={() => setAiEnabled(v => !v)}
+              style={{ background: aiEnabled ? 'rgba(184,147,58,0.2)' : 'rgba(255,255,255,0.05)', border: `1px solid ${aiEnabled ? 'rgba(184,147,58,0.5)' : 'rgba(255,255,255,0.1)'}`, color: aiEnabled ? GOLD : '#6b7280', borderRadius: '4px', padding: '3px 8px', cursor: 'pointer', fontSize: '9px', fontWeight: 'bold', letterSpacing: '0.5px', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
+              {aiEnabled ? '🧠 AI ON' : '🧠 AI OFF'}
+            </button>
+            {/* Mic select */}
+            <select value={selectedMic} onChange={e => setSelectedMic(e.target.value)}
+              style={{ ...inp, padding: '3px 6px', fontSize: '9px', cursor: 'pointer', maxWidth: '110px' }}>
+              {micDevices.map(d => <option key={d.deviceId} value={d.deviceId}>{d.label?.slice(0, 18) || 'Mic…'}</option>)}
+            </select>
+            {/* Listen/Stop */}
+            <button onClick={listening ? stopListening : startListening}
+              style={{ background: listening ? 'rgba(239,68,68,0.15)' : 'rgba(74,222,128,0.15)', color: listening ? '#ef4444' : '#4ade80', border: `1px solid ${listening ? 'rgba(239,68,68,0.3)' : 'rgba(74,222,128,0.3)'}`, borderRadius: '4px', padding: '3px 8px', cursor: 'pointer', fontSize: '10px', whiteSpace: 'nowrap' }}>
+              {listening ? '⏹ Stop' : '🎙 Listen'}
+            </button>
+          </div>
+        </div>
+        {/* Row 2: AI sub-toggles (only when AI is on) */}
+        {aiEnabled && (
+          <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+            {[
+              ['❓ Auto Q&A', autoQA,      () => setAutoQA(v => !v),      'rgba(245,158,11,0.2)', 'rgba(245,158,11,0.5)', '#f59e0b'],
+              ['🎯 Coach',    coachMode,   () => setCoachMode(v => !v),   'rgba(167,139,250,0.2)', 'rgba(167,139,250,0.5)', '#a78bfa'],
+              ['🦆 Intent',   intentEnabled, () => setIntentEnabled(v => !v), 'rgba(96,165,250,0.2)', 'rgba(96,165,250,0.5)', '#60a5fa'],
+            ].map(([label, active, toggle, bg, border, color]) => (
+              <button key={label} onClick={toggle}
+                style={{ background: active ? bg : 'rgba(255,255,255,0.03)', border: `1px solid ${active ? border : 'rgba(255,255,255,0.08)'}`, color: active ? color : '#4a5568', borderRadius: '4px', padding: '2px 8px', cursor: 'pointer', fontSize: '9px', whiteSpace: 'nowrap' }}>
+                {label}
+              </button>
+            ))}
+            <span style={{ color: '#4a5568', fontSize: '9px', alignSelf: 'center', marginLeft: '4px' }}>
+              {listening ? '● Transcribing always' : 'Transcript auto-saves on stop'}
+            </span>
+          </div>
+        )}
+      </div>
+
+      {error && <div style={{ background: 'rgba(239,68,68,0.08)', color: '#ef4444', fontSize: '10px', padding: '5px 10px', flexShrink: 0 }}>{error}</div>}
+
+      {/* Intent meter */}
+      <IntentMeter intent={intent} />
+
+      {/* Coach tip */}
+      {coachMode && coachTip && (
+        <div style={{ padding: '6px 10px', background: 'rgba(167,139,250,0.06)', borderBottom: '1px solid rgba(255,255,255,0.06)', flexShrink: 0 }}>
+          <div style={{ color: '#a78bfa', fontSize: '8px', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '2px' }}>🎯 Coach Tip</div>
+          <div style={{ color: '#e8e0d0', fontSize: '10px', lineHeight: 1.5 }}>{coachTip}</div>
+        </div>
+      )}
+
+      {/* Detected questions */}
+      {detectedQs.length > 0 && (
+        <div style={{ padding: '8px 10px', borderBottom: '1px solid rgba(255,255,255,0.06)', background: 'rgba(245,158,11,0.03)', flexShrink: 0 }}>
+          <div style={{ color: '#f59e0b', fontSize: '8px', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '4px', display: 'flex', justifyContent: 'space-between' }}>
+            <span>❓ Detected Questions — click to answer</span>
+            <button onClick={() => setDetectedQs([])} style={{ background: 'none', border: 'none', color: '#4a5568', cursor: 'pointer', fontSize: '9px' }}>Clear</button>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', maxHeight: '100px', overflowY: 'auto' }}>
+            {detectedQs.map((q, i) => (
+              <button key={i} onClick={() => askAI(q, transcriptRef.current)}
+                style={{ background: activeQ === q ? 'rgba(245,158,11,0.15)' : 'rgba(255,255,255,0.02)', border: `1px solid ${activeQ === q ? 'rgba(245,158,11,0.5)' : 'rgba(255,255,255,0.07)'}`, borderLeft: `3px solid ${activeQ === q ? '#f59e0b' : 'transparent'}`, borderRadius: '3px', padding: '4px 8px', cursor: 'pointer', color: activeQ === q ? '#f59e0b' : '#8a9ab8', fontSize: '10px', textAlign: 'left', lineHeight: 1.4 }}>
+                {q.length > 65 ? q.slice(0, 65) + '…' : q}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* AI Sub-tabs */}
+      <div style={{ display: 'flex', borderBottom: '1px solid rgba(255,255,255,0.06)', flexShrink: 0 }}>
+        {[['ai', '🧠 Answer'], ['transcript', '📝 Transcript'], ['kb', '📚 KB']].map(([id, label]) => (
+          <button key={id} onClick={() => setAiTab(id)}
+            style={{ flex: 1, background: 'none', border: 'none', borderBottom: aiTab === id ? `2px solid ${GOLD}` : '2px solid transparent', color: aiTab === id ? GOLD : '#6b7280', padding: '6px 4px', cursor: 'pointer', fontSize: '9px', letterSpacing: '0.5px' }}>
             {label}
-            {count > 0 && <span style={{ marginLeft:'5px', background:'rgba(184,147,58,0.2)', color:GOLD, borderRadius:'10px', padding:'0px 5px', fontSize:'9px' }}>{count}</span>}
           </button>
         ))}
       </div>
 
-      <div style={{ flex:1, overflowY:'auto' }}>
+      {/* AI Answer */}
+      {aiTab === 'ai' && (
+        <div style={{ flex: 1, overflowY: 'auto', padding: '10px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          <div style={{ minHeight: '80px', background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: '6px', padding: '10px', flex: 1 }}>
+            {aiLoading && <div style={{ color: '#6b7280', fontSize: '11px', display: 'flex', gap: '6px', alignItems: 'center' }}><div style={{ width: '5px', height: '5px', borderRadius: '50%', background: GOLD, animation: 'pulse 0.8s infinite' }} />Thinking…</div>}
+            {!aiLoading && !aiAnswer && <div style={{ color: '#4a5568', fontSize: '11px', textAlign: 'center', paddingTop: '12px' }}>{listening ? 'Listening for questions…' : 'Start listening or ask below'}</div>}
+            {!aiLoading && aiAnswer && (
+              <div>
+                {activeQ && <div style={{ color: '#f59e0b', fontSize: '9px', marginBottom: '5px', fontStyle: 'italic' }}>Re: "{activeQ.slice(0, 50)}{activeQ.length > 50 ? '…' : ''}"</div>}
+                <div style={{ color: '#e8e0d0', fontSize: '12px', lineHeight: 1.6 }}>{aiAnswer}</div>
+              </div>
+            )}
+          </div>
+          <div style={{ display: 'flex', gap: '5px' }}>
+            <input value={manualQ} onChange={e => setManualQ(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter' && manualQ.trim()) { askAI(manualQ, transcriptRef.current); setManualQ(''); } }}
+              placeholder="Ask anything…"
+              style={{ ...inp, flex: 1 }} />
+            <button onClick={() => { if (manualQ.trim()) { askAI(manualQ, transcriptRef.current); setManualQ(''); } }} disabled={!manualQ.trim() || aiLoading}
+              style={{ background: 'linear-gradient(135deg,#b8933a,#d4aa50)', color: DARK, border: 'none', borderRadius: '4px', padding: '6px 10px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>Ask</button>
+          </div>
+        </div>
+      )}
 
-        {/* ── MY NOTES ── */}
-        {sub === 'notes' && (
-          <div>
-            <div style={{ display:'flex', gap:'8px', marginBottom:'16px' }}>
-              <textarea value={note} onChange={e=>setNote(e.target.value)} placeholder="Add a note…" rows={2} style={inp}
-                onKeyDown={e=>{ if(e.key==='Enter'&&e.metaKey) addNote(); }} />
-              <button onClick={addNote} disabled={saving||!note.trim()}
-                style={{ background:'linear-gradient(135deg,#b8933a,#d4aa50)', color:'#0a0f1e', border:'none', borderRadius:'4px', padding:'8px 14px', cursor:'pointer', fontSize:'11px', fontWeight:'bold', whiteSpace:'nowrap', alignSelf:'flex-start' }}>
-                {saving ? '…' : '+ Add'}
+      {/* Transcript */}
+      {aiTab === 'transcript' && (
+        <div style={{ flex: 1, overflowY: 'auto', padding: '10px', display: 'flex', flexDirection: 'column' }}>
+          <div style={{ flex: 1, overflowY: 'auto', marginBottom: '8px' }}>
+            {transcript.length === 0 && <div style={{ color: '#4a5568', fontSize: '11px', textAlign: 'center', padding: '16px' }}>{listening ? 'Waiting…' : 'Start listening'}</div>}
+            {[...transcript].reverse().map((t, i) => (
+              <div key={i} style={{ marginBottom: '5px', fontSize: '11px' }}>
+                <span style={{ color: '#4a5568', fontSize: '9px', marginRight: '5px' }}>{t.time.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', second: '2-digit' })}</span>
+                <span style={{ color: '#c4cdd8' }}>{t.text}</span>
+              </div>
+            ))}
+          </div>
+          {transcript.length > 0 && (
+            <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', alignItems: 'center', flexShrink: 0 }}>
+              <button onClick={() => { setTranscript([]); transcriptRef.current = []; setDetectedQs([]); setIntent(null); setSummary(''); }}
+                style={{ ...inp, cursor: 'pointer', fontSize: '9px', padding: '3px 8px' }}>Clear</button>
+              <button onClick={summarizeCall} disabled={summarizing}
+                style={{ background: 'rgba(184,147,58,0.12)', color: GOLD, border: `1px solid rgba(184,147,58,0.3)`, borderRadius: '4px', padding: '3px 9px', cursor: 'pointer', fontSize: '9px', fontWeight: 'bold' }}>
+                {summarizing ? '⏳' : '📋 Summarize'}
               </button>
+              <button onClick={saveToNotes} disabled={savingNotes}
+                style={{ background: 'rgba(74,222,128,0.1)', color: '#4ade80', border: '1px solid rgba(74,222,128,0.25)', borderRadius: '4px', padding: '3px 9px', cursor: 'pointer', fontSize: '9px', fontWeight: 'bold' }}>
+                {savingNotes ? '⏳' : '💾 Save Notes'}
+              </button>
+              {saveMsg && <span style={{ color: saveMsg.includes('✓') ? '#4ade80' : '#ef4444', fontSize: '9px' }}>{saveMsg}</span>}
             </div>
-            {notes.length === 0 && <p style={{ color:'#4a5568', textAlign:'center', padding:'24px' }}>No notes yet.</p>}
-            {notes.map((h, i) => {
-              const color = typeColor[h.type] || '#6b7280';
-              const icon  = typeIcon[h.type]  || '📝';
-              return (
-                <div key={h.id||i} style={{ display:'flex', gap:'12px', marginBottom:'12px' }}>
-                  <div style={{ fontSize:'16px', flexShrink:0, marginTop:'2px' }}>{icon}</div>
-                  <div style={{ flex:1, background:'rgba(255,255,255,0.02)', border:'1px solid rgba(255,255,255,0.06)', borderRadius:'4px', padding:'10px 12px' }}>
-                    <div style={{ display:'flex', justifyContent:'space-between', marginBottom:'4px' }}>
-                      <span style={{ color, fontSize:'10px', textTransform:'uppercase', letterSpacing:'1px' }}>{h.type.replace(/_/g,' ')}</span>
-                      <span style={{ color:'#4a5568', fontSize:'10px' }}>{fmtDT(h.created_date)}</span>
-                    </div>
-                    <p style={{ color:'#c4cdd8', fontSize:'12px', margin:0, lineHeight:1.6, whiteSpace:'pre-wrap' }}>{h.content}</p>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-
-        {/* ── EMAILS ── */}
-        {sub === 'emails' && (
-          <div>
-            {loadingEmails && <p style={{ color:'#6b7280', textAlign:'center', padding:'24px' }}>Loading…</p>}
-            {!loadingEmails && emails.length === 0 && <p style={{ color:'#4a5568', textAlign:'center', padding:'24px' }}>No emails sent yet.</p>}
-            {emails.map((log, i) => (
-              <div key={log.id||i} style={{ background:'rgba(255,255,255,0.02)', border:'1px solid rgba(255,255,255,0.06)', borderRadius:'4px', padding:'12px 14px', marginBottom:'8px' }}>
-                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'6px' }}>
-                  <div style={{ display:'flex', gap:'8px', alignItems:'center' }}>
-                    <span style={{ fontSize:'14px' }}>✉️</span>
-                    <span style={{ color:{ sent:'#60a5fa', delivered:'#4ade80', opened:'#4ade80', clicked:'#f59e0b', bounced:'#ef4444', spam:'#ef4444' }[log.status]||'#8a9ab8', fontSize:'11px', fontWeight:'bold', textTransform:'uppercase' }}>{log.status}</span>
-                  </div>
-                  <span style={{ color:'#4a5568', fontSize:'10px' }}>{fmtDT(log.sentAt)}</span>
-                </div>
-                {log.openedAt  && <div style={{ color:'#4ade80', fontSize:'11px' }}>📬 Opened: {fmtDT(log.openedAt)}</div>}
-                {log.clickedAt && <div style={{ color:'#f59e0b', fontSize:'11px', marginTop:'2px' }}>🔗 Clicked: {fmtDT(log.clickedAt)}{log.clickedUrl ? ` — ${log.clickedUrl}` : ''}</div>}
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* ── TRANSCRIPTS ── */}
-        {sub === 'transcripts' && (
-          <div>
-            {transcripts.length === 0 && <p style={{ color:'#4a5568', textAlign:'center', padding:'24px' }}>No call transcripts yet. Transcripts are auto-saved when you stop listening.</p>}
-            {transcripts.map((h, i) => (
-              <div key={h.id||i} style={{ background:'rgba(0,0,0,0.2)', border:'1px solid rgba(255,255,255,0.06)', borderRadius:'4px', marginBottom:'12px', overflow:'hidden' }}>
-                <div style={{ padding:'8px 12px', borderBottom:'1px solid rgba(255,255,255,0.05)', display:'flex', justifyContent:'space-between', alignItems:'center', background:'rgba(96,165,250,0.06)' }}>
-                  <span style={{ color:'#60a5fa', fontSize:'10px', letterSpacing:'1px', textTransform:'uppercase' }}>🎙 Call Transcript</span>
-                  <span style={{ color:'#4a5568', fontSize:'10px' }}>{fmtDT(h.created_date)}</span>
-                </div>
-                <pre style={{ color:'#8a9ab8', fontSize:'11px', lineHeight:1.7, margin:0, padding:'12px', whiteSpace:'pre-wrap', fontFamily:'monospace', maxHeight:'300px', overflowY:'auto' }}>{h.content}</pre>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* ── CALL REPORTS ── */}
-        {sub === 'reports' && (
-          <div>
-            {reports.length === 0 && <p style={{ color:'#4a5568', textAlign:'center', padding:'24px' }}>No call reports yet. Reports are auto-generated when you stop listening.</p>}
-            {reports.map((h, i) => (
-              <div key={h.id||i} style={{ background:'rgba(184,147,58,0.04)', border:'1px solid rgba(184,147,58,0.15)', borderRadius:'4px', marginBottom:'12px', overflow:'hidden' }}>
-                <div style={{ padding:'8px 12px', borderBottom:'1px solid rgba(184,147,58,0.1)', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-                  <span style={{ color:GOLD, fontSize:'10px', letterSpacing:'1px', textTransform:'uppercase' }}>📋 Call Report</span>
-                  <span style={{ color:'#4a5568', fontSize:'10px' }}>{fmtDT(h.created_date)}</span>
-                </div>
-                <div style={{ color:'#c4cdd8', fontSize:'12px', lineHeight:1.8, padding:'14px', whiteSpace:'pre-wrap' }}>{h.content}</div>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* ── SITE ACCESS ── */}
-        {sub === 'siteaccess' && (
-          <div>
-            <div style={{ background:'rgba(0,0,0,0.15)', border:'1px solid rgba(255,255,255,0.06)', borderRadius:'4px', padding:'12px 16px', marginBottom:'14px', fontSize:'11px', color:'#6b7280' }}>
-              Summary view only — visit <strong style={{ color:GOLD }}>📊 Site Stats</strong> tab for full page-by-page detail.
+          )}
+          {summary && (
+            <div style={{ marginTop: '6px', background: 'rgba(184,147,58,0.06)', border: '1px solid rgba(184,147,58,0.2)', borderRadius: '4px', padding: '8px', flexShrink: 0 }}>
+              <div style={{ color: GOLD, fontSize: '9px', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '4px' }}>📋 Summary</div>
+              <div style={{ color: '#c4cdd8', fontSize: '10px', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>{summary}</div>
             </div>
-            {!lead.lastSiteVisit && !lead.portalPasscode && (
-              <p style={{ color:'#4a5568', textAlign:'center', padding:'24px' }}>No site activity yet. Send the prospect email to enable tracking.</p>
-            )}
-            {(lead.lastSiteVisit || lead.portalPasscode) && (
-              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'8px' }}>
-                {[
-                  ['🕐 Last Visit',     lead.lastSiteVisit ? fmtDT(lead.lastSiteVisit) : 'Never',  '#60a5fa'],
-                  ['🔑 Portal User',    lead.portalPasscode || 'Not assigned',                       GOLD],
-                  ['📬 Email Opened',   lead.badgeEmailOpened ? '✓ Yes' : 'Not yet',                lead.badgeEmailOpened ? '#4ade80' : '#4a5568'],
-                  ['🌐 Consumer Site',  lead.badgeConsumerWebsite ? '✓ Visited' : 'Not yet',        lead.badgeConsumerWebsite ? '#4ade80' : '#4a5568'],
-                  ['💼 Investor Page',  lead.badgeInvestorPage ? '✓ Visited' : 'Not yet',          lead.badgeInvestorPage ? '#4ade80' : '#4a5568'],
-                  ['⭐ Engagement',     `${lead.engagementScore || 0} pts`,                         GOLD],
-                ].map(([label, value, color]) => (
-                  <div key={label} style={{ background:'rgba(255,255,255,0.02)', border:'1px solid rgba(255,255,255,0.06)', borderRadius:'4px', padding:'10px 12px' }}>
-                    <div style={{ color:'#4a5568', fontSize:'9px', textTransform:'uppercase', letterSpacing:'1px', marginBottom:'4px' }}>{label}</div>
-                    <div style={{ color, fontSize:'13px', fontWeight:'bold' }}>{value}</div>
-                  </div>
-                ))}
-              </div>
-            )}
+          )}
+        </div>
+      )}
+
+      {/* KB */}
+      {aiTab === 'kb' && (
+        <div style={{ flex: 1, overflowY: 'auto', padding: '10px' }}>
+          <MiniKBEditor kbEntries={kbEntries} onUpdate={() => base44.entities.KnowledgeBase.list('-created_date', 500).then(r => setKbEntries(r || [])).catch(() => {})} />
+        </div>
+      )}
+    </div>
+  );
+
+  // ── Layout button ─────────────────────────────────────────────────────
+  const LayoutBtn = ({ id, label, icon }) => (
+    <button onClick={() => setLayout(id)} title={label}
+      style={{ background: layout === id ? 'rgba(184,147,58,0.2)' : 'rgba(255,255,255,0.04)', border: `1px solid ${layout === id ? 'rgba(184,147,58,0.4)' : 'rgba(255,255,255,0.08)'}`, color: layout === id ? GOLD : '#6b7280', borderRadius: '4px', padding: '4px 8px', cursor: 'pointer', fontSize: '11px' }}>
+      {icon}
+    </button>
+  );
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', height: expanded ? '80vh' : '100%', transition: 'height 0.2s ease' }}>
+      <style>{`@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}`}</style>
+
+      {/* Toolbar */}
+      <div style={{ display: 'flex', gap: '6px', alignItems: 'center', marginBottom: '8px', flexShrink: 0, flexWrap: 'wrap' }}>
+        <span style={{ color: '#4a5568', fontSize: '9px', textTransform: 'uppercase', letterSpacing: '1px' }}>Layout</span>
+        <LayoutBtn id="side"       label="Side by side"        icon="⬜⬜" />
+        <LayoutBtn id="top"        label="Script top, AI below" icon="🔲" />
+        <LayoutBtn id="fullscript" label="Script only"          icon="📝" />
+        <LayoutBtn id="fullai"     label="AI only"              icon="🧠" />
+
+        {/* Expand/collapse toggle */}
+        <button onClick={() => setExpanded(e => !e)} title={expanded ? 'Collapse' : 'Expand larger'}
+          style={{ marginLeft: 'auto', background: expanded ? 'rgba(96,165,250,0.15)' : 'rgba(255,255,255,0.05)', border: `1px solid ${expanded ? 'rgba(96,165,250,0.4)' : 'rgba(255,255,255,0.1)'}`, color: expanded ? '#60a5fa' : '#6b7280', borderRadius: '4px', padding: '4px 10px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>
+          {expanded ? '⊟ Collapse' : '⊞ Expand'}
+        </button>
+      </div>
+
+      {/* Main area */}
+      <div ref={containerRef} style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: layout === 'top' ? 'column' : 'row', position: 'relative' }}>
+
+        {/* Script panel */}
+        {layout !== 'fullai' && (
+          <div style={{ ...(layout === 'side' ? { width: `${scriptWidth}%` } : layout === 'top' ? { height: `${scriptWidth}%` } : { flex: 1 }), overflow: 'hidden', flexShrink: 0 }}>
+            {scriptPanelJSX}
           </div>
         )}
 
+        {/* Draggable divider */}
+        {(layout === 'side' || layout === 'top') && (
+          <div onMouseDown={onDividerMouseDown}
+            style={{ [layout === 'side' ? 'width' : 'height']: '6px', flexShrink: 0, background: 'rgba(255,255,255,0.05)', cursor: layout === 'side' ? 'col-resize' : 'row-resize', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'background 0.15s' }}
+            onMouseEnter={e => e.currentTarget.style.background = 'rgba(184,147,58,0.3)'}
+            onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}>
+            <div style={{ background: 'rgba(255,255,255,0.15)', borderRadius: '2px', [layout === 'side' ? 'width' : 'height']: '3px', [layout === 'side' ? 'height' : 'width']: '30px' }} />
+          </div>
+        )}
+
+        {/* AI panel */}
+        {layout !== 'fullscript' && (
+          <div style={{ flex: 1, overflow: 'hidden', minWidth: 0, minHeight: 0 }}>
+            {aiPanelJSX}
+          </div>
+        )}
       </div>
     </div>
   );
 }
 
-export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber, dialerRef, onResume, isDialerPaused, onNextLead, onPrevLead, currentLeadIndex, totalLeads }) {
-  // Archived = migrated to CRM — card is read-only
-  const isArchived = !!(lead.migratedToPortal || lead.convertedToInvestorUserId || lead.status === 'converted');
-  const [tab, setTab] = useState('overview');
-  const [history, setHistory] = useState([]);
-  const [editLead, setEditLead] = useState({ ...lead });
+// ── Mini KB Editor ────────────────────────────────────────────────────────
+function MiniKBEditor({ kbEntries, onUpdate }) {
+  const [q, setQ]           = useState('');
+  const [a, setA]           = useState('');
   const [saving, setSaving] = useState(false);
-  const [saveMsg, setSaveMsg] = useState('');
-  const [loading, setLoading] = useState(true);
-  const [showMigrate, setShowMigrate] = useState(false);
-  const [sendingEmail, setSendingEmail] = useState(false);
-  const [emailMsg, setEmailMsg] = useState('');
+  const [search, setSearch] = useState('');
+  const inp = { width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '4px', padding: '5px 8px', color: '#e8e0d0', fontSize: '10px', outline: 'none', fontFamily: 'Georgia, serif', boxSizing: 'border-box', resize: 'none' };
 
-  // Actions state
-  const [prospectNote, setProspectNote] = useState('');
-  const [callbackDate, setCallbackDate] = useState('');
-  const [notAvailableNote, setNotAvailableNote] = useState('');
-  const [notInterestedNote, setNotInterestedNote] = useState('');
-  const [selectedAction, setSelectedAction] = useState(null); // 'not_available' | 'not_interested'
-
-  // Note entry in overview
-  const [quickNote, setQuickNote] = useState('');
-  const [addingNote, setAddingNote] = useState(false);
-  const [showZoom, setShowZoom] = useState(false);
-
-  useEffect(() => { loadHistory(); }, [lead.id]);
-
-  const loadHistory = async () => {
-    setLoading(true);
-    try {
-      const h = await base44.entities.LeadHistory.filter({ leadId: lead.id }, '-created_date');
-      setHistory(h);
-    } catch(e) { console.error(e); }
-    setLoading(false);
-  };
-
-  const logHistory = async (type, content, extra = {}) => {
-    await base44.entities.LeadHistory.create({ leadId: lead.id, type, content, ...extra });
-    await loadHistory();
-  };
-
-  const updateStatus = async (newStatus, histType, histContent, extra = {}) => {
-    await base44.entities.Lead.update(lead.id, { status: newStatus, ...extra });
-    await logHistory(histType || 'status_change', histContent || `Status changed to ${newStatus}`);
-    onUpdate && onUpdate();
-    setEditLead(prev => ({ ...prev, status: newStatus, ...extra }));
-  };
-
-  const handleProspect = async () => {
-    const note = prospectNote.trim();
-    await updateStatus('prospect', 'prospect', `Marked as Prospect${note ? `: ${note}` : ''}`);
-    if (note) await logHistory('note', note);
-    if (callbackDate) {
-      await base44.entities.Lead.update(lead.id, { callbackAt: callbackDate });
-      await logHistory('callback_later', `Callback scheduled for ${new Date(callbackDate).toLocaleString()}`);
-      setEditLead(prev => ({ ...prev, callbackAt: callbackDate }));
-    }
-    setProspectNote('');
-    setCallbackDate('');
-  };
-
-  const handleNotAvailable = async () => {
-    const note = notAvailableNote.trim();
-    await updateStatus('not_available', 'not_available', `Not available${note ? ` — ${note}` : ` — ${new Date().toLocaleString()}`}`);
-    if (note) await logHistory('note', note);
-    setNotAvailableNote('');
-    setSelectedAction(null);
-  };
-
-  const handleNotInterested = async () => {
-    if (!window.confirm('Remove this lead permanently?')) return;
-    const note = notInterestedNote.trim();
-    await updateStatus('not_interested', 'not_interested', `Not interested${note ? ` — ${note}` : ''}`);
-    if (note) await logHistory('note', note);
-    onClose();
-    onUpdate && onUpdate();
-  };
-
-  const handleCallbackLater = async () => {
-    if (!callbackDate) return;
-    await updateStatus('callback_later', 'callback_later', `Callback scheduled for ${new Date(callbackDate).toLocaleString()}`, { callbackAt: callbackDate });
-    setCallbackDate('');
-  };
-
-  const saveProfile = async () => {
-    setSaving(true); setSaveMsg('');
-    try {
-      await base44.entities.Lead.update(lead.id, {
-        firstName: editLead.firstName, lastName: editLead.lastName,
-        email: editLead.email, phone: editLead.phone, phone2: editLead.phone2,
-        state: editLead.state, address: editLead.address, bestTimeToCall: editLead.bestTimeToCall,
-      });
-      setSaveMsg('Saved ✓');
-      onUpdate && onUpdate();
-      setTimeout(() => setSaveMsg(''), 2500);
-    } catch(e) { setSaveMsg('Error: ' + e.message); }
+  const save = async () => {
+    if (!q.trim() || !a.trim()) return;
+    setSaving(true);
+    try { await base44.entities.KnowledgeBase.create({ question: q.trim(), answer: a.trim(), category: 'manual' }); setQ(''); setA(''); onUpdate(); } catch {}
     setSaving(false);
   };
 
-  const addQuickNote = async () => {
-    if (!quickNote.trim()) return;
-    setAddingNote(true);
-    await logHistory('note', quickNote.trim());
-    setQuickNote('');
-    setAddingNote(false);
-  };
-
-  const sendEmail = async () => {
-    if (!editLead.email) { setEmailMsg('No email address on file.'); return; }
-    setSendingEmail(true); setEmailMsg('');
-    try {
-      await base44.functions.invoke('sendLeadEmail', {
-        leadId: lead.id,
-        toEmail: editLead.email,
-        toName: `${lead.firstName} ${lead.lastName}`,
-        firstName: lead.firstName,
-      });
-      setEmailMsg('✓ Email sent!');
-      await loadHistory();
-      onUpdate && onUpdate();
-      setTimeout(() => setEmailMsg(''), 3000);
-    } catch (e) {
-      setEmailMsg('Error: ' + (e.response?.data?.error || e.message));
-    }
-    setSendingEmail(false);
-  };
-
-  const statusInfo = STATUS_LABELS[editLead.status] || STATUS_LABELS.lead;
-  const fullName = `${lead.firstName} ${lead.lastName}`;
-  const isProspect = editLead.status === 'prospect';
+  const filtered = kbEntries
+    .filter(e => e.category !== 'raw_document')
+    .filter(e => !search || `${e.question} ${e.answer}`.toLowerCase().includes(search.toLowerCase()));
 
   return (
-    <>
-    {showMigrate && (
-      <MigrateLeadModal
-        lead={lead}
-        history={history}
-        onClose={() => setShowMigrate(false)}
-        onMigrated={() => { setShowMigrate(false); onUpdate && onUpdate(); onClose(); }}
-      />
-    )}
-    {showZoom && (
-      <div style={{ position:'fixed', inset:0, zIndex:99999 }}>
-        <ZoomBookingModal isOpen={showZoom} onClose={() => setShowZoom(false)} buttonLabel="Book Zoom Call" zoomUrl="https://scheduler.zoom.us/stephani-sterling" />
+    <div>
+      <div style={{ marginBottom: '8px', background: 'rgba(0,0,0,0.15)', borderRadius: '4px', padding: '8px' }}>
+        <div style={{ color: GOLD, fontSize: '8px', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '6px' }}>Add Q&A Entry</div>
+        <input value={q} onChange={e => setQ(e.target.value)} placeholder="Question…" style={{ ...inp, marginBottom: '4px' }} />
+        <textarea value={a} onChange={e => setA(e.target.value)} placeholder="Answer…" rows={2} style={inp} />
+        <button onClick={save} disabled={saving || !q.trim() || !a.trim()}
+          style={{ marginTop: '4px', background: 'linear-gradient(135deg,#b8933a,#d4aa50)', color: DARK, border: 'none', borderRadius: '3px', padding: '4px 12px', cursor: 'pointer', fontSize: '9px', fontWeight: 'bold' }}>
+          {saving ? '…' : '+ Add'}
+        </button>
       </div>
-    )}
-    <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.9)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:9999, padding:'16px' }}>
-      <div style={{ background:'#0d1b2a', border:`1px solid ${isArchived ? 'rgba(245,158,11,0.3)' : 'rgba(184,147,58,0.3)'}`, borderRadius:'4px', width:'100%', maxWidth:'820px', maxHeight:'92vh', display:'flex', flexDirection:'column', boxShadow:'0 40px 120px rgba(0,0,0,0.9)' }}>
-
-        {/* Archived banner */}
-        {isArchived && (
-          <div style={{ background:'rgba(245,158,11,0.1)', borderBottom:'1px solid rgba(245,158,11,0.25)', padding:'8px 24px', display:'flex', alignItems:'center', gap:'10px', flexShrink:0 }}>
-            <span style={{ fontSize:'14px' }}>📦</span>
-            <span style={{ color:'#f59e0b', fontSize:'12px', fontWeight:'bold', letterSpacing:'0.5px' }}>Archived — Migrated to CRM</span>
-            <span style={{ color:'#6b7280', fontSize:'11px' }}>This lead is read-only. Edit from the Potential Investor card in the CRM.</span>
+      <input value={search} onChange={e => setSearch(e.target.value)} placeholder={`Search ${kbEntries.filter(e => e.category !== 'raw_document').length} entries…`}
+        style={{ ...inp, marginBottom: '6px' }} />
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+        {filtered.slice(0, 30).map(e => (
+          <div key={e.id} style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: '3px', padding: '5px 8px' }}>
+            <div style={{ color: GOLD, fontSize: '9px', fontWeight: 'bold', marginBottom: '1px' }}>Q: {e.question}</div>
+            <div style={{ color: '#6b7280', fontSize: '9px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>A: {e.answer}</div>
+            {e.category && <div style={{ color: '#4a5568', fontSize: '8px', marginTop: '1px' }}>{e.category}</div>}
           </div>
-        )}
-
-        {/* Header */}
-        <div style={{ padding:'16px 24px', borderBottom:'1px solid rgba(255,255,255,0.07)', display:'flex', justifyContent:'space-between', alignItems:'center', background:'rgba(0,0,0,0.2)', flexShrink:0 }}>
-          <div style={{ display:'flex', alignItems:'center', gap:'12px' }}>
-            <div style={{ width:'44px', height:'44px', borderRadius:'50%', background:`linear-gradient(135deg,${GOLD}44,${GOLD}22)`, border:`2px solid ${GOLD}66`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:'18px', flexShrink:0 }}>
-              {fullName[0]?.toUpperCase()}
-            </div>
-            <div>
-              <div style={{ color:'#e8e0d0', fontSize:'17px', fontFamily:'Georgia,serif' }}>{fullName}</div>
-              <div style={{ color:'#6b7280', fontSize:'11px', marginTop:'1px' }}>{lead.email}{lead.state ? ` · ${lead.state}` : ''}</div>
-            </div>
-          </div>
-          <div style={{ display:'flex', gap:'8px', alignItems:'center', flexWrap:'wrap' }}>
-            {/* Engagement Score Badge */}
-            {(editLead.engagementScore > 0) && (
-              <div style={{ background:'rgba(184,147,58,0.15)', border:'1px solid rgba(184,147,58,0.4)', borderRadius:'20px', padding:'4px 10px', fontSize:'11px', color:GOLD, fontWeight:'bold' }}>
-                ⭐ {editLead.engagementScore} pts
-              </div>
-            )}
-            {/* Activity Badges */}
-            {editLead.badgeEmailOpened && <span title="Email Opened" style={{ background:'rgba(74,222,128,0.15)', border:'1px solid rgba(74,222,128,0.3)', borderRadius:'20px', padding:'3px 8px', fontSize:'10px', color:'#4ade80' }}>📬 Email Opened</span>}
-            {editLead.badgeConsumerWebsite && <span title="Visited Consumer Website" style={{ background:'rgba(96,165,250,0.15)', border:'1px solid rgba(96,165,250,0.3)', borderRadius:'20px', padding:'3px 8px', fontSize:'10px', color:'#60a5fa' }}>🌐 Consumer Site</span>}
-            {editLead.badgeInvestorPage && <span title="Visited Investor Page" style={{ background:'rgba(167,139,250,0.15)', border:'1px solid rgba(167,139,250,0.3)', borderRadius:'20px', padding:'3px 8px', fontSize:'10px', color:'#a78bfa' }}>💼 Investor Page</span>}
-
-            {/* Send Email */}
-            <button onClick={sendEmail} disabled={isArchived || sendingEmail || !editLead.email}
-              style={{ background:'rgba(96,165,250,0.15)', color:'#60a5fa', border:'1px solid rgba(96,165,250,0.3)', borderRadius:'2px', padding:'7px 14px', cursor: editLead.email ? 'pointer' : 'not-allowed', fontSize:'11px', fontWeight:'bold', opacity: editLead.email ? 1 : 0.5 }}>
-              {sendingEmail ? '⏳ Sending…' : '✉️ Send Email'}
-            </button>
-            {emailMsg && <span style={{ fontSize:'11px', color: emailMsg.startsWith('Error') ? '#ef4444' : '#4ade80' }}>{emailMsg}</span>}
-
-            <button onClick={() => !isArchived && setShowZoom(true)}
-              style={{ background:'rgba(96,165,250,0.15)', color: isArchived ? '#4a5568' : '#60a5fa', border:'1px solid rgba(96,165,250,0.3)', borderRadius:'2px', padding:'7px 14px', cursor: isArchived ? 'not-allowed' : 'pointer', fontSize:'11px', fontWeight:'bold', opacity: isArchived ? 0.4 : 1 }}>
-              📅 Book Zoom
-            </button>
-            {!isArchived && (
-              <button onClick={() => setShowMigrate(true)}
-                style={{ background:'linear-gradient(135deg,#7c3aed,#a855f7)', color:'#fff', border:'none', borderRadius:'2px', padding:'7px 14px', cursor:'pointer', fontSize:'11px', fontWeight:'bold', letterSpacing:'1px' }}>
-                🚀 Migrate to CRM
-              </button>
-            )}
-            {(lead.phone || editLead.phone) && !isArchived && (
-              <button onClick={() => onDialNumber && onDialNumber(lead)}
-                style={{ background:'rgba(74,222,128,0.15)', color:'#4ade80', border:'1px solid rgba(74,222,128,0.3)', borderRadius:'2px', padding:'7px 14px', cursor:'pointer', fontSize:'11px', fontWeight:'bold' }}>
-                📞 {lead.phone || editLead.phone}
-              </button>
-            )}
-            {/* Lead navigation ‹ 3/47 › */}
-            {totalLeads > 1 && (
-              <div style={{ display:'flex', alignItems:'center', gap:'3px', marginRight:'4px' }}>
-                <button onClick={onPrevLead} disabled={currentLeadIndex <= 0}
-                  style={{ background:'rgba(255,255,255,0.05)', color: currentLeadIndex <= 0 ? '#2d3748' : '#8a9ab8', border:'1px solid rgba(255,255,255,0.08)', borderRadius:'4px', padding:'4px 7px', cursor: currentLeadIndex <= 0 ? 'not-allowed' : 'pointer', fontSize:'14px' }}>‹</button>
-                <span style={{ color:'#4a5568', fontSize:'10px', minWidth:'36px', textAlign:'center' }}>{currentLeadIndex + 1}/{totalLeads}</span>
-                <button onClick={onNextLead} disabled={currentLeadIndex >= totalLeads - 1}
-                  style={{ background:'rgba(255,255,255,0.05)', color: currentLeadIndex >= totalLeads - 1 ? '#2d3748' : '#8a9ab8', border:'1px solid rgba(255,255,255,0.08)', borderRadius:'4px', padding:'4px 7px', cursor: currentLeadIndex >= totalLeads - 1 ? 'not-allowed' : 'pointer', fontSize:'14px' }}>›</button>
-              </div>
-            )}
-
-            {/* Dialer controls — show when call active */}
-            {isDialerPaused && (
-              <div style={{ display:'flex', gap:'5px', marginRight:'4px' }}>
-                <button onClick={() => { dialerRef.current?.hangupActiveCall?.(); }}
-                  style={{ background:'rgba(239,68,68,0.15)', color:'#ef4444', border:'1px solid rgba(239,68,68,0.4)', borderRadius:'4px', padding:'5px 10px', cursor:'pointer', fontSize:'11px', fontWeight:'bold' }}>
-                  📵 Hang Up
-                </button>
-                <button onClick={() => { dialerRef.current?.hangupActiveCall?.(); onNextLead?.(); }}
-                  style={{ background:'rgba(59,130,246,0.15)', color:'#60a5fa', border:'1px solid rgba(59,130,246,0.35)', borderRadius:'4px', padding:'5px 10px', cursor:'pointer', fontSize:'11px', fontWeight:'bold' }}>
-                  📵 → Next
-                </button>
-                <button onClick={async () => { await saveProfile?.(); dialerRef.current?.hangupActiveCall?.(); onResume?.(); }}
-                  style={{ background:'linear-gradient(135deg,#22c55e,#16a34a)', color:'#fff', border:'none', borderRadius:'4px', padding:'5px 12px', cursor:'pointer', fontSize:'11px', fontWeight:'bold', boxShadow:'0 0 10px rgba(74,222,128,0.25)' }}>
-                  ▶ Resume & Save
-                </button>
-              </div>
-            )}
-            <button onClick={onClose} style={{ background:'rgba(255,255,255,0.05)', border:'1px solid rgba(255,255,255,0.1)', color:'#6b7280', cursor:'pointer', fontSize:'20px', width:'34px', height:'34px', borderRadius:'4px', display:'flex', alignItems:'center', justifyContent:'center' }}>×</button>
-          </div>
-        </div>
-
-        {/* Tabs */}
-        <div style={{ display:'flex', borderBottom:'1px solid rgba(255,255,255,0.07)', flexShrink:0 }}>
-          {[['overview','👤 Overview'],['history','📋 History'],['actions','⚡ Actions'],['access','🔑 Access'],['sitestats','📊 Site Stats'],['research','🔍 Research'],['script','📝 Script']].filter(([id]) => !(isArchived && id === 'actions')).map(([id,label]) => (
-            <button key={id} onClick={() => setTab(id)} style={{ background:'none', border:'none', borderBottom:tab===id?`2px solid ${GOLD}`:'2px solid transparent', color:tab===id?GOLD:'#6b7280', padding:'11px 20px', cursor:'pointer', fontSize:'11px', letterSpacing:'1px' }}>{label}</button>
-          ))}
-        </div>
-
-        {/* Body */}
-        <div style={{ flex:1, overflowY:'auto', padding:'20px 24px' }}>
-
-          {/* ── OVERVIEW ── */}
-          {tab === 'overview' && (
-            <OverviewTab
-              editLead={editLead} setEditLead={setEditLead}
-              saving={saving} saveMsg={saveMsg}
-              saveProfile={saveProfile}
-              updateStatus={updateStatus}
-              quickNote={quickNote} setQuickNote={setQuickNote}
-              addQuickNote={addQuickNote} addingNote={addingNote}
-              history={history} loading={loading}
-              isArchived={isArchived}
-            />
-          )}
-
-          {/* ── HISTORY ── */}
-          {tab === 'history' && (
-            <LeadHistoryTab lead={editLead} history={history} onNoteAdded={loadHistory} />
-          )}
-
-          {tab === 'access' && (
-            <AccessTab lead={editLead} onUpdate={(updates) => setEditLead(prev => ({ ...prev, ...updates }))} onSave={async (updates) => {
-              try {
-                await base44.entities.Lead.update(lead.id, updates);
-                setEditLead(prev => ({ ...prev, ...updates }));
-              } catch(e) { console.error(e); }
-            }} />
-          )}
-
-          {tab === 'sitestats' && (
-            <InvestorWebsiteTab lead={editLead} />
-          )}
-
-          {tab === 'research' && (
-            <ResearchTab lead={editLead} />
-          )}
-
-          {tab === 'script' && (
-            <ScriptAssistant lead={editLead} />
-          )}
-
-          {/* ── ACTIONS ── */}
-          {tab === 'actions' && (
-            <div style={{ display:'flex', flexDirection:'column', gap:'12px' }}>
-              <div style={{ color:GOLD, fontSize:'10px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'4px' }}>Lead Actions</div>
-
-              {/* Prospect — combined action */}
-              <div style={{ background:'rgba(167,139,250,0.08)', border:'1px solid rgba(167,139,250,0.3)', borderRadius:'4px', padding:'16px 18px' }}>
-                <div style={{ display:'flex', alignItems:'center', gap:'12px', marginBottom:'12px' }}>
-                  <span style={{ fontSize:'24px' }}>🚀</span>
-                  <div>
-                    <div style={{ color:'#a78bfa', fontWeight:'bold', fontSize:'14px' }}>Mark as Prospect</div>
-                    <div style={{ color:'#6b7280', fontSize:'12px' }}>Optionally add a note and/or schedule a callback.</div>
-                  </div>
-                </div>
-                <textarea
-                  value={prospectNote}
-                  onChange={e => setProspectNote(e.target.value)}
-                  rows={2}
-                  placeholder="Add a note (optional)…"
-                  style={{ ...inp, resize:'vertical', marginBottom:'10px', fontSize:'12px' }}
-                />
-                <div style={{ display:'flex', gap:'10px', alignItems:'flex-end', flexWrap:'wrap' }}>
-                  <div style={{ flex:1, minWidth:'160px' }}>
-                    <label style={{ ...ls, marginBottom:'4px' }}>Schedule callback (optional)</label>
-                    <DateTimePicker value={callbackDate} onChange={iso => setCallbackDate(iso)} />
-                  </div>
-                  <button onClick={handleProspect}
-                    style={{ background:'linear-gradient(135deg,#7c3aed,#a855f7)', color:'#fff', border:'none', borderRadius:'2px', padding:'10px 22px', cursor:'pointer', fontSize:'12px', fontWeight:'bold', letterSpacing:'1px', marginBottom:'16px', whiteSpace:'nowrap' }}>
-                    🚀 Mark Prospect
-                  </button>
-                </div>
-              </div>
-
-              {/* Callback Later */}
-              <div style={{ background:'rgba(167,139,250,0.05)', border:'1px solid rgba(167,139,250,0.2)', borderRadius:'4px', padding:'16px 18px' }}>
-                <div style={{ display:'flex', alignItems:'center', gap:'12px', marginBottom:'12px' }}>
-                  <span style={{ fontSize:'24px' }}>📅</span>
-                  <div>
-                    <div style={{ color:'#a78bfa', fontWeight:'bold', fontSize:'14px' }}>Call Back Later</div>
-                    <div style={{ color:'#6b7280', fontSize:'12px' }}>Schedule a callback without changing status.</div>
-                  </div>
-                </div>
-                <div style={{ display:'flex', gap:'10px', alignItems:'flex-end' }}>
-                  <div style={{ flex:1 }}>
-                    <DateTimePicker value={callbackDate} onChange={iso => setCallbackDate(iso)} />
-                  </div>
-                  <button onClick={handleCallbackLater} disabled={!callbackDate}
-                    style={{ background:callbackDate?'rgba(167,139,250,0.2)':'rgba(167,139,250,0.07)', color:'#a78bfa', border:'1px solid rgba(167,139,250,0.4)', borderRadius:'2px', padding:'10px 20px', cursor:callbackDate?'pointer':'not-allowed', fontSize:'12px', marginBottom:'16px', whiteSpace:'nowrap' }}>
-                    Set Callback
-                  </button>
-                </div>
-              </div>
-
-              {/* Not Available */}
-              <div
-                onClick={() => setSelectedAction(selectedAction === 'not_available' ? null : 'not_available')}
-                style={{ background: selectedAction === 'not_available' ? 'rgba(138,154,184,0.15)' : 'rgba(138,154,184,0.04)', border:`1px solid ${selectedAction==='not_available'?'rgba(138,154,184,0.5)':'rgba(138,154,184,0.2)'}`, borderRadius:'4px', padding:'14px 18px', cursor:'pointer', transition:'all 0.15s' }}>
-                <div style={{ display:'flex', alignItems:'center', gap:'12px' }}>
-                  <span style={{ fontSize:'22px' }}>📵</span>
-                  <div>
-                    <div style={{ color:'#8a9ab8', fontWeight:'bold', fontSize:'14px' }}>Not Available</div>
-                    <div style={{ color:'#6b7280', fontSize:'12px' }}>Log a failed contact attempt.</div>
-                  </div>
-                </div>
-                {selectedAction === 'not_available' && (
-                  <div onClick={e => e.stopPropagation()} style={{ marginTop:'12px' }}>
-                    <textarea
-                      value={notAvailableNote}
-                      onChange={e => setNotAvailableNote(e.target.value)}
-                      rows={2}
-                      placeholder="Optional note…"
-                      style={{ ...inp, resize:'vertical', marginBottom:'10px', fontSize:'12px' }}
-                    />
-                    <button onClick={handleNotAvailable}
-                      style={{ background:'rgba(138,154,184,0.2)', color:'#8a9ab8', border:'1px solid rgba(138,154,184,0.4)', borderRadius:'2px', padding:'9px 20px', cursor:'pointer', fontSize:'12px', fontWeight:'bold' }}>
-                      Save — Not Available
-                    </button>
-                  </div>
-                )}
-              </div>
-
-              {/* Not Interested */}
-              <div
-                onClick={() => setSelectedAction(selectedAction === 'not_interested' ? null : 'not_interested')}
-                style={{ background: selectedAction === 'not_interested' ? 'rgba(239,68,68,0.12)' : 'rgba(239,68,68,0.04)', border:`1px solid ${selectedAction==='not_interested'?'rgba(239,68,68,0.5)':'rgba(239,68,68,0.2)'}`, borderRadius:'4px', padding:'14px 18px', cursor:'pointer', transition:'all 0.15s' }}>
-                <div style={{ display:'flex', alignItems:'center', gap:'12px' }}>
-                  <span style={{ fontSize:'22px' }}>❌</span>
-                  <div>
-                    <div style={{ color:'#ef4444', fontWeight:'bold', fontSize:'14px' }}>Not Interested</div>
-                    <div style={{ color:'#6b7280', fontSize:'12px' }}>Permanently remove from the list.</div>
-                  </div>
-                </div>
-                {selectedAction === 'not_interested' && (
-                  <div onClick={e => e.stopPropagation()} style={{ marginTop:'12px' }}>
-                    <textarea
-                      value={notInterestedNote}
-                      onChange={e => setNotInterestedNote(e.target.value)}
-                      rows={2}
-                      placeholder="Optional note before removing…"
-                      style={{ ...inp, resize:'vertical', marginBottom:'10px', fontSize:'12px' }}
-                    />
-                    <button onClick={handleNotInterested}
-                      style={{ background:'rgba(239,68,68,0.2)', color:'#ef4444', border:'1px solid rgba(239,68,68,0.5)', borderRadius:'2px', padding:'9px 20px', cursor:'pointer', fontSize:'12px', fontWeight:'bold' }}>
-                      Save — Remove Lead
-                    </button>
-                  </div>
-                )}
-              </div>
-
-            </div>
-          )}
-        </div>
+        ))}
+        {filtered.length === 0 && <div style={{ color: '#4a5568', fontSize: '10px', textAlign: 'center', padding: '10px' }}>No entries match</div>}
+        {filtered.length > 30 && <div style={{ color: '#4a5568', fontSize: '9px', textAlign: 'center', padding: '4px' }}>Showing 30 of {filtered.length} — refine search</div>}
       </div>
     </div>
-    </>
   );
 }
