@@ -109,6 +109,11 @@
       "type": "boolean",
       "title": "Migrated to Portal",
       "default": false
+    },
+    "clientProfile": {
+      "type": "string",
+      "title": "Client Profile (JSON)",
+      "format": "textarea"
     }
   },
   "required": [

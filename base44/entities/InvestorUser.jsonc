@@ -141,6 +141,11 @@
       "type": "string",
       "format": "textarea",
       "title": "Distribution Details (JSON)"
+    },
+    "clientProfile": {
+      "type": "string",
+      "title": "Client Profile (JSON)",
+      "format": "textarea"
     }
   },
   "required": [
