@@ -126,6 +126,21 @@
       "type": "string",
       "format": "textarea",
       "title": "Last Viewed Tabs (JSON)"
+    },
+    "distributionMethod": {
+      "type": "string",
+      "title": "Distribution Method",
+      "enum": [
+        "wire",
+        "ach",
+        "check",
+        "crypto"
+      ]
+    },
+    "distributionDetails": {
+      "type": "string",
+      "format": "textarea",
+      "title": "Distribution Details (JSON)"
     }
   },
   "required": [
