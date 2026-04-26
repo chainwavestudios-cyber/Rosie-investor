@@ -471,35 +471,128 @@ export default function ScriptAssistant({ lead, user }) {
   );
 }
 
-// Minimal KB editor for the AI panel
+// Full KB editor — manual, URL scrape, file upload, drag & drop
 function MiniKBEditor({ kbEntries, onUpdate }) {
-  const [q, setQ] = useState('');
-  const [a, setA] = useState('');
-  const [saving, setSaving] = useState(false);
+  const [mode, setMode]       = useState('manual'); // manual | url | file
+  const [q, setQ]             = useState('');
+  const [a, setA]             = useState('');
+  const [url, setUrl]         = useState('');
+  const [saving, setSaving]   = useState(false);
+  const [scraping, setScraping] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
+  const fileRef               = useRef(null);
   const GOLD = '#b8933a';
   const DARK = '#0a0f1e';
   const inp = { width:'100%', background:'rgba(255,255,255,0.05)', border:'1px solid rgba(255,255,255,0.1)', borderRadius:'4px', padding:'5px 8px', color:'#e8e0d0', fontSize:'10px', outline:'none', fontFamily:'Georgia, serif', boxSizing:'border-box', resize:'none' };
+
   const save = async () => {
     if (!q.trim()||!a.trim()) return;
     setSaving(true);
     try { await base44.entities.KnowledgeBase.create({ question:q.trim(), answer:a.trim(), category:'manual' }); setQ(''); setA(''); onUpdate(); } catch {}
     setSaving(false);
   };
+
+  const scrapeUrl = async () => {
+    if (!url.trim()) return;
+    setScraping(true);
+    try {
+      const res = await base44.functions.invoke('kbScrapeUrl', { url: url.trim() });
+      const entries = res?.data?.entries || [];
+      for (const e of entries) await base44.entities.KnowledgeBase.create({ question:e.question, answer:e.answer, category:'url', source:url.trim() }).catch(()=>{});
+      setUrl(''); onUpdate();
+    } catch(e) { console.error(e); }
+    setScraping(false);
+  };
+
+  const processFile = async (file) => {
+    if (!file) return;
+    setScraping(true);
+    try {
+      const base64 = await new Promise((res,rej) => { const r = new FileReader(); r.onload = () => res(r.result.split(',')[1]); r.onerror = rej; r.readAsDataURL(file); });
+      const result = await base44.functions.invoke('kbExtractFile', { fileName:file.name, fileType:file.type, base64 });
+      const entries = result?.data?.entries || [];
+      for (const e of entries) await base44.entities.KnowledgeBase.create({ question:e.question, answer:e.answer, category:'document', source:file.name }).catch(()=>{});
+      onUpdate();
+    } catch(e) { console.error(e); }
+    setScraping(false);
+    if (fileRef.current) fileRef.current.value = '';
+  };
+
+  const del = async (id) => { try { await base44.entities.KnowledgeBase.delete(id); onUpdate(); } catch {} };
+
+  const catColor = { manual:'#60a5fa', url:'#4ade80', document:'#f59e0b' };
+  const catIcon  = { manual:'✍️', url:'🌐', document:'📄' };
+
   return (
     <div>
-      <div style={{ marginBottom:'8px', background:'rgba(0,0,0,0.15)', borderRadius:'4px', padding:'8px' }}>
-        <input value={q} onChange={e=>setQ(e.target.value)} placeholder="Question…" style={{ ...inp, marginBottom:'4px' }} />
-        <textarea value={a} onChange={e=>setA(e.target.value)} placeholder="Answer…" rows={2} style={inp} />
-        <button onClick={save} disabled={saving||!q.trim()||!a.trim()}
-          style={{ marginTop:'4px', background:'linear-gradient(135deg,#b8933a,#d4aa50)', color:DARK, border:'none', borderRadius:'3px', padding:'4px 12px', cursor:'pointer', fontSize:'9px', fontWeight:'bold' }}>
-          {saving?'…':'+ Add'}
-        </button>
+      {/* Mode tabs */}
+      <div style={{ display:'flex', gap:'3px', marginBottom:'8px' }}>
+        {[['manual','✍️ Manual'],['url','🌐 URL'],['file','📄 File']].map(([id,label]) => (
+          <button key={id} onClick={() => setMode(id)}
+            style={{ flex:1, background: mode===id ? 'rgba(184,147,58,0.15)' : 'rgba(255,255,255,0.03)', border:`1px solid ${mode===id ? GOLD : 'rgba(255,255,255,0.08)'}`, color: mode===id ? GOLD : '#6b7280', borderRadius:'4px', padding:'4px', cursor:'pointer', fontSize:'9px' }}>
+            {label}
+          </button>
+        ))}
       </div>
-      <div style={{ display:'flex', flexDirection:'column', gap:'3px' }}>
-        {kbEntries.slice(0,20).map(e => (
-          <div key={e.id} style={{ background:'rgba(255,255,255,0.02)', border:'1px solid rgba(255,255,255,0.05)', borderRadius:'3px', padding:'5px 8px' }}>
-            <div style={{ color:GOLD, fontSize:'9px', fontWeight:'bold', marginBottom:'1px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>Q: {e.question}</div>
-            <div style={{ color:'#6b7280', fontSize:'9px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>A: {e.answer}</div>
+
+      {/* Manual */}
+      {mode === 'manual' && (
+        <div style={{ marginBottom:'8px', background:'rgba(0,0,0,0.15)', borderRadius:'4px', padding:'8px' }}>
+          <input value={q} onChange={e=>setQ(e.target.value)} placeholder="Question / trigger…" style={{ ...inp, marginBottom:'4px' }} />
+          <textarea value={a} onChange={e=>setA(e.target.value)} placeholder="Answer…" rows={2} style={inp} />
+          <button onClick={save} disabled={saving||!q.trim()||!a.trim()}
+            style={{ marginTop:'4px', background:'linear-gradient(135deg,#b8933a,#d4aa50)', color:DARK, border:'none', borderRadius:'3px', padding:'4px 12px', cursor:'pointer', fontSize:'9px', fontWeight:'bold' }}>
+            {saving?'Saving…':'+ Add'}
+          </button>
+        </div>
+      )}
+
+      {/* URL */}
+      {mode === 'url' && (
+        <div style={{ marginBottom:'8px', background:'rgba(0,0,0,0.15)', borderRadius:'4px', padding:'8px' }}>
+          <input value={url} onChange={e=>setUrl(e.target.value)} placeholder="https://your-faq-page.com" style={{ ...inp, marginBottom:'5px' }} />
+          <div style={{ color:'#4a5568', fontSize:'9px', marginBottom:'5px' }}>AI scrapes the page and extracts Q&A pairs</div>
+          <button onClick={scrapeUrl} disabled={scraping||!url.trim()}
+            style={{ background:'rgba(74,222,128,0.12)', color:'#4ade80', border:'1px solid rgba(74,222,128,0.25)', borderRadius:'3px', padding:'4px 12px', cursor:'pointer', fontSize:'9px', fontWeight:'bold' }}>
+            {scraping?'⏳ Scraping…':'🌐 Scrape & Import'}
+          </button>
+        </div>
+      )}
+
+      {/* File drag & drop */}
+      {mode === 'file' && (
+        <div style={{ marginBottom:'8px' }}>
+          <input ref={fileRef} type="file" accept=".pdf,.txt,.doc,.docx" onChange={e=>processFile(e.target.files?.[0])} style={{ display:'none' }} />
+          <div
+            onDragOver={e => { e.preventDefault(); setDragOver(true); }}
+            onDragLeave={() => setDragOver(false)}
+            onDrop={e => { e.preventDefault(); setDragOver(false); processFile(e.dataTransfer.files?.[0]); }}
+            onClick={() => fileRef.current?.click()}
+            style={{ background: dragOver ? 'rgba(245,158,11,0.1)' : 'rgba(0,0,0,0.15)', border:`2px dashed ${dragOver ? '#f59e0b' : 'rgba(255,255,255,0.15)'}`, borderRadius:'6px', padding:'16px', textAlign:'center', cursor:'pointer', transition:'all 0.15s' }}>
+            {scraping ? (
+              <div style={{ color:'#f59e0b', fontSize:'11px' }}>⏳ Extracting knowledge…</div>
+            ) : (
+              <>
+                <div style={{ fontSize:'24px', marginBottom:'6px' }}>📄</div>
+                <div style={{ color:'#8a9ab8', fontSize:'10px' }}>Drag & drop a PDF or doc here</div>
+                <div style={{ color:'#4a5568', fontSize:'9px', marginTop:'3px' }}>or click to browse</div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Entries */}
+      <div style={{ display:'flex', flexDirection:'column', gap:'3px', maxHeight:'200px', overflowY:'auto' }}>
+        {kbEntries.map(e => (
+          <div key={e.id} style={{ background:'rgba(255,255,255,0.02)', border:`1px solid rgba(255,255,255,0.05)`, borderLeft:`3px solid ${catColor[e.category||'manual']||'#60a5fa'}`, borderRadius:'3px', padding:'5px 8px', display:'flex', gap:'6px', alignItems:'flex-start' }}>
+            <div style={{ flex:1, minWidth:0 }}>
+              <div style={{ color: catColor[e.category||'manual']||GOLD, fontSize:'9px', fontWeight:'bold', marginBottom:'1px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+                {catIcon[e.category||'manual']} {e.question}
+              </div>
+              <div style={{ color:'#6b7280', fontSize:'9px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{e.answer}</div>
+            </div>
+            <button onClick={() => del(e.id)} style={{ background:'none', border:'none', color:'#4a5568', cursor:'pointer', fontSize:'12px', flexShrink:0 }}>×</button>
           </div>
         ))}
         {kbEntries.length === 0 && <div style={{ color:'#4a5568', fontSize:'10px', textAlign:'center', padding:'10px' }}>No KB entries yet</div>}
