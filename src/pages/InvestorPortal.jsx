@@ -79,49 +79,71 @@ function AccountProfile({ portalUser }) {
   const { updateUser } = usePortalAuth();
   const isInvestor = portalUser.status === 'investor';
   const [form, setForm] = useState({
-    name:  portalUser.name  || '',
-    email: portalUser.email || '',
-    phone: portalUser.phone || '',
-    // address only editable if investor — shown always but grayed out for prospects
+    name:    portalUser.name    || '',
+    email:   portalUser.email   || '',
+    phone:   portalUser.phone   || '',
     address: portalUser.address || '',
   });
+  const [pwForm, setPwForm] = useState({ current:'', newPw:'', confirm:'' });
   const [saving, setSaving] = useState(false);
-  const [msg, setMsg] = useState(null);
+  const [savingPw, setSavingPw] = useState(false);
+  const [msg, setMsg]     = useState(null);
+  const [pwMsg, setPwMsg] = useState(null);
 
   const save = async () => {
     setSaving(true); setMsg(null);
     try {
-      const updates = { name:form.name, email:form.email, phone:form.phone };
-      if (isInvestor) updates.address = form.address;
-      await updateUser(portalUser.username||portalUser.email, updates);
+      await updateUser(portalUser.username || portalUser.email, {
+        name: form.name, email: form.email, phone: form.phone, address: form.address,
+      });
       setMsg({ ok:true, text:'Profile updated successfully.' });
     } catch { setMsg({ ok:false, text:'Update failed — please try again.' }); }
     finally { setSaving(false); }
   };
 
+  const savePassword = async () => {
+    if (!pwForm.newPw || pwForm.newPw.length < 6) { setPwMsg({ ok:false, text:'New password must be at least 6 characters.' }); return; }
+    if (pwForm.newPw !== pwForm.confirm) { setPwMsg({ ok:false, text:'Passwords do not match.' }); return; }
+    setSavingPw(true); setPwMsg(null);
+    try {
+      await updateUser(portalUser.username || portalUser.email, { password: pwForm.newPw });
+      setPwForm({ current:'', newPw:'', confirm:'' });
+      setPwMsg({ ok:true, text:'Password updated successfully.' });
+    } catch { setPwMsg({ ok:false, text:'Password update failed — please try again.' }); }
+    finally { setSavingPw(false); }
+  };
+
   return (
     <div style={{ maxWidth:'520px' }}>
+      {/* ── Contact Information ── */}
       <h3 style={{ color:'#8a9ab8', fontSize:'11px', letterSpacing:'2px', textTransform:'uppercase', marginTop:0, marginBottom:'20px' }}>Contact Information</h3>
-      {/* Always-visible fields */}
       {[{ key:'name', label:'Full Name' }, { key:'email', label:'Email Address', type:'email' }, { key:'phone', label:'Phone Number', placeholder:'(216) 555-0123' }].map(({ key, label, type='text', placeholder='' }) => (
         <div key={key} style={{ marginBottom:'16px' }}>
           <label style={labelStyle}>{label}</label>
           <input type={type} value={form[key]} onChange={e=>setForm({...form,[key]:e.target.value})} placeholder={placeholder} style={inputStyle} />
         </div>
       ))}
-      {/* Address: only shown to investors */}
-      {isInvestor ? (
-        <div style={{ marginBottom:'16px' }}>
-          <label style={labelStyle}>Mailing Address</label>
-          <input value={form.address} onChange={e=>setForm({...form,address:e.target.value})} placeholder="123 Main St, Cleveland, OH 44101" style={inputStyle} />
-        </div>
-      ) : (
-        <div style={{ background:'rgba(96,165,250,0.05)', border:'1px solid rgba(96,165,250,0.15)', borderRadius:'2px', padding:'14px 16px', marginBottom:'20px' }}>
-          <p style={{ color:'#6b7280', fontSize:'12px', margin:0 }}>🔒 Your mailing address will be visible once your account is upgraded to <strong style={{ color:'#60a5fa' }}>Investor</strong> status.</p>
-        </div>
-      )}
+      <div style={{ marginBottom:'20px' }}>
+        <label style={labelStyle}>Mailing Address</label>
+        <input value={form.address} onChange={e=>setForm({...form,address:e.target.value})} placeholder="123 Main St, Cleveland, OH 44101" style={inputStyle} />
+      </div>
       {msg && <div style={{ background:msg.ok?'rgba(74,222,128,0.1)':'rgba(220,60,60,0.1)', border:`1px solid ${msg.ok?'rgba(74,222,128,0.3)':'rgba(220,60,60,0.3)'}`, borderRadius:'2px', padding:'10px 14px', color:msg.ok?'#4ade80':'#ff8a8a', fontSize:'13px', marginBottom:'16px' }}>{msg.text}</div>}
       <button onClick={save} disabled={saving} style={{ background:'linear-gradient(135deg,#b8933a,#d4aa50)', color:DARK, border:'none', borderRadius:'2px', padding:'12px 32px', cursor:'pointer', fontWeight:'700', fontSize:'12px', letterSpacing:'2px', textTransform:'uppercase' }}>{saving?'Saving…':'Save Changes'}</button>
+
+      {/* ── Change Password ── */}
+      <div style={{ marginTop:'36px', paddingTop:'28px', borderTop:'1px solid rgba(255,255,255,0.07)' }}>
+        <h3 style={{ color:'#8a9ab8', fontSize:'11px', letterSpacing:'2px', textTransform:'uppercase', marginTop:0, marginBottom:'20px' }}>Change Password</h3>
+        <div style={{ marginBottom:'14px' }}>
+          <label style={labelStyle}>New Password</label>
+          <input type="password" value={pwForm.newPw} onChange={e=>setPwForm({...pwForm,newPw:e.target.value})} placeholder="Min. 6 characters" style={inputStyle} />
+        </div>
+        <div style={{ marginBottom:'20px' }}>
+          <label style={labelStyle}>Confirm New Password</label>
+          <input type="password" value={pwForm.confirm} onChange={e=>setPwForm({...pwForm,confirm:e.target.value})} placeholder="Re-enter new password" style={inputStyle} />
+        </div>
+        {pwMsg && <div style={{ background:pwMsg.ok?'rgba(74,222,128,0.1)':'rgba(220,60,60,0.1)', border:`1px solid ${pwMsg.ok?'rgba(74,222,128,0.3)':'rgba(220,60,60,0.3)'}`, borderRadius:'2px', padding:'10px 14px', color:pwMsg.ok?'#4ade80':'#ff8a8a', fontSize:'13px', marginBottom:'16px' }}>{pwMsg.text}</div>}
+        <button onClick={savePassword} disabled={savingPw || !pwForm.newPw || !pwForm.confirm} style={{ background:'rgba(255,255,255,0.06)', color:'#e8e0d0', border:'1px solid rgba(255,255,255,0.15)', borderRadius:'2px', padding:'11px 28px', cursor:'pointer', fontWeight:'700', fontSize:'12px', letterSpacing:'2px', textTransform:'uppercase' }}>{savingPw?'Updating…':'Update Password'}</button>
+      </div>
     </div>
   );
 }
@@ -374,16 +396,143 @@ function AccountAccreditation({ portalUser }) {
   );
 }
 
+
+// ─── Account: Distributions ───────────────────────────────────────────────
+function AccountDistributions({ portalUser }) {
+  const { updateUser } = usePortalAuth();
+  const [method, setMethod] = useState(portalUser.distributionMethod || '');
+  const [form, setForm]     = useState(() => {
+    try { return JSON.parse(portalUser.distributionDetails || '{}'); } catch { return {}; }
+  });
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg]       = useState(null);
+
+  const f = (k) => form[k] || '';
+  const set = (k, v) => setForm(prev => ({ ...prev, [k]: v }));
+
+  const save = async () => {
+    if (!method) { setMsg({ ok:false, text:'Please select a distribution method.' }); return; }
+    setSaving(true); setMsg(null);
+    try {
+      await updateUser(portalUser.username || portalUser.email, {
+        distributionMethod:  method,
+        distributionDetails: JSON.stringify(form),
+      });
+      setMsg({ ok:true, text:'Distribution preferences saved.' });
+    } catch { setMsg({ ok:false, text:'Save failed — please try again.' }); }
+    finally { setSaving(false); }
+  };
+
+  const MethodBtn = ({ id, label, icon }) => (
+    <button onClick={() => setMethod(id)} style={{ flex:1, background: method===id ? 'rgba(184,147,58,0.18)' : 'rgba(255,255,255,0.03)', border:`2px solid ${method===id ? GOLD : 'rgba(255,255,255,0.1)'}`, borderRadius:'4px', padding:'18px 12px', cursor:'pointer', color: method===id ? GOLD : '#6b7280', fontFamily:'Georgia, serif', transition:'all 0.15s' }}>
+      <div style={{ fontSize:'24px', marginBottom:'6px' }}>{icon}</div>
+      <div style={{ fontSize:'12px', fontWeight:'bold', letterSpacing:'0.5px' }}>{label}</div>
+    </button>
+  );
+
+  const Field = ({ label, k, placeholder='', type='text' }) => (
+    <div style={{ marginBottom:'14px' }}>
+      <label style={labelStyle}>{label}</label>
+      <input type={type} value={f(k)} onChange={e=>set(k,e.target.value)} placeholder={placeholder} style={inputStyle} />
+    </div>
+  );
+
+  return (
+    <div style={{ maxWidth:'580px' }}>
+      {/* Schedule notice */}
+      <div style={{ background:'rgba(184,147,58,0.08)', border:'1px solid rgba(184,147,58,0.25)', borderRadius:'4px', padding:'16px 20px', marginBottom:'28px', display:'flex', alignItems:'center', gap:'14px' }}>
+        <div style={{ fontSize:'28px', flexShrink:0 }}>📅</div>
+        <div>
+          <div style={{ color:GOLD, fontWeight:'bold', fontSize:'13px', marginBottom:'3px' }}>Distribution Schedule</div>
+          <div style={{ color:'#8a9ab8', fontSize:'12px', lineHeight:1.6 }}>Targeted 1st distribution: <strong style={{ color:'#e8e0d0' }}>Q3 / Q4 2026</strong>. You will be notified in advance of each distribution event.</div>
+        </div>
+      </div>
+
+      <h3 style={{ color:'#8a9ab8', fontSize:'11px', letterSpacing:'2px', textTransform:'uppercase', marginTop:0, marginBottom:'18px' }}>Select Distribution Method</h3>
+
+      {/* Method selector */}
+      <div style={{ display:'flex', gap:'10px', marginBottom:'28px', flexWrap:'wrap' }}>
+        <MethodBtn id="wire"   label="Wire Transfer" icon="🏦" />
+        <MethodBtn id="ach"    label="ACH / Direct"  icon="⚡" />
+        <MethodBtn id="check"  label="Check"         icon="📬" />
+        <MethodBtn id="crypto" label="Crypto"        icon="₿"  />
+      </div>
+
+      {/* Wire fields */}
+      {method === 'wire' && (
+        <div>
+          <div style={{ color:GOLD, fontSize:'10px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'16px' }}>Wire Transfer Details</div>
+          <Field label="Bank Name"       k="bankName"    placeholder="First National Bank" />
+          <Field label="Bank Address"    k="bankAddress" placeholder="123 Bank St, Cleveland, OH 44101" />
+          <Field label="Account Name"    k="accountName" placeholder="Legal name on account" />
+          <Field label="Account Number"  k="accountNumber" placeholder="••••••••" />
+          <Field label="Routing Number"  k="routingNumber" placeholder="9 digits" />
+        </div>
+      )}
+
+      {/* ACH fields */}
+      {method === 'ach' && (
+        <div>
+          <div style={{ color:GOLD, fontSize:'10px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'16px' }}>ACH / Direct Deposit Details</div>
+          <Field label="Bank Name"       k="bankName"    placeholder="First National Bank" />
+          <Field label="Bank Address"    k="bankAddress" placeholder="123 Bank St, Cleveland, OH 44101" />
+          <Field label="Account Name"    k="accountName" placeholder="Legal name on account" />
+          <Field label="Account Number"  k="accountNumber" placeholder="••••••••" />
+          <Field label="Routing Number"  k="routingNumber" placeholder="9 digits" />
+        </div>
+      )}
+
+      {/* Check fields */}
+      {method === 'check' && (
+        <div>
+          <div style={{ color:GOLD, fontSize:'10px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'16px' }}>Check Mailing Details</div>
+          <Field label="Payable To (Full Legal Name)" k="checkName"    placeholder="Your full legal name or entity name" />
+          <Field label="Mailing Address"              k="checkAddress" placeholder="123 Main St, Cleveland, OH 44101" />
+        </div>
+      )}
+
+      {/* Crypto fields */}
+      {method === 'crypto' && (
+        <div>
+          <div style={{ color:GOLD, fontSize:'10px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'16px' }}>Crypto Distribution Details</div>
+          <div style={{ marginBottom:'14px' }}>
+            <label style={labelStyle}>Select Network</label>
+            <div style={{ display:'flex', gap:'8px' }}>
+              {['BTC','ETH','SOL'].map(coin => (
+                <button key={coin} onClick={()=>set('cryptoCoin',coin)} style={{ flex:1, background: f('cryptoCoin')===coin ? 'rgba(184,147,58,0.18)' : 'rgba(255,255,255,0.04)', border:`2px solid ${f('cryptoCoin')===coin ? GOLD : 'rgba(255,255,255,0.1)'}`, borderRadius:'4px', padding:'10px', cursor:'pointer', color: f('cryptoCoin')===coin ? GOLD : '#6b7280', fontFamily:'monospace', fontSize:'13px', fontWeight:'bold' }}>{coin}</button>
+              ))}
+            </div>
+          </div>
+          <Field label={`${f('cryptoCoin') || 'Crypto'} Wallet Address`} k="cryptoAddress" placeholder="Your wallet address" />
+          <div style={{ background:'rgba(245,158,11,0.08)', border:'1px solid rgba(245,158,11,0.2)', borderRadius:'4px', padding:'12px 14px', marginTop:'4px' }}>
+            <p style={{ color:'#f59e0b', fontSize:'11px', margin:0, lineHeight:1.7 }}>
+              ⚠️ <strong>Verification Notice:</strong> A $1.00 test transaction will be sent to your wallet address before any distributions commence. Please ensure the address is correct — crypto transactions are irreversible.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {method && (
+        <div style={{ marginTop:'24px' }}>
+          {msg && <div style={{ background:msg.ok?'rgba(74,222,128,0.1)':'rgba(220,60,60,0.1)', border:`1px solid ${msg.ok?'rgba(74,222,128,0.3)':'rgba(220,60,60,0.3)'}`, borderRadius:'2px', padding:'10px 14px', color:msg.ok?'#4ade80':'#ff8a8a', fontSize:'13px', marginBottom:'16px' }}>{msg.text}</div>}
+          <button onClick={save} disabled={saving} style={{ background:'linear-gradient(135deg,#b8933a,#d4aa50)', color:DARK, border:'none', borderRadius:'2px', padding:'12px 32px', cursor:'pointer', fontWeight:'700', fontSize:'12px', letterSpacing:'2px', textTransform:'uppercase' }}>{saving?'Saving…':'Save Distribution Preferences'}</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Account Tab ──────────────────────────────────────────────────────────
 function AccountTab({ portalUser }) {
   const isInvestor = portalUser.status === 'investor';
   const [sub, setSub] = useState('investment');
 
   const subTabs = [
-    ['investment', '📊 Investment'],
-    ['documents', '📄 Documents'],
+    ['investment',    '📊 Investment'],
+    ['documents',     '📄 Documents'],
     ['accreditation', '🔐 Accreditation'],
-    ['profile', '👤 Profile'],
+    ['distributions', '💰 Distributions'],
+    ['profile',       '👤 Profile'],
   ];
 
   return (
@@ -391,7 +540,6 @@ function AccountTab({ portalUser }) {
       <h2 style={{ ...h2s, marginBottom:'4px' }}>My Account</h2>
       <p style={{ color:'#4a5568', fontSize:'12px', margin:'0 0 24px' }}>
         View your investment details, signed documents, accreditation, and contact info.
-        {!isInvestor && <span style={{ color:'#60a5fa' }}> · Status: <strong>Prospect</strong> — some details locked until upgraded to Investor.</span>}
       </p>
       <div style={{ display:'flex', gap:'0', borderBottom:'1px solid rgba(255,255,255,0.08)', marginBottom:'28px' }}>
         {subTabs.map(([id,label]) => (
@@ -402,6 +550,7 @@ function AccountTab({ portalUser }) {
       {sub === 'documents'     && <AccountDocuments     portalUser={portalUser} />}
       {sub === 'accreditation' && <AccountAccreditation portalUser={portalUser} />}
       {sub === 'profile'       && <AccountProfile       portalUser={portalUser} />}
+      {sub === 'distributions' && <AccountDistributions portalUser={portalUser} />}
     </div>
   );
 }
