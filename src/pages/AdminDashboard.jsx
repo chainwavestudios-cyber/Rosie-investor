@@ -167,7 +167,7 @@ function ContactCardModal({ user, onClose, onSave, allSessions, matchesUser }) {
   const TABS = [
     ['overview','👤 Overview'], ['history','📞 History'], ['analytics','📊 Analytics'],
     ['documents','📄 Documents'], ['accreditation','🔐 Accreditation'], ['calendar','📅 Calendar'],
-    ['portal','🔑 Portal Access'], ['rosie','🤖 Rosie AI'], ['invsite','💼 Inv. Site'], ['research','🔍 Research'], ['script','📝 Script'],
+    ['portal','🔑 Portal Access'], ['rosie','🤖 Rosie AI'], ['cluster','🌐 Cluster'], ['research','🔍 Research'], ['script','📝 Script'],
   ];
 
   const noteTypeIcons = { note:'📝', call:'📞', sms:'💬', voicemail:'📳', email:'✉️' };
@@ -269,7 +269,7 @@ function ContactCardModal({ user, onClose, onSave, allSessions, matchesUser }) {
         </div>
 
         {/* Body */}
-        <div style={{ flex:1, overflow: tab === 'script' ? 'hidden' : 'auto', padding: tab === 'script' ? '0' : '24px 28px', display:'flex', flexDirection:'column', minHeight:0 }}>
+        <div style={{ flex:1, overflowY:'auto', padding:'24px 28px' }}>
 
           {/* OVERVIEW */}
           {tab === 'overview' && (
@@ -360,24 +360,42 @@ function ContactCardModal({ user, onClose, onSave, allSessions, matchesUser }) {
               {/* Timeline */}
               {loading && <p style={{ color:'#6b7280', textAlign:'center' }}>Loading…</p>}
               {!loading && notes.length === 0 && <p style={{ color:'#4a5568', textAlign:'center', padding:'32px' }}>No history yet. Log your first interaction above.</p>}
-              {notes.map((note, i) => (
-                <div key={note.id} style={{ display:'flex', gap:'14px', marginBottom:'16px' }}>
-                  <div style={{ display:'flex', flexDirection:'column', alignItems:'center', width:'24px', flexShrink:0 }}>
-                    <div style={{ fontSize:'18px' }}>{noteTypeIcons[note.type]||'📝'}</div>
-                    {i < notes.length-1 && <div style={{ width:'1px', flex:1, background:'rgba(255,255,255,0.06)', marginTop:'4px' }} />}
-                  </div>
-                  <div style={{ flex:1, background:'rgba(255,255,255,0.02)', border:'1px solid rgba(255,255,255,0.06)', borderRadius:'2px', padding:'14px 16px' }}>
-                    <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:'6px' }}>
-                      <span style={{ color:GOLD, fontSize:'11px', textTransform:'uppercase', letterSpacing:'1px' }}>{note.type}</span>
-                      <div style={{ display:'flex', gap:'10px', alignItems:'center' }}>
-                        <span style={{ color:'#4a5568', fontSize:'11px' }}>{note.createdAt ? new Date(note.createdAt).toLocaleString() : ''}</span>
-                        <button onClick={() => deleteNote(note.id)} style={{ background:'none', border:'none', color:'#ef444480', cursor:'pointer', fontSize:'14px', padding:'0' }}>×</button>
+              {(() => {
+                // Sort all notes chronologically — migrated lead history interleaved with admin notes
+                const sorted = [...notes].sort((a, b) => {
+                  const ta = new Date(a.createdAt || a.created_date || 0).getTime();
+                  const tb = new Date(b.createdAt || b.created_date || 0).getTime();
+                  return tb - ta; // newest first
+                });
+                return sorted.map((note, i) => {
+                  const isMigrated = (note.content || '').startsWith('[From Lead History');
+                  const icon = isMigrated ? '📋' : (noteTypeIcons[note.type] || '📝');
+                  const borderColor = isMigrated ? 'rgba(96,165,250,0.15)' : 'rgba(255,255,255,0.06)';
+                  const labelColor = isMigrated ? '#60a5fa' : GOLD;
+                  const label = isMigrated ? 'Lead History' : note.type;
+                  return (
+                    <div key={note.id} style={{ display:'flex', gap:'14px', marginBottom:'16px' }}>
+                      <div style={{ display:'flex', flexDirection:'column', alignItems:'center', width:'24px', flexShrink:0 }}>
+                        <div style={{ fontSize:'18px' }}>{icon}</div>
+                        {i < sorted.length - 1 && <div style={{ width:'1px', flex:1, background:'rgba(255,255,255,0.06)', marginTop:'4px' }} />}
+                      </div>
+                      <div style={{ flex:1, background: isMigrated ? 'rgba(96,165,250,0.04)' : 'rgba(255,255,255,0.02)', border:`1px solid ${borderColor}`, borderRadius:'2px', padding:'14px 16px' }}>
+                        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:'6px' }}>
+                          <div style={{ display:'flex', alignItems:'center', gap:'8px' }}>
+                            <span style={{ color:labelColor, fontSize:'11px', textTransform:'uppercase', letterSpacing:'1px' }}>{label}</span>
+                            {isMigrated && <span style={{ background:'rgba(96,165,250,0.12)', color:'#60a5fa', fontSize:'9px', padding:'1px 6px', borderRadius:'3px', letterSpacing:'1px' }}>MIGRATED</span>}
+                          </div>
+                          <div style={{ display:'flex', gap:'10px', alignItems:'center' }}>
+                            <span style={{ color:'#4a5568', fontSize:'11px' }}>{note.createdAt ? new Date(note.createdAt).toLocaleString() : ''}</span>
+                            {!isMigrated && <button onClick={() => deleteNote(note.id)} style={{ background:'none', border:'none', color:'#ef444480', cursor:'pointer', fontSize:'14px', padding:'0' }}>×</button>}
+                          </div>
+                        </div>
+                        <p style={{ color: isMigrated ? '#8a9ab8' : '#c4cdd8', fontSize:'13px', margin:0, lineHeight:1.6, whiteSpace:'pre-wrap' }}>{note.content}</p>
                       </div>
                     </div>
-                    <p style={{ color:'#c4cdd8', fontSize:'13px', margin:0, lineHeight:1.6, whiteSpace:'pre-wrap' }}>{note.content}</p>
-                  </div>
-                </div>
-              ))}
+                  );
+                });
+              })()}
             </div>
           )}
 
@@ -459,9 +477,9 @@ function ContactCardModal({ user, onClose, onSave, allSessions, matchesUser }) {
           {tab === 'rosie' && <RosieTab user={user} />}
 
           {/* SCRIPT */}
-          {tab === 'invsite' && <InvestorWebsiteTab user={user} />}
+          {tab === 'cluster' && <InvestorWebsiteTab user={user} />}
           {tab === 'research' && <ResearchTab user={user} />}
-          {tab === 'script' && <div style={{ flex:1, minHeight:0, overflow:'hidden', display:'flex', flexDirection:'column' }}><ScriptAssistant user={user} /></div>}
+          {tab === 'script' && <ScriptAssistant user={user} />}
 
           {/* CALENDAR */}
           {tab === 'calendar' && (
