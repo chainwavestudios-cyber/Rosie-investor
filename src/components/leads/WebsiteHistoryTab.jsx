@@ -19,7 +19,9 @@ export default function WebsiteHistoryTab({ lead }) {
   const [site, setSite] = useState('investors');
   const [sessions, setSessions] = useState([]);       // AnalyticsSession for investors site
   const [consumerVisits, setConsumerVisits] = useState([]); // SiteVisit for consumer site
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading]           = useState(true);
+  const [expandedSession, setExpandedSession]   = useState(null);
+  const [expandedConsumer, setExpandedConsumer] = useState(null);
 
   const username = lead?.portalPasscode || null;
   const refCode  = lead?.portalPasscode || null;
@@ -87,57 +89,132 @@ export default function WebsiteHistoryTab({ lead }) {
 
       {loading && <div style={{ color:'#6b7280', textAlign:'center', padding:'20px' }}>Loading…</div>}
 
-      {/* Investors site sessions */}
+      {/* Investors site sessions — full detail */}
       {!loading && site === 'investors' && (
-        <div style={{ maxHeight:'280px', overflowY:'auto' }}>
+        <div>
           {sessions.length === 0 && <div style={{ color:'#4a5568', textAlign:'center', padding:'20px' }}>No sessions yet on investors.rosieai.tech</div>}
-          {sessions.map((s, i) => (
-            <div key={s.id||i} style={{ background:'rgba(0,0,0,0.15)', border:'1px solid rgba(255,255,255,0.05)', borderRadius:'4px', padding:'10px 12px', marginBottom:'6px' }}>
-              <div style={{ display:'flex', justifyContent:'space-between', marginBottom:'6px' }}>
-                <div style={{ display:'flex', gap:'10px', fontSize:'11px' }}>
-                  <span style={{ color:'#4ade80' }}>{fmtDur(s.durationSeconds)}</span>
-                  <span style={{ color:'#60a5fa' }}>{s.pages?.length||0} pages</span>
-                  {s.downloads?.length > 0 && <span style={{ color:'#f59e0b' }}>📥 {s.downloads.length}</span>}
+          {sessions.map((s, i) => {
+            const isOpen = expandedSession === i;
+            return (
+              <div key={s.id||i} style={{ border:'1px solid rgba(255,255,255,0.07)', borderRadius:'4px', marginBottom:'8px', overflow:'hidden' }}>
+                {/* Session header — always visible */}
+                <div onClick={() => setExpandedSession(isOpen ? null : i)}
+                  style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'10px 12px', cursor:'pointer', background: isOpen ? 'rgba(184,147,58,0.08)' : 'rgba(0,0,0,0.15)' }}>
+                  <div style={{ display:'flex', gap:'12px', alignItems:'center' }}>
+                    <span style={{ color:'#e8e0d0', fontSize:'11px' }}>{fmt(s.startTime)}</span>
+                    <span style={{ color:'#4ade80', fontSize:'11px', fontWeight:'bold' }}>{fmtDur(s.durationSeconds)}</span>
+                    <span style={{ color:'#60a5fa', fontSize:'10px' }}>{s.pages?.length||0} pages</span>
+                    {s.downloads?.length > 0 && <span style={{ color:'#f59e0b', fontSize:'10px' }}>📥 {s.downloads.length} downloads</span>}
+                    {s.docViews?.length > 0 && <span style={{ color:'#a78bfa', fontSize:'10px' }}>👁 {s.docViews.length} docs</span>}
+                  </div>
+                  <span style={{ color:'#4a5568', fontSize:'11px' }}>{isOpen ? '▲' : '▼'}</span>
                 </div>
-                <span style={{ color:'#6b7280', fontSize:'10px' }}>{fmt(s.startTime)}</span>
+                {/* Expanded detail */}
+                {isOpen && (
+                  <div style={{ padding:'12px', borderTop:'1px solid rgba(255,255,255,0.05)', background:'rgba(0,0,0,0.1)' }}>
+                    {/* Pages */}
+                    {(s.pages||[]).length > 0 && (
+                      <div style={{ marginBottom:'10px' }}>
+                        <div style={{ color:GOLD, fontSize:'9px', letterSpacing:'1px', textTransform:'uppercase', marginBottom:'6px' }}>Pages Visited</div>
+                        {(s.pages||[]).map((p, pi) => (
+                          <div key={pi} style={{ marginBottom:'6px' }}>
+                            <div style={{ display:'flex', justifyContent:'space-between', fontSize:'11px', marginBottom:'2px' }}>
+                              <span style={{ color:'#c4cdd8' }}>📄 {p.page || '/'}</span>
+                              <span style={{ color:'#4ade80', fontFamily:'monospace' }}>{fmtDur(p.durationSeconds)}</span>
+                            </div>
+                            {(p.sections||[]).length > 0 && (
+                              <div style={{ paddingLeft:'12px', borderLeft:'2px solid rgba(184,147,58,0.2)' }}>
+                                {(p.sections||[]).map((sec, si) => (
+                                  <div key={si} style={{ display:'flex', justifyContent:'space-between', fontSize:'10px', padding:'1px 0', color:'#6b7280' }}>
+                                    <span>› {sec.section}</span>
+                                    <span style={{ color:'#f59e0b', fontFamily:'monospace' }}>{fmtDur(sec.durationSeconds)}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {/* Documents viewed */}
+                    {(s.docViews||[]).length > 0 && (
+                      <div style={{ marginBottom:'10px' }}>
+                        <div style={{ color:'#a78bfa', fontSize:'9px', letterSpacing:'1px', textTransform:'uppercase', marginBottom:'6px' }}>Documents Viewed</div>
+                        {(s.docViews||[]).map((doc, di) => (
+                          <div key={di} style={{ background:'rgba(167,139,250,0.06)', border:'1px solid rgba(167,139,250,0.15)', borderRadius:'3px', padding:'6px 10px', marginBottom:'4px', fontSize:'11px' }}>
+                            <div style={{ display:'flex', justifyContent:'space-between' }}>
+                              <span style={{ color:'#c4cdd8' }}>📑 {doc.docName}</span>
+                              <span style={{ color:'#a78bfa', fontFamily:'monospace' }}>{fmtDur(doc.durationSeconds)}</span>
+                            </div>
+                            {doc.pagesViewed?.length > 0 && (
+                              <div style={{ color:'#6b7280', fontSize:'10px', marginTop:'3px' }}>
+                                Pages viewed: {doc.pagesViewed.map(p => `p.${p.pageNum}`).join(', ')}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {/* Downloads */}
+                    {(s.downloads||[]).length > 0 && (
+                      <div>
+                        <div style={{ color:'#f59e0b', fontSize:'9px', letterSpacing:'1px', textTransform:'uppercase', marginBottom:'6px' }}>Downloads</div>
+                        {(s.downloads||[]).map((d, di) => (
+                          <div key={di} style={{ display:'flex', justifyContent:'space-between', fontSize:'11px', padding:'3px 0', color:'#f59e0b' }}>
+                            <span>↓ {d.fileName}</span>
+                            <span style={{ color:'#4a5568' }}>{fmt(d.downloadedAt)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
-              <div style={{ display:'flex', flexWrap:'wrap', gap:'3px' }}>
-                {(s.pages||[]).map((p,j) => (
-                  <span key={j} style={{ background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.07)', borderRadius:'3px', padding:'1px 7px', fontSize:'10px', color:'#8a9ab8' }}>
-                    {p.page||p.section||'/'}{p.durationSeconds>0?` · ${fmtDur(p.durationSeconds)}`:''}</span>
-                ))}
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
-      {/* Consumer site visits */}
+      {/* Consumer site visits — full detail */}
       {!loading && site === 'consumer' && (
-        <div style={{ maxHeight:'280px', overflowY:'auto' }}>
+        <div>
           {consumerVisits.length === 0 && <div style={{ color:'#4a5568', textAlign:'center', padding:'20px' }}>No visits to rosieai.tech yet via this ref code</div>}
-          {Object.values(consumerVisits.reduce((acc,v) => {
-            const k = v.sessionId||v.visitedAt;
-            if (!acc[k]) acc[k] = { visitedAt:v.visitedAt, pages:[], totalTime:0 };
-            acc[k].pages.push(v); acc[k].totalTime += v.timeOnPage||0;
+          {Object.values(consumerVisits.reduce((acc, v) => {
+            const k = v.sessionId || v.visitedAt;
+            if (!acc[k]) acc[k] = { visitedAt: v.visitedAt, sessionId: k, pages: [], totalTime: 0 };
+            acc[k].pages.push(v);
+            acc[k].totalTime += v.timeOnPage || 0;
             return acc;
-          }, {})).map((g,i) => (
-            <div key={i} style={{ background:'rgba(0,0,0,0.15)', border:'1px solid rgba(255,255,255,0.05)', borderRadius:'4px', padding:'10px 12px', marginBottom:'6px' }}>
-              <div style={{ display:'flex', justifyContent:'space-between', marginBottom:'6px' }}>
-                <div style={{ display:'flex', gap:'10px', fontSize:'11px' }}>
-                  {g.totalTime > 0 && <span style={{ color:'#4ade80' }}>{fmtDur(g.totalTime)}</span>}
-                  <span style={{ color:'#60a5fa' }}>{g.pages.length} pages</span>
+          }, {})).sort((a,b) => new Date(b.visitedAt) - new Date(a.visitedAt)).map((g, i) => {
+            const isOpen = expandedConsumer === i;
+            return (
+              <div key={i} style={{ border:'1px solid rgba(255,255,255,0.07)', borderRadius:'4px', marginBottom:'8px', overflow:'hidden' }}>
+                <div onClick={() => setExpandedConsumer(isOpen ? null : i)}
+                  style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'10px 12px', cursor:'pointer', background: isOpen ? 'rgba(96,165,250,0.06)' : 'rgba(0,0,0,0.15)' }}>
+                  <div style={{ display:'flex', gap:'12px', alignItems:'center' }}>
+                    <span style={{ color:'#e8e0d0', fontSize:'11px' }}>{fmt(g.visitedAt)}</span>
+                    {g.totalTime > 0 && <span style={{ color:'#4ade80', fontSize:'11px', fontWeight:'bold' }}>{fmtDur(g.totalTime)}</span>}
+                    <span style={{ color:'#60a5fa', fontSize:'10px' }}>{g.pages.length} pages</span>
+                  </div>
+                  <span style={{ color:'#4a5568', fontSize:'11px' }}>{isOpen ? '▲' : '▼'}</span>
                 </div>
-                <span style={{ color:'#6b7280', fontSize:'10px' }}>{fmt(g.visitedAt)}</span>
+                {isOpen && (
+                  <div style={{ padding:'10px 12px', borderTop:'1px solid rgba(255,255,255,0.05)', background:'rgba(0,0,0,0.1)' }}>
+                    <div style={{ color:GOLD, fontSize:'9px', letterSpacing:'1px', textTransform:'uppercase', marginBottom:'6px' }}>Pages Visited</div>
+                    {g.pages.map((p, pi) => (
+                      <div key={pi} style={{ display:'flex', justifyContent:'space-between', fontSize:'11px', padding:'4px 0', borderBottom:'1px solid rgba(255,255,255,0.04)' }}>
+                        <span style={{ color:'#c4cdd8' }}>📄 {p.page || '/'}</span>
+                        <div style={{ display:'flex', gap:'12px', alignItems:'center' }}>
+                          {p.referrer && <span style={{ color:'#4a5568', fontSize:'10px' }}>from: {p.referrer.slice(0,30)}</span>}
+                          {p.timeOnPage > 0 && <span style={{ color:'#4ade80', fontFamily:'monospace', fontSize:'11px' }}>{fmtDur(p.timeOnPage)}</span>}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
-              <div style={{ display:'flex', flexWrap:'wrap', gap:'3px' }}>
-                {g.pages.map((p,j) => (
-                  <span key={j} style={{ background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.07)', borderRadius:'3px', padding:'1px 7px', fontSize:'10px', color:'#8a9ab8' }}>
-                    {p.page}{p.timeOnPage>0?` · ${fmtDur(p.timeOnPage)}`:''}</span>
-                ))}
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
