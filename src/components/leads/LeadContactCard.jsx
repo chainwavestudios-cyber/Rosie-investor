@@ -37,14 +37,14 @@ function AccessTab({ lead, onUpdate, onSave }) {
   const [generating, setGenerating] = useState(false);
   const [copied, setCopied] = useState('');
 
-  const username = lead?.portalPasscode || '';
-  const lastNameForUrl = (lead?.lastName || '').toLowerCase().replace(/[^a-z]/g, '');
-  const sitePassword  = username ? `${lastNameForUrl}#2026` : '';
-  // Info site - username only to auto-login
-  const investorUrl   = username ? `https://investors.rosieai.tech/portal-login?username=${encodeURIComponent(username)}` : '';
-  // Portal - full credentials (for admin reference)
-  const portalUrl     = username ? `https://investors.rosieai.tech/portal-login?username=${encodeURIComponent(username)}&password=${encodeURIComponent(sitePassword)}` : '';
-  const consumerUrl = username ? `https://www.rosieai.tech?ref=${username}` : '';
+  const username      = lead?.portalPasscode || '';
+  const lastNameSlug  = (lead?.lastName || '').toLowerCase().replace(/[^a-z]/g, '');
+  const portalPassword = username ? `${lastNameSlug}#2026` : '';
+  // Investor INFO site — personal access code, no password
+  const investorUrl   = username ? `https://investors.rosieai.tech/?code=${encodeURIComponent(username)}` : '';
+  // Portal — full credentials (username + password)
+  const portalUrl     = username ? `https://investors.rosieai.tech/portal-login?username=${encodeURIComponent(username)}&password=${encodeURIComponent(portalPassword)}` : '';
+  const consumerUrl   = username ? `https://www.rosieai.tech?ref=${username}` : '';
 
   const generate = async () => {
     setGenerating(true);
@@ -57,13 +57,16 @@ function AccessTab({ lead, onUpdate, onSave }) {
       const lastNameSlug = (lead.lastName || '').toLowerCase().replace(/[^a-z]/g, '');
       const newPassword = `${lastNameSlug}#2026`;
 
-      // Create InvestorUser so they can log in
-      const hashRes = await fetch(
-        'https://investors.rosieai.tech/api/apps/69cd2741578c9b5ce655395b/functions/hashPassword',
-        { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'hash', password: newPassword }) }
-      );
-      const hashData = await hashRes.json();
-      const hashedPassword = hashData?.hash || newPassword;
+      // Hash password using Web Crypto (same algo as server) — no auth required
+      const hashedPassword = await (async () => {
+        try {
+          const salt = crypto.randomUUID().replace(/-/g, '');
+          const enc  = new TextEncoder();
+          const buf  = await crypto.subtle.digest('SHA-256', enc.encode(salt + newPassword));
+          const hex  = Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
+          return salt + ':' + hex;
+        } catch { return newPassword; }
+      })();
 
       const existing = await base44.entities.InvestorUser.filter({ username: newUsername });
       if (existing?.length > 0) {
@@ -89,6 +92,28 @@ function AccessTab({ lead, onUpdate, onSave }) {
     setGenerating(false);
   };
 
+  const [sendingPortalEmail, setSendingPortalEmail] = useState(false);
+  const [portalEmailMsg, setPortalEmailMsg]         = useState('');
+
+  const sendPortalAccessEmail = async () => {
+    if (!lead.email) { setPortalEmailMsg('No email on file.'); return; }
+    setSendingPortalEmail(true); setPortalEmailMsg('');
+    try {
+      await base44.functions.invoke('sendPortalAccessEmail', {
+        leadId:   lead.id,
+        toEmail:  lead.email,
+        toName:   `${lead.firstName} ${lead.lastName}`,
+        firstName: lead.firstName,
+        username,
+        password: portalPassword,
+        loginUrl: portalUrl,
+      });
+      setPortalEmailMsg('✓ Portal access email sent!');
+    } catch (e) { setPortalEmailMsg('Error: ' + (e.response?.data?.error || e.message)); }
+    setSendingPortalEmail(false);
+    setTimeout(() => setPortalEmailMsg(''), 4000);
+  };
+
   const copy = (text, key) => {
     navigator.clipboard.writeText(text);
     setCopied(key);
@@ -100,11 +125,11 @@ function AccessTab({ lead, onUpdate, onSave }) {
   return (
     <div style={{ display:'flex', flexDirection:'column', gap:'16px' }}>
 
-      {/* Generate button */}
+      {/* Header row */}
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
         <div>
           <div style={{ color:'#e8e0d0', fontSize:'14px', marginBottom:'3px' }}>Access Credentials</div>
-          <div style={{ color:'#6b7280', fontSize:'11px' }}>Generate a unique username and tracking links for this lead</div>
+          <div style={{ color:'#6b7280', fontSize:'11px' }}>Generates username for investor site + portal credentials</div>
         </div>
         <button onClick={generate} disabled={generating}
           style={{ background: generating ? 'rgba(184,147,58,0.2)' : 'linear-gradient(135deg,#b8933a,#d4aa50)', color:DARK, border:'none', borderRadius:'6px', padding:'9px 18px', cursor: generating ? 'not-allowed' : 'pointer', fontWeight:'bold', fontSize:'12px', letterSpacing:'1px', whiteSpace:'nowrap' }}>
@@ -120,72 +145,67 @@ function AccessTab({ lead, onUpdate, onSave }) {
 
       {username && (
         <>
-          {/* Username */}
-          <div>
-            <div style={{ color:'#6b7280', fontSize:'9px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'6px' }}>🔑 Username (investors.rosieai.tech)</div>
-            <div style={{ display:'flex', gap:'6px' }}>
-              <input readOnly value={username} style={inp} />
-              <button onClick={() => copy(username, 'username')}
-                style={{ background:'rgba(255,255,255,0.06)', color: copied==='username' ? '#4ade80' : '#8a9ab8', border:'1px solid rgba(255,255,255,0.1)', borderRadius:'4px', padding:'8px 12px', cursor:'pointer', fontSize:'11px', whiteSpace:'nowrap' }}>
-                {copied==='username' ? '✓ Copied' : 'Copy'}
-              </button>
+          {/* ── INVESTOR INFO SITE ── */}
+          <div style={{ background:'rgba(96,165,250,0.05)', border:'1px solid rgba(96,165,250,0.2)', borderRadius:'6px', padding:'14px 16px' }}>
+            <div style={{ color:'#60a5fa', fontSize:'10px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'10px' }}>💼 Investor Info Site — investors.rosieai.tech</div>
+            <div style={{ marginBottom:'10px' }}>
+              <div style={{ color:'#6b7280', fontSize:'9px', textTransform:'uppercase', letterSpacing:'1px', marginBottom:'4px' }}>Personal Access Code (Username)</div>
+              <div style={{ display:'flex', gap:'6px' }}>
+                <input readOnly value={username} style={inp} />
+                <button onClick={() => copy(username, 'username')} style={{ background:'rgba(255,255,255,0.06)', color: copied==='username' ? '#4ade80' : '#8a9ab8', border:'1px solid rgba(255,255,255,0.1)', borderRadius:'4px', padding:'8px 12px', cursor:'pointer', fontSize:'11px', whiteSpace:'nowrap' }}>
+                  {copied==='username' ? '✓' : 'Copy'}
+                </button>
+              </div>
             </div>
-            <div style={{ color:'#4a5568', fontSize:'10px', marginTop:'4px' }}>Password is the same as username</div>
+            <div>
+              <div style={{ color:'#6b7280', fontSize:'9px', textTransform:'uppercase', letterSpacing:'1px', marginBottom:'4px' }}>Auto-Login URL (sent in email)</div>
+              <div style={{ display:'flex', gap:'6px' }}>
+                <input readOnly value={investorUrl} style={{ ...inp, fontSize:'10px' }} />
+                <button onClick={() => copy(investorUrl, 'invUrl')} style={{ background:'rgba(96,165,250,0.1)', color: copied==='invUrl' ? '#4ade80' : '#60a5fa', border:'1px solid rgba(96,165,250,0.25)', borderRadius:'4px', padding:'8px 12px', cursor:'pointer', fontSize:'11px', whiteSpace:'nowrap' }}>
+                  {copied==='invUrl' ? '✓' : 'Copy'}
+                </button>
+              </div>
+              <div style={{ color:'#4a5568', fontSize:'10px', marginTop:'4px' }}>Clicking this link auto-unlocks the investor info site for them</div>
+            </div>
           </div>
 
-          {/* Investor site URL - username only */}
-          <div>
-            <div style={{ color:'#6b7280', fontSize:'9px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'6px' }}>💼 Investors Site URL (Username Auto-Fill)</div>
-            <div style={{ display:'flex', gap:'6px' }}>
-              <input readOnly value={investorUrl} style={{ ...inp, fontSize:'10px' }} />
-              <button onClick={() => copy(investorUrl, 'invUrl')}
-                style={{ background:'rgba(96,165,250,0.1)', color: copied==='invUrl' ? '#4ade80' : '#60a5fa', border:'1px solid rgba(96,165,250,0.25)', borderRadius:'4px', padding:'8px 12px', cursor:'pointer', fontSize:'11px', whiteSpace:'nowrap' }}>
-                {copied==='invUrl' ? '✓ Copied' : 'Copy'}
-              </button>
-            </div>
-            <div style={{ color:'#4a5568', fontSize:'10px', marginTop:'4px' }}>Username pre-filled — they enter it to access the site</div>
-          </div>
-
-          {/* Portal credentials - admin reference */}
-          <div>
-            <div style={{ color:'#6b7280', fontSize:'9px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'6px' }}>🔐 Portal Credentials (Admin Reference)</div>
-            <div style={{ display:'flex', gap:'8px', marginBottom:'4px' }}>
+          {/* ── PORTAL CREDENTIALS ── */}
+          <div style={{ background:'rgba(167,139,250,0.05)', border:'1px solid rgba(167,139,250,0.2)', borderRadius:'6px', padding:'14px 16px' }}>
+            <div style={{ color:'#a78bfa', fontSize:'10px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'10px' }}>🔐 Investor Portal — investors.rosieai.tech/portal</div>
+            <div style={{ display:'flex', gap:'8px', marginBottom:'8px' }}>
               <div style={{ flex:1, background:'rgba(0,0,0,0.15)', border:'1px solid rgba(255,255,255,0.07)', borderRadius:'4px', padding:'7px 10px' }}>
                 <div style={{ color:'#4a5568', fontSize:'8px', textTransform:'uppercase', letterSpacing:'1px', marginBottom:'2px' }}>Username</div>
                 <div style={{ color:GOLD, fontFamily:'monospace', fontSize:'12px' }}>{username}</div>
               </div>
               <div style={{ flex:1, background:'rgba(0,0,0,0.15)', border:'1px solid rgba(255,255,255,0.07)', borderRadius:'4px', padding:'7px 10px' }}>
                 <div style={{ color:'#4a5568', fontSize:'8px', textTransform:'uppercase', letterSpacing:'1px', marginBottom:'2px' }}>Password</div>
-                <div style={{ color:'#e8e0d0', fontFamily:'monospace', fontSize:'12px' }}>{sitePassword}</div>
+                <div style={{ color:'#e8e0d0', fontFamily:'monospace', fontSize:'12px' }}>{portalPassword}</div>
               </div>
               <button onClick={() => copy(`Username: ${username}
-Password: ${sitePassword}`, 'creds')}
+Password: ${portalPassword}
+Portal: https://investors.rosieai.tech/portal-login`, 'creds')}
                 style={{ background:'rgba(255,255,255,0.05)', color: copied==='creds' ? '#4ade80' : '#8a9ab8', border:'1px solid rgba(255,255,255,0.1)', borderRadius:'4px', padding:'8px 10px', cursor:'pointer', fontSize:'10px', whiteSpace:'nowrap' }}>
-                {copied==='creds' ? '✓' : 'Copy'}
+                {copied==='creds' ? '✓' : 'Copy All'}
               </button>
             </div>
-            <div style={{ color:'#4a5568', fontSize:'10px' }}>Portal password = lastname#2026 · Not shared with lead until migrated</div>
+            <div style={{ color:'#4a5568', fontSize:'10px', marginBottom:'12px' }}>Portal access is for migrated investors only. Send portal email after migrating.</div>
+            <div style={{ display:'flex', gap:'8px', alignItems:'center' }}>
+              <button onClick={sendPortalAccessEmail} disabled={sendingPortalEmail || !lead.email}
+                style={{ background:'linear-gradient(135deg,#7c3aed,#a855f7)', color:'#fff', border:'none', borderRadius:'4px', padding:'8px 16px', cursor: lead.email ? 'pointer' : 'not-allowed', fontSize:'11px', fontWeight:'bold', opacity: lead.email ? 1 : 0.5 }}>
+                {sendingPortalEmail ? '⏳ Sending…' : '📧 Send Portal Access Email'}
+              </button>
+              {portalEmailMsg && <span style={{ fontSize:'11px', color: portalEmailMsg.startsWith('✓') ? '#4ade80' : '#ef4444' }}>{portalEmailMsg}</span>}
+            </div>
           </div>
 
-          {/* Consumer site ref URL */}
+          {/* ── CONSUMER SITE ── */}
           <div>
-            <div style={{ color:'#6b7280', fontSize:'9px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'6px' }}>🌐 Consumer Site Referral URL</div>
+            <div style={{ color:'#6b7280', fontSize:'9px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'6px' }}>🌐 Consumer Site Tracking URL</div>
             <div style={{ display:'flex', gap:'6px' }}>
               <input readOnly value={consumerUrl} style={{ ...inp, fontSize:'10px' }} />
-              <button onClick={() => copy(consumerUrl, 'conUrl')}
-                style={{ background:'rgba(167,139,250,0.1)', color: copied==='conUrl' ? '#4ade80' : '#a78bfa', border:'1px solid rgba(167,139,250,0.25)', borderRadius:'4px', padding:'8px 12px', cursor:'pointer', fontSize:'11px', whiteSpace:'nowrap' }}>
-                {copied==='conUrl' ? '✓ Copied' : 'Copy'}
+              <button onClick={() => copy(consumerUrl, 'conUrl')} style={{ background:'rgba(167,139,250,0.1)', color: copied==='conUrl' ? '#4ade80' : '#a78bfa', border:'1px solid rgba(167,139,250,0.25)', borderRadius:'4px', padding:'8px 12px', cursor:'pointer', fontSize:'11px', whiteSpace:'nowrap' }}>
+                {copied==='conUrl' ? '✓' : 'Copy'}
               </button>
-            </div>
-            <div style={{ color:'#4a5568', fontSize:'10px', marginTop:'4px' }}>Tracks their visits to rosieai.tech</div>
-          </div>
-
-          {/* Status */}
-          <div style={{ background:'rgba(74,222,128,0.06)', border:'1px solid rgba(74,222,128,0.2)', borderRadius:'6px', padding:'10px 14px', display:'flex', gap:'10px', alignItems:'center' }}>
-            <span style={{ fontSize:'18px' }}>✅</span>
-            <div>
-              <div style={{ color:'#4ade80', fontSize:'12px', fontWeight:'bold' }}>Access Active</div>
-              <div style={{ color:'#6b7280', fontSize:'10px' }}>Portal account exists · tracking enabled</div>
             </div>
           </div>
         </>
