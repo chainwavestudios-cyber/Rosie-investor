@@ -20,7 +20,6 @@ import { base44 } from '@/api/base44Client';
 import InvestorWebsiteTab from '@/components/leads/InvestorWebsiteTab';
 import ResearchTab from '@/components/leads/ResearchTab';
 import ScriptAssistant from '@/components/leads/ScriptAssistant';
-import MarketingTab from '@/components/leads/MarketingTab';
 
 const LOGO = 'https://media.base44.com/images/public/69cd2741578c9b5ce655395b/39a31f9b9_Untitleddesign3.png';
 const GOLD = '#b8933a';
@@ -1512,14 +1511,140 @@ function KnowledgeBaseManager() {
   );
 }
 
+
+// ─── AI Tuner Chat ────────────────────────────────────────────────────────
+// A chatbot where you share ideas and AI expands them into concrete rules
+function AITunerChat({ context, onApply }) {
+  const [messages, setMessages] = useState([
+    { role: 'assistant', content: `I'm your AI tuning assistant. Tell me your thoughts, observations, or ideas about how to improve the ${context} — and I'll turn them into specific rules, keywords, and logic you can apply immediately.\n\nExamples:\n• "Investors who ask a lot of price questions tend to be..."\n• "When someone interrupts a lot it usually means..."\n• "I want the coach to focus more on..."\n• "Add keywords for when someone sounds skeptical"` }
+  ]);
+  const [input, setInput]         = useState('');
+  const [loading, setLoading]     = useState(false);
+  const [suggested, setSuggested] = useState(null);
+  const scrollRef = useRef(null);
+
+  useEffect(() => {
+    if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+  }, [messages]);
+
+  const send = async () => {
+    if (!input.trim() || loading) return;
+    const userMsg = input.trim();
+    setInput('');
+    const newMessages = [...messages, { role: 'user', content: userMsg }];
+    setMessages(newMessages);
+    setLoading(true);
+
+    try {
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-6',
+          max_tokens: 1000,
+          system: `You are an expert sales AI tuning assistant helping configure a live call assistant system for an investment sales team. The system uses Claude Haiku for real-time intent classification (Duck/Cow) and coaching during calls. It also has access to Deepgram sentiment data (positive/negative/neutral per utterance) and speaker diarization (S0=agent, S1=prospect).
+
+You are helping tune the ${context}.
+
+When the user shares ideas or observations:
+1. Acknowledge their insight
+2. Expand it into specific, actionable rules or keywords
+3. Explain WHY it works from a sales psychology perspective
+4. Offer a "suggested rule" block they can apply
+
+Format suggested rules as JSON in a code block with this structure:
+For intent: {"type": "intent_suggestion", "duckSignals": ["phrase1", "phrase2"], "cowSignals": ["phrase1"], "keywords": ["word1"], "sentimentRules": "explanation"}
+For coach: {"type": "coach_suggestion", "focusArea": "...", "rule": "...", "context": "..."}
+
+Keep responses conversational but precise. Think like a sales psychologist who also understands AI systems.`,
+          messages: newMessages.map(m => ({ role: m.role, content: m.content })),
+        }),
+      });
+      const data = await res.json();
+      const reply = data?.content?.[0]?.text || 'Error getting response.';
+
+      // Extract JSON suggestion if present
+      const jsonMatch = reply.match(/```(?:json)?\n?({[\s\S]*?})\n?```/);
+      if (jsonMatch) {
+        try { setSuggested(JSON.parse(jsonMatch[1])); } catch {}
+      }
+
+      setMessages([...newMessages, { role: 'assistant', content: reply }]);
+    } catch (e) {
+      setMessages([...newMessages, { role: 'assistant', content: 'Error: ' + e.message }]);
+    }
+    setLoading(false);
+  };
+
+  const ta = { width:'100%', background:'rgba(255,255,255,0.05)', border:'1px solid rgba(255,255,255,0.1)', borderRadius:'4px', padding:'10px 14px', color:'#e8e0d0', fontSize:'13px', outline:'none', fontFamily:'Georgia, serif', boxSizing:'border-box', resize:'none' };
+
+  return (
+    <div style={{ display:'flex', flexDirection:'column', height:'480px', background:'rgba(0,0,0,0.2)', border:'1px solid rgba(255,255,255,0.08)', borderRadius:'4px', overflow:'hidden' }}>
+      <div style={{ padding:'10px 16px', borderBottom:'1px solid rgba(255,255,255,0.07)', display:'flex', alignItems:'center', gap:'8px', flexShrink:0 }}>
+        <div style={{ width:'7px', height:'7px', borderRadius:'50%', background:'#4ade80', boxShadow:'0 0 6px #4ade80' }} />
+        <span style={{ color:GOLD, fontSize:'11px', letterSpacing:'1.5px', textTransform:'uppercase' }}>AI Tuning Assistant</span>
+        <span style={{ color:'#4a5568', fontSize:'11px', marginLeft:'auto' }}>Claude Sonnet · Tuning {context}</span>
+      </div>
+
+      {/* Messages */}
+      <div ref={scrollRef} style={{ flex:1, overflowY:'auto', padding:'16px', display:'flex', flexDirection:'column', gap:'12px' }}>
+        {messages.map((msg, i) => (
+          <div key={i} style={{ display:'flex', justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start' }}>
+            <div style={{
+              maxWidth:'85%', padding:'10px 14px', borderRadius:'4px', fontSize:'13px', lineHeight:1.7,
+              background: msg.role === 'user' ? `rgba(184,147,58,0.18)` : 'rgba(255,255,255,0.04)',
+              border: `1px solid ${msg.role === 'user' ? 'rgba(184,147,58,0.3)' : 'rgba(255,255,255,0.07)'}`,
+              color: msg.role === 'user' ? '#e8e0d0' : '#c4cdd8',
+              whiteSpace: 'pre-wrap',
+            }}>
+              {msg.content}
+            </div>
+          </div>
+        ))}
+        {loading && (
+          <div style={{ display:'flex', gap:'6px', alignItems:'center', padding:'8px' }}>
+            <div style={{ width:'6px', height:'6px', borderRadius:'50%', background:GOLD, animation:'pulse 0.6s infinite' }} />
+            <div style={{ width:'6px', height:'6px', borderRadius:'50%', background:GOLD, animation:'pulse 0.6s infinite 0.15s' }} />
+            <div style={{ width:'6px', height:'6px', borderRadius:'50%', background:GOLD, animation:'pulse 0.6s infinite 0.3s' }} />
+          </div>
+        )}
+      </div>
+
+      {/* Apply suggestion button */}
+      {suggested && onApply && (
+        <div style={{ padding:'8px 16px', background:'rgba(74,222,128,0.06)', borderTop:'1px solid rgba(74,222,128,0.15)', flexShrink:0, display:'flex', alignItems:'center', gap:'10px' }}>
+          <span style={{ color:'#4ade80', fontSize:'11px', flex:1 }}>✓ AI generated a suggestion — apply it to your rules?</span>
+          <button onClick={() => { onApply(suggested); setSuggested(null); }}
+            style={{ background:'rgba(74,222,128,0.15)', color:'#4ade80', border:'1px solid rgba(74,222,128,0.3)', borderRadius:'4px', padding:'5px 14px', cursor:'pointer', fontSize:'11px', fontWeight:'bold' }}>
+            Apply
+          </button>
+          <button onClick={() => setSuggested(null)}
+            style={{ background:'none', border:'none', color:'#4a5568', cursor:'pointer', fontSize:'16px', padding:'0 4px' }}>×</button>
+        </div>
+      )}
+
+      {/* Input */}
+      <div style={{ padding:'12px 16px', borderTop:'1px solid rgba(255,255,255,0.07)', display:'flex', gap:'8px', flexShrink:0 }}>
+        <textarea value={input} onChange={e => setInput(e.target.value)} placeholder="Share an idea, observation, or ask for suggestions…"
+          rows={2} style={{ ...ta, flex:1 }}
+          onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }} />
+        <button onClick={send} disabled={loading || !input.trim()}
+          style={{ background:'linear-gradient(135deg,#b8933a,#d4aa50)', color:DARK, border:'none', borderRadius:'4px', padding:'8px 16px', cursor:'pointer', fontWeight:'700', fontSize:'11px', alignSelf:'flex-end', whiteSpace:'nowrap' }}>
+          Send
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ─── Intent Engine Tuner ──────────────────────────────────────────────────
 function IntentEngineTuner() {
   const [s, setS]       = useState(getPortalSettings);
   const [saved, setSaved] = useState(false);
   useEffect(() => { loadPortalSettings().then(setS); }, []);
 
-  const duckDef = s.intentDuckDefinition || `Argumentative, skeptical, raises objections, tries to prove things wrong, combative tone, says things like "that won't work", "I doubt that", "prove it".`;
-  const cowDef  = s.intentCowDefinition  || `Agreeable, curious, open-minded, says things like "that's interesting", "really?", "wow", asks genuine questions, believes what you say, enthusiastic listener.`;
+  const duckDef = s.intentDuckDefinition || 'Argumentative, skeptical, raises objections, tries to prove things wrong, combative tone, says things like "that won't work", "I doubt that", "prove it".';
+  const cowDef  = s.intentCowDefinition  || 'Agreeable, curious, open-minded, says things like "that's interesting", "really?", "wow", asks genuine questions, believes what you say, enthusiastic listener.';
   const triggers = s.intentTriggerKeywords || 'minimum investment, how much, returns, roi, risk, guaranteed, lock-up, liquidity, accredited, fees, cost, sec, regulation';
   const interval = s.intentIntervalSeconds || 20;
 
@@ -1567,9 +1692,24 @@ function IntentEngineTuner() {
         <div style={{ color:'#6b7280', fontSize:'11px', marginTop:'6px' }}>How often the intent engine runs during a live call. Default: 20s. Lower = more responsive but more API calls.</div>
       </div>
 
-      <div style={{ display:'flex', gap:'12px', alignItems:'center' }}>
+      <div style={{ display:'flex', gap:'12px', alignItems:'center', marginBottom:'32px' }}>
         <button onClick={save} style={{ background:'linear-gradient(135deg,#b8933a,#d4aa50)', color:DARK, border:'none', borderRadius:'4px', padding:'12px 28px', cursor:'pointer', fontWeight:'700', fontSize:'12px', letterSpacing:'2px', textTransform:'uppercase' }}>Save Rules</button>
         {saved && <span style={{ color:'#4ade80', fontSize:'13px' }}>✓ Saved — live on next call</span>}
+      </div>
+
+      {/* AI Tuning Chatbot */}
+      <div style={{ marginBottom:'8px' }}>
+        <h3 style={{ color:'#e8e0d0', fontWeight:'normal', margin:'0 0 6px', fontSize:'16px' }}>💬 AI Tuning Assistant</h3>
+        <p style={{ color:'#6b7280', fontSize:'13px', margin:'0 0 14px', lineHeight:1.6 }}>
+          Share observations, ideas, or ask for suggestions. The AI will expand your thoughts into specific rules and keywords — and can apply them directly to your configuration.
+          <br/><span style={{ color:'#4a5568', fontSize:'11px' }}>Note: Deepgram now provides <strong style={{ color:'#60a5fa' }}>sentiment</strong> (positive/negative/neutral) and <strong style={{ color:'#60a5fa' }}>speaker labels</strong> per utterance — tell the AI to factor these in.</span>
+        </p>
+        <AITunerChat context="Intent Engine (Duck/Cow classification)" onApply={(suggestion) => {
+          if (suggestion.duckSignals?.length)  setDuckDef2(prev => prev + '\n\nAdditional signals: ' + suggestion.duckSignals.join(', '));
+          if (suggestion.cowSignals?.length)   setCowDef2(prev  => prev + '\n\nAdditional signals: ' + suggestion.cowSignals.join(', '));
+          if (suggestion.keywords?.length)     setTriggers2(prev => prev + ', ' + suggestion.keywords.join(', '));
+          if (suggestion.sentimentRules)       setDuckDef2(prev => prev + '\n\nSentiment rules: ' + suggestion.sentimentRules);
+        }} />
       </div>
     </div>
   );
@@ -1624,9 +1764,22 @@ function CoachRulesTuner() {
         <div style={{ color:'#6b7280', fontSize:'11px', marginTop:'6px' }}>How often coach tips fire. Default: 15s.</div>
       </div>
 
-      <div style={{ display:'flex', gap:'12px', alignItems:'center' }}>
+      <div style={{ display:'flex', gap:'12px', alignItems:'center', marginBottom:'32px' }}>
         <button onClick={save} style={{ background:'linear-gradient(135deg,#b8933a,#d4aa50)', color:DARK, border:'none', borderRadius:'4px', padding:'12px 28px', cursor:'pointer', fontWeight:'700', fontSize:'12px', letterSpacing:'2px', textTransform:'uppercase' }}>Save Rules</button>
         {saved && <span style={{ color:'#4ade80', fontSize:'13px' }}>✓ Saved — live on next call</span>}
+      </div>
+
+      {/* AI Tuning Chatbot */}
+      <div>
+        <h3 style={{ color:'#e8e0d0', fontWeight:'normal', margin:'0 0 6px', fontSize:'16px' }}>💬 AI Tuning Assistant</h3>
+        <p style={{ color:'#6b7280', fontSize:'13px', margin:'0 0 14px', lineHeight:1.6 }}>
+          Tell the AI what situations you want the coach to handle better, what you've noticed on calls, or what advice you wish you had. It will generate specific coaching rules you can apply.
+        </p>
+        <AITunerChat context="Coach Mode (real-time call coaching)" onApply={(suggestion) => {
+          if (suggestion.focusArea) setFocus(prev => prev + ', ' + suggestion.focusArea);
+          if (suggestion.rule)      setStyle(prev => prev + ' ' + suggestion.rule);
+          if (suggestion.context)   setContext(prev => prev + '\n' + suggestion.context);
+        }} />
       </div>
     </div>
   );
@@ -1635,7 +1788,6 @@ function CoachRulesTuner() {
 const VIEWS = [
   { id:'users',    label:'CRM / Clients' },
   { id:'leads',    label:'Leads' },
-  { id:'marketing', label:'📣 Marketing' },
   { id:'calendar', label:'Calendar' },
   { id:'analytics',label:'Analytics' },
   { id:'activity', label:'Recent Activity' },
@@ -2061,7 +2213,6 @@ export default function AdminDashboard() {
         )}
 
         {view === 'leads'            && <LeadsTab />}
-        {view === 'marketing'        && <MarketingTab />}
         {view === 'kb'               && <KnowledgeBaseManager />}
         {view === 'signnow'          && <SignNowRequestsView settings={portalSettings} />}
         {view === 'signnow-settings' && <SignNowSettings settings={portalSettings} onSettingsSaved={s => setPortalSettings(s)} />}
