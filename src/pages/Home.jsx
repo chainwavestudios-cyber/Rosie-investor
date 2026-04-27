@@ -28,8 +28,29 @@ export default function Home() {
     setChecking(true);
     try {
       const { base44 } = await import('@/api/base44Client');
-      // Validate username exists in InvestorUser
-      const users = await base44.entities.InvestorUser.filter({ username: code });
+      // Try exact match first, then case-insensitive fallback
+      let users = await base44.entities.InvestorUser.filter({ username: code });
+      if (!users?.length) {
+        // Try original case (some stored without toLowerCase)
+        users = await base44.entities.InvestorUser.filter({ username: code.toLowerCase() });
+      }
+      if (!users?.length) {
+        // Try by portalPasscode on Lead entity as last resort
+        const leads = await base44.entities.Lead.filter({ portalPasscode: code });
+        if (leads?.length) {
+          // Found the lead — let them in and track
+          const lead = leads[0];
+          sessionStorage.setItem(SESSION_KEY, 'true');
+          sessionStorage.setItem(SESSION_USER_KEY, JSON.stringify({ username: code, name: `${lead.firstName} ${lead.lastName}`, email: lead.email, leadId: lead.id }));
+          setUnlocked(true);
+          try {
+            await base44.entities.Lead.update(lead.id, { badgeInvestorPage: true, engagementScore: (lead.engagementScore || 0) + 10 });
+          } catch {}
+          window.history.replaceState({}, '', '/');
+          setChecking(false);
+          return;
+        }
+      }
       if (users?.length > 0) {
         const user = users[0];
         sessionStorage.setItem(SESSION_KEY, 'true');
