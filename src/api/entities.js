@@ -15,16 +15,23 @@ export const InvestorUser = {
   async findByEmail(e) { try { const r=await base44.entities.InvestorUser.filter({email:e}); return r[0]||null; } catch{ return null; } },
   async hashPassword(password) {
     try {
-      const res = await base44.functions.invoke('hashPassword', { action: 'hash', password });
-      return res.data?.hash || password;
+      const salt = crypto.randomUUID().replace(/-/g, '');
+      const enc  = new TextEncoder();
+      const buf  = await crypto.subtle.digest('SHA-256', enc.encode(salt + password));
+      const hex  = Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
+      return salt + ':' + hex;
     } catch { return password; }
   },
   async verifyPassword(password, storedHash) {
     try {
-      // Legacy plaintext
-      if (!storedHash?.includes(':')) return storedHash === password;
-      const res = await base44.functions.invoke('hashPassword', { action: 'verify', password, hash: storedHash });
-      return res.data?.valid === true;
+      const stored = (storedHash || '').trim();
+      const pass   = (password   || '').trim();
+      if (!stored.includes(':')) return stored === pass;
+      const [salt, expectedHash] = stored.split(':');
+      const enc = new TextEncoder();
+      const buf = await crypto.subtle.digest('SHA-256', enc.encode(salt + pass));
+      const hex = Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
+      return hex === expectedHash;
     } catch { return false; }
   },
   async findByCredentials(usernameOrEmail, password) {
