@@ -15,7 +15,6 @@ const STATUS_FILTERS = [
   { id: 'prospect', label: '🚀 Prospect' },
   { id: 'not_available', label: '📵 Not Available' },
   { id: 'callback_later', label: '📅 Call Back Later' },
-  { id: 'converted', label: '✅ Converted' },
   { id: 'abandoned', label: '⚠️ Abandoned' },
   { id: 'intro_email_sent', label: '📧 Intro Email Sent' },
   { id: 'opened_intro_email', label: '📬 Opened Intro Email' },
