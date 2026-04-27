@@ -6,36 +6,34 @@ Deno.serve(async (req) => {
   // Get all leads with status='prospect'
   const prospects = await base44.asServiceRole.entities.Lead.filter({ status: 'prospect' });
   
-  // Build a set of prospect emails for matching
-  const prospectEmails = new Set(prospects.map(p => (p.email || '').toLowerCase().trim()).filter(e => e));
-  
   // Get all InvestorUsers
   const allInvestors = await base44.asServiceRole.entities.InvestorUser.list();
   
-  let deleted = 0;
-  const deletedIds = [];
-  const deletedNames = [];
-
-  // Delete InvestorUsers whose email matches a prospect
+  // Match prospects to InvestorUsers by name similarity
+  const remainingPortalUsers = [];
+  
   for (const investor of allInvestors) {
-    const investorEmail = (investor.email || '').toLowerCase().trim();
-    if (prospectEmails.has(investorEmail)) {
-      try {
-        await base44.asServiceRole.entities.InvestorUser.delete(investor.id);
-        deleted++;
-        deletedIds.push(investor.id);
-        deletedNames.push(`${investor.name} (${investorEmail})`);
-      } catch (e) {
-        console.warn(`Failed to delete InvestorUser ${investor.id}:`, e.message);
-      }
+    const investorName = (investor.name || '').toLowerCase().trim();
+    const hasMatchingProspect = prospects.some(p => {
+      const prospectName = `${(p.firstName || '')} ${(p.lastName || '')}`.toLowerCase().trim();
+      return prospectName && (investorName.includes(prospectName.split(' ')[0]) || investorName === prospectName);
+    });
+    
+    if (hasMatchingProspect) {
+      remainingPortalUsers.push({
+        id: investor.id,
+        name: investor.name,
+        email: investor.email,
+        username: investor.username,
+      });
     }
   }
 
   return Response.json({
     success: true,
     prospectCount: prospects.length,
-    deletedCount: deleted,
-    deletedIds,
-    deletedNames,
+    totalInvestorUsers: allInvestors.length,
+    remainingPortalUsers,
+    remainingCount: remainingPortalUsers.length,
   });
 });
