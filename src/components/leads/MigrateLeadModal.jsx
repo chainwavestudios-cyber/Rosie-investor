@@ -41,6 +41,16 @@ export default function MigrateLeadModal({ lead, history, onClose, onMigrated })
 
   const mark = (label) => setDoneSteps(prev => [...prev, label]);
 
+  const hashPw = async (pw) => {
+    try {
+      const salt = crypto.randomUUID().replace(/-/g, '');
+      const enc  = new TextEncoder();
+      const buf  = await crypto.subtle.digest('SHA-256', enc.encode(salt + pw));
+      const hex  = Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
+      return salt + ':' + hex;
+    } catch { return pw; }
+  };
+
   const run = async () => {
     setStep(1); setError(''); setDoneSteps([]);
 
@@ -53,11 +63,13 @@ export default function MigrateLeadModal({ lead, history, onClose, onMigrated })
       try {
         const existing = await base44.entities.InvestorUser.filter({ username });
         if (existing?.length > 0) {
+          const hashedUpd = await hashPw(password);
           await base44.entities.InvestorUser.update(existing[0].id, {
             name:            `${lead.firstName} ${lead.lastName}`,
             email:           (lead.email || '').toLowerCase(),
             phone:           lead.phone  || existing[0].phone  || '',
             notes:           lead.notes  || existing[0].notes  || '',
+            password:        hashedUpd,
             role:            'investor',
             status:          'prospect',
             pipelineStage:   'reviewing',
@@ -71,10 +83,11 @@ export default function MigrateLeadModal({ lead, history, onClose, onMigrated })
 
       // Create fresh if none found
       if (!iu) {
+        const hashed = await hashPw(password);
         iu = await base44.entities.InvestorUser.create({
           name:            `${lead.firstName} ${lead.lastName}`,
           username,
-          password,
+          password: hashed,
           email:           (lead.email || '').toLowerCase(),
           phone:           lead.phone   || '',
           address:         lead.address || '',
