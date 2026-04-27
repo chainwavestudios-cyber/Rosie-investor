@@ -3,30 +3,37 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 Deno.serve(async (req) => {
   const base44 = createClientFromRequest(req);
 
-  // Get all InvestorUsers with status='prospect'
-  const prospectInvestors = await base44.asServiceRole.entities.InvestorUser.filter({ status: 'prospect' });
+  // Get all leads with status='prospect'
+  const prospects = await base44.asServiceRole.entities.Lead.filter({ status: 'prospect' });
   
-  const deletedUsers = [];
-
-  // Delete each prospect InvestorUser (orphaned accounts)
-  for (const iu of prospectInvestors) {
-    try {
-      deletedUsers.push({
-        id: iu.id,
-        name: iu.name,
-        email: iu.email,
-        username: iu.username,
+  // Get all InvestorUsers
+  const allInvestors = await base44.asServiceRole.entities.InvestorUser.list();
+  
+  // Match prospects to InvestorUsers by name similarity
+  const remainingPortalUsers = [];
+  
+  for (const investor of allInvestors) {
+    const investorName = (investor.name || '').toLowerCase().trim();
+    const hasMatchingProspect = prospects.some(p => {
+      const prospectName = `${(p.firstName || '')} ${(p.lastName || '')}`.toLowerCase().trim();
+      return prospectName && (investorName.includes(prospectName.split(' ')[0]) || investorName === prospectName);
+    });
+    
+    if (hasMatchingProspect) {
+      remainingPortalUsers.push({
+        id: investor.id,
+        name: investor.name,
+        email: investor.email,
+        username: investor.username,
       });
-
-      await base44.asServiceRole.entities.InvestorUser.delete(iu.id);
-    } catch (e) {
-      console.warn(`Failed to delete InvestorUser ${iu.id}:`, e.message);
     }
   }
 
   return Response.json({
     success: true,
-    deletedCount: deletedUsers.length,
-    deletedUsers,
+    prospectCount: prospects.length,
+    totalInvestorUsers: allInvestors.length,
+    remainingPortalUsers,
+    remainingCount: remainingPortalUsers.length,
   });
 });
