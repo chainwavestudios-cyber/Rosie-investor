@@ -355,6 +355,13 @@ export default function LeadsTab() {
     setLoading(false);
   };
 
+  const loadRecentCalls = async () => {
+    try {
+      const history = await base44.entities.LeadHistory.list('-created_date', 50);
+      setRecentCalls(history.filter(h => ['call','connected','not_available','callback_later'].includes(h.type)));
+    } catch {}
+  };
+
   const handleDialNumber = (lead) => {
     setDialerLead(lead);
     setShowDialer(true);
