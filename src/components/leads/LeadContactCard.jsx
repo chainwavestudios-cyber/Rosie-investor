@@ -755,7 +755,7 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
         toName: `${lead.firstName} ${lead.lastName}`,
         firstName: lead.firstName,
       });
-      setEmailMsg('✓ Email sent! Credentials created — check Portal Access tab.');
+      setEmailMsg('✓ Investor site access sent! Click "Portal Access" to send portal credentials.');
       await loadHistory();
       // Reload lead so Portal Access tab shows the new username
       try {

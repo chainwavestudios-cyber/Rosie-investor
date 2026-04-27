@@ -24,14 +24,11 @@ Deno.serve(async (req) => {
   } catch {}
   const nameSlug = (firstName || 'user').toLowerCase().replace(/[^a-z]/g, '');
   const username = `${nameSlug}${phoneDigits}`;
-  // Password = lastname#2026 (all lowercase) for portal access
-  const lastNameRaw = (leadData?.lastName || '').toLowerCase().replace(/[^a-z]/g, '');
-  const password = `${lastNameRaw}#2026`;
 
   console.log(`[sendLeadEmail] Generating username: ${username} for ${toEmail}`);
 
   // ── Save username on lead only — NO InvestorUser creation ──────────
-  // InvestorUser is only created when admin clicks Migrate to CRM
+  // InvestorUser is only created when admin clicks "🔐 Portal Access"
   // The username stored here is just for tracking and the investor site access code
   try {
     await base44.asServiceRole.entities.Lead.update(leadId, { portalPasscode: username });
