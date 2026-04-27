@@ -27,8 +27,13 @@ Deno.serve(async (req) => {
 
   console.log(`[sendLeadEmail] Generating investor site access code: ${username} for ${toEmail}`);
 
-  // Do NOT save portalPasscode here — only the investor site access code is sent
-  // Portal credentials are only created when admin explicitly clicks "🔐 Portal Access"
+  // Save the passcode to Lead
+  try {
+    await base44.asServiceRole.entities.Lead.update(leadId, { portalPasscode: username });
+    console.log(`[sendLeadEmail] Saved portalPasscode: ${username}`);
+  } catch (e) {
+    console.error(`[sendLeadEmail] Failed to save portalPasscode:`, e.message);
+  }
 
   // ── Build URLs ────────────────────────────────────────────────────────
   // login_url = investor INFO site with personal access code (NOT the portal)
