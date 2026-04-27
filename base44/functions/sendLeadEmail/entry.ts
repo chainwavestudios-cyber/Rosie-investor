@@ -58,7 +58,6 @@ Deno.serve(async (req) => {
         password: hashedPassword,
         role:     'investor',
         status:   'prospect',
-        siteAccess: 'info_only', // info site only until manually migrated
         leadId,
       });
     }
