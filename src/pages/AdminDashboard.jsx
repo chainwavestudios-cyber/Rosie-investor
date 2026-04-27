@@ -90,6 +90,8 @@ function ContactCardModal({ user, onClose, onSave, allSessions, matchesUser }) {
   const [showZoom, setShowZoom] = useState(false);
   const [sendingEmail, setSendingEmail] = useState(false);
   const [emailMsg, setEmailMsg] = useState('');
+  const [sendingPortalEmail, setSendingPortalEmail] = useState(false);
+  const [portalEmailMsg, setPortalEmailMsg] = useState('');
   // Tab highlight: track which tabs have been viewed and when
   const [viewedTabs, setViewedTabs] = useState(() => {
     try { return JSON.parse(user.lastViewedTabs || '{}'); } catch { return {}; }
@@ -224,6 +226,28 @@ function ContactCardModal({ user, onClose, onSave, allSessions, matchesUser }) {
     setSendingEmail(false);
   };
 
+  const sendPortalEmail = async () => {
+    if (!editUser.email) { setPortalEmailMsg('No email on file.'); return; }
+    setSendingPortalEmail(true); setPortalEmailMsg('');
+    try {
+      const lastSlug = (user.name || '').toLowerCase().split(' ').pop().replace(/[^a-z]/g, '');
+      const pw = user.username ? `${lastSlug}#2026` : '';
+      const portalLoginUrl = user.username ? `https://investors.rosieai.tech/portal-login?username=${encodeURIComponent(user.username)}&password=${encodeURIComponent(pw)}` : '';
+      await base44.functions.invoke('sendPortalAccessEmail', {
+        investorId: user.id,
+        toEmail:    editUser.email,
+        toName:     user.name,
+        firstName:  user.name.split(' ')[0],
+        username:   user.username,
+        password:   pw,
+        loginUrl:   portalLoginUrl,
+      });
+      setPortalEmailMsg('✓ Portal access email sent!');
+      setTimeout(() => setPortalEmailMsg(''), 4000);
+    } catch (e) { setPortalEmailMsg('Error: ' + (e.response?.data?.error || e.message)); }
+    setSendingPortalEmail(false);
+  };
+
   return (
     <>
     {showDialerLocal && (
@@ -266,10 +290,16 @@ function ContactCardModal({ user, onClose, onSave, allSessions, matchesUser }) {
           </div>
           <div style={{ display:'flex', gap:'8px', alignItems:'center' }}>
             <button onClick={sendEmail} disabled={sendingEmail || !editUser.email}
-              style={{ background:'rgba(96,165,250,0.12)', color:'#60a5fa', border:'1px solid rgba(96,165,250,0.3)', borderRadius:'2px', padding:'8px 14px', cursor: editUser.email ? 'pointer' : 'not-allowed', fontSize:'12px', fontWeight:'bold', opacity: editUser.email ? 1 : 0.5 }}>
-              {sendingEmail ? '⏳ Sending…' : '✉️ Send Email'}
+              title="Sends investor site access code + consumer ref URL (template 7949342)"
+              style={{ background:'rgba(96,165,250,0.12)', color: editUser.email ? '#60a5fa' : '#4a5568', border:'1px solid rgba(96,165,250,0.3)', borderRadius:'2px', padding:'8px 14px', cursor: editUser.email ? 'pointer' : 'not-allowed', fontSize:'12px', fontWeight:'bold', opacity: editUser.email ? 1 : 0.5, whiteSpace:'nowrap' }}>
+              {sendingEmail ? '⏳ Sending…' : '💼 Investor Site Access'}
             </button>
-            {emailMsg && <span style={{ fontSize:'11px', color: emailMsg.startsWith('Error') ? '#ef4444' : '#4ade80' }}>{emailMsg}</span>}
+            <button onClick={sendPortalEmail} disabled={sendingPortalEmail || !editUser.email}
+              title="Sends portal username + password (template 7951003)"
+              style={{ background:'rgba(167,139,250,0.12)', color: editUser.email ? '#a78bfa' : '#4a5568', border:'1px solid rgba(167,139,250,0.3)', borderRadius:'2px', padding:'8px 14px', cursor: editUser.email ? 'pointer' : 'not-allowed', fontSize:'12px', fontWeight:'bold', opacity: editUser.email ? 1 : 0.5, whiteSpace:'nowrap' }}>
+              {sendingPortalEmail ? '⏳ Sending…' : '🔐 Portal Access'}
+            </button>
+            {(emailMsg || portalEmailMsg) && <span style={{ fontSize:'11px', color: (emailMsg||portalEmailMsg).startsWith('Error') ? '#ef4444' : '#4ade80' }}>{emailMsg || portalEmailMsg}</span>}
             <button onClick={() => setShowZoom(true)}
               style={{ background:'rgba(96,165,250,0.12)', color:'#60a5fa', border:'1px solid rgba(96,165,250,0.3)', borderRadius:'2px', padding:'8px 14px', cursor:'pointer', fontSize:'12px', fontWeight:'bold' }}>
               📅 Book Zoom
