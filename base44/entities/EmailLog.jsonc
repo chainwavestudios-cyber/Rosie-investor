@@ -74,6 +74,11 @@
       "type": "boolean",
       "title": "Points Awarded",
       "default": false
+    },
+    "isIntroEmail": {
+      "type": "boolean",
+      "title": "Is Intro Email",
+      "default": false
     }
   },
   "required": [
