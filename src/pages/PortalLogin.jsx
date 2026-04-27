@@ -6,22 +6,19 @@ const LOGO_URL = "https://media.base44.com/images/public/69cd2741578c9b5ce655395
 
 export default function PortalLogin() {
   const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const { portalLogin, isPortalLoading } = usePortalAuth();
   const navigate = useNavigate();
 
-  // Auto-login from URL params (?username=john3356&password=john3356)
+  // Auto-login from URL params (?username=john3356)
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const autoUser = params.get('username');
-    const autoPass = params.get('password');
-    if (autoUser && autoPass) {
+    if (autoUser) {
       setUsername(autoUser);
-      setPassword(autoPass);
       setLoading(true);
-      portalLogin(autoUser, autoPass).then(result => {
+      portalLogin(autoUser, autoUser).then(result => {
         if (result.success) {
           navigate(result.user.role === 'admin' ? '/admin' : '/portal');
         } else {
@@ -46,16 +43,16 @@ export default function PortalLogin() {
     setError('');
     setLoading(true);
     try {
-      const result = await portalLogin(username, password);
+      // Use username as the password too (username-only login)
+      const result = await portalLogin(username, username);
       if (result.success) {
         if (result.user.role === 'admin') {
-          // Admins who accidentally hit /portal-login still land correctly
           navigate('/admin');
         } else {
           navigate('/portal');
         }
       } else {
-        setError(result.error || 'Invalid credentials');
+        setError(result.error || 'Invalid username');
       }
     } catch (err) {
       setError('Login failed — please try again');
@@ -114,7 +111,7 @@ export default function PortalLogin() {
           </div>
 
           <form onSubmit={handleSubmit}>
-            <div style={{ marginBottom: '20px' }}>
+            <div style={{ marginBottom: '28px' }}>
               <label style={{
                 display: 'block', color: '#8a9ab8', fontSize: '10px',
                 letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '8px'
@@ -134,29 +131,6 @@ export default function PortalLogin() {
                 onFocus={e => e.target.style.borderColor = 'rgba(184,147,58,0.6)'}
                 onBlur={e => e.target.style.borderColor = 'rgba(255,255,255,0.12)'}
                 placeholder="your-username"
-              />
-            </div>
-
-            <div style={{ marginBottom: '28px' }}>
-              <label style={{
-                display: 'block', color: '#8a9ab8', fontSize: '10px',
-                letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '8px'
-              }}>Password</label>
-              <input
-                type="password"
-                value={password}
-                onChange={e => setPassword(e.target.value)}
-                required
-                style={{
-                  width: '100%', background: 'rgba(255,255,255,0.05)',
-                  border: '1px solid rgba(255,255,255,0.12)', borderRadius: '2px',
-                  padding: '12px 16px', color: '#e8e0d0', fontSize: '14px',
-                  outline: 'none', boxSizing: 'border-box',
-                  transition: 'border-color 0.2s',
-                }}
-                onFocus={e => e.target.style.borderColor = 'rgba(184,147,58,0.6)'}
-                onBlur={e => e.target.style.borderColor = 'rgba(255,255,255,0.12)'}
-                placeholder="••••••••"
               />
             </div>
 
