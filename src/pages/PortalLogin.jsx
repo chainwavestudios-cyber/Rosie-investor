@@ -17,7 +17,16 @@ export default function PortalLogin() {
     const params = new URLSearchParams(window.location.search);
     const autoUser = params.get('username');
     const autoPass = params.get('password');
+
+    if (autoUser && !autoPass) {
+      // Username only — this is an investor info site link, not a portal link
+      // Redirect to home page with the access code
+      navigate('/?code=' + encodeURIComponent(autoUser), { replace: true });
+      return;
+    }
+
     if (autoUser && autoPass) {
+      // Full portal credentials — auto-login to portal
       setUsername(autoUser);
       setPassword(autoPass);
       setLoading(true);
