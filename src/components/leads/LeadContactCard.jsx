@@ -76,7 +76,7 @@ function AccessTab({ lead, onUpdate, onSave }) {
       } else {
         await base44.entities.InvestorUser.create({
           username: newUsername, email: lead.email || '', name: `${lead.firstName} ${lead.lastName}`,
-          password: hashedPassword, role: 'investor', status: 'prospect', siteAccess: 'info_only', leadId: lead.id,
+          password: hashedPassword, role: 'investor', status: 'prospect', leadId: lead.id,
         });
       }
 
@@ -782,10 +782,15 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
         toName: `${lead.firstName} ${lead.lastName}`,
         firstName: lead.firstName,
       });
-      setEmailMsg('✓ Email sent!');
+      setEmailMsg('✓ Email sent! Credentials created — check Portal Access tab.');
       await loadHistory();
+      // Reload lead so Portal Access tab shows the new username
+      try {
+        const fresh = await base44.entities.Lead.filter({ id: lead.id });
+        if (fresh?.[0]) setEditLead(fresh[0]);
+      } catch {}
       onUpdate && onUpdate();
-      setTimeout(() => setEmailMsg(''), 3000);
+      setTimeout(() => setEmailMsg(''), 4000);
     } catch (e) {
       setEmailMsg('Error: ' + (e.response?.data?.error || e.message));
     }
