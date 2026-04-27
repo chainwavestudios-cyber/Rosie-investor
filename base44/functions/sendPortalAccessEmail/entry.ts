@@ -7,6 +7,14 @@ const MJ_FROM_NAME  = Deno.env.get('MAILJET_FROM_NAME') || 'Rosie AI';
 const TEMPLATE_ID   = 7951003;
 const PORTAL_URL    = 'https://investors.rosieai.tech';
 
+const hashPassword = async (pw) => {
+  const salt = crypto.randomUUID().replace(/-/g, '');
+  const enc  = new TextEncoder();
+  const buf  = await crypto.subtle.digest('SHA-256', enc.encode(salt + pw));
+  const hex  = Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+  return `${salt}:${hex}`;
+};
+
 Deno.serve(async (req) => {
   if (!MJ_KEY || !MJ_SECRET || !MJ_FROM_EMAIL) {
     return Response.json({ error: 'Mailjet credentials not configured' }, { status: 500 });
@@ -15,12 +23,42 @@ Deno.serve(async (req) => {
   const base44 = createClientFromRequest(req);
   const { leadId, investorId, toEmail, toName, firstName, username, password, loginUrl } = await req.json();
 
-  if (!toEmail || !username) {
-    return Response.json({ error: 'Missing toEmail or username' }, { status: 400 });
+  if (!toEmail || !username || !password) {
+    return Response.json({ error: 'Missing toEmail, username, or password' }, { status: 400 });
   }
 
-  // Build auto-login URL for portal (username + password pre-filled)
-  const portalLoginUrl = loginUrl || `${PORTAL_URL}/portal-login?username=${encodeURIComponent(username)}&password=${encodeURIComponent(password || '')}`;
+  const fullName = toName || firstName || username;
+
+  // ── Upsert InvestorUser ──────────────────────────────────────────────────
+  try {
+    const hashedPw = await hashPassword(password);
+    const existing = await base44.asServiceRole.entities.InvestorUser.filter({ username });
+
+    if (existing?.length > 0) {
+      // Update existing user's password
+      await base44.asServiceRole.entities.InvestorUser.update(existing[0].id, { password: hashedPw, email: toEmail });
+      console.log(`[sendPortalAccessEmail] Updated InvestorUser: ${username}`);
+    } else {
+      // Create new InvestorUser
+      const nameParts = fullName.trim().split(' ');
+      await base44.asServiceRole.entities.InvestorUser.create({
+        username,
+        name:     fullName,
+        email:    toEmail,
+        password: hashedPw,
+        role:     'investor',
+        status:   'prospect',
+        leadId:   leadId || null,
+      });
+      console.log(`[sendPortalAccessEmail] Created InvestorUser: ${username}`);
+    }
+  } catch (e) {
+    console.error(`[sendPortalAccessEmail] InvestorUser upsert failed:`, e.message);
+    return Response.json({ error: 'Failed to create/update investor account: ' + e.message }, { status: 500 });
+  }
+
+  // ── Send Email ───────────────────────────────────────────────────────────
+  const portalLoginUrl = loginUrl || `${PORTAL_URL}/portal-login?username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}`;
 
   console.log(`[sendPortalAccessEmail] Sending to ${toEmail} username: ${username}`);
 
@@ -29,13 +67,13 @@ Deno.serve(async (req) => {
   const payload = {
     Messages: [{
       From: { Email: MJ_FROM_EMAIL, Name: MJ_FROM_NAME },
-      To:   [{ Email: toEmail, Name: toName || firstName || '' }],
+      To:   [{ Email: toEmail, Name: fullName }],
       TemplateID: TEMPLATE_ID,
       TemplateLanguage: true,
       Variables: {
-        firstname:  firstName || toName?.split(' ')[0] || '',
+        firstname:  firstName || fullName.split(' ')[0] || '',
         username,
-        passcode:   password || '',
+        passcode:   password,
         login_url:  portalLoginUrl,
         portal_url: PORTAL_URL,
       },
@@ -64,14 +102,14 @@ Deno.serve(async (req) => {
   // Log to EmailLog
   try {
     await base44.asServiceRole.entities.EmailLog.create({
-      leadId:       leadId || '',
-      investorId:   investorId || '',
-      toEmail, toName: toName || '',
-      templateId:   String(TEMPLATE_ID),
+      leadId:     leadId || '',
+      investorId: investorId || '',
+      toEmail,    toName: fullName,
+      templateId: String(TEMPLATE_ID),
       messageId,
-      status:       'sent',
-      sentAt:       new Date().toISOString(),
-      sentBy:       'admin',
+      status:     'sent',
+      sentAt:     new Date().toISOString(),
+      sentBy:     'admin',
     });
   } catch {}
 
