@@ -30,31 +30,129 @@ Deno.serve(async (req) => {
   const fullName = toName || firstName || username;
 
   // ── Upsert InvestorUser ──────────────────────────────────────────────────
+  let iu = null;
   try {
     const hashedPw = await hashPassword(password);
     const existing = await base44.asServiceRole.entities.InvestorUser.filter({ username });
 
     if (existing?.length > 0) {
-      // Update existing user's password
-      await base44.asServiceRole.entities.InvestorUser.update(existing[0].id, { password: hashedPw, email: toEmail });
+      await base44.asServiceRole.entities.InvestorUser.update(existing[0].id, {
+        password: hashedPw,
+        email: toEmail,
+        leadId: leadId || existing[0].leadId || null,
+        pipelineStage: existing[0].pipelineStage || 'reviewing',
+        migratedAt: existing[0].migratedAt || new Date().toISOString(),
+      });
+      iu = existing[0];
       console.log(`[sendPortalAccessEmail] Updated InvestorUser: ${username}`);
     } else {
-      // Create new InvestorUser
-      const nameParts = fullName.trim().split(' ');
-      await base44.asServiceRole.entities.InvestorUser.create({
+      iu = await base44.asServiceRole.entities.InvestorUser.create({
         username,
-        name:     fullName,
-        email:    toEmail,
-        password: hashedPw,
-        role:     'investor',
-        status:   'prospect',
-        leadId:   leadId || null,
+        name:          fullName,
+        email:         toEmail,
+        password:      hashedPw,
+        role:          'investor',
+        status:        'prospect',
+        pipelineStage: 'reviewing',
+        leadId:        leadId || null,
+        migratedAt:    new Date().toISOString(),
+        lastActivityAt: new Date().toISOString(),
       });
       console.log(`[sendPortalAccessEmail] Created InvestorUser: ${username}`);
     }
   } catch (e) {
     console.error(`[sendPortalAccessEmail] InvestorUser upsert failed:`, e.message);
     return Response.json({ error: 'Failed to create/update investor account: ' + e.message }, { status: 500 });
+  }
+
+  const iuId = iu?.id;
+
+  // ── If a leadId was provided, run full migration (like MigrateLeadModal) ──
+  if (leadId && iuId) {
+    console.log(`[sendPortalAccessEmail] Running full migration for lead ${leadId} → investor ${iuId}`);
+
+    // 1. Migrate LeadHistory → ContactNotes
+    try {
+      const history = await base44.asServiceRole.entities.LeadHistory.filter({ leadId });
+      for (const h of (history || [])) {
+        try {
+          const noteType = ['call','connected'].includes(h.type) ? 'call'
+            : h.type === 'sms' ? 'sms'
+            : h.type === 'voicemail' ? 'voicemail'
+            : (h.type === 'email' || (h.content||'').includes('Email sent')) ? 'email'
+            : 'note';
+          const label = (h.type||'note').replace(/_/g,' ').replace(/\b\w/g, l => l.toUpperCase());
+          await base44.asServiceRole.entities.ContactNote.create({
+            investorId:    iuId,
+            investorEmail: toEmail,
+            type:          noteType,
+            content:       `[Lead History · ${label}] ${h.content || ''}`,
+            createdAt:     h.created_date,
+            createdBy:     h.createdBy || 'admin',
+          });
+        } catch {}
+      }
+    } catch (e) { console.warn('[migrate] history:', e.message); }
+
+    // 2. Migrate EmailLogs
+    try {
+      const logs = await base44.asServiceRole.entities.EmailLog.filter({ leadId });
+      for (const log of (logs || [])) {
+        try {
+          await base44.asServiceRole.entities.EmailLog.update(log.id, { investorId: iuId });
+          await base44.asServiceRole.entities.ContactNote.create({
+            investorId:    iuId,
+            investorEmail: toEmail,
+            type:          'email',
+            content:       `[Email Log] ${log.status}${log.openedAt ? ' · Opened ' + new Date(log.openedAt).toLocaleDateString() : ''}`,
+            createdAt:     log.sentAt,
+            createdBy:     log.sentBy || 'admin',
+          });
+        } catch {}
+      }
+    } catch (e) { console.warn('[migrate] email logs:', e.message); }
+
+    // 3. Migrate Appointments
+    try {
+      const appts = await base44.asServiceRole.entities.Appointment.filter({ investorId: leadId });
+      for (const a of (appts || [])) {
+        try {
+          await base44.asServiceRole.entities.Appointment.update(a.id, { investorId: iuId, investorEmail: toEmail, investorName: fullName });
+        } catch {}
+      }
+    } catch (e) { console.warn('[migrate] appointments:', e.message); }
+
+    // 4. Migrate SiteVisits
+    try {
+      const visits = await base44.asServiceRole.entities.SiteVisit.filter({ leadId });
+      for (const v of (visits || [])) {
+        try { await base44.asServiceRole.entities.SiteVisit.update(v.id, { investorId: iuId }); } catch {}
+      }
+    } catch (e) { console.warn('[migrate] site visits:', e.message); }
+
+    // 5. Archive the lead
+    try {
+      await base44.asServiceRole.entities.Lead.update(leadId, {
+        status:                    'converted',
+        migratedToPortal:          true,
+        convertedToInvestorUserId: iuId,
+      });
+      await base44.asServiceRole.entities.LeadHistory.create({
+        leadId,
+        type:    'status_change',
+        content: `✅ Migrated to CRM via portal access email. Username: ${username}. Pipeline: Reviewing Info.`,
+      });
+      await base44.asServiceRole.entities.ContactNote.create({
+        investorId:    iuId,
+        investorEmail: toEmail,
+        type:          'note',
+        content:       `✅ Migrated from lead pipeline. Portal access email sent. Stage: Reviewing Info.`,
+        createdAt:     new Date().toISOString(),
+        createdBy:     'system',
+      });
+    } catch (e) { console.warn('[migrate] archive lead:', e.message); }
+
+    console.log(`[sendPortalAccessEmail] Migration complete for lead ${leadId}`);
   }
 
   // ── Send Email ───────────────────────────────────────────────────────────
@@ -103,7 +201,7 @@ Deno.serve(async (req) => {
   try {
     await base44.asServiceRole.entities.EmailLog.create({
       leadId:     leadId || '',
-      investorId: investorId || '',
+      investorId: iuId || investorId || '',
       toEmail,    toName: fullName,
       templateId: String(TEMPLATE_ID),
       messageId,
@@ -113,19 +211,11 @@ Deno.serve(async (req) => {
     });
   } catch {}
 
-  // Log to history
-  if (leadId) {
-    try {
-      await base44.asServiceRole.entities.LeadHistory.create({
-        leadId, type: 'email',
-        content: `📧 Portal access email sent. Username: ${username}`,
-      });
-    } catch {}
-  }
-  if (investorId) {
+  // Log note on investor
+  if (iuId) {
     try {
       await base44.asServiceRole.entities.ContactNote.create({
-        investorId, investorEmail: toEmail,
+        investorId: iuId, investorEmail: toEmail,
         type: 'email',
         content: `📧 Portal access email sent. Username: ${username}`,
         createdAt: new Date().toISOString(),
@@ -134,5 +224,5 @@ Deno.serve(async (req) => {
     } catch {}
   }
 
-  return Response.json({ success: true, messageId });
+  return Response.json({ success: true, messageId, investorId: iuId });
 });
