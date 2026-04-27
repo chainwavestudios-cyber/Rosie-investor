@@ -30,35 +30,32 @@ Deno.serve(async (req) => {
   const fullName = toName || firstName || username;
 
   // ── Upsert InvestorUser ──────────────────────────────────────────────────
+  // IMPORTANT: if user already exists, preserve all their data (engagement, history, etc.)
+  // Only create a new record if they truly don't exist yet.
   let iu = null;
   try {
-    const hashedPw = await hashPassword(password);
     const existing = await base44.asServiceRole.entities.InvestorUser.filter({ username });
 
     if (existing?.length > 0) {
-      await base44.asServiceRole.entities.InvestorUser.update(existing[0].id, {
-        password: hashedPw,
-        email: toEmail,
-        leadId: leadId || existing[0].leadId || null,
-        pipelineStage: existing[0].pipelineStage || 'reviewing',
-        migratedAt: existing[0].migratedAt || new Date().toISOString(),
-      });
+      // User already exists — just resend the email, do NOT overwrite password or engagement data
       iu = existing[0];
-      console.log(`[sendPortalAccessEmail] Updated InvestorUser: ${username}`);
+      console.log(`[sendPortalAccessEmail] Existing InvestorUser found (${username}) — resending credentials only, preserving all data.`);
     } else {
+      // New user — create with hashed password
+      const hashedPw = await hashPassword(password);
       iu = await base44.asServiceRole.entities.InvestorUser.create({
         username,
-        name:          fullName,
-        email:         toEmail,
-        password:      hashedPw,
-        role:          'investor',
-        status:        'prospect',
-        pipelineStage: 'reviewing',
-        leadId:        leadId || null,
-        migratedAt:    new Date().toISOString(),
+        name:           fullName,
+        email:          toEmail,
+        password:       hashedPw,
+        role:           'investor',
+        status:         'prospect',
+        pipelineStage:  'reviewing',
+        leadId:         leadId || null,
+        migratedAt:     new Date().toISOString(),
         lastActivityAt: new Date().toISOString(),
       });
-      console.log(`[sendPortalAccessEmail] Created InvestorUser: ${username}`);
+      console.log(`[sendPortalAccessEmail] Created new InvestorUser: ${username}`);
     }
   } catch (e) {
     console.error(`[sendPortalAccessEmail] InvestorUser upsert failed:`, e.message);
@@ -67,8 +64,20 @@ Deno.serve(async (req) => {
 
   const iuId = iu?.id;
 
-  // ── If a leadId was provided, run full migration (like MigrateLeadModal) ──
-  if (leadId && iuId) {
+  // ── If a leadId was provided and not yet migrated, run full migration ──
+  // Skip migration if lead is already converted (resend scenario)
+  let leadAlreadyMigrated = false;
+  if (leadId) {
+    try {
+      const leads = await base44.asServiceRole.entities.Lead.filter({ id: leadId });
+      if (leads?.[0]?.migratedToPortal || leads?.[0]?.status === 'converted') {
+        leadAlreadyMigrated = true;
+        console.log(`[sendPortalAccessEmail] Lead ${leadId} already migrated — skipping migration, resending email only.`);
+      }
+    } catch {}
+  }
+
+  if (leadId && iuId && !leadAlreadyMigrated) {
     console.log(`[sendPortalAccessEmail] Running full migration for lead ${leadId} → investor ${iuId}`);
 
     // 1. Migrate LeadHistory → ContactNotes
