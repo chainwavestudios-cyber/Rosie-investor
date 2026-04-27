@@ -48,32 +48,10 @@ Deno.serve(async (req) => {
 
       console.log(`[sendIntroEmail] Processing lead ${leadId}: ${toName} <${toEmail}>`);
 
-      // Create/update InvestorUser — only use valid schema fields, no siteAccess
-      try {
-        const hashRes = await fetch(
-          `${INVESTORS_SITE}/api/apps/69cd2741578c9b5ce655395b/functions/hashPassword`,
-          { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'hash', password }) }
-        );
-        const hashData       = await hashRes.json();
-        const hashedPassword = hashData?.hash || password;
-
-        const existing = await base44.asServiceRole.entities.InvestorUser.filter({ username });
-        if (existing?.length > 0) {
-          await base44.asServiceRole.entities.InvestorUser.update(existing[0].id, {
-            email: toEmail, name: toName, password: hashedPassword, leadId,
-            role: 'investor', status: 'prospect',
-          });
-        } else {
-          await base44.asServiceRole.entities.InvestorUser.create({
-            username, email: toEmail, name: toName, password: hashedPassword,
-            role: 'investor', status: 'prospect', leadId,
-          });
-        }
-        await base44.asServiceRole.entities.Lead.update(leadId, { portalPasscode: username });
-      } catch (e) {
-        console.warn(`[sendIntroEmail] InvestorUser setup warning for ${leadId}:`, e.message);
-        // Non-fatal — continue to send the email
-      }
+      // Save the username as portalPasscode on the lead (for tracking URLs only)
+      await base44.asServiceRole.entities.Lead.update(leadId, { portalPasscode: username }).catch(e =>
+        console.warn(`[sendIntroEmail] portalPasscode update warning for ${leadId}:`, e.message)
+      );
 
       // Build URLs
       const loginUrl    = `${INVESTORS_SITE}/portal-login?username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}`;
