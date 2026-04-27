@@ -6,18 +6,27 @@ Deno.serve(async (req) => {
   // Get all leads with status='prospect'
   const prospects = await base44.asServiceRole.entities.Lead.filter({ status: 'prospect' });
   
+  // Build a set of prospect emails for matching
+  const prospectEmails = new Set(prospects.map(p => (p.email || '').toLowerCase().trim()).filter(e => e));
+  
+  // Get all InvestorUsers
+  const allInvestors = await base44.asServiceRole.entities.InvestorUser.list();
+  
   let deleted = 0;
   const deletedIds = [];
+  const deletedNames = [];
 
-  // For each prospect, if they have a convertedToInvestorUserId, delete that InvestorUser
-  for (const prospect of prospects) {
-    if (prospect.convertedToInvestorUserId) {
+  // Delete InvestorUsers whose email matches a prospect
+  for (const investor of allInvestors) {
+    const investorEmail = (investor.email || '').toLowerCase().trim();
+    if (prospectEmails.has(investorEmail)) {
       try {
-        await base44.asServiceRole.entities.InvestorUser.delete(prospect.convertedToInvestorUserId);
+        await base44.asServiceRole.entities.InvestorUser.delete(investor.id);
         deleted++;
-        deletedIds.push(prospect.convertedToInvestorUserId);
+        deletedIds.push(investor.id);
+        deletedNames.push(`${investor.name} (${investorEmail})`);
       } catch (e) {
-        console.warn(`Failed to delete InvestorUser ${prospect.convertedToInvestorUserId}:`, e.message);
+        console.warn(`Failed to delete InvestorUser ${investor.id}:`, e.message);
       }
     }
   }
@@ -27,5 +36,6 @@ Deno.serve(async (req) => {
     prospectCount: prospects.length,
     deletedCount: deleted,
     deletedIds,
+    deletedNames,
   });
 });
