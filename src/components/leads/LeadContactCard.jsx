@@ -657,6 +657,8 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
   const [showMigrate, setShowMigrate] = useState(false);
   const [sendingEmail, setSendingEmail] = useState(false);
   const [emailMsg, setEmailMsg] = useState('');
+  const [sendingPortalAccess, setSendingPortalAccess] = useState(false);
+  const [portalAccessMsg, setPortalAccessMsg] = useState('');
 
   // Actions state
   const [prospectNote, setProspectNote] = useState('');
@@ -772,6 +774,20 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
     setSendingEmail(false);
   };
 
+  const sendPortalAccess = async () => {
+    if (!editLead.email) { setPortalAccessMsg('No email address on file.'); return; }
+    setSendingPortalAccess(true); setPortalAccessMsg('');
+    try {
+      await base44.functions.invoke('sendPortalAccessEmail', { leadId: lead.id });
+      setPortalAccessMsg('✓ Portal access email sent!');
+      await loadHistory();
+      setTimeout(() => setPortalAccessMsg(''), 3000);
+    } catch (e) {
+      setPortalAccessMsg('Error: ' + (e.response?.data?.error || e.message));
+    }
+    setSendingPortalAccess(false);
+  };
+
   const statusInfo = STATUS_LABELS[editLead.status] || STATUS_LABELS.lead;
   const fullName = `${lead.firstName} ${lead.lastName}`;
   const isProspect = editLead.status === 'prospect';
@@ -876,6 +892,13 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
             <div style={{ flex:1 }} />
 
             {/* Right-side actions */}
+            {!isArchived && (
+              <button onClick={sendPortalAccess} disabled={sendingPortalAccess || !editLead.email}
+                style={{ background:'rgba(96,165,250,0.12)', color: editLead.email ? '#60a5fa' : '#4a5568', border:'1px solid rgba(96,165,250,0.3)', borderRadius:'4px', padding:'6px 12px', cursor: editLead.email ? 'pointer' : 'not-allowed', fontSize:'11px', fontWeight:'bold', opacity: editLead.email ? 1 : 0.4 }}>
+                {sendingPortalAccess ? '⏳' : '🔑'} {sendingPortalAccess ? 'Sending…' : 'Send Portal Access'}
+              </button>
+            )}
+            {portalAccessMsg && <span style={{ fontSize:'10px', color: portalAccessMsg.startsWith('Error') ? '#ef4444' : '#4ade80' }}>{portalAccessMsg}</span>}
             {!isArchived && (
               <button onClick={sendEmail} disabled={sendingEmail || !editLead.email}
                 style={{ background:'rgba(255,255,255,0.05)', color: editLead.email ? '#c4cdd8' : '#4a5568', border:'1px solid rgba(255,255,255,0.1)', borderRadius:'4px', padding:'6px 12px', cursor: editLead.email ? 'pointer' : 'not-allowed', fontSize:'11px', opacity: editLead.email ? 1 : 0.4 }}>
