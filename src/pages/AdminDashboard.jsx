@@ -20,6 +20,7 @@ import { base44 } from '@/api/base44Client';
 import InvestorWebsiteTab from '@/components/leads/InvestorWebsiteTab';
 import ResearchTab from '@/components/leads/ResearchTab';
 import ScriptAssistant from '@/components/leads/ScriptAssistant';
+import MarketingTab from '@/components/leads/MarketingTab';
 
 const LOGO = 'https://media.base44.com/images/public/69cd2741578c9b5ce655395b/39a31f9b9_Untitleddesign3.png';
 const GOLD = '#b8933a';
@@ -1791,6 +1792,7 @@ const VIEWS = [
   { id:'calendar', label:'Calendar' },
   { id:'analytics',label:'Analytics' },
   { id:'activity', label:'Recent Activity' },
+  { id:'marketing', label:'📣 Marketing' },
   { id:'kb',       label:'🧠 Knowledge Base' },
   { id:'signnow',  label:'SignNow Requests' },
   { id:'portal',   label:'Portal Controls' },
@@ -2213,6 +2215,7 @@ export default function AdminDashboard() {
         )}
 
         {view === 'leads'            && <LeadsTab />}
+        {view === 'marketing'         && <MarketingTab />}
         {view === 'kb'               && <KnowledgeBaseManager />}
         {view === 'signnow'          && <SignNowRequestsView settings={portalSettings} />}
         {view === 'signnow-settings' && <SignNowSettings settings={portalSettings} onSettingsSaved={s => setPortalSettings(s)} />}
