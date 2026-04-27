@@ -36,7 +36,12 @@ function findRelevantKB(question: string, kbEntries: any[], topN = 8): any[] {
 Deno.serve(async (req) => {
   try {
     const { question, transcript, kbEntries, mode, existingProfile, intentRules, coachRules } = await req.json();
-    const recentTranscript = (transcript || []).slice(-10).map((t: any) => t.text).join(' ');
+    // Build rich transcript string with sentiment and speaker labels
+    const recentTranscript = (transcript || []).slice(-10).map((t: any) => {
+      const speaker  = t.speaker !== null && t.speaker !== undefined ? `[S${t.speaker}]` : '';
+      const sent     = t.sentiment ? `[${t.sentiment}${t.sentScore ? ':' + Math.round(t.sentScore * 100) + '%' : ''}]` : '';
+      return `${speaker}${sent} ${t.text}`.trim();
+    }).join(' ');
 
     // ── INTENT ENGINE ─────────────────────────────────────────────────
     if (mode === 'intent') {
@@ -48,11 +53,13 @@ Deno.serve(async (req) => {
           max_tokens: 300,
           system: `You are an expert sales intent analyzer. Classify the prospect based on the recent conversation.
 
-DUCK: ${intentRules?.duckDefinition || 'Argumentative, skeptical, raises objections, tries to prove things wrong, combative.'}
-COW: ${intentRules?.cowDefinition || 'Agreeable, curious, open-minded, says things like "that\'s interesting", "really?", asks genuine questions, believes what you say.'}
+The transcript may contain speaker labels [S0] (usually the agent) and [S1] (usually the prospect), plus Deepgram sentiment labels [positive], [negative], [neutral] with confidence percentages. Use these signals alongside the words themselves to assess intent.
+
+DUCK: ${intentRules?.duckDefinition || 'Argumentative, skeptical, raises objections, tries to prove things wrong, combative. Negative sentiment on key topics.'}
+COW: ${intentRules?.cowDefinition || 'Agreeable, curious, open-minded, positive sentiment, says things like "that\'s interesting", asks genuine questions.'}
 
 Respond ONLY with this exact JSON (no markdown, no extra text):
-{"animalType":"duck or cow or unknown","animalConfidence":0-100,"buyingIntent":0-100,"questionQuality":0-100,"intentLabel":"hot or warm or cold or uncertain","signals":["signal1","signal2"],"coachTip":"one sentence tip for the salesperson right now"}`,
+{"animalType":"duck or cow or unknown","animalConfidence":0-100,"buyingIntent":0-100,"questionQuality":0-100,"intentLabel":"hot or warm or cold or uncertain","sentimentTrend":"improving or declining or stable or unknown","signals":["signal1","signal2"],"coachTip":"one sentence tip for the salesperson right now"}`,
           messages: [{ role: 'user', content: `Recent conversation:\n"${recentTranscript}"\n\nClassify the prospect's intent.` }],
         }),
       });
