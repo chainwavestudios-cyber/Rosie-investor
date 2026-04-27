@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { loadPortalSettings, savePortalSettings } from './portalSettings';
+import { base44 } from '@/api/base44Client';
 
 const PortalAuthContext = createContext();
 const SESSION_KEY = 'rosie_portal_auth';
@@ -75,10 +76,10 @@ export const PortalAuthProvider = ({ children }) => {
         return { success: false, error: 'Username not found' };
       }
 
-      // Full credentials check (portal login with password)
-      const user = await InvestorUser.findByCredentials(usernameOrEmail, password);
-      if (!user) return { success: false, error: 'Invalid username or password' };
-      const { password: _, ...safeUser } = user;
+      // Full credentials check — done server-side to avoid browser crypto issues
+      const result = await base44.functions.invoke('portalLogin', { username: usernameOrEmail, password });
+      if (!result?.data?.success) return { success: false, error: result?.data?.error || 'Invalid username or password' };
+      const safeUser = result.data.user;
       setPortalUser(safeUser);
       sessionStorage.setItem(SESSION_KEY, JSON.stringify(safeUser));
       try {
