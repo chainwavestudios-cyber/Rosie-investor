@@ -53,8 +53,8 @@ Deno.serve(async (req) => {
         console.warn(`[sendIntroEmail] portalPasscode update warning for ${leadId}:`, e.message)
       );
 
-      // Build URLs
-      const loginUrl    = `${INVESTORS_SITE}/portal-login?username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}`;
+      // Build URLs — login_url goes to investor INFO site, not portal
+      const loginUrl    = `${INVESTORS_SITE}/?code=${encodeURIComponent(username)}`;
       const consumerUrl = `${CONSUMER_SITE}?ref=${username}`;
 
       const auth = btoa(`${MJ_KEY}:${MJ_SECRET}`);
