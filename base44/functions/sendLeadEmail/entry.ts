@@ -32,16 +32,16 @@ Deno.serve(async (req) => {
 
   // ── Create or update InvestorUser so they can log in ────────────────
   try {
-    const hashRes = await fetch(
-      `${INVESTORS_SITE}/api/apps/69cd2741578c9b5ce655395b/functions/hashPassword`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'hash', password }),
-      }
-    );
-    const hashData = await hashRes.json();
-    const hashedPassword = hashData?.hash || password;
+    // Hash password using Deno Web Crypto — same algorithm, no external HTTP call needed
+    const hashedPassword = await (async () => {
+      try {
+        const salt = crypto.randomUUID().replace(/-/g, '');
+        const enc  = new TextEncoder();
+        const buf  = await crypto.subtle.digest('SHA-256', enc.encode(salt + password));
+        const hex  = Array.from(new Uint8Array(buf)).map((b: number) => b.toString(16).padStart(2,'0')).join('');
+        return salt + ':' + hex;
+      } catch { return password; }
+    })();
 
     const existing = await base44.asServiceRole.entities.InvestorUser.filter({ username });
     if (existing?.length > 0) {
@@ -74,7 +74,8 @@ Deno.serve(async (req) => {
   }
 
   // ── Build URLs ────────────────────────────────────────────────────────
-  const loginUrl    = `${INVESTORS_SITE}/portal-login?username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}`;
+  // login_url = investor INFO site with personal access code (NOT the portal)
+  const loginUrl    = `${INVESTORS_SITE}/?code=${encodeURIComponent(username)}`;
   const consumerUrl = `${CONSUMER_SITE}?ref=${username}`;
 
   const auth = btoa(`${MJ_KEY}:${MJ_SECRET}`);
