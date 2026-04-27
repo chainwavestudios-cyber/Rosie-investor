@@ -59,25 +59,12 @@ export default function MigrateLeadModal({ lead, history, onClose, onMigrated })
       setCurrentStep('Creating CRM account');
       let iu = null;
 
-      // Try to find existing by username
+      // Try to find existing by username — if found, preserve all data (no password overwrite)
       try {
         const existing = await base44.entities.InvestorUser.filter({ username });
         if (existing?.length > 0) {
-          const hashedUpd = await hashPw(password);
-          await base44.entities.InvestorUser.update(existing[0].id, {
-            name:            `${lead.firstName} ${lead.lastName}`,
-            email:           (lead.email || '').toLowerCase(),
-            phone:           lead.phone  || existing[0].phone  || '',
-            notes:           lead.notes  || existing[0].notes  || '',
-            password:        hashedUpd,
-            role:            'investor',
-            status:          'prospect',
-            pipelineStage:   'reviewing',
-            engagementScore: lead.engagementScore || 0,
-            leadId:          lead.id,
-            migratedAt:      new Date().toISOString(),
-          });
-          iu = { ...existing[0], status: 'prospect', pipelineStage: 'reviewing' };
+          iu = existing[0];
+          console.log('[MigrateLeadModal] Existing InvestorUser found — preserving all data.');
         }
       } catch {}
 
@@ -217,21 +204,22 @@ export default function MigrateLeadModal({ lead, history, onClose, onMigrated })
       // ── 7. Send portal access email ────────────────────────────────────
       setCurrentStep('Sending portal access email');
       try {
-        await base44.functions.invoke('sendLeadEmail', {
-          leadId:          lead.id,
-          toEmail:         lead.email,
-          toName:          `${lead.firstName} ${lead.lastName}`,
-          firstName:       lead.firstName,
-          customVariables: { login_url: loginUrl, username, passcode: username, portal_url: INVESTORS_SITE },
+        await base44.functions.invoke('sendPortalAccessEmail', {
+          leadId:    lead.id,
+          investorId: iu.id,
+          toEmail:   lead.email,
+          toName:    `${lead.firstName} ${lead.lastName}`,
+          firstName: lead.firstName,
+          username,
+          password,
+          loginUrl,
         });
-        await base44.entities.ContactNote.create({
-          investorId:    iu.id,
-          investorEmail: iu.email,
-          type:          'email',
-          content:       `📧 Portal access email sent. Username: ${username}`,
-          createdAt:     new Date().toISOString(),
-          createdBy:     'system',
-        });
+        // Log to lead history
+        await base44.entities.LeadHistory.create({
+          leadId:  lead.id,
+          type:    'note',
+          content: `📧 Portal access email sent. Username: ${username}`,
+        }).catch(() => {});
       } catch (emailErr) {
         console.warn('Portal email failed (non-fatal):', emailErr);
       }
