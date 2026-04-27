@@ -27,7 +27,9 @@ export const InvestorUser = {
       const stored = (storedHash || '').trim();
       const pass   = (password   || '').trim();
       if (!stored.includes(':')) return stored === pass;
-      const [salt, expectedHash] = stored.split(':');
+      const colonIdx = stored.indexOf(':');
+      const salt = stored.slice(0, colonIdx);
+      const expectedHash = stored.slice(colonIdx + 1);
       const enc = new TextEncoder();
       const buf = await crypto.subtle.digest('SHA-256', enc.encode(salt + pass));
       const hex = Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
