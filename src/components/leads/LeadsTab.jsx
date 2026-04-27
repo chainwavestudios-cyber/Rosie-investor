@@ -492,6 +492,7 @@ export default function LeadsTab() {
         onDialNumber={handleDialNumber}
         dialerRef={dialerRef}
         isDialerPaused={isDialerPaused}
+        dialerPanelOpen={showDialerPanel}
         onResume={() => {
           setSelectedLead(null);
           setIsDialerPaused(false);

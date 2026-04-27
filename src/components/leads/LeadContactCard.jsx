@@ -644,7 +644,7 @@ function LeadHistoryTab({ lead, history, onNoteAdded }) {
   );
 }
 
-export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber, dialerRef, onResume, isDialerPaused, onNextLead, onPrevLead, currentLeadIndex, totalLeads }) {
+export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber, dialerRef, onResume, isDialerPaused, onNextLead, onPrevLead, currentLeadIndex, totalLeads, dialerPanelOpen }) {
   // Archived = migrated to CRM — card is read-only
   const isArchived = !!(lead.migratedToPortal || lead.convertedToInvestorUserId || lead.status === 'converted');
   const [cardExpanded, setCardExpanded] = useState(false);
@@ -791,8 +791,8 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
         <ZoomBookingModal isOpen={showZoom} onClose={() => setShowZoom(false)} buttonLabel="Book Zoom Call" zoomUrl="https://scheduler.zoom.us/stephani-sterling" />
       </div>
     )}
-    <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.9)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:9999, padding: cardExpanded ? '0' : '16px' }}>
-      <div style={{ background:'#0d1b2a', border:`1px solid ${isArchived ? 'rgba(245,158,11,0.3)' : 'rgba(184,147,58,0.3)'}`, borderRadius:'4px', width:'100%', maxWidth: cardExpanded ? '100vw' : '820px', maxHeight: cardExpanded ? '100vh' : '92vh', height: cardExpanded ? '100vh' : undefined, display:'flex', flexDirection:'column', boxShadow:'0 40px 120px rgba(0,0,0,0.9)', transition:'all 0.2s ease' }}>
+    <div style={{ position:'fixed', top:0, left:0, right: (dialerPanelOpen && !cardExpanded) ? '340px' : 0, bottom:0, background:'rgba(0,0,0,0.85)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:9000, padding: cardExpanded ? '0' : '16px' }}>
+      <div style={{ background:'#0d1b2a', border:`1px solid ${isArchived ? 'rgba(245,158,11,0.3)' : 'rgba(184,147,58,0.3)'}`, borderRadius:'4px', width:'100%', maxWidth: cardExpanded ? '100%' : '820px', maxHeight: cardExpanded ? '100%' : '92vh', height: cardExpanded ? '100%' : undefined, display:'flex', flexDirection:'column', boxShadow:'0 40px 120px rgba(0,0,0,0.9)', transition:'all 0.2s ease' }}>
 
         {/* Archived banner */}
         {isArchived && (
