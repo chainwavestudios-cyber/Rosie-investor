@@ -26,11 +26,13 @@ export default function PortalLogin() {
     }
 
     if (autoUser && autoPass) {
+      // Strip any trailing backslash (URL encoding artifact)
+      const cleanPass = autoPass.replace(/\\+$/, '');
       // Full portal credentials — auto-login to portal
       setUsername(autoUser);
-      setPassword(autoPass);
+      setPassword(cleanPass);
       setLoading(true);
-      portalLogin(autoUser, autoPass).then(result => {
+      portalLogin(autoUser, cleanPass).then(result => {
         if (result.success) {
           navigate(result.user.role === 'admin' ? '/admin' : '/portal');
         } else {

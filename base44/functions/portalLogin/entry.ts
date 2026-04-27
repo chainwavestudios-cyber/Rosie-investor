@@ -9,7 +9,7 @@ Deno.serve(async (req) => {
   }
 
   const input = username.trim().toLowerCase();
-  const pass  = password.trim();
+  const pass  = password.trim().replace(/\\+$/, '');
 
   // Try username match (case-insensitive)
   let users = await base44.asServiceRole.entities.InvestorUser.filter({ username: input });
