@@ -60,6 +60,22 @@ export const PortalAuthProvider = ({ children }) => {
     // Investor users — from Base44
     try {
       const { InvestorUser } = await import('@/api/entities');
+
+      // Username-only login (no password) — for info site access via email link
+      // If no password provided, find by username alone — no password check
+      if (!password || password.trim() === '') {
+        const userByName = await InvestorUser.findByUsername(usernameOrEmail.trim());
+        if (userByName) {
+          const { password: _, ...safeUser } = userByName;
+          setPortalUser(safeUser);
+          sessionStorage.setItem(SESSION_KEY, JSON.stringify(safeUser));
+          try { const { analytics } = await import('./analytics'); analytics.startSession(safeUser.email, safeUser.name, safeUser.username); } catch {}
+          return { success: true, user: safeUser };
+        }
+        return { success: false, error: 'Username not found' };
+      }
+
+      // Full credentials check (portal login with password)
       const user = await InvestorUser.findByCredentials(usernameOrEmail, password);
       if (!user) return { success: false, error: 'Invalid username or password' };
       const { password: _, ...safeUser } = user;
