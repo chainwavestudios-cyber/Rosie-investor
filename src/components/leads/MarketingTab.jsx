@@ -87,12 +87,18 @@ export default function MarketingTab() {
       const result = await base44.functions.invoke('sendIntroEmail', {
         leadIds: [...selected],
       });
-      const { sent, total } = result?.data || result || {};
-      setSendMsg(`✅ Sent intro email to ${sent ?? selected.size} of ${total ?? selected.size} leads!`);
+      const { sent, total, results: details } = result?.data || result || {};
+      const failed = details?.filter(r => !r.success) || [];
+      if (sent > 0) {
+        setSendMsg(`✅ Sent to ${sent} of ${total} leads${failed.length > 0 ? ` · ${failed.length} failed — check Base44 function logs for details` : ''}`);
+      } else {
+        const firstErr = failed[0]?.error || 'Unknown error — check Base44 function logs';
+        setSendMsg(`❌ Send failed: ${firstErr}`);
+      }
       setSelected(new Set());
       await loadUncontactedLeads();
     } catch (e) {
-      setSendMsg('Error: ' + (e.response?.data?.error || e.message));
+      setSendMsg('❌ Error: ' + (e.response?.data?.error || e.message));
     }
     setSending(false);
     setTimeout(() => setSendMsg(''), 6000);
