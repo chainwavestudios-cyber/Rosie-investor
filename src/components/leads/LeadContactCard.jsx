@@ -33,86 +33,19 @@ function historyColor(type) {
 
 function AccessTab({ lead, onUpdate, onSave }) {
   const GOLD = '#b8933a';
-  const DARK = '#0a0f1e';
-  const [generating, setGenerating] = useState(false);
   const [copied, setCopied] = useState('');
+  const [editingPortal, setEditingPortal] = useState(false);
+  const [newUsername, setNewUsername] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [saveMsg, setSaveMsg] = useState('');
 
-  const username      = lead?.portalPasscode || '';
-  const lastNameSlug  = (lead?.lastName || '').toLowerCase().replace(/[^a-z]/g, '');
+  const username       = lead?.portalPasscode || '';
+  const lastNameSlug   = (lead?.lastName || '').toLowerCase().replace(/[^a-z]/g, '');
   const portalPassword = username ? `${lastNameSlug}#2026` : '';
-  // Investor INFO site — personal access code, no password
-  const investorUrl   = username ? `https://investors.rosieai.tech/?code=${encodeURIComponent(username)}` : '';
-  // Portal — full credentials (username + password)
-  const portalUrl     = username ? `https://investors.rosieai.tech/portal-login?username=${encodeURIComponent(username)}&password=${encodeURIComponent(portalPassword)}` : '';
-  const consumerUrl   = username ? `https://www.rosieai.tech?ref=${username}` : '';
-
-  const generate = async () => {
-    setGenerating(true);
-    try {
-      // Build username: firstname + last 4 of phone
-      const nameSlug = (lead.firstName || 'user').toLowerCase().replace(/[^a-z]/g, '');
-      const last4 = (lead.phone || '').replace(/\D/g, '').slice(-4) || '0000';
-      const newUsername = `${nameSlug}${last4}`;
-      // Password = lastname#2026 all lowercase
-      const lastNameSlug = (lead.lastName || '').toLowerCase().replace(/[^a-z]/g, '');
-      const newPassword = `${lastNameSlug}#2026`;
-
-      // Hash password using Web Crypto (same algo as server) — no auth required
-      const hashedPassword = await (async () => {
-        try {
-          const salt = crypto.randomUUID().replace(/-/g, '');
-          const enc  = new TextEncoder();
-          const buf  = await crypto.subtle.digest('SHA-256', enc.encode(salt + newPassword));
-          const hex  = Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
-          return salt + ':' + hex;
-        } catch { return newPassword; }
-      })();
-
-      const existing = await base44.entities.InvestorUser.filter({ username: newUsername });
-      if (existing?.length > 0) {
-        await base44.entities.InvestorUser.update(existing[0].id, {
-          email: lead.email || '', name: `${lead.firstName} ${lead.lastName}`, password: hashedPassword, leadId: lead.id,
-        });
-      } else {
-        await base44.entities.InvestorUser.create({
-          username: newUsername, email: lead.email || '', name: `${lead.firstName} ${lead.lastName}`,
-          password: hashedPassword, role: 'investor', status: 'prospect', leadId: lead.id,
-        });
-      }
-
-      // Save to lead
-      await onSave({ portalPasscode: newUsername });
-
-      // Log it
-      await base44.entities.LeadHistory.create({
-        leadId: lead.id, type: 'note',
-        content: `🔑 Access credentials generated. Username: ${newUsername}`,
-      });
-    } catch(e) { console.error(e); }
-    setGenerating(false);
-  };
-
-  const [sendingPortalEmail, setSendingPortalEmail] = useState(false);
-  const [portalEmailMsg, setPortalEmailMsg]         = useState('');
-
-  const sendPortalAccessEmail = async () => {
-    if (!lead.email) { setPortalEmailMsg('No email on file.'); return; }
-    setSendingPortalEmail(true); setPortalEmailMsg('');
-    try {
-      await base44.functions.invoke('sendPortalAccessEmail', {
-        leadId:   lead.id,
-        toEmail:  lead.email,
-        toName:   `${lead.firstName} ${lead.lastName}`,
-        firstName: lead.firstName,
-        username,
-        password: portalPassword,
-        loginUrl: portalUrl,
-      });
-      setPortalEmailMsg('✓ Portal access email sent!');
-    } catch (e) { setPortalEmailMsg('Error: ' + (e.response?.data?.error || e.message)); }
-    setSendingPortalEmail(false);
-    setTimeout(() => setPortalEmailMsg(''), 4000);
-  };
+  const investorUrl    = username ? `https://investors.rosieai.tech/?code=${encodeURIComponent(username)}` : '';
+  const portalUrl      = username ? `https://investors.rosieai.tech/portal-login?username=${encodeURIComponent(username)}&password=${encodeURIComponent(portalPassword)}` : '';
+  const consumerUrl    = username ? `https://www.rosieai.tech?ref=${username}` : '';
 
   const copy = (text, key) => {
     navigator.clipboard.writeText(text);
@@ -120,82 +53,119 @@ function AccessTab({ lead, onUpdate, onSave }) {
     setTimeout(() => setCopied(''), 2000);
   };
 
-  const inp = { width:'100%', background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.1)', borderRadius:'4px', padding:'9px 12px', color:'#e8e0d0', fontSize:'12px', outline:'none', fontFamily:'monospace', boxSizing:'border-box', cursor:'text' };
+  const saveCredentials = async () => {
+    if (!newUsername.trim()) return;
+    setSaving(true); setSaveMsg('');
+    try {
+      await onSave({ portalPasscode: newUsername.trim().toLowerCase() });
+      await base44.entities.LeadHistory.create({
+        leadId: lead.id, type: 'note',
+        content: `🔑 Access credentials updated. Username: ${newUsername.trim().toLowerCase()}`,
+      });
+      setSaveMsg('✓ Saved');
+      setEditingPortal(false);
+      setNewUsername(''); setNewPassword('');
+    } catch (e) { setSaveMsg('Error: ' + e.message); }
+    setSaving(false);
+    setTimeout(() => setSaveMsg(''), 3000);
+  };
+
+  const inp = { width:'100%', background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.1)', borderRadius:'4px', padding:'9px 12px', color:'#e8e0d0', fontSize:'12px', outline:'none', fontFamily:'monospace', boxSizing:'border-box' };
+  const editInp = { ...inp, background:'rgba(255,255,255,0.07)', border:'1px solid rgba(184,147,58,0.3)' };
 
   return (
     <div style={{ display:'flex', flexDirection:'column', gap:'16px' }}>
 
-      {/* Header row */}
-      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-        <div>
-          <div style={{ color:'#e8e0d0', fontSize:'14px', marginBottom:'3px' }}>Access Credentials</div>
-          <div style={{ color:'#6b7280', fontSize:'11px' }}>Generates username for investor site + portal credentials</div>
+      {!username ? (
+        <div style={{ background:'rgba(245,158,11,0.07)', border:'1px solid rgba(245,158,11,0.2)', borderRadius:'6px', padding:'20px', textAlign:'center' }}>
+          <div style={{ fontSize:'28px', marginBottom:'8px' }}>💼</div>
+          <div style={{ color:'#f59e0b', fontSize:'13px', marginBottom:'6px' }}>No credentials yet</div>
+          <div style={{ color:'#6b7280', fontSize:'11px', lineHeight:1.6 }}>
+            Click <strong style={{ color:'#60a5fa' }}>Investor Site Access</strong> in the header to generate the investor site code and consumer URL and send the email.<br/>
+            Click <strong style={{ color:'#a78bfa' }}>Portal Access</strong> to generate portal credentials and send the portal email.
+          </div>
         </div>
-        <button onClick={generate} disabled={generating}
-          style={{ background: generating ? 'rgba(184,147,58,0.2)' : 'linear-gradient(135deg,#b8933a,#d4aa50)', color:DARK, border:'none', borderRadius:'6px', padding:'9px 18px', cursor: generating ? 'not-allowed' : 'pointer', fontWeight:'bold', fontSize:'12px', letterSpacing:'1px', whiteSpace:'nowrap' }}>
-          {generating ? '⏳ Generating…' : username ? '🔄 Regenerate' : '⚡ Generate Access'}
-        </button>
-      </div>
-
-      {!username && (
-        <div style={{ background:'rgba(245,158,11,0.07)', border:'1px solid rgba(245,158,11,0.2)', borderRadius:'6px', padding:'14px 16px', color:'#f59e0b', fontSize:'12px', textAlign:'center' }}>
-          No credentials yet — click Generate Access to create them
-        </div>
-      )}
-
-      {username && (
+      ) : (
         <>
           {/* ── INVESTOR INFO SITE ── */}
           <div style={{ background:'rgba(96,165,250,0.05)', border:'1px solid rgba(96,165,250,0.2)', borderRadius:'6px', padding:'14px 16px' }}>
-            <div style={{ color:'#60a5fa', fontSize:'10px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'10px' }}>💼 Investor Info Site — investors.rosieai.tech</div>
+            <div style={{ color:'#60a5fa', fontSize:'10px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'12px' }}>💼 Investor Info Site — investors.rosieai.tech</div>
             <div style={{ marginBottom:'10px' }}>
-              <div style={{ color:'#6b7280', fontSize:'9px', textTransform:'uppercase', letterSpacing:'1px', marginBottom:'4px' }}>Personal Access Code (Username)</div>
+              <div style={{ color:'#4a5568', fontSize:'9px', textTransform:'uppercase', letterSpacing:'1px', marginBottom:'4px' }}>Personal Access Code</div>
               <div style={{ display:'flex', gap:'6px' }}>
                 <input readOnly value={username} style={inp} />
-                <button onClick={() => copy(username, 'username')} style={{ background:'rgba(255,255,255,0.06)', color: copied==='username' ? '#4ade80' : '#8a9ab8', border:'1px solid rgba(255,255,255,0.1)', borderRadius:'4px', padding:'8px 12px', cursor:'pointer', fontSize:'11px', whiteSpace:'nowrap' }}>
-                  {copied==='username' ? '✓' : 'Copy'}
+                <button onClick={() => copy(username, 'code')} style={{ background:'rgba(255,255,255,0.06)', color: copied==='code' ? '#4ade80' : '#8a9ab8', border:'1px solid rgba(255,255,255,0.1)', borderRadius:'4px', padding:'8px 12px', cursor:'pointer', fontSize:'11px', whiteSpace:'nowrap' }}>
+                  {copied==='code' ? '✓' : 'Copy'}
                 </button>
               </div>
             </div>
             <div>
-              <div style={{ color:'#6b7280', fontSize:'9px', textTransform:'uppercase', letterSpacing:'1px', marginBottom:'4px' }}>Auto-Login URL (sent in email)</div>
+              <div style={{ color:'#4a5568', fontSize:'9px', textTransform:'uppercase', letterSpacing:'1px', marginBottom:'4px' }}>Access URL</div>
               <div style={{ display:'flex', gap:'6px' }}>
                 <input readOnly value={investorUrl} style={{ ...inp, fontSize:'10px' }} />
                 <button onClick={() => copy(investorUrl, 'invUrl')} style={{ background:'rgba(96,165,250,0.1)', color: copied==='invUrl' ? '#4ade80' : '#60a5fa', border:'1px solid rgba(96,165,250,0.25)', borderRadius:'4px', padding:'8px 12px', cursor:'pointer', fontSize:'11px', whiteSpace:'nowrap' }}>
                   {copied==='invUrl' ? '✓' : 'Copy'}
                 </button>
               </div>
-              <div style={{ color:'#4a5568', fontSize:'10px', marginTop:'4px' }}>Clicking this link auto-unlocks the investor info site for them</div>
             </div>
           </div>
 
           {/* ── PORTAL CREDENTIALS ── */}
           <div style={{ background:'rgba(167,139,250,0.05)', border:'1px solid rgba(167,139,250,0.2)', borderRadius:'6px', padding:'14px 16px' }}>
-            <div style={{ color:'#a78bfa', fontSize:'10px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'10px' }}>🔐 Investor Portal — investors.rosieai.tech/portal</div>
-            <div style={{ display:'flex', gap:'8px', marginBottom:'8px' }}>
-              <div style={{ flex:1, background:'rgba(0,0,0,0.15)', border:'1px solid rgba(255,255,255,0.07)', borderRadius:'4px', padding:'7px 10px' }}>
-                <div style={{ color:'#4a5568', fontSize:'8px', textTransform:'uppercase', letterSpacing:'1px', marginBottom:'2px' }}>Username</div>
-                <div style={{ color:GOLD, fontFamily:'monospace', fontSize:'12px' }}>{username}</div>
-              </div>
-              <div style={{ flex:1, background:'rgba(0,0,0,0.15)', border:'1px solid rgba(255,255,255,0.07)', borderRadius:'4px', padding:'7px 10px' }}>
-                <div style={{ color:'#4a5568', fontSize:'8px', textTransform:'uppercase', letterSpacing:'1px', marginBottom:'2px' }}>Password</div>
-                <div style={{ color:'#e8e0d0', fontFamily:'monospace', fontSize:'12px' }}>{portalPassword}</div>
-              </div>
-              <button onClick={() => copy(`Username: ${username}
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'12px' }}>
+              <div style={{ color:'#a78bfa', fontSize:'10px', letterSpacing:'2px', textTransform:'uppercase' }}>🔐 Investor Portal — investors.rosieai.tech/portal</div>
+              <button onClick={() => { setEditingPortal(e => !e); setNewUsername(username); setNewPassword(portalPassword); }}
+                style={{ background:'rgba(255,255,255,0.05)', color:'#6b7280', border:'1px solid rgba(255,255,255,0.1)', borderRadius:'4px', padding:'4px 10px', cursor:'pointer', fontSize:'10px' }}>
+                {editingPortal ? 'Cancel' : '✏️ Edit'}
+              </button>
+            </div>
+            {!editingPortal ? (
+              <>
+                <div style={{ display:'flex', gap:'8px', marginBottom:'8px' }}>
+                  <div style={{ flex:1, background:'rgba(0,0,0,0.15)', border:'1px solid rgba(255,255,255,0.07)', borderRadius:'4px', padding:'7px 10px' }}>
+                    <div style={{ color:'#4a5568', fontSize:'9px', textTransform:'uppercase', letterSpacing:'1px', marginBottom:'2px' }}>Username</div>
+                    <div style={{ color:GOLD, fontFamily:'monospace', fontSize:'12px' }}>{username}</div>
+                  </div>
+                  <div style={{ flex:1, background:'rgba(0,0,0,0.15)', border:'1px solid rgba(255,255,255,0.07)', borderRadius:'4px', padding:'7px 10px' }}>
+                    <div style={{ color:'#4a5568', fontSize:'9px', textTransform:'uppercase', letterSpacing:'1px', marginBottom:'2px' }}>Password</div>
+                    <div style={{ color:'#e8e0d0', fontFamily:'monospace', fontSize:'12px' }}>{portalPassword}</div>
+                  </div>
+                  <button onClick={() => copy(`Username: ${username}
 Password: ${portalPassword}
 Portal: https://investors.rosieai.tech/portal-login`, 'creds')}
-                style={{ background:'rgba(255,255,255,0.05)', color: copied==='creds' ? '#4ade80' : '#8a9ab8', border:'1px solid rgba(255,255,255,0.1)', borderRadius:'4px', padding:'8px 10px', cursor:'pointer', fontSize:'10px', whiteSpace:'nowrap' }}>
-                {copied==='creds' ? '✓' : 'Copy All'}
-              </button>
-            </div>
-            <div style={{ color:'#4a5568', fontSize:'10px', marginBottom:'12px' }}>Portal access is for migrated investors only. Send portal email after migrating.</div>
-            <div style={{ display:'flex', gap:'8px', alignItems:'center' }}>
-              <button onClick={sendPortalAccessEmail} disabled={sendingPortalEmail || !lead.email}
-                style={{ background:'linear-gradient(135deg,#7c3aed,#a855f7)', color:'#fff', border:'none', borderRadius:'4px', padding:'8px 16px', cursor: lead.email ? 'pointer' : 'not-allowed', fontSize:'11px', fontWeight:'bold', opacity: lead.email ? 1 : 0.5 }}>
-                {sendingPortalEmail ? '⏳ Sending…' : '📧 Send Portal Access Email'}
-              </button>
-              {portalEmailMsg && <span style={{ fontSize:'11px', color: portalEmailMsg.startsWith('✓') ? '#4ade80' : '#ef4444' }}>{portalEmailMsg}</span>}
-            </div>
+                    style={{ background:'rgba(255,255,255,0.05)', color: copied==='creds' ? '#4ade80' : '#8a9ab8', border:'1px solid rgba(255,255,255,0.1)', borderRadius:'4px', padding:'8px 10px', cursor:'pointer', fontSize:'10px', whiteSpace:'nowrap' }}>
+                    {copied==='creds' ? '✓' : 'Copy All'}
+                  </button>
+                </div>
+                <div>
+                  <div style={{ color:'#4a5568', fontSize:'9px', textTransform:'uppercase', letterSpacing:'1px', marginBottom:'4px' }}>Portal Auto-Login URL</div>
+                  <div style={{ display:'flex', gap:'6px' }}>
+                    <input readOnly value={portalUrl} style={{ ...inp, fontSize:'10px' }} />
+                    <button onClick={() => copy(portalUrl, 'portalUrl')} style={{ background:'rgba(167,139,250,0.1)', color: copied==='portalUrl' ? '#4ade80' : '#a78bfa', border:'1px solid rgba(167,139,250,0.25)', borderRadius:'4px', padding:'8px 12px', cursor:'pointer', fontSize:'11px', whiteSpace:'nowrap' }}>
+                      {copied==='portalUrl' ? '✓' : 'Copy'}
+                    </button>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div>
+                <div style={{ marginBottom:'10px' }}>
+                  <div style={{ color:'#4a5568', fontSize:'9px', textTransform:'uppercase', letterSpacing:'1px', marginBottom:'4px' }}>Username</div>
+                  <input value={newUsername} onChange={e => setNewUsername(e.target.value)} style={editInp} />
+                </div>
+                <div style={{ marginBottom:'12px' }}>
+                  <div style={{ color:'#4a5568', fontSize:'9px', textTransform:'uppercase', letterSpacing:'1px', marginBottom:'4px' }}>Password (auto-derived from lastname#2026 if blank)</div>
+                  <input value={newPassword} onChange={e => setNewPassword(e.target.value)} placeholder={portalPassword} style={editInp} />
+                </div>
+                <div style={{ display:'flex', gap:'8px', alignItems:'center' }}>
+                  <button onClick={saveCredentials} disabled={saving}
+                    style={{ background:'linear-gradient(135deg,#b8933a,#d4aa50)', color:'#0a0f1e', border:'none', borderRadius:'4px', padding:'8px 18px', cursor:'pointer', fontSize:'11px', fontWeight:'bold' }}>
+                    {saving ? 'Saving…' : 'Save'}
+                  </button>
+                  {saveMsg && <span style={{ fontSize:'11px', color: saveMsg.startsWith('✓') ? '#4ade80' : '#ef4444' }}>{saveMsg}</span>}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* ── CONSUMER SITE ── */}
@@ -213,6 +183,7 @@ Portal: https://investors.rosieai.tech/portal-login`, 'creds')}
     </div>
   );
 }
+
 
 function OverviewTab({ editLead, setEditLead, saving, saveMsg, saveProfile, updateStatus, quickNote, setQuickNote, addQuickNote, addingNote, history, loading, isArchived }) {
   const [editing, setEditing] = useState(false);
@@ -677,6 +648,8 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
   const [showMigrate, setShowMigrate] = useState(false);
   const [sendingEmail, setSendingEmail] = useState(false);
   const [emailMsg, setEmailMsg] = useState('');
+  const [sendingPortalEmail, setSendingPortalEmail] = useState(false);
+  const [portalEmailMsg, setPortalEmailMsg] = useState('');
 
   // Actions state
   const [prospectNote, setProspectNote] = useState('');
@@ -797,6 +770,39 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
     setSendingEmail(false);
   };
 
+  const sendPortalEmail = async () => {
+    if (!editLead.email) { setPortalEmailMsg('No email on file.'); return; }
+    setSendingPortalEmail(true); setPortalEmailMsg('');
+    try {
+      // Build portal credentials from lead data
+      const u = editLead.portalPasscode;
+      const lastSlug = (lead.lastName || '').toLowerCase().replace(/[^a-z]/g, '');
+      const pw = u ? `${lastSlug}#2026` : '';
+      if (!u) {
+        // No username yet — create via sendLeadEmail first
+        setPortalEmailMsg('Generate investor site access first — click "Investor Site Access" button.');
+        setSendingPortalEmail(false);
+        return;
+      }
+      const portalLoginUrl = `https://investors.rosieai.tech/portal-login?username=${encodeURIComponent(u)}&password=${encodeURIComponent(pw)}`;
+      await base44.functions.invoke('sendPortalAccessEmail', {
+        leadId:    lead.id,
+        toEmail:   editLead.email,
+        toName:    `${lead.firstName} ${lead.lastName}`,
+        firstName: lead.firstName,
+        username:  u,
+        password:  pw,
+        loginUrl:  portalLoginUrl,
+      });
+      setPortalEmailMsg('✓ Portal access email sent!');
+      await loadHistory();
+      setTimeout(() => setPortalEmailMsg(''), 4000);
+    } catch (e) {
+      setPortalEmailMsg('Error: ' + (e.response?.data?.error || e.message));
+    }
+    setSendingPortalEmail(false);
+  };
+
   const statusInfo = STATUS_LABELS[editLead.status] || STATUS_LABELS.lead;
   const fullName = `${lead.firstName} ${lead.lastName}`;
   const isProspect = editLead.status === 'prospect';
@@ -903,11 +909,19 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
             {/* Right-side actions */}
             {!isArchived && (
               <button onClick={sendEmail} disabled={sendingEmail || !editLead.email}
-                style={{ background:'rgba(255,255,255,0.05)', color: editLead.email ? '#c4cdd8' : '#4a5568', border:'1px solid rgba(255,255,255,0.1)', borderRadius:'4px', padding:'6px 12px', cursor: editLead.email ? 'pointer' : 'not-allowed', fontSize:'11px', opacity: editLead.email ? 1 : 0.4 }}>
-                {sendingEmail ? '⏳' : '✉️'} {sendingEmail ? 'Sending…' : 'Send Email'}
+                title="Sends investor site access code + consumer ref URL (template 7949342)"
+                style={{ background:'rgba(96,165,250,0.12)', color: editLead.email ? '#60a5fa' : '#4a5568', border:'1px solid rgba(96,165,250,0.25)', borderRadius:'4px', padding:'6px 12px', cursor: editLead.email ? 'pointer' : 'not-allowed', fontSize:'11px', fontWeight:'bold', opacity: editLead.email ? 1 : 0.4, whiteSpace:'nowrap' }}>
+                {sendingEmail ? '⏳ Sending…' : '💼 Investor Site Access'}
               </button>
             )}
-            {emailMsg && <span style={{ fontSize:'10px', color: emailMsg.startsWith('Error') ? '#ef4444' : '#4ade80' }}>{emailMsg}</span>}
+            {!isArchived && (
+              <button onClick={sendPortalEmail} disabled={sendingPortalEmail || !editLead.email}
+                title="Sends portal username + password (template 7951003)"
+                style={{ background:'rgba(167,139,250,0.12)', color: editLead.email ? '#a78bfa' : '#4a5568', border:'1px solid rgba(167,139,250,0.25)', borderRadius:'4px', padding:'6px 12px', cursor: editLead.email ? 'pointer' : 'not-allowed', fontSize:'11px', fontWeight:'bold', opacity: editLead.email ? 1 : 0.4, whiteSpace:'nowrap' }}>
+                {sendingPortalEmail ? '⏳ Sending…' : '🔐 Portal Access'}
+              </button>
+            )}
+            {(emailMsg || portalEmailMsg) && <span style={{ fontSize:'10px', color: (emailMsg||portalEmailMsg).startsWith('Error') ? '#ef4444' : '#4ade80' }}>{emailMsg || portalEmailMsg}</span>}
             {!isArchived && (
               <button onClick={() => setShowZoom(true)}
                 style={{ background:'rgba(255,255,255,0.05)', color:'#c4cdd8', border:'1px solid rgba(255,255,255,0.1)', borderRadius:'4px', padding:'6px 12px', cursor:'pointer', fontSize:'11px' }}>
