@@ -288,29 +288,29 @@ function ContactCardModal({ user, onClose, onSave, allSessions, matchesUser }) {
               );
             })()}
           </div>
-          <div style={{ display:'flex', gap:'8px', alignItems:'center' }}>
+          <div style={{ display:'flex', gap:'5px', alignItems:'center', flexWrap:'wrap' }}>
             <button onClick={sendEmail} disabled={sendingEmail || !editUser.email}
               title="Sends investor site access code + consumer ref URL (template 7949342)"
-              style={{ background:'rgba(96,165,250,0.12)', color: editUser.email ? '#60a5fa' : '#4a5568', border:'1px solid rgba(96,165,250,0.3)', borderRadius:'2px', padding:'8px 14px', cursor: editUser.email ? 'pointer' : 'not-allowed', fontSize:'12px', fontWeight:'bold', opacity: editUser.email ? 1 : 0.5, whiteSpace:'nowrap' }}>
-              {sendingEmail ? '⏳ Sending…' : '💼 Investor Site Access'}
+              style={{ background:'rgba(96,165,250,0.12)', color: editUser.email ? '#60a5fa' : '#4a5568', border:'1px solid rgba(96,165,250,0.3)', borderRadius:'2px', padding:'5px 8px', cursor: editUser.email ? 'pointer' : 'not-allowed', fontSize:'10px', fontWeight:'bold', opacity: editUser.email ? 1 : 0.5, whiteSpace:'nowrap' }}>
+              {sendingEmail ? '⏳' : '💼'} Site
             </button>
             <button onClick={sendPortalEmail} disabled={sendingPortalEmail || !editUser.email}
               title="Sends portal username + password (template 7951003)"
-              style={{ background:'rgba(167,139,250,0.12)', color: editUser.email ? '#a78bfa' : '#4a5568', border:'1px solid rgba(167,139,250,0.3)', borderRadius:'2px', padding:'8px 14px', cursor: editUser.email ? 'pointer' : 'not-allowed', fontSize:'12px', fontWeight:'bold', opacity: editUser.email ? 1 : 0.5, whiteSpace:'nowrap' }}>
-              {sendingPortalEmail ? '⏳ Sending…' : '🔐 Portal Access'}
+              style={{ background:'rgba(167,139,250,0.12)', color: editUser.email ? '#a78bfa' : '#4a5568', border:'1px solid rgba(167,139,250,0.3)', borderRadius:'2px', padding:'5px 8px', cursor: editUser.email ? 'pointer' : 'not-allowed', fontSize:'10px', fontWeight:'bold', opacity: editUser.email ? 1 : 0.5, whiteSpace:'nowrap' }}>
+              {sendingPortalEmail ? '⏳' : '🔐'} Portal
             </button>
-            {(emailMsg || portalEmailMsg) && <span style={{ fontSize:'11px', color: (emailMsg||portalEmailMsg).startsWith('Error') ? '#ef4444' : '#4ade80' }}>{emailMsg || portalEmailMsg}</span>}
+            {(emailMsg || portalEmailMsg) && <span style={{ fontSize:'10px', color: (emailMsg||portalEmailMsg).startsWith('Error') ? '#ef4444' : '#4ade80', maxWidth:'100px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{emailMsg || portalEmailMsg}</span>}
             <button onClick={() => setShowZoom(true)}
-              style={{ background:'rgba(96,165,250,0.12)', color:'#60a5fa', border:'1px solid rgba(96,165,250,0.3)', borderRadius:'2px', padding:'8px 14px', cursor:'pointer', fontSize:'12px', fontWeight:'bold' }}>
-              📅 Book Zoom
+              style={{ background:'rgba(96,165,250,0.12)', color:'#60a5fa', border:'1px solid rgba(96,165,250,0.3)', borderRadius:'2px', padding:'5px 8px', cursor:'pointer', fontSize:'10px', fontWeight:'bold' }}>
+              📅 Zoom
             </button>
             {user.phone && (
               <button onClick={() => { setDialerLead({ firstName: user.name, lastName: '', phone: user.phone, id: user.id }); setShowDialerLocal(true); }}
-                style={{ background:'rgba(74,222,128,0.12)', color:'#4ade80', border:'1px solid rgba(74,222,128,0.3)', borderRadius:'2px', padding:'8px 14px', cursor:'pointer', fontSize:'12px', fontWeight:'bold' }}>
+                style={{ background:'rgba(74,222,128,0.12)', color:'#4ade80', border:'1px solid rgba(74,222,128,0.3)', borderRadius:'2px', padding:'5px 8px', cursor:'pointer', fontSize:'10px', fontWeight:'bold', whiteSpace:'nowrap' }}>
                 📞 {user.phone}
               </button>
             )}
-            <button onClick={onClose} style={{ background:'rgba(255,255,255,0.05)', border:'1px solid rgba(255,255,255,0.1)', color:'#6b7280', cursor:'pointer', fontSize:'20px', width:'36px', height:'36px', borderRadius:'4px', display:'flex', alignItems:'center', justifyContent:'center' }}>×</button>
+            <button onClick={onClose} style={{ background:'rgba(255,255,255,0.05)', border:'1px solid rgba(255,255,255,0.1)', color:'#6b7280', cursor:'pointer', fontSize:'18px', width:'30px', height:'30px', borderRadius:'4px', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>×</button>
           </div>
         </div>
 
