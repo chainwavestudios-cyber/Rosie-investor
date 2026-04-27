@@ -2,8 +2,9 @@ import { useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
 
 const HTML_URL = "https://raw.githubusercontent.com/chainwavestudios-cyber/Rosie-investor/main/agentbman-pitchbook-v4%20(3).html";
-const ACCESS_PASSWORD = "rosieai@2026";
+const ADMIN_PASSWORD = "rosieai@2026";
 const SESSION_KEY = "home_access_granted";
+const SESSION_USER_KEY = "home_access_user";
 
 export default function Home() {
   const navigate = useNavigate();
@@ -11,8 +12,57 @@ export default function Home() {
   const [unlocked, setUnlocked] = useState(() => sessionStorage.getItem(SESSION_KEY) === 'true');
   const [input, setInput] = useState('');
   const [error, setError] = useState('');
-
   const [loadingHtml, setLoadingHtml] = useState(false);
+  const [checking, setChecking] = useState(false);
+
+  // On mount — check URL for ?code=username or ?username=username
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const code = params.get('code') || params.get('username');
+    if (code && !unlocked) {
+      autoUnlockWithCode(code.trim().toLowerCase());
+    }
+  }, []);
+
+  const autoUnlockWithCode = async (code) => {
+    setChecking(true);
+    try {
+      const { base44 } = await import('@/api/base44Client');
+      // Validate username exists in InvestorUser
+      const users = await base44.entities.InvestorUser.filter({ username: code });
+      if (users?.length > 0) {
+        const user = users[0];
+        sessionStorage.setItem(SESSION_KEY, 'true');
+        sessionStorage.setItem(SESSION_USER_KEY, JSON.stringify({ username: code, name: user.name, email: user.email, id: user.id }));
+        setUnlocked(true);
+        // Log the visit
+        try {
+          await base44.entities.SiteVisit.create({
+            leadId:      user.leadId || '',
+            investorId:  user.id,
+            page:        '/',
+            visitedAt:   new Date().toISOString(),
+            referrer:    'email_link',
+            timeOnPage:  0,
+          });
+          // Stamp badge on lead
+          if (user.leadId) {
+            await base44.entities.Lead.update(user.leadId, {
+              badgeInvestorPage: true,
+              engagementScore: (user.engagementScore || 0) + 10,
+            });
+          }
+        } catch {}
+        // Remove code from URL cleanly
+        window.history.replaceState({}, '', '/');
+      } else {
+        setError('Access code not recognised. Please enter your code below.');
+        setChecking(false);
+      }
+    } catch {
+      setChecking(false);
+    }
+  };
 
   useEffect(() => {
     if (!unlocked) return;
@@ -23,13 +73,20 @@ export default function Home() {
       .catch(() => setLoadingHtml(false));
   }, [unlocked]);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    if (input === ACCESS_PASSWORD) {
+    const val = input.trim();
+    if (!val) return;
+    // Admin password
+    if (val === ADMIN_PASSWORD) {
       sessionStorage.setItem(SESSION_KEY, 'true');
       setUnlocked(true);
-    } else {
-      setError('Incorrect password. Please try again.');
+      return;
+    }
+    // Try as a username code
+    await autoUnlockWithCode(val.toLowerCase());
+    if (!unlocked) {
+      setError('Invalid access code. Please check your email and try again.');
       setInput('');
     }
   };
@@ -41,20 +98,20 @@ export default function Home() {
           <div style={{ textAlign: 'center', marginBottom: '32px' }}>
             <img src="https://media.base44.com/images/public/69cd2741578c9b5ce655395b/39a31f9b9_Untitleddesign3.png" alt="Rosie AI" style={{ height: '48px', marginBottom: '20px' }} />
             <p style={{ color: '#b8933a', fontSize: '10px', letterSpacing: '4px', textTransform: 'uppercase', margin: '0 0 8px' }}>Restricted Access</p>
-            <h2 style={{ color: '#e8e0d0', fontSize: '20px', fontWeight: 'normal', margin: 0 }}>Enter Access Password</h2>
+            <h2 style={{ color: '#e8e0d0', fontSize: '20px', fontWeight: 'normal', margin: 0 }}>{checking ? 'Verifying access…' : 'Enter Your Access Code'}</h2>
           </div>
           <form onSubmit={handleSubmit}>
             <input
-              type="password"
+              type="text"
               value={input}
               onChange={e => { setInput(e.target.value); setError(''); }}
-              placeholder="Password"
+              placeholder="Your personal access code"
               autoFocus
               style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '2px', padding: '12px 16px', color: '#e8e0d0', fontSize: '14px', outline: 'none', boxSizing: 'border-box', fontFamily: 'Georgia, serif', marginBottom: '12px' }}
             />
             {error && <p style={{ color: '#ef4444', fontSize: '12px', margin: '0 0 12px', textAlign: 'center' }}>{error}</p>}
             <button type="submit" style={{ width: '100%', background: 'linear-gradient(135deg, #b8933a, #d4aa50)', color: '#0a0f1e', border: 'none', borderRadius: '2px', padding: '12px', cursor: 'pointer', fontWeight: '700', fontSize: '12px', letterSpacing: '2px', textTransform: 'uppercase', fontFamily: 'Georgia, serif' }}>
-              Enter
+              {checking ? 'Checking…' : 'Access Investor Site'}
             </button>
           </form>
         </div>
