@@ -25,17 +25,10 @@ Deno.serve(async (req) => {
   const nameSlug = (firstName || 'user').toLowerCase().replace(/[^a-z]/g, '');
   const username = `${nameSlug}${phoneDigits}`;
 
-  console.log(`[sendLeadEmail] Generating username: ${username} for ${toEmail}`);
+  console.log(`[sendLeadEmail] Generating investor site access code: ${username} for ${toEmail}`);
 
-  // ── Save username on lead only — NO InvestorUser creation ──────────
-  // InvestorUser is only created when admin clicks "🔐 Portal Access"
-  // The username stored here is just for tracking and the investor site access code
-  try {
-    await base44.asServiceRole.entities.Lead.update(leadId, { portalPasscode: username });
-    console.log(`[sendLeadEmail] portalPasscode saved on lead: ${username}`);
-  } catch (e) {
-    console.warn('[sendLeadEmail] Could not save portalPasscode:', e.message);
-  }
+  // Do NOT save portalPasscode here — only the investor site access code is sent
+  // Portal credentials are only created when admin explicitly clicks "🔐 Portal Access"
 
   // ── Build URLs ────────────────────────────────────────────────────────
   // login_url = investor INFO site with personal access code (NOT the portal)
