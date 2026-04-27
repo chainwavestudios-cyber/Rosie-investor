@@ -34,7 +34,9 @@ function buildTriggerPatterns(cfg) {
 
 function IntentMeter({ intent }) {
   if (!intent) return null;
-  const { animalType, buyingIntent = 50, questionQuality = 50, intentLabel, signals = [], coachTip } = intent;
+  const { animalType, buyingIntent = 50, questionQuality = 50, intentLabel, signals = [], coachTip, sentimentTrend } = intent;
+  const trendColor = { improving:'#4ade80', declining:'#ef4444', stable:'#f59e0b', unknown:'#4a5568' }[sentimentTrend] || '#4a5568';
+  const trendIcon  = { improving:'↗', declining:'↘', stable:'→', unknown:'·' }[sentimentTrend] || '·';
   const intentColor = { hot: '#4ade80', warm: '#f59e0b', cold: '#ef4444', uncertain: '#8a9ab8' }[intentLabel] || '#8a9ab8';
 
   const Bar = ({ value, color, label }) => (
@@ -167,7 +169,7 @@ export default function ScriptAssistant({ lead, user, onExpandCard, isCardExpand
       if (!dgKey) throw new Error('No Deepgram token');
 
       const ws = new WebSocket(
-        `wss://api.deepgram.com/v1/listen?model=nova-2&language=en-US&smart_format=true&interim_results=true&endpointing=300`,
+        `wss://api.deepgram.com/v1/listen?model=nova-2&language=en-US&smart_format=true&interim_results=true&endpointing=300&sentiment=true&diarize=true&utterances=true`,
         ['token', dgKey]
       );
       ws.onopen = () => {
@@ -189,9 +191,14 @@ export default function ScriptAssistant({ lead, user, onExpandCard, isCardExpand
       ws.onmessage = e => {
         try {
           const data = JSON.parse(e.data);
-          const text = data?.channel?.alternatives?.[0]?.transcript?.trim();
+          const alt  = data?.channel?.alternatives?.[0];
+          const text = alt?.transcript?.trim();
           if (!text || !data.is_final) return;
-          const entry = { text, time: new Date() };
+          // Capture Deepgram sentiment and speaker diarization
+          const speaker   = alt?.words?.[0]?.speaker ?? null;
+          const sentLabel = alt?.sentiments?.segments?.[0]?.sentiment || null;
+          const sentScore = alt?.sentiments?.segments?.[0]?.sentiment_score ?? null;
+          const entry = { text, time: new Date(), speaker, sentiment: sentLabel, sentScore };
           const newT  = [...transcriptRef.current, entry];
           transcriptRef.current = newT;
           setTranscript([...newT]);
