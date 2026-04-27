@@ -30,46 +30,14 @@ Deno.serve(async (req) => {
 
   console.log(`[sendLeadEmail] Generating username: ${username} for ${toEmail}`);
 
-  // ── Create or update InvestorUser so they can log in ────────────────
+  // ── Save username on lead only — NO InvestorUser creation ──────────
+  // InvestorUser is only created when admin clicks Migrate to CRM
+  // The username stored here is just for tracking and the investor site access code
   try {
-    // Hash password using Deno Web Crypto — same algorithm, no external HTTP call needed
-    const hashedPassword = await (async () => {
-      try {
-        const salt = crypto.randomUUID().replace(/-/g, '');
-        const enc  = new TextEncoder();
-        const buf  = await crypto.subtle.digest('SHA-256', enc.encode(salt + password));
-        const hex  = Array.from(new Uint8Array(buf)).map((b: number) => b.toString(16).padStart(2,'0')).join('');
-        return salt + ':' + hex;
-      } catch { return password; }
-    })();
-
-    const existing = await base44.asServiceRole.entities.InvestorUser.filter({ username });
-    if (existing?.length > 0) {
-      await base44.asServiceRole.entities.InvestorUser.update(existing[0].id, {
-        email: toEmail.toLowerCase().trim(),
-        password: hashedPassword,
-        name: toName || firstName || toEmail,
-      });
-    } else {
-      await base44.asServiceRole.entities.InvestorUser.create({
-        username,
-        email:    toEmail.toLowerCase().trim(),
-        name:     toName || firstName || toEmail,
-        password: hashedPassword,
-        role:     'investor',
-        status:   'prospect',
-        leadId,
-      });
-    }
-    // Save username on lead — preserve existing status, do NOT override it
-    await base44.asServiceRole.entities.Lead.update(leadId, {
-      portalPasscode: username,
-      // status intentionally NOT changed — emailing the investor site link
-      // does not make this a different pipeline stage. The lead remains a lead.
-    });
-    console.log(`[sendLeadEmail] InvestorUser created/updated: ${username}`);
+    await base44.asServiceRole.entities.Lead.update(leadId, { portalPasscode: username });
+    console.log(`[sendLeadEmail] portalPasscode saved on lead: ${username}`);
   } catch (e) {
-    console.warn('[sendLeadEmail] Could not create InvestorUser:', e.message);
+    console.warn('[sendLeadEmail] Could not save portalPasscode:', e.message);
   }
 
   // ── Build URLs ────────────────────────────────────────────────────────
