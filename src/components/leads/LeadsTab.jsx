@@ -291,6 +291,9 @@ export default function LeadsTab() {
   const [showUpload, setShowUpload] = useState(false);
   const [showNewLead, setShowNewLead] = useState(false);
   const [selectedLead, setSelectedLead] = useState(null);
+  const [recentCalls, setRecentCalls] = useState([]);
+  const [showDialerPanel, setShowDialerPanel] = useState(false);
+  const [dialerTab, setDialerTab] = useState('dialer');
   const [dialerLead, setDialerLead] = useState(null);
   const [showDialer, setShowDialer] = useState(false);
   const [showPredictive, setShowPredictive] = useState(false);
@@ -355,6 +358,7 @@ export default function LeadsTab() {
   const handleDialNumber = (lead) => {
     setDialerLead(lead);
     setShowDialer(true);
+    setShowDialerPanel(true);
     setSelectedLead(lead); // open contact card at the same time
   };
 
@@ -363,6 +367,7 @@ export default function LeadsTab() {
     const now = new Date().toISOString();
     try { await base44.entities.Lead.update(leadId, { lastCalledAt: now }); } catch {}
     await loadLeads();
+    await loadRecentCalls();
   };
 
   // Called by PredictiveDialer the instant a human answers — opens contact card immediately
@@ -495,7 +500,86 @@ export default function LeadsTab() {
         }}
       />
     )}
-    <div style={{ fontFamily:'Georgia, serif', display:'flex', gap:'0', minHeight:'600px' }}>
+    <div style={{ fontFamily:'Georgia, serif', display:'flex', gap:'0', minHeight:'600px', position:'relative' }}>
+
+      {/* ── DIALER PANEL (right side) ── */}
+      {showDialerPanel && (
+        <div style={{ position:'fixed', top:0, right:0, height:'100vh', width:'340px', background:'#08111f', borderLeft:'1px solid rgba(184,147,58,0.25)', zIndex:8000, display:'flex', flexDirection:'column', boxShadow:'-8px 0 40px rgba(0,0,0,0.6)' }}>
+          {/* Panel tabs */}
+          <div style={{ display:'flex', borderBottom:'1px solid rgba(255,255,255,0.07)', flexShrink:0 }}>
+            {[['dialer','📞 Dialer'],['calls','🕐 Recent Calls']].map(([id, label]) => (
+              <button key={id} onClick={() => setDialerTab(id)}
+                style={{ flex:1, background:'none', border:'none', borderBottom:dialerTab===id?'2px solid #b8933a':'2px solid transparent', color:dialerTab===id?'#b8933a':'#6b7280', padding:'11px 8px', cursor:'pointer', fontSize:'11px', letterSpacing:'0.5px' }}>
+                {label}
+              </button>
+            ))}
+            <button onClick={() => setShowDialerPanel(false)}
+              style={{ background:'none', border:'none', color:'#4a5568', cursor:'pointer', fontSize:'18px', padding:'0 14px' }}>×</button>
+          </div>
+
+          {/* Dialer */}
+          {dialerTab === 'dialer' && (
+            <div style={{ flex:1, overflow:'hidden' }}>
+              {showDialer ? (
+                <TwilioDialer
+                  initialLead={dialerLead}
+                  onClose={() => { setShowDialer(false); setDialerLead(null); setIsCallActive(false); }}
+                  onCallLogged={handleCallLogged}
+                  onCallStart={() => setIsCallActive(true)}
+                  onCallEnd={() => { setIsCallActive(false); loadRecentCalls(); }}
+                  embedded={true}
+                />
+              ) : (
+                <div style={{ padding:'32px 20px', textAlign:'center', color:'#4a5568', fontSize:'13px' }}>
+                  <div style={{ fontSize:'40px', marginBottom:'12px' }}>📞</div>
+                  Click a phone number in the leads list to start dialing.
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Recent Calls */}
+          {dialerTab === 'calls' && (
+            <div style={{ flex:1, overflowY:'auto', padding:'12px' }}>
+              {recentCalls.length === 0 && (
+                <div style={{ textAlign:'center', padding:'32px', color:'#4a5568', fontSize:'13px' }}>
+                  <div style={{ fontSize:'36px', marginBottom:'10px' }}>🕐</div>
+                  No calls yet
+                </div>
+              )}
+              {recentCalls.map((h, i) => {
+                const typeColor = { call:'#8a9ab8', connected:'#4ade80', not_available:'#f59e0b', callback_later:'#a78bfa' }[h.type] || '#6b7280';
+                const typeIcon  = { call:'📞', connected:'✅', not_available:'📵', callback_later:'🔁' }[h.type] || '📞';
+                return (
+                  <div key={h.id||i}
+                    onClick={async () => {
+                      if (!h.leadId) return;
+                      const leads = await base44.entities.Lead.filter({ id: h.leadId }).catch(() => []);
+                      if (leads?.[0]) setSelectedLead(leads[0]);
+                    }}
+                    style={{ background:'rgba(255,255,255,0.02)', border:'1px solid rgba(255,255,255,0.06)', borderRadius:'4px', padding:'10px 12px', marginBottom:'6px', cursor:h.leadId?'pointer':'default', display:'flex', gap:'10px', alignItems:'flex-start' }}
+                    onMouseEnter={e => { if (h.leadId) e.currentTarget.style.background='rgba(255,255,255,0.05)'; }}
+                    onMouseLeave={e => e.currentTarget.style.background='rgba(255,255,255,0.02)'}>
+                    <span style={{ fontSize:'16px', flexShrink:0 }}>{typeIcon}</span>
+                    <div style={{ flex:1, minWidth:0 }}>
+                      <div style={{ color:'#e8e0d0', fontSize:'12px', fontWeight:'bold', marginBottom:'2px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+                        {h.content?.match(/^[A-Za-z ]+(?=\s*[-—:])/)?.[0]?.trim() || h.content?.slice(0, 35) || 'Call'}
+                      </div>
+                      <div style={{ display:'flex', justifyContent:'space-between' }}>
+                        <span style={{ color:typeColor, fontSize:'10px', textTransform:'uppercase', letterSpacing:'0.5px' }}>{h.type?.replace(/_/g,' ')}</span>
+                        <span style={{ color:'#4a5568', fontSize:'10px' }}>
+                          {h.created_date ? new Date(h.created_date).toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}) : ''}
+                        </span>
+                      </div>
+                      {h.leadId && <div style={{ color:'#4a5568', fontSize:'9px', marginTop:'2px' }}>Click to open contact card →</div>}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* ── SIDEBAR ── */}
       <div style={{ width:'200px', flexShrink:0, borderRight:'1px solid rgba(255,255,255,0.07)', paddingRight:'0' }}>
@@ -534,23 +618,21 @@ export default function LeadsTab() {
 
       {showUpload && <CSVUploadModal onClose={() => setShowUpload(false)} onImported={loadLeads} />}
       {showNewLead && <NewLeadModal onClose={() => setShowNewLead(false)} onCreated={loadLeads} />}
-      {showDialer && (
-        <TwilioDialer
-          initialLead={dialerLead}
-          onClose={() => { setShowDialer(false); setDialerLead(null); setIsCallActive(false); }}
-          onCallLogged={handleCallLogged}
-          onCallStart={() => setIsCallActive(true)}
-          onCallEnd={() => setIsCallActive(false)}
-        />
-      )}
+
 
       {/* LEADS TAB */}
       {sidebarView === 'leads' && tab === 'leads' && (
       <>
       {/* Header */}
-      <div style={{ marginBottom:'16px' }}>
-        <h2 style={{ color:'#e8e0d0', margin:'0 0 4px', fontSize:'20px', fontWeight:'normal' }}>Leads</h2>
-        <p style={{ color:'#6b7280', fontSize:'13px', margin:0 }}>Never-called leads appear first. Abandoned calls need manual callback.</p>
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:'16px' }}>
+        <div>
+          <h2 style={{ color:'#e8e0d0', margin:'0 0 4px', fontSize:'20px', fontWeight:'normal' }}>Leads</h2>
+          <p style={{ color:'#6b7280', fontSize:'13px', margin:0 }}>Never-called leads appear first. Abandoned calls need manual callback.</p>
+        </div>
+        <button onClick={() => setShowDialerPanel(v => !v)}
+          style={{ background: showDialerPanel ? 'rgba(74,222,128,0.15)' : 'rgba(255,255,255,0.05)', color: showDialerPanel ? '#4ade80' : '#8a9ab8', border:`1px solid ${showDialerPanel ? 'rgba(74,222,128,0.35)' : 'rgba(255,255,255,0.1)'}`, borderRadius:'4px', padding:'8px 16px', cursor:'pointer', fontSize:'12px', fontWeight:'bold', display:'flex', alignItems:'center', gap:'6px' }}>
+          📞 {showDialerPanel ? 'Hide Dialer' : 'Show Dialer'}
+        </button>
       </div>
 
       {/* Predictive Dialer Panel */}
