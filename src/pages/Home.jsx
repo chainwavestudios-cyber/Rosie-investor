@@ -2,7 +2,7 @@ import { useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
 import { base44 } from '@/api/base44Client';
 
-const APP_BASE_URL = import.meta.env.VITE_BASE44_APP_BASE_URL || window.location.origin;
+const APP_BASE_URL = window.location.origin;
 
 const HTML_URL = "https://raw.githubusercontent.com/chainwavestudios-cyber/Rosie-investor/main/agentbman-pitchbook-v4%20(3).html";
 const ADMIN_PASSWORD = "rosieai@2026";
