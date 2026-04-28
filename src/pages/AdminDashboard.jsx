@@ -238,12 +238,10 @@ function GlobalCalendar({ users = [], setContactCard, setView }) {
                       onDragEnd={() => { setDragging(null); setDragOver(null); }}
                       onClick={() => {
                         if (evt.type === 'investor') {
-                          const u = users.find(u => u.id === evt.id);
+                          const u = users.find(u => u.id === evt.raw.investorId);
                           if (u) setContactCard(u);
                         } else if (evt.type === 'lead') {
-                          base44.entities.Lead.filter({ id: evt.id }).then(leads => {
-                            if (leads?.[0]) setView('leads');
-                          }).catch(() => {});
+                          setView('leads');
                         }
                       }}
                       style={{
