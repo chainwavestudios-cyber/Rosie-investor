@@ -15,49 +15,89 @@ Deno.serve(async (req) => {
 
     console.log(`[SiteVisit] ref=${ref} page=${page} siteType=${siteType} time=${timeOnPage}`);
 
-    const base44 = createClientFromRequest(req).asServiceRole;
+    const db  = createClientFromRequest(req).asServiceRole;
+    const now = new Date().toISOString();
 
-    // Look up lead by portalPasscode
-    const leads = await base44.entities.Lead.filter({ portalPasscode: ref });
-    const lead = leads?.[0];
+    // ── Resolve the visitor ──────────────────────────────────────────────────
+    let lead       = null;
+    let investorId = '';
 
+    // 1. Lead.portalPasscode direct filter
+    try {
+      const rows = await db.entities.Lead.filter({ portalPasscode: ref });
+      lead = rows?.[0] || null;
+    } catch {}
+
+    // 2. In-memory scan fallback (guards against base44 custom-field filter changes)
     if (!lead) {
-      console.log(`[SiteVisit] No lead found for ref: ${ref}`);
-      // Still log the visit without a lead link so it shows up
-      await base44.entities.SiteVisit.create({
-        leadId:     '',
-        leadName:   ref,
-        passcode:   ref,
-        page:       page || '/',
-        referrer:   referrer || '',
-        timeOnPage: timeOnPage || 0,
-        sessionId:  sessionId || '',
-        siteType,
-        visitedAt:  new Date().toISOString(),
-      });
-      return new Response(JSON.stringify({ ok: true }), { headers: corsHeaders });
+      try {
+        const allLeads = await db.entities.Lead.list('-created_date', 500);
+        lead = (allLeads || []).find(l =>
+          (l.portalPasscode || '').trim().toLowerCase() === ref.toLowerCase()
+        ) || null;
+      } catch {}
     }
 
-    await base44.entities.SiteVisit.create({
-      leadId:     lead.id,
-      leadName:   `${lead.firstName} ${lead.lastName}`,
+    // 3. InvestorUser.siteAccessCode (migrated users — archived lead may not match anymore)
+    if (!lead) {
+      try {
+        let investors = await db.entities.InvestorUser.filter({ siteAccessCode: ref });
+        if (!investors?.length) {
+          // also try username match as fallback
+          investors = await db.entities.InvestorUser.filter({ username: ref });
+        }
+        if (investors?.[0]) {
+          const iu = investors[0];
+          investorId = iu.id;
+          if (iu.leadId) {
+            try {
+              const linked = await db.entities.Lead.filter({ id: iu.leadId });
+              lead = linked?.[0] || null;
+            } catch {}
+          }
+        }
+      } catch {}
+    }
+
+    // ── Create SiteVisit record ──────────────────────────────────────────────
+    const visitRecord = {
       passcode:   ref,
-      page:       page || '/',
-      referrer:   referrer || '',
+      leadId:     lead?.id   || '',
+      investorId: investorId || '',
+      leadName:   lead
+        ? `${lead.firstName || ''} ${lead.lastName || ''}`.trim()
+        : ref,
+      page:       page       || '/',
+      referrer:   referrer   || '',
       timeOnPage: timeOnPage || 0,
-      sessionId:  sessionId || '',
+      sessionId:  sessionId  || '',
       siteType,
-      visitedAt:  new Date().toISOString(),
-    });
+      visitedAt:  now,
+    };
 
-    // Update lead engagement
-    await base44.entities.Lead.update(lead.id, {
-      badgeConsumerWebsite: siteType === 'consumer' ? true : (lead.badgeConsumerWebsite || false),
-      engagementScore: (lead.engagementScore || 0) + 2,
-    });
+    await db.entities.SiteVisit.create(visitRecord);
+    console.log(`[SiteVisit] Logged — lead:${visitRecord.leadId} investor:${investorId} site:${siteType}`);
 
-    console.log(`[SiteVisit] Logged for ${lead.firstName} ${lead.lastName}`);
-    return new Response(JSON.stringify({ ok: true, leadId: lead.id }), { headers: corsHeaders });
+    // ── Stamp lead ───────────────────────────────────────────────────────────
+    if (lead) {
+      const updates = {
+        engagementScore: (lead.engagementScore || 0) + 2,
+        lastSiteVisit:   now,
+      };
+      if (siteType === 'consumer') updates.badgeConsumerWebsite = true;
+      if (siteType === 'investor') updates.badgeInvestorPage   = true;
+      await db.entities.Lead.update(lead.id, updates).catch(() => {});
+    }
+
+    // ── Stamp InvestorUser lastActivityAt ────────────────────────────────────
+    if (investorId) {
+      await db.entities.InvestorUser.update(investorId, { lastActivityAt: now }).catch(() => {});
+    }
+
+    return new Response(
+      JSON.stringify({ ok: true, leadId: lead?.id || '', investorId }),
+      { headers: corsHeaders }
+    );
 
   } catch (e) {
     console.error('[SiteVisit] Error:', e.message);
