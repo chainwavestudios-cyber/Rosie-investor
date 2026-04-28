@@ -42,20 +42,30 @@ Deno.serve(async (req) => {
       console.log(`[sendPortalAccessEmail] Existing InvestorUser found (${username}) — resending credentials only, preserving all data.`);
     } else {
       // New user — create with hashed password
+      // Also fetch the Lead's portalPasscode (investor site access code) to store as siteAccessCode
+      let siteAccessCode = '';
+      if (leadId) {
+        try {
+          const leads = await base44.asServiceRole.entities.Lead.filter({ id: leadId });
+          siteAccessCode = leads?.[0]?.portalPasscode || '';
+        } catch {}
+      }
+
       const hashedPw = await hashPassword(password);
       iu = await base44.asServiceRole.entities.InvestorUser.create({
         username,
-        name:           fullName,
-        email:          toEmail,
-        password:       hashedPw,
-        role:           'investor',
-        status:         'prospect',
-        pipelineStage:  'reviewing',
-        leadId:         leadId || null,
-        migratedAt:     new Date().toISOString(),
-        lastActivityAt: new Date().toISOString(),
+        name:            fullName,
+        email:           toEmail,
+        password:        hashedPw,
+        role:            'investor',
+        status:          'prospect',
+        pipelineStage:   'reviewing',
+        leadId:          leadId || null,
+        migratedAt:      new Date().toISOString(),
+        lastActivityAt:  new Date().toISOString(),
+        ...(siteAccessCode ? { siteAccessCode } : {}),
       });
-      console.log(`[sendPortalAccessEmail] Created new InvestorUser: ${username}`);
+      console.log(`[sendPortalAccessEmail] Created new InvestorUser: ${username}, siteAccessCode: ${siteAccessCode || 'none'}`);
     }
   } catch (e) {
     console.error(`[sendPortalAccessEmail] InvestorUser upsert failed:`, e.message);
