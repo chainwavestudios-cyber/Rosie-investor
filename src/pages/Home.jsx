@@ -1,6 +1,6 @@
 import { useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
-import { appParams } from '@/lib/app-params';
+import { base44 } from '@/api/base44Client';
 
 const HTML_URL = "https://raw.githubusercontent.com/chainwavestudios-cyber/Rosie-investor/main/agentbman-pitchbook-v4%20(3).html";
 const ADMIN_PASSWORD = "rosieai@2026";
@@ -29,18 +29,58 @@ export default function Home() {
     setChecking(true);
     setError('');
     try {
-      // ── Call server-side validateAccessCode function ──────────────────
-      // This runs as service role so it works regardless of client auth state
-      // and handles all lookup strategies (InvestorUser.siteAccessCode,
-      // InvestorUser.username, Lead.portalPasscode, and in-memory fallback).
-      const { appBaseUrl } = appParams;
-      const fnUrl = `${appBaseUrl}/functions/validateAccessCode`;
-      const resp = await fetch(fnUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ code }),
-      });
-      const result = await resp.json();
+      // ── Call server-side validateAccessCode via base44 SDK ─────────────
+      let result = null;
+
+      try {
+        result = await base44.functions.invoke('validateAccessCode', { code });
+      } catch (fnErr) {
+        console.warn('[Home] base44.functions.invoke failed, trying client-side fallback:', fnErr);
+        // ── Client-side fallback: scan leads + InvestorUsers directly ───
+        try {
+          // 1. Try InvestorUser.siteAccessCode
+          const byCode = await base44.entities.InvestorUser.filter({ siteAccessCode: code });
+          if (byCode?.length > 0) {
+            const u = byCode[0];
+            result = { valid: true, type: 'investor', name: u.name, email: u.email, id: u.id, leadId: u.leadId || null };
+          }
+        } catch {}
+
+        if (!result?.valid) {
+          try {
+            // 2. Try InvestorUser.username
+            const byUser = await base44.entities.InvestorUser.filter({ username: code });
+            if (byUser?.length > 0) {
+              const u = byUser[0];
+              result = { valid: true, type: 'investor', name: u.name, email: u.email, id: u.id, leadId: u.leadId || null };
+            }
+          } catch {}
+        }
+
+        if (!result?.valid) {
+          try {
+            // 3. Try Lead.portalPasscode direct filter
+            const byPasscode = await base44.entities.Lead.filter({ portalPasscode: code });
+            if (byPasscode?.length > 0) {
+              const l = byPasscode[0];
+              result = { valid: true, type: 'lead', name: `${l.firstName || ''} ${l.lastName || ''}`.trim(), email: l.email || '', id: l.id, leadId: l.id };
+            }
+          } catch {}
+        }
+
+        if (!result?.valid) {
+          try {
+            // 4. In-memory lead scan — bulletproof last resort
+            const allLeads = await base44.entities.Lead.list('-created_date', 500);
+            const match = (allLeads || []).find(l => (l.portalPasscode || '').trim().toLowerCase() === code);
+            if (match) {
+              result = { valid: true, type: 'lead', name: `${match.firstName || ''} ${match.lastName || ''}`.trim(), email: match.email || '', id: match.id, leadId: match.id };
+            }
+          } catch {}
+        }
+
+        if (!result) result = { valid: false };
+      }
 
       if (!result?.valid) {
         setError('Access code not recognised. Please enter your code below.');
@@ -61,10 +101,8 @@ export default function Home() {
       setUnlocked(true);
       window.history.replaceState({}, '', '/');
 
-      // ── Create SiteVisit record (so Site Stats tab + sidebar show the visit) ──
-      // Fire-and-forget — don't block the unlock on this
+      // ── Create SiteVisit record ──────────────────────────────────────
       try {
-        const { base44 } = await import('@/api/base44Client');
         await base44.entities.SiteVisit.create({
           passcode:   code,
           leadId:     result.leadId || '',
