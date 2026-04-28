@@ -146,6 +146,10 @@
       "type": "string",
       "title": "Client Profile (JSON)",
       "format": "textarea"
+    },
+    "siteAccessCode": {
+      "type": "string",
+      "title": "Investor Info Site Access Code"
     }
   },
   "required": [
