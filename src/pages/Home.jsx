@@ -2,6 +2,8 @@ import { useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
 import { base44 } from '@/api/base44Client';
 
+const APP_BASE_URL = import.meta.env.VITE_BASE44_APP_BASE_URL || window.location.origin;
+
 const HTML_URL = "https://raw.githubusercontent.com/chainwavestudios-cyber/Rosie-investor/main/agentbman-pitchbook-v4%20(3).html";
 const ADMIN_PASSWORD = "rosieai@2026";
 const SESSION_KEY = "home_access_granted";
@@ -29,97 +31,37 @@ export default function Home() {
     setChecking(true);
     setError('');
 
-    let result = null;
-
-    // ── STEP 1: Try server-side function via SDK ───────────────────────
     try {
-      const fnResult = await base44.functions.invoke('validateAccessCode', { code });
-      console.log('[Home] validateAccessCode server result:', fnResult);
-      // SDK may return the data directly or wrapped — handle both
-      result = fnResult?.valid !== undefined ? fnResult : fnResult?.data || fnResult;
-    } catch (fnErr) {
-      console.warn('[Home] server function failed:', fnErr?.message || fnErr);
-    }
+      // Call via raw fetch — anonymous users can't use base44.functions.invoke (requires auth)
+      const resp = await fetch(`${APP_BASE_URL}/functions/validateAccessCode`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code }),
+      });
+      const result = await resp.json();
+      console.log('[Home] validateAccessCode result:', result);
 
-    // ── STEP 2: Client-side fallbacks if server function didn't work ──
-    if (!result?.valid) {
-      console.log('[Home] Trying client-side fallbacks for code:', code);
-
-      // 2a. InvestorUser.siteAccessCode
-      try {
-        const rows = await base44.entities.InvestorUser.filter({ siteAccessCode: code });
-        console.log('[Home] siteAccessCode filter result:', rows?.length);
-        if (rows?.length > 0) {
-          const u = rows[0];
-          result = { valid: true, type: 'investor', name: u.name, email: u.email, id: u.id, leadId: u.leadId || null };
-        }
-      } catch (e) { console.warn('[Home] siteAccessCode filter failed:', e?.message); }
-
-      // 2b. InvestorUser.username
       if (!result?.valid) {
-        try {
-          const rows = await base44.entities.InvestorUser.filter({ username: code });
-          console.log('[Home] username filter result:', rows?.length);
-          if (rows?.length > 0) {
-            const u = rows[0];
-            result = { valid: true, type: 'investor', name: u.name, email: u.email, id: u.id, leadId: u.leadId || null };
-          }
-        } catch (e) { console.warn('[Home] username filter failed:', e?.message); }
+        setError('Access code not recognised. Please enter your code below.');
+        setChecking(false);
+        return;
       }
 
-      // 2c. Lead.portalPasscode direct filter
-      if (!result?.valid) {
-        try {
-          const rows = await base44.entities.Lead.filter({ portalPasscode: code });
-          console.log('[Home] portalPasscode filter result:', rows?.length);
-          if (rows?.length > 0) {
-            const l = rows[0];
-            result = { valid: true, type: 'lead', name: `${l.firstName || ''} ${l.lastName || ''}`.trim(), email: l.email || '', id: l.id, leadId: l.id };
-          }
-        } catch (e) { console.warn('[Home] portalPasscode filter failed:', e?.message); }
-      }
-
-      // 2d. In-memory lead scan — last resort
-      if (!result?.valid) {
-        try {
-          const allLeads = await base44.entities.Lead.list('-created_date', 500);
-          console.log('[Home] scanning', allLeads?.length, 'leads in memory for code:', code);
-          const match = (allLeads || []).find(l => (l.portalPasscode || '').trim().toLowerCase() === code);
-          if (match) {
-            console.log('[Home] Found match via in-memory scan:', match.firstName, match.lastName);
-            result = { valid: true, type: 'lead', name: `${match.firstName || ''} ${match.lastName || ''}`.trim(), email: match.email || '', id: match.id, leadId: match.id };
-          } else {
-            console.warn('[Home] No match found in', allLeads?.length, 'leads. Sample passcodes:', (allLeads || []).slice(0, 5).map(l => l.portalPasscode));
-          }
-        } catch (e) { console.warn('[Home] in-memory scan failed:', e?.message); }
-      }
-    }
-
-    // ── STEP 3: Grant access or show error ────────────────────────────
-    if (!result?.valid) {
-      console.warn('[Home] All strategies exhausted — code not found:', code);
-      setError('Access code not recognised. Please enter your code below.');
+      sessionStorage.setItem(SESSION_KEY, 'true');
+      sessionStorage.setItem(SESSION_USER_KEY, JSON.stringify({
+        username: code,
+        name:     result.name  || '',
+        email:    result.email || '',
+        id:       result.id    || '',
+        leadId:   result.leadId || '',
+        type:     result.type  || 'lead',
+      }));
       setChecking(false);
-      return;
-    }
+      setUnlocked(true);
+      window.history.replaceState({}, '', '/');
 
-    console.log('[Home] Access granted for:', code, result);
-    sessionStorage.setItem(SESSION_KEY, 'true');
-    sessionStorage.setItem(SESSION_USER_KEY, JSON.stringify({
-      username:  code,
-      name:      result.name  || '',
-      email:     result.email || '',
-      id:        result.id    || '',
-      leadId:    result.leadId || '',
-      type:      result.type  || 'lead',
-    }));
-    setChecking(false);
-    setUnlocked(true);
-    window.history.replaceState({}, '', '/');
-
-    // ── Fire-and-forget SiteVisit ─────────────────────────────────────
-    try {
-      await base44.entities.SiteVisit.create({
+      // Fire-and-forget SiteVisit (logged server-side by validateAccessCode too)
+      base44.entities.SiteVisit.create({
         passcode:   code,
         leadId:     result.leadId || '',
         investorId: result.type === 'investor' ? result.id : '',
@@ -130,8 +72,13 @@ export default function Home() {
         sessionId:  `home-${Date.now()}`,
         siteType:   'investor',
         visitedAt:  new Date().toISOString(),
-      });
-    } catch (e) { console.warn('[Home] SiteVisit create failed (non-blocking):', e?.message); }
+      }).catch(() => {});
+
+    } catch (e) {
+      console.error('[Home] validateAccessCode error:', e);
+      setError('Could not verify access code. Please try again.');
+      setChecking(false);
+    }
   };
 
   useEffect(() => {
