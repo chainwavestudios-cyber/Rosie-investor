@@ -1,5 +1,6 @@
 import { useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
+import { appParams } from '@/lib/app-params';
 
 const HTML_URL = "https://raw.githubusercontent.com/chainwavestudios-cyber/Rosie-investor/main/agentbman-pitchbook-v4%20(3).html";
 const ADMIN_PASSWORD = "rosieai@2026";
@@ -26,61 +27,61 @@ export default function Home() {
 
   const autoUnlockWithCode = async (code) => {
     setChecking(true);
+    setError('');
     try {
-      const { base44 } = await import('@/api/base44Client');
-      // Try exact match first, then case-insensitive fallback
-      let users = await base44.entities.InvestorUser.filter({ username: code });
-      if (!users?.length) {
-        // Try original case (some stored without toLowerCase)
-        users = await base44.entities.InvestorUser.filter({ username: code.toLowerCase() });
-      }
-      if (!users?.length) {
-        // Try by portalPasscode on Lead entity as last resort
-        const leads = await base44.entities.Lead.filter({ portalPasscode: code });
-        if (leads?.length) {
-          // Found the lead — let them in and track
-          const lead = leads[0];
-          sessionStorage.setItem(SESSION_KEY, 'true');
-          sessionStorage.setItem(SESSION_USER_KEY, JSON.stringify({ username: code, name: `${lead.firstName} ${lead.lastName}`, email: lead.email, leadId: lead.id }));
-          setUnlocked(true);
-          try {
-            await base44.entities.Lead.update(lead.id, { badgeInvestorPage: true, engagementScore: (lead.engagementScore || 0) + 10 });
-          } catch {}
-          window.history.replaceState({}, '', '/');
-          setChecking(false);
-          return;
-        }
-      }
-      if (users?.length > 0) {
-        const user = users[0];
-        sessionStorage.setItem(SESSION_KEY, 'true');
-        sessionStorage.setItem(SESSION_USER_KEY, JSON.stringify({ username: code, name: user.name, email: user.email, id: user.id }));
-        setUnlocked(true);
-        // Log the visit
-        try {
-          await base44.entities.SiteVisit.create({
-            leadId:      user.leadId || '',
-            investorId:  user.id,
-            page:        '/',
-            visitedAt:   new Date().toISOString(),
-            referrer:    'email_link',
-            timeOnPage:  0,
-          });
-          // Stamp badge on lead
-          if (user.leadId) {
-            await base44.entities.Lead.update(user.leadId, {
-              badgeInvestorPage: true,
-              engagementScore: (user.engagementScore || 0) + 10,
-            });
-          }
-        } catch {}
-        // Remove code from URL cleanly
-        window.history.replaceState({}, '', '/');
-      } else {
+      // ── Call server-side validateAccessCode function ──────────────────
+      // This runs as service role so it works regardless of client auth state
+      // and handles all lookup strategies (InvestorUser.siteAccessCode,
+      // InvestorUser.username, Lead.portalPasscode, and in-memory fallback).
+      const { appBaseUrl } = appParams;
+      const fnUrl = `${appBaseUrl}/functions/validateAccessCode`;
+      const resp = await fetch(fnUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code }),
+      });
+      const result = await resp.json();
+
+      if (!result?.valid) {
         setError('Access code not recognised. Please enter your code below.');
         setChecking(false);
+        return;
       }
-    } catch {
+
+      // ── Grant access ──────────────────────────────────────────────────
+      sessionStorage.setItem(SESSION_KEY, 'true');
+      sessionStorage.setItem(SESSION_USER_KEY, JSON.stringify({
+        username:  code,
+        name:      result.name  || '',
+        email:     result.email || '',
+        id:        result.id    || '',
+        leadId:    result.leadId || '',
+        type:      result.type  || 'lead',
+      }));
+      setUnlocked(true);
+      window.history.replaceState({}, '', '/');
+
+      // ── Create SiteVisit record (so Site Stats tab + sidebar show the visit) ──
+      // Fire-and-forget — don't block the unlock on this
+      try {
+        const { base44 } = await import('@/api/base44Client');
+        await base44.entities.SiteVisit.create({
+          passcode:   code,
+          leadId:     result.leadId || '',
+          investorId: result.type === 'investor' ? result.id : '',
+          leadName:   result.name  || code,
+          page:       '/',
+          referrer:   'email_link',
+          timeOnPage: 0,
+          sessionId:  `home-${Date.now()}`,
+          siteType:   'investor',
+          visitedAt:  new Date().toISOString(),
+        });
+      } catch {} 
+
+    } catch (e) {
+      console.error('[Home] validateAccessCode error:', e);
+      setError('Could not verify access code. Please try again.');
       setChecking(false);
     }
   };
@@ -104,12 +105,9 @@ export default function Home() {
       setUnlocked(true);
       return;
     }
-    // Try as a username code
+    // Try as a username access code (server-side validation)
+    setInput('');
     await autoUnlockWithCode(val.toLowerCase());
-    if (!unlocked) {
-      setError('Invalid access code. Please check your email and try again.');
-      setInput('');
-    }
   };
 
   if (!unlocked) {
