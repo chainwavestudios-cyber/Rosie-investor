@@ -28,100 +28,110 @@ export default function Home() {
   const autoUnlockWithCode = async (code) => {
     setChecking(true);
     setError('');
-    try {
-      // ── Call server-side validateAccessCode via base44 SDK ─────────────
-      let result = null;
 
+    let result = null;
+
+    // ── STEP 1: Try server-side function via SDK ───────────────────────
+    try {
+      const fnResult = await base44.functions.invoke('validateAccessCode', { code });
+      console.log('[Home] validateAccessCode server result:', fnResult);
+      // SDK may return the data directly or wrapped — handle both
+      result = fnResult?.valid !== undefined ? fnResult : fnResult?.data || fnResult;
+    } catch (fnErr) {
+      console.warn('[Home] server function failed:', fnErr?.message || fnErr);
+    }
+
+    // ── STEP 2: Client-side fallbacks if server function didn't work ──
+    if (!result?.valid) {
+      console.log('[Home] Trying client-side fallbacks for code:', code);
+
+      // 2a. InvestorUser.siteAccessCode
       try {
-        result = await base44.functions.invoke('validateAccessCode', { code });
-      } catch (fnErr) {
-        console.warn('[Home] base44.functions.invoke failed, trying client-side fallback:', fnErr);
-        // ── Client-side fallback: scan leads + InvestorUsers directly ───
+        const rows = await base44.entities.InvestorUser.filter({ siteAccessCode: code });
+        console.log('[Home] siteAccessCode filter result:', rows?.length);
+        if (rows?.length > 0) {
+          const u = rows[0];
+          result = { valid: true, type: 'investor', name: u.name, email: u.email, id: u.id, leadId: u.leadId || null };
+        }
+      } catch (e) { console.warn('[Home] siteAccessCode filter failed:', e?.message); }
+
+      // 2b. InvestorUser.username
+      if (!result?.valid) {
         try {
-          // 1. Try InvestorUser.siteAccessCode
-          const byCode = await base44.entities.InvestorUser.filter({ siteAccessCode: code });
-          if (byCode?.length > 0) {
-            const u = byCode[0];
+          const rows = await base44.entities.InvestorUser.filter({ username: code });
+          console.log('[Home] username filter result:', rows?.length);
+          if (rows?.length > 0) {
+            const u = rows[0];
             result = { valid: true, type: 'investor', name: u.name, email: u.email, id: u.id, leadId: u.leadId || null };
           }
-        } catch {}
-
-        if (!result?.valid) {
-          try {
-            // 2. Try InvestorUser.username
-            const byUser = await base44.entities.InvestorUser.filter({ username: code });
-            if (byUser?.length > 0) {
-              const u = byUser[0];
-              result = { valid: true, type: 'investor', name: u.name, email: u.email, id: u.id, leadId: u.leadId || null };
-            }
-          } catch {}
-        }
-
-        if (!result?.valid) {
-          try {
-            // 3. Try Lead.portalPasscode direct filter
-            const byPasscode = await base44.entities.Lead.filter({ portalPasscode: code });
-            if (byPasscode?.length > 0) {
-              const l = byPasscode[0];
-              result = { valid: true, type: 'lead', name: `${l.firstName || ''} ${l.lastName || ''}`.trim(), email: l.email || '', id: l.id, leadId: l.id };
-            }
-          } catch {}
-        }
-
-        if (!result?.valid) {
-          try {
-            // 4. In-memory lead scan — bulletproof last resort
-            const allLeads = await base44.entities.Lead.list('-created_date', 500);
-            const match = (allLeads || []).find(l => (l.portalPasscode || '').trim().toLowerCase() === code);
-            if (match) {
-              result = { valid: true, type: 'lead', name: `${match.firstName || ''} ${match.lastName || ''}`.trim(), email: match.email || '', id: match.id, leadId: match.id };
-            }
-          } catch {}
-        }
-
-        if (!result) result = { valid: false };
+        } catch (e) { console.warn('[Home] username filter failed:', e?.message); }
       }
 
+      // 2c. Lead.portalPasscode direct filter
       if (!result?.valid) {
-        setError('Access code not recognised. Please enter your code below.');
-        setChecking(false);
-        return;
+        try {
+          const rows = await base44.entities.Lead.filter({ portalPasscode: code });
+          console.log('[Home] portalPasscode filter result:', rows?.length);
+          if (rows?.length > 0) {
+            const l = rows[0];
+            result = { valid: true, type: 'lead', name: `${l.firstName || ''} ${l.lastName || ''}`.trim(), email: l.email || '', id: l.id, leadId: l.id };
+          }
+        } catch (e) { console.warn('[Home] portalPasscode filter failed:', e?.message); }
       }
 
-      // ── Grant access ──────────────────────────────────────────────────
-      sessionStorage.setItem(SESSION_KEY, 'true');
-      sessionStorage.setItem(SESSION_USER_KEY, JSON.stringify({
-        username:  code,
-        name:      result.name  || '',
-        email:     result.email || '',
-        id:        result.id    || '',
-        leadId:    result.leadId || '',
-        type:      result.type  || 'lead',
-      }));
-      setUnlocked(true);
-      window.history.replaceState({}, '', '/');
-
-      // ── Create SiteVisit record ──────────────────────────────────────
-      try {
-        await base44.entities.SiteVisit.create({
-          passcode:   code,
-          leadId:     result.leadId || '',
-          investorId: result.type === 'investor' ? result.id : '',
-          leadName:   result.name  || code,
-          page:       '/',
-          referrer:   'email_link',
-          timeOnPage: 0,
-          sessionId:  `home-${Date.now()}`,
-          siteType:   'investor',
-          visitedAt:  new Date().toISOString(),
-        });
-      } catch {} 
-
-    } catch (e) {
-      console.error('[Home] validateAccessCode error:', e);
-      setError('Could not verify access code. Please try again.');
-      setChecking(false);
+      // 2d. In-memory lead scan — last resort
+      if (!result?.valid) {
+        try {
+          const allLeads = await base44.entities.Lead.list('-created_date', 500);
+          console.log('[Home] scanning', allLeads?.length, 'leads in memory for code:', code);
+          const match = (allLeads || []).find(l => (l.portalPasscode || '').trim().toLowerCase() === code);
+          if (match) {
+            console.log('[Home] Found match via in-memory scan:', match.firstName, match.lastName);
+            result = { valid: true, type: 'lead', name: `${match.firstName || ''} ${match.lastName || ''}`.trim(), email: match.email || '', id: match.id, leadId: match.id };
+          } else {
+            console.warn('[Home] No match found in', allLeads?.length, 'leads. Sample passcodes:', (allLeads || []).slice(0, 5).map(l => l.portalPasscode));
+          }
+        } catch (e) { console.warn('[Home] in-memory scan failed:', e?.message); }
+      }
     }
+
+    // ── STEP 3: Grant access or show error ────────────────────────────
+    if (!result?.valid) {
+      console.warn('[Home] All strategies exhausted — code not found:', code);
+      setError('Access code not recognised. Please enter your code below.');
+      setChecking(false);
+      return;
+    }
+
+    console.log('[Home] Access granted for:', code, result);
+    sessionStorage.setItem(SESSION_KEY, 'true');
+    sessionStorage.setItem(SESSION_USER_KEY, JSON.stringify({
+      username:  code,
+      name:      result.name  || '',
+      email:     result.email || '',
+      id:        result.id    || '',
+      leadId:    result.leadId || '',
+      type:      result.type  || 'lead',
+    }));
+    setChecking(false);
+    setUnlocked(true);
+    window.history.replaceState({}, '', '/');
+
+    // ── Fire-and-forget SiteVisit ─────────────────────────────────────
+    try {
+      await base44.entities.SiteVisit.create({
+        passcode:   code,
+        leadId:     result.leadId || '',
+        investorId: result.type === 'investor' ? result.id : '',
+        leadName:   result.name  || code,
+        page:       '/',
+        referrer:   'email_link',
+        timeOnPage: 0,
+        sessionId:  `home-${Date.now()}`,
+        siteType:   'investor',
+        visitedAt:  new Date().toISOString(),
+      });
+    } catch (e) { console.warn('[Home] SiteVisit create failed (non-blocking):', e?.message); }
   };
 
   useEffect(() => {
