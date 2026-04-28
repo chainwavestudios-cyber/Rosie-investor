@@ -298,6 +298,7 @@ export default function LeadsTab() {
   const [showPredictive, setShowPredictive] = useState(false);
   const [contactLists, setContactLists] = useState([]);
   const [search, setSearch] = useState('');
+  const [tzFilter, setTzFilter] = useState('all');
   const [tab, setTab] = useState('leads'); // 'leads' or 'lists'
   const [editingListId, setEditingListId] = useState(null);
   const [editingListName, setEditingListName] = useState('');
@@ -429,8 +430,22 @@ export default function LeadsTab() {
     } catch(e) { console.error('Update failed:', e); }
   };
 
+  // State → timezone mapping
+  const STATE_TZ = {
+    ET: ['CT','DC','DE','FL','GA','IN','KY','MA','MD','ME','MI','NC','NH','NJ','NY','OH','PA','RI','SC','TN','VA','VT','WV'],
+    CT: ['AL','AR','IA','IL','KS','LA','MN','MO','MS','ND','NE','OK','SD','TX','WI'],
+    MT: ['AZ','CO','ID','MT','NM','UT','WY'],
+    PT: ['AK','CA','NV','OR','WA'],
+  };
+  const stateToTz = {};
+  Object.entries(STATE_TZ).forEach(([tz, states]) => states.forEach(s => { stateToTz[s] = tz; }));
+
   const filteredLeads = leads.filter(l => {
     if (filter !== 'all' && l.status !== filter) return false;
+    if (tzFilter !== 'all') {
+      const tz = stateToTz[(l.state || '').toUpperCase().trim()];
+      if (tz !== tzFilter) return false;
+    }
     if (search) {
       const q = search.toLowerCase();
       return `${l.firstName} ${l.lastName} ${l.email} ${l.phone} ${l.state}`.toLowerCase().includes(q);
@@ -438,7 +453,7 @@ export default function LeadsTab() {
     return true;
   });
 
-  useEffect(() => { setPage(1); }, [filter, search]);
+  useEffect(() => { setPage(1); }, [filter, search, tzFilter]);
 
   const [page, setPage] = useState(1);
   const PAGE_SIZE = 30;
@@ -671,9 +686,17 @@ export default function LeadsTab() {
         })}
       </div>
 
-      {/* Search */}
-      <div style={{ marginBottom:'16px' }}>
-        <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search by name, email, phone, state…" style={{ ...inp, width:'100%', boxSizing:'border-box' }} />
+      {/* Search + TZ Filter */}
+      <div style={{ marginBottom:'16px', display:'flex', gap:'8px' }}>
+        <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search by name, email, phone, state…" style={{ ...inp, flex:1, boxSizing:'border-box' }} />
+        <select value={tzFilter} onChange={e=>setTzFilter(e.target.value)}
+          style={{ ...inp, cursor:'pointer', flexShrink:0, width:'auto' }}>
+          <option value="all">All Time Zones</option>
+          <option value="ET">🕐 Eastern (ET)</option>
+          <option value="CT">🕑 Central (CT)</option>
+          <option value="MT">🕒 Mountain (MT)</option>
+          <option value="PT">🕓 Pacific (PT)</option>
+        </select>
       </div>
 
       {/* Table */}
