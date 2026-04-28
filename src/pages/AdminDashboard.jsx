@@ -238,10 +238,22 @@ function GlobalCalendar({ users = [], setContactCard, setView }) {
                       onDragEnd={() => { setDragging(null); setDragOver(null); }}
                       onClick={() => {
                         if (evt.type === 'investor') {
-                          const u = users.find(u => u.id === evt.raw.investorId);
-                          if (u) setContactCard(u);
+                          // evt.raw.investorId is the InvestorUser id; evt.id is the appointment id
+                          const investorUserId = evt.raw?.investorId || evt.id;
+                          const u = users.find(u => u.id === investorUserId);
+                          if (u) {
+                            setContactCard(u);
+                          } else {
+                            // Not in users list yet — fetch directly and open card
+                            base44.entities.InvestorUser.filter({ id: investorUserId })
+                              .then(rows => { if (rows?.[0]) setContactCard(rows[0]); })
+                              .catch(() => {});
+                          }
                         } else if (evt.type === 'lead') {
-                          setView('leads');
+                          // Open the lead contact card directly
+                          base44.entities.Lead.filter({ id: evt.id })
+                            .then(leads => { if (leads?.[0]) setContactCard(leads[0]); })
+                            .catch(() => {});
                         }
                       }}
                       style={{
@@ -1015,32 +1027,11 @@ function AITunerChat({ context, onApply }) {
     setLoading(true);
 
     try {
-      const res = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model: 'claude-sonnet-4-6',
-          max_tokens: 1000,
-          system: `You are an expert sales AI tuning assistant helping configure a live call assistant system for an investment sales team. The system uses Claude Haiku for real-time intent classification (Duck/Cow) and coaching during calls. It also has access to Deepgram sentiment data (positive/negative/neutral per utterance) and speaker diarization (S0=agent, S1=prospect).
-
-You are helping tune the ${context}.
-
-When the user shares ideas or observations:
-1. Acknowledge their insight
-2. Expand it into specific, actionable rules or keywords
-3. Explain WHY it works from a sales psychology perspective
-4. Offer a "suggested rule" block they can apply
-
-Format suggested rules as JSON in a code block with this structure:
-For intent: {"type": "intent_suggestion", "duckSignals": ["phrase1", "phrase2"], "cowSignals": ["phrase1"], "keywords": ["word1"], "sentimentRules": "explanation"}
-For coach: {"type": "coach_suggestion", "focusArea": "...", "rule": "...", "context": "..."}
-
-Keep responses conversational but precise. Think like a sales psychologist who also understands AI systems.`,
-          messages: newMessages.map(m => ({ role: m.role, content: m.content })),
-        }),
+      const data = await base44.functions.invoke('aiTunerChat', {
+        context,
+        messages: newMessages.map(m => ({ role: m.role, content: m.content })),
       });
-      const data = await res.json();
-      const reply = data?.content?.[0]?.text || 'Error getting response.';
+      const reply = data?.reply || data?.content?.[0]?.text || data?.text || 'Error getting response.';
 
       // Extract JSON suggestion if present
       const jsonMatch = reply.match(/```(?:json)?\n?({[\s\S]*?})\n?```/);
