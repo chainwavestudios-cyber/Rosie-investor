@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { base44 } from '@/api/base44Client';
 
 const GOLD = '#b8933a';
@@ -14,6 +14,16 @@ const TEXT_COLORS = [
   { label: 'Yellow', value: '#f59e0b' },
   { label: 'Red',    value: '#ef4444' },
   { label: 'Gray',   value: '#8a9ab8' },
+];
+
+const HIGHLIGHT_COLORS = [
+  { label: 'None',    value: 'transparent', border: 'rgba(255,255,255,0.2)' },
+  { label: 'Yellow',  value: '#854d0e',     border: '#f59e0b' },
+  { label: 'Green',   value: '#14532d',     border: '#4ade80' },
+  { label: 'Blue',    value: '#1e3a5f',     border: '#60a5fa' },
+  { label: 'Purple',  value: '#3b1f6e',     border: '#a78bfa' },
+  { label: 'Red',     value: '#7f1d1d',     border: '#ef4444' },
+  { label: 'Pink',    value: '#831843',     border: '#f472b6' },
 ];
 
 const SCRIPT_TYPES = [
@@ -46,6 +56,9 @@ export default function GlobalScriptEditor() {
   const [newType, setNewType] = useState('custom');
   const [deleting, setDeleting] = useState(false);
   const [expanded, setExpanded] = useState(false);
+  const [showHighlights, setShowHighlights] = useState(false);
+  const editorRef = useRef(null);
+  const savedSelectionRef = useRef(null);
 
   useEffect(() => { loadScripts(); }, []);
 
@@ -81,10 +94,12 @@ export default function GlobalScriptEditor() {
   const saveActive = async () => {
     if (!active) return;
     setSaving(true); setSaveMsg('');
+    // Grab latest HTML from DOM before saving
+    const htmlContent = editorRef.current ? editorRef.current.innerHTML : (active.content || '');
     try {
       await base44.entities.GlobalScript.update(active.id, {
         name: active.name,
-        content: active.content,
+        content: htmlContent,
         color: active.color,
         fontSize: active.fontSize,
         scriptType: active.scriptType,
@@ -132,6 +147,55 @@ export default function GlobalScriptEditor() {
     } catch (e) { console.error(e); }
     setDeleting(false);
   };
+
+  // Save/restore selection for highlight picker
+  const saveSelection = () => {
+    const sel = window.getSelection();
+    if (sel && sel.rangeCount > 0) {
+      savedSelectionRef.current = sel.getRangeAt(0).cloneRange();
+    }
+  };
+
+  const restoreSelection = () => {
+    const sel = window.getSelection();
+    if (savedSelectionRef.current && sel) {
+      sel.removeAllRanges();
+      sel.addRange(savedSelectionRef.current);
+    }
+  };
+
+  const applyHighlight = (bgColor) => {
+    restoreSelection();
+    const sel = window.getSelection();
+    if (!sel || sel.isCollapsed) return;
+    if (bgColor === 'transparent') {
+      document.execCommand('removeFormat', false, null);
+    } else {
+      document.execCommand('hiliteColor', false, bgColor);
+    }
+    // Sync HTML back to state
+    if (editorRef.current) {
+      updateActive({ content: editorRef.current.innerHTML });
+    }
+    setShowHighlights(false);
+  };
+
+  // Sync editor content → state on input
+  const handleEditorInput = useCallback(() => {
+    if (editorRef.current) {
+      updateActive({ content: editorRef.current.innerHTML });
+    }
+  }, [activeId]);
+
+  // When active script changes, update the editor DOM
+  useEffect(() => {
+    if (editorRef.current && active) {
+      // Only reset if content differs (avoids cursor jump)
+      if (editorRef.current.innerHTML !== (active.content || '')) {
+        editorRef.current.innerHTML = active.content || '';
+      }
+    }
+  }, [activeId]);
 
   const substituteTokens = (text, firstName = '{{firstname}}', lastName = '{{lastname}}') =>
     (text || '')
@@ -212,6 +276,26 @@ export default function GlobalScriptEditor() {
                 ))}
               </div>
             </div>
+            {/* Highlight picker */}
+            <div style={{ display:'flex', alignItems:'center', gap:'4px', position:'relative' }}>
+              <span style={{ color:'#4a5568', fontSize:'10px', letterSpacing:'1px', textTransform:'uppercase' }}>Highlight</span>
+              <button
+                onMouseDown={e => { e.preventDefault(); saveSelection(); setShowHighlights(v => !v); }}
+                title="Highlight selected text"
+                style={{ background:'rgba(245,158,11,0.15)', border:'1px solid rgba(245,158,11,0.35)', borderRadius:'3px', padding:'2px 8px', cursor:'pointer', fontSize:'12px', color:'#f59e0b' }}>
+                🖊 ▾
+              </button>
+              {showHighlights && (
+                <div style={{ position:'absolute', top:'26px', left:0, zIndex:999, background:'#0d1b2a', border:'1px solid rgba(255,255,255,0.15)', borderRadius:'4px', padding:'8px', display:'flex', gap:'6px', boxShadow:'0 8px 24px rgba(0,0,0,0.6)' }}>
+                  {HIGHLIGHT_COLORS.map(h => (
+                    <button key={h.value}
+                      onMouseDown={e => { e.preventDefault(); applyHighlight(h.value); }}
+                      title={h.label}
+                      style={{ width:'22px', height:'22px', borderRadius:'3px', background:h.value, border:`2px solid ${h.border}`, cursor:'pointer', padding:0 }} />
+                  ))}
+                </div>
+              )}
+            </div>
             <div style={{ marginLeft:'auto', display:'flex', gap:'6px', alignItems:'center' }}>
               {saveMsg && <span style={{ color: saveMsg.startsWith('Error') ? '#ef4444' : '#4ade80', fontSize:'11px' }}>{saveMsg}</span>}
               {scripts.length > 1 && (
@@ -227,35 +311,42 @@ export default function GlobalScriptEditor() {
             </div>
           </div>
 
-          {/* Textarea */}
-          <textarea
-            value={active.content || ''}
-            onChange={e => updateActive({ content: e.target.value })}
-            placeholder={`Type your script here…\nUse {{firstname}} or {{lastname}} to auto-insert the contact's name.`}
+          {/* Rich text editor */}
+          <div
+            ref={editorRef}
+            contentEditable
+            suppressContentEditableWarning
+            onInput={handleEditorInput}
+            onMouseUp={saveSelection}
+            onKeyUp={saveSelection}
+            onClick={() => setShowHighlights(false)}
+            data-placeholder="Type your script here… Use {{firstname}} or {{lastname}} to auto-insert the contact's name."
             style={{
               flex:1, width:'100%', background:'rgba(0,0,0,0.2)', border:'1px solid rgba(255,255,255,0.08)',
               borderRadius:'4px', padding:'16px', color: active.color || '#e8e0d0',
-              fontSize: `${active.fontSize || 14}px`, lineHeight: 1.7, outline:'none', resize:'none',
+              fontSize: `${active.fontSize || 14}px`, lineHeight: 1.7, outline:'none',
               fontFamily:'Georgia, serif', boxSizing:'border-box', minHeight: expanded ? '0' : '300px',
+              overflowY:'auto', whiteSpace:'pre-wrap', wordBreak:'break-word',
             }}
           />
 
           {/* Token hint */}
           <div style={{ marginTop:'8px', color:'#4a5568', fontSize:'10px', flexShrink:0 }}>
-            Tokens: <span style={{ color:GOLD, fontFamily:'monospace' }}>{'{{firstname}}'}</span> · <span style={{ color:GOLD, fontFamily:'monospace' }}>{'{{lastname}}'}</span> — replaced with the contact's name when viewing in a contact card.
+            Tokens: <span style={{ color:GOLD, fontFamily:'monospace' }}>{'{{firstname}}'}</span> · <span style={{ color:GOLD, fontFamily:'monospace' }}>{'{{lastname}}'}</span> · Select text then click <span style={{ color:'#f59e0b' }}>Highlight</span> to add a colored background.
           </div>
 
           {/* Preview panel */}
           {(active.content || '').match(/\{\{\s*(firstname|lastname)\s*\}\}/i) && (
             <div style={{ marginTop:'12px', flexShrink:0 }}>
               <div style={{ color:'#4a5568', fontSize:'9px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'6px' }}>Preview (sample name)</div>
-              <div style={{
-                background:'rgba(184,147,58,0.05)', border:'1px solid rgba(184,147,58,0.2)', borderRadius:'4px',
-                padding:'12px 16px', color: active.color || '#e8e0d0', fontSize:`${active.fontSize || 14}px`,
-                lineHeight:1.7, fontFamily:'Georgia, serif', whiteSpace:'pre-wrap', maxHeight:'120px', overflowY:'auto',
-              }}>
-                {substituteTokens(active.content, 'John', 'Smith')}
-              </div>
+              <div
+                style={{
+                  background:'rgba(184,147,58,0.05)', border:'1px solid rgba(184,147,58,0.2)', borderRadius:'4px',
+                  padding:'12px 16px', color: active.color || '#e8e0d0', fontSize:`${active.fontSize || 14}px`,
+                  lineHeight:1.7, fontFamily:'Georgia, serif', whiteSpace:'pre-wrap', maxHeight:'120px', overflowY:'auto',
+                }}
+                dangerouslySetInnerHTML={{ __html: substituteTokens(active.content, 'John', 'Smith') }}
+              />
             </div>
           )}
         </div>
@@ -268,6 +359,7 @@ export default function GlobalScriptEditor() {
   if (expanded) {
     return (
       <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.97)', zIndex:99999, display:'flex', flexDirection:'column', padding:'24px', fontFamily:'Georgia, serif' }}>
+        <style>{`[data-placeholder]:empty:before { content: attr(data-placeholder); color: #4a5568; pointer-events: none; }`}</style>
         <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'16px' }}>
           <span style={{ color:GOLD, fontSize:'12px', letterSpacing:'2px', textTransform:'uppercase' }}>📝 Script Library</span>
           <button onClick={() => setExpanded(false)}
@@ -280,5 +372,10 @@ export default function GlobalScriptEditor() {
     );
   }
 
-  return editorContent;
+  return (
+    <>
+      <style>{`[data-placeholder]:empty:before { content: attr(data-placeholder); color: #4a5568; pointer-events: none; }`}</style>
+      {editorContent}
+    </>
+  );
 }
