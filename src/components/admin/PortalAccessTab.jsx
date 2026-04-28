@@ -17,11 +17,13 @@ export default function PortalAccessTab({ user, onClose, onSave }) {
   const [confirmDelete, setConfirmDelete] = useState(false);
 
   const username       = user.username || '';
+  const siteCode       = user.siteAccessCode || '';           // investor info site access code
   const lastNameSlug   = (user.name || '').toLowerCase().split(' ').pop().replace(/[^a-z]/g, '');
   const portalPassword = username ? `${lastNameSlug}#2026` : '';
-  const investorUrl    = username ? `https://investors.rosieai.tech/?code=${encodeURIComponent(username)}` : '';
+  // Investor info site URL uses siteAccessCode (not portal username)
+  const investorUrl    = siteCode ? `https://investors.rosieai.tech/?code=${encodeURIComponent(siteCode)}` : '';
   const portalUrl      = username ? `https://investors.rosieai.tech/portal-login?username=${encodeURIComponent(username)}&password=${encodeURIComponent(portalPassword)}` : '';
-  const consumerUrl    = username ? `https://www.rosieai.tech?ref=${username}` : '';
+  const consumerUrl    = siteCode ? `https://www.rosieai.tech?ref=${siteCode}` : (username ? `https://www.rosieai.tech?ref=${username}` : '');
 
   const isExpired = user.accessExpiresAt && new Date(user.accessExpiresAt) < new Date();
 
@@ -81,33 +83,41 @@ export default function PortalAccessTab({ user, onClose, onSave }) {
       {/* ── INVESTOR INFO SITE ── */}
       <div style={{ background:'rgba(96,165,250,0.05)', border:'1px solid rgba(96,165,250,0.2)', borderRadius:'6px', padding:'14px 16px' }}>
         <div style={{ color:'#60a5fa', fontSize:'10px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'12px' }}>💼 Investor Info Site — investors.rosieai.tech</div>
-        <div style={{ marginBottom:'10px' }}>
-          <div style={{ color:'#4a5568', fontSize:'9px', textTransform:'uppercase', letterSpacing:'1px', marginBottom:'4px' }}>Personal Access Code</div>
-          <div style={{ display:'flex', gap:'6px' }}>
-            <input readOnly value={username} style={inp} />
-            <button onClick={() => copy(username, 'code')} style={{ background:'rgba(255,255,255,0.06)', color: copied==='code' ? '#4ade80' : '#8a9ab8', border:'1px solid rgba(255,255,255,0.1)', borderRadius:'4px', padding:'8px 12px', cursor:'pointer', fontSize:'11px', whiteSpace:'nowrap' }}>
-              {copied==='code' ? '✓' : 'Copy'}
-            </button>
+        {!siteCode ? (
+          <div style={{ color:'#6b7280', fontSize:'11px', padding:'6px 0' }}>
+            No investor site access code yet. Send <strong style={{ color:'#60a5fa' }}>Investor Site Access</strong> email from the lead card first.
           </div>
-        </div>
-        <div style={{ marginBottom:'12px' }}>
-          <div style={{ color:'#4a5568', fontSize:'9px', textTransform:'uppercase', letterSpacing:'1px', marginBottom:'4px' }}>Access URL</div>
-          <div style={{ display:'flex', gap:'6px' }}>
-            <input readOnly value={investorUrl} style={{ ...inp, fontSize:'10px' }} />
-            <button onClick={() => copy(investorUrl, 'invUrl')} style={{ background:'rgba(96,165,250,0.1)', color: copied==='invUrl' ? '#4ade80' : '#60a5fa', border:'1px solid rgba(96,165,250,0.25)', borderRadius:'4px', padding:'8px 12px', cursor:'pointer', fontSize:'11px', whiteSpace:'nowrap' }}>
-              {copied==='invUrl' ? '✓' : 'Copy'}
-            </button>
-          </div>
-        </div>
-        <div>
-          <div style={{ color:'#4a5568', fontSize:'9px', textTransform:'uppercase', letterSpacing:'1px', marginBottom:'4px' }}>Consumer Site Tracking URL</div>
-          <div style={{ display:'flex', gap:'6px' }}>
-            <input readOnly value={consumerUrl} style={{ ...inp, fontSize:'10px' }} />
-            <button onClick={() => copy(consumerUrl, 'conUrl')} style={{ background:'rgba(167,139,250,0.1)', color: copied==='conUrl' ? '#4ade80' : '#a78bfa', border:'1px solid rgba(167,139,250,0.25)', borderRadius:'4px', padding:'8px 12px', cursor:'pointer', fontSize:'11px', whiteSpace:'nowrap' }}>
-              {copied==='conUrl' ? '✓' : 'Copy'}
-            </button>
-          </div>
-        </div>
+        ) : (
+          <>
+            <div style={{ marginBottom:'10px' }}>
+              <div style={{ color:'#4a5568', fontSize:'9px', textTransform:'uppercase', letterSpacing:'1px', marginBottom:'4px' }}>Personal Access Code</div>
+              <div style={{ display:'flex', gap:'6px' }}>
+                <input readOnly value={siteCode} style={inp} />
+                <button onClick={() => copy(siteCode, 'code')} style={{ background:'rgba(255,255,255,0.06)', color: copied==='code' ? '#4ade80' : '#8a9ab8', border:'1px solid rgba(255,255,255,0.1)', borderRadius:'4px', padding:'8px 12px', cursor:'pointer', fontSize:'11px', whiteSpace:'nowrap' }}>
+                  {copied==='code' ? '✓' : 'Copy'}
+                </button>
+              </div>
+            </div>
+            <div style={{ marginBottom:'12px' }}>
+              <div style={{ color:'#4a5568', fontSize:'9px', textTransform:'uppercase', letterSpacing:'1px', marginBottom:'4px' }}>Access URL</div>
+              <div style={{ display:'flex', gap:'6px' }}>
+                <input readOnly value={investorUrl} style={{ ...inp, fontSize:'10px' }} />
+                <button onClick={() => copy(investorUrl, 'invUrl')} style={{ background:'rgba(96,165,250,0.1)', color: copied==='invUrl' ? '#4ade80' : '#60a5fa', border:'1px solid rgba(96,165,250,0.25)', borderRadius:'4px', padding:'8px 12px', cursor:'pointer', fontSize:'11px', whiteSpace:'nowrap' }}>
+                  {copied==='invUrl' ? '✓' : 'Copy'}
+                </button>
+              </div>
+            </div>
+            <div>
+              <div style={{ color:'#4a5568', fontSize:'9px', textTransform:'uppercase', letterSpacing:'1px', marginBottom:'4px' }}>Consumer Site Tracking URL</div>
+              <div style={{ display:'flex', gap:'6px' }}>
+                <input readOnly value={consumerUrl} style={{ ...inp, fontSize:'10px' }} />
+                <button onClick={() => copy(consumerUrl, 'conUrl')} style={{ background:'rgba(167,139,250,0.1)', color: copied==='conUrl' ? '#4ade80' : '#a78bfa', border:'1px solid rgba(167,139,250,0.25)', borderRadius:'4px', padding:'8px 12px', cursor:'pointer', fontSize:'11px', whiteSpace:'nowrap' }}>
+                  {copied==='conUrl' ? '✓' : 'Copy'}
+                </button>
+              </div>
+            </div>
+          </>
+        )}
       </div>
 
       {/* ── PORTAL CREDENTIALS ── */}
