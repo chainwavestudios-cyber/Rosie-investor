@@ -4,18 +4,13 @@ import { Device } from '@twilio/voice-sdk';
 
 /**
  * useInlineDialer
- * Shared hook powering the inline call bar in LeadContactCard and ContactCardModal.
- * Manages the Twilio Device lifecycle, call state, timer, and call logging.
- *
- * @param {object} opts
- *   onCallStream(streamObj|null)  — forwarded to ScriptAssistant
- *   onCallLogged(leadId|userId)   — called after call is logged
+ * Mirrors TwilioDialer.jsx exactly — init on mount, dial on demand.
+ * No lazy init, no race condition.
  */
 export function useInlineDialer({ onCallStream, onCallLogged } = {}) {
   const [dialerReady, setDialerReady] = useState(false);
   const [dialerError, setDialerError] = useState('');
   const [callStatus,  setCallStatus]  = useState('idle');
-  // idle | initializing | ready | calling | ringing | connected | ended
   const [duration,    setDuration]    = useState(0);
   const [muted,       setMuted]       = useState(false);
 
@@ -23,9 +18,7 @@ export function useInlineDialer({ onCallStream, onCallLogged } = {}) {
   const callRef      = useRef(null);
   const timerRef     = useRef(null);
   const startTimeRef = useRef(null);
-  const initializing = useRef(false);
 
-  // ── Format mm:ss ────────────────────────────────────────────────────
   const fmt = (secs) => {
     const m = Math.floor(secs / 60).toString().padStart(2, '0');
     const s = (secs % 60).toString().padStart(2, '0');
@@ -41,106 +34,85 @@ export function useInlineDialer({ onCallStream, onCallLogged } = {}) {
 
   const stopTimer = () => clearInterval(timerRef.current);
 
-  // ── Initialise Twilio Device (lazy — called on first dial attempt) ──
-  const initDevice = useCallback(async () => {
-    if (deviceRef.current || initializing.current) return;
-    initializing.current = true;
-    setCallStatus('initializing');
-    setDialerError('');
+  // ── Init on mount — same as TwilioDialer.jsx ─────────────────────────
+  useEffect(() => {
+    let device = null;
 
-    try {
-      await navigator.mediaDevices.getUserMedia({ audio: true });
-    } catch {
-      setDialerError('Microphone access denied');
-      setCallStatus('idle');
-      initializing.current = false;
-      return;
-    }
+    const init = async () => {
+      setCallStatus('initializing');
+      setDialerError('');
 
-    try {
-      const res   = await base44.functions.invoke('twilioClientToken', {});
-      const token = res?.token || res?.data?.token;
-      if (!token) throw new Error('No Twilio token received');
+      try {
+        await navigator.mediaDevices.getUserMedia({ audio: true });
+      } catch {
+        setDialerError('Microphone access denied');
+        setCallStatus('idle');
+        return;
+      }
 
-      const device = new Device(token, {
-        codecPreferences: ['opus', 'pcmu'],
-        fakeLocalDTMF: true,
-        enableRingingState: true,
-        logLevel: 'error',
-      });
+      try {
+        const res   = await base44.functions.invoke('twilioClientToken', {});
+        const token = res?.data?.token || res?.token;
+        if (!token) throw new Error('No token received');
 
-      device.on('registered',   () => { setCallStatus('ready'); setDialerReady(true); setDialerError(''); });
-      device.on('error', (e) => {
-        const msg = e.message || '';
-        // 31002 = "request cannot be processed" — TwiML App SID missing/wrong or Voice URL not set
-        if (e.code === 31002 || msg.includes('31002')) {
-          setDialerError('Twilio 31002: TwiML App not configured. Check TWILIO_TWIML_APP_SID and the Voice URL in Twilio Console.');
-        } else if (e.code === 31003 || msg.includes('31003')) {
-          setDialerError('Twilio: Connection timed out — check your internet connection.');
-        } else if (e.code === 31201 || msg.includes('31201')) {
-          setDialerError('Twilio: Auth failed — TWILIO_API_KEY or TWILIO_API_SECRET may be wrong.');
-        } else {
-          setDialerError(`Twilio error ${e.code || ''}: ${msg}`);
-        }
-        console.error('[InlineDialer] Twilio device error:', e.code, msg);
-      });
-      device.on('unregistered', () => setDialerError('Twilio disconnected — refresh to reconnect'));
-      device.on('tokenWillExpire', async () => {
-        try {
-          const r = await base44.functions.invoke('twilioClientToken', {});
-          const t = r?.token || r?.data?.token;
-          if (t) device.updateToken(t);
-        } catch {}
-      });
+        device = new Device(token, {
+          codecPreferences: ['opus', 'pcmu'],
+          fakeLocalDTMF: true,
+          enableRingingState: true,
+          logLevel: 'error',
+        });
 
-      // Wait for the device to fully register before resolving.
-      // Previously we set deviceRef right after register() returned, but
-      // 'registered' fires asynchronously — calling connect() before that
-      // causes Twilio error 31002 "request cannot be processed".
-      await new Promise((resolve, reject) => {
-        const onRegistered = () => { device.off('error', onError); resolve(); };
-        const onError      = (e)  => { device.off('registered', onRegistered); reject(e); };
-        device.once('registered', onRegistered);
-        device.once('error',      onError);
-      });
-      deviceRef.current = device;
-    } catch (e) {
-      setDialerError(`Init failed: ${e.message}`);
-      setCallStatus('idle');
-    }
+        device.on('registered', () => {
+          setCallStatus('ready');
+          setDialerReady(true);
+          setDialerError('');
+        });
 
-    initializing.current = false;
+        device.on('error', (e) => {
+          setDialerError(`Twilio: ${e.message || 'Unknown error'}`);
+        });
+
+        device.on('tokenWillExpire', async () => {
+          try {
+            const r = await base44.functions.invoke('twilioClientToken', {});
+            const t = r?.data?.token || r?.token;
+            if (t) device.updateToken(t);
+          } catch {}
+        });
+
+        device.on('unregistered', () => {
+          setDialerError('Twilio disconnected — refresh to reconnect');
+        });
+
+        await device.register();
+        deviceRef.current = device;
+
+      } catch (e) {
+        setDialerError(`Init failed: ${e.message}`);
+        setCallStatus('idle');
+      }
+    };
+
+    init();
+
+    return () => {
+      stopTimer();
+      try { callRef.current?.disconnect(); } catch {}
+      try { device?.destroy(); } catch {}
+    };
   }, []);
 
-  // ── Destroy on unmount ────────────────────────────────────────────
-  useEffect(() => () => {
-    stopTimer();
-    try { callRef.current?.disconnect(); } catch {}
-    try { deviceRef.current?.destroy();  } catch {}
-  }, []);
-
-  // ── Dial ─────────────────────────────────────────────────────────
+  // ── Dial ─────────────────────────────────────────────────────────────
   const dial = useCallback(async (phone) => {
     if (!phone) return;
-    if (!deviceRef.current) { await initDevice(); }
-    if (!deviceRef.current) return; // init failed
+    if (!deviceRef.current) { setDialerError('Dialer not ready yet.'); return; }
 
-    // Normalize phone to E.164 format (+1XXXXXXXXXX for US numbers)
     const digits = phone.replace(/\D/g, '');
     let e164 = '';
-    if (digits.length === 10) {
-      e164 = `+1${digits}`;
-    } else if (digits.length === 11 && digits.startsWith('1')) {
-      e164 = `+${digits}`;
-    } else if (digits.length > 7) {
-      // Already has country code or international — just prepend +
-      e164 = digits.startsWith('+') ? phone : `+${digits}`;
-    } else {
-      setDialerError(`Invalid phone number: ${phone}`);
-      return;
-    }
-
-    console.log(`[InlineDialer] Dialing ${e164} (raw: ${phone})`);
+    if (digits.length === 10)                              e164 = `+1${digits}`;
+    else if (digits.length === 11 && digits.startsWith('1')) e164 = `+${digits}`;
+    else if (digits.length > 7)                            e164 = `+${digits}`;
+    else { setDialerError(`Invalid number: ${phone}`); return; }
 
     setDialerError('');
     setCallStatus('calling');
@@ -151,47 +123,21 @@ export function useInlineDialer({ onCallStream, onCallLogged } = {}) {
       const call = await deviceRef.current.connect({ params: { To: e164 } });
       callRef.current = call;
 
-      call.on('ringing', () => setCallStatus('ringing'));
-
-      call.on('accept', (c) => {
+      call.on('ringing',     () => setCallStatus('ringing'));
+      call.on('accept',      (c) => {
         setCallStatus('connected');
         startTimer();
-        try {
-          onCallStream?.({
-            remoteStream: c.getRemoteStream?.() || null,
-            localStream:  c.getLocalStream?.()  || null,
-            call: c,
-          });
-        } catch {}
+        try { onCallStream?.({ remoteStream: c.getRemoteStream?.() || null, localStream: c.getLocalStream?.() || null, call: c }); } catch {}
       });
+      call.on('disconnect',  () => { stopTimer(); setCallStatus('ended'); onCallStream?.(null); });
+      call.on('error',       (e) => { setDialerError(`Call error: ${e.message}`); stopTimer(); setCallStatus('ended'); onCallStream?.(null); });
 
-      call.on('disconnect', () => {
-        stopTimer();
-        setCallStatus('ended');
-        onCallStream?.(null);
-      });
-
-      call.on('error', (e) => {
-        const msg = e.message || '';
-        let displayMsg = `Call error: ${msg}`;
-        if (e.code === 31002 || msg.includes('31002')) {
-          displayMsg = 'Twilio 31002: Cannot process request — verify TWILIO_TWIML_APP_SID is set and the TwiML App Voice URL points to dialerVoiceHandler.';
-        } else if (e.code === 13224 || msg.includes('13224')) {
-          displayMsg = 'Invalid phone number format. Number must be E.164 (+1XXXXXXXXXX).';
-        }
-        setDialerError(displayMsg);
-        console.error('[InlineDialer] Call error:', e.code, msg);
-        stopTimer();
-        setCallStatus('ended');
-        onCallStream?.(null);
-      });
     } catch (e) {
       setDialerError(e.message || 'Call failed');
       setCallStatus('ready');
     }
-  }, [initDevice, onCallStream]);
+  }, [onCallStream]);
 
-  // ── Hangup ───────────────────────────────────────────────────────
   const hangup = useCallback(() => {
     stopTimer();
     try { callRef.current?.disconnect(); } catch {}
@@ -199,7 +145,6 @@ export function useInlineDialer({ onCallStream, onCallLogged } = {}) {
     onCallStream?.(null);
   }, [onCallStream]);
 
-  // ── Mute toggle ──────────────────────────────────────────────────
   const toggleMute = useCallback(() => {
     setMuted(prev => {
       const next = !prev;
@@ -208,12 +153,10 @@ export function useInlineDialer({ onCallStream, onCallLogged } = {}) {
     });
   }, []);
 
-  // ── DTMF ─────────────────────────────────────────────────────────
   const sendDigit = useCallback((k) => {
     try { callRef.current?.sendDigits(k); } catch {}
   }, []);
 
-  // ── Reset after call ended ────────────────────────────────────────
   const reset = useCallback(() => {
     setCallStatus(deviceRef.current ? 'ready' : 'idle');
     setDuration(0);
@@ -222,7 +165,6 @@ export function useInlineDialer({ onCallStream, onCallLogged } = {}) {
     callRef.current = null;
   }, []);
 
-  // ── Log call to LeadHistory ───────────────────────────────────────
   const logLeadCall = useCallback(async (leadId) => {
     const dur = Math.floor((Date.now() - (startTimeRef.current || Date.now())) / 1000);
     try {
@@ -237,13 +179,11 @@ export function useInlineDialer({ onCallStream, onCallLogged } = {}) {
     } catch {}
   }, [onCallLogged]);
 
-  // ── Log call to InvestorUser ContactNote ─────────────────────────
   const logInvestorCall = useCallback(async (investorId, investorEmail) => {
     const dur = Math.floor((Date.now() - (startTimeRef.current || Date.now())) / 1000);
     try {
       await base44.entities.ContactNote.create({
-        investorId,
-        investorEmail,
+        investorId, investorEmail,
         type: 'call',
         content: `Outbound call — ${fmt(dur)}`,
         createdAt: new Date().toISOString(),
@@ -256,12 +196,9 @@ export function useInlineDialer({ onCallStream, onCallLogged } = {}) {
   const isActive = ['calling', 'ringing', 'connected'].includes(callStatus);
 
   return {
-    // state
     dialerReady, dialerError, callStatus, duration, muted, isActive,
-    // actions
-    dial, hangup, toggleMute, sendDigit, reset, initDevice,
+    dial, hangup, toggleMute, sendDigit, reset,
     logLeadCall, logInvestorCall,
-    // helpers
     fmt,
   };
 }
