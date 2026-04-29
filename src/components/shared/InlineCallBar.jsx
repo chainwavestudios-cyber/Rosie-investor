@@ -26,7 +26,8 @@ export default function InlineCallBar({
   onPauseCampaign, onDisconnectNext, onSaveResume,
 }) {
   const { callStatus, duration, muted, isActive, dialerError,
-          dial, hangup, toggleMute, reset, fmt } = dialer;
+          dial, hangup, toggleMute, reset, fmt,
+          callerId, setCallerId, lines } = dialer;
 
   const [dtmfInput, setDtmfInput] = useState('');
   const [showKeypad, setShowKeypad] = useState(false);
@@ -218,6 +219,16 @@ export default function InlineCallBar({
               }}>{k}</button>
             ))}
           </div>
+        </div>
+      )}
+
+      {/* ── Call from selector ── */}
+      {lines && lines.length > 1 && !isActive && (
+        <div style={{ borderTop:'1px solid rgba(255,255,255,0.06)', paddingTop:'6px' }}>
+          <select value={callerId} onChange={e => setCallerId(e.target.value)}
+            style={{ width:'100%', background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.1)', borderRadius:'3px', padding:'4px 8px', color:'#6b7280', fontSize:'10px', outline:'none', cursor:'pointer' }}>
+            {lines.map(l => <option key={l.number} value={l.number}>📞 {l.label} — {l.number}</option>)}
+          </select>
         </div>
       )}
 
