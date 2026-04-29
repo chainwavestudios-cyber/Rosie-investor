@@ -25,8 +25,8 @@ export default function InlineCallBar({
   isPredictive, isDialerPaused,
   onPauseCampaign, onDisconnectNext, onSaveResume,
 }) {
-  const { callStatus, duration, muted, isActive, dialerError,
-          dial, hangup, toggleMute, reset, fmt } = dialer;
+  const { callStatus, duration, muted, isActive, dialerError, dialerReady,
+          dial, hangup, toggleMute, reset, fmt, initDevice } = dialer;
 
   const [dtmfInput, setDtmfInput] = useState('');
   const [showKeypad, setShowKeypad] = useState(false);
@@ -61,7 +61,10 @@ export default function InlineCallBar({
     }
   };
 
-  const handleDial = () => dial(phone);
+  const handleDial = async () => {
+    if (!dialerReady && callStatus === 'idle') await initDevice();
+    dial(phone);
+  };
 
   const pressKey = (k) => {
     setDtmfInput(p => p + k);
