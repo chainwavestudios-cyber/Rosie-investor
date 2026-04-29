@@ -6,7 +6,7 @@ import { Device } from '@twilio/voice-sdk';
 const GOLD = '#b8933a';
 const DARK = '#0a0f1e';
 
-export default function TwilioDialer({ initialLead, onClose, onCallLogged, onCallStart, onCallEnd }) {
+export default function TwilioDialer({ initialLead, onClose, onCallLogged, onCallStart, onCallEnd, onCallStream }) {
   const [lead, setLead]               = useState(initialLead || null);
   const [manualNumber, setManualNumber] = useState('');
   const [callStatus, setCallStatus]   = useState('idle');
@@ -63,7 +63,7 @@ export default function TwilioDialer({ initialLead, onClose, onCallLogged, onCal
         if (mics.length > 0) setSelectedMicId(mics[0].deviceId);
       } catch {
         setError('Microphone access denied — please allow mic and refresh');
-        setCallStatus('idle'); onCallEnd?.();
+        setCallStatus('idle'); onCallEnd?.(); onCallStream?.(null);
         return;
       }
 
@@ -148,6 +148,12 @@ export default function TwilioDialer({ initialLead, onClose, onCallLogged, onCal
       call.on('accept', (c) => {
         setCallSid(c.parameters?.CallSid || null);
         setCallStatus('connected'); onCallStart?.();
+        // Pass both remote (prospect) and local (agent) streams to ScriptAssistant
+        try {
+          const remoteStream = c.getRemoteStream?.() || null;
+          const localStream  = c.getLocalStream?.()  || null;
+          onCallStream?.({ remoteStream, localStream, call: c });
+        } catch (e) { console.warn('[TwilioDialer] getRemoteStream failed:', e.message); }
         setStatusMsg('Connected');
         startTimer();
       });
