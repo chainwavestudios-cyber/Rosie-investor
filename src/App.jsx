@@ -12,6 +12,7 @@ import InvestorPortal from './pages/InvestorPortal';
 import AdminDashboard from './pages/AdminDashboard';
 import AdminLogin from './pages/AdminLogin';
 import { PortalAuthProvider } from '@/lib/PortalAuthContext';
+import { TwilioDeviceProvider } from '@/lib/TwilioDeviceContext';
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
@@ -55,12 +56,12 @@ function App() {
 
   return (
     <AuthProvider><PortalAuthProvider>
-      <QueryClientProvider client={queryClientInstance}>
+      <TwilioDeviceProvider><QueryClientProvider client={queryClientInstance}>
         <Router>
           <AuthenticatedApp />
         </Router>
         <Toaster />
-      </QueryClientProvider>
+      </QueryClientProvider></TwilioDeviceProvider>
     </PortalAuthProvider></AuthProvider>
   )
 }
