@@ -37,7 +37,7 @@ const blankLine = (idx) => ({
   monitorMode: null, // 'listen' | 'barge'
 });
 
-export default function TwilioDialer2({ initialLead, onClose, onCallLogged, onCallStart, onCallEnd }) {
+export default function TwilioDialer2({ initialLead, onClose, onCallLogged, onCallStart, onCallEnd, onCallStream }) {
   const [lines, setLines]           = useState([blankLine(0), blankLine(1)]);
   const [activeTab, setActiveTab]   = useState('dialer'); // 'dialer' | 'monitor' | 'history'
   const [callHistory, setCallHistory] = useState([]);
@@ -162,6 +162,12 @@ export default function TwilioDialer2({ initialLead, onClose, onCallLogged, onCa
         updateLine(idx, { status:'connected', statusMsg:'Connected', callSid:sid, call });
         startTimer(idx);
         onCallStart?.();
+        // Expose remote (prospect) + local (agent) streams for ScriptAssistant
+        try {
+          const remoteStream = c.getRemoteStream?.() || null;
+          const localStream  = c.getLocalStream?.()  || null;
+          onCallStream?.({ remoteStream, localStream, call: c });
+        } catch (e) { console.warn('[TwilioDialer2] getRemoteStream failed:', e.message); }
       });
       call.on('disconnect', () => {
         stopTimer(idx);
@@ -178,7 +184,7 @@ export default function TwilioDialer2({ initialLead, onClose, onCallLogged, onCa
           }).catch(() => {});
           onCallLogged?.(linesRef.current[idx].lead.id);
         }
-        onCallEnd?.();
+        onCallEnd?.(); onCallStream?.(null);
         loadHistory();
       });
       call.on('error', (err) => {
