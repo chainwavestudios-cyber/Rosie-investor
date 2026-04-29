@@ -190,20 +190,33 @@ function OverviewTab({ editLead, setEditLead, saving, saveMsg, saveProfile, upda
         </button>
       </div>}
 
-      {/* Contact info — view mode */}
+      {/* Contact info — compact view */}
       {!editing && (
-        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'8px' }}>
-          <InfoRow icon="👤" label="First Name" value={editLead.firstName} />
-          <InfoRow icon="👤" label="Last Name" value={editLead.lastName} />
-          <InfoRow icon="📞" label="Phone" value={editLead.phone} color="#4ade80" />
-          <InfoRow icon="📱" label="Alt Phone" value={editLead.phone2} />
-          <InfoRow icon="✉️" label="Email" value={editLead.email} color="#60a5fa" />
-          {editLead.address && <div style={{ gridColumn:'1/-1' }}><InfoRow icon="🏠" label="Street" value={editLead.address} /></div>}
-          {editLead.city && <InfoRow icon="🏙" label="City" value={editLead.city} />}
-          {editLead.zip && <InfoRow icon="📮" label="Zip" value={editLead.zip} />}
-          <InfoRow icon="📍" label="State" value={editLead.state} />
-          {editLead.bestTimeToCall && <div style={{ gridColumn:'1/-1' }}><InfoRow icon="⏰" label="Best Time to Call" value={editLead.bestTimeToCall} /></div>}
-          {editLead.callbackAt && <div style={{ gridColumn:'1/-1' }}><InfoRow icon="📅" label="Callback Scheduled" value={new Date(editLead.callbackAt).toLocaleString('en-US',{weekday:'short',month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})} color="#a78bfa" /></div>}
+        <div style={{ background:'rgba(255,255,255,0.02)', border:'1px solid rgba(255,255,255,0.06)', borderRadius:'6px', padding:'12px 14px', display:'flex', flexDirection:'column', gap:'7px' }}>
+          {/* Name row */}
+          <div style={{ display:'flex', alignItems:'baseline', gap:'6px' }}>
+            <span style={{ color:'#e8e0d0', fontSize:'15px', fontWeight:'bold' }}>{editLead.firstName} {editLead.lastName}</span>
+          </div>
+          {/* Phone row */}
+          <div style={{ display:'flex', gap:'16px', flexWrap:'wrap' }}>
+            {editLead.phone && <span style={{ color:'#4ade80', fontSize:'13px' }}>📞 {editLead.phone}</span>}
+            {editLead.phone2 && <span style={{ color:'#8a9ab8', fontSize:'13px' }}>📱 {editLead.phone2}</span>}
+          </div>
+          {/* Email row */}
+          {editLead.email && <div><span style={{ color:'#60a5fa', fontSize:'13px' }}>✉️ {editLead.email}</span></div>}
+          {/* Address row */}
+          {(editLead.address || editLead.city || editLead.zip || editLead.state) && (
+            <div style={{ color:'#8a9ab8', fontSize:'12px' }}>
+              🏠 {[editLead.address, editLead.city, editLead.zip, editLead.state].filter(Boolean).join(', ')}
+            </div>
+          )}
+          {/* Extra info */}
+          {editLead.bestTimeToCall && <div style={{ color:'#6b7280', fontSize:'12px' }}>⏰ Best time: {editLead.bestTimeToCall}</div>}
+          {editLead.callbackAt && (
+            <div style={{ color:'#a78bfa', fontSize:'12px' }}>
+              📅 Callback: {new Date(editLead.callbackAt).toLocaleString('en-US',{weekday:'short',month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})}
+            </div>
+          )}
         </div>
       )}
 
