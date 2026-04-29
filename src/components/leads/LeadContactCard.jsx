@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
+import { useInlineDialer } from '@/hooks/useInlineDialer';
+import InlineCallBar from '@/components/shared/InlineCallBar';
 import MigrateLeadModal from './MigrateLeadModal';
 import DateTimePicker from '@/components/admin/DateTimePicker';
 import LeadEmailTab from './LeadEmailTab';
@@ -8,8 +10,6 @@ import ResearchTab from './ResearchTab';
 import InvestorWebsiteTab from './InvestorWebsiteTab';
 import WebsiteHistoryTab from './WebsiteHistoryTab';
 import ZoomBookingModal from '@/components/ZoomBookingModal';
-import { useInlineDialer } from '@/hooks/useInlineDialer';
-import InlineCallBar from '@/components/shared/InlineCallBar';
 
 const GOLD = '#b8933a';
 const DARK = '#0a0f1e';
@@ -590,10 +590,11 @@ function LeadHistoryTab({ lead, history, onNoteAdded }) {
   );
 }
 
-export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber, dialerRef, onResume, isDialerPaused, onNextLead, onPrevLead, currentLeadIndex, totalLeads, dialerPanelOpen, twilioStream }) {
+export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber, dialerRef, onResume, isDialerPaused, onNextLead, onPrevLead, currentLeadIndex, totalLeads, dialerPanelOpen }) {
   // Archived = migrated to CRM — card is read-only
   const isArchived = !!(lead.migratedToPortal || lead.convertedToInvestorUserId || lead.status === 'converted');
   const [cardExpanded, setCardExpanded] = useState(false);
+  const dialer = useInlineDialer({ onCallStream: () => {} });
   const [tab, setTab] = useState('overview');
   const [history, setHistory] = useState([]);
   const [editLead, setEditLead] = useState({ ...lead });
@@ -617,9 +618,6 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
   const [quickNote, setQuickNote] = useState('');
   const [addingNote, setAddingNote] = useState(false);
   const [showZoom, setShowZoom] = useState(false);
-
-  // ── Inline dialer ─────────────────────────────────────────────────────
-  const dialer = useInlineDialer({ onCallStream: (s) => { /* forwarded via prop if needed */ } });
 
   useEffect(() => { loadHistory(); }, [lead.id]);
 
@@ -841,9 +839,37 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
             />
           )}
 
-          {/* Row 3: Activity badges + action buttons */}
+          {/* Row 3: Action buttons */}
           <div style={{ display:'flex', gap:'6px', flexWrap:'wrap', alignItems:'center' }}>
-            {/* Activity badges */}
+            {/* Dialer controls when on a call */}
+            {isDialerPaused ? (
+              <>
+                <button onClick={() => dialerRef.current?.hangupActiveCall?.()}
+                  style={{ background:'rgba(239,68,68,0.15)', color:'#ef4444', border:'1px solid rgba(239,68,68,0.4)', borderRadius:'4px', padding:'6px 12px', cursor:'pointer', fontSize:'11px', fontWeight:'bold' }}>
+                  📵 Hang Up
+                </button>
+                <button onClick={() => { dialerRef.current?.hangupActiveCall?.(); onNextLead?.(); }}
+                  style={{ background:'rgba(59,130,246,0.12)', color:'#60a5fa', border:'1px solid rgba(59,130,246,0.3)', borderRadius:'4px', padding:'6px 12px', cursor:'pointer', fontSize:'11px', fontWeight:'bold' }}>
+                  📵 Next
+                </button>
+                <button onClick={async () => { await saveProfile?.(); dialerRef.current?.hangupActiveCall?.(); onResume?.(); }}
+                  style={{ background:'linear-gradient(135deg,#22c55e,#16a34a)', color:'#fff', border:'none', borderRadius:'4px', padding:'6px 14px', cursor:'pointer', fontSize:'11px', fontWeight:'bold' }}>
+                  ▶ Resume & Save
+                </button>
+                <div style={{ width:'1px', height:'20px', background:'rgba(255,255,255,0.1)', margin:'0 2px' }} />
+              </>
+            ) : (
+              <>
+                {(lead.phone || editLead.phone) && !isArchived && (
+                  <button onClick={() => onDialNumber && onDialNumber(lead)}
+                    style={{ background:'rgba(74,222,128,0.15)', color:'#4ade80', border:'1px solid rgba(74,222,128,0.35)', borderRadius:'4px', padding:'6px 14px', cursor:'pointer', fontSize:'11px', fontWeight:'bold', display:'flex', alignItems:'center', gap:'5px' }}>
+                    📞 <span>{lead.phone || editLead.phone}</span>
+                  </button>
+                )}
+              </>
+            )}
+
+            {/* Activity badges — compact */}
             {editLead.badgeIntroEmailOpened && <span style={{ background:'rgba(74,222,128,0.12)', border:'1px solid rgba(74,222,128,0.3)', borderRadius:'12px', padding:'3px 8px', fontSize:'10px', color:'#4ade80' }}>🌟 Intro Opened</span>}
             {editLead.badgeEmailOpened && !editLead.badgeIntroEmailOpened && <span style={{ background:'rgba(74,222,128,0.08)', border:'1px solid rgba(74,222,128,0.2)', borderRadius:'12px', padding:'3px 8px', fontSize:'10px', color:'#4ade80' }}>📬 Email Opened</span>}
             {editLead.badgeConsumerWebsite && <span style={{ background:'rgba(96,165,250,0.08)', border:'1px solid rgba(96,165,250,0.2)', borderRadius:'12px', padding:'3px 8px', fontSize:'10px', color:'#60a5fa' }}>🌐 Consumer</span>}
@@ -851,7 +877,7 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
 
             <div style={{ flex:1 }} />
 
-            {/* Right-side action buttons */}
+            {/* Right-side actions */}
             {!isArchived && (
               <button onClick={sendEmail} disabled={sendingEmail || !editLead.email}
                 title="Sends investor site access code + consumer ref URL (template 7949342)"
@@ -929,7 +955,7 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
           )}
 
           {tab === 'script' && (
-            <ScriptAssistant lead={editLead} onExpandCard={() => setCardExpanded(e => !e)} isCardExpanded={cardExpanded} twilioStream={twilioStream} />
+            <ScriptAssistant lead={editLead} onExpandCard={() => setCardExpanded(e => !e)} isCardExpanded={cardExpanded} />
           )}
 
           {/* ── ACTIONS ── */}
