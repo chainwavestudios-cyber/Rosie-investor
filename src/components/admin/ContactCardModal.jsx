@@ -12,6 +12,8 @@ import ResearchTab from '@/components/leads/ResearchTab';
 import ScriptAssistant from '@/components/leads/ScriptAssistant';
 import TwilioDialer from '@/components/leads/TwilioDialer';
 import ZoomBookingModal from '@/components/ZoomBookingModal';
+import { useInlineDialer } from '@/hooks/useInlineDialer';
+import InlineCallBar from '@/components/shared/InlineCallBar';
 
 const GOLD = '#b8933a';
 const DARK = '#0a0f1e';
@@ -62,6 +64,9 @@ export default function ContactCardModal({ user, onClose, onSave, allSessions, m
   const [saveMsg, setSaveMsg] = useState('');
   const [dialerLead, setDialerLead] = useState(null);
   const [showDialerLocal, setShowDialerLocal] = useState(false);
+
+  // dialer hook initialized below after handleCallLogged
+
   const [showZoom, setShowZoom] = useState(false);
   const [sendingEmail, setSendingEmail] = useState(false);
   const [emailMsg, setEmailMsg] = useState('');
@@ -157,7 +162,11 @@ export default function ContactCardModal({ user, onClose, onSave, allSessions, m
       await ContactNoteDB.create({ investorId: user.id, investorEmail: user.email, type: 'call', content: `Outbound call via Twilio dialer`, createdBy: 'admin' });
       setNotes(await ContactNoteDB.listForInvestor(user.id));
     } catch {}
-  };
+  }
+
+  // ── Inline dialer ───────────────────────────────────────────────────
+  const dialer = useInlineDialer({ onCallLogged: handleCallLogged });
+;
 
   const sendEmail = async () => {
     if (!editUser.email) { setEmailMsg('No email address on file.'); return; }
@@ -203,9 +212,7 @@ export default function ContactCardModal({ user, onClose, onSave, allSessions, m
 
   return (
     <>
-    {showDialerLocal && (
-      <TwilioDialer initialLead={dialerLead} onClose={() => { setShowDialerLocal(false); setDialerLead(null); }} onCallLogged={handleCallLogged} />
-    )}
+{/* TwilioDialer replaced by InlineCallBar below */}
     {showZoom && (
       <ZoomBookingModal isOpen={showZoom} onClose={() => setShowZoom(false)} buttonLabel="Book Zoom Call" zoomUrl="https://scheduler.zoom.us/stephani-sterling" />
     )}
@@ -252,10 +259,14 @@ export default function ContactCardModal({ user, onClose, onSave, allSessions, m
               📅 Zoom
             </button>
             {user.phone && (
-              <button onClick={() => { setDialerLead({ firstName:user.name, lastName:'', phone:user.phone, id:user.id }); setShowDialerLocal(true); }}
-                style={{ background:'rgba(74,222,128,0.12)', color:'#4ade80', border:'1px solid rgba(74,222,128,0.3)', borderRadius:'2px', padding:'5px 8px', cursor:'pointer', fontSize:'10px', fontWeight:'bold', whiteSpace:'nowrap' }}>
-                📞 {user.phone}
-              </button>
+              <div style={{ width: '100%', marginTop: '4px' }}>
+                <InlineCallBar
+                  phone={user.phone}
+                  name={user.name || ''}
+                  dialer={dialer}
+                  onLogCall={() => dialer.logInvestorCall(user.id, user.email)}
+                />
+              </div>
             )}
             <button onClick={onClose} style={{ background:'rgba(255,255,255,0.05)', border:'1px solid rgba(255,255,255,0.1)', color:'#6b7280', cursor:'pointer', fontSize:'18px', width:'30px', height:'30px', borderRadius:'4px', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>×</button>
           </div>
