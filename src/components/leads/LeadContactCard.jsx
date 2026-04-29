@@ -806,15 +806,7 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
                 <div style={{ color:'#6b7280', fontSize:'11px', marginTop:'4px', display:'flex', gap:'8px', flexWrap:'wrap', alignItems:'center' }}>
                   {lead.email && <span>{lead.email}</span>}
                   {lead.state && <span style={{ color:GOLD }}>{lead.state}</span>}
-                  {editLead.badgeIntroEmailOpened && (
-                    <span style={{ background:'rgba(74,222,128,0.1)', border:'1px solid rgba(74,222,128,0.25)', borderRadius:'10px', padding:'1px 8px', color:'#4ade80', fontSize:'10px', whiteSpace:'nowrap' }}>🌟 Intro Opened <span style={{ fontSize:'8px' }}>✅</span></span>
-                  )}
-                  {editLead.badgeConsumerWebsite && (
-                    <span style={{ background:'rgba(96,165,250,0.1)', border:'1px solid rgba(96,165,250,0.25)', borderRadius:'10px', padding:'1px 8px', color:'#60a5fa', fontSize:'10px', whiteSpace:'nowrap' }}>🛒 Consumer Page Visited <span style={{ fontSize:'8px' }}>✅</span></span>
-                  )}
-                  {editLead.badgeInvestorPage && (
-                    <span style={{ background:'rgba(74,222,128,0.1)', border:'1px solid rgba(74,222,128,0.25)', borderRadius:'10px', padding:'1px 8px', color:'#4ade80', fontSize:'10px', whiteSpace:'nowrap' }}>📈 Investor Page Visited <span style={{ fontSize:'8px' }}>✅</span></span>
-                  )}
+
                 </div>
               </div>
             </div>
@@ -846,59 +838,79 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
             />
           )}
 
-          {/* Row 3: Action buttons — centered */}
-          <div style={{ display:'flex', gap:'8px', flexWrap:'wrap', alignItems:'center', justifyContent:'center', marginTop:'10px' }}>
-            {isDialerPaused && (<>
-              <button onClick={() => dialerRef.current?.hangupActiveCall?.()}
-                style={{ background:'rgba(239,68,68,0.15)', color:'#ef4444', border:'1px solid rgba(239,68,68,0.4)', borderRadius:'4px', padding:'6px 12px', cursor:'pointer', fontSize:'11px', fontWeight:'bold' }}>
-                📵 Hang Up
-              </button>
-              <button onClick={() => { dialerRef.current?.hangupActiveCall?.(); onNextLead?.(); }}
-                style={{ background:'rgba(59,130,246,0.12)', color:'#60a5fa', border:'1px solid rgba(59,130,246,0.3)', borderRadius:'4px', padding:'6px 12px', cursor:'pointer', fontSize:'11px', fontWeight:'bold' }}>
-                📵 Next
-              </button>
-              <button onClick={async () => { await saveProfile?.(); dialerRef.current?.hangupActiveCall?.(); onResume?.(); }}
-                style={{ background:'linear-gradient(135deg,#22c55e,#16a34a)', color:'#fff', border:'none', borderRadius:'4px', padding:'6px 14px', cursor:'pointer', fontSize:'11px', fontWeight:'bold' }}>
-                ▶ Resume & Save
-              </button>
-              <div style={{ width:'1px', height:'20px', background:'rgba(255,255,255,0.1)' }} />
-            </>)}
-            {!isArchived && (
-              <button onClick={sendEmail} disabled={sendingEmail || !editLead.email}
-                title="Sends investor site access code + consumer ref URL (template 7949342)"
-                style={{ background:'rgba(96,165,250,0.12)', color: editLead.email ? '#60a5fa' : '#4a5568', border:'1px solid rgba(96,165,250,0.25)', borderRadius:'4px', padding:'6px 12px', cursor: editLead.email ? 'pointer' : 'not-allowed', fontSize:'11px', fontWeight:'bold', opacity: editLead.email ? 1 : 0.4, whiteSpace:'nowrap' }}>
-                {sendingEmail ? '⏳ Sending…' : '💼 Investor Site Access'}
-              </button>
-            )}
-            {!isArchived && (
-              <button onClick={sendPortalEmail} disabled={sendingPortalEmail || !editLead.email}
-                title="Sends portal username + password (template 7951003)"
-                style={{ background:'rgba(167,139,250,0.12)', color: editLead.email ? '#a78bfa' : '#4a5568', border:'1px solid rgba(167,139,250,0.25)', borderRadius:'4px', padding:'6px 12px', cursor: editLead.email ? 'pointer' : 'not-allowed', fontSize:'11px', fontWeight:'bold', opacity: editLead.email ? 1 : 0.4, whiteSpace:'nowrap' }}>
-                {sendingPortalEmail ? '⏳ Sending…' : '🔐 Portal Access'}
-              </button>
-            )}
-            {(emailMsg || portalEmailMsg) && <span style={{ fontSize:'10px', color: (emailMsg||portalEmailMsg).startsWith('Error') ? '#ef4444' : '#4ade80' }}>{emailMsg || portalEmailMsg}</span>}
-            {!isArchived && (
-              <button onClick={() => setShowZoom(true)}
-                style={{ background:'rgba(255,255,255,0.05)', color:'#c4cdd8', border:'1px solid rgba(255,255,255,0.1)', borderRadius:'4px', padding:'6px 12px', cursor:'pointer', fontSize:'11px' }}>
-                📅 Book Call
-              </button>
-            )}
-            {!isArchived && (
-              <button onClick={() => setShowMigrate(true)}
-                style={{ background:'linear-gradient(135deg,#7c3aed,#a855f7)', color:'#fff', border:'none', borderRadius:'4px', padding:'6px 14px', cursor:'pointer', fontSize:'11px', fontWeight:'bold' }}>
-                🚀 Migrate
-              </button>
-            )}
+          {/* Row 3: two columns — action buttons left, badges right */}
+          <div style={{ display:'flex', alignItems:'center', marginTop:'10px', gap:'8px' }}>
+            {/* Left: action buttons */}
+            <div style={{ display:'flex', gap:'8px', flexWrap:'wrap', alignItems:'center' }}>
+              {isDialerPaused && (<>
+                <button onClick={() => dialerRef.current?.hangupActiveCall?.()}
+                  style={{ background:'rgba(239,68,68,0.15)', color:'#ef4444', border:'1px solid rgba(239,68,68,0.4)', borderRadius:'4px', padding:'6px 12px', cursor:'pointer', fontSize:'11px', fontWeight:'bold' }}>
+                  📵 Hang Up
+                </button>
+                <button onClick={() => { dialerRef.current?.hangupActiveCall?.(); onNextLead?.(); }}
+                  style={{ background:'rgba(59,130,246,0.12)', color:'#60a5fa', border:'1px solid rgba(59,130,246,0.3)', borderRadius:'4px', padding:'6px 12px', cursor:'pointer', fontSize:'11px', fontWeight:'bold' }}>
+                  📵 Next
+                </button>
+                <button onClick={async () => { await saveProfile?.(); dialerRef.current?.hangupActiveCall?.(); onResume?.(); }}
+                  style={{ background:'linear-gradient(135deg,#22c55e,#16a34a)', color:'#fff', border:'none', borderRadius:'4px', padding:'6px 14px', cursor:'pointer', fontSize:'11px', fontWeight:'bold' }}>
+                  ▶ Resume & Save
+                </button>
+              </>)}
+              {!isArchived && (
+                <button onClick={sendEmail} disabled={sendingEmail || !editLead.email}
+                  title="Sends investor site access code + consumer ref URL (template 7949342)"
+                  style={{ background:'rgba(96,165,250,0.12)', color: editLead.email ? '#60a5fa' : '#4a5568', border:'1px solid rgba(96,165,250,0.25)', borderRadius:'4px', padding:'6px 12px', cursor: editLead.email ? 'pointer' : 'not-allowed', fontSize:'11px', fontWeight:'bold', opacity: editLead.email ? 1 : 0.4, whiteSpace:'nowrap' }}>
+                  {sendingEmail ? '⏳ Sending…' : '💼 Investor Site Access'}
+                </button>
+              )}
+              {!isArchived && (
+                <button onClick={sendPortalEmail} disabled={sendingPortalEmail || !editLead.email}
+                  title="Sends portal username + password (template 7951003)"
+                  style={{ background:'rgba(167,139,250,0.12)', color: editLead.email ? '#a78bfa' : '#4a5568', border:'1px solid rgba(167,139,250,0.25)', borderRadius:'4px', padding:'6px 12px', cursor: editLead.email ? 'pointer' : 'not-allowed', fontSize:'11px', fontWeight:'bold', opacity: editLead.email ? 1 : 0.4, whiteSpace:'nowrap' }}>
+                  {sendingPortalEmail ? '⏳ Sending…' : '🔐 Portal Access'}
+                </button>
+              )}
+              {!isArchived && (
+                <button onClick={() => setShowZoom(true)}
+                  style={{ background:'rgba(255,255,255,0.05)', color:'#c4cdd8', border:'1px solid rgba(255,255,255,0.1)', borderRadius:'4px', padding:'6px 12px', cursor:'pointer', fontSize:'11px' }}>
+                  📅 Book Call
+                </button>
+              )}
+              {!isArchived && (
+                <button onClick={() => setShowMigrate(true)}
+                  style={{ background:'linear-gradient(135deg,#7c3aed,#a855f7)', color:'#fff', border:'none', borderRadius:'4px', padding:'6px 14px', cursor:'pointer', fontSize:'11px', fontWeight:'bold' }}>
+                  🚀 Migrate
+                </button>
+              )}
+              {(emailMsg || portalEmailMsg) && <span style={{ fontSize:'10px', color: (emailMsg||portalEmailMsg).startsWith('Error') ? '#ef4444' : '#4ade80' }}>{emailMsg || portalEmailMsg}</span>}
+            </div>
           </div>
         </div>
 
-        {/* Tabs */}
+        {/* Tabs row + activity badges on the right */}
         <div style={{ display:'flex', borderBottom:'1px solid rgba(255,255,255,0.07)', flexShrink:0, alignItems:'center' }}>
           {[['overview','Overview'],['history','History'],['actions','Actions'],['access','Site Access'],['sitestats','Site Stats'],['research','Research'],['script','Script & AI']].filter(([id]) => !(isArchived && id === 'actions')).map(([id,label]) => (
             <button key={id} onClick={() => setTab(id)} style={{ background:'none', border:'none', borderBottom:tab===id?`2px solid ${GOLD}`:'2px solid transparent', color:tab===id?GOLD:'#6b7280', padding:'10px 16px', cursor:'pointer', fontSize:'11px', letterSpacing:'0.5px', whiteSpace:'nowrap' }}>{label}</button>
           ))}
           <div style={{ flex:1 }} />
+          {/* Activity badges — right of tabs, same blue scheme */}
+          <div style={{ display:'flex', gap:'6px', alignItems:'center', paddingRight:'12px' }}>
+            {editLead.badgeIntroEmailOpened && (
+              <span style={{ background:'rgba(96,165,250,0.1)', border:'1px solid rgba(96,165,250,0.25)', borderRadius:'10px', padding:'2px 9px', color:'#60a5fa', fontSize:'10px', whiteSpace:'nowrap' }}>
+                🌟 Intro Opened <span style={{ fontSize:'8px' }}>✅</span>
+              </span>
+            )}
+            {editLead.badgeConsumerWebsite && (
+              <span style={{ background:'rgba(96,165,250,0.1)', border:'1px solid rgba(96,165,250,0.25)', borderRadius:'10px', padding:'2px 9px', color:'#60a5fa', fontSize:'10px', whiteSpace:'nowrap' }}>
+                🛒 Consumer Page Visited <span style={{ fontSize:'8px' }}>✅</span>
+              </span>
+            )}
+            {editLead.badgeInvestorPage && (
+              <span style={{ background:'rgba(96,165,250,0.1)', border:'1px solid rgba(96,165,250,0.25)', borderRadius:'10px', padding:'2px 9px', color:'#60a5fa', fontSize:'10px', whiteSpace:'nowrap' }}>
+                📈 Investor Page Visited <span style={{ fontSize:'8px' }}>✅</span>
+              </span>
+            )}
+          </div>
         </div>
 
         {/* Body */}
