@@ -8,6 +8,8 @@ import ResearchTab from './ResearchTab';
 import InvestorWebsiteTab from './InvestorWebsiteTab';
 import WebsiteHistoryTab from './WebsiteHistoryTab';
 import ZoomBookingModal from '@/components/ZoomBookingModal';
+import { useInlineDialer } from '@/hooks/useInlineDialer';
+import InlineCallBar from '@/components/shared/InlineCallBar';
 
 const GOLD = '#b8933a';
 const DARK = '#0a0f1e';
@@ -262,7 +264,7 @@ function OverviewTab({ editLead, setEditLead, saving, saveMsg, saveProfile, upda
                   <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', gap:'8px' }}>
                     <span style={{ color, fontSize:'10px', textTransform:'uppercase', letterSpacing:'1px' }}>{h.type.replace(/_/g,' ')}</span>
                     <span style={{ color:'#4a5568', fontSize:'10px', whiteSpace:'nowrap' }}>
-                      {h.created_date ? new Date(h.created_date).toLocaleString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit',second:'2-digit',timeZone:'America/New_York',timeZoneName:'short'}) : ''}
+                      {h.created_date ? new Date(h.created_date).toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}) : ''}
                     </span>
                   </div>
                   {h.content && <div style={{ color:'#c4cdd8', fontSize:'12px', marginTop:'2px', lineHeight:1.5, whiteSpace:'pre-wrap' }}>{h.content}</div>}
@@ -393,7 +395,7 @@ function LeadHistoryTab({ lead, history, onNoteAdded }) {
   const [loadingEmails, setLoadingEmails] = useState(false);
   const GOLD = '#b8933a';
 
-  const fmtDT = (iso) => iso ? new Date(iso).toLocaleString('en-US', { month:'short', day:'numeric', year:'numeric', hour:'numeric', minute:'2-digit', second:'2-digit', timeZone:'America/New_York', timeZoneName:'short' }) : '';
+  const fmtDT = (iso) => iso ? new Date(iso).toLocaleString('en-US', { month:'short', day:'numeric', year:'numeric', hour:'numeric', minute:'2-digit' }) : '';
   const fmtDur = (s) => !s ? '' : s < 60 ? `${s}s` : `${Math.floor(s/60)}m ${s%60}s`;
 
   useEffect(() => {
@@ -616,6 +618,9 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
   const [addingNote, setAddingNote] = useState(false);
   const [showZoom, setShowZoom] = useState(false);
 
+  // ── Inline dialer ─────────────────────────────────────────────────────
+  const dialer = useInlineDialer({ onCallStream: (s) => { /* forwarded via prop if needed */ } });
+
   useEffect(() => { loadHistory(); }, [lead.id]);
 
   const loadHistory = async () => {
@@ -821,35 +826,23 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
             </div>
           </div>
 
-          {/* Row 2: Action buttons */}
-          <div style={{ display:'flex', gap:'6px', flexWrap:'wrap', alignItems:'center' }}>
-            {/* Dialer controls when on a call */}
-            {isDialerPaused ? (
-              <>
-                <button onClick={() => dialerRef.current?.hangupActiveCall?.()}
-                  style={{ background:'rgba(239,68,68,0.15)', color:'#ef4444', border:'1px solid rgba(239,68,68,0.4)', borderRadius:'4px', padding:'6px 12px', cursor:'pointer', fontSize:'11px', fontWeight:'bold' }}>
-                  📵 Hang Up
-                </button>
-                <button onClick={() => { dialerRef.current?.hangupActiveCall?.(); onNextLead?.(); }}
-                  style={{ background:'rgba(59,130,246,0.12)', color:'#60a5fa', border:'1px solid rgba(59,130,246,0.3)', borderRadius:'4px', padding:'6px 12px', cursor:'pointer', fontSize:'11px', fontWeight:'bold' }}>
-                  📵 Next
-                </button>
-                <button onClick={async () => { await saveProfile?.(); dialerRef.current?.hangupActiveCall?.(); onResume?.(); }}
-                  style={{ background:'linear-gradient(135deg,#22c55e,#16a34a)', color:'#fff', border:'none', borderRadius:'4px', padding:'6px 14px', cursor:'pointer', fontSize:'11px', fontWeight:'bold' }}>
-                  ▶ Resume & Save
-                </button>
-                <div style={{ width:'1px', height:'20px', background:'rgba(255,255,255,0.1)', margin:'0 2px' }} />
-              </>
-            ) : (
-              <>
-                {(lead.phone || editLead.phone) && !isArchived && (
-                  <button onClick={() => onDialNumber && onDialNumber(lead)}
-                    style={{ background:'rgba(74,222,128,0.15)', color:'#4ade80', border:'1px solid rgba(74,222,128,0.35)', borderRadius:'4px', padding:'6px 14px', cursor:'pointer', fontSize:'11px', fontWeight:'bold', display:'flex', alignItems:'center', gap:'5px' }}>
-                    📞 <span>{lead.phone || editLead.phone}</span>
-                  </button>
-                )}
-              </>
+          {/* Row 2: Inline Call Bar + action badges */}
+          <div style={{ display:'flex', flexDirection:'column', gap:'6px' }}>
+            {/* Inline dialer — direct dial */}
+            {(editLead.phone || lead.phone) && !isArchived && (
+              <InlineCallBar
+                phone={editLead.phone || lead.phone}
+                name={`${editLead.firstName || lead.firstName || ''} ${editLead.lastName || lead.lastName || ''}`.trim()}
+                dialer={dialer}
+                onLogCall={() => dialer.logLeadCall(lead.id).then(loadHistory)}
+                isPredictive={!!isDialerPaused}
+                isDialerPaused={!!isDialerPaused}
+                onPauseCampaign={() => dialerRef.current?.pauseDialer?.()}
+                onDisconnectNext={() => { dialerRef.current?.hangupActiveCall?.(); onNextLead?.(); }}
+                onSaveResume={async () => { await saveProfile(); dialerRef.current?.hangupActiveCall?.(); onResume?.(); }}
+              />
             )}
+          <div style={{ display:'flex', gap:'6px', flexWrap:'wrap', alignItems:'center' }}>
 
             {/* Activity badges — compact */}
             {editLead.badgeIntroEmailOpened && <span style={{ background:'rgba(74,222,128,0.12)', border:'1px solid rgba(74,222,128,0.3)', borderRadius:'12px', padding:'3px 8px', fontSize:'10px', color:'#4ade80' }}>🌟 Intro Opened</span>}
@@ -858,6 +851,9 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
             {editLead.badgeInvestorPage && <span style={{ background:'rgba(167,139,250,0.08)', border:'1px solid rgba(167,139,250,0.2)', borderRadius:'12px', padding:'3px 8px', fontSize:'10px', color:'#a78bfa' }}>💼 Investor Page</span>}
 
             <div style={{ flex:1 }} />
+
+          </div>{/* end badge row */}
+          </div>{/* end call bar + badge wrapper */}
 
             {/* Right-side actions */}
             {!isArchived && (
