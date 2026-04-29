@@ -9,6 +9,8 @@ export function useInlineDialer({ onCallStream, onCallLogged } = {}) {
   const [callStatus,  setCallStatus]  = useState('idle');
   const [duration,    setDuration]    = useState(0);
   const [muted,       setMuted]       = useState(false);
+  const [callerId,    setCallerId]    = useState('');
+  const [lines,       setLines]       = useState([]);
 
   const callRef      = useRef(null);
   const timerRef     = useRef(null);
@@ -34,6 +36,14 @@ export function useInlineDialer({ onCallStream, onCallLogged } = {}) {
     try { callRef.current?.disconnect(); } catch {}
   }, []);
 
+  useEffect(() => {
+    base44.functions.invoke('twilioGetLines', {}).then(res => {
+      const ls = res?.data?.lines || res?.lines || [];
+      setLines(ls);
+      if (ls.length > 0) setCallerId(ls[0].number);
+    }).catch(() => {});
+  }, []);
+
   const dial = useCallback(async (phone) => {
     if (!phone) return;
     setDialerError('');
@@ -45,7 +55,7 @@ export function useInlineDialer({ onCallStream, onCallLogged } = {}) {
       const device = await getDevice();
       const digits  = phone.replace(/\D/g, '');
       const e164    = digits.length === 10 ? `+1${digits}` : digits.length === 11 && digits.startsWith('1') ? `+${digits}` : phone;
-      const call    = await device.connect({ params: { To: e164 } });
+      const call    = await device.connect({ params: { To: e164, ...(callerId ? { CallerId: callerId } : {}) } });
       callRef.current = call;
 
       call.on('ringing',    () => setCallStatus('ringing'));
@@ -103,5 +113,5 @@ export function useInlineDialer({ onCallStream, onCallLogged } = {}) {
 
   const isActive = ['calling','ringing','connected'].includes(callStatus);
 
-  return { dialerError, callStatus, duration, muted, isActive, dial, hangup, toggleMute, sendDigit, reset, logLeadCall, logInvestorCall, fmt };
+  return { dialerError, callStatus, duration, muted, isActive, dial, hangup, toggleMute, sendDigit, reset, logLeadCall, logInvestorCall, fmt, callerId, setCallerId, lines };
 }
