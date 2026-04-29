@@ -64,7 +64,7 @@ function StatusBadge({ status }) {
 }
 
 // ─── GLOBAL CALENDAR VIEW ─────────────────────────────────────────────────
-function GlobalCalendar({ users = [], setContactCard, setView }) {
+function GlobalCalendar({ users = [], setContactCard, setView, setOpenLeadId }) {
   const [allAppts, setAllAppts] = useState([]);
   const [allLeads, setAllLeads] = useState([]);
   const [loading, setLoading]   = useState(true);
@@ -250,10 +250,9 @@ function GlobalCalendar({ users = [], setContactCard, setView }) {
                               .catch(() => {});
                           }
                         } else if (evt.type === 'lead') {
-                          // Open the lead contact card directly
-                          base44.entities.Lead.filter({ id: evt.id })
-                            .then(leads => { if (leads?.[0]) setContactCard(leads[0]); })
-                            .catch(() => {});
+                          // Switch to leads view and pass the lead ID to auto-open its card
+                          setOpenLeadId(evt.id);
+                          setView('leads');
                         }
                       }}
                       style={{
@@ -1275,6 +1274,7 @@ export default function AdminDashboard() {
   const [users, setUsers]         = useState([]);
   const [showAdd, setShowAdd]     = useState(false);
   const [contactCard, setContactCard] = useState(null);
+  const [openLeadId,  setOpenLeadId]  = useState(null);   // set by calendar to auto-open a lead card
   const [allSessions, setAllSessions] = useState([]);
   const [globalStats, setGlobalStats] = useState({ totalSessions:0, totalTime:0, totalDownloads:0, totalDocViews:0 });
   const [filterStatus, setFilterStatus] = useState('all');
@@ -1576,7 +1576,7 @@ export default function AdminDashboard() {
         )}
 
         {/* ── Calendar ── */}
-        {view === 'calendar' && <GlobalCalendar users={users} setContactCard={setContactCard} setView={handleViewChange} />}
+        {view === 'calendar' && <GlobalCalendar users={users} setContactCard={setContactCard} setView={handleViewChange} setOpenLeadId={setOpenLeadId} />}
 
         {/* ── Analytics ── */}
         {view === 'analytics' && (() => {
@@ -1683,7 +1683,7 @@ export default function AdminDashboard() {
           </div>
         )}
 
-        {view === 'leads'            && <LeadsTab />}
+        {view === 'leads'            && <LeadsTab openLeadId={openLeadId} onLeadOpened={() => setOpenLeadId(null)} />}
         {view === 'marketing'         && <MarketingTab />}
         {view === 'kb'               && <KnowledgeBaseManager />}
         {view === 'signnow'          && <SignNowRequestsView settings={portalSettings} />}
