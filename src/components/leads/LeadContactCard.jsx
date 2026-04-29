@@ -588,7 +588,7 @@ function LeadHistoryTab({ lead, history, onNoteAdded }) {
   );
 }
 
-export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber, dialerRef, onResume, isDialerPaused, onNextLead, onPrevLead, currentLeadIndex, totalLeads, dialerPanelOpen }) {
+export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber, dialerRef, onResume, isDialerPaused, onNextLead, onPrevLead, currentLeadIndex, totalLeads, dialerPanelOpen, twilioStream }) {
   // Archived = migrated to CRM — card is read-only
   const isArchived = !!(lead.migratedToPortal || lead.convertedToInvestorUserId || lead.status === 'converted');
   const [cardExpanded, setCardExpanded] = useState(false);
@@ -937,7 +937,7 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
           )}
 
           {tab === 'script' && (
-            <ScriptAssistant lead={editLead} onExpandCard={() => setCardExpanded(e => !e)} isCardExpanded={cardExpanded} />
+            <ScriptAssistant lead={editLead} onExpandCard={() => setCardExpanded(e => !e)} isCardExpanded={cardExpanded} twilioStream={twilioStream} />
           )}
 
           {/* ── ACTIONS ── */}
