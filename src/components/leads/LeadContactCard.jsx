@@ -802,14 +802,23 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
                 <div>{editLead.engagementScore || 0}</div>
               </div>
               <div>
-                <div style={{ display:'flex', alignItems:'center', gap:'10px', flexWrap:'wrap' }}>
+                <div style={{ display:'flex', alignItems:'center', gap:'8px', flexWrap:'wrap' }}>
                   <span style={{ color:'#e8e0d0', fontSize:'18px', fontFamily:'Georgia,serif', fontWeight:'normal' }}>{fullName}</span>
-                  <span style={{ background:`${statusInfo.color}20`, color:statusInfo.color, border:`1px solid ${statusInfo.color}55`, borderRadius:'12px', padding:'2px 10px', fontSize:'10px', letterSpacing:'1px', textTransform:'uppercase' }}>{statusInfo.label}</span>
-                  {/* Lead type badges */}
-                  {(!editLead.status || editLead.status === 'lead') && <span style={{ background:'rgba(96,165,250,0.12)', color:'#60a5fa', border:'1px solid rgba(96,165,250,0.3)', borderRadius:'12px', padding:'2px 9px', fontSize:'10px' }}>🔵 Lead</span>}
-                  {editLead.status === 'prospect' && <span style={{ background:'rgba(167,139,250,0.12)', color:'#a78bfa', border:'1px solid rgba(167,139,250,0.3)', borderRadius:'12px', padding:'2px 9px', fontSize:'10px' }}>🚀 Prospect</span>}
-                  {editLead.status === 'intro_email_sent' && <span style={{ background:'rgba(96,165,250,0.12)', color:'#60a5fa', border:'1px solid rgba(96,165,250,0.3)', borderRadius:'12px', padding:'2px 9px', fontSize:'10px' }}>📧 Intro Email Sent</span>}
-                  {editLead.status === 'opened_intro_email' && <span style={{ background:'rgba(74,222,128,0.12)', color:'#4ade80', border:'1px solid rgba(74,222,128,0.3)', borderRadius:'12px', padding:'2px 9px', fontSize:'10px' }}>📬 Opened Intro Email</span>}
+                  {/* 4 clickable lead type buttons */}
+                  {[
+                    { s:'lead',               label:'🔵 Lead',              color:'#60a5fa', bg:'rgba(96,165,250,0.12)',  border:'rgba(96,165,250,0.35)'  },
+                    { s:'prospect',           label:'🚀 Prospect',           color:'#a78bfa', bg:'rgba(167,139,250,0.12)', border:'rgba(167,139,250,0.35)' },
+                    { s:'intro_email_sent',   label:'📧 Intro Email Sent',   color:'#f59e0b', bg:'rgba(245,158,11,0.12)',  border:'rgba(245,158,11,0.35)'  },
+                    { s:'opened_intro_email', label:'📬 Opened Intro Email', color:'#4ade80', bg:'rgba(74,222,128,0.12)',  border:'rgba(74,222,128,0.35)'  },
+                  ].map(({ s, label, color, bg, border }) => {
+                    const active = (editLead.status || 'lead') === s;
+                    return (
+                      <button key={s} onClick={() => !isArchived && updateStatus(s, 'status_change', `Status changed to ${s}`)}
+                        style={{ background: active ? bg : 'transparent', color: active ? color : '#4a5568', border: `1px solid ${active ? border : 'rgba(255,255,255,0.08)'}`, borderRadius:'12px', padding:'2px 10px', fontSize:'10px', cursor: isArchived ? 'default' : 'pointer', fontWeight: active ? 'bold' : 'normal', transition:'all 0.15s' }}>
+                        {label}
+                      </button>
+                    );
+                  })}
                 </div>
                 <div style={{ color:'#6b7280', fontSize:'11px', marginTop:'3px', display:'flex', gap:'12px', flexWrap:'wrap' }}>
                   {lead.email && <span>{lead.email}</span>}
@@ -818,6 +827,12 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
               </div>
             </div>
             <div style={{ display:'flex', gap:'6px', alignItems:'center', flexShrink:0 }}>
+              {/* Activity badges — top right */}
+              <div style={{ display:'flex', gap:'6px', alignItems:'center' }}>
+                {editLead.badgeIntroEmailOpened && <span style={{ color:'#4ade80', fontSize:'11px', whiteSpace:'nowrap' }}>🌟 Intro Opened <span style={{ fontSize:'9px' }}>✅</span></span>}
+                {editLead.badgeConsumerWebsite && <span style={{ color:'#60a5fa', fontSize:'11px', whiteSpace:'nowrap' }}>🛒 Consumer Page Visited <span style={{ fontSize:'9px' }}>✅</span></span>}
+                {editLead.badgeInvestorPage && <span style={{ color:'#4ade80', fontSize:'11px', whiteSpace:'nowrap' }}>📈 Investor Page Visited <span style={{ fontSize:'9px' }}>✅</span></span>}
+              </div>
               {/* Nav arrows */}
               {totalLeads > 1 && (
                 <div style={{ display:'flex', alignItems:'center', gap:'2px' }}>
@@ -905,12 +920,6 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
             <button key={id} onClick={() => setTab(id)} style={{ background:'none', border:'none', borderBottom:tab===id?`2px solid ${GOLD}`:'2px solid transparent', color:tab===id?GOLD:'#6b7280', padding:'10px 16px', cursor:'pointer', fontSize:'11px', letterSpacing:'0.5px', whiteSpace:'nowrap' }}>{label}</button>
           ))}
           <div style={{ flex:1 }} />
-          <div style={{ display:'flex', gap:'5px', alignItems:'center', paddingRight:'12px' }}>
-            {editLead.badgeIntroEmailOpened && <span style={{ background:'rgba(74,222,128,0.12)', border:'1px solid rgba(74,222,128,0.3)', borderRadius:'12px', padding:'2px 8px', fontSize:'10px', color:'#4ade80', whiteSpace:'nowrap' }}>🌟 Intro Opened</span>}
-            {editLead.badgeEmailOpened && !editLead.badgeIntroEmailOpened && <span style={{ background:'rgba(74,222,128,0.08)', border:'1px solid rgba(74,222,128,0.2)', borderRadius:'12px', padding:'2px 8px', fontSize:'10px', color:'#4ade80', whiteSpace:'nowrap' }}>📬 Email Opened</span>}
-            {editLead.badgeConsumerWebsite && <span style={{ background:'rgba(96,165,250,0.08)', border:'1px solid rgba(96,165,250,0.2)', borderRadius:'12px', padding:'2px 8px', fontSize:'10px', color:'#60a5fa', whiteSpace:'nowrap' }}>✅ 🛒 Consumer Page Visited</span>}
-            {editLead.badgeInvestorPage && <span style={{ background:'rgba(74,222,128,0.08)', border:'1px solid rgba(74,222,128,0.25)', borderRadius:'12px', padding:'2px 8px', fontSize:'10px', color:'#4ade80', whiteSpace:'nowrap' }}>✅ 📈 Investor Page Visited</span>}
-          </div>
         </div>
 
         {/* Body */}
