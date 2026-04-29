@@ -1049,7 +1049,6 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
           )}
         </div>
       </div>
-    </div>
     </>
   );
 }
