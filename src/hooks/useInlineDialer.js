@@ -93,7 +93,16 @@ export function useInlineDialer({ onCallStream, onCallLogged } = {}) {
         } catch {}
       });
 
-      await device.register();
+      // Wait for the device to fully register before resolving.
+      // Previously we set deviceRef right after register() returned, but
+      // 'registered' fires asynchronously — calling connect() before that
+      // causes Twilio error 31002 "request cannot be processed".
+      await new Promise((resolve, reject) => {
+        const onRegistered = () => { device.off('error', onError); resolve(); };
+        const onError      = (e)  => { device.off('registered', onRegistered); reject(e); };
+        device.once('registered', onRegistered);
+        device.once('error',      onError);
+      });
       deviceRef.current = device;
     } catch (e) {
       setDialerError(`Init failed: ${e.message}`);
