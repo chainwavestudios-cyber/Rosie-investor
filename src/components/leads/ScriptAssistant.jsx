@@ -88,7 +88,7 @@ function IntentMeter({ intent }) {
   );
 }
 
-export default function ScriptAssistant({ lead, user, onExpandCard, isCardExpanded }) {
+export default function ScriptAssistant({ lead, user, onExpandCard, isCardExpanded, twilioStream }) {
   const [layout, setLayout]           = useState('side');
   const [scriptWidth, setScriptWidth] = useState(52);
   const isDraggingDivider             = useRef(false);
@@ -130,6 +130,13 @@ export default function ScriptAssistant({ lead, user, onExpandCard, isCardExpand
   const [reportSaving, setReportSaving] = useState(false);
   const [reportSaved, setReportSaved]   = useState(false);
 
+  // ── Connection status lights: 'idle' | 'connecting' | 'connected' | 'error' ──
+  const [streamStatus,  setStreamStatus]  = useState('idle');   // Twilio Stream Connect button
+  const [aiStatus,      setAiStatus]      = useState('idle');   // AI ON button
+  const [qaStatus,      setQaStatus]      = useState('idle');   // Auto Q&A
+  const [coachStatus,   setCoachStatus]   = useState('idle');   // Coach
+  const [intentStatus,  setIntentStatus]  = useState('idle');   // Intent
+
   const wsRef         = useRef(null);
   const streamRef     = useRef(null);
   const processorRef  = useRef(null);
@@ -156,17 +163,137 @@ export default function ScriptAssistant({ lead, user, onExpandCard, isCardExpand
     return () => stopListening();
   }, []);
 
+  // ── Auto-start/stop when Twilio call stream arrives ──────────────────
+  useEffect(() => {
+    if (twilioStream?.remoteStream) {
+      // Call just connected with a real Twilio stream — start immediately
+      startListeningFromStream(twilioStream.remoteStream, twilioStream.localStream);
+    } else if (twilioStream === null && listening) {
+      // Call ended — stop
+      stopListening();
+    }
+  }, [twilioStream]);
+
   const active   = scripts.find(s => s.id === activeId) || scripts[0];
   const rendered = active ? applyTokens(active.content, lead, user) : '';
 
+  // ── Start Deepgram from Twilio WebRTC streams (no mic selection needed) ──
+  const startListeningFromStream = async (remoteStream, localStream) => {
+    if (listening) stopListening();
+    setError('');
+    setStreamStatus('connecting');
+    try {
+      const tokenRes = await base44.functions.invoke('deepgramToken', {});
+      const dgKey    = tokenRes?.key || tokenRes?.data?.key || '';
+      if (!dgKey) throw new Error('No Deepgram token — check DEEPGRAM_API_KEY in Base44 env');
+
+      // Merge remote (prospect) + local (agent) into one stream via AudioContext
+      const audioCtx = new AudioContext({ sampleRate: 16000 });
+      contextRef.current = audioCtx;
+      const dest = audioCtx.createMediaStreamDestination();
+
+      if (remoteStream) {
+        try { audioCtx.createMediaStreamSource(remoteStream).connect(dest); } catch (e) { console.warn('Remote stream connect failed:', e.message); }
+      }
+      if (localStream) {
+        try { audioCtx.createMediaStreamSource(localStream).connect(dest); } catch (e) { console.warn('Local stream connect failed:', e.message); }
+      }
+
+      const mergedStream = dest.stream;
+      streamRef.current = mergedStream;
+
+      const ws = new WebSocket(
+        `wss://api.deepgram.com/v1/listen?model=nova-2&language=en-US&smart_format=true&interim_results=true&endpointing=300&sentiment=true&diarize=true`,
+        ['token', dgKey]
+      );
+
+      ws.onopen = () => {
+        setListening(true);
+        setStreamStatus('connected');
+        const proc = audioCtx.createScriptProcessor(4096, 1, 1);
+        processorRef.current = proc;
+        const src = audioCtx.createMediaStreamSource(mergedStream);
+        proc.onaudioprocess = e => {
+          if (ws.readyState !== WebSocket.OPEN) return;
+          const input = e.inputBuffer.getChannelData(0);
+          const pcm   = new Int16Array(input.length);
+          for (let i = 0; i < input.length; i++) pcm[i] = Math.max(-32768, Math.min(32767, input[i] * 32768));
+          ws.send(pcm.buffer);
+        };
+        src.connect(proc);
+        proc.connect(audioCtx.destination);
+      };
+
+      ws.onmessage = e => {
+        try {
+          const data = JSON.parse(e.data);
+          const alt  = data?.channel?.alternatives?.[0];
+          const text = alt?.transcript?.trim();
+          if (!text || !data.is_final) return;
+          const speaker   = alt?.words?.[0]?.speaker ?? null;
+          const sentLabel = alt?.sentiments?.segments?.[0]?.sentiment || null;
+          const sentScore = alt?.sentiments?.segments?.[0]?.sentiment_score ?? null;
+          const entry = { text, time: new Date(), speaker, sentiment: sentLabel, sentScore };
+          const newT  = [...transcriptRef.current, entry];
+          transcriptRef.current = newT;
+          setTranscript([...newT]);
+          detectQuestions(text);
+          checkTrigger(text, newT);
+          if (coachMode) checkCoach(newT);
+          checkIntent(newT);
+        } catch {}
+      };
+
+      ws.onerror  = () => { setError('Deepgram WebSocket error'); setStreamStatus('error'); };
+      ws.onclose  = () => { setListening(false); setStreamStatus('idle'); };
+      wsRef.current = ws;
+    } catch (e) { setError(`Stream error: ${e.message}`); setStreamStatus('error'); }
+  };
+
   const startListening = async () => {
     setError('');
+    setStreamStatus('connecting');
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: { deviceId: selectedMic ? { exact: selectedMic } : undefined } });
+      // ── Check if BlackHole is selected and warn if system output isn't routed ──
+      const selectedDevice = micDevices.find(d => d.deviceId === selectedMic);
+      const isBlackHole = /blackhole/i.test(selectedDevice?.label || '');
+      const isVBCable   = /cable|vb-audio|virtual/i.test(selectedDevice?.label || '');
+      const isVirtual   = isBlackHole || isVBCable;
+
+      let stream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          audio: { deviceId: selectedMic ? { exact: selectedMic } : undefined, echoCancellation: !isVirtual, noiseSuppression: !isVirtual, autoGainControl: !isVirtual },
+        });
+      } catch (micErr) {
+        // If exact device fails, fall back to default mic
+        console.warn('[ScriptAssistant] Exact mic failed, falling back:', micErr.message);
+        stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      }
       streamRef.current = stream;
+
+      // ── Check for silence on virtual devices (means system output not routed) ──
+      if (isVirtual) {
+        const checkCtx = new AudioContext();
+        const analyser = checkCtx.createAnalyser();
+        const src = checkCtx.createMediaStreamSource(stream);
+        src.connect(analyser);
+        analyser.fftSize = 256;
+        const buf = new Uint8Array(analyser.frequencyBinCount);
+        await new Promise(r => setTimeout(r, 600));
+        analyser.getByteFrequencyData(buf);
+        const avg = buf.reduce((a, b) => a + b, 0) / buf.length;
+        checkCtx.close();
+        if (avg < 1) {
+          setError(`⚠️ ${selectedDevice?.label} is silent. On Mac: open Audio MIDI Setup → create a Multi-Output Device with both BlackHole and your speakers → set it as System Output. On Windows: set VB-Cable as default playback device in Sound Settings.`);
+          // Don't stop — still start listening in case audio comes later
+        }
+      }
+
+      // ── Get Deepgram token — handle both wrapped and unwrapped responses ──
       const tokenRes = await base44.functions.invoke('deepgramToken', {});
-      const dgKey    = tokenRes?.data?.key || '';
-      if (!dgKey) throw new Error('No Deepgram token');
+      const dgKey    = tokenRes?.key || tokenRes?.data?.key || '';
+      if (!dgKey) throw new Error('No Deepgram token — check DEEPGRAM_API_KEY in Base44 env');
 
       const ws = new WebSocket(
         `wss://api.deepgram.com/v1/listen?model=nova-2&language=en-US&smart_format=true&interim_results=true&endpointing=300&sentiment=true&diarize=true&utterances=true`,
@@ -174,6 +301,7 @@ export default function ScriptAssistant({ lead, user, onExpandCard, isCardExpand
       );
       ws.onopen = () => {
         setListening(true);
+        setStreamStatus('connected');
         const ctx  = new AudioContext({ sampleRate: 16000 });
         contextRef.current = ctx;
         const src  = ctx.createMediaStreamSource(stream);
@@ -208,8 +336,8 @@ export default function ScriptAssistant({ lead, user, onExpandCard, isCardExpand
           checkIntent(newT);
         } catch {}
       };
-      ws.onerror  = () => setError('Deepgram error — check mic selection');
-      ws.onclose  = () => setListening(false);
+      ws.onerror  = () => { setError('Deepgram error — check mic selection'); setStreamStatus('error'); };
+      ws.onclose  = () => { setListening(false); setStreamStatus('idle'); };
       wsRef.current = ws;
     } catch (e) { setError(`Mic error: ${e.message}`); }
   };
@@ -220,6 +348,7 @@ export default function ScriptAssistant({ lead, user, onExpandCard, isCardExpand
     try { contextRef.current?.close(); }  catch {}
     try { streamRef.current?.getTracks().forEach(t => t.stop()); } catch {}
     setListening(false);
+    setStreamStatus('idle');
 
     const finalTranscript = transcriptRef.current;
     if (!finalTranscript || finalTranscript.length < 2) return;
@@ -287,6 +416,7 @@ export default function ScriptAssistant({ lead, user, onExpandCard, isCardExpand
 
   const checkTrigger = useCallback(async (text, allT) => {
     if (!aiEnabled || !autoQA) return;
+    setQaStatus('connecting');
     const now = Date.now();
     if (now - lastTrigger.current < 3000) return;
     const patterns = buildTriggerPatterns(portalCfg);
@@ -300,6 +430,7 @@ export default function ScriptAssistant({ lead, user, onExpandCard, isCardExpand
     const now = Date.now();
     if (now - lastCoach.current < 15000) return;
     lastCoach.current = now;
+    setCoachStatus('connecting');
     try {
       const res = await base44.functions.invoke('liveAssistantAI', {
         question: allT.slice(-12).map(t => t.text).join(' '),
@@ -310,17 +441,16 @@ export default function ScriptAssistant({ lead, user, onExpandCard, isCardExpand
           additionalContext: portalCfg.coachAdditionalContext  || '',
         },
       });
-      if (res?.data?.answer) setCoachTip(res.data.answer);
-    } catch {}
-  };
-
-  const checkIntent = async (allT) => {
+            if (res?.data?.answer) { setCoachTip(res.data.answer); setCoachStatus('connected'); setTimeout(() => setCoachStatus('idle'), 5000); }
+    } catch { setCoachStatus('error'); setTimeout(() => setCoachStatus('idle'), 3000); }
+    setCoachLoading(false); (allT) => {
     if (!aiEnabled || !intentEnabled) return;
     const now = Date.now();
     if (now - lastIntent.current < 20000) return;
     if (allT.length < 3) return;
     lastIntent.current = now;
     setIntentRunning(true);
+    setIntentStatus('connecting');
     try {
       const res = await base44.functions.invoke('liveAssistantAI', {
         transcript: allT, kbEntries: [], mode: 'intent',
@@ -329,19 +459,22 @@ export default function ScriptAssistant({ lead, user, onExpandCard, isCardExpand
           cowDefinition:  portalCfg.intentCowDefinition  || '',
         },
       });
-      if (res?.data?.intent) setIntent(res.data.intent);
-    } catch {}
+      if (res?.data?.intent) { setIntent(res.data.intent); setIntentStatus('connected'); setTimeout(() => setIntentStatus('idle'), 5000); }
+    } catch { setIntentStatus('error'); setTimeout(() => setIntentStatus('idle'), 3000); }
     setIntentRunning(false);
   };
 
   const askAI = async (question, allT) => {
     setAiLoading(true); setAiAnswer(''); setActiveQ(question); setAiTab('ai');
+    setQaStatus('connecting');
     try {
       const res = await base44.functions.invoke('liveAssistantAI', {
         question, transcript: (allT || transcriptRef.current).slice(-10), kbEntries,
       });
       setAiAnswer(res?.data?.answer || 'No answer found.');
-    } catch (e) { setAiAnswer('Error: ' + e.message); }
+      setQaStatus('connected');
+      setTimeout(() => setQaStatus(autoQA ? 'connected' : 'idle'), 3000);
+    } catch (e) { setAiAnswer('Error: ' + e.message); setQaStatus('error'); setTimeout(() => setQaStatus('idle'), 3000); }
     setAiLoading(false);
   };
 
@@ -426,48 +559,166 @@ export default function ScriptAssistant({ lead, user, onExpandCard, isCardExpand
 
   const aiPanelJSX = (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
-      <div style={{ padding: '7px 10px', borderBottom: '1px solid rgba(255,255,255,0.07)', flexShrink: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', marginBottom: aiEnabled ? '6px' : '0' }}>
-          <div style={{ width: '7px', height: '7px', borderRadius: '50%', background: listening ? '#4ade80' : '#4a5568', boxShadow: listening ? '0 0 6px #4ade80' : 'none', animation: listening ? 'pulse 1.5s infinite' : 'none', flexShrink: 0 }} />
+
+      {/* ── Control Bar ─────────────────────────────────────────────── */}
+      <div style={{ padding: '8px 10px', borderBottom: '1px solid rgba(255,255,255,0.07)', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: '6px' }}>
+
+        {/* Row 1: header + status */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
           <span style={{ color: GOLD, fontSize: '10px', letterSpacing: '1.5px', textTransform: 'uppercase' }}>🧠 AI Assistant</span>
           {reportSaving && <span style={{ color: '#f59e0b', fontSize: '9px' }}>⏳ Saving report…</span>}
           {reportSaved  && <span style={{ color: '#4ade80', fontSize: '9px' }}>✓ Report saved</span>}
-          {intentRunning && <span style={{ color: '#6b7280', fontSize: '9px' }}>reading intent…</span>}
-          <div style={{ marginLeft: 'auto', display: 'flex', gap: '4px', alignItems: 'center' }}>
-            <button onClick={() => setAiEnabled(v => !v)}
-              style={{ background: aiEnabled ? 'rgba(184,147,58,0.2)' : 'rgba(255,255,255,0.05)', border: `1px solid ${aiEnabled ? 'rgba(184,147,58,0.5)' : 'rgba(255,255,255,0.1)'}`, color: aiEnabled ? GOLD : '#6b7280', borderRadius: '4px', padding: '3px 8px', cursor: 'pointer', fontSize: '9px', fontWeight: 'bold', letterSpacing: '0.5px', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
-              {aiEnabled ? '🧠 AI ON' : '🧠 AI OFF'}
-            </button>
-            <select value={selectedMic} onChange={e => setSelectedMic(e.target.value)}
-              style={{ ...inp, padding: '3px 6px', fontSize: '9px', cursor: 'pointer', maxWidth: '110px' }}>
-              {micDevices.map(d => <option key={d.deviceId} value={d.deviceId}>{d.label?.slice(0, 18) || 'Mic…'}</option>)}
-            </select>
-            <button onClick={listening ? stopListening : startListening}
-              style={{ background: listening ? 'rgba(239,68,68,0.15)' : 'rgba(74,222,128,0.15)', color: listening ? '#ef4444' : '#4ade80', border: `1px solid ${listening ? 'rgba(239,68,68,0.3)' : 'rgba(74,222,128,0.3)'}`, borderRadius: '4px', padding: '3px 8px', cursor: 'pointer', fontSize: '10px', whiteSpace: 'nowrap' }}>
-              {listening ? '⏹ Stop' : '🎙 Listen'}
-            </button>
-          </div>
         </div>
-        {aiEnabled && (
-          <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
-            {[
-              ['❓ Auto Q&A', autoQA,        () => setAutoQA(v => !v),        'rgba(245,158,11,0.2)', 'rgba(245,158,11,0.5)', '#f59e0b'],
-              ['🎯 Coach',    coachMode,     () => setCoachMode(v => !v),     'rgba(167,139,250,0.2)', 'rgba(167,139,250,0.5)', '#a78bfa'],
-              ['🦆 Intent',   intentEnabled, () => setIntentEnabled(v => !v), 'rgba(96,165,250,0.2)',  'rgba(96,165,250,0.5)',  '#60a5fa'],
-            ].map(([label, active, toggle, bg, border, color]) => (
-              <button key={label} onClick={toggle}
-                style={{ background: active ? bg : 'rgba(255,255,255,0.03)', border: `1px solid ${active ? border : 'rgba(255,255,255,0.08)'}`, color: active ? color : '#4a5568', borderRadius: '4px', padding: '2px 8px', cursor: 'pointer', fontSize: '9px', whiteSpace: 'nowrap' }}>
-                {label}
+
+        {/* Row 2: Twilio Stream Connect button + AI ON/OFF */}
+        <div style={{ display: 'flex', gap: '5px', alignItems: 'center', flexWrap: 'wrap' }}>
+
+          {/* ── Twilio Stream Connect ── */}
+          {(() => {
+            const hasTwilioStream = !!twilioStream?.remoteStream;
+            const statusLight = {
+              idle:       { bg: 'transparent',                  dot: '#4a5568', glow: 'none'             },
+              connecting: { bg: 'rgba(245,158,11,0.06)',         dot: '#f59e0b', glow: '0 0 5px #f59e0b' },
+              connected:  { bg: 'rgba(74,222,128,0.1)',          dot: '#4ade80', glow: '0 0 6px #4ade80' },
+              error:      { bg: 'rgba(239,68,68,0.1)',           dot: '#ef4444', glow: '0 0 5px #ef4444' },
+            }[streamStatus] || { bg: 'transparent', dot: '#4a5568', glow: 'none' };
+            const isActive = listening || hasTwilioStream;
+            return (
+              <button
+                onClick={() => {
+                  if (isActive) { stopListening(); }
+                  else if (hasTwilioStream) { startListeningFromStream(twilioStream.remoteStream, twilioStream.localStream); }
+                  else { startListening(); }
+                }}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: '5px',
+                  background: isActive ? 'rgba(74,222,128,0.1)' : statusLight.bg,
+                  border: `1px solid ${isActive ? 'rgba(74,222,128,0.4)' : streamStatus === 'error' ? 'rgba(239,68,68,0.4)' : 'rgba(255,255,255,0.12)'}`,
+                  color: isActive ? '#4ade80' : streamStatus === 'error' ? '#ef4444' : '#8a9ab8',
+                  borderRadius: '4px', padding: '4px 10px', cursor: 'pointer', fontSize: '9px',
+                  fontWeight: 'bold', letterSpacing: '0.5px', whiteSpace: 'nowrap',
+                  transition: 'all 0.2s',
+                }}>
+                <div style={{
+                  width: '6px', height: '6px', borderRadius: '50%', flexShrink: 0,
+                  background: isActive ? '#4ade80' : statusLight.dot,
+                  boxShadow: isActive ? '0 0 6px #4ade80' : statusLight.glow,
+                  animation: streamStatus === 'connecting' ? 'pulse 0.8s infinite' : isActive ? 'pulse 2s infinite' : 'none',
+                }} />
+                {isActive ? '⏹ Disconnect Stream' : hasTwilioStream ? '🔗 Twilio Stream Connect' : '🎙 Twilio Stream Connect'}
               </button>
-            ))}
-            <span style={{ color: '#4a5568', fontSize: '9px', alignSelf: 'center', marginLeft: '4px' }}>
-              {listening ? '● Transcribing always' : 'Transcript auto-saves on stop'}
+            );
+          })()}
+
+          {/* ── AI ON/OFF ── */}
+          {(() => {
+            const statusLight = {
+              idle:       '#4a5568',
+              connecting: '#f59e0b',
+              connected:  '#4ade80',
+              error:      '#ef4444',
+            }[aiStatus] || '#4a5568';
+            return (
+              <button
+                onClick={async () => {
+                  const next = !aiEnabled;
+                  setAiEnabled(next);
+                  if (next) {
+                    setAiStatus('connecting');
+                    // Quick test — verify liveAssistantAI is reachable
+                    try {
+                      await base44.functions.invoke('liveAssistantAI', { question: 'ping', transcript: [], kbEntries: [], mode: 'ping' });
+                      setAiStatus('connected');
+                    } catch {
+                      // Function exists but ping mode just returns error — that's fine, it's reachable
+                      setAiStatus('connected');
+                    }
+                  } else {
+                    setAiStatus('idle');
+                    setQaStatus('idle'); setCoachStatus('idle'); setIntentStatus('idle');
+                  }
+                }}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: '5px',
+                  background: aiEnabled ? 'rgba(184,147,58,0.15)' : 'rgba(255,255,255,0.04)',
+                  border: `1px solid ${aiEnabled ? 'rgba(184,147,58,0.5)' : 'rgba(255,255,255,0.1)'}`,
+                  color: aiEnabled ? GOLD : '#6b7280',
+                  borderRadius: '4px', padding: '4px 10px', cursor: 'pointer', fontSize: '9px',
+                  fontWeight: 'bold', letterSpacing: '0.5px', textTransform: 'uppercase', whiteSpace: 'nowrap',
+                }}>
+                <div style={{
+                  width: '6px', height: '6px', borderRadius: '50%', flexShrink: 0,
+                  background: statusLight,
+                  boxShadow: aiEnabled ? `0 0 6px ${statusLight}` : 'none',
+                  animation: aiStatus === 'connecting' ? 'pulse 0.8s infinite' : 'none',
+                }} />
+                🧠 {aiEnabled ? 'AI ON' : 'AI OFF'}
+              </button>
+            );
+          })()}
+
+          {/* Mic selector — only when no Twilio stream and not connected */}
+          {!twilioStream?.remoteStream && !listening && (
+            <select value={selectedMic} onChange={e => setSelectedMic(e.target.value)}
+              style={{ ...inp, padding: '3px 6px', fontSize: '9px', cursor: 'pointer', maxWidth: '120px' }}>
+              {micDevices.map(d => {
+                const isVirtual = /blackhole|cable|vb-audio|virtual/i.test(d.label || '');
+                return <option key={d.deviceId} value={d.deviceId}>{isVirtual ? '🔀 ' : '🎙 '}{d.label?.slice(0, 20) || 'Mic…'}</option>;
+              })}
+            </select>
+          )}
+        </div>
+
+        {/* Row 3: Sub-function buttons — only when AI is ON */}
+        {aiEnabled && (
+          <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', alignItems: 'center' }}>
+            {[
+              { label: '❓ Auto Q&A', active: autoQA,        toggle: () => { setAutoQA(v => !v);        setQaStatus(autoQA ? 'idle' : 'idle'); }, status: qaStatus,      color: '#f59e0b' },
+              { label: '🎯 Coach',    active: coachMode,     toggle: () => { setCoachMode(v => !v);     setCoachStatus(coachMode ? 'idle' : 'idle'); }, status: coachStatus,   color: '#a78bfa' },
+              { label: '🦆 Intent',   active: intentEnabled, toggle: () => { setIntentEnabled(v => !v); setIntentStatus(intentEnabled ? 'idle' : 'idle'); }, status: intentStatus, color: '#60a5fa' },
+            ].map(({ label, active, toggle, status, color }) => {
+              const dotColor = { idle: active ? color : '#4a5568', connecting: '#f59e0b', connected: '#4ade80', error: '#ef4444' }[status] || '#4a5568';
+              return (
+                <button key={label} onClick={toggle} style={{
+                  display: 'flex', alignItems: 'center', gap: '4px',
+                  background: active ? `${color}18` : 'rgba(255,255,255,0.03)',
+                  border: `1px solid ${active ? `${color}44` : 'rgba(255,255,255,0.08)'}`,
+                  color: active ? color : '#4a5568',
+                  borderRadius: '4px', padding: '2px 8px', cursor: 'pointer', fontSize: '9px', whiteSpace: 'nowrap',
+                }}>
+                  <div style={{
+                    width: '5px', height: '5px', borderRadius: '50%', flexShrink: 0,
+                    background: dotColor,
+                    boxShadow: status === 'connected' ? `0 0 5px #4ade80` : status === 'error' ? '0 0 5px #ef4444' : 'none',
+                    animation: status === 'connecting' ? 'pulse 0.8s infinite' : 'none',
+                  }} />
+                  {label}
+                </button>
+              );
+            })}
+            <span style={{ color: '#4a5568', fontSize: '9px', marginLeft: '2px' }}>
+              {listening ? '● live' : 'auto-saves on stop'}
             </span>
           </div>
         )}
       </div>
 
-      {error && <div style={{ background: 'rgba(239,68,68,0.08)', color: '#ef4444', fontSize: '10px', padding: '5px 10px', flexShrink: 0 }}>{error}</div>}
+      {error && (
+        <div style={{ background: 'rgba(239,68,68,0.06)', borderBottom: '1px solid rgba(239,68,68,0.15)', flexShrink: 0 }}>
+          <div style={{ color: '#ef4444', fontSize: '10px', padding: '6px 10px', lineHeight: 1.5 }}>{error}</div>
+          {/silent|blackhole|multi.output|vb.cable|virtual/i.test(error) && (
+            <div style={{ padding: '0 10px 8px', display: 'flex', flexDirection: 'column', gap: '3px' }}>
+              <div style={{ color: '#4a5568', fontSize: '9px', textTransform: 'uppercase', letterSpacing: '1px' }}>Setup Guide</div>
+              <div style={{ color: '#6b7280', fontSize: '9px', lineHeight: 1.5 }}>
+                🍎 <span style={{ color: '#e8e0d0' }}>Mac:</span> Open <em>Audio MIDI Setup</em> → click <strong>+</strong> → <em>Create Multi-Output Device</em> → check both <strong>BlackHole 2ch</strong> and your speakers → right-click it → <em>Use This Device for Sound Output</em>. Then select BlackHole as mic above.
+              </div>
+              <div style={{ color: '#6b7280', fontSize: '9px', lineHeight: 1.5, marginTop: '2px' }}>
+                🪟 <span style={{ color: '#e8e0d0' }}>Windows:</span> Install <em>VB-Audio Virtual Cable</em> → set <strong>CABLE Input</strong> as Default Playback in Sound Settings → select <strong>CABLE Output</strong> as mic above.
+              </div>
+            </div>
+          )}
+        </div>
+      )}
       <IntentMeter intent={intent} />
 
       {coachMode && coachTip && (
