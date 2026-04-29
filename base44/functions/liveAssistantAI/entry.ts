@@ -1,6 +1,5 @@
 const ANTHROPIC_KEY = Deno.env.get('ANTHROPIC_API_KEY') || '';
 
-// Score KB entries by keyword relevance to the question
 function findRelevantKB(question: string, kbEntries: any[], topN = 8): any[] {
   if (!kbEntries?.length) return [];
   const words = question.toLowerCase().split(/\W+/).filter((w: string) => w.length > 3);
@@ -14,8 +13,6 @@ function findRelevantKB(question: string, kbEntries: any[], topN = 8): any[] {
     .filter((e: any) => e.score > 0)
     .sort((a: any, b: any) => b.score - a.score)
     .slice(0, topN);
-
-  // Fall back to raw document chunks if no matches found
   if (scored.length < 2) {
     const rawDocs = kbEntries
       .filter((e: any) => e.category === 'raw_document')
@@ -29,151 +26,174 @@ function findRelevantKB(question: string, kbEntries: any[], topN = 8): any[] {
       .slice(0, 2);
     scored.push(...rawDocs);
   }
-
   return scored;
+}
+
+function buildTranscriptString(transcript: any[], limit = 20): string {
+  return (transcript || []).slice(-limit).map((t: any) => {
+    const speaker = t.speaker !== null && t.speaker !== undefined ? `[S${t.speaker}]` : '';
+    const sent    = t.sentiment ? `[${t.sentiment}]` : '';
+    return `${speaker}${sent} ${t.text}`.trim();
+  }).join('\n');
 }
 
 Deno.serve(async (req) => {
   try {
-    const { question, transcript, kbEntries, mode, existingProfile, intentRules, coachRules } = await req.json();
-    // Build rich transcript string with sentiment and speaker labels
-    const recentTranscript = (transcript || []).slice(-10).map((t: any) => {
-      const speaker  = t.speaker !== null && t.speaker !== undefined ? `[S${t.speaker}]` : '';
-      const sent     = t.sentiment ? `[${t.sentiment}${t.sentScore ? ':' + Math.round(t.sentScore * 100) + '%' : ''}]` : '';
-      return `${speaker}${sent} ${t.text}`.trim();
-    }).join(' ');
+    const body = await req.json();
+    const { question, transcript, kbEntries, mode, existingProfile,
+            intentRules, coachRules, qaHistory, engagementScore } = body;
 
-    // ── INTENT ENGINE ─────────────────────────────────────────────────
-    if (mode === 'intent') {
+    const recentTranscript = buildTranscriptString(transcript, 15);
+
+    // ── STREAMING COACH ───────────────────────────────────────────────
+    if (mode === 'coach_stream') {
+      const relevantKB = findRelevantKB(recentTranscript, kbEntries || [], 5);
+      const kbContext  = relevantKB.map((e: any) => `Q: ${e.question}\nA: ${e.answer}`).join('\n\n');
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': ANTHROPIC_KEY,
+          'anthropic-version': '2023-06-01',
+          'anthropic-beta': 'messages-2023-06-01',
+        },
+        body: JSON.stringify({
+          model: 'claude-haiku-4-5-20251001',
+          max_tokens: 200,
+          stream: true,
+          system: `You are a real-time sales coach whispering to an agent on a live investor call. ${coachRules?.style || 'Give ONE actionable tip in 1-2 sentences. Be direct and specific — agent reads this mid-call.'}\nFocus: ${coachRules?.focusAreas || 'handling objections, building rapport, next talking point, timing a close'}.${coachRules?.additionalContext ? `\nContext: ${coachRules.additionalContext}` : ''}${kbContext ? `\n\nRelevant KB:\n${kbContext}` : ''}`,
+          messages: [{ role: 'user', content: `Live conversation:\n${recentTranscript}\n\nCoaching tip now:` }],
+        }),
+      });
+      // Stream the response directly back
+      return new Response(res.body, {
+        headers: {
+          'Content-Type': 'text/event-stream',
+          'Cache-Control': 'no-cache',
+          'Access-Control-Allow-Origin': '*',
+        },
+      });
+    }
+
+    // ── POST-CALL INTENT ANALYSIS ─────────────────────────────────────
+    if (mode === 'intent_final') {
+      const fullTranscript = buildTranscriptString(transcript, 999);
+      // Compute sentiment arc from Deepgram data
+      const sentiments = (transcript || [])
+        .filter((t: any) => t.sentiment)
+        .map((t: any) => ({ s: t.sentiment, sc: t.sentScore || 0 }));
+      const posCount = sentiments.filter((s: any) => s.s === 'positive').length;
+      const negCount = sentiments.filter((s: any) => s.s === 'negative').length;
+      const sentimentSummary = sentiments.length
+        ? `${posCount} positive, ${negCount} negative, ${sentiments.length - posCount - negCount} neutral segments`
+        : 'No sentiment data';
+
       const res = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_KEY, 'anthropic-version': '2023-06-01' },
         body: JSON.stringify({
           model: 'claude-haiku-4-5-20251001',
-          max_tokens: 300,
-          system: `You are an expert sales intent analyzer. Classify the prospect based on the recent conversation.
-
-The transcript may contain speaker labels [S0] (usually the agent) and [S1] (usually the prospect), plus Deepgram sentiment labels [positive], [negative], [neutral] with confidence percentages. Use these signals alongside the words themselves to assess intent.
-
-DUCK: ${intentRules?.duckDefinition || 'Argumentative, skeptical, raises objections, tries to prove things wrong, combative. Negative sentiment on key topics.'}
-COW: ${intentRules?.cowDefinition || 'Agreeable, curious, open-minded, positive sentiment, says things like "that\'s interesting", asks genuine questions.'}
-
-Respond ONLY with this exact JSON (no markdown, no extra text):
-{"animalType":"duck or cow or unknown","animalConfidence":0-100,"buyingIntent":0-100,"questionQuality":0-100,"intentLabel":"hot or warm or cold or uncertain","sentimentTrend":"improving or declining or stable or unknown","signals":["signal1","signal2"],"coachTip":"one sentence tip for the salesperson right now"}`,
-          messages: [{ role: 'user', content: `Recent conversation:\n"${recentTranscript}"\n\nClassify the prospect's intent.` }],
+          max_tokens: 800,
+          system: `You are an expert sales call analyst measuring prospect intent, tonality, and interest.
+Deepgram sentiment summary: ${sentimentSummary}
+DUCK: ${intentRules?.duckDefinition || 'Skeptical, argumentative, raises objections, combative, negative tone'}
+COW: ${intentRules?.cowDefinition || 'Curious, agreeable, asks genuine buying questions, positive tone'}
+Respond ONLY with this exact JSON (no markdown):
+{
+  "intentScore": 0-100,
+  "tonality": "positive|neutral|negative|mixed",
+  "tonalityNotes": "1-2 sentences on how they spoke and engaged",
+  "interestLevel": "high|medium|low",
+  "interestReason": "1-2 sentences explaining why",
+  "animalType": "duck|cow|unknown",
+  "animalConfidence": 0-100,
+  "sentimentArc": "warming|cooling|flat|volatile",
+  "sentimentArcNotes": "how their tone shifted during the call",
+  "keyMoments": ["moment1","moment2","moment3"],
+  "buyingSignals": ["signal1","signal2"],
+  "objections": ["objection1","objection2"],
+  "recommendedNextStep": "specific actionable next step"
+}`,
+          messages: [{ role: 'user', content: `Full call transcript:\n${fullTranscript.slice(0, 6000)}` }],
         }),
       });
       const data = await res.json();
       const text = data?.content?.[0]?.text || '{}';
       try {
         const result = JSON.parse(text.replace(/```json|```/g, '').trim());
-        return Response.json({ intent: result });
+        // Blend with engagement score (max 25% influence)
+        const engNorm = Math.min(100, Math.max(0, engagementScore || 0));
+        const blended = Math.round(result.intentScore * 0.75 + engNorm * 0.25);
+        return Response.json({ intent: { ...result, intentScore: blended, rawAiScore: result.intentScore, engagementContribution: Math.round(engNorm * 0.25) } });
       } catch {
-        return Response.json({ intent: { animalType: 'unknown', buyingIntent: 50, questionQuality: 50, intentLabel: 'uncertain', signals: [], coachTip: '' } });
+        return Response.json({ intent: null, error: 'Parse failed' });
       }
     }
 
-    // ── COACH MODE ────────────────────────────────────────────────────
-    if (mode === 'coach') {
-      const relevantKB = findRelevantKB(recentTranscript, kbEntries, 5);
-      const kbContext = relevantKB.length > 0
-        ? relevantKB.map((e: any) => `Q: ${e.question}\nA: ${e.answer}`).join('\n\n')
-        : '';
+    // ── POST-CALL FULL REPORT ─────────────────────────────────────────
+    if (mode === 'full_report') {
+      const { usedCoach, usedQA, usedIntent, coachTips, qaLog, intentResult } = body;
+      const fullTranscript = (transcript || []).map((t: any) => t.text).join(' ');
+
+      let reportPrompt = `Generate a structured sales call report.\n\nTranscript:\n"${fullTranscript.slice(0, 5000)}"\n\nInclude these sections:\n## Call Summary\n## Prospect Interest Level\n## Key Questions Asked\n## Objections & Concerns\n## Highlights\n## Recommended Next Steps\n## Clean Transcript\n`;
+      if (usedQA && qaLog?.length) {
+        reportPrompt += `\n## Q&A During Call\n${qaLog.map((qa: any) => `Q: ${qa.question}\n${qa.answered ? `A: ${qa.answer}` : 'A: [Not answered via AI]'}`).join('\n\n')}`;
+      }
+      if (usedCoach && coachTips?.length) {
+        reportPrompt += `\n## Coach Tips During Call\n${coachTips.map((t: any, i: number) => `${i+1}. ${t}`).join('\n')}`;
+      }
+      if (usedIntent && intentResult) {
+        reportPrompt += `\n## Intent Analysis\nIntent Score: ${intentResult.intentScore}/100\nInterest Level: ${intentResult.interestLevel}\nTonality: ${intentResult.tonality}\nSentiment Arc: ${intentResult.sentimentArc}\n${intentResult.intentReason || ''}`;
+      }
+
       const res = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_KEY, 'anthropic-version': '2023-06-01' },
         body: JSON.stringify({
           model: 'claude-haiku-4-5-20251001',
-          max_tokens: 150,
-          system: `You are a real-time sales coach on a live investor call. ${coachRules?.style || 'Give ONE actionable tip in 1-2 sentences. Be direct — the agent reads this mid-call.'} Focus on: ${coachRules?.focusAreas || 'next talking point, handling the last objection, building rapport, or timing a close'}.${coachRules?.additionalContext ? `\n\nContext: ${coachRules.additionalContext}` : ''}${kbContext ? `\n\nRelevant knowledge:\n${kbContext}` : ''}`,
-          messages: [{ role: 'user', content: `Live conversation:\n"${recentTranscript}"\n\nCoaching tip:` }],
+          max_tokens: 1500,
+          system: 'You are a sales call analyst. Generate a detailed, structured post-call report.',
+          messages: [{ role: 'user', content: reportPrompt }],
         }),
       });
       const data = await res.json();
-      return Response.json({ answer: data?.content?.[0]?.text || '' });
+      return Response.json({ report: data?.content?.[0]?.text || '' });
     }
 
-    // ── CLIENT PROFILE MODE ──────────────────────────────────────────
+    // ── CLIENT PROFILE ────────────────────────────────────────────────
     if (mode === 'profile') {
       const existing = (() => { try { return JSON.parse(existingProfile || '{}'); } catch { return {}; } })();
       const fullTranscript = (transcript || []).map((t: any) => t.text).join(' ');
-
       const res = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_KEY, 'anthropic-version': '2023-06-01' },
         body: JSON.stringify({
           model: 'claude-haiku-4-5-20251001',
           max_tokens: 600,
-          system: `You are analyzing a sales call to build a persistent client profile. Based on the transcript, determine behavioral traits. Merge with any existing profile data.
-
-Return ONLY this exact JSON (no markdown):
-{
-  "animalType": "duck or cow or unknown",
-  "animalConfidence": 0-100,
-  "overallIntentLabel": "hot or warm or cold",
-  "traits": {
-    "asksLotOfQuestions": true/false,
-    "quickToInterrupt": true/false,
-    "asksBuyingQuestions": true/false,
-    "talksALot": true/false,
-    "asksTechnicalQuestions": true/false,
-    "raisesObjections": true/false,
-    "agreeable": true/false,
-    "priceConscious": true/false,
-    "decisionMaker": true/false
-  },
-  "keyObservations": ["observation1", "observation2", "observation3"],
-  "recommendedApproach": "one sentence on how to handle this prospect next call",
-  "callCount": ${(existing.callCount || 0) + 1},
-  "lastCallSummary": "2-3 sentence summary of this specific call"
-}`,
-          messages: [{ role: 'user', content: `Existing profile:
-${JSON.stringify(existing, null, 2)}
-
-Call transcript:
-"${fullTranscript.slice(0, 4000)}"` }],
+          system: `You are analyzing a sales call to build a persistent client profile. Return ONLY this exact JSON (no markdown):
+{"animalType":"duck or cow or unknown","animalConfidence":0-100,"overallIntentLabel":"hot or warm or cold","traits":{"asksLotOfQuestions":true/false,"quickToInterrupt":true/false,"asksBuyingQuestions":true/false,"talksALot":true/false,"asksTechnicalQuestions":true/false,"raisesObjections":true/false,"agreeable":true/false,"priceConscious":true/false,"decisionMaker":true/false},"keyObservations":["obs1","obs2"],"recommendedApproach":"one sentence","callCount":${(existing.callCount || 0) + 1},"lastCallSummary":"2-3 sentence summary"}`,
+          messages: [{ role: 'user', content: `Existing profile:\n${JSON.stringify(existing)}\n\nTranscript:\n"${fullTranscript.slice(0, 4000)}"` }],
         }),
       });
       const data = await res.json();
       const text2 = data?.content?.[0]?.text || '{}';
-      try {
-        const profile = JSON.parse(text2.replace(/```json|```/g, '').trim());
-        return Response.json({ profile });
-      } catch {
-        return Response.json({ profile: existing });
-      }
+      try { return Response.json({ profile: JSON.parse(text2.replace(/```json|```/g, '').trim()) }); }
+      catch { return Response.json({ profile: existing }); }
     }
 
-    // ── SUMMARY MODE ──────────────────────────────────────────────────
-    if (mode === 'summary') {
-      const res = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_KEY, 'anthropic-version': '2023-06-01' },
-        body: JSON.stringify({
-          model: 'claude-haiku-4-5-20251001',
-          max_tokens: 600,
-          system: `You are a sales call analyst. Summarize in bullet points: key topics discussed, investor questions/concerns, interest level (hot/warm/cold), and recommended next steps.`,
-          messages: [{ role: 'user', content: question }],
-        }),
-      });
-      const data = await res.json();
-      return Response.json({ answer: data?.content?.[0]?.text || '' });
-    }
-
-    // ── Q&A MODE (default) ────────────────────────────────────────────
-    const relevantKB = findRelevantKB(question || recentTranscript, kbEntries, 8);
-    const kbContext = relevantKB.length > 0
+    // ── Q&A (default) ─────────────────────────────────────────────────
+    const relevantKB = findRelevantKB(question || recentTranscript, kbEntries || [], 8);
+    const kbContext  = relevantKB.length > 0
       ? relevantKB.map((e: any) => `Q: ${e.question}\nA: ${e.answer}`).join('\n\n')
       : 'No relevant knowledge base entries found.';
-
     const res = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_KEY, 'anthropic-version': '2023-06-01' },
       body: JSON.stringify({
         model: 'claude-haiku-4-5-20251001',
         max_tokens: 400,
-        system: `You are a real-time sales assistant on a live investor call. Answer questions concisely from the knowledge base. Keep answers under 3 sentences — the agent speaks this naturally. Never say "I don't know" — give a confident helpful response.\n\nKNOWLEDGE BASE:\n${kbContext}`,
-        messages: [{ role: 'user', content: `${recentTranscript ? `Recent conversation: "${recentTranscript}"\n\n` : ''}Question: "${question}"\n\nBrief answer:` }],
+        system: `You are a real-time sales assistant on a live investor call. Answer questions concisely from the knowledge base. Keep answers under 3 sentences — the agent speaks this naturally.\n\nKNOWLEDGE BASE:\n${kbContext}`,
+        messages: [{ role: 'user', content: `${recentTranscript ? `Recent conversation:\n${recentTranscript}\n\n` : ''}Question: "${question}"\n\nBrief answer:` }],
       }),
     });
     const data = await res.json();
