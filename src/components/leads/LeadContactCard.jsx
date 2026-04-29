@@ -802,37 +802,23 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
                 <div>{editLead.engagementScore || 0}</div>
               </div>
               <div>
-                <div style={{ display:'flex', alignItems:'center', gap:'8px', flexWrap:'wrap' }}>
-                  <span style={{ color:'#e8e0d0', fontSize:'18px', fontFamily:'Georgia,serif', fontWeight:'normal' }}>{fullName}</span>
-                  {/* 4 clickable lead type buttons */}
-                  {[
-                    { s:'lead',               label:'🔵 Lead',              color:'#60a5fa', bg:'rgba(96,165,250,0.12)',  border:'rgba(96,165,250,0.35)'  },
-                    { s:'prospect',           label:'🚀 Prospect',           color:'#a78bfa', bg:'rgba(167,139,250,0.12)', border:'rgba(167,139,250,0.35)' },
-                    { s:'intro_email_sent',   label:'📧 Intro Email Sent',   color:'#f59e0b', bg:'rgba(245,158,11,0.12)',  border:'rgba(245,158,11,0.35)'  },
-                    { s:'opened_intro_email', label:'📬 Opened Intro Email', color:'#4ade80', bg:'rgba(74,222,128,0.12)',  border:'rgba(74,222,128,0.35)'  },
-                  ].map(({ s, label, color, bg, border }) => {
-                    const active = (editLead.status || 'lead') === s;
-                    return (
-                      <button key={s} onClick={() => !isArchived && updateStatus(s, 'status_change', `Status changed to ${s}`)}
-                        style={{ background: active ? bg : 'transparent', color: active ? color : '#4a5568', border: `1px solid ${active ? border : 'rgba(255,255,255,0.08)'}`, borderRadius:'12px', padding:'2px 10px', fontSize:'10px', cursor: isArchived ? 'default' : 'pointer', fontWeight: active ? 'bold' : 'normal', transition:'all 0.15s' }}>
-                        {label}
-                      </button>
-                    );
-                  })}
-                </div>
-                <div style={{ color:'#6b7280', fontSize:'11px', marginTop:'3px', display:'flex', gap:'12px', flexWrap:'wrap' }}>
+                <span style={{ color:'#e8e0d0', fontSize:'18px', fontFamily:'Georgia,serif', fontWeight:'normal' }}>{fullName}</span>
+                <div style={{ color:'#6b7280', fontSize:'11px', marginTop:'4px', display:'flex', gap:'8px', flexWrap:'wrap', alignItems:'center' }}>
                   {lead.email && <span>{lead.email}</span>}
                   {lead.state && <span style={{ color:GOLD }}>{lead.state}</span>}
+                  {editLead.badgeIntroEmailOpened && (
+                    <span style={{ background:'rgba(74,222,128,0.1)', border:'1px solid rgba(74,222,128,0.25)', borderRadius:'10px', padding:'1px 8px', color:'#4ade80', fontSize:'10px', whiteSpace:'nowrap' }}>🌟 Intro Opened <span style={{ fontSize:'8px' }}>✅</span></span>
+                  )}
+                  {editLead.badgeConsumerWebsite && (
+                    <span style={{ background:'rgba(96,165,250,0.1)', border:'1px solid rgba(96,165,250,0.25)', borderRadius:'10px', padding:'1px 8px', color:'#60a5fa', fontSize:'10px', whiteSpace:'nowrap' }}>🛒 Consumer Page Visited <span style={{ fontSize:'8px' }}>✅</span></span>
+                  )}
+                  {editLead.badgeInvestorPage && (
+                    <span style={{ background:'rgba(74,222,128,0.1)', border:'1px solid rgba(74,222,128,0.25)', borderRadius:'10px', padding:'1px 8px', color:'#4ade80', fontSize:'10px', whiteSpace:'nowrap' }}>📈 Investor Page Visited <span style={{ fontSize:'8px' }}>✅</span></span>
+                  )}
                 </div>
               </div>
             </div>
             <div style={{ display:'flex', gap:'6px', alignItems:'center', flexShrink:0 }}>
-              {/* Activity badges — top right */}
-              <div style={{ display:'flex', gap:'6px', alignItems:'center' }}>
-                {editLead.badgeIntroEmailOpened && <span style={{ color:'#4ade80', fontSize:'11px', whiteSpace:'nowrap' }}>🌟 Intro Opened <span style={{ fontSize:'9px' }}>✅</span></span>}
-                {editLead.badgeConsumerWebsite && <span style={{ color:'#60a5fa', fontSize:'11px', whiteSpace:'nowrap' }}>🛒 Consumer Page Visited <span style={{ fontSize:'9px' }}>✅</span></span>}
-                {editLead.badgeInvestorPage && <span style={{ color:'#4ade80', fontSize:'11px', whiteSpace:'nowrap' }}>📈 Investor Page Visited <span style={{ fontSize:'9px' }}>✅</span></span>}
-              </div>
               {/* Nav arrows */}
               {totalLeads > 1 && (
                 <div style={{ display:'flex', alignItems:'center', gap:'2px' }}>
@@ -860,30 +846,23 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
             />
           )}
 
-          {/* Row 3: Action buttons */}
-          <div style={{ display:'flex', gap:'6px', flexWrap:'wrap', alignItems:'center' }}>
-            {/* Dialer controls when on a call */}
-            {isDialerPaused ? (
-              <>
-                <button onClick={() => dialerRef.current?.hangupActiveCall?.()}
-                  style={{ background:'rgba(239,68,68,0.15)', color:'#ef4444', border:'1px solid rgba(239,68,68,0.4)', borderRadius:'4px', padding:'6px 12px', cursor:'pointer', fontSize:'11px', fontWeight:'bold' }}>
-                  📵 Hang Up
-                </button>
-                <button onClick={() => { dialerRef.current?.hangupActiveCall?.(); onNextLead?.(); }}
-                  style={{ background:'rgba(59,130,246,0.12)', color:'#60a5fa', border:'1px solid rgba(59,130,246,0.3)', borderRadius:'4px', padding:'6px 12px', cursor:'pointer', fontSize:'11px', fontWeight:'bold' }}>
-                  📵 Next
-                </button>
-                <button onClick={async () => { await saveProfile?.(); dialerRef.current?.hangupActiveCall?.(); onResume?.(); }}
-                  style={{ background:'linear-gradient(135deg,#22c55e,#16a34a)', color:'#fff', border:'none', borderRadius:'4px', padding:'6px 14px', cursor:'pointer', fontSize:'11px', fontWeight:'bold' }}>
-                  ▶ Resume & Save
-                </button>
-                <div style={{ width:'1px', height:'20px', background:'rgba(255,255,255,0.1)', margin:'0 2px' }} />
-              </>
-            ) : null}
-
-            <div style={{ flex:1 }} />
-
-            {/* Right-side actions */}
+          {/* Row 3: Action buttons — centered */}
+          <div style={{ display:'flex', gap:'8px', flexWrap:'wrap', alignItems:'center', justifyContent:'center', marginTop:'10px' }}>
+            {isDialerPaused && (<>
+              <button onClick={() => dialerRef.current?.hangupActiveCall?.()}
+                style={{ background:'rgba(239,68,68,0.15)', color:'#ef4444', border:'1px solid rgba(239,68,68,0.4)', borderRadius:'4px', padding:'6px 12px', cursor:'pointer', fontSize:'11px', fontWeight:'bold' }}>
+                📵 Hang Up
+              </button>
+              <button onClick={() => { dialerRef.current?.hangupActiveCall?.(); onNextLead?.(); }}
+                style={{ background:'rgba(59,130,246,0.12)', color:'#60a5fa', border:'1px solid rgba(59,130,246,0.3)', borderRadius:'4px', padding:'6px 12px', cursor:'pointer', fontSize:'11px', fontWeight:'bold' }}>
+                📵 Next
+              </button>
+              <button onClick={async () => { await saveProfile?.(); dialerRef.current?.hangupActiveCall?.(); onResume?.(); }}
+                style={{ background:'linear-gradient(135deg,#22c55e,#16a34a)', color:'#fff', border:'none', borderRadius:'4px', padding:'6px 14px', cursor:'pointer', fontSize:'11px', fontWeight:'bold' }}>
+                ▶ Resume & Save
+              </button>
+              <div style={{ width:'1px', height:'20px', background:'rgba(255,255,255,0.1)' }} />
+            </>)}
             {!isArchived && (
               <button onClick={sendEmail} disabled={sendingEmail || !editLead.email}
                 title="Sends investor site access code + consumer ref URL (template 7949342)"
