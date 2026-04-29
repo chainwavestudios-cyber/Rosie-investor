@@ -283,7 +283,7 @@ function NewLeadModal({ onClose, onCreated }) {
 }
 
 // ─── Main Leads Tab ───────────────────────────────────────────────────────
-export default function LeadsTab({ openLeadId, onLeadOpened }) {
+export default function LeadsTab() {
   const [leads, setLeads] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all');
@@ -311,29 +311,6 @@ export default function LeadsTab({ openLeadId, onLeadOpened }) {
   const dialerRef = useRef(null);
   const [isDialerPaused, setIsDialerPaused] = useState(false);
   const [isCallActive, setIsCallActive] = useState(false);
-  const [twilioStream, setTwilioStream]   = useState(null);
-
-  // ── Auto-open lead card from calendar click ─────────────────────────
-  useEffect(() => {
-    if (!openLeadId) return;
-    // Leads may not be loaded yet — try from already-loaded list first, then fetch
-    const fromList = leads.find(l => l.id === openLeadId);
-    if (fromList) {
-      setSelectedLead(fromList);
-      onLeadOpened?.();
-    } else {
-      base44.entities.Lead.get(openLeadId)
-        .then(l => { if (l) { setSelectedLead(l); onLeadOpened?.(); } })
-        .catch(() => {
-          // .get() may not exist — fallback to list scan
-          base44.entities.Lead.list('-created_date', 2000)
-            .then(all => {
-              const match = (all || []).find(l => l.id === openLeadId);
-              if (match) { setSelectedLead(match); onLeadOpened?.(); }
-            }).catch(() => {});
-        });
-    }
-  }, [openLeadId]);
 
   useEffect(() => {
     loadLeads();
@@ -543,7 +520,6 @@ export default function LeadsTab({ openLeadId, onLeadOpened }) {
           setIsCallActive(false);
           dialerRef.current?.resumeDialer();
         }}
-        twilioStream={twilioStream}
       />
     )}
     <div style={{ fontFamily:'Georgia, serif', display:'flex', gap:'0', minHeight:'600px', position:'relative' }}>
@@ -573,7 +549,6 @@ export default function LeadsTab({ openLeadId, onLeadOpened }) {
                   onCallLogged={handleCallLogged}
                   onCallStart={() => setIsCallActive(true)}
                   onCallEnd={() => { setIsCallActive(false); loadRecentCalls(); }}
-                  onCallStream={(s) => setTwilioStream(s)}
                   embedded={true}
                 />
               ) : (
