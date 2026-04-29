@@ -91,6 +91,15 @@
       "title": "Engagement Score",
       "default": 0
     },
+    "intentScore": {
+      "type": "number",
+      "title": "Intent Score"
+    },
+    "lastIntentAnalysis": {
+      "type": "string",
+      "title": "Last Intent Analysis",
+      "format": "textarea"
+    },
     "badgeEmailOpened": {
       "type": "boolean",
       "title": "Badge: Email Opened",
