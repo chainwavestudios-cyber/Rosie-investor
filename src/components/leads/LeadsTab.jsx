@@ -311,6 +311,7 @@ export default function LeadsTab() {
   const dialerRef = useRef(null);
   const [isDialerPaused, setIsDialerPaused] = useState(false);
   const [isCallActive, setIsCallActive] = useState(false);
+  const [twilioStream, setTwilioStream]   = useState(null);
 
   useEffect(() => {
     loadLeads();
@@ -520,6 +521,7 @@ export default function LeadsTab() {
           setIsCallActive(false);
           dialerRef.current?.resumeDialer();
         }}
+        twilioStream={twilioStream}
       />
     )}
     <div style={{ fontFamily:'Georgia, serif', display:'flex', gap:'0', minHeight:'600px', position:'relative' }}>
@@ -549,6 +551,7 @@ export default function LeadsTab() {
                   onCallLogged={handleCallLogged}
                   onCallStart={() => setIsCallActive(true)}
                   onCallEnd={() => { setIsCallActive(false); loadRecentCalls(); }}
+                  onCallStream={(s) => setTwilioStream(s)}
                   embedded={true}
                 />
               ) : (
