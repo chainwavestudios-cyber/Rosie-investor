@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback, forwardRef, useImperativeHandle } from 'react';
 import { base44 } from '@/api/base44Client';
-import { Device } from '@twilio/voice-sdk';
+import { useTwilioDevice } from '@/lib/TwilioDeviceContext';
 
 const GOLD         = '#b8933a';
 const DARK         = '#0a0f1e';
@@ -173,7 +173,7 @@ const PredictiveDialer = forwardRef(function PredictiveDialer({ contactLists, on
   const [queue, setQueue]                     = useState([]);
   const [queueIndex, setQueueIndex]           = useState(0);
   const [activeCall, setActiveCall]           = useState(null);
-  const [deviceReady, setDeviceReady]         = useState(false);
+  const { getDevice, ready: deviceReady } = useTwilioDevice();
   const [micDevices, setMicDevices]           = useState([]);
   const [selectedMicId, setSelectedMicId]     = useState('');
 
@@ -240,56 +240,19 @@ const PredictiveDialer = forwardRef(function PredictiveDialer({ contactLists, on
     setLogs(prev => [{ type, msg, time: fmtTime(new Date()) }, ...prev].slice(0, 150));
   }, []);
 
+  // Warm up the shared device on mount so it's ready when dialing starts
   useEffect(() => {
-    const init = async () => {
-      try {
-        await navigator.mediaDevices.getUserMedia({ audio: true });
-        const devices = await navigator.mediaDevices.enumerateDevices();
-        const mics = devices.filter(d => d.kind === 'audioinput');
-        setMicDevices(mics);
-        if (mics.length > 0) setSelectedMicId(mics[0].deviceId);
-      } catch {
-        addLog('error', '🎤 Microphone access denied — please allow mic and refresh');
-        return;
-      }
-      let token;
-      try {
-        const tokenRes = await base44.functions.invoke('twilioClientToken', {});
-        token = tokenRes?.data?.token;
-        if (!token) throw new Error('No token returned');
-      } catch (e) {
-        addLog('error', `Token fetch failed: ${e.message}`);
-        return;
-      }
-      try {
-        const device = new Device(token, {
-          codecPreferences: ['opus', 'pcmu'],
-          fakeLocalDTMF: true,
-          enableRingingState: true,
-          logLevel: 'error',
-          ...(selectedMicId ? { audioConstraints: { deviceId: { exact: selectedMicId } } } : {}),
-        });
-        device.on('registered', () => { addLog('system', '📞 Twilio ready'); setDeviceReady(true); });
-        device.on('error', (err) => { addLog('error', `Twilio: ${err.message || err.description || 'Unknown error'}`); });
-        device.on('tokenWillExpire', async () => {
-          try { const res = await base44.functions.invoke('twilioClientToken', {}); if (res?.data?.token) device.updateToken(res.data.token); } catch {}
-        });
-        device.on('unregistered', () => { addLog('error', 'Twilio device unregistered'); setDeviceReady(false); });
-        await device.register();
-        deviceRef.current = device;
-      } catch (e) {
-        addLog('error', `Twilio init failed: ${e.message}`);
-      }
-    };
-    init();
+    getDevice()
+      .then(device => { deviceRef.current = device; addLog('system', '📞 Twilio ready'); })
+      .catch(e => addLog('error', `Twilio init failed: ${e.message}`));
     return () => {
       Object.values(timersRef.current).forEach(clearInterval);
       Object.values(pollsRef.current).forEach(clearInterval);
       Object.values(ringTimersRef.current).forEach(clearTimeout);
       clearInterval(wrapTimerRef.current);
-      try { deviceRef.current?.destroy(); } catch {}
+      // Don't destroy — shared device is managed by TwilioDeviceProvider
     };
-  }, [addLog]);
+  }, [addLog, getDevice]);
 
   const loadLeads = async (listId) => {
     const all = await base44.entities.Lead.filter({ contactListId: listId });
