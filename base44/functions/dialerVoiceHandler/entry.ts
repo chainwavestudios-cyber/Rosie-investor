@@ -12,19 +12,24 @@ Deno.serve(async (req) => {
   let to = '';
   let conferenceName = '';
 
+  let callerIdParam = '';
   if (req.method === 'POST') {
     const body = await req.text();
     const params = new URLSearchParams(body);
     to = params.get('To') || '';
     conferenceName = params.get('ConferenceName') || '';
+    callerIdParam = params.get('CallerId') || '';
   } else {
     to = url.searchParams.get('To') || '';
     conferenceName = url.searchParams.get('ConferenceName') || '';
+    callerIdParam = url.searchParams.get('CallerId') || '';
   }
 
   // Mode 1: Direct dial — agent browser called with a To number
    if (to && !to.startsWith('client:')) {
-     const callerId = Deno.env.get('TWILIO_FROM_NUMBER') || '';
+     // Use caller ID chosen by the agent, falling back to the default number
+     const callerId = callerIdParam ||
+       Deno.env.get('TWILIO_FROM_NUMBER') || '';
      if (!callerId) {
        console.error('[dialerVoiceHandler] Missing TWILIO_FROM_NUMBER — calls will fail');
        return new Response(`<?xml version="1.0" encoding="UTF-8"?><Response><Say>Caller ID not configured. Contact your administrator.</Say><Hangup/></Response>`, {
