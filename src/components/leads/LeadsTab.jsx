@@ -470,13 +470,18 @@ export default function LeadsTab() {
 
   const inp = { background:'rgba(255,255,255,0.05)', border:'1px solid rgba(255,255,255,0.12)', borderRadius:'2px', padding:'8px 14px', color:'#e8e0d0', fontSize:'13px', outline:'none', fontFamily:'Georgia, serif' };
 
+  // Test account names to exclude from all activity feeds
+  const TEST_NAMES = ['jimmy john', 'john johnson', 'admin'];
+  const isTestLead = (lead) => {
+    if (!lead) return false;
+    const fullName = `${lead.firstName || ''} ${lead.lastName || ''}`.toLowerCase().trim();
+    return TEST_NAMES.some(t => fullName.includes(t));
+  };
+
   const fmtTime = (dt) => {
     if (!dt) return '—';
     const d = new Date(dt);
-    const diff = Date.now() - d;
-    if (diff < 3600000) return `${Math.floor(diff/60000)}m ago`;
-    if (diff < 86400000) return `${Math.floor(diff/3600000)}h ago`;
-    return d.toLocaleString('en-US', { month:'short', day:'numeric', hour:'numeric', minute:'2-digit' });
+    return d.toLocaleString('en-US', { month:'short', day:'numeric', year:'numeric', hour:'numeric', minute:'2-digit', second:'2-digit' });
   };
 
   const ACTIVITY_ICONS = {
@@ -496,9 +501,27 @@ export default function LeadsTab() {
     return h.type;
   };
 
+  // Filter out bot clicks: ignore clicks that happen within 30s of send time
+  const isBotClick = (log) => {
+    if (log.status !== 'clicked') return false;
+    if (!log.clickedAt || !log.sentAt) return false;
+    const clickedMs = new Date(log.clickedAt).getTime();
+    const sentMs = new Date(log.sentAt).getTime();
+    return (clickedMs - sentMs) < 30000;
+  };
+
+  // Filter test accounts from email logs
+  const isTestEmailLog = (log) => {
+    const name = (log.toName || '').toLowerCase();
+    const email = (log.toEmail || '').toLowerCase();
+    return TEST_NAMES.some(t => name.includes(t) || email.includes(t));
+  };
+
   const filteredEmailLogs = emailLogs.filter(l => {
-    if (emailFilter === 'all') return true;
-    if (emailFilter === 'sent') return ['sent','delivered'].includes(l.status);
+    if (isTestEmailLog(l)) return false;
+    if (isBotClick(l)) return false;
+    // Default: only show meaningful events (opened, clicked, bounced, spam) — hide sent/delivered
+    if (emailFilter === 'all') return ['opened', 'clicked', 'bounced', 'spam'].includes(l.status);
     if (emailFilter === 'opened') return l.status === 'opened';
     if (emailFilter === 'clicked') return l.status === 'clicked';
     return true;
@@ -803,7 +826,7 @@ export default function LeadsTab() {
           {activityLoading && <div style={{ color:'#6b7280', textAlign:'center', padding:'40px' }}>Loading…</div>}
           {!activityLoading && leadHistory.length === 0 && <div style={{ color:'#4a5568', textAlign:'center', padding:'40px' }}>No activity yet.</div>}
           <div style={{ maxHeight:'70vh', overflowY:'auto' }}>
-            {leadHistory.map((h, i) => {
+            {leadHistory.filter(h => !isTestLead(h.lead)).map((h, i) => {
               const type = getHistoryType(h);
               const icon = ACTIVITY_ICONS[type] || '📌';
               const color = ACTIVITY_COLORS[type] || '#8a9ab8';
@@ -820,7 +843,7 @@ export default function LeadsTab() {
                     <span style={{ color, fontSize:'10px' }}>{type.replace('_',' ')}</span>
                     {h.content && <span style={{ color:'#4a5568', fontSize:'10px', marginLeft:'6px' }}>· {h.content.slice(0,80)}</span>}
                   </div>
-                  <div style={{ color:'#6b7280', fontSize:'10px', textAlign:'right' }}>{fmtTime(h.createdAt || h.created_date)}</div>
+                  <div style={{ color:'#6b7280', fontSize:'11px', textAlign:'right', whiteSpace:'nowrap' }}>{fmtTime(h.createdAt || h.created_date)}</div>
                 </div>
               );
             })}
@@ -837,10 +860,10 @@ export default function LeadsTab() {
           </div>
           {/* Filter tabs */}
           <div style={{ display:'flex', gap:'0', borderBottom:'1px solid rgba(255,255,255,0.07)', marginBottom:'16px' }}>
-            {[['all','All'],['sent','Sent'],['opened','Opened'],['clicked','Clicked']].map(([id,label]) => (
+            {[['all','All Activity'],['opened','Opened'],['clicked','Clicked']].map(([id,label]) => (
               <button key={id} onClick={() => setEmailFilter(id)}
                 style={{ background:'none', border:'none', borderBottom:emailFilter===id?`2px solid ${GOLD}`:'2px solid transparent', color:emailFilter===id?GOLD:'#6b7280', padding:'8px 14px', cursor:'pointer', fontSize:'11px', letterSpacing:'1px' }}>
-                {label} ({emailLogs.filter(l => id==='all'||(['sent','delivered'].includes(l.status)&&id==='sent')||(l.status===id)).length})
+                {label} ({emailLogs.filter(l => !isTestEmailLog(l) && !isBotClick(l) && (id==='all' ? ['opened','clicked','bounced','spam'].includes(l.status) : l.status===id)).length})
               </button>
             ))}
           </div>
