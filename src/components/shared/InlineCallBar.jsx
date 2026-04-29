@@ -61,8 +61,10 @@ export default function InlineCallBar({
     }
   };
 
-  const handleDial = async () => {
-    if (!dialerReady && callStatus === 'idle') await initDevice();
+  const handleDial = () => {
+    // dial() handles initDevice internally and waits for device 'registered'
+    // before calling connect(). Calling initDevice here separately triggers
+    // the initializing guard race that causes Twilio error 31002.
     dial(phone);
   };
 
