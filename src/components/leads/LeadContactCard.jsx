@@ -262,7 +262,7 @@ function OverviewTab({ editLead, setEditLead, saving, saveMsg, saveProfile, upda
                   <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', gap:'8px' }}>
                     <span style={{ color, fontSize:'10px', textTransform:'uppercase', letterSpacing:'1px' }}>{h.type.replace(/_/g,' ')}</span>
                     <span style={{ color:'#4a5568', fontSize:'10px', whiteSpace:'nowrap' }}>
-                      {h.created_date ? new Date(h.created_date).toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}) : ''}
+                      {h.created_date ? new Date(h.created_date).toLocaleString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit',second:'2-digit',timeZone:'America/New_York',timeZoneName:'short'}) : ''}
                     </span>
                   </div>
                   {h.content && <div style={{ color:'#c4cdd8', fontSize:'12px', marginTop:'2px', lineHeight:1.5, whiteSpace:'pre-wrap' }}>{h.content}</div>}
@@ -393,7 +393,7 @@ function LeadHistoryTab({ lead, history, onNoteAdded }) {
   const [loadingEmails, setLoadingEmails] = useState(false);
   const GOLD = '#b8933a';
 
-  const fmtDT = (iso) => iso ? new Date(iso).toLocaleString('en-US', { month:'short', day:'numeric', year:'numeric', hour:'numeric', minute:'2-digit' }) : '';
+  const fmtDT = (iso) => iso ? new Date(iso).toLocaleString('en-US', { month:'short', day:'numeric', year:'numeric', hour:'numeric', minute:'2-digit', second:'2-digit', timeZone:'America/New_York', timeZoneName:'short' }) : '';
   const fmtDur = (s) => !s ? '' : s < 60 ? `${s}s` : `${Math.floor(s/60)}m ${s%60}s`;
 
   useEffect(() => {
