@@ -198,8 +198,10 @@ function OverviewTab({ editLead, setEditLead, saving, saveMsg, saveProfile, upda
           <InfoRow icon="📞" label="Phone" value={editLead.phone} color="#4ade80" />
           <InfoRow icon="📱" label="Alt Phone" value={editLead.phone2} />
           <InfoRow icon="✉️" label="Email" value={editLead.email} color="#60a5fa" />
+          {editLead.address && <div style={{ gridColumn:'1/-1' }}><InfoRow icon="🏠" label="Street" value={editLead.address} /></div>}
+          {editLead.city && <InfoRow icon="🏙" label="City" value={editLead.city} />}
+          {editLead.zip && <InfoRow icon="📮" label="Zip" value={editLead.zip} />}
           <InfoRow icon="📍" label="State" value={editLead.state} />
-          {editLead.address && <div style={{ gridColumn:'1/-1' }}><InfoRow icon="🏠" label="Address" value={editLead.address} /></div>}
           {editLead.bestTimeToCall && <div style={{ gridColumn:'1/-1' }}><InfoRow icon="⏰" label="Best Time to Call" value={editLead.bestTimeToCall} /></div>}
           {editLead.callbackAt && <div style={{ gridColumn:'1/-1' }}><InfoRow icon="📅" label="Callback Scheduled" value={new Date(editLead.callbackAt).toLocaleString('en-US',{weekday:'short',month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})} color="#a78bfa" /></div>}
         </div>
@@ -209,7 +211,7 @@ function OverviewTab({ editLead, setEditLead, saving, saveMsg, saveProfile, upda
       {editing && (
         <div style={{ background:'rgba(0,0,0,0.15)', border:'1px solid rgba(255,255,255,0.08)', borderRadius:'6px', padding:'16px' }}>
           <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:'10px 14px' }}>
-            {[['firstName','First Name','👤'],['lastName','Last Name','👤'],['phone','Phone','📞'],['phone2','Alt Phone','📱'],['email','Email','✉️'],['state','State','📍']].map(([k,label,icon]) => (
+            {[['firstName','First Name','👤'],['lastName','Last Name','👤'],['phone','Phone','📞'],['phone2','Alt Phone','📱'],['email','Email','✉️'],['state','State','📍'],['city','City','🏙'],['zip','Zip','📮']].map(([k,label,icon]) => (
               <div key={k}>
                 <label style={ls}>{icon} {label}</label>
                 <input value={editLead[k]||''} onChange={e=>setEditLead({...editLead,[k]:e.target.value})} style={inp} placeholder={label} />
@@ -217,7 +219,7 @@ function OverviewTab({ editLead, setEditLead, saving, saveMsg, saveProfile, upda
             ))}
             <div style={{ gridColumn:'1/-1' }}>
               <label style={ls}>🏠 Address</label>
-              <input value={editLead.address||''} onChange={e=>setEditLead({...editLead,address:e.target.value})} style={inp} placeholder="Street address…" />
+              <input value={editLead.address||''} onChange={e=>setEditLead({...editLead,address:e.target.value})} style={{...inp, gridColumn:'1/-1'}} placeholder="Street address…" />
             </div>
             <div>
               <label style={ls}>⏰ Best Time to Call</label>
@@ -684,7 +686,7 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
       await base44.entities.Lead.update(lead.id, {
         firstName: editLead.firstName, lastName: editLead.lastName,
         email: editLead.email, phone: editLead.phone, phone2: editLead.phone2,
-        state: editLead.state, address: editLead.address, bestTimeToCall: editLead.bestTimeToCall,
+        state: editLead.state, address: editLead.address, city: editLead.city, zip: editLead.zip, bestTimeToCall: editLead.bestTimeToCall,
       });
       setSaveMsg('Saved ✓');
       onUpdate && onUpdate();
@@ -779,7 +781,7 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
       </div>
     )}
     <div style={{ position:'fixed', top:0, left:0, right: (dialerPanelOpen && !cardExpanded) ? '340px' : 0, bottom:0, background:'rgba(0,0,0,0.85)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:9000, padding: cardExpanded ? '0' : '16px' }}>
-      <div style={{ background:'#0d1b2a', border:`1px solid ${isArchived ? 'rgba(245,158,11,0.3)' : 'rgba(184,147,58,0.3)'}`, borderRadius:'4px', width:'100%', maxWidth: cardExpanded ? '100%' : '820px', maxHeight: cardExpanded ? '100%' : '92vh', height: cardExpanded ? '100%' : undefined, display:'flex', flexDirection:'column', boxShadow:'0 40px 120px rgba(0,0,0,0.9)', transition:'all 0.2s ease' }}>
+      <div style={{ background:'#0d1b2a', border:`1px solid ${isArchived ? 'rgba(245,158,11,0.3)' : 'rgba(184,147,58,0.3)'}`, borderRadius:'4px', width:'100%', maxWidth: cardExpanded ? '100%' : '1000px', maxHeight: cardExpanded ? '100%' : '92vh', height: cardExpanded ? '100%' : undefined, display:'flex', flexDirection:'column', boxShadow:'0 40px 120px rgba(0,0,0,0.9)', transition:'all 0.2s ease' }}>
 
         {/* Archived banner */}
         {isArchived && (
@@ -795,18 +797,22 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
           {/* Row 1: Identity + close */}
           <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:'10px' }}>
             <div style={{ display:'flex', alignItems:'center', gap:'12px' }}>
-              <div style={{ width:'46px', height:'46px', borderRadius:'50%', background:`linear-gradient(135deg,${GOLD}55,${GOLD}22)`, border:`2px solid ${GOLD}77`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:'19px', fontWeight:'bold', color:GOLD, flexShrink:0 }}>
-                {fullName[0]?.toUpperCase()}
+              <div style={{ width:'46px', height:'46px', borderRadius:'50%', background:`linear-gradient(135deg,${GOLD}55,${GOLD}22)`, border:`2px solid ${GOLD}77`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:'14px', fontWeight:'bold', color:GOLD, flexShrink:0, flexDirection:'column', lineHeight:1 }}>
+                <div style={{ fontSize:'9px', opacity:0.7 }}>⭐</div>
+                <div>{editLead.engagementScore || 0}</div>
               </div>
               <div>
                 <div style={{ display:'flex', alignItems:'center', gap:'10px', flexWrap:'wrap' }}>
                   <span style={{ color:'#e8e0d0', fontSize:'18px', fontFamily:'Georgia,serif', fontWeight:'normal' }}>{fullName}</span>
                   <span style={{ background:`${statusInfo.color}20`, color:statusInfo.color, border:`1px solid ${statusInfo.color}55`, borderRadius:'12px', padding:'2px 10px', fontSize:'10px', letterSpacing:'1px', textTransform:'uppercase' }}>{statusInfo.label}</span>
-                  {editLead.engagementScore > 0 && <span style={{ color:GOLD, fontSize:'11px', background:'rgba(184,147,58,0.12)', border:'1px solid rgba(184,147,58,0.25)', borderRadius:'12px', padding:'2px 8px' }}>⭐ {editLead.engagementScore}</span>}
+                  {/* Lead type badges */}
+                  {(!editLead.status || editLead.status === 'lead') && <span style={{ background:'rgba(96,165,250,0.12)', color:'#60a5fa', border:'1px solid rgba(96,165,250,0.3)', borderRadius:'12px', padding:'2px 9px', fontSize:'10px' }}>🔵 Lead</span>}
+                  {editLead.status === 'prospect' && <span style={{ background:'rgba(167,139,250,0.12)', color:'#a78bfa', border:'1px solid rgba(167,139,250,0.3)', borderRadius:'12px', padding:'2px 9px', fontSize:'10px' }}>🚀 Prospect</span>}
+                  {editLead.status === 'intro_email_sent' && <span style={{ background:'rgba(96,165,250,0.12)', color:'#60a5fa', border:'1px solid rgba(96,165,250,0.3)', borderRadius:'12px', padding:'2px 9px', fontSize:'10px' }}>📧 Intro Email Sent</span>}
+                  {editLead.status === 'opened_intro_email' && <span style={{ background:'rgba(74,222,128,0.12)', color:'#4ade80', border:'1px solid rgba(74,222,128,0.3)', borderRadius:'12px', padding:'2px 9px', fontSize:'10px' }}>📬 Opened Intro Email</span>}
                 </div>
                 <div style={{ color:'#6b7280', fontSize:'11px', marginTop:'3px', display:'flex', gap:'12px', flexWrap:'wrap' }}>
                   {lead.email && <span>{lead.email}</span>}
-                  {(lead.phone || editLead.phone) && <span style={{ color:'#8a9ab8' }}>{lead.phone || editLead.phone}</span>}
                   {lead.state && <span style={{ color:GOLD }}>{lead.state}</span>}
                 </div>
               </div>
@@ -858,16 +864,7 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
                 </button>
                 <div style={{ width:'1px', height:'20px', background:'rgba(255,255,255,0.1)', margin:'0 2px' }} />
               </>
-            ) : (
-              <>
-                {(lead.phone || editLead.phone) && !isArchived && (
-                  <button onClick={() => onDialNumber && onDialNumber(lead)}
-                    style={{ background:'rgba(74,222,128,0.15)', color:'#4ade80', border:'1px solid rgba(74,222,128,0.35)', borderRadius:'4px', padding:'6px 14px', cursor:'pointer', fontSize:'11px', fontWeight:'bold', display:'flex', alignItems:'center', gap:'5px' }}>
-                    📞 <span>{lead.phone || editLead.phone}</span>
-                  </button>
-                )}
-              </>
-            )}
+            ) : null}
 
             <div style={{ flex:1 }} />
 
@@ -911,8 +908,8 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
           <div style={{ display:'flex', gap:'5px', alignItems:'center', paddingRight:'12px' }}>
             {editLead.badgeIntroEmailOpened && <span style={{ background:'rgba(74,222,128,0.12)', border:'1px solid rgba(74,222,128,0.3)', borderRadius:'12px', padding:'2px 8px', fontSize:'10px', color:'#4ade80', whiteSpace:'nowrap' }}>🌟 Intro Opened</span>}
             {editLead.badgeEmailOpened && !editLead.badgeIntroEmailOpened && <span style={{ background:'rgba(74,222,128,0.08)', border:'1px solid rgba(74,222,128,0.2)', borderRadius:'12px', padding:'2px 8px', fontSize:'10px', color:'#4ade80', whiteSpace:'nowrap' }}>📬 Email Opened</span>}
-            {editLead.badgeConsumerWebsite && <span style={{ background:'rgba(96,165,250,0.08)', border:'1px solid rgba(96,165,250,0.2)', borderRadius:'12px', padding:'2px 8px', fontSize:'10px', color:'#60a5fa', whiteSpace:'nowrap' }}>🌐 Consumer</span>}
-            {editLead.badgeInvestorPage && <span style={{ background:'rgba(167,139,250,0.08)', border:'1px solid rgba(167,139,250,0.2)', borderRadius:'12px', padding:'2px 8px', fontSize:'10px', color:'#a78bfa', whiteSpace:'nowrap' }}>💼 Investor Page</span>}
+            {editLead.badgeConsumerWebsite && <span style={{ background:'rgba(96,165,250,0.08)', border:'1px solid rgba(96,165,250,0.2)', borderRadius:'12px', padding:'2px 8px', fontSize:'10px', color:'#60a5fa', whiteSpace:'nowrap' }}>✅ 🛒 Consumer Page Visited</span>}
+            {editLead.badgeInvestorPage && <span style={{ background:'rgba(74,222,128,0.08)', border:'1px solid rgba(74,222,128,0.25)', borderRadius:'12px', padding:'2px 8px', fontSize:'10px', color:'#4ade80', whiteSpace:'nowrap' }}>✅ 📈 Investor Page Visited</span>}
           </div>
         </div>
 
