@@ -26,6 +26,14 @@
       "type": "string",
       "title": "Address"
     },
+    "city": {
+      "type": "string",
+      "title": "City"
+    },
+    "zip": {
+      "type": "string",
+      "title": "Zip Code"
+    },
     "state": {
       "type": "string",
       "title": "State"
