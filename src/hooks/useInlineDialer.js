@@ -70,8 +70,21 @@ export function useInlineDialer({ onCallStream, onCallLogged } = {}) {
       });
 
       device.on('registered',   () => { setCallStatus('ready'); setDialerReady(true); setDialerError(''); });
-      device.on('error',        (e) => setDialerError(`Twilio: ${e.message}`));
-      device.on('unregistered', ()  => setDialerError('Twilio disconnected — refresh to reconnect'));
+      device.on('error', (e) => {
+        const msg = e.message || '';
+        // 31002 = "request cannot be processed" — TwiML App SID missing/wrong or Voice URL not set
+        if (e.code === 31002 || msg.includes('31002')) {
+          setDialerError('Twilio 31002: TwiML App not configured. Check TWILIO_TWIML_APP_SID and the Voice URL in Twilio Console.');
+        } else if (e.code === 31003 || msg.includes('31003')) {
+          setDialerError('Twilio: Connection timed out — check your internet connection.');
+        } else if (e.code === 31201 || msg.includes('31201')) {
+          setDialerError('Twilio: Auth failed — TWILIO_API_KEY or TWILIO_API_SECRET may be wrong.');
+        } else {
+          setDialerError(`Twilio error ${e.code || ''}: ${msg}`);
+        }
+        console.error('[InlineDialer] Twilio device error:', e.code, msg);
+      });
+      device.on('unregistered', () => setDialerError('Twilio disconnected — refresh to reconnect'));
       device.on('tokenWillExpire', async () => {
         try {
           const r = await base44.functions.invoke('twilioClientToken', {});
@@ -103,13 +116,30 @@ export function useInlineDialer({ onCallStream, onCallLogged } = {}) {
     if (!deviceRef.current) { await initDevice(); }
     if (!deviceRef.current) return; // init failed
 
+    // Normalize phone to E.164 format (+1XXXXXXXXXX for US numbers)
+    const digits = phone.replace(/\D/g, '');
+    let e164 = '';
+    if (digits.length === 10) {
+      e164 = `+1${digits}`;
+    } else if (digits.length === 11 && digits.startsWith('1')) {
+      e164 = `+${digits}`;
+    } else if (digits.length > 7) {
+      // Already has country code or international — just prepend +
+      e164 = digits.startsWith('+') ? phone : `+${digits}`;
+    } else {
+      setDialerError(`Invalid phone number: ${phone}`);
+      return;
+    }
+
+    console.log(`[InlineDialer] Dialing ${e164} (raw: ${phone})`);
+
     setDialerError('');
     setCallStatus('calling');
     setDuration(0);
     setMuted(false);
 
     try {
-      const call = await deviceRef.current.connect({ params: { To: phone } });
+      const call = await deviceRef.current.connect({ params: { To: e164 } });
       callRef.current = call;
 
       call.on('ringing', () => setCallStatus('ringing'));
@@ -133,7 +163,15 @@ export function useInlineDialer({ onCallStream, onCallLogged } = {}) {
       });
 
       call.on('error', (e) => {
-        setDialerError(`Call error: ${e.message}`);
+        const msg = e.message || '';
+        let displayMsg = `Call error: ${msg}`;
+        if (e.code === 31002 || msg.includes('31002')) {
+          displayMsg = 'Twilio 31002: Cannot process request — verify TWILIO_TWIML_APP_SID is set and the TwiML App Voice URL points to dialerVoiceHandler.';
+        } else if (e.code === 13224 || msg.includes('13224')) {
+          displayMsg = 'Invalid phone number format. Number must be E.164 (+1XXXXXXXXXX).';
+        }
+        setDialerError(displayMsg);
+        console.error('[InlineDialer] Call error:', e.code, msg);
         stopTimer();
         setCallStatus('ended');
         onCallStream?.(null);
