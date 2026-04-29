@@ -826,25 +826,24 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
             </div>
           </div>
 
-          {/* Row 2: Inline Call Bar + action badges */}
-          <div style={{ display:'flex', flexDirection:'column', gap:'6px' }}>
-            {/* Inline dialer — direct dial */}
-            {(editLead.phone || lead.phone) && !isArchived && (
-              <InlineCallBar
-                phone={editLead.phone || lead.phone}
-                name={`${editLead.firstName || lead.firstName || ''} ${editLead.lastName || lead.lastName || ''}`.trim()}
-                dialer={dialer}
-                onLogCall={() => dialer.logLeadCall(lead.id).then(loadHistory)}
-                isPredictive={!!isDialerPaused}
-                isDialerPaused={!!isDialerPaused}
-                onPauseCampaign={() => dialerRef.current?.pauseDialer?.()}
-                onDisconnectNext={() => { dialerRef.current?.hangupActiveCall?.(); onNextLead?.(); }}
-                onSaveResume={async () => { await saveProfile(); dialerRef.current?.hangupActiveCall?.(); onResume?.(); }}
-              />
-            )}
-          <div style={{ display:'flex', gap:'6px', flexWrap:'wrap', alignItems:'center' }}>
+          {/* Row 2: Inline Call Bar */}
+          {(editLead.phone || lead.phone) && !isArchived && (
+            <InlineCallBar
+              phone={editLead.phone || lead.phone}
+              name={`${editLead.firstName || lead.firstName || ''} ${editLead.lastName || lead.lastName || ''}`.trim()}
+              dialer={dialer}
+              onLogCall={() => dialer.logLeadCall(lead.id).then(loadHistory)}
+              isPredictive={!!isDialerPaused}
+              isDialerPaused={!!isDialerPaused}
+              onPauseCampaign={() => dialerRef.current?.pauseDialer?.()}
+              onDisconnectNext={() => { dialerRef.current?.hangupActiveCall?.(); onNextLead?.(); }}
+              onSaveResume={async () => { await saveProfile(); dialerRef.current?.hangupActiveCall?.(); onResume?.(); }}
+            />
+          )}
 
-            {/* Activity badges — compact */}
+          {/* Row 3: Activity badges + action buttons */}
+          <div style={{ display:'flex', gap:'6px', flexWrap:'wrap', alignItems:'center' }}>
+            {/* Activity badges */}
             {editLead.badgeIntroEmailOpened && <span style={{ background:'rgba(74,222,128,0.12)', border:'1px solid rgba(74,222,128,0.3)', borderRadius:'12px', padding:'3px 8px', fontSize:'10px', color:'#4ade80' }}>🌟 Intro Opened</span>}
             {editLead.badgeEmailOpened && !editLead.badgeIntroEmailOpened && <span style={{ background:'rgba(74,222,128,0.08)', border:'1px solid rgba(74,222,128,0.2)', borderRadius:'12px', padding:'3px 8px', fontSize:'10px', color:'#4ade80' }}>📬 Email Opened</span>}
             {editLead.badgeConsumerWebsite && <span style={{ background:'rgba(96,165,250,0.08)', border:'1px solid rgba(96,165,250,0.2)', borderRadius:'12px', padding:'3px 8px', fontSize:'10px', color:'#60a5fa' }}>🌐 Consumer</span>}
@@ -852,10 +851,7 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
 
             <div style={{ flex:1 }} />
 
-          </div>{/* end badge row */}
-          </div>{/* end call bar + badge wrapper */}
-
-            {/* Right-side actions */}
+            {/* Right-side action buttons */}
             {!isArchived && (
               <button onClick={sendEmail} disabled={sendingEmail || !editLead.email}
                 title="Sends investor site access code + consumer ref URL (template 7949342)"
@@ -1049,6 +1045,7 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
           )}
         </div>
       </div>
+    </div>
     </>
   );
 }
