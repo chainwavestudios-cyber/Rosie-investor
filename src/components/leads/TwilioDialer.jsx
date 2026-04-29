@@ -16,6 +16,9 @@ export default function TwilioDialer({ initialLead, onClose, onCallLogged, onCal
   const [error, setError]             = useState('');
   const [statusMsg, setStatusMsg]     = useState('Ready');
 
+  const [callerId,   setCallerId]   = useState('');
+  const [lines,      setLines]      = useState([]);
+
   const timerRef     = useRef(null);
   const startTimeRef = useRef(null);
   const callRef      = useRef(null);
@@ -42,6 +45,14 @@ export default function TwilioDialer({ initialLead, onClose, onCallLogged, onCal
     try { callRef.current?.disconnect(); } catch {}
   }, []);
 
+  useEffect(() => {
+    base44.functions.invoke('twilioGetLines', {}).then(res => {
+      const ls = res?.data?.lines || res?.lines || [];
+      setLines(ls);
+      if (ls.length > 0) setCallerId(ls[0].number);
+    }).catch(() => {});
+  }, []);
+
   const dial = async () => {
     if (!displayNumber) { setError('No number to dial.'); return; }
     setError('');
@@ -52,7 +63,7 @@ export default function TwilioDialer({ initialLead, onClose, onCallLogged, onCal
 
     try {
       const device = await getDevice();
-      const call   = await device.connect({ params: { To: displayNumber } });
+      const call   = await device.connect({ params: { To: displayNumber, ...(callerId ? { CallerId: callerId } : {}) } });
       callRef.current = call;
 
       call.on('ringing',    () => { setCallStatus('ringing'); setStatusMsg('Ringing…'); });
@@ -112,6 +123,14 @@ export default function TwilioDialer({ initialLead, onClose, onCallLogged, onCal
           style={{ width:'100%', background:'rgba(255,255,255,0.05)', border:'1px solid rgba(255,255,255,0.15)', borderRadius:'4px', padding:'10px', color:'#e8e0d0', fontSize:'18px', textAlign:'center', outline:'none', boxSizing:'border-box', marginBottom:'12px', letterSpacing:'3px' }} />
       )}
 
+      {lines.length > 1 && (
+        <div style={{ marginBottom:'10px' }}>
+          <select value={callerId} onChange={e => setCallerId(e.target.value)} disabled={isActive}
+            style={{ width:'100%', background:'rgba(255,255,255,0.05)', border:'1px solid rgba(255,255,255,0.12)', borderRadius:'4px', padding:'6px 10px', color:'#8a9ab8', fontSize:'11px', outline:'none', cursor: isActive ? 'not-allowed' : 'pointer' }}>
+            {lines.map(l => <option key={l.number} value={l.number}>📞 Call from: {l.label} ({l.number})</option>)}
+          </select>
+        </div>
+      )}
       <div style={{ textAlign:'center', color: statusColor[callStatus] || '#8a9ab8', fontSize:'12px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'12px' }}>
         {deviceError || statusMsg}
       </div>
