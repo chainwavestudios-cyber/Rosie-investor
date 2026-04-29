@@ -443,7 +443,10 @@ export default function ScriptAssistant({ lead, user, onExpandCard, isCardExpand
       });
             if (res?.data?.answer) { setCoachTip(res.data.answer); setCoachStatus('connected'); setTimeout(() => setCoachStatus('idle'), 5000); }
     } catch { setCoachStatus('error'); setTimeout(() => setCoachStatus('idle'), 3000); }
-    setCoachLoading(false); (allT) => {
+    setCoachLoading(false);
+  };
+
+  const checkIntent = async (allT) => {
     if (!aiEnabled || !intentEnabled) return;
     const now = Date.now();
     if (now - lastIntent.current < 20000) return;
