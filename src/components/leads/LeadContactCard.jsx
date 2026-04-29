@@ -869,12 +869,6 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
               </>
             )}
 
-            {/* Activity badges — compact */}
-            {editLead.badgeIntroEmailOpened && <span style={{ background:'rgba(74,222,128,0.12)', border:'1px solid rgba(74,222,128,0.3)', borderRadius:'12px', padding:'3px 8px', fontSize:'10px', color:'#4ade80' }}>🌟 Intro Opened</span>}
-            {editLead.badgeEmailOpened && !editLead.badgeIntroEmailOpened && <span style={{ background:'rgba(74,222,128,0.08)', border:'1px solid rgba(74,222,128,0.2)', borderRadius:'12px', padding:'3px 8px', fontSize:'10px', color:'#4ade80' }}>📬 Email Opened</span>}
-            {editLead.badgeConsumerWebsite && <span style={{ background:'rgba(96,165,250,0.08)', border:'1px solid rgba(96,165,250,0.2)', borderRadius:'12px', padding:'3px 8px', fontSize:'10px', color:'#60a5fa' }}>🌐 Consumer</span>}
-            {editLead.badgeInvestorPage && <span style={{ background:'rgba(167,139,250,0.08)', border:'1px solid rgba(167,139,250,0.2)', borderRadius:'12px', padding:'3px 8px', fontSize:'10px', color:'#a78bfa' }}>💼 Investor Page</span>}
-
             <div style={{ flex:1 }} />
 
             {/* Right-side actions */}
@@ -909,10 +903,17 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
         </div>
 
         {/* Tabs */}
-        <div style={{ display:'flex', borderBottom:'1px solid rgba(255,255,255,0.07)', flexShrink:0 }}>
+        <div style={{ display:'flex', borderBottom:'1px solid rgba(255,255,255,0.07)', flexShrink:0, alignItems:'center' }}>
           {[['overview','Overview'],['history','History'],['actions','Actions'],['access','Site Access'],['sitestats','Site Stats'],['research','Research'],['script','Script & AI']].filter(([id]) => !(isArchived && id === 'actions')).map(([id,label]) => (
             <button key={id} onClick={() => setTab(id)} style={{ background:'none', border:'none', borderBottom:tab===id?`2px solid ${GOLD}`:'2px solid transparent', color:tab===id?GOLD:'#6b7280', padding:'10px 16px', cursor:'pointer', fontSize:'11px', letterSpacing:'0.5px', whiteSpace:'nowrap' }}>{label}</button>
           ))}
+          <div style={{ flex:1 }} />
+          <div style={{ display:'flex', gap:'5px', alignItems:'center', paddingRight:'12px' }}>
+            {editLead.badgeIntroEmailOpened && <span style={{ background:'rgba(74,222,128,0.12)', border:'1px solid rgba(74,222,128,0.3)', borderRadius:'12px', padding:'2px 8px', fontSize:'10px', color:'#4ade80', whiteSpace:'nowrap' }}>🌟 Intro Opened</span>}
+            {editLead.badgeEmailOpened && !editLead.badgeIntroEmailOpened && <span style={{ background:'rgba(74,222,128,0.08)', border:'1px solid rgba(74,222,128,0.2)', borderRadius:'12px', padding:'2px 8px', fontSize:'10px', color:'#4ade80', whiteSpace:'nowrap' }}>📬 Email Opened</span>}
+            {editLead.badgeConsumerWebsite && <span style={{ background:'rgba(96,165,250,0.08)', border:'1px solid rgba(96,165,250,0.2)', borderRadius:'12px', padding:'2px 8px', fontSize:'10px', color:'#60a5fa', whiteSpace:'nowrap' }}>🌐 Consumer</span>}
+            {editLead.badgeInvestorPage && <span style={{ background:'rgba(167,139,250,0.08)', border:'1px solid rgba(167,139,250,0.2)', borderRadius:'12px', padding:'2px 8px', fontSize:'10px', color:'#a78bfa', whiteSpace:'nowrap' }}>💼 Investor Page</span>}
+          </div>
         </div>
 
         {/* Body */}
