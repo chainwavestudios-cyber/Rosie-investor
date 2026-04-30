@@ -683,7 +683,7 @@ function SubscriptionAgreements({ onRequestDocuments, setActiveTab }) {
                   <button onClick={closeDoc} style={{ background:'none', border:'1px solid rgba(255,255,255,0.1)', color:'#6b7280', borderRadius:'2px', padding:'7px 12px', cursor:'pointer', fontSize:'14px' }}>×</button>
                 </div>
               </div>
-              <iframe src={`https://docs.google.com/viewer?url=${encodeURIComponent(selectedDoc.url)}&embedded=true`} style={{ flex:1, width:'100%', minHeight:'560px', border:'none', background:'#fff' }} title={selectedDoc.name} key={selectedDoc.id} />
+              <iframe src={`${selectedDoc.url}#toolbar=1`} style={{ flex:1, width:'100%', minHeight:'560px', border:'none', background:'#fff' }} title={selectedDoc.name} key={selectedDoc.id} />
             </div>
           )}
         </div>
