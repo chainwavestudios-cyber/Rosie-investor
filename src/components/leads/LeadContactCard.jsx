@@ -694,8 +694,30 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
   const loadHistory = async () => {
     setLoading(true);
     try {
-      const h = await base44.entities.LeadHistory.filter({ leadId: lead.id }, '-created_date');
-      setHistory(h);
+      // Always load LeadHistory
+      const leadHist = await base44.entities.LeadHistory.filter({ leadId: lead.id }, '-created_date', 500).catch(() => []);
+
+      // For archived leads, also pull ContactNotes from the linked InvestorUser
+      let contactNotes = [];
+      const investorUserId = lead.convertedToInvestorUserId;
+      if (isArchived && investorUserId) {
+        const cn = await base44.entities.ContactNote.filter({ investorId: investorUserId }, '-createdAt', 500).catch(() => []);
+        // Convert ContactNotes to a LeadHistory-like shape so the UI renders them uniformly
+        contactNotes = cn.map(n => ({
+          id: 'cn_' + n.id,
+          type: n.type === 'call' ? 'call' : n.type === 'email' ? 'note' : 'note',
+          content: n.content,
+          created_date: n.createdAt || n.created_date,
+          callDurationSeconds: null,
+          _isContactNote: true,
+        }));
+      }
+
+      // Merge and sort by date descending, deduplicate by content+date
+      const all = [...leadHist, ...contactNotes].sort((a, b) =>
+        new Date(b.created_date || 0) - new Date(a.created_date || 0)
+      );
+      setHistory(all);
     } catch(e) { console.error(e); }
     setLoading(false);
   };
