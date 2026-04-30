@@ -292,6 +292,7 @@ export default function LeadsTab() {
   const [selectedLead, setSelectedLead] = useState(null);
   const [recentCalls, setRecentCalls] = useState([]);
   const [showDialerPanel, setShowDialerPanel] = useState(false);
+  const [dialerStream, setDialerStream] = useState(null);
   const [dialerTab, setDialerTab] = useState('dialer');
   const [dialerLead, setDialerLead] = useState(null);
   const [showDialer, setShowDialer] = useState(false);
@@ -514,6 +515,7 @@ export default function LeadsTab() {
         dialerRef={dialerRef}
         isDialerPaused={isDialerPaused}
         dialerPanelOpen={showDialerPanel}
+        twilioStream={dialerStream}
         onResume={() => {
           setSelectedLead(null);
           setIsDialerPaused(false);
@@ -548,7 +550,8 @@ export default function LeadsTab() {
                   onClose={() => { setShowDialer(false); setDialerLead(null); setIsCallActive(false); }}
                   onCallLogged={handleCallLogged}
                   onCallStart={() => setIsCallActive(true)}
-                  onCallEnd={() => { setIsCallActive(false); loadRecentCalls(); }}
+                  onCallEnd={() => { setIsCallActive(false); loadRecentCalls(); setDialerStream(null); }}
+                  onCallStream={(s) => setDialerStream(s)}
                   embedded={true}
                 />
               ) : (
@@ -667,7 +670,8 @@ export default function LeadsTab() {
             onCallLogged={handleCallLogged}
             onLeadConnected={handleLeadConnected}
             onPaused={() => { setIsDialerPaused(true); setIsCallActive(true); }}
-            onResumed={() => { setIsDialerPaused(false); setIsCallActive(false); }}
+            onResumed={() => { setIsDialerPaused(false); setIsCallActive(false); setDialerStream(null); }}
+            onCallStream={(s) => setDialerStream(s)}
           />
         </div>
       )}
