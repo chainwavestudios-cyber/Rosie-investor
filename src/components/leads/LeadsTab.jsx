@@ -290,7 +290,7 @@ function NewLeadModal({ onClose, onCreated }) {
 }
 
 // ─── Main Leads Tab ───────────────────────────────────────────────────────
-export default function LeadsTab() {
+export default function LeadsTab({ openLeadId, onLeadOpened }) {
   const [leads, setLeads] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all');
@@ -325,6 +325,15 @@ export default function LeadsTab() {
     loadActivity();
     base44.entities.ContactList.list('-created_date', 100).then(setContactLists).catch(() => {});
   }, []);
+
+  // Auto-open a lead card when openLeadId is passed (e.g. from calendar or reminders)
+  useEffect(() => {
+    if (!openLeadId) return;
+    base44.entities.Lead.filter({ id: openLeadId }).then(rows => {
+      if (rows?.[0]) setSelectedLead(rows[0]);
+      onLeadOpened && onLeadOpened();
+    }).catch(() => {});
+  }, [openLeadId]);
 
   const loadActivity = async () => {
     setActivityLoading(true);

@@ -1583,7 +1583,7 @@ export default function AdminDashboard() {
         {/* Upcoming appointments — only on CRM/Leads tabs */}
         {(view === 'users' || view === 'leads') && (
           <UpcomingReminders
-            onOpenLeadCard={(lead) => {}}
+            onOpenLeadCard={(lead) => { handleViewChange('leads'); setOpenLeadId(lead.id); }}
             onOpenUserCard={(investorId) => { const u = users.find(u => u.id === investorId); if (u) setContactCard(u); }}
             onOpenDialer={(lead) => { setDialerLead(lead); setShowDialer(true); }}
           />
