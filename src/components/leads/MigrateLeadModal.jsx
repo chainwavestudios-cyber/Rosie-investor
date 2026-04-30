@@ -92,11 +92,10 @@ export default function MigrateLeadModal({ lead, history, onClose, onMigrated })
       }
       mark('Creating CRM account');
 
-      // ── 2. Migrate LeadHistory → ContactNotes ─────────────────────────
+      // ── 2. Migrate LeadHistory → ContactNotes (ALL types) ────────────────
       setCurrentStep('Migrating call & note history');
-      const allHistory = history?.length
-        ? history
-        : await base44.entities.LeadHistory.filter({ leadId: lead.id }).catch(() => []);
+      // Always fetch fresh from DB to ensure we have everything
+      const allHistory = await base44.entities.LeadHistory.filter({ leadId: lead.id }, '-created_date', 500).catch(() => []);
 
       for (const h of (allHistory || [])) {
         try {
@@ -106,11 +105,12 @@ export default function MigrateLeadModal({ lead, history, onClose, onMigrated })
             : (h.type === 'email' || (h.content||'').includes('Email sent')) ? 'email'
             : 'note';
           const label = (h.type||'note').replace(/_/g,' ').replace(/\b\w/g,l=>l.toUpperCase());
+          const durNote = (h.type === 'call' && h.callDurationSeconds > 0) ? ` (${h.callDurationSeconds}s)` : '';
           await base44.entities.ContactNote.create({
             investorId:    iu.id,
             investorEmail: iu.email,
             type:          noteType,
-            content:       `[Lead History · ${label}] ${h.content || ''}`,
+            content:       `[Lead History · ${label}] ${h.content || ''}${durNote}`,
             createdAt:     h.created_date,
             createdBy:     h.createdBy || 'admin',
           });
