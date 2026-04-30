@@ -1,19 +1,110 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
 
 const GOLD = '#b8933a';
 const DARK = '#0a0f1e';
 
-const STAGES = [
-  { id: 'reviewing', label: 'Reviewing Info',  color: '#60a5fa', bg: 'rgba(96,165,250,0.08)',  border: 'rgba(96,165,250,0.25)' },
-  { id: 'read',      label: 'Read Info',        color: '#a78bfa', bg: 'rgba(167,139,250,0.08)', border: 'rgba(167,139,250,0.25)' },
-  { id: 'callback',  label: 'Call Back',        color: '#f59e0b', bg: 'rgba(245,158,11,0.08)',  border: 'rgba(245,158,11,0.25)' },
-  { id: 'preclose',  label: 'Pre-Close',        color: '#4ade80', bg: 'rgba(74,222,128,0.08)',  border: 'rgba(74,222,128,0.25)' },
-  { id: 'load',      label: 'Load',             color: GOLD,      bg: 'rgba(184,147,58,0.08)',  border: 'rgba(184,147,58,0.25)' },
+const STAGE_COLORS = [
+  { color: '#60a5fa', bg: 'rgba(96,165,250,0.08)',  border: 'rgba(96,165,250,0.25)' },
+  { color: '#a78bfa', bg: 'rgba(167,139,250,0.08)', border: 'rgba(167,139,250,0.25)' },
+  { color: '#f59e0b', bg: 'rgba(245,158,11,0.08)',  border: 'rgba(245,158,11,0.25)' },
+  { color: '#4ade80', bg: 'rgba(74,222,128,0.08)',  border: 'rgba(74,222,128,0.25)' },
+  { color: GOLD,      bg: 'rgba(184,147,58,0.08)',  border: 'rgba(184,147,58,0.25)' },
 ];
 
-function LeadPipelineCard({ lead, stage, onDragStart, onOpenCard, hasApptToday }) {
+const DEFAULT_STAGES = [
+  { id: 'reviewing', label: 'Reviewing Info' },
+  { id: 'read',      label: 'Read Info' },
+  { id: 'callback',  label: 'Call Back' },
+  { id: 'preclose',  label: 'Pre-Close' },
+  { id: 'load',      label: 'Load' },
+];
+
+const STAGES_KEY = 'lead_pipeline_stages_v1';
+
+function loadStages() {
+  try {
+    const stored = localStorage.getItem(STAGES_KEY);
+    if (stored) return JSON.parse(stored);
+  } catch {}
+  return DEFAULT_STAGES;
+}
+
+function saveStages(stages) {
+  localStorage.setItem(STAGES_KEY, JSON.stringify(stages));
+}
+
+// Star rating: click once = full star, click again on same filled star = half star, click on half = clear
+function StarRating({ value = 0, onChange }) {
+  const [hover, setHover] = useState(null);
+
+  // value: 0, 0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5
+  const handleClick = (e, star) => {
+    e.stopPropagation();
+    const clickX = e.clientX - e.currentTarget.getBoundingClientRect().left;
+    const isLeft = clickX < e.currentTarget.offsetWidth / 2;
+    const newVal = isLeft ? star - 0.5 : star;
+    // Toggle off if same value
+    onChange(newVal === value ? 0 : newVal);
+  };
+
+  const displayVal = hover !== null ? hover : value;
+
+  return (
+    <div style={{ display: 'flex', gap: '1px' }} onMouseLeave={() => setHover(null)}>
+      {[1, 2, 3, 4, 5].map(star => {
+        const full = displayVal >= star;
+        const half = !full && displayVal >= star - 0.5;
+        return (
+          <div key={star} style={{ position: 'relative', width: '16px', height: '16px', cursor: 'pointer', flexShrink: 0 }}
+            onMouseMove={e => {
+              const isLeft = e.clientX - e.currentTarget.getBoundingClientRect().left < 8;
+              setHover(isLeft ? star - 0.5 : star);
+            }}
+            onClick={e => handleClick(e, star)}>
+            {/* Background (empty) star */}
+            <span style={{ position: 'absolute', inset: 0, color: 'rgba(255,255,255,0.15)', fontSize: '15px', lineHeight: '16px', userSelect: 'none' }}>★</span>
+            {/* Filled overlay */}
+            {(full || half) && (
+              <span style={{
+                position: 'absolute', inset: 0, fontSize: '15px', lineHeight: '16px', userSelect: 'none',
+                color: '#f59e0b',
+                clipPath: full ? 'none' : 'inset(0 50% 0 0)',
+              }}>★</span>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function fmtDur(s) {
+  if (!s) return null;
+  if (s < 60) return `${s}s`;
+  return `${Math.floor(s / 60)}m ${s % 60}s`;
+}
+
+function fmtDate(iso) {
+  if (!iso) return null;
+  const d = new Date(iso);
+  const diff = Date.now() - d;
+  if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
+  if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`;
+  return d.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+}
+
+function LeadPipelineCard({ lead, stage, onDragStart, onOpenCard, hasApptToday, onStarChange }) {
   const [dragging, setDragging] = useState(false);
+  const [starVal, setStarVal] = useState(lead.starRating || 0);
+
+  const handleStarChange = async (val) => {
+    setStarVal(val);
+    onStarChange(val);
+  };
+
+  const lastCallDur = lead.lastCallDurationSeconds ? fmtDur(lead.lastCallDurationSeconds) : null;
+  const lastCallTime = lead.lastCalledAt ? fmtDate(lead.lastCalledAt) : null;
 
   return (
     <div draggable
@@ -25,7 +116,7 @@ function LeadPipelineCard({ lead, stage, onDragStart, onOpenCard, hasApptToday }
         border: `1px solid ${stage.border}`,
         borderLeft: `3px solid ${stage.color}`,
         borderRadius: '4px',
-        padding: '12px 12px 10px',
+        padding: '10px 10px 8px',
         cursor: 'pointer',
         opacity: dragging ? 0.4 : 1,
         transition: 'all 0.1s',
@@ -36,45 +127,100 @@ function LeadPipelineCard({ lead, stage, onDragStart, onOpenCard, hasApptToday }
       onMouseEnter={e => { if (!dragging) e.currentTarget.style.background = 'rgba(255,255,255,0.06)'; }}
       onMouseLeave={e => { if (!dragging) e.currentTarget.style.background = '#0d1b2a'; }}>
 
-      {/* Pulsing calendar emoji for today's appointments */}
-      {hasApptToday && (
-        <div style={{
-          position: 'absolute', top: '8px', right: '8px',
-          fontSize: '16px',
-          animation: 'calPulse 1.4s ease-in-out infinite',
-        }}>📅</div>
-      )}
-
-      <div style={{ color: '#e8e0d0', fontSize: '13px', fontWeight: 'bold', marginBottom: '5px', paddingRight: hasApptToday ? '24px' : '0',
-        onMouseEnter: e => e.currentTarget.style.color = stage.color }}>
-        {lead.firstName} {lead.lastName}
+      {/* Top row: name + score badge */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '6px', marginBottom: '4px' }}>
+        <div style={{ color: '#e8e0d0', fontSize: '12px', fontWeight: 'bold', lineHeight: 1.3, flex: 1, minWidth: 0 }}>
+          {lead.firstName} {lead.lastName}
+          {hasApptToday && (
+            <span style={{ marginLeft: '4px', fontSize: '13px', animation: 'calPulse 1.4s ease-in-out infinite', display: 'inline-block' }}>📅</span>
+          )}
+        </div>
+        {(lead.engagementScore > 0) && (
+          <div style={{ width: '28px', height: '28px', borderRadius: '50%', border: `2px solid ${GOLD}`, background: `rgba(184,147,58,0.15)`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <span style={{ color: GOLD, fontSize: '9px', fontWeight: 'bold' }}>{lead.engagementScore}</span>
+          </div>
+        )}
       </div>
 
+      {/* Email */}
       {lead.email && (
-        <div style={{ color: '#4a5568', fontSize: '10px', marginBottom: '4px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        <div style={{ color: '#4a5568', fontSize: '10px', marginBottom: '3px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {lead.email}
         </div>
       )}
 
+      {/* Phone */}
       {lead.phone && (
-        <div style={{ color: '#60a5fa', fontSize: '11px', fontFamily: 'monospace', marginBottom: '6px' }}>
+        <div style={{ color: '#60a5fa', fontSize: '10px', fontFamily: 'monospace', marginBottom: '4px' }}>
           📞 {lead.phone}
         </div>
       )}
 
-      {lead.state && (
-        <div style={{ color: GOLD, fontSize: '10px', background: 'rgba(184,147,58,0.1)', display: 'inline-block', padding: '1px 6px', borderRadius: '2px', marginBottom: '4px' }}>
-          {lead.state}
+      {/* Last call info */}
+      {(lastCallTime || lastCallDur) && (
+        <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '6px' }}>
+          {lastCallTime && (
+            <span style={{ color: '#6b7280', fontSize: '9px', background: 'rgba(255,255,255,0.04)', padding: '1px 5px', borderRadius: '3px' }}>
+              📞 {lastCallTime}
+            </span>
+          )}
+          {lastCallDur && (
+            <span style={{ color: '#8a9ab8', fontSize: '9px', background: 'rgba(255,255,255,0.04)', padding: '1px 5px', borderRadius: '3px' }}>
+              ⏱ {lastCallDur}
+            </span>
+          )}
         </div>
+      )}
+      {!lastCallTime && (
+        <div style={{ color: '#4a5568', fontSize: '9px', marginBottom: '6px' }}>Never called</div>
       )}
 
-      {lead.engagementScore > 0 && (
-        <div style={{ marginTop: '4px' }}>
-          <span style={{ background: 'rgba(184,147,58,0.15)', color: GOLD, borderRadius: '20px', padding: '1px 7px', fontSize: '9px', fontWeight: 'bold' }}>
-            ⭐ {lead.engagementScore}
-          </span>
-        </div>
+      {/* Star rating */}
+      <div onClick={e => e.stopPropagation()} style={{ marginTop: '2px' }}>
+        <StarRating value={starVal} onChange={handleStarChange} />
+      </div>
+    </div>
+  );
+}
+
+// Editable stage header
+function StageHeader({ stage, onRename, onDelete, canDelete }) {
+  const [editing, setEditing] = useState(false);
+  const [val, setVal] = useState(stage.label);
+  const inputRef = useRef(null);
+
+  useEffect(() => { if (editing) inputRef.current?.focus(); }, [editing]);
+
+  const commit = () => {
+    if (val.trim()) onRename(val.trim());
+    setEditing(false);
+  };
+
+  return (
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+      {editing ? (
+        <input
+          ref={inputRef}
+          value={val}
+          onChange={e => setVal(e.target.value)}
+          onBlur={commit}
+          onKeyDown={e => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') { setVal(stage.label); setEditing(false); } }}
+          style={{ flex: 1, background: 'rgba(255,255,255,0.08)', border: `1px solid ${stage.color}`, borderRadius: '3px', padding: '2px 6px', color: stage.color, fontSize: '10px', outline: 'none', fontFamily: 'Georgia, serif', letterSpacing: '1px', textTransform: 'uppercase' }}
+        />
+      ) : (
+        <span
+          onClick={() => setEditing(true)}
+          title="Click to rename"
+          style={{ color: stage.color, fontSize: '10px', letterSpacing: '1.5px', textTransform: 'uppercase', fontWeight: 'bold', cursor: 'text', flex: 1 }}>
+          {stage.label}
+        </span>
       )}
+      <div style={{ display: 'flex', gap: '4px', alignItems: 'center', flexShrink: 0 }}>
+        {canDelete && (
+          <button onClick={onDelete} title="Remove stage"
+            style={{ background: 'none', border: 'none', color: '#4a5568', cursor: 'pointer', fontSize: '12px', padding: '0 2px', lineHeight: 1 }}>×</button>
+        )}
+      </div>
     </div>
   );
 }
@@ -85,40 +231,49 @@ export default function LeadPipeline({ onOpenLead }) {
   const [dragId, setDragId] = useState(null);
   const [dragOver, setDragOver] = useState(null);
   const [todayApptLeadIds, setTodayApptLeadIds] = useState(new Set());
+  const [stages, setStages] = useState(loadStages);
+  const [addingStage, setAddingStage] = useState(false);
+  const [newStageName, setNewStageName] = useState('');
 
-  useEffect(() => {
-    loadData();
-  }, []);
+  useEffect(() => { loadData(); }, []);
 
   const loadData = async () => {
     setLoading(true);
     try {
-      const [allLeads, appts] = await Promise.all([
+      const [allLeads, appts, histories] = await Promise.all([
         base44.entities.Lead.filter({ status: 'prospect' }),
         base44.entities.Appointment.filter({ status: 'scheduled' }),
+        base44.entities.LeadHistory.list('-created_date', 500).catch(() => []),
       ]);
 
-      // Filter out migrated leads
       const prospects = allLeads.filter(l => !l.migratedToPortal && !l.convertedToInvestorUserId);
 
-      // Ensure all have a pipelineStage
-      const needsStage = prospects.filter(l => !l.leadPipelineStage);
+      // Attach last call duration from history
+      const callsByLead = {};
+      histories.filter(h => h.type === 'call' && h.callDurationSeconds > 0).forEach(h => {
+        if (!callsByLead[h.leadId] || new Date(h.created_date) > new Date(callsByLead[h.leadId].created_date)) {
+          callsByLead[h.leadId] = h;
+        }
+      });
+      const enriched = prospects.map(l => ({
+        ...l,
+        lastCallDurationSeconds: callsByLead[l.id]?.callDurationSeconds || null,
+      }));
+
+      // Ensure pipeline stage set
+      const needsStage = enriched.filter(l => !l.leadPipelineStage);
       if (needsStage.length > 0) {
         await Promise.all(needsStage.map(l =>
           base44.entities.Lead.update(l.id, { leadPipelineStage: 'reviewing' }).catch(() => {})
         ));
-        // Re-fetch with updated stages
-        const refreshed = await base44.entities.Lead.filter({ status: 'prospect' });
-        setLeads(refreshed.filter(l => !l.migratedToPortal && !l.convertedToInvestorUserId));
-      } else {
-        setLeads(prospects);
+        enriched.forEach(l => { if (!l.leadPipelineStage) l.leadPipelineStage = 'reviewing'; });
       }
 
-      // Today's appointments
+      setLeads(enriched);
+
       const today = new Date().toDateString();
       const ids = new Set(
-        appts.filter(a => a.scheduledAt && new Date(a.scheduledAt).toDateString() === today)
-             .map(a => a.investorId)
+        appts.filter(a => a.scheduledAt && new Date(a.scheduledAt).toDateString() === today).map(a => a.investorId)
       );
       setTodayApptLeadIds(ids);
     } catch (e) { console.error(e); }
@@ -126,26 +281,48 @@ export default function LeadPipeline({ onOpenLead }) {
   };
 
   const moveTo = async (leadId, stageId) => {
-    try {
-      await base44.entities.Lead.update(leadId, { leadPipelineStage: stageId });
-      setLeads(prev => prev.map(l => l.id === leadId ? { ...l, leadPipelineStage: stageId } : l));
-    } catch (e) { console.error(e); }
+    await base44.entities.Lead.update(leadId, { leadPipelineStage: stageId }).catch(() => {});
+    setLeads(prev => prev.map(l => l.id === leadId ? { ...l, leadPipelineStage: stageId } : l));
   };
 
-  const handleDragStart = (e, leadId) => {
-    setDragId(leadId);
-    e.dataTransfer.effectAllowed = 'move';
+  const handleStarChange = async (leadId, val) => {
+    await base44.entities.Lead.update(leadId, { starRating: val }).catch(() => {});
+    setLeads(prev => prev.map(l => l.id === leadId ? { ...l, starRating: val } : l));
   };
 
-  const handleDrop = (e, stageId) => {
-    e.preventDefault();
-    if (dragId) moveTo(dragId, stageId);
-    setDragId(null);
-    setDragOver(null);
+  const handleDragStart = (e, leadId) => { setDragId(leadId); e.dataTransfer.effectAllowed = 'move'; };
+  const handleDrop = (e, stageId) => { e.preventDefault(); if (dragId) moveTo(dragId, stageId); setDragId(null); setDragOver(null); };
+
+  const renameStage = (stageId, newLabel) => {
+    const updated = stages.map(s => s.id === stageId ? { ...s, label: newLabel } : s);
+    setStages(updated);
+    saveStages(updated);
   };
 
-  const leadsInStage = (stageId) =>
-    leads.filter(l => (l.leadPipelineStage || 'reviewing') === stageId);
+  const deleteStage = (stageId) => {
+    if (stages.length <= 1) return;
+    const updated = stages.filter(s => s.id !== stageId);
+    setStages(updated);
+    saveStages(updated);
+    // Move orphaned leads to first remaining stage
+    const fallback = updated[0].id;
+    const orphans = leads.filter(l => (l.leadPipelineStage || 'reviewing') === stageId);
+    orphans.forEach(l => moveTo(l.id, fallback));
+  };
+
+  const addStage = () => {
+    if (!newStageName.trim()) return;
+    const id = newStageName.trim().toLowerCase().replace(/\s+/g, '_') + '_' + Date.now();
+    const updated = [...stages, { id, label: newStageName.trim() }];
+    setStages(updated);
+    saveStages(updated);
+    setNewStageName('');
+    setAddingStage(false);
+  };
+
+  const leadsInStage = (stageId) => leads.filter(l => (l.leadPipelineStage || 'reviewing') === stageId);
+
+  const getStageStyle = (idx) => STAGE_COLORS[idx % STAGE_COLORS.length];
 
   if (loading) return (
     <div style={{ textAlign: 'center', padding: '60px', color: '#6b7280', fontFamily: 'Georgia, serif' }}>Loading pipeline…</div>
@@ -164,73 +341,94 @@ export default function LeadPipeline({ onOpenLead }) {
         <div>
           <h2 style={{ color: '#e8e0d0', margin: '0 0 3px', fontSize: '18px', fontWeight: 'normal' }}>🚀 Prospect Pipeline</h2>
           <p style={{ color: '#6b7280', fontSize: '12px', margin: 0 }}>
-            Drag cards between stages · {leads.length} prospects
+            Drag cards between stages · {leads.length} prospects · Click stage name to rename
           </p>
         </div>
-        <button onClick={loadData}
-          style={{ background: 'rgba(255,255,255,0.05)', color: '#8a9ab8', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '2px', padding: '8px 14px', cursor: 'pointer', fontSize: '11px' }}>
-          ↻ Refresh
-        </button>
+        <div style={{ display: 'flex', gap: '8px' }}>
+          {addingStage ? (
+            <div style={{ display: 'flex', gap: '6px' }}>
+              <input value={newStageName} onChange={e => setNewStageName(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') addStage(); if (e.key === 'Escape') { setAddingStage(false); setNewStageName(''); } }}
+                placeholder="Stage name…" autoFocus
+                style={{ background: 'rgba(255,255,255,0.07)', border: `1px solid ${GOLD}`, borderRadius: '3px', padding: '6px 10px', color: '#e8e0d0', fontSize: '12px', outline: 'none', fontFamily: 'Georgia, serif', width: '140px' }} />
+              <button onClick={addStage}
+                style={{ background: `linear-gradient(135deg,${GOLD},#d4aa50)`, color: DARK, border: 'none', borderRadius: '3px', padding: '6px 12px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>
+                Add
+              </button>
+              <button onClick={() => { setAddingStage(false); setNewStageName(''); }}
+                style={{ background: 'rgba(255,255,255,0.05)', color: '#6b7280', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '3px', padding: '6px 10px', cursor: 'pointer', fontSize: '11px' }}>
+                Cancel
+              </button>
+            </div>
+          ) : (
+            <button onClick={() => setAddingStage(true)}
+              style={{ background: 'rgba(184,147,58,0.12)', color: GOLD, border: `1px solid rgba(184,147,58,0.3)`, borderRadius: '2px', padding: '7px 14px', cursor: 'pointer', fontSize: '11px', letterSpacing: '0.5px' }}>
+              + Add Stage
+            </button>
+          )}
+          <button onClick={loadData}
+            style={{ background: 'rgba(255,255,255,0.05)', color: '#8a9ab8', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '2px', padding: '7px 12px', cursor: 'pointer', fontSize: '11px' }}>
+            ↻
+          </button>
+        </div>
       </div>
 
-      {leads.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: '60px 20px', background: 'rgba(0,0,0,0.15)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '6px' }}>
-          <div style={{ fontSize: '48px', marginBottom: '16px' }}>🚀</div>
-          <div style={{ color: '#4a5568', fontSize: '14px', marginBottom: '8px' }}>No prospects yet.</div>
-          <div style={{ color: '#374151', fontSize: '12px' }}>Mark a lead as "Prospect" from the Leads tab to add them here.</div>
-        </div>
-      ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '12px', alignItems: 'start', overflowX: 'auto' }}>
-          {STAGES.map(stage => {
-            const cards = leadsInStage(stage.id);
-            const isOver = dragOver === stage.id;
-            return (
-              <div key={stage.id}
-                onDragOver={e => { e.preventDefault(); setDragOver(stage.id); }}
-                onDragLeave={() => setDragOver(null)}
-                onDrop={e => handleDrop(e, stage.id)}
-                style={{
-                  background: isOver ? stage.bg : 'rgba(255,255,255,0.015)',
-                  border: `1px solid ${isOver ? stage.color : 'rgba(255,255,255,0.07)'}`,
-                  borderRadius: '6px',
-                  minHeight: '600px',
-                  transition: 'all 0.15s',
-                }}>
+      <div style={{ display: 'grid', gridTemplateColumns: `repeat(${stages.length}, minmax(180px, 1fr))`, gap: '12px', alignItems: 'start', overflowX: 'auto' }}>
+        {stages.map((stage, idx) => {
+          const style = getStageStyle(idx);
+          const stageWithStyle = { ...stage, ...style };
+          const cards = leadsInStage(stage.id);
+          const isOver = dragOver === stage.id;
+          return (
+            <div key={stage.id}
+              onDragOver={e => { e.preventDefault(); setDragOver(stage.id); }}
+              onDragLeave={() => setDragOver(null)}
+              onDrop={e => handleDrop(e, stage.id)}
+              style={{
+                background: isOver ? style.bg : 'rgba(255,255,255,0.015)',
+                border: `1px solid ${isOver ? style.color : 'rgba(255,255,255,0.07)'}`,
+                borderRadius: '6px',
+                minHeight: '500px',
+                transition: 'all 0.15s',
+              }}>
 
-                {/* Stage header */}
-                <div style={{ padding: '12px 12px 10px', borderBottom: `2px solid ${stage.color}44` }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-                    <span style={{ color: stage.color, fontSize: '10px', letterSpacing: '1.5px', textTransform: 'uppercase', fontWeight: 'bold' }}>{stage.label}</span>
-                    <span style={{ background: stage.bg, color: stage.color, border: `1px solid ${stage.border}`, borderRadius: '10px', padding: '1px 8px', fontSize: '11px', fontWeight: 'bold' }}>{cards.length}</span>
+              <div style={{ padding: '12px 10px 8px', borderBottom: `2px solid ${style.color}44` }}>
+                <StageHeader
+                  stage={stageWithStyle}
+                  onRename={(newLabel) => renameStage(stage.id, newLabel)}
+                  onDelete={() => deleteStage(stage.id)}
+                  canDelete={stages.length > 1}
+                />
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={{ height: '3px', background: 'rgba(255,255,255,0.06)', borderRadius: '2px', flex: 1, marginRight: '6px' }}>
+                    <div style={{ height: '100%', background: style.color, borderRadius: '2px', width: `${Math.min(100, cards.length * 20)}%`, transition: 'width 0.3s' }} />
                   </div>
-                  <div style={{ height: '3px', background: 'rgba(255,255,255,0.06)', borderRadius: '2px', marginTop: '6px' }}>
-                    <div style={{ height: '100%', background: stage.color, borderRadius: '2px', width: `${Math.min(100, cards.length * 20)}%`, transition: 'width 0.3s' }} />
-                  </div>
-                </div>
-
-                {/* Cards */}
-                <div style={{ padding: '8px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                  {cards.map(lead => (
-                    <LeadPipelineCard
-                      key={lead.id}
-                      lead={lead}
-                      stage={stage}
-                      hasApptToday={todayApptLeadIds.has(lead.id)}
-                      onDragStart={e => handleDragStart(e, lead.id)}
-                      onOpenCard={() => onOpenLead(lead)}
-                    />
-                  ))}
-                  {cards.length === 0 && (
-                    <div style={{ color: '#4a5568', fontSize: '11px', textAlign: 'center', padding: '32px 8px', fontStyle: 'italic', borderRadius: '4px', border: '1px dashed rgba(255,255,255,0.06)', margin: '4px' }}>
-                      Drop here
-                    </div>
-                  )}
+                  <span style={{ background: style.bg, color: style.color, border: `1px solid ${style.border}`, borderRadius: '10px', padding: '1px 7px', fontSize: '10px', fontWeight: 'bold', flexShrink: 0 }}>{cards.length}</span>
                 </div>
               </div>
-            );
-          })}
-        </div>
-      )}
+
+              <div style={{ padding: '8px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {cards.map(lead => (
+                  <LeadPipelineCard
+                    key={lead.id}
+                    lead={lead}
+                    stage={stageWithStyle}
+                    hasApptToday={todayApptLeadIds.has(lead.id)}
+                    onDragStart={e => handleDragStart(e, lead.id)}
+                    onOpenCard={() => onOpenLead(lead)}
+                    onStarChange={(val) => handleStarChange(lead.id, val)}
+                  />
+                ))}
+                {cards.length === 0 && (
+                  <div style={{ color: '#4a5568', fontSize: '10px', textAlign: 'center', padding: '28px 6px', fontStyle: 'italic', borderRadius: '4px', border: '1px dashed rgba(255,255,255,0.06)', margin: '4px' }}>
+                    Drop here
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }

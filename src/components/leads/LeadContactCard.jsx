@@ -744,10 +744,38 @@ function LeadHistoryTab({ lead, history, onNoteAdded }) {
   );
 }
 
+// Inline star rating for the contact card header
+function LeadStarRating({ value = 0, onChange }) {
+  const [hover, setHover] = useState(null);
+  const displayVal = hover !== null ? hover : value;
+  return (
+    <div style={{ display: 'flex', gap: '2px', alignItems: 'center' }} onMouseLeave={() => setHover(null)}>
+      {[1,2,3,4,5].map(star => {
+        const full = displayVal >= star;
+        const half = !full && displayVal >= star - 0.5;
+        return (
+          <div key={star} style={{ position:'relative', width:'18px', height:'18px', cursor:'pointer', flexShrink:0 }}
+            onMouseMove={e => { const isLeft = e.clientX - e.currentTarget.getBoundingClientRect().left < 9; setHover(isLeft ? star-0.5 : star); }}
+            onClick={e => { e.stopPropagation(); const isLeft = e.clientX - e.currentTarget.getBoundingClientRect().left < 9; const nv = (isLeft ? star-0.5 : star); onChange(nv === value ? 0 : nv); }}>
+            <span style={{ position:'absolute', inset:0, color:'rgba(255,255,255,0.12)', fontSize:'17px', lineHeight:'18px', userSelect:'none' }}>★</span>
+            {(full || half) && <span style={{ position:'absolute', inset:0, fontSize:'17px', lineHeight:'18px', userSelect:'none', color:'#f59e0b', clipPath: full?'none':'inset(0 50% 0 0)' }}>★</span>}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber, dialerRef, onResume, isDialerPaused, onNextLead, onPrevLead, currentLeadIndex, totalLeads, dialerPanelOpen, twilioStream: externalStream }) {
   // Archived = migrated to CRM — card is read-only
   const isArchived = !!(lead.migratedToPortal || lead.convertedToInvestorUserId || lead.status === 'converted');
   const [cardExpanded, setCardExpanded] = useState(false);
+  const [starRating, setStarRating] = useState(lead.starRating || 0);
+
+  const handleStarChange = async (val) => {
+    setStarRating(val);
+    try { await base44.entities.Lead.update(lead.id, { starRating: val }); onUpdate && onUpdate(); } catch {}
+  };
   const [inlineStream, setInlineStream] = useState(null);
   const dialer = useInlineDialer({ onCallStream: (stream) => setInlineStream(stream) });
   // Prefer external stream (direct/predictive dialer) over inline dialer stream
@@ -995,7 +1023,9 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
                 <div style={{ color:'#6b7280', fontSize:'11px', marginTop:'4px', display:'flex', gap:'8px', flexWrap:'wrap', alignItems:'center' }}>
                   {lead.email && <span>{lead.email}</span>}
                   {lead.state && <span style={{ color:GOLD }}>{lead.state}</span>}
-
+                </div>
+                <div style={{ marginTop:'6px' }}>
+                  <LeadStarRating value={starRating} onChange={handleStarChange} />
                 </div>
               </div>
             </div>

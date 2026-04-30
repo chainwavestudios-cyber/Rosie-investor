@@ -70,6 +70,11 @@
       ],
       "default": "reviewing"
     },
+    "starRating": {
+      "type": "number",
+      "title": "Star Rating (0-5)",
+      "default": 0
+    },
     "callbackAt": {
       "type": "string",
       "format": "date-time",
