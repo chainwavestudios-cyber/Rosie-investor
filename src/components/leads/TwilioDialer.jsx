@@ -70,7 +70,17 @@ export default function TwilioDialer({ initialLead, onClose, onCallLogged, onCal
       call.on('accept',     (c) => {
         setCallStatus('connected'); setStatusMsg('Connected');
         startTimer(); onCallStart?.();
-        try { onCallStream?.({ remoteStream: c.getRemoteStream?.() || null, localStream: c.getLocalStream?.() || null, call: c }); } catch {}
+        // getRemoteStream() is set by RTCPeerConnection ontrack — delay slightly
+        // to ensure the remote MediaStream is populated before we pass it
+        setTimeout(() => {
+          try {
+            onCallStream?.({
+              remoteStream: c.getRemoteStream?.() || null,
+              localStream:  c.getLocalStream?.()  || null,
+              call: c,
+            });
+          } catch {}
+        }, 500);
       });
       call.on('disconnect', () => { stopTimer(); setCallStatus('ended'); setStatusMsg('Call Ended'); logCall(callRef.current?.parameters?.CallSid); onCallEnd?.(); onCallStream?.(null); });
       call.on('error',      (e) => { setError(`Call error: ${e.message}`); stopTimer(); setCallStatus('ended'); });
