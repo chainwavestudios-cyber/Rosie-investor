@@ -101,8 +101,8 @@ export const SignNowRequestDB = {
 
 // ─── ContactNote ───────────────────────────────────────────────────────────
 export const ContactNoteDB = {
-  async create(d) { try { return await base44.entities.ContactNote.create({...d,createdAt:new Date().toISOString()}); } catch(e){ throw e; } },
-  async listForInvestor(investorId) { try { const r=await base44.entities.ContactNote.filter({investorId}); return r.sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt)); } catch{ return []; } },
+  async create(d) { try { return await base44.entities.ContactNote.create({createdAt:new Date().toISOString(),...d}); } catch(e){ throw e; } },
+  async listForInvestor(investorId) { try { const r=await base44.entities.ContactNote.filter({investorId}); return r.sort((a,b)=>new Date(b.createdAt||b.created_date||0)-new Date(a.createdAt||a.created_date||0)); } catch{ return []; } },
   async delete(id) { try { return await base44.entities.ContactNote.delete(id); } catch(e){ throw e; } },
 };
 
