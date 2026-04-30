@@ -67,16 +67,18 @@ export default function ScriptAssistant({ lead, user, onExpandCard, isCardExpand
     return () => stopListening();
   }, []);
 
-  // ── Auto-start from Twilio stream ─────────────────────────────────
+  // ── Auto-stop when call ends ──────────────────────────────────────
+  // We do NOT auto-start — user clicks the button manually when they want it
   useEffect(() => {
-    if (twilioStream?.remoteStream) {
-      startListeningFromStream(twilioStream.remoteStream, twilioStream.localStream);
-    } else if (twilioStream === null && listening) {
+    if (twilioStream === null && listening) {
       stopListening();
     }
   }, [twilioStream]);
 
-  // ── Connect to Deepgram via Twilio WebRTC streams ──────────────────
+  // ── Connect to Deepgram via Twilio streams ─────────────────────────
+  // getRemoteStream() and getLocalStream() exist in SDK v2.18 but are set
+  // asynchronously by RTCPeerConnection ontrack — we delay 500ms after accept
+  // in the dialer so they're populated by the time we reach here.
   const startListeningFromStream = async (remoteStream, localStream) => {
     if (listening) return;
     setError('');
@@ -92,10 +94,10 @@ export default function ScriptAssistant({ lead, user, onExpandCard, isCardExpand
       const dest = audioCtx.createMediaStreamDestination();
 
       if (remoteStream) {
-        try { audioCtx.createMediaStreamSource(remoteStream).connect(dest); } catch {}
+        try { audioCtx.createMediaStreamSource(remoteStream).connect(dest); } catch(e) { console.warn('remote stream:', e); }
       }
       if (localStream) {
-        try { audioCtx.createMediaStreamSource(localStream).connect(dest); } catch {}
+        try { audioCtx.createMediaStreamSource(localStream).connect(dest); } catch(e) { console.warn('local stream:', e); }
       }
 
       const mergedStream = dest.stream;
@@ -153,7 +155,7 @@ export default function ScriptAssistant({ lead, user, onExpandCard, isCardExpand
 
   // ── Manual connect (fallback if no twilioStream prop yet) ──────────
   const connectStream = () => {
-    if (twilioStream?.remoteStream) {
+    if (twilioStream?.remoteStream || twilioStream?.call) {
       startListeningFromStream(twilioStream.remoteStream, twilioStream.localStream);
     } else {
       setError('No active Twilio call. Start a call first, then connect the stream.');
