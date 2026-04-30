@@ -177,7 +177,7 @@ function OverviewTab({ editLead, setEditLead, saving, saveMsg, saveProfile, upda
               if (!si) return null;
               const active = editLead.status === s;
               return (
-                <button key={s} onClick={() => updateStatus(s, 'status_change', `Status changed to ${s}`)}
+                <button key={s} onClick={() => updateStatus(s, 'status_change', `Status changed to ${s}`, s === 'prospect' ? { leadPipelineStage: 'reviewing' } : {})}
                   style={{ padding:'6px 16px', border:`1px solid ${active ? si.color : 'rgba(255,255,255,0.1)'}`, borderRadius:'20px', background:active ? `${si.color}22` : 'transparent', color:active ? si.color : '#6b7280', cursor:'pointer', fontSize:'12px', fontWeight:active?'bold':'normal', transition:'all 0.15s' }}>
                   {si.label}
                 </button>
@@ -823,7 +823,7 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
 
   const handleProspect = async () => {
     const note = prospectNote.trim();
-    await updateStatus('prospect', 'prospect', `Marked as Prospect${note ? `: ${note}` : ''}`);
+    await updateStatus('prospect', 'prospect', `Marked as Prospect${note ? `: ${note}` : ''}`, { leadPipelineStage: 'reviewing' });
     if (note) await logHistory('note', note);
     if (callbackDate) {
       await base44.entities.Lead.update(lead.id, { callbackAt: callbackDate });

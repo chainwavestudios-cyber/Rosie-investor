@@ -58,6 +58,18 @@
       ],
       "default": "lead"
     },
+    "leadPipelineStage": {
+      "type": "string",
+      "title": "Lead Pipeline Stage",
+      "enum": [
+        "reviewing",
+        "read",
+        "callback",
+        "preclose",
+        "load"
+      ],
+      "default": "reviewing"
+    },
     "callbackAt": {
       "type": "string",
       "format": "date-time",
