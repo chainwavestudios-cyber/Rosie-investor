@@ -319,12 +319,27 @@ export default function LeadsTab({ openLeadId, onLeadOpened }) {
   const dialerRef = useRef(null);
   const [isDialerPaused, setIsDialerPaused] = useState(false);
   const [isCallActive, setIsCallActive] = useState(false);
+  const [todayApptLeadIds, setTodayApptLeadIds] = useState(new Set());
 
   useEffect(() => {
     loadLeads();
     loadActivity();
     base44.entities.ContactList.list('-created_date', 100).then(setContactLists).catch(() => {});
+    // Load today's appointments to highlight leads
+    loadTodayAppointments();
   }, []);
+
+  const loadTodayAppointments = async () => {
+    try {
+      const appts = await base44.entities.Appointment.filter({ status: 'scheduled' });
+      const today = new Date().toDateString();
+      const ids = new Set(
+        appts.filter(a => a.scheduledAt && new Date(a.scheduledAt).toDateString() === today)
+             .map(a => a.investorId) // investorId is used as leadId for lead appointments
+      );
+      setTodayApptLeadIds(ids);
+    } catch {}
+  };
 
   // Auto-open a lead card when openLeadId is passed (e.g. from calendar or reminders)
   useEffect(() => {
@@ -525,6 +540,13 @@ export default function LeadsTab({ openLeadId, onLeadOpened }) {
 
   return (
     <>
+    <style>{`
+      @keyframes apptPulse {
+        0%, 100% { box-shadow: 0 0 0 0 rgba(74,222,128,0.6); }
+        50% { box-shadow: 0 0 0 6px rgba(74,222,128,0); }
+      }
+      .appt-today-pulse { animation: apptPulse 1.5s ease-in-out infinite; border-radius: 4px; }
+    `}</style>
     {selectedLead && (
       <LeadContactCard
         lead={selectedLead}
@@ -744,6 +766,7 @@ export default function LeadsTab({ openLeadId, onLeadOpened }) {
               {pagedLeads.map(lead => {
                 const sc = STATUS_COLORS[lead.status] || '#8a9ab8';
                 const name = `${lead.firstName} ${lead.lastName}`;
+                const hasApptToday = todayApptLeadIds.has(lead.id);
                 return (
                   <tr key={lead.id}
                     style={{ borderBottom:'1px solid rgba(255,255,255,0.05)', cursor:'pointer', transition:'background 0.1s' }}
@@ -751,10 +774,11 @@ export default function LeadsTab({ openLeadId, onLeadOpened }) {
                     onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                     onClick={() => setSelectedLead(lead)}>
                     <td style={{ padding:'12px' }}>
-                      <span style={{ background:`${sc}22`, color:sc, border:`1px solid ${sc}55`, padding:'3px 10px', borderRadius:'2px', fontSize:'10px', letterSpacing:'1px', textTransform:'uppercase', whiteSpace:'nowrap' }}>
+                      <span className={hasApptToday ? 'appt-today-pulse' : ''} style={{ display:'inline-block', background:`${sc}22`, color:sc, border:`1px solid ${hasApptToday ? '#4ade80' : sc+'55'}`, padding:'3px 10px', borderRadius:'4px', fontSize:'10px', letterSpacing:'1px', textTransform:'uppercase', whiteSpace:'nowrap' }}>
                         {lead.status?.replace('_',' ')}
                       </span>
-                      {lead.status === 'abandoned' && (
+                      {hasApptToday && <div style={{ color:'#4ade80', fontSize:'9px', marginTop:'3px', letterSpacing:'0.5px' }}>📅 Appt Today</div>}
+                      {!hasApptToday && lead.status === 'abandoned' && (
                         <div style={{ color:'#ef4444', fontSize:'9px', marginTop:'3px', letterSpacing:'0.5px' }}>⚠ Needs callback</div>
                       )}
                     </td>
