@@ -108,23 +108,61 @@ export default function ScriptAssistant({ lead, user, onExpandCard, isCardExpand
         ['token', dgKey]
       );
 
-      ws.onopen = () => {
+      ws.onopen = async () => {
         setListening(true);
         setStreamStatus('connected');
-        setAiEnabled(true); // Auto-enable AI on successful connection
+        setAiEnabled(true);
 
-        const proc = audioCtx.createScriptProcessor(4096, 1, 1);
-        processorRef.current = proc;
-        const src = audioCtx.createMediaStreamSource(mergedStream);
-        proc.onaudioprocess = e => {
-          if (ws.readyState !== WebSocket.OPEN) return;
-          const input = e.inputBuffer.getChannelData(0);
-          const pcm   = new Int16Array(input.length);
-          for (let i = 0; i < input.length; i++) pcm[i] = Math.max(-32768, Math.min(32767, input[i] * 32768));
-          ws.send(pcm.buffer);
-        };
-        src.connect(proc);
-        proc.connect(audioCtx.destination);
+        // Use AudioWorkletNode instead of deprecated ScriptProcessorNode
+        const workletCode = `
+          class PCMProcessor extends AudioWorkletProcessor {
+            process(inputs) {
+              const input = inputs[0]?.[0];
+              if (input?.length) {
+                const pcm = new Int16Array(input.length);
+                for (let i = 0; i < input.length; i++) {
+                  pcm[i] = Math.max(-32768, Math.min(32767, input[i] * 32768));
+                }
+                this.port.postMessage(pcm.buffer, [pcm.buffer]);
+              }
+              return true;
+            }
+          }
+          registerProcessor('pcm-processor', PCMProcessor);
+        `;
+        const blob = new Blob([workletCode], { type: 'application/javascript' });
+        const workletUrl = URL.createObjectURL(blob);
+
+        try {
+          await audioCtx.audioWorklet.addModule(workletUrl);
+          URL.revokeObjectURL(workletUrl);
+
+          const workletNode = new AudioWorkletNode(audioCtx, 'pcm-processor');
+          processorRef.current = workletNode;
+
+          workletNode.port.onmessage = (e) => {
+            if (ws.readyState === WebSocket.OPEN) ws.send(e.data);
+          };
+
+          const src = audioCtx.createMediaStreamSource(mergedStream);
+          src.connect(workletNode);
+          workletNode.connect(audioCtx.destination);
+        } catch (err) {
+          // Fallback to ScriptProcessor if AudioWorklet fails (e.g. non-secure context)
+          console.warn('AudioWorklet unavailable, falling back to ScriptProcessor:', err.message);
+          const proc = audioCtx.createScriptProcessor(4096, 1, 1);
+          processorRef.current = proc;
+          const src = audioCtx.createMediaStreamSource(mergedStream);
+          proc.onaudioprocess = e => {
+            if (ws.readyState !== WebSocket.OPEN) return;
+            const input = e.inputBuffer.getChannelData(0);
+            const pcm   = new Int16Array(input.length);
+            for (let i = 0; i < input.length; i++) pcm[i] = Math.max(-32768, Math.min(32767, input[i] * 32768));
+            ws.send(pcm.buffer);
+          };
+          src.connect(proc);
+          proc.connect(audioCtx.destination);
+        }
       };
 
       ws.onmessage = e => {
@@ -165,7 +203,7 @@ export default function ScriptAssistant({ lead, user, onExpandCard, isCardExpand
   // ── Disconnect + save ─────────────────────────────────────────────
   const stopListening = async () => {
     try { wsRef.current?.close(); } catch {}
-    try { processorRef.current?.disconnect(); } catch {}
+    try { processorRef.current?.disconnect(); processorRef.current?.port?.close?.(); } catch {}
     try { contextRef.current?.close(); } catch {}
     try { streamRef.current?.getTracks().forEach(t => t.stop()); } catch {}
     setListening(false);
