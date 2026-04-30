@@ -80,7 +80,7 @@ export default function TwilioDialer({ initialLead, onClose, onCallLogged, onCal
               call: c,
             });
           } catch {}
-        }, 500);
+        }, 1000);
       });
       call.on('disconnect', () => { stopTimer(); setCallStatus('ended'); setStatusMsg('Call Ended'); logCall(callRef.current?.parameters?.CallSid); onCallEnd?.(); onCallStream?.(null); });
       call.on('error',      (e) => { setError(`Call error: ${e.message}`); stopTimer(); setCallStatus('ended'); });
