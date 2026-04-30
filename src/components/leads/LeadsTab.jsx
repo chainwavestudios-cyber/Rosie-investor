@@ -983,27 +983,37 @@ export default function LeadsTab() {
         <div>
           <div style={{ marginBottom:'16px' }}>
             <h2 style={{ color:'#e8e0d0', margin:'0 0 4px', fontSize:'20px', fontWeight:'normal' }}>📦 Archived Leads</h2>
-            <p style={{ color:'#6b7280', fontSize:'13px', margin:0 }}>Leads that have been migrated to CRM. Read-only.</p>
+            <p style={{ color:'#6b7280', fontSize:'13px', margin:0 }}>Leads migrated to CRM — click any row to view the full read-only card with all history, notes & call logs.</p>
           </div>
           {archivedLeads.length === 0 && <div style={{ color:'#4a5568', textAlign:'center', padding:'40px' }}>No archived leads yet.</div>}
           <div style={{ overflowX:'auto' }}>
             <table style={{ width:'100%', borderCollapse:'collapse', fontSize:'13px' }}>
               <thead>
                 <tr style={{ borderBottom:'2px solid rgba(184,147,58,0.3)' }}>
-                  {['Name','Email','Phone','State','Migrated'].map(h => (
+                  {['Name','Email','Phone','State','Status',''].map(h => (
                     <th key={h} style={{ color:GOLD, padding:'10px 12px', textAlign:'left', fontSize:'10px', letterSpacing:'1.5px', textTransform:'uppercase' }}>{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {archivedLeads.map(lead => (
-                  <tr key={lead.id} style={{ borderBottom:'1px solid rgba(255,255,255,0.05)', opacity:0.7 }}>
-                    <td style={{ padding:'10px 12px', color:'#8a9ab8' }}>{lead.firstName} {lead.lastName}</td>
+                  <tr key={lead.id}
+                    style={{ borderBottom:'1px solid rgba(255,255,255,0.05)', cursor:'pointer', transition:'background 0.1s' }}
+                    onMouseEnter={e => e.currentTarget.style.background='rgba(184,147,58,0.05)'}
+                    onMouseLeave={e => e.currentTarget.style.background='transparent'}
+                    onClick={() => setSelectedLead(lead)}>
+                    <td style={{ padding:'10px 12px', color:'#e8e0d0', fontWeight:'bold' }}>{lead.firstName} {lead.lastName}</td>
                     <td style={{ padding:'10px 12px', color:'#8a9ab8', fontSize:'12px' }}>{lead.email || '—'}</td>
                     <td style={{ padding:'10px 12px', color:'#8a9ab8', fontFamily:'monospace', fontSize:'12px' }}>{lead.phone || '—'}</td>
                     <td style={{ padding:'10px 12px', color:'#8a9ab8', fontSize:'12px' }}>{lead.state || '—'}</td>
                     <td style={{ padding:'10px 12px' }}>
                       <span style={{ background:'rgba(74,222,128,0.1)', color:'#4ade80', border:'1px solid rgba(74,222,128,0.25)', borderRadius:'3px', padding:'2px 8px', fontSize:'10px' }}>✅ Migrated to CRM</span>
+                    </td>
+                    <td style={{ padding:'10px 12px' }}>
+                      <button onClick={e => { e.stopPropagation(); setSelectedLead(lead); }}
+                        style={{ background:'rgba(245,158,11,0.12)', color:'#f59e0b', border:'1px solid rgba(245,158,11,0.3)', borderRadius:'2px', padding:'4px 12px', cursor:'pointer', fontSize:'11px' }}>
+                        📂 View Card →
+                      </button>
                     </td>
                   </tr>
                 ))}
