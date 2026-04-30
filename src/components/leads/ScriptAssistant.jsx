@@ -87,20 +87,29 @@ export default function ScriptAssistant({ lead, user, onExpandCard, isCardExpand
     try {
       // If streams are null, try pulling them from the call object directly
       // and wait up to 2s for RTCPeerConnection ontrack to fire
+      // Debug: log what we got from the dialer
+      console.log('[ScriptAssistant] twilioStream:', twilioStream);
+      console.log('[ScriptAssistant] remoteStream:', remoteStream, 'localStream:', localStream);
+
       if (!remoteStream && twilioStream?.call) {
+        console.log('[ScriptAssistant] remoteStream null — polling call.getRemoteStream()');
         for (let i = 0; i < 8; i++) {
           await new Promise(r => setTimeout(r, 250));
           remoteStream = twilioStream.call.getRemoteStream?.() || null;
           localStream  = twilioStream.call.getLocalStream?.()  || null;
+          console.log(`[ScriptAssistant] poll ${i+1}: remoteStream=`, remoteStream);
           if (remoteStream) break;
         }
       }
 
       if (!remoteStream && !localStream) {
+        console.error('[ScriptAssistant] No audio streams available after retries');
         setError('Could not get call audio streams. Is the call still active?');
         setStreamStatus('error');
         return;
       }
+
+      console.log('[ScriptAssistant] Got streams — remote tracks:', remoteStream?.getTracks?.(), 'local tracks:', localStream?.getTracks?.());
 
       const tokenRes = await base44.functions.invoke('deepgramToken', {});
       const dgKey    = tokenRes?.key || tokenRes?.data?.key || '';
@@ -111,14 +120,21 @@ export default function ScriptAssistant({ lead, user, onExpandCard, isCardExpand
       const dest = audioCtx.createMediaStreamDestination();
 
       if (remoteStream) {
-        try { audioCtx.createMediaStreamSource(remoteStream).connect(dest); } catch(e) { console.warn('remote stream:', e); }
+        try {
+          audioCtx.createMediaStreamSource(remoteStream).connect(dest);
+          console.log('[ScriptAssistant] remote audio connected, tracks:', remoteStream.getTracks());
+        } catch(e) { console.error('[ScriptAssistant] remote connect failed:', e); }
       }
       if (localStream) {
-        try { audioCtx.createMediaStreamSource(localStream).connect(dest); } catch(e) { console.warn('local stream:', e); }
+        try {
+          audioCtx.createMediaStreamSource(localStream).connect(dest);
+          console.log('[ScriptAssistant] local audio connected, tracks:', localStream.getTracks());
+        } catch(e) { console.error('[ScriptAssistant] local connect failed:', e); }
       }
 
       const mergedStream = dest.stream;
       streamRef.current  = mergedStream;
+      console.log('[ScriptAssistant] merged stream tracks:', mergedStream.getTracks());
 
       const ws = new WebSocket(
         `wss://api.deepgram.com/v1/listen?model=nova-2&language=en-US&smart_format=true&interim_results=true&endpointing=300&sentiment=true&diarize=true`,
@@ -182,6 +198,7 @@ export default function ScriptAssistant({ lead, user, onExpandCard, isCardExpand
         }
       };
 
+      ws.onclose = (e) => { console.log('[ScriptAssistant] Deepgram WS closed:', e.code, e.reason); setListening(false); setStreamStatus('idle'); setAiEnabled(false); };
       ws.onmessage = e => {
         try {
           const data = JSON.parse(e.data);
