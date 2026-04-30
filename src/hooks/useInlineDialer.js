@@ -61,7 +61,10 @@ export function useInlineDialer({ onCallStream, onCallLogged } = {}) {
       call.on('ringing',    () => setCallStatus('ringing'));
       call.on('accept',     (c) => {
         setCallStatus('connected'); startTimer();
-        try { onCallStream?.({ remoteStream: c.getRemoteStream?.() || null, localStream: c.getLocalStream?.() || null, call: c }); } catch {}
+        // Delay 500ms so RTCPeerConnection ontrack fires first and _remoteStream is populated
+        setTimeout(() => {
+          try { onCallStream?.({ remoteStream: c.getRemoteStream?.() || null, localStream: c.getLocalStream?.() || null, call: c }); } catch {}
+        }, 500);
       });
       call.on('disconnect', () => { stopTimer(); setCallStatus('ended'); onCallStream?.(null); });
       call.on('error',      (e) => { setDialerError(`Call error: ${e.message}`); stopTimer(); setCallStatus('ended'); onCallStream?.(null); });
