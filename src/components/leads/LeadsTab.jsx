@@ -13,11 +13,12 @@ const DARK = '#0a0f1e';
 const STATUS_FILTERS = [
   { id: 'all', label: 'All Leads' },
   { id: 'prospect', label: '🚀 Prospect' },
-  { id: 'not_available', label: '📵 Not Available' },
   { id: 'callback_later', label: '📅 Call Back Later' },
+  { id: 'not_available', label: '📵 Not Available' },
   { id: 'abandoned', label: '⚠️ Abandoned' },
   { id: 'intro_email_sent', label: '📧 Intro Email Sent' },
   { id: 'opened_intro_email', label: '📬 Opened Intro Email' },
+  { id: 'not_interested', label: '❌ Not Interested' },
 ];
 
 const STATUS_COLORS = {
@@ -25,6 +26,12 @@ const STATUS_COLORS = {
   callback_later: '#a78bfa', prospect: '#a78bfa', not_interested: '#ef4444',
   converted: '#4ade80', abandoned: '#ef4444',
   intro_email_sent: '#f59e0b', opened_intro_email: '#4ade80',
+};
+
+// Not interested leads are hidden from "all" but shown when explicitly filtered
+const shouldShowLead = (lead, filter) => {
+  if (lead.status === 'not_interested' && filter !== 'not_interested') return false;
+  return true;
 };
 
 // ─── CSV Upload ───────────────────────────────────────────────────────────
@@ -343,14 +350,15 @@ export default function LeadsTab() {
       // Exclude permanently not_interested, sort: never-called first (by created_date), then called leads sorted by lastCalledAt asc (oldest call = first to call again)
       // Exclude permanently not_interested; keep converted at end
       // Exclude migrated and not_interested from main list
-      const active = all.filter(l => l.status !== 'not_interested' && !l.migratedToPortal && !l.convertedToInvestorUserId);
+      const active = all.filter(l => !l.migratedToPortal && !l.convertedToInvestorUserId);
       // Archived/migrated leads
       const archived = all.filter(l => l.migratedToPortal || l.convertedToInvestorUserId);
+      const notInterested = active.filter(l => l.status === 'not_interested').sort((a,b) => new Date(b.created_date) - new Date(a.created_date));
       const converted = active.filter(l => l.status === 'converted').sort((a,b) => new Date(b.created_date) - new Date(a.created_date));
-      const nonConverted = active.filter(l => l.status !== 'converted');
+      const nonConverted = active.filter(l => l.status !== 'converted' && l.status !== 'not_interested');
       const neverCalled = nonConverted.filter(l => !l.lastCalledAt).sort((a,b) => new Date(a.created_date) - new Date(b.created_date));
       const called = nonConverted.filter(l => l.lastCalledAt).sort((a,b) => new Date(a.lastCalledAt) - new Date(b.lastCalledAt));
-      setLeads([...neverCalled, ...called, ...converted]);
+      setLeads([...neverCalled, ...called, ...converted, ...notInterested]);
       setArchivedLeads(archived || []);
     } catch(e) { console.error(e); }
     setLoading(false);
@@ -442,6 +450,7 @@ export default function LeadsTab() {
   Object.entries(STATE_TZ).forEach(([tz, states]) => states.forEach(s => { stateToTz[s] = tz; }));
 
   const filteredLeads = leads.filter(l => {
+    if (!shouldShowLead(l, filter)) return false;
     if (filter !== 'all' && l.status !== filter) return false;
     if (tzFilter !== 'all') {
       const tz = stateToTz[(l.state || '').toUpperCase().trim()];
@@ -461,7 +470,8 @@ export default function LeadsTab() {
 
   const counts = {};
   STATUS_FILTERS.forEach(f => {
-    counts[f.id] = f.id === 'all' ? leads.length : leads.filter(l => l.status === f.id).length;
+    if (f.id === 'all') counts[f.id] = leads.filter(l => l.status !== 'not_interested').length;
+    else counts[f.id] = leads.filter(l => l.status === f.id).length;
   });
   const uncalledCount = leads.filter(l => !l.lastCalledAt).length;
 

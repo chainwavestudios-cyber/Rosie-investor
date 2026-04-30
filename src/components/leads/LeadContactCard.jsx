@@ -140,7 +140,7 @@ function SiteAccessTab({ lead, onUpdate, onSave }) {
 }
 
 
-function OverviewTab({ editLead, setEditLead, saving, saveMsg, saveProfile, updateStatus, quickNote, setQuickNote, addQuickNote, addingNote, history, loading, isArchived }) {
+function OverviewTab({ editLead, setEditLead, saving, saveMsg, saveProfile, updateStatus, quickNote, setQuickNote, addQuickNote, addingNote, history, loading, isArchived, onQuickNotInterested, onQuickCallbackLater }) {
   const [editing, setEditing] = useState(false);
   const GOLD = '#b8933a';
   const DARK = '#0a0f1e';
@@ -156,6 +156,10 @@ function OverviewTab({ editLead, setEditLead, saving, saveMsg, saveProfile, upda
   const HISTORY_ICONS = { call:'📞', not_available:'📵', callback_later:'📅', not_interested:'❌', status_change:'🔄', note:'📝', prospect:'🚀', connected:'🟢' };
   const historyColor = (type) => ({ call:'#60a5fa', not_available:'#8a9ab8', callback_later:'#a78bfa', not_interested:'#ef4444', status_change:GOLD, note:'#c4cdd8', prospect:'#a78bfa', connected:'#4ade80' })[type] || '#6b7280';
 
+  const [showCallbackPicker, setShowCallbackPicker] = useState(false);
+  const [quickCallbackDate, setQuickCallbackDate] = useState('');
+  const [showNotInterestedConfirm, setShowNotInterestedConfirm] = useState(false);
+
   const InfoRow = ({ icon, label, value, color }) => (
     <div style={{ display:'flex', alignItems:'center', gap:'10px', padding:'8px 12px', background:'rgba(255,255,255,0.02)', borderRadius:'4px', border:'1px solid rgba(255,255,255,0.05)' }}>
       <span style={{ fontSize:'16px', flexShrink:0 }}>{icon}</span>
@@ -170,24 +174,72 @@ function OverviewTab({ editLead, setEditLead, saving, saveMsg, saveProfile, upda
     <div style={{ display:'flex', flexDirection:'column', gap:'14px' }}>
 
       {/* Status + Edit row */}
-      {!isArchived && <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-        <div style={{ display:'flex', gap:'6px' }}>
-          {['lead','prospect','intro_email_sent','opened_intro_email'].map(s => {
-            const si = STATUS_LABELS[s];
-            if (!si) return null;
-            const active = editLead.status === s;
-            return (
-              <button key={s} onClick={() => updateStatus(s, 'status_change', `Status changed to ${s}`)}
-                style={{ padding:'6px 16px', border:`1px solid ${active ? si.color : 'rgba(255,255,255,0.1)'}`, borderRadius:'20px', background:active ? `${si.color}22` : 'transparent', color:active ? si.color : '#6b7280', cursor:'pointer', fontSize:'12px', fontWeight:active?'bold':'normal', transition:'all 0.15s' }}>
-                {si.label}
-              </button>
-            );
-          })}
+      {!isArchived && <div style={{ display:'flex', flexDirection:'column', gap:'8px' }}>
+        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+          <div style={{ display:'flex', gap:'6px', flexWrap:'wrap' }}>
+            {['lead','prospect','intro_email_sent','opened_intro_email'].map(s => {
+              const si = STATUS_LABELS[s];
+              if (!si) return null;
+              const active = editLead.status === s;
+              return (
+                <button key={s} onClick={() => updateStatus(s, 'status_change', `Status changed to ${s}`)}
+                  style={{ padding:'6px 16px', border:`1px solid ${active ? si.color : 'rgba(255,255,255,0.1)'}`, borderRadius:'20px', background:active ? `${si.color}22` : 'transparent', color:active ? si.color : '#6b7280', cursor:'pointer', fontSize:'12px', fontWeight:active?'bold':'normal', transition:'all 0.15s' }}>
+                  {si.label}
+                </button>
+              );
+            })}
+          </div>
+          <button onClick={() => setEditing(e => !e)}
+            style={{ background: editing ? 'rgba(184,147,58,0.2)' : 'rgba(255,255,255,0.05)', color: editing ? GOLD : '#8a9ab8', border:`1px solid ${editing ? 'rgba(184,147,58,0.4)' : 'rgba(255,255,255,0.1)'}`, borderRadius:'4px', padding:'6px 14px', cursor:'pointer', fontSize:'11px', letterSpacing:'0.5px' }}>
+            {editing ? '✕ Cancel Edit' : '✏️ Edit'}
+          </button>
         </div>
-        <button onClick={() => setEditing(e => !e)}
-          style={{ background: editing ? 'rgba(184,147,58,0.2)' : 'rgba(255,255,255,0.05)', color: editing ? GOLD : '#8a9ab8', border:`1px solid ${editing ? 'rgba(184,147,58,0.4)' : 'rgba(255,255,255,0.1)'}`, borderRadius:'4px', padding:'6px 14px', cursor:'pointer', fontSize:'11px', letterSpacing:'0.5px' }}>
-          {editing ? '✕ Cancel Edit' : '✏️ Edit'}
-        </button>
+
+        {/* Quick action buttons */}
+        <div style={{ display:'flex', gap:'6px', flexWrap:'wrap', alignItems:'flex-start' }}>
+          {/* Call Back Later */}
+          <div>
+            <button onClick={() => { setShowCallbackPicker(p => !p); setShowNotInterestedConfirm(false); }}
+              style={{ padding:'5px 14px', border:`1px solid ${editLead.status==='callback_later'?'#a78bfa':'rgba(167,139,250,0.35)'}`, borderRadius:'20px', background: editLead.status==='callback_later'?'rgba(167,139,250,0.2)':'rgba(167,139,250,0.07)', color:'#a78bfa', cursor:'pointer', fontSize:'11px', whiteSpace:'nowrap' }}>
+              📅 Call Back Later
+            </button>
+            {showCallbackPicker && (
+              <div style={{ marginTop:'8px', background:'rgba(0,0,0,0.3)', border:'1px solid rgba(167,139,250,0.3)', borderRadius:'6px', padding:'12px', display:'flex', flexDirection:'column', gap:'8px', zIndex:10 }}>
+                <label style={{ color:'#8a9ab8', fontSize:'10px', letterSpacing:'1.5px', textTransform:'uppercase' }}>Select Date & Time</label>
+                <input type="datetime-local" value={quickCallbackDate} onChange={e => setQuickCallbackDate(e.target.value)}
+                  style={{ background:'rgba(255,255,255,0.06)', border:'1px solid rgba(167,139,250,0.3)', borderRadius:'4px', padding:'7px 10px', color:'#e8e0d0', fontSize:'12px', outline:'none', colorScheme:'dark' }} />
+                <button onClick={() => onQuickCallbackLater(quickCallbackDate, () => { setShowCallbackPicker(false); setQuickCallbackDate(''); })} disabled={!quickCallbackDate}
+                  style={{ background:'rgba(167,139,250,0.2)', color:'#a78bfa', border:'1px solid rgba(167,139,250,0.4)', borderRadius:'4px', padding:'7px 16px', cursor: quickCallbackDate ? 'pointer' : 'not-allowed', fontSize:'11px', fontWeight:'bold' }}>
+                  ✓ Set Callback
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Not Interested */}
+          <div>
+            <button onClick={() => { setShowNotInterestedConfirm(p => !p); setShowCallbackPicker(false); }}
+              style={{ padding:'5px 14px', border:'1px solid rgba(239,68,68,0.35)', borderRadius:'20px', background:'rgba(239,68,68,0.07)', color:'#ef4444', cursor:'pointer', fontSize:'11px', whiteSpace:'nowrap' }}>
+              ❌ Not Interested
+            </button>
+            {showNotInterestedConfirm && (
+              <div style={{ marginTop:'8px', background:'rgba(239,68,68,0.08)', border:'1px solid rgba(239,68,68,0.35)', borderRadius:'6px', padding:'12px', display:'flex', flexDirection:'column', gap:'8px' }}>
+                <div style={{ color:'#ef4444', fontSize:'12px', fontWeight:'bold' }}>⚠️ Permanently remove this lead?</div>
+                <div style={{ color:'#6b7280', fontSize:'11px' }}>This will hide them from all lead lists.</div>
+                <div style={{ display:'flex', gap:'8px' }}>
+                  <button onClick={onQuickNotInterested}
+                    style={{ background:'rgba(239,68,68,0.2)', color:'#ef4444', border:'1px solid rgba(239,68,68,0.5)', borderRadius:'4px', padding:'6px 14px', cursor:'pointer', fontSize:'11px', fontWeight:'bold' }}>
+                    ✓ Confirm Remove
+                  </button>
+                  <button onClick={() => setShowNotInterestedConfirm(false)}
+                    style={{ background:'transparent', color:'#6b7280', border:'1px solid rgba(255,255,255,0.1)', borderRadius:'4px', padding:'6px 12px', cursor:'pointer', fontSize:'11px' }}>
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
       </div>}
 
       {/* Contact info — compact view */}
@@ -696,6 +748,18 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
     setCallbackDate('');
   };
 
+  const handleQuickNotInterested = async () => {
+    await updateStatus('not_interested', 'not_interested', 'Not interested — permanently removed from list');
+    onClose();
+    onUpdate && onUpdate();
+  };
+
+  const handleQuickCallbackLater = async (date, clearFn) => {
+    if (!date) return;
+    await updateStatus('callback_later', 'callback_later', `Callback scheduled for ${new Date(date).toLocaleString()}`, { callbackAt: date });
+    clearFn && clearFn();
+  };
+
   const saveProfile = async () => {
     setSaving(true); setSaveMsg('');
     try {
@@ -943,6 +1007,8 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
               addQuickNote={addQuickNote} addingNote={addingNote}
               history={history} loading={loading}
               isArchived={isArchived}
+              onQuickNotInterested={handleQuickNotInterested}
+              onQuickCallbackLater={handleQuickCallbackLater}
             />
           )}
 
