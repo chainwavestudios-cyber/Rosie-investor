@@ -456,7 +456,7 @@ const PredictiveDialer = forwardRef(function PredictiveDialer({ contactLists, on
             call,
           });
         } catch {}
-      }, 500);
+      }, 1000);
 
       updateLine(lineIdx, { status: 'connected' });
       setActiveCall(call);
