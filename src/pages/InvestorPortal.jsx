@@ -633,6 +633,8 @@ function InvestmentOffering() {
 
 // ─── Subscription Agreements ──────────────────────────────────────────────
 const PDF_DOCS = [
+  { id:'subscription',  name:'Subscription Agreement',  badge:'Required', url:'https://media.base44.com/files/public/69cd2741578c9b5ce655395b/a6c259fbf_SubscriptionAgreement1pdf2pdf.pdf', totalPages:9 },
+  { id:'accreditation', name:'Investor Questionnaire',   badge:'Required', url:'https://media.base44.com/files/public/69cd2741578c9b5ce655395b/a49bb2463_InvestorQuestionnairepdf.pdf', totalPages:7 },
   { id:'operating',     name:'LLC Operating Agreement',  badge:'Member Document', url:'https://media.base44.com/files/public/69cd2741578c9b5ce655395b/57c1e246d_RosieAI_Operating_Agreement.docx', totalPages:null },
 ];
 
