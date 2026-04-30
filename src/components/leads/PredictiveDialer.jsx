@@ -159,7 +159,7 @@ function LogPanel({ logs }) {
   );
 }
 
-const PredictiveDialer = forwardRef(function PredictiveDialer({ contactLists, onClose, onCallLogged, onLeadConnected, onPaused, onResumed }, ref) {
+const PredictiveDialer = forwardRef(function PredictiveDialer({ contactLists, onClose, onCallLogged, onLeadConnected, onPaused, onResumed, onCallStream }, ref) {
   const [settings, setSettings]               = useState(DEFAULT_SETTINGS);
   const [showSettings, setShowSettings]       = useState(true);
   const [selectedListId, setSelectedListId]   = useState('');
@@ -442,8 +442,21 @@ const PredictiveDialer = forwardRef(function PredictiveDialer({ contactLists, on
         setActiveCall(null);
         activeCallRef.current = null;
         connectingRef.current = false;
+        onCallStream?.(null);
       });
       call.on('error', (err) => { addLog('error', `Call error: ${err.message}`); });
+
+      // Fire stream — delay 500ms so RTCPeerConnection ontrack fires first
+      // and _remoteStream is populated before ScriptAssistant connects Deepgram
+      setTimeout(() => {
+        try {
+          onCallStream?.({
+            remoteStream: call.getRemoteStream?.() || null,
+            localStream:  call.getLocalStream?.()  || null,
+            call,
+          });
+        } catch {}
+      }, 500);
 
       updateLine(lineIdx, { status: 'connected' });
       setActiveCall(call);
