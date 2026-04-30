@@ -709,10 +709,7 @@ function InvestorUpdates({ isAdmin }) {
     setLoading(true);
     try {
       const arr=await InvestorUpdateDB.list();
-      if(arr.length===0){
-        for(const s of[{ title:'Q1 2025 Performance Update', content:'Revenue grew 47% QoQ to $95K MRR. We onboarded 12 new enterprise clients in solar and insurance verticals.', category:'Financial Update', author:'Management Team', publishedAt:'2025-04-01T00:00:00.000Z' },{ title:'Product Launch: Rosie 2.0', content:'Today we launched Rosie 2.0 with a new real-time conversation AI engine with less than 150ms latency.', category:'Product Update', author:'Product Team', publishedAt:'2025-02-28T00:00:00.000Z' }]){ try { await InvestorUpdateDB.create(s); } catch {} }
-        setUpdates(await InvestorUpdateDB.list());
-      } else { setUpdates(arr); }
+      setUpdates(arr);
     } catch(e){ console.error(e); } finally { setLoading(false); }
   }
   const catColors = { 'Financial Update':'#4ade80','Product Update':'#60a5fa','Partnership':'#f59e0b','General Update':'#8a9ab8','Important Notice':'#ef4444' };
@@ -727,9 +724,11 @@ function InvestorUpdates({ isAdmin }) {
           <h4 style={{ color:GOLD, marginTop:0, fontSize:'12px', letterSpacing:'2px', textTransform:'uppercase' }}>New Update</h4>
           <input value={form.title} onChange={e=>setForm({...form,title:e.target.value})} placeholder="Update Title" style={{ ...inputStyle, marginBottom:'12px' }} />
           <select value={form.category} onChange={e=>setForm({...form,category:e.target.value})} style={{ ...inputStyle, marginBottom:'12px' }}>{Object.keys(catColors).map(c=><option key={c}>{c}</option>)}</select>
-          <textarea value={form.content} onChange={e=>setForm({...form,content:e.target.value})} placeholder="Update content..." rows={6} style={{ ...inputStyle, resize:'vertical', marginBottom:'16px' }} />
+          <textarea value={form.content} onChange={e=>setForm({...form,content:e.target.value})} placeholder="Update content..." rows={6} style={{ ...inputStyle, resize:'vertical', marginBottom:'12px' }} />
+          <input value={form.imageUrl||''} onChange={e=>setForm({...form,imageUrl:e.target.value})} placeholder="Image URL (optional — paste a public image link)" style={{ ...inputStyle, marginBottom:'12px' }} />
+          <input value={form.videoUrl||''} onChange={e=>setForm({...form,videoUrl:e.target.value})} placeholder="Video URL (optional — YouTube, Vimeo, or direct .mp4 link)" style={{ ...inputStyle, marginBottom:'16px' }} />
           <div style={{ display:'flex', gap:'12px' }}>
-            <button onClick={async()=>{ await InvestorUpdateDB.create({...form,author:'Admin'}); setForm({title:'',content:'',category:'General Update'}); setShowForm(false); loadUpdates(); }} disabled={!form.title||!form.content} style={{ background:GOLD, color:DARK, border:'none', borderRadius:'2px', padding:'10px 24px', cursor:'pointer', fontWeight:'bold', fontSize:'12px' }}>Post</button>
+            <button onClick={async()=>{ await InvestorUpdateDB.create({...form,author:'Admin',publishedAt:new Date().toISOString()}); setForm({title:'',content:'',category:'General Update',imageUrl:'',videoUrl:''}); setShowForm(false); loadUpdates(); }} disabled={!form.title||!form.content} style={{ background:GOLD, color:DARK, border:'none', borderRadius:'2px', padding:'10px 24px', cursor:'pointer', fontWeight:'bold', fontSize:'12px' }}>Post</button>
             <button onClick={()=>setShowForm(false)} style={{ background:'transparent', color:'#6b7280', border:'1px solid rgba(255,255,255,0.12)', borderRadius:'2px', padding:'10px 24px', cursor:'pointer', fontSize:'12px' }}>Cancel</button>
           </div>
         </div>
@@ -746,7 +745,25 @@ function InvestorUpdates({ isAdmin }) {
                 <div><span style={{ display:'inline-block', padding:'3px 10px', borderRadius:'2px', background:`${catColors[update.category]}22`, color:catColors[update.category]||'#8a9ab8', fontSize:'10px', letterSpacing:'1px', textTransform:'uppercase', marginBottom:'8px' }}>{update.category}</span><h3 style={{ color:'#e8e0d0', margin:'0', fontSize:'16px', fontFamily:'Georgia, serif', fontWeight:'normal' }}>{update.title}</h3></div>
                 <div style={{ textAlign:'right', flexShrink:0 }}><div style={{ color:GOLD, fontSize:'13px' }}>{new Date(update.publishedAt||update.date).toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'})}</div><div style={{ color:'#4a5568', fontSize:'11px', marginTop:'2px' }}>{update.author}</div></div>
               </div>
-              <p style={{ color:'#8a9ab8', fontSize:'13px', lineHeight:1.7, margin:'0 0 12px' }}>{update.content}</p>
+              {update.imageUrl && <img src={update.imageUrl} alt="" style={{ width:'100%', maxHeight:'360px', objectFit:'cover', borderRadius:'2px', marginBottom:'12px' }} />}
+              {update.videoUrl && (
+                <div style={{ marginBottom:'12px' }}>
+                  {/youtube|youtu\.be/i.test(update.videoUrl) ? (
+                    <iframe
+                      src={update.videoUrl.replace('watch?v=','embed/').replace('youtu.be/','www.youtube.com/embed/')}
+                      style={{ width:'100%', aspectRatio:'16/9', border:'none', borderRadius:'2px' }}
+                      allowFullScreen title="Video" />
+                  ) : /vimeo/i.test(update.videoUrl) ? (
+                    <iframe
+                      src={`https://player.vimeo.com/video/${update.videoUrl.split('/').pop()}`}
+                      style={{ width:'100%', aspectRatio:'16/9', border:'none', borderRadius:'2px' }}
+                      allowFullScreen title="Video" />
+                  ) : (
+                    <video src={update.videoUrl} controls style={{ width:'100%', borderRadius:'2px', maxHeight:'360px' }} />
+                  )}
+                </div>
+              )}
+              <p style={{ color:'#8a9ab8', fontSize:'13px', lineHeight:1.7, margin:'0 0 12px', whiteSpace:'pre-wrap' }}>{update.content}</p>
               {isAdmin && <button onClick={async()=>{ if(window.confirm('Delete?')){ await InvestorUpdateDB.delete(update.id); setUpdates(prev=>prev.filter(u=>u.id!==update.id)); } }} style={{ background:'none', border:'none', color:'#ef4444', cursor:'pointer', fontSize:'11px', padding:'0', opacity:0.6 }}>Delete</button>}
             </div>
           </div>

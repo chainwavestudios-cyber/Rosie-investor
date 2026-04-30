@@ -30,6 +30,14 @@
       "type": "string",
       "format": "date-time",
       "title": "Published At"
+    },
+    "imageUrl": {
+      "type": "string",
+      "title": "Image URL"
+    },
+    "videoUrl": {
+      "type": "string",
+      "title": "Video URL"
     }
   },
   "required": [

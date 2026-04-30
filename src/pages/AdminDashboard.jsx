@@ -422,6 +422,189 @@ function SignNowSettings({ settings, onSettingsSaved }) {
   );
 }
 
+// ─── Investor Updates Manager ─────────────────────────────────────────────
+function InvestorUpdatesManager() {
+  const [updates, setUpdates] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [showForm, setShowForm] = useState(false);
+  const [preview, setPreview] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const fileRef = useRef(null);
+  const catColors = { 'Financial Update':'#4ade80','Product Update':'#60a5fa','Partnership':'#f59e0b','General Update':'#8a9ab8','Important Notice':'#ef4444' };
+  const EMPTY = { title:'', content:'', category:'General Update', author:'Management Team', imageUrl:'', videoUrl:'' };
+  const [form, setForm] = useState(EMPTY);
+
+  const load = async () => {
+    setLoading(true);
+    try { const arr = await base44.entities.InvestorUpdate.list('-publishedAt', 200); setUpdates(arr||[]); } catch {}
+    setLoading(false);
+  };
+  useEffect(() => { load(); }, []);
+
+  const handlePost = async () => {
+    if (!form.title || !form.content) return;
+    try {
+      await base44.entities.InvestorUpdate.create({ ...form, publishedAt: new Date().toISOString() });
+      setForm(EMPTY); setShowForm(false); setPreview(false); await load();
+    } catch(e) { alert('Error: ' + e.message); }
+  };
+
+  const handleImageUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    try {
+      const { file_url } = await base44.integrations.Core.UploadFile({ file });
+      setForm(f => ({ ...f, imageUrl: file_url }));
+    } catch(e) { alert('Upload failed: ' + e.message); }
+    setUploading(false);
+  };
+
+  const ta = { width:'100%', background:'rgba(255,255,255,0.05)', border:'1px solid rgba(255,255,255,0.1)', borderRadius:'4px', padding:'10px 14px', color:'#e8e0d0', fontSize:'13px', outline:'none', fontFamily:'Georgia, serif', boxSizing:'border-box', resize:'vertical' };
+
+  return (
+    <div style={{ fontFamily:'Georgia, serif' }}>
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'24px' }}>
+        <div>
+          <h3 style={{ color:'#e8e0d0', margin:'0 0 4px', fontWeight:'normal', fontSize:'18px' }}>Investor Updates</h3>
+          <p style={{ color:'#6b7280', fontSize:'12px', margin:0 }}>Post updates with text, images, and video — visible to all portal investors.</p>
+        </div>
+        <button onClick={() => { setShowForm(v => !v); setPreview(false); }}
+          style={{ background:'linear-gradient(135deg,#b8933a,#d4aa50)', color:DARK, border:'none', borderRadius:'2px', padding:'9px 20px', cursor:'pointer', fontWeight:'700', fontSize:'11px', letterSpacing:'2px', textTransform:'uppercase' }}>
+          {showForm ? '✕ Cancel' : '+ New Update'}
+        </button>
+      </div>
+
+      {/* ── COMPOSE FORM ── */}
+      {showForm && (
+        <div style={{ background:'rgba(0,0,0,0.2)', border:'1px solid rgba(184,147,58,0.25)', borderRadius:'6px', padding:'24px', marginBottom:'28px' }}>
+          {/* Tabs: Edit / Preview */}
+          <div style={{ display:'flex', borderBottom:'1px solid rgba(255,255,255,0.08)', marginBottom:'20px' }}>
+            {[['edit','✏️ Edit'],['preview','👁 Preview']].map(([id,label]) => (
+              <button key={id} onClick={() => setPreview(id==='preview')}
+                style={{ background:'none', border:'none', borderBottom:(preview&&id==='preview')||(!preview&&id==='edit')?`2px solid ${GOLD}`:'2px solid transparent', color:(preview&&id==='preview')||(!preview&&id==='edit')?GOLD:'#6b7280', padding:'8px 18px', cursor:'pointer', fontSize:'11px', letterSpacing:'0.5px' }}>
+                {label}
+              </button>
+            ))}
+          </div>
+
+          {!preview ? (
+            <div>
+              {/* Title + Category */}
+              <div style={{ display:'grid', gridTemplateColumns:'2fr 1fr', gap:'12px', marginBottom:'12px' }}>
+                <div>
+                  <label style={ls}>Title</label>
+                  <input value={form.title} onChange={e=>setForm({...form,title:e.target.value})} placeholder="Update title…" style={{ ...ta, resize:'none' }} />
+                </div>
+                <div>
+                  <label style={ls}>Category</label>
+                  <select value={form.category} onChange={e=>setForm({...form,category:e.target.value})} style={{ ...ta, cursor:'pointer', resize:'none' }}>
+                    {Object.keys(catColors).map(c=><option key={c}>{c}</option>)}
+                  </select>
+                </div>
+              </div>
+              {/* Author */}
+              <div style={{ marginBottom:'12px' }}>
+                <label style={ls}>Author</label>
+                <input value={form.author} onChange={e=>setForm({...form,author:e.target.value})} placeholder="Management Team" style={{ ...ta, resize:'none' }} />
+              </div>
+              {/* Content */}
+              <div style={{ marginBottom:'12px' }}>
+                <label style={ls}>Content</label>
+                <textarea value={form.content} onChange={e=>setForm({...form,content:e.target.value})} placeholder="Write the update…" rows={6} style={ta} />
+              </div>
+              {/* Image */}
+              <div style={{ marginBottom:'12px' }}>
+                <label style={ls}>Image (optional)</label>
+                <div style={{ display:'flex', gap:'8px' }}>
+                  <input value={form.imageUrl} onChange={e=>setForm({...form,imageUrl:e.target.value})} placeholder="Paste image URL or upload below…" style={{ ...ta, resize:'none', flex:1 }} />
+                  <button onClick={() => fileRef.current?.click()} disabled={uploading}
+                    style={{ background:'rgba(96,165,250,0.12)', color:'#60a5fa', border:'1px solid rgba(96,165,250,0.3)', borderRadius:'4px', padding:'8px 14px', cursor:'pointer', fontSize:'11px', whiteSpace:'nowrap' }}>
+                    {uploading ? '⏳ Uploading…' : '📁 Upload'}
+                  </button>
+                  <input ref={fileRef} type="file" accept="image/*" onChange={handleImageUpload} style={{ display:'none' }} />
+                </div>
+                {form.imageUrl && <img src={form.imageUrl} alt="" style={{ marginTop:'8px', width:'100%', maxHeight:'200px', objectFit:'cover', borderRadius:'4px', border:'1px solid rgba(255,255,255,0.08)' }} />}
+              </div>
+              {/* Video */}
+              <div style={{ marginBottom:'20px' }}>
+                <label style={ls}>Video URL (optional — YouTube, Vimeo, or direct .mp4)</label>
+                <input value={form.videoUrl} onChange={e=>setForm({...form,videoUrl:e.target.value})} placeholder="https://www.youtube.com/watch?v=…" style={{ ...ta, resize:'none' }} />
+              </div>
+              <button onClick={handlePost} disabled={!form.title||!form.content}
+                style={{ background:'linear-gradient(135deg,#b8933a,#d4aa50)', color:DARK, border:'none', borderRadius:'4px', padding:'11px 28px', cursor:'pointer', fontWeight:'700', fontSize:'12px', letterSpacing:'2px', textTransform:'uppercase', opacity:(!form.title||!form.content)?0.5:1 }}>
+                📬 Post Update
+              </button>
+            </div>
+          ) : (
+            /* PREVIEW */
+            <div style={{ background:'rgba(0,0,0,0.15)', border:'1px solid rgba(255,255,255,0.07)', borderRadius:'4px', padding:'24px' }}>
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:'12px', flexWrap:'wrap', gap:'8px' }}>
+                <div>
+                  <span style={{ display:'inline-block', padding:'3px 10px', borderRadius:'2px', background:`${catColors[form.category]||'#8a9ab8'}22`, color:catColors[form.category]||'#8a9ab8', fontSize:'10px', letterSpacing:'1px', textTransform:'uppercase', marginBottom:'8px' }}>{form.category}</span>
+                  <h3 style={{ color:'#e8e0d0', margin:'0', fontSize:'18px', fontFamily:'Georgia, serif', fontWeight:'normal' }}>{form.title||'(No title)'}</h3>
+                </div>
+                <div style={{ textAlign:'right' }}>
+                  <div style={{ color:GOLD, fontSize:'13px' }}>{new Date().toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'})}</div>
+                  <div style={{ color:'#4a5568', fontSize:'11px', marginTop:'2px' }}>{form.author}</div>
+                </div>
+              </div>
+              {form.imageUrl && <img src={form.imageUrl} alt="" style={{ width:'100%', maxHeight:'320px', objectFit:'cover', borderRadius:'4px', marginBottom:'12px' }} />}
+              {form.videoUrl && (
+                <div style={{ marginBottom:'12px' }}>
+                  {/youtube|youtu\.be/i.test(form.videoUrl) ? (
+                    <iframe src={form.videoUrl.replace('watch?v=','embed/').replace('youtu.be/','www.youtube.com/embed/')} style={{ width:'100%', aspectRatio:'16/9', border:'none', borderRadius:'4px' }} allowFullScreen title="Preview" />
+                  ) : /vimeo/i.test(form.videoUrl) ? (
+                    <iframe src={`https://player.vimeo.com/video/${form.videoUrl.split('/').pop()}`} style={{ width:'100%', aspectRatio:'16/9', border:'none', borderRadius:'4px' }} allowFullScreen title="Preview" />
+                  ) : (
+                    <video src={form.videoUrl} controls style={{ width:'100%', borderRadius:'4px', maxHeight:'320px' }} />
+                  )}
+                </div>
+              )}
+              <p style={{ color:'#8a9ab8', fontSize:'13px', lineHeight:1.7, margin:0, whiteSpace:'pre-wrap' }}>{form.content||'(No content)'}</p>
+              <button onClick={handlePost} disabled={!form.title||!form.content}
+                style={{ marginTop:'20px', background:'linear-gradient(135deg,#b8933a,#d4aa50)', color:DARK, border:'none', borderRadius:'4px', padding:'11px 28px', cursor:'pointer', fontWeight:'700', fontSize:'12px', letterSpacing:'2px', textTransform:'uppercase', opacity:(!form.title||!form.content)?0.5:1 }}>
+                📬 Post This Update
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── EXISTING UPDATES LIST ── */}
+      {loading && <div style={{ color:'#6b7280', textAlign:'center', padding:'40px' }}>Loading…</div>}
+      {!loading && updates.length === 0 && (
+        <div style={{ textAlign:'center', padding:'48px', color:'#4a5568' }}>
+          <div style={{ fontSize:'40px', marginBottom:'10px' }}>📭</div>
+          <p>No updates posted yet. Click "+ New Update" to create the first one.</p>
+        </div>
+      )}
+      {updates.map(u => (
+        <div key={u.id} style={{ background:'rgba(255,255,255,0.02)', border:'1px solid rgba(255,255,255,0.07)', borderRadius:'6px', padding:'18px 20px', marginBottom:'10px', display:'flex', gap:'16px', alignItems:'flex-start' }}>
+          {u.imageUrl && <img src={u.imageUrl} alt="" style={{ width:'80px', height:'60px', objectFit:'cover', borderRadius:'4px', flexShrink:0 }} />}
+          <div style={{ flex:1, minWidth:0 }}>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:'8px', flexWrap:'wrap' }}>
+              <div>
+                <span style={{ background:`${catColors[u.category]||'#8a9ab8'}22`, color:catColors[u.category]||'#8a9ab8', fontSize:'9px', letterSpacing:'1px', textTransform:'uppercase', padding:'2px 8px', borderRadius:'2px', marginRight:'8px' }}>{u.category}</span>
+                <span style={{ color:'#e8e0d0', fontWeight:'bold', fontSize:'14px' }}>{u.title}</span>
+              </div>
+              <div style={{ display:'flex', gap:'8px', alignItems:'center', flexShrink:0 }}>
+                <span style={{ color:'#4a5568', fontSize:'11px' }}>{u.publishedAt ? new Date(u.publishedAt).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : ''}</span>
+                {u.videoUrl && <span style={{ color:'#60a5fa', fontSize:'10px', border:'1px solid rgba(96,165,250,0.3)', borderRadius:'10px', padding:'1px 7px' }}>▶ Video</span>}
+                <button onClick={async()=>{ if(window.confirm('Delete this update?')){ await base44.entities.InvestorUpdate.delete(u.id); await load(); } }}
+                  style={{ background:'rgba(239,68,68,0.1)', color:'#ef4444', border:'1px solid rgba(239,68,68,0.25)', borderRadius:'4px', padding:'3px 10px', cursor:'pointer', fontSize:'11px' }}>
+                  Delete
+                </button>
+              </div>
+            </div>
+            <p style={{ color:'#6b7280', fontSize:'12px', margin:'6px 0 0', lineHeight:1.5, overflow:'hidden', textOverflow:'ellipsis', display:'-webkit-box', WebkitLineClamp:2, WebkitBoxOrient:'vertical' }}>{u.content}</p>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // ─── Portal Controls ──────────────────────────────────────────────────────
 function PortalControls() {
   const [s, setS]       = useState(getPortalSettings);
@@ -431,7 +614,7 @@ function PortalControls() {
   useEffect(() => { loadPortalSettings().then(setS); }, []);
   const upd  = (k,v) => setS(prev=>({...prev,[k]:v}));
   const save = async () => { setSaveError(''); try { await savePortalSettings(s); setSaved(true); setTimeout(()=>setSaved(false),2500); } catch(e) { setSaveError('Save failed — '+e.message); } };
-  const sections = [['raise','📊 Raise Progress'],['contact','📍 Contact'],['content','✏️ Content'],['terms','📋 Terms'],['rosie','🤖 Rosie AI'],['toggles','⚙️ Visibility']];
+  const sections = [['raise','📊 Raise Progress'],['contact','📍 Contact'],['content','✏️ Content'],['terms','📋 Terms'],['rosie','🤖 Rosie AI'],['toggles','⚙️ Visibility'],['updates','📬 Investor Updates']];
   return (
     <div style={{ display:'grid', gridTemplateColumns:'180px 1fr', gap:'0' }}>
       <div style={{ borderRight:'1px solid rgba(255,255,255,0.07)' }}>
@@ -514,11 +697,12 @@ function PortalControls() {
           </div>
         )}
         {sec==='toggles' && <div><h3 style={{ color:'#e8e0d0', margin:'0 0 20px', fontWeight:'normal' }}>Visibility</h3><Tog label="Portal Active" value={s.portalActive} onToggle={()=>upd('portalActive',!s.portalActive)} /><Tog label="Show Market Data Tab" value={s.showMarketData} onToggle={()=>upd('showMarketData',!s.showMarketData)} /><Tog label="Show Subscription Tab" value={s.showSubscription} onToggle={()=>upd('showSubscription',!s.showSubscription)} /></div>}
-        <div style={{ display:'flex', gap:'12px', marginTop:'32px', paddingTop:'24px', borderTop:'1px solid rgba(255,255,255,0.07)', alignItems:'center' }}>
+        {sec==='updates' && <InvestorUpdatesManager />}
+        {sec !== 'updates' && <div style={{ display:'flex', gap:'12px', marginTop:'32px', paddingTop:'24px', borderTop:'1px solid rgba(255,255,255,0.07)', alignItems:'center' }}>
           <button onClick={save} style={{ background:'linear-gradient(135deg,#b8933a,#d4aa50)', color:DARK, border:'none', borderRadius:'2px', padding:'12px 32px', cursor:'pointer', fontWeight:'700', fontSize:'12px', letterSpacing:'2px', textTransform:'uppercase' }}>{saved?'✓ Saved!':'Save Changes'}</button>
           {saved && <span style={{ color:'#4ade80', fontSize:'13px' }}>Live on portal.</span>}
           {saveError && <span style={{ color:'#ef4444', fontSize:'13px' }}>{saveError}</span>}
-        </div>
+        </div>}
       </div>
     </div>
   );
