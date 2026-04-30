@@ -47,7 +47,7 @@ function RequestDocumentsModal({ portalUser, onClose, onSuccess }) {
             <p style={{ color:'#6b7280', fontSize:'13px', margin:0 }}>The following documents will be sent for digital signature via SignNow:</p>
           </div>
           <div style={{ background:'rgba(0,0,0,0.25)', border:'1px solid rgba(255,255,255,0.08)', borderRadius:'2px', padding:'20px', marginBottom:'24px' }}>
-            {[['📋','Investor Questionnaire','SEC Accreditation & Suitability Form'],['📄','Subscription Agreement','SAFE Note — Rosie AI LLC Investment Agreement']].map(([icon,name,desc]) => (
+            {[['📋','Investor Questionnaire','SEC Accreditation & Suitability Form'],['📄','Subscription Agreement','']].map(([icon,name,desc]) => (
               <div key={name} style={{ display:'flex', gap:'14px', alignItems:'flex-start', padding:'12px 0', borderBottom:'1px solid rgba(255,255,255,0.05)' }}>
                 <span style={{ fontSize:'22px', flexShrink:0 }}>{icon}</span>
                 <div>
