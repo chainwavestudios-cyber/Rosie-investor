@@ -13,6 +13,14 @@ const ADMIN_USER = {
   company: 'Rosie AI LLC',
 };
 
+const STEPH_USER = {
+  username: 'steph',
+  name: 'Steph',
+  email: 'steph@rosieai.com',
+  role: 'admin',
+  company: 'Rosie AI LLC',
+};
+
 const ADMIN_PASSWORD_DEFAULT = 'password';
 const ADMIN_USERNAME_DEFAULT = 'admin';
 
@@ -43,6 +51,13 @@ export const PortalAuthProvider = ({ children }) => {
 
   const portalLogin = async (usernameOrEmail, password) => {
     const u = (usernameOrEmail || '').toLowerCase().trim();
+
+    // Steph (second admin) — hardcoded credentials
+    if ((u === 'steph') && password === 'Rosieai@@2026') {
+      setPortalUser(STEPH_USER);
+      sessionStorage.setItem(SESSION_KEY, JSON.stringify(STEPH_USER));
+      return { success: true, user: STEPH_USER };
+    }
 
     // Admin check — credentials stored in DB via PortalSettings
     const adminCreds = await getAdminCreds();

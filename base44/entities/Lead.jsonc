@@ -70,6 +70,10 @@
       ],
       "default": "reviewing"
     },
+    "leadPipelineOwner": {
+      "type": "string",
+      "title": "Pipeline Owner (admin username)"
+    },
     "starRating": {
       "type": "number",
       "title": "Star Rating (0-5)",

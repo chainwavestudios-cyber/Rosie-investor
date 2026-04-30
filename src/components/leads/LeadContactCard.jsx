@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
+import { usePortalAuth } from '@/lib/PortalAuthContext';
 import { useInlineDialer } from '@/hooks/useInlineDialer';
 import InlineCallBar from '@/components/shared/InlineCallBar';
 import MigrateLeadModal from './MigrateLeadModal';
@@ -59,6 +60,7 @@ function SiteAccessTab({ lead, onUpdate, onSave }) {
       await base44.entities.LeadHistory.create({
         leadId: lead.id, type: 'note',
         content: `🔗 Site access username updated. Username: ${newUsername.trim().toLowerCase()}`,
+        createdBy: 'admin',
       });
       setSaveMsg('✓ Saved');
       setEditingUsername(false);
@@ -421,6 +423,7 @@ function OverviewTab({ editLead, setEditLead, saving, saveMsg, saveProfile, upda
                       </span>
                     </div>
                     {h.content && <div style={{ color:'#c4cdd8', fontSize:'12px', marginTop:'2px', lineHeight:1.5, whiteSpace:'pre-wrap' }}>{h.content}</div>}
+                    {h.createdBy && <div style={{ color:'#4a5568', fontSize:'9px', marginTop:'2px' }}>by {h.createdBy}</div>}
                     {h.callDurationSeconds > 0 && <div style={{ color:'#8a9ab8', fontSize:'11px', marginTop:'2px' }}>⏱ {Math.floor(h.callDurationSeconds/60)}m {h.callDurationSeconds%60}s</div>}
                   </div>
                 </div>
@@ -541,7 +544,7 @@ function ClientInfoTab({ lead, onUpdate }) {
 }
 
 // ── Lead History Tab ─────────────────────────────────────────────────────────
-function LeadHistoryTab({ lead, history, onNoteAdded }) {
+function LeadHistoryTab({ lead, history, onNoteAdded, createdBy = 'admin' }) {
   const [sub, setSub]         = useState('clientinfo');
   const [note, setNote]       = useState('');
   const [saving, setSaving]   = useState(false);
@@ -569,7 +572,7 @@ function LeadHistoryTab({ lead, history, onNoteAdded }) {
     if (!note.trim()) return;
     setSaving(true);
     try {
-      await base44.entities.LeadHistory.create({ leadId: lead.id, type: 'note', content: note.trim(), createdBy: 'admin' });
+      await base44.entities.LeadHistory.create({ leadId: lead.id, type: 'note', content: note.trim(), createdBy: createdBy });
       setNote('');
       onNoteAdded && onNoteAdded();
     } catch {}
@@ -771,10 +774,29 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
   const isArchived = !!(lead.migratedToPortal || lead.convertedToInvestorUserId || lead.status === 'converted');
   const [cardExpanded, setCardExpanded] = useState(false);
   const [starRating, setStarRating] = useState(lead.starRating || 0);
+  const [transferring, setTransferring] = useState(false);
+
+  const { portalUser } = usePortalAuth();
+  const currentUsername = portalUser?.username || 'admin';
+  const otherUsername = currentUsername === 'steph' ? 'admin' : 'steph';
 
   const handleStarChange = async (val) => {
     setStarRating(val);
     try { await base44.entities.Lead.update(lead.id, { starRating: val }); onUpdate && onUpdate(); } catch {}
+  };
+
+  const handleTransferPipeline = async () => {
+    setTransferring(true);
+    try {
+      await base44.entities.Lead.update(lead.id, { leadPipelineOwner: otherUsername });
+      await base44.entities.LeadHistory.create({
+        leadId: lead.id, type: 'note',
+        content: `🔁 Pipeline transferred from ${currentUsername} → ${otherUsername}`,
+        createdBy: currentUsername,
+      });
+      onUpdate && onUpdate();
+    } catch(e) { console.error(e); }
+    setTransferring(false);
   };
   const [inlineStream, setInlineStream] = useState(null);
   const dialer = useInlineDialer({ onCallStream: (stream) => setInlineStream(stream) });
@@ -838,15 +860,17 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
   };
 
   const logHistory = async (type, content, extra = {}) => {
-    await base44.entities.LeadHistory.create({ leadId: lead.id, type, content, ...extra });
+    await base44.entities.LeadHistory.create({ leadId: lead.id, type, content, createdBy: currentUsername, ...extra });
     await loadHistory();
   };
 
   const updateStatus = async (newStatus, histType, histContent, extra = {}) => {
-    await base44.entities.Lead.update(lead.id, { status: newStatus, ...extra });
+    // When marking as prospect, assign pipeline owner to current user if not already set
+    const prospectExtra = newStatus === 'prospect' ? { leadPipelineOwner: lead.leadPipelineOwner || currentUsername } : {};
+    await base44.entities.Lead.update(lead.id, { status: newStatus, ...prospectExtra, ...extra });
     await logHistory(histType || 'status_change', histContent || `Status changed to ${newStatus}`);
     onUpdate && onUpdate();
-    setEditLead(prev => ({ ...prev, status: newStatus, ...extra }));
+    setEditLead(prev => ({ ...prev, status: newStatus, ...prospectExtra, ...extra }));
   };
 
   const handleProspect = async () => {
@@ -1095,6 +1119,14 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
                   📅 Book Call via Calendly
                 </button>
               )}
+              {/* Transfer Pipeline — only visible for prospects */}
+              {!isArchived && editLead.status === 'prospect' && (
+                <button onClick={handleTransferPipeline} disabled={transferring}
+                  title={`Transfer this prospect's pipeline to ${otherUsername}`}
+                  style={{ background:'rgba(245,158,11,0.12)', color:'#f59e0b', border:'1px solid rgba(245,158,11,0.3)', borderRadius:'4px', padding:'6px 12px', cursor:'pointer', fontSize:'11px', fontWeight:'bold', whiteSpace:'nowrap' }}>
+                  {transferring ? '⏳ Transferring…' : `🔁 Transfer → ${otherUsername}`}
+                </button>
+              )}
               {(emailMsg || portalEmailMsg) && <span style={{ fontSize:'10px', color: (emailMsg||portalEmailMsg).startsWith('Error') ? '#ef4444' : '#4ade80' }}>{emailMsg || portalEmailMsg}</span>}
             </div>
             {/* Badges — right side of action row */}
@@ -1149,7 +1181,7 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
 
           {/* ── HISTORY ── */}
           {tab === 'history' && (
-            <LeadHistoryTab lead={editLead} history={history} onNoteAdded={loadHistory} />
+            <LeadHistoryTab lead={editLead} history={history} onNoteAdded={loadHistory} createdBy={currentUsername} />
           )}
 
           {tab === 'access' && (

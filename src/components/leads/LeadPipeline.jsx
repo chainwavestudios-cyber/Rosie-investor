@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
+import { usePortalAuth } from '@/lib/PortalAuthContext';
 
 const GOLD = '#b8933a';
 const DARK = '#0a0f1e';
@@ -226,6 +227,10 @@ function StageHeader({ stage, onRename, onDelete, canDelete }) {
 }
 
 export default function LeadPipeline({ onOpenLead }) {
+  const { portalUser } = usePortalAuth();
+  const currentUsername = portalUser?.username || 'admin';
+  const otherUsername = currentUsername === 'steph' ? 'admin' : 'steph';
+
   const [leads, setLeads] = useState([]);
   const [loading, setLoading] = useState(true);
   const [dragId, setDragId] = useState(null);
@@ -234,6 +239,8 @@ export default function LeadPipeline({ onOpenLead }) {
   const [stages, setStages] = useState(loadStages);
   const [addingStage, setAddingStage] = useState(false);
   const [newStageName, setNewStageName] = useState('');
+  // 'mine' = current user's pipeline, 'other' = other user's pipeline
+  const [pipelineView, setPipelineView] = useState('mine');
 
   useEffect(() => { loadData(); }, []);
 
@@ -320,7 +327,16 @@ export default function LeadPipeline({ onOpenLead }) {
     setAddingStage(false);
   };
 
-  const leadsInStage = (stageId) => leads.filter(l => (l.leadPipelineStage || 'reviewing') === stageId);
+  // Determine which leads belong to each pipeline
+  // "mine" = leads where owner matches currentUsername OR owner is unset and was converted by currentUsername
+  // Fallback: unset owner goes to 'admin' pipeline
+  const viewOwner = pipelineView === 'mine' ? currentUsername : otherUsername;
+  const visibleLeads = leads.filter(l => {
+    const owner = l.leadPipelineOwner || 'admin';
+    return owner === viewOwner;
+  });
+
+  const leadsInStage = (stageId) => visibleLeads.filter(l => (l.leadPipelineStage || 'reviewing') === stageId);
 
   const getStageStyle = (idx) => STAGE_COLORS[idx % STAGE_COLORS.length];
 
@@ -337,11 +353,23 @@ export default function LeadPipeline({ onOpenLead }) {
         }
       `}</style>
 
+      {/* Pipeline owner tabs */}
+      <div style={{ display: 'flex', gap: '0', borderBottom: '1px solid rgba(255,255,255,0.07)', marginBottom: '20px' }}>
+        <button onClick={() => setPipelineView('mine')}
+          style={{ background: 'none', border: 'none', borderBottom: pipelineView === 'mine' ? `2px solid ${GOLD}` : '2px solid transparent', color: pipelineView === 'mine' ? GOLD : '#6b7280', padding: '10px 20px', cursor: 'pointer', fontSize: '12px', letterSpacing: '0.5px' }}>
+          👤 {currentUsername === 'steph' ? 'Steph' : 'Admin'}'s Pipeline ({leads.filter(l => (l.leadPipelineOwner || 'admin') === currentUsername).length})
+        </button>
+        <button onClick={() => setPipelineView('other')}
+          style={{ background: 'none', border: 'none', borderBottom: pipelineView === 'other' ? `2px solid ${GOLD}` : '2px solid transparent', color: pipelineView === 'other' ? GOLD : '#6b7280', padding: '10px 20px', cursor: 'pointer', fontSize: '12px', letterSpacing: '0.5px' }}>
+          👤 {otherUsername === 'steph' ? 'Steph' : 'Admin'}'s Pipeline ({leads.filter(l => (l.leadPipelineOwner || 'admin') === otherUsername).length})
+        </button>
+      </div>
+
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
         <div>
           <h2 style={{ color: '#e8e0d0', margin: '0 0 3px', fontSize: '18px', fontWeight: 'normal' }}>🚀 Prospect Pipeline</h2>
           <p style={{ color: '#6b7280', fontSize: '12px', margin: 0 }}>
-            Drag cards between stages · {leads.length} prospects · Click stage name to rename
+            Drag cards between stages · {visibleLeads.length} prospects · Click stage name to rename
           </p>
         </div>
         <div style={{ display: 'flex', gap: '8px' }}>
