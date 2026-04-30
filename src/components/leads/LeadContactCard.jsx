@@ -605,12 +605,14 @@ function LeadHistoryTab({ lead, history, onNoteAdded }) {
   );
 }
 
-export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber, dialerRef, onResume, isDialerPaused, onNextLead, onPrevLead, currentLeadIndex, totalLeads, dialerPanelOpen }) {
+export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber, dialerRef, onResume, isDialerPaused, onNextLead, onPrevLead, currentLeadIndex, totalLeads, dialerPanelOpen, twilioStream: externalStream }) {
   // Archived = migrated to CRM — card is read-only
   const isArchived = !!(lead.migratedToPortal || lead.convertedToInvestorUserId || lead.status === 'converted');
   const [cardExpanded, setCardExpanded] = useState(false);
-  const [twilioStream, setTwilioStream] = useState(null);
-  const dialer = useInlineDialer({ onCallStream: (stream) => setTwilioStream(stream) });
+  const [inlineStream, setInlineStream] = useState(null);
+  const dialer = useInlineDialer({ onCallStream: (stream) => setInlineStream(stream) });
+  // Prefer external stream (direct/predictive dialer) over inline dialer stream
+  const twilioStream = externalStream || inlineStream;
   const [tab, setTab] = useState('overview');
   const [history, setHistory] = useState([]);
   const [editLead, setEditLead] = useState({ ...lead });
