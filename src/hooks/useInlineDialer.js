@@ -64,7 +64,7 @@ export function useInlineDialer({ onCallStream, onCallLogged } = {}) {
         // Delay 500ms so RTCPeerConnection ontrack fires first and _remoteStream is populated
         setTimeout(() => {
           try { onCallStream?.({ remoteStream: c.getRemoteStream?.() || null, localStream: c.getLocalStream?.() || null, call: c }); } catch {}
-        }, 500);
+        }, 1000);
       });
       call.on('disconnect', () => { stopTimer(); setCallStatus('ended'); onCallStream?.(null); });
       call.on('error',      (e) => { setDialerError(`Call error: ${e.message}`); stopTimer(); setCallStatus('ended'); onCallStream?.(null); });
