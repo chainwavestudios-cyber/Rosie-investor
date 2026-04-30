@@ -85,6 +85,23 @@ export default function ScriptAssistant({ lead, user, onExpandCard, isCardExpand
     setStreamStatus('connecting');
 
     try {
+      // If streams are null, try pulling them from the call object directly
+      // and wait up to 2s for RTCPeerConnection ontrack to fire
+      if (!remoteStream && twilioStream?.call) {
+        for (let i = 0; i < 8; i++) {
+          await new Promise(r => setTimeout(r, 250));
+          remoteStream = twilioStream.call.getRemoteStream?.() || null;
+          localStream  = twilioStream.call.getLocalStream?.()  || null;
+          if (remoteStream) break;
+        }
+      }
+
+      if (!remoteStream && !localStream) {
+        setError('Could not get call audio streams. Is the call still active?');
+        setStreamStatus('error');
+        return;
+      }
+
       const tokenRes = await base44.functions.invoke('deepgramToken', {});
       const dgKey    = tokenRes?.key || tokenRes?.data?.key || '';
       if (!dgKey) throw new Error('No Deepgram token — check DEEPGRAM_API_KEY');
@@ -193,7 +210,7 @@ export default function ScriptAssistant({ lead, user, onExpandCard, isCardExpand
 
   // ── Manual connect (fallback if no twilioStream prop yet) ──────────
   const connectStream = () => {
-    if (twilioStream?.remoteStream || twilioStream?.call) {
+    if (twilioStream) {
       startListeningFromStream(twilioStream.remoteStream, twilioStream.localStream);
     } else {
       setError('No active Twilio call. Start a call first, then connect the stream.');
