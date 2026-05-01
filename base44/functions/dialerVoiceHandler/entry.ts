@@ -8,45 +8,27 @@
 Deno.serve(async (req) => {
   const url = new URL(req.url);
 
-  // Params — query string takes priority (Twilio GET for lead leg), POST body for SDK calls
+  // Read ALL params — log everything so we can see exactly what Twilio sends
   let to = url.searchParams.get('To') || '';
   let conferenceName = url.searchParams.get('ConferenceName') || '';
   let callerIdParam = url.searchParams.get('CallerId') || '';
+  let allParams: Record<string, string> = {};
+  url.searchParams.forEach((v, k) => { allParams[k] = v; });
 
   if (req.method === 'POST') {
     try {
       const body = await req.text();
       const params = new URLSearchParams(body);
+      params.forEach((v, k) => { allParams[k] = v; });
       to = to || params.get('To') || '';
       conferenceName = conferenceName || params.get('ConferenceName') || '';
       callerIdParam = callerIdParam || params.get('CallerId') || '';
     } catch {}
   }
 
-  // Mode 1: Direct dial — agent browser called with a To number
-   if (to && !to.startsWith('client:')) {
-     // Use caller ID chosen by the agent, falling back to the default number
-     const callerId = callerIdParam ||
-       Deno.env.get('TWILIO_FROM_NUMBER') || '';
-     if (!callerId) {
-       console.error('[dialerVoiceHandler] Missing TWILIO_FROM_NUMBER — calls will fail');
-       return new Response(`<?xml version="1.0" encoding="UTF-8"?><Response><Say>Caller ID not configured. Contact your administrator.</Say><Hangup/></Response>`, {
-         headers: { 'Content-Type': 'text/xml' },
-       });
-     }
-     const twiml = `<?xml version="1.0" encoding="UTF-8"?>
-  <Response>
-   <Dial callerId="${callerId}" timeout="30">
-     <Number>${to}</Number>
-   </Dial>
-  </Response>`;
-     return new Response(twiml, {
-       headers: { 'Content-Type': 'text/xml' },
-     });
-   }
+  console.log('[dialerVoiceHandler] method:', req.method, 'params:', JSON.stringify(allParams));
 
-  // Mode 2: Predictive — lead leg holding in conference (waiting for agent)
-  // Called via GET by Twilio with ?ConferenceName=x&LeadLeg=true
+  // Mode 2: Lead leg — MUST check this first since it comes via GET with query params
   const isLeadLeg = url.searchParams.get('LeadLeg') === 'true';
   if (conferenceName && isLeadLeg) {
     const statusCallback = url.searchParams.get('StatusCallback') || '';
@@ -61,10 +43,11 @@ Deno.serve(async (req) => {
     </Conference>
   </Dial>
 </Response>`;
+    console.log('[dialerVoiceHandler] → Mode 2 LeadLeg conference:', conferenceName);
     return new Response(twiml, { headers: { 'Content-Type': 'text/xml' } });
   }
 
-  // Mode 3: Predictive — agent browser joining the conference
+  // Mode 3: Agent joining conference — ConferenceName present, no LeadLeg flag
   if (conferenceName) {
     const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
@@ -74,12 +57,31 @@ Deno.serve(async (req) => {
     </Conference>
   </Dial>
 </Response>`;
-    return new Response(twiml, {
-      headers: { 'Content-Type': 'text/xml' },
-    });
+    console.log('[dialerVoiceHandler] → Mode 3 Agent joining conference:', conferenceName);
+    return new Response(twiml, { headers: { 'Content-Type': 'text/xml' } });
+  }
+
+  // Mode 1: Direct dial — To is a real phone number (not a client: identifier)
+  const isClientIdentifier = to.startsWith('client:') || to.startsWith('sip:') || !to;
+  if (to && !isClientIdentifier) {
+    const callerId = callerIdParam || Deno.env.get('TWILIO_FROM_NUMBER') || '';
+    if (!callerId) {
+      return new Response(`<?xml version="1.0" encoding="UTF-8"?><Response><Say>Caller ID not configured.</Say><Hangup/></Response>`, {
+        headers: { 'Content-Type': 'text/xml' },
+      });
+    }
+    const twiml = `<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Dial callerId="${callerId}" timeout="30">
+    <Number>${to}</Number>
+  </Dial>
+</Response>`;
+    console.log('[dialerVoiceHandler] → Mode 1 Direct dial to:', to);
+    return new Response(twiml, { headers: { 'Content-Type': 'text/xml' } });
   }
 
   // Fallback
+  console.log('[dialerVoiceHandler] → Fallback hangup — no matching mode. to:', to, 'confName:', conferenceName);
   return new Response(`<?xml version="1.0" encoding="UTF-8"?><Response><Hangup/></Response>`, {
     headers: { 'Content-Type': 'text/xml' },
   });
