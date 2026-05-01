@@ -8,21 +8,19 @@
 Deno.serve(async (req) => {
   const url = new URL(req.url);
 
-  // Params come as POST form data from Twilio SDK or as query params
-  let to = '';
-  let conferenceName = '';
+  // Params — query string takes priority (Twilio GET for lead leg), POST body for SDK calls
+  let to = url.searchParams.get('To') || '';
+  let conferenceName = url.searchParams.get('ConferenceName') || '';
+  let callerIdParam = url.searchParams.get('CallerId') || '';
 
-  let callerIdParam = '';
   if (req.method === 'POST') {
-    const body = await req.text();
-    const params = new URLSearchParams(body);
-    to = params.get('To') || '';
-    conferenceName = params.get('ConferenceName') || '';
-    callerIdParam = params.get('CallerId') || '';
-  } else {
-    to = url.searchParams.get('To') || '';
-    conferenceName = url.searchParams.get('ConferenceName') || '';
-    callerIdParam = url.searchParams.get('CallerId') || '';
+    try {
+      const body = await req.text();
+      const params = new URLSearchParams(body);
+      to = to || params.get('To') || '';
+      conferenceName = conferenceName || params.get('ConferenceName') || '';
+      callerIdParam = callerIdParam || params.get('CallerId') || '';
+    } catch {}
   }
 
   // Mode 1: Direct dial — agent browser called with a To number
@@ -48,8 +46,9 @@ Deno.serve(async (req) => {
    }
 
   // Mode 2: Predictive — lead leg holding in conference (waiting for agent)
-  // Called by twilioCallWithCPA with ?ConferenceName=x&LeadLeg=true
-  if (conferenceName && (url.searchParams.get('LeadLeg') === 'true' || (req.method === 'POST' && new URLSearchParams(await req.clone().text()).get('LeadLeg') === 'true'))) {
+  // Called via GET by Twilio with ?ConferenceName=x&LeadLeg=true
+  const isLeadLeg = url.searchParams.get('LeadLeg') === 'true';
+  if (conferenceName && isLeadLeg) {
     const statusCallback = url.searchParams.get('StatusCallback') || '';
     const confCallbackAttr = statusCallback
       ? `statusCallbackEvent="start end join leave" statusCallback="${statusCallback}" statusCallbackMethod="POST"`
@@ -57,7 +56,7 @@ Deno.serve(async (req) => {
     const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Dial>
-    <Conference startConferenceOnEnter="false" endConferenceOnExit="true" beep="false" waitUrl="" ${confCallbackAttr}>
+    <Conference startConferenceOnEnter="false" endConferenceOnExit="true" beep="false" ${confCallbackAttr}>
       ${conferenceName}
     </Conference>
   </Dial>
