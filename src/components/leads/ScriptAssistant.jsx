@@ -115,8 +115,11 @@ export default function ScriptAssistant({ lead, user, onExpandCard, isCardExpand
       const dgKey    = tokenRes?.key || tokenRes?.data?.key || '';
       if (!dgKey) throw new Error('No Deepgram token — check DEEPGRAM_API_KEY');
 
-      const audioCtx = new AudioContext({ sampleRate: 16000 });
+      // Use native sample rate — forcing 16000 causes mismatch with Twilio's 48000Hz WebRTC audio
+      const nativeSampleRate = 48000;
+      const audioCtx = new AudioContext({ sampleRate: nativeSampleRate });
       contextRef.current = audioCtx;
+      if (audioCtx.state === 'suspended') await audioCtx.resume();
       const dest = audioCtx.createMediaStreamDestination();
 
       if (remoteStream) {
@@ -137,11 +140,13 @@ export default function ScriptAssistant({ lead, user, onExpandCard, isCardExpand
       console.log('[ScriptAssistant] merged stream tracks:', mergedStream.getTracks());
 
       const ws = new WebSocket(
-        `wss://api.deepgram.com/v1/listen?model=nova-2&language=en-US&smart_format=true&interim_results=true&endpointing=300&sentiment=true&diarize=true`,
+        `wss://api.deepgram.com/v1/listen?model=nova-2&language=en-US&smart_format=true&interim_results=true&endpointing=300&sentiment=true&diarize=true&sample_rate=${nativeSampleRate}&encoding=linear16&channels=1`,
         ['token', dgKey]
       );
+      wsRef.current = ws;
 
       ws.onopen = async () => {
+        console.log('[ScriptAssistant] Deepgram WS opened');
         setListening(true);
         setStreamStatus('connected');
         setAiEnabled(true);
@@ -168,7 +173,7 @@ export default function ScriptAssistant({ lead, user, onExpandCard, isCardExpand
 
         try {
           await audioCtx.audioWorklet.addModule(workletUrl);
-          URL.revokeObjectURL(workletUrl);
+          URL.revokeObjectURL(workletUrl); // safe to revoke only after addModule resolves
 
           const workletNode = new AudioWorkletNode(audioCtx, 'pcm-processor');
           processorRef.current = workletNode;
@@ -180,6 +185,7 @@ export default function ScriptAssistant({ lead, user, onExpandCard, isCardExpand
           const src = audioCtx.createMediaStreamSource(mergedStream);
           src.connect(workletNode);
           workletNode.connect(audioCtx.destination);
+          console.log('[ScriptAssistant] AudioWorklet pipeline connected');
         } catch (err) {
           // Fallback to ScriptProcessor if AudioWorklet fails (e.g. non-secure context)
           console.warn('AudioWorklet unavailable, falling back to ScriptProcessor:', err.message);
@@ -198,7 +204,6 @@ export default function ScriptAssistant({ lead, user, onExpandCard, isCardExpand
         }
       };
 
-      ws.onclose = (e) => { console.log('[ScriptAssistant] Deepgram WS closed:', e.code, e.reason); setListening(false); setStreamStatus('idle'); setAiEnabled(false); };
       ws.onmessage = e => {
         try {
           const data = JSON.parse(e.data);
@@ -215,9 +220,20 @@ export default function ScriptAssistant({ lead, user, onExpandCard, isCardExpand
         } catch {}
       };
 
-      ws.onerror = () => { setError('Deepgram WebSocket error'); setStreamStatus('error'); };
-      ws.onclose = () => { setListening(false); setStreamStatus('idle'); setAiEnabled(false); };
-      wsRef.current = ws;
+      ws.onerror = (e) => {
+        console.error('[ScriptAssistant] Deepgram WS error:', e);
+        setError('Deepgram WebSocket error — check DEEPGRAM_API_KEY');
+        setStreamStatus('error');
+      };
+      ws.onclose = (e) => {
+        console.log('[ScriptAssistant] Deepgram WS closed — code:', e.code, 'reason:', e.reason);
+        if (e.code === 1008) setError('Deepgram auth failed — check DEEPGRAM_API_KEY env var');
+        else if (e.code === 1011) setError('Deepgram server error — invalid audio format');
+        else if (e.code !== 1000) setError(`Deepgram disconnected (code ${e.code})`);
+        setListening(false);
+        setStreamStatus('idle');
+        setAiEnabled(false);
+      };
 
     } catch (e) {
       setError(`Stream error: ${e.message}`);
