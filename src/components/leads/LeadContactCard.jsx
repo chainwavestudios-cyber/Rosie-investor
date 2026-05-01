@@ -814,7 +814,7 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
     setTransferring(false);
   };
   const [inlineStream, setInlineStream] = useState(null);
-  const dialer = useInlineDialer({ onCallStream: (stream) => setInlineStream(stream) });
+  const dialer = useInlineDialer({ onCallStream: (stream) => setInlineStream(stream), agentName: currentUsername });
   // Prefer external stream (direct/predictive dialer) over inline dialer stream
   const twilioStream = externalStream || inlineStream;
   const [tab, setTab] = useState('overview');
@@ -968,6 +968,7 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
         toEmail: editLead.email,
         toName: `${lead.firstName} ${lead.lastName}`,
         firstName: lead.firstName,
+        sentBy: currentUsername,
       });
       setEmailMsg('✓ Investor site access sent! Click "Portal Access" to send portal credentials.');
       await loadHistory();
