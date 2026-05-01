@@ -86,12 +86,7 @@ export default function Home() {
     setLoadingHtml(true);
     fetch(HTML_URL + '?t=' + Date.now(), { cache: 'no-store' })
       .then(r => r.text())
-      .then(html => {
-        const blob = new Blob([html], { type: 'text/html' });
-        const url = URL.createObjectURL(blob);
-        setHtmlContent(url);
-        setLoadingHtml(false);
-      })
+      .then(html => { setHtmlContent(html); setLoadingHtml(false); })
       .catch(() => setLoadingHtml(false));
   }, [unlocked]);
 
@@ -148,7 +143,7 @@ export default function Home() {
       )}
       {htmlContent && (
         <iframe
-          src={htmlContent}
+          srcDoc={htmlContent}
           className="w-full border-0"
           title="Rosie Pitchbook"
           sandbox="allow-scripts allow-same-origin allow-popups allow-forms allow-pointer-lock"
