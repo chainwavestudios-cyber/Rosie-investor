@@ -1,10 +1,13 @@
 import { useState, useRef, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useTwilioDevice } from '@/lib/TwilioDeviceContext';
+import { usePortalAuth } from '@/lib/PortalAuthContext';
 
 const GOLD = '#b8933a';
 
 export default function TwilioDialer({ initialLead, onClose, onCallLogged, onCallStart, onCallEnd, onCallStream, embedded }) {
+  const { portalUser } = usePortalAuth();
+  const currentUsername = portalUser?.username || 'admin';
   const { getDevice, ready, error: deviceError } = useTwilioDevice();
 
   const [lead, setLead]               = useState(initialLead || null);
@@ -105,8 +108,9 @@ export default function TwilioDialer({ initialLead, onClose, onCallLogged, onCal
     try {
       await base44.entities.LeadHistory.create({
         leadId: lead.id, type: 'call',
-        content: `Outbound call — ${fmt(dur)}`,
+        content: `Outbound call — ${fmt(dur)} · by ${currentUsername}`,
         callDurationSeconds: dur, twilioCallSid: sid || '',
+        createdBy: currentUsername,
       });
       onCallLogged?.(lead.id);
     } catch {}
