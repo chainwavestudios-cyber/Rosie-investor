@@ -86,7 +86,12 @@ export default function Home() {
     setLoadingHtml(true);
     fetch(HTML_URL + '?t=' + Date.now(), { cache: 'no-store' })
       .then(r => r.text())
-      .then(html => { setHtmlContent(html); setLoadingHtml(false); })
+      .then(html => {
+        const blob = new Blob([html], { type: 'text/html' });
+        const url = URL.createObjectURL(blob);
+        setHtmlContent(url);
+        setLoadingHtml(false);
+      })
       .catch(() => setLoadingHtml(false));
   }, [unlocked]);
 
@@ -141,7 +146,7 @@ export default function Home() {
           <style>{`@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}`}</style>
         </div>
       )}
-      {htmlContent && <iframe srcDoc={htmlContent} className="w-full h-full border-0" title="Rosie Pitchbook" style={{ display: loadingHtml ? 'none' : 'block' }} />}
+      {htmlContent && <iframe src={htmlContent} className="w-full h-full border-0" title="Rosie Pitchbook" style={{ display: loadingHtml ? 'none' : 'block' }} />}
       {!loadingHtml && htmlContent && <button
         onClick={() => navigate('/portal-login')}
         style={{
