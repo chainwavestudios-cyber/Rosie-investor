@@ -94,12 +94,22 @@ function Dot({ status, size = 7 }) {
 }
 
 // ── Q&A Tab ───────────────────────────────────────────────────────────────────
-function QAPanel({ transcript, transcriptRef, kbEntries, active }) {
-  const [questions,  setQuestions]  = useState([]);   // { id, text, time, answer, answering, answered }
+function QAPanel({ transcript, transcriptRef, kbEntries, active, qaKeywords }) {
+  const [questions,  setQuestions]  = useState([]);   // { id, text, time, answer, answering, answered, autoTriggered }
   const [dividerPct, setDividerPct] = useState(50);
   const containerRef = useRef(null);
   const dragging     = useRef(false);
   const seenQ        = useRef(new Set());
+  const lastAutoRef  = useRef(0);
+
+  // Build keyword regex from portal settings (replaces hardcoded TRIGGER_PATTERNS)
+  const buildKeywordRegex = useCallback(() => {
+    if (!qaKeywords?.trim()) return null;
+    const terms = qaKeywords.split(',').map(k => k.trim()).filter(Boolean);
+    if (!terms.length) return null;
+    const escaped = terms.map(t => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+    return new RegExp(`\\b(${escaped.join('|')})\\b`, 'i');
+  }, [qaKeywords]);
 
   // Detect questions from incoming transcript
   useEffect(() => {
@@ -109,10 +119,35 @@ function QAPanel({ transcript, transcriptRef, kbEntries, active }) {
     matches.forEach(q => {
       if (!seenQ.current.has(q)) {
         seenQ.current.add(q);
-        setQuestions(prev => [...prev, { id: Date.now() + Math.random(), text: q, time: new Date(), answer: '', answering: false, answered: false }]);
+        setQuestions(prev => [...prev, { id: Date.now() + Math.random(), text: q, time: new Date(), answer: '', answering: false, answered: false, autoTriggered: false }]);
       }
     });
-  }, [transcript]);
+
+    // Auto-trigger KB lookup when keyword detected (portal-configured, replaces hardcoded patterns)
+    const now = Date.now();
+    if (active && now - lastAutoRef.current > 3000) {
+      const kwRegex = buildKeywordRegex();
+      if (kwRegex && kwRegex.test(last.text)) {
+        lastAutoRef.current = now;
+        const autoId = Date.now() + Math.random();
+        const autoQ = last.text.slice(0, 120);
+        if (!seenQ.current.has(autoQ)) {
+          seenQ.current.add(autoQ);
+          setQuestions(prev => [...prev, { id: autoId, text: autoQ, time: new Date(), answer: '', answering: true, answered: false, autoTriggered: true }]);
+          base44.functions.invoke('liveAssistantAI', {
+            question: autoQ,
+            transcript: transcriptRef.current.slice(-10),
+            kbEntries,
+          }).then(res => {
+            const answer = res?.data?.answer || 'No answer found.';
+            setQuestions(prev => prev.map(x => x.id === autoId ? { ...x, answering: false, answered: true, answer } : x));
+          }).catch(e => {
+            setQuestions(prev => prev.map(x => x.id === autoId ? { ...x, answering: false, answer: `Error: ${e.message}` } : x));
+          });
+        }
+      }
+    }
+  }, [transcript, active, buildKeywordRegex]);
 
   const answerQ = async (id) => {
     const q = questions.find(x => x.id === id);
@@ -161,17 +196,21 @@ function QAPanel({ transcript, transcriptRef, kbEntries, active }) {
           </div>
         )}
         {questions.map(q => (
-          <div key={q.id} style={{ background: 'rgba(245,158,11,0.05)', border: `1px solid ${q.answered ? 'rgba(74,222,128,0.3)' : 'rgba(245,158,11,0.2)'}`, borderRadius: '4px', padding: '8px 10px', display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
+          <div key={q.id} style={{ background: q.autoTriggered ? 'rgba(96,165,250,0.05)' : 'rgba(245,158,11,0.05)', border: `1px solid ${q.answered ? 'rgba(74,222,128,0.3)' : q.autoTriggered ? 'rgba(96,165,250,0.2)' : 'rgba(245,158,11,0.2)'}`, borderRadius: '4px', padding: '8px 10px', display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
             <div style={{ flex: 1 }}>
-              <div style={{ color: q.answered ? '#4ade80' : '#e8e0d0', fontSize: '12px', lineHeight: 1.4 }}>{q.text}</div>
+              <div style={{ display: 'flex', gap: '5px', alignItems: 'center', marginBottom: '2px' }}>
+                {q.autoTriggered && <span style={{ fontSize: '8px', background: 'rgba(96,165,250,0.15)', color: '#60a5fa', border: '1px solid rgba(96,165,250,0.3)', borderRadius: '3px', padding: '1px 5px' }}>AUTO</span>}
+                <div style={{ color: q.answered ? '#4ade80' : '#e8e0d0', fontSize: '12px', lineHeight: 1.4 }}>{q.text}</div>
+              </div>
               <div style={{ color: '#4a5568', fontSize: '9px', marginTop: '2px' }}>{q.time.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', second: '2-digit' })}</div>
             </div>
-            {!q.answered && (
-              <button onClick={() => answerQ(q.id)} disabled={q.answering}
-                style={{ background: q.answering ? 'rgba(245,158,11,0.1)' : 'rgba(245,158,11,0.15)', color: '#f59e0b', border: '1px solid rgba(245,158,11,0.4)', borderRadius: '4px', padding: '4px 10px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold', whiteSpace: 'nowrap', flexShrink: 0 }}>
-                {q.answering ? '⏳' : 'Answer'}
+            {!q.answered && !q.answering && (
+              <button onClick={() => answerQ(q.id)}
+                style={{ background: 'rgba(245,158,11,0.15)', color: '#f59e0b', border: '1px solid rgba(245,158,11,0.4)', borderRadius: '4px', padding: '4px 10px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                Answer
               </button>
             )}
+            {q.answering && <div style={{ color: '#60a5fa', fontSize: '10px', flexShrink: 0 }}>⏳</div>}
             {q.answered && <div style={{ color: '#4ade80', fontSize: '10px', flexShrink: 0 }}>✓</div>}
           </div>
         ))}
@@ -437,13 +476,13 @@ export default function AIAssistantPopup({
       {/* Main area */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         {activeTab === 'qa' && (
-          <QAPanel ref={qaRef} transcript={transcript} transcriptRef={transcriptRef} kbEntries={kbEntries} active={qaActive} />
+          <QAPanel ref={qaRef} transcript={transcript} transcriptRef={transcriptRef} kbEntries={kbEntries} active={qaActive} qaKeywords={portalCfg?.intentTriggerKeywords} />
         )}
         {activeTab === 'coach' && (
           <CoachPanel ref={coachRef} transcript={transcript} kbEntries={kbEntries} coachRules={{ focusAreas: portalCfg?.coachFocusAreas, style: portalCfg?.coachStyle, additionalContext: portalCfg?.coachAdditionalContext }} active={coachActive} />
         )}
         {activeTab === 'intent' && (
-          <IntentPanel ref={intentRef} transcript={transcript} engagementScore={engagementScore} intentRules={{ duckDefinition: portalCfg?.intentDuckDefinition, cowDefinition: portalCfg?.intentCowDefinition }} active={intentActive} onIntentResult={onIntentResult} />
+          <IntentPanel ref={intentRef} transcript={transcript} engagementScore={engagementScore} intentRules={{ duckDefinition: portalCfg?.intentDuckDefinition, cowDefinition: portalCfg?.intentCowDefinition, positiveSignals: portalCfg?.intentPositiveSignals, negativeSignals: portalCfg?.intentNegativeSignals }} active={intentActive} onIntentResult={onIntentResult} />
         )}
       </div>
     </FloatingPopup>
