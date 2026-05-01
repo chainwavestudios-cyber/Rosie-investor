@@ -193,15 +193,16 @@ export default function MigrateLeadModal({ lead, history, onClose, onMigrated })
       await base44.entities.LeadHistory.create({
         leadId:  lead.id,
         type:    'status_change',
-        content: `✅ Migrated to CRM. Username: ${username}. Pipeline: Reviewing Info.`,
+        content: `✅ Migrated to CRM by ${currentUsername}. Username: ${username}. Pipeline: Reviewing Info.`,
+        createdBy: currentUsername,
       });
       await base44.entities.ContactNote.create({
         investorId:    iu.id,
         investorEmail: iu.email,
         type:          'note',
-        content:       `✅ Migrated from lead pipeline into Reviewing Info stage. Engagement: ${lead.engagementScore||0} pts.`,
+        content:       `✅ Migrated from lead pipeline by ${currentUsername} into Reviewing Info stage. Engagement: ${lead.engagementScore||0} pts.`,
         createdAt:     new Date().toISOString(),
-        createdBy:     'system',
+        createdBy:     currentUsername,
       });
       mark('Archiving lead');
 
@@ -217,12 +218,14 @@ export default function MigrateLeadModal({ lead, history, onClose, onMigrated })
           username,
           password,
           loginUrl,
+          sentBy:    currentUsername,
         });
         // Log to lead history
         await base44.entities.LeadHistory.create({
           leadId:  lead.id,
           type:    'note',
-          content: `📧 Portal access email sent. Username: ${username}`,
+          content: `📧 Portal access email sent by ${currentUsername}. Username: ${username}`,
+          createdBy: currentUsername,
         }).catch(() => {});
       } catch (emailErr) {
         console.warn('Portal email failed (non-fatal):', emailErr);
