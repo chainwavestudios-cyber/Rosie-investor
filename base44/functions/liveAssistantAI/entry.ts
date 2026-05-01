@@ -23,7 +23,7 @@ function findRelevantKB(question: string, kbEntries: any[], topN = 8): any[] {
       })
       .filter((e: any) => e.score > 0)
       .sort((a: any, b: any) => b.score - a.score)
-      .slice(0, 2);
+      .slice(0, 1);
     scored.push(...rawDocs);
   }
   return scored;
@@ -47,7 +47,7 @@ Deno.serve(async (req) => {
 
     // ── STREAMING COACH ───────────────────────────────────────────────
     if (mode === 'coach_stream') {
-      const relevantKB = findRelevantKB(recentTranscript, kbEntries || [], 5);
+      const relevantKB = findRelevantKB(recentTranscript, kbEntries || [], 3);
       const kbContext  = relevantKB.map((e: any) => `Q: ${e.question}\nA: ${e.answer}`).join('\n\n');
       const res = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
@@ -93,11 +93,13 @@ Deno.serve(async (req) => {
         headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_KEY, 'anthropic-version': '2023-06-01' },
         body: JSON.stringify({
           model: 'claude-haiku-4-5-20251001',
-          max_tokens: 800,
-          system: `You are an expert sales call analyst measuring prospect intent, tonality, and interest.
+          max_tokens: 1200,
+          system: `You are an expert sales call analyst measuring prospect intent, tonality, and interest. Also extract key facts from the conversation to auto-populate the CRM.
 Deepgram sentiment summary: ${sentimentSummary}
 DUCK: ${intentRules?.duckDefinition || 'Skeptical, argumentative, raises objections, combative, negative tone'}
 COW: ${intentRules?.cowDefinition || 'Curious, agreeable, asks genuine buying questions, positive tone'}
+POSITIVE SIGNALS TO DETECT: ${intentRules?.positiveSignals || 'how do I get started, what is the minimum, when can I invest, I am interested, sounds good, I like that, tell me more'}
+NEGATIVE SIGNALS TO DETECT: ${intentRules?.negativeSignals || 'not interested, call me later, I need to think about it, talk to my spouse, too risky, too expensive, send me something'}
 Respond ONLY with this exact JSON (no markdown):
 {
   "intentScore": 0-100,
@@ -112,7 +114,16 @@ Respond ONLY with this exact JSON (no markdown):
   "keyMoments": ["moment1","moment2","moment3"],
   "buyingSignals": ["signal1","signal2"],
   "objections": ["objection1","objection2"],
-  "recommendedNextStep": "specific actionable next step"
+  "recommendedNextStep": "specific actionable next step",
+  "extractedData": {
+    "mentionedAmount": "number only if they mentioned a dollar amount e.g. 50000, else null",
+    "accountType": "cash or ira if mentioned, else null",
+    "iraDetails": "IRA custodian or account details if mentioned, else null",
+    "bestTimeToCall": "preferred callback time if mentioned e.g. mornings, after 3pm, else null",
+    "positiveSignals": ["exact phrases they said showing genuine interest or buying intent"],
+    "negativeSignals": ["exact phrases they said showing hesitation, objection, or disinterest"],
+    "extractedNotes": "1-2 sentence summary of key facts worth noting on the contact card, or null"
+  }
 }`,
           messages: [{ role: 'user', content: `Full call transcript:\n${fullTranscript.slice(0, 6000)}` }],
         }),
@@ -182,7 +193,7 @@ Respond ONLY with this exact JSON (no markdown):
     }
 
     // ── Q&A (default) ─────────────────────────────────────────────────
-    const relevantKB = findRelevantKB(question || recentTranscript, kbEntries || [], 8);
+    const relevantKB = findRelevantKB(question || recentTranscript, kbEntries || [], 3);
     const kbContext  = relevantKB.length > 0
       ? relevantKB.map((e: any) => `Q: ${e.question}\nA: ${e.answer}`).join('\n\n')
       : 'No relevant knowledge base entries found.';
@@ -191,8 +202,8 @@ Respond ONLY with this exact JSON (no markdown):
       headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_KEY, 'anthropic-version': '2023-06-01' },
       body: JSON.stringify({
         model: 'claude-haiku-4-5-20251001',
-        max_tokens: 1000,
-        system: `You are a real-time sales assistant on a live investor call. Answer questions accurately and completely from the knowledge base. Give the full answer — do not truncate or summarize unless the KB answer itself is brief.\n\nKNOWLEDGE BASE:\n${kbContext}`,
+        max_tokens: 400,
+        system: `You are a real-time sales assistant on a live investor call. Answer questions concisely from the knowledge base. Keep answers under 3 sentences — the agent speaks this naturally.\n\nKNOWLEDGE BASE:\n${kbContext}`,
         messages: [{ role: 'user', content: `${recentTranscript ? `Recent conversation:\n${recentTranscript}\n\n` : ''}Question: "${question}"\n\nBrief answer:` }],
       }),
     });
