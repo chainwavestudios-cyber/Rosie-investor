@@ -14,6 +14,7 @@ import TwilioDialer from '@/components/leads/TwilioDialer';
 import ZoomBookingModal from '@/components/ZoomBookingModal';
 import { useInlineDialer } from '@/hooks/useInlineDialer';
 import InlineCallBar from '@/components/shared/InlineCallBar';
+import CustomEmailTab from '@/components/shared/CustomEmailTab';
 import { usePortalAuth } from '@/lib/PortalAuthContext';
 
 const GOLD = '#b8933a';
@@ -213,7 +214,7 @@ export default function ContactCardModal({ user, onClose, onSave, allSessions, m
   };
 
   const TABS = [
-    ['overview','👤 Overview'], ['history','📞 History'], ['analytics','📊 Analytics'],
+    ['overview','👤 Overview'], ['history','📞 History'], ['email','✉️ Email'], ['analytics','📊 Analytics'],
     ['documents','📄 Documents'], ['accreditation','🔐 Accreditation'], ['calendar','📅 Calendar'],
     ['portal','🔑 Portal Access'], ['rosie','🤖 Rosie AI'], ['sitestats','📊 Site Stats'], ['research','🔍 Research'], ['script','📝 Script'],
   ];
@@ -410,6 +411,17 @@ export default function ContactCardModal({ user, onClose, onSave, allSessions, m
           )}
 
           {tab === 'analytics' && <InvestorAnalyticsTab user={editUser} sessions={sessions} stats={stats} />}
+
+          {tab === 'email' && (
+            <CustomEmailTab
+              toEmail={user.email}
+              toName={user.name}
+              leadId={user.leadId || null}
+              investorId={user.id}
+              sentBy={currentUsername}
+              onSent={() => loadAll()}
+            />
+          )}
 
           {/* DOCUMENTS */}
           {tab === 'documents' && (
