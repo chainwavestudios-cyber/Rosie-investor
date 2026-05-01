@@ -777,6 +777,209 @@ function LeadStarRating({ value = 0, onChange }) {
   );
 }
 
+// ── AI Details Tab ────────────────────────────────────────────────────────────
+function AIDetailsTab({ lead, onUpdate }) {
+  const GOLD = '#b8933a';
+  const [applying, setApplying] = useState(false);
+  const [applyMsg, setApplyMsg] = useState('');
+
+  const intent  = (() => { try { return JSON.parse(lead?.lastIntentAnalysis || '{}'); } catch { return {}; } })();
+  const profile = (() => { try { return JSON.parse(lead?.clientProfile || '{}'); } catch { return {}; } })();
+  const extracted = intent?.extractedData || {};
+  const hasIntent = Object.keys(intent).length > 0;
+  const hasExtracted = Object.values(extracted).some(v => v && (Array.isArray(v) ? v.length > 0 : true));
+
+  const scoreColor = (score) => {
+    if (score >= 70) return '#4ade80';
+    if (score >= 40) return '#f59e0b';
+    return '#ef4444';
+  };
+
+  const applyExtracted = async () => {
+    setApplying(true); setApplyMsg('');
+    try {
+      const updates = {};
+      if (extracted.mentionedAmount)  updates.notes = `${lead.notes ? lead.notes + '\n' : ''}[AI] Mentioned investment amount: $${extracted.mentionedAmount}`;
+      if (extracted.bestTimeToCall)   updates.bestTimeToCall = extracted.bestTimeToCall;
+      if (extracted.extractedNotes)   updates.notes = `${updates.notes || lead.notes || ''}\n[AI] ${extracted.extractedNotes}`.trim();
+      if (Object.keys(updates).length > 0) {
+        await base44.entities.Lead.update(lead.id, updates);
+        onUpdate && onUpdate();
+        setApplyMsg('✓ Applied to lead card');
+        setTimeout(() => setApplyMsg(''), 3000);
+      } else {
+        setApplyMsg('Nothing new to apply');
+        setTimeout(() => setApplyMsg(''), 2000);
+      }
+    } catch (e) { setApplyMsg('Error: ' + e.message); }
+    setApplying(false);
+  };
+
+  if (!hasIntent && !profile.animalType) return (
+    <div style={{ textAlign:'center', padding:'60px 24px' }}>
+      <div style={{ fontSize:'48px', marginBottom:'16px' }}>🤖</div>
+      <h3 style={{ color:'#4a5568', fontWeight:'normal', marginBottom:'10px' }}>No AI analysis yet</h3>
+      <p style={{ color:'#374151', fontSize:'13px', maxWidth:'360px', margin:'0 auto', lineHeight:1.7 }}>
+        AI details populate automatically after a call with the AI Assistant active. Make a call with Intent or Q&A enabled to generate analysis.
+      </p>
+    </div>
+  );
+
+  return (
+    <div style={{ display:'flex', flexDirection:'column', gap:'14px' }}>
+
+      {/* Intent score + signals */}
+      {hasIntent && (
+        <>
+          {/* Score row */}
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:'10px' }}>
+            {[
+              ['Intent Score', `${intent.intentScore ?? '—'}/100`, scoreColor(intent.intentScore)],
+              ['Interest', intent.interestLevel || '—', intent.interestLevel === 'high' ? '#4ade80' : intent.interestLevel === 'medium' ? '#f59e0b' : '#ef4444'],
+              ['Tonality', intent.tonality || '—', '#8a9ab8'],
+            ].map(([label, val, color]) => (
+              <div key={label} style={{ background:'rgba(0,0,0,0.2)', border:'1px solid rgba(255,255,255,0.06)', borderRadius:'4px', padding:'12px', textAlign:'center' }}>
+                <div style={{ color, fontSize:'18px', fontWeight:'bold', textTransform:'capitalize' }}>{val}</div>
+                <div style={{ color:'#4a5568', fontSize:'10px', letterSpacing:'1px', textTransform:'uppercase', marginTop:'4px' }}>{label}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* Animal type */}
+          {intent.animalType && (
+            <div style={{ background:'rgba(0,0,0,0.15)', border:`1px solid ${intent.animalType==='duck'?'rgba(245,158,11,0.3)':'rgba(74,222,128,0.3)'}`, borderRadius:'4px', padding:'12px 16px', display:'flex', alignItems:'center', gap:'12px' }}>
+              <span style={{ fontSize:'28px' }}>{intent.animalType === 'duck' ? '🦆' : intent.animalType === 'cow' ? '🐄' : '❓'}</span>
+              <div>
+                <div style={{ color: intent.animalType==='duck'?'#f59e0b':'#4ade80', fontSize:'14px', fontWeight:'bold', textTransform:'capitalize' }}>
+                  {intent.animalType} — {intent.animalConfidence}% confidence
+                </div>
+                <div style={{ color:'#6b7280', fontSize:'12px', marginTop:'2px' }}>{intent.tonalityNotes}</div>
+              </div>
+            </div>
+          )}
+
+          {/* Buying signals */}
+          {intent.buyingSignals?.length > 0 && (
+            <div style={{ background:'rgba(74,222,128,0.05)', border:'1px solid rgba(74,222,128,0.2)', borderRadius:'4px', padding:'12px 16px' }}>
+              <div style={{ color:'#4ade80', fontSize:'10px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'8px' }}>✅ Buying Signals</div>
+              {intent.buyingSignals.map((s, i) => (
+                <div key={i} style={{ color:'#c4cdd8', fontSize:'12px', padding:'3px 0', display:'flex', gap:'8px' }}>
+                  <span style={{ color:'#4ade80', flexShrink:0 }}>›</span>{s}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Objections */}
+          {intent.objections?.length > 0 && (
+            <div style={{ background:'rgba(239,68,68,0.05)', border:'1px solid rgba(239,68,68,0.2)', borderRadius:'4px', padding:'12px 16px' }}>
+              <div style={{ color:'#ef4444', fontSize:'10px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'8px' }}>⚠️ Objections</div>
+              {intent.objections.map((o, i) => (
+                <div key={i} style={{ color:'#c4cdd8', fontSize:'12px', padding:'3px 0', display:'flex', gap:'8px' }}>
+                  <span style={{ color:'#ef4444', flexShrink:0 }}>›</span>{o}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Key moments */}
+          {intent.keyMoments?.length > 0 && (
+            <div style={{ background:'rgba(0,0,0,0.15)', border:'1px solid rgba(255,255,255,0.07)', borderRadius:'4px', padding:'12px 16px' }}>
+              <div style={{ color:GOLD, fontSize:'10px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'8px' }}>🎯 Key Moments</div>
+              {intent.keyMoments.map((m, i) => (
+                <div key={i} style={{ color:'#8a9ab8', fontSize:'12px', padding:'3px 0', display:'flex', gap:'8px' }}>
+                  <span style={{ color:GOLD, flexShrink:0 }}>›</span>{m}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Recommended next step */}
+          {intent.recommendedNextStep && (
+            <div style={{ background:'rgba(96,165,250,0.06)', border:'1px solid rgba(96,165,250,0.2)', borderRadius:'4px', padding:'12px 16px' }}>
+              <div style={{ color:'#60a5fa', fontSize:'10px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'6px' }}>📋 Recommended Next Step</div>
+              <p style={{ color:'#c4cdd8', fontSize:'13px', margin:0, lineHeight:1.6 }}>{intent.recommendedNextStep}</p>
+            </div>
+          )}
+        </>
+      )}
+
+      {/* Extracted call data */}
+      {hasExtracted && (
+        <div style={{ background:'rgba(184,147,58,0.05)', border:'1px solid rgba(184,147,58,0.2)', borderRadius:'4px', padding:'14px 16px' }}>
+          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'12px' }}>
+            <div style={{ color:GOLD, fontSize:'10px', letterSpacing:'2px', textTransform:'uppercase' }}>🤖 Extracted from Call</div>
+            <div style={{ display:'flex', gap:'8px', alignItems:'center' }}>
+              {applyMsg && <span style={{ color: applyMsg.startsWith('Error') ? '#ef4444' : '#4ade80', fontSize:'11px' }}>{applyMsg}</span>}
+              <button onClick={applyExtracted} disabled={applying}
+                style={{ background:'rgba(184,147,58,0.15)', border:'1px solid rgba(184,147,58,0.35)', borderRadius:'4px', padding:'5px 12px', color:GOLD, cursor:'pointer', fontSize:'11px', fontWeight:'bold', whiteSpace:'nowrap' }}>
+                {applying ? '⏳' : '⬇ Apply to Card'}
+              </button>
+            </div>
+          </div>
+          <div style={{ display:'flex', flexDirection:'column', gap:'8px' }}>
+            {extracted.mentionedAmount && (
+              <div style={{ display:'flex', justifyContent:'space-between', padding:'6px 0', borderBottom:'1px solid rgba(255,255,255,0.04)' }}>
+                <span style={{ color:'#8a9ab8', fontSize:'12px' }}>Mentioned Amount</span>
+                <span style={{ color:'#4ade80', fontSize:'12px', fontWeight:'bold' }}>${Number(extracted.mentionedAmount).toLocaleString()}</span>
+              </div>
+            )}
+            {extracted.accountType && extracted.accountType !== 'null' && (
+              <div style={{ display:'flex', justifyContent:'space-between', padding:'6px 0', borderBottom:'1px solid rgba(255,255,255,0.04)' }}>
+                <span style={{ color:'#8a9ab8', fontSize:'12px' }}>Account Type</span>
+                <span style={{ color:'#e8e0d0', fontSize:'12px', textTransform:'uppercase', fontWeight:'bold' }}>{extracted.accountType}</span>
+              </div>
+            )}
+            {extracted.iraDetails && extracted.iraDetails !== 'null' && (
+              <div style={{ display:'flex', justifyContent:'space-between', padding:'6px 0', borderBottom:'1px solid rgba(255,255,255,0.04)' }}>
+                <span style={{ color:'#8a9ab8', fontSize:'12px' }}>IRA Details</span>
+                <span style={{ color:'#e8e0d0', fontSize:'12px' }}>{extracted.iraDetails}</span>
+              </div>
+            )}
+            {extracted.bestTimeToCall && extracted.bestTimeToCall !== 'null' && (
+              <div style={{ display:'flex', justifyContent:'space-between', padding:'6px 0', borderBottom:'1px solid rgba(255,255,255,0.04)' }}>
+                <span style={{ color:'#8a9ab8', fontSize:'12px' }}>Best Time to Call</span>
+                <span style={{ color:'#e8e0d0', fontSize:'12px' }}>{extracted.bestTimeToCall}</span>
+              </div>
+            )}
+            {extracted.positiveSignals?.length > 0 && (
+              <div style={{ padding:'6px 0', borderBottom:'1px solid rgba(255,255,255,0.04)' }}>
+                <div style={{ color:'#4ade80', fontSize:'11px', marginBottom:'4px' }}>Positive Signals</div>
+                {extracted.positiveSignals.map((s, i) => (
+                  <div key={i} style={{ color:'#8a9ab8', fontSize:'12px', padding:'2px 0' }}>› "{s}"</div>
+                ))}
+              </div>
+            )}
+            {extracted.negativeSignals?.length > 0 && (
+              <div style={{ padding:'6px 0', borderBottom:'1px solid rgba(255,255,255,0.04)' }}>
+                <div style={{ color:'#ef4444', fontSize:'11px', marginBottom:'4px' }}>Negative Signals</div>
+                {extracted.negativeSignals.map((s, i) => (
+                  <div key={i} style={{ color:'#8a9ab8', fontSize:'12px', padding:'2px 0' }}>› "{s}"</div>
+                ))}
+              </div>
+            )}
+            {extracted.extractedNotes && extracted.extractedNotes !== 'null' && (
+              <div style={{ padding:'6px 0' }}>
+                <div style={{ color:GOLD, fontSize:'11px', marginBottom:'4px' }}>Notes</div>
+                <div style={{ color:'#8a9ab8', fontSize:'12px', lineHeight:1.5 }}>{extracted.extractedNotes}</div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Client profile summary if present */}
+      {profile.lastCallSummary && (
+        <div style={{ background:'rgba(0,0,0,0.15)', border:'1px solid rgba(255,255,255,0.07)', borderRadius:'4px', padding:'12px 16px' }}>
+          <div style={{ color:GOLD, fontSize:'10px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'6px' }}>Last Call Summary</div>
+          <p style={{ color:'#8a9ab8', fontSize:'12px', margin:0, lineHeight:1.6 }}>{profile.lastCallSummary}</p>
+        </div>
+      )}
+
+    </div>
+  );
+}
+
 export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber, dialerRef, onResume, isDialerPaused, onNextLead, onPrevLead, currentLeadIndex, totalLeads, dialerPanelOpen, twilioStream: externalStream, onCallLogged }) {
   // Archived = migrated to CRM — card is read-only
   const isArchived = !!(lead.migratedToPortal || lead.convertedToInvestorUserId || lead.status === 'converted');
@@ -1187,7 +1390,7 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
 
         {/* Tabs row + activity badges on the right */}
         <div style={{ display:'flex', borderBottom:'1px solid rgba(255,255,255,0.07)', flexShrink:0, alignItems:'center' }}>
-          {[['overview','Overview'],['history','History'],['email','✉️ Email'],['actions','Actions'],['access','Site Access'],['sitestats','Site Stats'],['research','Research'],['script','Script & AI']].filter(([id]) => !(isArchived && id === 'actions')).map(([id,label]) => (
+          {[['overview','Overview'],['history','History'],['email','✉️ Email'],['actions','Actions'],['access','Site Access'],['sitestats','Site Stats'],['research','Research'],['script','Script & AI'],['aidetails','🤖 AI Details']].filter(([id]) => !(isArchived && id === 'actions')).map(([id,label]) => (
             <button key={id} onClick={() => setTab(id)} style={{ background:'none', border:'none', borderBottom:tab===id?`2px solid ${GOLD}`:'2px solid transparent', color:tab===id?GOLD:'#6b7280', padding:'10px 16px', cursor:'pointer', fontSize:'11px', letterSpacing:'0.5px', whiteSpace:'nowrap' }}>{label}</button>
           ))}
           <div style={{ flex:1 }} />
@@ -1251,6 +1454,10 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
 
           {tab === 'script' && (
             <ScriptAssistant lead={editLead} onExpandCard={() => setCardExpanded(e => !e)} isCardExpanded={cardExpanded} twilioStream={twilioStream} />
+          )}
+
+          {tab === 'aidetails' && (
+            <AIDetailsTab lead={editLead} onUpdate={onUpdate} />
           )}
 
           {/* ── ACTIONS ── */}
