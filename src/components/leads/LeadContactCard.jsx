@@ -777,7 +777,7 @@ function LeadStarRating({ value = 0, onChange }) {
   );
 }
 
-export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber, dialerRef, onResume, isDialerPaused, onNextLead, onPrevLead, currentLeadIndex, totalLeads, dialerPanelOpen, twilioStream: externalStream }) {
+export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber, dialerRef, onResume, isDialerPaused, onNextLead, onPrevLead, currentLeadIndex, totalLeads, dialerPanelOpen, twilioStream: externalStream, onCallLogged }) {
   // Archived = migrated to CRM — card is read-only
   const isArchived = !!(lead.migratedToPortal || lead.convertedToInvestorUserId || lead.status === 'converted');
   const [cardExpanded, setCardExpanded] = useState(false);
@@ -822,7 +822,7 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
     setTransferring(false);
   };
   const [inlineStream, setInlineStream] = useState(null);
-  const dialer = useInlineDialer({ onCallStream: (stream) => setInlineStream(stream), agentName: currentUsername });
+  const dialer = useInlineDialer({ onCallStream: (stream) => setInlineStream(stream), onCallLogged, agentName: currentUsername });
   // Prefer external stream (direct/predictive dialer) over inline dialer stream
   const twilioStream = externalStream || inlineStream;
   const [tab, setTab] = useState('overview');
@@ -911,7 +911,10 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
 
   const handleNotAvailable = async () => {
     const note = notAvailableNote.trim();
-    await updateStatus('not_available', 'not_available', `Not available${note ? ` — ${note}` : ` — ${new Date().toLocaleString()}`}`);
+    const now = new Date().toISOString();
+    await updateStatus('not_available', 'not_available', `Not available${note ? ` — ${note}` : ` — ${new Date().toLocaleString()}`}`, { lastCalledAt: now });
+    // Fire onCallLogged so LeadsTab stamps lastCalledAt and re-sorts
+    onCallLogged && onCallLogged(lead.id);
     if (note) await logHistory('note', note);
     setNotAvailableNote('');
     setSelectedAction(null);
