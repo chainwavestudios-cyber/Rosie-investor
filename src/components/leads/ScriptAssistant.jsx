@@ -413,7 +413,7 @@ export default function ScriptAssistant({ lead, user, onExpandCard, isCardExpand
 
       // 4. Save intent score to lead
       if (finalIntent?.intentScore !== undefined) {
-        const leadUpdates: any = {
+        const leadUpdates = {
           intentScore: finalIntent.intentScore,
           lastIntentAnalysis: JSON.stringify(finalIntent),
         };
