@@ -63,7 +63,7 @@ Deno.serve(async (req) => {
     const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Dial>
-    <Conference startConferenceOnEnter="false" endConferenceOnExit="true" beep="false" waitUrl="https://investors.rosieai.tech/api/apps/69cd2741578c9b5ce655395b/functions/dialerVoiceHandler?Silence=true" waitMethod="GET" ${confCallbackAttr}>
+    <Conference startConferenceOnEnter="true" endConferenceOnExit="true" beep="false" waitUrl="https://investors.rosieai.tech/api/apps/69cd2741578c9b5ce655395b/functions/dialerVoiceHandler?Silence=true" waitMethod="GET" ${confCallbackAttr}>
       ${conferenceName}
     </Conference>
   </Dial>
