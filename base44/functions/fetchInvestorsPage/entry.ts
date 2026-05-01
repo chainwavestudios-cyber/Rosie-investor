@@ -3,7 +3,7 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 Deno.serve(async (req) => {
   try {
     const response = await fetch(
-      'https://raw.githubusercontent.com/chainwavestudios-cyber/Rosie-investor/main/agentbman-pitchbook-v4%20(3).html',
+      'https://raw.githubusercontent.com/chainwavestudios-cyber/Rosie-investor/main/investorspage.html',
       { headers: { 'User-Agent': 'Mozilla/5.0' } }
     );
 
