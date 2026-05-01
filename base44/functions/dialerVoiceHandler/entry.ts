@@ -8,6 +8,13 @@
 Deno.serve(async (req) => {
   const url = new URL(req.url);
 
+  // ── Silence endpoint — used as waitUrl so lead hears nothing while waiting ──
+  if (url.searchParams.get('Silence') === 'true') {
+    return new Response(`<?xml version="1.0" encoding="UTF-8"?><Response><Pause length="60"/></Response>`, {
+      headers: { 'Content-Type': 'text/xml' },
+    });
+  }
+
   // Params — query string takes priority (Twilio GET for lead leg), POST body for SDK calls
   let to = url.searchParams.get('To') || '';
   let conferenceName = url.searchParams.get('ConferenceName') || '';
@@ -56,7 +63,7 @@ Deno.serve(async (req) => {
     const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Dial>
-    <Conference startConferenceOnEnter="false" endConferenceOnExit="true" beep="false" waitUrl="https://twimlets.com/holdmusic?Bucket=com.twilio.music.silence" waitMethod="GET" ${confCallbackAttr}>
+    <Conference startConferenceOnEnter="false" endConferenceOnExit="true" beep="false" waitUrl="https://investors.rosieai.tech/api/apps/69cd2741578c9b5ce655395b/functions/dialerVoiceHandler?Silence=true" waitMethod="GET" ${confCallbackAttr}>
       ${conferenceName}
     </Conference>
   </Dial>
