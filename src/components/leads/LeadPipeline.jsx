@@ -314,11 +314,21 @@ export default function LeadPipeline({ onOpenLead }) {
       const today = new Date().toDateString();
       const todayAppts = appts.filter(a => a.scheduledAt && new Date(a.scheduledAt).toDateString() === today);
       const ids = new Set(todayAppts.map(a => a.investorId));
-      // Map leadId → formatted appointment time for display on card
       const timeMap = {};
       todayAppts.forEach(a => {
         timeMap[a.investorId] = new Date(a.scheduledAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
       });
+
+      // Also pick up leads with callbackAt today (these show on the leads calendar but aren't in Appointment entity)
+      enriched.forEach(l => {
+        if (l.callbackAt && new Date(l.callbackAt).toDateString() === today) {
+          ids.add(l.id);
+          if (!timeMap[l.id]) {
+            timeMap[l.id] = new Date(l.callbackAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+          }
+        }
+      });
+
       setTodayApptLeadIds(ids);
       setApptTimeMap(timeMap);
     } catch (e) { console.error(e); }
