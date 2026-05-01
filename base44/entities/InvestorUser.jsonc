@@ -112,6 +112,10 @@
       ],
       "default": "reviewing"
     },
+    "pipelineOwner": {
+      "type": "string",
+      "title": "Pipeline Owner (admin username)"
+    },
     "migratedAt": {
       "type": "string",
       "format": "date-time",
