@@ -261,9 +261,19 @@ const PredictiveDialer = forwardRef(function PredictiveDialer({ contactLists, on
     const all = await base44.entities.Lead.filter({ contactListId: listId });
     const now = new Date();
     const s   = settingsRef.current;
+
+    // ── Dialable status whitelist ──────────────────────────────────────
+    // Only call leads in these statuses — never prospects, never migrated
+    const DIALABLE_STATUSES = new Set(['lead', 'intro_email_sent', 'opened_intro_email', 'not_available', 'callback_later']);
+
     const dialable = all.filter(l => {
       if (!l.phone) return false;
-      if (['not_interested', 'converted', 'do_not_call'].includes(l.status)) return false;
+      // Must be in the allowed status whitelist
+      if (!DIALABLE_STATUSES.has(l.status)) return false;
+      // Never call migrated leads (converted to InvestorUser)
+      if (l.migratedToPortal || l.convertedToInvestorUserId || l.status === 'converted') return false;
+      // Never call permanently excluded statuses
+      if (['not_interested', 'do_not_call', 'abandoned'].includes(l.status)) return false;
       if ((l.callAttempts || 0) >= s.maxAttempts) return false;
       if (l.lastCalledAt) {
         const retryAfter = new Date(new Date(l.lastCalledAt).getTime() + s.retryPeriodMinutes * 60000);
@@ -271,13 +281,36 @@ const PredictiveDialer = forwardRef(function PredictiveDialer({ contactLists, on
       }
       return true;
     });
-    const neverCalled = dialable.filter(l => !l.lastCalledAt).sort((a, b) => new Date(a.created_date) - new Date(b.created_date));
-    const called      = dialable.filter(l =>  l.lastCalledAt).sort((a, b) => new Date(a.lastCalledAt) - new Date(b.lastCalledAt));
-    const sorted = [...neverCalled, ...called];
+
+    // ── Priority sort ─────────────────────────────────────────────────
+    // 1. opened_intro_email — highest priority (they engaged)
+    // 2. intro_email_sent   — medium priority (reached out, no open yet)
+    // 3. lead               — base priority
+    // 4. callback_later / not_available — retry queue
+    // Within each tier: never-called first (oldest first), then by lastCalledAt asc
+    const PRIORITY = { opened_intro_email: 0, intro_email_sent: 1, lead: 2, callback_later: 3, not_available: 3 };
+
+    const byPriority = (a, b) => {
+      const pa = PRIORITY[a.status] ?? 99;
+      const pb = PRIORITY[b.status] ?? 99;
+      if (pa !== pb) return pa - pb;
+      // Within tier: never-called first, then oldest lastCalledAt first
+      if (!a.lastCalledAt && !b.lastCalledAt) return new Date(a.created_date) - new Date(b.created_date);
+      if (!a.lastCalledAt) return -1;
+      if (!b.lastCalledAt) return 1;
+      return new Date(a.lastCalledAt) - new Date(b.lastCalledAt);
+    };
+
+    const sorted = [...dialable].sort(byPriority);
     queueRef.current      = sorted;
     queueIndexRef.current = 0;
     setQueue(sorted);
     setQueueIndex(0);
+
+    // Log breakdown so agent can see what was loaded
+    const counts = sorted.reduce((acc, l) => { acc[l.status] = (acc[l.status] || 0) + 1; return acc; }, {});
+    addLog('system', `Queue: ${sorted.length} leads — ${Object.entries(counts).map(([s,n])=>`${n} ${s.replace(/_/g,' ')}`).join(', ')}`);
+
     return sorted;
   };
 
