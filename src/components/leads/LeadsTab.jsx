@@ -553,6 +553,7 @@ export default function LeadsTab({ openLeadId, onLeadOpened }) {
         lead={selectedLead}
         onClose={() => setSelectedLead(null)}
         onUpdate={loadLeads}
+        onCallLogged={handleCallLogged}
         onDialNumber={handleDialNumber}
         dialerRef={dialerRef}
         isDialerPaused={isDialerPaused}
