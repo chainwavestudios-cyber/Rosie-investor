@@ -158,16 +158,17 @@ Deno.serve(async (req) => {
       });
       await base44.asServiceRole.entities.LeadHistory.create({
         leadId,
-        type:    'status_change',
-        content: `✅ Migrated to CRM via portal access email. Username: ${username}. Pipeline: Reviewing Info.`,
+        type:      'status_change',
+        content:   `✅ Migrated to CRM via portal access email by ${sentBy || 'admin'}. Username: ${username}. Pipeline: Reviewing Info.`,
+        createdBy: sentBy || 'admin',
       });
       await base44.asServiceRole.entities.ContactNote.create({
         investorId:    iuId,
         investorEmail: toEmail,
         type:          'note',
-        content:       `✅ Migrated from lead pipeline. Portal access email sent. Stage: Reviewing Info.`,
+        content:       `✅ Migrated from lead pipeline by ${sentBy || 'admin'}. Portal access email sent. Stage: Reviewing Info.`,
         createdAt:     new Date().toISOString(),
-        createdBy:     'system',
+        createdBy:     sentBy || 'admin',
       });
     } catch (e) { console.warn('[migrate] archive lead:', e.message); }
 
