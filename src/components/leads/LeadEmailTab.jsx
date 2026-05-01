@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
+import { usePortalAuth } from '@/lib/PortalAuthContext';
 
 const GOLD = '#b8933a';
 const inp = { width:'100%', background:'rgba(255,255,255,0.05)', border:'1px solid rgba(255,255,255,0.12)', borderRadius:'2px', padding:'8px 12px', color:'#e8e0d0', fontSize:'13px', outline:'none', boxSizing:'border-box', fontFamily:'Georgia, serif' };
@@ -14,6 +15,8 @@ const STATUS_CONFIG = {
 };
 
 export default function LeadEmailTab({ lead, onUpdate }) {
+  const { portalUser } = usePortalAuth();
+  const currentUsername = portalUser?.username || 'admin';
   const [emails, setEmails] = useState([]);
   const [loading, setLoading] = useState(true);
   const [replyingTo, setReplyingTo] = useState(null);
@@ -82,7 +85,8 @@ export default function LeadEmailTab({ lead, onUpdate }) {
       await base44.entities.LeadHistory.create({
         leadId: lead.id,
         type: 'note',
-        content: `✉️ Email reply sent to ${lead.email}. +20 engagement points.`,
+        content: `✉️ Email reply sent by ${currentUsername} to ${lead.email}. +20 engagement points.`,
+        createdBy: currentUsername,
       });
       setReplyText('');
       setReplyingTo(null);
