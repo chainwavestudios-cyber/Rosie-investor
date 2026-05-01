@@ -1,11 +1,14 @@
 import { useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { InvestorUser } from '@/api/entities';
+import { usePortalAuth } from '@/lib/PortalAuthContext';
 
 const GOLD = '#b8933a';
 const DARK = '#0a0f1e';
 
 export default function PortalAccessTab({ user, onClose, onSave }) {
+  const { portalUser } = usePortalAuth();
+  const currentUsername = portalUser?.username || 'admin';
   const [copied, setCopied]               = useState('');
   const [editingPortal, setEditingPortal] = useState(false);
   const [newUsername, setNewUsername]     = useState(user.username || '');
@@ -58,7 +61,7 @@ export default function PortalAccessTab({ user, onClose, onSave }) {
       const leads = await base44.entities.Lead.filter({ convertedToInvestorUserId: user.id });
       if (leads.length > 0) {
         await base44.entities.Lead.update(leads[0].id, { status:'prospect', convertedToInvestorUserId:null });
-        await base44.entities.LeadHistory.create({ leadId:leads[0].id, type:'status_change', content:'Portal access revoked — returned to Leads.' });
+        await base44.entities.LeadHistory.create({ leadId:leads[0].id, type:'status_change', content:`Portal access revoked by ${currentUsername} — returned to Leads.`, createdBy: currentUsername });
       }
       await InvestorUser.delete(user.id);
       onSave && onSave();
