@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
+import { usePortalAuth } from '@/lib/PortalAuthContext';
 
 const GOLD = '#b8933a';
 const DARK = '#0a0f1e';
@@ -16,6 +17,8 @@ const inp = {
 };
 
 export default function MarketingTab() {
+  const { portalUser } = usePortalAuth();
+  const currentUsername = portalUser?.username || 'admin';
   const [leads, setLeads]         = useState([]);
   const [loading, setLoading]     = useState(true);
   const [selected, setSelected]   = useState(new Set());
@@ -86,6 +89,7 @@ export default function MarketingTab() {
     try {
       const result = await base44.functions.invoke('sendIntroEmail', {
         leadIds: [...selected],
+        sentBy: currentUsername,
       });
       const { sent, total, results: details } = result?.data || result || {};
       const failed = details?.filter(r => !r.success) || [];
