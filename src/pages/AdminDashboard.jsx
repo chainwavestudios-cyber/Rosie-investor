@@ -1580,8 +1580,8 @@ export default function AdminDashboard() {
 
       <div style={{ maxWidth:'1600px', margin:'0 auto', padding:isMobile?'12px 16px':'24px 32px' }}>
 
-        {/* Upcoming appointments — only on CRM/Leads tabs */}
-        {(view === 'users' || view === 'leads') && (
+        {/* Upcoming appointments — only on CRM tab, not leads (pipeline needs the space) */}
+        {view === 'users' && (
           <UpcomingReminders
             onOpenLeadCard={(lead) => { handleViewChange('leads'); setOpenLeadId(lead.id); }}
             onOpenUserCard={(investorId) => { const u = users.find(u => u.id === investorId); if (u) setContactCard(u); }}
