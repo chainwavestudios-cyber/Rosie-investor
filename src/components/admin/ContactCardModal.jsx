@@ -14,6 +14,7 @@ import TwilioDialer from '@/components/leads/TwilioDialer';
 import ZoomBookingModal from '@/components/ZoomBookingModal';
 import { useInlineDialer } from '@/hooks/useInlineDialer';
 import InlineCallBar from '@/components/shared/InlineCallBar';
+import { usePortalAuth } from '@/lib/PortalAuthContext';
 
 const GOLD = '#b8933a';
 const DARK = '#0a0f1e';
@@ -49,6 +50,9 @@ function StatusBadge({ status }) {
 }
 
 export default function ContactCardModal({ user, onClose, onSave, allSessions, matchesUser }) {
+  const { portalUser } = usePortalAuth();
+  const currentUsername = portalUser?.username || 'admin';
+
   const [tab, setTab]         = useState('overview');
   const [notes, setNotes]     = useState([]);
   const [appts, setAppts]     = useState([]);
@@ -117,7 +121,7 @@ export default function ContactCardModal({ user, onClose, onSave, allSessions, m
 
   const addNote = async () => {
     if (!noteForm.content.trim()) return;
-    await ContactNoteDB.create({ investorId:user.id, investorEmail:user.email, type:noteForm.type, content:noteForm.content, createdBy:'admin' });
+    await ContactNoteDB.create({ investorId:user.id, investorEmail:user.email, type:noteForm.type, content:noteForm.content, createdBy:currentUsername });
     setNoteForm({ type:'note', content:'' });
     setNotes(await ContactNoteDB.listForInvestor(user.id));
   };
@@ -159,13 +163,13 @@ export default function ContactCardModal({ user, onClose, onSave, allSessions, m
 
   const handleCallLogged = async () => {
     try {
-      await ContactNoteDB.create({ investorId: user.id, investorEmail: user.email, type: 'call', content: `Outbound call via Twilio dialer`, createdBy: 'admin' });
+      await ContactNoteDB.create({ investorId: user.id, investorEmail: user.email, type: 'call', content: `Outbound call via Twilio dialer`, createdBy: currentUsername });
       setNotes(await ContactNoteDB.listForInvestor(user.id));
     } catch {}
   }
 
   // ── Inline dialer ───────────────────────────────────────────────────
-  const dialer = useInlineDialer({ onCallLogged: handleCallLogged });
+  const dialer = useInlineDialer({ onCallLogged: handleCallLogged, agentName: currentUsername });
 ;
 
   const sendEmail = async () => {
