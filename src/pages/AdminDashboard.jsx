@@ -622,7 +622,7 @@ function PortalControls() {
       </div>
       <div style={{ paddingLeft:'32px' }}>
         {sec==='raise' && <div><h3 style={{ color:'#e8e0d0', margin:'0 0 20px', fontWeight:'normal' }}>Raise Progress</h3><div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'0 16px' }}><F label="Total Raise Target ($)" value={s.totalRaise} onChange={e=>upd('totalRaise',Number(e.target.value))} type="number" /><F label="Committed Capital ($)" value={s.committedCapital} onChange={e=>upd('committedCapital',Number(e.target.value))} type="number" /><F label="Invested Capital ($)" value={s.investedCapital} onChange={e=>upd('investedCapital',Number(e.target.value))} type="number" /><F label="Invested Target ($)" value={s.investedTarget} onChange={e=>upd('investedTarget',Number(e.target.value))} type="number" /></div></div>}
-        {sec==='contact' && <div><h3 style={{ color:'#e8e0d0', margin:'0 0 20px', fontWeight:'normal' }}>Contact Info</h3><F label="Company Name" value={s.companyName} onChange={e=>upd('companyName',e.target.value)} /><F label="Address Line 1" value={s.address1} onChange={e=>upd('address1',e.target.value)} /><F label="Address Line 2" value={s.address2} onChange={e=>upd('address2',e.target.value)} /><F label="Phone" value={s.phone} onChange={e=>upd('phone',e.target.value)} /><F label="Email" value={s.email} onChange={e=>upd('email',e.target.value)} /></div>}
+        {sec==='contact' && <div><h3 style={{ color:'#e8e0d0', margin:'0 0 20px', fontWeight:'normal' }}>Contact Info</h3><F label="Company Name" value={s.companyName} onChange={e=>upd('companyName',e.target.value)} /><F label="Address Line 1" value={s.address1} onChange={e=>upd('address1',e.target.value)} /><F label="Address Line 2" value={s.address2} onChange={e=>upd('address2',e.target.value)} /><F label="Phone" value={s.phone} onChange={e=>upd('phone',e.target.value)} /><F label="Email" value={s.email} onChange={e=>upd('email',e.target.value)} /><F label="Zoom / Calendly Booking URL" value={s.zoomBookingUrl||''} onChange={e=>upd('zoomBookingUrl',e.target.value)} placeholder="https://scheduler.zoom.us/your-name" /></div>}
         {sec==='content' && <div><h3 style={{ color:'#e8e0d0', margin:'0 0 20px', fontWeight:'normal' }}>Portal Content</h3><F label="Tagline" value={s.portalTagline} onChange={e=>upd('portalTagline',e.target.value)} /><F label="Headline" value={s.portalHeadline} onChange={e=>upd('portalHeadline',e.target.value)} /><TA label="Subheading" value={s.portalSubtext} onChange={e=>upd('portalSubtext',e.target.value)} rows={3} /><TA label="Legal Disclosure" value={s.disclosureText} onChange={e=>upd('disclosureText',e.target.value)} rows={4} /></div>}
         {sec==='terms' && <div><h3 style={{ color:'#e8e0d0', margin:'0 0 20px', fontWeight:'normal' }}>Investment Terms</h3><div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'0 16px' }}><F label="Round Size" value={s.roundSize} onChange={e=>upd('roundSize',e.target.value)} /><F label="Valuation Cap" value={s.valuationCap} onChange={e=>upd('valuationCap',e.target.value)} /><F label="Min Investment" value={s.minInvestment} onChange={e=>upd('minInvestment',e.target.value)} /><F label="Discount Rate" value={s.discountRate} onChange={e=>upd('discountRate',e.target.value)} /><F label="Target Close" value={s.targetClose} onChange={e=>upd('targetClose',e.target.value)} /></div></div>}
         {sec==='rosie' && (
@@ -1357,22 +1357,91 @@ function IntentEngineTuner() {
   const [s, setS]       = useState(getPortalSettings);
   const [saved, setSaved] = useState(false);
 
-  const [duckDef2, setDuckDef2]         = useState(s.intentDuckDefinition || `Argumentative, skeptical, raises objections, tries to prove things wrong, combative tone, says things like "that won't work", "I doubt that", "prove it".`);
-  const [cowDef2, setCowDef2]           = useState(s.intentCowDefinition  || `Agreeable, curious, open-minded, says things like "that's interesting", "really?", "wow", asks genuine questions, believes what you say, enthusiastic listener.`);
-  const [triggers2, setTriggers2]       = useState(s.intentTriggerKeywords || 'minimum investment, how much, returns, roi, risk, guaranteed, lock-up, liquidity, accredited, fees, cost, sec, regulation');
+  const DUCK_DEFAULT = `A Duck is a skeptical, argumentative, or combative prospect who challenges claims and pushes back before fully listening. Ducks lead with doubt, not curiosity.
+
+EXACT PHRASES — classify as Duck if any detected:
+"that won't work" / "prove it" / "I doubt that" / "sounds too good to be true" / "what's the catch" / "I've heard that before" / "yeah but" / "I'm not convinced" / "that's not realistic" / "why would I trust you" / "show me the numbers" / "everyone says that" / "how do you make money" / "I've done my research" / "I don't see how that's possible" / "my lawyer won't like this" / "what's the guarantee" / "this sounds like a pitch" / "I'm skeptical" / "that seems risky" / "what happens if it fails"
+
+BEHAVIORAL PATTERNS — classify as Duck if observed:
+- Interrupts before agent finishes a sentence
+- Asks the same question multiple ways (testing for inconsistency)
+- Agrees on one point, immediately pivots to a new objection (whack-a-mole)
+- Cites a past bad investment experience
+- Uses expertise-positioning language ("in my industry", "in my experience")
+- Short clipped responses with flat tone: "uh-huh", "right", "sure"
+- Long silence after agent answers, then a new challenge
+
+INTENSITY — score 1-5:
+1 = Politely skeptical, one or two questions
+2 = Mild Duck: 1-2 pushbacks, curious underneath
+3 = Moderate Duck: constant rebuttal pattern
+4 = Hard Duck: combative, dismissive, repeated challenges
+5 = Full Quack: hostile, personal attacks, no productive engagement
+
+HIDDEN BUYING SIGNALS (Duck is actually interested):
+- Keeps asking questions despite pushback (disinterested people hang up)
+- Asks about portal, paperwork, or logistics
+- Asks "what's the minimum again?"
+- Mentions spouse, partner, or advisor
+- Objection frequency slows or stops completely — flag as CLOSE WINDOW OPEN`;
+
+  const COW_DEFAULT = `A Cow is a warm, curious, agreeable prospect who trusts what they hear, asks genuine questions, and responds enthusiastically. Cows are frequently mishandled — their enthusiasm is mistaken for commitment and the call ends without a close.
+
+EXACT PHRASES — classify as Cow if any detected:
+"that's interesting" / "really?" / "wow" / "I didn't know that" / "that makes a lot of sense" / "tell me more" / "how does that work" / "I love that idea" / "that sounds amazing" / "I hadn't thought of it that way" / "so what would I need to do" / "oh that's not as complicated as I thought" / "I like the sound of that" / "you really know your stuff" / "I've been looking for something like this" / "is this a good investment" / "what do most people do" / "this is really exciting" / "that actually makes me feel better"
+
+BEHAVIORAL PATTERNS — classify as Cow if observed:
+- Asks follow-up questions after every point
+- Agrees out loud mid-sentence with warm sounds ("mm-hmm", "yeah", "right" — warm not flat)
+- Repeats agent phrases back to internalize them
+- Shares personal financial context unprompted
+- Laughs easily, uses warm casual language
+- Never pushes back, even on points worth questioning
+- Keeps conversation going but avoids committing to anything specific
+
+INTENSITY — score 1-5:
+1 = Polite and pleasant, baseline warmth
+2 = Mildly warm: friendly, a few positive reactions
+3 = Engaged Cow: asking questions, actively agreeing
+4 = Full Cow: enthusiastic, sharing personal context, asking logistics
+5 = Happy Grazer: loves the conversation, has lost track of the decision
+
+CLOSE WINDOW SIGNALS — flag as CLOSE WINDOW OPEN when detected:
+- "that sounds amazing" or "I love that" — window is open right now
+- "so what would I need to do?" — prospect is asking to be closed
+- "is this a good investment?" — answer directly, no hedging
+- Any logistics question (portal, wire, minimum) — buying intent high
+- Enthusiasm peaks then energy softens — act before window closes
+
+DRIFT SIGNALS — flag as DRIFT WARNING when detected:
+- Conversation goes off-topic or turns purely social
+- "this has been so helpful" in a wrap-up tone
+- Energy drops after a high point without a commitment
+- Mentions spouse/partner without asking to loop them in
+- Sustained enthusiasm but no specific questions being asked`;
+
+  const TRIGGERS_DEFAULT = `returns, ROI, yield, how much, minimum, minimum investment, $15,000, 15k, what do I get, what's my return, profit, distributions, distribution threshold, when do I get paid, how often, quarterly, waterfall, profit waterfall, capital return, return of capital, get my money back, how does it work, what is Rosie, what does Rosie do, AI platform, enterprise, B2B, clients, paying customers, MRR, revenue, $20,000, 28 organizations, how many customers, break even, what's the catch, risk, risky, what could go wrong, lose my money, worst case, guarantee, guaranteed, accredited, accredited investor, do I qualify, SEC, Reg D, 506c, legal, lawyer, attorney, operating agreement, subscription, how do I invest, portal, investor portal, next steps, wire, wire transfer, Class B, units, ownership, voting, do I have a vote, equity, stake, 21.5%, managing partner, Stephani, Wyoming, LLC, taxes, K-1, Schedule K-1, UBTI, tax, how is this taxed, exit, liquidity, can I sell, transfer, secondary market, lock up, how long, what happens if it fails, shut down, competitor, other AI tools, why Rosie, what makes you different, track record, traction, customers, proof, case study, dilution, cap table`;
+
+  const POS_DEFAULT = `that sounds amazing, I love that, I'm interested, tell me more, that makes sense, really?, wow, I didn't know that, so what would I need to do, how do I sign up, how does that work, I've been looking for something like this, that's not as complicated as I thought, I like the sound of that, you really know your stuff, is this a good investment, what do most people do, that actually makes me feel better, I want to move forward, where do I send the money, what's the minimum again, how do I get started, can you send me the link, send me the portal, I'm ready, let's do it, when can we start, what are the next steps, I've had money sitting, I have some capital, I've been thinking about this, that's exactly what I'm looking for, this is exciting, I trust you, I believe that, that makes a lot of sense, I hadn't thought of it that way, so I get my money back first, that's a good structure, quarterly sounds good, I like the waterfall idea, my accountant would like that, that protects me, so there's no way to lose more than I put in, that's smart, I'm in`;
+
+  const NEG_DEFAULT = `that won't work, prove it, I doubt that, sounds too good to be true, what's the catch, I've heard that before, yeah but, I'm not convinced, that's not realistic, why would I trust you, show me the numbers, I don't see how that's possible, my lawyer won't like this, what's the guarantee, this sounds like a pitch, I'm skeptical, that seems risky, what happens if it fails, I need to think about it, let me think, I'll think about it, not right now, maybe later, I need to talk to my spouse, I need to talk to my accountant, I need to do more research, I'm not ready, I don't have the money right now, 15k is a lot, that's a big commitment, I'm not accredited, I don't qualify, I've been burned before, I lost money on something like this, sounds like every other pitch, I don't invest in startups, AI is a bubble, this could all disappear, what if you go under, I don't know you, how do I know this is real, is this a scam, I need more time, call me next month, I'm too busy right now, my money is tied up, I have to pass, I'm going to pass, not interested, I'll let you know`;
+
+  const [duckDef2, setDuckDef2]         = useState(s.intentDuckDefinition || DUCK_DEFAULT);
+  const [cowDef2, setCowDef2]           = useState(s.intentCowDefinition  || COW_DEFAULT);
+  const [triggers2, setTriggers2]       = useState(s.intentTriggerKeywords || TRIGGERS_DEFAULT);
   const [interval2, setInterval2]       = useState(s.intentIntervalSeconds || 20);
-  const [posSignals, setPosSignals]     = useState(s.intentPositiveSignals || 'how do I get started, what is the minimum, when can I invest, I am interested, sounds good, I like that, tell me more, what are the returns');
-  const [negSignals, setNegSignals]     = useState(s.intentNegativeSignals || 'not interested, call me later, I need to think about it, talk to my spouse, too risky, too expensive, send me something, I am not sure');
+  const [posSignals, setPosSignals]     = useState(s.intentPositiveSignals || POS_DEFAULT);
+  const [negSignals, setNegSignals]     = useState(s.intentNegativeSignals || NEG_DEFAULT);
 
   useEffect(() => {
     loadPortalSettings().then(loaded => {
       setS(loaded);
-      setDuckDef2(loaded.intentDuckDefinition || duckDef2);
-      setCowDef2(loaded.intentCowDefinition   || cowDef2);
-      setTriggers2(loaded.intentTriggerKeywords || triggers2);
+      setDuckDef2(loaded.intentDuckDefinition || DUCK_DEFAULT);
+      setCowDef2(loaded.intentCowDefinition   || COW_DEFAULT);
+      setTriggers2(loaded.intentTriggerKeywords || TRIGGERS_DEFAULT);
       setInterval2(loaded.intentIntervalSeconds || 20);
-      setPosSignals(loaded.intentPositiveSignals || posSignals);
-      setNegSignals(loaded.intentNegativeSignals || negSignals);
+      setPosSignals(loaded.intentPositiveSignals || POS_DEFAULT);
+      setNegSignals(loaded.intentNegativeSignals || NEG_DEFAULT);
     });
   }, []);
 
@@ -1455,18 +1524,58 @@ function CoachRulesTuner() {
   const [s, setS]       = useState(getPortalSettings);
   const [saved, setSaved] = useState(false);
 
-  const [focus, setFocus]       = useState(s.coachFocusAreas     || 'next talking point, handling the last objection raised, building rapport, timing a close, addressing price concerns, reinforcing credibility');
-  const [style, setStyle]       = useState(s.coachStyle          || 'Be direct and conversational. The agent reads this live mid-call. Maximum 2 sentences. Start with the action, not the reason.');
+  const COACH_FOCUS_DEFAULT = `Prospect type detection (Duck or Cow), close window recognition, objection pattern tracking, emotional state, buying signal identification, drift and stall detection, rapport calibration, next best action`;
+
+  const COACH_STYLE_DEFAULT = `One tip only. Max 2 sentences. Plain language, no jargon. Be direct — tell the agent exactly what to do or say right now, not general advice. If a close is possible, say so and give the exact words. If the prospect is drifting, say "redirect now" and give the line. If resistance is rising, name the type and the move. Never explain why — just tell the agent what to do.`;
+
+  const COACH_CONTEXT_DEFAULT = `PRODUCT FACTS
+- Company: Rosie AI LLC, Wyoming LLC, Reg D 506(c) — accredited investors only
+- Minimum investment: $15,000 (Class B Units at $0.25/unit)
+- Units are non-voting. Investors get economic participation, not control
+- Distribution threshold: $20,000/month MRR (~28-30 paying orgs at $700 avg MRR)
+- Profit waterfall: expenses first → return of capital to Class B → then 21.5% to Class B / 78.5% to Class A
+- Investor portal: investors.rosieai.tech/portal
+- Never use the word "guaranteed" — ever
+- Managing Partner: Stephani Scheidt
+
+PROSPECT TYPES
+
+THE DUCK — argumentative, skeptical, combative
+Signals: "that won't work", "prove it", "I doubt that", "sounds too good to be true", "what's the catch", "I've heard that before", "yeah but", "I'm not convinced", constant interrupting, whack-a-mole objections, cites past bad investments
+Coach rules for Duck:
+- Stay calm, slow down — never match their energy
+- Use exact numbers — Ducks trust specificity
+- Validate skepticism first: "You're right to be cautious — that's exactly why the waterfall puts capital return first"
+- If whack-a-mole: "What's the one thing actually holding you back?"
+- Do NOT fill silences — Ducks think in gaps
+- Objections slow down or stop → CLOSE WINDOW OPEN — ask for commitment now
+
+THE COW — agreeable, curious, warm, trusts everything
+Signals: "that's interesting", "really?", "wow", "that makes a lot of sense", "tell me more", "I love that", "that sounds amazing", asks genuine questions, repeats your phrases back, shares personal financial context
+Coach rules for Cow:
+- CLOSE EARLY AND OFTEN — enthusiasm is not a commitment
+- "That sounds amazing" = close window → ask for next step immediately
+- "So what would I need to do?" = they are asking to be closed → answer with 3 steps
+- Do NOT keep pitching after a buying signal — you will talk them out of it
+- Every call must end with a specific next step and time, or it evaporates
+- Drift warning: off-topic, wrap-up tone, energy drops → redirect immediately
+
+GENERAL RULES
+- Portal link and subscription docs are the concrete next step for every call
+- Never promise returns, never say "guaranteed", never dismiss a concern`;
+
+  const [focus, setFocus]       = useState(s.coachFocusAreas     || COACH_FOCUS_DEFAULT);
+  const [style, setStyle]       = useState(s.coachStyle          || COACH_STYLE_DEFAULT);
   const [interval, setInterval] = useState(s.coachIntervalSeconds || 15);
-  const [context, setContext]   = useState(s.coachAdditionalContext || '');
+  const [context, setContext]   = useState(s.coachAdditionalContext || COACH_CONTEXT_DEFAULT);
 
   useEffect(() => {
     loadPortalSettings().then(loaded => {
       setS(loaded);
-      setFocus(loaded.coachFocusAreas      || focus);
-      setStyle(loaded.coachStyle           || style);
+      setFocus(loaded.coachFocusAreas      || COACH_FOCUS_DEFAULT);
+      setStyle(loaded.coachStyle           || COACH_STYLE_DEFAULT);
       setInterval(loaded.coachIntervalSeconds || 15);
-      setContext(loaded.coachAdditionalContext || '');
+      setContext(loaded.coachAdditionalContext || COACH_CONTEXT_DEFAULT);
     });
   }, []);
 
