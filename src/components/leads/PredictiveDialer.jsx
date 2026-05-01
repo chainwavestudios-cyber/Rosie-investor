@@ -415,17 +415,15 @@ const PredictiveDialer = forwardRef(function PredictiveDialer({ contactLists, on
         const currentLine = linesRef.current[lineIdx];
         if (!['ringing', 'calling'].includes(currentLine.status)) { clearInterval(pollsRef.current[lineIdx]); return; }
 
-        // Poll directly via Twilio REST — no DB intermediary, no conference callback needed
-        const res = await base44.functions.invoke('twilioCall', { action: 'getCallStatus', callSid: sid });
+        const res        = await base44.functions.invoke('twilioCall', { action: 'getCallStatus', callSid: sid });
         const status     = res.data?.status || '';
         const answeredBy = res.data?.answeredBy || '';
 
         if (status === 'in-progress' && !connectingRef.current) {
-          // Skip voicemails
           if (answeredBy && answeredBy.startsWith('machine')) {
             clearInterval(pollsRef.current[lineIdx]);
             clearTimeout(ringTimersRef.current[lineIdx]);
-            addLog('system', `Line ${lineIdx + 1}: Voicemail detected — skipping`);
+            addLog('system', `Line ${lineIdx + 1}: Voicemail — skipping`);
             await hangupCall(sid);
             cleanLine(lineIdx, 'voicemail');
             setTimeout(() => { if (runningRef.current) dialLine(lineIdx); }, 1000);
@@ -455,37 +453,6 @@ const PredictiveDialer = forwardRef(function PredictiveDialer({ contactLists, on
   const handleAutoConnect = async (lineIdx, lead, callSid, conferenceName) => {
     if (connectingRef.current) {
       addLog('system', `Line ${lineIdx + 1}: Another line already connecting — dropping`);
-      await hangupCall(callSid);
-      cleanLine(lineIdx, 'abandoned');
-      return;
-    }
-
-    // Wait 1.5s then verify it's a live human not voicemail
-    addLog('system', `Line ${lineIdx + 1}: Verifying live answer…`);
-    await new Promise(r => setTimeout(r, 1500));
-
-    try {
-      const statusCheck = await base44.functions.invoke('twilioCall', { action: 'getCallStatus', callSid });
-      const liveStatus  = statusCheck.data?.status || '';
-      const answeredBy  = statusCheck.data?.answeredBy || '';
-      if (answeredBy && answeredBy.startsWith('machine')) {
-        addLog('system', `Line ${lineIdx + 1}: Machine detected — skipping`);
-        await hangupCall(callSid);
-        cleanLine(lineIdx, 'voicemail');
-        setTimeout(() => { if (runningRef.current) dialLine(lineIdx); }, 1000);
-        return;
-      }
-      if (!['in-progress'].includes(liveStatus)) {
-        addLog('system', `Line ${lineIdx + 1}: Call is ${liveStatus} — skipping`);
-        cleanLine(lineIdx, 'no_answer');
-        setTimeout(() => { if (runningRef.current) dialLine(lineIdx); }, 1000);
-        return;
-      }
-    } catch {}
-
-    // Re-check lock after the await
-    if (connectingRef.current) {
-      addLog('system', `Line ${lineIdx + 1}: Another line beat us — dropping`);
       await hangupCall(callSid);
       cleanLine(lineIdx, 'abandoned');
       return;
