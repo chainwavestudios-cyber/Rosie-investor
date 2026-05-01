@@ -854,6 +854,36 @@ function KnowledgeBaseManager() {
   // Delete
   const [deleting, setDeleting]     = useState(null);
 
+  // Edit
+  const [editingId, setEditingId]   = useState(null);
+  const [editQ, setEditQ]           = useState('');
+  const [editA, setEditA]           = useState('');
+  const [editCat, setEditCat]       = useState('faq');
+  const [editTags, setEditTags]     = useState('');
+  const [editSaving, setEditSaving] = useState(false);
+
+  const startEdit = (e) => {
+    setEditingId(e.id);
+    setEditQ(e.question || '');
+    setEditA(e.answer || '');
+    setEditCat(e.category || 'faq');
+    setEditTags(e.tags || '');
+  };
+
+  const saveEdit = async () => {
+    if (!editQ.trim() || !editA.trim()) return;
+    setEditSaving(true);
+    try {
+      await base44.entities.KnowledgeBase.update(editingId, {
+        question: editQ.trim(), answer: editA.trim(),
+        category: editCat, tags: editTags.trim(),
+      });
+      setEditingId(null);
+      await load();
+    } catch (e) { alert('Save failed: ' + e.message); }
+    setEditSaving(false);
+  };
+
   const load = async () => {
     setLoading(true);
     try {
@@ -1017,28 +1047,60 @@ function KnowledgeBaseManager() {
 
           <div style={{ display:'flex', flexDirection:'column', gap:'8px' }}>
             {filtered.slice(0, 100).map(e => (
-              <div key={e.id} style={{ background:'rgba(255,255,255,0.02)', border:'1px solid rgba(255,255,255,0.07)', borderRadius:'4px', padding:'12px 16px', display:'flex', gap:'14px', alignItems:'flex-start' }}>
-                <div style={{ flex:1, minWidth:0 }}>
-                  <div style={{ display:'flex', gap:'8px', alignItems:'center', marginBottom:'4px', flexWrap:'wrap' }}>
-                    {e.category && (
-                      <span style={{ background:`${CAT_COLORS[e.category]||'#6b7280'}18`, color:CAT_COLORS[e.category]||'#6b7280', border:`1px solid ${CAT_COLORS[e.category]||'#6b7280'}44`, borderRadius:'10px', padding:'1px 8px', fontSize:'10px', letterSpacing:'0.5px', textTransform:'uppercase', flexShrink:0 }}>{e.category}</span>
-                    )}
-                    {e.source && <span style={{ color:'#4a5568', fontSize:'10px', fontStyle:'italic', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', maxWidth:'200px' }}>{e.source}</span>}
-                    {e.tags && <span style={{ color:'#6b7280', fontSize:'10px' }}>#{e.tags}</span>}
-                  </div>
-                  <div style={{ color:'#e8e0d0', fontSize:'13px', fontWeight:'bold', marginBottom:'4px', lineHeight:1.4 }}>
-                    {e.question?.startsWith('[') ? <span style={{ color:'#4a5568' }}>{e.question}</span> : `Q: ${e.question}`}
-                  </div>
-                  {e.category !== 'raw_document' && (
-                    <div style={{ color:'#8a9ab8', fontSize:'12px', lineHeight:1.5, overflow:'hidden', display:'-webkit-box', WebkitLineClamp:3, WebkitBoxOrient:'vertical' }}>
-                      A: {e.answer}
+              <div key={e.id} style={{ background:'rgba(255,255,255,0.02)', border:`1px solid ${editingId===e.id?'rgba(184,147,58,0.4)':'rgba(255,255,255,0.07)'}`, borderRadius:'4px', padding:'12px 16px' }}>
+                {editingId === e.id ? (
+                  <div style={{ display:'flex', flexDirection:'column', gap:'8px' }}>
+                    <input value={editQ} onChange={ev=>setEditQ(ev.target.value)} placeholder="Question"
+                      style={{ ...inp2, fontSize:'13px', fontWeight:'bold' }} />
+                    <textarea value={editA} onChange={ev=>setEditA(ev.target.value)} placeholder="Answer" rows={4}
+                      style={{ ...ta2, fontSize:'13px' }} />
+                    <div style={{ display:'flex', gap:'8px', alignItems:'center' }}>
+                      <select value={editCat} onChange={ev=>setEditCat(ev.target.value)} style={{ ...inp2, width:'140px', padding:'6px 10px', fontSize:'12px', cursor:'pointer' }}>
+                        {CATEGORIES.filter(c=>c!=='all').map(c=><option key={c} value={c}>{c}</option>)}
+                      </select>
+                      <input value={editTags} onChange={ev=>setEditTags(ev.target.value)} placeholder="Tags"
+                        style={{ ...inp2, flex:1, padding:'6px 10px', fontSize:'12px' }} />
+                      <button onClick={saveEdit} disabled={editSaving}
+                        style={{ background:'linear-gradient(135deg,#b8933a,#d4aa50)', color:'#0a0f1e', border:'none', borderRadius:'4px', padding:'6px 16px', cursor:'pointer', fontSize:'12px', fontWeight:'bold', whiteSpace:'nowrap' }}>
+                        {editSaving ? '⏳' : '✓ Save'}
+                      </button>
+                      <button onClick={()=>setEditingId(null)}
+                        style={{ background:'rgba(255,255,255,0.05)', color:'#6b7280', border:'1px solid rgba(255,255,255,0.1)', borderRadius:'4px', padding:'6px 12px', cursor:'pointer', fontSize:'12px' }}>
+                        Cancel
+                      </button>
                     </div>
-                  )}
-                </div>
-                <button onClick={() => deleteEntry(e.id)} disabled={deleting === e.id}
-                  style={{ background:'none', border:'none', color:deleting===e.id?'#4a5568':'#ef444466', cursor:'pointer', fontSize:'16px', padding:'2px 4px', flexShrink:0 }}>
-                  {deleting === e.id ? '…' : '×'}
-                </button>
+                  </div>
+                ) : (
+                  <div style={{ display:'flex', gap:'14px', alignItems:'flex-start' }}>
+                    <div style={{ flex:1, minWidth:0 }}>
+                      <div style={{ display:'flex', gap:'8px', alignItems:'center', marginBottom:'4px', flexWrap:'wrap' }}>
+                        {e.category && (
+                          <span style={{ background:`${CAT_COLORS[e.category]||'#6b7280'}18`, color:CAT_COLORS[e.category]||'#6b7280', border:`1px solid ${CAT_COLORS[e.category]||'#6b7280'}44`, borderRadius:'10px', padding:'1px 8px', fontSize:'10px', letterSpacing:'0.5px', textTransform:'uppercase', flexShrink:0 }}>{e.category}</span>
+                        )}
+                        {e.source && <span style={{ color:'#4a5568', fontSize:'10px', fontStyle:'italic', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', maxWidth:'200px' }}>{e.source}</span>}
+                        {e.tags && <span style={{ color:'#6b7280', fontSize:'10px' }}>#{e.tags}</span>}
+                      </div>
+                      <div style={{ color:'#e8e0d0', fontSize:'13px', fontWeight:'bold', marginBottom:'4px', lineHeight:1.4 }}>
+                        {e.question?.startsWith('[') ? <span style={{ color:'#4a5568' }}>{e.question}</span> : `Q: ${e.question}`}
+                      </div>
+                      {e.category !== 'raw_document' && (
+                        <div style={{ color:'#8a9ab8', fontSize:'12px', lineHeight:1.5 }}>
+                          A: {e.answer}
+                        </div>
+                      )}
+                    </div>
+                    <div style={{ display:'flex', gap:'4px', flexShrink:0 }}>
+                      <button onClick={() => startEdit(e)}
+                        style={{ background:'rgba(184,147,58,0.1)', border:'1px solid rgba(184,147,58,0.25)', color:'#b8933a', cursor:'pointer', fontSize:'11px', padding:'3px 10px', borderRadius:'4px', whiteSpace:'nowrap' }}>
+                        ✏️ Edit
+                      </button>
+                      <button onClick={() => deleteEntry(e.id)} disabled={deleting === e.id}
+                        style={{ background:'none', border:'none', color:deleting===e.id?'#4a5568':'#ef444466', cursor:'pointer', fontSize:'16px', padding:'2px 4px' }}>
+                        {deleting === e.id ? '…' : '×'}
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             ))}
             {filtered.length > 100 && (
@@ -1294,22 +1356,26 @@ function AITunerChat({ context, onApply }) {
 function IntentEngineTuner() {
   const [s, setS]       = useState(getPortalSettings);
   const [saved, setSaved] = useState(false);
-  useEffect(() => { loadPortalSettings().then(setS); }, []);
 
-  const duckDef = s.intentDuckDefinition || `Argumentative, skeptical, raises objections, tries to prove things wrong, combative tone, says things like "that won't work", "I doubt that", "prove it".`;
-  const cowDef  = s.intentCowDefinition  || `Agreeable, curious, open-minded, says things like "that's interesting", "really?", "wow", asks genuine questions, believes what you say, enthusiastic listener.`;
-  const triggers = s.intentTriggerKeywords || 'minimum investment, how much, returns, roi, risk, guaranteed, lock-up, liquidity, accredited, fees, cost, sec, regulation';
-  const interval = s.intentIntervalSeconds || 20;
+  const [duckDef2, setDuckDef2]     = useState(s.intentDuckDefinition || `Argumentative, skeptical, raises objections, tries to prove things wrong, combative tone, says things like "that won't work", "I doubt that", "prove it".`);
+  const [cowDef2, setCowDef2]       = useState(s.intentCowDefinition  || `Agreeable, curious, open-minded, says things like "that's interesting", "really?", "wow", asks genuine questions, believes what you say, enthusiastic listener.`);
+  const [triggers2, setTriggers2]   = useState(s.intentTriggerKeywords || 'minimum investment, how much, returns, roi, risk, guaranteed, lock-up, liquidity, accredited, fees, cost, sec, regulation');
+  const [interval2, setInterval2]   = useState(s.intentIntervalSeconds || 20);
+
+  useEffect(() => {
+    loadPortalSettings().then(loaded => {
+      setS(loaded);
+      setDuckDef2(loaded.intentDuckDefinition || duckDef2);
+      setCowDef2(loaded.intentCowDefinition   || cowDef2);
+      setTriggers2(loaded.intentTriggerKeywords || triggers2);
+      setInterval2(loaded.intentIntervalSeconds || 20);
+    });
+  }, []);
 
   const save = async () => {
     await savePortalSettings({ ...s, intentDuckDefinition: duckDef2, intentCowDefinition: cowDef2, intentTriggerKeywords: triggers2, intentIntervalSeconds: Number(interval2) });
     setSaved(true); setTimeout(() => setSaved(false), 2000);
   };
-
-  const [duckDef2, setDuckDef2]     = useState(duckDef);
-  const [cowDef2, setCowDef2]       = useState(cowDef);
-  const [triggers2, setTriggers2]   = useState(triggers);
-  const [interval2, setInterval2]   = useState(interval);
 
   const ta = { width:'100%', background:'rgba(255,255,255,0.05)', border:'1px solid rgba(255,255,255,0.1)', borderRadius:'4px', padding:'10px 14px', color:'#e8e0d0', fontSize:'13px', outline:'none', fontFamily:'Georgia, serif', boxSizing:'border-box', resize:'vertical' };
   const inp3 = { ...ta, minHeight:'unset', resize:'none' };
@@ -1372,12 +1438,21 @@ function IntentEngineTuner() {
 function CoachRulesTuner() {
   const [s, setS]       = useState(getPortalSettings);
   const [saved, setSaved] = useState(false);
-  useEffect(() => { loadPortalSettings().then(setS); }, []);
 
   const [focus, setFocus]       = useState(s.coachFocusAreas     || 'next talking point, handling the last objection raised, building rapport, timing a close, addressing price concerns, reinforcing credibility');
   const [style, setStyle]       = useState(s.coachStyle          || 'Be direct and conversational. The agent reads this live mid-call. Maximum 2 sentences. Start with the action, not the reason.');
   const [interval, setInterval] = useState(s.coachIntervalSeconds || 15);
   const [context, setContext]   = useState(s.coachAdditionalContext || '');
+
+  useEffect(() => {
+    loadPortalSettings().then(loaded => {
+      setS(loaded);
+      setFocus(loaded.coachFocusAreas      || focus);
+      setStyle(loaded.coachStyle           || style);
+      setInterval(loaded.coachIntervalSeconds || 15);
+      setContext(loaded.coachAdditionalContext || '');
+    });
+  }, []);
 
   const save = async () => {
     await savePortalSettings({ ...s, coachFocusAreas: focus, coachStyle: style, coachIntervalSeconds: Number(interval), coachAdditionalContext: context });
