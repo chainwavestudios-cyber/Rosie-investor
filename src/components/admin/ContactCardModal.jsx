@@ -16,6 +16,7 @@ import { useInlineDialer } from '@/hooks/useInlineDialer';
 import InlineCallBar from '@/components/shared/InlineCallBar';
 import CustomEmailTab from '@/components/shared/CustomEmailTab';
 import { usePortalAuth } from '@/lib/PortalAuthContext';
+import { getPortalSettings, loadPortalSettings } from '@/lib/portalSettings';
 
 const GOLD = '#b8933a';
 const DARK = '#0a0f1e';
@@ -53,6 +54,8 @@ function StatusBadge({ status }) {
 export default function ContactCardModal({ user, onClose, onSave, allSessions, matchesUser }) {
   const { portalUser } = usePortalAuth();
   const currentUsername = portalUser?.username || 'admin';
+  const [portalCfg, setPortalCfg] = useState(getPortalSettings);
+  useEffect(() => { loadPortalSettings().then(setPortalCfg).catch(() => {}); }, []);
 
   const [tab, setTab]         = useState('overview');
   const [notes, setNotes]     = useState([]);
@@ -225,7 +228,7 @@ export default function ContactCardModal({ user, onClose, onSave, allSessions, m
     <>
 {/* TwilioDialer replaced by InlineCallBar below */}
     {showZoom && (
-      <ZoomBookingModal isOpen={showZoom} onClose={() => setShowZoom(false)} buttonLabel="Book Zoom Call" zoomUrl="https://scheduler.zoom.us/stephani-sterling" />
+      <ZoomBookingModal isOpen={showZoom} onClose={() => setShowZoom(false)} buttonLabel="Book Zoom Call" zoomUrl={portalCfg?.zoomBookingUrl || 'https://scheduler.zoom.us'} />
     )}
     <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.9)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:9999, padding:'16px' }}>
       <div style={{ background:'#0d1b2a', border:'1px solid rgba(184,147,58,0.3)', borderRadius:'4px', width:'100%', maxWidth:'900px', maxHeight:'94vh', display:'flex', flexDirection:'column', boxShadow:'0 40px 120px rgba(0,0,0,0.9)' }}>
