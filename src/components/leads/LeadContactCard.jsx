@@ -785,6 +785,21 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
     try { await base44.entities.Lead.update(lead.id, { starRating: val }); onUpdate && onUpdate(); } catch {}
   };
 
+  const handleRemoveFromPipeline = async () => {
+    setTransferring(true);
+    try {
+      await base44.entities.Lead.update(lead.id, { leadPipelineStage: null, leadPipelineOwner: null });
+      await base44.entities.LeadHistory.create({
+        leadId: lead.id, type: 'note',
+        content: `🚫 Removed from pipeline by ${currentUsername} — remains as prospect`,
+        createdBy: currentUsername,
+      });
+      setEditLead(prev => ({ ...prev, leadPipelineStage: null, leadPipelineOwner: null }));
+      onUpdate && onUpdate();
+    } catch(e) { console.error(e); }
+    setTransferring(false);
+  };
+
   const handleTransferPipeline = async () => {
     setTransferring(true);
     try {
@@ -1125,6 +1140,14 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
                   title={`Transfer this prospect's pipeline to ${otherUsername}`}
                   style={{ background:'rgba(245,158,11,0.12)', color:'#f59e0b', border:'1px solid rgba(245,158,11,0.3)', borderRadius:'4px', padding:'6px 12px', cursor:'pointer', fontSize:'11px', fontWeight:'bold', whiteSpace:'nowrap' }}>
                   {transferring ? '⏳ Transferring…' : `🔁 Transfer → ${otherUsername}`}
+                </button>
+              )}
+              {/* Remove from Pipeline — only visible for prospects in pipeline */}
+              {!isArchived && editLead.status === 'prospect' && editLead.leadPipelineOwner && (
+                <button onClick={handleRemoveFromPipeline} disabled={transferring}
+                  title="Remove from pipeline (stays as a prospect)"
+                  style={{ background:'rgba(239,68,68,0.1)', color:'#ef4444', border:'1px solid rgba(239,68,68,0.3)', borderRadius:'4px', padding:'6px 12px', cursor:'pointer', fontSize:'11px', fontWeight:'bold', whiteSpace:'nowrap' }}>
+                  🚫 Remove from Pipeline
                 </button>
               )}
               {(emailMsg || portalEmailMsg) && <span style={{ fontSize:'10px', color: (emailMsg||portalEmailMsg).startsWith('Error') ? '#ef4444' : '#4ade80' }}>{emailMsg || portalEmailMsg}</span>}
