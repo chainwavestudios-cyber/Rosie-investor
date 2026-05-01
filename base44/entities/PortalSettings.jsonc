@@ -195,6 +195,56 @@
       "type": "string",
       "title": "SignNow Invite Message",
       "format": "textarea"
+    },
+    "coachFocusAreas": {
+      "type": "string",
+      "title": "Coach Focus Areas",
+      "format": "textarea"
+    },
+    "coachStyle": {
+      "type": "string",
+      "title": "Coach Style",
+      "format": "textarea"
+    },
+    "coachIntervalSeconds": {
+      "type": "number",
+      "title": "Coach Interval (seconds)",
+      "default": 15
+    },
+    "coachAdditionalContext": {
+      "type": "string",
+      "title": "Coach Additional Context",
+      "format": "textarea"
+    },
+    "intentDuckDefinition": {
+      "type": "string",
+      "title": "Intent Duck Definition",
+      "format": "textarea"
+    },
+    "intentCowDefinition": {
+      "type": "string",
+      "title": "Intent Cow Definition",
+      "format": "textarea"
+    },
+    "intentTriggerKeywords": {
+      "type": "string",
+      "title": "Intent Trigger Keywords",
+      "format": "textarea"
+    },
+    "intentIntervalSeconds": {
+      "type": "number",
+      "title": "Intent Interval (seconds)",
+      "default": 20
+    },
+    "intentPositiveSignals": {
+      "type": "string",
+      "title": "Intent Positive Signal Phrases",
+      "format": "textarea"
+    },
+    "intentNegativeSignals": {
+      "type": "string",
+      "title": "Intent Negative Signal Phrases",
+      "format": "textarea"
     }
   },
   "required": [
