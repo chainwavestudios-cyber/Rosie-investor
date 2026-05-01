@@ -440,7 +440,7 @@ const PredictiveDialer = forwardRef(function PredictiveDialer({ contactLists, on
           setTimeout(() => { if (runningRef.current) dialLine(lineIdx); }, 1200);
         }
       } catch {}
-    }, 800);
+    }, 400);
   };
 
   const handleAutoConnect = async (lineIdx, lead, callSid, conferenceName) => {
@@ -453,7 +453,7 @@ const PredictiveDialer = forwardRef(function PredictiveDialer({ contactLists, on
 
     // Wait 1.5s then verify it's a live human not voicemail
     addLog('system', `Line ${lineIdx + 1}: Verifying live answer…`);
-    await new Promise(r => setTimeout(r, 1500));
+    await new Promise(r => setTimeout(r, 300));
 
     try {
       const statusCheck = await base44.functions.invoke('twilioCall', { action: 'getCallStatus', callSid });
