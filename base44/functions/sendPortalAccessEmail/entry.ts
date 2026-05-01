@@ -21,7 +21,7 @@ Deno.serve(async (req) => {
   }
 
   const base44 = createClientFromRequest(req);
-  const { leadId, investorId, toEmail, toName, firstName, username, password, loginUrl } = await req.json();
+  const { leadId, investorId, toEmail, toName, firstName, username, password, loginUrl, sentBy } = await req.json();
 
   if (!toEmail || !username || !password) {
     return Response.json({ error: 'Missing toEmail, username, or password' }, { status: 400 });
@@ -226,7 +226,7 @@ Deno.serve(async (req) => {
       messageId,
       status:     'sent',
       sentAt:     new Date().toISOString(),
-      sentBy:     'admin',
+      sentBy:     sentBy || 'admin',
     });
   } catch {}
 
@@ -236,9 +236,9 @@ Deno.serve(async (req) => {
       await base44.asServiceRole.entities.ContactNote.create({
         investorId: iuId, investorEmail: toEmail,
         type: 'email',
-        content: `📧 Portal access email sent. Username: ${username}`,
+        content: `📧 Portal access email sent by ${sentBy || 'admin'}. Username: ${username}`,
         createdAt: new Date().toISOString(),
-        createdBy: 'admin',
+        createdBy: sentBy || 'admin',
       });
     } catch {}
   }
