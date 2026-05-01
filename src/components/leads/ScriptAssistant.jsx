@@ -260,7 +260,7 @@ export default function ScriptAssistant({ lead, user, onExpandCard, isCardExpand
       const transcriptText = finalTranscript.map(t =>
         `[${new Date(t.time).toLocaleTimeString()}]${t.speaker !== null ? ` [S${t.speaker}]` : ''} ${t.text}`
       ).join('\n');
-      await base44.entities.LeadHistory.create({ leadId: l.id, type: 'transcript', content: transcriptText });
+      await base44.entities.LeadHistory.create({ leadId: l.id, type: 'transcript', content: transcriptText, createdBy: 'system' });
 
       // 2. Run post-call intent if it was used
       let finalIntent = intentResult;
@@ -287,7 +287,7 @@ export default function ScriptAssistant({ lead, user, onExpandCard, isCardExpand
       });
       const report = reportRes?.data?.report || '';
       if (report) {
-        await base44.entities.LeadHistory.create({ leadId: l.id, type: 'call_report', content: report });
+        await base44.entities.LeadHistory.create({ leadId: l.id, type: 'call_report', content: report, createdBy: 'system' });
       }
 
       // 4. Save intent score to lead
