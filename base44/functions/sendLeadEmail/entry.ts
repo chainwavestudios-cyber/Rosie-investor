@@ -11,7 +11,7 @@ const CONSUMER_SITE  = 'https://www.rosieai.tech';
 Deno.serve(async (req) => {
   const base44 = createClientFromRequest(req);
 
-  const { leadId, toEmail, toName, firstName, customVariables } = await req.json();
+  const { leadId, toEmail, toName, firstName, customVariables, sentBy } = await req.json();
   if (!toEmail || !leadId) return Response.json({ error: 'Missing toEmail or leadId' }, { status: 400 });
 
   // ── Build username: firstname + last4 of phone ──────────────────────
@@ -84,7 +84,7 @@ Deno.serve(async (req) => {
     messageId, messageUUID,
     status: 'sent',
     sentAt: new Date().toISOString(),
-    sentBy: 'admin',
+    sentBy: sentBy || 'admin',
   }).catch(() => {});
 
   // Update lead score
@@ -96,7 +96,7 @@ Deno.serve(async (req) => {
       });
       await base44.asServiceRole.entities.LeadHistory.create({
         leadId, type: 'note',
-        content: `📧 Email sent. Username: ${username}. Consumer link: ${consumerUrl}. +5 engagement.`,
+        content: `📧 Email sent by ${sentBy || 'admin'}. Username: ${username}. Consumer link: ${consumerUrl}. +5 engagement.`,
       });
     }
   } catch {}
