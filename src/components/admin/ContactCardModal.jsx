@@ -134,7 +134,12 @@ export default function ContactCardModal({ user, onClose, onSave, allSessions, m
 
   const addAppt = async () => {
     if (!apptForm.title || !apptForm.scheduledAt) return;
-    await AppointmentDB.create({ investorId:user.id, investorEmail:user.email, investorName:user.name, ...apptForm });
+    await AppointmentDB.create({ investorId:user.id, investorEmail:user.email, investorName:user.name, ...apptForm, createdBy: currentUsername });
+    await ContactNoteDB.create({
+      investorId: user.id, investorEmail: user.email, type: 'note',
+      content: `📅 Appointment booked: "${apptForm.title}" · ${new Date(apptForm.scheduledAt).toLocaleString('en-US',{weekday:'short',month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})} · ${apptForm.durationMinutes}min`,
+      createdAt: new Date().toISOString(), createdBy: currentUsername,
+    }).catch(() => {});
     setApptForm({ title:'', type:'call', scheduledAt:'', durationMinutes:30, notes:'' });
     setAppts(await AppointmentDB.listForInvestor(user.id));
   };
