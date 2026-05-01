@@ -31,16 +31,11 @@ Deno.serve(async (req) => {
       ? `statusCallbackEvent="start end join leave" statusCallback="${statusCallbackUrl}" statusCallbackMethod="POST"`
       : '';
 
-    const leadTwiml = `<?xml version="1.0" encoding="UTF-8"?>
-<Response>
-  <Dial>
-    <Conference startConferenceOnEnter="false" endConferenceOnExit="true" beep="false" waitUrl="" ${confCallbackParam}>
-      ${confName}
-    </Conference>
-  </Dial>
-</Response>`;
-
-    const twimlUrl = `https://twimlets.com/echo?Twiml=${encodeURIComponent(leadTwiml)}`;
+    // Self-hosted TwiML for the lead leg — avoids twimlets.com which causes 31005 gateway errors
+    // dialerVoiceHandler handles ?ConferenceName=x&LeadLeg=true to return the holding conference TwiML
+    const baseUrl = new URL(req.url).origin;
+    const appPath = req.url.includes('/functions/') ? req.url.replace(/\/functions\/twilioCallWithCPA.*/, '') : baseUrl;
+    const leadTwimlUrl = `${appPath}/functions/dialerVoiceHandler?ConferenceName=${encodeURIComponent(confName)}&LeadLeg=true${statusCallbackUrl ? `&StatusCallback=${encodeURIComponent(statusCallbackUrl)}` : ''}`;
 
     console.log(`[Dialer] To: ${toE164}  From: ${fromE164}  Conf: ${confName}`);
 
@@ -53,7 +48,7 @@ Deno.serve(async (req) => {
         body: new URLSearchParams({
           'To':   toE164,
           'From': fromE164,
-          'Url':  twimlUrl,
+          'Url':  leadTwimlUrl,
         }).toString(),
       }
     );
