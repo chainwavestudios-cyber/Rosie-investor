@@ -4,7 +4,7 @@ import { base44 } from '@/api/base44Client';
 
 const APP_BASE_URL = window.location.origin;
 
-const HTML_URL = "https://raw.githubusercontent.com/chainwavestudios-cyber/Rosie-investor/main/investorspage.html";
+const HTML_URL = "https://media.githubusercontent.com/media/chainwavestudios-cyber/Rosie-investor/main/investorspage.html";
 const ADMIN_PASSWORD = "rosieai@2026";
 const SESSION_KEY = "home_access_granted";
 const SESSION_USER_KEY = "home_access_user";
