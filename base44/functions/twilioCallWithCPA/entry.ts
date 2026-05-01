@@ -6,6 +6,9 @@ const ACCOUNT_SID = Deno.env.get('TWILIO_ACCOUNT_SID') || '';
 const AUTH_TOKEN  = Deno.env.get('TWILIO_AUTH_TOKEN')  || '';
 const FROM_NUMBER = Deno.env.get('TWILIO_FROM_NUMBER') || '';
 
+// Public URL of dialerVoiceHandler — Twilio fetches TwiML from here for the lead's call leg
+const DIALER_VOICE_URL = 'https://investors.rosieai.tech/api/apps/69cd2741578c9b5ce655395b/functions/dialerVoiceHandler';
+
 Deno.serve(async (req) => {
   try {
     const body = await req.json();
@@ -25,17 +28,8 @@ Deno.serve(async (req) => {
 
     const confName = conferenceName || `call_${Date.now()}`;
 
-    // Conference status callback fires when participant joins/leaves
-    // This is reliable — unlike per-call StatusCallback which Twilio ignores on conference calls
-    const confCallbackParam = statusCallbackUrl
-      ? `statusCallbackEvent="start end join leave" statusCallback="${statusCallbackUrl}" statusCallbackMethod="POST"`
-      : '';
-
-    // Self-hosted TwiML for the lead leg — avoids twimlets.com which causes 31005 gateway errors
-    // dialerVoiceHandler handles ?ConferenceName=x&LeadLeg=true to return the holding conference TwiML
-    const baseUrl = new URL(req.url).origin;
-    const appPath = req.url.includes('/functions/') ? req.url.replace(/\/functions\/twilioCallWithCPA.*/, '') : baseUrl;
-    const leadTwimlUrl = `${appPath}/functions/dialerVoiceHandler?ConferenceName=${encodeURIComponent(confName)}&LeadLeg=true${statusCallbackUrl ? `&StatusCallback=${encodeURIComponent(statusCallbackUrl)}` : ''}`;
+    // Build the TwiML URL for the lead's call leg — puts them in a holding conference
+    const leadTwimlUrl = `${DIALER_VOICE_URL}?ConferenceName=${encodeURIComponent(confName)}&LeadLeg=true${statusCallbackUrl ? `&StatusCallback=${encodeURIComponent(statusCallbackUrl)}` : ''}`;
 
     console.log(`[Dialer] To: ${toE164}  From: ${fromE164}  Conf: ${confName}`);
 
