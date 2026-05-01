@@ -384,7 +384,12 @@ export default function ScriptAssistant({ lead, user, onExpandCard, isCardExpand
         try {
           const ir = await base44.functions.invoke('liveAssistantAI', {
             transcript: finalTranscript, mode: 'intent_final',
-            intentRules: { duckDefinition: portalCfg?.intentDuckDefinition, cowDefinition: portalCfg?.intentCowDefinition },
+            intentRules: {
+              duckDefinition:  portalCfg?.intentDuckDefinition,
+              cowDefinition:   portalCfg?.intentCowDefinition,
+              positiveSignals: portalCfg?.intentPositiveSignals,
+              negativeSignals: portalCfg?.intentNegativeSignals,
+            },
             engagementScore: lead?.engagementScore || 0,
           });
           finalIntent = ir?.data?.intent || ir?.intent || finalIntent;
@@ -408,10 +413,21 @@ export default function ScriptAssistant({ lead, user, onExpandCard, isCardExpand
 
       // 4. Save intent score to lead
       if (finalIntent?.intentScore !== undefined) {
-        await base44.entities.Lead.update(l.id, {
+        const leadUpdates: any = {
           intentScore: finalIntent.intentScore,
           lastIntentAnalysis: JSON.stringify(finalIntent),
-        });
+        };
+        // Auto-populate CRM fields from extracted call data
+        const ex = finalIntent.extractedData || {};
+        if (ex.bestTimeToCall && ex.bestTimeToCall !== 'null') {
+          leadUpdates.bestTimeToCall = ex.bestTimeToCall;
+        }
+        if (ex.extractedNotes && ex.extractedNotes !== 'null') {
+          const existingNotes = l.notes || '';
+          const notePrefix = existingNotes ? existingNotes + '\n' : '';
+          leadUpdates.notes = `${notePrefix}[AI ${new Date().toLocaleDateString()}] ${ex.extractedNotes}`.trim();
+        }
+        await base44.entities.Lead.update(l.id, leadUpdates);
       }
 
       // 5. Update client profile
