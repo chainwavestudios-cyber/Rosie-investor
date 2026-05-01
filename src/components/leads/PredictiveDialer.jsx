@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback, forwardRef, useImperativeHandle } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useTwilioDevice } from '@/lib/TwilioDeviceContext';
+import { usePortalAuth } from '@/lib/PortalAuthContext';
 
 const GOLD         = '#b8933a';
 const DARK         = '#0a0f1e';
@@ -160,6 +161,8 @@ function LogPanel({ logs }) {
 }
 
 const PredictiveDialer = forwardRef(function PredictiveDialer({ contactLists, onClose, onCallLogged, onLeadConnected, onPaused, onResumed, onCallStream }, ref) {
+  const { portalUser } = usePortalAuth();
+  const currentUsername = portalUser?.username || 'admin';
   const [settings, setSettings]               = useState(DEFAULT_SETTINGS);
   const [showSettings, setShowSettings]       = useState(true);
   const [selectedListId, setSelectedListId]   = useState('');
@@ -358,7 +361,7 @@ const PredictiveDialer = forwardRef(function PredictiveDialer({ contactLists, on
           clearInterval(pollsRef.current[lineIdx]);
           clearTimeout(ringTimersRef.current[lineIdx]);
           addLog('no_answer', `Line ${lineIdx + 1}: ${status} — ${lead.firstName} ${lead.lastName}`);
-          base44.entities.LeadHistory.create({ leadId: lead.id, type: 'not_available', content: `Call ${status} (attempt #${attempts})`, twilioCallSid: sid }).catch(() => {});
+          base44.entities.LeadHistory.create({ leadId: lead.id, type: 'not_available', content: `Call ${status} (attempt #${attempts}) · by ${currentUsername}`, createdBy: currentUsername, twilioCallSid: sid }).catch(() => {});
           try { await base44.entities.CallStatus.delete(record.id); } catch {}
           cleanLine(lineIdx, 'no_answer');
           setTimeout(() => { if (runningRef.current) dialLine(lineIdx); }, 1200);
@@ -470,7 +473,7 @@ const PredictiveDialer = forwardRef(function PredictiveDialer({ contactLists, on
       // Update lead
       if (lead?.id) {
         base44.entities.Lead.update(lead.id, { lastCalledAt: new Date().toISOString() }).catch(() => {});
-        base44.entities.LeadHistory.create({ leadId: lead.id, type: 'connected', content: `Connected via predictive dialer`, twilioCallSid: callSid }).catch(() => {});
+        base44.entities.LeadHistory.create({ leadId: lead.id, type: 'connected', content: `Connected via predictive dialer · by ${currentUsername}`, createdBy: currentUsername, twilioCallSid: callSid }).catch(() => {});
       }
 
       // Poll for call end
@@ -480,7 +483,7 @@ const PredictiveDialer = forwardRef(function PredictiveDialer({ contactLists, on
           if (['completed', 'failed', 'no-answer', 'busy', 'canceled'].includes(s.data?.status)) {
             clearInterval(pollsRef.current[lineIdx]);
             const dur = linesRef.current[lineIdx]?.duration || 0;
-            base44.entities.LeadHistory.create({ leadId: lead.id, type: 'call', content: `Call ended — ${fmt(dur)}`, callDurationSeconds: dur, twilioCallSid: callSid }).catch(() => {});
+            base44.entities.LeadHistory.create({ leadId: lead.id, type: 'call', content: `Call ended — ${fmt(dur)} · by ${currentUsername}`, callDurationSeconds: dur, createdBy: currentUsername, twilioCallSid: callSid }).catch(() => {});
             onCallLogged?.(lead.id);
             cleanLine(lineIdx, 'ended');
             addLog('ended', `Call ended — ${lead.firstName} ${lead.lastName} (${fmt(dur)})`);
@@ -535,13 +538,13 @@ const PredictiveDialer = forwardRef(function PredictiveDialer({ contactLists, on
     setStats(prev => ({ ...prev, dialed: prev.dialed + 1 }));
     const attempts = (lead.callAttempts || 0) + 1;
     base44.entities.Lead.update(lead.id, { lastCalledAt: new Date().toISOString(), callAttempts: attempts }).catch(() => {});
-    base44.entities.LeadHistory.create({ leadId: lead.id, type: 'call', content: `Predictive dialer attempt #${attempts} — Line ${lineIdx + 1}` }).catch(() => {});
+    base44.entities.LeadHistory.create({ leadId: lead.id, type: 'call', content: `Predictive dialer attempt #${attempts} — Line ${lineIdx + 1} · by ${currentUsername}`, createdBy: currentUsername }).catch(() => {});
     ringTimersRef.current[lineIdx] = setTimeout(async () => {
       const cur = linesRef.current[lineIdx];
       if (['ringing', 'calling'].includes(cur.status) && cur.lead?.id === lead.id) {
         addLog('no_answer', `Line ${lineIdx + 1}: No answer (${s.maxRingTime}s) — ${lead.firstName} ${lead.lastName}`);
         if (cur.callSid) await hangupCall(cur.callSid);
-        base44.entities.LeadHistory.create({ leadId: lead.id, type: 'not_available', content: `No answer after ${s.maxRingTime}s (attempt #${attempts})` }).catch(() => {});
+        base44.entities.LeadHistory.create({ leadId: lead.id, type: 'not_available', content: `No answer after ${s.maxRingTime}s (attempt #${attempts}) · by ${currentUsername}`, createdBy: currentUsername }).catch(() => {});
         cleanLine(lineIdx, 'no_answer');
         setTimeout(() => { if (runningRef.current) dialLine(lineIdx); }, 1000);
       }
