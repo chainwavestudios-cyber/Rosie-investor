@@ -4,7 +4,7 @@ import { base44 } from '@/api/base44Client';
 
 const APP_BASE_URL = window.location.origin;
 
-const HTML_URL = "https://raw.githubusercontent.com/chainwavestudios-cyber/Rosie-investor/main/investorspage.html";
+// Fetched via backend proxy to avoid CORS issues
 const ADMIN_PASSWORD = "rosieai@2026";
 const SESSION_KEY = "home_access_granted";
 const SESSION_USER_KEY = "home_access_user";
@@ -84,9 +84,8 @@ export default function Home() {
   useEffect(() => {
     if (!unlocked) return;
     setLoadingHtml(true);
-    fetch(HTML_URL + '?t=' + Date.now(), { cache: 'no-store' })
-      .then(r => r.text())
-      .then(html => { setHtmlContent(html); setLoadingHtml(false); })
+    base44.functions.invoke('fetchInvestorsPage', {})
+      .then(r => { setHtmlContent(r.data); setLoadingHtml(false); })
       .catch(() => setLoadingHtml(false));
   }, [unlocked]);
 
