@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useTwilioDevice } from '@/lib/TwilioDeviceContext';
 
-export function useInlineDialer({ onCallStream, onCallLogged } = {}) {
+export function useInlineDialer({ onCallStream, onCallLogged, agentName = 'admin' } = {}) {
   const { getDevice } = useTwilioDevice();
 
   const [dialerError, setDialerError] = useState('');
@@ -95,24 +95,28 @@ export function useInlineDialer({ onCallStream, onCallLogged } = {}) {
     const dur = Math.floor((Date.now() - (startTimeRef.current || Date.now())) / 1000);
     try {
       await base44.entities.LeadHistory.create({
-        leadId, type: 'call', content: `Outbound call — ${fmt(dur)}`,
-        callDurationSeconds: dur, twilioCallSid: callRef.current?.parameters?.CallSid || '',
+        leadId, type: 'call',
+        content: `Outbound call — ${fmt(dur)} · by ${agentName}`,
+        callDurationSeconds: dur,
+        twilioCallSid: callRef.current?.parameters?.CallSid || '',
+        createdBy: agentName,
       });
       onCallLogged?.(leadId);
     } catch {}
-  }, [onCallLogged]);
+  }, [onCallLogged, agentName]);
 
   const logInvestorCall = useCallback(async (investorId, investorEmail) => {
     const dur = Math.floor((Date.now() - (startTimeRef.current || Date.now())) / 1000);
     try {
       await base44.entities.ContactNote.create({
         investorId, investorEmail, type: 'call',
-        content: `Outbound call — ${fmt(dur)}`,
-        createdAt: new Date().toISOString(), createdBy: 'admin',
+        content: `Outbound call — ${fmt(dur)} · by ${agentName}`,
+        createdAt: new Date().toISOString(),
+        createdBy: agentName,
       });
       onCallLogged?.(investorId);
     } catch {}
-  }, [onCallLogged]);
+  }, [onCallLogged, agentName]);
 
   const isActive = ['calling','ringing','connected'].includes(callStatus);
 
