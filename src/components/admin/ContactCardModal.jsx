@@ -269,18 +269,18 @@ export default function ContactCardModal({ user, onClose, onSave, allSessions, m
             <button onClick={() => setShowZoom(true)} style={{ background:'rgba(96,165,250,0.12)', color:'#60a5fa', border:'1px solid rgba(96,165,250,0.3)', borderRadius:'2px', padding:'5px 8px', cursor:'pointer', fontSize:'10px', fontWeight:'bold' }}>
               📅 Zoom
             </button>
-            {user.phone && (
-              <div style={{ width: '100%', marginTop: '4px' }}>
-                <InlineCallBar
-                  phone={user.phone}
-                  name={user.name || ''}
-                  dialer={dialer}
-                  onLogCall={() => dialer.logInvestorCall(user.id, user.email)}
-                />
-              </div>
-            )}
             <button onClick={onClose} style={{ background:'rgba(255,255,255,0.05)', border:'1px solid rgba(255,255,255,0.1)', color:'#6b7280', cursor:'pointer', fontSize:'18px', width:'30px', height:'30px', borderRadius:'4px', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>×</button>
           </div>
+          {user.phone && (
+            <div style={{ marginTop: '10px' }}>
+              <InlineCallBar
+                phone={user.phone}
+                name={user.name || ''}
+                dialer={dialer}
+                onLogCall={() => dialer.logInvestorCall(user.id, user.email)}
+              />
+            </div>
+          )}
         </div>
 
         {/* Tabs */}
