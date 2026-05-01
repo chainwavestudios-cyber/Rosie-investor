@@ -133,11 +133,16 @@ function LeadPipelineCard({ lead, stage, onDragStart, onOpenCard, hasApptToday, 
         <div style={{ color: '#e8e0d0', fontSize: '12px', fontWeight: 'bold', lineHeight: 1.3, flex: 1, minWidth: 0 }}>
           {lead.firstName} {lead.lastName}
         </div>
-        {(lead.engagementScore > 0) && (
-          <div style={{ width: '28px', height: '28px', borderRadius: '50%', border: `2px solid ${GOLD}`, background: `rgba(184,147,58,0.15)`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-            <span style={{ color: GOLD, fontSize: '9px', fontWeight: 'bold' }}>{lead.engagementScore}</span>
-          </div>
-        )}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0 }}>
+          {hasApptToday && (
+            <span style={{ fontSize: '16px', animation: 'calPulse 1.4s ease-in-out infinite', display: 'inline-block', lineHeight: 1 }}>📅</span>
+          )}
+          {(lead.engagementScore > 0) && (
+            <div style={{ width: '28px', height: '28px', borderRadius: '50%', border: `2px solid ${GOLD}`, background: `rgba(184,147,58,0.15)`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <span style={{ color: GOLD, fontSize: '9px', fontWeight: 'bold' }}>{lead.engagementScore}</span>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Email */}
@@ -198,20 +203,6 @@ function LeadPipelineCard({ lead, stage, onDragStart, onOpenCard, hasApptToday, 
         </div>
       )}
 
-      {/* Pulsing 📅 bottom-right corner */}
-      {hasApptToday && (
-        <div style={{
-          position: 'absolute',
-          bottom: '7px',
-          right: '8px',
-          fontSize: '18px',
-          animation: 'calPulse 1.4s ease-in-out infinite',
-          lineHeight: 1,
-          pointerEvents: 'none',
-        }}>
-          📅
-        </div>
-      )}
     </div>
   );
 }
