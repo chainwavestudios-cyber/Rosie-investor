@@ -168,8 +168,8 @@ export default function ContactCardModal({ user, onClose, onSave, allSessions, m
   };
 
   const handleCallLogged = async () => {
+    // logInvestorCall in the hook already creates the ContactNote — just refresh the list
     try {
-      await ContactNoteDB.create({ investorId: user.id, investorEmail: user.email, type: 'call', content: `Outbound call via Twilio dialer`, createdBy: currentUsername });
       setNotes(await ContactNoteDB.listForInvestor(user.id));
     } catch {}
   }
@@ -269,18 +269,18 @@ export default function ContactCardModal({ user, onClose, onSave, allSessions, m
             <button onClick={() => setShowZoom(true)} style={{ background:'rgba(96,165,250,0.12)', color:'#60a5fa', border:'1px solid rgba(96,165,250,0.3)', borderRadius:'2px', padding:'5px 8px', cursor:'pointer', fontSize:'10px', fontWeight:'bold' }}>
               📅 Zoom
             </button>
+            {user.phone && (
+              <div style={{ width: '100%', marginTop: '4px' }}>
+                <InlineCallBar
+                  phone={user.phone}
+                  name={user.name || ''}
+                  dialer={dialer}
+                  onLogCall={() => dialer.logInvestorCall(user.id, user.email)}
+                />
+              </div>
+            )}
             <button onClick={onClose} style={{ background:'rgba(255,255,255,0.05)', border:'1px solid rgba(255,255,255,0.1)', color:'#6b7280', cursor:'pointer', fontSize:'18px', width:'30px', height:'30px', borderRadius:'4px', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>×</button>
           </div>
-          {user.phone && (
-            <div style={{ marginTop: '10px' }}>
-              <InlineCallBar
-                phone={user.phone}
-                name={user.name || ''}
-                dialer={dialer}
-                onLogCall={() => dialer.logInvestorCall(user.id, user.email)}
-              />
-            </div>
-          )}
         </div>
 
         {/* Tabs */}
@@ -356,6 +356,63 @@ export default function ContactCardModal({ user, onClose, onSave, allSessions, m
               <div style={{ gridColumn:'1/-1', display:'flex', gap:'12px', alignItems:'center', paddingTop:'16px', borderTop:'1px solid rgba(255,255,255,0.07)' }}>
                 <button onClick={saveProfile} disabled={saving} style={{ background:'linear-gradient(135deg,#b8933a,#d4aa50)', color:DARK, border:'none', borderRadius:'2px', padding:'11px 32px', cursor:'pointer', fontWeight:'bold', fontSize:'12px', letterSpacing:'2px', textTransform:'uppercase' }}>{saving?'Saving…':'Save Changes'}</button>
                 {saveMsg && <span style={{ color:saveMsg.startsWith('Error')?'#ef4444':'#4ade80', fontSize:'13px' }}>{saveMsg}</span>}
+              </div>
+
+              {/* ── Notes & Activity ── */}
+              <div style={{ gridColumn:'1/-1', borderTop:'1px solid rgba(255,255,255,0.07)', paddingTop:'20px' }}>
+                <div style={{ color:GOLD, fontSize:'10px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'14px' }}>Notes & Activity</div>
+
+                {/* Add note */}
+                <div style={{ display:'flex', gap:'8px', marginBottom:'14px' }}>
+                  <select value={noteForm.type} onChange={e=>setNoteForm({...noteForm,type:e.target.value})}
+                    style={{ background:'rgba(255,255,255,0.05)', border:'1px solid rgba(255,255,255,0.12)', borderRadius:'2px', padding:'8px 10px', color:'#8a9ab8', fontSize:'11px', outline:'none', cursor:'pointer', flexShrink:0 }}>
+                    <option value="note">📝 Note</option>
+                    <option value="call">📞 Call</option>
+                    <option value="sms">💬 SMS</option>
+                    <option value="email">✉️ Email</option>
+                    <option value="voicemail">📳 Voicemail</option>
+                  </select>
+                  <input
+                    value={noteForm.content}
+                    onChange={e=>setNoteForm({...noteForm,content:e.target.value})}
+                    onKeyDown={e=>e.key==='Enter'&&addNote()}
+                    placeholder="Add a note or log an action…"
+                    style={{ flex:1, background:'rgba(255,255,255,0.05)', border:'1px solid rgba(255,255,255,0.12)', borderRadius:'2px', padding:'8px 12px', color:'#e8e0d0', fontSize:'13px', outline:'none' }}
+                  />
+                  <button onClick={addNote}
+                    style={{ background:'rgba(184,147,58,0.15)', border:'1px solid rgba(184,147,58,0.3)', borderRadius:'2px', padding:'8px 16px', color:GOLD, cursor:'pointer', fontSize:'11px', fontWeight:'bold', whiteSpace:'nowrap' }}>
+                    + Add
+                  </button>
+                </div>
+
+                {/* Notes list — user actions only (exclude system/migration notes) */}
+                <div style={{ display:'flex', flexDirection:'column', gap:'6px', maxHeight:'260px', overflowY:'auto' }}>
+                  {loading && <p style={{ color:'#4a5568', fontSize:'12px', textAlign:'center', padding:'16px' }}>Loading…</p>}
+                  {!loading && notes.filter(n => !((n.content||'').startsWith('[Lead History') || (n.content||'').startsWith('✅ Migrated') || (n.content||'').startsWith('[Site Visits') || (n.content||'').startsWith('[Email Log') || (n.content||'').startsWith('[Appointment'))).length === 0 && (
+                    <p style={{ color:'#4a5568', fontSize:'12px', textAlign:'center', padding:'20px' }}>No notes or activity yet.</p>
+                  )}
+                  {notes
+                    .filter(n => !((n.content||'').startsWith('[Lead History') || (n.content||'').startsWith('✅ Migrated') || (n.content||'').startsWith('[Site Visits') || (n.content||'').startsWith('[Email Log') || (n.content||'').startsWith('[Appointment')))
+                    .map(n => {
+                      const typeColor = { note:'#c4cdd8', call:'#60a5fa', sms:'#4ade80', email:'#a78bfa', voicemail:'#f59e0b' }[n.type] || '#6b7280';
+                      const typeIcon  = { note:'📝', call:'📞', sms:'💬', email:'✉️', voicemail:'📳' }[n.type] || '📝';
+                      return (
+                        <div key={n.id} style={{ display:'flex', gap:'10px', alignItems:'flex-start', padding:'8px 10px', background:'rgba(255,255,255,0.03)', border:'1px solid rgba(255,255,255,0.06)', borderRadius:'3px' }}>
+                          <span style={{ fontSize:'12px', flexShrink:0, marginTop:'1px' }}>{typeIcon}</span>
+                          <div style={{ flex:1, minWidth:0 }}>
+                            <div style={{ color:'#c8d0dc', fontSize:'13px', lineHeight:1.5, wordBreak:'break-word' }}>{n.content}</div>
+                            <div style={{ color:'#4a5568', fontSize:'10px', marginTop:'3px' }}>
+                              <span style={{ color:typeColor }}>{n.type}</span>
+                              {n.createdBy && <span> · {n.createdBy}</span>}
+                              {n.createdAt && <span> · {new Date(n.createdAt).toLocaleDateString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})}</span>}
+                            </div>
+                          </div>
+                          <button onClick={()=>deleteNote(n.id)} style={{ background:'none', border:'none', color:'#374151', cursor:'pointer', fontSize:'14px', padding:'0 2px', flexShrink:0 }} title="Delete">×</button>
+                        </div>
+                      );
+                    })
+                  }
+                </div>
               </div>
             </div>
           )}
