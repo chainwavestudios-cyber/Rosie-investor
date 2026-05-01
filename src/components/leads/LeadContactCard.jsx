@@ -6,6 +6,7 @@ import InlineCallBar from '@/components/shared/InlineCallBar';
 import MigrateLeadModal from './MigrateLeadModal';
 import DateTimePicker from '@/components/admin/DateTimePicker';
 import LeadEmailTab from './LeadEmailTab';
+import CustomEmailTab from '@/components/shared/CustomEmailTab';
 import ScriptAssistant from './ScriptAssistant';
 import ResearchTab from './ResearchTab';
 import InvestorWebsiteTab from './InvestorWebsiteTab';
@@ -1183,7 +1184,7 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
 
         {/* Tabs row + activity badges on the right */}
         <div style={{ display:'flex', borderBottom:'1px solid rgba(255,255,255,0.07)', flexShrink:0, alignItems:'center' }}>
-          {[['overview','Overview'],['history','History'],['actions','Actions'],['access','Site Access'],['sitestats','Site Stats'],['research','Research'],['script','Script & AI']].filter(([id]) => !(isArchived && id === 'actions')).map(([id,label]) => (
+          {[['overview','Overview'],['history','History'],['email','✉️ Email'],['actions','Actions'],['access','Site Access'],['sitestats','Site Stats'],['research','Research'],['script','Script & AI']].filter(([id]) => !(isArchived && id === 'actions')).map(([id,label]) => (
             <button key={id} onClick={() => setTab(id)} style={{ background:'none', border:'none', borderBottom:tab===id?`2px solid ${GOLD}`:'2px solid transparent', color:tab===id?GOLD:'#6b7280', padding:'10px 16px', cursor:'pointer', fontSize:'11px', letterSpacing:'0.5px', whiteSpace:'nowrap' }}>{label}</button>
           ))}
           <div style={{ flex:1 }} />
@@ -1214,6 +1215,18 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
           {/* ── HISTORY ── */}
           {tab === 'history' && (
             <LeadHistoryTab lead={editLead} history={history} onNoteAdded={loadHistory} createdBy={currentUsername} />
+          )}
+
+          {/* ── EMAIL ── */}
+          {tab === 'email' && (
+            <CustomEmailTab
+              toEmail={editLead.email}
+              toName={`${editLead.firstName} ${editLead.lastName}`}
+              leadId={lead.id}
+              investorId={null}
+              sentBy={currentUsername}
+              onSent={loadHistory}
+            />
           )}
 
           {tab === 'access' && (
