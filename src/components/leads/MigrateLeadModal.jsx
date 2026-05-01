@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { base44 } from '@/api/base44Client';
+import { usePortalAuth } from '@/lib/PortalAuthContext';
 
 const GOLD = '#b8933a';
 const DARK = '#0a0f1e';
@@ -27,6 +28,8 @@ function StepRow({ done, active, label }) {
 }
 
 export default function MigrateLeadModal({ lead, history, onClose, onMigrated }) {
+  const { portalUser } = usePortalAuth();
+  const currentUsername = portalUser?.username || 'admin';
   const [error, setError]               = useState('');
   const [step, setStep]                 = useState(0);
   const [currentStep, setCurrentStep]   = useState('');
@@ -82,6 +85,7 @@ export default function MigrateLeadModal({ lead, history, onClose, onMigrated })
           role:            'investor',
           status:          'prospect',
           pipelineStage:   'reviewing',
+          pipelineOwner:   currentUsername,
           investmentType:  'cash',
           engagementScore: lead.engagementScore || 0,
           starRating:      0,
@@ -151,7 +155,7 @@ export default function MigrateLeadModal({ lead, history, onClose, onMigrated })
               type:          'note',
               content:       `[Appointment] ${a.title||''} · ${a.type||''} · ${a.scheduledAt?new Date(a.scheduledAt).toLocaleString():''} · ${a.status||'scheduled'}`,
               createdAt:     a.scheduledAt,
-              createdBy:     'admin',
+              createdBy:     currentUsername,
             });
           } catch {}
         }
