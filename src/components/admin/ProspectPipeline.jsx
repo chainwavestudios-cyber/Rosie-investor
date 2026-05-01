@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import { getScoreColor } from '@/lib/engagementScore';
+import { usePortalAuth } from '@/lib/PortalAuthContext';
 
 const GOLD = '#b8933a';
 const DARK = '#0a0f1e';
@@ -82,9 +83,18 @@ function PipelineCard({ user, stage, onDragStart, onOpenCard, onOpenDialer, onSt
 }
 
 export default function ProspectPipeline({ users, onOpenCard, onOpenDialer, onAddExisting, onRefresh }) {
-  const [saving, setSaving] = useState(null); // userId currently being saved
-  const [dragId, setDragId]   = useState(null);
-  const [dragOver, setDragOver] = useState(null);
+  const { portalUser } = usePortalAuth();
+  const currentUsername = portalUser?.username || 'admin';
+  const otherUsername   = currentUsername === 'steph' ? 'admin' : 'steph';
+
+  const [saving, setSaving]         = useState(null);
+  const [dragId, setDragId]         = useState(null);
+  const [dragOver, setDragOver]     = useState(null);
+  const [pipelineView, setPipelineView] = useState('mine'); // 'mine' | 'other'
+
+  // Which set of users to show — strict owner match, unowned defaults to admin
+  const viewOwner    = pipelineView === 'mine' ? currentUsername : otherUsername;
+  const visibleUsers = users.filter(u => (u.pipelineOwner || 'admin') === viewOwner);
 
   // Ensure every prospect has a pipelineStage set in DB — assign 'reviewing' if missing
   useEffect(() => {
@@ -121,7 +131,7 @@ export default function ProspectPipeline({ users, onOpenCard, onOpenDialer, onAd
   };
 
   const usersInStage = (stageId) =>
-    users.filter(u => (u.pipelineStage || 'reviewing') === stageId);
+    visibleUsers.filter(u => (u.pipelineStage || 'reviewing') === stageId);
 
   const handleStarChange = async (user, stars) => {
     try {
@@ -130,15 +140,27 @@ export default function ProspectPipeline({ users, onOpenCard, onOpenDialer, onAd
     } catch {}
   };
 
-  const totalValue = users.reduce((sum, u) => sum + (Number(u.investmentAmount)||0), 0);
+  const totalValue = visibleUsers.reduce((sum, u) => sum + (Number(u.investmentAmount)||0), 0);
 
   return (
     <div>
+      {/* Owner tabs */}
+      <div style={{ display:'flex', gap:'0', borderBottom:'1px solid rgba(255,255,255,0.07)', marginBottom:'20px' }}>
+        <button onClick={() => setPipelineView('mine')}
+          style={{ background:'none', border:'none', borderBottom: pipelineView==='mine' ? `2px solid ${GOLD}` : '2px solid transparent', color: pipelineView==='mine' ? GOLD : '#6b7280', padding:'10px 20px', cursor:'pointer', fontSize:'12px', letterSpacing:'0.5px' }}>
+          👤 {currentUsername === 'steph' ? 'Steph' : 'Admin'}'s Pipeline ({users.filter(u => (u.pipelineOwner||'admin') === currentUsername).length})
+        </button>
+        <button onClick={() => setPipelineView('other')}
+          style={{ background:'none', border:'none', borderBottom: pipelineView==='other' ? `2px solid ${GOLD}` : '2px solid transparent', color: pipelineView==='other' ? GOLD : '#6b7280', padding:'10px 20px', cursor:'pointer', fontSize:'12px', letterSpacing:'0.5px' }}>
+          👤 {otherUsername === 'steph' ? 'Steph' : 'Admin'}'s Pipeline ({users.filter(u => (u.pipelineOwner||'admin') === otherUsername).length})
+        </button>
+      </div>
+
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'20px' }}>
         <div>
           <h2 style={{ color:'#e8e0d0', margin:'0 0 3px', fontSize:'18px', fontWeight:'normal' }}>Potential Investors — Pipeline</h2>
           <p style={{ color:'#6b7280', fontSize:'12px', margin:0 }}>
-            Drag cards between stages · {users.length} prospects · Pipeline value: <strong style={{ color:GOLD }}>${totalValue.toLocaleString()}</strong>
+            Drag cards between stages · {visibleUsers.length} prospects · Pipeline value: <strong style={{ color:GOLD }}>${totalValue.toLocaleString()}</strong>
           </p>
         </div>
         <div style={{ display:'flex', gap:'8px' }}>
