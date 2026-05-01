@@ -204,6 +204,7 @@ export default function ContactCardModal({ user, onClose, onSave, allSessions, m
         username:   user.username,
         password:   pw,
         loginUrl:   portalLoginUrl,
+        sentBy:     currentUsername,
       });
       setPortalEmailMsg('✓ Portal access email sent!');
       setTimeout(() => setPortalEmailMsg(''), 4000);
@@ -515,6 +516,7 @@ export default function ContactCardModal({ user, onClose, onSave, allSessions, m
                       <div>
                         <div style={{ color:'#e8e0d0', fontWeight:'bold', fontSize:'14px', marginBottom:'4px' }}>{appt.title}</div>
                         <div style={{ color:'#8a9ab8', fontSize:'12px' }}>{appt.scheduledAt?new Date(appt.scheduledAt).toLocaleString('en-US',{weekday:'short',month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'}):''} · {appt.durationMinutes} min</div>
+                        {appt.createdBy && <div style={{ color:'#6b7280', fontSize:'11px', marginTop:'2px' }}>booked by {appt.createdBy}</div>}
                         {appt.notes && <div style={{ color:'#4a5568', fontSize:'11px', marginTop:'4px' }}>{appt.notes}</div>}
                       </div>
                       <div style={{ display:'flex', gap:'8px', alignItems:'center' }}>
