@@ -414,28 +414,37 @@ const PredictiveDialer = forwardRef(function PredictiveDialer({ contactLists, on
       try {
         const currentLine = linesRef.current[lineIdx];
         if (!['ringing', 'calling'].includes(currentLine.status)) { clearInterval(pollsRef.current[lineIdx]); return; }
-        const confName = linesRef.current[lineIdx]?.conferenceName;
-        if (!confName) return;
-        const results = await base44.entities.CallStatus.filter({ callSid: confName });
-        const bySid = (!results?.length) ? await base44.entities.CallStatus.filter({ callSid: sid }) : [];
-        const record = results[0] || bySid[0];
-        if (!record) return;
-        const status = record.status || '';
+
+        // Poll directly via Twilio REST — no DB intermediary, no conference callback needed
+        const res = await base44.functions.invoke('twilioCall', { action: 'getCallStatus', callSid: sid });
+        const status     = res.data?.status || '';
+        const answeredBy = res.data?.answeredBy || '';
+
         if (status === 'in-progress' && !connectingRef.current) {
+          // Skip voicemails
+          if (answeredBy && answeredBy.startsWith('machine')) {
+            clearInterval(pollsRef.current[lineIdx]);
+            clearTimeout(ringTimersRef.current[lineIdx]);
+            addLog('system', `Line ${lineIdx + 1}: Voicemail detected — skipping`);
+            await hangupCall(sid);
+            cleanLine(lineIdx, 'voicemail');
+            setTimeout(() => { if (runningRef.current) dialLine(lineIdx); }, 1000);
+            return;
+          }
           clearInterval(pollsRef.current[lineIdx]);
           clearTimeout(ringTimersRef.current[lineIdx]);
           addLog('human', `Line ${lineIdx + 1}: 🟢 ANSWERED — ${lead.firstName} ${lead.lastName}`);
           updateLine(lineIdx, { status: 'human' });
-          try { await base44.entities.CallStatus.delete(record.id); } catch {}
+          const confName = linesRef.current[lineIdx]?.conferenceName;
           await handleAutoConnect(lineIdx, lead, sid, confName);
           return;
         }
+
         if (['completed', 'failed', 'no-answer', 'busy', 'canceled'].includes(status)) {
           clearInterval(pollsRef.current[lineIdx]);
           clearTimeout(ringTimersRef.current[lineIdx]);
           addLog('no_answer', `Line ${lineIdx + 1}: ${status} — ${lead.firstName} ${lead.lastName}`);
           base44.entities.LeadHistory.create({ leadId: lead.id, type: 'not_available', content: `Call ${status} (attempt #${attempts}) · by ${currentUsername}`, createdBy: currentUsername, twilioCallSid: sid }).catch(() => {});
-          try { await base44.entities.CallStatus.delete(record.id); } catch {}
           cleanLine(lineIdx, 'no_answer');
           setTimeout(() => { if (runningRef.current) dialLine(lineIdx); }, 1200);
         }
@@ -453,7 +462,7 @@ const PredictiveDialer = forwardRef(function PredictiveDialer({ contactLists, on
 
     // Wait 1.5s then verify it's a live human not voicemail
     addLog('system', `Line ${lineIdx + 1}: Verifying live answer…`);
-    await new Promise(r => setTimeout(r, 300));
+    await new Promise(r => setTimeout(r, 1500));
 
     try {
       const statusCheck = await base44.functions.invoke('twilioCall', { action: 'getCallStatus', callSid });
