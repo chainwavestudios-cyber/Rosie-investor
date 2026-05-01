@@ -4,7 +4,7 @@ import { base44 } from '@/api/base44Client';
 
 const APP_BASE_URL = window.location.origin;
 
-// Fetched via backend proxy to avoid CORS issues
+const HTML_URL = "https://raw.githubusercontent.com/chainwavestudios-cyber/Rosie-investor/main/agentbman-pitchbook-v4%20(3).html";
 const ADMIN_PASSWORD = "rosieai@2026";
 const SESSION_KEY = "home_access_granted";
 const SESSION_USER_KEY = "home_access_user";
@@ -84,7 +84,7 @@ export default function Home() {
   useEffect(() => {
     if (!unlocked) return;
     setLoadingHtml(true);
-    fetch(`${APP_BASE_URL}/functions/fetchInvestorsPage`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })
+    fetch(HTML_URL + '?t=' + Date.now(), { cache: 'no-store' })
       .then(r => r.text())
       .then(html => { setHtmlContent(html); setLoadingHtml(false); })
       .catch(() => setLoadingHtml(false));
@@ -134,22 +134,14 @@ export default function Home() {
   }
 
   return (
-    <div style={{ position: 'relative', width: '100%', height: '100vh', overflow: 'hidden', background: '#060c18' }}>
+    <div className="w-full h-screen" style={{ position: 'relative', background: '#060c18' }}>
       {loadingHtml && (
         <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#060c18', zIndex: 10 }}>
           <div style={{ width: '36px', height: '36px', border: '3px solid rgba(184,147,58,0.2)', borderTop: '3px solid #b8933a', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
           <style>{`@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}`}</style>
         </div>
       )}
-      {htmlContent && (
-        <iframe
-          srcDoc={htmlContent}
-          className="w-full border-0"
-          title="Rosie Pitchbook"
-          sandbox="allow-scripts allow-same-origin allow-popups allow-forms allow-pointer-lock"
-          style={{ display: loadingHtml ? 'none' : 'block', width: '100%', height: '100vh', border: 'none' }}
-        />
-      )}
+      {htmlContent && <iframe srcDoc={htmlContent} className="w-full h-full border-0" title="Rosie Pitchbook" style={{ display: loadingHtml ? 'none' : 'block' }} />}
       {!loadingHtml && htmlContent && <button
         onClick={() => navigate('/portal-login')}
         style={{
