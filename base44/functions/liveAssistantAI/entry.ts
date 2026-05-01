@@ -191,8 +191,8 @@ Respond ONLY with this exact JSON (no markdown):
       headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_KEY, 'anthropic-version': '2023-06-01' },
       body: JSON.stringify({
         model: 'claude-haiku-4-5-20251001',
-        max_tokens: 400,
-        system: `You are a real-time sales assistant on a live investor call. Answer questions concisely from the knowledge base. Keep answers under 3 sentences — the agent speaks this naturally.\n\nKNOWLEDGE BASE:\n${kbContext}`,
+        max_tokens: 1000,
+        system: `You are a real-time sales assistant on a live investor call. Answer questions accurately and completely from the knowledge base. Give the full answer — do not truncate or summarize unless the KB answer itself is brief.\n\nKNOWLEDGE BASE:\n${kbContext}`,
         messages: [{ role: 'user', content: `${recentTranscript ? `Recent conversation:\n${recentTranscript}\n\n` : ''}Question: "${question}"\n\nBrief answer:` }],
       }),
     });
