@@ -108,7 +108,7 @@ function SettingsPanel({ settings, onChange }) {
   );
 }
 
-function LineCard({ line, index, onHangup }) {
+function LineCard({ line, index, onHangup, onSkip }) {
   const col     = LINE_COLORS[line.status] || '#4a5568';
   const isHuman = line.status === 'human' || line.status === 'connected';
   const isActive = ['calling', 'ringing', 'connected', 'human'].includes(line.status);
@@ -129,14 +129,36 @@ function LineCard({ line, index, onHangup }) {
           <div style={{ color: isHuman ? '#4ade80' : '#e8e0d0', fontSize: '14px', fontWeight: 'bold', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {line.lead ? `${line.lead.firstName} ${line.lead.lastName}` : 'Waiting…'}
           </div>
-          {line.lead?.phone && <div style={{ color: '#6b7280', fontSize: '12px', fontFamily: 'monospace' }}>{line.lead.phone}</div>}
+          {line.lead && (
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginTop: '2px', flexWrap: 'wrap' }}>
+              {line.lead.phone && <span style={{ color: '#6b7280', fontSize: '12px', fontFamily: 'monospace' }}>{line.lead.phone}</span>}
+              {line.lead.state && (
+                <span style={{ color: '#f59e0b', fontSize: '11px', fontWeight: 'bold', background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.25)', borderRadius: '4px', padding: '1px 6px', letterSpacing: '0.5px' }}>
+                  {line.lead.state.toUpperCase()}
+                </span>
+              )}
+            </div>
+          )}
         </div>
       </div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
         {line.duration > 0 && <div style={{ color: isHuman ? '#4ade80' : '#8a9ab8', fontFamily: 'monospace', fontSize: '14px', fontWeight: 'bold' }}>{fmt(line.duration)}</div>}
         <span style={{ color: col, fontSize: '11px', textTransform: 'uppercase', letterSpacing: '1px', whiteSpace: 'nowrap' }}>{STATUS_LABEL[line.status] || 'Idle'}</span>
-        {isActive && line.callSid && !isHuman && (
-          <button onClick={() => onHangup(line.callSid)} style={{ background: 'rgba(239,68,68,0.15)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '6px', padding: '5px 10px', cursor: 'pointer', fontSize: '12px' }}>📵</button>
+        {isActive && line.callSid && (
+          <>
+            <button
+              onClick={() => onHangup(line.callSid)}
+              title="End call"
+              style={{ background: 'rgba(239,68,68,0.15)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '6px', padding: '5px 10px', cursor: 'pointer', fontSize: '12px', whiteSpace: 'nowrap' }}>
+              📵 End
+            </button>
+            <button
+              onClick={() => onSkip(index, line.callSid)}
+              title="End call and dial next lead"
+              style={{ background: 'rgba(96,165,250,0.12)', color: '#60a5fa', border: '1px solid rgba(96,165,250,0.3)', borderRadius: '6px', padding: '5px 10px', cursor: 'pointer', fontSize: '12px', whiteSpace: 'nowrap' }}>
+              ⏭ Next
+            </button>
+          </>
         )}
       </div>
     </div>
@@ -231,7 +253,7 @@ const PredictiveDialer = forwardRef(function PredictiveDialer({ contactLists, on
       settingsRef.current.lines.forEach((_, i) => {
         const line = linesRef.current[i];
         if (['idle', 'ended', 'voicemail', 'no_answer', 'abandoned'].includes(line.status)) {
-          setTimeout(() => { if (runningRef.current) dialLine(i); }, i * 600);
+          setTimeout(() => { if (runningRef.current) dialLine(i); }, i * 5000);
         }
       });
     },
@@ -262,54 +284,58 @@ const PredictiveDialer = forwardRef(function PredictiveDialer({ contactLists, on
     const now = new Date();
     const s   = settingsRef.current;
 
-    // ── Dialable status whitelist ──────────────────────────────────────
-    // Only call leads in these statuses — never prospects, never migrated
+    // ── State → timezone map (matches LeadsTab) ────────────────────────
+    const STATE_TZ = {
+      ET: ['CT','DC','DE','FL','GA','IN','KY','MA','MD','ME','MI','NC','NH','NJ','NY','OH','PA','RI','SC','TN','VA','VT','WV'],
+      CT: ['AL','AR','IA','IL','KS','LA','MN','MO','MS','ND','NE','OK','SD','TX','WI'],
+      MT: ['AZ','CO','ID','MT','NM','UT','WY'],
+      PT: ['AK','CA','NV','OR','WA'],
+    };
+    const stateToTz = {};
+    Object.entries(STATE_TZ).forEach(([tz, states]) => states.forEach(st => { stateToTz[st] = tz; }));
+
+    // ── Dialable status whitelist — never call prospects or migrated ───
     const DIALABLE_STATUSES = new Set(['lead', 'intro_email_sent', 'opened_intro_email', 'not_available', 'callback_later']);
 
     const dialable = all.filter(l => {
       if (!l.phone) return false;
-      // Must be in the allowed status whitelist
       if (!DIALABLE_STATUSES.has(l.status)) return false;
-      // Never call migrated leads (converted to InvestorUser)
-      if (l.migratedToPortal || l.convertedToInvestorUserId || l.status === 'converted') return false;
-      // Never call permanently excluded statuses
-      if (['not_interested', 'do_not_call', 'abandoned'].includes(l.status)) return false;
+      if (l.migratedToPortal || l.convertedToInvestorUserId) return false;
       if ((l.callAttempts || 0) >= s.maxAttempts) return false;
       if (l.lastCalledAt) {
         const retryAfter = new Date(new Date(l.lastCalledAt).getTime() + s.retryPeriodMinutes * 60000);
         if (retryAfter > now) return false;
       }
+      // ── Timezone filter ──────────────────────────────────────────────
+      const activeTzFilter = tzFilterRef.current;
+      if (activeTzFilter && activeTzFilter.length > 0) {
+        const tz = stateToTz[(l.state || '').toUpperCase().trim()];
+        if (!activeTzFilter.includes(tz)) return false;
+      }
       return true;
     });
 
     // ── Priority sort ─────────────────────────────────────────────────
-    // 1. opened_intro_email — highest priority (they engaged)
-    // 2. intro_email_sent   — medium priority (reached out, no open yet)
-    // 3. lead               — base priority
-    // 4. callback_later / not_available — retry queue
-    // Within each tier: never-called first (oldest first), then by lastCalledAt asc
+    // 1. opened_intro_email (engaged)  2. intro_email_sent  3. lead  4. callbacks
     const PRIORITY = { opened_intro_email: 0, intro_email_sent: 1, lead: 2, callback_later: 3, not_available: 3 };
-
-    const byPriority = (a, b) => {
+    const sorted = [...dialable].sort((a, b) => {
       const pa = PRIORITY[a.status] ?? 99;
       const pb = PRIORITY[b.status] ?? 99;
       if (pa !== pb) return pa - pb;
-      // Within tier: never-called first, then oldest lastCalledAt first
       if (!a.lastCalledAt && !b.lastCalledAt) return new Date(a.created_date) - new Date(b.created_date);
       if (!a.lastCalledAt) return -1;
       if (!b.lastCalledAt) return 1;
       return new Date(a.lastCalledAt) - new Date(b.lastCalledAt);
-    };
+    });
 
-    const sorted = [...dialable].sort(byPriority);
     queueRef.current      = sorted;
     queueIndexRef.current = 0;
     setQueue(sorted);
     setQueueIndex(0);
 
-    // Log breakdown so agent can see what was loaded
     const counts = sorted.reduce((acc, l) => { acc[l.status] = (acc[l.status] || 0) + 1; return acc; }, {});
-    addLog('system', `Queue: ${sorted.length} leads — ${Object.entries(counts).map(([s,n])=>`${n} ${s.replace(/_/g,' ')}`).join(', ')}`);
+    const tzLabel = tzFilterRef.current?.length ? ` · TZ: ${tzFilterRef.current.join('+')}` : '';
+    addLog('system', `Queue: ${sorted.length} leads${tzLabel} — ${Object.entries(counts).map(([st, n]) => `${n} ${st.replace(/_/g, ' ')}`).join(', ')}`);
 
     return sorted;
   };
@@ -363,9 +389,23 @@ const PredictiveDialer = forwardRef(function PredictiveDialer({ contactLists, on
     updateLine(lineIdx, { status: finalStatus, callSid: null, amdResult: null });
   };
 
+  const [tzFilter, setTzFilter] = useState([]); // [] = all, or array of 'ET'|'CT'|'MT'|'PT'
+  const tzFilterRef = useRef([]);
+  useEffect(() => { tzFilterRef.current = tzFilter; }, [tzFilter]);
+
   const hangupCall = async (callSid) => {
     if (!callSid) return;
     try { await base44.functions.invoke('twilioCall', { action: 'hangupCall', callSid }); } catch {}
+  };
+
+  // End the current call on a line and immediately dial the next lead
+  const handleSkip = async (lineIdx, callSid) => {
+    clearInterval(pollsRef.current[lineIdx]);
+    clearTimeout(ringTimersRef.current[lineIdx]);
+    if (callSid) await hangupCall(callSid);
+    cleanLine(lineIdx, 'ended');
+    // Small delay so the line clears visually before the next dial
+    setTimeout(() => { if (runningRef.current) dialLine(lineIdx); }, 800);
   };
 
   const startAMDPoll = (lineIdx, sid, lead, attempts) => {
@@ -548,7 +588,7 @@ const PredictiveDialer = forwardRef(function PredictiveDialer({ contactLists, on
     settingsRef.current.lines.forEach((_, i) => {
       const line = linesRef.current[i];
       if (['idle', 'ended', 'voicemail', 'no_answer', 'abandoned'].includes(line.status)) {
-        setTimeout(() => { if (runningRef.current) dialLine(i); }, i * 400);
+        setTimeout(() => { if (runningRef.current) dialLine(i); }, i * 5000);
       }
     });
   };
@@ -613,7 +653,7 @@ const PredictiveDialer = forwardRef(function PredictiveDialer({ contactLists, on
     runningRef.current = true;
     const rem = queueRef.current.length - queueIndexRef.current;
     addLog('system', `🚀 Starting — ${rem} leads, ${settings.lines.length} lines`);
-    settings.lines.forEach((_, i) => { setTimeout(() => dialLine(i), i * 600); });
+    settings.lines.forEach((_, i) => { setTimeout(() => dialLine(i), i * 5000); });
   };
 
   const stopDialing = async () => {
@@ -673,6 +713,32 @@ const PredictiveDialer = forwardRef(function PredictiveDialer({ contactLists, on
               </select>
             </div>
           )}
+          {/* Timezone filter */}
+          <div style={{ background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: '10px', padding: '12px 16px', marginBottom: '12px' }}>
+            <div style={{ color: '#8a9ab8', fontSize: '10px', letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: '8px' }}>🕐 Time Zone Filter <span style={{ color: '#4a5568', fontWeight: 'normal' }}>(select zones to call — leave empty for all)</span></div>
+            <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+              {[['ET','🕐 Eastern'],['CT','🕑 Central'],['MT','🕒 Mountain'],['PT','🕓 Pacific']].map(([tz, label]) => {
+                const active = tzFilter.includes(tz);
+                return (
+                  <button key={tz} onClick={() => setTzFilter(prev => active ? prev.filter(t => t !== tz) : [...prev, tz])}
+                    style={{ padding: '6px 14px', borderRadius: '6px', border: `1px solid ${active ? 'rgba(184,147,58,0.6)' : 'rgba(255,255,255,0.12)'}`, background: active ? 'rgba(184,147,58,0.15)' : 'rgba(255,255,255,0.04)', color: active ? GOLD : '#6b7280', cursor: 'pointer', fontSize: '12px', fontWeight: active ? 'bold' : 'normal', transition: 'all 0.15s' }}>
+                    {label}
+                  </button>
+                );
+              })}
+              {tzFilter.length > 0 && (
+                <button onClick={() => setTzFilter([])}
+                  style={{ padding: '6px 10px', borderRadius: '6px', border: '1px solid rgba(239,68,68,0.3)', background: 'rgba(239,68,68,0.08)', color: '#ef4444', cursor: 'pointer', fontSize: '11px' }}>
+                  ✕ Clear
+                </button>
+              )}
+            </div>
+            {tzFilter.length > 0 && (
+              <div style={{ color: '#4ade80', fontSize: '11px', marginTop: '6px' }}>
+                ✓ Calling {tzFilter.join(' + ')} only
+              </div>
+            )}
+          </div>
           <div style={{ display: 'flex', gap: '10px', marginBottom: '16px' }}>
             <select value={selectedListId} onChange={e => setSelectedListId(e.target.value)} style={{ flex: 1, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '6px', padding: '10px 12px', color: '#e8e0d0', fontSize: '13px', outline: 'none', cursor: 'pointer' }}>
               <option value="">— Select Contact List —</option>
@@ -702,7 +768,7 @@ const PredictiveDialer = forwardRef(function PredictiveDialer({ contactLists, on
       {/* Line Cards */}
       {started && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '14px' }}>
-          {settings.lines.map((_, i) => (<LineCard key={i} line={lines[i]} index={i} onHangup={hangupCall} />))}
+          {settings.lines.map((_, i) => (<LineCard key={i} line={lines[i]} index={i} onHangup={hangupCall} onSkip={handleSkip} />))}
         </div>
       )}
 
