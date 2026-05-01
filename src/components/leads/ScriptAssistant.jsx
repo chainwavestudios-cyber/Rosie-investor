@@ -56,6 +56,15 @@ export default function ScriptAssistant({ lead, user, onExpandCard, isCardExpand
   const qaLogRef      = useRef([]);   // accumulated Q&A pairs
   const coachTipsRef  = useRef([]);   // accumulated coach tips
 
+  // ── Pre-warm cache (populated as soon as call connects) ────────────
+  const prewarmRef = useRef({
+    dgKey:        null,   // Deepgram token
+    audioCtx:     null,   // AudioContext (already resumed)
+    mergedStream: null,   // mixed remote+local MediaStream
+    workletReady: false,  // audioWorklet module loaded
+    dest:         null,   // MediaStreamDestination node
+  });
+
   // ── Load data ──────────────────────────────────────────────────────
   useEffect(() => {
     base44.entities.GlobalScript.list('sortOrder', 200)
@@ -75,70 +84,143 @@ export default function ScriptAssistant({ lead, user, onExpandCard, isCardExpand
     }
   }, [twilioStream]);
 
+  // ── Pre-warm: fire as soon as the call connects ───────────────────
+  // Fetches Deepgram token, builds AudioContext, merges streams and loads
+  // the AudioWorklet module — all before the user clicks "Connect Stream".
+  useEffect(() => {
+    if (!twilioStream?.remoteStream && !twilioStream?.localStream) return;
+
+    let cancelled = false;
+    const pw = prewarmRef.current;
+
+    const prewarm = async () => {
+      try {
+        // 1. Deepgram token
+        if (!pw.dgKey) {
+          const tokenRes = await base44.functions.invoke('deepgramToken', {});
+          if (cancelled) return;
+          pw.dgKey = tokenRes?.key || tokenRes?.data?.key || '';
+        }
+
+        // 2. AudioContext + merged stream
+        if (!pw.audioCtx) {
+          const audioCtx = new AudioContext({ sampleRate: 48000 });
+          if (audioCtx.state === 'suspended') await audioCtx.resume();
+          if (cancelled) { audioCtx.close(); return; }
+
+          const dest = audioCtx.createMediaStreamDestination();
+          if (twilioStream.remoteStream) {
+            try { audioCtx.createMediaStreamSource(twilioStream.remoteStream).connect(dest); } catch {}
+          }
+          if (twilioStream.localStream) {
+            try { audioCtx.createMediaStreamSource(twilioStream.localStream).connect(dest); } catch {}
+          }
+
+          pw.audioCtx     = audioCtx;
+          pw.dest         = dest;
+          pw.mergedStream = dest.stream;
+
+          // 3. Pre-load AudioWorklet module
+          const workletCode = `
+            class PCMProcessor extends AudioWorkletProcessor {
+              process(inputs) {
+                const input = inputs[0]?.[0];
+                if (input?.length) {
+                  const pcm = new Int16Array(input.length);
+                  for (let i = 0; i < input.length; i++) {
+                    pcm[i] = Math.max(-32768, Math.min(32767, input[i] * 32768));
+                  }
+                  this.port.postMessage(pcm.buffer, [pcm.buffer]);
+                }
+                return true;
+              }
+            }
+            registerProcessor('pcm-processor', PCMProcessor);
+          `;
+          const blob       = new Blob([workletCode], { type: 'application/javascript' });
+          const workletUrl = URL.createObjectURL(blob);
+          try {
+            await audioCtx.audioWorklet.addModule(workletUrl);
+            URL.revokeObjectURL(workletUrl);
+            pw.workletReady = true;
+            console.log('[ScriptAssistant] Pre-warm complete ✓');
+          } catch (err) {
+            URL.revokeObjectURL(workletUrl);
+            console.warn('[ScriptAssistant] Pre-warm worklet failed (will fallback):', err.message);
+          }
+        }
+      } catch (err) {
+        console.warn('[ScriptAssistant] Pre-warm error (non-fatal):', err.message);
+      }
+    };
+
+    prewarm();
+    return () => { cancelled = true; };
+  }, [twilioStream]);
+
   // ── Connect to Deepgram via Twilio streams ─────────────────────────
-  // getRemoteStream() and getLocalStream() exist in SDK v2.18 but are set
-  // asynchronously by RTCPeerConnection ontrack — we delay 500ms after accept
-  // in the dialer so they're populated by the time we reach here.
+  // Uses pre-warmed token, AudioContext and worklet module cached in prewarmRef.
+  // If pre-warm hasn't finished yet (e.g. user clicks very fast) it falls back
+  // to the original on-demand setup so nothing ever breaks.
   const startListeningFromStream = async (remoteStream, localStream) => {
     if (listening) return;
     setError('');
     setStreamStatus('connecting');
 
     try {
-      // If streams are null, try pulling them from the call object directly
-      // and wait up to 2s for RTCPeerConnection ontrack to fire
-      // Debug: log what we got from the dialer
-      console.log('[ScriptAssistant] twilioStream:', twilioStream);
-      console.log('[ScriptAssistant] remoteStream:', remoteStream, 'localStream:', localStream);
+      const pw = prewarmRef.current;
 
-      if (!remoteStream && twilioStream?.call) {
-        console.log('[ScriptAssistant] remoteStream null — polling call.getRemoteStream()');
-        for (let i = 0; i < 8; i++) {
-          await new Promise(r => setTimeout(r, 250));
-          remoteStream = twilioStream.call.getRemoteStream?.() || null;
-          localStream  = twilioStream.call.getLocalStream?.()  || null;
-          console.log(`[ScriptAssistant] poll ${i+1}: remoteStream=`, remoteStream);
-          if (remoteStream) break;
+      // ── 1. Resolve streams ─────────────────────────────────────────
+      // Use pre-warm streams if available, otherwise fall back to polling
+      let mergedStream = pw.mergedStream || null;
+      let audioCtx     = pw.audioCtx     || null;
+
+      if (!mergedStream) {
+        console.log('[ScriptAssistant] Pre-warm miss — resolving streams on demand');
+
+        if (!remoteStream && twilioStream?.call) {
+          for (let i = 0; i < 8; i++) {
+            await new Promise(r => setTimeout(r, 250));
+            remoteStream = twilioStream.call.getRemoteStream?.() || null;
+            localStream  = twilioStream.call.getLocalStream?.()  || null;
+            if (remoteStream) break;
+          }
         }
+
+        if (!remoteStream && !localStream) {
+          setError('Could not get call audio streams. Is the call still active?');
+          setStreamStatus('error');
+          return;
+        }
+
+        const nativeSampleRate = 48000;
+        audioCtx = new AudioContext({ sampleRate: nativeSampleRate });
+        contextRef.current = audioCtx;
+        if (audioCtx.state === 'suspended') await audioCtx.resume();
+        const dest = audioCtx.createMediaStreamDestination();
+        if (remoteStream) { try { audioCtx.createMediaStreamSource(remoteStream).connect(dest); } catch {} }
+        if (localStream)  { try { audioCtx.createMediaStreamSource(localStream).connect(dest);  } catch {} }
+        mergedStream = dest.stream;
+      } else {
+        console.log('[ScriptAssistant] Using pre-warmed streams ✓');
+        contextRef.current = audioCtx;
       }
 
-      if (!remoteStream && !localStream) {
-        console.error('[ScriptAssistant] No audio streams available after retries');
-        setError('Could not get call audio streams. Is the call still active?');
-        setStreamStatus('error');
-        return;
+      streamRef.current = mergedStream;
+
+      // ── 2. Deepgram token ─────────────────────────────────────────
+      let dgKey = pw.dgKey || '';
+      if (!dgKey) {
+        console.log('[ScriptAssistant] Pre-warm token miss — fetching on demand');
+        const tokenRes = await base44.functions.invoke('deepgramToken', {});
+        dgKey = tokenRes?.key || tokenRes?.data?.key || '';
+      } else {
+        console.log('[ScriptAssistant] Using pre-warmed Deepgram token ✓');
       }
-
-      console.log('[ScriptAssistant] Got streams — remote tracks:', remoteStream?.getTracks?.(), 'local tracks:', localStream?.getTracks?.());
-
-      const tokenRes = await base44.functions.invoke('deepgramToken', {});
-      const dgKey    = tokenRes?.key || tokenRes?.data?.key || '';
       if (!dgKey) throw new Error('No Deepgram token — check DEEPGRAM_API_KEY');
 
-      // Use native sample rate — forcing 16000 causes mismatch with Twilio's 48000Hz WebRTC audio
-      const nativeSampleRate = 48000;
-      const audioCtx = new AudioContext({ sampleRate: nativeSampleRate });
-      contextRef.current = audioCtx;
-      if (audioCtx.state === 'suspended') await audioCtx.resume();
-      const dest = audioCtx.createMediaStreamDestination();
-
-      if (remoteStream) {
-        try {
-          audioCtx.createMediaStreamSource(remoteStream).connect(dest);
-          console.log('[ScriptAssistant] remote audio connected, tracks:', remoteStream.getTracks());
-        } catch(e) { console.error('[ScriptAssistant] remote connect failed:', e); }
-      }
-      if (localStream) {
-        try {
-          audioCtx.createMediaStreamSource(localStream).connect(dest);
-          console.log('[ScriptAssistant] local audio connected, tracks:', localStream.getTracks());
-        } catch(e) { console.error('[ScriptAssistant] local connect failed:', e); }
-      }
-
-      const mergedStream = dest.stream;
-      streamRef.current  = mergedStream;
-      console.log('[ScriptAssistant] merged stream tracks:', mergedStream.getTracks());
-
+      // ── 3. Open WebSocket ─────────────────────────────────────────
+      const nativeSampleRate = audioCtx.sampleRate;
       const ws = new WebSocket(
         `wss://api.deepgram.com/v1/listen?model=nova-2&language=en-US&smart_format=true&interim_results=true&endpointing=300&sentiment=true&diarize=true&sample_rate=${nativeSampleRate}&encoding=linear16&channels=1`,
         ['token', dgKey]
@@ -151,56 +233,72 @@ export default function ScriptAssistant({ lead, user, onExpandCard, isCardExpand
         setStreamStatus('connected');
         setAiEnabled(true);
 
-        // Use AudioWorkletNode instead of deprecated ScriptProcessorNode
-        const workletCode = `
-          class PCMProcessor extends AudioWorkletProcessor {
-            process(inputs) {
-              const input = inputs[0]?.[0];
-              if (input?.length) {
-                const pcm = new Int16Array(input.length);
-                for (let i = 0; i < input.length; i++) {
-                  pcm[i] = Math.max(-32768, Math.min(32767, input[i] * 32768));
-                }
-                this.port.postMessage(pcm.buffer, [pcm.buffer]);
-              }
-              return true;
-            }
+        // ── 4. Wire audio pipeline ────────────────────────────────
+        if (pw.workletReady && audioCtx) {
+          // Worklet already loaded — just create the node
+          console.log('[ScriptAssistant] Using pre-warmed AudioWorklet ✓');
+          try {
+            const workletNode = new AudioWorkletNode(audioCtx, 'pcm-processor');
+            processorRef.current = workletNode;
+            workletNode.port.onmessage = (e) => {
+              if (ws.readyState === WebSocket.OPEN) ws.send(e.data);
+            };
+            const src = audioCtx.createMediaStreamSource(mergedStream);
+            src.connect(workletNode);
+            workletNode.connect(audioCtx.destination);
+            console.log('[ScriptAssistant] AudioWorklet pipeline connected ✓');
+          } catch (err) {
+            console.warn('[ScriptAssistant] Worklet node failed, falling back:', err.message);
+            pw.workletReady = false; // fall through to ScriptProcessor below
           }
-          registerProcessor('pcm-processor', PCMProcessor);
-        `;
-        const blob = new Blob([workletCode], { type: 'application/javascript' });
-        const workletUrl = URL.createObjectURL(blob);
+        }
 
-        try {
-          await audioCtx.audioWorklet.addModule(workletUrl);
-          URL.revokeObjectURL(workletUrl); // safe to revoke only after addModule resolves
-
-          const workletNode = new AudioWorkletNode(audioCtx, 'pcm-processor');
-          processorRef.current = workletNode;
-
-          workletNode.port.onmessage = (e) => {
-            if (ws.readyState === WebSocket.OPEN) ws.send(e.data);
-          };
-
-          const src = audioCtx.createMediaStreamSource(mergedStream);
-          src.connect(workletNode);
-          workletNode.connect(audioCtx.destination);
-          console.log('[ScriptAssistant] AudioWorklet pipeline connected');
-        } catch (err) {
-          // Fallback to ScriptProcessor if AudioWorklet fails (e.g. non-secure context)
-          console.warn('AudioWorklet unavailable, falling back to ScriptProcessor:', err.message);
-          const proc = audioCtx.createScriptProcessor(4096, 1, 1);
-          processorRef.current = proc;
-          const src = audioCtx.createMediaStreamSource(mergedStream);
-          proc.onaudioprocess = e => {
-            if (ws.readyState !== WebSocket.OPEN) return;
-            const input = e.inputBuffer.getChannelData(0);
-            const pcm   = new Int16Array(input.length);
-            for (let i = 0; i < input.length; i++) pcm[i] = Math.max(-32768, Math.min(32767, input[i] * 32768));
-            ws.send(pcm.buffer);
-          };
-          src.connect(proc);
-          proc.connect(audioCtx.destination);
+        if (!pw.workletReady) {
+          // Load worklet fresh (pre-warm miss or worklet node failed)
+          const workletCode = `
+            class PCMProcessor extends AudioWorkletProcessor {
+              process(inputs) {
+                const input = inputs[0]?.[0];
+                if (input?.length) {
+                  const pcm = new Int16Array(input.length);
+                  for (let i = 0; i < input.length; i++) {
+                    pcm[i] = Math.max(-32768, Math.min(32767, input[i] * 32768));
+                  }
+                  this.port.postMessage(pcm.buffer, [pcm.buffer]);
+                }
+                return true;
+              }
+            }
+            registerProcessor('pcm-processor', PCMProcessor);
+          `;
+          const blob       = new Blob([workletCode], { type: 'application/javascript' });
+          const workletUrl = URL.createObjectURL(blob);
+          try {
+            await audioCtx.audioWorklet.addModule(workletUrl);
+            URL.revokeObjectURL(workletUrl);
+            const workletNode = new AudioWorkletNode(audioCtx, 'pcm-processor');
+            processorRef.current = workletNode;
+            workletNode.port.onmessage = (e) => {
+              if (ws.readyState === WebSocket.OPEN) ws.send(e.data);
+            };
+            const src = audioCtx.createMediaStreamSource(mergedStream);
+            src.connect(workletNode);
+            workletNode.connect(audioCtx.destination);
+          } catch (err) {
+            console.warn('AudioWorklet unavailable, falling back to ScriptProcessor:', err.message);
+            const proc = audioCtx.createScriptProcessor(4096, 1, 1);
+            processorRef.current = proc;
+            const src = audioCtx.createMediaStreamSource(mergedStream);
+            proc.onaudioprocess = e => {
+              if (ws.readyState !== WebSocket.OPEN) return;
+              const input = e.inputBuffer.getChannelData(0);
+              const pcm   = new Int16Array(input.length);
+              for (let i = 0; i < input.length; i++) pcm[i] = Math.max(-32768, Math.min(32767, input[i] * 32768));
+              ws.send(pcm.buffer);
+            };
+            src.connect(proc);
+            proc.connect(audioCtx.destination);
+          }
         }
       };
 
@@ -256,6 +354,8 @@ export default function ScriptAssistant({ lead, user, onExpandCard, isCardExpand
     try { processorRef.current?.disconnect(); processorRef.current?.port?.close?.(); } catch {}
     try { contextRef.current?.close(); } catch {}
     try { streamRef.current?.getTracks().forEach(t => t.stop()); } catch {}
+    // Reset pre-warm cache so next call starts fresh
+    prewarmRef.current = { dgKey: null, audioCtx: null, mergedStream: null, workletReady: false, dest: null };
     setListening(false);
     setStreamStatus('idle');
     setAiEnabled(false);
