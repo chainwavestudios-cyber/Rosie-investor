@@ -181,7 +181,7 @@ export default function ContactCardModal({ user, onClose, onSave, allSessions, m
     if (!editUser.email) { setEmailMsg('No email address on file.'); return; }
     setSendingEmail(true); setEmailMsg('');
     try {
-      await base44.functions.invoke('sendLeadEmail', { investorId: user.id, toEmail: editUser.email, toName: user.name, firstName: user.name.split(' ')[0] });
+      await base44.functions.invoke('sendLeadEmail', { investorId: user.id, toEmail: editUser.email, toName: user.name, firstName: user.name.split(' ')[0], sentBy: currentUsername });
       setEmailMsg('✓ Email sent!');
       setTimeout(() => setEmailMsg(''), 3000);
     } catch (e) { setEmailMsg('Error: ' + (e.response?.data?.error || e.message)); }
@@ -393,6 +393,7 @@ export default function ContactCardModal({ user, onClose, onSave, allSessions, m
                         <div style={{ display:'flex', alignItems:'center', gap:'8px' }}>
                           <span style={{ color:labelColor, fontSize:'11px', textTransform:'uppercase', letterSpacing:'1px' }}>{label}</span>
                           {isMigrated && <span style={{ background:'rgba(96,165,250,0.12)', color:'#60a5fa', fontSize:'9px', padding:'1px 6px', borderRadius:'3px', letterSpacing:'1px' }}>MIGRATED</span>}
+                          {!isMigrated && note.createdBy && <span style={{ color:'#6b7280', fontSize:'10px' }}>· {note.createdBy}</span>}
                         </div>
                         <div style={{ display:'flex', gap:'10px', alignItems:'center' }}>
                           <span style={{ color:'#4a5568', fontSize:'11px' }}>{note.createdAt ? new Date(note.createdAt).toLocaleString() : ''}</span>
