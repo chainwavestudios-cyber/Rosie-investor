@@ -139,14 +139,22 @@ export default function Home() {
   }
 
   return (
-    <div className="w-full h-screen" style={{ position: 'relative', background: '#060c18' }}>
+    <div style={{ position: 'relative', width: '100%', height: '100vh', overflow: 'hidden', background: '#060c18' }}>
       {loadingHtml && (
         <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#060c18', zIndex: 10 }}>
           <div style={{ width: '36px', height: '36px', border: '3px solid rgba(184,147,58,0.2)', borderTop: '3px solid #b8933a', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
           <style>{`@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}`}</style>
         </div>
       )}
-      {htmlContent && <iframe src={htmlContent} className="w-full h-full border-0" title="Rosie Pitchbook" style={{ display: loadingHtml ? 'none' : 'block' }} />}
+      {htmlContent && (
+        <iframe
+          src={htmlContent}
+          className="w-full border-0"
+          title="Rosie Pitchbook"
+          sandbox="allow-scripts allow-same-origin allow-popups allow-forms allow-pointer-lock"
+          style={{ display: loadingHtml ? 'none' : 'block', width: '100%', height: '100vh', border: 'none' }}
+        />
+      )}
       {!loadingHtml && htmlContent && <button
         onClick={() => navigate('/portal-login')}
         style={{
