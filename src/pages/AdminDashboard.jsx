@@ -1357,10 +1357,12 @@ function IntentEngineTuner() {
   const [s, setS]       = useState(getPortalSettings);
   const [saved, setSaved] = useState(false);
 
-  const [duckDef2, setDuckDef2]     = useState(s.intentDuckDefinition || `Argumentative, skeptical, raises objections, tries to prove things wrong, combative tone, says things like "that won't work", "I doubt that", "prove it".`);
-  const [cowDef2, setCowDef2]       = useState(s.intentCowDefinition  || `Agreeable, curious, open-minded, says things like "that's interesting", "really?", "wow", asks genuine questions, believes what you say, enthusiastic listener.`);
-  const [triggers2, setTriggers2]   = useState(s.intentTriggerKeywords || 'minimum investment, how much, returns, roi, risk, guaranteed, lock-up, liquidity, accredited, fees, cost, sec, regulation');
-  const [interval2, setInterval2]   = useState(s.intentIntervalSeconds || 20);
+  const [duckDef2, setDuckDef2]         = useState(s.intentDuckDefinition || `Argumentative, skeptical, raises objections, tries to prove things wrong, combative tone, says things like "that won't work", "I doubt that", "prove it".`);
+  const [cowDef2, setCowDef2]           = useState(s.intentCowDefinition  || `Agreeable, curious, open-minded, says things like "that's interesting", "really?", "wow", asks genuine questions, believes what you say, enthusiastic listener.`);
+  const [triggers2, setTriggers2]       = useState(s.intentTriggerKeywords || 'minimum investment, how much, returns, roi, risk, guaranteed, lock-up, liquidity, accredited, fees, cost, sec, regulation');
+  const [interval2, setInterval2]       = useState(s.intentIntervalSeconds || 20);
+  const [posSignals, setPosSignals]     = useState(s.intentPositiveSignals || 'how do I get started, what is the minimum, when can I invest, I am interested, sounds good, I like that, tell me more, what are the returns');
+  const [negSignals, setNegSignals]     = useState(s.intentNegativeSignals || 'not interested, call me later, I need to think about it, talk to my spouse, too risky, too expensive, send me something, I am not sure');
 
   useEffect(() => {
     loadPortalSettings().then(loaded => {
@@ -1369,11 +1371,13 @@ function IntentEngineTuner() {
       setCowDef2(loaded.intentCowDefinition   || cowDef2);
       setTriggers2(loaded.intentTriggerKeywords || triggers2);
       setInterval2(loaded.intentIntervalSeconds || 20);
+      setPosSignals(loaded.intentPositiveSignals || posSignals);
+      setNegSignals(loaded.intentNegativeSignals || negSignals);
     });
   }, []);
 
   const save = async () => {
-    await savePortalSettings({ ...s, intentDuckDefinition: duckDef2, intentCowDefinition: cowDef2, intentTriggerKeywords: triggers2, intentIntervalSeconds: Number(interval2) });
+    await savePortalSettings({ ...s, intentDuckDefinition: duckDef2, intentCowDefinition: cowDef2, intentTriggerKeywords: triggers2, intentIntervalSeconds: Number(interval2), intentPositiveSignals: posSignals, intentNegativeSignals: negSignals });
     setSaved(true); setTimeout(() => setSaved(false), 2000);
   };
 
@@ -1405,10 +1409,22 @@ function IntentEngineTuner() {
         <div style={{ color:'#6b7280', fontSize:'11px', marginTop:'6px' }}>Comma-separated keywords. When detected in the transcript, the AI instantly looks up an answer from the KB. These replace the hardcoded patterns.</div>
       </div>
 
-      <div style={{ background:'rgba(0,0,0,0.2)', border:'1px solid rgba(255,255,255,0.07)', borderRadius:'4px', padding:'20px', marginBottom:'24px' }}>
+      <div style={{ background:'rgba(0,0,0,0.2)', border:'1px solid rgba(255,255,255,0.07)', borderRadius:'4px', padding:'20px', marginBottom:'20px' }}>
         <div style={{ color:GOLD, fontSize:'10px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'14px' }}>⏱ Intent Check Interval (seconds)</div>
         <input type="number" value={interval2} onChange={e => setInterval2(e.target.value)} min={10} max={60} style={{ ...inp3, width:'120px' }} />
         <div style={{ color:'#6b7280', fontSize:'11px', marginTop:'6px' }}>How often the intent engine runs during a live call. Default: 20s. Lower = more responsive but more API calls.</div>
+      </div>
+
+      <div style={{ background:'rgba(74,222,128,0.04)', border:'1px solid rgba(74,222,128,0.18)', borderRadius:'4px', padding:'20px', marginBottom:'20px' }}>
+        <div style={{ color:'#4ade80', fontSize:'10px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'14px' }}>✅ Positive Signal Phrases</div>
+        <textarea value={posSignals} onChange={e => setPosSignals(e.target.value)} rows={3} style={ta} />
+        <div style={{ color:'#6b7280', fontSize:'11px', marginTop:'6px' }}>Phrases that indicate buying intent. The AI detects these verbatim and logs them in the AI Details tab after the call.</div>
+      </div>
+
+      <div style={{ background:'rgba(239,68,68,0.04)', border:'1px solid rgba(239,68,68,0.18)', borderRadius:'4px', padding:'20px', marginBottom:'24px' }}>
+        <div style={{ color:'#ef4444', fontSize:'10px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'14px' }}>⚠️ Negative Signal Phrases</div>
+        <textarea value={negSignals} onChange={e => setNegSignals(e.target.value)} rows={3} style={ta} />
+        <div style={{ color:'#6b7280', fontSize:'11px', marginTop:'6px' }}>Phrases that indicate hesitation or objection. Logged in the AI Details tab and factor into the intent score.</div>
       </div>
 
       <div style={{ display:'flex', gap:'12px', alignItems:'center', marginBottom:'32px' }}>
