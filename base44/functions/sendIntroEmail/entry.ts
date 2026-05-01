@@ -16,7 +16,7 @@ Deno.serve(async (req) => {
   }
 
   const base44 = createClientFromRequest(req);
-  const { leadIds } = await req.json();
+  const { leadIds, sentBy } = await req.json();
 
   if (!leadIds || !Array.isArray(leadIds) || leadIds.length === 0)
     return Response.json({ error: 'Missing leadIds array' }, { status: 400 });
@@ -117,7 +117,7 @@ Deno.serve(async (req) => {
         messageId, messageUUID,
         status:       'sent',
         sentAt:       new Date().toISOString(),
-        sentBy:       'admin',
+        sentBy:       sentBy || 'admin',
         isIntroEmail: true,
       }).catch(e => console.warn('[sendIntroEmail] EmailLog create failed:', e.message));
 
@@ -130,7 +130,7 @@ Deno.serve(async (req) => {
       // Log history
       await base44.asServiceRole.entities.LeadHistory.create({
         leadId, type: 'note',
-        content: `📧 Intro email sent (template ${INTRO_TEMPLATE_ID}). State: ${state || 'N/A'}. Username: ${username}. MessageID: ${messageId}. +5 engagement.`,
+        content: `📧 Intro email sent by ${sentBy || 'admin'} (template ${INTRO_TEMPLATE_ID}). State: ${state || 'N/A'}. Username: ${username}. +5 engagement.`,
       }).catch(() => {});
 
       results.push({ leadId, success: true, messageId });
