@@ -390,7 +390,10 @@ function OverviewTab({ editLead, setEditLead, saving, saveMsg, saveProfile, upda
                   <span style={{ fontSize:'13px', flexShrink:0, marginTop:'1px' }}>{icon}</span>
                   <div style={{ flex:1, minWidth:0 }}>
                     <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', gap:'8px' }}>
-                      <span style={{ color, fontSize:'10px', textTransform:'uppercase', letterSpacing:'1px' }}>{h.type.replace(/_/g,' ')}</span>
+                      <div style={{ display:'flex', gap:'6px', alignItems:'center' }}>
+                        <span style={{ color, fontSize:'10px', textTransform:'uppercase', letterSpacing:'1px' }}>{h.type.replace(/_/g,' ')}</span>
+                        {h.createdBy && <span style={{ color:'#6b7280', fontSize:'10px' }}>· {h.createdBy}</span>}
+                      </div>
                       <span style={{ color:'#4a5568', fontSize:'10px', whiteSpace:'nowrap' }}>
                         {h.created_date ? new Date(h.created_date).toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}) : ''}
                       </span>
@@ -649,7 +652,10 @@ function LeadHistoryTab({ lead, history, onNoteAdded, createdBy = 'admin' }) {
                   <div style={{ fontSize:'16px', flexShrink:0, marginTop:'2px' }}>{icon}</div>
                   <div style={{ flex:1, background:'rgba(255,255,255,0.02)', border:'1px solid rgba(255,255,255,0.06)', borderRadius:'4px', padding:'10px 12px' }}>
                     <div style={{ display:'flex', justifyContent:'space-between', marginBottom:'4px' }}>
-                      <span style={{ color, fontSize:'10px', textTransform:'uppercase', letterSpacing:'1px' }}>{h.type.replace(/_/g,' ')}</span>
+                      <div style={{ display:'flex', gap:'8px', alignItems:'center' }}>
+                        <span style={{ color, fontSize:'10px', textTransform:'uppercase', letterSpacing:'1px' }}>{h.type.replace(/_/g,' ')}</span>
+                        {h.createdBy && <span style={{ color:'#6b7280', fontSize:'10px' }}>· {h.createdBy}</span>}
+                      </div>
                       <span style={{ color:'#4a5568', fontSize:'10px' }}>{fmtDT(h.created_date)}</span>
                     </div>
                     <p style={{ color:'#c4cdd8', fontSize:'12px', margin:0, lineHeight:1.6, whiteSpace:'pre-wrap' }}>{h.content}</p>
