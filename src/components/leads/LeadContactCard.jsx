@@ -34,7 +34,7 @@ function historyColor(type) {
   return map[type] || '#6b7280';
 }
 
-function SiteAccessTab({ lead, onUpdate, onSave }) {
+function SiteAccessTab({ lead, onUpdate, onSave, createdBy = 'admin' }) {
   const GOLD = '#b8933a';
   const [copied, setCopied] = useState('');
   const [editingUsername, setEditingUsername] = useState(false);
@@ -60,7 +60,7 @@ function SiteAccessTab({ lead, onUpdate, onSave }) {
       await base44.entities.LeadHistory.create({
         leadId: lead.id, type: 'note',
         content: `🔗 Site access username updated. Username: ${newUsername.trim().toLowerCase()}`,
-        createdBy: 'admin',
+        createdBy: createdBy,
       });
       setSaveMsg('✓ Saved');
       setEditingUsername(false);
@@ -142,7 +142,7 @@ function SiteAccessTab({ lead, onUpdate, onSave }) {
 }
 
 
-function OverviewTab({ editLead, setEditLead, saving, saveMsg, saveProfile, updateStatus, quickNote, setQuickNote, addQuickNote, addingNote, history, loading, isArchived, onQuickNotInterested, onQuickCallbackLater, onMigrate, onNoteAdded }) {
+function OverviewTab({ editLead, setEditLead, saving, saveMsg, saveProfile, updateStatus, quickNote, setQuickNote, addQuickNote, addingNote, history, loading, isArchived, onQuickNotInterested, onQuickCallbackLater, onMigrate, onNoteAdded, createdBy = 'admin' }) {
   const [editing, setEditing] = useState(false);
   const GOLD = '#b8933a';
   const DARK = '#0a0f1e';
@@ -268,12 +268,13 @@ function OverviewTab({ editLead, setEditLead, saving, saveMsg, saveProfile, upda
                       scheduledAt: followUpDate,
                       notes: followUpNote,
                       status: 'scheduled',
-                      createdBy: 'admin',
+                      createdBy: createdBy,
                     });
                     await base44.entities.LeadHistory.create({
                       leadId: editLead.id,
                       type: 'callback_later',
-                      content: `📅 Follow up scheduled for ${new Date(followUpDate).toLocaleString('en-US',{weekday:'short',month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})}${followUpNote ? ` — ${followUpNote}` : ''}`,
+                      content: `📅 Follow up scheduled for ${new Date(followUpDate).toLocaleString('en-US',{weekday:'short',month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})}${followUpNote ? ` — ${followUpNote}` : ''} · by ${createdBy}`,
+                      createdBy: createdBy,
                     });
                     setShowFollowUpPicker(false); setFollowUpDate(''); setFollowUpNote('');
                     onNoteAdded && onNoteAdded();
@@ -1200,6 +1201,7 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
               onQuickCallbackLater={handleQuickCallbackLater}
               onMigrate={() => setShowMigrate(true)}
               onNoteAdded={loadHistory}
+              createdBy={currentUsername}
             />
           )}
 
@@ -1209,7 +1211,7 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
           )}
 
           {tab === 'access' && (
-            <SiteAccessTab lead={editLead} onUpdate={(updates) => setEditLead(prev => ({ ...prev, ...updates }))} onSave={async (updates) => {
+            <SiteAccessTab lead={editLead} createdBy={currentUsername} onUpdate={(updates) => setEditLead(prev => ({ ...prev, ...updates }))} onSave={async (updates) => {
               try {
                 await base44.entities.Lead.update(lead.id, updates);
                 setEditLead(prev => ({ ...prev, ...updates }));
