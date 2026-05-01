@@ -47,11 +47,11 @@
       "title": "Status",
       "enum": [
         "lead",
+        "intro_email_sent",
+        "opened_intro_email",
         "not_available",
         "callback_later",
         "not_interested",
-        "intro_email_sent",
-        "opened_intro_email",
         "prospect",
         "converted",
         "abandoned"
@@ -72,7 +72,7 @@
     },
     "leadPipelineOwner": {
       "type": "string",
-      "title": "Pipeline Owner (admin username)"
+      "title": "Lead Pipeline Owner (admin username)"
     },
     "starRating": {
       "type": "number",
