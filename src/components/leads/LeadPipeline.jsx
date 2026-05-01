@@ -95,7 +95,7 @@ function fmtDate(iso) {
   return d.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
 }
 
-function LeadPipelineCard({ lead, stage, onDragStart, onOpenCard, hasApptToday, onStarChange }) {
+function LeadPipelineCard({ lead, stage, onDragStart, onOpenCard, hasApptToday, apptTime, onStarChange }) {
   const [dragging, setDragging] = useState(false);
   const [starVal, setStarVal] = useState(lead.starRating || 0);
 
@@ -113,28 +113,25 @@ function LeadPipelineCard({ lead, stage, onDragStart, onOpenCard, hasApptToday, 
       onDragEnd={() => setDragging(false)}
       onClick={onOpenCard}
       style={{
-        background: dragging ? 'rgba(0,0,0,0.4)' : '#0d1b2a',
-        border: `1px solid ${stage.border}`,
-        borderLeft: `3px solid ${stage.color}`,
+        background: dragging ? 'rgba(0,0,0,0.4)' : hasApptToday ? 'rgba(245,158,11,0.06)' : '#0d1b2a',
+        border: hasApptToday ? `1px solid rgba(245,158,11,0.35)` : `1px solid ${stage.border}`,
+        borderLeft: `3px solid ${hasApptToday ? '#f59e0b' : stage.color}`,
         borderRadius: '4px',
         padding: '10px 10px 8px',
         cursor: 'pointer',
         opacity: dragging ? 0.4 : 1,
         transition: 'all 0.1s',
         userSelect: 'none',
-        boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
+        boxShadow: hasApptToday ? '0 2px 12px rgba(245,158,11,0.15)' : '0 2px 8px rgba(0,0,0,0.3)',
         position: 'relative',
       }}
-      onMouseEnter={e => { if (!dragging) e.currentTarget.style.background = 'rgba(255,255,255,0.06)'; }}
-      onMouseLeave={e => { if (!dragging) e.currentTarget.style.background = '#0d1b2a'; }}>
+      onMouseEnter={e => { if (!dragging) e.currentTarget.style.background = hasApptToday ? 'rgba(245,158,11,0.1)' : 'rgba(255,255,255,0.06)'; }}
+      onMouseLeave={e => { if (!dragging) e.currentTarget.style.background = hasApptToday ? 'rgba(245,158,11,0.06)' : '#0d1b2a'; }}>
 
       {/* Top row: name + score badge */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '6px', marginBottom: '4px' }}>
         <div style={{ color: '#e8e0d0', fontSize: '12px', fontWeight: 'bold', lineHeight: 1.3, flex: 1, minWidth: 0 }}>
           {lead.firstName} {lead.lastName}
-          {hasApptToday && (
-            <span style={{ marginLeft: '4px', fontSize: '13px', animation: 'calPulse 1.4s ease-in-out infinite', display: 'inline-block' }}>📅</span>
-          )}
         </div>
         {(lead.engagementScore > 0) && (
           <div style={{ width: '28px', height: '28px', borderRadius: '50%', border: `2px solid ${GOLD}`, background: `rgba(184,147,58,0.15)`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
@@ -177,9 +174,44 @@ function LeadPipelineCard({ lead, stage, onDragStart, onOpenCard, hasApptToday, 
       )}
 
       {/* Star rating */}
-      <div onClick={e => e.stopPropagation()} style={{ marginTop: '2px' }}>
+      <div onClick={e => e.stopPropagation()} style={{ marginTop: '2px', marginBottom: hasApptToday ? '6px' : '0' }}>
         <StarRating value={starVal} onChange={handleStarChange} />
       </div>
+
+      {/* Appointment today — pulsing reminder under stars */}
+      {hasApptToday && apptTime && (
+        <div style={{
+          marginTop: '6px',
+          background: 'rgba(245,158,11,0.12)',
+          border: '1px solid rgba(245,158,11,0.35)',
+          borderRadius: '3px',
+          padding: '4px 7px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '5px',
+          animation: 'apptPulse 2s ease-in-out infinite',
+        }}>
+          <span style={{ fontSize: '11px' }}>📅</span>
+          <span style={{ color: '#f59e0b', fontSize: '10px', fontWeight: 'bold', letterSpacing: '0.3px' }}>
+            Appointment {apptTime}
+          </span>
+        </div>
+      )}
+
+      {/* Pulsing 📅 bottom-right corner */}
+      {hasApptToday && (
+        <div style={{
+          position: 'absolute',
+          bottom: '7px',
+          right: '8px',
+          fontSize: '18px',
+          animation: 'calPulse 1.4s ease-in-out infinite',
+          lineHeight: 1,
+          pointerEvents: 'none',
+        }}>
+          📅
+        </div>
+      )}
     </div>
   );
 }
@@ -236,6 +268,7 @@ export default function LeadPipeline({ onOpenLead }) {
   const [dragId, setDragId] = useState(null);
   const [dragOver, setDragOver] = useState(null);
   const [todayApptLeadIds, setTodayApptLeadIds] = useState(new Set());
+  const [apptTimeMap, setApptTimeMap]           = useState({});
   const [stages, setStages] = useState(loadStages);
   const [addingStage, setAddingStage] = useState(false);
   const [newStageName, setNewStageName] = useState('');
@@ -279,10 +312,15 @@ export default function LeadPipeline({ onOpenLead }) {
       setLeads(enriched);
 
       const today = new Date().toDateString();
-      const ids = new Set(
-        appts.filter(a => a.scheduledAt && new Date(a.scheduledAt).toDateString() === today).map(a => a.investorId)
-      );
+      const todayAppts = appts.filter(a => a.scheduledAt && new Date(a.scheduledAt).toDateString() === today);
+      const ids = new Set(todayAppts.map(a => a.investorId));
+      // Map leadId → formatted appointment time for display on card
+      const timeMap = {};
+      todayAppts.forEach(a => {
+        timeMap[a.investorId] = new Date(a.scheduledAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+      });
       setTodayApptLeadIds(ids);
+      setApptTimeMap(timeMap);
     } catch (e) { console.error(e); }
     setLoading(false);
   };
@@ -348,6 +386,10 @@ export default function LeadPipeline({ onOpenLead }) {
           0%, 100% { transform: scale(1); opacity: 1; }
           50% { transform: scale(1.3); opacity: 0.7; }
         }
+        @keyframes apptPulse {
+          0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(245,158,11,0); }
+          50% { opacity: 0.85; box-shadow: 0 0 8px 2px rgba(245,158,11,0.25); }
+        }
       `}</style>
 
       {/* Pipeline owner tabs */}
@@ -402,7 +444,12 @@ export default function LeadPipeline({ onOpenLead }) {
         {stages.map((stage, idx) => {
           const style = getStageStyle(idx);
           const stageWithStyle = { ...stage, ...style };
-          const cards = leadsInStage(stage.id);
+          const cards = leadsInStage(stage.id).sort((a, b) => {
+            // Leads with appointments today always float to the top
+            const aHas = todayApptLeadIds.has(a.id) ? 1 : 0;
+            const bHas = todayApptLeadIds.has(b.id) ? 1 : 0;
+            return bHas - aHas;
+          });
           const isOver = dragOver === stage.id;
           return (
             <div key={stage.id}
@@ -439,6 +486,7 @@ export default function LeadPipeline({ onOpenLead }) {
                     lead={lead}
                     stage={stageWithStyle}
                     hasApptToday={todayApptLeadIds.has(lead.id)}
+                    apptTime={apptTimeMap[lead.id] || null}
                     onDragStart={e => handleDragStart(e, lead.id)}
                     onOpenCard={() => onOpenLead(lead)}
                     onStarChange={(val) => handleStarChange(lead.id, val)}
