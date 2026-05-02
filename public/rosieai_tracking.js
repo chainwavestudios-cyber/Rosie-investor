@@ -51,8 +51,7 @@
     };
     
     // Post to admin app's logSiteVisit function
-    // The function endpoint path is typically /api/functions/logSiteVisit
-    const adminAppUrl = 'https://rosieai-admin.app'; // Replace with actual admin app URL
+    const adminAppUrl = 'https://investors.rosieai.tech';
     const endpoint = adminAppUrl + '/api/functions/logSiteVisit';
     
     // Use sendBeacon for reliable delivery on page unload
@@ -91,7 +90,7 @@
           visitedAt: new Date().toISOString(),
         };
         
-        const adminAppUrl = 'https://rosieai-admin.app';
+        const adminAppUrl = 'https://investors.rosieai.tech';
         const endpoint = adminAppUrl + '/api/functions/logSiteVisit';
         
         fetch(endpoint, {
