@@ -216,6 +216,21 @@
       "title": "Coach Additional Context",
       "format": "textarea"
     },
+    "coachFocusPills": {
+      "type": "string",
+      "title": "Coach Focus Pills",
+      "format": "textarea"
+    },
+    "coachSmartRules": {
+      "type": "string",
+      "title": "Coach Smart Rules",
+      "format": "textarea"
+    },
+    "coachListeningStrategy": {
+      "type": "string",
+      "title": "Coach Listening Strategy",
+      "format": "textarea"
+    },
     "intentDuckDefinition": {
       "type": "string",
       "title": "Intent Duck Definition",
@@ -244,6 +259,11 @@
     "intentNegativeSignals": {
       "type": "string",
       "title": "Intent Negative Signal Phrases",
+      "format": "textarea"
+    },
+    "intentSentimentRules": {
+      "type": "string",
+      "title": "Intent Sentiment Rules",
       "format": "textarea"
     }
   },
