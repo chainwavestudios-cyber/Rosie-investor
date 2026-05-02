@@ -474,9 +474,26 @@ export default function ScriptAssistant({ lead, user, onExpandCard, isCardExpand
     if (next) setShowPopup(true);
   };
 
-  // ── Script panel ──────────────────────────────────────────────────
+  // ── Script panel + auto-scroll ───────────────────────────────────
+  const [autoScrollSpeed, setAutoScrollSpeed] = useState(1);
+  const [autoScrollActive, setAutoScrollActive] = useState(false);
+  const scriptContentRef = useRef(null);
+  
   const active   = scripts.find(s => s.id === activeId) || scripts[0];
   const rendered = active ? applyTokens(active.content, lead, user) : '';
+
+  // Auto-scroll effect
+  useEffect(() => {
+    if (!autoScrollActive || !scriptContentRef.current) return;
+    
+    const interval = setInterval(() => {
+      if (scriptContentRef.current) {
+        scriptContentRef.current.scrollTop += autoScrollSpeed;
+      }
+    }, 50);
+    
+    return () => clearInterval(interval);
+  }, [autoScrollActive, autoScrollSpeed]);
 
   const onDividerMouseDown = (e) => { isDraggingDivider.current = true; e.preventDefault(); };
   useEffect(() => {
@@ -503,7 +520,8 @@ export default function ScriptAssistant({ lead, user, onExpandCard, isCardExpand
 
   const scriptPanelJSX = (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
-      <div style={{ display: 'flex', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.07)', overflowX: 'auto', flexShrink: 0, scrollbarWidth: 'none' }}>
+      {/* Sticky script tabs */}
+      <div style={{ display: 'flex', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.07)', overflowX: 'auto', flexShrink: 0, scrollbarWidth: 'none', position: 'sticky', top: 0, zIndex: 10, background: 'rgba(0,0,0,0.25)' }}>
         {scripts.map(s => (
           <button key={s.id} onClick={() => setActiveId(s.id)}
             style={{ background: activeId === s.id ? 'rgba(184,147,58,0.1)' : 'none', border: 'none', borderBottom: activeId === s.id ? `2px solid ${GOLD}` : '2px solid transparent', color: activeId === s.id ? GOLD : '#6b7280', padding: '7px 12px', cursor: 'pointer', fontSize: '11px', whiteSpace: 'nowrap', flexShrink: 0 }}>
@@ -511,10 +529,23 @@ export default function ScriptAssistant({ lead, user, onExpandCard, isCardExpand
           </button>
         ))}
       </div>
+
+      {/* Auto-scroll controls */}
+      <div style={{ display: 'flex', gap: '6px', alignItems: 'center', padding: '6px 10px', borderBottom: '1px solid rgba(255,255,255,0.05)', flexShrink: 0, background: 'rgba(0,0,0,0.1)' }}>
+        <button onClick={() => setAutoScrollActive(!autoScrollActive)}
+          style={{ background: autoScrollActive ? 'rgba(74,222,128,0.15)' : 'rgba(255,255,255,0.04)', color: autoScrollActive ? '#4ade80' : '#8a9ab8', border: `1px solid ${autoScrollActive ? 'rgba(74,222,128,0.4)' : 'rgba(255,255,255,0.1)'}`, borderRadius: '4px', padding: '4px 10px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold', whiteSpace: 'nowrap' }}>
+          {autoScrollActive ? '⏸ Pause' : '▶ Auto Scroll'}
+        </button>
+        <input type="range" min="0.5" max="3" step="0.5" value={autoScrollSpeed} onChange={e => setAutoScrollSpeed(parseFloat(e.target.value))}
+          style={{ width: '80px', cursor: 'pointer', accentColor: GOLD }} />
+        <span style={{ color: '#8a9ab8', fontSize: '9px', minWidth: '30px' }}>{autoScrollSpeed}x</span>
+      </div>
+
+      {/* Scrollable script content */}
       {loadingScripts && <div style={{ color: '#6b7280', fontSize: '12px', textAlign: 'center', padding: '24px' }}>Loading…</div>}
       {!loadingScripts && scripts.length === 0 && <div style={{ color: '#4a5568', fontSize: '12px', textAlign: 'center', padding: '24px' }}>No scripts yet.</div>}
       {active && (
-        <div style={{ flex: 1, overflowY: 'auto', padding: '14px', background: 'rgba(0,0,0,0.15)', color: active.color || '#e8e0d0', fontSize: `${active.fontSize || 14}px`, lineHeight: 1.8, fontFamily: 'Georgia, serif', whiteSpace: 'pre-wrap' }}>
+        <div ref={scriptContentRef} style={{ flex: 1, overflowY: 'auto', padding: '14px', background: 'rgba(0,0,0,0.15)', color: active.color || '#e8e0d0', fontSize: `${active.fontSize || 14}px`, lineHeight: 1.8, fontFamily: 'Georgia, serif', whiteSpace: 'pre-wrap' }}>
           {rendered}
         </div>
       )}
