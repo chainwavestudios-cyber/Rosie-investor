@@ -10,10 +10,11 @@ Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('OK', { headers: corsHeaders });
 
   try {
-    const { ref, page, referrer, timeOnPage, sessionId, siteType = 'consumer' } = await req.json();
-    if (!ref) return new Response(JSON.stringify({ ok: true }), { headers: corsHeaders });
+    const { passcode, ref, page, referrer, timeOnPage, sessionId, siteType = 'consumer' } = await req.json();
+    const code = passcode || ref;
+    if (!code) return new Response(JSON.stringify({ ok: true }), { headers: corsHeaders });
 
-    console.log(`[SiteVisit] ref=${ref} page=${page} siteType=${siteType} time=${timeOnPage}`);
+    console.log(`[SiteVisit] code=${code} page=${page} siteType=${siteType} time=${timeOnPage}`);
 
     const db  = createClientFromRequest(req).asServiceRole;
     const now = new Date().toISOString();
@@ -24,7 +25,7 @@ Deno.serve(async (req) => {
 
     // 1. Lead.portalPasscode direct filter
     try {
-      const rows = await db.entities.Lead.filter({ portalPasscode: ref });
+      const rows = await db.entities.Lead.filter({ portalPasscode: code });
       lead = rows?.[0] || null;
     } catch {}
 
@@ -33,7 +34,7 @@ Deno.serve(async (req) => {
       try {
         const allLeads = await db.entities.Lead.list('-created_date', 500);
         lead = (allLeads || []).find(l =>
-          (l.portalPasscode || '').trim().toLowerCase() === ref.toLowerCase()
+          (l.portalPasscode || '').trim().toLowerCase() === code.toLowerCase()
         ) || null;
       } catch {}
     }
@@ -41,10 +42,10 @@ Deno.serve(async (req) => {
     // 3. InvestorUser.siteAccessCode (migrated users — archived lead may not match anymore)
     if (!lead) {
       try {
-        let investors = await db.entities.InvestorUser.filter({ siteAccessCode: ref });
+        let investors = await db.entities.InvestorUser.filter({ siteAccessCode: code });
         if (!investors?.length) {
           // also try username match as fallback
-          investors = await db.entities.InvestorUser.filter({ username: ref });
+          investors = await db.entities.InvestorUser.filter({ username: code });
         }
         if (investors?.[0]) {
           const iu = investors[0];
@@ -61,7 +62,7 @@ Deno.serve(async (req) => {
 
     // ── Create SiteVisit record ──────────────────────────────────────────────
     const visitRecord = {
-      passcode:   ref,
+      passcode:   code,
       leadId:     lead?.id   || '',
       investorId: investorId || '',
       leadName:   lead
