@@ -389,6 +389,7 @@ export default function ScriptAssistant({ lead, user, onExpandCard, isCardExpand
               cowDefinition:   portalCfg?.intentCowDefinition,
               positiveSignals: portalCfg?.intentPositiveSignals,
               negativeSignals: portalCfg?.intentNegativeSignals,
+              sentimentRules:  portalCfg?.intentSentimentRules,
             },
             engagementScore: lead?.engagementScore || 0,
           });
