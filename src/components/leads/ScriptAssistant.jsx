@@ -454,7 +454,7 @@ export default function ScriptAssistant({ lead, user, onExpandCard, isCardExpand
     coachTipsRef.current  = [];
     setTranscript([]);
     setIntentResult(null);
-    setShowPopup(false);
+    // Note: popup intentionally stays open — user closes it manually
   };
 
   // ── Toggle features → open popup ──────────────────────────────────
