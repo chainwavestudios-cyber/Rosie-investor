@@ -19,9 +19,15 @@ function buildDGSettings(cfg, userName) {
   const name = (userName || 'there').split(' ')[0];
   const greeting = `Hi ${name}, I'm Rosie. I simplify the path from prospect to lead through seamless, automated engagement tools. You’ve reached our investor platform! I’m here to provide any insights or data you need and help you explore the vision behind the tech. What questions do you have?`;
 
+  // Build system prompt from knowledge base entries
+  const kbQA = (cfg.kbEntries || [])
+    .filter(e => e.category !== 'raw_document')
+    .map(e => `Q: ${e.question}\nA: ${e.answer}`)
+    .join('\n\n');
+  
   const systemPrompt = [
-    cfg.chatbotContext || 'You are Rosie, a helpful investment assistant for Rosie AI LLC.',
-    cfg.knowledgeBase ? `\n\n--- KNOWLEDGE BASE ---\n${cfg.knowledgeBase}` : '',
+    'You are Rosie, a helpful investment assistant for Rosie AI LLC.',
+    kbQA ? `\n\n--- KNOWLEDGE BASE ---\n${kbQA}` : '',
   ].join('');
 
   return {
@@ -89,6 +95,10 @@ export default function RosieVoiceAgent({ userName = 'Steph', investorId = null,
     isListeningRef.current = false; // Reset listening gate on new connect
 
     const cfg = await refreshPortalSettings();
+    
+    // Fetch knowledge base entries
+    const kbEntries = await base44.entities.KnowledgeBase.list('-created_date', 500).catch(() => []);
+    cfg.kbEntries = kbEntries;
 
     let stream;
     try {
