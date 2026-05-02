@@ -1,673 +1,490 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { base44 } from '@/api/base44Client';
-import { getPortalSettings, loadPortalSettings } from '@/lib/portalSettings';
-import AIAssistantPopup from './AIAssistantPopup';
 
 const GOLD = '#b8933a';
 const DARK = '#0a0f1e';
 
-const applyTokens = (text, lead, user) => {
-  if (!text) return '';
-  const first = lead?.firstName || user?.name?.split(' ')[0] || '';
-  const last  = lead?.lastName  || user?.name?.split(' ').slice(1).join(' ') || '';
-  return text
-    .replace(/\{\{\s*first\s*name\s*\}\}/gi, first)
-    .replace(/\{\{\s*last\s*name\s*\}\}/gi, last)
-    .replace(/\{\{\s*firstname\s*\}\}/gi, first)
-    .replace(/\{\{\s*lastname\s*\}\}/gi, last);
-};
+const QUESTION_PATTERN = /\b(what|how|why|when|where|who|can|could|would|is|are|do|does|will|should|have|has|tell me|explain)\b.{5,80}\?/gi;
 
-export default function ScriptAssistant({ lead, user, onExpandCard, isCardExpanded, twilioStream }) {
-  const [layout, setLayout]           = useState('side');
-  const [scriptWidth, setScriptWidth] = useState(52);
-  const isDraggingDivider             = useRef(false);
-  const containerRef                  = useRef(null);
+// ── Draggable / Resizable Popup Shell ────────────────────────────────────────
+function FloatingPopup({ children, onClose, defaultWidth, defaultHeight }) {
+  const [pos,  setPos]  = useState({ x: window.innerWidth / 2 - defaultWidth / 2, y: 60 });
+  const [size, setSize] = useState({ w: defaultWidth, h: defaultHeight });
+  const dragging   = useRef(false);
+  const resizing   = useRef(false);
+  const dragOffset = useRef({ x: 0, y: 0 });
+  const startSize  = useRef({ w: 0, h: 0, mx: 0, my: 0 });
 
-  const [scripts, setScripts]         = useState([]);
-  const [activeId, setActiveId]       = useState(null);
-  const [loadingScripts, setLoadingScripts] = useState(true);
-
-  const [listening, setListening]     = useState(false);
-  const [transcript, setTranscript]   = useState([]);
-  const [kbEntries, setKbEntries]     = useState([]);
-  const [portalCfg, setPortalCfg]     = useState(getPortalSettings);
-  const [error, setError]             = useState('');
-
-  // Connection statuses
-  const [streamStatus, setStreamStatus] = useState('idle');
-  const [aiEnabled,    setAiEnabled]    = useState(false);
-
-  // Popup + feature toggles — all default OFF
-  const [showPopup,    setShowPopup]    = useState(false);
-  const [qaActive,     setQaActive]     = useState(false);
-  const [coachActive,  setCoachActive]  = useState(false);
-  const [intentActive, setIntentActive] = useState(false);
-  const [intentResult, setIntentResult] = useState(null);
-
-  // Post-call saving
-  const [reportSaving, setReportSaving] = useState(false);
-  const [reportSaved,  setReportSaved]  = useState(false);
-
-  const wsRef         = useRef(null);
-  const streamRef     = useRef(null);
-  const processorRef  = useRef(null);
-  const contextRef    = useRef(null);
-  const transcriptRef = useRef([]);
-  const qaLogRef      = useRef([]);   // accumulated Q&A pairs
-  const coachTipsRef  = useRef([]);   // accumulated coach tips
-
-  // ── Pre-warm cache (populated as soon as call connects) ────────────
-  const prewarmRef = useRef({
-    dgKey:        null,   // Deepgram token
-    audioCtx:     null,   // AudioContext (already resumed)
-    mergedStream: null,   // mixed remote+local MediaStream
-    workletReady: false,  // audioWorklet module loaded
-    dest:         null,   // MediaStreamDestination node
-  });
-
-  // ── Load data ──────────────────────────────────────────────────────
-  useEffect(() => {
-    base44.entities.GlobalScript.list('sortOrder', 200)
-      .then(r => { setScripts(r || []); if (r?.length) setActiveId(r[0].id); })
-      .catch(() => {}).finally(() => setLoadingScripts(false));
-    base44.entities.KnowledgeBase.list('-created_date', 500)
-      .then(r => setKbEntries(r || [])).catch(() => {});
-    loadPortalSettings().then(setPortalCfg).catch(() => {});
-    return () => stopListening();
-  }, []);
-
-  // ── Auto-stop when call ends ──────────────────────────────────────
-  // We do NOT auto-start — user clicks the button manually when they want it
-  useEffect(() => {
-    if (twilioStream === null && listening) {
-      stopListening();
-    }
-  }, [twilioStream]);
-
-  // ── Pre-warm: fire as soon as the call connects ───────────────────
-  // Fetches Deepgram token, builds AudioContext, merges streams and loads
-  // the AudioWorklet module — all before the user clicks "Connect Stream".
-  useEffect(() => {
-    if (!twilioStream?.remoteStream && !twilioStream?.localStream) return;
-
-    let cancelled = false;
-    const pw = prewarmRef.current;
-
-    const prewarm = async () => {
-      try {
-        // 1. Deepgram token
-        if (!pw.dgKey) {
-          const tokenRes = await base44.functions.invoke('deepgramToken', {});
-          if (cancelled) return;
-          pw.dgKey = tokenRes?.key || tokenRes?.data?.key || '';
-        }
-
-        // 2. AudioContext + merged stream
-        if (!pw.audioCtx) {
-          const audioCtx = new AudioContext({ sampleRate: 48000 });
-          if (audioCtx.state === 'suspended') await audioCtx.resume();
-          if (cancelled) { audioCtx.close(); return; }
-
-          const dest = audioCtx.createMediaStreamDestination();
-          if (twilioStream.remoteStream) {
-            try { audioCtx.createMediaStreamSource(twilioStream.remoteStream).connect(dest); } catch {}
-          }
-          if (twilioStream.localStream) {
-            try { audioCtx.createMediaStreamSource(twilioStream.localStream).connect(dest); } catch {}
-          }
-
-          pw.audioCtx     = audioCtx;
-          pw.dest         = dest;
-          pw.mergedStream = dest.stream;
-
-          // 3. Pre-load AudioWorklet module
-          const workletCode = `
-            class PCMProcessor extends AudioWorkletProcessor {
-              process(inputs) {
-                const input = inputs[0]?.[0];
-                if (input?.length) {
-                  const pcm = new Int16Array(input.length);
-                  for (let i = 0; i < input.length; i++) {
-                    pcm[i] = Math.max(-32768, Math.min(32767, input[i] * 32768));
-                  }
-                  this.port.postMessage(pcm.buffer, [pcm.buffer]);
-                }
-                return true;
-              }
-            }
-            registerProcessor('pcm-processor', PCMProcessor);
-          `;
-          const blob       = new Blob([workletCode], { type: 'application/javascript' });
-          const workletUrl = URL.createObjectURL(blob);
-          try {
-            await audioCtx.audioWorklet.addModule(workletUrl);
-            URL.revokeObjectURL(workletUrl);
-            pw.workletReady = true;
-            console.log('[ScriptAssistant] Pre-warm complete ✓');
-          } catch (err) {
-            URL.revokeObjectURL(workletUrl);
-            console.warn('[ScriptAssistant] Pre-warm worklet failed (will fallback):', err.message);
-          }
-        }
-      } catch (err) {
-        console.warn('[ScriptAssistant] Pre-warm error (non-fatal):', err.message);
-      }
-    };
-
-    prewarm();
-    return () => { cancelled = true; };
-  }, [twilioStream]);
-
-  // ── Connect to Deepgram via Twilio streams ─────────────────────────
-  // Uses pre-warmed token, AudioContext and worklet module cached in prewarmRef.
-  // If pre-warm hasn't finished yet (e.g. user clicks very fast) it falls back
-  // to the original on-demand setup so nothing ever breaks.
-  const startListeningFromStream = async (remoteStream, localStream) => {
-    if (listening) return;
-    setError('');
-    setStreamStatus('connecting');
-
-    try {
-      const pw = prewarmRef.current;
-
-      // ── 1. Resolve streams ─────────────────────────────────────────
-      // Use pre-warm streams if available, otherwise fall back to polling
-      let mergedStream = pw.mergedStream || null;
-      let audioCtx     = pw.audioCtx     || null;
-
-      if (!mergedStream) {
-        console.log('[ScriptAssistant] Pre-warm miss — resolving streams on demand');
-
-        if (!remoteStream && twilioStream?.call) {
-          for (let i = 0; i < 8; i++) {
-            await new Promise(r => setTimeout(r, 250));
-            remoteStream = twilioStream.call.getRemoteStream?.() || null;
-            localStream  = twilioStream.call.getLocalStream?.()  || null;
-            if (remoteStream) break;
-          }
-        }
-
-        if (!remoteStream && !localStream) {
-          setError('Could not get call audio streams. Is the call still active?');
-          setStreamStatus('error');
-          return;
-        }
-
-        const nativeSampleRate = 48000;
-        audioCtx = new AudioContext({ sampleRate: nativeSampleRate });
-        contextRef.current = audioCtx;
-        if (audioCtx.state === 'suspended') await audioCtx.resume();
-        const dest = audioCtx.createMediaStreamDestination();
-        if (remoteStream) { try { audioCtx.createMediaStreamSource(remoteStream).connect(dest); } catch {} }
-        if (localStream)  { try { audioCtx.createMediaStreamSource(localStream).connect(dest);  } catch {} }
-        mergedStream = dest.stream;
-      } else {
-        console.log('[ScriptAssistant] Using pre-warmed streams ✓');
-        contextRef.current = audioCtx;
-      }
-
-      streamRef.current = mergedStream;
-
-      // ── 2. Deepgram token ─────────────────────────────────────────
-      let dgKey = pw.dgKey || '';
-      if (!dgKey) {
-        console.log('[ScriptAssistant] Pre-warm token miss — fetching on demand');
-        const tokenRes = await base44.functions.invoke('deepgramToken', {});
-        dgKey = tokenRes?.key || tokenRes?.data?.key || '';
-      } else {
-        console.log('[ScriptAssistant] Using pre-warmed Deepgram token ✓');
-      }
-      if (!dgKey) throw new Error('No Deepgram token — check DEEPGRAM_API_KEY');
-
-      // ── 3. Open WebSocket ─────────────────────────────────────────
-      const nativeSampleRate = audioCtx.sampleRate;
-      const ws = new WebSocket(
-        `wss://api.deepgram.com/v1/listen?model=nova-2&language=en-US&smart_format=true&interim_results=true&endpointing=300&sentiment=true&diarize=true&sample_rate=${nativeSampleRate}&encoding=linear16&channels=1`,
-        ['token', dgKey]
-      );
-      wsRef.current = ws;
-
-      ws.onopen = async () => {
-        console.log('[ScriptAssistant] Deepgram WS opened');
-        setListening(true);
-        setStreamStatus('connected');
-        setAiEnabled(true);
-
-        // ── 4. Wire audio pipeline ────────────────────────────────
-        if (pw.workletReady && audioCtx) {
-          // Worklet already loaded — just create the node
-          console.log('[ScriptAssistant] Using pre-warmed AudioWorklet ✓');
-          try {
-            const workletNode = new AudioWorkletNode(audioCtx, 'pcm-processor');
-            processorRef.current = workletNode;
-            workletNode.port.onmessage = (e) => {
-              if (ws.readyState === WebSocket.OPEN) ws.send(e.data);
-            };
-            const src = audioCtx.createMediaStreamSource(mergedStream);
-            src.connect(workletNode);
-            workletNode.connect(audioCtx.destination);
-            console.log('[ScriptAssistant] AudioWorklet pipeline connected ✓');
-          } catch (err) {
-            console.warn('[ScriptAssistant] Worklet node failed, falling back:', err.message);
-            pw.workletReady = false; // fall through to ScriptProcessor below
-          }
-        }
-
-        if (!pw.workletReady) {
-          // Load worklet fresh (pre-warm miss or worklet node failed)
-          const workletCode = `
-            class PCMProcessor extends AudioWorkletProcessor {
-              process(inputs) {
-                const input = inputs[0]?.[0];
-                if (input?.length) {
-                  const pcm = new Int16Array(input.length);
-                  for (let i = 0; i < input.length; i++) {
-                    pcm[i] = Math.max(-32768, Math.min(32767, input[i] * 32768));
-                  }
-                  this.port.postMessage(pcm.buffer, [pcm.buffer]);
-                }
-                return true;
-              }
-            }
-            registerProcessor('pcm-processor', PCMProcessor);
-          `;
-          const blob       = new Blob([workletCode], { type: 'application/javascript' });
-          const workletUrl = URL.createObjectURL(blob);
-          try {
-            await audioCtx.audioWorklet.addModule(workletUrl);
-            URL.revokeObjectURL(workletUrl);
-            const workletNode = new AudioWorkletNode(audioCtx, 'pcm-processor');
-            processorRef.current = workletNode;
-            workletNode.port.onmessage = (e) => {
-              if (ws.readyState === WebSocket.OPEN) ws.send(e.data);
-            };
-            const src = audioCtx.createMediaStreamSource(mergedStream);
-            src.connect(workletNode);
-            workletNode.connect(audioCtx.destination);
-          } catch (err) {
-            console.warn('AudioWorklet unavailable, falling back to ScriptProcessor:', err.message);
-            const proc = audioCtx.createScriptProcessor(4096, 1, 1);
-            processorRef.current = proc;
-            const src = audioCtx.createMediaStreamSource(mergedStream);
-            proc.onaudioprocess = e => {
-              if (ws.readyState !== WebSocket.OPEN) return;
-              const input = e.inputBuffer.getChannelData(0);
-              const pcm   = new Int16Array(input.length);
-              for (let i = 0; i < input.length; i++) pcm[i] = Math.max(-32768, Math.min(32767, input[i] * 32768));
-              ws.send(pcm.buffer);
-            };
-            src.connect(proc);
-            proc.connect(audioCtx.destination);
-          }
-        }
-      };
-
-      ws.onmessage = e => {
-        try {
-          const data = JSON.parse(e.data);
-          const alt  = data?.channel?.alternatives?.[0];
-          const text = alt?.transcript?.trim();
-          if (!text || !data.is_final) return;
-          const speaker   = alt?.words?.[0]?.speaker ?? null;
-          const sentLabel = alt?.sentiments?.segments?.[0]?.sentiment || null;
-          const sentScore = alt?.sentiments?.segments?.[0]?.sentiment_score ?? null;
-          const entry = { text, time: new Date(), speaker, sentiment: sentLabel, sentScore };
-          const newT  = [...transcriptRef.current, entry];
-          transcriptRef.current = newT;
-          setTranscript([...newT]);
-        } catch {}
-      };
-
-      ws.onerror = (e) => {
-        console.error('[ScriptAssistant] Deepgram WS error:', e);
-        setError('Deepgram WebSocket error — check DEEPGRAM_API_KEY');
-        setStreamStatus('error');
-      };
-      ws.onclose = (e) => {
-        console.log('[ScriptAssistant] Deepgram WS closed — code:', e.code, 'reason:', e.reason);
-        if (e.code === 1008) setError('Deepgram auth failed — check DEEPGRAM_API_KEY env var');
-        else if (e.code === 1011) setError('Deepgram server error — invalid audio format');
-        else if (e.code !== 1000) setError(`Deepgram disconnected (code ${e.code})`);
-        setListening(false);
-        setStreamStatus('idle');
-        setAiEnabled(false);
-      };
-
-    } catch (e) {
-      setError(`Stream error: ${e.message}`);
-      setStreamStatus('error');
-    }
-  };
-
-  // ── Manual connect (fallback if no twilioStream prop yet) ──────────
-  const connectStream = () => {
-    if (twilioStream) {
-      startListeningFromStream(twilioStream.remoteStream, twilioStream.localStream);
-    } else {
-      setError('No active Twilio call. Start a call first, then connect the stream.');
-    }
-  };
-
-  // ── Disconnect + save ─────────────────────────────────────────────
-  const stopListening = async () => {
-    try { wsRef.current?.close(); } catch {}
-    try { processorRef.current?.disconnect(); processorRef.current?.port?.close?.(); } catch {}
-    try { contextRef.current?.close(); } catch {}
-    try { streamRef.current?.getTracks().forEach(t => t.stop()); } catch {}
-    // Reset pre-warm cache so next call starts fresh
-    prewarmRef.current = { dgKey: null, audioCtx: null, mergedStream: null, workletReady: false, dest: null };
-    setListening(false);
-    setStreamStatus('idle');
-    setAiEnabled(false);
-    setQaActive(false);
-    setCoachActive(false);
-    setIntentActive(false);
-
-    const finalTranscript = transcriptRef.current;
-    if (!finalTranscript || finalTranscript.length < 2) return;
-    const l = lead;
-    if (!l?.id) return;
-
-    setReportSaving(true);
-    setReportSaved(false);
-
-    try {
-      // 1. Save raw transcript
-      const transcriptText = finalTranscript.map(t =>
-        `[${new Date(t.time).toLocaleTimeString()}]${t.speaker !== null ? ` [S${t.speaker}]` : ''} ${t.text}`
-      ).join('\n');
-      await base44.entities.LeadHistory.create({ leadId: l.id, type: 'transcript', content: transcriptText, createdBy: 'system' });
-
-      // 2. Run post-call intent if it was used
-      let finalIntent = intentResult;
-      if (intentActive || intentResult) {
-        try {
-          const ir = await base44.functions.invoke('liveAssistantAI', {
-            transcript: finalTranscript, mode: 'intent_final',
-            intentRules: {
-              duckDefinition:  portalCfg?.intentDuckDefinition,
-              cowDefinition:   portalCfg?.intentCowDefinition,
-              positiveSignals: portalCfg?.intentPositiveSignals,
-              negativeSignals: portalCfg?.intentNegativeSignals,
-            },
-            engagementScore: lead?.engagementScore || 0,
-          });
-          finalIntent = ir?.data?.intent || ir?.intent || finalIntent;
-        } catch {}
-      }
-
-      // 3. Generate full report
-      const reportRes = await base44.functions.invoke('liveAssistantAI', {
-        transcript: finalTranscript, mode: 'full_report',
-        usedQA: qaActive || qaLogRef.current.length > 0,
-        usedCoach: coachActive || coachTipsRef.current.length > 0,
-        usedIntent: !!finalIntent,
-        qaLog: qaLogRef.current,
-        coachTips: coachTipsRef.current,
-        intentResult: finalIntent,
-      });
-      const report = reportRes?.data?.report || '';
-      if (report) {
-        await base44.entities.LeadHistory.create({ leadId: l.id, type: 'call_report', content: report, createdBy: 'system' });
-      }
-
-      // 4. Save intent score to lead
-      if (finalIntent?.intentScore !== undefined) {
-        const leadUpdates = {
-          intentScore: finalIntent.intentScore,
-          lastIntentAnalysis: JSON.stringify(finalIntent),
-        };
-        // Auto-populate CRM fields from extracted call data
-        const ex = finalIntent.extractedData || {};
-        if (ex.bestTimeToCall && ex.bestTimeToCall !== 'null') {
-          leadUpdates.bestTimeToCall = ex.bestTimeToCall;
-        }
-        if (ex.extractedNotes && ex.extractedNotes !== 'null') {
-          const existingNotes = l.notes || '';
-          const notePrefix = existingNotes ? existingNotes + '\n' : '';
-          leadUpdates.notes = `${notePrefix}[AI ${new Date().toLocaleDateString()}] ${ex.extractedNotes}`.trim();
-        }
-        await base44.entities.Lead.update(l.id, leadUpdates);
-      }
-
-      // 5. Update client profile
-      try {
-        const profileRes = await base44.functions.invoke('liveAssistantAI', {
-          transcript: finalTranscript, kbEntries: [], mode: 'profile',
-          existingProfile: lead?.clientProfile || '',
-        });
-        const newProfile = profileRes?.data?.profile;
-        if (newProfile) await base44.entities.Lead.update(l.id, { clientProfile: JSON.stringify(newProfile) });
-      } catch {}
-
-      setReportSaved(true);
-      setTimeout(() => setReportSaved(false), 5000);
-    } catch (e) {
-      console.error('Post-call save failed:', e);
-    }
-    setReportSaving(false);
-
-    // Reset for next call
-    transcriptRef.current = [];
-    qaLogRef.current      = [];
-    coachTipsRef.current  = [];
-    setTranscript([]);
-    setIntentResult(null);
-    setShowPopup(false);
-  };
-
-  // ── Toggle features → open popup ──────────────────────────────────
-  const toggleQA = () => {
-    const next = !qaActive;
-    setQaActive(next);
-    if (next) setShowPopup(true);
-  };
-  const toggleCoach = () => {
-    const next = !coachActive;
-    setCoachActive(next);
-    if (next) setShowPopup(true);
-  };
-  const toggleIntent = () => {
-    const next = !intentActive;
-    setIntentActive(next);
-    if (next) setShowPopup(true);
-  };
-
-  // ── Script panel ──────────────────────────────────────────────────
-  const active   = scripts.find(s => s.id === activeId) || scripts[0];
-  const rendered = active ? applyTokens(active.content, lead, user) : '';
-
-  const onDividerMouseDown = (e) => { isDraggingDivider.current = true; e.preventDefault(); };
   useEffect(() => {
     const onMove = (e) => {
-      if (!isDraggingDivider.current || !containerRef.current) return;
-      const rect = containerRef.current.getBoundingClientRect();
-      if (layout === 'side') {
-        const pct = Math.round(((e.clientX - rect.left) / rect.width) * 100);
-        setScriptWidth(Math.max(25, Math.min(75, pct)));
-      } else {
-        const pct = Math.round(((e.clientY - rect.top) / rect.height) * 100);
-        setScriptWidth(Math.max(20, Math.min(80, pct)));
+      if (dragging.current) {
+        setPos({ x: e.clientX - dragOffset.current.x, y: Math.max(0, e.clientY - dragOffset.current.y) });
+      }
+      if (resizing.current) {
+        const dw = e.clientX - startSize.current.mx;
+        const dh = e.clientY - startSize.current.my;
+        setSize({ w: Math.max(480, startSize.current.w + dw), h: Math.max(300, startSize.current.h + dh) });
       }
     };
-    const onUp = () => { isDraggingDivider.current = false; };
+    const onUp = () => { dragging.current = false; resizing.current = false; };
     window.addEventListener('mousemove', onMove);
     window.addEventListener('mouseup', onUp);
     return () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
-  }, [layout]);
+  }, []);
 
-  const inp = { background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '4px', padding: '6px 10px', color: '#e8e0d0', fontSize: '11px', outline: 'none', fontFamily: 'Georgia, serif' };
+  const onHeaderMouseDown = (e) => {
+    dragging.current = true;
+    dragOffset.current = { x: e.clientX - pos.x, y: e.clientY - pos.y };
+    e.preventDefault();
+  };
 
-  const streamStatusLight = { idle: '#4a5568', connecting: '#f59e0b', connected: '#4ade80', error: '#ef4444' }[streamStatus];
-
-  const scriptPanelJSX = (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
-      <div style={{ display: 'flex', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.07)', overflowX: 'auto', flexShrink: 0, scrollbarWidth: 'none' }}>
-        {scripts.map(s => (
-          <button key={s.id} onClick={() => setActiveId(s.id)}
-            style={{ background: activeId === s.id ? 'rgba(184,147,58,0.1)' : 'none', border: 'none', borderBottom: activeId === s.id ? `2px solid ${GOLD}` : '2px solid transparent', color: activeId === s.id ? GOLD : '#6b7280', padding: '7px 12px', cursor: 'pointer', fontSize: '11px', whiteSpace: 'nowrap', flexShrink: 0 }}>
-            {s.name}
-          </button>
-        ))}
-      </div>
-      {loadingScripts && <div style={{ color: '#6b7280', fontSize: '12px', textAlign: 'center', padding: '24px' }}>Loading…</div>}
-      {!loadingScripts && scripts.length === 0 && <div style={{ color: '#4a5568', fontSize: '12px', textAlign: 'center', padding: '24px' }}>No scripts yet.</div>}
-      {active && (
-        <div style={{ flex: 1, overflowY: 'auto', padding: '14px', background: 'rgba(0,0,0,0.15)', color: active.color || '#e8e0d0', fontSize: `${active.fontSize || 14}px`, lineHeight: 1.8, fontFamily: 'Georgia, serif', whiteSpace: 'pre-wrap' }}>
-          {rendered}
-        </div>
-      )}
-    </div>
-  );
-
-  const aiPanelJSX = (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
-      <style>{`@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}`}</style>
-
-      {/* Control bar */}
-      <div style={{ padding: '8px 10px', borderBottom: '1px solid rgba(255,255,255,0.07)', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: '6px' }}>
-
-        {/* Row 1: header + save status */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-          <span style={{ color: GOLD, fontSize: '10px', letterSpacing: '1.5px', textTransform: 'uppercase' }}>🧠 AI Assistant</span>
-          {reportSaving && <span style={{ color: '#f59e0b', fontSize: '9px' }}>⏳ Saving report…</span>}
-          {reportSaved  && <span style={{ color: '#4ade80', fontSize: '9px' }}>✓ Report saved</span>}
-        </div>
-
-        {/* Row 2: Stream connect + AI status */}
-        <div style={{ display: 'flex', gap: '5px', alignItems: 'center', flexWrap: 'wrap' }}>
-
-          {/* Stream connect button */}
-          <button onClick={() => listening ? stopListening() : connectStream()}
-            style={{ display: 'flex', alignItems: 'center', gap: '5px', background: listening ? 'rgba(74,222,128,0.1)' : streamStatus === 'error' ? 'rgba(239,68,68,0.08)' : 'rgba(255,255,255,0.04)', border: `1px solid ${listening ? 'rgba(74,222,128,0.4)' : streamStatus === 'error' ? 'rgba(239,68,68,0.35)' : 'rgba(255,255,255,0.12)'}`, color: listening ? '#4ade80' : streamStatus === 'error' ? '#ef4444' : '#8a9ab8', borderRadius: '4px', padding: '4px 10px', cursor: 'pointer', fontSize: '9px', fontWeight: 'bold', letterSpacing: '0.5px', whiteSpace: 'nowrap' }}>
-            <div style={{ width: 6, height: 6, borderRadius: '50%', flexShrink: 0, background: streamStatusLight, boxShadow: listening ? '0 0 6px #4ade80' : 'none', animation: streamStatus === 'connecting' ? 'pulse 0.8s infinite' : listening ? 'pulse 2.5s infinite' : 'none' }} />
-            {listening ? '⏹ Disconnect Stream' : '🔗 Twilio Stream Connect'}
-          </button>
-
-          {/* AI status indicator */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '5px', background: aiEnabled ? 'rgba(184,147,58,0.1)' : 'rgba(255,255,255,0.03)', border: `1px solid ${aiEnabled ? 'rgba(184,147,58,0.4)' : 'rgba(255,255,255,0.08)'}`, borderRadius: '4px', padding: '4px 10px', fontSize: '9px', color: aiEnabled ? GOLD : '#4a5568', fontWeight: 'bold', letterSpacing: '0.5px' }}>
-            <div style={{ width: 6, height: 6, borderRadius: '50%', background: aiEnabled ? '#4ade80' : '#4a5568', boxShadow: aiEnabled ? '0 0 6px #4ade80' : 'none' }} />
-            🧠 {aiEnabled ? 'AI ON' : 'AI OFF'}
-          </div>
-        </div>
-
-        {/* Row 3: Feature toggles (only when AI is on) */}
-        {aiEnabled && (
-          <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', alignItems: 'center' }}>
-            {[
-              { label: '❓ Auto Q&A', active: qaActive,     toggle: toggleQA,     color: '#f59e0b' },
-              { label: '🎯 Coach',    active: coachActive,  toggle: toggleCoach,  color: '#a78bfa' },
-              { label: '🦆 Intent',   active: intentActive, toggle: toggleIntent, color: '#60a5fa' },
-            ].map(({ label, active: on, toggle, color }) => (
-              <button key={label} onClick={toggle}
-                style={{ display: 'flex', alignItems: 'center', gap: '4px', background: on ? `${color}18` : 'rgba(255,255,255,0.03)', border: `1px solid ${on ? `${color}44` : 'rgba(255,255,255,0.08)'}`, color: on ? color : '#4a5568', borderRadius: '4px', padding: '2px 8px', cursor: 'pointer', fontSize: '9px', whiteSpace: 'nowrap' }}>
-                <div style={{ width: 5, height: 5, borderRadius: '50%', background: on ? color : '#4a5568', boxShadow: on ? `0 0 5px ${color}` : 'none' }} />
-                {label}
-              </button>
-            ))}
-            {(qaActive || coachActive || intentActive) && (
-              <button onClick={() => setShowPopup(true)}
-                style={{ background: 'rgba(184,147,58,0.12)', color: GOLD, border: `1px solid rgba(184,147,58,0.3)`, borderRadius: '4px', padding: '2px 8px', cursor: 'pointer', fontSize: '9px', fontWeight: 'bold' }}>
-                ↗ Open Popup
-              </button>
-            )}
-            <span style={{ color: '#4a5568', fontSize: '9px', marginLeft: '2px' }}>
-              {listening ? '● live' : 'auto-saves on stop'}
-            </span>
-          </div>
-        )}
-      </div>
-
-      {/* Error */}
-      {error && (
-        <div style={{ background: 'rgba(239,68,68,0.06)', borderBottom: '1px solid rgba(239,68,68,0.15)', flexShrink: 0, padding: '6px 10px' }}>
-          <div style={{ color: '#ef4444', fontSize: '10px', lineHeight: 1.5 }}>{error}</div>
-        </div>
-      )}
-
-      {/* Transcript preview */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '10px' }}>
-        {transcript.length === 0
-          ? <div style={{ color: '#4a5568', fontSize: '11px', textAlign: 'center', padding: '20px' }}>{listening ? 'Listening…' : 'Connect stream to begin'}</div>
-          : [...transcript].reverse().slice(0, 30).map((t, i) => (
-            <div key={i} style={{ marginBottom: '5px', fontSize: '11px' }}>
-              <span style={{ color: '#4a5568', fontSize: '9px', marginRight: '5px' }}>{new Date(t.time).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', second: '2-digit' })}</span>
-              {t.speaker !== null && <span style={{ color: t.speaker === 0 ? '#60a5fa' : '#a78bfa', fontSize: '9px', marginRight: '4px' }}>[S{t.speaker}]</span>}
-              <span style={{ color: '#c4cdd8' }}>{t.text}</span>
-            </div>
-          ))
-        }
-      </div>
-    </div>
-  );
-
-  const LayoutBtn = ({ id, label, icon }) => (
-    <button onClick={() => setLayout(id)} title={label}
-      style={{ background: layout === id ? 'rgba(184,147,58,0.2)' : 'rgba(255,255,255,0.04)', border: `1px solid ${layout === id ? 'rgba(184,147,58,0.4)' : 'rgba(255,255,255,0.08)'}`, color: layout === id ? GOLD : '#6b7280', borderRadius: '4px', padding: '4px 8px', cursor: 'pointer', fontSize: '11px' }}>
-      {icon}
-    </button>
-  );
+  const onResizeMouseDown = (e) => {
+    resizing.current = true;
+    startSize.current = { w: size.w, h: size.h, mx: e.clientX, my: e.clientY };
+    e.preventDefault();
+    e.stopPropagation();
+  };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-      <style>{`@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}`}</style>
+    <div style={{
+      position: 'fixed', left: pos.x, top: pos.y, width: size.w, height: size.h,
+      background: '#0d1b2a', border: `1px solid rgba(184,147,58,0.35)`,
+      borderRadius: '8px', boxShadow: '0 24px 80px rgba(0,0,0,0.85)',
+      zIndex: 20000, display: 'flex', flexDirection: 'column', overflow: 'hidden',
+      fontFamily: 'Georgia, serif',
+    }}>
+      {/* Drag handle */}
+      <div onMouseDown={onHeaderMouseDown} style={{
+        padding: '8px 14px', background: 'rgba(0,0,0,0.3)',
+        borderBottom: `1px solid rgba(184,147,58,0.2)`,
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        cursor: 'grab', flexShrink: 0, userSelect: 'none',
+      }}>
+        <span style={{ color: GOLD, fontSize: '11px', letterSpacing: '2px', textTransform: 'uppercase' }}>🧠 AI Assistant</span>
+        <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#6b7280', cursor: 'pointer', fontSize: '18px', lineHeight: 1, padding: '0 2px' }}>×</button>
+      </div>
 
-      <div style={{ display: 'flex', gap: '6px', alignItems: 'center', marginBottom: '8px', flexShrink: 0, flexWrap: 'wrap' }}>
-        <span style={{ color: '#4a5568', fontSize: '9px', textTransform: 'uppercase', letterSpacing: '1px' }}>Layout</span>
-        <LayoutBtn id="side"       label="Side by side"        icon="⬜⬜" />
-        <LayoutBtn id="top"        label="AI top, Script below" icon="🔲" />
-        <LayoutBtn id="fullscript" label="Script only"          icon="📝" />
-        <LayoutBtn id="fullai"     label="AI only"              icon="🧠" />
-        {onExpandCard && (
-          <button onClick={onExpandCard} title={isCardExpanded ? 'Collapse card' : 'Expand card'}
-            style={{ marginLeft: 'auto', background: isCardExpanded ? 'rgba(96,165,250,0.15)' : 'rgba(255,255,255,0.05)', border: `1px solid ${isCardExpanded ? 'rgba(96,165,250,0.4)' : 'rgba(255,255,255,0.1)'}`, color: isCardExpanded ? '#60a5fa' : '#6b7280', borderRadius: '4px', padding: '4px 10px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>
-            {isCardExpanded ? '⊟ Collapse Card' : '⊞ Expand Card'}
+      {/* Content */}
+      <div style={{ flex: 1, overflow: 'hidden', display: 'flex' }}>
+        {children}
+      </div>
+
+      {/* Resize handle */}
+      <div onMouseDown={onResizeMouseDown} style={{
+        position: 'absolute', right: 0, bottom: 0, width: 16, height: 16,
+        cursor: 'se-resize', display: 'flex', alignItems: 'flex-end', justifyContent: 'flex-end', padding: 3,
+      }}>
+        <div style={{ width: 8, height: 8, borderRight: `2px solid rgba(255,255,255,0.2)`, borderBottom: `2px solid rgba(255,255,255,0.2)` }} />
+      </div>
+    </div>
+  );
+}
+
+// ── Status Dot ────────────────────────────────────────────────────────────────
+function Dot({ status, size = 7 }) {
+  const colors = { idle: '#4a5568', connecting: '#f59e0b', connected: '#4ade80', error: '#ef4444' };
+  const color  = colors[status] || '#4a5568';
+  return (
+    <div style={{
+      width: size, height: size, borderRadius: '50%', flexShrink: 0,
+      background: color, boxShadow: status === 'connected' ? `0 0 6px ${color}` : 'none',
+      animation: status === 'connecting' ? 'pulse 0.8s infinite' : status === 'connected' ? 'pulse 2.5s infinite' : 'none',
+    }} />
+  );
+}
+
+// ── Q&A Tab ───────────────────────────────────────────────────────────────────
+function QAPanel({ transcript, transcriptRef, kbEntries, active, qaKeywords }) {
+  const [questions,  setQuestions]  = useState([]);   // { id, text, time, answer, answering, answered, autoTriggered }
+  const [dividerPct, setDividerPct] = useState(50);
+  const containerRef = useRef(null);
+  const dragging     = useRef(false);
+  const seenQ        = useRef(new Set());
+  const lastAutoRef  = useRef(0);
+
+  // Build keyword regex from portal settings (replaces hardcoded TRIGGER_PATTERNS)
+  const buildKeywordRegex = useCallback(() => {
+    if (!qaKeywords?.trim()) return null;
+    const terms = qaKeywords.split(',').map(k => k.trim()).filter(Boolean);
+    if (!terms.length) return null;
+    const escaped = terms.map(t => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+    return new RegExp(`\\b(${escaped.join('|')})\\b`, 'i');
+  }, [qaKeywords]);
+
+  // Detect questions from incoming transcript
+  useEffect(() => {
+    if (!transcript.length) return;
+    const last = transcript[transcript.length - 1];
+    const matches = [...(last.text.matchAll(QUESTION_PATTERN) || [])].map(m => m[0].trim());
+    matches.forEach(q => {
+      if (!seenQ.current.has(q)) {
+        seenQ.current.add(q);
+        setQuestions(prev => [...prev, { id: Date.now() + Math.random(), text: q, time: new Date(), answer: '', answering: false, answered: false, autoTriggered: false }]);
+      }
+    });
+
+    // Auto-trigger KB lookup when keyword detected (portal-configured, replaces hardcoded patterns)
+    const now = Date.now();
+    if (active && now - lastAutoRef.current > 3000) {
+      const kwRegex = buildKeywordRegex();
+      if (kwRegex && kwRegex.test(last.text)) {
+        lastAutoRef.current = now;
+        const autoId = Date.now() + Math.random();
+        const autoQ = last.text.slice(0, 120);
+        if (!seenQ.current.has(autoQ)) {
+          seenQ.current.add(autoQ);
+          setQuestions(prev => [...prev, { id: autoId, text: autoQ, time: new Date(), answer: '', answering: true, answered: false, autoTriggered: true }]);
+          base44.functions.invoke('liveAssistantAI', {
+            question: autoQ,
+            transcript: transcriptRef.current.slice(-10),
+            kbEntries,
+          }).then(res => {
+            const answer = res?.data?.answer || 'No answer found.';
+            setQuestions(prev => prev.map(x => x.id === autoId ? { ...x, answering: false, answered: true, answer } : x));
+          }).catch(e => {
+            setQuestions(prev => prev.map(x => x.id === autoId ? { ...x, answering: false, answer: `Error: ${e.message}` } : x));
+          });
+        }
+      }
+    }
+  }, [transcript, active, buildKeywordRegex]);
+
+  const answerQ = async (id) => {
+    const q = questions.find(x => x.id === id);
+    if (!q) return;
+    setQuestions(prev => prev.map(x => x.id === id ? { ...x, answering: true } : x));
+    try {
+      const res = await base44.functions.invoke('liveAssistantAI', {
+        question: q.text,
+        transcript: transcriptRef.current.slice(-10),
+        kbEntries,
+      });
+      const answer = res?.data?.answer || 'No answer found.';
+      setQuestions(prev => prev.map(x => x.id === id ? { ...x, answering: false, answered: true, answer } : x));
+    } catch (e) {
+      setQuestions(prev => prev.map(x => x.id === id ? { ...x, answering: false, answer: `Error: ${e.message}` } : x));
+    }
+  };
+
+  const onDividerDown = (e) => { dragging.current = true; e.preventDefault(); };
+  useEffect(() => {
+    const onMove = (e) => {
+      if (!dragging.current || !containerRef.current) return;
+      const rect = containerRef.current.getBoundingClientRect();
+      const pct = Math.round(((e.clientY - rect.top) / rect.height) * 100);
+      setDividerPct(Math.max(20, Math.min(80, pct)));
+    };
+    const onUp = () => { dragging.current = false; };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+    return () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
+  }, []);
+
+  // Expose qa log for report
+  QAPanel.getLog = () => questions.map(q => ({ question: q.text, answered: q.answered, answer: q.answer }));
+
+  return (
+    <div ref={containerRef} style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+      {/* Questions — top */}
+      <div style={{ height: `${dividerPct}%`, overflowY: 'auto', padding: '10px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+        <div style={{ color: '#f59e0b', fontSize: '9px', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '2px', flexShrink: 0 }}>
+          ❓ Detected Questions ({questions.length})
+        </div>
+        {questions.length === 0 && (
+          <div style={{ color: '#4a5568', fontSize: '11px', textAlign: 'center', padding: '20px' }}>
+            {active ? 'Listening for questions…' : 'Enable Q&A and start stream'}
+          </div>
+        )}
+        {questions.map(q => (
+          <div key={q.id} style={{ background: q.autoTriggered ? 'rgba(96,165,250,0.05)' : 'rgba(245,158,11,0.05)', border: `1px solid ${q.answered ? 'rgba(74,222,128,0.3)' : q.autoTriggered ? 'rgba(96,165,250,0.2)' : 'rgba(245,158,11,0.2)'}`, borderRadius: '4px', padding: '8px 10px', display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
+            <div style={{ flex: 1 }}>
+              <div style={{ display: 'flex', gap: '5px', alignItems: 'center', marginBottom: '2px' }}>
+                {q.autoTriggered && <span style={{ fontSize: '8px', background: 'rgba(96,165,250,0.15)', color: '#60a5fa', border: '1px solid rgba(96,165,250,0.3)', borderRadius: '3px', padding: '1px 5px' }}>AUTO</span>}
+                <div style={{ color: q.answered ? '#4ade80' : '#e8e0d0', fontSize: '12px', lineHeight: 1.4 }}>{q.text}</div>
+              </div>
+              <div style={{ color: '#4a5568', fontSize: '9px', marginTop: '2px' }}>{q.time.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', second: '2-digit' })}</div>
+            </div>
+            {!q.answered && !q.answering && (
+              <button onClick={() => answerQ(q.id)}
+                style={{ background: 'rgba(245,158,11,0.15)', color: '#f59e0b', border: '1px solid rgba(245,158,11,0.4)', borderRadius: '4px', padding: '4px 10px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                Answer
+              </button>
+            )}
+            {q.answering && <div style={{ color: '#60a5fa', fontSize: '10px', flexShrink: 0 }}>⏳</div>}
+            {q.answered && <div style={{ color: '#4ade80', fontSize: '10px', flexShrink: 0 }}>✓</div>}
+          </div>
+        ))}
+      </div>
+
+      {/* Divider */}
+      <div onMouseDown={onDividerDown} style={{ height: 6, background: 'rgba(255,255,255,0.05)', cursor: 'row-resize', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+        onMouseEnter={e => e.currentTarget.style.background = 'rgba(184,147,58,0.25)'}
+        onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}>
+        <div style={{ width: 30, height: 3, borderRadius: 2, background: 'rgba(255,255,255,0.15)' }} />
+      </div>
+
+      {/* Answers — bottom */}
+      <div style={{ flex: 1, overflowY: 'auto', padding: '10px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+        <div style={{ color: '#4ade80', fontSize: '9px', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '2px', flexShrink: 0 }}>💡 Answers</div>
+        {questions.filter(q => q.answered || q.answering).length === 0 && (
+          <div style={{ color: '#4a5568', fontSize: '11px', textAlign: 'center', padding: '20px' }}>Answers appear here when you click Answer</div>
+        )}
+        {questions.filter(q => q.answered || q.answering).map(q => (
+          <div key={q.id} style={{ background: 'rgba(74,222,128,0.04)', border: '1px solid rgba(74,222,128,0.15)', borderRadius: '4px', padding: '8px 10px' }}>
+            <div style={{ color: '#f59e0b', fontSize: '9px', marginBottom: '4px', fontStyle: 'italic' }}>Re: "{q.text.slice(0, 60)}{q.text.length > 60 ? '…' : ''}"</div>
+            {q.answering && <div style={{ color: '#6b7280', fontSize: '11px' }}>⏳ Searching knowledge base…</div>}
+            {!q.answering && <div style={{ color: '#e8e0d0', fontSize: '12px', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{q.answer}</div>}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── Coach Tab ─────────────────────────────────────────────────────────────────
+function CoachPanel({ transcript, kbEntries, coachRules, active }) {
+  const [tips,      setTips]      = useState([]);
+  const [streaming, setStreaming] = useState(false);
+  const lastFired   = useRef(0);
+  const containerRef = useRef(null);
+
+  // Fire on every new transcript segment when active
+  useEffect(() => {
+    if (!active || !transcript.length) return;
+    const now = Date.now();
+    if (now - lastFired.current < 4000) return; // debounce 4s
+    lastFired.current = now;
+    streamCoach();
+  }, [transcript, active]);
+
+  const streamCoach = async () => {
+    if (streaming) return;
+    setStreaming(true);
+    const tipId = Date.now();
+    setTips(prev => [...prev, { id: tipId, text: '', streaming: true, time: new Date() }]);
+
+    try {
+      const res = await base44.functions.invoke('liveAssistantAI', {
+        transcript: transcript.slice(-15),
+        kbEntries,
+        mode: 'coach_stream',
+        coachRules,
+      });
+      // liveAssistantAI returns streamed SSE — read the full text
+      const text = res?.data?.answer || res?.answer || '';
+      setTips(prev => prev.map(t => t.id === tipId ? { ...t, text, streaming: false } : t));
+    } catch (e) {
+      setTips(prev => prev.map(t => t.id === tipId ? { ...t, text: `Error: ${e.message}`, streaming: false } : t));
+    }
+    setStreaming(false);
+    // Scroll to bottom
+    setTimeout(() => { if (containerRef.current) containerRef.current.scrollTop = containerRef.current.scrollHeight; }, 100);
+  };
+
+  CoachPanel.getTips = () => tips.filter(t => t.text).map(t => t.text);
+
+  return (
+    <div ref={containerRef} style={{ flex: 1, overflowY: 'auto', padding: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+      <div style={{ color: '#a78bfa', fontSize: '9px', textTransform: 'uppercase', letterSpacing: '1px', flexShrink: 0 }}>
+        🎯 Live Coach {active ? '● live' : '○ paused'}
+      </div>
+      {tips.length === 0 && (
+        <div style={{ color: '#4a5568', fontSize: '11px', textAlign: 'center', padding: '30px' }}>
+          {active ? 'Waiting for conversation…' : 'Enable Coach to start'}
+        </div>
+      )}
+      {[...tips].reverse().map((tip, i) => (
+        <div key={tip.id} style={{ background: i === 0 ? 'rgba(167,139,250,0.08)' : 'rgba(255,255,255,0.02)', border: `1px solid ${i === 0 ? 'rgba(167,139,250,0.3)' : 'rgba(255,255,255,0.06)'}`, borderRadius: '6px', padding: '10px 12px' }}>
+          <div style={{ color: '#4a5568', fontSize: '8px', marginBottom: '4px' }}>{tip.time.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', second: '2-digit' })}</div>
+          {tip.streaming
+            ? <div style={{ color: '#6b7280', fontSize: '11px', display: 'flex', gap: 6, alignItems: 'center' }}><div style={{ width: 5, height: 5, borderRadius: '50%', background: GOLD, animation: 'pulse 0.8s infinite' }} />Thinking…</div>
+            : <div style={{ color: i === 0 ? '#e8e0d0' : '#8a9ab8', fontSize: '12px', lineHeight: 1.6 }}>{tip.text}</div>
+          }
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ── Intent Tab ────────────────────────────────────────────────────────────────
+function IntentPanel({ transcript, engagementScore, intentRules, active, onIntentResult }) {
+  const [liveSegments, setLiveSegments] = useState([]);
+  const [finalResult,  setFinalResult]  = useState(null);
+  const [analyzing,    setAnalyzing]    = useState(false);
+
+  // Collect live Deepgram sentiment
+  useEffect(() => {
+    if (!transcript.length) return;
+    const last = transcript[transcript.length - 1];
+    if (last.sentiment) {
+      setLiveSegments(prev => [...prev.slice(-50), { text: last.text, sentiment: last.sentiment, sentScore: last.sentScore, time: new Date() }]);
+    }
+  }, [transcript]);
+
+  const runFinalAnalysis = async () => {
+    setAnalyzing(true);
+    try {
+      const res = await base44.functions.invoke('liveAssistantAI', {
+        transcript, mode: 'intent_final', intentRules, engagementScore,
+      });
+      const result = res?.data?.intent || res?.intent;
+      if (result) { setFinalResult(result); onIntentResult?.(result); }
+    } catch (e) { console.error('Intent analysis failed:', e); }
+    setAnalyzing(false);
+  };
+
+  IntentPanel.runFinal = runFinalAnalysis;
+  IntentPanel.getResult = () => finalResult;
+
+  const sentColor = { positive: '#4ade80', negative: '#ef4444', neutral: '#8a9ab8' };
+  const posCount  = liveSegments.filter(s => s.sentiment === 'positive').length;
+  const negCount  = liveSegments.filter(s => s.sentiment === 'negative').length;
+  const neuCount  = liveSegments.filter(s => s.sentiment === 'neutral').length;
+
+  return (
+    <div style={{ flex: 1, overflowY: 'auto', padding: '12px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+
+      {/* Live sentiment ticker */}
+      <div>
+        <div style={{ color: '#60a5fa', fontSize: '9px', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '6px' }}>📡 Live Sentiment</div>
+        {liveSegments.length === 0
+          ? <div style={{ color: '#4a5568', fontSize: '11px' }}>{active ? 'Waiting for sentiment data…' : 'Enable Intent to track'}</div>
+          : (
+            <>
+              <div style={{ display: 'flex', gap: '12px', marginBottom: '8px' }}>
+                {[['Positive', posCount, '#4ade80'], ['Negative', negCount, '#ef4444'], ['Neutral', neuCount, '#8a9ab8']].map(([label, count, color]) => (
+                  <div key={label} style={{ textAlign: 'center' }}>
+                    <div style={{ color, fontSize: '18px', fontWeight: 'bold', fontFamily: 'monospace' }}>{count}</div>
+                    <div style={{ color: '#4a5568', fontSize: '8px' }}>{label}</div>
+                  </div>
+                ))}
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', maxHeight: '120px', overflowY: 'auto' }}>
+                {[...liveSegments].reverse().slice(0, 15).map((s, i) => (
+                  <div key={i} style={{ display: 'flex', gap: '6px', alignItems: 'baseline' }}>
+                    <div style={{ width: 6, height: 6, borderRadius: '50%', background: sentColor[s.sentiment] || '#4a5568', flexShrink: 0, marginTop: 4 }} />
+                    <span style={{ color: '#6b7280', fontSize: '9px', flexShrink: 0 }}>{s.time.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', second: '2-digit' })}</span>
+                    <span style={{ color: '#8a9ab8', fontSize: '10px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.text.slice(0, 60)}</span>
+                  </div>
+                ))}
+              </div>
+            </>
+          )
+        }
+      </div>
+
+      {/* Post-call analysis */}
+      <div style={{ borderTop: '1px solid rgba(255,255,255,0.07)', paddingTop: '10px' }}>
+        <div style={{ color: '#f59e0b', fontSize: '9px', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '8px' }}>📊 Post-Call Analysis</div>
+        {!finalResult && (
+          <button onClick={runFinalAnalysis} disabled={analyzing || transcript.length < 3}
+            style={{ background: 'rgba(96,165,250,0.1)', color: '#60a5fa', border: '1px solid rgba(96,165,250,0.3)', borderRadius: '4px', padding: '6px 14px', cursor: analyzing || transcript.length < 3 ? 'not-allowed' : 'pointer', fontSize: '11px', fontWeight: 'bold', opacity: transcript.length < 3 ? 0.4 : 1 }}>
+            {analyzing ? '⏳ Analyzing…' : '🔍 Run Intent Analysis'}
           </button>
         )}
-      </div>
-
-      <div ref={containerRef} style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: layout === 'top' ? 'column' : 'row', position: 'relative' }}>
-        {layout === 'top' && (<>
-          <div style={{ height: `${100 - scriptWidth}%`, overflow: 'hidden', flexShrink: 0 }}>{aiPanelJSX}</div>
-          <div onMouseDown={onDividerMouseDown} style={{ height: '6px', flexShrink: 0, background: 'rgba(255,255,255,0.05)', cursor: 'row-resize', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-            onMouseEnter={e => e.currentTarget.style.background = 'rgba(184,147,58,0.3)'}
-            onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}>
-            <div style={{ background: 'rgba(255,255,255,0.15)', borderRadius: '2px', width: '3px', height: '30px' }} />
+        {finalResult && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            {/* Score */}
+            <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: '32px', fontWeight: 'bold', color: finalResult.intentScore >= 70 ? '#4ade80' : finalResult.intentScore >= 40 ? '#f59e0b' : '#ef4444', fontFamily: 'monospace' }}>{finalResult.intentScore}</div>
+                <div style={{ color: '#4a5568', fontSize: '9px' }}>Intent Score</div>
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '4px' }}>
+                  <span style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px', padding: '1px 8px', color: '#e8e0d0', fontSize: '10px' }}>{finalResult.animalType === 'cow' ? '🐄 Cow' : finalResult.animalType === 'duck' ? '🦆 Duck' : '❓ Unknown'}</span>
+                  <span style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px', padding: '1px 8px', color: '#e8e0d0', fontSize: '10px' }}>Interest: {finalResult.interestLevel}</span>
+                  <span style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px', padding: '1px 8px', color: '#e8e0d0', fontSize: '10px' }}>Tone: {finalResult.tonality}</span>
+                </div>
+                <div style={{ color: '#8a9ab8', fontSize: '9px' }}>AI: {finalResult.rawAiScore} + Engagement: +{finalResult.engagementContribution}</div>
+              </div>
+            </div>
+            {/* Details */}
+            {[
+              ['Tonality Notes', finalResult.tonalityNotes],
+              ['Interest Reason', finalResult.interestReason],
+              ['Sentiment Arc', `${finalResult.sentimentArc} — ${finalResult.sentimentArcNotes}`],
+              ['Next Step', finalResult.recommendedNextStep],
+            ].filter(([, v]) => v).map(([label, value]) => (
+              <div key={label} style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '4px', padding: '7px 10px' }}>
+                <div style={{ color: GOLD, fontSize: '8px', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '2px' }}>{label}</div>
+                <div style={{ color: '#c4cdd8', fontSize: '11px', lineHeight: 1.4 }}>{value}</div>
+              </div>
+            ))}
+            {finalResult.keyMoments?.length > 0 && (
+              <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '4px', padding: '7px 10px' }}>
+                <div style={{ color: GOLD, fontSize: '8px', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '4px' }}>Key Moments</div>
+                {finalResult.keyMoments.map((m, i) => <div key={i} style={{ color: '#c4cdd8', fontSize: '11px', lineHeight: 1.4 }}>• {m}</div>)}
+              </div>
+            )}
           </div>
-          <div style={{ flex: 1, overflow: 'hidden', minHeight: 0 }}>{scriptPanelJSX}</div>
-        </>)}
-        {layout === 'side' && (<>
-          <div style={{ width: `${scriptWidth}%`, overflow: 'hidden', flexShrink: 0 }}>{scriptPanelJSX}</div>
-          <div onMouseDown={onDividerMouseDown} style={{ width: '6px', flexShrink: 0, background: 'rgba(255,255,255,0.05)', cursor: 'col-resize', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-            onMouseEnter={e => e.currentTarget.style.background = 'rgba(184,147,58,0.3)'}
-            onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}>
-            <div style={{ background: 'rgba(255,255,255,0.15)', borderRadius: '2px', width: '3px', height: '30px' }} />
-          </div>
-          <div style={{ flex: 1, overflow: 'hidden', minWidth: 0 }}>{aiPanelJSX}</div>
-        </>)}
-        {layout === 'fullscript' && <div style={{ flex: 1, overflow: 'hidden' }}>{scriptPanelJSX}</div>}
-        {layout === 'fullai'     && <div style={{ flex: 1, overflow: 'hidden' }}>{aiPanelJSX}</div>}
+        )}
       </div>
-
-      {/* Floating popup */}
-      {showPopup && (
-        <AIAssistantPopup
-          lead={lead}
-          transcript={transcript}
-          transcriptRef={transcriptRef}
-          kbEntries={kbEntries}
-          portalCfg={portalCfg}
-          engagementScore={lead?.engagementScore || 0}
-          qaActive={qaActive}
-          coachActive={coachActive}
-          intentActive={intentActive}
-          onToggleQA={toggleQA}
-          onToggleCoach={toggleCoach}
-          onToggleIntent={toggleIntent}
-          onClose={() => setShowPopup(false)}
-          onIntentResult={result => { setIntentResult(result); }}
-        />
-      )}
     </div>
+  );
+}
+
+// ── Main Export ───────────────────────────────────────────────────────────────
+export default function AIAssistantPopup({
+  lead, transcript, transcriptRef, kbEntries, portalCfg, engagementScore,
+  qaActive, coachActive, intentActive,
+  onToggleQA, onToggleCoach, onToggleIntent,
+  onClose, onIntentResult,
+}) {
+  const [activeTab, setActiveTab] = useState(qaActive ? 'qa' : coachActive ? 'coach' : 'intent');
+
+  const qaRef     = useRef(null);
+  const coachRef  = useRef(null);
+  const intentRef = useRef(null);
+
+  // Switch to activated tab
+  useEffect(() => { if (qaActive)     setActiveTab('qa');     }, [qaActive]);
+  useEffect(() => { if (coachActive)  setActiveTab('coach');  }, [coachActive]);
+  useEffect(() => { if (intentActive) setActiveTab('intent'); }, [intentActive]);
+
+  const screenW = window.innerWidth;
+  const defaultW = Math.round(screenW * 0.5);
+  const defaultH = Math.round(defaultW / 2.4);
+
+  const TABS = [
+    { id: 'qa',     label: '❓ Q&A',    active: qaActive,     toggle: onToggleQA,     color: '#f59e0b' },
+    { id: 'coach',  label: '🎯 Coach',  active: coachActive,  toggle: onToggleCoach,  color: '#a78bfa' },
+    { id: 'intent', label: '🦆 Intent', active: intentActive, toggle: onToggleIntent, color: '#60a5fa' },
+  ];
+
+  return (
+    <FloatingPopup onClose={onClose} defaultWidth={defaultW} defaultHeight={defaultH}>
+      <style>{`@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}`}</style>
+
+      {/* Sidebar */}
+      <div style={{ width: 110, background: 'rgba(0,0,0,0.2)', borderRight: '1px solid rgba(255,255,255,0.07)', display: 'flex', flexDirection: 'column', padding: '10px 8px', gap: '6px', flexShrink: 0 }}>
+        {TABS.map(tab => (
+          <div key={tab.id}>
+            <button onClick={() => setActiveTab(tab.id)}
+              style={{ width: '100%', background: activeTab === tab.id ? `${tab.color}18` : 'transparent', border: `1px solid ${activeTab === tab.id ? `${tab.color}44` : 'rgba(255,255,255,0.06)'}`, borderRadius: '4px', color: activeTab === tab.id ? tab.color : '#4a5568', padding: '7px 8px', cursor: 'pointer', fontSize: '10px', textAlign: 'left', fontWeight: 'bold', marginBottom: '3px' }}>
+              {tab.label}
+            </button>
+            <button onClick={tab.toggle}
+              style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '5px', background: tab.active ? `${tab.color}12` : 'rgba(255,255,255,0.03)', border: `1px solid ${tab.active ? `${tab.color}33` : 'rgba(255,255,255,0.06)'}`, borderRadius: '4px', color: tab.active ? tab.color : '#4a5568', padding: '4px 8px', cursor: 'pointer', fontSize: '9px' }}>
+              <Dot status={tab.active ? 'connected' : 'idle'} size={5} />
+              {tab.active ? 'ON' : 'OFF'}
+            </button>
+          </div>
+        ))}
+      </div>
+
+      {/* Main area */}
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        {activeTab === 'qa' && (
+          <QAPanel ref={qaRef} transcript={transcript} transcriptRef={transcriptRef} kbEntries={kbEntries} active={qaActive} qaKeywords={portalCfg?.intentTriggerKeywords} />
+        )}
+        {activeTab === 'coach' && (
+          <CoachPanel ref={coachRef} transcript={transcript} kbEntries={kbEntries} coachRules={{ focusAreas: portalCfg?.coachFocusAreas, style: portalCfg?.coachStyle, additionalContext: portalCfg?.coachAdditionalContext }} active={coachActive} />
+        )}
+        {activeTab === 'intent' && (
+          <IntentPanel ref={intentRef} transcript={transcript} engagementScore={engagementScore} intentRules={{ duckDefinition: portalCfg?.intentDuckDefinition, cowDefinition: portalCfg?.intentCowDefinition, positiveSignals: portalCfg?.intentPositiveSignals, negativeSignals: portalCfg?.intentNegativeSignals }} active={intentActive} onIntentResult={onIntentResult} />
+        )}
+      </div>
+    </FloatingPopup>
   );
 }
