@@ -1348,10 +1348,6 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
                 style={{ background:'rgba(74,222,128,0.08)', color:'#4ade80', border:'1px solid rgba(74,222,128,0.25)', borderRadius:'20px', padding:'4px 12px', cursor:'pointer', fontSize:'11px', whiteSpace:'nowrap' }}>
                 📅 Schedule Follow Up
               </button>
-              <button onClick={() => setShowZoom(true)}
-                style={{ background:'rgba(96,165,250,0.08)', color:'#60a5fa', border:'1px solid rgba(96,165,250,0.25)', borderRadius:'20px', padding:'4px 12px', cursor:'pointer', fontSize:'11px', whiteSpace:'nowrap' }}>
-                🗓 Book Call via Calendly
-              </button>
             </div>
           )}
 
