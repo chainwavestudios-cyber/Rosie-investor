@@ -159,143 +159,18 @@ function OverviewTab({ editLead, setEditLead, saving, saveMsg, saveProfile, upda
   const HISTORY_ICONS = { call:'📞', not_available:'📵', callback_later:'📅', not_interested:'❌', status_change:'🔄', note:'📝', prospect:'⭐', connected:'🟢' };
   const historyColor = (type) => ({ call:'#60a5fa', not_available:'#8a9ab8', callback_later:'#a78bfa', not_interested:'#ef4444', status_change:GOLD, note:'#c4cdd8', prospect:'#a78bfa', connected:'#4ade80' })[type] || '#6b7280';
 
-  const [showCallbackPicker, setShowCallbackPicker] = useState(false);
-  const [quickCallbackDate, setQuickCallbackDate] = useState('');
-  const [showNotInterestedConfirm, setShowNotInterestedConfirm] = useState(false);
-  const [showFollowUpPicker, setShowFollowUpPicker] = useState(false);
-  const [followUpDate, setFollowUpDate] = useState('');
-  const [followUpNote, setFollowUpNote] = useState('');
-  const [savingFollowUp, setSavingFollowUp] = useState(false);
+  const [bottomTab, setBottomTab] = useState('notes');
   const [bottomTab, setBottomTab] = useState('notes'); // 'notes' | 'calls'
 
   return (
     <div style={{ display:'flex', flexDirection:'column', gap:'14px' }}>
 
-      {/* Status + Edit row */}
-      {!isArchived && <div style={{ display:'flex', flexDirection:'column', gap:'8px' }}>
-        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-          <div style={{ display:'flex', gap:'6px', flexWrap:'wrap', alignItems:'center' }}>
-            {['lead','intro_email_sent','opened_intro_email','prospect'].map(s => {
-              const si = STATUS_LABELS[s];
-              if (!si) return null;
-              const active = editLead.status === s;
-              return (
-                <button key={s} onClick={() => updateStatus(s, 'status_change', `Status changed to ${s}`, s === 'prospect' ? { leadPipelineStage: 'reviewing' } : {})}
-                  style={{ padding:'6px 16px', border:`1px solid ${active ? si.color : 'rgba(255,255,255,0.1)'}`, borderRadius:'20px', background:active ? `${si.color}22` : 'transparent', color:active ? si.color : '#6b7280', cursor:'pointer', fontSize:'12px', fontWeight:active?'bold':'normal', transition:'all 0.15s' }}>
-                  {si.label}
-                </button>
-              );
-            })}
-            {/* Migrate button inline next to Prospect */}
-            <button onClick={() => onMigrate && onMigrate()}
-              style={{ padding:'6px 14px', border:'1px solid rgba(124,58,237,0.5)', borderRadius:'20px', background:'rgba(124,58,237,0.15)', color:'#a855f7', cursor:'pointer', fontSize:'12px', fontWeight:'bold', whiteSpace:'nowrap' }}>
-              🚀 Migrate
-            </button>
-          </div>
-          <button onClick={() => setEditing(e => !e)}
-            style={{ background: editing ? 'rgba(184,147,58,0.2)' : 'rgba(255,255,255,0.05)', color: editing ? GOLD : '#8a9ab8', border:`1px solid ${editing ? 'rgba(184,147,58,0.4)' : 'rgba(255,255,255,0.1)'}`, borderRadius:'4px', padding:'6px 14px', cursor:'pointer', fontSize:'11px', letterSpacing:'0.5px' }}>
-            {editing ? '✕ Cancel Edit' : '✏️ Edit'}
-          </button>
-        </div>
-
-        {/* Quick action buttons */}
-        <div style={{ display:'flex', gap:'6px', flexWrap:'wrap', alignItems:'flex-start' }}>
-          {/* Call Back Later (Not Available) */}
-          <div>
-            <button onClick={() => { setShowCallbackPicker(p => !p); setShowNotInterestedConfirm(false); setShowFollowUpPicker(false); }}
-              style={{ padding:'5px 14px', border:'1px solid rgba(138,154,184,0.4)', borderRadius:'20px', background:'rgba(138,154,184,0.08)', color:'#8a9ab8', cursor:'pointer', fontSize:'11px', whiteSpace:'nowrap' }}>
-              📵 Call Back Later (Not Available)
-            </button>
-            {showCallbackPicker && (
-              <div style={{ marginTop:'8px', background:'rgba(0,0,0,0.3)', border:'1px solid rgba(138,154,184,0.3)', borderRadius:'6px', padding:'12px', display:'flex', flexDirection:'column', gap:'8px', zIndex:10 }}>
-                <label style={{ color:'#8a9ab8', fontSize:'10px', letterSpacing:'1.5px', textTransform:'uppercase' }}>Select Date & Time</label>
-                <input type="datetime-local" value={quickCallbackDate} onChange={e => setQuickCallbackDate(e.target.value)}
-                  style={{ background:'rgba(255,255,255,0.06)', border:'1px solid rgba(138,154,184,0.3)', borderRadius:'4px', padding:'7px 10px', color:'#e8e0d0', fontSize:'12px', outline:'none', colorScheme:'dark' }} />
-                <button onClick={() => onQuickCallbackLater(quickCallbackDate, () => { setShowCallbackPicker(false); setQuickCallbackDate(''); })} disabled={!quickCallbackDate}
-                  style={{ background:'rgba(138,154,184,0.2)', color:'#8a9ab8', border:'1px solid rgba(138,154,184,0.4)', borderRadius:'4px', padding:'7px 16px', cursor: quickCallbackDate ? 'pointer' : 'not-allowed', fontSize:'11px', fontWeight:'bold' }}>
-                  ✓ Log Not Available
-                </button>
-              </div>
-            )}
-          </div>
-
-          {/* Not Interested */}
-          <div>
-            <button onClick={() => { setShowNotInterestedConfirm(p => !p); setShowCallbackPicker(false); setShowFollowUpPicker(false); }}
-              style={{ padding:'5px 14px', border:'1px solid rgba(239,68,68,0.35)', borderRadius:'20px', background:'rgba(239,68,68,0.07)', color:'#ef4444', cursor:'pointer', fontSize:'11px', whiteSpace:'nowrap' }}>
-              ❌ Not Interested
-            </button>
-            {showNotInterestedConfirm && (
-              <div style={{ marginTop:'8px', background:'rgba(239,68,68,0.08)', border:'1px solid rgba(239,68,68,0.35)', borderRadius:'6px', padding:'12px', display:'flex', flexDirection:'column', gap:'8px' }}>
-                <div style={{ color:'#ef4444', fontSize:'12px', fontWeight:'bold' }}>⚠️ Permanently remove this lead?</div>
-                <div style={{ color:'#6b7280', fontSize:'11px' }}>This will hide them from all lead lists.</div>
-                <div style={{ display:'flex', gap:'8px' }}>
-                  <button onClick={onQuickNotInterested}
-                    style={{ background:'rgba(239,68,68,0.2)', color:'#ef4444', border:'1px solid rgba(239,68,68,0.5)', borderRadius:'4px', padding:'6px 14px', cursor:'pointer', fontSize:'11px', fontWeight:'bold' }}>
-                    ✓ Confirm Remove
-                  </button>
-                  <button onClick={() => setShowNotInterestedConfirm(false)}
-                    style={{ background:'transparent', color:'#6b7280', border:'1px solid rgba(255,255,255,0.1)', borderRadius:'4px', padding:'6px 12px', cursor:'pointer', fontSize:'11px' }}>
-                    Cancel
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Schedule Follow Up */}
-          <div>
-            <button onClick={() => { setShowFollowUpPicker(p => !p); setShowCallbackPicker(false); setShowNotInterestedConfirm(false); }}
-              style={{ padding:'5px 14px', border:'1px solid rgba(74,222,128,0.35)', borderRadius:'20px', background:'rgba(74,222,128,0.07)', color:'#4ade80', cursor:'pointer', fontSize:'11px', whiteSpace:'nowrap' }}>
-              📅 Schedule Follow Up
-            </button>
-            {showFollowUpPicker && (
-              <div style={{ marginTop:'8px', background:'rgba(0,0,0,0.3)', border:'1px solid rgba(74,222,128,0.3)', borderRadius:'6px', padding:'12px', display:'flex', flexDirection:'column', gap:'8px', zIndex:10 }}>
-                <label style={{ color:'#4ade80', fontSize:'10px', letterSpacing:'1.5px', textTransform:'uppercase' }}>Follow Up Date & Time</label>
-                <input type="datetime-local" value={followUpDate} onChange={e => setFollowUpDate(e.target.value)}
-                  style={{ background:'rgba(255,255,255,0.06)', border:'1px solid rgba(74,222,128,0.3)', borderRadius:'4px', padding:'7px 10px', color:'#e8e0d0', fontSize:'12px', outline:'none', colorScheme:'dark' }} />
-                <input value={followUpNote} onChange={e => setFollowUpNote(e.target.value)} placeholder="Note (optional)…"
-                  style={{ background:'rgba(255,255,255,0.06)', border:'1px solid rgba(74,222,128,0.2)', borderRadius:'4px', padding:'7px 10px', color:'#e8e0d0', fontSize:'12px', outline:'none' }} />
-                <button onClick={async () => {
-                  if (!followUpDate) return;
-                  setSavingFollowUp(true);
-                  try {
-                    await base44.entities.Appointment.create({
-                      investorId: editLead.id,
-                      investorEmail: editLead.email || '',
-                      investorName: `${editLead.firstName} ${editLead.lastName}`,
-                      title: `Follow up with ${editLead.firstName} ${editLead.lastName}`,
-                      type: 'follow-up',
-                      scheduledAt: followUpDate,
-                      notes: followUpNote,
-                      status: 'scheduled',
-                      createdBy: createdBy,
-                    });
-                    await base44.entities.LeadHistory.create({
-                      leadId: editLead.id,
-                      type: 'callback_later',
-                      content: `📅 Follow up scheduled for ${new Date(followUpDate).toLocaleString('en-US',{weekday:'short',month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})}${followUpNote ? ` — ${followUpNote}` : ''} · by ${createdBy}`,
-                      createdBy: createdBy,
-                    });
-                    setShowFollowUpPicker(false); setFollowUpDate(''); setFollowUpNote('');
-                    onNoteAdded && onNoteAdded();
-                  } catch(e) { alert('Error: ' + e.message); }
-                  setSavingFollowUp(false);
-                }} disabled={!followUpDate || savingFollowUp}
-                  style={{ background:'rgba(74,222,128,0.2)', color:'#4ade80', border:'1px solid rgba(74,222,128,0.4)', borderRadius:'4px', padding:'7px 16px', cursor: followUpDate ? 'pointer' : 'not-allowed', fontSize:'11px', fontWeight:'bold' }}>
-                  {savingFollowUp ? '⏳ Saving…' : '✓ Schedule'}
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>}
-
       {/* Contact info — compact view */}
       {!editing && (
         <div style={{ background:'rgba(255,255,255,0.02)', border:'1px solid rgba(255,255,255,0.06)', borderRadius:'6px', padding:'12px 14px', display:'flex', flexDirection:'column', gap:'7px' }}>
-          {/* Name row + badges */}
-          <div style={{ display:'flex', alignItems:'center', gap:'10px', flexWrap:'wrap' }}>
+          {/* Name row + badges + Edit button */}
+          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:'10px', flexWrap:'wrap' }}>
+            <div style={{ display:'flex', alignItems:'center', gap:'10px', flexWrap:'wrap' }}>
             <span style={{ color:'#e8e0d0', fontSize:'15px', fontWeight:'bold' }}>{editLead.firstName} {editLead.lastName}</span>
             {editLead.badgeIntroEmailOpened && (
               <span style={{ background:'rgba(96,165,250,0.1)', border:'1px solid rgba(96,165,250,0.25)', borderRadius:'10px', padding:'2px 8px', color:'#60a5fa', fontSize:'10px', whiteSpace:'nowrap' }}>🌟 Intro Opened ✅</span>
@@ -305,6 +180,13 @@ function OverviewTab({ editLead, setEditLead, saving, saveMsg, saveProfile, upda
             )}
             {editLead.badgeInvestorPage && (
               <span style={{ background:'rgba(96,165,250,0.1)', border:'1px solid rgba(96,165,250,0.25)', borderRadius:'10px', padding:'2px 8px', color:'#60a5fa', fontSize:'10px', whiteSpace:'nowrap' }}>📈 Investor Page Visited ✅</span>
+            )}
+            </div>
+            {!isArchived && (
+              <button onClick={() => setEditing(e => !e)}
+                style={{ background:'rgba(255,255,255,0.05)', color:'#8a9ab8', border:'1px solid rgba(255,255,255,0.1)', borderRadius:'4px', padding:'4px 12px', cursor:'pointer', fontSize:'11px', letterSpacing:'0.5px', flexShrink:0 }}>
+                ✏️ Edit
+              </button>
             )}
           </div>
           {/* Phone row */}
@@ -1337,6 +1219,24 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
               onDisconnectNext={() => { dialerRef.current?.hangupActiveCall?.(); onNextLead?.(); }}
               onSaveResume={async () => { await saveProfile(); dialerRef.current?.hangupActiveCall?.(); onResume?.(); }}
             />
+          )}
+
+          {/* Quick actions — below inline dialer, above tabs */}
+          {!isArchived && (
+            <div style={{ display:'flex', gap:'8px', flexWrap:'wrap', marginTop:'8px' }}>
+              <button onClick={() => handleQuickCallbackLater(callbackDate, () => setCallbackDate(''))}
+                style={{ padding:'5px 14px', border:'1px solid rgba(245,158,11,0.3)', borderRadius:'20px', background:'rgba(245,158,11,0.07)', color:'#f59e0b', cursor:'pointer', fontSize:'11px', whiteSpace:'nowrap' }}>
+                📵 Call Back Later (Not Available)
+              </button>
+              <button onClick={handleQuickNotInterested}
+                style={{ padding:'5px 14px', border:'1px solid rgba(239,68,68,0.3)', borderRadius:'20px', background:'rgba(239,68,68,0.07)', color:'#ef4444', cursor:'pointer', fontSize:'11px', whiteSpace:'nowrap' }}>
+                ❌ Not Interested
+              </button>
+              <button onClick={() => setShowZoom(true)}
+                style={{ padding:'5px 14px', border:'1px solid rgba(74,222,128,0.3)', borderRadius:'20px', background:'rgba(74,222,128,0.07)', color:'#4ade80', cursor:'pointer', fontSize:'11px', whiteSpace:'nowrap' }}>
+                📅 Schedule Follow Up
+              </button>
+            </div>
           )}
 
           {/* Predictive dialer controls + email status */}
