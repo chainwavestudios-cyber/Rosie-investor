@@ -622,7 +622,7 @@ function PortalControls() {
       </div>
       <div style={{ paddingLeft:'32px' }}>
         {sec==='raise' && <div><h3 style={{ color:'#e8e0d0', margin:'0 0 20px', fontWeight:'normal' }}>Raise Progress</h3><div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'0 16px' }}><F label="Total Raise Target ($)" value={s.totalRaise} onChange={e=>upd('totalRaise',Number(e.target.value))} type="number" /><F label="Committed Capital ($)" value={s.committedCapital} onChange={e=>upd('committedCapital',Number(e.target.value))} type="number" /><F label="Invested Capital ($)" value={s.investedCapital} onChange={e=>upd('investedCapital',Number(e.target.value))} type="number" /><F label="Invested Target ($)" value={s.investedTarget} onChange={e=>upd('investedTarget',Number(e.target.value))} type="number" /></div></div>}
-        {sec==='contact' && <div><h3 style={{ color:'#e8e0d0', margin:'0 0 20px', fontWeight:'normal' }}>Contact Info</h3><F label="Company Name" value={s.companyName} onChange={e=>upd('companyName',e.target.value)} /><F label="Address Line 1" value={s.address1} onChange={e=>upd('address1',e.target.value)} /><F label="Address Line 2" value={s.address2} onChange={e=>upd('address2',e.target.value)} /><F label="Phone" value={s.phone} onChange={e=>upd('phone',e.target.value)} /><F label="Email" value={s.email} onChange={e=>upd('email',e.target.value)} /><F label="Zoom / Calendly Booking URL" value={s.zoomBookingUrl||''} onChange={e=>upd('zoomBookingUrl',e.target.value)} placeholder="https://scheduler.zoom.us/your-name" /></div>}
+        {sec==='contact' && <div><h3 style={{ color:'#e8e0d0', margin:'0 0 20px', fontWeight:'normal' }}>Contact Info</h3><F label="Company Name" value={s.companyName} onChange={e=>upd('companyName',e.target.value)} /><F label="Address Line 1" value={s.address1} onChange={e=>upd('address1',e.target.value)} /><F label="Address Line 2" value={s.address2} onChange={e=>upd('address2',e.target.value)} /><F label="Phone" value={s.phone} onChange={e=>upd('phone',e.target.value)} /><F label="Email" value={s.email} onChange={e=>upd('email',e.target.value)} /></div>}
         {sec==='content' && <div><h3 style={{ color:'#e8e0d0', margin:'0 0 20px', fontWeight:'normal' }}>Portal Content</h3><F label="Tagline" value={s.portalTagline} onChange={e=>upd('portalTagline',e.target.value)} /><F label="Headline" value={s.portalHeadline} onChange={e=>upd('portalHeadline',e.target.value)} /><TA label="Subheading" value={s.portalSubtext} onChange={e=>upd('portalSubtext',e.target.value)} rows={3} /><TA label="Legal Disclosure" value={s.disclosureText} onChange={e=>upd('disclosureText',e.target.value)} rows={4} /></div>}
         {sec==='terms' && <div><h3 style={{ color:'#e8e0d0', margin:'0 0 20px', fontWeight:'normal' }}>Investment Terms</h3><div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'0 16px' }}><F label="Round Size" value={s.roundSize} onChange={e=>upd('roundSize',e.target.value)} /><F label="Valuation Cap" value={s.valuationCap} onChange={e=>upd('valuationCap',e.target.value)} /><F label="Min Investment" value={s.minInvestment} onChange={e=>upd('minInvestment',e.target.value)} /><F label="Discount Rate" value={s.discountRate} onChange={e=>upd('discountRate',e.target.value)} /><F label="Target Close" value={s.targetClose} onChange={e=>upd('targetClose',e.target.value)} /></div></div>}
         {sec==='rosie' && (
@@ -1367,168 +1367,346 @@ BEHAVIORAL PATTERNS — classify as Duck if observed:
 - Asks the same question multiple ways (testing for inconsistency)
 - Agrees on one point, immediately pivots to a new objection (whack-a-mole)
 - Cites a past bad investment experience
-- Uses expertise-positioning language ("in my industry", "in my experience")
 - Short clipped responses with flat tone: "uh-huh", "right", "sure"
 - Long silence after agent answers, then a new challenge
 
+DEEPGRAM SENTIMENT — use to reinforce classification:
+- Repeated negative sentiment segments = stronger Duck signal
+- Negative sentiment immediately after agent makes a point = active resistance
+- Sentiment swinging negative then positive = potential opening, ease off pressure
+
 INTENSITY — score 1-5:
-1 = Politely skeptical, one or two questions
-2 = Mild Duck: 1-2 pushbacks, curious underneath
-3 = Moderate Duck: constant rebuttal pattern
-4 = Hard Duck: combative, dismissive, repeated challenges
-5 = Full Quack: hostile, personal attacks, no productive engagement
+1 = Politely skeptical  2 = Mild Duck  3 = Moderate Duck  4 = Hard Duck  5 = Full Quack
 
 HIDDEN BUYING SIGNALS (Duck is actually interested):
-- Keeps asking questions despite pushback (disinterested people hang up)
+- Keeps asking questions despite pushback
 - Asks about portal, paperwork, or logistics
-- Asks "what's the minimum again?"
-- Mentions spouse, partner, or advisor
-- Objection frequency slows or stops completely — flag as CLOSE WINDOW OPEN`;
+- Objection frequency slows or stops — flag CLOSE WINDOW OPEN`;
 
-  const COW_DEFAULT = `A Cow is a warm, curious, agreeable prospect who trusts what they hear, asks genuine questions, and responds enthusiastically. Cows are frequently mishandled — their enthusiasm is mistaken for commitment and the call ends without a close.
+  const COW_DEFAULT = `A Cow is a warm, curious, agreeable prospect who trusts what they hear, asks genuine questions, and responds enthusiastically. Cows are frequently mishandled — enthusiasm is mistaken for commitment and the call ends without a close.
 
 EXACT PHRASES — classify as Cow if any detected:
-"that's interesting" / "really?" / "wow" / "I didn't know that" / "that makes a lot of sense" / "tell me more" / "how does that work" / "I love that idea" / "that sounds amazing" / "I hadn't thought of it that way" / "so what would I need to do" / "oh that's not as complicated as I thought" / "I like the sound of that" / "you really know your stuff" / "I've been looking for something like this" / "is this a good investment" / "what do most people do" / "this is really exciting" / "that actually makes me feel better"
+"that's interesting" / "really?" / "wow" / "I didn't know that" / "that makes a lot of sense" / "tell me more" / "how does that work" / "I love that idea" / "that sounds amazing" / "I hadn't thought of it that way" / "so what would I need to do" / "oh that's not as complicated as I thought" / "I like the sound of that" / "you really know your stuff" / "I've been looking for something like this" / "is this a good investment" / "what do most people do" / "this is really exciting"
 
 BEHAVIORAL PATTERNS — classify as Cow if observed:
 - Asks follow-up questions after every point
-- Agrees out loud mid-sentence with warm sounds ("mm-hmm", "yeah", "right" — warm not flat)
+- Agrees out loud mid-sentence ("mm-hmm", "yeah", "right" — warm, not flat)
 - Repeats agent phrases back to internalize them
 - Shares personal financial context unprompted
-- Laughs easily, uses warm casual language
-- Never pushes back, even on points worth questioning
 - Keeps conversation going but avoids committing to anything specific
 
+DEEPGRAM SENTIMENT — use to reinforce classification:
+- Sustained positive sentiment = confirmed Cow, watch for close window
+- Positive sentiment followed by long silence = processing, do not interrupt
+- Sentiment drops after enthusiasm peak = drift warning, redirect now
+- Speaker 0 positive AND Speaker 1 positive = rapport peak, ideal close moment
+
 INTENSITY — score 1-5:
-1 = Polite and pleasant, baseline warmth
-2 = Mildly warm: friendly, a few positive reactions
-3 = Engaged Cow: asking questions, actively agreeing
-4 = Full Cow: enthusiastic, sharing personal context, asking logistics
-5 = Happy Grazer: loves the conversation, has lost track of the decision
+1 = Mildly warm  2 = Engaged  3 = Full Cow  4 = Enthusiastic  5 = Happy Grazer (close now)
 
-CLOSE WINDOW SIGNALS — flag as CLOSE WINDOW OPEN when detected:
-- "that sounds amazing" or "I love that" — window is open right now
-- "so what would I need to do?" — prospect is asking to be closed
-- "is this a good investment?" — answer directly, no hedging
-- Any logistics question (portal, wire, minimum) — buying intent high
-- Enthusiasm peaks then energy softens — act before window closes
+CLOSE WINDOW SIGNALS — flag CLOSE WINDOW OPEN:
+- "that sounds amazing" / "I love that" / "so what would I need to do?"
+- Any logistics question (portal, wire, minimum)
+- Enthusiasm peaks then energy softens — act before it closes
 
-DRIFT SIGNALS — flag as DRIFT WARNING when detected:
-- Conversation goes off-topic or turns purely social
-- "this has been so helpful" in a wrap-up tone
-- Energy drops after a high point without a commitment
-- Mentions spouse/partner without asking to loop them in
-- Sustained enthusiasm but no specific questions being asked`;
+DRIFT SIGNALS — flag DRIFT WARNING:
+- Goes off-topic / "this has been so helpful" in a wrap-up tone
+- Energy drops after high point without commitment`;
 
   const TRIGGERS_DEFAULT = `returns, ROI, yield, how much, minimum, minimum investment, $15,000, 15k, what do I get, what's my return, profit, distributions, distribution threshold, when do I get paid, how often, quarterly, waterfall, profit waterfall, capital return, return of capital, get my money back, how does it work, what is Rosie, what does Rosie do, AI platform, enterprise, B2B, clients, paying customers, MRR, revenue, $20,000, 28 organizations, how many customers, break even, what's the catch, risk, risky, what could go wrong, lose my money, worst case, guarantee, guaranteed, accredited, accredited investor, do I qualify, SEC, Reg D, 506c, legal, lawyer, attorney, operating agreement, subscription, how do I invest, portal, investor portal, next steps, wire, wire transfer, Class B, units, ownership, voting, do I have a vote, equity, stake, 21.5%, managing partner, Stephani, Wyoming, LLC, taxes, K-1, Schedule K-1, UBTI, tax, how is this taxed, exit, liquidity, can I sell, transfer, secondary market, lock up, how long, what happens if it fails, shut down, competitor, other AI tools, why Rosie, what makes you different, track record, traction, customers, proof, case study, dilution, cap table`;
 
-  const POS_DEFAULT = `that sounds amazing, I love that, I'm interested, tell me more, that makes sense, really?, wow, I didn't know that, so what would I need to do, how do I sign up, how does that work, I've been looking for something like this, that's not as complicated as I thought, I like the sound of that, you really know your stuff, is this a good investment, what do most people do, that actually makes me feel better, I want to move forward, where do I send the money, what's the minimum again, how do I get started, can you send me the link, send me the portal, I'm ready, let's do it, when can we start, what are the next steps, I've had money sitting, I have some capital, I've been thinking about this, that's exactly what I'm looking for, this is exciting, I trust you, I believe that, that makes a lot of sense, I hadn't thought of it that way, so I get my money back first, that's a good structure, quarterly sounds good, I like the waterfall idea, my accountant would like that, that protects me, so there's no way to lose more than I put in, that's smart, I'm in`;
+  const POS_DEFAULT = `that sounds amazing, I love that, I'm interested, tell me more, that makes sense, really?, wow, I didn't know that, so what would I need to do, how do I sign up, I've been looking for something like this, that's not as complicated as I thought, I like the sound of that, you really know your stuff, is this a good investment, what do most people do, that actually makes me feel better, I want to move forward, where do I send the money, what's the minimum again, how do I get started, can you send me the link, send me the portal, I'm ready, let's do it, when can we start, what are the next steps, I've had money sitting, I have some capital, I've been thinking about this, that's exactly what I'm looking for, this is exciting, I trust you, I believe that, so I get my money back first, that's a good structure, quarterly sounds good, I like the waterfall idea, my accountant would like that, that protects me, I'm in`;
 
-  const NEG_DEFAULT = `that won't work, prove it, I doubt that, sounds too good to be true, what's the catch, I've heard that before, yeah but, I'm not convinced, that's not realistic, why would I trust you, show me the numbers, I don't see how that's possible, my lawyer won't like this, what's the guarantee, this sounds like a pitch, I'm skeptical, that seems risky, what happens if it fails, I need to think about it, let me think, I'll think about it, not right now, maybe later, I need to talk to my spouse, I need to talk to my accountant, I need to do more research, I'm not ready, I don't have the money right now, 15k is a lot, that's a big commitment, I'm not accredited, I don't qualify, I've been burned before, I lost money on something like this, sounds like every other pitch, I don't invest in startups, AI is a bubble, this could all disappear, what if you go under, I don't know you, how do I know this is real, is this a scam, I need more time, call me next month, I'm too busy right now, my money is tied up, I have to pass, I'm going to pass, not interested, I'll let you know`;
+  const NEG_DEFAULT = `that won't work, prove it, I doubt that, sounds too good to be true, what's the catch, I've heard that before, yeah but, I'm not convinced, that's not realistic, why would I trust you, show me the numbers, I don't see how that's possible, my lawyer won't like this, what's the guarantee, this sounds like a pitch, I'm skeptical, that seems risky, what happens if it fails, I need to think about it, I'll think about it, not right now, maybe later, I need to talk to my spouse, I need to talk to my accountant, I need to do more research, I'm not ready, I don't have the money right now, 15k is a lot, that's a big commitment, I'm not accredited, I don't qualify, I've been burned before, I lost money on something like this, sounds like every other pitch, I don't invest in startups, AI is a bubble, this could all disappear, what if you go under, I don't know you, how do I know this is real, is this a scam, I need more time, call me next month, I'm too busy right now, my money is tied up, I have to pass, I'm going to pass, not interested, I'll let you know`;
 
-  const [duckDef2, setDuckDef2]         = useState(s.intentDuckDefinition || DUCK_DEFAULT);
-  const [cowDef2, setCowDef2]           = useState(s.intentCowDefinition  || COW_DEFAULT);
-  const [triggers2, setTriggers2]       = useState(s.intentTriggerKeywords || TRIGGERS_DEFAULT);
-  const [interval2, setInterval2]       = useState(s.intentIntervalSeconds || 20);
-  const [posSignals, setPosSignals]     = useState(s.intentPositiveSignals || POS_DEFAULT);
-  const [negSignals, setNegSignals]     = useState(s.intentNegativeSignals || NEG_DEFAULT);
+  const SENTIMENT_DEFAULT = [
+    { id:1, condition:'3+ consecutive negative segments', effect:'Boost Duck score, flag resistance spike in coach tip' },
+    { id:2, condition:'positive segment immediately after agent explains waterfall', effect:'Flag CLOSE WINDOW — prospect responded warmly to structure' },
+    { id:3, condition:'sentiment arc: positive then negative then positive', effect:'Duck showing interest — objection cleared, watch for opening' },
+    { id:4, condition:'sentiment flat neutral for 5+ segments', effect:'Cow drifting — trigger redirect tip in coach' },
+    { id:5, condition:'Speaker 0 positive AND Speaker 1 positive simultaneously', effect:'Rapport peak — ideal close moment, surface in coach tip' },
+  ];
+
+  const [duckDef,    setDuckDef]    = useState(s.intentDuckDefinition  || DUCK_DEFAULT);
+  const [cowDef,     setCowDef]     = useState(s.intentCowDefinition   || COW_DEFAULT);
+  const [triggers,   setTriggers]   = useState(s.intentTriggerKeywords || TRIGGERS_DEFAULT);
+  const [interval2,  setInterval2]  = useState(s.intentIntervalSeconds || 20);
+  const [posSignals, setPosSignals] = useState(s.intentPositiveSignals || POS_DEFAULT);
+  const [negSignals, setNegSignals] = useState(s.intentNegativeSignals || NEG_DEFAULT);
+  const [sentRules,  setSentRules]  = useState(() => {
+    const saved = getPortalSettings().intentSentimentRules;
+    return saved ? JSON.parse(saved) : SENTIMENT_DEFAULT;
+  });
+  const [sentModalOpen, setSentModalOpen] = useState(false);
+  const [editingSent,   setEditingSent]   = useState(null);
+  const [activeType,    setActiveType]    = useState('duck');
 
   useEffect(() => {
     loadPortalSettings().then(loaded => {
       setS(loaded);
-      setDuckDef2(loaded.intentDuckDefinition || DUCK_DEFAULT);
-      setCowDef2(loaded.intentCowDefinition   || COW_DEFAULT);
-      setTriggers2(loaded.intentTriggerKeywords || TRIGGERS_DEFAULT);
+      setDuckDef(loaded.intentDuckDefinition   || DUCK_DEFAULT);
+      setCowDef(loaded.intentCowDefinition     || COW_DEFAULT);
+      setTriggers(loaded.intentTriggerKeywords || TRIGGERS_DEFAULT);
       setInterval2(loaded.intentIntervalSeconds || 20);
       setPosSignals(loaded.intentPositiveSignals || POS_DEFAULT);
       setNegSignals(loaded.intentNegativeSignals || NEG_DEFAULT);
+      if (loaded.intentSentimentRules) setSentRules(JSON.parse(loaded.intentSentimentRules));
     });
   }, []);
 
   const save = async () => {
-    await savePortalSettings({ ...s, intentDuckDefinition: duckDef2, intentCowDefinition: cowDef2, intentTriggerKeywords: triggers2, intentIntervalSeconds: Number(interval2), intentPositiveSignals: posSignals, intentNegativeSignals: negSignals });
-    setSaved(true); setTimeout(() => setSaved(false), 2000);
+    await savePortalSettings({
+      ...s,
+      intentDuckDefinition:  duckDef,
+      intentCowDefinition:   cowDef,
+      intentTriggerKeywords: triggers,
+      intentIntervalSeconds: Number(interval2),
+      intentPositiveSignals: posSignals,
+      intentNegativeSignals: negSignals,
+      intentSentimentRules:  JSON.stringify(sentRules),
+    });
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2000);
   };
 
-  const ta = { width:'100%', background:'rgba(255,255,255,0.05)', border:'1px solid rgba(255,255,255,0.1)', borderRadius:'4px', padding:'10px 14px', color:'#e8e0d0', fontSize:'13px', outline:'none', fontFamily:'Georgia, serif', boxSizing:'border-box', resize:'vertical' };
-  const inp3 = { ...ta, minHeight:'unset', resize:'none' };
+  const resetDefaults = () => {
+    setDuckDef(DUCK_DEFAULT); setCowDef(COW_DEFAULT);
+    setTriggers(TRIGGERS_DEFAULT); setInterval2(20);
+    setPosSignals(POS_DEFAULT); setNegSignals(NEG_DEFAULT);
+    setSentRules(SENTIMENT_DEFAULT);
+  };
+
+  const saveSentRule = (rule) => {
+    if (rule.id && sentRules.find(r => r.id === rule.id)) {
+      setSentRules(prev => prev.map(r => r.id === rule.id ? rule : r));
+    } else {
+      setSentRules(prev => [...prev, { ...rule, id: Date.now() }]);
+    }
+    setSentModalOpen(false); setEditingSent(null);
+  };
+
+  const S = {
+    card:  { background:'rgba(255,255,255,0.03)', border:'1px solid rgba(255,255,255,0.08)', borderRadius:'6px', padding:'16px 18px', marginBottom:'14px' },
+    label: { fontSize:'10px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'10px', display:'flex', justifyContent:'space-between', alignItems:'center' },
+    ta:    { width:'100%', background:'rgba(255,255,255,0.05)', border:'1px solid rgba(255,255,255,0.1)', borderRadius:'4px', padding:'10px 14px', color:'#e8e0d0', fontSize:'12px', outline:'none', fontFamily:'Georgia, serif', boxSizing:'border-box', resize:'vertical', lineHeight:1.6 },
+    tab:   (active, color) => ({ flex:1, background: active ? `${color}18` : 'transparent', border:`1px solid ${active ? color+'44' : 'rgba(255,255,255,0.07)'}`, borderRadius:'4px', color: active ? color : '#6b7280', padding:'6px', cursor:'pointer', fontSize:'11px', fontWeight: active ? '500' : '400' }),
+  };
+
+  const SentModal = ({ rule, onSave, onClose }) => {
+    const [cond, setCond] = useState(rule?.condition || '');
+    const [eff,  setEff]  = useState(rule?.effect    || '');
+    const minp = { width:'100%', background:'rgba(255,255,255,0.06)', border:'1px solid rgba(255,255,255,0.12)', borderRadius:'4px', padding:'8px 12px', color:'#e8e0d0', fontSize:'12px', outline:'none', fontFamily:'Georgia, serif', boxSizing:'border-box', marginBottom:'10px' };
+    return (
+      <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.7)', zIndex:9999, display:'flex', alignItems:'center', justifyContent:'center' }}>
+        <div style={{ background:'#0d1b2a', border:'1px solid rgba(96,165,250,0.35)', borderRadius:'8px', padding:'20px', width:'420px' }}>
+          <div style={{ color:'#60a5fa', fontSize:'11px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'14px' }}>{rule?.id ? 'Edit' : 'Add'} sentiment rule</div>
+          <div style={{ color:'#6b7280', fontSize:'10px', marginBottom:'5px' }}>When Deepgram detects…</div>
+          <input value={cond} onChange={e => setCond(e.target.value)} style={minp} placeholder="e.g. 3+ consecutive negative segments" />
+          <div style={{ color:'#6b7280', fontSize:'10px', marginBottom:'5px' }}>Coach / intent should…</div>
+          <textarea value={eff} onChange={e => setEff(e.target.value)} rows={2} style={{ ...minp, resize:'vertical', marginBottom:'14px' }} placeholder="e.g. boost Duck score, flag resistance spike in coach tip" />
+          <div style={{ display:'flex', gap:'8px', justifyContent:'flex-end' }}>
+            <button onClick={onClose} style={{ background:'transparent', color:'#6b7280', border:'1px solid rgba(255,255,255,0.1)', borderRadius:'4px', padding:'6px 14px', cursor:'pointer', fontSize:'12px' }}>Cancel</button>
+            <button onClick={() => { if (cond.trim() && eff.trim()) onSave({ ...rule, condition: cond.trim(), effect: eff.trim() }); }}
+              disabled={!cond.trim() || !eff.trim()}
+              style={{ background:'linear-gradient(135deg,#185FA5,#378ADD)', color:'white', border:'none', borderRadius:'4px', padding:'6px 14px', cursor:'pointer', fontSize:'12px', fontWeight:'700', opacity:(!cond.trim()||!eff.trim())?0.5:1 }}>
+              Save
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   return (
     <div style={{ maxWidth:'700px' }}>
-      <h3 style={{ color:'#e8e0d0', fontWeight:'normal', margin:'0 0 8px', fontSize:'16px' }}>🦆 Intent Engine Tuning</h3>
-      <p style={{ color:'#6b7280', fontSize:'13px', margin:'0 0 24px', lineHeight:1.7 }}>
-        The intent engine runs every <strong style={{ color:GOLD }}>{interval2}s</strong> during a live call and classifies the prospect as a Duck (skeptic) or Cow (believer). It also scores buying intent and question quality. Tune the definitions and what triggers Q&A lookups below.
+      <h3 style={{ color:'#e8e0d0', fontWeight:'normal', margin:'0 0 4px', fontSize:'16px' }}>🦆 Intent Engine Tuning</h3>
+      <p style={{ color:'#6b7280', fontSize:'13px', margin:'0 0 20px', lineHeight:1.6 }}>
+        Runs post-call and classifies the prospect, scores buying intent, and extracts CRM data. Deepgram provides real-time <strong style={{ color:'#60a5fa' }}>sentiment</strong> and <strong style={{ color:'#60a5fa' }}>speaker labels</strong> per utterance — these feed directly into classification.
       </p>
 
-      <div style={{ background:'rgba(245,158,11,0.06)', border:'1px solid rgba(245,158,11,0.2)', borderRadius:'4px', padding:'20px', marginBottom:'20px' }}>
-        <div style={{ color:'#f59e0b', fontSize:'10px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'14px' }}>🦆 Duck Definition</div>
-        <textarea value={duckDef2} onChange={e => setDuckDef2(e.target.value)} rows={4} style={ta} />
-        <div style={{ color:'#6b7280', fontSize:'11px', marginTop:'6px' }}>Describe what behaviors and phrases identify a Duck (skeptic/arguer). The AI uses this exact text.</div>
+      {/* Duck / Cow tabbed */}
+      <div style={S.card}>
+        <div style={{ ...S.label, color:GOLD }}><span>🐾 Prospect type definitions</span></div>
+        <div style={{ color:'#6b7280', fontSize:'11px', marginBottom:'10px' }}>The AI uses these exact definitions to classify the prospect. Include phrases, behaviors, and Deepgram sentiment cues.</div>
+        <div style={{ display:'flex', gap:'6px', marginBottom:'12px' }}>
+          <button onClick={() => setActiveType('duck')} style={S.tab(activeType==='duck', '#f59e0b')}>🦆 Duck (skeptic)</button>
+          <button onClick={() => setActiveType('cow')}  style={S.tab(activeType==='cow',  '#4ade80')}>🐄 Cow (believer)</button>
+        </div>
+        {activeType === 'duck' && <textarea value={duckDef} onChange={e => setDuckDef(e.target.value)} rows={12} style={{ ...S.ta, borderColor:'rgba(245,158,11,0.2)' }} />}
+        {activeType === 'cow'  && <textarea value={cowDef}  onChange={e => setCowDef(e.target.value)}  rows={12} style={{ ...S.ta, borderColor:'rgba(74,222,128,0.2)' }} />}
       </div>
 
-      <div style={{ background:'rgba(74,222,128,0.06)', border:'1px solid rgba(74,222,128,0.2)', borderRadius:'4px', padding:'20px', marginBottom:'20px' }}>
-        <div style={{ color:'#4ade80', fontSize:'10px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'14px' }}>🐄 Cow Definition</div>
-        <textarea value={cowDef2} onChange={e => setCowDef2(e.target.value)} rows={4} style={ta} />
-        <div style={{ color:'#6b7280', fontSize:'11px', marginTop:'6px' }}>Describe what behaviors and phrases identify a Cow (believer/agreeable). The AI uses this exact text.</div>
+      {/* Deepgram Sentiment Rules */}
+      <div style={S.card}>
+        <div style={{ ...S.label, color:'#60a5fa' }}>
+          <span>📡 Deepgram sentiment rules</span>
+          <span style={{ background:'rgba(96,165,250,0.12)', color:'#60a5fa', fontSize:'10px', padding:'2px 8px', borderRadius:'20px', letterSpacing:'normal', textTransform:'none' }}>{sentRules.length} rules</span>
+        </div>
+        <div style={{ color:'#6b7280', fontSize:'11px', marginBottom:'10px' }}>
+          Deepgram sends <strong style={{ color:'#60a5fa' }}>sentiment</strong> (positive / negative / neutral) and <strong style={{ color:'#60a5fa' }}>speaker labels</strong> per utterance in real time. These rules define how that data adjusts classification and triggers coach tips — no extra AI call needed.
+        </div>
+        {sentRules.map(r => (
+          <div key={r.id} style={{ background:'rgba(96,165,250,0.04)', border:'1px solid rgba(96,165,250,0.12)', borderRadius:'5px', padding:'9px 12px', marginBottom:'7px', display:'flex', alignItems:'flex-start', gap:'10px' }}>
+            <div style={{ flex:1, minWidth:0 }}>
+              <div style={{ color:'#60a5fa', fontSize:'11px', marginBottom:'3px' }}>When: <span style={{ color:'#e8e0d0', fontStyle:'italic' }}>{r.condition}</span></div>
+              <div style={{ color:'#8a9ab8', fontSize:'11px', lineHeight:1.4 }}>→ {r.effect}</div>
+            </div>
+            <div style={{ display:'flex', gap:'5px', flexShrink:0 }}>
+              <button onClick={() => { setEditingSent(r); setSentModalOpen(true); }} style={{ background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.08)', borderRadius:'4px', padding:'3px 7px', cursor:'pointer', color:'#6b7280', fontSize:'11px' }}>✏</button>
+              <button onClick={() => setSentRules(prev => prev.filter(x => x.id !== r.id))} style={{ background:'rgba(239,68,68,0.06)', border:'1px solid rgba(239,68,68,0.15)', borderRadius:'4px', padding:'3px 7px', cursor:'pointer', color:'#ef4444', fontSize:'11px' }}>✕</button>
+            </div>
+          </div>
+        ))}
+        <button onClick={() => { setEditingSent(null); setSentModalOpen(true); }} style={{ width:'100%', padding:'7px', border:'1px dashed rgba(96,165,250,0.2)', borderRadius:'5px', background:'transparent', cursor:'pointer', color:'#4a5568', fontSize:'12px', display:'flex', alignItems:'center', justifyContent:'center', gap:'6px', marginTop:'4px' }}>
+          <span style={{ fontSize:'16px', lineHeight:1 }}>+</span> Add sentiment rule
+        </button>
       </div>
 
-      <div style={{ background:'rgba(0,0,0,0.2)', border:'1px solid rgba(255,255,255,0.07)', borderRadius:'4px', padding:'20px', marginBottom:'20px' }}>
-        <div style={{ color:GOLD, fontSize:'10px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'14px' }}>❓ Auto Q&A Trigger Keywords</div>
-        <textarea value={triggers2} onChange={e => setTriggers2(e.target.value)} rows={3} style={ta} />
-        <div style={{ color:'#6b7280', fontSize:'11px', marginTop:'6px' }}>Comma-separated keywords. When detected in the transcript, the AI instantly looks up an answer from the KB. These replace the hardcoded patterns.</div>
+      {/* Positive Signals */}
+      <div style={S.card}>
+        <div style={{ ...S.label, color:'#4ade80' }}>✅ Positive signal phrases</div>
+        <div style={{ color:'#6b7280', fontSize:'11px', marginBottom:'8px' }}>Verbatim phrases indicating buying intent. Logged in the AI Details tab and boost the intent score.</div>
+        <textarea value={posSignals} onChange={e => setPosSignals(e.target.value)} rows={4} style={{ ...S.ta, borderColor:'rgba(74,222,128,0.15)' }} />
       </div>
 
-      <div style={{ background:'rgba(0,0,0,0.2)', border:'1px solid rgba(255,255,255,0.07)', borderRadius:'4px', padding:'20px', marginBottom:'20px' }}>
-        <div style={{ color:GOLD, fontSize:'10px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'14px' }}>⏱ Intent Check Interval (seconds)</div>
-        <input type="number" value={interval2} onChange={e => setInterval2(e.target.value)} min={10} max={60} style={{ ...inp3, width:'120px' }} />
-        <div style={{ color:'#6b7280', fontSize:'11px', marginTop:'6px' }}>How often the intent engine runs during a live call. Default: 20s. Lower = more responsive but more API calls.</div>
+      {/* Negative Signals */}
+      <div style={S.card}>
+        <div style={{ ...S.label, color:'#ef4444' }}>⚠️ Negative signal phrases</div>
+        <div style={{ color:'#6b7280', fontSize:'11px', marginBottom:'8px' }}>Verbatim phrases indicating hesitation or objection. Logged in the AI Details tab and reduce the intent score.</div>
+        <textarea value={negSignals} onChange={e => setNegSignals(e.target.value)} rows={4} style={{ ...S.ta, borderColor:'rgba(239,68,68,0.15)' }} />
       </div>
 
-      <div style={{ background:'rgba(74,222,128,0.04)', border:'1px solid rgba(74,222,128,0.18)', borderRadius:'4px', padding:'20px', marginBottom:'20px' }}>
-        <div style={{ color:'#4ade80', fontSize:'10px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'14px' }}>✅ Positive Signal Phrases</div>
-        <textarea value={posSignals} onChange={e => setPosSignals(e.target.value)} rows={3} style={ta} />
-        <div style={{ color:'#6b7280', fontSize:'11px', marginTop:'6px' }}>Phrases that indicate buying intent. The AI detects these verbatim and logs them in the AI Details tab after the call.</div>
+      {/* Auto Q&A Triggers */}
+      <div style={S.card}>
+        <div style={{ ...S.label, color:GOLD }}>❓ Auto Q&A trigger keywords</div>
+        <div style={{ color:'#6b7280', fontSize:'11px', marginBottom:'8px' }}>
+          Comma-separated. When detected in the transcript, the AI instantly looks up an answer from the KB. No button click needed.
+        </div>
+        <textarea value={triggers} onChange={e => setTriggers(e.target.value)} rows={4} style={S.ta} />
+        <div style={{ display:'flex', flexWrap:'wrap', gap:'4px', marginTop:'8px' }}>
+          {triggers.split(',').slice(0, 20).map((k,i) => (
+            <span key={i} style={{ background:'rgba(184,147,58,0.08)', border:'1px solid rgba(184,147,58,0.15)', borderRadius:'20px', padding:'2px 8px', fontSize:'10px', color:'#b8933a', fontFamily:'monospace' }}>{k.trim()}</span>
+          ))}
+          {triggers.split(',').length > 20 && <span style={{ fontSize:'10px', color:'#4a5568', padding:'2px 6px' }}>+{triggers.split(',').length - 20} more</span>}
+        </div>
       </div>
 
-      <div style={{ background:'rgba(239,68,68,0.04)', border:'1px solid rgba(239,68,68,0.18)', borderRadius:'4px', padding:'20px', marginBottom:'24px' }}>
-        <div style={{ color:'#ef4444', fontSize:'10px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'14px' }}>⚠️ Negative Signal Phrases</div>
-        <textarea value={negSignals} onChange={e => setNegSignals(e.target.value)} rows={3} style={ta} />
-        <div style={{ color:'#6b7280', fontSize:'11px', marginTop:'6px' }}>Phrases that indicate hesitation or objection. Logged in the AI Details tab and factor into the intent score.</div>
+      {/* Interval */}
+      <div style={S.card}>
+        <div style={{ ...S.label, color:GOLD }}>
+          <span>⏱ Intent check interval</span>
+          <span style={{ background:'rgba(245,158,11,0.12)', color:'#f59e0b', fontSize:'10px', padding:'2px 8px', borderRadius:'20px', letterSpacing:'normal', textTransform:'none' }}>Every {interval2}s</span>
+        </div>
+        <div style={{ color:'#6b7280', fontSize:'11px', marginBottom:'10px' }}>How often the post-call intent AI runs. Deepgram sentiment runs continuously regardless.</div>
+        <div style={{ display:'flex', alignItems:'center', gap:'10px' }}>
+          <span style={{ color:'#4a5568', fontSize:'11px' }}>10s</span>
+          <input type="range" min={10} max={60} step={5} value={interval2} onChange={e => setInterval2(Number(e.target.value))} style={{ flex:1, accentColor:GOLD }} />
+          <span style={{ color:'#4a5568', fontSize:'11px' }}>60s</span>
+        </div>
+        <div style={{ color:'#4a5568', fontSize:'10px', textAlign:'center', marginTop:'6px' }}>20s recommended.</div>
       </div>
 
-      <div style={{ display:'flex', gap:'12px', alignItems:'center', marginBottom:'32px' }}>
-        <button onClick={save} style={{ background:'linear-gradient(135deg,#b8933a,#d4aa50)', color:DARK, border:'none', borderRadius:'4px', padding:'12px 28px', cursor:'pointer', fontWeight:'700', fontSize:'12px', letterSpacing:'2px', textTransform:'uppercase' }}>Save Rules</button>
-        {saved && <span style={{ color:'#4ade80', fontSize:'13px' }}>✓ Saved — live on next call</span>}
+      {/* Save */}
+      <div style={{ display:'flex', gap:'10px', alignItems:'center', marginBottom:'32px' }}>
+        <button onClick={resetDefaults} style={{ background:'transparent', color:'#6b7280', border:'1px solid rgba(255,255,255,0.1)', borderRadius:'4px', padding:'10px 20px', cursor:'pointer', fontSize:'12px' }}>Reset to defaults</button>
+        <button onClick={save} style={{ background:'linear-gradient(135deg,#b8933a,#d4aa50)', color:DARK, border:'none', borderRadius:'4px', padding:'10px 28px', cursor:'pointer', fontWeight:'700', fontSize:'12px', letterSpacing:'1px', textTransform:'uppercase' }}>Save settings</button>
+        {saved && <span style={{ color:'#4ade80', fontSize:'12px' }}>✓ Saved — live on next call</span>}
       </div>
 
-      {/* AI Tuning Chatbot */}
+      {/* AI Tuner */}
       <div style={{ marginBottom:'8px' }}>
         <h3 style={{ color:'#e8e0d0', fontWeight:'normal', margin:'0 0 6px', fontSize:'16px' }}>💬 AI Tuning Assistant</h3>
-        <p style={{ color:'#6b7280', fontSize:'13px', margin:'0 0 14px', lineHeight:1.6 }}>
-          Share observations, ideas, or ask for suggestions. The AI will expand your thoughts into specific rules and keywords — and can apply them directly to your configuration.
-          <br/><span style={{ color:'#4a5568', fontSize:'11px' }}>Note: Deepgram now provides <strong style={{ color:'#60a5fa' }}>sentiment</strong> (positive/negative/neutral) and <strong style={{ color:'#60a5fa' }}>speaker labels</strong> per utterance — tell the AI to factor these in.</span>
-        </p>
-        <AITunerChat context="Intent Engine (Duck/Cow classification)" onApply={(suggestion) => {
-          if (suggestion.duckSignals?.length)  setDuckDef2(prev => prev + '\n\nAdditional signals: ' + suggestion.duckSignals.join(', '));
-          if (suggestion.cowSignals?.length)   setCowDef2(prev  => prev + '\n\nAdditional signals: ' + suggestion.cowSignals.join(', '));
-          if (suggestion.keywords?.length)     setTriggers2(prev => prev + ', ' + suggestion.keywords.join(', '));
-          if (suggestion.sentimentRules)       setDuckDef2(prev => prev + '\n\nSentiment rules: ' + suggestion.sentimentRules);
+        <p style={{ color:'#6b7280', fontSize:'13px', margin:'0 0 14px', lineHeight:1.6 }}>Share observations from real calls — the AI will expand them into Duck/Cow signals, sentiment rules, and Q&A keywords.</p>
+        <AITunerChat context="Intent Engine (Duck/Cow classification, Deepgram sentiment, Q&A triggers)" onApply={(suggestion) => {
+          if (suggestion.duckSignals?.length)     setDuckDef(prev => prev + '\n\nAdditional signals: ' + suggestion.duckSignals.join(', '));
+          if (suggestion.cowSignals?.length)      setCowDef(prev  => prev + '\n\nAdditional signals: ' + suggestion.cowSignals.join(', '));
+          if (suggestion.keywords?.length)        setTriggers(prev => prev + ', ' + suggestion.keywords.join(', '));
+          if (suggestion.positiveSignals?.length) setPosSignals(prev => prev + ', ' + suggestion.positiveSignals.join(', '));
+          if (suggestion.negativeSignals?.length) setNegSignals(prev => prev + ', ' + suggestion.negativeSignals.join(', '));
+          if (suggestion.sentimentRule)           setSentRules(prev => [...prev, { id: Date.now(), condition: suggestion.sentimentRule.condition, effect: suggestion.sentimentRule.effect }]);
         }} />
       </div>
+
+      {sentModalOpen && <SentModal rule={editingSent} onSave={saveSentRule} onClose={() => { setSentModalOpen(false); setEditingSent(null); }} />}
     </div>
   );
 }
 
 // ─── Coach Rules Tuner ────────────────────────────────────────────────────
+// ── Coach Smart Rule Modal ────────────────────────────────────────────────────
+function SmartRuleModal({ rule, onSave, onClose }) {
+  const [trigger, setTrigger] = useState(rule?.trigger || '');
+  const [tip,     setTip]     = useState(rule?.tip     || '');
+  const [icon,    setIcon]    = useState(rule?.icon    || '💬');
+
+  const iconOptions = [
+    { v:'💬', label:'Question / curiosity' },
+    { v:'⚠️', label:'Concern / objection' },
+    { v:'✅', label:'Buying signal' },
+    { v:'🛑', label:'Red flag' },
+    { v:'⏸️', label:'Stall / hesitation' },
+  ];
+
+  const inp = { width:'100%', background:'rgba(255,255,255,0.06)', border:'1px solid rgba(255,255,255,0.12)', borderRadius:'4px', padding:'8px 12px', color:'#e8e0d0', fontSize:'12px', outline:'none', fontFamily:'Georgia, serif', boxSizing:'border-box' };
+
+  return (
+    <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.7)', zIndex:9999, display:'flex', alignItems:'center', justifyContent:'center' }}>
+      <div style={{ background:'#0d1b2a', border:'1px solid rgba(184,147,58,0.35)', borderRadius:'8px', padding:'20px', width:'380px', boxShadow:'0 24px 80px rgba(0,0,0,0.85)' }}>
+        <div style={{ color:GOLD, fontSize:'11px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'16px' }}>
+          {rule ? '✏️ Edit rule' : '+ Add rule'}
+        </div>
+        <div style={{ marginBottom:'10px' }}>
+          <div style={{ color:'#6b7280', fontSize:'10px', marginBottom:'5px' }}>Icon</div>
+          <div style={{ display:'flex', gap:'6px', flexWrap:'wrap' }}>
+            {iconOptions.map(o => (
+              <button key={o.v} onClick={() => setIcon(o.v)}
+                style={{ background: icon===o.v ? 'rgba(184,147,58,0.2)' : 'rgba(255,255,255,0.04)', border:`1px solid ${icon===o.v ? 'rgba(184,147,58,0.5)' : 'rgba(255,255,255,0.08)'}`, borderRadius:'4px', padding:'4px 10px', cursor:'pointer', fontSize:'13px', color:'#e8e0d0' }}
+                title={o.label}>{o.v}</button>
+            ))}
+          </div>
+        </div>
+        <div style={{ marginBottom:'10px' }}>
+          <div style={{ color:'#6b7280', fontSize:'10px', marginBottom:'5px' }}>Trigger words or phrases (comma-separated)</div>
+          <input value={trigger} onChange={e => setTrigger(e.target.value)} style={inp} placeholder='e.g. "risky", "worried", "not sure"' />
+        </div>
+        <div style={{ marginBottom:'16px' }}>
+          <div style={{ color:'#6b7280', fontSize:'10px', marginBottom:'5px' }}>Coach tip to show when triggered</div>
+          <textarea value={tip} onChange={e => setTip(e.target.value)} rows={3} style={{ ...inp, resize:'vertical' }} placeholder="What should the agent do or say right now?" />
+        </div>
+        <div style={{ display:'flex', gap:'8px', justifyContent:'flex-end' }}>
+          <button onClick={onClose} style={{ background:'transparent', color:'#6b7280', border:'1px solid rgba(255,255,255,0.1)', borderRadius:'4px', padding:'7px 16px', cursor:'pointer', fontSize:'12px' }}>Cancel</button>
+          <button onClick={() => { if (trigger.trim() && tip.trim()) onSave({ ...rule, icon, trigger: trigger.trim(), tip: tip.trim(), title: trigger.split(',')[0].trim() }); }}
+            disabled={!trigger.trim() || !tip.trim()}
+            style={{ background:'linear-gradient(135deg,#b8933a,#d4aa50)', color:DARK, border:'none', borderRadius:'4px', padding:'7px 16px', cursor:'pointer', fontSize:'12px', fontWeight:'700', opacity: (!trigger.trim()||!tip.trim()) ? 0.5 : 1 }}>
+            Save rule
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Coach Rules Tuner ─────────────────────────────────────────────────────────
 function CoachRulesTuner() {
-  const [s, setS]       = useState(getPortalSettings);
+  const [s, setS]         = useState(getPortalSettings);
   const [saved, setSaved] = useState(false);
+  const [enabled, setEnabled] = useState(true);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [editingRule, setEditingRule] = useState(null); // null = new
 
-  const COACH_FOCUS_DEFAULT = `Prospect type detection (Duck or Cow), close window recognition, objection pattern tracking, emotional state, buying signal identification, drift and stall detection, rapport calibration, next best action`;
+  // Focus area pills
+  const ALL_FOCUS_PILLS = [
+    'Tone & rapport', 'Objection handling', 'Next best action',
+    'Pacing & silence', 'Clarifying questions', 'Investor qualification',
+    'Emotional signals', 'Closing readiness', 'Red flags',
+  ];
+  const DEFAULT_FOCUS_PILLS = ['Tone & rapport', 'Objection handling', 'Next best action'];
 
-  const COACH_STYLE_DEFAULT = `One tip only. Max 2 sentences. Plain language, no jargon. Be direct — tell the agent exactly what to do or say right now, not general advice. If a close is possible, say so and give the exact words. If the prospect is drifting, say "redirect now" and give the line. If resistance is rising, name the type and the move. Never explain why — just tell the agent what to do.`;
+  // Coaching style
+  const STYLE_DEFAULT = `One tip only. Max 2 sentences. Plain language, no jargon. Be direct — tell the agent exactly what to do or say right now. If a close is possible, give the exact words. If resistance is rising, name the type and the move. Never explain why — just tell the agent what to do.`;
 
-  const COACH_CONTEXT_DEFAULT = `PRODUCT FACTS
+  // Additional context
+  const CONTEXT_DEFAULT = `PRODUCT FACTS
 - Company: Rosie AI LLC, Wyoming LLC, Reg D 506(c) — accredited investors only
 - Minimum investment: $15,000 (Class B Units at $0.25/unit)
 - Units are non-voting. Investors get economic participation, not control
@@ -1539,101 +1717,259 @@ function CoachRulesTuner() {
 - Managing Partner: Stephani Scheidt
 
 PROSPECT TYPES
-
-THE DUCK — argumentative, skeptical, combative
-Signals: "that won't work", "prove it", "I doubt that", "sounds too good to be true", "what's the catch", "I've heard that before", "yeah but", "I'm not convinced", constant interrupting, whack-a-mole objections, cites past bad investments
-Coach rules for Duck:
-- Stay calm, slow down — never match their energy
-- Use exact numbers — Ducks trust specificity
-- Validate skepticism first: "You're right to be cautious — that's exactly why the waterfall puts capital return first"
-- If whack-a-mole: "What's the one thing actually holding you back?"
-- Do NOT fill silences — Ducks think in gaps
-- Objections slow down or stop → CLOSE WINDOW OPEN — ask for commitment now
-
-THE COW — agreeable, curious, warm, trusts everything
-Signals: "that's interesting", "really?", "wow", "that makes a lot of sense", "tell me more", "I love that", "that sounds amazing", asks genuine questions, repeats your phrases back, shares personal financial context
-Coach rules for Cow:
-- CLOSE EARLY AND OFTEN — enthusiasm is not a commitment
-- "That sounds amazing" = close window → ask for next step immediately
-- "So what would I need to do?" = they are asking to be closed → answer with 3 steps
-- Do NOT keep pitching after a buying signal — you will talk them out of it
-- Every call must end with a specific next step and time, or it evaporates
-- Drift warning: off-topic, wrap-up tone, energy drops → redirect immediately
+THE DUCK — argumentative, skeptical, combative. Stay calm, use exact numbers, validate skepticism first. Do NOT fill silences. When objections slow down → CLOSE WINDOW OPEN.
+THE COW — agreeable, curious, warm. CLOSE EARLY AND OFTEN — enthusiasm is not a commitment. Every call must end with a specific next step or it evaporates.
 
 GENERAL RULES
 - Portal link and subscription docs are the concrete next step for every call
 - Never promise returns, never say "guaranteed", never dismiss a concern`;
 
-  const [focus, setFocus]       = useState(s.coachFocusAreas     || COACH_FOCUS_DEFAULT);
-  const [style, setStyle]       = useState(s.coachStyle          || COACH_STYLE_DEFAULT);
-  const [interval, setInterval] = useState(s.coachIntervalSeconds || 15);
-  const [context, setContext]   = useState(s.coachAdditionalContext || COACH_CONTEXT_DEFAULT);
+  // Smart rules defaults
+  const DEFAULT_RULES = [
+    { id:1, icon:'💬', title:'returns', trigger:'return, roi, yield, how much', tip:'Lead with the waterfall structure, then emphasize the return-of-capital priority before profit splits.' },
+    { id:2, icon:'⚠️', title:'risk or hesitation', trigger:'risky, worried, not sure, concerned', tip:'Acknowledge the concern, then pivot to the $15k minimum and the capital-return-first waterfall.' },
+    { id:3, icon:'✅', title:'buying signal', trigger:"sounds good, I'm interested, how do I, tell me more", tip:'Strong signal — ask for the commitment or direct them to the investor portal now.' },
+  ];
+
+  // Listening strategy toggles
+  const LISTENING_ITEMS = [
+    { key:'listenNeeds',     label:'Listen for client needs & wants',         desc:'Detects what the prospect is actually looking for, not just what they say' },
+    { key:'listenEmotion',   label:'Detect emotional state',                  desc:'Reads enthusiasm, hesitation, and doubt from word choice and phrasing' },
+    { key:'listenUnresolved',label:'Track unresolved questions',              desc:'Notes questions the prospect raised that haven\'t been answered yet' },
+    { key:'listenStall',     label:'Identify stalling vs. genuine objection', desc:'Distinguishes "I need to think" (stall) from a real concern that needs addressing' },
+    { key:'listenFollowUp',  label:'Suggest follow-up timing',                desc:'Recommends when to go in for the close or when to back off and schedule a follow-up' },
+  ];
+  const DEFAULT_LISTENING = { listenNeeds: true, listenEmotion: true, listenUnresolved: true, listenStall: false, listenFollowUp: false };
+
+  // State
+  const [focusPills,  setFocusPills]  = useState(() => {
+    const saved = getPortalSettings().coachFocusPills;
+    return saved ? JSON.parse(saved) : DEFAULT_FOCUS_PILLS;
+  });
+  const [style,       setStyle]       = useState(s.coachStyle          || STYLE_DEFAULT);
+  const [context,     setContext]     = useState(s.coachAdditionalContext || CONTEXT_DEFAULT);
+  const [interval,    setInterval]    = useState(s.coachIntervalSeconds || 15);
+  const [rules,       setRules]       = useState(() => {
+    const saved = getPortalSettings().coachSmartRules;
+    return saved ? JSON.parse(saved) : DEFAULT_RULES;
+  });
+  const [listening,   setListening]   = useState(() => {
+    const saved = getPortalSettings().coachListeningStrategy;
+    return saved ? JSON.parse(saved) : DEFAULT_LISTENING;
+  });
 
   useEffect(() => {
     loadPortalSettings().then(loaded => {
       setS(loaded);
-      setFocus(loaded.coachFocusAreas      || COACH_FOCUS_DEFAULT);
-      setStyle(loaded.coachStyle           || COACH_STYLE_DEFAULT);
+      setStyle(loaded.coachStyle || STYLE_DEFAULT);
+      setContext(loaded.coachAdditionalContext || CONTEXT_DEFAULT);
       setInterval(loaded.coachIntervalSeconds || 15);
-      setContext(loaded.coachAdditionalContext || COACH_CONTEXT_DEFAULT);
+      if (loaded.coachFocusPills)        setFocusPills(JSON.parse(loaded.coachFocusPills));
+      if (loaded.coachSmartRules)        setRules(JSON.parse(loaded.coachSmartRules));
+      if (loaded.coachListeningStrategy) setListening(JSON.parse(loaded.coachListeningStrategy));
     });
   }, []);
 
-  const save = async () => {
-    await savePortalSettings({ ...s, coachFocusAreas: focus, coachStyle: style, coachIntervalSeconds: Number(interval), coachAdditionalContext: context });
-    setSaved(true); setTimeout(() => setSaved(false), 2000);
+  // Assemble coachFocusAreas string from pills for the AI prompt
+  const buildFocusString = (pills) => pills.join(', ');
+
+  // Assemble smart rules into context block for the AI
+  const buildRulesContext = (ruleList) => ruleList.length
+    ? '\n\nSMART RULES — fire these tips when triggers detected:\n' +
+      ruleList.map(r => `Trigger: ${r.trigger} → Tip: "${r.tip}"`).join('\n')
+    : '';
+
+  // Assemble listening strategy into context block
+  const buildListeningContext = (lst) => {
+    const active = LISTENING_ITEMS.filter(i => lst[i.key]).map(i => i.label);
+    return active.length ? '\n\nLISTENING STRATEGY: ' + active.join(', ') : '';
   };
 
-  const ta = { width:'100%', background:'rgba(255,255,255,0.05)', border:'1px solid rgba(255,255,255,0.1)', borderRadius:'4px', padding:'10px 14px', color:'#e8e0d0', fontSize:'13px', outline:'none', fontFamily:'Georgia, serif', boxSizing:'border-box', resize:'vertical' };
+  const save = async () => {
+    const focusStr = buildFocusString(focusPills);
+    const fullContext = context + buildRulesContext(rules) + buildListeningContext(listening);
+    await savePortalSettings({
+      ...s,
+      coachFocusAreas: focusStr,
+      coachStyle: style,
+      coachAdditionalContext: fullContext,
+      coachIntervalSeconds: Number(interval),
+      coachFocusPills: JSON.stringify(focusPills),
+      coachSmartRules: JSON.stringify(rules),
+      coachListeningStrategy: JSON.stringify(listening),
+    });
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2500);
+  };
+
+  const resetDefaults = async () => {
+    setFocusPills(DEFAULT_FOCUS_PILLS);
+    setStyle(STYLE_DEFAULT);
+    setContext(CONTEXT_DEFAULT);
+    setInterval(15);
+    setRules(DEFAULT_RULES);
+    setListening(DEFAULT_LISTENING);
+  };
+
+  const togglePill = (pill) => setFocusPills(prev =>
+    prev.includes(pill) ? prev.filter(p => p !== pill) : [...prev, pill]
+  );
+
+  const toggleListening = (key) => setListening(prev => ({ ...prev, [key]: !prev[key] }));
+
+  const saveRule = (rule) => {
+    if (rule.id) {
+      setRules(prev => prev.map(r => r.id === rule.id ? rule : r));
+    } else {
+      setRules(prev => [...prev, { ...rule, id: Date.now() }]);
+    }
+    setModalOpen(false);
+    setEditingRule(null);
+  };
+
+  const deleteRule = (id) => setRules(prev => prev.filter(r => r.id !== id));
+
+  const openEdit = (rule) => { setEditingRule(rule); setModalOpen(true); };
+  const openAdd  = ()     => { setEditingRule(null); setModalOpen(true); };
+
+  const S = {
+    card:  { background:'rgba(255,255,255,0.03)', border:'1px solid rgba(255,255,255,0.08)', borderRadius:'6px', padding:'16px 18px', marginBottom:'14px' },
+    label: { fontSize:'10px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'12px', display:'flex', justifyContent:'space-between', alignItems:'center' },
+    ta:    { width:'100%', background:'rgba(255,255,255,0.05)', border:'1px solid rgba(255,255,255,0.1)', borderRadius:'4px', padding:'10px 14px', color:'#e8e0d0', fontSize:'12px', outline:'none', fontFamily:'Georgia, serif', boxSizing:'border-box', resize:'vertical', lineHeight:1.6 },
+    pill:  (active) => ({ display:'inline-flex', alignItems:'center', padding:'5px 12px', borderRadius:'20px', border:`1px solid ${active ? 'rgba(184,147,58,0.5)' : 'rgba(255,255,255,0.1)'}`, background: active ? 'rgba(184,147,58,0.12)' : 'transparent', color: active ? GOLD : '#6b7280', cursor:'pointer', fontSize:'12px', userSelect:'none', transition:'all 0.15s' }),
+    ruleCard: { background:'rgba(255,255,255,0.03)', border:'1px solid rgba(255,255,255,0.07)', borderRadius:'5px', padding:'10px 12px', marginBottom:'8px', display:'flex', alignItems:'flex-start', gap:'10px' },
+    toggleRow: { display:'flex', alignItems:'flex-start', justifyContent:'space-between', padding:'10px 0', borderBottom:'1px solid rgba(255,255,255,0.05)' },
+    toggleBtn: (on) => ({ width:'36px', height:'20px', borderRadius:'10px', border:'none', cursor:'pointer', position:'relative', background: on ? '#1D9E75' : 'rgba(255,255,255,0.1)', flexShrink:0, transition:'background 0.2s' }),
+  };
+
+  const iconBg = { '💬':'rgba(167,139,250,0.15)', '⚠️':'rgba(245,158,11,0.15)', '✅':'rgba(74,222,128,0.15)', '🛑':'rgba(239,68,68,0.15)', '⏸️':'rgba(255,255,255,0.08)' };
 
   return (
     <div style={{ maxWidth:'700px' }}>
-      <h3 style={{ color:'#e8e0d0', fontWeight:'normal', margin:'0 0 8px', fontSize:'16px' }}>🎯 Coach Mode Rules</h3>
-      <p style={{ color:'#6b7280', fontSize:'13px', margin:'0 0 24px', lineHeight:1.7 }}>
-        Coach mode fires every <strong style={{ color:GOLD }}>{interval}s</strong> when enabled on a live call and gives the agent one real-time tip. Tune what the coach focuses on and how it communicates.
+      {/* Header */}
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:'6px' }}>
+        <h3 style={{ color:'#e8e0d0', fontWeight:'normal', margin:0, fontSize:'16px' }}>🎯 Coach Mode settings</h3>
+        <div style={{ display:'flex', alignItems:'center', gap:'10px' }}>
+          <span style={{ fontSize:'11px', color: enabled ? '#4ade80' : '#6b7280' }}>{enabled ? 'Enabled' : 'Disabled'}</span>
+          <button onClick={() => setEnabled(e => !e)} style={{ ...S.toggleBtn(enabled) }}>
+            <div style={{ position:'absolute', top:'2px', width:'16px', height:'16px', borderRadius:'50%', background:'white', transition:'left 0.2s', left: enabled ? '18px' : '2px' }} />
+          </button>
+        </div>
+      </div>
+      <p style={{ color:'#6b7280', fontSize:'13px', margin:'0 0 20px', lineHeight:1.6 }}>
+        Coach mode fires every <strong style={{ color:GOLD }}>{interval}s</strong> during a live call and gives the agent one real-time tip.
       </p>
 
-      <div style={{ background:'rgba(167,139,250,0.06)', border:'1px solid rgba(167,139,250,0.2)', borderRadius:'4px', padding:'20px', marginBottom:'20px' }}>
-        <div style={{ color:'#a78bfa', fontSize:'10px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'14px' }}>🎯 Focus Areas</div>
-        <textarea value={focus} onChange={e => setFocus(e.target.value)} rows={3} style={ta} />
-        <div style={{ color:'#6b7280', fontSize:'11px', marginTop:'6px' }}>What the coach should focus tips on. Comma-separated or written naturally — the AI reads this directly.</div>
+      {/* Focus Areas */}
+      <div style={S.card}>
+        <div style={{ ...S.label, color:'#a78bfa' }}>🎯 Focus areas</div>
+        <div style={{ color:'#6b7280', fontSize:'11px', marginBottom:'10px' }}>What the coach should pay attention to on every call. Select all that apply.</div>
+        <div style={{ display:'flex', flexWrap:'wrap', gap:'8px' }}>
+          {ALL_FOCUS_PILLS.map(pill => (
+            <button key={pill} onClick={() => togglePill(pill)} style={S.pill(focusPills.includes(pill))}>{pill}</button>
+          ))}
+        </div>
       </div>
 
-      <div style={{ background:'rgba(0,0,0,0.2)', border:'1px solid rgba(255,255,255,0.07)', borderRadius:'4px', padding:'20px', marginBottom:'20px' }}>
-        <div style={{ color:GOLD, fontSize:'10px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'14px' }}>🗣 Coaching Style</div>
-        <textarea value={style} onChange={e => setStyle(e.target.value)} rows={3} style={ta} />
-        <div style={{ color:'#6b7280', fontSize:'11px', marginTop:'6px' }}>Instructions for tone and format of coach tips. This is injected directly into the coach prompt.</div>
+      {/* Coaching Style */}
+      <div style={S.card}>
+        <div style={{ ...S.label, color:GOLD }}>🗣 Coaching style</div>
+        <div style={{ color:'#6b7280', fontSize:'11px', marginBottom:'8px' }}>Tone and format injected into every coach prompt. The AI reads this directly.</div>
+        <textarea value={style} onChange={e => setStyle(e.target.value)} rows={3} style={S.ta} />
       </div>
 
-      <div style={{ background:'rgba(0,0,0,0.2)', border:'1px solid rgba(255,255,255,0.07)', borderRadius:'4px', padding:'20px', marginBottom:'20px' }}>
-        <div style={{ color:GOLD, fontSize:'10px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'14px' }}>📋 Additional Context for Coach</div>
-        <textarea value={context} onChange={e => setContext(e.target.value)} rows={4} style={ta} placeholder="E.g. Our minimum investment is $25,000. Always mention the Q3 close deadline. Never mention competitors by name..." />
-        <div style={{ color:'#6b7280', fontSize:'11px', marginTop:'6px' }}>Any specific facts, rules, or context the coach should always be aware of. Added to every coach prompt.</div>
+      {/* Smart Rules */}
+      <div style={S.card}>
+        <div style={{ ...S.label, color:GOLD }}>
+          <span>📌 Smart rules</span>
+          <span style={{ background:'rgba(167,139,250,0.15)', color:'#a78bfa', fontSize:'10px', padding:'2px 8px', borderRadius:'20px', letterSpacing:'normal', textTransform:'none' }}>{rules.length} rule{rules.length !== 1 ? 's' : ''}</span>
+        </div>
+        <div style={{ color:'#6b7280', fontSize:'11px', marginBottom:'10px' }}>Coach fires a specific tip when these triggers are detected in the transcript.</div>
+        {rules.map(r => (
+          <div key={r.id} style={S.ruleCard}>
+            <div style={{ width:'30px', height:'30px', borderRadius:'6px', background: iconBg[r.icon] || 'rgba(255,255,255,0.08)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'14px', flexShrink:0 }}>{r.icon}</div>
+            <div style={{ flex:1, minWidth:0 }}>
+              <div style={{ color:'#e8e0d0', fontSize:'12px', fontWeight:'500', marginBottom:'3px' }}>Trigger: <span style={{ color:'#6b7280', fontStyle:'italic' }}>{r.trigger}</span></div>
+              <div style={{ color:'#8a9ab8', fontSize:'11px', lineHeight:1.4 }}>Tip: <em>"{r.tip.length > 80 ? r.tip.slice(0,80)+'…' : r.tip}"</em></div>
+            </div>
+            <div style={{ display:'flex', gap:'5px', flexShrink:0 }}>
+              <button onClick={() => openEdit(r)} style={{ background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.08)', borderRadius:'4px', padding:'4px 8px', cursor:'pointer', color:'#6b7280', fontSize:'11px' }}>✏</button>
+              <button onClick={() => deleteRule(r.id)} style={{ background:'rgba(239,68,68,0.06)', border:'1px solid rgba(239,68,68,0.15)', borderRadius:'4px', padding:'4px 8px', cursor:'pointer', color:'#ef4444', fontSize:'11px' }}>✕</button>
+            </div>
+          </div>
+        ))}
+        <button onClick={openAdd} style={{ width:'100%', padding:'8px', border:'1px dashed rgba(255,255,255,0.1)', borderRadius:'5px', background:'transparent', cursor:'pointer', color:'#6b7280', fontSize:'12px', display:'flex', alignItems:'center', justifyContent:'center', gap:'6px', marginTop:'4px' }}>
+          <span style={{ fontSize:'16px', lineHeight:1 }}>+</span> Add rule
+        </button>
       </div>
 
-      <div style={{ background:'rgba(0,0,0,0.2)', border:'1px solid rgba(255,255,255,0.07)', borderRadius:'4px', padding:'20px', marginBottom:'24px' }}>
-        <div style={{ color:GOLD, fontSize:'10px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'14px' }}>⏱ Coach Interval (seconds)</div>
-        <input type="number" value={interval} onChange={e => setInterval(e.target.value)} min={10} max={60} style={{ width:'120px', background:'rgba(255,255,255,0.05)', border:'1px solid rgba(255,255,255,0.1)', borderRadius:'4px', padding:'8px 12px', color:'#e8e0d0', fontSize:'13px', outline:'none' }} />
-        <div style={{ color:'#6b7280', fontSize:'11px', marginTop:'6px' }}>How often coach tips fire. Default: 15s.</div>
+      {/* Additional Context */}
+      <div style={S.card}>
+        <div style={{ ...S.label, color:GOLD }}>📋 Additional context</div>
+        <div style={{ color:'#6b7280', fontSize:'11px', marginBottom:'8px' }}>Facts and rules the coach always knows. Added to every coach prompt.</div>
+        <div style={{ background:'rgba(0,0,0,0.2)', borderLeft:'3px solid rgba(184,147,58,0.4)', borderRadius:'0 4px 4px 0', padding:'2px' }}>
+          <textarea value={context} onChange={e => setContext(e.target.value)} rows={6} style={{ ...S.ta, background:'transparent', border:'none' }} />
+        </div>
       </div>
 
-      <div style={{ display:'flex', gap:'12px', alignItems:'center', marginBottom:'32px' }}>
-        <button onClick={save} style={{ background:'linear-gradient(135deg,#b8933a,#d4aa50)', color:DARK, border:'none', borderRadius:'4px', padding:'12px 28px', cursor:'pointer', fontWeight:'700', fontSize:'12px', letterSpacing:'2px', textTransform:'uppercase' }}>Save Rules</button>
-        {saved && <span style={{ color:'#4ade80', fontSize:'13px' }}>✓ Saved — live on next call</span>}
+      {/* Listening Strategy */}
+      <div style={S.card}>
+        <div style={{ ...S.label, color:GOLD }}>👂 Listening strategy</div>
+        <div style={{ color:'#6b7280', fontSize:'11px', marginBottom:'6px' }}>What the coach pays attention to when analyzing the conversation.</div>
+        {LISTENING_ITEMS.map((item, i) => (
+          <div key={item.key} style={{ ...S.toggleRow, borderBottom: i === LISTENING_ITEMS.length-1 ? 'none' : '1px solid rgba(255,255,255,0.05)' }}>
+            <div style={{ flex:1, paddingRight:'12px' }}>
+              <div style={{ color:'#e8e0d0', fontSize:'12px', marginBottom:'2px' }}>{item.label}</div>
+              <div style={{ color:'#4a5568', fontSize:'11px' }}>{item.desc}</div>
+            </div>
+            <button onClick={() => toggleListening(item.key)} style={S.toggleBtn(listening[item.key])}>
+              <div style={{ position:'absolute', top:'2px', width:'16px', height:'16px', borderRadius:'50%', background:'white', transition:'left 0.2s', left: listening[item.key] ? '18px' : '2px' }} />
+            </button>
+          </div>
+        ))}
+      </div>
+
+      {/* Coach Interval */}
+      <div style={S.card}>
+        <div style={{ ...S.label, color:GOLD }}>
+          <span>⏱ Coach interval</span>
+          <span style={{ background:'rgba(245,158,11,0.15)', color:'#f59e0b', fontSize:'10px', padding:'2px 8px', borderRadius:'20px', letterSpacing:'normal', textTransform:'none' }}>Every {interval}s</span>
+        </div>
+        <div style={{ color:'#6b7280', fontSize:'11px', marginBottom:'10px' }}>How often tips fire during an active call (in seconds).</div>
+        <div style={{ display:'flex', alignItems:'center', gap:'10px' }}>
+          <span style={{ color:'#4a5568', fontSize:'11px' }}>5s</span>
+          <input type="range" min={5} max={60} step={5} value={interval}
+            onChange={e => setInterval(Number(e.target.value))}
+            style={{ flex:1, accentColor:GOLD }} />
+          <span style={{ color:'#4a5568', fontSize:'11px' }}>60s</span>
+        </div>
+        <div style={{ color:'#4a5568', fontSize:'10px', textAlign:'center', marginTop:'6px' }}>Faster intervals = more tips, more interruptions. 15–30s recommended.</div>
+      </div>
+
+      {/* Save / Reset */}
+      <div style={{ display:'flex', gap:'10px', alignItems:'center', marginBottom:'32px' }}>
+        <button onClick={resetDefaults} style={{ background:'transparent', color:'#6b7280', border:'1px solid rgba(255,255,255,0.1)', borderRadius:'4px', padding:'10px 20px', cursor:'pointer', fontSize:'12px' }}>Reset to defaults</button>
+        <button onClick={save} style={{ background:'linear-gradient(135deg,#b8933a,#d4aa50)', color:DARK, border:'none', borderRadius:'4px', padding:'10px 28px', cursor:'pointer', fontWeight:'700', fontSize:'12px', letterSpacing:'1px', textTransform:'uppercase' }}>Save settings</button>
+        {saved && <span style={{ color:'#4ade80', fontSize:'12px' }}>✓ Saved — live on next call</span>}
       </div>
 
       {/* AI Tuning Chatbot */}
       <div>
         <h3 style={{ color:'#e8e0d0', fontWeight:'normal', margin:'0 0 6px', fontSize:'16px' }}>💬 AI Tuning Assistant</h3>
         <p style={{ color:'#6b7280', fontSize:'13px', margin:'0 0 14px', lineHeight:1.6 }}>
-          Tell the AI what situations you want the coach to handle better, what you've noticed on calls, or what advice you wish you had. It will generate specific coaching rules you can apply.
+          Tell the AI what situations you want the coach to handle better. It will generate specific rules you can apply directly.
         </p>
         <AITunerChat context="Coach Mode (real-time call coaching)" onApply={(suggestion) => {
-          if (suggestion.focusArea) setFocus(prev => prev + ', ' + suggestion.focusArea);
-          if (suggestion.rule)      setStyle(prev => prev + ' ' + suggestion.rule);
+          if (suggestion.focusArea) togglePill(suggestion.focusArea);
+          if (suggestion.rule)      setRules(prev => [...prev, { id: Date.now(), icon:'💬', title: suggestion.rule.slice(0,30), trigger: suggestion.trigger || '', tip: suggestion.rule }]);
           if (suggestion.context)   setContext(prev => prev + '\n' + suggestion.context);
         }} />
       </div>
+
+      {/* Smart Rule Modal */}
+      {modalOpen && (
+        <SmartRuleModal rule={editingRule} onSave={saveRule} onClose={() => { setModalOpen(false); setEditingRule(null); }} />
+      )}
     </div>
   );
 }
