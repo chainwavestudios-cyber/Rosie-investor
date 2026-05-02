@@ -159,7 +159,6 @@ function OverviewTab({ editLead, setEditLead, saving, saveMsg, saveProfile, upda
   const HISTORY_ICONS = { call:'📞', not_available:'📵', callback_later:'📅', not_interested:'❌', status_change:'🔄', note:'📝', prospect:'⭐', connected:'🟢' };
   const historyColor = (type) => ({ call:'#60a5fa', not_available:'#8a9ab8', callback_later:'#a78bfa', not_interested:'#ef4444', status_change:GOLD, note:'#c4cdd8', prospect:'#a78bfa', connected:'#4ade80' })[type] || '#6b7280';
 
-  const [bottomTab, setBottomTab] = useState('notes');
   const [bottomTab, setBottomTab] = useState('notes'); // 'notes' | 'calls'
 
   return (
