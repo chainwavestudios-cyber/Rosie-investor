@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { base44 } from '@/api/base44Client';
+import { loadPortalSettings } from '@/lib/portalSettings';
 
 const GOLD = '#b8933a';
 const DARK = '#0a0f1e';
@@ -488,3 +489,108 @@ export default function AIAssistantPopup({
     </FloatingPopup>
   );
 }
+// ── Self-contained wrapper — used by LeadContactCard ─────────────────────────
+// Manages its own Deepgram stream, KB loading, and portalCfg so that
+// AIAssistantPopup can be rendered as a tab without any parent setup.
+export function ScriptAssistant({ lead, twilioStream, onExpandCard }) {
+  const [transcript,     setTranscript]  = useState([]);
+  const [kbEntries,      setKbEntries]   = useState([]);
+  const [portalCfg,      setPortalCfg]   = useState({});
+  const [qaActive,       setQaActive]    = useState(false);
+  const [coachActive,    setCoachActive] = useState(false);
+  const [intentActive,   setIntentActive]= useState(false);
+  const [listening,      setListening]   = useState(false);
+  const transcriptRef = useRef([]);
+  const wsRef         = useRef(null);
+  const processorRef  = useRef(null);
+  const contextRef    = useRef(null);
+
+  // Load KB and portal config on mount
+  useEffect(() => {
+    base44.entities.KnowledgeBase.list('-created_date', 200).then(setKbEntries).catch(() => {});
+    loadPortalSettings().then(setPortalCfg).catch(() => {});
+  }, []);
+
+  // Connect Deepgram when a Twilio stream is available
+  useEffect(() => {
+    if (twilioStream && !listening) startListening(twilioStream);
+    return () => stopListening();
+  }, [twilioStream]);
+
+  const startListening = async (stream) => {
+    try {
+      const tokenRes = await base44.functions.invoke('deepgramToken', {});
+      const dgKey = tokenRes?.data?.key || '';
+      if (!dgKey) return;
+      const ws = new WebSocket(
+        `wss://api.deepgram.com/v1/listen?model=nova-2&language=en-US&smart_format=true&interim_results=true&endpointing=300&sentiment=true`,
+        ['token', dgKey]
+      );
+      ws.onopen = () => {
+        setListening(true);
+        const audioCtx = new AudioContext({ sampleRate: 16000 });
+        contextRef.current = audioCtx;
+        const source = audioCtx.createMediaStreamSource(stream);
+        const processor = audioCtx.createScriptProcessor(4096, 1, 1);
+        processorRef.current = processor;
+        processor.onaudioprocess = (e) => {
+          if (ws.readyState !== WebSocket.OPEN) return;
+          const input = e.inputBuffer.getChannelData(0);
+          const pcm = new Int16Array(input.length);
+          for (let i = 0; i < input.length; i++) pcm[i] = Math.max(-32768, Math.min(32767, input[i] * 32768));
+          ws.send(pcm.buffer);
+        };
+        source.connect(processor);
+        processor.connect(audioCtx.destination);
+      };
+      ws.onmessage = (e) => {
+        try {
+          const data = JSON.parse(e.data);
+          const alt = data?.channel?.alternatives?.[0];
+          if (!alt?.transcript?.trim() || !data.is_final) return;
+          const entry = {
+            text:      alt.transcript.trim(),
+            time:      new Date(),
+            final:     true,
+            sentiment: data.channel?.sentiment || alt?.sentiment || null,
+            sentScore: data.channel?.sentiment_score ?? null,
+            speaker:   alt?.words?.[0]?.speaker ?? null,
+          };
+          const newT = [...transcriptRef.current, entry];
+          transcriptRef.current = newT;
+          setTranscript([...newT]);
+        } catch {}
+      };
+      ws.onclose = () => setListening(false);
+      wsRef.current = ws;
+    } catch {}
+  };
+
+  const stopListening = () => {
+    try { wsRef.current?.close(); }          catch {}
+    try { processorRef.current?.disconnect(); } catch {}
+    try { contextRef.current?.close(); }     catch {}
+    setListening(false);
+  };
+
+  return (
+    <AIAssistantPopup
+      lead={lead}
+      transcript={transcript}
+      transcriptRef={transcriptRef}
+      kbEntries={kbEntries}
+      portalCfg={portalCfg}
+      engagementScore={lead?.engagementScore || 0}
+      qaActive={qaActive}
+      coachActive={coachActive}
+      intentActive={intentActive}
+      onToggleQA={() => setQaActive(v => !v)}
+      onToggleCoach={() => setCoachActive(v => !v)}
+      onToggleIntent={() => setIntentActive(v => !v)}
+      onClose={onExpandCard}
+      onIntentResult={() => {}}
+    />
+  );
+}
+
+export default ScriptAssistant;
