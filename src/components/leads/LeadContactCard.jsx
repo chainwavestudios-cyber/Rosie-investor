@@ -7,7 +7,7 @@ import MigrateLeadModal from './MigrateLeadModal';
 import DateTimePicker from '@/components/admin/DateTimePicker';
 import LeadEmailTab from './LeadEmailTab';
 import CustomEmailTab from '@/components/shared/CustomEmailTab';
-import ScriptAssistant from './ScriptAssistant';
+import { ScriptAssistant } from './ScriptAssistant';
 import ResearchTab from './ResearchTab';
 import InvestorWebsiteTab from './InvestorWebsiteTab';
 import WebsiteHistoryTab from './WebsiteHistoryTab';
