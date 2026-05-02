@@ -426,7 +426,7 @@ function IntentPanel({ transcript, engagementScore, intentRules, active, onInten
 }
 
 // ── Main Export ───────────────────────────────────────────────────────────────
-export default function AIAssistantPopup({
+function AIAssistantPopup({
   lead, transcript, transcriptRef, kbEntries, portalCfg, engagementScore,
   qaActive, coachActive, intentActive,
   onToggleQA, onToggleCoach, onToggleIntent,
