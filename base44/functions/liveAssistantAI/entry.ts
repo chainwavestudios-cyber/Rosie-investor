@@ -1,36 +1,36 @@
 const ANTHROPIC_KEY = Deno.env.get('ANTHROPIC_API_KEY') || '';
 
-function findRelevantKB(question, kbEntries, topN = 3) {
+function findRelevantKB(question: string, kbEntries: any[], topN = 8): any[] {
   if (!kbEntries?.length) return [];
-  const words = question.toLowerCase().split(/\W+/).filter(w => w.length > 3);
+  const words = question.toLowerCase().split(/\W+/).filter((w: string) => w.length > 3);
   const scored = kbEntries
-    .filter(e => e.category !== 'raw_document')
-    .map(e => {
+    .filter((e: any) => e.category !== 'raw_document')
+    .map((e: any) => {
       const haystack = `${e.question} ${e.answer}`.toLowerCase();
-      const score = words.reduce((s, w) => s + (haystack.includes(w) ? 1 : 0), 0);
+      const score = words.reduce((s: number, w: string) => s + (haystack.includes(w) ? 1 : 0), 0);
       return { ...e, score };
     })
-    .filter(e => e.score > 0)
-    .sort((a, b) => b.score - a.score)
+    .filter((e: any) => e.score > 0)
+    .sort((a: any, b: any) => b.score - a.score)
     .slice(0, topN);
   if (scored.length < 2) {
     const rawDocs = kbEntries
-      .filter(e => e.category === 'raw_document')
-      .map(e => {
+      .filter((e: any) => e.category === 'raw_document')
+      .map((e: any) => {
         const haystack = (e.answer || '').toLowerCase();
-        const score = words.reduce((s, w) => s + (haystack.includes(w) ? 1 : 0), 0);
+        const score = words.reduce((s: number, w: string) => s + (haystack.includes(w) ? 1 : 0), 0);
         return { ...e, score };
       })
-      .filter(e => e.score > 0)
-      .sort((a, b) => b.score - a.score)
+      .filter((e: any) => e.score > 0)
+      .sort((a: any, b: any) => b.score - a.score)
       .slice(0, 1);
     scored.push(...rawDocs);
   }
   return scored;
 }
 
-function buildTranscriptString(transcript, limit = 20) {
-  return (transcript || []).slice(-limit).map(t => {
+function buildTranscriptString(transcript: any[], limit = 20): string {
+  return (transcript || []).slice(-limit).map((t: any) => {
     const speaker = t.speaker !== null && t.speaker !== undefined ? `[S${t.speaker}]` : '';
     const sent    = t.sentiment ? `[${t.sentiment}]` : '';
     return `${speaker}${sent} ${t.text}`.trim();
@@ -48,7 +48,7 @@ Deno.serve(async (req) => {
     // ── STREAMING COACH ───────────────────────────────────────────────
     if (mode === 'coach_stream') {
       const relevantKB = findRelevantKB(recentTranscript, kbEntries || [], 3);
-      const kbContext  = relevantKB.map(e => `Q: ${e.question}\nA: ${e.answer}`).join('\n\n');
+      const kbContext  = relevantKB.map((e: any) => `Q: ${e.question}\nA: ${e.answer}`).join('\n\n');
       const res = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
         headers: {
@@ -65,6 +65,7 @@ Deno.serve(async (req) => {
           messages: [{ role: 'user', content: `Live conversation:\n${recentTranscript}\n\nCoaching tip now:` }],
         }),
       });
+      // Stream the response directly back
       return new Response(res.body, {
         headers: {
           'Content-Type': 'text/event-stream',
@@ -77,14 +78,40 @@ Deno.serve(async (req) => {
     // ── POST-CALL INTENT ANALYSIS ─────────────────────────────────────
     if (mode === 'intent_final') {
       const fullTranscript = buildTranscriptString(transcript, 999);
-      const sentiments = (transcript || [])
-        .filter(t => t.sentiment)
-        .map(t => ({ s: t.sentiment, sc: t.sentScore || 0 }));
-      const posCount = sentiments.filter(s => s.s === 'positive').length;
-      const negCount = sentiments.filter(s => s.s === 'negative').length;
-      const sentimentSummary = sentiments.length
-        ? `${posCount} positive, ${negCount} negative, ${sentiments.length - posCount - negCount} neutral segments`
-        : 'No sentiment data';
+      // Compute rich sentiment data from Deepgram utterances
+      const utterances = (transcript || []).filter((t: any) => t.sentiment);
+      const posCount = utterances.filter((t: any) => t.sentiment === 'positive').length;
+      const negCount = utterances.filter((t: any) => t.sentiment === 'negative').length;
+      const neuCount = utterances.filter((t: any) => t.sentiment === 'neutral').length;
+      const total    = utterances.length;
+
+      // Speaker-separated sentiment (Speaker 0 = agent, Speaker 1 = prospect)
+      const prospectUtterances = utterances.filter((t: any) => t.speaker === 1 || t.speaker === null);
+      const agentUtterances    = utterances.filter((t: any) => t.speaker === 0);
+      const prospectPos = prospectUtterances.filter((t: any) => t.sentiment === 'positive').length;
+      const prospectNeg = prospectUtterances.filter((t: any) => t.sentiment === 'negative').length;
+
+      // Sentiment arc — compare first third vs last third of call
+      const firstThird = utterances.slice(0, Math.floor(total / 3));
+      const lastThird  = utterances.slice(Math.floor(total * 2 / 3));
+      const firstPosRatio = firstThird.length ? firstThird.filter((t: any) => t.sentiment === 'positive').length / firstThird.length : 0;
+      const lastPosRatio  = lastThird.length  ? lastThird.filter((t: any) => t.sentiment === 'positive').length  / lastThird.length  : 0;
+      const arcTrend = total < 3 ? 'insufficient data'
+        : lastPosRatio > firstPosRatio + 0.15 ? 'warming'
+        : lastPosRatio < firstPosRatio - 0.15 ? 'cooling'
+        : Math.abs(lastPosRatio - firstPosRatio) < 0.05 ? 'flat'
+        : 'volatile';
+
+      // Consecutive negative streak detection
+      let maxNegStreak = 0; let curStreak = 0;
+      for (const t of utterances) {
+        if (t.sentiment === 'negative') { curStreak++; maxNegStreak = Math.max(maxNegStreak, curStreak); }
+        else curStreak = 0;
+      }
+
+      const sentimentSummary = total > 0
+        ? `${total} utterances with sentiment data. Overall: ${posCount} positive, ${negCount} negative, ${neuCount} neutral. Prospect specifically: ${prospectPos} positive, ${prospectNeg} negative. Sentiment arc: ${arcTrend} (first third: ${Math.round(firstPosRatio*100)}% positive → last third: ${Math.round(lastPosRatio*100)}% positive). Max consecutive negative streak: ${maxNegStreak}. ${maxNegStreak >= 3 ? 'RESISTANCE SPIKE DETECTED.' : ''}`
+        : 'No Deepgram sentiment data available for this call.';
 
       const res = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
@@ -93,7 +120,8 @@ Deno.serve(async (req) => {
           model: 'claude-haiku-4-5-20251001',
           max_tokens: 1200,
           system: `You are an expert sales call analyst measuring prospect intent, tonality, and interest. Also extract key facts from the conversation to auto-populate the CRM.
-Deepgram sentiment summary: ${sentimentSummary}
+DEEPGRAM SENTIMENT ANALYSIS: ${sentimentSummary}
+${intentRules?.sentimentRules ? 'SENTIMENT BEHAVIOR RULES:\n' + (() => { try { return JSON.parse(intentRules.sentimentRules).map((r: any) => '- When ' + r.condition + ': ' + r.effect).join('\n'); } catch { return String(intentRules.sentimentRules); } })() + '\n' : ''}
 DUCK: ${intentRules?.duckDefinition || 'Skeptical, argumentative, raises objections, combative, negative tone'}
 COW: ${intentRules?.cowDefinition || 'Curious, agreeable, asks genuine buying questions, positive tone'}
 POSITIVE SIGNALS TO DETECT: ${intentRules?.positiveSignals || 'that sounds amazing, I love that, so what would I need to do, how do I sign up, I\'m ready, let\'s do it, what\'s the minimum again, send me the portal, I want to move forward, is this a good investment, that makes sense, I like the sound of that, I\'ve had money sitting, I\'m in, tell me more, really?, wow'}
@@ -130,6 +158,7 @@ Respond ONLY with this exact JSON (no markdown):
       const text = data?.content?.[0]?.text || '{}';
       try {
         const result = JSON.parse(text.replace(/```json|```/g, '').trim());
+        // Blend with engagement score (max 25% influence)
         const engNorm = Math.min(100, Math.max(0, engagementScore || 0));
         const blended = Math.round(result.intentScore * 0.75 + engNorm * 0.25);
         return Response.json({ intent: { ...result, intentScore: blended, rawAiScore: result.intentScore, engagementContribution: Math.round(engNorm * 0.25) } });
@@ -141,14 +170,14 @@ Respond ONLY with this exact JSON (no markdown):
     // ── POST-CALL FULL REPORT ─────────────────────────────────────────
     if (mode === 'full_report') {
       const { usedCoach, usedQA, usedIntent, coachTips, qaLog, intentResult } = body;
-      const fullTranscript = (transcript || []).map(t => t.text).join(' ');
+      const fullTranscript = (transcript || []).map((t: any) => t.text).join(' ');
 
       let reportPrompt = `Generate a structured sales call report.\n\nTranscript:\n"${fullTranscript.slice(0, 5000)}"\n\nInclude these sections:\n## Call Summary\n## Prospect Interest Level\n## Key Questions Asked\n## Objections & Concerns\n## Highlights\n## Recommended Next Steps\n## Clean Transcript\n`;
       if (usedQA && qaLog?.length) {
-        reportPrompt += `\n## Q&A During Call\n${qaLog.map(qa => `Q: ${qa.question}\n${qa.answered ? `A: ${qa.answer}` : 'A: [Not answered via AI]'}`).join('\n\n')}`;
+        reportPrompt += `\n## Q&A During Call\n${qaLog.map((qa: any) => `Q: ${qa.question}\n${qa.answered ? `A: ${qa.answer}` : 'A: [Not answered via AI]'}`).join('\n\n')}`;
       }
       if (usedCoach && coachTips?.length) {
-        reportPrompt += `\n## Coach Tips During Call\n${coachTips.map((t, i) => `${i+1}. ${t}`).join('\n')}`;
+        reportPrompt += `\n## Coach Tips During Call\n${coachTips.map((t: any, i: number) => `${i+1}. ${t}`).join('\n')}`;
       }
       if (usedIntent && intentResult) {
         reportPrompt += `\n## Intent Analysis\nIntent Score: ${intentResult.intentScore}/100\nInterest Level: ${intentResult.interestLevel}\nTonality: ${intentResult.tonality}\nSentiment Arc: ${intentResult.sentimentArc}\n${intentResult.intentReason || ''}`;
@@ -171,7 +200,7 @@ Respond ONLY with this exact JSON (no markdown):
     // ── CLIENT PROFILE ────────────────────────────────────────────────
     if (mode === 'profile') {
       const existing = (() => { try { return JSON.parse(existingProfile || '{}'); } catch { return {}; } })();
-      const fullTranscript = (transcript || []).map(t => t.text).join(' ');
+      const fullTranscript = (transcript || []).map((t: any) => t.text).join(' ');
       const res = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_KEY, 'anthropic-version': '2023-06-01' },
@@ -192,22 +221,22 @@ Respond ONLY with this exact JSON (no markdown):
     // ── Q&A (default) ─────────────────────────────────────────────────
     const relevantKB = findRelevantKB(question || recentTranscript, kbEntries || [], 3);
     const kbContext  = relevantKB.length > 0
-      ? relevantKB.map(e => `Q: ${e.question}\nA: ${e.answer}`).join('\n\n')
+      ? relevantKB.map((e: any) => `Q: ${e.question}\nA: ${e.answer}`).join('\n\n')
       : 'No relevant knowledge base entries found.';
     const res = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_KEY, 'anthropic-version': '2023-06-01' },
       body: JSON.stringify({
         model: 'claude-haiku-4-5-20251001',
-        max_tokens: 1000,
-        system: `You are a real-time sales assistant on a live investor call. Answer questions accurately and completely from the knowledge base. Give the full answer — do not truncate or summarize unless the KB answer itself is brief.\n\nKNOWLEDGE BASE:\n${kbContext}`,
-        messages: [{ role: 'user', content: `${recentTranscript ? `Recent conversation:\n${recentTranscript}\n\n` : ''}Question: "${question}"\n\nAnswer:` }],
+        max_tokens: 400,
+        system: `You are a real-time sales assistant on a live investor call. Answer questions concisely from the knowledge base. Keep answers under 3 sentences — the agent speaks this naturally.\n\nKNOWLEDGE BASE:\n${kbContext}`,
+        messages: [{ role: 'user', content: `${recentTranscript ? `Recent conversation:\n${recentTranscript}\n\n` : ''}Question: "${question}"\n\nBrief answer:` }],
       }),
     });
     const data = await res.json();
     return Response.json({ answer: data?.content?.[0]?.text || 'No answer found.' });
 
-  } catch (e) {
+  } catch (e: any) {
     return Response.json({ error: e.message }, { status: 500 });
   }
 });
