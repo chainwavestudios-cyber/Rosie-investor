@@ -82,7 +82,7 @@ export default function InlineCallBar({
   );
 
   // ── Compact btn ──────────────────────────────────────────────────────
-  const Btn = ({ onClick, disabled, children, color = '#8a9ab8', bg = 'rgba(255,255,255,0.05)', border = 'rgba(255,255,255,0.12)', bold }) => (
+  const Btn = ({ onClick, disabled, children, color = '#8a9ab8', bg = 'rgba(255,255,255,0.05)', border = 'rgba(255,255,255,0.12)', bold, extraStyle = {} }) => (
     <button onClick={onClick} disabled={disabled} style={{
       display: 'flex', alignItems: 'center', gap: '5px',
       background: bg, color, border: `1px solid ${border}`,
@@ -90,6 +90,7 @@ export default function InlineCallBar({
       fontSize: '10px', fontWeight: bold ? 'bold' : 'normal',
       opacity: disabled ? 0.4 : 1, whiteSpace: 'nowrap', letterSpacing: '0.3px',
       transition: 'all 0.15s',
+      ...extraStyle,
     }}>
       {children}
     </button>
@@ -135,9 +136,45 @@ export default function InlineCallBar({
 
         {/* IDLE / READY — dial */}
         {(callStatus === 'idle' || callStatus === 'ready') && phone && (
-          <Btn onClick={handleDial} color='#4ade80' bg='rgba(74,222,128,0.1)' border='rgba(74,222,128,0.35)' bold>
-            <span>📞</span> {phone}
-          </Btn>
+          <div style={{ position:'relative', display:'inline-block' }}>
+            <style>{`
+              @keyframes neon-spin {
+                0%   { background-position: 0% 50%; }
+                100% { background-position: 200% 50%; }
+              }
+              .neon-dial-wrap::before {
+                content: '';
+                position: absolute;
+                inset: -2px;
+                border-radius: 8px;
+                background: linear-gradient(90deg, #4ade80, #00ffaa, #4ade80, #00ffaa);
+                background-size: 200% 100%;
+                animation: neon-spin 1.8s linear infinite;
+                z-index: 0;
+              }
+              .neon-dial-wrap::after {
+                content: '';
+                position: absolute;
+                inset: -4px;
+                border-radius: 10px;
+                background: linear-gradient(90deg, #4ade80, #00ffaa, #4ade80, #00ffaa);
+                background-size: 200% 100%;
+                animation: neon-spin 1.8s linear infinite;
+                filter: blur(6px);
+                opacity: 0.5;
+                z-index: 0;
+              }
+              .neon-dial-inner {
+                position: relative;
+                z-index: 1;
+              }
+            `}</style>
+            <div className="neon-dial-wrap" style={{ position:'relative', display:'inline-block', borderRadius:'8px' }}>
+              <Btn onClick={handleDial} color='#4ade80' bg='rgba(10,20,15,0.95)' border='transparent' bold extraStyle={{ borderRadius:'6px', position:'relative', zIndex:1 }}>
+                <span>📞</span> {phone}
+              </Btn>
+            </div>
+          </div>
         )}
 
         {/* INITIALIZING */}
