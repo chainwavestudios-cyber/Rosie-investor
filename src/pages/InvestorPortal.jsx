@@ -1058,31 +1058,27 @@ function OverviewTab({ setActiveTab, portalUser, isAdmin }) {
 
   return (
     <div>
-      {/* Main layout: left column (Rosie + Updates) | right column (Capital Allocation) */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 260px', gap: '16px', marginBottom: '20px', marginTop: '-8px', marginLeft: '0px', marginRight: '0px', alignItems: 'start' }}>
-        {/* Left column */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-          {/* Rosie AI */}
-          <div style={{ background: 'rgba(184,147,58,0.04)', border: `1px solid ${BORDER}`, borderRadius: '10px', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-            <div style={{ padding: '10px 20px', borderBottom: `1px solid rgba(184,147,58,0.12)`, display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#4ade80', boxShadow: '0 0 6px #4ade80', flexShrink: 0 }} />
-              <span style={{ color: GOLD, fontSize: '11px', letterSpacing: '2px', textTransform: 'uppercase', fontWeight: 'bold' }}>Rosie AI — Investor Assistant</span>
-              <span style={{ color: TEXT_DIM, fontSize: '11px', marginLeft: 'auto' }}>Ask me anything about this investment</span>
-            </div>
-            <div style={{ flex: 1 }}>
-              <RosieVoiceAgent
-                userName={portalUser?.name || portalUser?.username || 'Investor'}
-                investorId={portalUser?.id}
-                investorEmail={portalUser?.email}
-                inline={true}
-                talkButtonStyle={{ padding: '8px 28px', fontSize: '13px' }}
-              />
-            </div>
-          </div>
-          {/* Investor Updates */}
-          <UpdatesAndPress isAdmin={isAdmin} />
+      {/* Rosie AI — full-width card at top of home tab */}
+      <div style={{ background: 'rgba(184,147,58,0.04)', border: `1px solid ${BORDER}`, borderRadius: '10px', overflow: 'hidden', marginBottom: '16px', marginTop: '-8px', marginLeft: '20px', marginRight: '-20px' }}>
+        <div style={{ padding: '10px 20px', borderBottom: `1px solid rgba(184,147,58,0.12)`, display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#4ade80', boxShadow: '0 0 6px #4ade80', flexShrink: 0 }} />
+          <span style={{ color: GOLD, fontSize: '11px', letterSpacing: '2px', textTransform: 'uppercase', fontWeight: 'bold' }}>Rosie AI — Investor Assistant</span>
+          <span style={{ color: TEXT_DIM, fontSize: '11px', marginLeft: 'auto' }}>Ask me anything about this investment</span>
         </div>
-        {/* Right column: Capital Allocation */}
+        <div style={{ transform: 'scaleY(0.8)', transformOrigin: 'top' }}>
+          <RosieVoiceAgent
+            userName={portalUser?.name || portalUser?.username || 'Investor'}
+            investorId={portalUser?.id}
+            investorEmail={portalUser?.email}
+            inline={true}
+            talkButtonStyle={{ padding: '8px 28px', fontSize: '13px' }}
+          />
+        </div>
+      </div>
+
+      {/* Main grid: Updates (flex) | Capital Allocation (260px) */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 260px', gap: '16px', marginBottom: '20px', marginLeft: '20px', marginRight: '-20px' }}>
+        <UpdatesAndPress isAdmin={isAdmin} />
         <CapitalAllocationPanel />
       </div>
 
