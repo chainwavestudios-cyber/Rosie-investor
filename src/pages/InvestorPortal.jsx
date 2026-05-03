@@ -1100,13 +1100,7 @@ function OverviewTab({ setActiveTab, portalUser, isAdmin }) {
 
       </div>
 
-      {/* Main grid: Updates (flex) | Capital Allocation (260px) */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 260px', gap: '16px', marginBottom: '20px' }}>
-        <UpdatesAndPress isAdmin={isAdmin} />
-        <CapitalAllocationPanel />
-      </div>
-
-      {/* Rosie AI — full-width card at bottom of home tab */}
+      {/* Rosie AI — full-width card above updates */}
       <div style={{ background: 'rgba(184,147,58,0.04)', border: `1px solid ${BORDER}`, borderRadius: '10px', overflow: 'hidden', marginBottom: '24px' }}>
         <div style={{ padding: '12px 20px', borderBottom: `1px solid rgba(184,147,58,0.12)`, display: 'flex', alignItems: 'center', gap: '10px' }}>
           <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#4ade80', boxShadow: '0 0 6px #4ade80', flexShrink: 0 }} />
@@ -1136,7 +1130,7 @@ function OverviewTab({ setActiveTab, portalUser, isAdmin }) {
 // ─── Sidebar Nav Items ────────────────────────────────────────────────────────
 const NAV_ITEMS = [
   { id: 'home',              label: 'Investor Portal',   icon: '🏠' },
-  { id: 'offering',          label: 'Investment PPM',    icon: '📄', badge: 'new' },
+  { id: 'offering',          label: 'Investment PPM',    icon: '📄' },
   { id: 'llc-documents',     label: 'LLC Documents',     icon: '📁' },
   { id: 'accreditation',     label: 'Accreditation',     icon: '✅' },
   { id: 'financial-reports', label: 'Financial Reports', icon: '📊' },
@@ -1193,12 +1187,6 @@ export default function InvestorPortal() {
           <img src={LOGO_URL} alt="Rosie AI" style={{ width: '75%', height: 'auto' }} />
         </div>
 
-        {/* Welcome */}
-        <div style={{ padding: '12px 16px 8px', borderBottom: `1px solid ${BORDER_S}` }}>
-          <div style={{ color: TEXT_DIM, fontSize: '10px', letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: '4px' }}>Welcome Back</div>
-          <div style={{ color: TEXT_PRI, fontSize: '13px', fontWeight: 'bold', fontFamily: 'Georgia, serif' }}>{portalUser.name?.split(' ')[0] || portalUser.username}</div>
-        </div>
-
         {/* Nav items */}
         <nav style={{ flex: 1, padding: '8px 0', overflowY: 'auto' }}>
           {NAV_ITEMS.map(({ id, label, icon, badge }) => (
@@ -1224,7 +1212,7 @@ export default function InvestorPortal() {
           {/* Book Live Demo — PNG button */}
           <button
             onClick={() => setShowZoom(true)}
-            style={{ background: 'none', border: 'none', padding: '0', cursor: 'pointer', lineHeight: 0, width: '100%' }}
+            style={{ background: 'none', border: 'none', padding: '0', cursor: 'pointer', lineHeight: 0 }}
             title="Book Live RosieAI Platform Demo"
           >
             <img
@@ -1249,6 +1237,7 @@ export default function InvestorPortal() {
       </div>
 
       {/* ── Page Content ── */}
+      <div style={{ marginLeft: `${SIDEBAR_W}px`, flex: 1, minWidth: 0 }}>
       {activeTab === 'llc-documents' ? (
         <div style={{ padding: '0' }}>
           <LLCDocumentsTab onRequestDocuments={() => setShowRequestDocs(true)} setActiveTab={setActiveTab} />
@@ -1261,6 +1250,7 @@ export default function InvestorPortal() {
           {activeTab === 'account'       && <AccountTab portalUser={portalUser} />}
         </div>
       )}
+      </div>
     </div>
   );
 }
