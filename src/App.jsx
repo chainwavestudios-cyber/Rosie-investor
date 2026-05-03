@@ -11,6 +11,7 @@ import PortalLogin from './pages/PortalLogin';
 import InvestorPortal from './pages/InvestorPortal';
 import AdminDashboard from './pages/AdminDashboard';
 import AdminLogin from './pages/AdminLogin';
+import Offering from './pages/Offering';
 import { PortalAuthProvider } from '@/lib/PortalAuthContext';
 import { TwilioDeviceProvider } from '@/lib/TwilioDeviceContext';
 
@@ -46,6 +47,7 @@ const AuthenticatedApp = () => {
       <Route path="/portal" element={<InvestorPortal />} />
       <Route path="/admin" element={<AdminDashboard />} />
       <Route path="/admin-login" element={<AdminLogin />} />
+      <Route path="/offering" element={<Offering />} />
       <Route path="*" element={<PageNotFound />} />
     </Routes>
   );

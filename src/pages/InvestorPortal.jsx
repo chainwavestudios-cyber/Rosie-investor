@@ -1201,32 +1201,35 @@ export default function InvestorPortal() {
         </div>
       </div>
 
-      {/* ── Top Metric Cards (always visible, right of sidebar) ── */}
-      <div style={{ marginLeft: `${SIDEBAR_W}px`, padding: '16px 24px 0 24px' }}>
-        <MetricCards />
-      </div>
+      {/* ── Main content area (right of sidebar) ── */}
+      <div style={{ marginLeft: `${SIDEBAR_W}px`, flex: 1, display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
+        {/* Metric Cards — compact top bar */}
+        <div style={{ padding: '8px 24px', borderBottom: `1px solid ${BORDER_S}`, background: DARK, flexShrink: 0 }}>
+          <MetricCards />
+        </div>
 
-      {/* ── Page Content ── */}
-      {activeTab === 'offering' ? (
-        <div style={{ marginLeft: `${SIDEBAR_W}px`, flex: 1 }}>
-          <iframe
-            src="/src/pages/offering"
-            style={{ width: '100%', height: 'calc(100vh - 80px)', border: 'none' }}
-            title="Investment Offering"
-          />
-        </div>
-      ) : activeTab === 'llc-documents' ? (
-        <div style={{ marginLeft: `${SIDEBAR_W}px`, padding: '0' }}>
-          <LLCDocumentsTab onRequestDocuments={() => setShowRequestDocs(true)} setActiveTab={setActiveTab} />
-        </div>
-      ) : (
-        <div style={{ marginLeft: `${SIDEBAR_W}px`, maxWidth: '1200px', padding: '32px 32px' }}>
-          {activeTab === 'home'          && <OverviewTab   setActiveTab={setActiveTab} portalUser={portalUser} isAdmin={isAdmin} />}
-          {activeTab === 'accreditation' && <AccreditationTab portalUser={portalUser} />}
-          {activeTab === 'financial-reports' && <FinancialReportsTab />}
-          {activeTab === 'account'       && <AccountTab portalUser={portalUser} />}
-        </div>
-      )}
+        {/* ── Page Content ── */}
+        {activeTab === 'offering' ? (
+          <div style={{ flex: 1 }}>
+            <iframe
+              src="/offering"
+              style={{ width: '100%', height: 'calc(100vh - 80px)', border: 'none' }}
+              title="Investment Offering"
+            />
+          </div>
+        ) : activeTab === 'llc-documents' ? (
+          <div style={{ padding: '0' }}>
+            <LLCDocumentsTab onRequestDocuments={() => setShowRequestDocs(true)} setActiveTab={setActiveTab} />
+          </div>
+        ) : (
+          <div style={{ maxWidth: '1200px', padding: '32px 32px' }}>
+            {activeTab === 'home'          && <OverviewTab   setActiveTab={setActiveTab} portalUser={portalUser} isAdmin={isAdmin} />}
+            {activeTab === 'accreditation' && <AccreditationTab portalUser={portalUser} />}
+            {activeTab === 'financial-reports' && <FinancialReportsTab />}
+            {activeTab === 'account'       && <AccountTab portalUser={portalUser} />}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
