@@ -431,7 +431,8 @@ function InvestorUpdatesManager() {
   const [uploading, setUploading] = useState(false);
   const fileRef = useRef(null);
   const catColors = { 'Financial Update':'#4ade80','Product Update':'#60a5fa','Partnership':'#f59e0b','General Update':'#8a9ab8','Important Notice':'#ef4444' };
-  const EMPTY = { title:'', content:'', category:'General Update', author:'Management Team', imageUrl:'', videoUrl:'' };
+  const todayStr = () => new Date().toISOString().slice(0, 10);
+  const EMPTY = { title:'', content:'', category:'General Update', author:'Management Team', imageUrl:'', videoUrl:'', publishedDate: todayStr() };
   const [form, setForm] = useState(EMPTY);
 
   const load = async () => {
@@ -444,7 +445,7 @@ function InvestorUpdatesManager() {
   const handlePost = async () => {
     if (!form.title || !form.content) return;
     try {
-      await base44.entities.InvestorUpdate.create({ ...form, publishedAt: new Date().toISOString() });
+      await base44.entities.InvestorUpdate.create({ ...form, publishedAt: form.publishedDate ? new Date(form.publishedDate + 'T12:00:00').toISOString() : new Date().toISOString() });
       setForm(EMPTY); setShowForm(false); setPreview(false); await load();
     } catch(e) { alert('Error: ' + e.message); }
   };
@@ -508,6 +509,12 @@ function InvestorUpdatesManager() {
                 <label style={ls}>Author</label>
                 <input value={form.author} onChange={e=>setForm({...form,author:e.target.value})} placeholder="Management Team" style={{ ...ta, resize:'none' }} />
               </div>
+              {/* Date */}
+              <div style={{ marginBottom:'12px' }}>
+                <label style={ls}>Update Date</label>
+                <input type="date" value={form.publishedDate} onChange={e=>setForm({...form,publishedDate:e.target.value})}
+                  style={{ ...ta, resize:'none', colorScheme:'dark' }} />
+              </div>
               {/* Content */}
               <div style={{ marginBottom:'12px' }}>
                 <label style={ls}>Content</label>
@@ -545,7 +552,7 @@ function InvestorUpdatesManager() {
                   <h3 style={{ color:'#e8e0d0', margin:'0', fontSize:'18px', fontFamily:'Georgia, serif', fontWeight:'normal' }}>{form.title||'(No title)'}</h3>
                 </div>
                 <div style={{ textAlign:'right' }}>
-                  <div style={{ color:GOLD, fontSize:'13px' }}>{new Date().toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'})}</div>
+                  <div style={{ color:GOLD, fontSize:'13px' }}>{form.publishedDate ? new Date(form.publishedDate + 'T12:00:00').toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'}) : new Date().toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'})}</div>
                   <div style={{ color:'#4a5568', fontSize:'11px', marginTop:'2px' }}>{form.author}</div>
                 </div>
               </div>
@@ -610,7 +617,7 @@ function PressReleasesManager() {
   const [releases, setReleases] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
-  const EMPTY = { title: '', summary: '', content: '', sourceUrl: '', imageUrl: '' };
+  const EMPTY = { title: '', summary: '', content: '', sourceUrl: '', imageUrl: '', publishedDate: new Date().toISOString().slice(0, 10) };
   const [form, setForm] = useState(EMPTY);
 
   const load = async () => {
@@ -623,7 +630,7 @@ function PressReleasesManager() {
   const handlePost = async () => {
     if (!form.title || !form.content) return;
     try {
-      await base44.entities.PressRelease.create({ ...form, publishedAt: new Date().toISOString(), status: 'NEW' });
+      await base44.entities.PressRelease.create({ ...form, publishedAt: form.publishedDate ? new Date(form.publishedDate + 'T12:00:00').toISOString() : new Date().toISOString(), status: 'NEW' });
       setForm(EMPTY); setShowForm(false); await load();
     } catch (e) { alert('Error: ' + e.message); }
   };
@@ -662,9 +669,14 @@ function PressReleasesManager() {
             <label style={ls}>Source URL (optional)</label>
             <input value={form.sourceUrl} onChange={e => setForm({ ...form, sourceUrl: e.target.value })} placeholder="https://…" style={{ ...ta, resize: 'none' }} />
           </div>
-          <div style={{ marginBottom: '20px' }}>
+          <div style={{ marginBottom: '12px' }}>
             <label style={ls}>Image URL (optional)</label>
             <input value={form.imageUrl} onChange={e => setForm({ ...form, imageUrl: e.target.value })} placeholder="https://…" style={{ ...ta, resize: 'none' }} />
+          </div>
+          <div style={{ marginBottom: '20px' }}>
+            <label style={ls}>Publish Date</label>
+            <input type="date" value={form.publishedDate} onChange={e => setForm({ ...form, publishedDate: e.target.value })}
+              style={{ ...ta, resize: 'none', colorScheme: 'dark' }} />
           </div>
           <button onClick={handlePost} disabled={!form.title || !form.content}
             style={{ background: 'linear-gradient(135deg,#b8933a,#d4aa50)', color: DARK, border: 'none', borderRadius: '4px', padding: '11px 28px', cursor: 'pointer', fontWeight: '700', fontSize: '12px', letterSpacing: '2px', textTransform: 'uppercase', opacity: (!form.title || !form.content) ? 0.5 : 1 }}>
