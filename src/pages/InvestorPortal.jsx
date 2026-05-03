@@ -5,19 +5,61 @@ import ZoomBookingModal from '@/components/ZoomBookingModal';
 import analytics from '@/lib/analytics';
 import { getPortalSettings, loadPortalSettings } from '@/lib/portalSettings';
 import RosieVoiceAgent from '@/components/RosieVoiceAgent';
-import { InvestorUpdateDB, SignNowRequestDB, AccreditationDocDB } from '@/api/entities';
-import { signnowSendDocuments, signnowGetDocument, signnowDownloadDocument } from '@/lib/signnow';
+import { InvestorUpdateDB, SignNowRequestDB, AccreditationDocDB, PressReleaseDB } from '@/api/entities';
+import { signnowSendDocuments, signnowDownloadDocument } from '@/lib/signnow';
 
+// ─── Brand constants ────────────────────────────────────────────────────────
 const LOGO_URL = 'https://media.base44.com/images/public/69cd2741578c9b5ce655395b/39a31f9b9_Untitleddesign3.png';
-const GOLD   = '#b8933a';
-const DARK   = '#0a0f1e';
-const DARKER = '#060c18';
-const h2s    = { color:'#e8e0d0', fontSize:'20px', marginTop:0, marginBottom:'16px', fontFamily:'Georgia, serif', fontWeight:'normal' };
-const bodyText  = { color:'#8a9ab8', lineHeight:1.7, fontSize:'14px', marginBottom:'16px' };
-const labelStyle = { display:'block', color:'#8a9ab8', fontSize:'10px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'6px' };
-const inputStyle = { width:'100%', background:'rgba(255,255,255,0.05)', border:'1px solid rgba(255,255,255,0.12)', borderRadius:'2px', padding:'10px 14px', color:'#e8e0d0', fontSize:'14px', outline:'none', boxSizing:'border-box', fontFamily:'Georgia, serif' };
+const GOLD     = '#b8933a';
+const GOLD_LT  = '#d4aa50';
+const DARK     = '#0a0f1e';
+const DARKER   = '#060c18';
+const PANEL    = '#0d1525';
+const BORDER   = 'rgba(184,147,58,0.18)';
+const BORDER_S = 'rgba(255,255,255,0.07)';
+const TEXT_PRI = '#e8e0d0';
+const TEXT_SEC = '#8a9ab8';
+const TEXT_DIM = '#4a5568';
 
-// ─── Request Documents Modal ──────────────────────────────────────────────
+// ─── Shared style helpers ────────────────────────────────────────────────────
+const labelStyle = {
+  display: 'block', color: TEXT_SEC, fontSize: '10px',
+  letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '6px',
+};
+const inputStyle = {
+  width: '100%', background: 'rgba(255,255,255,0.05)',
+  border: '1px solid rgba(255,255,255,0.12)', borderRadius: '4px',
+  padding: '10px 14px', color: TEXT_PRI, fontSize: '14px',
+  outline: 'none', boxSizing: 'border-box', fontFamily: 'Georgia, serif',
+};
+const cardStyle = {
+  background: 'rgba(255,255,255,0.03)',
+  border: `1px solid ${BORDER_S}`,
+  borderRadius: '8px', padding: '20px',
+};
+const goldBtn = {
+  background: `linear-gradient(135deg,${GOLD},${GOLD_LT})`,
+  color: DARK, border: 'none', borderRadius: '6px',
+  padding: '12px 28px', cursor: 'pointer', fontWeight: '700',
+  fontSize: '12px', letterSpacing: '2px', textTransform: 'uppercase',
+};
+
+// ─── Spinner ─────────────────────────────────────────────────────────────────
+function Spinner({ size = 24 }) {
+  return (
+    <>
+      <div style={{
+        width: size, height: size,
+        border: `3px solid rgba(184,147,58,0.2)`,
+        borderTop: `3px solid ${GOLD}`,
+        borderRadius: '50%', animation: 'spin 0.8s linear infinite',
+      }} />
+      <style>{`@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}`}</style>
+    </>
+  );
+}
+
+// ─── Request Documents Modal ─────────────────────────────────────────────────
 function RequestDocumentsModal({ portalUser, onClose, onSuccess }) {
   const [step, setStep] = useState('confirm');
   const [errorMsg, setErrorMsg] = useState('');
@@ -28,167 +70,510 @@ function RequestDocumentsModal({ portalUser, onClose, onSuccess }) {
       const settings = await loadPortalSettings();
       if (!settings?.signnowAccessToken) throw new Error('SignNow is not configured. Please contact the administrator.');
       const templates = [];
-      if (settings.signnowTemplate1Id) templates.push({ templateId:settings.signnowTemplate1Id, name:settings.signnowTemplate1Name||'Investor Questionnaire' });
-      if (settings.signnowTemplate2Id) templates.push({ templateId:settings.signnowTemplate2Id, name:settings.signnowTemplate2Name||'Subscription Agreement' });
+      if (settings.signnowTemplate1Id) templates.push({ templateId: settings.signnowTemplate1Id, name: settings.signnowTemplate1Name || 'Investor Questionnaire' });
+      if (settings.signnowTemplate2Id) templates.push({ templateId: settings.signnowTemplate2Id, name: settings.signnowTemplate2Name || 'Subscription Agreement' });
       if (!templates.length) throw new Error('No document templates configured. Please contact the administrator.');
       const results = await signnowSendDocuments(settings.signnowAccessToken, templates, portalUser.email, portalUser.name);
-      await SignNowRequestDB.create({ userId:portalUser.id||portalUser.username, userName:portalUser.name, userEmail:portalUser.email, documents:JSON.stringify(results), status:results.every(r=>r.status==='sent')?'sent':'partial', requestedBy:'investor_self' });
+      await SignNowRequestDB.create({
+        userId: portalUser.id || portalUser.username,
+        userName: portalUser.name, userEmail: portalUser.email,
+        documents: JSON.stringify(results),
+        status: results.every(r => r.status === 'sent') ? 'sent' : 'partial',
+        requestedBy: 'investor_self',
+      });
       setStep('done');
-    } catch(e) { setErrorMsg(e.message||'An error occurred.'); setStep('error'); }
+    } catch (e) { setErrorMsg(e.message || 'An error occurred.'); setStep('error'); }
   };
 
   return (
-    <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.85)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:9999, padding:'20px' }}>
-      <div style={{ background:'#0d1b2a', border:'1px solid rgba(184,147,58,0.35)', borderRadius:'2px', padding:'44px', maxWidth:'520px', width:'100%', boxShadow:'0 40px 100px rgba(0,0,0,0.8)' }}>
-        {step==='confirm' && (<>
-          <div style={{ textAlign:'center', marginBottom:'32px' }}>
-            <div style={{ fontSize:'44px', marginBottom:'12px' }}>✍️</div>
-            <h3 style={{ color:GOLD, margin:'0 0 8px', fontFamily:'Georgia, serif', fontWeight:'normal', fontSize:'20px' }}>Request Investment Documents</h3>
-            <p style={{ color:'#6b7280', fontSize:'13px', margin:0 }}>The following documents will be sent for digital signature via SignNow:</p>
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: '20px' }}>
+      <div style={{ background: PANEL, border: `1px solid ${BORDER}`, borderRadius: '12px', padding: '44px', maxWidth: '520px', width: '100%', boxShadow: '0 40px 100px rgba(0,0,0,0.8)' }}>
+        {step === 'confirm' && (<>
+          <div style={{ textAlign: 'center', marginBottom: '32px' }}>
+            <div style={{ fontSize: '44px', marginBottom: '12px' }}>✍️</div>
+            <h3 style={{ color: GOLD, margin: '0 0 8px', fontFamily: 'Georgia, serif', fontWeight: 'normal', fontSize: '20px' }}>Request Investment Documents</h3>
+            <p style={{ color: TEXT_DIM, fontSize: '13px', margin: 0 }}>The following documents will be sent via SignNow:</p>
           </div>
-          <div style={{ background:'rgba(0,0,0,0.25)', border:'1px solid rgba(255,255,255,0.08)', borderRadius:'2px', padding:'20px', marginBottom:'24px' }}>
-            {[['📋','Investor Questionnaire','SEC Accreditation & Suitability Form'],['📄','Subscription Agreement','']].map(([icon,name,desc]) => (
-              <div key={name} style={{ display:'flex', gap:'14px', alignItems:'flex-start', padding:'12px 0', borderBottom:'1px solid rgba(255,255,255,0.05)' }}>
-                <span style={{ fontSize:'22px', flexShrink:0 }}>{icon}</span>
+          <div style={{ background: 'rgba(0,0,0,0.25)', border: `1px solid ${BORDER_S}`, borderRadius: '8px', padding: '20px', marginBottom: '24px' }}>
+            {[['📋', 'Investor Questionnaire', 'SEC Accreditation & Suitability Form'], ['📄', 'Subscription Agreement', '']].map(([icon, name, desc]) => (
+              <div key={name} style={{ display: 'flex', gap: '14px', alignItems: 'flex-start', padding: '12px 0', borderBottom: `1px solid ${BORDER_S}` }}>
+                <span style={{ fontSize: '22px', flexShrink: 0 }}>{icon}</span>
                 <div>
-                  <div style={{ color:'#e8e0d0', fontWeight:'bold', fontSize:'14px', marginBottom:'2px' }}>{name}</div>
-                  <div style={{ color:'#6b7280', fontSize:'12px' }}>{desc}</div>
+                  <div style={{ color: TEXT_PRI, fontWeight: 'bold', fontSize: '14px', marginBottom: '2px' }}>{name}</div>
+                  <div style={{ color: TEXT_DIM, fontSize: '12px' }}>{desc}</div>
                 </div>
               </div>
             ))}
           </div>
-          <div style={{ background:'rgba(184,147,58,0.08)', border:'1px solid rgba(184,147,58,0.2)', borderRadius:'2px', padding:'16px', marginBottom:'28px' }}>
-            <div style={{ color:'#8a9ab8', fontSize:'11px', letterSpacing:'1.5px', textTransform:'uppercase', marginBottom:'4px' }}>Documents will be sent to</div>
-            <div style={{ color:GOLD, fontWeight:'bold', fontSize:'15px' }}>{portalUser.email}</div>
+          <div style={{ background: 'rgba(184,147,58,0.08)', border: `1px solid rgba(184,147,58,0.2)`, borderRadius: '8px', padding: '16px', marginBottom: '28px' }}>
+            <div style={{ color: TEXT_SEC, fontSize: '11px', letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: '4px' }}>Documents will be sent to</div>
+            <div style={{ color: GOLD, fontWeight: 'bold', fontSize: '15px' }}>{portalUser.email}</div>
           </div>
-          <div style={{ display:'flex', gap:'12px' }}>
-            <button onClick={handleSend} style={{ flex:1, background:'linear-gradient(135deg,#b8933a,#d4aa50)', color:DARK, border:'none', borderRadius:'2px', padding:'14px', cursor:'pointer', fontWeight:'700', fontSize:'12px', letterSpacing:'2.5px', textTransform:'uppercase' }}>Send Documents</button>
-            <button onClick={onClose} style={{ padding:'14px 20px', background:'transparent', color:'#6b7280', border:'1px solid rgba(255,255,255,0.12)', borderRadius:'2px', cursor:'pointer', fontSize:'12px' }}>Cancel</button>
+          <div style={{ display: 'flex', gap: '12px' }}>
+            <button onClick={handleSend} style={{ ...goldBtn, flex: 1 }}>Send Documents</button>
+            <button onClick={onClose} style={{ padding: '12px 20px', background: 'transparent', color: TEXT_DIM, border: `1px solid ${BORDER_S}`, borderRadius: '6px', cursor: 'pointer', fontSize: '12px' }}>Cancel</button>
           </div>
         </>)}
-        {step==='sending' && <div style={{ textAlign:'center', padding:'40px 0' }}><div style={{ width:'44px', height:'44px', border:'3px solid rgba(184,147,58,0.2)', borderTop:`3px solid ${GOLD}`, borderRadius:'50%', animation:'spin 0.8s linear infinite', margin:'0 auto 20px' }} /><p style={{ color:'#8a9ab8' }}>Sending documents via SignNow…</p><style>{`@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}`}</style></div>}
-        {step==='done' && <div style={{ textAlign:'center', padding:'20px 0' }}><div style={{ fontSize:'52px', marginBottom:'16px' }}>✅</div><h3 style={{ color:'#4ade80', margin:'0 0 12px', fontFamily:'Georgia, serif', fontWeight:'normal' }}>Documents Sent!</h3><p style={{ color:'#8a9ab8', fontSize:'13px', lineHeight:1.7, margin:'0 auto 28px', maxWidth:'360px' }}>Documents sent to <strong style={{ color:GOLD }}>{portalUser.email}</strong>. Check your inbox to sign.</p><button onClick={()=>{ onSuccess&&onSuccess(); onClose(); }} style={{ background:'linear-gradient(135deg,#b8933a,#d4aa50)', color:DARK, border:'none', borderRadius:'2px', padding:'12px 36px', cursor:'pointer', fontWeight:'700', fontSize:'12px', letterSpacing:'2px', textTransform:'uppercase' }}>Close</button></div>}
-        {step==='error' && <div style={{ textAlign:'center', padding:'20px 0' }}><div style={{ fontSize:'52px', marginBottom:'16px' }}>⚠️</div><h3 style={{ color:'#ef4444', margin:'0 0 12px', fontFamily:'Georgia, serif', fontWeight:'normal' }}>Error Sending Documents</h3><p style={{ color:'#8a9ab8', fontSize:'13px', lineHeight:1.7, margin:'0 auto 28px', maxWidth:'360px' }}>{errorMsg}</p><div style={{ display:'flex', gap:'12px', justifyContent:'center' }}><button onClick={()=>setStep('confirm')} style={{ background:'rgba(255,255,255,0.08)', color:'#c4cdd8', border:'1px solid rgba(255,255,255,0.15)', borderRadius:'2px', padding:'10px 24px', cursor:'pointer', fontSize:'12px' }}>Try Again</button><button onClick={onClose} style={{ background:'transparent', color:'#6b7280', border:'1px solid rgba(255,255,255,0.1)', borderRadius:'2px', padding:'10px 24px', cursor:'pointer', fontSize:'12px' }}>Close</button></div></div>}
+        {step === 'sending' && <div style={{ textAlign: 'center', padding: '40px 0' }}><div style={{ margin: '0 auto 20px' }}><Spinner size={44} /></div><p style={{ color: TEXT_SEC }}>Sending documents via SignNow…</p></div>}
+        {step === 'done' && <div style={{ textAlign: 'center', padding: '20px 0' }}><div style={{ fontSize: '52px', marginBottom: '16px' }}>✅</div><h3 style={{ color: '#4ade80', margin: '0 0 12px', fontFamily: 'Georgia, serif', fontWeight: 'normal' }}>Documents Sent!</h3><p style={{ color: TEXT_SEC, fontSize: '13px', lineHeight: 1.7, margin: '0 auto 28px', maxWidth: '360px' }}>Documents sent to <strong style={{ color: GOLD }}>{portalUser.email}</strong>. Check your inbox to sign.</p><button onClick={() => { onSuccess && onSuccess(); onClose(); }} style={goldBtn}>Close</button></div>}
+        {step === 'error' && <div style={{ textAlign: 'center', padding: '20px 0' }}><div style={{ fontSize: '52px', marginBottom: '16px' }}>⚠️</div><h3 style={{ color: '#ef4444', margin: '0 0 12px', fontFamily: 'Georgia, serif', fontWeight: 'normal' }}>Error Sending Documents</h3><p style={{ color: TEXT_SEC, fontSize: '13px', lineHeight: 1.7, margin: '0 auto 28px', maxWidth: '360px' }}>{errorMsg}</p><div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}><button onClick={() => setStep('confirm')} style={{ background: 'rgba(255,255,255,0.08)', color: '#c4cdd8', border: `1px solid ${BORDER_S}`, borderRadius: '6px', padding: '10px 24px', cursor: 'pointer', fontSize: '12px' }}>Try Again</button><button onClick={onClose} style={{ background: 'transparent', color: TEXT_DIM, border: `1px solid rgba(255,255,255,0.1)`, borderRadius: '6px', padding: '10px 24px', cursor: 'pointer', fontSize: '12px' }}>Close</button></div></div>}
       </div>
     </div>
   );
 }
 
-// ─── Account: Profile ─────────────────────────────────────────────────────
+// ─── Top Metric Cards (admin-controlled) ─────────────────────────────────────
+function MetricCards() {
+  const [s, setS] = useState(getPortalSettings());
+  useEffect(() => {
+    loadPortalSettings().then(setS);
+    const handler = e => setS(e.detail);
+    window.addEventListener('portalSettingsChanged', handler);
+    return () => window.removeEventListener('portalSettingsChanged', handler);
+  }, []);
+
+  const TOTAL      = Number(s.totalRaise)       || 2500000;
+  const COMMITTED  = Number(s.committedCapital)  || 0;
+  const INVESTED   = Number(s.investedCapital)   || 0;
+  const INV_TARGET = Number(s.investedTarget)    || 500000;
+  const fmt = n => n >= 1000000 ? `$${(n / 1000000).toFixed(2)}M` : `$${(n / 1000).toFixed(0)}K`;
+  const committedPct = Math.min((COMMITTED / TOTAL) * 100, 100);
+  const investedPct  = Math.min((INVESTED  / INV_TARGET) * 100, 100);
+
+  const cards = [
+    {
+      title: s.companyName || 'Rosie AI, LLC',
+      value: fmt(TOTAL),
+      sub: s.roundSize ? `${s.roundSize} · ${s.portalTagline || 'Reg D 506C'}` : 'Reg D 506C A Round Equity Raise',
+      icon: '🚀', bar: false,
+    },
+    {
+      title: 'Committed Capital',
+      value: fmt(COMMITTED),
+      sub: `${Math.round(committedPct)}% Filled`,
+      subColor: '#4ade80', icon: '💰', bar: true,
+      pct: committedPct, barColor: GOLD,
+    },
+    {
+      title: 'Invested Capital',
+      value: fmt(INVESTED),
+      sub: `${Math.round(investedPct)}% Deployed`,
+      subColor: '#4ade80', icon: '📊', bar: true,
+      pct: investedPct, barColor: '#4ade80',
+    },
+  ];
+
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
+      {cards.map(({ title, value, sub, subColor, icon, bar, pct, barColor }) => (
+        <div key={title} style={{ background: PANEL, border: `1px solid ${BORDER}`, borderRadius: '10px', padding: '18px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
+            <span style={{ color: TEXT_SEC, fontSize: '11px', letterSpacing: '1px', textTransform: 'uppercase' }}>{title}</span>
+            <span style={{ fontSize: '16px' }}>{icon}</span>
+          </div>
+          <div style={{ color: TEXT_PRI, fontSize: '22px', fontWeight: 'bold', marginBottom: '4px' }}>{value}</div>
+          <div style={{ color: subColor || TEXT_DIM, fontSize: '12px', marginBottom: bar ? '10px' : 0 }}>{sub}</div>
+          {bar && (
+            <div style={{ background: 'rgba(255,255,255,0.08)', borderRadius: '4px', height: '5px', overflow: 'hidden' }}>
+              <div style={{ background: barColor, width: `${pct}%`, height: '100%', borderRadius: '4px', transition: 'width 1s ease' }} />
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ─── LLC Documents Tab (sidebar + viewer + download) ─────────────────────────
+const PPM_PDF_URL = 'https://media.base44.com/files/public/69cd2741578c9b5ce655395b/4f3f2fc0b_RosieAI_PPMpdf.pdf';
+async function downloadFile(url, filename) {
+  analytics.trackDownload(filename, 'pdf');
+  const res = await fetch(url);
+  const blob = await res.blob();
+  const u = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = u; a.download = filename; a.click();
+  URL.revokeObjectURL(u);
+}
+
+const PPM_INDEX = [
+  { id: 'cover',      label: 'Cover Page',                      page: 1  },
+  { id: 'notices',    label: 'Notices',                         page: 2  },
+  { id: 'summary',    label: 'Summary of Terms',                page: 4  },
+  { id: 'focus',      label: 'Focus of the Offering',           page: 5  },
+  { id: 'revenue',    label: 'Revenue Projections & Milestones', page: 6 },
+  { id: 'subscribe',  label: 'How to Subscribe',                page: 7  },
+  { id: 'intro',      label: 'Rosie AI Introduction',           page: 9  },
+  { id: 'positioning',label: 'Unique Positioning',              page: 10 },
+  { id: 'leadership', label: 'Leadership & Architects',         page: 12 },
+  { id: 'orgchart',   label: 'Organizational Chart',            page: 14 },
+  { id: 'cap',        label: 'Capitalization & Management',     page: 15 },
+  { id: 'fiduciary',  label: 'Fiduciary Responsibilities',      page: 16 },
+  { id: 'risk-mgmt',  label: 'Risk Management & Exit Strategy', page: 18 },
+  { id: 'terms',      label: 'Terms of the Offering',           page: 19 },
+  { id: 'subscribing',label: 'Subscribing to the Offering',     page: 20 },
+  { id: 'proceeds',   label: 'Use of Investor Proceeds',        page: 22 },
+  { id: 'rights',     label: 'Rights & Liabilities',            page: 25 },
+  { id: 'alloc',      label: 'Allocation & Distributions',      page: 26 },
+  { id: 'sub-proc',   label: 'Subscription Procedures',         page: 28 },
+  { id: 'risk-factors',label: 'Risk Factors',                   page: 42 },
+  { id: 'erisa',      label: 'ERISA Considerations',            page: 50 },
+  { id: 'state',      label: 'State-Specific Legal Notices',    page: 44 },
+  { id: 'additional', label: 'Additional Information',          page: 53 },
+];
+
+const PDF_DOCS = [
+  { id: 'offering',     name: 'Investment Offering (PPM)', badge: 'Offering',       url: PPM_PDF_URL,                                                                                                          totalPages: 56, usePPMIndex: true },
+  { id: 'subscription', name: 'Subscription Agreement',    badge: 'Required',       url: 'https://media.base44.com/files/public/69cd2741578c9b5ce655395b/4799d48ad_SubscriptionAgreement1pdf2pdfpdf1.pdf',  totalPages: 7  },
+  { id: 'questionnaire',name: 'Investor Questionnaire',    badge: 'Required',       url: 'https://media.base44.com/files/public/69cd2741578c9b5ce655395b/a49bb2463_InvestorQuestionnairepdf.pdf',           totalPages: 7  },
+  { id: 'operating',    name: 'LLC Operating Agreement',   badge: 'Member Document',url: 'https://media.base44.com/files/public/69cd2741578c9b5ce655395b/85a220a6e_LLCOperatingAgreementpdf.pdf',           totalPages: 27 },
+];
+
+function LLCDocumentsTab({ onRequestDocuments }) {
+  const [selectedDoc, setSelectedDoc] = useState(null);
+  const [ppmSection, setPpmSection]   = useState('cover');
+  const docIdRef = useRef(null);
+
+  const openDoc = (doc) => {
+    if (docIdRef.current) analytics.trackDocumentClose(docIdRef.current);
+    docIdRef.current = analytics.trackDocumentOpen(doc.name, doc.id);
+    setSelectedDoc(doc);
+    if (doc.usePPMIndex) setPpmSection('cover');
+  };
+  const closeDoc = () => {
+    if (docIdRef.current) { analytics.trackDocumentClose(docIdRef.current); docIdRef.current = null; }
+    setSelectedDoc(null);
+  };
+
+  const activePPMSec = PPM_INDEX.find(s => s.id === ppmSection) || PPM_INDEX[0];
+  const activePPMIdx = PPM_INDEX.findIndex(s => s.id === ppmSection);
+
+  const iframeUrl = selectedDoc?.usePPMIndex
+    ? `https://docs.google.com/viewer?url=${encodeURIComponent(PPM_PDF_URL)}&embedded=true#page=${activePPMSec.page}`
+    : selectedDoc
+      ? `${selectedDoc.url}#toolbar=1`
+      : null;
+
+  return (
+    <div style={{ display: 'flex', gap: 0, minHeight: '680px' }}>
+      {/* Sidebar */}
+      <div style={{ width: '220px', flexShrink: 0, borderRight: `1px solid ${BORDER_S}`, overflowY: 'auto', maxHeight: '80vh' }}>
+        <div style={{ color: TEXT_DIM, fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', padding: '0 0 10px 16px', marginBottom: '4px' }}>Documents</div>
+        {PDF_DOCS.map(doc => (
+          <button key={doc.id} onClick={() => openDoc(doc)} style={{
+            display: 'block', width: '100%', textAlign: 'left',
+            background: selectedDoc?.id === doc.id ? 'rgba(184,147,58,0.12)' : 'transparent',
+            border: 'none', borderLeft: selectedDoc?.id === doc.id ? `3px solid ${GOLD}` : '3px solid transparent',
+            padding: '13px 16px', cursor: 'pointer',
+          }}>
+            <div style={{ color: selectedDoc?.id === doc.id ? GOLD : TEXT_PRI, fontSize: '13px', fontWeight: selectedDoc?.id === doc.id ? 'bold' : 'normal', marginBottom: '3px' }}>{doc.name}</div>
+            <div style={{ color: TEXT_DIM, fontSize: '11px' }}>{doc.badge} · {doc.totalPages} pages</div>
+          </button>
+        ))}
+
+        {/* PPM Section index (only when PPM selected) */}
+        {selectedDoc?.usePPMIndex && (
+          <>
+            <div style={{ color: TEXT_DIM, fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', padding: '14px 0 6px 16px', borderTop: `1px solid ${BORDER_S}`, marginTop: '8px' }}>Table of Contents</div>
+            {PPM_INDEX.map(sec => (
+              <button key={sec.id} onClick={() => setPpmSection(sec.id)} style={{
+                display: 'block', width: '100%', textAlign: 'left',
+                background: ppmSection === sec.id ? 'rgba(184,147,58,0.10)' : 'transparent',
+                border: 'none', borderLeft: ppmSection === sec.id ? `3px solid ${GOLD}` : '3px solid transparent',
+                padding: '9px 14px', cursor: 'pointer',
+              }}>
+                <div style={{ color: ppmSection === sec.id ? GOLD : '#c4cdd8', fontSize: '11px', lineHeight: 1.3 }}>{sec.label}</div>
+                <div style={{ color: TEXT_DIM, fontSize: '10px', marginTop: '1px' }}>p. {sec.page}</div>
+              </button>
+            ))}
+          </>
+        )}
+
+        {/* Download section */}
+        <div style={{ padding: '16px', borderTop: `1px solid ${BORDER_S}`, marginTop: '8px' }}>
+          <div style={{ color: TEXT_DIM, fontSize: '10px', letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: '10px' }}>Download</div>
+          {PDF_DOCS.map(doc => (
+            <button key={doc.id} onClick={() => downloadFile(doc.url, doc.name + '.pdf')} style={{
+              display: 'block', width: '100%', textAlign: 'left',
+              background: 'transparent', border: 'none', color: TEXT_SEC,
+              padding: '6px 0', cursor: 'pointer', fontSize: '11px',
+            }}>↓ {doc.name}</button>
+          ))}
+        </div>
+      </div>
+
+      {/* Viewer */}
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+        {!selectedDoc ? (
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', minHeight: '500px', gap: '16px' }}>
+            <div style={{ fontSize: '56px' }}>📁</div>
+            <div style={{ color: TEXT_SEC, fontSize: '15px' }}>Select a document from the sidebar to view it</div>
+            <div style={{ display: 'flex', gap: '10px', marginTop: '8px', flexWrap: 'wrap', justifyContent: 'center' }}>
+              {PDF_DOCS.map(doc => (
+                <button key={doc.id} onClick={() => openDoc(doc)} style={{ background: 'rgba(184,147,58,0.12)', color: GOLD, border: `1px solid rgba(184,147,58,0.3)`, borderRadius: '6px', padding: '10px 18px', cursor: 'pointer', fontSize: '12px' }}>
+                  📖 {doc.name}
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+            {/* Viewer toolbar */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 20px', borderBottom: `1px solid ${BORDER_S}`, background: 'rgba(0,0,0,0.2)', flexShrink: 0, gap: '8px', flexWrap: 'wrap' }}>
+              <div>
+                <span style={{ color: GOLD, fontWeight: 'bold', fontSize: '14px' }}>{selectedDoc.name}</span>
+                {selectedDoc.totalPages && <span style={{ color: TEXT_DIM, fontSize: '12px', marginLeft: '10px' }}>{selectedDoc.totalPages} pages</span>}
+                {selectedDoc.usePPMIndex && <span style={{ color: TEXT_DIM, fontSize: '12px', marginLeft: '6px' }}>· {activePPMSec.label}</span>}
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                {selectedDoc.usePPMIndex && (<>
+                  <button onClick={() => { if (activePPMIdx > 0) setPpmSection(PPM_INDEX[activePPMIdx - 1].id); }} disabled={activePPMIdx === 0} style={{ background: 'rgba(255,255,255,0.07)', color: activePPMIdx === 0 ? TEXT_DIM : TEXT_PRI, border: `1px solid ${BORDER_S}`, borderRadius: '4px', padding: '5px 12px', cursor: activePPMIdx === 0 ? 'default' : 'pointer', fontSize: '13px' }}>‹ Prev</button>
+                  <button onClick={() => { if (activePPMIdx < PPM_INDEX.length - 1) setPpmSection(PPM_INDEX[activePPMIdx + 1].id); }} disabled={activePPMIdx === PPM_INDEX.length - 1} style={{ background: 'rgba(255,255,255,0.07)', color: activePPMIdx === PPM_INDEX.length - 1 ? TEXT_DIM : TEXT_PRI, border: `1px solid ${BORDER_S}`, borderRadius: '4px', padding: '5px 12px', cursor: activePPMIdx === PPM_INDEX.length - 1 ? 'default' : 'pointer', fontSize: '13px' }}>Next ›</button>
+                </>)}
+                <button onClick={() => downloadFile(selectedDoc.url, selectedDoc.name + '.pdf')} style={{ background: 'rgba(184,147,58,0.15)', color: GOLD, border: `1px solid rgba(184,147,58,0.3)`, borderRadius: '4px', padding: '6px 14px', cursor: 'pointer', fontSize: '11px' }}>↓ Download</button>
+                <button onClick={closeDoc} style={{ background: 'none', border: `1px solid ${BORDER_S}`, color: TEXT_DIM, borderRadius: '4px', padding: '6px 10px', cursor: 'pointer', fontSize: '14px' }}>×</button>
+              </div>
+            </div>
+            <iframe
+              src={iframeUrl}
+              style={{ flex: 1, width: '100%', minHeight: '600px', border: 'none', background: '#fff' }}
+              title={selectedDoc.name}
+              key={selectedDoc.usePPMIndex ? `ppm-${ppmSection}` : selectedDoc.id}
+            />
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Accreditation Tab (was inside Account tab) ──────────────────────────────
+function AccreditationTab({ portalUser }) {
+  const [docs, setDocs]           = useState([]);
+  const [loading, setLoading]     = useState(true);
+  const [uploading, setUploading] = useState(false);
+  const [docType, setDocType]     = useState('tax_return');
+  const [uploadMsg, setUploadMsg] = useState(null);
+  const fileRef = useRef(null);
+
+  useEffect(() => { loadDocs(); }, []);
+
+  const loadDocs = async () => {
+    try { const d = await AccreditationDocDB.listForInvestor(portalUser.id || portalUser.username); setDocs(d); }
+    catch {} finally { setLoading(false); }
+  };
+
+  const handleFileUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 10 * 1024 * 1024) { setUploadMsg({ ok: false, text: 'File must be under 10 MB.' }); return; }
+    setUploading(true); setUploadMsg(null);
+    try {
+      const reader = new FileReader();
+      reader.onload = async (ev) => {
+        const base64 = ev.target.result.split(',')[1];
+        await AccreditationDocDB.create({
+          investorId: portalUser.id || portalUser.username,
+          investorEmail: portalUser.email, investorName: portalUser.name,
+          fileName: file.name, docType, fileData: base64,
+          fileSize: file.size, mimeType: file.type,
+        });
+        setUploadMsg({ ok: true, text: 'Document uploaded successfully. Our team will review it shortly.' });
+        await loadDocs();
+        if (fileRef.current) fileRef.current.value = '';
+        setUploading(false);
+      };
+      reader.onerror = () => { setUploadMsg({ ok: false, text: 'File read error. Please try again.' }); setUploading(false); };
+      reader.readAsDataURL(file);
+    } catch (e) { setUploadMsg({ ok: false, text: 'Upload failed: ' + e.message }); setUploading(false); }
+  };
+
+  const docTypeLabels = { tax_return: 'Tax Return (W-2, 1040)', bank_statement: 'Bank Statement', cpa_letter: 'CPA Letter', other: 'Other Document' };
+  const statusColors  = { pending: '#f59e0b', under_review: '#60a5fa', approved: '#4ade80', rejected: '#ef4444' };
+  const statusLabels  = { pending: '⏳ Pending Review', under_review: '🔍 Under Review', approved: '✅ Approved', rejected: '❌ Rejected' };
+
+  return (
+    <div>
+      {/* Notice */}
+      <div style={{ background: 'rgba(184,147,58,0.07)', border: `1px solid rgba(184,147,58,0.2)`, borderRadius: '10px', padding: '20px', marginBottom: '28px' }}>
+        <div style={{ color: GOLD, fontSize: '12px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '10px' }}>🔐 Accreditation Verification</div>
+        <p style={{ color: '#c4cdd8', fontSize: '13px', lineHeight: 1.7, margin: '0 0 10px' }}>
+          To verify your accredited investor status, please upload one or more of the following documents:
+          <strong style={{ color: TEXT_PRI }}> tax returns (W-2 or 1040), bank statements, or a letter from your CPA or attorney.</strong>
+        </p>
+        <p style={{ color: TEXT_SEC, fontSize: '12px', lineHeight: 1.6, margin: '0 0 8px' }}>
+          ✏️ <strong>You may redact any account numbers or other sensitive information</strong> before uploading.
+          Your name, income/asset totals, and date must remain visible.
+        </p>
+        <p style={{ color: TEXT_DIM, fontSize: '11px', margin: 0 }}>
+          🔒 All documents are stored with AES-256 encryption and are only accessible to authorized Rosie AI personnel.
+        </p>
+      </div>
+
+      {/* Upload form */}
+      <div style={{ background: 'rgba(255,255,255,0.02)', border: `1px solid ${BORDER_S}`, borderRadius: '10px', padding: '24px', marginBottom: '28px' }}>
+        <div style={{ color: TEXT_SEC, fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '16px' }}>Upload Document</div>
+        <div style={{ marginBottom: '14px' }}>
+          <label style={labelStyle}>Document Type</label>
+          <select value={docType} onChange={e => setDocType(e.target.value)} style={{ ...inputStyle, cursor: 'pointer' }}>
+            {Object.entries(docTypeLabels).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+          </select>
+        </div>
+        <div style={{ border: `2px dashed rgba(184,147,58,0.25)`, borderRadius: '8px', padding: '28px', textAlign: 'center', cursor: 'pointer', position: 'relative' }}
+          onClick={() => fileRef.current?.click()}>
+          <input ref={fileRef} type="file" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" onChange={handleFileUpload} style={{ display: 'none' }} />
+          {uploading ? (
+            <div><div style={{ margin: '0 auto 12px', width: 32, display: 'flex', justifyContent: 'center' }}><Spinner size={32} /></div><p style={{ color: TEXT_SEC, fontSize: '13px', margin: 0 }}>Uploading…</p></div>
+          ) : (
+            <div>
+              <div style={{ fontSize: '36px', marginBottom: '10px' }}>📎</div>
+              <p style={{ color: TEXT_SEC, fontSize: '13px', margin: '0 0 6px' }}>Click to select a file, or drag and drop here</p>
+              <p style={{ color: TEXT_DIM, fontSize: '11px', margin: 0 }}>PDF, JPG, PNG, or Word document — max 10 MB</p>
+            </div>
+          )}
+        </div>
+        {uploadMsg && (
+          <div style={{ background: uploadMsg.ok ? 'rgba(74,222,128,0.08)' : 'rgba(239,68,68,0.1)', border: `1px solid ${uploadMsg.ok ? 'rgba(74,222,128,0.25)' : 'rgba(239,68,68,0.25)'}`, borderRadius: '6px', padding: '12px 16px', marginTop: '14px', color: uploadMsg.ok ? '#4ade80' : '#ff8a8a', fontSize: '13px' }}>
+            {uploadMsg.text}
+          </div>
+        )}
+      </div>
+
+      {/* Uploaded docs list */}
+      {loading && <p style={{ color: TEXT_DIM, textAlign: 'center' }}>Loading…</p>}
+      {!loading && docs.length === 0 && (
+        <p style={{ color: TEXT_DIM, textAlign: 'center', padding: '28px' }}>No documents uploaded yet. Use the form above to get started.</p>
+      )}
+      {docs.length > 0 && (
+        <div>
+          <div style={{ color: TEXT_SEC, fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '14px' }}>Your Uploaded Documents</div>
+          {docs.map(doc => (
+            <div key={doc.id} style={{ background: 'rgba(255,255,255,0.02)', border: `1px solid ${BORDER_S}`, borderRadius: '8px', padding: '16px 18px', marginBottom: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <div style={{ color: TEXT_PRI, fontWeight: 'bold', fontSize: '13px', marginBottom: '3px' }}>{doc.fileName}</div>
+                <div style={{ color: TEXT_DIM, fontSize: '11px' }}>{docTypeLabels[doc.docType] || doc.docType} · {doc.fileSize ? (doc.fileSize / 1024).toFixed(1) + ' KB' : ''} · {doc.uploadedAt ? new Date(doc.uploadedAt).toLocaleDateString() : ''}</div>
+              </div>
+              <span style={{ color: statusColors[doc.status] || '#f59e0b', fontSize: '11px', whiteSpace: 'nowrap' }}>{statusLabels[doc.status] || doc.status}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Talk to Rosie AI Tab ─────────────────────────────────────────────────────
+function RosieAITab({ portalUser }) {
+  return (
+    <div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '20px', padding: '14px 20px', background: 'rgba(184,147,58,0.04)', border: `1px solid ${BORDER}`, borderRadius: '10px' }}>
+        <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#4ade80', boxShadow: '0 0 6px #4ade80', flexShrink: 0 }} />
+        <span style={{ color: GOLD, fontSize: '11px', letterSpacing: '2px', textTransform: 'uppercase', fontWeight: 'bold' }}>Rosie AI — Investor Assistant</span>
+        <span style={{ color: TEXT_DIM, fontSize: '11px', marginLeft: 'auto' }}>Ask me anything about this investment</span>
+      </div>
+      <RosieVoiceAgent
+        userName={portalUser?.name || portalUser?.username || 'Investor'}
+        investorId={portalUser?.id}
+        investorEmail={portalUser?.email}
+        inline={true}
+      />
+    </div>
+  );
+}
+
+// ─── Account: Profile ─────────────────────────────────────────────────────────
 function AccountProfile({ portalUser }) {
   const { updateUser } = usePortalAuth();
-  const isInvestor = portalUser.status === 'investor';
-  const [form, setForm] = useState({
-    name:    portalUser.name    || '',
-    email:   portalUser.email   || '',
-    phone:   portalUser.phone   || '',
-    address: portalUser.address || '',
-  });
-  const [pwForm, setPwForm] = useState({ current:'', newPw:'', confirm:'' });
-  const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState({ name: portalUser.name || '', email: portalUser.email || '', phone: portalUser.phone || '', address: portalUser.address || '' });
+  const [pwForm, setPwForm] = useState({ newPw: '', confirm: '' });
+  const [saving, setSaving]     = useState(false);
   const [savingPw, setSavingPw] = useState(false);
-  const [msg, setMsg]     = useState(null);
-  const [pwMsg, setPwMsg] = useState(null);
+  const [msg, setMsg]           = useState(null);
+  const [pwMsg, setPwMsg]       = useState(null);
 
   const save = async () => {
     setSaving(true); setMsg(null);
-    try {
-      await updateUser(portalUser.username || portalUser.email, {
-        name: form.name, email: form.email, phone: form.phone, address: form.address,
-      });
-      setMsg({ ok:true, text:'Profile updated successfully.' });
-    } catch { setMsg({ ok:false, text:'Update failed — please try again.' }); }
+    try { await updateUser(portalUser.username || portalUser.email, { name: form.name, email: form.email, phone: form.phone, address: form.address }); setMsg({ ok: true, text: 'Profile updated successfully.' }); }
+    catch { setMsg({ ok: false, text: 'Update failed — please try again.' }); }
     finally { setSaving(false); }
   };
 
   const savePassword = async () => {
-    if (!pwForm.newPw || pwForm.newPw.length < 6) { setPwMsg({ ok:false, text:'New password must be at least 6 characters.' }); return; }
-    if (pwForm.newPw !== pwForm.confirm) { setPwMsg({ ok:false, text:'Passwords do not match.' }); return; }
+    if (!pwForm.newPw || pwForm.newPw.length < 6) { setPwMsg({ ok: false, text: 'New password must be at least 6 characters.' }); return; }
+    if (pwForm.newPw !== pwForm.confirm) { setPwMsg({ ok: false, text: 'Passwords do not match.' }); return; }
     setSavingPw(true); setPwMsg(null);
-    try {
-      await updateUser(portalUser.username || portalUser.email, { password: pwForm.newPw });
-      setPwForm({ current:'', newPw:'', confirm:'' });
-      setPwMsg({ ok:true, text:'Password updated successfully.' });
-    } catch { setPwMsg({ ok:false, text:'Password update failed — please try again.' }); }
+    try { await updateUser(portalUser.username || portalUser.email, { password: pwForm.newPw }); setPwForm({ newPw: '', confirm: '' }); setPwMsg({ ok: true, text: 'Password updated successfully.' }); }
+    catch { setPwMsg({ ok: false, text: 'Password update failed — please try again.' }); }
     finally { setSavingPw(false); }
   };
 
   return (
-    <div style={{ maxWidth:'520px' }}>
-      {/* ── Contact Information ── */}
-      <h3 style={{ color:'#8a9ab8', fontSize:'11px', letterSpacing:'2px', textTransform:'uppercase', marginTop:0, marginBottom:'20px' }}>Contact Information</h3>
-      {[{ key:'name', label:'Full Name' }, { key:'email', label:'Email Address', type:'email' }, { key:'phone', label:'Phone Number', placeholder:'(216) 555-0123' }].map(({ key, label, type='text', placeholder='' }) => (
-        <div key={key} style={{ marginBottom:'16px' }}>
+    <div style={{ maxWidth: '520px' }}>
+      <div style={{ color: TEXT_SEC, fontSize: '11px', letterSpacing: '2px', textTransform: 'uppercase', marginTop: 0, marginBottom: '20px' }}>Contact Information</div>
+      {[{ key: 'name', label: 'Full Name' }, { key: 'email', label: 'Email Address', type: 'email' }, { key: 'phone', label: 'Phone Number', placeholder: '(216) 555-0123' }].map(({ key, label, type = 'text', placeholder = '' }) => (
+        <div key={key} style={{ marginBottom: '16px' }}>
           <label style={labelStyle}>{label}</label>
-          <input type={type} value={form[key]} onChange={e=>setForm({...form,[key]:e.target.value})} placeholder={placeholder} style={inputStyle} />
+          <input type={type} value={form[key]} onChange={e => setForm({ ...form, [key]: e.target.value })} placeholder={placeholder} style={inputStyle} />
         </div>
       ))}
-      <div style={{ marginBottom:'20px' }}>
+      <div style={{ marginBottom: '20px' }}>
         <label style={labelStyle}>Mailing Address</label>
-        <input value={form.address} onChange={e=>setForm({...form,address:e.target.value})} placeholder="123 Main St, Cleveland, OH 44101" style={inputStyle} />
+        <input value={form.address} onChange={e => setForm({ ...form, address: e.target.value })} placeholder="123 Main St, Cleveland, OH 44101" style={inputStyle} />
       </div>
-      {msg && <div style={{ background:msg.ok?'rgba(74,222,128,0.1)':'rgba(220,60,60,0.1)', border:`1px solid ${msg.ok?'rgba(74,222,128,0.3)':'rgba(220,60,60,0.3)'}`, borderRadius:'2px', padding:'10px 14px', color:msg.ok?'#4ade80':'#ff8a8a', fontSize:'13px', marginBottom:'16px' }}>{msg.text}</div>}
-      <button onClick={save} disabled={saving} style={{ background:'linear-gradient(135deg,#b8933a,#d4aa50)', color:DARK, border:'none', borderRadius:'2px', padding:'12px 32px', cursor:'pointer', fontWeight:'700', fontSize:'12px', letterSpacing:'2px', textTransform:'uppercase' }}>{saving?'Saving…':'Save Changes'}</button>
+      {msg && <div style={{ background: msg.ok ? 'rgba(74,222,128,0.1)' : 'rgba(220,60,60,0.1)', border: `1px solid ${msg.ok ? 'rgba(74,222,128,0.3)' : 'rgba(220,60,60,0.3)'}`, borderRadius: '6px', padding: '10px 14px', color: msg.ok ? '#4ade80' : '#ff8a8a', fontSize: '13px', marginBottom: '16px' }}>{msg.text}</div>}
+      <button onClick={save} disabled={saving} style={goldBtn}>{saving ? 'Saving…' : 'Save Changes'}</button>
 
-      {/* ── Change Password ── */}
-      <div style={{ marginTop:'36px', paddingTop:'28px', borderTop:'1px solid rgba(255,255,255,0.07)' }}>
-        <h3 style={{ color:'#8a9ab8', fontSize:'11px', letterSpacing:'2px', textTransform:'uppercase', marginTop:0, marginBottom:'20px' }}>Change Password</h3>
-        <div style={{ marginBottom:'14px' }}>
+      <div style={{ marginTop: '36px', paddingTop: '28px', borderTop: `1px solid ${BORDER_S}` }}>
+        <div style={{ color: TEXT_SEC, fontSize: '11px', letterSpacing: '2px', textTransform: 'uppercase', marginTop: 0, marginBottom: '20px' }}>Change Password</div>
+        <div style={{ marginBottom: '14px' }}>
           <label style={labelStyle}>New Password</label>
-          <input type="password" value={pwForm.newPw} onChange={e=>setPwForm({...pwForm,newPw:e.target.value})} placeholder="Min. 6 characters" style={inputStyle} />
+          <input type="password" value={pwForm.newPw} onChange={e => setPwForm({ ...pwForm, newPw: e.target.value })} placeholder="Min. 6 characters" style={inputStyle} />
         </div>
-        <div style={{ marginBottom:'20px' }}>
+        <div style={{ marginBottom: '20px' }}>
           <label style={labelStyle}>Confirm New Password</label>
-          <input type="password" value={pwForm.confirm} onChange={e=>setPwForm({...pwForm,confirm:e.target.value})} placeholder="Re-enter new password" style={inputStyle} />
+          <input type="password" value={pwForm.confirm} onChange={e => setPwForm({ ...pwForm, confirm: e.target.value })} placeholder="Re-enter new password" style={inputStyle} />
         </div>
-        {pwMsg && <div style={{ background:pwMsg.ok?'rgba(74,222,128,0.1)':'rgba(220,60,60,0.1)', border:`1px solid ${pwMsg.ok?'rgba(74,222,128,0.3)':'rgba(220,60,60,0.3)'}`, borderRadius:'2px', padding:'10px 14px', color:pwMsg.ok?'#4ade80':'#ff8a8a', fontSize:'13px', marginBottom:'16px' }}>{pwMsg.text}</div>}
-        <button onClick={savePassword} disabled={savingPw || !pwForm.newPw || !pwForm.confirm} style={{ background:'rgba(255,255,255,0.06)', color:'#e8e0d0', border:'1px solid rgba(255,255,255,0.15)', borderRadius:'2px', padding:'11px 28px', cursor:'pointer', fontWeight:'700', fontSize:'12px', letterSpacing:'2px', textTransform:'uppercase' }}>{savingPw?'Updating…':'Update Password'}</button>
+        {pwMsg && <div style={{ background: pwMsg.ok ? 'rgba(74,222,128,0.1)' : 'rgba(220,60,60,0.1)', border: `1px solid ${pwMsg.ok ? 'rgba(74,222,128,0.3)' : 'rgba(220,60,60,0.3)'}`, borderRadius: '6px', padding: '10px 14px', color: pwMsg.ok ? '#4ade80' : '#ff8a8a', fontSize: '13px', marginBottom: '16px' }}>{pwMsg.text}</div>}
+        <button onClick={savePassword} disabled={savingPw || !pwForm.newPw || !pwForm.confirm} style={{ ...goldBtn, background: 'rgba(255,255,255,0.06)', color: TEXT_PRI, border: `1px solid ${BORDER_S}` }}>{savingPw ? 'Updating…' : 'Update Password'}</button>
       </div>
     </div>
   );
 }
 
-// ─── Account: Investment ──────────────────────────────────────────────────
+// ─── Account: Investment ──────────────────────────────────────────────────────
 function AccountInvestment({ portalUser }) {
-  const isInvestor = portalUser.status === 'investor';
-
-  if (!isInvestor) {
+  if (portalUser.status !== 'investor') {
     return (
-      <div style={{ textAlign:'center', padding:'56px 24px' }}>
-        <div style={{ fontSize:'52px', marginBottom:'16px' }}>🔒</div>
-        <h3 style={{ color:'#4a5568', fontFamily:'Georgia, serif', fontWeight:'normal', marginBottom:'12px' }}>Investment Details Locked</h3>
-        <p style={{ color:'#374151', fontSize:'13px', maxWidth:'380px', margin:'0 auto 12px', lineHeight:1.7 }}>
-          Investment amount, investment date, and account type will be visible here once your account status is upgraded to <strong style={{ color:'#60a5fa' }}>Investor</strong>.
-        </p>
-        <p style={{ color:'#374151', fontSize:'12px', maxWidth:'360px', margin:'0 auto' }}>
-          Please complete the accreditation process and contact our investor relations team.
+      <div style={{ textAlign: 'center', padding: '56px 24px' }}>
+        <div style={{ fontSize: '52px', marginBottom: '16px' }}>🔒</div>
+        <h3 style={{ color: TEXT_DIM, fontFamily: 'Georgia, serif', fontWeight: 'normal', marginBottom: '12px' }}>Investment Details Locked</h3>
+        <p style={{ color: TEXT_DIM, fontSize: '13px', maxWidth: '380px', margin: '0 auto 12px', lineHeight: 1.7 }}>
+          Investment amount, date, and account type will be visible once your account status is upgraded to <strong style={{ color: '#60a5fa' }}>Investor</strong>.
         </p>
       </div>
     );
   }
-
   if (!portalUser.investmentAmount && !portalUser.investmentDate) {
     return (
-      <div style={{ textAlign:'center', padding:'48px', color:'#4a5568' }}>
-        <div style={{ fontSize:'40px', marginBottom:'12px' }}>📊</div>
+      <div style={{ textAlign: 'center', padding: '48px', color: TEXT_DIM }}>
+        <div style={{ fontSize: '40px', marginBottom: '12px' }}>📊</div>
         <p>No investment details on file yet.</p>
-        <p style={{ fontSize:'12px' }}>Contact our investor relations team for more information.</p>
+        <p style={{ fontSize: '12px' }}>Contact our investor relations team for more information.</p>
       </div>
     );
   }
-
   return (
     <div>
-      <h3 style={{ color:'#8a9ab8', fontSize:'11px', letterSpacing:'2px', textTransform:'uppercase', marginTop:0, marginBottom:'20px' }}>Investment Details</h3>
-      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'16px' }}>
+      <div style={{ color: TEXT_SEC, fontSize: '11px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '20px' }}>Investment Details</div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
         {[
-          { label:'Investment Amount', value:portalUser.investmentAmount?`$${Number(portalUser.investmentAmount).toLocaleString()}`:'—', color:GOLD },
-          { label:'Date Invested', value:portalUser.investmentDate?new Date(portalUser.investmentDate).toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'}):'—', color:'#e8e0d0' },
-          { label:'Account Type', value:(portalUser.investmentType||'Cash').toUpperCase(), color:portalUser.investmentType==='ira'?'#f59e0b':'#8a9ab8' },
+          { label: 'Investment Amount', value: portalUser.investmentAmount ? `$${Number(portalUser.investmentAmount).toLocaleString()}` : '—', color: GOLD },
+          { label: 'Date Invested', value: portalUser.investmentDate ? new Date(portalUser.investmentDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : '—', color: TEXT_PRI },
+          { label: 'Account Type', value: (portalUser.investmentType || 'Cash').toUpperCase(), color: portalUser.investmentType === 'ira' ? '#f59e0b' : TEXT_SEC },
         ].map(({ label, value, color }) => (
-          <div key={label} style={{ background:'rgba(255,255,255,0.03)', border:'1px solid rgba(255,255,255,0.08)', borderRadius:'2px', padding:'20px' }}>
-            <div style={{ color:'#4a5568', fontSize:'10px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'8px' }}>{label}</div>
-            <div style={{ color, fontSize:'18px', fontWeight:'bold' }}>{value}</div>
+          <div key={label} style={cardStyle}>
+            <div style={{ color: TEXT_DIM, fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '8px' }}>{label}</div>
+            <div style={{ color, fontSize: '18px', fontWeight: 'bold' }}>{value}</div>
           </div>
         ))}
       </div>
@@ -196,51 +581,49 @@ function AccountInvestment({ portalUser }) {
   );
 }
 
-// ─── Account: Documents ───────────────────────────────────────────────────
+// ─── Account: Documents (SignNow signed docs) ─────────────────────────────────
 function AccountDocuments({ portalUser }) {
   const [requests, setRequests] = useState([]);
   const [loading, setLoading]   = useState(true);
   const [downloadingId, setDownloadingId] = useState(null);
 
-  useEffect(() => { loadDocs(); const t=setInterval(loadDocs,30000); return ()=>clearInterval(t); }, []);
+  useEffect(() => { loadDocs(); const t = setInterval(loadDocs, 30000); return () => clearInterval(t); }, []);
 
   const loadDocs = async () => {
-    try { const r=await SignNowRequestDB.listForEmail(portalUser.email); setRequests(r); }
-    catch(e) { console.error(e); }
-    finally { setLoading(false); }
+    try { const r = await SignNowRequestDB.listForEmail(portalUser.email); setRequests(r); }
+    catch (e) { console.error(e); } finally { setLoading(false); }
   };
 
   const downloadSigned = async (req, doc) => {
-    const key=`${req.id}-${doc.documentId}`; setDownloadingId(key);
+    const key = `${req.id}-${doc.documentId}`; setDownloadingId(key);
     try {
-      const settings=await loadPortalSettings();
+      const settings = await loadPortalSettings();
       if (!settings?.signnowAccessToken) throw new Error('Not configured');
-      const blob=await signnowDownloadDocument(settings.signnowAccessToken, doc.documentId);
-      const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=`${doc.name}.pdf`; a.click(); URL.revokeObjectURL(url);
-    } catch(e) { alert('Download failed: '+e.message); }
-    finally { setDownloadingId(null); }
+      const blob = await signnowDownloadDocument(settings.signnowAccessToken, doc.documentId);
+      const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = `${doc.name}.pdf`; a.click(); URL.revokeObjectURL(url);
+    } catch (e) { alert('Download failed: ' + e.message); } finally { setDownloadingId(null); }
   };
 
   const sc = {
-    pending:   { bg:'rgba(245,158,11,0.12)',  color:'#f59e0b', border:'rgba(245,158,11,0.3)',  label:'⏳ Pending' },
-    sent:      { bg:'rgba(96,165,250,0.12)',   color:'#60a5fa', border:'rgba(96,165,250,0.3)',   label:'📨 Awaiting Signature' },
-    completed: { bg:'rgba(74,222,128,0.12)',   color:'#4ade80', border:'rgba(74,222,128,0.3)',   label:'✅ Signed & Complete' },
-    declined:  { bg:'rgba(239,68,68,0.12)',    color:'#ef4444', border:'rgba(239,68,68,0.3)',    label:'❌ Declined' },
-    error:     { bg:'rgba(239,68,68,0.12)',    color:'#ef4444', border:'rgba(239,68,68,0.3)',    label:'⚠️ Error' },
+    pending:   { bg: 'rgba(245,158,11,0.12)',  color: '#f59e0b', border: 'rgba(245,158,11,0.3)',  label: '⏳ Pending' },
+    sent:      { bg: 'rgba(96,165,250,0.12)',   color: '#60a5fa', border: 'rgba(96,165,250,0.3)',   label: '📨 Awaiting Signature' },
+    completed: { bg: 'rgba(74,222,128,0.12)',   color: '#4ade80', border: 'rgba(74,222,128,0.3)',   label: '✅ Signed & Complete' },
+    declined:  { bg: 'rgba(239,68,68,0.12)',    color: '#ef4444', border: 'rgba(239,68,68,0.3)',    label: '❌ Declined' },
+    error:     { bg: 'rgba(239,68,68,0.12)',    color: '#ef4444', border: 'rgba(239,68,68,0.3)',    label: '⚠️ Error' },
   };
 
-  if (loading) return <div style={{ textAlign:'center', padding:'48px', color:'#6b7280' }}>Loading…</div>;
+  if (loading) return <div style={{ textAlign: 'center', padding: '48px', color: TEXT_DIM }}>Loading…</div>;
 
-  const allDocs     = requests.flatMap(req => { let docs=[]; try { docs=JSON.parse(req.documents||'[]'); } catch {} return docs.map(d=>({...d,reqId:req.id,req})); });
-  const completed   = allDocs.filter(d=>d.status==='completed');
-  const outstanding = allDocs.filter(d=>d.status!=='completed');
+  const allDocs     = requests.flatMap(req => { let docs = []; try { docs = JSON.parse(req.documents || '[]'); } catch {} return docs.map(d => ({ ...d, reqId: req.id, req })); });
+  const completed   = allDocs.filter(d => d.status === 'completed');
+  const outstanding = allDocs.filter(d => d.status !== 'completed');
 
   if (allDocs.length === 0) {
     return (
-      <div style={{ textAlign:'center', padding:'48px 20px' }}>
-        <div style={{ fontSize:'44px', marginBottom:'12px' }}>📭</div>
-        <h3 style={{ color:'#4a5568', fontFamily:'Georgia, serif', fontWeight:'normal', marginBottom:'8px' }}>No Documents Yet</h3>
-        <p style={{ color:'#374151', fontSize:'13px', maxWidth:'340px', margin:'0 auto' }}>Click <strong style={{ color:GOLD }}>"Request Investment Documents"</strong> at the top to start the signature process.</p>
+      <div style={{ textAlign: 'center', padding: '48px 20px' }}>
+        <div style={{ fontSize: '44px', marginBottom: '12px' }}>📭</div>
+        <h3 style={{ color: TEXT_DIM, fontFamily: 'Georgia, serif', fontWeight: 'normal', marginBottom: '8px' }}>No Documents Yet</h3>
+        <p style={{ color: TEXT_DIM, fontSize: '13px', maxWidth: '340px', margin: '0 auto' }}>Click <strong style={{ color: GOLD }}>"Request Investment Documents"</strong> at the top to start the signature process.</p>
       </div>
     );
   }
@@ -248,23 +631,23 @@ function AccountDocuments({ portalUser }) {
   return (
     <div>
       {outstanding.length > 0 && (
-        <div style={{ marginBottom:'32px' }}>
-          <h3 style={{ color:'#8a9ab8', fontSize:'11px', letterSpacing:'2px', textTransform:'uppercase', marginTop:0, marginBottom:'14px' }}>Outstanding Documents</h3>
-          {outstanding.map((doc,i) => { const s2=sc[doc.status]||sc.pending; return (
-            <div key={i} style={{ background:'rgba(255,255,255,0.03)', border:'1px solid rgba(255,255,255,0.08)', borderRadius:'2px', padding:'18px 20px', marginBottom:'10px', display:'flex', justifyContent:'space-between', alignItems:'center', gap:'12px' }}>
-              <div><div style={{ color:'#e8e0d0', fontWeight:'bold', fontSize:'14px', marginBottom:'4px' }}>📄 {doc.name}</div><div style={{ color:'#4a5568', fontSize:'11px' }}>Sent {doc.req?.sentAt?new Date(doc.req.sentAt).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}):'—'}</div></div>
-              <span style={{ background:s2.bg, color:s2.color, border:`1px solid ${s2.border}`, fontSize:'11px', padding:'5px 12px', borderRadius:'2px', whiteSpace:'nowrap', flexShrink:0 }}>{s2.label}</span>
+        <div style={{ marginBottom: '32px' }}>
+          <div style={{ color: TEXT_SEC, fontSize: '11px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '14px' }}>Outstanding Documents</div>
+          {outstanding.map((doc, i) => { const s2 = sc[doc.status] || sc.pending; return (
+            <div key={i} style={{ background: 'rgba(255,255,255,0.03)', border: `1px solid ${BORDER_S}`, borderRadius: '8px', padding: '18px 20px', marginBottom: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px' }}>
+              <div><div style={{ color: TEXT_PRI, fontWeight: 'bold', fontSize: '14px', marginBottom: '4px' }}>📄 {doc.name}</div><div style={{ color: TEXT_DIM, fontSize: '11px' }}>Sent {doc.req?.sentAt ? new Date(doc.req.sentAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'}</div></div>
+              <span style={{ background: s2.bg, color: s2.color, border: `1px solid ${s2.border}`, fontSize: '11px', padding: '5px 12px', borderRadius: '4px', whiteSpace: 'nowrap', flexShrink: 0 }}>{s2.label}</span>
             </div>
           ); })}
         </div>
       )}
       {completed.length > 0 && (
         <div>
-          <h3 style={{ color:'#8a9ab8', fontSize:'11px', letterSpacing:'2px', textTransform:'uppercase', marginTop:0, marginBottom:'14px' }}>Signed Documents</h3>
-          {completed.map((doc,i) => (
-            <div key={i} style={{ background:'rgba(74,222,128,0.04)', border:'1px solid rgba(74,222,128,0.15)', borderRadius:'2px', padding:'18px 20px', marginBottom:'10px', display:'flex', justifyContent:'space-between', alignItems:'center', gap:'12px' }}>
-              <div><div style={{ color:'#e8e0d0', fontWeight:'bold', fontSize:'14px', marginBottom:'4px' }}>✅ {doc.name}</div><div style={{ color:'#4a5568', fontSize:'11px' }}>Signed {doc.completedAt?new Date(doc.completedAt).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}):'—'}</div></div>
-              {doc.documentId && <button onClick={()=>downloadSigned(doc.req,doc)} disabled={downloadingId===`${doc.reqId}-${doc.documentId}`} style={{ background:'rgba(74,222,128,0.12)', color:'#4ade80', border:'1px solid rgba(74,222,128,0.3)', borderRadius:'2px', padding:'7px 16px', cursor:'pointer', fontSize:'11px', flexShrink:0 }}>{downloadingId===`${doc.reqId}-${doc.documentId}`?'Downloading…':'↓ Download PDF'}</button>}
+          <div style={{ color: TEXT_SEC, fontSize: '11px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '14px' }}>Signed Documents</div>
+          {completed.map((doc, i) => (
+            <div key={i} style={{ background: 'rgba(74,222,128,0.04)', border: '1px solid rgba(74,222,128,0.15)', borderRadius: '8px', padding: '18px 20px', marginBottom: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px' }}>
+              <div><div style={{ color: TEXT_PRI, fontWeight: 'bold', fontSize: '14px', marginBottom: '4px' }}>✅ {doc.name}</div><div style={{ color: TEXT_DIM, fontSize: '11px' }}>Signed {doc.completedAt ? new Date(doc.completedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'}</div></div>
+              {doc.documentId && <button onClick={() => downloadSigned(doc.req, doc)} disabled={downloadingId === `${doc.reqId}-${doc.documentId}`} style={{ background: 'rgba(74,222,128,0.12)', color: '#4ade80', border: '1px solid rgba(74,222,128,0.3)', borderRadius: '4px', padding: '7px 16px', cursor: 'pointer', fontSize: '11px', flexShrink: 0 }}>{downloadingId === `${doc.reqId}-${doc.documentId}` ? 'Downloading…' : '↓ Download PDF'}</button>}
             </div>
           ))}
         </div>
@@ -273,498 +656,258 @@ function AccountDocuments({ portalUser }) {
   );
 }
 
-// ─── Account: Accreditation Upload ────────────────────────────────────────
-function AccountAccreditation({ portalUser }) {
-  const [docs, setDocs]             = useState([]);
-  const [loading, setLoading]       = useState(true);
-  const [uploading, setUploading]   = useState(false);
-  const [docType, setDocType]       = useState('tax_return');
-  const [uploadMsg, setUploadMsg]   = useState(null);
-  const fileRef = useRef(null);
-
-  useEffect(() => { loadDocs(); }, []);
-
-  const loadDocs = async () => {
-    try { const d=await AccreditationDocDB.listForInvestor(portalUser.id||portalUser.username); setDocs(d); }
-    catch{} finally { setLoading(false); }
-  };
-
-  const handleFileUpload = async (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (file.size > 10 * 1024 * 1024) { setUploadMsg({ ok:false, text:'File must be under 10 MB.' }); return; }
-    setUploading(true); setUploadMsg(null);
-    try {
-      const reader = new FileReader();
-      reader.onload = async (ev) => {
-        const base64 = ev.target.result.split(',')[1];
-        await AccreditationDocDB.create({
-          investorId:   portalUser.id || portalUser.username,
-          investorEmail: portalUser.email,
-          investorName:  portalUser.name,
-          fileName:  file.name,
-          docType,
-          fileData:  base64,
-          fileSize:  file.size,
-          mimeType:  file.type,
-        });
-        setUploadMsg({ ok:true, text:'Document uploaded successfully. Our team will review it shortly.' });
-        await loadDocs();
-        if (fileRef.current) fileRef.current.value = '';
-        setUploading(false);
-      };
-      reader.onerror = () => { setUploadMsg({ ok:false, text:'File read error. Please try again.' }); setUploading(false); };
-      reader.readAsDataURL(file);
-    } catch(e) { setUploadMsg({ ok:false, text:'Upload failed: '+e.message }); setUploading(false); }
-  };
-
-  const docTypeLabels = { tax_return:'Tax Return (W-2, 1040)', bank_statement:'Bank Statement', cpa_letter:'CPA Letter', other:'Other Document' };
-  const statusColors  = { pending:'#f59e0b', under_review:'#60a5fa', approved:'#4ade80', rejected:'#ef4444' };
-  const statusLabels  = { pending:'⏳ Pending Review', under_review:'🔍 Under Review', approved:'✅ Approved', rejected:'❌ Rejected' };
-
-  return (
-    <div>
-      {/* Notice banner */}
-      <div style={{ background:'rgba(184,147,58,0.07)', border:'1px solid rgba(184,147,58,0.2)', borderRadius:'2px', padding:'20px', marginBottom:'28px' }}>
-        <div style={{ color:GOLD, fontSize:'12px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'10px' }}>🔐 Accreditation Verification</div>
-        <p style={{ color:'#c4cdd8', fontSize:'13px', lineHeight:1.7, margin:'0 0 10px' }}>
-          To verify your accredited investor status, please upload one or more of the following documents:
-          <strong style={{ color:'#e8e0d0' }}> tax returns (W-2 or 1040), bank statements, or a letter from your CPA or attorney.</strong>
-        </p>
-        <p style={{ color:'#8a9ab8', fontSize:'12px', lineHeight:1.6, margin:'0 0 8px' }}>
-          ✏️ <strong>You may redact any account numbers or other sensitive information</strong> before uploading.
-          Your name, income/asset totals, and date must remain visible.
-        </p>
-        <p style={{ color:'#4a5568', fontSize:'11px', margin:0 }}>
-          🔒 All documents are stored with AES-256 encryption and are only accessible to authorized Rosie AI personnel.
-        </p>
-      </div>
-
-      {/* Upload form */}
-      <div style={{ background:'rgba(255,255,255,0.02)', border:'1px solid rgba(255,255,255,0.08)', borderRadius:'2px', padding:'24px', marginBottom:'28px' }}>
-        <div style={{ color:'#8a9ab8', fontSize:'10px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'16px' }}>Upload Document</div>
-        <div style={{ marginBottom:'14px' }}>
-          <label style={labelStyle}>Document Type</label>
-          <select value={docType} onChange={e=>setDocType(e.target.value)} style={{ ...inputStyle, cursor:'pointer' }}>
-            {Object.entries(docTypeLabels).map(([k,v]) => <option key={k} value={k}>{v}</option>)}
-          </select>
-        </div>
-        <div style={{ border:'2px dashed rgba(184,147,58,0.25)', borderRadius:'2px', padding:'28px', textAlign:'center', cursor:'pointer', position:'relative' }}
-          onClick={() => fileRef.current?.click()}>
-          <input ref={fileRef} type="file" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" onChange={handleFileUpload} style={{ display:'none' }} />
-          {uploading ? (
-            <div>
-              <div style={{ width:'32px', height:'32px', border:'3px solid rgba(184,147,58,0.2)', borderTop:`3px solid ${GOLD}`, borderRadius:'50%', animation:'spin 0.8s linear infinite', margin:'0 auto 12px' }} />
-              <p style={{ color:'#8a9ab8', fontSize:'13px', margin:0 }}>Uploading…</p>
-              <style>{`@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}`}</style>
-            </div>
-          ) : (
-            <div>
-              <div style={{ fontSize:'36px', marginBottom:'10px' }}>📎</div>
-              <p style={{ color:'#8a9ab8', fontSize:'13px', margin:'0 0 6px' }}>Click to select a file, or drag and drop here</p>
-              <p style={{ color:'#4a5568', fontSize:'11px', margin:0 }}>PDF, JPG, PNG, or Word document — max 10 MB</p>
-            </div>
-          )}
-        </div>
-        {uploadMsg && (
-          <div style={{ background:uploadMsg.ok?'rgba(74,222,128,0.08)':'rgba(239,68,68,0.1)', border:`1px solid ${uploadMsg.ok?'rgba(74,222,128,0.25)':'rgba(239,68,68,0.25)'}`, borderRadius:'2px', padding:'12px 16px', marginTop:'14px', color:uploadMsg.ok?'#4ade80':'#ff8a8a', fontSize:'13px' }}>
-            {uploadMsg.text}
-          </div>
-        )}
-      </div>
-
-      {/* Uploaded docs */}
-      {loading && <p style={{ color:'#6b7280', textAlign:'center' }}>Loading…</p>}
-      {!loading && docs.length === 0 && (
-        <p style={{ color:'#4a5568', textAlign:'center', padding:'28px' }}>No documents uploaded yet. Use the form above to get started.</p>
-      )}
-      {docs.length > 0 && (
-        <div>
-          <div style={{ color:'#8a9ab8', fontSize:'10px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'14px' }}>Your Uploaded Documents</div>
-          {docs.map(doc => (
-            <div key={doc.id} style={{ background:'rgba(255,255,255,0.02)', border:'1px solid rgba(255,255,255,0.07)', borderRadius:'2px', padding:'16px 18px', marginBottom:'8px', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-              <div>
-                <div style={{ color:'#e8e0d0', fontWeight:'bold', fontSize:'13px', marginBottom:'3px' }}>{doc.fileName}</div>
-                <div style={{ color:'#6b7280', fontSize:'11px' }}>{docTypeLabels[doc.docType]||doc.docType} · {doc.fileSize?(doc.fileSize/1024).toFixed(1)+' KB':''} · {doc.uploadedAt?new Date(doc.uploadedAt).toLocaleDateString():''}</div>
-              </div>
-              <span style={{ color:statusColors[doc.status]||'#f59e0b', fontSize:'11px', whiteSpace:'nowrap' }}>{statusLabels[doc.status]||doc.status}</span>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-
-// ─── Account: Distributions ───────────────────────────────────────────────
+// ─── Account: Distributions ───────────────────────────────────────────────────
 function AccountDistributions({ portalUser }) {
   const { updateUser } = usePortalAuth();
   const [method, setMethod] = useState(portalUser.distributionMethod || '');
-  const [form, setForm]     = useState(() => {
-    try { return JSON.parse(portalUser.distributionDetails || '{}'); } catch { return {}; }
-  });
+  const [form, setForm]     = useState(() => { try { return JSON.parse(portalUser.distributionDetails || '{}'); } catch { return {}; } });
   const [saving, setSaving] = useState(false);
   const [msg, setMsg]       = useState(null);
 
-  const f = (k) => form[k] || '';
+  const f   = (k) => form[k] || '';
   const set = (k, v) => setForm(prev => ({ ...prev, [k]: v }));
 
   const save = async () => {
-    if (!method) { setMsg({ ok:false, text:'Please select a distribution method.' }); return; }
+    if (!method) { setMsg({ ok: false, text: 'Please select a distribution method.' }); return; }
     setSaving(true); setMsg(null);
-    try {
-      await updateUser(portalUser.username || portalUser.email, {
-        distributionMethod:  method,
-        distributionDetails: JSON.stringify(form),
-      });
-      setMsg({ ok:true, text:'Distribution preferences saved.' });
-    } catch { setMsg({ ok:false, text:'Save failed — please try again.' }); }
+    try { await updateUser(portalUser.username || portalUser.email, { distributionMethod: method, distributionDetails: JSON.stringify(form) }); setMsg({ ok: true, text: 'Distribution preferences saved.' }); }
+    catch { setMsg({ ok: false, text: 'Save failed — please try again.' }); }
     finally { setSaving(false); }
   };
 
   const MethodBtn = ({ id, label, icon }) => (
-    <button onClick={() => setMethod(id)} style={{ flex:1, background: method===id ? 'rgba(184,147,58,0.18)' : 'rgba(255,255,255,0.03)', border:`2px solid ${method===id ? GOLD : 'rgba(255,255,255,0.1)'}`, borderRadius:'4px', padding:'18px 12px', cursor:'pointer', color: method===id ? GOLD : '#6b7280', fontFamily:'Georgia, serif', transition:'all 0.15s' }}>
-      <div style={{ fontSize:'24px', marginBottom:'6px' }}>{icon}</div>
-      <div style={{ fontSize:'12px', fontWeight:'bold', letterSpacing:'0.5px' }}>{label}</div>
+    <button onClick={() => setMethod(id)} style={{ flex: 1, background: method === id ? 'rgba(184,147,58,0.18)' : 'rgba(255,255,255,0.03)', border: `2px solid ${method === id ? GOLD : 'rgba(255,255,255,0.1)'}`, borderRadius: '8px', padding: '18px 12px', cursor: 'pointer', color: method === id ? GOLD : TEXT_DIM, fontFamily: 'Georgia, serif', transition: 'all 0.15s' }}>
+      <div style={{ fontSize: '24px', marginBottom: '6px' }}>{icon}</div>
+      <div style={{ fontSize: '12px', fontWeight: 'bold', letterSpacing: '0.5px' }}>{label}</div>
     </button>
   );
-
-  const Field = ({ label, k, placeholder='', type='text' }) => (
-    <div style={{ marginBottom:'14px' }}>
+  const Field = ({ label, k, placeholder = '', type = 'text' }) => (
+    <div style={{ marginBottom: '14px' }}>
       <label style={labelStyle}>{label}</label>
-      <input type={type} value={f(k)} onChange={e=>set(k,e.target.value)} placeholder={placeholder} style={inputStyle} />
+      <input type={type} value={f(k)} onChange={e => set(k, e.target.value)} placeholder={placeholder} style={inputStyle} />
     </div>
   );
 
   return (
-    <div style={{ maxWidth:'580px' }}>
-      {/* Schedule notice */}
-      <div style={{ background:'rgba(184,147,58,0.08)', border:'1px solid rgba(184,147,58,0.25)', borderRadius:'4px', padding:'16px 20px', marginBottom:'28px', display:'flex', alignItems:'center', gap:'14px' }}>
-        <div style={{ fontSize:'28px', flexShrink:0 }}>📅</div>
+    <div style={{ maxWidth: '580px' }}>
+      <div style={{ background: 'rgba(184,147,58,0.08)', border: `1px solid rgba(184,147,58,0.25)`, borderRadius: '8px', padding: '16px 20px', marginBottom: '28px', display: 'flex', alignItems: 'center', gap: '14px' }}>
+        <div style={{ fontSize: '28px', flexShrink: 0 }}>📅</div>
         <div>
-          <div style={{ color:GOLD, fontWeight:'bold', fontSize:'13px', marginBottom:'3px' }}>Distribution Schedule</div>
-          <div style={{ color:'#8a9ab8', fontSize:'12px', lineHeight:1.6 }}>Targeted 1st distribution: <strong style={{ color:'#e8e0d0' }}>Q3 / Q4 2026</strong>. You will be notified in advance of each distribution event.</div>
+          <div style={{ color: GOLD, fontWeight: 'bold', fontSize: '13px', marginBottom: '3px' }}>Distribution Schedule</div>
+          <div style={{ color: TEXT_SEC, fontSize: '12px', lineHeight: 1.6 }}>Targeted 1st distribution: <strong style={{ color: TEXT_PRI }}>Q3 / Q4 2026</strong>. You will be notified in advance of each distribution event.</div>
         </div>
       </div>
-
-      <h3 style={{ color:'#8a9ab8', fontSize:'11px', letterSpacing:'2px', textTransform:'uppercase', marginTop:0, marginBottom:'18px' }}>Select Distribution Method</h3>
-
-      {/* Method selector */}
-      <div style={{ display:'flex', gap:'10px', marginBottom:'28px', flexWrap:'wrap' }}>
-        <MethodBtn id="wire"   label="Wire Transfer" icon="🏦" />
-        <MethodBtn id="ach"    label="ACH / Direct"  icon="⚡" />
-        <MethodBtn id="check"  label="Check"         icon="📬" />
-        <MethodBtn id="crypto" label="Crypto"        icon="₿"  />
+      <div style={{ color: TEXT_SEC, fontSize: '11px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '18px' }}>Select Distribution Method</div>
+      <div style={{ display: 'flex', gap: '10px', marginBottom: '28px', flexWrap: 'wrap' }}>
+        <MethodBtn id="wire" label="Wire Transfer" icon="🏦" />
+        <MethodBtn id="ach"  label="ACH / Direct"  icon="⚡" />
+        <MethodBtn id="check" label="Check"         icon="📬" />
+        <MethodBtn id="crypto" label="Crypto"       icon="₿" />
       </div>
-
-      {/* Wire fields */}
-      {method === 'wire' && (
-        <div>
-          <div style={{ color:GOLD, fontSize:'10px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'16px' }}>Wire Transfer Details</div>
-          <Field label="Bank Name"       k="bankName"    placeholder="First National Bank" />
-          <Field label="Bank Address"    k="bankAddress" placeholder="123 Bank St, Cleveland, OH 44101" />
-          <Field label="Account Name"    k="accountName" placeholder="Legal name on account" />
-          <Field label="Account Number"  k="accountNumber" placeholder="••••••••" />
-          <Field label="Routing Number"  k="routingNumber" placeholder="9 digits" />
-        </div>
-      )}
-
-      {/* ACH fields */}
-      {method === 'ach' && (
-        <div>
-          <div style={{ color:GOLD, fontSize:'10px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'16px' }}>ACH / Direct Deposit Details</div>
-          <Field label="Bank Name"       k="bankName"    placeholder="First National Bank" />
-          <Field label="Bank Address"    k="bankAddress" placeholder="123 Bank St, Cleveland, OH 44101" />
-          <Field label="Account Name"    k="accountName" placeholder="Legal name on account" />
-          <Field label="Account Number"  k="accountNumber" placeholder="••••••••" />
-          <Field label="Routing Number"  k="routingNumber" placeholder="9 digits" />
-        </div>
-      )}
-
-      {/* Check fields */}
-      {method === 'check' && (
-        <div>
-          <div style={{ color:GOLD, fontSize:'10px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'16px' }}>Check Mailing Details</div>
-          <Field label="Payable To (Full Legal Name)" k="checkName"    placeholder="Your full legal name or entity name" />
-          <Field label="Mailing Address"              k="checkAddress" placeholder="123 Main St, Cleveland, OH 44101" />
-        </div>
-      )}
-
-      {/* Crypto fields */}
-      {method === 'crypto' && (
-        <div>
-          <div style={{ color:GOLD, fontSize:'10px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'16px' }}>Crypto Distribution Details</div>
-          <div style={{ marginBottom:'14px' }}>
-            <label style={labelStyle}>Select Network</label>
-            <div style={{ display:'flex', gap:'8px' }}>
-              {['BTC','ETH','SOL'].map(coin => (
-                <button key={coin} onClick={()=>set('cryptoCoin',coin)} style={{ flex:1, background: f('cryptoCoin')===coin ? 'rgba(184,147,58,0.18)' : 'rgba(255,255,255,0.04)', border:`2px solid ${f('cryptoCoin')===coin ? GOLD : 'rgba(255,255,255,0.1)'}`, borderRadius:'4px', padding:'10px', cursor:'pointer', color: f('cryptoCoin')===coin ? GOLD : '#6b7280', fontFamily:'monospace', fontSize:'13px', fontWeight:'bold' }}>{coin}</button>
-              ))}
-            </div>
-          </div>
-          <Field label={`${f('cryptoCoin') || 'Crypto'} Wallet Address`} k="cryptoAddress" placeholder="Your wallet address" />
-          <div style={{ background:'rgba(245,158,11,0.08)', border:'1px solid rgba(245,158,11,0.2)', borderRadius:'4px', padding:'12px 14px', marginTop:'4px' }}>
-            <p style={{ color:'#f59e0b', fontSize:'11px', margin:0, lineHeight:1.7 }}>
-              ⚠️ <strong>Verification Notice:</strong> A $1.00 test transaction will be sent to your wallet address before any distributions commence. Please ensure the address is correct — crypto transactions are irreversible.
-            </p>
-          </div>
-        </div>
-      )}
-
-      {method && (
-        <div style={{ marginTop:'24px' }}>
-          {msg && <div style={{ background:msg.ok?'rgba(74,222,128,0.1)':'rgba(220,60,60,0.1)', border:`1px solid ${msg.ok?'rgba(74,222,128,0.3)':'rgba(220,60,60,0.3)'}`, borderRadius:'2px', padding:'10px 14px', color:msg.ok?'#4ade80':'#ff8a8a', fontSize:'13px', marginBottom:'16px' }}>{msg.text}</div>}
-          <button onClick={save} disabled={saving} style={{ background:'linear-gradient(135deg,#b8933a,#d4aa50)', color:DARK, border:'none', borderRadius:'2px', padding:'12px 32px', cursor:'pointer', fontWeight:'700', fontSize:'12px', letterSpacing:'2px', textTransform:'uppercase' }}>{saving?'Saving…':'Save Distribution Preferences'}</button>
-        </div>
-      )}
+      {method === 'wire'  && (<div><div style={{ color: GOLD, fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '16px' }}>Wire Transfer Details</div><Field label="Bank Name" k="bankName" placeholder="First National Bank" /><Field label="Bank Address" k="bankAddress" placeholder="123 Bank St, Cleveland, OH 44101" /><Field label="Account Name" k="accountName" placeholder="Legal name on account" /><Field label="Account Number" k="accountNumber" placeholder="••••••••" /><Field label="Routing Number" k="routingNumber" placeholder="9 digits" /></div>)}
+      {method === 'ach'   && (<div><div style={{ color: GOLD, fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '16px' }}>ACH / Direct Deposit Details</div><Field label="Bank Name" k="bankName" placeholder="First National Bank" /><Field label="Bank Address" k="bankAddress" placeholder="123 Bank St" /><Field label="Account Name" k="accountName" /><Field label="Account Number" k="accountNumber" placeholder="••••••••" /><Field label="Routing Number" k="routingNumber" placeholder="9 digits" /></div>)}
+      {method === 'check' && (<div><div style={{ color: GOLD, fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '16px' }}>Check Mailing Details</div><Field label="Payable To (Full Legal Name)" k="checkName" placeholder="Your full legal name or entity name" /><Field label="Mailing Address" k="checkAddress" placeholder="123 Main St, Cleveland, OH 44101" /></div>)}
+      {method === 'crypto' && (<div><div style={{ color: GOLD, fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '16px' }}>Crypto Distribution Details</div><div style={{ marginBottom: '14px' }}><label style={labelStyle}>Select Network</label><div style={{ display: 'flex', gap: '8px' }}>{['BTC', 'ETH', 'SOL'].map(coin => (<button key={coin} onClick={() => set('cryptoCoin', coin)} style={{ flex: 1, background: f('cryptoCoin') === coin ? 'rgba(184,147,58,0.18)' : 'rgba(255,255,255,0.04)', border: `2px solid ${f('cryptoCoin') === coin ? GOLD : 'rgba(255,255,255,0.1)'}`, borderRadius: '6px', padding: '10px', cursor: 'pointer', color: f('cryptoCoin') === coin ? GOLD : TEXT_DIM, fontFamily: 'monospace', fontSize: '13px', fontWeight: 'bold' }}>{coin}</button>))}</div></div><Field label={`${f('cryptoCoin') || 'Crypto'} Wallet Address`} k="cryptoAddress" placeholder="Your wallet address" /><div style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.2)', borderRadius: '6px', padding: '12px 14px', marginTop: '4px' }}><p style={{ color: '#f59e0b', fontSize: '11px', margin: 0, lineHeight: 1.7 }}>⚠️ <strong>Verification Notice:</strong> A $1.00 test transaction will be sent to your wallet address before any distributions commence. Please ensure the address is correct — crypto transactions are irreversible.</p></div></div>)}
+      {method && (<div style={{ marginTop: '24px' }}>{msg && <div style={{ background: msg.ok ? 'rgba(74,222,128,0.1)' : 'rgba(220,60,60,0.1)', border: `1px solid ${msg.ok ? 'rgba(74,222,128,0.3)' : 'rgba(220,60,60,0.3)'}`, borderRadius: '6px', padding: '10px 14px', color: msg.ok ? '#4ade80' : '#ff8a8a', fontSize: '13px', marginBottom: '16px' }}>{msg.text}</div>}<button onClick={save} disabled={saving} style={goldBtn}>{saving ? 'Saving…' : 'Save Distribution Preferences'}</button></div>)}
     </div>
   );
 }
 
-// ─── Account Tab ──────────────────────────────────────────────────────────
+// ─── Account Tab (Investment, Documents, Distributions, Profile) ──────────────
 function AccountTab({ portalUser }) {
-  const isInvestor = portalUser.status === 'investor';
   const [sub, setSub] = useState('investment');
-
   const subTabs = [
     ['investment',    '📊 Investment'],
     ['documents',     '📄 Documents'],
-    ['accreditation', '🔐 Accreditation'],
     ['distributions', '💰 Distributions'],
     ['profile',       '👤 Profile'],
   ];
-
   return (
-    <div id="portal-tab-content">
-      <h2 style={{ ...h2s, marginBottom:'4px' }}>My Account</h2>
-      <p style={{ color:'#4a5568', fontSize:'12px', margin:'0 0 24px' }}>
-        View your investment details, signed documents, accreditation, and contact info.
-      </p>
-      <div style={{ display:'flex', gap:'0', borderBottom:'1px solid rgba(255,255,255,0.08)', marginBottom:'28px' }}>
-        {subTabs.map(([id,label]) => (
-          <button key={id} onClick={() => setSub(id)} style={{ background:'none', border:'none', borderBottom:sub===id?`2px solid ${GOLD}`:'2px solid transparent', color:sub===id?GOLD:'#6b7280', padding:'12px 20px', cursor:'pointer', fontSize:'12px', letterSpacing:'1px' }}>{label}</button>
+    <div>
+      <h2 style={{ color: TEXT_PRI, fontSize: '20px', marginTop: 0, marginBottom: '4px', fontFamily: 'Georgia, serif', fontWeight: 'normal' }}>My Account</h2>
+      <p style={{ color: TEXT_DIM, fontSize: '12px', margin: '0 0 24px' }}>View your investment details, signed documents, and contact info.</p>
+      <div style={{ display: 'flex', gap: 0, borderBottom: `1px solid ${BORDER_S}`, marginBottom: '28px' }}>
+        {subTabs.map(([id, label]) => (
+          <button key={id} onClick={() => setSub(id)} style={{ background: 'none', border: 'none', borderBottom: sub === id ? `2px solid ${GOLD}` : '2px solid transparent', color: sub === id ? GOLD : TEXT_DIM, padding: '12px 20px', cursor: 'pointer', fontSize: '12px', letterSpacing: '1px' }}>{label}</button>
         ))}
       </div>
       {sub === 'investment'    && <AccountInvestment    portalUser={portalUser} />}
       {sub === 'documents'     && <AccountDocuments     portalUser={portalUser} />}
-      {sub === 'accreditation' && <AccountAccreditation portalUser={portalUser} />}
-      {sub === 'profile'       && <AccountProfile       portalUser={portalUser} />}
       {sub === 'distributions' && <AccountDistributions portalUser={portalUser} />}
+      {sub === 'profile'       && <AccountProfile       portalUser={portalUser} />}
     </div>
   );
 }
 
+// ─── Investor Updates + Press Releases (Overview main content) ────────────────
+function UpdatesAndPress({ isAdmin }) {
+  const [activeTab, setActiveTab] = useState('updates');
+  const [updates, setUpdates]     = useState([]);
+  const [press, setPress]         = useState([]);
+  const [loading, setLoading]     = useState(true);
+  const [showForm, setShowForm]   = useState(false);
+  const [form, setForm]           = useState({ title: '', content: '', category: 'General Update', author: 'Management Team', imageUrl: '', videoUrl: '' });
+  const [pressForm, setPressForm] = useState({ title: '', summary: '', content: '', sourceUrl: '', imageUrl: '' });
+  const [showPressForm, setShowPressForm] = useState(false);
 
+  useEffect(() => { loadAll(); }, []);
 
-// ─── Rosie Inline Chat (replaces calculator on Overview tab) ─────────────
-function RosieInlineChat({ portalUser }) {
-  return (
-    <div style={{ marginTop:'32px', background:'rgba(184,147,58,0.04)', border:'1px solid rgba(184,147,58,0.18)', borderRadius:'4px', overflow:'hidden' }}>
-      <div style={{ padding:'14px 20px', borderBottom:'1px solid rgba(184,147,58,0.12)', display:'flex', alignItems:'center', gap:'10px' }}>
-        <div style={{ width:'8px', height:'8px', borderRadius:'50%', background:'#4ade80', boxShadow:'0 0 6px #4ade80' }} />
-        <span style={{ color:GOLD, fontSize:'11px', letterSpacing:'2px', textTransform:'uppercase', fontWeight:'bold' }}>Rosie AI — Investor Assistant</span>
-        <span style={{ color:'#4a5568', fontSize:'11px', marginLeft:'auto' }}>Ask me anything about this investment</span>
-      </div>
-      <div style={{ padding:'0' }}>
-        <RosieVoiceAgent
-          userName={portalUser?.name || portalUser?.username || 'Investor'}
-          investorId={portalUser?.id}
-          investorEmail={portalUser?.email}
-          inline={true}
-        />
-      </div>
-    </div>
-  );
-}
-
-// ─── PPM / Investment Offering ────────────────────────────────────────────
-const PPM_PDF_URL = 'https://media.base44.com/files/public/69cd2741578c9b5ce655395b/4f3f2fc0b_RosieAI_PPMpdf.pdf';
-async function downloadFile(url, filename) {
-  analytics.trackDownload(filename, 'pdf');
-  const res=await fetch(url); const blob=await res.blob(); const u=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=u; a.download=filename; a.click(); URL.revokeObjectURL(u);
-}
-const PPM_INDEX = [
-  { id:'cover', label:'Cover Page', page:1 },{ id:'notices', label:'Notices', page:2 },{ id:'summary', label:'Summary of Terms', page:4 },{ id:'focus', label:'Focus of the Offering', page:5 },
-  { id:'revenue', label:'Revenue Projections & Milestones', page:6 },{ id:'subscribe', label:'How to Subscribe', page:7 },{ id:'intro', label:'Rosie AI Introduction', page:9 },{ id:'positioning', label:'Unique Positioning', page:10 },
-  { id:'leadership', label:'Leadership & Architects', page:12 },{ id:'orgchart', label:'Organizational Chart', page:14 },{ id:'capitalization', label:'Capitalization & Management', page:15 },{ id:'fiduciary', label:'Fiduciary Responsibilities', page:16 },
-  { id:'risk-mgmt', label:'Risk Management & Exit Strategy', page:18 },{ id:'terms', label:'Terms of the Offering', page:19 },{ id:'subscribing', label:'Subscribing to the Offering', page:20 },{ id:'proceeds', label:'Use of Investor Proceeds', page:22 },
-  { id:'rights', label:'Rights & Liabilities', page:25 },{ id:'alloc', label:'Allocation & Distributions', page:26 },{ id:'sub-proc', label:'Subscription Procedures', page:28 },{ id:'risk-factors', label:'Risk Factors', page:42 },
-  { id:'erisa', label:'ERISA Considerations', page:50 },{ id:'state-notices', label:'State-Specific Legal Notices', page:44 },{ id:'additional', label:'Additional Information', page:53 },
-];
-
-function InvestmentOffering() {
-  const [activeSection, setActiveSection] = useState('cover');
-  const docIdRef = useRef(null);
-  const activeIdx = PPM_INDEX.findIndex(s => s.id === activeSection);
-  const activeSec = PPM_INDEX.find(s => s.id === activeSection) || PPM_INDEX[0];
-  useEffect(() => { docIdRef.current=analytics.trackDocumentOpen('Private Placement Memorandum','ppm'); analytics.trackDocumentPageView(docIdRef.current,1); return ()=>{ if(docIdRef.current)analytics.trackDocumentClose(docIdRef.current); }; }, []);
-  const goToSection = (sec) => { if(sec.id===activeSection)return; if(docIdRef.current)analytics.trackDocumentPageView(docIdRef.current,sec.page); setActiveSection(sec.id); };
-  useEffect(() => { if(docIdRef.current)analytics.trackDocumentPageView(docIdRef.current,activeSec.page); }, [activeSection, activeSec.page]);
-  return (
-    <div style={{ display:'flex', gap:'0', minHeight:'700px' }}>
-      <div style={{ width:'220px', flexShrink:0, borderRight:'1px solid rgba(255,255,255,0.08)', overflowY:'auto', maxHeight:'80vh' }}>
-        <div style={{ color:'#4a5568', fontSize:'10px', letterSpacing:'2px', textTransform:'uppercase', padding:'0 0 10px 16px' }}>Table of Contents</div>
-        {PPM_INDEX.map(sec => (
-          <button key={sec.id} onClick={()=>goToSection(sec)} style={{ display:'block', width:'100%', textAlign:'left', background:activeSection===sec.id?'rgba(184,147,58,0.12)':'transparent', border:'none', borderLeft:activeSection===sec.id?`3px solid ${GOLD}`:'3px solid transparent', padding:'10px 14px', cursor:'pointer' }}>
-            <div style={{ color:activeSection===sec.id?GOLD:'#c4cdd8', fontSize:'12px', lineHeight:1.3 }}>{sec.label}</div>
-            <div style={{ color:'#4a5568', fontSize:'10px', marginTop:'2px' }}>p. {sec.page}</div>
-          </button>
-        ))}
-        <div style={{ padding:'16px', borderTop:'1px solid rgba(255,255,255,0.07)', marginTop:'8px' }}>
-          <button onClick={()=>downloadFile(PPM_PDF_URL,'RosieAI_PPM.pdf')} style={{ width:'100%', background:'rgba(184,147,58,0.15)', color:GOLD, border:`1px solid rgba(184,147,58,0.3)`, borderRadius:'2px', padding:'10px', cursor:'pointer', fontSize:'12px' }}>↓ Download PPM</button>
-        </div>
-      </div>
-      <div style={{ flex:1, display:'flex', flexDirection:'column' }}>
-        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'10px 20px', borderBottom:'1px solid rgba(255,255,255,0.07)', background:'rgba(0,0,0,0.2)', flexShrink:0 }}>
-          <div><span style={{ color:GOLD, fontWeight:'bold', fontSize:'14px' }}>Rosie AI — Private Placement Memorandum</span><span style={{ color:'#6b7280', fontSize:'12px', marginLeft:'12px' }}>56 pages · 506c PPM</span></div>
-          <div style={{ display:'flex', alignItems:'center', gap:'8px' }}>
-            <button onClick={()=>{ if(activeIdx>0)goToSection(PPM_INDEX[activeIdx-1]); }} disabled={activeIdx===0} style={{ background:activeIdx===0?'rgba(255,255,255,0.03)':'rgba(255,255,255,0.08)', color:activeIdx===0?'#3a4a5e':'#c4cdd8', border:'1px solid rgba(255,255,255,0.1)', borderRadius:'2px', padding:'5px 12px', cursor:activeIdx===0?'default':'pointer', fontSize:'13px' }}>‹ Prev</button>
-            <span style={{ minWidth:'160px', textAlign:'center', color:'#6b7280', fontSize:'12px' }}>{activeSec.label} (p.{activeSec.page})</span>
-            <button onClick={()=>{ if(activeIdx<PPM_INDEX.length-1)goToSection(PPM_INDEX[activeIdx+1]); }} disabled={activeIdx===PPM_INDEX.length-1} style={{ background:activeIdx===PPM_INDEX.length-1?'rgba(255,255,255,0.03)':'rgba(255,255,255,0.08)', color:activeIdx===PPM_INDEX.length-1?'#3a4a5e':'#c4cdd8', border:'1px solid rgba(255,255,255,0.1)', borderRadius:'2px', padding:'5px 12px', cursor:activeIdx===PPM_INDEX.length-1?'default':'pointer', fontSize:'13px' }}>Next ›</button>
-            <button onClick={()=>downloadFile(PPM_PDF_URL,'RosieAI_PPM.pdf')} style={{ background:'rgba(184,147,58,0.15)', color:GOLD, border:`1px solid rgba(184,147,58,0.3)`, borderRadius:'2px', padding:'6px 14px', cursor:'pointer', fontSize:'11px', marginLeft:'4px' }}>↓ Download</button>
-          </div>
-        </div>
-        <iframe src={`https://docs.google.com/viewer?url=${encodeURIComponent(PPM_PDF_URL)}&embedded=true#page=${activeSec.page}`} style={{ flex:1, width:'100%', minHeight:'640px', border:'none', background:'#fff' }} title="Investment Offering PPM" key={`ppm-${activeSec.page}`} />
-      </div>
-    </div>
-  );
-}
-
-// ─── Subscription Agreements ──────────────────────────────────────────────
-const PDF_DOCS = [
-  { id:'subscription',  name:'Subscription Agreement',  badge:'Required', url:'https://media.base44.com/files/public/69cd2741578c9b5ce655395b/4799d48ad_SubscriptionAgreement1pdf2pdfpdf1.pdf', totalPages:7 },
-  { id:'accreditation', name:'Investor Questionnaire',   badge:'Required', url:'https://media.base44.com/files/public/69cd2741578c9b5ce655395b/a49bb2463_InvestorQuestionnairepdf.pdf', totalPages:7 },
-  { id:'operating',     name:'LLC Operating Agreement',  badge:'Member Document', url:'https://media.base44.com/files/public/69cd2741578c9b5ce655395b/85a220a6e_LLCOperatingAgreementpdf.pdf', totalPages:27 },
-];
-
-function SubscriptionAgreements({ onRequestDocuments, setActiveTab }) {
-  const [selectedDoc, setSelectedDoc] = useState(null);
-  const docIdRef = useRef(null);
-  const openDoc  = (doc) => { if(docIdRef.current)analytics.trackDocumentClose(docIdRef.current); docIdRef.current=analytics.trackDocumentOpen(doc.name,doc.id); setSelectedDoc(doc); };
-  const closeDoc = () => { if(docIdRef.current){ analytics.trackDocumentClose(docIdRef.current); docIdRef.current=null; } setSelectedDoc(null); };
-  const handleDownload = (doc) => { downloadFile(doc.url, doc.name+'.pdf'); };
-  return (
-    <div id="portal-tab-content">
-      {selectedDoc && (
-        <div style={{ marginBottom:'24px', padding:'12px 16px', background:'rgba(184,147,58,0.08)', border:'1px solid rgba(184,147,58,0.2)', borderRadius:'2px', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
-          <span style={{ color:'#c4cdd8', fontSize:'12px' }}>📄 Viewing: <strong style={{ color:GOLD }}>{selectedDoc.name}</strong></span>
-          <button onClick={closeDoc} style={{ background:'none', border:'none', color:'#6b7280', cursor:'pointer', fontSize:'14px' }}>×</button>
-        </div>
-      )}
-      <div style={{ display:'flex', gap:'0', minHeight:'600px' }}>
-        <div style={{ width:'220px', flexShrink:0, borderRight:'1px solid rgba(255,255,255,0.08)' }}>
-          <div style={{ color:'#4a5568', fontSize:'10px', letterSpacing:'2px', textTransform:'uppercase', padding:'0 0 12px 16px', marginBottom:'4px' }}>Documents</div>
-          {PDF_DOCS.map(doc => (
-            <button key={doc.id} onClick={()=>openDoc(doc)} style={{ display:'block', width:'100%', textAlign:'left', background:selectedDoc?.id===doc.id?'rgba(184,147,58,0.12)':'transparent', border:'none', borderLeft:selectedDoc?.id===doc.id?`3px solid ${GOLD}`:'3px solid transparent', padding:'14px 16px', cursor:'pointer' }}>
-              <div style={{ color:selectedDoc?.id===doc.id?GOLD:'#c4cdd8', fontSize:'13px', fontWeight:selectedDoc?.id===doc.id?'bold':'normal', marginBottom:'3px' }}>{doc.name}</div>
-              <div style={{ color:'#4a5568', fontSize:'11px' }}>{doc.badge} · {doc.totalPages} pages</div>
-            </button>
-          ))}
-          <div style={{ padding:'16px', marginTop:'16px', borderTop:'1px solid rgba(255,255,255,0.07)' }}>
-            {PDF_DOCS.map(doc => <button key={doc.id} onClick={()=>handleDownload(doc)} style={{ display:'block', width:'100%', textAlign:'left', background:'transparent', border:'none', color:'#8a9ab8', padding:'6px 0', cursor:'pointer', fontSize:'12px' }}>↓ {doc.name}</button>)}
-          </div>
-        </div>
-        <div style={{ flex:1 }}>
-          {!selectedDoc ? (
-            <div style={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', height:'100%', minHeight:'500px', gap:'16px' }}>
-              <div style={{ fontSize:'48px' }}>📄</div>
-              <div style={{ color:'#6b7280', fontSize:'14px' }}>Select a document from the sidebar to view it</div>
-              <div style={{ display:'flex', gap:'12px', marginTop:'8px' }}>
-                {PDF_DOCS.map(doc => <button key={doc.id} onClick={()=>openDoc(doc)} style={{ background:'rgba(184,147,58,0.12)', color:GOLD, border:`1px solid rgba(184,147,58,0.3)`, borderRadius:'2px', padding:'10px 20px', cursor:'pointer', fontSize:'12px' }}>📖 {doc.name}</button>)}
-              </div>
-            </div>
-          ) : (
-            <div style={{ display:'flex', flexDirection:'column', height:'100%' }}>
-              <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'12px 20px', borderBottom:'1px solid rgba(255,255,255,0.07)', background:'rgba(0,0,0,0.2)' }}>
-                <div><span style={{ color:GOLD, fontWeight:'bold', fontSize:'14px' }}>{selectedDoc.name}</span>{selectedDoc.totalPages && <span style={{ color:'#6b7280', fontSize:'12px', marginLeft:'12px' }}>{selectedDoc.totalPages} pages</span>}</div>
-                <div style={{ display:'flex', gap:'10px' }}>
-                  <button onClick={()=>handleDownload(selectedDoc)} style={{ background:'rgba(184,147,58,0.15)', color:GOLD, border:`1px solid rgba(184,147,58,0.3)`, borderRadius:'2px', padding:'7px 16px', cursor:'pointer', fontSize:'12px' }}>↓ Download PDF</button>
-                  <button onClick={closeDoc} style={{ background:'none', border:'1px solid rgba(255,255,255,0.1)', color:'#6b7280', borderRadius:'2px', padding:'7px 12px', cursor:'pointer', fontSize:'14px' }}>×</button>
-                </div>
-              </div>
-              <iframe src={`${selectedDoc.url}#toolbar=1`} style={{ flex:1, width:'100%', minHeight:'560px', border:'none', background:'#fff' }} title={selectedDoc.name} key={selectedDoc.id} />
-            </div>
-          )}
-        </div>
-      </div>
-      <div style={{ textAlign:'center', padding:'32px', background:'rgba(184,147,58,0.06)', border:'1px solid rgba(184,147,58,0.2)', borderRadius:'2px', marginTop:'24px' }}>
-        <div style={{ fontSize:'36px', marginBottom:'12px' }}>✍️</div>
-        <h3 style={{ color:GOLD, marginBottom:'12px', fontFamily:'Georgia, serif', fontWeight:'normal' }}>Ready to Subscribe?</h3>
-        <p style={{ color:'#8a9ab8', fontSize:'13px', margin:'0 auto 24px', maxWidth:'400px' }}>After reviewing the documents above, request your digital signature package. Documents are sent to your email via SignNow.</p>
-        <button onClick={onRequestDocuments} style={{ background:'linear-gradient(135deg,#b8933a,#d4aa50)', color:DARK, border:'none', borderRadius:'2px', padding:'14px 36px', cursor:'pointer', fontSize:'12px', letterSpacing:'3px', textTransform:'uppercase', fontWeight:'700' }}>Request Investment Documents</button>
-      </div>
-    </div>
-  );
-}
-
-// ─── Investor Updates ─────────────────────────────────────────────────────
-function InvestorUpdates({ isAdmin }) {
-  const [updates, setUpdates]  = useState([]);
-  const [showForm, setShowForm] = useState(false);
-  const [loading, setLoading]   = useState(true);
-  const [form, setForm]         = useState({ title:'', content:'', category:'General Update' });
-  useEffect(() => { loadUpdates(); }, []);
-  async function loadUpdates() {
+  const loadAll = async () => {
     setLoading(true);
     try {
-      const arr=await InvestorUpdateDB.list();
-      setUpdates(arr);
-    } catch(e){ console.error(e); } finally { setLoading(false); }
-  }
-  const catColors = { 'Financial Update':'#4ade80','Product Update':'#60a5fa','Partnership':'#f59e0b','General Update':'#8a9ab8','Important Notice':'#ef4444' };
+      const [u, p] = await Promise.all([InvestorUpdateDB.list(), PressReleaseDB.list()]);
+      setUpdates(u || []); setPress(p || []);
+    } catch (e) { console.error(e); }
+    setLoading(false);
+  };
+
+  const catColors = { 'Financial Update': '#4ade80', 'Product Update': '#60a5fa', 'Partnership': '#f59e0b', 'General Update': TEXT_SEC, 'Important Notice': '#ef4444' };
+  const statusStyles = { PENDING: 'rgba(245,158,11,0.15)', NEW: 'rgba(96,165,250,0.15)', COMPLETED: 'rgba(74,222,128,0.15)', ARCHIVED: 'rgba(255,255,255,0.08)' };
+  const statusColors = { PENDING: '#f59e0b', NEW: '#60a5fa', COMPLETED: '#4ade80', ARCHIVED: TEXT_DIM };
+
+  const displayItems = activeTab === 'updates' ? updates : press;
+
   return (
-    <div id="portal-tab-content">
-      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:'28px' }}>
-        <div><h2 style={{ ...h2s, marginBottom:'8px' }}>Investor Updates</h2><p style={{ color:'#6b7280', fontSize:'13px', margin:0 }}>Chronological updates from the Rosie AI management team</p></div>
-        {isAdmin && <button onClick={()=>setShowForm(!showForm)} style={{ background:'linear-gradient(135deg,#b8933a,#d4aa50)', color:DARK, border:'none', borderRadius:'2px', padding:'10px 20px', cursor:'pointer', fontSize:'12px', letterSpacing:'2px', textTransform:'uppercase', fontWeight:'700' }}>+ Post Update</button>}
+    <div style={{ background: PANEL, border: `1px solid ${BORDER_S}`, borderRadius: '10px', overflow: 'hidden' }}>
+      {/* Tab header */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 20px', borderBottom: `1px solid ${BORDER_S}` }}>
+        <div style={{ display: 'flex', gap: 0 }}>
+          {[['updates', 'Investor Updates'], ['press', 'Press Releases']].map(([id, label]) => (
+            <button key={id} onClick={() => setActiveTab(id)} style={{ background: 'none', border: 'none', borderBottom: activeTab === id ? `2px solid ${GOLD}` : '2px solid transparent', color: activeTab === id ? GOLD : TEXT_DIM, padding: '8px 16px', cursor: 'pointer', fontSize: '13px', fontWeight: activeTab === id ? 'bold' : 'normal' }}>{label}</button>
+          ))}
+        </div>
+        <div style={{ display: 'flex', gap: '8px' }}>
+          {isAdmin && activeTab === 'updates' && <button onClick={() => setShowForm(!showForm)} style={{ ...goldBtn, padding: '7px 16px', fontSize: '11px' }}>+ Post Update</button>}
+          {isAdmin && activeTab === 'press'   && <button onClick={() => setShowPressForm(!showPressForm)} style={{ ...goldBtn, padding: '7px 16px', fontSize: '11px' }}>+ Add Press Release</button>}
+        </div>
       </div>
-      {showForm && isAdmin && (
-        <div style={{ background:'rgba(184,147,58,0.08)', border:'1px solid rgba(184,147,58,0.2)', borderRadius:'2px', padding:'24px', marginBottom:'28px' }}>
-          <h4 style={{ color:GOLD, marginTop:0, fontSize:'12px', letterSpacing:'2px', textTransform:'uppercase' }}>New Update</h4>
-          <input value={form.title} onChange={e=>setForm({...form,title:e.target.value})} placeholder="Update Title" style={{ ...inputStyle, marginBottom:'12px' }} />
-          <select value={form.category} onChange={e=>setForm({...form,category:e.target.value})} style={{ ...inputStyle, marginBottom:'12px' }}>{Object.keys(catColors).map(c=><option key={c}>{c}</option>)}</select>
-          <textarea value={form.content} onChange={e=>setForm({...form,content:e.target.value})} placeholder="Update content..." rows={6} style={{ ...inputStyle, resize:'vertical', marginBottom:'12px' }} />
-          <input value={form.imageUrl||''} onChange={e=>setForm({...form,imageUrl:e.target.value})} placeholder="Image URL (optional — paste a public image link)" style={{ ...inputStyle, marginBottom:'12px' }} />
-          <input value={form.videoUrl||''} onChange={e=>setForm({...form,videoUrl:e.target.value})} placeholder="Video URL (optional — YouTube, Vimeo, or direct .mp4 link)" style={{ ...inputStyle, marginBottom:'16px' }} />
-          <div style={{ display:'flex', gap:'12px' }}>
-            <button onClick={async()=>{ await InvestorUpdateDB.create({...form,author:'Admin',publishedAt:new Date().toISOString()}); setForm({title:'',content:'',category:'General Update',imageUrl:'',videoUrl:''}); setShowForm(false); loadUpdates(); }} disabled={!form.title||!form.content} style={{ background:GOLD, color:DARK, border:'none', borderRadius:'2px', padding:'10px 24px', cursor:'pointer', fontWeight:'bold', fontSize:'12px' }}>Post</button>
-            <button onClick={()=>setShowForm(false)} style={{ background:'transparent', color:'#6b7280', border:'1px solid rgba(255,255,255,0.12)', borderRadius:'2px', padding:'10px 24px', cursor:'pointer', fontSize:'12px' }}>Cancel</button>
+
+      {/* Admin: New Update form */}
+      {showForm && isAdmin && activeTab === 'updates' && (
+        <div style={{ padding: '20px', borderBottom: `1px solid ${BORDER_S}`, background: 'rgba(184,147,58,0.04)' }}>
+          <input value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} placeholder="Update Title" style={{ ...inputStyle, marginBottom: '10px' }} />
+          <select value={form.category} onChange={e => setForm({ ...form, category: e.target.value })} style={{ ...inputStyle, marginBottom: '10px' }}>{Object.keys(catColors).map(c => <option key={c}>{c}</option>)}</select>
+          <textarea value={form.content} onChange={e => setForm({ ...form, content: e.target.value })} placeholder="Update content..." rows={5} style={{ ...inputStyle, resize: 'vertical', marginBottom: '10px' }} />
+          <input value={form.imageUrl || ''} onChange={e => setForm({ ...form, imageUrl: e.target.value })} placeholder="Image URL (optional)" style={{ ...inputStyle, marginBottom: '10px' }} />
+          <input value={form.videoUrl || ''} onChange={e => setForm({ ...form, videoUrl: e.target.value })} placeholder="Video URL (optional)" style={{ ...inputStyle, marginBottom: '14px' }} />
+          <div style={{ display: 'flex', gap: '10px' }}>
+            <button onClick={async () => { await InvestorUpdateDB.create({ ...form, publishedAt: new Date().toISOString() }); setForm({ title: '', content: '', category: 'General Update', author: 'Management Team', imageUrl: '', videoUrl: '' }); setShowForm(false); loadAll(); }} disabled={!form.title || !form.content} style={goldBtn}>Post</button>
+            <button onClick={() => setShowForm(false)} style={{ background: 'transparent', color: TEXT_DIM, border: `1px solid ${BORDER_S}`, borderRadius: '6px', padding: '10px 20px', cursor: 'pointer', fontSize: '12px' }}>Cancel</button>
           </div>
         </div>
       )}
-      <div style={{ display:'flex', flexDirection:'column', gap:'0' }}>
-        {updates.map((update,idx) => (
-          <div key={update.id} style={{ display:'flex', gap:'20px', paddingBottom:'32px' }}>
-            <div style={{ display:'flex', flexDirection:'column', alignItems:'center', width:'20px', flexShrink:0 }}>
-              <div style={{ width:'12px', height:'12px', background:GOLD, borderRadius:'50%', marginTop:'6px', flexShrink:0 }} />
-              {idx<updates.length-1 && <div style={{ width:'1px', flex:1, background:'rgba(255,255,255,0.08)', marginTop:'4px' }} />}
-            </div>
-            <div style={{ flex:1, background:'rgba(255,255,255,0.03)', border:'1px solid rgba(255,255,255,0.08)', borderRadius:'2px', padding:'20px' }}>
-              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:'12px', flexWrap:'wrap', gap:'8px' }}>
-                <div><span style={{ display:'inline-block', padding:'3px 10px', borderRadius:'2px', background:`${catColors[update.category]}22`, color:catColors[update.category]||'#8a9ab8', fontSize:'10px', letterSpacing:'1px', textTransform:'uppercase', marginBottom:'8px' }}>{update.category}</span><h3 style={{ color:'#e8e0d0', margin:'0', fontSize:'16px', fontFamily:'Georgia, serif', fontWeight:'normal' }}>{update.title}</h3></div>
-                <div style={{ textAlign:'right', flexShrink:0 }}><div style={{ color:GOLD, fontSize:'13px' }}>{new Date(update.publishedAt||update.date).toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'})}</div><div style={{ color:'#4a5568', fontSize:'11px', marginTop:'2px' }}>{update.author}</div></div>
-              </div>
-              {update.imageUrl && <img src={update.imageUrl} alt="" style={{ width:'100%', maxHeight:'360px', objectFit:'cover', borderRadius:'2px', marginBottom:'12px' }} />}
-              {update.videoUrl && (
-                <div style={{ marginBottom:'12px' }}>
-                  {/youtube|youtu\.be/i.test(update.videoUrl) ? (
-                    <iframe
-                      src={update.videoUrl.replace('watch?v=','embed/').replace('youtu.be/','www.youtube.com/embed/')}
-                      style={{ width:'100%', aspectRatio:'16/9', border:'none', borderRadius:'2px' }}
-                      allowFullScreen title="Video" />
-                  ) : /vimeo/i.test(update.videoUrl) ? (
-                    <iframe
-                      src={`https://player.vimeo.com/video/${update.videoUrl.split('/').pop()}`}
-                      style={{ width:'100%', aspectRatio:'16/9', border:'none', borderRadius:'2px' }}
-                      allowFullScreen title="Video" />
+
+      {/* Admin: New Press Release form */}
+      {showPressForm && isAdmin && activeTab === 'press' && (
+        <div style={{ padding: '20px', borderBottom: `1px solid ${BORDER_S}`, background: 'rgba(184,147,58,0.04)' }}>
+          <input value={pressForm.title} onChange={e => setPressForm({ ...pressForm, title: e.target.value })} placeholder="Headline" style={{ ...inputStyle, marginBottom: '10px' }} />
+          <input value={pressForm.summary} onChange={e => setPressForm({ ...pressForm, summary: e.target.value })} placeholder="Short summary (1–2 sentences)" style={{ ...inputStyle, marginBottom: '10px' }} />
+          <textarea value={pressForm.content} onChange={e => setPressForm({ ...pressForm, content: e.target.value })} placeholder="Full press release content..." rows={5} style={{ ...inputStyle, resize: 'vertical', marginBottom: '10px' }} />
+          <input value={pressForm.sourceUrl} onChange={e => setPressForm({ ...pressForm, sourceUrl: e.target.value })} placeholder="Source URL (optional)" style={{ ...inputStyle, marginBottom: '10px' }} />
+          <input value={pressForm.imageUrl} onChange={e => setPressForm({ ...pressForm, imageUrl: e.target.value })} placeholder="Image URL (optional)" style={{ ...inputStyle, marginBottom: '14px' }} />
+          <div style={{ display: 'flex', gap: '10px' }}>
+            <button onClick={async () => { await PressReleaseDB.create({ ...pressForm, publishedAt: new Date().toISOString(), status: 'NEW' }); setPressForm({ title: '', summary: '', content: '', sourceUrl: '', imageUrl: '' }); setShowPressForm(false); loadAll(); }} disabled={!pressForm.title || !pressForm.content} style={goldBtn}>Publish</button>
+            <button onClick={() => setShowPressForm(false)} style={{ background: 'transparent', color: TEXT_DIM, border: `1px solid ${BORDER_S}`, borderRadius: '6px', padding: '10px 20px', cursor: 'pointer', fontSize: '12px' }}>Cancel</button>
+          </div>
+        </div>
+      )}
+
+      {/* Table */}
+      {loading ? (
+        <div style={{ display: 'flex', justifyContent: 'center', padding: '40px' }}><Spinner /></div>
+      ) : displayItems.length === 0 ? (
+        <div style={{ textAlign: 'center', padding: '40px', color: TEXT_DIM }}>
+          <div style={{ fontSize: '36px', marginBottom: '10px' }}>{activeTab === 'press' ? '📰' : '📬'}</div>
+          <p>No {activeTab === 'press' ? 'press releases' : 'updates'} yet.</p>
+        </div>
+      ) : (
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+          <thead>
+            <tr style={{ borderBottom: `1px solid ${BORDER_S}`, background: 'rgba(0,0,0,0.2)' }}>
+              <th style={{ padding: '10px 16px', textAlign: 'left', color: TEXT_DIM, fontSize: '10px', letterSpacing: '1.5px', textTransform: 'uppercase', fontWeight: '600' }}>
+                {activeTab === 'updates' ? 'Update' : 'Release'}
+              </th>
+              <th style={{ padding: '10px 16px', textAlign: 'left', color: TEXT_DIM, fontSize: '10px', letterSpacing: '1.5px', textTransform: 'uppercase', fontWeight: '600' }}>Date</th>
+              <th style={{ padding: '10px 16px', textAlign: 'left', color: TEXT_DIM, fontSize: '10px', letterSpacing: '1.5px', textTransform: 'uppercase', fontWeight: '600' }}>
+                {activeTab === 'updates' ? 'Category' : 'Info'}
+              </th>
+              {activeTab === 'press' && <th style={{ padding: '10px 16px', textAlign: 'left', color: TEXT_DIM, fontSize: '10px', letterSpacing: '1.5px', textTransform: 'uppercase', fontWeight: '600' }}>Status</th>}
+              {isAdmin && <th style={{ padding: '10px 16px', width: '60px' }}></th>}
+            </tr>
+          </thead>
+          <tbody>
+            {displayItems.map((item, idx) => (
+              <tr key={item.id} style={{ borderBottom: idx < displayItems.length - 1 ? `1px solid ${BORDER_S}` : 'none', transition: 'background 0.1s' }}>
+                <td style={{ padding: '14px 16px' }}>
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
+                    <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: activeTab === 'updates' ? `${catColors[item.category] || TEXT_SEC}22` : 'rgba(99,102,241,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '15px', flexShrink: 0 }}>
+                      {activeTab === 'updates' ? '📋' : '📰'}
+                    </div>
+                    <div>
+                      <div style={{ color: TEXT_PRI, fontWeight: '600', fontSize: '13px', marginBottom: '2px' }}>{item.title}</div>
+                      <div style={{ color: TEXT_DIM, fontSize: '11px' }}>{activeTab === 'updates' ? (item.author || 'Management Team') : (item.summary || '')}</div>
+                    </div>
+                  </div>
+                </td>
+                <td style={{ padding: '14px 16px', color: TEXT_SEC, fontSize: '12px', whiteSpace: 'nowrap' }}>
+                  {new Date(item.publishedAt || item.date || '').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                </td>
+                <td style={{ padding: '14px 16px' }}>
+                  {activeTab === 'updates' ? (
+                    <span style={{ display: 'inline-block', padding: '3px 10px', borderRadius: '4px', background: `${catColors[item.category] || TEXT_SEC}22`, color: catColors[item.category] || TEXT_SEC, fontSize: '11px', letterSpacing: '0.5px' }}>{item.category}</span>
                   ) : (
-                    <video src={update.videoUrl} controls style={{ width:'100%', borderRadius:'2px', maxHeight:'360px' }} />
+                    item.sourceUrl ? <a href={item.sourceUrl} target="_blank" rel="noopener noreferrer" style={{ color: GOLD, fontSize: '12px', textDecoration: 'none' }}>View Source ↗</a> : <span style={{ color: TEXT_DIM, fontSize: '12px' }}>Press Release</span>
                   )}
-                </div>
-              )}
-              <p style={{ color:'#8a9ab8', fontSize:'13px', lineHeight:1.7, margin:'0 0 12px', whiteSpace:'pre-wrap' }}>{update.content}</p>
-              {isAdmin && <button onClick={async()=>{ if(window.confirm('Delete?')){ await InvestorUpdateDB.delete(update.id); setUpdates(prev=>prev.filter(u=>u.id!==update.id)); } }} style={{ background:'none', border:'none', color:'#ef4444', cursor:'pointer', fontSize:'11px', padding:'0', opacity:0.6 }}>Delete</button>}
+                </td>
+                {activeTab === 'press' && (
+                  <td style={{ padding: '14px 16px' }}>
+                    <span style={{ display: 'inline-block', padding: '3px 10px', borderRadius: '4px', background: statusStyles[item.status] || statusStyles.NEW, color: statusColors[item.status] || statusColors.NEW, fontSize: '11px', fontWeight: '600' }}>{item.status || 'NEW'}</span>
+                  </td>
+                )}
+                {isAdmin && (
+                  <td style={{ padding: '14px 16px' }}>
+                    <button onClick={async () => {
+                      if (!window.confirm('Delete this item?')) return;
+                      if (activeTab === 'updates') { await InvestorUpdateDB.delete(item.id); setUpdates(prev => prev.filter(u => u.id !== item.id)); }
+                      else { await PressReleaseDB.delete(item.id); setPress(prev => prev.filter(p => p.id !== item.id)); }
+                    }} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '11px', opacity: 0.6 }}>Delete</button>
+                  </td>
+                )}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
+  );
+}
+
+// ─── Capital Allocation Panel ─────────────────────────────────────────────────
+function CapitalAllocationPanel() {
+  const allocations = [
+    { name: 'Customer Acquisition', pct: 30,   amount: '$150,000', color: GOLD },
+    { name: '1st Year Personnel',   pct: 21.5, amount: '$107,400', color: '#60a5fa' },
+    { name: 'Product Development',  pct: 20,   amount: '$100,000', color: '#818cf8' },
+    { name: 'Infrastructure',       pct: 10,   amount: '$50,000',  color: '#34d399' },
+    { name: 'Operations & Legal',   pct: 10,   amount: '$50,000',  color: '#f472b6' },
+    { name: 'Working Capital',      pct: 8.5,  amount: '$42,600',  color: '#fb923c' },
+  ];
+  return (
+    <div style={{ background: PANEL, border: `1px solid ${BORDER_S}`, borderRadius: '10px', padding: '20px' }}>
+      <div style={{ color: TEXT_PRI, fontSize: '15px', fontWeight: 'bold', marginBottom: '4px', fontFamily: 'Georgia, serif' }}>Capital Allocation</div>
+      <div style={{ color: TEXT_DIM, fontSize: '12px', marginBottom: '16px' }}>$500,000 Total Raise</div>
+      <div style={{ borderTop: `1px solid ${BORDER_S}`, paddingTop: '14px', marginBottom: '16px', borderBottom: `1px solid ${BORDER_S}`, paddingBottom: '14px' }}>
+        <p style={{ color: TEXT_SEC, fontSize: '11px', lineHeight: 1.6, margin: 0 }}>Quarterly financials including official financial records to be distributed quarterly to LLC members.</p>
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+        {allocations.map(({ name, pct, amount, color }) => (
+          <div key={name}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+              <span style={{ color: TEXT_PRI, fontSize: '12px' }}>• {pct}% — {name}</span>
+              <span style={{ color: TEXT_DIM, fontSize: '11px' }}>{amount}</span>
+            </div>
+            <div style={{ background: 'rgba(255,255,255,0.07)', borderRadius: '4px', height: '5px', overflow: 'hidden' }}>
+              <div style={{ background: color, width: `${pct}%`, height: '100%', borderRadius: '4px' }} />
             </div>
           </div>
         ))}
@@ -773,81 +916,58 @@ function InvestorUpdates({ isAdmin }) {
   );
 }
 
-// ─── Raise Progress ───────────────────────────────────────────────────────
-function RaiseProgress() {
+// ─── Overview / Home Tab ──────────────────────────────────────────────────────
+function OverviewTab({ setActiveTab, portalUser, isAdmin }) {
   const [s, setS] = useState(getPortalSettings());
-  useEffect(() => { loadPortalSettings().then(setS); const handler=e=>setS(e.detail); window.addEventListener('portalSettingsChanged',handler); return ()=>window.removeEventListener('portalSettingsChanged',handler); }, []);
-  const TOTAL=Number(s.totalRaise)||2500000, COMMITTED=Number(s.committedCapital)||0, INVESTED=Number(s.investedCapital)||0, INVESTED_T=Number(s.investedTarget)||500000;
-  const fmt=n=>n>=1000000?`$${(n/1000000).toFixed(2)}M`:`$${(n/1000).toFixed(0)}K`;
-  return (
-    <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'20px', marginBottom:'32px' }}>
-      {[{ label:'Committed Capital', pct:Math.min((COMMITTED/TOTAL)*100,100), color:GOLD, sub:`${fmt(COMMITTED)} of ${fmt(TOTAL)} raise` },{ label:'Invested Capital', pct:Math.min((INVESTED/INVESTED_T)*100,100), color:'#4ade80', sub:`${fmt(INVESTED)} of ${fmt(INVESTED_T)} deployed` }].map(({ label,pct,color,sub }) => (
-        <div key={label} style={{ background:'rgba(255,255,255,0.03)', border:'1px solid rgba(255,255,255,0.08)', borderRadius:'2px', padding:'20px' }}>
-          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'baseline', marginBottom:'10px' }}><span style={{ color:'#8a9ab8', fontSize:'10px', letterSpacing:'2px', textTransform:'uppercase' }}>{label}</span><span style={{ color, fontSize:'22px', fontWeight:'bold' }}>{Math.round(pct)}%</span></div>
-          <div style={{ background:'rgba(255,255,255,0.06)', borderRadius:'2px', height:'6px', marginBottom:'10px', overflow:'hidden' }}><div style={{ background:`linear-gradient(90deg,${color}88,${color})`, width:`${pct}%`, height:'100%', borderRadius:'2px', transition:'width 1s ease' }} /></div>
-          <div style={{ color:'#4a5568', fontSize:'11px' }}>{sub}</div>
-        </div>
-      ))}
-    </div>
-  );
-}
+  useEffect(() => {
+    loadPortalSettings().then(setS);
+    const handler = e => setS(e.detail);
+    window.addEventListener('portalSettingsChanged', handler);
+    return () => window.removeEventListener('portalSettingsChanged', handler);
+  }, []);
 
-// ─── Portal Home ──────────────────────────────────────────────────────────
-function PortalHome({ setActiveTab, portalUser, onRequestDocuments }) {
-  const [s, setS] = useState(getPortalSettings());
-  useEffect(() => { loadPortalSettings().then(setS); const handler=e=>setS(e.detail); window.addEventListener('portalSettingsChanged',handler); return ()=>window.removeEventListener('portalSettingsChanged',handler); }, []);
-  const navCards = [
-    { tab:'account', icon:'👤', title:'My Account', desc:'View your investment summary, documents, accreditation, and contact info.' },
-    { tab:'offering', icon:'📊', title:'Investment Offering', desc:'Full memorandum, financials, team & terms. Download PDF.' },
-    { tab:'subscription', icon:'✍️', title:'Subscription Agreements', desc:'Review and execute investment documents via SignNow.' },
-    { tab:'updates', icon:'📬', title:'Investor Updates', desc:'Chronological management updates & milestones.' },
-  ];
   return (
     <div>
-      <div style={{ display:'grid', gridTemplateColumns:'1fr 340px', gap:'32px', marginBottom:'32px', alignItems:'start' }}>
-        <div>
-          <p style={{ color:GOLD, fontSize:'10px', letterSpacing:'4px', textTransform:'uppercase', marginBottom:'10px', margin:'0 0 10px' }}>{s.portalTagline}</p>
-          <h1 style={{ color:'#e8e0d0', fontSize:'30px', fontWeight:'normal', margin:'0 0 12px', lineHeight:1.2, fontFamily:'Georgia, serif' }}>
-            {s.portalHeadline?.split('\n').map((line,i)=><span key={i}>{line}{i===0?<br/>:null}</span>)}
-          </h1>
-          <p style={{ color:'#6b7280', fontSize:'14px', lineHeight:1.65, margin:'0 0 28px', maxWidth:'560px' }}>{s.portalSubtext}</p>
-          <RaiseProgress />
-          <RosieInlineChat portalUser={portalUser} />
-        </div>
-        <div style={{ display:'flex', flexDirection:'column', gap:'10px' }}>
-          <div style={{ background:'rgba(184,147,58,0.06)', border:'1px solid rgba(184,147,58,0.18)', borderRadius:'2px', padding:'18px' }}>
-            <div style={{ color:GOLD, fontSize:'10px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'12px' }}>Investor Relations</div>
-            <div style={{ color:'#c4cdd8', fontSize:'13px', fontWeight:'bold', marginBottom:'6px' }}>{s.companyName}</div>
-            <div style={{ color:'#6b7280', fontSize:'12px', lineHeight:2 }}>
-              {s.address1}<br />{s.address2}<br />
-              <a href={`tel:${s.phone?.replace(/\D/g,'')}`} style={{ color:'#8a9ab8', textDecoration:'none' }}>{s.phone}</a><br />
-              <a href={`mailto:${s.email}`} style={{ color:GOLD, textDecoration:'none', fontSize:'12px' }}>{s.email}</a>
-            </div>
-          </div>
-        </div>
-      </div>
-      <div style={{ paddingTop:'24px', borderTop:'1px solid rgba(255,255,255,0.05)' }}>
-        <p style={{ color:'#2d3748', fontSize:'11px', lineHeight:1.7, margin:0 }}><strong style={{ color:'#374151' }}>Important Disclosure:</strong> {s.disclosureText}</p>
+      {/* Welcome */}
+      <div style={{ borderBottom: `1px solid ${BORDER_S}`, paddingBottom: '16px', marginBottom: '24px' }}>
+        <h1 style={{ color: TEXT_PRI, fontSize: '22px', fontWeight: 'normal', margin: '0 0 6px', fontFamily: 'Georgia, serif' }}>
+          Welcome back, {portalUser.name?.split(' ')[0] || portalUser.username}
+        </h1>
+        {s.portalSubtext && <p style={{ color: TEXT_SEC, fontSize: '13px', margin: 0, maxWidth: '600px', lineHeight: 1.65 }}>{s.portalSubtext}</p>}
       </div>
 
+      {/* Main grid: updates (2/3) + allocation (1/3) */}
+      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '20px', marginBottom: '24px' }}>
+        <UpdatesAndPress isAdmin={isAdmin} />
+        <CapitalAllocationPanel />
+      </div>
+
+      {/* Disclosure */}
+      {s.disclosureText && (
+        <div style={{ paddingTop: '16px', borderTop: `1px solid ${BORDER_S}` }}>
+          <p style={{ color: TEXT_DIM, fontSize: '11px', lineHeight: 1.7, margin: 0 }}>
+            <strong style={{ color: '#374151' }}>Important Disclosure:</strong> {s.disclosureText}
+          </p>
+        </div>
+      )}
     </div>
   );
 }
 
-// ─── Main Portal ──────────────────────────────────────────────────────────
+// ─── Main Portal Shell ────────────────────────────────────────────────────────
 const TABS = [
-  { id:'home',         label:'Overview' },
-  { id:'account',      label:'Account' },
-  { id:'offering',     label:'Investment Offering' },
-  { id:'subscription', label:'LLC Documents' },
-  { id:'updates',      label:'Investor Updates' },
+  { id: 'home',          label: 'Investor Portal' },
+  { id: 'llc-documents', label: 'LLC Documents'   },
+  { id: 'accreditation', label: 'Accreditation'   },
+  { id: 'rosie-ai',      label: 'Talk to Rosie AI' },
+  { id: 'account',       label: 'Account'          },
 ];
 
 export default function InvestorPortal() {
   const { portalUser, portalLogout, isAdmin, isPortalLoading } = usePortalAuth();
-  const [activeTab, setActiveTab]       = useState('home');
+  const [activeTab, setActiveTab]         = useState('home');
   const [showRequestDocs, setShowRequestDocs] = useState(false);
-  const [showZoom, setShowZoom] = useState(false);
+  const [showZoom, setShowZoom]           = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -855,7 +975,6 @@ export default function InvestorPortal() {
     if (!portalUser) { navigate('/portal-login'); return; }
     if (!analytics.getCurrentSession()) analytics.startSession(portalUser.email, portalUser.name, portalUser.username);
     analytics.trackPageView('portal');
-    // Track on visibility change so downloads are captured if user closes tab
     const handleVisibility = () => { if (document.visibilityState === 'hidden') analytics.endSession(); };
     const handleUnload = () => analytics.endSession();
     window.addEventListener('beforeunload', handleUnload);
@@ -866,46 +985,80 @@ export default function InvestorPortal() {
   useEffect(() => { analytics.trackSection(activeTab); }, [activeTab]);
 
   if (isPortalLoading) return (
-    <div style={{ minHeight:'100vh', background:'#060c18', display:'flex', alignItems:'center', justifyContent:'center' }}>
-      <div style={{ width:'28px', height:'28px', border:'3px solid rgba(184,147,58,0.2)', borderTop:'3px solid #b8933a', borderRadius:'50%', animation:'spin 0.8s linear infinite' }} />
-      <style>{`@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}`}</style>
+    <div style={{ minHeight: '100vh', background: DARKER, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '16px' }}>
+      <Spinner size={32} />
     </div>
   );
   if (!portalUser) return null;
 
   return (
-    <div style={{ minHeight:'100vh', background:DARKER, fontFamily:'Georgia, serif', color:'#e8e0d0' }}>
-      {showRequestDocs && (
-        <RequestDocumentsModal portalUser={portalUser} onClose={()=>setShowRequestDocs(false)} onSuccess={()=>setActiveTab('account')} />
-      )}
-      {showZoom && (
-        <ZoomBookingModal isOpen={showZoom} onClose={() => setShowZoom(false)} buttonLabel="Book Live Demo" zoomUrl="https://scheduler.zoom.us/stephani-sterling" />
-      )}
-      <nav style={{ background:DARK, borderBottom:'1px solid rgba(184,147,58,0.2)', padding:'0 32px', display:'flex', alignItems:'center', justifyContent:'space-between', height:'64px', position:'sticky', top:0, zIndex:200 }}>
-        <div style={{ display:'flex', alignItems:'center', gap:'20px' }}>
-          <img src={LOGO_URL} alt="Rosie AI" style={{ height:'38px', width:'auto' }} />
-          <div style={{ width:'1px', height:'24px', background:'rgba(184,147,58,0.3)' }} />
-          <span style={{ color:GOLD, fontSize:'10px', letterSpacing:'4px', textTransform:'uppercase' }}>Investor Portal</span>
+    <div style={{ minHeight: '100vh', background: DARKER, fontFamily: 'Georgia, serif', color: TEXT_PRI }}>
+      {/* Modals */}
+      {showRequestDocs && <RequestDocumentsModal portalUser={portalUser} onClose={() => setShowRequestDocs(false)} onSuccess={() => setActiveTab('account')} />}
+      {showZoom && <ZoomBookingModal isOpen={showZoom} onClose={() => setShowZoom(false)} buttonLabel="Book Live Demo" zoomUrl="https://scheduler.zoom.us/stephani-sterling" />}
+
+      {/* ── Top Header (logo + metric cards) ── */}
+      <div style={{ background: DARK, borderBottom: `1px solid ${BORDER}`, padding: '14px 32px' }}>
+        <div style={{ display: 'flex', gap: '20px', alignItems: 'center' }}>
+          {/* Logo */}
+          <div style={{ flexShrink: 0 }}>
+            <img src={LOGO_URL} alt="Rosie AI" style={{ height: '52px', width: 'auto' }} />
+          </div>
+          <div style={{ width: '1px', height: '40px', background: BORDER, flexShrink: 0 }} />
+          {/* Metric cards */}
+          <div style={{ flex: 1 }}>
+            <MetricCards />
+          </div>
+          {/* Right: user + logout */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
+            <span style={{ color: TEXT_SEC, fontSize: '12px', whiteSpace: 'nowrap' }}>{portalUser.name || portalUser.email}</span>
+            {isAdmin && <button onClick={() => navigate('/admin')} style={{ background: 'rgba(184,147,58,0.15)', color: GOLD, border: `1px solid rgba(184,147,58,0.3)`, borderRadius: '6px', padding: '6px 14px', cursor: 'pointer', fontSize: '11px' }}>Admin</button>}
+            <button onClick={() => { portalLogout(); navigate('/'); }} style={{ background: 'transparent', color: TEXT_DIM, border: `1px solid ${BORDER_S}`, borderRadius: '6px', padding: '6px 14px', cursor: 'pointer', fontSize: '11px' }}>Logout</button>
+          </div>
         </div>
-        <div style={{ display:'flex', alignItems:'center', gap:'10px', flexWrap:'nowrap' }}>
-          <button onClick={()=>setShowZoom(true)} style={{ background:'rgba(96,165,250,0.15)', color:'#60a5fa', border:'1px solid rgba(96,165,250,0.3)', borderRadius:'2px', padding:'9px 16px', cursor:'pointer', fontWeight:'700', fontSize:'11px', letterSpacing:'1.5px', textTransform:'uppercase', whiteSpace:'nowrap' }}>📅 Book Live Demo</button>
-          <button onClick={()=>setShowRequestDocs(true)} style={{ background:'linear-gradient(135deg,#b8933a,#d4aa50)', color:DARK, border:'none', borderRadius:'2px', padding:'9px 16px', cursor:'pointer', fontWeight:'700', fontSize:'11px', letterSpacing:'1.5px', textTransform:'uppercase', whiteSpace:'nowrap' }}>✍️ Request Investment Documents</button>
-          <span style={{ color:'#6b7280', fontSize:'12px', whiteSpace:'nowrap' }}>{portalUser.name||portalUser.email}</span>
-          {isAdmin && <button onClick={()=>navigate('/admin')} style={{ background:'rgba(184,147,58,0.15)', color:GOLD, border:'1px solid rgba(184,147,58,0.3)', borderRadius:'2px', padding:'6px 14px', cursor:'pointer', fontSize:'11px' }}>Admin</button>}
-          <button onClick={()=>{ portalLogout(); navigate('/'); }} style={{ background:'transparent', color:'#6b7280', border:'1px solid rgba(255,255,255,0.1)', borderRadius:'2px', padding:'6px 14px', cursor:'pointer', fontSize:'11px' }}>Logout</button>
-        </div>
-      </nav>
-      <div style={{ background:DARK, borderBottom:'1px solid rgba(255,255,255,0.07)', padding:'0 32px', display:'flex', gap:'0', overflowX:'auto' }}>
-        {TABS.map(({ id,label }) => (
-          <button key={id} onClick={()=>setActiveTab(id)} style={{ background:'none', border:'none', borderBottom:activeTab===id?`2px solid ${GOLD}`:'2px solid transparent', color:activeTab===id?GOLD:'#6b7280', padding:'16px 18px', cursor:'pointer', fontSize:'12px', letterSpacing:'1px', transition:'all 0.15s', fontFamily:'Georgia, serif', whiteSpace:'nowrap' }}>{label}</button>
-        ))}
       </div>
-      <div style={{ maxWidth:'1100px', margin:'0 auto', padding:'48px 32px' }}>
-        {activeTab === 'home'         && <PortalHome setActiveTab={setActiveTab} portalUser={portalUser} onRequestDocuments={()=>setShowRequestDocs(true)} />}
-        {activeTab === 'account'      && <AccountTab portalUser={portalUser} />}
-        {activeTab === 'offering'     && <InvestmentOffering />}
-        {activeTab === 'subscription' && <SubscriptionAgreements onRequestDocuments={()=>setShowRequestDocs(true)} setActiveTab={setActiveTab} />}
-        {activeTab === 'updates'      && <InvestorUpdates isAdmin={isAdmin} />}
+
+      {/* ── Tab Bar (tabs left, action buttons right) ── */}
+      <div style={{ background: DARK, borderBottom: `1px solid ${BORDER_S}`, padding: '0 32px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ display: 'flex', gap: 0, overflowX: 'auto' }}>
+          {TABS.map(({ id, label }) => (
+            <button key={id} onClick={() => setActiveTab(id)} style={{
+              background: 'none', border: 'none',
+              borderBottom: activeTab === id ? `2px solid ${GOLD}` : '2px solid transparent',
+              color: activeTab === id ? GOLD : TEXT_DIM,
+              padding: '14px 18px', cursor: 'pointer', fontSize: '13px',
+              letterSpacing: '0.5px', transition: 'all 0.15s',
+              fontFamily: 'Georgia, serif', whiteSpace: 'nowrap',
+              fontWeight: activeTab === id ? 'bold' : 'normal',
+            }}>
+              {label}
+            </button>
+          ))}
+        </div>
+        {/* Action buttons — far right of tab bar */}
+        <div style={{ display: 'flex', gap: '10px', flexShrink: 0, paddingLeft: '16px' }}>
+          <button
+            onClick={() => setShowZoom(true)}
+            style={{ background: 'rgba(96,165,250,0.15)', color: '#60a5fa', border: '1px solid rgba(96,165,250,0.3)', borderRadius: '6px', padding: '8px 16px', cursor: 'pointer', fontWeight: '700', fontSize: '11px', letterSpacing: '1px', textTransform: 'uppercase', whiteSpace: 'nowrap' }}
+          >
+            📅 Book Live Demo
+          </button>
+          <button
+            onClick={() => setShowRequestDocs(true)}
+            style={{ background: `linear-gradient(135deg,${GOLD},${GOLD_LT})`, color: DARK, border: 'none', borderRadius: '6px', padding: '8px 16px', cursor: 'pointer', fontWeight: '700', fontSize: '11px', letterSpacing: '1px', textTransform: 'uppercase', whiteSpace: 'nowrap' }}
+          >
+            ✍️ Request Documents
+          </button>
+        </div>
+      </div>
+
+      {/* ── Page Content ── */}
+      <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '32px 32px' }}>
+        {activeTab === 'home'          && <OverviewTab   setActiveTab={setActiveTab} portalUser={portalUser} isAdmin={isAdmin} />}
+        {activeTab === 'llc-documents' && <LLCDocumentsTab onRequestDocuments={() => setShowRequestDocs(true)} />}
+        {activeTab === 'accreditation' && <AccreditationTab portalUser={portalUser} />}
+        {activeTab === 'rosie-ai'      && <RosieAITab portalUser={portalUser} />}
+        {activeTab === 'account'       && <AccountTab portalUser={portalUser} />}
       </div>
     </div>
   );
