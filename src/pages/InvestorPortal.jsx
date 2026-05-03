@@ -588,12 +588,12 @@ function FinancialReportsTab() {
           </p>
           <p style={{ color: TEXT_DIM, fontSize: '12px', margin: '0 0 28px', maxWidth: '360px', lineHeight: 1.6 }}>
             {activeSideItem === 'quarterly-report'
-              ? 'The quarterly report for this period has not yet been published. Reports are distributed within 30 days after the close of each quarter.'
+              ? 'The quarterly report for this period has not yet been published. Reports are distributed within 75 days after the close of each quarter.'
               : 'Financial records for this period have not yet been published. Records are distributed to LLC members quarterly.'}
           </p>
           <div style={{ background: 'rgba(184,147,58,0.08)', border: `1px solid rgba(184,147,58,0.2)`, borderRadius: '8px', padding: '12px 20px' }}>
             <p style={{ color: TEXT_SEC, fontSize: '11px', margin: 0, lineHeight: 1.6 }}>
-              📅 Reports are distributed to all Class B Members within <strong style={{ color: TEXT_PRI }}>30 days</strong> after close of each fiscal quarter via the Investor Portal.
+              📅 Reports are distributed to all Class B Members within <strong style={{ color: TEXT_PRI }}>75 days</strong> after close of each fiscal quarter via the Investor Portal.
             </p>
           </div>
         </div>
@@ -709,7 +709,7 @@ function AccountK1s({ portalUser }) {
       <div style={{ background: 'rgba(184,147,58,0.06)', border: `1px solid rgba(184,147,58,0.2)`, borderRadius: '10px', padding: '20px', marginBottom: '24px' }}>
         <div style={{ color: GOLD, fontSize: '11px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '8px' }}>📄 Annual K-1 Tax Forms</div>
         <p style={{ color: '#c4cdd8', fontSize: '13px', lineHeight: 1.7, margin: '0 0 8px' }}>
-          Your Schedule K-1 forms will be made available here within <strong style={{ color: TEXT_PRI }}>45 days</strong> after the close of each calendar year.
+          Your Schedule K-1 forms will be made available here within <strong style={{ color: TEXT_PRI }}>75 days</strong> after the close of each calendar year.
         </p>
         <p style={{ color: TEXT_SEC, fontSize: '12px', margin: 0, lineHeight: 1.6 }}>
           K-1s are required for reporting your share of the LLC's income, deductions, and credits on your individual tax return. Please consult your tax advisor regarding specific filing requirements.
