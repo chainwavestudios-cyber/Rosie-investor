@@ -614,7 +614,7 @@ function PortalControls() {
   useEffect(() => { loadPortalSettings().then(setS); }, []);
   const upd  = (k,v) => setS(prev=>({...prev,[k]:v}));
   const save = async () => { setSaveError(''); try { await savePortalSettings(s); setSaved(true); setTimeout(()=>setSaved(false),2500); } catch(e) { setSaveError('Save failed — '+e.message); } };
-  const sections = [['raise','📊 Raise Progress'],['contact','📍 Contact'],['content','✏️ Content'],['terms','📋 Terms'],['rosie','🤖 Rosie AI'],['toggles','⚙️ Visibility'],['updates','📬 Investor Updates']];
+  const sections = [['raise','📊 Raise Progress'],['contact','📍 Contact'],['content','✏️ Content'],['terms','📋 Terms'],['rosie','🤖 Rosie AI'],['toggles','⚙️ Visibility'],['updates','📬 Investor Updates'],['press','📰 Press Releases']];
   return (
     <div style={{ display:'grid', gridTemplateColumns:'180px 1fr', gap:'0' }}>
       <div style={{ borderRight:'1px solid rgba(255,255,255,0.07)' }}>
@@ -698,6 +698,7 @@ function PortalControls() {
         )}
         {sec==='toggles' && <div><h3 style={{ color:'#e8e0d0', margin:'0 0 20px', fontWeight:'normal' }}>Visibility</h3><Tog label="Portal Active" value={s.portalActive} onToggle={()=>upd('portalActive',!s.portalActive)} /><Tog label="Show Market Data Tab" value={s.showMarketData} onToggle={()=>upd('showMarketData',!s.showMarketData)} /><Tog label="Show Subscription Tab" value={s.showSubscription} onToggle={()=>upd('showSubscription',!s.showSubscription)} /></div>}
         {sec==='updates' && <InvestorUpdatesManager />}
+        {sec==='press' && <PressReleasesManager />}
         {sec !== 'updates' && <div style={{ display:'flex', gap:'12px', marginTop:'32px', paddingTop:'24px', borderTop:'1px solid rgba(255,255,255,0.07)', alignItems:'center' }}>
           <button onClick={save} style={{ background:'linear-gradient(135deg,#b8933a,#d4aa50)', color:DARK, border:'none', borderRadius:'2px', padding:'12px 32px', cursor:'pointer', fontWeight:'700', fontSize:'12px', letterSpacing:'2px', textTransform:'uppercase' }}>{saved?'✓ Saved!':'Save Changes'}</button>
           {saved && <span style={{ color:'#4ade80', fontSize:'13px' }}>Live on portal.</span>}
