@@ -123,3 +123,10 @@ export const AccreditationDocDB = {
   async updateStatus(id,status,adminNotes) { try { return await base44.entities.AccreditationDocument.update(id,{status,adminNotes}); } catch(e){ throw e; } },
   async delete(id) { try { return await base44.entities.AccreditationDocument.delete(id); } catch(e){ throw e; } },
 };
+
+// ─── PressRelease ───────────────────────────────────────────────────────────
+export const PressReleaseDB = {
+  async list() { try { const r=await base44.entities.PressRelease.list(); return r.sort((a,b)=>new Date(b.publishedAt)-new Date(a.publishedAt)); } catch{ return []; } },
+  async create(d) { try { return await base44.entities.PressRelease.create({...d,publishedAt:new Date().toISOString()}); } catch(e){ throw e; } },
+  async delete(id) { try { return await base44.entities.PressRelease.delete(id); } catch(e){ throw e; } },
+};
