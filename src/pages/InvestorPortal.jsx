@@ -1058,8 +1058,13 @@ function OverviewTab({ setActiveTab, portalUser, isAdmin }) {
 
   return (
     <div>
+      {/* Metric Cards — floated up, centered */}
+      <div style={{ marginBottom: '12px', marginTop: '-24px', marginLeft: '0px', marginRight: '12px' }}>
+        <MetricCards />
+      </div>
+
       {/* Rosie AI — full-width card at top of home tab */}
-      <div style={{ background: 'rgba(184,147,58,0.04)', border: `1px solid ${BORDER}`, borderRadius: '10px', overflow: 'hidden', marginBottom: '12px', marginTop: '-24px', marginLeft: '0px', marginRight: '-20px' }}>
+      <div style={{ background: 'rgba(184,147,58,0.04)', border: `1px solid ${BORDER}`, borderRadius: '10px', overflow: 'hidden', marginBottom: '12px', marginLeft: '0px', marginRight: '12px' }}>
         <div style={{ padding: '8px 16px', borderBottom: `1px solid rgba(184,147,58,0.12)`, display: 'flex', alignItems: 'center', gap: '10px' }}>
           <div style={{ width: '7px', height: '7px', borderRadius: '50%', background: '#4ade80', boxShadow: '0 0 6px #4ade80', flexShrink: 0 }} />
           <span style={{ color: GOLD, fontSize: '11px', letterSpacing: '2px', textTransform: 'uppercase', fontWeight: 'bold' }}>Rosie AI — Investor Assistant</span>
@@ -1216,11 +1221,6 @@ export default function InvestorPortal() {
 
       {/* ── Main content area (right of sidebar) ── */}
       <div style={{ marginLeft: `${SIDEBAR_W}px`, flex: 1, display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
-        {/* Metric Cards — compact top bar */}
-        <div style={{ padding: '8px 24px', borderBottom: `1px solid ${BORDER_S}`, background: DARK, flexShrink: 0 }}>
-          <MetricCards />
-        </div>
-
         {/* ── Page Content ── */}
         {activeTab === 'offering' ? (
           <div style={{ flex: 1 }}>
