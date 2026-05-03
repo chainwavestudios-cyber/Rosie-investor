@@ -1079,7 +1079,7 @@ function OverviewTab({ setActiveTab, portalUser, isAdmin }) {
       </div>
 
       {/* Main grid: Updates (flex) | Capital Allocation (260px) */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 260px', gap: '16px', marginBottom: '20px', marginLeft: '0px', marginRight: '-20px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 260px', gap: '16px', marginBottom: '20px', marginLeft: '0px', marginRight: '12px' }}>
         <UpdatesAndPress isAdmin={isAdmin} />
         <CapitalAllocationPanel />
       </div>
