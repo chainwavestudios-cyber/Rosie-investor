@@ -210,9 +210,9 @@ export default function RosieVoiceAgent({ userName = 'Steph', investorId = null,
   // Shared inner content (used by both modes)
   const chatBody = (
     <>
-      <div style={{ flex:1, overflowY:'auto', padding:'16px', minHeight: inline ? '80px' : undefined }}>
+      <div style={{ flex:1, overflowY:'auto', padding:'16px', minHeight: inline ? undefined : undefined }}>
         {transcript.length === 0 && (
-          <div style={{ color:'#4a5568', fontSize:'12px', textAlign:'center', padding:'24px 0', fontStyle:'italic' }}>
+          <div style={{ color:'#4a5568', fontSize:'12px', textAlign:'center', padding: inline ? '6px 0' : '24px 0', fontStyle:'italic' }}>
             {phase === 'active' ? 'Rosie is ready — start speaking…' : 'Click Start to connect with Rosie'}
           </div>
         )}
@@ -225,7 +225,7 @@ export default function RosieVoiceAgent({ userName = 'Steph', investorId = null,
         ))}
         {error && <div style={errorStyle}>⚠ {error}</div>}
       </div>
-      <div style={{ padding:'12px 16px', borderTop:'1px solid rgba(255,255,255,0.06)', display:'flex', gap:'8px' }}>
+      <div style={{ padding: inline ? '8px 16px' : '12px 16px', borderTop:'1px solid rgba(255,255,255,0.06)', display:'flex', gap:'8px' }}>
         {phase === 'active'
           ? <button onClick={() => cleanup()} style={{ ...actionBtnStyle, background:'rgba(239,68,68,0.15)', color:'#ef4444', border:'1px solid rgba(239,68,68,0.3)' }}>⏹ End Session</button>
           : <button onClick={connect} style={actionBtnStyle}>🎙 Start Talking to Rosie</button>
