@@ -1059,7 +1059,7 @@ function OverviewTab({ setActiveTab, portalUser, isAdmin }) {
   return (
     <div>
       {/* Rosie AI — full-width card at top of home tab */}
-      <div style={{ background: 'rgba(184,147,58,0.04)', border: `1px solid ${BORDER}`, borderRadius: '10px', overflow: 'hidden', marginBottom: '12px', marginTop: '-24px', marginLeft: '0px', width: '90%' }}>
+      <div style={{ background: 'rgba(184,147,58,0.04)', border: `1px solid ${BORDER}`, borderRadius: '10px', overflow: 'hidden', marginBottom: '12px', marginTop: '-24px', marginLeft: '0px', marginRight: '-20px' }}>
         <div style={{ padding: '8px 16px', borderBottom: `1px solid rgba(184,147,58,0.12)`, display: 'flex', alignItems: 'center', gap: '10px' }}>
           <div style={{ width: '7px', height: '7px', borderRadius: '50%', background: '#4ade80', boxShadow: '0 0 6px #4ade80', flexShrink: 0 }} />
           <span style={{ color: GOLD, fontSize: '11px', letterSpacing: '2px', textTransform: 'uppercase', fontWeight: 'bold' }}>Rosie AI — Investor Assistant</span>
@@ -1074,7 +1074,7 @@ function OverviewTab({ setActiveTab, portalUser, isAdmin }) {
       </div>
 
       {/* Main grid: Updates (flex) | Capital Allocation (260px) */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 260px', gap: '16px', marginBottom: '20px', marginLeft: '0px', width: '93.5%' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 260px', gap: '16px', marginBottom: '20px', marginLeft: '0px', marginRight: '-20px' }}>
         <UpdatesAndPress isAdmin={isAdmin} />
         <CapitalAllocationPanel />
       </div>
