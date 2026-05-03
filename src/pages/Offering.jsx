@@ -1,7 +1,6 @@
 import { useEffect } from "react";
 
-const cssStyles = `  @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=Source+Serif+4:ital,wght@0,300;0,400;0,600;1,400&family=JetBrains+Mono:wght@400;500&display=swap');
-
+const cssStyles = `
   :root {
     --navy: #1a2744;
     --navy-light: #243460;
@@ -574,7 +573,7 @@ const cssStyles = `  @import url('https://fonts.googleapis.com/css2?family=Playf
   }
 
   /* ── HIGHLIGHT TEXT ── */
-  .hl-orange { color: var(--gold); font-weight: 600; }
+  .hl-gold { color: var(--gold); font-weight: 600; }
   .hl-navy { color: var(--navy); font-weight: 600; }
 
   /* ── NOTICE BLOCK ── */
@@ -699,21 +698,46 @@ const cssStyles = `  @import url('https://fonts.googleapis.com/css2?family=Playf
   }
 `;
 
-const htmlContent = `{/* NAV */}
+export default function Offering() {
+  useEffect(() => {
+    if (!document.getElementById('rosie-ppm-styles')) {
+      const styleEl = document.createElement('style');
+      styleEl.id = 'rosie-ppm-styles';
+      styleEl.textContent = cssStyles;
+      document.head.appendChild(styleEl);
+    }
+    const sel = document.getElementById('page-jump');
+    if (sel && sel.options.length === 0) {
+      for (let i = 1; i <= 56; i++) {
+        const o = document.createElement('option');
+        o.value = i;
+        o.textContent = 'Page ' + i;
+        sel.appendChild(o);
+      }
+    }
+    return () => {
+      const styleEl = document.getElementById('rosie-ppm-styles');
+      if (styleEl) styleEl.remove();
+    };
+  }, []);
+
+  return (
+    <div style={{paddingTop:"40px",background:"#2a2a2a",minHeight:"100vh",display:"flex",flexDirection:"column",alignItems:"center",gap:"32px",paddingBottom:"40px"}}>
+
+
+
 <div id="page-nav">
   <span>ROSIE AI LLC</span>
   <span className="nav-title">Confidential Private Placement Memorandum · 506(c)</span>
-  <label htmlFor="page-jump" style="color:rgba(255,255,255,.5);font-size:10px;">Go to page:</label>
-  <select id="page-jump" onChange={(e) => { const el = document.getElementById('p' + e.target.value); if(el) el.scrollIntoView({behavior:'smooth'}); }}>
+  <label htmlFor="page-jump" style={{color:"rgba(255,255,255,.5)",fontSize:"10px"}}>Go to page:</label>
+  <select id="page-jump" onChange={(e) => { const el = document.getElementById("p" + e.target.value); if(el) el.scrollIntoView({behavior:"smooth"}); }}>
   </select>
-  <button onClick={() => { window.print() }}>Print / Save PDF</button>
+  <button onClick={() => window.print()}>Print / Save PDF</button>
 </div>
 
 
 
-{/* ═══════════════════════════════════════════════════════════
-     PAGE 1 — COVER (PDF page 1 — we include this as page 1)
-     ═══════════════════════════════════════════════════════════ */}
+
 <div className="page" id="p1">
   <div className="page-cover">
     <div className="cover-confidential">Confidential — Accredited Investors Only</div>
@@ -721,11 +745,11 @@ const htmlContent = `{/* NAV */}
     <div className="cover-sub">Rosie AI, LLC &nbsp;|&nbsp; 506(c) PPM</div>
     <div className="cover-divider"></div>
     <svg width="140" height="140" viewBox="0 0 140 140">
-      <circle cx="70" cy="70" r="68" fill="none" stroke="rgba(232,119,34,.3)" stroke-width="2"/>
-      <circle cx="70" cy="70" r="52" fill="rgba(232,119,34,.08)" stroke="rgba(232,119,34,.4)" stroke-width="1.5"/>
-      <text x="70" y="64" text-anchor="middle" font-family="'Playfair Display',serif" font-size="28" font-weight="700" fill="#D4AF37">R</text>
-      <text x="70" y="88" text-anchor="middle" font-family="'JetBrains Mono',monospace" font-size="9" fill="rgba(255,255,255,.6)" letter-spacing="3">ROSIE AI</text>
-      <text x="70" y="102" text-anchor="middle" font-family="'JetBrains Mono',monospace" font-size="7" fill="rgba(255,255,255,.4)" letter-spacing="2">AUTOMATION PLATFORM</text>
+      <circle cx="70" cy="70" r="68" fill="none" stroke="rgba(212,175,55,.3)" strokeWidth="2"/>
+      <circle cx="70" cy="70" r="52" fill="rgba(212,175,55,.08)" stroke="rgba(212,175,55,.4)" strokeWidth="1.5"/>
+      <text x="70" y="64" textAnchor="middle" fontFamily="'Playfair Display',serif" fontSize="28" fontWeight="700" fill="#D4AF37">R</text>
+      <text x="70" y="88" textAnchor="middle" fontFamily="'JetBrains Mono',monospace" fontSize="9" fill="rgba(255,255,255,.6)" letterSpacing="3">ROSIE AI</text>
+      <text x="70" y="102" textAnchor="middle" fontFamily="'JetBrains Mono',monospace" fontSize="7" fill="rgba(255,255,255,.4)" letterSpacing="2">AUTOMATION PLATFORM</text>
     </svg>
     <div className="cover-class">Class B Units of Limited Liability<br />Company Membership Interests</div>
   </div>
@@ -735,9 +759,7 @@ const htmlContent = `{/* NAV */}
   </div>
 </div>
 
-{/* ═══════════════════════════════════════════════════════════
-     PAGE 2 — NOTICES
-     ═══════════════════════════════════════════════════════════ */}
+
 <div className="page" id="p2">
   <div className="page-header">
     <span className="doc-title">Rosie AI, LLC — Confidential Private Placement Memorandum</span>
@@ -760,7 +782,7 @@ const htmlContent = `{/* NAV */}
   </div>
 </div>
 
-{/* PAGE 3 */}
+
 <div className="page" id="p3">
   <div className="page-header">
     <span className="doc-title">Rosie AI, LLC — Confidential Private Placement Memorandum</span>
@@ -770,8 +792,8 @@ const htmlContent = `{/* NAV */}
     <p className="legal-caps">THE FORWARD-LOOKING STATEMENTS INCLUDED IN THIS MEMORANDUM ARE NOT HISTORICAL FACTS OR GUARANTEES OF PERFORMANCE, BUT RATHER ARE BASED UPON CURRENT EXPECTATIONS, ESTIMATES AND PROJECTIONS ABOUT THE COMPANY, ITS INDUSTRY, BELIEFS AND ASSUMPTIONS. WORDS SUCH AS "ANTICIPATES", "EXPECTS", "PROJECTS," "INTENDS", "PLANS", "BELIEVES", "SEEKS", "HOPES" AND "ESTIMATES," AND VARIATIONS OF THESE WORDS AND SIMILAR EXPRESSIONS, OR FUTURE OR CONDITIONAL VERBS SUCH AS "WILL", "SHALL", "WOULD", "SHOULD", "COULD" OR "MAY", ARE INTENDED TO IDENTIFY FORWARD-LOOKING STATEMENTS. THESE STATEMENTS ARE NOT GUARANTEES OF FUTURE PERFORMANCE AND ARE SUBJECT TO RISKS, UNCERTAINTIES AND OTHER FACTORS, SOME OF WHICH ARE BEYOND THE COMPANY'S CONTROL, ARE DIFFICULT TO PREDICT, AND COULD CAUSE ACTUAL RESULTS TO DIFFER MATERIALLY FROM THOSE EXPRESSED OR FORECASTED IN THE FORWARD-LOOKING STATEMENTS. THESE RISKS AND UNCERTAINTIES INCLUDE (BUT ARE NOT LIMITED TO) THOSE DESCRIBED IN SECTION "RISK FACTORS" AND ELSEWHERE IN THIS MEMORANDUM. GIVEN THESE UNCERTAINTIES, PROSPECTIVE INVESTORS ARE CAUTIONED NOT TO PLACE UNDUE RELIANCE ON SUCH FORWARD-LOOKING STATEMENTS. THESE FORWARD-LOOKING STATEMENTS ARE BASED ON CURRENT EXPECTATIONS, AND THE COMPANY ASSUMES NO OBLIGATIONS TO UPDATE THIS INFORMATION.</p>
     <p className="legal-caps">PROSPECTIVE INVESTORS ARE FURTHER ADVISED THAT STATEMENTS OR ESTIMATES OF PAST PERFORMANCE OF PEER COMPANIES DO NOT CONSTITUTE REPRESENTATIONS, WARRANTIES OR GUARANTEES THAT THE COMPANY WILL REPLICATE THAT PAST PERFORMANCE IN ITS FUTURE OPERATIONS. THE COMPANY IS IN THE START UP DEVELOPMENTAL STAGE, HAS GENERATED NO REVENUES AND DOES NOT HAVE ANY PAST PERFORMANCE AS OF THE DATE HEREOF.</p>
     <p>The information contained herein is confidential and private. It is for the exclusive use of persons selected by Rosie AI, LLC.</p>
-    <div className="notice-block" style="text-align:center;margin-top:30px;">
-      <strong style="font-size:13px;color:var(--navy);">FOR ACCREDITED INVESTORS ONLY</strong>
+    <div className="notice-block" style={{textAlign:"center",marginTop:"30px"}}>
+      <strong style={{fontSize:"13px",color:"var(--navy)"}}>FOR ACCREDITED INVESTORS ONLY</strong>
     </div>
   </div>
   <div className="page-footer">
@@ -780,7 +802,7 @@ const htmlContent = `{/* NAV */}
   </div>
 </div>
 
-{/* PAGE 4 — SUMMARY OF TERMS (with section from PDF page 4 EXCLUDING the "Focus of the Offering" bullet section) */}
+
 <div className="page" id="p4">
   <div className="page-header">
     <span className="doc-title">Rosie AI, LLC — Confidential Private Placement Memorandum</span>
@@ -814,7 +836,7 @@ const htmlContent = `{/* NAV */}
   </div>
 </div>
 
-{/* PAGE 5 — FOCUS OF THE OFFERING / OFFERING FUNDING MODEL */}
+
 <div className="page" id="p5">
   <div className="page-header">
     <span className="doc-title">Rosie AI, LLC — Confidential Private Placement Memorandum</span>
@@ -828,16 +850,16 @@ const htmlContent = `{/* NAV */}
     <p>The Company's strategy is built on the fundamental shift from static data to real-time AI orchestration. While legacy competitors provide "stale" lists that require human labor to execute, Rosie AI detects live intent and performs the outreach autonomously.</p>
     <p><strong>The Multi-Tenant Migration</strong> — Our strategy involves hardening the existing architecture into a scalable SaaS model, including enterprise-grade infrastructure with 99.99% uptime, multi-tenant isolation for institutional clients, and subscription-based recurring revenue.</p>
     <p><strong>The International Team Advantage</strong> — We utilize a specialized engineering team based in the Philippines at a 92% cost saving compared to traditional U.S.-based engineering teams, ensuring the majority of the $500,000 raise is directed toward growth and system scaling.</p>
-    <div className="section-label navy-light" style="margin-top:18px;">The Offering Funding Model</div>
+    <div className="section-label navy-light" style={{marginTop:"18px"}}>The Offering Funding Model</div>
     <p>The Company will use the USD $500,000 in capital to drive a high-velocity growth cycle. The Rosie AI model is designed for rapid capital efficiency, with profitability projected at just 15 paying organizations.</p>
     <h3>Capital Allocation (Use of Proceeds):</h3>
     <div className="waterfall">
-      <div className="wf-row"><span className="wf-label">Customer Acquisition</span><div className="wf-bar-wrap"><div className="wf-bar gold" style="width:30%">30%</div></div><span className="wf-val">$150,000</span></div>
-      <div className="wf-row"><span className="wf-label">1st Year Personnel Costs</span><div className="wf-bar-wrap"><div className="wf-bar" style="width:21.5%">21.5%</div></div><span className="wf-val">$107,400</span></div>
-      <div className="wf-row"><span className="wf-label">Product Development</span><div className="wf-bar-wrap"><div className="wf-bar gold" style="width:20%">20%</div></div><span className="wf-val">$100,000</span></div>
-      <div className="wf-row"><span className="wf-label">Infrastructure Scaling</span><div className="wf-bar-wrap"><div className="wf-bar" style="width:10%">10%</div></div><span className="wf-val">$50,000</span></div>
-      <div className="wf-row"><span className="wf-label">Operations &amp; Legal</span><div className="wf-bar-wrap"><div className="wf-bar" style="width:10%">10%</div></div><span className="wf-val">$50,000</span></div>
-      <div className="wf-row"><span className="wf-label">Working Capital Reserve</span><div className="wf-bar-wrap"><div className="wf-bar gold" style="width:8.5%">8.5%</div></div><span className="wf-val">$42,600</span></div>
+      <div className="wf-row"><span className="wf-label">Customer Acquisition</span><div className="wf-bar-wrap"><div className="wf-bar gold" style={{width:"30%"}}>30%</div></div><span className="wf-val">$150,000</span></div>
+      <div className="wf-row"><span className="wf-label">1st Year Personnel Costs</span><div className="wf-bar-wrap"><div className="wf-bar" style={{width:"21.5%"}}>21.5%</div></div><span className="wf-val">$107,400</span></div>
+      <div className="wf-row"><span className="wf-label">Product Development</span><div className="wf-bar-wrap"><div className="wf-bar gold" style={{width:"20%"}}>20%</div></div><span className="wf-val">$100,000</span></div>
+      <div className="wf-row"><span className="wf-label">Infrastructure Scaling</span><div className="wf-bar-wrap"><div className="wf-bar" style={{width:"10%"}}>10%</div></div><span className="wf-val">$50,000</span></div>
+      <div className="wf-row"><span className="wf-label">Operations &amp; Legal</span><div className="wf-bar-wrap"><div className="wf-bar" style={{width:"10%"}}>10%</div></div><span className="wf-val">$50,000</span></div>
+      <div className="wf-row"><span className="wf-label">Working Capital Reserve</span><div className="wf-bar-wrap"><div className="wf-bar gold" style={{width:"8.5%"}}>8.5%</div></div><span className="wf-val">$42,600</span></div>
     </div>
     <div className="callout">
       <p><strong>Profit Waterfall and Growth:</strong> Once the platform surpasses $10,100/month in revenue (approximately 15 paying organizations at $700 avg MRR), excess cash flow is distributed to shareholders per the Operating Agreement waterfall tiers.</p>
@@ -851,7 +873,7 @@ const htmlContent = `{/* NAV */}
   </div>
 </div>
 
-{/* PAGE 6 — REVENUE PROJECTIONS & GROWTH MILESTONES */}
+
 <div className="page" id="p6">
   <div className="page-header">
     <span className="doc-title">Rosie AI, LLC — Confidential Private Placement Memorandum</span>
@@ -860,7 +882,7 @@ const htmlContent = `{/* NAV */}
   <div className="page-body">
     <div className="section-label">Revenue Projections &amp; Growth Milestones</div>
     <p>Rosie AI generates revenue through two complementary streams: (1) recurring organizational subscriptions and (2) a la carte AI services credits marketplace, launching September 2026. The combined model creates both predictable MRR and high-margin usage-based upside. Milestones below reflect blended revenue from both streams.</p>
-    <div className="section-label navy-light" style="font-size:9px;padding:5px 10px;">Stream 1 · Organizational Subscriptions (Active Now)</div>
+    <div className="section-label navy-light" style={{fontSize:"9px",padding:"5px 10px"}}>Stream 1 · Organizational Subscriptions (Active Now)</div>
     <table>
       <thead>
         <tr><th>Milestone</th><th># Orgs</th><th>Avg MRR/Org</th><th>Sub. MRR</th><th>Credit MRR</th><th>Total MRR</th><th>ARR</th></tr>
@@ -872,10 +894,10 @@ const htmlContent = `{/* NAV */}
         <tr><td>Month 12 (Q2 2027)</td><td>125</td><td>$700</td><td>$87,500</td><td>$45,000</td><td>$132,500</td><td>$1.59M</td></tr>
         <tr><td>Month 18 (Dec 2027)</td><td>250</td><td>$750</td><td>$187,500</td><td>$90,000</td><td>$277,500</td><td>$3.33M</td></tr>
         <tr><td>Month 24 (Jun 2028)</td><td>750</td><td>$800</td><td>$600,000</td><td>$250,000</td><td>$850,000</td><td>$10.2M</td></tr>
-        <tr style="background:#1a2744;color:#fff;"><td><strong style="color:#D4AF37">Month 30 (Dec 2028)</strong></td><td><strong style="color:#fff">2,000</strong></td><td><strong style="color:#fff">$820</strong></td><td><strong style="color:#fff">$1,640,000</strong></td><td><strong style="color:#fff">$650,000</strong></td><td><strong style="color:#D4AF37">$2,290,000</strong></td><td><strong style="color:#D4AF37">$27.5M</strong></td></tr>
+        <tr style={{background:"#1a2744",color:"#fff"}}><td><strong style={{color:"#D4AF37"}}>Month 30 (Dec 2028)</strong></td><td><strong style={{color:"#fff"}}>2,000</strong></td><td><strong style={{color:"#fff"}}>$820</strong></td><td><strong style={{color:"#fff"}}>$1,640,000</strong></td><td><strong style={{color:"#fff"}}>$650,000</strong></td><td><strong style={{color:"#D4AF37"}}>$2,290,000</strong></td><td><strong style={{color:"#D4AF37"}}>$27.5M</strong></td></tr>
       </tbody>
     </table>
-    <div className="section-label navy-light" style="font-size:9px;padding:5px 10px;margin-top:14px;">Stream 2 · A La Carte AI Credits Marketplace (Launching September 2026)</div>
+    <div className="section-label navy-light" style={{fontSize:"9px",padding:"5px 10px",marginTop:"14px"}}>Stream 2 · A La Carte AI Credits Marketplace (Launching September 2026)</div>
     <table>
       <thead><tr><th>Credit Package</th><th>Price</th><th>Credits</th><th>Services Included</th><th>Est. Sessions</th></tr></thead>
       <tbody>
@@ -886,16 +908,16 @@ const htmlContent = `{/* NAV */}
         <tr><td>Custom</td><td>Custom</td><td>Custom</td><td>Enterprise volume pricing · negotiated per org</td><td>Unlimited</td></tr>
       </tbody>
     </table>
-    <p style="font-size:9.5px;color:var(--gray-600);">Credit consumption rates (approximate): AI Voice Agent = 50 cr/min | Predictive Dialer = 30 cr/min | Email Automation = 10 cr/email | Apify Web Scraping = 20 cr/1,000 records | Rates subject to change.</p>
+    <p style={{fontSize:"9.5px",color:"var(--gray-600)"}}>Credit consumption rates (approximate): AI Voice Agent = 50 cr/min | Predictive Dialer = 30 cr/min | Email Automation = 10 cr/email | Apify Web Scraping = 20 cr/1,000 records | Rates subject to change.</p>
     <h3>Distribution Threshold &amp; Revenue Share</h3>
     <div className="kv-grid">
       <span className="kv-key">Fixed Monthly Operating Cost</span><span className="kv-val">$10,100</span>
       <span className="kv-key">Cash-Flow Break-Even</span><span className="kv-val">~15 Organizations (~$700 avg sub MRR)</span>
-      <span className="kv-key">Class B Distributions Activate</span><span className="kv-val hl-orange">$20,000+/mo Total MRR (all streams)</span>
+      <span className="kv-key">Class B Distributions Activate</span><span className="kv-val hl-gold">$20,000+/mo Total MRR (all streams)</span>
       <span className="kv-key">Orgs Required (blended)</span><span className="kv-val">~20–25 Organizations</span>
       <span className="kv-key">Projected Distribution Start</span><span className="kv-val">Q4 2026</span>
     </div>
-    <p style="font-size:9.5px;color:var(--gray-600);margin-top:8px;">Note: Total MRR figures include both subscription and credit stream revenue. Credit revenue projections are conservative estimates based on current market benchmarks for AI usage-based SaaS platforms.</p>
+    <p style={{fontSize:"9.5px",color:"var(--gray-600)",marginTop:"8px"}}>Note: Total MRR figures include both subscription and credit stream revenue. Credit revenue projections are conservative estimates based on current market benchmarks for AI usage-based SaaS platforms.</p>
   </div>
   <div className="page-footer">
     <span className="footer-left">Rosie AI, LLC — Confidential PPM</span>
@@ -903,7 +925,7 @@ const htmlContent = `{/* NAV */}
   </div>
 </div>
 
-{/* PAGE 7 — DUAL REVENUE MODEL */}
+
 <div className="page" id="p7">
   <div className="page-header">
     <span className="doc-title">Rosie AI, LLC — Revenue Streams &amp; A La Carte Services Marketplace</span>
@@ -912,15 +934,15 @@ const htmlContent = `{/* NAV */}
   <div className="page-body">
     <div className="section-label">Dual Revenue Model: Subscriptions + A La Carte Credit Marketplace</div>
     <p>Rosie AI generates revenue through two distinct but complementary channels. The first — organizational subscriptions — provides predictable, recurring monthly revenue (MRR) from B2B clients paying a flat platform fee. The second — a la carte AI services credits — is a usage-based marketplace launching September 2026 that allows any user, subscriber or not, to purchase credit packages and consume individual AI services on demand. Together these two streams significantly increase revenue per user, lower the barrier to entry for new clients, and create a high-margin, scalable second revenue engine.</p>
-    <div className="section-label navy-light" style="font-size:9px;padding:5px 10px;margin-top:10px;">Stream 1 · Organizational Subscriptions (Active)</div>
+    <div className="section-label navy-light" style={{fontSize:"9px",padding:"5px 10px",marginTop:"10px"}}>Stream 1 · Organizational Subscriptions (Active)</div>
     <p>B2B organizations pay a monthly platform subscription fee (averaging $500–$820/month scaling with platform maturity) for full access to Rosie AI's lead intelligence engine, autonomous outreach pipelines, intent scoring, and analytics dashboard. This is the core recurring revenue base and the primary driver of MRR through 2026. At 15 paying organizations, the platform reaches cash-flow break-even on its baseline operating costs.</p>
-    <div className="section-label navy-light" style="font-size:9px;padding:5px 10px;margin-top:10px;">Stream 2 · A La Carte AI Services Credits Marketplace (Launching September 2026)</div>
+    <div className="section-label navy-light" style={{fontSize:"9px",padding:"5px 10px",marginTop:"10px"}}>Stream 2 · A La Carte AI Services Credits Marketplace (Launching September 2026)</div>
     <p>Beginning September 2026, Rosie AI will open its AI services infrastructure as a self-serve, credit-based marketplace. Users purchase credit packages in denominations of $5, $25, $50, $100, or custom enterprise volumes. Credits are consumed when using any of the following AI services on demand, with no subscription required:</p>
     <div className="callout"><p><strong>AI Voice Agents:</strong> Autonomous inbound and outbound AI voice calls powered by the v6 Engine. Handles appointment setting, lead qualification, at $0.01/min all-in cost.</p></div>
     <div className="callout navy"><p><strong>Predictive Dialer:</strong> Intelligent automated dialing system that pre-qualifies contacts before connecting a live agent or AI handler. Maximizes contact rates and reduces wasted dial time across Solar, Roofing, and other verticals.</p></div>
     <div className="callout"><p><strong>Email Automation:</strong> AI-composed, personalized email sequences triggered by real-time intent signals. Supports multi-step drip campaigns, response detection, and automatic follow-up with no human intervention.</p></div>
     <div className="callout navy"><p><strong>Apify Web Scraping:</strong> On-demand data extraction via the Company's proprietary Apify actor network. Pull municipal permit filings, social signals, job postings, and competitive intelligence at scale.</p></div>
-    <table style="margin-top:10px;">
+    <table style={{marginTop:"10px"}}>
       <thead><tr><th>Package</th><th>Price</th><th>Credits Incl.</th><th>Bonus Credits</th><th>Effective Rate</th><th>Best For</th></tr></thead>
       <tbody>
         <tr><td>Starter</td><td>$5</td><td>500</td><td>+100</td><td>$0.010/cr</td><td>Trial / light usage</td></tr>
@@ -933,7 +955,7 @@ const htmlContent = `{/* NAV */}
     <h3>Revenue Impact of the Credit Marketplace</h3>
     <p>The credit marketplace is projected to generate meaningful incremental revenue beginning Q4 2026 — even at conservative attachment rates. If just 40% of organizational subscribers purchase one $25 credit pack per month, 50 organizations generates $500/month in additional credit revenue. At 250 organizations with higher average spend, credit revenue alone is projected to reach $90,000/month by December 2027. Non-subscriber credit purchasers (walk-in users) represent additional upside not reflected in the organizational subscription projections.</p>
     <div className="callout green"><p><strong>Strategic Advantage:</strong> The credit marketplace lowers the barrier to entry for prospective clients — a $5 Starter Pack lets any business trial Rosie AI's AI services before committing to a subscription, creating a self-funding sales funnel. This flywheel effect is expected to accelerate organizational subscription conversion rates from Q4 2026 forward.</p></div>
-    <p style="font-size:9px;color:var(--gray-400);margin-top:8px;">All credit pricing, consumption rates, and service availability are subject to change at the Managing Partner's discretion. Credit packages are non-refundable once consumed.</p>
+    <p style={{fontSize:"9px",color:"var(--gray-400)",marginTop:"8px"}}>All credit pricing, consumption rates, and service availability are subject to change at the Managing Partner's discretion. Credit packages are non-refundable once consumed.</p>
   </div>
   <div className="page-footer">
     <span className="footer-left">Rosie AI, LLC — Confidential PPM</span>
@@ -941,7 +963,7 @@ const htmlContent = `{/* NAV */}
   </div>
 </div>
 
-{/* PAGE 8 — OPERATIONAL COST STRUCTURE */}
+
 <div className="page" id="p8">
   <div className="page-header">
     <span className="doc-title">Rosie AI, LLC — Operational Cost Structure &amp; Capital Deployment</span>
@@ -980,7 +1002,7 @@ const htmlContent = `{/* NAV */}
   </div>
 </div>
 
-{/* PAGE 9 — HOW TO SUBSCRIBE */}
+
 <div className="page" id="p9">
   <div className="page-header">
     <span className="doc-title">Rosie AI, LLC — Confidential Private Placement Memorandum</span>
@@ -995,9 +1017,9 @@ const htmlContent = `{/* NAV */}
     <p>You can also request a DocuSign inside the Investor Portal.</p>
     <h3>Investor Portal Access</h3>
     <p>Your subscription documents, investor questionnaire, capital contribution confirmation, and all other related documents for your subscription will reside at our Investor Portal, which grants you 24/7 access to information regarding your account.</p>
-    <div className="info-box" style="margin-top:20px;text-align:center;">
+    <div className="info-box" style={{marginTop:"20px",textAlign:"center"}}>
       <div className="info-box-title">Investor Portal URL</div>
-      <p style="font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--navy);font-weight:500;">https://investors.rosieai.tech/portal</p>
+      <p style={{fontFamily:"'JetBrains Mono',monospace",fontSize:"13px",color:"var(--navy)",fontWeight:"500"}}>https://investors.rosieai.tech/portal</p>
     </div>
   </div>
   <div className="page-footer">
@@ -1006,14 +1028,14 @@ const htmlContent = `{/* NAV */}
   </div>
 </div>
 
-{/* PAGE 10 — INTENTIONALLY BLANK */}
+
 <div className="page" id="p10">
   <div className="page-header">
     <span className="doc-title">Rosie AI, LLC — Confidential Private Placement Memorandum</span>
     <span className="page-num">Page 10</span>
   </div>
-  <div className="page-body" style="display:flex;align-items:center;justify-content:center;flex:1;">
-    <span style="font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.14em;color:var(--gray-400);text-transform:uppercase;">This Page Left Intentionally Blank</span>
+  <div className="page-body" style={{display:"flex",alignItems:"center",justifyContent:"center",flex:"1"}}>
+    <span style={{fontFamily:"'JetBrains Mono',monospace",fontSize:"10px",letterSpacing:".14em",color:"var(--gray-400)",textTransform:"uppercase"}}>This Page Left Intentionally Blank</span>
   </div>
   <div className="page-footer">
     <span className="footer-left">Rosie AI, LLC — Confidential PPM</span>
@@ -1021,7 +1043,7 @@ const htmlContent = `{/* NAV */}
   </div>
 </div>
 
-{/* PAGE 11 — INTRODUCTION */}
+
 <div className="page" id="p11">
   <div className="page-header">
     <span className="doc-title">Rosie AI, LLC — Introduction</span>
@@ -1052,7 +1074,7 @@ const htmlContent = `{/* NAV */}
   </div>
 </div>
 
-{/* PAGE 12 — UNIQUE POSITIONING */}
+
 <div className="page" id="p12">
   <div className="page-header">
     <span className="doc-title">Rosie AI, LLC — Unique Positioning</span>
@@ -1068,7 +1090,7 @@ const htmlContent = `{/* NAV */}
     <p>Rosie AI represents a non-correlated technological asset designed to deliver stable returns irrespective of broad market volatility. Unlike traditional SaaS companies with bloated domestic headcounts, Rosie AI utilizes a high-leverage offshore engineering model that maintains a lean burn rate while delivering enterprise-grade output. This operational efficiency creates a "technical alpha" where the platform's performance is driven by proprietary pipeline intelligence (such as the Permit Data Pipeline) rather than fluctuating market sentiment or ad-spend cycles.</p>
     <h3>Operational Resilience &amp; Scalability</h3>
     <p>The Company limits exposure and manages risk by deploying its AI orchestration across diverse verticals, including Solar, Roofing, and SaaS. By utilizing "self-healing" infrastructure and multi-model AI routing, Rosie AI ensures that its autonomous revenue engine remains operational and effective even as individual platform policies or data sources evolve. This positioning allows for a scalable, multi-tenant subscription model that provides predictable recurring revenue and significant asset appreciation for the investor class.</p>
-    <div className="stat-row" style="margin-top:20px;">
+    <div className="stat-row" style={{marginTop:"20px"}}>
       <div className="stat-card"><span className="stat-val">91%+</span><span className="stat-label">AI Scoring Accuracy</span></div>
       <div className="stat-card"><span className="stat-val">92%</span><span className="stat-label">Cost Saving vs. US Firms</span></div>
       <div className="stat-card"><span className="stat-val">$300B+</span><span className="stat-label">Total Addressable Market</span></div>
@@ -1080,7 +1102,7 @@ const htmlContent = `{/* NAV */}
   </div>
 </div>
 
-{/* PAGE 13 — OPERATIONAL RESILIENCE (CONT.) */}
+
 <div className="page" id="p13">
   <div className="page-header">
     <span className="doc-title">Rosie AI, LLC — Unique Positioning (Continued)</span>
@@ -1096,7 +1118,7 @@ const htmlContent = `{/* NAV */}
   </div>
 </div>
 
-{/* PAGE 14 — LEADERSHIP & SYSTEM ARCHITECTS */}
+
 <div className="page" id="p14">
   <div className="page-header">
     <span className="doc-title">Rosie AI, LLC — Leadership and System Architects</span>
@@ -1111,7 +1133,7 @@ const htmlContent = `{/* NAV */}
       <li>The Engineering Unit (PH) · Integrated Execution Layer (Backend, Frontend, and Integrations).</li>
     </ul>
     <h3>Core Leadership</h3>
-    <div className="callout" style="margin-bottom:12px;">
+    <div className="callout" style={{marginBottom:"12px"}}>
       <p><strong>Stephani Scheidt | Managing Partner</strong><br />Stephani leads the Company's B2B revenue engine and strategic growth initiatives. With a focus on high-intent prospecting and SaaS recurring revenue optimization, she orchestrates the full-cycle sales engine — from initial lead discovery via the Rosie AI platform to closing high-value enterprise contracts. Her expertise lies in cultivating strategic alliances and managing high-performance external teams to scale market penetration without increasing fixed overhead.</p>
     </div>
     <div className="callout navy">
@@ -1131,7 +1153,7 @@ const htmlContent = `{/* NAV */}
   </div>
 </div>
 
-{/* PAGE 15 — LEADERSHIP CONT. */}
+
 <div className="page" id="p15">
   <div className="page-header">
     <span className="doc-title">Rosie AI, LLC — Leadership and System Architects (Cont.)</span>
@@ -1148,7 +1170,7 @@ const htmlContent = `{/* NAV */}
   </div>
 </div>
 
-{/* PAGE 16 — ORGANIZATIONAL CHART */}
+
 <div className="page" id="p16">
   <div className="page-header">
     <span className="doc-title">Rosie AI, LLC — Organizational Chart</span>
@@ -1157,48 +1179,48 @@ const htmlContent = `{/* NAV */}
   <div className="page-body">
     <div className="section-label">Rosie AI, LLC · Organizational Chart</div>
     <p>This organizational structure is designed for Extreme Capital Efficiency, bridging strategic U.S. leadership with a specialized technical execution layer in the Philippines.</p>
-    {/* Org Chart */}
-    <div style="display:flex;flex-direction:column;align-items:center;gap:0;margin:18px 0;">
-      <div style="background:var(--navy);color:#fff;border-radius:2px;padding:10px 24px;text-align:center;min-width:180px;">
-        <strong style="color:var(--gold);display:block;font-size:11px;">Stephani Scheidt</strong>
-        <span style="font-family:'JetBrains Mono',monospace;font-size:8px;color:rgba(255,255,255,.6);">Managing Partner</span>
+    
+    <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:"0",margin:"18px 0"}}>
+      <div style={{background:"var(--navy)",color:"#fff",borderRadius:"2px",padding:"10px 24px",textAlign:"center",minWidth:"180px"}}>
+        <strong style={{color:"var(--gold)",display:"block",fontSize:"11px"}}>Stephani Scheidt</strong>
+        <span style={{fontFamily:"'JetBrains Mono',monospace",fontSize:"8px",color:"rgba(255,255,255,.6)"}}>Managing Partner</span>
       </div>
-      <div style="width:1px;height:20px;background:var(--navy);"></div>
-      <div style="background:var(--navy-light);color:#fff;border-radius:2px;padding:10px 24px;text-align:center;min-width:180px;">
-        <strong style="display:block;font-size:11px;">Chief Technology Engineer</strong>
+      <div style={{width:"1px",height:"20px",background:"var(--navy)"}}></div>
+      <div style={{background:"var(--navy-light)",color:"#fff",borderRadius:"2px",padding:"10px 24px",textAlign:"center",minWidth:"180px"}}>
+        <strong style={{display:"block",fontSize:"11px"}}>Chief Technology Engineer</strong>
       </div>
-      <div style="width:1px;height:20px;background:var(--navy);"></div>
-      {/* horizontal connector */}
-      <div style="display:flex;gap:0;position:relative;width:100%;justify-content:center;">
-        <div style="position:absolute;top:0;left:50%;transform:translateX(-50%);width:60%;height:1px;background:var(--navy);"></div>
+      <div style={{width:"1px",height:"20px",background:"var(--navy)"}}></div>
+      
+      <div style={{display:"flex",gap:"0",position:"relative",width:"100%",justifyContent:"center"}}>
+        <div style={{position:"absolute",top:"0",left:"50%",transform:"translateX(-50%)",width:"60%",height:"1px",background:"var(--navy)"}}></div>
       </div>
-      <div style="display:flex;gap:14px;margin-top:1px;">
-        <div style="border:1.5px solid var(--navy);border-radius:2px;padding:8px 12px;text-align:center;min-width:140px;">
-          <strong style="display:block;font-size:10px;color:var(--navy);">Backend Engineer</strong>
-          <span style="font-family:'JetBrains Mono',monospace;font-size:7.5px;color:var(--gray-400);">Deno / TS / Supabase</span>
+      <div style={{display:"flex",gap:"14px",marginTop:"1px"}}>
+        <div style={{border:"1.5px solid var(--navy)",borderRadius:"2px",padding:"8px 12px",textAlign:"center",minWidth:"140px"}}>
+          <strong style={{display:"block",fontSize:"10px",color:"var(--navy)"}}>Backend Engineer</strong>
+          <span style={{fontFamily:"'JetBrains Mono',monospace",fontSize:"7.5px",color:"var(--gray-400)"}}>Deno / TS / Supabase</span>
         </div>
-        <div style="border:1.5px solid var(--navy);border-radius:2px;padding:8px 12px;text-align:center;min-width:140px;">
-          <strong style="display:block;font-size:10px;color:var(--navy);">Frontend Engineer</strong>
-          <span style="font-family:'JetBrains Mono',monospace;font-size:7.5px;color:var(--gray-400);">React 18 / Tailwind</span>
+        <div style={{border:"1.5px solid var(--navy)",borderRadius:"2px",padding:"8px 12px",textAlign:"center",minWidth:"140px"}}>
+          <strong style={{display:"block",fontSize:"10px",color:"var(--navy)"}}>Frontend Engineer</strong>
+          <span style={{fontFamily:"'JetBrains Mono',monospace",fontSize:"7.5px",color:"var(--gray-400)"}}>React 18 / Tailwind</span>
         </div>
-        <div style="border:1.5px solid var(--navy);border-radius:2px;padding:8px 12px;text-align:center;min-width:140px;">
-          <strong style="display:block;font-size:10px;color:var(--navy);">Integrations Engineer</strong>
-          <span style="font-family:'JetBrains Mono',monospace;font-size:7.5px;color:var(--gray-400);">Apify / APIs / Webhooks</span>
+        <div style={{border:"1.5px solid var(--navy)",borderRadius:"2px",padding:"8px 12px",textAlign:"center",minWidth:"140px"}}>
+          <strong style={{display:"block",fontSize:"10px",color:"var(--navy)"}}>Integrations Engineer</strong>
+          <span style={{fontFamily:"'JetBrains Mono',monospace",fontSize:"7.5px",color:"var(--gray-400)"}}>Apify / APIs / Webhooks</span>
         </div>
       </div>
-      <div style="width:1px;height:20px;background:var(--navy);"></div>
-      <div style="display:flex;gap:14px;">
-        <div style="background:var(--gray-100);border:1px solid var(--gray-200);border-radius:2px;padding:8px 12px;text-align:center;min-width:140px;">
-          <strong style="display:block;font-size:10px;color:var(--navy);">Base44</strong>
-          <span style="font-family:'JetBrains Mono',monospace;font-size:7.5px;color:var(--gray-400);">Investor Portal</span>
+      <div style={{width:"1px",height:"20px",background:"var(--navy)"}}></div>
+      <div style={{display:"flex",gap:"14px"}}>
+        <div style={{background:"var(--gray-100)",border:"1px solid var(--gray-200)",borderRadius:"2px",padding:"8px 12px",textAlign:"center",minWidth:"140px"}}>
+          <strong style={{display:"block",fontSize:"10px",color:"var(--navy)"}}>Base44</strong>
+          <span style={{fontFamily:"'JetBrains Mono',monospace",fontSize:"7.5px",color:"var(--gray-400)"}}>Investor Portal</span>
         </div>
-        <div style="background:var(--gray-100);border:1px solid var(--gray-200);border-radius:2px;padding:8px 12px;text-align:center;min-width:140px;">
-          <strong style="display:block;font-size:10px;color:var(--navy);">OpenAI</strong>
-          <span style="font-family:'JetBrains Mono',monospace;font-size:7.5px;color:var(--gray-400);">AI Orchestration</span>
+        <div style={{background:"var(--gray-100)",border:"1px solid var(--gray-200)",borderRadius:"2px",padding:"8px 12px",textAlign:"center",minWidth:"140px"}}>
+          <strong style={{display:"block",fontSize:"10px",color:"var(--navy)"}}>OpenAI</strong>
+          <span style={{fontFamily:"'JetBrains Mono',monospace",fontSize:"7.5px",color:"var(--gray-400)"}}>AI Orchestration</span>
         </div>
-        <div style="background:var(--gray-100);border:1px solid var(--gray-200);border-radius:2px;padding:8px 12px;text-align:center;min-width:140px;">
-          <strong style="display:block;font-size:10px;color:var(--navy);">ChainWave Studios</strong>
-          <span style="font-family:'JetBrains Mono',monospace;font-size:7.5px;color:var(--gray-400);">Automation &amp; Brand</span>
+        <div style={{background:"var(--gray-100)",border:"1px solid var(--gray-200)",borderRadius:"2px",padding:"8px 12px",textAlign:"center",minWidth:"140px"}}>
+          <strong style={{display:"block",fontSize:"10px",color:"var(--navy)"}}>ChainWave Studios</strong>
+          <span style={{fontFamily:"'JetBrains Mono',monospace",fontSize:"7.5px",color:"var(--gray-400)"}}>Automation &amp; Brand</span>
         </div>
       </div>
     </div>
@@ -1227,7 +1249,7 @@ const htmlContent = `{/* NAV */}
   </div>
 </div>
 
-{/* PAGE 17 — CAPITALIZATION AND MANAGEMENT */}
+
 <div className="page" id="p17">
   <div className="page-header">
     <span className="doc-title">Rosie AI, LLC — Capitalization and Management</span>
@@ -1244,17 +1266,17 @@ const htmlContent = `{/* NAV */}
     </div>
     <div className="donut-wrap">
       <svg className="donut" width="110" height="110" viewBox="0 0 110 110">
-        <circle cx="55" cy="55" r="40" fill="none" stroke="#e8e6e0" stroke-width="20"/>
-        <circle cx="55" cy="55" r="40" fill="none" stroke="#1a2744" stroke-width="20"
-          stroke-dasharray="199.8 51.5" stroke-dashoffset="0" transform="rotate(-90 55 55)"/>
-        <circle cx="55" cy="55" r="40" fill="none" stroke="#D4AF37" stroke-width="20"
-          stroke-dasharray="51.5 199.8" stroke-dashoffset="-199.8" transform="rotate(-90 55 55)"/>
-        <text x="55" y="50" text-anchor="middle" font-size="11" font-family="'Playfair Display',serif" font-weight="700" fill="#1a2744">78.5%</text>
-        <text x="55" y="63" text-anchor="middle" font-size="7" font-family="'JetBrains Mono',monospace" fill="#666">Class A</text>
+        <circle cx="55" cy="55" r="40" fill="none" stroke="#e8e6e0" strokeWidth="20"/>
+        <circle cx="55" cy="55" r="40" fill="none" stroke="#1a2744" strokeWidth="20"
+          strokeDasharray="199.8 51.5" strokeDashoffset="0" transform="rotate(-90 55 55)"/>
+        <circle cx="55" cy="55" r="40" fill="none" stroke="#D4AF37" strokeWidth="20"
+          strokeDasharray="51.5 199.8" strokeDashoffset="-199.8" transform="rotate(-90 55 55)"/>
+        <text x="55" y="50" textAnchor="middle" fontSize="11" fontFamily="'Playfair Display',serif" fontWeight="700" fill="#1a2744">78.5%</text>
+        <text x="55" y="63" textAnchor="middle" fontSize="7" fontFamily="'JetBrains Mono',monospace" fill="#666">Class A</text>
       </svg>
       <div className="chart-legend">
-        <div className="legend-item"><div className="legend-dot" style="background:var(--navy)"></div><span>Class A Units — 7,850,000 (78.5%) — Founders &amp; Management</span></div>
-        <div className="legend-item"><div className="legend-dot" style="background:var(--gold)"></div><span>Class B Units — 2,150,000 (21.5%) — Investors (this Offering)</span></div>
+        <div className="legend-item"><div className="legend-dot" style={{background:"var(--navy)"}}></div><span>Class A Units — 7,850,000 (78.5%) — Founders &amp; Management</span></div>
+        <div className="legend-item"><div className="legend-dot" style={{background:"var(--gold)"}}></div><span>Class B Units — 2,150,000 (21.5%) — Investors (this Offering)</span></div>
       </div>
     </div>
     <h3>Management &amp; Governance</h3>
@@ -1272,7 +1294,7 @@ const htmlContent = `{/* NAV */}
   </div>
 </div>
 
-{/* PAGE 18 — FIDUCIARY RESPONSIBILITIES */}
+
 <div className="page" id="p18">
   <div className="page-header">
     <span className="doc-title">Rosie AI, LLC — Fiduciary Responsibilities</span>
@@ -1302,14 +1324,14 @@ const htmlContent = `{/* NAV */}
   </div>
 </div>
 
-{/* PAGE 19 — INTENTIONALLY BLANK */}
+
 <div className="page" id="p19">
   <div className="page-header"><span className="doc-title">Rosie AI, LLC — Confidential Private Placement Memorandum</span><span className="page-num">Page 19</span></div>
-  <div className="page-body" style="display:flex;align-items:center;justify-content:center;flex:1;"><span style="font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.14em;color:var(--gray-400);text-transform:uppercase;">This Page Left Intentionally Blank</span></div>
+  <div className="page-body" style={{display:"flex",alignItems:"center",justifyContent:"center",flex:"1"}}><span style={{fontFamily:"'JetBrains Mono',monospace",fontSize:"10px",letterSpacing:".14em",color:"var(--gray-400)",textTransform:"uppercase"}}>This Page Left Intentionally Blank</span></div>
   <div className="page-footer"><span className="footer-left">Rosie AI, LLC — Confidential PPM</span><span className="footer-right">Page 19</span></div>
 </div>
 
-{/* PAGE 20 — RISK MANAGEMENT & EXIT STRATEGY */}
+
 <div className="page" id="p20">
   <div className="page-header"><span className="doc-title">Rosie AI, LLC — Investment Risk Management &amp; Exit Strategy</span><span className="page-num">Page 20</span></div>
   <div className="page-body">
@@ -1350,7 +1372,7 @@ const htmlContent = `{/* NAV */}
   <div className="page-footer"><span className="footer-left">Rosie AI, LLC — Confidential PPM</span><span className="footer-right">Page 20</span></div>
 </div>
 
-{/* PAGE 21 — TERMS OF THE OFFERING */}
+
 <div className="page" id="p21">
   <div className="page-header"><span className="doc-title">Rosie AI, LLC — Terms of the Offering</span><span className="page-num">Page 21</span></div>
   <div className="page-body">
@@ -1365,7 +1387,7 @@ const htmlContent = `{/* NAV */}
   <div className="page-footer"><span className="footer-left">Rosie AI, LLC — Confidential PPM</span><span className="footer-right">Page 21</span></div>
 </div>
 
-{/* PAGE 22 — CLASS B UNIT OFFERING STRUCTURE & BONUS ROUND */}
+
 <div className="page" id="p22">
   <div className="page-header"><span className="doc-title">Rosie AI, LLC — Class B Unit Offering Structure &amp; Bonus Round</span><span className="page-num">Page 22</span></div>
   <div className="page-body">
@@ -1374,23 +1396,23 @@ const htmlContent = `{/* NAV */}
     <div className="twin-boxes">
       <div className="twin-box">
         <span className="twin-box-title">Paid Class B Units</span>
-        <div className="kv-grid" style="grid-template-columns:auto 1fr;gap:3px 10px;">
-          <span className="kv-key" style="font-size:9px;">Units Offered</span><span className="kv-val" style="font-size:10.5px;">2,000,000</span>
-          <span className="kv-key" style="font-size:9px;">Price Per Unit</span><span className="kv-val" style="font-size:10.5px;">$0.25 / unit</span>
-          <span className="kv-key" style="font-size:9px;">Total Raise</span><span className="kv-val" style="font-size:10.5px;color:var(--gold);font-weight:600;">$500,000 USD</span>
-          <span className="kv-key" style="font-size:9px;">Ownership</span><span className="kv-val" style="font-size:10.5px;">21.5% (all Class B)</span>
-          <span className="kv-key" style="font-size:9px;">Min Investment</span><span className="kv-val" style="font-size:10.5px;">$15,000</span>
-          <span className="kv-key" style="font-size:9px;">Votes</span><span className="kv-val" style="font-size:10.5px;">None</span>
+        <div className="kv-grid" style={{gridTemplateColumns:"auto 1fr",gap:"3px 10px"}}>
+          <span className="kv-key" style={{fontSize:"9px"}}>Units Offered</span><span className="kv-val" style={{fontSize:"10.5px"}}>2,000,000</span>
+          <span className="kv-key" style={{fontSize:"9px"}}>Price Per Unit</span><span className="kv-val" style={{fontSize:"10.5px"}}>$0.25 / unit</span>
+          <span className="kv-key" style={{fontSize:"9px"}}>Total Raise</span><span className="kv-val" style={{fontSize:"10.5px",color:"var(--gold)",fontWeight:"600"}}>$500,000 USD</span>
+          <span className="kv-key" style={{fontSize:"9px"}}>Ownership</span><span className="kv-val" style={{fontSize:"10.5px"}}>21.5% (all Class B)</span>
+          <span className="kv-key" style={{fontSize:"9px"}}>Min Investment</span><span className="kv-val" style={{fontSize:"10.5px"}}>$15,000</span>
+          <span className="kv-key" style={{fontSize:"9px"}}>Votes</span><span className="kv-val" style={{fontSize:"10.5px"}}>None</span>
         </div>
       </div>
       <div className="twin-box">
         <span className="twin-box-title">Bonus Round Units</span>
-        <div className="kv-grid" style="grid-template-columns:auto 1fr;gap:3px 10px;">
-          <span className="kv-key" style="font-size:9px;">Bonus Pool</span><span className="kv-val" style="font-size:10.5px;">150,000 units</span>
-          <span className="kv-key" style="font-size:9px;">Triggers</span><span className="kv-val" style="font-size:10.5px;">First $150,000 raised</span>
-          <span className="kv-key" style="font-size:9px;">Rate</span><span className="kv-val" style="font-size:10.5px;">1,000 bonus units per $1,000 invested</span>
-          <span className="kv-key" style="font-size:9px;">Cost Basis</span><span className="kv-val" style="font-size:10.5px;">$0 additional cost</span>
-          <span className="kv-key" style="font-size:9px;">Effect</span><span className="kv-val" style="font-size:10.5px;">Lowers investor's avg cost per unit</span>
+        <div className="kv-grid" style={{gridTemplateColumns:"auto 1fr",gap:"3px 10px"}}>
+          <span className="kv-key" style={{fontSize:"9px"}}>Bonus Pool</span><span className="kv-val" style={{fontSize:"10.5px"}}>150,000 units</span>
+          <span className="kv-key" style={{fontSize:"9px"}}>Triggers</span><span className="kv-val" style={{fontSize:"10.5px"}}>First $150,000 raised</span>
+          <span className="kv-key" style={{fontSize:"9px"}}>Rate</span><span className="kv-val" style={{fontSize:"10.5px"}}>1,000 bonus units per $1,000 invested</span>
+          <span className="kv-key" style={{fontSize:"9px"}}>Cost Basis</span><span className="kv-val" style={{fontSize:"10.5px"}}>$0 additional cost</span>
+          <span className="kv-key" style={{fontSize:"9px"}}>Effect</span><span className="kv-val" style={{fontSize:"10.5px"}}>Lowers investor's avg cost per unit</span>
         </div>
       </div>
     </div>
@@ -1405,17 +1427,17 @@ const htmlContent = `{/* NAV */}
         <tr><td>$25,000</td><td>100,000</td><td>25,000</td><td>125,000</td><td>$0.200</td><td>1.25%</td></tr>
         <tr><td>$50,000</td><td>200,000</td><td>50,000</td><td>250,000</td><td>$0.200</td><td>2.50%</td></tr>
         <tr><td>$100,000</td><td>400,000</td><td>100,000</td><td>500,000</td><td>$0.200</td><td>5.00%</td></tr>
-        <tr style="background:#1a2744;color:#fff;"><td><strong style="color:#D4AF37">$150,000</strong></td><td><strong style="color:#fff">600,000</strong></td><td><strong style="color:#fff">150,000</strong></td><td><strong style="color:#D4AF37">750,000</strong></td><td><strong style="color:#fff">$0.200</strong></td><td><strong style="color:#D4AF37">7.50%</strong></td></tr>
+        <tr style={{background:"#1a2744",color:"#fff"}}><td><strong style={{color:"#D4AF37"}}>$150,000</strong></td><td><strong style={{color:"#fff"}}>600,000</strong></td><td><strong style={{color:"#fff"}}>150,000</strong></td><td><strong style={{color:"#D4AF37"}}>750,000</strong></td><td><strong style={{color:"#fff"}}>$0.200</strong></td><td><strong style={{color:"#D4AF37"}}>7.50%</strong></td></tr>
       </tbody>
     </table>
-    <p style="font-size:9px;color:var(--gray-400);">Note: Bonus Round closes automatically once aggregate Bonus Round subscriptions reach $150,000. Subscriptions received after the Bonus Round Cap are processed at standard terms: $0.25/unit, no bonus units.</p>
+    <p style={{fontSize:"9px",color:"var(--gray-400)"}}>Note: Bonus Round closes automatically once aggregate Bonus Round subscriptions reach $150,000. Subscriptions received after the Bonus Round Cap are processed at standard terms: $0.25/unit, no bonus units.</p>
     <h3>Standard Round (After Bonus Round Closes)</h3>
     <p>After the first $150,000 is raised and the Bonus Round closes, the remaining $350,000 of the Offering is sold at standard terms: $0.25 per Class B Unit, with no bonus units. Investors in the standard round receive units only on a paid basis. The $0.25/unit price and 21.5% total Class B ownership stake remain unchanged throughout the Offering.</p>
   </div>
   <div className="page-footer"><span className="footer-left">Rosie AI, LLC — Confidential PPM</span><span className="footer-right">Page 22</span></div>
 </div>
 
-{/* PAGE 23 — SUBSCRIBING TO THE OFFERING */}
+
 <div className="page" id="p23">
   <div className="page-header"><span className="doc-title">Rosie AI, LLC — Subscribing to the Offering</span><span className="page-num">Page 23</span></div>
   <div className="page-body">
@@ -1426,7 +1448,7 @@ const htmlContent = `{/* NAV */}
   <div className="page-footer"><span className="footer-left">Rosie AI, LLC — Confidential PPM</span><span className="footer-right">Page 23</span></div>
 </div>
 
-{/* PAGE 24 — PLAN OF DISTRIBUTION / WHO MAY INVEST */}
+
 <div className="page" id="p24">
   <div className="page-header"><span className="doc-title">Rosie AI, LLC — Plan of Distribution</span><span className="page-num">Page 24</span></div>
   <div className="page-body">
@@ -1439,7 +1461,7 @@ const htmlContent = `{/* NAV */}
       <li><strong>Third-Party Confirmation:</strong> Obtaining written confirmation from a registered broker-dealer, an SEC-registered investment advisor, a licensed attorney, or a CPA that such person or entity has taken reasonable steps to verify that the purchaser is an accredited investor.</li>
     </ul>
     <p>Not withstanding anything to the contrary, the Company shall not sell securities to Investors that do not qualify for the exemption from registration as an Investment Company under the Investment Company Act of 1940. Section 3(c)(1) of the Act excludes from being an investment company any issuer whose outstanding securities are beneficially owned by not more than 100 persons. Subscribers shall execute subscription documents via the Rosie AI Investor Portal in which they represent that the purchase of Units is being made for investment purposes with no intent to resell.</p>
-    <div className="section-label navy-light" style="margin-top:14px;">Who May Invest?</div>
+    <div className="section-label navy-light" style={{marginTop:"14px"}}>Who May Invest?</div>
     <p>An investment in our Class B Units involves a high degree of risk and is suitable only for persons of substantial financial means who have no need for liquidity in their investment. These Units are only suitable for those who desire a relatively long-term investment for which they do not need liquidity until the realization of the anticipated technical and market milestones set forth in this Memorandum.</p>
     <p>Our offering will be conducted in reliance upon exemptions for transactions not involving a public offering. A subscriber must meet the following investor suitability standards to purchase Units:</p>
     <ul className="dot-list">
@@ -1453,7 +1475,7 @@ const htmlContent = `{/* NAV */}
   <div className="page-footer"><span className="footer-left">Rosie AI, LLC — Confidential PPM</span><span className="footer-right">Page 24</span></div>
 </div>
 
-{/* PAGE 25 — USE OF INVESTOR PROCEEDS */}
+
 <div className="page" id="p25">
   <div className="page-header"><span className="doc-title">Rosie AI, LLC — Use of Investor Proceeds</span><span className="page-num">Page 25</span></div>
   <div className="page-body">
@@ -1474,7 +1496,7 @@ const htmlContent = `{/* NAV */}
       </tbody>
       <tfoot><tr><td>Total</td><td>$500,000</td><td>100%</td><td>Projected 21.5% Equity Stake</td></tr></tfoot>
     </table>
-    <p style="font-size:9.5px;color:var(--gray-600);"><strong>Allocation Notes:</strong> The $107,400 allocation for 1st Year Personnel Costs reflects the Company's commitment to maintaining its core U.S.-based leadership team (Managing Partner and Chief Technology Engineer) and specialized offshore engineering unit during the critical enterprise migration phase. Customer Acquisition has been adjusted to $150,000 (30%) and Infrastructure Scaling to $50,000 (10%) to accommodate these personnel costs while preserving the Company's ability to drive B2B market penetration and system hardening.</p>
+    <p style={{fontSize:"9.5px",color:"var(--gray-600)"}}><strong>Allocation Notes:</strong> The $107,400 allocation for 1st Year Personnel Costs reflects the Company's commitment to maintaining its core U.S.-based leadership team (Managing Partner and Chief Technology Engineer) and specialized offshore engineering unit during the critical enterprise migration phase. Customer Acquisition has been adjusted to $150,000 (30%) and Infrastructure Scaling to $50,000 (10%) to accommodate these personnel costs while preserving the Company's ability to drive B2B market penetration and system hardening.</p>
     <h3>Detailed Allocation Descriptions</h3>
     <p><strong>Customer Acquisition (Go-To-Market Strategy): 30%</strong><br />These funds are dedicated to scaling the Company's B2B sales engine. This includes expanding the autonomous outreach pipelines within high-alpha verticals such as Solar, Roofing, and SaaS. Funds will be used to optimize conversion funnels, attend industry-specific trade events, and drive market penetration through the Managing Partner's strategic channel alliances.</p>
     <p><strong>Product Development (Enterprise Migration): 20%</strong><br />A critical portion of the proceeds will fund the final migration of the Rosie AI platform to an enterprise-ready architecture. This includes the development of multi-tenant isolation protocols, enhanced Row-Level Security (RLS) via Supabase, and the hardening of the 150+ backend functions to support thousands of concurrent organizations with 99.99% uptime.</p>
@@ -1484,7 +1506,7 @@ const htmlContent = `{/* NAV */}
   <div className="page-footer"><span className="footer-left">Rosie AI, LLC — Confidential PPM</span><span className="footer-right">Page 25</span></div>
 </div>
 
-{/* PAGE 26 — SUMMARY OF OPERATING AGREEMENT */}
+
 <div className="page" id="p26">
   <div className="page-header"><span className="doc-title">Rosie AI, LLC — Summary of Operating Agreement</span><span className="page-num">Page 26</span></div>
   <div className="page-body">
@@ -1496,7 +1518,7 @@ const htmlContent = `{/* NAV */}
     <div className="notice-block">
       <p className="legal-caps">THE SECURITIES REPRESENTED BY THIS CERTIFICATE MAY NOT BE SOLD, OFFERED FOR SALE, OR TRANSFERRED IN THE ABSENCE OF AN EFFECTIVE REGISTRATION UNDER THE SECURITIES ACT OF 1933, AS AMENDED, AND UNDER APPLICABLE STATE SECURITIES LAWS, OR AN OPINION OF COUNSEL SATISFACTORY TO Rosie AI LLC &amp; THAT SUCH TRANSACTION IS EXEMPT FROM REGISTRATION UNDER THE SECURITIES ACT OF 1933, AS AMENDED, AND UNDER APPLICABLE STATE SECURITIES LAWS.</p>
     </div>
-    <div className="section-label" style="margin-top:18px;">Summary of Operating Agreement</div>
+    <div className="section-label" style={{marginTop:"18px"}}>Summary of Operating Agreement</div>
     <p>The following is a summary of our Operating Agreement and is qualified in its entirety by the terms of the Operating Agreement itself. You are urged to read our entire Operating Agreement, a copy of which is available for review within the Rosie AI Investor Portal. By participating in the Offering and executing the subscription documents, the Investor shall become a Member of the Company and shall be bound by the terms and conditions set forth in the Operating Agreement of Rosie AI LLC.</p>
     <h3>Summary of Operating Agreement</h3>
     <p>The Operating Agreement governs the internal affairs of the Company, including the rights of Class A and Class B Members, the management authority of the Managing Partner, and the specific mechanics of the Profit Waterfall Distribution. Investors are encouraged to consult with their own legal counsel prior to committing capital to ensure a full understanding of their obligations and rights as a Member of Rosie AI LLC.</p>
@@ -1505,7 +1527,7 @@ const htmlContent = `{/* NAV */}
   <div className="page-footer"><span className="footer-left">Rosie AI, LLC — Confidential PPM</span><span className="footer-right">Page 26</span></div>
 </div>
 
-{/* PAGE 27 — CAPITALIZATION: BUSINESS PURPOSE */}
+
 <div className="page" id="p27">
   <div className="page-header"><span className="doc-title">Rosie AI, LLC — Capitalization: Business Purpose</span><span className="page-num">Page 27</span></div>
   <div className="page-body">
@@ -1524,16 +1546,16 @@ const htmlContent = `{/* NAV */}
   <div className="page-footer"><span className="footer-left">Rosie AI, LLC — Confidential PPM</span><span className="footer-right">Page 27</span></div>
 </div>
 
-{/* PAGE 28 — RIGHTS AND LIABILITIES / CAPITAL CONTRIBUTIONS */}
+
 <div className="page" id="p28">
   <div className="page-header"><span className="doc-title">Rosie AI, LLC — Rights, Liabilities &amp; Capital Contributions</span><span className="page-num">Page 28</span></div>
   <div className="page-body">
     <div className="section-label">Rights and Liabilities of Investors</div>
     <p>Only the Class A Units carry voting rights. The rights, duties, and powers of Investors (Class B Members) are governed by the Operating Agreement of and by the Wyoming Limited Liability Company Act. The discussion herein is qualified in its entirety by reference to said Operating Agreement and the Act.</p>
     <p>Persons who become Investors in the manner set forth in this Memorandum will not be responsible for the Company's obligations and will be liable only to the extent of their agreed-upon capital contributions. Investors may be liable for any return of capital plus interest if necessary to discharge liabilities existing at the time of such return. Any cash distributed to Investors through the Profit Waterfall may constitute, wholly or in part, a return of capital until the initial investment is recouped.</p>
-    <div className="section-label" style="margin-top:18px;">Capital Contributions</div>
+    <div className="section-label" style={{marginTop:"18px"}}>Capital Contributions</div>
     <p>The Company is seeking a total capital infusion of USD $500,000 through the Rosie AI Investor Portal (<strong>https://investors.rosieai.tech/portal</strong>) to ensure proper AML/KYC verification and accreditation documentation.</p>
-    <div className="section-label" style="margin-top:18px;">Rights, Powers, and Duties of Management</div>
+    <div className="section-label" style={{marginTop:"18px"}}>Rights, Powers, and Duties of Management</div>
     <p>Subject to the rights of the Class A Unit holders to vote on specified matters, the Managing Partner and the Chief Technology Engineer will have complete charge of the Company's business. Management is not required to devote full time to the Company's affairs but shall devote such time as is required for the effective conduct of the business, including the migration to enterprise-ready systems and the oversight of the global engineering unit.</p>
     <p>In addition, the Managing Partner is granted a special power of attorney from each Investor for the purpose of executing documents that the Investors have expressly agreed to execute and deliver or that are required to be filed under applicable Wyoming law. Management may also, at its sole discretion, retain specialized vendors — including the Philippine-based engineering unit, legal counsel, and accounting professional administer the platform, scale discovery pipelines, and adjudicate technical audits on behalf of the Company.</p>
     <p>The Managing Partner is elected by those Members holding a majority of the Class A Units. Management shall remain in place until resignation, dissolution, or replacement by a vote of the Class A Members. In the event of the resignation or removal of a Managing Partner, a successor shall be selected by a vote of the Class A Members at their sole discretion.</p>
@@ -1541,26 +1563,26 @@ const htmlContent = `{/* NAV */}
   <div className="page-footer"><span className="footer-left">Rosie AI, LLC — Confidential PPM</span><span className="footer-right">Page 28</span></div>
 </div>
 
-{/* PAGE 29 — ALLOCATION / MEETINGS / ACCOUNTING / AMENDMENTS */}
+
 <div className="page" id="p29">
   <div className="page-header"><span className="doc-title">Rosie AI, LLC — Allocation, Distributions &amp; Governance</span><span className="page-num">Page 29</span></div>
   <div className="page-body">
     <div className="section-label">Allocation and Distributions</div>
     <p>The Company's net profits and distributions shall be allocated and distributed to the Class B Members in proportion to their ownership of Units. Economic participation is structured as an eventual waterfall split on net profits. <strong>Distributions to Class B holders activate once monthly platform revenue exceeds $20,000/month</strong> (approximately 28–30 paying organizations at $700 avg MRR). This threshold is projected to be reached in Q4 2026.</p>
     <p>Excess cash flow beyond the designated Class B distributions shall be allocated to the Class A Members to be utilized at their discretion — including reinvestment into technical R&amp;D, infrastructure hardening of the 150+ backend functions, or retention as a capital reserve.</p>
-    <div className="section-label" style="margin-top:14px;">Meetings</div>
+    <div className="section-label" style={{marginTop:"14px"}}>Meetings</div>
     <p>The Company does not plan to hold regular meetings of the Members. Special meetings (telephonic or digital) may be convened at any time at the request of the Managing Partner or by the holders of more than 50% of either the Class A or Class B Units. Any such request must state the specific purpose of the meeting and the technical or operational matters proposed for review. Notices regarding the time and access details for special meetings will be distributed to Members via the Rosie AI Investor Portal.</p>
-    <div className="section-label" style="margin-top:14px;">Accounting and Reports</div>
+    <div className="section-label" style={{marginTop:"14px"}}>Accounting and Reports</div>
     <p>The Managing Partner shall cause to be prepared an annual report detailing the Company's operations, technical milestones, and financial performance. This report will be furnished to Members via the Investor Portal within 75 days of the close of the fiscal year. Additionally, Members will be provided with all information reasonably necessary to complete their individual tax returns (such as Schedule K-1s) within 75 days after the end of the calendar year.</p>
-    <div className="section-label" style="margin-top:14px;">Amendment of the Operating Agreement</div>
+    <div className="section-label" style={{marginTop:"14px"}}>Amendment of the Operating Agreement</div>
     <p>The Operating Agreement of Rosie AI, LLC may be amended only by a vote of the Class A Members holding more than 50% of the outstanding Class A Units. However, no amendment may increase the rights or preferences of the Class A Members or decrease the economic rights of the Class B Members without the approval of more than 50% of the Class B Unit holders.</p>
-    <div className="section-label" style="margin-top:14px;">Limitations on Transferability</div>
+    <div className="section-label" style={{marginTop:"14px"}}>Limitations on Transferability</div>
     <p>The Operating Agreement places substantial limitations on the transferability of the Units to protect the Company's technical "moat" and operational stability. Generally, Units may not be voluntarily transferred, assigned, or pledged without the express written consent of the Managing Partner. Investors are urged to review the Operating Agreement in its entirety to understand these restrictions, as the Securities represent a long-term, illiquid investment in an early-stage AI orchestration platform.</p>
   </div>
   <div className="page-footer"><span className="footer-left">Rosie AI, LLC — Confidential PPM</span><span className="footer-right">Page 29</span></div>
 </div>
 
-{/* PAGE 30 — FEDERAL AND STATE INCOME TAX */}
+
 <div className="page" id="p30">
   <div className="page-header"><span className="doc-title">Rosie AI, LLC — Federal and State Income Tax Consequences</span><span className="page-num">Page 30</span></div>
   <div className="page-body">
@@ -1571,7 +1593,7 @@ const htmlContent = `{/* NAV */}
   <div className="page-footer"><span className="footer-left">Rosie AI, LLC — Confidential PPM</span><span className="footer-right">Page 30</span></div>
 </div>
 
-{/* PAGE 31 — SUBSCRIPTION PROCEDURES / SUITABILITY REQUIREMENTS */}
+
 <div className="page" id="p31">
   <div className="page-header"><span className="doc-title">Rosie AI, LLC — Subscription Procedures</span><span className="page-num">Page 31</span></div>
   <div className="page-body">
@@ -1583,7 +1605,7 @@ const htmlContent = `{/* NAV */}
     <p>Funds should be directed to Column N.A., for the account of Rosie AI LLC. Funds will be deposited into the Company's operating account upon acceptance. If a subscription is not accepted, funds will be promptly returned to the subscriber without interest or deduction.</p>
     <h3>Accreditation Verification:</h3>
     <p>Provide all necessary documents and information requested via the Investor Portal to complete a mandatory verification of Accredited Investor status. In accordance with Rule 506(c), the Company requires reasonable independent verification, which may include tax returns, bank statements, or a letter of confirmation from a CPA, attorney, or registered investment advisor.</p>
-    <div className="section-label" style="margin-top:18px;">Suitability Requirements</div>
+    <div className="section-label" style={{marginTop:"18px"}}>Suitability Requirements</div>
     <p>Rule 501(a) of Regulation D defines an "Accredited Investor" as any person or entity that meets specific financial or professional criteria. To participate in this Offering, a subscriber must fall into one of the following categories at the time of the sale:</p>
     <ul className="dot-list">
       <li><strong>Individual Net Worth:</strong> A natural person whose net worth, either individually or jointly with their spouse or spousal equivalent, exceeds $1,000,000 (excluding the value of their primary residence).</li>
@@ -1599,7 +1621,7 @@ const htmlContent = `{/* NAV */}
   <div className="page-footer"><span className="footer-left">Rosie AI, LLC — Confidential PPM</span><span className="footer-right">Page 31</span></div>
 </div>
 
-{/* PAGE 32 — SUITABILITY REQUIREMENTS CONTINUED */}
+
 <div className="page" id="p32">
   <div className="page-header"><span className="doc-title">Rosie AI, LLC — Suitability Requirements (Continued)</span><span className="page-num">Page 32</span></div>
   <div className="page-body">
@@ -1611,7 +1633,7 @@ const htmlContent = `{/* NAV */}
   <div className="page-footer"><span className="footer-left">Rosie AI, LLC — Confidential PPM</span><span className="footer-right">Page 32</span></div>
 </div>
 
-{/* PAGE 33 — STATEMENT AS TO INDEMNIFICATION */}
+
 <div className="page" id="p33">
   <div className="page-header"><span className="doc-title">Rosie AI, LLC — Statement as to Indemnification</span><span className="page-num">Page 33</span></div>
   <div className="page-body">
@@ -1626,7 +1648,7 @@ const htmlContent = `{/* NAV */}
   <div className="page-footer"><span className="footer-left">Rosie AI, LLC — Confidential PPM</span><span className="footer-right">Page 33</span></div>
 </div>
 
-{/* PAGE 34 — CAPITALIZATION: OWNERSHIP OF SECURITIES */}
+
 <div className="page" id="p34">
   <div className="page-header"><span className="doc-title">Rosie AI, LLC — Capitalization: Ownership of Securities</span><span className="page-num">Page 34</span></div>
   <div className="page-body">
@@ -1645,22 +1667,22 @@ const htmlContent = `{/* NAV */}
   <div className="page-footer"><span className="footer-left">Rosie AI, LLC — Confidential PPM</span><span className="footer-right">Page 34</span></div>
 </div>
 
-{/* PAGE 35 — DESCRIPTION OF UNITS */}
+
 <div className="page" id="p35">
   <div className="page-header"><span className="doc-title">Rosie AI, LLC — Description of Units</span><span className="page-num">Page 35</span></div>
   <div className="page-body">
     <div className="section-label">Description of Units</div>
     <p>An Investor in the Company is both a holder of Units and a member of the limited liability company at the time of acceptance of the investment (a "Member"). The Company has two primary classes of Units: Class A Units (Voting) and Class B Units (Non-Voting).</p>
     <p>Investors must agree to the terms and conditions of the Operating Agreement of Rosie AI LLC, as described herein and available through the Rosie AI Investor Portal. An Investor must execute the Subscription Agreement and associated documents via the Investor Portal in order to invest in the Offering, under which the Investor will agree to be bound, as a Member, by the terms and conditions of the Operating Agreement.</p>
-    <div className="info-box" style="margin-top:20px;text-align:center;">
+    <div className="info-box" style={{marginTop:"20px",textAlign:"center"}}>
       <div className="info-box-title">Investor Portal</div>
-      <p style="font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--navy);font-weight:500;">https://investors.rosieai.tech/portal</p>
+      <p style={{fontFamily:"'JetBrains Mono',monospace",fontSize:"13px",color:"var(--navy)",fontWeight:"500"}}>https://investors.rosieai.tech/portal</p>
     </div>
   </div>
   <div className="page-footer"><span className="footer-left">Rosie AI, LLC — Confidential PPM</span><span className="footer-right">Page 35</span></div>
 </div>
 
-{/* PAGE 36 — UNITS, ORGANIZATION AND MANAGEMENT */}
+
 <div className="page" id="p36">
   <div className="page-header"><span className="doc-title">Rosie AI, LLC — Units, Organization and Management</span><span className="page-num">Page 36</span></div>
   <div className="page-body">
@@ -1670,8 +1692,8 @@ const htmlContent = `{/* NAV */}
     <p><strong>Class A Units (7,850,000 Units total):</strong><br />These are the only Units with voting rights and are held by the Company's founders and sponsors to ensure technical and operational continuity. The Class A Units possess distribution and liquidation rights only after the Class B Members have received their designated capital returns and profit distributions as outlined in the Profit Waterfall.</p>
     <p><strong>Class B Units (2,150,000 Units):</strong><br />These Units are being offered to investors and represent a 21.5% ownership stake in the Company upon full subscription. Class B Units are:</p>
     <ol>
-      <li style="font-size:11.5px;margin-bottom:6px;"><strong>Non-voting:</strong> Holders have no voice in the day-to-day management or strategic direction.</li>
-      <li style="font-size:11.5px;"><strong>Economic Participation:</strong> Holders have a right to receive distributions from net profits via the waterfall structure, triggered once the platform exceeds its monthly operating expenses.</li>
+      <li style={{fontSize:"11.5px",marginBottom:"6px"}}><strong>Non-voting:</strong> Holders have no voice in the day-to-day management or strategic direction.</li>
+      <li style={{fontSize:"11.5px"}}><strong>Economic Participation:</strong> Holders have a right to receive distributions from net profits via the waterfall structure, triggered once the platform exceeds its monthly operating expenses.</li>
     </ol>
     <h3>Entity Structure &amp; Taxation</h3>
     <p>We have elected to organize as a Wyoming Limited Liability Company rather than a traditional corporation to qualify for partnership tax treatment. This ensures that the Company's earnings or losses pass through to our Members, avoiding the "double taxation" typical of C-Corporations and allowing taxation to occur at the individual Member level.</p>
@@ -1684,7 +1706,7 @@ const htmlContent = `{/* NAV */}
   <div className="page-footer"><span className="footer-left">Rosie AI, LLC — Confidential PPM</span><span className="footer-right">Page 36</span></div>
 </div>
 
-{/* PAGE 37 — OPERATING AGREEMENT; MANAGEMENT */}
+
 <div className="page" id="p37">
   <div className="page-header"><span className="doc-title">Rosie AI, LLC — Operating Agreement; Management of the Company</span><span className="page-num">Page 37</span></div>
   <div className="page-body">
@@ -1694,9 +1716,9 @@ const htmlContent = `{/* NAV */}
     <h3>Retaining Specialized Technical Units for System Orchestration</h3>
     <p>To achieve Extreme Capital Efficiency, the Managing Partner retains a specialized Engineering Unit based in the Philippines. This unit performs the deep technical labor required to discover, score, and convert high-intent leads across 7 active discovery pipelines.</p>
     <ol>
-      <li style="font-size:11.5px;margin-bottom:6px;"><strong>Data Isolation:</strong> Ensuring SOC2-compliant Row-Level Security (RLS) across all multi-tenant environments.</li>
-      <li style="font-size:11.5px;margin-bottom:6px;"><strong>System Health:</strong> Monitoring the "self-healing" logic of the backend functions to ensure 99.99% uptime.</li>
-      <li style="font-size:11.5px;"><strong>Audit Cycles:</strong> Verifying that all AI-generated outputs maintain a 91%+ accuracy benchmark.</li>
+      <li style={{fontSize:"11.5px",marginBottom:"6px"}}><strong>Data Isolation:</strong> Ensuring SOC2-compliant Row-Level Security (RLS) across all multi-tenant environments.</li>
+      <li style={{fontSize:"11.5px",marginBottom:"6px"}}><strong>System Health:</strong> Monitoring the "self-healing" logic of the backend functions to ensure 99.99% uptime.</li>
+      <li style={{fontSize:"11.5px"}}><strong>Audit Cycles:</strong> Verifying that all AI-generated outputs maintain a 91%+ accuracy benchmark.</li>
     </ol>
     <h3>Engineering Execution Unit:</h3>
     <p>The Company utilizes a specialized three-person team to manage the "machine that builds the machine." Each engineer is mapped to a critical system component and is compensated at a fraction of domestic rates, delivering the Company's 92% cost advantage over traditional venture-backed startups.</p>
@@ -1707,7 +1729,7 @@ const htmlContent = `{/* NAV */}
   <div className="page-footer"><span className="footer-left">Rosie AI, LLC — Confidential PPM</span><span className="footer-right">Page 37</span></div>
 </div>
 
-{/* PAGE 38 — THE OFFERING / DISSOLUTION / QUARTERLY ALLOCATION */}
+
 <div className="page" id="p38">
   <div className="page-header"><span className="doc-title">Rosie AI, LLC — The Offering</span><span className="page-num">Page 38</span></div>
   <div className="page-body">
@@ -1719,15 +1741,15 @@ const htmlContent = `{/* NAV */}
     <h3>Quarterly Profit Allocation and Reinvestment</h3>
     <p>By way of clarification, and as further described in the Operating Agreement, the Company shall distribute net profits according to a Waterfall Split. On a quarterly basis (or monthly at the discretion of Management), the Company shall pay out distributions from net cash flow once the platform's monthly fixed operating costs (currently projected at $10,100/month) are exceeded.</p>
     <p>Profits in excess of the designated Class B distributions shall be allocated to the Class A Members. These funds are typically reinvested into the Company to harden the 136-entity data model, expand the 7 active discovery pipelines (including municipal permit scraping), and maintain the high-leverage offshore engineering unit required to sustain the platform's technical advantage.</p>
-    <div className="info-box" style="margin-top:20px;text-align:center;">
+    <div className="info-box" style={{marginTop:"20px",textAlign:"center"}}>
       <div className="info-box-title">Investor Portal</div>
-      <p style="font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--navy);font-weight:500;">https://investors.rosieai.tech/portal</p>
+      <p style={{fontFamily:"'JetBrains Mono',monospace",fontSize:"13px",color:"var(--navy)",fontWeight:"500"}}>https://investors.rosieai.tech/portal</p>
     </div>
   </div>
   <div className="page-footer"><span className="footer-left">Rosie AI, LLC — Confidential PPM</span><span className="footer-right">Page 38</span></div>
 </div>
 
-{/* PAGE 39 — DESCRIPTION OF UNITS; RIGHTS OF HOLDERS */}
+
 <div className="page" id="p39">
   <div className="page-header"><span className="doc-title">Rosie AI, LLC — Description of Units; Rights of Holders of Units</span><span className="page-num">Page 39</span></div>
   <div className="page-body">
@@ -1737,7 +1759,7 @@ const htmlContent = `{/* NAV */}
     <h3>Class B Units:</h3>
     <p>The Class B Units are the securities being offered to Investors. These Units: (i) are non-voting, (ii) possess economic rights to participate in the Company's success through a monthly Waterfall Split on net profits, and (iii) represent a combined 21.5% ownership stake in the Company upon full subscription of the Offering.</p>
     <div className="kv-grid">
-      <span className="kv-key">Offering Amount</span><span className="kv-val hl-orange">$500,000</span>
+      <span className="kv-key">Offering Amount</span><span className="kv-val hl-gold">$500,000</span>
       <span className="kv-key">Total Class B Units Offered</span><span className="kv-val">2,150,000 (incl. 150,000 Bonus Units)</span>
       <span className="kv-key">Maximum Offering</span><span className="kv-val">$500,000</span>
       <span className="kv-key">Minimum Investment</span><span className="kv-val">$15,000</span>
@@ -1764,7 +1786,7 @@ const htmlContent = `{/* NAV */}
   <div className="page-footer"><span className="footer-left">Rosie AI, LLC — Confidential PPM</span><span className="footer-right">Page 39</span></div>
 </div>
 
-{/* PAGE 40 — RESTRICTIONS ON TRANSFER */}
+
 <div className="page" id="p40">
   <div className="page-header"><span className="doc-title">Rosie AI, LLC — Restrictions on Transfer</span><span className="page-num">Page 40</span></div>
   <div className="page-body">
@@ -1774,7 +1796,7 @@ const htmlContent = `{/* NAV */}
   <div className="page-footer"><span className="footer-left">Rosie AI, LLC — Confidential PPM</span><span className="footer-right">Page 40</span></div>
 </div>
 
-{/* PAGE 41 — INVESTOR RELATIONS & THE ROSIE PORTAL */}
+
 <div className="page" id="p41">
   <div className="page-header"><span className="doc-title">Rosie AI, LLC — Investor Relations &amp; The Rosie Portal</span><span className="page-num">Page 41</span></div>
   <div className="page-body">
@@ -1788,20 +1810,20 @@ const htmlContent = `{/* NAV */}
       <li><strong>Modern SaaS Infrastructure:</strong> Hosted on a state-of-the-art multi-tenant architecture, the portal leverages Row-Level Security (RLS) and distributed cloud systems to ensure 99.99% uptime and zero-knowledge data isolation.</li>
       <li><strong>Enterprise Safeguards:</strong> Our underlying infrastructure utilizes a "Self-Healing" logic and redundant data centers with global failover capabilities, protecting the integrity of the membership register and financial ledgers.</li>
     </ul>
-    <div className="section-label navy-light" style="margin-top:14px;">Infrastructure &amp; Data Protection Standards</div>
+    <div className="section-label navy-light" style={{marginTop:"14px"}}>Infrastructure &amp; Data Protection Standards</div>
     <p>The Rosie AI technical stack is built on the same "institutional-fidelity" principles as our core AI orchestration engine, including:</p>
     <ul className="dot-list">
       <li><strong>Physical &amp; Logical Security:</strong> Restricted backend access and automated threat detection.</li>
       <li><strong>Power &amp; Data Redundancy:</strong> Continuous backups and communications redundancy across distributed AWS/Edge nodes.</li>
       <li><strong>Privacy Protocols:</strong> Rigorous storage decommissioning and data sanitization adhering to NIST 800-88 standards.</li>
     </ul>
-    <p style="font-size:10px;color:var(--gray-600);font-style:italic;">Note: The "Rosie" mascot serves as your visual guide throughout the portal, personifying the intelligent, autonomous nature of the platform you are helping to build.</p>
-    <div className="callout" style="margin-top:14px;"><p><strong>SEE THE NEXT SECTIONS FOR A DETAILED BREAKDOWN OF THE INVESTOR PORTAL CAPABILITIES.</strong></p></div>
+    <p style={{fontSize:"10px",color:"var(--gray-600)",fontStyle:"italic"}}>Note: The "Rosie" mascot serves as your visual guide throughout the portal, personifying the intelligent, autonomous nature of the platform you are helping to build.</p>
+    <div className="callout" style={{marginTop:"14px"}}><p><strong>SEE THE NEXT SECTIONS FOR A DETAILED BREAKDOWN OF THE INVESTOR PORTAL CAPABILITIES.</strong></p></div>
   </div>
   <div className="page-footer"><span className="footer-left">Rosie AI, LLC — Confidential PPM</span><span className="footer-right">Page 41</span></div>
 </div>
 
-{/* PAGE 42 — MEMBERSHIP BILL OF RIGHTS */}
+
 <div className="page" id="p42">
   <div className="page-header"><span className="doc-title">Rosie AI, LLC — Membership Bill of Rights</span><span className="page-num">Page 42</span></div>
   <div className="page-body">
@@ -1839,16 +1861,16 @@ const htmlContent = `{/* NAV */}
   <div className="page-footer"><span className="footer-left">Rosie AI, LLC — Confidential PPM</span><span className="footer-right">Page 42</span></div>
 </div>
 
-{/* PAGE 43 — INVESTOR PORTAL QUICKSTART GUIDE */}
+
 <div className="page" id="p43">
   <div className="page-header"><span className="doc-title">Rosie AI, LLC — Investor Portal Quickstart Guide</span><span className="page-num">Page 43</span></div>
   <div className="page-body">
     <div className="section-label">Rosie AI LLC: Investor Portal Quickstart Guide</div>
     <h3>How it Works</h3>
     <ol>
-      <li style="font-size:11.5px;margin-bottom:8px;"><strong>Capitalization &amp; Strategy:</strong> The entity is registered as a Wyoming LLC and capitalized through the issuance of Class B Membership Units.</li>
-      <li style="font-size:11.5px;margin-bottom:8px;"><strong>Technical Deployment:</strong> Capital is immediately deployed to scale the "v6 Engine" and migrate the platform to a hardened, enterprise-ready multi-tenant infrastructure.</li>
-      <li style="font-size:11.5px;"><strong>Autonomous Orchestration:</strong> The platform utilizes its 7 active discovery pipelines to ingest real-time intent signals (e.g., municipal permits), replacing manual sales labor with autonomous AI agents.</li>
+      <li style={{fontSize:"11.5px",marginBottom:"8px"}}><strong>Capitalization &amp; Strategy:</strong> The entity is registered as a Wyoming LLC and capitalized through the issuance of Class B Membership Units.</li>
+      <li style={{fontSize:"11.5px",marginBottom:"8px"}}><strong>Technical Deployment:</strong> Capital is immediately deployed to scale the "v6 Engine" and migrate the platform to a hardened, enterprise-ready multi-tenant infrastructure.</li>
+      <li style={{fontSize:"11.5px"}}><strong>Autonomous Orchestration:</strong> The platform utilizes its 7 active discovery pipelines to ingest real-time intent signals (e.g., municipal permits), replacing manual sales labor with autonomous AI agents.</li>
     </ol>
     <h3>Contact &amp; Support</h3>
     <div className="kv-grid">
@@ -1869,7 +1891,7 @@ const htmlContent = `{/* NAV */}
   <div className="page-footer"><span className="footer-left">Rosie AI, LLC — Confidential PPM</span><span className="footer-right">Page 43</span></div>
 </div>
 
-{/* PAGE 44 — ROSIE INVESTOR PORTAL OVERVIEW */}
+
 <div className="page" id="p44">
   <div className="page-header"><span className="doc-title">Rosie AI, LLC — Rosie Investor Portal Overview</span><span className="page-num">Page 44</span></div>
   <div className="page-body">
@@ -1882,10 +1904,10 @@ const htmlContent = `{/* NAV */}
       <li><strong>Collaborative Access:</strong> Securely grant portal access to your trusted advisors, such as CPAs, attorneys, or wealth managers.</li>
     </ul>
     <p>For technical assistance or investment inquiries, please contact our team at <strong>Investors@rosieai.tech</strong>.</p>
-    <div className="section-label navy-light" style="margin-top:14px;">Getting Started</div>
+    <div className="section-label navy-light" style={{marginTop:"14px"}}>Getting Started</div>
     <p><strong>STEP 1: Account Activation</strong><br />You will receive an invitation email from our system with instructions on how to activate your account. Click the secure link within the email to begin.</p>
     <p><strong>STEP 2: Secure Your Account</strong><br />Select and confirm a complex password. We highly recommend enabling Multi-Factor Authentication (MFA) immediately upon your first login to ensure SOC2-level security for your data.</p>
-    <div className="section-label navy-light" style="margin-top:14px;">General Navigation</div>
+    <div className="section-label navy-light" style={{marginTop:"14px"}}>General Navigation</div>
     <table className="portal-table">
       <thead><tr><th>Section</th><th>Function</th></tr></thead>
       <tbody>
@@ -1901,7 +1923,7 @@ const htmlContent = `{/* NAV */}
   <div className="page-footer"><span className="footer-left">Rosie AI, LLC — Confidential PPM</span><span className="footer-right">Page 44</span></div>
 </div>
 
-{/* PAGE 45 — RISK FACTORS */}
+
 <div className="page" id="p45">
   <div className="page-header"><span className="doc-title">Rosie AI, LLC — Risk Factors</span><span className="page-num">Page 45</span></div>
   <div className="page-body">
@@ -1920,7 +1942,7 @@ const htmlContent = `{/* NAV */}
   <div className="page-footer"><span className="footer-left">Rosie AI, LLC — Confidential PPM</span><span className="footer-right">Page 45</span></div>
 </div>
 
-{/* PAGE 46 — DISCLOSURE STATEMENT */}
+
 <div className="page" id="p46">
   <div className="page-header"><span className="doc-title">Rosie AI, LLC — Disclosure Statement</span><span className="page-num">Page 46</span></div>
   <div className="page-body">
@@ -1929,15 +1951,15 @@ const htmlContent = `{/* NAV */}
     <p className="legal-caps">YOUR PARTICIPATION IN THIS COMPANY. Therefore, before you decide to participate in an equity investment in Rosie AI LLC, you should carefully study this Disclosure Document in its entirety, including the Technical Roadmap, the "v6 Engine" specifications, and the detailed discussion of the specific risk factors inherent in an AI-driven SaaS orchestration model.</p>
     <p>Because the Units are being offered exclusively to Accredited Investors pursuant to Rule 506(c) of Regulation D, this Memorandum may not contain all information that would be required to be disclosed under applicable laws and regulations if the Offering was made to the general public.</p>
     <p>Prospective investors are urged to conduct their own independent due diligence and consult with their own legal, technical, and financial advisors before committing capital to this high-leverage technology venture.</p>
-    <div className="info-box" style="margin-top:20px;text-align:center;">
+    <div className="info-box" style={{marginTop:"20px",textAlign:"center"}}>
       <div className="info-box-title">Investor Portal</div>
-      <p style="font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--navy);font-weight:500;">https://investors.rosieai.tech/portal</p>
+      <p style={{fontFamily:"'JetBrains Mono',monospace",fontSize:"13px",color:"var(--navy)",fontWeight:"500"}}>https://investors.rosieai.tech/portal</p>
     </div>
   </div>
   <div className="page-footer"><span className="footer-left">Rosie AI, LLC — Confidential PPM</span><span className="footer-right">Page 46</span></div>
 </div>
 
-{/* PAGE 47 — STATE-SPECIFIC LEGAL NOTICES */}
+
 <div className="page" id="p47">
   <div className="page-header"><span className="doc-title">Rosie AI, LLC — State-Specific Legal Notices</span><span className="page-num">Page 47</span></div>
   <div className="page-body">
@@ -1955,7 +1977,7 @@ const htmlContent = `{/* NAV */}
   <div className="page-footer"><span className="footer-left">Rosie AI, LLC — Confidential PPM</span><span className="footer-right">Page 47</span></div>
 </div>
 
-{/* PAGE 48 — STATE NOTICES CONTINUED */}
+
 <div className="page" id="p48">
   <div className="page-header"><span className="doc-title">Rosie AI, LLC — State-Specific Legal Notices (Continued)</span><span className="page-num">Page 48</span></div>
   <div className="page-body">
@@ -1978,7 +2000,7 @@ const htmlContent = `{/* NAV */}
   <div className="page-footer"><span className="footer-left">Rosie AI, LLC — Confidential PPM</span><span className="footer-right">Page 48</span></div>
 </div>
 
-{/* PAGE 49 — STATE NOTICES CONTINUED */}
+
 <div className="page" id="p49">
   <div className="page-header"><span className="doc-title">Rosie AI, LLC — State-Specific Legal Notices (Continued)</span><span className="page-num">Page 49</span></div>
   <div className="page-body">
@@ -1999,7 +2021,7 @@ const htmlContent = `{/* NAV */}
   <div className="page-footer"><span className="footer-left">Rosie AI, LLC — Confidential PPM</span><span className="footer-right">Page 49</span></div>
 </div>
 
-{/* PAGE 50 — STATE NOTICES CONTINUED */}
+
 <div className="page" id="p50">
   <div className="page-header"><span className="doc-title">Rosie AI, LLC — State-Specific Legal Notices (Continued)</span><span className="page-num">Page 50</span></div>
   <div className="page-body">
@@ -2018,7 +2040,7 @@ const htmlContent = `{/* NAV */}
   <div className="page-footer"><span className="footer-left">Rosie AI, LLC — Confidential PPM</span><span className="footer-right">Page 50</span></div>
 </div>
 
-{/* PAGE 51 — RISK FACTORS CONTINUED */}
+
 <div className="page" id="p51">
   <div className="page-header"><span className="doc-title">Rosie AI, LLC — Risk Factors (Continued)</span><span className="page-num">Page 51</span></div>
   <div className="page-body">
@@ -2038,21 +2060,21 @@ const htmlContent = `{/* NAV */}
   <div className="page-footer"><span className="footer-left">Rosie AI, LLC — Confidential PPM</span><span className="footer-right">Page 51</span></div>
 </div>
 
-{/* PAGE 52 — RISK FACTORS CONTINUED (REGULATORY & MARKET) */}
+
 <div className="page" id="p52">
   <div className="page-header"><span className="doc-title">Rosie AI, LLC — Risk Factors (Continued)</span><span className="page-num">Page 52</span></div>
   <div className="page-body">
     <div className="section-label">Risk Factors (Continued)</div>
     <h3>Indemnification of Management</h3>
     <p>The Operating Agreement provides that the Company will hold its Managing Partner and Chief Technology Engineer harmless against certain claims, provided they are not guilty of gross negligence or fraud. If the Company is called upon to perform under these indemnification agreements, the assets available for technical development or investor distributions would be significantly reduced.</p>
-    <div className="section-label navy-light" style="margin-top:14px;">Regulatory &amp; Tax Risks</div>
+    <div className="section-label navy-light" style={{marginTop:"14px"}}>Regulatory &amp; Tax Risks</div>
     <h3>AI and Privacy Regulations</h3>
     <p>There is a risk that future state or federal legislation may restrict the use of autonomous AI agents for sales and marketing. New laws governing "AI transparency" or data privacy could change the criteria for how the Company's pipelines operate.</p>
     <h3>Federal and State Income Tax Risks</h3>
     <p>The Company is structured as a Wyoming LLC for pass-through tax treatment. However, the IRS may not accept the tax positions taken by the Company. <strong>THE COMPANY HAS NOT OBTAINED A LEGAL OPINION CONCERNING THE TAX IMPLICATIONS.</strong> Investors are urged to consult their own tax advisors regarding their specific situation.</p>
     <h3>Risk of Audit</h3>
     <p>The Company's federal tax returns may be audited by the IRS. An audit could result in the challenge of deductions or an increase in taxable income, potentially impacting the Company's allocation of return of capital and income distributions.</p>
-    <div className="section-label navy-light" style="margin-top:14px;">Market &amp; Liquidity Risks</div>
+    <div className="section-label navy-light" style={{marginTop:"14px"}}>Market &amp; Liquidity Risks</div>
     <h3>Lack of Investment Diversification</h3>
     <p>The Company's revenue is currently concentrated in high-alpha verticals like Solar, Roofing, and SaaS. If these specific sectors experience an economic downturn, the demand for the Company's autonomous lead generation services could decrease significantly.</p>
     <h3>Restricted Transferability</h3>
@@ -2064,7 +2086,7 @@ const htmlContent = `{/* NAV */}
   <div className="page-footer"><span className="footer-left">Rosie AI, LLC — Confidential PPM</span><span className="footer-right">Page 52</span></div>
 </div>
 
-{/* PAGE 53 — ERISA CONSIDERATIONS */}
+
 <div className="page" id="p53">
   <div className="page-header"><span className="doc-title">Rosie AI, LLC — ERISA Considerations</span><span className="page-num">Page 53</span></div>
   <div className="page-body">
@@ -2085,15 +2107,15 @@ const htmlContent = `{/* NAV */}
     <div className="risk-box"><p className="legal-caps">FAILURE TO CONFORM TO THE PRUDENT MAN STANDARD MAY EXPOSE A FIDUCIARY TO PERSONAL LIABILITY FOR ANY RESULTING LOSSES.</p></div>
     <h3>Investment Suitability for Tax-Advantaged Plans</h3>
     <p>While the Company provides 24/7 transparency through the Rosie AI Investor Portal, the underlying asset — proprietary AI software and data pipelines — is considered a long-term, illiquid holding. Fiduciaries must determine if the "v6 Engine" technical roadmap and the projected Profit Waterfall align with the plan's specific liquidity horizons and risk tolerance.</p>
-    <div className="info-box" style="margin-top:20px;text-align:center;">
+    <div className="info-box" style={{marginTop:"20px",textAlign:"center"}}>
       <div className="info-box-title">Investor Portal</div>
-      <p style="font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--navy);font-weight:500;">https://investors.rosieai.tech/portal</p>
+      <p style={{fontFamily:"'JetBrains Mono',monospace",fontSize:"13px",color:"var(--navy)",fontWeight:"500"}}>https://investors.rosieai.tech/portal</p>
     </div>
   </div>
   <div className="page-footer"><span className="footer-left">Rosie AI, LLC — Confidential PPM</span><span className="footer-right">Page 53</span></div>
 </div>
 
-{/* PAGE 54 — ANNUAL VALUATION & REGULATORY MATTERS */}
+
 <div className="page" id="p54">
   <div className="page-header"><span className="doc-title">Rosie AI, LLC — Annual Valuation &amp; Regulatory Matters</span><span className="page-num">Page 54</span></div>
   <div className="page-body">
@@ -2112,14 +2134,14 @@ const htmlContent = `{/* NAV */}
   <div className="page-footer"><span className="footer-left">Rosie AI, LLC — Confidential PPM</span><span className="footer-right">Page 54</span></div>
 </div>
 
-{/* PAGE 55 — CONFIDENTIALITY & FORWARD-LOOKING STATEMENTS */}
+
 <div className="page" id="p55">
   <div className="page-header"><span className="doc-title">Rosie AI, LLC — Confidentiality and Forward-Looking Statements</span><span className="page-num">Page 55</span></div>
   <div className="page-body">
     <div className="section-label">Confidentiality and Related Matters</div>
     <p>Each recipient of this Memorandum, by accepting delivery hereof, agrees that the information contained herein is of a strictly confidential and proprietary nature. The recipient shall treat such information — including, but not limited to, the technical specifications of the "v6 Engine," the architecture of the 150+ backend functions, and the operational details of the 7 active discovery pipelines — in a strictly confidential manner.</p>
     <p>Recipients shall not disclose such information to any other person or entity, nor reproduce such information, in whole or in part, without the prior written consent of Rosie AI LLC. Furthermore, each recipient agrees to use this information solely for the purpose of analyzing the desirability of an investment in the Company and for no other purpose whatsoever. Any unauthorized use of this technical "moat" or proprietary data ingestion logic may result in immediate legal action and the termination of access to the Rosie AI Investor Portal.</p>
-    <div className="section-label" style="margin-top:18px;">Notice Regarding Forward-Looking Statements</div>
+    <div className="section-label" style={{marginTop:"18px"}}>Notice Regarding Forward-Looking Statements</div>
     <p>Certain statements set forth in this Memorandum constitute "Forward-Looking Statements." These forward-looking statements include, without limitation, any statement that may predict, forecast, indicate, or imply future results, performance, or technical achievements.</p>
     <p>In the context of Rosie AI LLC, these statements specifically include, but are not limited to:</p>
     <ul className="dot-list">
@@ -2133,68 +2155,34 @@ const htmlContent = `{/* NAV */}
   <div className="page-footer"><span className="footer-left">Rosie AI, LLC — Confidential PPM</span><span className="footer-right">Page 55</span></div>
 </div>
 
-{/* PAGE 56 — ADDITIONAL INFORMATION / SUMMARY */}
+
 <div className="page" id="p56">
   <div className="page-header"><span className="doc-title">Rosie AI, LLC — Additional Information &amp; Summary</span><span className="page-num">Page 56</span></div>
   <div className="page-body">
     <div className="section-label">Additional Information</div>
     <p>Representatives of the Company are available at our principal executive office in Sheridan, Wyoming, to discuss and answer questions concerning this Memorandum, the technical roadmap of the "v6 Engine," and the specific terms and conditions of this Offering.</p>
     <p>Management will provide any additional information which the Company possesses — or can acquire without unreasonable effort or expense — that is necessary to verify the accuracy of the information set forth herein and in the accompanying Technical Exhibits. For immediate access to documentation, audit logs, and direct communication with the Managing Partner, Investors are encouraged to utilize the Rosie AI Investor Portal.</p>
-    <div className="section-label" style="margin-top:18px;">Summary</div>
+    <div className="section-label" style={{marginTop:"18px"}}>Summary</div>
     <p>The preceding summary is qualified in its entirety by the detailed technical and financial information appearing elsewhere in this Memorandum. Although this Memorandum provides potential Investors with specific references and subject headings, the information appearing under those headings is not necessarily a complete or exclusive discussion of that subject.</p>
     <p>References in this Memorandum to the "Company," "we," "us," and "our" refer to Rosie AI LLC.</p>
     <p>An investment in the securities offered hereby involves a high degree of risk and is suitable only for sophisticated investors who can afford the total loss of their capital. Prospective Investors are urged to read this Memorandum carefully in its entirety, including the section entitled "Risk Factors," the Operating Agreement, and the technical specifications of the AI orchestration platform attached as Exhibits.</p>
-    <div style="margin-top:32px;padding:24px;background:var(--navy);border-radius:2px;text-align:center;">
-      <p style="color:rgba(255,255,255,.65);font-family:'JetBrains Mono',monospace;font-size:9px;text-transform:uppercase;letter-spacing:.12em;margin-bottom:8px;">End of Private Placement Memorandum</p>
-      <p style="color:#fff;font-family:'Playfair Display',serif;font-size:18px;font-weight:700;margin-bottom:6px;">Rosie AI, LLC</p>
-      <p style="color:var(--gold);font-family:'JetBrains Mono',monospace;font-size:10px;">506(c) PPM · Confidential · Accredited Investors Only</p>
-      <div style="margin:16px auto;width:60px;height:1px;background:var(--gold);"></div>
-      <p style="color:rgba(255,255,255,.7);font-size:10px;margin-bottom:4px;">Investor Portal: <strong style="color:#fff;">https://investors.rosieai.tech/portal</strong></p>
-      <p style="color:rgba(255,255,255,.7);font-size:10px;">Contact: <strong style="color:#fff;">Investors@rosieai.tech</strong></p>
-      <p style="color:rgba(255,255,255,.5);font-size:10px;margin-top:6px;">32 N Gould St, Sheridan, WY 82801</p>
+    <div style={{marginTop:"32px",padding:"24px",background:"var(--navy)",borderRadius:"2px",textAlign:"center"}}>
+      <p style={{color:"rgba(255,255,255,.65)",fontFamily:"'JetBrains Mono',monospace",fontSize:"9px",textTransform:"uppercase",letterSpacing:".12em",marginBottom:"8px"}}>End of Private Placement Memorandum</p>
+      <p style={{color:"#fff",fontFamily:"'Playfair Display',serif",fontSize:"18px",fontWeight:"700",marginBottom:"6px"}}>Rosie AI, LLC</p>
+      <p style={{color:"var(--gold)",fontFamily:"'JetBrains Mono',monospace",fontSize:"10px"}}>506(c) PPM · Confidential · Accredited Investors Only</p>
+      <div style={{margin:"16px auto",width:"60px",height:"1px",background:"var(--gold)"}}></div>
+      <p style={{color:"rgba(255,255,255,.7)",fontSize:"10px",marginBottom:"4px"}}>Investor Portal: <strong style={{color:"#fff"}}>https://investors.rosieai.tech/portal</strong></p>
+      <p style={{color:"rgba(255,255,255,.7)",fontSize:"10px"}}>Contact: <strong style={{color:"#fff"}}>Investors@rosieai.tech</strong></p>
+      <p style={{color:"rgba(255,255,255,.5)",fontSize:"10px",marginTop:"6px"}}>32 N Gould St, Sheridan, WY 82801</p>
     </div>
   </div>
   <div className="page-footer">
     <span className="footer-left">Rosie AI, LLC — Confidential PPM</span>
     <span className="footer-right">Page 56</span>
   </div>
-</div>`;
+</div>
 
-export default function Offering() {
-  useEffect(() => {
-    // Inject styles
-    if (!document.getElementById('rosie-ppm-styles')) {
-      const styleEl = document.createElement('style');
-      styleEl.id = 'rosie-ppm-styles';
-      styleEl.textContent = cssStyles;
-      document.head.appendChild(styleEl);
-    }
 
-    // Build page-jump select options
-    const sel = document.getElementById('page-jump');
-    if (sel && sel.options.length === 0) {
-      for (let i = 1; i <= 56; i++) {
-        const o = document.createElement('option');
-        o.value = i;
-        o.textContent = 'Page ' + i;
-        sel.appendChild(o);
-      }
-      sel.addEventListener('change', (e) => {
-        const el = document.getElementById('p' + e.target.value);
-        if (el) el.scrollIntoView({ behavior: 'smooth' });
-      });
-    }
-
-    return () => {
-      const styleEl = document.getElementById('rosie-ppm-styles');
-      if (styleEl) styleEl.remove();
-    };
-  }, []);
-
-  return (
-    <div
-      id="rosie-ppm-root"
-      dangerouslySetInnerHTML={{ __html: htmlContent }}
-    />
+    </div>
   );
 }
