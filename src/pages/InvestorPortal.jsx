@@ -1136,7 +1136,7 @@ export default function InvestorPortal() {
   if (!portalUser) return null;
 
   // Sidebar width constant
-  const SIDEBAR_W = 220;
+  const SIDEBAR_W = 233;
 
   return (
     <div style={{ minHeight: '100vh', background: DARKER, fontFamily: 'Georgia, serif', color: TEXT_PRI, display: 'flex' }}>
