@@ -107,7 +107,7 @@ export default function Home() {
   if (!unlocked) {
     return (
       <div style={{ minHeight: '100vh', background: '#060c18', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Georgia, serif' }}>
-        <div style={{ background: '#0a0f1e', border: '1px solid rgba(184,147,58,0.3)', borderRadius: '2px', padding: '48px', maxWidth: '400px', width: '100%', boxShadow: '0 40px 100px rgba(0,0,0,0.8)' }}>
+        <div style={{ background: '#0a0f1e', border: '1px solid rgba(184,147,58,0.3)', borderRadius: '2px', padding: '32px 24px', maxWidth: '400px', width: '100%', boxShadow: '0 40px 100px rgba(0,0,0,0.8)' }}>
           <div style={{ textAlign: 'center', marginBottom: '32px' }}>
             <img src="https://media.base44.com/images/public/69cd2741578c9b5ce655395b/39a31f9b9_Untitleddesign3.png" alt="Rosie AI" style={{ height: '48px', marginBottom: '20px' }} />
             <p style={{ color: '#b8933a', fontSize: '10px', letterSpacing: '4px', textTransform: 'uppercase', margin: '0 0 8px' }}>Restricted Access</p>
@@ -133,14 +133,14 @@ export default function Home() {
   }
 
   return (
-    <div className="w-full h-screen" style={{ position: 'relative', background: '#060c18' }}>
+    <div style={{ position: 'relative', background: '#060c18', width: '100%', height: '100vh', overflow: 'hidden' }}>
       {loadingHtml && (
         <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#060c18', zIndex: 10 }}>
           <div style={{ width: '36px', height: '36px', border: '3px solid rgba(184,147,58,0.2)', borderTop: '3px solid #b8933a', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
           <style>{`@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}`}</style>
         </div>
       )}
-      {htmlContent && <iframe srcDoc={htmlContent} className="w-full h-full border-0" title="Rosie Pitchbook" style={{ display: loadingHtml ? 'none' : 'block' }} />}
+      {htmlContent && <iframe srcDoc={htmlContent} title="Rosie Pitchbook" style={{ display: loadingHtml ? 'none' : 'block', width: '100%', height: '100%', border: 'none' }} />}
       {!loadingHtml && htmlContent && <button
         onClick={() => navigate('/portal-login')}
         style={{

@@ -164,7 +164,7 @@ function MetricCards() {
   ];
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px' }}>
+    <div style={{ display: 'grid', gridTemplateColumns: typeof window !== 'undefined' && window.innerWidth < 480 ? '1fr' : '1fr 1fr 1fr', gap: '10px' }}>
       {cards.map(({ title, value, sub, subColor, bar, pct, barColor }) => (
         <div key={title} style={{ background: PANEL, border: `1px solid ${BORDER}`, borderRadius: '8px', padding: '6px 14px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2px' }}>
@@ -1079,7 +1079,7 @@ function OverviewTab({ setActiveTab, portalUser, isAdmin }) {
       </div>
 
       {/* Main grid: Updates (flex) | Capital Allocation (260px) */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 260px', gap: '16px', marginBottom: '20px', marginLeft: '0px', marginRight: '12px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: typeof window !== 'undefined' && window.innerWidth < 768 ? '1fr' : '1fr 260px', gap: '16px', marginBottom: '20px', marginLeft: '0px', marginRight: '12px' }}>
         <UpdatesAndPress isAdmin={isAdmin} />
         <CapitalAllocationPanel />
       </div>
@@ -1112,7 +1112,9 @@ export default function InvestorPortal() {
   const [activeTab, setActiveTab]         = useState('home');
   const [showRequestDocs, setShowRequestDocs] = useState(false);
   const [showZoom, setShowZoom]           = useState(false);
+  const [sidebarOpen, setSidebarOpen]     = useState(false);
   const navigate = useNavigate();
+  const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
 
   useEffect(() => {
     if (isPortalLoading) return;
@@ -1144,12 +1146,28 @@ export default function InvestorPortal() {
       {showRequestDocs && <RequestDocumentsModal portalUser={portalUser} onClose={() => setShowRequestDocs(false)} onSuccess={() => setActiveTab('account')} />}
       {showZoom && <ZoomBookingModal isOpen={showZoom} onClose={() => setShowZoom(false)} buttonLabel="Book Live Demo" zoomUrl="https://scheduler.zoom.us/stephani-sterling" />}
 
+      {/* ── Mobile top bar ── */}
+      {isMobile && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, height: '52px', background: DARK, borderBottom: `1px solid ${BORDER}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 16px', zIndex: 200 }}>
+          <img src={LOGO_URL} alt="Rosie AI" style={{ height: '28px', width: 'auto' }} />
+          <button onClick={() => setSidebarOpen(v => !v)} style={{ background: 'none', border: 'none', color: GOLD, fontSize: '22px', cursor: 'pointer', padding: '4px' }}>
+            {sidebarOpen ? '✕' : '☰'}
+          </button>
+        </div>
+      )}
+
+      {/* ── Mobile sidebar overlay ── */}
+      {isMobile && sidebarOpen && (
+        <div onClick={() => setSidebarOpen(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 150 }} />
+      )}
+
       {/* ── Sidebar ── */}
       <div style={{
         width: `${SIDEBAR_W}px`, flexShrink: 0,
         background: DARK, borderRight: `1px solid ${BORDER}`,
         display: 'flex', flexDirection: 'column',
-        minHeight: '100vh', position: 'fixed', top: 0, left: 0, bottom: 0, zIndex: 100,
+        minHeight: '100vh', position: 'fixed', top: 0, left: isMobile ? (sidebarOpen ? 0 : `-${SIDEBAR_W}px`) : 0, bottom: 0, zIndex: 160,
+        transition: isMobile ? 'left 0.25s ease' : 'none',
       }}>
         {/* Logo + Welcome */}
         <div style={{ padding: '16px 16px 12px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', borderBottom: `1px solid ${BORDER_S}` }}>
@@ -1161,9 +1179,9 @@ export default function InvestorPortal() {
         </div>
 
         {/* Nav items + action buttons */}
-        <nav style={{ flex: 1, padding: '8px 0', overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
+        <nav style={{ flex: 1, padding: '8px 0', overflowY: 'hidden', display: 'flex', flexDirection: 'column' }}>
           {NAV_ITEMS.map(({ id, label, icon, badge }) => (
-            <button key={id} onClick={() => setActiveTab(id)} style={{
+            <button key={id} onClick={() => { setActiveTab(id); if (isMobile) setSidebarOpen(false); }} style={{
               display: 'flex', alignItems: 'center', gap: '10px',
               width: '100%', textAlign: 'left',
               background: activeTab === id ? 'rgba(184,147,58,0.12)' : 'transparent',
@@ -1220,7 +1238,7 @@ export default function InvestorPortal() {
       </div>
 
       {/* ── Main content area (right of sidebar) ── */}
-      <div style={{ marginLeft: `${SIDEBAR_W}px`, flex: 1, display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
+      <div style={{ marginLeft: isMobile ? 0 : `${SIDEBAR_W}px`, marginTop: isMobile ? '52px' : 0, flex: 1, display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
         {/* ── Page Content ── */}
         {activeTab === 'offering' ? (
           <div style={{ flex: 1 }}>
