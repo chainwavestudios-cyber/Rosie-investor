@@ -223,7 +223,6 @@ const PPM_INDEX = [
 ];
 
 const PDF_DOCS = [
-  { id: 'offering',     name: 'Investment Offering (PPM)', badge: 'Offering',       url: PPM_PDF_URL,                                                                                                          totalPages: 56, usePPMIndex: true },
   { id: 'subscription', name: 'Subscription Agreement',    badge: 'Required',       url: 'https://media.base44.com/files/public/69cd2741578c9b5ce655395b/4799d48ad_SubscriptionAgreement1pdf2pdfpdf1.pdf',  totalPages: 7  },
   { id: 'questionnaire',name: 'Investor Questionnaire',    badge: 'Required',       url: 'https://media.base44.com/files/public/69cd2741578c9b5ce655395b/a49bb2463_InvestorQuestionnairepdf.pdf',           totalPages: 7  },
   { id: 'operating',    name: 'LLC Operating Agreement',   badge: 'Member Document',url: 'https://media.base44.com/files/public/69cd2741578c9b5ce655395b/85a220a6e_LLCOperatingAgreementpdf.pdf',           totalPages: 27 },
@@ -231,28 +230,19 @@ const PDF_DOCS = [
 
 function LLCDocumentsTab({ onRequestDocuments, setActiveTab }) {
   const [selectedDoc, setSelectedDoc] = useState(null);
-  const [ppmSection, setPpmSection]   = useState('cover');
   const docIdRef = useRef(null);
 
   const openDoc = (doc) => {
     if (docIdRef.current) analytics.trackDocumentClose(docIdRef.current);
     docIdRef.current = analytics.trackDocumentOpen(doc.name, doc.id);
     setSelectedDoc(doc);
-    if (doc.usePPMIndex) setPpmSection('cover');
   };
   const closeDoc = () => {
     if (docIdRef.current) { analytics.trackDocumentClose(docIdRef.current); docIdRef.current = null; }
     setSelectedDoc(null);
   };
 
-  const activePPMSec = PPM_INDEX.find(s => s.id === ppmSection) || PPM_INDEX[0];
-  const activePPMIdx = PPM_INDEX.findIndex(s => s.id === ppmSection);
-
-  const iframeUrl = selectedDoc?.usePPMIndex
-    ? `https://docs.google.com/viewer?url=${encodeURIComponent(PPM_PDF_URL)}&embedded=true#page=${activePPMSec.page}`
-    : selectedDoc
-      ? `${selectedDoc.url}#toolbar=1`
-      : null;
+  const iframeUrl = selectedDoc ? `${selectedDoc.url}#toolbar=1` : null;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 130px)', minHeight: '720px' }}>
@@ -282,24 +272,6 @@ function LLCDocumentsTab({ onRequestDocuments, setActiveTab }) {
             <div style={{ color: TEXT_DIM, fontSize: '11px' }}>{doc.badge} · {doc.totalPages} pages</div>
           </button>
         ))}
-
-        {/* PPM Section index (only when PPM selected) */}
-        {selectedDoc?.usePPMIndex && (
-          <>
-            <div style={{ color: TEXT_DIM, fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', padding: '14px 0 6px 16px', borderTop: `1px solid ${BORDER_S}`, marginTop: '8px' }}>Table of Contents</div>
-            {PPM_INDEX.map(sec => (
-              <button key={sec.id} onClick={() => setPpmSection(sec.id)} style={{
-                display: 'block', width: '100%', textAlign: 'left',
-                background: ppmSection === sec.id ? 'rgba(184,147,58,0.10)' : 'transparent',
-                border: 'none', borderLeft: ppmSection === sec.id ? `3px solid ${GOLD}` : '3px solid transparent',
-                padding: '9px 14px', cursor: 'pointer',
-              }}>
-                <div style={{ color: ppmSection === sec.id ? GOLD : '#c4cdd8', fontSize: '11px', lineHeight: 1.3 }}>{sec.label}</div>
-                <div style={{ color: TEXT_DIM, fontSize: '10px', marginTop: '1px' }}>p. {sec.page}</div>
-              </button>
-            ))}
-          </>
-        )}
 
         {/* Download section — only show currently selected doc */}
         <div style={{ padding: '12px 16px', borderTop: `1px solid ${BORDER_S}`, marginTop: '8px' }}>
@@ -336,13 +308,8 @@ function LLCDocumentsTab({ onRequestDocuments, setActiveTab }) {
               <div>
                 <span style={{ color: GOLD, fontWeight: 'bold', fontSize: '14px' }}>{selectedDoc.name}</span>
                 {selectedDoc.totalPages && <span style={{ color: TEXT_DIM, fontSize: '12px', marginLeft: '10px' }}>{selectedDoc.totalPages} pages</span>}
-                {selectedDoc.usePPMIndex && <span style={{ color: TEXT_DIM, fontSize: '12px', marginLeft: '6px' }}>· {activePPMSec.label}</span>}
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                {selectedDoc.usePPMIndex && (<>
-                  <button onClick={() => { if (activePPMIdx > 0) setPpmSection(PPM_INDEX[activePPMIdx - 1].id); }} disabled={activePPMIdx === 0} style={{ background: 'rgba(255,255,255,0.07)', color: activePPMIdx === 0 ? TEXT_DIM : TEXT_PRI, border: `1px solid ${BORDER_S}`, borderRadius: '4px', padding: '5px 12px', cursor: activePPMIdx === 0 ? 'default' : 'pointer', fontSize: '13px' }}>‹ Prev</button>
-                  <button onClick={() => { if (activePPMIdx < PPM_INDEX.length - 1) setPpmSection(PPM_INDEX[activePPMIdx + 1].id); }} disabled={activePPMIdx === PPM_INDEX.length - 1} style={{ background: 'rgba(255,255,255,0.07)', color: activePPMIdx === PPM_INDEX.length - 1 ? TEXT_DIM : TEXT_PRI, border: `1px solid ${BORDER_S}`, borderRadius: '4px', padding: '5px 12px', cursor: activePPMIdx === PPM_INDEX.length - 1 ? 'default' : 'pointer', fontSize: '13px' }}>Next ›</button>
-                </>)}
                 <button onClick={() => downloadFile(selectedDoc.url, selectedDoc.name + '.pdf')} style={{ background: 'rgba(184,147,58,0.15)', color: GOLD, border: `1px solid rgba(184,147,58,0.3)`, borderRadius: '4px', padding: '6px 14px', cursor: 'pointer', fontSize: '11px' }}>↓ Download</button>
                 <button onClick={closeDoc} style={{ background: 'rgba(255,255,255,0.07)', border: `1px solid ${BORDER_S}`, color: TEXT_SEC, borderRadius: '4px', padding: '5px 12px', cursor: 'pointer', fontSize: '12px' }}>← Back</button>
               </div>
@@ -351,7 +318,7 @@ function LLCDocumentsTab({ onRequestDocuments, setActiveTab }) {
               src={iframeUrl}
               style={{ flex: 1, width: '100%', minHeight: 0, border: 'none', background: '#fff' }}
               title={selectedDoc.name}
-              key={selectedDoc.usePPMIndex ? `ppm-${ppmSection}` : selectedDoc.id}
+              key={selectedDoc.id}
             />
           </div>
         )}
@@ -1092,21 +1059,7 @@ function OverviewTab({ setActiveTab, portalUser, isAdmin }) {
 
   return (
     <div>
-      {/* Welcome */}
-      <div style={{ borderBottom: `1px solid ${BORDER_S}`, paddingBottom: '16px', marginBottom: '24px' }}>
-        <h1 style={{ color: TEXT_PRI, fontSize: '22px', fontWeight: 'normal', margin: '0 0 6px', fontFamily: 'Georgia, serif' }}>
-          Welcome back, {portalUser.name?.split(' ')[0] || portalUser.username}
-        </h1>
-
-      </div>
-
-      {/* Main grid: Updates (flex) | Capital Allocation (260px) */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 260px', gap: '16px', marginBottom: '20px' }}>
-        <UpdatesAndPress isAdmin={isAdmin} />
-        <CapitalAllocationPanel />
-      </div>
-
-      {/* Rosie AI — full-width card at bottom of home tab */}
+      {/* Rosie AI — full-width card at top of home tab */}
       <div style={{ background: 'rgba(184,147,58,0.04)', border: `1px solid ${BORDER}`, borderRadius: '10px', overflow: 'hidden', marginBottom: '24px' }}>
         <div style={{ padding: '12px 20px', borderBottom: `1px solid rgba(184,147,58,0.12)`, display: 'flex', alignItems: 'center', gap: '10px' }}>
           <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#4ade80', boxShadow: '0 0 6px #4ade80', flexShrink: 0 }} />
@@ -1119,6 +1072,12 @@ function OverviewTab({ setActiveTab, portalUser, isAdmin }) {
           investorEmail={portalUser?.email}
           inline={true}
         />
+      </div>
+
+      {/* Main grid: Updates (flex) | Capital Allocation (260px) */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 260px', gap: '16px', marginBottom: '20px' }}>
+        <UpdatesAndPress isAdmin={isAdmin} />
+        <CapitalAllocationPanel />
       </div>
 
       {/* Disclosure */}
@@ -1136,7 +1095,7 @@ function OverviewTab({ setActiveTab, portalUser, isAdmin }) {
 // ─── Sidebar Nav Items ────────────────────────────────────────────────────────
 const NAV_ITEMS = [
   { id: 'home',              label: 'Investor Portal',   icon: '🏠' },
-  { id: 'offering',          label: 'Investment PPM',    icon: '📄', badge: 'new' },
+  { id: 'offering',          label: 'Investment PPM',    icon: '📄' },
   { id: 'llc-documents',     label: 'LLC Documents',     icon: '📁' },
   { id: 'accreditation',     label: 'Accreditation',     icon: '✅' },
   { id: 'financial-reports', label: 'Financial Reports', icon: '📊' },
@@ -1193,12 +1152,6 @@ export default function InvestorPortal() {
           <img src={LOGO_URL} alt="Rosie AI" style={{ width: '75%', height: 'auto' }} />
         </div>
 
-        {/* Welcome */}
-        <div style={{ padding: '12px 16px 8px', borderBottom: `1px solid ${BORDER_S}` }}>
-          <div style={{ color: TEXT_DIM, fontSize: '10px', letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: '4px' }}>Welcome Back</div>
-          <div style={{ color: TEXT_PRI, fontSize: '13px', fontWeight: 'bold', fontFamily: 'Georgia, serif' }}>{portalUser.name?.split(' ')[0] || portalUser.username}</div>
-        </div>
-
         {/* Nav items */}
         <nav style={{ flex: 1, padding: '8px 0', overflowY: 'auto' }}>
           {NAV_ITEMS.map(({ id, label, icon, badge }) => (
@@ -1220,7 +1173,7 @@ export default function InvestorPortal() {
         </nav>
 
         {/* Action buttons at bottom */}
-        <div style={{ padding: '12px 16px', borderTop: `1px solid ${BORDER_S}`, display: 'flex', flexDirection: 'column', gap: '8px', alignItems: 'center' }}>
+        <div style={{ padding: '12px 16px', borderTop: `1px solid ${BORDER_S}`, display: 'flex', flexDirection: 'column', gap: '8px', alignItems: 'center', justifyContent: 'center' }}>
           {/* Book Live Demo — PNG button */}
           <button
             onClick={() => setShowZoom(true)}
@@ -1248,13 +1201,26 @@ export default function InvestorPortal() {
         </div>
       </div>
 
+      {/* ── Top Metric Cards (always visible, right of sidebar) ── */}
+      <div style={{ marginLeft: `${SIDEBAR_W}px`, padding: '16px 24px 0 24px' }}>
+        <MetricCards />
+      </div>
+
       {/* ── Page Content ── */}
-      {activeTab === 'llc-documents' ? (
-        <div style={{ padding: '0' }}>
+      {activeTab === 'offering' ? (
+        <div style={{ marginLeft: `${SIDEBAR_W}px`, flex: 1 }}>
+          <iframe
+            src="/src/pages/offering"
+            style={{ width: '100%', height: 'calc(100vh - 80px)', border: 'none' }}
+            title="Investment Offering"
+          />
+        </div>
+      ) : activeTab === 'llc-documents' ? (
+        <div style={{ marginLeft: `${SIDEBAR_W}px`, padding: '0' }}>
           <LLCDocumentsTab onRequestDocuments={() => setShowRequestDocs(true)} setActiveTab={setActiveTab} />
         </div>
       ) : (
-        <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '32px 32px' }}>
+        <div style={{ marginLeft: `${SIDEBAR_W}px`, maxWidth: '1200px', padding: '32px 32px' }}>
           {activeTab === 'home'          && <OverviewTab   setActiveTab={setActiveTab} portalUser={portalUser} isAdmin={isAdmin} />}
           {activeTab === 'accreditation' && <AccreditationTab portalUser={portalUser} />}
           {activeTab === 'financial-reports' && <FinancialReportsTab />}
