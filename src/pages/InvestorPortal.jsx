@@ -164,18 +164,18 @@ function MetricCards() {
   ];
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
+    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px' }}>
       {cards.map(({ title, value, sub, subColor, icon, bar, pct, barColor }) => (
-        <div key={title} style={{ background: PANEL, border: `1px solid ${BORDER}`, borderRadius: '10px', padding: '18px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
-            <span style={{ color: TEXT_SEC, fontSize: '11px', letterSpacing: '1px', textTransform: 'uppercase' }}>{title}</span>
-            <span style={{ fontSize: '16px' }}>{icon}</span>
+        <div key={title} style={{ background: PANEL, border: `1px solid ${BORDER}`, borderRadius: '8px', padding: '8px 14px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2px' }}>
+            <span style={{ color: TEXT_SEC, fontSize: '10px', letterSpacing: '0.8px', textTransform: 'uppercase' }}>{title}</span>
+            <span style={{ fontSize: '12px' }}>{icon}</span>
           </div>
-          <div style={{ color: TEXT_PRI, fontSize: '22px', fontWeight: 'bold', marginBottom: '4px' }}>{value}</div>
-          <div style={{ color: subColor || TEXT_DIM, fontSize: '12px', marginBottom: bar ? '10px' : 0 }}>{sub}</div>
+          <div style={{ color: TEXT_PRI, fontSize: '16px', fontWeight: 'bold', marginBottom: '2px', lineHeight: 1.2 }}>{value}</div>
+          <div style={{ color: subColor || TEXT_DIM, fontSize: '10px', marginBottom: bar ? '4px' : 0 }}>{sub}</div>
           {bar && (
-            <div style={{ background: 'rgba(255,255,255,0.08)', borderRadius: '4px', height: '5px', overflow: 'hidden' }}>
-              <div style={{ background: barColor, width: `${pct}%`, height: '100%', borderRadius: '4px', transition: 'width 1s ease' }} />
+            <div style={{ background: 'rgba(255,255,255,0.08)', borderRadius: '3px', height: '3px', overflow: 'hidden' }}>
+              <div style={{ background: barColor, width: `${pct}%`, height: '100%', borderRadius: '3px', transition: 'width 1s ease' }} />
             </div>
           )}
         </div>
@@ -933,11 +933,25 @@ function OverviewTab({ setActiveTab, portalUser, isAdmin }) {
         <h1 style={{ color: TEXT_PRI, fontSize: '22px', fontWeight: 'normal', margin: '0 0 6px', fontFamily: 'Georgia, serif' }}>
           Welcome back, {portalUser.name?.split(' ')[0] || portalUser.username}
         </h1>
-        {s.portalSubtext && <p style={{ color: TEXT_SEC, fontSize: '13px', margin: 0, maxWidth: '600px', lineHeight: 1.65 }}>{s.portalSubtext}</p>}
+
       </div>
 
-      {/* Main grid: updates (2/3) + allocation (1/3) */}
-      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '20px', marginBottom: '24px' }}>
+      {/* Main grid: Rosie AI (narrow) | Updates (medium) | Capital Allocation (narrow) */}
+      <div style={{ display: 'grid', gridTemplateColumns: '280px 1fr 260px', gap: '16px', marginBottom: '24px' }}>
+        <div style={{ display: 'flex', flexDirection: 'column' }}>
+          <div style={{ background: 'rgba(184,147,58,0.04)', border: `1px solid ${BORDER}`, borderRadius: '10px', overflow: 'hidden', height: '100%' }}>
+            <div style={{ padding: '10px 14px', borderBottom: `1px solid rgba(184,147,58,0.12)`, display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <div style={{ width: '7px', height: '7px', borderRadius: '50%', background: '#4ade80', boxShadow: '0 0 5px #4ade80' }} />
+              <span style={{ color: GOLD, fontSize: '10px', letterSpacing: '1.5px', textTransform: 'uppercase', fontWeight: 'bold' }}>Rosie AI Assistant</span>
+            </div>
+            <RosieVoiceAgent
+              userName={portalUser?.name || portalUser?.username || 'Investor'}
+              investorId={portalUser?.id}
+              investorEmail={portalUser?.email}
+              inline={true}
+            />
+          </div>
+        </div>
         <UpdatesAndPress isAdmin={isAdmin} />
         <CapitalAllocationPanel />
       </div>
@@ -998,13 +1012,13 @@ export default function InvestorPortal() {
       {showZoom && <ZoomBookingModal isOpen={showZoom} onClose={() => setShowZoom(false)} buttonLabel="Book Live Demo" zoomUrl="https://scheduler.zoom.us/stephani-sterling" />}
 
       {/* ── Top Header (logo + metric cards) ── */}
-      <div style={{ background: DARK, borderBottom: `1px solid ${BORDER}`, padding: '14px 32px' }}>
-        <div style={{ display: 'flex', gap: '20px', alignItems: 'center' }}>
+      <div style={{ background: DARK, borderBottom: `1px solid ${BORDER}`, padding: '10px 32px' }}>
+        <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
           {/* Logo */}
           <div style={{ flexShrink: 0 }}>
-            <img src={LOGO_URL} alt="Rosie AI" style={{ height: '52px', width: 'auto' }} />
+            <img src={LOGO_URL} alt="Rosie AI" style={{ height: '104px', width: 'auto' }} />
           </div>
-          <div style={{ width: '1px', height: '40px', background: BORDER, flexShrink: 0 }} />
+          <div style={{ width: '1px', height: '80px', background: BORDER, flexShrink: 0 }} />
           {/* Metric cards */}
           <div style={{ flex: 1 }}>
             <MetricCards />
@@ -1039,15 +1053,39 @@ export default function InvestorPortal() {
         <div style={{ display: 'flex', gap: '10px', flexShrink: 0, paddingLeft: '16px' }}>
           <button
             onClick={() => setShowZoom(true)}
-            style={{ background: 'rgba(96,165,250,0.15)', color: '#60a5fa', border: '1px solid rgba(96,165,250,0.3)', borderRadius: '6px', padding: '8px 16px', cursor: 'pointer', fontWeight: '700', fontSize: '11px', letterSpacing: '1px', textTransform: 'uppercase', whiteSpace: 'nowrap' }}
+            style={{ background: 'none', border: 'none', padding: '0', cursor: 'pointer', flexShrink: 0 }}
+            title="Book Live RosieAI Platform Demo"
           >
-            📅 Book Live Demo
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0', background: 'linear-gradient(135deg, #1a1400 0%, #b8933a 100%)', borderRadius: '10px', padding: '6px', height: '48px', boxShadow: '0 2px 12px rgba(184,147,58,0.3)' }}>
+              <div style={{ background: 'rgba(0,0,0,0.5)', borderRadius: '7px', width: '36px', height: '36px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <div style={{ background: '#b8933a', borderRadius: '6px', width: '22px', height: '22px', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '1px' }}>
+                  <span style={{ fontSize: '11px' }}>🎥</span>
+                </div>
+                <span style={{ color: 'white', fontSize: '7px', fontWeight: 'bold', letterSpacing: '0.3px', lineHeight: 1 }}>zoom</span>
+              </div>
+              <div style={{ paddingLeft: '10px', paddingRight: '12px' }}>
+                <span style={{ color: 'white', fontWeight: '700', fontSize: '12px', whiteSpace: 'nowrap', letterSpacing: '0.3px' }}>Book Live RosieAI</span>
+                <br />
+                <span style={{ color: 'rgba(255,255,255,0.85)', fontWeight: '700', fontSize: '12px', whiteSpace: 'nowrap', letterSpacing: '0.3px' }}>Platform Demo</span>
+              </div>
+            </div>
           </button>
           <button
             onClick={() => setShowRequestDocs(true)}
-            style={{ background: `linear-gradient(135deg,${GOLD},${GOLD_LT})`, color: DARK, border: 'none', borderRadius: '6px', padding: '8px 16px', cursor: 'pointer', fontWeight: '700', fontSize: '11px', letterSpacing: '1px', textTransform: 'uppercase', whiteSpace: 'nowrap' }}
+            style={{ background: 'none', border: 'none', padding: '0', cursor: 'pointer', flexShrink: 0 }}
+            title="Request E-Signature Investment Documents"
           >
-            ✍️ Request Documents
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0', background: 'linear-gradient(135deg, #00c8d4 0%, #1a6bdc 100%)', borderRadius: '10px', padding: '6px', height: '48px', boxShadow: '0 2px 12px rgba(26,107,220,0.35)' }}>
+              <div style={{ background: '#0d1e4a', borderRadius: '7px', width: '36px', height: '36px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <span style={{ fontSize: '16px', lineHeight: 1 }}>✍️</span>
+                <span style={{ color: 'white', fontSize: '7px', fontWeight: 'bold', letterSpacing: '0.3px', lineHeight: 1.2 }}>SignNow</span>
+              </div>
+              <div style={{ paddingLeft: '10px', paddingRight: '12px' }}>
+                <span style={{ color: 'white', fontWeight: '700', fontSize: '12px', whiteSpace: 'nowrap', letterSpacing: '0.3px' }}>Request E-Signature</span>
+                <br />
+                <span style={{ color: 'rgba(255,255,255,0.9)', fontWeight: '700', fontSize: '12px', whiteSpace: 'nowrap', letterSpacing: '0.3px' }}>Investment Documents</span>
+              </div>
+            </div>
           </button>
         </div>
       </div>
