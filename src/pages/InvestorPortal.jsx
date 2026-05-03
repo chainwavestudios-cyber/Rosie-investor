@@ -1133,15 +1133,17 @@ function OverviewTab({ setActiveTab, portalUser, isAdmin }) {
   );
 }
 
-// ─── Main Portal Shell ────────────────────────────────────────────────────────
-const TABS = [
-  { id: 'home',              label: 'Investor Portal'   },
-  { id: 'llc-documents',     label: 'LLC Documents'     },
-  { id: 'accreditation',     label: 'Accreditation'     },
-  { id: 'financial-reports', label: 'Financial Reports' },
-  { id: 'account',           label: 'Account'           },
+// ─── Sidebar Nav Items ────────────────────────────────────────────────────────
+const NAV_ITEMS = [
+  { id: 'home',              label: 'Investor Portal',   icon: '🏠' },
+  { id: 'offering',          label: 'Investment PPM',    icon: '📄', badge: 'new' },
+  { id: 'llc-documents',     label: 'LLC Documents',     icon: '📁' },
+  { id: 'accreditation',     label: 'Accreditation',     icon: '✅' },
+  { id: 'financial-reports', label: 'Financial Reports', icon: '📊' },
+  { id: 'account',           label: 'Account',           icon: '👤' },
 ];
 
+// ─── Main Portal Shell ────────────────────────────────────────────────────────
 export default function InvestorPortal() {
   const { portalUser, portalLogout, isAdmin, isPortalLoading } = usePortalAuth();
   const [activeTab, setActiveTab]         = useState('home');
@@ -1170,56 +1172,59 @@ export default function InvestorPortal() {
   );
   if (!portalUser) return null;
 
+  // Sidebar width constant
+  const SIDEBAR_W = 220;
+
   return (
-    <div style={{ minHeight: '100vh', background: DARKER, fontFamily: 'Georgia, serif', color: TEXT_PRI }}>
+    <div style={{ minHeight: '100vh', background: DARKER, fontFamily: 'Georgia, serif', color: TEXT_PRI, display: 'flex' }}>
       {/* Modals */}
       {showRequestDocs && <RequestDocumentsModal portalUser={portalUser} onClose={() => setShowRequestDocs(false)} onSuccess={() => setActiveTab('account')} />}
       {showZoom && <ZoomBookingModal isOpen={showZoom} onClose={() => setShowZoom(false)} buttonLabel="Book Live Demo" zoomUrl="https://scheduler.zoom.us/stephani-sterling" />}
 
-      {/* ── Top Header (logo + metric cards) ── */}
-      <div style={{ background: DARK, borderBottom: `1px solid ${BORDER}`, padding: '10px 32px' }}>
-        <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
-          {/* Logo */}
-          <div style={{ flexShrink: 0 }}>
-            <img src={LOGO_URL} alt="Rosie AI" style={{ height: '104px', width: 'auto' }} />
-          </div>
-          <div style={{ width: '1px', height: '80px', background: BORDER, flexShrink: 0 }} />
-          {/* Metric cards */}
-          <div style={{ flex: 1 }}>
-            <MetricCards />
-          </div>
-          {/* Right: user + logout */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
-            <span style={{ color: TEXT_SEC, fontSize: '12px', whiteSpace: 'nowrap' }}>{portalUser.name || portalUser.email}</span>
-            {isAdmin && <button onClick={() => navigate('/admin')} style={{ background: 'rgba(184,147,58,0.15)', color: GOLD, border: `1px solid rgba(184,147,58,0.3)`, borderRadius: '6px', padding: '6px 14px', cursor: 'pointer', fontSize: '11px' }}>Admin</button>}
-            <button onClick={() => { portalLogout(); navigate('/'); }} style={{ background: 'transparent', color: TEXT_DIM, border: `1px solid ${BORDER_S}`, borderRadius: '6px', padding: '6px 14px', cursor: 'pointer', fontSize: '11px' }}>Logout</button>
-          </div>
+      {/* ── Sidebar ── */}
+      <div style={{
+        width: `${SIDEBAR_W}px`, flexShrink: 0,
+        background: DARK, borderRight: `1px solid ${BORDER}`,
+        display: 'flex', flexDirection: 'column',
+        minHeight: '100vh', position: 'fixed', top: 0, left: 0, bottom: 0, zIndex: 100,
+      }}>
+        {/* Logo */}
+        <div style={{ padding: '20px 16px 12px', display: 'flex', justifyContent: 'center', borderBottom: `1px solid ${BORDER_S}` }}>
+          <img src={LOGO_URL} alt="Rosie AI" style={{ width: '75%', height: 'auto' }} />
         </div>
-      </div>
 
-      {/* ── Tab Bar (tabs left, action buttons right) ── */}
-      <div style={{ background: DARK, borderBottom: `1px solid ${BORDER_S}`, padding: '0 32px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <div style={{ display: 'flex', gap: 0, overflowX: 'auto' }}>
-          {TABS.map(({ id, label }) => (
+        {/* Welcome */}
+        <div style={{ padding: '12px 16px 8px', borderBottom: `1px solid ${BORDER_S}` }}>
+          <div style={{ color: TEXT_DIM, fontSize: '10px', letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: '4px' }}>Welcome Back</div>
+          <div style={{ color: TEXT_PRI, fontSize: '13px', fontWeight: 'bold', fontFamily: 'Georgia, serif' }}>{portalUser.name?.split(' ')[0] || portalUser.username}</div>
+        </div>
+
+        {/* Nav items */}
+        <nav style={{ flex: 1, padding: '8px 0', overflowY: 'auto' }}>
+          {NAV_ITEMS.map(({ id, label, icon, badge }) => (
             <button key={id} onClick={() => setActiveTab(id)} style={{
-              background: 'none', border: 'none',
-              borderBottom: activeTab === id ? `2px solid ${GOLD}` : '2px solid transparent',
+              display: 'flex', alignItems: 'center', gap: '10px',
+              width: '100%', textAlign: 'left',
+              background: activeTab === id ? 'rgba(184,147,58,0.12)' : 'transparent',
+              border: 'none', borderLeft: activeTab === id ? `3px solid ${GOLD}` : '3px solid transparent',
               color: activeTab === id ? GOLD : TEXT_DIM,
-              padding: '14px 18px', cursor: 'pointer', fontSize: '13px',
-              letterSpacing: '0.5px', transition: 'all 0.15s',
-              fontFamily: 'Georgia, serif', whiteSpace: 'nowrap',
+              padding: '11px 16px', cursor: 'pointer', fontSize: '13px',
+              fontFamily: 'Georgia, serif', transition: 'all 0.15s',
               fontWeight: activeTab === id ? 'bold' : 'normal',
             }}>
-              {label}
+              <span style={{ fontSize: '14px' }}>{icon}</span>
+              <span style={{ flex: 1 }}>{label}</span>
+              {badge && <span style={{ background: GOLD, color: DARK, fontSize: '9px', padding: '2px 5px', borderRadius: '3px', fontWeight: 'bold', letterSpacing: '0.5px', textTransform: 'uppercase' }}>{badge}</span>}
             </button>
           ))}
-        </div>
-        {/* Action buttons — far right of tab bar */}
-        <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexShrink: 0, paddingLeft: '16px' }}>
+        </nav>
+
+        {/* Action buttons at bottom */}
+        <div style={{ padding: '12px 16px', borderTop: `1px solid ${BORDER_S}`, display: 'flex', flexDirection: 'column', gap: '8px', alignItems: 'center' }}>
           {/* Book Live Demo — PNG button */}
           <button
             onClick={() => setShowZoom(true)}
-            style={{ background: 'none', border: 'none', padding: '0', cursor: 'pointer', lineHeight: 0, flexShrink: 0 }}
+            style={{ background: 'none', border: 'none', padding: '0', cursor: 'pointer', lineHeight: 0, width: '100%' }}
             title="Book Live RosieAI Platform Demo"
           >
             <img
