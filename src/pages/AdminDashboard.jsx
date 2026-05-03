@@ -605,6 +605,107 @@ function InvestorUpdatesManager() {
   );
 }
 
+// ─── Press Releases Manager ───────────────────────────────────────────────
+function PressReleasesManager() {
+  const [releases, setReleases] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [showForm, setShowForm] = useState(false);
+  const EMPTY = { title: '', summary: '', content: '', sourceUrl: '', imageUrl: '' };
+  const [form, setForm] = useState(EMPTY);
+
+  const load = async () => {
+    setLoading(true);
+    try { const arr = await base44.entities.PressRelease.list('-publishedAt', 200); setReleases(arr || []); } catch {}
+    setLoading(false);
+  };
+  useEffect(() => { load(); }, []);
+
+  const handlePost = async () => {
+    if (!form.title || !form.content) return;
+    try {
+      await base44.entities.PressRelease.create({ ...form, publishedAt: new Date().toISOString(), status: 'NEW' });
+      setForm(EMPTY); setShowForm(false); await load();
+    } catch (e) { alert('Error: ' + e.message); }
+  };
+
+  const ta = { width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '4px', padding: '10px 14px', color: '#e8e0d0', fontSize: '13px', outline: 'none', fontFamily: 'Georgia, serif', boxSizing: 'border-box', resize: 'vertical' };
+  const statusColors = { PENDING: '#f59e0b', NEW: '#60a5fa', COMPLETED: '#4ade80', ARCHIVED: '#4a5568' };
+
+  return (
+    <div style={{ fontFamily: 'Georgia, serif' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+        <div>
+          <h3 style={{ color: '#e8e0d0', margin: '0 0 4px', fontWeight: 'normal', fontSize: '18px' }}>Press Releases</h3>
+          <p style={{ color: '#6b7280', fontSize: '12px', margin: 0 }}>Manage press releases visible to investors in the portal.</p>
+        </div>
+        <button onClick={() => setShowForm(v => !v)}
+          style={{ background: 'linear-gradient(135deg,#b8933a,#d4aa50)', color: DARK, border: 'none', borderRadius: '2px', padding: '9px 20px', cursor: 'pointer', fontWeight: '700', fontSize: '11px', letterSpacing: '2px', textTransform: 'uppercase' }}>
+          {showForm ? '✕ Cancel' : '+ New Release'}
+        </button>
+      </div>
+
+      {showForm && (
+        <div style={{ background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(184,147,58,0.25)', borderRadius: '6px', padding: '24px', marginBottom: '28px' }}>
+          <div style={{ marginBottom: '12px' }}>
+            <label style={ls}>Headline</label>
+            <input value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} placeholder="Press release headline…" style={{ ...ta, resize: 'none' }} />
+          </div>
+          <div style={{ marginBottom: '12px' }}>
+            <label style={ls}>Summary (1–2 sentences)</label>
+            <input value={form.summary} onChange={e => setForm({ ...form, summary: e.target.value })} placeholder="Short summary…" style={{ ...ta, resize: 'none' }} />
+          </div>
+          <div style={{ marginBottom: '12px' }}>
+            <label style={ls}>Full Content</label>
+            <textarea value={form.content} onChange={e => setForm({ ...form, content: e.target.value })} placeholder="Full press release text…" rows={6} style={ta} />
+          </div>
+          <div style={{ marginBottom: '12px' }}>
+            <label style={ls}>Source URL (optional)</label>
+            <input value={form.sourceUrl} onChange={e => setForm({ ...form, sourceUrl: e.target.value })} placeholder="https://…" style={{ ...ta, resize: 'none' }} />
+          </div>
+          <div style={{ marginBottom: '20px' }}>
+            <label style={ls}>Image URL (optional)</label>
+            <input value={form.imageUrl} onChange={e => setForm({ ...form, imageUrl: e.target.value })} placeholder="https://…" style={{ ...ta, resize: 'none' }} />
+          </div>
+          <button onClick={handlePost} disabled={!form.title || !form.content}
+            style={{ background: 'linear-gradient(135deg,#b8933a,#d4aa50)', color: DARK, border: 'none', borderRadius: '4px', padding: '11px 28px', cursor: 'pointer', fontWeight: '700', fontSize: '12px', letterSpacing: '2px', textTransform: 'uppercase', opacity: (!form.title || !form.content) ? 0.5 : 1 }}>
+            📰 Publish Release
+          </button>
+        </div>
+      )}
+
+      {loading && <div style={{ color: '#6b7280', textAlign: 'center', padding: '40px' }}>Loading…</div>}
+      {!loading && releases.length === 0 && (
+        <div style={{ textAlign: 'center', padding: '48px', color: '#4a5568' }}>
+          <div style={{ fontSize: '40px', marginBottom: '10px' }}>📰</div>
+          <p>No press releases yet. Click &quot;+ New Release&quot; to create the first one.</p>
+        </div>
+      )}
+      {releases.map(r => (
+        <div key={r.id} style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: '6px', padding: '18px 20px', marginBottom: '10px', display: 'flex', gap: '16px', alignItems: 'flex-start' }}>
+          {r.imageUrl && <img src={r.imageUrl} alt="" style={{ width: '80px', height: '60px', objectFit: 'cover', borderRadius: '4px', flexShrink: 0 }} />}
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px', flexWrap: 'wrap' }}>
+              <div>
+                <span style={{ background: `${statusColors[r.status] || '#60a5fa'}22`, color: statusColors[r.status] || '#60a5fa', fontSize: '9px', letterSpacing: '1px', textTransform: 'uppercase', padding: '2px 8px', borderRadius: '2px', marginRight: '8px' }}>{r.status || 'NEW'}</span>
+                <span style={{ color: '#e8e0d0', fontWeight: 'bold', fontSize: '14px' }}>{r.title}</span>
+              </div>
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexShrink: 0 }}>
+                <span style={{ color: '#4a5568', fontSize: '11px' }}>{r.publishedAt ? new Date(r.publishedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : ''}</span>
+                {r.sourceUrl && <a href={r.sourceUrl} target="_blank" rel="noopener noreferrer" style={{ color: GOLD, fontSize: '10px', border: `1px solid rgba(184,147,58,0.3)`, borderRadius: '10px', padding: '1px 7px', textDecoration: 'none' }}>↗ Source</a>}
+                <button onClick={async () => { if (window.confirm('Delete this press release?')) { await base44.entities.PressRelease.delete(r.id); await load(); } }}
+                  style={{ background: 'rgba(239,68,68,0.1)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.25)', borderRadius: '4px', padding: '3px 10px', cursor: 'pointer', fontSize: '11px' }}>
+                  Delete
+                </button>
+              </div>
+            </div>
+            {r.summary && <p style={{ color: '#8a9ab8', fontSize: '12px', margin: '6px 0 0', lineHeight: 1.5 }}>{r.summary}</p>}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // ─── Portal Controls ──────────────────────────────────────────────────────
 function PortalControls() {
   const [s, setS]       = useState(getPortalSettings);
@@ -699,7 +800,7 @@ function PortalControls() {
         {sec==='toggles' && <div><h3 style={{ color:'#e8e0d0', margin:'0 0 20px', fontWeight:'normal' }}>Visibility</h3><Tog label="Portal Active" value={s.portalActive} onToggle={()=>upd('portalActive',!s.portalActive)} /><Tog label="Show Market Data Tab" value={s.showMarketData} onToggle={()=>upd('showMarketData',!s.showMarketData)} /><Tog label="Show Subscription Tab" value={s.showSubscription} onToggle={()=>upd('showSubscription',!s.showSubscription)} /></div>}
         {sec==='updates' && <InvestorUpdatesManager />}
         {sec==='press' && <PressReleasesManager />}
-        {sec !== 'updates' && <div style={{ display:'flex', gap:'12px', marginTop:'32px', paddingTop:'24px', borderTop:'1px solid rgba(255,255,255,0.07)', alignItems:'center' }}>
+        {sec !== 'updates' && sec !== 'press' && <div style={{ display:'flex', gap:'12px', marginTop:'32px', paddingTop:'24px', borderTop:'1px solid rgba(255,255,255,0.07)', alignItems:'center' }}>
           <button onClick={save} style={{ background:'linear-gradient(135deg,#b8933a,#d4aa50)', color:DARK, border:'none', borderRadius:'2px', padding:'12px 32px', cursor:'pointer', fontWeight:'700', fontSize:'12px', letterSpacing:'2px', textTransform:'uppercase' }}>{saved?'✓ Saved!':'Save Changes'}</button>
           {saved && <span style={{ color:'#4ade80', fontSize:'13px' }}>Live on portal.</span>}
           {saveError && <span style={{ color:'#ef4444', fontSize:'13px' }}>{saveError}</span>}
