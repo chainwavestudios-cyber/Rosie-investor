@@ -1,0 +1,47 @@
+{
+  "name": "PressRelease",
+  "type": "object",
+  "properties": {
+    "title": {
+      "type": "string",
+      "title": "Headline"
+    },
+    "summary": {
+      "type": "string",
+      "title": "Summary",
+      "format": "textarea"
+    },
+    "content": {
+      "type": "string",
+      "title": "Content",
+      "format": "textarea"
+    },
+    "sourceUrl": {
+      "type": "string",
+      "title": "Source URL"
+    },
+    "imageUrl": {
+      "type": "string",
+      "title": "Image URL"
+    },
+    "publishedAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Published At"
+    },
+    "status": {
+      "type": "string",
+      "title": "Status",
+      "enum": [
+        "NEW",
+        "PENDING",
+        "COMPLETED",
+        "ARCHIVED"
+      ],
+      "default": "NEW"
+    }
+  },
+  "required": [
+    "title"
+  ]
+}
