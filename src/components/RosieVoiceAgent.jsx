@@ -210,7 +210,7 @@ export default function RosieVoiceAgent({ userName = 'Steph', investorId = null,
   // Shared inner content (used by both modes)
   const chatBody = (
     <>
-      <div style={{ flex:1, overflowY:'auto', padding:'16px', minHeight: inline ? undefined : undefined }}>
+      <div style={{ flex:1, overflowY:'auto', padding:'16px', minHeight: inline ? '100px' : undefined }}>
         {transcript.length === 0 && (
           <div style={{ color:'#4a5568', fontSize:'12px', textAlign:'center', padding: inline ? '6px 0' : '24px 0', fontStyle:'italic' }}>
             {phase === 'active' ? 'Rosie is ready — start speaking…' : 'Click Start to connect with Rosie'}
@@ -238,7 +238,7 @@ export default function RosieVoiceAgent({ userName = 'Steph', investorId = null,
   // Inline mode — renders inside the page layout, no fixed positioning
   if (inline) {
     return (
-      <div style={{ display:'flex', flexDirection:'column', background:'rgba(0,0,0,0.2)' }}>
+      <div style={{ display:'flex', flexDirection:'column', background:'rgba(0,0,0,0.2)', minHeight:'160px' }}>
         {chatBody}
       </div>
     );

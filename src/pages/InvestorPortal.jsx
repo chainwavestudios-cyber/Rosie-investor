@@ -1235,7 +1235,7 @@ export default function InvestorPortal() {
             <LLCDocumentsTab onRequestDocuments={() => setShowRequestDocs(true)} setActiveTab={setActiveTab} />
           </div>
         ) : (
-          <div style={{ maxWidth: '1200px', padding: '32px 32px' }}>
+          <div style={{ maxWidth: '1200px', padding: '32px 16px 32px 12px' }}>
             {activeTab === 'home'          && <OverviewTab   setActiveTab={setActiveTab} portalUser={portalUser} isAdmin={isAdmin} />}
             {activeTab === 'accreditation' && <AccreditationTab portalUser={portalUser} />}
             {activeTab === 'financial-reports' && <FinancialReportsTab />}
