@@ -1059,19 +1059,19 @@ function OverviewTab({ setActiveTab, portalUser, isAdmin }) {
   return (
     <div>
       {/* Rosie AI — full-width card at top of home tab */}
-      <div style={{ background: 'rgba(184,147,58,0.04)', border: `1px solid ${BORDER}`, borderRadius: '10px', overflow: 'hidden', marginBottom: '16px', marginTop: '-8px', marginLeft: '20px', marginRight: '-20px' }}>
+      <div style={{ background: 'rgba(184,147,58,0.04)', border: `1px solid ${BORDER}`, borderRadius: '10px', overflow: 'hidden', marginBottom: '16px', marginTop: '-24px', marginLeft: '0px', marginRight: '-20px', display: 'flex', flexDirection: 'column' }}>
         <div style={{ padding: '10px 20px', borderBottom: `1px solid rgba(184,147,58,0.12)`, display: 'flex', alignItems: 'center', gap: '10px' }}>
           <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#4ade80', boxShadow: '0 0 6px #4ade80', flexShrink: 0 }} />
           <span style={{ color: GOLD, fontSize: '11px', letterSpacing: '2px', textTransform: 'uppercase', fontWeight: 'bold' }}>Rosie AI — Investor Assistant</span>
           <span style={{ color: TEXT_DIM, fontSize: '11px', marginLeft: 'auto' }}>Ask me anything about this investment</span>
         </div>
-        <div style={{ transform: 'scaleY(0.8)', transformOrigin: 'top' }}>
+        <div style={{ flex: 1, transform: 'scaleY(0.8)', transformOrigin: 'top' }}>
           <RosieVoiceAgent
             userName={portalUser?.name || portalUser?.username || 'Investor'}
             investorId={portalUser?.id}
             investorEmail={portalUser?.email}
             inline={true}
-            talkButtonStyle={{ padding: '8px 28px', fontSize: '13px' }}
+            talkButtonStyle={{ padding: '4px 28px', fontSize: '13px' }}
           />
         </div>
       </div>

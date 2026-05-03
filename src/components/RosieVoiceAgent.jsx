@@ -210,7 +210,7 @@ export default function RosieVoiceAgent({ userName = 'Steph', investorId = null,
   // Shared inner content (used by both modes)
   const chatBody = (
     <>
-      <div style={{ flex:1, overflowY:'auto', padding:'16px', minHeight: inline ? '220px' : undefined }}>
+      <div style={{ flex:1, overflowY:'auto', padding:'16px', minHeight: inline ? '80px' : undefined }}>
         {transcript.length === 0 && (
           <div style={{ color:'#4a5568', fontSize:'12px', textAlign:'center', padding:'24px 0', fontStyle:'italic' }}>
             {phase === 'active' ? 'Rosie is ready — start speaking…' : 'Click Start to connect with Rosie'}
@@ -269,5 +269,5 @@ const transcriptAreaStyle = { flex: 1, overflowY: 'auto', padding: '15px' };
 const bubbleStyle = { padding: '8px 12px', borderRadius: '12px', fontSize: '13px', maxWidth: '80%', display: 'inline-block' };
 const errorStyle = { color: '#ff4444', fontSize: '11px', textAlign: 'center', marginTop: '10px' };
 const footerStyle = { padding: '15px' };
-const actionBtnStyle = { width: '100%', padding: '12px', background: GOLD, border: 'none', fontWeight: 'bold', cursor: 'pointer' };
+const actionBtnStyle = { width: '100%', padding: '5px 12px', background: GOLD, border: 'none', fontWeight: 'bold', cursor: 'pointer', fontSize: '12px' };
 const endBtnStyle = { width: '100%', padding: '12px', background: '#ff444422', color: '#ff4444', border: '1px solid #ff444444', cursor: 'pointer' };
