@@ -62,12 +62,25 @@ export default function MigrateLeadModal({ lead, history, onClose, onMigrated })
       setCurrentStep('Creating CRM account');
       let iu = null;
 
-      // Try to find existing by username — if found, preserve all data (no password overwrite)
+      // Try to find existing by username — if found, patch any missing fields from lead
       try {
         const existing = await base44.entities.InvestorUser.filter({ username });
         if (existing?.length > 0) {
           iu = existing[0];
-          console.log('[MigrateLeadModal] Existing InvestorUser found — preserving all data.');
+          console.log('[MigrateLeadModal] Existing InvestorUser found — patching missing fields from lead.');
+          // Patch fields that may be blank/missing on the existing record
+          const patch = {};
+          if (!iu.phone    && lead.phone)    patch.phone    = lead.phone;
+          if (!iu.email    && lead.email)    patch.email    = (lead.email || '').toLowerCase();
+          if (!iu.address  && lead.address)  patch.address  = lead.address;
+          if (!iu.notes    && lead.notes)    patch.notes    = lead.notes;
+          if (!iu.leadId               )     patch.leadId   = lead.id;
+          if (lead.engagementScore > (iu.engagementScore || 0)) patch.engagementScore = lead.engagementScore;
+          if (lead.starRating > (iu.starRating || 0))           patch.starRating      = lead.starRating;
+          if (Object.keys(patch).length > 0) {
+            await base44.entities.InvestorUser.update(iu.id, patch);
+            iu = { ...iu, ...patch };
+          }
         }
       } catch {}
 
