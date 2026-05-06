@@ -746,7 +746,7 @@ export default function InvestorPage() {
             <div className="diff-grid" style={{gridTemplateColumns:"repeat(3,1fr)",marginBottom:32}}>
               {[
                 ["🔍","Discovery","Our discovery engine automates the heavy lifting of data acquisition, integrating web crawlers, solar permit tracking, NWS storm data, and deep social scraping to identify high-intent opportunities as they happen."],
-                ["🧠","AI Analysis","Beyond simple data, Rosie provides deep cognitive processing — from intent scoring and pain point detection to persona clustering — ensuring every lead is qualified and understood before you ever hit "send.""],
+                ["🧠","AI Analysis","Beyond simple data, Rosie provides deep cognitive processing — from intent scoring and pain point detection to persona clustering — ensuring every lead is qualified and understood before you ever hit \"send.\""],
                 ["⚡","Enrichment","We eliminate incomplete data through a sophisticated multi-source waterfall, merging global databases with specialized industry data to provide a comprehensive, 360-degree view of every prospect."],
                 ["📤","Outreach","Rosie orchestrates multi-channel engagement across SMS, email, AI voice, and WhatsApp, maintaining a consistent brand presence through intelligent drip sequences and automated follow-ups."],
                 ["📊","Intelligence","The backbone of the platform focuses on operational excellence, managing complex queue systems, self-healing protocols, and full-stack telemetry to ensure the system remains resilient and transparent."],
