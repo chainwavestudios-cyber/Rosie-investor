@@ -471,7 +471,7 @@ export default function InvestorPage() {
             ["financials", "Financials"],
             ["team", "Team"],
             ["proceeds", "Use of Proceeds"],
-            ["operations", "Operations"],
+            ["operations", "Status"],
             ["roadmap", "Roadmap"],
             ["lce", "Codebase"],
             ["audit", "🔒 Audit"],
@@ -603,7 +603,7 @@ export default function InvestorPage() {
           <div className="wrap">
             <div className="slab reveal">Market Analysis</div>
             <h2 className="h2 reveal">Multiple Exploding Markets,<br/>One Unified Platform</h2>
-            <p className="lead reveal">Rosie AI sits at the intersection of three of the fastest-growing categories in enterprise software — AI Sales Intelligence, AI Voice Agents, and Automated Conversational AI SaaS. Each market is independently large. Together they represent a generational wave of automation spend with no clear category leader yet.</p>
+            <p className="lead reveal" style={{maxWidth:"100%"}}>Rosie AI sits at the intersection of three of the fastest-growing categories in enterprise software — AI Sales Intelligence, AI Voice Agents, and Automated Conversational AI SaaS. Each market is independently large. Together they represent a generational wave of automation spend with no clear category leader yet.</p>
             <div className="mkt-tabs reveal">
               {[["overview","📊 Market Overview"],["segments","📈 Segments & TAM"],["trends","🔥 Growth Drivers"],["competitive","⚔️ Competitive Landscape"],["ma","🤝 M&A Precedents"]].map(([id,label])=>(
                 <button key={id} className={`mkt-tab${mktTab===id?" active":""}`} onClick={()=>setMktTab(id)}>{label}</button>
@@ -802,7 +802,7 @@ export default function InvestorPage() {
           <div className="wrap">
             <div className="slab reveal">Technology</div>
             <h2 className="h2 reveal">One Unified System.<br/><em style={{fontStyle:"italic",color:"#deba6a"}}>Infinite Possibilities.</em></h2>
-            <p className="lead reveal">Rosie AI leverages a multi-tenant, distributed framework to run 150+ backend functions simultaneously, updating 136 entities the second data hits the system. This isn't just a CRM — it's an intelligence layer that adapts to your industry, eliminating the lag and putting real-time solutions at your fingertips.</p>
+            <p className="lead reveal" style={{maxWidth:"100%"}}>Rosie AI leverages a multi-tenant, distributed framework to run 150+ backend functions simultaneously, updating 136 entities the second data hits the system. This isn't just a CRM — it's an intelligence layer that adapts to your industry, eliminating the lag and putting real-time solutions at your fingertips.</p>
 
             {/* Core Capabilities */}
             <div className="slab reveal">Core Capabilities</div>
@@ -909,7 +909,7 @@ export default function InvestorPage() {
           <div className="wrap">
             <div className="slab reveal">Financial Projections & Growth Milestones</div>
             <h2 className="h2 reveal">Two Revenue Streams.<br/><em style={{fontStyle:"italic",color:"#deba6a"}}>One Compounding Engine.</em></h2>
-            <p className="lead reveal">The platform generates revenue through two complementary streams: recurring organizational subscriptions and an à la carte AI services marketplace launching in September 2026.</p>
+            <p className="lead reveal" style={{maxWidth:"100%"}}>The platform generates revenue through two complementary streams: recurring organizational subscriptions and an à la carte AI services marketplace launching in September 2026.</p>
 
             {/* Revenue table + cost breakdown side by side, no empty space */}
             <div style={{display:"grid",gridTemplateColumns:"1.35fr 1fr",gap:28,marginBottom:32,alignItems:"start"}} className="reveal">
@@ -1199,7 +1199,7 @@ export default function InvestorPage() {
           <div className="wrap">
             <div className="slab reveal">Current State — Q1 2026</div>
             <h2 className="h2 reveal">Fully Built. Fully Audited.<br/><em style={{fontStyle:"italic",color:"#deba6a"}}>Production Ready.</em></h2>
-            <p className="lead reveal">Rosie AI is not a concept or a deck — it is a running, audited, multi-tenant SaaS platform built over 18 months through founder-funded sweat equity. Every screen you see below is live production code.</p>
+            <p className="lead reveal" style={{maxWidth:"100%"}}>Rosie AI is not a concept or a deck — it is a running, audited, multi-tenant SaaS platform built over 18 months through founder-funded sweat equity. Every screen you see below is live production code.</p>
             <div className="ops-proof-strip reveal">
               {[["262","Backend Functions",""],["92/100","Triple-AI Audit Score","sky"],["18mo","In Development","em"],["136","Database Entities",""]].map(([n,l,cls])=>(
                 <div key={l} className="ops-proof-cell">
@@ -1250,7 +1250,7 @@ export default function InvestorPage() {
           <div className="wrap">
             <div className="slab reveal">Strategic Roadmap</div>
             <h2 className="h2 reveal">The Architecture of Trust:<br/><em style={{fontStyle:"italic",color:"#deba6a"}}>Scaling for the Next Horizon.</em></h2>
-            <p className="lead reveal">This investment round is a strategic commitment to our long-term success, ensuring the seamless migration and absolute protection of our customers' most valuable data. We are actively evolving our architecture to meet the rigorous demands of institutional-scale operations.</p>
+            <p className="lead reveal" style={{maxWidth:"100%"}}>This investment round is a strategic commitment to our long-term success, ensuring the seamless migration and absolute protection of our customers' most valuable data. We are actively evolving our architecture to meet the rigorous demands of institutional-scale operations.</p>
 
 
 
@@ -1288,8 +1288,17 @@ export default function InvestorPage() {
       </div>
 
       {/* ══ LIVE CODEBASE EXPLORER ════════════════════════════════════════ */}
-      <div id="page-lce" className={`page${activePage === "lce" ? " active" : ""}`} style={{paddingTop:66}}>
-        <LiveCodebaseExplorer />
+      <div id="page-lce" className={`page${activePage === "lce" ? " active" : ""}`}>
+        <section className="pad" style={{paddingTop:130}}>
+          <div className="wrap">
+            <div className="slab reveal">Source Code Access</div>
+            <h2 className="h2 reveal">The Real Thing.<br/><em style={{fontStyle:"italic",color:"#deba6a"}}>Live Production Code.</em></h2>
+            <p className="lead reveal" style={{maxWidth:"100%"}}>Browse and search the actual source files from the audited production build. Top 50% of each file is visible; bottom 50% is blurred as a preview safeguard. Full source available to verified investors upon request.</p>
+            <div style={{marginTop:40}}>
+              <LiveCodebaseExplorer />
+            </div>
+          </div>
+        </section>
       </div>
 
       {/* ══ AUDIT ═════════════════════════════════════════════════════════ */}
