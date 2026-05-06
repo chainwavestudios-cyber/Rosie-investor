@@ -12,6 +12,8 @@ import ResearchTab from './ResearchTab';
 import InvestorWebsiteTab from './InvestorWebsiteTab';
 import WebsiteHistoryTab from './WebsiteHistoryTab';
 import ZoomBookingModal from '@/components/ZoomBookingModal';
+import SetReminderButton from '@/components/SetReminderButton';
+import { useReminders } from '@/hooks/useReminders';
 
 const GOLD = '#b8933a';
 const DARK = '#0a0f1e';
@@ -878,6 +880,8 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
   const currentUsername = portalUser?.username || 'admin';
   const otherUsername = currentUsername === 'steph' ? 'admin' : 'steph';
 
+  const { setReminder } = useReminders();
+
   const handleStarChange = async (val) => {
     setStarRating(val);
     try { await base44.entities.Lead.update(lead.id, { starRating: val }); onUpdate && onUpdate(); } catch {}
@@ -1317,6 +1321,12 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
                 style={{ background:'rgba(255,255,255,0.05)', color:'#c4cdd8', border:'1px solid rgba(255,255,255,0.1)', borderRadius:'4px', padding:'6px 12px', cursor:'pointer', fontSize:'11px' }}>
                 📅 Book Call via Calendly
               </button>
+            )}
+            {!isArchived && (
+              <SetReminderButton 
+                contact={{ id: lead.id, firstName: editLead.firstName, lastName: editLead.lastName, type: 'lead' }}
+                onSetReminder={setReminder}
+              />
             )}
             {!isArchived && editLead.status === 'prospect' && (
               <button onClick={handleTransferPipeline} disabled={transferring}

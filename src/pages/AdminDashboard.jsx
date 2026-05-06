@@ -2,6 +2,8 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { usePortalAuth } from '@/lib/PortalAuthContext';
 import analytics from '@/lib/analytics';
+import ReminderPopup from '@/components/ReminderPopup';
+import { useReminders } from '@/hooks/useReminders';
 import { getPortalSettings, loadPortalSettings, savePortalSettings } from '@/lib/portalSettings';
 import { SignNowRequestDB, InvestorUser, ContactNoteDB, AppointmentDB, AccreditationDocDB } from '@/api/entities';
 import { getScoreColor, getScoreLabel } from '@/lib/engagementScore';
@@ -1424,6 +1426,7 @@ export default function AdminDashboard() {
   const [view, setView]           = useState(() => localStorage.getItem('admin_view') || 'users');
   const [users, setUsers]         = useState([]);
   const [showAdd, setShowAdd]     = useState(false);
+  const { dueReminder, dismissReminder } = useReminders();
   const [contactCard, setContactCard] = useState(null);
   const [openLeadId,  setOpenLeadId]  = useState(null);   // set by calendar to auto-open a lead card
   const [allSessions, setAllSessions] = useState([]);
@@ -1859,6 +1862,23 @@ export default function AdminDashboard() {
         {view === 'portal'           && <div><div style={{ marginBottom:'28px' }}><h2 style={{ color:'#e8e0d0', margin:'0 0 6px', fontSize:'20px', fontWeight:'normal' }}>Portal Controls</h2></div><PortalControls /></div>}
         {view === 'settings'         && <AdminSettings changeAdminPassword={changeAdminPassword} changeAdminUsername={changeAdminUsername} />}
       </div>
+
+      {dueReminder && (
+        <ReminderPopup
+          reminder={dueReminder}
+          onDismiss={dismissReminder}
+          onOpenCard={() => {
+            if (dueReminder.type === 'lead') {
+              handleViewChange('leads');
+              setOpenLeadId(dueReminder.contactId);
+            } else if (dueReminder.type === 'investor') {
+              const user = users.find(u => u.id === dueReminder.contactId);
+              if (user) setContactCard(user);
+            }
+            dismissReminder();
+          }}
+        />
+      )}
     </div>
   );
 }
