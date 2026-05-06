@@ -103,8 +103,8 @@ const css = `
   .hero-grid { position: absolute; inset: 0; background-image: linear-gradient(rgba(201,168,76,0.05) 1px,transparent 1px), linear-gradient(90deg,rgba(201,168,76,0.05) 1px,transparent 1px); background-size: 80px 80px; mask-image: radial-gradient(ellipse 80% 80% at 50% 50%,black 0%,transparent 80%); }
   .hero-eyebrow { display: inline-flex; align-items: center; gap: 9px; margin-bottom: 28px; font-size: 11px; font-weight: 700; letter-spacing: 0.18em; text-transform: uppercase; color: #deba6a; background: rgba(201,168,76,0.10); border: 1px solid rgba(201,168,76,0.25); padding: 7px 20px; border-radius: 40px; position: relative; z-index: 1; animation: riseIn 0.7s ease both; }
   .pulse { width: 7px; height: 7px; background: #deba6a; border-radius: 50%; animation: pulse 2.2s infinite; }
-  .hero h1 { font-size: clamp(44px,7vw,94px); font-weight: 900; position: relative; z-index: 1; background: linear-gradient(155deg,#ffffff 0%,#f0d898 35%,#c9a84c 65%,#8a6b28 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; margin-bottom: 12px; animation: riseIn 0.7s 0.08s ease both; }
-  .hero-deck { font-size: 18px; color: #9a9280; max-width: 640px; line-height: 1.7; margin-bottom: 44px; position: relative; z-index: 1; animation: riseIn 0.7s 0.16s ease both; }
+  .hero h1 { font-size: clamp(32px,4vw,54px); font-weight: 900; position: relative; z-index: 1; background: linear-gradient(155deg,#ffffff 0%,#f0d898 35%,#c9a84c 65%,#8a6b28 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; margin-bottom: 12px; animation: riseIn 0.7s 0.08s ease both; }
+  .hero-deck { font-size: 22px; font-family: 'Playfair Display', serif; font-weight: 500; color: #9a9280; max-width: 720px; line-height: 1.7; margin-bottom: 44px; position: relative; z-index: 1; animation: riseIn 0.7s 0.16s ease both; }
   .hero-scroll { position: absolute; bottom: 44px; left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 7px; color: #5a5448; font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; animation: fadeIn 1.2s 0.8s both; cursor: pointer; }
   .scroll-rod { width: 1px; height: 44px; background: linear-gradient(to bottom,rgba(201,168,76,0.25),transparent); animation: rod 2.2s infinite; }
 
@@ -494,10 +494,10 @@ export default function InvestorPage() {
             Rosie automates lead generation, customer outreach, and AI agent activation — so business owners spend less time figuring out marketing and more time running their business.
           </p>
           <div style={{padding:"0 40px 40px",maxWidth:1100,margin:"0 auto"}}>
-            <p style={{fontFamily:"'DM Sans',sans-serif",fontSize:15.5,color:"#9a9280",lineHeight:1.78,width:"100%",marginBottom:16}}>
+            <p style={{fontFamily:"'DM Sans',sans-serif",fontSize:15.5,color:"#9a9280",lineHeight:1.78,width:"100%",marginBottom:16,textAlign:"left"}}>
               Customers can sign their organizations up via a subscription and access our full suite of discovery tools, automated outreach, and a built-in lead scoring and notification system — one complete workflow, ready to go. For teams that want flexibility, most of our services are also available à la carte.
             </p>
-            <p style={{fontFamily:"'DM Sans',sans-serif",fontSize:15.5,color:"#9a9280",lineHeight:1.78,width:"100%",marginBottom:0}}>
+            <p style={{fontFamily:"'DM Sans',sans-serif",fontSize:15.5,color:"#9a9280",lineHeight:1.78,width:"100%",marginBottom:0,textAlign:"left"}}>
               Our signature à la carte offering is our incoming and outgoing AI calling agents, powered by Inworld — the #1 ranked voice AI engine in the industry. Building your own AI calling agent takes days and costs $0.08/minute — just for the components, before a dialer. Factor in a point-and-click service with dialing, and you're looking at $0.15/minute. <strong style={{color:"#e8e2d0"}}>Rosie delivers the same capability out of the box, at $0.07/minute all-in. Customers save over 50%. We margin 500%.</strong>
             </p>
           </div>
