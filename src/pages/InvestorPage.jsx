@@ -1,6 +1,9 @@
 import { useState, useEffect, useRef } from "react";
 import LiveCodebaseExplorer from "./LiveCodebaseExplorer";
 
+const SESSION_KEY = "home_access_granted";
+const SESSION_USER_KEY = "home_access_user";
+
 // ══ STYLES ══════════════════════════════════════════════════════════════════
 const G = {
   fonts: `@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;0,800;0,900;1,400;1,700&family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap');`,
@@ -439,11 +442,19 @@ const css = `
 
 // ══ COMPONENT ═══════════════════════════════════════════════════════════════
 export default function InvestorPage() {
+  const [unlocked, setUnlocked] = useState(() => sessionStorage.getItem(SESSION_KEY) === 'true');
   const [activePage, setActivePage] = useState("overview");
   const [scrollPct, setScrollPct] = useState(0);
   const [mktTab, setMktTab] = useState("overview");
   const [ugSection, setUgSection] = useState("ug-overview");
   const [barsFired, setBarsFired] = useState(false);
+
+  // Check if user has access — redirect to Home if not
+  useEffect(() => {
+    if (!unlocked) {
+      window.location.href = '/';
+    }
+  }, [unlocked]);
 
   useEffect(() => {
     const onScroll = () => {
@@ -478,6 +489,16 @@ export default function InvestorPage() {
   }, [activePage]);
 
   const showPage = (p) => { setActivePage(p); window.scrollTo(0, 0); };
+
+  if (!unlocked) {
+    return (
+      <div style={{ minHeight: '100vh', background: '#060c18', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ textAlign: 'center', color: '#e8e0d0' }}>
+          <p>Checking access…</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <>
