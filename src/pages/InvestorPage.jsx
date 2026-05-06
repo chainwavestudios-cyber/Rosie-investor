@@ -91,7 +91,7 @@ const css = `
   .wrap { max-width: 1100px; margin: 0 auto; padding: 0 40px; }
   .pad { padding: 108px 0; }
   .pad-sm { padding: 72px 0; }
-  .slab { font-size: 10px; font-weight: 700; letter-spacing: 0.22em; text-transform: uppercase; color: #8a6b28; display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+  .slab { font-size: 15px; font-weight: 700; letter-spacing: 0.22em; text-transform: uppercase; color: #8a6b28; display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
   .slab::before { content: ''; width: 24px; height: 1px; background: #8a6b28; }
   .h2 { font-size: clamp(28px,3.2vw,44px); color: #f0ead8; margin-bottom: 14px; }
   .lead { font-size: 16px; color: #9a9280; line-height: 1.75; max-width: 560px; margin-bottom: 44px; }
@@ -1034,21 +1034,23 @@ export default function InvestorPage() {
             {/* One-line heading */}
             <h2 className="h2" style={{whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>Elite US Strategy + <em style={{fontStyle:"italic",color:"#deba6a"}}>High-Velocity Execution.</em></h2>
             <div style={{background:"rgba(201,168,76,0.05)",border:"1px solid rgba(201,168,76,0.18)",borderRadius:14,padding:"24px 28px",marginBottom:36}}>
-              <p style={{fontSize:15,color:"#9a9280",lineHeight:1.78,marginBottom:16}}>Rosie AI is built on a "Capital-Efficient Growth" model that decouples high-level engineering output from traditional Silicon Valley burn rates. Our structure leverages a specialized 5-person core team that integrates senior US leadership with a dedicated international engineering unit.</p>
-              <div style={{display:"flex",flexDirection:"column",gap:10}}>
-                {[["Strategic Oversight","Directed by our Sr. Technology Engineer and Managing Partner, ensuring every line of code aligns with US enterprise standards and market demand."],["Operational Velocity","A 3-person Philippine Engineering Unit provides 24/7 development cycles and rapid deployment of our 262+ backend functions."],["Strategic Support Functions","The core team is bolstered by a network of specialized advisors and automated systems handling compliance, legal, and multi-tenant security sharding."]].map(([title,desc])=>(
-                  <div key={title} style={{display:"flex",gap:10}}>
-                    <span style={{color:"#deba6a",flexShrink:0,marginTop:2}}>◆</span>
-                    <div><span style={{fontSize:13,fontWeight:700,color:"#e8e2d0"}}>{title}:</span><span style={{fontSize:13,color:"#9a9280"}}> {desc}</span></div>
-                  </div>
-                ))}
+              <div style={{background:"rgba(201,168,76,0.05)",border:"1px solid rgba(201,168,76,0.18)",borderRadius:16,padding:"16px 20px",marginBottom:0}}>
+                <p style={{fontSize:12,color:"#9a9280",lineHeight:1.65,marginBottom:10,margin:0}}>Rosie AI is built on a "Capital-Efficient Growth" model that decouples high-level engineering output from traditional Silicon Valley burn rates. Our structure leverages a specialized 5-person core team integrating senior US leadership with a dedicated international engineering unit.</p>
+                <div style={{display:"flex",flexDirection:"column",gap:6,fontSize:11}}>
+                  {[["Strategic Oversight","Sr. Technology Engineer and Managing Partner ensure code aligns with US enterprise standards."],["Operational Velocity","3-person Philippine Engineering Unit provides 24/7 development and rapid deployment."],["Strategic Support Functions","Specialized advisors and automated systems handle compliance, legal, and multi-tenant security."]].map(([title,desc])=>(
+                    <div key={title} style={{display:"flex",gap:8}}>
+                      <span style={{color:"#deba6a",flexShrink:0}}>◆</span>
+                      <div><span style={{fontWeight:700,color:"#e8e2d0"}}>{title}:</span><span style={{color:"#9a9280"}}> {desc}</span></div>
+                    </div>
+                  ))}
+                </div>
+                <p style={{fontSize:11,color:"#9a9280",lineHeight:1.6,marginTop:8,margin:0}}>Total core team cost: <strong style={{color:"#deba6a"}}>$8,950/month</strong>. This lean configuration deploys capital toward platform hardening and market acquisition.</p>
               </div>
-              <p style={{fontSize:13,color:"#9a9280",lineHeight:1.7,marginTop:16,marginBottom:0}}>By maintaining a total core team cost of <strong style={{color:"#deba6a"}}>$8,950/month</strong>, this lean, high-output configuration allows us to deploy investor capital toward platform hardening and aggressive market acquisition rather than administrative bloat.</p>
             </div>
 
             <div className="eng-cards">
               <div className="eng-card us-eng">
-                <div className="eng-name">Christopher</div>
+                <div className="eng-name">John Wei</div>
                 <div className="eng-role" style={{color:"#deba6a"}}>Sr. Technology Engineer</div>
                 <div className="eng-skills-expanded">
                   {[["System Design","Architecting high-performance, multi-tenant SaaS frameworks that translate complex business logic into scalable, modular codebases."],["Security","Implementing rigorous data isolation, SOC2-compliant protocols, and end-to-end encryption to protect enterprise-grade assets."],["Scaling","Engineering elastic infrastructure and optimized database schemas designed to handle rapid user growth."],["Enterprise","Bridging startup agility and corporate stability through robust API integrations and custom-built CRM solutions."],["DevOps","Automating the 'machine that builds the machine' with seamless CI/CD pipelines, containerization, and proactive monitoring."]].map(([tag,desc])=>(
@@ -1250,10 +1252,7 @@ export default function InvestorPage() {
             <h2 className="h2 reveal">The Architecture of Trust:<br/><em style={{fontStyle:"italic",color:"#deba6a"}}>Scaling for the Next Horizon.</em></h2>
             <p className="lead reveal">This investment round is a strategic commitment to our long-term success, ensuring the seamless migration and absolute protection of our customers' most valuable data. We are actively evolving our architecture to meet the rigorous demands of institutional-scale operations.</p>
 
-            <div style={{background:"rgba(201,168,76,0.05)",border:"1px solid rgba(201,168,76,0.18)",borderRadius:16,padding:"28px 36px",marginBottom:44}} className="reveal">
-              <h3 style={{fontFamily:"'Playfair Display',serif",fontSize:20,color:"#f0ead8",marginBottom:12}}>One Unified System. Built for Global Demand.</h3>
-              <p style={{fontSize:14,color:"#9a9280",lineHeight:1.78,marginBottom:0}}>Rosie AI leverages a distributed SaaS framework to run 150+ backend functions in parallel, ensuring 136 entities stay updated the second data changes. The next evolution focuses on infrastructure "hardening" — deploying enterprise-grade security and redundancy systems to ensure 99.99% uptime as we scale to support 10,000+ concurrent organizations.</p>
-            </div>
+
 
             <div className="slab reveal">Enterprise Infrastructure Roadmap — 6-Month Execution</div>
 
