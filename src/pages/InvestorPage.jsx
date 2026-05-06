@@ -861,13 +861,16 @@ export default function InvestorPage() {
                   <p style={{fontSize:12,color:"#9a9280",margin:"8px 0 0",lineHeight:1.7}}><strong style={{color:"#deba6a"}}>Long-term Goal:</strong> Scale to 2,000 paying organizations by end of 2028.</p>
                 </div>
               </div>
-              <div className="reveal">
-                <div className="cost-card">
-                  <div className="cost-title">Refined Monthly Operating Costs</div>
-                  {[["Sr. Technology Engineer","$4,000","#38bdf8"],["Managing Partner","$3,000","#38bdf8"],["PH Engineering Unit (3 Engineers)","$1,950","#22c55e"],["Server & Edge Deployment (Deno)","$300",""],["Database Management (Supabase Pro)","$150",""],["AI API Usage (OpenAI/Groq/etc.)","$200",""],["Twilio / SMS / Voice Base","$150",""],["Tools & Software Subscriptions","$150",""],["Legal, Audit & Compliance","$200",""]].map(([l,v,col])=>(
-                    <div key={l} className="cost-row"><span className="cost-row-label">{l}</span><span className="cost-row-val" style={col?{color:col}:{}}>{v}</span></div>
-                  ))}
-                  <div className="cost-row" style={{borderTop:"1px solid rgba(201,168,76,0.25)",marginTop:4,paddingTop:10}}><span className="cost-row-label" style={{fontWeight:700,color:"#e8e2d0"}}>Total Fixed Monthly Burn</span><span className="cost-row-val" style={{color:"#deba6a",fontWeight:700,fontSize:14}}>$10,100</span></div>
+              <div style={{display:"flex",flexDirection:"column",gap:16}}>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
+                  <div className="cost-card">
+                    <div className="cost-title">Refined Monthly Operating Costs</div>
+                    {[["Sr. Technology Engineer","$4,000","#38bdf8"],["Managing Partner","$3,000","#38bdf8"],["PH Engineering Unit (3 Engineers)","$1,950","#22c55e"],["Server & Edge Deployment (Deno)","$300",""],["Database Management (Supabase Pro)","$150",""],["AI API Usage (OpenAI/Groq/etc.)","$200",""],["Twilio / SMS / Voice Base","$150",""],["Tools & Software Subscriptions","$150",""],["Legal, Audit & Compliance","$200",""]].map(([l,v,col])=>(
+                      <div key={l} className="cost-row"><span className="cost-row-label">{l}</span><span className="cost-row-val" style={col?{color:col}:{}}>{v}</span></div>
+                    ))}
+                    <div className="cost-row" style={{borderTop:"1px solid rgba(201,168,76,0.25)",marginTop:4,paddingTop:10}}><span className="cost-row-label" style={{fontWeight:700,color:"#e8e2d0"}}>Total Fixed Monthly Burn</span><span className="cost-row-val" style={{color:"#deba6a",fontWeight:700,fontSize:14}}>$10,100</span></div>
+                  </div>
+                  <div></div>
                 </div>
                 <div className="cost-card" style={{background:"rgba(34,197,94,0.08)",borderColor:"rgba(34,197,94,0.25)"}}>
                   <div className="cost-title" style={{color:"#22c55e"}}>Revenue Share & Distribution Threshold</div>
