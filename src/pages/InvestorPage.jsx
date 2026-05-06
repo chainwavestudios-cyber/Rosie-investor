@@ -491,18 +491,18 @@ export default function InvestorPage() {
           <p className="hero-deck">
             Rosie automates lead generation, customer outreach, and AI agent activation — so business owners spend less time figuring out marketing and more time running their business.
           </p>
+          <div style={{padding:"0 40px 40px",maxWidth:1100,margin:"0 auto"}}>
+            <p style={{fontFamily:"'DM Sans',sans-serif",fontSize:15.5,color:"#9a9280",lineHeight:1.78,width:"100%",marginBottom:16}}>
+              Customers can sign their organizations up via a subscription and access our full suite of discovery tools, automated outreach, and a built-in lead scoring and notification system — one complete workflow, ready to go. For teams that want flexibility, most of our services are also available à la carte.
+            </p>
+            <p style={{fontFamily:"'DM Sans',sans-serif",fontSize:15.5,color:"#9a9280",lineHeight:1.78,width:"100%",marginBottom:0}}>
+              Our signature à la carte offering is our incoming and outgoing AI calling agents, powered by Inworld — the #1 ranked voice AI engine in the industry. Building your own AI calling agent takes days and costs $0.08/minute — just for the components, before a dialer. Factor in a point-and-click service with dialing, and you're looking at $0.15/minute. <strong style={{color:"#e8e2d0"}}>Rosie delivers the same capability out of the box, at $0.07/minute all-in. Customers save over 50%. We margin 500%.</strong>
+            </p>
+          </div>
         </div>
         <div className="divgold"></div>
         <section className="pad">
           <div className="wrap">
-
-            {/* Descriptor text — moved below hero deck, full width, slightly smaller */}
-            <p className="reveal" style={{fontFamily:"'DM Sans',sans-serif",fontSize:15.5,color:"#9a9280",lineHeight:1.78,width:"100%",marginBottom:16}}>
-              Customers can sign their organizations up via a subscription and access our full suite of discovery tools, automated outreach, and a built-in lead scoring and notification system — one complete workflow, ready to go. For teams that want flexibility, most of our services are also available à la carte.
-            </p>
-            <p className="reveal" style={{fontFamily:"'DM Sans',sans-serif",fontSize:15.5,color:"#9a9280",lineHeight:1.78,width:"100%",marginBottom:36}}>
-              Our signature à la carte offering is our incoming and outgoing AI calling agents, powered by Inworld — the #1 ranked voice AI engine in the industry. Building your own AI calling agent takes days and costs $0.08/minute — just for the components, before a dialer. Factor in a point-and-click service with dialing, and you're looking at $0.15/minute. <strong style={{color:"#e8e2d0"}}>Rosie delivers the same capability out of the box, at $0.07/minute all-in. Customers save over 50%. We margin 500%.</strong>
-            </p>
 
             {/* 3-across metric cards */}
             <div className="metric-cards">
