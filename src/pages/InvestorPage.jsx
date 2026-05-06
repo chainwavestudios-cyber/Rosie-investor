@@ -733,7 +733,7 @@ export default function InvestorPage() {
             <p className="lead reveal">Rosie AI leverages a multi-tenant, distributed framework to run 150+ backend functions simultaneously, updating 136 entities the second data hits the system. This isn't just a CRM—it's an intelligence layer that adapts to your industry. From dental patient engagement to precision-targeted roofing and solar leads, Rosie eliminates the lag and puts real-time solutions at your fingertips.</p>
 
             <div className="slab reveal">Core Capabilities</div>
-            <div className="diff-grid" style={{gridTemplateColumns:"repeat(3,1fr)",marginBottom:32,display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:"16px"}}>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:8,marginBottom:44}} className="reveal">
               {[
                 ["🔍","Discovery","Our discovery engine automates the heavy lifting of data acquisition, integrating web crawlers, solar permit tracking, NWS storm data, and deep social scraping to identify high-intent opportunities as they happen."],
                 ['🧠','AI Analysis','Beyond simple data, Rosie provides deep cognitive processing — from intent scoring and pain point detection to persona clustering — ensuring every lead is qualified and understood before you ever hit "send."'],
@@ -751,7 +751,7 @@ export default function InvestorPage() {
             </div>
 
             <div className="slab reveal">Technical Stack</div>
-            <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:16,marginBottom:44}}>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:8,marginBottom:44}} className="reveal">
               {[["BACKEND RUNTIME","Deno + Base44 SDK","262 serverless edge functions. Each function isolated, versioned, health-monitored. All calls use INTERNAL_SECRET auth + RLS session context.","TypeScript","Deno Deploy","Base44 v0.8.23","JWT Auth"],
                 ["FRONTEND","React 18 + Vite","42 full pages, 248 components across billing, admin, campaign, leads, SMS, settings, and workflow modules. TanStack Query with 15s auto-refresh.","React 18","TanStack Query","Tailwind CSS","Lucide Icons"],
                 ["DATABASE","Supabase PostgreSQL","136 entity types. Row-Level Security enforced via set_org_context() at every query. Zero cross-org data leakage. Full audit log trail.","PostgreSQL","RLS","Supabase","136 Entities"],
@@ -769,7 +769,7 @@ export default function InvestorPage() {
             </div>
 
             <div className="slab reveal">À La Carte Services</div>
-            <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:16,marginBottom:44}} className="reveal">
+            <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:8,marginBottom:44}} className="reveal">
               {[["📞","AI Outbound Voice Agents","Fully automated outbound calls with AI agents that qualify leads, book appointments, and handle objections. Setup in 20 minutes.","$0.07/min all-in"],
                 ["🎙️","AI Inbound Call Center","Browser-based inbound console with AI agent handling, caller ID, customer lookup, history, and live transfer to human agents.","$0.07/min all-in"],
                 ["💬","SMS Campaigns + Automation","Standard SMS, WhatsApp, and Blue Bubble (iMessage) outreach. Includes Instantly.ai email integration and automated follow-up workflows.","No 10DLC required"],
