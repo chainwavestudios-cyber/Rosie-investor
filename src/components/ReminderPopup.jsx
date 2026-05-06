@@ -41,8 +41,12 @@ export default function ReminderPopup({ reminder, onDismiss, onOpenCard }) {
         </button>
       </div>
 
-      <p style={{ color: '#e8e0d0', fontSize: '16px', fontWeight: 'bold', margin: '0 0 12px' }}>
+      <p style={{ color: '#e8e0d0', fontSize: '16px', fontWeight: 'bold', margin: '0 0 6px' }}>
         Call {reminder.firstName} {reminder.lastName}
+      </p>
+
+      <p style={{ color: '#6b7280', fontSize: '11px', margin: '0 0 12px' }}>
+        Built {new Date(reminder.createdAt || reminder.builtAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
       </p>
 
       <button
