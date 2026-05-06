@@ -529,14 +529,6 @@ export default function InvestorPage() {
         <section className="pad">
           <div className="wrap">
 
-            {/* What Rosie Does */}
-            <p className="reveal" style={{fontFamily:"'DM Sans',sans-serif",fontSize:18,color:"#9a9280",lineHeight:1.7,maxWidth:740,marginBottom:24}}>
-              Customers can sign their organizations up via a subscription and access our full suite of discovery tools, automated outreach, and a built-in lead scoring and notification system — one complete workflow, ready to go. For teams that want flexibility, most of our services are also available à la carte.
-            </p>
-            <p className="reveal" style={{fontFamily:"'DM Sans',sans-serif",fontSize:18,color:"#9a9280",lineHeight:1.78,maxWidth:740,marginBottom:28}}>
-              Our signature à la carte offering is our incoming and outgoing AI calling agents, powered by Inworld — the #1 ranked voice AI engine in the industry. Building your own AI calling agent takes days and costs $0.08/minute — just for the components, before a dialer. Factor in a point-and-click service with dialing, and you're looking at $0.15/minute. <strong style={{color:"#e8e2d0"}}>Rosie delivers the same capability out of the box, at $0.07/minute all-in. Customers save over 50%. We margin 500%.</strong>
-            </p>
-
             {/* 3-across metric cards */}
             <div className="metric-cards">
               <div className="metric-card reveal">
@@ -559,9 +551,6 @@ export default function InvestorPage() {
             {/* The Opportunity */}
             <div className="slab reveal">The Opportunity</div>
             <h2 className="h2 reveal">A $21 Billion Market<br/>Still Running on Spreadsheets</h2>
-            <p className="lead reveal" style={{maxWidth:"100%"}}>
-              Rosie automates lead generation, customer outreach, and AI agent activation — so business owners spend less time figuring out marketing and more time running their business.
-            </p>
             <p className="reveal" style={{fontFamily:"'DM Sans',sans-serif",fontSize:"13.5px",color:"#9a9280",lineHeight:1.75,maxWidth:"100%",marginBottom:24}}>
               Customers can sign their organizations up via a subscription and access our full suite of discovery tools, automated outreach, and a built-in lead scoring and notification system — one complete workflow, ready to go. For teams that want flexibility, most of our services are also available à la carte.
               <br/><br/>
