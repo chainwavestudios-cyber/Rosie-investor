@@ -6,6 +6,8 @@ import PageNotFound from './lib/PageNotFound';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 // Add page imports here
+import InvestorPage from './pages/InvestorPage';
+import LiveCodebaseExplorer from './pages/LiveCodebaseExplorer';
 import Home from './pages/Home';
 import PortalLogin from './pages/PortalLogin';
 import InvestorPortal from './pages/InvestorPortal';
@@ -48,6 +50,8 @@ const AuthenticatedApp = () => {
       <Route path="/admin" element={<AdminDashboard />} />
       <Route path="/admin-login" element={<AdminLogin />} />
       <Route path="/offering" element={<Offering />} />
+      <Route path="/investor-page" element={<InvestorPage />} />
+      <Route path="/live-codebase-explorer" element={<LiveCodebaseExplorer />} />
       <Route path="*" element={<PageNotFound />} />
     </Routes>
   );
