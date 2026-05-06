@@ -82,11 +82,7 @@ export default function Home() {
 
   useEffect(() => {
     if (!unlocked) return;
-    setLoadingHtml(true);
-    fetch(`${APP_BASE_URL}/functions/fetchInvestorsPage`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })
-      .then(r => r.text())
-      .then(html => { setHtmlContent(html); setLoadingHtml(false); })
-      .catch(() => setLoadingHtml(false));
+    window.location.href = '/investor-page';
   }, [unlocked]);
 
   const handleSubmit = async (e) => {
