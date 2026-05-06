@@ -205,20 +205,22 @@ const css = `
   .cost-row-label { color: #9a9280; }
   .cost-row-val { color: #e8e2d0; font-family: 'DM Mono', monospace; font-size: 12px; font-weight: 600; }
 
-  /* Platform uniform cards */
+  /* Platform uniform cards — 5-col for industries */
   .platform-uniform-grid { display: grid; grid-template-columns: repeat(5,1fr); gap: 8px; margin-bottom: 44px; }
+  /* 3-col grid for Core Capabilities, Technical Stack, À La Carte */
+  .platform-3col-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 14px; margin-bottom: 44px; }
   .platform-card {
-    background: #121218; border: 1px solid rgba(201,168,76,0.10); border-radius: 8px;
-    padding: 10px 12px; transition: border-color 0.2s, background 0.2s;
+    background: #121218; border: 1px solid rgba(201,168,76,0.10); border-radius: 10px;
+    padding: 18px 20px 14px; transition: border-color 0.2s, background 0.2s;
     display: flex; flex-direction: column;
   }
   .platform-card:hover { border-color: rgba(201,168,76,0.25); background: #18181f; }
-  .platform-card-eyebrow { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.12em; color: #8a6b28; margin-bottom: 5px; }
-  .platform-card-icon { font-size: 16px; margin-bottom: 5px; }
-  .platform-card-title { font-size: 11px; font-weight: 700; color: #e8e2d0; margin-bottom: 4px; }
-  .platform-card-desc { font-size: 10px; color: #9a9280; line-height: 1.45; margin-bottom: 8px; flex: 1; }
-  .platform-card-tags { display: flex; flex-wrap: wrap; gap: 3px; }
-  .platform-card-tag { font-size: 8px; font-weight: 700; padding: 1px 5px; border-radius: 20px; background: rgba(201,168,76,0.10); color: #9a9280; border: 1px solid rgba(201,168,76,0.10); }
+  .platform-card-eyebrow { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.12em; color: #8a6b28; margin-bottom: 6px; }
+  .platform-card-icon { font-size: 20px; margin-bottom: 7px; }
+  .platform-card-title { font-size: 13px; font-weight: 700; color: #e8e2d0; margin-bottom: 5px; }
+  .platform-card-desc { font-size: 11.5px; color: #9a9280; line-height: 1.5; margin-bottom: 10px; flex: 1; }
+  .platform-card-tags { display: flex; flex-wrap: wrap; gap: 4px; }
+  .platform-card-tag { font-size: 9px; font-weight: 700; padding: 2px 7px; border-radius: 20px; background: rgba(201,168,76,0.10); color: #9a9280; border: 1px solid rgba(201,168,76,0.10); }
 
   /* Team */
   .eng-cards { display: grid; grid-template-columns: repeat(3,1fr); gap: 16px; margin-bottom: 40px; }
@@ -802,9 +804,9 @@ export default function InvestorPage() {
             <h2 className="h2 reveal">One Unified System.<br/><em style={{fontStyle:"italic",color:"#deba6a"}}>Infinite Possibilities.</em></h2>
             <p className="lead reveal">Rosie AI leverages a multi-tenant, distributed framework to run 150+ backend functions simultaneously, updating 136 entities the second data hits the system. This isn't just a CRM — it's an intelligence layer that adapts to your industry, eliminating the lag and putting real-time solutions at your fingertips.</p>
 
-            {/* Core Capabilities — uniform cards matching verticals size */}
+            {/* Core Capabilities */}
             <div className="slab reveal">Core Capabilities</div>
-            <div className="platform-uniform-grid reveal">
+            <div className="platform-3col-grid reveal">
               {[
                 ["🔍","DISCOVERY","Discovery","Our engine automates data acquisition — integrating web crawlers, permit tracking, NWS storm data, and deep social scraping to identify high-intent opportunities as they happen."],
                 ["🧠","AI ANALYSIS","AI Analysis","Beyond simple data: intent scoring, pain point detection, and persona clustering ensure every lead is qualified and understood before first contact."],
@@ -822,9 +824,9 @@ export default function InvestorPage() {
               ))}
             </div>
 
-            {/* Technical Stack — uniform cards */}
+            {/* Technical Stack */}
             <div className="slab reveal">Technical Stack</div>
-            <div className="platform-uniform-grid reveal">
+            <div className="platform-3col-grid reveal">
               {[
                 ["⚙️","BACKEND RUNTIME","Deno + Base44 SDK","262 serverless edge functions. Each isolated, versioned, health-monitored. All calls use INTERNAL_SECRET auth + RLS session context.",["TypeScript","Deno Deploy","Base44","JWT Auth"]],
                 ["🖥️","FRONTEND","React 18 + Vite","42 full pages, 248 components across billing, admin, campaign, leads, SMS, settings, and workflow modules. TanStack Query with 15s auto-refresh.",["React 18","TanStack Query","Tailwind CSS","Lucide Icons"]],
@@ -843,9 +845,9 @@ export default function InvestorPage() {
               ))}
             </div>
 
-            {/* À La Carte — uniform cards */}
+            {/* À La Carte Services */}
             <div className="slab reveal">À La Carte Services</div>
-            <div className="platform-uniform-grid reveal">
+            <div className="platform-3col-grid reveal">
               {[
                 ["📞","OUTBOUND","AI Outbound Voice Agents","Fully automated outbound calls. AI agents qualify leads, book appointments, handle objections. Setup in 20 minutes.","$0.07/min all-in"],
                 ["🎙️","INBOUND","AI Inbound Call Center","Browser-based inbound console with AI agent handling, caller ID, customer lookup, history, and live transfer.","$0.07/min all-in"],
