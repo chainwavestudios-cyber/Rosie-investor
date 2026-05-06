@@ -912,7 +912,7 @@ export default function InvestorPage() {
             <p className="lead reveal" style={{maxWidth:"100%"}}>The platform generates revenue through two complementary streams: recurring organizational subscriptions and an à la carte AI services marketplace launching in September 2026.</p>
 
             {/* Revenue table + cost breakdown side by side, no empty space */}
-            <div style={{display:"grid",gridTemplateColumns:"1.35fr 1fr",gap:28,marginBottom:32,alignItems:"start"}} className="reveal">
+            <div style={{display:"grid",gridTemplateColumns:"1.35fr 1fr",gap:28,marginBottom:0,alignItems:"stretch"}} className="reveal">
               <div className="proj-table">
                 <table>
                   <thead><tr><th>Milestone</th><th># Orgs</th><th>Avg MRR/Org</th><th>MRR</th><th>ARR</th></tr></thead>
@@ -926,15 +926,15 @@ export default function InvestorPage() {
                     <tr><td>Month 30 (Dec 2028)</td><td>2,000</td><td>$820</td><td>$1,640,000</td><td>$19.7M</td></tr>
                   </tbody>
                 </table>
-                <div style={{marginTop:12,background:"rgba(34,197,94,0.08)",border:"1px solid rgba(34,197,94,0.2)",borderRadius:10,padding:"12px 16px"}}>
+                <div style={{marginTop:12,background:"rgba(34,197,94,0.08)",border:"1px solid rgba(34,197,94,0.2)",borderRadius:10,padding:"12px 16px",marginBottom:0}}>
                   <p style={{fontSize:12,color:"#9a9280",margin:0,lineHeight:1.65}}><strong style={{color:"#22c55e"}}>Profitability Target:</strong> Break-even at approximately 15 paying organizations. Distributions activate at $20,000/month MRR (~28–30 orgs).</p>
                   <p style={{fontSize:12,color:"#9a9280",margin:"6px 0 0",lineHeight:1.65}}><strong style={{color:"#deba6a"}}>Long-term Goal:</strong> Scale to 2,000 paying organizations by end of 2028.</p>
                 </div>
               </div>
 
-              <div>
+              <div style={{display:"flex",flexDirection:"column",height:"100%"}}>
                 {/* Operating costs card — fills full height */}
-                <div className="cost-card" style={{marginBottom:12}}>
+                <div className="cost-card" style={{marginBottom:12,flex:1}}>
                   <div className="cost-title">Monthly Operating Costs</div>
                   {[["Sr. Technology Engineer","$4,000","#38bdf8"],["Managing Partner","$3,000","#38bdf8"],["PH Engineering Unit (3 Engineers)","$1,950","#22c55e"],["Server & Edge Deployment (Deno)","$300",""],["Database (Supabase Pro)","$150",""],["AI API Usage","$200",""],["Twilio / SMS / Voice Base","$150",""],["Tools & Software","$150",""],["Legal, Audit & Compliance","$200",""]].map(([l,v,col])=>(
                     <div key={l} className="cost-row"><span className="cost-row-label" style={{fontSize:12}}>{l}</span><span className="cost-row-val" style={col?{color:col}:{}}>{v}</span></div>
@@ -942,7 +942,7 @@ export default function InvestorPage() {
                   <div className="cost-row" style={{borderTop:"1px solid rgba(201,168,76,0.25)",marginTop:4,paddingTop:10}}><span className="cost-row-label" style={{fontWeight:700,color:"#e8e2d0",fontSize:12}}>Total Fixed Monthly Burn</span><span className="cost-row-val" style={{color:"#deba6a",fontWeight:700,fontSize:14}}>$10,100</span></div>
                 </div>
                 {/* Distribution threshold — same card, compact */}
-                <div className="cost-card" style={{background:"rgba(34,197,94,0.06)",borderColor:"rgba(34,197,94,0.22)",marginBottom:0}}>
+                <div className="cost-card" style={{background:"rgba(34,197,94,0.06)",borderColor:"rgba(34,197,94,0.22)",marginBottom:0,flex:1}}>
                   <div className="cost-title" style={{color:"#22c55e"}}>Revenue Share & Distribution Threshold</div>
                   {[["Fixed Monthly Operating Cost","$10,100",""],["Break-even Point","~15 orgs @ ~$700 avg MRR","#22c55e"],["Distribution Activation","$20,000/mo MRR","#22c55e"],["Orgs Required for Distributions","~28–30 orgs","#deba6a"],["Projected Start","Q4 2026","#deba6a"]].map(([l,v,col])=>(
                     <div key={l} className="cost-row"><span className="cost-row-label" style={{fontSize:12}}>{l}</span><span className="cost-row-val" style={col?{color:col,fontSize:12}:{fontSize:12}}>{v}</span></div>
