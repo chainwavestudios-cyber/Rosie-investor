@@ -501,29 +501,29 @@ export default function InvestorPage() {
               Our signature à la carte offering is our incoming and outgoing AI calling agents, powered by Inworld — the #1 ranked voice AI engine in the industry. Building your own AI calling agent takes days and costs $0.08/minute — just for the components, before a dialer. Factor in a point-and-click service with dialing, and you're looking at $0.15/minute. <strong style={{color:"#e8e2d0"}}>Rosie delivers the same capability out of the box, at $0.07/minute all-in. Customers save over 50%. We margin 500%.</strong>
             </p>
           </div>
+
+          {/* 3-across metric cards */}
+          <div className="metric-cards">
+            <div className="metric-card reveal">
+              <span className="metric-card-n">500%</span>
+              <div className="metric-card-l">Margin on Every Call Minute</div>
+              <div className="metric-card-sub">Rosie earns 5× on every minute of AI voice</div>
+            </div>
+            <div className="metric-card reveal">
+              <span className="metric-card-n">50%</span>
+              <div className="metric-card-l">Cheaper Than Nearest Competitor</div>
+              <div className="metric-card-sub">Half the cost — full stack included</div>
+            </div>
+            <div className="metric-card reveal">
+              <span className="metric-card-n">$0.07</span>
+              <div className="metric-card-l">All-In vs $0.15 Industry Average</div>
+              <div className="metric-card-sub">Dialer + Agent + LLM + TTS + infrastructure</div>
+            </div>
+          </div>
         </div>
         <div className="divgold"></div>
         <section className="pad">
           <div className="wrap">
-
-            {/* 3-across metric cards */}
-            <div className="metric-cards">
-              <div className="metric-card reveal">
-                <span className="metric-card-n">500%</span>
-                <div className="metric-card-l">Margin on Every Call Minute</div>
-                <div className="metric-card-sub">Rosie earns 5× on every minute of AI voice</div>
-              </div>
-              <div className="metric-card reveal">
-                <span className="metric-card-n">50%</span>
-                <div className="metric-card-l">Cheaper Than Nearest Competitor</div>
-                <div className="metric-card-sub">Half the cost — full stack included</div>
-              </div>
-              <div className="metric-card reveal">
-                <span className="metric-card-n">$0.07</span>
-                <div className="metric-card-l">All-In vs $0.15 Industry Average</div>
-                <div className="metric-card-sub">Dialer + Agent + LLM + TTS + infrastructure</div>
-              </div>
-            </div>
 
             {/* The Opportunity */}
             <div className="slab reveal">The Opportunity</div>
