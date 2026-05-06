@@ -96,12 +96,12 @@ export default function Home() {
   };
 
   return (
-    <div style={{ minHeight: '100vh', background: '#060c18', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Georgia, serif' }}>
-      <div style={{ background: '#0a0f1e', border: '1px solid rgba(184,147,58,0.3)', borderRadius: '2px', padding: '32px 24px', maxWidth: '400px', width: '100%', boxShadow: '0 40px 100px rgba(0,0,0,0.8)' }}>
-        <div style={{ textAlign: 'center', marginBottom: '32px' }}>
-          <img src="https://media.base44.com/images/public/69cd2741578c9b5ce655395b/39a31f9b9_Untitleddesign3.png" alt="Rosie AI" style={{ height: '48px', marginBottom: '20px' }} />
-          <p style={{ color: '#b8933a', fontSize: '10px', letterSpacing: '4px', textTransform: 'uppercase', margin: '0 0 8px' }}>Restricted Access</p>
-          <h2 style={{ color: '#e8e0d0', fontSize: '20px', fontWeight: 'normal', margin: 0 }}>{checking ? 'Verifying access…' : 'Enter Your Access Code'}</h2>
+    <div style={{ minHeight: '100vh', background: '#0d1117', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'DM Sans', sans-serif" }}>
+      <div style={{ background: '#161b22', border: '1px solid rgba(56,189,248,0.25)', borderRadius: '14px', padding: '40px 32px', maxWidth: '420px', width: '100%', boxShadow: '0 40px 100px rgba(0,0,0,0.8), 0 0 60px rgba(56,189,248,0.05)' }}>
+        <div style={{ textAlign: 'center', marginBottom: '36px' }}>
+          <img src="https://media.base44.com/images/public/69cd2741578c9b5ce655395b/39a31f9b9_Untitleddesign3.png" alt="Rosie AI" style={{ height: '52px', marginBottom: '24px' }} />
+          <p style={{ color: '#0ea5e9', fontSize: '10px', letterSpacing: '4px', textTransform: 'uppercase', margin: '0 0 10px', fontWeight: 700 }}>Restricted Access</p>
+          <h2 style={{ color: '#f1f5f9', fontSize: '22px', fontWeight: 600, margin: 0, fontFamily: "'Playfair Display', serif" }}>{checking ? 'Verifying access…' : 'Enter Your Access Code'}</h2>
         </div>
         <form onSubmit={handleSubmit}>
           <input
@@ -110,10 +110,10 @@ export default function Home() {
             onChange={e => { setInput(e.target.value); setError(''); }}
             placeholder="Your personal access code"
             autoFocus
-            style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '2px', padding: '12px 16px', color: '#e8e0d0', fontSize: '14px', outline: 'none', boxSizing: 'border-box', fontFamily: 'Georgia, serif', marginBottom: '12px' }}
+            style={{ width: '100%', background: '#0d1117', border: '1px solid rgba(56,189,248,0.20)', borderRadius: '8px', padding: '13px 16px', color: '#e2e8f0', fontSize: '14px', outline: 'none', boxSizing: 'border-box', fontFamily: "'DM Sans', sans-serif", marginBottom: '12px' }}
           />
           {error && <p style={{ color: '#ef4444', fontSize: '12px', margin: '0 0 12px', textAlign: 'center' }}>{error}</p>}
-          <button type="submit" style={{ width: '100%', background: 'linear-gradient(135deg, #b8933a, #d4aa50)', color: '#0a0f1e', border: 'none', borderRadius: '2px', padding: '12px', cursor: 'pointer', fontWeight: '700', fontSize: '12px', letterSpacing: '2px', textTransform: 'uppercase', fontFamily: 'Georgia, serif' }}>
+          <button type="submit" style={{ width: '100%', background: 'linear-gradient(135deg, #0ea5e9, #38bdf8)', color: '#0d1117', border: 'none', borderRadius: '8px', padding: '13px', cursor: 'pointer', fontWeight: '700', fontSize: '11px', letterSpacing: '2px', textTransform: 'uppercase', fontFamily: "'DM Sans', sans-serif" }}>
             {checking ? 'Checking…' : 'Access Investor Site'}
           </button>
         </form>
