@@ -40,8 +40,9 @@ const css = `
   .nav-gem { width: 32px; height: 32px; border-radius: 8px; background: linear-gradient(135deg,#8a6b28 0%,#deba6a 100%); display: flex; align-items: center; justify-content: center; font-size: 15px; box-shadow: 0 0 18px rgba(201,168,76,0.45); }
   .nav-title { font-family: 'Playfair Display', serif; font-size: 16px; font-weight: 700; color: #f0ead8; }
   .nav-sub { font-size: 10px; color: #5a5448; letter-spacing: 0.08em; text-transform: uppercase; }
-  .nav-tabs { display: flex; gap: 2px; background: #18181f; border: 1px solid rgba(201,168,76,0.10); border-radius: 9px; padding: 3px; flex-wrap: wrap; }
-  .nav-tab { padding: 7px 16px; border-radius: 7px; font-size: 12px; font-weight: 600; cursor: pointer; color: #5a5448; border: none; background: transparent; transition: all 0.18s; letter-spacing: 0.02em; font-family: 'DM Sans', sans-serif; }
+  .nav-tabs { display: flex; gap: 1px; background: #18181f; border: 1px solid rgba(201,168,76,0.10); border-radius: 9px; padding: 3px; overflow-x: auto; max-width: calc(100vw - 260px); scrollbar-width: none; }
+  .nav-tabs::-webkit-scrollbar { display: none; }
+  .nav-tab { padding: 6px 11px; border-radius: 7px; font-size: 11px; font-weight: 600; cursor: pointer; color: #5a5448; border: none; background: transparent; transition: all 0.18s; letter-spacing: 0.02em; font-family: 'DM Sans', sans-serif; white-space: nowrap; }
   .nav-tab:hover { color: #9a9280; background: rgba(255,255,255,0.04); }
   .nav-tab.active { background: rgba(201,168,76,0.10); color: #deba6a; border: 1px solid rgba(201,168,76,0.25) !important; }
 
@@ -89,13 +90,13 @@ const css = `
 
   /* Market grid */
   .market-grid { display: grid; grid-template-columns: repeat(2,1fr); gap: 20px; margin-bottom: 44px; }
-  .mcard { background: #121218; border: 1px solid rgba(201,168,76,0.10); border-radius: 16px; padding: 30px 28px; position: relative; overflow: hidden; transition: border-color 0.2s; }
+  .mcard { background: #121218; border: 1px solid rgba(201,168,76,0.10); border-radius: 16px; padding: 16px 15px; position: relative; overflow: hidden; transition: border-color 0.2s; }
   .mcard:hover { border-color: rgba(201,168,76,0.18); }
   .mcard::after { content: ''; position: absolute; top: -30px; right: -30px; width: 140px; height: 140px; border-radius: 50%; background: radial-gradient(circle,rgba(201,168,76,0.18) 0%,transparent 70%); }
-  .mcard-icon { font-size: 26px; margin-bottom: 14px; }
-  .mcard-market { font-size: 11px; font-weight: 700; color: #c9a84c; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 6px; }
-  .mcard-size { font-family: 'Playfair Display', serif; font-size: 30px; font-weight: 700; color: #f0ead8; margin-bottom: 4px; }
-  .mcard-proj { font-size: 13px; color: #9a9280; margin-bottom: 10px; }
+  .mcard-icon { font-size: 20px; margin-bottom: 8px; }
+  .mcard-market { font-size: 11px; font-weight: 700; color: #c9a84c; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 4px; }
+  .mcard-size { font-family: 'Playfair Display', serif; font-size: 22px; font-weight: 700; color: #f0ead8; margin-bottom: 3px; }
+  .mcard-proj { font-size: 12px; color: #9a9280; margin-bottom: 7px; }
   .mcard-cagr { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 20px; background: rgba(34,197,94,0.12); color: #22c55e; border: 1px solid rgba(34,197,94,0.28); }
   .mcard-desc { font-size: 13px; color: #5a5448; margin-top: 12px; line-height: 1.6; }
 
@@ -163,7 +164,8 @@ const css = `
   .bar-fill.emerald { background: linear-gradient(90deg,#14a058,#22c55e); }
 
   /* Financials */
-  .fin-grid { display: grid; grid-template-columns: 1.4fr 1fr; gap: 32px; margin-bottom: 44px; }
+  .fin-grid { display: grid; grid-template-columns: 1fr; gap: 32px; margin-bottom: 44px; }
+  .fin-grid-inner { display: grid; grid-template-columns: 1.4fr 1fr; gap: 32px; align-items: start; }
   .proj-table { overflow-x: auto; }
   .proj-table table { font-size: 13px; }
   .proj-table th { background: #18181f; color: #5a5448; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; padding: 10px 14px; border: 1px solid rgba(201,168,76,0.10); text-align: left; }
@@ -423,7 +425,7 @@ const css = `
     .eng-cards, .verticals-grid { grid-template-columns: 1fr 1fr; }
     .alacarte-top, .comp-intro, .proceed-hero { grid-template-columns: 1fr; }
     .alacarte-grid { grid-template-columns: 1fr 1fr; }
-    .fin-grid, .team-hero { grid-template-columns: 1fr; }
+    .fin-grid, .fin-grid-inner, .team-hero { grid-template-columns: 1fr; }
     .ug-layout { grid-template-columns: 1fr; }
     .ug-sidebar { position: static; height: auto; }
     .milestone-grid { grid-template-columns: 1fr 1fr; }
@@ -499,11 +501,11 @@ export default function InvestorPage() {
             ["platform", "Platform"],
             ["financials", "Financials"],
             ["team", "Team"],
-            ["proceeds", "Use of Proceeds"],
-            ["operations", "Current State"],
-            ["roadmap", "Strategic Roadmap"],
-            ["lce", "Live Codebase Explorer"],
-            ["audit", "🔒 Security Audit"],
+            ["proceeds", "Proceeds"],
+            ["operations", "Operations"],
+            ["roadmap", "Roadmap"],
+            ["lce", "Codebase"],
+            ["audit", "🔒 Audit"],
           ].map(([id, label]) => (
             <button key={id} className={`nav-tab${activePage === id ? " active" : ""}`} onClick={() => showPage(id)}>
               {label}
@@ -517,44 +519,22 @@ export default function InvestorPage() {
         <div className="hero">
           <div className="hero-bg"></div>
           <div className="hero-grid"></div>
-          <div className="hero-eyebrow"><span className="pulse"></span>Confidential Investor Overview · Equity Partner 2026</div>
+          <div className="hero-eyebrow"><span className="pulse"></span>Rosie AI Investor Overview</div>
           <h1>Rosie handles your growth.<br/><em style={{fontStyle:"italic"}}>You handle your business.</em></h1>
           <p className="hero-deck">
             Rosie automates lead generation, customer outreach, and AI agent activation — so business owners spend less time figuring out marketing and more time running their business.
           </p>
-          <div className="hero-scroll" onClick={() => document.querySelector(".divgold")?.scrollIntoView({behavior:"smooth"})}>
-            <div className="scroll-rod"></div>Scroll
-          </div>
         </div>
         <div className="divgold"></div>
         <section className="pad">
           <div className="wrap">
-            {/* Audit banner */}
-            <div className="audit-banner reveal" onClick={() => showPage("audit")}>
-              <div className="audit-badge-icon">🔐</div>
-              <div className="audit-badge-text">
-                <h4>Triple-AI Certified Security Audit — v6 Production Build</h4>
-                <p>Independently audited by Claude (Anthropic), GPT-4o (OpenAI), and Gemini 1.5 Pro (Google DeepMind). 5/5 vulnerabilities remediated. Click to view the full certified report →</p>
-                <div className="certified-pills">
-                  <span className="cert-pill">✓ Claude — Anthropic</span>
-                  <span className="cert-pill">✓ GPT-4o — OpenAI</span>
-                  <span className="cert-pill">✓ Gemini — Google DeepMind</span>
-                  <span className="cert-pill">5/5 Issues Remediated</span>
-                </div>
-              </div>
-              <div className="audit-score-chip">
-                <span className="audit-score-n">92</span>
-                <span className="audit-score-l">out of 100</span>
-                <div style={{fontSize:9,color:"#22c55e",fontWeight:700,marginTop:5}}>✓ PRODUCTION READY</div>
-              </div>
-            </div>
 
             {/* What Rosie Does */}
-            <p className="lead reveal" style={{maxWidth:740, fontSize:16}}>
+            <p className="reveal" style={{fontFamily:"'DM Sans',sans-serif",fontSize:18,color:"#9a9280",lineHeight:1.7,maxWidth:740,marginBottom:24}}>
               Customers can sign their organizations up via a subscription and access our full suite of discovery tools, automated outreach, and a built-in lead scoring and notification system — one complete workflow, ready to go. For teams that want flexibility, most of our services are also available à la carte.
             </p>
-            <p className="reveal" style={{fontSize:15,color:"#9a9280",lineHeight:1.78,maxWidth:740,marginBottom:28}}>
-              Our signature à la carte offering is our incoming and outgoing AI calling agents, powered by Inworld — the #1 ranked voice AI engine in the industry. Building your own AI calling agent takes days and costs $0.08/minute — just for the components, before a dialer. Factor in a point-and-click service with dialing, and you're looking at $0.15/minute. <strong>Rosie delivers the same capability out of the box, at $0.07/minute all-in. Customers save over 50%. We margin 500%.</strong>
+            <p className="reveal" style={{fontFamily:"'DM Sans',sans-serif",fontSize:18,color:"#9a9280",lineHeight:1.78,maxWidth:740,marginBottom:28}}>
+              Our signature à la carte offering is our incoming and outgoing AI calling agents, powered by Inworld — the #1 ranked voice AI engine in the industry. Building your own AI calling agent takes days and costs $0.08/minute — just for the components, before a dialer. Factor in a point-and-click service with dialing, and you're looking at $0.15/minute. <strong style={{color:"#e8e2d0"}}>Rosie delivers the same capability out of the box, at $0.07/minute all-in. Customers save over 50%. We margin 500%.</strong>
             </p>
 
             {/* 3-across metric cards */}
@@ -579,7 +559,7 @@ export default function InvestorPage() {
             {/* The Opportunity */}
             <div className="slab reveal">The Opportunity</div>
             <h2 className="h2 reveal">A $21 Billion Market<br/>Still Running on Spreadsheets</h2>
-            <p className="lead reveal">
+            <p className="lead reveal" style={{maxWidth:"100%"}}>
               The AI Sales Intelligence market is growing at 25.8% CAGR through 2032. Most small and mid-sized businesses still prospect manually — cold lists, outdated data, zero intelligence. They're spending time and money on approaches that stopped working years ago, simply because modern alternatives have been too complex or too expensive to access.
               <br/><br/>
               Rosie AI changes that. We automate the entire top-of-funnel for any business starved of modern tooling — regardless of industry.
@@ -603,7 +583,7 @@ export default function InvestorPage() {
               </div>
             </div>
 
-            {/* Built. Real. Yours. */}
+            {/* Built. Real. Yours. — and later we place audit banner at bottom */}
             <div className="slab reveal">Why Now</div>
             <h2 className="h2 reveal">Built. Real. Yours.</h2>
             <div className="diff-grid">
@@ -623,12 +603,30 @@ export default function InvestorPage() {
                 <div className="diff-desc">Our fundraising is handled entirely in-house. No brokers, no finders fees, no commissions. Every dollar raised goes directly into building and scaling Rosie — not paying middlemen.</div>
               </div>
             </div>
+
+            {/* Audit banner — moved to bottom */}
+            <div className="audit-banner reveal" style={{marginTop:52}} onClick={() => showPage("audit")}>
+              <div className="audit-badge-icon">🔐</div>
+              <div className="audit-badge-text">
+                <h4>Triple-AI Certified Security Audit — v6 Production Build</h4>
+                <p>Independently audited by Claude (Anthropic), GPT-4o (OpenAI), and Gemini 1.5 Pro (Google DeepMind). 5/5 vulnerabilities remediated. Click to view the full certified report →</p>
+                <div className="certified-pills">
+                  <span className="cert-pill">✓ Claude — Anthropic</span>
+                  <span className="cert-pill">✓ GPT-4o — OpenAI</span>
+                  <span className="cert-pill">✓ Gemini — Google DeepMind</span>
+                  <span className="cert-pill">5/5 Issues Remediated</span>
+                </div>
+              </div>
+              <div className="audit-score-chip">
+                <span className="audit-score-n">92</span>
+                <span className="audit-score-l">out of 100</span>
+                <div style={{fontSize:9,color:"#22c55e",fontWeight:700,marginTop:5}}>✓ PRODUCTION READY</div>
+              </div>
+            </div>
           </div>
         </section>
         <div className="footer"><div className="wrap"><p className="footer-disc">Market data based on publicly available industry reports. Projections are forward-looking estimates and not guarantees of performance.</p><div className="footer-copy">© 2026 Rosie AI, LLC · Confidential</div></div></div>
       </div>
-
-      {/* ══ MARKET ════════════════════════════════════════════════════════ */}
       <div id="page-market" className={`page${activePage === "market" ? " active" : ""}`}>
         <section className="pad" style={{paddingTop:130}}>
           <div className="wrap">
@@ -746,7 +744,7 @@ export default function InvestorPage() {
             <div className="diff-grid" style={{gridTemplateColumns:"repeat(3,1fr)",marginBottom:32}}>
               {[
                 ["🔍","Discovery","Our discovery engine automates the heavy lifting of data acquisition, integrating web crawlers, solar permit tracking, NWS storm data, and deep social scraping to identify high-intent opportunities as they happen."],
-                ["🧠","AI Analysis","Beyond simple data, Rosie provides deep cognitive processing — from intent scoring and pain point detection to persona clustering — ensuring every lead is qualified and understood before you ever hit \"send.\""],
+                ["🧠","AI Analysis","Beyond simple data, Rosie provides deep cognitive processing — from intent scoring and pain point detection to persona clustering — ensuring every lead is qualified and understood before you ever hit "send.""],
                 ["⚡","Enrichment","We eliminate incomplete data through a sophisticated multi-source waterfall, merging global databases with specialized industry data to provide a comprehensive, 360-degree view of every prospect."],
                 ["📤","Outreach","Rosie orchestrates multi-channel engagement across SMS, email, AI voice, and WhatsApp, maintaining a consistent brand presence through intelligent drip sequences and automated follow-ups."],
                 ["📊","Intelligence","The backbone of the platform focuses on operational excellence, managing complex queue systems, self-healing protocols, and full-stack telemetry to ensure the system remains resilient and transparent."],
@@ -843,6 +841,7 @@ export default function InvestorPage() {
             <p className="lead reveal">The platform generates revenue through two complementary streams: recurring organizational subscriptions and an à la carte AI services marketplace launching in September 2026. The following table reflects the updated blended revenue projections.</p>
 
             <div className="fin-grid">
+              <div className="fin-grid-inner">
               <div className="proj-table reveal">
                 <table>
                   <thead><tr><th>Milestone</th><th># Orgs</th><th>Avg MRR/Org</th><th>MRR</th><th>ARR</th></tr></thead>
@@ -861,16 +860,13 @@ export default function InvestorPage() {
                   <p style={{fontSize:12,color:"#9a9280",margin:"8px 0 0",lineHeight:1.7}}><strong style={{color:"#deba6a"}}>Long-term Goal:</strong> Scale to 2,000 paying organizations by end of 2028.</p>
                 </div>
               </div>
-              <div style={{display:"flex",flexDirection:"column",gap:16}}>
-                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
-                  <div className="cost-card">
-                    <div className="cost-title">Refined Monthly Operating Costs</div>
-                    {[["Sr. Technology Engineer","$4,000","#38bdf8"],["Managing Partner","$3,000","#38bdf8"],["PH Engineering Unit (3 Engineers)","$1,950","#22c55e"],["Server & Edge Deployment (Deno)","$300",""],["Database Management (Supabase Pro)","$150",""],["AI API Usage (OpenAI/Groq/etc.)","$200",""],["Twilio / SMS / Voice Base","$150",""],["Tools & Software Subscriptions","$150",""],["Legal, Audit & Compliance","$200",""]].map(([l,v,col])=>(
-                      <div key={l} className="cost-row"><span className="cost-row-label">{l}</span><span className="cost-row-val" style={col?{color:col}:{}}>{v}</span></div>
-                    ))}
-                    <div className="cost-row" style={{borderTop:"1px solid rgba(201,168,76,0.25)",marginTop:4,paddingTop:10}}><span className="cost-row-label" style={{fontWeight:700,color:"#e8e2d0"}}>Total Fixed Monthly Burn</span><span className="cost-row-val" style={{color:"#deba6a",fontWeight:700,fontSize:14}}>$10,100</span></div>
-                  </div>
-                  <div></div>
+              <div className="reveal">
+                <div className="cost-card">
+                  <div className="cost-title">Refined Monthly Operating Costs</div>
+                  {[["Sr. Technology Engineer","$4,000","#38bdf8"],["Managing Partner","$3,000","#38bdf8"],["PH Engineering Unit (3 Engineers)","$1,950","#22c55e"],["Server & Edge Deployment (Deno)","$300",""],["Database Management (Supabase Pro)","$150",""],["AI API Usage (OpenAI/Groq/etc.)","$200",""],["Twilio / SMS / Voice Base","$150",""],["Tools & Software Subscriptions","$150",""],["Legal, Audit & Compliance","$200",""]].map(([l,v,col])=>(
+                    <div key={l} className="cost-row"><span className="cost-row-label">{l}</span><span className="cost-row-val" style={col?{color:col}:{}}>{v}</span></div>
+                  ))}
+                  <div className="cost-row" style={{borderTop:"1px solid rgba(201,168,76,0.25)",marginTop:4,paddingTop:10}}><span className="cost-row-label" style={{fontWeight:700,color:"#e8e2d0"}}>Total Fixed Monthly Burn</span><span className="cost-row-val" style={{color:"#deba6a",fontWeight:700,fontSize:14}}>$10,100</span></div>
                 </div>
                 <div className="cost-card" style={{background:"rgba(34,197,94,0.08)",borderColor:"rgba(34,197,94,0.25)"}}>
                   <div className="cost-title" style={{color:"#22c55e"}}>Revenue Share & Distribution Threshold</div>
@@ -880,6 +876,7 @@ export default function InvestorPage() {
                   <div className="cost-row"><span className="cost-row-label">Orgs Required for Distributions</span><span className="cost-row-val" style={{color:"#deba6a"}}>~28–30 orgs</span></div>
                   <div className="cost-row"><span className="cost-row-label">Projected Start</span><span className="cost-row-val" style={{color:"#deba6a"}}>Q4 2026</span></div>
                 </div>
+              </div>
               </div>
             </div>
 
@@ -962,7 +959,6 @@ export default function InvestorPage() {
             </div>
             <div className="eng-cards">
               <div className="eng-card us-eng">
-                <div className="eng-avatar" style={{fontSize:28}}>👨‍💻</div>
                 <div className="eng-name">Christopher</div>
                 <div className="eng-role" style={{color:"#deba6a"}}>Sr. Technology Engineer</div>
                 <div className="eng-skills-expanded">
@@ -972,7 +968,6 @@ export default function InvestorPage() {
                 </div>
               </div>
               <div className="eng-card us-eng">
-                <div className="eng-avatar" style={{fontSize:28}}>👩‍💼</div>
                 <div className="eng-name">Stephani Scheidt</div>
                 <div className="eng-role" style={{color:"#deba6a"}}>Managing Partner</div>
                 <div className="eng-skills-expanded">
@@ -983,24 +978,46 @@ export default function InvestorPage() {
               </div>
               <div className="eng-card us-eng" style={{borderColor:"rgba(56,189,248,0.35)",background:"rgba(56,189,248,0.03)",position:"relative"}}>
                 <div style={{position:"absolute",top:10,right:10,background:"rgba(56,189,248,0.12)",border:"1px solid rgba(56,189,248,0.3)",borderRadius:4,padding:"2px 8px",fontSize:9,fontWeight:700,letterSpacing:"1.2px",textTransform:"uppercase",color:"#60a5fa"}}>Critical Supporting Vendor</div>
-                <div className="eng-avatar" style={{fontSize:22}}>🌊</div>
-                <div className="eng-name" style={{marginTop:10}}>Chainwave Studios</div>
+                <div className="eng-name" style={{marginTop:4}}>Chainwave Studios</div>
                 <div className="eng-role" style={{color:"#60a5fa"}}>Enterprise Migration & Development Partner</div>
-                <div style={{marginBottom:10}}><a href="https://www.chainwavestudios.com/" target="_blank" rel="noreferrer" style={{fontSize:10,color:"#5a5448",textDecoration:"none",letterSpacing:"0.05em"}}>chainwavestudios.com ↗</a></div>
+                <div style={{marginBottom:4}}><a href="https://www.chainwavestudios.com/" target="_blank" rel="noreferrer" style={{fontSize:10,color:"#5a5448",textDecoration:"none",letterSpacing:"0.05em"}}>chainwavestudios.com ↗</a></div>
+                <div style={{fontSize:10,color:"#5a5448",marginBottom:10}}>Cleveland, OH & Naples, FL · Founded by Christopher (25 yrs enterprise dev) & Joseph (AI / FinTech / CRM)</div>
                 <div className="eng-skills-expanded">
                   {[["Enterprise Migration","Leading the full Base44 → enterprise infrastructure migration — architecting a production-grade, scalable environment."],["Platform Dev","Ongoing development support across web, SaaS, and AI solutions — embedded with the core team since day one."],["AI Solutions","Custom AI automation and agent architecture expertise — directly contributed to core pipeline and workflow components."],["FinTech / CRM","Deep domain expertise in financial technology and CRM platforms, informing Rosie AI's multi-tenant architecture."]].map(([tag,desc])=>(
                     <div key={tag} className="eng-skill-row"><span className="eng-skill-tag">{tag}</span><span className="eng-skill-desc">{desc}</span></div>
                   ))}
                 </div>
               </div>
-              {[["⚙️","PH — Backend Engineer","Pipeline Architecture","Deno / TS","Supabase","Queues","AI Integration"],["🎨","PH — Frontend Engineer","UI / UX Development","React 18","TanStack","Tailwind","Data Viz"],["🔗","PH — Integrations Engineer","APIs & Data Pipeline","Apify","Apollo/Hunter","Instantly","Webhooks"]].map(([icon,name,role,...skills])=>(
+              {[
+                ["⚙️","PH — Backend Engineer","Pipeline Architecture",
+                  [["Deno / TS","Building secure, modern server-side applications using TypeScript for type-safe execution and high-performance runtime efficiency."],
+                   ["Supabase","Managing scalable PostgreSQL databases, real-time data syncing, and seamless authentication layers for rapid backend deployment."],
+                   ["Queues","Designing robust background processing and task scheduling systems to handle high-volume data loads and asynchronous workflows."],
+                   ["AI Integration","Architecting the bridge between core logic and LLMs, enabling automated intent filtering, data enrichment, and intelligent system responses."]]
+                ],
+                ["🎨","PH — Frontend Engineer","UI / UX Development",
+                  [["React 18","Architecting interactive, component-based interfaces using modern hooks and concurrent rendering for a fluid user experience."],
+                   ["TanStack","Implementing sophisticated state management and server-cache logic to ensure lightning-fast data fetching and seamless UI synchronization."],
+                   ["Tailwind","Crafting responsive, utility-first design systems that maintain visual consistency while accelerating the path from mockup to production."],
+                   ["Data Viz","Transforming complex backend metrics into intuitive, actionable dashboards through high-performance charting and dynamic visualization tools."]]
+                ],
+                ["🔗","PH — Integrations Engineer","APIs & Data Pipeline",
+                  [["Apify","Developing custom web scrapers and automation actors to extract high-quality data from complex platforms at scale."],
+                   ["Apollo/Hunter","Orchestrating lead enrichment workflows to verify identities and source accurate contact information for targeted outreach."],
+                   ["Instantly","Integrating automated cold outreach sequences with deliverability optimization to ensure high-volume campaign success."],
+                   ["Webhooks","Building the 'glue' between platforms, ensuring real-time data synchronization and event-driven triggers across the entire tech stack."]]
+                ],
+              ].map(([icon,name,role,skills])=>(
                 <div key={name} className="eng-card">
-                  <div className="eng-avatar">{icon}</div>
                   <div className="eng-name">{name}</div>
                   <div className="eng-role">{role}</div>
                   <div style={{display:"inline-block",background:"rgba(96,165,250,0.12)",color:"#60a5fa",fontSize:9,padding:"2px 8px",borderRadius:3,letterSpacing:"1px",textTransform:"uppercase",marginBottom:8}}>To Be Hired · May 2026</div>
                   <div className="eng-cost">$650 / month</div>
-                  <div className="tech-tags">{skills.map(s=><span key={s} className="tech-tag">{s}</span>)}</div>
+                  <div className="eng-skills-expanded">
+                    {skills.map(([tag,desc])=>(
+                      <div key={tag} className="eng-skill-row"><span className="eng-skill-tag">{tag}</span><span className="eng-skill-desc">{desc}</span></div>
+                    ))}
+                  </div>
                 </div>
               ))}
             </div>
