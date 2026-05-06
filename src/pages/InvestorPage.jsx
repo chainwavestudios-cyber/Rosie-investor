@@ -34,17 +34,45 @@ const css = `
   /* Grain */
   body::after { content: ''; position: fixed; inset: 0; pointer-events: none; z-index: 1000; opacity: 0.022; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='400' height='400' filter='url(%23g)' opacity='1'/%3E%3C/svg%3E"); }
 
-  /* Nav */
-  .nav { position: fixed; top: 0; left: 0; right: 0; z-index: 900; height: 66px; display: flex; align-items: center; justify-content: space-between; padding: 0 48px; background: rgba(7,7,9,0.92); backdrop-filter: blur(24px) saturate(1.4); border-bottom: 1px solid rgba(201,168,76,0.10); }
-  .nav-brand { display: flex; align-items: center; gap: 11px; }
+  /* ── NAV ── */
+  .nav {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 900;
+    height: 66px; display: flex; align-items: center; justify-content: space-between;
+    padding: 0 32px;
+    background: rgba(7,7,9,0.94); backdrop-filter: blur(24px) saturate(1.4);
+    border-bottom: 1px solid rgba(201,168,76,0.10);
+    gap: 20px;
+  }
+  .nav-brand { display: flex; align-items: center; gap: 11px; flex-shrink: 0; }
   .nav-gem { width: 32px; height: 32px; border-radius: 8px; background: linear-gradient(135deg,#8a6b28 0%,#deba6a 100%); display: flex; align-items: center; justify-content: center; font-size: 15px; box-shadow: 0 0 18px rgba(201,168,76,0.45); }
   .nav-title { font-family: 'Playfair Display', serif; font-size: 16px; font-weight: 700; color: #f0ead8; }
   .nav-sub { font-size: 10px; color: #5a5448; letter-spacing: 0.08em; text-transform: uppercase; }
-  .nav-tabs { display: flex; gap: 1px; background: #18181f; border: 1px solid rgba(201,168,76,0.10); border-radius: 9px; padding: 3px; overflow-x: auto; max-width: calc(100vw - 260px); scrollbar-width: none; }
-  .nav-tabs::-webkit-scrollbar { display: none; }
-  .nav-tab { padding: 6px 11px; border-radius: 7px; font-size: 11px; font-weight: 600; cursor: pointer; color: #5a5448; border: none; background: transparent; transition: all 0.18s; letter-spacing: 0.02em; font-family: 'DM Sans', sans-serif; white-space: nowrap; }
-  .nav-tab:hover { color: #9a9280; background: rgba(255,255,255,0.04); }
-  .nav-tab.active { background: rgba(201,168,76,0.10); color: #deba6a; border: 1px solid rgba(201,168,76,0.25) !important; }
+
+  /* Clean centered nav tabs */
+  .nav-tabs {
+    display: flex; align-items: center; gap: 2px;
+    flex: 1; justify-content: center;
+  }
+  .nav-tab {
+    padding: 7px 14px; border-radius: 7px; font-size: 11.5px; font-weight: 600;
+    cursor: pointer; color: #5a5448; border: 1px solid transparent;
+    background: transparent; transition: all 0.18s; letter-spacing: 0.02em;
+    font-family: 'DM Sans', sans-serif; white-space: nowrap;
+    position: relative; overflow: hidden;
+  }
+  .nav-tab::after {
+    content: ''; position: absolute; inset: 0;
+    background: rgba(201,168,76,0.06); opacity: 0;
+    transition: opacity 0.18s; border-radius: 7px;
+  }
+  .nav-tab:hover { color: #c9a84c; border-color: rgba(201,168,76,0.18); }
+  .nav-tab:hover::after { opacity: 1; }
+  .nav-tab.active {
+    background: rgba(201,168,76,0.12); color: #deba6a;
+    border-color: rgba(201,168,76,0.30);
+    box-shadow: 0 0 12px rgba(201,168,76,0.10);
+  }
+  .nav-tab.active::after { opacity: 0; }
 
   /* Pages */
   .page { display: none; animation: pgIn 0.4s ease both; }
@@ -177,6 +205,21 @@ const css = `
   .cost-row-label { color: #9a9280; }
   .cost-row-val { color: #e8e2d0; font-family: 'DM Mono', monospace; font-size: 12px; font-weight: 600; }
 
+  /* Platform uniform cards */
+  .platform-uniform-grid { display: grid; grid-template-columns: repeat(5,1fr); gap: 8px; margin-bottom: 44px; }
+  .platform-card {
+    background: #121218; border: 1px solid rgba(201,168,76,0.10); border-radius: 8px;
+    padding: 10px 12px; transition: border-color 0.2s, background 0.2s;
+    display: flex; flex-direction: column;
+  }
+  .platform-card:hover { border-color: rgba(201,168,76,0.25); background: #18181f; }
+  .platform-card-eyebrow { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.12em; color: #8a6b28; margin-bottom: 5px; }
+  .platform-card-icon { font-size: 16px; margin-bottom: 5px; }
+  .platform-card-title { font-size: 11px; font-weight: 700; color: #e8e2d0; margin-bottom: 4px; }
+  .platform-card-desc { font-size: 10px; color: #9a9280; line-height: 1.45; margin-bottom: 8px; flex: 1; }
+  .platform-card-tags { display: flex; flex-wrap: wrap; gap: 3px; }
+  .platform-card-tag { font-size: 8px; font-weight: 700; padding: 1px 5px; border-radius: 20px; background: rgba(201,168,76,0.10); color: #9a9280; border: 1px solid rgba(201,168,76,0.10); }
+
   /* Team */
   .eng-cards { display: grid; grid-template-columns: repeat(3,1fr); gap: 16px; margin-bottom: 40px; }
   .eng-card { background: #121218; border: 1px solid rgba(201,168,76,0.18); border-radius: 14px; padding: 22px; transition: border-color 0.2s; }
@@ -190,19 +233,33 @@ const css = `
   .eng-skill-row { display: flex; flex-direction: column; gap: 2px; }
   .eng-skill-tag { font-size: 10px; font-weight: 700; color: #deba6a; text-transform: uppercase; letter-spacing: 0.08em; }
   .eng-skill-desc { font-size: 11px; color: #9a9280; line-height: 1.5; }
-  .team-hero { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; background: linear-gradient(135deg,rgba(201,168,76,0.06),rgba(201,168,76,0.02)); border: 1px solid rgba(201,168,76,0.18); border-radius: 18px; padding: 36px; margin-bottom: 36px; }
-  .savings-big { font-family: 'Playfair Display', serif; font-size: 52px; font-weight: 900; background: linear-gradient(135deg,#deba6a,#f0d898); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; line-height: 1; margin-bottom: 8px; }
-  .savings-sub { font-size: 14px; color: #9a9280; }
-  .team-compare { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
-  .tc-box { border-radius: 12px; padding: 20px; text-align: center; }
-  .tc-box.us { background: rgba(229,84,84,0.08); border: 1px solid rgba(229,84,84,0.2); }
-  .tc-box.ph { background: rgba(34,197,94,0.08); border: 1px solid rgba(34,197,94,0.2); }
-  .tc-flag { font-size: 24px; margin-bottom: 8px; }
-  .tc-country { font-size: 11px; color: #9a9280; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 6px; }
-  .tc-annual { font-family: 'Playfair Display', serif; font-size: 24px; font-weight: 700; margin-bottom: 4px; }
-  .tc-box.us .tc-annual { color: #e55454; }
-  .tc-box.ph .tc-annual { color: #22c55e; }
-  .tc-per { font-size: 11px; color: #5a5448; }
+
+  /* Engineering savings — clean redesign */
+  .eng-savings-section { margin-bottom: 36px; }
+  .eng-savings-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+  .eng-savings-card { background: #121218; border: 1px solid rgba(201,168,76,0.18); border-radius: 14px; padding: 24px; text-align: center; }
+  .eng-savings-card.highlight { background: linear-gradient(135deg,rgba(201,168,76,0.08),rgba(201,168,76,0.02)); border-color: rgba(201,168,76,0.35); }
+  .eng-savings-n { font-family: 'Playfair Display', serif; font-size: 36px; font-weight: 900; line-height: 1; margin-bottom: 6px; }
+  .eng-savings-n.gold { background: linear-gradient(135deg,#deba6a,#f0d898); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+  .eng-savings-n.red { color: #e55454; }
+  .eng-savings-n.green { color: #22c55e; }
+  .eng-savings-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: #5a5448; margin-bottom: 4px; }
+  .eng-savings-sub { font-size: 11px; color: #35322c; }
+  .flag-compare { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
+  .flag-box { border-radius: 12px; padding: 18px; text-align: center; }
+  .flag-box.us { background: rgba(229,84,84,0.06); border: 1px solid rgba(229,84,84,0.18); }
+  .flag-box.ph { background: rgba(34,197,94,0.06); border: 1px solid rgba(34,197,94,0.18); }
+  .flag-emoji { font-size: 22px; margin-bottom: 6px; }
+  .flag-country { font-size: 10px; color: #9a9280; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 5px; }
+  .flag-salary { font-family: 'Playfair Display', serif; font-size: 22px; font-weight: 700; margin-bottom: 3px; }
+  .flag-box.us .flag-salary { color: #e55454; }
+  .flag-box.ph .flag-salary { color: #22c55e; }
+  .flag-note { font-size: 10px; color: #5a5448; }
+  .loe-badge { background: #1e1e28; border: 1px solid rgba(201,168,76,0.10); border-radius: 10px; padding: 14px 20px; text-align: center; }
+  .loe-n { font-family: 'Playfair Display', serif; font-size: 22px; font-weight: 700; color: #deba6a; }
+  .loe-l { font-size: 10px; color: #5a5448; text-transform: uppercase; letter-spacing: 0.08em; }
+
+  /* Savings timeline */
   .savings-timeline { background: #121218; border: 1px solid rgba(201,168,76,0.10); border-radius: 14px; overflow: hidden; }
   .sav-header { background: #18181f; padding: 14px 24px; display: grid; grid-template-columns: 1fr 1.2fr 1.2fr 1fr; gap: 8px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: #5a5448; border-bottom: 1px solid rgba(201,168,76,0.10); }
   .sav-row { padding: 14px 24px; display: grid; grid-template-columns: 1fr 1.2fr 1.2fr 1fr; gap: 8px; border-bottom: 1px solid rgba(201,168,76,0.10); align-items: center; font-size: 13px; transition: background 0.15s; }
@@ -248,90 +305,6 @@ const css = `
   .screenshot-icon { font-size: 28px; margin-bottom: 10px; }
   .screenshot-label { font-size: 12px; font-weight: 700; color: #e8e2d0; }
   .screenshot-sub { font-size: 10px; color: #5a5448; margin-top: 4px; text-align: center; }
-
-  /* Platform - tech grid */
-  .tech-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 16px; margin-bottom: 48px; }
-  .tech-card { background: #121218; border: 1px solid rgba(201,168,76,0.10); border-radius: 14px; padding: 22px; transition: all 0.2s; }
-  .tech-card:hover { border-color: rgba(201,168,76,0.18); background: #18181f; }
-  .tech-layer { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.12em; color: #8a6b28; margin-bottom: 8px; }
-  .tech-name { font-family: 'Playfair Display', serif; font-size: 15px; color: #f0ead8; margin-bottom: 8px; }
-  .tech-desc { font-size: 12px; color: #9a9280; line-height: 1.6; margin-bottom: 12px; }
-  .tech-tags { display: flex; flex-wrap: wrap; gap: 5px; }
-  .tech-tag { font-size: 9px; font-weight: 700; padding: 2px 7px; border-radius: 20px; background: rgba(201,168,76,0.10); color: #9a9280; border: 1px solid rgba(201,168,76,0.10); }
-
-  /* Alacarte */
-  .alacarte-section { background: linear-gradient(135deg,rgba(201,168,76,0.05),rgba(201,168,76,0.01)); border: 1px solid rgba(201,168,76,0.18); border-radius: 18px; padding: 32px; margin-bottom: 48px; }
-  .alacarte-top { display: grid; grid-template-columns: 1fr 280px; gap: 32px; margin-bottom: 24px; }
-  .alacarte-eyebrow { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.12em; color: #8a6b28; margin-bottom: 6px; }
-  .alacarte-title { font-family: 'Playfair Display', serif; font-size: 20px; color: #f0ead8; margin-bottom: 12px; }
-  .alacarte-body { font-size: 13px; color: #9a9280; line-height: 1.75; }
-  .price-compare-box { background: #18181f; border: 1px solid rgba(201,168,76,0.25); border-radius: 12px; padding: 20px; }
-  .pc-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid rgba(201,168,76,0.10); }
-  .pc-label { font-size: 12px; color: #9a9280; }
-  .pc-val { font-family: 'Playfair Display', serif; font-size: 22px; font-weight: 700; }
-  .pc-val.industry { color: #e55454; }
-  .pc-val.ours { color: #22c55e; }
-  .pc-savings { background: rgba(34,197,94,0.12); border: 1px solid rgba(34,197,94,0.28); border-radius: 8px; padding: 9px; text-align: center; margin-top: 12px; }
-  .pc-savings-n { font-family: 'Playfair Display', serif; font-size: 18px; font-weight: 700; color: #22c55e; display: block; }
-  .alacarte-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 12px; }
-  .ac-card { background: #18181f; border: 1px solid rgba(201,168,76,0.10); border-radius: 12px; padding: 18px; transition: border-color 0.2s; }
-  .ac-card:hover { border-color: rgba(201,168,76,0.25); }
-  .ac-icon { font-size: 20px; margin-bottom: 10px; }
-  .ac-title { font-size: 13px; font-weight: 700; color: #e8e2d0; margin-bottom: 6px; }
-  .ac-desc { font-size: 12px; color: #9a9280; line-height: 1.55; margin-bottom: 10px; }
-  .ac-tag { font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 20px; background: rgba(201,168,76,0.12); color: #deba6a; border: 1px solid rgba(201,168,76,0.25); }
-
-  /* Verticals */
-  .verticals-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 12px; margin-bottom: 44px; }
-  .vert-card { background: #121218; border: 1px solid rgba(201,168,76,0.10); border-radius: 12px; padding: 18px; transition: all 0.2s; }
-  .vert-card:hover { border-color: rgba(201,168,76,0.25); }
-  .vert-card.vert-active { border-color: rgba(34,197,94,0.25); }
-  .vert-card.vert-coming { opacity: 0.7; }
-  .vert-icon { font-size: 22px; margin-bottom: 8px; }
-  .vert-name { font-size: 13px; font-weight: 700; color: #e8e2d0; margin-bottom: 4px; }
-  .vert-desc { font-size: 11px; color: #9a9280; line-height: 1.5; margin-bottom: 10px; }
-  .vert-status { font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 20px; display: inline-block; }
-  .vert-live { background: rgba(34,197,94,0.10); color: #22c55e; border: 1px solid rgba(34,197,94,0.25); }
-  .vert-soon { background: rgba(56,189,248,0.10); color: #38bdf8; border: 1px solid rgba(56,189,248,0.25); }
-
-  /* Enterprise grid */
-  .enterprise-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 16px; margin-bottom: 48px; }
-  .ent-card { background: #121218; border: 1px solid rgba(201,168,76,0.10); border-radius: 14px; padding: 24px; }
-  .ent-icon { font-size: 24px; margin-bottom: 12px; }
-  .ent-title { font-size: 14px; font-weight: 700; color: #e8e2d0; margin-bottom: 8px; }
-  .ent-desc { font-size: 12px; color: #9a9280; line-height: 1.6; }
-
-  /* User Guide */
-  .ug-layout { display: grid; grid-template-columns: 240px 1fr; gap: 0; min-height: calc(100vh - 66px); }
-  .ug-sidebar { background: #0d0d11; border-right: 1px solid rgba(201,168,76,0.10); padding: 28px 0; position: sticky; top: 66px; height: calc(100vh - 66px); overflow-y: auto; }
-  .ug-sidebar-label { font-size: 9px; font-weight: 700; letter-spacing: 0.18em; color: #35322c; text-transform: uppercase; padding: 14px 20px 5px; }
-  .ug-nav-item { display: block; padding: 7px 20px; font-size: 13px; color: #5a5448; transition: all 0.15s; border-left: 2px solid transparent; cursor: pointer; }
-  .ug-nav-item:hover { color: #9a9280; background: rgba(255,255,255,0.03); }
-  .ug-nav-item.active { color: #deba6a; border-left-color: #c9a84c; background: rgba(201,168,76,0.10); }
-  .ug-content { padding: 0; overflow-y: auto; }
-  .ug-section { display: none; padding: 52px 56px; border-bottom: 1px solid rgba(201,168,76,0.10); }
-  .ug-section.active { display: block; }
-  .ug-eyebrow { font-size: 10px; font-weight: 700; letter-spacing: 0.18em; text-transform: uppercase; color: #c9a84c; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
-  .ug-eyebrow::before { content: ''; width: 20px; height: 1px; background: #c9a84c; }
-  .ug-title { font-family: 'Playfair Display', serif; font-size: clamp(22px,2.4vw,32px); color: #f0ead8; margin-bottom: 10px; }
-  .ug-subtitle { font-size: 14px; color: #9a9280; margin-bottom: 28px; line-height: 1.7; max-width: 600px; }
-  .ug-tbl { width: 100%; border-collapse: collapse; margin-bottom: 22px; font-size: 13px; }
-  .ug-tbl th { background: #18181f; color: #5a5448; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; padding: 10px 14px; border: 1px solid rgba(201,168,76,0.10); text-align: left; }
-  .ug-tbl td { padding: 10px 14px; border: 1px solid rgba(201,168,76,0.10); color: #9a9280; vertical-align: top; }
-  .ug-tbl td:first-child { color: #e8e2d0; font-weight: 500; }
-  .ug-cards { display: grid; grid-template-columns: repeat(auto-fill,minmax(200px,1fr)); gap: 12px; margin-bottom: 22px; }
-  .ug-card { background: #121218; border: 1px solid rgba(201,168,76,0.10); border-radius: 12px; padding: 18px; transition: border-color 0.2s; }
-  .ug-card:hover { border-color: rgba(201,168,76,0.25); }
-  .ug-card-icon { font-size: 18px; margin-bottom: 8px; }
-  .ug-card-title { font-weight: 700; color: #e8e2d0; font-size: 13px; margin-bottom: 5px; }
-  .ug-card-desc { font-size: 12px; color: #9a9280; line-height: 1.55; }
-  .ug-callout { border-radius: 12px; padding: 16px 20px; margin-bottom: 18px; border-left: 3px solid #c9a84c; background: rgba(201,168,76,0.10); }
-  .ug-callout p { font-size: 13px; margin: 0; color: #9a9280; }
-  .ug-callout strong { color: #deba6a; }
-  .flow-row { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 22px; }
-  .flow-step { background: #18181f; border: 1px solid rgba(201,168,76,0.18); border-radius: 7px; padding: 7px 14px; font-size: 12px; font-weight: 600; color: #e8e2d0; }
-  .flow-step.hl { background: rgba(201,168,76,0.10); border-color: rgba(201,168,76,0.25); color: #deba6a; }
-  .flow-arr { color: #35322c; font-size: 14px; }
 
   /* MA table */
   .ma-table { width: 100%; border-collapse: collapse; font-size: 13px; margin-bottom: 24px; }
@@ -414,28 +387,25 @@ const css = `
   .pilot-badge { display: inline-flex; align-items: center; gap: 9px; background: rgba(34,197,94,0.12); border: 1px solid rgba(34,197,94,0.28); border-radius: 40px; padding: 8px 20px; font-size: 12px; font-weight: 700; color: #22c55e; letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 32px; }
   .pilot-dot { width: 8px; height: 8px; background: #22c55e; border-radius: 50%; animation: pulse 1.8s infinite; }
 
-  /* Milestones */
-  .milestone-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 14px; margin-top: 16px; }
-
+  @media (max-width: 1100px) {
+    .nav-tab { padding: 6px 10px; font-size: 10.5px; }
+  }
   @media (max-width: 1024px) {
-    .nav { padding: 0 20px; }
+    .nav { padding: 0 16px; gap: 12px; }
     .nav-tabs { gap: 1px; }
-    .nav-tab { padding: 6px 10px; font-size: 11px; }
-    .market-grid, .diff-grid, .mkt-hero, .tech-grid, .enterprise-grid { grid-template-columns: 1fr 1fr; }
-    .eng-cards, .verticals-grid { grid-template-columns: 1fr 1fr; }
-    .alacarte-top, .comp-intro, .proceed-hero { grid-template-columns: 1fr; }
-    .alacarte-grid { grid-template-columns: 1fr 1fr; }
-    .fin-grid, .fin-grid-inner, .team-hero { grid-template-columns: 1fr; }
-    .ug-layout { grid-template-columns: 1fr; }
-    .ug-sidebar { position: static; height: auto; }
-    .milestone-grid { grid-template-columns: 1fr 1fr; }
+    .nav-tab { padding: 5px 8px; font-size: 10px; }
+    .market-grid, .diff-grid, .mkt-hero { grid-template-columns: 1fr 1fr; }
+    .eng-cards { grid-template-columns: 1fr 1fr; }
+    .platform-uniform-grid { grid-template-columns: repeat(3,1fr); }
+    .comp-intro, .proceed-hero { grid-template-columns: 1fr; }
+    .fin-grid, .fin-grid-inner { grid-template-columns: 1fr; }
+    .eng-savings-grid { grid-template-columns: 1fr 1fr; }
   }
   @media (max-width: 768px) {
-    .market-grid, .diff-grid, .mkt-hero, .tech-grid, .eng-cards, .enterprise-grid, .verticals-grid, .alacarte-grid, .metric-cards, .savings-timeline .sav-row, .savings-timeline .sav-header, .screenshots-grid, .pdf-score-row, .market-callout, .seg-grid, .trend-grid, .milestone-grid { grid-template-columns: 1fr; }
+    .market-grid, .diff-grid, .mkt-hero, .eng-cards, .metric-cards, .screenshots-grid, .pdf-score-row, .market-callout, .seg-grid, .trend-grid, .platform-uniform-grid, .eng-savings-grid, .flag-compare { grid-template-columns: 1fr; }
     .wrap { padding: 0 20px; }
     .hero { padding: 100px 20px 60px; }
     .ops-proof-strip { grid-template-columns: 1fr 1fr; }
-    .team-compare { grid-template-columns: 1fr 1fr; }
   }
 `;
 
@@ -450,11 +420,9 @@ export default function InvestorPage() {
     const onScroll = () => {
       const el = document.documentElement;
       setScrollPct((el.scrollTop / (el.scrollHeight - el.clientHeight)) * 100);
-      // Reveal
       document.querySelectorAll(".reveal").forEach((el) => {
         if (el.getBoundingClientRect().top < window.innerHeight - 60) el.classList.add("vis");
       });
-      // Bars
       if (!barsFired) {
         document.querySelectorAll(".bar-fill[data-w]").forEach((b) => {
           if (b.getBoundingClientRect().top < window.innerHeight) {
@@ -469,7 +437,6 @@ export default function InvestorPage() {
     return () => window.removeEventListener("scroll", onScroll);
   }, [barsFired]);
 
-  // Trigger bars when page changes to market
   useEffect(() => {
     if (activePage === "market") {
       setTimeout(() => {
@@ -501,7 +468,7 @@ export default function InvestorPage() {
             ["platform", "Platform"],
             ["financials", "Financials"],
             ["team", "Team"],
-            ["proceeds", "Proceeds"],
+            ["proceeds", "Use of Proceeds"],
             ["operations", "Operations"],
             ["roadmap", "Roadmap"],
             ["lce", "Codebase"],
@@ -529,11 +496,11 @@ export default function InvestorPage() {
         <section className="pad">
           <div className="wrap">
 
-            {/* What Rosie Does */}
-            <p className="reveal" style={{fontFamily:"'DM Sans',sans-serif",fontSize:18,color:"#9a9280",lineHeight:1.7,maxWidth:740,marginBottom:24}}>
+            {/* Descriptor text — moved below hero deck, full width, slightly smaller */}
+            <p className="reveal" style={{fontFamily:"'DM Sans',sans-serif",fontSize:15.5,color:"#9a9280",lineHeight:1.78,width:"100%",marginBottom:16}}>
               Customers can sign their organizations up via a subscription and access our full suite of discovery tools, automated outreach, and a built-in lead scoring and notification system — one complete workflow, ready to go. For teams that want flexibility, most of our services are also available à la carte.
             </p>
-            <p className="reveal" style={{fontFamily:"'DM Sans',sans-serif",fontSize:18,color:"#9a9280",lineHeight:1.78,maxWidth:740,marginBottom:28}}>
+            <p className="reveal" style={{fontFamily:"'DM Sans',sans-serif",fontSize:15.5,color:"#9a9280",lineHeight:1.78,width:"100%",marginBottom:36}}>
               Our signature à la carte offering is our incoming and outgoing AI calling agents, powered by Inworld — the #1 ranked voice AI engine in the industry. Building your own AI calling agent takes days and costs $0.08/minute — just for the components, before a dialer. Factor in a point-and-click service with dialing, and you're looking at $0.15/minute. <strong style={{color:"#e8e2d0"}}>Rosie delivers the same capability out of the box, at $0.07/minute all-in. Customers save over 50%. We margin 500%.</strong>
             </p>
 
@@ -583,7 +550,7 @@ export default function InvestorPage() {
               </div>
             </div>
 
-            {/* Built. Real. Yours. — and later we place audit banner at bottom */}
+            {/* Built. Real. Yours. */}
             <div className="slab reveal">Why Now</div>
             <h2 className="h2 reveal">Built. Real. Yours.</h2>
             <div className="diff-grid">
@@ -604,7 +571,7 @@ export default function InvestorPage() {
               </div>
             </div>
 
-            {/* Audit banner — moved to bottom */}
+            {/* Audit banner */}
             <div className="audit-banner reveal" style={{marginTop:52}} onClick={() => showPage("audit")}>
               <div className="audit-badge-icon">🔐</div>
               <div className="audit-badge-text">
@@ -627,12 +594,14 @@ export default function InvestorPage() {
         </section>
         <div className="footer"><div className="wrap"><p className="footer-disc">Market data based on publicly available industry reports. Projections are forward-looking estimates and not guarantees of performance.</p><div className="footer-copy">© 2026 Rosie AI, LLC · Confidential</div></div></div>
       </div>
+
+      {/* ══ MARKET ════════════════════════════════════════════════════════ */}
       <div id="page-market" className={`page${activePage === "market" ? " active" : ""}`}>
         <section className="pad" style={{paddingTop:130}}>
           <div className="wrap">
             <div className="slab reveal">Market Analysis</div>
             <h2 className="h2 reveal">Multiple Exploding Markets,<br/>One Unified Platform</h2>
-            <p className="lead reveal">Rosie AI sits at the intersection of three of the fastest-growing categories in enterprise software — AI in Sales, AI Voice Agents, and Conversational AI. Each market is independently large. Together they represent a generational wave of automation spend.</p>
+            <p className="lead reveal">Rosie AI sits at the intersection of three of the fastest-growing categories in enterprise software — AI Sales Intelligence, AI Voice Agents, and Automated Conversational AI SaaS. Each market is independently large. Together they represent a generational wave of automation spend with no clear category leader yet.</p>
             <div className="mkt-tabs reveal">
               {[["overview","📊 Market Overview"],["segments","📈 Segments & TAM"],["trends","🔥 Growth Drivers"],["competitive","⚔️ Competitive Landscape"],["ma","🤝 M&A Precedents"]].map(([id,label])=>(
                 <button key={id} className={`mkt-tab${mktTab===id?" active":""}`} onClick={()=>setMktTab(id)}>{label}</button>
@@ -647,8 +616,17 @@ export default function InvestorPage() {
                 <div className="mkt-hero-card blue"><div className="mkt-hero-eyebrow">Conversational AI — 2024</div><div className="mkt-hero-stat">$11.6B</div><div className="mkt-hero-label">Conversational AI Market</div><div className="mkt-hero-sub">Projected $41.4B by 2030 · 23.7% CAGR · Gartner: contact centers save $80B in labor costs from AI in 2026</div></div>
               </div>
               <div className="bar-chart reveal">
-                <div style={{fontSize:11,fontWeight:700,color:"#5a5448",textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:16}}>TAM by Vertical — Annual (US)</div>
-                {[["Solar","85%","gold","$200B US Market"],["Automotive","78%","gold","$1.3T US Market"],["Healthcare","72%","gold","$4.3T US Healthcare"],["AI in Sales","60%","emerald","$31.2B → $383B by 2034"],["Roofing","55%","gold","$62B Annual"],["Conv. AI","48%","emerald","$11.6B → $41.4B by 2030"],["Voice Agents","35%","emerald","$2.4B → $47.5B by 2034"],["Cleaning","42%","gold","$117B Global"]].map(([yr,w,cls,txt])=>(
+                <div style={{fontSize:11,fontWeight:700,color:"#5a5448",textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:16}}>Market Size by Segment — Growth Trajectory</div>
+                {[
+                  ["AI in Sales","92%","emerald","$31.2B → $383B by 2034 · 28.8% CAGR"],
+                  ["Voice AI Agents","86%","emerald","$2.4B → $47.5B by 2034 · 34.8% CAGR"],
+                  ["Conversational AI","78%","emerald","$11.6B → $41.4B by 2030 · 23.7% CAGR"],
+                  ["AI Sales Intelligence","70%","gold","$3.4B → $21.4B by 2032 · 25.8% CAGR"],
+                  ["Automated SaaS Outreach","62%","gold","$4.8B → $22.1B by 2031 · 24.3% CAGR"],
+                  ["AI Prospecting Platforms","55%","gold","$2.1B → $14.7B by 2032 · 27.5% CAGR"],
+                  ["AI-Assisted SDR Tools","48%","emerald","$1.9B → $11.2B by 2031 · 22.8% CAGR"],
+                  ["Voice Analytics & Intelligence","42%","emerald","$3.2B → $18.4B by 2033 · 26.1% CAGR"],
+                ].map(([yr,w,cls,txt])=>(
                   <div key={yr} className="bar-row">
                     <div className="bar-year">{yr}</div>
                     <div className="bar-track"><div className={`bar-fill ${cls}`} style={{width:0}} data-w={w}>{txt}</div></div>
@@ -656,7 +634,7 @@ export default function InvestorPage() {
                 ))}
               </div>
               <div className="diff-grid reveal" style={{marginTop:44}}>
-                {[["⚡","The Latency Threshold Crossed","AI voice agents now respond in under 150ms — below the perceptual threshold where speech feels natural. This single breakthrough unlocked mass enterprise deployment in 2024–2025."],["💰","8× Surge in Voice AI Funding","VC funding into voice AI companies surged from $315M in 2022 to $2.1B in 2025. ElevenLabs closed a $500M Series D at an $11B valuation in February 2026."],["📉","Cost Curve Collapsing","Enterprise voice AI now runs at $0.01–0.05/minute all-in. Industry average was $0.15/min just 18 months ago. Rosie AI is already at the floor — $0.07/min — with margin built in."],["🏭","Production Deployment Tripling","Voice agent production deployments grew 340% in 2025. 78% of top 50 banks now have live voice agents. 88% of contact centers use AI."],["🏠","Home Services: Untapped","Solar, roofing, cleaning, HVAC — $500B+ in combined US market — are the most manual, cold-call-dependent verticals. They are the last major industry to receive AI-first prospecting tools."],["🤖","AI Replacing SDR Teams at Scale","AI is replacing traditional SDR functions at 15× lower cost. 68% of enterprise sales teams already use AI tools in their pipeline."]].map(([icon,title,desc])=>(
+                {[["⚡","The Latency Threshold Crossed","AI voice agents now respond in under 150ms — below the perceptual threshold where speech feels natural. This single breakthrough unlocked mass enterprise deployment in 2024–2025."],["💰","8× Surge in Voice AI Funding","VC funding into voice AI companies surged from $315M in 2022 to $2.1B in 2025. ElevenLabs closed a $500M Series D at an $11B valuation in February 2026."],["📉","Cost Curve Collapsing","Enterprise voice AI now runs at $0.01–0.05/minute all-in. Industry average was $0.15/min just 18 months ago. Rosie AI is already at the floor — $0.07/min — with margin built in."],["🏭","Production Deployment Tripling","Voice agent production deployments grew 340% in 2025. 78% of top 50 banks now have live voice agents. 88% of contact centers use AI."],["🤝","SMB Automation Gap Wide Open","The vast majority of AI sales automation tools are priced for enterprise — $5,000 to $15,000+ per month. SMBs remain almost entirely unserved by modern AI tooling, creating a massive underserved segment."],["🤖","AI Replacing SDR Teams at Scale","AI is replacing traditional SDR functions at 15× lower cost. 68% of enterprise sales teams already use AI tools in their pipeline. SMBs are next."]].map(([icon,title,desc])=>(
                   <div key={title} className="diff-card"><div className="diff-icon">{icon}</div><div className="diff-title">{title}</div><div className="diff-desc">{desc}</div></div>
                 ))}
               </div>
@@ -665,7 +643,12 @@ export default function InvestorPage() {
             {/* Segments panel */}
             <div className={`mkt-panel${mktTab==="segments"?" active":""}`}>
               <div className="seg-grid reveal">
-                {[["🤖","AI Sales Intelligence","$3.4B → $21.4B","2024 → 2032 · Global","25.8%","Fastest-growing B2B software segment. AI-driven prospecting is replacing SDR teams.","gold"],["📞","Voice AI Agents","$2.4B → $47.5B","2024 → 2034 · Outbound + Inbound","34.8%","Fastest-growing AI subcategory. VC funding surged 8× in 2025.",""],["🗣️","Conversational AI","$11.6B → $41.4B","2024 → 2030 · Chatbots + Voice","23.7%","Gartner: contact centers save $80B in labor costs from AI in 2026.",""],["🏠","Home Services (US)","$500B+","Solar + Roofing + Cleaning + HVAC","Growing","Most manual, cold-call-dependent verticals in B2B. Last to automate.","gold"]].map(([icon,title,size,proj,cagr,desc,cls])=>(
+                {[
+                  ["🤖","AI Sales Intelligence","$3.4B → $21.4B","2024 → 2032 · Global","25.8%","The fastest-growing B2B software segment. AI-driven prospecting replaces legacy SDR workflows at scale with dramatically lower cost per qualified lead.","gold"],
+                  ["📞","Voice AI Agents","$2.4B → $47.5B","2024 → 2034 · Outbound + Inbound","34.8%","The fastest-growing AI subcategory overall. VC investment surged 8× in 2025 alone — signaling institutional conviction that autonomous voice is the next major compute layer.",""],
+                  ["🗣️","Conversational AI SaaS","$11.6B → $41.4B","2024 → 2030 · Automation Platforms","23.7%","Gartner projects contact centers alone will save $80B in labor costs from AI deployment in 2026. Platforms that combine voice, text, and workflow automation capture the highest ARPU.",""],
+                  ["⚙️","Automated Outreach Platforms","$4.8B → $22.1B","2024 → 2031 · Multi-Channel","24.3%","The market for end-to-end automated outreach platforms — combining email, SMS, voice, and AI qualification — is entering a steep growth phase as SMBs demand enterprise-grade tooling at accessible price points.","gold"],
+                ].map(([icon,title,size,proj,cagr,desc,cls])=>(
                   <div key={title} className="seg-card">
                     <div className="seg-header"><div className="seg-icon">{icon}</div><div className={`seg-cagr${cls?" "+cls:""}`}>▲ {cagr} CAGR</div></div>
                     <div className="seg-title">{title}</div>
@@ -675,24 +658,36 @@ export default function InvestorPage() {
                   </div>
                 ))}
               </div>
+              <div style={{background:"linear-gradient(135deg,rgba(201,168,76,0.07),rgba(201,168,76,0.02))",border:"1px solid rgba(201,168,76,0.18)",borderRadius:14,padding:"24px 32px",marginTop:8}} className="reveal">
+                <div style={{fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.12em",color:"#8a6b28",marginBottom:8}}>Combined Addressable Market</div>
+                <div style={{fontFamily:"'Playfair Display',serif",fontSize:36,fontWeight:800,color:"#deba6a",marginBottom:8}}>$130B+</div>
+                <div style={{fontSize:13,color:"#9a9280",lineHeight:1.7,maxWidth:680}}>Rosie AI operates across all four of these high-growth segments simultaneously — offering a single subscription platform that replaces tools from each category. No other platform at the SMB price point integrates all four layers: intelligence, voice agents, conversational AI, and automated multi-channel outreach.</div>
+              </div>
             </div>
 
             {/* Trends panel */}
             <div className={`mkt-panel${mktTab==="trends"?" active":""}`}>
               <div className="trend-grid reveal">
-                {[["340%","Voice Agent Deployment Growth","Voice agent production deployments grew 340% in 2025 alone."],["88%","Contact Centers Using AI","88% of contact centers now use some form of AI — the adoption inflection point has passed."],["$80B","Labor Cost Savings by 2026","Gartner projects contact centers save $80B in labor costs from AI deployment in 2026."],["15×","Cost Advantage vs. SDR Teams","AI can execute traditional SDR functions at 15× lower cost — changing the fundamental economics of outbound sales."],["8×","VC Funding Surge","VC investment into voice AI surged 8× from 2022 to 2025. The capital is flowing."],["$0.07","Rosie All-In Cost Per Minute","Industry assembles Deepgram + ElevenLabs + Twilio + LLM separately. Rosie delivers everything at $0.07/min."]].map(([n,l,d])=>(
+                {[
+                  ["340%","Voice Agent Deployment Growth","Voice agent production deployments grew 340% in 2025 alone — signaling that the technology has crossed the enterprise adoption inflection point."],
+                  ["88%","Contact Centers Using AI","88% of contact centers now use some form of AI. The adoption wave is here. Platforms that automate the full workflow — not just one touchpoint — win the category."],
+                  ["$80B","Labor Cost Savings by 2026","Gartner projects contact centers save $80B in labor costs from AI deployment in 2026. This creates massive urgency for businesses to automate or fall behind."],
+                  ["15×","Lower Cost vs SDR Teams","AI executes traditional SDR functions at 15× lower cost per qualified lead — fundamentally breaking the economics of manual outbound prospecting."],
+                  ["8×","VC Funding Surge in Voice AI","VC investment into voice AI surged 8× from 2022 to 2025. The capital has moved. Rosie AI is positioned to be the SMB-first platform as enterprise players chase Fortune 500 contracts."],
+                  ["68%","Enterprise Sales Teams Using AI","68% of enterprise sales teams already use AI tools in their pipeline. SMBs are next — and are desperate for accessible, all-in-one solutions that don't require a six-figure implementation."],
+                ].map(([n,l,d])=>(
                   <div key={l} className="trend-card"><div className="trend-num">{n}</div><div className="trend-label">{l}</div><div className="trend-desc">{d}</div></div>
                 ))}
               </div>
             </div>
 
-            {/* Competitive panel */}
+            {/* Competitive panel — rebuilt without industry-specific data rows */}
             <div className={`mkt-panel${mktTab==="competitive"?" active":""}`}>
               <div className="comp-intro reveal">
                 <div>
                   <div className="slab" style={{margin:"0 0 16px"}}>Why No One Else Can Compete</div>
-                  <h3 style={{fontFamily:"'Playfair Display',serif",fontSize:22,color:"#f0ead8",marginBottom:16}}>The Moat Is Data, Not Just Software</h3>
-                  <p style={{fontSize:14,color:"#9a9280",lineHeight:1.7,maxWidth:560}}>Apollo, ZoomInfo, and Clay are generic B2B databases. They sell contact data. Rosie AI generates proprietary, real-time intent signals from sources competitors literally cannot access — because we built the ingestion infrastructure, and they didn't.</p>
+                  <h3 style={{fontFamily:"'Playfair Display',serif",fontSize:22,color:"#f0ead8",marginBottom:16}}>The Moat Is Integration, Not Just Features</h3>
+                  <p style={{fontSize:14,color:"#9a9280",lineHeight:1.7,maxWidth:560}}>Apollo, ZoomInfo, and Clay sell contact data. Gong sells call analytics. Twilio sells communication infrastructure. None of them combine real-time data intelligence, AI voice agents, multi-channel outreach, and a self-healing automation engine into a single platform — at an SMB-accessible price point. Rosie does.</p>
                 </div>
                 <div className="cost-callout">
                   <div style={{fontSize:10,fontWeight:700,letterSpacing:"0.12em",textTransform:"uppercase",color:"#5a5448",marginBottom:16}}>Voice Agent Cost/Minute</div>
@@ -704,28 +699,95 @@ export default function InvestorPage() {
                 </div>
               </div>
               <table className="vs-table reveal">
-                <thead><tr><th>Capability</th><th>Apollo.io</th><th>ZoomInfo</th><th>Clay</th><th>Gong.io</th><th className="ours">Rosie AI</th></tr></thead>
+                <thead>
+                  <tr>
+                    <th>Capability</th>
+                    <th>Apollo.io</th>
+                    <th>ZoomInfo</th>
+                    <th>Clay</th>
+                    <th>Gong.io</th>
+                    <th className="ours">Rosie AI</th>
+                  </tr>
+                </thead>
                 <tbody>
-                  {[["Solar Permit Ingestion (live)","❌","❌","❌","❌","✅ Daily, 50+ cities"],["Storm DAT Reports (real-time)","❌","❌","❌","❌","✅ NWS API live"],["AI Voice Agents (outbound)","❌","❌","❌","Partial","✅ $0.07/min all-in"],["AI Inbound Call Center","❌","❌","❌","❌","✅ Browser-based"],["WhatsApp + iMessage Outreach","❌","❌","❌","❌","✅ No 10DLC required"],["Self-Healing Pipeline","❌","❌","❌","❌","✅ Autonomous recovery"],["Setup Time (AI Calling)","N/A","N/A","N/A","Weeks","20 minutes"],["Pricing / Month","$499+","$15,000+","$599+","$5,000+","$297 all-in"],["Vertical-Specific Data Modules","❌","❌","❌","❌","✅ Solar, Roofing, Storm"]].map((row)=>(
+                  {[
+                    ["AI Voice Agents — Outbound Calling","❌","❌","❌","Partial","✅ $0.07/min all-in"],
+                    ["AI Inbound Call Handling","❌","❌","❌","❌","✅ Browser-based, live"],
+                    ["Multi-Channel Outreach (SMS + Email + WhatsApp + Voice)","SMS Only","❌","Partial","❌","✅ Full stack, one platform"],
+                    ["Real-Time Lead Intelligence & Intent Scoring","Partial","Partial","Partial","❌","✅ Autonomous, real-time"],
+                    ["Automated Lead Enrichment (multi-source waterfall)","Partial","✅","✅","❌","✅ Global + proprietary sources"],
+                    ["Self-Healing Automation Pipeline","❌","❌","❌","❌","✅ Auto-recovery built in"],
+                    ["AI Agent Setup Time","N/A","N/A","N/A","Weeks","✅ 20 minutes"],
+                    ["Subscription Price / Month","$499+","$15,000+","$599+","$5,000+","✅ From $297 all-in"],
+                    ["SMB-Accessible Pricing","❌","❌","Partial","❌","✅ Built for SMB"],
+                    ["Multi-Tenant White-Label Capable","❌","❌","❌","❌","✅ Full org isolation + RLS"],
+                    ["Credit-Based À La Carte Marketplace","❌","❌","❌","❌","✅ Launching Sept 2026"],
+                    ["Triple-AI Security Certified","❌","❌","❌","❌","✅ 92/100 Score"],
+                  ].map((row)=>(
                     <tr key={row[0]}>{row.map((cell,i)=><td key={i} className={i===5?"ours":""}>{cell}</td>)}</tr>
                   ))}
                 </tbody>
               </table>
+              <div className="diff-grid reveal" style={{marginTop:32}}>
+                {[
+                  ["🔗","Full-Stack Integration","Competitors address one layer of the sales workflow. Rosie AI integrates discovery, enrichment, outreach, AI voice, and analytics into one subscription — eliminating the 5–7 tool stacks competitors require."],
+                  ["💸","Price Point Dislocation","The closest all-in alternatives run $5,000–$15,000/month and require months of onboarding. Rosie AI starts at $297/month and is operational in 20 minutes — an entirely different buying motion."],
+                  ["⚡","Self-Healing Architecture","No competitor offers autonomous pipeline recovery. When Rosie's jobs fail, the system detects, restarts, and resolves without human intervention — a structural reliability advantage no point solution can replicate."],
+                ].map(([icon,title,desc])=>(
+                  <div key={title} className="diff-card"><div className="diff-icon">{icon}</div><div className="diff-title">{title}</div><div className="diff-desc">{desc}</div></div>
+                ))}
+              </div>
             </div>
 
-            {/* M&A panel */}
+            {/* M&A panel — expanded with smaller deals */}
             <div className={`mkt-panel${mktTab==="ma"?" active":""}`}>
               <div className="slab reveal">Precedent Transactions</div>
-              <h3 style={{fontFamily:"'Playfair Display',serif",fontSize:22,color:"#f0ead8",marginBottom:16}} className="reveal">What Acquirers Pay for AI Sales Platforms</h3>
+              <h3 style={{fontFamily:"'Playfair Display',serif",fontSize:22,color:"#f0ead8",marginBottom:8}} className="reveal">What Acquirers Pay for AI Sales & Voice Platforms</h3>
+              <p style={{fontSize:13,color:"#9a9280",marginBottom:24,lineHeight:1.7}} className="reveal">The M&A landscape across AI voice, sales automation, and conversational SaaS spans from seed-stage tuck-ins at $25M to mega-deals at $27B — all validating strong revenue multiples for category-defining platforms.</p>
+
+              <div style={{fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.12em",color:"#8a6b28",marginBottom:10}} className="reveal">Large-Cap Precedents</div>
               <table className="ma-table reveal">
                 <thead><tr><th>Acquirer</th><th>Target</th><th>Year</th><th>Deal Value</th><th>Sector</th><th>Rev. Multiple</th></tr></thead>
                 <tbody>
-                  {[["Microsoft","Nuance Communications","2021","$19.7B","AI Voice / NLP","~10× ARR"],["Salesforce","Slack","2021","$27.7B","SaaS / Collaboration","26× ARR"],["Adobe","Figma","2022","$20B","SaaS / Design","50× ARR"],["ZoomInfo","Chorus.ai","2021","$575M","Conversation Intelligence","11.5× ARR"],["ServiceNow","Intellibot","2021","$1.35B","AI Automation","12× ARR"],["Salesloft","Drift","2023","~$1B","Conversational Marketing AI","~10× ARR"],["Salesforce","Tableau","2019","$15.7B","Data Analytics / SaaS","~8× ARR"],["Twilio","Segment","2020","$3.2B","Data / SaaS","12× ARR"]].map((row)=>(
+                  {[
+                    ["Microsoft","Nuance Communications","2021","$19.7B","AI Voice / NLP","~10× ARR"],
+                    ["Salesforce","Slack","2021","$27.7B","SaaS / Collaboration","26× ARR"],
+                    ["Adobe","Figma","2022","$20B","SaaS / Design","50× ARR"],
+                    ["ZoomInfo","Chorus.ai","2021","$575M","Conversation Intelligence","11.5× ARR"],
+                    ["ServiceNow","Intellibot","2021","$1.35B","AI Automation","12× ARR"],
+                    ["Salesloft","Drift","2023","~$1B","Conversational Marketing AI","~10× ARR"],
+                    ["Salesforce","Tableau","2019","$15.7B","Data Analytics / SaaS","~8× ARR"],
+                    ["Twilio","Segment","2020","$3.2B","Data / SaaS","12× ARR"],
+                  ].map((row)=>(
                     <tr key={row[0]+row[1]}><td>{row[0]}</td><td>{row[1]}</td><td>{row[2]}</td><td className="deal-val">{row[3]}</td><td>{row[4]}</td><td className="multiple">{row[5]}</td></tr>
                   ))}
                 </tbody>
               </table>
-              <div className="ma-note reveal"><strong>Rosie AI context:</strong> At the $15M SAFE note valuation cap with $380K ARR, Rosie AI implies a 39× forward multiple — consistent with early-stage AI-native platforms before revenue scaling. Microsoft paid 10× ARR for Nuance's voice AI infrastructure. The AI voice agent market that Rosie AI competes in is growing to $47.5B by 2034. The first category-defining platform in the vertically-integrated AI prospecting space will command premium exit multiples.</div>
+
+              <div style={{fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.12em",color:"#8a6b28",marginBottom:10,marginTop:32}} className="reveal">Mid-Market & Growth-Stage Precedents ($25M – $600M)</div>
+              <table className="ma-table reveal">
+                <thead><tr><th>Acquirer</th><th>Target</th><th>Year</th><th>Deal Value</th><th>Sector</th><th>Rev. Multiple</th></tr></thead>
+                <tbody>
+                  {[
+                    ["Zeta Global","LiveIntent","2022","~$250M","AI Marketing Automation","~9× ARR"],
+                    ["HubSpot","Clearbit","2023","~$150M","B2B Data Enrichment","~12× ARR"],
+                    ["Outreach.io","Canopy","2022","~$200M","Revenue Intelligence","~14× ARR"],
+                    ["Vonage (Ericsson)","TokBox","2018","$35M","Voice/Video API Platform","~11× ARR"],
+                    ["Freshworks","AnsweriQ","2020","~$50M","AI Customer Automation","~10× ARR"],
+                    ["Sprinklr","Postano","2021","~$30M","Social & Outreach SaaS","~9× ARR"],
+                    ["RingCentral","Hopin (Sessions)","2023","~$50M","AI Conversation Platform","~8× ARR"],
+                    ["Klaviyo","Napkin AI","2024","~$25M","AI Outreach Automation","~12× ARR"],
+                    ["Apollo.io (Private Round)","N/A — Internal Valuation","2024","$1.6B","AI Sales Intelligence","~20× ARR"],
+                    ["Salesloft","Drift","2023","~$1B","Conversational AI SaaS","~10× ARR"],
+                  ].map((row)=>(
+                    <tr key={row[0]+row[1]+row[2]}><td>{row[0]}</td><td>{row[1]}</td><td>{row[2]}</td><td className="deal-val">{row[3]}</td><td>{row[4]}</td><td className="multiple">{row[5]}</td></tr>
+                  ))}
+                </tbody>
+              </table>
+
+              <div className="ma-note reveal" style={{marginTop:24}}>
+                <strong>Rosie AI context:</strong> At the $15M SAFE note valuation cap with $380K ARR, Rosie AI implies a 39× forward multiple — consistent with early-stage AI-native platforms before revenue scaling. The mid-market precedents above show acquirers consistently paying 8–14× ARR even for non-AI SaaS tools. AI-native platforms with integrated voice and outreach capabilities command premium multiples. The first category-defining SMB-accessible platform across AI Sales Intelligence + Voice Agents + Conversational SaaS will command the highest exit premium in its cohort.
+              </div>
             </div>
           </div>
         </section>
@@ -738,95 +800,102 @@ export default function InvestorPage() {
           <div className="wrap">
             <div className="slab reveal">Technology</div>
             <h2 className="h2 reveal">One Unified System.<br/><em style={{fontStyle:"italic",color:"#deba6a"}}>Infinite Possibilities.</em></h2>
-            <p className="lead reveal">Rosie AI leverages a multi-tenant, distributed framework to run 150+ backend functions simultaneously, updating 136 entities the second data hits the system. This isn't just a CRM—it's an intelligence layer that adapts to your industry. From dental patient engagement to precision-targeted roofing and solar leads, Rosie eliminates the lag and puts real-time solutions at your fingertips.</p>
+            <p className="lead reveal">Rosie AI leverages a multi-tenant, distributed framework to run 150+ backend functions simultaneously, updating 136 entities the second data hits the system. This isn't just a CRM — it's an intelligence layer that adapts to your industry, eliminating the lag and putting real-time solutions at your fingertips.</p>
 
+            {/* Core Capabilities — uniform cards matching verticals size */}
             <div className="slab reveal">Core Capabilities</div>
-            <div className="diff-grid" style={{gridTemplateColumns:"repeat(3,1fr)",marginBottom:32}}>
+            <div className="platform-uniform-grid reveal">
               {[
-                ["🔍","Discovery","Our discovery engine automates the heavy lifting of data acquisition, integrating web crawlers, solar permit tracking, NWS storm data, and deep social scraping to identify high-intent opportunities as they happen."],
-                ['🧠','AI Analysis','Beyond simple data, Rosie provides deep cognitive processing — from intent scoring and pain point detection to persona clustering — ensuring every lead is qualified and understood before you ever hit "send."'],
-                ["⚡","Enrichment","We eliminate incomplete data through a sophisticated multi-source waterfall, merging global databases with specialized industry data to provide a comprehensive, 360-degree view of every prospect."],
-                ["📤","Outreach","Rosie orchestrates multi-channel engagement across SMS, email, AI voice, and WhatsApp, maintaining a consistent brand presence through intelligent drip sequences and automated follow-ups."],
-                ["📊","Intelligence","The backbone of the platform focuses on operational excellence, managing complex queue systems, self-healing protocols, and full-stack telemetry to ensure the system remains resilient and transparent."],
-                ["🔔","Notification","The final layer of the Rosie ecosystem ensures you never miss a beat. This module pushes real-time alerts, engagement pings, and critical system updates directly to your preferred channel, turning platform intelligence into immediate human action."],
-              ].map(([icon,title,desc])=>(
-                <div key={title} className="diff-card reveal">
-                  <div className="diff-icon">{icon}</div>
-                  <div className="diff-title">{title}</div>
-                  <div className="diff-desc">{desc}</div>
+                ["🔍","DISCOVERY","Discovery","Our engine automates data acquisition — integrating web crawlers, permit tracking, NWS storm data, and deep social scraping to identify high-intent opportunities as they happen."],
+                ["🧠","AI ANALYSIS","AI Analysis","Beyond simple data: intent scoring, pain point detection, and persona clustering ensure every lead is qualified and understood before first contact."],
+                ["⚡","ENRICHMENT","Enrichment","Multi-source data waterfall merges global databases with specialized industry data to deliver a 360-degree view of every prospect."],
+                ["📤","OUTREACH","Outreach","Orchestrates multi-channel engagement across SMS, email, AI voice, and WhatsApp with intelligent drip sequences and automated follow-ups."],
+                ["📊","INTELLIGENCE","Intelligence","Priority scheduler, DLQ monitor, backpressure manager, and full-stack telemetry keep operations resilient and completely transparent."],
+                ["🔔","NOTIFICATION","Notification","Real-time alerts, engagement pings, and critical system updates pushed directly to your preferred channel — turning platform intelligence into immediate action."],
+              ].map(([icon,eyebrow,title,desc])=>(
+                <div key={title} className="platform-card">
+                  <div className="platform-card-eyebrow">{eyebrow}</div>
+                  <div className="platform-card-icon">{icon}</div>
+                  <div className="platform-card-title">{title}</div>
+                  <div className="platform-card-desc">{desc}</div>
                 </div>
               ))}
             </div>
 
+            {/* Technical Stack — uniform cards */}
             <div className="slab reveal">Technical Stack</div>
-            <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:12,marginBottom:44}}>
-              {[["BACKEND RUNTIME","Deno + Base44 SDK","262 serverless edge functions. Each function isolated, versioned, health-monitored. All calls use INTERNAL_SECRET auth + RLS session context.","TypeScript","Deno Deploy","Base44 v0.8.23","JWT Auth"],
-                ["FRONTEND","React 18 + Vite","42 full pages, 248 components across billing, admin, campaign, leads, SMS, settings, and workflow modules. TanStack Query with 15s auto-refresh.","React 18","TanStack Query","Tailwind CSS","Lucide Icons"],
-                ["DATABASE","Supabase PostgreSQL","136 entity types. Row-Level Security enforced via set_org_context() at every query. Zero cross-org data leakage. Full audit log trail.","PostgreSQL","RLS","Supabase","136 Entities"],
-                ["AI GATEWAY","Centralized Multi-Provider","All AI calls route through aiGateway. Handles cost tracking, request caching, budget enforcement, provider failover across Groq, OpenAI, Anthropic, and Gemini.","OpenAI","Groq","Anthropic","Gemini"],
-                ["OUTREACH LAYER","Twilio + Instantly.ai","Full SMS drip/broadcast, AI voice agent with call recording, email sequences via Instantly.ai, WhatsApp + Blue Bubble messaging. BYO Twilio or EZ-Setup. 20 minutes to dial.","Twilio","AI Voice","Instantly.ai","WhatsApp"],
-                ["QUEUE SYSTEM","Self-Healing Job Engine","Priority scheduler, DLQ monitor, backpressure manager, stuck-job detector, loop-breaker agent, and full autoscaler. Workers restart automatically on failure.","Priority Queues","DLQ","Self-Healing","Autoscaling"],
-              ].map(([layer,name,desc,...tags])=>(
-                <div key={name} style={{background:"#121218",border:"1px solid rgba(201,168,76,0.10)",borderRadius:10,padding:"14px 16px",transition:"border-color 0.2s"}} className="reveal">
-                  <div style={{fontSize:9,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.12em",color:"#8a6b28",marginBottom:5}}>{layer}</div>
-                  <div style={{fontFamily:"'Playfair Display',serif",fontSize:13,color:"#f0ead8",marginBottom:6}}>{name}</div>
-                  <div style={{fontSize:11,color:"#9a9280",lineHeight:1.55,marginBottom:10}}>{desc}</div>
-                  <div style={{display:"flex",flexWrap:"wrap",gap:4}}>{tags.map(t=><span key={t} style={{fontSize:9,fontWeight:700,padding:"2px 6px",borderRadius:20,background:"rgba(201,168,76,0.10)",color:"#9a9280",border:"1px solid rgba(201,168,76,0.10)"}}>{t}</span>)}</div>
-                </div>
-              ))}
-            </div>
-
-            <div className="slab reveal">À La Carte Services</div>
-            <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,marginBottom:44}} className="reveal">
-              {[["📞","AI Outbound Voice Agents","Fully automated outbound calls with AI agents that qualify leads, book appointments, and handle objections. Setup in 20 minutes.","$0.07/min all-in"],
-                ["🎙️","AI Inbound Call Center","Browser-based inbound console with AI agent handling, caller ID, customer lookup, history, and live transfer to human agents.","$0.07/min all-in"],
-                ["💬","SMS Campaigns + Automation","Standard SMS, WhatsApp, and Blue Bubble (iMessage) outreach. Includes Instantly.ai email integration and automated follow-up workflows.","No 10DLC required"],
-                ["🍎","Blue Bubble (iMessage) Outreach","Apple Messages-style outreach that bypasses SMS carrier compliance entirely. Higher open rates, no registration hassle.","Zero compliance overhead"],
-                ["📱","WhatsApp Business Outreach","Automated WhatsApp campaigns with AI-powered reply handling. Two-way conversations, media support, and full outreach workflow integration.","Global reach"],
-                ["🔌","BYO Twilio or Buy From Us","Bring your own Twilio account for maximum control, or purchase phone numbers directly through Rosie AI EZ-Setup. Same $0.07/min either way.","20 min setup"],
-              ].map(([icon,title,desc,tag])=>(
-                <div key={title} style={{background:"#121218",border:"1px solid rgba(201,168,76,0.10)",borderRadius:10,padding:"14px 16px",transition:"border-color 0.2s"}}>
-                  <div style={{fontSize:18,marginBottom:8}}>{icon}</div>
-                  <div style={{fontSize:12,fontWeight:700,color:"#e8e2d0",marginBottom:5}}>{title}</div>
-                  <div style={{fontSize:11,color:"#9a9280",lineHeight:1.5,marginBottom:10}}>{desc}</div>
-                  <span style={{fontSize:9,fontWeight:700,padding:"2px 8px",borderRadius:20,background:"rgba(201,168,76,0.12)",color:"#deba6a",border:"1px solid rgba(201,168,76,0.25)"}}>{tag}</span>
-                </div>
-              ))}
-            </div>
-
-            <div className="slab reveal">Verticals We Service</div>
-            <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:8,marginBottom:44}} className="reveal">
+            <div className="platform-uniform-grid reveal">
               {[
-                ["🏘️","Real Estate","Distressed property signals and 'likely to sell' data modeling to support agents identifying off-market opportunities and high-intent sellers."],
-                ["🚗","Retail Auto Sales","Identifying high-intent buyer signals across YouTube, Reddit, and social platforms to capture in-market automotive leads at peak search."],
-                ["🦷","Dental Practices","Patient acquisition and reactivation pipelines designed to fill chairs by identifying local residents seeking specialized or routine care."],
-                ["🏥","Medical Offices","Strategic growth signals and local demographic targeting to help private practices and specialty clinics expand their patient base."],
-                ["🏢","Hospitals","High-level facility targeting and health system data integration to streamline B2B partnerships, staffing solutions, and equipment procurement."],
-                ["🛡️","Insurance Industry","Automated lead generation for life, health, and property insurance providers by tracking major life events and property transitions in real-time."],
-                ["🏥","Treatment Facilities","Precision targeting for behavioral health and rehabilitation centers, identifying individuals and families actively searching for care."],
-                ["🏦","Mortgage & Lending","Tracking equity milestones and financial behavior to connect lenders with homeowners ready for refinancing, HELOCs, or new purchase loans."],
-                ["❄️","HVAC & Home Services","Monitoring localized climate shifts and equipment age signals to connect HVAC and plumbing professionals with homeowners needing replacements."],
-                ["🔒","Cybersecurity & IT","B2B intent-tracking identifying companies searching for security solutions following infrastructure changes, hiring spikes, or compliance shifts."],
-                ["🚢","Logistics & Supply Chain","Connecting freight and 3PL providers with manufacturers and e-commerce brands showing high-volume shipping and distribution demand."],
-                ["⚖️","Legal Services","Intent-based lead generation for personal injury and mass tort firms based on real-time incident reporting, public data, and legal-search behaviors."],
-                ["☀️","Solar","Precision permit scraping from 50+ city portals with daily data ingestion to identify homeowners ready to transition to clean energy."],
-                ["🏠","Roofing","Comprehensive storm tracking via NWS data and social signals to connect contractors with homeowners in immediate need of repair."],
-                ["🔑","Commodities","Sophisticated intent-tracking across social platforms to identify and engage active buyers in precious metals and raw materials markets."],
-                ["🏗️","General Contracting","Commercial and residential permit data aggregation to provide GCs with a steady pipeline of new construction and remodel projects."],
-                ["🧹","Residential Cleaning","Territory mapping and homeowner signal detection to deploy service demand alerts for local cleaning franchises and independent services."],
-                ["🏢","Commercial Cleaning","Strategic B2B facility targeting focused on office complexes, medical centers, and industrial contract opportunities."],
-                ["🔬","Lab & Testing","Data pipelines for clinical labs, environmental testing, and diagnostic companies looking to scale their B2B partnerships."],
-                ["🌿","Landscaping & Lawn Care","Utilizing new homeowner data and seasonal demand signals to automate outreach for maintenance and design-build services."],
-              ].map(([icon,name,desc])=>(
-                <div key={name} style={{background:"#121218",border:"1px solid rgba(201,168,76,0.10)",borderRadius:8,padding:"10px 12px",transition:"border-color 0.2s"}}>
-                  <div style={{fontSize:16,marginBottom:5}}>{icon}</div>
-                  <div style={{fontSize:11,fontWeight:700,color:"#e8e2d0",marginBottom:4}}>{name}</div>
-                  <div style={{fontSize:10,color:"#9a9280",lineHeight:1.45}}>{desc}</div>
+                ["⚙️","BACKEND RUNTIME","Deno + Base44 SDK","262 serverless edge functions. Each isolated, versioned, health-monitored. All calls use INTERNAL_SECRET auth + RLS session context.",["TypeScript","Deno Deploy","Base44","JWT Auth"]],
+                ["🖥️","FRONTEND","React 18 + Vite","42 full pages, 248 components across billing, admin, campaign, leads, SMS, settings, and workflow modules. TanStack Query with 15s auto-refresh.",["React 18","TanStack Query","Tailwind CSS","Lucide Icons"]],
+                ["🗄️","DATABASE","Supabase PostgreSQL","136 entity types. Row-Level Security via set_org_context() at every query. Zero cross-org data leakage. Full audit log trail.",["PostgreSQL","RLS","Supabase","136 Entities"]],
+                ["🤖","AI GATEWAY","Centralized Multi-Provider","All AI calls route through aiGateway. Cost tracking, caching, budget enforcement, provider failover across Groq, OpenAI, Anthropic, and Gemini.",["OpenAI","Groq","Anthropic","Gemini"]],
+                ["📡","OUTREACH LAYER","Twilio + Instantly.ai","Full SMS drip/broadcast, AI voice agent with call recording, email sequences, WhatsApp + Blue Bubble messaging. BYO Twilio or EZ-Setup.",["Twilio","AI Voice","Instantly.ai","WhatsApp"]],
+                ["🔄","QUEUE SYSTEM","Self-Healing Job Engine","Priority scheduler, DLQ monitor, backpressure manager, stuck-job detector, loop-breaker agent, and autoscaler. Workers restart on failure.",["Priority Queues","DLQ","Self-Healing","Autoscaling"]],
+              ].map(([icon,eyebrow,title,desc,tags])=>(
+                <div key={title} className="platform-card">
+                  <div className="platform-card-eyebrow">{eyebrow}</div>
+                  <div className="platform-card-icon">{icon}</div>
+                  <div className="platform-card-title">{title}</div>
+                  <div className="platform-card-desc">{desc}</div>
+                  <div className="platform-card-tags">{tags.map(t=><span key={t} className="platform-card-tag">{t}</span>)}</div>
                 </div>
               ))}
             </div>
 
+            {/* À La Carte — uniform cards */}
+            <div className="slab reveal">À La Carte Services</div>
+            <div className="platform-uniform-grid reveal">
+              {[
+                ["📞","OUTBOUND","AI Outbound Voice Agents","Fully automated outbound calls. AI agents qualify leads, book appointments, handle objections. Setup in 20 minutes.","$0.07/min all-in"],
+                ["🎙️","INBOUND","AI Inbound Call Center","Browser-based inbound console with AI agent handling, caller ID, customer lookup, history, and live transfer.","$0.07/min all-in"],
+                ["💬","SMS","SMS + Automation Campaigns","Standard SMS, WhatsApp, and Blue Bubble (iMessage) outreach with Instantly.ai email integration and auto follow-up.","No 10DLC required"],
+                ["🍎","iMESSAGE","Blue Bubble Outreach","Apple Messages-style outreach that bypasses SMS carrier compliance entirely. Higher open rates, zero registration.","Zero compliance overhead"],
+                ["📱","WHATSAPP","WhatsApp Business Outreach","Automated WhatsApp campaigns with AI reply handling. Two-way conversations, media support, full workflow integration.","Global reach"],
+                ["🔌","SETUP","BYO or Buy Twilio","Bring your own Twilio or purchase numbers directly through Rosie AI EZ-Setup. Same $0.07/min either way.","20 min setup"],
+              ].map(([icon,eyebrow,title,desc,tag])=>(
+                <div key={title} className="platform-card">
+                  <div className="platform-card-eyebrow">{eyebrow}</div>
+                  <div className="platform-card-icon">{icon}</div>
+                  <div className="platform-card-title">{title}</div>
+                  <div className="platform-card-desc">{desc}</div>
+                  <div className="platform-card-tags"><span className="platform-card-tag" style={{color:"#deba6a",borderColor:"rgba(201,168,76,0.25)"}}>{tag}</span></div>
+                </div>
+              ))}
+            </div>
 
+            {/* Industries We Service — uniform matching cards */}
+            <div className="slab reveal">Industries We Service</div>
+            <div className="platform-uniform-grid reveal">
+              {[
+                ["🏘️","Real Estate","Distressed property signals and 'likely to sell' data modeling for agents identifying off-market opportunities."],
+                ["🚗","Retail Auto Sales","High-intent buyer signals across social platforms to capture in-market automotive leads at peak search."],
+                ["🦷","Dental Practices","Patient acquisition and reactivation pipelines designed to fill chairs by identifying high-intent local residents."],
+                ["🏥","Medical Offices","Strategic growth signals and local demographic targeting to help private practices expand their patient base."],
+                ["🏢","Hospitals","High-level facility targeting and health system data integration for B2B partnerships and procurement."],
+                ["🛡️","Insurance Industry","Automated lead generation tracking major life events and property transitions in real-time."],
+                ["🏥","Treatment Facilities","Precision targeting for behavioral health and rehabilitation centers."],
+                ["🏦","Mortgage & Lending","Tracking equity milestones to connect lenders with homeowners ready for refinancing or HELOCs."],
+                ["❄️","HVAC & Home Services","Monitoring climate shifts and equipment age signals to connect contractors with homeowners."],
+                ["🔒","Cybersecurity & IT","B2B intent-tracking for companies searching for security solutions after infrastructure changes."],
+                ["🚢","Logistics & Supply Chain","Connecting freight and 3PL providers with manufacturers showing high-volume shipping demand."],
+                ["⚖️","Legal Services","Intent-based lead generation for personal injury and mass tort firms based on real-time incident data."],
+                ["☀️","Solar","Permit scraping from 50+ city portals with daily ingestion to identify homeowners ready for clean energy."],
+                ["🏠","Roofing","Comprehensive storm tracking via NWS data to connect contractors with homeowners needing repair."],
+                ["🔑","Commodities","Intent-tracking across social platforms to identify active buyers in precious metals and raw materials."],
+                ["🏗️","General Contracting","Commercial and residential permit data aggregation for steady new construction pipelines."],
+                ["🧹","Residential Cleaning","Territory mapping and homeowner signal detection to deploy service demand alerts."],
+                ["🏢","Commercial Cleaning","Strategic B2B facility targeting for office complexes, medical centers, and industrial contracts."],
+                ["🔬","Lab & Testing","Data pipelines for clinical labs, environmental testing, and diagnostic companies."],
+                ["🌿","Landscaping","New homeowner data and seasonal demand signals to automate outreach for maintenance services."],
+              ].map(([icon,name,desc])=>(
+                <div key={name} className="platform-card">
+                  <div className="platform-card-icon">{icon}</div>
+                  <div className="platform-card-title">{name}</div>
+                  <div className="platform-card-desc">{desc}</div>
+                </div>
+              ))}
+            </div>
           </div>
         </section>
         <div className="footer"><div className="wrap"><p className="footer-disc">Source code shown is from the audited production build. All functions are deployed and operational.</p><div className="footer-copy">© 2026 Rosie AI, LLC · Confidential</div></div></div>
@@ -838,45 +907,45 @@ export default function InvestorPage() {
           <div className="wrap">
             <div className="slab reveal">Financial Projections & Growth Milestones</div>
             <h2 className="h2 reveal">Two Revenue Streams.<br/><em style={{fontStyle:"italic",color:"#deba6a"}}>One Compounding Engine.</em></h2>
-            <p className="lead reveal">The platform generates revenue through two complementary streams: recurring organizational subscriptions and an à la carte AI services marketplace launching in September 2026. The following table reflects the updated blended revenue projections.</p>
+            <p className="lead reveal">The platform generates revenue through two complementary streams: recurring organizational subscriptions and an à la carte AI services marketplace launching in September 2026.</p>
 
-            <div className="fin-grid">
-              <div className="fin-grid-inner">
-              <div className="proj-table reveal">
+            {/* Revenue table + cost breakdown side by side, no empty space */}
+            <div style={{display:"grid",gridTemplateColumns:"1.35fr 1fr",gap:28,marginBottom:32,alignItems:"start"}} className="reveal">
+              <div className="proj-table">
                 <table>
                   <thead><tr><th>Milestone</th><th># Orgs</th><th>Avg MRR/Org</th><th>MRR</th><th>ARR</th></tr></thead>
                   <tbody>
                     <tr><td>Month 2 (Sept 2026)</td><td>10</td><td>$500</td><td>$5,000</td><td>$60K</td></tr>
                     <tr><td>Month 4 (Q4 2026)</td><td>25</td><td>$600</td><td>$15,000</td><td>$180K</td></tr>
-                    <tr><td style={{color:"#deba6a",fontWeight:700}}>Month 6 (Q2 2027)</td><td style={{color:"#deba6a",fontWeight:700}}>50</td><td>$650</td><td style={{color:"#deba6a",fontWeight:700}}>$32,500</td><td>$390K</td></tr>
+                    <tr><td style={{color:"#deba6a",fontWeight:700}}>Month 6 (Q1 2027)</td><td style={{color:"#deba6a",fontWeight:700}}>50</td><td>$650</td><td style={{color:"#deba6a",fontWeight:700}}>$32,500</td><td>$390K</td></tr>
                     <tr><td>Month 12 (Q2 2027)</td><td>125</td><td>$700</td><td>$87,500</td><td>$1.05M</td></tr>
                     <tr><td style={{color:"#22c55e",fontWeight:700}}>Month 18 (Dec 2027)</td><td style={{color:"#22c55e",fontWeight:700}}>250</td><td>$750</td><td style={{color:"#22c55e",fontWeight:700}}>$187,500</td><td style={{color:"#22c55e",fontWeight:700}}>$2.25M</td></tr>
                     <tr><td>Month 24 (Jun 2028)</td><td>750</td><td>$800</td><td>$600,000</td><td>$7.2M</td></tr>
                     <tr><td>Month 30 (Dec 2028)</td><td>2,000</td><td>$820</td><td>$1,640,000</td><td>$19.7M</td></tr>
                   </tbody>
                 </table>
-                <div style={{marginTop:16,background:"rgba(34,197,94,0.08)",border:"1px solid rgba(34,197,94,0.2)",borderRadius:10,padding:"14px 18px"}}>
-                  <p style={{fontSize:12,color:"#9a9280",margin:0,lineHeight:1.7}}><strong style={{color:"#22c55e"}}>Profitability Target:</strong> We project reaching profitability the moment revenue exceeds our monthly operational costs, with break-even achieved at approximately 15 paying organizations.</p>
-                  <p style={{fontSize:12,color:"#9a9280",margin:"8px 0 0",lineHeight:1.7}}><strong style={{color:"#deba6a"}}>Long-term Goal:</strong> Scale to 2,000 paying organizations by end of 2028.</p>
+                <div style={{marginTop:12,background:"rgba(34,197,94,0.08)",border:"1px solid rgba(34,197,94,0.2)",borderRadius:10,padding:"12px 16px"}}>
+                  <p style={{fontSize:12,color:"#9a9280",margin:0,lineHeight:1.65}}><strong style={{color:"#22c55e"}}>Profitability Target:</strong> Break-even at approximately 15 paying organizations. Distributions activate at $20,000/month MRR (~28–30 orgs).</p>
+                  <p style={{fontSize:12,color:"#9a9280",margin:"6px 0 0",lineHeight:1.65}}><strong style={{color:"#deba6a"}}>Long-term Goal:</strong> Scale to 2,000 paying organizations by end of 2028.</p>
                 </div>
               </div>
-              <div className="reveal">
-                <div className="cost-card">
-                  <div className="cost-title">Refined Monthly Operating Costs</div>
-                  {[["Sr. Technology Engineer","$4,000","#38bdf8"],["Managing Partner","$3,000","#38bdf8"],["PH Engineering Unit (3 Engineers)","$1,950","#22c55e"],["Server & Edge Deployment (Deno)","$300",""],["Database Management (Supabase Pro)","$150",""],["AI API Usage (OpenAI/Groq/etc.)","$200",""],["Twilio / SMS / Voice Base","$150",""],["Tools & Software Subscriptions","$150",""],["Legal, Audit & Compliance","$200",""]].map(([l,v,col])=>(
-                    <div key={l} className="cost-row"><span className="cost-row-label">{l}</span><span className="cost-row-val" style={col?{color:col}:{}}>{v}</span></div>
+
+              <div>
+                {/* Operating costs card — fills full height */}
+                <div className="cost-card" style={{marginBottom:12}}>
+                  <div className="cost-title">Monthly Operating Costs</div>
+                  {[["Sr. Technology Engineer","$4,000","#38bdf8"],["Managing Partner","$3,000","#38bdf8"],["PH Engineering Unit (3 Engineers)","$1,950","#22c55e"],["Server & Edge Deployment (Deno)","$300",""],["Database (Supabase Pro)","$150",""],["AI API Usage","$200",""],["Twilio / SMS / Voice Base","$150",""],["Tools & Software","$150",""],["Legal, Audit & Compliance","$200",""]].map(([l,v,col])=>(
+                    <div key={l} className="cost-row"><span className="cost-row-label" style={{fontSize:12}}>{l}</span><span className="cost-row-val" style={col?{color:col}:{}}>{v}</span></div>
                   ))}
-                  <div className="cost-row" style={{borderTop:"1px solid rgba(201,168,76,0.25)",marginTop:4,paddingTop:10}}><span className="cost-row-label" style={{fontWeight:700,color:"#e8e2d0"}}>Total Fixed Monthly Burn</span><span className="cost-row-val" style={{color:"#deba6a",fontWeight:700,fontSize:14}}>$10,100</span></div>
+                  <div className="cost-row" style={{borderTop:"1px solid rgba(201,168,76,0.25)",marginTop:4,paddingTop:10}}><span className="cost-row-label" style={{fontWeight:700,color:"#e8e2d0",fontSize:12}}>Total Fixed Monthly Burn</span><span className="cost-row-val" style={{color:"#deba6a",fontWeight:700,fontSize:14}}>$10,100</span></div>
                 </div>
-                <div className="cost-card" style={{background:"rgba(34,197,94,0.08)",borderColor:"rgba(34,197,94,0.25)"}}>
+                {/* Distribution threshold — same card, compact */}
+                <div className="cost-card" style={{background:"rgba(34,197,94,0.06)",borderColor:"rgba(34,197,94,0.22)",marginBottom:0}}>
                   <div className="cost-title" style={{color:"#22c55e"}}>Revenue Share & Distribution Threshold</div>
-                  <div className="cost-row"><span className="cost-row-label">Fixed Monthly Operating Cost</span><span className="cost-row-val">$10,100</span></div>
-                  <div className="cost-row"><span className="cost-row-label">Break-even Point</span><span className="cost-row-val" style={{color:"#22c55e"}}>~15 orgs @ ~$700 avg MRR</span></div>
-                  <div className="cost-row"><span className="cost-row-label">Distribution Activation</span><span className="cost-row-val" style={{color:"#22c55e",fontWeight:700}}>$20,000/mo MRR</span></div>
-                  <div className="cost-row"><span className="cost-row-label">Orgs Required for Distributions</span><span className="cost-row-val" style={{color:"#deba6a"}}>~28–30 orgs</span></div>
-                  <div className="cost-row"><span className="cost-row-label">Projected Start</span><span className="cost-row-val" style={{color:"#deba6a"}}>Q4 2026</span></div>
+                  {[["Fixed Monthly Operating Cost","$10,100",""],["Break-even Point","~15 orgs @ ~$700 avg MRR","#22c55e"],["Distribution Activation","$20,000/mo MRR","#22c55e"],["Orgs Required for Distributions","~28–30 orgs","#deba6a"],["Projected Start","Q4 2026","#deba6a"]].map(([l,v,col])=>(
+                    <div key={l} className="cost-row"><span className="cost-row-label" style={{fontSize:12}}>{l}</span><span className="cost-row-val" style={col?{color:col,fontSize:12}:{fontSize:12}}>{v}</span></div>
+                  ))}
                 </div>
-              </div>
               </div>
             </div>
 
@@ -884,7 +953,9 @@ export default function InvestorPage() {
             <div className="slab reveal" style={{marginTop:40}}>Subscription Pricing Tiers</div>
             <div style={{overflowX:"auto",marginBottom:36}} className="reveal">
               <table style={{fontSize:13,width:"100%"}}>
-                <thead><tr><th style={{background:"#18181f",color:"#5a5448",padding:"10px 14px",border:"1px solid rgba(201,168,76,0.10)",fontSize:10,textTransform:"uppercase",letterSpacing:"0.08em"}}>Plan</th><th style={{background:"#18181f",color:"#5a5448",padding:"10px 14px",border:"1px solid rgba(201,168,76,0.10)",fontSize:10,textTransform:"uppercase",letterSpacing:"0.08em"}}>Price</th><th style={{background:"#18181f",color:"#5a5448",padding:"10px 14px",border:"1px solid rgba(201,168,76,0.10)",fontSize:10,textTransform:"uppercase",letterSpacing:"0.08em"}}>Included Features</th><th style={{background:"#18181f",color:"#5a5448",padding:"10px 14px",border:"1px solid rgba(201,168,76,0.10)",fontSize:10,textTransform:"uppercase",letterSpacing:"0.08em"}}>Target Audience</th></tr></thead>
+                <thead><tr>
+                  {["Plan","Price","Included Features","Target Audience"].map(h=><th key={h} style={{background:"#18181f",color:"#5a5448",padding:"10px 14px",border:"1px solid rgba(201,168,76,0.10)",fontSize:10,textTransform:"uppercase",letterSpacing:"0.08em"}}>{h}</th>)}
+                </tr></thead>
                 <tbody>
                   {[["Starter","$297/mo","500 voice min · 2,500 SMS · 1 line · 1,000 AI calls","Solo contractors, 1–3 closers"],["Growth","$497/mo","1,500 voice min · 7,500 SMS · 3 lines · 5,000 AI calls","Small teams, 3–10 reps"],["Scale","$997/mo","5,000 voice min · 25,000 SMS · 8 lines · 20K AI calls","Mid-market, 10–30 reps"],["Enterprise","$2,497/mo","Unlimited minutes · 20 lines · Unlimited AI","Large operations, 30+ reps"]].map(([plan,price,feat,target])=>(
                     <tr key={plan}>
@@ -898,41 +969,55 @@ export default function InvestorPage() {
               </table>
             </div>
 
-            {/* Marketplace */}
+            {/* Marketplace — fixed layout */}
             <div className="slab reveal">À La Carte AI Services Marketplace</div>
             <div style={{background:"rgba(201,168,76,0.04)",border:"1px solid rgba(201,168,76,0.18)",borderRadius:16,padding:"28px 32px",marginBottom:36}} className="reveal">
               <h3 style={{fontFamily:"'Playfair Display',serif",fontSize:20,color:"#f0ead8",marginBottom:8}}>Launching September 2026</h3>
-              <p style={{fontSize:13,color:"#9a9280",lineHeight:1.75,marginBottom:20}}>Rosie AI generates high-margin, usage-based revenue through a self-funding marketplace that allows users to purchase and consume individual AI services on demand. This model lowers the barrier to entry for new clients and increases the average revenue per user (ARPU).</p>
-              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:24}}>
+              <p style={{fontSize:13,color:"#9a9280",lineHeight:1.7,marginBottom:24}}>Rosie AI generates high-margin, usage-based revenue through a self-funding marketplace that allows users to purchase and consume individual AI services on demand. This model lowers the barrier to entry for new clients and increases average revenue per user (ARPU).</p>
+
+              {/* Two column layout — services left, credit table right, matching widths */}
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:28,alignItems:"start"}}>
                 <div>
-                  <div style={{fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.12em",color:"#8a6b28",marginBottom:12}}>Core Service Offerings</div>
-                  {[["AI Voice Agents","Autonomous inbound/outbound appointment setting and lead qualification"],["Predictive Dialer","Intelligent automated dialing for high-alpha verticals like Solar and Roofing"],["Email Automation","AI-composed, personalized sequences triggered by real-time intent signals"],["Apify Web Scraping","On-demand data extraction from municipal permit filings and social signals"]].map(([name,desc])=>(
-                    <div key={name} style={{display:"flex",gap:10,marginBottom:10}}>
-                      <span style={{color:"#22c55e",flexShrink:0,marginTop:1}}>✓</span>
-                      <div><span style={{fontSize:12,fontWeight:700,color:"#e8e2d0"}}>{name}:</span><span style={{fontSize:12,color:"#9a9280"}}> {desc}</span></div>
+                  <div style={{fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.12em",color:"#8a6b28",marginBottom:14}}>Core Service Offerings</div>
+                  {[["AI Voice Agents","Autonomous inbound/outbound appointment setting and lead qualification at $0.07/min all-in."],["Predictive Dialer","Intelligent automated dialing across high-volume outreach campaigns."],["Email Automation","AI-composed, personalized sequences triggered by real-time intent signals."],["Apify Web Scraping","On-demand data extraction from municipal permit filings, public records, and social signals."]].map(([name,desc])=>(
+                    <div key={name} style={{display:"flex",gap:10,marginBottom:13}}>
+                      <span style={{color:"#22c55e",flexShrink:0,marginTop:2,fontWeight:700}}>✓</span>
+                      <div><span style={{fontSize:13,fontWeight:700,color:"#e8e2d0"}}>{name}:</span><span style={{fontSize:12,color:"#9a9280"}}> {desc}</span></div>
                     </div>
                   ))}
+                  <div style={{marginTop:16,fontSize:11,color:"#5a5448",lineHeight:1.6,background:"#121218",borderRadius:8,padding:"10px 14px",border:"1px solid rgba(201,168,76,0.10)"}}>
+                    Consumption rates: AI Voice = 50 cr/min · Predictive Dialer = 30 cr/min · Email = 10 cr/email
+                  </div>
                 </div>
                 <div>
-                  <div style={{fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.12em",color:"#8a6b28",marginBottom:12}}>Credit Packages</div>
-                  <table style={{width:"100%",fontSize:11,borderCollapse:"collapse"}}>
-                    <thead><tr>{["Package","Price","Credits","Bonus","Rate"].map(h=><th key={h} style={{background:"#18181f",color:"#5a5448",padding:"6px 8px",border:"1px solid rgba(201,168,76,0.10)",fontSize:9,textTransform:"uppercase"}}>{h}</th>)}</tr></thead>
+                  <div style={{fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.12em",color:"#8a6b28",marginBottom:14}}>Credit Packages</div>
+                  <table style={{width:"100%",fontSize:12,borderCollapse:"collapse"}}>
+                    <thead>
+                      <tr>{["Package","Price","Credits","Bonus","Rate"].map(h=><th key={h} style={{background:"#18181f",color:"#5a5448",padding:"9px 10px",border:"1px solid rgba(201,168,76,0.10)",fontSize:9,textTransform:"uppercase"}}>{h}</th>)}</tr>
+                    </thead>
                     <tbody>
                       {[["Starter","$5","500","+100","$0.010/cr"],["Growth","$25","2,500","+250","$0.0091/cr"],["Pro","$50","5,000","+1,000","$0.0083/cr"],["Scale","$100","10,000","+3,000","$0.0077/cr"]].map(([pkg,price,cr,bonus,rate])=>(
-                        <tr key={pkg}><td style={{padding:"6px 8px",border:"1px solid rgba(201,168,76,0.10)",color:"#deba6a",fontWeight:700}}>{pkg}</td><td style={{padding:"6px 8px",border:"1px solid rgba(201,168,76,0.10)",color:"#22c55e",fontFamily:"'DM Mono',monospace"}}>{price}</td><td style={{padding:"6px 8px",border:"1px solid rgba(201,168,76,0.10)",color:"#9a9280"}}>{cr}</td><td style={{padding:"6px 8px",border:"1px solid rgba(201,168,76,0.10)",color:"#22c55e"}}>{bonus}</td><td style={{padding:"6px 8px",border:"1px solid rgba(201,168,76,0.10)",color:"#9a9280"}}>{rate}</td></tr>
+                        <tr key={pkg}>
+                          <td style={{padding:"10px",border:"1px solid rgba(201,168,76,0.10)",color:"#deba6a",fontWeight:700}}>{pkg}</td>
+                          <td style={{padding:"10px",border:"1px solid rgba(201,168,76,0.10)",color:"#22c55e",fontFamily:"'DM Mono',monospace"}}>{price}</td>
+                          <td style={{padding:"10px",border:"1px solid rgba(201,168,76,0.10)",color:"#9a9280"}}>{cr}</td>
+                          <td style={{padding:"10px",border:"1px solid rgba(201,168,76,0.10)",color:"#22c55e"}}>{bonus}</td>
+                          <td style={{padding:"10px",border:"1px solid rgba(201,168,76,0.10)",color:"#9a9280"}}>{rate}</td>
+                        </tr>
                       ))}
                     </tbody>
                   </table>
-                  <div style={{marginTop:10,fontSize:10,color:"#5a5448",lineHeight:1.6}}>Consumption: AI Voice = 50 cr/min · Predictive Dialer = 30 cr/min · Email = 10 cr/email</div>
+                  <div style={{marginTop:16,display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8}}>
+                    {[["🔄","Revenue Flywheel","$5 entry point converts trials to subscriptions"],["📈","Conservative Upside","40% attachment rate → $90K/mo credit rev by Dec 2027"],["💰","Blended Threshold","Credit + subscription MRR combined for distribution trigger"]].map(([icon,t,d])=>(
+                      <div key={t} style={{background:"#121218",border:"1px solid rgba(201,168,76,0.10)",borderRadius:8,padding:"10px 12px"}}>
+                        <div style={{fontSize:14,marginBottom:5}}>{icon}</div>
+                        <div style={{fontSize:11,fontWeight:700,color:"#e8e2d0",marginBottom:3}}>{t}</div>
+                        <div style={{fontSize:10,color:"#9a9280",lineHeight:1.5}}>{d}</div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
-            </div>
-
-            {/* Financial Impact */}
-            <div className="diff-grid reveal" style={{gridTemplateColumns:"repeat(3,1fr)"}}>
-              <div className="diff-card"><div className="diff-icon">🔄</div><div className="diff-title">Revenue Flywheel</div><div className="diff-desc">A $5 "Starter Pack" allows any business to trial Rosie AI services without a subscription, creating a built-in sales funnel that accelerates organizational conversion rates from Q4 2026 forward.</div></div>
-              <div className="diff-card"><div className="diff-icon">📈</div><div className="diff-title">Conservative Upside</div><div className="diff-desc">Projections assume a 40% attachment rate among subscribers. By December 2027, credit revenue alone is projected to reach $90,000/month at 250 organizations.</div></div>
-              <div className="diff-card"><div className="diff-icon">💰</div><div className="diff-title">Blended Profitability</div><div className="diff-desc">Total MRR figures used to trigger the $20,000/month distribution threshold include the combined revenue from both subscription fees and the à la carte credit marketplace.</div></div>
             </div>
           </div>
         </section>
@@ -944,7 +1029,8 @@ export default function InvestorPage() {
         <section className="pad" style={{paddingTop:130}}>
           <div className="wrap">
             <div className="slab">Capital Efficiency: The Global Engineering Advantage</div>
-            <h2 className="h2">Elite US Strategy +<br/><em style={{fontStyle:"italic",color:"#deba6a"}}>High-Velocity Execution.</em></h2>
+            {/* One-line heading */}
+            <h2 className="h2" style={{whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>Elite US Strategy + <em style={{fontStyle:"italic",color:"#deba6a"}}>High-Velocity Execution.</em></h2>
             <div style={{background:"rgba(201,168,76,0.05)",border:"1px solid rgba(201,168,76,0.18)",borderRadius:14,padding:"24px 28px",marginBottom:36}}>
               <p style={{fontSize:15,color:"#9a9280",lineHeight:1.78,marginBottom:16}}>Rosie AI is built on a "Capital-Efficient Growth" model that decouples high-level engineering output from traditional Silicon Valley burn rates. Our structure leverages a specialized 5-person core team that integrates senior US leadership with a dedicated international engineering unit.</p>
               <div style={{display:"flex",flexDirection:"column",gap:10}}>
@@ -957,6 +1043,7 @@ export default function InvestorPage() {
               </div>
               <p style={{fontSize:13,color:"#9a9280",lineHeight:1.7,marginTop:16,marginBottom:0}}>By maintaining a total core team cost of <strong style={{color:"#deba6a"}}>$8,950/month</strong>, this lean, high-output configuration allows us to deploy investor capital toward platform hardening and aggressive market acquisition rather than administrative bloat.</p>
             </div>
+
             <div className="eng-cards">
               <div className="eng-card us-eng">
                 <div className="eng-name">Christopher</div>
@@ -976,36 +1063,29 @@ export default function InvestorPage() {
                   ))}
                 </div>
               </div>
-              <div className="eng-card us-eng" style={{borderColor:"rgba(56,189,248,0.35)",background:"rgba(56,189,248,0.03)",position:"relative"}}>
-                <div style={{position:"absolute",top:10,right:10,background:"rgba(56,189,248,0.12)",border:"1px solid rgba(56,189,248,0.3)",borderRadius:4,padding:"2px 8px",fontSize:9,fontWeight:700,letterSpacing:"1.2px",textTransform:"uppercase",color:"#60a5fa"}}>Critical Supporting Vendor</div>
+              {/* Chainwave card — Critical Supporting Vendor badge moved to bottom */}
+              <div className="eng-card us-eng" style={{borderColor:"rgba(56,189,248,0.35)",background:"rgba(56,189,248,0.03)",position:"relative",display:"flex",flexDirection:"column"}}>
                 <div className="eng-name" style={{marginTop:4}}>Chainwave Studios</div>
                 <div className="eng-role" style={{color:"#60a5fa"}}>Enterprise Migration & Development Partner</div>
                 <div style={{marginBottom:4}}><a href="https://www.chainwavestudios.com/" target="_blank" rel="noreferrer" style={{fontSize:10,color:"#5a5448",textDecoration:"none",letterSpacing:"0.05em"}}>chainwavestudios.com ↗</a></div>
                 <div style={{fontSize:10,color:"#5a5448",marginBottom:10}}>Cleveland, OH & Naples, FL · Founded by Christopher (25 yrs enterprise dev) & Joseph (AI / FinTech / CRM)</div>
-                <div className="eng-skills-expanded">
+                <div className="eng-skills-expanded" style={{flex:1}}>
                   {[["Enterprise Migration","Leading the full Base44 → enterprise infrastructure migration — architecting a production-grade, scalable environment."],["Platform Dev","Ongoing development support across web, SaaS, and AI solutions — embedded with the core team since day one."],["AI Solutions","Custom AI automation and agent architecture expertise — directly contributed to core pipeline and workflow components."],["FinTech / CRM","Deep domain expertise in financial technology and CRM platforms, informing Rosie AI's multi-tenant architecture."]].map(([tag,desc])=>(
                     <div key={tag} className="eng-skill-row"><span className="eng-skill-tag">{tag}</span><span className="eng-skill-desc">{desc}</span></div>
                   ))}
                 </div>
+                {/* Badge moved to bottom */}
+                <div style={{marginTop:14,background:"rgba(56,189,248,0.10)",border:"1px solid rgba(56,189,248,0.28)",borderRadius:6,padding:"5px 10px",fontSize:9,fontWeight:700,letterSpacing:"1px",textTransform:"uppercase",color:"#60a5fa",textAlign:"center"}}>Critical Supporting Vendor</div>
               </div>
               {[
                 ["⚙️","PH — Backend Engineer","Pipeline Architecture",
-                  [["Deno / TS","Building secure, modern server-side applications using TypeScript for type-safe execution and high-performance runtime efficiency."],
-                   ["Supabase","Managing scalable PostgreSQL databases, real-time data syncing, and seamless authentication layers for rapid backend deployment."],
-                   ["Queues","Designing robust background processing and task scheduling systems to handle high-volume data loads and asynchronous workflows."],
-                   ["AI Integration","Architecting the bridge between core logic and LLMs, enabling automated intent filtering, data enrichment, and intelligent system responses."]]
+                  [["Deno / TS","Building secure, modern server-side applications using TypeScript for type-safe execution."],["Supabase","Managing scalable PostgreSQL databases, real-time data syncing, and seamless authentication."],["Queues","Designing robust background processing and task scheduling for high-volume data loads."],["AI Integration","Architecting the bridge between core logic and LLMs for automated intent filtering and enrichment."]]
                 ],
                 ["🎨","PH — Frontend Engineer","UI / UX Development",
-                  [["React 18","Architecting interactive, component-based interfaces using modern hooks and concurrent rendering for a fluid user experience."],
-                   ["TanStack","Implementing sophisticated state management and server-cache logic to ensure lightning-fast data fetching and seamless UI synchronization."],
-                   ["Tailwind","Crafting responsive, utility-first design systems that maintain visual consistency while accelerating the path from mockup to production."],
-                   ["Data Viz","Transforming complex backend metrics into intuitive, actionable dashboards through high-performance charting and dynamic visualization tools."]]
+                  [["React 18","Architecting interactive, component-based interfaces using modern hooks and concurrent rendering."],["TanStack","Implementing sophisticated state management and server-cache logic for lightning-fast data fetching."],["Tailwind","Crafting responsive, utility-first design systems that accelerate mockup to production."],["Data Viz","Transforming complex backend metrics into intuitive, actionable dashboards."]]
                 ],
                 ["🔗","PH — Integrations Engineer","APIs & Data Pipeline",
-                  [["Apify","Developing custom web scrapers and automation actors to extract high-quality data from complex platforms at scale."],
-                   ["Apollo/Hunter","Orchestrating lead enrichment workflows to verify identities and source accurate contact information for targeted outreach."],
-                   ["Instantly","Integrating automated cold outreach sequences with deliverability optimization to ensure high-volume campaign success."],
-                   ["Webhooks","Building the 'glue' between platforms, ensuring real-time data synchronization and event-driven triggers across the entire tech stack."]]
+                  [["Apify","Developing custom web scrapers and automation actors to extract high-quality data at scale."],["Apollo/Hunter","Orchestrating lead enrichment workflows to verify identities and source accurate contact information."],["Instantly","Integrating automated cold outreach sequences with deliverability optimization."],["Webhooks","Building the 'glue' between platforms for real-time data synchronization and event-driven triggers."]]
                 ],
               ].map(([icon,name,role,skills])=>(
                 <div key={name} className="eng-card">
@@ -1021,34 +1101,42 @@ export default function InvestorPage() {
                 </div>
               ))}
             </div>
-            <div className="team-hero">
-              <div>
-                <p style={{fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.1em",color:"#8a6b28",marginBottom:7}}>Annual Engineering Savings vs All-US Team</p>
-                <div className="savings-big">$667,600</div>
-                <div className="savings-sub">saved per year vs. an equivalent US team of 5</div>
-                <div style={{marginTop:16,display:"flex",gap:12,flexWrap:"wrap"}}>
-                  <div style={{background:"rgba(34,197,94,0.12)",border:"1px solid rgba(34,197,94,0.28)",borderRadius:9,padding:"10px 15px",textAlign:"center"}}>
-                    <div style={{fontFamily:"'Playfair Display',serif",fontSize:20,fontWeight:700,color:"#22c55e"}}>$107.4K</div>
-                    <div style={{fontSize:9,color:"#5a5448",textTransform:"uppercase",letterSpacing:"0.07em"}}>Team Cost/yr</div>
+
+            {/* Engineering savings — clean, compact redesign */}
+            <div style={{marginBottom:28,marginTop:8}}>
+              <div style={{fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.12em",color:"#8a6b28",marginBottom:16}}>Annual Engineering Savings vs All-US Team</div>
+              {/* Top row: 3 stat cards */}
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:14,marginBottom:14}}>
+                <div style={{background:"linear-gradient(135deg,rgba(201,168,76,0.08),rgba(201,168,76,0.02))",border:"1px solid rgba(201,168,76,0.30)",borderRadius:12,padding:"20px",textAlign:"center"}}>
+                  <div style={{fontFamily:"'Playfair Display',serif",fontSize:34,fontWeight:900,background:"linear-gradient(135deg,#deba6a,#f0d898)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",backgroundClip:"text",lineHeight:1,marginBottom:6}}>$667,600</div>
+                  <div style={{fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.1em",color:"#5a5448",marginBottom:3}}>Saved Per Year</div>
+                  <div style={{fontSize:11,color:"#35322c"}}>vs. equivalent US team of 5</div>
+                </div>
+                <div style={{background:"rgba(229,84,84,0.06)",border:"1px solid rgba(229,84,84,0.18)",borderRadius:12,padding:"20px",textAlign:"center"}}>
+                  <div style={{fontFamily:"'Playfair Display',serif",fontSize:28,fontWeight:800,color:"#e55454",lineHeight:1,marginBottom:6}}>$775K+</div>
+                  <div style={{fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.1em",color:"#5a5448",marginBottom:3}}>All-US Team / Year</div>
+                  <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:6,marginTop:4}}>
+                    <span style={{fontSize:18}}>🇺🇸</span>
+                    <div style={{textAlign:"left"}}><div style={{fontSize:12,fontWeight:700,color:"#e55454"}}>$155,000</div><div style={{fontSize:10,color:"#5a5448"}}>per engineer + $40K benefits</div></div>
                   </div>
-                  <div style={{background:"rgba(229,84,84,0.12)",border:"1px solid rgba(229,84,84,0.3)",borderRadius:9,padding:"10px 15px",textAlign:"center"}}>
-                    <div style={{fontFamily:"'Playfair Display',serif",fontSize:20,fontWeight:700,color:"#e55454"}}>$775K+</div>
-                    <div style={{fontSize:9,color:"#5a5448",textTransform:"uppercase",letterSpacing:"0.07em"}}>All-US Team/yr</div>
+                </div>
+                <div style={{background:"rgba(34,197,94,0.06)",border:"1px solid rgba(34,197,94,0.18)",borderRadius:12,padding:"20px",textAlign:"center"}}>
+                  <div style={{fontFamily:"'Playfair Display',serif",fontSize:28,fontWeight:800,color:"#22c55e",lineHeight:1,marginBottom:6}}>$107.4K</div>
+                  <div style={{fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.1em",color:"#5a5448",marginBottom:3}}>Our Team / Year</div>
+                  <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:6,marginTop:4}}>
+                    <span style={{fontSize:18}}>🇵🇭</span>
+                    <div style={{textAlign:"left"}}><div style={{fontSize:12,fontWeight:700,color:"#22c55e"}}>$7,800</div><div style={{fontSize:10,color:"#5a5448"}}>per engineer, no overhead</div></div>
                   </div>
                 </div>
               </div>
-              <div>
-                <div className="team-compare">
-                  <div className="tc-box us"><div className="tc-flag">🇺🇸</div><div className="tc-country">US Senior Engineer</div><div className="tc-annual">$155,000</div><div className="tc-per">per engineer / year</div><div style={{marginTop:7,fontSize:10,color:"#e55454"}}>+$40K benefits/taxes</div></div>
-                  <div className="tc-box ph"><div className="tc-flag">🇵🇭</div><div className="tc-country">PH Senior Engineer</div><div className="tc-annual">$7,800</div><div className="tc-per">per engineer / year</div><div style={{marginTop:7,fontSize:10,color:"#22c55e"}}>No additional overhead</div></div>
-                </div>
-                <div style={{background:"#1e1e28",borderRadius:11,padding:14,textAlign:"center",border:"1px solid rgba(201,168,76,0.10)"}}>
-                  <div style={{fontSize:11,color:"#5a5448",marginBottom:3,textTransform:"uppercase",letterSpacing:"0.08em"}}>Engineering cost per line of code</div>
-                  <div style={{fontFamily:"'Playfair Display',serif",fontSize:24,fontWeight:700,color:"#deba6a"}}>95%+ cheaper</div>
-                  <div style={{fontSize:11,color:"#5a5448"}}>Same quality · Better availability · Deeper focus</div>
-                </div>
+              {/* Code efficiency badge — full width */}
+              <div style={{background:"#121218",border:"1px solid rgba(201,168,76,0.10)",borderRadius:10,padding:"12px 20px",display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14}}>
+                <span style={{fontSize:12,color:"#5a5448",textTransform:"uppercase",letterSpacing:"0.08em"}}>Engineering cost per line of code</span>
+                <span style={{fontFamily:"'Playfair Display',serif",fontSize:20,fontWeight:700,color:"#deba6a"}}>95%+ cheaper</span>
+                <span style={{fontSize:12,color:"#5a5448"}}>Same quality · Better availability · Deeper focus</span>
               </div>
             </div>
+
             <div className="savings-timeline">
               <div className="sav-header"><div>Period</div><div>US Team (5 eng.)</div><div>Our Team</div><div>Saved</div></div>
               {[["Year 1","$775,000","$107,400","$667,600"],["Year 2","$1,550,000","$214,800","$1,335,200"],["Year 3","$2,325,000","$322,200","$2,002,800"],["Year 5","$3,875,000","$537,000","$3,338,000"]].map(([p,us,ph,sv])=>(
@@ -1066,7 +1154,10 @@ export default function InvestorPage() {
           <div className="wrap">
             <div className="slab reveal">Capital Allocation Strategy: Engineering for Scale</div>
             <h2 className="h2 reveal">$500,000 Total Raise —<br/><em style={{fontStyle:"italic",color:"#deba6a"}}>One Round. One Mission.</em></h2>
-            <p className="lead reveal">Rosie AI, LLC is executing a focused $500,000 capital raise through the issuance of Class B Membership Units, representing a 21.5% equity stake in the Company. Departing from complex multi-tranche or SAFE structures, this is a single-entry Regulation D, Rule 506(c) offering designed for maximum capital efficiency. Every dollar of this raise is purpose-built for a singular objective: hardening our existing, fully functional platform into an enterprise-grade utility — positioning the company to surpass $1M+ ARR within the next 12 months.</p>
+            {/* Full-width paragraph */}
+            <p className="reveal" style={{fontSize:16,color:"#9a9280",lineHeight:1.78,width:"100%",maxWidth:"100%",marginBottom:36}}>
+              Rosie AI, LLC is executing a focused $500,000 capital raise through the issuance of Class B Membership Units, representing a 21.5% equity stake in the Company. Departing from complex multi-tranche or SAFE structures, this is a single-entry Regulation D, Rule 506(c) offering designed for maximum capital efficiency. Every dollar of this raise is purpose-built for a singular objective: hardening our existing, fully functional platform into an enterprise-grade utility — positioning the company to surpass $1M+ ARR within the next 12 months.
+            </p>
             <div className="proceed-hero reveal">
               <div>
                 <div className="raise-num">$500K</div>
@@ -1159,67 +1250,37 @@ export default function InvestorPage() {
 
             <div style={{background:"rgba(201,168,76,0.05)",border:"1px solid rgba(201,168,76,0.18)",borderRadius:16,padding:"28px 36px",marginBottom:44}} className="reveal">
               <h3 style={{fontFamily:"'Playfair Display',serif",fontSize:20,color:"#f0ead8",marginBottom:12}}>One Unified System. Built for Global Demand.</h3>
-              <p style={{fontSize:14,color:"#9a9280",lineHeight:1.78,marginBottom:0}}>Rosie AI leverages a distributed SaaS framework to run 150+ backend functions in parallel, ensuring 136 entities stay updated the second data changes. This isn't just another software layer; it's an intelligence powerhouse engineered for massive-scale concurrency without compromising speed. The next evolution of the platform focuses on infrastructure "hardening" — deploying enterprise-grade security and redundancy systems to ensure 99.99% uptime as we scale to support 10,000+ concurrent organizations. Whether you are managing a single medical practice or scaling a global solar empire, your investment fuels our transition to a high-availability framework.</p>
+              <p style={{fontSize:14,color:"#9a9280",lineHeight:1.78,marginBottom:0}}>Rosie AI leverages a distributed SaaS framework to run 150+ backend functions in parallel, ensuring 136 entities stay updated the second data changes. The next evolution focuses on infrastructure "hardening" — deploying enterprise-grade security and redundancy systems to ensure 99.99% uptime as we scale to support 10,000+ concurrent organizations.</p>
             </div>
 
             <div className="slab reveal">Enterprise Infrastructure Roadmap — 6-Month Execution</div>
 
-            {/* Phase 1 */}
-            <div style={{marginBottom:28}} className="reveal">
-              <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:16}}>
-                <div style={{background:"linear-gradient(135deg,#8a6b28,#deba6a)",borderRadius:8,padding:"6px 14px",fontSize:11,fontWeight:700,color:"#070709",whiteSpace:"nowrap"}}>🗓️ Phase 1</div>
-                <div>
-                  <div style={{fontSize:15,fontWeight:700,color:"#f0ead8"}}>Foundation & Data Migration (Q2 2026)</div>
-                  <div style={{fontSize:11,color:"#5a5448"}}>Focus: Amazon S3 Integration & Infrastructure Hardening</div>
+            {[
+              ["🗓️ Phase 1","Foundation & Data Migration (Q2 2026)","Focus: Amazon S3 Integration & Infrastructure Hardening","linear-gradient(135deg,#8a6b28,#deba6a)","rgba(201,168,76,0.10)",
+                [["📦","Amazon S3 Migration","Transitioning all unstructured data, call recordings, and document storage to AWS S3 with cross-region replication."],["🗄️","Database Optimization","Implementing PostgreSQL read replicas and connection pooling via PgBouncer for concurrent organizations."],["🔐","Initial Security Sweep","Encryption at rest and in transit across all S3 buckets and database instances."],["🔄","Integration Framework","Finalizing REST and GraphQL API structures to prepare for native CRM syncing."]]
+              ],
+              ["🗓️ Phase 2","Resilience & Performance (Q3 2026)","Focus: 99.99% Uptime & Global Edge Deployment","linear-gradient(135deg,#14a058,#22c55e)","rgba(34,197,94,0.08)",
+                [["📊","High Availability","Active-active redundancy and automated health checks every 30 seconds for 'Four Nines' uptime."],["⚡","Hardware Scaling","Multi-region edge deployment and auto-scaling worker pools to maintain speed as user base grows toward 10,000+."],["📉","Traffic Management","Redis clusters for global rate limiting and CDN caching to optimize real-time streaming performance."],["📋","Compliance Engine","Automated consent management system and TCPA/GDPR audit trails for enterprise data governance."]]
+              ],
+              ["🗓️ Phase 3","Enterprise Maturity & Compliance (Q4 2026)","Focus: SOC 2 Completion & Deep Integrations","linear-gradient(135deg,#1a5fa0,#38bdf8)","rgba(56,189,248,0.06)",
+                [["🛡️","SOC 2 Type II Roadmap","Finalizing compliance framework, SIEM integration, and first official penetration testing program."],["🔌","Native CRM Ecosystem","Bi-directional sync for Salesforce, HubSpot, and Pipedrive — Rosie at the center of the user's tech stack."],["⚖️","Governance & Audit","Enterprise DPA agreements and automated data retention policies meeting Fortune 500 legal standards."],["🛠️","Chaos Engineering","'Circuit Breaker' patterns and automated rollback for &lt;5-minute incident response."]]
+              ],
+            ].map(([badge,title,sub,bg,bdr,items])=>(
+              <div key={title} style={{marginBottom:28}} className="reveal">
+                <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:16}}>
+                  <div style={{background:bg,borderRadius:8,padding:"6px 14px",fontSize:11,fontWeight:700,color:"#070709",whiteSpace:"nowrap"}}>{badge}</div>
+                  <div><div style={{fontSize:15,fontWeight:700,color:"#f0ead8"}}>{title}</div><div style={{fontSize:11,color:"#5a5448"}}>{sub}</div></div>
+                </div>
+                <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:12}}>
+                  {items.map(([icon,t,d])=>(
+                    <div key={t} style={{background:"#121218",border:`1px solid ${bdr}`,borderRadius:10,padding:"14px 16px",display:"flex",gap:12}}>
+                      <div style={{fontSize:20,flexShrink:0}}>{icon}</div>
+                      <div><div style={{fontSize:12,fontWeight:700,color:"#e8e2d0",marginBottom:4}}>{t}</div><div style={{fontSize:11,color:"#9a9280",lineHeight:1.5}}>{d}</div></div>
+                    </div>
+                  ))}
                 </div>
               </div>
-              <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:12}}>
-                {[["📦","Amazon S3 Migration","Transitioning all unstructured data, call recordings, and document storage to AWS S3 with cross-region replication for absolute data durability."],["🗄️","Database Optimization","Implementing PostgreSQL read replicas and connection pooling via PgBouncer to handle the initial surge of concurrent organizations."],["🔐","Initial Security Sweep","Implementing encryption at rest and in transit across all S3 buckets and database instances."],["🔄","Integration Framework","Finalizing the REST and GraphQL API structures to prepare for native CRM syncing."]].map(([icon,title,desc])=>(
-                  <div key={title} style={{background:"#121218",border:"1px solid rgba(201,168,76,0.10)",borderRadius:10,padding:"14px 16px",display:"flex",gap:12}}>
-                    <div style={{fontSize:20,flexShrink:0}}>{icon}</div>
-                    <div><div style={{fontSize:12,fontWeight:700,color:"#e8e2d0",marginBottom:4}}>{title}</div><div style={{fontSize:11,color:"#9a9280",lineHeight:1.5}}>{desc}</div></div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Phase 2 */}
-            <div style={{marginBottom:28}} className="reveal">
-              <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:16}}>
-                <div style={{background:"linear-gradient(135deg,#14a058,#22c55e)",borderRadius:8,padding:"6px 14px",fontSize:11,fontWeight:700,color:"#070709",whiteSpace:"nowrap"}}>🗓️ Phase 2</div>
-                <div>
-                  <div style={{fontSize:15,fontWeight:700,color:"#f0ead8"}}>Resilience & Performance (Q3 2026)</div>
-                  <div style={{fontSize:11,color:"#5a5448"}}>Focus: 99.99% Uptime & Global Edge Deployment</div>
-                </div>
-              </div>
-              <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:12}}>
-                {[["📊","High Availability","Deploying active-active redundancy and automated health checks every 30 seconds to ensure the 'Four Nines' uptime standard."],["⚡","Hardware Scaling","Launching multi-region edge deployment and auto-scaling worker pools to maintain speed as the user base grows toward 10,000+."],["📉","Traffic Management","Integrating Redis clusters for global rate limiting and CDN caching to optimize real-time streaming performance."],["📋","Compliance Engine","Launching the automated consent management system and TCPA/GDPR audit trails for enterprise data governance."]].map(([icon,title,desc])=>(
-                  <div key={title} style={{background:"#121218",border:"1px solid rgba(34,197,94,0.15)",borderRadius:10,padding:"14px 16px",display:"flex",gap:12}}>
-                    <div style={{fontSize:20,flexShrink:0}}>{icon}</div>
-                    <div><div style={{fontSize:12,fontWeight:700,color:"#e8e2d0",marginBottom:4}}>{title}</div><div style={{fontSize:11,color:"#9a9280",lineHeight:1.5}}>{desc}</div></div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Phase 3 */}
-            <div style={{marginBottom:44}} className="reveal">
-              <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:16}}>
-                <div style={{background:"linear-gradient(135deg,#1a5fa0,#38bdf8)",borderRadius:8,padding:"6px 14px",fontSize:11,fontWeight:700,color:"#070709",whiteSpace:"nowrap"}}>🗓️ Phase 3</div>
-                <div>
-                  <div style={{fontSize:15,fontWeight:700,color:"#f0ead8"}}>Enterprise Maturity & Compliance (Q4 2026)</div>
-                  <div style={{fontSize:11,color:"#5a5448"}}>Focus: SOC 2 Completion & Deep Integrations</div>
-                </div>
-              </div>
-              <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:12}}>
-                {[["🛡️","SOC 2 Type II Roadmap","Finalizing the compliance framework, SIEM integration, and conducting the first official penetration testing program."],["🔌","Native CRM Ecosystem","Deploying bi-directional sync for Salesforce, HubSpot, and Pipedrive, allowing Rosie to sit at the center of the user's existing tech stack."],["⚖️","Governance & Audit","Finalizing enterprise DPA agreements and automated data retention policies to meet the standards of Fortune 500 legal teams."],["🛠️","Chaos Engineering","Implementing 'Circuit Breaker' patterns and automated rollback capabilities to ensure &lt;5-minute incident response."]].map(([icon,title,desc])=>(
-                  <div key={title} style={{background:"#121218",border:"1px solid rgba(56,189,248,0.15)",borderRadius:10,padding:"14px 16px",display:"flex",gap:12}}>
-                    <div style={{fontSize:20,flexShrink:0}}>{icon}</div>
-                    <div><div style={{fontSize:12,fontWeight:700,color:"#e8e2d0",marginBottom:4}}>{title}</div><div style={{fontSize:11,color:"#9a9280",lineHeight:1.5}}>{desc}</div></div>
-                  </div>
-                ))}
-              </div>
-            </div>
+            ))}
           </div>
         </section>
         <div className="footer"><div className="wrap"><p className="footer-disc">Roadmap timelines are projections and subject to change based on engineering priorities and capital deployment.</p><div className="footer-copy">© 2026 Rosie AI, LLC · Confidential</div></div></div>
@@ -1241,9 +1302,9 @@ export default function InvestorPage() {
             <div className="pdf-cover">
               <div className="pdf-cover-top" style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:36,position:"relative",zIndex:1}}>
                 <div>
-                  <div className="pdf-cover-eyebrow" style={{fontSize:9,fontWeight:700,letterSpacing:"0.22em",textTransform:"uppercase",color:"#64748b",marginBottom:18}}>SECURITY AUDIT — PRODUCTION CERTIFICATION</div>
+                  <div style={{fontSize:9,fontWeight:700,letterSpacing:"0.22em",textTransform:"uppercase",color:"#64748b",marginBottom:18}}>SECURITY AUDIT — PRODUCTION CERTIFICATION</div>
                   <div className="pdf-cover-h1">Rosie AI Platform<br/><em>Security Assessment</em></div>
-                  <div className="pdf-cover-sub" style={{fontSize:12,color:"#64748b",marginBottom:28,letterSpacing:"0.04em"}}>Version 6 · Audited March 2026 · All Findings Remediated</div>
+                  <div style={{fontSize:12,color:"#64748b",marginBottom:28,letterSpacing:"0.04em"}}>Version 6 · Audited March 2026 · All Findings Remediated</div>
                 </div>
                 <div style={{position:"relative",width:120,height:120,flexShrink:0}}>
                   <svg width="120" height="120" viewBox="0 0 120 120">
@@ -1260,10 +1321,10 @@ export default function InvestorPage() {
               <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:12,position:"relative",zIndex:1,borderTop:"1px solid rgba(255,255,255,0.06)",paddingTop:22}}>
                 {[["🤖","Claude","claude-opus-4","Anthropic"],["🧠","GPT-4o","gpt-4o-2024-11","OpenAI"],["💎","Gemini","gemini-1.5-pro","Google DeepMind"]].map(([icon,name,model,org])=>(
                   <div key={name} className="pdf-certifier">
-                    <div className="pdf-cert-icon" style={{fontSize:20,marginBottom:7}}>{icon}</div>
-                    <div className="pdf-cert-name" style={{fontSize:12,fontWeight:700,color:"#38bdf8",marginBottom:2}}>{name}</div>
-                    <div className="pdf-cert-model" style={{fontSize:9,color:"#475569",marginBottom:3}}>{model}</div>
-                    <div className="pdf-cert-org" style={{fontSize:9,color:"#64748b",marginBottom:8}}>{org}</div>
+                    <div style={{fontSize:20,marginBottom:7}}>{icon}</div>
+                    <div style={{fontSize:12,fontWeight:700,color:"#38bdf8",marginBottom:2}}>{name}</div>
+                    <div style={{fontSize:9,color:"#475569",marginBottom:3}}>{model}</div>
+                    <div style={{fontSize:9,color:"#64748b",marginBottom:8}}>{org}</div>
                     <div className="pdf-cert-check">✓ Certified</div>
                   </div>
                 ))}
