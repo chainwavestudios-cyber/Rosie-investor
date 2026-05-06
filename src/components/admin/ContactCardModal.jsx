@@ -70,6 +70,9 @@ export default function ContactCardModal({ user, onClose, onSave, allSessions, m
   const [editUser, setEditUser] = useState({ ...user });
   const [saving, setSaving]   = useState(false);
   const [saveMsg, setSaveMsg] = useState('');
+  const [showCallbackPicker, setShowCallbackPicker] = useState(false);
+  const [callbackDate, setCallbackDate] = useState('');
+  const [callbackNote, setCallbackNote] = useState('');
   const [dialerLead, setDialerLead] = useState(null);
   const [showDialerLocal, setShowDialerLocal] = useState(false);
 
@@ -181,6 +184,24 @@ export default function ContactCardModal({ user, onClose, onSave, allSessions, m
   const dialer = useInlineDialer({ onCallLogged: handleCallLogged, agentName: currentUsername });
 ;
 
+  const markNotInterested = async () => {
+    if (!window.confirm(`Mark ${user.name} as Not Interested? This will hide them from the active CRM view.`)) return;
+    await base44.entities.InvestorUser.update(user.id, { disposition: 'not_interested' });
+    await ContactNoteDB.create({ investorId: user.id, investorEmail: user.email, type: 'note', content: `🚫 Marked as Not Interested by ${currentUsername}`, createdAt: new Date().toISOString(), createdBy: currentUsername });
+    onSave();
+    onClose();
+  };
+
+  const scheduleCallback = async () => {
+    if (!callbackDate) return;
+    await base44.entities.InvestorUser.update(user.id, { disposition: 'callback', callbackAt: new Date(callbackDate).toISOString(), callbackNote });
+    await ContactNoteDB.create({ investorId: user.id, investorEmail: user.email, type: 'note', content: `📅 Callback scheduled for ${new Date(callbackDate).toLocaleString('en-US',{weekday:'short',month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})}${callbackNote ? ' — ' + callbackNote : ''} · by ${currentUsername}`, createdAt: new Date().toISOString(), createdBy: currentUsername });
+    setShowCallbackPicker(false);
+    setCallbackDate('');
+    setCallbackNote('');
+    onSave();
+  };
+
   const sendEmail = async () => {
     if (!editUser.email) { setEmailMsg('No email address on file.'); return; }
     setSendingEmail(true); setEmailMsg('');
@@ -226,7 +247,33 @@ export default function ContactCardModal({ user, onClose, onSave, allSessions, m
 
   return (
     <>
-{/* TwilioDialer replaced by InlineCallBar below */}
+{/* Callback picker modal */}
+    {showCallbackPicker && (
+      <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.7)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:10001 }}>
+        <div style={{ background:'#0d1b2a', border:'1px solid rgba(184,147,58,0.3)', borderRadius:'4px', padding:'28px', width:'360px', boxShadow:'0 24px 80px rgba(0,0,0,0.8)' }}>
+          <div style={{ color:GOLD, fontSize:'11px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'16px' }}>📅 Schedule Callback</div>
+          <div style={{ marginBottom:'12px' }}>
+            <label style={ls}>Date & Time</label>
+            <input type="datetime-local" value={callbackDate} onChange={e => setCallbackDate(e.target.value)}
+              style={{ ...inp, colorScheme:'dark' }} />
+          </div>
+          <div style={{ marginBottom:'20px' }}>
+            <label style={ls}>Note (optional)</label>
+            <input value={callbackNote} onChange={e => setCallbackNote(e.target.value)} placeholder="e.g. Follow up on wire details" style={inp} />
+          </div>
+          <div style={{ display:'flex', gap:'10px' }}>
+            <button onClick={scheduleCallback} disabled={!callbackDate}
+              style={{ flex:1, background:'linear-gradient(135deg,#b8933a,#d4aa50)', color:DARK, border:'none', borderRadius:'2px', padding:'10px', cursor:'pointer', fontWeight:'700', fontSize:'11px', letterSpacing:'2px', textTransform:'uppercase', opacity:callbackDate?1:0.4 }}>
+              Save Callback
+            </button>
+            <button onClick={() => setShowCallbackPicker(false)}
+              style={{ padding:'10px 16px', background:'transparent', color:'#6b7280', border:'1px solid rgba(255,255,255,0.12)', borderRadius:'2px', cursor:'pointer', fontSize:'12px' }}>
+              Cancel
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
     {showZoom && (
       <ZoomBookingModal isOpen={showZoom} onClose={() => setShowZoom(false)} buttonLabel="Book Zoom Call" zoomUrl={portalCfg?.zoomBookingUrl || 'https://scheduler.zoom.us'} />
     )}
@@ -282,6 +329,24 @@ export default function ContactCardModal({ user, onClose, onSave, allSessions, m
                 />
               </div>
             )}
+            <div style={{ width:'1px', height:'24px', background:'rgba(255,255,255,0.08)', margin:'0 4px' }} />
+            {/* Disposition badges */}
+            {user.disposition === 'not_interested' && (
+              <span style={{ background:'rgba(239,68,68,0.12)', color:'#ef4444', border:'1px solid rgba(239,68,68,0.3)', borderRadius:'2px', padding:'4px 10px', fontSize:'10px', letterSpacing:'1px', textTransform:'uppercase', whiteSpace:'nowrap' }}>🚫 Not Interested</span>
+            )}
+            {user.disposition === 'callback' && user.callbackAt && (
+              <span style={{ background:'rgba(245,158,11,0.12)', color:'#f59e0b', border:'1px solid rgba(245,158,11,0.3)', borderRadius:'2px', padding:'4px 10px', fontSize:'10px', letterSpacing:'1px', textTransform:'uppercase', whiteSpace:'nowrap' }}>📅 {new Date(user.callbackAt).toLocaleDateString('en-US',{month:'short',day:'numeric'})}</span>
+            )}
+            <button onClick={() => setShowCallbackPicker(true)}
+              title="Schedule a callback"
+              style={{ background:'rgba(245,158,11,0.1)', color:'#f59e0b', border:'1px solid rgba(245,158,11,0.25)', borderRadius:'2px', padding:'5px 10px', cursor:'pointer', fontSize:'10px', fontWeight:'bold', whiteSpace:'nowrap' }}>
+              📅 Callback
+            </button>
+            <button onClick={markNotInterested}
+              title="Mark as not interested"
+              style={{ background:'rgba(239,68,68,0.08)', color:'#ef4444', border:'1px solid rgba(239,68,68,0.2)', borderRadius:'2px', padding:'5px 10px', cursor:'pointer', fontSize:'10px', fontWeight:'bold', whiteSpace:'nowrap' }}>
+              🚫 Not Interested
+            </button>
             <button onClick={onClose} style={{ background:'rgba(255,255,255,0.05)', border:'1px solid rgba(255,255,255,0.1)', color:'#6b7280', cursor:'pointer', fontSize:'18px', width:'30px', height:'30px', borderRadius:'4px', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>×</button>
           </div>
         </div>

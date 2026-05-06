@@ -72,6 +72,25 @@
       ],
       "default": "prospect"
     },
+    "disposition": {
+      "type": "string",
+      "title": "Disposition",
+      "enum": [
+        "active",
+        "not_interested",
+        "callback"
+      ],
+      "default": "active"
+    },
+    "callbackAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Callback Scheduled At"
+    },
+    "callbackNote": {
+      "type": "string",
+      "title": "Callback Note"
+    },
     "investmentAmount": {
       "type": "number",
       "title": "Investment Amount ($)"

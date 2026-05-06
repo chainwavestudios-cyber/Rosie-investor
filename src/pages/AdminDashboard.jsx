@@ -1429,6 +1429,7 @@ export default function AdminDashboard() {
   const [allSessions, setAllSessions] = useState([]);
   const [globalStats, setGlobalStats] = useState({ totalSessions:0, totalTime:0, totalDownloads:0, totalDocViews:0 });
   const [filterStatus, setFilterStatus] = useState('all');
+  const [filterDisposition, setFilterDisposition] = useState('active');
   const [portalSettings, setPortalSettings] = useState({});
   const [dialerLead, setDialerLead] = useState(null);
   const [showDialer, setShowDialer] = useState(false);
@@ -1477,7 +1478,12 @@ export default function AdminDashboard() {
   if (!portalUser || !isAdmin) return null;
 
   const nonAdminUsers  = users.filter(u => u.role !== 'admin');
-  const filteredUsers  = nonAdminUsers.filter(u => filterStatus === 'all' || (u.status||'prospect') === filterStatus);
+  const filteredUsers  = nonAdminUsers.filter(u => {
+    const statusMatch = filterStatus === 'all' || (u.status||'prospect') === filterStatus;
+    const disp = u.disposition || 'active';
+    const dispMatch = filterDisposition === 'all' || disp === filterDisposition;
+    return statusMatch && dispMatch;
+  });
   const recentSessions = allSessions.filter(s=>s.startTime).sort((a,b)=>new Date(b.startTime)-new Date(a.startTime)).slice(0,15);
 
   const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
@@ -1624,10 +1630,17 @@ export default function AdminDashboard() {
                   <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'20px', flexWrap:'wrap', gap:'12px' }}>
                     <div />
                     <div style={{ display:'flex', gap:'8px', alignItems:'center', flexWrap:'wrap' }}>
-                      <div style={{ display:'flex', gap:'4px' }}>
+                      <div style={{ display:'flex', gap:'4px', flexWrap:'wrap' }}>
                         {[['all','All'],['prospect','Potential Investors'],['investor','Investors']].map(([s,l]) => (
                           <button key={s} onClick={() => setFilterStatus(s)}
                             style={{ padding:'7px 14px', background:filterStatus===s?'rgba(184,147,58,0.2)':'rgba(255,255,255,0.05)', border:`1px solid ${filterStatus===s?GOLD:'rgba(255,255,255,0.12)'}`, borderRadius:'2px', color:filterStatus===s?GOLD:'#6b7280', cursor:'pointer', fontSize:'11px', letterSpacing:'1px' }}>
+                            {l}
+                          </button>
+                        ))}
+                        <div style={{ width:'1px', background:'rgba(255,255,255,0.08)', margin:'0 4px' }} />
+                        {[['active','Active'],['callback','📅 Callbacks'],['not_interested','🚫 Not Interested'],['all','Show All']].map(([d,l]) => (
+                          <button key={d} onClick={() => setFilterDisposition(d)}
+                            style={{ padding:'7px 14px', background:filterDisposition===d?'rgba(184,147,58,0.2)':'rgba(255,255,255,0.05)', border:`1px solid ${filterDisposition===d?GOLD:'rgba(255,255,255,0.12)'}`, borderRadius:'2px', color:filterDisposition===d?GOLD:'#6b7280', cursor:'pointer', fontSize:'11px', letterSpacing:'1px' }}>
                             {l}
                           </button>
                         ))}
@@ -1667,7 +1680,11 @@ export default function AdminDashboard() {
                                 style={{ borderBottom:'1px solid rgba(255,255,255,0.05)', cursor:'pointer', transition:'background 0.1s' }}
                                 onMouseEnter={e => e.currentTarget.style.background = 'rgba(184,147,58,0.05)'}
                                 onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                                <td style={{ padding:'14px 12px' }}><StatusBadge status={status} /></td>
+                                <td style={{ padding:'14px 12px' }}>
+                                  <StatusBadge status={status} />
+                                  {user.disposition === 'not_interested' && <div style={{ marginTop:'4px', color:'#ef4444', fontSize:'9px', letterSpacing:'1px', textTransform:'uppercase' }}>🚫 Not Interested</div>}
+                                  {user.disposition === 'callback' && user.callbackAt && <div style={{ marginTop:'4px', color:'#f59e0b', fontSize:'9px', letterSpacing:'1px' }}>📅 {new Date(user.callbackAt).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}</div>}
+                                </td>
                                 <td style={{ padding:'14px 12px' }}>
                                   <div style={{ color:'#e8e0d0', fontWeight:'bold' }}>{user.name}</div>
                                   <div style={{ color:'#4a5568', fontSize:'11px', fontFamily:'monospace' }}>@{user.username}</div>
