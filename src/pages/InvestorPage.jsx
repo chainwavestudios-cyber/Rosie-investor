@@ -529,6 +529,14 @@ export default function InvestorPage() {
         <section className="pad">
           <div className="wrap">
 
+            {/* What Rosie Does */}
+            <p className="reveal" style={{fontFamily:"'DM Sans',sans-serif",fontSize:18,color:"#9a9280",lineHeight:1.7,maxWidth:740,marginBottom:24}}>
+              Customers can sign their organizations up via a subscription and access our full suite of discovery tools, automated outreach, and a built-in lead scoring and notification system — one complete workflow, ready to go. For teams that want flexibility, most of our services are also available à la carte.
+            </p>
+            <p className="reveal" style={{fontFamily:"'DM Sans',sans-serif",fontSize:18,color:"#9a9280",lineHeight:1.78,maxWidth:740,marginBottom:28}}>
+              Our signature à la carte offering is our incoming and outgoing AI calling agents, powered by Inworld — the #1 ranked voice AI engine in the industry. Building your own AI calling agent takes days and costs $0.08/minute — just for the components, before a dialer. Factor in a point-and-click service with dialing, and you're looking at $0.15/minute. <strong style={{color:"#e8e2d0"}}>Rosie delivers the same capability out of the box, at $0.07/minute all-in. Customers save over 50%. We margin 500%.</strong>
+            </p>
+
             {/* 3-across metric cards */}
             <div className="metric-cards">
               <div className="metric-card reveal">
@@ -551,10 +559,10 @@ export default function InvestorPage() {
             {/* The Opportunity */}
             <div className="slab reveal">The Opportunity</div>
             <h2 className="h2 reveal">A $21 Billion Market<br/>Still Running on Spreadsheets</h2>
-            <p className="reveal" style={{fontFamily:"'DM Sans',sans-serif",fontSize:"13.5px",color:"#9a9280",lineHeight:1.75,maxWidth:"100%",marginBottom:24}}>
-              Customers can sign their organizations up via a subscription and access our full suite of discovery tools, automated outreach, and a built-in lead scoring and notification system — one complete workflow, ready to go. For teams that want flexibility, most of our services are also available à la carte.
+            <p className="lead reveal" style={{maxWidth:"100%"}}>
+              The AI Sales Intelligence market is growing at 25.8% CAGR through 2032. Most small and mid-sized businesses still prospect manually — cold lists, outdated data, zero intelligence. They're spending time and money on approaches that stopped working years ago, simply because modern alternatives have been too complex or too expensive to access.
               <br/><br/>
-              Our signature à la carte offering is our incoming and outgoing AI calling agents, powered by Inworld — the #1 ranked voice AI engine in the industry. Building your own AI calling agent takes days and costs $0.08/minute — just for the components, before a dialer. Factor in a point-and-click service with dialing, and you're looking at $0.15/minute. <strong style={{color:"#e8e2d0"}}>Rosie delivers the same capability out of the box, at $0.07/minute all-in. Customers save over 50%. We margin 500%.</strong>
+              Rosie AI changes that. We automate the entire top-of-funnel for any business starved of modern tooling — regardless of industry.
             </p>
             <div className="market-grid">
               <div className="mcard reveal">
@@ -733,7 +741,7 @@ export default function InvestorPage() {
             <p className="lead reveal">Rosie AI leverages a multi-tenant, distributed framework to run 150+ backend functions simultaneously, updating 136 entities the second data hits the system. This isn't just a CRM—it's an intelligence layer that adapts to your industry. From dental patient engagement to precision-targeted roofing and solar leads, Rosie eliminates the lag and puts real-time solutions at your fingertips.</p>
 
             <div className="slab reveal">Core Capabilities</div>
-            <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:8,marginBottom:44}} className="reveal">
+            <div className="diff-grid" style={{gridTemplateColumns:"repeat(3,1fr)",marginBottom:32}}>
               {[
                 ["🔍","Discovery","Our discovery engine automates the heavy lifting of data acquisition, integrating web crawlers, solar permit tracking, NWS storm data, and deep social scraping to identify high-intent opportunities as they happen."],
                 ['🧠','AI Analysis','Beyond simple data, Rosie provides deep cognitive processing — from intent scoring and pain point detection to persona clustering — ensuring every lead is qualified and understood before you ever hit "send."'],
@@ -751,7 +759,7 @@ export default function InvestorPage() {
             </div>
 
             <div className="slab reveal">Technical Stack</div>
-            <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:8,marginBottom:44}} className="reveal">
+            <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:12,marginBottom:44}}>
               {[["BACKEND RUNTIME","Deno + Base44 SDK","262 serverless edge functions. Each function isolated, versioned, health-monitored. All calls use INTERNAL_SECRET auth + RLS session context.","TypeScript","Deno Deploy","Base44 v0.8.23","JWT Auth"],
                 ["FRONTEND","React 18 + Vite","42 full pages, 248 components across billing, admin, campaign, leads, SMS, settings, and workflow modules. TanStack Query with 15s auto-refresh.","React 18","TanStack Query","Tailwind CSS","Lucide Icons"],
                 ["DATABASE","Supabase PostgreSQL","136 entity types. Row-Level Security enforced via set_org_context() at every query. Zero cross-org data leakage. Full audit log trail.","PostgreSQL","RLS","Supabase","136 Entities"],
@@ -769,7 +777,7 @@ export default function InvestorPage() {
             </div>
 
             <div className="slab reveal">À La Carte Services</div>
-            <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:8,marginBottom:44}} className="reveal">
+            <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,marginBottom:44}} className="reveal">
               {[["📞","AI Outbound Voice Agents","Fully automated outbound calls with AI agents that qualify leads, book appointments, and handle objections. Setup in 20 minutes.","$0.07/min all-in"],
                 ["🎙️","AI Inbound Call Center","Browser-based inbound console with AI agent handling, caller ID, customer lookup, history, and live transfer to human agents.","$0.07/min all-in"],
                 ["💬","SMS Campaigns + Automation","Standard SMS, WhatsApp, and Blue Bubble (iMessage) outreach. Includes Instantly.ai email integration and automated follow-up workflows.","No 10DLC required"],
@@ -786,7 +794,7 @@ export default function InvestorPage() {
               ))}
             </div>
 
-            <div className="slab reveal">Industries We Service</div>
+            <div className="slab reveal">Verticals We Service</div>
             <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:8,marginBottom:44}} className="reveal">
               {[
                 ["🏘️","Real Estate","Distressed property signals and 'likely to sell' data modeling to support agents identifying off-market opportunities and high-intent sellers."],
