@@ -13,6 +13,7 @@ import InvestorWebsiteTab from './InvestorWebsiteTab';
 import WebsiteHistoryTab from './WebsiteHistoryTab';
 import ZoomBookingModal from '@/components/ZoomBookingModal';
 import SetReminderButton from '@/components/SetReminderButton';
+import ReminderCountdown from '@/components/ReminderCountdown';
 import { useReminders } from '@/hooks/useReminders';
 
 const GOLD = '#b8933a';
@@ -1323,10 +1324,13 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
               </button>
             )}
             {!isArchived && (
-              <SetReminderButton 
-                contact={{ id: lead.id, firstName: editLead.firstName, lastName: editLead.lastName, type: 'lead' }}
-                onSetReminder={setReminder}
-              />
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <SetReminderButton 
+                  contact={{ id: lead.id, firstName: editLead.firstName, lastName: editLead.lastName, type: 'lead' }}
+                  onSetReminder={setReminder}
+                />
+                <ReminderCountdown contactId={lead.id} />
+              </div>
             )}
             {!isArchived && editLead.status === 'prospect' && (
               <button onClick={handleTransferPipeline} disabled={transferring}

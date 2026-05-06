@@ -18,6 +18,7 @@ import CustomEmailTab from '@/components/shared/CustomEmailTab';
 import { usePortalAuth } from '@/lib/PortalAuthContext';
 import { getPortalSettings, loadPortalSettings } from '@/lib/portalSettings';
 import SetReminderButton from '@/components/SetReminderButton';
+import ReminderCountdown from '@/components/ReminderCountdown';
 import { useReminders } from '@/hooks/useReminders';
 
 const GOLD = '#b8933a';
@@ -350,10 +351,13 @@ export default function ContactCardModal({ user, onClose, onSave, allSessions, m
               style={{ background:'rgba(239,68,68,0.08)', color:'#ef4444', border:'1px solid rgba(239,68,68,0.2)', borderRadius:'2px', padding:'5px 10px', cursor:'pointer', fontSize:'10px', fontWeight:'bold', whiteSpace:'nowrap' }}>
               🚫 Not Interested
             </button>
-            <SetReminderButton
-              contact={{ id: user.id, firstName: user.name?.split(' ')[0] || user.name, lastName: user.name?.split(' ').slice(1).join(' ') || '', type: 'investor' }}
-              onSetReminder={setReminder}
-            />
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <SetReminderButton
+                contact={{ id: user.id, firstName: user.name?.split(' ')[0] || user.name, lastName: user.name?.split(' ').slice(1).join(' ') || '', type: 'investor' }}
+                onSetReminder={setReminder}
+              />
+              <ReminderCountdown contactId={user.id} />
+            </div>
             <button onClick={onClose} style={{ background:'rgba(255,255,255,0.05)', border:'1px solid rgba(255,255,255,0.1)', color:'#6b7280', cursor:'pointer', fontSize:'18px', width:'30px', height:'30px', borderRadius:'4px', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>×</button>
           </div>
         </div>
