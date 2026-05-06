@@ -1,9 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import LiveCodebaseExplorer from "./LiveCodebaseExplorer";
 
-const SESSION_KEY = "home_access_granted";
-const SESSION_USER_KEY = "home_access_user";
-
 // ══ STYLES ══════════════════════════════════════════════════════════════════
 const G = {
   fonts: `@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;0,800;0,900;1,400;1,700&family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap');`,
@@ -442,19 +439,10 @@ const css = `
 
 // ══ COMPONENT ═══════════════════════════════════════════════════════════════
 export default function InvestorPage() {
-  const [unlocked, setUnlocked] = useState(() => sessionStorage.getItem(SESSION_KEY) === 'true');
   const [activePage, setActivePage] = useState("overview");
   const [scrollPct, setScrollPct] = useState(0);
   const [mktTab, setMktTab] = useState("overview");
-  const [ugSection, setUgSection] = useState("ug-overview");
   const [barsFired, setBarsFired] = useState(false);
-
-  // Check if user has access — redirect to Home if not
-  useEffect(() => {
-    if (!unlocked) {
-      window.location.href = '/';
-    }
-  }, [unlocked]);
 
   useEffect(() => {
     const onScroll = () => {
@@ -490,16 +478,6 @@ export default function InvestorPage() {
 
   const showPage = (p) => { setActivePage(p); window.scrollTo(0, 0); };
 
-  if (!unlocked) {
-    return (
-      <div style={{ minHeight: '100vh', background: '#060c18', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <div style={{ textAlign: 'center', color: '#e8e0d0' }}>
-          <p>Checking access…</p>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <>
       <style>{css}</style>
@@ -523,7 +501,7 @@ export default function InvestorPage() {
             ["team", "Team"],
             ["proceeds", "Use of Proceeds"],
             ["operations", "Current State"],
-            ["userguide", "User Guide"],
+            ["roadmap", "Strategic Roadmap"],
             ["lce", "Live Codebase Explorer"],
             ["audit", "🔒 Security Audit"],
           ].map(([id, label]) => (
@@ -761,60 +739,96 @@ export default function InvestorPage() {
         <section className="pad" style={{paddingTop:130}}>
           <div className="wrap">
             <div className="slab reveal">Technology</div>
-            <h2 className="h2 reveal">Enterprise Platform,<br/><em style={{fontStyle:"italic",color:"#deba6a"}}>Startup Speed.</em></h2>
-            <p className="lead reveal">262 backend functions. 136 database entities. A self-healing pipeline. Production-ready multi-tenant SaaS built on Deno + Supabase + React — security audited to a 92/100 score by three independent AI systems.</p>
+            <h2 className="h2 reveal">One Unified System.<br/><em style={{fontStyle:"italic",color:"#deba6a"}}>Infinite Possibilities.</em></h2>
+            <p className="lead reveal">Rosie AI leverages a multi-tenant, distributed framework to run 150+ backend functions simultaneously, updating 136 entities the second data hits the system. This isn't just a CRM—it's an intelligence layer that adapts to your industry. From dental patient engagement to precision-targeted roofing and solar leads, Rosie eliminates the lag and puts real-time solutions at your fingertips.</p>
 
-            <div className="slab reveal">Core Architecture</div>
-            <div className="tech-grid">
-              {[["Frontend","React 18 + Vite","TanStack Query, Tailwind CSS, 256 components, 42 pages. Real-time queue monitoring, workflow builder, AI cost dashboard.","React","TanStack","Tailwind","TypeScript"],["Backend","Deno Edge Functions","262 serverless TypeScript functions. Priority queue system, self-healing agent, campaign orchestrator, AI gateway with kill switch.","Deno","TypeScript","Edge","Serverless"],["Database","Supabase PostgreSQL","136 entities. Row-Level Security enforced at database level. Multi-tenant isolation — zero cross-org data leakage possible.","PostgreSQL","Supabase","RLS","Multi-Tenant"],["AI Layer","Centralized AI Gateway","All inference routes through aiGateway with cost tracking, budget enforcement, request deduplication, and kill switch.","Groq","OpenAI","Anthropic","Gemini"],["Voice","Twilio + Inworld","AI calling agents at $0.07/min all-in. Inbound call center, browser dialer, call recording, AI transcript analysis.","Twilio","Inworld","$0.07/min","AI Agents"],["Queue System","Self-Healing Job Engine","Priority scheduler, DLQ monitor, backpressure manager, stuck-job detector, loop-breaker, full autoscaler.","Priority Queues","DLQ","Self-Healing","Autoscaling"]].map(([layer,name,desc,...tags])=>(
-                <div key={name} className="tech-card reveal">
-                  <div className="tech-layer">{layer}</div>
-                  <div className="tech-name">{name}</div>
-                  <div className="tech-desc">{desc}</div>
-                  <div className="tech-tags">{tags.map(t=><span key={t} className="tech-tag">{t}</span>)}</div>
+            <div className="slab reveal">Core Capabilities</div>
+            <div className="diff-grid" style={{gridTemplateColumns:"repeat(3,1fr)",marginBottom:32}}>
+              {[
+                ["🔍","Discovery","Our discovery engine automates the heavy lifting of data acquisition, integrating web crawlers, solar permit tracking, NWS storm data, and deep social scraping to identify high-intent opportunities as they happen."],
+                ["🧠","AI Analysis","Beyond simple data, Rosie provides deep cognitive processing — from intent scoring and pain point detection to persona clustering — ensuring every lead is qualified and understood before you ever hit "send.""],
+                ["⚡","Enrichment","We eliminate incomplete data through a sophisticated multi-source waterfall, merging global databases with specialized industry data to provide a comprehensive, 360-degree view of every prospect."],
+                ["📤","Outreach","Rosie orchestrates multi-channel engagement across SMS, email, AI voice, and WhatsApp, maintaining a consistent brand presence through intelligent drip sequences and automated follow-ups."],
+                ["📊","Intelligence","The backbone of the platform focuses on operational excellence, managing complex queue systems, self-healing protocols, and full-stack telemetry to ensure the system remains resilient and transparent."],
+                ["🔔","Notification","The final layer of the Rosie ecosystem ensures you never miss a beat. This module pushes real-time alerts, engagement pings, and critical system updates directly to your preferred channel, turning platform intelligence into immediate human action."],
+              ].map(([icon,title,desc])=>(
+                <div key={title} className="diff-card reveal">
+                  <div className="diff-icon">{icon}</div>
+                  <div className="diff-title">{title}</div>
+                  <div className="diff-desc">{desc}</div>
+                </div>
+              ))}
+            </div>
+
+            <div className="slab reveal">Technical Stack</div>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:12,marginBottom:44}}>
+              {[["BACKEND RUNTIME","Deno + Base44 SDK","262 serverless edge functions. Each function isolated, versioned, health-monitored. All calls use INTERNAL_SECRET auth + RLS session context.","TypeScript","Deno Deploy","Base44 v0.8.23","JWT Auth"],
+                ["FRONTEND","React 18 + Vite","42 full pages, 248 components across billing, admin, campaign, leads, SMS, settings, and workflow modules. TanStack Query with 15s auto-refresh.","React 18","TanStack Query","Tailwind CSS","Lucide Icons"],
+                ["DATABASE","Supabase PostgreSQL","136 entity types. Row-Level Security enforced via set_org_context() at every query. Zero cross-org data leakage. Full audit log trail.","PostgreSQL","RLS","Supabase","136 Entities"],
+                ["AI GATEWAY","Centralized Multi-Provider","All AI calls route through aiGateway. Handles cost tracking, request caching, budget enforcement, provider failover across Groq, OpenAI, Anthropic, and Gemini.","OpenAI","Groq","Anthropic","Gemini"],
+                ["OUTREACH LAYER","Twilio + Instantly.ai","Full SMS drip/broadcast, AI voice agent with call recording, email sequences via Instantly.ai, WhatsApp + Blue Bubble messaging. BYO Twilio or EZ-Setup. 20 minutes to dial.","Twilio","AI Voice","Instantly.ai","WhatsApp"],
+                ["QUEUE SYSTEM","Self-Healing Job Engine","Priority scheduler, DLQ monitor, backpressure manager, stuck-job detector, loop-breaker agent, and full autoscaler. Workers restart automatically on failure.","Priority Queues","DLQ","Self-Healing","Autoscaling"],
+              ].map(([layer,name,desc,...tags])=>(
+                <div key={name} style={{background:"#121218",border:"1px solid rgba(201,168,76,0.10)",borderRadius:10,padding:"14px 16px",transition:"border-color 0.2s"}} className="reveal">
+                  <div style={{fontSize:9,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.12em",color:"#8a6b28",marginBottom:5}}>{layer}</div>
+                  <div style={{fontFamily:"'Playfair Display',serif",fontSize:13,color:"#f0ead8",marginBottom:6}}>{name}</div>
+                  <div style={{fontSize:11,color:"#9a9280",lineHeight:1.55,marginBottom:10}}>{desc}</div>
+                  <div style={{display:"flex",flexWrap:"wrap",gap:4}}>{tags.map(t=><span key={t} style={{fontSize:9,fontWeight:700,padding:"2px 6px",borderRadius:20,background:"rgba(201,168,76,0.10)",color:"#9a9280",border:"1px solid rgba(201,168,76,0.10)"}}>{t}</span>)}</div>
                 </div>
               ))}
             </div>
 
             <div className="slab reveal">À La Carte Services</div>
-            <div className="alacarte-section reveal">
-              <div className="alacarte-top">
-                <div>
-                  <div className="alacarte-eyebrow">Revenue Stream</div>
-                  <div className="alacarte-title">AI Voice Agents & SMS — Standalone Services</div>
-                  <p className="alacarte-body">Beyond the platform subscription, Rosie AI offers AI calling and messaging as standalone à la carte services — the most cost-competitive in the industry.<br/><br/>Our AI voice agents run at <strong>$0.07/minute all-in</strong> — that includes the dialer, AI agent, LLM inference, text-to-speech, and telephony infrastructure. <strong>Average setup time: 20 minutes.</strong></p>
-                </div>
-                <div className="price-compare-box">
-                  <div className="pc-row"><span className="pc-label">Industry Average (voice/min)</span><span className="pc-val industry">$0.15</span></div>
-                  <div className="pc-row"><span className="pc-label">Rosie AI (all-in/min)</span><span className="pc-val ours">$0.07</span></div>
-                  <div className="pc-savings"><span className="pc-savings-n">2× Cheaper · 500% Margin</span><span style={{fontSize:10,color:"#5a5448"}}>Full stack included</span></div>
-                </div>
-              </div>
-              <div className="alacarte-grid">
-                {[["📞","AI Outbound Voice Agents","Fully automated outbound calls with AI agents that qualify leads, book appointments, and handle objections. Setup in 20 minutes.","$0.07/min all-in"],["🎙️","AI Inbound Call Center","Browser-based inbound console with AI agent handling, caller ID, customer lookup, history, and live transfer to human agents.","$0.07/min all-in"],["💬","SMS Campaigns + Automation","Standard SMS, WhatsApp, and Blue Bubble (iMessage) outreach. Includes Instantly.ai email integration and automated follow-up.","No 10DLC required"],["🍎","Blue Bubble (iMessage) Outreach","Apple Messages-style outreach that bypasses SMS carrier compliance entirely. Higher open rates, no registration hassle.","Zero compliance overhead"],["📱","WhatsApp Business Outreach","Automated WhatsApp campaigns with AI-powered reply handling. Two-way conversations, media support.","Global reach"],["🔌","BYO Twilio or Buy From Us","Bring your own Twilio account for maximum control, or purchase phone numbers directly through Rosie AI EZ-Setup.","20 min setup"]].map(([icon,title,desc,tag])=>(
-                  <div key={title} className="ac-card"><div className="ac-icon">{icon}</div><div className="ac-title">{title}</div><div className="ac-desc">{desc}</div><span className="ac-tag">{tag}</span></div>
-                ))}
-              </div>
-            </div>
-
-            <div className="slab reveal">Discovery Verticals — Current + Roadmap</div>
-            <div className="verticals-grid reveal">
-              {[["☀️","Solar","Permit scraping from 50+ city portals. Daily ingestion.","live"],["🏠","Roofing","Storm DAT reports, NWS data, social signals.","live"],["🌩️","Storm Detection","Real-time NWS API → roofing lead generation.","live"],["🔑","Gold & Silver","Precious metals buyer intent across social platforms.","live"],["🧹","Residential Cleaning","Territory mapping, homeowner signals, service demand.","Q3 2026"],["🏢","Commercial Cleaning","B2B office/facility cleaning contract targeting.","Q3 2026"],["🚗","Retail Auto Sales","In-market auto buyer signals from YouTube, Reddit, social.","Q3 2026"],["🏥","Medical / Health","Healthcare facility targeting, practice growth signals.","Q4 2026"],["🔬","Lab & Testing","Clinical lab, environmental testing, diagnostic companies.","Q4 2026"],["🌪️","Tornado DAT Reports","Real-time damage assessment data for roofing outreach.","Q3 2026"],["🏗️","General Contracting","Commercial and residential permit data for GC leads.","2027"],["🌿","Landscaping / Lawn","New homeowner data, seasonal demand signals.","2027"]].map(([icon,name,desc,status])=>(
-                <div key={name} className={`vert-card${status==="live"?" vert-active":" vert-coming"}`}>
-                  <div className="vert-icon">{icon}</div>
-                  <div className="vert-name">{name}</div>
-                  <div className="vert-desc">{desc}</div>
-                  <span className={`vert-status${status==="live"?" vert-live":" vert-soon"}`}>{status==="live"?"✓ Live":"🔜 "+status}</span>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,marginBottom:44}} className="reveal">
+              {[["📞","AI Outbound Voice Agents","Fully automated outbound calls with AI agents that qualify leads, book appointments, and handle objections. Setup in 20 minutes.","$0.07/min all-in"],
+                ["🎙️","AI Inbound Call Center","Browser-based inbound console with AI agent handling, caller ID, customer lookup, history, and live transfer to human agents.","$0.07/min all-in"],
+                ["💬","SMS Campaigns + Automation","Standard SMS, WhatsApp, and Blue Bubble (iMessage) outreach. Includes Instantly.ai email integration and automated follow-up workflows.","No 10DLC required"],
+                ["🍎","Blue Bubble (iMessage) Outreach","Apple Messages-style outreach that bypasses SMS carrier compliance entirely. Higher open rates, no registration hassle.","Zero compliance overhead"],
+                ["📱","WhatsApp Business Outreach","Automated WhatsApp campaigns with AI-powered reply handling. Two-way conversations, media support, and full outreach workflow integration.","Global reach"],
+                ["🔌","BYO Twilio or Buy From Us","Bring your own Twilio account for maximum control, or purchase phone numbers directly through Rosie AI EZ-Setup. Same $0.07/min either way.","20 min setup"],
+              ].map(([icon,title,desc,tag])=>(
+                <div key={title} style={{background:"#121218",border:"1px solid rgba(201,168,76,0.10)",borderRadius:10,padding:"14px 16px",transition:"border-color 0.2s"}}>
+                  <div style={{fontSize:18,marginBottom:8}}>{icon}</div>
+                  <div style={{fontSize:12,fontWeight:700,color:"#e8e2d0",marginBottom:5}}>{title}</div>
+                  <div style={{fontSize:11,color:"#9a9280",lineHeight:1.5,marginBottom:10}}>{desc}</div>
+                  <span style={{fontSize:9,fontWeight:700,padding:"2px 8px",borderRadius:20,background:"rgba(201,168,76,0.12)",color:"#deba6a",border:"1px solid rgba(201,168,76,0.25)"}}>{tag}</span>
                 </div>
               ))}
             </div>
 
-            <div className="slab reveal">Enterprise Scaling Roadmap</div>
-            <div className="enterprise-grid reveal">
-              {[["🔐","Enhanced Security Architecture","SOC 2 Type II compliance roadmap, advanced threat detection, end-to-end encryption at rest and in transit, penetration testing program, and SIEM integration."],["🗄️","Database Expertise & Scaling","PostgreSQL optimization, read replica deployment, connection pooling with PgBouncer, partitioned tables for multi-tenant performance, and database failover with sub-10-second recovery."],["⚡","Hardware & Infrastructure Scaling","Multi-region edge deployment, auto-scaling worker pools, Redis cluster for rate limiting and caching, CDN integration for global performance."],["📊","99.99% Uptime Architecture","Active-active redundancy, circuit breaker patterns, chaos engineering, automated health checks every 30 seconds, and <5-minute incident response."],["🔄","Enterprise Integration Layer","Salesforce, HubSpot, Pipedrive, and Monday.com native integrations. REST and GraphQL API with rate-limited partner access."],["📋","Compliance & Data Governance","TCPA, CAN-SPAM, GDPR compliance frameworks, automated consent management, data retention policies, and audit trails for all data access."]].map(([icon,title,desc])=>(
-                <div key={title} className="ent-card"><div className="ent-icon">{icon}</div><div className="ent-title">{title}</div><div className="ent-desc">{desc}</div></div>
+            <div className="slab reveal">Verticals We Service</div>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:8,marginBottom:44}} className="reveal">
+              {[
+                ["🏘️","Real Estate","Distressed property signals and 'likely to sell' data modeling to support agents identifying off-market opportunities and high-intent sellers."],
+                ["🚗","Retail Auto Sales","Identifying high-intent buyer signals across YouTube, Reddit, and social platforms to capture in-market automotive leads at peak search."],
+                ["🦷","Dental Practices","Patient acquisition and reactivation pipelines designed to fill chairs by identifying local residents seeking specialized or routine care."],
+                ["🏥","Medical Offices","Strategic growth signals and local demographic targeting to help private practices and specialty clinics expand their patient base."],
+                ["🏢","Hospitals","High-level facility targeting and health system data integration to streamline B2B partnerships, staffing solutions, and equipment procurement."],
+                ["🛡️","Insurance Industry","Automated lead generation for life, health, and property insurance providers by tracking major life events and property transitions in real-time."],
+                ["🏥","Treatment Facilities","Precision targeting for behavioral health and rehabilitation centers, identifying individuals and families actively searching for care."],
+                ["🏦","Mortgage & Lending","Tracking equity milestones and financial behavior to connect lenders with homeowners ready for refinancing, HELOCs, or new purchase loans."],
+                ["❄️","HVAC & Home Services","Monitoring localized climate shifts and equipment age signals to connect HVAC and plumbing professionals with homeowners needing replacements."],
+                ["🔒","Cybersecurity & IT","B2B intent-tracking identifying companies searching for security solutions following infrastructure changes, hiring spikes, or compliance shifts."],
+                ["🚢","Logistics & Supply Chain","Connecting freight and 3PL providers with manufacturers and e-commerce brands showing high-volume shipping and distribution demand."],
+                ["⚖️","Legal Services","Intent-based lead generation for personal injury and mass tort firms based on real-time incident reporting, public data, and legal-search behaviors."],
+                ["☀️","Solar","Precision permit scraping from 50+ city portals with daily data ingestion to identify homeowners ready to transition to clean energy."],
+                ["🏠","Roofing","Comprehensive storm tracking via NWS data and social signals to connect contractors with homeowners in immediate need of repair."],
+                ["🔑","Commodities","Sophisticated intent-tracking across social platforms to identify and engage active buyers in precious metals and raw materials markets."],
+                ["🏗️","General Contracting","Commercial and residential permit data aggregation to provide GCs with a steady pipeline of new construction and remodel projects."],
+                ["🧹","Residential Cleaning","Territory mapping and homeowner signal detection to deploy service demand alerts for local cleaning franchises and independent services."],
+                ["🏢","Commercial Cleaning","Strategic B2B facility targeting focused on office complexes, medical centers, and industrial contract opportunities."],
+                ["🔬","Lab & Testing","Data pipelines for clinical labs, environmental testing, and diagnostic companies looking to scale their B2B partnerships."],
+                ["🌿","Landscaping & Lawn Care","Utilizing new homeowner data and seasonal demand signals to automate outreach for maintenance and design-build services."],
+              ].map(([icon,name,desc])=>(
+                <div key={name} style={{background:"#121218",border:"1px solid rgba(201,168,76,0.10)",borderRadius:8,padding:"10px 12px",transition:"border-color 0.2s"}}>
+                  <div style={{fontSize:16,marginBottom:5}}>{icon}</div>
+                  <div style={{fontSize:11,fontWeight:700,color:"#e8e2d0",marginBottom:4}}>{name}</div>
+                  <div style={{fontSize:10,color:"#9a9280",lineHeight:1.45}}>{desc}</div>
+                </div>
               ))}
             </div>
+
+
           </div>
         </section>
         <div className="footer"><div className="wrap"><p className="footer-disc">Source code shown is from the audited production build. All functions are deployed and operational.</p><div className="footer-copy">© 2026 Rosie AI, LLC · Confidential</div></div></div>
@@ -824,9 +838,10 @@ export default function InvestorPage() {
       <div id="page-financials" className={`page${activePage === "financials" ? " active" : ""}`}>
         <section className="pad" style={{paddingTop:130}}>
           <div className="wrap">
-            <div className="slab reveal">Revenue Projections</div>
-            <h2 className="h2 reveal">2,000 Orgs by End of 2028.<br/><em style={{fontStyle:"italic",color:"#deba6a"}}>Profitable at 15 Orgs.</em></h2>
-            <p className="lead reveal">With an updated team structure optimized for growth, we project 50 paying organizations by Q4 2026, 250 by end of 2027, and 2,000 by end of 2028 — reaching profitability the moment revenue exceeds our monthly operational costs.</p>
+            <div className="slab reveal">Financial Projections & Growth Milestones</div>
+            <h2 className="h2 reveal">Two Revenue Streams.<br/><em style={{fontStyle:"italic",color:"#deba6a"}}>One Compounding Engine.</em></h2>
+            <p className="lead reveal">The platform generates revenue through two complementary streams: recurring organizational subscriptions and an à la carte AI services marketplace launching in September 2026. The following table reflects the updated blended revenue projections.</p>
+
             <div className="fin-grid">
               <div className="proj-table reveal">
                 <table>
@@ -841,36 +856,83 @@ export default function InvestorPage() {
                     <tr><td>Month 30 (Dec 2028)</td><td>2,000</td><td>$820</td><td>$1,640,000</td><td>$19.7M</td></tr>
                   </tbody>
                 </table>
+                <div style={{marginTop:16,background:"rgba(34,197,94,0.08)",border:"1px solid rgba(34,197,94,0.2)",borderRadius:10,padding:"14px 18px"}}>
+                  <p style={{fontSize:12,color:"#9a9280",margin:0,lineHeight:1.7}}><strong style={{color:"#22c55e"}}>Profitability Target:</strong> We project reaching profitability the moment revenue exceeds our monthly operational costs, with break-even achieved at approximately 15 paying organizations.</p>
+                  <p style={{fontSize:12,color:"#9a9280",margin:"8px 0 0",lineHeight:1.7}}><strong style={{color:"#deba6a"}}>Long-term Goal:</strong> Scale to 2,000 paying organizations by end of 2028.</p>
+                </div>
               </div>
               <div className="reveal">
                 <div className="cost-card">
-                  <div className="cost-title">Updated Monthly Operating Costs</div>
-                  {[["Sr. Technology Engineer","$4,000","#38bdf8"],["Managing Partner","$3,000","#38bdf8"],["PH Engineers (3 × $650)","$1,950","#22c55e"],["Server / Deno Deploy","$300",""],["Database (Supabase Pro)","$150",""],["AI APIs (OpenAI/Groq/etc.)","$200",""],["Twilio / SMS / Voice Base","$150",""],["Tools & SaaS","$150",""],["Legal / Compliance","$200",""]].map(([l,v,c])=>(
-                    <div key={l} className="cost-row"><span className="cost-row-label">{l}</span><span className="cost-row-val" style={c?{color:c}:{}}>{v}</span></div>
+                  <div className="cost-title">Refined Monthly Operating Costs</div>
+                  {[["Sr. Technology Engineer","$4,000","#38bdf8"],["Managing Partner","$3,000","#38bdf8"],["PH Engineering Unit (3 Engineers)","$1,950","#22c55e"],["Server & Edge Deployment (Deno)","$300",""],["Database Management (Supabase Pro)","$150",""],["AI API Usage (OpenAI/Groq/etc.)","$200",""],["Twilio / SMS / Voice Base","$150",""],["Tools & Software Subscriptions","$150",""],["Legal, Audit & Compliance","$200",""]].map(([l,v,col])=>(
+                    <div key={l} className="cost-row"><span className="cost-row-label">{l}</span><span className="cost-row-val" style={col?{color:col}:{}}>{v}</span></div>
                   ))}
-                  <div className="cost-row" style={{borderTop:"1px solid rgba(201,168,76,0.25)",marginTop:4,paddingTop:10}}><span className="cost-row-label" style={{fontWeight:700,color:"#e8e2d0"}}>Total Fixed / Month</span><span className="cost-row-val" style={{color:"#deba6a",fontWeight:700,fontSize:14}}>$10,100</span></div>
+                  <div className="cost-row" style={{borderTop:"1px solid rgba(201,168,76,0.25)",marginTop:4,paddingTop:10}}><span className="cost-row-label" style={{fontWeight:700,color:"#e8e2d0"}}>Total Fixed Monthly Burn</span><span className="cost-row-val" style={{color:"#deba6a",fontWeight:700,fontSize:14}}>$10,100</span></div>
                 </div>
-                <div className="cost-card" style={{background:"rgba(34,197,94,0.12)",borderColor:"rgba(34,197,94,0.28)"}}>
-                  <div className="cost-title" style={{color:"#22c55e"}}>Revenue Share Threshold</div>
-                  <div className="cost-row"><span className="cost-row-label">Fixed monthly cost</span><span className="cost-row-val">$10,100</span></div>
-                  <div className="cost-row"><span className="cost-row-label">Distributions activate</span><span className="cost-row-val" style={{color:"#22c55e"}}>Above $20,000/mo MRR</span></div>
-                  <div className="cost-row"><span className="cost-row-label">Break-even orgs (~$700 avg)</span><span className="cost-row-val" style={{color:"#22c55e",fontSize:16,fontWeight:700}}>~15 orgs</span></div>
-                  <div style={{background:"#121218",borderRadius:8,padding:12,marginTop:10,fontSize:11,color:"#9a9280",lineHeight:1.6}}>Distributions to Class B equity holders activate once the platform reaches $20,000/month in MRR. This is achieved at approximately 28–30 paying organizations and is projected by Q4 2026.</div>
+                <div className="cost-card" style={{background:"rgba(34,197,94,0.08)",borderColor:"rgba(34,197,94,0.25)"}}>
+                  <div className="cost-title" style={{color:"#22c55e"}}>Revenue Share & Distribution Threshold</div>
+                  <div className="cost-row"><span className="cost-row-label">Fixed Monthly Operating Cost</span><span className="cost-row-val">$10,100</span></div>
+                  <div className="cost-row"><span className="cost-row-label">Break-even Point</span><span className="cost-row-val" style={{color:"#22c55e"}}>~15 orgs @ ~$700 avg MRR</span></div>
+                  <div className="cost-row"><span className="cost-row-label">Distribution Activation</span><span className="cost-row-val" style={{color:"#22c55e",fontWeight:700}}>$20,000/mo MRR</span></div>
+                  <div className="cost-row"><span className="cost-row-label">Orgs Required for Distributions</span><span className="cost-row-val" style={{color:"#deba6a"}}>~28–30 orgs</span></div>
+                  <div className="cost-row"><span className="cost-row-label">Projected Start</span><span className="cost-row-val" style={{color:"#deba6a"}}>Q4 2026</span></div>
                 </div>
               </div>
             </div>
 
-            <div style={{marginTop:40}} className="reveal">
-              <div className="slab">18-Month Milestones</div>
-              <div className="milestone-grid">
-                {[["Q2 2026","gold","Finish Raise","$500K Class B raise closed · Begin paid acquisition · Launch affiliate program"],["Q4 2026","gold","50 Paying Orgs","$32.5K MRR · $390K ARR · Channel PMF confirmed · 2 new verticals live"],["End of 2027","em","250 Paying Orgs","$187.5K MRR · $2.25M ARR · Series A preparation begins"],["End of 2028","gold-b","2,000 Paying Orgs","$1.64M MRR · $19.7M ARR · Series A closed · Expand to 10+ verticals"]].map(([period,clr,title,desc])=>(
-                  <div key={period} style={{background:clr==="em"?"rgba(34,197,94,0.10)":"rgba(201,168,76,0.10)",border:`1px solid ${clr==="em"?"rgba(34,197,94,0.28)":"rgba(201,168,76,0.25)"}`,borderRadius:12,padding:20,textAlign:"center"}}>
-                    <div style={{fontSize:13,fontWeight:700,color:clr==="em"?"#22c55e":"#c9a84c",textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:10}}>{period}</div>
-                    <div style={{fontFamily:"'Playfair Display',serif",fontSize:20,color:"#f0ead8",marginBottom:8}}>{title}</div>
-                    <div style={{fontSize:12,color:"#5a5448"}}>{desc}</div>
-                  </div>
-                ))}
+            {/* Pricing Tiers */}
+            <div className="slab reveal" style={{marginTop:40}}>Subscription Pricing Tiers</div>
+            <div style={{overflowX:"auto",marginBottom:36}} className="reveal">
+              <table style={{fontSize:13,width:"100%"}}>
+                <thead><tr><th style={{background:"#18181f",color:"#5a5448",padding:"10px 14px",border:"1px solid rgba(201,168,76,0.10)",fontSize:10,textTransform:"uppercase",letterSpacing:"0.08em"}}>Plan</th><th style={{background:"#18181f",color:"#5a5448",padding:"10px 14px",border:"1px solid rgba(201,168,76,0.10)",fontSize:10,textTransform:"uppercase",letterSpacing:"0.08em"}}>Price</th><th style={{background:"#18181f",color:"#5a5448",padding:"10px 14px",border:"1px solid rgba(201,168,76,0.10)",fontSize:10,textTransform:"uppercase",letterSpacing:"0.08em"}}>Included Features</th><th style={{background:"#18181f",color:"#5a5448",padding:"10px 14px",border:"1px solid rgba(201,168,76,0.10)",fontSize:10,textTransform:"uppercase",letterSpacing:"0.08em"}}>Target Audience</th></tr></thead>
+                <tbody>
+                  {[["Starter","$297/mo","500 voice min · 2,500 SMS · 1 line · 1,000 AI calls","Solo contractors, 1–3 closers"],["Growth","$497/mo","1,500 voice min · 7,500 SMS · 3 lines · 5,000 AI calls","Small teams, 3–10 reps"],["Scale","$997/mo","5,000 voice min · 25,000 SMS · 8 lines · 20K AI calls","Mid-market, 10–30 reps"],["Enterprise","$2,497/mo","Unlimited minutes · 20 lines · Unlimited AI","Large operations, 30+ reps"]].map(([plan,price,feat,target])=>(
+                    <tr key={plan}>
+                      <td style={{padding:"10px 14px",border:"1px solid rgba(201,168,76,0.10)",color:"#deba6a",fontWeight:700}}>{plan}</td>
+                      <td style={{padding:"10px 14px",border:"1px solid rgba(201,168,76,0.10)",color:"#22c55e",fontWeight:700,fontFamily:"'DM Mono',monospace"}}>{price}</td>
+                      <td style={{padding:"10px 14px",border:"1px solid rgba(201,168,76,0.10)",color:"#9a9280",fontSize:12}}>{feat}</td>
+                      <td style={{padding:"10px 14px",border:"1px solid rgba(201,168,76,0.10)",color:"#9a9280",fontSize:12}}>{target}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Marketplace */}
+            <div className="slab reveal">À La Carte AI Services Marketplace</div>
+            <div style={{background:"rgba(201,168,76,0.04)",border:"1px solid rgba(201,168,76,0.18)",borderRadius:16,padding:"28px 32px",marginBottom:36}} className="reveal">
+              <h3 style={{fontFamily:"'Playfair Display',serif",fontSize:20,color:"#f0ead8",marginBottom:8}}>Launching September 2026</h3>
+              <p style={{fontSize:13,color:"#9a9280",lineHeight:1.75,marginBottom:20}}>Rosie AI generates high-margin, usage-based revenue through a self-funding marketplace that allows users to purchase and consume individual AI services on demand. This model lowers the barrier to entry for new clients and increases the average revenue per user (ARPU).</p>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:24}}>
+                <div>
+                  <div style={{fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.12em",color:"#8a6b28",marginBottom:12}}>Core Service Offerings</div>
+                  {[["AI Voice Agents","Autonomous inbound/outbound appointment setting and lead qualification"],["Predictive Dialer","Intelligent automated dialing for high-alpha verticals like Solar and Roofing"],["Email Automation","AI-composed, personalized sequences triggered by real-time intent signals"],["Apify Web Scraping","On-demand data extraction from municipal permit filings and social signals"]].map(([name,desc])=>(
+                    <div key={name} style={{display:"flex",gap:10,marginBottom:10}}>
+                      <span style={{color:"#22c55e",flexShrink:0,marginTop:1}}>✓</span>
+                      <div><span style={{fontSize:12,fontWeight:700,color:"#e8e2d0"}}>{name}:</span><span style={{fontSize:12,color:"#9a9280"}}> {desc}</span></div>
+                    </div>
+                  ))}
+                </div>
+                <div>
+                  <div style={{fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.12em",color:"#8a6b28",marginBottom:12}}>Credit Packages</div>
+                  <table style={{width:"100%",fontSize:11,borderCollapse:"collapse"}}>
+                    <thead><tr>{["Package","Price","Credits","Bonus","Rate"].map(h=><th key={h} style={{background:"#18181f",color:"#5a5448",padding:"6px 8px",border:"1px solid rgba(201,168,76,0.10)",fontSize:9,textTransform:"uppercase"}}>{h}</th>)}</tr></thead>
+                    <tbody>
+                      {[["Starter","$5","500","+100","$0.010/cr"],["Growth","$25","2,500","+250","$0.0091/cr"],["Pro","$50","5,000","+1,000","$0.0083/cr"],["Scale","$100","10,000","+3,000","$0.0077/cr"]].map(([pkg,price,cr,bonus,rate])=>(
+                        <tr key={pkg}><td style={{padding:"6px 8px",border:"1px solid rgba(201,168,76,0.10)",color:"#deba6a",fontWeight:700}}>{pkg}</td><td style={{padding:"6px 8px",border:"1px solid rgba(201,168,76,0.10)",color:"#22c55e",fontFamily:"'DM Mono',monospace"}}>{price}</td><td style={{padding:"6px 8px",border:"1px solid rgba(201,168,76,0.10)",color:"#9a9280"}}>{cr}</td><td style={{padding:"6px 8px",border:"1px solid rgba(201,168,76,0.10)",color:"#22c55e"}}>{bonus}</td><td style={{padding:"6px 8px",border:"1px solid rgba(201,168,76,0.10)",color:"#9a9280"}}>{rate}</td></tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  <div style={{marginTop:10,fontSize:10,color:"#5a5448",lineHeight:1.6}}>Consumption: AI Voice = 50 cr/min · Predictive Dialer = 30 cr/min · Email = 10 cr/email</div>
+                </div>
               </div>
+            </div>
+
+            {/* Financial Impact */}
+            <div className="diff-grid reveal" style={{gridTemplateColumns:"repeat(3,1fr)"}}>
+              <div className="diff-card"><div className="diff-icon">🔄</div><div className="diff-title">Revenue Flywheel</div><div className="diff-desc">A $5 "Starter Pack" allows any business to trial Rosie AI services without a subscription, creating a built-in sales funnel that accelerates organizational conversion rates from Q4 2026 forward.</div></div>
+              <div className="diff-card"><div className="diff-icon">📈</div><div className="diff-title">Conservative Upside</div><div className="diff-desc">Projections assume a 40% attachment rate among subscribers. By December 2027, credit revenue alone is projected to reach $90,000/month at 250 organizations.</div></div>
+              <div className="diff-card"><div className="diff-icon">💰</div><div className="diff-title">Blended Profitability</div><div className="diff-desc">Total MRR figures used to trigger the $20,000/month distribution threshold include the combined revenue from both subscription fees and the à la carte credit marketplace.</div></div>
             </div>
           </div>
         </section>
@@ -881,9 +943,20 @@ export default function InvestorPage() {
       <div id="page-team" className={`page${activePage === "team" ? " active" : ""}`}>
         <section className="pad" style={{paddingTop:130}}>
           <div className="wrap">
-            <div className="slab">Team & Cost Advantage</div>
-            <h2 className="h2">US Leadership + Philippine Engineering.<br/><em style={{fontStyle:"italic",color:"#deba6a"}}>World-Class Output.</em></h2>
-            <p className="lead">Our 5-person team combines senior US leadership (Sr. Technology Engineer + Managing Partner) with a 3-person Philippine engineering team — delivering enterprise-grade execution at a fraction of typical startup costs. Total team cost: $8,950/month.</p>
+            <div className="slab">Capital Efficiency: The Global Engineering Advantage</div>
+            <h2 className="h2">Elite US Strategy +<br/><em style={{fontStyle:"italic",color:"#deba6a"}}>High-Velocity Execution.</em></h2>
+            <div style={{background:"rgba(201,168,76,0.05)",border:"1px solid rgba(201,168,76,0.18)",borderRadius:14,padding:"24px 28px",marginBottom:36}}>
+              <p style={{fontSize:15,color:"#9a9280",lineHeight:1.78,marginBottom:16}}>Rosie AI is built on a "Capital-Efficient Growth" model that decouples high-level engineering output from traditional Silicon Valley burn rates. Our structure leverages a specialized 5-person core team that integrates senior US leadership with a dedicated international engineering unit.</p>
+              <div style={{display:"flex",flexDirection:"column",gap:10}}>
+                {[["Strategic Oversight","Directed by our Sr. Technology Engineer and Managing Partner, ensuring every line of code aligns with US enterprise standards and market demand."],["Operational Velocity","A 3-person Philippine Engineering Unit provides 24/7 development cycles and rapid deployment of our 262+ backend functions."],["Strategic Support Functions","The core team is bolstered by a network of specialized advisors and automated systems handling compliance, legal, and multi-tenant security sharding."]].map(([title,desc])=>(
+                  <div key={title} style={{display:"flex",gap:10}}>
+                    <span style={{color:"#deba6a",flexShrink:0,marginTop:2}}>◆</span>
+                    <div><span style={{fontSize:13,fontWeight:700,color:"#e8e2d0"}}>{title}:</span><span style={{fontSize:13,color:"#9a9280"}}> {desc}</span></div>
+                  </div>
+                ))}
+              </div>
+              <p style={{fontSize:13,color:"#9a9280",lineHeight:1.7,marginTop:16,marginBottom:0}}>By maintaining a total core team cost of <strong style={{color:"#deba6a"}}>$8,950/month</strong>, this lean, high-output configuration allows us to deploy investor capital toward platform hardening and aggressive market acquisition rather than administrative bloat.</p>
+            </div>
             <div className="eng-cards">
               <div className="eng-card us-eng">
                 <div className="eng-avatar" style={{fontSize:28}}>👨‍💻</div>
@@ -971,17 +1044,17 @@ export default function InvestorPage() {
       <div id="page-proceeds" className={`page${activePage === "proceeds" ? " active" : ""}`}>
         <section className="pad" style={{paddingTop:130}}>
           <div className="wrap">
-            <div className="slab reveal">Use of Proceeds</div>
-            <h2 className="h2 reveal">$500,000 Class B Raise.<br/><em style={{fontStyle:"italic",color:"#deba6a"}}>Zero Middlemen.</em></h2>
-            <p className="lead reveal">Our fundraising is handled entirely in-house — no brokers, no finders fees, no commissions. Every dollar raised goes directly into building and scaling Rosie AI. Here's exactly how the capital will be deployed.</p>
+            <div className="slab reveal">Capital Allocation Strategy: Engineering for Scale</div>
+            <h2 className="h2 reveal">$500,000 Total Raise —<br/><em style={{fontStyle:"italic",color:"#deba6a"}}>One Round. One Mission.</em></h2>
+            <p className="lead reveal">Rosie AI, LLC is executing a focused $500,000 capital raise through the issuance of Class B Membership Units, representing a 21.5% equity stake in the Company. Departing from complex multi-tranche or SAFE structures, this is a single-entry Regulation D, Rule 506(c) offering designed for maximum capital efficiency. Every dollar of this raise is purpose-built for a singular objective: hardening our existing, fully functional platform into an enterprise-grade utility — positioning the company to surpass $1M+ ARR within the next 12 months.</p>
             <div className="proceed-hero reveal">
               <div>
                 <div className="raise-num">$500K</div>
-                <div className="raise-sub">Class B Equity Units · Seed Round</div>
+                <div className="raise-sub">Class B Equity Units · Investor Equity Stake: 21.5%</div>
                 <div style={{background:"rgba(34,197,94,0.10)",border:"1px solid rgba(34,197,94,0.25)",borderRadius:9,padding:"10px 14px",display:"inline-flex",alignItems:"center",gap:8,marginBottom:16}}>
-                  <span style={{fontSize:11,fontWeight:700,color:"#22c55e"}}>✓ No Broker Fees</span>
+                  <span style={{fontSize:11,fontWeight:700,color:"#22c55e"}}>✓ No Broker Fees · No Finder's Fees · No Commissions</span>
                 </div>
-                <div className="raise-note">No placement agents. No finders fees. No commission structure. This round is being raised directly by the managing partners. Every dollar in equals every dollar deployed into product and growth.</div>
+                <div className="raise-note">This round is being raised directly by the managing partners under Regulation D, Rule 506(c). No placement agents. No commission structure. Every dollar in equals every dollar deployed into product hardening and growth.</div>
               </div>
               <div className="proc-bars">
                 {[["Customer Acquisition","30%","c1","$150,000"],["1st Year Personnel Costs","21.5%","c2","$107,400"],["Product Development","20%","c3","$100,000"],["Operations & Legal","10%","c4","$50,000"],["Infrastructure Scaling","10%","c5","$50,000"],["Working Capital Reserve","8.5%","c1","$42,600"]].map(([label,pct,cls,amt])=>(
@@ -1056,70 +1129,80 @@ export default function InvestorPage() {
         <div className="footer"><div className="wrap"><p className="footer-disc">Platform screenshots from v6 production build. All functionality shown is live and operational.</p><div className="footer-copy">© 2026 Rosie AI, LLC · Confidential</div></div></div>
       </div>
 
-      {/* ══ USER GUIDE ════════════════════════════════════════════════════ */}
-      <div id="page-userguide" className={`page${activePage === "userguide" ? " active" : ""}`}>
-        <section style={{paddingTop:80,paddingBottom:60}}>
+      {/* ══ STRATEGIC ROADMAP ════════════════════════════════════════════ */}
+      <div id="page-roadmap" className={`page${activePage === "roadmap" ? " active" : ""}`}>
+        <section className="pad" style={{paddingTop:130}}>
           <div className="wrap">
-            <div className="slab">Documentation</div>
-            <h2 className="h2">Operator & Admin User Guide</h2>
-            <p className="lead">Complete documentation for deploying, administering, and operating the Rosie AI platform. Covers all 42 frontend pages, 262 backend functions, and all pipeline modules.</p>
-          </div>
-          <div className="ug-layout" style={{maxWidth:1100,margin:"0 auto",padding:"0 0 0 40px"}}>
-            <div className="ug-sidebar">
-              <div className="ug-sidebar-label">Getting Started</div>
-              {[["ug-overview","🏠 Overview"],["ug-arch","🏗️ Architecture"],["ug-deploy","🚀 Deployment"],["ug-roles","👥 Roles & Permissions"],["ug-onboarding","✅ Org Onboarding"]].map(([id,label])=>(
-                <div key={id} className={`ug-nav-item${ugSection===id?" active":""}`} onClick={()=>setUgSection(id)}>{label}</div>
-              ))}
-              <div className="ug-sidebar-label">Navigation & UI</div>
-              {[["ug-dashboard","📊 Dashboard"],["ug-contacts","👤 Contacts & Leads"],["ug-campaigns","📡 Discovery Campaigns"],["ug-workflows","⚡ Workflows"]].map(([id,label])=>(
-                <div key={id} className={`ug-nav-item${ugSection===id?" active":""}`} onClick={()=>setUgSection(id)}>{label}</div>
-              ))}
-              <div className="ug-sidebar-label">Outreach</div>
-              {[["ug-sms","💬 SMS Campaigns"],["ug-email","📧 Email Outreach"],["ug-callmonitor","📞 Call Monitor"],["ug-aiagent","🤖 AI Agent"]].map(([id,label])=>(
-                <div key={id} className={`ug-nav-item${ugSection===id?" active":""}`} onClick={()=>setUgSection(id)}>{label}</div>
-              ))}
-              <div className="ug-sidebar-label">Discovery</div>
-              {[["ug-permits","📋 Permit Discovery"],["ug-solar","☀️ Solar Results"],["ug-analytics","📈 Analytics"]].map(([id,label])=>(
-                <div key={id} className={`ug-nav-item${ugSection===id?" active":""}`} onClick={()=>setUgSection(id)}>{label}</div>
-              ))}
-              <div className="ug-sidebar-label">System</div>
-              {[["ug-integrations","🔌 Integrations"],["ug-settings","⚙️ Settings"],["ug-costs","💰 Cost Panel"],["ug-featureflags","🚩 Feature Flags"],["ug-queuesystem","📬 Queue System"],["ug-aigateway","🧠 AI Gateway"]].map(([id,label])=>(
-                <div key={id} className={`ug-nav-item${ugSection===id?" active":""}`} onClick={()=>setUgSection(id)}>{label}</div>
-              ))}
+            <div className="slab reveal">Strategic Roadmap</div>
+            <h2 className="h2 reveal">The Architecture of Trust:<br/><em style={{fontStyle:"italic",color:"#deba6a"}}>Scaling for the Next Horizon.</em></h2>
+            <p className="lead reveal">This investment round is a strategic commitment to our long-term success, ensuring the seamless migration and absolute protection of our customers' most valuable data. We are actively evolving our architecture to meet the rigorous demands of institutional-scale operations.</p>
+
+            <div style={{background:"rgba(201,168,76,0.05)",border:"1px solid rgba(201,168,76,0.18)",borderRadius:16,padding:"28px 36px",marginBottom:44}} className="reveal">
+              <h3 style={{fontFamily:"'Playfair Display',serif",fontSize:20,color:"#f0ead8",marginBottom:12}}>One Unified System. Built for Global Demand.</h3>
+              <p style={{fontSize:14,color:"#9a9280",lineHeight:1.78,marginBottom:0}}>Rosie AI leverages a distributed SaaS framework to run 150+ backend functions in parallel, ensuring 136 entities stay updated the second data changes. This isn't just another software layer; it's an intelligence powerhouse engineered for massive-scale concurrency without compromising speed. The next evolution of the platform focuses on infrastructure "hardening" — deploying enterprise-grade security and redundancy systems to ensure 99.99% uptime as we scale to support 10,000+ concurrent organizations. Whether you are managing a single medical practice or scaling a global solar empire, your investment fuels our transition to a high-availability framework.</p>
             </div>
-            <div className="ug-content">
-              <div id="ug-overview" className={`ug-section${ugSection==="ug-overview"?" active":""}`}>
-                <div className="ug-eyebrow">Getting Started</div>
-                <div className="ug-title">Rosie AI Platform Overview</div>
-                <div className="ug-subtitle">Rosie AI is a multi-tenant AI lead intelligence platform. It discovers, enriches, qualifies, and contacts high-intent leads across multiple verticals — all from a single, unified dashboard.</div>
-                <div className="ug-cards">
-                  {[["🔍","Discovery Engine","Apify actors + permit scraping + social listening find leads before competitors"],["🧠","AI Intelligence","Groq + GPT-4o score intent, cluster personas, detect pain signals"],["⚡","Enrichment Waterfall","Apollo → Hunter → fallback chain ensures maximum email coverage"],["📤","Outreach Engine","SMS, email, AI voice, WhatsApp, Blue Bubble — all automated"],["📞","AI Voice Agents","$0.07/min all-in. Setup in 20 minutes. Inbound + outbound."],["🔐","Multi-Tenant Security","Supabase RLS enforces complete org data isolation at database level"]].map(([icon,title,desc])=>(
-                    <div key={title} className="ug-card"><div className="ug-card-icon">{icon}</div><div className="ug-card-title">{title}</div><div className="ug-card-desc">{desc}</div></div>
-                  ))}
+
+            <div className="slab reveal">Enterprise Infrastructure Roadmap — 6-Month Execution</div>
+
+            {/* Phase 1 */}
+            <div style={{marginBottom:28}} className="reveal">
+              <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:16}}>
+                <div style={{background:"linear-gradient(135deg,#8a6b28,#deba6a)",borderRadius:8,padding:"6px 14px",fontSize:11,fontWeight:700,color:"#070709",whiteSpace:"nowrap"}}>🗓️ Phase 1</div>
+                <div>
+                  <div style={{fontSize:15,fontWeight:700,color:"#f0ead8"}}>Foundation & Data Migration (Q2 2026)</div>
+                  <div style={{fontSize:11,color:"#5a5448"}}>Focus: Amazon S3 Integration & Infrastructure Hardening</div>
                 </div>
-                <div className="ug-callout"><p><strong>Stack:</strong> React 18 + Vite · Deno Deploy Edge Functions · Supabase PostgreSQL · TanStack Query · Tailwind CSS · Twilio · Apify · OpenAI / Groq / Anthropic / Gemini · Apollo.io · Hunter.io · Instantly.ai · SendGrid</p></div>
               </div>
-              <div id="ug-arch" className={`ug-section${ugSection==="ug-arch"?" active":""}`}>
-                <div className="ug-eyebrow">Technical Architecture</div>
-                <div className="ug-title">System Architecture</div>
-                <div className="ug-subtitle">Rosie AI uses a three-layer architecture: React frontend, Deno serverless backend, and Supabase PostgreSQL with RLS enforcement.</div>
-                <div className="flow-row"><span className="flow-step hl">React 18 Frontend</span><span className="flow-arr">→</span><span className="flow-step">REST API calls</span><span className="flow-arr">→</span><span className="flow-step hl">Deno Edge Functions</span><span className="flow-arr">→</span><span className="flow-step">Supabase RLS</span><span className="flow-arr">→</span><span className="flow-step hl">PostgreSQL</span></div>
-                <div className="flow-row"><span className="flow-step hl">Campaign Trigger</span><span className="flow-arr">→</span><span className="flow-step">jobQueueManager</span><span className="flow-arr">→</span><span className="flow-step">Priority Worker</span><span className="flow-arr">→</span><span className="flow-step hl">Apify Actor</span><span className="flow-arr">→</span><span className="flow-step">aiGateway</span><span className="flow-arr">→</span><span className="flow-step hl">Lead Created</span></div>
-                <div className="ug-callout"><p><strong>Org Isolation:</strong> Every query includes <code>organization_id</code>. The <code>set_org_context()</code> function sets per-session RLS context so the database itself enforces tenant boundaries. No cross-org data leakage is possible at the database level.</p></div>
-                <p style={{fontSize:12,color:"#9a9280",lineHeight:1.75}}><strong style={{color:"#e8e2d0"}}>136 entity types</strong> — all include <code>organization_id</code> index. <strong style={{color:"#e8e2d0"}}>262 backend functions</strong> — all authenticated via INTERNAL_SECRET bearer token + RLS session context.</p>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:12}}>
+                {[["📦","Amazon S3 Migration","Transitioning all unstructured data, call recordings, and document storage to AWS S3 with cross-region replication for absolute data durability."],["🗄️","Database Optimization","Implementing PostgreSQL read replicas and connection pooling via PgBouncer to handle the initial surge of concurrent organizations."],["🔐","Initial Security Sweep","Implementing encryption at rest and in transit across all S3 buckets and database instances."],["🔄","Integration Framework","Finalizing the REST and GraphQL API structures to prepare for native CRM syncing."]].map(([icon,title,desc])=>(
+                  <div key={title} style={{background:"#121218",border:"1px solid rgba(201,168,76,0.10)",borderRadius:10,padding:"14px 16px",display:"flex",gap:12}}>
+                    <div style={{fontSize:20,flexShrink:0}}>{icon}</div>
+                    <div><div style={{fontSize:12,fontWeight:700,color:"#e8e2d0",marginBottom:4}}>{title}</div><div style={{fontSize:11,color:"#9a9280",lineHeight:1.5}}>{desc}</div></div>
+                  </div>
+                ))}
               </div>
-              {/* Additional sections rendered inline */}
-              {[["ug-deploy","Deployment","Platform Deployment","Rosie AI runs on Base44 infrastructure with Deno Deploy for edge functions and Supabase for the database. Deployment is a 6-step process. Configure env vars → Apply RLS → Set Super Admin → Seed Global Data → Configure Twilio → Run First Campaign."],["ug-roles","Roles & Permissions","User Roles & Access Control","Six role levels: super_admin (platform owner), admin (full access), superuser (advanced discovery), retail (default signup), retail_sub (minimal access), agent (dialer + leads + contacts only). Roles control access to templates, discovery pipelines, and admin features via VisibilityRules."],["ug-dashboard","Dashboard","Platform Dashboard","The Dashboard displays real-time KPIs: active workers, queue depths, leads discovered today, AI spend. Includes a worker status panel and live pipeline visualization."],["ug-campaigns","Discovery Campaigns","Discovery Campaigns","Campaigns define what to discover, how to analyze it, and how to reach out. Create from templates (Solar Permit, Storm Discovery, YouTube Keyword) or from scratch via the Campaign Builder wizard."],["ug-workflows","Workflows","Automation Workflows","Workflows are visual automation pipelines triggered by events. Connect triggers to actions: Enrich Lead → Update Lead → Send Email → Initiate AI Call."],["ug-sms","SMS Campaigns","SMS Campaigns & Outreach","Full SMS CRM: compose and send to contacts, manage drip sequences, view conversations, track analytics. Supports SMS, WhatsApp, and Blue Bubble (iMessage) — no 10DLC required for WhatsApp/Blue Bubble."],["ug-email","Email Outreach","Email Outreach","Integrates with Instantly.ai for sequences and SendGrid for transactional sends. Configure SENDGRID_API_KEY and per-org Instantly.ai API keys in Settings → Integrations."],["ug-callmonitor","Call Monitor","AI Call Monitor","Real-time call log with transcript review, AI scoring, and caller ID lookup. Monitor live calls, review completed call transcripts, and track AI performance. Cost tracking at $0.07/minute all-in."],["ug-aiagent","AI Agent","AI Agent Configuration","Configure AI voice agents that handle inbound and outbound calls. Set agent personality, script, escalation rules, and knowledge base. Cost: $0.07/minute all-in — includes LLM inference, TTS, STT, and Twilio telephony."],["ug-permits","Permit Discovery","Solar Permit Discovery","Automated ingestion of solar permit data from 50+ city portals via Scrappy. Daily ingestion with Tracerfy enrichment for contact data. Solar Permit leads include address, owner name, phone, and email."],["ug-solar","Solar Results","Solar Detection & Results","Property Solar Scan uploads a CSV of addresses, runs satellite imagery analysis to detect existing solar installations, then removes properties with solar and flags the rest as qualified leads."],["ug-analytics","Analytics","Analytics & Reporting","Campaign performance metrics, lead flow visualization, outreach conversion rates, and cost-per-lead tracking. Data is scoped to the current organization."],["ug-integrations","Integrations","Third-Party Integrations","Apollo.io, Hunter.io, Instantly.ai, Twilio, SendGrid, Apify, Exa, Serper, and all major LLM providers. Upcoming: Salesforce, HubSpot, Pipedrive, Monday.com — scheduled for Q3 2026."],["ug-settings","Settings","Platform Settings","Organized into tabs: AI Models, AI Voice, Email, SMS & Dialer, Discovery (API keys), Enrichment, Alerts, Team, Advanced. All per-org settings stored in SystemSettings entity."],["ug-costs","Cost Panel","Cost Panel & Credit System","The Cost Panel shows real-time AI spend, enrichment costs, telephony usage, and API call counts. All costs are tracked per-org with configurable alerts and monthly budget caps."],["ug-featureflags","Feature Flags","Feature Flags","67+ flags organized across 10 functional categories. Control which features are enabled globally or per-org. Seed from Admin Panel → Developer Tools → Seed Feature Flags."],["ug-queuesystem","Queue System","Queue System","Priority-based job scheduler with dedicated worker processes for each pipeline stage. DLQ monitor, backpressure manager, stuck-job detector. Admin can pause, resume, drain, or flush individual queues."],["ug-aigateway","AI Gateway","AI Gateway","All AI requests flow through aiGateway. Handles: provider routing (Groq, OpenAI, Gemini, Anthropic), cost tracking, request deduplication & caching, budget enforcement with kill switch, retry logic, and audit logging."],["ug-onboarding","Org Onboarding","Organization Onboarding","New orgs are auto-seeded with feature flags, data sources, and documentation on creation via onboardNewOrg. Admin assigns plan, configures Twilio, and enables appropriate feature flags."]].map(([id,eyebrow,title,subtitle])=>(
-                <div key={id} id={id} className={`ug-section${ugSection===id?" active":""}`}>
-                  <div className="ug-eyebrow">{eyebrow}</div>
-                  <div className="ug-title">{title}</div>
-                  <div className="ug-subtitle">{subtitle}</div>
+            </div>
+
+            {/* Phase 2 */}
+            <div style={{marginBottom:28}} className="reveal">
+              <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:16}}>
+                <div style={{background:"linear-gradient(135deg,#14a058,#22c55e)",borderRadius:8,padding:"6px 14px",fontSize:11,fontWeight:700,color:"#070709",whiteSpace:"nowrap"}}>🗓️ Phase 2</div>
+                <div>
+                  <div style={{fontSize:15,fontWeight:700,color:"#f0ead8"}}>Resilience & Performance (Q3 2026)</div>
+                  <div style={{fontSize:11,color:"#5a5448"}}>Focus: 99.99% Uptime & Global Edge Deployment</div>
                 </div>
-              ))}
+              </div>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:12}}>
+                {[["📊","High Availability","Deploying active-active redundancy and automated health checks every 30 seconds to ensure the 'Four Nines' uptime standard."],["⚡","Hardware Scaling","Launching multi-region edge deployment and auto-scaling worker pools to maintain speed as the user base grows toward 10,000+."],["📉","Traffic Management","Integrating Redis clusters for global rate limiting and CDN caching to optimize real-time streaming performance."],["📋","Compliance Engine","Launching the automated consent management system and TCPA/GDPR audit trails for enterprise data governance."]].map(([icon,title,desc])=>(
+                  <div key={title} style={{background:"#121218",border:"1px solid rgba(34,197,94,0.15)",borderRadius:10,padding:"14px 16px",display:"flex",gap:12}}>
+                    <div style={{fontSize:20,flexShrink:0}}>{icon}</div>
+                    <div><div style={{fontSize:12,fontWeight:700,color:"#e8e2d0",marginBottom:4}}>{title}</div><div style={{fontSize:11,color:"#9a9280",lineHeight:1.5}}>{desc}</div></div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Phase 3 */}
+            <div style={{marginBottom:44}} className="reveal">
+              <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:16}}>
+                <div style={{background:"linear-gradient(135deg,#1a5fa0,#38bdf8)",borderRadius:8,padding:"6px 14px",fontSize:11,fontWeight:700,color:"#070709",whiteSpace:"nowrap"}}>🗓️ Phase 3</div>
+                <div>
+                  <div style={{fontSize:15,fontWeight:700,color:"#f0ead8"}}>Enterprise Maturity & Compliance (Q4 2026)</div>
+                  <div style={{fontSize:11,color:"#5a5448"}}>Focus: SOC 2 Completion & Deep Integrations</div>
+                </div>
+              </div>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:12}}>
+                {[["🛡️","SOC 2 Type II Roadmap","Finalizing the compliance framework, SIEM integration, and conducting the first official penetration testing program."],["🔌","Native CRM Ecosystem","Deploying bi-directional sync for Salesforce, HubSpot, and Pipedrive, allowing Rosie to sit at the center of the user's existing tech stack."],["⚖️","Governance & Audit","Finalizing enterprise DPA agreements and automated data retention policies to meet the standards of Fortune 500 legal teams."],["🛠️","Chaos Engineering","Implementing 'Circuit Breaker' patterns and automated rollback capabilities to ensure <5-minute incident response."]].map(([icon,title,desc])=>(
+                  <div key={title} style={{background:"#121218",border:"1px solid rgba(56,189,248,0.15)",borderRadius:10,padding:"14px 16px",display:"flex",gap:12}}>
+                    <div style={{fontSize:20,flexShrink:0}}>{icon}</div>
+                    <div><div style={{fontSize:12,fontWeight:700,color:"#e8e2d0",marginBottom:4}}>{title}</div><div style={{fontSize:11,color:"#9a9280",lineHeight:1.5}}>{desc}</div></div>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         </section>
-        <div className="footer"><div className="wrap"><p className="footer-disc">Documentation covers platform version 6.0 production build. Features may be updated as the platform evolves.</p><div className="footer-copy">© 2026 Rosie AI, LLC · Confidential</div></div></div>
+        <div className="footer"><div className="wrap"><p className="footer-disc">Roadmap timelines are projections and subject to change based on engineering priorities and capital deployment.</p><div className="footer-copy">© 2026 Rosie AI, LLC · Confidential</div></div></div>
       </div>
 
       {/* ══ LIVE CODEBASE EXPLORER ════════════════════════════════════════ */}
