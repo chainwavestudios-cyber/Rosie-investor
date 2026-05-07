@@ -23,12 +23,12 @@ const inp  = { width:'100%', background:'rgba(255,255,255,0.05)', border:'1px so
 const DG_WS_URL = 'wss://agent.deepgram.com/v1/agent/converse';
 
 const VOICE_MODELS = [
-  'aura-2-draco-en',
-  'aura-2-apollo-en',
-  'aura-2-odysseus-en',
-  'aura-2-arcas-en',
-  'aura-2-atlas-en',
-  'aura-2-jupiter-en',
+  'aura-2-theseus-en',
+  'aura-2-ares-en',
+  'aura-2-orion-en',
+  'aura-2-perseus-en',
+  'aura-2-angus-en',
+  'aura-2-helios-en',
 ];
 
 const BOB_NAMES = [
