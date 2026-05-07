@@ -1,0 +1,49 @@
+{
+  "name": "BobTrainingLog",
+  "type": "object",
+  "properties": {
+    "sessionLabel": {
+      "type": "string",
+      "title": "Session Label"
+    },
+    "eventType": {
+      "type": "string",
+      "title": "Event Type",
+      "enum": [
+        "session_start",
+        "session_end",
+        "transcript",
+        "portal_access",
+        "coach_tip",
+        "qa_answer",
+        "intent_update",
+        "appointment",
+        "disposition",
+        "mock_action"
+      ]
+    },
+    "content": {
+      "type": "string",
+      "title": "Content",
+      "format": "textarea"
+    },
+    "traineeUsername": {
+      "type": "string",
+      "title": "Trainee Username"
+    },
+    "time": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Event Time"
+    },
+    "createdAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Created At"
+    }
+  },
+  "required": [
+    "sessionLabel",
+    "eventType"
+  ]
+}
