@@ -426,7 +426,7 @@ function BobControls({ personas, onPersonasChange, dgApiKey, onDgKeyChange }) {
     const rows=await base44.entities.PortalSettings.filter({key:'global'}).catch(()=>[]);
     const row=rows?.[0];
     if(row?.id) await base44.entities.PortalSettings.update(row.id,{bobDeepgramApiKey:dgApiKey}).catch(()=>{});
-    setSaved(true);setTimeout(()=>setSaved(false),2000);
+    setSaved(true);setTimeout(()=>setSaved(false),4000);
   };
   const reset=(mode)=>{const d={duck:DEFAULT_DUCK,cow:DEFAULT_COW,owl:DEFAULT_OWL};setLocal(prev=>({...prev,[mode]:d[mode]}));};
   const cur=local[editMode];
@@ -466,7 +466,7 @@ function BobControls({ personas, onPersonasChange, dgApiKey, onDgKeyChange }) {
       </div>
       <div style={{display:'flex',gap:'10px',alignItems:'center'}}>
         <button onClick={save} style={{background:'linear-gradient(135deg,#b8933a,#d4aa50)',color:DARK,border:'none',borderRadius:'2px',padding:'12px 24px',cursor:'pointer',fontSize:'11px',fontWeight:'bold',letterSpacing:'1px',textTransform:'uppercase'}}>Save Changes</button>
-        {saved&&<span style={{color:'#4ade80',fontSize:'12px'}}>✓ Saved</span>}
+        {saved&&<span style={{color:'#4ade80',fontSize:'12px',background:'rgba(74,222,128,0.1)',border:'1px solid rgba(74,222,128,0.3)',borderRadius:'4px',padding:'6px 14px'}}>✓ All settings saved — Deepgram key stored</span>}
       </div>
     </div>
   );
