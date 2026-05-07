@@ -215,6 +215,55 @@
       "type": "string",
       "title": "Intent Sentiment Rules (JSON)",
       "format": "textarea"
+    },
+    "bobDeepgramApiKey": {
+      "type": "string",
+      "title": "BOB Deepgram API Key"
+    },
+    "bobDuckPrompt": {
+      "type": "string",
+      "title": "BOB Duck Persona System Prompt",
+      "format": "textarea"
+    },
+    "bobCowPrompt": {
+      "type": "string",
+      "title": "BOB Cow Persona System Prompt",
+      "format": "textarea"
+    },
+    "bobOwlPrompt": {
+      "type": "string",
+      "title": "BOB Owl Persona System Prompt",
+      "format": "textarea"
+    },
+    "bobDuckGreetings": {
+      "type": "string",
+      "title": "BOB Duck Greetings (JSON array)",
+      "format": "textarea"
+    },
+    "bobCowGreetings": {
+      "type": "string",
+      "title": "BOB Cow Greetings (JSON array)",
+      "format": "textarea"
+    },
+    "bobOwlGreetings": {
+      "type": "string",
+      "title": "BOB Owl Greetings (JSON array)",
+      "format": "textarea"
+    },
+    "bobDefaultSlider": {
+      "type": "number",
+      "title": "BOB Default Slider (0\u2013100)",
+      "default": 0
+    },
+    "bobDefaultIntensity": {
+      "type": "number",
+      "title": "BOB Default Intensity (1\u20135)",
+      "default": 3
+    },
+    "bobDefaultFocus": {
+      "type": "string",
+      "title": "BOB Default Focus Topic",
+      "default": "General"
     }
   },
   "required": [
