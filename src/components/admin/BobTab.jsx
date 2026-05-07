@@ -337,7 +337,7 @@ function BobControls({ personas, onPersonasChange, dgApiKey, onDgKeyChange }) {
       )}
       <div style={{background:'rgba(255,255,255,0.02)',border:'1px solid rgba(255,255,255,0.08)',borderRadius:'4px',padding:'20px'}}>
         <div style={{color:GOLD,fontSize:'11px',letterSpacing:'2px',textTransform:'uppercase',marginBottom:'12px'}}>Deepgram API Key (BOB)</div>
-        <input value={dgApiKey} onChange={e=>onDgKeyChange(e.target.value)} placeholder="Leave blank to use default key" style={{...inp,fontFamily:'monospace',fontSize:'12px'}} type="password"/>
+        <input value={dgApiKey} onChange={e=>{onDgKeyChange(e.target.value);savePortalSettings({bobDeepgramApiKey:e.target.value});}} placeholder="Leave blank to use default key" style={{...inp,fontFamily:'monospace',fontSize:'12px'}} type="password"/>
       </div>
       <div style={{display:'flex',gap:'10px',alignItems:'center'}}>
         <button onClick={save} style={{background:'linear-gradient(135deg,#b8933a,#d4aa50)',color:DARK,border:'none',borderRadius:'2px',padding:'12px 24px',cursor:'pointer',fontSize:'11px',fontWeight:'bold',letterSpacing:'1px',textTransform:'uppercase'}}>Save Changes</button>
