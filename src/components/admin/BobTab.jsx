@@ -420,14 +420,7 @@ function BobControls({ personas, onPersonasChange, dgApiKey, onDgKeyChange }) {
   const updateGreeting=(mode,idx,val)=>{const g=[...(local[mode].greetings||[])];g[idx]=val;update(mode,'greetings',g);};
   const addGreeting=(mode)=>update(mode,'greetings',[...(local[mode].greetings||[]),'']);
   const removeGreeting=(mode,idx)=>{const g=[...(local[mode].greetings||[])];g.splice(idx,1);update(mode,'greetings',g);};
-  const save=async()=>{
-    onPersonasChange(local);
-    // Persist dgApiKey to PortalSettings
-    const rows=await base44.entities.PortalSettings.filter({key:'global'}).catch(()=>[]);
-    const row=rows?.[0];
-    if(row?.id) await base44.entities.PortalSettings.update(row.id,{bobDeepgramApiKey:dgApiKey}).catch(()=>{});
-    setSaved(true);setTimeout(()=>setSaved(false),4000);
-  };
+  const save=()=>{onPersonasChange(local);setSaved(true);setTimeout(()=>setSaved(false),2000);};
   const reset=(mode)=>{const d={duck:DEFAULT_DUCK,cow:DEFAULT_COW,owl:DEFAULT_OWL};setLocal(prev=>({...prev,[mode]:d[mode]}));};
   const cur=local[editMode];
   return(
@@ -466,7 +459,7 @@ function BobControls({ personas, onPersonasChange, dgApiKey, onDgKeyChange }) {
       </div>
       <div style={{display:'flex',gap:'10px',alignItems:'center'}}>
         <button onClick={save} style={{background:'linear-gradient(135deg,#b8933a,#d4aa50)',color:DARK,border:'none',borderRadius:'2px',padding:'12px 24px',cursor:'pointer',fontSize:'11px',fontWeight:'bold',letterSpacing:'1px',textTransform:'uppercase'}}>Save Changes</button>
-        {saved&&<span style={{color:'#4ade80',fontSize:'12px',background:'rgba(74,222,128,0.1)',border:'1px solid rgba(74,222,128,0.3)',borderRadius:'4px',padding:'6px 14px'}}>✓ All settings saved — Deepgram key stored</span>}
+        {saved&&<span style={{color:'#4ade80',fontSize:'12px'}}>✓ Saved</span>}
       </div>
     </div>
   );
@@ -944,14 +937,7 @@ export default function BobTab() {
   const listeningRef = useRef(false);
   const ring = useRingTone();
 
-  useEffect(()=>{
-    base44.entities.KnowledgeBase.list('-created_date',500).then(all=>setKbEntries(all||[])).catch(()=>{});
-    // Load Deepgram API key from PortalSettings
-    base44.entities.PortalSettings.filter({key:'global'}).then(rows=>{
-      const s=rows?.[0];
-      if(s?.bobDeepgramApiKey) setDgApiKey(s.bobDeepgramApiKey);
-    }).catch(()=>{});
-  }, []);
+  useEffect(()=>{base44.entities.KnowledgeBase.list('-created_date',500).then(all=>setKbEntries(all||[])).catch(()=>{});}, []);
 
   const addLog = useCallback((entry)=>{setTrainingLogs(prev=>[...prev,{...entry,sessionId}]);},[sessionId]);
   const handleTranscriptEntry = useCallback((entry)=>{setTranscript(prev=>[...prev,entry]);},[]);
@@ -1046,21 +1032,36 @@ ${prevCtx}
     ring.play(async()=>{
       setRingPhase(false);setPhase('connecting');
       const apiKey=dgApiKey||'44294c0c2f0ebbcc81b853151056111226b853e9';
+      console.log('[BOB] Ring done — connecting to Deepgram. Key prefix:', apiKey.slice(0,8)+'...');
       let stream;
-      try{stream=await navigator.mediaDevices.getUserMedia({audio:true});micStreamRef.current=stream;}
-      catch{setError('Mic access denied.');setPhase('error');return;}
+      try{
+        stream=await navigator.mediaDevices.getUserMedia({audio:true});
+        micStreamRef.current=stream;
+        console.log('[BOB] Mic acquired ✓');
+      }
+      catch(micErr){
+        console.error('[BOB] Mic error:', micErr);
+        setError('Mic access denied — please allow microphone in browser settings.');
+        setPhase('error');
+        return;
+      }
       const ctx=new(window.AudioContext||window.webkitAudioContext)({sampleRate:24000});
       audioCtxRef.current=ctx;nextStartRef.current=0;
+      console.log('[BOB] Opening WebSocket to', DG_WS_URL);
       const ws=new WebSocket(DG_WS_URL,['token',apiKey]);
       ws.binaryType='arraybuffer';wsRef.current=ws;
+      ws.onopen=()=>console.log('[BOB] WebSocket open ✓ — waiting for Welcome message');
       ws.onmessage=(e)=>{
         if(e.data instanceof ArrayBuffer){setAgentSpeaking(true);playChunk(e.data);return;}
         try{
           const msg=JSON.parse(e.data);
           switch(msg.type){
-            case'Welcome':ws.send(JSON.stringify(buildSettings()));break;
+            case'Welcome':
+              console.log('[BOB] Got Welcome ✓ — sending Settings (model:', voiceModel, ')');
+              ws.send(JSON.stringify(buildSettings()));
+              break;
             case'SettingsApplied':{
-              setPhase('active');
+              console.log('[BOB] Settings applied ✓ — call is LIVE');
               const source=ctx.createMediaStreamSource(stream);
               const processor=ctx.createScriptProcessor(4096,1,1);
               processorRef.current=processor;
@@ -1087,7 +1088,34 @@ ${prevCtx}
           }
         }catch{}
       };
-      ws.onclose=()=>{setPhase('idle');ring.stop();cleanup(false);addLog({type:'session_end',content:`📵 ${label} ended.`,time:new Date().toISOString()});};
+      ws.onerror=(e)=>{
+        console.error('[BOB WS ERROR]', e);
+        const msg = 'WebSocket error — check console. Usually: bad API key, network blocked, or Deepgram account issue.';
+        setError(msg);
+        addLog({type:'session_end',content:`❌ WS Error: ${msg}`,time:new Date().toISOString()});
+      };
+      ws.onclose=(e)=>{
+        const reason = e.reason || '(no reason given)';
+        const detail = `code ${e.code} — ${reason}`;
+        console.warn('[BOB WS CLOSED]', detail);
+        // Translate common close codes
+        const codeMsg = {
+          1000: 'Normal close',
+          1001: 'Server going away',
+          1006: 'Abnormal close — connection dropped (network issue or bad API key)',
+          1008: 'Auth failed — check your Deepgram API key',
+          1011: 'Server error — invalid audio format or model name',
+          4000: 'Deepgram: invalid API key',
+          4001: 'Deepgram: unauthorized',
+          4002: 'Deepgram: insufficient credits',
+        }[e.code] || `Unknown close code ${e.code}`;
+        const logMsg = `📵 ${label} ended. ${codeMsg}. Reason: ${reason}`;
+        setError(e.code !== 1000 ? `Disconnected: ${codeMsg}` : '');
+        setPhase('idle');
+        ring.stop();
+        cleanup(false);
+        addLog({type:'session_end',content:logMsg,time:new Date().toISOString()});
+      };
     });
   },[callCount,transcript,addLog,dgApiKey,buildSettings,playChunk,ring,getActivePersona,focusTopic,handleTranscriptEntry]);
 
