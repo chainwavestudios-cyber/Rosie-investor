@@ -420,7 +420,14 @@ function BobControls({ personas, onPersonasChange, dgApiKey, onDgKeyChange }) {
   const updateGreeting=(mode,idx,val)=>{const g=[...(local[mode].greetings||[])];g[idx]=val;update(mode,'greetings',g);};
   const addGreeting=(mode)=>update(mode,'greetings',[...(local[mode].greetings||[]),'']);
   const removeGreeting=(mode,idx)=>{const g=[...(local[mode].greetings||[])];g.splice(idx,1);update(mode,'greetings',g);};
-  const save=()=>{onPersonasChange(local);setSaved(true);setTimeout(()=>setSaved(false),2000);};
+  const save=async()=>{
+    onPersonasChange(local);
+    // Persist dgApiKey to PortalSettings
+    const rows=await base44.entities.PortalSettings.filter({key:'global'}).catch(()=>[]);
+    const row=rows?.[0];
+    if(row?.id) await base44.entities.PortalSettings.update(row.id,{bobDeepgramApiKey:dgApiKey}).catch(()=>{});
+    setSaved(true);setTimeout(()=>setSaved(false),2000);
+  };
   const reset=(mode)=>{const d={duck:DEFAULT_DUCK,cow:DEFAULT_COW,owl:DEFAULT_OWL};setLocal(prev=>({...prev,[mode]:d[mode]}));};
   const cur=local[editMode];
   return(
@@ -937,7 +944,14 @@ export default function BobTab() {
   const listeningRef = useRef(false);
   const ring = useRingTone();
 
-  useEffect(()=>{base44.entities.KnowledgeBase.list('-created_date',500).then(all=>setKbEntries(all||[])).catch(()=>{});}, []);
+  useEffect(()=>{
+    base44.entities.KnowledgeBase.list('-created_date',500).then(all=>setKbEntries(all||[])).catch(()=>{});
+    // Load Deepgram API key from PortalSettings
+    base44.entities.PortalSettings.filter({key:'global'}).then(rows=>{
+      const s=rows?.[0];
+      if(s?.bobDeepgramApiKey) setDgApiKey(s.bobDeepgramApiKey);
+    }).catch(()=>{});
+  }, []);
 
   const addLog = useCallback((entry)=>{setTrainingLogs(prev=>[...prev,{...entry,sessionId}]);},[sessionId]);
   const handleTranscriptEntry = useCallback((entry)=>{setTranscript(prev=>[...prev,entry]);},[]);
