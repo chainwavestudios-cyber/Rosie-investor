@@ -959,7 +959,7 @@ export default function BobTab() {
     const sliderLabel=sliderValue<20?'full Duck mode':sliderValue<40?'Duck-leaning Owl':sliderValue<60?'pure Owl/Hybrid':sliderValue<80?'Cow-leaning Owl':'full Cow mode';
     const prevCtx=previousTranscript?.length>0?`\n\nPREVIOUS CALL CONTEXT — You remember this conversation:\n${previousTranscript.slice(-10).map(e=>`[${e.role.toUpperCase()}]: ${e.text}`).join('\n')}\nReference it naturally when the trainee calls back.`:'';
     const ap=getActivePersona();
-    return`${ap.systemPrompt}
+    const fullPrompt=`${ap.systemPrompt}
 
 ━━━ CURRENT SESSION SETTINGS ━━━
 - Persona Blend: ${sliderLabel} (slider ${sliderValue}/100 — 0=full Duck, 50=Owl, 100=full Cow)
@@ -984,6 +984,8 @@ ${prevCtx}
 - Never say you are an AI. Never break character.
 - Use natural speech: contractions, interruptions, "uh", "look", "listen", "I mean" — real people talk like this.
 - React to what the trainee actually says — improvise within your persona, don't just recite lines.`;
+    console.log(`[BOB] System prompt length: ${fullPrompt.length} chars`);
+    return fullPrompt.length > 23000 ? fullPrompt.slice(0, 23000) + '\n[...truncated]' : fullPrompt;
   },[sliderValue,intensity,focusTopic,kbEntries,bobData,getActivePersona,previousTranscript]);
 
   const buildSettings = useCallback(()=>{
@@ -1062,9 +1064,11 @@ ${prevCtx}
         try{
           const msg=JSON.parse(e.data);
           switch(msg.type){
-            case'Welcome':
+            case'Welcome':{
+              const settings=buildSettings();
               console.log('[BOB] Got Welcome ✓ — sending Settings (model:', voiceModel, ')');
-              ws.send(JSON.stringify(buildSettings()));
+              console.log('[BOB] Prompt length:', settings.agent?.think?.prompt?.length, 'chars');
+              ws.send(JSON.stringify(settings));
               break;
             case'SettingsApplied':{
               console.log('[BOB] Settings applied ✓ — call is LIVE');
