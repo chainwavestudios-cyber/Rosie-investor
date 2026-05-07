@@ -1,0 +1,75 @@
+{
+  "name": "BobCallback",
+  "type": "object",
+  "properties": {
+    "bobName": {
+      "type": "string",
+      "title": "Bob Name"
+    },
+    "bobCompany": {
+      "type": "string",
+      "title": "Bob Company"
+    },
+    "bobEmail": {
+      "type": "string",
+      "title": "Bob Email"
+    },
+    "bobPhone": {
+      "type": "string",
+      "title": "Bob Phone"
+    },
+    "bobAddress": {
+      "type": "string",
+      "title": "Bob Address"
+    },
+    "appointmentAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Appointment At"
+    },
+    "appointmentTitle": {
+      "type": "string",
+      "title": "Appointment Title"
+    },
+    "notes": {
+      "type": "string",
+      "title": "Notes"
+    },
+    "sessionId": {
+      "type": "string",
+      "title": "Session ID"
+    },
+    "previousTranscriptJson": {
+      "type": "string",
+      "title": "Previous Transcript (JSON)",
+      "format": "textarea"
+    },
+    "transcriptLineCount": {
+      "type": "number",
+      "title": "Transcript Line Count"
+    },
+    "status": {
+      "type": "string",
+      "title": "Status",
+      "enum": [
+        "pending",
+        "completed",
+        "cancelled"
+      ],
+      "default": "pending"
+    },
+    "createdAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Created At"
+    },
+    "resumedAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Resumed At"
+    }
+  },
+  "required": [
+    "bobName"
+  ]
+}
