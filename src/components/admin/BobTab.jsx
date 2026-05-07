@@ -1070,6 +1070,7 @@ ${prevCtx}
               console.log('[BOB] Prompt length:', settings.agent?.think?.prompt?.length, 'chars');
               ws.send(JSON.stringify(settings));
               break;
+            }
             case'SettingsApplied':{
               console.log('[BOB] Settings applied ✓ — call is LIVE');
               const source=ctx.createMediaStreamSource(stream);
