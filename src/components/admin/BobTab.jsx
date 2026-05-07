@@ -1003,9 +1003,9 @@ ${prevCtx}
       type:'Settings',
       audio:{input:{encoding:'linear16',sample_rate:24000},output:{encoding:'linear16',sample_rate:24000,container:'none'}},
       agent:{
-        listen:{provider:{type:'deepgram',version:'v1',model:'nova-3',language:'en-US'}},
+        listen:{provider:{type:'deepgram',version:'v1',model:'nova-2',language:'en-US'}},
         think:[{provider:{type:'open_ai',version:'v1',model:'gpt-4o-mini'},prompt:buildSystemPrompt()}],
-        speak:{provider:{type:'deepgram',version:'v1',model:voiceModel}},
+        speak:{provider:{type:'deepgram',version:'v1',model:'aura-asteria-en'}},
         greeting,
       },
     };
