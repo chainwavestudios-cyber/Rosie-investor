@@ -1004,7 +1004,7 @@ ${prevCtx}
       type:'Settings',
       audio:{input:{encoding:'linear16',sample_rate:24000},output:{encoding:'linear16',sample_rate:24000,container:'none'}},
       agent:{
-        listen:{provider:{type:'deepgram',model:'flux-general-en',version:'v2'}},
+        listen:{provider:{type:'deepgram',model:'nova-3',version:'v1'}},
         think:{provider:{type:'google',model:'gemini-2.5-flash'},prompt:buildSystemPrompt()},
         speak:{provider:{type:'deepgram',model:voiceModel}},
         greeting,
@@ -1070,7 +1070,6 @@ ${prevCtx}
               console.log('[BOB] Prompt length:', settings.agent?.think?.prompt?.length, 'chars');
               ws.send(JSON.stringify(settings));
               break;
-            }
             case'SettingsApplied':{
               console.log('[BOB] Settings applied ✓ — call is LIVE');
               const source=ctx.createMediaStreamSource(stream);
