@@ -1065,9 +1065,13 @@ ${prevCtx}
           switch(msg.type){
             case'Welcome':{
               const settings=buildSettings();
-              console.log('[BOB] Got Welcome ✓ — sending Settings (model:', voiceModel, ')');
-              console.log('[BOB] Prompt length:', settings.agent?.think?.[0]?.prompt?.length, 'chars');
-              ws.send(JSON.stringify(settings));
+              const preview={...settings,agent:{...settings.agent,think:settings.agent?.think?.map(t=>({...t,prompt:'['+t.prompt?.length+'chars]'}))}};
+              console.log('[BOB] Got Welcome ✓ — sending Settings:', JSON.stringify(preview));
+              try{
+                ws.send(JSON.stringify(settings));
+              }catch(sendErr){
+                console.error('[BOB] ws.send failed:', sendErr);
+              }
               break;
             }
             case'SettingsApplied':{
