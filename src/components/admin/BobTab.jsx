@@ -290,7 +290,7 @@ function BobKB() {
 }
 
 // ─── BOB Controls ─────────────────────────────────────────────────────────────
-function BobControls({ personas, onPersonasChange, dgApiKey, onDgKeyChange }) {
+function BobControls({ personas, onPersonasChange, dgApiKey, onDgKeyChange, sliderValue, intensity, focusTopic }) {
   const [editMode,setEditMode]=useState('duck');
   const [saved,setSaved]=useState(false);
   const [local,setLocal]=useState(personas);
@@ -299,8 +299,19 @@ function BobControls({ personas, onPersonasChange, dgApiKey, onDgKeyChange }) {
   const addGreeting=(mode)=>update(mode,'greetings',[...(local[mode].greetings||[]),'']);
   const removeGreeting=(mode,idx)=>{const g=[...(local[mode].greetings||[])];g.splice(idx,1);update(mode,'greetings',g);};
   const save=async()=>{
+    await savePortalSettings({
+      bobDeepgramApiKey: dgApiKey,
+      bobDuckPrompt: local.duck.systemPrompt,
+      bobCowPrompt: local.cow.systemPrompt,
+      bobOwlPrompt: local.owl.systemPrompt,
+      bobDuckGreetings: JSON.stringify(local.duck.greetings),
+      bobCowGreetings: JSON.stringify(local.cow.greetings),
+      bobOwlGreetings: JSON.stringify(local.owl.greetings),
+      bobDefaultSlider: sliderValue,
+      bobDefaultIntensity: intensity,
+      bobDefaultFocus: focusTopic,
+    });
     onPersonasChange(local);
-    await savePortalSettings({ bobDeepgramApiKey: dgApiKey });
     setSaved(true);setTimeout(()=>setSaved(false),2000);
   };
   const reset=(mode)=>{const d={duck:DEFAULT_DUCK,cow:DEFAULT_COW,owl:DEFAULT_OWL};setLocal(prev=>({...prev,[mode]:d[mode]}));};
@@ -818,11 +829,32 @@ export default function BobTab() {
   const listeningRef = useRef(false);
   const ring = useRingTone();
 
-  useEffect(()=>{base44.entities.KnowledgeBase.list('-created_date',500).then(all=>setKbEntries(all||[])).catch(()=>{});}, []);
+  useEffect(()=>{
+    base44.entities.KnowledgeBase.list('-created_date',500).then(all=>setKbEntries(all||[])).catch(()=>{});
+    // Load persisted callbacks from DB
+    base44.entities.BobCallback.list('-created_date',50).then(rows=>{
+      if(rows?.length) setCallbacks(rows.map(r=>({
+        name:r.bobName, company:r.bobCompany, email:r.bobEmail, phone:r.bobPhone, address:r.bobAddress,
+        appointmentAt:r.appointmentAt, notes:r.notes, sessionId:r.sessionId,
+        transcriptLength:r.transcriptLineCount||0,
+        previousTranscript:r.previousTranscriptJson?JSON.parse(r.previousTranscriptJson):[],
+        dbId:r.id,
+      })));
+    }).catch(()=>{});
+  }, []);
 
   useEffect(()=>{
     loadPortalSettings().then(cfg=>{
       if(cfg.bobDeepgramApiKey) setDgApiKey(cfg.bobDeepgramApiKey);
+      if(cfg.bobDuckPrompt) setPersonas(prev=>({
+        ...prev,
+        duck:{...prev.duck,systemPrompt:cfg.bobDuckPrompt,greetings:(cfg.bobDuckGreetings?JSON.parse(cfg.bobDuckGreetings):[])||prev.duck.greetings},
+        cow: {...prev.cow, systemPrompt:cfg.bobCowPrompt,  greetings:(cfg.bobCowGreetings ?JSON.parse(cfg.bobCowGreetings) :[])||prev.cow.greetings},
+        owl: {...prev.owl, systemPrompt:cfg.bobOwlPrompt,  greetings:(cfg.bobOwlGreetings ?JSON.parse(cfg.bobOwlGreetings) :[])||prev.owl.greetings},
+      }));
+      if(cfg.bobDefaultSlider    !== undefined) setSliderValue(cfg.bobDefaultSlider);
+      if(cfg.bobDefaultIntensity !== undefined) setIntensity(cfg.bobDefaultIntensity);
+      if(cfg.bobDefaultFocus)    setFocusTopic(cfg.bobDefaultFocus);
     });
   }, []);
 
@@ -945,7 +977,18 @@ export default function BobTab() {
   const hangup=useCallback(()=>{cleanup(true);},[cleanup]);
 
   const handleBookCallback=useCallback((data)=>{
-    setCallbacks(prev=>[...prev,{...data,transcriptLength:transcript.length,previousTranscript:transcript}]);
+    const entry={...data,transcriptLength:transcript.length,previousTranscript:transcript};
+    setCallbacks(prev=>[...prev,entry]);
+    // Persist to DB
+    base44.entities.BobCallback.create({
+      bobName:data.name, bobCompany:data.company, bobEmail:data.email,
+      bobPhone:data.phone, bobAddress:data.address,
+      appointmentAt:data.appointmentAt, appointmentTitle:data.title,
+      notes:data.notes, sessionId:data.sessionId,
+      previousTranscriptJson:JSON.stringify(transcript),
+      transcriptLineCount:transcript.length,
+      status:'pending', createdAt:new Date().toISOString(),
+    }).catch(()=>{});
   },[transcript]);
 
   const handleResumeCallback=useCallback((cb)=>{
@@ -1007,7 +1050,7 @@ export default function BobTab() {
       {section==='callbacks'&&<CallbacksTab callbacks={callbacks} onResume={handleResumeCallback}/>}
       {section==='log'&&<TrainingLog logs={trainingLogs} onClear={()=>{if(window.confirm('Clear all logs?'))setTrainingLogs([]);}}/>}
       {section==='kb'&&<BobKB/>}
-      {section==='controls'&&<BobControls personas={personas} onPersonasChange={setPersonas} dgApiKey={dgApiKey} onDgKeyChange={setDgApiKey}/>}
+      {section==='controls'&&<BobControls personas={personas} onPersonasChange={setPersonas} dgApiKey={dgApiKey} onDgKeyChange={setDgApiKey} sliderValue={sliderValue} intensity={intensity} focusTopic={focusTopic}/>}
     </div>
   );
 }
