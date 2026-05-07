@@ -1,0 +1,73 @@
+{
+  "name": "BobSession",
+  "type": "object",
+  "properties": {
+    "sessionLabel": {
+      "type": "string",
+      "title": "Session Label"
+    },
+    "bobName": {
+      "type": "string",
+      "title": "Bob Persona Name"
+    },
+    "bobCompany": {
+      "type": "string",
+      "title": "Bob Company"
+    },
+    "personaBlend": {
+      "type": "string",
+      "title": "Persona Blend"
+    },
+    "sliderValue": {
+      "type": "number",
+      "title": "Slider Value (0\u2013100)"
+    },
+    "intensity": {
+      "type": "number",
+      "title": "Intensity (1\u20135)"
+    },
+    "focusTopic": {
+      "type": "string",
+      "title": "Focus Topic"
+    },
+    "voiceModel": {
+      "type": "string",
+      "title": "Voice Model"
+    },
+    "transcriptJson": {
+      "type": "string",
+      "title": "Transcript (JSON)",
+      "format": "textarea"
+    },
+    "transcriptLineCount": {
+      "type": "number",
+      "title": "Transcript Line Count"
+    },
+    "durationSeconds": {
+      "type": "number",
+      "title": "Duration (seconds)"
+    },
+    "appointmentBooked": {
+      "type": "boolean",
+      "title": "Appointment Booked",
+      "default": false
+    },
+    "appointmentAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Appointment At"
+    },
+    "createdAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Session Started At"
+    },
+    "traineeUsername": {
+      "type": "string",
+      "title": "Trainee Username"
+    }
+  },
+  "required": [
+    "sessionLabel"
+  ]
+}
