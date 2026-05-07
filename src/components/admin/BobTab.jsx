@@ -1004,7 +1004,7 @@ ${prevCtx}
       audio:{input:{encoding:'linear16',sample_rate:24000},output:{encoding:'linear16',sample_rate:24000,container:'none'}},
       agent:{
         listen:{provider:{type:'deepgram',version:'v1',model:'nova-3',language:'en-US'}},
-        think:[{provider:{type:'google',version:'v1',model:'gemini-2.5-flash'},prompt:buildSystemPrompt()}],
+        think:[{provider:{type:'open_ai',version:'v1',model:'gpt-4o-mini'},prompt:buildSystemPrompt()}],
         speak:{provider:{type:'deepgram',version:'v1',model:voiceModel}},
         greeting,
       },
