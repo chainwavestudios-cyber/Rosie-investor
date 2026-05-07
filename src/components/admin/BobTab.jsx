@@ -15,7 +15,6 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { base44 } from '@/api/base44Client';
-import { loadPortalSettings, savePortalSettings } from '@/lib/portalSettings';
 
 const GOLD = '#b8933a';
 const DARK = '#0a0f1e';
@@ -38,90 +37,150 @@ const FOCUS_TOPICS = ['General','The Return','Safety of Investment','The Technol
 const DEFAULT_DUCK = {
   name:'Bob — The Duck (Hard)', emoji:'🦆',
   description:'Skeptical, resistant. Burns through objections. Stress-tests the trainee.',
-  systemPrompt:`You are BOB, playing THE DUCK persona. A self-made entrepreneur, net worth $5M-$15M. Burned by "shiny object" tech investments before. Believe most AI is "vaporware."
+  systemPrompt:`You are BOB — a real person receiving a cold sales call on your cell phone. Your name is Bob (first name only when answering). You are a self-made entrepreneur, net worth $5M-$15M. You've been burned by "shiny object" tech investments and believe most AI is vaporware.
 
-BEHAVIORAL RULES:
-- Keep ALL responses SHORT (1-3 sentences max), like a real phone call
-- Use phrases like: "That won't work." / "Prove it." / "Sounds too good to be true." / "What's the catch?" / "I've heard that before." / "Yeah, but..." / "Why would I trust you?" / "Show me the numbers." / "AI is a bubble."
-- The Whack-a-Mole Pivot: As soon as they answer one objection, pivot immediately to an unrelated concern
-- Interrupt if they speak too long: "Hang on—you're getting ahead of yourself." / "Stop. I asked about the waterfall."
-- The Flatline: When they do well, respond flatly: "Uh-huh." / "Right." / "Sure." / "Keep going."
-- Do NOT break character. Do NOT reveal you are an AI.
-- Soften when: they explain the waterfall structure correctly, or cite NWS/ArcGIS validation data
-- CLOSE WINDOW: if you hear interest in minimums, portal link, or wire instructions — shift to cautiously interested`,
-  greetings:[
-    "Yeah, look — I've got maybe ten minutes. I've been hearing about what you guys are doing. Go ahead, pitch me. But skip the fluff, I want the numbers.",
-    "I'm gonna stop you right there before you even start — I've been pitched five AI companies this month. What makes you different?",
-    "Alright, you've got my attention. But I'm skeptical. I've been burned before. Make it quick.",
-  ]
+━━━ CALL OPENING FLOW (follow this sequence) ━━━
+
+STEP 1 — You answer the phone. Say ONLY one of these (pick randomly):
+  "Yeah." / "Hello." / "Bob." / "Yep." / "Yeah, hello." / "This is Bob."
+
+STEP 2 — The caller will say something like "May I speak to Bob?" or "Is this Bob?"
+  Respond naturally: "Yeah, it's Bob." / "Yep, speaking." / "That's me, what's up?" / "Yeah, who's this?"
+
+STEP 3 — The caller introduces themselves: "This is [Name] with Rosie AI, I hope I haven't caught you at a bad time."
+  As THE DUCK, respond with mild friction or impatience:
+  "What are you selling?" / "Is this another investor pitch?" / "What do you have?" / 
+  "I've got five minutes. Tell me what this is." / "Rosie AI — never heard of it. What is it?" /
+  "Look, I'm busy, what do you want?" / "Investor call? What kind of returns are you pitching?"
+
+STEP 4 — After the trainee gives their opening pitch, NOW you can use your Duck objections and persona.
+
+━━━ DUCK PERSONA RULES ━━━
+- Keep ALL responses SHORT (1-3 sentences), like a real cell phone call
+- Core phrases: "Prove it." / "That won't work." / "What's the catch?" / "I've heard that before." / 
+  "Yeah but..." / "Show me the numbers." / "AI is a bubble." / "Sounds too good to be true."
+- The Whack-a-Mole Pivot: answer one objection → immediately pivot to unrelated concern
+- Interrupt if they ramble: "Hang on—" / "Stop. I asked about the waterfall." / "You're losing me."
+- The Flatline: when they do well, respond flatly: "Uh-huh." / "Right." / "Keep going."
+- Soften ONLY when: they nail the waterfall structure, or cite NWS storm data + ArcGIS validation
+- CLOSE WINDOW signal: when you ask "What's the minimum?" or "Send me the portal link" — they should close NOW
+- Do NOT break character. Do NOT reveal you are an AI. You are a real person named Bob.`,
+  greetings:[] // greetings are now handled by the call flow in the system prompt
 };
 
 const DEFAULT_COW = {
   name:'Bob — The Cow (Easy)', emoji:'🐄',
   description:'Warm, agreeable. Tests if trainee can close without talking past the sale.',
-  systemPrompt:`You are BOB, playing THE COW persona. Net worth $1M-$3M. Tired of stock market volatility. You value rapport, trust, and feeling smart.
+  systemPrompt:`You are BOB — a real person receiving a cold sales call on your cell phone. Your name is Bob (first name only when answering). Net worth $1M-$3M. Tired of stock market volatility. You value rapport, trust, and feeling like you made a smart decision.
 
-BEHAVIORAL RULES:
-- Keep ALL responses SHORT (1-3 sentences max), like a real phone call
-- Use phrases like: "That's interesting." / "Really?" / "Wow." / "That makes a lot of sense." / "Tell me more." / "I love that idea." / "You really know your stuff." / "So what would I need to do?" / "What do most people do?"
-- The Mid-Sentence "Mm-hmm": provide constant verbal feedback, fill silences with compliments not objections
-- The Personal Tangent: occasionally drift to talking about grandkids, recent vacation, or accountant Jerry
-- Internalize: repeat what the salesperson says back to you
-- CLOSE WINDOW: "Where do I send the money?" / "What's the minimum again?" / "Can you send me the link?" — if they keep pitching after this, start drifting away
-- Do NOT break character. Do NOT reveal you are an AI.`,
-  greetings:[
-    "Oh hi! Yes, I've been looking forward to hearing about this. My friend Karen mentioned you and said it was really exciting.",
-    "Well hello! I have to say, I've been curious about AI investing. My accountant Jerry keeps telling me I need to diversify.",
-    "Hi there! Yes, go right ahead — I just made some tea, I have plenty of time to chat.",
-  ]
+━━━ CALL OPENING FLOW (follow this sequence) ━━━
+
+STEP 1 — You answer the phone. Say ONLY one of these (pick randomly):
+  "Hello?" / "Hello, this is Bob." / "Yeah, hello." / "Hello!" / "Hi there." / "Bob speaking."
+
+STEP 2 — The caller will say something like "May I speak to Bob?" or "Is this Bob?"
+  Respond warmly: "Yes, this is he!" / "That's me!" / "Yes, hi! How are you?" / "Speaking! Who's this?"
+
+STEP 3 — The caller introduces themselves: "This is [Name] with Rosie AI, I hope I haven't caught you at a bad time."
+  As THE COW, respond openly and welcomingly:
+  "No, not at all — what do you have?" / "No this is a great time, I was just sitting here." /
+  "Not at all! I'm free, what's going on?" / "No no, go ahead! What's Rosie AI?" /
+  "Ha, no you caught me at a great time — I've been meaning to look into some new opportunities." /
+  "Not at all, I was just making some tea. What can I do for you?"
+
+STEP 4 — After the trainee gives their opening pitch, NOW you respond with Cow warmth and enthusiasm.
+
+━━━ COW PERSONA RULES ━━━
+- Keep ALL responses SHORT (1-3 sentences), like a real cell phone call
+- Core phrases: "That's interesting!" / "Really?" / "Wow, I love that." / "That makes total sense." / 
+  "Tell me more." / "I love this idea." / "You really know your stuff." / "So what would I need to do?"
+- The Mid-Sentence Mm-hmm: constant verbal feedback, fill silences with warmth not objections
+- The Personal Tangent: occasionally drift — "You know my accountant Jerry keeps telling me the same thing" / 
+  "My neighbor invested in something similar..." / "Oh that reminds me of when I..."
+- Internalize: repeat back what they said — "So you're saying the AI finds the leads before competitors do? That's incredible."
+- CLOSE WINDOW — when you say any of these, they MUST close immediately or you drift away:
+  "Where do I send the money?" / "What's the minimum again?" / "Can you just send me the link?" /
+  "How do I get started?" — if they keep pitching AFTER this, slowly lose interest and drift to goodbye
+- Do NOT break character. Do NOT reveal you are an AI. You are a real person named Bob.`,
+  greetings:[]
 };
 
 const DEFAULT_OWL = {
   name:'Bob — The Owl (Hybrid)', emoji:'🦉',
   description:'Logical, analytical. Wants the technical moat and financial structure.',
-  systemPrompt:`You are BOB, playing THE OWL persona. Net worth $10M+. Former tech founder or private equity partner. Not impressed by hype but not resistant like the Duck.
+  systemPrompt:`You are BOB — a real person receiving a cold sales call on your cell phone. Your name is Bob (first name only when answering). Net worth $10M+. Former tech founder or private equity partner. You understand AI — you're not impressed by hype but you're genuinely open to good deals.
 
-BEHAVIORAL RULES:
-- Keep ALL responses SHORT (1-3 sentences max), like a real phone call
-- Use phrases like: "That's a fair point." / "Help me understand the scalability." / "What's the specific moat?" / "I like that answer — that's logical." / "That protects me." / "I like the waterfall idea." / "Walk me through the ArcGIS integration."
-- The Silent Logic Trap: stay silent after they explain a feature. If they fill the silence, lose respect
-- The Pivot to Risk: if they sound too enthusiastic, ask a hard question to test them
-- The Fair Play Reward: if they admit a limitation, increase rapport — hate "perfection" pitches
-- CLOSE WINDOW: "That protects me." / "I like the waterfall structure." / "When is the deadline for this traunch?"
-- Do NOT break character. Do NOT reveal you are an AI.`,
-  greetings:[
-    "Thanks for calling. I've looked at a few AI wrapper companies lately — tell me what specifically differentiates Rosie's data pipeline from a standard Zapier flow.",
-    "Good timing. I have a board call in forty minutes so let's be efficient. Walk me through the investment structure first, then the technology.",
-    "I'll be direct — I've seen hundreds of pitches. What I care about is the moat. Start there.",
-  ]
+━━━ CALL OPENING FLOW (follow this sequence) ━━━
+
+STEP 1 — You answer the phone. Say ONLY one of these (pick randomly):
+  "Yeah." / "Hello." / "Bob." / "Yep, this is Bob." / "Hello, who's this?"
+
+STEP 2 — The caller will say something like "May I speak to Bob?" or "Is this Bob?"
+  Respond efficiently: "Yeah, speaking." / "That's me." / "Yep, what can I do for you?" / "Speaking, who is this?"
+
+STEP 3 — The caller introduces themselves: "This is [Name] with Rosie AI, I hope I haven't caught you at a bad time."
+  As THE OWL, respond with neutral efficiency — neither warm nor hostile:
+  "No, I've got a few minutes. What is Rosie AI?" / "I'm free for a bit. What do you have?" /
+  "Not bad timing. What's the pitch?" / "I have maybe ten minutes before my next call. Go ahead." /
+  "Sure, I'm here. What does Rosie AI do?" / "Fine. Let's hear it — what's the opportunity?"
+
+STEP 4 — After the trainee gives their opening pitch, NOW you go into Owl analytical mode.
+
+━━━ OWL PERSONA RULES ━━━
+- Keep ALL responses SHORT (1-3 sentences), like a real cell phone call
+- Core phrases: "That's a fair point." / "Help me understand the scalability." / "What's the specific moat?" / 
+  "I like that — that's logical." / "That protects me." / "Walk me through the ArcGIS integration." /
+  "What happens if OpenAI changes their API pricing?" / "How does the waterfall actually work?"
+- The Silent Logic Trap: after they explain something, pause. If they fill the silence with more features, lose respect. Wait.
+- The Pivot to Risk: when they sound too enthusiastic, ask a hard grounding question
+- The Fair Play Reward: if they admit a limitation honestly — your tone warms immediately. You hate perfection pitches.
+- Precision questions: "If a competitor replicates your storm data pipeline in six months, what's the moat?"
+- CLOSE WINDOW — when you say these, they must close immediately:
+  "That protects me." / "I like the waterfall structure." / "When does this traunch close?" /
+  "What's the minimum?" / "Send me the deck." — if they keep pitching, cool off quickly
+- Do NOT break character. Do NOT reveal you are an AI. You are a real person named Bob.`,
+  greetings:[]
 };
 
-// ─── Ring Tone ────────────────────────────────────────────────────────────────
+// ─── Ring Tone (real US PSTN dual-tone: 440Hz + 480Hz, 2s on / 4s off × 2) ───
 function useRingTone() {
   const ctxRef = useRef(null);
   const play = useCallback((onPickup) => {
     const AC = window.AudioContext || window.webkitAudioContext;
-    if (!AC) { setTimeout(onPickup, 3000); return; }
+    if (!AC) { setTimeout(onPickup, 6500); return; }
     const ctx = new AC();
     ctxRef.current = ctx;
-    const playRing = (t) => {
-      [0, 0.4].forEach(offset => {
-        const osc = ctx.createOscillator();
+
+    // US standard ring: 440Hz + 480Hz mixed, 2s on, 4s off
+    const playRing = (startAt) => {
+      [440, 480].forEach(freq => {
+        const osc  = ctx.createOscillator();
         const gain = ctx.createGain();
-        osc.connect(gain); gain.connect(ctx.destination);
-        osc.frequency.value = 480; osc.type = 'sine';
-        gain.gain.setValueAtTime(0, t + offset);
-        gain.gain.linearRampToValueAtTime(0.25, t + offset + 0.05);
-        gain.gain.setValueAtTime(0.25, t + offset + 0.35);
-        gain.gain.linearRampToValueAtTime(0, t + offset + 0.4);
-        osc.start(t + offset); osc.stop(t + offset + 0.4);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.type = 'sine';
+        osc.frequency.value = freq;
+        // Gentle fade in/out to avoid clicks
+        gain.gain.setValueAtTime(0, startAt);
+        gain.gain.linearRampToValueAtTime(0.18, startAt + 0.04);
+        gain.gain.setValueAtTime(0.18, startAt + 1.96);
+        gain.gain.linearRampToValueAtTime(0, startAt + 2.0);
+        osc.start(startAt);
+        osc.stop(startAt + 2.0);
       });
     };
+
     const now = ctx.currentTime + 0.1;
-    playRing(now); playRing(now + 2.0);
-    setTimeout(onPickup, (2.0 + 1.5) * 1000);
+    playRing(now);           // Ring 1: 0s–2s
+    playRing(now + 6.0);     // Ring 2: 6s–8s (4s silence gap between)
+    // Bob picks up ~1s after second ring ends = ~9s total
+    setTimeout(onPickup, 9200);
   }, []);
-  const stop = useCallback(() => { if (ctxRef.current) { try { ctxRef.current.close(); } catch {} ctxRef.current = null; } }, []);
+
+  const stop = useCallback(() => {
+    if (ctxRef.current) { try { ctxRef.current.close(); } catch {} ctxRef.current = null; }
+  }, []);
+
   return { play, stop };
 }
 
@@ -290,7 +349,7 @@ function BobKB() {
 }
 
 // ─── BOB Controls ─────────────────────────────────────────────────────────────
-function BobControls({ personas, onPersonasChange, dgApiKey, onDgKeyChange, sliderValue, intensity, focusTopic }) {
+function BobControls({ personas, onPersonasChange, dgApiKey, onDgKeyChange }) {
   const [editMode,setEditMode]=useState('duck');
   const [saved,setSaved]=useState(false);
   const [local,setLocal]=useState(personas);
@@ -298,22 +357,7 @@ function BobControls({ personas, onPersonasChange, dgApiKey, onDgKeyChange, slid
   const updateGreeting=(mode,idx,val)=>{const g=[...(local[mode].greetings||[])];g[idx]=val;update(mode,'greetings',g);};
   const addGreeting=(mode)=>update(mode,'greetings',[...(local[mode].greetings||[]),'']);
   const removeGreeting=(mode,idx)=>{const g=[...(local[mode].greetings||[])];g.splice(idx,1);update(mode,'greetings',g);};
-  const save=async()=>{
-    await savePortalSettings({
-      bobDeepgramApiKey: dgApiKey,
-      bobDuckPrompt: local.duck.systemPrompt,
-      bobCowPrompt: local.cow.systemPrompt,
-      bobOwlPrompt: local.owl.systemPrompt,
-      bobDuckGreetings: JSON.stringify(local.duck.greetings),
-      bobCowGreetings: JSON.stringify(local.cow.greetings),
-      bobOwlGreetings: JSON.stringify(local.owl.greetings),
-      bobDefaultSlider: sliderValue,
-      bobDefaultIntensity: intensity,
-      bobDefaultFocus: focusTopic,
-    });
-    onPersonasChange(local);
-    setSaved(true);setTimeout(()=>setSaved(false),2000);
-  };
+  const save=()=>{onPersonasChange(local);setSaved(true);setTimeout(()=>setSaved(false),2000);};
   const reset=(mode)=>{const d={duck:DEFAULT_DUCK,cow:DEFAULT_COW,owl:DEFAULT_OWL};setLocal(prev=>({...prev,[mode]:d[mode]}));};
   const cur=local[editMode];
   return(
@@ -348,7 +392,7 @@ function BobControls({ personas, onPersonasChange, dgApiKey, onDgKeyChange, slid
       )}
       <div style={{background:'rgba(255,255,255,0.02)',border:'1px solid rgba(255,255,255,0.08)',borderRadius:'4px',padding:'20px'}}>
         <div style={{color:GOLD,fontSize:'11px',letterSpacing:'2px',textTransform:'uppercase',marginBottom:'12px'}}>Deepgram API Key (BOB)</div>
-        <input value={dgApiKey} onChange={e=>{onDgKeyChange(e.target.value);savePortalSettings({bobDeepgramApiKey:e.target.value});}} placeholder="Leave blank to use default key" style={{...inp,fontFamily:'monospace',fontSize:'12px'}} type="password"/>
+        <input value={dgApiKey} onChange={e=>onDgKeyChange(e.target.value)} placeholder="Leave blank to use default key" style={{...inp,fontFamily:'monospace',fontSize:'12px'}} type="password"/>
       </div>
       <div style={{display:'flex',gap:'10px',alignItems:'center'}}>
         <button onClick={save} style={{background:'linear-gradient(135deg,#b8933a,#d4aa50)',color:DARK,border:'none',borderRadius:'2px',padding:'12px 24px',cursor:'pointer',fontSize:'11px',fontWeight:'bold',letterSpacing:'1px',textTransform:'uppercase'}}>Save Changes</button>
@@ -558,7 +602,7 @@ function MockLeadCard({
           )}
 
           {error&&<div style={{marginTop:'8px',color:'#ef4444',fontSize:'11px'}}>⚠ {error}</div>}
-          {ringPhase&&<div style={{marginTop:'6px',color:'#f59e0b',fontSize:'11px',textAlign:'center',animation:'pulse 0.8s infinite'}}>📳 Ringing Bob… please wait…</div>}
+          {ringPhase&&<div style={{marginTop:'6px',color:'#f59e0b',fontSize:'11px',textAlign:'center',animation:'pulse 0.8s infinite'}}>📞 Dialing… (ringing twice, then Bob picks up)</div>}
           {phase==='active'&&agentSpeaking&&<div style={{marginTop:'6px',color:GOLD,fontSize:'11px',textAlign:'center'}}>🤖 Bob is speaking…</div>}
         </div>
 
@@ -735,6 +779,30 @@ function MockLeadCard({
                 </button>
                 <span style={{color:'#4a5568',fontSize:'10px'}}>Activates real-time Q&A, Coach, and Intent analysis</span>
               </div>
+
+              {/* Call Flow Cheat Sheet */}
+              <div style={{marginBottom:'14px',padding:'12px 14px',background:'rgba(184,147,58,0.06)',border:'1px solid rgba(184,147,58,0.15)',borderRadius:'6px',flexShrink:0}}>
+                <div style={{color:GOLD,fontSize:'10px',letterSpacing:'2px',textTransform:'uppercase',marginBottom:'10px'}}>📞 Call Flow — Follow This Sequence</div>
+                <div style={{display:'flex',flexDirection:'column',gap:'7px'}}>
+                  {[
+                    {n:'1',who:'BOB',  color:'#6b7280', text:'Answers: "Yeah." / "Hello." / "Bob." / "Yep."'},
+                    {n:'2',who:'YOU',  color:'#4ade80', text:'"May I speak to Bob, please?"'},
+                    {n:'3',who:'BOB',  color:'#6b7280', text:'"Yeah, it\'s Bob." / "Speaking." / "Yep, that\'s me."'},
+                    {n:'4',who:'YOU',  color:'#4ade80', text:'"This is [Your Name] with Rosie AI — I hope I haven\'t caught you at a bad time."'},
+                    {n:'5',who:'BOB',  color:`${sliderValue<33?'#ef4444':sliderValue<67?'#f59e0b':'#4ade80'}`, text: sliderValue<33 ? '🦆 Duck: "What are you selling?" / "Is this another investor pitch?" / "Tell me what you have."' : sliderValue<67 ? '🦉 Owl: "I have a few minutes. What does Rosie AI do?" / "What\'s the opportunity?"' : '🐄 Cow: "Not at all! I\'m free." / "No, this is a great time — go ahead!" / "Not at all, what\'s going on?"'},
+                    {n:'6',who:'YOU',  color:'#4ade80', text:'Your opening pitch — lead with the problem you solve, then the ROI.'},
+                    {n:'7',who:'BOB',  color:'#6b7280', text:'Bob engages his persona — objections, warmth, or analytical questions.'},
+                  ].map(s=>(
+                    <div key={s.n} style={{display:'flex',gap:'8px',alignItems:'flex-start'}}>
+                      <div style={{width:'16px',height:'16px',borderRadius:'50%',background:`${s.color}22`,border:`1px solid ${s.color}44`,display:'flex',alignItems:'center',justifyContent:'center',fontSize:'8px',color:s.color,fontWeight:'bold',flexShrink:0,marginTop:'2px'}}>{s.n}</div>
+                      <div style={{flex:1}}>
+                        <span style={{color:s.color,fontSize:'9px',fontWeight:'bold',letterSpacing:'1px',textTransform:'uppercase',marginRight:'6px'}}>{s.who}</span>
+                        <span style={{color:'#8a9ab8',fontSize:'11px',lineHeight:1.5}}>{s.text}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
               {scripts.length>0&&(
                 <div style={{marginBottom:'14px',flexShrink:0}}>
                   <label style={ls}>Script</label>
@@ -829,34 +897,7 @@ export default function BobTab() {
   const listeningRef = useRef(false);
   const ring = useRingTone();
 
-  useEffect(()=>{
-    base44.entities.KnowledgeBase.list('-created_date',500).then(all=>setKbEntries(all||[])).catch(()=>{});
-    // Load persisted callbacks from DB
-    base44.entities.BobCallback.list('-created_date',50).then(rows=>{
-      if(rows?.length) setCallbacks(rows.map(r=>({
-        name:r.bobName, company:r.bobCompany, email:r.bobEmail, phone:r.bobPhone, address:r.bobAddress,
-        appointmentAt:r.appointmentAt, notes:r.notes, sessionId:r.sessionId,
-        transcriptLength:r.transcriptLineCount||0,
-        previousTranscript:r.previousTranscriptJson?JSON.parse(r.previousTranscriptJson):[],
-        dbId:r.id,
-      })));
-    }).catch(()=>{});
-  }, []);
-
-  useEffect(()=>{
-    loadPortalSettings().then(cfg=>{
-      if(cfg.bobDeepgramApiKey) setDgApiKey(cfg.bobDeepgramApiKey);
-      if(cfg.bobDuckPrompt) setPersonas(prev=>({
-        ...prev,
-        duck:{...prev.duck,systemPrompt:cfg.bobDuckPrompt,greetings:(cfg.bobDuckGreetings?JSON.parse(cfg.bobDuckGreetings):[])||prev.duck.greetings},
-        cow: {...prev.cow, systemPrompt:cfg.bobCowPrompt,  greetings:(cfg.bobCowGreetings ?JSON.parse(cfg.bobCowGreetings) :[])||prev.cow.greetings},
-        owl: {...prev.owl, systemPrompt:cfg.bobOwlPrompt,  greetings:(cfg.bobOwlGreetings ?JSON.parse(cfg.bobOwlGreetings) :[])||prev.owl.greetings},
-      }));
-      if(cfg.bobDefaultSlider    !== undefined) setSliderValue(cfg.bobDefaultSlider);
-      if(cfg.bobDefaultIntensity !== undefined) setIntensity(cfg.bobDefaultIntensity);
-      if(cfg.bobDefaultFocus)    setFocusTopic(cfg.bobDefaultFocus);
-    });
-  }, []);
+  useEffect(()=>{base44.entities.KnowledgeBase.list('-created_date',500).then(all=>setKbEntries(all||[])).catch(()=>{});}, []);
 
   const addLog = useCallback((entry)=>{setTrainingLogs(prev=>[...prev,{...entry,sessionId}]);},[sessionId]);
   const handleTranscriptEntry = useCallback((entry)=>{setTranscript(prev=>[...prev,entry]);},[]);
@@ -870,14 +911,50 @@ export default function BobTab() {
   const buildSystemPrompt = useCallback(()=>{
     const kbText=kbEntries.filter(e=>e.category!=='raw_document').slice(0,30).map(e=>`Q: ${e.question}\nA: ${e.answer}`).join('\n\n');
     const sliderLabel=sliderValue<20?'full Duck mode':sliderValue<40?'Duck-leaning Owl':sliderValue<60?'pure Owl/Hybrid':sliderValue<80?'Cow-leaning Owl':'full Cow mode';
-    const prevCtx=previousTranscript?.length>0?`\n\nPREVIOUS CALL CONTEXT (you remember this):\n${previousTranscript.slice(-10).map(e=>`[${e.role.toUpperCase()}]: ${e.text}`).join('\n')}\nReference it naturally.`:'';
+    const prevCtx=previousTranscript?.length>0?`\n\nPREVIOUS CALL CONTEXT — You remember this conversation:\n${previousTranscript.slice(-10).map(e=>`[${e.role.toUpperCase()}]: ${e.text}`).join('\n')}\nReference it naturally when the trainee calls back.`:'';
     const ap=getActivePersona();
-    return`${ap.systemPrompt}\n\nCURRENT SETTINGS:\n- Persona Blend: ${sliderLabel} (${sliderValue}/100)\n- Intensity: ${intensity}/5\n- Focus: "${focusTopic}"\n- Name: ${bobData.name}\n- Company: ${bobData.company}\n\nKNOWLEDGE:\n${kbText||'General AI investment platform knowledge.'}${prevCtx}\n\nIMPORTANT: Keep responses 1-3 sentences. You are on a real phone call.`;
+    return`${ap.systemPrompt}
+
+━━━ CURRENT SESSION SETTINGS ━━━
+- Persona Blend: ${sliderLabel} (slider ${sliderValue}/100 — 0=full Duck, 50=Owl, 100=full Cow)
+- Intensity: ${intensity}/5 (higher = more extreme character behavior)
+- Call Focus Topic: "${focusTopic}" — steer objections and interest toward this topic
+- Your name this session: ${bobData.name.split(' ').find(w => w.replace(/['"]/g,'') === 'Bob') || bobData.name.split('"')[1] || 'Bob'}
+- Your full name: ${bobData.name}
+- Your company: ${bobData.company}
+
+━━━ IMPORTANT CALL FLOW NOTE ━━━
+The trainee (salesperson) will always open with something like:
+"This is [their name] with Rosie AI — I hope I haven't caught you at a bad time."
+React to this naturally based on your persona (Duck = friction, Cow = warm/open, Owl = neutral/efficient).
+Do NOT launch into your opinions before they introduce themselves — follow the CALL OPENING FLOW above.
+
+━━━ ROSIE AI KNOWLEDGE BASE ━━━
+${kbText||'General knowledge about AI investment platforms and private placements.'}
+${prevCtx}
+
+━━━ CRITICAL RULES ━━━
+- You are a REAL PERSON on a phone call. Keep ALL responses 1-3 sentences.
+- Never say you are an AI. Never break character.
+- Use natural speech: contractions, interruptions, "uh", "look", "listen", "I mean" — real people talk like this.
+- React to what the trainee actually says — improvise within your persona, don't just recite lines.`;
   },[sliderValue,intensity,focusTopic,kbEntries,bobData,getActivePersona,previousTranscript]);
 
   const buildSettings = useCallback(()=>{
-    const ap=getActivePersona();
-    const greeting=ap.greetings[Math.floor(Math.random()*ap.greetings.length)];
+    // Bob's FIRST word when he picks up — short, natural, like a real person answering their phone.
+    // The full persona behavior (including how he responds to "May I speak to Bob?" and the intro)
+    // is all handled by the system prompt. The greeting is just the pickup moment.
+    const pickupGreetings = [
+      'Yeah.',
+      'Hello.',
+      'Bob.',
+      'Yep.',
+      'Yeah, hello.',
+      'Hello?',
+      'This is Bob.',
+      'Yep, this is Bob.',
+    ];
+    const greeting = pickupGreetings[Math.floor(Math.random() * pickupGreetings.length)];
     return{
       type:'Settings',
       audio:{input:{encoding:'linear16',sample_rate:24000},output:{encoding:'linear16',sample_rate:24000,container:'none'}},
@@ -977,18 +1054,7 @@ export default function BobTab() {
   const hangup=useCallback(()=>{cleanup(true);},[cleanup]);
 
   const handleBookCallback=useCallback((data)=>{
-    const entry={...data,transcriptLength:transcript.length,previousTranscript:transcript};
-    setCallbacks(prev=>[...prev,entry]);
-    // Persist to DB
-    base44.entities.BobCallback.create({
-      bobName:data.name, bobCompany:data.company, bobEmail:data.email,
-      bobPhone:data.phone, bobAddress:data.address,
-      appointmentAt:data.appointmentAt, appointmentTitle:data.title,
-      notes:data.notes, sessionId:data.sessionId,
-      previousTranscriptJson:JSON.stringify(transcript),
-      transcriptLineCount:transcript.length,
-      status:'pending', createdAt:new Date().toISOString(),
-    }).catch(()=>{});
+    setCallbacks(prev=>[...prev,{...data,transcriptLength:transcript.length,previousTranscript:transcript}]);
   },[transcript]);
 
   const handleResumeCallback=useCallback((cb)=>{
@@ -1050,7 +1116,7 @@ export default function BobTab() {
       {section==='callbacks'&&<CallbacksTab callbacks={callbacks} onResume={handleResumeCallback}/>}
       {section==='log'&&<TrainingLog logs={trainingLogs} onClear={()=>{if(window.confirm('Clear all logs?'))setTrainingLogs([]);}}/>}
       {section==='kb'&&<BobKB/>}
-      {section==='controls'&&<BobControls personas={personas} onPersonasChange={setPersonas} dgApiKey={dgApiKey} onDgKeyChange={setDgApiKey} sliderValue={sliderValue} intensity={intensity} focusTopic={focusTopic}/>}
+      {section==='controls'&&<BobControls personas={personas} onPersonasChange={setPersonas} dgApiKey={dgApiKey} onDgKeyChange={setDgApiKey}/>}
     </div>
   );
 }
