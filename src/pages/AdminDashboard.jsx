@@ -19,6 +19,7 @@ import MarketingTab from '@/components/leads/MarketingTab';
 import KnowledgeBaseManagerComponent from '@/components/admin/KnowledgeBaseManager';
 import AudioRecorderManager from '@/components/admin/AudioRecorderManager';
 import GlobalCalendar from '@/components/admin/GlobalCalendar';
+import BobTab from '@/components/admin/BobTab';
 
 const LOGO = 'https://media.base44.com/images/public/69cd2741578c9b5ce655395b/39a31f9b9_Untitleddesign3.png';
 const GOLD = '#b8933a';
@@ -1419,6 +1420,7 @@ const VIEWS = [
   { id:'portal',   label:'Portal Controls' },
   { id:'signnow-settings', label:'SignNow Settings' },
   { id:'settings', label:'Admin Settings' },
+  { id:'bob', label:'🤖 B.O.B.' },
 ];
 
 export default function AdminDashboard() {
@@ -1861,6 +1863,7 @@ export default function AdminDashboard() {
         {view === 'signnow-settings' && <SignNowSettings settings={portalSettings} onSettingsSaved={s => setPortalSettings(s)} />}
         {view === 'portal'           && <div><div style={{ marginBottom:'28px' }}><h2 style={{ color:'#e8e0d0', margin:'0 0 6px', fontSize:'20px', fontWeight:'normal' }}>Portal Controls</h2></div><PortalControls /></div>}
         {view === 'settings'         && <AdminSettings changeAdminPassword={changeAdminPassword} changeAdminUsername={changeAdminUsername} />}
+        {view === 'bob'              && <BobTab />}
       </div>
 
       {dueReminder && (
