@@ -23,12 +23,12 @@ const inp  = { width:'100%', background:'rgba(255,255,255,0.05)', border:'1px so
 const DG_WS_URL = 'wss://agent.deepgram.com/v1/agent/converse';
 
 const VOICE_MODELS = [
-  'aura-2-theseus-en',
-  'aura-2-ares-en',
-  'aura-2-orion-en',
-  'aura-2-perseus-en',
-  'aura-2-angus-en',
-  'aura-2-helios-en',
+  'aura-zeus-en',
+  'aura-orion-en',
+  'aura-arcas-en',
+  'aura-perseus-en',
+  'aura-angus-en',
+  'aura-orpheus-en',
 ];
 
 const BOB_NAMES = [
@@ -939,12 +939,6 @@ export default function BobTab() {
 
   useEffect(()=>{base44.entities.KnowledgeBase.list('-created_date',500).then(all=>setKbEntries(all||[])).catch(()=>{});}, []);
 
-  useEffect(()=>{
-    base44.functions.invoke('deepgramToken2',{}).then(res=>{
-      if(res?.data?.key) setDgApiKey(res.data.key);
-    }).catch(()=>{});
-  },[]);
-
   const addLog = useCallback((entry)=>{setTrainingLogs(prev=>[...prev,{...entry,sessionId}]);},[sessionId]);
   const handleTranscriptEntry = useCallback((entry)=>{setTranscript(prev=>[...prev,entry]);},[]);
 
@@ -984,7 +978,6 @@ ${prevCtx}
 - Never say you are an AI. Never break character.
 - Use natural speech: contractions, interruptions, "uh", "look", "listen", "I mean" — real people talk like this.
 - React to what the trainee actually says — improvise within your persona, don't just recite lines.`;
-
   },[sliderValue,intensity,focusTopic,kbEntries,bobData,getActivePersona,previousTranscript]);
 
   const buildSettings = useCallback(()=>{
@@ -1003,9 +996,9 @@ ${prevCtx}
       type:'Settings',
       audio:{input:{encoding:'linear16',sample_rate:24000},output:{encoding:'linear16',sample_rate:24000,container:'none'}},
       agent:{
-        listen:{provider:{type:'deepgram',version:'v1',model:'nova-2',language:'en-US'}},
-        think:[{provider:{type:'open_ai',version:'v1',model:'gpt-4o-mini'},prompt:buildSystemPrompt()}],
-        speak:{provider:{type:'deepgram',version:'v1',model:'aura-asteria-en'}},
+        listen:{provider:{type:'deepgram',version:'v2',model:'flux-general-en'}},
+        think:{provider:{type:'google',model:'gemini-2.5-flash'},prompt:buildSystemPrompt()},
+        speak:{provider:{type:'deepgram',model:voiceModel}},
         greeting,
       },
     };
@@ -1063,17 +1056,10 @@ ${prevCtx}
         try{
           const msg=JSON.parse(e.data);
           switch(msg.type){
-            case'Welcome':{
-              const settings=buildSettings();
-              const preview={...settings,agent:{...settings.agent,think:settings.agent?.think?.map(t=>({...t,prompt:'['+t.prompt?.length+'chars]'}))}};
-              console.log('[BOB] Got Welcome ✓ — sending Settings:', JSON.stringify(preview));
-              try{
-                ws.send(JSON.stringify(settings));
-              }catch(sendErr){
-                console.error('[BOB] ws.send failed:', sendErr);
-              }
+            case'Welcome':
+              console.log('[BOB] Got Welcome ✓ — sending Settings (STT: flux-general-en, LLM: gemini-2.5-flash, TTS:', voiceModel, ')');
+              ws.send(JSON.stringify(buildSettings()));
               break;
-            }
             case'SettingsApplied':{
               console.log('[BOB] Settings applied ✓ — call is LIVE');
               const source=ctx.createMediaStreamSource(stream);
