@@ -15,6 +15,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { base44 } from '@/api/base44Client';
+import { loadPortalSettings, savePortalSettings } from '@/lib/portalSettings';
 
 const GOLD = '#b8933a';
 const DARK = '#0a0f1e';
@@ -297,7 +298,11 @@ function BobControls({ personas, onPersonasChange, dgApiKey, onDgKeyChange }) {
   const updateGreeting=(mode,idx,val)=>{const g=[...(local[mode].greetings||[])];g[idx]=val;update(mode,'greetings',g);};
   const addGreeting=(mode)=>update(mode,'greetings',[...(local[mode].greetings||[]),'']);
   const removeGreeting=(mode,idx)=>{const g=[...(local[mode].greetings||[])];g.splice(idx,1);update(mode,'greetings',g);};
-  const save=()=>{onPersonasChange(local);setSaved(true);setTimeout(()=>setSaved(false),2000);};
+  const save=async()=>{
+    onPersonasChange(local);
+    await savePortalSettings({ bobDeepgramApiKey: dgApiKey });
+    setSaved(true);setTimeout(()=>setSaved(false),2000);
+  };
   const reset=(mode)=>{const d={duck:DEFAULT_DUCK,cow:DEFAULT_COW,owl:DEFAULT_OWL};setLocal(prev=>({...prev,[mode]:d[mode]}));};
   const cur=local[editMode];
   return(
@@ -814,6 +819,12 @@ export default function BobTab() {
   const ring = useRingTone();
 
   useEffect(()=>{base44.entities.KnowledgeBase.list('-created_date',500).then(all=>setKbEntries(all||[])).catch(()=>{});}, []);
+
+  useEffect(()=>{
+    loadPortalSettings().then(cfg=>{
+      if(cfg.bobDeepgramApiKey) setDgApiKey(cfg.bobDeepgramApiKey);
+    });
+  }, []);
 
   const addLog = useCallback((entry)=>{setTrainingLogs(prev=>[...prev,{...entry,sessionId}]);},[sessionId]);
   const handleTranscriptEntry = useCallback((entry)=>{setTranscript(prev=>[...prev,entry]);},[]);
