@@ -939,6 +939,12 @@ export default function BobTab() {
 
   useEffect(()=>{base44.entities.KnowledgeBase.list('-created_date',500).then(all=>setKbEntries(all||[])).catch(()=>{});}, []);
 
+  useEffect(()=>{
+    base44.functions.invoke('deepgramToken2',{}).then(res=>{
+      if(res?.data?.key) setDgApiKey(res.data.key);
+    }).catch(()=>{});
+  },[]);
+
   const addLog = useCallback((entry)=>{setTrainingLogs(prev=>[...prev,{...entry,sessionId}]);},[sessionId]);
   const handleTranscriptEntry = useCallback((entry)=>{setTranscript(prev=>[...prev,entry]);},[]);
 
