@@ -1003,7 +1003,7 @@ ${prevCtx}
       type:'Settings',
       audio:{input:{encoding:'linear16',sample_rate:24000},output:{encoding:'linear16',sample_rate:24000,container:'none'}},
       agent:{
-        listen:{provider:{type:'deepgram',version:'v2',model:'flux-general-en',language:'en-US'}},
+        listen:{provider:{type:'deepgram',version:'v1',model:'nova-3',language:'en-US'}},
         think:[{provider:{type:'google',version:'v1',model:'gemini-2.5-flash'},prompt:buildSystemPrompt()}],
         speak:{provider:{type:'deepgram',version:'v1',model:voiceModel}},
         greeting,
@@ -1066,7 +1066,7 @@ ${prevCtx}
             case'Welcome':{
               const settings=buildSettings();
               console.log('[BOB] Got Welcome ✓ — sending Settings (model:', voiceModel, ')');
-              console.log('[BOB] Prompt length:', settings.agent?.think?.prompt?.length, 'chars');
+              console.log('[BOB] Prompt length:', settings.agent?.think?.[0]?.prompt?.length, 'chars');
               ws.send(JSON.stringify(settings));
               break;
             }
