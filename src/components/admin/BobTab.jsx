@@ -483,6 +483,7 @@ function BobKnowledgeBase() {
   const [loading, setLoading]   = useState(true);
   const [q, setQ]               = useState('');
   const [a, setA]               = useState('');
+  const [cat, setCat]           = useState('bob_training');
   const [saving, setSaving]     = useState(false);
   const [msg, setMsg]           = useState('');
   const [search, setSearch]     = useState('');
@@ -492,6 +493,7 @@ function BobKnowledgeBase() {
     setLoading(true);
     try {
       const all = await base44.entities.KnowledgeBase.list('-created_date', 500);
+      // Filter for BOB-specific entries
       setEntries((all || []).filter(e => e.category === 'bob_training' || (e.tags || '').includes('bob')));
     } catch {}
     setLoading(false);
@@ -523,6 +525,7 @@ function BobKnowledgeBase() {
         BOB-specific knowledge used to train responses. Entries tagged <code style={{ color:GOLD }}>bob</code> are injected into BOB's system prompt.
       </div>
 
+      {/* Add entry */}
       <div style={{ background:'rgba(255,255,255,0.03)', border:'1px solid rgba(255,255,255,0.08)', borderRadius:'4px', padding:'16px', marginBottom:'20px' }}>
         <div style={{ color:GOLD, fontSize:'10px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'12px' }}>Add BOB KB Entry</div>
         <div style={{ marginBottom:'10px' }}>
@@ -541,8 +544,10 @@ function BobKnowledgeBase() {
         </div>
       </div>
 
+      {/* Search */}
       <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search BOB KB…" style={{ ...inp, marginBottom:'14px' }} />
 
+      {/* Entries */}
       {loading ? <div style={{ color:'#4a5568', textAlign:'center', padding:'30px' }}>Loading…</div> : filtered.length === 0 ? (
         <div style={{ color:'#4a5568', textAlign:'center', padding:'40px', fontSize:'13px' }}>
           {entries.length === 0 ? 'No BOB KB entries yet. Add some training scenarios above.' : 'No results.'}
@@ -880,7 +885,7 @@ function MockLeadCard({ onPortalAccessSent, onCallConnected, isCallActive, kbEnt
 
 // ─── Main BOB Tab ─────────────────────────────────────────────────────────────
 export default function BobTab() {
-  const [section, setSection]     = useState('training');
+  const [section, setSection]     = useState('training'); // 'training' | 'log' | 'kb' | 'controls'
   const [trainingLogs, setTrainingLogs] = useState([]);
   const [transcript, setTranscript] = useState([]);
   const [kbEntries, setKbEntries]   = useState([]);
@@ -965,6 +970,7 @@ export default function BobTab() {
       {/* Training Room */}
       {section === 'training' && (
         <div style={{ display:'grid', gridTemplateColumns:'1fr 340px', gap:'16px', minHeight:'700px' }}>
+          {/* Left: Mock Lead Contact Card */}
           <MockLeadCard
             onPortalAccessSent={handlePortalAccessSent}
             onCallConnected={handleCallConnected}
@@ -978,6 +984,7 @@ export default function BobTab() {
             onTranscriptEntry={handleTranscriptEntry}
           />
 
+          {/* Right: AI Helper Panel */}
           <div style={{ display:'flex', flexDirection:'column', gap:'12px' }}>
             <div style={{ padding:'12px 14px', background:'rgba(184,147,58,0.06)', border:'1px solid rgba(184,147,58,0.15)', borderRadius:'4px' }}>
               <div style={{ color:GOLD, fontSize:'10px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'4px' }}>🎓 Trainee Sidebar</div>
@@ -993,6 +1000,7 @@ export default function BobTab() {
         </div>
       )}
 
+      {/* Training Log */}
       {section === 'log' && (
         <TrainingLog
           logs={trainingLogs}
@@ -1002,8 +1010,10 @@ export default function BobTab() {
         />
       )}
 
+      {/* BOB Knowledge Base */}
       {section === 'kb' && <BobKnowledgeBase />}
 
+      {/* BOB Controls */}
       {section === 'controls' && (
         <BobPortalControls
           persona={persona}
