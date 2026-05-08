@@ -771,7 +771,7 @@ export default function InvestorPage() {
               <div style={{display:"flex",flexDirection:"column",height:"100%"}}>
                 <div className="cost-card" style={{marginBottom:12,flex:1}}>
                   <div className="cost-title">Monthly Operating Costs</div>
-                  {[["Sr. Technology Engineer","$4,000","#00d4ff"],["Managing Partner","$3,000","#00d4ff"],["PH Engineering Unit (3 Engineers)","$1,950","#22c55e"],["Server & Edge Deployment (Deno)","$300",""],["Database (Supabase Pro)","$150",""],["AI API Usage","$200",""],["Twilio / SMS / Voice Base","$150",""],["Tools & Software","$150",""],["Legal, Audit & Compliance","$200",""]].map(([l,v,col])=>(
+                  {[["Sr. Technology Engineer","$4,000","#00d4ff"],["Managing Partner","$3,000","#00d4ff"],["PH Engineering Unit (3 Engineers)","$1,950","#22c55e"],["Server & Edge Deployment (Deno)","$300",""],["Database (Supabase Pro)","$150",""],["AI API Usage","$200",""],["Twilio / SMS / Voice Base","$150",""],["Tools & Software","$150",""],["Inworld AI Agent API (20K min)","$200",""]].map(([l,v,col])=>(
                     <div key={l} className="cost-row"><span className="cost-row-label" style={{fontSize:12}}>{l}</span><span className="cost-row-val" style={col?{color:col}:{}}>{v}</span></div>
                   ))}
                   <div className="cost-row" style={{borderTop:"1px solid rgba(0,212,255,0.15)",marginTop:4,paddingTop:10}}><span className="cost-row-label" style={{fontWeight:700,color:"#e8e2d0",fontSize:12}}>Total Fixed Monthly Burn</span><span className="cost-row-val" style={{color:"#deba6a",fontWeight:700,fontSize:14}}>$10,100</span></div>
