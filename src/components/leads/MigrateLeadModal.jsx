@@ -70,11 +70,17 @@ export default function MigrateLeadModal({ lead, history, onClose, onMigrated })
           console.log('[MigrateLeadModal] Existing InvestorUser found — patching missing fields from lead.');
           // Patch fields that may be blank/missing on the existing record
           const patch = {};
-          if (!iu.phone    && lead.phone)    patch.phone    = lead.phone;
-          if (!iu.email    && lead.email)    patch.email    = (lead.email || '').toLowerCase();
-          if (!iu.address  && lead.address)  patch.address  = lead.address;
-          if (!iu.notes    && lead.notes)    patch.notes    = lead.notes;
-          if (!iu.leadId               )     patch.leadId   = lead.id;
+          // Always overwrite contact fields from lead — lead is the source of truth
+          if (lead.phone)    patch.phone    = lead.phone;
+          if (lead.phone2)   patch.phone2   = lead.phone2;
+          if (lead.email)    patch.email    = (lead.email || '').toLowerCase();
+          if (lead.address)  patch.address  = lead.address;
+          if (lead.city)     patch.city     = lead.city;
+          if (lead.state)    patch.state    = lead.state;
+          if (lead.zip)      patch.zip      = lead.zip;
+          if (lead.notes)    patch.notes    = lead.notes;
+          if (lead.bestTimeToCall) patch.bestTimeToCall = lead.bestTimeToCall;
+          patch.leadId = lead.id;
           if (lead.engagementScore > (iu.engagementScore || 0)) patch.engagementScore = lead.engagementScore;
           if (lead.starRating > (iu.starRating || 0))           patch.starRating      = lead.starRating;
           if (Object.keys(patch).length > 0) {
@@ -95,7 +101,12 @@ export default function MigrateLeadModal({ lead, history, onClose, onMigrated })
           password: hashed,
           email:           (lead.email || '').toLowerCase(),
           phone:           lead.phone         || '',
+          phone2:          lead.phone2        || '',
           address:         lead.address       || '',
+          city:            lead.city          || '',
+          state:           lead.state         || '',
+          zip:             lead.zip           || '',
+          bestTimeToCall:  lead.bestTimeToCall || '',
           company:         lead.company       || lead.companyName || '',
           notes:           lead.notes         || '',
           role:            'investor',
