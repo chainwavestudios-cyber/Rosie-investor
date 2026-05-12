@@ -29,6 +29,19 @@
       ],
       "default": "initiated"
     },
+    "direction": {
+      "type": "string",
+      "title": "Direction",
+      "enum": [
+        "inbound",
+        "outbound"
+      ]
+    },
+    "fromNumber": {
+      "type": "string",
+      "title": "From Number",
+      "description": "Caller's number on inbound calls"
+    },
     "duration": {
       "type": "number",
       "title": "Duration (seconds)"
