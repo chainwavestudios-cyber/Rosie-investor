@@ -25,10 +25,13 @@ export default function InlineCallBar({
   isPredictive, isDialerPaused,
   onPauseCampaign, onDisconnectNext, onSaveResume,
 }) {
-  const { callStatus, duration, muted, isActive, dialerError,
-          dial, hangup, toggleMute, reset, fmt,
-          callerId, setCallerId, lines,
-          micDevices, micDeviceId, setMicDeviceId } = dialer;
+  const {
+    callStatus, duration, muted, isActive, dialerError,
+    dial, hangup, answer, reject, toggleMute, reset, fmt,
+    callerId, setCallerId, lines,
+    micDevices, micDeviceId, setMicDeviceId,
+    incomingCall, callDirection,
+  } = dialer;
 
   const [dtmfInput, setDtmfInput] = useState('');
   const [showKeypad, setShowKeypad] = useState(false);
@@ -71,6 +74,14 @@ export default function InlineCallBar({
     }
   };
 
+  const handleAnswer = async () => {
+    answer();
+  };
+
+  const handleReject = () => {
+    reject();
+  };
+
   const handleDial = () => dial(phone);
 
   const pressKey = (k) => {
@@ -105,6 +116,69 @@ export default function InlineCallBar({
     </button>
   );
 
+  // ── Incoming call banner ─────────────────────────────────────────────
+  // Show when there's an inbound call ringing and this bar's phone matches
+  // OR when the global incomingCall exists and this is the matched lead's card
+  const isThisIncoming = incomingCall && callStatus === 'idle';
+
+  if (isThisIncoming) {
+    const callerName = incomingCall.lead?.name || incomingCall.lead?.firstName
+      ? `${incomingCall.lead.firstName || ''} ${incomingCall.lead.lastName || ''}`.trim()
+      : incomingCall.from || 'Unknown Caller';
+
+    return (
+      <div style={{
+        background: 'rgba(74,222,128,0.08)',
+        border: '1px solid rgba(74,222,128,0.4)',
+        borderRadius: '5px',
+        padding: '10px 12px',
+        display: 'flex', flexDirection: 'column', gap: '8px',
+        animation: 'incoming-pulse 1s ease-in-out infinite',
+      }}>
+        <style>{`
+          @keyframes incoming-pulse {
+            0%, 100% { border-color: rgba(74,222,128,0.4); box-shadow: 0 0 0 rgba(74,222,128,0); }
+            50%       { border-color: rgba(74,222,128,0.8); box-shadow: 0 0 12px rgba(74,222,128,0.2); }
+          }
+        `}</style>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <Dot color="#4ade80" pulse />
+          <div style={{ flex: 1 }}>
+            <div style={{ color: '#4ade80', fontSize: '10px', letterSpacing: '1px', textTransform: 'uppercase', fontWeight: 'bold' }}>
+              📲 Incoming Call
+            </div>
+            <div style={{ color: '#e8e0d0', fontSize: '11px', fontWeight: 'bold' }}>{callerName}</div>
+            <div style={{ color: '#4a5568', fontSize: '9px' }}>{incomingCall.from}</div>
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', gap: '6px' }}>
+          <Btn
+            onClick={handleAnswer}
+            color="#fff"
+            bg="linear-gradient(135deg,#22c55e,#16a34a)"
+            border="transparent"
+            bold
+            extraStyle={{ flex: 1, justifyContent: 'center' }}
+          >
+            📞 Answer
+          </Btn>
+          <Btn
+            onClick={handleReject}
+            color="#fff"
+            bg="linear-gradient(135deg,#ef4444,#b91c1c)"
+            border="transparent"
+            bold
+            extraStyle={{ flex: 1, justifyContent: 'center' }}
+          >
+            📵 Decline
+          </Btn>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div style={{
       background: 'rgba(0,0,0,0.25)',
@@ -121,7 +195,7 @@ export default function InlineCallBar({
 
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ color: '#e8e0d0', fontSize: '11px', fontWeight: 'bold', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {name || phone}
+            {callDirection === 'inbound' ? '📲 ' : ''}{name || phone}
           </div>
           <div style={{ color: '#4a5568', fontSize: '9px', letterSpacing: '0.5px' }}>
             {phone} · <span style={{ color: statusColor }}>{statusLabel}</span>
