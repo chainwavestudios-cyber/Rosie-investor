@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 const GOLD = '#b8933a';
 
@@ -27,11 +27,20 @@ export default function InlineCallBar({
 }) {
   const { callStatus, duration, muted, isActive, dialerError,
           dial, hangup, toggleMute, reset, fmt,
-          callerId, setCallerId, lines } = dialer;
+          callerId, setCallerId, lines,
+          micDevices, micDeviceId, setMicDeviceId } = dialer;
 
   const [dtmfInput, setDtmfInput] = useState('');
   const [showKeypad, setShowKeypad] = useState(false);
   const [logging, setLogging] = useState(false);
+
+  // Populate mic list on first render (requires mic permission)
+  useEffect(() => {
+    if (!micDevices || micDevices.length > 0) return;
+    navigator.mediaDevices.getUserMedia({ audio: true })
+      .then(() => navigator.mediaDevices.enumerateDevices())
+      .catch(() => {});
+  }, [micDevices]);
 
   const statusColor = {
     idle:        '#4a5568',
@@ -265,6 +274,20 @@ export default function InlineCallBar({
           <select value={callerId} onChange={e => setCallerId(e.target.value)}
             style={{ width:'100%', background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.1)', borderRadius:'3px', padding:'4px 8px', color:'#6b7280', fontSize:'10px', outline:'none', cursor:'pointer' }}>
             {lines.map(l => <option key={l.number} value={l.number}>📞 {l.label} — {l.number}</option>)}
+          </select>
+        </div>
+      )}
+
+      {/* ── Mic selector ── */}
+      {micDevices && micDevices.length > 1 && !isActive && (
+        <div style={{ borderTop:'1px solid rgba(255,255,255,0.06)', paddingTop:'6px' }}>
+          <select value={micDeviceId} onChange={e => setMicDeviceId(e.target.value)}
+            style={{ width:'100%', background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.1)', borderRadius:'3px', padding:'4px 8px', color:'#6b7280', fontSize:'10px', outline:'none', cursor:'pointer' }}>
+            {micDevices.map(m => (
+              <option key={m.deviceId} value={m.deviceId}>
+                🎙 {m.label || `Microphone ${m.deviceId.slice(0,6)}`}
+              </option>
+            ))}
           </select>
         </div>
       )}

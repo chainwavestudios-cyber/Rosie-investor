@@ -11,6 +11,8 @@ export function useInlineDialer({ onCallStream, onCallLogged, agentName = 'admin
   const [muted,       setMuted]       = useState(false);
   const [callerId,    setCallerId]    = useState('');
   const [lines,       setLines]       = useState([]);
+  const [micDevices,  setMicDevices]  = useState([]);
+  const [micDeviceId, setMicDeviceId] = useState('');
 
   const callRef      = useRef(null);
   const timerRef     = useRef(null);
@@ -37,6 +39,14 @@ export function useInlineDialer({ onCallStream, onCallLogged, agentName = 'admin
   }, []);
 
   useEffect(() => {
+    navigator.mediaDevices.enumerateDevices().then(devices => {
+      const mics = devices.filter(d => d.kind === 'audioinput');
+      setMicDevices(mics);
+      if (mics.length > 0 && !micDeviceId) setMicDeviceId(mics[0].deviceId);
+    }).catch(() => {});
+  }, []);
+
+  useEffect(() => {
     base44.functions.invoke('twilioGetLines', {}).then(res => {
       const ls = res?.data?.lines || res?.lines || [];
       setLines(ls);
@@ -55,7 +65,7 @@ export function useInlineDialer({ onCallStream, onCallLogged, agentName = 'admin
       const device = await getDevice();
       const digits  = phone.replace(/\D/g, '');
       const e164    = digits.length === 10 ? `+1${digits}` : digits.length === 11 && digits.startsWith('1') ? `+${digits}` : phone;
-      const call    = await device.connect({ params: { To: e164, ...(callerId ? { CallerId: callerId } : {}) } });
+      const call    = await device.connect({ params: { To: e164, ...(callerId ? { CallerId: callerId } : {}) }, ...(micDeviceId ? { rtcConstraints: { audio: { deviceId: { exact: micDeviceId } } } } : {}) });
       callRef.current = call;
 
       call.on('ringing',    () => setCallStatus('ringing'));
@@ -120,5 +130,5 @@ export function useInlineDialer({ onCallStream, onCallLogged, agentName = 'admin
 
   const isActive = ['calling','ringing','connected'].includes(callStatus);
 
-  return { dialerError, callStatus, duration, muted, isActive, dial, hangup, toggleMute, sendDigit, reset, logLeadCall, logInvestorCall, fmt, callerId, setCallerId, lines };
+  return { dialerError, callStatus, duration, muted, isActive, dial, hangup, toggleMute, sendDigit, reset, logLeadCall, logInvestorCall, fmt, callerId, setCallerId, lines, micDevices, micDeviceId, setMicDeviceId };
 }
