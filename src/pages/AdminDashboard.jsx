@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { usePortalAuth } from '@/lib/PortalAuthContext';
+import { useTwilioDevice } from '@/lib/TwilioDeviceContext';
 import analytics from '@/lib/analytics';
 import ReminderPopup from '@/components/ReminderPopup';
 import { useReminders } from '@/hooks/useReminders';
@@ -1425,6 +1426,7 @@ const VIEWS = [
 
 export default function AdminDashboard() {
   const { portalUser, isAdmin, isPortalLoading, portalLogout, getAllUsers, removeUser, changeAdminPassword, changeAdminUsername } = usePortalAuth();
+  const { registerIncomingHandler } = useTwilioDevice();
   const [view, setView]           = useState(() => localStorage.getItem('admin_view') || 'users');
   const [users, setUsers]         = useState([]);
   const [showAdd, setShowAdd]     = useState(false);
@@ -1473,6 +1475,21 @@ export default function AdminDashboard() {
     const interval = setInterval(load, 30000);
     return () => clearInterval(interval);
   }, [portalUser, isAdmin, isPortalLoading, load]);
+
+  // ── Inbound call → auto-open ContactCardModal ──────────────────────
+  useEffect(() => {
+    registerIncomingHandler(({ lead, from }) => {
+      if (lead) {
+        // Matched to an InvestorUser — open their card directly
+        setContactCard(lead);
+      } else {
+        // No match found — switch to CRM view so agent can search manually
+        // and show the dialer with the caller's number pre-filled
+        setDialerLead({ firstName: 'Unknown', lastName: 'Caller', phone: from, id: null });
+        setShowDialer(true);
+      }
+    });
+  }, [registerIncomingHandler]);
 
   if (isPortalLoading) return (
     <div style={{ minHeight:'100vh', background:'#060c18', display:'flex', alignItems:'center', justifyContent:'center' }}>
