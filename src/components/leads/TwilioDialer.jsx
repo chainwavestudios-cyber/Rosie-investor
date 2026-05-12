@@ -22,8 +22,10 @@ export default function TwilioDialer({ initialLead, onClose, onCallLogged, onCal
 
   const [callerId, setCallerId] = useState('');
   const [lines,    setLines]    = useState([]);
+  const [lastCallInfo, setLastCallInfo] = useState(null); // { calledAt, name } or null
+  const lookupTimerRef = useRef(null);
 
-  const timerRef     = useRef(null);
+  const timerRef      = useRef(null);
   const startTimeRef = useRef(null);
   const callRef      = useRef(null);
 
@@ -56,6 +58,55 @@ export default function TwilioDialer({ initialLead, onClose, onCallLogged, onCal
       if (ls.length > 0) setCallerId(ls[0].number);
     }).catch(() => {});
   }, []);
+
+  // ── Last-called lookup when manual number changes ────────────────────
+  useEffect(() => {
+    if (lead) { setLastCallInfo(null); return; } // lead card mode — not needed
+    setLastCallInfo(null);
+    if (!manualNumber || manualNumber.replace(/\D/g, '').length < 7) return;
+
+    clearTimeout(lookupTimerRef.current);
+    lookupTimerRef.current = setTimeout(async () => {
+      try {
+        const digits = manualNumber.replace(/\D/g, '');
+        // Search LeadHistory for calls to this number (stored in content)
+        const history = await base44.entities.LeadHistory.filter({ type: 'call' }, '-created_date', 50);
+        // Also check Lead entity for a phone match to get the name
+        const leads = await base44.entities.Lead.list('-updated_date', 500);
+        const matched = leads.find(l => {
+          const p = (l.phone || '').replace(/\D/g, '');
+          return p === digits || p.slice(-10) === digits.slice(-10);
+        });
+
+        // Find the most recent call log for this lead
+        let lastCall = null;
+        if (matched) {
+          const leadCalls = history.filter(h => h.leadId === matched.id);
+          if (leadCalls.length > 0) lastCall = leadCalls[0]; // already sorted desc
+        }
+
+        // Also check InvestorUser
+        if (!matched || !lastCall) {
+          const investors = await base44.entities.InvestorUser.list('-updated_date', 500);
+          const matchedInv = investors.find(u => {
+            const p = (u.phone || '').replace(/\D/g, '');
+            return p === digits || p.slice(-10) === digits.slice(-10);
+          });
+          if (matchedInv) {
+            const notes = await base44.entities.ContactNote.filter({ investorId: matchedInv.id, type: 'call' }, '-createdAt', 5);
+            if (notes?.length > 0) {
+              setLastCallInfo({ calledAt: notes[0].createdAt || notes[0].created_date, name: matchedInv.name });
+              return;
+            }
+          }
+        }
+
+        if (lastCall) {
+          setLastCallInfo({ calledAt: lastCall.created_date, name: matched ? `${matched.firstName} ${matched.lastName}`.trim() : null });
+        }
+      } catch {}
+    }, 600);
+  }, [manualNumber, lead]);
 
   // ── Shared call event wiring ─────────────────────────────────────────
   const wireCallEvents = (call) => {
@@ -252,6 +303,31 @@ export default function TwilioDialer({ initialLead, onClose, onCallLogged, onCal
               placeholder="Enter number…" disabled={isActive}
               style={{ width:'100%', background:'rgba(255,255,255,0.05)', border:'1px solid rgba(255,255,255,0.15)', borderRadius:'4px', padding:'10px', color:'#e8e0d0', fontSize:'18px', textAlign:'center', outline:'none', boxSizing:'border-box', marginBottom:'12px', letterSpacing:'3px' }} />
           )}
+
+          {/* ── Last called info ── */}
+          {lastCallInfo && !isActive && (() => {
+            const d = new Date(lastCallInfo.calledAt);
+            const today = new Date();
+            const isToday = d.toDateString() === today.toDateString();
+            const timeStr = d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+            const dateStr = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+            return (
+              <div style={{
+                marginBottom: '10px',
+                padding: '8px 10px',
+                borderRadius: '4px',
+                background: isToday ? 'rgba(239,68,68,0.1)' : 'rgba(245,158,11,0.08)',
+                border: `1px solid ${isToday ? 'rgba(239,68,68,0.35)' : 'rgba(245,158,11,0.25)'}`,
+                fontSize: '11px',
+                color: isToday ? '#ef4444' : '#f59e0b',
+                textAlign: 'center',
+                lineHeight: 1.5,
+              }}>
+                {isToday ? '⚠️ Called today' : '📞 Last called'} at {timeStr}{!isToday && ` on ${dateStr}`}
+                {lastCallInfo.name && <span style={{ color: '#8a9ab8' }}> · {lastCallInfo.name}</span>}
+              </div>
+            );
+          })()}
 
           {lines.length > 1 && (
             <div style={{ marginBottom:'10px' }}>
