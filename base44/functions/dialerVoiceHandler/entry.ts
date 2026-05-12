@@ -1,16 +1,19 @@
 /**
  * dialerVoiceHandler — TwiML App Voice URL
  *
- * Mode 1: Direct dial     — To=+1xxx → dials out
+ * Mode 1: Direct dial     — To=+1xxx → dials out to phone number
  * Mode 2: Lead leg        — ConferenceName=x&LeadLeg=true → holds lead in conference
  * Mode 3: Agent leg       — ConferenceName=x → agent joins conference
+ * Mode 4: Inbound         — no To param, Direction=inbound → routes to browser client
  */
 Deno.serve(async (req) => {
   const url = new URL(req.url);
 
-  let to             = url.searchParams.get('To') || '';
+  let to             = url.searchParams.get('To')             || '';
   let conferenceName = url.searchParams.get('ConferenceName') || '';
-  let callerIdParam  = url.searchParams.get('CallerId') || '';
+  let callerIdParam  = url.searchParams.get('CallerId')       || '';
+  let direction      = url.searchParams.get('Direction')      || '';
+  let called         = url.searchParams.get('Called')         || '';
 
   if (req.method === 'POST') {
     try {
@@ -19,14 +22,14 @@ Deno.serve(async (req) => {
       to             = to             || params.get('To')             || '';
       conferenceName = conferenceName || params.get('ConferenceName') || '';
       callerIdParam  = callerIdParam  || params.get('CallerId')       || '';
+      direction      = direction      || params.get('Direction')      || '';
+      called         = called         || params.get('Called')         || '';
     } catch {}
   }
 
-  console.log('[dialerVoiceHandler] method:', req.method, 'to:', to, 'conf:', conferenceName, 'leadLeg:', url.searchParams.get('LeadLeg'));
+  console.log('[dialerVoiceHandler] method:', req.method, 'to:', to, 'conf:', conferenceName, 'direction:', direction, 'called:', called);
 
-  // Mode 2: Lead leg — hold lead in conference, agent joins shortly after
-  // startConferenceOnEnter="false" keeps the conference un-started until agent joins
-  // No waitUrl = Twilio default silence (no hold music)
+  // ── Mode 2: Lead leg — hold lead in conference ─────────────────────────
   const isLeadLeg = url.searchParams.get('LeadLeg') === 'true';
   if (conferenceName && isLeadLeg) {
     const twiml = `<?xml version="1.0" encoding="UTF-8"?>
@@ -41,7 +44,7 @@ Deno.serve(async (req) => {
     return new Response(twiml, { headers: { 'Content-Type': 'text/xml' } });
   }
 
-  // Mode 3: Agent joins conference
+  // ── Mode 3: Agent joins conference ─────────────────────────────────────
   if (conferenceName) {
     const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
@@ -55,14 +58,15 @@ Deno.serve(async (req) => {
     return new Response(twiml, { headers: { 'Content-Type': 'text/xml' } });
   }
 
-  // Mode 1: Direct dial
+  // ── Mode 1: Direct outbound dial ───────────────────────────────────────
   const isClientIdentifier = !to || to.startsWith('client:') || to.startsWith('sip:');
   if (to && !isClientIdentifier) {
     const callerId = callerIdParam || Deno.env.get('TWILIO_FROM_NUMBER') || '';
     if (!callerId) {
-      return new Response(`<?xml version="1.0" encoding="UTF-8"?><Response><Say>Caller ID not configured.</Say><Hangup/></Response>`, {
-        headers: { 'Content-Type': 'text/xml' },
-      });
+      return new Response(
+        `<?xml version="1.0" encoding="UTF-8"?><Response><Say>Caller ID not configured.</Say><Hangup/></Response>`,
+        { headers: { 'Content-Type': 'text/xml' } }
+      );
     }
     const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
@@ -74,8 +78,16 @@ Deno.serve(async (req) => {
     return new Response(twiml, { headers: { 'Content-Type': 'text/xml' } });
   }
 
-  console.log('[dialerVoiceHandler] → Fallback hangup');
-  return new Response(`<?xml version="1.0" encoding="UTF-8"?><Response><Hangup/></Response>`, {
-    headers: { 'Content-Type': 'text/xml' },
-  });
+  // ── Mode 4: Inbound call → route to browser client ────────────────────
+  // When someone calls your Twilio number directly, Twilio hits this webhook
+  // with no To param (or To = your Twilio number). We route to the registered
+  // browser Device with identity 'agent'.
+  const twiml = `<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Dial timeout="30">
+    <Client>agent</Client>
+  </Dial>
+</Response>`;
+  console.log('[dialerVoiceHandler] → Mode 4 Inbound → routing to browser client');
+  return new Response(twiml, { headers: { 'Content-Type': 'text/xml' } });
 });
