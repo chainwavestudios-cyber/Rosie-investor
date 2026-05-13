@@ -1,0 +1,80 @@
+{
+  "name": "KnowledgeBaseConfig",
+  "type": "object",
+  "properties": {
+    "kbName": {
+      "type": "string",
+      "title": "KB Name"
+    },
+    "intentDuckDefinition": {
+      "type": "string",
+      "title": "Intent Duck Definition",
+      "format": "textarea"
+    },
+    "intentCowDefinition": {
+      "type": "string",
+      "title": "Intent Cow Definition",
+      "format": "textarea"
+    },
+    "intentTriggerKeywords": {
+      "type": "string",
+      "title": "Intent Trigger Keywords",
+      "format": "textarea"
+    },
+    "intentPositiveSignals": {
+      "type": "string",
+      "title": "Intent Positive Signals",
+      "format": "textarea"
+    },
+    "intentNegativeSignals": {
+      "type": "string",
+      "title": "Intent Negative Signals",
+      "format": "textarea"
+    },
+    "intentSentimentRules": {
+      "type": "string",
+      "title": "Intent Sentiment Rules (JSON)",
+      "format": "textarea"
+    },
+    "intentIntervalSeconds": {
+      "type": "number",
+      "title": "Intent Interval (seconds)"
+    },
+    "coachFocusAreas": {
+      "type": "string",
+      "title": "Coach Focus Areas"
+    },
+    "coachStyle": {
+      "type": "string",
+      "title": "Coach Style",
+      "format": "textarea"
+    },
+    "coachAdditionalContext": {
+      "type": "string",
+      "title": "Coach Additional Context",
+      "format": "textarea"
+    },
+    "coachIntervalSeconds": {
+      "type": "number",
+      "title": "Coach Interval (seconds)"
+    },
+    "coachFocusPills": {
+      "type": "string",
+      "title": "Coach Focus Pills (JSON)",
+      "format": "textarea"
+    },
+    "coachSmartRules": {
+      "type": "string",
+      "title": "Coach Smart Rules (JSON)",
+      "format": "textarea"
+    },
+    "coachListeningStrategy": {
+      "type": "string",
+      "title": "Coach Listening Strategy (JSON)",
+      "format": "textarea"
+    }
+  },
+  "required": [
+    "kbName"
+  ]
+}
