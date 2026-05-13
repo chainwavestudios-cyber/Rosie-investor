@@ -427,6 +427,7 @@ export default function LeadsTab({ openLeadId, onLeadOpened }) {
   };
 
   const handleDialNumber = (lead) => {
+    handleDialStarted(lead.id);
     setDialerLead(lead);
     setShowDialer(true);
     setShowDialerPanel(true);
@@ -439,6 +440,24 @@ export default function LeadsTab({ openLeadId, onLeadOpened }) {
     try { await base44.entities.Lead.update(leadId, { lastCalledAt: now }); } catch {}
     await loadLeads();
     await loadRecentCalls();
+  };
+
+  // Called the instant dialing starts — moves lead to back of list immediately (no reload needed)
+  const handleDialStarted = (leadId) => {
+    const now = new Date().toISOString();
+    setLeads(prev => {
+      const lead = prev.find(l => l.id === leadId);
+      if (!lead) return prev;
+      const updated = { ...lead, lastCalledAt: now };
+      const rest = prev.filter(l => l.id !== leadId);
+      // Re-sort: never-called first, then by lastCalledAt asc, converted/notInterested at end
+      const neverCalled = rest.filter(l => !l.lastCalledAt && l.status !== 'converted' && l.status !== 'not_interested').sort((a,b) => new Date(a.created_date) - new Date(b.created_date));
+      const called = rest.filter(l => l.lastCalledAt && l.status !== 'converted' && l.status !== 'not_interested').sort((a,b) => new Date(a.lastCalledAt) - new Date(b.lastCalledAt));
+      const converted = rest.filter(l => l.status === 'converted');
+      const notInterested = rest.filter(l => l.status === 'not_interested');
+      // updated lead goes after all called leads (it was just called)
+      return [...neverCalled, ...called, updated, ...converted, ...notInterested];
+    });
   };
 
   // Called by PredictiveDialer the instant a human answers — opens contact card immediately
@@ -588,6 +607,7 @@ export default function LeadsTab({ openLeadId, onLeadOpened }) {
         onClose={() => setSelectedLead(null)}
         onUpdate={loadLeads}
         onCallLogged={handleCallLogged}
+        onDialStarted={handleDialStarted}
         onDialNumber={handleDialNumber}
         dialerRef={dialerRef}
         isDialerPaused={isDialerPaused}

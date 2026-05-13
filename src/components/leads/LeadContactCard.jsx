@@ -870,7 +870,7 @@ function AIDetailsTab({ lead, onUpdate }) {
   );
 }
 
-export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber, dialerRef, onResume, isDialerPaused, onNextLead, onPrevLead, currentLeadIndex, totalLeads, dialerPanelOpen, twilioStream: externalStream, onCallLogged }) {
+export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber, dialerRef, onResume, isDialerPaused, onNextLead, onPrevLead, currentLeadIndex, totalLeads, dialerPanelOpen, twilioStream: externalStream, onCallLogged, onDialStarted }) {
   // Archived = migrated to CRM — card is read-only
   const isArchived = !!(lead.migratedToPortal || lead.convertedToInvestorUserId || lead.status === 'converted');
   const [cardExpanded, setCardExpanded] = useState(false);
@@ -1301,7 +1301,7 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
               <InlineCallBar
                 phone={selectedPhone || editLead.phone || lead.phone}
                 name={`${editLead.firstName || lead.firstName || ''} ${editLead.lastName || lead.lastName || ''}`.trim()}
-                dialer={dialer}
+                dialer={{ ...dialer, dial: (phone) => { onDialStarted && onDialStarted(lead.id); dialer.dial(phone); } }}
                 onLogCall={async () => { await dialer.logLeadCall(lead.id); await loadHistory(); onCallLogged && onCallLogged(lead.id); }}
                 isPredictive={!!isDialerPaused}
                 isDialerPaused={!!isDialerPaused}
