@@ -321,6 +321,7 @@ export default function LeadsTab({ openLeadId, onLeadOpened }) {
   const [isDialerPaused, setIsDialerPaused] = useState(false);
   const [isCallActive, setIsCallActive] = useState(false);
   const [todayApptLeadIds, setTodayApptLeadIds] = useState(new Set());
+  const [listFilter, setListFilter] = useState('all'); // 'all' or contactListId
 
   useEffect(() => {
     loadLeads();
@@ -481,6 +482,7 @@ export default function LeadsTab({ openLeadId, onLeadOpened }) {
       const tz = stateToTz[(l.state || '').toUpperCase().trim()];
       if (tz !== tzFilter) return false;
     }
+    if (listFilter !== 'all' && l.contactListId !== listFilter) return false;
     if (search) {
       const q = search.toLowerCase();
       return `${l.firstName} ${l.lastName} ${l.email} ${l.phone} ${l.state}`.toLowerCase().includes(q);
@@ -488,7 +490,7 @@ export default function LeadsTab({ openLeadId, onLeadOpened }) {
     return true;
   });
 
-  useEffect(() => { setPage(1); }, [filter, search, tzFilter]);
+  useEffect(() => { setPage(1); }, [filter, search, tzFilter, listFilter]);
 
   const [page, setPage] = useState(1);
   const PAGE_SIZE = 30;
@@ -734,9 +736,16 @@ export default function LeadsTab({ openLeadId, onLeadOpened }) {
         })}
       </div>
 
-      {/* Search + TZ Filter */}
-      <div style={{ marginBottom:'16px', display:'flex', gap:'8px' }}>
-        <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search by name, email, phone, state…" style={{ ...inp, flex:1, boxSizing:'border-box' }} />
+      {/* Search + TZ Filter + List Filter */}
+      <div style={{ marginBottom:'16px', display:'flex', gap:'8px', flexWrap:'wrap' }}>
+        <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search by name, email, phone, state…" style={{ ...inp, flex:1, boxSizing:'border-box', minWidth:'200px' }} />
+        <select value={listFilter} onChange={e=>setListFilter(e.target.value)}
+          style={{ ...inp, cursor:'pointer', flexShrink:0, width:'auto' }}>
+          <option value="all">📁 All Lists</option>
+          {contactLists.map(list => (
+            <option key={list.id} value={list.id}>{list.name} ({list.leadCount || 0})</option>
+          ))}
+        </select>
         <select value={tzFilter} onChange={e=>setTzFilter(e.target.value)}
           style={{ ...inp, cursor:'pointer', flexShrink:0, width:'auto' }}>
           <option value="all">All Time Zones</option>
