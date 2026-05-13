@@ -1330,41 +1330,43 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
           )}
 
           {/* Row 3: Action buttons */}
-          <div style={{ display:'flex', alignItems:'center', marginTop:'10px', gap:'8px', flexWrap:'wrap' }}>
+          <div style={{ display:'flex', alignItems:'center', marginTop:'10px', gap:'6px', flexWrap:'wrap', overflow:'auto', maxHeight:'60px', paddingBottom:'4px' }}>
             {isDialerPaused && (<>
               <button onClick={() => dialerRef.current?.hangupActiveCall?.()}
-                style={{ background:'rgba(239,68,68,0.15)', color:'#ef4444', border:'1px solid rgba(239,68,68,0.4)', borderRadius:'4px', padding:'6px 12px', cursor:'pointer', fontSize:'11px', fontWeight:'bold' }}>
+                style={{ background:'rgba(239,68,68,0.15)', color:'#ef4444', border:'1px solid rgba(239,68,68,0.4)', borderRadius:'4px', padding:'6px 10px', cursor:'pointer', fontSize:'10px', fontWeight:'bold', flexShrink:0 }}>
                 📵 Hang Up
               </button>
               <button onClick={() => { dialerRef.current?.hangupActiveCall?.(); onNextLead?.(); }}
-                style={{ background:'rgba(59,130,246,0.12)', color:'#60a5fa', border:'1px solid rgba(59,130,246,0.3)', borderRadius:'4px', padding:'6px 12px', cursor:'pointer', fontSize:'11px', fontWeight:'bold' }}>
+                style={{ background:'rgba(59,130,246,0.12)', color:'#60a5fa', border:'1px solid rgba(59,130,246,0.3)', borderRadius:'4px', padding:'6px 10px', cursor:'pointer', fontSize:'10px', fontWeight:'bold', flexShrink:0 }}>
                 📵 Next
               </button>
               <button onClick={async () => { await saveProfile?.(); dialerRef.current?.hangupActiveCall?.(); onResume?.(); }}
-                style={{ background:'linear-gradient(135deg,#22c55e,#16a34a)', color:'#fff', border:'none', borderRadius:'4px', padding:'6px 14px', cursor:'pointer', fontSize:'11px', fontWeight:'bold' }}>
-                ▶ Resume & Save
+                style={{ background:'linear-gradient(135deg,#22c55e,#16a34a)', color:'#fff', border:'none', borderRadius:'4px', padding:'6px 12px', cursor:'pointer', fontSize:'10px', fontWeight:'bold', flexShrink:0 }}>
+                ▶ Resume
               </button>
             </>)}
             {!isArchived && (
               <button onClick={sendEmail} disabled={sendingEmail || !editLead.email}
-                style={{ background:'rgba(96,165,250,0.12)', color: editLead.email ? '#60a5fa' : '#4a5568', border:'1px solid rgba(96,165,250,0.25)', borderRadius:'4px', padding:'6px 12px', cursor: editLead.email ? 'pointer' : 'not-allowed', fontSize:'11px', fontWeight:'bold', opacity: editLead.email ? 1 : 0.4, whiteSpace:'nowrap' }}>
-                {sendingEmail ? '⏳ Sending…' : '💼 Email Investor Site Access'}
+                title="Email investor site access"
+                style={{ background:'rgba(96,165,250,0.12)', color: editLead.email ? '#60a5fa' : '#4a5568', border:'1px solid rgba(96,165,250,0.25)', borderRadius:'4px', padding:'6px 10px', cursor: editLead.email ? 'pointer' : 'not-allowed', fontSize:'10px', fontWeight:'bold', opacity: editLead.email ? 1 : 0.4, whiteSpace:'nowrap', flexShrink:0 }}>
+                {sendingEmail ? '⏳' : '💼 Site Access'}
               </button>
             )}
             {!isArchived && (
               <button onClick={sendPortalEmail} disabled={sendingPortalEmail || !editLead.email}
-                style={{ background:'rgba(167,139,250,0.12)', color: editLead.email ? '#a78bfa' : '#4a5568', border:'1px solid rgba(167,139,250,0.25)', borderRadius:'4px', padding:'6px 12px', cursor: editLead.email ? 'pointer' : 'not-allowed', fontSize:'11px', fontWeight:'bold', opacity: editLead.email ? 1 : 0.4, whiteSpace:'nowrap' }}>
-                {sendingPortalEmail ? '⏳ Sending…' : '🔐 Email Portal Access'}
+                title="Email portal credentials"
+                style={{ background:'rgba(167,139,250,0.12)', color: editLead.email ? '#a78bfa' : '#4a5568', border:'1px solid rgba(167,139,250,0.25)', borderRadius:'4px', padding:'6px 10px', cursor: editLead.email ? 'pointer' : 'not-allowed', fontSize:'10px', fontWeight:'bold', opacity: editLead.email ? 1 : 0.4, whiteSpace:'nowrap', flexShrink:0 }}>
+                {sendingPortalEmail ? '⏳' : '🔐 Portal'}
               </button>
             )}
             {!isArchived && (
               <button onClick={() => setShowZoom(true)}
-                style={{ background:'rgba(255,255,255,0.05)', color:'#c4cdd8', border:'1px solid rgba(255,255,255,0.1)', borderRadius:'4px', padding:'6px 12px', cursor:'pointer', fontSize:'11px' }}>
-                📅 Book Call via Calendly
+                style={{ background:'rgba(255,255,255,0.05)', color:'#c4cdd8', border:'1px solid rgba(255,255,255,0.1)', borderRadius:'4px', padding:'6px 10px', cursor:'pointer', fontSize:'10px', whiteSpace:'nowrap', flexShrink:0 }}>
+                📅 Calendly
               </button>
             )}
             {!isArchived && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink:0 }}>
                 <SetReminderButton 
                   contact={{ id: lead.id, firstName: editLead.firstName, lastName: editLead.lastName, type: 'lead' }}
                   onSetReminder={setReminder}
@@ -1374,17 +1376,17 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
             )}
             {!isArchived && editLead.status === 'prospect' && (
               <button onClick={handleTransferPipeline} disabled={transferring}
-                style={{ background:'rgba(245,158,11,0.12)', color:'#f59e0b', border:'1px solid rgba(245,158,11,0.3)', borderRadius:'4px', padding:'6px 12px', cursor:'pointer', fontSize:'11px', fontWeight:'bold', whiteSpace:'nowrap' }}>
-                {transferring ? '⏳ Transferring…' : `🔁 Transfer → ${otherUsername}`}
+                style={{ background:'rgba(245,158,11,0.12)', color:'#f59e0b', border:'1px solid rgba(245,158,11,0.3)', borderRadius:'4px', padding:'6px 10px', cursor:'pointer', fontSize:'10px', fontWeight:'bold', whiteSpace:'nowrap', flexShrink:0 }}>
+                {transferring ? '⏳' : `🔁 ${otherUsername}`}
               </button>
             )}
             {!isArchived && editLead.status === 'prospect' && editLead.leadPipelineOwner && (
               <button onClick={handleRemoveFromPipeline} disabled={transferring}
-                style={{ background:'rgba(239,68,68,0.1)', color:'#ef4444', border:'1px solid rgba(239,68,68,0.3)', borderRadius:'4px', padding:'6px 12px', cursor:'pointer', fontSize:'11px', fontWeight:'bold', whiteSpace:'nowrap' }}>
-                🚫 Remove from Pipeline
+                style={{ background:'rgba(239,68,68,0.1)', color:'#ef4444', border:'1px solid rgba(239,68,68,0.3)', borderRadius:'4px', padding:'6px 10px', cursor:'pointer', fontSize:'10px', fontWeight:'bold', whiteSpace:'nowrap', flexShrink:0 }}>
+                🚫 Remove
               </button>
             )}
-            {(emailMsg || portalEmailMsg) && <span style={{ fontSize:'10px', color: (emailMsg||portalEmailMsg).startsWith('Error') ? '#ef4444' : '#4ade80' }}>{emailMsg || portalEmailMsg}</span>}
+            {(emailMsg || portalEmailMsg) && <span style={{ fontSize:'9px', color: (emailMsg||portalEmailMsg).startsWith('Error') ? '#ef4444' : '#4ade80', flexShrink:0 }}>{emailMsg || portalEmailMsg}</span>}
           </div>
 
           {/* Row 4: Quick actions */}
