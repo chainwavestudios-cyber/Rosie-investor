@@ -33,6 +33,7 @@ export default function ScriptAssistant({ lead, user, onExpandCard, isCardExpand
   const [kbEntries, setKbEntries]     = useState([]);
   const [kbNames, setKbNames]           = useState([]);
   const [selectedKbName, setSelectedKbName] = useState('');
+  const [kbConfig, setKbConfig]         = useState(null); // KnowledgeBaseConfig for selected named KB
   const [portalCfg, setPortalCfg]     = useState(getPortalSettings);
   const [error, setError]             = useState('');
 
@@ -78,7 +79,6 @@ export default function ScriptAssistant({ lead, user, onExpandCard, isCardExpand
       setAllKbEntries(entries);
       const names = [...new Set(entries.map(e => e.kbName || '').filter(Boolean))];
       setKbNames(names);
-      // Default to Default KB
       setKbEntries(entries.filter(e => !e.kbName || e.kbName === ''));
     }).catch(() => {});
     loadPortalSettings().then(setPortalCfg).catch(() => {});
@@ -394,11 +394,11 @@ export default function ScriptAssistant({ lead, user, onExpandCard, isCardExpand
           const ir = await base44.functions.invoke('liveAssistantAI', {
             transcript: finalTranscript, mode: 'intent_final',
             intentRules: {
-              duckDefinition:  portalCfg?.intentDuckDefinition,
-              cowDefinition:   portalCfg?.intentCowDefinition,
-              positiveSignals: portalCfg?.intentPositiveSignals,
-              negativeSignals: portalCfg?.intentNegativeSignals,
-              sentimentRules:  portalCfg?.intentSentimentRules,
+              duckDefinition:  (kbConfig || portalCfg)?.intentDuckDefinition,
+              cowDefinition:   (kbConfig || portalCfg)?.intentCowDefinition,
+              positiveSignals: (kbConfig || portalCfg)?.intentPositiveSignals,
+              negativeSignals: (kbConfig || portalCfg)?.intentNegativeSignals,
+              sentimentRules:  (kbConfig || portalCfg)?.intentSentimentRules,
             },
             engagementScore: lead?.engagementScore || 0,
           });
@@ -697,7 +697,7 @@ export default function ScriptAssistant({ lead, user, onExpandCard, isCardExpand
           transcript={transcript}
           transcriptRef={transcriptRef}
           kbEntries={kbEntries}
-          portalCfg={portalCfg}
+          portalCfg={kbConfig ? { ...portalCfg, ...kbConfig } : portalCfg}
           engagementScore={lead?.engagementScore || 0}
           qaActive={qaActive}
           coachActive={coachActive}
@@ -710,11 +710,20 @@ export default function ScriptAssistant({ lead, user, onExpandCard, isCardExpand
           allKbEntries={allKbEntries}
           kbNames={kbNames}
           selectedKbName={selectedKbName}
-          onKbChange={(name) => {
+          onKbChange={async (name) => {
             setSelectedKbName(name);
             setKbEntries(name
               ? allKbEntries.filter(e => (e.kbName || '') === name)
               : allKbEntries.filter(e => !e.kbName || e.kbName === ''));
+            // Load KnowledgeBaseConfig for named KB
+            if (name) {
+              try {
+                const cfgs = await base44.entities.KnowledgeBaseConfig.filter({ kbName: name });
+                setKbConfig(cfgs?.[0] || null);
+              } catch { setKbConfig(null); }
+            } else {
+              setKbConfig(null); // Default KB uses portalCfg
+            }
           }}
         />
       )}
