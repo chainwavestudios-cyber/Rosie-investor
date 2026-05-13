@@ -34,7 +34,10 @@ export default function LiveAssistant({ isCallActive = false, lead = null, curre
   const [listening, setListening]       = useState(false);
   const [micDevices, setMicDevices]     = useState([]);
   const [selectedMic, setSelectedMic]   = useState('');
+  const [allKbEntries, setAllKbEntries] = useState([]);
   const [kbEntries, setKbEntries]       = useState([]);
+  const [kbNames, setKbNames]           = useState([]);
+  const [selectedKbName, setSelectedKbName] = useState('');
   const [manualQ, setManualQ]           = useState('');
   const [activeTab, setActiveTab]       = useState('assistant');
   const [error, setError]               = useState('');
@@ -83,9 +86,28 @@ export default function LiveAssistant({ isCallActive = false, lead = null, curre
 
   const loadKB = async () => {
     try {
-      const entries = await base44.entities.KnowledgeBase.list('-created_date', 200);
-      setKbEntries(entries);
+      const all = await base44.entities.KnowledgeBase.list('-created_date', 500);
+      setAllKbEntries(all || []);
+      // Derive unique KB names
+      const names = [...new Set((all || []).map(e => e.kbName || '').filter(Boolean))];
+      setKbNames(names);
+      // Filter to selected KB
+      filterKb(all || [], selectedKbName);
     } catch {}
+  };
+
+  const filterKb = (all, kbName) => {
+    const filtered = kbName
+      ? all.filter(e => (e.kbName || '') === kbName)
+      : all.filter(e => !e.kbName || e.kbName === '');
+    setKbEntries(filtered);
+  };
+
+  // Re-filter when selectedKbName changes
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const handleKbChange = (name) => {
+    setSelectedKbName(name);
+    filterKb(allKbEntries, name);
   };
 
   const startListening = async () => {
@@ -352,16 +374,29 @@ Transcript: "${fullTranscript}"`,
 
         {!minimized && (
           <>
-            {/* Mic + controls */}
-            <div style={{ padding:'8px 12px', borderBottom:'1px solid rgba(255,255,255,0.06)', display:'flex', gap:'6px', alignItems:'center' }}>
-              <select value={selectedMic} onChange={e => setSelectedMic(e.target.value)}
-                style={{ flex:1, background:'rgba(255,255,255,0.05)', border:'1px solid rgba(255,255,255,0.1)', borderRadius:'4px', padding:'4px 8px', color:'#e8e0d0', fontSize:'10px', outline:'none', cursor:'pointer' }}>
-                {micDevices.map(d => <option key={d.deviceId} value={d.deviceId}>{d.label || `Mic ${d.deviceId.slice(0,6)}`}</option>)}
-              </select>
-              <button onClick={listening ? stopListening : startListening}
-                style={{ background: listening ? 'rgba(239,68,68,0.15)' : 'rgba(74,222,128,0.15)', color: listening ? '#ef4444' : '#4ade80', border:`1px solid ${listening ? 'rgba(239,68,68,0.3)' : 'rgba(74,222,128,0.3)'}`, borderRadius:'4px', padding:'4px 10px', cursor:'pointer', fontSize:'10px', whiteSpace:'nowrap' }}>
-                {listening ? '⏹ Stop' : '🎙 Start'}
-              </button>
+            {/* Mic + KB controls */}
+            <div style={{ padding:'8px 12px', borderBottom:'1px solid rgba(255,255,255,0.06)', display:'flex', flexDirection:'column', gap:'5px' }}>
+              <div style={{ display:'flex', gap:'6px', alignItems:'center' }}>
+                <select value={selectedMic} onChange={e => setSelectedMic(e.target.value)}
+                  style={{ flex:1, background:'rgba(255,255,255,0.05)', border:'1px solid rgba(255,255,255,0.1)', borderRadius:'4px', padding:'4px 8px', color:'#e8e0d0', fontSize:'10px', outline:'none', cursor:'pointer' }}>
+                  {micDevices.map(d => <option key={d.deviceId} value={d.deviceId}>{d.label || `Mic ${d.deviceId.slice(0,6)}`}</option>)}
+                </select>
+                <button onClick={listening ? stopListening : startListening}
+                  style={{ background: listening ? 'rgba(239,68,68,0.15)' : 'rgba(74,222,128,0.15)', color: listening ? '#ef4444' : '#4ade80', border:`1px solid ${listening ? 'rgba(239,68,68,0.3)' : 'rgba(74,222,128,0.3)'}`, borderRadius:'4px', padding:'4px 10px', cursor:'pointer', fontSize:'10px', whiteSpace:'nowrap' }}>
+                  {listening ? '⏹ Stop' : '🎙 Start'}
+                </button>
+              </div>
+              {/* KB Selector */}
+              {(kbNames.length > 0) && (
+                <div style={{ display:'flex', alignItems:'center', gap:'6px' }}>
+                  <span style={{ color:'#4a5568', fontSize:'9px', letterSpacing:'1px', textTransform:'uppercase', flexShrink:0 }}>📚 KB:</span>
+                  <select value={selectedKbName} onChange={e => handleKbChange(e.target.value)}
+                    style={{ flex:1, background:'rgba(184,147,58,0.06)', border:'1px solid rgba(184,147,58,0.25)', borderRadius:'4px', padding:'3px 7px', color:'#b8933a', fontSize:'10px', outline:'none', cursor:'pointer' }}>
+                    <option value={''}>Default KB ({allKbEntries.filter(e => !e.kbName || e.kbName === '').length} entries)</option>
+                    {kbNames.map(n => <option key={n} value={n}>{n} ({allKbEntries.filter(e => e.kbName === n).length} entries)</option>)}
+                  </select>
+                </div>
+              )}
             </div>
 
             {error && <div style={{ background:'rgba(239,68,68,0.1)', color:'#ef4444', fontSize:'10px', padding:'6px 12px' }}>{error}</div>}
