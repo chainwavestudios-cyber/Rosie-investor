@@ -6,7 +6,7 @@ import analytics from '@/lib/analytics';
 import ReminderPopup from '@/components/ReminderPopup';
 import { useReminders } from '@/hooks/useReminders';
 import { getPortalSettings, loadPortalSettings, savePortalSettings } from '@/lib/portalSettings';
-import { SignNowRequestDB, InvestorUser, ContactNoteDB, AppointmentDB, AccreditationDocDB } from '@/api/entities';
+import { SignNowRequestDB, InvestorUser, ContactNoteDB, AppointmentDB, AccreditationDocDB, KnowledgeBaseConfigDB } from '@/api/entities';
 import { getScoreColor, getScoreLabel } from '@/lib/engagementScore';
 import { signnowSendDocuments, signnowGetToken } from '@/lib/signnow';
 import LeadsTab from '@/components/leads/LeadsTab';
@@ -788,7 +788,7 @@ function AITunerChat({ context, onApply }) {
 }
 
 // ─── Intent Engine Tuner ──────────────────────────────────────────────────
-function IntentEngineTuner() {
+function IntentEngineTuner({ kbName = '' }) {
   const [s, setS]       = useState(getPortalSettings);
   const [saved, setSaved] = useState(false);
 
@@ -877,21 +877,44 @@ DRIFT SIGNALS — flag DRIFT WARNING:
   const [activeType,    setActiveType]    = useState('duck');
 
   useEffect(() => {
-    loadPortalSettings().then(loaded => {
-      setS(loaded);
-      setDuckDef(loaded.intentDuckDefinition   || DUCK_DEFAULT);
-      setCowDef(loaded.intentCowDefinition     || COW_DEFAULT);
-      setTriggers(loaded.intentTriggerKeywords || TRIGGERS_DEFAULT);
-      setInterval2(loaded.intentIntervalSeconds || 20);
-      setPosSignals(loaded.intentPositiveSignals || POS_DEFAULT);
-      setNegSignals(loaded.intentNegativeSignals || NEG_DEFAULT);
-      if (loaded.intentSentimentRules) setSentRules(JSON.parse(loaded.intentSentimentRules));
-    });
-  }, []);
+    const loadData = async () => {
+      if (kbName) {
+        // Load from KnowledgeBaseConfig for named KB
+        const cfg = await KnowledgeBaseConfigDB.getForKb(kbName);
+        if (cfg) {
+          setDuckDef(cfg.intentDuckDefinition   || DUCK_DEFAULT);
+          setCowDef(cfg.intentCowDefinition     || COW_DEFAULT);
+          setTriggers(cfg.intentTriggerKeywords || TRIGGERS_DEFAULT);
+          setInterval2(cfg.intentIntervalSeconds || 20);
+          setPosSignals(cfg.intentPositiveSignals || POS_DEFAULT);
+          setNegSignals(cfg.intentNegativeSignals || NEG_DEFAULT);
+          if (cfg.intentSentimentRules) setSentRules(JSON.parse(cfg.intentSentimentRules));
+        } else {
+          // New KB — reset to defaults
+          setDuckDef(DUCK_DEFAULT); setCowDef(COW_DEFAULT);
+          setTriggers(TRIGGERS_DEFAULT); setInterval2(20);
+          setPosSignals(POS_DEFAULT); setNegSignals(NEG_DEFAULT);
+          setSentRules(SENTIMENT_DEFAULT);
+        }
+      } else {
+        // Default KB — load from PortalSettings
+        loadPortalSettings().then(loaded => {
+          setS(loaded);
+          setDuckDef(loaded.intentDuckDefinition   || DUCK_DEFAULT);
+          setCowDef(loaded.intentCowDefinition     || COW_DEFAULT);
+          setTriggers(loaded.intentTriggerKeywords || TRIGGERS_DEFAULT);
+          setInterval2(loaded.intentIntervalSeconds || 20);
+          setPosSignals(loaded.intentPositiveSignals || POS_DEFAULT);
+          setNegSignals(loaded.intentNegativeSignals || NEG_DEFAULT);
+          if (loaded.intentSentimentRules) setSentRules(JSON.parse(loaded.intentSentimentRules));
+        });
+      }
+    };
+    loadData();
+  }, [kbName]);
 
   const save = async () => {
-    await savePortalSettings({
-      ...s,
+    const data = {
       intentDuckDefinition:  duckDef,
       intentCowDefinition:   cowDef,
       intentTriggerKeywords: triggers,
@@ -899,7 +922,14 @@ DRIFT SIGNALS — flag DRIFT WARNING:
       intentPositiveSignals: posSignals,
       intentNegativeSignals: negSignals,
       intentSentimentRules:  JSON.stringify(sentRules),
-    });
+    };
+    if (kbName) {
+      // Save to KnowledgeBaseConfig for named KB
+      await KnowledgeBaseConfigDB.saveForKb(kbName, data);
+    } else {
+      // Save to PortalSettings for Default KB
+      await savePortalSettings({ ...s, ...data });
+    }
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   };
@@ -1122,7 +1152,7 @@ function SmartRuleModal({ rule, onSave, onClose }) {
 }
 
 // ── Coach Rules Tuner ─────────────────────────────────────────────────────────
-function CoachRulesTuner() {
+function CoachRulesTuner({ kbName = '' }) {
   const [s, setS]         = useState(getPortalSettings);
   const [saved, setSaved] = useState(false);
   const [enabled, setEnabled] = useState(true);
@@ -1194,16 +1224,35 @@ GENERAL RULES
   });
 
   useEffect(() => {
-    loadPortalSettings().then(loaded => {
-      setS(loaded);
-      setStyle(loaded.coachStyle || STYLE_DEFAULT);
-      setContext(loaded.coachAdditionalContext || CONTEXT_DEFAULT);
-      setInterval(loaded.coachIntervalSeconds || 15);
-      if (loaded.coachFocusPills)        setFocusPills(JSON.parse(loaded.coachFocusPills));
-      if (loaded.coachSmartRules)        setRules(JSON.parse(loaded.coachSmartRules));
-      if (loaded.coachListeningStrategy) setListening(JSON.parse(loaded.coachListeningStrategy));
-    });
-  }, []);
+    const loadData = async () => {
+      if (kbName) {
+        const cfg = await KnowledgeBaseConfigDB.getForKb(kbName);
+        if (cfg) {
+          setStyle(cfg.coachStyle || STYLE_DEFAULT);
+          setContext(cfg.coachAdditionalContext || CONTEXT_DEFAULT);
+          setInterval(cfg.coachIntervalSeconds || 15);
+          if (cfg.coachFocusPills)        setFocusPills(JSON.parse(cfg.coachFocusPills));
+          if (cfg.coachSmartRules)        setRules(JSON.parse(cfg.coachSmartRules));
+          if (cfg.coachListeningStrategy) setListening(JSON.parse(cfg.coachListeningStrategy));
+        } else {
+          setStyle(STYLE_DEFAULT); setContext(CONTEXT_DEFAULT);
+          setInterval(15); setFocusPills(DEFAULT_FOCUS_PILLS);
+          setRules(DEFAULT_RULES); setListening(DEFAULT_LISTENING);
+        }
+      } else {
+        loadPortalSettings().then(loaded => {
+          setS(loaded);
+          setStyle(loaded.coachStyle || STYLE_DEFAULT);
+          setContext(loaded.coachAdditionalContext || CONTEXT_DEFAULT);
+          setInterval(loaded.coachIntervalSeconds || 15);
+          if (loaded.coachFocusPills)        setFocusPills(JSON.parse(loaded.coachFocusPills));
+          if (loaded.coachSmartRules)        setRules(JSON.parse(loaded.coachSmartRules));
+          if (loaded.coachListeningStrategy) setListening(JSON.parse(loaded.coachListeningStrategy));
+        });
+      }
+    };
+    loadData();
+  }, [kbName]);
 
   // Assemble coachFocusAreas string from pills for the AI prompt
   const buildFocusString = (pills) => pills.join(', ');
@@ -1223,8 +1272,7 @@ GENERAL RULES
   const save = async () => {
     const focusStr = buildFocusString(focusPills);
     const fullContext = context + buildRulesContext(rules) + buildListeningContext(listening);
-    await savePortalSettings({
-      ...s,
+    const data = {
       coachFocusAreas: focusStr,
       coachStyle: style,
       coachAdditionalContext: fullContext,
@@ -1232,7 +1280,12 @@ GENERAL RULES
       coachFocusPills: JSON.stringify(focusPills),
       coachSmartRules: JSON.stringify(rules),
       coachListeningStrategy: JSON.stringify(listening),
-    });
+    };
+    if (kbName) {
+      await KnowledgeBaseConfigDB.saveForKb(kbName, data);
+    } else {
+      await savePortalSettings({ ...s, ...data });
+    }
     setSaved(true);
     setTimeout(() => setSaved(false), 2500);
   };
