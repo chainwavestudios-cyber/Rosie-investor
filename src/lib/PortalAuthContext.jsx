@@ -53,7 +53,7 @@ export const PortalAuthProvider = ({ children }) => {
     const u = (usernameOrEmail || '').toLowerCase().trim();
 
     // Steph (second admin) — hardcoded credentials
-    if ((u === 'steph') && password === 'Rosieai@@2026') {
+    if (u === 'steph' && password === 'Rosieai@@2026') {
       setPortalUser(STEPH_USER);
       sessionStorage.setItem(SESSION_KEY, JSON.stringify(STEPH_USER));
       return { success: true, user: STEPH_USER };
