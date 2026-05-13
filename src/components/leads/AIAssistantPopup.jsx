@@ -345,6 +345,7 @@ export default function AIAssistantPopup({
   qaActive, coachActive, intentActive,
   onToggleQA, onToggleCoach, onToggleIntent,
   onClose, onIntentResult,
+  allKbEntries, kbNames, selectedKbName, onKbChange,
 }) {
   const qaRef     = useRef(null);
   const coachRef  = useRef(null);
@@ -402,9 +403,24 @@ export default function AIAssistantPopup({
       </div>
 
       {/* Panel title bar */}
-      <div style={{ padding: '5px 16px', background: 'rgba(0,0,0,0.3)', borderBottom: '1px solid rgba(184,147,58,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
-        <span style={{ color: GOLD, fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase' }}>🧠 AI Assistant</span>
-        <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#6b7280', cursor: 'pointer', fontSize: '18px', lineHeight: 1, padding: '0 4px' }}>×</button>
+      <div style={{ padding: '5px 16px', background: 'rgba(0,0,0,0.3)', borderBottom: '1px solid rgba(184,147,58,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0, gap: '12px' }}>
+        <span style={{ color: GOLD, fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', flexShrink: 0 }}>🧠 AI Assistant</span>
+        {/* KB Selector — visible when multiple KBs exist */}
+        {kbNames && kbNames.length > 0 && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '7px', flex: 1, justifyContent: 'center' }}>
+            <span style={{ color: '#4a5568', fontSize: '9px', letterSpacing: '1px', textTransform: 'uppercase', flexShrink: 0 }}>📚 KB:</span>
+            <select
+              value={selectedKbName || ''}
+              onChange={e => onKbChange?.(e.target.value)}
+              style={{ background: 'rgba(184,147,58,0.1)', border: '1px solid rgba(184,147,58,0.35)', borderRadius: '4px', padding: '3px 8px', color: '#b8933a', fontSize: '10px', outline: 'none', cursor: 'pointer', maxWidth: '220px' }}>
+              <option value={''}> Default KB ({(allKbEntries || kbEntries).filter(e => !e.kbName || e.kbName === '').length} entries)</option>
+              {(kbNames || []).map(n => (
+                <option key={n} value={n}>{n} ({(allKbEntries || []).filter(e => e.kbName === n).length} entries)</option>
+              ))}
+            </select>
+          </div>
+        )}
+        <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#6b7280', cursor: 'pointer', fontSize: '18px', lineHeight: 1, padding: '0 4px', flexShrink: 0 }}>×</button>
       </div>
 
       {/* 3 columns */}
