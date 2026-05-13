@@ -1293,7 +1293,7 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
                 phone={selectedPhone || editLead.phone || lead.phone}
                 name={`${editLead.firstName || lead.firstName || ''} ${editLead.lastName || lead.lastName || ''}`.trim()}
                 dialer={dialer}
-                onLogCall={() => dialer.logLeadCall(lead.id).then(loadHistory)}
+                onLogCall={async () => { await dialer.logLeadCall(lead.id); await loadHistory(); onCallLogged && onCallLogged(lead.id); }}
                 isPredictive={!!isDialerPaused}
                 isDialerPaused={!!isDialerPaused}
                 onPauseCampaign={() => dialerRef.current?.pauseDialer?.()}
