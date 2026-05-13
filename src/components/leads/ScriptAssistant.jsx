@@ -29,7 +29,10 @@ export default function ScriptAssistant({ lead, user, onExpandCard, isCardExpand
 
   const [listening, setListening]     = useState(false);
   const [transcript, setTranscript]   = useState([]);
+  const [allKbEntries, setAllKbEntries] = useState([]);
   const [kbEntries, setKbEntries]     = useState([]);
+  const [kbNames, setKbNames]           = useState([]);
+  const [selectedKbName, setSelectedKbName] = useState('');
   const [portalCfg, setPortalCfg]     = useState(getPortalSettings);
   const [error, setError]             = useState('');
 
@@ -70,8 +73,14 @@ export default function ScriptAssistant({ lead, user, onExpandCard, isCardExpand
     base44.entities.GlobalScript.list('sortOrder', 200)
       .then(r => { setScripts(r || []); if (r?.length) setActiveId(r[0].id); })
       .catch(() => {}).finally(() => setLoadingScripts(false));
-    base44.entities.KnowledgeBase.list('-created_date', 500)
-      .then(r => setKbEntries(r || [])).catch(() => {});
+    base44.entities.KnowledgeBase.list('-created_date', 500).then(all => {
+      const entries = all || [];
+      setAllKbEntries(entries);
+      const names = [...new Set(entries.map(e => e.kbName || '').filter(Boolean))];
+      setKbNames(names);
+      // Default to Default KB
+      setKbEntries(entries.filter(e => !e.kbName || e.kbName === ''));
+    }).catch(() => {});
     loadPortalSettings().then(setPortalCfg).catch(() => {});
     return () => stopListening();
   }, []);
@@ -698,6 +707,15 @@ export default function ScriptAssistant({ lead, user, onExpandCard, isCardExpand
           onToggleIntent={toggleIntent}
           onClose={() => setShowPopup(false)}
           onIntentResult={result => { setIntentResult(result); }}
+          allKbEntries={allKbEntries}
+          kbNames={kbNames}
+          selectedKbName={selectedKbName}
+          onKbChange={(name) => {
+            setSelectedKbName(name);
+            setKbEntries(name
+              ? allKbEntries.filter(e => (e.kbName || '') === name)
+              : allKbEntries.filter(e => !e.kbName || e.kbName === ''));
+          }}
         />
       )}
     </div>
