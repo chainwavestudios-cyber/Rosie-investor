@@ -1256,6 +1256,15 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
                     </button>
                   );
                 })}
+                <button onClick={async () => {
+                    const newType = editLead.leadType === 'nb_tech' ? 'standard' : 'nb_tech';
+                    await base44.entities.Lead.update(lead.id, { leadType: newType });
+                    setEditLead(prev => ({ ...prev, leadType: newType }));
+                    onUpdate && onUpdate();
+                  }}
+                  style={{ background: editLead.leadType === 'nb_tech' ? 'rgba(99,102,241,0.2)' : 'rgba(255,255,255,0.05)', border:`1.5px solid ${editLead.leadType === 'nb_tech' ? 'rgba(99,102,241,0.6)' : 'rgba(255,255,255,0.15)'}`, borderRadius:'20px', color: editLead.leadType === 'nb_tech' ? '#818cf8' : '#6b7280', padding:'5px 12px', cursor:'pointer', fontSize:'12px', fontWeight: editLead.leadType === 'nb_tech' ? 'bold' : 'normal', whiteSpace:'nowrap', flexShrink:0 }}>
+                  💡 {editLead.leadType === 'nb_tech' ? 'NB Tech ✓' : 'NB Tech'}
+                </button>
                 <button onClick={() => setShowMigrate(true)}
                   style={{ background:'rgba(167,139,250,0.12)', border:'1.5px solid rgba(167,139,250,0.35)', borderRadius:'20px', color:'#a78bfa', padding:'5px 12px', cursor:'pointer', fontSize:'12px', fontWeight:'bold', whiteSpace:'nowrap', flexShrink:0 }}>
                   🚀 Migrate

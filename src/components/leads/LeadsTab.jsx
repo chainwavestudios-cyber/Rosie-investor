@@ -349,6 +349,8 @@ export default function LeadsTab({ openLeadId, onLeadOpened }) {
   const [isCallActive, setIsCallActive] = useState(false);
   const [todayApptLeadIds, setTodayApptLeadIds] = useState(new Set());
   const [listFilter, setListFilter] = useState('all'); // 'all' or contactListId
+  const [leadTypeFilter, setLeadTypeFilter] = useState('all'); // 'all' | 'standard' | 'nb_tech'
+  const [stateFilter, setStateFilter] = useState('all');
 
   useEffect(() => {
     loadLeads();
@@ -510,6 +512,9 @@ export default function LeadsTab({ openLeadId, onLeadOpened }) {
       if (tz !== tzFilter) return false;
     }
     if (listFilter !== 'all' && l.contactListId !== listFilter) return false;
+    if (stateFilter !== 'all' && (l.state || '').toUpperCase().trim() !== stateFilter) return false;
+    if (leadTypeFilter === 'nb_tech' && l.leadType !== 'nb_tech') return false;
+    if (leadTypeFilter === 'standard' && l.leadType === 'nb_tech') return false;
     if (search) {
       const q = search.toLowerCase();
       return `${l.firstName} ${l.lastName} ${l.email} ${l.phone} ${l.state}`.toLowerCase().includes(q);
@@ -517,7 +522,7 @@ export default function LeadsTab({ openLeadId, onLeadOpened }) {
     return true;
   });
 
-  useEffect(() => { setPage(1); }, [filter, search, tzFilter, listFilter]);
+  useEffect(() => { setPage(1); }, [filter, search, tzFilter, listFilter, stateFilter, leadTypeFilter]);
 
   const [page, setPage] = useState(1);
   const PAGE_SIZE = 30;
@@ -773,6 +778,20 @@ export default function LeadsTab({ openLeadId, onLeadOpened }) {
             <option key={list.id} value={list.id}>{list.name} ({list.leadCount || 0})</option>
           ))}
         </select>
+        <select value={leadTypeFilter} onChange={e=>setLeadTypeFilter(e.target.value)}
+          style={{ ...inp, cursor:'pointer', flexShrink:0, width:'auto' }}>
+          <option value="all">🏷 All Types</option>
+          <option value="nb_tech">💡 NB Tech</option>
+          <option value="standard">👤 Standard</option>
+        </select>
+        <select value={stateFilter} onChange={e=>setStateFilter(e.target.value)}
+          style={{ ...inp, cursor:'pointer', flexShrink:0, width:'auto' }}>
+          <option value="all">🗺 All States</option>
+          <option value="CA">📍 California (CA)</option>
+          {[...new Set(leads.map(l => (l.state||'').toUpperCase().trim()).filter(s => s && s !== 'CA'))].sort().map(s => (
+            <option key={s} value={s}>{s}</option>
+          ))}
+        </select>
         <select value={tzFilter} onChange={e=>setTzFilter(e.target.value)}
           style={{ ...inp, cursor:'pointer', flexShrink:0, width:'auto' }}>
           <option value="all">All Time Zones</option>
@@ -822,7 +841,10 @@ export default function LeadsTab({ openLeadId, onLeadOpened }) {
                       )}
                     </td>
                     <td style={{ padding:'12px' }}>
-                      <div style={{ color:'#e8e0d0', fontWeight:'bold' }}>{name}</div>
+                      <div style={{ color:'#e8e0d0', fontWeight:'bold', display:'flex', alignItems:'center', gap:'6px' }}>
+                        {name}
+                        {lead.leadType === 'nb_tech' && <span style={{ background:'rgba(99,102,241,0.2)', color:'#818cf8', border:'1px solid rgba(99,102,241,0.4)', borderRadius:'3px', padding:'1px 5px', fontSize:'9px', fontWeight:'bold', letterSpacing:'0.5px', flexShrink:0 }}>NB Tech</span>}
+                      </div>
                       {(lead.engagementScore > 0 || lead.badgeEmailOpened || lead.badgeIntroEmailOpened || lead.badgeConsumerWebsite || lead.badgeInvestorPage) && (
                         <div style={{ display:'flex', gap:'4px', marginTop:'3px', flexWrap:'wrap' }}>
                           {lead.engagementScore > 0 && <span style={{ background:'rgba(184,147,58,0.15)', color:GOLD, border:'1px solid rgba(184,147,58,0.3)', borderRadius:'20px', padding:'1px 7px', fontSize:'9px', fontWeight:'bold' }}>⭐ {lead.engagementScore}</span>}

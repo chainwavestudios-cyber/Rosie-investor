@@ -55,6 +55,15 @@
         "80s+"
       ]
     },
+    "leadType": {
+      "type": "string",
+      "title": "Lead Type",
+      "enum": [
+        "standard",
+        "nb_tech"
+      ],
+      "default": "standard"
+    },
     "bestTimeToCall": {
       "type": "string",
       "title": "Best Time to Call"
