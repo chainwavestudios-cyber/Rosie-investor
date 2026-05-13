@@ -22,6 +22,10 @@
     "tags": {
       "type": "string",
       "title": "Tags"
+    },
+    "kbName": {
+      "type": "string",
+      "title": "Knowledge Base Name"
     }
   },
   "required": [
