@@ -861,10 +861,14 @@ export default function LeadsTab({ openLeadId, onLeadOpened }) {
                       )}
                     </td>
                     <td style={{ padding:'12px' }}>
-                      <div style={{ color:'#e8e0d0', fontWeight:'bold', display:'flex', alignItems:'center', gap:'6px' }}>
-                        {name}
-                        {lead.leadType === 'nb_tech' && <span style={{ background:'rgba(99,102,241,0.2)', color:'#818cf8', border:'1px solid rgba(99,102,241,0.4)', borderRadius:'3px', padding:'1px 5px', fontSize:'9px', fontWeight:'bold', letterSpacing:'0.5px', flexShrink:0 }}>NB Tech</span>}
-                      </div>
+                     <div style={{ color:'#e8e0d0', fontWeight:'bold', display:'flex', alignItems:'center', gap:'6px' }}>
+                       {name}
+                       {lead.leadType === 'nb_tech' && <span style={{ background:'rgba(99,102,241,0.2)', color:'#818cf8', border:'1px solid rgba(99,102,241,0.4)', borderRadius:'3px', padding:'1px 5px', fontSize:'9px', fontWeight:'bold', letterSpacing:'0.5px', flexShrink:0 }}>NB Tech</span>}
+                       <button onClick={e => { e.stopPropagation(); handleDialStarted(lead.id); }} title="Send to back of list"
+                         style={{ background:'rgba(255,255,255,0.05)', color:'#4a5568', border:'1px solid rgba(255,255,255,0.08)', borderRadius:'3px', padding:'1px 6px', cursor:'pointer', fontSize:'10px', fontWeight:'normal', flexShrink:0, lineHeight:1.4 }}>
+                         ↓
+                       </button>
+                     </div>
                       {(lead.engagementScore > 0 || lead.badgeEmailOpened || lead.badgeIntroEmailOpened || lead.badgeConsumerWebsite || lead.badgeInvestorPage) && (
                         <div style={{ display:'flex', gap:'4px', marginTop:'3px', flexWrap:'wrap' }}>
                           {lead.engagementScore > 0 && <span style={{ background:'rgba(184,147,58,0.15)', color:GOLD, border:'1px solid rgba(184,147,58,0.3)', borderRadius:'20px', padding:'1px 7px', fontSize:'9px', fontWeight:'bold' }}>⭐ {lead.engagementScore}</span>}
@@ -892,17 +896,10 @@ export default function LeadsTab({ openLeadId, onLeadOpened }) {
                       {lead.callbackAt ? new Date(lead.callbackAt).toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}) : '—'}
                     </td>
                     <td style={{ padding:'12px' }}>
-                     <div style={{ display:'flex', gap:'6px' }}>
-                       <button onClick={e => { e.stopPropagation(); setSelectedLead(lead); }}
-                         style={{ background:'rgba(184,147,58,0.15)', color:GOLD, border:'1px solid rgba(184,147,58,0.3)', borderRadius:'2px', padding:'5px 12px', cursor:'pointer', fontSize:'11px' }}>
-                         Open →
-                       </button>
-                       <button onClick={e => { e.stopPropagation(); handleDialStarted(lead.id); }}
-                         title="Send to back of list"
-                         style={{ background:'rgba(255,255,255,0.04)', color:'#4a5568', border:'1px solid rgba(255,255,255,0.08)', borderRadius:'2px', padding:'5px 8px', cursor:'pointer', fontSize:'11px' }}>
-                         ↓
-                       </button>
-                     </div>
+                     <button onClick={e => { e.stopPropagation(); setSelectedLead(lead); }}
+                       style={{ background:'rgba(184,147,58,0.15)', color:GOLD, border:'1px solid rgba(184,147,58,0.3)', borderRadius:'2px', padding:'5px 12px', cursor:'pointer', fontSize:'11px' }}>
+                       Open →
+                     </button>
                     </td>
                   </tr>
                 );
