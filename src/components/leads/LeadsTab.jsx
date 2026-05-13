@@ -356,8 +356,13 @@ export default function LeadsTab({ openLeadId, onLeadOpened }) {
     loadLeads();
     loadActivity();
     base44.entities.ContactList.list('-created_date', 100).then(setContactLists).catch(() => {});
-    // Load today's appointments to highlight leads
     loadTodayAppointments();
+
+    // Auto-refresh leads every 10 seconds
+    const refreshInterval = setInterval(() => {
+      loadLeads();
+    }, 10000);
+    return () => clearInterval(refreshInterval);
   }, []);
 
   const loadTodayAppointments = async () => {
@@ -399,24 +404,25 @@ export default function LeadsTab({ openLeadId, onLeadOpened }) {
   };
 
   const loadLeads = async () => {
-    setLoading(true);
+    // Don't show loading spinner on background refreshes (only on first load)
     try {
       const all = await base44.entities.Lead.list('-created_date', 2000);
-      // Exclude permanently not_interested, sort: never-called first (by created_date), then called leads sorted by lastCalledAt asc (oldest call = first to call again)
-      // Exclude permanently not_interested; keep converted at end
-      // Exclude migrated and not_interested from main list
       const active = all.filter(l => !l.migratedToPortal && !l.convertedToInvestorUserId);
-      // Archived/migrated leads
       const archived = all.filter(l => l.migratedToPortal || l.convertedToInvestorUserId);
-      const notInterested = active.filter(l => l.status === 'not_interested').sort((a,b) => new Date(b.created_date) - new Date(a.created_date));
-      const converted = active.filter(l => l.status === 'converted').sort((a,b) => new Date(b.created_date) - new Date(a.created_date));
-      const nonConverted = active.filter(l => l.status !== 'converted' && l.status !== 'not_interested');
-      const neverCalled = nonConverted.filter(l => !l.lastCalledAt).sort((a,b) => new Date(a.created_date) - new Date(b.created_date));
-      const called = nonConverted.filter(l => l.lastCalledAt).sort((a,b) => new Date(a.lastCalledAt) - new Date(b.lastCalledAt));
-      setLeads([...neverCalled, ...called, ...converted, ...notInterested]);
+      setLeads(sortLeads(active));
       setArchivedLeads(archived || []);
     } catch(e) { console.error(e); }
     setLoading(false);
+  };
+
+  // Shared sort function — never-called first, then oldest-called first, converted/notInterested at end
+  const sortLeads = (leadsArray) => {
+    const active = leadsArray.filter(l => l.status !== 'converted' && l.status !== 'not_interested');
+    const neverCalled = active.filter(l => !l.lastCalledAt).sort((a,b) => new Date(a.created_date) - new Date(b.created_date));
+    const called = active.filter(l => l.lastCalledAt).sort((a,b) => new Date(a.lastCalledAt) - new Date(b.lastCalledAt));
+    const converted = leadsArray.filter(l => l.status === 'converted').sort((a,b) => new Date(b.created_date) - new Date(a.created_date));
+    const notInterested = leadsArray.filter(l => l.status === 'not_interested').sort((a,b) => new Date(b.created_date) - new Date(a.created_date));
+    return [...neverCalled, ...called, ...converted, ...notInterested];
   };
 
   const loadRecentCalls = async () => {
@@ -431,32 +437,29 @@ export default function LeadsTab({ openLeadId, onLeadOpened }) {
     setDialerLead(lead);
     setShowDialer(true);
     setShowDialerPanel(true);
-    setSelectedLead(lead); // open contact card at the same time
+    setSelectedLead(lead);
   };
 
-  // Called after a call ends — stamp lastCalledAt and re-sort
+  // Called after a call ends — stamp lastCalledAt in local state immediately, then reload from server
   const handleCallLogged = async (leadId) => {
     const now = new Date().toISOString();
+    // Update local state immediately so UI reflects correct lastCalledAt
+    setLeads(prev => {
+      const updated = prev.map(l => l.id === leadId ? { ...l, lastCalledAt: now } : l);
+      return sortLeads(updated);
+    });
+    // Also persist to DB and reload to get server-fresh data
     try { await base44.entities.Lead.update(leadId, { lastCalledAt: now }); } catch {}
-    await loadLeads();
-    await loadRecentCalls();
+    loadLeads();
+    loadRecentCalls();
   };
 
-  // Called the instant dialing starts — moves lead to back of list immediately (no reload needed)
+  // Called the instant dialing starts — moves lead to back of list immediately
   const handleDialStarted = (leadId) => {
     const now = new Date().toISOString();
     setLeads(prev => {
-      const lead = prev.find(l => l.id === leadId);
-      if (!lead) return prev;
-      const updated = { ...lead, lastCalledAt: now };
-      const rest = prev.filter(l => l.id !== leadId);
-      // Re-sort: never-called first, then by lastCalledAt asc, converted/notInterested at end
-      const neverCalled = rest.filter(l => !l.lastCalledAt && l.status !== 'converted' && l.status !== 'not_interested').sort((a,b) => new Date(a.created_date) - new Date(b.created_date));
-      const called = rest.filter(l => l.lastCalledAt && l.status !== 'converted' && l.status !== 'not_interested').sort((a,b) => new Date(a.lastCalledAt) - new Date(b.lastCalledAt));
-      const converted = rest.filter(l => l.status === 'converted');
-      const notInterested = rest.filter(l => l.status === 'not_interested');
-      // updated lead goes after all called leads (it was just called)
-      return [...neverCalled, ...called, updated, ...converted, ...notInterested];
+      const updated = prev.map(l => l.id === leadId ? { ...l, lastCalledAt: now } : l);
+      return sortLeads(updated);
     });
   };
 
@@ -761,7 +764,10 @@ export default function LeadsTab({ openLeadId, onLeadOpened }) {
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:'16px' }}>
         <div>
           <h2 style={{ color:'#e8e0d0', margin:'0 0 4px', fontSize:'20px', fontWeight:'normal' }}>Leads</h2>
-          <p style={{ color:'#6b7280', fontSize:'13px', margin:0 }}>Never-called leads appear first. Abandoned calls need manual callback.</p>
+          <p style={{ color:'#6b7280', fontSize:'13px', margin:0 }}>
+            Never-called leads appear first · Auto-refreshes every 10s
+            <span style={{ marginLeft:'8px', display:'inline-block', width:'6px', height:'6px', borderRadius:'50%', background:'#4ade80', boxShadow:'0 0 6px #4ade80', verticalAlign:'middle' }}></span>
+          </p>
         </div>
         <button onClick={() => setShowDialerPanel(v => !v)}
           style={{ background: showDialerPanel ? 'rgba(74,222,128,0.15)' : 'rgba(255,255,255,0.05)', color: showDialerPanel ? '#4ade80' : '#8a9ab8', border:`1px solid ${showDialerPanel ? 'rgba(74,222,128,0.35)' : 'rgba(255,255,255,0.1)'}`, borderRadius:'4px', padding:'8px 16px', cursor:'pointer', fontSize:'12px', fontWeight:'bold', display:'flex', alignItems:'center', gap:'6px' }}>
@@ -900,8 +906,12 @@ export default function LeadsTab({ openLeadId, onLeadOpened }) {
                       ) : '—'}
                     </td>
                     <td style={{ padding:'12px', color:'#8a9ab8', fontSize:'12px' }}>{lead.state || '—'}</td>
-                    <td style={{ padding:'12px', color:'#f59e0b', fontSize:'11px' }}>
-                      {lead.lastCalledAt ? new Date(lead.lastCalledAt).toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}) : <span style={{ color:'#4a5568' }}>Never</span>}
+                    <td style={{ padding:'12px', fontSize:'11px' }}>
+                      {lead.lastCalledAt ? (
+                        <span style={{ color:'#f59e0b' }} title={new Date(lead.lastCalledAt).toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})}>
+                          {fmtTime(lead.lastCalledAt)}
+                        </span>
+                      ) : <span style={{ color:'#4a5568' }}>Never</span>}
                     </td>
                     <td style={{ padding:'12px', color:'#a78bfa', fontSize:'11px' }}>
                       {lead.callbackAt ? new Date(lead.callbackAt).toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}) : '—'}
