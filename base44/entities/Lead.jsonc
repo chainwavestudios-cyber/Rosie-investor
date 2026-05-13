@@ -38,6 +38,23 @@
       "type": "string",
       "title": "State"
     },
+    "age": {
+      "type": "number",
+      "title": "Age"
+    },
+    "ageCategory": {
+      "type": "string",
+      "title": "Age Category",
+      "enum": [
+        "20s",
+        "30s",
+        "40s",
+        "50s",
+        "60s",
+        "70s",
+        "80s+"
+      ]
+    },
     "bestTimeToCall": {
       "type": "string",
       "title": "Best Time to Call"

@@ -40,7 +40,7 @@ function CSVUploadModal({ onClose, onImported }) {
   const [file, setFile] = useState(null);
   const [headers, setHeaders] = useState([]);
   const [rows, setRows] = useState([]);
-  const [mapping, setMapping] = useState({ firstName:'', lastName:'', email:'', phone:'', state:'' });
+  const [mapping, setMapping] = useState({ firstName:'', lastName:'', email:'', phone:'', state:'', age:'' });
   const [step, setStep] = useState('listName'); // listName | upload | map | preview | done
   const [listName, setListName] = useState('');
   const [importing, setImporting] = useState(false);
@@ -71,7 +71,7 @@ function CSVUploadModal({ onClose, onImported }) {
       setHeaders(hdrs);
       setRows(data);
       // Auto-map common names
-      const autoMap = { firstName:'', lastName:'', email:'', phone:'', state:'' };
+      const autoMap = { firstName:'', lastName:'', email:'', phone:'', state:'', age:'' };
       hdrs.forEach(h => {
         const hl = h.toLowerCase();
         if (/first.*name|firstname/i.test(hl)) autoMap.firstName = h;
@@ -79,6 +79,7 @@ function CSVUploadModal({ onClose, onImported }) {
         else if (/email/i.test(hl)) autoMap.email = h;
         else if (/phone|mobile|cell/i.test(hl)) autoMap.phone = h;
         else if (/state|st$/i.test(hl)) autoMap.state = h;
+        else if (/^age$/i.test(hl)) autoMap.age = h;
       });
       setMapping(autoMap);
       setStep('map');
@@ -124,15 +125,24 @@ function CSVUploadModal({ onClose, onImported }) {
     });
 
     for (let i = 0; i < validRows.length; i += BATCH) {
-      const batch = validRows.slice(i, i + BATCH).map(row => ({
-        firstName: row[mapping.firstName] || '',
-        lastName: row[mapping.lastName] || '',
-        email: row[mapping.email] || '',
-        phone: row[mapping.phone] || '',
-        state: row[mapping.state] || '',
-        status: 'lead',
-        contactListId: listRecord.id,
-      }));
+      const batch = validRows.slice(i, i + BATCH).map(row => {
+        const ageNum = mapping.age ? parseInt(row[mapping.age], 10) : null;
+        const ageCat = ageNum > 0 ? (
+          ageNum < 30 ? '20s' : ageNum < 40 ? '30s' : ageNum < 50 ? '40s' :
+          ageNum < 60 ? '50s' : ageNum < 70 ? '60s' : ageNum < 80 ? '70s' : '80s+'
+        ) : '';
+        return {
+          firstName: row[mapping.firstName] || '',
+          lastName: row[mapping.lastName] || '',
+          email: row[mapping.email] || '',
+          phone: row[mapping.phone] || '',
+          state: row[mapping.state] || '',
+          ...(ageNum > 0 ? { age: ageNum } : {}),
+          ...(ageCat ? { ageCategory: ageCat } : {}),
+          status: 'lead',
+          contactListId: listRecord.id,
+        };
+      });
       try {
         await base44.entities.Lead.bulkCreate(batch);
         count += batch.length;
@@ -153,7 +163,7 @@ function CSVUploadModal({ onClose, onImported }) {
     onImported && onImported();
   };
 
-  const FIELDS = [['firstName','First Name'],['lastName','Last Name'],['email','Email'],['phone','Phone'],['state','State']];
+  const FIELDS = [['firstName','First Name'],['lastName','Last Name'],['email','Email'],['phone','Phone'],['state','State'],['age','Age']];
   const inp = { width:'100%', background:'rgba(255,255,255,0.05)', border:'1px solid rgba(255,255,255,0.12)', borderRadius:'2px', padding:'8px 12px', color:'#e8e0d0', fontSize:'13px', outline:'none', boxSizing:'border-box', fontFamily:'Georgia, serif' };
 
   return (
@@ -210,6 +220,7 @@ function CSVUploadModal({ onClose, onImported }) {
                       <span>|</span><span>{row[mapping.email]||'—'}</span>
                       <span>|</span><span>{row[mapping.phone]||'—'}</span>
                       <span>|</span><span>{row[mapping.state]||'—'}</span>
+                      {mapping.age && <><span>|</span><span>Age: {row[mapping.age]||'—'}</span></>}
                     </div>
                   ))}
                 </div>
