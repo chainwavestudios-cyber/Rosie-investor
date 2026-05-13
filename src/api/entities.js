@@ -130,3 +130,27 @@ export const PressReleaseDB = {
   async create(d) { try { return await base44.entities.PressRelease.create({...d,publishedAt:new Date().toISOString()}); } catch(e){ throw e; } },
   async delete(id) { try { return await base44.entities.PressRelease.delete(id); } catch(e){ throw e; } },
 };
+// ─── KnowledgeBaseConfig ───────────────────────────────────────────────────
+export const KnowledgeBaseConfigDB = {
+  async getForKb(kbName) {
+    try {
+      const r = await base44.entities.KnowledgeBaseConfig.filter({ kbName });
+      return r[0] || null;
+    } catch { return null; }
+  },
+  async saveForKb(kbName, data) {
+    try {
+      const existing = await KnowledgeBaseConfigDB.getForKb(kbName);
+      if (existing?.id) {
+        return await base44.entities.KnowledgeBaseConfig.update(existing.id, { ...data, kbName });
+      }
+      return await base44.entities.KnowledgeBaseConfig.create({ ...data, kbName });
+    } catch(e) { throw e; }
+  },
+  async delete(kbName) {
+    try {
+      const existing = await KnowledgeBaseConfigDB.getForKb(kbName);
+      if (existing?.id) await base44.entities.KnowledgeBaseConfig.delete(existing.id);
+    } catch {}
+  },
+};
