@@ -40,7 +40,7 @@ function CSVUploadModal({ onClose, onImported }) {
   const [file, setFile] = useState(null);
   const [headers, setHeaders] = useState([]);
   const [rows, setRows] = useState([]);
-  const [mapping, setMapping] = useState({ firstName:'', lastName:'', email:'', phone:'', state:'', age:'' });
+  const [mapping, setMapping] = useState({ firstName:'', lastName:'', email:'', phone:'', phone2:'', state:'', age:'' });
   const [step, setStep] = useState('listName'); // listName | upload | map | preview | done
   const [listName, setListName] = useState('');
   const [importing, setImporting] = useState(false);
@@ -90,6 +90,7 @@ function CSVUploadModal({ onClose, onImported }) {
         if (/first.*name|firstname/i.test(hl)) autoMap.firstName = h;
         else if (/last.*name|lastname/i.test(hl)) autoMap.lastName = h;
         else if (/email/i.test(hl)) autoMap.email = h;
+        else if (/phone2|phone_2|alt.*phone|phone.*2|mobile2|cell2/i.test(hl)) autoMap.phone2 = h;
         else if (/phone|mobile|cell/i.test(hl)) autoMap.phone = h;
         else if (/state|st$/i.test(hl)) autoMap.state = h;
         else if (/age/i.test(hl)) autoMap.age = h;
@@ -149,6 +150,7 @@ function CSVUploadModal({ onClose, onImported }) {
           lastName: row[mapping.lastName] || '',
           email: row[mapping.email] || '',
           phone: row[mapping.phone] || '',
+          phone2: mapping.phone2 ? (row[mapping.phone2] || '') : '',
           state: row[mapping.state] || '',
           ...(ageNum > 0 ? { age: ageNum } : {}),
           ...(ageCat ? { ageCategory: ageCat } : {}),
@@ -176,7 +178,7 @@ function CSVUploadModal({ onClose, onImported }) {
     onImported && onImported();
   };
 
-  const FIELDS = [['firstName','First Name'],['lastName','Last Name'],['email','Email'],['phone','Phone'],['state','State'],['age','Age']];
+  const FIELDS = [['firstName','First Name'],['lastName','Last Name'],['email','Email'],['phone','Phone'],['phone2','Alt Phone'],['state','State'],['age','Age']];
   const inp = { width:'100%', background:'rgba(255,255,255,0.05)', border:'1px solid rgba(255,255,255,0.12)', borderRadius:'2px', padding:'8px 12px', color:'#e8e0d0', fontSize:'13px', outline:'none', boxSizing:'border-box', fontFamily:'Georgia, serif' };
 
   return (
@@ -233,6 +235,7 @@ function CSVUploadModal({ onClose, onImported }) {
                       <span>|</span><span>{row[mapping.email]||'—'}</span>
                       <span>|</span><span>{row[mapping.phone]||'—'}</span>
                       <span>|</span><span>{row[mapping.state]||'—'}</span>
+                      {mapping.phone2 && <><span>|</span><span>📱 {row[mapping.phone2]||'—'}</span></>}
                       {mapping.age && <><span>|</span><span>Age: {row[mapping.age]||'—'}</span></>}
                     </div>
                   ))}

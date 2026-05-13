@@ -916,6 +916,7 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
     } catch(e) { console.error(e); }
     setTransferring(false);
   };
+  const [selectedPhone, setSelectedPhone] = useState(lead.phone || lead.phone2 || '');
   const [inlineStream, setInlineStream] = useState(null);
   const dialer = useInlineDialer({ onCallStream: (stream) => setInlineStream(stream), onCallLogged, agentName: currentUsername });
   // Prefer external stream (direct/predictive dialer) over inline dialer stream
@@ -950,6 +951,7 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
   const [showCallbackPicker, setShowCallbackPicker] = useState(false);
 
   useEffect(() => { loadHistory(); }, [lead.id]);
+  useEffect(() => { setSelectedPhone(editLead.phone || editLead.phone2 || ''); }, [editLead.phone, editLead.phone2]);
 
   const loadHistory = async () => {
     setLoading(true);
@@ -1274,19 +1276,31 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
             </div>
           </div>
 
-          {/* Row 2: Inline Call Bar */}
+          {/* Row 2: Phone selector + Inline Call Bar */}
           {(editLead.phone || lead.phone) && !isArchived && (
-            <InlineCallBar
-              phone={editLead.phone || lead.phone}
-              name={`${editLead.firstName || lead.firstName || ''} ${editLead.lastName || lead.lastName || ''}`.trim()}
-              dialer={dialer}
-              onLogCall={() => dialer.logLeadCall(lead.id).then(loadHistory)}
-              isPredictive={!!isDialerPaused}
-              isDialerPaused={!!isDialerPaused}
-              onPauseCampaign={() => dialerRef.current?.pauseDialer?.()}
-              onDisconnectNext={() => { dialerRef.current?.hangupActiveCall?.(); onNextLead?.(); }}
-              onSaveResume={async () => { await saveProfile(); dialerRef.current?.hangupActiveCall?.(); onResume?.(); }}
-            />
+            <div>
+              {(editLead.phone2 || lead.phone2) && (
+                <div style={{ display:'flex', gap:'6px', marginBottom:'6px' }}>
+                  {[editLead.phone || lead.phone, editLead.phone2 || lead.phone2].filter(Boolean).map((p, i) => (
+                    <button key={p} onClick={() => setSelectedPhone(p)}
+                      style={{ background: selectedPhone === p ? 'rgba(74,222,128,0.15)' : 'rgba(255,255,255,0.04)', color: selectedPhone === p ? '#4ade80' : '#6b7280', border:`1px solid ${selectedPhone === p ? 'rgba(74,222,128,0.4)' : 'rgba(255,255,255,0.1)'}`, borderRadius:'4px', padding:'4px 10px', cursor:'pointer', fontSize:'11px', fontFamily:'monospace' }}>
+                      {i === 0 ? '📞' : '📱'} {p}
+                    </button>
+                  ))}
+                </div>
+              )}
+              <InlineCallBar
+                phone={selectedPhone || editLead.phone || lead.phone}
+                name={`${editLead.firstName || lead.firstName || ''} ${editLead.lastName || lead.lastName || ''}`.trim()}
+                dialer={dialer}
+                onLogCall={() => dialer.logLeadCall(lead.id).then(loadHistory)}
+                isPredictive={!!isDialerPaused}
+                isDialerPaused={!!isDialerPaused}
+                onPauseCampaign={() => dialerRef.current?.pauseDialer?.()}
+                onDisconnectNext={() => { dialerRef.current?.hangupActiveCall?.(); onNextLead?.(); }}
+                onSaveResume={async () => { await saveProfile(); dialerRef.current?.hangupActiveCall?.(); onResume?.(); }}
+              />
+            </div>
           )}
 
           {/* Row 3: Action buttons */}
