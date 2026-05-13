@@ -892,10 +892,17 @@ export default function LeadsTab({ openLeadId, onLeadOpened }) {
                       {lead.callbackAt ? new Date(lead.callbackAt).toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}) : '—'}
                     </td>
                     <td style={{ padding:'12px' }}>
-                      <button onClick={e => { e.stopPropagation(); setSelectedLead(lead); }}
-                        style={{ background:'rgba(184,147,58,0.15)', color:GOLD, border:'1px solid rgba(184,147,58,0.3)', borderRadius:'2px', padding:'5px 12px', cursor:'pointer', fontSize:'11px' }}>
-                        Open →
-                      </button>
+                     <div style={{ display:'flex', gap:'6px' }}>
+                       <button onClick={e => { e.stopPropagation(); setSelectedLead(lead); }}
+                         style={{ background:'rgba(184,147,58,0.15)', color:GOLD, border:'1px solid rgba(184,147,58,0.3)', borderRadius:'2px', padding:'5px 12px', cursor:'pointer', fontSize:'11px' }}>
+                         Open →
+                       </button>
+                       <button onClick={e => { e.stopPropagation(); handleDialStarted(lead.id); }}
+                         title="Send to back of list"
+                         style={{ background:'rgba(255,255,255,0.04)', color:'#4a5568', border:'1px solid rgba(255,255,255,0.08)', borderRadius:'2px', padding:'5px 8px', cursor:'pointer', fontSize:'11px' }}>
+                         ↓
+                       </button>
+                     </div>
                     </td>
                   </tr>
                 );
