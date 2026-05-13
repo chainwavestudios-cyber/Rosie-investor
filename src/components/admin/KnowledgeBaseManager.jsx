@@ -14,18 +14,17 @@ export default function KnowledgeBaseManager({ IntentEngineTuner, CoachRulesTune
   const [search, setSearch]         = useState('');
   const [filterCat, setFilterCat]   = useState('all');
 
-  // ── KB Management ──────────────────────────────────────────────────────
-  const [kbNames, setKbNames]           = useState([]); // list of kbName strings
-  const [selectedKb, setSelectedKb]     = useState(DEFAULT_KB); // currently viewed KB
-  const [newKbName, setNewKbName]       = useState('');
-  const [creatingKb, setCreatingKb]     = useState(false);
+  const [kbNames, setKbNames]       = useState([]);
+  const [selectedKb, setSelectedKb] = useState(DEFAULT_KB);
+  const [newKbName, setNewKbName]   = useState('');
+  const [creatingKb, setCreatingKb] = useState(false);
 
   const [q, setQ]       = useState('');
   const [a, setA]       = useState('');
   const [cat, setCat]   = useState('faq');
   const [tags, setTags] = useState('');
-  const [saving, setSaving] = useState(false);
-  const [saveMsg, setSaveMsg] = useState('');
+  const [saving, setSaving]         = useState(false);
+  const [saveMsg, setSaveMsg]       = useState('');
   const [uploading, setUploading]   = useState(false);
   const [uploadMsg, setUploadMsg]   = useState('');
   const [uploadProgress, setUploadProgress] = useState('');
@@ -42,12 +41,19 @@ export default function KnowledgeBaseManager({ IntentEngineTuner, CoachRulesTune
   const [editKb, setEditKb]         = useState('');
   const [editSaving, setEditSaving] = useState(false);
 
+  const handleKbSelect = (kb) => {
+    setSelectedKb(kb);
+    setSection('entries');
+    setSearch('');
+    setFilterCat('all');
+  };
+
   const startEdit = (e) => {
     setEditingId(e.id);
-    setEditQ(e.question||'');
-    setEditA(e.answer||'');
-    setEditCat(e.category||'faq');
-    setEditTags(e.tags||'');
+    setEditQ(e.question || '');
+    setEditA(e.answer || '');
+    setEditCat(e.category || 'faq');
+    setEditTags(e.tags || '');
     setEditKb(e.kbName || DEFAULT_KB);
   };
 
@@ -56,10 +62,8 @@ export default function KnowledgeBaseManager({ IntentEngineTuner, CoachRulesTune
     setEditSaving(true);
     try {
       await base44.entities.KnowledgeBase.update(editingId, {
-        question: editQ.trim(),
-        answer: editA.trim(),
-        category: editCat,
-        tags: editTags.trim(),
+        question: editQ.trim(), answer: editA.trim(),
+        category: editCat, tags: editTags.trim(),
         kbName: editKb === DEFAULT_KB ? '' : editKb,
       });
       setEditingId(null);
@@ -73,7 +77,6 @@ export default function KnowledgeBaseManager({ IntentEngineTuner, CoachRulesTune
     try {
       const all = await base44.entities.KnowledgeBase.list('-created_date', 1000);
       setEntries(all || []);
-      // Derive unique KB names from entries
       const names = [...new Set((all || []).map(e => e.kbName || '').filter(Boolean))];
       setKbNames(names);
     } catch {}
@@ -82,27 +85,29 @@ export default function KnowledgeBaseManager({ IntentEngineTuner, CoachRulesTune
 
   useEffect(() => { load(); }, []);
 
-  // ── Create new KB ────────────────────────────────────────────────────────
   const createKb = () => {
     const name = newKbName.trim();
     if (!name || kbNames.includes(name)) return;
     setKbNames(prev => [...prev, name]);
-    setSelectedKb(name);
+    handleKbSelect(name);
     setNewKbName('');
     setCreatingKb(false);
   };
 
   const deleteKb = async (name) => {
-    if (!window.confirm(`Delete knowledge base "${name}" and all its entries? This cannot be undone.`)) return;
+    if (!window.confirm(`Delete knowledge base "${name}" and ALL its entries and settings? This cannot be undone.`)) return;
     setLoading(true);
     const toDelete = entries.filter(e => (e.kbName || DEFAULT_KB) === name);
     for (const e of toDelete) { try { await base44.entities.KnowledgeBase.delete(e.id); } catch {} }
+    try {
+      const cfgs = await base44.entities.KnowledgeBaseConfig.filter({ kbName: name });
+      for (const c of cfgs) { try { await base44.entities.KnowledgeBaseConfig.delete(c.id); } catch {} }
+    } catch {}
     setKbNames(prev => prev.filter(n => n !== name));
-    if (selectedKb === name) setSelectedKb(DEFAULT_KB);
+    if (selectedKb === name) handleKbSelect(DEFAULT_KB);
     await load();
   };
 
-  // ── Helpers: get kbName to save ──────────────────────────────────────────
   const activeKbName = selectedKb === DEFAULT_KB ? '' : selectedKb;
 
   const addManual = async () => {
@@ -188,20 +193,19 @@ export default function KnowledgeBaseManager({ IntentEngineTuner, CoachRulesTune
   };
 
   const deleteAll = async () => {
-    if (!window.confirm('Delete ALL knowledge base entries? This cannot be undone.')) return;
+    if (!window.confirm(`Delete ALL entries in ${selectedKb === DEFAULT_KB ? 'Default KB' : selectedKb}? This cannot be undone.`)) return;
     setLoading(true);
-    for (const e of entries) { try { await base44.entities.KnowledgeBase.delete(e.id); } catch {} }
+    const toDelete = kbFiltered;
+    for (const e of toDelete) { try { await base44.entities.KnowledgeBase.delete(e.id); } catch {} }
     await load();
   };
 
   const CATEGORIES = ['all','faq','financials','product','team','market','legal','process','risk','company','pricing','manual','raw_document'];
   const CAT_COLORS = { faq:'#60a5fa', financials:'#4ade80', product:'#a78bfa', team:'#f59e0b', market:'#f59e0b', legal:'#ef4444', process:'#8a9ab8', risk:'#ef4444', company:'#60a5fa', pricing:'#4ade80', manual:GOLD, raw_document:'#4a5568' };
 
-  // Filter entries by selected KB then by category/search
-  const kbFiltered = entries.filter(e => {
-    if (selectedKb === DEFAULT_KB) return !e.kbName || e.kbName === '';
-    return (e.kbName || '') === selectedKb;
-  });
+  const kbFiltered = entries.filter(e =>
+    selectedKb === DEFAULT_KB ? !e.kbName || e.kbName === '' : (e.kbName || '') === selectedKb
+  );
   const filtered = kbFiltered
     .filter(e => filterCat === 'all' || e.category === filterCat)
     .filter(e => !search || `${e.question} ${e.answer} ${e.tags || ''}`.toLowerCase().includes(search.toLowerCase()));
@@ -210,9 +214,8 @@ export default function KnowledgeBaseManager({ IntentEngineTuner, CoachRulesTune
   const inp2 = { width:'100%', background:'rgba(255,255,255,0.05)', border:'1px solid rgba(255,255,255,0.1)', borderRadius:'4px', padding:'10px 14px', color:'#e8e0d0', fontSize:'13px', outline:'none', fontFamily:'Georgia, serif', boxSizing:'border-box' };
   const ta2  = { ...inp2, resize:'vertical', minHeight:'80px' };
 
-  // All KB tabs including default
   const allKbs = [{ id: DEFAULT_KB, label: 'Default KB' }, ...kbNames.map(n => ({ id: n, label: n }))];
-  const totalEntries = entries.filter(e => selectedKb === DEFAULT_KB ? !e.kbName || e.kbName === '' : (e.kbName || '') === selectedKb).length;
+  const tunerKbName = selectedKb === DEFAULT_KB ? '' : selectedKb;
 
   return (
     <div style={{ fontFamily:'Georgia, serif' }}>
@@ -227,7 +230,7 @@ export default function KnowledgeBaseManager({ IntentEngineTuner, CoachRulesTune
         </div>
         <div style={{ display:'flex', gap:'8px' }}>
           <button onClick={load} style={{ background:'rgba(255,255,255,0.05)', color:'#8a9ab8', border:'1px solid rgba(255,255,255,0.1)', borderRadius:'4px', padding:'8px 14px', cursor:'pointer', fontSize:'12px' }}>↻ Refresh</button>
-          <button onClick={deleteAll} style={{ background:'rgba(239,68,68,0.1)', color:'#ef4444', border:'1px solid rgba(239,68,68,0.25)', borderRadius:'4px', padding:'8px 14px', cursor:'pointer', fontSize:'12px' }}>🗑 Clear All</button>
+          <button onClick={deleteAll} style={{ background:'rgba(239,68,68,0.1)', color:'#ef4444', border:'1px solid rgba(239,68,68,0.25)', borderRadius:'4px', padding:'8px 14px', cursor:'pointer', fontSize:'12px' }}>🗑 Clear KB</button>
         </div>
       </div>
 
@@ -235,78 +238,55 @@ export default function KnowledgeBaseManager({ IntentEngineTuner, CoachRulesTune
       <div style={{ background:'rgba(0,0,0,0.2)', border:'1px solid rgba(255,255,255,0.07)', borderRadius:'8px', padding:'14px 16px', marginBottom:'20px' }}>
         <div style={{ display:'flex', alignItems:'center', gap:'10px', flexWrap:'wrap' }}>
           <span style={{ color:'#6b7280', fontSize:'10px', letterSpacing:'2px', textTransform:'uppercase', flexShrink:0 }}>Knowledge Base:</span>
-
-          {/* KB tabs */}
           <div style={{ display:'flex', gap:'6px', flexWrap:'wrap', flex:1 }}>
             {allKbs.map(kb => {
               const count = entries.filter(e => kb.id === DEFAULT_KB ? !e.kbName || e.kbName === '' : (e.kbName || '') === kb.id).length;
               const isActive = selectedKb === kb.id;
               return (
-                <div key={kb.id} style={{ display:'flex', alignItems:'center', gap:'0' }}>
-                  <button
-                    onClick={() => setSelectedKb(kb.id)}
-                    style={{
-                      background: isActive ? 'linear-gradient(135deg,rgba(184,147,58,0.25),rgba(184,147,58,0.15))' : 'rgba(255,255,255,0.04)',
-                      border: `1px solid ${isActive ? GOLD : 'rgba(255,255,255,0.1)'}`,
-                      borderRight: kb.id !== DEFAULT_KB ? 'none' : undefined,
-                      borderRadius: kb.id !== DEFAULT_KB ? '4px 0 0 4px' : '4px',
-                      color: isActive ? GOLD : '#6b7280',
-                      padding: '5px 12px', cursor: 'pointer', fontSize: '11px',
-                      fontWeight: isActive ? 'bold' : 'normal',
-                      letterSpacing: '0.3px',
-                    }}>
+                <div key={kb.id} style={{ display:'flex', alignItems:'center' }}>
+                  <button onClick={() => handleKbSelect(kb.id)} style={{
+                    background: isActive ? 'linear-gradient(135deg,rgba(184,147,58,0.25),rgba(184,147,58,0.15))' : 'rgba(255,255,255,0.04)',
+                    border: `1px solid ${isActive ? GOLD : 'rgba(255,255,255,0.1)'}`,
+                    borderRight: kb.id !== DEFAULT_KB ? 'none' : undefined,
+                    borderRadius: kb.id !== DEFAULT_KB ? '4px 0 0 4px' : '4px',
+                    color: isActive ? GOLD : '#6b7280',
+                    padding:'5px 12px', cursor:'pointer', fontSize:'11px',
+                    fontWeight: isActive ? 'bold' : 'normal',
+                  }}>
                     {kb.label} <span style={{ color: isActive ? GOLD : '#4a5568', marginLeft:'4px', fontSize:'10px' }}>({count})</span>
                   </button>
                   {kb.id !== DEFAULT_KB && (
-                    <button
-                      onClick={() => deleteKb(kb.id)}
-                      title={`Delete "${kb.label}" knowledge base`}
-                      style={{
-                        background: isActive ? 'rgba(239,68,68,0.1)' : 'rgba(255,255,255,0.03)',
-                        border: `1px solid ${isActive ? 'rgba(239,68,68,0.3)' : 'rgba(255,255,255,0.1)'}`,
-                        borderRadius: '0 4px 4px 0',
-                        color: '#ef444466', cursor: 'pointer',
-                        padding: '5px 7px', fontSize: '12px', lineHeight: 1,
-                      }}>
-                      ×
-                    </button>
+                    <button onClick={() => deleteKb(kb.id)} title={`Delete "${kb.label}"`} style={{
+                      background: isActive ? 'rgba(239,68,68,0.1)' : 'rgba(255,255,255,0.03)',
+                      border: `1px solid ${isActive ? 'rgba(239,68,68,0.3)' : 'rgba(255,255,255,0.1)'}`,
+                      borderRadius:'0 4px 4px 0',
+                      color:'#ef444466', cursor:'pointer', padding:'5px 7px', fontSize:'12px', lineHeight:1,
+                    }}>×</button>
                   )}
                 </div>
               );
             })}
           </div>
 
-          {/* Create new KB */}
           {creatingKb ? (
             <div style={{ display:'flex', gap:'6px', alignItems:'center' }}>
-              <input
-                value={newKbName}
-                onChange={e => setNewKbName(e.target.value)}
+              <input value={newKbName} onChange={e => setNewKbName(e.target.value)}
                 onKeyDown={e => { if (e.key === 'Enter') createKb(); if (e.key === 'Escape') setCreatingKb(false); }}
-                placeholder="KB name…"
-                autoFocus
-                style={{ background:'rgba(255,255,255,0.07)', border:`1px solid ${GOLD}`, borderRadius:'4px', padding:'5px 10px', color:'#e8e0d0', fontSize:'12px', outline:'none', width:'140px' }}
-              />
+                placeholder="KB name…" autoFocus
+                style={{ background:'rgba(255,255,255,0.07)', border:`1px solid ${GOLD}`, borderRadius:'4px', padding:'5px 10px', color:'#e8e0d0', fontSize:'12px', outline:'none', width:'140px' }} />
               <button onClick={createKb} disabled={!newKbName.trim()} style={{ background:'linear-gradient(135deg,#b8933a,#d4aa50)', color:DARK, border:'none', borderRadius:'4px', padding:'5px 12px', cursor:'pointer', fontSize:'11px', fontWeight:'bold' }}>Create</button>
               <button onClick={() => setCreatingKb(false)} style={{ background:'none', border:'1px solid rgba(255,255,255,0.1)', color:'#6b7280', borderRadius:'4px', padding:'5px 10px', cursor:'pointer', fontSize:'11px' }}>Cancel</button>
             </div>
           ) : (
-            <button
-              onClick={() => setCreatingKb(true)}
-              style={{ background:'rgba(184,147,58,0.08)', color:GOLD, border:`1px solid rgba(184,147,58,0.3)`, borderRadius:'4px', padding:'5px 12px', cursor:'pointer', fontSize:'11px', whiteSpace:'nowrap' }}>
+            <button onClick={() => setCreatingKb(true)} style={{ background:'rgba(184,147,58,0.08)', color:GOLD, border:`1px solid rgba(184,147,58,0.3)`, borderRadius:'4px', padding:'5px 12px', cursor:'pointer', fontSize:'11px', whiteSpace:'nowrap' }}>
               + New KB
             </button>
           )}
         </div>
 
-        {/* Active KB info */}
         <div style={{ marginTop:'10px', color:'#4a5568', fontSize:'11px' }}>
-          Viewing: <strong style={{ color:'#8a9ab8' }}>{selectedKb === DEFAULT_KB ? 'Default KB' : selectedKb}</strong> — {totalEntries} entries.
-          {selectedKb !== DEFAULT_KB && (
-            <span style={{ marginLeft:'8px', color:'#4a5568' }}>
-              Agents can select this KB in the Live Call Assistant to focus AI responses.
-            </span>
-          )}
+          Viewing: <strong style={{ color:'#8a9ab8' }}>{selectedKb === DEFAULT_KB ? 'Default KB' : selectedKb}</strong> — {kbFiltered.length} entries
+          {selectedKb !== DEFAULT_KB && <span style={{ marginLeft:'6px' }}>· Intent Engine, Coach Rules, and Q&A all scoped to this KB</span>}
         </div>
       </div>
 
@@ -326,14 +306,14 @@ export default function KnowledgeBaseManager({ IntentEngineTuner, CoachRulesTune
           <div style={{ display:'flex', gap:'10px', marginBottom:'16px', flexWrap:'wrap', alignItems:'center' }}>
             <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search entries…" style={{ ...inp2, width:'260px', padding:'8px 12px', fontSize:'12px' }} />
             <select value={filterCat} onChange={e => setFilterCat(e.target.value)} style={{ ...inp2, width:'160px', padding:'8px 12px', fontSize:'12px', cursor:'pointer' }}>
-              {CATEGORIES.map(c => <option key={c} value={c}>{c==='all'?`All Categories (${kbFiltered.length})`:`${c} (${kbFiltered.filter(e=>e.category===c).length})`}</option>)}
+              {CATEGORIES.map(c => <option key={c} value={c}>{c === 'all' ? `All Categories (${kbFiltered.length})` : `${c} (${kbFiltered.filter(e => e.category === c).length})`}</option>)}
             </select>
           </div>
           {loading && <p style={{ color:'#6b7280', textAlign:'center', padding:'40px' }}>Loading…</p>}
           {!loading && filtered.length === 0 && (
             <div style={{ textAlign:'center', padding:'60px', color:'#4a5568' }}>
               <div style={{ fontSize:'48px', marginBottom:'12px' }}>🧠</div>
-              <p>No entries in <strong>{selectedKb === DEFAULT_KB ? 'Default KB' : selectedKb}</strong> yet. Upload a document, scrape a URL, or add Q&A manually.</p>
+              <p>No entries in <strong>{selectedKb === DEFAULT_KB ? 'Default KB' : selectedKb}</strong> yet.<br />Upload a document, scrape a URL, or add Q&A manually.</p>
             </div>
           )}
           <div style={{ display:'flex', flexDirection:'column', gap:'8px' }}>
@@ -384,14 +364,9 @@ export default function KnowledgeBaseManager({ IntentEngineTuner, CoachRulesTune
       {/* ── Add Q&A ── */}
       {section === 'add' && (
         <div style={{ maxWidth:'640px' }}>
-          <h3 style={{ color:'#e8e0d0', fontWeight:'normal', margin:'0 0 20px', fontSize:'16px' }}>Add Manual Q&A Entry</h3>
-          <div style={{ marginBottom:'16px' }}>
-            <label style={ls}>Knowledge Base</label>
-            <select value={selectedKb} onChange={e => setSelectedKb(e.target.value)} style={{ ...inp2, cursor:'pointer', marginBottom:'4px' }}>
-              <option value={DEFAULT_KB}>Default KB</option>
-              {kbNames.map(n => <option key={n} value={n}>{n}</option>)}
-            </select>
-            <div style={{ color:'#4a5568', fontSize:'11px' }}>Entry will be added to: <strong style={{ color:'#8a9ab8' }}>{selectedKb === DEFAULT_KB ? 'Default KB' : selectedKb}</strong></div>
+          <h3 style={{ color:'#e8e0d0', fontWeight:'normal', margin:'0 0 6px', fontSize:'16px' }}>✏️ Add Manual Q&A Entry</h3>
+          <div style={{ background:'rgba(184,147,58,0.06)', border:'1px solid rgba(184,147,58,0.2)', borderRadius:'6px', padding:'10px 14px', marginBottom:'20px', fontSize:'11px', color:GOLD }}>
+            Adding to: <strong>{selectedKb === DEFAULT_KB ? 'Default KB' : selectedKb}</strong>
           </div>
           <div style={{ marginBottom:'16px' }}><label style={ls}>Question / Keyword / Topic</label><input value={q} onChange={e => setQ(e.target.value)} placeholder="What is the minimum investment?" style={inp2} /></div>
           <div style={{ marginBottom:'16px' }}><label style={ls}>Answer</label><textarea value={a} onChange={e => setA(e.target.value)} placeholder="The minimum investment is $25,000…" rows={5} style={ta2} /></div>
@@ -407,18 +382,11 @@ export default function KnowledgeBaseManager({ IntentEngineTuner, CoachRulesTune
       {/* ── Upload Document ── */}
       {section === 'upload' && (
         <div style={{ maxWidth:'640px' }}>
-          <h3 style={{ color:'#e8e0d0', fontWeight:'normal', margin:'0 0 8px', fontSize:'16px' }}>Upload Document</h3>
-          <p style={{ color:'#6b7280', fontSize:'13px', margin:'0 0 16px', lineHeight:1.7 }}>Upload a PDF, Word doc, or text file. The AI will read the entire document and extract every useful Q&A pair automatically.</p>
-
-          {/* KB selector for upload */}
-          <div style={{ marginBottom:'16px', background:'rgba(184,147,58,0.06)', border:'1px solid rgba(184,147,58,0.2)', borderRadius:'6px', padding:'12px 14px' }}>
-            <label style={ls}>Add extracted entries to Knowledge Base</label>
-            <select value={selectedKb} onChange={e => setSelectedKb(e.target.value)} style={{ ...inp2, cursor:'pointer' }}>
-              <option value={DEFAULT_KB}>Default KB</option>
-              {kbNames.map(n => <option key={n} value={n}>{n}</option>)}
-            </select>
+          <h3 style={{ color:'#e8e0d0', fontWeight:'normal', margin:'0 0 8px', fontSize:'16px' }}>📄 Upload Document</h3>
+          <p style={{ color:'#6b7280', fontSize:'13px', margin:'0 0 16px', lineHeight:1.7 }}>Upload a PDF, Word doc, or text file. The AI will extract every useful Q&A pair automatically.</p>
+          <div style={{ background:'rgba(184,147,58,0.06)', border:'1px solid rgba(184,147,58,0.2)', borderRadius:'6px', padding:'10px 14px', marginBottom:'16px', fontSize:'11px', color:GOLD }}>
+            Extracting into: <strong>{selectedKb === DEFAULT_KB ? 'Default KB' : selectedKb}</strong>
           </div>
-
           <div onClick={() => !uploading && fileRef.current?.click()}
             style={{ border:`2px dashed ${uploading?'rgba(184,147,58,0.5)':'rgba(255,255,255,0.15)'}`, borderRadius:'8px', padding:'48px', textAlign:'center', cursor:uploading?'default':'pointer', background:'rgba(255,255,255,0.02)', transition:'all 0.2s' }}
             onMouseEnter={e => { if(!uploading){ e.currentTarget.style.borderColor=GOLD; e.currentTarget.style.background='rgba(184,147,58,0.04)'; } }}
@@ -454,29 +422,43 @@ export default function KnowledgeBaseManager({ IntentEngineTuner, CoachRulesTune
       {/* ── Scrape Website ── */}
       {section === 'scrape' && (
         <div style={{ maxWidth:'640px' }}>
-          <h3 style={{ color:'#e8e0d0', fontWeight:'normal', margin:'0 0 8px', fontSize:'16px' }}>Scrape Website</h3>
-          <p style={{ color:'#6b7280', fontSize:'13px', margin:'0 0 16px', lineHeight:1.7 }}>Enter a URL and the AI will fetch the page, strip the noise, and extract every useful Q&A pair.</p>
-
-          {/* KB selector for scrape */}
-          <div style={{ marginBottom:'16px', background:'rgba(184,147,58,0.06)', border:'1px solid rgba(184,147,58,0.2)', borderRadius:'6px', padding:'12px 14px' }}>
-            <label style={ls}>Add scraped entries to Knowledge Base</label>
-            <select value={selectedKb} onChange={e => setSelectedKb(e.target.value)} style={{ ...inp2, cursor:'pointer' }}>
-              <option value={DEFAULT_KB}>Default KB</option>
-              {kbNames.map(n => <option key={n} value={n}>{n}</option>)}
-            </select>
+          <h3 style={{ color:'#e8e0d0', fontWeight:'normal', margin:'0 0 8px', fontSize:'16px' }}>🌐 Scrape Website</h3>
+          <p style={{ color:'#6b7280', fontSize:'13px', margin:'0 0 16px', lineHeight:1.7 }}>Enter a URL and the AI will fetch the page and extract every useful Q&A pair.</p>
+          <div style={{ background:'rgba(184,147,58,0.06)', border:'1px solid rgba(184,147,58,0.2)', borderRadius:'6px', padding:'10px 14px', marginBottom:'16px', fontSize:'11px', color:GOLD }}>
+            Scraping into: <strong>{selectedKb === DEFAULT_KB ? 'Default KB' : selectedKb}</strong>
           </div>
-
           <div style={{ display:'flex', gap:'10px', marginBottom:'16px' }}>
             <input value={scrapeUrl} onChange={e => setScrapeUrl(e.target.value)} placeholder="https://www.rosieai.tech/about" onKeyDown={e => { if (e.key === 'Enter' && !scraping) handleScrape(); }} style={{ ...inp2, flex:1 }} />
             <button onClick={handleScrape} disabled={scraping||!scrapeUrl.trim()} style={{ background:'linear-gradient(135deg,#b8933a,#d4aa50)', color:DARK, border:'none', borderRadius:'4px', padding:'10px 20px', cursor:'pointer', fontWeight:'700', fontSize:'12px', whiteSpace:'nowrap' }}>{scraping ? '⏳ Scraping…' : '🌐 Scrape'}</button>
           </div>
           {scrapeMsg && <div style={{ background:scrapeMsg.startsWith('✓')?'rgba(74,222,128,0.1)':'rgba(239,68,68,0.1)', border:`1px solid ${scrapeMsg.startsWith('✓')?'rgba(74,222,128,0.3)':'rgba(239,68,68,0.3)'}`, borderRadius:'4px', padding:'12px 16px', color:scrapeMsg.startsWith('✓')?'#4ade80':'#ef4444', fontSize:'13px', marginBottom:'16px' }}>{scrapeMsg}</div>}
-          <div style={{ background:'rgba(96,165,250,0.06)', border:'1px solid rgba(96,165,250,0.15)', borderRadius:'4px', padding:'14px 16px', fontSize:'12px', color:'#8a9ab8', lineHeight:1.8 }}><strong style={{ color:'#60a5fa' }}>Tip:</strong> Scrape multiple pages for best coverage — home page, features, pricing, FAQ, about.</div>
+          <div style={{ background:'rgba(96,165,250,0.06)', border:'1px solid rgba(96,165,250,0.15)', borderRadius:'4px', padding:'14px 16px', fontSize:'12px', color:'#8a9ab8', lineHeight:1.8 }}><strong style={{ color:'#60a5fa' }}>Tip:</strong> Scrape multiple pages — home, features, pricing, FAQ, about.</div>
         </div>
       )}
 
-      {section === 'intent' && IntentEngineTuner && <IntentEngineTuner />}
-      {section === 'coach' && CoachRulesTuner && <CoachRulesTuner />}
+      {/* ── Intent Engine — scoped to selected KB ── */}
+      {section === 'intent' && IntentEngineTuner && (
+        <div>
+          {selectedKb !== DEFAULT_KB && (
+            <div style={{ background:'rgba(184,147,58,0.06)', border:'1px solid rgba(184,147,58,0.2)', borderRadius:'6px', padding:'10px 14px', marginBottom:'20px', fontSize:'11px', color:GOLD }}>
+              🦆 Intent Engine rules for: <strong>{selectedKb}</strong> — these are used when this KB is active during a call.
+            </div>
+          )}
+          <IntentEngineTuner kbName={tunerKbName} />
+        </div>
+      )}
+
+      {/* ── Coach Rules — scoped to selected KB ── */}
+      {section === 'coach' && CoachRulesTuner && (
+        <div>
+          {selectedKb !== DEFAULT_KB && (
+            <div style={{ background:'rgba(167,139,250,0.06)', border:'1px solid rgba(167,139,250,0.2)', borderRadius:'6px', padding:'10px 14px', marginBottom:'20px', fontSize:'11px', color:'#a78bfa' }}>
+              🎯 Coach Rules for: <strong>{selectedKb}</strong> — these are used when this KB is active during a call.
+            </div>
+          )}
+          <CoachRulesTuner kbName={tunerKbName} />
+        </div>
+      )}
     </div>
   );
 }
