@@ -49,11 +49,24 @@ function CSVUploadModal({ onClose, onImported }) {
   const [deleteOld, setDeleteOld] = useState(false);
   const fileRef = useRef(null);
 
+  const parseCSVLine = (line) => {
+    const result = [];
+    let cur = '', inQuote = false;
+    for (let i = 0; i < line.length; i++) {
+      const c = line[i];
+      if (c === '"') { inQuote = !inQuote; }
+      else if (c === ',' && !inQuote) { result.push(cur.trim()); cur = ''; }
+      else { cur += c; }
+    }
+    result.push(cur.trim());
+    return result;
+  };
+
   const parseCSV = (text) => {
     const lines = text.trim().split('\n');
-    const hdrs = lines[0].split(',').map(h => h.trim().replace(/"/g,''));
-    const data = lines.slice(1).map(line => {
-      const vals = line.split(',').map(v => v.trim().replace(/"/g,''));
+    const hdrs = parseCSVLine(lines[0]).map(h => h.replace(/"/g, '').trim());
+    const data = lines.slice(1).filter(l => l.trim()).map(line => {
+      const vals = parseCSVLine(line).map(v => v.replace(/"/g, '').trim());
       const obj = {};
       hdrs.forEach((h, i) => { obj[h] = vals[i] || ''; });
       return obj;
@@ -79,7 +92,7 @@ function CSVUploadModal({ onClose, onImported }) {
         else if (/email/i.test(hl)) autoMap.email = h;
         else if (/phone|mobile|cell/i.test(hl)) autoMap.phone = h;
         else if (/state|st$/i.test(hl)) autoMap.state = h;
-        else if (/^age$/i.test(hl)) autoMap.age = h;
+        else if (/age/i.test(hl)) autoMap.age = h;
       });
       setMapping(autoMap);
       setStep('map');
