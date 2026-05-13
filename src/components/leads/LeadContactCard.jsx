@@ -871,6 +871,7 @@ function AIDetailsTab({ lead, onUpdate }) {
 }
 
 export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber, dialerRef, onResume, isDialerPaused, onNextLead, onPrevLead, currentLeadIndex, totalLeads, dialerPanelOpen, twilioStream: externalStream, onCallLogged, onDialStarted }) {
+  const [moveToBack, setMoveToBack] = useState(false);
   // Archived = migrated to CRM — card is read-only
   const isArchived = !!(lead.migratedToPortal || lead.convertedToInvestorUserId || lead.status === 'converted');
   const [cardExpanded, setCardExpanded] = useState(false);
@@ -1272,14 +1273,30 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
               </div>
             )}
 
-            {/* Right: Nav + Close */}
+            {/* Right: Next Lead + checkbox + Close */}
             <div style={{ display:'flex', alignItems:'center', gap:'8px', flexShrink:0 }}>
-              {totalLeads > 1 && (
-                <div style={{ display:'flex', alignItems:'center', gap:'2px' }}>
-                  <button onClick={onPrevLead} disabled={currentLeadIndex <= 0} style={{ background:'rgba(255,255,255,0.04)', color: currentLeadIndex <= 0 ? '#2d3748' : '#8a9ab8', border:'1px solid rgba(255,255,255,0.08)', borderRadius:'4px', padding:'4px 8px', cursor: currentLeadIndex <= 0 ? 'not-allowed' : 'pointer', fontSize:'13px' }}>‹</button>
-                  <span style={{ color:'#4a5568', fontSize:'10px', padding:'0 4px' }}>{currentLeadIndex + 1}/{totalLeads}</span>
-                  <button onClick={onNextLead} disabled={currentLeadIndex >= totalLeads - 1} style={{ background:'rgba(255,255,255,0.04)', color: currentLeadIndex >= totalLeads - 1 ? '#2d3748' : '#8a9ab8', border:'1px solid rgba(255,255,255,0.08)', borderRadius:'4px', padding:'4px 8px', cursor: currentLeadIndex >= totalLeads - 1 ? 'not-allowed' : 'pointer', fontSize:'13px' }}>›</button>
-                </div>
+              {/* Move to back checkbox */}
+              {onNextLead && (
+                <label style={{ display:'flex', alignItems:'center', gap:'5px', cursor:'pointer', userSelect:'none', background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.1)', borderRadius:'4px', padding:'4px 8px' }}>
+                  <input
+                    type="checkbox"
+                    checked={moveToBack}
+                    onChange={e => setMoveToBack(e.target.checked)}
+                    style={{ cursor:'pointer', accentColor: '#b8933a' }}
+                  />
+                  <span style={{ color: moveToBack ? GOLD : '#6b7280', fontSize:'10px', whiteSpace:'nowrap' }}>Move to back</span>
+                </label>
+              )}
+              {/* Next Lead button */}
+              {onNextLead && (
+                <button
+                  onClick={() => {
+                    if (moveToBack && onDialStarted) onDialStarted(lead.id);
+                    onNextLead();
+                  }}
+                  style={{ background:'rgba(74,222,128,0.12)', color:'#4ade80', border:'1px solid rgba(74,222,128,0.35)', borderRadius:'4px', padding:'5px 12px', cursor:'pointer', fontSize:'11px', fontWeight:'bold', whiteSpace:'nowrap' }}>
+                  Next Lead →
+                </button>
               )}
               <button onClick={onClose} style={{ background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.08)', color:'#6b7280', cursor:'pointer', fontSize:'18px', width:'32px', height:'32px', borderRadius:'4px', display:'flex', alignItems:'center', justifyContent:'center' }}>×</button>
             </div>

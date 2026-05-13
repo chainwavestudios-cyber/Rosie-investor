@@ -601,26 +601,37 @@ export default function LeadsTab({ openLeadId, onLeadOpened }) {
       }
       .appt-today-pulse { animation: apptPulse 1.5s ease-in-out infinite; border-radius: 4px; }
     `}</style>
-    {selectedLead && (
-      <LeadContactCard
-        lead={selectedLead}
-        onClose={() => setSelectedLead(null)}
-        onUpdate={loadLeads}
-        onCallLogged={handleCallLogged}
-        onDialStarted={handleDialStarted}
-        onDialNumber={handleDialNumber}
-        dialerRef={dialerRef}
-        isDialerPaused={isDialerPaused}
-        dialerPanelOpen={showDialerPanel}
-        twilioStream={dialerStream}
-        onResume={() => {
-          setSelectedLead(null);
-          setIsDialerPaused(false);
-          setIsCallActive(false);
-          dialerRef.current?.resumeDialer();
-        }}
-      />
-    )}
+    {selectedLead && (() => {
+      const currentIdx = filteredLeads.findIndex(l => l.id === selectedLead.id);
+      const handleNextLead = () => {
+        const nextIdx = currentIdx + 1;
+        if (nextIdx < filteredLeads.length) setSelectedLead(filteredLeads[nextIdx]);
+        else setSelectedLead(null);
+      };
+      return (
+        <LeadContactCard
+          lead={selectedLead}
+          onClose={() => setSelectedLead(null)}
+          onUpdate={loadLeads}
+          onCallLogged={handleCallLogged}
+          onDialStarted={handleDialStarted}
+          onDialNumber={handleDialNumber}
+          dialerRef={dialerRef}
+          isDialerPaused={isDialerPaused}
+          dialerPanelOpen={showDialerPanel}
+          twilioStream={dialerStream}
+          currentLeadIndex={currentIdx}
+          totalLeads={filteredLeads.length}
+          onNextLead={handleNextLead}
+          onResume={() => {
+            setSelectedLead(null);
+            setIsDialerPaused(false);
+            setIsCallActive(false);
+            dialerRef.current?.resumeDialer();
+          }}
+        />
+      );
+    })()}
     <div style={{ fontFamily:'Georgia, serif', display:'flex', gap:'0', minHeight:'600px', position:'relative' }}>
 
       {/* ── DIALER PANEL (right side) ── */}
