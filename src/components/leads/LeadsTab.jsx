@@ -464,10 +464,9 @@ export default function LeadsTab({ openLeadId, onLeadOpened }) {
       const updated = prev.map(l => l.id === leadId ? { ...l, lastCalledAt: now } : l);
       return sortLeads(updated);
     });
-    // Also persist to DB and reload to get server-fresh data
+    // Persist to DB then reload after a short delay to ensure DB write lands first
     try { await base44.entities.Lead.update(leadId, { lastCalledAt: now }); } catch {}
-    loadLeads();
-    loadRecentCalls();
+    setTimeout(() => { loadLeads(); loadRecentCalls(); }, 800);
   };
 
   // Called the instant dialing starts — moves lead to back of list immediately
@@ -621,11 +620,22 @@ export default function LeadsTab({ openLeadId, onLeadOpened }) {
       .appt-today-pulse { animation: apptPulse 1.5s ease-in-out infinite; border-radius: 4px; }
     `}</style>
     {selectedLead && (() => {
-      const currentIdx = filteredLeads.findIndex(l => l.id === selectedLead.id);
+      // Use leads (full unfiltered active list) for next lead navigation so
+      // reloads / re-sorts don't cause the index to go stale
+      const navList = filter === 'all'
+        ? leads.filter(l => l.status !== 'not_interested')
+        : leads.filter(l => l.status === filter);
+      const currentIdx = navList.findIndex(l => l.id === selectedLead.id);
       const handleNextLead = () => {
+        // Try next in nav list; if not found fall back to first lead
         const nextIdx = currentIdx + 1;
-        if (nextIdx < filteredLeads.length) setSelectedLead(filteredLeads[nextIdx]);
-        else setSelectedLead(null);
+        if (nextIdx < navList.length) {
+          setSelectedLead(navList[nextIdx]);
+        } else if (navList.length > 0) {
+          setSelectedLead(navList[0]);
+        } else {
+          setSelectedLead(null);
+        }
       };
       return (
         <LeadContactCard
@@ -640,7 +650,7 @@ export default function LeadsTab({ openLeadId, onLeadOpened }) {
           dialerPanelOpen={showDialerPanel}
           twilioStream={dialerStream}
           currentLeadIndex={currentIdx}
-          totalLeads={filteredLeads.length}
+          totalLeads={navList.length}
           onNextLead={handleNextLead}
           onResume={() => {
             setSelectedLead(null);
