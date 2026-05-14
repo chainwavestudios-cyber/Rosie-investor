@@ -1286,31 +1286,8 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
               </div>
             )}
 
-            {/* Right: Next Lead + checkbox + Close */}
+            {/* Right: Close only */}
             <div style={{ display:'flex', alignItems:'center', gap:'8px', flexShrink:0 }}>
-              {/* Move to back checkbox */}
-              {onNextLead && (
-                <label style={{ display:'flex', alignItems:'center', gap:'5px', cursor:'pointer', userSelect:'none', background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.1)', borderRadius:'4px', padding:'4px 8px' }}>
-                  <input
-                    type="checkbox"
-                    checked={moveToBack}
-                    onChange={e => setMoveToBack(e.target.checked)}
-                    style={{ cursor:'pointer', accentColor: '#b8933a' }}
-                  />
-                  <span style={{ color: moveToBack ? GOLD : '#6b7280', fontSize:'10px', whiteSpace:'nowrap' }}>Move to back</span>
-                </label>
-              )}
-              {/* Next Lead button */}
-              {onNextLead && (
-                <button
-                  onClick={() => {
-                    if (moveToBack && onDialStarted) onDialStarted(lead.id);
-                    onNextLead();
-                  }}
-                  style={{ background:'rgba(74,222,128,0.12)', color:'#4ade80', border:'1px solid rgba(74,222,128,0.35)', borderRadius:'4px', padding:'5px 12px', cursor:'pointer', fontSize:'11px', fontWeight:'bold', whiteSpace:'nowrap' }}>
-                  Next Lead →
-                </button>
-              )}
               <button onClick={onClose} style={{ background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.08)', color:'#6b7280', cursor:'pointer', fontSize:'18px', width:'32px', height:'32px', borderRadius:'4px', display:'flex', alignItems:'center', justifyContent:'center' }}>×</button>
             </div>
           </div>
@@ -1402,9 +1379,9 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
             {(emailMsg || portalEmailMsg) && <span style={{ fontSize:'9px', color: (emailMsg||portalEmailMsg).startsWith('Error') ? '#ef4444' : '#4ade80', flexShrink:0 }}>{emailMsg || portalEmailMsg}</span>}
           </div>
 
-          {/* Row 4: Quick actions */}
+          {/* Row 4: Quick actions + Next Lead controls */}
           {!isArchived && (
-            <div style={{ display:'flex', gap:'6px', flexWrap:'wrap', marginTop:'8px' }}>
+            <div style={{ display:'flex', gap:'6px', flexWrap:'wrap', marginTop:'8px', alignItems:'center' }}>
               <button onClick={() => setShowCallbackPicker(p => !p)}
                 style={{ background:'rgba(245,158,11,0.08)', color:'#f59e0b', border:'1px solid rgba(245,158,11,0.25)', borderRadius:'20px', padding:'4px 12px', cursor:'pointer', fontSize:'11px', whiteSpace:'nowrap' }}>
                 📵 Call Back Later
@@ -1417,6 +1394,27 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
                 style={{ background:'rgba(74,222,128,0.08)', color:'#4ade80', border:'1px solid rgba(74,222,128,0.25)', borderRadius:'20px', padding:'4px 12px', cursor:'pointer', fontSize:'11px', whiteSpace:'nowrap' }}>
                 📅 Schedule Follow Up
               </button>
+              {/* Move to back + Next Lead — moved here to avoid crowding top row */}
+              {onNextLead && (<>
+                <div style={{ width:'1px', height:'20px', background:'rgba(255,255,255,0.1)', margin:'0 4px' }} />
+                <label style={{ display:'flex', alignItems:'center', gap:'5px', cursor:'pointer', userSelect:'none', background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.1)', borderRadius:'20px', padding:'4px 10px' }}>
+                  <input
+                    type="checkbox"
+                    checked={moveToBack}
+                    onChange={e => setMoveToBack(e.target.checked)}
+                    style={{ cursor:'pointer', accentColor: '#b8933a' }}
+                  />
+                  <span style={{ color: moveToBack ? GOLD : '#6b7280', fontSize:'11px', whiteSpace:'nowrap' }}>Move to back</span>
+                </label>
+                <button
+                  onClick={() => {
+                    if (moveToBack && onDialStarted) onDialStarted(lead.id);
+                    onNextLead();
+                  }}
+                  style={{ background:'rgba(74,222,128,0.12)', color:'#4ade80', border:'1px solid rgba(74,222,128,0.35)', borderRadius:'20px', padding:'4px 12px', cursor:'pointer', fontSize:'11px', fontWeight:'bold', whiteSpace:'nowrap' }}>
+                  Next Lead →
+                </button>
+              </>)}
             </div>
           )}
 
