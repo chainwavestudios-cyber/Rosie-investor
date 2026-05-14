@@ -420,14 +420,14 @@ export default function LeadsTab({ openLeadId, onLeadOpened }) {
   };
 
   // Shared sort function — never-called first, then oldest-called first, converted/notInterested at end
-  const sortLeads = (leadsArray) => {
+  function sortLeads(leadsArray) {
     const active = leadsArray.filter(l => l.status !== 'converted' && l.status !== 'not_interested');
     const neverCalled = active.filter(l => !l.lastCalledAt).sort((a,b) => new Date(a.created_date) - new Date(b.created_date));
     const called = active.filter(l => l.lastCalledAt).sort((a,b) => new Date(a.lastCalledAt) - new Date(b.lastCalledAt));
     const converted = leadsArray.filter(l => l.status === 'converted').sort((a,b) => new Date(b.created_date) - new Date(a.created_date));
     const notInterested = leadsArray.filter(l => l.status === 'not_interested').sort((a,b) => new Date(b.created_date) - new Date(a.created_date));
     return [...neverCalled, ...called, ...converted, ...notInterested];
-  };
+  }
 
   const loadLeads = async () => {
     try {
