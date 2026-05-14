@@ -431,9 +431,10 @@ export default function LeadsTab({ openLeadId, onLeadOpened }) {
 
   const loadLeads = async () => {
     try {
-      const all = await base44.entities.Lead.list('-created_date', 2000);
+      const all = await base44.entities.Lead.list('-created_date', 5000);
       const active = all.filter(l => l.status !== 'converted');
       const archived = all.filter(l => l.status === 'converted');
+      console.log('[LeadsTab] total:', all.length, 'active:', active.length, 'prospects:', active.filter(l=>l.status==='prospect').length);
       setLeads(sortLeads(active));
       setArchivedLeads(archived || []);
     } catch(e) { console.error(e); }
