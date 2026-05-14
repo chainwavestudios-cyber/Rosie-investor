@@ -920,7 +920,7 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
   const [selectedPhone, setSelectedPhone] = useState(lead.phone || lead.phone2 || '');
   const [inlineStream, setInlineStream] = useState(null);
   const currentLeadRef = useRef(lead);
-  const dialer = useInlineDialer({ onCallStream: (stream) => setInlineStream(stream), agentName: currentUsername });
+  const dialer = useInlineDialer({ onCallStream: (stream) => setInlineStream(stream), agentName: currentUsername, leadId: lead.id, onCallLogged });
   // Prefer external stream (direct/predictive dialer) over inline dialer stream
   const twilioStream = externalStream || inlineStream;
   const [tab, setTab] = useState('overview');
@@ -937,7 +937,6 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
     setQuickNote('');
     setSelectedAction(null);
     setTab('overview');
-    dialer.reset();
   }, [lead.id]);
   const [saving, setSaving] = useState(false);
   const [saveMsg, setSaveMsg] = useState('');
@@ -1332,8 +1331,8 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
               <InlineCallBar
                 phone={selectedPhone || editLead.phone || lead.phone}
                 name={`${editLead.firstName || lead.firstName || ''} ${editLead.lastName || lead.lastName || ''}`.trim()}
-                dialer={{ ...dialer, dial: (phone) => { onDialStarted && onDialStarted(lead.id); dialer.dial(phone); } }}
-                onLogCall={async () => { const lid = currentLeadRef.current.id; await dialer.logLeadCall(lid); await loadHistory(); onCallLogged && onCallLogged(lid); }}
+                dialer={{ ...dialer, dial: (phone) => { onDialStarted && onDialStarted(currentLeadRef.current.id); dialer.dial(phone, currentLeadRef.current.id); } }}
+                onLogCall={async () => { await loadHistory(); }}
                 isPredictive={!!isDialerPaused}
                 isDialerPaused={!!isDialerPaused}
                 onPauseCampaign={() => dialerRef.current?.pauseDialer?.()}
