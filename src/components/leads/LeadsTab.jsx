@@ -419,18 +419,6 @@ export default function LeadsTab({ openLeadId, onLeadOpened }) {
     setActivityLoading(false);
   };
 
-  const loadLeads = async () => {
-    // Don't show loading spinner on background refreshes (only on first load)
-    try {
-      const all = await base44.entities.Lead.list('-created_date', 2000);
-      const active = all.filter(l => !l.migratedToPortal && !l.convertedToInvestorUserId);
-      const archived = all.filter(l => l.migratedToPortal || l.convertedToInvestorUserId);
-      setLeads(sortLeads(active));
-      setArchivedLeads(archived || []);
-    } catch(e) { console.error(e); }
-    setLoading(false);
-  };
-
   // Shared sort function — never-called first, then oldest-called first, converted/notInterested at end
   const sortLeads = (leadsArray) => {
     const active = leadsArray.filter(l => l.status !== 'converted' && l.status !== 'not_interested');
@@ -439,6 +427,17 @@ export default function LeadsTab({ openLeadId, onLeadOpened }) {
     const converted = leadsArray.filter(l => l.status === 'converted').sort((a,b) => new Date(b.created_date) - new Date(a.created_date));
     const notInterested = leadsArray.filter(l => l.status === 'not_interested').sort((a,b) => new Date(b.created_date) - new Date(a.created_date));
     return [...neverCalled, ...called, ...converted, ...notInterested];
+  };
+
+  const loadLeads = async () => {
+    try {
+      const all = await base44.entities.Lead.list('-created_date', 2000);
+      const active = all.filter(l => !l.migratedToPortal && !l.convertedToInvestorUserId);
+      const archived = all.filter(l => l.migratedToPortal || l.convertedToInvestorUserId);
+      setLeads(sortLeads(active));
+      setArchivedLeads(archived || []);
+    } catch(e) { console.error(e); }
+    setLoading(false);
   };
 
   const loadRecentCalls = async () => {
