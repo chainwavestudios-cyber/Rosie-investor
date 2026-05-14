@@ -469,13 +469,15 @@ export default function LeadsTab({ openLeadId, onLeadOpened }) {
     setTimeout(() => { loadLeads(); loadRecentCalls(); }, 800);
   };
 
-  // Called the instant dialing starts — moves lead to back of list immediately
+  // Called the instant dialing starts — moves lead to back of list immediately and persists to DB
   const handleDialStarted = (leadId) => {
     const now = new Date().toISOString();
     setLeads(prev => {
       const updated = prev.map(l => l.id === leadId ? { ...l, lastCalledAt: now } : l);
       return sortLeads(updated);
     });
+    // Persist immediately so auto-refresh doesn't undo the sort
+    base44.entities.Lead.update(leadId, { lastCalledAt: now }).catch(() => {});
   };
 
   // Called by PredictiveDialer the instant a human answers — opens contact card immediately
