@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
 import { usePortalAuth } from '@/lib/PortalAuthContext';
 import { useInlineDialer } from '@/hooks/useInlineDialer';
@@ -919,12 +919,26 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
   };
   const [selectedPhone, setSelectedPhone] = useState(lead.phone || lead.phone2 || '');
   const [inlineStream, setInlineStream] = useState(null);
+  const currentLeadRef = useRef(lead);
   const dialer = useInlineDialer({ onCallStream: (stream) => setInlineStream(stream), onCallLogged, agentName: currentUsername });
   // Prefer external stream (direct/predictive dialer) over inline dialer stream
   const twilioStream = externalStream || inlineStream;
   const [tab, setTab] = useState('overview');
   const [history, setHistory] = useState([]);
   const [editLead, setEditLead] = useState({ ...lead });
+
+  // When lead prop changes (Next Lead), reset card state
+  useEffect(() => {
+    currentLeadRef.current = lead;
+    setEditLead({ ...lead });
+    setSelectedPhone(lead.phone || lead.phone2 || '');
+    setHistory([]);
+    setLoading(true);
+    setQuickNote('');
+    setSelectedAction(null);
+    setTab('overview');
+    dialer.reset();
+  }, [lead.id]);
   const [saving, setSaving] = useState(false);
   const [saveMsg, setSaveMsg] = useState('');
   const [loading, setLoading] = useState(true);
@@ -1319,7 +1333,7 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
                 phone={selectedPhone || editLead.phone || lead.phone}
                 name={`${editLead.firstName || lead.firstName || ''} ${editLead.lastName || lead.lastName || ''}`.trim()}
                 dialer={{ ...dialer, dial: (phone) => { onDialStarted && onDialStarted(lead.id); dialer.dial(phone); } }}
-                onLogCall={async () => { await dialer.logLeadCall(lead.id); await loadHistory(); onCallLogged && onCallLogged(lead.id); }}
+                onLogCall={async () => { const lid = currentLeadRef.current.id; await dialer.logLeadCall(lid); await loadHistory(); onCallLogged && onCallLogged(lid); }}
                 isPredictive={!!isDialerPaused}
                 isDialerPaused={!!isDialerPaused}
                 onPauseCampaign={() => dialerRef.current?.pauseDialer?.()}
