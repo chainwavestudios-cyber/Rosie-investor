@@ -380,10 +380,26 @@ export default function LeadsTab({ openLeadId, onLeadOpened }) {
   // Auto-open a lead card when openLeadId is passed (e.g. from calendar or reminders)
   useEffect(() => {
     if (!openLeadId) return;
-    base44.entities.Lead.filter({ id: openLeadId }).then(rows => {
-      if (rows?.[0]) setSelectedLead(rows[0]);
+    // First try to find in already-loaded leads (fast path)
+    const found = leads.find(l => l.id === openLeadId);
+    if (found) {
+      setSelectedLead(found);
       onLeadOpened && onLeadOpened();
-    }).catch(() => {});
+      return;
+    }
+    // Also check archived leads
+    const foundArchived = archivedLeads.find(l => l.id === openLeadId);
+    if (foundArchived) {
+      setSelectedLead(foundArchived);
+      onLeadOpened && onLeadOpened();
+      return;
+    }
+    // Fall back to fetching all leads to find by id (list doesn't support id filter)
+    base44.entities.Lead.list('-created_date', 5000).then(all => {
+      const match = all.find(l => l.id === openLeadId);
+      if (match) setSelectedLead(match);
+      onLeadOpened && onLeadOpened();
+    }).catch(() => { onLeadOpened && onLeadOpened(); });
   }, [openLeadId]);
 
   const loadActivity = async () => {

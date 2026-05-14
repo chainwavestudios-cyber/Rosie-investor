@@ -367,10 +367,14 @@ export default function LeadPipeline({ onOpenLead }) {
   };
 
   // Each lead belongs to whoever changed it to prospect (leadPipelineOwner).
-  // Leads with no owner set fall into admin's pipeline as a safe default.
-  // Both users can view/edit either pipeline by switching tabs.
+  // Leads with no owner are shown in BOTH pipelines so they're never hidden.
   const viewOwner = pipelineView === 'mine' ? currentUsername : otherUsername;
-  const visibleLeads = leads.filter(l => (l.leadPipelineOwner || 'admin') === viewOwner);
+  const visibleLeads = leads.filter(l => {
+    const owner = l.leadPipelineOwner;
+    // No owner set → show in both pipelines
+    if (!owner) return true;
+    return owner === viewOwner;
+  });
 
   const leadsInStage = (stageId) => visibleLeads.filter(l => (l.leadPipelineStage || 'reviewing') === stageId);
 
@@ -397,11 +401,11 @@ export default function LeadPipeline({ onOpenLead }) {
       <div style={{ display: 'flex', gap: '0', borderBottom: '1px solid rgba(255,255,255,0.07)', marginBottom: '20px' }}>
         <button onClick={() => setPipelineView('mine')}
           style={{ background: 'none', border: 'none', borderBottom: pipelineView === 'mine' ? `2px solid ${GOLD}` : '2px solid transparent', color: pipelineView === 'mine' ? GOLD : '#6b7280', padding: '10px 20px', cursor: 'pointer', fontSize: '12px', letterSpacing: '0.5px' }}>
-          👤 {currentUsername === 'steph' ? 'Steph' : 'Admin'}'s Pipeline ({leads.filter(l => (l.leadPipelineOwner || 'admin') === currentUsername).length})
+          👤 {currentUsername === 'steph' ? 'Steph' : 'Admin'}'s Pipeline ({leads.filter(l => !l.leadPipelineOwner || l.leadPipelineOwner === currentUsername).length})
         </button>
         <button onClick={() => setPipelineView('other')}
           style={{ background: 'none', border: 'none', borderBottom: pipelineView === 'other' ? `2px solid ${GOLD}` : '2px solid transparent', color: pipelineView === 'other' ? GOLD : '#6b7280', padding: '10px 20px', cursor: 'pointer', fontSize: '12px', letterSpacing: '0.5px' }}>
-          👤 {otherUsername === 'steph' ? 'Steph' : 'Admin'}'s Pipeline ({leads.filter(l => (l.leadPipelineOwner || 'admin') === otherUsername).length})
+          👤 {otherUsername === 'steph' ? 'Steph' : 'Admin'}'s Pipeline ({leads.filter(l => !l.leadPipelineOwner || l.leadPipelineOwner === otherUsername).length})
         </button>
       </div>
 
