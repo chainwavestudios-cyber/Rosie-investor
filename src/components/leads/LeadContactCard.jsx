@@ -920,7 +920,7 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
   const [selectedPhone, setSelectedPhone] = useState(lead.phone || lead.phone2 || '');
   const [inlineStream, setInlineStream] = useState(null);
   const currentLeadRef = useRef(lead);
-  const dialer = useInlineDialer({ onCallStream: (stream) => setInlineStream(stream), onCallLogged, agentName: currentUsername });
+  const dialer = useInlineDialer({ onCallStream: (stream) => setInlineStream(stream), agentName: currentUsername });
   // Prefer external stream (direct/predictive dialer) over inline dialer stream
   const twilioStream = externalStream || inlineStream;
   const [tab, setTab] = useState('overview');
