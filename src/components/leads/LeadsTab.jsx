@@ -432,8 +432,8 @@ export default function LeadsTab({ openLeadId, onLeadOpened }) {
   const loadLeads = async () => {
     try {
       const all = await base44.entities.Lead.list('-created_date', 2000);
-      const active = all.filter(l => !(l.migratedToPortal && l.convertedToInvestorUserId) && l.status !== 'converted');
-      const archived = all.filter(l => l.migratedToPortal && l.convertedToInvestorUserId || l.status === 'converted');
+      const active = all.filter(l => l.status !== 'converted');
+      const archived = all.filter(l => l.status === 'converted');
       setLeads(sortLeads(active));
       setArchivedLeads(archived || []);
     } catch(e) { console.error(e); }
