@@ -153,7 +153,9 @@ export default function KnowledgeBaseManager({ IntentEngineTuner, CoachRulesTune
           saved++;
         } catch {}
       }
-      setUploadMsg(`✓ Extracted and saved ${saved} entries from "${file.name}"`);
+      const qaCount    = extracted.filter((e: any) => e.category !== 'raw_chunk' && e.category !== 'raw_document').length;
+      const chunkCount = extracted.filter((e: any) => e.category === 'raw_chunk' || e.category === 'raw_document').length;
+      setUploadMsg(`✓ Saved ${saved} entries from "${file.name}" — ${qaCount} Q&A pairs + ${chunkCount} searchable chunks`);
       await load();
     } catch (e) { setUploadMsg('Error: ' + e.message); }
     setUploading(false); setUploadProgress('');
@@ -399,18 +401,39 @@ export default function KnowledgeBaseManager({ IntentEngineTuner, CoachRulesTune
           {uploadMsg && <div style={{ marginTop:'16px', background:uploadMsg.startsWith('✓')?'rgba(74,222,128,0.1)':'rgba(239,68,68,0.1)', border:`1px solid ${uploadMsg.startsWith('✓')?'rgba(74,222,128,0.3)':'rgba(239,68,68,0.3)'}`, borderRadius:'4px', padding:'12px 16px', color:uploadMsg.startsWith('✓')?'#4ade80':'#ef4444', fontSize:'13px' }}>{uploadMsg}</div>}
           {sources.length > 0 && (
             <div style={{ marginTop:'28px' }}>
-              <div style={{ color:'#6b7280', fontSize:'10px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'10px' }}>Documents in {selectedKb === DEFAULT_KB ? 'Default KB' : selectedKb} ({sources.length})</div>
+              <div style={{ color:'#6b7280', fontSize:'10px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'10px' }}>
+                Uploaded Documents in {selectedKb === DEFAULT_KB ? 'Default KB' : selectedKb} ({sources.length})
+                <span style={{ color:'#4a5568', fontWeight:'normal', marginLeft:'8px' }}>— Remove a file to re-upload it</span>
+              </div>
               {sources.map(src => {
-                const count = kbFiltered.filter(e => e.source === src && e.category !== 'raw_document').length;
+                const allSrcEntries = kbFiltered.filter(e => e.source === src);
+                const qaCount    = allSrcEntries.filter(e => e.category !== 'raw_document' && e.category !== 'raw_chunk').length;
+                const chunkCount = allSrcEntries.filter(e => e.category === 'raw_chunk' || e.category === 'raw_document').length;
+                const [removing, setRemoving] = [false, () => {}]; // local state via key trick
                 return (
-                  <div key={src} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'8px 12px', background:'rgba(255,255,255,0.02)', border:'1px solid rgba(255,255,255,0.06)', borderRadius:'4px', marginBottom:'4px' }}>
-                    <div><span style={{ color:'#c4cdd8', fontSize:'13px' }}>{src}</span><span style={{ color:'#4a5568', fontSize:'11px', marginLeft:'10px' }}>{count} entries</span></div>
-                    <button onClick={async () => {
-                      if (!window.confirm(`Delete all entries from "${src}"?`)) return;
-                      const toDelete = entries.filter(e => e.source === src);
-                      for (const e of toDelete) { try { await base44.entities.KnowledgeBase.delete(e.id); } catch {} }
-                      await load();
-                    }} style={{ background:'none', border:'none', color:'#ef444466', cursor:'pointer', fontSize:'13px' }}>× Remove</button>
+                  <div key={src} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'10px 14px', background:'rgba(255,255,255,0.02)', border:'1px solid rgba(255,255,255,0.07)', borderRadius:'6px', marginBottom:'6px' }}>
+                    <div style={{ flex:1, minWidth:0 }}>
+                      <div style={{ color:'#c4cdd8', fontSize:'13px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>📄 {src}</div>
+                      <div style={{ color:'#4a5568', fontSize:'10px', marginTop:'2px' }}>
+                        {qaCount} Q&amp;A entries · {chunkCount} searchable chunks
+                      </div>
+                    </div>
+                    <div style={{ display:'flex', gap:'6px', flexShrink:0 }}>
+                      <button
+                        onClick={() => fileRef.current?.click()}
+                        title={`Replace "${src}" with a new upload`}
+                        style={{ background:'rgba(184,147,58,0.1)', color:'#b8933a', border:'1px solid rgba(184,147,58,0.3)', borderRadius:'4px', padding:'5px 12px', cursor:'pointer', fontSize:'11px' }}
+                      >↑ Re-upload</button>
+                      <button
+                        onClick={async () => {
+                          if (!window.confirm(`Remove all ${allSrcEntries.length} entries from "${src}"? You can re-upload the file after.`)) return;
+                          for (const e of allSrcEntries) { try { await base44.entities.KnowledgeBase.delete(e.id); } catch {} }
+                          await load();
+                        }}
+                        title={`Remove all entries from "${src}"`}
+                        style={{ background:'rgba(239,68,68,0.08)', color:'#ef4444', border:'1px solid rgba(239,68,68,0.25)', borderRadius:'4px', padding:'5px 12px', cursor:'pointer', fontSize:'11px' }}
+                      >🗑 Remove</button>
+                    </div>
                   </div>
                 );
               })}
