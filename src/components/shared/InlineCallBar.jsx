@@ -1,9 +1,6 @@
 import { useState, useEffect } from 'react';
-import VoiceFXPanel from './VoiceFXPanel';
-import { usePortalAuth } from '@/lib/PortalAuthContext';
 
 const GOLD = '#b8933a';
-const ADMIN_USERS = ['admin', 'steph'];
 
 /**
  * InlineCallBar
@@ -39,11 +36,6 @@ export default function InlineCallBar({
   const [dtmfInput, setDtmfInput] = useState('');
   const [showKeypad, setShowKeypad] = useState(false);
   const [logging, setLogging] = useState(false);
-  const [showFX, setShowFX] = useState(false);
-
-  const { portalUser } = usePortalAuth();
-  const currentUsername = portalUser?.username || 'admin';
-  const isAdmin = ADMIN_USERS.includes(currentUsername);
 
   // Populate mic list on first render (requires mic permission)
   useEffect(() => {
@@ -268,13 +260,6 @@ export default function InlineCallBar({
           </div>
         )}
 
-        {/* FX button — always visible for admins when not on a call */}
-        {isAdmin && (callStatus === 'idle' || callStatus === 'ready' || callStatus === 'ended') && (
-          <Btn onClick={() => setShowFX(true)} color={GOLD} bg='rgba(184,147,58,0.08)' border='rgba(184,147,58,0.25)'>
-            🎙 Voice FX
-          </Btn>
-        )}
-
         {/* INITIALIZING */}
         {callStatus === 'initializing' && (
           <span style={{ color: '#f59e0b', fontSize: '10px' }}>⏳ Connecting to Twilio…</span>
@@ -299,11 +284,6 @@ export default function InlineCallBar({
             <Btn onClick={() => setShowKeypad(p => !p)} color='#8a9ab8'>
               {showKeypad ? '🔢 Hide' : '🔢 Keys'}
             </Btn>
-            {isAdmin && (
-              <Btn onClick={() => setShowFX(true)} color={GOLD} bg='rgba(184,147,58,0.1)' border='rgba(184,147,58,0.3)'>
-                🎙 FX
-              </Btn>
-            )}
             <Btn onClick={handleHangup} color='#ef4444' bg='rgba(239,68,68,0.12)' border='rgba(239,68,68,0.35)' bold>
               📵 Hang Up
             </Btn>
@@ -391,15 +371,6 @@ export default function InlineCallBar({
         <div style={{ color: '#ef4444', fontSize: '10px', lineHeight: 1.4 }}>
           ⚠ {dialerError}
         </div>
-      )}
-
-      {/* ── Voice FX Panel ── */}
-      {showFX && (
-        <VoiceFXPanel
-          username={currentUsername}
-          onClose={() => setShowFX(false)}
-          onFxChange={() => {}}
-        />
       )}
     </div>
   );
