@@ -1,0 +1,40 @@
+{
+  "name": "KnowledgeBase",
+  "type": "object",
+  "properties": {
+    "question": {
+      "type": "string",
+      "title": "Question"
+    },
+    "answer": {
+      "type": "string",
+      "title": "Answer",
+      "format": "textarea"
+    },
+    "category": {
+      "type": "string",
+      "title": "Category"
+    },
+    "source": {
+      "type": "string",
+      "title": "Source"
+    },
+    "tags": {
+      "type": "string",
+      "title": "Tags"
+    },
+    "kbName": {
+      "type": "string",
+      "title": "Knowledge Base Name"
+    },
+    "keywords": {
+      "type": "string",
+      "title": "Keywords",
+      "description": "Comma-separated search tags auto-generated at extraction time"
+    }
+  },
+  "required": [
+    "question",
+    "answer"
+  ]
+}
