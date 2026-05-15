@@ -55,7 +55,7 @@ function Btn({ onClick, disabled, children, color = '#8a9ab8', bg = 'rgba(255,25
 }
 
 // ── Q&A Section ───────────────────────────────────────────────────────────────
-function QASection({ transcript, transcriptRef, kbEntries, active, qaKeywords, manualQ, setManualQ, collapsed, qaOnly }) {
+function QASection({ transcript, transcriptRef, kbEntries, active, qaKeywords, manualQ, setManualQ, collapsed, qaOnly, onQALog, kbName }) {
   const [questions, setQuestions] = useState([]);
   const [asking,    setAsking]    = useState(false);
   const [addInfoId, setAddInfoId] = useState(null);
@@ -127,8 +127,15 @@ function QASection({ transcript, transcriptRef, kbEntries, active, qaKeywords, m
     if (!q || q.answering) return;
     setQuestions(prev => prev.map(x => x.id === id ? { ...x, answering: true } : x));
     try {
-      const res = await base44.functions.invoke('liveAssistantAI', { question: q.text, transcript: transcriptRef.current.slice(-12), kbEntries, mode: 'qa' });
-      setQuestions(prev => prev.map(x => x.id === id ? { ...x, answering: false, answered: true, answer: res?.data?.answer || 'No matching information found.' } : x));
+      const res = await base44.functions.invoke('liveAssistantAI', {
+        question: q.text, transcript: transcriptRef.current.slice(-12),
+        kbEntries, mode: 'qa', kbName: kbName || '',
+      });
+      const answer = res?.data?.answer || 'No matching information found.';
+      const source = res?.data?.source || 'kb_ai';
+      setQuestions(prev => prev.map(x => x.id === id ? { ...x, answering: false, answered: true, answer, source } : x));
+      // Log to post-call Q&A log
+      onQALog?.({ question: q.text, answer, source, kbName: kbName || '', time: new Date().toISOString() });
     } catch (e) {
       setQuestions(prev => prev.map(x => x.id === id ? { ...x, answering: false, answer: `Error: ${e.message}` } : x));
     }
@@ -139,10 +146,39 @@ function QASection({ transcript, transcriptRef, kbEntries, active, qaKeywords, m
     if (!q || !q.answered) return;
     setAddInfoId(id);
     try {
-      const res = await base44.functions.invoke('liveAssistantAI', { question: `Give me more detailed information about: ${q.text}`, transcript: transcriptRef.current.slice(-12), kbEntries, previousAnswer: q.answer, mode: 'qa_expand' });
-      setQuestions(prev => prev.map(x => x.id === id ? { ...x, answer: x.answer + '\n\n— Additional Detail —\n' + (res?.data?.answer || 'No additional information found.') } : x));
+      const res = await base44.functions.invoke('liveAssistantAI', {
+        question: q.text,
+        transcript: transcriptRef.current.slice(-12),
+        kbEntries, previousAnswer: q.answer,
+        mode: 'qa_expand', kbName: kbName || '',
+      });
+      const extra = res?.data?.answer || 'No additional information found.';
+      setQuestions(prev => prev.map(x => x.id === id ? { ...x, answer: x.answer + '\n\n— Additional Detail —\n' + extra } : x));
+      onQALog?.({ question: `[More info] ${q.text}`, answer: extra, source: 'kb_expand', kbName: kbName || '', time: new Date().toISOString() });
     } catch (e) {
       setQuestions(prev => prev.map(x => x.id === id ? { ...x, answer: x.answer + `\n\nError: ${e.message}` } : x));
+    }
+    setAddInfoId(null);
+  };
+
+  const searchInternet = async (id) => {
+    const q = questions.find(x => x.id === id);
+    if (!q) return;
+    setAddInfoId(`inet_${id}`);
+    try {
+      const res = await base44.functions.invoke('liveAssistantAI', {
+        question: q.text, internetQuery: q.text,
+        mode: 'internet_search', kbName: kbName || '',
+      });
+      const extra = res?.data?.answer || 'No internet results found.';
+      setQuestions(prev => prev.map(x => x.id === id ? {
+        ...x,
+        answer: x.answered ? x.answer + '\n\n— 🌐 Internet —\n' + extra : extra,
+        answered: true, answering: false,
+      } : x));
+      onQALog?.({ question: `[Internet] ${q.text}`, answer: extra, source: 'internet', kbName: kbName || '', time: new Date().toISOString() });
+    } catch (e) {
+      setQuestions(prev => prev.map(x => x.id === id ? { ...x, answer: (x.answer||'') + `\n\nInternet error: ${e.message}` } : x));
     }
     setAddInfoId(null);
   };
@@ -153,8 +189,14 @@ function QASection({ transcript, transcriptRef, kbEntries, active, qaKeywords, m
     const id = Date.now() + Math.random();
     setQuestions(prev => [...prev, { id, text: q, time: new Date(), answer: '', answering: true, answered: false, auto: false, manual: true }]);
     try {
-      const res = await base44.functions.invoke('liveAssistantAI', { question: q, transcript: transcriptRef.current.slice(-12), kbEntries, mode: 'qa' });
-      setQuestions(prev => prev.map(x => x.id === id ? { ...x, answering: false, answered: true, answer: res?.data?.answer || 'No matching information found.' } : x));
+      const res = await base44.functions.invoke('liveAssistantAI', {
+        question: q, transcript: transcriptRef.current.slice(-12),
+        kbEntries, mode: 'qa', kbName: kbName || '',
+      });
+      const answer = res?.data?.answer || 'No matching information found.';
+      const source = res?.data?.source || 'kb_ai';
+      setQuestions(prev => prev.map(x => x.id === id ? { ...x, answering: false, answered: true, answer, source } : x));
+      onQALog?.({ question: q, answer, source, kbName: kbName || '', time: new Date().toISOString() });
     } catch (e) {
       setQuestions(prev => prev.map(x => x.id === id ? { ...x, answering: false, answer: `Error: ${e.message}` } : x));
     }
@@ -196,7 +238,12 @@ function QASection({ transcript, transcriptRef, kbEntries, active, qaKeywords, m
             ? <div style={{ color: '#6b7280', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '8px' }}><div style={{ width: 5, height: 5, borderRadius: '50%', background: GOLD, animation: 'aipulse 0.8s infinite' }} />Searching knowledge base…</div>
             : <div>
                 <div style={{ color: '#e8e0d0', fontSize: '12px', lineHeight: 1.75, whiteSpace: 'pre-wrap', marginBottom: '6px' }}>💡 {q.answer}</div>
-                <Btn onClick={() => getMoreInfo(q.id)} disabled={addInfoId === q.id} color="#60a5fa" bg="rgba(96,165,250,0.08)" border="rgba(96,165,250,0.2)" s={{ fontSize: '9px', padding: '2px 8px' }}>{addInfoId === q.id ? '⏳ Loading…' : '+ Additional Information'}</Btn>
+                <div style={{ display:'flex', gap:'5px', flexWrap:'wrap', marginTop:'4px' }}>
+                      <Btn onClick={() => getMoreInfo(q.id)} disabled={!!addInfoId} color="#60a5fa" bg="rgba(96,165,250,0.08)" border="rgba(96,165,250,0.2)" s={{ fontSize: '9px', padding: '2px 8px' }}>{addInfoId === q.id ? '⏳ KB…' : '+ More from KB'}</Btn>
+                      <Btn onClick={() => searchInternet(q.id)} disabled={!!addInfoId} color="#4ade80" bg="rgba(74,222,128,0.08)" border="rgba(74,222,128,0.2)" s={{ fontSize: '9px', padding: '2px 8px' }}>{addInfoId === `inet_${q.id}` ? '⏳ Searching…' : '🌐 Search Internet'}</Btn>
+                      {q.source === 'kb_direct' && <span style={{ color:'#4ade80', fontSize:'9px', background:'rgba(74,222,128,0.08)', border:'1px solid rgba(74,222,128,0.2)', borderRadius:'3px', padding:'1px 6px' }}>⚡ Direct KB</span>}
+                      {q.source === 'internet' && <span style={{ color:'#4ade80', fontSize:'9px', background:'rgba(74,222,128,0.08)', border:'1px solid rgba(74,222,128,0.2)', borderRadius:'3px', padding:'1px 6px' }}>🌐 Internet</span>}
+                    </div>
               </div>
           }
         </div>
@@ -243,7 +290,10 @@ function QASection({ transcript, transcriptRef, kbEntries, active, qaKeywords, m
               <div key={q.id} style={{ background: 'rgba(74,222,128,0.03)', border: '1px solid rgba(74,222,128,0.15)', borderRadius: '5px', overflow: 'hidden' }}>
                 <div style={{ padding: '5px 10px', background: 'rgba(0,0,0,0.15)', borderBottom: '1px solid rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <span style={{ color: '#f59e0b', fontSize: '10px', flex: 1, fontStyle: 'italic' }}>Re: "{q.text.slice(0, 60)}{q.text.length > 60 ? '…' : ''}"</span>
-                  {q.answered && !q.answering && <Btn onClick={() => getMoreInfo(q.id)} disabled={addInfoId === q.id} color="#60a5fa" bg="rgba(96,165,250,0.1)" border="rgba(96,165,250,0.25)" s={{ padding: '2px 8px', fontSize: '9px' }}>{addInfoId === q.id ? '⏳' : '+ More Info'}</Btn>}
+                  {q.answered && !q.answering && (<>
+                    <Btn onClick={() => getMoreInfo(q.id)} disabled={!!addInfoId} color="#60a5fa" bg="rgba(96,165,250,0.1)" border="rgba(96,165,250,0.25)" s={{ padding: '2px 8px', fontSize: '9px' }}>{addInfoId === q.id ? '⏳' : '+ More KB'}</Btn>
+                    <Btn onClick={() => searchInternet(q.id)} disabled={!!addInfoId} color="#4ade80" bg="rgba(74,222,128,0.08)" border="rgba(74,222,128,0.2)" s={{ padding: '2px 8px', fontSize: '9px' }}>{addInfoId === `inet_${q.id}` ? '⏳' : '🌐 Internet'}</Btn>
+                  </>)}
                   <button onClick={() => setQuestions(prev => prev.filter(x => x.id !== q.id))} style={{ background: 'none', border: 'none', color: '#4a5568', cursor: 'pointer', fontSize: '13px', lineHeight: 1, padding: '0 2px' }}>×</button>
                 </div>
                 <div style={{ padding: '10px 12px' }}>
@@ -361,6 +411,7 @@ export default function AIAssistantPopup({
   onToggleQA, onToggleCoach, onToggleIntent,
   onClose, onIntentResult,
   allKbEntries, kbNames, selectedKbName, onKbChange,
+  onQALog, onCoachTip, kbName: kbNameProp,
 }) {
   const [pos,    setPos]    = useState({ x: 20, y: Math.max(20, window.innerHeight - 540) });
   const [width,  setWidth]  = useState(Math.min(860, window.innerWidth - 40));
@@ -430,7 +481,7 @@ export default function AIAssistantPopup({
         {qaOnly&&(
           <>
             <SectionHeader label="❓ Q&A" color="#f59e0b" active={qaActive} onToggle={onToggleQA} collapsed={false} onCollapse={()=>{}} />
-            <QASection transcript={transcript} transcriptRef={transcriptRef} kbEntries={kbEntries} active={qaActive} qaKeywords={portalCfg?.intentTriggerKeywords} manualQ={manualQ} setManualQ={setManualQ} collapsed={false} qaOnly={true} />
+            <QASection transcript={transcript} transcriptRef={transcriptRef} kbEntries={kbEntries} active={qaActive} qaKeywords={portalCfg?.intentTriggerKeywords} manualQ={manualQ} setManualQ={setManualQ} collapsed={false} qaOnly={true} onQALog={onQALog} kbName={kbNameProp} />
           </>
         )}
 
@@ -438,7 +489,7 @@ export default function AIAssistantPopup({
           <>
             <div style={{display:'flex',flexDirection:'column',overflow:'hidden',flex:qaCollapsed?'0 0 auto':qaH,minHeight:qaCollapsed?0:80}}>
               <SectionHeader label="❓ Q&A" color="#f59e0b" active={qaActive} onToggle={onToggleQA} collapsed={qaCollapsed} onCollapse={()=>setQaCollapsed(p=>!p)} />
-              <QASection transcript={transcript} transcriptRef={transcriptRef} kbEntries={kbEntries} active={qaActive} qaKeywords={portalCfg?.intentTriggerKeywords} manualQ={manualQ} setManualQ={setManualQ} collapsed={qaCollapsed} qaOnly={false} />
+              <QASection transcript={transcript} transcriptRef={transcriptRef} kbEntries={kbEntries} active={qaActive} qaKeywords={portalCfg?.intentTriggerKeywords} manualQ={manualQ} setManualQ={setManualQ} collapsed={qaCollapsed} qaOnly={false} onQALog={onQALog} kbName={kbNameProp} />
             </div>
 
             {!qaCollapsed&&!coachCollapsed&&<DragHandle onDragStart={e=>{resizingDiv.current='qa-coach';divStartY.current=e.clientY;divStartH.current=qaH;e.preventDefault();}} />}
