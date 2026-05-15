@@ -362,15 +362,15 @@ export default function TwilioDialer({ initialLead, onClose, onCallLogged, onCal
           )}
 
           <div style={{ display:'flex', gap:'10px', justifyContent:'center' }}>
-            {(callStatus === 'idle') && (
+            {(callStatus === 'idle') && (<>
               <button onClick={dial} disabled={!displayNumber} style={{ flex:1, background: displayNumber ? 'linear-gradient(135deg,#22c55e,#16a34a)' : 'rgba(74,222,128,0.2)', color:'#fff', border:'none', borderRadius:'50px', padding:'14px', cursor: displayNumber ? 'pointer' : 'not-allowed', fontSize:'20px' }}>📞</button>
-            )}
-            {isAdmin && (callStatus === 'idle' || callStatus === 'ended') && (
-              <button onClick={() => setShowFX(true)}
-                style={{ background:'rgba(184,147,58,0.1)', color:GOLD, border:`1px solid rgba(184,147,58,0.3)`, borderRadius:'50px', padding:'14px 18px', cursor:'pointer', fontSize:'14px', fontWeight:'bold', whiteSpace:'nowrap' }}>
-                🎙 FX
-              </button>
-            )}
+              {isAdmin && (
+                <button onClick={() => setShowFX(true)}
+                  style={{ background:'rgba(184,147,58,0.1)', color:GOLD, border:'1px solid rgba(184,147,58,0.3)', borderRadius:'50px', padding:'14px 16px', cursor:'pointer', fontSize:'14px', fontWeight:'bold', whiteSpace:'nowrap' }}>
+                  🎙 FX
+                </button>
+              )}
+            </>)}
             {isActive && callStatus !== 'connected' && (
               <button onClick={hangup} style={{ flex:1, background:'linear-gradient(135deg,#ef4444,#b91c1c)', color:'#fff', border:'none', borderRadius:'50px', padding:'14px', cursor:'pointer', fontSize:'20px' }}>📵</button>
             )}
@@ -381,8 +381,8 @@ export default function TwilioDialer({ initialLead, onClose, onCallLogged, onCal
               </button>
               {isAdmin && (
                 <button onClick={() => setShowFX(true)}
-                  style={{ flex:1, background:'rgba(184,147,58,0.12)', color:GOLD, border:`1px solid rgba(184,147,58,0.3)`, borderRadius:'50px', padding:'14px', cursor:'pointer', fontSize:'16px' }}>
-                  🎙✨
+                  style={{ flex:1, background:'rgba(184,147,58,0.12)', color:GOLD, border:'1px solid rgba(184,147,58,0.35)', borderRadius:'50px', padding:'14px', cursor:'pointer', fontSize:'14px', fontWeight:'bold' }}>
+                  🎙 FX
                 </button>
               )}
               <button onClick={hangup} style={{ flex:1, background:'linear-gradient(135deg,#ef4444,#b91c1c)', color:'#fff', border:'none', borderRadius:'50px', padding:'14px', cursor:'pointer', fontSize:'20px' }}>📵</button>
@@ -396,13 +396,7 @@ export default function TwilioDialer({ initialLead, onClose, onCallLogged, onCal
         </>
       )}
 
-      {showFX && (
-        <VoiceFXPanel
-          username={currentUsername}
-          onClose={() => setShowFX(false)}
-          onFxChange={() => {}}
-        />
-      )}
+      {showFX && <VoiceFXPanel onClose={() => setShowFX(false)} />}
     </div>
   );
 
@@ -416,12 +410,6 @@ export default function TwilioDialer({ initialLead, onClose, onCallLogged, onCal
           <span style={{ color: showIncoming ? '#4ade80' : GOLD, fontSize:'12px', letterSpacing:'2px', textTransform:'uppercase' }}>
             {showIncoming ? 'Incoming Call' : 'Direct Dialer'}
           </span>
-          {isAdmin && !showIncoming && (
-            <button onClick={() => setShowFX(true)}
-              style={{ background:'rgba(184,147,58,0.1)', color:GOLD, border:'1px solid rgba(184,147,58,0.25)', borderRadius:'4px', padding:'3px 8px', cursor:'pointer', fontSize:'10px', letterSpacing:'1px' }}>
-              🎙 FX
-            </button>
-          )}
         </div>
         <button onClick={onClose} style={{ background:'none', border:'none', color:'#6b7280', cursor:'pointer', fontSize:'18px' }}>×</button>
       </div>
