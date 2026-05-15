@@ -415,6 +415,7 @@ export default function ScriptAssistant({ lead, user, onExpandCard, isCardExpand
         qaLog: qaLogRef.current,
         coachTips: coachTipsRef.current,
         intentResult: finalIntent,
+        kbName: selectedKbName || '',
       });
       const report = reportRes?.data?.report || '';
       if (report) {
@@ -707,6 +708,9 @@ export default function ScriptAssistant({ lead, user, onExpandCard, isCardExpand
           onToggleIntent={toggleIntent}
           onClose={() => setShowPopup(false)}
           onIntentResult={result => { setIntentResult(result); }}
+          onQALog={(qa) => { qaLogRef.current.push(qa); }}
+          onCoachTip={(tip) => { coachTipsRef.current.push(tip); }}
+          kbName={selectedKbName || ''}
           allKbEntries={allKbEntries}
           kbNames={kbNames}
           selectedKbName={selectedKbName}
