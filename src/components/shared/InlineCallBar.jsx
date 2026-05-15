@@ -42,8 +42,7 @@ export default function InlineCallBar({
   const [showFX, setShowFX] = useState(false);
 
   const { portalUser } = usePortalAuth();
-  const currentUsername = portalUser?.username || 'admin';
-  const isAdmin = ADMIN_USERS.includes(currentUsername);
+  const isAdmin = ADMIN_USERS.includes(portalUser?.username || '');
 
   // Populate mic list on first render (requires mic permission)
   useEffect(() => {
@@ -268,10 +267,10 @@ export default function InlineCallBar({
           </div>
         )}
 
-        {/* FX button — always visible for admins when not on a call */}
+        {/* 🎙 Voice FX — admin only, shown when idle/ready/ended */}
         {isAdmin && (callStatus === 'idle' || callStatus === 'ready' || callStatus === 'ended') && (
           <Btn onClick={() => setShowFX(true)} color={GOLD} bg='rgba(184,147,58,0.08)' border='rgba(184,147,58,0.25)'>
-            🎙 Voice FX
+            🎙 FX
           </Btn>
         )}
 
@@ -287,7 +286,7 @@ export default function InlineCallBar({
           </Btn>
         )}
 
-        {/* CONNECTED — mute + keypad + hangup */}
+        {/* CONNECTED — mute + keypad + FX + hangup */}
         {callStatus === 'connected' && (
           <>
             <Btn onClick={toggleMute}
@@ -394,13 +393,7 @@ export default function InlineCallBar({
       )}
 
       {/* ── Voice FX Panel ── */}
-      {showFX && (
-        <VoiceFXPanel
-          username={currentUsername}
-          onClose={() => setShowFX(false)}
-          onFxChange={() => {}}
-        />
-      )}
+      {showFX && <VoiceFXPanel onClose={() => setShowFX(false)} />}
     </div>
   );
 }
