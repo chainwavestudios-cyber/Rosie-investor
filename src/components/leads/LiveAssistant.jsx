@@ -1,728 +1,338 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
-import { base44 } from '@/api/base44Client';
+const ANTHROPIC_KEY = Deno.env.get('ANTHROPIC_API_KEY') || '';
 
-const GOLD = '#b8933a';
-const DARK = '#0a0f1e';
+// ── Smart KB search ─────────────────────────────────────────────────────────
+function scoreEntry(qLower: string, words: string[], e: any): number {
+  const haystack = `${e.question||''} ${e.answer||''} ${e.keywords||''}`.toLowerCase();
+  let score = 0;
+  for (const w of words) {
+    if (haystack.includes(w)) score += 1;
+    if ((e.question||'').toLowerCase().includes(w)) score += 0.8;
+    if ((e.keywords||'').toLowerCase().includes(w)) score += 0.5;
+  }
+  const phrases = qLower.match(/\b\w{4,}\s+\w{4,}\b/g) || [];
+  for (const phrase of phrases) {
+    if (haystack.includes(phrase)) score += 3;
+  }
+  return score;
+}
 
-const TRIGGER_PATTERNS = [
-  /minimum investment/i, /how much/i, /what.s the minimum/i,
-  /what.s the return/i, /roi/i, /returns/i, /yield/i,
-  /is it safe/i, /risk/i, /guaranteed/i, /secure/i,
-  /how long/i, /lock.?up/i, /liquidity/i, /when can i/i,
-  /accredited/i, /qualify/i, /who can invest/i,
-  /what do you do/i, /tell me about/i, /explain/i,
-  /fees/i, /cost/i, /charge/i, /commission/i,
-  /regulation/i, /sec/i, /registered/i, /legal/i,
-  /portal/i, /access/i, /how do i/i,
-];
+function findDirectHit(question: string, kbEntries: any[]): any | null {
+  const qLower = question.toLowerCase().trim();
+  const words  = qLower.split(/\W+/).filter((w: string) => w.length >= 4);
+  if (words.length < 2) return null;
+  const candidates = kbEntries
+    .filter((e: any) => e.category !== 'raw_chunk' && e.category !== 'raw_document')
+    .map((e: any) => {
+      const qHaystack = (e.question||'').toLowerCase();
+      const matches   = words.filter(w => qHaystack.includes(w)).length;
+      const coverage  = matches / words.length;
+      const aScore    = scoreEntry(qLower, words, e);
+      return { ...e, coverage, aScore };
+    })
+    .filter((e: any) => e.coverage >= 0.65 && e.aScore >= 2)
+    .sort((a: any, b: any) => b.coverage - a.coverage || b.aScore - a.aScore);
+  return candidates.length > 0 ? candidates[0] : null;
+}
 
-const QUESTION_PATTERN = /\b(what|how|why|when|where|who|can|could|would|is|are|do|does|will|should|have|has|tell me|explain)\b.{5,80}\?/gi;
+function findRelevantKB(question: string, kbEntries: any[], topN = 15): any[] {
+  if (!kbEntries?.length) return [];
+  const qLower = question.toLowerCase();
+  const words  = qLower.split(/\W+/).filter((w: string) => w.length >= 3);
 
-export default function LiveAssistant({ isCallActive = false, lead = null, currentLead = null }) {
-  const [visible, setVisible]           = useState(true);
-  const [minimized, setMinimized]       = useState(false);
-  const [position, setPosition]         = useState({ x: window.innerWidth - 420, y: 80 });
-  const [width, setWidth]               = useState(400);
-  const [expanded, setExpanded]         = useState(false); // wide mode
-  const [summarizing, setSummarizing]   = useState(false);
-  const [summary, setSummary]           = useState('');
-  const [savingNotes, setSavingNotes]   = useState(false);
-  const [saveMsg, setSaveMsg]           = useState('');
-  const [transcript, setTranscript]     = useState([]);
-  const [aiAnswer, setAiAnswer]         = useState('');
-  const [aiLoading, setAiLoading]       = useState(false);
-  const [listening, setListening]       = useState(false);
-  const [micDevices, setMicDevices]     = useState([]);
-  const [selectedMic, setSelectedMic]   = useState('');
-  const [allKbEntries, setAllKbEntries] = useState([]);
-  const [kbEntries, setKbEntries]       = useState([]);
-  const [kbNames, setKbNames]           = useState([]);
-  const [selectedKbName, setSelectedKbName] = useState('');
-  const [manualQ, setManualQ]           = useState('');
-  const [activeTab, setActiveTab]       = useState('assistant');
-  const [error, setError]               = useState('');
-  const [detectedQs, setDetectedQs]     = useState([]);
-  const [coachMode, setCoachMode]       = useState(false);
-  const [coachTip, setCoachTip]         = useState('');
-  const [coachLoading, setCoachLoading] = useState(false);
-  const [showResearch, setShowResearch] = useState(false);
-  const [research, setResearch]         = useState(null);
-  const [researchLoading, setResearchLoading] = useState(false);
-  const [sentiment, setSentiment]       = useState(null); // 'positive' | 'neutral' | 'negative'
-  const [activeQuestion, setActiveQuestion] = useState(null);
+  const qaScored = kbEntries
+    .filter((e: any) => e.category !== 'raw_document' && e.category !== 'raw_chunk')
+    .map((e: any) => ({ ...e, score: scoreEntry(qLower, words, e) }))
+    .filter((e: any) => e.score > 0)
+    .sort((a: any, b: any) => b.score - a.score)
+    .slice(0, topN);
 
-  const wsRef          = useRef(null);
-  const streamRef      = useRef(null);
-  const processorRef   = useRef(null);
-  const contextRef     = useRef(null);
-  const dragRef        = useRef({ dragging:false, startX:0, startY:0, origX:0, origY:0 });
-  const transcriptRef  = useRef([]);
-  const lastTriggerRef = useRef(0);
-  const lastCoachRef   = useRef(0);
+  const chunkScored = kbEntries
+    .filter((e: any) => e.category === 'raw_chunk' || e.category === 'raw_document')
+    .map((e: any) => ({ ...e, score: scoreEntry(qLower, words, e) }))
+    .filter((e: any) => e.score > 0)
+    .sort((a: any, b: any) => b.score - a.score)
+    .slice(0, 4);
 
-  useEffect(() => {
-    navigator.mediaDevices.enumerateDevices().then(devs => {
-      const mics = devs.filter(d => d.kind === 'audioinput');
-      setMicDevices(mics);
-      const internal = mics.find(m => /built.in|internal|macbook/i.test(m.label)) || mics[1] || mics[0];
-      if (internal) setSelectedMic(internal.deviceId);
-    });
-    loadKB();
-  }, []);
+  const seen = new Set(qaScored.map((e: any) => e.id));
+  const combined = [...qaScored];
+  for (const c of chunkScored) { if (!seen.has(c.id)) { combined.push(c); seen.add(c.id); } }
+  return combined;
+}
 
-  useEffect(() => {
-    if (isCallActive && !listening) startListening();
-    if (!isCallActive && listening) stopListening();
-  }, [isCallActive]);
 
-  const activeLead = currentLead || lead;
+function buildTranscriptString(transcript: any[], limit = 20): string {
+  return (transcript || []).slice(-limit).map((t: any) => {
+    const speaker = t.speaker !== null && t.speaker !== undefined ? `[S${t.speaker}]` : '';
+    const sent    = t.sentiment ? `[${t.sentiment}]` : '';
+    return `${speaker}${sent} ${t.text}`.trim();
+  }).join('\n');
+}
 
-  // Auto-research when call connects with a lead
-  useEffect(() => {
-    if (isCallActive && activeLead && !research && !researchLoading) {
-      runResearch();
-    }
-  }, [isCallActive, activeLead]);
+Deno.serve(async (req) => {
+  try {
+    const body = await req.json();
+    const { question, transcript, kbEntries, mode, existingProfile,
+            intentRules, coachRules, qaHistory, engagementScore,
+            kbName, previousAnswer, internetQuery } = body;
 
-  const loadKB = async () => {
-    try {
-      const all = await base44.entities.KnowledgeBase.list('-created_date', 500);
-      setAllKbEntries(all || []);
-      // Derive unique KB names
-      const names = [...new Set((all || []).map(e => e.kbName || '').filter(Boolean))];
-      setKbNames(names);
-      // Filter to selected KB
-      filterKb(all || [], selectedKbName);
-    } catch {}
-  };
+    const recentTranscript = buildTranscriptString(transcript, 15);
 
-  const filterKb = (all, kbName) => {
-    const filtered = kbName
-      ? all.filter(e => (e.kbName || '') === kbName)
-      : all.filter(e => !e.kbName || e.kbName === '');
-    setKbEntries(filtered);
-  };
-
-  // Re-filter when selectedKbName changes
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const handleKbChange = (name) => {
-    setSelectedKbName(name);
-    filterKb(allKbEntries, name);
-  };
-
-  const startListening = async () => {
-    if (listening) return;
-    setError('');
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: { deviceId: selectedMic ? { exact: selectedMic } : undefined },
+    // ── STREAMING COACH ───────────────────────────────────────────────
+    if (mode === 'coach_stream') {
+      const relevantKB = findRelevantKB(recentTranscript, kbEntries || [], 3);
+      const kbContext  = relevantKB.map((e: any) => `Q: ${e.question}\nA: ${e.answer}`).join('\n\n');
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': ANTHROPIC_KEY,
+          'anthropic-version': '2023-06-01',
+          'anthropic-beta': 'messages-2023-06-01',
+        },
+        body: JSON.stringify({
+          model: 'claude-haiku-4-5-20251001',
+          max_tokens: 200,
+          stream: true,
+          system: `You are a real-time sales coach whispering to an agent on a live investor call. ${coachRules?.style || 'Give ONE actionable tip in 1-2 sentences. Be direct and specific — agent reads this mid-call.'}\nFocus: ${coachRules?.focusAreas || 'handling objections, building rapport, next talking point, timing a close'}.${coachRules?.additionalContext ? `\nContext: ${coachRules.additionalContext}` : ''}${kbContext ? `\n\nRelevant KB:\n${kbContext}` : ''}`,
+          messages: [{ role: 'user', content: `Live conversation:\n${recentTranscript}\n\nCoaching tip now:` }],
+        }),
       });
-      streamRef.current = stream;
+      // Stream the response directly back
+      return new Response(res.body, {
+        headers: {
+          'Content-Type': 'text/event-stream',
+          'Cache-Control': 'no-cache',
+          'Access-Control-Allow-Origin': '*',
+        },
+      });
+    }
 
-      let dgKey = '';
+    // ── POST-CALL INTENT ANALYSIS ─────────────────────────────────────
+    if (mode === 'intent_final') {
+      const fullTranscript = buildTranscriptString(transcript, 999);
+      // Compute rich sentiment data from Deepgram utterances
+      const utterances = (transcript || []).filter((t: any) => t.sentiment);
+      const posCount = utterances.filter((t: any) => t.sentiment === 'positive').length;
+      const negCount = utterances.filter((t: any) => t.sentiment === 'negative').length;
+      const neuCount = utterances.filter((t: any) => t.sentiment === 'neutral').length;
+      const total    = utterances.length;
+
+      // Speaker-separated sentiment (Speaker 0 = agent, Speaker 1 = prospect)
+      const prospectUtterances = utterances.filter((t: any) => t.speaker === 1 || t.speaker === null);
+      const agentUtterances    = utterances.filter((t: any) => t.speaker === 0);
+      const prospectPos = prospectUtterances.filter((t: any) => t.sentiment === 'positive').length;
+      const prospectNeg = prospectUtterances.filter((t: any) => t.sentiment === 'negative').length;
+
+      // Sentiment arc — compare first third vs last third of call
+      const firstThird = utterances.slice(0, Math.floor(total / 3));
+      const lastThird  = utterances.slice(Math.floor(total * 2 / 3));
+      const firstPosRatio = firstThird.length ? firstThird.filter((t: any) => t.sentiment === 'positive').length / firstThird.length : 0;
+      const lastPosRatio  = lastThird.length  ? lastThird.filter((t: any) => t.sentiment === 'positive').length  / lastThird.length  : 0;
+      const arcTrend = total < 3 ? 'insufficient data'
+        : lastPosRatio > firstPosRatio + 0.15 ? 'warming'
+        : lastPosRatio < firstPosRatio - 0.15 ? 'cooling'
+        : Math.abs(lastPosRatio - firstPosRatio) < 0.05 ? 'flat'
+        : 'volatile';
+
+      // Consecutive negative streak detection
+      let maxNegStreak = 0; let curStreak = 0;
+      for (const t of utterances) {
+        if (t.sentiment === 'negative') { curStreak++; maxNegStreak = Math.max(maxNegStreak, curStreak); }
+        else curStreak = 0;
+      }
+
+      const sentimentSummary = total > 0
+        ? `${total} utterances with sentiment data. Overall: ${posCount} positive, ${negCount} negative, ${neuCount} neutral. Prospect specifically: ${prospectPos} positive, ${prospectNeg} negative. Sentiment arc: ${arcTrend} (first third: ${Math.round(firstPosRatio*100)}% positive → last third: ${Math.round(lastPosRatio*100)}% positive). Max consecutive negative streak: ${maxNegStreak}. ${maxNegStreak >= 3 ? 'RESISTANCE SPIKE DETECTED.' : ''}`
+        : 'No Deepgram sentiment data available for this call.';
+
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_KEY, 'anthropic-version': '2023-06-01' },
+        body: JSON.stringify({
+          model: 'claude-haiku-4-5-20251001',
+          max_tokens: 1200,
+          system: `You are an expert sales call analyst measuring prospect intent, tonality, and interest. Also extract key facts from the conversation to auto-populate the CRM.
+DEEPGRAM SENTIMENT ANALYSIS: ${sentimentSummary}
+${intentRules?.sentimentRules ? 'SENTIMENT BEHAVIOR RULES:\n' + (() => { try { return JSON.parse(intentRules.sentimentRules).map((r: any) => '- When ' + r.condition + ': ' + r.effect).join('\n'); } catch { return String(intentRules.sentimentRules); } })() + '\n' : ''}
+DUCK: ${intentRules?.duckDefinition || 'Skeptical, argumentative, raises objections, combative, negative tone'}
+COW: ${intentRules?.cowDefinition || 'Curious, agreeable, asks genuine buying questions, positive tone'}
+POSITIVE SIGNALS TO DETECT: ${intentRules?.positiveSignals || 'that sounds amazing, I love that, so what would I need to do, how do I sign up, I\'m ready, let\'s do it, what\'s the minimum again, send me the portal, I want to move forward, is this a good investment, that makes sense, I like the sound of that, I\'ve had money sitting, I\'m in, tell me more, really?, wow'}
+NEGATIVE SIGNALS TO DETECT: ${intentRules?.negativeSignals || 'not interested, call me later, I need to think about it, talk to my spouse, too risky, too expensive, I need more time, I\'ve been burned before, sounds like a pitch, I\'ll let you know, I\'m going to pass, what\'s the guarantee, I doubt that, prove it, that won\'t work, sounds too good to be true, what\'s the catch'}
+Respond ONLY with this exact JSON (no markdown):
+{
+  "intentScore": 0-100,
+  "tonality": "positive|neutral|negative|mixed",
+  "tonalityNotes": "1-2 sentences on how they spoke and engaged",
+  "interestLevel": "high|medium|low",
+  "interestReason": "1-2 sentences explaining why",
+  "animalType": "duck|cow|unknown",
+  "animalConfidence": 0-100,
+  "sentimentArc": "warming|cooling|flat|volatile",
+  "sentimentArcNotes": "how their tone shifted during the call",
+  "keyMoments": ["moment1","moment2","moment3"],
+  "buyingSignals": ["signal1","signal2"],
+  "objections": ["objection1","objection2"],
+  "recommendedNextStep": "specific actionable next step",
+  "extractedData": {
+    "mentionedAmount": "number only if they mentioned a dollar amount e.g. 50000, else null",
+    "accountType": "cash or ira if mentioned, else null",
+    "iraDetails": "IRA custodian or account details if mentioned, else null",
+    "bestTimeToCall": "preferred callback time if mentioned e.g. mornings, after 3pm, else null",
+    "positiveSignals": ["exact phrases they said showing genuine interest or buying intent"],
+    "negativeSignals": ["exact phrases they said showing hesitation, objection, or disinterest"],
+    "extractedNotes": "1-2 sentence summary of key facts worth noting on the contact card, or null"
+  }
+}`,
+          messages: [{ role: 'user', content: `Full call transcript:\n${fullTranscript.slice(0, 6000)}` }],
+        }),
+      });
+      const data = await res.json();
+      const text = data?.content?.[0]?.text || '{}';
       try {
-        const tokenRes = await base44.functions.invoke('deepgramToken', {});
-        dgKey = tokenRes?.data?.key || '';
-        if (!dgKey) throw new Error('No key');
-      } catch(e) {
-        setError('Could not get Deepgram token: ' + e.message);
-        stream.getTracks().forEach(t => t.stop());
-        return;
+        const result = JSON.parse(text.replace(/```json|```/g, '').trim());
+        // Blend with engagement score (max 25% influence)
+        const engNorm = Math.min(100, Math.max(0, engagementScore || 0));
+        const blended = Math.round(result.intentScore * 0.75 + engNorm * 0.25);
+        return Response.json({ intent: { ...result, intentScore: blended, rawAiScore: result.intentScore, engagementContribution: Math.round(engNorm * 0.25) } });
+      } catch {
+        return Response.json({ intent: null, error: 'Parse failed' });
       }
-
-      const ws = new WebSocket(
-        `wss://api.deepgram.com/v1/listen?model=nova-2&language=en-US&smart_format=true&interim_results=true&endpointing=300`,
-        ['token', dgKey]
-      );
-
-      ws.onopen = () => {
-        setListening(true);
-        const audioCtx = new AudioContext({ sampleRate: 16000 });
-        contextRef.current = audioCtx;
-        const source = audioCtx.createMediaStreamSource(stream);
-        const processor = audioCtx.createScriptProcessor(4096, 1, 1);
-        processorRef.current = processor;
-        processor.onaudioprocess = (e) => {
-          if (ws.readyState !== WebSocket.OPEN) return;
-          const input = e.inputBuffer.getChannelData(0);
-          const pcm = new Int16Array(input.length);
-          for (let i = 0; i < input.length; i++) pcm[i] = Math.max(-32768, Math.min(32767, input[i] * 32768));
-          ws.send(pcm.buffer);
-        };
-        source.connect(processor);
-        processor.connect(audioCtx.destination);
-      };
-
-      ws.onmessage = (e) => {
-        try {
-          const data = JSON.parse(e.data);
-          const alt = data?.channel?.alternatives?.[0];
-          if (!alt?.transcript) return;
-          const text = alt.transcript.trim();
-          if (!text) return;
-          if (data.is_final) {
-            const entry = { text, time: new Date(), final: true };
-            const newT = [...transcriptRef.current, entry];
-            transcriptRef.current = newT;
-            setTranscript([...newT]);
-            detectQuestions(text);
-            checkTrigger(text, newT);
-            if (coachMode) checkCoach(newT);
-            analyzeSentiment(text);
-          }
-        } catch {}
-      };
-
-      ws.onerror = () => setError('Deepgram connection error');
-      ws.onclose = () => setListening(false);
-      wsRef.current = ws;
-    } catch(e) { setError(`Mic error: ${e.message}`); }
-  };
-
-  const stopListening = () => {
-    try { wsRef.current?.close(); } catch {}
-    try { processorRef.current?.disconnect(); } catch {}
-    try { contextRef.current?.close(); } catch {}
-    try { streamRef.current?.getTracks().forEach(t => t.stop()); } catch {}
-    setListening(false);
-  };
-
-  // Detect questions in transcript and show as clickable boxes
-  const detectQuestions = (text) => {
-    const matches = [...(text.matchAll(QUESTION_PATTERN) || [])];
-    if (matches.length > 0) {
-      const newQs = matches.map(m => m[0].trim());
-      setDetectedQs(prev => {
-        const all = [...prev, ...newQs].filter((q, i, arr) => arr.indexOf(q) === i).slice(-6);
-        return all;
-      });
     }
-  };
 
-  const checkTrigger = useCallback(async (text, allT) => {
-    const now = Date.now();
-    if (now - lastTriggerRef.current < 3000) return;
-    if (!TRIGGER_PATTERNS.some(p => p.test(text))) return;
-    lastTriggerRef.current = now;
-    await askAI(text, allT);
-  }, [kbEntries]);
+    // ── POST-CALL FULL REPORT ─────────────────────────────────────────
+    if (mode === 'full_report') {
+      const { usedCoach, usedQA, usedIntent, coachTips, qaLog, intentResult } = body;
+      const fullTranscript = (transcript || []).map((t: any) => t.text).join(' ');
 
-  // Coach mode - analyze pitch and give real-time suggestions
-  const checkCoach = async (allT) => {
-    const now = Date.now();
-    if (now - lastCoachRef.current < 15000) return; // coach every 15s max
-    lastCoachRef.current = now;
-    setCoachLoading(true);
-    try {
-      const recent = allT.slice(-15).map(t => t.text).join(' ');
-      const res = await base44.functions.invoke('liveAssistantAI', {
-        question: `Analyze this sales conversation and give ONE brief coaching tip (max 2 sentences). Focus on tone, pacing, next best thing to say, or objection handling. Be direct and actionable.\n\nConversation: "${recent}"`,
-        transcript: allT,
-        kbEntries,
-        mode: 'coach',
-      });
-      if (res?.data?.answer) setCoachTip(res.data.answer);
-    } catch {}
-    setCoachLoading(false);
-  };
-
-  // Sentiment analysis from transcript
-  const analyzeSentiment = (text) => {
-    const positive = /great|interesting|sounds good|tell me more|exciting|love|definitely|yes|absolutely|of course|how do i/i.test(text);
-    const negative = /no|not interested|too much|can't|don't|expensive|risky|worried|concerned|don't think/i.test(text);
-    if (positive) setSentiment('positive');
-    else if (negative) setSentiment('negative');
-    else setSentiment('neutral');
-  };
-
-  const askAI = async (question, allT) => {
-    setAiLoading(true);
-    setAiAnswer('');
-    setActiveTab('assistant');
-    setActiveQuestion(question);
-    try {
-      const res = await base44.functions.invoke('liveAssistantAI', {
-        question,
-        transcript: (allT || transcriptRef.current).slice(-10),
-        kbEntries,
-      });
-      setAiAnswer(res?.data?.answer || 'No answer found.');
-    } catch(e) { setAiAnswer('Error: ' + e.message); }
-    setAiLoading(false);
-  };
-
-  const runResearch = async () => {
-    setResearchLoading(true);
-    setResearch(null);
-    try {
-      const l = currentLead || lead;
-      const name = l ? `${l.firstName} ${l.lastName}` : 'Unknown';
-      const location = l?.state || l?.address || '';
-      const res = await base44.functions.invoke('liveAssistantResearch', {
-        name,
-        email: l?.email || '',
-        phone: l?.phone || '',
-        location,
-        notes: l?.notes || '',
-      });
-      setResearch(res?.data || null);
-    } catch(e) { setResearch({ error: e.message }); }
-    setResearchLoading(false);
-  };
-
-  const sentimentColor = { positive:'#4ade80', neutral:'#f59e0b', negative:'#ef4444' };
-  const sentimentLabel = { positive:'😊 Positive', neutral:'😐 Neutral', negative:'😟 Negative' };
-
-  const summarizeCall = async () => {
-    setSummarizing(true);
-    setSummary('');
-    try {
-      const fullTranscript = transcriptRef.current.map(t => t.text).join(' ');
-      const res = await base44.functions.invoke('liveAssistantAI', {
-        question: `Summarize this sales call in 3-5 bullet points. Include: main topics discussed, investor's questions/concerns, their level of interest, and recommended next steps.
-
-Transcript: "${fullTranscript}"`,
-        transcript: transcriptRef.current,
-        kbEntries,
-        mode: 'summary',
-      });
-      setSummary(res?.data?.answer || 'No summary generated.');
-    } catch(e) { setSummary('Error: ' + e.message); }
-    setSummarizing(false);
-  };
-
-  const saveToNotes = async () => {
-    const l = currentLead || lead;
-    if (!l?.id) { setSaveMsg('No lead selected'); setTimeout(() => setSaveMsg(''), 2000); return; }
-    setSavingNotes(true);
-    try {
-      const noteContent = summary
-        ? `📋 Call Summary:\n${summary}\n\n📝 Full Transcript:\n${transcriptRef.current.map(t => t.text).join(' ')}`
-        : `📝 Call Transcript:\n${transcriptRef.current.map(t => t.text).join(' ')}`;
-      await base44.entities.LeadHistory.create({
-        leadId: l.id,
-        type: 'note',
-        content: noteContent.slice(0, 2000),
-      });
-      setSaveMsg('Saved to notes ✓');
-    } catch(e) { setSaveMsg('Error: ' + e.message); }
-    setSavingNotes(false);
-    setTimeout(() => setSaveMsg(''), 3000);
-  };
-
-  // Drag
-  const onMouseDown = (e) => {
-    if (e.target.closest('button,input,textarea,select')) return;
-    dragRef.current = { dragging:true, startX:e.clientX, startY:e.clientY, origX:position.x, origY:position.y };
-    e.preventDefault();
-  };
-  useEffect(() => {
-    const newW = expanded ? Math.min(820, window.innerWidth - 40) : 400;
-    setWidth(newW);
-    // Reposition if going off screen
-    setPosition(p => ({ x: Math.min(p.x, window.innerWidth - newW - 10), y: p.y }));
-  }, [expanded]);
-
-  useEffect(() => {
-    const onMove = (e) => {
-      if (!dragRef.current.dragging) return;
-      setPosition({
-        x: Math.max(0, Math.min(window.innerWidth - width, dragRef.current.origX + e.clientX - dragRef.current.startX)),
-        y: Math.max(0, Math.min(window.innerHeight - 60, dragRef.current.origY + e.clientY - dragRef.current.startY)),
-      });
-    };
-    const onUp = () => { dragRef.current.dragging = false; };
-    window.addEventListener('mousemove', onMove);
-    window.addEventListener('mouseup', onUp);
-    return () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
-  }, [width]);
-
-  if (!visible) return (
-    <button onClick={() => setVisible(true)} style={{ position:'fixed', bottom:'20px', right:'20px', zIndex:99998, background:GOLD, color:DARK, border:'none', borderRadius:'50%', width:'48px', height:'48px', fontSize:'20px', cursor:'pointer', boxShadow:'0 4px 20px rgba(184,147,58,0.5)' }}>🧠</button>
-  );
-
-  return (
-    <div style={{ position:'fixed', left:`${position.x}px`, top:`${position.y}px`, zIndex:99998, width:`${width}px`, fontFamily:'Georgia, serif', userSelect:'none' }}>
-      <style>{`@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}} @keyframes fadeIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}`}</style>
-      <div style={{ background:'#0d1b2a', border:'1px solid rgba(184,147,58,0.4)', borderRadius:'10px', boxShadow:'0 8px 40px rgba(0,0,0,0.7)', overflow:'hidden' }}>
-
-        {/* Header */}
-        <div onMouseDown={onMouseDown} style={{ padding:'10px 14px', background:'rgba(184,147,58,0.1)', borderBottom:'1px solid rgba(184,147,58,0.2)', cursor:'grab', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-          <div style={{ display:'flex', alignItems:'center', gap:'8px' }}>
-            <div style={{ width:'8px', height:'8px', borderRadius:'50%', background: listening ? '#4ade80' : '#4a5568', boxShadow: listening ? '0 0 8px #4ade80' : 'none', animation: listening ? 'pulse 1.5s infinite' : 'none' }} />
-            <span style={{ color:GOLD, fontSize:'11px', letterSpacing:'2px', textTransform:'uppercase' }}>🧠 Live Assistant</span>
-            {isCallActive && <span style={{ background:'rgba(74,222,128,0.15)', color:'#4ade80', fontSize:'9px', padding:'1px 6px', borderRadius:'3px', border:'1px solid rgba(74,222,128,0.3)' }}>LIVE</span>}
-            {sentiment && <span style={{ background:`${sentimentColor[sentiment]}18`, color:sentimentColor[sentiment], fontSize:'9px', padding:'1px 6px', borderRadius:'3px', border:`1px solid ${sentimentColor[sentiment]}44` }}>{sentimentLabel[sentiment]}</span>}
-          </div>
-          <div style={{ display:'flex', gap:'4px', alignItems:'center' }}>
-            {/* Research button */}
-            <button onClick={() => { setShowResearch(r => !r); if (!research && !researchLoading) runResearch(); }}
-              title="Research lead"
-              style={{ background: showResearch ? 'rgba(96,165,250,0.2)' : 'rgba(255,255,255,0.05)', border:`1px solid ${showResearch ? 'rgba(96,165,250,0.4)' : 'rgba(255,255,255,0.1)'}`, color: showResearch ? '#60a5fa' : '#6b7280', borderRadius:'4px', padding:'3px 7px', cursor:'pointer', fontSize:'11px' }}>🔍</button>
-            {/* Coach toggle */}
-            <button onClick={() => setCoachMode(c => !c)}
-              title="Coach mode"
-              style={{ background: coachMode ? 'rgba(167,139,250,0.2)' : 'rgba(255,255,255,0.05)', border:`1px solid ${coachMode ? 'rgba(167,139,250,0.4)' : 'rgba(255,255,255,0.1)'}`, color: coachMode ? '#a78bfa' : '#6b7280', borderRadius:'4px', padding:'3px 7px', cursor:'pointer', fontSize:'11px' }}>🎯</button>
-            <button onClick={() => setExpanded(e => !e)} title={expanded ? 'Collapse' : 'Expand'}
-              style={{ background: expanded ? 'rgba(184,147,58,0.15)' : 'none', border: expanded ? `1px solid rgba(184,147,58,0.3)` : 'none', color: expanded ? GOLD : '#6b7280', cursor:'pointer', fontSize:'12px', padding:'2px 6px', borderRadius:'3px' }}>
-              {expanded ? '⊡' : '⊞'}
-            </button>
-            <button onClick={() => setMinimized(m => !m)} style={{ background:'none', border:'none', color:'#6b7280', cursor:'pointer', fontSize:'14px', padding:'0 3px' }}>{minimized ? '▲' : '▼'}</button>
-            <button onClick={() => setVisible(false)} style={{ background:'none', border:'none', color:'#6b7280', cursor:'pointer', fontSize:'16px', padding:'0 3px' }}>×</button>
-          </div>
-        </div>
-
-        {!minimized && (
-          <>
-            {/* Mic + KB controls */}
-            <div style={{ padding:'8px 12px', borderBottom:'1px solid rgba(255,255,255,0.06)', display:'flex', flexDirection:'column', gap:'5px' }}>
-              <div style={{ display:'flex', gap:'6px', alignItems:'center' }}>
-                <select value={selectedMic} onChange={e => setSelectedMic(e.target.value)}
-                  style={{ flex:1, background:'rgba(255,255,255,0.05)', border:'1px solid rgba(255,255,255,0.1)', borderRadius:'4px', padding:'4px 8px', color:'#e8e0d0', fontSize:'10px', outline:'none', cursor:'pointer' }}>
-                  {micDevices.map(d => <option key={d.deviceId} value={d.deviceId}>{d.label || `Mic ${d.deviceId.slice(0,6)}`}</option>)}
-                </select>
-                <button onClick={listening ? stopListening : startListening}
-                  style={{ background: listening ? 'rgba(239,68,68,0.15)' : 'rgba(74,222,128,0.15)', color: listening ? '#ef4444' : '#4ade80', border:`1px solid ${listening ? 'rgba(239,68,68,0.3)' : 'rgba(74,222,128,0.3)'}`, borderRadius:'4px', padding:'4px 10px', cursor:'pointer', fontSize:'10px', whiteSpace:'nowrap' }}>
-                  {listening ? '⏹ Stop' : '🎙 Start'}
-                </button>
-              </div>
-              {/* KB Selector */}
-              {(kbNames.length > 0) && (
-                <div style={{ display:'flex', alignItems:'center', gap:'6px' }}>
-                  <span style={{ color:'#4a5568', fontSize:'9px', letterSpacing:'1px', textTransform:'uppercase', flexShrink:0 }}>📚 KB:</span>
-                  <select value={selectedKbName} onChange={e => handleKbChange(e.target.value)}
-                    style={{ flex:1, background:'rgba(184,147,58,0.06)', border:'1px solid rgba(184,147,58,0.25)', borderRadius:'4px', padding:'3px 7px', color:'#b8933a', fontSize:'10px', outline:'none', cursor:'pointer' }}>
-                    <option value={''}>Default KB ({allKbEntries.filter(e => !e.kbName || e.kbName === '').length} entries)</option>
-                    {kbNames.map(n => <option key={n} value={n}>{n} ({allKbEntries.filter(e => e.kbName === n).length} entries)</option>)}
-                  </select>
-                </div>
-              )}
-            </div>
-
-            {error && <div style={{ background:'rgba(239,68,68,0.1)', color:'#ef4444', fontSize:'10px', padding:'6px 12px' }}>{error}</div>}
-
-            {/* Research panel */}
-            {showResearch && (
-              <div style={{ padding:'10px 12px', borderBottom:'1px solid rgba(255,255,255,0.06)', background:'rgba(96,165,250,0.05)', animation:'fadeIn 0.2s ease' }}>
-                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'8px' }}>
-                  <span style={{ color:'#60a5fa', fontSize:'10px', letterSpacing:'1.5px', textTransform:'uppercase' }}>🔍 Lead Research</span>
-                  <button onClick={runResearch} disabled={researchLoading}
-                    style={{ background:'rgba(96,165,250,0.1)', color:'#60a5fa', border:'1px solid rgba(96,165,250,0.25)', borderRadius:'3px', padding:'2px 8px', cursor:'pointer', fontSize:'9px' }}>
-                    {researchLoading ? '⏳' : '↻ Refresh'}
-                  </button>
-                </div>
-                {researchLoading && <div style={{ color:'#4a5568', fontSize:'11px', textAlign:'center', padding:'10px' }}>Researching…</div>}
-                {research?.error && <div style={{ color:'#ef4444', fontSize:'10px' }}>{research.error}</div>}
-                {research && !research.error && (
-                  <div style={{ display:'flex', flexDirection:'column', gap:'6px', maxHeight:'200px', overflowY:'auto' }}>
-                    {research.summary && <div style={{ color:'#e8e0d0', fontSize:'11px', lineHeight:1.5, background:'rgba(0,0,0,0.15)', borderRadius:'4px', padding:'7px 9px' }}>{research.summary}</div>}
-                    {research.businessOwner && <div style={{ color:'#f59e0b', fontSize:'10px' }}>💼 {research.businessOwner}</div>}
-                    {research.nearbyBusinesses?.length > 0 && (
-                      <div>
-                        <div style={{ color:'#4a5568', fontSize:'9px', textTransform:'uppercase', letterSpacing:'1px', marginBottom:'3px' }}>Nearby</div>
-                        <div style={{ display:'flex', flexWrap:'wrap', gap:'3px' }}>
-                          {research.nearbyBusinesses.map((b, i) => (
-                            <span key={i} style={{ background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.08)', borderRadius:'3px', padding:'1px 6px', fontSize:'9px', color:'#8a9ab8' }}>{b}</span>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                    {research.universities?.length > 0 && (
-                      <div style={{ color:'#a78bfa', fontSize:'10px' }}>🎓 {research.universities.join(', ')}</div>
-                    )}
-                    {research.talkingPoints?.length > 0 && (
-                      <div>
-                        <div style={{ color:'#4a5568', fontSize:'9px', textTransform:'uppercase', letterSpacing:'1px', marginBottom:'3px' }}>💬 Talking Points</div>
-                        {research.talkingPoints.map((tp, i) => (
-                          <div key={i} style={{ color:'#4ade80', fontSize:'10px', padding:'2px 0' }}>• {tp}</div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Coach tip */}
-            {coachMode && (coachTip || coachLoading) && (
-              <div style={{ padding:'8px 12px', borderBottom:'1px solid rgba(255,255,255,0.06)', background:'rgba(167,139,250,0.06)', animation:'fadeIn 0.2s ease' }}>
-                <div style={{ color:'#a78bfa', fontSize:'9px', letterSpacing:'1.5px', textTransform:'uppercase', marginBottom:'4px' }}>🎯 Coach</div>
-                {coachLoading ? <div style={{ color:'#4a5568', fontSize:'11px' }}>Analyzing…</div> : <div style={{ color:'#e8e0d0', fontSize:'11px', lineHeight:1.5 }}>{coachTip}</div>}
-              </div>
-            )}
-
-            {/* Main content area — side-by-side when expanded */}
-            <div style={{ display: expanded ? 'flex' : 'block' }}>
-
-              {/* Questions panel — side panel when expanded, inline when collapsed */}
-              {detectedQs.length > 0 && (
-                <div style={{
-                  ...(expanded ? {
-                    width:'220px', flexShrink:0, borderRight:'1px solid rgba(255,255,255,0.06)',
-                    background:'rgba(245,158,11,0.03)', display:'flex', flexDirection:'column',
-                  } : {
-                    borderBottom:'1px solid rgba(255,255,255,0.06)', background:'rgba(245,158,11,0.03)'
-                  }),
-                  padding:'10px',
-                }}>
-                  <div style={{ color:'#f59e0b', fontSize:'9px', letterSpacing:'1.5px', textTransform:'uppercase', marginBottom:'6px', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-                    <span>❓ Questions ({detectedQs.length})</span>
-                    <button onClick={() => setDetectedQs([])} style={{ background:'none', border:'none', color:'#4a5568', cursor:'pointer', fontSize:'10px' }}>Clear</button>
-                  </div>
-                  <div style={{ display:'flex', flexDirection:'column', gap:'4px', overflowY:'auto', maxHeight: expanded ? '400px' : '120px' }}>
-                    {detectedQs.map((q, i) => (
-                      <button key={i} onClick={() => askAI(q, transcriptRef.current)}
-                        style={{
-                          background: activeQuestion === q ? 'rgba(245,158,11,0.2)' : 'rgba(255,255,255,0.03)',
-                          border:`1px solid ${activeQuestion === q ? 'rgba(245,158,11,0.5)' : 'rgba(255,255,255,0.08)'}`,
-                          borderLeft: activeQuestion === q ? '3px solid #f59e0b' : '3px solid transparent',
-                          borderRadius:'4px', padding:'6px 8px', cursor:'pointer',
-                          color: activeQuestion === q ? '#f59e0b' : '#8a9ab8',
-                          fontSize:'10px', textAlign:'left', lineHeight:1.4, transition:'all 0.15s',
-                        }}
-                        onMouseEnter={e => { if(activeQuestion !== q) { e.currentTarget.style.borderColor='rgba(245,158,11,0.3)'; e.currentTarget.style.color='#e8e0d0'; } }}
-                        onMouseLeave={e => { if(activeQuestion !== q) { e.currentTarget.style.borderColor='rgba(255,255,255,0.08)'; e.currentTarget.style.color='#8a9ab8'; } }}>
-                        {q.length > (expanded ? 80 : 60) ? q.slice(0, expanded ? 80 : 60) + '…' : q}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Right side — tabs + content */}
-              <div style={{ flex:1, minWidth:0 }}>
-                {/* Tabs */}
-                <div style={{ display:'flex', borderBottom:'1px solid rgba(255,255,255,0.06)' }}>
-                  {[['assistant','🧠 AI'],['transcript','📝 Transcript'],['kb','📚 KB']].map(([id,label]) => (
-                    <button key={id} onClick={() => setActiveTab(id)}
-                      style={{ flex:1, background:'none', border:'none', borderBottom: activeTab===id ? `2px solid ${GOLD}` : '2px solid transparent', color: activeTab===id ? GOLD : '#6b7280', padding:'7px 4px', cursor:'pointer', fontSize:'10px', letterSpacing:'0.5px' }}>
-                      {label}
-                    </button>
-                  ))}
-                </div>
-
-            {/* Assistant tab */}
-            {activeTab === 'assistant' && (
-              <div style={{ padding:'12px' }}>
-                <div style={{ minHeight:'80px', background:'rgba(0,0,0,0.2)', border:'1px solid rgba(255,255,255,0.07)', borderRadius:'6px', padding:'10px 12px', marginBottom:'10px' }}>
-                  {aiLoading && <div style={{ display:'flex', alignItems:'center', gap:'8px', color:'#6b7280', fontSize:'12px' }}><div style={{ width:'6px', height:'6px', borderRadius:'50%', background:GOLD, animation:'pulse 0.8s infinite' }} />Thinking…</div>}
-                  {!aiLoading && !aiAnswer && <div style={{ color:'#4a5568', fontSize:'11px', textAlign:'center', paddingTop:'16px' }}>{listening ? '🎙 Listening for triggers or questions…' : 'Start listening or ask manually'}</div>}
-                  {!aiLoading && aiAnswer && (
-                    <div style={{ animation:'fadeIn 0.2s ease' }}>
-                      {activeQuestion && <div style={{ color:'#f59e0b', fontSize:'9px', marginBottom:'5px', fontStyle:'italic' }}>Re: "{activeQuestion.slice(0, 50)}…"</div>}
-                      <div style={{ color:'#e8e0d0', fontSize:'12px', lineHeight:1.6 }}>{aiAnswer}</div>
-                    </div>
-                  )}
-                </div>
-                <div style={{ display:'flex', gap:'6px' }}>
-                  <input value={manualQ} onChange={e => setManualQ(e.target.value)}
-                    onKeyDown={e => { if(e.key==='Enter' && manualQ.trim()) { askAI(manualQ, transcriptRef.current); setManualQ(''); } }}
-                    placeholder="Ask anything…"
-                    style={{ flex:1, background:'rgba(255,255,255,0.05)', border:'1px solid rgba(255,255,255,0.12)', borderRadius:'4px', padding:'6px 10px', color:'#e8e0d0', fontSize:'11px', outline:'none', fontFamily:'Georgia, serif' }} />
-                  <button onClick={() => { if(manualQ.trim()) { askAI(manualQ, transcriptRef.current); setManualQ(''); } }} disabled={!manualQ.trim() || aiLoading}
-                    style={{ background:'linear-gradient(135deg,#b8933a,#d4aa50)', color:DARK, border:'none', borderRadius:'4px', padding:'6px 12px', cursor:'pointer', fontSize:'11px', fontWeight:'bold' }}>Ask</button>
-                </div>
-                <div style={{ marginTop:'6px', color:'#4a5568', fontSize:'9px' }}>Auto-triggers: returns · minimum · risk · fees · accredited · liquidity…</div>
-              </div>
-            )}
-
-            {/* Transcript tab */}
-            {activeTab === 'transcript' && (
-              <div style={{ padding:'8px 12px', maxHeight:'240px', overflowY:'auto' }}>
-                {transcript.length === 0 && <div style={{ color:'#4a5568', fontSize:'11px', textAlign:'center', padding:'20px' }}>{listening ? 'Waiting for speech…' : 'Start listening'}</div>}
-                {[...transcript].reverse().map((t, i) => (
-                  <div key={i} style={{ marginBottom:'6px', fontSize:'11px', animation:'fadeIn 0.2s ease' }}>
-                    <span style={{ color:'#4a5568', fontSize:'9px', marginRight:'6px' }}>{t.time.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',second:'2-digit'})}</span>
-                    <span style={{ color:'#c4cdd8' }}>{t.text}</span>
-                  </div>
-                ))}
-                {transcript.length > 0 && (
-                  <div style={{ marginTop:'8px', display:'flex', gap:'5px', flexWrap:'wrap', alignItems:'center' }}>
-                    <button onClick={() => { setTranscript([]); transcriptRef.current = []; setDetectedQs([]); setSentiment(null); setSummary(''); }}
-                      style={{ background:'transparent', color:'#4a5568', border:'1px solid rgba(255,255,255,0.08)', borderRadius:'3px', padding:'3px 8px', cursor:'pointer', fontSize:'9px' }}>
-                      Clear
-                    </button>
-                    <button onClick={summarizeCall} disabled={summarizing}
-                      style={{ background:'rgba(184,147,58,0.12)', color:GOLD, border:`1px solid rgba(184,147,58,0.3)`, borderRadius:'3px', padding:'3px 10px', cursor:'pointer', fontSize:'9px', fontWeight:'bold' }}>
-                      {summarizing ? '⏳ Summarizing…' : '📋 Summarize Call'}
-                    </button>
-                    <button onClick={saveToNotes} disabled={savingNotes || transcript.length === 0}
-                      style={{ background:'rgba(74,222,128,0.1)', color:'#4ade80', border:'1px solid rgba(74,222,128,0.25)', borderRadius:'3px', padding:'3px 10px', cursor:'pointer', fontSize:'9px', fontWeight:'bold' }}>
-                      {savingNotes ? '⏳ Saving…' : '💾 Save to Notes'}
-                    </button>
-                    {saveMsg && <span style={{ color: saveMsg.includes('✓') ? '#4ade80' : '#ef4444', fontSize:'9px' }}>{saveMsg}</span>}
-                  </div>
-                )}
-
-                {/* Summary box */}
-                {summary && (
-                  <div style={{ marginTop:'8px', background:'rgba(184,147,58,0.06)', border:'1px solid rgba(184,147,58,0.2)', borderRadius:'4px', padding:'8px 10px' }}>
-                    <div style={{ color:GOLD, fontSize:'9px', letterSpacing:'1px', textTransform:'uppercase', marginBottom:'5px' }}>📋 Call Summary</div>
-                    <div style={{ color:'#c4cdd8', fontSize:'11px', lineHeight:1.6, whiteSpace:'pre-wrap' }}>{summary}</div>
-                    <button onClick={saveToNotes} disabled={savingNotes}
-                      style={{ marginTop:'6px', background:'rgba(74,222,128,0.1)', color:'#4ade80', border:'1px solid rgba(74,222,128,0.25)', borderRadius:'3px', padding:'3px 10px', cursor:'pointer', fontSize:'9px' }}>
-                      {savingNotes ? '⏳' : '💾 Save Summary to Notes'}
-                    </button>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* KB tab */}
-            {activeTab === 'kb' && <KBEditor kbEntries={kbEntries} onUpdate={loadKB} />}
-              </div>{/* end right side */}
-            </div>{/* end main content area */}
-          </>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// ── KB Editor with URL + File support ────────────────────────────────────────
-function KBEditor({ kbEntries, onUpdate }) {
-  const [q, setQ]           = useState('');
-  const [a, setA]           = useState('');
-  const [url, setUrl]       = useState('');
-  const [saving, setSaving] = useState(false);
-  const [scraping, setScraping] = useState(false);
-  const [mode, setMode]     = useState('manual'); // 'manual' | 'url' | 'file'
-  const fileRef             = useRef(null);
-  const GOLD = '#b8933a';
-  const DARK = '#0a0f1e';
-  const inp = { width:'100%', background:'rgba(255,255,255,0.05)', border:'1px solid rgba(255,255,255,0.12)', borderRadius:'4px', padding:'6px 9px', color:'#e8e0d0', fontSize:'11px', outline:'none', fontFamily:'Georgia, serif', boxSizing:'border-box', resize:'none' };
-
-  const save = async () => {
-    if (!q.trim() || !a.trim()) return;
-    setSaving(true);
-    try { await base44.entities.KnowledgeBase.create({ question:q.trim(), answer:a.trim(), category:'manual' }); setQ(''); setA(''); onUpdate(); } catch {}
-    setSaving(false);
-  };
-
-  const scrapeUrl = async () => {
-    if (!url.trim()) return;
-    setScraping(true);
-    try {
-      const res = await base44.functions.invoke('kbScrapeUrl', { url: url.trim() });
-      const entries = res?.data?.entries || [];
-      for (const e of entries) {
-        await base44.entities.KnowledgeBase.create({ question: e.question, answer: e.answer, category: 'url', source: url.trim() });
+      let reportPrompt = `Generate a structured sales call report.\n${kbName ? `Knowledge Base Used: ${kbName}\n` : ''}\nTranscript:\n"${fullTranscript.slice(0, 5000)}"\n\nInclude these sections:\n## Call Summary\n## Prospect Interest Level\n## Key Questions Asked\n## Objections & Concerns\n## Highlights\n## Recommended Next Steps\n${kbName ? `## Knowledge Base: ${kbName}\n` : ''}## Clean Transcript\n`;
+      if (usedQA && qaLog?.length) {
+        const kbLabel = kbName ? ` [KB: ${kbName}]` : '';
+        reportPrompt += `\n## Q&A During Call${kbLabel}\n` + qaLog.map((qa: any) => {
+          const src = qa.source === 'kb_direct' ? ' ⚡ Direct KB' : qa.source === 'internet' ? ' 🌐 Internet' : qa.source === 'kb_expand' ? ' + More KB' : ' KB+AI';
+          const kb  = qa.kbName ? ` [${qa.kbName}]` : kbLabel;
+          return `Q: ${qa.question}\nA${src}${kb}: ${qa.answer || '[Not answered]'}`;
+        }).join('\n\n');
       }
-      setUrl('');
-      onUpdate();
-    } catch(e) { console.error(e); }
-    setScraping(false);
-  };
-
-  const handleFile = async (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setScraping(true);
-    try {
-      const base64 = await new Promise((res, rej) => {
-        const r = new FileReader();
-        r.onload = () => res(r.result.split(',')[1]);
-        r.onerror = rej;
-        r.readAsDataURL(file);
-      });
-      const result = await base44.functions.invoke('kbExtractFile', {
-        fileName: file.name,
-        fileType: file.type,
-        base64,
-      });
-      const entries = result?.data?.entries || [];
-      for (const e of entries) {
-        await base44.entities.KnowledgeBase.create({ question: e.question, answer: e.answer, category: 'document', source: file.name });
+      if (usedCoach && coachTips?.length) {
+        reportPrompt += `\n## Coach Tips During Call\n${coachTips.map((t: any, i: number) => `${i+1}. ${t}`).join('\n')}`;
       }
-      onUpdate();
-    } catch(e) { console.error(e); }
-    setScraping(false);
-    if (fileRef.current) fileRef.current.value = '';
-  };
+      if (usedIntent && intentResult) {
+        reportPrompt += `\n## Intent Analysis\nIntent Score: ${intentResult.intentScore}/100\nInterest Level: ${intentResult.interestLevel}\nTonality: ${intentResult.tonality}\nSentiment Arc: ${intentResult.sentimentArc}\n${intentResult.intentReason || ''}`;
+      }
 
-  const del = async (id) => {
-    try { await base44.entities.KnowledgeBase.delete(id); onUpdate(); } catch {}
-  };
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_KEY, 'anthropic-version': '2023-06-01' },
+        body: JSON.stringify({
+          model: 'claude-haiku-4-5-20251001',
+          max_tokens: 1500,
+          system: 'You are a sales call analyst. Generate a detailed, structured post-call report.',
+          messages: [{ role: 'user', content: reportPrompt }],
+        }),
+      });
+      const data = await res.json();
+      return Response.json({ report: data?.content?.[0]?.text || '' });
+    }
 
-  const grouped = kbEntries.reduce((acc, e) => {
-    const cat = e.category || 'manual';
-    if (!acc[cat]) acc[cat] = [];
-    acc[cat].push(e);
-    return acc;
-  }, {});
+    // ── CLIENT PROFILE ────────────────────────────────────────────────
+    if (mode === 'profile') {
+      const existing = (() => { try { return JSON.parse(existingProfile || '{}'); } catch { return {}; } })();
+      const fullTranscript = (transcript || []).map((t: any) => t.text).join(' ');
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_KEY, 'anthropic-version': '2023-06-01' },
+        body: JSON.stringify({
+          model: 'claude-haiku-4-5-20251001',
+          max_tokens: 600,
+          system: `You are analyzing a sales call to build a persistent client profile. Return ONLY this exact JSON (no markdown):
+{"animalType":"duck or cow or unknown","animalConfidence":0-100,"overallIntentLabel":"hot or warm or cold","traits":{"asksLotOfQuestions":true/false,"quickToInterrupt":true/false,"asksBuyingQuestions":true/false,"talksALot":true/false,"asksTechnicalQuestions":true/false,"raisesObjections":true/false,"agreeable":true/false,"priceConscious":true/false,"decisionMaker":true/false},"keyObservations":["obs1","obs2"],"recommendedApproach":"one sentence","callCount":${(existing.callCount || 0) + 1},"lastCallSummary":"2-3 sentence summary"}`,
+          messages: [{ role: 'user', content: `Existing profile:\n${JSON.stringify(existing)}\n\nTranscript:\n"${fullTranscript.slice(0, 4000)}"` }],
+        }),
+      });
+      const data = await res.json();
+      const text2 = data?.content?.[0]?.text || '{}';
+      try { return Response.json({ profile: JSON.parse(text2.replace(/```json|```/g, '').trim()) }); }
+      catch { return Response.json({ profile: existing }); }
+    }
 
-  const catColors = { manual:'#60a5fa', url:'#4ade80', document:'#f59e0b' };
-  const catIcons  = { manual:'✍️', url:'🌐', document:'📄' };
+    // ── Internet search ───────────────────────────────────────────────
+    if (mode === 'internet_search') {
+      const searchQ = internetQuery || question || '';
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_KEY, 'anthropic-version': '2023-06-01', 'anthropic-beta': 'web-search-2025-03-05' },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 600,
+          tools: [{ type: 'web_search_20250305', name: 'web_search' }],
+          system: 'You are a sales assistant helping an agent on a live investor call. Search the web for current, accurate information to answer the question. Provide a concise, factual answer in 2-4 sentences that the agent can speak naturally.',
+          messages: [{ role: 'user', content: `Search for current information to answer this question for an investor call:\n\n${searchQ}` }],
+        }),
+      });
+      const data = await res.json();
+      const answer = data?.content?.filter((c: any) => c.type === 'text').map((c: any) => c.text).join(' ') || 'Could not find information.';
+      return Response.json({ answer, source: 'internet' });
+    }
 
-  return (
-    <div style={{ padding:'10px 12px', maxHeight:'360px', overflowY:'auto' }}>
-      {/* Mode tabs */}
-      <div style={{ display:'flex', gap:'4px', marginBottom:'10px' }}>
-        {[['manual','✍️ Manual'],['url','🌐 URL'],['file','📄 File']].map(([id,label]) => (
-          <button key={id} onClick={() => setMode(id)}
-            style={{ flex:1, background: mode===id ? 'rgba(184,147,58,0.15)' : 'rgba(255,255,255,0.03)', border:`1px solid ${mode===id ? GOLD : 'rgba(255,255,255,0.08)'}`, color: mode===id ? GOLD : '#6b7280', borderRadius:'4px', padding:'4px', cursor:'pointer', fontSize:'9px', letterSpacing:'0.5px' }}>
-            {label}
-          </button>
-        ))}
-      </div>
+    // ── Q&A expand (additional information) ───────────────────────────
+    if (mode === 'qa_expand') {
+      // Search KB first for more detail, then supplement with AI synthesis
+      const relevantKB = findRelevantKB(question || '', kbEntries || [], 12);
+      const kbContext  = relevantKB.length > 0
+        ? relevantKB.map((e: any) => e.category === 'raw_chunk'
+            ? `[Document excerpt]: ${e.answer}`
+            : `Q: ${e.question}\nA: ${e.answer}`
+          ).join('\n\n')
+        : 'No additional KB entries found.';
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_KEY, 'anthropic-version': '2023-06-01' },
+        body: JSON.stringify({
+          model: 'claude-haiku-4-5-20251001',
+          max_tokens: 600,
+          system: `You are a sales assistant providing expanded information from a knowledge base. The agent already gave an initial answer and needs more detail. Search the KB context and provide additional relevant facts, numbers, or context not already covered.\n\nKNOWLEDGE BASE:\n${kbContext}`,
+          messages: [{ role: 'user', content: `Question: "${question}"\n\nInitial answer already given: "${previousAnswer || ''}"\n\nProvide ADDITIONAL specific details, numbers, or context from the KB that wasn't in the initial answer:` }],
+        }),
+      });
+      const data = await res.json();
+      return Response.json({ answer: data?.content?.[0]?.text || 'No additional information found.', source: 'kb' });
+    }
 
-      {/* Manual Q&A */}
-      {mode === 'manual' && (
-        <div style={{ marginBottom:'10px', background:'rgba(0,0,0,0.15)', borderRadius:'4px', padding:'8px' }}>
-          <input value={q} onChange={e => setQ(e.target.value)} placeholder="Question / trigger…" style={{ ...inp, marginBottom:'5px' }} />
-          <textarea value={a} onChange={e => setA(e.target.value)} placeholder="Answer…" rows={2} style={inp} />
-          <button onClick={save} disabled={saving || !q.trim() || !a.trim()}
-            style={{ marginTop:'5px', background:'linear-gradient(135deg,#b8933a,#d4aa50)', color:DARK, border:'none', borderRadius:'3px', padding:'5px 14px', cursor:'pointer', fontSize:'10px', fontWeight:'bold' }}>
-            {saving ? 'Saving…' : '+ Add'}
-          </button>
-        </div>
-      )}
+    // ── Q&A (default) — try direct hit first, AI only if needed ──────
+    const q = question || recentTranscript;
 
-      {/* URL scraper */}
-      {mode === 'url' && (
-        <div style={{ marginBottom:'10px', background:'rgba(0,0,0,0.15)', borderRadius:'4px', padding:'8px' }}>
-          <input value={url} onChange={e => setUrl(e.target.value)} placeholder="https://your-faq-page.com" style={{ ...inp, marginBottom:'5px' }} />
-          <div style={{ color:'#4a5568', fontSize:'9px', marginBottom:'6px' }}>AI will scrape the page and extract Q&A pairs automatically</div>
-          <button onClick={scrapeUrl} disabled={scraping || !url.trim()}
-            style={{ background:'rgba(74,222,128,0.15)', color:'#4ade80', border:'1px solid rgba(74,222,128,0.3)', borderRadius:'3px', padding:'5px 14px', cursor:'pointer', fontSize:'10px', fontWeight:'bold' }}>
-            {scraping ? '⏳ Scraping…' : '🌐 Scrape & Import'}
-          </button>
-        </div>
-      )}
+    // 1. Try direct KB hit — return pre-written answer with zero AI tokens
+    if (question) {
+      const directHit = findDirectHit(question, kbEntries || []);
+      if (directHit) {
+        console.log(`[liveAssistantAI] Direct KB hit: "${directHit.question}" (coverage high)`);
+        return Response.json({ answer: directHit.answer, source: 'kb_direct', kbEntry: directHit.question });
+      }
+    }
 
-      {/* File upload */}
-      {mode === 'file' && (
-        <div style={{ marginBottom:'10px', background:'rgba(0,0,0,0.15)', borderRadius:'4px', padding:'8px' }}>
-          <input ref={fileRef} type="file" accept=".pdf,.txt,.doc,.docx" onChange={handleFile} style={{ display:'none' }} />
-          <button onClick={() => fileRef.current?.click()} disabled={scraping}
-            style={{ width:'100%', background:'rgba(245,158,11,0.1)', color:'#f59e0b', border:'1px solid rgba(245,158,11,0.25)', borderRadius:'4px', padding:'10px', cursor:'pointer', fontSize:'10px' }}>
-            {scraping ? '⏳ Extracting…' : '📄 Upload PDF or Doc'}
-          </button>
-          <div style={{ color:'#4a5568', fontSize:'9px', marginTop:'4px', textAlign:'center' }}>AI extracts knowledge from your document</div>
-        </div>
-      )}
+    // 2. No direct hit — use AI with relevant KB context
+    const relevantKB = findRelevantKB(q, kbEntries || [], 12);
+    const kbContext  = relevantKB.length > 0
+      ? relevantKB.map((e: any) => e.category === 'raw_chunk'
+          ? `[Document excerpt]: ${e.answer}`
+          : `Q: ${e.question}\nA: ${e.answer}`
+        ).join('\n\n')
+      : 'No relevant knowledge base entries found.';
 
-      {/* Entries grouped by category */}
-      {Object.entries(grouped).map(([cat, entries]) => (
-        <div key={cat} style={{ marginBottom:'8px' }}>
-          <div style={{ color: catColors[cat] || '#8a9ab8', fontSize:'9px', textTransform:'uppercase', letterSpacing:'1.5px', marginBottom:'4px' }}>
-            {catIcons[cat] || '📌'} {cat} ({entries.length})
-          </div>
-          {entries.map(e => (
-            <div key={e.id} style={{ marginBottom:'4px', background:'rgba(255,255,255,0.02)', border:'1px solid rgba(255,255,255,0.06)', borderRadius:'4px', padding:'6px 9px', borderLeft:`3px solid ${catColors[cat] || '#8a9ab8'}` }}>
-              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
-                <div style={{ flex:1, minWidth:0 }}>
-                  <div style={{ color:GOLD, fontSize:'10px', fontWeight:'bold', marginBottom:'2px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>Q: {e.question}</div>
-                  <div style={{ color:'#8a9ab8', fontSize:'10px', lineHeight:1.4, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>A: {e.answer}</div>
-                  {e.source && <div style={{ color:'#4a5568', fontSize:'8px', marginTop:'1px' }}>{e.source}</div>}
-                </div>
-                <button onClick={() => del(e.id)} style={{ background:'none', border:'none', color:'#4a5568', cursor:'pointer', fontSize:'13px', marginLeft:'6px', flexShrink:0 }}>×</button>
-              </div>
-            </div>
-          ))}
-        </div>
-      ))}
-      {kbEntries.length === 0 && <div style={{ color:'#4a5568', fontSize:'11px', textAlign:'center', padding:'10px' }}>No KB entries yet</div>}
-    </div>
-  );
-}
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_KEY, 'anthropic-version': '2023-06-01' },
+      body: JSON.stringify({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 500,
+        system: `You are a real-time sales assistant on a live investor call. Answer questions from the knowledge base. Be concise — 2-4 sentences the agent can speak naturally. If the exact answer is in the KB, use it verbatim. If it requires synthesis, combine the relevant entries.\n\nKNOWLEDGE BASE${kbName ? ` (${kbName})` : ''}:\n${kbContext}`,
+        messages: [{ role: 'user', content: `${recentTranscript ? `Recent conversation:\n${recentTranscript}\n\n` : ''}Question: "${question}"\n\nAnswer from KB:` }],
+      }),
+    });
+    const data = await res.json();
+    return Response.json({ answer: data?.content?.[0]?.text || 'No answer found.', source: 'kb_ai' });
+
+  } catch (e: any) {
+    return Response.json({ error: e.message }, { status: 500 });
+  }
+});
