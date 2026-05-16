@@ -1,33 +1,64 @@
 const ANTHROPIC_KEY = Deno.env.get('ANTHROPIC_API_KEY') || '';
 
-function findRelevantKB(question: string, kbEntries: any[], topN = 8): any[] {
-  if (!kbEntries?.length) return [];
-  const words = question.toLowerCase().split(/\W+/).filter((w: string) => w.length > 3);
-  const scored = kbEntries
-    .filter((e: any) => e.category !== 'raw_document')
+// ── Smart KB search ─────────────────────────────────────────────────────────
+function scoreEntry(qLower: string, words: string[], e: any): number {
+  const haystack = `${e.question||''} ${e.answer||''} ${e.keywords||''}`.toLowerCase();
+  let score = 0;
+  for (const w of words) {
+    if (haystack.includes(w)) score += 1;
+    if ((e.question||'').toLowerCase().includes(w)) score += 0.8;
+    if ((e.keywords||'').toLowerCase().includes(w)) score += 0.5;
+  }
+  const phrases = qLower.match(/\b\w{4,}\s+\w{4,}\b/g) || [];
+  for (const phrase of phrases) {
+    if (haystack.includes(phrase)) score += 3;
+  }
+  return score;
+}
+
+function findDirectHit(question: string, kbEntries: any[]): any | null {
+  const qLower = question.toLowerCase().trim();
+  const words  = qLower.split(/\W+/).filter((w: string) => w.length >= 4);
+  if (words.length < 2) return null;
+  const candidates = kbEntries
+    .filter((e: any) => e.category !== 'raw_chunk' && e.category !== 'raw_document')
     .map((e: any) => {
-      const haystack = `${e.question} ${e.answer}`.toLowerCase();
-      const score = words.reduce((s: number, w: string) => s + (haystack.includes(w) ? 1 : 0), 0);
-      return { ...e, score };
+      const qHaystack = (e.question||'').toLowerCase();
+      const matches   = words.filter(w => qHaystack.includes(w)).length;
+      const coverage  = matches / words.length;
+      const aScore    = scoreEntry(qLower, words, e);
+      return { ...e, coverage, aScore };
     })
+    .filter((e: any) => e.coverage >= 0.65 && e.aScore >= 2)
+    .sort((a: any, b: any) => b.coverage - a.coverage || b.aScore - a.aScore);
+  return candidates.length > 0 ? candidates[0] : null;
+}
+
+function findRelevantKB(question: string, kbEntries: any[], topN = 15): any[] {
+  if (!kbEntries?.length) return [];
+  const qLower = question.toLowerCase();
+  const words  = qLower.split(/\W+/).filter((w: string) => w.length >= 3);
+
+  const qaScored = kbEntries
+    .filter((e: any) => e.category !== 'raw_document' && e.category !== 'raw_chunk')
+    .map((e: any) => ({ ...e, score: scoreEntry(qLower, words, e) }))
     .filter((e: any) => e.score > 0)
     .sort((a: any, b: any) => b.score - a.score)
     .slice(0, topN);
-  if (scored.length < 2) {
-    const rawDocs = kbEntries
-      .filter((e: any) => e.category === 'raw_document')
-      .map((e: any) => {
-        const haystack = (e.answer || '').toLowerCase();
-        const score = words.reduce((s: number, w: string) => s + (haystack.includes(w) ? 1 : 0), 0);
-        return { ...e, score };
-      })
-      .filter((e: any) => e.score > 0)
-      .sort((a: any, b: any) => b.score - a.score)
-      .slice(0, 1);
-    scored.push(...rawDocs);
-  }
-  return scored;
+
+  const chunkScored = kbEntries
+    .filter((e: any) => e.category === 'raw_chunk' || e.category === 'raw_document')
+    .map((e: any) => ({ ...e, score: scoreEntry(qLower, words, e) }))
+    .filter((e: any) => e.score > 0)
+    .sort((a: any, b: any) => b.score - a.score)
+    .slice(0, 4);
+
+  const seen = new Set(qaScored.map((e: any) => e.id));
+  const combined = [...qaScored];
+  for (const c of chunkScored) { if (!seen.has(c.id)) { combined.push(c); seen.add(c.id); } }
+  return combined;
 }
+
 
 function buildTranscriptString(transcript: any[], limit = 20): string {
   return (transcript || []).slice(-limit).map((t: any) => {
@@ -41,7 +72,8 @@ Deno.serve(async (req) => {
   try {
     const body = await req.json();
     const { question, transcript, kbEntries, mode, existingProfile,
-            intentRules, coachRules, qaHistory, engagementScore } = body;
+            intentRules, coachRules, qaHistory, engagementScore,
+            kbName, previousAnswer, internetQuery } = body;
 
     const recentTranscript = buildTranscriptString(transcript, 15);
 
@@ -172,9 +204,14 @@ Respond ONLY with this exact JSON (no markdown):
       const { usedCoach, usedQA, usedIntent, coachTips, qaLog, intentResult } = body;
       const fullTranscript = (transcript || []).map((t: any) => t.text).join(' ');
 
-      let reportPrompt = `Generate a structured sales call report.\n\nTranscript:\n"${fullTranscript.slice(0, 5000)}"\n\nInclude these sections:\n## Call Summary\n## Prospect Interest Level\n## Key Questions Asked\n## Objections & Concerns\n## Highlights\n## Recommended Next Steps\n## Clean Transcript\n`;
+      let reportPrompt = `Generate a structured sales call report.\n${kbName ? `Knowledge Base Used: ${kbName}\n` : ''}\nTranscript:\n"${fullTranscript.slice(0, 5000)}"\n\nInclude these sections:\n## Call Summary\n## Prospect Interest Level\n## Key Questions Asked\n## Objections & Concerns\n## Highlights\n## Recommended Next Steps\n${kbName ? `## Knowledge Base: ${kbName}\n` : ''}## Clean Transcript\n`;
       if (usedQA && qaLog?.length) {
-        reportPrompt += `\n## Q&A During Call\n${qaLog.map((qa: any) => `Q: ${qa.question}\n${qa.answered ? `A: ${qa.answer}` : 'A: [Not answered via AI]'}`).join('\n\n')}`;
+        const kbLabel = kbName ? ` [KB: ${kbName}]` : '';
+        reportPrompt += `\n## Q&A During Call${kbLabel}\n` + qaLog.map((qa: any) => {
+          const src = qa.source === 'kb_direct' ? ' ⚡ Direct KB' : qa.source === 'internet' ? ' 🌐 Internet' : qa.source === 'kb_expand' ? ' + More KB' : ' KB+AI';
+          const kb  = qa.kbName ? ` [${qa.kbName}]` : kbLabel;
+          return `Q: ${qa.question}\nA${src}${kb}: ${qa.answer || '[Not answered]'}`;
+        }).join('\n\n');
       }
       if (usedCoach && coachTips?.length) {
         reportPrompt += `\n## Coach Tips During Call\n${coachTips.map((t: any, i: number) => `${i+1}. ${t}`).join('\n')}`;
@@ -218,23 +255,82 @@ Respond ONLY with this exact JSON (no markdown):
       catch { return Response.json({ profile: existing }); }
     }
 
-    // ── Q&A (default) ─────────────────────────────────────────────────
-    const relevantKB = findRelevantKB(question || recentTranscript, kbEntries || [], 3);
+    // ── Internet search ───────────────────────────────────────────────
+    if (mode === 'internet_search') {
+      const searchQ = internetQuery || question || '';
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_KEY, 'anthropic-version': '2023-06-01', 'anthropic-beta': 'web-search-2025-03-05' },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 600,
+          tools: [{ type: 'web_search_20250305', name: 'web_search' }],
+          system: 'You are a sales assistant helping an agent on a live investor call. Search the web for current, accurate information to answer the question. Provide a concise, factual answer in 2-4 sentences that the agent can speak naturally.',
+          messages: [{ role: 'user', content: `Search for current information to answer this question for an investor call:\n\n${searchQ}` }],
+        }),
+      });
+      const data = await res.json();
+      const answer = data?.content?.filter((c: any) => c.type === 'text').map((c: any) => c.text).join(' ') || 'Could not find information.';
+      return Response.json({ answer, source: 'internet' });
+    }
+
+    // ── Q&A expand (additional information) ───────────────────────────
+    if (mode === 'qa_expand') {
+      // Search KB first for more detail, then supplement with AI synthesis
+      const relevantKB = findRelevantKB(question || '', kbEntries || [], 12);
+      const kbContext  = relevantKB.length > 0
+        ? relevantKB.map((e: any) => e.category === 'raw_chunk'
+            ? `[Document excerpt]: ${e.answer}`
+            : `Q: ${e.question}\nA: ${e.answer}`
+          ).join('\n\n')
+        : 'No additional KB entries found.';
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_KEY, 'anthropic-version': '2023-06-01' },
+        body: JSON.stringify({
+          model: 'claude-haiku-4-5-20251001',
+          max_tokens: 600,
+          system: `You are a sales assistant providing expanded information from a knowledge base. The agent already gave an initial answer and needs more detail. Search the KB context and provide additional relevant facts, numbers, or context not already covered.\n\nKNOWLEDGE BASE:\n${kbContext}`,
+          messages: [{ role: 'user', content: `Question: "${question}"\n\nInitial answer already given: "${previousAnswer || ''}"\n\nProvide ADDITIONAL specific details, numbers, or context from the KB that wasn't in the initial answer:` }],
+        }),
+      });
+      const data = await res.json();
+      return Response.json({ answer: data?.content?.[0]?.text || 'No additional information found.', source: 'kb' });
+    }
+
+    // ── Q&A (default) — try direct hit first, AI only if needed ──────
+    const q = question || recentTranscript;
+
+    // 1. Try direct KB hit — return pre-written answer with zero AI tokens
+    if (question) {
+      const directHit = findDirectHit(question, kbEntries || []);
+      if (directHit) {
+        console.log(`[liveAssistantAI] Direct KB hit: "${directHit.question}" (coverage high)`);
+        return Response.json({ answer: directHit.answer, source: 'kb_direct', kbEntry: directHit.question });
+      }
+    }
+
+    // 2. No direct hit — use AI with relevant KB context
+    const relevantKB = findRelevantKB(q, kbEntries || [], 12);
     const kbContext  = relevantKB.length > 0
-      ? relevantKB.map((e: any) => `Q: ${e.question}\nA: ${e.answer}`).join('\n\n')
+      ? relevantKB.map((e: any) => e.category === 'raw_chunk'
+          ? `[Document excerpt]: ${e.answer}`
+          : `Q: ${e.question}\nA: ${e.answer}`
+        ).join('\n\n')
       : 'No relevant knowledge base entries found.';
+
     const res = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_KEY, 'anthropic-version': '2023-06-01' },
       body: JSON.stringify({
         model: 'claude-haiku-4-5-20251001',
-        max_tokens: 400,
-        system: `You are a real-time sales assistant on a live investor call. Answer questions concisely from the knowledge base. Keep answers under 3 sentences — the agent speaks this naturally.\n\nKNOWLEDGE BASE:\n${kbContext}`,
-        messages: [{ role: 'user', content: `${recentTranscript ? `Recent conversation:\n${recentTranscript}\n\n` : ''}Question: "${question}"\n\nBrief answer:` }],
+        max_tokens: 500,
+        system: `You are a real-time sales assistant on a live investor call. Answer questions from the knowledge base. Be concise — 2-4 sentences the agent can speak naturally. If the exact answer is in the KB, use it verbatim. If it requires synthesis, combine the relevant entries.\n\nKNOWLEDGE BASE${kbName ? ` (${kbName})` : ''}:\n${kbContext}`,
+        messages: [{ role: 'user', content: `${recentTranscript ? `Recent conversation:\n${recentTranscript}\n\n` : ''}Question: "${question}"\n\nAnswer from KB:` }],
       }),
     });
     const data = await res.json();
-    return Response.json({ answer: data?.content?.[0]?.text || 'No answer found.' });
+    return Response.json({ answer: data?.content?.[0]?.text || 'No answer found.', source: 'kb_ai' });
 
   } catch (e: any) {
     return Response.json({ error: e.message }, { status: 500 });
