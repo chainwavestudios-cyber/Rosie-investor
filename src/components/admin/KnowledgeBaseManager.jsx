@@ -153,8 +153,8 @@ export default function KnowledgeBaseManager({ IntentEngineTuner, CoachRulesTune
           saved++;
         } catch {}
       }
-      const qaCount    = extracted.filter(e => e.category !== 'raw_chunk' && e.category !== 'raw_document').length;
-      const chunkCount = extracted.filter(e => e.category === 'raw_chunk' || e.category === 'raw_document').length;
+      const qaCount    = extracted.filter((e: any) => e.category !== 'raw_chunk' && e.category !== 'raw_document').length;
+      const chunkCount = extracted.filter((e: any) => e.category === 'raw_chunk' || e.category === 'raw_document').length;
       setUploadMsg(`✓ Saved ${saved} entries from "${file.name}" — ${qaCount} Q&A pairs + ${chunkCount} searchable chunks`);
       await load();
     } catch (e) { setUploadMsg('Error: ' + e.message); }
