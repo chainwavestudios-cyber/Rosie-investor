@@ -1346,6 +1346,8 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
                   onPauseCampaign={() => dialerRef.current?.pauseDialer?.()}
                   onDisconnectNext={() => { dialerRef.current?.hangupActiveCall?.(); onNextLead?.(); }}
                   onSaveResume={async () => { await saveProfile(); dialerRef.current?.hangupActiveCall?.(); onResume?.(); }}
+                  showCallLog={showCallLog}
+                  onToggleCallLog={() => setShowCallLog(v => !v)}
                 />
                 {/* Score circle — overlays top-right of call bar */}
                 <div style={{ position:'absolute', top:'12px', right:'12px', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', width:'46px', height:'46px', borderRadius:'50%', background:`linear-gradient(135deg,${GOLD}55,${GOLD}22)`, border:`2px solid ${GOLD}77`, zIndex:2, pointerEvents:'none' }}>
@@ -1372,11 +1374,7 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
                 ▶ Resume
               </button>
             </>)}
-            {/* Call Log button */}
-            <button onClick={() => setShowCallLog(v => !v)}
-              style={{ background: showCallLog ? 'rgba(96,165,250,0.15)' : 'rgba(255,255,255,0.05)', color: showCallLog ? '#60a5fa' : '#8a9ab8', border: `1px solid ${showCallLog ? 'rgba(96,165,250,0.35)' : 'rgba(255,255,255,0.1)'}`, borderRadius: '4px', padding: '6px 10px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold', whiteSpace: 'nowrap', flexShrink: 0 }}>
-              📋 Call Log
-            </button>
+
             {!isArchived && (
               <button onClick={sendEmail} disabled={sendingEmail || !editLead.email}
                 title="Email investor site access"
@@ -1436,9 +1434,9 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
                 style={{ background:'rgba(74,222,128,0.08)', color:'#4ade80', border:'1px solid rgba(74,222,128,0.25)', borderRadius:'20px', padding:'4px 12px', cursor:'pointer', fontSize:'11px', whiteSpace:'nowrap' }}>
                 📅 Schedule Follow Up
               </button>
-              {/* Move to back + Next Lead — moved here to avoid crowding top row */}
+              {/* Move to back + Next Lead — pushed to far right */}
               {onNextLead && (<>
-                <div style={{ width:'1px', height:'20px', background:'rgba(255,255,255,0.1)', margin:'0 4px' }} />
+                <div style={{ flex:1 }} />
                 <label style={{ display:'flex', alignItems:'center', gap:'5px', cursor:'pointer', userSelect:'none', background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.1)', borderRadius:'20px', padding:'4px 10px' }}>
                   <input
                     type="checkbox"

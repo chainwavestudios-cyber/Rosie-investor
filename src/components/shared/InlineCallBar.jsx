@@ -27,6 +27,7 @@ export default function InlineCallBar({
   onLogCall,
   isPredictive, isDialerPaused,
   onPauseCampaign, onDisconnectNext, onSaveResume,
+  showCallLog, onToggleCallLog,
 }) {
   const {
     callStatus, duration, muted, isActive, dialerError,
@@ -210,7 +211,7 @@ export default function InlineCallBar({
         </div>
 
         {/* Timer */}
-        {(isActive || callStatus === 'ended') && (
+        {(isActive || callStatus === 'ended') && duration > 0 && (
           <div style={{
             fontFamily: 'monospace', fontSize: '15px', fontWeight: 'bold',
             color: callStatus === 'connected' ? '#4ade80' : callStatus === 'ended' ? '#ef4444' : '#f59e0b',
@@ -271,6 +272,15 @@ export default function InlineCallBar({
         {isAdmin && (callStatus === 'idle' || callStatus === 'ready' || callStatus === 'ended') && (
           <Btn onClick={() => setShowFX(true)} color={GOLD} bg='rgba(184,147,58,0.08)' border='rgba(184,147,58,0.25)'>
             🎙 FX
+          </Btn>
+        )}
+        {/* 📋 Call Log — shown always */}
+        {onToggleCallLog && (
+          <Btn onClick={onToggleCallLog}
+            color={showCallLog ? '#60a5fa' : '#8a9ab8'}
+            bg={showCallLog ? 'rgba(96,165,250,0.12)' : 'rgba(255,255,255,0.04)'}
+            border={showCallLog ? 'rgba(96,165,250,0.3)' : 'rgba(255,255,255,0.1)'}>
+            📋 Log
           </Btn>
         )}
 
