@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { base44 } from '@/api/base44Client';
 
 const GOLD = '#b8933a';
+const SIZE_KEY = 'aiPopupDefaultSize';
 
 // ── NB Tech Price Scenarios (hardcoded context for Q&A / Coach / Intent) ──────
 const NB_PRICE_SCENARIOS = `
@@ -74,17 +75,14 @@ NB TECH KEY FACTS FOR CALL HANDLING:
 • Comparable security companies: Arlo (2.4x EV/Rev), ADT (2.8x), Alarm.com (2.5x), Ubiquiti (12x)
 `;
 
-// ── Tidbits Library ──────────────────────────────────────────────────────────
 const TIDBITS = {
   'NB Tech Overview': [
     "NB Tech acquires and develops code-based AI, blockchain, and cryptography assets — think of them as Silicon Valley's access point for accredited investors who've historically been locked out.",
     "The team runs deep — Eric Liboiron has 20+ years launching companies, they've assembled a PhD-level AI team, and Stan Watkins brings Fortune 100 consulting experience across 200+ industries.",
-    "The investment model is uniquely structured: unlike VC funds that lock investors into illiquid positions, NB Tech generates early cash flow through licensing while retaining full IP ownership.",
   ],
   'The 21:1 Conversion & IPO Math': [
     "Here's the math that matters: $0.16/share NB Tech, 21-to-1 into NewCo. Your implied NewCo cost basis is about $3.36/share. The Nasdaq IPO target is $7.00. That's more than doubling your basis at the opening bell.",
     "Dollar example on the $25,000 minimum: that buys you 156,250 NB Tech shares, which convert to approximately 7,440 NewCo shares. At the $7.00 IPO target, that's $52,080.",
-    "The 21-to-1 ratio exists specifically because this is a pre-merger, pre-IPO entry point. Your $0.16 buys a $3.36-equivalent NewCo position.",
   ],
 };
 
@@ -191,26 +189,74 @@ function Btn({ onClick, disabled, children, color = '#8a9ab8', bg = 'rgba(255,25
   return <button onClick={onClick} disabled={disabled} style={{ background: bg, color, border: `1px solid ${border}`, borderRadius: '4px', padding: '3px 10px', cursor: disabled ? 'not-allowed' : 'pointer', fontSize: '10px', fontWeight: 'bold', opacity: disabled ? 0.4 : 1, whiteSpace: 'nowrap', ...s }}>{children}</button>;
 }
 
-// ── Side Panel ────────────────────────────────────────────────────────────────
-function SidePanel({ item, onClose, panelWidthPct, onWidthChange }) {
-  if (!item) return null;
+// ── Persistent Right Panel: top=Transcript, bottom=AI Info ───────────────────
+function RightPanel({ transcript, aiPanelItem, onCloseAI, panelWidthPct, onWidthChange }) {
+  const txRef = useRef(null);
+
+  useEffect(() => {
+    if (txRef.current) txRef.current.scrollTop = txRef.current.scrollHeight;
+  }, [transcript]);
+
+  const aiTypeLabel = aiPanelItem?.type === 'moreInfo' ? '+ More Info'
+    : aiPanelItem?.type === 'talkingPoints' ? '💬 Talking Points'
+    : aiPanelItem?.type === 'research' ? '🔍 Research'
+    : '💡 AI Info';
+
   return (
-    <div style={{ width: `${panelWidthPct}%`, minWidth: 140, maxWidth: '55%', display: 'flex', flexDirection: 'column', borderLeft: '1px solid rgba(184,147,58,0.25)', background: 'rgba(0,0,0,0.25)', flexShrink: 0, overflow: 'hidden' }}>
-      {/* Width slider + close */}
-      <div style={{ padding: '5px 10px', background: 'rgba(0,0,0,0.3)', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
-        <span style={{ color: GOLD, fontSize: '9px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase', flex: 1 }}>
-          {item.type === 'moreInfo' ? '+ More Info' : item.type === 'talkingPoints' ? '💬 Talking Points' : '🔍 Research'}
-        </span>
+    <div style={{ width: `${panelWidthPct}%`, minWidth: 160, maxWidth: '55%', display: 'flex', flexDirection: 'column', borderLeft: '1px solid rgba(184,147,58,0.25)', background: 'rgba(0,0,0,0.2)', flexShrink: 0, overflow: 'hidden' }}>
+      {/* Width slider in header */}
+      <div style={{ padding: '4px 10px', background: 'rgba(0,0,0,0.35)', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+        <span style={{ color: GOLD, fontSize: '9px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase', flex: 1 }}>Panel</span>
         <input type="range" min={18} max={55} value={panelWidthPct} onChange={e => onWidthChange(Number(e.target.value))}
-          style={{ width: 60, accentColor: GOLD, cursor: 'pointer' }} title="Adjust panel width" />
-        <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#6b7280', cursor: 'pointer', fontSize: '14px', lineHeight: 1, padding: '0 2px' }}>×</button>
+          style={{ width: 56, accentColor: GOLD, cursor: 'pointer' }} title="Adjust panel width" />
       </div>
-      <div style={{ flex: 1, overflowY: 'auto', padding: '10px 12px' }}>
-        <div style={{ color: '#6b7280', fontSize: '9px', marginBottom: '6px', fontStyle: 'italic' }}>Re: "{(item.question || '').slice(0, 70)}{(item.question || '').length > 70 ? '…' : ''}"</div>
-        {item.loading
-          ? <div style={{ color: '#6b7280', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '8px' }}><div style={{ width: 5, height: 5, borderRadius: '50%', background: GOLD, animation: 'aipulse 0.8s infinite' }} />Loading…</div>
-          : <div style={{ color: '#e8e0d0', fontSize: '12px', lineHeight: 1.75, whiteSpace: 'pre-wrap' }}>{item.content}</div>
-        }
+
+      {/* TOP 1/3 — Rolling Transcript */}
+      <div style={{ flex: '0 0 33%', display: 'flex', flexDirection: 'column', overflow: 'hidden', borderBottom: '1px solid rgba(184,147,58,0.2)' }}>
+        <div style={{ padding: '4px 10px', background: 'rgba(0,0,0,0.25)', borderBottom: '1px solid rgba(255,255,255,0.06)', flexShrink: 0 }}>
+          <span style={{ color: '#60a5fa', fontSize: '9px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase' }}>🎙 Live Transcript</span>
+        </div>
+        <div ref={txRef} style={{ flex: 1, overflowY: 'auto', padding: '6px 10px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+          {transcript.length === 0 && (
+            <div style={{ color: '#4a5568', fontSize: '10px', textAlign: 'center', padding: '12px' }}>Transcript will appear here…</div>
+          )}
+          {transcript.slice(-60).map((t, i) => (
+            <div key={i} style={{ display: 'flex', gap: '6px', alignItems: 'flex-start' }}>
+              <span style={{ color: t.speaker === 1 ? GOLD : '#60a5fa', fontSize: '8px', fontWeight: 'bold', flexShrink: 0, marginTop: 2, minWidth: 28 }}>
+                {t.speaker === 1 ? '👤' : '🎙'}
+              </span>
+              <span style={{ color: '#c4cdd8', fontSize: '11px', lineHeight: 1.5 }}>{t.text}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* BOTTOM 2/3 — AI Info panel */}
+      <div style={{ flex: '1 1 0', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        <div style={{ padding: '4px 10px', background: 'rgba(0,0,0,0.25)', borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+          <span style={{ color: GOLD, fontSize: '9px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase', flex: 1 }}>
+            {aiPanelItem ? aiTypeLabel : '💡 AI Info'}
+          </span>
+          {aiPanelItem && (
+            <button onClick={onCloseAI} style={{ background: 'none', border: 'none', color: '#6b7280', cursor: 'pointer', fontSize: '14px', lineHeight: 1, padding: '0 2px' }}>×</button>
+          )}
+        </div>
+        <div style={{ flex: 1, overflowY: 'auto', padding: '10px 12px' }}>
+          {!aiPanelItem && (
+            <div style={{ color: '#4a5568', fontSize: '11px', textAlign: 'center', padding: '20px 8px', lineHeight: 1.7 }}>
+              Use <span style={{ color: '#60a5fa' }}>+ More Info</span>, <span style={{ color: '#4ade80' }}>💬 Talking Points</span>, or <span style={{ color: '#a78bfa' }}>🔍 Internet Research</span> on any answered question to populate this area.
+            </div>
+          )}
+          {aiPanelItem && (
+            <>
+              <div style={{ color: '#6b7280', fontSize: '9px', marginBottom: '8px', fontStyle: 'italic' }}>Re: "{(aiPanelItem.question || '').slice(0, 80)}{(aiPanelItem.question || '').length > 80 ? '…' : ''}"</div>
+              {aiPanelItem.loading
+                ? <div style={{ color: '#6b7280', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '8px' }}><div style={{ width: 5, height: 5, borderRadius: '50%', background: GOLD, animation: 'aipulse 0.8s infinite' }} />Loading…</div>
+                : <div style={{ color: '#e8e0d0', fontSize: '12px', lineHeight: 1.75, whiteSpace: 'pre-wrap' }}>{aiPanelItem.content}</div>
+              }
+            </>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -391,7 +437,7 @@ function QASection({ transcript, transcriptRef, kbEntries, active, qaKeywords, m
     </div>
   );
 
-  // Compact card for Q&A Only mode question pane
+  // Compact question card (used in qaOnly mode question pane)
   const QuestionCardCompact = ({ q }) => (
     <div style={{ background: q.manual ? 'rgba(184,147,58,0.04)' : q.auto ? 'rgba(96,165,250,0.04)' : 'rgba(245,158,11,0.04)', border: `1px solid ${q.answered ? 'rgba(74,222,128,0.2)' : q.auto ? 'rgba(96,165,250,0.18)' : q.manual ? 'rgba(184,147,58,0.2)' : 'rgba(245,158,11,0.18)'}`, borderRadius: '5px', overflow: 'hidden' }}>
       <div style={{ padding: '5px 10px', display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -411,7 +457,7 @@ function QASection({ transcript, transcriptRef, kbEntries, active, qaKeywords, m
     </div>
   );
 
-  // Full card for normal mode
+  // Full question card (normal mode)
   const QuestionCardFull = ({ q }) => (
     <div style={{ background: q.manual ? 'rgba(184,147,58,0.04)' : q.auto ? 'rgba(96,165,250,0.04)' : 'rgba(245,158,11,0.04)', border: `1px solid ${q.answered ? 'rgba(74,222,128,0.2)' : q.auto ? 'rgba(96,165,250,0.18)' : q.manual ? 'rgba(184,147,58,0.2)' : 'rgba(245,158,11,0.18)'}`, borderRadius: '5px', overflow: 'hidden' }}>
       <div style={{ padding: '7px 10px', display: 'flex', alignItems: 'center', gap: '8px', borderBottom: (q.answered || q.answering) ? '1px solid rgba(255,255,255,0.05)' : 'none' }}>
@@ -599,13 +645,21 @@ function IntentSection({ transcript, active, collapsed }) {
   );
 }
 
-// ── DragHandle ────────────────────────────────────────────────────────────────
 function DragHandle({ onDragStart }) {
   return (
     <div onMouseDown={onDragStart} style={{ height: 5, background: 'rgba(255,255,255,0.04)', cursor: 'row-resize', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onMouseEnter={e => e.currentTarget.style.background = 'rgba(184,147,58,0.25)'} onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.04)'}>
       <div style={{ width: 40, height: 3, borderRadius: 2, background: 'rgba(255,255,255,0.12)' }} />
     </div>
   );
+}
+
+// ── Load saved size/position ──────────────────────────────────────────────────
+function loadSavedSize() {
+  try {
+    const raw = localStorage.getItem(SIZE_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch { return null; }
 }
 
 // ── Main Component ────────────────────────────────────────────────────────────
@@ -617,10 +671,11 @@ export default function AIAssistantPopup({
   allKbEntries, kbNames, selectedKbName, onKbChange,
   activeScript, scripts,
 }) {
-  const [pos,    setPos]    = useState({ x: 20, y: Math.max(20, window.innerHeight - 540) });
+  const saved = loadSavedSize();
+  const [pos,    setPos]    = useState(saved ? { x: saved.x, y: saved.y } : { x: 20, y: Math.max(20, window.innerHeight - 540) });
+  const [width,  setWidth]  = useState(saved?.w || Math.min(980, window.innerWidth - 40));
+  const [height, setHeight] = useState(saved?.h || 520);
   const [showScript, setShowScript] = useState(false);
-  const [width,  setWidth]  = useState(Math.min(860, window.innerWidth - 40));
-  const [height, setHeight] = useState(520);
   const [qaH,    setQaH]    = useState(42);
   const [coachH, setCoachH] = useState(33);
   const [qaCollapsed,     setQaCollapsed]     = useState(false);
@@ -628,16 +683,15 @@ export default function AIAssistantPopup({
   const [intentCollapsed, setIntentCollapsed] = useState(false);
   const [qaOnly,  setQaOnly]  = useState(false);
   const [manualQ, setManualQ] = useState('');
+  const [savedMsg, setSavedMsg] = useState(false);
 
-  // Side panel state
-  const [sidePanel, setSidePanel] = useState(null); // { type, question, content, loading }
-  const [sidePanelWidth, setSidePanelWidth] = useState(30); // percent of popup width
+  // Right panel: AI info content (transcript always shows; AI info populates when requested)
+  const [aiPanelItem, setAiPanelItem] = useState(null);
+  const [rightPanelWidth, setRightPanelWidth] = useState(saved?.rpw || 30);
 
   const draggingPanel = useRef(false);
   const dragStart     = useRef({ mx:0,my:0,px:0,py:0 });
-
-  // Resize refs: top, bottom, left, right, corners
-  const resizing = useRef(null); // null or { edge, startX, startY, startW, startH, startPX, startPY }
+  const resizing      = useRef(null);
 
   useEffect(() => {
     const onMove = (e) => {
@@ -651,9 +705,7 @@ export default function AIAssistantPopup({
         const { edge, startX, startY, startW, startH, startPX, startPY } = resizing.current;
         const dx = e.clientX - startX;
         const dy = e.clientY - startY;
-        const minW = 320, minH = 200;
-        const maxW = window.innerWidth - startPX - 4;
-        const maxH = window.innerHeight - startPY - 4;
+        const minW = 400, minH = 200;
 
         if (edge === 'top' || edge === 'top-left' || edge === 'top-right') {
           const newH = Math.max(minH, startH - dy);
@@ -664,7 +716,7 @@ export default function AIAssistantPopup({
           setHeight(Math.max(minH, Math.min(window.innerHeight - startPY - 4, startH + dy)));
         }
         if (edge === 'right' || edge === 'top-right' || edge === 'bottom-right') {
-          setWidth(Math.max(minW, Math.min(maxW, startW + dx)));
+          setWidth(Math.max(minW, Math.min(window.innerWidth - startPX - 4, startW + dx)));
         }
         if (edge === 'left' || edge === 'top-left' || edge === 'bottom-left') {
           const newW = Math.max(minW, startW - dx);
@@ -684,7 +736,6 @@ export default function AIAssistantPopup({
     resizing.current = { edge, startX: e.clientX, startY: e.clientY, startW: width, startH: height, startPX: pos.x, startPY: pos.y };
   };
 
-  // Divider resize
   const resizingDiv = useRef(null);
   const divStartY   = useRef(0);
   const divStartH   = useRef(0);
@@ -702,6 +753,12 @@ export default function AIAssistantPopup({
     window.addEventListener('mouseup', onUp);
     return () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
   }, [height]);
+
+  const saveDefaultSize = () => {
+    localStorage.setItem(SIZE_KEY, JSON.stringify({ x: pos.x, y: pos.y, w: width, h: height, rpw: rightPanelWidth }));
+    setSavedMsg(true);
+    setTimeout(() => setSavedMsg(false), 2000);
+  };
 
   const EDGE = { position: 'absolute', zIndex: 1 };
   const cornerStyle = (top, right, bottom, left) => ({ ...EDGE, width: 14, height: 14, top, right, bottom, left, cursor: `${top != null ? 'n' : 's'}${left != null ? 'w' : 'e'}-resize` });
@@ -723,7 +780,7 @@ export default function AIAssistantPopup({
       <div style={cornerStyle(undefined, 0, 0, undefined)}    onMouseDown={e => startResize('bottom-right', e)} />
 
       {/* Title bar */}
-      <div onMouseDown={e=>{if(e.target.closest('button,select,input'))return;draggingPanel.current=true;dragStart.current={mx:e.clientX,my:e.clientY,px:pos.x,py:pos.y};e.preventDefault();}} style={{padding:'6px 14px',background:'rgba(0,0,0,0.35)',borderBottom:'1px solid rgba(184,147,58,0.2)',display:'flex',alignItems:'center',gap:'10px',flexShrink:0,cursor:'grab',userSelect:'none',zIndex:2,position:'relative'}}>
+      <div onMouseDown={e=>{if(e.target.closest('button,select,input'))return;draggingPanel.current=true;dragStart.current={mx:e.clientX,my:e.clientY,px:pos.x,py:pos.y};e.preventDefault();}} style={{padding:'6px 14px',background:'rgba(0,0,0,0.35)',borderBottom:'1px solid rgba(184,147,58,0.2)',display:'flex',alignItems:'center',gap:'8px',flexShrink:0,cursor:'grab',userSelect:'none',zIndex:2,position:'relative'}}>
         <span style={{color:GOLD,fontSize:'10px',letterSpacing:'2px',textTransform:'uppercase',flexShrink:0}}>🧠 AI Assistant</span>
 
         {kbNames&&kbNames.length>0&&(
@@ -738,6 +795,12 @@ export default function AIAssistantPopup({
 
         <div style={{flex:1}} />
 
+        {/* Default Size button */}
+        <button onClick={saveDefaultSize}
+          style={{background: savedMsg ? 'rgba(74,222,128,0.15)' : 'rgba(255,255,255,0.05)', color: savedMsg ? '#4ade80' : '#6b7280', border:`1px solid ${savedMsg ? 'rgba(74,222,128,0.4)' : 'rgba(255,255,255,0.1)'}`, borderRadius:'4px', padding:'3px 10px', cursor:'pointer', fontSize:'10px', fontWeight:'bold', transition:'all 0.2s'}}>
+          {savedMsg ? '✓ Saved!' : '📐 Default Size'}
+        </button>
+
         <button onClick={()=>setQaOnly(p=>!p)} style={{background:qaOnly?'rgba(245,158,11,0.2)':'rgba(255,255,255,0.05)',color:qaOnly?'#f59e0b':'#6b7280',border:`1px solid ${qaOnly?'rgba(245,158,11,0.4)':'rgba(255,255,255,0.1)'}`,borderRadius:'4px',padding:'3px 10px',cursor:'pointer',fontSize:'10px',fontWeight:'bold'}}>
           {qaOnly?'❓ Q&A Only ✓':'❓ Q&A Only'}
         </button>
@@ -751,7 +814,7 @@ export default function AIAssistantPopup({
         <button onClick={onClose} style={{background:'none',border:'none',color:'#6b7280',cursor:'pointer',fontSize:'18px',lineHeight:1,padding:'0 2px',flexShrink:0}}>×</button>
       </div>
 
-      {/* Main body: content + side panel side by side */}
+      {/* Main body: left content + right panel (always visible) */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'row', overflow: 'hidden', minHeight: 0 }}>
 
         {/* Left: main content */}
@@ -760,7 +823,7 @@ export default function AIAssistantPopup({
           {qaOnly && (
             <>
               <SectionHeader label="❓ Q&A" color="#f59e0b" active={qaActive} onToggle={onToggleQA} collapsed={false} onCollapse={()=>{}} />
-              <QASection transcript={transcript} transcriptRef={transcriptRef} kbEntries={kbEntries} active={qaActive} qaKeywords={portalCfg?.intentTriggerKeywords} manualQ={manualQ} setManualQ={setManualQ} collapsed={false} qaOnly={true} onSidePanel={setSidePanel} />
+              <QASection transcript={transcript} transcriptRef={transcriptRef} kbEntries={kbEntries} active={qaActive} qaKeywords={portalCfg?.intentTriggerKeywords} manualQ={manualQ} setManualQ={setManualQ} collapsed={false} qaOnly={true} onSidePanel={setAiPanelItem} />
             </>
           )}
 
@@ -768,7 +831,7 @@ export default function AIAssistantPopup({
             <>
               <div style={{display:'flex',flexDirection:'column',overflow:'hidden',flex:qaCollapsed?'0 0 auto':qaH,minHeight:qaCollapsed?0:80}}>
                 <SectionHeader label="❓ Q&A" color="#f59e0b" active={qaActive} onToggle={onToggleQA} collapsed={qaCollapsed} onCollapse={()=>setQaCollapsed(p=>!p)} />
-                <QASection transcript={transcript} transcriptRef={transcriptRef} kbEntries={kbEntries} active={qaActive} qaKeywords={portalCfg?.intentTriggerKeywords} manualQ={manualQ} setManualQ={setManualQ} collapsed={qaCollapsed} qaOnly={false} onSidePanel={setSidePanel} />
+                <QASection transcript={transcript} transcriptRef={transcriptRef} kbEntries={kbEntries} active={qaActive} qaKeywords={portalCfg?.intentTriggerKeywords} manualQ={manualQ} setManualQ={setManualQ} collapsed={qaCollapsed} qaOnly={false} onSidePanel={setAiPanelItem} />
               </div>
 
               {!qaCollapsed&&!coachCollapsed&&<DragHandle onDragStart={e=>{resizingDiv.current='qa-coach';divStartY.current=e.clientY;divStartH.current=qaH;e.preventDefault();}} />}
@@ -801,15 +864,14 @@ export default function AIAssistantPopup({
           )}
         </div>
 
-        {/* Right: side panel */}
-        {sidePanel && (
-          <SidePanel
-            item={sidePanel}
-            onClose={() => setSidePanel(null)}
-            panelWidthPct={sidePanelWidth}
-            onWidthChange={setSidePanelWidth}
-          />
-        )}
+        {/* Right: always-visible panel — transcript top 1/3, AI info bottom 2/3 */}
+        <RightPanel
+          transcript={transcript}
+          aiPanelItem={aiPanelItem}
+          onCloseAI={() => setAiPanelItem(null)}
+          panelWidthPct={rightPanelWidth}
+          onWidthChange={setRightPanelWidth}
+        />
       </div>
     </div>
   );
