@@ -1348,7 +1348,7 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
                   onSaveResume={async () => { await saveProfile(); dialerRef.current?.hangupActiveCall?.(); onResume?.(); }}
                 />
                 {/* Score circle — overlays top-right of call bar */}
-                <div style={{ position:'absolute', top:'4px', right:'4px', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', width:'46px', height:'46px', borderRadius:'50%', background:`linear-gradient(135deg,${GOLD}55,${GOLD}22)`, border:`2px solid ${GOLD}77`, zIndex:2, pointerEvents:'none' }}>
+                <div style={{ position:'absolute', top:'12px', right:'12px', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', width:'46px', height:'46px', borderRadius:'50%', background:`linear-gradient(135deg,${GOLD}55,${GOLD}22)`, border:`2px solid ${GOLD}77`, zIndex:2, pointerEvents:'none' }}>
                   <div style={{ fontSize:'14px', fontWeight:'bold', color:GOLD, lineHeight:1, fontFamily:'monospace' }}>{editLead.engagementScore || 0}</div>
                   <div style={{ fontSize:'7px', color:GOLD, opacity:0.7, letterSpacing:'0.5px' }}>SCORE</div>
                 </div>
