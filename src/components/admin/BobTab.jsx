@@ -545,6 +545,7 @@ function BobControls({ personas, onPersonasChange, dgApiKey, onDgKeyChange, kbSy
   const sys = KB_SYSTEMS[kbSystem];
   const [editMode,setEditMode]=useState('duck');
   const [saved,setSaved]=useState(false);
+  const [saving,setSaving]=useState(false);
   const [local,setLocal]=useState(personas);
 
   // Sync local when personas change (system switch)
@@ -554,7 +555,24 @@ function BobControls({ personas, onPersonasChange, dgApiKey, onDgKeyChange, kbSy
   const updateGreeting=(mode,idx,val)=>{const g=[...(local[mode].greetings||[])];g[idx]=val;update(mode,'greetings',g);};
   const addGreeting=(mode)=>update(mode,'greetings',[...(local[mode].greetings||[]),'']);
   const removeGreeting=(mode,idx)=>{const g=[...(local[mode].greetings||[])];g.splice(idx,1);update(mode,'greetings',g);};
-  const save=()=>{onPersonasChange(local);setSaved(true);setTimeout(()=>setSaved(false),2000);};
+  const save=async()=>{
+    setSaving(true);
+    // Persist to PortalSettings under key 'bob_controls'
+    try {
+      const storageKey = `bob_controls_${kbSystem}`;
+      const payload = { personas: local, dgApiKey };
+      const existing = await base44.entities.PortalSettings.filter({ key: storageKey });
+      if (existing && existing.length > 0) {
+        await base44.entities.PortalSettings.update(existing[0].id, { key: storageKey, adminUsername: JSON.stringify(payload) });
+      } else {
+        await base44.entities.PortalSettings.create({ key: storageKey, adminUsername: JSON.stringify(payload) });
+      }
+      onPersonasChange(local);
+      setSaved(true);
+      setTimeout(()=>setSaved(false),2000);
+    } catch(e) { alert('Save failed: ' + e.message); }
+    setSaving(false);
+  };
   const reset=(mode)=>{
     const rosieDefaults={duck:DEFAULT_DUCK,cow:DEFAULT_COW,owl:DEFAULT_OWL};
     const nbtechDefaults={duck:NB_DUCK,cow:NB_COW,owl:NB_OWL};
@@ -601,8 +619,8 @@ function BobControls({ personas, onPersonasChange, dgApiKey, onDgKeyChange, kbSy
         <input value={dgApiKey} onChange={e=>onDgKeyChange(e.target.value)} placeholder="Leave blank to use default key" style={{...inp,fontFamily:'monospace',fontSize:'12px'}} type="password"/>
       </div>
       <div style={{display:'flex',gap:'10px',alignItems:'center'}}>
-        <button onClick={save} style={{background:'linear-gradient(135deg,#b8933a,#d4aa50)',color:DARK,border:'none',borderRadius:'2px',padding:'12px 24px',cursor:'pointer',fontSize:'11px',fontWeight:'bold',letterSpacing:'1px',textTransform:'uppercase'}}>Save Changes</button>
-        {saved&&<span style={{color:'#4ade80',fontSize:'12px'}}>✓ Saved</span>}
+        <button onClick={save} disabled={saving} style={{background:'linear-gradient(135deg,#b8933a,#d4aa50)',color:DARK,border:'none',borderRadius:'2px',padding:'12px 24px',cursor:saving?'not-allowed':'pointer',fontSize:'11px',fontWeight:'bold',letterSpacing:'1px',textTransform:'uppercase',opacity:saving?0.7:1}}>{saving?'Saving…':'Save Changes'}</button>
+        {saved&&<span style={{color:'#4ade80',fontSize:'12px'}}>✓ Saved to database</span>}
       </div>
     </div>
   );
@@ -1108,6 +1126,22 @@ export default function BobTab() {
       .then(all=>{
         const s=KB_SYSTEMS[kbSystem];
         setKbEntries((all||[]).filter(e=>e.category!=='raw_document'&&(e.category===s.kbCategory||e.category===s.kbCategory2)));
+      })
+      .catch(()=>{});
+  }, [kbSystem]);
+
+  // Load saved BOB Controls from DB on mount and on system switch
+  useEffect(()=>{
+    const storageKey = `bob_controls_${kbSystem}`;
+    base44.entities.PortalSettings.filter({ key: storageKey })
+      .then(rows => {
+        if (rows && rows.length > 0 && rows[0].adminUsername) {
+          try {
+            const saved = JSON.parse(rows[0].adminUsername);
+            if (saved.personas) setSystemState(prev => ({...prev, [kbSystem]: {...prev[kbSystem], personas: saved.personas}}));
+            if (saved.dgApiKey !== undefined) setSystemState(prev => ({...prev, [kbSystem]: {...prev[kbSystem], dgApiKey: saved.dgApiKey}}));
+          } catch {}
+        }
       })
       .catch(()=>{});
   }, [kbSystem]);
