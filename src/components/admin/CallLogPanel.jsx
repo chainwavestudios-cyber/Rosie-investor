@@ -74,16 +74,27 @@ function LiveLineBar({ line, logs }) {
 
 // ── Reports Tab ──────────────────────────────────────────────────────────────
 function ReportsTab({ lines }) {
+  const [mode, setMode] = useState('day'); // 'day' | 'year'
   const [date, setDate] = useState(() => new Date().toISOString().slice(0,10));
+  const [year, setYear] = useState(() => new Date().getFullYear());
   const [userFilter, setUserFilter] = useState('all');
   const [report, setReport] = useState(null);
   const [loading, setLoading] = useState(false);
 
+  const currentYear = new Date().getFullYear();
+  const years = Array.from({ length: currentYear - 2023 }, (_, i) => 2024 + i);
+
   const generate = async () => {
     setLoading(true);
     try {
-      const dayStart = new Date(date + 'T00:00:00');
-      const dayEnd   = new Date(date + 'T23:59:59');
+      let dayStart, dayEnd;
+      if (mode === 'year') {
+        dayStart = new Date(`${year}-01-01T00:00:00`);
+        dayEnd   = new Date(`${year}-12-31T23:59:59`);
+      } else {
+        dayStart = new Date(date + 'T00:00:00');
+        dayEnd   = new Date(date + 'T23:59:59');
+      }
 
       // Use LeadHistory as the source of truth for outbound calls
       const histories = await base44.entities.LeadHistory.list('-created_date', 1000);
@@ -115,7 +126,7 @@ function ReportsTab({ lines }) {
       }).length;
       const convertedPct = totalCalls > 0 ? ((convertedCount / totalCalls) * 100).toFixed(1) : '0.0';
 
-      setReport({ totalCalls, answeredCount, connectionRate, totalDial, avgDial, longestCall, convertedCount, convertedPct, date, userFilter });
+      setReport({ totalCalls, answeredCount, connectionRate, totalDial, avgDial, longestCall, convertedCount, convertedPct, date, year, mode, userFilter });
     } catch(e) { console.error(e); }
     setLoading(false);
   };
@@ -132,11 +143,31 @@ function ReportsTab({ lines }) {
 
   return (
     <div style={{ padding:'16px' }}>
+      {/* Mode toggle */}
+      <div style={{ display:'flex', gap:'6px', marginBottom:'14px' }}>
+        {[['day','📅 Day'], ['year','📆 Year']].map(([m, label]) => (
+          <button key={m} onClick={() => { setMode(m); setReport(null); }}
+            style={{ background: mode===m ? `${GOLD}22` : 'rgba(255,255,255,0.04)', border:`1px solid ${mode===m ? GOLD+'66' : 'rgba(255,255,255,0.1)'}`, color: mode===m ? GOLD : '#6b7280', borderRadius:'20px', padding:'4px 14px', cursor:'pointer', fontSize:'11px', fontWeight: mode===m ? 'bold' : 'normal' }}>
+            {label}
+          </button>
+        ))}
+      </div>
+
       <div style={{ display:'flex', gap:'10px', alignItems:'flex-end', marginBottom:'18px', flexWrap:'wrap' }}>
-        <div>
-          <div style={{ color:'#6b7280', fontSize:'10px', letterSpacing:'1px', marginBottom:'5px' }}>DATE</div>
-          <input type="date" value={date} onChange={e => setDate(e.target.value)} style={{ ...inp, cursor:'pointer' }} />
-        </div>
+        {mode === 'day' ? (
+          <div>
+            <div style={{ color:'#6b7280', fontSize:'10px', letterSpacing:'1px', marginBottom:'5px' }}>DATE</div>
+            <input type="date" value={date} onChange={e => setDate(e.target.value)} style={{ ...inp, cursor:'pointer' }} />
+          </div>
+        ) : (
+          <div>
+            <div style={{ color:'#6b7280', fontSize:'10px', letterSpacing:'1px', marginBottom:'5px' }}>YEAR</div>
+            <select value={year} onChange={e => setYear(Number(e.target.value))} style={{ ...inp, cursor:'pointer' }}>
+              {years.map(y => <option key={y} value={y}>{y}</option>)}
+              <option value={currentYear}>{currentYear}</option>
+            </select>
+          </div>
+        )}
         <div>
           <div style={{ color:'#6b7280', fontSize:'10px', letterSpacing:'1px', marginBottom:'5px' }}>USER</div>
           <select value={userFilter} onChange={e => setUserFilter(e.target.value)} style={{ ...inp, cursor:'pointer' }}>
@@ -154,7 +185,7 @@ function ReportsTab({ lines }) {
       {report && (
         <div>
           <div style={{ color:GOLD, fontSize:'10px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'12px' }}>
-            Report for {fmtDate(report.date + 'T12:00:00')} · {report.userFilter === 'all' ? 'All Users' : report.userFilter === 'admin' ? 'Admin' : 'Steph'}
+            {report.mode === 'year' ? `Report for ${report.year}` : `Report for ${fmtDate(report.date + 'T12:00:00')}`} · {report.userFilter === 'all' ? 'All Users' : report.userFilter === 'admin' ? 'Admin' : 'Steph'}
           </div>
           <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:'8px', marginBottom:'8px' }}>
             {stat('Total Calls', report.totalCalls, GOLD)}
@@ -190,11 +221,41 @@ export default function CallLogPanel({ onClose, onOpenLead }) {
   const [historyRows, setHistoryRows] = useState([]);
   const [lines, setLines]             = useState([]);
   const [loading, setLoading]         = useState(true);
-  const [userFilter, setUserFilter]   = useState('all'); // 'all' | 'admin' | 'steph'
-  const [dirTab, setDirTab]           = useState('outbound'); // 'inbound' | 'outbound'
+  const [userFilter, setUserFilter]   = useState('all');
+  const [dirTab, setDirTab]           = useState('outbound');
   const [mainTab, setMainTab]         = useState('calls');
   const [playingVm, setPlayingVm]     = useState(null);
   const audioRef = useRef(null);
+
+  // Drag & resize state
+  const [pos, setPos]   = useState({ x: window.innerWidth - 560, y: 70 });
+  const [size, setSize] = useState({ w: 540, h: Math.min(window.innerHeight * 0.85, 700) });
+  const dragging  = useRef(false);
+  const resizing  = useRef(false);
+  const dragStart = useRef({ mx: 0, my: 0, px: 0, py: 0 });
+  const resStart  = useRef({ mx: 0, my: 0, w: 0, h: 0 });
+  const panelRef  = useRef(null);
+
+  useEffect(() => {
+    const onMove = (e) => {
+      if (dragging.current) {
+        setPos({
+          x: Math.max(0, Math.min(window.innerWidth - 250, dragStart.current.px + e.clientX - dragStart.current.mx)),
+          y: Math.max(0, Math.min(window.innerHeight - 60, dragStart.current.py + e.clientY - dragStart.current.my)),
+        });
+      }
+      if (resizing.current) {
+        setSize({
+          w: Math.max(250, resStart.current.w + e.clientX - resStart.current.mx),
+          h: Math.max(200, resStart.current.h + e.clientY - resStart.current.my),
+        });
+      }
+    };
+    const onUp = () => { dragging.current = false; resizing.current = false; };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+    return () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
+  }, []);
 
   useEffect(() => {
     loadData();
@@ -276,16 +337,19 @@ export default function CallLogPanel({ onClose, onOpenLead }) {
       <style>{`
         @keyframes linePulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.6;transform:scale(1.3)} }
       `}</style>
-      <div style={{
-        position: 'fixed', top: '70px', right: '20px', zIndex: 99990,
-        width: '540px', maxHeight: '88vh',
+      <div ref={panelRef} style={{
+        position: 'fixed', left: pos.x, top: pos.y, zIndex: 99990,
+        width: size.w, height: size.h,
         background: DARK, border: `1px solid rgba(184,147,58,0.3)`,
         borderRadius: '10px', boxShadow: '0 20px 60px rgba(0,0,0,0.9)',
         fontFamily: 'Georgia, serif', display: 'flex', flexDirection: 'column',
+        userSelect: dragging.current || resizing.current ? 'none' : 'auto',
       }}>
 
-        {/* ── Header ── */}
-        <div style={{ padding: '12px 16px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
+        {/* ── Header (drag handle) ── */}
+        <div
+          onMouseDown={e => { if (e.target.closest('button')) return; dragging.current = true; dragStart.current = { mx: e.clientX, my: e.clientY, px: pos.x, py: pos.y }; e.preventDefault(); }}
+          style={{ padding: '12px 16px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0, cursor: 'move' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <span style={{ color: GOLD, fontSize: '12px', letterSpacing: '1.5px', textTransform: 'uppercase', fontWeight: 'bold' }}>📋 Call Log</span>
             {unlistenedVm > 0 && <span style={{ background: 'rgba(245,158,11,0.2)', color: '#f59e0b', border: '1px solid rgba(245,158,11,0.4)', borderRadius: '10px', padding: '1px 7px', fontSize: '10px', fontWeight: 'bold' }}>📩 {unlistenedVm} VM</span>}
@@ -475,6 +539,16 @@ export default function CallLogPanel({ onClose, onOpenLead }) {
             </div>
           </>
         )}
+
+        {/* ── Resize handle ── */}
+        <div
+          onMouseDown={e => { resizing.current = true; resStart.current = { mx: e.clientX, my: e.clientY, w: size.w, h: size.h }; e.preventDefault(); e.stopPropagation(); }}
+          style={{ position: 'absolute', bottom: 0, right: 0, width: '18px', height: '18px', cursor: 'se-resize', display: 'flex', alignItems: 'flex-end', justifyContent: 'flex-end', padding: '3px' }}
+        >
+          <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+            <path d="M2 9L9 2M5 9L9 5M9 9L9 9" stroke="rgba(184,147,58,0.4)" strokeWidth="1.5" strokeLinecap="round"/>
+          </svg>
+        </div>
       </div>
     </>
   );
