@@ -70,6 +70,10 @@
       "type": "string",
       "title": "Sent By"
     },
+    "fromEmail": {
+      "type": "string",
+      "title": "From Email"
+    },
     "pointsAwarded": {
       "type": "boolean",
       "title": "Points Awarded",
@@ -78,6 +82,11 @@
     "isIntroEmail": {
       "type": "boolean",
       "title": "Is Intro Email",
+      "default": false
+    },
+    "isCustomEmail": {
+      "type": "boolean",
+      "title": "Is Custom Email",
       "default": false
     }
   },

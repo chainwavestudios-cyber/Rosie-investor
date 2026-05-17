@@ -17,6 +17,9 @@ Deno.serve(async (req) => {
     bodyHtml,     // HTML body
     bodyText,     // plain text fallback
     sentBy,       // admin username
+    fromEmail,    // optional sender override
+    fromName,     // optional sender name override
+    attachments,  // optional [{name, base64, mime}]
   } = await req.json();
 
   if (!toEmail || !subject || !bodyHtml) {
@@ -31,16 +34,29 @@ Deno.serve(async (req) => {
   // CustomID lets the webhook route opens/clicks back to the right record
   const customId = leadId ? `${leadId}:custom` : investorId ? `inv:${investorId}:custom` : '';
 
-  const payload = {
-    Messages: [{
-      From: { Email: MJ_FROM_EMAIL, Name: MJ_FROM_NAME },
-      To:   [{ Email: toEmail, Name: toName || '' }],
-      Subject: subject,
-      HTMLPart: bodyHtml,
-      TextPart: bodyText || bodyHtml.replace(/<[^>]+>/g, ''),
-      ...(customId ? { CustomID: customId } : {}),
-    }],
+  // Resolve sender — allow override, fall back to env defaults
+  const senderEmail = fromEmail || MJ_FROM_EMAIL;
+  const senderName  = fromName  || MJ_FROM_NAME;
+
+  const message = {
+    From: { Email: senderEmail, Name: senderName },
+    To:   [{ Email: toEmail, Name: toName || '' }],
+    Subject: subject,
+    HTMLPart: bodyHtml,
+    TextPart: bodyText || bodyHtml.replace(/<[^>]+>/g, ''),
+    ...(customId ? { CustomID: customId } : {}),
   };
+
+  // Attach files if provided
+  if (attachments && attachments.length > 0) {
+    message.Attachments = attachments.map(a => ({
+      ContentType: a.mime || 'application/octet-stream',
+      Filename: a.name,
+      Base64Content: a.base64,
+    }));
+  }
+
+  const payload = { Messages: [message] };
 
   const res  = await fetch('https://api.mailjet.com/v3.1/send', {
     method: 'POST',
@@ -54,8 +70,8 @@ Deno.serve(async (req) => {
     return Response.json({ error: 'Mailjet send failed', details: data }, { status: 500 });
   }
 
-  const msgInfo    = data.Messages[0];
-  const messageId  = String(msgInfo.To?.[0]?.MessageID || '');
+  const msgInfo     = data.Messages[0];
+  const messageId   = String(msgInfo.To?.[0]?.MessageID || '');
   const messageUUID = msgInfo.To?.[0]?.MessageUUID || '';
 
   // ── Log to EmailLog ────────────────────────────────────────────────────
@@ -72,6 +88,7 @@ Deno.serve(async (req) => {
     sentAt:      new Date().toISOString(),
     sentBy:      sentBy || 'admin',
     isCustomEmail: true,
+    fromEmail:   senderEmail,
   }).catch(() => {});
 
   // ── Log to LeadHistory (if lead) ───────────────────────────────────────
@@ -79,7 +96,7 @@ Deno.serve(async (req) => {
     await base44.asServiceRole.entities.LeadHistory.create({
       leadId,
       type:      'note',
-      content:   `✉️ Custom email sent by ${sentBy || 'admin'} — Subject: "${subject}"`,
+      content:   `✉️ Custom email sent by ${sentBy || 'admin'} via ${senderEmail} — Subject: "${subject}"`,
       createdBy: sentBy || 'admin',
     }).catch(() => {});
   }
@@ -90,7 +107,7 @@ Deno.serve(async (req) => {
       investorId,
       investorEmail: toEmail,
       type:      'email',
-      content:   `✉️ Custom email sent by ${sentBy || 'admin'} — Subject: "${subject}"`,
+      content:   `✉️ Custom email sent by ${sentBy || 'admin'} via ${senderEmail} — Subject: "${subject}"`,
       createdAt: new Date().toISOString(),
       createdBy: sentBy || 'admin',
     }).catch(() => {});
