@@ -954,6 +954,7 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
   const [tab, setTab] = useState('overview');
   const [history, setHistory] = useState([]);
   const [editLead, setEditLead] = useState({ ...lead });
+  const [smsOptedIn, setSmsOptedIn] = useState(false);
 
   // When lead prop changes (Next Lead), reset card state
   useEffect(() => {
@@ -1009,6 +1010,23 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
 
   useEffect(() => { loadHistory(); }, [lead.id]);
   useEffect(() => { setSelectedPhone(editLead.phone || editLead.phone2 || ''); }, [editLead.phone, editLead.phone2]);
+
+  // Check SMS opt-in
+  useEffect(() => {
+    const checkOptIn = async () => {
+      try {
+        const phones = [lead.phone, lead.phone2].filter(Boolean).map(p => p.replace(/[\s\-().]/g, ''));
+        if (!phones.length) return;
+        const records = await base44.entities.SmsOptIn.filter({ active: true });
+        const matched = (records || []).some(r => {
+          const rp = (r.phone || '').replace(/[\s\-().]/g, '');
+          return phones.some(p => p === rp);
+        });
+        setSmsOptedIn(matched);
+      } catch {}
+    };
+    checkOptIn();
+  }, [lead.id, lead.phone, lead.phone2]);
 
   const loadHistory = async () => {
     setLoading(true);
@@ -1290,7 +1308,14 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
             {/* Left: Name + Stars */}
             <div style={{ display:'flex', alignItems:'center', gap:'12px', flexShrink:0 }}>
               <div>
-                <div style={{ color:'#e8e0d0', fontSize:'22px', fontFamily:'Georgia,serif', fontWeight:'normal', lineHeight:1.1 }}>{fullName}</div>
+                <div style={{ display:'flex', alignItems:'center', gap:'8px' }}>
+                  <div style={{ color:'#e8e0d0', fontSize:'22px', fontFamily:'Georgia,serif', fontWeight:'normal', lineHeight:1.1 }}>{fullName}</div>
+                  {smsOptedIn && (
+                    <span title="SMS Opted In" style={{ background:'rgba(74,222,128,0.12)', border:'1px solid rgba(74,222,128,0.35)', borderRadius:'10px', padding:'2px 8px', color:'#4ade80', fontSize:'10px', whiteSpace:'nowrap', letterSpacing:'0.5px' }}>
+                      💬 SMS ✓
+                    </span>
+                  )}
+                </div>
                 <div style={{ marginTop:'4px' }}>
                   <LeadStarRating value={starRating} onChange={handleStarChange} size={20} />
                 </div>

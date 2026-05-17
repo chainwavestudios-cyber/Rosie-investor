@@ -64,6 +64,7 @@ export default function ContactCardModal({ user, onClose, onSave, allSessions, m
   useEffect(() => { loadPortalSettings().then(setPortalCfg).catch(() => {}); }, []);
 
   const [tab, setTab]         = useState('overview');
+  const [smsOptedIn, setSmsOptedIn] = useState(false);
   const [notes, setNotes]     = useState([]);
   const [appts, setAppts]     = useState([]);
   const [accDocs, setAccDocs] = useState([]);
@@ -109,6 +110,19 @@ export default function ContactCardModal({ user, onClose, onSave, allSessions, m
   };
 
   useEffect(() => { loadAll(); }, [user.id]);
+
+  useEffect(() => {
+    const checkOptIn = async () => {
+      if (!user.phone) return;
+      try {
+        const normalizedPhone = user.phone.replace(/[\s\-().]/g, '');
+        const records = await base44.entities.SmsOptIn.filter({ active: true });
+        const matched = (records || []).some(r => (r.phone || '').replace(/[\s\-().]/g, '') === normalizedPhone);
+        setSmsOptedIn(matched);
+      } catch {}
+    };
+    checkOptIn();
+  }, [user.id, user.phone]);
 
   const loadAll = async () => {
     setLoading(true);
@@ -294,7 +308,14 @@ export default function ContactCardModal({ user, onClose, onSave, allSessions, m
               {(user.name||'?')[0].toUpperCase()}
             </div>
             <div>
-              <div style={{ color:'#e8e0d0', fontSize:'18px', fontFamily:'Georgia,serif' }}>{user.name}</div>
+              <div style={{ display:'flex', alignItems:'center', gap:'8px' }}>
+                <div style={{ color:'#e8e0d0', fontSize:'18px', fontFamily:'Georgia,serif' }}>{user.name}</div>
+                {smsOptedIn && (
+                  <span title="SMS Opted In" style={{ background:'rgba(74,222,128,0.12)', border:'1px solid rgba(74,222,128,0.35)', borderRadius:'10px', padding:'2px 8px', color:'#4ade80', fontSize:'10px', whiteSpace:'nowrap', letterSpacing:'0.5px' }}>
+                    💬 SMS ✓
+                  </span>
+                )}
+              </div>
               <div style={{ color:'#6b7280', fontSize:'12px', marginTop:'2px' }}>@{user.username} · {user.email}</div>
             </div>
             <StatusBadge status={user.status || 'prospect'} />

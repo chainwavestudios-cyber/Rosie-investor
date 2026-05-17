@@ -16,10 +16,9 @@ export default function OptIn() {
     setSubmitting(true);
     setError('');
     try {
-      await base44.functions.invoke('sendSms', {
-        toNumber: phone.trim(),
-        body: `Rosie AI: Hi ${firstName}! You are now opted-in to receive investment updates and communications from us. Msg & data rates may apply. Msg frequency varies. For help, reply HELP. To opt-out, reply STOP.`,
-        fromNumber: null,
+      await base44.functions.invoke('smsOptIn', {
+        phone: phone.trim(),
+        firstName: firstName.trim(),
       });
       setSubmitted(true);
     } catch (err) {

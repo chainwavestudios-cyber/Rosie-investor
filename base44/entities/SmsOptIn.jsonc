@@ -1,0 +1,43 @@
+{
+  "name": "SmsOptIn",
+  "type": "object",
+  "properties": {
+    "phone": {
+      "type": "string",
+      "title": "Phone Number"
+    },
+    "firstName": {
+      "type": "string",
+      "title": "First Name"
+    },
+    "optedInAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Opted In At"
+    },
+    "ipAddress": {
+      "type": "string",
+      "title": "IP Address"
+    },
+    "leadId": {
+      "type": "string",
+      "title": "Matched Lead ID"
+    },
+    "investorId": {
+      "type": "string",
+      "title": "Matched Investor ID"
+    },
+    "confirmationSmsSid": {
+      "type": "string",
+      "title": "Confirmation SMS SID"
+    },
+    "active": {
+      "type": "boolean",
+      "title": "Active (not opted out)",
+      "default": true
+    }
+  },
+  "required": [
+    "phone"
+  ]
+}
