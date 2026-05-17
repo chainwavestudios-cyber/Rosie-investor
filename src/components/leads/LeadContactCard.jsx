@@ -179,6 +179,11 @@ function OverviewTab({ editLead, setEditLead, saving, saveMsg, saveProfile, upda
           <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:'8px' }}>
             <div style={{ display:'flex', alignItems:'center', gap:'8px', flexWrap:'wrap', flex:1 }}>
               <span style={{ color:'#e8e0d0', fontSize:'15px', fontWeight:'bold' }}>{editLead.firstName} {editLead.lastName}</span>
+              {(editLead.engagementScore > 0) && (
+                <span style={{ background:`rgba(184,147,58,0.15)`, border:`1px solid rgba(184,147,58,0.4)`, borderRadius:'20px', padding:'2px 10px', color:'#b8933a', fontSize:'11px', fontWeight:'bold', display:'flex', alignItems:'center', gap:'4px' }}>
+                  ⭐ {editLead.engagementScore} pts
+                </span>
+              )}
               {editLead.badgeIntroEmailOpened && (<span style={{ background:'rgba(96,165,250,0.1)', border:'1px solid rgba(96,165,250,0.25)', borderRadius:'10px', padding:'2px 8px', color:'#60a5fa', fontSize:'10px', whiteSpace:'nowrap' }}>🌟 Intro Opened ✅</span>)}
               {editLead.badgeConsumerWebsite && (<span style={{ background:'rgba(96,165,250,0.1)', border:'1px solid rgba(96,165,250,0.25)', borderRadius:'10px', padding:'2px 8px', color:'#60a5fa', fontSize:'10px', whiteSpace:'nowrap' }}>🛒 Consumer ✅</span>)}
               {editLead.badgeInvestorPage && (<span style={{ background:'rgba(96,165,250,0.1)', border:'1px solid rgba(96,165,250,0.25)', borderRadius:'10px', padding:'2px 8px', color:'#60a5fa', fontSize:'10px', whiteSpace:'nowrap' }}>📈 Investor Page ✅</span>)}
