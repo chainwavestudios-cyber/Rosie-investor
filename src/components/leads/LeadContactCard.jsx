@@ -16,6 +16,7 @@ import SetReminderButton from '@/components/SetReminderButton';
 import ReminderCountdown from '@/components/ReminderCountdown';
 import { useReminders } from '@/hooks/useReminders';
 import RemindersFloatingPanel from '@/components/shared/RemindersFloatingPanel';
+import CallLogPanel from '@/components/admin/CallLogPanel';
 
 const GOLD = '#b8933a';
 const DARK = '#0a0f1e';
@@ -983,6 +984,7 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
   const [followUpNote, setFollowUpNote] = useState('');
   const [savingFollowUp, setSavingFollowUp] = useState(false);
   const [showCallbackPicker, setShowCallbackPicker] = useState(false);
+  const [showCallLog, setShowCallLog] = useState(false);
 
   useEffect(() => { loadHistory(); }, [lead.id]);
   useEffect(() => { setSelectedPhone(editLead.phone || editLead.phone2 || ''); }, [editLead.phone, editLead.phone2]);
@@ -1362,6 +1364,11 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
                 ▶ Resume
               </button>
             </>)}
+            {/* Call Log button */}
+            <button onClick={() => setShowCallLog(v => !v)}
+              style={{ background: showCallLog ? 'rgba(96,165,250,0.15)' : 'rgba(255,255,255,0.05)', color: showCallLog ? '#60a5fa' : '#8a9ab8', border: `1px solid ${showCallLog ? 'rgba(96,165,250,0.35)' : 'rgba(255,255,255,0.1)'}`, borderRadius: '4px', padding: '6px 10px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold', whiteSpace: 'nowrap', flexShrink: 0 }}>
+              📋 Call Log
+            </button>
             {!isArchived && (
               <button onClick={sendEmail} disabled={sendingEmail || !editLead.email}
                 title="Email investor site access"
@@ -1648,6 +1655,12 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
       </div>
     </div>
     <RemindersFloatingPanel reminders={reminders} onClearReminder={clearReminder} />
+    {showCallLog && (
+      <CallLogPanel
+        onClose={() => setShowCallLog(false)}
+        onOpenLead={(leadId) => { setShowCallLog(false); /* caller handles navigation */ }}
+      />
+    )}
     </>
   );
 }

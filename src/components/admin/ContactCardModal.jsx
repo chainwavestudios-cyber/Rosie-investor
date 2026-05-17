@@ -20,6 +20,7 @@ import { getPortalSettings, loadPortalSettings } from '@/lib/portalSettings';
 import SetReminderButton from '@/components/SetReminderButton';
 import ReminderCountdown from '@/components/ReminderCountdown';
 import { useReminders } from '@/hooks/useReminders';
+import CallLogPanel from '@/components/admin/CallLogPanel';
 
 const GOLD = '#b8933a';
 const DARK = '#0a0f1e';
@@ -75,6 +76,7 @@ export default function ContactCardModal({ user, onClose, onSave, allSessions, m
   const [saving, setSaving]   = useState(false);
   const [saveMsg, setSaveMsg] = useState('');
   const [showCallbackPicker, setShowCallbackPicker] = useState(false);
+  const [showCallLog, setShowCallLog] = useState(false);
   const [callbackDate, setCallbackDate] = useState('');
   const [callbackNote, setCallbackNote] = useState('');
   const [dialerLead, setDialerLead] = useState(null);
@@ -358,6 +360,10 @@ export default function ContactCardModal({ user, onClose, onSave, allSessions, m
               />
               <ReminderCountdown contactId={user.id} />
             </div>
+            <button onClick={() => setShowCallLog(v => !v)}
+              style={{ background: showCallLog ? 'rgba(96,165,250,0.15)' : 'rgba(255,255,255,0.05)', color: showCallLog ? '#60a5fa' : '#8a9ab8', border: `1px solid ${showCallLog ? 'rgba(96,165,250,0.35)' : 'rgba(255,255,255,0.1)'}`, borderRadius: '2px', padding: '5px 8px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold', whiteSpace: 'nowrap' }}>
+              📋 Call Log
+            </button>
             <button onClick={onClose} style={{ background:'rgba(255,255,255,0.05)', border:'1px solid rgba(255,255,255,0.1)', color:'#6b7280', cursor:'pointer', fontSize:'18px', width:'30px', height:'30px', borderRadius:'4px', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>×</button>
           </div>
         </div>
@@ -685,6 +691,9 @@ export default function ContactCardModal({ user, onClose, onSave, allSessions, m
         </div>
       </div>
     </div>
+    {showCallLog && (
+      <CallLogPanel onClose={() => setShowCallLog(false)} onOpenLead={() => {}} />
+    )}
     </>
   );
 }
