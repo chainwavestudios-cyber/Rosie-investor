@@ -59,8 +59,16 @@ Deno.serve(async (req) => {
   }
 
   // ── Mode 1: Direct outbound dial ───────────────────────────────────────
+  // Detect inbound: To matches our own Twilio number (not a dial target)
+  const ownNumbers = [
+    Deno.env.get('TWILIO_FROM_NUMBER')   || '',
+    Deno.env.get('TWILIO_FROM_NUMBER_2') || '',
+    Deno.env.get('TWILIO_FROM_NUMBER_3') || '',
+  ].filter(Boolean);
+  const toNormalized = to.replace(/\s/g, '');
+  const isInboundToOurNumber = ownNumbers.includes(toNormalized) || (called && ownNumbers.includes(called.replace(/\s/g, '')));
   const isClientIdentifier = !to || to.startsWith('client:') || to.startsWith('sip:');
-  if (to && !isClientIdentifier) {
+  if (to && !isClientIdentifier && !isInboundToOurNumber) {
     const callerId = callerIdParam || Deno.env.get('TWILIO_FROM_NUMBER') || '';
     if (!callerId) {
       return new Response(
@@ -88,6 +96,6 @@ Deno.serve(async (req) => {
     <Client>agent</Client>
   </Dial>
 </Response>`;
-  console.log('[dialerVoiceHandler] → Mode 4 Inbound → routing to browser client');
+  console.log('[dialerVoiceHandler] → Mode 4 Inbound → routing to browser client (to:', to, 'called:', called, ')');
   return new Response(twiml, { headers: { 'Content-Type': 'text/xml' } });
 });
