@@ -358,6 +358,11 @@ export default function ScriptAssistant({ lead, user, onExpandCard, isCardExpand
 
   // ── Manual connect (fallback if no twilioStream prop yet) ──────────
   const connectStream = () => {
+    // GUARD: Must select a KB before connecting the stream
+    if (!selectedKbName || selectedKbName.trim() === '') {
+      setError('⚠ Please select a Knowledge Base before connecting the Twilio stream. This ensures call transcripts, AI answers, and reports are saved to the correct KB.');
+      return;
+    }
     if (twilioStream) {
       startListeningFromStream(twilioStream.remoteStream, twilioStream.localStream);
     } else {
@@ -601,7 +606,42 @@ export default function ScriptAssistant({ lead, user, onExpandCard, isCardExpand
           {reportSaved  && <span style={{ color: '#4ade80', fontSize: '9px' }}>✓ Report saved</span>}
         </div>
 
-        {/* Row 2: Stream connect + AI status */}
+        {/* Row 2: KB Selector — REQUIRED before stream can connect */}
+        <div style={{ display: 'flex', gap: '5px', alignItems: 'center', flexWrap: 'wrap', marginBottom: '2px' }}>
+          <span style={{ color: !selectedKbName ? '#ef4444' : '#6b7280', fontSize: '9px', letterSpacing: '1px', textTransform: 'uppercase', flexShrink: 0 }}>
+            📚 KB{!selectedKbName && !listening ? ' ⚠ Required' : ':'}
+          </span>
+          <select
+            value={selectedKbName}
+            onChange={async e => {
+              const name = e.target.value;
+              setSelectedKbName(name);
+              setKbEntries(name
+                ? allKbEntries.filter(e2 => (e2.kbName || '') === name)
+                : allKbEntries.filter(e2 => !e2.kbName || e2.kbName === ''));
+              if (name) {
+                try {
+                  const cfgs = await base44.entities.KnowledgeBaseConfig.filter({ kbName: name });
+                  setKbConfig(cfgs?.[0] || null);
+                } catch { setKbConfig(null); }
+              } else {
+                setKbConfig(null);
+              }
+            }}
+            disabled={listening}
+            style={{ background: !selectedKbName ? 'rgba(239,68,68,0.08)' : 'rgba(255,255,255,0.06)', border: `1px solid ${!selectedKbName ? 'rgba(239,68,68,0.4)' : 'rgba(255,255,255,0.15)'}`, borderRadius: '4px', padding: '2px 8px', color: selectedKbName ? GOLD : '#ef4444', fontSize: '10px', outline: 'none', cursor: listening ? 'not-allowed' : 'pointer', maxWidth: '180px' }}
+          >
+            <option value="">— Select KB (required) —</option>
+            {kbNames.map(n => <option key={n} value={n}>{n}</option>)}
+          </select>
+          {selectedKbName && (
+            <span style={{ color: '#4a5568', fontSize: '9px' }}>
+              ({kbEntries.length} entries)
+            </span>
+          )}
+        </div>
+
+        {/* Row 3: Stream connect + AI status */}
         <div style={{ display: 'flex', gap: '5px', alignItems: 'center', flexWrap: 'wrap' }}>
 
           {/* Stream connect button */}
@@ -761,6 +801,8 @@ export default function ScriptAssistant({ lead, user, onExpandCard, isCardExpand
           allKbEntries={allKbEntries}
           kbNames={kbNames}
           selectedKbName={selectedKbName}
+          activeScript={scripts.find(s => s.id === activeId) || scripts[0]}
+          scripts={scripts}
           onKbChange={async (name) => {
             setSelectedKbName(name);
             setKbEntries(name
