@@ -273,8 +273,10 @@ function downloadReport(html, leadName) {
 
 // ── Much broader question detection ──────────────────────────────────────────
 const QUESTION_PATTERNS = [
+  // Pattern 1: explicit question mark (broad)
   /\b(what|how|why|when|where|who|can|could|would|is|are|do|does|will|should|have|has|tell me|explain|describe|show me|walk me through|give me)\b.{4,120}\?/gi,
-  /\b(what('?s| is| are| was| were)?|how (much|many|does|do|long|soon|often)|why (is|are|would|did)|who (is|are|runs|manages|owns)|when (is|does|will|can)|where (is|are|does)|can (you|i|we)|could (you|i|we)|would (you|i|we)|tell me (about|more|how)|walk me through|explain (the|how|why|what)|what happens (if|when)|is (this|there|it)|are (there|you|we)|do (you|i|we)|does (it|this|that))\b.{4,100}/gi,
+  // Pattern 2: common question openers WITHOUT ? (transcription often drops punctuation)
+  /\b(what('?s| is| are| was| were| does| do| happens| would| will| are| can)|how (much|many|does|do|long|soon|often|would|can)|what.s the (minimum|return|catch|risk|difference|process|timeline|structure|deal|rate)|how do (i|you|we)|is (there|it|this) (a|any|an)|can (i|you|we)|what (are|is) the (minimum|return|risk|catch|process|fees|terms)|when (can|does|will|would)|who (is|are|runs|manages|owns)|tell me (about|more|how)|walk me through|what happens (if|when))\b.{4,100}/gi,
 ];
 
 const TOPIC_FRAGMENTS = [
@@ -336,6 +338,13 @@ function QASection({ transcript, transcriptRef, kbEntries, active, qaKeywords, m
   const containerRef  = useRef(null);
   const splitDragging = useRef(false);
 
+  // Clear dedup cache whenever Q&A is re-enabled so existing transcript gets re-scanned
+  useEffect(() => {
+    if (active) {
+      seenQ.current.clear();
+    }
+  }, [active]);
+
   const buildKeywordRegex = useCallback(() => {
     if (!qaKeywords?.trim()) return null;
     const terms = qaKeywords.split(',').map(k => k.trim()).filter(Boolean);
@@ -348,11 +357,11 @@ function QASection({ transcript, transcriptRef, kbEntries, active, qaKeywords, m
   const autoDismissTimers = useRef({});
 
   const scheduleAutoDismiss = (id) => {
-    // Auto-clear unanswered detected questions after 3 seconds
+    // Auto-clear unanswered detected questions after 30 seconds
     autoDismissTimers.current[id] = setTimeout(() => {
       setQuestions(prev => prev.filter(x => x.id !== id || x.answered || x.answering || x.manual));
       delete autoDismissTimers.current[id];
-    }, 3000);
+    }, 30000);
   };
 
   const cancelAutoDismiss = (id) => {
@@ -372,10 +381,10 @@ function QASection({ transcript, transcriptRef, kbEntries, active, qaKeywords, m
     const last = transcript[transcript.length - 1];
     if (!last?.text) return;
 
-    // ── ONLY process questions from the PROSPECT (Speaker 1 or unknown) ──
-    // Speaker 0 = agent, Speaker 1 = prospect, null/undefined = unknown (include)
-    const isProspect = last.speaker === 1 || last.speaker === null || last.speaker === undefined;
-    if (!isProspect) return;
+    // ── Process ALL speakers for Q&A detection ──
+    // Both the prospect AND agent speech can contain questions or topic fragments
+    // that need answering. Removing the speaker filter ensures nothing is missed.
+    // (Diarization assigns speaker numbers inconsistently across calls anyway.)
 
     const detected = extractQuestions(last.text);
     detected.forEach(q => {
@@ -383,7 +392,7 @@ function QASection({ transcript, transcriptRef, kbEntries, active, qaKeywords, m
         seenQ.current.add(q);
         const id = Date.now() + Math.random();
         setQuestions(prev => [...prev, { id, text: q, time: new Date(), answer: '', answering: false, answered: false, auto: false, manual: false }]);
-        // Auto-dismiss if not answered in 3 seconds
+        // Extended dismiss window — 30s so user has time to see and act on the question
         scheduleAutoDismiss(id);
       }
     });
