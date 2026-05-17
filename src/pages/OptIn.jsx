@@ -18,7 +18,7 @@ export default function OptIn() {
     try {
       await base44.functions.invoke('sendSms', {
         toNumber: phone.trim(),
-        body: `NB Tech Acquisitions: Hi ${firstName}! You are now opted-in to receive investment updates and communications from us. Msg & data rates may apply. Msg frequency varies. For help, reply HELP. To opt-out, reply STOP.`,
+        body: `Rosie AI: Hi ${firstName}! You are now opted-in to receive investment updates and communications from us. Msg & data rates may apply. Msg frequency varies. For help, reply HELP. To opt-out, reply STOP.`,
         fromNumber: null,
       });
       setSubmitted(true);
@@ -33,8 +33,8 @@ export default function OptIn() {
       <div style={{ background: '#fff', borderRadius: '12px', boxShadow: '0 4px 24px rgba(0,0,0,0.10)', maxWidth: '480px', width: '100%', padding: '40px 36px' }}>
         {/* Logo / Brand */}
         <div style={{ textAlign: 'center', marginBottom: '28px' }}>
-          <div style={{ fontSize: '28px', fontWeight: 'bold', color: '#b8933a', letterSpacing: '1px', marginBottom: '6px' }}>NB Tech Acquisitions</div>
-          <div style={{ color: '#6b7280', fontSize: '14px' }}>SMS Investor Updates — Opt-In</div>
+          <div style={{ fontSize: '28px', fontWeight: 'bold', color: '#b8933a', letterSpacing: '1px', marginBottom: '6px' }}>Rosie AI</div>
+          <div style={{ color: '#6b7280', fontSize: '14px' }}>SMS Updates — Opt-In</div>
         </div>
 
         {submitted ? (
@@ -49,7 +49,7 @@ export default function OptIn() {
           <form onSubmit={handleSubmit}>
             <h2 style={{ color: '#1a1a2e', fontSize: '20px', fontWeight: 'bold', margin: '0 0 8px' }}>Receive SMS Updates</h2>
             <p style={{ color: '#4b5563', fontSize: '13px', lineHeight: 1.7, margin: '0 0 24px' }}>
-              Opt in to receive investment updates, announcements, and important communications from NB Tech Acquisitions via text message. Message &amp; data rates may apply.
+              Opt in to receive investment updates, announcements, and important communications from Rosie AI via text message. Message &amp; data rates may apply.
             </p>
 
             <div style={{ marginBottom: '16px' }}>
@@ -85,7 +85,7 @@ export default function OptIn() {
                 style={{ marginTop: '3px', flexShrink: 0, width: '16px', height: '16px', cursor: 'pointer' }}
               />
               <label htmlFor="agree" style={{ fontSize: '12px', color: '#4b5563', lineHeight: 1.6, cursor: 'pointer' }}>
-                I agree to receive recurring automated text messages from NB Tech Acquisitions at the phone number provided. Msg &amp; data rates may apply. Msg frequency varies. Reply <strong>HELP</strong> for help or <strong>STOP</strong> to cancel at any time. See our <a href="/terms" style={{ color: '#b8933a' }}>Terms &amp; Conditions</a> and <a href="/privacy" style={{ color: '#b8933a' }}>Privacy Policy</a>.
+                I agree to receive recurring automated text messages from Rosie AI at the phone number provided. Msg &amp; data rates may apply. Msg frequency varies. Reply <strong>HELP</strong> for help or <strong>STOP</strong> to cancel at any time. See our <a href="/terms" style={{ color: '#b8933a' }}>Terms &amp; Conditions</a> and <a href="/privacy" style={{ color: '#b8933a' }}>Privacy Policy</a>.
               </label>
             </div>
 
@@ -105,7 +105,7 @@ export default function OptIn() {
 
             <p style={{ textAlign: 'center', color: '#9ca3af', fontSize: '11px', marginTop: '16px', lineHeight: 1.6 }}>
               You can also opt in by texting <strong>START</strong> to our number.<br />
-              NB Tech Acquisitions · investors.rosieai.tech
+              Rosie AI · investors.rosieai.tech
             </p>
           </form>
         )}

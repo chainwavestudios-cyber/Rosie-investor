@@ -3,7 +3,7 @@ export default function PrivacyPolicy() {
     <div style={{ minHeight: '100vh', background: '#f8f9fa', padding: '40px 24px', fontFamily: 'Georgia, serif' }}>
       <div style={{ maxWidth: '760px', margin: '0 auto', background: '#fff', borderRadius: '12px', boxShadow: '0 2px 12px rgba(0,0,0,0.07)', padding: '48px 48px' }}>
         <div style={{ marginBottom: '32px' }}>
-          <div style={{ fontSize: '22px', fontWeight: 'bold', color: '#b8933a', marginBottom: '4px' }}>NB Tech Acquisitions</div>
+          <div style={{ fontSize: '22px', fontWeight: 'bold', color: '#b8933a', marginBottom: '4px' }}>Rosie AI</div>
           <h1 style={{ fontSize: '28px', fontWeight: 'bold', color: '#1a1a2e', margin: '0 0 8px' }}>Privacy Policy</h1>
           <p style={{ color: '#6b7280', fontSize: '13px' }}>Last updated: May 17, 2026</p>
         </div>
@@ -11,7 +11,7 @@ export default function PrivacyPolicy() {
         <div style={{ color: '#374151', fontSize: '15px', lineHeight: 1.8 }}>
 
           <h2 style={{ color: '#1a1a2e', fontSize: '18px', marginTop: '32px', marginBottom: '10px' }}>1. Information We Collect</h2>
-          <p>NB Tech Acquisitions ("Company," "we," "us") collects the following information when you opt in to receive SMS communications:</p>
+          <p>Rosie AI ("Company," "we," "us") collects the following information when you opt in to receive SMS communications:</p>
           <ul style={{ paddingLeft: '24px', marginTop: '8px' }}>
             <li>Your name</li>
             <li>Your mobile phone number</li>
@@ -33,7 +33,7 @@ export default function PrivacyPolicy() {
           </p>
 
           <h2 style={{ color: '#1a1a2e', fontSize: '18px', marginTop: '32px', marginBottom: '10px' }}>4. SMS Communications</h2>
-          <p>By opting in, you consent to receive recurring automated text messages from NB Tech Acquisitions. Message and data rates may apply. Message frequency varies based on investment activity and announcements.</p>
+          <p>By opting in, you consent to receive recurring automated text messages from Rosie AI. Message and data rates may apply. Message frequency varies based on investment activity and announcements.</p>
           <p style={{ marginTop: '10px' }}>
             To opt out at any time, reply <strong>STOP</strong> to any message. You will receive a final confirmation and no further messages will be sent. To request help, reply <strong>HELP</strong> or contact us at the information below.
           </p>
@@ -55,7 +55,7 @@ export default function PrivacyPolicy() {
           <h2 style={{ color: '#1a1a2e', fontSize: '18px', marginTop: '32px', marginBottom: '10px' }}>8. Contact Us</h2>
           <p>If you have any questions about this Privacy Policy or our data practices, please contact us:</p>
           <div style={{ background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: '8px', padding: '16px 20px', marginTop: '12px', fontSize: '14px' }}>
-            <strong>NB Tech Acquisitions</strong><br />
+            <strong>Rosie AI</strong><br />
             Website: <a href="https://investors.rosieai.tech" style={{ color: '#b8933a' }}>investors.rosieai.tech</a><br />
             SMS: Reply <strong>HELP</strong> to any message
           </div>

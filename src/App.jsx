@@ -15,6 +15,7 @@ import AdminDashboard from './pages/AdminDashboard';
 import AdminLogin from './pages/AdminLogin';
 import Offering from './pages/Offering';
 import OptIn from './pages/OptIn';
+import OptInScreenshot from './pages/OptInScreenshot';
 import PrivacyPolicy from './pages/PrivacyPolicy';
 import Terms from './pages/Terms';
 import { PortalAuthProvider } from '@/lib/PortalAuthContext';
@@ -56,6 +57,7 @@ const AuthenticatedApp = () => {
       <Route path="/investor-page" element={<InvestorPage />} />
       <Route path="/live-codebase-explorer" element={<LiveCodebaseExplorer />} />
       <Route path="/optin" element={<OptIn />} />
+      <Route path="/optin/screenshot" element={<OptInScreenshot />} />
       <Route path="/privacy" element={<PrivacyPolicy />} />
       <Route path="/terms" element={<Terms />} />
       <Route path="*" element={<PageNotFound />} />

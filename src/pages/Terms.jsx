@@ -3,7 +3,7 @@ export default function Terms() {
     <div style={{ minHeight: '100vh', background: '#f8f9fa', padding: '40px 24px', fontFamily: 'Georgia, serif' }}>
       <div style={{ maxWidth: '760px', margin: '0 auto', background: '#fff', borderRadius: '12px', boxShadow: '0 2px 12px rgba(0,0,0,0.07)', padding: '48px 48px' }}>
         <div style={{ marginBottom: '32px' }}>
-          <div style={{ fontSize: '22px', fontWeight: 'bold', color: '#b8933a', marginBottom: '4px' }}>NB Tech Acquisitions</div>
+          <div style={{ fontSize: '22px', fontWeight: 'bold', color: '#b8933a', marginBottom: '4px' }}>Rosie AI</div>
           <h1 style={{ fontSize: '28px', fontWeight: 'bold', color: '#1a1a2e', margin: '0 0 8px' }}>SMS Terms &amp; Conditions</h1>
           <p style={{ color: '#6b7280', fontSize: '13px' }}>Last updated: May 17, 2026</p>
         </div>
@@ -12,7 +12,7 @@ export default function Terms() {
 
           <h2 style={{ color: '#1a1a2e', fontSize: '18px', marginTop: '0', marginBottom: '10px' }}>Program Description</h2>
           <p>
-            NB Tech Acquisitions operates an SMS messaging program to deliver investment updates, announcements, and important communications to opted-in subscribers. By opting in, you agree to receive recurring automated text messages from NB Tech Acquisitions.
+            Rosie AI operates an SMS messaging program to deliver investment updates, announcements, and important communications to opted-in subscribers. By opting in, you agree to receive recurring automated text messages from Rosie AI.
           </p>
 
           <h2 style={{ color: '#1a1a2e', fontSize: '18px', marginTop: '32px', marginBottom: '10px' }}>How to Opt In</h2>
@@ -26,7 +26,7 @@ export default function Terms() {
           <p>Message frequency varies. You may receive messages related to investment updates, offering announcements, milestone notifications, and other important investor communications. Frequency depends on investment activity and company announcements.</p>
 
           <h2 style={{ color: '#1a1a2e', fontSize: '18px', marginTop: '32px', marginBottom: '10px' }}>Message &amp; Data Rates</h2>
-          <p>Message and data rates may apply. These charges are billed by and payable to your mobile carrier. NB Tech Acquisitions is not responsible for any charges imposed by your carrier.</p>
+          <p>Message and data rates may apply. These charges are billed by and payable to your mobile carrier. Rosie AI is not responsible for any charges imposed by your carrier.</p>
 
           <h2 style={{ color: '#1a1a2e', fontSize: '18px', marginTop: '32px', marginBottom: '10px' }}>How to Opt Out — <strong>STOP</strong></h2>
           <p>
@@ -47,11 +47,11 @@ export default function Terms() {
           </p>
 
           <h2 style={{ color: '#1a1a2e', fontSize: '18px', marginTop: '32px', marginBottom: '10px' }}>Limitation of Liability</h2>
-          <p>NB Tech Acquisitions is not liable for any delays or failures in the receipt of any SMS messages. Delivery is subject to effective transmission from your network operator.</p>
+          <p>Rosie AI is not liable for any delays or failures in the receipt of any SMS messages. Delivery is subject to effective transmission from your network operator.</p>
 
           <h2 style={{ color: '#1a1a2e', fontSize: '18px', marginTop: '32px', marginBottom: '10px' }}>Contact Information</h2>
           <div style={{ background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: '8px', padding: '16px 20px', marginTop: '12px', fontSize: '14px' }}>
-            <strong>NB Tech Acquisitions</strong><br />
+            <strong>Rosie AI</strong><br />
             Website: <a href="https://investors.rosieai.tech" style={{ color: '#b8933a' }}>investors.rosieai.tech</a><br />
             SMS Help: Reply <strong>HELP</strong> to any message<br />
             SMS Opt-Out: Reply <strong>STOP</strong> to any message
