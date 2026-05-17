@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
+import { fmtDateTime } from '@/lib/fmtDate.js';
 
 const GOLD = '#b8933a';
 const DARK = '#0a0f1e';
@@ -41,10 +42,7 @@ Stephanie
 Investor Relations
 1-949-596-3970`;
 
-function fmtDT(iso) {
-  if (!iso) return '';
-  return new Date(iso).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
-}
+const fmtDT = (iso) => fmtDateTime(iso);
 
 /**
  * CustomEmailTab

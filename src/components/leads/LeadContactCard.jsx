@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
+import { fmtDateTime, fmtDateTimeShort, fmtDateTimeLong, fmtDateTimeWithYear, fmtDate } from '@/lib/fmtDate.js';
 import { usePortalAuth } from '@/lib/PortalAuthContext';
 import { useInlineDialer } from '@/hooks/useInlineDialer';
 import InlineCallBar from '@/components/shared/InlineCallBar';
@@ -201,11 +202,11 @@ function OverviewTab({ editLead, setEditLead, saving, saveMsg, saveProfile, upda
             {editLead.phone2 && <span style={{ color:'#8a9ab8', fontSize:'13px' }}>📱 {editLead.phone2}</span>}
             {/* Last called info */}
             {editLead.lastCalledAt ? (
-              <span style={{ color:'#6b7280', fontSize:'11px', display:'flex', alignItems:'center', gap:'4px', flexWrap:'wrap' }}>
-                <span style={{ color:'#4a5568' }}>🕐 Last called:</span>
-                <span style={{ color:'#8a9ab8' }}>
-                  {new Date(editLead.lastCalledAt).toLocaleString('en-US', { month:'short', day:'numeric', year:'numeric', hour:'numeric', minute:'2-digit' })}
-                </span>
+            <span style={{ color:'#6b7280', fontSize:'11px', display:'flex', alignItems:'center', gap:'4px', flexWrap:'wrap' }}>
+            <span style={{ color:'#4a5568' }}>🕐 Last called:</span>
+            <span style={{ color:'#8a9ab8' }}>
+              {fmtDateTime(editLead.lastCalledAt)}
+            </span>
                 {(() => {
                   // Find most recent call entry in history for duration
                   const lastCall = history.filter(h => ['call','connected'].includes(h.type) && h.callDurationSeconds > 0).sort((a,b) => new Date(b.created_date) - new Date(a.created_date))[0];
@@ -231,7 +232,7 @@ function OverviewTab({ editLead, setEditLead, saving, saveMsg, saveProfile, upda
           {editLead.bestTimeToCall && <div style={{ color:'#6b7280', fontSize:'12px' }}>⏰ Best time: {editLead.bestTimeToCall}</div>}
           {editLead.callbackAt && (
             <div style={{ color:'#a78bfa', fontSize:'12px' }}>
-              📅 Callback: {new Date(editLead.callbackAt).toLocaleString('en-US',{weekday:'short',month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})}
+              📅 Callback: {fmtDateTimeLong(editLead.callbackAt)}
             </div>
           )}
         </div>
@@ -312,7 +313,7 @@ function OverviewTab({ editLead, setEditLead, saving, saveMsg, saveProfile, upda
                         {h.createdBy && <span style={{ color:'#6b7280', fontSize:'10px' }}>· {h.createdBy}</span>}
                       </div>
                       <span style={{ color:'#4a5568', fontSize:'10px', whiteSpace:'nowrap' }}>
-                        {h.created_date ? new Date(h.created_date).toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}) : ''}
+                        {fmtDateTimeShort(h.created_date)}
                       </span>
                     </div>
                     {h.content && <div style={{ color:'#c4cdd8', fontSize:'12px', marginTop:'2px', lineHeight:1.5, whiteSpace:'pre-wrap' }}>{h.content}</div>}
@@ -340,7 +341,7 @@ function OverviewTab({ editLead, setEditLead, saving, saveMsg, saveProfile, upda
                     <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', gap:'8px' }}>
                       <span style={{ color, fontSize:'10px', textTransform:'uppercase', letterSpacing:'1px' }}>{h.type.replace(/_/g,' ')}</span>
                       <span style={{ color:'#4a5568', fontSize:'10px', whiteSpace:'nowrap' }}>
-                        {h.created_date ? new Date(h.created_date).toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}) : ''}
+                        {fmtDateTimeShort(h.created_date)}
                       </span>
                     </div>
                     {h.content && <div style={{ color:'#c4cdd8', fontSize:'12px', marginTop:'2px', lineHeight:1.5, whiteSpace:'pre-wrap' }}>{h.content}</div>}
@@ -473,7 +474,7 @@ function LeadHistoryTab({ lead, history, onNoteAdded, createdBy = 'admin' }) {
   const [loadingEmails, setLoadingEmails] = useState(false);
   const GOLD = '#b8933a';
 
-  const fmtDT = (iso) => iso ? new Date(iso).toLocaleString('en-US', { month:'short', day:'numeric', year:'numeric', hour:'numeric', minute:'2-digit' }) : '';
+  const fmtDT = (iso) => fmtDateTime(iso);
   const fmtDur = (s) => !s ? '' : s < 60 ? `${s}s` : `${Math.floor(s/60)}m ${s%60}s`;
 
   useEffect(() => {
@@ -573,7 +574,7 @@ function LeadHistoryTab({ lead, history, onNoteAdded, createdBy = 'admin' }) {
                         <span style={{ color, fontSize:'10px', textTransform:'uppercase', letterSpacing:'1px' }}>{h.type.replace(/_/g,' ')}</span>
                         {h.createdBy && <span style={{ color:'#6b7280', fontSize:'10px' }}>· {h.createdBy}</span>}
                       </div>
-                      <span style={{ color:'#4a5568', fontSize:'10px' }}>{fmtDT(h.created_date)}</span>
+                      <span style={{ color:'#4a5568', fontSize:'10px' }}>{fmtDateTime(h.created_date)}</span>
                     </div>
                     <p style={{ color:'#c4cdd8', fontSize:'12px', margin:0, lineHeight:1.6, whiteSpace:'pre-wrap' }}>{h.content}</p>
                   </div>
@@ -648,7 +649,7 @@ function LeadHistoryTab({ lead, history, onNoteAdded, createdBy = 'admin' }) {
             {(lead.lastSiteVisit || lead.portalPasscode) && (
               <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'8px' }}>
                 {[
-                  ['🕐 Last Visit',     lead.lastSiteVisit ? fmtDT(lead.lastSiteVisit) : 'Never',  '#60a5fa'],
+                  ['🕐 Last Visit',     lead.lastSiteVisit ? fmtDateTime(lead.lastSiteVisit) : 'Never',  '#60a5fa'],
                   ['🔑 Portal User',    lead.portalPasscode || 'Not assigned',                       GOLD],
                   ['📬 Email Opened',   lead.badgeEmailOpened ? '✓ Yes' : 'Not yet',                lead.badgeEmailOpened ? '#4ade80' : '#4a5568'],
                   ['🌟 Intro Opened',   lead.badgeIntroEmailOpened ? '✓ Yes' : 'Not yet',           lead.badgeIntroEmailOpened ? '#4ade80' : '#4a5568'],
@@ -1045,7 +1046,7 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
     if (note) await logHistory('note', note);
     if (callbackDate) {
       await base44.entities.Lead.update(lead.id, { callbackAt: callbackDate });
-      await logHistory('callback_later', `Callback scheduled for ${new Date(callbackDate).toLocaleString()}`);
+      await logHistory('callback_later', `Callback scheduled for ${fmtDateTime(callbackDate)}`);
       setEditLead(prev => ({ ...prev, callbackAt: callbackDate }));
     }
     setProspectNote('');
@@ -1055,7 +1056,7 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
   const handleNotAvailable = async () => {
     const note = notAvailableNote.trim();
     const now = new Date().toISOString();
-    await updateStatus('not_available', 'not_available', `Not available${note ? ` — ${note}` : ` — ${new Date().toLocaleString()}`}`, { lastCalledAt: now });
+    await updateStatus('not_available', 'not_available', `Not available${note ? ` — ${note}` : ` — ${fmtDateTime(now)}`}`, { lastCalledAt: now });
     // Fire onCallLogged so LeadsTab stamps lastCalledAt and re-sorts
     onCallLogged && onCallLogged(lead.id);
     if (note) await logHistory('note', note);
@@ -1074,7 +1075,7 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
 
   const handleCallbackLater = async () => {
     if (!callbackDate) return;
-    await updateStatus('callback_later', 'callback_later', `Callback scheduled for ${new Date(callbackDate).toLocaleString()}`, { callbackAt: callbackDate });
+    await updateStatus('callback_later', 'callback_later', `Callback scheduled for ${fmtDateTime(callbackDate)}`, { callbackAt: callbackDate });
     setCallbackDate('');
   };
 
@@ -1091,7 +1092,7 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
       setShowCallbackPicker(true);
       return;
     }
-    await updateStatus('callback_later', 'callback_later', `Callback later — ${new Date(date).toLocaleString()}`, { callbackAt: date });
+    await updateStatus('callback_later', 'callback_later', `Callback later — ${fmtDateTime(date)}`, { callbackAt: date });
     clearFn && clearFn();
     setShowCallbackPicker(false);
   };
@@ -1228,7 +1229,7 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
                   });
                   await base44.entities.LeadHistory.create({
                     leadId: lead.id, type: 'callback_later',
-                    content: `📅 Follow up scheduled for ${new Date(followUpDate).toLocaleString('en-US',{weekday:'short',month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})}${followUpNote ? ` — ${followUpNote}` : ''} · by ${currentUsername}`,
+                    content: `📅 Follow up scheduled for ${fmtDateTimeLong(followUpDate)}${followUpNote ? ` — ${followUpNote}` : ''} · by ${currentUsername}`,
                     createdBy: currentUsername,
                   });
                   setShowFollowUpModal(false); setFollowUpDate(''); setFollowUpNote('');

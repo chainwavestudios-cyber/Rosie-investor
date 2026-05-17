@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
+import { fmtDateTime, fmtDate, fmtDateTimeShort } from '@/lib/fmtDate.js';
 
 const GOLD = '#b8933a';
 const DARK = '#080f1c';
@@ -9,16 +10,6 @@ function formatDur(sec) {
   const m = Math.floor(sec / 60);
   const s = sec % 60;
   return m > 0 ? `${m}m ${s}s` : `${s}s`;
-}
-
-function fmtDateTime(iso) {
-  if (!iso) return '—';
-  return new Date(iso).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
-}
-
-function fmtDate(iso) {
-  if (!iso) return '—';
-  return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
 const STATUS_COLORS = {
@@ -578,7 +569,7 @@ export default function CallLogPanel({ onClose, onOpenLead }) {
                           </div>
                           <div style={{ textAlign: 'right', flexShrink: 0 }}>
                             <div style={{ color: '#6b7280', fontSize: '10px', marginBottom: '2px' }}>
-                              {c.startTime ? new Date(c.startTime).toLocaleString('en-US', { month:'short', day:'numeric', hour:'numeric', minute:'2-digit' }) : '—'}
+                              {c.startTime ? fmtDateTimeShort(c.startTime) : '—'}
                             </div>
                             <div style={{ display:'flex', gap:'4px', justifyContent:'flex-end', alignItems:'center' }}>
                               <span style={{ color: statusColor, fontSize: '10px' }}>{c.status}</span>
