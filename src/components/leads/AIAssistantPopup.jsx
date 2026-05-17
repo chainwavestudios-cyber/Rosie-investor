@@ -3,6 +3,274 @@ import { base44 } from '@/api/base44Client';
 
 const GOLD = '#b8933a';
 
+// ── NB Tech Price Scenarios (hardcoded context for Q&A / Coach / Intent) ──────
+const NB_PRICE_SCENARIOS = `
+NB TECH ACQUISITIONS — 7 INVESTOR RETURN SCENARIOS (6 Month / 1 Year / 18 Month)
+Current offering: $0.16/share NB Tech common stock. 21:1 conversion → NewCo shares. Implied NewCo basis ~$3.36/share. Target Nasdaq IPO: $7.00/share. All scenarios are speculative forward-looking projections.
+
+SCENARIO 1 — BASE CASE (Normal execution, Nasdaq listing Sept 2026)
+• 6 Months: Lists at $7.00 → 2.08x on NewCo basis ($3.36 in, $7.00 out)
+• 1 Year: Post-listing stabilizes at $9.50 (revenue growth visible) → 2.83x
+• 18 Months: Magnus AI SaaS kicking in, stock at $14.00 → 4.17x
+
+SCENARIO 2 — CONSERVATIVE (Audit/SEC delays, listing Q1 2027)
+• 6 Months: Pre-listing, illiquid at $0.16 NB Tech (no change)
+• 1 Year: Lists at $5.50 (below target) → 1.64x on NewCo basis
+• 18 Months: Post-listing growth to $7.80 → 2.32x
+
+SCENARIO 3 — BULL CASE (Siebert raise oversubscribed, AI sector momentum)
+• 6 Months: Lists at $7.00, pops to $11.00 → 3.27x
+• 1 Year: Revenue guidance + Magnus SaaS MRR visible → $16.50 → 4.91x
+• 18 Months: Installer rollup acquisitions announced → $22.00 → 6.55x
+
+SCENARIO 4 — AGGRESSIVE GROWTH (Magnus AI subscriptions materialize early)
+• 6 Months: Lists at $7.00 → re-rates to $13.00 (P/S 5x on $64M fwd rev) → 3.87x
+• 1 Year: Subscription MRR $500K/month ($6M ARR), stock at $19.00 → 5.65x
+• 18 Months: Revenue $85M+, gross margin to 40%+, stock at $28.00 → 8.33x
+
+SCENARIO 5 — REVENUE EXPLOSION (NightOwl Costco + commercial rollout)
+• 6 Months: Lists $7.00 → $10.00 on Costco national rollout → 2.98x
+• 1 Year: Revenue run rate $110M → stock at $24.00 → 7.14x
+• 18 Months: Multi-site commercial contracts, recurring > hardware → $38.00 → 11.31x
+
+SCENARIO 6 — SECTOR TAILWIND (Privacy-first/American-made becomes legislative mandate)
+• 6 Months: Lists $7.00 → $12.00 on NDAA/procurement mandate → 3.57x
+• 1 Year: Government contract, stock gaps to $21.00 → 6.25x
+• 18 Months: Category-defining brand in $13.5B commercial security TAM → $35.00 → 10.42x
+
+SCENARIO 7 — WORST CASE (Merger falls through or listing fails)
+• 6 Months: No listing, stays private at $0.16 (illiquid) → 1.0x
+• 1 Year: Bridge capital at $0.20–$0.25 → modest appreciation → 1.25–1.56x
+• 18 Months: Alternative exit (OTC/reverse merger/acquisition) → $0.30–$0.50 → 1.88–3.13x
+
+DOLLAR EXAMPLE — $25,000 minimum investment at $0.16/share:
+• Shares acquired: 156,250 NB Tech shares → 7,440 NewCo shares (÷21)
+• At $5.50 conservative: $40,920 (+$15,920)
+• At $7.00 IPO target: $52,080 (+$27,080)
+• At $11.00 bull pop: $81,840 (+$56,840)
+• At $22.00 (18mo bull): $163,680 (+$138,680)
+• At $38.00 (revenue explosion): $282,720 (+$257,720)
+All figures pre-tax, hypothetical, not guaranteed.
+`;
+
+const NB_KEYWORD_CONTEXT = `
+NB TECH KEY FACTS FOR CALL HANDLING:
+• Share price: $0.16/share | Min investment: $25,000 (156,250 shares) | Max: $500,000
+• Currently 18,257,000 shares issued | 1,000,000,000 authorized
+• 21:1 conversion NB Tech → NewCo shares | Implied NewCo basis: ~$3.36/share
+• Target Nasdaq IPO: $7.00/share | Initial market cap: ~$105M
+• Siebert Williams Shank LOI (March 16, 2026) — min raise $15M, target $100M
+• Nightowl: $49M annual revenue, 20+ years, Best Buy/Walmart/Amazon/Home Depot distribution
+• Magnus AI: NB Tech's cloud+AI platform — cloud migration, AI alerts, privacy dashboards, subscriptions
+• PCAOB Auditor: Astra Audit & Advisory | SEC Attorney: TroyGould | IR/PR: MicroCap Advisory
+• Immediate EBITDA improvement post-merger: ~$3.3M (no revenue growth needed)
+• Projected 2026 net income: $5.7M | 2027: $18.1M | 2028: $34M | 2029: $55.2M
+• DCF implied enterprise value: $605M | CCA implied: ~$195M
+• Eric Liboiron: CEO, 11M shares, $400K convertible note → 400M Class B shares (10 votes/share)
+• Reg D Rule 506(c) — accredited investors only | Incorporated Nevada
+• Payment: check, wire, ACH, credit card, or self-directed IRA
+• Nightowl products: cameras, NVR, doorbells — all American-owned, manufactured Vietnam
+• Privacy-first TAM: $50B+ growing 25-40% CAGR | Commercial security TAM: $13.5B
+• Comparable security companies: Arlo (2.4x EV/Rev), ADT (2.8x), Alarm.com (2.5x), Ubiquiti (12x)
+`;
+
+// ── Tidbits Library ──────────────────────────────────────────────────────────
+const TIDBITS = {
+  'NB Tech Overview': [
+    "NB Tech acquires and develops code-based AI, blockchain, and cryptography assets — think of them as Silicon Valley's access point for accredited investors who've historically been locked out. They started August 2021, already have a portfolio, and 70% of their Canadian development costs are subsidized by the Canadian government. That's a structural cost advantage most competitors don't have.",
+    "The team runs deep — Eric Liboiron has 20+ years launching companies, they've assembled a PhD-level AI team, and Stan Watkins brings Fortune 100 consulting experience across 200+ industries. Savanna Spieckerman handles compliance with a background in data analytics. This isn't a startup with an idea — it's an operating team.",
+    "The investment model is uniquely structured: unlike VC funds that lock investors into illiquid positions, NB Tech generates early cash flow through licensing while retaining full IP ownership. Multiple revenue streams — licensing, royalties, ownership of commercializing companies, and exits through sales or JVs.",
+  ],
+  'The 21:1 Conversion & IPO Math': [
+    "Here's the math that matters: $0.16/share NB Tech, 21-to-1 into NewCo. Your implied NewCo cost basis is about $3.36/share. The Nasdaq IPO target is $7.00. That's more than doubling your basis at the opening bell — before any post-IPO price movement. The institutional investors coming in through Siebert will be paying $7. You paid the equivalent of $3.36.",
+    "Dollar example on the $25,000 minimum: that buys you 156,250 NB Tech shares, which convert to approximately 7,440 NewCo shares. At the $7.00 IPO target, that's $52,080 — a $27,080 gain on your $25,000 investment. If it runs to $11 on AI sector momentum, you're looking at $81,840. These are projections, not guarantees — but that's the structure.",
+    "The 21-to-1 ratio exists specifically because this is a pre-merger, pre-IPO entry point. By the time Siebert's institutional book comes in at $7.00, the conversion math has already built your upside into the structure. The ratio is the mechanism — your $0.16 buys a $3.36-equivalent NewCo position.",
+  ],
+  'The Nightowl Acquisition': [
+    "Nightowl has been in business for over 20 years, $49 million in annual revenue — Best Buy, Walmart, Amazon, Home Depot. They have the distribution, the brand recognition, the repeat customer base. What they don't have is the technology stack for the next decade. NB Tech's Magnus AI delivers that. Neither company could build this combination from scratch as fast or as cheaply.",
+    "Ron Ferris, the founder of Nightowl, isn't just selling and walking away. He's staying on as Chief Revenue Officer with equity in the combined company. When the founder retains skin in the game post-acquisition, that's a signal about his belief in the upside. He knows his business better than anyone — and he chose this path.",
+    "The post-merger EBITDA improvement is $3.3 million annually — without growing revenue by a single dollar. That comes from eliminating redundant overhead between Magnus AI and Nightowl, retiring the $8.3M founder note (saves $788K in annual interest), capturing the Vietnamese subsidiary profit, and tech stack consolidation. Day-one improvement, no new sales required.",
+  ],
+  'Magnus AI & Technology': [
+    "Magnus AI is NB Tech's full cloud and software platform — already funded and built. It delivers AI-powered smart detection (humans, vehicles, real threats — eliminates false alerts), privacy dashboards with granular data controls, subscription-based storage and monitoring, edge AI processing (local, not cloud-dependent), and a rebuilt mobile app ecosystem. This isn't a roadmap — it's built.",
+    "The AI capabilities going into Nightowl products: facial recognition for known vs. unknown individuals, predictive security that learns household routines and anticipates risks, active deterrence with automated lights/sirens/voice warnings, identity-based door unlocking, zoned home security architecture, and emergency overrides. This is what transforms a hardware company into a platform.",
+    "NB Tech's Canadian development team operates at 70% subsidized cost — funded by the Canadian government. Rhys Parry leads cloud infrastructure as CTO (Kubernetes, serverless, DevOps pioneer), and Dr. Abdul Jabbar heads AI/ML (PhD Computer Science, University of Newcastle, formerly Allen Institute for AI). This is credentialed technical depth.",
+  ],
+  'Siebert LOI & Nasdaq Timeline': [
+    "Siebert Williams Shank has been around since 1967. FINRA and NYSE registered. About $18 billion in client assets, roughly $80 million in annual revenue, 150 employees. They signed the LOI on March 16, 2026. Minimum raise commitment: $15 million. Target: up to $100 million. That's real institutional validation — not a letter from a no-name boutique.",
+    "The Nasdaq timeline: PCAOB audit completes in approximately 4 months, S-1 files concurrent with that, SEC review takes 1-2 rounds of comments (7-10 day turnaround targeted), Nasdaq listing application submitted mid-summer, S-1 declared effective late August, trading begins September 2026. The full team is retained: TroyGould as SEC counsel, Astra Audit as PCAOB auditor, MicroCap Advisory for IR/PR.",
+    "To qualify for the Nasdaq Capital Market, NewCo needs: bid price minimum $4/share, at least 1 million publicly held shares, minimum $15M market value of public float, minimum 300 round-lot shareholders. The Siebert raise targeting $15M+ at $7.00/share satisfies the market value standard. Nightowl's 20+ year operating history satisfies the equity standard. The audit and S-1 are the execution steps.",
+  ],
+  'Revenue & Financials': [
+    "Projected revenue trajectory for NewCo: $49M gross sales in 2025 (Nightowl baseline), $64M in 2026, $110M in 2027, $150M in 2028, and over $200M in 2029. That's roughly 48-50% CAGR from 2026 to 2029. The gross margin expands from 23% today to 53% by 2029 — that expansion is the Magnus AI SaaS layer on top of hardware revenue.",
+    "The DCF analysis implies $605M enterprise value for the combined entity. Comparable company analysis — using the peer median of 2.7x EV/Rev and 11.6x EV/EBITDA — implies a NightOwl EV around $195M on 2026 forward metrics. The gap between those two numbers is the AI growth premium. As Magnus AI revenue grows, the multiple re-rates toward AI/SaaS peers.",
+    "Revenue profitability in 2026: $5.7M net income on $48.4M net revenue. By 2029: $55.2M net income on $166.1M net revenue. The key driver of margin expansion is the shift from pure hardware (23% gross margin) to a blended hardware + SaaS/subscription model (53% gross margin projected). Every Magnus AI subscription added is pure software margin.",
+  ],
+  'Market Opportunity': [
+    "The privacy-first, American-made security market is estimated at over $50 billion, growing at 25 to 40 percent annually. And they're not just competing in it — they're positioned to define the category. Chinese-made surveillance cameras are getting legislatively banned. Hikvision and Dahua are on federal ban lists. Nightowl fills that vacuum as the only scaled American-owned alternative with retail distribution.",
+    "The commercial security TAM is $13.5 billion nationally. Target customers: law firms, medical practices, gun ranges/FFL retailers, manufacturers, contractors, retailers, gyms, car dealerships, home builders. Average commercial customer spends $2,000 to $25,000 on hardware/installation, plus $200 to $3,600 annually on software. Multi-site customers average $30,000 to $150,000 per year.",
+    "50 to 75 million American adults prioritize privacy, sovereignty, and non-surveillance technology. 20 to 30 million households represent an $8B to $40B consumer TAM. These consumers are actively rejecting Chinese-made surveillance products and choosing premium, privacy-first alternatives. NightOwl is already the American-made brand — Magnus AI makes it the privacy-first platform.",
+  ],
+  'Investment Terms & Process': [
+    "The minimum is $25,000 for 156,250 shares. Maximum per investor: $500,000. You can invest by check, wire transfer, ACH, credit card, or even a self-directed IRA. Regulation D Rule 506(c) — this offering is restricted to accredited investors only. The company reserves the right to waive the minimum at its discretion.",
+    "Accredited investor means either a net worth over $1 million excluding your primary residence, or individual income over $200,000 in each of the last two years — or $300,000 joint with a spouse — with the same expectation this year. Once verified, the process is: sign the Investor Suitability Questionnaire, execute the Subscription Agreement, send payment.",
+    "This is common equity — not a promissory note, not a debt instrument. You receive shares of NB Tech Acquisitions Corp., which convert 21-to-1 into NewCo shares upon the merger. Shares are restricted — no public market until the Nasdaq listing. The path to liquidity is the IPO. Hold period could be 6 months if the timeline holds, longer if there are delays.",
+  ],
+  'Risk & Objections': [
+    "The honest risk profile: growth-stage, speculative investment. Operations started August 2021. The Nasdaq listing and merger are not guaranteed. The Nightowl $49M revenue is unaudited. Only accredited investors who can afford to lose their entire investment should be in. That's not a disclaimer — that's the reality of pre-IPO private placements.",
+    "On the holding period question: if the September 2026 Nasdaq timeline holds, investors who get in now could have liquid shares within approximately 6 months. If the audit hits delays or the SEC takes more comment rounds, it could slip into Q1 or Q2 2027. This is not a short-term instrument — it's structured like a pre-IPO placement.",
+    "The voting structure is worth understanding: Eric Liboiron holds a $400,000 convertible note that converts into 400 million Class B shares at 10 votes per share — that's 4 billion votes. New investors receive standard common stock at 1 vote per share. Investors will not control the company. This is standard founder-control structure, and it's disclosed in the PPM.",
+  ],
+  'Competitor Comparison': [
+    "Security company comparable valuations: Arlo Technologies — $1.24B enterprise value at 2.4x EV/Rev. ADT — $14.28B at 2.8x EV/Rev. Alarm.com — $2.49B at 2.5x EV/Rev. Ubiquiti — $33.21B at 12.1x EV/Rev. At just the peer median of 2.7x on Nightowl's $64M 2026 revenue, that's a $173M enterprise value. At $110M 2027 revenue, that's $297M.",
+    "The AI multiple expansion story: small-cap AI companies like SoundHound trade at 59x price-to-sales. BigBear.ai at 13x. Innodata at 13x. Even at a conservative 5x P/S as Magnus AI SaaS revenue grows, you're looking at dramatically higher valuations than the hardware peer group. The IPO at $7.00 would price the combined entity at roughly 2.7x 2026 revenue — in line with conservative comps.",
+    "The Hikvision and Dahua federal ban created a $3-5 billion vacuum in the American security market — enterprise, government, and privacy-conscious consumer all rejecting Chinese-made hardware. Nightowl is the only scaled, American-owned security brand with major retail distribution. The timing of this merger with the privacy-first positioning is not coincidental.",
+  ],
+  'Price Scenarios & Returns': [
+    "Base case scenario: NB Tech investor buys at $0.16, converts 21-to-1 to a $3.36 NewCo basis. Nasdaq lists at $7.00 target in September 2026 — that's 2.08x on the NewCo basis in roughly 6 months. If the stock stabilizes at $9.50 after 12 months of trading, that's 2.83x. By 18 months, with Magnus AI SaaS revenue visible, analyst targets point to $14.00, which is 4.17x the NewCo basis.",
+    "Bull case: the Siebert raise gets oversubscribed and AI/security sector momentum carries the stock. Lists at $7.00, pops to $11.00 at open — 3.27x NewCo basis on day one. At 12 months with revenue guidance and subscription MRR becoming visible, $16.50 to $19.00 is achievable — 4.91x to 5.65x. The installer rollup announcement at 18 months could push to $22.00 or higher — 6.55x.",
+    "Revenue explosion scenario: Costco national rollout alone can drive 500,000+ units annually. At 1 year post-IPO with $110M revenue run rate, comparable company multiples support a $24.00 stock — 7.14x NewCo basis. At 18 months with multi-site commercial contracts and recurring revenue exceeding hardware, $38.00 is the aggressive scenario — 11.31x. On a $25,000 investment, that's $282,720.",
+  ],
+};
+
+// ── Report generator ──────────────────────────────────────────────────────────
+function generateHTMLReport({ lead, transcript, qaLog, coachTips, intentResult, callStartTime, callEndTime, kbName, selectedKbName }) {
+  const duration = callStartTime && callEndTime ? Math.round((callEndTime - callStartTime) / 1000) : 0;
+  const mins = Math.floor(duration / 60); const secs = duration % 60;
+
+  // Speaking time analysis (by word count — diarized speaker 0 = agent, speaker 1 = prospect)
+  const speaker0 = transcript.filter(t => t.speaker === 0 || t.speaker === null || t.speaker === undefined);
+  const speaker1 = transcript.filter(t => t.speaker === 1);
+  const s0words = speaker0.reduce((a, t) => a + t.text.split(' ').length, 0);
+  const s1words = speaker1.reduce((a, t) => a + t.text.split(' ').length, 0);
+  const totalWords = (s0words + s1words) || 1;
+  const agentPct = Math.round((s0words / totalWords) * 100);
+  const prospectPct = 100 - agentPct;
+
+  const intentScore = intentResult?.intentScore;
+  const intentLabel = intentScore == null ? 'Not measured'
+    : intentScore >= 75 ? '🟢 Strong Buying Intent'
+    : intentScore >= 50 ? '🟡 Moderate Interest'
+    : intentScore >= 25 ? '🟠 Low Interest' : '🔴 Resistant';
+
+  const closeSignals = transcript.filter(t =>
+    /minimum|send me|wire|sign up|how do i get|how much|what.s the next step|get involved|interested|where do i send|portal|ppm|deck/i.test(t.text)
+  );
+
+  const now = new Date();
+  const dateStr = now.toLocaleString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+  const leadName = lead ? (lead.firstName ? `${lead.firstName} ${lead.lastName || ''}`.trim() : lead.name || 'Unknown') : 'Training Session';
+
+  return `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>AI Assistant Call Report — ${leadName}</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:Georgia,serif;background:#fff;color:#1a1a2e;padding:40px;font-size:13px;line-height:1.6}
+h1{font-size:22px;color:#0a0f1e;margin-bottom:4px}
+.sub{color:#b8933a;font-size:10px;letter-spacing:3px;text-transform:uppercase;margin-bottom:6px}
+.date{color:#6b7280;font-size:11px;margin-bottom:28px}
+.section{margin-bottom:24px}
+.section-title{font-size:10px;letter-spacing:2px;text-transform:uppercase;color:#b8933a;border-bottom:2px solid #b8933a;padding-bottom:6px;margin-bottom:14px}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:16px}
+.stat{background:#f8f9fa;border:1px solid #e5e7eb;border-radius:6px;padding:14px;text-align:center}
+.stat-val{font-size:24px;font-weight:bold;color:#0a0f1e}
+.stat-lbl{font-size:10px;color:#6b7280;text-transform:uppercase;letter-spacing:1px;margin-top:4px}
+.box{background:#f8f9fa;border:1px solid #e5e7eb;border-radius:6px;padding:16px;margin-bottom:12px}
+.intent-bar{height:10px;background:#e5e7eb;border-radius:5px;overflow:hidden;margin:10px 0}
+.intent-fill{height:100%;background:linear-gradient(90deg,#ef4444,#f59e0b,#4ade80);border-radius:5px}
+.qa-item{background:#f0fdf4;border:1px solid #86efac;border-left:4px solid #22c55e;border-radius:4px;padding:12px;margin-bottom:10px}
+.qa-q{color:#166534;font-size:11px;font-weight:bold;margin-bottom:6px}
+.qa-a{color:#374151;font-size:12px;line-height:1.6}
+.coach-item{background:#fffbeb;border:1px solid #fcd34d;border-left:4px solid #f59e0b;border-radius:4px;padding:10px;margin-bottom:8px;font-size:12px;color:#374151;line-height:1.5}
+.close-item{background:#eff6ff;border:1px solid #93c5fd;border-radius:4px;padding:8px 12px;margin-bottom:6px;font-size:12px;color:#1e40af}
+.t-line{display:flex;gap:10px;padding:7px 0;border-bottom:1px solid #f3f4f6}
+.t-spk{font-size:10px;font-weight:bold;text-transform:uppercase;letter-spacing:1px;min-width:80px;flex-shrink:0}
+.t-spk-0{color:#3b82f6}.t-spk-1{color:#b8933a}
+.t-txt{font-size:12px;color:#374151;flex:1}
+.t-time{font-size:10px;color:#9ca3af;min-width:64px;text-align:right;flex-shrink:0}
+.bar-wrap{display:flex;gap:16px;align-items:center}
+.bar{flex:1;height:8px;background:#e5e7eb;border-radius:4px;overflow:hidden;display:flex}
+.kpi-row{display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:12px}
+.kpi-row div{padding:8px 12px;background:#f8f9fa;border:1px solid #e5e7eb;border-radius:4px;display:flex;justify-content:space-between}
+.kpi-row strong{color:#0a0f1e}
+footer{margin-top:32px;padding-top:16px;border-top:1px solid #e5e7eb;color:#9ca3af;font-size:10px}
+@media print{body{padding:20px}.grid{grid-template-columns:repeat(3,1fr)}}
+</style>
+</head>
+<body>
+<h1>AI Assistant — Call Report</h1>
+<div class="sub">Live Intelligence System · Call Analysis</div>
+<div class="date">${dateStr} · Lead: ${leadName}${kbName || selectedKbName ? ` · KB: ${kbName || selectedKbName}` : ''}</div>
+
+<div class="section">
+<div class="section-title">Call Analytics</div>
+<div class="grid">
+<div class="stat"><div class="stat-val">${mins}m ${secs}s</div><div class="stat-lbl">Duration</div></div>
+<div class="stat"><div class="stat-val">${transcript.length}</div><div class="stat-lbl">Transcript Lines</div></div>
+<div class="stat"><div class="stat-val">${closeSignals.length}</div><div class="stat-lbl">Close Signals</div></div>
+<div class="stat"><div class="stat-val">${agentPct}%</div><div class="stat-lbl">Agent Speaking</div></div>
+<div class="stat"><div class="stat-val">${prospectPct}%</div><div class="stat-lbl">Prospect Speaking</div></div>
+<div class="stat"><div class="stat-val">${qaLog.length}</div><div class="stat-lbl">Q&A Answered</div></div>
+</div>
+<div class="box">
+<div class="bar-wrap" style="margin-bottom:10px">
+<span style="color:#3b82f6;font-size:11px;min-width:60px">Agent ${agentPct}%</span>
+<div class="bar"><div style="width:${agentPct}%;background:#3b82f6"></div><div style="width:${prospectPct}%;background:#b8933a"></div></div>
+<span style="color:#b8933a;font-size:11px;min-width:80px;text-align:right">Prospect ${prospectPct}%</span>
+</div>
+<div style="font-size:11px;color:#6b7280">${agentPct > 65 ? '⚠ Agent dominated the conversation. Aim for prospect talking 40-60% of the time.' : agentPct < 30 ? '⚠ Agent needs to take more control of the narrative.' : '✓ Good speaking time balance — prospect was engaged.'}</div>
+</div>
+</div>
+
+<div class="section">
+<div class="section-title">Intent Evaluation</div>
+<div class="box">
+<div style="font-size:16px;font-weight:bold;margin-bottom:8px">${intentLabel}</div>
+${intentScore != null ? `<div class="intent-bar"><div class="intent-fill" style="width:${intentScore}%"></div></div><div style="font-size:12px;color:#6b7280">Score: ${intentScore}/100 — ${intentScore >= 75 ? 'Move to close immediately' : intentScore >= 50 ? 'Keep building rapport and address concerns' : 'Qualify further or set a callback'}</div>` : '<div style="font-size:12px;color:#6b7280">Intent tracking was not active during this call. Enable the Intent toggle in the AI Assistant before your next call for full analysis.</div>'}
+</div>
+${closeSignals.length > 0 ? `<div style="font-size:10px;color:#6b7280;margin-bottom:8px;text-transform:uppercase;letter-spacing:1px">Close Signals Detected (${closeSignals.length})</div>
+${closeSignals.slice(0, 5).map(s => `<div class="close-item">🎯 "${s.text.slice(0, 120)}"<span style="float:right;color:#9ca3af">${new Date(s.time).toLocaleTimeString()}</span></div>`).join('')}` : '<div style="font-size:12px;color:#6b7280;padding:10px;background:#f8f9fa;border-radius:4px">No close signals detected. Focus on recognizing prospect buying signals: questions about minimums, next steps, process, or wire instructions.</div>'}
+</div>
+
+${qaLog.length > 0 ? `<div class="section">
+<div class="section-title">Q&A Log — ${qaLog.length} Questions Handled</div>
+${qaLog.map(item => `<div class="qa-item"><div class="qa-q">Q: ${item.question || item.q || ''}</div><div class="qa-a">A: ${item.answer || item.a || 'Not recorded'}</div></div>`).join('')}
+</div>` : ''}
+
+${coachTips.length > 0 ? `<div class="section">
+<div class="section-title">Coach Tips — ${coachTips.length} Tips During Call</div>
+${coachTips.map(t => `<div class="coach-item">💡 ${typeof t === 'string' ? t : t.text || t.tip || JSON.stringify(t)}</div>`).join('')}
+</div>` : ''}
+
+<div class="section">
+<div class="section-title">Full Transcript — ${transcript.length} Lines</div>
+${transcript.length === 0 ? '<div style="color:#9ca3af;font-size:12px;padding:20px;text-align:center">No transcript recorded. Ensure the AI Assistant is connected and the audio stream is active during the call.</div>' :
+  transcript.map(t => `<div class="t-line">
+<span class="t-spk ${t.speaker === 1 ? 't-spk-1' : 't-spk-0'}">${t.speaker === 1 ? '👤 Prospect' : t.speaker === 0 ? '🎙 Agent' : '🎙 Agent'}</span>
+<span class="t-txt">${t.text}</span>
+<span class="t-time">${new Date(t.time).toLocaleTimeString()}</span>
+</div>`).join('')}
+</div>
+
+<footer>Generated by AI Live Assistant · ${dateStr} · ${leadName}${kbName ? ` · KB: ${kbName}` : ''}</footer>
+</body>
+</html>`;
+}
+
+function downloadReport(html, leadName) {
+  const blob = new Blob([html], { type: 'text/html' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `CallReport_${(leadName || 'Session').replace(/\s+/g, '_')}_${new Date().toISOString().slice(0, 10)}.html`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+
 // ── Much broader question detection ──────────────────────────────────────────
 const QUESTION_PATTERNS = [
   /\b(what|how|why|when|where|who|can|could|would|is|are|do|does|will|should|have|has|tell me|explain|describe|show me|walk me through|give me)\b.{4,120}\?/gi,
