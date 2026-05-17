@@ -87,46 +87,26 @@ function ReportsTab({ lines }) {
   const generate = async () => {
     setLoading(true);
     try {
-      let dayStart, dayEnd;
-      if (mode === 'year') {
-        dayStart = new Date(`${year}-01-01T00:00:00`);
-        dayEnd   = new Date(`${year}-12-31T23:59:59`);
-      } else {
-        dayStart = new Date(date + 'T00:00:00');
-        dayEnd   = new Date(date + 'T23:59:59');
-      }
+      const startDate = mode === 'year' ? `${year}-01-01` : date;
+      const endDate   = mode === 'year' ? `${year}-12-31` : date;
 
-      // Use LeadHistory as the source of truth for outbound calls
-      const histories = await base44.entities.LeadHistory.list('-created_date', 1000);
-      let filtered = (histories || []).filter(h => {
-        if (!['call', 'connected', 'not_available'].includes(h.type)) return false;
-        const t = new Date(h.created_date || 0);
-        return t >= dayStart && t <= dayEnd;
-      });
+      const res = await base44.functions.invoke('twilioCallLogs', { startDate, endDate });
+      const calls = res.data?.calls || [];
 
-      if (userFilter !== 'all') {
-        filtered = filtered.filter(h => (h.createdBy || '').toLowerCase() === userFilter.toLowerCase());
-      }
+      // Filter to outbound only for reporting (inbound = answering service)
+      let filtered = calls.filter(c => c.direction !== 'inbound');
+      // userFilter not available from Twilio directly — skip if 'all'
+      // (Twilio doesn't store which agent made the call)
 
-      const totalCalls = filtered.length;
-      const connected = filtered.filter(h => h.type === 'connected' || (h.callDurationSeconds > 0));
-      const answeredCount = connected.length;
+      const totalCalls   = filtered.length;
+      const answered     = filtered.filter(c => c.status === 'completed' && c.duration > 0);
+      const answeredCount = answered.length;
       const connectionRate = totalCalls > 0 ? ((answeredCount / totalCalls) * 100).toFixed(1) : '0.0';
-      const totalDial = filtered.reduce((sum, h) => sum + (h.callDurationSeconds || 0), 0);
-      const avgDial = answeredCount > 0 ? Math.round(totalDial / answeredCount) : 0;
-      const longestCall = filtered.reduce((max, h) => Math.max(max, h.callDurationSeconds || 0), 0);
+      const totalDial    = filtered.reduce((sum, c) => sum + (c.duration || 0), 0);
+      const avgDial      = answeredCount > 0 ? Math.round(totalDial / answeredCount) : 0;
+      const longestCall  = filtered.reduce((max, c) => Math.max(max, c.duration || 0), 0);
 
-      // Converted = lead marked as prospect or nb_tech that day
-      const convertedCount = (histories || []).filter(h => {
-        const t = new Date(h.created_date || 0);
-        return t >= dayStart && t <= dayEnd &&
-          (h.type === 'interested' || h.type === 'prospect' ||
-           (h.content || '').toLowerCase().includes('marked as prospect') ||
-           (h.content || '').toLowerCase().includes('nb tech'));
-      }).length;
-      const convertedPct = totalCalls > 0 ? ((convertedCount / totalCalls) * 100).toFixed(1) : '0.0';
-
-      setReport({ totalCalls, answeredCount, connectionRate, totalDial, avgDial, longestCall, convertedCount, convertedPct, date, year, mode, userFilter });
+      setReport({ totalCalls, answeredCount, connectionRate, totalDial, avgDial, longestCall, date, year, mode, userFilter, startDate, endDate });
     } catch(e) { console.error(e); }
     setLoading(false);
   };
@@ -189,17 +169,13 @@ function ReportsTab({ lines }) {
           </div>
           <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:'8px', marginBottom:'8px' }}>
             {stat('Total Calls', report.totalCalls, GOLD)}
-            {stat('Answered', report.answeredCount, '#4ade80')}
+            {stat('Connected', report.answeredCount, '#4ade80')}
             {stat('Connection Rate', report.connectionRate + '%', '#60a5fa')}
           </div>
-          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:'8px', marginBottom:'8px' }}>
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:'8px' }}>
             {stat('Total Dial Time', formatDur(report.totalDial), '#a78bfa')}
             {stat('Avg Call Length', formatDur(report.avgDial), '#f59e0b')}
             {stat('Longest Call', formatDur(report.longestCall), '#60a5fa')}
-          </div>
-          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'8px' }}>
-            {stat('Converted Leads', report.convertedCount, '#4ade80', 'Lead → Prospect or NB Tech')}
-            {stat('Conversion Rate', report.convertedPct + '%', '#4ade80')}
           </div>
         </div>
       )}
@@ -263,28 +239,29 @@ export default function CallLogPanel({ onClose, onOpenLead }) {
     return () => clearInterval(poll);
   }, []);
 
+  // Date range state for outbound call list
+  const [listStart, setListStart] = useState(() => new Date().toISOString().slice(0,10));
+  const [listEnd,   setListEnd]   = useState(() => new Date().toISOString().slice(0,10));
+
   const loadData = async () => {
     try {
-      const [clData, linesData, histData, leadsData] = await Promise.all([
+      const [clData, linesData] = await Promise.all([
         base44.entities.CallLog.list('-calledAt', 150),
         base44.functions.invoke('twilioGetLines', {}),
-        base44.entities.LeadHistory.list('-created_date', 500),
-        base44.entities.Lead.list('-updated_date', 500),
       ]);
       setCallLogs(clData || []);
       setLines(linesData?.data?.lines || linesData?.lines || []);
+    } catch(e) { console.error(e); }
+    await loadOutbound(listStart, listEnd);
+    setLoading(false);
+  };
 
-      // Build lead name lookup
-      const leadMap = {};
-      (leadsData || []).forEach(l => { leadMap[l.id] = `${l.firstName || ''} ${l.lastName || ''}`.trim(); });
-
-      // Filter to call-type entries and enrich with lead name
-      const calls = (histData || [])
-        .filter(h => ['call', 'connected', 'not_available'].includes(h.type))
-        .map(h => ({ ...h, leadName: leadMap[h.leadId] || '' }));
+  const loadOutbound = async (start, end) => {
+    try {
+      const res = await base44.functions.invoke('twilioCallLogs', { startDate: start, endDate: end });
+      const calls = (res.data?.calls || []).filter(c => c.direction !== 'inbound');
       setHistoryRows(calls);
     } catch(e) { console.error(e); }
-    setLoading(false);
   };
 
   const loadCallLogs = async () => {
@@ -296,12 +273,6 @@ export default function CallLogPanel({ onClose, onOpenLead }) {
 
   // For live line bars, use callLogs (real-time inbound)
   const logs = callLogs;
-
-  // Outbound calls = historyRows, filtered by user
-  const outboundFiltered = historyRows.filter(h => {
-    if (userFilter === 'all') return true;
-    return (h.createdBy || '').toLowerCase() === userFilter.toLowerCase();
-  });
 
   // Inbound = callLogs direction=inbound
   const inboundFiltered = callLogs.filter(l => l.direction === 'inbound');
@@ -397,17 +368,9 @@ export default function CallLogPanel({ onClose, onOpenLead }) {
         {/* ── Calls Tab ── */}
         {mainTab === 'calls' && (
           <>
-            {/* User Filter */}
-            <div style={{ padding: '8px 14px', borderBottom: '1px solid rgba(255,255,255,0.06)', flexShrink: 0, display:'flex', gap:'6px', alignItems:'center' }}>
-              <span style={{ color:'#4a5568', fontSize:'9px', letterSpacing:'2px', textTransform:'uppercase', flexShrink:0 }}>Caller:</span>
-              {[['all','All'], ['admin','Admin'], ['steph','Steph']].map(([val, label]) => (
-                <div key={val} onClick={() => setUserFilter(val)} style={pillStyle(userFilter === val)}>{label}</div>
-              ))}
-            </div>
-
             {/* Incoming / Outgoing Tabs */}
             <div style={{ display: 'flex', borderBottom: '1px solid rgba(255,255,255,0.07)', flexShrink: 0 }}>
-              {[['outbound','↗ Outgoing', outboundFiltered.length], ['inbound','↙ Incoming', inboundFiltered.length]].map(([dir, label, count]) => (
+              {[['outbound','↗ Outgoing', historyRows.length], ['inbound','↙ Incoming', inboundFiltered.length]].map(([dir, label, count]) => (
                 <button key={dir} onClick={() => setDirTab(dir)}
                   style={{ flex: 1, background: 'none', border: 'none', borderBottom: dirTab === dir ? `2px solid ${dir === 'inbound' ? '#60a5fa' : '#a78bfa'}` : '2px solid transparent', color: dirTab === dir ? (dir === 'inbound' ? '#60a5fa' : '#a78bfa') : '#6b7280', padding: '8px', cursor: 'pointer', fontSize: '11px' }}>
                   {label} <span style={{ fontSize: '10px', opacity: 0.7 }}>({count})</span>
@@ -415,64 +378,63 @@ export default function CallLogPanel({ onClose, onOpenLead }) {
               ))}
             </div>
 
+            {/* Date range filter for outbound */}
+            {dirTab === 'outbound' && (
+              <div style={{ padding:'8px 14px', borderBottom:'1px solid rgba(255,255,255,0.06)', flexShrink:0, display:'flex', gap:'8px', alignItems:'center', flexWrap:'wrap' }}>
+                <span style={{ color:'#4a5568', fontSize:'9px', letterSpacing:'2px', textTransform:'uppercase', flexShrink:0 }}>Range:</span>
+                <input type="date" value={listStart} onChange={e => setListStart(e.target.value)}
+                  style={{ background:'rgba(255,255,255,0.06)', border:'1px solid rgba(255,255,255,0.12)', borderRadius:'4px', padding:'4px 8px', color:'#e8e0d0', fontSize:'11px', outline:'none', colorScheme:'dark' }} />
+                <span style={{ color:'#4a5568', fontSize:'11px' }}>→</span>
+                <input type="date" value={listEnd} onChange={e => setListEnd(e.target.value)}
+                  style={{ background:'rgba(255,255,255,0.06)', border:'1px solid rgba(255,255,255,0.12)', borderRadius:'4px', padding:'4px 8px', color:'#e8e0d0', fontSize:'11px', outline:'none', colorScheme:'dark' }} />
+                <button onClick={() => { setLoading(true); loadOutbound(listStart, listEnd).then(() => setLoading(false)); }}
+                  style={{ background:'linear-gradient(135deg,#b8933a,#d4aa50)', color:DARK, border:'none', borderRadius:'4px', padding:'4px 14px', cursor:'pointer', fontSize:'10px', fontWeight:'bold' }}>
+                  Load
+                </button>
+              </div>
+            )}
+
             {/* Call List */}
             <div style={{ flex: 1, overflowY: 'auto', padding: '8px' }}>
               {loading && <div style={{ color: '#6b7280', textAlign: 'center', padding: '40px' }}>Loading…</div>}
 
-              {/* ── OUTBOUND: from LeadHistory ── */}
+              {/* ── OUTBOUND: from Twilio API ── */}
               {!loading && dirTab === 'outbound' && (
                 <>
-                  {outboundFiltered.length === 0 && (
+                  {historyRows.length === 0 && (
                     <div style={{ color: '#4a5568', textAlign: 'center', padding: '40px' }}>
-                      <div style={{ fontSize: '32px', marginBottom: '8px' }}>📋</div>No outgoing call records.
+                      <div style={{ fontSize: '32px', marginBottom: '8px' }}>📋</div>No outgoing call records for this range.
                     </div>
                   )}
-                  {outboundFiltered.map((h) => {
-                    const dur = h.callDurationSeconds;
-                    const isConnected = h.type === 'connected' || dur > 0;
-                    const borderColor = isConnected ? '#4ade80' : '#8a9ab8';
+                  {historyRows.map((c) => {
+                    const connected = c.status === 'completed' && c.duration > 0;
+                    const statusColor = c.status === 'completed' ? (c.duration > 0 ? '#4ade80' : '#8a9ab8') : c.status === 'busy' || c.status === 'no-answer' ? '#f59e0b' : c.status === 'failed' ? '#ef4444' : '#8a9ab8';
                     return (
-                      <div key={h.id} style={{
+                      <div key={c.sid} style={{
                         background: 'rgba(255,255,255,0.02)', border: `1px solid rgba(255,255,255,0.06)`,
-                        borderLeft: `3px solid ${borderColor}`, borderRadius: '6px', padding: '10px 12px', marginBottom: '6px',
+                        borderLeft: `3px solid ${statusColor}`, borderRadius: '6px', padding: '10px 12px', marginBottom: '6px',
                       }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
                           <div style={{ flex: 1, minWidth: 0 }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '3px' }}>
-                              <span style={{ fontSize: '13px' }}>{isConnected ? '📞' : '📵'}</span>
-                              <span style={{ color: '#e8e0d0', fontSize: '13px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                {h.leadName || h.leadId || '—'}
-                              </span>
+                              <span style={{ fontSize: '13px' }}>{connected ? '📞' : '📵'}</span>
+                              <span style={{ color: '#e8e0d0', fontSize: '13px', fontFamily:'monospace', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{c.to}</span>
                             </div>
-                            <div style={{ display:'flex', gap:'5px', flexWrap:'wrap' }}>
-                              {h.createdBy && (
-                                <span style={{ background:'rgba(167,139,250,0.1)', color:'#a78bfa', border:'1px solid rgba(167,139,250,0.2)', borderRadius:'3px', padding:'1px 6px', fontSize:'9px' }}>
-                                  👤 {h.createdBy}
-                                </span>
-                              )}
-                              {h.twilioCallSid && (
-                                <span style={{ color:'#4a5568', fontSize:'9px', fontFamily:'monospace' }}>{h.twilioCallSid.slice(0,12)}…</span>
-                              )}
+                            <div style={{ display:'flex', gap:'5px', flexWrap:'wrap', alignItems:'center' }}>
+                              <span style={{ color:'#4a5568', fontSize:'9px', fontFamily:'monospace' }}>from {c.from}</span>
+                              <span style={{ background:'rgba(255,255,255,0.05)', color:'#8a9ab8', border:'1px solid rgba(255,255,255,0.08)', borderRadius:'3px', padding:'1px 5px', fontSize:'9px' }}>{c.sid?.slice(0,12)}…</span>
                             </div>
                           </div>
                           <div style={{ textAlign: 'right', flexShrink: 0 }}>
                             <div style={{ color: '#6b7280', fontSize: '10px', marginBottom: '2px' }}>
-                              {h.created_date ? new Date(h.created_date).toLocaleString('en-US', { month:'short', day:'numeric', hour:'numeric', minute:'2-digit' }) : '—'}
+                              {c.startTime ? new Date(c.startTime).toLocaleString('en-US', { month:'short', day:'numeric', hour:'numeric', minute:'2-digit' }) : '—'}
                             </div>
-                            <div style={{ color: borderColor, fontSize: '10px' }}>
-                              {isConnected ? '✅ connected' : '📵 no answer'}
-                              {dur > 0 && <span style={{ color: '#6b7280', marginLeft: '4px' }}>⏱ {formatDur(dur)}</span>}
+                            <div style={{ display:'flex', gap:'4px', justifyContent:'flex-end', alignItems:'center' }}>
+                              <span style={{ color: statusColor, fontSize: '10px' }}>{c.status}</span>
+                              {c.duration > 0 && <span style={{ color: '#6b7280', fontSize: '10px' }}>⏱ {formatDur(c.duration)}</span>}
                             </div>
                           </div>
                         </div>
-                        {h.leadId && onOpenLead && (
-                          <div style={{ marginTop: '6px' }}>
-                            <button onClick={() => onOpenLead(h.leadId)}
-                              style={{ background: 'rgba(167,139,250,0.1)', color: '#a78bfa', border: '1px solid rgba(167,139,250,0.25)', borderRadius: '4px', padding: '3px 10px', cursor: 'pointer', fontSize: '10px' }}>
-                              📋 Open Lead
-                            </button>
-                          </div>
-                        )}
                       </div>
                     );
                   })}
