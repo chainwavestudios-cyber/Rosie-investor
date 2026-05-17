@@ -1,0 +1,83 @@
+{
+  "name": "SmsMessage",
+  "type": "object",
+  "properties": {
+    "direction": {
+      "type": "string",
+      "title": "Direction",
+      "enum": [
+        "outbound",
+        "inbound"
+      ],
+      "default": "outbound"
+    },
+    "fromNumber": {
+      "type": "string",
+      "title": "From Number"
+    },
+    "toNumber": {
+      "type": "string",
+      "title": "To Number"
+    },
+    "body": {
+      "type": "string",
+      "title": "Message Body",
+      "format": "textarea"
+    },
+    "mediaUrls": {
+      "type": "string",
+      "title": "Media URLs (JSON array)",
+      "format": "textarea"
+    },
+    "status": {
+      "type": "string",
+      "title": "Status",
+      "enum": [
+        "queued",
+        "sent",
+        "delivered",
+        "failed",
+        "received"
+      ],
+      "default": "queued"
+    },
+    "twilioSid": {
+      "type": "string",
+      "title": "Twilio Message SID"
+    },
+    "leadId": {
+      "type": "string",
+      "title": "Lead ID"
+    },
+    "investorId": {
+      "type": "string",
+      "title": "Investor ID"
+    },
+    "contactName": {
+      "type": "string",
+      "title": "Contact Name"
+    },
+    "contactPhone": {
+      "type": "string",
+      "title": "Contact Phone"
+    },
+    "read": {
+      "type": "boolean",
+      "title": "Read",
+      "default": false
+    },
+    "sentBy": {
+      "type": "string",
+      "title": "Sent By"
+    },
+    "sentAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Sent At"
+    }
+  },
+  "required": [
+    "direction",
+    "body"
+  ]
+}

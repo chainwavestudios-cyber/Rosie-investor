@@ -330,6 +330,8 @@ function QASection({ transcript, transcriptRef, kbEntries, active, qaKeywords, m
   const [asking,    setAsking]    = useState(false);
   const [addInfoId, setAddInfoId] = useState(null);
   const [splitPct,  setSplitPct]  = useState(50);
+  const [talkingPointsId, setTalkingPointsId] = useState(null);
+  const [researchId,      setResearchId]      = useState(null);
 
   const seenQ         = useRef(new Set());
   const lastAutoRef   = useRef(0);
@@ -460,6 +462,43 @@ function QASection({ transcript, transcriptRef, kbEntries, active, qaKeywords, m
     setAddInfoId(null);
   };
 
+  const getTalkingPoints = async (id) => {
+    const q = questions.find(x => x.id === id);
+    if (!q || !q.answered) return;
+    setTalkingPointsId(id);
+    try {
+      const res = await base44.functions.invoke('liveAssistantAI', {
+        question: `Generate 4-6 punchy talking points a sales rep should say out loud RIGHT NOW to address: "${q.text}". Each point should be 1-2 sentences, persuasive, and ready to speak. Format as a numbered list.`,
+        transcript: transcriptRef.current.slice(-12), kbEntries, mode: 'talking_points',
+      });
+      setQuestions(prev => prev.map(x => x.id === id ? { ...x, talkingPoints: res?.data?.answer || 'No talking points generated.' } : x));
+    } catch (e) {
+      setQuestions(prev => prev.map(x => x.id === id ? { ...x, talkingPoints: `Error: ${e.message}` } : x));
+    }
+    setTalkingPointsId(null);
+  };
+
+  const getInternetResearch = async (id) => {
+    const q = questions.find(x => x.id === id);
+    if (!q || !q.answered) return;
+    setResearchId(id);
+    try {
+      const res = await base44.functions.invoke('liveAssistantResearch', {
+        name: q.text,
+        email: '',
+        phone: '',
+        location: '',
+        notes: `Research context for investor Q&A: ${q.text}. Answer: ${q.answer}`,
+      });
+      const data = res?.data;
+      const summary = data?.summary || data?.report || data?.answer || JSON.stringify(data || 'No research found.');
+      setQuestions(prev => prev.map(x => x.id === id ? { ...x, research: summary } : x));
+    } catch (e) {
+      setQuestions(prev => prev.map(x => x.id === id ? { ...x, research: `Research error: ${e.message}` } : x));
+    }
+    setResearchId(null);
+  };
+
   const askManual = async () => {
     if (!manualQ.trim() || asking) return;
     const q = manualQ.trim(); setManualQ(''); setAsking(true);
@@ -556,13 +595,33 @@ function QASection({ transcript, transcriptRef, kbEntries, active, qaKeywords, m
               <div key={q.id} style={{ background: 'rgba(74,222,128,0.03)', border: '1px solid rgba(74,222,128,0.15)', borderRadius: '5px', overflow: 'hidden' }}>
                 <div style={{ padding: '5px 10px', background: 'rgba(0,0,0,0.15)', borderBottom: '1px solid rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <span style={{ color: '#f59e0b', fontSize: '10px', flex: 1, fontStyle: 'italic' }}>Re: "{q.text.slice(0, 60)}{q.text.length > 60 ? '…' : ''}"</span>
-                  {q.answered && !q.answering && <Btn onClick={() => getMoreInfo(q.id)} disabled={addInfoId === q.id} color="#60a5fa" bg="rgba(96,165,250,0.1)" border="rgba(96,165,250,0.25)" s={{ padding: '2px 8px', fontSize: '9px' }}>{addInfoId === q.id ? '⏳' : '+ More Info'}</Btn>}
+                  {q.answered && !q.answering && (
+                    <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+                      <Btn onClick={() => getMoreInfo(q.id)} disabled={addInfoId === q.id} color="#60a5fa" bg="rgba(96,165,250,0.1)" border="rgba(96,165,250,0.25)" s={{ padding: '2px 8px', fontSize: '9px' }}>{addInfoId === q.id ? '⏳ More…' : '+ More Info'}</Btn>
+                      <Btn onClick={() => getTalkingPoints(q.id)} disabled={talkingPointsId === q.id} color="#4ade80" bg="rgba(74,222,128,0.1)" border="rgba(74,222,128,0.25)" s={{ padding: '2px 8px', fontSize: '9px' }}>{talkingPointsId === q.id ? '⏳ Points…' : '💬 Talking Points'}</Btn>
+                      <Btn onClick={() => getInternetResearch(q.id)} disabled={researchId === q.id} color="#a78bfa" bg="rgba(167,139,250,0.1)" border="rgba(167,139,250,0.25)" s={{ padding: '2px 8px', fontSize: '9px' }}>{researchId === q.id ? '⏳ Searching…' : '🔍 Internet Research'}</Btn>
+                    </div>
+                  )}
                   <button onClick={() => setQuestions(prev => prev.filter(x => x.id !== q.id))} style={{ background: 'none', border: 'none', color: '#4a5568', cursor: 'pointer', fontSize: '13px', lineHeight: 1, padding: '0 2px' }}>×</button>
                 </div>
                 <div style={{ padding: '10px 12px' }}>
                   {q.answering
                     ? <div style={{ color: '#6b7280', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '8px' }}><div style={{ width: 5, height: 5, borderRadius: '50%', background: GOLD, animation: 'aipulse 0.8s infinite' }} />Searching knowledge base…</div>
-                    : <div style={{ color: '#e8e0d0', fontSize: '12px', lineHeight: 1.75, whiteSpace: 'pre-wrap' }}>{q.answer}</div>
+                    : <div>
+                        <div style={{ color: '#e8e0d0', fontSize: '12px', lineHeight: 1.75, whiteSpace: 'pre-wrap' }}>{q.answer}</div>
+                        {q.talkingPoints && (
+                          <div style={{ marginTop: '10px', background: 'rgba(74,222,128,0.05)', border: '1px solid rgba(74,222,128,0.2)', borderRadius: '4px', padding: '8px 12px' }}>
+                            <div style={{ color: '#4ade80', fontSize: '9px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '5px' }}>💬 Talking Points</div>
+                            <div style={{ color: '#c4e8c8', fontSize: '12px', lineHeight: 1.75, whiteSpace: 'pre-wrap' }}>{q.talkingPoints}</div>
+                          </div>
+                        )}
+                        {q.research && (
+                          <div style={{ marginTop: '8px', background: 'rgba(167,139,250,0.05)', border: '1px solid rgba(167,139,250,0.2)', borderRadius: '4px', padding: '8px 12px' }}>
+                            <div style={{ color: '#a78bfa', fontSize: '9px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '5px' }}>🔍 Internet Research</div>
+                            <div style={{ color: '#c4b8f0', fontSize: '12px', lineHeight: 1.75, whiteSpace: 'pre-wrap' }}>{typeof q.research === 'string' ? q.research : JSON.stringify(q.research, null, 2)}</div>
+                          </div>
+                        )}
+                      </div>
                   }
                 </div>
               </div>
@@ -674,8 +733,10 @@ export default function AIAssistantPopup({
   onToggleQA, onToggleCoach, onToggleIntent,
   onClose, onIntentResult,
   allKbEntries, kbNames, selectedKbName, onKbChange,
+  activeScript, scripts,
 }) {
   const [pos,    setPos]    = useState({ x: 20, y: Math.max(20, window.innerHeight - 540) });
+  const [showScript, setShowScript] = useState(false);
   const [width,  setWidth]  = useState(Math.min(860, window.innerWidth - 40));
   const [height, setHeight] = useState(520);
   const [qaH,    setQaH]    = useState(42);
@@ -733,9 +794,28 @@ export default function AIAssistantPopup({
           {qaOnly?'❓ Q&A Only ✓':'❓ Q&A Only'}
         </button>
 
+        {(scripts?.length > 0 || activeScript) && (
+          <button onClick={()=>setShowScript(p=>!p)} style={{background:showScript?'rgba(96,165,250,0.2)':'rgba(255,255,255,0.05)',color:showScript?'#60a5fa':'#6b7280',border:`1px solid ${showScript?'rgba(96,165,250,0.4)':'rgba(255,255,255,0.1)'}`,borderRadius:'4px',padding:'3px 10px',cursor:'pointer',fontSize:'10px',fontWeight:'bold'}}>
+            📋 Script{showScript?' ✓':''}
+          </button>
+        )}
+
         <span style={{color:'#4a5568',fontSize:'9px'}}>⠿ drag · resize top</span>
         <button onClick={onClose} style={{background:'none',border:'none',color:'#6b7280',cursor:'pointer',fontSize:'18px',lineHeight:1,padding:'0 2px',flexShrink:0}}>×</button>
       </div>
+
+      {/* Script Panel */}
+      {showScript && activeScript && (
+        <div style={{borderBottom:'1px solid rgba(96,165,250,0.25)',background:'rgba(96,165,250,0.04)',maxHeight:'220px',overflow:'hidden',display:'flex',flexDirection:'column',flexShrink:0}}>
+          <div style={{padding:'5px 14px',background:'rgba(0,0,0,0.2)',borderBottom:'1px solid rgba(96,165,250,0.15)',display:'flex',alignItems:'center',gap:'8px',flexShrink:0}}>
+            <span style={{color:'#60a5fa',fontSize:'9px',fontWeight:'bold',letterSpacing:'1px',textTransform:'uppercase',flex:1}}>📋 Script — {activeScript.name||activeScript.title||'Active Script'}</span>
+            <button onClick={()=>setShowScript(false)} style={{background:'none',border:'none',color:'#4a5568',cursor:'pointer',fontSize:'13px',lineHeight:1}}>×</button>
+          </div>
+          <div style={{flex:1,overflowY:'auto',padding:'10px 14px',color:'#c4cdd8',fontSize:'12px',lineHeight:1.75,whiteSpace:'pre-wrap',fontFamily:'Georgia,serif'}}>
+            {activeScript.content||'No content in this script.'}
+          </div>
+        </div>
+      )}
 
       {/* Content */}
       <div style={{flex:1,display:'flex',flexDirection:'column',overflow:'hidden'}}>
