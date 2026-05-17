@@ -21,6 +21,7 @@ import KnowledgeBaseManagerComponent from '@/components/admin/KnowledgeBaseManag
 import AudioRecorderManager from '@/components/admin/AudioRecorderManager';
 import GlobalCalendar from '@/components/admin/GlobalCalendar';
 import BobTab from '@/components/admin/BobTab';
+import IncomingCallPopup from '@/components/shared/IncomingCallPopup';
 
 const LOGO = 'https://media.base44.com/images/public/69cd2741578c9b5ce655395b/39a31f9b9_Untitleddesign3.png';
 const GOLD = '#b8933a';
@@ -1529,19 +1530,11 @@ export default function AdminDashboard() {
     return () => clearInterval(interval);
   }, [portalUser, isAdmin, isPortalLoading, load]);
 
-  // ── Inbound call → auto-open ContactCardModal ──────────────────────
+  // ── Inbound call → show popup (IncomingCallPopup handles UI) ──────
   useEffect(() => {
-    registerIncomingHandler(({ lead, from }) => {
-      if (lead) {
-        // Matched to an InvestorUser — open their card directly
-        setContactCard(lead);
-      } else {
-        // No match found — switch to CRM view so agent can search manually
-        // and show the dialer with the caller's number pre-filled
-        setDialerLead({ firstName: 'Unknown', lastName: 'Caller', phone: from, id: null });
-        setShowDialer(true);
-      }
-    });
+    // No auto-action needed — IncomingCallPopup reads incomingCall from context
+    // and calls onAnswerLead / onAnswerInvestor when answered
+    registerIncomingHandler(() => {});
   }, [registerIncomingHandler]);
 
   if (isPortalLoading) return (
@@ -1935,6 +1928,11 @@ export default function AdminDashboard() {
         {view === 'settings'         && <AdminSettings changeAdminPassword={changeAdminPassword} changeAdminUsername={changeAdminUsername} />}
         {view === 'bob'              && <BobTab />}
       </div>
+
+      <IncomingCallPopup
+        onAnswerInvestor={(investor) => { setContactCard(investor); }}
+        onAnswerLead={(lead) => { handleViewChange('leads'); setOpenLeadId(lead.id); }}
+      />
 
       {dueReminder && (
         <ReminderPopup
