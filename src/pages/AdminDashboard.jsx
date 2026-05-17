@@ -22,6 +22,7 @@ import AudioRecorderManager from '@/components/admin/AudioRecorderManager';
 import GlobalCalendar from '@/components/admin/GlobalCalendar';
 import BobTab from '@/components/admin/BobTab';
 import IncomingCallPopup from '@/components/shared/IncomingCallPopup';
+import RemindersFloatingPanel from '@/components/shared/RemindersFloatingPanel';
 
 const LOGO = 'https://media.base44.com/images/public/69cd2741578c9b5ce655395b/39a31f9b9_Untitleddesign3.png';
 const GOLD = '#b8933a';
@@ -1933,6 +1934,8 @@ export default function AdminDashboard() {
         onAnswerInvestor={(investor) => { setContactCard(investor); }}
         onAnswerLead={(lead) => { handleViewChange('leads'); setOpenLeadId(lead.id); }}
       />
+
+
 
       {dueReminder && (
         <ReminderPopup

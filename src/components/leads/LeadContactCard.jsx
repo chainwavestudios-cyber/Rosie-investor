@@ -15,6 +15,7 @@ import ZoomBookingModal from '@/components/ZoomBookingModal';
 import SetReminderButton from '@/components/SetReminderButton';
 import ReminderCountdown from '@/components/ReminderCountdown';
 import { useReminders } from '@/hooks/useReminders';
+import RemindersFloatingPanel from '@/components/shared/RemindersFloatingPanel';
 
 const GOLD = '#b8933a';
 const DARK = '#0a0f1e';
@@ -188,10 +189,29 @@ function OverviewTab({ editLead, setEditLead, saving, saveMsg, saveProfile, upda
               </button>
             )}
           </div>
-          {/* Phone row */}
-          <div style={{ display:'flex', gap:'16px', flexWrap:'wrap' }}>
+          {/* Phone row + last called */}
+          <div style={{ display:'flex', gap:'16px', flexWrap:'wrap', alignItems:'center' }}>
             {editLead.phone && <span style={{ color:'#4ade80', fontSize:'13px' }}>📞 {editLead.phone}</span>}
             {editLead.phone2 && <span style={{ color:'#8a9ab8', fontSize:'13px' }}>📱 {editLead.phone2}</span>}
+            {/* Last called info */}
+            {editLead.lastCalledAt ? (
+              <span style={{ color:'#6b7280', fontSize:'11px', display:'flex', alignItems:'center', gap:'4px', flexWrap:'wrap' }}>
+                <span style={{ color:'#4a5568' }}>🕐 Last called:</span>
+                <span style={{ color:'#8a9ab8' }}>
+                  {new Date(editLead.lastCalledAt).toLocaleString('en-US', { month:'short', day:'numeric', year:'numeric', hour:'numeric', minute:'2-digit' })}
+                </span>
+                {(() => {
+                  // Find most recent call entry in history for duration
+                  const lastCall = history.filter(h => ['call','connected'].includes(h.type) && h.callDurationSeconds > 0).sort((a,b) => new Date(b.created_date) - new Date(a.created_date))[0];
+                  if (!lastCall) return null;
+                  const m = Math.floor(lastCall.callDurationSeconds / 60);
+                  const s = lastCall.callDurationSeconds % 60;
+                  return <span style={{ color:'#a78bfa' }}>· {m}m {s}s</span>;
+                })()}
+              </span>
+            ) : (editLead.phone || editLead.phone2) ? (
+              <span style={{ color:'#4a5568', fontSize:'11px' }}>🕐 Never called</span>
+            ) : null}
           </div>
           {/* Email row */}
           {editLead.email && <div><span style={{ color:'#60a5fa', fontSize:'13px' }}>✉️ {editLead.email}</span></div>}
@@ -882,7 +902,7 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
   const currentUsername = portalUser?.username || 'admin';
   const otherUsername = currentUsername === 'steph' ? 'admin' : 'steph';
 
-  const { setReminder } = useReminders();
+  const { reminders, setReminder, clearReminder } = useReminders();
 
   const handleStarChange = async (val) => {
     setStarRating(val);
@@ -1358,7 +1378,7 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
             {!isArchived && (
               <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink:0 }}>
                 <SetReminderButton 
-                  contact={{ id: lead.id, firstName: editLead.firstName, lastName: editLead.lastName, type: 'lead' }}
+                  contact={{ id: lead.id, firstName: editLead.firstName, lastName: editLead.lastName, type: 'lead', leadType: editLead.leadType }}
                   onSetReminder={setReminder}
                 />
                 <ReminderCountdown contactId={lead.id} />
@@ -1620,6 +1640,7 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
         </div>
       </div>
     </div>
+    <RemindersFloatingPanel reminders={reminders} onClearReminder={clearReminder} />
     </>
   );
 }

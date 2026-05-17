@@ -18,8 +18,16 @@ const applyTokens = (text, lead, user) => {
 };
 
 export default function ScriptAssistant({ lead, user, onExpandCard, isCardExpanded, twilioStream }) {
-  const [layout, setLayout]           = useState('side');
-  const [scriptWidth, setScriptWidth] = useState(52);
+  const LAYOUT_LOCK_KEY = 'script_assistant_layout_lock';
+  const [layout, setLayout]           = useState(() => {
+    try { return localStorage.getItem(LAYOUT_LOCK_KEY + '_layout') || 'side'; } catch { return 'side'; }
+  });
+  const [scriptWidth, setScriptWidth] = useState(() => {
+    try { return parseInt(localStorage.getItem(LAYOUT_LOCK_KEY + '_width') || '52', 10); } catch { return 52; }
+  });
+  const [layoutLocked, setLayoutLocked] = useState(() => {
+    try { return localStorage.getItem(LAYOUT_LOCK_KEY + '_locked') === 'true'; } catch { return false; }
+  });
   const isDraggingDivider             = useRef(false);
   const containerRef                  = useRef(null);
 
@@ -492,17 +500,30 @@ export default function ScriptAssistant({ lead, user, onExpandCard, isCardExpand
   const active   = scripts.find(s => s.id === activeId) || scripts[0];
   const rendered = active ? applyTokens(active.content, lead, user) : '';
 
-  // Auto-scroll effect
+  // Auto-scroll effect — only scrolls the script panel, not the AI side
+  const userScrollingRef = useRef(false);
   useEffect(() => {
     if (!autoScrollActive || !scriptContentRef.current) return;
-    
+    const el = scriptContentRef.current;
+
+    // Pause auto-scroll briefly when user scrolls manually
+    const onUserScroll = () => {
+      userScrollingRef.current = true;
+      clearTimeout(onUserScroll._timeout);
+      onUserScroll._timeout = setTimeout(() => { userScrollingRef.current = false; }, 2000);
+    };
+    el.addEventListener('wheel', onUserScroll, { passive: true });
+
     const interval = setInterval(() => {
-      if (scriptContentRef.current) {
+      if (!userScrollingRef.current && scriptContentRef.current) {
         scriptContentRef.current.scrollTop += autoScrollSpeed;
       }
     }, 50);
     
-    return () => clearInterval(interval);
+    return () => {
+      clearInterval(interval);
+      el.removeEventListener('wheel', onUserScroll);
+    };
   }, [autoScrollActive, autoScrollSpeed]);
 
   const onDividerMouseDown = (e) => { isDraggingDivider.current = true; e.preventDefault(); };
@@ -512,10 +533,14 @@ export default function ScriptAssistant({ lead, user, onExpandCard, isCardExpand
       const rect = containerRef.current.getBoundingClientRect();
       if (layout === 'side') {
         const pct = Math.round(((e.clientX - rect.left) / rect.width) * 100);
-        setScriptWidth(Math.max(25, Math.min(75, pct)));
+        const clamped = Math.max(25, Math.min(75, pct));
+        setScriptWidth(clamped);
+        if (layoutLocked) localStorage.setItem(LAYOUT_LOCK_KEY + '_width', String(clamped));
       } else {
         const pct = Math.round(((e.clientY - rect.top) / rect.height) * 100);
-        setScriptWidth(Math.max(20, Math.min(80, pct)));
+        const clamped = Math.max(20, Math.min(80, pct));
+        setScriptWidth(clamped);
+        if (layoutLocked) localStorage.setItem(LAYOUT_LOCK_KEY + '_width', String(clamped));
       }
     };
     const onUp = () => { isDraggingDivider.current = false; };
@@ -529,7 +554,7 @@ export default function ScriptAssistant({ lead, user, onExpandCard, isCardExpand
   const streamStatusLight = { idle: '#4a5568', connecting: '#f59e0b', connected: '#4ade80', error: '#ef4444' }[streamStatus];
 
   const scriptPanelJSX = (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }} onWheel={e => e.stopPropagation()}>
       {/* Sticky script tabs */}
       <div style={{ display: 'flex', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.07)', overflowX: 'auto', flexShrink: 0, scrollbarWidth: 'none', position: 'sticky', top: 0, zIndex: 10, background: 'rgba(0,0,0,0.25)' }}>
         {scripts.map(s => (
@@ -643,8 +668,25 @@ export default function ScriptAssistant({ lead, user, onExpandCard, isCardExpand
     </div>
   );
 
+  const handleSetLayout = (id) => {
+    setLayout(id);
+    if (layoutLocked) {
+      localStorage.setItem(LAYOUT_LOCK_KEY + '_layout', id);
+    }
+  };
+
+  const handleToggleLock = () => {
+    const next = !layoutLocked;
+    setLayoutLocked(next);
+    localStorage.setItem(LAYOUT_LOCK_KEY + '_locked', String(next));
+    if (next) {
+      localStorage.setItem(LAYOUT_LOCK_KEY + '_layout', layout);
+      localStorage.setItem(LAYOUT_LOCK_KEY + '_width', String(scriptWidth));
+    }
+  };
+
   const LayoutBtn = ({ id, label, icon }) => (
-    <button onClick={() => setLayout(id)} title={label}
+    <button onClick={() => handleSetLayout(id)} title={label}
       style={{ background: layout === id ? 'rgba(184,147,58,0.2)' : 'rgba(255,255,255,0.04)', border: `1px solid ${layout === id ? 'rgba(184,147,58,0.4)' : 'rgba(255,255,255,0.08)'}`, color: layout === id ? GOLD : '#6b7280', borderRadius: '4px', padding: '4px 8px', cursor: 'pointer', fontSize: '11px' }}>
       {icon}
     </button>
@@ -660,6 +702,11 @@ export default function ScriptAssistant({ lead, user, onExpandCard, isCardExpand
         <LayoutBtn id="top"        label="AI top, Script below" icon="🔲" />
         <LayoutBtn id="fullscript" label="Script only"          icon="📝" />
         <LayoutBtn id="fullai"     label="AI only"              icon="🧠" />
+        {/* Lock layout as default */}
+        <button onClick={handleToggleLock} title={layoutLocked ? 'Layout locked as default — click to unlock' : 'Lock this layout as default for all lead cards'}
+          style={{ background: layoutLocked ? 'rgba(74,222,128,0.15)' : 'rgba(255,255,255,0.04)', border: `1px solid ${layoutLocked ? 'rgba(74,222,128,0.4)' : 'rgba(255,255,255,0.08)'}`, color: layoutLocked ? '#4ade80' : '#6b7280', borderRadius: '4px', padding: '4px 8px', cursor: 'pointer', fontSize: '11px', fontWeight: layoutLocked ? 'bold' : 'normal' }}>
+          {layoutLocked ? '🔒 Locked' : '🔓 Lock'}
+        </button>
         {onExpandCard && (
           <button onClick={onExpandCard} title={isCardExpanded ? 'Collapse card' : 'Expand card'}
             style={{ marginLeft: 'auto', background: isCardExpanded ? 'rgba(96,165,250,0.15)' : 'rgba(255,255,255,0.05)', border: `1px solid ${isCardExpanded ? 'rgba(96,165,250,0.4)' : 'rgba(255,255,255,0.1)'}`, color: isCardExpanded ? '#60a5fa' : '#6b7280', borderRadius: '4px', padding: '4px 10px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>
@@ -679,13 +726,13 @@ export default function ScriptAssistant({ lead, user, onExpandCard, isCardExpand
           <div style={{ flex: 1, overflow: 'hidden', minHeight: 0 }}>{scriptPanelJSX}</div>
         </>)}
         {layout === 'side' && (<>
-          <div style={{ width: `${scriptWidth}%`, overflow: 'hidden', flexShrink: 0 }}>{scriptPanelJSX}</div>
+          <div style={{ width: `${scriptWidth}%`, overflow: 'hidden', flexShrink: 0, display: 'flex', flexDirection: 'column' }}>{scriptPanelJSX}</div>
           <div onMouseDown={onDividerMouseDown} style={{ width: '6px', flexShrink: 0, background: 'rgba(255,255,255,0.05)', cursor: 'col-resize', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
             onMouseEnter={e => e.currentTarget.style.background = 'rgba(184,147,58,0.3)'}
             onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}>
             <div style={{ background: 'rgba(255,255,255,0.15)', borderRadius: '2px', width: '3px', height: '30px' }} />
           </div>
-          <div style={{ flex: 1, overflow: 'hidden', minWidth: 0 }}>{aiPanelJSX}</div>
+          <div style={{ flex: 1, overflow: 'hidden', minWidth: 0, display: 'flex', flexDirection: 'column' }}>{aiPanelJSX}</div>
         </>)}
         {layout === 'fullscript' && <div style={{ flex: 1, overflow: 'hidden' }}>{scriptPanelJSX}</div>}
         {layout === 'fullai'     && <div style={{ flex: 1, overflow: 'hidden' }}>{aiPanelJSX}</div>}

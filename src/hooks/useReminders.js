@@ -42,6 +42,7 @@ export function useReminders() {
       lastName: contact.lastName || contact.name?.split(' ').slice(1).join(' ') || '',
       contactId: contact.id,
       type: contact.type || 'lead', // 'lead' or 'investor'
+      leadType: contact.leadType || '',
       dueAt,
       fired: false,
     }]);
