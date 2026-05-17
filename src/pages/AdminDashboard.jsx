@@ -23,6 +23,7 @@ import GlobalCalendar from '@/components/admin/GlobalCalendar';
 import BobTab from '@/components/admin/BobTab';
 import IncomingCallPopup from '@/components/shared/IncomingCallPopup';
 import RemindersFloatingPanel from '@/components/shared/RemindersFloatingPanel';
+import CallLogPanel from '@/components/admin/CallLogPanel';
 import { MOCK_LEADS, MOCK_INVESTORS } from '@/lib/mockData';
 
 const LOGO = 'https://media.base44.com/images/public/69cd2741578c9b5ce655395b/39a31f9b9_Untitleddesign3.png';
@@ -1500,6 +1501,8 @@ export default function AdminDashboard() {
   const [activityFilter, setActivityFilter] = useState('all');
   const [newSignNowCount, setNewSignNowCount] = useState(0);
   const [signNowAlertDismissed, setSignNowAlertDismissed] = useState(() => parseInt(localStorage.getItem('sn_dismissed_count') || '0'));
+  const [showCallLog, setShowCallLog] = useState(false);
+  const [callLogBadge, setCallLogBadge] = useState({ vm: 0, missed: 0 });
   const navigate = useNavigate();
 
   const handleViewChange = (v) => { setView(v); localStorage.setItem('admin_view', v); };
@@ -1528,6 +1531,13 @@ export default function AdminDashboard() {
         const snReqs = await SignNowRequestDB.listAll();
         const dismissed = parseInt(localStorage.getItem('sn_dismissed_count') || '0');
         setNewSignNowCount(Math.max(0, snReqs.length - dismissed));
+      } catch {}
+      // Count unread call log notifications
+      try {
+        const callLogs = await base44.entities.CallLog.list('-calledAt', 100);
+        const vmCount = (callLogs || []).filter(l => l.vmRecordingUrl && !l.vmListened).length;
+        const missedCount = (callLogs || []).filter(l => (l.status === 'missed' || l.status === 'no-answer') && !l.dismissed).length;
+        setCallLogBadge({ vm: vmCount, missed: missedCount });
       } catch {}
     } catch(e) { console.error('[Admin] load error:', e); }
   }, [getAllUsers, isMockUser]);
@@ -1610,6 +1620,20 @@ export default function AdminDashboard() {
                     Clear
                   </button>
                 )}
+              </div>
+              {/* Call Log / VM / Missed badge */}
+              <div
+                onClick={() => setShowCallLog(v => !v)}
+                style={{ display:'flex', alignItems:'center', gap:'5px', padding:'4px 12px', flexShrink:0, cursor:'pointer', background: showCallLog ? 'rgba(96,165,250,0.12)' : (callLogBadge.vm > 0 || callLogBadge.missed > 0) ? 'rgba(239,68,68,0.08)' : 'transparent', borderRadius:'3px', border: showCallLog ? '1px solid rgba(96,165,250,0.3)' : '1px solid transparent', transition:'all 0.15s' }}>
+                <span style={{ fontSize:'11px' }}>📋</span>
+                <div>
+                  <div style={{ display:'flex', gap:'4px', alignItems:'center' }}>
+                    {callLogBadge.vm > 0 && <span style={{ background:'rgba(245,158,11,0.2)', color:'#f59e0b', fontSize:'9px', padding:'0px 4px', borderRadius:'8px', fontWeight:'bold' }}>📩{callLogBadge.vm}</span>}
+                    {callLogBadge.missed > 0 && <span style={{ background:'rgba(239,68,68,0.2)', color:'#ef4444', fontSize:'9px', padding:'0px 4px', borderRadius:'8px', fontWeight:'bold' }}>📵{callLogBadge.missed}</span>}
+                    {callLogBadge.vm === 0 && callLogBadge.missed === 0 && <span style={{ color:'#4a5568', fontSize:'13px', fontWeight:'bold', lineHeight:1.1 }}>0</span>}
+                  </div>
+                  <div style={{ color:'#4a5568', fontSize:'7px', letterSpacing:'1px', textTransform:'uppercase' }}>Calls</div>
+                </div>
               </div>
             </div>
           )}
@@ -1947,14 +1971,12 @@ export default function AdminDashboard() {
         {view === 'bob'              && <BobTab />}
       </div>
 
+      {showCallLog && <CallLogPanel onClose={() => setShowCallLog(false)} onOpenLead={(leadId) => { handleViewChange('leads'); setOpenLeadId(leadId); setShowCallLog(false); }} />}
       <IncomingCallPopup
         onAnswerInvestor={(investor) => { setContactCard(investor); }}
         onAnswerLead={(lead) => { handleViewChange('leads'); setOpenLeadId(lead.id); }}
         onCreateLead={(lead) => { handleViewChange('leads'); setOpenLeadId(lead.id); }}
       />
-
-
-
       {dueReminder && (
         <ReminderPopup
           reminder={dueReminder}

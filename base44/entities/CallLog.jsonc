@@ -1,0 +1,90 @@
+{
+  "name": "CallLog",
+  "type": "object",
+  "properties": {
+    "callSid": {
+      "type": "string",
+      "title": "Twilio Call SID"
+    },
+    "direction": {
+      "type": "string",
+      "title": "Direction",
+      "enum": [
+        "inbound",
+        "outbound"
+      ],
+      "default": "inbound"
+    },
+    "fromNumber": {
+      "type": "string",
+      "title": "From Number"
+    },
+    "toNumber": {
+      "type": "string",
+      "title": "To Number"
+    },
+    "callerName": {
+      "type": "string",
+      "title": "Caller / Contact Name"
+    },
+    "leadId": {
+      "type": "string",
+      "title": "Matched Lead ID"
+    },
+    "investorId": {
+      "type": "string",
+      "title": "Matched Investor ID"
+    },
+    "status": {
+      "type": "string",
+      "title": "Call Status",
+      "enum": [
+        "ringing",
+        "answered",
+        "no-answer",
+        "voicemail",
+        "missed",
+        "completed"
+      ],
+      "default": "ringing"
+    },
+    "durationSeconds": {
+      "type": "number",
+      "title": "Duration (seconds)",
+      "default": 0
+    },
+    "calledAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Called At"
+    },
+    "answeredAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Answered At"
+    },
+    "vmRecordingUrl": {
+      "type": "string",
+      "title": "Voicemail Recording URL"
+    },
+    "vmTranscription": {
+      "type": "string",
+      "title": "Voicemail Transcription"
+    },
+    "vmListened": {
+      "type": "boolean",
+      "title": "Voicemail Listened",
+      "default": false
+    },
+    "dismissed": {
+      "type": "boolean",
+      "title": "Dismissed / Read",
+      "default": false
+    }
+  },
+  "required": [
+    "callSid",
+    "direction",
+    "calledAt"
+  ]
+}

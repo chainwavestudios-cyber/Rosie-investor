@@ -20,7 +20,8 @@
         "status_change",
         "note",
         "transcript",
-        "call_report"
+        "call_report",
+        "voicemail"
       ],
       "default": "note"
     },

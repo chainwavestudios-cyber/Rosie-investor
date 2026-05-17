@@ -86,14 +86,17 @@ Deno.serve(async (req) => {
     return new Response(twiml, { headers: { 'Content-Type': 'text/xml' } });
   }
 
-  // ── Mode 4: Inbound call → route to browser client ────────────────────
-  // When someone calls your Twilio number directly, Twilio hits this webhook
-  // with no To param (or To = your Twilio number). We route to the registered
-  // browser Device with identity 'agent'.
+  // ── Mode 4: Inbound call → route to browser client, then voicemail ───
+  // Ring the browser client (timeout=15s ≈ 3 rings). If no answer, play
+  // a greeting and record a voicemail. The recording webhook posts to
+  // voicemailWebhook where we store the recording in the CallLog entity.
+  const appId = Deno.env.get('BASE44_APP_ID') || '';
+  const vmWebhookBase = `https://run.base44.com/apps/${appId}/functions/voicemailWebhook`;
+
   const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Dial timeout="30">
-    <Client>agent</Client>
+  <Dial timeout="15" action="${vmWebhookBase}?noAnswer=true" method="POST">
+    <Client statusCallbackEvent="initiated ringing answered completed" statusCallback="${vmWebhookBase}">agent</Client>
   </Dial>
 </Response>`;
   console.log('[dialerVoiceHandler] → Mode 4 Inbound → routing to browser client (to:', to, 'called:', called, ')');
