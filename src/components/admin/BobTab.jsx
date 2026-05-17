@@ -875,7 +875,7 @@ function MockLeadCard({
               {/* Focus Topic */}
               <div style={{marginBottom:'16px'}}>
                 <label style={ls}>Focus / Topic</label>
-                <select value={focusTopic} onChange={e=>onFocusChange(e.target.value)} style={{...inp}}>
+                <select value={focusTopic} onChange={e=>onFocusChange(e.target.value)} style={{...inp,cursor:'pointer',colorScheme:'dark'}}>
                   {(focusTopics||FOCUS_TOPICS).map(t=><option key={t} value={t}>{t}</option>)}
                 </select>
               </div>
