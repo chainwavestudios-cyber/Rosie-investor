@@ -21,11 +21,14 @@ import Terms from './pages/Terms';
 import { PortalAuthProvider } from '@/lib/PortalAuthContext';
 import { TwilioDeviceProvider } from '@/lib/TwilioDeviceContext';
 
+const PUBLIC_PATHS = ['/optin', '/optin/screenshot', '/privacy', '/terms', '/portal-login', '/admin-login'];
+
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
+  const isPublic = PUBLIC_PATHS.some(p => window.location.pathname === p || window.location.pathname.startsWith(p + '/'));
 
-  // Show loading spinner while checking app public settings or auth
-  if (isLoadingPublicSettings || isLoadingAuth) {
+  // Show loading spinner while checking app public settings or auth (skip for public routes)
+  if (!isPublic && (isLoadingPublicSettings || isLoadingAuth)) {
     return (
       <div className="fixed inset-0 flex items-center justify-center">
         <div className="w-8 h-8 border-4 border-slate-200 border-t-slate-800 rounded-full animate-spin"></div>
@@ -33,8 +36,8 @@ const AuthenticatedApp = () => {
     );
   }
 
-  // Handle authentication errors
-  if (authError) {
+  // Handle authentication errors (skip for public routes)
+  if (!isPublic && authError) {
     if (authError.type === 'user_not_registered') {
       return <UserNotRegisteredError />;
     } else if (authError.type === 'auth_required') {
@@ -47,19 +50,20 @@ const AuthenticatedApp = () => {
   // Render the main app
   return (
     <Routes>
-      {/* Add your page Route elements here */}
-      <Route path="/" element={<Home />} />
-      <Route path="/portal-login" element={<PortalLogin />} />
-      <Route path="/portal" element={<InvestorPortal />} />
-      <Route path="/admin" element={<AdminDashboard />} />
-      <Route path="/admin-login" element={<AdminLogin />} />
-      <Route path="/offering" element={<Offering />} />
-      <Route path="/investor-page" element={<InvestorPage />} />
-      <Route path="/live-codebase-explorer" element={<LiveCodebaseExplorer />} />
+      {/* Public routes — no auth required */}
       <Route path="/optin" element={<OptIn />} />
       <Route path="/optin/screenshot" element={<OptInScreenshot />} />
       <Route path="/privacy" element={<PrivacyPolicy />} />
       <Route path="/terms" element={<Terms />} />
+      <Route path="/portal-login" element={<PortalLogin />} />
+      <Route path="/admin-login" element={<AdminLogin />} />
+      {/* Add your page Route elements here */}
+      <Route path="/" element={<Home />} />
+      <Route path="/portal" element={<InvestorPortal />} />
+      <Route path="/admin" element={<AdminDashboard />} />
+      <Route path="/offering" element={<Offering />} />
+      <Route path="/investor-page" element={<InvestorPage />} />
+      <Route path="/live-codebase-explorer" element={<LiveCodebaseExplorer />} />
       <Route path="*" element={<PageNotFound />} />
     </Routes>
   );
