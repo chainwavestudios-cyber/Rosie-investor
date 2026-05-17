@@ -203,17 +203,18 @@ function RightPanel({ transcript, aiPanelItem, onCloseAI, panelWidthPct, onWidth
     : '💡 AI Info';
 
   return (
-    <div style={{ width: `${panelWidthPct}%`, minWidth: 160, maxWidth: '55%', display: 'flex', flexDirection: 'column', borderLeft: '1px solid rgba(184,147,58,0.25)', background: 'rgba(0,0,0,0.2)', flexShrink: 0, overflow: 'hidden' }}>
+    <div style={{ width: `${panelWidthPct}%`, minWidth: 200, maxWidth: '55%', display: 'flex', flexDirection: 'column', borderLeft: '1px solid rgba(184,147,58,0.35)', background: 'rgba(0,0,0,0.25)', flexShrink: 0, overflow: 'hidden' }}>
       {/* Width slider in header */}
-      <div style={{ padding: '4px 10px', background: 'rgba(0,0,0,0.35)', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
-        <span style={{ color: GOLD, fontSize: '9px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase', flex: 1 }}>Panel</span>
+      <div style={{ padding: '4px 10px', background: 'rgba(0,0,0,0.4)', borderBottom: '1px solid rgba(184,147,58,0.2)', display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+        <span style={{ color: GOLD, fontSize: '9px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase', flex: 1 }}>📋 Side Panel</span>
+        <span style={{ color: '#4a5568', fontSize: '9px' }}>{panelWidthPct}%</span>
         <input type="range" min={18} max={55} value={panelWidthPct} onChange={e => onWidthChange(Number(e.target.value))}
-          style={{ width: 56, accentColor: GOLD, cursor: 'pointer' }} title="Adjust panel width" />
+          style={{ width: 60, accentColor: GOLD, cursor: 'pointer' }} title="Adjust panel width" />
       </div>
 
       {/* TOP 1/3 — Rolling Transcript */}
-      <div style={{ flex: '0 0 33%', display: 'flex', flexDirection: 'column', overflow: 'hidden', borderBottom: '1px solid rgba(184,147,58,0.2)' }}>
-        <div style={{ padding: '4px 10px', background: 'rgba(0,0,0,0.25)', borderBottom: '1px solid rgba(255,255,255,0.06)', flexShrink: 0 }}>
+      <div style={{ flex: '0 0 34%', display: 'flex', flexDirection: 'column', overflow: 'hidden', borderBottom: '2px solid rgba(184,147,58,0.3)' }}>
+        <div style={{ padding: '4px 10px', background: 'rgba(0,0,0,0.3)', borderBottom: '1px solid rgba(96,165,250,0.2)', flexShrink: 0 }}>
           <span style={{ color: '#60a5fa', fontSize: '9px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase' }}>🎙 Live Transcript</span>
         </div>
         <div ref={txRef} style={{ flex: 1, overflowY: 'auto', padding: '6px 10px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
@@ -233,9 +234,9 @@ function RightPanel({ transcript, aiPanelItem, onCloseAI, panelWidthPct, onWidth
 
       {/* BOTTOM 2/3 — AI Info panel */}
       <div style={{ flex: '1 1 0', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-        <div style={{ padding: '4px 10px', background: 'rgba(0,0,0,0.25)', borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
-          <span style={{ color: GOLD, fontSize: '9px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase', flex: 1 }}>
-            {aiPanelItem ? aiTypeLabel : '💡 AI Info'}
+        <div style={{ padding: '5px 10px', background: 'rgba(0,0,0,0.3)', borderBottom: `1px solid ${aiPanelItem ? GOLD + '44' : 'rgba(255,255,255,0.08)'}`, display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+          <span style={{ color: aiPanelItem ? GOLD : '#6b7280', fontSize: '9px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase', flex: 1 }}>
+            {aiPanelItem ? aiTypeLabel : '💡 AI Info — More Info / Talking Points / Research'}
           </span>
           {aiPanelItem && (
             <button onClick={onCloseAI} style={{ background: 'none', border: 'none', color: '#6b7280', cursor: 'pointer', fontSize: '14px', lineHeight: 1, padding: '0 2px' }}>×</button>
@@ -243,8 +244,12 @@ function RightPanel({ transcript, aiPanelItem, onCloseAI, panelWidthPct, onWidth
         </div>
         <div style={{ flex: 1, overflowY: 'auto', padding: '10px 12px' }}>
           {!aiPanelItem && (
-            <div style={{ color: '#4a5568', fontSize: '11px', textAlign: 'center', padding: '20px 8px', lineHeight: 1.7 }}>
-              Use <span style={{ color: '#60a5fa' }}>+ More Info</span>, <span style={{ color: '#4ade80' }}>💬 Talking Points</span>, or <span style={{ color: '#a78bfa' }}>🔍 Internet Research</span> on any answered question to populate this area.
+            <div style={{ color: '#4a5568', fontSize: '11px', padding: '16px 8px', lineHeight: 1.8, borderRadius: '6px', border: '1px dashed rgba(255,255,255,0.07)', margin: '8px 0', textAlign: 'center' }}>
+              <div style={{ fontSize: '16px', marginBottom: '8px' }}>💡</div>
+              Click <span style={{ color: '#60a5fa', fontWeight: 'bold' }}>+ More Info</span>,{' '}
+              <span style={{ color: '#4ade80', fontWeight: 'bold' }}>💬 Talking Points</span>, or{' '}
+              <span style={{ color: '#a78bfa', fontWeight: 'bold' }}>🔍 Internet Research</span>{' '}
+              on any answered Q&A question to populate this area.
             </div>
           )}
           {aiPanelItem && (
@@ -676,6 +681,8 @@ export default function AIAssistantPopup({
   const [width,  setWidth]  = useState(saved?.w || Math.min(980, window.innerWidth - 40));
   const [height, setHeight] = useState(saved?.h || 520);
   const [showScript, setShowScript] = useState(false);
+  // Script panel height in px (draggable)
+  const [scriptH, setScriptH] = useState(saved?.sh || 180);
   const [qaH,    setQaH]    = useState(42);
   const [coachH, setCoachH] = useState(33);
   const [qaCollapsed,     setQaCollapsed]     = useState(false);
@@ -686,8 +693,14 @@ export default function AIAssistantPopup({
   const [savedMsg, setSavedMsg] = useState(false);
 
   // Right panel: AI info content (transcript always shows; AI info populates when requested)
+  // Always visible — default 32% width, minimum 200px
   const [aiPanelItem, setAiPanelItem] = useState(null);
-  const [rightPanelWidth, setRightPanelWidth] = useState(saved?.rpw || 30);
+  const [rightPanelWidth, setRightPanelWidth] = useState(saved?.rpw || 32);
+
+  // Script panel drag-resize
+  const scriptResizing = useRef(false);
+  const scriptResizeStartY = useRef(0);
+  const scriptResizeStartH = useRef(0);
 
   const draggingPanel = useRef(false);
   const dragStart     = useRef({ mx:0,my:0,px:0,py:0 });
@@ -754,8 +767,22 @@ export default function AIAssistantPopup({
     return () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
   }, [height]);
 
+  // Script panel mouse resize
+  useEffect(() => {
+    const onMove = (e) => {
+      if (!scriptResizing.current) return;
+      // dragging UP increases height (panel is at bottom, drag handle is at top of panel)
+      const dy = scriptResizeStartY.current - e.clientY;
+      setScriptH(Math.max(80, Math.min(500, scriptResizeStartH.current + dy)));
+    };
+    const onUp = () => { scriptResizing.current = false; };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+    return () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
+  }, []);
+
   const saveDefaultSize = () => {
-    localStorage.setItem(SIZE_KEY, JSON.stringify({ x: pos.x, y: pos.y, w: width, h: height, rpw: rightPanelWidth }));
+    localStorage.setItem(SIZE_KEY, JSON.stringify({ x: pos.x, y: pos.y, w: width, h: height, rpw: rightPanelWidth, sh: scriptH }));
     setSavedMsg(true);
     setTimeout(() => setSavedMsg(false), 2000);
   };
@@ -850,11 +877,21 @@ export default function AIAssistantPopup({
             </>
           )}
 
-          {/* Script Panel — at the bottom */}
+          {/* Script Panel — at the bottom, with drag-resize handle at top */}
           {showScript && activeScript && (
-            <div style={{borderTop:'1px solid rgba(96,165,250,0.25)',background:'rgba(96,165,250,0.04)',maxHeight:'220px',overflow:'hidden',display:'flex',flexDirection:'column',flexShrink:0}}>
-              <div style={{padding:'5px 14px',background:'rgba(0,0,0,0.2)',borderBottom:'1px solid rgba(96,165,250,0.15)',display:'flex',alignItems:'center',gap:'8px',flexShrink:0}}>
+            <div style={{height:`${scriptH}px`,minHeight:80,display:'flex',flexDirection:'column',flexShrink:0,borderTop:'1px solid rgba(96,165,250,0.35)'}}>
+              {/* Drag handle — drag UP to expand, DOWN to shrink */}
+              <div
+                onMouseDown={e => { e.preventDefault(); scriptResizing.current = true; scriptResizeStartY.current = e.clientY; scriptResizeStartH.current = scriptH; }}
+                style={{height:8,background:'rgba(96,165,250,0.08)',cursor:'ns-resize',flexShrink:0,display:'flex',alignItems:'center',justifyContent:'center',borderBottom:'1px solid rgba(96,165,250,0.2)'}}
+                onMouseEnter={e=>e.currentTarget.style.background='rgba(96,165,250,0.22)'}
+                onMouseLeave={e=>e.currentTarget.style.background='rgba(96,165,250,0.08)'}
+              >
+                <div style={{width:40,height:3,borderRadius:2,background:'rgba(96,165,250,0.4)'}} />
+              </div>
+              <div style={{padding:'4px 14px',background:'rgba(0,0,0,0.25)',borderBottom:'1px solid rgba(96,165,250,0.15)',display:'flex',alignItems:'center',gap:'8px',flexShrink:0}}>
                 <span style={{color:'#60a5fa',fontSize:'9px',fontWeight:'bold',letterSpacing:'1px',textTransform:'uppercase',flex:1}}>📋 Script — {activeScript.name||activeScript.title||'Active Script'}</span>
+                <span style={{color:'#4a5568',fontSize:'9px'}}>↕ drag top edge to resize</span>
                 <button onClick={()=>setShowScript(false)} style={{background:'none',border:'none',color:'#4a5568',cursor:'pointer',fontSize:'13px',lineHeight:1}}>×</button>
               </div>
               <div style={{flex:1,overflowY:'auto',padding:'10px 14px',color:'#c4cdd8',fontSize:'12px',lineHeight:1.75,whiteSpace:'pre-wrap',fontFamily:'Georgia,serif'}}>
