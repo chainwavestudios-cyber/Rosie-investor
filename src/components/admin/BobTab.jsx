@@ -1118,6 +1118,20 @@ export default function BobTab() {
   const [ringPhase,setRingPhase]       = useState(false);
   const [agentSpeaking,setAgentSpeaking] = useState(false);
   const [error,setError]               = useState('');
+  const [micDevices,setMicDevices]     = useState([]);
+  const [micDeviceId,setMicDeviceId]   = useState('');
+
+  // Load mic devices (enumerate after granting permission)
+  useEffect(() => {
+    navigator.mediaDevices.getUserMedia({ audio: true })
+      .then(() => navigator.mediaDevices.enumerateDevices())
+      .then(devices => {
+        const mics = devices.filter(d => d.kind === 'audioinput');
+        setMicDevices(mics);
+        if (mics.length > 0 && !micDeviceId) setMicDeviceId(mics[0].deviceId);
+      })
+      .catch(() => {});
+  }, []);
 
   const wsRef        = useRef(null);
   const audioCtxRef  = useRef(null);
@@ -1249,7 +1263,7 @@ ${prevCtx}
       console.log('[BOB] Ring done — connecting to Deepgram. Key prefix:', apiKey.slice(0,8)+'...');
       let stream;
       try{
-        stream=await navigator.mediaDevices.getUserMedia({audio:true});
+        stream=await navigator.mediaDevices.getUserMedia({audio: micDeviceId ? {deviceId:{exact:micDeviceId}} : true});
         micStreamRef.current=stream;
         console.log('[BOB] Mic acquired ✓');
       }
@@ -1393,8 +1407,24 @@ ${prevCtx}
           </div>
           <div style={{color:'#6b7280',fontSize:'11px'}}>{sys.scriptHint} Real Deepgram voice · Real AI · Real scripts.</div>
         </div>
-        <div style={{display:'flex',gap:'8px',flexShrink:0}}>
+        <div style={{display:'flex',gap:'8px',flexShrink:0,alignItems:'center'}}>
           {phase==='active'&&<div style={{display:'flex',alignItems:'center',gap:'6px',background:'rgba(239,68,68,0.12)',border:'1px solid rgba(239,68,68,0.3)',borderRadius:'20px',padding:'6px 14px'}}><div style={{width:'8px',height:'8px',borderRadius:'50%',background:'#ef4444',animation:'pulse 1s infinite'}}/><span style={{color:'#ef4444',fontSize:'11px',fontWeight:'bold'}}>{sessionId} LIVE</span></div>}
+
+          {/* Mic selector */}
+          {micDevices.length > 0 && phase === 'idle' && (
+            <div style={{display:'flex',flexDirection:'column',gap:'3px'}}>
+              <div style={{color:'#4a5568',fontSize:'9px',letterSpacing:'1px',textTransform:'uppercase'}}>🎙 Microphone</div>
+              <select value={micDeviceId} onChange={e => setMicDeviceId(e.target.value)}
+                style={{background:'rgba(255,255,255,0.06)',border:'1px solid rgba(255,255,255,0.12)',borderRadius:'4px',padding:'4px 8px',color:'#e8e0d0',fontSize:'11px',outline:'none',cursor:'pointer',maxWidth:'220px'}}>
+                {micDevices.map(m => (
+                  <option key={m.deviceId} value={m.deviceId}>
+                    {m.label || `Mic ${m.deviceId.slice(0,6)}`}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
           <div style={{background:`${sys.color}18`,border:`1px solid ${sys.color}44`,borderRadius:'4px',padding:'8px 14px',textAlign:'center'}}><div style={{color:sys.color,fontSize:'18px',fontWeight:'bold'}}>{callCount}</div><div style={{color:'#6b7280',fontSize:'9px',textTransform:'uppercase',letterSpacing:'1px'}}>Calls</div></div>
           <div style={{background:'rgba(255,255,255,0.03)',border:'1px solid rgba(255,255,255,0.08)',borderRadius:'4px',padding:'8px 14px',textAlign:'center'}}><div style={{color:'#e8e0d0',fontSize:'18px',fontWeight:'bold'}}>{trainingLogs.length}</div><div style={{color:'#6b7280',fontSize:'9px',textTransform:'uppercase',letterSpacing:'1px'}}>Events</div></div>
         </div>

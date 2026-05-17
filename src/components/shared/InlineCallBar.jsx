@@ -43,7 +43,22 @@ export default function InlineCallBar({
   const [showFX, setShowFX] = useState(false);
 
   const { portalUser } = usePortalAuth();
-  const isAdmin = ADMIN_USERS.includes(portalUser?.username || '');
+  const username = portalUser?.username || '';
+  const isAdmin = ADMIN_USERS.includes(username);
+
+  // Load default mic for this user on mount, apply when devices are available
+  useEffect(() => {
+    if (!username || !micDevices || micDevices.length === 0) return;
+    const saved = localStorage.getItem(`defaultMic_${username}`);
+    if (saved && micDevices.some(m => m.deviceId === saved) && micDeviceId !== saved) {
+      setMicDeviceId(saved);
+    }
+  }, [username, micDevices]);
+
+  const saveDefaultMic = () => {
+    if (!username || !micDeviceId) return;
+    localStorage.setItem(`defaultMic_${username}`, micDeviceId);
+  };
 
   // Populate mic list on first render (requires mic permission)
   useEffect(() => {
@@ -382,16 +397,27 @@ export default function InlineCallBar({
       )}
 
       {/* ── Mic selector ── */}
-      {micDevices && micDevices.length > 1 && !isActive && (
+      {micDevices && micDevices.length > 0 && !isActive && (
         <div style={{ borderTop:'1px solid rgba(255,255,255,0.06)', paddingTop:'6px' }}>
-          <select value={micDeviceId} onChange={e => setMicDeviceId(e.target.value)}
-            style={{ width:'100%', background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.1)', borderRadius:'3px', padding:'4px 8px', color:'#6b7280', fontSize:'10px', outline:'none', cursor:'pointer' }}>
-            {micDevices.map(m => (
-              <option key={m.deviceId} value={m.deviceId}>
-                🎙 {m.label || `Microphone ${m.deviceId.slice(0,6)}`}
-              </option>
-            ))}
-          </select>
+          <div style={{ display:'flex', gap:'5px', alignItems:'center' }}>
+            <select value={micDeviceId} onChange={e => setMicDeviceId(e.target.value)}
+              style={{ flex:1, background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.1)', borderRadius:'3px', padding:'4px 8px', color:'#6b7280', fontSize:'10px', outline:'none', cursor:'pointer' }}>
+              {micDevices.map(m => (
+                <option key={m.deviceId} value={m.deviceId}>
+                  🎙 {m.label || `Microphone ${m.deviceId.slice(0,6)}`}
+                </option>
+              ))}
+            </select>
+            {username && (
+              <button onClick={saveDefaultMic} title={`Save as default mic for ${username}`}
+                style={{ background:'rgba(184,147,58,0.1)', border:'1px solid rgba(184,147,58,0.3)', borderRadius:'3px', padding:'4px 8px', color:GOLD, fontSize:'9px', cursor:'pointer', whiteSpace:'nowrap' }}>
+                ★ Default
+              </button>
+            )}
+          </div>
+          {username && localStorage.getItem(`defaultMic_${username}`) === micDeviceId && (
+            <div style={{ color:'#4a5568', fontSize:'9px', marginTop:'3px' }}>✓ Default mic for {username}</div>
+          )}
         </div>
       )}
 
