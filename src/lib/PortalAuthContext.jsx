@@ -21,6 +21,15 @@ const STEPH_USER = {
   company: 'Rosie AI LLC',
 };
 
+const NBTECH_USER = {
+  username: 'nbtech',
+  name: 'NB Tech',
+  email: 'nbtech@rosieai.com',
+  role: 'admin',
+  company: 'NB Tech',
+  isMockUser: true,
+};
+
 const ADMIN_PASSWORD_DEFAULT = 'password';
 const ADMIN_USERNAME_DEFAULT = 'admin';
 
@@ -57,6 +66,13 @@ export const PortalAuthProvider = ({ children }) => {
       setPortalUser(STEPH_USER);
       sessionStorage.setItem(SESSION_KEY, JSON.stringify(STEPH_USER));
       return { success: true, user: STEPH_USER };
+    }
+
+    // NB Tech demo user — shows mock data only
+    if (u === 'nbtech' && password === 'password') {
+      setPortalUser(NBTECH_USER);
+      sessionStorage.setItem(SESSION_KEY, JSON.stringify(NBTECH_USER));
+      return { success: true, user: NBTECH_USER };
     }
 
     // Admin check — credentials stored in DB via PortalSettings

@@ -23,6 +23,7 @@ import GlobalCalendar from '@/components/admin/GlobalCalendar';
 import BobTab from '@/components/admin/BobTab';
 import IncomingCallPopup from '@/components/shared/IncomingCallPopup';
 import RemindersFloatingPanel from '@/components/shared/RemindersFloatingPanel';
+import MockAdminDashboard from '@/components/admin/MockAdminDashboard';
 
 const LOGO = 'https://media.base44.com/images/public/69cd2741578c9b5ce655395b/39a31f9b9_Untitleddesign3.png';
 const GOLD = '#b8933a';
@@ -1545,6 +1546,9 @@ export default function AdminDashboard() {
     </div>
   );
   if (!portalUser || !isAdmin) return null;
+
+  // NB Tech demo user — show mock dashboard only
+  if (portalUser.isMockUser) return <MockAdminDashboard />;
 
   const nonAdminUsers  = users.filter(u => u.role !== 'admin');
   const filteredUsers  = nonAdminUsers.filter(u => {
