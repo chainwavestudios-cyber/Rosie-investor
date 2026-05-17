@@ -1950,6 +1950,7 @@ export default function AdminDashboard() {
       <IncomingCallPopup
         onAnswerInvestor={(investor) => { setContactCard(investor); }}
         onAnswerLead={(lead) => { handleViewChange('leads'); setOpenLeadId(lead.id); }}
+        onCreateLead={(lead) => { handleViewChange('leads'); setOpenLeadId(lead.id); }}
       />
 
 
