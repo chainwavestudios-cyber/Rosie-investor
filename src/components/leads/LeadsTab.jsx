@@ -6,7 +6,7 @@ import PredictiveDialer from './PredictiveDialer';
 import WebsiteEngagementTab from './WebsiteEngagementTab';
 import GlobalScriptEditor from '@/components/scripts/GlobalScriptEditor';
 import SiteVisitsTab from './SiteVisitsTab';
-import LeadPipeline from './LeadPipeline';
+import LeadPipeline from './LeadPipeline.jsx';
 
 const GOLD = '#b8933a';
 const DARK = '#0a0f1e';
@@ -751,7 +751,7 @@ export default function LeadsTab({ openLeadId, onLeadOpened }) {
         <div style={{ padding:'0 0 12px 0' }}>
           {[
             { id:'leads',    icon:'📋', label:'Leads' },
-            { id:'pipeline', icon:'🚀', label:'Prospect Pipeline' },
+            { id:'pipeline', icon:'🚀', label:'Pipeline' },
             { id:'lists',    icon:'📁', label:`Lists (${contactLists.length})` },
             { id:'activity', icon:'⚡', label:'Activity Feed' },
             { id:'email',    icon:'✉️',  label:'Email Activity' },
