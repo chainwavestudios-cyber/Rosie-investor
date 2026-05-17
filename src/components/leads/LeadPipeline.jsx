@@ -205,7 +205,7 @@ function PipelineTypeSelector({ value, onChange }) {
   );
 }
 
-export default function LeadPipeline({ onOpenLead }) {
+export default function LeadPipeline({ onOpenLead, mockLeads = null }) {
   const { portalUser } = usePortalAuth();
   const currentUsername = portalUser?.username || 'admin';
   const otherUsername = currentUsername === 'steph' ? 'admin' : 'steph';
@@ -225,7 +225,14 @@ export default function LeadPipeline({ onOpenLead }) {
   // Per-user sub-pipeline type: keyed by username
   const [pipelineTypes, setPipelineTypes] = useState({ [currentUsername]: 'prospect', [otherUsername]: 'prospect' });
 
-  useEffect(() => { loadData(); }, []);
+  useEffect(() => {
+    if (mockLeads) {
+      setLeads(mockLeads);
+      setLoading(false);
+      return;
+    }
+    loadData();
+  }, []);
 
   const loadData = async () => {
     setLoading(true);

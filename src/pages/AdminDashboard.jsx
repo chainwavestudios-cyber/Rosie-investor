@@ -23,7 +23,7 @@ import GlobalCalendar from '@/components/admin/GlobalCalendar';
 import BobTab from '@/components/admin/BobTab';
 import IncomingCallPopup from '@/components/shared/IncomingCallPopup';
 import RemindersFloatingPanel from '@/components/shared/RemindersFloatingPanel';
-import MockAdminDashboard from '@/components/admin/MockAdminDashboard';
+import { MOCK_LEADS, MOCK_INVESTORS } from '@/lib/mockData';
 
 const LOGO = 'https://media.base44.com/images/public/69cd2741578c9b5ce655395b/39a31f9b9_Untitleddesign3.png';
 const GOLD = '#b8933a';
@@ -1510,7 +1510,15 @@ export default function AdminDashboard() {
         || (n(user.username) && n(session.username) && n(session.username)===n(user.username));
   }, []);
 
+  const isMockUser = !!portalUser?.isMockUser;
+
   const load = useCallback(async () => {
+    // For mock users, inject mock data and skip real DB queries
+    if (isMockUser) {
+      setUsers(MOCK_INVESTORS);
+      setPortalSettings({});
+      return;
+    }
     try {
       const [usersData, sessions, ps] = await Promise.all([getAllUsers(), analytics.getAllSessions(), loadPortalSettings()]);
       setUsers(usersData); setAllSessions(sessions); setPortalSettings(ps);
@@ -1522,7 +1530,7 @@ export default function AdminDashboard() {
         setNewSignNowCount(Math.max(0, snReqs.length - dismissed));
       } catch {}
     } catch(e) { console.error('[Admin] load error:', e); }
-  }, [getAllUsers]);
+  }, [getAllUsers, isMockUser]);
 
   useEffect(() => {
     if (isPortalLoading) return;
@@ -1547,8 +1555,7 @@ export default function AdminDashboard() {
   );
   if (!portalUser || !isAdmin) return null;
 
-  // NB Tech demo user — show mock dashboard only
-  if (portalUser.isMockUser) return <MockAdminDashboard />;
+  // NB Tech demo user — use mock data injected below
 
   const nonAdminUsers  = users.filter(u => u.role !== 'admin');
   const filteredUsers  = nonAdminUsers.filter(u => {
@@ -1624,6 +1631,12 @@ export default function AdminDashboard() {
         </div>
       </nav>
 
+      {isMockUser && (
+        <div style={{ background:'rgba(99,102,241,0.1)', borderBottom:'1px solid rgba(99,102,241,0.25)', padding:'7px 32px', display:'flex', alignItems:'center', gap:'8px' }}>
+          <span style={{ fontSize:'13px' }}>💡</span>
+          <span style={{ color:'#818cf8', fontSize:'11px', letterSpacing:'0.5px' }}>NB Tech Demo Mode — displaying sample data only. No real lead or contact data is accessible.</span>
+        </div>
+      )}
       <div style={{ maxWidth:'1600px', margin:'0 auto', padding:isMobile?'12px 16px':'24px 32px' }}>
 
         {/* Upcoming appointments — only on CRM tab, not leads (pipeline needs the space) */}
@@ -1924,7 +1937,7 @@ export default function AdminDashboard() {
           </div>
         )}
 
-        {view === 'leads'            && <LeadsTab openLeadId={openLeadId} onLeadOpened={() => setOpenLeadId(null)} />}
+        {view === 'leads'            && <LeadsTab openLeadId={openLeadId} onLeadOpened={() => setOpenLeadId(null)} mockLeads={isMockUser ? MOCK_LEADS : null} />}
         {view === 'marketing'         && <MarketingTab />}
         {view === 'kb' && <KnowledgeBaseManagerComponent IntentEngineTuner={IntentEngineTuner} CoachRulesTuner={CoachRulesTuner} />}
         {view === 'signnow'          && <SignNowRequestsView settings={portalSettings} />}

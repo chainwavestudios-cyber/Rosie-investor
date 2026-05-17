@@ -318,7 +318,7 @@ function NewLeadModal({ onClose, onCreated }) {
 }
 
 // ─── Main Leads Tab ───────────────────────────────────────────────────────
-export default function LeadsTab({ openLeadId, onLeadOpened }) {
+export default function LeadsTab({ openLeadId, onLeadOpened, mockLeads = null }) {
   const [leads, setLeads] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all');
@@ -353,6 +353,12 @@ export default function LeadsTab({ openLeadId, onLeadOpened }) {
   const [stateFilter, setStateFilter] = useState('all');
 
   useEffect(() => {
+    if (mockLeads) {
+      // Mock user — use injected mock data, skip all DB calls
+      setLeads(mockLeads);
+      setLoading(false);
+      return;
+    }
     loadLeads();
     loadActivity();
     base44.entities.ContactList.list('-created_date', 100).then(setContactLists).catch(() => {});
@@ -1192,7 +1198,7 @@ export default function LeadsTab({ openLeadId, onLeadOpened }) {
 
       {/* PROSPECT PIPELINE */}
       {sidebarView === 'pipeline' && (
-        <LeadPipeline onOpenLead={(lead) => setSelectedLead(lead)} />
+        <LeadPipeline onOpenLead={(lead) => setSelectedLead(lead)} mockLeads={mockLeads} />
       )}
 
       {/* SCRIPTS */}
