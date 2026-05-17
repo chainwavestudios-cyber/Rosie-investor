@@ -1936,7 +1936,8 @@ export default function AdminDashboard() {
         {/* ── Recent Activity ── */}
         {view === 'activity' && (
           <div>
-            <h2 style={{ color:'#e8e0d0', margin:'0 0 24px', fontSize:'20px', fontWeight:'normal' }}>Recent Activity</h2>
+            <h2 style={{ color:'#e8e0d0', margin:'0 0 8px', fontSize:'20px', fontWeight:'normal' }}>Recent Activity</h2>
+            <div style={{ background:'rgba(184,147,58,0.08)', border:'1px solid rgba(184,147,58,0.2)', borderRadius:'8px', padding:'12px 18px', marginBottom:'18px', color:GOLD, fontSize:'13px', fontWeight:'bold' }}>💸 You've earned it — spend the $ anywhere you want! 🎉</div>
             {recentSessions.length === 0 ? <p style={{ color:'#4a5568', textAlign:'center', padding:'60px' }}>No activity yet.</p> :
               recentSessions.map((sess, i) => (
                 <div key={i} style={{ background:'rgba(255,255,255,0.03)', border:'1px solid rgba(255,255,255,0.07)', borderRadius:'2px', padding:'18px 20px', marginBottom:'8px', display:'flex', justifyContent:'space-between', flexWrap:'wrap', gap:'12px' }}>

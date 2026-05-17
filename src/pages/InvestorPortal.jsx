@@ -1225,8 +1225,20 @@ export default function InvestorPortal() {
           </button>
           </div>
 
-          {/* Logout button */}
+          {/* Link to main investor site */}
           <div style={{ padding: '8px 10px', borderTop: `1px solid ${BORDER_S}` }}>
+            <a
+              href="https://investors.rosieai.tech"
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ display: 'block', width: '100%', textAlign: 'center', background: 'rgba(184,147,58,0.08)', border: `1px solid rgba(184,147,58,0.2)`, borderRadius: '6px', padding: '9px', color: GOLD, fontSize: '11px', fontFamily: 'Georgia, serif', textDecoration: 'none', letterSpacing: '0.5px' }}
+            >
+              🌐 investors.rosieai.tech ↗
+            </a>
+          </div>
+
+          {/* Logout button */}
+          <div style={{ padding: '8px 10px' }}>
             <button
               onClick={() => { portalLogout(); navigate('/'); }}
               style={{ width: '100%', background: 'transparent', color: TEXT_DIM, border: `1px solid ${BORDER_S}`, borderRadius: '6px', padding: '9px', cursor: 'pointer', fontSize: '12px', fontFamily: 'Georgia, serif' }}
