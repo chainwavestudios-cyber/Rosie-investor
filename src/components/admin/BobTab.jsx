@@ -405,7 +405,7 @@ const KB_SYSTEMS = {
     description: 'Sales training for NB Tech — enterprise software and technology solutions.',
     kbCategory: 'nbtech_kb',
     kbCategory2: 'nbtech_faq',
-    focusTopics: ['General','Product Demo','Pricing & Contracts','Security & Compliance','Integration Capabilities','ROI & Cost Savings','Competitor Comparison','Support & SLA'],
+    focusTopics: ['General','The 21:1 Conversion & IPO Math','The Nightowl Acquisition','Magnus AI & Technology','Siebert LOI & Nasdaq Timeline','Revenue & Financials','Market Opportunity','Investment Terms & Process','Risk & Objections','Competitor Comparison','Price Scenarios & Returns'],
     defaultFocus: 'General',
     scriptHint: 'Practice your NB Tech enterprise sales pitch against Duck, Cow, or Owl personas.',
     bobPickupLine: 'Hello, this is Bob.',
