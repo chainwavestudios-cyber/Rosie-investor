@@ -132,11 +132,10 @@ function QASection({ transcript, transcriptRef, kbEntries, active, qaKeywords, m
           seenQ.current.add(autoQ);
           setQuestions(prev => [...prev, { id: autoId, text: autoQ, time: new Date(), answer: '', answering: true, answered: false, auto: true, manual: false }]);
           // Auto answers fire immediately — no dismiss timer needed
-          base44.functions.invoke('liveAssistantAI', { question: autoQ, transcript: transcriptRef.current.slice(-12), kbEntries, mode: 'qa', kbName: kbName || '' })
+          base44.functions.invoke('liveAssistantAI', { question: autoQ, transcript: transcriptRef.current.slice(-12), kbEntries, mode: 'qa' })
             .then(res => {
               const answer = res?.data?.answer || 'No matching information found.';
               setQuestions(prev => prev.map(x => x.id === autoId ? { ...x, answering: false, answered: true, answer, source: res?.data?.source } : x));
-              onQALog?.({ question: autoQ, answer, source: res?.data?.source || 'kb_ai', kbName: kbName || '', time: new Date().toISOString() });
             })
             .catch(e => setQuestions(prev => prev.map(x => x.id === autoId ? { ...x, answering: false, answer: `Error: ${e.message}` } : x)));
         }
