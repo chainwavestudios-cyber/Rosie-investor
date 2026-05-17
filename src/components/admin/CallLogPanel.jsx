@@ -82,44 +82,37 @@ function ReportsTab({ lines }) {
   const generate = async () => {
     setLoading(true);
     try {
-      const all = await base44.entities.CallLog.list('-calledAt', 500);
       const dayStart = new Date(date + 'T00:00:00');
       const dayEnd   = new Date(date + 'T23:59:59');
 
-      let filtered = (all || []).filter(l => {
-        const t = new Date(l.calledAt);
+      // Use LeadHistory as the source of truth for outbound calls
+      const histories = await base44.entities.LeadHistory.list('-created_date', 1000);
+      let filtered = (histories || []).filter(h => {
+        if (!['call', 'connected', 'not_available'].includes(h.type)) return false;
+        const t = new Date(h.created_date || 0);
         return t >= dayStart && t <= dayEnd;
       });
 
-      // User filter — we use toNumber to match known lines
-      // "admin" = calls from TWILIO_FROM_NUMBER or _2, "steph" = TWILIO_FROM_NUMBER_3
-      // Since we don't store who dialed, we map by which outbound number was used
-      const adminNumbers = lines.slice(0, 2).map(l => l.number);
-      const stephNumbers = lines.slice(2).map(l => l.number);
-
-      if (userFilter === 'admin') {
-        filtered = filtered.filter(l => adminNumbers.includes(l.fromNumber) || adminNumbers.includes(l.toNumber));
-      } else if (userFilter === 'steph') {
-        filtered = filtered.filter(l => stephNumbers.includes(l.fromNumber) || stephNumbers.includes(l.toNumber));
+      if (userFilter !== 'all') {
+        filtered = filtered.filter(h => (h.createdBy || '').toLowerCase() === userFilter.toLowerCase());
       }
 
       const totalCalls = filtered.length;
-      const answered = filtered.filter(l => l.status === 'answered' || l.status === 'completed');
-      const answeredCount = answered.length;
+      const connected = filtered.filter(h => h.type === 'connected' || (h.callDurationSeconds > 0));
+      const answeredCount = connected.length;
       const connectionRate = totalCalls > 0 ? ((answeredCount / totalCalls) * 100).toFixed(1) : '0.0';
-      const totalDial = filtered.reduce((sum, l) => sum + (l.durationSeconds || 0), 0);
+      const totalDial = filtered.reduce((sum, h) => sum + (h.callDurationSeconds || 0), 0);
       const avgDial = answeredCount > 0 ? Math.round(totalDial / answeredCount) : 0;
-      const longestCall = answered.reduce((max, l) => Math.max(max, l.durationSeconds || 0), 0);
+      const longestCall = filtered.reduce((max, h) => Math.max(max, h.callDurationSeconds || 0), 0);
 
-      // Converted leads: leads that moved to prospect or nb_tech — check LeadHistory for that day
-      let convertedCount = 0;
-      try {
-        const histories = await base44.entities.LeadHistory.list('-created_date', 300);
-        convertedCount = (histories || []).filter(h => {
-          const t = new Date(h.created_date || h.createdAt || 0);
-          return t >= dayStart && t <= dayEnd && (h.type === 'interested' || h.content?.toLowerCase().includes('converted') || h.content?.toLowerCase().includes('prospect'));
-        }).length;
-      } catch {}
+      // Converted = lead marked as prospect or nb_tech that day
+      const convertedCount = (histories || []).filter(h => {
+        const t = new Date(h.created_date || 0);
+        return t >= dayStart && t <= dayEnd &&
+          (h.type === 'interested' || h.type === 'prospect' ||
+           (h.content || '').toLowerCase().includes('marked as prospect') ||
+           (h.content || '').toLowerCase().includes('nb tech'));
+      }).length;
       const convertedPct = totalCalls > 0 ? ((convertedCount / totalCalls) * 100).toFixed(1) : '0.0';
 
       setReport({ totalCalls, answeredCount, connectionRate, totalDial, avgDial, longestCall, convertedCount, convertedPct, date, userFilter });
@@ -191,77 +184,83 @@ function ReportsTab({ lines }) {
 
 // ── Main Panel ───────────────────────────────────────────────────────────────
 export default function CallLogPanel({ onClose, onOpenLead }) {
-  const [logs, setLogs]               = useState([]);
+  // callLogs = real-time inbound/VM records from CallLog entity
+  const [callLogs, setCallLogs]       = useState([]);
+  // historyRows = all outbound calls from LeadHistory, enriched with lead name
+  const [historyRows, setHistoryRows] = useState([]);
   const [lines, setLines]             = useState([]);
   const [loading, setLoading]         = useState(true);
-  const [selectedNums, setSelectedNums] = useState(['all']); // 'all' or array of numbers
-  const [dirTab, setDirTab]           = useState('inbound');   // 'inbound' | 'outbound'
-  const [mainTab, setMainTab]         = useState('calls');     // 'calls' | 'reports'
+  const [userFilter, setUserFilter]   = useState('all'); // 'all' | 'admin' | 'steph'
+  const [dirTab, setDirTab]           = useState('outbound'); // 'inbound' | 'outbound'
+  const [mainTab, setMainTab]         = useState('calls');
   const [playingVm, setPlayingVm]     = useState(null);
   const audioRef = useRef(null);
 
   useEffect(() => {
     loadData();
-    const poll = setInterval(loadLogs, 5000);
+    const poll = setInterval(loadCallLogs, 5000);
     return () => clearInterval(poll);
   }, []);
 
   const loadData = async () => {
     try {
-      const [logsData, linesData] = await Promise.all([
+      const [clData, linesData, histData, leadsData] = await Promise.all([
         base44.entities.CallLog.list('-calledAt', 150),
         base44.functions.invoke('twilioGetLines', {}),
+        base44.entities.LeadHistory.list('-created_date', 500),
+        base44.entities.Lead.list('-updated_date', 500),
       ]);
-      setLogs(logsData || []);
+      setCallLogs(clData || []);
       setLines(linesData?.data?.lines || linesData?.lines || []);
-    } catch {}
+
+      // Build lead name lookup
+      const leadMap = {};
+      (leadsData || []).forEach(l => { leadMap[l.id] = `${l.firstName || ''} ${l.lastName || ''}`.trim(); });
+
+      // Filter to call-type entries and enrich with lead name
+      const calls = (histData || [])
+        .filter(h => ['call', 'connected', 'not_available'].includes(h.type))
+        .map(h => ({ ...h, leadName: leadMap[h.leadId] || '' }));
+      setHistoryRows(calls);
+    } catch(e) { console.error(e); }
     setLoading(false);
   };
 
-  const loadLogs = async () => {
+  const loadCallLogs = async () => {
     try {
       const data = await base44.entities.CallLog.list('-calledAt', 150);
-      setLogs(data || []);
+      setCallLogs(data || []);
     } catch {}
   };
 
-  const toggleNumber = (num) => {
-    if (num === 'all') { setSelectedNums(['all']); return; }
-    setSelectedNums(prev => {
-      const without = prev.filter(n => n !== 'all');
-      if (without.includes(num)) {
-        const next = without.filter(n => n !== num);
-        return next.length === 0 ? ['all'] : next;
-      }
-      return [...without, num];
-    });
-  };
+  // For live line bars, use callLogs (real-time inbound)
+  const logs = callLogs;
 
-  const isSelected = (num) => num === 'all' ? selectedNums.includes('all') : selectedNums.includes(num);
-
-  const filteredByNum = logs.filter(l => {
-    if (selectedNums.includes('all')) return true;
-    return selectedNums.some(n => l.fromNumber === n || l.toNumber === n);
+  // Outbound calls = historyRows, filtered by user
+  const outboundFiltered = historyRows.filter(h => {
+    if (userFilter === 'all') return true;
+    return (h.createdBy || '').toLowerCase() === userFilter.toLowerCase();
   });
 
-  const filtered = filteredByNum.filter(l => l.direction === dirTab);
+  // Inbound = callLogs direction=inbound
+  const inboundFiltered = callLogs.filter(l => l.direction === 'inbound');
 
   const markVmListened = async (log) => {
     if (!log.vmListened) {
       await base44.entities.CallLog.update(log.id, { vmListened: true, dismissed: true }).catch(() => {});
-      setLogs(prev => prev.map(l => l.id === log.id ? { ...l, vmListened: true, dismissed: true } : l));
+      setCallLogs(prev => prev.map(l => l.id === log.id ? { ...l, vmListened: true, dismissed: true } : l));
     }
     setPlayingVm(log.id === playingVm ? null : log.id);
   };
 
   const dismissAll = async () => {
-    const unread = logs.filter(l => !l.dismissed);
+    const unread = callLogs.filter(l => !l.dismissed);
     await Promise.all(unread.map(l => base44.entities.CallLog.update(l.id, { dismissed: true }).catch(() => {})));
-    setLogs(prev => prev.map(l => ({ ...l, dismissed: true })));
+    setCallLogs(prev => prev.map(l => ({ ...l, dismissed: true })));
   };
 
-  const unlistenedVm = logs.filter(l => l.vmRecordingUrl && !l.vmListened).length;
-  const missedCount  = logs.filter(l => (l.status === 'missed' || l.status === 'no-answer') && !l.dismissed).length;
+  const unlistenedVm = callLogs.filter(l => l.vmRecordingUrl && !l.vmListened).length;
+  const missedCount  = callLogs.filter(l => (l.status === 'missed' || l.status === 'no-answer') && !l.dismissed).length;
 
   const pillStyle = (active, color = GOLD) => ({
     padding: '4px 12px', borderRadius: '20px', cursor: 'pointer', fontSize: '11px', fontFamily: 'Georgia, serif',
@@ -303,7 +302,7 @@ export default function CallLogPanel({ onClose, onOpenLead }) {
           <div style={{ color: '#4a5568', fontSize: '9px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '6px' }}>Live Line Status</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
             {lines.length > 0
-              ? lines.map((line, i) => <LiveLineBar key={i} line={line} logs={logs} />)
+              ? lines.map((line, i) => <LiveLineBar key={i} line={line} logs={callLogs} />)
               : [0,1,2].map(n => (
                   <div key={n} style={{ display:'flex', alignItems:'center', gap:'10px', background:'rgba(239,68,68,0.04)', border:'1px solid rgba(239,68,68,0.15)', borderRadius:'6px', padding:'7px 12px' }}>
                     <div style={{ width:'8px', height:'8px', borderRadius:'50%', background:'#374151', flexShrink:0 }} />
@@ -334,133 +333,145 @@ export default function CallLogPanel({ onClose, onOpenLead }) {
         {/* ── Calls Tab ── */}
         {mainTab === 'calls' && (
           <>
-            {/* Phone # Multi-Select */}
-            <div style={{ padding: '10px 14px', borderBottom: '1px solid rgba(255,255,255,0.06)', flexShrink: 0 }}>
-              <div style={{ color: '#4a5568', fontSize: '9px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '7px' }}>Filter by Phone #</div>
-              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                <div onClick={() => toggleNumber('all')} style={pillStyle(isSelected('all'))}>All</div>
-                {lines.map((line) => (
-                  <div key={line.number} onClick={() => toggleNumber(line.number)} style={pillStyle(isSelected(line.number))}>
-                    {line.label} — {line.number}
-                  </div>
-                ))}
-              </div>
+            {/* User Filter */}
+            <div style={{ padding: '8px 14px', borderBottom: '1px solid rgba(255,255,255,0.06)', flexShrink: 0, display:'flex', gap:'6px', alignItems:'center' }}>
+              <span style={{ color:'#4a5568', fontSize:'9px', letterSpacing:'2px', textTransform:'uppercase', flexShrink:0 }}>Caller:</span>
+              {[['all','All'], ['admin','Admin'], ['steph','Steph']].map(([val, label]) => (
+                <div key={val} onClick={() => setUserFilter(val)} style={pillStyle(userFilter === val)}>{label}</div>
+              ))}
             </div>
 
             {/* Incoming / Outgoing Tabs */}
             <div style={{ display: 'flex', borderBottom: '1px solid rgba(255,255,255,0.07)', flexShrink: 0 }}>
-              {[['inbound','↙ Incoming'], ['outbound','↗ Outgoing']].map(([dir, label]) => {
-                const count = filteredByNum.filter(l => l.direction === dir).length;
-                return (
-                  <button key={dir} onClick={() => setDirTab(dir)}
-                    style={{ flex: 1, background: 'none', border: 'none', borderBottom: dirTab === dir ? `2px solid ${dir === 'inbound' ? '#60a5fa' : '#a78bfa'}` : '2px solid transparent', color: dirTab === dir ? (dir === 'inbound' ? '#60a5fa' : '#a78bfa') : '#6b7280', padding: '8px', cursor: 'pointer', fontSize: '11px' }}>
-                    {label} <span style={{ fontSize: '10px', opacity: 0.7 }}>({count})</span>
-                  </button>
-                );
-              })}
+              {[['outbound','↗ Outgoing', outboundFiltered.length], ['inbound','↙ Incoming', inboundFiltered.length]].map(([dir, label, count]) => (
+                <button key={dir} onClick={() => setDirTab(dir)}
+                  style={{ flex: 1, background: 'none', border: 'none', borderBottom: dirTab === dir ? `2px solid ${dir === 'inbound' ? '#60a5fa' : '#a78bfa'}` : '2px solid transparent', color: dirTab === dir ? (dir === 'inbound' ? '#60a5fa' : '#a78bfa') : '#6b7280', padding: '8px', cursor: 'pointer', fontSize: '11px' }}>
+                  {label} <span style={{ fontSize: '10px', opacity: 0.7 }}>({count})</span>
+                </button>
+              ))}
             </div>
 
             {/* Call List */}
             <div style={{ flex: 1, overflowY: 'auto', padding: '8px' }}>
               {loading && <div style={{ color: '#6b7280', textAlign: 'center', padding: '40px' }}>Loading…</div>}
-              {!loading && filtered.length === 0 && (
-                <div style={{ color: '#4a5568', textAlign: 'center', padding: '40px' }}>
-                  <div style={{ fontSize: '32px', marginBottom: '8px' }}>📋</div>
-                  No {dirTab === 'inbound' ? 'incoming' : 'outgoing'} call records.
-                </div>
-              )}
-              {filtered.map((log) => {
-                const st = STATUS_COLORS[log.status] || STATUS_COLORS.ringing;
-                const isUnread = !log.dismissed && (log.status === 'missed' || log.status === 'no-answer' || (log.vmRecordingUrl && !log.vmListened));
-                const displayName = log.callerName || (log.direction === 'inbound' ? log.fromNumber : log.toNumber) || '—';
-                const displayNum  = log.direction === 'inbound' ? log.fromNumber : log.toNumber;
-                const isPlayingThis = playingVm === log.id;
 
-                // Which of our lines was used?
-                const usedLine = lines.find(l => l.number === log.fromNumber || l.number === log.toNumber);
-
-                return (
-                  <div key={log.id} style={{
-                    background: isUnread ? 'rgba(255,255,255,0.04)' : 'rgba(255,255,255,0.015)',
-                    border: `1px solid ${isUnread ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.05)'}`,
-                    borderLeft: `3px solid ${st.color}`,
-                    borderRadius: '6px', padding: '10px 12px', marginBottom: '6px',
-                  }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '2px' }}>
-                          <span style={{ fontSize: '13px' }}>{st.icon}</span>
-                          <span style={{ color: isUnread ? '#e8e0d0' : '#c4cdd8', fontSize: '13px', fontWeight: isUnread ? 'bold' : 'normal', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{displayName}</span>
-                          {!log.dismissed && <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#ef4444', flexShrink: 0, display: 'inline-block' }} />}
-                        </div>
-                        {/* Number */}
-                        <div style={{ color: '#60a5fa', fontSize: '11px', fontFamily: 'monospace', marginBottom: '2px' }}>{displayNum || '—'}</div>
-                        {/* Line used + who called */}
-                        <div style={{ display:'flex', gap:'6px', alignItems:'center', flexWrap:'wrap' }}>
-                          {usedLine && (
-                            <span style={{ background:'rgba(184,147,58,0.1)', color:GOLD, border:'1px solid rgba(184,147,58,0.2)', borderRadius:'3px', padding:'1px 6px', fontSize:'9px', letterSpacing:'0.5px' }}>
-                              via {usedLine.label}
-                            </span>
-                          )}
-                          {log.createdBy && (
-                            <span style={{ background:'rgba(167,139,250,0.1)', color:'#a78bfa', border:'1px solid rgba(167,139,250,0.2)', borderRadius:'3px', padding:'1px 6px', fontSize:'9px' }}>
-                              👤 {log.createdBy}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Right: date + status + duration */}
-                      <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                        <div style={{ color: '#6b7280', fontSize: '10px', marginBottom: '2px' }}>{fmtDateTime(log.calledAt)}</div>
-                        <div style={{ display:'flex', gap:'4px', justifyContent:'flex-end', alignItems:'center' }}>
-                          <span style={{ background: st.bg, color: st.color, padding: '1px 6px', borderRadius: '3px', fontSize: '10px' }}>{log.status}</span>
-                          {log.durationSeconds > 0 && <span style={{ color: '#6b7280', fontSize: '10px' }}>⏱ {formatDur(log.durationSeconds)}</span>}
-                        </div>
-                      </div>
+              {/* ── OUTBOUND: from LeadHistory ── */}
+              {!loading && dirTab === 'outbound' && (
+                <>
+                  {outboundFiltered.length === 0 && (
+                    <div style={{ color: '#4a5568', textAlign: 'center', padding: '40px' }}>
+                      <div style={{ fontSize: '32px', marginBottom: '8px' }}>📋</div>No outgoing call records.
                     </div>
-
-                    {/* Voicemail */}
-                    {log.vmRecordingUrl && (
-                      <div style={{ marginTop: '8px', background: 'rgba(245,158,11,0.06)', border: '1px solid rgba(245,158,11,0.2)', borderRadius: '4px', padding: '7px 10px' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <span style={{ color: '#f59e0b', fontSize: '11px', fontWeight: 'bold' }}>📩 Voicemail {!log.vmListened && '· NEW'}</span>
-                          <button onClick={() => markVmListened(log)}
-                            style={{ background: 'rgba(245,158,11,0.15)', color: '#f59e0b', border: '1px solid rgba(245,158,11,0.35)', borderRadius: '4px', padding: '3px 10px', cursor: 'pointer', fontSize: '10px' }}>
-                            {isPlayingThis ? '⏹ Close' : '▶ Play'}
-                          </button>
+                  )}
+                  {outboundFiltered.map((h) => {
+                    const dur = h.callDurationSeconds;
+                    const isConnected = h.type === 'connected' || dur > 0;
+                    const borderColor = isConnected ? '#4ade80' : '#8a9ab8';
+                    return (
+                      <div key={h.id} style={{
+                        background: 'rgba(255,255,255,0.02)', border: `1px solid rgba(255,255,255,0.06)`,
+                        borderLeft: `3px solid ${borderColor}`, borderRadius: '6px', padding: '10px 12px', marginBottom: '6px',
+                      }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '3px' }}>
+                              <span style={{ fontSize: '13px' }}>{isConnected ? '📞' : '📵'}</span>
+                              <span style={{ color: '#e8e0d0', fontSize: '13px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                {h.leadName || h.leadId || '—'}
+                              </span>
+                            </div>
+                            <div style={{ display:'flex', gap:'5px', flexWrap:'wrap' }}>
+                              {h.createdBy && (
+                                <span style={{ background:'rgba(167,139,250,0.1)', color:'#a78bfa', border:'1px solid rgba(167,139,250,0.2)', borderRadius:'3px', padding:'1px 6px', fontSize:'9px' }}>
+                                  👤 {h.createdBy}
+                                </span>
+                              )}
+                              {h.twilioCallSid && (
+                                <span style={{ color:'#4a5568', fontSize:'9px', fontFamily:'monospace' }}>{h.twilioCallSid.slice(0,12)}…</span>
+                              )}
+                            </div>
+                          </div>
+                          <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                            <div style={{ color: '#6b7280', fontSize: '10px', marginBottom: '2px' }}>
+                              {h.created_date ? new Date(h.created_date).toLocaleString('en-US', { month:'short', day:'numeric', hour:'numeric', minute:'2-digit' }) : '—'}
+                            </div>
+                            <div style={{ color: borderColor, fontSize: '10px' }}>
+                              {isConnected ? '✅ connected' : '📵 no answer'}
+                              {dur > 0 && <span style={{ color: '#6b7280', marginLeft: '4px' }}>⏱ {formatDur(dur)}</span>}
+                            </div>
+                          </div>
                         </div>
-                        {log.vmTranscription && (
-                          <div style={{ color: '#8a9ab8', fontSize: '11px', lineHeight: 1.5, fontStyle: 'italic', marginTop: '4px' }}>
-                            "{log.vmTranscription.slice(0, 200)}{log.vmTranscription.length > 200 ? '…' : ''}"
+                        {h.leadId && onOpenLead && (
+                          <div style={{ marginTop: '6px' }}>
+                            <button onClick={() => onOpenLead(h.leadId)}
+                              style={{ background: 'rgba(167,139,250,0.1)', color: '#a78bfa', border: '1px solid rgba(167,139,250,0.25)', borderRadius: '4px', padding: '3px 10px', cursor: 'pointer', fontSize: '10px' }}>
+                              📋 Open Lead
+                            </button>
                           </div>
                         )}
-                        {isPlayingThis && (
-                          <audio ref={audioRef} src={log.vmRecordingUrl} controls autoPlay style={{ width: '100%', marginTop: '6px', height: '32px' }} />
-                        )}
                       </div>
-                    )}
+                    );
+                  })}
+                </>
+              )}
 
-                    {/* Actions */}
-                    <div style={{ display: 'flex', gap: '6px', marginTop: '8px' }}>
-                      {log.leadId && onOpenLead && (
-                        <button onClick={() => onOpenLead(log.leadId)}
-                          style={{ background: 'rgba(167,139,250,0.1)', color: '#a78bfa', border: '1px solid rgba(167,139,250,0.25)', borderRadius: '4px', padding: '3px 10px', cursor: 'pointer', fontSize: '10px' }}>
-                          📋 Open Lead
-                        </button>
-                      )}
-                      {!log.dismissed && (
-                        <button onClick={async () => {
-                          await base44.entities.CallLog.update(log.id, { dismissed: true }).catch(() => {});
-                          setLogs(prev => prev.map(l => l.id === log.id ? { ...l, dismissed: true } : l));
-                        }} style={{ background: 'rgba(255,255,255,0.04)', color: '#4a5568', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '4px', padding: '3px 10px', cursor: 'pointer', fontSize: '10px' }}>
-                          ✓ Dismiss
-                        </button>
-                      )}
+              {/* ── INBOUND: from CallLog entity ── */}
+              {!loading && dirTab === 'inbound' && (
+                <>
+                  {inboundFiltered.length === 0 && (
+                    <div style={{ color: '#4a5568', textAlign: 'center', padding: '40px' }}>
+                      <div style={{ fontSize: '32px', marginBottom: '8px' }}>📋</div>No incoming call records.
                     </div>
-                  </div>
-                );
-              })}
+                  )}
+                  {inboundFiltered.map((log) => {
+                    const st = STATUS_COLORS[log.status] || STATUS_COLORS.ringing;
+                    const isUnread = !log.dismissed && (log.status === 'missed' || log.status === 'no-answer' || (log.vmRecordingUrl && !log.vmListened));
+                    const displayName = log.callerName || log.fromNumber || '—';
+                    const isPlayingThis = playingVm === log.id;
+                    return (
+                      <div key={log.id} style={{
+                        background: isUnread ? 'rgba(255,255,255,0.04)' : 'rgba(255,255,255,0.015)',
+                        border: `1px solid ${isUnread ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.05)'}`,
+                        borderLeft: `3px solid ${st.color}`, borderRadius: '6px', padding: '10px 12px', marginBottom: '6px',
+                      }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '2px' }}>
+                              <span style={{ fontSize: '13px' }}>{st.icon}</span>
+                              <span style={{ color: isUnread ? '#e8e0d0' : '#c4cdd8', fontSize: '13px', fontWeight: isUnread ? 'bold' : 'normal' }}>{displayName}</span>
+                              {!log.dismissed && <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#ef4444', flexShrink: 0, display: 'inline-block' }} />}
+                            </div>
+                            <div style={{ color: '#60a5fa', fontSize: '11px', fontFamily: 'monospace' }}>{log.fromNumber || '—'}</div>
+                          </div>
+                          <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                            <div style={{ color: '#6b7280', fontSize: '10px', marginBottom: '2px' }}>{fmtDateTime(log.calledAt)}</div>
+                            <div style={{ display:'flex', gap:'4px', justifyContent:'flex-end' }}>
+                              <span style={{ background: st.bg, color: st.color, padding: '1px 6px', borderRadius: '3px', fontSize: '10px' }}>{log.status}</span>
+                              {log.durationSeconds > 0 && <span style={{ color: '#6b7280', fontSize: '10px' }}>⏱ {formatDur(log.durationSeconds)}</span>}
+                            </div>
+                          </div>
+                        </div>
+                        {log.vmRecordingUrl && (
+                          <div style={{ marginTop: '8px', background: 'rgba(245,158,11,0.06)', border: '1px solid rgba(245,158,11,0.2)', borderRadius: '4px', padding: '7px 10px' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                              <span style={{ color: '#f59e0b', fontSize: '11px', fontWeight: 'bold' }}>📩 Voicemail {!log.vmListened && '· NEW'}</span>
+                              <button onClick={() => markVmListened(log)} style={{ background: 'rgba(245,158,11,0.15)', color: '#f59e0b', border: '1px solid rgba(245,158,11,0.35)', borderRadius: '4px', padding: '3px 10px', cursor: 'pointer', fontSize: '10px' }}>
+                                {isPlayingThis ? '⏹ Close' : '▶ Play'}
+                              </button>
+                            </div>
+                            {log.vmTranscription && <div style={{ color: '#8a9ab8', fontSize: '11px', lineHeight: 1.5, fontStyle: 'italic', marginTop: '4px' }}>"{log.vmTranscription.slice(0,200)}{log.vmTranscription.length>200?'…':''}"</div>}
+                            {isPlayingThis && <audio ref={audioRef} src={log.vmRecordingUrl} controls autoPlay style={{ width: '100%', marginTop: '6px', height: '32px' }} />}
+                          </div>
+                        )}
+                        <div style={{ display: 'flex', gap: '6px', marginTop: '6px' }}>
+                          {log.leadId && onOpenLead && <button onClick={() => onOpenLead(log.leadId)} style={{ background: 'rgba(167,139,250,0.1)', color: '#a78bfa', border: '1px solid rgba(167,139,250,0.25)', borderRadius: '4px', padding: '3px 10px', cursor: 'pointer', fontSize: '10px' }}>📋 Open Lead</button>}
+                          {!log.dismissed && <button onClick={async () => { await base44.entities.CallLog.update(log.id, { dismissed: true }).catch(() => {}); setCallLogs(prev => prev.map(l => l.id === log.id ? { ...l, dismissed: true } : l)); }} style={{ background: 'rgba(255,255,255,0.04)', color: '#4a5568', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '4px', padding: '3px 10px', cursor: 'pointer', fontSize: '10px' }}>✓ Dismiss</button>}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </>
+              )}
             </div>
           </>
         )}
