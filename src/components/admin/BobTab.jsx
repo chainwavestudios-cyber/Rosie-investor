@@ -1210,8 +1210,8 @@ ${prevCtx}
       type:'Settings',
       audio:{input:{encoding:'linear16',sample_rate:24000},output:{encoding:'linear16',sample_rate:24000,container:'none'}},
       agent:{
-        listen:{provider:{type:'deepgram',version:'v2',model:'flux-general-en'}},
-        think:{provider:{type:'google',model:'gemini-2.5-flash'},prompt:buildSystemPrompt()},
+        listen:{provider:{type:'deepgram',version:'v2',model:'nova-3'}},
+        think:{provider:{type:'open_ai',model:'gpt-4.1-mini'},prompt:buildSystemPrompt()},
         speak:{provider:{type:'deepgram',model:voiceModel}},
         greeting,
       },
@@ -1271,7 +1271,7 @@ ${prevCtx}
           const msg=JSON.parse(e.data);
           switch(msg.type){
             case'Welcome':
-              console.log('[BOB] Got Welcome ✓ — sending Settings (STT: flux-general-en, LLM: gemini-2.5-flash, TTS:', voiceModel, ')');
+              console.log('[BOB] Got Welcome ✓ — sending Settings (STT: nova-3, LLM: gpt-4.1-mini, TTS:', voiceModel, ')');
               ws.send(JSON.stringify(buildSettings()));
               break;
             case'SettingsApplied':{
