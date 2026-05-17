@@ -1330,7 +1330,7 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
                   ))}
                 </div>
               )}
-              <div style={{ display:'flex', alignItems:'center', gap:'10px' }}>
+              <div style={{ position:'relative', width:'100%' }}>
                 <InlineCallBar
                   phone={selectedPhone || editLead.phone || lead.phone}
                   name={`${editLead.firstName || lead.firstName || ''} ${editLead.lastName || lead.lastName || ''}`.trim()}
@@ -1342,9 +1342,10 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
                   onDisconnectNext={() => { dialerRef.current?.hangupActiveCall?.(); onNextLead?.(); }}
                   onSaveResume={async () => { await saveProfile(); dialerRef.current?.hangupActiveCall?.(); onResume?.(); }}
                 />
-                <div style={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', width:'52px', height:'52px', borderRadius:'50%', background:`linear-gradient(135deg,${GOLD}55,${GOLD}22)`, border:`2px solid ${GOLD}77`, flexShrink:0 }}>
-                  <div style={{ fontSize:'17px', fontWeight:'bold', color:GOLD, lineHeight:1, fontFamily:'monospace' }}>{editLead.engagementScore || 0}</div>
-                  <div style={{ fontSize:'8px', color:GOLD, opacity:0.7, letterSpacing:'0.5px' }}>SCORE</div>
+                {/* Score circle — overlays top-right of call bar */}
+                <div style={{ position:'absolute', top:'-6px', right:'-6px', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', width:'46px', height:'46px', borderRadius:'50%', background:`linear-gradient(135deg,${GOLD}55,${GOLD}22)`, border:`2px solid ${GOLD}77`, zIndex:2, pointerEvents:'none' }}>
+                  <div style={{ fontSize:'14px', fontWeight:'bold', color:GOLD, lineHeight:1, fontFamily:'monospace' }}>{editLead.engagementScore || 0}</div>
+                  <div style={{ fontSize:'7px', color:GOLD, opacity:0.7, letterSpacing:'0.5px' }}>SCORE</div>
                 </div>
               </div>
             </div>
