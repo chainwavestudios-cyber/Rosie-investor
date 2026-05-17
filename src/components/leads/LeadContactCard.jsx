@@ -1563,6 +1563,7 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
           {tab === 'sms' && (
             <SmsTab
               toPhone={editLead.phone || lead.phone || ''}
+              toPhone2={editLead.phone2 || lead.phone2 || ''}
               toName={`${editLead.firstName} ${editLead.lastName}`}
               leadId={lead.id}
               investorId={null}

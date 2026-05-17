@@ -577,6 +577,7 @@ export default function ContactCardModal({ user, onClose, onSave, allSessions, m
           {tab === 'sms' && (
             <SmsTab
               toPhone={user.phone || ''}
+              toPhone2={editUser.phone || user.phone || ''}
               toName={user.name}
               leadId={user.leadId || null}
               investorId={user.id}

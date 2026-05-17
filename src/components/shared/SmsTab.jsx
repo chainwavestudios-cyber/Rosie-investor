@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
+import SmsMediaPicker from './SmsMediaPicker';
 
 const GOLD = '#b8933a';
 const OUR_NUMBER = '+19495963970';
@@ -13,13 +14,18 @@ function fmtTime(iso) {
 /**
  * SmsTab — reusable SMS conversation component
  * Props:
- *   toPhone      — contact's phone number
+ *   toPhone      — primary phone number
+ *   toPhone2     — optional secondary phone number
  *   toName       — contact's display name
  *   leadId       — string | null
  *   investorId   — string | null
  *   sentBy       — current admin identifier
  */
-export default function SmsTab({ toPhone, toName, leadId, investorId, sentBy = 'admin' }) {
+export default function SmsTab({ toPhone, toPhone2, toName, leadId, investorId, sentBy = 'admin' }) {
+  // If multiple numbers available, let user pick
+  const phones = [toPhone, toPhone2].filter(Boolean);
+  const [selectedPhone, setSelectedPhone] = useState(phones[0] || '');
+
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(true);
   const [body, setBody] = useState('');
@@ -27,16 +33,23 @@ export default function SmsTab({ toPhone, toName, leadId, investorId, sentBy = '
   const [sendMsg, setSendMsg] = useState('');
   const [mediaFiles, setMediaFiles] = useState([]); // [{name, url, mime}]
   const [uploadingFile, setUploadingFile] = useState(false);
+  const [showPicker, setShowPicker] = useState(false);
   const bottomRef = useRef(null);
   const fileRef = useRef(null);
   const pollRef = useRef(null);
+  const textareaRef = useRef(null);
+
+  // Reset selected phone if props change
+  useEffect(() => {
+    const p = [toPhone, toPhone2].filter(Boolean);
+    setSelectedPhone(p[0] || '');
+  }, [toPhone, toPhone2]);
 
   useEffect(() => {
     loadMessages();
-    // Poll every 8 seconds for new inbound messages
     pollRef.current = setInterval(loadMessages, 8000);
     return () => clearInterval(pollRef.current);
-  }, [leadId, investorId, toPhone]);
+  }, [leadId, investorId, selectedPhone]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -49,9 +62,8 @@ export default function SmsTab({ toPhone, toName, leadId, investorId, sentBy = '
         msgs = await base44.entities.SmsMessage.filter({ leadId }).catch(() => []);
       } else if (investorId) {
         msgs = await base44.entities.SmsMessage.filter({ investorId }).catch(() => []);
-      } else if (toPhone) {
-        // Fallback: match by phone
-        const norm = toPhone.replace(/\D/g, '').slice(-10);
+      } else if (selectedPhone) {
+        const norm = selectedPhone.replace(/\D/g, '').slice(-10);
         const all = await base44.entities.SmsMessage.list('-sentAt', 200).catch(() => []);
         msgs = all.filter(m => {
           const from = (m.fromNumber || '').replace(/\D/g, '').slice(-10);
@@ -61,7 +73,6 @@ export default function SmsTab({ toPhone, toName, leadId, investorId, sentBy = '
       }
       msgs.sort((a, b) => new Date(a.sentAt || 0) - new Date(b.sentAt || 0));
       setMessages(msgs);
-      // Mark inbound unread as read
       const unread = msgs.filter(m => m.direction === 'inbound' && !m.read);
       await Promise.all(unread.map(m => base44.entities.SmsMessage.update(m.id, { read: true }).catch(() => {})));
     } catch {}
@@ -84,11 +95,11 @@ export default function SmsTab({ toPhone, toName, leadId, investorId, sentBy = '
 
   const handleSend = async () => {
     if (!body.trim() && mediaFiles.length === 0) return;
-    if (!toPhone) { setSendMsg('⚠️ No phone number available.'); return; }
+    if (!selectedPhone) { setSendMsg('⚠️ No phone number available.'); return; }
     setSending(true); setSendMsg('');
     try {
       await base44.functions.invoke('sendSms', {
-        to: toPhone,
+        to: selectedPhone,
         body: body.trim(),
         mediaUrls: mediaFiles.map(f => f.url),
         leadId: leadId || null,
@@ -104,10 +115,44 @@ export default function SmsTab({ toPhone, toName, leadId, investorId, sentBy = '
     setSending(false);
   };
 
+  const handleSelectGif = (url, label) => {
+    setMediaFiles(prev => [...prev, { name: label, url, mime: 'image/gif' }]);
+  };
+
+  const handleSelectEmoji = (emoji) => {
+    const el = textareaRef.current;
+    if (el) {
+      const start = el.selectionStart;
+      const end = el.selectionEnd;
+      setBody(prev => prev.slice(0, start) + emoji + prev.slice(end));
+      setTimeout(() => { el.focus(); el.setSelectionRange(start + emoji.length, start + emoji.length); }, 0);
+    } else {
+      setBody(prev => prev + emoji);
+    }
+  };
+
   const inp = { flex: 1, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.14)', borderRadius: '6px', padding: '10px 14px', color: '#e8e0d0', fontSize: '13px', outline: 'none', fontFamily: 'Georgia, serif', resize: 'none' };
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: '400px' }}>
+
+      {/* Phone selector — shown when multiple numbers */}
+      {phones.length > 1 && (
+        <div style={{ display: 'flex', gap: '6px', marginBottom: '8px', flexShrink: 0 }}>
+          <span style={{ color: '#4a5568', fontSize: '10px', alignSelf: 'center', letterSpacing: '1px', textTransform: 'uppercase' }}>Send to:</span>
+          {phones.map((p, i) => (
+            <button key={p} onClick={() => setSelectedPhone(p)} style={{
+              background: selectedPhone === p ? 'rgba(184,147,58,0.18)' : 'rgba(255,255,255,0.04)',
+              color: selectedPhone === p ? GOLD : '#6b7280',
+              border: `1px solid ${selectedPhone === p ? 'rgba(184,147,58,0.5)' : 'rgba(255,255,255,0.1)'}`,
+              borderRadius: '4px', padding: '4px 12px', cursor: 'pointer', fontSize: '11px', fontFamily: 'monospace', fontWeight: selectedPhone === p ? 'bold' : 'normal',
+            }}>
+              {i === 0 ? '📞' : '📱'} {p}
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* Message thread */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '12px 4px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
         {loading && <div style={{ color: '#6b7280', textAlign: 'center', padding: '32px' }}>Loading…</div>}
@@ -135,7 +180,7 @@ export default function SmsTab({ toPhone, toName, leadId, investorId, sentBy = '
                 )}
                 {mediaList.map((url, i) => (
                   <div key={i} style={{ marginTop: '6px' }}>
-                    {/image/i.test(url) || /\.(jpg|jpeg|png|gif|webp)/i.test(url) ? (
+                    {/image/i.test(url) || /\.(jpg|jpeg|png|gif|webp)/i.test(url) || url.includes('giphy') ? (
                       <img src={url} alt="attachment" style={{ maxWidth: '200px', borderRadius: '6px', display: 'block' }} />
                     ) : (
                       <a href={url} target="_blank" rel="noopener noreferrer"
@@ -161,12 +206,14 @@ export default function SmsTab({ toPhone, toName, leadId, investorId, sentBy = '
         <div ref={bottomRef} />
       </div>
 
-      {/* Attached files preview */}
+      {/* Attached files / GIFs preview */}
       {mediaFiles.length > 0 && (
         <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', padding: '6px 0', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
           {mediaFiles.map((f, i) => (
             <div key={i} style={{ background: 'rgba(96,165,250,0.1)', border: '1px solid rgba(96,165,250,0.25)', borderRadius: '4px', padding: '4px 10px', display: 'flex', gap: '6px', alignItems: 'center', fontSize: '11px', color: '#60a5fa' }}>
-              📎 {f.name}
+              {f.mime === 'image/gif' || f.url?.includes('giphy') ? (
+                <img src={f.url} alt={f.name} style={{ width: '32px', height: '24px', objectFit: 'cover', borderRadius: '3px' }} />
+              ) : '📎'} {f.name}
               <button onClick={() => setMediaFiles(prev => prev.filter((_, j) => j !== i))}
                 style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '13px', padding: '0 2px' }}>×</button>
             </div>
@@ -175,31 +222,47 @@ export default function SmsTab({ toPhone, toName, leadId, investorId, sentBy = '
       )}
 
       {/* Compose bar */}
-      <div style={{ borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: '10px', display: 'flex', flexDirection: 'column', gap: '8px', flexShrink: 0 }}>
-        {!toPhone && (
+      <div style={{ borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: '10px', display: 'flex', flexDirection: 'column', gap: '8px', flexShrink: 0, position: 'relative' }}>
+        {/* Media/Emoji picker */}
+        {showPicker && (
+          <SmsMediaPicker
+            onSelectGif={handleSelectGif}
+            onSelectEmoji={handleSelectEmoji}
+            onClose={() => setShowPicker(false)}
+          />
+        )}
+
+        {!selectedPhone && (
           <div style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '4px', padding: '8px 12px', color: '#ef4444', fontSize: '12px' }}>
             ⚠️ No phone number on file for this contact.
           </div>
         )}
         <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-end' }}>
           <textarea
+            ref={textareaRef}
             value={body}
             onChange={e => setBody(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
-            placeholder={`Message ${toName || toPhone || ''}…`}
+            placeholder={`Message ${toName || selectedPhone || ''}…`}
             rows={2}
             style={inp}
           />
           <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', flexShrink: 0 }}>
+            {/* GIF / Emoji picker toggle */}
+            <button onClick={() => setShowPicker(p => !p)}
+              style={{ background: showPicker ? 'rgba(184,147,58,0.2)' : 'rgba(255,255,255,0.06)', border: `1px solid ${showPicker ? 'rgba(184,147,58,0.5)' : 'rgba(255,255,255,0.12)'}`, borderRadius: '4px', padding: '7px 10px', cursor: 'pointer', color: showPicker ? GOLD : '#8a9ab8', fontSize: '13px' }}
+              title="GIFs & Emoji">
+              🎬
+            </button>
             <input ref={fileRef} type="file" multiple onChange={handleFileUpload} style={{ display: 'none' }} />
             <button onClick={() => fileRef.current?.click()} disabled={uploadingFile}
               style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '4px', padding: '7px 10px', cursor: 'pointer', color: '#8a9ab8', fontSize: '13px' }}
               title="Attach file">
               {uploadingFile ? '⏳' : '📎'}
             </button>
-            <button onClick={handleSend} disabled={sending || (!body.trim() && mediaFiles.length === 0) || !toPhone}
+            <button onClick={handleSend} disabled={sending || (!body.trim() && mediaFiles.length === 0) || !selectedPhone}
               style={{
-                background: (sending || (!body.trim() && mediaFiles.length === 0) || !toPhone) ? 'rgba(184,147,58,0.2)' : `linear-gradient(135deg,${GOLD},#d4aa50)`,
+                background: (sending || (!body.trim() && mediaFiles.length === 0) || !selectedPhone) ? 'rgba(184,147,58,0.2)' : `linear-gradient(135deg,${GOLD},#d4aa50)`,
                 color: '#0a0f1e', border: 'none', borderRadius: '4px', padding: '7px 14px', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px', whiteSpace: 'nowrap'
               }}>
               {sending ? '⏳' : '▶'}
@@ -208,7 +271,7 @@ export default function SmsTab({ toPhone, toName, leadId, investorId, sentBy = '
         </div>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div style={{ color: '#4a5568', fontSize: '10px' }}>
-            From: <span style={{ color: GOLD, fontFamily: 'monospace' }}>{OUR_NUMBER}</span> · Press Enter to send, Shift+Enter for new line
+            From: <span style={{ color: GOLD, fontFamily: 'monospace' }}>{OUR_NUMBER}</span> · Enter to send, Shift+Enter new line · 🎬 for GIFs & emoji
           </div>
           {sendMsg && <div style={{ color: sendMsg.startsWith('⚠️') || sendMsg.startsWith('Error') ? '#ef4444' : '#4ade80', fontSize: '11px' }}>{sendMsg}</div>}
         </div>
