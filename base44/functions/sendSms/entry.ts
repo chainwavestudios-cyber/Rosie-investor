@@ -37,7 +37,7 @@ Deno.serve(async (req) => {
   }
 
   // Save to SmsMessage entity
-  await base44.entities.SmsMessage.create({
+  await base44.asServiceRole.entities.SmsMessage.create({
     direction: 'outbound',
     fromNumber: FROM_NUMBER,
     toNumber: to,
