@@ -1266,12 +1266,8 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
           {/* Row 1: Score + Name/Stars (left) | Status pills centered | Nav + Close (right) */}
           <div style={{ display:'flex', alignItems:'center', gap:'12px', marginBottom:'10px' }}>
 
-            {/* Left: Score circle + Name + Stars */}
+            {/* Left: Name + Stars */}
             <div style={{ display:'flex', alignItems:'center', gap:'12px', flexShrink:0 }}>
-              <div style={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', width:'56px', height:'56px', borderRadius:'50%', background:`linear-gradient(135deg,${GOLD}55,${GOLD}22)`, border:`2px solid ${GOLD}77`, flexShrink:0 }}>
-                <div style={{ fontSize:'18px', fontWeight:'bold', color:GOLD, lineHeight:1, fontFamily:'monospace' }}>{editLead.engagementScore || 0}</div>
-                <div style={{ fontSize:'8px', color:GOLD, opacity:0.7, letterSpacing:'0.5px' }}>SCORE</div>
-              </div>
               <div>
                 <div style={{ color:'#e8e0d0', fontSize:'22px', fontFamily:'Georgia,serif', fontWeight:'normal', lineHeight:1.1 }}>{fullName}</div>
                 <div style={{ marginTop:'4px' }}>
@@ -1334,17 +1330,23 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
                   ))}
                 </div>
               )}
-              <InlineCallBar
-                phone={selectedPhone || editLead.phone || lead.phone}
-                name={`${editLead.firstName || lead.firstName || ''} ${editLead.lastName || lead.lastName || ''}`.trim()}
-                dialer={{ ...dialer, dial: (phone) => { onDialStarted && onDialStarted(currentLeadRef.current.id); dialer.dial(phone, currentLeadRef.current.id); } }}
-                onLogCall={async () => { await loadHistory(); }}
-                isPredictive={!!isDialerPaused}
-                isDialerPaused={!!isDialerPaused}
-                onPauseCampaign={() => dialerRef.current?.pauseDialer?.()}
-                onDisconnectNext={() => { dialerRef.current?.hangupActiveCall?.(); onNextLead?.(); }}
-                onSaveResume={async () => { await saveProfile(); dialerRef.current?.hangupActiveCall?.(); onResume?.(); }}
-              />
+              <div style={{ display:'flex', alignItems:'center', gap:'10px' }}>
+                <InlineCallBar
+                  phone={selectedPhone || editLead.phone || lead.phone}
+                  name={`${editLead.firstName || lead.firstName || ''} ${editLead.lastName || lead.lastName || ''}`.trim()}
+                  dialer={{ ...dialer, dial: (phone) => { onDialStarted && onDialStarted(currentLeadRef.current.id); dialer.dial(phone, currentLeadRef.current.id); } }}
+                  onLogCall={async () => { await loadHistory(); }}
+                  isPredictive={!!isDialerPaused}
+                  isDialerPaused={!!isDialerPaused}
+                  onPauseCampaign={() => dialerRef.current?.pauseDialer?.()}
+                  onDisconnectNext={() => { dialerRef.current?.hangupActiveCall?.(); onNextLead?.(); }}
+                  onSaveResume={async () => { await saveProfile(); dialerRef.current?.hangupActiveCall?.(); onResume?.(); }}
+                />
+                <div style={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', width:'52px', height:'52px', borderRadius:'50%', background:`linear-gradient(135deg,${GOLD}55,${GOLD}22)`, border:`2px solid ${GOLD}77`, flexShrink:0 }}>
+                  <div style={{ fontSize:'17px', fontWeight:'bold', color:GOLD, lineHeight:1, fontFamily:'monospace' }}>{editLead.engagementScore || 0}</div>
+                  <div style={{ fontSize:'8px', color:GOLD, opacity:0.7, letterSpacing:'0.5px' }}>SCORE</div>
+                </div>
+              </div>
             </div>
           )}
 
