@@ -18,6 +18,7 @@ import ReminderCountdown from '@/components/ReminderCountdown';
 import { useReminders } from '@/hooks/useReminders';
 import RemindersFloatingPanel from '@/components/shared/RemindersFloatingPanel';
 import CallLogPanel from '@/components/admin/CallLogPanel';
+import SmsTab from '@/components/shared/SmsTab';
 
 const GOLD = '#b8933a';
 const DARK = '#0a0f1e';
@@ -991,6 +992,20 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
   const [savingFollowUp, setSavingFollowUp] = useState(false);
   const [showCallbackPicker, setShowCallbackPicker] = useState(false);
   const [showCallLog, setShowCallLog] = useState(false);
+  const [unreadSms, setUnreadSms] = useState(0);
+
+  // Poll unread SMS count
+  useEffect(() => {
+    const checkUnread = async () => {
+      try {
+        const msgs = await base44.entities.SmsMessage.filter({ leadId: lead.id, direction: 'inbound', read: false }).catch(() => []);
+        setUnreadSms((msgs || []).length);
+      } catch {}
+    };
+    checkUnread();
+    const t = setInterval(checkUnread, 8000);
+    return () => clearInterval(t);
+  }, [lead.id]);
 
   useEffect(() => { loadHistory(); }, [lead.id]);
   useEffect(() => { setSelectedPhone(editLead.phone || editLead.phone2 || ''); }, [editLead.phone, editLead.phone2]);
@@ -1351,9 +1366,18 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
                   onToggleCallLog={() => setShowCallLog(v => !v)}
                 />
                 {/* Score circle — overlays top-right of call bar */}
-                <div style={{ position:'absolute', top:'12px', right:'12px', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', width:'46px', height:'46px', borderRadius:'50%', background:`linear-gradient(135deg,${GOLD}55,${GOLD}22)`, border:`2px solid ${GOLD}77`, zIndex:2, pointerEvents:'none' }}>
-                  <div style={{ fontSize:'14px', fontWeight:'bold', color:GOLD, lineHeight:1, fontFamily:'monospace' }}>{editLead.engagementScore || 0}</div>
-                  <div style={{ fontSize:'7px', color:GOLD, opacity:0.7, letterSpacing:'0.5px' }}>SCORE</div>
+                <div style={{ position:'absolute', top:'12px', right:'12px', display:'flex', gap:'6px', alignItems:'center', zIndex:2, pointerEvents:'none' }}>
+                  {unreadSms > 0 && (
+                    <div onClick={e => { e.stopPropagation(); setTab('sms'); }} style={{ pointerEvents:'all', cursor:'pointer', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', width:'54px', height:'46px', borderRadius:'6px', background:'rgba(74,222,128,0.15)', border:'2px solid rgba(74,222,128,0.6)', animation:'smsBadgePulse 1.2s ease-in-out infinite' }}>
+                      <style>{`@keyframes smsBadgePulse { 0%,100%{box-shadow:0 0 0 rgba(74,222,128,0)} 50%{box-shadow:0 0 12px rgba(74,222,128,0.5)} }`}</style>
+                      <div style={{ fontSize:'11px', fontWeight:'bold', color:'#4ade80', lineHeight:1, fontFamily:'monospace' }}>{unreadSms}</div>
+                      <div style={{ fontSize:'7px', color:'#4ade80', opacity:0.85, letterSpacing:'0.5px', textAlign:'center', lineHeight:1.2 }}>UNREAD<br/>SMS</div>
+                    </div>
+                  )}
+                  <div style={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', width:'46px', height:'46px', borderRadius:'50%', background:`linear-gradient(135deg,${GOLD}55,${GOLD}22)`, border:`2px solid ${GOLD}77` }}>
+                    <div style={{ fontSize:'14px', fontWeight:'bold', color:GOLD, lineHeight:1, fontFamily:'monospace' }}>{editLead.engagementScore || 0}</div>
+                    <div style={{ fontSize:'7px', color:GOLD, opacity:0.7, letterSpacing:'0.5px' }}>SCORE</div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -1477,7 +1501,7 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
 
         {/* Tabs row + activity badges on the right */}
         <div style={{ display:'flex', borderBottom:'1px solid rgba(255,255,255,0.07)', flexShrink:0, alignItems:'center' }}>
-          {[['overview','Overview'],['history','History'],['email','✉️ Email'],['actions','Actions'],['access','Site Access'],['sitestats','Site Stats'],['research','Research'],['script','Script & AI'],['aidetails','🤖 AI Details']].filter(([id]) => !(isArchived && id === 'actions')).map(([id,label]) => (
+          {[['overview','Overview'],['history','History'],['email','✉️ Email'],['sms',unreadSms > 0 ? `💬 SMS (${unreadSms})` : '💬 SMS'],['actions','Actions'],['access','Site Access'],['sitestats','Site Stats'],['research','Research'],['script','Script & AI'],['aidetails','🤖 AI Details']].filter(([id]) => !(isArchived && id === 'actions')).map(([id,label]) => (
             <button key={id} onClick={() => setTab(id)} style={{ background:'none', border:'none', borderBottom:tab===id?`2px solid ${GOLD}`:'2px solid transparent', color:tab===id?GOLD:'#6b7280', padding:'10px 16px', cursor:'pointer', fontSize:'11px', letterSpacing:'0.5px', whiteSpace:'nowrap' }}>{label}</button>
           ))}
           <div style={{ flex:1 }} />
@@ -1508,6 +1532,17 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
           {/* ── HISTORY ── */}
           {tab === 'history' && (
             <LeadHistoryTab lead={editLead} history={history} onNoteAdded={loadHistory} createdBy={currentUsername} />
+          )}
+
+          {/* ── SMS ── */}
+          {tab === 'sms' && (
+            <SmsTab
+              toPhone={editLead.phone || lead.phone || ''}
+              toName={`${editLead.firstName} ${editLead.lastName}`}
+              leadId={lead.id}
+              investorId={null}
+              sentBy={currentUsername}
+            />
           )}
 
           {/* ── EMAIL ── */}

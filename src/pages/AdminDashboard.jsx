@@ -24,6 +24,7 @@ import BobTab from '@/components/admin/BobTab';
 import IncomingCallPopup from '@/components/shared/IncomingCallPopup';
 import RemindersFloatingPanel from '@/components/shared/RemindersFloatingPanel';
 import CallLogPanel from '@/components/admin/CallLogPanel';
+import SmsIncomingPopup from '@/components/shared/SmsIncomingPopup';
 import { MOCK_LEADS, MOCK_INVESTORS } from '@/lib/mockData';
 
 const LOGO = 'https://media.base44.com/images/public/69cd2741578c9b5ce655395b/39a31f9b9_Untitleddesign3.png';

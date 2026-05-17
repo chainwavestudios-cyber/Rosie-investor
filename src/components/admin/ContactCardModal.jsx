@@ -21,6 +21,7 @@ import SetReminderButton from '@/components/SetReminderButton';
 import ReminderCountdown from '@/components/ReminderCountdown';
 import { useReminders } from '@/hooks/useReminders';
 import CallLogPanel from '@/components/admin/CallLogPanel';
+import SmsTab from '@/components/shared/SmsTab';
 
 const GOLD = '#b8933a';
 const DARK = '#0a0f1e';
@@ -244,7 +245,7 @@ export default function ContactCardModal({ user, onClose, onSave, allSessions, m
   };
 
   const TABS = [
-    ['overview','👤 Overview'], ['history','📞 History'], ['email','✉️ Email'], ['analytics','📊 Analytics'],
+    ['overview','👤 Overview'], ['history','📞 History'], ['email','✉️ Email'], ['sms','💬 SMS'], ['analytics','📊 Analytics'],
     ['documents','📄 Documents'], ['accreditation','🔐 Accreditation'], ['calendar','📅 Calendar'],
     ['portal','🔑 Portal Access'], ['rosie','🤖 Rosie AI'], ['sitestats','📊 Site Stats'], ['research','🔍 Research'], ['script','📝 Script'],
   ];
@@ -550,6 +551,16 @@ export default function ContactCardModal({ user, onClose, onSave, allSessions, m
                 );
               })}
             </div>
+          )}
+
+          {tab === 'sms' && (
+            <SmsTab
+              toPhone={user.phone || ''}
+              toName={user.name}
+              leadId={user.leadId || null}
+              investorId={user.id}
+              sentBy={currentUsername}
+            />
           )}
 
           {tab === 'analytics' && <InvestorAnalyticsTab user={editUser} sessions={sessions} stats={stats} />}
