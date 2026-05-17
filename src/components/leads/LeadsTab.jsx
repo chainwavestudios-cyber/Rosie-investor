@@ -576,7 +576,7 @@ export default function LeadsTab({ openLeadId, onLeadOpened }) {
   const totalPages = Math.max(1, Math.ceil(filteredLeads.length / PAGE_SIZE));
   const pagedLeads = filteredLeads.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
-  const inp = { background:'rgba(255,255,255,0.05)', border:'1px solid rgba(255,255,255,0.12)', borderRadius:'2px', padding:'8px 14px', color:'#e8e0d0', fontSize:'13px', outline:'none', fontFamily:'Georgia, serif' };
+  const inp = { background:'rgba(255,255,255,0.05)', border:'1px solid rgba(255,255,255,0.12)', borderRadius:'2px', padding:'8px 14px', color:'#e8e0d0', fontSize:'13px', outline:'none', fontFamily:'Georgia, serif', colorScheme:'dark' };
 
   const fmtTime = (dt) => {
     if (!dt) return '—';
