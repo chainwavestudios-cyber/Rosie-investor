@@ -80,6 +80,7 @@ function ReportsTab({ lines }) {
   const [mode, setMode] = useState('day');
   const [date, setDate] = useState(() => new Date().toISOString().slice(0,10));
   const [year, setYear] = useState(() => new Date().getFullYear());
+  const [agentFilter, setAgentFilter] = useState('all'); // 'all' | line.number
   const [report, setReport] = useState(null);
   const [loading, setLoading] = useState(false);
 
@@ -98,8 +99,16 @@ function ReportsTab({ lines }) {
         base44.entities.Lead.list('-updated_date', 500),
       ]);
 
-      const calls = callRes.data?.calls || [];
-      const filtered = calls.filter(c => c.direction !== 'inbound');
+      const allCalls = (callRes.data?.calls || []).filter(c => c.direction !== 'inbound');
+
+      // Filter by agent line if selected
+      const filtered = agentFilter === 'all'
+        ? allCalls
+        : allCalls.filter(c => c.from === agentFilter);
+
+      const agentLabel = agentFilter === 'all'
+        ? 'All Agents'
+        : (lines.find(l => l.number === agentFilter)?.label || agentFilter);
 
       const totalCalls    = filtered.length;
       const answered      = filtered.filter(c => c.status === 'completed' && c.duration > 0);
@@ -115,6 +124,11 @@ function ReportsTab({ lines }) {
       const converted = (leadsData || []).filter(l => {
         const updatedAt = new Date(l.updated_date || 0);
         if (updatedAt < start || updatedAt > end) return false;
+        // If filtering by agent, match by pipeline owner
+        if (agentFilter !== 'all') {
+          const ownerMatch = l.leadPipelineOwner === agentLabel.toLowerCase();
+          if (!ownerMatch) return false;
+        }
         return l.status === 'prospect' || l.leadType === 'nb_tech';
       });
       const convertedProspect = converted.filter(l => l.status === 'prospect').length;
@@ -122,7 +136,7 @@ function ReportsTab({ lines }) {
       const convertedTotal    = converted.length;
 
       setReport({ totalCalls, answeredCount, connectionRate, totalDial, avgDial, longestCall,
-        convertedTotal, convertedProspect, convertedNBTech, date, year, mode, startDate, endDate });
+        convertedTotal, convertedProspect, convertedNBTech, date, year, mode, startDate, endDate, agentLabel });
     } catch(e) { console.error(e); }
     setLoading(false);
   };
@@ -163,6 +177,15 @@ function ReportsTab({ lines }) {
             </select>
           </div>
         )}
+        <div>
+          <div style={{ color:'#6b7280', fontSize:'10px', letterSpacing:'1px', marginBottom:'5px' }}>AGENT</div>
+          <select value={agentFilter} onChange={e => { setAgentFilter(e.target.value); setReport(null); }} style={{ ...inp, cursor:'pointer' }}>
+            <option value="all">👥 All Agents</option>
+            {lines.map(l => (
+              <option key={l.number} value={l.number}>{l.label === 'Steph' ? '🟣' : '🟡'} {l.label}</option>
+            ))}
+          </select>
+        </div>
         <button onClick={generate} disabled={loading}
           style={{ background:'linear-gradient(135deg,#b8933a,#d4aa50)', color:DARK, border:'none', borderRadius:'4px', padding:'9px 22px', cursor:'pointer', fontWeight:'700', fontSize:'11px', letterSpacing:'1.5px', textTransform:'uppercase', alignSelf:'flex-end' }}>
           {loading ? 'Generating…' : '▶ Generate'}
@@ -171,8 +194,18 @@ function ReportsTab({ lines }) {
 
       {report && (
         <div>
-          <div style={{ color:GOLD, fontSize:'10px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'12px' }}>
-            {report.mode === 'year' ? `Report for ${report.year}` : `Report for ${fmtDate(report.date + 'T12:00:00')}`}
+          <div style={{ display:'flex', gap:'10px', alignItems:'center', marginBottom:'12px', flexWrap:'wrap' }}>
+            <div style={{ color:GOLD, fontSize:'10px', letterSpacing:'2px', textTransform:'uppercase' }}>
+              {report.mode === 'year' ? `Report for ${report.year}` : `Report for ${fmtDate(report.date + 'T12:00:00')}`}
+            </div>
+            <span style={{
+              background: report.agentLabel === 'Steph' ? 'rgba(167,139,250,0.15)' : report.agentLabel === 'All Agents' ? 'rgba(255,255,255,0.06)' : 'rgba(184,147,58,0.15)',
+              color: report.agentLabel === 'Steph' ? '#a78bfa' : report.agentLabel === 'All Agents' ? '#8a9ab8' : GOLD,
+              border: `1px solid ${report.agentLabel === 'Steph' ? 'rgba(167,139,250,0.35)' : report.agentLabel === 'All Agents' ? 'rgba(255,255,255,0.12)' : 'rgba(184,147,58,0.35)'}`,
+              borderRadius:'10px', padding:'2px 10px', fontSize:'10px', fontWeight:'bold',
+            }}>
+              {report.agentLabel === 'Steph' ? '🟣' : report.agentLabel === 'All Agents' ? '👥' : '🟡'} {report.agentLabel}
+            </span>
           </div>
           <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:'8px', marginBottom:'8px' }}>
             {stat('Total Calls', report.totalCalls, GOLD)}
@@ -487,12 +520,10 @@ export default function CallLogPanel({ onClose, onOpenLead }) {
                 {/* Line/number filter */}
                 <select value={lineFilter} onChange={e => setLineFilter(e.target.value)}
                   style={{ background:'rgba(255,255,255,0.06)', border:'1px solid rgba(255,255,255,0.12)', borderRadius:'4px', padding:'4px 8px', color:'#e8e0d0', fontSize:'11px', outline:'none', colorScheme:'dark', cursor:'pointer', marginLeft:'auto' }}>
-                  <option value="all">All Lines</option>
+                  <option value="all">👥 All Agents</option>
                   {lines.map(l => (
-                    <option key={l.number} value={l.number}>{l.label} — {l.number}</option>
+                    <option key={l.number} value={l.number}>{l.label === 'Steph' ? '🟣' : '🟡'} {l.label}</option>
                   ))}
-                  {/* Combo options */}
-                  {lines.length >= 2 && <option value={lines[0]?.number + '|' + lines[1]?.number}>Lines 1+2</option>}
                 </select>
               </div>
             )}

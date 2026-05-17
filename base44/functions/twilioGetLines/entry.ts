@@ -4,11 +4,11 @@
  */
 Deno.serve(async () => {
   const lines = [
-    { key: 'TWILIO_FROM_NUMBER',   label: 'Line 1' },
-    { key: 'TWILIO_FROM_NUMBER_2', label: 'Line 2' },
-    { key: 'TWILIO_FROM_NUMBER_3', label: 'Line 3' },
+    { key: 'TWILIO_FROM_NUMBER',   label: 'Admin',  agent: 'admin' },
+    { key: 'TWILIO_FROM_NUMBER_2', label: 'Steph',  agent: 'steph' },
+    { key: 'TWILIO_FROM_NUMBER_3', label: 'Line 3', agent: 'line3' },
   ]
-    .map(({ key, label }) => ({ label, number: Deno.env.get(key) || '' }))
+    .map(({ key, label, agent }) => ({ label, agent, number: Deno.env.get(key) || '' }))
     .filter(l => l.number);
 
   return Response.json({ lines });
