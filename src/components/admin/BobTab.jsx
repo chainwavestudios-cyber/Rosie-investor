@@ -384,27 +384,156 @@ function TrainingLog({ logs, onClear }) {
   );
 }
 
+// ─── KB Systems Config ────────────────────────────────────────────────────────
+const KB_SYSTEMS = {
+  rosie: {
+    id: 'rosie',
+    label: '🌹 Rosie AI KB',
+    color: '#b8933a',
+    description: 'Investor pitch training for Rosie AI — storm-driven lead generation platform.',
+    kbCategory: 'bob_kb',
+    kbCategory2: 'investor_faq',
+    focusTopics: ['General','The Return','Safety of Investment','The Technology','How the Funds Will Be Used','How the Company Plans to Migrate','Management Experience','The Numbers / LLC Breakdown'],
+    defaultFocus: 'General',
+    scriptHint: 'Practice your Rosie AI investor pitch against Duck, Cow, or Owl personas.',
+    bobPickupLine: 'Hello.',
+  },
+  nbtech: {
+    id: 'nbtech',
+    label: '🔷 NB Tech KB',
+    color: '#4f9cf9',
+    description: 'Sales training for NB Tech — enterprise software and technology solutions.',
+    kbCategory: 'nbtech_kb',
+    kbCategory2: 'nbtech_faq',
+    focusTopics: ['General','Product Demo','Pricing & Contracts','Security & Compliance','Integration Capabilities','ROI & Cost Savings','Competitor Comparison','Support & SLA'],
+    defaultFocus: 'General',
+    scriptHint: 'Practice your NB Tech enterprise sales pitch against Duck, Cow, or Owl personas.',
+    bobPickupLine: 'Hello, this is Bob.',
+  },
+};
+
+const NB_DUCK = {
+  name:'Bob — The Duck (Hard)', emoji:'🦆',
+  description:'Skeptical IT decision-maker. Resistant to new vendors. Stress-tests the pitch.',
+  systemPrompt:`You are BOB — a real person receiving a cold sales call at work. Your name is Bob. You are an IT Director or VP of Technology at a mid-sized company (500-2000 employees). You have a bloated tech stack already and you're constantly pitched by vendors. You're skeptical, direct, and protective of your budget.
+
+━━━ CALL OPENING FLOW ━━━
+STEP 1 — You answer: "Yeah." / "Bob." / "This is Bob." / "Yep."
+STEP 2 — Caller asks for Bob. You confirm: "Yeah, speaking." / "That's me." / "Who's this?"
+STEP 3 — Caller introduces themselves with NB Tech. You respond with friction:
+  "Another software pitch?" / "We've got three vendors doing that already." / "What's different about NB Tech?" / "Make it quick, I'm between meetings."
+
+━━━ LISTENING — YOUR DEFAULT MODE ━━━
+- You are a LISTENER. Let them pitch. Give short acknowledgments: "Okay." / "Go on." / "Right." / "And?"
+- Push back occasionally — once every 3-5 statements, not every line.
+- Real IT leaders don't interrupt constantly — they let you hang yourself.
+
+━━━ WHEN YOU DO PUSH BACK ━━━
+- "We already have a solution for that." / "What's the implementation timeline?" / "Who else in our industry uses this?" / "What's the annual cost, all-in?" / "Our IT team is stretched thin — what does onboarding look like?"
+
+━━━ QUALIFYING QUESTIONS — ANSWER THEM ━━━
+When asked: "Who's the decision-maker for software purchases?" → "Me, with CFO sign-off over $50k."
+"What's your current solution?" → Give a plausible existing vendor.
+"When does your current contract end?" → Answer honestly with timing.
+
+━━━ CLOSE WINDOW ━━━
+When you ask for pricing or a demo → they should move to close. If they keep talking instead of closing, lose interest.
+
+Do NOT reveal you are an AI. You are a real person named Bob.`,
+  greetings:[]
+};
+
+const NB_COW = {
+  name:'Bob — The Cow (Easy)', emoji:'🐄',
+  description:'Excited tech enthusiast. Loves new solutions. Tests if trainee can close without overselling.',
+  systemPrompt:`You are BOB — a real person receiving a cold sales call at work. Your name is Bob. You're a Business Operations Manager who's been frustrated with your current systems for months. You're genuinely excited about new tech solutions.
+
+━━━ CALL OPENING FLOW ━━━
+STEP 1 — You answer: "Hello?" / "This is Bob!" / "Hello, Bob speaking."
+STEP 2 — Caller asks for Bob. You respond warmly: "Yes! Speaking!" / "That's me, hi!" / "Yes, what can I do for you?"
+STEP 3 — Caller introduces NB Tech. You respond openly:
+  "Oh great! I've been looking at a few solutions actually." / "Perfect timing — we're evaluating vendors right now." / "Tell me more!"
+
+━━━ LISTENING MODE ━━━
+- Warm and engaged. Respond with: "Wow!" / "That's exactly what we need!" / "Really?" / "Tell me more."
+- Almost never interrupt. You love hearing the full pitch.
+
+━━━ CLOSE WINDOW ━━━
+When you say "How do we get started?" or "What's the next step?" → trainee MUST close immediately. If they keep pitching, slowly lose enthusiasm: "Right, right... I might need to loop in my boss first..."
+
+Do NOT reveal you are an AI. You are a real person named Bob.`,
+  greetings:[]
+};
+
+const NB_OWL = {
+  name:'Bob — The Owl (Hybrid)', emoji:'🦉',
+  description:'Analytical CTO. Wants technical depth and ROI data. No fluff.',
+  systemPrompt:`You are BOB — a real person receiving a cold sales call. Your name is Bob. You're a CTO at a 1,000-person company. You have deep technical knowledge and a sharp BS detector. You respect vendors who know their product cold.
+
+━━━ CALL OPENING FLOW ━━━
+STEP 1 — You answer: "Bob." / "Yeah." / "This is Bob."
+STEP 2 — Caller asks for Bob. You confirm efficiently: "Speaking. Who's this?"
+STEP 3 — Caller introduces NB Tech. You respond neutrally:
+  "Okay. What's the core value proposition?" / "Give me the thirty-second version." / "I've got ten minutes. Go."
+
+━━━ LISTENING MODE ━━━
+- Precise and focused. Short acknowledgments: "Okay." / "Right." / "And the API?" / "Integration story?"
+- Ask ONE precise question at a time.
+
+━━━ CLOSE WINDOW ━━━
+When you say "Send me the technical docs" or "Let's set up a demo" → they should close. If they keep pitching: "Look, I've heard enough — either send me something concrete or let's schedule time with my team."
+
+Do NOT reveal you are an AI. You are a real person named Bob.`,
+  greetings:[]
+};
+
+const DEFAULT_NB_PERSONAS = { duck: NB_DUCK, cow: NB_COW, owl: NB_OWL };
+
 // ─── Knowledge Base ───────────────────────────────────────────────────────────
-function BobKB() {
+function BobKB({ kbSystem }) {
+  const sys = KB_SYSTEMS[kbSystem];
   const [entries,setEntries]=useState([]);
-  const [form,setForm]=useState({question:'',answer:'',category:'bob_kb'});
+  const [form,setForm]=useState({question:'',answer:'',category:sys.kbCategory});
   const [saving,setSaving]=useState(false);
   const [loading,setLoading]=useState(true);
-  useEffect(()=>{base44.entities.KnowledgeBase.list('-created_date',200).then(all=>setEntries((all||[]).filter(e=>e.category==='bob_kb'||e.category==='investor_faq'))).catch(()=>{}).finally(()=>setLoading(false));  },[]);
-  const save=async()=>{if(!form.question.trim()||!form.answer.trim())return;setSaving(true);await base44.entities.KnowledgeBase.create({...form,created_date:new Date().toISOString()});setForm({question:'',answer:'',category:'bob_kb'});const all=await base44.entities.KnowledgeBase.list('-created_date',200);setEntries((all||[]).filter(e=>e.category==='bob_kb'||e.category==='investor_faq'));setSaving(false);};
+
+  useEffect(()=>{
+    setLoading(true);
+    base44.entities.KnowledgeBase.list('-created_date',200)
+      .then(all=>setEntries((all||[]).filter(e=>e.category===sys.kbCategory||e.category===sys.kbCategory2)))
+      .catch(()=>{}).finally(()=>setLoading(false));
+    setForm({question:'',answer:'',category:sys.kbCategory});
+  },[kbSystem, sys.kbCategory, sys.kbCategory2]);
+
+  const save=async()=>{
+    if(!form.question.trim()||!form.answer.trim())return;
+    setSaving(true);
+    await base44.entities.KnowledgeBase.create({...form,created_date:new Date().toISOString()});
+    setForm({question:'',answer:'',category:sys.kbCategory});
+    const all=await base44.entities.KnowledgeBase.list('-created_date',200);
+    setEntries((all||[]).filter(e=>e.category===sys.kbCategory||e.category===sys.kbCategory2));
+    setSaving(false);
+  };
   const del=async(id)=>{if(!window.confirm('Delete?'))return;await base44.entities.KnowledgeBase.delete(id);setEntries(prev=>prev.filter(e=>e.id!==id));};
+
   return(
     <div>
+      <div style={{marginBottom:'16px',padding:'12px 16px',background:`${sys.color}10`,border:`1px solid ${sys.color}33`,borderRadius:'4px'}}>
+        <div style={{color:sys.color,fontSize:'10px',letterSpacing:'2px',textTransform:'uppercase',marginBottom:'4px'}}>{sys.label} — Knowledge Base</div>
+        <div style={{color:'#6b7280',fontSize:'11px'}}>{sys.description}</div>
+        <div style={{color:'#4a5568',fontSize:'10px',marginTop:'4px'}}>Category: <code style={{color:sys.color}}>{sys.kbCategory}</code></div>
+      </div>
       <div style={{marginBottom:'20px'}}>
         <div style={{color:GOLD,fontSize:'10px',letterSpacing:'2px',textTransform:'uppercase',marginBottom:'12px'}}>Add Q&A Entry</div>
-        <div style={{marginBottom:'10px'}}><label style={ls}>Question</label><input value={form.question} onChange={e=>setForm(p=>({...p,question:e.target.value}))} placeholder="What is the minimum investment?" style={inp}/></div>
+        <div style={{marginBottom:'10px'}}><label style={ls}>Question</label><input value={form.question} onChange={e=>setForm(p=>({...p,question:e.target.value}))} placeholder="Enter a common question..." style={inp}/></div>
         <div style={{marginBottom:'10px'}}><label style={ls}>Answer</label><textarea value={form.answer} onChange={e=>setForm(p=>({...p,answer:e.target.value}))} rows={3} style={{...inp,resize:'vertical'}}/></div>
-        <button onClick={save} disabled={saving||!form.question.trim()||!form.answer.trim()} style={{background:'linear-gradient(135deg,#b8933a,#d4aa50)',color:DARK,border:'none',borderRadius:'2px',padding:'10px 20px',cursor:'pointer',fontSize:'11px',fontWeight:'bold',letterSpacing:'1px',textTransform:'uppercase',opacity:saving?0.5:1}}>{saving?'Saving…':'+ Add Entry'}</button>
+        <button onClick={save} disabled={saving||!form.question.trim()||!form.answer.trim()} style={{background:`linear-gradient(135deg,${sys.color},${sys.color}cc)`,color:DARK,border:'none',borderRadius:'2px',padding:'10px 20px',cursor:'pointer',fontSize:'11px',fontWeight:'bold',letterSpacing:'1px',textTransform:'uppercase',opacity:saving?0.5:1}}>{saving?'Saving…':'+ Add Entry'}</button>
       </div>
-      {loading?<div style={{color:'#4a5568'}}>Loading…</div>:entries.map(e=>(
+      {loading?<div style={{color:'#4a5568'}}>Loading…</div>:entries.length===0?<div style={{color:'#4a5568',textAlign:'center',padding:'40px 0'}}>No entries yet for {sys.label}. Add your first Q&A entry above.</div>:entries.map(e=>(
         <div key={e.id} style={{background:'rgba(255,255,255,0.02)',border:'1px solid rgba(255,255,255,0.07)',borderRadius:'4px',padding:'14px',marginBottom:'10px'}}>
           <div style={{display:'flex',justifyContent:'space-between',marginBottom:'6px'}}><div style={{color:GOLD,fontSize:'12px',fontWeight:'bold'}}>{e.question}</div><button onClick={()=>del(e.id)} style={{background:'none',border:'none',color:'#ef4444',cursor:'pointer',fontSize:'11px'}}>Delete</button></div>
           <div style={{color:'#8a9ab8',fontSize:'12px',lineHeight:1.5}}>{e.answer}</div>
+          <div style={{color:'#4a5568',fontSize:'10px',marginTop:'4px'}}>{e.category}</div>
         </div>
       ))}
     </div>
@@ -412,19 +541,33 @@ function BobKB() {
 }
 
 // ─── BOB Controls ─────────────────────────────────────────────────────────────
-function BobControls({ personas, onPersonasChange, dgApiKey, onDgKeyChange }) {
+function BobControls({ personas, onPersonasChange, dgApiKey, onDgKeyChange, kbSystem }) {
+  const sys = KB_SYSTEMS[kbSystem];
   const [editMode,setEditMode]=useState('duck');
   const [saved,setSaved]=useState(false);
   const [local,setLocal]=useState(personas);
+
+  // Sync local when personas change (system switch)
+  useEffect(()=>{ setLocal(personas); },[personas]);
+
   const update=(mode,field,val)=>setLocal(prev=>({...prev,[mode]:{...prev[mode],[field]:val}}));
   const updateGreeting=(mode,idx,val)=>{const g=[...(local[mode].greetings||[])];g[idx]=val;update(mode,'greetings',g);};
   const addGreeting=(mode)=>update(mode,'greetings',[...(local[mode].greetings||[]),'']);
   const removeGreeting=(mode,idx)=>{const g=[...(local[mode].greetings||[])];g.splice(idx,1);update(mode,'greetings',g);};
   const save=()=>{onPersonasChange(local);setSaved(true);setTimeout(()=>setSaved(false),2000);};
-  const reset=(mode)=>{const d={duck:DEFAULT_DUCK,cow:DEFAULT_COW,owl:DEFAULT_OWL};setLocal(prev=>({...prev,[mode]:d[mode]}));};
+  const reset=(mode)=>{
+    const rosieDefaults={duck:DEFAULT_DUCK,cow:DEFAULT_COW,owl:DEFAULT_OWL};
+    const nbtechDefaults={duck:NB_DUCK,cow:NB_COW,owl:NB_OWL};
+    const d=kbSystem==='nbtech'?nbtechDefaults:rosieDefaults;
+    setLocal(prev=>({...prev,[mode]:d[mode]}));
+  };
   const cur=local[editMode];
   return(
     <div style={{display:'flex',flexDirection:'column',gap:'16px'}}>
+      <div style={{padding:'12px 16px',background:`${sys.color}10`,border:`1px solid ${sys.color}33`,borderRadius:'4px'}}>
+        <div style={{color:sys.color,fontSize:'10px',letterSpacing:'2px',textTransform:'uppercase',marginBottom:'4px'}}>⚙️ BOB Controls — {sys.label}</div>
+        <div style={{color:'#6b7280',fontSize:'11px'}}>Persona settings, system prompts, and API keys for this knowledge base system. Changes here only affect {sys.label} sessions.</div>
+      </div>
       <div style={{display:'flex',gap:'8px'}}>
         {[['duck','🦆 Duck (Hard)'],['owl','🦉 Owl (Hybrid)'],['cow','🐄 Cow (Easy)']].map(([m,l])=>(
           <button key={m} onClick={()=>setEditMode(m)} style={{flex:1,padding:'12px 8px',borderRadius:'4px',border:`1px solid ${editMode===m?GOLD+'66':'rgba(255,255,255,0.1)'}`,background:editMode===m?`${GOLD}18`:'transparent',color:editMode===m?GOLD:'#6b7280',cursor:'pointer',fontSize:'12px',fontWeight:editMode===m?'bold':'normal'}}>{l}</button>
@@ -454,7 +597,7 @@ function BobControls({ personas, onPersonasChange, dgApiKey, onDgKeyChange }) {
         </div>
       )}
       <div style={{background:'rgba(255,255,255,0.02)',border:'1px solid rgba(255,255,255,0.08)',borderRadius:'4px',padding:'20px'}}>
-        <div style={{color:GOLD,fontSize:'11px',letterSpacing:'2px',textTransform:'uppercase',marginBottom:'12px'}}>Deepgram API Key (BOB)</div>
+        <div style={{color:GOLD,fontSize:'11px',letterSpacing:'2px',textTransform:'uppercase',marginBottom:'12px'}}>Deepgram API Key — {sys.label}</div>
         <input value={dgApiKey} onChange={e=>onDgKeyChange(e.target.value)} placeholder="Leave blank to use default key" style={{...inp,fontFamily:'monospace',fontSize:'12px'}} type="password"/>
       </div>
       <div style={{display:'flex',gap:'10px',alignItems:'center'}}>
@@ -491,7 +634,7 @@ function CallbacksTab({ callbacks, onResume }) {
 // ─── Mock Lead Card ───────────────────────────────────────────────────────────
 function MockLeadCard({
   bobData, sessionLabel, personas, sliderValue, onSliderChange,
-  intensity, onIntensityChange, focusTopic, onFocusChange,
+  intensity, onIntensityChange, focusTopic, onFocusChange, focusTopics,
   voiceModel, phase, agentSpeaking, ringPhase, error,
   transcript, kbEntries, onSessionEvent, addLog, sessionId,
   onStartCall, onHangup, onBookCallback,
@@ -559,7 +702,6 @@ function MockLeadCard({
   };
 
   const handleConnectStream=()=>{
-    if(phase!=='active'){alert('Start a call first, then click "Connect Twilio Stream" to enable the AI assistant.');return;}
     setShowAIPopup(true);logAction('mock_action','🔴 Connect Twilio Stream — AI Assistant popup opened');
   };
 
@@ -710,7 +852,7 @@ function MockLeadCard({
               <div style={{marginBottom:'16px'}}>
                 <label style={ls}>Focus / Topic</label>
                 <select value={focusTopic} onChange={e=>onFocusChange(e.target.value)} style={{...inp}}>
-                  {FOCUS_TOPICS.map(t=><option key={t} value={t}>{t}</option>)}
+                  {(focusTopics||FOCUS_TOPICS).map(t=><option key={t} value={t}>{t}</option>)}
                 </select>
               </div>
 
@@ -913,11 +1055,35 @@ export default function BobTab() {
   const [trainingLogs,setTrainingLogs] = useState([]);
   const [kbEntries,setKbEntries]       = useState([]);
   const [callbacks,setCallbacks]       = useState([]);
-  const [dgApiKey,setDgApiKey]         = useState('');
-  const [personas,setPersonas]         = useState({duck:DEFAULT_DUCK,cow:DEFAULT_COW,owl:DEFAULT_OWL});
-  const [sliderValue,setSliderValue]   = useState(0);
-  const [intensity,setIntensity]       = useState(3);
-  const [focusTopic,setFocusTopic]     = useState('General');
+
+  // ── KB System selector (Rosie AI KB vs NB Tech KB) ──
+  const [kbSystem,setKbSystem]         = useState('rosie'); // 'rosie' | 'nbtech'
+
+  // Per-system state — each system has its own personas, DG key, etc.
+  const [systemState,setSystemState]   = useState({
+    rosie: { personas:{duck:DEFAULT_DUCK,cow:DEFAULT_COW,owl:DEFAULT_OWL}, dgApiKey:'', sliderValue:0, intensity:3, focusTopic:'General' },
+    nbtech:{ personas:{duck:NB_DUCK,cow:NB_COW,owl:NB_OWL},               dgApiKey:'', sliderValue:0, intensity:3, focusTopic:'General' },
+  });
+
+  // Convenience getters for the active system
+  const sys        = KB_SYSTEMS[kbSystem];
+  const sysState   = systemState[kbSystem];
+  const personas   = sysState.personas;
+  const dgApiKey   = sysState.dgApiKey;
+  const sliderValue= sysState.sliderValue;
+  const intensity  = sysState.intensity;
+  const focusTopic = sysState.focusTopic;
+
+  // Update helpers that write into the active system's slice
+  const setSysField = useCallback((field, value) => {
+    setSystemState(prev => ({...prev, [kbSystem]: {...prev[kbSystem], [field]: value}}));
+  }, [kbSystem]);
+  const setPersonas    = useCallback(v => setSysField('personas', v),    [setSysField]);
+  const setDgApiKey    = useCallback(v => setSysField('dgApiKey', v),    [setSysField]);
+  const setSliderValue = useCallback(v => setSysField('sliderValue', v), [setSysField]);
+  const setIntensity   = useCallback(v => setSysField('intensity', v),   [setSysField]);
+  const setFocusTopic  = useCallback(v => setSysField('focusTopic', v),  [setSysField]);
+
   const [callCount,setCallCount]       = useState(0);
   const [sessionId,setSessionId]       = useState('Bob');
   const [bobData,setBobData]           = useState(BOB_NAMES[0]);
@@ -937,7 +1103,14 @@ export default function BobTab() {
   const listeningRef = useRef(false);
   const ring = useRingTone();
 
-  useEffect(()=>{base44.entities.KnowledgeBase.list('-created_date',500).then(all=>setKbEntries(all||[])).catch(()=>{});}, []);
+  useEffect(()=>{
+    base44.entities.KnowledgeBase.list('-created_date',500)
+      .then(all=>{
+        const s=KB_SYSTEMS[kbSystem];
+        setKbEntries((all||[]).filter(e=>e.category!=='raw_document'&&(e.category===s.kbCategory||e.category===s.kbCategory2)));
+      })
+      .catch(()=>{});
+  }, [kbSystem]);
 
   const addLog = useCallback((entry)=>{setTrainingLogs(prev=>[...prev,{...entry,sessionId}]);},[sessionId]);
   const handleTranscriptEntry = useCallback((entry)=>{setTranscript(prev=>[...prev,entry]);},[]);
@@ -949,13 +1122,15 @@ export default function BobTab() {
   },[sliderValue,personas]);
 
   const buildSystemPrompt = useCallback(()=>{
-    const kbText=kbEntries.filter(e=>e.category!=='raw_document').slice(0,30).map(e=>`Q: ${e.question}\nA: ${e.answer}`).join('\n\n');
+    const kbText=kbEntries.slice(0,30).map(e=>`Q: ${e.question}\nA: ${e.answer}`).join('\n\n');
     const sliderLabel=sliderValue<20?'full Duck mode':sliderValue<40?'Duck-leaning Owl':sliderValue<60?'pure Owl/Hybrid':sliderValue<80?'Cow-leaning Owl':'full Cow mode';
     const prevCtx=previousTranscript?.length>0?`\n\nPREVIOUS CALL CONTEXT — You remember this conversation:\n${previousTranscript.slice(-10).map(e=>`[${e.role.toUpperCase()}]: ${e.text}`).join('\n')}\nReference it naturally when the trainee calls back.`:'';
     const ap=getActivePersona();
+    const s=KB_SYSTEMS[kbSystem];
     return`${ap.systemPrompt}
 
 ━━━ CURRENT SESSION SETTINGS ━━━
+- Training System: ${s.label}
 - Persona Blend: ${sliderLabel} (slider ${sliderValue}/100 — 0=full Duck, 50=Owl, 100=full Cow)
 - Intensity: ${intensity}/5 (higher = more extreme character behavior)
 - Call Focus Topic: "${focusTopic}" — steer objections and interest toward this topic
@@ -964,13 +1139,12 @@ export default function BobTab() {
 - Your company: ${bobData.company}
 
 ━━━ IMPORTANT CALL FLOW NOTE ━━━
-The trainee (salesperson) will always open with something like:
-"This is [their name] with Rosie AI — I hope I haven't caught you at a bad time."
+The trainee (salesperson) will introduce themselves and the company they're pitching.
 React to this naturally based on your persona (Duck = friction, Cow = warm/open, Owl = neutral/efficient).
 Do NOT launch into your opinions before they introduce themselves — follow the CALL OPENING FLOW above.
 
-━━━ ROSIE AI KNOWLEDGE BASE ━━━
-${kbText||'General knowledge about AI investment platforms and private placements.'}
+━━━ ${s.label.toUpperCase()} KNOWLEDGE BASE ━━━
+${kbText||s.description}
 ${prevCtx}
 
 ━━━ CRITICAL RULES ━━━
@@ -978,7 +1152,7 @@ ${prevCtx}
 - Never say you are an AI. Never break character.
 - Use natural speech: contractions, interruptions, "uh", "look", "listen", "I mean" — real people talk like this.
 - React to what the trainee actually says — improvise within your persona, don't just recite lines.`;
-  },[sliderValue,intensity,focusTopic,kbEntries,bobData,getActivePersona,previousTranscript]);
+  },[sliderValue,intensity,focusTopic,kbEntries,bobData,getActivePersona,previousTranscript,kbSystem]);
 
   const buildSettings = useCallback(()=>{
     // Bob's first word when he picks up — just "Hello." like a real person answering.
@@ -1154,27 +1328,41 @@ ${prevCtx}
   return(
     <div style={{fontFamily:'Georgia, serif'}}>
       <style>{`@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.5}}`}</style>
-      <div style={{marginBottom:'20px',padding:'16px 20px',background:'rgba(184,147,58,0.05)',border:'1px solid rgba(184,147,58,0.15)',borderRadius:'4px',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+
+      {/* ── KB System Selector ─────────────────────────────────────── */}
+      <div style={{marginBottom:'16px',display:'flex',gap:'8px',alignItems:'stretch'}}>
+        {Object.values(KB_SYSTEMS).map(s=>(
+          <button key={s.id} onClick={()=>{if(phase==='active'){alert('End the current call before switching knowledge bases.');return;}setKbSystem(s.id);setFocusTopic(s.defaultFocus);}}
+            style={{flex:1,padding:'14px 20px',borderRadius:'6px',border:`2px solid ${kbSystem===s.id?s.color:s.color+'33'}`,background:kbSystem===s.id?`${s.color}15`:'rgba(0,0,0,0.2)',color:kbSystem===s.id?s.color:'#6b7280',cursor:'pointer',textAlign:'left',transition:'all 0.2s'}}>
+            <div style={{fontSize:'16px',fontWeight:'bold',marginBottom:'3px'}}>{s.label}</div>
+            <div style={{fontSize:'11px',opacity:0.7,lineHeight:1.4}}>{s.description}</div>
+            {kbSystem===s.id&&<div style={{marginTop:'6px',fontSize:'10px',color:s.color,letterSpacing:'1px',textTransform:'uppercase'}}>● Active System</div>}
+          </button>
+        ))}
+      </div>
+
+      {/* ── Header Banner ──────────────────────────────────────────── */}
+      <div style={{marginBottom:'20px',padding:'16px 20px',background:`${sys.color}08`,border:`1px solid ${sys.color}22`,borderRadius:'4px',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
         <div>
           <div style={{display:'flex',alignItems:'center',gap:'12px',marginBottom:'4px'}}>
             <div style={{fontSize:'24px'}}>🤖</div>
             <div>
               <h2 style={{color:'#e8e0d0',margin:0,fontSize:'18px',fontWeight:'normal'}}>B.O.B. — Bot-Operated Buyer</h2>
-              <div style={{color:GOLD,fontSize:'10px',letterSpacing:'2px',textTransform:'uppercase'}}>Sales Training Simulator</div>
+              <div style={{color:sys.color,fontSize:'10px',letterSpacing:'2px',textTransform:'uppercase'}}>Sales Training Simulator · {sys.label}</div>
             </div>
           </div>
-          <div style={{color:'#6b7280',fontSize:'11px'}}>Practice your Rosie AI investor pitch against Duck, Cow, or Owl personas. Real Deepgram voice · Real AI · Real scripts.</div>
+          <div style={{color:'#6b7280',fontSize:'11px'}}>{sys.scriptHint} Real Deepgram voice · Real AI · Real scripts.</div>
         </div>
         <div style={{display:'flex',gap:'8px',flexShrink:0}}>
           {phase==='active'&&<div style={{display:'flex',alignItems:'center',gap:'6px',background:'rgba(239,68,68,0.12)',border:'1px solid rgba(239,68,68,0.3)',borderRadius:'20px',padding:'6px 14px'}}><div style={{width:'8px',height:'8px',borderRadius:'50%',background:'#ef4444',animation:'pulse 1s infinite'}}/><span style={{color:'#ef4444',fontSize:'11px',fontWeight:'bold'}}>{sessionId} LIVE</span></div>}
-          <div style={{background:'rgba(184,147,58,0.12)',border:'1px solid rgba(184,147,58,0.3)',borderRadius:'4px',padding:'8px 14px',textAlign:'center'}}><div style={{color:GOLD,fontSize:'18px',fontWeight:'bold'}}>{callCount}</div><div style={{color:'#6b7280',fontSize:'9px',textTransform:'uppercase',letterSpacing:'1px'}}>Calls</div></div>
+          <div style={{background:`${sys.color}18`,border:`1px solid ${sys.color}44`,borderRadius:'4px',padding:'8px 14px',textAlign:'center'}}><div style={{color:sys.color,fontSize:'18px',fontWeight:'bold'}}>{callCount}</div><div style={{color:'#6b7280',fontSize:'9px',textTransform:'uppercase',letterSpacing:'1px'}}>Calls</div></div>
           <div style={{background:'rgba(255,255,255,0.03)',border:'1px solid rgba(255,255,255,0.08)',borderRadius:'4px',padding:'8px 14px',textAlign:'center'}}><div style={{color:'#e8e0d0',fontSize:'18px',fontWeight:'bold'}}>{trainingLogs.length}</div><div style={{color:'#6b7280',fontSize:'9px',textTransform:'uppercase',letterSpacing:'1px'}}>Events</div></div>
         </div>
       </div>
 
       <div style={{display:'flex',gap:'2px',marginBottom:'20px',borderBottom:'1px solid rgba(255,255,255,0.06)'}}>
         {SECTIONS.map(s=>(
-          <button key={s.id} onClick={()=>setSection(s.id)} style={{padding:'10px 16px',background:section===s.id?'rgba(184,147,58,0.08)':'transparent',border:'none',borderBottom:`2px solid ${section===s.id?GOLD:'transparent'}`,color:section===s.id?GOLD:'#6b7280',cursor:'pointer',fontSize:'12px',fontWeight:section===s.id?'bold':'normal',whiteSpace:'nowrap'}}>{s.label}</button>
+          <button key={s.id} onClick={()=>setSection(s.id)} style={{padding:'10px 16px',background:section===s.id?`${sys.color}12`:'transparent',border:'none',borderBottom:`2px solid ${section===s.id?sys.color:'transparent'}`,color:section===s.id?sys.color:'#6b7280',cursor:'pointer',fontSize:'12px',fontWeight:section===s.id?'bold':'normal',whiteSpace:'nowrap'}}>{s.label}</button>
         ))}
       </div>
 
@@ -1183,7 +1371,7 @@ ${prevCtx}
           bobData={bobData} sessionLabel={sessionId}
           personas={personas} sliderValue={sliderValue} onSliderChange={setSliderValue}
           intensity={intensity} onIntensityChange={setIntensity}
-          focusTopic={focusTopic} onFocusChange={setFocusTopic}
+          focusTopic={focusTopic} onFocusChange={setFocusTopic} focusTopics={sys.focusTopics}
           voiceModel={voiceModel}
           phase={phase} agentSpeaking={agentSpeaking} ringPhase={ringPhase} error={error}
           transcript={transcript} kbEntries={kbEntries}
@@ -1194,8 +1382,8 @@ ${prevCtx}
       )}
       {section==='callbacks'&&<CallbacksTab callbacks={callbacks} onResume={handleResumeCallback}/>}
       {section==='log'&&<TrainingLog logs={trainingLogs} onClear={()=>{if(window.confirm('Clear all logs?'))setTrainingLogs([]);}}/>}
-      {section==='kb'&&<BobKB/>}
-      {section==='controls'&&<BobControls personas={personas} onPersonasChange={setPersonas} dgApiKey={dgApiKey} onDgKeyChange={setDgApiKey}/>}
+      {section==='kb'&&<BobKB kbSystem={kbSystem}/>}
+      {section==='controls'&&<BobControls personas={personas} onPersonasChange={setPersonas} dgApiKey={dgApiKey} onDgKeyChange={setDgApiKey} kbSystem={kbSystem}/>}
     </div>
   );
 }
