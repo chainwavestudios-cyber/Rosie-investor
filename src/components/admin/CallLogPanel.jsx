@@ -382,9 +382,13 @@ export default function CallLogPanel({ onClose, onOpenLead }) {
   // Determine agent (from number → line label)
   const getAgent = (fromNumber) => {
     if (!fromNumber) return '—';
-    const label = lines.find(l => l.number === fromNumber)?.label;
-    if (label) return label;
-    // Infer from last digits
+    // Try exact match from loaded lines first
+    const lineMatch = lines.find(l => l.number === fromNumber || fromNumber.endsWith(l.number?.slice(-4)));
+    if (lineMatch?.label) return lineMatch.label;
+    // Fallback: infer from last 4 digits via NUMBER_TO_AGENT map
+    const mapLabel = NUMBER_TO_AGENT[fromNumber];
+    if (mapLabel) return mapLabel;
+    // Last resort: known endings
     if (fromNumber.endsWith('5680')) return 'Admin';
     if (fromNumber.endsWith('5681')) return 'Steph';
     if (fromNumber.endsWith('5682')) return 'Line 3';
@@ -531,8 +535,8 @@ export default function CallLogPanel({ onClose, onOpenLead }) {
                             <div style={{ display:'flex', gap:'5px', flexWrap:'wrap', alignItems:'center', marginBottom:'4px' }}>
                               <span style={{ color:'#4ade80', fontSize:'11px', fontFamily:'monospace' }}>{c.to}</span>
                               <span style={{ color:'#4a5568', fontSize:'9px' }}>·</span>
-                              <span style={{ background:'rgba(184,147,58,0.12)', color:GOLD, border:'1px solid rgba(184,147,58,0.25)', borderRadius:'3px', padding:'1px 6px', fontSize:'9px', fontWeight:'bold' }}>
-                                👤 {agentLabel}
+                              <span style={{ background: agentLabel === 'Steph' ? 'rgba(167,139,250,0.15)' : 'rgba(184,147,58,0.15)', color: agentLabel === 'Steph' ? '#a78bfa' : GOLD, border: `1px solid ${agentLabel === 'Steph' ? 'rgba(167,139,250,0.35)' : 'rgba(184,147,58,0.35)'}`, borderRadius:'3px', padding:'2px 8px', fontSize:'10px', fontWeight:'bold' }}>
+                                {agentLabel === 'Steph' ? '🟣' : '🟡'} {agentLabel}
                               </span>
                               {c.duration > 0 && (
                                 <span style={{ color: '#a78bfa', fontSize: '10px' }}>⏱ {formatDur(c.duration)}</span>
