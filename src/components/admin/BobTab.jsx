@@ -796,9 +796,15 @@ function MockLeadCard({
             {phase==='idle'||phase==='error'?(
               <button onClick={onStartCall} style={{background:'linear-gradient(135deg,#4ade80,#22c55e)',color:DARK,border:'none',borderRadius:'4px',padding:'6px 14px',cursor:'pointer',fontSize:'11px',fontWeight:'bold'}}>📞 Connect to BOB</button>
             ):phase==='ringing'?(
-              <button disabled style={{background:'rgba(245,158,11,0.15)',color:'#f59e0b',border:'1px solid rgba(245,158,11,0.3)',borderRadius:'4px',padding:'6px 14px',fontSize:'11px',fontWeight:'bold'}}>📳 Ringing…</button>
+              <>
+                <button disabled style={{background:'rgba(245,158,11,0.15)',color:'#f59e0b',border:'1px solid rgba(245,158,11,0.3)',borderRadius:'4px',padding:'6px 14px',fontSize:'11px',fontWeight:'bold'}}>📳 Ringing…</button>
+                <button onClick={onHangup} style={{background:'rgba(239,68,68,0.15)',color:'#ef4444',border:'1px solid rgba(239,68,68,0.3)',borderRadius:'4px',padding:'6px 14px',cursor:'pointer',fontSize:'11px',fontWeight:'bold'}}>⏹ End Call</button>
+              </>
             ):phase==='connecting'?(
-              <button disabled style={{background:'rgba(245,158,11,0.15)',color:'#f59e0b',border:'1px solid rgba(245,158,11,0.3)',borderRadius:'4px',padding:'6px 14px',fontSize:'11px'}}>Connecting…</button>
+              <>
+                <button disabled style={{background:'rgba(245,158,11,0.15)',color:'#f59e0b',border:'1px solid rgba(245,158,11,0.3)',borderRadius:'4px',padding:'6px 14px',fontSize:'11px'}}>Connecting…</button>
+                <button onClick={onHangup} style={{background:'rgba(239,68,68,0.15)',color:'#ef4444',border:'1px solid rgba(239,68,68,0.3)',borderRadius:'4px',padding:'6px 14px',cursor:'pointer',fontSize:'11px',fontWeight:'bold'}}>⏹ End Call</button>
+              </>
             ):(
               <button onClick={onHangup} style={{background:'rgba(239,68,68,0.15)',color:'#ef4444',border:'1px solid rgba(239,68,68,0.3)',borderRadius:'4px',padding:'6px 14px',cursor:'pointer',fontSize:'11px',fontWeight:'bold'}}>⏹ Hang Up</button>
             )}
