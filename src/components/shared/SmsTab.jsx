@@ -101,25 +101,18 @@ export default function SmsTab({ toPhone, toPhone2, toName, leadId, investorId, 
     setSending(true); setSendMsg('');
     try {
       console.log('[SmsTab] fetching sendSms function...');
-      const res = await fetch(
-        'https://investors.rosieai.tech/api/apps/69cd2741578c9b5ce655395b/functions/sendSms',
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            to: selectedPhone,
-            body: body.trim(),
-            mediaUrls: mediaFiles.map(f => f.url),
-            leadId: leadId || null,
-            investorId: investorId || null,
-            contactName: toName || null,
-            sentBy: sentBy || 'admin',
-          }),
-        }
-      );
-      const data = await res.json();
-      console.log('[SmsTab] sendSms response:', res.status, JSON.stringify(data));
-      if (!res.ok) throw new Error(data.error || 'Send failed');
+      const res = await base44.functions.invoke('sendSms', {
+        to: selectedPhone,
+        body: body.trim(),
+        mediaUrls: mediaFiles.map(f => f.url),
+        leadId: leadId || null,
+        investorId: investorId || null,
+        contactName: toName || null,
+        sentBy: sentBy || 'admin',
+      });
+      const data = res?.data || res;
+      console.log('[SmsTab] sendSms response:', JSON.stringify(data));
+      if (data?.error) throw new Error(data.error);
       setBody('');
       setMediaFiles([]);
       await loadMessages();
