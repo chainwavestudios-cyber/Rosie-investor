@@ -52,8 +52,15 @@ Deno.serve(async (req) => {
     return Response.json({ error: 'Twilio credentials not configured' }, { status: 500 });
   }
 
+  // Normalize To number to E.164 (+1XXXXXXXXXX) — Twilio requires this
+  const digits = to.replace(/\D/g, '');
+  const toE164 = digits.length === 10 ? '+1' + digits
+               : digits.length === 11 && digits.startsWith('1') ? '+' + digits
+               : to.startsWith('+') ? to : '+' + digits;
+  console.log('[sendSms] Normalized To:', to, '->', toE164);
+
   // Send via Twilio
-  const params = new URLSearchParams({ From: FROM_NUMBER, To: to, Body: body || '' });
+  const params = new URLSearchParams({ From: FROM_NUMBER, To: toE164, Body: body || '' });
   if (mediaUrls && mediaUrls.length > 0) {
     mediaUrls.forEach((url) => params.append('MediaUrl', url));
   }
@@ -87,7 +94,7 @@ Deno.serve(async (req) => {
     await saveToDb({
       direction:    'outbound',
       fromNumber:   FROM_NUMBER,
-      toNumber:     to,
+      toNumber:     toE164,
       body:         body || '',
       mediaUrls:    (mediaUrls && mediaUrls.length > 0) ? JSON.stringify(mediaUrls) : null,
       status:       twilioData.status || 'queued',
@@ -95,7 +102,7 @@ Deno.serve(async (req) => {
       leadId:       leadId     || null,
       investorId:   investorId || null,
       contactName:  contactName || null,
-      contactPhone: to,
+      contactPhone: toE164,
       read:         true,
       sentBy:       sentBy || 'admin',
       sentAt:       new Date().toISOString(),
