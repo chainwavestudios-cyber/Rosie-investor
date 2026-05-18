@@ -361,6 +361,10 @@ function QASection({ transcript, transcriptRef, kbEntries, active, qaKeywords, m
     if (!transcript.length) return;
     const last = transcript[transcript.length - 1];
     if (!last?.text) return;
+    // Q&A only listens to the prospect (speaker 0 = remote/ch0)
+    // Never trigger on agent speech (speaker 1 = local/ch1)
+    const isProspect = last.speaker === 0 || last.speaker === null || last.speaker === undefined;
+    if (!isProspect) return;
     const detected = extractQuestions(last.text);
     detected.forEach(q => {
       if (!seenQ.current.has(q)) {
