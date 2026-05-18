@@ -21,7 +21,12 @@ const LINE_OPTIONS = [
   { key: 'TWILIO_FROM_NUMBER',   label: 'Line 1' },
   { key: 'TWILIO_FROM_NUMBER_2', label: 'Line 2' },
   { key: 'TWILIO_FROM_NUMBER_3', label: 'Line 3' },
+  { key: 'TWILIO_FROM_NUMBER_4', label: 'Line 4' },
+  { key: 'TWILIO_FROM_NUMBER_5', label: 'Line 5' },
+  { key: 'TWILIO_FROM_NUMBER_6', label: 'Line 6' },
 ];
+
+const MAX_LINES = LINE_OPTIONS.length; // 6
 
 const LINE_COLORS = {
   idle: '#4a5568', calling: '#f59e0b', ringing: '#f59e0b',
@@ -62,10 +67,10 @@ function SettingsPanel({ settings, onChange }) {
   const toggleLine = (key) => {
     const cur = settings.lines;
     if (cur.includes(key)) {
-      if (cur.length <= 2) return;
+      if (cur.length <= 2) return; // minimum 2 lines
       onChange({ ...settings, lines: cur.filter(k => k !== key), lineCount: cur.length - 1 });
     } else {
-      if (cur.length >= 3) return;
+      if (cur.length >= MAX_LINES) return; // maximum 6 lines
       onChange({ ...settings, lines: [...cur, key], lineCount: cur.length + 1 });
     }
   };
@@ -73,7 +78,7 @@ function SettingsPanel({ settings, onChange }) {
     <div style={{ background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: '10px', padding: '20px', marginBottom: '16px' }}>
       <div style={{ color: GOLD, fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '16px' }}>⚙️ Dialer Settings</div>
       <div style={{ marginBottom: '16px' }}>
-        <label style={{ display: 'block', color: '#8a9ab8', fontSize: '10px', letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: '8px' }}>Active Lines (2–3)</label>
+        <label style={{ display: 'block', color: '#8a9ab8', fontSize: '10px', letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: '8px' }}>Active Lines (2–6)</label>
         <div style={{ display: 'flex', gap: '8px' }}>
           {LINE_OPTIONS.map(({ key, label }) => {
             const active = settings.lines.includes(key);
@@ -192,7 +197,7 @@ const PredictiveDialer = forwardRef(function PredictiveDialer({ contactLists, on
   const [started, setStarted]                 = useState(false);
   const [running, setRunning]                 = useState(false);
   const [paused, setPaused]                   = useState(false);
-  const [lines, setLines]                     = useState([blankLine(), blankLine(), blankLine()]);
+  const [lines, setLines]                     = useState([blankLine(), blankLine(), blankLine(), blankLine(), blankLine(), blankLine()]);
   const [logs, setLogs]                       = useState([]);
   const [wrapUpCountdown, setWrapUpCountdown] = useState(0);
   const [stats, setStats]                     = useState({ dialed: 0, humans: 0, voicemails: 0, abandoned: 0 });
@@ -358,7 +363,7 @@ const PredictiveDialer = forwardRef(function PredictiveDialer({ contactLists, on
   const handleReset = async () => {
     if (!selectedListId) return;
     setStats({ dialed: 0, humans: 0, voicemails: 0, abandoned: 0 });
-    setLines([blankLine(), blankLine(), blankLine()]);
+    setLines([blankLine(), blankLine(), blankLine(), blankLine(), blankLine(), blankLine()]);
     await loadLeads(selectedListId);
     addLog('system', `Reset — ${queueRef.current.length} leads ready`);
   };
@@ -473,7 +478,7 @@ const PredictiveDialer = forwardRef(function PredictiveDialer({ contactLists, on
     setWrapUpCountdown(0);
     // Hang up other ringing lines
     const hangupPromises = [];
-    for (let i = 0; i < 3; i++) {
+    for (let i = 0; i < MAX_LINES; i++) {
       if (i === lineIdx) continue;
       const line = linesRef.current[i];
       if (!line.callSid) continue;
@@ -651,7 +656,7 @@ const PredictiveDialer = forwardRef(function PredictiveDialer({ contactLists, on
       }
     }
     if (activeCallRef.current) { try { activeCallRef.current.disconnect(); } catch {} activeCallRef.current = null; setActiveCall(null); }
-    setLines([blankLine(), blankLine(), blankLine()]);
+    setLines([blankLine(), blankLine(), blankLine(), blankLine(), blankLine(), blankLine()]);
     addLog('system', '■ Dialer stopped');
   };
 
