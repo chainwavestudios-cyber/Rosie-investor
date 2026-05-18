@@ -1,0 +1,81 @@
+{
+  "name": "AdminChat",
+  "type": "object",
+  "properties": {
+    "sender": {
+      "type": "string",
+      "title": "Sender Username"
+    },
+    "type": {
+      "type": "string",
+      "title": "Message Type",
+      "enum": [
+        "text",
+        "file",
+        "voice",
+        "gif",
+        "alert"
+      ],
+      "default": "text"
+    },
+    "content": {
+      "type": "string",
+      "title": "Message Content",
+      "format": "textarea"
+    },
+    "fileUrl": {
+      "type": "string",
+      "title": "File URL"
+    },
+    "fileName": {
+      "type": "string",
+      "title": "File Name"
+    },
+    "fileType": {
+      "type": "string",
+      "title": "File MIME Type"
+    },
+    "taggedLeadId": {
+      "type": "string",
+      "title": "Tagged Lead ID"
+    },
+    "taggedLeadName": {
+      "type": "string",
+      "title": "Tagged Lead Name"
+    },
+    "taggedLeadType": {
+      "type": "string",
+      "title": "Tagged Lead Type",
+      "enum": [
+        "lead",
+        "investor"
+      ]
+    },
+    "isAlert": {
+      "type": "boolean",
+      "title": "Is Alert",
+      "default": false
+    },
+    "alertDismissedBy": {
+      "type": "string",
+      "title": "Alert Dismissed By (JSON array)",
+      "format": "textarea"
+    },
+    "sentAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Sent At"
+    }
+  },
+  "required": [
+    "sender",
+    "type",
+    "sentAt"
+  ],
+  "rls": {
+    "create": null,
+    "read": null,
+    "update": null,
+    "delete": null
+  }
+}
