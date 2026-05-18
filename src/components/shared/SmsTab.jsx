@@ -105,6 +105,7 @@ export default function SmsTab({ toPhone, toPhone2, toName, leadId, investorId, 
         leadId: leadId || null,
         investorId: investorId || null,
         contactName: toName || null,
+        sentBy: sentBy || 'admin',
       });
       setBody('');
       setMediaFiles([]);

@@ -1,20 +1,13 @@
-import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
+import { createClient } from 'npm:@base44/sdk@0.8.25';
 
 const TWILIO_ACCOUNT_SID = Deno.env.get('TWILIO_ACCOUNT_SID');
 const TWILIO_AUTH_TOKEN  = Deno.env.get('TWILIO_AUTH_TOKEN');
 const FROM_NUMBER        = '+19495963970';
 
+const base44 = createClient({ appId: Deno.env.get('BASE44_APP_ID') });
+
 Deno.serve(async (req) => {
-  const base44 = createClientFromRequest(req);
-
-  // Try to get the current user — optional, used only for sentBy label
-  let senderLabel = 'admin';
-  try {
-    const user = await base44.auth.me();
-    if (user) senderLabel = user.email || user.full_name || 'admin';
-  } catch {}
-
-  const { to, body, mediaUrls, leadId, investorId, contactName } = await req.json();
+  const { to, body, mediaUrls, leadId, investorId, contactName, sentBy } = await req.json();
 
   if (!to || (!body && (!mediaUrls || mediaUrls.length === 0))) {
     return Response.json({ error: 'Missing to or body' }, { status: 400 });
@@ -43,7 +36,7 @@ Deno.serve(async (req) => {
     return Response.json({ error: twilioData.message || 'Twilio error' }, { status: 500 });
   }
 
-  // Save to SmsMessage entity using service role (no user auth required)
+  // Save to SmsMessage entity using service role
   await base44.asServiceRole.entities.SmsMessage.create({
     direction: 'outbound',
     fromNumber: FROM_NUMBER,
@@ -57,7 +50,7 @@ Deno.serve(async (req) => {
     contactName: contactName || null,
     contactPhone: to,
     read: true,
-    sentBy: senderLabel,
+    sentBy: sentBy || 'admin',
     sentAt: new Date().toISOString(),
   });
 
