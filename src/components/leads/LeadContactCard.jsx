@@ -231,12 +231,30 @@ function OverviewTab({ editLead, setEditLead, saving, saveMsg, saveProfile, upda
             </div>
           )}
           {/* Extra info */}
+          {editLead.investment && <div style={{ color:'#4ade80', fontSize:'12px' }}>💰 Investment: {editLead.investment}</div>}
           {editLead.bestTimeToCall && <div style={{ color:'#6b7280', fontSize:'12px' }}>⏰ Best time: {editLead.bestTimeToCall}</div>}
           {editLead.callbackAt && (
             <div style={{ color:'#a78bfa', fontSize:'12px' }}>
               📅 Callback: {fmtDateTimeLong(editLead.callbackAt)}
             </div>
           )}
+          {/* Custom fields */}
+          {(() => {
+            try {
+              const cf = JSON.parse(editLead.customFields || '{}');
+              const entries = Object.entries(cf).filter(([,v]) => v);
+              if (!entries.length) return null;
+              return (
+                <div style={{ display:'flex', flexWrap:'wrap', gap:'6px', marginTop:'4px' }}>
+                  {entries.map(([k,v]) => (
+                    <span key={k} style={{ background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.1)', borderRadius:'4px', padding:'3px 9px', fontSize:'11px', color:'#8a9ab8' }}>
+                      <span style={{ color:'#4a5568' }}>{k}:</span> <span style={{ color:'#c4cdd8' }}>{v}</span>
+                    </span>
+                  ))}
+                </div>
+              );
+            } catch { return null; }
+          })()}
         </div>
       )}
 
@@ -258,7 +276,35 @@ function OverviewTab({ editLead, setEditLead, saving, saveMsg, saveProfile, upda
               <label style={ls}>⏰ Best Time to Call</label>
               <input value={editLead.bestTimeToCall||''} onChange={e=>setEditLead({...editLead,bestTimeToCall:e.target.value})} style={inp} placeholder="e.g. mornings, after 3pm…" />
             </div>
+            <div>
+              <label style={ls}>💰 Investment Amount</label>
+              <input value={editLead.investment||''} onChange={e=>setEditLead({...editLead,investment:e.target.value})} style={inp} placeholder="e.g. $50,000 cash" />
+            </div>
           </div>
+
+          {/* Custom fields editor */}
+          {(() => {
+            let cf = {};
+            try { cf = JSON.parse(editLead.customFields || '{}'); } catch {}
+            const entries = Object.entries(cf);
+            if (!entries.length) return null;
+            return (
+              <div style={{ marginTop:'12px' }}>
+                <div style={{ color:'#4a5568', fontSize:'9px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'8px' }}>📋 Custom Fields</div>
+                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:'8px 14px' }}>
+                  {entries.map(([k, v]) => (
+                    <div key={k}>
+                      <label style={ls}>{k}</label>
+                      <input value={v||''} onChange={e => {
+                        const updated = {...cf, [k]: e.target.value};
+                        setEditLead(prev => ({...prev, customFields: JSON.stringify(updated)}));
+                      }} style={inp} />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
           <div style={{ display:'flex', gap:'10px', alignItems:'center', marginTop:'14px' }}>
             <button onClick={async () => { await saveProfile(); setEditing(false); }} disabled={saving}
               style={{ background:'linear-gradient(135deg,#b8933a,#d4aa50)', color:DARK, border:'none', borderRadius:'4px', padding:'9px 24px', cursor:'pointer', fontWeight:'bold', fontSize:'12px', letterSpacing:'1.5px', textTransform:'uppercase' }}>
@@ -1137,7 +1183,10 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
       await base44.entities.Lead.update(lead.id, {
         firstName: editLead.firstName, lastName: editLead.lastName,
         email: editLead.email, phone: editLead.phone, phone2: editLead.phone2,
-        state: editLead.state, address: editLead.address, city: editLead.city, zip: editLead.zip, bestTimeToCall: editLead.bestTimeToCall,
+        state: editLead.state, address: editLead.address, city: editLead.city, zip: editLead.zip,
+        bestTimeToCall: editLead.bestTimeToCall,
+        investment: editLead.investment || '',
+        customFields: editLead.customFields || '',
       });
       setSaveMsg('Saved ✓');
       onUpdate && onUpdate();

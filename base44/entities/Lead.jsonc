@@ -55,6 +55,10 @@
         "80s+"
       ]
     },
+    "investment": {
+      "type": "string",
+      "title": "Investment Amount"
+    },
     "leadType": {
       "type": "string",
       "title": "Lead Type",
@@ -184,6 +188,11 @@
     "clientProfile": {
       "type": "string",
       "title": "Client Profile (JSON)",
+      "format": "textarea"
+    },
+    "customFields": {
+      "type": "string",
+      "title": "Custom Fields (JSON)",
       "format": "textarea"
     }
   },

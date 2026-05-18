@@ -41,7 +41,9 @@ function CSVUploadModal({ onClose, onImported }) {
   const [file, setFile] = useState(null);
   const [headers, setHeaders] = useState([]);
   const [rows, setRows] = useState([]);
-  const [mapping, setMapping] = useState({ firstName:'', lastName:'', email:'', phone:'', phone2:'', state:'', age:'' });
+  const [mapping, setMapping] = useState({ firstName:'', lastName:'', email:'', phone:'', phone2:'', state:'', age:'', investment:'' });
+  const [customFieldMappings, setCustomFieldMappings] = useState([]); // [{csvCol, fieldName}]
+  const [availableHeaders, setAvailableHeaders] = useState([]);
   const [step, setStep] = useState('listName'); // listName | upload | map | preview | done
   const [listName, setListName] = useState('');
   const [importing, setImporting] = useState(false);
@@ -83,20 +85,26 @@ function CSVUploadModal({ onClose, onImported }) {
     reader.onload = (ev) => {
       const { hdrs, data } = parseCSV(ev.target.result);
       setHeaders(hdrs);
+      setAvailableHeaders(hdrs);
       setRows(data);
       // Auto-map common names
-      const autoMap = { firstName:'', lastName:'', email:'', phone:'', state:'', age:'' };
+      const autoMap = { firstName:'', lastName:'', email:'', phone:'', phone2:'', state:'', age:'', investment:'' };
+      const mappedCols = new Set();
       hdrs.forEach(h => {
         const hl = h.toLowerCase();
-        if (/first.*name|firstname/i.test(hl)) autoMap.firstName = h;
-        else if (/last.*name|lastname/i.test(hl)) autoMap.lastName = h;
-        else if (/email/i.test(hl)) autoMap.email = h;
-        else if (/phone2|phone_2|alt.*phone|phone.*2|mobile2|cell2/i.test(hl)) autoMap.phone2 = h;
-        else if (/phone|mobile|cell/i.test(hl)) autoMap.phone = h;
-        else if (/state|st$/i.test(hl)) autoMap.state = h;
-        else if (/age/i.test(hl)) autoMap.age = h;
+        if (/first.*name|firstname/i.test(hl)) { autoMap.firstName = h; mappedCols.add(h); }
+        else if (/last.*name|lastname/i.test(hl)) { autoMap.lastName = h; mappedCols.add(h); }
+        else if (/email/i.test(hl)) { autoMap.email = h; mappedCols.add(h); }
+        else if (/phone2|phone_2|alt.*phone|phone.*2|mobile2|cell2/i.test(hl)) { autoMap.phone2 = h; mappedCols.add(h); }
+        else if (/phone|mobile|cell/i.test(hl)) { autoMap.phone = h; mappedCols.add(h); }
+        else if (/state|st$/i.test(hl)) { autoMap.state = h; mappedCols.add(h); }
+        else if (/age/i.test(hl)) { autoMap.age = h; mappedCols.add(h); }
+        else if (/invest/i.test(hl)) { autoMap.investment = h; mappedCols.add(h); }
       });
       setMapping(autoMap);
+      // Remaining unmapped columns become custom field candidates
+      const unmapped = hdrs.filter(h => !mappedCols.has(h));
+      setCustomFieldMappings(unmapped.map(h => ({ csvCol: h, fieldName: h })));
       setStep('map');
     };
     reader.readAsText(f);
@@ -146,6 +154,11 @@ function CSVUploadModal({ onClose, onImported }) {
           ageNum < 30 ? '20s' : ageNum < 40 ? '30s' : ageNum < 50 ? '40s' :
           ageNum < 60 ? '50s' : ageNum < 70 ? '60s' : ageNum < 80 ? '70s' : '80s+'
         ) : '';
+        // Build custom fields object from mapped custom columns
+        const customObj = {};
+        customFieldMappings.forEach(({ csvCol, fieldName }) => {
+          if (fieldName.trim() && row[csvCol]) customObj[fieldName.trim()] = row[csvCol];
+        });
         return {
           firstName: row[mapping.firstName] || '',
           lastName: row[mapping.lastName] || '',
@@ -153,8 +166,10 @@ function CSVUploadModal({ onClose, onImported }) {
           phone: row[mapping.phone] || '',
           phone2: mapping.phone2 ? (row[mapping.phone2] || '') : '',
           state: row[mapping.state] || '',
+          ...(mapping.investment && row[mapping.investment] ? { investment: row[mapping.investment] } : {}),
           ...(ageNum > 0 ? { age: ageNum } : {}),
           ...(ageCat ? { ageCategory: ageCat } : {}),
+          ...(Object.keys(customObj).length > 0 ? { customFields: JSON.stringify(customObj) } : {}),
           status: 'lead',
           contactListId: listRecord.id,
         };
@@ -179,7 +194,7 @@ function CSVUploadModal({ onClose, onImported }) {
     onImported && onImported();
   };
 
-  const FIELDS = [['firstName','First Name'],['lastName','Last Name'],['email','Email'],['phone','Phone'],['phone2','Alt Phone'],['state','State'],['age','Age']];
+  const FIELDS = [['firstName','First Name'],['lastName','Last Name'],['email','Email'],['phone','Phone'],['phone2','Alt Phone'],['state','State'],['age','Age'],['investment','Investment Amount']];
   const inp = { width:'100%', background:'rgba(255,255,255,0.05)', border:'1px solid rgba(255,255,255,0.12)', borderRadius:'2px', padding:'8px 12px', color:'#e8e0d0', fontSize:'13px', outline:'none', boxSizing:'border-box', fontFamily:'Georgia, serif' };
 
   return (
@@ -226,6 +241,30 @@ function CSVUploadModal({ onClose, onImported }) {
                   </select>
                 </div>
               ))}
+              {/* Custom field mappings — unmapped columns */}
+              {customFieldMappings.length > 0 && (
+                <div style={{ marginBottom:'14px', background:'rgba(96,165,250,0.05)', border:'1px solid rgba(96,165,250,0.2)', borderRadius:'4px', padding:'12px 14px' }}>
+                  <div style={{ color:'#60a5fa', fontSize:'10px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'10px' }}>
+                    📋 Unmapped Columns → Custom Fields
+                  </div>
+                  <div style={{ color:'#6b7280', fontSize:'11px', marginBottom:'10px' }}>
+                    Give each unmapped column a field name, or leave blank to skip it.
+                  </div>
+                  {customFieldMappings.map((cf, idx) => (
+                    <div key={cf.csvCol} style={{ display:'flex', alignItems:'center', gap:'8px', marginBottom:'8px' }}>
+                      <span style={{ color:'#8a9ab8', fontSize:'11px', fontFamily:'monospace', minWidth:'140px', flexShrink:0 }}>"{cf.csvCol}"</span>
+                      <span style={{ color:'#4a5568', fontSize:'11px' }}>→</span>
+                      <input
+                        value={cf.fieldName}
+                        onChange={e => setCustomFieldMappings(prev => prev.map((x,i) => i===idx ? {...x, fieldName: e.target.value} : x))}
+                        placeholder="Field name (blank to skip)"
+                        style={{ ...inp, flex:1, fontSize:'12px', padding:'6px 10px' }}
+                      />
+                    </div>
+                  ))}
+                </div>
+              )}
+
               {/* Preview */}
               {rows.length > 0 && (
                 <div style={{ marginTop:'20px', background:'rgba(0,0,0,0.2)', borderRadius:'4px', padding:'14px', overflowX:'auto' }}>
