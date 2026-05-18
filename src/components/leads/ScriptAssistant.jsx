@@ -5,6 +5,19 @@ import AIAssistantPopup from './AIAssistantPopup';
 
 const GOLD = '#b8933a';
 const DARK = '#0a0f1e';
+const APP_ID = '69cd2741578c9b5ce655395b';
+
+// Direct fetch helper — works without Base44 platform auth token
+async function invokeFunction(name, payload) {
+  const res = await fetch(`https://run.base44.com/apps/${APP_ID}/functions/${name}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || `${name} failed`);
+  return data;
+}
 
 const applyTokens = (text, lead, user) => {
   if (!text) return '';
@@ -114,9 +127,9 @@ export default function ScriptAssistant({ lead, user, onExpandCard, isCardExpand
       try {
         // 1. Deepgram token
         if (!pw.dgKey) {
-          const tokenRes = await base44.functions.invoke('deepgramToken', {});
+          const tokenRes = await invokeFunction('deepgramToken', {});
           if (cancelled) return;
-          pw.dgKey = tokenRes?.key || tokenRes?.data?.key || '';
+          pw.dgKey = tokenRes?.key || '';
         }
 
         // 2. AudioContext + stereo stream (ch0=remote/prospect, ch1=local/agent)
@@ -239,8 +252,8 @@ export default function ScriptAssistant({ lead, user, onExpandCard, isCardExpand
       let dgKey = pw.dgKey || '';
       if (!dgKey) {
         console.log('[ScriptAssistant] Pre-warm token miss — fetching on demand');
-        const tokenRes = await base44.functions.invoke('deepgramToken', {});
-        dgKey = tokenRes?.key || tokenRes?.data?.key || '';
+        const tokenRes = await invokeFunction('deepgramToken', {});
+        dgKey = tokenRes?.key || '';
       } else {
         console.log('[ScriptAssistant] Using pre-warmed Deepgram token ✓');
       }
@@ -428,7 +441,7 @@ export default function ScriptAssistant({ lead, user, onExpandCard, isCardExpand
       let finalIntent = intentResult;
       if (intentActive || intentResult) {
         try {
-          const ir = await base44.functions.invoke('liveAssistantAI', {
+          const ir = await invokeFunction('liveAssistantAI', {
             transcript: finalTranscript, mode: 'intent_final',
             intentRules: {
               duckDefinition:  (kbConfig || portalCfg)?.intentDuckDefinition,
@@ -444,7 +457,7 @@ export default function ScriptAssistant({ lead, user, onExpandCard, isCardExpand
       }
 
       // 3. Generate full report
-      const reportRes = await base44.functions.invoke('liveAssistantAI', {
+      const reportRes = await invokeFunction('liveAssistantAI', {
         transcript: finalTranscript, mode: 'full_report',
         usedQA: qaActive || qaLogRef.current.length > 0,
         usedCoach: coachActive || coachTipsRef.current.length > 0,
@@ -480,7 +493,7 @@ export default function ScriptAssistant({ lead, user, onExpandCard, isCardExpand
 
       // 5. Update client profile
       try {
-        const profileRes = await base44.functions.invoke('liveAssistantAI', {
+        const profileRes = await invokeFunction('liveAssistantAI', {
           transcript: finalTranscript, kbEntries: [], mode: 'profile',
           existingProfile: lead?.clientProfile || '',
         });
