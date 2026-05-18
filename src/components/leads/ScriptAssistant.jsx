@@ -1,4 +1,4 @@
-\import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { base44 } from '@/api/base44Client';
 import { getPortalSettings, loadPortalSettings } from '@/lib/portalSettings';
 import AIAssistantPopup from './AIAssistantPopup';
