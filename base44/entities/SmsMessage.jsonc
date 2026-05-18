@@ -79,5 +79,11 @@
   "required": [
     "direction",
     "body"
-  ]
+  ],
+  "rls": {
+    "create": null,
+    "read": null,
+    "update": null,
+    "delete": null
+  }
 }
