@@ -162,12 +162,24 @@ export default function KnowledgeBaseManager({ IntentEngineTuner, CoachRulesTune
   };
 
   const loadCallTranscripts = async (kbName) => {
-    // Load call transcripts tagged to this KB from LeadHistory
+    // Load LIVE call transcripts from LeadHistory only.
+    // BOB training data is permanently excluded — source !== 'bob_training'.
     try {
-      // We'd filter by kbName in metadata — for now load all transcript type
-      // In a full implementation: filter by kbName field
+      const all = await base44.entities.LeadHistory.filter({ type: 'transcript' });
+      // Hard filter: never show BOB training data in Learning tab
+      const real = (all || []).filter(t => t.source !== 'bob_training');
+      // If a specific KB is selected, filter to that KB; otherwise show all
+      const filtered = kbName && kbName !== DEFAULT_KB
+        ? real.filter(t => !t.kbName || t.kbName === kbName)
+        : real;
+      // Sort newest first
+      const sorted = filtered.sort((a, b) => new Date(b.created_date||0) - new Date(a.created_date||0));
+      setCallTranscripts(sorted.filter(t => t.status !== 'evaluated'));
+      setArchivedTranscripts(sorted.filter(t => t.status === 'evaluated'));
+    } catch (e) {
+      console.error('loadCallTranscripts error:', e);
       setCallTranscripts([]);
-    } catch {}
+    }
   };
 
   const runLearning = async () => {
