@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { usePortalAuth } from '@/lib/PortalAuthContext';
+import { fireScorecardNBTechConvert } from '@/components/admin/ScoreCard';
 
 const GOLD = '#b8933a';
 const DARK = '#0a0f1e';
@@ -267,6 +268,10 @@ export default function MigrateLeadModal({ lead, history, onClose, onMigrated })
       mark('Sending portal access email');
 
       setStep(2);
+      // 🏆 Fire scorecard bonus event if this was an NB Tech lead
+      if (lead.leadType === 'nb_tech') {
+        fireScorecardNBTechConvert(currentUsername);
+      }
       onMigrated && onMigrated(iu);
 
     } catch (e) {
