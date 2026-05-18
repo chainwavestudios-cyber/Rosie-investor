@@ -3,9 +3,10 @@
  * Entities needed in Base44 dashboard (Data → New Entity):
  *   - InvestorUser, AnalyticsSession, PortalSettings, InvestorUpdate
  *   - SignNowRequest
- *   - ContactNote       ← NEW
- *   - Appointment       ← NEW
- *   - AccreditationDocument ← NEW
+ *   - ContactNote
+ *   - Appointment
+ *   - AccreditationDocument
+ *   - ScorecardEntry     ← NEW  (fields: username, dateKey, weekKey, calls, fronts)
  */
 import { base44 } from './base44Client';
 
@@ -152,5 +153,57 @@ export const KnowledgeBaseConfigDB = {
       const existing = await KnowledgeBaseConfigDB.getForKb(kbName);
       if (existing?.id) await base44.entities.KnowledgeBaseConfig.delete(existing.id);
     } catch {}
+  },
+};
+// ─── ScorecardEntry ────────────────────────────────────────────────────────
+// One row per user per calendar day.
+// Fields: username (string), dateKey (string "YYYY-MM-DD"),
+//         weekKey (string "YYYY-Www"), calls (number), fronts (number)
+export const ScorecardEntryDB = {
+  async getTodayRow(username) {
+    try {
+      const yyyy = new Date().getFullYear();
+      const mm   = String(new Date().getMonth() + 1).padStart(2, '0');
+      const dd   = String(new Date().getDate()).padStart(2, '0');
+      const dateKey = `${yyyy}-${mm}-${dd}`;
+      const rows = await base44.entities.ScorecardEntry.filter({ username, dateKey });
+      return rows?.[0] || null;
+    } catch { return null; }
+  },
+  async getWeekRows(username) {
+    try {
+      const d   = new Date();
+      const day = d.getDay() || 7;
+      const thu = new Date(d);
+      thu.setDate(d.getDate() + (4 - day));
+      const yearStart = new Date(thu.getFullYear(), 0, 1);
+      const week = Math.ceil(((thu - yearStart) / 86400000 + 1) / 7);
+      const weekKey = `${thu.getFullYear()}-W${String(week).padStart(2, '0')}`;
+      return await base44.entities.ScorecardEntry.filter({ username, weekKey }) || [];
+    } catch { return []; }
+  },
+  async incrementCalls(username) {
+    try {
+      const d = new Date();
+      const dateKey = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+      const day = d.getDay()||7; const thu=new Date(d); thu.setDate(d.getDate()+(4-day));
+      const ys=new Date(thu.getFullYear(),0,1);
+      const weekKey=`${thu.getFullYear()}-W${String(Math.ceil(((thu-ys)/86400000+1)/7)).padStart(2,'0')}`;
+      const existing = (await base44.entities.ScorecardEntry.filter({ username, dateKey }))?.[0];
+      if (existing?.id) { await base44.entities.ScorecardEntry.update(existing.id, { calls: (existing.calls||0)+1 }); }
+      else { await base44.entities.ScorecardEntry.create({ username, dateKey, weekKey, calls:1, fronts:0 }); }
+    } catch(e) { console.warn('[ScorecardDB] incrementCalls failed:', e?.message); }
+  },
+  async incrementFronts(username) {
+    try {
+      const d = new Date();
+      const dateKey = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+      const day = d.getDay()||7; const thu=new Date(d); thu.setDate(d.getDate()+(4-day));
+      const ys=new Date(thu.getFullYear(),0,1);
+      const weekKey=`${thu.getFullYear()}-W${String(Math.ceil(((thu-ys)/86400000+1)/7)).padStart(2,'0')}`;
+      const existing = (await base44.entities.ScorecardEntry.filter({ username, dateKey }))?.[0];
+      if (existing?.id) { await base44.entities.ScorecardEntry.update(existing.id, { fronts: (existing.fronts||0)+1 }); }
+      else { await base44.entities.ScorecardEntry.create({ username, dateKey, weekKey, calls:0, fronts:1 }); }
+    } catch(e) { console.warn('[ScorecardDB] incrementFronts failed:', e?.message); }
   },
 };
