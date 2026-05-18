@@ -3,29 +3,6 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 const TWILIO_ACCOUNT_SID = Deno.env.get('TWILIO_ACCOUNT_SID');
 const TWILIO_AUTH_TOKEN  = Deno.env.get('TWILIO_AUTH_TOKEN');
 const FROM_NUMBER        = Deno.env.get('TWILIO_FROM_NUMBER') || '+19495963970';
-const APP_ID             = Deno.env.get('BASE44_APP_ID');
-const SERVICE_TOKEN      = Deno.env.get('BASE44_SERVICE_TOKEN');
-
-// Direct REST call to Base44 API using service token
-// Bypasses SDK auth entirely - works regardless of whether the caller is logged in
-async function dbCreate(entityName, data) {
-  const res = await fetch(
-    'https://api.base44.com/api/apps/' + APP_ID + '/entities/' + entityName,
-    {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer ' + SERVICE_TOKEN,
-      },
-      body: JSON.stringify(data),
-    }
-  );
-  if (!res.ok) {
-    const err = await res.text();
-    throw new Error('Base44 REST error: ' + err);
-  }
-  return res.json();
-}
 
 Deno.serve(async (req) => {
   const { to, body, mediaUrls, leadId, investorId, contactName, sentBy } = await req.json();
@@ -34,17 +11,18 @@ Deno.serve(async (req) => {
     return Response.json({ error: 'Missing to or body' }, { status: 400 });
   }
 
+  // Send via Twilio
   const params = new URLSearchParams({ From: FROM_NUMBER, To: to, Body: body || '' });
   if (mediaUrls && mediaUrls.length > 0) {
     mediaUrls.forEach((url) => params.append('MediaUrl', url));
   }
 
   const twilioRes = await fetch(
-    'https://api.twilio.com/2010-04-01/Accounts/' + TWILIO_ACCOUNT_SID + '/Messages.json',
+    `https://api.twilio.com/2010-04-01/Accounts/${TWILIO_ACCOUNT_SID}/Messages.json`,
     {
       method: 'POST',
       headers: {
-        'Authorization': 'Basic ' + btoa(TWILIO_ACCOUNT_SID + ':' + TWILIO_AUTH_TOKEN),
+        'Authorization': 'Basic ' + btoa(`${TWILIO_ACCOUNT_SID}:${TWILIO_AUTH_TOKEN}`),
         'Content-Type': 'application/x-www-form-urlencoded',
       },
       body: params.toString(),
@@ -58,8 +36,10 @@ Deno.serve(async (req) => {
     return Response.json({ error: twilioData.message || 'Twilio error' }, { status: 500 });
   }
 
+  // Save to DB — use regular client (no asServiceRole needed, app token in request is sufficient)
   try {
-    await dbCreate('SmsMessage', {
+    const base44 = createClientFromRequest(req);
+    await base44.entities.SmsMessage.create({
       direction:    'outbound',
       fromNumber:   FROM_NUMBER,
       toNumber:     to,
