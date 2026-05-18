@@ -5,38 +5,71 @@ const TWILIO_AUTH_TOKEN  = Deno.env.get('TWILIO_AUTH_TOKEN');
 const FROM_NUMBER        = Deno.env.get('TWILIO_FROM_NUMBER') || '+19495963970';
 
 Deno.serve(async (req) => {
-  const { to, body, mediaUrls, leadId, investorId, contactName, sentBy } = await req.json();
+  console.log('[sendSms] Function invoked — method:', req.method);
+
+  let payload;
+  try {
+    payload = await req.json();
+    console.log('[sendSms] Payload received:', JSON.stringify({
+      to: payload.to,
+      bodyLength: (payload.body || '').length,
+      hasMedia: !!(payload.mediaUrls && payload.mediaUrls.length),
+      leadId: payload.leadId,
+      investorId: payload.investorId,
+      sentBy: payload.sentBy,
+    }));
+  } catch (e) {
+    console.error('[sendSms] Failed to parse request body:', e?.message);
+    return Response.json({ error: 'Invalid JSON body' }, { status: 400 });
+  }
+
+  const { to, body, mediaUrls, leadId, investorId, contactName, sentBy } = payload;
 
   if (!to || (!body && (!mediaUrls || mediaUrls.length === 0))) {
+    console.error('[sendSms] Validation failed — missing to or body');
     return Response.json({ error: 'Missing to or body' }, { status: 400 });
   }
 
-  // Send via Twilio
+  if (!TWILIO_ACCOUNT_SID || !TWILIO_AUTH_TOKEN) {
+    console.error('[sendSms] Missing Twilio credentials — TWILIO_ACCOUNT_SID or TWILIO_AUTH_TOKEN not set');
+    return Response.json({ error: 'Twilio credentials not configured' }, { status: 500 });
+  }
+
+  console.log('[sendSms] Sending via Twilio from', FROM_NUMBER, 'to', to);
+
   const params = new URLSearchParams({ From: FROM_NUMBER, To: to, Body: body || '' });
   if (mediaUrls && mediaUrls.length > 0) {
     mediaUrls.forEach((url) => params.append('MediaUrl', url));
   }
 
-  const twilioRes = await fetch(
-    `https://api.twilio.com/2010-04-01/Accounts/${TWILIO_ACCOUNT_SID}/Messages.json`,
-    {
-      method: 'POST',
-      headers: {
-        'Authorization': 'Basic ' + btoa(`${TWILIO_ACCOUNT_SID}:${TWILIO_AUTH_TOKEN}`),
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
-      body: params.toString(),
+  let twilioData;
+  try {
+    const twilioRes = await fetch(
+      `https://api.twilio.com/2010-04-01/Accounts/${TWILIO_ACCOUNT_SID}/Messages.json`,
+      {
+        method: 'POST',
+        headers: {
+          'Authorization': 'Basic ' + btoa(`${TWILIO_ACCOUNT_SID}:${TWILIO_AUTH_TOKEN}`),
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: params.toString(),
+      }
+    );
+
+    twilioData = await twilioRes.json();
+    console.log('[sendSms] Twilio response status:', twilioRes.status, '— SID:', twilioData.sid, '— status:', twilioData.status, '— error:', twilioData.message || 'none');
+
+    if (!twilioRes.ok) {
+      console.error('[sendSms] Twilio rejected the message:', JSON.stringify(twilioData));
+      return Response.json({ error: twilioData.message || 'Twilio error' }, { status: 500 });
     }
-  );
-
-  const twilioData = await twilioRes.json();
-
-  if (!twilioRes.ok) {
-    console.error('[sendSms] Twilio error:', JSON.stringify(twilioData));
-    return Response.json({ error: twilioData.message || 'Twilio error' }, { status: 500 });
+  } catch (e) {
+    console.error('[sendSms] Twilio fetch threw an exception:', e?.message);
+    return Response.json({ error: 'Twilio request failed: ' + e?.message }, { status: 500 });
   }
 
-  // Save to DB — use regular client (no asServiceRole needed, app token in request is sufficient)
+  console.log('[sendSms] Message sent — now saving to DB');
+
   try {
     const base44 = createClientFromRequest(req);
     await base44.entities.SmsMessage.create({
@@ -55,9 +88,11 @@ Deno.serve(async (req) => {
       sentBy:       sentBy || 'admin',
       sentAt:       new Date().toISOString(),
     });
+    console.log('[sendSms] DB write success');
   } catch (e) {
     console.error('[sendSms] DB write failed:', e?.message);
   }
 
+  console.log('[sendSms] Done — returning success');
   return Response.json({ success: true, sid: twilioData.sid, status: twilioData.status });
 });
