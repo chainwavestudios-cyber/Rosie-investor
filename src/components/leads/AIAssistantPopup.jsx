@@ -3,6 +3,18 @@ import { base44 } from '@/api/base44Client';
 
 const GOLD = '#b8933a';
 const SIZE_KEY = 'aiPopupDefaultSize';
+const APP_ID = '69cd2741578c9b5ce655395b';
+
+async function invokeFunction(name, payload) {
+  const res = await fetch(`https://run.base44.com/apps/${APP_ID}/functions/${name}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || `${name} failed`);
+  return data;
+}
 
 // ── NB Tech Price Scenarios (hardcoded context for Q&A / Coach / Intent) ──────
 const NB_PRICE_SCENARIOS = `
@@ -273,7 +285,7 @@ function QAAnswerActions({ q, transcriptRef, kbEntries, onSidePanel, addInfoId, 
     onSidePanel({ type: 'moreInfo', question: q.text, loading: true, content: '' });
     setAddInfoId(q.id);
     try {
-      const res = await base44.functions.invoke('liveAssistantAI', { question: `Give me more detailed information about: ${q.text}`, transcript: transcriptRef.current.slice(-12), kbEntries, previousAnswer: q.answer, mode: 'qa_expand' });
+      const res = await invokeFunction('liveAssistantAI', { question: `Give me more detailed information about: ${q.text}`, transcript: transcriptRef.current.slice(-12), kbEntries, previousAnswer: q.answer, mode: 'qa_expand' });
       onSidePanel({ type: 'moreInfo', question: q.text, loading: false, content: res?.data?.answer || 'No additional information found.' });
     } catch (e) {
       onSidePanel({ type: 'moreInfo', question: q.text, loading: false, content: `Error: ${e.message}` });
@@ -285,7 +297,7 @@ function QAAnswerActions({ q, transcriptRef, kbEntries, onSidePanel, addInfoId, 
     onSidePanel({ type: 'talkingPoints', question: q.text, loading: true, content: '' });
     setTalkingPointsId(q.id);
     try {
-      const res = await base44.functions.invoke('liveAssistantAI', {
+      const res = await invokeFunction('liveAssistantAI', {
         question: `Generate 4-6 punchy talking points a sales rep should say out loud RIGHT NOW to address: "${q.text}". Each point should be 1-2 sentences, persuasive, and ready to speak. Format as a numbered list.`,
         transcript: transcriptRef.current.slice(-12), kbEntries, mode: 'talking_points',
       });
@@ -300,7 +312,7 @@ function QAAnswerActions({ q, transcriptRef, kbEntries, onSidePanel, addInfoId, 
     onSidePanel({ type: 'research', question: q.text, loading: true, content: '' });
     setResearchId(q.id);
     try {
-      const res = await base44.functions.invoke('liveAssistantResearch', { name: q.text, email: '', phone: '', location: '', notes: `Research context for investor Q&A: ${q.text}. Answer: ${q.answer}` });
+      const res = await invokeFunction('liveAssistantResearch', { name: q.text, email: '', phone: '', location: '', notes: `Research context for investor Q&A: ${q.text}. Answer: ${q.answer}` });
       const data = res?.data;
       const summary = data?.summary || data?.report || data?.answer || JSON.stringify(data || 'No research found.');
       onSidePanel({ type: 'research', question: q.text, loading: false, content: typeof summary === 'string' ? summary : JSON.stringify(summary, null, 2) });
@@ -385,7 +397,7 @@ function QASection({ transcript, transcriptRef, kbEntries, active, qaKeywords, m
         if (!seenQ.current.has(autoQ)) {
           seenQ.current.add(autoQ);
           setQuestions(prev => [...prev, { id: autoId, text: autoQ, time: new Date(), answer: '', answering: true, answered: false, auto: true, manual: false }]);
-          base44.functions.invoke('liveAssistantAI', { question: autoQ, transcript: transcriptRef.current.slice(-12), kbEntries, mode: 'qa' })
+          invokeFunction('liveAssistantAI', { question: autoQ, transcript: transcriptRef.current.slice(-12), kbEntries, mode: 'qa' })
             .then(res => setQuestions(prev => prev.map(x => x.id === autoId ? { ...x, answering: false, answered: true, answer: res?.data?.answer || 'No matching information found.', source: res?.data?.source } : x)))
             .catch(e => setQuestions(prev => prev.map(x => x.id === autoId ? { ...x, answering: false, answer: `Error: ${e.message}` } : x)));
         }
@@ -413,7 +425,7 @@ function QASection({ transcript, transcriptRef, kbEntries, active, qaKeywords, m
     cancelAutoDismiss(id);
     setQuestions(prev => prev.map(x => x.id === id ? { ...x, answering: true } : x));
     try {
-      const res = await base44.functions.invoke('liveAssistantAI', { question: q.text, transcript: transcriptRef.current.slice(-12), kbEntries, mode: 'qa' });
+      const res = await invokeFunction('liveAssistantAI', { question: q.text, transcript: transcriptRef.current.slice(-12), kbEntries, mode: 'qa' });
       setQuestions(prev => prev.map(x => x.id === id ? { ...x, answering: false, answered: true, answer: res?.data?.answer || 'No matching information found.' } : x));
     } catch (e) {
       setQuestions(prev => prev.map(x => x.id === id ? { ...x, answering: false, answer: `Error: ${e.message}` } : x));
@@ -426,7 +438,7 @@ function QASection({ transcript, transcriptRef, kbEntries, active, qaKeywords, m
     const id = Date.now() + Math.random();
     setQuestions(prev => [...prev, { id, text: q, time: new Date(), answer: '', answering: true, answered: false, auto: false, manual: true }]);
     try {
-      const res = await base44.functions.invoke('liveAssistantAI', { question: q, transcript: transcriptRef.current.slice(-12), kbEntries, mode: 'qa' });
+      const res = await invokeFunction('liveAssistantAI', { question: q, transcript: transcriptRef.current.slice(-12), kbEntries, mode: 'qa' });
       setQuestions(prev => prev.map(x => x.id === id ? { ...x, answering: false, answered: true, answer: res?.data?.answer || 'No matching information found.' } : x));
     } catch (e) {
       setQuestions(prev => prev.map(x => x.id === id ? { ...x, answering: false, answer: `Error: ${e.message}` } : x));
@@ -588,7 +600,7 @@ function CoachSection({ transcript, kbEntries, coachRules, active, collapsed }) 
     setStreaming(true);
     const tipId = Date.now();
     setTips(prev => [...prev, { id: tipId, text: '', streaming: true, time: new Date() }]);
-    base44.functions.invoke('liveAssistantAI', { transcript: transcript.slice(-15), kbEntries, mode: 'coach_stream', coachRules })
+    invokeFunction('liveAssistantAI', { transcript: transcript.slice(-15), kbEntries, mode: 'coach_stream', coachRules })
       .then(res => setTips(prev => prev.map(t => t.id === tipId ? { ...t, text: res?.data?.answer || '', streaming: false } : t)))
       .catch(e => setTips(prev => prev.map(t => t.id === tipId ? { ...t, text: `Error: ${e.message}`, streaming: false } : t)))
       .finally(() => { setStreaming(false); setTimeout(() => { if (listRef.current) listRef.current.scrollTop = listRef.current.scrollHeight; }, 100); });
