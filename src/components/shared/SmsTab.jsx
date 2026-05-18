@@ -95,13 +95,13 @@ export default function SmsTab({ toPhone, toPhone2, toName, leadId, investorId, 
   };
 
   const handleSend = async () => {
-    if (!body.trim() && mediaFiles.length === 0) return;
-    if (!selectedPhone) { setSendMsg('⚠️ No phone number available.'); return; }
+    console.log('[SmsTab] handleSend fired — body:', body.trim().slice(0,30), 'phone:', selectedPhone, 'leadId:', leadId);
+    if (!body.trim() && mediaFiles.length === 0) { console.log('[SmsTab] blocked: no body/media'); return; }
+    if (!selectedPhone) { setSendMsg('⚠️ No phone number available.'); console.log('[SmsTab] blocked: no phone'); return; }
     setSending(true); setSendMsg('');
     try {
-      // Call sendSms via direct fetch — avoids SDK auth requirement
-      // that blocks admin/steph users who have no Base44 platform token
       const APP_ID = '69cd2741578c9b5ce655395b';
+      console.log('[SmsTab] fetching sendSms function...');
       const res = await fetch(
         `https://run.base44.com/apps/${APP_ID}/functions/sendSms`,
         {
@@ -119,11 +119,13 @@ export default function SmsTab({ toPhone, toPhone2, toName, leadId, investorId, 
         }
       );
       const data = await res.json();
+      console.log('[SmsTab] sendSms response:', res.status, JSON.stringify(data));
       if (!res.ok) throw new Error(data.error || 'Send failed');
       setBody('');
       setMediaFiles([]);
       await loadMessages();
     } catch (e) {
+      console.error('[SmsTab] send error:', e.message);
       setSendMsg('Error: ' + e.message);
     }
     setSending(false);
