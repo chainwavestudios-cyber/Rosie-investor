@@ -572,38 +572,170 @@ function QASection({ transcript, transcriptRef, kbEntries, active, qaKeywords, m
   );
 }
 
-// ── Coach Section ─────────────────────────────────────────────────────────────
-function CoachSection({ transcript, kbEntries, coachRules, active, collapsed }) {
-  const [tips, setTips] = useState([]);
-  const [streaming, setStreaming] = useState(false);
-  const lastFired = useRef(0);
-  const listRef   = useRef(null);
+// ── Coach Section v2.0 ────────────────────────────────────────────────────────
+function CoachSection({ transcript, kbEntries, coachRules, active, collapsed, lead, callAttemptNumber, previousCallSummary }) {
+  const [autoTips,    setAutoTips]    = useState([]);
+  const [tileOutputs, setTileOutputs] = useState([]); // [{id,tile,text,loading,time}]
+  const [activeTile,  setActiveTile]  = useState(null);
+  const [streaming,   setStreaming]   = useState(false);
+  const lastFired     = useRef(0);
+  const tileLoading   = useRef(false);
+  const transcriptRef = useRef([]);
+  useEffect(() => { transcriptRef.current = transcript; }, [transcript]);
 
+  // ── Auto-coach: fires on objection keywords ──────────────────────────────────
   useEffect(() => {
     if (!active || !transcript.length || collapsed) return;
     const now = Date.now();
     if (now - lastFired.current < 4000) return;
+    const last = transcript[transcript.length - 1];
+    if (!last?.text) return;
+    const objWords = ['prove','doubt','skeptical','risky','guarantee','fail','burned','bubble','catch','too much','not sure','need time','my advisor','think about','talk to my','not interested','call me later'];
+    if (!objWords.some(w => last.text.toLowerCase().includes(w))) return;
     lastFired.current = now;
     if (streaming) return;
     setStreaming(true);
     const tipId = Date.now();
-    setTips(prev => [...prev, { id: tipId, text: '', streaming: true, time: new Date() }]);
-    base44.functions.invoke('liveAssistantAI', { transcript: transcript.slice(-15), kbEntries, mode: 'coach_stream', coachRules })
-      .then(res => setTips(prev => prev.map(t => t.id === tipId ? { ...t, text: res?.data?.answer || '', streaming: false } : t)))
-      .catch(e => setTips(prev => prev.map(t => t.id === tipId ? { ...t, text: `Error: ${e.message}`, streaming: false } : t)))
-      .finally(() => { setStreaming(false); setTimeout(() => { if (listRef.current) listRef.current.scrollTop = listRef.current.scrollHeight; }, 100); });
-  }, [transcript, active, collapsed]);
+    setAutoTips(prev => [...prev, { id: tipId, text: '', streaming: true, time: new Date() }]);
+    base44.functions.invoke('liveAssistantAI', {
+      transcript: transcriptRef.current.slice(-10),
+      kbEntries,
+      mode: 'coach_stream',
+      coachRules,
+      callAttemptNumber,
+    })
+      .then(res => setAutoTips(prev => prev.map(t => t.id === tipId ? { ...t, text: res?.data?.answer || res?.data?.tip || '', streaming: false } : t)))
+      .catch(e => setAutoTips(prev => prev.map(t => t.id === tipId ? { ...t, text: `Error: ${e.message}`, streaming: false } : t)))
+      .finally(() => setStreaming(false));
+  }, [transcript, active, collapsed, kbEntries, coachRules, callAttemptNumber]);
+
+  // ── Tile definitions ─────────────────────────────────────────────────────────
+  const TILES = [
+    { id: 'open_strong',     label: '🎯 Open Strong' },
+    { id: 'qualify_amount',  label: '💰 Qualify Amount' },
+    { id: 'create_urgency',  label: '⏰ Urgency' },
+    { id: 'handle_objection',label: '🛡 Objection' },
+    { id: 'drop_stat',       label: '📊 Drop a Stat' },
+    { id: 're_engage',       label: '🔄 Re-engage' },
+    { id: 'close_now',       label: '✅ Close Now' },
+    { id: 'call_context',    label: '📞 Call Context' },
+    { id: 'what_worked',     label: '🧠 What Worked' },
+    { id: 'they_just_asked', label: '❓ They Asked...' },
+  ];
+
+  const TILE_PROMPTS = {
+    open_strong:      (name, num) => `You are whispering to a live investment sales agent mid-call. Call #${num} with ${name}. Give ONE specific opening or re-engagement line the agent can say RIGHT NOW. 1-2 sentences, conversational, no fluff. Reference what was just said.`,
+    qualify_amount:   (name, num) => `You are whispering to a live investment sales agent mid-call. Call #${num} with ${name}. Suggest the best way to ask about investment amount RIGHT NOW based on the conversation tone. Include IRA/401k option if account type not confirmed. 1-2 sentences max.`,
+    create_urgency:   (name, num) => `You are whispering to a live investment sales agent mid-call. Call #${num} with ${name}. Give ONE urgency statement using ONLY real facts: S-1 filing late May/June 2026, Nasdaq September 2026 target, Siebert LOI signed, pre-IPO $2.40 vs $7 IPO price, PCAOB audit running now. Do NOT fabricate. 2 sentences max.`,
+    handle_objection: (name, num) => `You are whispering to a live investment sales agent mid-call. Call #${num} with ${name}. Identify the objection just raised and give a calm, direct rebuttal using NightOwl facts: $49M revenue, 20-year brand, Walmart/Costco/Best Buy/Home Depot, Siebert est. 1967, Fidelity custody, $3.3M EBITDA improvement. 2-3 sentences.`,
+    drop_stat:        (name, num) => `You are whispering to a live investment sales agent mid-call. Call #${num} with ${name}. Pick the single most powerful data point for THIS exact moment: $49M revenue, $605M DCF implied EV, $3.3M EBITDA gain, $2.40 pre-IPO vs $7 IPO, 300+ SKUs, Siebert est. 1967. Tell agent exactly how to say it conversationally. 1-2 sentences.`,
+    re_engage:        (name, num) => `You are whispering to a live investment sales agent mid-call. Call #${num} with ${name}. The prospect seems to be drifting or going quiet. Give one question or statement to re-capture attention without sounding desperate. 1-2 sentences.`,
+    close_now:        (name, num) => `You are whispering to a live investment sales agent mid-call. Call #${num} with ${name}. Is this a good moment to close based on the transcript? If YES give exact close language referencing their stated amount if known. If NO say what one thing needs to happen first. 2-3 sentences.`,
+    call_context:     (name, num) => `You are briefing a sales agent. This is call #${num} with ${name}.${previousCallSummary ? ` Previous call summary:\n${previousCallSummary}` : ' No previous call data.'} Current transcript follows. Summarize what is known and state the ONE most important thing to accomplish on this call that wasn't resolved before. 3-4 sentences.`,
+    what_worked:      (name, num) => `You are a sales coach with pattern knowledge. Agent is on call #${num} with ${name}. Based on the KB and what typically works with accredited investor prospects in a pre-IPO offering, what specific approach or phrase should move this conversation forward? Give one concrete actionable suggestion. 2-3 sentences.`,
+    they_just_asked:  (name, num) => `You are whispering to a live investment sales agent mid-call. Identify the most recent question the prospect asked in the transcript. Give the agent a confident, conversational answer using NightOwl/NB Tech facts: $49M revenue, Magnus AI, Siebert, Nasdaq roadmap, $2.40 pre-IPO, $7 IPO, Ron Ferris as CRO, Fidelity custody, American-made positioning. 2-4 sentences.`,
+  };
+
+  const handleTile = async (tile) => {
+    if (tileLoading.current) return;
+    tileLoading.current = true;
+    setActiveTile(tile.id);
+    const id = Date.now();
+    const leadName = lead?.firstName ? `${lead.firstName} ${lead.lastName || ''}`.trim() : 'the prospect';
+    const callNum  = callAttemptNumber || (lead?.callAttempts || 1);
+    const recentLines = transcriptRef.current.slice(-10)
+      .map(t => `[${t.speaker === 0 ? 'PROSPECT' : 'AGENT'}]: ${t.text}`).join('\n');
+
+    setTileOutputs(prev => [{ id, tile: tile.label, text: '', loading: true, time: new Date() }, ...prev].slice(0, 6));
+
+    const prompt = TILE_PROMPTS[tile.id]?.(leadName, callNum) || TILE_PROMPTS.open_strong(leadName, callNum);
+
+    try {
+      const res = await base44.functions.invoke('liveAssistantAI', {
+        mode: 'coach_stream',
+        transcript: transcriptRef.current.slice(-10),
+        kbEntries,
+        coachRules: {
+          ...coachRules,
+          style: `${prompt}\n\nRecent conversation:\n${recentLines}`,
+          additionalContext: previousCallSummary ? `Previous call notes: ${previousCallSummary}` : (coachRules?.additionalContext || ''),
+        },
+        callAttemptNumber: callNum,
+      });
+      const text = res?.data?.tip || res?.data?.response || res?.data?.answer || res?.data?.content || 'No suggestion — try again.';
+      setTileOutputs(prev => prev.map(x => x.id === id ? { ...x, text, loading: false } : x));
+    } catch (e) {
+      setTileOutputs(prev => prev.map(x => x.id === id ? { ...x, text: `Error: ${e.message}`, loading: false } : x));
+    }
+    tileLoading.current = false;
+  };
 
   if (collapsed) return null;
   return (
-    <div ref={listRef} style={{ flex: 1, overflowY: 'auto', padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: '8px', minHeight: 0 }}>
-      {tips.length === 0 && <div style={{ color: '#4a5568', fontSize: '11px', textAlign: 'center', padding: '20px' }}>{active ? 'Listening — tips fire automatically…' : 'Enable Coach to receive live tips'}</div>}
-      {[...tips].reverse().map((tip, i) => (
-        <div key={tip.id} style={{ background: i === 0 ? 'rgba(167,139,250,0.08)' : 'rgba(255,255,255,0.02)', border: `1px solid ${i === 0 ? 'rgba(167,139,250,0.3)' : 'rgba(255,255,255,0.06)'}`, borderRadius: '6px', padding: '10px 14px' }}>
-          <div style={{ color: '#4a5568', fontSize: '8px', marginBottom: '5px' }}>{tip.time.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', second: '2-digit' })}</div>
-          {tip.streaming ? <div style={{ color: '#6b7280', fontSize: '11px', display: 'flex', gap: 6, alignItems: 'center' }}><div style={{ width: 5, height: 5, borderRadius: '50%', background: '#a78bfa', animation: 'aipulse 0.8s infinite' }} />Thinking…</div> : <div style={{ color: i === 0 ? '#e8e0d0' : '#8a9ab8', fontSize: '12px', lineHeight: 1.7 }}>{tip.text}</div>}
+    <div style={{ flex: 1, overflowY: 'auto', padding: '8px 12px', display: 'flex', flexDirection: 'column', gap: '8px', minHeight: 0 }}>
+
+      {/* Coaching tiles */}
+      <div>
+        <div style={{ color: '#4a5568', fontSize: '8px', letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: '6px' }}>Click for instant coaching</div>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+          {TILES.map(tile => (
+            <button key={tile.id} onClick={() => handleTile(tile)} style={{
+              padding: '4px 8px', borderRadius: '4px', fontSize: '10px', cursor: 'pointer',
+              border: `1px solid ${activeTile === tile.id ? 'rgba(167,139,250,0.6)' : 'rgba(255,255,255,0.1)'}`,
+              background: activeTile === tile.id ? 'rgba(167,139,250,0.15)' : 'rgba(255,255,255,0.03)',
+              color: activeTile === tile.id ? '#a78bfa' : '#8a9ab8',
+              fontWeight: activeTile === tile.id ? 'bold' : 'normal',
+              transition: 'all 0.15s',
+            }}>
+              {tile.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Call context badge */}
+      {(callAttemptNumber > 1 || previousCallSummary) && (
+        <div style={{ background: 'rgba(96,165,250,0.06)', border: '1px solid rgba(96,165,250,0.2)', borderRadius: '4px', padding: '6px 10px', fontSize: '10px', color: '#60a5fa' }}>
+          📞 Call #{callAttemptNumber || lead?.callAttempts || '?'} with {lead?.firstName || 'prospect'}
+          {previousCallSummary && <span style={{ color: '#4a5568' }}> · Prior call notes available</span>}
+        </div>
+      )}
+
+      {/* Tile outputs */}
+      {tileOutputs.map((item, i) => (
+        <div key={item.id} style={{ background: i === 0 ? 'rgba(167,139,250,0.07)' : 'rgba(255,255,255,0.02)', border: `1px solid ${i === 0 ? 'rgba(167,139,250,0.25)' : 'rgba(255,255,255,0.06)'}`, borderRadius: '6px', padding: '9px 12px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px' }}>
+            <span style={{ color: '#a78bfa', fontSize: '9px', letterSpacing: '1px', textTransform: 'uppercase' }}>{item.tile}</span>
+            <span style={{ color: '#4a5568', fontSize: '9px' }}>{item.time?.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', second: '2-digit' })}</span>
+          </div>
+          {item.loading
+            ? <div style={{ color: '#4a5568', fontSize: '11px', display: 'flex', gap: 6, alignItems: 'center' }}><div style={{ width: 5, height: 5, borderRadius: '50%', background: '#a78bfa', animation: 'aipulse 0.8s infinite' }} />Thinking…</div>
+            : <div style={{ color: i === 0 ? '#e8e0d0' : '#8a9ab8', fontSize: '12px', lineHeight: 1.7 }}>{item.text}</div>
+          }
         </div>
       ))}
+
+      {/* Auto-coach tips */}
+      {autoTips.length > 0 && (
+        <div>
+          <div style={{ color: '#4a5568', fontSize: '8px', letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: '5px' }}>Auto Coach (objection triggered)</div>
+          {[...autoTips].reverse().map((tip, i) => (
+            <div key={tip.id} style={{ background: 'rgba(167,139,250,0.05)', border: '1px solid rgba(167,139,250,0.12)', borderRadius: '6px', padding: '9px 12px', marginBottom: '5px' }}>
+              <div style={{ color: '#4a5568', fontSize: '8px', marginBottom: '4px' }}>{tip.time.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', second: '2-digit' })}</div>
+              {tip.streaming
+                ? <div style={{ color: '#6b7280', fontSize: '11px', display: 'flex', gap: 6, alignItems: 'center' }}><div style={{ width: 5, height: 5, borderRadius: '50%', background: '#a78bfa', animation: 'aipulse 0.8s infinite' }} />Thinking…</div>
+                : <div style={{ color: '#c4cdd8', fontSize: '12px', lineHeight: 1.7 }}>{tip.text}</div>
+              }
+            </div>
+          ))}
+        </div>
+      )}
+
+      {tileOutputs.length === 0 && autoTips.length === 0 && (
+        <div style={{ color: '#4a5568', fontSize: '11px', textAlign: 'center', padding: '16px 0' }}>
+          {active ? 'Click a tile above for instant coaching, or auto-coach fires on objection keywords' : 'Enable Coach to activate'}
+        </div>
+      )}
     </div>
   );
 }
@@ -679,6 +811,7 @@ export default function AIAssistantPopup({
   onClose, onIntentResult,
   allKbEntries, kbNames, selectedKbName, onKbChange,
   activeScript, scripts,
+  callAttemptNumber, previousCallSummary,
 }) {
   const saved = loadSavedSize();
   const [pos,    setPos]    = useState(saved ? { x: saved.x, y: saved.y } : { x: 20, y: Math.max(20, window.innerHeight - 540) });
@@ -869,7 +1002,7 @@ export default function AIAssistantPopup({
 
               <div style={{display:'flex',flexDirection:'column',overflow:'hidden',flex:coachCollapsed?'0 0 auto':coachH,minHeight:coachCollapsed?0:60}}>
                 <SectionHeader label="🎯 Coach" color="#a78bfa" active={coachActive} onToggle={onToggleCoach} collapsed={coachCollapsed} onCollapse={()=>setCoachCollapsed(p=>!p)} />
-                <CoachSection transcript={transcript} kbEntries={kbEntries} coachRules={{focusAreas:portalCfg?.coachFocusAreas,style:portalCfg?.coachStyle,additionalContext:portalCfg?.coachAdditionalContext}} active={coachActive} collapsed={coachCollapsed} />
+                <CoachSection transcript={transcript} kbEntries={kbEntries} coachRules={{focusAreas:portalCfg?.coachFocusAreas,style:portalCfg?.coachStyle,additionalContext:portalCfg?.coachAdditionalContext}} active={coachActive} collapsed={coachCollapsed} lead={lead} callAttemptNumber={callAttemptNumber || lead?.callAttempts} previousCallSummary={previousCallSummary} />
               </div>
 
               {!coachCollapsed&&!intentCollapsed&&<DragHandle onDragStart={e=>{resizingDiv.current='coach-intent';divStartY.current=e.clientY;divStartH.current=coachH;e.preventDefault();}} />}
@@ -916,4 +1049,3 @@ export default function AIAssistantPopup({
       </div>
     </div>
   );
-}
