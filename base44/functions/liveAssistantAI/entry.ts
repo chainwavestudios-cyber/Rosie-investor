@@ -73,7 +73,8 @@ Deno.serve(async (req) => {
     const body = await req.json();
     const { question, transcript, kbEntries, mode, existingProfile,
             intentRules, coachRules, qaHistory, engagementScore,
-            kbName, previousAnswer, internetQuery } = body;
+            kbName, previousAnswer, internetQuery,
+            callAttemptNumber } = body;
 
     const recentTranscript = buildTranscriptString(transcript, 15);
 
@@ -93,7 +94,7 @@ Deno.serve(async (req) => {
           model: 'claude-haiku-4-5-20251001',
           max_tokens: 200,
           stream: true,
-          system: `You are a real-time sales coach whispering to an agent on a live investor call. ${coachRules?.style || 'Give ONE actionable tip in 1-2 sentences. Be direct and specific — agent reads this mid-call.'}\nFocus: ${coachRules?.focusAreas || 'handling objections, building rapport, next talking point, timing a close'}.${coachRules?.additionalContext ? `\nContext: ${coachRules.additionalContext}` : ''}${kbContext ? `\n\nRelevant KB:\n${kbContext}` : ''}`,
+          system: `You are a real-time sales coach whispering to an agent on a live investor call. ${coachRules?.style || 'Give ONE actionable tip in 1-2 sentences. Be direct and specific — agent reads this mid-call.'}\nFocus: ${coachRules?.focusAreas || 'handling objections, building rapport, next talking point, timing a close'}.${coachRules?.additionalContext ? `\nContext: ${coachRules.additionalContext}` : ''}${callAttemptNumber ? `\nThis is call #${callAttemptNumber} with this prospect.` : ''}${kbContext ? `\n\nRelevant KB:\n${kbContext}` : ''}`,
           messages: [{ role: 'user', content: `Live conversation:\n${recentTranscript}\n\nCoaching tip now:` }],
         }),
       });
