@@ -114,9 +114,12 @@ export default function ScriptAssistant({ lead, user, onExpandCard, isCardExpand
       try {
         // 1. Deepgram token
         if (!pw.dgKey) {
-          const tokenRes = await base44.functions.invoke('deepgramToken', {});
-          if (cancelled) return;
-          pw.dgKey = tokenRes?.key || tokenRes?.data?.key || '';
+          pw.dgKey = import.meta.env.VITE_DEEPGRAM_API_KEY || '';
+          if (!pw.dgKey) {
+            const tokenRes = await base44.functions.invoke('deepgramToken', {});
+            if (cancelled) return;
+            pw.dgKey = tokenRes?.key || tokenRes?.data?.key || '';
+          }
         }
 
         // 2. AudioContext + stereo stream (ch0=remote/prospect, ch1=local/agent)
@@ -236,15 +239,15 @@ export default function ScriptAssistant({ lead, user, onExpandCard, isCardExpand
       streamRef.current = mergedStream;
 
       // ── 2. Deepgram token ─────────────────────────────────────────
-      let dgKey = pw.dgKey || '';
+      let dgKey = pw.dgKey || import.meta.env.VITE_DEEPGRAM_API_KEY || '';
       if (!dgKey) {
         console.log('[ScriptAssistant] Pre-warm token miss — fetching on demand');
         const tokenRes = await base44.functions.invoke('deepgramToken', {});
         dgKey = tokenRes?.key || tokenRes?.data?.key || '';
       } else {
-        console.log('[ScriptAssistant] Using pre-warmed Deepgram token ✓');
+        console.log('[ScriptAssistant] Using Deepgram key ✓');
       }
-      if (!dgKey) throw new Error('No Deepgram token — check DEEPGRAM_API_KEY');
+      if (!dgKey) throw new Error('No Deepgram token — check VITE_DEEPGRAM_API_KEY');
 
       // ── 3. Open WebSocket ─────────────────────────────────────────
       const nativeSampleRate = audioCtx.sampleRate;
