@@ -1,11 +1,70 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 
-const FROM_NUMBER = Deno.env.get('TWILIO_FROM_NUMBER') || '+19495963970';
+const FROM_NUMBER    = Deno.env.get('TWILIO_FROM_NUMBER') || '+19495963970';
+const APP_ID         = Deno.env.get('BASE44_APP_ID');
+const SERVICE_TOKEN  = Deno.env.get('BASE44_SERVICE_TOKEN');
+
+async function dbCreate(entityName, data) {
+  const res = await fetch(
+    'https://api.base44.com/api/apps/' + APP_ID + '/entities/' + entityName,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + SERVICE_TOKEN,
+      },
+      body: JSON.stringify(data),
+    }
+  );
+  if (!res.ok) throw new Error('Base44 create error: ' + await res.text());
+  return res.json();
+}
+
+async function dbUpdate(entityName, id, data) {
+  const res = await fetch(
+    'https://api.base44.com/api/apps/' + APP_ID + '/entities/' + entityName + '/' + id,
+    {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + SERVICE_TOKEN,
+      },
+      body: JSON.stringify(data),
+    }
+  );
+  if (!res.ok) throw new Error('Base44 update error: ' + await res.text());
+  return res.json();
+}
+
+async function dbFilter(entityName, filters) {
+  const qs = Object.entries(filters).map(([k, v]) => k + '=' + encodeURIComponent(v)).join('&');
+  const res = await fetch(
+    'https://api.base44.com/api/apps/' + APP_ID + '/entities/' + entityName + '?' + qs,
+    {
+      headers: { 'Authorization': 'Bearer ' + SERVICE_TOKEN },
+    }
+  );
+  if (!res.ok) throw new Error('Base44 filter error: ' + await res.text());
+  const json = await res.json();
+  return Array.isArray(json) ? json : (json.items || json.results || []);
+}
+
+async function dbList(entityName) {
+  const res = await fetch(
+    'https://api.base44.com/api/apps/' + APP_ID + '/entities/' + entityName,
+    {
+      headers: { 'Authorization': 'Bearer ' + SERVICE_TOKEN },
+    }
+  );
+  if (!res.ok) throw new Error('Base44 list error: ' + await res.text());
+  const json = await res.json();
+  return Array.isArray(json) ? json : (json.items || json.results || []);
+}
+
+const normalizePhone = (p) => (p || '').replace(/\D/g, '').slice(-10);
 
 Deno.serve(async (req) => {
   if (req.method !== 'POST') return new Response('Method Not Allowed', { status: 405 });
-
-  const base44 = createClientFromRequest(req).asServiceRole;
 
   const contentType = req.headers.get('content-type') || '';
   let params = {};
@@ -22,9 +81,9 @@ Deno.serve(async (req) => {
 
   if (MessageStatus && MessageSid) {
     try {
-      const existing = await base44.entities.SmsMessage.filter({ twilioSid: MessageSid });
+      const existing = await dbFilter('SmsMessage', { twilioSid: MessageSid });
       if (existing && existing.length > 0) {
-        await base44.entities.SmsMessage.update(existing[0].id, { status: MessageStatus });
+        await dbUpdate('SmsMessage', existing[0].id, { status: MessageStatus });
       }
     } catch (e) {
       console.error('[smsWebhook] status update failed:', e?.message);
@@ -42,20 +101,16 @@ Deno.serve(async (req) => {
       if (url) mediaUrls.push(url);
     }
 
-    const normalizePhone = (p) => (p || '').replace(/\D/g, '').slice(-10);
     const fromNorm = normalizePhone(From);
-
     let leadId = null;
     let investorId = null;
     let contactName = null;
 
     try {
-      const investors = await base44.entities.InvestorUser.filter({});
-      const matched = (investors || []).find((u) =>
-        normalizePhone(u.phone) === fromNorm
-      );
+      const investors = await dbList('InvestorUser');
+      const matched = (investors || []).find((u) => normalizePhone(u.phone) === fromNorm);
       if (matched) {
-        investorId = matched.id;
+        investorId  = matched.id;
         contactName = matched.name;
       }
     } catch (e) {
@@ -64,7 +119,7 @@ Deno.serve(async (req) => {
 
     if (!investorId) {
       try {
-        const leads = await base44.entities.Lead.filter({});
+        const leads = await dbList('Lead');
         const matched = (leads || []).find((l) =>
           normalizePhone(l.phone) === fromNorm || normalizePhone(l.phone2) === fromNorm
         );
@@ -78,20 +133,20 @@ Deno.serve(async (req) => {
     }
 
     try {
-      await base44.entities.SmsMessage.create({
-        direction: 'inbound',
-        fromNumber: From,
-        toNumber: To || FROM_NUMBER,
-        body: Body,
-        mediaUrls: mediaUrls.length > 0 ? JSON.stringify(mediaUrls) : null,
-        status: 'received',
-        twilioSid: MessageSid || null,
-        leadId: leadId,
-        investorId: investorId,
-        contactName: contactName,
+      await dbCreate('SmsMessage', {
+        direction:    'inbound',
+        fromNumber:   From,
+        toNumber:     To || FROM_NUMBER,
+        body:         Body,
+        mediaUrls:    mediaUrls.length > 0 ? JSON.stringify(mediaUrls) : null,
+        status:       'received',
+        twilioSid:    MessageSid || null,
+        leadId:       leadId,
+        investorId:   investorId,
+        contactName:  contactName,
         contactPhone: From,
-        read: false,
-        sentAt: new Date().toISOString(),
+        read:         false,
+        sentAt:       new Date().toISOString(),
       });
     } catch (e) {
       console.error('[smsWebhook] SmsMessage create failed:', e?.message);
