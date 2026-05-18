@@ -291,7 +291,7 @@ function CSVUploadModal({ onClose, onImported }) {
                 </div>
               )}
               <div style={{ display:'flex', gap:'12px', marginTop:'24px' }}>
-                <button onClick={handleImport} disabled={importing || !mapping.firstName} style={{ flex:1, background:'linear-gradient(135deg,#b8933a,#d4aa50)', color:DARK, border:'none', borderRadius:'2px', padding:'12px', cursor:'pointer', fontWeight:'700', fontSize:'12px', letterSpacing:'2px', textTransform:'uppercase' }}>{importing ? `Importing… (${importCount})` : `Import ${rows.length} Leads`}</button>
+                <button onClick={handleImport} disabled={importing || (!mapping.firstName && !mapping.fullName)} style={{ flex:1, background: (importing || (!mapping.firstName && !mapping.fullName)) ? 'rgba(184,147,58,0.3)' : 'linear-gradient(135deg,#b8933a,#d4aa50)', color:DARK, border:'none', borderRadius:'2px', padding:'12px', cursor: (importing || (!mapping.firstName && !mapping.fullName)) ? 'not-allowed' : 'pointer', fontWeight:'700', fontSize:'12px', letterSpacing:'2px', textTransform:'uppercase' }}>{importing ? `Importing… (${importCount})` : `Import ${rows.length} Leads`}</button>
                 <button onClick={onClose} style={{ padding:'12px 20px', background:'transparent', color:'#6b7280', border:'1px solid rgba(255,255,255,0.12)', borderRadius:'2px', cursor:'pointer', fontSize:'12px' }}>Cancel</button>
               </div>
             </div>
