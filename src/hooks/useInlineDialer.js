@@ -11,8 +11,10 @@ export function useInlineDialer({ onCallStream, onCallLogged, agentName = 'admin
   const [muted,       setMuted]       = useState(false);
   const [callerId,    setCallerId]    = useState('');
   const [lines,       setLines]       = useState([]);
-  const [micDevices,  setMicDevices]  = useState([]);
-  const [micDeviceId, setMicDeviceId] = useState('');
+  const [micDevices,    setMicDevices]    = useState([]);
+  const [micDeviceId,   setMicDeviceId]   = useState('');
+  const [outputDevices, setOutputDevices] = useState([]);
+  const [outputDeviceId, setOutputDeviceId] = useState('');
   const [callDirection, setCallDirection] = useState('outbound'); // 'outbound' | 'inbound'
 
   const callRef      = useRef(null);
@@ -43,11 +45,20 @@ export function useInlineDialer({ onCallStream, onCallLogged, agentName = 'admin
   }, []);
 
   useEffect(() => {
-    navigator.mediaDevices.enumerateDevices().then(devices => {
-      const mics = devices.filter(d => d.kind === 'audioinput');
-      setMicDevices(mics);
-      if (mics.length > 0 && !micDeviceId) setMicDeviceId(mics[0].deviceId);
-    }).catch(() => {});
+    const enumerate = () => {
+      navigator.mediaDevices.enumerateDevices().then(devices => {
+        const mics = devices.filter(d => d.kind === 'audioinput');
+        const outs = devices.filter(d => d.kind === 'audiooutput');
+        setMicDevices(mics);
+        setOutputDevices(outs);
+        if (mics.length > 0 && !micDeviceId) setMicDeviceId(mics[0].deviceId);
+        if (outs.length > 0 && !outputDeviceId) setOutputDeviceId(outs[0].deviceId);
+      }).catch(() => {});
+    };
+    // Request mic permission first so labels appear
+    navigator.mediaDevices.getUserMedia({ audio: true })
+      .then(s => { s.getTracks().forEach(t => t.stop()); enumerate(); })
+      .catch(() => enumerate());
   }, []);
 
   useEffect(() => {
@@ -127,6 +138,11 @@ export function useInlineDialer({ onCallStream, onCallLogged, agentName = 'admin
         : digits.length === 11 && digits.startsWith('1')
           ? `+${digits}`
           : phone;
+      // Apply output device to Twilio device if supported
+      if (outputDeviceId) {
+        try { await device.audio?.speakerDevices?.set([outputDeviceId]); } catch {}
+        try { await device.audio?.ringtoneDevices?.set([outputDeviceId]); } catch {}
+      }
       const call = await device.connect({
         params: { To: e164, ...(callerId ? { CallerId: callerId } : {}) },
         ...(micDeviceId ? { rtcConstraints: { audio: { deviceId: { exact: micDeviceId } } } } : {}),
@@ -230,6 +246,7 @@ export function useInlineDialer({ onCallStream, onCallLogged, agentName = 'admin
     logLeadCall, logInvestorCall, fmt,
     callerId, setCallerId, lines,
     micDevices, micDeviceId, setMicDeviceId,
+    outputDevices, outputDeviceId, setOutputDeviceId,
     callDirection,
     incomingCall,
   };

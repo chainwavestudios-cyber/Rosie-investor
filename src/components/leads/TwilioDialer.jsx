@@ -29,6 +29,10 @@ export default function TwilioDialer({ initialLead, onClose, onCallLogged, onCal
   const [callerId, setCallerId] = useState('');
   const [lines,    setLines]    = useState([]);
   const [lastCallInfo, setLastCallInfo] = useState(null); // { calledAt, name } or null
+  const [micDevices,     setMicDevices]     = useState([]);
+  const [micDeviceId,    setMicDeviceId]    = useState('');
+  const [outputDevices,  setOutputDevices]  = useState([]);
+  const [outputDeviceId, setOutputDeviceId] = useState('');
   const lookupTimerRef = useRef(null);
 
   const timerRef      = useRef(null);
@@ -63,6 +67,27 @@ export default function TwilioDialer({ initialLead, onClose, onCallLogged, onCal
       setLines(ls);
       if (ls.length > 0) setCallerId(ls[0].number);
     }).catch(() => {});
+  }, []);
+
+  // Enumerate audio devices + load saved defaults
+  useEffect(() => {
+    const enumerate = () => {
+      navigator.mediaDevices.enumerateDevices().then(devices => {
+        const mics = devices.filter(d => d.kind === 'audioinput');
+        const outs = devices.filter(d => d.kind === 'audiooutput');
+        setMicDevices(mics);
+        setOutputDevices(outs);
+        const savedMic = localStorage.getItem(`defaultMic_${currentUsername}`);
+        const savedOut = localStorage.getItem(`defaultOutput_${currentUsername}`);
+        if (savedMic && mics.some(m => m.deviceId === savedMic)) setMicDeviceId(savedMic);
+        else if (mics.length > 0) setMicDeviceId(mics[0].deviceId);
+        if (savedOut && outs.some(d => d.deviceId === savedOut)) setOutputDeviceId(savedOut);
+        else if (outs.length > 0) setOutputDeviceId(outs[0].deviceId);
+      }).catch(() => {});
+    };
+    navigator.mediaDevices.getUserMedia({ audio: true })
+      .then(s => { s.getTracks().forEach(t => t.stop()); enumerate(); })
+      .catch(() => enumerate());
   }, []);
 
   // ── Last-called lookup when manual number changes ────────────────────
@@ -169,8 +194,13 @@ export default function TwilioDialer({ initialLead, onClose, onCallLogged, onCal
 
     try {
       const device = await getDevice();
+      if (outputDeviceId) {
+        try { await device.audio?.speakerDevices?.set([outputDeviceId]); } catch {}
+        try { await device.audio?.ringtoneDevices?.set([outputDeviceId]); } catch {}
+      }
       const call   = await device.connect({
         params: { To: displayNumber, ...(callerId ? { CallerId: callerId } : {}) },
+        ...(micDeviceId ? { rtcConstraints: { audio: { deviceId: { exact: micDeviceId } } } } : {}),
       });
       callRef.current = call;
       wireCallEvents(call);
@@ -342,6 +372,30 @@ export default function TwilioDialer({ initialLead, onClose, onCallLogged, onCal
                 style={{ width:'100%', background:'rgba(255,255,255,0.05)', border:'1px solid rgba(255,255,255,0.12)', borderRadius:'4px', padding:'6px 10px', color:'#8a9ab8', fontSize:'11px', outline:'none', cursor: isActive ? 'not-allowed' : 'pointer' }}>
                 {lines.map(l => <option key={l.number} value={l.number}>📞 Call from: {l.label} ({l.number})</option>)}
               </select>
+            </div>
+          )}
+
+          {/* ── Audio device selectors ── */}
+          {!isActive && (micDevices.length > 0 || outputDevices.length > 0) && (
+            <div style={{ marginBottom:'10px', display:'flex', flexDirection:'column', gap:'5px' }}>
+              {micDevices.length > 0 && (
+                <select value={micDeviceId} onChange={e => setMicDeviceId(e.target.value)}
+                  style={{ width:'100%', background:'rgba(255,255,255,0.05)', border:'1px solid rgba(255,255,255,0.12)', borderRadius:'4px', padding:'5px 8px', color:'#6b7280', fontSize:'10px', outline:'none', cursor:'pointer' }}>
+                  {micDevices.map(m => <option key={m.deviceId} value={m.deviceId}>🎙 {m.label || `Microphone ${m.deviceId.slice(0,6)}`}</option>)}
+                </select>
+              )}
+              {outputDevices.length > 0 && (
+                <select value={outputDeviceId} onChange={e => setOutputDeviceId(e.target.value)}
+                  style={{ width:'100%', background:'rgba(255,255,255,0.05)', border:'1px solid rgba(255,255,255,0.12)', borderRadius:'4px', padding:'5px 8px', color:'#6b7280', fontSize:'10px', outline:'none', cursor:'pointer' }}>
+                  {outputDevices.map(d => <option key={d.deviceId} value={d.deviceId}>🔊 {d.label || `Speaker ${d.deviceId.slice(0,6)}`}</option>)}
+                </select>
+              )}
+              <button onClick={() => {
+                if (micDeviceId) localStorage.setItem(`defaultMic_${currentUsername}`, micDeviceId);
+                if (outputDeviceId) localStorage.setItem(`defaultOutput_${currentUsername}`, outputDeviceId);
+              }} style={{ alignSelf:'flex-start', background:'rgba(184,147,58,0.1)', border:'1px solid rgba(184,147,58,0.3)', borderRadius:'4px', padding:'3px 10px', color:GOLD, fontSize:'9px', cursor:'pointer' }}>
+                ★ Save as Default
+              </button>
             </div>
           )}
 
