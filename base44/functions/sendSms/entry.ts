@@ -1,8 +1,10 @@
-import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
+import { createClient } from 'npm:@base44/sdk@0.8.25';
 
 const TWILIO_ACCOUNT_SID = Deno.env.get('TWILIO_ACCOUNT_SID');
 const TWILIO_AUTH_TOKEN  = Deno.env.get('TWILIO_AUTH_TOKEN');
 const FROM_NUMBER        = Deno.env.get('TWILIO_FROM_NUMBER') || '+19495963970';
+
+const base44 = createClient({ appId: Deno.env.get('BASE44_APP_ID') });
 
 Deno.serve(async (req) => {
   console.log('[sendSms] Function invoked — method:', req.method);
@@ -71,8 +73,7 @@ Deno.serve(async (req) => {
   console.log('[sendSms] Message sent — now saving to DB');
 
   try {
-    const base44 = createClientFromRequest(req);
-    await base44.entities.SmsMessage.create({
+    await base44.asServiceRole.entities.SmsMessage.create({
       direction:    'outbound',
       fromNumber:   FROM_NUMBER,
       toNumber:     to,
