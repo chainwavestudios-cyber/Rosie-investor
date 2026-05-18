@@ -7,6 +7,7 @@ import WebsiteEngagementTab from './WebsiteEngagementTab';
 import GlobalScriptEditor from '@/components/scripts/GlobalScriptEditor';
 import SiteVisitsTab from './SiteVisitsTab';
 import LeadPipeline from './LeadPipeline.jsx';
+import ScoreCards from '@/components/admin/ScoreCard';
 
 const GOLD = '#b8933a';
 const DARK = '#0a0f1e';
@@ -795,7 +796,7 @@ export default function LeadsTab({ openLeadId, onLeadOpened, mockLeads = null })
       {sidebarView === 'leads' && tab === 'leads' && (
       <>
       {/* Header */}
-      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:'16px' }}>
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:'16px', gap:'12px', flexWrap:'wrap' }}>
         <div>
           <h2 style={{ color:'#e8e0d0', margin:'0 0 4px', fontSize:'20px', fontWeight:'normal' }}>Leads</h2>
           <p style={{ color:'#6b7280', fontSize:'13px', margin:0 }}>
@@ -803,8 +804,10 @@ export default function LeadsTab({ openLeadId, onLeadOpened, mockLeads = null })
             <span style={{ marginLeft:'8px', display:'inline-block', width:'6px', height:'6px', borderRadius:'50%', background:'#4ade80', boxShadow:'0 0 6px #4ade80', verticalAlign:'middle' }}></span>
           </p>
         </div>
+        {/* 🏆 Scorecards */}
+        <ScoreCards />
         <button onClick={() => setShowDialerPanel(v => !v)}
-          style={{ background: showDialerPanel ? 'rgba(74,222,128,0.15)' : 'rgba(255,255,255,0.05)', color: showDialerPanel ? '#4ade80' : '#8a9ab8', border:`1px solid ${showDialerPanel ? 'rgba(74,222,128,0.35)' : 'rgba(255,255,255,0.1)'}`, borderRadius:'4px', padding:'8px 16px', cursor:'pointer', fontSize:'12px', fontWeight:'bold', display:'flex', alignItems:'center', gap:'6px' }}>
+          style={{ background: showDialerPanel ? 'rgba(74,222,128,0.15)' : 'rgba(255,255,255,0.05)', color: showDialerPanel ? '#4ade80' : '#8a9ab8', border:`1px solid ${showDialerPanel ? 'rgba(74,222,128,0.35)' : 'rgba(255,255,255,0.1)'}`, borderRadius:'4px', padding:'8px 16px', cursor:'pointer', fontSize:'12px', fontWeight:'bold', display:'flex', alignItems:'center', gap:'6px', alignSelf:'flex-start' }}>
           📞 {showDialerPanel ? 'Hide Dialer' : 'Show Dialer'}
         </button>
       </div>
