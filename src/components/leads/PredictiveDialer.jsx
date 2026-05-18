@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback, forwardRef, useImperativeHand
 import { base44 } from '@/api/base44Client';
 import { useTwilioDevice } from '@/lib/TwilioDeviceContext';
 import { usePortalAuth } from '@/lib/PortalAuthContext';
+import { fireScorecardCall } from '@/components/admin/ScoreCard';
 
 const GOLD         = '#b8933a';
 const DARK         = '#0a0f1e';
@@ -585,6 +586,7 @@ const PredictiveDialer = forwardRef(function PredictiveDialer({ contactLists, on
     updateLine(lineIdx, { lead, callSid: null, status: 'calling', duration: 0, amdResult: null });
     addLog('call', `Line ${lineIdx + 1}: Calling ${lead.firstName} ${lead.lastName} (${lead.phone})`);
     setStats(prev => ({ ...prev, dialed: prev.dialed + 1 }));
+    fireScorecardCall(currentUsername);
     const attempts = (lead.callAttempts || 0) + 1;
     base44.entities.Lead.update(lead.id, { lastCalledAt: new Date().toISOString(), callAttempts: attempts }).catch(() => {});
     base44.entities.LeadHistory.create({ leadId: lead.id, type: 'call', content: `Predictive dialer attempt #${attempts} — Line ${lineIdx + 1} · by ${currentUsername}`, createdBy: currentUsername }).catch(() => {});
