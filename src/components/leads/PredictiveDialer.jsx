@@ -26,7 +26,7 @@ const LINE_OPTIONS = [
   { key: 'TWILIO_FROM_NUMBER_6', label: 'Line 6' },
 ];
 
-const MAX_LINES = LINE_OPTIONS.length; // 6
+const MAX_LINES = LINE_OPTIONS.length;
 
 const LINE_COLORS = {
   idle: '#4a5568', calling: '#f59e0b', ringing: '#f59e0b',
@@ -57,6 +57,72 @@ const fmtTime = (d) =>
 
 const blankLine = () => ({ lead: null, callSid: null, status: 'idle', duration: 0, amdResult: null, conferenceName: null });
 
+// ─── Global dial-request queue ────────────────────────────────────────────────
+// All lines share one serialized queue so simultaneous .invoke() calls are
+// impossible. Each entry is { lineIdx, resolve, reject }.
+// The worker pulls one entry at a time, fires the Twilio call, waits
+// MIN_DIAL_GAP ms, then pulls the next. On 429 it backs off and retries.
+const MIN_DIAL_GAP   = 1200; // ms between successive Twilio API calls
+const MAX_RETRIES    = 4;
+const RETRY_BASE_MS  = 1500; // first retry after 1.5 s, doubles each attempt
+
+function createDialQueue() {
+  const pending = [];
+  let processing = false;
+
+  async function process() {
+    if (processing || pending.length === 0) return;
+    processing = true;
+
+    while (pending.length > 0) {
+      const { fn, resolve, reject } = pending.shift();
+      let lastErr;
+
+      for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+        try {
+          const result = await fn();
+          resolve(result);
+          lastErr = null;
+          break;
+        } catch (err) {
+          lastErr = err;
+          const is429 = err?.response?.status === 429
+            || err?.status === 429
+            || (err?.message || '').includes('429');
+
+          if (is429 && attempt < MAX_RETRIES - 1) {
+            const backoff = RETRY_BASE_MS * Math.pow(2, attempt); // 1.5s, 3s, 6s
+            await new Promise(r => setTimeout(r, backoff));
+            continue;
+          }
+          break; // non-429 or out of retries
+        }
+      }
+
+      if (lastErr) reject(lastErr);
+
+      // Always enforce minimum gap between calls regardless of success/fail
+      await new Promise(r => setTimeout(r, MIN_DIAL_GAP));
+    }
+
+    processing = false;
+  }
+
+  return {
+    enqueue(fn) {
+      return new Promise((resolve, reject) => {
+        pending.push({ fn, resolve, reject });
+        process();
+      });
+    },
+    clear() {
+      pending.length = 0;
+    },
+  };
+}
+
+// ─── Components ───────────────────────────────────────────────────────────────
+
 function SettingsPanel({ settings, onChange }) {
   const inp = {
     width: '100%', background: 'rgba(255,255,255,0.06)',
@@ -67,10 +133,10 @@ function SettingsPanel({ settings, onChange }) {
   const toggleLine = (key) => {
     const cur = settings.lines;
     if (cur.includes(key)) {
-      if (cur.length <= 2) return; // minimum 2 lines
+      if (cur.length <= 2) return;
       onChange({ ...settings, lines: cur.filter(k => k !== key), lineCount: cur.length - 1 });
     } else {
-      if (cur.length >= MAX_LINES) return; // maximum 6 lines
+      if (cur.length >= MAX_LINES) return;
       onChange({ ...settings, lines: [...cur, key], lineCount: cur.length + 1 });
     }
   };
@@ -188,9 +254,15 @@ function LogPanel({ logs }) {
   );
 }
 
-const PredictiveDialer = forwardRef(function PredictiveDialer({ contactLists, onClose, onCallLogged, onLeadConnected, onPaused, onResumed, onCallStream }, ref) {
+// ─── Main Component ───────────────────────────────────────────────────────────
+
+const PredictiveDialer = forwardRef(function PredictiveDialer(
+  { contactLists, onClose, onCallLogged, onLeadConnected, onPaused, onResumed, onCallStream },
+  ref
+) {
   const { portalUser } = usePortalAuth();
   const currentUsername = portalUser?.username || 'admin';
+
   const [settings, setSettings]               = useState(DEFAULT_SETTINGS);
   const [showSettings, setShowSettings]       = useState(true);
   const [selectedListId, setSelectedListId]   = useState('');
@@ -204,31 +276,35 @@ const PredictiveDialer = forwardRef(function PredictiveDialer({ contactLists, on
   const [queue, setQueue]                     = useState([]);
   const [queueIndex, setQueueIndex]           = useState(0);
   const [activeCall, setActiveCall]           = useState(null);
-  const { getDevice, ready: deviceReady } = useTwilioDevice();
+  const [tzFilter, setTzFilter]               = useState([]);
   const [micDevices, setMicDevices]           = useState([]);
   const [selectedMicId, setSelectedMicId]     = useState('');
 
-  const linesRef       = useRef(lines);
-  const queueRef       = useRef([]);
-  const queueIndexRef  = useRef(0);
-  const runningRef     = useRef(false);
-  const pausedRef      = useRef(false);
-  const settingsRef    = useRef(settings);
-  const timersRef      = useRef({});
-  const pollsRef       = useRef({});
-  const ringTimersRef  = useRef({});
-  const wrapTimerRef   = useRef(null);
-  const connectingRef  = useRef(false);
-  const lastDialTimeRef = useRef(0); // global rate limiter across all lines
-  const deviceRef      = useRef(null);
-  const activeCallRef  = useRef(null);
+  const { getDevice, ready: deviceReady } = useTwilioDevice();
+
+  const linesRef        = useRef(lines);
+  const queueRef        = useRef([]);
+  const queueIndexRef   = useRef(0);
+  const runningRef      = useRef(false);
+  const pausedRef       = useRef(false);
+  const settingsRef     = useRef(settings);
+  const timersRef       = useRef({});
+  const pollsRef        = useRef({});
+  const ringTimersRef   = useRef({});
+  const wrapTimerRef    = useRef(null);
+  const connectingRef   = useRef(false);
+  const deviceRef       = useRef(null);
+  const activeCallRef   = useRef(null);
+  const tzFilterRef     = useRef([]);
+  // Single shared dial queue — prevents simultaneous Twilio API calls
+  const dialQueueRef    = useRef(createDialQueue());
 
   linesRef.current    = lines;
   runningRef.current  = running;
   pausedRef.current   = paused;
   settingsRef.current = settings;
+  tzFilterRef.current = tzFilter;
 
-  // Expose controls to parent via ref
   useImperativeHandle(ref, () => ({
     hangupActiveCall: () => {
       if (activeCallRef.current) {
@@ -242,6 +318,7 @@ const PredictiveDialer = forwardRef(function PredictiveDialer({ contactLists, on
       runningRef.current = false;
       setPaused(true);
       pausedRef.current = true;
+      dialQueueRef.current.clear();
       clearInterval(wrapTimerRef.current);
       setWrapUpCountdown(0);
       Object.values(pollsRef.current).forEach(clearInterval);
@@ -260,7 +337,8 @@ const PredictiveDialer = forwardRef(function PredictiveDialer({ contactLists, on
       settingsRef.current.lines.forEach((_, i) => {
         const line = linesRef.current[i];
         if (['idle', 'ended', 'voicemail', 'no_answer', 'abandoned'].includes(line.status)) {
-          setTimeout(() => { if (runningRef.current) dialLine(i); }, i * 5000);
+          // Stagger resume so lines don't all hit the queue at once
+          setTimeout(() => { if (runningRef.current) dialLine(i); }, i * 1500);
         }
       });
     },
@@ -272,7 +350,6 @@ const PredictiveDialer = forwardRef(function PredictiveDialer({ contactLists, on
     setLogs(prev => [{ type, msg, time: fmtTime(new Date()) }, ...prev].slice(0, 150));
   }, []);
 
-  // Warm up the shared device on mount so it's ready when dialing starts
   useEffect(() => {
     getDevice()
       .then(device => { deviceRef.current = device; addLog('system', '📞 Twilio ready'); })
@@ -282,7 +359,6 @@ const PredictiveDialer = forwardRef(function PredictiveDialer({ contactLists, on
       Object.values(pollsRef.current).forEach(clearInterval);
       Object.values(ringTimersRef.current).forEach(clearTimeout);
       clearInterval(wrapTimerRef.current);
-      // Don't destroy — shared device is managed by TwilioDeviceProvider
     };
   }, [addLog, getDevice]);
 
@@ -291,7 +367,6 @@ const PredictiveDialer = forwardRef(function PredictiveDialer({ contactLists, on
     const now = new Date();
     const s   = settingsRef.current;
 
-    // ── State → timezone map (matches LeadsTab) ────────────────────────
     const STATE_TZ = {
       ET: ['CT','DC','DE','FL','GA','IN','KY','MA','MD','ME','MI','NC','NH','NJ','NY','OH','PA','RI','SC','TN','VA','VT','WV'],
       CT: ['AL','AR','IA','IL','KS','LA','MN','MO','MS','ND','NE','OK','SD','TX','WI'],
@@ -301,7 +376,6 @@ const PredictiveDialer = forwardRef(function PredictiveDialer({ contactLists, on
     const stateToTz = {};
     Object.entries(STATE_TZ).forEach(([tz, states]) => states.forEach(st => { stateToTz[st] = tz; }));
 
-    // ── Dialable status whitelist — never call prospects or migrated ───
     const DIALABLE_STATUSES = new Set(['lead', 'intro_email_sent', 'opened_intro_email', 'not_available', 'callback_later']);
 
     const dialable = all.filter(l => {
@@ -313,7 +387,6 @@ const PredictiveDialer = forwardRef(function PredictiveDialer({ contactLists, on
         const retryAfter = new Date(new Date(l.lastCalledAt).getTime() + s.retryPeriodMinutes * 60000);
         if (retryAfter > now) return false;
       }
-      // ── Timezone filter ──────────────────────────────────────────────
       const activeTzFilter = tzFilterRef.current;
       if (activeTzFilter && activeTzFilter.length > 0) {
         const tz = stateToTz[(l.state || '').toUpperCase().trim()];
@@ -322,8 +395,6 @@ const PredictiveDialer = forwardRef(function PredictiveDialer({ contactLists, on
       return true;
     });
 
-    // ── Priority sort ─────────────────────────────────────────────────
-    // 1. opened_intro_email (engaged)  2. intro_email_sent  3. lead  4. callbacks
     const PRIORITY = { opened_intro_email: 0, intro_email_sent: 1, lead: 2, callback_later: 3, not_available: 3 };
     const sorted = [...dialable].sort((a, b) => {
       const pa = PRIORITY[a.status] ?? 99;
@@ -363,6 +434,7 @@ const PredictiveDialer = forwardRef(function PredictiveDialer({ contactLists, on
 
   const handleReset = async () => {
     if (!selectedListId) return;
+    dialQueueRef.current.clear();
     setStats({ dialed: 0, humans: 0, voicemails: 0, abandoned: 0 });
     setLines([blankLine(), blankLine(), blankLine(), blankLine(), blankLine(), blankLine()]);
     await loadLeads(selectedListId);
@@ -385,7 +457,11 @@ const PredictiveDialer = forwardRef(function PredictiveDialer({ contactLists, on
     clearInterval(timersRef.current[lineIdx]);
     const start = Date.now();
     timersRef.current[lineIdx] = setInterval(() => {
-      setLines(prev => { const next = [...prev]; next[lineIdx] = { ...next[lineIdx], duration: Math.floor((Date.now() - start) / 1000) }; return next; });
+      setLines(prev => {
+        const next = [...prev];
+        next[lineIdx] = { ...next[lineIdx], duration: Math.floor((Date.now() - start) / 1000) };
+        return next;
+      });
     }, 1000);
   };
 
@@ -396,22 +472,16 @@ const PredictiveDialer = forwardRef(function PredictiveDialer({ contactLists, on
     updateLine(lineIdx, { status: finalStatus, callSid: null, amdResult: null });
   };
 
-  const [tzFilter, setTzFilter] = useState([]); // [] = all, or array of 'ET'|'CT'|'MT'|'PT'
-  const tzFilterRef = useRef([]);
-  useEffect(() => { tzFilterRef.current = tzFilter; }, [tzFilter]);
-
   const hangupCall = async (callSid) => {
     if (!callSid) return;
     try { await base44.functions.invoke('twilioCall', { action: 'hangupCall', callSid }); } catch {}
   };
 
-  // End the current call on a line and immediately dial the next lead
   const handleSkip = async (lineIdx, callSid) => {
     clearInterval(pollsRef.current[lineIdx]);
     clearTimeout(ringTimersRef.current[lineIdx]);
     if (callSid) await hangupCall(callSid);
     cleanLine(lineIdx, 'ended');
-    // Small delay so the line clears visually before the next dial
     setTimeout(() => { if (runningRef.current) dialLine(lineIdx); }, 800);
   };
 
@@ -449,7 +519,11 @@ const PredictiveDialer = forwardRef(function PredictiveDialer({ contactLists, on
           clearInterval(pollsRef.current[lineIdx]);
           clearTimeout(ringTimersRef.current[lineIdx]);
           addLog('no_answer', `Line ${lineIdx + 1}: ${status} — ${lead.firstName} ${lead.lastName}`);
-          base44.entities.LeadHistory.create({ leadId: lead.id, type: 'not_available', content: `Call ${status} (attempt #${attempts}) · by ${currentUsername}`, createdBy: currentUsername, twilioCallSid: sid }).catch(() => {});
+          base44.entities.LeadHistory.create({
+            leadId: lead.id, type: 'not_available',
+            content: `Call ${status} (attempt #${attempts}) · by ${currentUsername}`,
+            createdBy: currentUsername, twilioCallSid: sid,
+          }).catch(() => {});
           cleanLine(lineIdx, 'no_answer');
           setTimeout(() => { if (runningRef.current) dialLine(lineIdx); }, 1200);
         }
@@ -465,19 +539,18 @@ const PredictiveDialer = forwardRef(function PredictiveDialer({ contactLists, on
       return;
     }
     connectingRef.current = true;
-
     addLog('human', `Line ${lineIdx + 1}: 🎧 Connecting agent…`);
     setStats(s => ({ ...s, humans: s.humans + 1 }));
 
-    // ── PAUSE the dialer immediately ──────────────────────────────────
     setRunning(false);
     runningRef.current = false;
     setPaused(true);
     pausedRef.current = true;
+    dialQueueRef.current.clear(); // drain any pending dial requests
     onPaused?.();
     clearInterval(wrapTimerRef.current);
     setWrapUpCountdown(0);
-    // Hang up other ringing lines
+
     const hangupPromises = [];
     for (let i = 0; i < MAX_LINES; i++) {
       if (i === lineIdx) continue;
@@ -491,7 +564,6 @@ const PredictiveDialer = forwardRef(function PredictiveDialer({ contactLists, on
     }
     Promise.all(hangupPromises).catch(() => {});
 
-    // Connect agent audio
     try {
       const device = deviceRef.current;
       if (!device) throw new Error('Twilio device not ready');
@@ -505,8 +577,6 @@ const PredictiveDialer = forwardRef(function PredictiveDialer({ contactLists, on
       });
       call.on('error', (err) => { addLog('error', `Call error: ${err.message}`); });
 
-      // Fire stream — delay 500ms so RTCPeerConnection ontrack fires first
-      // and _remoteStream is populated before ScriptAssistant connects Deepgram
       setTimeout(() => {
         try {
           onCallStream?.({
@@ -523,23 +593,28 @@ const PredictiveDialer = forwardRef(function PredictiveDialer({ contactLists, on
       addLog('connected', `Line ${lineIdx + 1}: 🎧 Connected — ${lead.firstName} ${lead.lastName}`);
       addLog('system', '⏸ Dialer paused — campaign will resume when you hit Resume & Save');
 
-      // Open contact card
       onLeadConnected?.(lead);
 
-      // Update lead
       if (lead?.id) {
         base44.entities.Lead.update(lead.id, { lastCalledAt: new Date().toISOString() }).catch(() => {});
-        base44.entities.LeadHistory.create({ leadId: lead.id, type: 'connected', content: `Connected via predictive dialer · by ${currentUsername}`, createdBy: currentUsername, twilioCallSid: callSid }).catch(() => {});
+        base44.entities.LeadHistory.create({
+          leadId: lead.id, type: 'connected',
+          content: `Connected via predictive dialer · by ${currentUsername}`,
+          createdBy: currentUsername, twilioCallSid: callSid,
+        }).catch(() => {});
       }
 
-      // Poll for call end
       pollsRef.current[lineIdx] = setInterval(async () => {
         try {
           const s = await base44.functions.invoke('twilioCall', { action: 'getCallStatus', callSid });
           if (['completed', 'failed', 'no-answer', 'busy', 'canceled'].includes(s.data?.status)) {
             clearInterval(pollsRef.current[lineIdx]);
             const dur = linesRef.current[lineIdx]?.duration || 0;
-            base44.entities.LeadHistory.create({ leadId: lead.id, type: 'call', content: `Call ended — ${fmt(dur)} · by ${currentUsername}`, callDurationSeconds: dur, createdBy: currentUsername, twilioCallSid: callSid }).catch(() => {});
+            base44.entities.LeadHistory.create({
+              leadId: lead.id, type: 'call',
+              content: `Call ended — ${fmt(dur)} · by ${currentUsername}`,
+              callDurationSeconds: dur, createdBy: currentUsername, twilioCallSid: callSid,
+            }).catch(() => {});
             onCallLogged?.(lead.id);
             cleanLine(lineIdx, 'ended');
             addLog('ended', `Call ended — ${lead.firstName} ${lead.lastName} (${fmt(dur)})`);
@@ -571,82 +646,114 @@ const PredictiveDialer = forwardRef(function PredictiveDialer({ contactLists, on
     settingsRef.current.lines.forEach((_, i) => {
       const line = linesRef.current[i];
       if (['idle', 'ended', 'voicemail', 'no_answer', 'abandoned'].includes(line.status)) {
-        setTimeout(() => { if (runningRef.current) dialLine(i); }, i * 5000);
+        setTimeout(() => { if (runningRef.current) dialLine(i); }, i * 1500);
       }
     });
   };
 
+  // ── dialLine: all Twilio call creation now goes through dialQueueRef ────────
   const dialLine = useCallback(async (lineIdx) => {
     if (!runningRef.current) return;
-
-    // Rate limit: enforce 1.2s minimum between any two dials across all lines
-    const sinceLastDial = Date.now() - lastDialTimeRef.current;
-    if (sinceLastDial < 1200) {
-      await new Promise(r => setTimeout(r, 1200 - sinceLastDial));
-      if (!runningRef.current) return;
-    }
-    lastDialTimeRef.current = Date.now();
 
     const lead = getNextLead();
     if (!lead) {
       addLog('system', `Line ${lineIdx + 1}: Queue exhausted`);
       setTimeout(() => {
-        const anyActive = linesRef.current.some(l => ['calling', 'ringing', 'connected', 'human'].includes(l.status));
-        if (!anyActive && runningRef.current) { addLog('system', '✅ All leads dialed — dialer complete'); setRunning(false); runningRef.current = false; }
+        const anyActive = linesRef.current.some(l =>
+          ['calling', 'ringing', 'connected', 'human'].includes(l.status)
+        );
+        if (!anyActive && runningRef.current) {
+          addLog('system', '✅ All leads dialed — dialer complete');
+          setRunning(false);
+          runningRef.current = false;
+        }
       }, 2000);
       return;
     }
+
     const s          = settingsRef.current;
     const fromNumber = s.lines[lineIdx] || 'TWILIO_FROM_NUMBER';
     updateLine(lineIdx, { lead, callSid: null, status: 'calling', duration: 0, amdResult: null });
     addLog('call', `Line ${lineIdx + 1}: Calling ${lead.firstName} ${lead.lastName} (${lead.phone})`);
     setStats(prev => ({ ...prev, dialed: prev.dialed + 1 }));
     fireScorecardCall(currentUsername);
+
     const attempts = (lead.callAttempts || 0) + 1;
-    base44.entities.Lead.update(lead.id, { lastCalledAt: new Date().toISOString(), callAttempts: attempts }).catch(() => {});
-    base44.entities.LeadHistory.create({ leadId: lead.id, type: 'call', content: `Predictive dialer attempt #${attempts} — Line ${lineIdx + 1} · by ${currentUsername}`, createdBy: currentUsername }).catch(() => {});
+    base44.entities.Lead.update(lead.id, {
+      lastCalledAt: new Date().toISOString(),
+      callAttempts: attempts,
+    }).catch(() => {});
+    base44.entities.LeadHistory.create({
+      leadId: lead.id, type: 'call',
+      content: `Predictive dialer attempt #${attempts} — Line ${lineIdx + 1} · by ${currentUsername}`,
+      createdBy: currentUsername,
+    }).catch(() => {});
+
+    // Ring timeout — fires regardless of queue position
+    const confName = `call_${Date.now()}_${lineIdx}`;
     ringTimersRef.current[lineIdx] = setTimeout(async () => {
       const cur = linesRef.current[lineIdx];
       if (['ringing', 'calling'].includes(cur.status) && cur.lead?.id === lead.id) {
         addLog('no_answer', `Line ${lineIdx + 1}: No answer (${s.maxRingTime}s) — ${lead.firstName} ${lead.lastName}`);
         if (cur.callSid) await hangupCall(cur.callSid);
-        base44.entities.LeadHistory.create({ leadId: lead.id, type: 'not_available', content: `No answer after ${s.maxRingTime}s (attempt #${attempts}) · by ${currentUsername}`, createdBy: currentUsername }).catch(() => {});
+        base44.entities.LeadHistory.create({
+          leadId: lead.id, type: 'not_available',
+          content: `No answer after ${s.maxRingTime}s (attempt #${attempts}) · by ${currentUsername}`,
+          createdBy: currentUsername,
+        }).catch(() => {});
         cleanLine(lineIdx, 'no_answer');
         setTimeout(() => { if (runningRef.current) dialLine(lineIdx); }, 1500);
       }
     }, s.maxRingTime * 1000);
+
+    // ── Enqueue the actual Twilio API call ───────────────────────────────────
+    // The queue serializes all lines so they can never fire simultaneously.
+    // Built-in retry handles 429s with exponential backoff.
     try {
-      const confName = `call_${Date.now()}_${lineIdx}`;
-      const res = await base44.functions.invoke('twilioCallWithCPA', {
-        toNumber: lead.phone,
-        fromNumber,
-        statusCallbackUrl: CALLBACK_URL,
-        conferenceName: confName,
-      });
+      const res = await dialQueueRef.current.enqueue(() =>
+        base44.functions.invoke('twilioCallWithCPA', {
+          toNumber:          lead.phone,
+          fromNumber,
+          statusCallbackUrl: CALLBACK_URL,
+          conferenceName:    confName,
+        })
+      );
+
+      if (!runningRef.current) return; // dialer stopped while waiting in queue
+
       const sid = res.data?.callSid;
       if (!sid) throw new Error(res.data?.error || 'No call SID returned');
+
       updateLine(lineIdx, { callSid: sid, status: 'ringing', conferenceName: confName });
       startLineTimer(lineIdx);
       addLog('call', `Line ${lineIdx + 1}: Ringing…`);
       startAMDPoll(lineIdx, sid, lead, attempts);
+
     } catch (e) {
       clearTimeout(ringTimersRef.current[lineIdx]);
-      addLog('error', `Line ${lineIdx + 1}: Failed — ${e.message}`);
+      const is429 = (e?.message || '').includes('429');
+      addLog('error', `Line ${lineIdx + 1}: ${is429 ? '⚠️ Rate limited — retrying' : `Failed — ${e.message}`}`);
       cleanLine(lineIdx, 'no_answer');
-      setTimeout(() => { if (runningRef.current) dialLine(lineIdx); }, 3000);
+      // On persistent 429 after all retries, back off longer before next attempt
+      const delay = is429 ? 5000 : 3000;
+      setTimeout(() => { if (runningRef.current) dialLine(lineIdx); }, delay);
     }
-  }, []);
+  }, [addLog, currentUsername]);
 
   const startDialing = () => {
     if (!deviceReady) { addLog('error', 'Twilio not ready — please wait'); return; }
     connectingRef.current = false;
+    dialQueueRef.current  = createDialQueue(); // fresh queue on every start
     setPaused(false);
     pausedRef.current = false;
     setRunning(true);
     runningRef.current = true;
     const rem = queueRef.current.length - queueIndexRef.current;
     addLog('system', `🚀 Starting — ${rem} leads, ${settings.lines.length} lines`);
-    settings.lines.forEach((_, i) => { setTimeout(() => dialLine(i), i * 5000); });
+    // Stagger line starts by 1.5s each — enough gap so the queue serializes cleanly
+    settings.lines.forEach((_, i) => {
+      setTimeout(() => { if (runningRef.current) dialLine(i); }, i * 1500);
+    });
   };
 
   const stopDialing = async () => {
@@ -655,6 +762,7 @@ const PredictiveDialer = forwardRef(function PredictiveDialer({ contactLists, on
     setPaused(false);
     pausedRef.current   = false;
     connectingRef.current = false;
+    dialQueueRef.current.clear();
     clearInterval(wrapTimerRef.current);
     setWrapUpCountdown(0);
     Object.values(pollsRef.current).forEach(clearInterval);
@@ -665,7 +773,11 @@ const PredictiveDialer = forwardRef(function PredictiveDialer({ contactLists, on
         await hangupCall(line.callSid);
       }
     }
-    if (activeCallRef.current) { try { activeCallRef.current.disconnect(); } catch {} activeCallRef.current = null; setActiveCall(null); }
+    if (activeCallRef.current) {
+      try { activeCallRef.current.disconnect(); } catch {}
+      activeCallRef.current = null;
+      setActiveCall(null);
+    }
     setLines([blankLine(), blankLine(), blankLine(), blankLine(), blankLine(), blankLine()]);
     addLog('system', '■ Dialer stopped');
   };
@@ -727,9 +839,7 @@ const PredictiveDialer = forwardRef(function PredictiveDialer({ contactLists, on
               )}
             </div>
             {tzFilter.length > 0 && (
-              <div style={{ color: '#4ade80', fontSize: '11px', marginTop: '6px' }}>
-                ✓ Calling {tzFilter.join(' + ')} only
-              </div>
+              <div style={{ color: '#4ade80', fontSize: '11px', marginTop: '6px' }}>✓ Calling {tzFilter.join(' + ')} only</div>
             )}
           </div>
           <div style={{ display: 'flex', gap: '10px', marginBottom: '16px' }}>
@@ -769,11 +879,15 @@ const PredictiveDialer = forwardRef(function PredictiveDialer({ contactLists, on
       {started && (
         <div style={{ display: 'flex', gap: '10px', marginBottom: '14px' }}>
           {!running ? (
-            <button onClick={startDialing} disabled={remaining === 0 || wrapUpCountdown > 0 || !deviceReady} style={{ flex: 1, fontWeight: 'bold', fontSize: isMobile ? '14px' : '13px', padding: isMobile ? '14px 10px' : '13px', border: 'none', borderRadius: '8px', cursor: (remaining === 0 || wrapUpCountdown > 0 || !deviceReady) ? 'not-allowed' : 'pointer', background: (remaining === 0 || wrapUpCountdown > 0 || !deviceReady) ? 'rgba(74,222,128,0.2)' : 'linear-gradient(135deg,#22c55e,#16a34a)', color: '#fff' }}>
+            <button onClick={startDialing} disabled={remaining === 0 || wrapUpCountdown > 0 || !deviceReady}
+              style={{ flex: 1, fontWeight: 'bold', fontSize: isMobile ? '14px' : '13px', padding: isMobile ? '14px 10px' : '13px', border: 'none', borderRadius: '8px', cursor: (remaining === 0 || wrapUpCountdown > 0 || !deviceReady) ? 'not-allowed' : 'pointer', background: (remaining === 0 || wrapUpCountdown > 0 || !deviceReady) ? 'rgba(74,222,128,0.2)' : 'linear-gradient(135deg,#22c55e,#16a34a)', color: '#fff' }}>
               {!deviceReady ? '⏳ Initializing…' : remaining === 0 ? '✓ Queue Empty' : wrapUpCountdown > 0 ? `⏱ Wrap-up: ${wrapUpCountdown}s` : paused ? `▶ Resume Dialing (${remaining} leads)` : `▶ Start Dialing (${remaining} leads)`}
             </button>
           ) : (
-            <button onClick={stopDialing} style={{ flex: 1, fontWeight: 'bold', fontSize: isMobile ? '14px' : '13px', padding: isMobile ? '14px 10px' : '13px', background: 'linear-gradient(135deg,#ef4444,#b91c1c)', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer' }}>■ Stop Dialer</button>
+            <button onClick={stopDialing}
+              style={{ flex: 1, fontWeight: 'bold', fontSize: isMobile ? '14px' : '13px', padding: isMobile ? '14px 10px' : '13px', background: 'linear-gradient(135deg,#ef4444,#b91c1c)', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer' }}>
+              ■ Stop Dialer
+            </button>
           )}
         </div>
       )}
