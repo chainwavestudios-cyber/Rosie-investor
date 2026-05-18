@@ -41,7 +41,7 @@ function CSVUploadModal({ onClose, onImported }) {
   const [file, setFile] = useState(null);
   const [headers, setHeaders] = useState([]);
   const [rows, setRows] = useState([]);
-  const [mapping, setMapping] = useState({ firstName:'', lastName:'', email:'', phone:'', phone2:'', state:'', age:'', investment:'' });
+  const [mapping, setMapping] = useState({ firstName:'', lastName:'', fullName:'', email:'', phone:'', phone2:'', state:'', age:'', investment:'' });
   const [customFieldMappings, setCustomFieldMappings] = useState([]); // [{csvCol, fieldName}]
   const [availableHeaders, setAvailableHeaders] = useState([]);
   const [step, setStep] = useState('listName'); // listName | upload | map | preview | done
@@ -88,12 +88,13 @@ function CSVUploadModal({ onClose, onImported }) {
       setAvailableHeaders(hdrs);
       setRows(data);
       // Auto-map common names
-      const autoMap = { firstName:'', lastName:'', email:'', phone:'', phone2:'', state:'', age:'', investment:'' };
+      const autoMap = { firstName:'', lastName:'', fullName:'', email:'', phone:'', phone2:'', state:'', age:'', investment:'' };
       const mappedCols = new Set();
       hdrs.forEach(h => {
         const hl = h.toLowerCase();
         if (/first.*name|firstname/i.test(hl)) { autoMap.firstName = h; mappedCols.add(h); }
         else if (/last.*name|lastname/i.test(hl)) { autoMap.lastName = h; mappedCols.add(h); }
+        else if (/^(full.?name|name|contact.?name)$/i.test(hl)) { autoMap.fullName = h; mappedCols.add(h); }
         else if (/email/i.test(hl)) { autoMap.email = h; mappedCols.add(h); }
         else if (/phone2|phone_2|alt.*phone|phone.*2|mobile2|cell2/i.test(hl)) { autoMap.phone2 = h; mappedCols.add(h); }
         else if (/phone|mobile|cell/i.test(hl)) { autoMap.phone = h; mappedCols.add(h); }
@@ -140,7 +141,7 @@ function CSVUploadModal({ onClose, onImported }) {
     const validRows = rows.filter(row => {
       const phone = (row[mapping.phone] || '').replace(/\D/g,'');
       const email = (row[mapping.email] || '').toLowerCase().trim();
-      const hasName = row[mapping.firstName] || row[mapping.lastName];
+      const hasName = row[mapping.firstName] || row[mapping.lastName] || (mapping.fullName && row[mapping.fullName]);
       if (!hasName) return false;
       if (phone && existingPhones.has(phone)) { skipped++; return false; }
       if (email && existingEmails.has(email)) { skipped++; return false; }
@@ -159,9 +160,17 @@ function CSVUploadModal({ onClose, onImported }) {
         customFieldMappings.forEach(({ csvCol, fieldName }) => {
           if (fieldName.trim() && row[csvCol]) customObj[fieldName.trim()] = row[csvCol];
         });
+        // Handle combined full name field
+        let firstName = row[mapping.firstName] || '';
+        let lastName = row[mapping.lastName] || '';
+        if (!firstName && !lastName && mapping.fullName && row[mapping.fullName]) {
+          const parts = row[mapping.fullName].trim().split(/\s+/);
+          firstName = parts[0] || '';
+          lastName = parts.slice(1).join(' ') || '';
+        }
         return {
-          firstName: row[mapping.firstName] || '',
-          lastName: row[mapping.lastName] || '',
+          firstName,
+          lastName,
           email: row[mapping.email] || '',
           phone: row[mapping.phone] || '',
           phone2: mapping.phone2 ? (row[mapping.phone2] || '') : '',
@@ -194,7 +203,7 @@ function CSVUploadModal({ onClose, onImported }) {
     onImported && onImported();
   };
 
-  const FIELDS = [['firstName','First Name'],['lastName','Last Name'],['email','Email'],['phone','Phone'],['phone2','Alt Phone'],['state','State'],['age','Age'],['investment','Investment Amount']];
+  const FIELDS = [['fullName','Full Name (combined)'],['firstName','First Name'],['lastName','Last Name'],['email','Email'],['phone','Phone'],['phone2','Alt Phone'],['state','State'],['age','Age'],['investment','Investment Amount']];
   const inp = { width:'100%', background:'rgba(255,255,255,0.05)', border:'1px solid rgba(255,255,255,0.12)', borderRadius:'2px', padding:'8px 12px', color:'#e8e0d0', fontSize:'13px', outline:'none', boxSizing:'border-box', fontFamily:'Georgia, serif' };
 
   return (
