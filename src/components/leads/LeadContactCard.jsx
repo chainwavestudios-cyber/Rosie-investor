@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
 import { fmtDateTime, fmtDateTimeShort, fmtDateTimeLong, fmtDateTimeWithYear, fmtDate } from '@/lib/fmtDate.js';
 import { usePortalAuth } from '@/lib/PortalAuthContext';
+import { fireScorecardCall, fireScorecardNBTechConvert } from '@/components/admin/ScoreCard';
 import { useInlineDialer } from '@/hooks/useInlineDialer';
 import InlineCallBar from '@/components/shared/InlineCallBar';
 import MigrateLeadModal from './MigrateLeadModal';
@@ -1341,6 +1342,7 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
                     if (newType === 'nb_tech') {
                       updates.leadPipelineOwner = currentUsername;
                       updates.leadPipelineStage = editLead.leadPipelineStage || 'reviewing';
+                      fireScorecardNBTechConvert(currentUsername);
                     }
                     await base44.entities.Lead.update(lead.id, updates);
                     setEditLead(prev => ({ ...prev, ...updates }));
@@ -1380,7 +1382,7 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
                 <InlineCallBar
                   phone={selectedPhone || editLead.phone || lead.phone}
                   name={`${editLead.firstName || lead.firstName || ''} ${editLead.lastName || lead.lastName || ''}`.trim()}
-                  dialer={{ ...dialer, dial: (phone) => { onDialStarted && onDialStarted(currentLeadRef.current.id); dialer.dial(phone, currentLeadRef.current.id); } }}
+                  dialer={{ ...dialer, dial: (phone) => { onDialStarted && onDialStarted(currentLeadRef.current.id); fireScorecardCall(currentUsername); dialer.dial(phone, currentLeadRef.current.id); } }}
                   onLogCall={async () => { await loadHistory(); }}
                   isPredictive={!!isDialerPaused}
                   isDialerPaused={!!isDialerPaused}
