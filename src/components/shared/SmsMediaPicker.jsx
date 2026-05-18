@@ -75,7 +75,7 @@ export default function SmsMediaPicker({ onSelectGif, onSelectEmoji, onClose }) 
       position: 'absolute', bottom: '100%', left: 0, right: 0, marginBottom: '6px',
       background: '#0d1b2a', border: '1px solid rgba(184,147,58,0.35)', borderRadius: '8px',
       boxShadow: '0 -8px 32px rgba(0,0,0,0.8)', zIndex: 100, overflow: 'hidden',
-      maxHeight: '340px', display: 'flex', flexDirection: 'column',
+      maxHeight: '460px', display: 'flex', flexDirection: 'column',
     }}>
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.07)', flexShrink: 0 }}>
@@ -91,20 +91,20 @@ export default function SmsMediaPicker({ onSelectGif, onSelectEmoji, onClose }) 
 
       {/* GIFs tab */}
       {tab === 'gifs' && (
-        <div style={{ overflowY: 'auto', padding: '8px', display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '6px' }}>
+        <div style={{ overflowY: 'auto', padding: '8px', display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '6px', maxHeight: '400px' }}>
           {STOCK_GIFS.map((gif, i) => (
             <div key={i} onClick={() => { onSelectGif(gif.url, gif.label); onClose(); }}
               onMouseEnter={() => setHoveredGif(i)} onMouseLeave={() => setHoveredGif(null)}
               style={{
                 cursor: 'pointer', borderRadius: '6px', overflow: 'hidden',
-                border: `1px solid ${hoveredGif === i ? GOLD : 'rgba(255,255,255,0.08)'}`,
+                border: `2px solid ${hoveredGif === i ? GOLD : 'rgba(255,255,255,0.1)'}`,
                 background: 'rgba(0,0,0,0.3)', transition: 'border-color 0.15s',
-                display: 'flex', flexDirection: 'column',
+                aspectRatio: '1 / 1', position: 'relative',
               }}>
               <img src={gif.url} alt={gif.label}
-                style={{ width: '100%', height: '70px', objectFit: 'cover', display: 'block' }}
+                style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
                 onError={e => { e.target.style.display = 'none'; }} />
-              <div style={{ padding: '3px 5px', color: '#8a9ab8', fontSize: '9px', textAlign: 'center', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: 'rgba(0,0,0,0.65)', padding: '3px 5px', color: '#e8e0d0', fontSize: '9px', textAlign: 'center', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                 {gif.label}
               </div>
             </div>

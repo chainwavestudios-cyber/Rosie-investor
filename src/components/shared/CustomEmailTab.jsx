@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
 import { fmtDateTime } from '@/lib/fmtDate.js';
+import SmsMediaPicker from '@/components/shared/SmsMediaPicker';
 
 const GOLD = '#b8933a';
 const DARK = '#0a0f1e';
@@ -67,8 +68,10 @@ export default function CustomEmailTab({ toEmail, toName, leadId, investorId, se
   const [dataroomUrl,   setDataroomUrl]   = useState('');
   const [attachments,   setAttachments]   = useState([]); // [{name, base64, mime}]
   const [uploadingFile, setUploadingFile] = useState(false);
+  const [showPicker,    setShowPicker]    = useState(false);
   const bodyRef    = useRef(null);
   const fileRef    = useRef(null);
+  const imgRef     = useRef(null);
 
   const firstName = toName?.split(' ')[0] || 'there';
 
@@ -136,6 +139,8 @@ export default function CustomEmailTab({ toEmail, toName, leadId, investorId, se
     const htmlLines = lines.map(line => {
       line = line.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
       line = line.replace(/\*(.*?)\*/g, '<em>$1</em>');
+      // Inline images: ![alt](url)
+      line = line.replace(/!\[([^\]]*)\]\((https?:\/\/[^\)]+)\)/g, '<img src="$2" alt="$1" style="max-width:100%;border-radius:6px;display:block;margin:8px 0;" />');
       // Tracked link — wrap in redirect for click tracking via Mailjet
       line = line.replace(/\[([^\]]+)\]\((https?:\/\/[^\)]+)\)/g, '<a href="$2" style="color:#b8933a;">$1</a>');
       return line;
@@ -153,6 +158,29 @@ export default function CustomEmailTab({ toEmail, toName, leadId, investorId, se
           <a href="${footerLink}" style="color:#b8933a;">${footerDomain}</a>
         </p>
       </div>`;
+  };
+
+  const handleInsertGif = (url, label) => {
+    insertTag(`\n![${label}](${url})\n`);
+    setShowPicker(false);
+  };
+
+  const handleInsertEmoji = (emoji) => {
+    insertTag(emoji);
+  };
+
+  const handleInsertImage = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingFile(true);
+    try {
+      const { file_url } = await base44.integrations.Core.UploadFile({ file });
+      insertTag(`\n![image](${file_url})\n`);
+    } catch (err) {
+      setSendMsg('Error uploading image: ' + err.message);
+    }
+    setUploadingFile(false);
+    e.target.value = '';
   };
 
   const handleAttachFile = async (e) => {
@@ -298,14 +326,37 @@ export default function CustomEmailTab({ toEmail, toName, leadId, investorId, se
           )}
 
           {/* Formatting toolbar */}
-          <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
-            <ToolBtn label="B" title="Bold — wrap selection with **text**" onClick={() => wrapSelection('**', '**')} />
-            <ToolBtn label="I" title="Italic — wrap selection with *text*" onClick={() => wrapSelection('*', '*')} />
-            <ToolBtn label="Link" title="Insert link — [text](url)" onClick={() => insertTag('[link text](https://)')} />
-            <ToolBtn label="¶" title="New paragraph" onClick={() => insertTag('\n\n')} />
-            <div style={{ width: '1px', background: 'rgba(255,255,255,0.1)', margin: '0 4px' }} />
-            <ToolBtn label="{{firstname}}" title="Insert first name" onClick={() => insertTag(firstName)} />
-            <ToolBtn label="Site Link" title="Insert investor site link" onClick={() => insertTag('[View Investment Details](https://investors.rosieai.tech)')} />
+          <div style={{ position: 'relative' }}>
+            <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', alignItems: 'center' }}>
+              <ToolBtn label="B" title="Bold" onClick={() => wrapSelection('**', '**')} />
+              <ToolBtn label="I" title="Italic" onClick={() => wrapSelection('*', '*')} />
+              <ToolBtn label="Link" title="Insert link" onClick={() => insertTag('[link text](https://)')} />
+              <ToolBtn label="¶" title="New paragraph" onClick={() => insertTag('\n\n')} />
+              <div style={{ width: '1px', background: 'rgba(255,255,255,0.1)', margin: '0 2px', alignSelf: 'stretch' }} />
+              <ToolBtn label="{{firstname}}" title="Insert first name" onClick={() => insertTag(firstName)} />
+              <ToolBtn label="Site Link" title="Insert investor site link" onClick={() => insertTag('[View Investment Details](https://investors.rosieai.tech)')} />
+              <div style={{ width: '1px', background: 'rgba(255,255,255,0.1)', margin: '0 2px', alignSelf: 'stretch' }} />
+              {/* Image insert */}
+              <input ref={imgRef} type="file" accept="image/*" onChange={handleInsertImage} style={{ display: 'none' }} />
+              <button onClick={() => imgRef.current?.click()} disabled={uploadingFile} title="Insert image into body"
+                style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '3px', padding: '3px 8px', cursor: 'pointer', color: '#c4cdd8', fontSize: '12px' }}>
+                {uploadingFile ? '⏳' : '🖼 Image'}
+              </button>
+              {/* Emoji + GIF picker */}
+              <button onClick={() => setShowPicker(p => !p)} title="Insert emoji or GIF"
+                style={{ background: showPicker ? 'rgba(184,147,58,0.2)' : 'rgba(255,255,255,0.06)', border: `1px solid ${showPicker ? 'rgba(184,147,58,0.5)' : 'rgba(255,255,255,0.1)'}`, borderRadius: '3px', padding: '3px 8px', cursor: 'pointer', color: showPicker ? '#b8933a' : '#c4cdd8', fontSize: '12px' }}>
+                😀 GIF
+              </button>
+            </div>
+            {showPicker && (
+              <div style={{ position: 'absolute', bottom: 'calc(100% + 6px)', left: 0, right: 0, zIndex: 200 }}>
+                <SmsMediaPicker
+                  onSelectGif={handleInsertGif}
+                  onSelectEmoji={handleInsertEmoji}
+                  onClose={() => setShowPicker(false)}
+                />
+              </div>
+            )}
           </div>
 
           {/* Body */}
