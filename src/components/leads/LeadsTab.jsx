@@ -1206,7 +1206,25 @@ export default function LeadsTab({ openLeadId, onLeadOpened, mockLeads = null })
 
       {/* SCRIPTS */}
       {sidebarView === 'scripts' && (
-        <GlobalScriptEditor />
+        <div>
+          {/* Quick-dial contacts */}
+          <div style={{ marginBottom: '20px', background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: '6px', padding: '14px 16px' }}>
+            <div style={{ color: '#4a5568', fontSize: '9px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '10px' }}>📞 Quick Dial</div>
+            {[
+              { name: 'Eric', phone: '(949) 629-3983' },
+              { name: 'Keith', phone: '(949) 355-4161' },
+            ].map(({ name, phone }) => (
+              <button
+                key={name}
+                onClick={() => handleDialNumber({ firstName: name, lastName: '', phone, id: null })}
+                style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', background: 'rgba(74,222,128,0.08)', color: '#4ade80', border: '1px solid rgba(74,222,128,0.2)', borderRadius: '4px', padding: '8px 12px', cursor: 'pointer', fontSize: '12px', marginBottom: '6px', textAlign: 'left' }}>
+                <span style={{ fontWeight: 'bold' }}>{name}</span>
+                <span style={{ fontFamily: 'monospace', fontSize: '11px', color: '#8a9ab8' }}>{phone}</span>
+              </button>
+            ))}
+          </div>
+          <GlobalScriptEditor />
+        </div>
       )}
 
       {/* LISTS TAB */}
