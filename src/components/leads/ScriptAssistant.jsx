@@ -119,19 +119,22 @@ export default function ScriptAssistant({ lead, user, onExpandCard, isCardExpand
           pw.dgKey = tokenRes?.key || tokenRes?.data?.key || '';
         }
 
-        // 2. AudioContext + merged stream
+        // 2. AudioContext + stereo stream (ch0=remote/prospect, ch1=local/agent)
         if (!pw.audioCtx) {
-          const audioCtx = new AudioContext({ sampleRate: 48000 });
+          const audioCtx = new AudioContext({ sampleRate: 16000 });
           if (audioCtx.state === 'suspended') await audioCtx.resume();
           if (cancelled) { audioCtx.close(); return; }
 
-          const dest = audioCtx.createMediaStreamDestination();
+          // Build a 2-channel merger: ch0 = remote (prospect), ch1 = local (agent)
+          const merger = audioCtx.createChannelMerger(2);
           if (twilioStream.remoteStream) {
-            try { audioCtx.createMediaStreamSource(twilioStream.remoteStream).connect(dest); } catch {}
+            try { audioCtx.createMediaStreamSource(twilioStream.remoteStream).connect(merger, 0, 0); } catch {}
           }
           if (twilioStream.localStream) {
-            try { audioCtx.createMediaStreamSource(twilioStream.localStream).connect(dest); } catch {}
+            try { audioCtx.createMediaStreamSource(twilioStream.localStream).connect(merger, 0, 1); } catch {}
           }
+          const dest = audioCtx.createMediaStreamDestination();
+          merger.connect(dest);
 
           pw.audioCtx     = audioCtx;
           pw.dest         = dest;
@@ -210,13 +213,16 @@ export default function ScriptAssistant({ lead, user, onExpandCard, isCardExpand
           return;
         }
 
-        const nativeSampleRate = 48000;
+        const nativeSampleRate = 16000;
         audioCtx = new AudioContext({ sampleRate: nativeSampleRate });
         contextRef.current = audioCtx;
         if (audioCtx.state === 'suspended') await audioCtx.resume();
+        // ch0 = remote (prospect), ch1 = local (agent)
+        const merger = audioCtx.createChannelMerger(2);
+        if (remoteStream) { try { audioCtx.createMediaStreamSource(remoteStream).connect(merger, 0, 0); } catch {} }
+        if (localStream)  { try { audioCtx.createMediaStreamSource(localStream).connect(merger, 0, 1);  } catch {} }
         const dest = audioCtx.createMediaStreamDestination();
-        if (remoteStream) { try { audioCtx.createMediaStreamSource(remoteStream).connect(dest); } catch {} }
-        if (localStream)  { try { audioCtx.createMediaStreamSource(localStream).connect(dest);  } catch {} }
+        merger.connect(dest);
         mergedStream = dest.stream;
       } else {
         console.log('[ScriptAssistant] Using pre-warmed streams ✓');
@@ -238,8 +244,9 @@ export default function ScriptAssistant({ lead, user, onExpandCard, isCardExpand
 
       // ── 3. Open WebSocket ─────────────────────────────────────────
       const nativeSampleRate = audioCtx.sampleRate;
+      // multichannel=true: ch0=remote/prospect, ch1=local/agent — gives clean speaker separation
       const ws = new WebSocket(
-        `wss://api.deepgram.com/v1/listen?model=nova-2&language=en-US&smart_format=true&interim_results=true&endpointing=300&sentiment=true&diarize=true&sample_rate=${nativeSampleRate}&encoding=linear16&channels=1`,
+        `wss://api.deepgram.com/v1/listen?model=nova-2&language=en-US&smart_format=true&interim_results=true&endpointing=300&sentiment=true&multichannel=true&channels=2&sample_rate=${nativeSampleRate}&encoding=linear16`,
         ['token', dgKey]
       );
       wsRef.current = ws;
@@ -325,7 +332,10 @@ export default function ScriptAssistant({ lead, user, onExpandCard, isCardExpand
           const alt  = data?.channel?.alternatives?.[0];
           const text = alt?.transcript?.trim();
           if (!text || !data.is_final) return;
-          const speaker   = alt?.words?.[0]?.speaker ?? null;
+          // channel_index[0] = 0 → remote/prospect, 1 → local/agent
+          const channelIdx = Array.isArray(data.channel_index) ? data.channel_index[0] : null;
+          // 0 = prospect (remote), 1 = agent (local)
+          const speaker   = channelIdx !== null ? channelIdx : (alt?.words?.[0]?.speaker ?? null);
           const sentLabel = alt?.sentiments?.segments?.[0]?.sentiment || null;
           const sentScore = alt?.sentiments?.segments?.[0]?.sentiment_score ?? null;
           const entry = { text, time: new Date(), speaker, sentiment: sentLabel, sentScore };
@@ -395,9 +405,10 @@ export default function ScriptAssistant({ lead, user, onExpandCard, isCardExpand
 
     try {
       // 1. Save raw transcript
-      const transcriptText = finalTranscript.map(t =>
-        `[${new Date(t.time).toLocaleTimeString()}]${t.speaker !== null ? ` [S${t.speaker}]` : ''} ${t.text}`
-      ).join('\n');
+      const transcriptText = finalTranscript.map(t => {
+        const spkLabel = t.speaker === 1 ? '[Agent]' : t.speaker === 0 ? '[Prospect]' : '';
+        return `[${new Date(t.time).toLocaleTimeString()}]${spkLabel ? ' ' + spkLabel : ''} ${t.text}`;
+      }).join('\n');
       await base44.entities.LeadHistory.create({ leadId: l.id, type: 'transcript', content: transcriptText, createdBy: 'system' });
 
       // 2. Run post-call intent if it was used
@@ -699,7 +710,11 @@ export default function ScriptAssistant({ lead, user, onExpandCard, isCardExpand
           : [...transcript].reverse().slice(0, 30).map((t, i) => (
             <div key={i} style={{ marginBottom: '5px', fontSize: '11px' }}>
               <span style={{ color: '#4a5568', fontSize: '9px', marginRight: '5px' }}>{new Date(t.time).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', second: '2-digit' })}</span>
-              {t.speaker !== null && <span style={{ color: t.speaker === 0 ? '#60a5fa' : '#a78bfa', fontSize: '9px', marginRight: '4px' }}>[S{t.speaker}]</span>}
+              {t.speaker !== null && (
+                <span style={{ color: t.speaker === 1 ? GOLD : '#60a5fa', fontSize: '9px', fontWeight: 'bold', marginRight: '4px' }}>
+                  {t.speaker === 1 ? '🎙 Agent' : '👤 Prospect'}
+                </span>
+              )}
               <span style={{ color: '#c4cdd8' }}>{t.text}</span>
             </div>
           ))

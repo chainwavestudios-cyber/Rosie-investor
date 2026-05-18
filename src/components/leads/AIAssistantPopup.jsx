@@ -223,8 +223,8 @@ function RightPanel({ transcript, aiPanelItem, onCloseAI, panelWidthPct, onWidth
           )}
           {transcript.slice(-60).map((t, i) => (
             <div key={i} style={{ display: 'flex', gap: '6px', alignItems: 'flex-start' }}>
-              <span style={{ color: t.speaker === 1 ? GOLD : '#60a5fa', fontSize: '8px', fontWeight: 'bold', flexShrink: 0, marginTop: 2, minWidth: 28 }}>
-                {t.speaker === 1 ? '👤' : '🎙'}
+              <span style={{ color: t.speaker === 1 ? GOLD : '#60a5fa', fontSize: '8px', fontWeight: 'bold', flexShrink: 0, marginTop: 2, minWidth: 44 }}>
+                {t.speaker === 1 ? '🎙 Agent' : '👤 Prospect'}
               </span>
               <span style={{ color: '#c4cdd8', fontSize: '11px', lineHeight: 1.5 }}>{t.text}</span>
             </div>
