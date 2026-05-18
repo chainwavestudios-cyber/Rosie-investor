@@ -775,6 +775,22 @@ export default function LeadsTab({ openLeadId, onLeadOpened, mockLeads = null })
           ))}
         </div>
 
+        {/* Quick Dial contacts */}
+        <div style={{ padding:'8px 12px', borderTop:'1px solid rgba(255,255,255,0.07)' }}>
+          <div style={{ color:'#4a5568', fontSize:'9px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'6px' }}>📞 Quick Dial</div>
+          {[
+            { name: 'Eric',  phone: '(949) 629-3983' },
+            { name: 'Keith', phone: '(949) 355-4161' },
+          ].map(({ name, phone }) => (
+            <button key={name}
+              onClick={() => handleDialNumber({ firstName: name, lastName: '', phone, id: null })}
+              style={{ display:'flex', alignItems:'center', justifyContent:'space-between', width:'100%', background:'rgba(74,222,128,0.08)', color:'#4ade80', border:'1px solid rgba(74,222,128,0.2)', borderRadius:'3px', padding:'7px 10px', cursor:'pointer', fontSize:'11px', marginBottom:'5px', textAlign:'left' }}>
+              <span style={{ fontWeight:'bold' }}>📞 {name}</span>
+              <span style={{ fontFamily:'monospace', fontSize:'10px', color:'#6b7280' }}>{phone}</span>
+            </button>
+          ))}
+        </div>
+
         {/* Dialer buttons */}
         <div style={{ padding:'12px', borderTop:'1px solid rgba(255,255,255,0.07)' }}>
           <div style={{ color:'#4a5568', fontSize:'9px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'8px' }}>Dialers</div>
