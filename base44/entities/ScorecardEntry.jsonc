@@ -1,0 +1,33 @@
+{
+  "name": "ScorecardEntry",
+  "type": "object",
+  "properties": {
+    "username": {
+      "type": "string",
+      "title": "Username"
+    },
+    "dateKey": {
+      "type": "string",
+      "title": "Date Key"
+    },
+    "weekKey": {
+      "type": "string",
+      "title": "Week Key"
+    },
+    "calls": {
+      "type": "number",
+      "title": "Calls",
+      "default": 0
+    },
+    "fronts": {
+      "type": "number",
+      "title": "Fronts",
+      "default": 0
+    }
+  },
+  "required": [
+    "username",
+    "dateKey",
+    "weekKey"
+  ]
+}
