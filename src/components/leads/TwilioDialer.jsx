@@ -3,6 +3,7 @@ import { base44 } from '@/api/base44Client';
 import { useTwilioDevice } from '@/lib/TwilioDeviceContext';
 import { usePortalAuth } from '@/lib/PortalAuthContext';
 import VoiceFXPanel from '@/components/shared/VoiceFXPanel';
+import { fireScorecardCall } from '@/components/admin/ScoreCard';
 
 const GOLD = '#b8933a';
 const ADMIN_USERS = ['admin', 'steph'];
@@ -164,6 +165,7 @@ export default function TwilioDialer({ initialLead, onClose, onCallLogged, onCal
     setCallDirection('outbound');
     setDuration(0);
     setKeypadInput('');
+    fireScorecardCall(currentUsername);
 
     try {
       const device = await getDevice();
