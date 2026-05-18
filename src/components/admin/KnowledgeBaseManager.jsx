@@ -260,8 +260,13 @@ export default function KnowledgeBaseManager({ IntentEngineTuner, CoachRulesTune
         r.readAsDataURL(file);
       });
       setUploadProgress(`Processing "${file.name}" with AI — this may take 30-60s for large documents…`);
-      const result = await base44.functions.invoke('kbExtractFile', { fileName: file.name, fileType: file.type, base64 });
-      const extracted = result?.data?.entries || [];
+      const res = await fetch(
+        'https://investors.rosieai.tech/api/apps/69cd2741578c9b5ce655395b/functions/kbExtractFile',
+        { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ fileName: file.name, fileType: file.type, base64 }) }
+      );
+      if (!res.ok) { const err = await res.json(); throw new Error(err.error || `Server error ${res.status}`); }
+      const result = await res.json();
+      const extracted = result?.entries || [];
       setUploadProgress(`Saving ${extracted.length} entries…`);
       let saved = 0;
       for (const entry of extracted) {
