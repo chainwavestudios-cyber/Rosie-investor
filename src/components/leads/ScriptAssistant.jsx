@@ -318,7 +318,7 @@ export default function ScriptAssistant({ lead, user, onExpandCard, isCardExpand
             workletNode.connect(audioCtx.destination);
           } catch (err) {
             console.warn('AudioWorklet unavailable, falling back to ScriptProcessor:', err.message);
-            const proc = audioCtx.createScriptProcessor(4096, 1, 1);
+            const proc = audioCtx.createScriptProcessor(4096, 2, 2); // 2 input channels: ch0=prospect, ch1=agent
             processorRef.current = proc;
             const src = audioCtx.createMediaStreamSource(mergedStream);
             proc.onaudioprocess = e => {
