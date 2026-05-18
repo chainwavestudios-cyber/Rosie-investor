@@ -205,10 +205,8 @@ const PredictiveDialer = forwardRef(function PredictiveDialer({ contactLists, on
   const [queueIndex, setQueueIndex]           = useState(0);
   const [activeCall, setActiveCall]           = useState(null);
   const { getDevice, ready: deviceReady } = useTwilioDevice();
-  const [micDevices,     setMicDevices]     = useState([]);
-  const [selectedMicId,  setSelectedMicId]  = useState('');
-  const [outputDevices,  setOutputDevices]  = useState([]);
-  const [selectedOutId,  setSelectedOutId]  = useState('');
+  const [micDevices, setMicDevices]           = useState([]);
+  const [selectedMicId, setSelectedMicId]     = useState('');
 
   const linesRef       = useRef(lines);
   const queueRef       = useRef([]);
@@ -221,6 +219,7 @@ const PredictiveDialer = forwardRef(function PredictiveDialer({ contactLists, on
   const ringTimersRef  = useRef({});
   const wrapTimerRef   = useRef(null);
   const connectingRef  = useRef(false);
+  const lastDialTimeRef = useRef(0); // global rate limiter across all lines
   const deviceRef      = useRef(null);
   const activeCallRef  = useRef(null);
 
@@ -271,27 +270,6 @@ const PredictiveDialer = forwardRef(function PredictiveDialer({ contactLists, on
 
   const addLog = useCallback((type, msg) => {
     setLogs(prev => [{ type, msg, time: fmtTime(new Date()) }, ...prev].slice(0, 150));
-  }, []);
-
-  // Enumerate audio devices + load saved defaults
-  useEffect(() => {
-    const enumerate = () => {
-      navigator.mediaDevices.enumerateDevices().then(devices => {
-        const mics = devices.filter(d => d.kind === 'audioinput');
-        const outs = devices.filter(d => d.kind === 'audiooutput');
-        setMicDevices(mics);
-        setOutputDevices(outs);
-        const savedMic = localStorage.getItem(`defaultMic_${currentUsername}`);
-        const savedOut = localStorage.getItem(`defaultOutput_${currentUsername}`);
-        if (savedMic && mics.some(m => m.deviceId === savedMic)) setSelectedMicId(savedMic);
-        else if (mics.length > 0) setSelectedMicId(mics[0].deviceId);
-        if (savedOut && outs.some(d => d.deviceId === savedOut)) setSelectedOutId(savedOut);
-        else if (outs.length > 0) setSelectedOutId(outs[0].deviceId);
-      }).catch(() => {});
-    };
-    navigator.mediaDevices.getUserMedia({ audio: true })
-      .then(s => { s.getTracks().forEach(t => t.stop()); enumerate(); })
-      .catch(() => enumerate());
   }, []);
 
   // Warm up the shared device on mount so it's ready when dialing starts
@@ -517,14 +495,7 @@ const PredictiveDialer = forwardRef(function PredictiveDialer({ contactLists, on
     try {
       const device = deviceRef.current;
       if (!device) throw new Error('Twilio device not ready');
-      if (selectedOutId) {
-        try { await device.audio?.speakerDevices?.set([selectedOutId]); } catch {}
-        try { await device.audio?.ringtoneDevices?.set([selectedOutId]); } catch {}
-      }
-      const call = await device.connect({
-        params: { ConferenceName: conferenceName || callSid },
-        ...(selectedMicId ? { rtcConstraints: { audio: { deviceId: { exact: selectedMicId } } } } : {}),
-      });
+      const call = await device.connect({ params: { ConferenceName: conferenceName || callSid } });
       call.on('disconnect', () => {
         addLog('system', 'Call audio disconnected');
         setActiveCall(null);
@@ -607,6 +578,15 @@ const PredictiveDialer = forwardRef(function PredictiveDialer({ contactLists, on
 
   const dialLine = useCallback(async (lineIdx) => {
     if (!runningRef.current) return;
+
+    // Rate limit: enforce 1.2s minimum between any two dials across all lines
+    const sinceLastDial = Date.now() - lastDialTimeRef.current;
+    if (sinceLastDial < 1200) {
+      await new Promise(r => setTimeout(r, 1200 - sinceLastDial));
+      if (!runningRef.current) return;
+    }
+    lastDialTimeRef.current = Date.now();
+
     const lead = getNextLead();
     if (!lead) {
       addLog('system', `Line ${lineIdx + 1}: Queue exhausted`);
@@ -632,7 +612,7 @@ const PredictiveDialer = forwardRef(function PredictiveDialer({ contactLists, on
         if (cur.callSid) await hangupCall(cur.callSid);
         base44.entities.LeadHistory.create({ leadId: lead.id, type: 'not_available', content: `No answer after ${s.maxRingTime}s (attempt #${attempts}) · by ${currentUsername}`, createdBy: currentUsername }).catch(() => {});
         cleanLine(lineIdx, 'no_answer');
-        setTimeout(() => { if (runningRef.current) dialLine(lineIdx); }, 1000);
+        setTimeout(() => { if (runningRef.current) dialLine(lineIdx); }, 1500);
       }
     }, s.maxRingTime * 1000);
     try {
@@ -653,7 +633,7 @@ const PredictiveDialer = forwardRef(function PredictiveDialer({ contactLists, on
       clearTimeout(ringTimersRef.current[lineIdx]);
       addLog('error', `Line ${lineIdx + 1}: Failed — ${e.message}`);
       cleanLine(lineIdx, 'no_answer');
-      setTimeout(() => { if (runningRef.current) dialLine(lineIdx); }, 2000);
+      setTimeout(() => { if (runningRef.current) dialLine(lineIdx); }, 3000);
     }
   }, []);
 
@@ -718,33 +698,12 @@ const PredictiveDialer = forwardRef(function PredictiveDialer({ contactLists, on
       {showSettings && (
         <>
           <SettingsPanel settings={settings} onChange={setSettings} />
-          {(micDevices.length > 0 || outputDevices.length > 0) && (
-            <div style={{ background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: '10px', padding: '14px 16px', marginBottom: '12px' }}>
-              <div style={{ color: GOLD, fontSize: '10px', letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: '10px' }}>🎙 Audio Devices</div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                {micDevices.length > 0 && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <span style={{ color: '#6b7280', fontSize: '10px', minWidth: 70 }}>Microphone</span>
-                    <select value={selectedMicId} onChange={e => setSelectedMicId(e.target.value)} style={{ flex: 1, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '6px', padding: '6px 10px', color: '#e8e0d0', fontSize: '12px', outline: 'none', cursor: 'pointer' }}>
-                      {micDevices.map(d => <option key={d.deviceId} value={d.deviceId}>🎙 {d.label || `Mic ${d.deviceId.slice(0,6)}`}</option>)}
-                    </select>
-                  </div>
-                )}
-                {outputDevices.length > 0 && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <span style={{ color: '#6b7280', fontSize: '10px', minWidth: 70 }}>Speaker</span>
-                    <select value={selectedOutId} onChange={e => setSelectedOutId(e.target.value)} style={{ flex: 1, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '6px', padding: '6px 10px', color: '#e8e0d0', fontSize: '12px', outline: 'none', cursor: 'pointer' }}>
-                      {outputDevices.map(d => <option key={d.deviceId} value={d.deviceId}>🔊 {d.label || `Speaker ${d.deviceId.slice(0,6)}`}</option>)}
-                    </select>
-                  </div>
-                )}
-                <button onClick={() => {
-                  if (selectedMicId) localStorage.setItem(`defaultMic_${currentUsername}`, selectedMicId);
-                  if (selectedOutId) localStorage.setItem(`defaultOutput_${currentUsername}`, selectedOutId);
-                }} style={{ alignSelf: 'flex-start', background: 'rgba(184,147,58,0.1)', border: '1px solid rgba(184,147,58,0.3)', borderRadius: '6px', padding: '4px 12px', color: GOLD, fontSize: '10px', cursor: 'pointer' }}>
-                  ★ Save as Default
-                </button>
-              </div>
+          {micDevices.length > 0 && (
+            <div style={{ background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: '10px', padding: '14px 16px', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <span style={{ color: '#8a9ab8', fontSize: '10px', letterSpacing: '1.5px', textTransform: 'uppercase', flexShrink: 0 }}>🎙 Microphone</span>
+              <select value={selectedMicId} onChange={e => setSelectedMicId(e.target.value)} style={{ flex: 1, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '6px', padding: '7px 10px', color: '#e8e0d0', fontSize: '12px', outline: 'none', cursor: 'pointer' }}>
+                {micDevices.map(d => <option key={d.deviceId} value={d.deviceId}>{d.label || `Mic ${d.deviceId.slice(0, 6)}`}</option>)}
+              </select>
             </div>
           )}
           {/* Timezone filter */}
