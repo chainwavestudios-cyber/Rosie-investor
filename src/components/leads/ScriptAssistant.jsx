@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+\import { useState, useEffect, useRef, useCallback } from 'react';
 import { base44 } from '@/api/base44Client';
 import { getPortalSettings, loadPortalSettings } from '@/lib/portalSettings';
 import AIAssistantPopup from './AIAssistantPopup';
@@ -144,11 +144,15 @@ export default function ScriptAssistant({ lead, user, onExpandCard, isCardExpand
           const workletCode = `
             class PCMProcessor extends AudioWorkletProcessor {
               process(inputs) {
-                const input = inputs[0]?.[0];
-                if (input?.length) {
-                  const pcm = new Int16Array(input.length);
-                  for (let i = 0; i < input.length; i++) {
-                    pcm[i] = Math.max(-32768, Math.min(32767, input[i] * 32768));
+                const ch0 = inputs[0]?.[0]; // ch0 = remote / prospect
+                const ch1 = inputs[0]?.[1]; // ch1 = local  / agent
+                const len = ch0?.length || ch1?.length || 0;
+                if (len) {
+                  // Interleave both channels: L R L R... so Deepgram sees 2-channel audio
+                  const pcm = new Int16Array(len * 2);
+                  for (let i = 0; i < len; i++) {
+                    pcm[i * 2]     = Math.max(-32768, Math.min(32767, (ch0?.[i] ?? 0) * 32768));
+                    pcm[i * 2 + 1] = Math.max(-32768, Math.min(32767, (ch1?.[i] ?? 0) * 32768));
                   }
                   this.port.postMessage(pcm.buffer, [pcm.buffer]);
                 }
@@ -282,11 +286,15 @@ export default function ScriptAssistant({ lead, user, onExpandCard, isCardExpand
           const workletCode = `
             class PCMProcessor extends AudioWorkletProcessor {
               process(inputs) {
-                const input = inputs[0]?.[0];
-                if (input?.length) {
-                  const pcm = new Int16Array(input.length);
-                  for (let i = 0; i < input.length; i++) {
-                    pcm[i] = Math.max(-32768, Math.min(32767, input[i] * 32768));
+                const ch0 = inputs[0]?.[0]; // ch0 = remote / prospect
+                const ch1 = inputs[0]?.[1]; // ch1 = local  / agent
+                const len = ch0?.length || ch1?.length || 0;
+                if (len) {
+                  // Interleave both channels: L R L R... so Deepgram sees 2-channel audio
+                  const pcm = new Int16Array(len * 2);
+                  for (let i = 0; i < len; i++) {
+                    pcm[i * 2]     = Math.max(-32768, Math.min(32767, (ch0?.[i] ?? 0) * 32768));
+                    pcm[i * 2 + 1] = Math.max(-32768, Math.min(32767, (ch1?.[i] ?? 0) * 32768));
                   }
                   this.port.postMessage(pcm.buffer, [pcm.buffer]);
                 }
@@ -315,9 +323,14 @@ export default function ScriptAssistant({ lead, user, onExpandCard, isCardExpand
             const src = audioCtx.createMediaStreamSource(mergedStream);
             proc.onaudioprocess = e => {
               if (ws.readyState !== WebSocket.OPEN) return;
-              const input = e.inputBuffer.getChannelData(0);
-              const pcm   = new Int16Array(input.length);
-              for (let i = 0; i < input.length; i++) pcm[i] = Math.max(-32768, Math.min(32767, input[i] * 32768));
+              const ch0 = e.inputBuffer.getChannelData(0); // prospect
+              const ch1 = e.inputBuffer.numberOfChannels > 1 ? e.inputBuffer.getChannelData(1) : null; // agent
+              const len = ch0.length;
+              const pcm = new Int16Array(len * 2);
+              for (let i = 0; i < len; i++) {
+                pcm[i * 2]     = Math.max(-32768, Math.min(32767, ch0[i] * 32768));
+                pcm[i * 2 + 1] = Math.max(-32768, Math.min(32767, (ch1?.[i] ?? 0) * 32768));
+              }
               ws.send(pcm.buffer);
             };
             src.connect(proc);
