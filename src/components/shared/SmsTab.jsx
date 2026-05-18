@@ -100,10 +100,9 @@ export default function SmsTab({ toPhone, toPhone2, toName, leadId, investorId, 
     if (!selectedPhone) { setSendMsg('⚠️ No phone number available.'); console.log('[SmsTab] blocked: no phone'); return; }
     setSending(true); setSendMsg('');
     try {
-      const APP_ID = '69cd2741578c9b5ce655395b';
       console.log('[SmsTab] fetching sendSms function...');
       const res = await fetch(
-        `https://run.base44.com/apps/${APP_ID}/functions/sendSms`,
+        'https://investors.rosieai.tech/api/apps/69cd2741578c9b5ce655395b/functions/sendSms',
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
