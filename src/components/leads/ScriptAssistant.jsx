@@ -55,6 +55,7 @@ export default function ScriptAssistant({ lead, user, onExpandCard, isCardExpand
   const [coachActive,  setCoachActive]  = useState(false);
   const [intentActive, setIntentActive] = useState(false);
   const [intentResult, setIntentResult] = useState(null);
+  const [previousCallSummary, setPreviousCallSummary] = useState(null);
 
   // Post-call saving
   const [reportSaving, setReportSaving] = useState(false);
@@ -90,6 +91,19 @@ export default function ScriptAssistant({ lead, user, onExpandCard, isCardExpand
       setKbEntries(entries.filter(e => !e.kbName || e.kbName === ''));
     }).catch(() => {});
     loadPortalSettings().then(setPortalCfg).catch(() => {});
+    // Load previous call transcript for coaching context (live calls only, not BOB)
+    if (lead?.id) {
+      base44.entities.LeadHistory.filter({ leadId: lead.id, type: 'transcript' })
+        .then(records => {
+          const real = (records || []).filter(r => r.source !== 'bob_training');
+          if (real.length > 0) {
+            // Most recent prior transcript becomes context for coaching
+            const sorted = real.sort((a, b) => new Date(b.created_date||0) - new Date(a.created_date||0));
+            const lines = (sorted[0].content || '').split('\n').slice(-12).join('\n');
+            setPreviousCallSummary(lines);
+          }
+        }).catch(() => {});
+    }
     return () => stopListening();
   }, []);
 
@@ -425,7 +439,15 @@ export default function ScriptAssistant({ lead, user, onExpandCard, isCardExpand
         const spkLabel = t.speaker === 1 ? '[Agent]' : t.speaker === 0 ? '[Prospect]' : '';
         return `[${new Date(t.time).toLocaleTimeString()}]${spkLabel ? ' ' + spkLabel : ''} ${t.text}`;
       }).join('\n');
-      await base44.entities.LeadHistory.create({ leadId: l.id, type: 'transcript', content: transcriptText, createdBy: 'system' });
+      await base44.entities.LeadHistory.create({
+        leadId: l.id,
+        type: 'transcript',
+        source: 'live_call',  // never 'bob_training' — BOB data stays in BOB
+        content: transcriptText,
+        kbName: selectedKbName || '',
+        callAttemptNumber: l.callAttempts || 1,
+        createdBy: 'system',
+      });
 
       // 2. Run post-call intent if it was used
       let finalIntent = intentResult;
@@ -834,6 +856,8 @@ export default function ScriptAssistant({ lead, user, onExpandCard, isCardExpand
           selectedKbName={selectedKbName}
           activeScript={scripts.find(s => s.id === activeId) || scripts[0]}
           scripts={scripts}
+          callAttemptNumber={lead?.callAttempts || 1}
+          previousCallSummary={previousCallSummary}
           onKbChange={async (name) => {
             setSelectedKbName(name);
             setKbEntries(name
