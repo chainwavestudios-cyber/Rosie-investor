@@ -18,10 +18,11 @@ import OptIn from './pages/OptIn';
 import OptInScreenshot from './pages/OptInScreenshot';
 import PrivacyPolicy from './pages/PrivacyPolicy';
 import Terms from './pages/Terms';
+import RequestAccess from './pages/RequestAccess';
 import { PortalAuthProvider } from '@/lib/PortalAuthContext';
 import { TwilioDeviceProvider } from '@/lib/TwilioDeviceContext';
 
-const PUBLIC_PATHS = ['/optin', '/optin/screenshot', '/privacy', '/terms', '/portal-login', '/admin-login'];
+const PUBLIC_PATHS = ['/optin', '/optin/screenshot', '/privacy', '/terms', '/portal-login', '/admin-login', '/request-access'];
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
@@ -57,6 +58,7 @@ const AuthenticatedApp = () => {
       <Route path="/terms" element={<Terms />} />
       <Route path="/portal-login" element={<PortalLogin />} />
       <Route path="/admin-login" element={<AdminLogin />} />
+      <Route path="/request-access" element={<RequestAccess />} />
       {/* Add your page Route elements here */}
       <Route path="/" element={<Home />} />
       <Route path="/portal" element={<InvestorPortal />} />
