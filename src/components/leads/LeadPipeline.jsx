@@ -232,17 +232,17 @@ export default function LeadPipeline({ onOpenLead, mockLeads = null }) {
       return;
     }
     loadData();
-    const interval = setInterval(loadData, 10000); // Refresh every 10s
-    return () => clearInterval(interval);
+    // No auto-poll — data loaded on mount and manual refresh only
+    // no interval to clear
   }, [mockLeads]);
 
   const loadData = async () => {
     setLoading(true);
     try {
       const [allLeads, appts, histories] = await Promise.all([
-        base44.entities.Lead.list('-created_date', 10000),
+        base44.entities.Lead.list('-created_date', 2000),
         base44.entities.Appointment.filter({ status: 'scheduled' }),
-        base44.entities.LeadHistory.list('-created_date', 500).catch(() => []),
+        base44.entities.LeadHistory.list('-created_date', 100).catch(() => []),
       ]);
 
       // Filter: only non-migrated, non-converted, and either prospect status OR nb_tech leadType
