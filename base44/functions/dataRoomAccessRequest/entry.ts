@@ -63,7 +63,7 @@ const THANK_YOU_HTML = (firstName, email, leadId) => `<!DOCTYPE html>
           <img src="https://media.base44.com/images/public/69cd2741578c9b5ce655395b/9febafab0_Untitled313x313px.png" alt="SMS" style="width:52px;height:52px;object-fit:contain;flex-shrink:0;" />
           <div>
             <div class="sms-title">Stay in the Loop via Text</div>
-            <div class="sms-sub">Opt in to receive updates &amp; notifications via SMS</div>
+            <div class="sms-sub">Get up to the minute important updates on your exclusive access to our upcoming Nasdaq IPO. We never share your information, and send limited messages per month.</div>
           </div>
         </div>
         <div id="sms-form">
