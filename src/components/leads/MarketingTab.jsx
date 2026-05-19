@@ -47,9 +47,9 @@ function LeadTable({ leads, selected, onToggle, onToggleAll }) {
             return (
               <tr
                 key={lead.id}
-                onClick={() => onToggle(lead.id)}
-                style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', cursor: 'pointer', background: isSelected ? 'rgba(184,147,58,0.07)' : 'transparent', transition: 'background 0.1s' }}
-                onMouseEnter={e => { if (!isSelected) e.currentTarget.style.background = 'rgba(184,147,58,0.03)'; }}
+                onClick={() => lead.email && onToggle(lead.id)}
+                style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', cursor: lead.email ? 'pointer' : 'default', background: isSelected ? 'rgba(184,147,58,0.07)' : 'transparent', opacity: lead.email ? 1 : 0.45, transition: 'background 0.1s' }}
+                onMouseEnter={e => { if (!isSelected && lead.email) e.currentTarget.style.background = 'rgba(184,147,58,0.03)'; }}
                 onMouseLeave={e => { if (!isSelected) e.currentTarget.style.background = isSelected ? 'rgba(184,147,58,0.07)' : 'transparent'; }}>
                 <td style={{ padding: '12px', textAlign: 'center' }}>
                   <div style={{ width: '18px', height: '18px', borderRadius: '3px', margin: 'auto', background: isSelected ? GOLD : 'rgba(255,255,255,0.05)', border: `1px solid ${isSelected ? GOLD : 'rgba(255,255,255,0.2)'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: DARK, fontSize: '11px', fontWeight: 'bold' }}>
@@ -108,18 +108,35 @@ function NbtechEmailSection({ currentUsername }) {
     try {
       let all;
       if (listId && listId !== 'all') {
-        all = await base44.entities.Lead.filter({ contactListId: listId });
+        // Try targeted filter first
+        const filtered = await base44.entities.Lead.filter({ contactListId: listId });
+        if (filtered && filtered.length > 0) {
+          all = filtered;
+        } else {
+          // Fallback: load all and filter client-side
+          // Handles cases where server-side filter returns empty due to RLS or index issues
+          const fallback = await base44.entities.Lead.list('-created_date', 5000);
+          all = (fallback || []).filter(l => l.contactListId === listId);
+        }
       } else {
         all = await base44.entities.Lead.list('-created_date', 5000);
       }
+
       const eligible = (all || []).filter(l =>
-        l.email &&
         !l.migratedToPortal &&
         !l.convertedToInvestorUserId &&
         l.status !== 'not_interested'
       );
-      setLeads(eligible);
-    } catch {}
+
+      // In 'all' mode require email for mass send; in specific list mode show everything
+      setLeads(listId && listId !== 'all'
+        ? eligible
+        : eligible.filter(l => l.email)
+      );
+    } catch(e) {
+      console.error('[NbtechEmailSection] loadLeads error:', e);
+      setLeads([]);
+    }
     setLoading(false);
   };
 
