@@ -414,9 +414,12 @@ export default function LeadsTab({ openLeadId, onLeadOpened, mockLeads = null })
     base44.entities.ContactList.list('-created_date', 100).then(setContactLists).catch(() => {});
     loadTodayAppointments();
 
-    // Auto-refresh leads every 10 seconds
+    // Auto-refresh leads, activity, and contact lists every 10 seconds
     const refreshInterval = setInterval(() => {
       loadLeads();
+      loadActivity();
+      base44.entities.ContactList.list('-created_date', 100).then(setContactLists).catch(() => {});
+      loadTodayAppointments();
     }, 10000);
     return () => clearInterval(refreshInterval);
   }, []);
