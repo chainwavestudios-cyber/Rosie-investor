@@ -321,7 +321,12 @@ export default function MarketingTab() {
     setLoading(false);
   };
 
-  useEffect(() => { loadUncontactedLeads(showAll); setPage(1); }, [showAll]);
+  useEffect(() => { 
+    loadUncontactedLeads(showAll); 
+    setPage(1);
+    const interval = setInterval(() => loadUncontactedLeads(showAll), 10000);
+    return () => clearInterval(interval);
+  }, [showAll]);
 
   const filteredLeads = leads.filter(l => {
     if (!search) return true;
