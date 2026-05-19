@@ -37,7 +37,8 @@ export function fireScorecardNBTechConvert(username) {
 // ─── Individual card ──────────────────────────────────────────────────────────
 
 function ScoreCard({ username, displayName }) {
-  const isSteph = username === 'steph';\n
+  const isSteph = username === 'steph';
+
   const [scores, setScores] = useState({ calls24: 0, fronts24: 0, callsWeek: 0, frontsWeek: 0 });
   const [loading, setLoading] = useState(true);
   const mountedRef   = useRef(true);
