@@ -270,6 +270,7 @@ export default function ContactCardModal({ user, onClose, onSave, allSessions, m
       setTimeout(() => setPortalEmailMsg(''), 4000);
     } catch (e) { setPortalEmailMsg('Error: ' + (e.response?.data?.error || e.message)); }
     setSendingPortalEmail(false);
+  };
 
   // ── Tab definitions ────────────────────────────────────────────────
   const TABS_ROW1 = [
@@ -798,3 +799,4 @@ export default function ContactCardModal({ user, onClose, onSave, allSessions, m
     )}
     </>
   );
+}
