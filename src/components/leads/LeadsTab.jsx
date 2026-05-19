@@ -578,6 +578,15 @@ export default function LeadsTab({ openLeadId, onLeadOpened, mockLeads = null })
     } catch(e) { console.error('Reset failed:', e); }
   };
 
+  const handleRestoreLead = async (lead) => {
+    if (!window.confirm(`Restore ${lead.firstName} ${lead.lastName} as a Prospect?`)) return;
+    try {
+      await base44.entities.Lead.update(lead.id, { status: 'prospect' });
+      await base44.entities.LeadHistory.create({ leadId: lead.id, type: 'status_change', content: `♻️ Restored from archive to Prospect`, createdBy: 'admin' }).catch(() => {});
+      loadLeads();
+    } catch(e) { console.error('Restore failed:', e); }
+  };
+
   const handleUpdateListName = async (listId, newName) => {
     if (!newName.trim()) return;
     try {
@@ -1250,10 +1259,16 @@ export default function LeadsTab({ openLeadId, onLeadOpened, mockLeads = null })
                       <span style={{ background:'rgba(74,222,128,0.1)', color:'#4ade80', border:'1px solid rgba(74,222,128,0.25)', borderRadius:'3px', padding:'2px 8px', fontSize:'10px' }}>✅ Migrated to CRM</span>
                     </td>
                     <td style={{ padding:'10px 12px' }}>
-                      <button onClick={e => { e.stopPropagation(); setSelectedLead(lead); }}
-                        style={{ background:'rgba(245,158,11,0.12)', color:'#f59e0b', border:'1px solid rgba(245,158,11,0.3)', borderRadius:'2px', padding:'4px 12px', cursor:'pointer', fontSize:'11px' }}>
-                        📂 View Card →
-                      </button>
+                      <div style={{ display:'flex', gap:'6px' }}>
+                        <button onClick={e => { e.stopPropagation(); setSelectedLead(lead); }}
+                          style={{ background:'rgba(245,158,11,0.12)', color:'#f59e0b', border:'1px solid rgba(245,158,11,0.3)', borderRadius:'2px', padding:'4px 12px', cursor:'pointer', fontSize:'11px' }}>
+                          📂 View →
+                        </button>
+                        <button onClick={e => { e.stopPropagation(); handleRestoreLead(lead); }}
+                          style={{ background:'rgba(167,139,250,0.12)', color:'#a78bfa', border:'1px solid rgba(167,139,250,0.3)', borderRadius:'2px', padding:'4px 12px', cursor:'pointer', fontSize:'11px', whiteSpace:'nowrap' }}>
+                          ♻️ Restore
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
