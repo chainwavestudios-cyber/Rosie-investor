@@ -304,6 +304,8 @@ export default function MarketingTab() {
   const [sendMsg, setSendMsg]     = useState('');
   const [search, setSearch]       = useState('');
   const [showAll, setShowAll]     = useState(false);
+  const [page, setPage]           = useState(1);
+  const PAGE_SIZE = 10;
 
   const loadUncontactedLeads = async (includeAll) => {
     setLoading(true);
@@ -319,13 +321,18 @@ export default function MarketingTab() {
     setLoading(false);
   };
 
-  useEffect(() => { loadUncontactedLeads(showAll); }, [showAll]);
+  useEffect(() => { loadUncontactedLeads(showAll); setPage(1); }, [showAll]);
 
   const filteredLeads = leads.filter(l => {
     if (!search) return true;
     const q = search.toLowerCase();
     return `${l.firstName} ${l.lastName} ${l.email} ${l.state}`.toLowerCase().includes(q);
   });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { setPage(1); }, [search]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredLeads.length / PAGE_SIZE));
+  const pagedLeads = filteredLeads.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   const toggleSelect = (id) => {
     if (selected.has(id)) {
@@ -474,12 +481,22 @@ export default function MarketingTab() {
           </div>
         </div>
       ) : (
-        <LeadTable leads={filteredLeads} selected={selected} onToggle={toggleSelect} onToggleAll={toggleAll} />
+        <LeadTable leads={pagedLeads} selected={selected} onToggle={toggleSelect} onToggleAll={toggleAll} />
       )}
 
       {filteredLeads.length > 0 && (
-        <div style={{ marginTop: '12px', color: '#4a5568', fontSize: '11px', textAlign: 'right' }}>
-          {filteredLeads.length} uncontacted lead{filteredLeads.length !== 1 ? 's' : ''} with email addresses
+        <div style={{ marginTop: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+          <span style={{ color: '#4a5568', fontSize: '11px' }}>
+            {filteredLeads.length} lead{filteredLeads.length !== 1 ? 's' : ''} · Page {page} of {totalPages}
+          </span>
+          {totalPages > 1 && (
+            <div style={{ display: 'flex', gap: '6px' }}>
+              <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
+                style={{ background: 'rgba(255,255,255,0.05)', color: page === 1 ? '#4a5568' : '#e8e0d0', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '2px', padding: '4px 12px', cursor: page === 1 ? 'not-allowed' : 'pointer', fontSize: '11px' }}>← Prev</button>
+              <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages}
+                style={{ background: 'rgba(255,255,255,0.05)', color: page === totalPages ? '#4a5568' : '#e8e0d0', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '2px', padding: '4px 12px', cursor: page === totalPages ? 'not-allowed' : 'pointer', fontSize: '11px' }}>Next →</button>
+            </div>
+          )}
         </div>
       )}
 
