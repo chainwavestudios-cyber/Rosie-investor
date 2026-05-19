@@ -8,7 +8,7 @@ Deno.serve(async (req) => {
   // Public endpoint — no auth required
   const base44 = createClientFromRequest(req);
 
-  const { phone, firstName } = await req.json();
+  const { phone, firstName, leadId: passedLeadId, email } = await req.json();
 
   if (!phone || !phone.trim()) {
     return Response.json({ error: 'Phone number is required' }, { status: 400 });
@@ -46,21 +46,26 @@ Deno.serve(async (req) => {
     return Response.json({ error: twilioData.message || 'Failed to send confirmation SMS' }, { status: 500 });
   }
 
-  // Try to match Lead by phone
+  // Try to match Lead by passed leadId first, then by phone
   let leadId = null;
   let investorId = null;
 
   try {
-    const leads = await base44.asServiceRole.entities.Lead.list('-created_date', 1000);
-    const matchedLead = leads.find(l => {
-      const p1 = (l.phone || '').replace(/[\s\-().]/g, '');
-      const p2 = (l.phone2 || '').replace(/[\s\-().]/g, '');
-      return p1 === normalizedPhone || p2 === normalizedPhone;
-    });
-    if (matchedLead) {
-      leadId = matchedLead.id;
-      // Flag the lead so badges show in admin cards
-      await base44.asServiceRole.entities.Lead.update(matchedLead.id, { badgeSmsOptIn: true }).catch(() => {});
+    if (passedLeadId) {
+      // Direct match from URL param
+      leadId = passedLeadId;
+      await base44.asServiceRole.entities.Lead.update(passedLeadId, { badgeSmsOptIn: true }).catch(() => {});
+    } else {
+      const leads = await base44.asServiceRole.entities.Lead.list('-created_date', 1000);
+      const matchedLead = leads.find(l => {
+        const p1 = (l.phone || '').replace(/[\s\-().]/g, '');
+        const p2 = (l.phone2 || '').replace(/[\s\-().]/g, '');
+        return p1 === normalizedPhone || p2 === normalizedPhone;
+      });
+      if (matchedLead) {
+        leadId = matchedLead.id;
+        await base44.asServiceRole.entities.Lead.update(matchedLead.id, { badgeSmsOptIn: true }).catch(() => {});
+      }
     }
   } catch {}
 

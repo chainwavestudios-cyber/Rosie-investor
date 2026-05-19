@@ -458,6 +458,7 @@ export default function CustomEmailTab({ toEmail, toName, leadId, investorId, se
                   <span style={{ color: '#4a5568', fontSize: '10px', flexShrink: 0, marginLeft: '8px' }}>{fmtDT(log.sentAt)}</span>
                 </div>
                 <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', marginTop: '4px' }}>
+                  {(log.toName || log.toEmail) && <span style={{ color: '#e8e0d0', fontSize: '11px', fontWeight: 'bold' }}>→ {log.toName || ''} <span style={{ color: '#4a5568', fontWeight: 'normal', fontFamily: 'monospace' }}>{log.toEmail}</span></span>}
                   {log.sentBy    && <span style={{ color: '#6b7280', fontSize: '10px' }}>by {log.sentBy}</span>}
                   {log.openedAt  && <span style={{ color: '#4ade80', fontSize: '10px' }}>📬 Opened {fmtDT(log.openedAt)}</span>}
                   {log.clickedAt && <span style={{ color: '#f59e0b', fontSize: '10px' }}>🔗 Clicked {fmtDT(log.clickedAt)}</span>}

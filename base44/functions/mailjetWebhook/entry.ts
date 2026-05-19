@@ -36,7 +36,10 @@ Deno.serve(async (req) => {
       try {
         // ── Update EmailLog ───────────────────────────────────────────────
         const logs = await base44.entities.EmailLog.filter({ leadId });
-        const log  = logs.find((l: any) => l.messageId === messageId) || logs[logs.length - 1];
+        // Match by messageId first; fall back to most recent unresolved log for this lead
+        const log  = logs.find((l: any) => l.messageId === messageId)
+                  || logs.find((l: any) => l.status === 'sent')
+                  || logs[logs.length - 1];
 
         // ── Find Lead ─────────────────────────────────────────────────────
         const leads = await base44.entities.Lead.filter({ id: leadId });
@@ -110,7 +113,7 @@ Deno.serve(async (req) => {
           await writeInvestorNote(`🔗 Email link clicked: ${url || 'unknown'}`);
           console.log(`[Mailjet] ✅ Click recorded for lead ${leadId}`);
 
-        } else if (event === 'sent') {
+        } else if (event === 'sent' || event === 'delivered') {
           if (log) await base44.entities.EmailLog.update(log.id, { status: 'delivered' });
           console.log(`[Mailjet] ✅ Delivered for lead ${leadId}`);
 

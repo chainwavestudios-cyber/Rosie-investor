@@ -22,6 +22,7 @@ import RecentInvestorEvents from '@/components/admin/RecentInvestorEvents';
 import ContactCardModal from '@/components/admin/ContactCardModal';
 import { base44 } from '@/api/base44Client';
 import MarketingTab from '@/components/leads/MarketingTab';
+import NbEmailActivityTab from '@/components/leads/NbEmailActivityTab';
 import KnowledgeBaseManagerComponent from '@/components/admin/KnowledgeBaseManager';
 import GlobalCalendar from '@/components/admin/GlobalCalendar';
 import BobTab from '@/components/admin/BobTab';
@@ -57,6 +58,7 @@ const VIEWS = [
   { id:'analytics',label:'Analytics' },
   { id:'activity', label:'Recent Activity' },
   { id:'marketing', label:'📣 Marketing' },
+  { id:'nb_email_activity', label:'💡 NB Email Activity' },
   { id:'kb',       label:'🧠 Knowledge Base' },
   { id:'signnow',  label:'SignNow Requests' },
   { id:'portal',   label:'Portal Controls' },
@@ -489,6 +491,7 @@ export default function AdminDashboardMain({
         {view === 'leads'            && <LeadsTab openLeadId={openLeadId} onLeadOpened={() => setOpenLeadId(null)} mockLeads={isMockUser ? MOCK_LEADS : null} />}
         {view === 'sms'             && <SmsConversationsPanel />}
         {view === 'marketing'        && <MarketingTab />}
+        {view === 'nb_email_activity' && <NbEmailActivityTab />}
         {view === 'kb'               && <KnowledgeBaseManagerComponent IntentEngineTuner={IntentEngineTuner} CoachRulesTuner={CoachRulesTuner} />}
         {view === 'signnow'          && <SignNowRequestsView settings={portalSettings} />}
         {view === 'signnow-settings' && <SignNowSettings settings={portalSettings} onSettingsSaved={s => setPortalSettings(s)} />}
