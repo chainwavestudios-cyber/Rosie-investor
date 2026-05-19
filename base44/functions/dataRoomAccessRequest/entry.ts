@@ -27,18 +27,19 @@ Deno.serve(async (req) => {
   const displayName = name || email;
   const now = new Date().toISOString();
 
-  // ── 1. Log to LeadHistory if we have a leadId ─────────────────────────────
+  // ── 1. Update lead type + pipeline stage, log history ────────────────────
   if (leadId) {
+    await base44.asServiceRole.entities.Lead.update(leadId, {
+      leadType: 'nb_data',
+      leadPipelineStage: 'data_room_request',
+      badgeInvestorPage: true,
+    }).catch(() => {});
+
     await base44.asServiceRole.entities.LeadHistory.create({
       leadId,
       type: 'note',
-      content: `🔐 Data Room Access Requested by ${displayName} (${email}) — clicked email button`,
+      content: `🔐 Data Room Access Requested by ${displayName} (${email}) — clicked email button. Lead type set to NB Data, moved to Data Room Request pipeline stage.`,
       createdBy: 'system',
-    }).catch(() => {});
-
-    // Also bump engagement score / badge
-    await base44.asServiceRole.entities.Lead.update(leadId, {
-      badgeInvestorPage: true,
     }).catch(() => {});
   }
 

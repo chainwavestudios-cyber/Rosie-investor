@@ -64,7 +64,8 @@
       "title": "Lead Type",
       "enum": [
         "standard",
-        "nb_tech"
+        "nb_tech",
+        "nb_data"
       ],
       "default": "standard"
     },
@@ -96,7 +97,8 @@
         "read",
         "callback",
         "preclose",
-        "load"
+        "load",
+        "data_room_request"
       ],
       "default": "reviewing"
     },
