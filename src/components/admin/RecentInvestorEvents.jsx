@@ -3,6 +3,7 @@ import { base44 } from '@/api/base44Client';
 import analytics from '@/lib/analytics';
 
 const GOLD = '#b8933a';
+const TZ   = 'America/New_York';
 
 function fmt(dt) {
   if (!dt) return '—';
@@ -12,7 +13,7 @@ function fmt(dt) {
   if (diff < 60000) return 'just now';
   if (diff < 3600000) return `${Math.floor(diff/60000)}m ago`;
   if (diff < 86400000) return `${Math.floor(diff/3600000)}h ago`;
-  return d.toLocaleString('en-US', { month:'short', day:'numeric', hour:'numeric', minute:'2-digit' });
+  return d.toLocaleString('en-US', { timeZone: TZ, month:'short', day:'numeric', hour:'numeric', minute:'2-digit' });
 }
 
 const EVENT_TYPES = {
