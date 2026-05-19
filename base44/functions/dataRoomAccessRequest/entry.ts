@@ -35,8 +35,8 @@ const THANK_YOU_HTML = (firstName, email) => `<!DOCTYPE html>
     <div class="brand">Newport Beach Tech Investor Relations</div>
     <div class="icon">✅</div>
     <h1>Request Received</h1>
-    <p>Thank you${firstName ? `, ${firstName}` : ''}! Our team has been notified of your interest in accessing the data room. We'll be in touch shortly to verify your accreditation and grant access.</p>
-    <div class="note">📧 A confirmation has been noted for <strong>${email}</strong></div>
+    <p>Thank you${firstName ? `, ${firstName}` : ''}! Our team has been notified of your interest in accessing the data room. You will receive an email shortly with access. When would be a good time for an introduction call?</p>
+    <iframe src="https://calendly.com/investors-rosieai/newport-beach-tech-pre-ipo-investor-introduction?month=2026-05" width="100%" height="600" frameborder="0" style="border: none; border-radius: 6px; margin-top: 24px;"></iframe>
   </div>
 </body>
 </html>`;
