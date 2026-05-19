@@ -17,7 +17,6 @@ Deno.serve(async (req) => {
     serviceToken: Deno.env.get('BASE44_SERVICE_TOKEN') || '',
   });
 
-
   // Process in background — respond immediately so Mailjet doesn't timeout
   (async () => {
     for (const evt of events) {
@@ -37,20 +36,20 @@ Deno.serve(async (req) => {
       try {
         // ── Update EmailLog ───────────────────────────────────────────────
         const logs = await base44.entities.EmailLog.filter({ leadId });
-        const log  = logs.find(l => l.messageId === messageId) || logs[logs.length - 1];
+        const log  = logs.find((l: any) => l.messageId === messageId) || logs[logs.length - 1];
 
         // ── Find Lead ─────────────────────────────────────────────────────
         const leads = await base44.entities.Lead.filter({ id: leadId });
         const lead  = leads[0];
 
         // ── Find InvestorUser if lead was migrated ────────────────────────
-        let investorUser = null;
+        let investorUser: any = null;
         if (lead?.convertedToInvestorUserId) {
           const ius = await base44.entities.InvestorUser.filter({ id: lead.convertedToInvestorUserId });
           investorUser = ius[0] || null;
         }
 
-        const writeInvestorNote = async (content, type = 'email') => {
+        const writeInvestorNote = async (content: string, type = 'email') => {
           if (!investorUser) return;
           await base44.entities.ContactNote.create({
             investorId:    investorUser.id,
@@ -60,7 +59,10 @@ Deno.serve(async (req) => {
             createdAt:     eventTime,
             createdBy:     'mailjet_webhook',
           });
-          await base44.entities.InvestorUser.update(investorUser.id, { lastActivityAt: eventTime });
+          // Stamp lastActivityAt so tabs can highlight
+          await base44.entities.InvestorUser.update(investorUser.id, {
+            lastActivityAt: eventTime,
+          });
         };
 
         // ── Handle each event type ────────────────────────────────────────
@@ -68,8 +70,9 @@ Deno.serve(async (req) => {
           if (log) await base44.entities.EmailLog.update(log.id, { status: 'opened', openedAt: eventTime });
 
           if (lead) {
-            const updates = { engagementScore: (lead.engagementScore || 0) + 10 };
+            const updates: any = { engagementScore: (lead.engagementScore || 0) + 10 };
             if (!lead.badgeEmailOpened) updates.badgeEmailOpened = true;
+            // If this is the intro email, tag as opened_intro_email
             if (isIntroEmail && lead.status !== 'opened_intro_email') {
               updates.status = 'opened_intro_email';
               updates.badgeIntroEmailOpened = true;
@@ -83,6 +86,7 @@ Deno.serve(async (req) => {
             });
           }
 
+          // Also write to InvestorUser history if migrated
           await writeInvestorNote(`📬 Email opened · ${eventTime ? new Date(eventTime).toLocaleString() : ''}`);
           console.log(`[Mailjet] ✅ Open recorded for lead ${leadId}`);
 
@@ -90,7 +94,7 @@ Deno.serve(async (req) => {
           if (log) await base44.entities.EmailLog.update(log.id, { status: 'clicked', clickedAt: eventTime, clickedUrl: url || '' });
 
           if (lead) {
-            const updates = {};
+            const updates: any = {};
             const lowerUrl = (url || '').toLowerCase();
             if (!lead.badgeConsumerWebsite && (lowerUrl.includes('consumer') || lowerUrl.includes('www.'))) updates.badgeConsumerWebsite = true;
             if (!lead.badgeInvestorPage && (lowerUrl.includes('investor') || lowerUrl.includes('portal'))) updates.badgeInvestorPage = true;
