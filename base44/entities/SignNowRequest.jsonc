@@ -45,5 +45,11 @@
   "required": [
     "userId",
     "userName"
-  ]
+  ],
+  "rls": {
+    "create": null,
+    "read": null,
+    "update": null,
+    "delete": null
+  }
 }

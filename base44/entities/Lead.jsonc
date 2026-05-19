@@ -206,5 +206,11 @@
   "required": [
     "firstName",
     "lastName"
-  ]
+  ],
+  "rls": {
+    "create": null,
+    "read": null,
+    "update": null,
+    "delete": null
+  }
 }

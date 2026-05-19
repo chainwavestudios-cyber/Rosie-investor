@@ -31,5 +31,11 @@
   "required": [
     "question",
     "answer"
-  ]
+  ],
+  "rls": {
+    "create": null,
+    "read": null,
+    "update": null,
+    "delete": null
+  }
 }

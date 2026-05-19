@@ -29,5 +29,11 @@
     "username",
     "dateKey",
     "weekKey"
-  ]
+  ],
+  "rls": {
+    "create": null,
+    "read": null,
+    "update": null,
+    "delete": null
+  }
 }

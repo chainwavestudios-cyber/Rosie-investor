@@ -69,5 +69,11 @@
   },
   "required": [
     "sessionLabel"
-  ]
+  ],
+  "rls": {
+    "create": null,
+    "read": null,
+    "update": null,
+    "delete": null
+  }
 }

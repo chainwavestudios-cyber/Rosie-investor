@@ -23,5 +23,11 @@
   },
   "required": [
     "name"
-  ]
+  ],
+  "rls": {
+    "create": null,
+    "read": null,
+    "update": null,
+    "delete": null
+  }
 }

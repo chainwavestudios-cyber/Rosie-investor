@@ -67,5 +67,11 @@
     "investorId",
     "fileName",
     "docType"
-  ]
+  ],
+  "rls": {
+    "create": null,
+    "read": null,
+    "update": null,
+    "delete": null
+  }
 }

@@ -45,5 +45,11 @@
   "required": [
     "sessionLabel",
     "eventType"
-  ]
+  ],
+  "rls": {
+    "create": null,
+    "read": null,
+    "update": null,
+    "delete": null
+  }
 }
