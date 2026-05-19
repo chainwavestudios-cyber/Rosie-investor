@@ -1,4 +1,4 @@
-const TZ = 'America/Chicago';
+const TZ = 'America/New_York';
 
 export function fmtDateTime(iso) {
   if (!iso) return '';
