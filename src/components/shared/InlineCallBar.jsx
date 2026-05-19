@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import VoiceFXPanel from './VoiceFXPanel';
 import { usePortalAuth } from '@/lib/PortalAuthContext';
 
@@ -42,6 +42,12 @@ export default function InlineCallBar({
   const [showKeypad, setShowKeypad] = useState(false);
   const [logging, setLogging] = useState(false);
   const [showFX, setShowFX] = useState(false);
+  const [speakerVol, setSpeakerVol] = useState(() => parseFloat(localStorage.getItem('speakerVol') ?? '1'));
+  const [micVol, setMicVol] = useState(() => parseFloat(localStorage.getItem('micVol') ?? '1'));
+  const [testingMic, setTestingMic] = useState(false);
+  const [micLevel, setMicLevel] = useState(0);
+  const micTestRef = useRef(null); // { stream, analyser, animFrame }
+  const audioCtxRef = useRef(null);
 
   const { portalUser } = usePortalAuth();
   const username = portalUser?.username || '';
@@ -69,6 +75,45 @@ export default function InlineCallBar({
     if (micDeviceId) localStorage.setItem(`defaultMic_${username}`, micDeviceId);
     if (outputDeviceId) localStorage.setItem(`defaultOutput_${username}`, outputDeviceId);
   };
+
+  const startMicTest = async () => {
+    stopMicTest();
+    setTestingMic(true);
+    try {
+      const constraints = { audio: micDeviceId ? { deviceId: { exact: micDeviceId } } : true };
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      audioCtxRef.current = ctx;
+      const source = ctx.createMediaStreamSource(stream);
+      const analyser = ctx.createAnalyser();
+      analyser.fftSize = 256;
+      source.connect(analyser);
+      const data = new Uint8Array(analyser.frequencyBinCount);
+      const tick = () => {
+        analyser.getByteFrequencyData(data);
+        const avg = data.reduce((a, b) => a + b, 0) / data.length;
+        setMicLevel(Math.min(100, avg * micVol * 2.5));
+        micTestRef.current.animFrame = requestAnimationFrame(tick);
+      };
+      micTestRef.current = { stream, analyser, animFrame: requestAnimationFrame(tick) };
+    } catch {
+      setTestingMic(false);
+    }
+  };
+
+  const stopMicTest = () => {
+    if (micTestRef.current) {
+      cancelAnimationFrame(micTestRef.current.animFrame);
+      micTestRef.current.stream?.getTracks().forEach(t => t.stop());
+      micTestRef.current = null;
+    }
+    if (audioCtxRef.current) { audioCtxRef.current.close(); audioCtxRef.current = null; }
+    setTestingMic(false);
+    setMicLevel(0);
+  };
+
+  // Clean up mic test on unmount
+  useEffect(() => () => stopMicTest(), []);
 
   // Populate mic list on first render (requires mic permission)
   useEffect(() => {
@@ -406,29 +451,69 @@ export default function InlineCallBar({
         </div>
       )}
 
-      {/* ── Audio device selectors ── */}
+      {/* ── Audio device selectors + volume + mic test ── */}
       {(micDevices?.length > 0 || outputDevices?.length > 0) && !isActive && (
-        <div style={{ borderTop:'1px solid rgba(255,255,255,0.06)', paddingTop:'6px', display:'flex', flexDirection:'column', gap:'4px' }}>
+        <div style={{ borderTop:'1px solid rgba(255,255,255,0.06)', paddingTop:'6px', display:'flex', flexDirection:'column', gap:'5px' }}>
+          <style>{`
+            .audio-slider { -webkit-appearance:none; appearance:none; height:4px; border-radius:2px; outline:none; cursor:pointer; }
+            .audio-slider::-webkit-slider-thumb { -webkit-appearance:none; width:12px; height:12px; border-radius:50%; background:#b8933a; cursor:pointer; }
+          `}</style>
+
+          {/* Mic selector */}
           {micDevices?.length > 0 && (
-            <select value={micDeviceId} onChange={e => setMicDeviceId(e.target.value)}
+            <select value={micDeviceId} onChange={e => { setMicDeviceId(e.target.value); if (testingMic) setTimeout(startMicTest, 100); }}
               style={{ width:'100%', background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.1)', borderRadius:'3px', padding:'4px 8px', color:'#6b7280', fontSize:'10px', outline:'none', cursor:'pointer' }}>
               {micDevices.map(m => (
-                <option key={m.deviceId} value={m.deviceId}>
-                  🎙 {m.label || `Microphone ${m.deviceId.slice(0,6)}`}
-                </option>
+                <option key={m.deviceId} value={m.deviceId}>🎙 {m.label || `Microphone ${m.deviceId.slice(0,6)}`}</option>
               ))}
             </select>
           )}
+
+          {/* Mic volume + test */}
+          <div style={{ display:'flex', alignItems:'center', gap:'6px' }}>
+            <span style={{ color:'#4a5568', fontSize:'9px', width:'50px', flexShrink:0 }}>🎙 Mic Vol</span>
+            <input type="range" min="0" max="2" step="0.05" value={micVol}
+              onChange={e => { const v = parseFloat(e.target.value); setMicVol(v); localStorage.setItem('micVol', v); }}
+              className="audio-slider"
+              style={{ flex:1, background:`linear-gradient(to right, #b8933a ${(micVol/2)*100}%, rgba(255,255,255,0.1) ${(micVol/2)*100}%)` }} />
+            <span style={{ color:'#6b7280', fontSize:'9px', width:'24px', textAlign:'right' }}>{Math.round(micVol*100)}%</span>
+            <button onClick={testingMic ? stopMicTest : startMicTest}
+              style={{ background: testingMic ? 'rgba(239,68,68,0.15)' : 'rgba(74,222,128,0.1)', color: testingMic ? '#ef4444' : '#4ade80', border: `1px solid ${testingMic ? 'rgba(239,68,68,0.35)' : 'rgba(74,222,128,0.3)'}`, borderRadius:'3px', padding:'2px 7px', cursor:'pointer', fontSize:'9px', whiteSpace:'nowrap', flexShrink:0 }}>
+              {testingMic ? '■ Stop' : '▶ Test'}
+            </button>
+          </div>
+
+          {/* Mic level meter */}
+          {testingMic && (
+            <div style={{ display:'flex', alignItems:'center', gap:'6px' }}>
+              <span style={{ color:'#4ade80', fontSize:'9px', width:'50px', flexShrink:0 }}>📊 Level</span>
+              <div style={{ flex:1, height:'6px', background:'rgba(255,255,255,0.08)', borderRadius:'3px', overflow:'hidden' }}>
+                <div style={{ height:'100%', width:`${micLevel}%`, background: micLevel > 70 ? '#ef4444' : micLevel > 40 ? '#f59e0b' : '#4ade80', borderRadius:'3px', transition:'width 0.05s' }} />
+              </div>
+              <span style={{ color:'#4a5568', fontSize:'9px', width:'24px', textAlign:'right' }}>{Math.round(micLevel)}%</span>
+            </div>
+          )}
+
+          {/* Speaker selector */}
           {outputDevices?.length > 0 && (
             <select value={outputDeviceId} onChange={e => setOutputDeviceId(e.target.value)}
               style={{ width:'100%', background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.1)', borderRadius:'3px', padding:'4px 8px', color:'#6b7280', fontSize:'10px', outline:'none', cursor:'pointer' }}>
               {outputDevices.map(d => (
-                <option key={d.deviceId} value={d.deviceId}>
-                  🔊 {d.label || `Speaker ${d.deviceId.slice(0,6)}`}
-                </option>
+                <option key={d.deviceId} value={d.deviceId}>🔊 {d.label || `Speaker ${d.deviceId.slice(0,6)}`}</option>
               ))}
             </select>
           )}
+
+          {/* Speaker volume */}
+          <div style={{ display:'flex', alignItems:'center', gap:'6px' }}>
+            <span style={{ color:'#4a5568', fontSize:'9px', width:'50px', flexShrink:0 }}>🔊 Volume</span>
+            <input type="range" min="0" max="1" step="0.02" value={speakerVol}
+              onChange={e => { const v = parseFloat(e.target.value); setSpeakerVol(v); localStorage.setItem('speakerVol', v); }}
+              className="audio-slider"
+              style={{ flex:1, background:`linear-gradient(to right, #b8933a ${speakerVol*100}%, rgba(255,255,255,0.1) ${speakerVol*100}%)` }} />
+            <span style={{ color:'#6b7280', fontSize:'9px', width:'24px', textAlign:'right' }}>{Math.round(speakerVol*100)}%</span>
+          </div>
+
           {username && (
             <button onClick={saveDefaults} title="Save mic and speaker as defaults"
               style={{ background:'rgba(184,147,58,0.1)', border:'1px solid rgba(184,147,58,0.3)', borderRadius:'3px', padding:'3px 8px', color:GOLD, fontSize:'9px', cursor:'pointer', alignSelf:'flex-start' }}>
