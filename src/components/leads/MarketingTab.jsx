@@ -164,6 +164,7 @@ function NbtechEmailSection({ currentUsername }) {
   const [sendMsg, setSendMsg] = useState('');
   const [search, setSearch] = useState('');
   const [tallyKey, setTallyKey] = useState(0);
+  const [includeAlreadySent, setIncludeAlreadySent] = useState(false);
 
   const loadLeads = async (listId) => {
     setLoading(true);
@@ -188,7 +189,8 @@ function NbtechEmailSection({ currentUsername }) {
       const eligible = (all || []).filter(l =>
         !l.migratedToPortal &&
         !l.convertedToInvestorUserId &&
-        l.status !== 'not_interested'
+        l.status !== 'not_interested' &&
+        (includeAlreadySent || !l.badgeNbtechEmail)
       );
 
       // In 'all' mode require email for mass send; in specific list mode show everything
@@ -208,6 +210,10 @@ function NbtechEmailSection({ currentUsername }) {
     base44.entities.ContactList.list('-created_date', 100).then(setContactLists).catch(() => {});
     loadLeads('all');
   }, []);
+
+  useEffect(() => {
+    loadLeads(selectedListId);
+  }, [includeAlreadySent]);
 
   const handleListChange = (listId) => {
     setSelectedListId(listId);
@@ -323,6 +329,10 @@ function NbtechEmailSection({ currentUsername }) {
           placeholder="Search by name, email, state…"
           style={{ ...inp, width: '220px', boxSizing: 'border-box' }}
         />
+        <label style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#818cf8', fontSize: '12px', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+          <input type="checkbox" checked={includeAlreadySent} onChange={e => setIncludeAlreadySent(e.target.checked)} style={{ cursor: 'pointer', accentColor: '#818cf8' }} />
+          Include already sent
+        </label>
         <div style={{ flex: 1 }} />
         {selected.size > 0 && (
           <span style={{ color: GOLD, fontSize: '12px' }}>
