@@ -34,24 +34,26 @@ Deno.serve(async (req) => {
       const eventTime = time ? new Date(parseInt(time) * 1000).toISOString() : new Date().toISOString();
 
       try {
+        const sr = base44.asServiceRole;
+
         // ── Update EmailLog ───────────────────────────────────────────────
-        const logs = await base44.entities.EmailLog.filter({ leadId });
-        const log  = logs.find((l: any) => l.messageId === messageId) || logs[logs.length - 1];
+        const logs = await sr.entities.EmailLog.filter({ leadId });
+        const log  = logs.find(l => l.messageId === messageId) || logs[logs.length - 1];
 
         // ── Find Lead ─────────────────────────────────────────────────────
-        const leads = await base44.entities.Lead.filter({ id: leadId });
+        const leads = await sr.entities.Lead.filter({ id: leadId });
         const lead  = leads[0];
 
         // ── Find InvestorUser if lead was migrated ────────────────────────
-        let investorUser: any = null;
+        let investorUser = null;
         if (lead?.convertedToInvestorUserId) {
-          const ius = await base44.entities.InvestorUser.filter({ id: lead.convertedToInvestorUserId });
+          const ius = await sr.entities.InvestorUser.filter({ id: lead.convertedToInvestorUserId });
           investorUser = ius[0] || null;
         }
 
-        const writeInvestorNote = async (content: string, type = 'email') => {
+        const writeInvestorNote = async (content, type = 'email') => {
           if (!investorUser) return;
-          await base44.entities.ContactNote.create({
+          await sr.entities.ContactNote.create({
             investorId:    investorUser.id,
             investorEmail: investorUser.email,
             type,
@@ -59,48 +61,43 @@ Deno.serve(async (req) => {
             createdAt:     eventTime,
             createdBy:     'mailjet_webhook',
           });
-          // Stamp lastActivityAt so tabs can highlight
-          await base44.entities.InvestorUser.update(investorUser.id, {
-            lastActivityAt: eventTime,
-          });
+          await sr.entities.InvestorUser.update(investorUser.id, { lastActivityAt: eventTime });
         };
 
         // ── Handle each event type ────────────────────────────────────────
         if (event === 'open') {
-          if (log) await base44.entities.EmailLog.update(log.id, { status: 'opened', openedAt: eventTime });
+          if (log) await sr.entities.EmailLog.update(log.id, { status: 'opened', openedAt: eventTime });
 
           if (lead) {
-            const updates: any = { engagementScore: (lead.engagementScore || 0) + 10 };
+            const updates = { engagementScore: (lead.engagementScore || 0) + 10 };
             if (!lead.badgeEmailOpened) updates.badgeEmailOpened = true;
-            // If this is the intro email, tag as opened_intro_email
             if (isIntroEmail && lead.status !== 'opened_intro_email') {
               updates.status = 'opened_intro_email';
               updates.badgeIntroEmailOpened = true;
             }
-            await base44.entities.Lead.update(leadId, updates);
+            await sr.entities.Lead.update(leadId, updates);
             const historyContent = isIntroEmail
               ? `📬 Intro email opened (Mailjet webhook). +10 engagement points.`
               : `📬 Email opened (Mailjet webhook). +10 engagement points.`;
-            await base44.entities.LeadHistory.create({
+            await sr.entities.LeadHistory.create({
               leadId, type: 'note', content: historyContent, createdBy: 'mailjet_webhook',
             });
           }
 
-          // Also write to InvestorUser history if migrated
           await writeInvestorNote(`📬 Email opened · ${eventTime ? new Date(eventTime).toLocaleString() : ''}`);
           console.log(`[Mailjet] ✅ Open recorded for lead ${leadId}`);
 
         } else if (event === 'click') {
-          if (log) await base44.entities.EmailLog.update(log.id, { status: 'clicked', clickedAt: eventTime, clickedUrl: url || '' });
+          if (log) await sr.entities.EmailLog.update(log.id, { status: 'clicked', clickedAt: eventTime, clickedUrl: url || '' });
 
           if (lead) {
-            const updates: any = {};
+            const updates = {};
             const lowerUrl = (url || '').toLowerCase();
             if (!lead.badgeConsumerWebsite && (lowerUrl.includes('consumer') || lowerUrl.includes('www.'))) updates.badgeConsumerWebsite = true;
             if (!lead.badgeInvestorPage && (lowerUrl.includes('investor') || lowerUrl.includes('portal'))) updates.badgeInvestorPage = true;
-            if (Object.keys(updates).length > 0) await base44.entities.Lead.update(leadId, updates);
-            await base44.entities.Lead.update(leadId, { engagementScore: (lead.engagementScore || 0) + 5 });
-            await base44.entities.LeadHistory.create({
+            if (Object.keys(updates).length > 0) await sr.entities.Lead.update(leadId, updates);
+            await sr.entities.Lead.update(leadId, { engagementScore: (lead.engagementScore || 0) + 5 });
+            await sr.entities.LeadHistory.create({
               leadId, type: 'note',
               content: `🔗 Email link clicked: ${url || 'unknown'}. +5 engagement points.`,
               createdBy: 'mailjet_webhook',
@@ -111,16 +108,16 @@ Deno.serve(async (req) => {
           console.log(`[Mailjet] ✅ Click recorded for lead ${leadId}`);
 
         } else if (event === 'sent') {
-          if (log) await base44.entities.EmailLog.update(log.id, { status: 'delivered' });
+          if (log) await sr.entities.EmailLog.update(log.id, { status: 'delivered' });
           console.log(`[Mailjet] ✅ Delivered for lead ${leadId}`);
 
         } else if (event === 'bounce') {
-          if (log) await base44.entities.EmailLog.update(log.id, { status: 'bounced' });
+          if (log) await sr.entities.EmailLog.update(log.id, { status: 'bounced' });
           await writeInvestorNote(`⚠️ Email bounced — delivery failed`, 'note');
           console.log(`[Mailjet] ✅ Bounced for lead ${leadId}`);
 
         } else if (event === 'spam') {
-          if (log) await base44.entities.EmailLog.update(log.id, { status: 'spam' });
+          if (log) await sr.entities.EmailLog.update(log.id, { status: 'spam' });
           await writeInvestorNote(`🚫 Email marked as spam`, 'note');
           console.log(`[Mailjet] ✅ Spam for lead ${leadId}`);
         }
