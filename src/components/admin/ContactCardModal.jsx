@@ -111,7 +111,7 @@ export default function ContactCardModal({ user, onClose, onSave, allSessions, m
     return new Date(user.lastActivityAt) > new Date(lastViewed);
   };
 
-  useEffect(() => { loadAll(); }, [user.id]);
+  useEffect(() => { loadOverview(); }, [user.id]);
 
   // Poll for unread SMS badge
   useEffect(() => {
@@ -139,27 +139,62 @@ export default function ContactCardModal({ user, onClose, onSave, allSessions, m
     checkOptIn();
   }, [user.id, user.phone]);
 
-  const loadAll = async () => {
+  // Track loaded tabs to avoid re-fetching on every switch
+  const [loadedTabs, setLoadedTabs] = useState(new Set());
+  const markLoaded = (tabId) => setLoadedTabs(prev => new Set([...prev, tabId]));
+
+  // Overview + notes always load on open (default tab)
+  const loadOverview = async () => {
     setLoading(true);
-    const [ns, ap, ad, sn, sess] = await Promise.all([
-      ContactNoteDB.listForInvestor(user.id),
-      AppointmentDB.listForInvestor(user.id),
-      AccreditationDocDB.listForInvestor(user.id),
-      SignNowRequestDB.listForEmail(user.email),
-      analytics.getUserSessions((user.email || user.username || '').toLowerCase().trim()),
-    ]);
-    setNotes(ns); setAppts(ap); setAccDocs(ad); setSnReqs(sn); setSessions(sess);
-    setStats(analytics.computeUserStats(sess));
     try {
-      const rosieCount = await base44.entities.RosieChatLog.filter({ investorId: user.id });
-      const hasRosie = rosieCount.length > 0;
-      const hasSignNow = sn.some(r => r.status !== 'pending');
-      const newScore = computeEngagementScore(sess, hasSignNow, hasRosie);
-      if (newScore !== user.engagementScore) {
-        await base44.entities.InvestorUser.update(user.id, { engagementScore: newScore });
-      }
+      const [ns, sess] = await Promise.all([
+        ContactNoteDB.listForInvestor(user.id),
+        analytics.getUserSessions((user.email || user.username || '').toLowerCase().trim()),
+      ]);
+      setNotes(ns); setSessions(sess);
+      setStats(analytics.computeUserStats(sess));
+      try {
+        const rosieCount = await base44.entities.RosieChatLog.filter({ investorId: user.id });
+        const newScore = computeEngagementScore(sess, false, rosieCount.length > 0);
+        if (newScore !== user.engagementScore) {
+          await base44.entities.InvestorUser.update(user.id, { engagementScore: newScore });
+        }
+      } catch {}
     } catch {}
     setLoading(false);
+    markLoaded('overview');
+    markLoaded('history');
+  };
+
+  // Lazy loaders — only fire when that tab is first opened
+  const loadCalendarTab = async () => {
+    if (loadedTabs.has('calendar')) return;
+    try { setAppts(await AppointmentDB.listForInvestor(user.id)); } catch {}
+    markLoaded('calendar');
+  };
+  const loadDocumentsTab = async () => {
+    if (loadedTabs.has('documents')) return;
+    try { setSnReqs(await SignNowRequestDB.listForEmail(user.email)); } catch {}
+    markLoaded('documents');
+  };
+  const loadAccreditationTab = async () => {
+    if (loadedTabs.has('accreditation')) return;
+    try { setAccDocs(await AccreditationDocDB.listForInvestor(user.id)); } catch {}
+    markLoaded('accreditation');
+  };
+
+  // handleTabChange wires lazy loading to tab switches
+  const handleTabChange = (newTab) => {
+    setTab(newTab);
+    if (newTab === 'calendar')      loadCalendarTab();
+    if (newTab === 'documents')     loadDocumentsTab();
+    if (newTab === 'accreditation') loadAccreditationTab();
+  };
+
+  // Full reload (used by email sent callback etc.)
+  const loadAll = async () => {
+    setLoadedTabs(new Set());
+    await loadOverview();
   };
 
   const addNote = async () => {
@@ -271,7 +306,6 @@ export default function ContactCardModal({ user, onClose, onSave, allSessions, m
       setTimeout(() => setPortalEmailMsg(''), 4000);
     } catch (e) { setPortalEmailMsg('Error: ' + (e.response?.data?.error || e.message)); }
     setSendingPortalEmail(false);
-  };
 
   // ── Tab definitions ────────────────────────────────────────────────
   const TABS_ROW1 = [
@@ -303,11 +337,11 @@ export default function ContactCardModal({ user, onClose, onSave, allSessions, m
     </button>
   );
 
-  const TabBtn = ({ id, label, row }) => {
+  const TabBtn = ({ id, label, row, onTab }) => {
     const isActive = tab === id;
     const hasNew   = tabHasNew(id) && !isActive;
     return (
-      <button onClick={() => { setTab(id); markTabViewed(id); }} style={{
+      <button onClick={() => onTab ? onTab(id) : setTab(id)} style={{
         background: 'none', border: 'none',
         borderBottom: isActive ? `2px solid ${GOLD}` : '2px solid transparent',
         color: isActive ? GOLD : '#6b7280',
@@ -468,11 +502,11 @@ export default function ContactCardModal({ user, onClose, onSave, allSessions, m
         <div style={{ borderBottom:'1px solid rgba(255,255,255,0.07)', flexShrink:0 }}>
           {/* Tab row 1 */}
           <div style={{ display:'flex', overflowX:'auto', scrollbarWidth:'none', borderBottom:'1px solid rgba(255,255,255,0.04)' }}>
-            {TABS_ROW1.map(([id,label]) => <TabBtn key={id} id={id} label={label} row={1} />)}
+            {TABS_ROW1.map(([id,label]) => <TabBtn key={id} id={id} label={label} row={1} onTab={handleTabChange} />)}
           </div>
           {/* Tab row 2 */}
           <div style={{ display:'flex', overflowX:'auto', scrollbarWidth:'none' }}>
-            {TABS_ROW2.map(([id,label]) => <TabBtn key={id} id={id} label={label} row={2} />)}
+            {TABS_ROW2.map(([id,label]) => <TabBtn key={id} id={id} label={label} row={2} onTab={handleTabChange} />)}
           </div>
         </div>
 
@@ -799,5 +833,4 @@ export default function ContactCardModal({ user, onClose, onSave, allSessions, m
       <CallLogPanel onClose={() => setShowCallLog(false)} onOpenLead={() => {}} />
     )}
     </>
-    );
-    }
+  );
