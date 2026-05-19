@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
+import { fmtDateTimeShort } from '@/lib/fmtDate.js';
 
 const GOLD = '#b8933a';
 
+const TZ = 'America/New_York';
 function fmt(dt) {
   if (!dt) return '—';
   const d = new Date(dt);
@@ -11,7 +13,7 @@ function fmt(dt) {
   if (diff < 60000) return 'just now';
   if (diff < 3600000) return `${Math.floor(diff/60000)}m ago`;
   if (diff < 86400000) return `${Math.floor(diff/3600000)}h ago`;
-  return d.toLocaleString('en-US', { month:'short', day:'numeric', hour:'numeric', minute:'2-digit' });
+  return d.toLocaleString('en-US', { timeZone: TZ, month:'short', day:'numeric', hour:'numeric', minute:'2-digit' });
 }
 
 const EVENT_CONFIG = {
@@ -27,7 +29,7 @@ const EVENT_CONFIG = {
   converted:    { icon: '✅', color: '#4ade80',  label: 'Converted' },
 };
 
-export default function LeadActivityFeed({ onOpenLead }) {
+export default function LeadActivityFeed({ onOpenLead, leads = [] }) {
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -49,9 +51,12 @@ export default function LeadActivityFeed({ onOpenLead }) {
       ].filter(Boolean))];
 
       let leadsMap = {};
-      if (leadIds.length > 0) {
-        const allLeads = await base44.entities.Lead.list('-created_date', 2000);
-        allLeads.forEach(l => { leadsMap[l.id] = l; });
+      // Use leads passed from parent (already loaded) — no extra API call
+      leads.forEach(l => { leadsMap[l.id] = l; });
+      // If no leads passed, fall back to a small targeted fetch
+      if (leads.length === 0 && leadIds.length > 0) {
+        const fetched = await base44.entities.Lead.list('-created_date', 5000).catch(() => []);
+        fetched.forEach(l => { leadsMap[l.id] = l; });
       }
 
       const evts = [];
