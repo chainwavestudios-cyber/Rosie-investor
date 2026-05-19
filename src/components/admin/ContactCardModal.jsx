@@ -64,6 +64,7 @@ export default function ContactCardModal({ user, onClose, onSave, allSessions, m
   useEffect(() => { loadPortalSettings().then(setPortalCfg).catch(() => {}); }, []);
 
   const [tab, setTab]         = useState('overview');
+  const [editing, setEditing] = useState(false);
   const [smsOptedIn, setSmsOptedIn] = useState(false);
   const [notes, setNotes]     = useState([]);
   const [appts, setAppts]     = useState([]);
@@ -409,61 +410,124 @@ export default function ContactCardModal({ user, onClose, onSave, allSessions, m
 
           {/* OVERVIEW */}
           {tab === 'overview' && (
-            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'24px' }}>
-              <div>
-                <div style={{ color:GOLD, fontSize:'10px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'16px' }}>Contact Details</div>
-                <div style={{ marginBottom:'16px' }}>
-                  <label style={ls}>Status</label>
-                  <div style={{ display:'flex', gap:'8px' }}>
-                    {['prospect','investor'].map(s => (
-                      <button key={s} onClick={() => setEditUser({...editUser,status:s})}
-                        style={{ flex:1, padding:'9px', border:`1px solid ${editUser.status===s?GOLD:'rgba(255,255,255,0.12)'}`, borderRadius:'2px', background:editUser.status===s?'rgba(184,147,58,0.15)':'transparent', color:editUser.status===s?GOLD:'#6b7280', cursor:'pointer', fontSize:'11px', textTransform:'uppercase', letterSpacing:'2px' }}>
-                        {s==='prospect'?'🔷 Potential Investor':'✅ Investor'}
-                      </button>
+            <div>
+              {/* ── READ VIEW ── */}
+              {!editing && (
+                <div style={{ background:'rgba(255,255,255,0.02)', border:'1px solid rgba(255,255,255,0.07)', borderRadius:'6px', padding:'16px 20px', marginBottom:'20px', position:'relative' }}>
+                  <button onClick={() => setEditing(true)}
+                    style={{ position:'absolute', top:'12px', right:'12px', background:'rgba(184,147,58,0.12)', color:GOLD, border:`1px solid rgba(184,147,58,0.3)`, borderRadius:'4px', padding:'5px 12px', cursor:'pointer', fontSize:'10px', fontWeight:'bold', letterSpacing:'1px' }}>
+                    ✏️ Edit
+                  </button>
+                  {/* Status */}
+                  <div style={{ marginBottom:'12px' }}>
+                    <StatusBadge status={editUser.status || 'prospect'} />
+                  </div>
+                  {/* Info grid */}
+                  <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(200px, 1fr))', gap:'8px 24px' }}>
+                    {[
+                      ['👤 Name',      editUser.name],
+                      ['✉️ Email',     editUser.email],
+                      ['📞 Phone',     editUser.phone],
+                      ['🏢 Company',   editUser.company],
+                      ['🏠 Address',   editUser.address],
+                      ['💳 Acct Type', editUser.investmentType === 'ira' ? 'IRA' : 'Cash'],
+                      ['💰 Invested',  editUser.investmentAmount ? `$${Number(editUser.investmentAmount).toLocaleString()}` : null],
+                      ['📅 Inv. Date', editUser.investmentDate],
+                      ['✍️ SignNow',   editUser.signnowRequested ? '✓ Requested' : 'Not requested'],
+                    ].filter(([,v]) => v).map(([label, value]) => (
+                      <div key={label}>
+                        <div style={{ color:'#4a5568', fontSize:'9px', letterSpacing:'1.5px', textTransform:'uppercase', marginBottom:'2px' }}>{label}</div>
+                        <div style={{ color:'#c4cdd8', fontSize:'13px' }}>{value}</div>
+                      </div>
+                    ))}
+                  </div>
+                  {editUser.iraInformation && (
+                    <div style={{ marginTop:'10px' }}>
+                      <div style={{ color:'#4a5568', fontSize:'9px', letterSpacing:'1.5px', textTransform:'uppercase', marginBottom:'2px' }}>🏦 IRA Info</div>
+                      <div style={{ color:'#8a9ab8', fontSize:'12px' }}>{editUser.iraInformation}</div>
+                    </div>
+                  )}
+                  {editUser.notes && (
+                    <div style={{ marginTop:'10px', paddingTop:'10px', borderTop:'1px solid rgba(255,255,255,0.05)' }}>
+                      <div style={{ color:'#4a5568', fontSize:'9px', letterSpacing:'1.5px', textTransform:'uppercase', marginBottom:'4px' }}>📋 Internal Notes</div>
+                      <div style={{ color:'#8a9ab8', fontSize:'12px', lineHeight:1.5, whiteSpace:'pre-wrap' }}>{editUser.notes}</div>
+                    </div>
+                  )}
+                  {/* Stats */}
+                  <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:'8px', marginTop:'14px', paddingTop:'12px', borderTop:'1px solid rgba(255,255,255,0.05)' }}>
+                    {[[stats.sessionCount,'Sessions',GOLD],[analytics.formatDuration(stats.totalTime),'Time Spent','#4ade80'],[stats.totalDownloads,'Downloads','#60a5fa']].map(([v,l,c]) => (
+                      <div key={l} style={{ background:'rgba(0,0,0,0.2)', border:'1px solid rgba(255,255,255,0.05)', borderRadius:'2px', padding:'8px', textAlign:'center' }}>
+                        <div style={{ color:c, fontSize:'15px', fontWeight:'bold' }}>{v}</div>
+                        <div style={{ color:'#4a5568', fontSize:'9px', letterSpacing:'1px', textTransform:'uppercase', marginTop:'2px' }}>{l}</div>
+                      </div>
                     ))}
                   </div>
                 </div>
-                <F label="Full Name" value={editUser.name} onChange={e=>setEditUser({...editUser,name:e.target.value})} />
-                <F label="Email" value={editUser.email} onChange={e=>setEditUser({...editUser,email:e.target.value})} type="email" />
-                <F label="Phone" value={editUser.phone} onChange={e=>setEditUser({...editUser,phone:e.target.value})} placeholder="(216) 555-0123" />
-                <F label="Company / Fund" value={editUser.company} onChange={e=>setEditUser({...editUser,company:e.target.value})} />
-                <F label="Mailing Address" value={editUser.address} onChange={e=>setEditUser({...editUser,address:e.target.value})} />
-                <div style={{ marginBottom:'16px' }}>
-                  <label style={ls}>Account Type (Cash / IRA)</label>
-                  <select value={editUser.investmentType||'cash'} onChange={e=>setEditUser({...editUser,investmentType:e.target.value})} style={{ ...inp, cursor:'pointer' }}>
-                    <option value="cash">Cash</option><option value="ira">IRA</option>
-                  </select>
-                </div>
-                {editUser.investmentType === 'ira' && (
-                  <TA label="IRA Information" value={editUser.iraInformation} onChange={e=>setEditUser({...editUser,iraInformation:e.target.value})} rows={2} placeholder="Custodian, account #…" />
-                )}
-                <F label="New Password (blank = keep current)" value={editUser.newPassword||''} onChange={e=>setEditUser({...editUser,newPassword:e.target.value})} placeholder="••••••••" />
-              </div>
-              <div>
-                <div style={{ color:GOLD, fontSize:'10px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'16px' }}>Investment Details</div>
-                <F label="Investment Amount ($)" value={editUser.investmentAmount} onChange={e=>setEditUser({...editUser,investmentAmount:e.target.value})} type="number" placeholder="50000" />
-                <F label="Date Invested" value={editUser.investmentDate} onChange={e=>setEditUser({...editUser,investmentDate:e.target.value})} type="date" />
-                <div style={{ marginBottom:'16px' }}>
-                  <label style={ls}>Signature Docs Requested</label>
-                  <button onClick={() => setEditUser({...editUser,signnowRequested:!editUser.signnowRequested})}
-                    style={{ width:'48px', height:'26px', borderRadius:'13px', border:'none', cursor:'pointer', background:editUser.signnowRequested?'linear-gradient(135deg,#b8933a,#d4aa50)':'rgba(255,255,255,0.1)', position:'relative' }}>
-                    <div style={{ position:'absolute', top:'3px', left:editUser.signnowRequested?'25px':'3px', width:'20px', height:'20px', background:'#fff', borderRadius:'50%', transition:'left 0.2s' }} />
-                  </button>
-                </div>
-                <TA label="Internal Notes (not visible to investor)" value={editUser.notes} onChange={e=>setEditUser({...editUser,notes:e.target.value})} rows={5} placeholder="Private notes…" />
-                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:'8px', marginTop:'8px' }}>
-                  {[[stats.sessionCount,'Sessions',GOLD],[analytics.formatDuration(stats.totalTime),'Time Spent','#4ade80'],[stats.totalDownloads,'Downloads','#60a5fa']].map(([v,l,c]) => (
-                    <div key={l} style={{ background:'rgba(0,0,0,0.2)', border:'1px solid rgba(255,255,255,0.05)', borderRadius:'2px', padding:'10px', textAlign:'center' }}>
-                      <div style={{ color:c, fontSize:'16px', fontWeight:'bold' }}>{v}</div>
-                      <div style={{ color:'#4a5568', fontSize:'9px', letterSpacing:'1px', textTransform:'uppercase', marginTop:'2px' }}>{l}</div>
+              )}
+
+              {/* ── EDIT VIEW ── */}
+              {editing && (
+                <div style={{ background:'rgba(255,255,255,0.02)', border:'1px solid rgba(184,147,58,0.2)', borderRadius:'6px', padding:'20px', marginBottom:'20px' }}>
+                  <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'16px' }}>
+                    <div style={{ color:GOLD, fontSize:'10px', letterSpacing:'2px', textTransform:'uppercase' }}>Edit Contact</div>
+                    <button onClick={() => { setEditing(false); setEditUser({...user}); }}
+                      style={{ background:'transparent', color:'#6b7280', border:'1px solid rgba(255,255,255,0.1)', borderRadius:'4px', padding:'4px 10px', cursor:'pointer', fontSize:'11px' }}>
+                      Cancel
+                    </button>
+                  </div>
+                  <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'0 20px' }}>
+                    <div>
+                      <div style={{ color:GOLD, fontSize:'10px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'12px' }}>Contact Details</div>
+                      <div style={{ marginBottom:'14px' }}>
+                        <label style={ls}>Status</label>
+                        <div style={{ display:'flex', gap:'8px' }}>
+                          {['prospect','investor'].map(s => (
+                            <button key={s} onClick={() => setEditUser({...editUser,status:s})}
+                              style={{ flex:1, padding:'8px', border:`1px solid ${editUser.status===s?GOLD:'rgba(255,255,255,0.12)'}`, borderRadius:'2px', background:editUser.status===s?'rgba(184,147,58,0.15)':'transparent', color:editUser.status===s?GOLD:'#6b7280', cursor:'pointer', fontSize:'11px', textTransform:'uppercase', letterSpacing:'2px' }}>
+                              {s==='prospect'?'🔷 Potential':'✅ Investor'}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                      <F label="Full Name"      value={editUser.name}    onChange={e=>setEditUser({...editUser,name:e.target.value})} />
+                      <F label="Email"          value={editUser.email}   onChange={e=>setEditUser({...editUser,email:e.target.value})} type="email" />
+                      <F label="Phone"          value={editUser.phone}   onChange={e=>setEditUser({...editUser,phone:e.target.value})} placeholder="(216) 555-0123" />
+                      <F label="Company / Fund" value={editUser.company} onChange={e=>setEditUser({...editUser,company:e.target.value})} />
+                      <F label="Mailing Address" value={editUser.address} onChange={e=>setEditUser({...editUser,address:e.target.value})} />
+                      <div style={{ marginBottom:'14px' }}>
+                        <label style={ls}>Account Type</label>
+                        <select value={editUser.investmentType||'cash'} onChange={e=>setEditUser({...editUser,investmentType:e.target.value})} style={{ ...inp, cursor:'pointer' }}>
+                          <option value="cash">Cash</option><option value="ira">IRA</option>
+                        </select>
+                      </div>
+                      {editUser.investmentType === 'ira' && (
+                        <TA label="IRA Information" value={editUser.iraInformation} onChange={e=>setEditUser({...editUser,iraInformation:e.target.value})} rows={2} placeholder="Custodian, account #…" />
+                      )}
+                      <F label="New Password (blank = keep current)" value={editUser.newPassword||''} onChange={e=>setEditUser({...editUser,newPassword:e.target.value})} placeholder="••••••••" />
                     </div>
-                  ))}
+                    <div>
+                      <div style={{ color:GOLD, fontSize:'10px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'12px' }}>Investment Details</div>
+                      <F label="Investment Amount ($)" value={editUser.investmentAmount} onChange={e=>setEditUser({...editUser,investmentAmount:e.target.value})} type="number" placeholder="50000" />
+                      <F label="Date Invested" value={editUser.investmentDate} onChange={e=>setEditUser({...editUser,investmentDate:e.target.value})} type="date" />
+                      <div style={{ marginBottom:'14px' }}>
+                        <label style={ls}>Signature Docs Requested</label>
+                        <button onClick={() => setEditUser({...editUser,signnowRequested:!editUser.signnowRequested})}
+                          style={{ width:'48px', height:'26px', borderRadius:'13px', border:'none', cursor:'pointer', background:editUser.signnowRequested?'linear-gradient(135deg,#b8933a,#d4aa50)':'rgba(255,255,255,0.1)', position:'relative' }}>
+                          <div style={{ position:'absolute', top:'3px', left:editUser.signnowRequested?'25px':'3px', width:'20px', height:'20px', background:'#fff', borderRadius:'50%', transition:'left 0.2s' }} />
+                        </button>
+                      </div>
+                      <TA label="Internal Notes" value={editUser.notes} onChange={e=>setEditUser({...editUser,notes:e.target.value})} rows={4} placeholder="Private notes…" />
+                    </div>
+                  </div>
+                  <div style={{ display:'flex', gap:'12px', alignItems:'center', paddingTop:'16px', borderTop:'1px solid rgba(255,255,255,0.07)', marginTop:'8px' }}>
+                    <button onClick={async () => { await saveProfile(); setEditing(false); }} disabled={saving}
+                      style={{ background:'linear-gradient(135deg,#b8933a,#d4aa50)', color:DARK, border:'none', borderRadius:'2px', padding:'10px 28px', cursor:'pointer', fontWeight:'bold', fontSize:'12px', letterSpacing:'2px', textTransform:'uppercase' }}>
+                      {saving ? 'Saving…' : '💾 Save Changes'}
+                    </button>
+                    {saveMsg && <span style={{ color:saveMsg.startsWith('Error')?'#ef4444':'#4ade80', fontSize:'13px' }}>{saveMsg}</span>}
+                  </div>
                 </div>
-              </div>
-              <div style={{ gridColumn:'1/-1', display:'flex', gap:'12px', alignItems:'center', paddingTop:'16px', borderTop:'1px solid rgba(255,255,255,0.07)' }}>
-                <button onClick={saveProfile} disabled={saving} style={{ background:'linear-gradient(135deg,#b8933a,#d4aa50)', color:DARK, border:'none', borderRadius:'2px', padding:'11px 32px', cursor:'pointer', fontWeight:'bold', fontSize:'12px', letterSpacing:'2px', textTransform:'uppercase' }}>{saving?'Saving…':'Save Changes'}</button>
-                {saveMsg && <span style={{ color:saveMsg.startsWith('Error')?'#ef4444':'#4ade80', fontSize:'13px' }}>{saveMsg}</span>}
-              </div>
+              )}
 
               {/* ── Notes & Activity ── */}
               <div style={{ gridColumn:'1/-1', borderTop:'1px solid rgba(255,255,255,0.07)', paddingTop:'20px' }}>
