@@ -414,15 +414,6 @@ export default function LeadsTab({ openLeadId, onLeadOpened, mockLeads = null })
     loadActivity();
     base44.entities.ContactList.list('-created_date', 100).then(setContactLists).catch(() => {});
     loadTodayAppointments();
-    
-    // Longer interval to avoid rate limits with AdminDashboard's 60s poll
-    const interval = setInterval(() => {
-      loadLeads();
-      loadActivity();
-      base44.entities.ContactList.list('-created_date', 100).then(setContactLists).catch(() => {});
-      loadTodayAppointments();
-    }, 90000);
-    return () => clearInterval(interval);
   }, []);
 
   const loadTodayAppointments = async () => {
