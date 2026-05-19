@@ -336,7 +336,9 @@ export const analytics = {
   },
 
   async computeGlobalStats(allSessions) {
-    const raw = allSessions || await AnalyticsSession.listAll();
+    // Always pass sessions in — never fetch independently (AdminDashboardMain already fetches them)
+    const raw = allSessions || [];
+    if (!allSessions) console.warn('[analytics] computeGlobalStats called without sessions — pass from getAllSessions()');
     const parsed = raw.map(parseSessionFields);
     return {
       totalSessions:  parsed.length,
