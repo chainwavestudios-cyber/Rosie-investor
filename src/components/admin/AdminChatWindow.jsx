@@ -1,17 +1,23 @@
 /**
  * AdminChatWindow.jsx
- * Private chat between admin and steph — draggable, resizable, minimizable.
- * Supports: text, emoji, GIFs, file uploads, voice messages, lead tags, alerts,
- *           delete messages, full-duplex WebRTC voice call, screen share.
+ * Discord-style private chat between admin and steph.
+ * Features: text, emoji, GIFs, file uploads, voice messages, lead tags,
+ *           alerts, delete messages, full-duplex WebRTC voice call, screen share,
+ *           mic/speaker selection, incoming call popup.
  */
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { base44 } from '@/api/base44Client';
+import IncomingCallPopupChat from './IncomingCallPopupChat';
 
 const GOLD = '#b8933a';
-const DARK = '#060c18';
 const CHAT_USERS = ['admin', 'steph'];
 
 const EMOJI_LIST = ['😀','😂','😍','🤔','👍','👎','🔥','💰','📞','✅','❌','⚡','🎯','💡','🚀','😎','🤝','💪','👀','🙏','😅','🤣','😊','🥳','😤','🤦','😴','💯','🎉','⚠️'];
+
+const AVATARS = {
+  admin: { bg: '#7c3aed', letter: 'A' },
+  steph: { bg: '#0891b2', letter: 'S' },
+};
 
 async function searchGifs(query) {
   try {
@@ -19,7 +25,7 @@ async function searchGifs(query) {
     const data = await res.json();
     return (data.results || []).map(r => ({
       id: r.id,
-      url: r.media_formats?.gif?.url || r.media_formats?.tinygif?.url || '',
+      url: r.media_formats?.gif?.url || '',
       preview: r.media_formats?.tinygif?.url || r.media_formats?.gif?.url || '',
     })).filter(g => g.url);
   } catch { return []; }
@@ -27,8 +33,7 @@ async function searchGifs(query) {
 
 function fmtTime(iso) {
   if (!iso) return '';
-  const d = new Date(iso);
-  return d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+  return new Date(iso).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
 }
 function fmtDay(iso) {
   if (!iso) return '';
@@ -37,12 +42,18 @@ function fmtDay(iso) {
   const yesterday = new Date(today); yesterday.setDate(today.getDate() - 1);
   if (d.toDateString() === today.toDateString()) return 'Today';
   if (d.toDateString() === yesterday.toDateString()) return 'Yesterday';
-  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  return d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
 }
+function fmtDur(s) { return `${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`; }
 
-// ── WebRTC signalling via AdminChat entity with type='webrtc_signal' ──────────
-// We store SDP/ICE as JSON in the content field with a special type.
-// Both peers poll for new signals addressed to them.
+function Avatar({ username, size = 32 }) {
+  const av = AVATARS[username] || { bg: '#4a5568', letter: (username||'?')[0].toUpperCase() };
+  return (
+    <div style={{ width: size, height: size, borderRadius: '50%', background: av.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: size * 0.44, color: '#fff', fontWeight: 'bold', flexShrink: 0 }}>
+      {av.letter}
+    </div>
+  );
+}
 
 export default function AdminChatWindow({ currentUsername, onOpenLeadCard, onOpenInvestorCard, onClose }) {
   const isAllowed = CHAT_USERS.includes(currentUsername);
@@ -50,12 +61,11 @@ export default function AdminChatWindow({ currentUsername, onOpenLeadCard, onOpe
 
   // Window state
   const [minimized, setMinimized] = useState(false);
-  const [pos, setPos] = useState({ x: window.innerWidth - 400, y: window.innerHeight - 520 });
-  const [size, setSize] = useState({ w: 380, h: 480 });
+  const [pos, setPos] = useState({ x: Math.max(0, window.innerWidth - 480), y: Math.max(0, window.innerHeight - 620) });
+  const [size, setSize] = useState({ w: 460, h: 580 });
   const dragging = useRef(false);
   const resizing = useRef(false);
   const dragOffset = useRef({ x: 0, y: 0 });
-  const windowRef = useRef(null);
 
   // Chat state
   const [messages, setMessages] = useState([]);
@@ -72,39 +82,65 @@ export default function AdminChatWindow({ currentUsername, onOpenLeadCard, onOpe
   const [tagSearch, setTagSearch] = useState('');
   const [tagResults, setTagResults] = useState([]);
   const [tagLoading, setTagLoading] = useState(false);
+  const [hoveredMsgId, setHoveredMsgId] = useState(null);
   const scrollRef = useRef(null);
   const mediaRecorder = useRef(null);
   const audioChunks = useRef([]);
   const fileInputRef = useRef(null);
+  const inputRef = useRef(null);
   const pollRef = useRef(null);
 
-  // ── Voice call state ──────────────────────────────────────────────────
+  // Voice call state
   const [callState, setCallState] = useState('idle'); // idle | calling | incoming | active
   const [callMuted, setCallMuted] = useState(false);
   const [callDuration, setCallDuration] = useState(0);
+  const [incomingCallFrom, setIncomingCallFrom] = useState('');
   const callDurationRef = useRef(null);
-  const pcRef = useRef(null);            // RTCPeerConnection
-  const localStreamRef = useRef(null);   // microphone stream
-  const screenStreamRef = useRef(null);  // screen share stream
-  const remoteAudioRef = useRef(null);   // <audio> element for remote audio
+  const pcRef = useRef(null);
+  const localStreamRef = useRef(null);
+  const screenStreamRef = useRef(null);
+  const remoteAudioRef = useRef(null);
   const signalPollRef = useRef(null);
   const processedSignals = useRef(new Set());
-  const pendingIceCandidates = useRef([]);
+  const pendingIce = useRef([]);
 
-  // ── Screen share state ────────────────────────────────────────────────
+  // Screen share
   const [sharingScreen, setSharingScreen] = useState(false);
-  const [remoteScreen, setRemoteScreen] = useState(null); // remote screen stream
-  const localVideoRef = useRef(null);
-  const remoteVideoRef = useRef(null);
-  const screenTrackRef = useRef(null);  // the sender we added for screen track
+  const [remoteScreen, setRemoteScreen] = useState(null);
+  const screenTrackRef = useRef(null);
+
+  // Audio devices
+  const [micDevices, setMicDevices] = useState([]);
+  const [speakerDevices, setSpeakerDevices] = useState([]);
+  const [selectedMic, setSelectedMic] = useState('');
+  const [selectedSpeaker, setSelectedSpeaker] = useState('');
+  const [showAudioSettings, setShowAudioSettings] = useState(false);
+
+  // Load audio devices
+  useEffect(() => {
+    const load = async () => {
+      try {
+        await navigator.mediaDevices.getUserMedia({ audio: true });
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        setMicDevices(devices.filter(d => d.kind === 'audioinput'));
+        setSpeakerDevices(devices.filter(d => d.kind === 'audiooutput'));
+      } catch {}
+    };
+    load();
+  }, []);
+
+  // Apply speaker to remote audio
+  useEffect(() => {
+    if (remoteAudioRef.current && selectedSpeaker && remoteAudioRef.current.setSinkId) {
+      remoteAudioRef.current.setSinkId(selectedSpeaker).catch(() => {});
+    }
+  }, [selectedSpeaker]);
 
   // Load messages
   const loadMessages = useCallback(async () => {
     try {
       const msgs = await base44.entities.AdminChat.list('-sentAt', 200);
-      // Filter out WebRTC signalling messages from the chat display
-      const chatMsgs = (msgs || []).filter(m => m.type !== 'webrtc_signal');
-      setMessages(chatMsgs.reverse());
+      setMessages((msgs || []).filter(m => m.type !== 'webrtc_signal').reverse());
     } catch {}
   }, []);
 
@@ -121,36 +157,25 @@ export default function AdminChatWindow({ currentUsername, onOpenLeadCard, onOpe
     }
   }, [messages, minimized]);
 
-  // ── Drag ───────────────────────────────────────────────────────────────
+  // Drag
   const onDragStart = (e) => {
+    if (e.target.closest('button') || e.target.closest('input') || e.target.closest('select')) return;
     dragging.current = true;
     dragOffset.current = { x: e.clientX - pos.x, y: e.clientY - pos.y };
   };
   useEffect(() => {
     const onMove = (e) => {
-      if (!dragging.current) return;
-      setPos({ x: Math.max(0, e.clientX - dragOffset.current.x), y: Math.max(0, e.clientY - dragOffset.current.y) });
+      if (dragging.current) setPos({ x: Math.max(0, e.clientX - dragOffset.current.x), y: Math.max(0, e.clientY - dragOffset.current.y) });
+      if (resizing.current) setSize({ w: Math.max(360, resizing.current.w + (e.clientX - resizing.current.mx)), h: Math.max(400, resizing.current.h + (e.clientY - resizing.current.my)) });
     };
     const onUp = () => { dragging.current = false; resizing.current = false; };
     window.addEventListener('mousemove', onMove);
     window.addEventListener('mouseup', onUp);
     return () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
   }, []);
+  const onResizeStart = (e) => { e.stopPropagation(); resizing.current = { mx: e.clientX, my: e.clientY, w: size.w, h: size.h }; };
 
-  // ── Resize ─────────────────────────────────────────────────────────────
-  const onResizeStart = (e) => { e.stopPropagation(); resizing.current = { x: e.clientX, y: e.clientY, w: size.w, h: size.h }; };
-  useEffect(() => {
-    const onMove = (e) => {
-      if (!resizing.current) return;
-      setSize({ w: Math.max(300, resizing.current.w + (e.clientX - resizing.current.x)), h: Math.max(360, resizing.current.h + (e.clientY - resizing.current.y)) });
-    };
-    const onUp = () => { resizing.current = false; };
-    window.addEventListener('mousemove', onMove);
-    window.addEventListener('mouseup', onUp);
-    return () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
-  }, []);
-
-  // ── Message helpers ─────────────────────────────────────────────────────
+  // Send message
   const sendMessage = async (overrideContent, overrideType, extra = {}) => {
     const content = overrideContent ?? input.trim();
     const type = overrideType ?? 'text';
@@ -161,14 +186,15 @@ export default function AdminChatWindow({ currentUsername, onOpenLeadCard, onOpe
       setInput('');
       setShowEmoji(false);
       setShowGif(false);
+      setShowTagMenu(false);
       await loadMessages();
-    } catch (e) { console.error(e); }
+    } catch {}
     setSending(false);
   };
 
   const sendAlert = async () => {
     const content = input.trim();
-    if (!content) { alert('Type a message first, then click 🚨 to send it as an alert.'); return; }
+    if (!content) { alert('Type a message first, then click Notify to send it as an alert popup.'); return; }
     setSending(true);
     try {
       await base44.entities.AdminChat.create({ sender: currentUsername, type: 'alert', content, isAlert: true, alertDismissedBy: '[]', sentAt: new Date().toISOString() });
@@ -187,7 +213,7 @@ export default function AdminChatWindow({ currentUsername, onOpenLeadCard, onOpe
   };
 
   const clearAllChat = async () => {
-    if (!window.confirm('Delete all chat history? This cannot be undone.')) return;
+    if (!window.confirm('Delete ALL chat history? This cannot be undone.')) return;
     try {
       const msgs = await base44.entities.AdminChat.list('-sentAt', 500);
       await Promise.all((msgs || []).map(m => base44.entities.AdminChat.delete(m.id)));
@@ -195,22 +221,16 @@ export default function AdminChatWindow({ currentUsername, onOpenLeadCard, onOpe
     } catch {}
   };
 
-  // ── GIF ────────────────────────────────────────────────────────────────
+  // GIF
   const handleGifSearch = async (q) => {
     setGifQuery(q);
     if (!q.trim()) { setGifs([]); return; }
     setGifLoading(true);
-    const results = await searchGifs(q);
-    setGifs(results);
+    setGifs(await searchGifs(q));
     setGifLoading(false);
   };
 
-  const sendGif = async (url) => {
-    await sendMessage(url, 'gif', { fileUrl: url });
-    setShowGif(false);
-  };
-
-  // ── File upload ────────────────────────────────────────────────────────
+  // File upload
   const handleFile = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -223,10 +243,10 @@ export default function AdminChatWindow({ currentUsername, onOpenLeadCard, onOpe
     e.target.value = '';
   };
 
-  // ── Voice message recording ────────────────────────────────────────────
+  // Voice message
   const startRecording = async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: selectedMic ? { deviceId: { exact: selectedMic } } : true });
       audioChunks.current = [];
       mediaRecorder.current = new MediaRecorder(stream);
       mediaRecorder.current.ondataavailable = e => audioChunks.current.push(e.data);
@@ -245,107 +265,51 @@ export default function AdminChatWindow({ currentUsername, onOpenLeadCard, onOpe
       setRecording(true);
     } catch {}
   };
+  const stopRecording = () => { mediaRecorder.current?.stop(); setRecording(false); };
 
-  const stopRecording = () => {
-    mediaRecorder.current?.stop();
-    setRecording(false);
-  };
-
-  // ── Tag lead/investor ──────────────────────────────────────────────────
+  // Tag
   const handleTagSearch = async (q) => {
     setTagSearch(q);
     if (!q.trim()) { setTagResults([]); return; }
     setTagLoading(true);
     try {
-      const [leads, investors] = await Promise.all([
-        base44.entities.Lead.list('-created_date', 50),
-        base44.entities.InvestorUser.list('-created_date', 50),
-      ]);
+      const [leads, investors] = await Promise.all([base44.entities.Lead.list('-created_date', 50), base44.entities.InvestorUser.list('-created_date', 50)]);
       const lq = q.toLowerCase();
-      const matchedLeads = (leads || []).filter(l => `${l.firstName} ${l.lastName}`.toLowerCase().includes(lq)).slice(0, 5).map(l => ({ id: l.id, name: `${l.firstName} ${l.lastName}`, type: 'lead' }));
-      const matchedInvestors = (investors || []).filter(u => (u.name || '').toLowerCase().includes(lq)).slice(0, 5).map(u => ({ id: u.id, name: u.name, type: 'investor' }));
-      setTagResults([...matchedLeads, ...matchedInvestors]);
+      setTagResults([
+        ...(leads||[]).filter(l=>`${l.firstName} ${l.lastName}`.toLowerCase().includes(lq)).slice(0,4).map(l=>({id:l.id,name:`${l.firstName} ${l.lastName}`,type:'lead'})),
+        ...(investors||[]).filter(u=>(u.name||'').toLowerCase().includes(lq)).slice(0,4).map(u=>({id:u.id,name:u.name,type:'investor'})),
+      ]);
     } catch {}
     setTagLoading(false);
   };
-
-  const sendTaggedMessage = async (contact) => {
-    const content = `@${contact.name}`;
-    await sendMessage(content, 'text', { taggedLeadId: contact.id, taggedLeadName: contact.name, taggedLeadType: contact.type });
-    setShowTagMenu(false);
-    setTagSearch('');
-    setTagResults([]);
+  const sendTaggedMessage = async (c) => {
+    await sendMessage(`@${c.name}`, 'text', { taggedLeadId: c.id, taggedLeadName: c.name, taggedLeadType: c.type });
+    setShowTagMenu(false); setTagSearch(''); setTagResults([]);
   };
 
-  const handleTaggedClick = (msg) => {
-    if (!msg.taggedLeadId) return;
-    if (msg.taggedLeadType === 'lead') onOpenLeadCard?.(msg.taggedLeadId);
-    else onOpenInvestorCard?.(msg.taggedLeadId);
-  };
-
-  // ══════════════════════════════════════════════════════════════════════
-  // WebRTC Voice Call (full-duplex)
-  // Signalling channel: AdminChat entity with type='webrtc_signal'
-  // Signal format: { to, from, kind, payload }
-  // ══════════════════════════════════════════════════════════════════════
-
+  // ── WebRTC ────────────────────────────────────────────────────────────
   const sendSignal = async (kind, payload) => {
     try {
-      await base44.entities.AdminChat.create({
-        sender: currentUsername,
-        type: 'webrtc_signal',
-        content: JSON.stringify({ to: otherUser, from: currentUsername, kind, payload }),
-        sentAt: new Date().toISOString(),
-      });
+      await base44.entities.AdminChat.create({ sender: currentUsername, type: 'webrtc_signal', content: JSON.stringify({ to: otherUser, from: currentUsername, kind, payload }), sentAt: new Date().toISOString() });
     } catch {}
   };
 
-  const createPeerConnection = () => {
-    const pc = new RTCPeerConnection({
-      iceServers: [
-        { urls: 'stun:stun.l.google.com:19302' },
-        { urls: 'stun:stun1.l.google.com:19302' },
-      ],
-    });
-
-    pc.onicecandidate = (e) => {
-      if (e.candidate) sendSignal('ice', e.candidate.toJSON());
-    };
-
-    pc.ontrack = (e) => {
+  const createPC = () => {
+    const pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:stun1.l.google.com:19302' }] });
+    pc.onicecandidate = e => { if (e.candidate) sendSignal('ice', e.candidate.toJSON()); };
+    pc.ontrack = e => {
       const stream = e.streams[0];
       if (!stream) return;
-      // Check if it's audio or video
-      if (e.track.kind === 'audio' && remoteAudioRef.current) {
-        remoteAudioRef.current.srcObject = stream;
-      }
-      if (e.track.kind === 'video') {
-        setRemoteScreen(stream);
-      }
+      if (e.track.kind === 'audio' && remoteAudioRef.current) remoteAudioRef.current.srcObject = stream;
+      if (e.track.kind === 'video') setRemoteScreen(stream);
     };
-
-    pc.onconnectionstatechange = () => {
-      if (['disconnected', 'failed', 'closed'].includes(pc.connectionState)) {
-        endCall(true);
-      }
-    };
-
+    pc.onconnectionstatechange = () => { if (['disconnected','failed','closed'].includes(pc.connectionState)) endCall(true); };
     return pc;
   };
 
-  const startCallTimer = () => {
-    setCallDuration(0);
-    callDurationRef.current = setInterval(() => setCallDuration(d => d + 1), 1000);
-  };
-
-  const stopCallTimer = () => {
-    clearInterval(callDurationRef.current);
-    setCallDuration(0);
-  };
-
-  const getMicStream = async () => {
+  const getMic = async () => {
     if (localStreamRef.current) return localStreamRef.current;
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: selectedMic ? { deviceId: { exact: selectedMic } } : true });
     localStreamRef.current = stream;
     return stream;
   };
@@ -353,60 +317,40 @@ export default function AdminChatWindow({ currentUsername, onOpenLeadCard, onOpe
   const startCall = async () => {
     try {
       setCallState('calling');
-      const pc = createPeerConnection();
-      pcRef.current = pc;
-
-      const stream = await getMicStream();
+      const pc = createPC(); pcRef.current = pc;
+      const stream = await getMic();
       stream.getTracks().forEach(t => pc.addTrack(t, stream));
-
       const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
       await sendSignal('offer', offer);
-    } catch (err) {
-      console.error('startCall error:', err);
-      setCallState('idle');
-    }
+    } catch { setCallState('idle'); }
   };
 
   const answerCall = async (offerPayload) => {
     try {
       setCallState('active');
-      const pc = createPeerConnection();
-      pcRef.current = pc;
-
-      const stream = await getMicStream();
+      const pc = createPC(); pcRef.current = pc;
+      const stream = await getMic();
       stream.getTracks().forEach(t => pc.addTrack(t, stream));
-
       await pc.setRemoteDescription(new RTCSessionDescription(offerPayload));
-
-      // Apply any buffered ICE candidates
-      for (const c of pendingIceCandidates.current) {
-        await pc.addIceCandidate(new RTCIceCandidate(c)).catch(() => {});
-      }
-      pendingIceCandidates.current = [];
-
+      for (const c of pendingIce.current) await pc.addIceCandidate(new RTCIceCandidate(c)).catch(()=>{});
+      pendingIce.current = [];
       const answer = await pc.createAnswer();
       await pc.setLocalDescription(answer);
       await sendSignal('answer', answer);
-      startCallTimer();
-    } catch (err) {
-      console.error('answerCall error:', err);
-      setCallState('idle');
-    }
+      setCallDuration(0);
+      callDurationRef.current = setInterval(() => setCallDuration(d => d + 1), 1000);
+    } catch { setCallState('idle'); }
   };
 
   const endCall = async (silent = false) => {
-    stopCallTimer();
+    clearInterval(callDurationRef.current);
     if (!silent) await sendSignal('hangup', {});
     if (pcRef.current) { pcRef.current.close(); pcRef.current = null; }
     if (localStreamRef.current) { localStreamRef.current.getTracks().forEach(t => t.stop()); localStreamRef.current = null; }
     if (screenStreamRef.current) { screenStreamRef.current.getTracks().forEach(t => t.stop()); screenStreamRef.current = null; }
     if (remoteAudioRef.current) remoteAudioRef.current.srcObject = null;
-    setSharingScreen(false);
-    setRemoteScreen(null);
-    setCallMuted(false);
-    setCallState('idle');
-    clearInterval(signalPollRef.current);
+    setSharingScreen(false); setRemoteScreen(null); setCallMuted(false); setCallDuration(0); setCallState('idle');
   };
 
   const toggleMute = () => {
@@ -415,313 +359,367 @@ export default function AdminChatWindow({ currentUsername, onOpenLeadCard, onOpe
     setCallMuted(m => !m);
   };
 
-  // ── Screen share ──────────────────────────────────────────────────────
   const startScreenShare = async () => {
     if (!pcRef.current) return;
     try {
       const screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
       screenStreamRef.current = screenStream;
       const track = screenStream.getVideoTracks()[0];
-
-      // Add the screen track to the peer connection
-      const sender = pcRef.current.addTrack(track, screenStream);
-      screenTrackRef.current = sender;
-
-      // Show local preview
-      if (localVideoRef.current) localVideoRef.current.srcObject = screenStream;
-
-      // Stop sharing when the user stops via browser UI
-      track.onended = () => stopScreenShare();
-
+      screenTrackRef.current = pcRef.current.addTrack(track, screenStream);
       setSharingScreen(true);
-    } catch (err) {
-      console.error('Screen share error:', err);
-    }
+      track.onended = stopScreenShare;
+    } catch {}
   };
-
   const stopScreenShare = () => {
     if (screenStreamRef.current) { screenStreamRef.current.getTracks().forEach(t => t.stop()); screenStreamRef.current = null; }
-    if (screenTrackRef.current && pcRef.current) {
-      pcRef.current.removeTrack(screenTrackRef.current);
-      screenTrackRef.current = null;
-    }
-    if (localVideoRef.current) localVideoRef.current.srcObject = null;
+    if (screenTrackRef.current && pcRef.current) { pcRef.current.removeTrack(screenTrackRef.current); screenTrackRef.current = null; }
     setSharingScreen(false);
   };
 
-  // ── Signal polling ─────────────────────────────────────────────────────
+  // Signal polling
   const pollSignals = useCallback(async () => {
     try {
       const msgs = await base44.entities.AdminChat.list('-sentAt', 30);
-      const signals = (msgs || []).filter(m =>
-        m.type === 'webrtc_signal' && !processedSignals.current.has(m.id)
-      );
+      const signals = (msgs || []).filter(m => m.type === 'webrtc_signal' && !processedSignals.current.has(m.id));
       for (const sig of signals.reverse()) {
         processedSignals.current.add(sig.id);
-        let parsed;
-        try { parsed = JSON.parse(sig.content); } catch { continue; }
+        let parsed; try { parsed = JSON.parse(sig.content); } catch { continue; }
         if (parsed.to !== currentUsername) continue;
-
-        const { kind, payload } = parsed;
-
+        const { kind, payload, from } = parsed;
         if (kind === 'offer' && callState === 'idle') {
+          setIncomingCallFrom(from || otherUser);
           setCallState('incoming');
-          // Stash offer for when user clicks Answer
           window._pendingOffer = payload;
-        } else if (kind === 'answer' && pcRef.current && callState !== 'active') {
+        } else if (kind === 'answer' && pcRef.current) {
           await pcRef.current.setRemoteDescription(new RTCSessionDescription(payload));
-          for (const c of pendingIceCandidates.current) {
-            await pcRef.current.addIceCandidate(new RTCIceCandidate(c)).catch(() => {});
-          }
-          pendingIceCandidates.current = [];
+          for (const c of pendingIce.current) await pcRef.current.addIceCandidate(new RTCIceCandidate(c)).catch(()=>{});
+          pendingIce.current = [];
           setCallState('active');
-          startCallTimer();
+          setCallDuration(0);
+          callDurationRef.current = setInterval(() => setCallDuration(d => d + 1), 1000);
         } else if (kind === 'ice' && pcRef.current) {
-          if (pcRef.current.remoteDescription) {
-            await pcRef.current.addIceCandidate(new RTCIceCandidate(payload)).catch(() => {});
-          } else {
-            pendingIceCandidates.current.push(payload);
-          }
+          if (pcRef.current.remoteDescription) await pcRef.current.addIceCandidate(new RTCIceCandidate(payload)).catch(()=>{});
+          else pendingIce.current.push(payload);
         } else if (kind === 'hangup') {
           endCall(true);
         }
       }
     } catch {}
-  }, [currentUsername, callState]);
+  }, [currentUsername, callState, otherUser]);
 
   useEffect(() => {
     if (!isAllowed) return;
-    const id = setInterval(pollSignals, 2000);
-    signalPollRef.current = id;
-    return () => clearInterval(id);
+    signalPollRef.current = setInterval(pollSignals, 2000);
+    return () => clearInterval(signalPollRef.current);
   }, [isAllowed, pollSignals]);
 
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      endCall(true);
-      clearInterval(pollRef.current);
-      clearInterval(signalPollRef.current);
-    };
-  }, []);
-
-  const fmtDuration = (s) => `${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;
+  useEffect(() => () => { endCall(true); clearInterval(pollRef.current); clearInterval(signalPollRef.current); }, []);
 
   if (!isAllowed) return null;
 
   // Group messages by day
   const grouped = [];
   let lastDay = null;
-  messages.forEach(msg => {
+  let lastSender = null;
+  messages.forEach((msg, idx) => {
     const day = fmtDay(msg.sentAt);
-    if (day !== lastDay) { grouped.push({ type: 'day', label: day }); lastDay = day; }
-    grouped.push({ type: 'msg', msg });
+    if (day !== lastDay) { grouped.push({ type: 'day', label: day }); lastDay = day; lastSender = null; }
+    const isFirst = msg.sender !== lastSender;
+    grouped.push({ type: 'msg', msg, isFirst });
+    lastSender = msg.sender;
   });
 
-  const callStateColor = { idle:'#4a5568', calling:'#f59e0b', incoming:'#4ade80', active:'#4ade80' }[callState] || '#4a5568';
+  const inputStyle = { flex:1, background:'transparent', border:'none', outline:'none', color:'#dcddde', fontSize:'14px', fontFamily:'sans-serif', padding:'0', resize:'none', lineHeight:'1.4' };
 
   return (
-    <div ref={windowRef} style={{ position:'fixed', left:pos.x, top:pos.y, width:minimized?220:size.w, height:minimized?40:size.h, zIndex:8000, background:'#0a1525', border:`1px solid rgba(184,147,58,0.4)`, borderRadius:'8px', boxShadow:'0 24px 80px rgba(0,0,0,0.8)', display:'flex', flexDirection:'column', overflow:'hidden', userSelect:'none', minWidth:minimized?0:300 }}>
-
-      {/* Hidden remote audio player */}
-      <audio ref={remoteAudioRef} autoPlay style={{ display:'none' }} />
-
-      {/* ── Header ── */}
-      <div onMouseDown={onDragStart} style={{ background:'linear-gradient(90deg,#0d1b2a,#121c2e)', borderBottom:minimized?'none':'1px solid rgba(184,147,58,0.2)', padding:'0 10px', height:'40px', display:'flex', alignItems:'center', gap:'8px', cursor:'grab', flexShrink:0 }}>
-        <div style={{ width:7, height:7, borderRadius:'50%', background: callState==='active'?'#4ade80':'#4a5568', boxShadow: callState==='active'?'0 0 5px #4ade80':'none', transition:'all 0.3s' }} />
-        <span style={{ color:GOLD, fontSize:'11px', letterSpacing:'1px', fontFamily:'Georgia,serif', flex:1 }}>
-          💬 {currentUsername} ↔ {otherUser}
-          {callState === 'active' && <span style={{ color:'#4ade80', marginLeft:'8px', fontSize:'10px' }}>📞 {fmtDuration(callDuration)}</span>}
-          {callState === 'calling' && <span style={{ color:'#f59e0b', marginLeft:'8px', fontSize:'10px' }}>📞 Calling…</span>}
-          {callState === 'incoming' && <span style={{ color:'#4ade80', marginLeft:'8px', fontSize:'10px', animation:'callPulse 0.8s ease-in-out infinite' }}>📲 Incoming!</span>}
-        </span>
-        <button onClick={() => setMinimized(v => !v)} style={{ background:'none', border:'none', color:'#6b7280', cursor:'pointer', fontSize:'14px', padding:'0 4px', lineHeight:1 }}>{minimized?'▲':'▼'}</button>
-        <button onClick={clearAllChat} title="Clear all chat" style={{ background:'none', border:'none', color:'#4a5568', cursor:'pointer', fontSize:'11px', padding:'0 4px' }}>🗑</button>
-        <button onClick={onClose} style={{ background:'none', border:'none', color:'#6b7280', cursor:'pointer', fontSize:'16px', padding:'0 4px', lineHeight:1 }}>×</button>
-      </div>
-
-      {!minimized && (
-        <>
-          {/* ── Incoming Call Banner ── */}
-          {callState === 'incoming' && (
-            <div style={{ background:'rgba(74,222,128,0.08)', borderBottom:'1px solid rgba(74,222,128,0.3)', padding:'10px 14px', flexShrink:0, display:'flex', alignItems:'center', gap:'8px' }}>
-              <div style={{ flex:1, color:'#4ade80', fontSize:'12px', fontWeight:'bold' }}>📲 {otherUser} is calling…</div>
-              <button onClick={() => answerCall(window._pendingOffer)} style={{ background:'linear-gradient(135deg,#22c55e,#16a34a)', color:'#fff', border:'none', borderRadius:'4px', padding:'5px 12px', cursor:'pointer', fontSize:'11px', fontWeight:'bold' }}>Answer</button>
-              <button onClick={() => { sendSignal('hangup', {}); setCallState('idle'); }} style={{ background:'rgba(239,68,68,0.15)', color:'#ef4444', border:'1px solid rgba(239,68,68,0.3)', borderRadius:'4px', padding:'5px 12px', cursor:'pointer', fontSize:'11px' }}>Decline</button>
-            </div>
-          )}
-
-          {/* ── Active Call Controls ── */}
-          {callState === 'active' && (
-            <div style={{ background:'rgba(74,222,128,0.05)', borderBottom:'1px solid rgba(74,222,128,0.2)', padding:'8px 12px', flexShrink:0, display:'flex', alignItems:'center', gap:'6px', flexWrap:'wrap' }}>
-              <span style={{ color:'#4ade80', fontSize:'11px', fontWeight:'bold' }}>📞 {fmtDuration(callDuration)}</span>
-              <button onClick={toggleMute} style={{ background:callMuted?'rgba(239,68,68,0.15)':'rgba(255,255,255,0.06)', color:callMuted?'#ef4444':'#8a9ab8', border:`1px solid ${callMuted?'rgba(239,68,68,0.3)':'rgba(255,255,255,0.12)'}`, borderRadius:'4px', padding:'4px 10px', cursor:'pointer', fontSize:'10px' }}>
-                {callMuted ? '🔇 Unmute' : '🎙 Mute'}
-              </button>
-              {!sharingScreen ? (
-                <button onClick={startScreenShare} style={{ background:'rgba(96,165,250,0.1)', color:'#60a5fa', border:'1px solid rgba(96,165,250,0.3)', borderRadius:'4px', padding:'4px 10px', cursor:'pointer', fontSize:'10px' }}>
-                  🖥 Share Screen
-                </button>
-              ) : (
-                <button onClick={stopScreenShare} style={{ background:'rgba(239,68,68,0.1)', color:'#ef4444', border:'1px solid rgba(239,68,68,0.3)', borderRadius:'4px', padding:'4px 10px', cursor:'pointer', fontSize:'10px' }}>
-                  ⏹ Stop Share
-                </button>
-              )}
-              <button onClick={() => endCall(false)} style={{ background:'rgba(239,68,68,0.15)', color:'#ef4444', border:'1px solid rgba(239,68,68,0.3)', borderRadius:'4px', padding:'4px 12px', cursor:'pointer', fontSize:'10px', fontWeight:'bold', marginLeft:'auto' }}>
-                📵 Hang Up
-              </button>
-            </div>
-          )}
-
-          {/* ── Screen Share Preview ── */}
-          {(sharingScreen || remoteScreen) && (
-            <div style={{ background:'#000', flexShrink:0, position:'relative', maxHeight:'160px', overflow:'hidden' }}>
-              {remoteScreen && (
-                <video ref={remoteVideoRef} autoPlay playsInline style={{ width:'100%', maxHeight:'160px', objectFit:'contain', display:'block' }}
-                  ref={el => { if (el && remoteScreen) el.srcObject = remoteScreen; }} />
-              )}
-              {sharingScreen && (
-                <video autoPlay playsInline muted style={{ position:remoteScreen?'absolute':'static', bottom:0, right:0, width:remoteScreen?'80px':'100%', maxHeight:remoteScreen?'60px':'160px', objectFit:'contain', border:remoteScreen?'1px solid rgba(255,255,255,0.2)':undefined }}
-                  ref={el => { if (el && screenStreamRef.current) el.srcObject = screenStreamRef.current; }} />
-              )}
-              <div style={{ position:'absolute', top:'4px', left:'6px', background:'rgba(0,0,0,0.6)', borderRadius:'3px', padding:'2px 6px', fontSize:'9px', color:'#60a5fa' }}>
-                {remoteScreen ? `${otherUser}'s screen` : 'Your screen'}{sharingScreen && remoteScreen ? ' · yours (pip)' : ''}
-              </div>
-            </div>
-          )}
-
-          {/* ── Messages ── */}
-          <div ref={scrollRef} style={{ flex:1, overflowY:'auto', padding:'10px 12px', display:'flex', flexDirection:'column', gap:'2px' }}>
-            {grouped.map((item, i) => {
-              if (item.type === 'day') return (
-                <div key={`d-${i}`} style={{ textAlign:'center', color:'#4a5568', fontSize:'10px', margin:'8px 0 4px', letterSpacing:'1px' }}>{item.label}</div>
-              );
-              const msg = item.msg;
-              const isMe = msg.sender === currentUsername;
-              return (
-                <div key={msg.id} className="chat-msg-row" style={{ display:'flex', justifyContent:isMe?'flex-end':'flex-start', marginBottom:'3px', position:'relative' }}>
-                  <div style={{ maxWidth:'80%', position:'relative' }}>
-                    {!isMe && <div style={{ color:'#4a5568', fontSize:'9px', marginBottom:'2px', paddingLeft:'2px' }}>{msg.sender}</div>}
-                    <div style={{ padding:msg.type==='gif'?'4px':'7px 10px', borderRadius:isMe?'12px 12px 3px 12px':'12px 12px 12px 3px', background:msg.isAlert?'rgba(239,68,68,0.15)':isMe?'rgba(184,147,58,0.2)':'rgba(255,255,255,0.06)', border:msg.isAlert?'1px solid rgba(239,68,68,0.4)':`1px solid ${isMe?'rgba(184,147,58,0.3)':'rgba(255,255,255,0.08)'}`, fontSize:'13px', color:'#e8e0d0', lineHeight:1.5, wordBreak:'break-word' }}>
-                      {msg.isAlert && <div style={{ color:'#ef4444', fontSize:'10px', fontWeight:'bold', marginBottom:'3px', letterSpacing:'1px' }}>🚨 ALERT</div>}
-                      {msg.type === 'text' && msg.taggedLeadId ? (
-                        <span onClick={() => handleTaggedClick(msg)} style={{ color:'#60a5fa', cursor:'pointer', textDecoration:'underline', fontWeight:'bold' }}>
-                          @{msg.taggedLeadName}<span style={{ color:'#4a5568', fontSize:'10px', marginLeft:'4px' }}>({msg.taggedLeadType})</span>
-                        </span>
-                      ) : msg.type === 'text' ? <span>{msg.content}</span>
-                        : msg.type === 'gif' ? <img src={msg.fileUrl||msg.content} alt="gif" style={{ maxWidth:'200px', borderRadius:'6px', display:'block' }} />
-                        : msg.type === 'voice' ? <audio controls src={msg.fileUrl} style={{ maxWidth:'200px', height:'32px' }} />
-                        : msg.type === 'file' ? (
-                          <a href={msg.fileUrl} target="_blank" rel="noopener noreferrer" style={{ color:'#60a5fa', textDecoration:'none', display:'flex', alignItems:'center', gap:'5px' }}>📎 {msg.fileName||msg.content}</a>
-                        ) : <span>{msg.content}</span>}
-                    </div>
-                    <div style={{ display:'flex', alignItems:'center', gap:'6px', justifyContent:isMe?'flex-end':'flex-start', marginTop:'2px' }}>
-                      <span style={{ color:'#2d3748', fontSize:'9px' }}>{fmtTime(msg.sentAt)}</span>
-                      {/* Delete — always visible, small */}
-                      <button onClick={() => deleteMessage(msg.id)} title="Delete" className="delete-btn"
-                        style={{ background:'none', border:'none', color:'#4a5568', cursor:'pointer', fontSize:'10px', padding:'0 2px', lineHeight:1, opacity:0, transition:'opacity 0.15s' }}>
-                        ✕
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-          {/* ── Emoji picker ── */}
-          {showEmoji && (
-            <div style={{ padding:'8px', borderTop:'1px solid rgba(255,255,255,0.07)', background:'rgba(0,0,0,0.3)', display:'flex', flexWrap:'wrap', gap:'4px', maxHeight:'100px', overflowY:'auto', flexShrink:0 }}>
-              {EMOJI_LIST.map(e => (
-                <button key={e} onClick={() => setInput(p => p + e)} style={{ background:'none', border:'none', fontSize:'18px', cursor:'pointer', padding:'2px', lineHeight:1 }}>{e}</button>
-              ))}
-            </div>
-          )}
-
-          {/* ── GIF picker ── */}
-          {showGif && (
-            <div style={{ padding:'8px', borderTop:'1px solid rgba(255,255,255,0.07)', background:'rgba(0,0,0,0.3)', flexShrink:0 }}>
-              <input value={gifQuery} onChange={e => handleGifSearch(e.target.value)} placeholder="Search GIFs…"
-                style={{ width:'100%', background:'rgba(255,255,255,0.07)', border:'1px solid rgba(255,255,255,0.12)', borderRadius:'4px', padding:'5px 8px', color:'#e8e0d0', fontSize:'12px', outline:'none', boxSizing:'border-box' }} />
-              {gifLoading && <div style={{ color:'#6b7280', fontSize:'11px', textAlign:'center', padding:'6px' }}>Searching…</div>}
-              <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:'4px', marginTop:'6px', maxHeight:'120px', overflowY:'auto' }}>
-                {gifs.map(g => <img key={g.id} src={g.preview} alt="gif" onClick={() => sendGif(g.url)} style={{ width:'100%', aspectRatio:'4/3', objectFit:'cover', borderRadius:'4px', cursor:'pointer', border:'1px solid rgba(255,255,255,0.08)' }} />)}
-              </div>
-            </div>
-          )}
-
-          {/* ── Tag menu ── */}
-          {showTagMenu && (
-            <div style={{ padding:'8px', borderTop:'1px solid rgba(255,255,255,0.07)', background:'rgba(0,0,0,0.3)', flexShrink:0 }}>
-              <input value={tagSearch} onChange={e => handleTagSearch(e.target.value)} placeholder="Search leads or investors…" autoFocus
-                style={{ width:'100%', background:'rgba(255,255,255,0.07)', border:'1px solid rgba(255,255,255,0.12)', borderRadius:'4px', padding:'5px 8px', color:'#e8e0d0', fontSize:'12px', outline:'none', boxSizing:'border-box' }} />
-              {tagLoading && <div style={{ color:'#6b7280', fontSize:'11px', padding:'5px' }}>Searching…</div>}
-              {tagResults.map(c => (
-                <div key={c.id} onClick={() => sendTaggedMessage(c)}
-                  style={{ padding:'6px 8px', cursor:'pointer', color:'#e8e0d0', fontSize:'12px', borderRadius:'3px', display:'flex', alignItems:'center', gap:'6px' }}
-                  onMouseEnter={e => e.currentTarget.style.background='rgba(255,255,255,0.06)'}
-                  onMouseLeave={e => e.currentTarget.style.background='none'}>
-                  <span style={{ fontSize:'10px', color:c.type==='lead'?'#60a5fa':'#a78bfa' }}>{c.type==='lead'?'🏷 Lead':'💼 Investor'}</span>{c.name}
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* ── Input bar ── */}
-          <div style={{ borderTop:'1px solid rgba(255,255,255,0.07)', padding:'8px 10px', display:'flex', gap:'5px', alignItems:'flex-end', flexShrink:0 }}>
-            <div style={{ display:'flex', gap:'3px', alignItems:'center' }}>
-              <button onClick={() => { setShowEmoji(v=>!v); setShowGif(false); setShowTagMenu(false); }} title="Emoji"
-                style={{ background:showEmoji?'rgba(184,147,58,0.2)':'none', border:'none', cursor:'pointer', fontSize:'16px', padding:'3px', borderRadius:'4px', lineHeight:1 }}>😊</button>
-              <button onClick={() => { setShowGif(v=>!v); setShowEmoji(false); setShowTagMenu(false); setGifQuery(''); setGifs([]); }} title="GIF"
-                style={{ background:showGif?'rgba(184,147,58,0.2)':'none', border:'none', cursor:'pointer', fontSize:'10px', padding:'3px 5px', borderRadius:'4px', color:'#60a5fa', fontWeight:'bold' }}>GIF</button>
-              <button onClick={() => fileInputRef.current?.click()} title="Attach file" disabled={uploading}
-                style={{ background:'none', border:'none', cursor:'pointer', fontSize:'14px', padding:'3px', color:'#8a9ab8' }}>{uploading?'⏳':'📎'}</button>
-              <button onMouseDown={startRecording} onMouseUp={stopRecording} title="Hold to record voice"
-                style={{ background:recording?'rgba(239,68,68,0.2)':'none', border:'none', cursor:'pointer', fontSize:'14px', padding:'3px', borderRadius:'4px', color:recording?'#ef4444':'#8a9ab8' }}>🎙</button>
-              <button onClick={() => { setShowTagMenu(v=>!v); setShowEmoji(false); setShowGif(false); }} title="Tag a lead"
-                style={{ background:showTagMenu?'rgba(96,165,250,0.15)':'none', border:'none', cursor:'pointer', fontSize:'14px', padding:'3px', color:'#60a5fa' }}>@</button>
-
-              {/* ── Voice Call button ── */}
-              {callState === 'idle' && (
-                <button onClick={startCall} title="Start voice call"
-                  style={{ background:'rgba(74,222,128,0.1)', border:'1px solid rgba(74,222,128,0.3)', borderRadius:'4px', cursor:'pointer', fontSize:'13px', padding:'3px 6px', color:'#4ade80' }}>📞</button>
-              )}
-              {callState === 'calling' && (
-                <button onClick={() => endCall(false)} title="Cancel call"
-                  style={{ background:'rgba(239,68,68,0.15)', border:'1px solid rgba(239,68,68,0.3)', borderRadius:'4px', cursor:'pointer', fontSize:'10px', padding:'3px 7px', color:'#ef4444', fontWeight:'bold' }}>📵</button>
-              )}
-              {callState === 'active' && !sharingScreen && (
-                <button onClick={startScreenShare} title="Share screen"
-                  style={{ background:'rgba(96,165,250,0.1)', border:'1px solid rgba(96,165,250,0.3)', borderRadius:'4px', cursor:'pointer', fontSize:'13px', padding:'3px 6px', color:'#60a5fa' }}>🖥</button>
-              )}
-            </div>
-
-            <input value={input} onChange={e => setInput(e.target.value)}
-              onKeyDown={e => { if (e.key==='Enter'&&!e.shiftKey) { e.preventDefault(); sendMessage(); } }}
-              placeholder="Message…"
-              style={{ flex:1, background:'rgba(255,255,255,0.05)', border:'1px solid rgba(255,255,255,0.1)', borderRadius:'6px', padding:'7px 10px', color:'#e8e0d0', fontSize:'13px', outline:'none', fontFamily:'Georgia,serif' }} />
-
-            <button onClick={() => sendMessage()} disabled={sending||!input.trim()}
-              style={{ background:'linear-gradient(135deg,#b8933a,#d4aa50)', color:DARK, border:'none', borderRadius:'6px', padding:'7px 12px', cursor:'pointer', fontSize:'12px', fontWeight:'bold', opacity:(!input.trim()||sending)?0.4:1, flexShrink:0 }}>▶</button>
-
-            {/* ── Notify / Alert button ── */}
-            <button onClick={sendAlert} disabled={sending} title={input.trim() ? 'Send as alert popup' : 'Type a message first'}
-              style={{ background:input.trim()?'rgba(239,68,68,0.15)':'rgba(255,255,255,0.04)', color:input.trim()?'#ef4444':'#4a5568', border:`1px solid ${input.trim()?'rgba(239,68,68,0.3)':'rgba(255,255,255,0.1)'}`, borderRadius:'6px', padding:'7px 10px', cursor:'pointer', fontSize:'11px', fontWeight:'bold', flexShrink:0, transition:'all 0.2s' }}>
-              🚨
-            </button>
-          </div>
-
-          {/* Resize handle */}
-          <div onMouseDown={onResizeStart} style={{ position:'absolute', bottom:0, right:0, width:'14px', height:'14px', cursor:'se-resize', background:'rgba(184,147,58,0.3)', borderTopLeftRadius:'4px' }} />
-        </>
+    <>
+      {/* ── Incoming Call Popup ── */}
+      {callState === 'incoming' && (
+        <IncomingCallPopupChat
+          from={incomingCallFrom}
+          onAnswer={() => answerCall(window._pendingOffer)}
+          onDecline={() => { sendSignal('hangup', {}); setCallState('idle'); }}
+        />
       )}
 
-      <input ref={fileInputRef} type="file" onChange={handleFile} style={{ display:'none' }} />
+      <audio ref={remoteAudioRef} autoPlay style={{ display:'none' }} />
 
-      <style>{`
-        .chat-msg-row:hover .delete-btn { opacity: 1 !important; }
-        @keyframes callPulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
-      `}</style>
-    </div>
+      <div style={{ position:'fixed', left:pos.x, top:pos.y, width:minimized?240:size.w, height:minimized?44:size.h, zIndex:8000, background:'#313338', border:'1px solid rgba(0,0,0,0.5)', borderRadius:'8px', boxShadow:'0 8px 32px rgba(0,0,0,0.6)', display:'flex', flexDirection:'column', overflow:'hidden', userSelect:'none' }}>
+
+        {/* ── Title bar ── */}
+        <div onMouseDown={onDragStart} style={{ height:'44px', background:'#2b2d31', borderBottom:minimized?'none':'1px solid rgba(0,0,0,0.3)', display:'flex', alignItems:'center', padding:'0 12px', gap:'10px', cursor:'grab', flexShrink:0 }}>
+          <div style={{ display:'flex', alignItems:'center', gap:'6px', flex:1, minWidth:0 }}>
+            <span style={{ color:'#80848e', fontSize:'15px' }}>@</span>
+            <span style={{ color:'#f2f3f5', fontSize:'14px', fontWeight:'600', fontFamily:'sans-serif' }}>{otherUser}</span>
+            {callState === 'active' && (
+              <span style={{ background:'rgba(87,242,135,0.15)', color:'#57f287', border:'1px solid rgba(87,242,135,0.3)', borderRadius:'10px', padding:'1px 8px', fontSize:'10px', fontWeight:'600', marginLeft:'4px' }}>
+                📞 {fmtDur(callDuration)}
+              </span>
+            )}
+            {callState === 'calling' && (
+              <span style={{ background:'rgba(250,168,26,0.15)', color:'#faa81a', border:'1px solid rgba(250,168,26,0.3)', borderRadius:'10px', padding:'1px 8px', fontSize:'10px', fontWeight:'600', marginLeft:'4px' }}>
+                📞 Calling…
+              </span>
+            )}
+          </div>
+          <div style={{ display:'flex', gap:'2px', alignItems:'center' }}>
+            {callState === 'idle' && (
+              <TitleBtn title="Voice Call" onClick={startCall}>📞</TitleBtn>
+            )}
+            {callState === 'calling' && (
+              <TitleBtn title="Cancel Call" onClick={() => endCall(false)} red>📵</TitleBtn>
+            )}
+            {callState === 'active' && (
+              <>
+                <TitleBtn title={callMuted ? 'Unmute' : 'Mute'} onClick={toggleMute} active={callMuted}>
+                  {callMuted ? '🔇' : '🎙'}
+                </TitleBtn>
+                <TitleBtn title={sharingScreen ? 'Stop Screen Share' : 'Share Screen'} onClick={sharingScreen ? stopScreenShare : startScreenShare} active={sharingScreen}>
+                  🖥
+                </TitleBtn>
+                <TitleBtn title="Hang Up" onClick={() => endCall(false)} red>📵</TitleBtn>
+              </>
+            )}
+            <TitleBtn title="Audio Settings" onClick={() => setShowAudioSettings(v => !v)} active={showAudioSettings}>⚙️</TitleBtn>
+            <TitleBtn title={minimized ? 'Expand' : 'Minimize'} onClick={() => setMinimized(v => !v)}>{minimized ? '▲' : '▼'}</TitleBtn>
+            <TitleBtn title="Clear All History" onClick={clearAllChat}>🗑</TitleBtn>
+            <TitleBtn title="Close" onClick={onClose}>✕</TitleBtn>
+          </div>
+        </div>
+
+        {!minimized && (
+          <>
+            {/* ── Audio Settings Dropdown ── */}
+            {showAudioSettings && (
+              <div style={{ background:'#2b2d31', borderBottom:'1px solid rgba(0,0,0,0.3)', padding:'12px 14px', flexShrink:0 }}>
+                <div style={{ color:'#b5bac1', fontSize:'10px', fontWeight:'700', letterSpacing:'1px', textTransform:'uppercase', marginBottom:'8px' }}>Audio Settings</div>
+                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'8px' }}>
+                  <div>
+                    <label style={{ color:'#80848e', fontSize:'10px', display:'block', marginBottom:'4px' }}>🎙 Microphone</label>
+                    <select value={selectedMic} onChange={e => setSelectedMic(e.target.value)}
+                      style={{ width:'100%', background:'#1e1f22', border:'1px solid rgba(255,255,255,0.1)', borderRadius:'4px', padding:'5px 8px', color:'#dcddde', fontSize:'11px', outline:'none', cursor:'pointer' }}>
+                      <option value="">Default Mic</option>
+                      {micDevices.map(d => <option key={d.deviceId} value={d.deviceId}>{d.label || `Mic ${d.deviceId.slice(0,6)}`}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label style={{ color:'#80848e', fontSize:'10px', display:'block', marginBottom:'4px' }}>🔊 Speaker</label>
+                    <select value={selectedSpeaker} onChange={e => setSelectedSpeaker(e.target.value)}
+                      style={{ width:'100%', background:'#1e1f22', border:'1px solid rgba(255,255,255,0.1)', borderRadius:'4px', padding:'5px 8px', color:'#dcddde', fontSize:'11px', outline:'none', cursor:'pointer' }}>
+                      <option value="">Default Speaker</option>
+                      {speakerDevices.map(d => <option key={d.deviceId} value={d.deviceId}>{d.label || `Speaker ${d.deviceId.slice(0,6)}`}</option>)}
+                    </select>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* ── Screen share preview ── */}
+            {(sharingScreen || remoteScreen) && (
+              <div style={{ background:'#000', flexShrink:0, maxHeight:'140px', overflow:'hidden', position:'relative' }}>
+                {remoteScreen && (
+                  <video autoPlay playsInline style={{ width:'100%', maxHeight:'140px', objectFit:'contain', display:'block' }}
+                    ref={el => { if (el && remoteScreen) el.srcObject = remoteScreen; }} />
+                )}
+                {sharingScreen && screenStreamRef.current && (
+                  <video autoPlay playsInline muted style={{ position:remoteScreen?'absolute':'static', bottom:0, right:0, width:remoteScreen?'80px':'100%', maxHeight:remoteScreen?'56px':'140px', objectFit:'contain', border:remoteScreen?'1px solid #5865f2':undefined }}
+                    ref={el => { if (el && screenStreamRef.current) el.srcObject = screenStreamRef.current; }} />
+                )}
+                <div style={{ position:'absolute', top:'4px', left:'6px', background:'rgba(0,0,0,0.7)', borderRadius:'3px', padding:'2px 7px', fontSize:'10px', color:'#b5bac1' }}>
+                  {remoteScreen ? `${otherUser}'s screen` : 'Your screen (sharing)'}
+                </div>
+              </div>
+            )}
+
+            {/* ── Messages ── */}
+            <div ref={scrollRef} style={{ flex:1, overflowY:'auto', padding:'16px 0 8px', display:'flex', flexDirection:'column', scrollbarWidth:'thin', scrollbarColor:'#1e1f22 transparent' }}>
+              {grouped.map((item, i) => {
+                if (item.type === 'day') return (
+                  <div key={`d-${i}`} style={{ display:'flex', alignItems:'center', padding:'0 16px', margin:'16px 0 8px' }}>
+                    <div style={{ flex:1, height:'1px', background:'rgba(255,255,255,0.07)' }} />
+                    <span style={{ color:'#80848e', fontSize:'11px', fontWeight:'600', margin:'0 10px', whiteSpace:'nowrap' }}>{item.label}</span>
+                    <div style={{ flex:1, height:'1px', background:'rgba(255,255,255,0.07)' }} />
+                  </div>
+                );
+                const { msg, isFirst } = item;
+                const isMe = msg.sender === currentUsername;
+                const hovered = hoveredMsgId === msg.id;
+                return (
+                  <div key={msg.id}
+                    onMouseEnter={() => setHoveredMsgId(msg.id)}
+                    onMouseLeave={() => setHoveredMsgId(null)}
+                    style={{ display:'flex', padding:isFirst?'8px 16px 2px':'2px 16px', gap:'14px', alignItems:'flex-start', position:'relative', background:hovered?'rgba(0,0,0,0.15)':'transparent', transition:'background 0.1s' }}>
+
+                    {/* Avatar or spacer */}
+                    <div style={{ width:36, flexShrink:0, paddingTop:isFirst?'2px':'0' }}>
+                      {isFirst ? <Avatar username={msg.sender} size={36} /> : null}
+                    </div>
+
+                    <div style={{ flex:1, minWidth:0 }}>
+                      {isFirst && (
+                        <div style={{ display:'flex', alignItems:'baseline', gap:'8px', marginBottom:'2px' }}>
+                          <span style={{ color:'#f2f3f5', fontSize:'14px', fontWeight:'600', fontFamily:'sans-serif' }}>{msg.sender}</span>
+                          <span style={{ color:'#80848e', fontSize:'11px' }}>{fmtTime(msg.sentAt)}</span>
+                          {msg.isAlert && <span style={{ background:'rgba(237,66,69,0.2)', color:'#ed4245', border:'1px solid rgba(237,66,69,0.4)', borderRadius:'4px', padding:'0px 6px', fontSize:'10px', fontWeight:'700', letterSpacing:'0.5px' }}>ALERT</span>}
+                        </div>
+                      )}
+
+                      {/* Message content */}
+                      {msg.type === 'text' && msg.taggedLeadId ? (
+                        <span onClick={() => { if (msg.taggedLeadType==='lead') onOpenLeadCard?.(msg.taggedLeadId); else onOpenInvestorCard?.(msg.taggedLeadId); }}
+                          style={{ color:'#5865f2', cursor:'pointer', fontWeight:'600', fontSize:'14px', fontFamily:'sans-serif' }}>
+                          @{msg.taggedLeadName}
+                          <span style={{ color:'#80848e', fontSize:'11px', marginLeft:'4px', fontWeight:'normal' }}>({msg.taggedLeadType})</span>
+                        </span>
+                      ) : msg.type === 'text' || msg.type === 'alert' ? (
+                        <span style={{ color:'#dcddde', fontSize:'14px', fontFamily:'sans-serif', lineHeight:'1.5', wordBreak:'break-word' }}>{msg.content}</span>
+                      ) : msg.type === 'gif' ? (
+                        <img src={msg.fileUrl||msg.content} alt="gif" style={{ maxWidth:'240px', maxHeight:'160px', borderRadius:'4px', display:'block', marginTop:'4px' }} />
+                      ) : msg.type === 'voice' ? (
+                        <audio controls src={msg.fileUrl} style={{ maxWidth:'240px', height:'32px', marginTop:'4px' }} />
+                      ) : msg.type === 'file' ? (
+                        <a href={msg.fileUrl} target="_blank" rel="noopener noreferrer"
+                          style={{ display:'inline-flex', alignItems:'center', gap:'6px', background:'#2b2d31', border:'1px solid rgba(255,255,255,0.08)', borderRadius:'4px', padding:'6px 12px', color:'#00a8fc', textDecoration:'none', fontSize:'13px', marginTop:'4px' }}>
+                          📎 {msg.fileName || msg.content}
+                        </a>
+                      ) : <span style={{ color:'#dcddde', fontSize:'14px' }}>{msg.content}</span>}
+                    </div>
+
+                    {/* Hover actions */}
+                    {hovered && (
+                      <div style={{ position:'absolute', top:'-12px', right:'16px', background:'#2b2d31', border:'1px solid rgba(0,0,0,0.4)', borderRadius:'6px', display:'flex', gap:'2px', padding:'3px', boxShadow:'0 4px 12px rgba(0,0,0,0.4)', zIndex:10 }}>
+                        <HoverBtn title="Delete" onClick={() => deleteMessage(msg.id)}>🗑</HoverBtn>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+              {messages.length === 0 && (
+                <div style={{ textAlign:'center', padding:'40px 20px', color:'#80848e', fontFamily:'sans-serif' }}>
+                  <div style={{ fontSize:'48px', marginBottom:'12px' }}>💬</div>
+                  <div style={{ fontSize:'20px', color:'#f2f3f5', fontWeight:'700', marginBottom:'4px' }}>Start your conversation</div>
+                  <div style={{ fontSize:'13px' }}>This is the beginning of your direct message history with {otherUser}.</div>
+                </div>
+              )}
+            </div>
+
+            {/* ── Emoji / GIF picker ── */}
+            {showEmoji && (
+              <div style={{ padding:'10px 12px', borderTop:'1px solid rgba(0,0,0,0.3)', background:'#2b2d31', display:'flex', flexWrap:'wrap', gap:'4px', maxHeight:'90px', overflowY:'auto', flexShrink:0 }}>
+                {EMOJI_LIST.map(e => (
+                  <button key={e} onClick={() => { setInput(p => p + e); inputRef.current?.focus(); }}
+                    style={{ background:'none', border:'none', fontSize:'20px', cursor:'pointer', padding:'3px', borderRadius:'4px', lineHeight:1, transition:'background 0.1s' }}
+                    onMouseEnter={e2 => e2.currentTarget.style.background='rgba(255,255,255,0.08)'}
+                    onMouseLeave={e2 => e2.currentTarget.style.background='none'}>
+                    {e}
+                  </button>
+                ))}
+              </div>
+            )}
+            {showGif && (
+              <div style={{ padding:'10px 12px', borderTop:'1px solid rgba(0,0,0,0.3)', background:'#2b2d31', flexShrink:0 }}>
+                <input value={gifQuery} onChange={e => handleGifSearch(e.target.value)} placeholder="Search GIFs…" autoFocus
+                  style={{ width:'100%', background:'#1e1f22', border:'1px solid rgba(255,255,255,0.08)', borderRadius:'4px', padding:'6px 10px', color:'#dcddde', fontSize:'13px', outline:'none', boxSizing:'border-box', fontFamily:'sans-serif' }} />
+                {gifLoading && <div style={{ color:'#80848e', fontSize:'12px', textAlign:'center', padding:'6px' }}>Searching…</div>}
+                <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:'4px', marginTop:'6px', maxHeight:'110px', overflowY:'auto' }}>
+                  {gifs.map(g => <img key={g.id} src={g.preview} alt="gif" onClick={async () => { await sendMessage(g.url, 'gif', { fileUrl: g.url }); setShowGif(false); }}
+                    style={{ width:'100%', aspectRatio:'4/3', objectFit:'cover', borderRadius:'4px', cursor:'pointer', border:'1px solid rgba(255,255,255,0.06)' }} />)}
+                </div>
+              </div>
+            )}
+            {showTagMenu && (
+              <div style={{ padding:'10px 12px', borderTop:'1px solid rgba(0,0,0,0.3)', background:'#2b2d31', flexShrink:0 }}>
+                <input value={tagSearch} onChange={e => handleTagSearch(e.target.value)} placeholder="Search leads or investors…" autoFocus
+                  style={{ width:'100%', background:'#1e1f22', border:'1px solid rgba(255,255,255,0.08)', borderRadius:'4px', padding:'6px 10px', color:'#dcddde', fontSize:'13px', outline:'none', boxSizing:'border-box', fontFamily:'sans-serif' }} />
+                {tagLoading && <div style={{ color:'#80848e', fontSize:'12px', padding:'5px' }}>Searching…</div>}
+                {tagResults.map(c => (
+                  <div key={c.id} onClick={() => sendTaggedMessage(c)}
+                    style={{ padding:'7px 10px', cursor:'pointer', color:'#dcddde', fontSize:'13px', borderRadius:'4px', display:'flex', alignItems:'center', gap:'8px', fontFamily:'sans-serif' }}
+                    onMouseEnter={e => e.currentTarget.style.background='rgba(255,255,255,0.06)'}
+                    onMouseLeave={e => e.currentTarget.style.background='none'}>
+                    <span style={{ fontSize:'11px', color:c.type==='lead'?'#5865f2':'#57f287' }}>{c.type==='lead'?'🏷':'💼'}</span>
+                    {c.name}
+                    <span style={{ color:'#80848e', fontSize:'10px', marginLeft:'auto' }}>{c.type}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* ── Input area ── */}
+            <div style={{ padding:'0 16px 16px', flexShrink:0 }}>
+              <div style={{ background:'#383a40', borderRadius:'8px', padding:'10px 14px', display:'flex', flexDirection:'column', gap:'8px' }}>
+                <input ref={inputRef} value={input} onChange={e => setInput(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
+                  placeholder={`Message @${otherUser}`}
+                  style={inputStyle} />
+                <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+                  <div style={{ display:'flex', gap:'2px' }}>
+                    <ToolBtn active={showEmoji} onClick={() => { setShowEmoji(v=>!v); setShowGif(false); setShowTagMenu(false); }} title="Emoji">😊 Emoji</ToolBtn>
+                    <ToolBtn active={showGif} onClick={() => { setShowGif(v=>!v); setShowEmoji(false); setShowTagMenu(false); setGifQuery(''); setGifs([]); }} title="Send a GIF">GIF</ToolBtn>
+                    <ToolBtn onClick={() => fileInputRef.current?.click()} disabled={uploading} title="Attach File">📎 File</ToolBtn>
+                    <ToolBtn active={recording} onMouseDown={startRecording} onMouseUp={stopRecording} title="Hold to record voice message">
+                      {recording ? '⏺ Recording…' : '🎙 Voice'}
+                    </ToolBtn>
+                    <ToolBtn active={showTagMenu} onClick={() => { setShowTagMenu(v=>!v); setShowEmoji(false); setShowGif(false); }} title="Tag a lead or investor">@ Tag</ToolBtn>
+                  </div>
+                  <div style={{ display:'flex', gap:'4px' }}>
+                    <button onClick={sendAlert} title="Send as alert popup to the other user"
+                      style={{ background:input.trim()?'rgba(237,66,69,0.15)':'rgba(255,255,255,0.05)', color:input.trim()?'#ed4245':'#80848e', border:`1px solid ${input.trim()?'rgba(237,66,69,0.4)':'rgba(255,255,255,0.1)'}`, borderRadius:'5px', padding:'4px 10px', cursor:'pointer', fontSize:'11px', fontWeight:'700', transition:'all 0.15s', whiteSpace:'nowrap' }}>
+                      🚨 Notify
+                    </button>
+                    <button onClick={() => sendMessage()} disabled={sending || !input.trim()}
+                      style={{ background:input.trim()?'#5865f2':'rgba(255,255,255,0.06)', color:input.trim()?'#fff':'#80848e', border:'none', borderRadius:'5px', padding:'4px 14px', cursor:input.trim()?'pointer':'default', fontSize:'12px', fontWeight:'700', transition:'all 0.15s', whiteSpace:'nowrap' }}>
+                      Send ▶
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Resize handle */}
+            <div onMouseDown={onResizeStart} style={{ position:'absolute', bottom:0, right:0, width:'14px', height:'14px', cursor:'se-resize' }}>
+              <svg viewBox="0 0 10 10" style={{ width:'10px', height:'10px', position:'absolute', bottom:'3px', right:'3px' }}>
+                <path d="M2 9L9 2M5 9L9 5M8 9L9 8" stroke="#4e5058" strokeWidth="1.5" strokeLinecap="round"/>
+              </svg>
+            </div>
+          </>
+        )}
+      </div>
+
+      <input ref={fileInputRef} type="file" onChange={handleFile} style={{ display:'none' }} />
+    </>
+  );
+}
+
+function TitleBtn({ onClick, onMouseDown, onMouseUp, title, children, active, red }) {
+  return (
+    <button onClick={onClick} onMouseDown={onMouseDown} onMouseUp={onMouseUp} title={title}
+      style={{ background:active?'rgba(255,255,255,0.12)':red?'rgba(237,66,69,0.15)':'none', color:red?'#ed4245':active?'#f2f3f5':'#80848e', border:'none', borderRadius:'4px', padding:'4px 7px', cursor:'pointer', fontSize:'14px', lineHeight:1, transition:'all 0.15s' }}
+      onMouseEnter={e => e.currentTarget.style.background=red?'rgba(237,66,69,0.25)':'rgba(255,255,255,0.08)'}
+      onMouseLeave={e => e.currentTarget.style.background=active?'rgba(255,255,255,0.12)':red?'rgba(237,66,69,0.15)':'none'}>
+      {children}
+    </button>
+  );
+}
+
+function ToolBtn({ onClick, onMouseDown, onMouseUp, title, children, active, disabled }) {
+  return (
+    <button onClick={onClick} onMouseDown={onMouseDown} onMouseUp={onMouseUp} title={title} disabled={disabled}
+      style={{ background:active?'rgba(255,255,255,0.12)':'none', color:active?'#f2f3f5':'#80848e', border:'none', borderRadius:'4px', padding:'3px 7px', cursor:disabled?'not-allowed':'pointer', fontSize:'11px', fontWeight:'600', fontFamily:'sans-serif', transition:'all 0.15s', whiteSpace:'nowrap', opacity:disabled?0.5:1 }}
+      onMouseEnter={e => { if(!disabled) e.currentTarget.style.background='rgba(255,255,255,0.08)'; e.currentTarget.style.color='#dcddde'; }}
+      onMouseLeave={e => { e.currentTarget.style.background=active?'rgba(255,255,255,0.12)':'none'; e.currentTarget.style.color=active?'#f2f3f5':'#80848e'; }}>
+      {children}
+    </button>
+  );
+}
+
+function HoverBtn({ onClick, title, children }) {
+  return (
+    <button onClick={onClick} title={title}
+      style={{ background:'none', border:'none', color:'#80848e', cursor:'pointer', fontSize:'13px', padding:'3px 6px', borderRadius:'4px', lineHeight:1 }}
+      onMouseEnter={e => { e.currentTarget.style.background='rgba(255,255,255,0.1)'; e.currentTarget.style.color='#ed4245'; }}
+      onMouseLeave={e => { e.currentTarget.style.background='none'; e.currentTarget.style.color='#80848e'; }}>
+      {children}
+    </button>
   );
 }
