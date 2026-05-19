@@ -134,8 +134,8 @@ function CSVUploadModal({ onClose, onImported }) {
       leadCount: 0,
     });
 
-    // Fetch existing leads (from THIS list only) to build dedup sets
-    const existing = await base44.entities.Lead.filter({ contactListId: listRecord.id });
+    // Fetch ALL existing leads to build dedup sets (check across the entire system)
+    const existing = await base44.entities.Lead.list('-created_date', 5000);
     const existingPhones = new Set(existing.map(l => (l.phone || '').replace(/\D/g,'')).filter(Boolean));
     const existingEmails = new Set(existing.map(l => (l.email || '').toLowerCase().trim()).filter(Boolean));
 
