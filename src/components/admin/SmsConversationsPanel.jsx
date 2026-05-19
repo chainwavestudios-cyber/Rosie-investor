@@ -68,7 +68,7 @@ export default function SmsConversationsPanel({ initialPhone = null }) {
 
   const load = useCallback(async () => {
     try {
-      const msgs = await base44.entities.SmsMessage.list('-sentAt', 2000);
+      const msgs = await base44.entities.SmsMessage.list('- sentAt', 500);
       setMessages(msgs || []);
     } catch {}
     setLoading(false);
@@ -76,7 +76,7 @@ export default function SmsConversationsPanel({ initialPhone = null }) {
 
   useEffect(() => {
     load();
-    pollRef.current = setInterval(load, 6000);
+    pollRef.current = setInterval(load, 30000) // Was 6s — caused rate limits;
     return () => clearInterval(pollRef.current);
   }, [load]);
 
