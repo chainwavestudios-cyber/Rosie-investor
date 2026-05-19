@@ -98,6 +98,60 @@ const NB_TECH_TEMPLATES = [
   { id: 8036172, label: 'NB Tech 4' },
 ];
 
+// ─── Today's Tally Box ───────────────────────────────────────────────────────
+function TodayTally({ refreshKey }) {
+  const [tally, setTally] = useState({});
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const load = async () => {
+      setLoading(true);
+      try {
+        // Get today's date range in local time (midnight-to-midnight)
+        const now = new Date();
+        const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
+        const all = await base44.entities.EmailLog.list('-sentAt', 2000);
+        const todayLogs = (all || []).filter(log => log.sentAt >= startOfDay && log.templateId);
+        const counts = {};
+        todayLogs.forEach(log => {
+          const tid = String(log.templateId);
+          counts[tid] = (counts[tid] || 0) + 1;
+        });
+        setTally(counts);
+      } catch {}
+      setLoading(false);
+    };
+    load();
+  }, [refreshKey]);
+
+  const total = Object.values(tally).reduce((a, b) => a + b, 0);
+
+  return (
+    <div style={{ background: 'rgba(74,222,128,0.05)', border: '1px solid rgba(74,222,128,0.2)', borderRadius: '6px', padding: '14px 18px', marginBottom: '20px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
+        <span style={{ fontSize: '16px' }}>📊</span>
+        <span style={{ color: '#4ade80', fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', fontWeight: 'bold' }}>Today's Sends</span>
+        <span style={{ color: '#6b7280', fontSize: '10px' }}>(resets at midnight)</span>
+        {loading && <span style={{ color: '#4a5568', fontSize: '10px' }}>Loading…</span>}
+        <div style={{ flex: 1 }} />
+        <span style={{ color: '#4ade80', fontSize: '18px', fontWeight: 'bold', fontFamily: 'monospace' }}>{total}</span>
+        <span style={{ color: '#6b7280', fontSize: '10px' }}>total</span>
+      </div>
+      <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+        {NB_TECH_TEMPLATES.map(t => {
+          const count = tally[String(t.id)] || 0;
+          return (
+            <div key={t.id} style={{ background: count > 0 ? 'rgba(129,140,248,0.12)' : 'rgba(255,255,255,0.03)', border: `1px solid ${count > 0 ? 'rgba(129,140,248,0.4)' : 'rgba(255,255,255,0.08)'}`, borderRadius: '4px', padding: '8px 14px', display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: '80px' }}>
+              <span style={{ color: count > 0 ? '#818cf8' : '#4a5568', fontSize: '22px', fontWeight: 'bold', fontFamily: 'monospace', lineHeight: 1 }}>{count}</span>
+              <span style={{ color: count > 0 ? '#818cf8' : '#4a5568', fontSize: '10px', marginTop: '4px' }}>{t.label}</span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // ─── NB Tech Email Section ────────────────────────────────────────────────────
 function NbtechEmailSection({ currentUsername }) {
   const [contactLists, setContactLists] = useState([]);
@@ -109,6 +163,7 @@ function NbtechEmailSection({ currentUsername }) {
   const [sending, setSending] = useState(false);
   const [sendMsg, setSendMsg] = useState('');
   const [search, setSearch] = useState('');
+  const [tallyKey, setTallyKey] = useState(0);
 
   const loadLeads = async (listId) => {
     setLoading(true);
@@ -202,6 +257,7 @@ function NbtechEmailSection({ currentUsername }) {
         setSendMsg(`❌ Send failed: ${failed[0]?.error || 'Unknown error'}`);
       }
       setSelected(new Set());
+      setTallyKey(k => k + 1);
       await loadLeads(selectedListId);
     } catch (e) {
       setSendMsg('❌ Error: ' + (e.response?.data?.error || e.message));
@@ -220,6 +276,8 @@ function NbtechEmailSection({ currentUsername }) {
       <p style={{ color: '#6b7280', fontSize: '13px', margin: '0 0 20px' }}>
         Send template <strong style={{ color: '#818cf8' }}>#8032819</strong> to leads from a contact list. Recipients get a <strong style={{ color: '#818cf8' }}>NB Tech Email Sent</strong> badge.
       </p>
+
+      <TodayTally refreshKey={tallyKey} />
 
       {/* Stats */}
       <div style={{ display: 'flex', gap: '12px', marginBottom: '20px', flexWrap: 'wrap' }}>
