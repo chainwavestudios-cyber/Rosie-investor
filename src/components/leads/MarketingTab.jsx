@@ -305,21 +305,21 @@ export default function MarketingTab() {
   const [search, setSearch]       = useState('');
   const [showAll, setShowAll]     = useState(false);
 
-  useEffect(() => { loadUncontactedLeads(); }, [showAll]);
-
-  const loadUncontactedLeads = async () => {
+  const loadUncontactedLeads = async (includeAll) => {
     setLoading(true);
     try {
       const all = await base44.entities.Lead.list('-created_date', 3000);
       const filtered = all.filter(l => {
         if (!l.email || l.migratedToPortal || l.convertedToInvestorUserId || l.status === 'not_interested') return false;
-        if (showAll) return true;
+        if (includeAll) return true;
         return l.status !== 'intro_email_sent' && l.status !== 'opened_intro_email';
       });
       setLeads(filtered);
     } catch (e) { console.error(e); }
     setLoading(false);
   };
+
+  useEffect(() => { loadUncontactedLeads(showAll); }, [showAll]);
 
   const filteredLeads = leads.filter(l => {
     if (!search) return true;
@@ -370,7 +370,7 @@ export default function MarketingTab() {
         setSendMsg(`❌ Send failed: ${firstErr}`);
       }
       setSelected(new Set());
-      await loadUncontactedLeads();
+      await loadUncontactedLeads(showAll);
     } catch (e) {
       setSendMsg('❌ Error: ' + (e.response?.data?.error || e.message));
     }
