@@ -24,27 +24,26 @@ import { TwilioDeviceProvider } from '@/lib/TwilioDeviceContext';
 
 const PUBLIC_PATHS = ['/optin', '/optin/screenshot', '/privacy', '/terms', '/portal-login', '/admin-login', '/request-access'];
 
+const isPublicPath = () => PUBLIC_PATHS.some(p => window.location.pathname === p || window.location.pathname.startsWith(p + '/'));
+
+// Renders public routes with no auth context at all
+const PublicRoutes = () => (
+  <Routes>
+    <Route path="/optin" element={<OptIn />} />
+    <Route path="/optin/screenshot" element={<OptInScreenshot />} />
+    <Route path="/privacy" element={<PrivacyPolicy />} />
+    <Route path="/terms" element={<Terms />} />
+    <Route path="/portal-login" element={<PortalLogin />} />
+    <Route path="/admin-login" element={<AdminLogin />} />
+    <Route path="/request-access" element={<RequestAccess />} />
+    <Route path="*" element={<PageNotFound />} />
+  </Routes>
+);
+
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
-  const isPublic = PUBLIC_PATHS.some(p => window.location.pathname === p || window.location.pathname.startsWith(p + '/'));
 
-  // For public routes, render immediately without waiting for auth
-  if (isPublic) {
-    return (
-      <Routes>
-        <Route path="/optin" element={<OptIn />} />
-        <Route path="/optin/screenshot" element={<OptInScreenshot />} />
-        <Route path="/privacy" element={<PrivacyPolicy />} />
-        <Route path="/terms" element={<Terms />} />
-        <Route path="/portal-login" element={<PortalLogin />} />
-        <Route path="/admin-login" element={<AdminLogin />} />
-        <Route path="/request-access" element={<RequestAccess />} />
-        <Route path="*" element={<PageNotFound />} />
-      </Routes>
-    );
-  }
-
-  // Show loading spinner while checking app public settings or auth (skip for public routes)
+  // Show loading spinner while checking auth
   if (isLoadingPublicSettings || isLoadingAuth) {
     return (
       <div className="fixed inset-0 flex items-center justify-center">
@@ -66,7 +65,7 @@ const AuthenticatedApp = () => {
   // Render the main app
   return (
     <Routes>
-      {/* Public routes — no auth required */}
+      {/* Public routes */}
       <Route path="/optin" element={<OptIn />} />
       <Route path="/optin/screenshot" element={<OptInScreenshot />} />
       <Route path="/privacy" element={<PrivacyPolicy />} />
@@ -74,7 +73,7 @@ const AuthenticatedApp = () => {
       <Route path="/portal-login" element={<PortalLogin />} />
       <Route path="/admin-login" element={<AdminLogin />} />
       <Route path="/request-access" element={<RequestAccess />} />
-      {/* Add your page Route elements here */}
+      {/* Protected routes */}
       <Route path="/" element={<Home />} />
       <Route path="/portal" element={<InvestorPortal />} />
       <Route path="/admin" element={<AdminDashboard />} />
@@ -88,6 +87,17 @@ const AuthenticatedApp = () => {
 
 
 function App() {
+  // For public paths, skip AuthProvider entirely to avoid any auth redirects
+  if (isPublicPath()) {
+    return (
+      <QueryClientProvider client={queryClientInstance}>
+        <Router>
+          <PublicRoutes />
+        </Router>
+        <Toaster />
+      </QueryClientProvider>
+    );
+  }
 
   return (
     <AuthProvider><PortalAuthProvider>
@@ -98,7 +108,7 @@ function App() {
         <Toaster />
       </QueryClientProvider></TwilioDeviceProvider>
     </PortalAuthProvider></AuthProvider>
-  )
+  );
 }
 
 export default App
