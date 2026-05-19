@@ -87,7 +87,7 @@ function ReportsTab({ lines }) {
       // Parallel: fetch Twilio calls + Lead conversions in the date range
       const [callRes, leadsData] = await Promise.all([
         base44.functions.invoke('twilioCallLogs', { startDate, endDate }),
-        base44.entities.Lead.list('-updated_date', 500),
+        base44.entities.Lead.list('-updated_date', 5000),
       ]);
 
       const allCalls = (callRes.data?.calls || []).filter(c => c.direction !== 'inbound');
@@ -329,7 +329,7 @@ export default function CallLogPanel({ onClose, onOpenLead }) {
 
   useEffect(() => {
     loadData();
-    const poll = setInterval(loadCallLogs, 30000);
+    const poll = setInterval(loadCallLogs, 120000); // Was 30s — slowed to reduce API load
     return () => clearInterval(poll);
   }, []);
 
@@ -339,15 +339,13 @@ export default function CallLogPanel({ onClose, onOpenLead }) {
   const loadData = async () => {
     try {
       const [clData, linesData, leadsData] = await Promise.all([
-        base44.entities.CallLog.list('-calledAt', 150),
+        base44.entities.CallLog.list('-calledAt', 200),
         base44.functions.invoke('twilioGetLines', {}),
-        base44.entities.Lead.list('-updated_date', 1000),
+        base44.entities.Lead.list('-updated_date', 5000),
       ]);
       setCallLogs(clData || []);
       setLines(linesData?.data?.lines || linesData?.lines || []);
       setLeads(leadsData || []);
-
-      // Populate number->agent map
       const fetchedLines = linesData?.data?.lines || linesData?.lines || [];
       fetchedLines.forEach(l => { NUMBER_TO_AGENT[l.number] = l.label; });
     } catch(e) { console.error(e); }
@@ -565,7 +563,7 @@ export default function CallLogPanel({ onClose, onOpenLead }) {
                               )}
                             </div>
                             {/* Convert buttons */}
-                            <ConvertButtons call={c} leads={leads} onConverted={() => base44.entities.Lead.list('-updated_date', 1000).then(setLeads).catch(()=>{})} />
+                            <ConvertButtons call={c} leads={leads} onConverted={() => base44.entities.Lead.list('-updated_date', 5000).then(setLeads).catch(()=>{})} />
                           </div>
                           <div style={{ textAlign: 'right', flexShrink: 0 }}>
                             <div style={{ color: '#6b7280', fontSize: '10px', marginBottom: '2px' }}>
