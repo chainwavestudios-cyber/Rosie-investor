@@ -37,11 +37,11 @@ export function fireScorecardNBTechConvert(username) {
 // ─── Individual card ──────────────────────────────────────────────────────────
 
 function ScoreCard({ username, displayName }) {
-  const isSteph = username === 'steph';
-
+  const isSteph = username === 'steph';\n
   const [scores, setScores] = useState({ calls24: 0, fronts24: 0, callsWeek: 0, frontsWeek: 0 });
   const [loading, setLoading] = useState(true);
-  const mountedRef = useRef(true);
+  const mountedRef   = useRef(true);
+  const debounceRef  = useRef(null); // prevents multiple rapid reloads when dialer fires events
 
   const loadScores = useCallback(async () => {
     try {
@@ -70,29 +70,36 @@ function ScoreCard({ username, displayName }) {
     return () => { mountedRef.current = false; };
   }, [loadScores]);
 
-  // Listen for events — optimistic UI update + DB re-fetch to confirm
+  // Listen for events — optimistic UI update + debounced DB re-fetch
+  // Debounce prevents 3 simultaneous dialer lines each triggering a reload
   useEffect(() => {
+    const debouncedLoad = () => {
+      clearTimeout(debounceRef.current);
+      debounceRef.current = setTimeout(loadScores, 3000);
+    };
     const onCall = (e) => {
       if (e.detail?.username !== username) return;
       setScores(prev => ({ ...prev, calls24: prev.calls24 + 1, callsWeek: prev.callsWeek + 1 }));
-      setTimeout(loadScores, 2000);
+      debouncedLoad();
     };
     const onFront = (e) => {
       if (e.detail?.username !== username) return;
       setScores(prev => ({ ...prev, fronts24: prev.fronts24 + 1, frontsWeek: prev.frontsWeek + 1 }));
-      setTimeout(loadScores, 2000);
+      debouncedLoad();
     };
     window.addEventListener('scorecard:call', onCall);
     window.addEventListener('scorecard:nb_front', onFront);
     return () => {
+      clearTimeout(debounceRef.current);
       window.removeEventListener('scorecard:call', onCall);
       window.removeEventListener('scorecard:nb_front', onFront);
     };
   }, [username, loadScores]);
 
-  // Poll every 30s — syncs updates made by the other user
+  // Poll every 2 min — syncs updates made by the other user
+  // Was 30s but caused rate limits during heavy dialing sessions
   useEffect(() => {
-    const interval = setInterval(loadScores, 30_000);
+    const interval = setInterval(loadScores, 120_000);
     return () => clearInterval(interval);
   }, [loadScores]);
 
