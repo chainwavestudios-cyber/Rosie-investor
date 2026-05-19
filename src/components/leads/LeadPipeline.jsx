@@ -237,22 +237,18 @@ export default function LeadPipeline({ onOpenLead, mockLeads = null }) {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [prospectLeads, nbTechLeads, appts, histories] = await Promise.all([
-        base44.entities.Lead.filter({ status: 'prospect' }),
-        base44.entities.Lead.filter({ leadType: 'nb_tech' }),
+      const [allLeads, appts, histories] = await Promise.all([
+        base44.entities.Lead.list('-created_date', 10000),
         base44.entities.Appointment.filter({ status: 'scheduled' }),
         base44.entities.LeadHistory.list('-created_date', 500).catch(() => []),
       ]);
 
-      // Merge: prospects + any nb_tech leads (that may or may not be prospect status)
-      const allIds = new Set();
-      const merged = [];
-      for (const l of [...prospectLeads, ...nbTechLeads]) {
-        if (!allIds.has(l.id) && !l.migratedToPortal && !l.convertedToInvestorUserId) {
-          allIds.add(l.id);
-          merged.push(l);
-        }
-      }
+      // Filter: only non-migrated, non-converted, and either prospect status OR nb_tech leadType
+      const merged = (allLeads || []).filter(l =>
+        !l.migratedToPortal && 
+        !l.convertedToInvestorUserId &&
+        (l.status === 'prospect' || l.leadType === 'nb_tech')
+      );
 
       // Attach last call duration
       const callsByLead = {};
