@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback, createRef } from 'react';
 import { base44 } from '@/api/base44Client';
+import { fmtDateTimeShort } from '@/lib/fmtDate';
 import LeadContactCard from './LeadContactCard';
 import TwilioDialer from './TwilioDialer';
 import PredictiveDialer from './PredictiveDialer';
@@ -653,7 +654,7 @@ export default function LeadsTab({ openLeadId, onLeadOpened, mockLeads = null })
     const diff = Date.now() - d;
     if (diff < 3600000) return `${Math.floor(diff/60000)}m ago`;
     if (diff < 86400000) return `${Math.floor(diff/3600000)}h ago`;
-    return d.toLocaleString('en-US', { month:'short', day:'numeric', hour:'numeric', minute:'2-digit' });
+    return fmtDateTimeShort(dt);
   };
 
   const ACTIVITY_ICONS = {
@@ -1029,13 +1030,13 @@ export default function LeadsTab({ openLeadId, onLeadOpened, mockLeads = null })
                     <td style={{ padding:'12px', color:'#8a9ab8', fontSize:'12px' }}>{lead.state || '—'}</td>
                     <td style={{ padding:'12px', fontSize:'11px' }}>
                       {lead.lastCalledAt ? (
-                        <span style={{ color:'#f59e0b' }} title={new Date(lead.lastCalledAt).toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})}>
+                        <span style={{ color:'#f59e0b' }} title={fmtDateTimeShort(lead.lastCalledAt)}>
                           {fmtTime(lead.lastCalledAt)}
                         </span>
                       ) : <span style={{ color:'#4a5568' }}>Never</span>}
                     </td>
                     <td style={{ padding:'12px', color:'#a78bfa', fontSize:'11px' }}>
-                      {lead.callbackAt ? new Date(lead.callbackAt).toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}) : '—'}
+                      {lead.callbackAt ? fmtDateTimeShort(lead.callbackAt) : '—'}
                     </td>
                     <td style={{ padding:'12px' }}>
                      <button onClick={e => { e.stopPropagation(); setSelectedLead(lead); }}
@@ -1349,7 +1350,7 @@ export default function LeadsTab({ openLeadId, onLeadOpened, mockLeads = null })
                   <>
                     <div style={{ color:'#e8e0d0', fontSize:'15px', fontWeight:'bold', marginBottom:'8px' }}>{list.name}</div>
                     <div style={{ color:'#6b7280', fontSize:'12px', marginBottom:'12px' }}>
-                      📄 {list.leadCount || 0} leads · Imported {list.importedAt ? new Date(list.importedAt).toLocaleDateString() : 'unknown'}
+                      📄 {list.leadCount || 0} leads · Imported {list.importedAt ? fmtDateTimeShort(list.importedAt) : 'unknown'}
                     </div>
                     <div style={{ display:'flex', gap:'6px', flexWrap:'wrap' }}>
                       <button onClick={() => { setEditingListId(list.id); setEditingListName(list.name); }} style={{ flex:1, background:'rgba(96,165,250,0.15)', color:'#60a5fa', border:'1px solid rgba(96,165,250,0.3)', borderRadius:'2px', padding:'6px', cursor:'pointer', fontSize:'10px', letterSpacing:'0.5px' }}>✎ Edit</button>
