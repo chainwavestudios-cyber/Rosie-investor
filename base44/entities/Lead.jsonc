@@ -173,6 +173,11 @@
       "title": "Badge: Visited Investor Page",
       "default": false
     },
+    "badgeNbtechEmail": {
+      "type": "boolean",
+      "title": "Badge: NB Tech Email Sent",
+      "default": false
+    },
     "portalPasscode": {
       "type": "string",
       "title": "Portal Passcode"

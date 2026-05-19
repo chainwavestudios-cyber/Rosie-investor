@@ -399,6 +399,7 @@ export default function LeadsTab({ openLeadId, onLeadOpened, mockLeads = null })
   const [todayApptLeadIds, setTodayApptLeadIds] = useState(new Set());
   const [listFilter, setListFilter] = useState('all'); // 'all' or contactListId
   const [leadTypeFilter, setLeadTypeFilter] = useState('all'); // 'all' | 'standard' | 'nb_tech'
+  const [badgeFilter, setBadgeFilter] = useState('all'); // 'all' | 'nbtech_email'
   const [stateFilter, setStateFilter] = useState('all');
 
   useEffect(() => {
@@ -618,6 +619,7 @@ export default function LeadsTab({ openLeadId, onLeadOpened, mockLeads = null })
     if (stateFilter !== 'all' && (l.state || '').toUpperCase().trim() !== stateFilter) return false;
     if (leadTypeFilter === 'nb_tech' && l.leadType !== 'nb_tech') return false;
     if (leadTypeFilter === 'standard' && l.leadType === 'nb_tech') return false;
+    if (badgeFilter === 'nbtech_email' && !l.badgeNbtechEmail) return false;
     if (search) {
       const q = search.toLowerCase();
       return `${l.firstName} ${l.lastName} ${l.email} ${l.phone} ${l.state}`.toLowerCase().includes(q);
@@ -625,7 +627,7 @@ export default function LeadsTab({ openLeadId, onLeadOpened, mockLeads = null })
     return true;
   });
 
-  useEffect(() => { setPage(1); }, [filter, search, tzFilter, listFilter, stateFilter, leadTypeFilter]);
+  useEffect(() => { setPage(1); }, [filter, search, tzFilter, listFilter, stateFilter, leadTypeFilter, badgeFilter]);
 
   const [page, setPage] = useState(1);
   const PAGE_SIZE = 30;
@@ -931,6 +933,11 @@ export default function LeadsTab({ openLeadId, onLeadOpened, mockLeads = null })
           <option value="nb_tech">💡 NB Tech</option>
           <option value="standard">👤 Standard</option>
         </select>
+        <select value={badgeFilter} onChange={e=>setBadgeFilter(e.target.value)}
+          style={{ ...inp, cursor:'pointer', flexShrink:0, width:'auto' }}>
+          <option value="all">🏅 All Badges</option>
+          <option value="nbtech_email">💡 NB Tech Email Sent</option>
+        </select>
         <select value={stateFilter} onChange={e=>setStateFilter(e.target.value)}
           style={{ ...inp, cursor:'pointer', flexShrink:0, width:'auto' }}>
           <option value="all">🗺 All States</option>
@@ -1003,6 +1010,7 @@ export default function LeadsTab({ openLeadId, onLeadOpened, mockLeads = null })
                           {lead.badgeEmailOpened && <span style={{ background:'rgba(74,222,128,0.12)', color:'#4ade80', borderRadius:'20px', padding:'1px 7px', fontSize:'9px' }}>📬</span>}
                           {lead.badgeConsumerWebsite && <span style={{ background:'rgba(96,165,250,0.12)', color:'#60a5fa', borderRadius:'20px', padding:'1px 7px', fontSize:'9px' }}>🌐</span>}
                           {lead.badgeInvestorPage && <span style={{ background:'rgba(167,139,250,0.12)', color:'#a78bfa', borderRadius:'20px', padding:'1px 7px', fontSize:'9px' }}>💼</span>}
+                          {lead.badgeNbtechEmail && <span style={{ background:'rgba(129,140,248,0.15)', color:'#818cf8', border:'1px solid rgba(129,140,248,0.35)', borderRadius:'20px', padding:'1px 7px', fontSize:'9px', fontWeight:'bold' }}>💡 NB Tech</span>}
                         </div>
                       )}
                     </td>
