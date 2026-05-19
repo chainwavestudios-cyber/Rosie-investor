@@ -3,6 +3,7 @@ import { base44 } from '@/api/base44Client';
 import { SignNowRequestDB, InvestorUser, ContactNoteDB, AppointmentDB, AccreditationDocDB } from '@/api/entities';
 import analytics from '@/lib/analytics';
 import { computeEngagementScore, getScoreColor, getScoreLabel } from '@/lib/engagementScore';
+import { fmtDateTime, fmtDateTimeShort, fmtDateTimeLong, fmtDate } from '@/lib/fmtDate.js';
 import RosieTab from '@/components/admin/RosieTab';
 import PortalAccessTab from '@/components/admin/PortalAccessTab';
 import DateTimePicker from '@/components/admin/DateTimePicker';
@@ -179,7 +180,7 @@ export default function ContactCardModal({ user, onClose, onSave, allSessions, m
     await AppointmentDB.create({ investorId:user.id, investorEmail:user.email, investorName:user.name, ...apptForm, createdBy: currentUsername });
     await ContactNoteDB.create({
       investorId: user.id, investorEmail: user.email, type: 'note',
-      content: `📅 Appointment booked: "${apptForm.title}" · ${new Date(apptForm.scheduledAt).toLocaleString('en-US',{weekday:'short',month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})} · ${apptForm.durationMinutes}min`,
+      content: `📅 Appointment booked: "${apptForm.title}" · ${fmtDateTimeLong(apptForm.scheduledAt)} · ${apptForm.durationMinutes}min`,
       createdAt: new Date().toISOString(), createdBy: currentUsername,
     }).catch(() => {});
     setApptForm({ title:'', type:'call', scheduledAt:'', durationMinutes:30, notes:'' });
@@ -230,7 +231,7 @@ export default function ContactCardModal({ user, onClose, onSave, allSessions, m
   const scheduleCallback = async () => {
     if (!callbackDate) return;
     await base44.entities.InvestorUser.update(user.id, { disposition: 'callback', callbackAt: new Date(callbackDate).toISOString(), callbackNote });
-    await ContactNoteDB.create({ investorId: user.id, investorEmail: user.email, type: 'note', content: `📅 Callback scheduled for ${new Date(callbackDate).toLocaleString('en-US',{weekday:'short',month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})}${callbackNote ? ' — ' + callbackNote : ''} · by ${currentUsername}`, createdAt: new Date().toISOString(), createdBy: currentUsername });
+    await ContactNoteDB.create({ investorId: user.id, investorEmail: user.email, type: 'note', content: `📅 Callback scheduled for ${fmtDateTimeLong(callbackDate)}${callbackNote ? ' — ' + callbackNote : ''} · by ${currentUsername}`, createdAt: new Date().toISOString(), createdBy: currentUsername });
     setShowCallbackPicker(false);
     setCallbackDate('');
     setCallbackNote('');
@@ -270,7 +271,6 @@ export default function ContactCardModal({ user, onClose, onSave, allSessions, m
       setTimeout(() => setPortalEmailMsg(''), 4000);
     } catch (e) { setPortalEmailMsg('Error: ' + (e.response?.data?.error || e.message)); }
     setSendingPortalEmail(false);
-  };
 
   // ── Tab definitions ────────────────────────────────────────────────
   const TABS_ROW1 = [
@@ -396,7 +396,7 @@ export default function ContactCardModal({ user, onClose, onSave, allSessions, m
             )}
             {user.disposition==='callback' && user.callbackAt && (
               <span style={{ background:'rgba(245,158,11,0.1)', color:'#f59e0b', border:'1px solid rgba(245,158,11,0.3)', borderRadius:'10px', padding:'2px 8px', fontSize:'10px' }}>
-                📅 {new Date(user.callbackAt).toLocaleDateString('en-US',{month:'short',day:'numeric'})}
+                📅 {fmtDateTimeShort(user.callbackAt)}
               </span>
             )}
 
@@ -581,7 +581,7 @@ export default function ContactCardModal({ user, onClose, onSave, allSessions, m
                             <div style={{ color:'#4a5568', fontSize:'10px', marginTop:'3px' }}>
                               <span style={{ color:typeColor }}>{n.type}</span>
                               {n.createdBy && <span> · {n.createdBy}</span>}
-                              {n.createdAt && <span> · {new Date(n.createdAt).toLocaleDateString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})}</span>}
+                              {n.createdAt && <span> · {fmtDateTimeShort(n.createdAt)}</span>}
                             </div>
                           </div>
                           <button onClick={()=>deleteNote(n.id)} style={{ background:'none', border:'none', color:'#374151', cursor:'pointer', fontSize:'14px', padding:'0 2px', flexShrink:0 }} title="Delete">×</button>
@@ -632,7 +632,7 @@ export default function ContactCardModal({ user, onClose, onSave, allSessions, m
                           {!isMigrated && note.createdBy && <span style={{ color:'#6b7280', fontSize:'10px' }}>· {note.createdBy}</span>}
                         </div>
                         <div style={{ display:'flex', gap:'10px', alignItems:'center' }}>
-                          <span style={{ color:'#4a5568', fontSize:'11px' }}>{note.createdAt ? new Date(note.createdAt).toLocaleString() : ''}</span>
+                          <span style={{ color:'#4a5568', fontSize:'10px' }}>{note.createdAt ? fmtDateTimeShort(note.createdAt) : ''}</span>
                           {!isMigrated && <button onClick={() => deleteNote(note.id)} style={{ background:'none', border:'none', color:'#ef444480', cursor:'pointer', fontSize:'14px', padding:'0' }}>×</button>}
                         </div>
                       </div>
@@ -681,7 +681,7 @@ export default function ContactCardModal({ user, onClose, onSave, allSessions, m
                 return (
                   <div key={req.id} style={{ background:'rgba(255,255,255,0.02)', border:'1px solid rgba(255,255,255,0.07)', borderRadius:'2px', padding:'18px', marginBottom:'10px' }}>
                     <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'8px' }}>
-                      <div style={{ color:'#e8e0d0', fontSize:'13px' }}>Sent {req.sentAt ? new Date(req.sentAt).toLocaleDateString() : ''}</div>
+                      <div style={{ color:'#e8e0d0', fontSize:'13px' }}>Sent {req.sentAt ? fmtDate(req.sentAt) : ''}</div>
                       <span style={{ color:s2.c, fontSize:'11px', textTransform:'uppercase', letterSpacing:'1px' }}>● {req.status}</span>
                     </div>
                     {docs.map((d,i) => (
@@ -709,7 +709,7 @@ export default function ContactCardModal({ user, onClose, onSave, allSessions, m
                     <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:'8px' }}>
                       <div>
                         <div style={{ color:'#e8e0d0', fontWeight:'bold', fontSize:'14px' }}>{doc.fileName}</div>
-                        <div style={{ color:'#6b7280', fontSize:'11px', marginTop:'2px' }}>{doc.docType?.replace('_',' ').replace(/\b\w/g,l=>l.toUpperCase())} · {doc.fileSize?`${(doc.fileSize/1024).toFixed(1)} KB`:''} · {doc.uploadedAt?new Date(doc.uploadedAt).toLocaleDateString():''}</div>
+                        <div style={{ color:'#6b7280', fontSize:'11px', marginTop:'2px' }}>{doc.docType?.replace('_',' ').replace(/\b\w/g,l=>l.toUpperCase())} · {doc.fileSize?`${(doc.fileSize/1024).toFixed(1)} KB`:''} · {doc.uploadedAt ? fmtDate(doc.uploadedAt) : ''}</div>
                       </div>
                       <div style={{ display:'flex', gap:'8px', alignItems:'center' }}>
                         <span style={{ color:sc[doc.status]||'#f59e0b', fontSize:'11px', textTransform:'uppercase', letterSpacing:'1px' }}>● {doc.status}</span>
@@ -772,7 +772,7 @@ export default function ContactCardModal({ user, onClose, onSave, allSessions, m
                     <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
                       <div>
                         <div style={{ color:'#e8e0d0', fontWeight:'bold', fontSize:'14px', marginBottom:'4px' }}>{appt.title}</div>
-                        <div style={{ color:'#8a9ab8', fontSize:'12px' }}>{appt.scheduledAt?new Date(appt.scheduledAt).toLocaleString('en-US',{weekday:'short',month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'}):''} · {appt.durationMinutes} min</div>
+                        <div style={{ color:'#8a9ab8', fontSize:'11px' }}>{appt.scheduledAt ? fmtDateTimeLong(appt.scheduledAt) : ''} · {appt.durationMinutes} min</div>
                         {appt.createdBy && <div style={{ color:'#6b7280', fontSize:'11px', marginTop:'2px' }}>booked by {appt.createdBy}</div>}
                         {appt.notes && <div style={{ color:'#4a5568', fontSize:'11px', marginTop:'4px' }}>{appt.notes}</div>}
                       </div>
@@ -799,4 +799,3 @@ export default function ContactCardModal({ user, onClose, onSave, allSessions, m
     )}
     </>
   );
-}
