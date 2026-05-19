@@ -240,7 +240,7 @@ export default function LeadPipeline({ onOpenLead, mockLeads = null }) {
     setLoading(true);
     try {
       const [allLeads, appts, histories] = await Promise.all([
-        base44.entities.Lead.list('-created_date', 2000),
+        base44.entities.Lead.list('-created_date', 5000),
         base44.entities.Appointment.filter({ status: 'scheduled' }),
         base44.entities.LeadHistory.list('-created_date', 100).catch(() => []),
       ]);
