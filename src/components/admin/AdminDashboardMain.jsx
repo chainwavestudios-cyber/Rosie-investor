@@ -4,6 +4,7 @@
  * Contains: VIEWS list, AdminDashboard default export.
  */
 import { useState, useEffect, useCallback } from 'react';
+import { fmtDateTimeShort } from '@/lib/fmtDate.js';
 import { useNavigate } from 'react-router-dom';
 import { usePortalAuth } from '@/lib/PortalAuthContext';
 import { useTwilioDevice } from '@/lib/TwilioDeviceContext';
@@ -350,7 +351,7 @@ export default function AdminDashboardMain({
                                 <td style={{ padding:'14px 12px' }}>
                                   <StatusBadge status={status} />
                                   {user.disposition === 'not_interested' && <div style={{ marginTop:'4px', color:'#ef4444', fontSize:'9px', letterSpacing:'1px', textTransform:'uppercase' }}>🚫 Not Interested</div>}
-                                  {user.disposition === 'callback' && user.callbackAt && <div style={{ marginTop:'4px', color:'#f59e0b', fontSize:'9px', letterSpacing:'1px' }}>📅 {new Date(user.callbackAt).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}</div>}
+                                  {user.disposition === 'callback' && user.callbackAt && <div style={{ marginTop:'4px', color:'#f59e0b', fontSize:'9px', letterSpacing:'1px' }}>📅 {fmtDateTimeShort(user.callbackAt)}</div>}
                                 </td>
                                 <td style={{ padding:'14px 12px' }}>
                                   <div style={{ color:'#e8e0d0', fontWeight:'bold' }}>{user.name}</div>
