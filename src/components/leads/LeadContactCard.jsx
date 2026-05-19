@@ -1001,7 +1001,7 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
   const [tab, setTab] = useState('overview');
   const [history, setHistory] = useState([]);
   const [editLead, setEditLead] = useState({ ...lead });
-  const [smsOptedIn, setSmsOptedIn] = useState(false);
+  const [smsOptedIn, setSmsOptedIn] = useState(!!(lead.badgeSmsOptIn));
 
   // When lead prop changes (Next Lead), reset card state
   useEffect(() => {
@@ -1358,12 +1358,23 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
             {/* Left: Name + Stars */}
             <div style={{ display:'flex', alignItems:'center', gap:'12px', flexShrink:0 }}>
               <div>
-                <div style={{ display:'flex', alignItems:'center', gap:'8px' }}>
+                <div style={{ display:'flex', alignItems:'center', gap:'8px', flexWrap:'wrap' }}>
                   <div style={{ color:'#e8e0d0', fontSize:'22px', fontFamily:'Georgia,serif', fontWeight:'normal', lineHeight:1.1 }}>{fullName}</div>
                   {smsOptedIn && (
-                    <span title="SMS Opted In" style={{ background:'rgba(74,222,128,0.12)', border:'1px solid rgba(74,222,128,0.35)', borderRadius:'10px', padding:'2px 8px', color:'#4ade80', fontSize:'10px', whiteSpace:'nowrap', letterSpacing:'0.5px' }}>
-                      💬 SMS ✓
-                    </span>
+                    <img
+                      src="https://media.base44.com/images/public/69cd2741578c9b5ce655395b/9febafab0_Untitled313x313px.png"
+                      alt="SMS Opted In"
+                      title="SMS Opted In"
+                      style={{ width: '32px', height: '32px', objectFit: 'contain', flexShrink: 0 }}
+                    />
+                  )}
+                  {(editLead.badgeDataRoomRequest || lead.badgeDataRoomRequest) && (
+                    <img
+                      src="https://media.base44.com/images/public/69cd2741578c9b5ce655395b/5f030ac02_Untitled313x313px279x158px.png"
+                      alt="NB Data Room Requested"
+                      title="Data Room Requested"
+                      style={{ width: '52px', height: '29px', objectFit: 'contain', flexShrink: 0, borderRadius: '4px' }}
+                    />
                   )}
                 </div>
                 <div style={{ marginTop:'4px' }}>

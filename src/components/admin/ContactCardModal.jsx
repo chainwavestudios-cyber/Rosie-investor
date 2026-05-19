@@ -66,6 +66,7 @@ export default function ContactCardModal({ user, onClose, onSave, allSessions, m
 
   const [tab, setTab]         = useState('overview');
   const [smsOptedIn, setSmsOptedIn] = useState(false);
+  const [dataRoomRequested, setDataRoomRequested] = useState(false);
   const [unreadSms,  setUnreadSms]  = useState(0);
   const [notes, setNotes]     = useState([]);
   const [appts, setAppts]     = useState([]);
@@ -138,6 +139,14 @@ export default function ContactCardModal({ user, onClose, onSave, allSessions, m
     };
     checkOptIn();
   }, [user.id, user.phone]);
+
+  // Check if linked lead has data room badge
+  useEffect(() => {
+    if (!user.leadId) return;
+    base44.entities.Lead.filter({ id: user.leadId }).then(leads => {
+      if (leads?.[0]?.badgeDataRoomRequest) setDataRoomRequested(true);
+    }).catch(() => {});
+  }, [user.leadId]);
 
   // Track loaded tabs to avoid re-fetching on every switch
   const [loadedTabs, setLoadedTabs] = useState(new Set());
@@ -415,7 +424,21 @@ export default function ContactCardModal({ user, onClose, onSave, allSessions, m
 
             {/* SMS opt-in badge */}
             {smsOptedIn && (
-              <span style={{ background:'rgba(74,222,128,0.1)', border:'1px solid rgba(74,222,128,0.3)', borderRadius:'10px', padding:'2px 8px', color:'#4ade80', fontSize:'10px', whiteSpace:'nowrap' }}>💬 SMS ✓</span>
+              <img
+                src="https://media.base44.com/images/public/69cd2741578c9b5ce655395b/9febafab0_Untitled313x313px.png"
+                alt="SMS Opted In"
+                title="SMS Opted In"
+                style={{ width: '34px', height: '34px', objectFit: 'contain', flexShrink: 0 }}
+              />
+            )}
+            {/* Data Room badge */}
+            {dataRoomRequested && (
+              <img
+                src="https://media.base44.com/images/public/69cd2741578c9b5ce655395b/5f030ac02_Untitled313x313px279x158px.png"
+                alt="NB Data Room Requested"
+                title="Data Room Access Requested"
+                style={{ width: '54px', height: '30px', objectFit: 'contain', flexShrink: 0, borderRadius: '4px' }}
+              />
             )}
 
             {/* Clickable status pills */}

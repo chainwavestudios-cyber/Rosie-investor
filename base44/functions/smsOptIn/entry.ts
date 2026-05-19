@@ -57,7 +57,11 @@ Deno.serve(async (req) => {
       const p2 = (l.phone2 || '').replace(/[\s\-().]/g, '');
       return p1 === normalizedPhone || p2 === normalizedPhone;
     });
-    if (matchedLead) leadId = matchedLead.id;
+    if (matchedLead) {
+      leadId = matchedLead.id;
+      // Flag the lead so badges show in admin cards
+      await base44.asServiceRole.entities.Lead.update(matchedLead.id, { badgeSmsOptIn: true }).catch(() => {});
+    }
   } catch {}
 
   // Try to match InvestorUser by phone

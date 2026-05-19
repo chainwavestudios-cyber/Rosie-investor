@@ -50,6 +50,7 @@ async function processRequest(base44, email, name, leadId) {
       leadType: 'nb_data',
       leadPipelineStage: 'data_room_request',
       badgeInvestorPage: true,
+      badgeDataRoomRequest: true,
     }).catch(() => {});
 
     await base44.asServiceRole.entities.LeadHistory.create({

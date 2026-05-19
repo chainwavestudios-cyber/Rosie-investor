@@ -178,6 +178,16 @@
       "title": "Badge: NB Tech Email Sent",
       "default": false
     },
+    "badgeDataRoomRequest": {
+      "type": "boolean",
+      "title": "Badge: Data Room Requested",
+      "default": false
+    },
+    "badgeSmsOptIn": {
+      "type": "boolean",
+      "title": "Badge: SMS Opted In",
+      "default": false
+    },
     "portalPasscode": {
       "type": "string",
       "title": "Portal Passcode"
