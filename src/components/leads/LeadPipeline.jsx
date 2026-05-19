@@ -333,11 +333,11 @@ export default function LeadPipeline({ onOpenLead, mockLeads = null }) {
   // NB Tech pipeline: show nb_tech leads owned by viewOwner
   // Prospect pipeline: show prospect-status (non-nb_tech) leads owned by viewOwner
   const visibleLeads = leads.filter(l => {
-    const owner = l.leadPipelineOwner || 'admin';
+    const owner = l.leadPipelineOwner || currentUsername;
     if (owner !== viewOwner) return false;
     if (currentPipelineType === 'nb_tech') return l.leadType === 'nb_tech';
-    // Prospect pipeline: show non-nb_tech prospects
-    return l.status === 'prospect' && l.leadType !== 'nb_tech';
+    // Prospect pipeline: show all prospects regardless of leadType
+    return l.status === 'prospect';
   });
 
   const leadsInStage = (stageId) => visibleLeads.filter(l => (l.leadPipelineStage || 'reviewing') === stageId).sort((a, b) => {
@@ -346,10 +346,10 @@ export default function LeadPipeline({ onOpenLead, mockLeads = null }) {
 
   // Count helpers for tab badges
   const countFor = (username, type) => leads.filter(l => {
-    const owner = l.leadPipelineOwner || 'admin';
+    const owner = l.leadPipelineOwner || currentUsername;
     if (owner !== username) return false;
     if (type === 'nb_tech') return l.leadType === 'nb_tech';
-    return l.status === 'prospect' && l.leadType !== 'nb_tech';
+    return l.status === 'prospect';
   }).length;
 
   if (loading) return <div style={{ textAlign: 'center', padding: '60px', color: '#6b7280', fontFamily: 'Georgia, serif' }}>Loading pipeline…</div>;
@@ -446,6 +446,12 @@ export default function LeadPipeline({ onOpenLead, mockLeads = null }) {
                 {cards.length === 0 && (
                   <div style={{ color: '#4a5568', fontSize: '10px', textAlign: 'center', padding: '28px 6px', fontStyle: 'italic', borderRadius: '4px', border: '1px dashed rgba(255,255,255,0.06)', margin: '4px' }}>
                     Drop here
+                  </div>
+                )}
+                {/* Debug: show total leads count in first stage only */}
+                {idx === 0 && leads.length > 0 && visibleLeads.length === 0 && (
+                  <div style={{ color: '#f59e0b', fontSize: '10px', textAlign: 'center', padding: '8px', background: 'rgba(245,158,11,0.08)', borderRadius: '4px', margin: '4px' }}>
+                    {leads.length} leads loaded, but none match owner "{viewOwner}" in {currentPipelineType} pipeline
                   </div>
                 )}
               </div>
