@@ -32,7 +32,7 @@ const THANK_YOU_HTML = (firstName, email) => `<!DOCTYPE html>
 </head>
 <body>
   <div class="card">
-    <div class="brand">Rosie AI · Investor Relations</div>
+    <div class="brand">Newport Beach Tech Investor Relations</div>
     <div class="icon">✅</div>
     <h1>Request Received</h1>
     <p>Thank you${firstName ? `, ${firstName}` : ''}! Our team has been notified of your interest in accessing the data room. We'll be in touch shortly to verify your accreditation and grant access.</p>
