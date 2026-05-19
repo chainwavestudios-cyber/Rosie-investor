@@ -11,7 +11,7 @@
 import { base44 } from './base44Client';
 
 export const InvestorUser = {
-  async list() { try { return await base44.entities.InvestorUser.list(); } catch(e){ return []; } },
+  async list() { try { return await base44.entities.InvestorUser.list('-created_date', 500); } catch(e){ return []; } },
   async findByUsername(u) { try { const r=await base44.entities.InvestorUser.filter({username:u}); return r[0]||null; } catch{ return null; } },
   async findByEmail(e) { try { const r=await base44.entities.InvestorUser.filter({email:e}); return r[0]||null; } catch{ return null; } },
   async hashPassword(password) {
@@ -65,10 +65,15 @@ export const InvestorUser = {
   async delete(id) { try { return await base44.entities.InvestorUser.delete(id); } catch(e){ throw e; } },
   async ensureAdminExists() {
     try {
-      const a=await base44.entities.InvestorUser.filter({role:'admin'});
-      if(!a.length) await base44.entities.InvestorUser.create({username:'admin',email:'admin@rosieai.com',password:'password',name:'Admin',role:'admin',company:'Rosie AI LLC'});
-      else if(!a[0].password) await base44.entities.InvestorUser.update(a[0].id,{password:'password'});
-    } catch{}
+      const a = await base44.entities.InvestorUser.filter({ role: 'admin' });
+      if (!a.length) {
+        const hashed = await InvestorUser.hashPassword('password');
+        await base44.entities.InvestorUser.create({ username:'admin', email:'admin@rosieai.com', password: hashed, name:'Admin', role:'admin', company:'Rosie AI LLC' });
+      } else if (!a[0].password) {
+        const hashed = await InvestorUser.hashPassword('password');
+        await base44.entities.InvestorUser.update(a[0].id, { password: hashed });
+      }
+    } catch {}
   },
 };
 
@@ -110,7 +115,7 @@ export const ContactNoteDB = {
 // ─── Appointment ───────────────────────────────────────────────────────────
 export const AppointmentDB = {
   async create(d) { try { return await base44.entities.Appointment.create({...d,createdAt:new Date().toISOString()}); } catch(e){ throw e; } },
-  async listAll() { try { const r=await base44.entities.Appointment.list(); return r.sort((a,b)=>new Date(a.scheduledAt)-new Date(b.scheduledAt)); } catch{ return []; } },
+  async listAll() { try { const r=await base44.entities.Appointment.list('-scheduledAt', 500); return r.sort((a,b)=>new Date(a.scheduledAt)-new Date(b.scheduledAt)); } catch{ return []; } },
   async listForInvestor(investorId) { try { const r=await base44.entities.Appointment.filter({investorId}); return r.sort((a,b)=>new Date(a.scheduledAt)-new Date(b.scheduledAt)); } catch{ return []; } },
   async update(id,u) { try { return await base44.entities.Appointment.update(id,u); } catch(e){ throw e; } },
   async delete(id) { try { return await base44.entities.Appointment.delete(id); } catch(e){ throw e; } },
