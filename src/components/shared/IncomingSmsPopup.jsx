@@ -109,7 +109,7 @@ export default function IncomingSmsPopup({ onOpenConversations }) {
 
   useEffect(() => {
     loadUnread();
-    pollRef.current = setInterval(loadUnread, 5000);
+    pollRef.current = setInterval(loadUnread, 30000);
     return () => clearInterval(pollRef.current);
   }, [loadUnread]);
 

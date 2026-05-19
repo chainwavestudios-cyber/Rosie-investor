@@ -329,7 +329,7 @@ export default function CallLogPanel({ onClose, onOpenLead }) {
 
   useEffect(() => {
     loadData();
-    const poll = setInterval(loadCallLogs, 5000);
+    const poll = setInterval(loadCallLogs, 30000);
     return () => clearInterval(poll);
   }, []);
 

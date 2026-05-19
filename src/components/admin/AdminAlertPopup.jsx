@@ -38,7 +38,7 @@ export default function AdminAlertPopup({ currentUsername, onOpenChat }) {
   useEffect(() => {
     if (!CHAT_USERS.includes(currentUsername)) return;
     checkAlerts();
-    pollRef.current = setInterval(checkAlerts, 4000);
+    pollRef.current = setInterval(checkAlerts, 30000);
     return () => clearInterval(pollRef.current);
   }, [currentUsername]);
 
