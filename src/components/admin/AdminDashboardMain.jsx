@@ -116,7 +116,7 @@ export default function AdminDashboardMain({
         setNewSignNowCount(Math.max(0, snReqs.length - dismissed));
       } catch {}
       try {
-        const callLogs = await base44.entities.CallLog.list('-calledAt', 100);
+        const callLogs = await base44.entities.CallLog.list('-calledAt', 50);
         const vmCount = (callLogs || []).filter(l => l.vmRecordingUrl && !l.vmListened).length;
         const missedCount = (callLogs || []).filter(l => (l.status === 'missed' || l.status === 'no-answer') && !l.dismissed).length;
         setCallLogBadge({ vm: vmCount, missed: missedCount });
@@ -128,7 +128,7 @@ export default function AdminDashboardMain({
     if (isPortalLoading) return;
     if (!portalUser || !isAdmin) { navigate('/admin-login'); return; }
     load();
-    const interval = setInterval(load, 60000);
+    const interval = setInterval(load, 300000); // 5 min — no more rate limit hammering
     return () => clearInterval(interval);
   }, [portalUser, isAdmin, isPortalLoading, load]);
 
