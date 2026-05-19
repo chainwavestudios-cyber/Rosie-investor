@@ -14,9 +14,6 @@ const TEMPLATE_ID = 8032819;
 Deno.serve(async (req) => {
   const base44 = createClientFromRequest(req);
 
-  const user = await base44.auth.me();
-  if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
-
   const { leadIds, sentBy } = await req.json();
   if (!leadIds || !Array.isArray(leadIds) || leadIds.length === 0) {
     return Response.json({ error: 'leadIds array required' }, { status: 400 });
