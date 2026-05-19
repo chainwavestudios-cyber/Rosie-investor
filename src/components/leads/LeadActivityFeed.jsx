@@ -51,10 +51,11 @@ export default function LeadActivityFeed({ onOpenLead, leads = [] }) {
       ].filter(Boolean))];
 
       let leadsMap = {};
-      // Use leads passed from parent (already loaded) — no extra API call
+      // Seed from parent-provided leads
       leads.forEach(l => { leadsMap[l.id] = l; });
-      // If no leads passed, fall back to a small targeted fetch
-      if (leads.length === 0 && leadIds.length > 0) {
+      // Always fetch if any leadIds are not already in the map
+      const missingIds = leadIds.filter(id => !leadsMap[id]);
+      if (missingIds.length > 0) {
         const fetched = await base44.entities.Lead.list('-created_date', 5000).catch(() => []);
         fetched.forEach(l => { leadsMap[l.id] = l; });
       }
