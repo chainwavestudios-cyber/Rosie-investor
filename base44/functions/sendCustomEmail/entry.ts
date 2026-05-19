@@ -45,8 +45,8 @@ Deno.serve(async (req) => {
     HTMLPart: bodyHtml,
     TextPart: bodyText || bodyHtml.replace(/<[^>]+>/g, ''),
     ...(customId ? { CustomID: customId } : {}),
-    TrackOpens: 1,
-    TrackClicks: 'account',
+    TrackOpens: 'enabled',
+    TrackClicks: 'enabled',
   };
 
   // Attach files if provided
