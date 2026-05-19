@@ -232,7 +232,9 @@ export default function LeadPipeline({ onOpenLead, mockLeads = null }) {
       return;
     }
     loadData();
-  }, []);
+    const interval = setInterval(loadData, 10000); // Refresh every 10s
+    return () => clearInterval(interval);
+  }, [mockLeads]);
 
   const loadData = async () => {
     setLoading(true);
