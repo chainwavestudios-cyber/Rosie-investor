@@ -329,15 +329,13 @@ export default function LeadPipeline({ onOpenLead, mockLeads = null }) {
   const viewOwner = pipelineView === 'mine' ? currentUsername : otherUsername;
   const currentPipelineType = pipelineTypes[viewOwner] || 'prospect';
 
-  // Filter leads: strict owner match only (no "show in both" for unowned)
-  // NB Tech pipeline: show nb_tech leads owned by viewOwner
-  // Prospect pipeline: show prospect-status (non-nb_tech) leads owned by viewOwner
+  // Filter leads: show all prospect OR nb_tech leads regardless of status
   const visibleLeads = leads.filter(l => {
     const owner = l.leadPipelineOwner || 'admin';
     if (owner !== viewOwner) return false;
     if (currentPipelineType === 'nb_tech') return l.leadType === 'nb_tech';
-    // Prospect pipeline: show non-nb_tech prospects
-    return l.status === 'prospect' && l.leadType !== 'nb_tech';
+    // Prospect pipeline: show all leads that aren't explicitly nb_tech
+    return l.leadType !== 'nb_tech';
   });
 
   const leadsInStage = (stageId) => visibleLeads.filter(l => (l.leadPipelineStage || 'reviewing') === stageId).sort((a, b) => {
@@ -349,7 +347,7 @@ export default function LeadPipeline({ onOpenLead, mockLeads = null }) {
     const owner = l.leadPipelineOwner || 'admin';
     if (owner !== username) return false;
     if (type === 'nb_tech') return l.leadType === 'nb_tech';
-    return l.status === 'prospect' && l.leadType !== 'nb_tech';
+    return l.leadType !== 'nb_tech';
   }).length;
 
   if (loading) return <div style={{ textAlign: 'center', padding: '60px', color: '#6b7280', fontFamily: 'Georgia, serif' }}>Loading pipeline…</div>;
