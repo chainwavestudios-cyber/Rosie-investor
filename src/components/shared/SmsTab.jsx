@@ -3,7 +3,7 @@ import { base44 } from '@/api/base44Client';
 import SmsMediaPicker from './SmsMediaPicker';
 
 const GOLD = '#b8933a';
-const OUR_NUMBER = '+19495963970';
+const OUR_NUMBER = '+13232080505';
 
 function fmtTime(iso) {
   if (!iso) return '';

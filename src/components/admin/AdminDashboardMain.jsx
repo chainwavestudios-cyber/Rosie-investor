@@ -28,6 +28,8 @@ import IncomingCallPopup from '@/components/shared/IncomingCallPopup';
 import CallLogPanel from '@/components/admin/CallLogPanel';
 import AdminChatWindow from '@/components/admin/AdminChatWindow';
 import AdminAlertPopup from '@/components/admin/AdminAlertPopup';
+import SmsConversationsPanel from '@/components/admin/SmsConversationsPanel';
+import IncomingSmsPopup from '@/components/shared/IncomingSmsPopup';
 import { MOCK_LEADS, MOCK_INVESTORS } from '@/lib/mockData';
 
 // These are passed in as props from the page (to avoid duplication)
@@ -49,6 +51,7 @@ function StatusBadge({ status }) {
 const VIEWS = [
   { id:'users',    label:'CRM / Clients' },
   { id:'leads',    label:'Leads' },
+  { id:'sms',      label:'💬 SMS' },
   { id:'calendar', label:'Calendar' },
   { id:'analytics',label:'Analytics' },
   { id:'activity', label:'Recent Activity' },
@@ -483,6 +486,7 @@ export default function AdminDashboardMain({
         )}
 
         {view === 'leads'            && <LeadsTab openLeadId={openLeadId} onLeadOpened={() => setOpenLeadId(null)} mockLeads={isMockUser ? MOCK_LEADS : null} />}
+        {view === 'sms'             && <SmsConversationsPanel />}
         {view === 'marketing'        && <MarketingTab />}
         {view === 'kb'               && <KnowledgeBaseManagerComponent IntentEngineTuner={IntentEngineTuner} CoachRulesTuner={CoachRulesTuner} />}
         {view === 'signnow'          && <SignNowRequestsView settings={portalSettings} />}
@@ -519,6 +523,9 @@ export default function AdminDashboardMain({
           onClose={() => setShowChat(false)}
         />
       )}
+
+      {/* ── Incoming SMS Popup — always listening ── */}
+      <IncomingSmsPopup onOpenConversations={() => handleViewChange('sms')} />
 
       {/* ── Alert Popup — always listening ── */}
       <AdminAlertPopup

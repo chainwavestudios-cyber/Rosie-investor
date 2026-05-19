@@ -2,7 +2,7 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 
 const TWILIO_ACCOUNT_SID = Deno.env.get('TWILIO_ACCOUNT_SID');
 const TWILIO_AUTH_TOKEN  = Deno.env.get('TWILIO_AUTH_TOKEN');
-const FROM_NUMBER        = Deno.env.get('TWILIO_FROM_NUMBER') || '+19495963970';
+const FROM_NUMBER        = '+13232080505';
 const APP_ID             = '69cd2741578c9b5ce655395b';
 const APP_BASE           = 'https://investors.rosieai.tech';
 
