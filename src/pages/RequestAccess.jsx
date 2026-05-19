@@ -15,10 +15,9 @@ export default function RequestAccess() {
   const [status, setStatus] = useState('loading'); // loading | done | error
 
   useEffect(() => {
-    if (!email) { setStatus('error'); return; }
-    base44.functions.invoke('dataRoomAccessRequest', { email, name, leadId })
-      .then(() => setStatus('done'))
-      .catch(() => setStatus('done')); // still show thank-you even if notify fails
+    setStatus('done'); // show thank-you immediately — no auth needed
+    if (!email) return;
+    base44.functions.invoke('dataRoomAccessRequest', { email, name, leadId }).catch(() => {});
   }, []);
 
   return (
