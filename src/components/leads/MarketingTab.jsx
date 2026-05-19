@@ -303,22 +303,20 @@ export default function MarketingTab() {
   const [sending, setSending]     = useState(false);
   const [sendMsg, setSendMsg]     = useState('');
   const [search, setSearch]       = useState('');
+  const [showAll, setShowAll]     = useState(false);
 
-  useEffect(() => { loadUncontactedLeads(); }, []);
+  useEffect(() => { loadUncontactedLeads(); }, [showAll]);
 
   const loadUncontactedLeads = async () => {
     setLoading(true);
     try {
       const all = await base44.entities.Lead.list('-created_date', 3000);
-      const uncontacted = all.filter(l =>
-        !l.migratedToPortal &&
-        !l.convertedToInvestorUserId &&
-        l.status !== 'intro_email_sent' &&
-        l.status !== 'opened_intro_email' &&
-        l.status !== 'not_interested' &&
-        l.email
-      );
-      setLeads(uncontacted);
+      const filtered = all.filter(l => {
+        if (!l.email || l.migratedToPortal || l.convertedToInvestorUserId || l.status === 'not_interested') return false;
+        if (showAll) return true;
+        return l.status !== 'intro_email_sent' && l.status !== 'opened_intro_email';
+      });
+      setLeads(filtered);
     } catch (e) { console.error(e); }
     setLoading(false);
   };
@@ -417,6 +415,10 @@ export default function MarketingTab() {
           placeholder="Search by name, email, state…"
           style={{ ...inp, width: '260px', boxSizing: 'border-box' }}
         />
+        <label style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#8a9ab8', fontSize: '12px', cursor: 'pointer' }}>
+          <input type="checkbox" checked={showAll} onChange={e => setShowAll(e.target.checked)} style={{ cursor: 'pointer' }} />
+          Include contacted
+        </label>
         <div style={{ flex: 1 }} />
         {selected.size > 0 && (
           <span style={{ color: GOLD, fontSize: '12px' }}>
