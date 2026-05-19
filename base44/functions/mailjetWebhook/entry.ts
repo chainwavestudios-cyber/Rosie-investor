@@ -31,7 +31,7 @@ Deno.serve(async (req) => {
       const emailType   = customParts[1] || '';
       const isIntroEmail = emailType === 'intro';
       const messageId = String(MessageID || '');
-      const eventTime = time ? new Date(time * 1000).toISOString() : new Date().toISOString();
+      const eventTime = time ? new Date(parseInt(time) * 1000).toISOString() : new Date().toISOString();
 
       try {
         // ── Update EmailLog ───────────────────────────────────────────────
