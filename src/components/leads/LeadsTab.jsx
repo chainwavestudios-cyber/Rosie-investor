@@ -121,7 +121,7 @@ function CSVUploadModal({ onClose, onImported }) {
 
     // Delete old leads if requested
     if (deleteOld) {
-      const oldLeads = await base44.entities.Lead.list('-created_date', 5000);
+      const oldLeads = await base44.entities.Lead.list('-created_date', 2000);
       for (const lead of oldLeads) {
         try { await base44.entities.Lead.delete(lead.id); } catch {}
       }
@@ -405,15 +405,15 @@ export default function LeadsTab({ openLeadId, onLeadOpened, mockLeads = null })
 
   useEffect(() => {
     if (mockLeads) {
-      // Mock user — use injected mock data, skip all DB calls
       setLeads(mockLeads);
       setLoading(false);
       return;
     }
+    // Stagger loads so they don't all fire at the exact same millisecond
     loadLeads();
-    loadActivity();
-    base44.entities.ContactList.list('-created_date', 100).then(setContactLists).catch(() => {});
-    loadTodayAppointments();
+    setTimeout(() => loadActivity(), 1500);
+    setTimeout(() => base44.entities.ContactList.list('-created_date', 100).then(setContactLists).catch(() => {}), 2500);
+    setTimeout(() => loadTodayAppointments(), 3500);
   }, []);
 
   const loadTodayAppointments = async () => {
@@ -445,9 +445,10 @@ export default function LeadsTab({ openLeadId, onLeadOpened, mockLeads = null })
       onLeadOpened && onLeadOpened();
       return;
     }
-    // Fall back to fetching all leads to find by id (list doesn't support id filter)
-    base44.entities.Lead.list('-created_date', 5000).then(all => {
-      const match = all.find(l => l.id === openLeadId);
+    // Fall back to fetching directly by checking current loaded leads
+    // Don't do a full list(5000) fetch just to find one lead — too expensive
+    base44.entities.Lead.filter({ id: openLeadId }).then(results => {
+      const match = (results || [])[0];
       if (match) setSelectedLead(match);
       onLeadOpened && onLeadOpened();
     }).catch(() => { onLeadOpened && onLeadOpened(); });
@@ -456,14 +457,15 @@ export default function LeadsTab({ openLeadId, onLeadOpened, mockLeads = null })
   const loadActivity = async () => {
     setActivityLoading(true);
     try {
+      // Fetch history and logs — don't fetch all leads again, use what's already loaded
       const [history, logs] = await Promise.all([
-        base44.entities.LeadHistory.list('-created_date', 150).catch(() => []),
-        base44.entities.EmailLog.list('-sentAt', 200).catch(() => []),
+        base44.entities.LeadHistory.list('-created_date', 100).catch(() => []),
+        base44.entities.EmailLog.list('-sentAt', 100).catch(() => []),
       ]);
-      // Get lead names
-      const allLeads = await base44.entities.Lead.list('-created_date', 2000);
+      // Build leadsMap from already-loaded leads state (no extra API call)
       const leadsMap = {};
-      allLeads.forEach(l => { leadsMap[l.id] = l; });
+      leads.forEach(l => { leadsMap[l.id] = l; });
+      archivedLeads.forEach(l => { leadsMap[l.id] = l; });
       setLeadHistory(history.map(h => ({ ...h, lead: leadsMap[h.leadId] })));
       setEmailLogs(logs.map(l => ({ ...l, lead: leadsMap[l.leadId] })));
     } catch(e) { console.error(e); }
@@ -482,10 +484,9 @@ export default function LeadsTab({ openLeadId, onLeadOpened, mockLeads = null })
 
   const loadLeads = async () => {
     try {
-      const all = await base44.entities.Lead.list('-created_date', 5000);
+      const all = await base44.entities.Lead.list('-created_date', 2000);
       const active = all.filter(l => l.status !== 'converted');
       const archived = all.filter(l => l.status === 'converted');
-      console.log('[LeadsTab] total:', all.length, 'active:', active.length, 'prospects:', active.filter(l=>l.status==='prospect').length);
       setLeads(sortLeads(active));
       setArchivedLeads(archived || []);
     } catch(e) { console.error(e); }
