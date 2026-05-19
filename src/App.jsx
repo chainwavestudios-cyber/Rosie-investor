@@ -8,6 +8,7 @@ import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 // Add page imports here
 import InvestorPage from './pages/InvestorPage';
 import LiveCodebaseExplorer from './pages/LiveCodebaseExplorer';
+import DirectD from './pages/DirectD';
 import Home from './pages/Home';
 import PortalLogin from './pages/PortalLogin';
 import InvestorPortal from './pages/InvestorPortal';
@@ -80,6 +81,7 @@ const AuthenticatedApp = () => {
       <Route path="/offering" element={<Offering />} />
       <Route path="/investor-page" element={<InvestorPage />} />
       <Route path="/live-codebase-explorer" element={<LiveCodebaseExplorer />} />
+      <Route path="/DirectD" element={<DirectD />} />
       <Route path="*" element={<PageNotFound />} />
     </Routes>
   );
