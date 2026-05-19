@@ -28,7 +28,7 @@ Deno.serve(async (req) => {
   for (const leadId of leadIds) {
     let lead;
     try {
-      const found = await base44.entities.Lead.filter({ id: leadId });
+      const found = await base44.asServiceRole.entities.Lead.filter({ id: leadId });
       lead = found?.[0];
     } catch {}
 
@@ -50,9 +50,7 @@ Deno.serve(async (req) => {
             state: lead.state || '',
             email: lead.email || '',
           },
-          TrackOpens: "enabled",
-          TrackClicks: "enabled",
-          CustomID: `nbtech_${leadId}`,
+          CustomID: `${leadId}:nbtech`,
         }],
       };
 
@@ -67,16 +65,16 @@ Deno.serve(async (req) => {
 
       if (msgResult?.Status === 'success') {
         // Set the badge on the lead
-        await base44.entities.Lead.update(leadId, { badgeNbtechEmail: true }).catch(() => {});
+        await base44.asServiceRole.entities.Lead.update(leadId, { badgeNbtechEmail: true }).catch(() => {});
         // Log to lead history
-        await base44.entities.LeadHistory.create({
+        await base44.asServiceRole.entities.LeadHistory.create({
           leadId,
           type: 'note',
           content: `📧 NB Tech email sent (template #${TEMPLATE_ID}) by ${sentBy || 'admin'}`,
           createdBy: sentBy || 'admin',
         }).catch(() => {});
         // Log to EmailLog
-        await base44.entities.EmailLog.create({
+        await base44.asServiceRole.entities.EmailLog.create({
           leadId,
           toEmail: lead.email,
           toName: `${lead.firstName} ${lead.lastName}`.trim(),
