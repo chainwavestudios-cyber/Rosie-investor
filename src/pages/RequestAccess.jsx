@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import { base44 } from '@/api/base44Client';
 
 /**
  * /request-access?email=...&name=...&lead_id=...
@@ -17,7 +16,12 @@ export default function RequestAccess() {
   useEffect(() => {
     setStatus('done'); // show thank-you immediately — no auth needed
     if (!email) return;
-    base44.functions.invoke('dataRoomAccessRequest', { email, name, leadId }).catch(() => {});
+    // Use plain fetch — no auth token needed since this is a public page
+    fetch(`${window.location.origin}/api/functions/dataRoomAccessRequest`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, name, leadId }),
+    }).catch(() => {});
   }, []);
 
   return (

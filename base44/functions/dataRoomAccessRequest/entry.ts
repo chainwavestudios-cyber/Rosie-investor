@@ -1,34 +1,50 @@
 /**
  * dataRoomAccessRequest
- * Called when a lead clicks "Request Access to Data Room" in a Mailjet email.
- * 1. Creates / updates a LeadHistory note on the lead
- * 2. Sends an admin notification email
- * 3. Posts an alert message to AdminChat so it pops up in the dashboard
+ * GET  → linked directly from Mailjet email button, returns HTML thank-you page
+ * POST → called from frontend (legacy)
  * 
- * Mailjet button URL:
- *   https://investors.rosieai.tech/request-access?email=[[var:email]]&name=[[var:name]]&lead_id=[[var:lead_id]]
+ * Button URL in Mailjet template:
+ *   https://<function-url>/dataRoomAccessRequest?email={{var:email}}&name={{var:name}}&lead_id={{var:lead_id}}
  */
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 
-const MJ_KEY    = Deno.env.get('MAILJET_API_KEY');
-const MJ_SECRET = Deno.env.get('MAILJET_API_SECRET');
-const ADMIN_EMAIL = Deno.env.get('MAILJET_FROM_EMAIL'); // notify this address
+const MJ_KEY      = Deno.env.get('MAILJET_API_KEY');
+const MJ_SECRET   = Deno.env.get('MAILJET_API_SECRET');
+const ADMIN_EMAIL = Deno.env.get('MAILJET_FROM_EMAIL');
 const FROM_NAME   = Deno.env.get('MAILJET_FROM_NAME') || 'Rosie AI';
 
-Deno.serve(async (req) => {
-  const base44 = createClientFromRequest(req);
-  // No auth required — this is called from a public page linked in marketing emails
+const THANK_YOU_HTML = (firstName, email) => `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Request Received · Rosie AI</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { min-height: 100vh; background: #080f1c; display: flex; align-items: center; justify-content: center; padding: 24px; font-family: Georgia, serif; }
+    .card { max-width: 480px; width: 100%; text-align: center; }
+    .brand { color: #b8933a; font-size: 13px; letter-spacing: 3px; text-transform: uppercase; margin-bottom: 40px; opacity: 0.8; }
+    .icon { font-size: 56px; margin-bottom: 20px; }
+    h1 { color: #e8e0d0; font-size: 26px; font-weight: normal; margin-bottom: 12px; line-height: 1.3; }
+    p { color: #8a9ab8; font-size: 15px; line-height: 1.7; margin-bottom: 32px; }
+    .note { background: rgba(184,147,58,0.08); border: 1px solid rgba(184,147,58,0.2); border-radius: 6px; padding: 16px 20px; color: #b8933a; font-size: 13px; line-height: 1.6; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="brand">Rosie AI · Investor Relations</div>
+    <div class="icon">✅</div>
+    <h1>Request Received</h1>
+    <p>Thank you${firstName ? `, ${firstName}` : ''}! Our team has been notified of your interest in accessing the data room. We'll be in touch shortly to verify your accreditation and grant access.</p>
+    <div class="note">📧 A confirmation has been noted for <strong>${email}</strong></div>
+  </div>
+</body>
+</html>`;
 
-  const { email, name, leadId } = await req.json();
-
-  if (!email) {
-    return Response.json({ error: 'Missing email' }, { status: 400 });
-  }
-
+async function processRequest(base44, email, name, leadId) {
   const displayName = name || email;
   const now = new Date().toISOString();
 
-  // ── 1. Update lead type + pipeline stage, log history ────────────────────
   if (leadId) {
     await base44.asServiceRole.entities.Lead.update(leadId, {
       leadType: 'nb_data',
@@ -42,11 +58,7 @@ Deno.serve(async (req) => {
       content: `🔐 Data Room Access Requested by ${displayName} (${email}) — clicked email button. Lead type set to NB Data, moved to Data Room Request pipeline stage.`,
       createdBy: 'system',
     }).catch(() => {});
-  }
 
-  // ── 2. Log to ContactNote if investor record exists ───────────────────────
-  if (leadId) {
-    // Try to find an InvestorUser linked to this lead
     const investors = await base44.asServiceRole.entities.InvestorUser.filter({ leadId }).catch(() => []);
     if (investors && investors.length > 0) {
       await base44.asServiceRole.entities.ContactNote.create({
@@ -60,7 +72,6 @@ Deno.serve(async (req) => {
     }
   }
 
-  // ── 3. Post alert to AdminChat ────────────────────────────────────────────
   await base44.asServiceRole.entities.AdminChat.create({
     sender: 'system',
     type: 'alert',
@@ -70,7 +81,6 @@ Deno.serve(async (req) => {
     sentAt: now,
   }).catch(() => {});
 
-  // ── 4. Send admin notification email via Mailjet ──────────────────────────
   if (MJ_KEY && MJ_SECRET && ADMIN_EMAIL) {
     const auth = btoa(`${MJ_KEY}:${MJ_SECRET}`);
     const html = `
@@ -84,12 +94,8 @@ Deno.serve(async (req) => {
           ${leadId ? `<div style="color:#8a9ab8;font-size:12px;margin-top:6px;">Lead ID: ${leadId}</div>` : ''}
         </div>
         <p style="color:#4a5568;font-size:14px;line-height:1.6;">Log in to the admin dashboard to review this lead and grant data room access if appropriate.</p>
-        <div style="margin-top:24px;padding-top:16px;border-top:1px solid #e2e0da;color:#8a9ab8;font-size:11px;">
-          This notification was triggered automatically when the lead clicked the data room button.
-        </div>
       </div>
     `;
-
     await fetch('https://api.mailjet.com/v3.1/send', {
       method: 'POST',
       headers: { 'Authorization': `Basic ${auth}`, 'Content-Type': 'application/json' },
@@ -104,6 +110,37 @@ Deno.serve(async (req) => {
       }),
     }).catch(() => {});
   }
+}
 
+Deno.serve(async (req) => {
+  const base44 = createClientFromRequest(req);
+  const url = new URL(req.url);
+
+  // ── GET: direct link from email button ───────────────────────────────────
+  if (req.method === 'GET') {
+    const email  = url.searchParams.get('email')   || '';
+    const name   = url.searchParams.get('name')    || '';
+    const leadId = url.searchParams.get('lead_id') || '';
+
+    if (!email) {
+      return new Response('<h1>Invalid link</h1>', { status: 400, headers: { 'Content-Type': 'text/html' } });
+    }
+
+    const firstName = name ? name.split(' ')[0] : '';
+
+    // Fire-and-forget background processing
+    processRequest(base44, email, name, leadId).catch(() => {});
+
+    return new Response(THANK_YOU_HTML(firstName, email), {
+      status: 200,
+      headers: { 'Content-Type': 'text/html; charset=utf-8' },
+    });
+  }
+
+  // ── POST: called from frontend ────────────────────────────────────────────
+  const { email, name, leadId } = await req.json();
+  if (!email) return Response.json({ error: 'Missing email' }, { status: 400 });
+
+  await processRequest(base44, email, name, leadId);
   return Response.json({ success: true });
 });
