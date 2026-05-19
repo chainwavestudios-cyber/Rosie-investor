@@ -102,11 +102,6 @@ function NbtechEmailSection({ currentUsername }) {
   const [sendMsg, setSendMsg] = useState('');
   const [search, setSearch] = useState('');
 
-  useEffect(() => {
-    // Load contact lists only on mount — don't auto-fetch all leads until user picks a list
-    base44.entities.ContactList.list('-created_date', 100).then(setContactLists).catch(() => {});
-  }, []);
-
   const loadLeads = async (listId) => {
     setLoading(true);
     setSelected(new Set());
@@ -127,6 +122,12 @@ function NbtechEmailSection({ currentUsername }) {
     } catch {}
     setLoading(false);
   };
+
+  useEffect(() => {
+    // Load contact lists and all eligible leads on mount
+    base44.entities.ContactList.list('-created_date', 100).then(setContactLists).catch(() => {});
+    loadLeads('all');
+  }, []);
 
   const handleListChange = (listId) => {
     setSelectedListId(listId);
