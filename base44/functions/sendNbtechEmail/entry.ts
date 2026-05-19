@@ -48,6 +48,7 @@ Deno.serve(async (req) => {
             state: lead.state || '',
             email: lead.email || '',
             lead_id: leadId,
+            request_access_url: `https://investors.rosieai.tech/request-access?email=${encodeURIComponent(lead.email || '')}&name=${encodeURIComponent(`${lead.firstName || ''} ${lead.lastName || ''}`.trim())}&lead_id=${encodeURIComponent(leadId)}`,
           },
           CustomID: `${leadId}:nbtech`,
         }],

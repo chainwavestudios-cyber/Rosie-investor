@@ -22,9 +22,11 @@ Deno.serve(async (req) => {
 
       if (!CustomID) { console.log('[Mailjet] No CustomID — skipping'); continue; }
 
-      // CustomID may be "leadId:intro" for intro emails or just "leadId"
-      const isIntroEmail = (CustomID || '').includes(':intro');
-      const leadId    = isIntroEmail ? CustomID.split(':')[0] : CustomID;
+      // CustomID format: "leadId:intro", "leadId:nbtech", or just "leadId"
+      const customParts = (CustomID || '').split(':');
+      const leadId      = customParts[0];
+      const emailType   = customParts[1] || '';
+      const isIntroEmail = emailType === 'intro';
       const messageId = String(MessageID || '');
       const eventTime = time ? new Date(time * 1000).toISOString() : new Date().toISOString();
 
