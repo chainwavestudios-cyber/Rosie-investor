@@ -28,8 +28,24 @@ const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
   const isPublic = PUBLIC_PATHS.some(p => window.location.pathname === p || window.location.pathname.startsWith(p + '/'));
 
+  // For public routes, render immediately without waiting for auth
+  if (isPublic) {
+    return (
+      <Routes>
+        <Route path="/optin" element={<OptIn />} />
+        <Route path="/optin/screenshot" element={<OptInScreenshot />} />
+        <Route path="/privacy" element={<PrivacyPolicy />} />
+        <Route path="/terms" element={<Terms />} />
+        <Route path="/portal-login" element={<PortalLogin />} />
+        <Route path="/admin-login" element={<AdminLogin />} />
+        <Route path="/request-access" element={<RequestAccess />} />
+        <Route path="*" element={<PageNotFound />} />
+      </Routes>
+    );
+  }
+
   // Show loading spinner while checking app public settings or auth (skip for public routes)
-  if (!isPublic && (isLoadingPublicSettings || isLoadingAuth)) {
+  if (isLoadingPublicSettings || isLoadingAuth) {
     return (
       <div className="fixed inset-0 flex items-center justify-center">
         <div className="w-8 h-8 border-4 border-slate-200 border-t-slate-800 rounded-full animate-spin"></div>
@@ -37,12 +53,11 @@ const AuthenticatedApp = () => {
     );
   }
 
-  // Handle authentication errors (skip for public routes)
-  if (!isPublic && authError) {
+  // Handle authentication errors
+  if (authError) {
     if (authError.type === 'user_not_registered') {
       return <UserNotRegisteredError />;
     } else if (authError.type === 'auth_required') {
-      // Redirect to login automatically
       navigateToLogin();
       return null;
     }

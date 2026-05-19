@@ -17,6 +17,7 @@ const FROM_NAME   = Deno.env.get('MAILJET_FROM_NAME') || 'Rosie AI';
 
 Deno.serve(async (req) => {
   const base44 = createClientFromRequest(req);
+  // No auth required — this is called from a public page linked in marketing emails
 
   const { email, name, leadId } = await req.json();
 
