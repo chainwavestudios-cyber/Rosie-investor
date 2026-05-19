@@ -103,8 +103,8 @@ function NbtechEmailSection({ currentUsername }) {
   const [search, setSearch] = useState('');
 
   useEffect(() => {
+    // Load contact lists only on mount — don't auto-fetch all leads until user picks a list
     base44.entities.ContactList.list('-created_date', 100).then(setContactLists).catch(() => {});
-    loadLeads('all');
   }, []);
 
   const loadLeads = async (listId) => {
@@ -115,7 +115,7 @@ function NbtechEmailSection({ currentUsername }) {
       if (listId && listId !== 'all') {
         all = await base44.entities.Lead.filter({ contactListId: listId });
       } else {
-        all = await base44.entities.Lead.list('-created_date', 3000);
+        all = await base44.entities.Lead.list('-created_date', 2000);
       }
       const eligible = (all || []).filter(l =>
         l.email &&
@@ -310,7 +310,7 @@ export default function MarketingTab() {
   const loadUncontactedLeads = async (includeAll) => {
     setLoading(true);
     try {
-      const all = await base44.entities.Lead.list('-created_date', 3000);
+      const all = await base44.entities.Lead.list('-created_date', 2000);
       const filtered = all.filter(l => {
         if (!l.email || l.migratedToPortal || l.convertedToInvestorUserId || l.status === 'not_interested') return false;
         if (includeAll) return true;
