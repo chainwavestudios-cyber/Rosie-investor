@@ -650,8 +650,10 @@ export default function LeadsTab({ openLeadId, onLeadOpened, mockLeads = null })
 
   const fmtTime = (dt) => {
     if (!dt) return '—';
-    const d = new Date(dt);
-    const diff = Date.now() - d;
+    const d = new Date(dt).getTime();
+    const now = Date.now();
+    const diff = now - d;
+    if (diff < 0) return 'just now';
     if (diff < 3600000) return `${Math.floor(diff/60000)}m ago`;
     if (diff < 86400000) return `${Math.floor(diff/3600000)}h ago`;
     return fmtDateTimeShort(dt);
