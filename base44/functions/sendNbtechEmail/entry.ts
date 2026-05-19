@@ -9,12 +9,13 @@ const MJ_KEY    = Deno.env.get('MAILJET_API_KEY');
 const MJ_SECRET = Deno.env.get('MAILJET_API_SECRET');
 const FROM_EMAIL = Deno.env.get('MAILJET_FROM_EMAIL');
 const FROM_NAME  = Deno.env.get('MAILJET_FROM_NAME') || 'Rosie AI';
-const TEMPLATE_ID = 8032819;
+const DEFAULT_TEMPLATE_ID = 8032819;
 
 Deno.serve(async (req) => {
   const base44 = createClientFromRequest(req);
 
-  const { leadIds, sentBy } = await req.json();
+  const { leadIds, sentBy, templateId } = await req.json();
+  const TEMPLATE_ID = templateId || DEFAULT_TEMPLATE_ID;
   if (!leadIds || !Array.isArray(leadIds) || leadIds.length === 0) {
     return Response.json({ error: 'leadIds array required' }, { status: 400 });
   }

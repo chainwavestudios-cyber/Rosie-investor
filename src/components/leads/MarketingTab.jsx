@@ -91,10 +91,18 @@ function LeadTable({ leads, selected, onToggle, onToggleAll }) {
   );
 }
 
+const NB_TECH_TEMPLATES = [
+  { id: 8032819, label: 'NB Tech 1' },
+  { id: 8036170, label: 'NB Tech 2' },
+  { id: 8036171, label: 'NB Tech 3' },
+  { id: 8036172, label: 'NB Tech 4' },
+];
+
 // ─── NB Tech Email Section ────────────────────────────────────────────────────
 function NbtechEmailSection({ currentUsername }) {
   const [contactLists, setContactLists] = useState([]);
   const [selectedListId, setSelectedListId] = useState('all');
+  const [selectedTemplateId, setSelectedTemplateId] = useState(8032819);
   const [leads, setLeads] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState(new Set());
@@ -184,6 +192,7 @@ function NbtechEmailSection({ currentUsername }) {
       const result = await base44.functions.invoke('sendNbtechEmail', {
         leadIds: [...selected],
         sentBy: currentUsername,
+        templateId: selectedTemplateId,
       });
       const { sent, total, results: details } = result?.data || result || {};
       const failed = (details || []).filter(r => !r.success);
@@ -231,6 +240,15 @@ function NbtechEmailSection({ currentUsername }) {
 
       {/* Controls */}
       <div style={{ display: 'flex', gap: '10px', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap' }}>
+        {/* Template selector */}
+        <select
+          value={selectedTemplateId}
+          onChange={e => setSelectedTemplateId(Number(e.target.value))}
+          style={{ ...inp, cursor: 'pointer', minWidth: '160px', border: '1px solid rgba(129,140,248,0.4)', background: 'rgba(129,140,248,0.08)', color: '#818cf8' }}>
+          {NB_TECH_TEMPLATES.map(t => (
+            <option key={t.id} value={t.id} style={{ background: '#0d1b2a', color: '#e8e0d0' }}>{t.label} (#{t.id})</option>
+          ))}
+        </select>
         {/* Contact list selector */}
         <select
           value={selectedListId}
@@ -286,7 +304,7 @@ function NbtechEmailSection({ currentUsername }) {
       <div style={{ background: 'rgba(129,140,248,0.06)', border: '1px solid rgba(129,140,248,0.2)', borderRadius: '4px', padding: '12px 16px', marginBottom: '16px', fontSize: '12px', color: '#8a9ab8', display: 'flex', gap: '10px', alignItems: 'center' }}>
         <span style={{ fontSize: '18px' }}>ℹ️</span>
         <div>
-          <strong style={{ color: '#818cf8' }}>Template #8032819</strong> · Variables <code style={{ background: 'rgba(255,255,255,0.08)', padding: '1px 5px', borderRadius: '2px' }}>{'[[data:firstname]]'}</code>, <code style={{ background: 'rgba(255,255,255,0.08)', padding: '1px 5px', borderRadius: '2px' }}>{'[[var:email]]'}</code>, <code style={{ background: 'rgba(255,255,255,0.08)', padding: '1px 5px', borderRadius: '2px' }}>{'[[var:name]]'}</code>, and <code style={{ background: 'rgba(255,255,255,0.08)', padding: '1px 5px', borderRadius: '2px' }}>{'[[var:lead_id]]'}</code> are automatically populated.
+          <strong style={{ color: '#818cf8' }}>{NB_TECH_TEMPLATES.find(t => t.id === selectedTemplateId)?.label} — Template #{selectedTemplateId}</strong> · Variables <code style={{ background: 'rgba(255,255,255,0.08)', padding: '1px 5px', borderRadius: '2px' }}>{'[[data:firstname]]'}</code>, <code style={{ background: 'rgba(255,255,255,0.08)', padding: '1px 5px', borderRadius: '2px' }}>{'[[var:email]]'}</code>, <code style={{ background: 'rgba(255,255,255,0.08)', padding: '1px 5px', borderRadius: '2px' }}>{'[[var:name]]'}</code>, and <code style={{ background: 'rgba(255,255,255,0.08)', padding: '1px 5px', borderRadius: '2px' }}>{'[[var:lead_id]]'}</code> are automatically populated.
           Leads without an email are excluded. Select a contact list to filter.
         </div>
       </div>
