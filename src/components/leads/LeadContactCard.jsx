@@ -164,7 +164,7 @@ function OverviewTab({ editLead, setEditLead, saving, saveMsg, saveProfile, upda
     opened_intro_email: { label: '📬 Opened Intro Email', color: '#4ade80' },
     prospect:           { label: '⭐ Prospect',           color: '#a78bfa' },
   };
-  const HISTORY_ICONS = { call:'📞', not_available:'📵', callback_later:'📅', not_interested:'❌', status_change:'🔄', note:'📝', prospect:'⭐', connected:'🟢' };
+  const HISTORY_ICONS = { call:'📞', not_available:'📵', callback_later:'📅', not_interested:'❌', status_change:'🔄', note:'📝', prospect:'⭐', connected:'🟢', abandoned:'⛔', voicemail:'📳', interested:'🌟' };
   const historyColor = (type) => ({ call:'#60a5fa', not_available:'#8a9ab8', callback_later:'#a78bfa', not_interested:'#ef4444', status_change:GOLD, note:'#c4cdd8', prospect:'#a78bfa', connected:'#4ade80' })[type] || '#6b7280';
 
   const [followUpDate, setFollowUpDate] = useState('');
@@ -345,10 +345,10 @@ function OverviewTab({ editLead, setEditLead, saving, saveMsg, saveProfile, upda
           </div>}
           <div style={{ display:'flex', flexDirection:'column', gap:'4px', maxHeight:'260px', overflowY:'auto', paddingRight:'4px' }}>
             {loading && <p style={{ color:'#6b7280', fontSize:'12px', textAlign:'center', padding:'16px' }}>Loading…</p>}
-            {!loading && history.filter(h => ['note','status_change','callback_later','prospect','interested'].includes(h.type)).length === 0 && (
+            {!loading && history.filter(h => ['note','status_change','callback_later','prospect','interested','call','connected','not_available','not_interested','abandoned','voicemail'].includes(h.type)).length === 0 && (
               <p style={{ color:'#4a5568', fontSize:'12px', textAlign:'center', padding:'20px' }}>No notes or activity yet.</p>
             )}
-            {history.filter(h => ['note','status_change','callback_later','prospect','interested'].includes(h.type)).map(h => {
+            {history.filter(h => ['note','status_change','callback_later','prospect','interested','call','connected','not_available','not_interested','abandoned','voicemail'].includes(h.type)).map(h => {
               const icon = HISTORY_ICONS[h.type] || '📝';
               const color = historyColor(h.type);
               return (
