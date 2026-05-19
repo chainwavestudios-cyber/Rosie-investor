@@ -1359,21 +1359,13 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
             <div style={{ display:'flex', alignItems:'center', gap:'12px', flexShrink:0 }}>
               <div>
                 <div style={{ display:'flex', alignItems:'center', gap:'8px', flexWrap:'wrap' }}>
-                  <div style={{ color:'#e8e0d0', fontSize:'22px', fontFamily:'Georgia,serif', fontWeight:'normal', lineHeight:1.1 }}>{fullName}</div>
+                  <div style={{ color:'#e8e0d0', fontSize:'16px', fontFamily:'Georgia,serif', fontWeight:'normal', lineHeight:1.1 }}>{fullName}</div>
                   {smsOptedIn && (
                     <img
                       src="https://media.base44.com/images/public/69cd2741578c9b5ce655395b/9febafab0_Untitled313x313px.png"
                       alt="SMS Opted In"
                       title="SMS Opted In"
                       style={{ width: '32px', height: '32px', objectFit: 'contain', flexShrink: 0 }}
-                    />
-                  )}
-                  {(editLead.badgeDataRoomRequest || lead.badgeDataRoomRequest) && (
-                    <img
-                      src="https://media.base44.com/images/public/69cd2741578c9b5ce655395b/5f030ac02_Untitled313x313px279x158px.png"
-                      alt="NB Data Room Requested"
-                      title="Data Room Requested"
-                      style={{ width: '52px', height: '29px', objectFit: 'contain', flexShrink: 0, borderRadius: '4px' }}
                     />
                   )}
                 </div>
@@ -1460,6 +1452,14 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
                       <div style={{ fontSize:'11px', fontWeight:'bold', color:'#4ade80', lineHeight:1, fontFamily:'monospace' }}>{unreadSms}</div>
                       <div style={{ fontSize:'7px', color:'#4ade80', opacity:0.85, letterSpacing:'0.5px', textAlign:'center', lineHeight:1.2 }}>UNREAD<br/>SMS</div>
                     </div>
+                  )}
+                  {(editLead.badgeDataRoomRequest || lead.badgeDataRoomRequest) && (
+                    <img
+                      src="https://media.base44.com/images/public/69cd2741578c9b5ce655395b/5f030ac02_Untitled313x313px279x158px.png"
+                      alt="NB Data Room Requested"
+                      title="Data Room Requested"
+                      style={{ width: '91px', height: '51px', objectFit: 'contain', flexShrink: 0, borderRadius: '4px' }}
+                    />
                   )}
                   <div style={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', width:'46px', height:'46px', borderRadius:'50%', background:`linear-gradient(135deg,${GOLD}55,${GOLD}22)`, border:`2px solid ${GOLD}77` }}>
                     <div style={{ fontSize:'14px', fontWeight:'bold', color:GOLD, lineHeight:1, fontFamily:'monospace' }}>{editLead.engagementScore || 0}</div>
