@@ -38,7 +38,6 @@ Deno.serve(async (req) => {
     try {
       const payload = {
         Messages: [{
-          From: { Email: FROM_EMAIL, Name: FROM_NAME },
           To: [{ Email: lead.email, Name: `${lead.firstName} ${lead.lastName}`.trim() }],
           TemplateID: TEMPLATE_ID,
           TemplateLanguage: true,
