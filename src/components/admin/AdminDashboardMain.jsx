@@ -128,7 +128,7 @@ export default function AdminDashboardMain({
     if (isPortalLoading) return;
     if (!portalUser || !isAdmin) { navigate('/admin-login'); return; }
     load();
-    const interval = setInterval(load, 30000);
+    const interval = setInterval(load, 60000);
     return () => clearInterval(interval);
   }, [portalUser, isAdmin, isPortalLoading, load]);
 
