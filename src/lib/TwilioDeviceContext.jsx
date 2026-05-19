@@ -70,25 +70,23 @@ export function TwilioDeviceProvider({ children }) {
           let matchedLead = null;
           if (from) {
             try {
-              // Normalize: strip non-digits then try +1XXXXXXXXXX and plain 10-digit
-              const digits = from.replace(/\D/g, '');
-              const e164   = digits.length === 10 ? `+1${digits}` : `+${digits}`;
+              const digits  = from.replace(/\D/g, '');
+              const e164    = digits.length === 10 ? `+1${digits}` : `+${digits}`;
               const plain10 = digits.slice(-10);
 
-              // Search InvestorUser first
-              const investors = await base44.entities.InvestorUser.list();
-              matchedLead = investors.find(u => {
-                const p = (u.phone || '').replace(/\D/g, '');
-                return p === digits || p === plain10 || p.slice(-10) === plain10;
-              }) || null;
+              // Targeted filter — never fetch all investors/leads just to match a phone
+              const [byE164, byPlain] = await Promise.all([
+                base44.entities.InvestorUser.filter({ phone: e164 }).catch(() => []),
+                base44.entities.InvestorUser.filter({ phone: plain10 }).catch(() => []),
+              ]);
+              matchedLead = byE164[0] || byPlain[0] || null;
 
-              // Fallback: search Lead entity if no investor match
               if (!matchedLead) {
-                const leads = await base44.entities.Lead.list();
-                matchedLead = leads.find(l => {
-                  const p = (l.phone || '').replace(/\D/g, '');
-                  return p === digits || p === plain10 || p.slice(-10) === plain10;
-                }) || null;
+                const [lByE164, lByPlain] = await Promise.all([
+                  base44.entities.Lead.filter({ phone: e164 }).catch(() => []),
+                  base44.entities.Lead.filter({ phone: plain10 }).catch(() => []),
+                ]);
+                matchedLead = lByE164[0] || lByPlain[0] || null;
               }
             } catch (e) {
               console.warn('[TwilioDevice] Lead lookup failed:', e.message);
