@@ -44,8 +44,10 @@ Deno.serve(async (req) => {
           Variables: {
             first_name: lead.firstName || '',
             last_name: lead.lastName || '',
+            name: `${lead.firstName || ''} ${lead.lastName || ''}`.trim(),
             state: lead.state || '',
             email: lead.email || '',
+            lead_id: leadId,
           },
           CustomID: `${leadId}:nbtech`,
         }],

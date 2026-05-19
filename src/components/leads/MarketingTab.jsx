@@ -268,7 +268,7 @@ function NbtechEmailSection({ currentUsername }) {
       <div style={{ background: 'rgba(129,140,248,0.06)', border: '1px solid rgba(129,140,248,0.2)', borderRadius: '4px', padding: '12px 16px', marginBottom: '16px', fontSize: '12px', color: '#8a9ab8', display: 'flex', gap: '10px', alignItems: 'center' }}>
         <span style={{ fontSize: '18px' }}>ℹ️</span>
         <div>
-          <strong style={{ color: '#818cf8' }}>Template #8032819</strong> · Variables <code style={{ background: 'rgba(255,255,255,0.08)', padding: '1px 5px', borderRadius: '2px' }}>{'{{var:first_name}}'}</code> and <code style={{ background: 'rgba(255,255,255,0.08)', padding: '1px 5px', borderRadius: '2px' }}>{'{{var:state}}'}</code> are automatically populated.
+          <strong style={{ color: '#818cf8' }}>Template #8032819</strong> · Variables <code style={{ background: 'rgba(255,255,255,0.08)', padding: '1px 5px', borderRadius: '2px' }}>{'{{var:email}}'}</code>, <code style={{ background: 'rgba(255,255,255,0.08)', padding: '1px 5px', borderRadius: '2px' }}>{'{{var:name}}'}</code>, and <code style={{ background: 'rgba(255,255,255,0.08)', padding: '1px 5px', borderRadius: '2px' }}>{'{{var:lead_id}}'}</code> are automatically populated (used in the request-access link).
           Leads without an email are excluded. Select a contact list to filter.
         </div>
       </div>
