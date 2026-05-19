@@ -42,8 +42,8 @@ Deno.serve(async (req) => {
           TemplateID: TEMPLATE_ID,
           TemplateLanguage: true,
           Variables: {
-            first_name: lead.firstName || '',
-            last_name: lead.lastName || '',
+            firstname: lead.firstName || '',
+            lastname: lead.lastName || '',
             name: `${lead.firstName || ''} ${lead.lastName || ''}`.trim(),
             state: lead.state || '',
             email: lead.email || '',
