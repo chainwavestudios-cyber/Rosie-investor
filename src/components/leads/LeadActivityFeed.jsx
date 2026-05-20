@@ -58,21 +58,17 @@ export default function LeadActivityFeed({ onOpenLead, leads = [] }) {
       ].filter(Boolean))];
 
       let leadsMap = {};
+      let investorsMap = {};
       // Seed from parent-provided leads
       leads.forEach(l => { leadsMap[l.id] = l; });
-      // Fetch all leads
-      const missingIds = leadIds.filter(id => !leadsMap[id]);
-      if (missingIds.length > 0) {
-        const fetched = await base44.entities.Lead.list('-created_date', 5000).catch(() => []);
-        fetched.forEach(l => { leadsMap[l.id] = l; });
-      }
-      // Also fetch investors to cover history entries that reference investor IDs
-      const stillMissing = leadIds.filter(id => !leadsMap[id]);
-      let investorsMap = {};
-      if (stillMissing.length > 0) {
-        const investors = await base44.entities.InvestorUser.list('-created_date', 2000).catch(() => []);
-        investors.forEach(inv => { investorsMap[inv.id] = inv; });
-      }
+
+      // Fetch all leads AND investors in parallel to build lookup maps
+      const [allLeads, allInvestors] = await Promise.all([
+        base44.entities.Lead.list('-created_date', 5000).catch(() => []),
+        base44.entities.InvestorUser.list('-created_date', 2000).catch(() => []),
+      ]);
+      allLeads.forEach(l => { leadsMap[l.id] = l; });
+      allInvestors.forEach(inv => { investorsMap[inv.id] = inv; });
 
       const evts = [];
 
