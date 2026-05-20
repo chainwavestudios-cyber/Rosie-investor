@@ -73,7 +73,7 @@ export default function LeadActivityFeed({ onOpenLead, leads = [] }) {
         evts.push({
           type,
           leadId: h.leadId,
-          leadName: lead ? `${lead.firstName} ${lead.lastName}` : h.leadId,
+          leadName: lead ? `${lead.firstName} ${lead.lastName}`.trim() : '—',
           leadPhone: lead?.phone,
           time: h.createdAt || h.created_date,
           detail: h.content,
@@ -84,12 +84,13 @@ export default function LeadActivityFeed({ onOpenLead, leads = [] }) {
       // From EmailLog — sent/opened/clicked
       emailLogs.forEach(log => {
         const lead = leadsMap[log.leadId];
+        const displayName = lead ? `${lead.firstName} ${lead.lastName}`.trim() : (log.toName || log.toEmail || '—');
         if (log.status === 'opened' && log.openedAt) {
           evts.push({
             type: 'email_open',
             leadId: log.leadId,
-            leadName: lead ? `${lead.firstName} ${lead.lastName}` : log.toName || log.toEmail,
-            leadPhone: lead?.phone,
+            leadName: displayName,
+            leadPhone: lead?.phone || log.toEmail,
             time: log.openedAt,
             detail: `Email opened`,
             raw: lead,
@@ -99,8 +100,8 @@ export default function LeadActivityFeed({ onOpenLead, leads = [] }) {
           evts.push({
             type: 'email_click',
             leadId: log.leadId,
-            leadName: lead ? `${lead.firstName} ${lead.lastName}` : log.toName || log.toEmail,
-            leadPhone: lead?.phone,
+            leadName: displayName,
+            leadPhone: lead?.phone || log.toEmail,
             time: log.clickedAt,
             detail: `Clicked: ${log.clickedUrl || 'link'}`,
             raw: lead,
