@@ -32,8 +32,15 @@ const EVENT_CONFIG = {
 export default function LeadActivityFeed({ onOpenLead, leads = [] }) {
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => { loadEvents(); }, []);
+
+  const refresh = async () => {
+    setRefreshing(true);
+    await loadEvents();
+    setRefreshing(false);
+  };
 
   const loadEvents = async () => {
     setLoading(true);
@@ -130,7 +137,10 @@ export default function LeadActivityFeed({ onOpenLead, leads = [] }) {
       {/* Header */}
       <div style={{ padding: '10px 16px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <span style={{ color: GOLD, fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase' }}>⚡ Lead Activity Feed</span>
-        <span style={{ color: '#6b7280', fontSize: '11px' }}>{events.filter(e => important.includes(e.type)).length} important events</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <span style={{ color: '#6b7280', fontSize: '11px' }}>{events.filter(e => important.includes(e.type)).length} important events</span>
+          <button onClick={refresh} disabled={refreshing} style={{ background: 'none', border: 'none', color: refreshing ? '#6b7280' : GOLD, cursor: refreshing ? 'not-allowed' : 'pointer', fontSize: '12px', opacity: refreshing ? 0.5 : 1 }}>🔄</button>
+        </div>
       </div>
 
       {loading && <div style={{ color: '#6b7280', fontSize: '12px', padding: '16px', textAlign: 'center' }}>Loading…</div>}
