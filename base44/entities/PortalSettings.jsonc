@@ -269,6 +269,10 @@
       "type": "string",
       "title": "Voicemail Greeting Message",
       "format": "textarea"
+    },
+    "vmAudioUrl": {
+      "type": "string",
+      "title": "Voicemail Audio Recording URL"
     }
   },
   "required": [

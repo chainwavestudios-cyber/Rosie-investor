@@ -1,31 +1,87 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { base44 } from '@/api/base44Client';
 import { fmtDateTime, fmtDate, fmtDateTimeShort } from '@/lib/fmtDate.js';
 
 const DEFAULT_VM_GREETING = "Hi, you've reached us. We're unavailable right now. Please leave your message after the beep and we'll call you back shortly.";
 
 function VoicemailSettingsTab() {
+  const [greetingMode, setGreetingMode] = useState('text'); // 'text' | 'recording'
   const [greeting, setGreeting] = useState('');
+  const [vmAudioUrl, setVmAudioUrl] = useState(''); // stored recorded greeting URL
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState('');
   const [settingsId, setSettingsId] = useState(null);
+
+  // Recording state
+  const [recording, setRecording] = useState(false);
+  const [recordingTime, setRecordingTime] = useState(0);
+  const [audioBlob, setAudioBlob] = useState(null);
+  const [audioPreviewUrl, setAudioPreviewUrl] = useState('');
+  const [uploading, setUploading] = useState(false);
+  const mediaRecorderRef = useRef(null);
+  const chunksRef = useRef([]);
+  const timerRef = useRef(null);
 
   useEffect(() => {
     base44.entities.PortalSettings.filter({ key: 'main' }).then(rows => {
       if (rows?.[0]) {
         setSettingsId(rows[0].id);
         setGreeting(rows[0].vmGreeting || '');
+        if (rows[0].vmAudioUrl) {
+          setVmAudioUrl(rows[0].vmAudioUrl);
+          setGreetingMode('recording');
+        }
       }
     }).catch(() => {});
   }, []);
 
+  const startRecording = async () => {
+    chunksRef.current = [];
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    const mr = new MediaRecorder(stream);
+    mediaRecorderRef.current = mr;
+    mr.ondataavailable = e => { if (e.data.size > 0) chunksRef.current.push(e.data); };
+    mr.onstop = () => {
+      stream.getTracks().forEach(t => t.stop());
+      const blob = new Blob(chunksRef.current, { type: 'audio/webm' });
+      setAudioBlob(blob);
+      setAudioPreviewUrl(URL.createObjectURL(blob));
+    };
+    mr.start();
+    setRecording(true);
+    setRecordingTime(0);
+    timerRef.current = setInterval(() => setRecordingTime(t => t + 1), 1000);
+  };
+
+  const stopRecording = () => {
+    mediaRecorderRef.current?.stop();
+    clearInterval(timerRef.current);
+    setRecording(false);
+  };
+
+  const uploadRecording = async () => {
+    if (!audioBlob) return;
+    setUploading(true); setMsg('');
+    try {
+      const file = new File([audioBlob], 'vm-greeting.webm', { type: 'audio/webm' });
+      const { file_url } = await base44.integrations.Core.UploadFile({ file });
+      setVmAudioUrl(file_url);
+      setMsg('✅ Recording uploaded — click Save to apply.');
+    } catch (e) { setMsg('❌ Upload failed: ' + e.message); }
+    setUploading(false);
+    setTimeout(() => setMsg(''), 5000);
+  };
+
   const save = async () => {
     setSaving(true); setMsg('');
     try {
+      const updates = greetingMode === 'recording'
+        ? { vmAudioUrl: vmAudioUrl, vmGreeting: '' }
+        : { vmGreeting: greeting, vmAudioUrl: '' };
       if (settingsId) {
-        await base44.entities.PortalSettings.update(settingsId, { vmGreeting: greeting });
+        await base44.entities.PortalSettings.update(settingsId, updates);
       } else {
-        const created = await base44.entities.PortalSettings.create({ key: 'main', vmGreeting: greeting });
+        const created = await base44.entities.PortalSettings.create({ key: 'main', ...updates });
         setSettingsId(created.id);
       }
       setMsg('✅ Saved');
@@ -34,38 +90,112 @@ function VoicemailSettingsTab() {
     setTimeout(() => setMsg(''), 3000);
   };
 
+  const fmtTime = (s) => `${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;
+
   return (
     <div style={{ padding: '16px', overflowY: 'auto', flex: 1 }}>
       <div style={{ color: GOLD, fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '12px' }}>📩 Voicemail Settings</div>
 
       <div style={{ background: 'rgba(245,158,11,0.06)', border: '1px solid rgba(245,158,11,0.2)', borderRadius: '4px', padding: '10px 12px', marginBottom: '14px', fontSize: '11px', color: '#8a9ab8', display: 'flex', gap: '8px' }}>
         <span>ℹ️</span>
-        <div>Inbound calls ring for <strong style={{ color: '#f59e0b' }}>~4 rings (20 seconds)</strong>, then automatically go to voicemail. The greeting below is read aloud by Twilio before recording.</div>
+        <div>Inbound calls ring for <strong style={{ color: '#f59e0b' }}>~4 rings (20 seconds)</strong>, then go to voicemail.</div>
       </div>
 
-      <div style={{ marginBottom: '10px' }}>
-        <label style={{ display: 'block', color: '#8a9ab8', fontSize: '9px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '5px' }}>Voicemail Greeting</label>
-        <textarea
-          value={greeting}
-          onChange={e => setGreeting(e.target.value)}
-          placeholder={DEFAULT_VM_GREETING}
-          rows={4}
-          style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '4px', padding: '8px 10px', color: '#e8e0d0', fontSize: '12px', outline: 'none', resize: 'vertical', boxSizing: 'border-box', fontFamily: 'Georgia, serif', lineHeight: 1.5 }}
-        />
-        <div style={{ color: '#4a5568', fontSize: '10px', marginTop: '4px' }}>Leave blank to use the default greeting.</div>
+      {/* Mode toggle */}
+      <div style={{ display: 'flex', gap: '6px', marginBottom: '14px' }}>
+        {[['text', '✏️ Text-to-Speech'], ['recording', '🎙 Voice Recording']].map(([m, label]) => (
+          <button key={m} onClick={() => setGreetingMode(m)}
+            style={{ flex: 1, padding: '7px', background: greetingMode === m ? `${GOLD}22` : 'rgba(255,255,255,0.04)', border: `1px solid ${greetingMode === m ? GOLD + '66' : 'rgba(255,255,255,0.1)'}`, color: greetingMode === m ? GOLD : '#6b7280', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', fontWeight: greetingMode === m ? 'bold' : 'normal' }}>
+            {label}
+          </button>
+        ))}
       </div>
 
-      <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '4px', padding: '8px 10px', marginBottom: '12px' }}>
-        <div style={{ color: '#4a5568', fontSize: '9px', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '4px' }}>Preview</div>
-        <div style={{ color: '#c4cdd8', fontSize: '11px', fontStyle: 'italic', lineHeight: 1.5 }}>"{greeting || DEFAULT_VM_GREETING}"</div>
-      </div>
+      {/* Text mode */}
+      {greetingMode === 'text' && (
+        <>
+          <div style={{ marginBottom: '10px' }}>
+            <label style={{ display: 'block', color: '#8a9ab8', fontSize: '9px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '5px' }}>Greeting Text (read by Twilio)</label>
+            <textarea
+              value={greeting}
+              onChange={e => setGreeting(e.target.value)}
+              placeholder={DEFAULT_VM_GREETING}
+              rows={4}
+              style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '4px', padding: '8px 10px', color: '#e8e0d0', fontSize: '12px', outline: 'none', resize: 'vertical', boxSizing: 'border-box', fontFamily: 'Georgia, serif', lineHeight: 1.5 }}
+            />
+            <div style={{ color: '#4a5568', fontSize: '10px', marginTop: '4px' }}>Leave blank to use the default greeting.</div>
+          </div>
+          <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '4px', padding: '8px 10px', marginBottom: '12px' }}>
+            <div style={{ color: '#4a5568', fontSize: '9px', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '4px' }}>Preview</div>
+            <div style={{ color: '#c4cdd8', fontSize: '11px', fontStyle: 'italic', lineHeight: 1.5 }}>"{greeting || DEFAULT_VM_GREETING}"</div>
+          </div>
+        </>
+      )}
+
+      {/* Voice recording mode */}
+      {greetingMode === 'recording' && (
+        <div style={{ marginBottom: '12px' }}>
+          <label style={{ display: 'block', color: '#8a9ab8', fontSize: '9px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '10px' }}>Record Your Greeting</label>
+
+          {/* Recorder controls */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
+            {!recording ? (
+              <button onClick={startRecording}
+                style={{ background: 'rgba(239,68,68,0.15)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.4)', borderRadius: '50%', width: '44px', height: '44px', cursor: 'pointer', fontSize: '18px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
+                title="Start recording">
+                🎙
+              </button>
+            ) : (
+              <button onClick={stopRecording}
+                style={{ background: 'rgba(239,68,68,0.25)', color: '#ef4444', border: '2px solid #ef4444', borderRadius: '50%', width: '44px', height: '44px', cursor: 'pointer', fontSize: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, animation: 'linePulse 1s ease-in-out infinite' }}
+                title="Stop recording">
+                ⏹
+              </button>
+            )}
+            {recording && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#ef4444', animation: 'linePulse 1s ease-in-out infinite' }} />
+                <span style={{ color: '#ef4444', fontFamily: 'monospace', fontSize: '14px', fontWeight: 'bold' }}>{fmtTime(recordingTime)}</span>
+                <span style={{ color: '#6b7280', fontSize: '11px' }}>Recording… click ⏹ to stop</span>
+              </div>
+            )}
+            {!recording && recordingTime === 0 && !audioBlob && (
+              <span style={{ color: '#6b7280', fontSize: '11px' }}>Click 🎙 to start recording your greeting</span>
+            )}
+          </div>
+
+          {/* Preview recorded audio */}
+          {audioPreviewUrl && !recording && (
+            <div style={{ background: 'rgba(74,222,128,0.06)', border: '1px solid rgba(74,222,128,0.2)', borderRadius: '4px', padding: '10px 12px', marginBottom: '10px' }}>
+              <div style={{ color: '#4ade80', fontSize: '10px', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '6px' }}>New Recording Preview</div>
+              <audio src={audioPreviewUrl} controls style={{ width: '100%', height: '32px' }} />
+              <button onClick={uploadRecording} disabled={uploading}
+                style={{ marginTop: '8px', background: uploading ? 'rgba(74,222,128,0.1)' : 'rgba(74,222,128,0.2)', color: '#4ade80', border: '1px solid rgba(74,222,128,0.4)', borderRadius: '4px', padding: '5px 16px', cursor: uploading ? 'not-allowed' : 'pointer', fontSize: '11px', fontWeight: 'bold' }}>
+                {uploading ? '⏳ Uploading…' : '⬆ Use This Recording'}
+              </button>
+            </div>
+          )}
+
+          {/* Currently saved recording */}
+          {vmAudioUrl && (
+            <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '4px', padding: '10px 12px', marginBottom: '10px' }}>
+              <div style={{ color: '#4a5568', fontSize: '9px', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '6px' }}>Current Saved Greeting</div>
+              <audio src={vmAudioUrl} controls style={{ width: '100%', height: '32px' }} />
+              <button onClick={() => { setVmAudioUrl(''); setAudioBlob(null); setAudioPreviewUrl(''); }}
+                style={{ marginTop: '6px', background: 'none', color: '#ef4444', border: 'none', cursor: 'pointer', fontSize: '10px' }}>
+                🗑 Remove Recording
+              </button>
+            </div>
+          )}
+        </div>
+      )}
 
       <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-        <button onClick={save} disabled={saving}
-          style={{ background: 'linear-gradient(135deg,#b8933a,#d4aa50)', color: DARK, border: 'none', borderRadius: '4px', padding: '7px 20px', cursor: saving ? 'not-allowed' : 'pointer', fontWeight: 'bold', fontSize: '11px', letterSpacing: '1px' }}>
+        <button onClick={save} disabled={saving || (greetingMode === 'recording' && !vmAudioUrl)}
+          style={{ background: (saving || (greetingMode === 'recording' && !vmAudioUrl)) ? 'rgba(184,147,58,0.3)' : 'linear-gradient(135deg,#b8933a,#d4aa50)', color: DARK, border: 'none', borderRadius: '4px', padding: '7px 20px', cursor: (saving || (greetingMode === 'recording' && !vmAudioUrl)) ? 'not-allowed' : 'pointer', fontWeight: 'bold', fontSize: '11px', letterSpacing: '1px' }}>
           {saving ? 'Saving…' : '💾 Save Greeting'}
         </button>
-        {greeting && (
+        {greetingMode === 'text' && greeting && (
           <button onClick={() => setGreeting('')}
             style={{ background: 'rgba(255,255,255,0.04)', color: '#6b7280', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '4px', padding: '7px 14px', cursor: 'pointer', fontSize: '11px' }}>
             Reset to Default

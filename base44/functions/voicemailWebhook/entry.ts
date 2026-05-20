@@ -27,17 +27,22 @@ Deno.serve(async (req) => {
 
     // If no-answer or call wasn't picked up, play VM greeting
     if (dialStatus !== 'completed' && dialStatus !== 'answered') {
-      // Load custom greeting from PortalSettings if set
-      let greeting = DEFAULT_VM_GREETING;
+      // Load custom greeting from PortalSettings — prefer audio URL over text
+      let greetingTwiml = `<Say voice="alice">${DEFAULT_VM_GREETING}</Say>`;
       try {
         const base44 = createClientFromRequest(req).asServiceRole;
         const settings = await base44.entities.PortalSettings.filter({ key: 'main' });
-        if (settings?.[0]?.vmGreeting) greeting = settings[0].vmGreeting;
+        const cfg = settings?.[0];
+        if (cfg?.vmAudioUrl) {
+          greetingTwiml = `<Play>${cfg.vmAudioUrl}</Play>`;
+        } else if (cfg?.vmGreeting) {
+          greetingTwiml = `<Say voice="alice">${cfg.vmGreeting}</Say>`;
+        }
       } catch {}
 
       const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Say voice="alice">${greeting}</Say>
+  ${greetingTwiml}
   <Record maxLength="120" playBeep="true" transcribe="true" transcribeCallback="${vmWebhookBase}" action="${vmWebhookBase}" method="POST" />
   <Say voice="alice">We did not receive a recording. Goodbye.</Say>
 </Response>`;
