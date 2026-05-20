@@ -74,7 +74,7 @@ function CreateCampaignForm({ onCreated, currentUsername }) {
     const load = async () => {
       try {
         const filtered = await base44.entities.Lead.filter({ contactListId: form.contactListId });
-        const eligible = (filtered || []).filter(l => l.email && !l.migratedToPortal && !l.convertedToInvestorUserId && l.status !== 'not_interested');
+        const eligible = (filtered || []).filter(l => l.email && !l.badgeNbtechEmail && !l.migratedToPortal && !l.convertedToInvestorUserId && l.status !== 'not_interested');
         setPreviewLeads(eligible);
         setAllLeads(eligible);
       } catch {}
