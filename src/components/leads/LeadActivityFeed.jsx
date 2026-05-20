@@ -62,12 +62,16 @@ export default function LeadActivityFeed({ onOpenLead, leads = [] }) {
       // Seed from parent-provided leads
       leads.forEach(l => { leadsMap[l.id] = l; });
 
-      // Fetch all leads AND investors in parallel to build lookup maps
-      const [allLeads, allInvestors] = await Promise.all([
-        base44.entities.Lead.list('-created_date', 5000).catch(() => []),
+      // Fetch specific leads by their IDs using filter, plus all investors
+      const uniqueLeadIds = [...new Set(leadIds)];
+      const leadFetches = uniqueLeadIds.map(id =>
+        base44.entities.Lead.filter({ id }).catch(() => [])
+      );
+      const [leadResults, allInvestors] = await Promise.all([
+        Promise.all(leadFetches),
         base44.entities.InvestorUser.list('-created_date', 2000).catch(() => []),
       ]);
-      allLeads.forEach(l => { leadsMap[l.id] = l; });
+      leadResults.flat().forEach(l => { leadsMap[l.id] = l; });
       allInvestors.forEach(inv => { investorsMap[inv.id] = inv; });
 
       const evts = [];
