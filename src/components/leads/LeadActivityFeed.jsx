@@ -60,11 +60,18 @@ export default function LeadActivityFeed({ onOpenLead, leads = [] }) {
       let leadsMap = {};
       // Seed from parent-provided leads
       leads.forEach(l => { leadsMap[l.id] = l; });
-      // Always fetch if any leadIds are not already in the map
+      // Fetch all leads
       const missingIds = leadIds.filter(id => !leadsMap[id]);
       if (missingIds.length > 0) {
         const fetched = await base44.entities.Lead.list('-created_date', 5000).catch(() => []);
         fetched.forEach(l => { leadsMap[l.id] = l; });
+      }
+      // Also fetch investors to cover history entries that reference investor IDs
+      const stillMissing = leadIds.filter(id => !leadsMap[id]);
+      let investorsMap = {};
+      if (stillMissing.length > 0) {
+        const investors = await base44.entities.InvestorUser.list('-created_date', 2000).catch(() => []);
+        investors.forEach(inv => { investorsMap[inv.id] = inv; });
       }
 
       const evts = [];
@@ -72,6 +79,13 @@ export default function LeadActivityFeed({ onOpenLead, leads = [] }) {
       // From LeadHistory
       history.forEach(h => {
         const lead = leadsMap[h.leadId];
+        const investor = !lead ? investorsMap[h.leadId] : null;
+        const displayName = lead
+          ? `${lead.firstName} ${lead.lastName}`.trim()
+          : investor ? investor.name
+          : '—';
+        const rawContact = lead || investor || null;
+
         // Determine event type from content for email events
         let type = h.type;
         if (h.type === 'note' && h.content?.includes('Email opened')) type = 'email_open';
@@ -80,18 +94,22 @@ export default function LeadActivityFeed({ onOpenLead, leads = [] }) {
         evts.push({
           type,
           leadId: h.leadId,
-          leadName: lead ? `${lead.firstName} ${lead.lastName}`.trim() : '—',
-          leadPhone: lead?.phone,
+          leadName: displayName,
+          leadPhone: lead?.phone || investor?.phone,
           time: h.createdAt || h.created_date,
           detail: h.content,
-          raw: lead,
+          raw: rawContact,
         });
       });
 
       // From EmailLog — sent/opened/clicked
       emailLogs.forEach(log => {
         const lead = leadsMap[log.leadId];
-        const displayName = lead ? `${lead.firstName} ${lead.lastName}`.trim() : (log.toName || log.toEmail || '—');
+        const investor = !lead ? investorsMap[log.investorId || log.leadId] : null;
+        const displayName = lead
+          ? `${lead.firstName} ${lead.lastName}`.trim()
+          : investor ? investor.name
+          : (log.toName || log.toEmail || '—');
         if (log.status === 'opened' && log.openedAt) {
           evts.push({
             type: 'email_open',
