@@ -40,7 +40,7 @@ export default function ScriptAssistant({ lead, user, onExpandCard, isCardExpand
   const [allKbEntries, setAllKbEntries] = useState([]);
   const [kbEntries, setKbEntries]     = useState([]);
   const [kbNames, setKbNames]           = useState([]);
-  const [selectedKbName, setSelectedKbName] = useState('');
+  const [selectedKbName, setSelectedKbName] = useState('NB Tech');
   const [kbConfig, setKbConfig]         = useState(null); // KnowledgeBaseConfig for selected named KB
   const [portalCfg, setPortalCfg]     = useState(getPortalSettings);
   const [error, setError]             = useState('');
@@ -88,7 +88,12 @@ export default function ScriptAssistant({ lead, user, onExpandCard, isCardExpand
       setAllKbEntries(entries);
       const names = [...new Set(entries.map(e => e.kbName || '').filter(Boolean))];
       setKbNames(names);
-      setKbEntries(entries.filter(e => !e.kbName || e.kbName === ''));
+      // Default to NB Tech KB
+      setKbEntries(entries.filter(e => (e.kbName || '') === 'NB Tech'));
+    }).catch(() => {});
+    // Load NB Tech KB config on mount
+    base44.entities.KnowledgeBaseConfig.filter({ kbName: 'NB Tech' }).then(cfgs => {
+      setKbConfig(cfgs?.[0] || null);
     }).catch(() => {});
     loadPortalSettings().then(setPortalCfg).catch(() => {});
     // Load previous call transcript for coaching context (live calls only, not BOB)
@@ -119,9 +124,9 @@ export default function ScriptAssistant({ lead, user, onExpandCard, isCardExpand
   // automatically invoke connectStream() once (and only once).
   const autoStartedRef = useRef(false);
   useEffect(() => {
-    if (callDuration >= 45 && twilioStream && !listening && !autoStartedRef.current && selectedKbName) {
+    if (callDuration >= 45 && twilioStream && !listening && !autoStartedRef.current) {
       autoStartedRef.current = true;
-      connectStream();
+      startListeningFromStream(twilioStream.remoteStream, twilioStream.localStream);
     }
     // Reset flag when call ends so next call can auto-start again
     if (!twilioStream) {
