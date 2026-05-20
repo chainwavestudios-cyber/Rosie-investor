@@ -1663,7 +1663,7 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
           )}
 
           {tab === 'script' && (
-            <ScriptAssistant lead={editLead} onExpandCard={() => setCardExpanded(e => !e)} isCardExpanded={cardExpanded} twilioStream={twilioStream} />
+            <ScriptAssistant lead={editLead} onExpandCard={() => setCardExpanded(e => !e)} isCardExpanded={cardExpanded} twilioStream={twilioStream} callDuration={dialer.duration} />
           )}
 
           {tab === 'aidetails' && (

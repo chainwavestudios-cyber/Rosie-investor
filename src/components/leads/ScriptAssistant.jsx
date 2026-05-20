@@ -17,7 +17,7 @@ const applyTokens = (text, lead, user) => {
     .replace(/\{\{\s*lastname\s*\}\}/gi, last);
 };
 
-export default function ScriptAssistant({ lead, user, onExpandCard, isCardExpanded, twilioStream }) {
+export default function ScriptAssistant({ lead, user, onExpandCard, isCardExpanded, twilioStream, callDuration = 0 }) {
   const LAYOUT_LOCK_KEY = 'script_assistant_layout_lock';
   const [layout, setLayout]           = useState(() => {
     try { return localStorage.getItem(LAYOUT_LOCK_KEY + '_layout') || 'side'; } catch { return 'side'; }
@@ -108,12 +108,26 @@ export default function ScriptAssistant({ lead, user, onExpandCard, isCardExpand
   }, []);
 
   // ── Auto-stop when call ends ──────────────────────────────────────
-  // We do NOT auto-start — user clicks the button manually when they want it
   useEffect(() => {
     if (twilioStream === null && listening) {
       stopListening();
     }
   }, [twilioStream]);
+
+  // ── Auto-start at 45 seconds ──────────────────────────────────────
+  // If the call has been connected for 45+ seconds and a KB is selected,
+  // automatically invoke connectStream() once (and only once).
+  const autoStartedRef = useRef(false);
+  useEffect(() => {
+    if (callDuration >= 45 && twilioStream && !listening && !autoStartedRef.current && selectedKbName) {
+      autoStartedRef.current = true;
+      connectStream();
+    }
+    // Reset flag when call ends so next call can auto-start again
+    if (!twilioStream) {
+      autoStartedRef.current = false;
+    }
+  }, [callDuration, twilioStream, listening, selectedKbName]);
 
   // ── Pre-warm: fire as soon as the call connects ───────────────────
   // Fetches Deepgram token, builds AudioContext, merges streams and loads

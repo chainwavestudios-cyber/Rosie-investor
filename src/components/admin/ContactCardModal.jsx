@@ -793,7 +793,7 @@ export default function ContactCardModal({ user, onClose, onSave, allSessions, m
           {tab === 'rosie'     && <RosieTab user={user} />}
           {tab === 'sitestats' && <InvestorWebsiteTab user={user} />}
           {tab === 'research'  && <ResearchTab user={user} />}
-          {tab === 'script'    && <ScriptAssistant user={user} />}
+          {tab === 'script'    && <ScriptAssistant user={user} callDuration={dialer.duration} />}
 
           {/* CALENDAR */}
           {tab === 'calendar' && (
