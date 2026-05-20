@@ -6,6 +6,8 @@
  */
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 
+const DEFAULT_VM_GREETING = "Hi, you've reached us. We're unavailable right now. Please leave your message after the beep and we'll call you back shortly.";
+
 Deno.serve(async (req) => {
   if (req.method !== 'POST') return new Response('OK', { status: 200 });
 
@@ -25,9 +27,17 @@ Deno.serve(async (req) => {
 
     // If no-answer or call wasn't picked up, play VM greeting
     if (dialStatus !== 'completed' && dialStatus !== 'answered') {
+      // Load custom greeting from PortalSettings if set
+      let greeting = DEFAULT_VM_GREETING;
+      try {
+        const base44 = createClientFromRequest(req).asServiceRole;
+        const settings = await base44.entities.PortalSettings.filter({ key: 'main' });
+        if (settings?.[0]?.vmGreeting) greeting = settings[0].vmGreeting;
+      } catch {}
+
       const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Say voice="alice">Hi, you've reached us. We're unavailable right now. Please leave your message after the beep and we'll call you back shortly.</Say>
+  <Say voice="alice">${greeting}</Say>
   <Record maxLength="120" playBeep="true" transcribe="true" transcribeCallback="${vmWebhookBase}" action="${vmWebhookBase}" method="POST" />
   <Say voice="alice">We did not receive a recording. Goodbye.</Say>
 </Response>`;

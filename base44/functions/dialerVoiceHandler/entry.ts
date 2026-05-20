@@ -95,7 +95,7 @@ Deno.serve(async (req) => {
 
   const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Dial timeout="15" action="${vmWebhookBase}?noAnswer=true" method="POST">
+  <Dial timeout="20" action="${vmWebhookBase}?noAnswer=true" method="POST">
     <Client statusCallbackEvent="initiated ringing answered completed" statusCallback="${vmWebhookBase}">agent</Client>
   </Dial>
 </Response>`;

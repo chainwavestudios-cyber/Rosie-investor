@@ -264,6 +264,11 @@
       "type": "string",
       "title": "BOB Default Focus Topic",
       "default": "General"
+    },
+    "vmGreeting": {
+      "type": "string",
+      "title": "Voicemail Greeting Message",
+      "format": "textarea"
     }
   },
   "required": [

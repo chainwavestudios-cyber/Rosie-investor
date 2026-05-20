@@ -2,6 +2,81 @@ import { useState, useEffect, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
 import { fmtDateTime, fmtDate, fmtDateTimeShort } from '@/lib/fmtDate.js';
 
+const DEFAULT_VM_GREETING = "Hi, you've reached us. We're unavailable right now. Please leave your message after the beep and we'll call you back shortly.";
+
+function VoicemailSettingsTab() {
+  const [greeting, setGreeting] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState('');
+  const [settingsId, setSettingsId] = useState(null);
+
+  useEffect(() => {
+    base44.entities.PortalSettings.filter({ key: 'main' }).then(rows => {
+      if (rows?.[0]) {
+        setSettingsId(rows[0].id);
+        setGreeting(rows[0].vmGreeting || '');
+      }
+    }).catch(() => {});
+  }, []);
+
+  const save = async () => {
+    setSaving(true); setMsg('');
+    try {
+      if (settingsId) {
+        await base44.entities.PortalSettings.update(settingsId, { vmGreeting: greeting });
+      } else {
+        const created = await base44.entities.PortalSettings.create({ key: 'main', vmGreeting: greeting });
+        setSettingsId(created.id);
+      }
+      setMsg('✅ Saved');
+    } catch (e) { setMsg('❌ ' + e.message); }
+    setSaving(false);
+    setTimeout(() => setMsg(''), 3000);
+  };
+
+  return (
+    <div style={{ padding: '16px', overflowY: 'auto', flex: 1 }}>
+      <div style={{ color: GOLD, fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '12px' }}>📩 Voicemail Settings</div>
+
+      <div style={{ background: 'rgba(245,158,11,0.06)', border: '1px solid rgba(245,158,11,0.2)', borderRadius: '4px', padding: '10px 12px', marginBottom: '14px', fontSize: '11px', color: '#8a9ab8', display: 'flex', gap: '8px' }}>
+        <span>ℹ️</span>
+        <div>Inbound calls ring for <strong style={{ color: '#f59e0b' }}>~4 rings (20 seconds)</strong>, then automatically go to voicemail. The greeting below is read aloud by Twilio before recording.</div>
+      </div>
+
+      <div style={{ marginBottom: '10px' }}>
+        <label style={{ display: 'block', color: '#8a9ab8', fontSize: '9px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '5px' }}>Voicemail Greeting</label>
+        <textarea
+          value={greeting}
+          onChange={e => setGreeting(e.target.value)}
+          placeholder={DEFAULT_VM_GREETING}
+          rows={4}
+          style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '4px', padding: '8px 10px', color: '#e8e0d0', fontSize: '12px', outline: 'none', resize: 'vertical', boxSizing: 'border-box', fontFamily: 'Georgia, serif', lineHeight: 1.5 }}
+        />
+        <div style={{ color: '#4a5568', fontSize: '10px', marginTop: '4px' }}>Leave blank to use the default greeting.</div>
+      </div>
+
+      <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '4px', padding: '8px 10px', marginBottom: '12px' }}>
+        <div style={{ color: '#4a5568', fontSize: '9px', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '4px' }}>Preview</div>
+        <div style={{ color: '#c4cdd8', fontSize: '11px', fontStyle: 'italic', lineHeight: 1.5 }}>"{greeting || DEFAULT_VM_GREETING}"</div>
+      </div>
+
+      <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+        <button onClick={save} disabled={saving}
+          style={{ background: 'linear-gradient(135deg,#b8933a,#d4aa50)', color: DARK, border: 'none', borderRadius: '4px', padding: '7px 20px', cursor: saving ? 'not-allowed' : 'pointer', fontWeight: 'bold', fontSize: '11px', letterSpacing: '1px' }}>
+          {saving ? 'Saving…' : '💾 Save Greeting'}
+        </button>
+        {greeting && (
+          <button onClick={() => setGreeting('')}
+            style={{ background: 'rgba(255,255,255,0.04)', color: '#6b7280', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '4px', padding: '7px 14px', cursor: 'pointer', fontSize: '11px' }}>
+            Reset to Default
+          </button>
+        )}
+        {msg && <span style={{ fontSize: '11px', color: msg.startsWith('✅') ? '#4ade80' : '#ef4444' }}>{msg}</span>}
+      </div>
+    </div>
+  );
+}
+
 const GOLD = '#b8933a';
 const DARK = '#080f1c';
 
@@ -463,15 +538,20 @@ export default function CallLogPanel({ onClose, onOpenLead }) {
           </div>
         </div>
 
-        {/* ── Main Tab: Calls | Reports ── */}
+        {/* ── Main Tab: Calls | Reports | Voicemail ── */}
         <div style={{ display: 'flex', borderBottom: '1px solid rgba(255,255,255,0.07)', flexShrink: 0 }}>
-          {[['calls','📋 Calls'], ['reports','📊 Reports']].map(([id, label]) => (
+          {[['calls','📋 Calls'], ['reports','📊 Reports'], ['voicemail','📩 Voicemail']].map(([id, label]) => (
             <button key={id} onClick={() => setMainTab(id)}
               style={{ flex: 1, background: 'none', border: 'none', borderBottom: mainTab === id ? `2px solid ${GOLD}` : '2px solid transparent', color: mainTab === id ? GOLD : '#6b7280', padding: '9px', cursor: 'pointer', fontSize: '11px', letterSpacing: '0.5px' }}>
               {label}
             </button>
           ))}
         </div>
+
+        {/* ── Voicemail Settings ── */}
+        {mainTab === 'voicemail' && (
+          <VoicemailSettingsTab />
+        )}
 
         {/* ── Reports ── */}
         {mainTab === 'reports' && (
