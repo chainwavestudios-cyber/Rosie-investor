@@ -1,0 +1,122 @@
+{
+  "name": "EmailCampaign",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "title": "Campaign Name"
+    },
+    "templateId": {
+      "type": "number",
+      "title": "Mailjet Template ID"
+    },
+    "templateLabel": {
+      "type": "string",
+      "title": "Template Label"
+    },
+    "contactListId": {
+      "type": "string",
+      "title": "Contact List ID"
+    },
+    "contactListName": {
+      "type": "string",
+      "title": "Contact List Name"
+    },
+    "totalLeads": {
+      "type": "number",
+      "title": "Total Leads",
+      "default": 0
+    },
+    "leadIds": {
+      "type": "string",
+      "title": "Remaining Lead IDs (JSON array)",
+      "format": "textarea"
+    },
+    "sentLeadIds": {
+      "type": "string",
+      "title": "Sent Lead IDs (JSON array)",
+      "format": "textarea"
+    },
+    "emailsPerSend": {
+      "type": "number",
+      "title": "Emails Per Send",
+      "default": 2
+    },
+    "frequencyMinutes": {
+      "type": "number",
+      "title": "Frequency (minutes)",
+      "default": 30
+    },
+    "startHour": {
+      "type": "number",
+      "title": "Start Hour (0-23)",
+      "default": 8
+    },
+    "endHour": {
+      "type": "number",
+      "title": "End Hour (0-23)",
+      "default": 17
+    },
+    "durationDays": {
+      "type": "number",
+      "title": "Duration (days)",
+      "default": 7
+    },
+    "daysOfWeek": {
+      "type": "string",
+      "title": "Days of Week (JSON array 0=Sun)",
+      "default": "[0,1,2,3,4,5,6]"
+    },
+    "status": {
+      "type": "string",
+      "title": "Status",
+      "enum": [
+        "draft",
+        "active",
+        "paused",
+        "completed",
+        "cancelled"
+      ],
+      "default": "draft"
+    },
+    "startedAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Started At"
+    },
+    "endsAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Ends At"
+    },
+    "lastSentAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Last Sent At"
+    },
+    "nextSendAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Next Send At"
+    },
+    "totalSent": {
+      "type": "number",
+      "title": "Total Sent",
+      "default": 0
+    },
+    "createdBy": {
+      "type": "string",
+      "title": "Created By"
+    }
+  },
+  "required": [
+    "name",
+    "templateId"
+  ],
+  "rls": {
+    "create": null,
+    "read": null,
+    "update": null,
+    "delete": null
+  }
+}

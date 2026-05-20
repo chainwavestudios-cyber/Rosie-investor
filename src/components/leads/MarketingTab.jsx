@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import { usePortalAuth } from '@/lib/PortalAuthContext';
+import NbTechAutomateTab from './NbTechAutomateTab';
 
 const GOLD = '#b8933a';
 const DARK = '#0a0f1e';
@@ -401,6 +402,7 @@ function NbtechEmailSection({ currentUsername }) {
 export default function MarketingTab() {
   const { portalUser } = usePortalAuth();
   const currentUsername = portalUser?.username || 'admin';
+  const [mainTab, setMainTab] = useState('intro');
   const [leads, setLeads]         = useState([]);
   const [loading, setLoading]     = useState(true);
   const [selected, setSelected]   = useState(new Set());
@@ -491,121 +493,120 @@ export default function MarketingTab() {
 
   return (
     <div style={{ fontFamily: 'Georgia, serif' }}>
-      {/* ── Intro Email Section ── */}
-      <div style={{ marginBottom: '8px' }}>
-        <h2 style={{ color: '#e8e0d0', margin: '0 0 4px', fontSize: '22px', fontWeight: 'normal' }}>
-          📣 Marketing
-        </h2>
-        <p style={{ color: '#6b7280', fontSize: '13px', margin: 0 }}>
-          Leads that have <strong style={{ color: GOLD }}>never received an intro email</strong>. Select up to 10 and send template #7961149.
-        </p>
-      </div>
-
-      {/* Stats bar */}
-      <div style={{ display: 'flex', gap: '12px', marginBottom: '20px', flexWrap: 'wrap' }}>
-        {[
-          { label: 'Uncontacted Leads', value: leads.length, color: '#60a5fa', icon: '📋' },
-          { label: 'With Email', value: leads.filter(l => l.email).length, color: '#4ade80', icon: '✉️' },
-          { label: 'Selected', value: selected.size, color: GOLD, icon: '☑️' },
-        ].map(({ label, value, color, icon }) => (
-          <div key={label} style={{ background: `${color}10`, border: `1px solid ${color}30`, borderRadius: '4px', padding: '12px 18px', display: 'flex', gap: '10px', alignItems: 'center' }}>
-            <span style={{ fontSize: '20px' }}>{icon}</span>
-            <div>
-              <div style={{ color, fontSize: '22px', fontWeight: 'bold', lineHeight: 1 }}>{value}</div>
-              <div style={{ color: '#6b7280', fontSize: '9px', textTransform: 'uppercase', letterSpacing: '1px', marginTop: '2px' }}>{label}</div>
-            </div>
-          </div>
+      {/* ── Top Tab Bar ── */}
+      <div style={{ display: 'flex', borderBottom: '1px solid rgba(255,255,255,0.08)', marginBottom: '24px' }}>
+        {[['intro', '✉️ Intro Emails'], ['nbtech', '💡 NB Tech'], ['automate', '⚙️ Automate']].map(([id, label]) => (
+          <button key={id} onClick={() => setMainTab(id)}
+            style={{ background: 'none', border: 'none', borderBottom: mainTab === id ? `2px solid ${GOLD}` : '2px solid transparent', color: mainTab === id ? GOLD : '#6b7280', padding: '10px 20px', cursor: 'pointer', fontSize: '12px', letterSpacing: '0.5px', whiteSpace: 'nowrap', fontFamily: 'Georgia, serif' }}>
+            {label}
+          </button>
         ))}
       </div>
 
-      {/* Action bar */}
-      <div style={{ display: 'flex', gap: '12px', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap' }}>
-        <input
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          placeholder="Search by name, email, state…"
-          style={{ ...inp, width: '260px', boxSizing: 'border-box' }}
-        />
-        <label style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#8a9ab8', fontSize: '12px', cursor: 'pointer' }}>
-          <input type="checkbox" checked={showAll} onChange={e => setShowAll(e.target.checked)} style={{ cursor: 'pointer' }} />
-          Include contacted
-        </label>
-        <div style={{ flex: 1 }} />
-        {selected.size > 0 && (
-          <span style={{ color: GOLD, fontSize: '12px' }}>
-            {selected.size} lead{selected.size > 1 ? 's' : ''} selected
-            {selected.size === 10 && <span style={{ color: '#f59e0b', marginLeft: '6px' }}>(max)</span>}
-          </span>
-        )}
-        <button
-          onClick={handleSendIntroEmail}
-          disabled={sending || selected.size === 0}
-          style={{
-            background: (sending || selected.size === 0) ? 'rgba(96,165,250,0.2)' : 'linear-gradient(135deg, #1d4ed8, #3b82f6)',
-            color: selected.size === 0 ? '#4a5568' : '#fff',
-            border: `1px solid ${selected.size === 0 ? 'rgba(255,255,255,0.1)' : '#3b82f6'}`,
-            borderRadius: '4px', padding: '10px 22px',
-            cursor: (sending || selected.size === 0) ? 'not-allowed' : 'pointer',
-            fontWeight: 'bold', fontSize: '12px', letterSpacing: '1px',
-            display: 'flex', alignItems: 'center', gap: '8px', transition: 'all 0.15s',
-          }}>
-          {sending ? <><span>⏳</span> Sending…</> : <><span>✉️</span> Send Opening Email</>}
-        </button>
-      </div>
+      {/* ── Automate Tab ── */}
+      {mainTab === 'automate' && <NbTechAutomateTab />}
 
-      {sendMsg && (
-        <div style={{
-          background: sendMsg.startsWith('✅') ? 'rgba(74,222,128,0.1)' : 'rgba(239,68,68,0.1)',
-          border: `1px solid ${sendMsg.startsWith('✅') ? 'rgba(74,222,128,0.3)' : 'rgba(239,68,68,0.3)'}`,
-          borderRadius: '4px', padding: '12px 16px',
-          color: sendMsg.startsWith('✅') ? '#4ade80' : '#ef4444',
-          fontSize: '13px', marginBottom: '16px',
-        }}>
-          {sendMsg}
-        </div>
-      )}
+      {/* ── NB Tech Tab ── */}
+      {mainTab === 'nbtech' && <NbtechEmailSection currentUsername={currentUsername} />}
 
-      {/* Template info banner */}
-      <div style={{ background: 'rgba(96,165,250,0.06)', border: '1px solid rgba(96,165,250,0.2)', borderRadius: '4px', padding: '12px 16px', marginBottom: '16px', fontSize: '12px', color: '#8a9ab8', display: 'flex', gap: '10px', alignItems: 'center' }}>
-        <span style={{ fontSize: '18px' }}>ℹ️</span>
-        <div>
-          <strong style={{ color: '#60a5fa' }}>Template #7961149</strong> · Variable <code style={{ background: 'rgba(255,255,255,0.08)', padding: '1px 5px', borderRadius: '2px' }}>{'{{var:state}}'}</code> is automatically populated from the lead's state field.
-          Leads without an email address are excluded.
-        </div>
-      </div>
-
-      {/* Intro email lead table */}
-      {loading ? (
-        <div style={{ textAlign: 'center', padding: '60px', color: '#6b7280' }}>Loading uncontacted leads…</div>
-      ) : filteredLeads.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: '60px' }}>
-          <div style={{ fontSize: '48px', marginBottom: '12px' }}>🎉</div>
-          <div style={{ color: '#4a5568', fontSize: '14px' }}>
-            {leads.length === 0 ? 'All leads have been contacted or there are no leads with email addresses yet.' : 'No leads match your search.'}
+      {/* ── Intro Emails Tab ── */}
+      {mainTab === 'intro' && (
+        <>
+          <div style={{ marginBottom: '8px' }}>
+            <h2 style={{ color: '#e8e0d0', margin: '0 0 4px', fontSize: '22px', fontWeight: 'normal' }}>📣 Marketing</h2>
+            <p style={{ color: '#6b7280', fontSize: '13px', margin: 0 }}>
+              Leads that have <strong style={{ color: GOLD }}>never received an intro email</strong>. Select up to 10 and send template #7961149.
+            </p>
           </div>
-        </div>
-      ) : (
-        <LeadTable leads={pagedLeads} selected={selected} onToggle={toggleSelect} onToggleAll={toggleAll} />
-      )}
 
-      {filteredLeads.length > 0 && (
-        <div style={{ marginTop: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
-          <span style={{ color: '#4a5568', fontSize: '11px' }}>
-            {filteredLeads.length} lead{filteredLeads.length !== 1 ? 's' : ''} · Page {page} of {totalPages}
-          </span>
-          {totalPages > 1 && (
-            <div style={{ display: 'flex', gap: '6px' }}>
-              <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
-                style={{ background: 'rgba(255,255,255,0.05)', color: page === 1 ? '#4a5568' : '#e8e0d0', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '2px', padding: '4px 12px', cursor: page === 1 ? 'not-allowed' : 'pointer', fontSize: '11px' }}>← Prev</button>
-              <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages}
-                style={{ background: 'rgba(255,255,255,0.05)', color: page === totalPages ? '#4a5568' : '#e8e0d0', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '2px', padding: '4px 12px', cursor: page === totalPages ? 'not-allowed' : 'pointer', fontSize: '11px' }}>Next →</button>
+          <div style={{ display: 'flex', gap: '12px', marginBottom: '20px', flexWrap: 'wrap' }}>
+            {[
+              { label: 'Uncontacted Leads', value: leads.length, color: '#60a5fa', icon: '📋' },
+              { label: 'With Email', value: leads.filter(l => l.email).length, color: '#4ade80', icon: '✉️' },
+              { label: 'Selected', value: selected.size, color: GOLD, icon: '☑️' },
+            ].map(({ label, value, color, icon }) => (
+              <div key={label} style={{ background: `${color}10`, border: `1px solid ${color}30`, borderRadius: '4px', padding: '12px 18px', display: 'flex', gap: '10px', alignItems: 'center' }}>
+                <span style={{ fontSize: '20px' }}>{icon}</span>
+                <div>
+                  <div style={{ color, fontSize: '22px', fontWeight: 'bold', lineHeight: 1 }}>{value}</div>
+                  <div style={{ color: '#6b7280', fontSize: '9px', textTransform: 'uppercase', letterSpacing: '1px', marginTop: '2px' }}>{label}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div style={{ display: 'flex', gap: '12px', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap' }}>
+            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search by name, email, state…"
+              style={{ ...inp, width: '260px', boxSizing: 'border-box' }} />
+            <label style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#8a9ab8', fontSize: '12px', cursor: 'pointer' }}>
+              <input type="checkbox" checked={showAll} onChange={e => setShowAll(e.target.checked)} style={{ cursor: 'pointer' }} />
+              Include contacted
+            </label>
+            <div style={{ flex: 1 }} />
+            {selected.size > 0 && (
+              <span style={{ color: GOLD, fontSize: '12px' }}>
+                {selected.size} lead{selected.size > 1 ? 's' : ''} selected
+                {selected.size === 10 && <span style={{ color: '#f59e0b', marginLeft: '6px' }}>(max)</span>}
+              </span>
+            )}
+            <button onClick={handleSendIntroEmail} disabled={sending || selected.size === 0}
+              style={{
+                background: (sending || selected.size === 0) ? 'rgba(96,165,250,0.2)' : 'linear-gradient(135deg, #1d4ed8, #3b82f6)',
+                color: selected.size === 0 ? '#4a5568' : '#fff',
+                border: `1px solid ${selected.size === 0 ? 'rgba(255,255,255,0.1)' : '#3b82f6'}`,
+                borderRadius: '4px', padding: '10px 22px',
+                cursor: (sending || selected.size === 0) ? 'not-allowed' : 'pointer',
+                fontWeight: 'bold', fontSize: '12px', letterSpacing: '1px',
+                display: 'flex', alignItems: 'center', gap: '8px',
+              }}>
+              {sending ? <><span>⏳</span> Sending…</> : <><span>✉️</span> Send Opening Email</>}
+            </button>
+          </div>
+
+          {sendMsg && (
+            <div style={{
+              background: sendMsg.startsWith('✅') ? 'rgba(74,222,128,0.1)' : 'rgba(239,68,68,0.1)',
+              border: `1px solid ${sendMsg.startsWith('✅') ? 'rgba(74,222,128,0.3)' : 'rgba(239,68,68,0.3)'}`,
+              borderRadius: '4px', padding: '12px 16px', color: sendMsg.startsWith('✅') ? '#4ade80' : '#ef4444',
+              fontSize: '13px', marginBottom: '16px',
+            }}>{sendMsg}</div>
+          )}
+
+          <div style={{ background: 'rgba(96,165,250,0.06)', border: '1px solid rgba(96,165,250,0.2)', borderRadius: '4px', padding: '12px 16px', marginBottom: '16px', fontSize: '12px', color: '#8a9ab8', display: 'flex', gap: '10px', alignItems: 'center' }}>
+            <span style={{ fontSize: '18px' }}>ℹ️</span>
+            <div><strong style={{ color: '#60a5fa' }}>Template #7961149</strong> · Variable <code style={{ background: 'rgba(255,255,255,0.08)', padding: '1px 5px', borderRadius: '2px' }}>{'{{var:state}}'}</code> auto-populated. Leads without email are excluded.</div>
+          </div>
+
+          {loading ? (
+            <div style={{ textAlign: 'center', padding: '60px', color: '#6b7280' }}>Loading uncontacted leads…</div>
+          ) : filteredLeads.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '60px' }}>
+              <div style={{ fontSize: '48px', marginBottom: '12px' }}>🎉</div>
+              <div style={{ color: '#4a5568', fontSize: '14px' }}>
+                {leads.length === 0 ? 'All leads have been contacted or there are no leads with email addresses yet.' : 'No leads match your search.'}
+              </div>
+            </div>
+          ) : (
+            <LeadTable leads={pagedLeads} selected={selected} onToggle={toggleSelect} onToggleAll={toggleAll} />
+          )}
+
+          {filteredLeads.length > 0 && (
+            <div style={{ marginTop: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+              <span style={{ color: '#4a5568', fontSize: '11px' }}>
+                {filteredLeads.length} lead{filteredLeads.length !== 1 ? 's' : ''} · Page {page} of {totalPages}
+              </span>
+              {totalPages > 1 && (
+                <div style={{ display: 'flex', gap: '6px' }}>
+                  <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
+                    style={{ background: 'rgba(255,255,255,0.05)', color: page === 1 ? '#4a5568' : '#e8e0d0', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '2px', padding: '4px 12px', cursor: page === 1 ? 'not-allowed' : 'pointer', fontSize: '11px' }}>← Prev</button>
+                  <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages}
+                    style={{ background: 'rgba(255,255,255,0.05)', color: page === totalPages ? '#4a5568' : '#e8e0d0', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '2px', padding: '4px 12px', cursor: page === totalPages ? 'not-allowed' : 'pointer', fontSize: '11px' }}>Next →</button>
+                </div>
+              )}
             </div>
           )}
-        </div>
+        </>
       )}
-
-      {/* ── NB Tech Email Campaign Section ── */}
-      <NbtechEmailSection currentUsername={currentUsername} />
     </div>
   );
 }
