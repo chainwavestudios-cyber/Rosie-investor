@@ -26,24 +26,24 @@ import SmsTab from '@/components/shared/SmsTab';
 
 const GOLD = '#b8933a';
 const DARK = '#0a0f1e';
-const ls   = { display:'block', color:'#8a9ab8', fontSize:'10px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'6px' };
-const inp  = { width:'100%', background:'rgba(255,255,255,0.05)', border:'1px solid rgba(255,255,255,0.12)', borderRadius:'2px', padding:'10px 14px', color:'#e8e0d0', fontSize:'14px', outline:'none', boxSizing:'border-box', fontFamily:'Georgia, serif' };
+const ls   = { display:'block', color:'#8a9ab8', fontSize:'9px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'3px' };
+const inp  = { width:'100%', background:'rgba(255,255,255,0.05)', border:'1px solid rgba(255,255,255,0.12)', borderRadius:'2px', padding:'6px 10px', color:'#e8e0d0', fontSize:'12px', outline:'none', boxSizing:'border-box', fontFamily:'Georgia, serif' };
 
-function F({ label, value, onChange, type='text', placeholder='', mono=false }) {
+function F({ label, value, onChange, type='text', placeholder='', mono=false, readOnly=false }) {
   return (
-    <div style={{ marginBottom:'16px' }}>
+    <div style={{ marginBottom:'8px' }}>
       {label && <label style={ls}>{label}</label>}
-      <input type={type} value={value??''} onChange={onChange} placeholder={placeholder}
-        style={{ ...inp, fontFamily:mono?'monospace':'Georgia, serif', fontSize:mono?'12px':'14px' }} />
+      <input type={type} value={value??''} onChange={onChange} placeholder={placeholder} readOnly={readOnly}
+        style={{ ...inp, fontFamily:mono?'monospace':'Georgia, serif', fontSize:mono?'11px':'12px', background: readOnly ? 'transparent' : 'rgba(255,255,255,0.05)', border: readOnly ? 'none' : '1px solid rgba(255,255,255,0.12)', padding: readOnly ? '3px 0' : '6px 10px', color: readOnly ? '#c4cdd8' : '#e8e0d0' }} />
     </div>
   );
 }
-function TA({ label, value, onChange, rows=4, placeholder='' }) {
+function TA({ label, value, onChange, rows=3, placeholder='', readOnly=false }) {
   return (
-    <div style={{ marginBottom:'16px' }}>
+    <div style={{ marginBottom:'8px' }}>
       {label && <label style={ls}>{label}</label>}
-      <textarea value={value??''} onChange={onChange} rows={rows} placeholder={placeholder}
-        style={{ ...inp, resize:'vertical', lineHeight:1.6, fontSize:'13px' }} />
+      <textarea value={value??''} onChange={onChange} rows={rows} placeholder={placeholder} readOnly={readOnly}
+        style={{ ...inp, resize:'vertical', lineHeight:1.5, fontSize:'12px', background: readOnly ? 'transparent' : 'rgba(255,255,255,0.05)', border: readOnly ? 'none' : '1px solid rgba(255,255,255,0.12)', padding: readOnly ? '3px 0' : '6px 10px', color: readOnly ? '#c4cdd8' : '#e8e0d0' }} />
     </div>
   );
 }
@@ -80,6 +80,7 @@ export default function ContactCardModal({ user, onClose, onSave, allSessions, m
   const [editUser, setEditUser] = useState({ ...user });
   const [saving, setSaving]   = useState(false);
   const [saveMsg, setSaveMsg] = useState('');
+  const [editMode, setEditMode] = useState(false);
   const [showCallbackPicker, setShowCallbackPicker] = useState(false);
   const [showCallLog, setShowCallLog] = useState(false);
   const [callbackDate, setCallbackDate] = useState('');
@@ -534,120 +535,174 @@ export default function ContactCardModal({ user, onClose, onSave, allSessions, m
           </div>
         </div>
 
-        <div style={{ flex:1, overflowY:'auto', padding:'24px 28px' }}>
+        <div style={{ flex:1, overflowY:'auto', padding:'14px 18px' }}>
 
           {/* OVERVIEW */}
           {tab === 'overview' && (
-            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'24px' }}>
-              <div>
-                <div style={{ color:GOLD, fontSize:'10px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'16px' }}>Contact Details</div>
-                <div style={{ marginBottom:'16px' }}>
-                  <label style={ls}>Status</label>
-                  <div style={{ display:'flex', gap:'8px' }}>
-                    {['prospect','investor'].map(s => (
-                      <button key={s} onClick={() => setEditUser({...editUser,status:s})}
-                        style={{ flex:1, padding:'9px', border:`1px solid ${editUser.status===s?GOLD:'rgba(255,255,255,0.12)'}`, borderRadius:'2px', background:editUser.status===s?'rgba(184,147,58,0.15)':'transparent', color:editUser.status===s?GOLD:'#6b7280', cursor:'pointer', fontSize:'11px', textTransform:'uppercase', letterSpacing:'2px' }}>
-                        {s==='prospect'?'🔷 Potential Investor':'✅ Investor'}
-                      </button>
+            <div>
+              {/* Header row with Edit button */}
+              <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'12px' }}>
+                <span style={{ color:GOLD, fontSize:'9px', letterSpacing:'2px', textTransform:'uppercase' }}>Profile</span>
+                <div style={{ display:'flex', gap:'6px', alignItems:'center' }}>
+                  {editMode && saveMsg && <span style={{ color:saveMsg.startsWith('Error')?'#ef4444':'#4ade80', fontSize:'10px' }}>{saveMsg}</span>}
+                  {editMode && (
+                    <button onClick={saveProfile} disabled={saving}
+                      style={{ background:'linear-gradient(135deg,#b8933a,#d4aa50)', color:DARK, border:'none', borderRadius:'3px', padding:'4px 14px', cursor:'pointer', fontWeight:'bold', fontSize:'10px', letterSpacing:'1px' }}>
+                      {saving ? 'Saving…' : '💾 Save'}
+                    </button>
+                  )}
+                  <button onClick={() => setEditMode(m => !m)}
+                    style={{ background: editMode ? 'rgba(239,68,68,0.1)' : 'rgba(184,147,58,0.1)', color: editMode ? '#ef4444' : GOLD, border:`1px solid ${editMode ? 'rgba(239,68,68,0.3)' : 'rgba(184,147,58,0.3)'}`, borderRadius:'3px', padding:'4px 12px', cursor:'pointer', fontSize:'10px', fontWeight:'bold' }}>
+                    {editMode ? '✕ Cancel' : '✏️ Edit'}
+                  </button>
+                </div>
+              </div>
+
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'16px' }}>
+                {/* Left col — Contact */}
+                <div>
+                  <div style={{ color:'#4a5568', fontSize:'9px', letterSpacing:'1.5px', textTransform:'uppercase', marginBottom:'8px', borderBottom:'1px solid rgba(255,255,255,0.05)', paddingBottom:'4px' }}>Contact</div>
+                  {editMode ? (
+                    <>
+                      <div style={{ marginBottom:'8px' }}>
+                        <label style={ls}>Status</label>
+                        <div style={{ display:'flex', gap:'6px' }}>
+                          {['prospect','investor'].map(s => (
+                            <button key={s} onClick={() => setEditUser({...editUser,status:s})}
+                              style={{ flex:1, padding:'5px', border:`1px solid ${editUser.status===s?GOLD:'rgba(255,255,255,0.12)'}`, borderRadius:'2px', background:editUser.status===s?'rgba(184,147,58,0.15)':'transparent', color:editUser.status===s?GOLD:'#6b7280', cursor:'pointer', fontSize:'10px', textTransform:'uppercase', letterSpacing:'1px' }}>
+                              {s==='prospect'?'🔷 Potential':'✅ Investor'}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                      <F label="Full Name" value={editUser.name} onChange={e=>setEditUser({...editUser,name:e.target.value})} />
+                      <F label="Email" value={editUser.email} onChange={e=>setEditUser({...editUser,email:e.target.value})} type="email" />
+                      <F label="Phone" value={editUser.phone} onChange={e=>setEditUser({...editUser,phone:e.target.value})} placeholder="(216) 555-0123" />
+                      <F label="Company / Fund" value={editUser.company} onChange={e=>setEditUser({...editUser,company:e.target.value})} />
+                      <F label="Mailing Address" value={editUser.address} onChange={e=>setEditUser({...editUser,address:e.target.value})} />
+                      <div style={{ marginBottom:'8px' }}>
+                        <label style={ls}>Account Type</label>
+                        <select value={editUser.investmentType||'cash'} onChange={e=>setEditUser({...editUser,investmentType:e.target.value})} style={{ ...inp, cursor:'pointer' }}>
+                          <option value="cash">Cash</option><option value="ira">IRA</option>
+                        </select>
+                      </div>
+                      {editUser.investmentType === 'ira' && (
+                        <TA label="IRA Information" value={editUser.iraInformation} onChange={e=>setEditUser({...editUser,iraInformation:e.target.value})} rows={2} placeholder="Custodian, account #…" />
+                      )}
+                      <F label="New Password (blank = keep current)" value={editUser.newPassword||''} onChange={e=>setEditUser({...editUser,newPassword:e.target.value})} placeholder="••••••••" />
+                    </>
+                  ) : (
+                    <div style={{ display:'flex', flexDirection:'column', gap:'4px' }}>
+                      {[
+                        ['Name', editUser.name],
+                        ['Email', editUser.email],
+                        ['Phone', editUser.phone],
+                        ['Company', editUser.company],
+                        ['Address', editUser.address],
+                        ['Account Type', editUser.investmentType === 'ira' ? 'IRA' : 'Cash'],
+                      ].map(([lbl, val]) => val ? (
+                        <div key={lbl} style={{ display:'flex', gap:'8px', alignItems:'baseline' }}>
+                          <span style={{ color:'#4a5568', fontSize:'9px', letterSpacing:'1px', textTransform:'uppercase', minWidth:'64px', flexShrink:0 }}>{lbl}</span>
+                          <span style={{ color:'#c4cdd8', fontSize:'12px' }}>{val}</span>
+                        </div>
+                      ) : null)}
+                      {editUser.investmentType === 'ira' && editUser.iraInformation && (
+                        <div style={{ display:'flex', gap:'8px', alignItems:'baseline' }}>
+                          <span style={{ color:'#4a5568', fontSize:'9px', letterSpacing:'1px', textTransform:'uppercase', minWidth:'64px', flexShrink:0 }}>IRA Info</span>
+                          <span style={{ color:'#c4cdd8', fontSize:'12px' }}>{editUser.iraInformation}</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* Right col — Investment */}
+                <div>
+                  <div style={{ color:'#4a5568', fontSize:'9px', letterSpacing:'1.5px', textTransform:'uppercase', marginBottom:'8px', borderBottom:'1px solid rgba(255,255,255,0.05)', paddingBottom:'4px' }}>Investment</div>
+                  {editMode ? (
+                    <>
+                      <F label="Investment Amount ($)" value={editUser.investmentAmount} onChange={e=>setEditUser({...editUser,investmentAmount:e.target.value})} type="number" placeholder="50000" />
+                      <F label="Date Invested" value={editUser.investmentDate} onChange={e=>setEditUser({...editUser,investmentDate:e.target.value})} type="date" />
+                      <div style={{ marginBottom:'8px' }}>
+                        <label style={ls}>Signature Docs Requested</label>
+                        <button onClick={() => setEditUser({...editUser,signnowRequested:!editUser.signnowRequested})}
+                          style={{ width:'40px', height:'22px', borderRadius:'11px', border:'none', cursor:'pointer', background:editUser.signnowRequested?'linear-gradient(135deg,#b8933a,#d4aa50)':'rgba(255,255,255,0.1)', position:'relative' }}>
+                          <div style={{ position:'absolute', top:'2px', left:editUser.signnowRequested?'20px':'2px', width:'18px', height:'18px', background:'#fff', borderRadius:'50%', transition:'left 0.2s' }} />
+                        </button>
+                      </div>
+                      <TA label="Internal Notes" value={editUser.notes} onChange={e=>setEditUser({...editUser,notes:e.target.value})} rows={4} placeholder="Private notes…" />
+                    </>
+                  ) : (
+                    <div style={{ display:'flex', flexDirection:'column', gap:'4px' }}>
+                      {[
+                        ['Amount', editUser.investmentAmount ? `$${Number(editUser.investmentAmount).toLocaleString()}` : null],
+                        ['Date', editUser.investmentDate ? fmtDate(editUser.investmentDate + 'T12:00:00') : null],
+                        ['Docs', editUser.signnowRequested ? '✓ Requested' : 'Not requested'],
+                      ].map(([lbl, val]) => val ? (
+                        <div key={lbl} style={{ display:'flex', gap:'8px', alignItems:'baseline' }}>
+                          <span style={{ color:'#4a5568', fontSize:'9px', letterSpacing:'1px', textTransform:'uppercase', minWidth:'64px', flexShrink:0 }}>{lbl}</span>
+                          <span style={{ color:'#c4cdd8', fontSize:'12px' }}>{val}</span>
+                        </div>
+                      ) : null)}
+                      {editUser.notes && (
+                        <div style={{ marginTop:'4px' }}>
+                          <span style={{ color:'#4a5568', fontSize:'9px', letterSpacing:'1px', textTransform:'uppercase', display:'block', marginBottom:'3px' }}>Notes</span>
+                          <span style={{ color:'#8a9ab8', fontSize:'11px', lineHeight:1.5, whiteSpace:'pre-wrap' }}>{editUser.notes}</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Stats row */}
+                  <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:'6px', marginTop:'12px' }}>
+                    {[[stats.sessionCount,'Sessions',GOLD],[analytics.formatDuration(stats.totalTime),'Time','#4ade80'],[stats.totalDownloads,'Downloads','#60a5fa']].map(([v,l,c]) => (
+                      <div key={l} style={{ background:'rgba(0,0,0,0.2)', border:'1px solid rgba(255,255,255,0.05)', borderRadius:'2px', padding:'6px', textAlign:'center' }}>
+                        <div style={{ color:c, fontSize:'14px', fontWeight:'bold' }}>{v}</div>
+                        <div style={{ color:'#4a5568', fontSize:'8px', letterSpacing:'1px', textTransform:'uppercase', marginTop:'1px' }}>{l}</div>
+                      </div>
                     ))}
                   </div>
                 </div>
-                <F label="Full Name" value={editUser.name} onChange={e=>setEditUser({...editUser,name:e.target.value})} />
-                <F label="Email" value={editUser.email} onChange={e=>setEditUser({...editUser,email:e.target.value})} type="email" />
-                <F label="Phone" value={editUser.phone} onChange={e=>setEditUser({...editUser,phone:e.target.value})} placeholder="(216) 555-0123" />
-                <F label="Company / Fund" value={editUser.company} onChange={e=>setEditUser({...editUser,company:e.target.value})} />
-                <F label="Mailing Address" value={editUser.address} onChange={e=>setEditUser({...editUser,address:e.target.value})} />
-                <div style={{ marginBottom:'16px' }}>
-                  <label style={ls}>Account Type (Cash / IRA)</label>
-                  <select value={editUser.investmentType||'cash'} onChange={e=>setEditUser({...editUser,investmentType:e.target.value})} style={{ ...inp, cursor:'pointer' }}>
-                    <option value="cash">Cash</option><option value="ira">IRA</option>
-                  </select>
-                </div>
-                {editUser.investmentType === 'ira' && (
-                  <TA label="IRA Information" value={editUser.iraInformation} onChange={e=>setEditUser({...editUser,iraInformation:e.target.value})} rows={2} placeholder="Custodian, account #…" />
-                )}
-                <F label="New Password (blank = keep current)" value={editUser.newPassword||''} onChange={e=>setEditUser({...editUser,newPassword:e.target.value})} placeholder="••••••••" />
-              </div>
-              <div>
-                <div style={{ color:GOLD, fontSize:'10px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'16px' }}>Investment Details</div>
-                <F label="Investment Amount ($)" value={editUser.investmentAmount} onChange={e=>setEditUser({...editUser,investmentAmount:e.target.value})} type="number" placeholder="50000" />
-                <F label="Date Invested" value={editUser.investmentDate} onChange={e=>setEditUser({...editUser,investmentDate:e.target.value})} type="date" />
-                <div style={{ marginBottom:'16px' }}>
-                  <label style={ls}>Signature Docs Requested</label>
-                  <button onClick={() => setEditUser({...editUser,signnowRequested:!editUser.signnowRequested})}
-                    style={{ width:'48px', height:'26px', borderRadius:'13px', border:'none', cursor:'pointer', background:editUser.signnowRequested?'linear-gradient(135deg,#b8933a,#d4aa50)':'rgba(255,255,255,0.1)', position:'relative' }}>
-                    <div style={{ position:'absolute', top:'3px', left:editUser.signnowRequested?'25px':'3px', width:'20px', height:'20px', background:'#fff', borderRadius:'50%', transition:'left 0.2s' }} />
-                  </button>
-                </div>
-                <TA label="Internal Notes (not visible to investor)" value={editUser.notes} onChange={e=>setEditUser({...editUser,notes:e.target.value})} rows={5} placeholder="Private notes…" />
-                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:'8px', marginTop:'8px' }}>
-                  {[[stats.sessionCount,'Sessions',GOLD],[analytics.formatDuration(stats.totalTime),'Time Spent','#4ade80'],[stats.totalDownloads,'Downloads','#60a5fa']].map(([v,l,c]) => (
-                    <div key={l} style={{ background:'rgba(0,0,0,0.2)', border:'1px solid rgba(255,255,255,0.05)', borderRadius:'2px', padding:'10px', textAlign:'center' }}>
-                      <div style={{ color:c, fontSize:'16px', fontWeight:'bold' }}>{v}</div>
-                      <div style={{ color:'#4a5568', fontSize:'9px', letterSpacing:'1px', textTransform:'uppercase', marginTop:'2px' }}>{l}</div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-              <div style={{ gridColumn:'1/-1', display:'flex', gap:'12px', alignItems:'center', paddingTop:'16px', borderTop:'1px solid rgba(255,255,255,0.07)' }}>
-                <button onClick={saveProfile} disabled={saving} style={{ background:'linear-gradient(135deg,#b8933a,#d4aa50)', color:DARK, border:'none', borderRadius:'2px', padding:'11px 32px', cursor:'pointer', fontWeight:'bold', fontSize:'12px', letterSpacing:'2px', textTransform:'uppercase' }}>{saving?'Saving…':'Save Changes'}</button>
-                {saveMsg && <span style={{ color:saveMsg.startsWith('Error')?'#ef4444':'#4ade80', fontSize:'13px' }}>{saveMsg}</span>}
-              </div>
 
-              {/* ── Notes & Activity ── */}
-              <div style={{ gridColumn:'1/-1', borderTop:'1px solid rgba(255,255,255,0.07)', paddingTop:'20px' }}>
-                <div style={{ color:GOLD, fontSize:'10px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'14px' }}>Notes & Activity</div>
-
-                {/* Add note */}
-                <div style={{ display:'flex', gap:'8px', marginBottom:'14px' }}>
-                  <select value={noteForm.type} onChange={e=>setNoteForm({...noteForm,type:e.target.value})}
-                    style={{ background:'rgba(255,255,255,0.05)', border:'1px solid rgba(255,255,255,0.12)', borderRadius:'2px', padding:'8px 10px', color:'#8a9ab8', fontSize:'11px', outline:'none', cursor:'pointer', flexShrink:0 }}>
-                    <option value="note">📝 Note</option>
-                    <option value="call">📞 Call</option>
-                    <option value="sms">💬 SMS</option>
-                    <option value="email">✉️ Email</option>
-                    <option value="voicemail">📳 Voicemail</option>
-                  </select>
-                  <input
-                    value={noteForm.content}
-                    onChange={e=>setNoteForm({...noteForm,content:e.target.value})}
-                    onKeyDown={e=>e.key==='Enter'&&addNote()}
-                    placeholder="Add a note or log an action…"
-                    style={{ flex:1, background:'rgba(255,255,255,0.05)', border:'1px solid rgba(255,255,255,0.12)', borderRadius:'2px', padding:'8px 12px', color:'#e8e0d0', fontSize:'13px', outline:'none' }}
-                  />
-                  <button onClick={addNote}
-                    style={{ background:'rgba(184,147,58,0.15)', border:'1px solid rgba(184,147,58,0.3)', borderRadius:'2px', padding:'8px 16px', color:GOLD, cursor:'pointer', fontSize:'11px', fontWeight:'bold', whiteSpace:'nowrap' }}>
-                    + Add
-                  </button>
-                </div>
-
-                {/* Notes list — user actions only (exclude system/migration notes) */}
-                <div style={{ display:'flex', flexDirection:'column', gap:'6px', maxHeight:'260px', overflowY:'auto' }}>
-                  {loading && <p style={{ color:'#4a5568', fontSize:'12px', textAlign:'center', padding:'16px' }}>Loading…</p>}
-                  {!loading && notes.filter(n => !((n.content||'').startsWith('[Lead History') || (n.content||'').startsWith('✅ Migrated') || (n.content||'').startsWith('[Site Visits') || (n.content||'').startsWith('[Email Log') || (n.content||'').startsWith('[Appointment'))).length === 0 && (
-                    <p style={{ color:'#4a5568', fontSize:'12px', textAlign:'center', padding:'20px' }}>No notes or activity yet.</p>
-                  )}
-                  {notes
-                    .filter(n => !((n.content||'').startsWith('[Lead History') || (n.content||'').startsWith('✅ Migrated') || (n.content||'').startsWith('[Site Visits') || (n.content||'').startsWith('[Email Log') || (n.content||'').startsWith('[Appointment')))
-                    .map(n => {
+                {/* Notes & Activity — full width */}
+                <div style={{ gridColumn:'1/-1', borderTop:'1px solid rgba(255,255,255,0.07)', paddingTop:'12px' }}>
+                  <div style={{ color:GOLD, fontSize:'9px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'8px' }}>Notes & Activity</div>
+                  <div style={{ display:'flex', gap:'6px', marginBottom:'8px' }}>
+                    <select value={noteForm.type} onChange={e=>setNoteForm({...noteForm,type:e.target.value})}
+                      style={{ background:'rgba(255,255,255,0.05)', border:'1px solid rgba(255,255,255,0.12)', borderRadius:'2px', padding:'5px 8px', color:'#8a9ab8', fontSize:'10px', outline:'none', cursor:'pointer', flexShrink:0 }}>
+                      <option value="note">📝 Note</option>
+                      <option value="call">📞 Call</option>
+                      <option value="sms">💬 SMS</option>
+                      <option value="email">✉️ Email</option>
+                      <option value="voicemail">📳 VM</option>
+                    </select>
+                    <input value={noteForm.content} onChange={e=>setNoteForm({...noteForm,content:e.target.value})} onKeyDown={e=>e.key==='Enter'&&addNote()} placeholder="Add a note…"
+                      style={{ flex:1, background:'rgba(255,255,255,0.05)', border:'1px solid rgba(255,255,255,0.12)', borderRadius:'2px', padding:'5px 10px', color:'#e8e0d0', fontSize:'12px', outline:'none' }} />
+                    <button onClick={addNote} style={{ background:'rgba(184,147,58,0.15)', border:'1px solid rgba(184,147,58,0.3)', borderRadius:'2px', padding:'5px 12px', color:GOLD, cursor:'pointer', fontSize:'10px', fontWeight:'bold', whiteSpace:'nowrap' }}>+ Add</button>
+                  </div>
+                  <div style={{ display:'flex', flexDirection:'column', gap:'4px', maxHeight:'200px', overflowY:'auto' }}>
+                    {loading && <p style={{ color:'#4a5568', fontSize:'11px', textAlign:'center', padding:'12px' }}>Loading…</p>}
+                    {!loading && notes.filter(n => !((n.content||'').startsWith('[Lead History') || (n.content||'').startsWith('✅ Migrated') || (n.content||'').startsWith('[Site Visits') || (n.content||'').startsWith('[Email Log') || (n.content||'').startsWith('[Appointment'))).length === 0 && (
+                      <p style={{ color:'#4a5568', fontSize:'11px', textAlign:'center', padding:'12px' }}>No notes yet.</p>
+                    )}
+                    {notes.filter(n => !((n.content||'').startsWith('[Lead History') || (n.content||'').startsWith('✅ Migrated') || (n.content||'').startsWith('[Site Visits') || (n.content||'').startsWith('[Email Log') || (n.content||'').startsWith('[Appointment'))).map(n => {
                       const typeColor = { note:'#c4cdd8', call:'#60a5fa', sms:'#4ade80', email:'#a78bfa', voicemail:'#f59e0b' }[n.type] || '#6b7280';
-                      const typeIcon  = { note:'📝', call:'📞', sms:'💬', email:'✉️', voicemail:'📳' }[n.type] || '📝';
                       return (
-                        <div key={n.id} style={{ display:'flex', gap:'10px', alignItems:'flex-start', padding:'8px 10px', background:'rgba(255,255,255,0.03)', border:'1px solid rgba(255,255,255,0.06)', borderRadius:'3px' }}>
-                          <span style={{ fontSize:'12px', flexShrink:0, marginTop:'1px' }}>{typeIcon}</span>
+                        <div key={n.id} style={{ display:'flex', gap:'8px', alignItems:'flex-start', padding:'5px 8px', background:'rgba(255,255,255,0.02)', borderLeft:'2px solid rgba(255,255,255,0.06)', borderRadius:'0 2px 2px 0' }}>
+                          <span style={{ fontSize:'10px', flexShrink:0, marginTop:'1px' }}>{{ note:'📝', call:'📞', sms:'💬', email:'✉️', voicemail:'📳' }[n.type]||'📝'}</span>
                           <div style={{ flex:1, minWidth:0 }}>
-                            <div style={{ color:'#c8d0dc', fontSize:'13px', lineHeight:1.5, wordBreak:'break-word' }}>{n.content}</div>
-                            <div style={{ color:'#4a5568', fontSize:'10px', marginTop:'3px' }}>
+                            <div style={{ color:'#c8d0dc', fontSize:'11px', lineHeight:1.4, wordBreak:'break-word' }}>{n.content}</div>
+                            <div style={{ color:'#4a5568', fontSize:'9px', marginTop:'2px' }}>
                               <span style={{ color:typeColor }}>{n.type}</span>
                               {n.createdBy && <span> · {n.createdBy}</span>}
                               {n.createdAt && <span> · {fmtDateTimeShort(n.createdAt)}</span>}
                             </div>
                           </div>
-                          <button onClick={()=>deleteNote(n.id)} style={{ background:'none', border:'none', color:'#374151', cursor:'pointer', fontSize:'14px', padding:'0 2px', flexShrink:0 }} title="Delete">×</button>
+                          <button onClick={()=>deleteNote(n.id)} style={{ background:'none', border:'none', color:'#374151', cursor:'pointer', fontSize:'12px', padding:'0', flexShrink:0 }}>×</button>
                         </div>
                       );
-                    })
-                  }
+                    })}
+                  </div>
                 </div>
               </div>
             </div>
@@ -656,50 +711,47 @@ export default function ContactCardModal({ user, onClose, onSave, allSessions, m
           {/* HISTORY */}
           {tab === 'history' && (
             <div>
-              <div style={{ background:'rgba(255,255,255,0.02)', border:'1px solid rgba(255,255,255,0.08)', borderRadius:'2px', padding:'20px', marginBottom:'24px' }}>
-                <div style={{ color:GOLD, fontSize:'10px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'14px' }}>Log Interaction</div>
-                <div style={{ display:'flex', gap:'8px', marginBottom:'12px', flexWrap:'wrap' }}>
+              {/* Compact log form */}
+              <div style={{ background:'rgba(255,255,255,0.02)', border:'1px solid rgba(255,255,255,0.07)', borderRadius:'2px', padding:'10px 12px', marginBottom:'12px' }}>
+                <div style={{ display:'flex', gap:'5px', marginBottom:'7px', flexWrap:'wrap' }}>
                   {Object.entries(noteTypeIcons).map(([t,icon]) => (
                     <button key={t} onClick={() => setNoteForm({...noteForm,type:t})}
-                      style={{ padding:'7px 14px', background:noteForm.type===t?'rgba(184,147,58,0.2)':'rgba(255,255,255,0.04)', border:`1px solid ${noteForm.type===t?GOLD:'rgba(255,255,255,0.1)'}`, borderRadius:'2px', color:noteForm.type===t?GOLD:'#6b7280', cursor:'pointer', fontSize:'12px' }}>
+                      style={{ padding:'3px 9px', background:noteForm.type===t?'rgba(184,147,58,0.2)':'rgba(255,255,255,0.04)', border:`1px solid ${noteForm.type===t?GOLD:'rgba(255,255,255,0.1)'}`, borderRadius:'2px', color:noteForm.type===t?GOLD:'#6b7280', cursor:'pointer', fontSize:'10px' }}>
                       {icon} {t.charAt(0).toUpperCase()+t.slice(1)}
                     </button>
                   ))}
                 </div>
-                <TA value={noteForm.content} onChange={e=>setNoteForm({...noteForm,content:e.target.value})} placeholder={`Add ${noteForm.type} details…`} rows={3} />
-                <button onClick={addNote} disabled={!noteForm.content.trim()} style={{ background:'linear-gradient(135deg,#b8933a,#d4aa50)', color:DARK, border:'none', borderRadius:'2px', padding:'9px 24px', cursor:'pointer', fontWeight:'bold', fontSize:'11px', letterSpacing:'2px', textTransform:'uppercase' }}>Add to History</button>
+                <div style={{ display:'flex', gap:'6px' }}>
+                  <textarea value={noteForm.content} onChange={e=>setNoteForm({...noteForm,content:e.target.value})} placeholder={`Add ${noteForm.type} details…`} rows={2}
+                    style={{ flex:1, background:'rgba(255,255,255,0.05)', border:'1px solid rgba(255,255,255,0.12)', borderRadius:'2px', padding:'5px 10px', color:'#e8e0d0', fontSize:'12px', outline:'none', resize:'none', fontFamily:'Georgia,serif' }} />
+                  <button onClick={addNote} disabled={!noteForm.content.trim()} style={{ background:'linear-gradient(135deg,#b8933a,#d4aa50)', color:DARK, border:'none', borderRadius:'2px', padding:'5px 14px', cursor:'pointer', fontWeight:'bold', fontSize:'10px', letterSpacing:'1px', alignSelf:'stretch' }}>Add</button>
+                </div>
               </div>
-              {loading && <p style={{ color:'#6b7280', textAlign:'center' }}>Loading…</p>}
-              {!loading && notes.length === 0 && <p style={{ color:'#4a5568', textAlign:'center', padding:'32px' }}>No history yet.</p>}
-              {[...notes].sort((a,b) => new Date(b.createdAt||b.created_date||0) - new Date(a.createdAt||a.created_date||0)).map((note, i, arr) => {
-                const isMigrated = (note.content||'').startsWith('[From Lead History');
-                const icon = isMigrated ? '📋' : (noteTypeIcons[note.type]||'📝');
-                const borderColor = isMigrated ? 'rgba(96,165,250,0.15)' : 'rgba(255,255,255,0.06)';
-                const labelColor = isMigrated ? '#60a5fa' : GOLD;
-                const label = isMigrated ? 'Lead History' : note.type;
-                return (
-                  <div key={note.id} style={{ display:'flex', gap:'14px', marginBottom:'16px' }}>
-                    <div style={{ display:'flex', flexDirection:'column', alignItems:'center', width:'24px', flexShrink:0 }}>
-                      <div style={{ fontSize:'18px' }}>{icon}</div>
-                      {i < arr.length-1 && <div style={{ width:'1px', flex:1, background:'rgba(255,255,255,0.06)', marginTop:'4px' }} />}
-                    </div>
-                    <div style={{ flex:1, background:isMigrated?'rgba(96,165,250,0.04)':'rgba(255,255,255,0.02)', border:`1px solid ${borderColor}`, borderRadius:'2px', padding:'14px 16px' }}>
-                      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:'6px' }}>
-                        <div style={{ display:'flex', alignItems:'center', gap:'8px' }}>
-                          <span style={{ color:labelColor, fontSize:'11px', textTransform:'uppercase', letterSpacing:'1px' }}>{label}</span>
-                          {isMigrated && <span style={{ background:'rgba(96,165,250,0.12)', color:'#60a5fa', fontSize:'9px', padding:'1px 6px', borderRadius:'3px', letterSpacing:'1px' }}>MIGRATED</span>}
-                          {!isMigrated && note.createdBy && <span style={{ color:'#6b7280', fontSize:'10px' }}>· {note.createdBy}</span>}
+              {loading && <p style={{ color:'#6b7280', textAlign:'center', fontSize:'12px' }}>Loading…</p>}
+              {!loading && notes.length === 0 && <p style={{ color:'#4a5568', textAlign:'center', padding:'24px', fontSize:'12px' }}>No history yet.</p>}
+              <div style={{ display:'flex', flexDirection:'column', gap:'3px' }}>
+                {[...notes].sort((a,b) => new Date(b.createdAt||b.created_date||0) - new Date(a.createdAt||a.created_date||0)).map((note) => {
+                  const isMigrated = (note.content||'').startsWith('[From Lead History');
+                  const icon = isMigrated ? '📋' : (noteTypeIcons[note.type]||'📝');
+                  const labelColor = isMigrated ? '#60a5fa' : GOLD;
+                  const label = isMigrated ? 'Lead History' : note.type;
+                  return (
+                    <div key={note.id} style={{ display:'flex', gap:'8px', alignItems:'flex-start', padding:'6px 8px', background:isMigrated?'rgba(96,165,250,0.03)':'rgba(255,255,255,0.02)', borderLeft:`2px solid ${isMigrated?'rgba(96,165,250,0.2)':'rgba(255,255,255,0.06)'}`, borderRadius:'0 2px 2px 0' }}>
+                      <span style={{ fontSize:'11px', flexShrink:0, marginTop:'1px' }}>{icon}</span>
+                      <div style={{ flex:1, minWidth:0 }}>
+                        <div style={{ display:'flex', gap:'6px', alignItems:'center', marginBottom:'2px', flexWrap:'wrap' }}>
+                          <span style={{ color:labelColor, fontSize:'9px', textTransform:'uppercase', letterSpacing:'1px', fontWeight:'bold' }}>{label}</span>
+                          {isMigrated && <span style={{ background:'rgba(96,165,250,0.12)', color:'#60a5fa', fontSize:'8px', padding:'0 4px', borderRadius:'2px' }}>migrated</span>}
+                          {!isMigrated && note.createdBy && <span style={{ color:'#6b7280', fontSize:'9px' }}>· {note.createdBy}</span>}
+                          <span style={{ color:'#374151', fontSize:'9px', marginLeft:'auto' }}>{note.createdAt ? fmtDateTimeShort(note.createdAt) : ''}</span>
                         </div>
-                        <div style={{ display:'flex', gap:'10px', alignItems:'center' }}>
-                          <span style={{ color:'#4a5568', fontSize:'10px' }}>{note.createdAt ? fmtDateTimeShort(note.createdAt) : ''}</span>
-                          {!isMigrated && <button onClick={() => deleteNote(note.id)} style={{ background:'none', border:'none', color:'#ef444480', cursor:'pointer', fontSize:'14px', padding:'0' }}>×</button>}
-                        </div>
+                        <p style={{ color:isMigrated?'#8a9ab8':'#c4cdd8', fontSize:'11px', margin:0, lineHeight:1.5, whiteSpace:'pre-wrap' }}>{note.content}</p>
                       </div>
-                      <p style={{ color:isMigrated?'#8a9ab8':'#c4cdd8', fontSize:'13px', margin:0, lineHeight:1.6, whiteSpace:'pre-wrap' }}>{note.content}</p>
+                      {!isMigrated && <button onClick={() => deleteNote(note.id)} style={{ background:'none', border:'none', color:'#374151', cursor:'pointer', fontSize:'12px', padding:'0', flexShrink:0 }}>×</button>}
                     </div>
-                  </div>
-                );
-              })}
+                  );
+                })}
+              </div>
             </div>
           )}
 
@@ -730,21 +782,21 @@ export default function ContactCardModal({ user, onClose, onSave, allSessions, m
           {/* DOCUMENTS */}
           {tab === 'documents' && (
             <div>
-              <div style={{ color:GOLD, fontSize:'10px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'20px' }}>SignNow Documents Sent</div>
-              {loading && <p style={{ color:'#6b7280' }}>Loading…</p>}
-              {!loading && snReqs.length === 0 && <p style={{ color:'#4a5568', textAlign:'center', padding:'40px' }}>No documents sent yet.</p>}
+              <div style={{ color:GOLD, fontSize:'9px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'10px' }}>SignNow Documents Sent</div>
+              {loading && <p style={{ color:'#6b7280', fontSize:'11px' }}>Loading…</p>}
+              {!loading && snReqs.length === 0 && <p style={{ color:'#4a5568', textAlign:'center', padding:'32px', fontSize:'12px' }}>No documents sent yet.</p>}
               {snReqs.map(req => {
                 let docs = []; try { docs = JSON.parse(req.documents||'[]'); } catch {}
                 const sc = { pending:{c:'#f59e0b'}, sent:{c:'#60a5fa'}, completed:{c:'#4ade80'}, declined:{c:'#ef4444'}, error:{c:'#ef4444'} };
                 const s2 = sc[req.status]||sc.pending;
                 return (
-                  <div key={req.id} style={{ background:'rgba(255,255,255,0.02)', border:'1px solid rgba(255,255,255,0.07)', borderRadius:'2px', padding:'18px', marginBottom:'10px' }}>
-                    <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'8px' }}>
-                      <div style={{ color:'#e8e0d0', fontSize:'13px' }}>Sent {req.sentAt ? fmtDate(req.sentAt) : ''}</div>
-                      <span style={{ color:s2.c, fontSize:'11px', textTransform:'uppercase', letterSpacing:'1px' }}>● {req.status}</span>
+                  <div key={req.id} style={{ background:'rgba(255,255,255,0.02)', border:'1px solid rgba(255,255,255,0.06)', borderRadius:'2px', padding:'10px 12px', marginBottom:'6px' }}>
+                    <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'5px' }}>
+                      <div style={{ color:'#c4cdd8', fontSize:'11px' }}>Sent {req.sentAt ? fmtDate(req.sentAt) : ''}</div>
+                      <span style={{ color:s2.c, fontSize:'10px', textTransform:'uppercase', letterSpacing:'1px' }}>● {req.status}</span>
                     </div>
                     {docs.map((d,i) => (
-                      <div key={i} style={{ display:'flex', justifyContent:'space-between', padding:'6px 0', borderTop:'1px solid rgba(255,255,255,0.04)', fontSize:'12px' }}>
+                      <div key={i} style={{ display:'flex', justifyContent:'space-between', padding:'3px 0', borderTop:'1px solid rgba(255,255,255,0.04)', fontSize:'11px' }}>
                         <span style={{ color:'#8a9ab8' }}>📄 {d.name}</span>
                         <span style={{ color:(sc[d.status]||sc.pending).c }}>{d.status}</span>
                       </div>
@@ -758,27 +810,27 @@ export default function ContactCardModal({ user, onClose, onSave, allSessions, m
           {/* ACCREDITATION */}
           {tab === 'accreditation' && (
             <div>
-              <div style={{ color:GOLD, fontSize:'10px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'20px' }}>Accreditation Documents</div>
-              {loading && <p style={{ color:'#6b7280' }}>Loading…</p>}
-              {!loading && accDocs.length === 0 && <p style={{ color:'#4a5568', textAlign:'center', padding:'40px' }}>No accreditation documents uploaded yet.</p>}
+              <div style={{ color:GOLD, fontSize:'9px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'10px' }}>Accreditation Documents</div>
+              {loading && <p style={{ color:'#6b7280', fontSize:'11px' }}>Loading…</p>}
+              {!loading && accDocs.length === 0 && <p style={{ color:'#4a5568', textAlign:'center', padding:'32px', fontSize:'12px' }}>No accreditation documents uploaded yet.</p>}
               {accDocs.map(doc => {
                 const sc = { pending:'#f59e0b', under_review:'#60a5fa', approved:'#4ade80', rejected:'#ef4444' };
                 return (
-                  <div key={doc.id} style={{ background:'rgba(255,255,255,0.02)', border:'1px solid rgba(255,255,255,0.07)', borderRadius:'2px', padding:'18px', marginBottom:'10px' }}>
-                    <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:'8px' }}>
+                  <div key={doc.id} style={{ background:'rgba(255,255,255,0.02)', border:'1px solid rgba(255,255,255,0.06)', borderRadius:'2px', padding:'10px 12px', marginBottom:'6px' }}>
+                    <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'5px', flexWrap:'wrap', gap:'6px' }}>
                       <div>
-                        <div style={{ color:'#e8e0d0', fontWeight:'bold', fontSize:'14px' }}>{doc.fileName}</div>
-                        <div style={{ color:'#6b7280', fontSize:'11px', marginTop:'2px' }}>{doc.docType?.replace('_',' ').replace(/\b\w/g,l=>l.toUpperCase())} · {doc.fileSize?`${(doc.fileSize/1024).toFixed(1)} KB`:''} · {doc.uploadedAt ? fmtDate(doc.uploadedAt) : ''}</div>
+                        <div style={{ color:'#c4cdd8', fontWeight:'bold', fontSize:'12px' }}>{doc.fileName}</div>
+                        <div style={{ color:'#6b7280', fontSize:'10px', marginTop:'1px' }}>{doc.docType?.replace('_',' ').replace(/\b\w/g,l=>l.toUpperCase())} · {doc.fileSize?`${(doc.fileSize/1024).toFixed(1)} KB`:''} · {doc.uploadedAt ? fmtDate(doc.uploadedAt) : ''}</div>
                       </div>
-                      <div style={{ display:'flex', gap:'8px', alignItems:'center' }}>
-                        <span style={{ color:sc[doc.status]||'#f59e0b', fontSize:'11px', textTransform:'uppercase', letterSpacing:'1px' }}>● {doc.status}</span>
-                        <button onClick={() => downloadAccDoc(doc)} style={{ background:'rgba(184,147,58,0.15)', color:GOLD, border:'1px solid rgba(184,147,58,0.3)', borderRadius:'2px', padding:'5px 12px', cursor:'pointer', fontSize:'11px' }}>↓ Download</button>
+                      <div style={{ display:'flex', gap:'6px', alignItems:'center' }}>
+                        <span style={{ color:sc[doc.status]||'#f59e0b', fontSize:'10px', textTransform:'uppercase', letterSpacing:'1px' }}>● {doc.status}</span>
+                        <button onClick={() => downloadAccDoc(doc)} style={{ background:'rgba(184,147,58,0.12)', color:GOLD, border:'1px solid rgba(184,147,58,0.25)', borderRadius:'2px', padding:'3px 9px', cursor:'pointer', fontSize:'10px' }}>↓ Download</button>
                       </div>
                     </div>
-                    <div style={{ display:'flex', gap:'8px', marginTop:'8px' }}>
+                    <div style={{ display:'flex', gap:'5px' }}>
                       {['pending','under_review','approved','rejected'].map(s => (
                         <button key={s} onClick={async () => { await AccreditationDocDB.updateStatus(doc.id, s, doc.adminNotes); setAccDocs(await AccreditationDocDB.listForInvestor(user.id)); }}
-                          style={{ padding:'4px 10px', background:doc.status===s?`${sc[s]}22`:'transparent', border:`1px solid ${doc.status===s?sc[s]:'rgba(255,255,255,0.1)'}`, borderRadius:'2px', color:doc.status===s?sc[s]:'#4a5568', cursor:'pointer', fontSize:'10px', textTransform:'uppercase', letterSpacing:'1px' }}>
+                          style={{ padding:'2px 8px', background:doc.status===s?`${sc[s]}22`:'transparent', border:`1px solid ${doc.status===s?sc[s]:'rgba(255,255,255,0.1)'}`, borderRadius:'2px', color:doc.status===s?sc[s]:'#4a5568', cursor:'pointer', fontSize:'9px', textTransform:'uppercase', letterSpacing:'1px' }}>
                           {s.replace('_',' ')}
                         </button>
                       ))}
@@ -798,20 +850,20 @@ export default function ContactCardModal({ user, onClose, onSave, allSessions, m
           {/* CALENDAR */}
           {tab === 'calendar' && (
             <div>
-              <div style={{ background:'rgba(255,255,255,0.02)', border:'1px solid rgba(255,255,255,0.08)', borderRadius:'2px', padding:'20px', marginBottom:'24px' }}>
-                <div style={{ color:GOLD, fontSize:'10px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'14px' }}>📅 Book Appointment</div>
-                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'0 16px' }}>
+              <div style={{ background:'rgba(255,255,255,0.02)', border:'1px solid rgba(255,255,255,0.07)', borderRadius:'2px', padding:'10px 12px', marginBottom:'12px' }}>
+                <div style={{ color:GOLD, fontSize:'9px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'8px' }}>📅 Book Appointment</div>
+                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'0 12px' }}>
                   <F label="Title" value={apptForm.title} onChange={e=>setApptForm({...apptForm,title:e.target.value})} placeholder="Intro Call, Follow-up…" />
-                  <div style={{ marginBottom:'16px' }}>
+                  <div style={{ marginBottom:'8px' }}>
                     <label style={ls}>Type</label>
                     <select value={apptForm.type} onChange={e=>setApptForm({...apptForm,type:e.target.value})} style={{ ...inp, cursor:'pointer' }}>
                       {['call','meeting','follow-up','demo','other'].map(t => <option key={t} value={t}>{t.charAt(0).toUpperCase()+t.slice(1)}</option>)}
                     </select>
                   </div>
                 </div>
-                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'0 16px' }}>
+                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'0 12px' }}>
                   <DateTimePicker label="Date & Time" value={apptForm.scheduledAt} onChange={iso => setApptForm(f => ({...f,scheduledAt:iso}))} />
-                  <div style={{ marginBottom:'16px' }}>
+                  <div style={{ marginBottom:'8px' }}>
                     <label style={ls}>Duration</label>
                     <select value={apptForm.durationMinutes} onChange={e=>setApptForm({...apptForm,durationMinutes:Number(e.target.value)})} style={{ ...inp, cursor:'pointer' }}>
                       {[15,30,45,60,90,120].map(d=><option key={d} value={d}>{d} min</option>)}
@@ -819,29 +871,28 @@ export default function ContactCardModal({ user, onClose, onSave, allSessions, m
                   </div>
                 </div>
                 <TA label="Notes" value={apptForm.notes} onChange={e=>setApptForm({...apptForm,notes:e.target.value})} rows={2} placeholder="Agenda, talking points…" />
-                <button onClick={addAppt} disabled={!apptForm.title||!apptForm.scheduledAt} style={{ background:(!apptForm.title||!apptForm.scheduledAt)?'rgba(184,147,58,0.3)':'linear-gradient(135deg,#b8933a,#d4aa50)', color:DARK, border:'none', borderRadius:'2px', padding:'9px 24px', cursor:(!apptForm.title||!apptForm.scheduledAt)?'not-allowed':'pointer', fontWeight:'bold', fontSize:'11px', letterSpacing:'2px', textTransform:'uppercase' }}>Book Appointment</button>
+                <button onClick={addAppt} disabled={!apptForm.title||!apptForm.scheduledAt} style={{ background:(!apptForm.title||!apptForm.scheduledAt)?'rgba(184,147,58,0.3)':'linear-gradient(135deg,#b8933a,#d4aa50)', color:DARK, border:'none', borderRadius:'2px', padding:'6px 18px', cursor:(!apptForm.title||!apptForm.scheduledAt)?'not-allowed':'pointer', fontWeight:'bold', fontSize:'10px', letterSpacing:'1px', textTransform:'uppercase' }}>Book</button>
               </div>
-              {loading && <p style={{ color:'#6b7280' }}>Loading…</p>}
-              {!loading && appts.length === 0 && <p style={{ color:'#4a5568', textAlign:'center', padding:'32px' }}>No appointments yet.</p>}
+              {loading && <p style={{ color:'#6b7280', fontSize:'11px' }}>Loading…</p>}
+              {!loading && appts.length === 0 && <p style={{ color:'#4a5568', textAlign:'center', padding:'24px', fontSize:'12px' }}>No appointments yet.</p>}
               {appts.map(appt => {
                 const sc = { scheduled:GOLD, completed:'#4ade80', cancelled:'#4a5568', 'no-show':'#ef4444' };
                 const isPast = new Date(appt.scheduledAt) < new Date();
                 return (
-                  <div key={appt.id} style={{ background:'rgba(255,255,255,0.02)', border:`1px solid ${isPast?'rgba(255,255,255,0.05)':'rgba(184,147,58,0.2)'}`, borderRadius:'2px', padding:'16px', marginBottom:'10px', opacity:isPast?0.7:1 }}>
-                    <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
-                      <div>
-                        <div style={{ color:'#e8e0d0', fontWeight:'bold', fontSize:'14px', marginBottom:'4px' }}>{appt.title}</div>
-                        <div style={{ color:'#8a9ab8', fontSize:'11px' }}>{appt.scheduledAt ? fmtDateTimeLong(appt.scheduledAt) : ''} · {appt.durationMinutes} min</div>
-                        {appt.createdBy && <div style={{ color:'#6b7280', fontSize:'11px', marginTop:'2px' }}>booked by {appt.createdBy}</div>}
-                        {appt.notes && <div style={{ color:'#4a5568', fontSize:'11px', marginTop:'4px' }}>{appt.notes}</div>}
+                  <div key={appt.id} style={{ background:'rgba(255,255,255,0.02)', border:`1px solid ${isPast?'rgba(255,255,255,0.05)':'rgba(184,147,58,0.15)'}`, borderRadius:'2px', padding:'8px 10px', marginBottom:'5px', opacity:isPast?0.7:1 }}>
+                    <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:'8px' }}>
+                      <div style={{ minWidth:0 }}>
+                        <div style={{ color:'#c4cdd8', fontWeight:'bold', fontSize:'12px' }}>{appt.title}</div>
+                        <div style={{ color:'#8a9ab8', fontSize:'10px', marginTop:'2px' }}>{appt.scheduledAt ? fmtDateTimeLong(appt.scheduledAt) : ''} · {appt.durationMinutes}min{appt.createdBy ? ` · by ${appt.createdBy}` : ''}</div>
+                        {appt.notes && <div style={{ color:'#4a5568', fontSize:'10px', marginTop:'2px' }}>{appt.notes}</div>}
                       </div>
-                      <div style={{ display:'flex', gap:'8px', alignItems:'center' }}>
+                      <div style={{ display:'flex', gap:'5px', alignItems:'center', flexShrink:0 }}>
                         <select value={appt.status||'scheduled'} onChange={async e => { await AppointmentDB.update(appt.id,{status:e.target.value}); setAppts(await AppointmentDB.listForInvestor(user.id)); }}
-                          style={{ ...inp, width:'auto', fontSize:'11px', padding:'4px 8px', color:sc[appt.status||'scheduled'] }}>
+                          style={{ background:'rgba(255,255,255,0.05)', border:'1px solid rgba(255,255,255,0.12)', borderRadius:'2px', padding:'3px 6px', color:sc[appt.status||'scheduled'], fontSize:'10px', outline:'none', cursor:'pointer' }}>
                           {['scheduled','completed','cancelled','no-show'].map(s=><option key={s} value={s}>{s}</option>)}
                         </select>
                         <button onClick={async()=>{ if(window.confirm('Delete?')){ await AppointmentDB.delete(appt.id); setAppts(prev=>prev.filter(a=>a.id!==appt.id)); } }}
-                          style={{ background:'none', border:'none', color:'#ef444480', cursor:'pointer', fontSize:'16px', padding:'0' }}>×</button>
+                          style={{ background:'none', border:'none', color:'#ef444480', cursor:'pointer', fontSize:'13px', padding:'0' }}>×</button>
                       </div>
                     </div>
                   </div>
