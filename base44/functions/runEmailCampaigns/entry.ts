@@ -118,6 +118,15 @@ Deno.serve(async (req) => {
         try { allowedDays = JSON.parse(campaign.daysOfWeek || '[0,1,2,3,4,5,6]'); } catch {}
         if (!allowedDays.includes(etDay)) {
           console.log(`[runEmailCampaigns] Campaign "${campaign.name}" skipping, day ${etDay} not in schedule`);
+          // Find next allowed day and set nextSendAt to startHour on that day ET
+          if (allowedDays.length > 0) {
+            let daysAhead = 1;
+            while (!allowedDays.includes((etDay + daysAhead) % 7) && daysAhead <= 7) daysAhead++;
+            const nextDay = new Date(now);
+            nextDay.setUTCHours(startH + etOffsetHours, 0, 0, 0);
+            nextDay.setUTCDate(nextDay.getUTCDate() + daysAhead);
+            await base44.entities.EmailCampaign.update(campaign.id, { nextSendAt: nextDay.toISOString() }).catch(() => {});
+          }
           continue;
         }
 
@@ -126,6 +135,17 @@ Deno.serve(async (req) => {
         const endH = campaign.endHour ?? 17;
         if (etHour < startH || etHour >= endH) {
           console.log(`[runEmailCampaigns] Campaign "${campaign.name}" skipping, ET hour ${etHour} outside ${startH}-${endH}`);
+          // Set nextSendAt to the next window open time so UI shows the correct time
+          const nextWindowOpen = new Date(now);
+          if (etHour >= endH) {
+            // Past end of window today — schedule for startH tomorrow ET
+            nextWindowOpen.setUTCHours(startH + etOffsetHours, 0, 0, 0);
+            nextWindowOpen.setUTCDate(nextWindowOpen.getUTCDate() + 1);
+          } else {
+            // Before window opens today — schedule for startH today ET
+            nextWindowOpen.setUTCHours(startH + etOffsetHours, 0, 0, 0);
+          }
+          await base44.entities.EmailCampaign.update(campaign.id, { nextSendAt: nextWindowOpen.toISOString() }).catch(() => {});
           continue;
         }
 
