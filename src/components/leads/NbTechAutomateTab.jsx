@@ -283,16 +283,56 @@ function CampaignCard({ campaign, onRefresh }) {
     setActing(true);
     try {
       if (action === 'activate') {
-        const nextSend = new Date().toISOString(); // fire immediately on first activation
+        // Calculate next valid send time based on ET window
+        const now = new Date();
+        const etOffsetMs = 4 * 60 * 60 * 1000; // EDT = UTC-4
+        const etNow = new Date(now.getTime() - etOffsetMs);
+        const etHour = etNow.getUTCHours();
+        const startH = campaign.startHour ?? 8;
+        const endH = campaign.endHour ?? 17;
+
+        let nextSend;
+        if (etHour >= startH && etHour < endH) {
+          // Currently inside the window — fire immediately
+          nextSend = now.toISOString();
+        } else {
+          // Outside window — schedule for next startHour ET
+          const next = new Date(now);
+          next.setUTCMinutes(0, 0, 0);
+          if (etHour >= endH) {
+            // Past end today — schedule for startH tomorrow
+            next.setUTCHours(startH + 4);
+            next.setUTCDate(next.getUTCDate() + 1);
+          } else {
+            // Before start today
+            next.setUTCHours(startH + 4);
+          }
+          nextSend = next.toISOString();
+        }
+
         await base44.entities.EmailCampaign.update(campaign.id, {
           status: 'active',
-          startedAt: campaign.startedAt || new Date().toISOString(),
+          startedAt: campaign.startedAt || now.toISOString(),
           nextSendAt: nextSend,
         });
       } else if (action === 'pause') {
         await base44.entities.EmailCampaign.update(campaign.id, { status: 'paused' });
       } else if (action === 'resume') {
-        await base44.entities.EmailCampaign.update(campaign.id, { status: 'active', nextSendAt: new Date().toISOString() });
+        const now = new Date();
+        const etHour = new Date(now.getTime() - 4 * 3600000).getUTCHours();
+        const startH = campaign.startHour ?? 8;
+        const endH = campaign.endHour ?? 17;
+        let nextSend;
+        if (etHour >= startH && etHour < endH) {
+          nextSend = now.toISOString();
+        } else {
+          const next = new Date(now);
+          next.setUTCMinutes(0, 0, 0);
+          next.setUTCHours(startH + 4);
+          if (etHour >= endH) next.setUTCDate(next.getUTCDate() + 1);
+          nextSend = next.toISOString();
+        }
+        await base44.entities.EmailCampaign.update(campaign.id, { status: 'active', nextSendAt: nextSend });
       } else if (action === 'cancel') {
         if (!window.confirm('Cancel this campaign? Leads already sent will keep their badge.')) { setActing(false); return; }
         await base44.entities.EmailCampaign.update(campaign.id, { status: 'cancelled' });
