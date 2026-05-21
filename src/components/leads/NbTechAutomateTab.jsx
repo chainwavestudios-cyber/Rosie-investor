@@ -109,8 +109,13 @@ function CreateCampaignForm({ onCreated, currentUsername }) {
       const list = contactLists.find(l => l.id === form.contactListId);
       const leadIds = previewLeads.map(l => l.id);
 
-      // Calculate end date
-      const endsAt = new Date(Date.now() + form.durationDays * 24 * 60 * 60 * 1000).toISOString();
+      // Calculate end date: last day at endHour ET (UTC-4)
+      const endsAt = (() => {
+        const d = new Date();
+        d.setUTCDate(d.getUTCDate() + form.durationDays);
+        d.setUTCHours(form.endHour + 4, 0, 0, 0); // endHour ET → UTC
+        return d.toISOString();
+      })();
 
       await base44.entities.EmailCampaign.create({
         name: form.name.trim(),
