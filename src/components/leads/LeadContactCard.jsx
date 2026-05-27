@@ -190,6 +190,7 @@ function OverviewTab({ editLead, setEditLead, saving, saveMsg, saveProfile, upda
               {editLead.badgeIntroEmailOpened && (<span style={{ background:'rgba(96,165,250,0.1)', border:'1px solid rgba(96,165,250,0.25)', borderRadius:'10px', padding:'2px 8px', color:'#60a5fa', fontSize:'10px', whiteSpace:'nowrap' }}>🌟 Intro Opened ✅</span>)}
               {editLead.badgeConsumerWebsite && (<span style={{ background:'rgba(96,165,250,0.1)', border:'1px solid rgba(96,165,250,0.25)', borderRadius:'10px', padding:'2px 8px', color:'#60a5fa', fontSize:'10px', whiteSpace:'nowrap' }}>🛒 Consumer ✅</span>)}
               {editLead.badgeInvestorPage && (<span style={{ background:'rgba(96,165,250,0.1)', border:'1px solid rgba(96,165,250,0.25)', borderRadius:'10px', padding:'2px 8px', color:'#60a5fa', fontSize:'10px', whiteSpace:'nowrap' }}>📈 Investor Page ✅</span>)}
+              {editLead.badgeNbtechEmail && (<span style={{ background:'rgba(129,140,248,0.12)', border:'1px solid rgba(129,140,248,0.35)', borderRadius:'10px', padding:'2px 8px', color:'#818cf8', fontSize:'10px', whiteSpace:'nowrap' }}>💡 NB Tech Email ✅</span>)}
             </div>
             {!isArchived && (
               <button onClick={() => setEditing(e => !e)}

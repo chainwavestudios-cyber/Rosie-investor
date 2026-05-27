@@ -120,7 +120,7 @@ async function processRequest(base44, email, name, leadId) {
 
   if (leadId) {
     await base44.asServiceRole.entities.Lead.update(leadId, {
-      leadType: 'nb_data',
+      leadType: 'nb_tech',
       leadPipelineStage: 'data_room_request',
       badgeInvestorPage: true,
       badgeDataRoomRequest: true,
@@ -129,7 +129,7 @@ async function processRequest(base44, email, name, leadId) {
     await base44.asServiceRole.entities.LeadHistory.create({
       leadId,
       type: 'note',
-      content: `🔐 Data Room Access Requested by ${displayName} (${email}) — clicked email button. Lead type set to NB Data, moved to Data Room Request pipeline stage.`,
+      content: `🔐 Data Room Access Requested by ${displayName} (${email}) — clicked email button. Lead type set to NB Tech, moved to Data Room Request pipeline stage.`,
       createdBy: 'system',
     }).catch(() => {});
 

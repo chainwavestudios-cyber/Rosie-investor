@@ -245,11 +245,13 @@ export default function LeadPipeline({ onOpenLead, mockLeads = null }) {
         base44.entities.LeadHistory.list('-created_date', 100).catch(() => []),
       ]);
 
-      // Filter: only non-migrated, non-converted, and either prospect status OR nb_tech leadType
+      // Filter: only non-migrated, non-converted leads with a pipeline role
+      // Prospect pipeline: status === 'prospect' AND leadType is NOT nb_tech
+      // NB Tech pipeline: leadType === 'nb_tech' (regardless of status)
       const merged = (allLeads || []).filter(l =>
-        !l.migratedToPortal && 
+        !l.migratedToPortal &&
         !l.convertedToInvestorUserId &&
-        (l.status === 'prospect' || l.leadType === 'nb_tech')
+        (l.leadType === 'nb_tech' || l.status === 'prospect')
       );
 
       // Attach last call duration
