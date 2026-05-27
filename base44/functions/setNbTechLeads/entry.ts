@@ -5,26 +5,22 @@ Deno.serve(async (req) => {
 
   // Target leads by email or name
   const targets = [
-    { email: 'Brennanm@Mskcc.Org', name: 'Murray Brennan' },
-    { email: 'fbazan@centric.org', name: 'Frank Bazan' },
-    { email: 'tomw@centralcm.com', name: 'Tom Winfough' },
-    { email: 'peter@ieenterprises.com', name: 'Peter Foy' },
-    { email: 'jimpshock@hotmail.com', name: 'James PSchock' },
+    { email: 'greg.finidley@cushwake.com', name: 'Greg Findley' },
+    { email: 'joe@steelaz.com', name: 'Parsons Joe' },
+    { email: 'jeffrey_elliott0601@hotmail.com', name: 'Jeffrey Elliott' },
+    { email: 'jeffsautobody1@comcast.net', name: 'Jeff Aguilar' },
+    { email: 'hifunction1@aol.com', name: 'Walter Schindler' },
     { email: 'ichachami@yahoo.com', name: 'Ilan Chachami' },
     { email: 'wesaul@aol.com', name: 'William Saul' },
-    { email: 'jonahthanhenz72@aol.com', name: 'Jonathan Hendrix' },
-    { email: 'fmetoyer@gmail.com', name: 'Frederick Metoyer' },
-    { email: 'stephcle440@outlook.com', name: 'stephani scheidt' },
-    { email: 'jlcanddesign@gmail.com', name: 'Leonardo John' },
-    { email: 'cw4shock@aol.com', name: 'Stephen Shockey' },
-    { email: 'elitecryptotrader@proton.me', name: 'Test test' },
-    // No email — match by name fragments
-    { name: 'Martin Estrin' },
-    { name: 'Daniel Joseph George' },
-    { name: 'Greg Theisen' },
-    { name: 'Johnathan Hendrix' },
-    { name: 'Fredrick Metoyer' },
-    { name: 'Gregory Pakratz' },
+    { email: 'kennedyg6767@gmail.com', name: 'Gerald Kennedy' },
+    { email: 'vickers1@cox.net', name: 'Scott Vickers' },
+    { email: 'dgeorge@1stnet.biz', name: 'Daniel Joseph George' },
+    { email: 'writemarty@att.net', name: 'Martin Estrin' },
+    { email: 'scotte@esc.com', name: 'Scott Ewell' },
+    { email: 'kj@daumcre.com', name: 'Kirk Jenkins' },
+    { email: 'r.steiner@louisville.edu', name: 'Rob Steiner' },
+    // No email — match by name
+    { name: 'Robert Giampino' },
   ];
 
   const allLeads = await base44Admin.entities.Lead.list('-created_date', 5000);
