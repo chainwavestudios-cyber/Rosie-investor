@@ -329,13 +329,10 @@ export default function LeadPipeline({ onOpenLead, mockLeads = null }) {
 
   // Filter leads: show all prospect OR nb_tech leads regardless of status
   const visibleLeads = leads.filter(l => {
-    if (currentPipelineType === 'nb_tech') {
-      // NB Tech pipeline: show ALL nb_tech leads regardless of owner
-      return l.leadType === 'nb_tech';
-    }
-    // Prospect pipeline: filter by owner and exclude nb_tech
     const owner = l.leadPipelineOwner || 'admin';
     if (owner !== viewOwner) return false;
+    if (currentPipelineType === 'nb_tech') return l.leadType === 'nb_tech';
+    // Prospect pipeline: show all leads that aren't explicitly nb_tech
     return l.leadType !== 'nb_tech';
   });
 
