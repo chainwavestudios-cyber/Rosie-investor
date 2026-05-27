@@ -12,16 +12,13 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 
 Deno.serve(async (req) => {
-  const base44 = createClientFromRequest(req);
-  const user = await base44.auth.me();
-  if (user?.role !== 'admin') {
-    return Response.json({ error: 'Admin only' }, { status: 403 });
-  }
+  const base44Admin = createClientFromRequest(req).asServiceRole;
 
-  const base44Admin = base44.asServiceRole;
+  // Find all leads tagged nb_tech but WITHOUT a real data room request badge
+  // AND updated today (these are the ones incorrectly set by the previous bug)
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
 
-  // Find all leads tagged nb_tech but without a real data room request
-  let page = 0;
   const pageSize = 500;
   let totalFixed = 0;
   const fixed = [];
@@ -29,24 +26,27 @@ Deno.serve(async (req) => {
   while (true) {
     const leads = await base44Admin.entities.Lead.filter(
       { leadType: 'nb_tech', badgeDataRoomRequest: false },
-      '-created_date',
+      '-updated_date',
       pageSize
     );
 
+    // Only process leads updated today
+    const todayLeads = (leads || []).filter(l => new Date(l.updated_date) >= todayStart);
+
     if (!leads || leads.length === 0) break;
 
-    for (const lead of leads) {
+    for (const lead of todayLeads) {
       await base44Admin.entities.Lead.update(lead.id, {
         leadType: 'standard',
         leadPipelineOwner: null,
         leadPipelineStage: null,
       });
-      fixed.push({ id: lead.id, name: `${lead.firstName} ${lead.lastName}` });
+      fixed.push({ id: lead.id, name: `${lead.firstName} ${lead.lastName}`, email: lead.email });
       totalFixed++;
     }
 
-    if (leads.length < pageSize) break;
-    page++;
+    // Stop if no more today-leads in this batch
+    if (todayLeads.length < leads.length || leads.length < pageSize) break;
   }
 
   console.log(`[fixNbTechLeadTypes] Reset ${totalFixed} leads back to standard`);
