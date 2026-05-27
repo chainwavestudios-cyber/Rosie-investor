@@ -329,12 +329,13 @@ export default function LeadPipeline({ onOpenLead, mockLeads = null }) {
   const viewOwner = pipelineView === 'mine' ? currentUsername : otherUsername;
   const currentPipelineType = pipelineTypes[viewOwner] || 'prospect';
 
-  // Filter leads: show all prospect OR nb_tech leads regardless of status
+  // Filter leads:
+  // NB Tech pipeline: show ALL nb_tech leads regardless of owner (shared pipeline)
+  // Prospect pipeline: show only leads owned by the current view user
   const visibleLeads = leads.filter(l => {
+    if (currentPipelineType === 'nb_tech') return l.leadType === 'nb_tech';
     const owner = l.leadPipelineOwner || 'admin';
     if (owner !== viewOwner) return false;
-    if (currentPipelineType === 'nb_tech') return l.leadType === 'nb_tech';
-    // Prospect pipeline: show all leads that aren't explicitly nb_tech
     return l.leadType !== 'nb_tech';
   });
 
@@ -344,9 +345,9 @@ export default function LeadPipeline({ onOpenLead, mockLeads = null }) {
 
   // Count helpers for tab badges
   const countFor = (username, type) => leads.filter(l => {
+    if (type === 'nb_tech') return l.leadType === 'nb_tech'; // shared, not per-user
     const owner = l.leadPipelineOwner || 'admin';
     if (owner !== username) return false;
-    if (type === 'nb_tech') return l.leadType === 'nb_tech';
     return l.leadType !== 'nb_tech';
   }).length;
 
@@ -401,7 +402,7 @@ export default function LeadPipeline({ onOpenLead, mockLeads = null }) {
       {/* ── Title ── */}
       <div style={{ marginBottom: '16px' }}>
         <h2 style={{ color: '#e8e0d0', margin: '0 0 3px', fontSize: '18px', fontWeight: 'normal' }}>
-          {currentPipelineType === 'nb_tech' ? '💡 NB Tech Pipeline' : '🚀 Prospect Pipeline'} — {viewOwner === currentUsername ? (currentUsername === 'steph' ? 'Steph' : 'Admin') : (otherUsername === 'steph' ? 'Steph' : 'Admin')}
+          {currentPipelineType === 'nb_tech' ? '💡 NB Tech Pipeline' : `🚀 Prospect Pipeline — ${viewOwner === currentUsername ? (currentUsername === 'steph' ? 'Steph' : 'Admin') : (otherUsername === 'steph' ? 'Steph' : 'Admin')}`}
         </h2>
         <p style={{ color: '#6b7280', fontSize: '12px', margin: 0 }}>
           Drag cards between stages · {visibleLeads.length} leads · Click stage name to rename
