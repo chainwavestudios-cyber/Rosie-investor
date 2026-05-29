@@ -62,7 +62,7 @@ Deno.serve(async (req) => {
 
     // ── Mode 1: Direct outbound dial ────────────────────────────────────
     const appId = Deno.env.get('BASE44_APP_ID') || '';
-    const vmWebhookBase = `https://run.base44.com/apps/${appId}/functions/voicemailWebhook`;
+    const vmWebhookBase = `https://investors.rosieai.tech/functions/voicemailWebhook`;
 
     // Detect inbound: To matches our own Twilio number (not a dial target)
     const ownNumbers = [
