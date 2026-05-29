@@ -106,7 +106,7 @@ Deno.serve(async (req) => {
     const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Dial timeout="20" action="${vmWebhookBase}?noAnswer=true" method="POST">
-    <Client statusCallbackEvent="initiated ringing answered completed" statusCallback="${vmWebhookBase}">agent</Client>
+    <Client>agent</Client>
   </Dial>
 </Response>`;
     console.log('[dialerVoiceHandler] → Mode 4 Inbound → routing to browser client (to:', to, 'called:', called, ')');
