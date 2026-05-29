@@ -18,9 +18,18 @@ Deno.serve(async (req) => {
       { ...opts, headers: { 'Authorization': `Bearer ${SERVICE_TOKEN}`, 'Content-Type': 'application/json', ...(opts.headers || {}) } }
     );
     const b44Filter = async (entity, filters) => {
-      const r = await b44Fetch(`${entity}?filters=${encodeURIComponent(JSON.stringify(filters))}`);
-      const d = await r.json();
-      return Array.isArray(d) ? d : (d?.items || []);
+      const query = Object.keys(filters).length > 0
+        ? `?filters=${encodeURIComponent(JSON.stringify(filters))}`
+        : '';
+      const r = await b44Fetch(`${entity}${query}`);
+      const text = await r.text();
+      try {
+        const d = JSON.parse(text);
+        return Array.isArray(d) ? d : (d?.items || []);
+      } catch {
+        console.log(`[b44Filter] Non-JSON response for ${entity}:`, text.slice(0, 100));
+        return [];
+      }
     };
     const b44Create = (entity, data) => b44Fetch(entity, { method: 'POST', body: JSON.stringify(data) });
     const b44Update = (entity, id, data) => b44Fetch(`${entity}/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
@@ -58,9 +67,9 @@ Deno.serve(async (req) => {
         const r = await b44Filter('PortalSettings', {});
         clearTimeout(timer);
         const settings = r?.[0];
-        if (settings?.vmAudioUrl) {
-          greetingTwiml = `<Play>${settings.vmAudioUrl}</Play>`;
-        } else if (settings?.vmGreeting) {
+        if (settings?.vmAudioUrl && settings.vmAudioUrl.trim()) {
+          greetingTwiml = `<Play>${settings.vmAudioUrl.trim()}</Play>`;
+        } else if (settings?.vmGreeting && settings.vmGreeting.trim()) {
           greetingTwiml = `<Say voice="alice">${settings.vmGreeting}</Say>`;
         }
       } catch (e) {
