@@ -100,7 +100,7 @@ function EventPopup({ evt, onClose, onOpenCard, onOpenLeadCard }) {
               ❌ Cancel Meeting
             </button>
           )}
-          <button onClick={() => { onClose(); onOpenCard(evt); }}
+          <button onClick={() => { onOpenCard(evt); onClose(); }}
             style={{ background: `rgba(184,147,58,0.15)`, color: GOLD, border: `1px solid rgba(184,147,58,0.35)`, borderRadius: '6px', padding: '10px', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px' }}>
             👤 {isInvestor ? 'Investor Contact Card' : 'Lead Contact Card'}
           </button>
@@ -160,12 +160,15 @@ export default function GlobalCalendar({ users = [], setContactCard, setView, se
 
   const handleOpenCardFromPopup = (evt) => {
     if (evt.type === 'investor') {
-      const investorUserId = evt.raw?.investorId || evt.id;
+      const investorUserId = evt.raw?.investorId;
+      if (!investorUserId) return;
       const u = users.find(u => u.id === investorUserId);
       if (u) { setContactCard(u); }
-      else { base44.entities.InvestorUser.filter({id:investorUserId}).then(rows => { if (rows?.[0]) setContactCard(rows[0]); }).catch(()=>{}); }
+      else { base44.entities.InvestorUser.filter({ id: investorUserId }).then(rows => { if (rows?.[0]) setContactCard(rows[0]); }).catch(() => {}); }
     } else if (evt.type === 'lead') {
-      setOpenLeadId(evt.id); setView('leads');
+      // Lead events use the lead id directly
+      setView('leads');
+      setOpenLeadId(evt.id);
     }
   };
 
