@@ -2,35 +2,50 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { base44 } from '@/api/base44Client';
 import { fmtDateTime, fmtDate, fmtDateTimeShort } from '@/lib/fmtDate.js';
 
-const DEFAULT_VM_GREETING = "Hi, you've reached us. We're unavailable right now. Please leave your message after the beep and we'll call you back shortly.";
+const DEFAULT_VM_GREETING = "Hi, you've reached Newport Beach Tech Acquisitions. We're unavailable right now. Please leave your message after the beep and we'll call you back shortly.";
+const GOLD = '#b8933a';
+const DARK = '#080f1c';
+const NUMBER_TO_AGENT = {};
 
+function formatDur(sec) {
+  if (!sec || sec < 1) return '—';
+  const m = Math.floor(sec / 60), s = sec % 60;
+  return m > 0 ? `${m}m ${s}s` : `${s}s`;
+}
+
+const STATUS_COLORS = {
+  answered:    { color: '#4ade80', bg: 'rgba(74,222,128,0.12)',  icon: '📞' },
+  completed:   { color: '#4ade80', bg: 'rgba(74,222,128,0.08)',  icon: '✅' },
+  missed:      { color: '#ef4444', bg: 'rgba(239,68,68,0.12)',   icon: '📵' },
+  voicemail:   { color: '#f59e0b', bg: 'rgba(245,158,11,0.12)',  icon: '📩' },
+  ringing:     { color: '#60a5fa', bg: 'rgba(96,165,250,0.08)',  icon: '🔔' },
+  'no-answer': { color: '#ef4444', bg: 'rgba(239,68,68,0.12)',   icon: '📵' },
+};
+
+// ── Voicemail Settings Tab ───────────────────────────────────────────────────
+// Also syncs vmAudioUrl/vmGreeting to env-readable format for the webhook.
 function VoicemailSettingsTab() {
-  const [greetingMode, setGreetingMode] = useState('text'); // 'text' | 'recording'
-  const [greeting, setGreeting] = useState('');
-  const [vmAudioUrl, setVmAudioUrl] = useState(''); // stored recorded greeting URL
-  const [saving, setSaving] = useState(false);
-  const [msg, setMsg] = useState('');
-  const [settingsId, setSettingsId] = useState(null);
-
-  // Recording state
-  const [recording, setRecording] = useState(false);
+  const [greetingMode, setGreetingMode] = useState('text');
+  const [greeting, setGreeting]         = useState('');
+  const [vmAudioUrl, setVmAudioUrl]     = useState('');
+  const [saving, setSaving]             = useState(false);
+  const [msg, setMsg]                   = useState('');
+  const [settingsId, setSettingsId]     = useState(null);
+  const [recording, setRecording]       = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
-  const [audioBlob, setAudioBlob] = useState(null);
+  const [audioBlob, setAudioBlob]       = useState(null);
   const [audioPreviewUrl, setAudioPreviewUrl] = useState('');
-  const [uploading, setUploading] = useState(false);
+  const [uploading, setUploading]       = useState(false);
   const mediaRecorderRef = useRef(null);
-  const chunksRef = useRef([]);
-  const timerRef = useRef(null);
+  const chunksRef        = useRef([]);
+  const timerRef         = useRef(null);
 
   useEffect(() => {
     base44.entities.PortalSettings.filter({ key: 'main' }).then(rows => {
       if (rows?.[0]) {
         setSettingsId(rows[0].id);
         setGreeting(rows[0].vmGreeting || '');
-        if (rows[0].vmAudioUrl) {
-          setVmAudioUrl(rows[0].vmAudioUrl);
-          setGreetingMode('recording');
-        }
+        if (rows[0].vmAudioUrl) { setVmAudioUrl(rows[0].vmAudioUrl); setGreetingMode('recording'); }
       }
     }).catch(() => {});
   }, []);
@@ -48,17 +63,10 @@ function VoicemailSettingsTab() {
       setAudioPreviewUrl(URL.createObjectURL(blob));
     };
     mr.start();
-    setRecording(true);
-    setRecordingTime(0);
+    setRecording(true); setRecordingTime(0);
     timerRef.current = setInterval(() => setRecordingTime(t => t + 1), 1000);
   };
-
-  const stopRecording = () => {
-    mediaRecorderRef.current?.stop();
-    clearInterval(timerRef.current);
-    setRecording(false);
-  };
-
+  const stopRecording = () => { mediaRecorderRef.current?.stop(); clearInterval(timerRef.current); setRecording(false); };
   const uploadRecording = async () => {
     if (!audioBlob) return;
     setUploading(true); setMsg('');
@@ -76,7 +84,7 @@ function VoicemailSettingsTab() {
     setSaving(true); setMsg('');
     try {
       const updates = greetingMode === 'recording'
-        ? { vmAudioUrl: vmAudioUrl, vmGreeting: '' }
+        ? { vmAudioUrl, vmGreeting: '' }
         : { vmGreeting: greeting, vmAudioUrl: '' };
       if (settingsId) {
         await base44.entities.PortalSettings.update(settingsId, updates);
@@ -84,176 +92,155 @@ function VoicemailSettingsTab() {
         const created = await base44.entities.PortalSettings.create({ key: 'main', ...updates });
         setSettingsId(created.id);
       }
-      setMsg('✅ Saved');
+      setMsg('✅ Saved. ⚠️ Also update VM_AUDIO_URL or VM_GREETING_TEXT env vars in Base44 to apply to inbound calls.');
     } catch (e) { setMsg('❌ ' + e.message); }
     setSaving(false);
-    setTimeout(() => setMsg(''), 3000);
+    setTimeout(() => setMsg(''), 6000);
   };
 
-  const fmtTime = (s) => `${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;
+  const fmtTime = s => `${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;
+  const btn = (active, onClick, children, extra={}) => (
+    <button onClick={onClick} style={{ flex:1, padding:'7px', background: active ? `${GOLD}22` : 'rgba(255,255,255,0.04)', border:`1px solid ${active ? GOLD+'66' : 'rgba(255,255,255,0.1)'}`, color: active ? GOLD : '#6b7280', borderRadius:'4px', cursor:'pointer', fontSize:'11px', fontWeight: active ? 'bold' : 'normal', ...extra }}>{children}</button>
+  );
 
   return (
-    <div style={{ padding: '16px', overflowY: 'auto', flex: 1 }}>
-      <div style={{ color: GOLD, fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '12px' }}>📩 Voicemail Settings</div>
-
-      <div style={{ background: 'rgba(245,158,11,0.06)', border: '1px solid rgba(245,158,11,0.2)', borderRadius: '4px', padding: '10px 12px', marginBottom: '14px', fontSize: '11px', color: '#8a9ab8', display: 'flex', gap: '8px' }}>
+    <div style={{ padding:'16px', overflowY:'auto', flex:1 }}>
+      <div style={{ color:GOLD, fontSize:'10px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'12px' }}>⚙️ Voicemail Greeting</div>
+      <div style={{ background:'rgba(245,158,11,0.06)', border:'1px solid rgba(245,158,11,0.2)', borderRadius:'4px', padding:'10px 12px', marginBottom:'14px', fontSize:'11px', color:'#8a9ab8', display:'flex', gap:'8px' }}>
         <span>ℹ️</span>
-        <div>Inbound calls ring for <strong style={{ color: '#f59e0b' }}>~4 rings (20 seconds)</strong>, then go to voicemail.</div>
+        <div>Inbound calls ring for <strong style={{ color:'#f59e0b' }}>~4 rings (20s)</strong>, then go to voicemail. After saving here, also update <code style={{ background:'rgba(255,255,255,0.06)', padding:'1px 5px', borderRadius:'3px' }}>VM_AUDIO_URL</code> or <code style={{ background:'rgba(255,255,255,0.06)', padding:'1px 5px', borderRadius:'3px' }}>VM_GREETING_TEXT</code> env vars in Base44 for the change to take effect on inbound calls.</div>
       </div>
-
-      {/* Mode toggle */}
-      <div style={{ display: 'flex', gap: '6px', marginBottom: '14px' }}>
-        {[['text', '✏️ Text-to-Speech'], ['recording', '🎙 Voice Recording']].map(([m, label]) => (
-          <button key={m} onClick={() => setGreetingMode(m)}
-            style={{ flex: 1, padding: '7px', background: greetingMode === m ? `${GOLD}22` : 'rgba(255,255,255,0.04)', border: `1px solid ${greetingMode === m ? GOLD + '66' : 'rgba(255,255,255,0.1)'}`, color: greetingMode === m ? GOLD : '#6b7280', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', fontWeight: greetingMode === m ? 'bold' : 'normal' }}>
-            {label}
-          </button>
-        ))}
+      <div style={{ display:'flex', gap:'6px', marginBottom:'14px' }}>
+        {btn(greetingMode==='text', ()=>setGreetingMode('text'), '✏️ Text-to-Speech')}
+        {btn(greetingMode==='recording', ()=>setGreetingMode('recording'), '🎙 Voice Recording')}
       </div>
-
-      {/* Text mode */}
       {greetingMode === 'text' && (
         <>
-          <div style={{ marginBottom: '10px' }}>
-            <label style={{ display: 'block', color: '#8a9ab8', fontSize: '9px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '5px' }}>Greeting Text (read by Twilio)</label>
-            <textarea
-              value={greeting}
-              onChange={e => setGreeting(e.target.value)}
-              placeholder={DEFAULT_VM_GREETING}
-              rows={4}
-              style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '4px', padding: '8px 10px', color: '#e8e0d0', fontSize: '12px', outline: 'none', resize: 'vertical', boxSizing: 'border-box', fontFamily: 'Georgia, serif', lineHeight: 1.5 }}
-            />
-            <div style={{ color: '#4a5568', fontSize: '10px', marginTop: '4px' }}>Leave blank to use the default greeting.</div>
-          </div>
-          <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '4px', padding: '8px 10px', marginBottom: '12px' }}>
-            <div style={{ color: '#4a5568', fontSize: '9px', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '4px' }}>Preview</div>
-            <div style={{ color: '#c4cdd8', fontSize: '11px', fontStyle: 'italic', lineHeight: 1.5 }}>"{greeting || DEFAULT_VM_GREETING}"</div>
+          <label style={{ display:'block', color:'#8a9ab8', fontSize:'9px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'5px' }}>Greeting Text</label>
+          <textarea value={greeting} onChange={e=>setGreeting(e.target.value)} placeholder={DEFAULT_VM_GREETING} rows={4}
+            style={{ width:'100%', background:'rgba(255,255,255,0.05)', border:'1px solid rgba(255,255,255,0.12)', borderRadius:'4px', padding:'8px 10px', color:'#e8e0d0', fontSize:'12px', outline:'none', resize:'vertical', boxSizing:'border-box', fontFamily:'Georgia, serif', lineHeight:1.5 }} />
+          <div style={{ background:'rgba(255,255,255,0.02)', border:'1px solid rgba(255,255,255,0.06)', borderRadius:'4px', padding:'8px 10px', margin:'10px 0' }}>
+            <div style={{ color:'#4a5568', fontSize:'9px', textTransform:'uppercase', letterSpacing:'1px', marginBottom:'4px' }}>Preview</div>
+            <div style={{ color:'#c4cdd8', fontSize:'11px', fontStyle:'italic', lineHeight:1.5 }}>"{greeting || DEFAULT_VM_GREETING}"</div>
           </div>
         </>
       )}
-
-      {/* Voice recording mode */}
       {greetingMode === 'recording' && (
-        <div style={{ marginBottom: '12px' }}>
-          <label style={{ display: 'block', color: '#8a9ab8', fontSize: '9px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '10px' }}>Record Your Greeting</label>
-
-          {/* Recorder controls */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
+        <div style={{ marginBottom:'12px' }}>
+          <label style={{ display:'block', color:'#8a9ab8', fontSize:'9px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'10px' }}>Record Your Greeting</label>
+          <div style={{ display:'flex', alignItems:'center', gap:'10px', marginBottom:'12px' }}>
             {!recording ? (
-              <button onClick={startRecording}
-                style={{ background: 'rgba(239,68,68,0.15)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.4)', borderRadius: '50%', width: '44px', height: '44px', cursor: 'pointer', fontSize: '18px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
-                title="Start recording">
-                🎙
-              </button>
+              <button onClick={startRecording} style={{ background:'rgba(239,68,68,0.15)', color:'#ef4444', border:'1px solid rgba(239,68,68,0.4)', borderRadius:'50%', width:'44px', height:'44px', cursor:'pointer', fontSize:'18px', display:'flex', alignItems:'center', justifyContent:'center' }}>🎙</button>
             ) : (
-              <button onClick={stopRecording}
-                style={{ background: 'rgba(239,68,68,0.25)', color: '#ef4444', border: '2px solid #ef4444', borderRadius: '50%', width: '44px', height: '44px', cursor: 'pointer', fontSize: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, animation: 'linePulse 1s ease-in-out infinite' }}
-                title="Stop recording">
-                ⏹
-              </button>
+              <button onClick={stopRecording} style={{ background:'rgba(239,68,68,0.25)', color:'#ef4444', border:'2px solid #ef4444', borderRadius:'50%', width:'44px', height:'44px', cursor:'pointer', fontSize:'14px', display:'flex', alignItems:'center', justifyContent:'center' }}>⏹</button>
             )}
-            {recording && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#ef4444', animation: 'linePulse 1s ease-in-out infinite' }} />
-                <span style={{ color: '#ef4444', fontFamily: 'monospace', fontSize: '14px', fontWeight: 'bold' }}>{fmtTime(recordingTime)}</span>
-                <span style={{ color: '#6b7280', fontSize: '11px' }}>Recording… click ⏹ to stop</span>
-              </div>
-            )}
-            {!recording && recordingTime === 0 && !audioBlob && (
-              <span style={{ color: '#6b7280', fontSize: '11px' }}>Click 🎙 to start recording your greeting</span>
-            )}
+            {recording && <><div style={{ width:'8px', height:'8px', borderRadius:'50%', background:'#ef4444' }} /><span style={{ color:'#ef4444', fontFamily:'monospace', fontSize:'14px', fontWeight:'bold' }}>{fmtTime(recordingTime)}</span></>}
+            {!recording && !audioBlob && <span style={{ color:'#6b7280', fontSize:'11px' }}>Click 🎙 to record</span>}
           </div>
-
-          {/* Preview recorded audio */}
           {audioPreviewUrl && !recording && (
-            <div style={{ background: 'rgba(74,222,128,0.06)', border: '1px solid rgba(74,222,128,0.2)', borderRadius: '4px', padding: '10px 12px', marginBottom: '10px' }}>
-              <div style={{ color: '#4ade80', fontSize: '10px', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '6px' }}>New Recording Preview</div>
-              <audio src={audioPreviewUrl} controls style={{ width: '100%', height: '32px' }} />
-              <button onClick={uploadRecording} disabled={uploading}
-                style={{ marginTop: '8px', background: uploading ? 'rgba(74,222,128,0.1)' : 'rgba(74,222,128,0.2)', color: '#4ade80', border: '1px solid rgba(74,222,128,0.4)', borderRadius: '4px', padding: '5px 16px', cursor: uploading ? 'not-allowed' : 'pointer', fontSize: '11px', fontWeight: 'bold' }}>
+            <div style={{ background:'rgba(74,222,128,0.06)', border:'1px solid rgba(74,222,128,0.2)', borderRadius:'4px', padding:'10px 12px', marginBottom:'10px' }}>
+              <div style={{ color:'#4ade80', fontSize:'10px', letterSpacing:'1px', textTransform:'uppercase', marginBottom:'6px' }}>New Recording</div>
+              <audio src={audioPreviewUrl} controls style={{ width:'100%', height:'32px' }} />
+              <button onClick={uploadRecording} disabled={uploading} style={{ marginTop:'8px', background:'rgba(74,222,128,0.2)', color:'#4ade80', border:'1px solid rgba(74,222,128,0.4)', borderRadius:'4px', padding:'5px 16px', cursor:'pointer', fontSize:'11px', fontWeight:'bold' }}>
                 {uploading ? '⏳ Uploading…' : '⬆ Use This Recording'}
               </button>
             </div>
           )}
-
-          {/* Currently saved recording */}
           {vmAudioUrl && (
-            <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '4px', padding: '10px 12px', marginBottom: '10px' }}>
-              <div style={{ color: '#4a5568', fontSize: '9px', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '6px' }}>Current Saved Greeting</div>
-              <audio src={vmAudioUrl} controls style={{ width: '100%', height: '32px' }} />
-              <button onClick={() => { setVmAudioUrl(''); setAudioBlob(null); setAudioPreviewUrl(''); }}
-                style={{ marginTop: '6px', background: 'none', color: '#ef4444', border: 'none', cursor: 'pointer', fontSize: '10px' }}>
-                🗑 Remove Recording
-              </button>
+            <div style={{ background:'rgba(255,255,255,0.02)', border:'1px solid rgba(255,255,255,0.08)', borderRadius:'4px', padding:'10px 12px', marginBottom:'10px' }}>
+              <div style={{ color:'#4a5568', fontSize:'9px', textTransform:'uppercase', letterSpacing:'1px', marginBottom:'6px' }}>Current Saved Greeting</div>
+              <audio src={vmAudioUrl} controls style={{ width:'100%', height:'32px' }} />
+              <button onClick={()=>{ setVmAudioUrl(''); setAudioBlob(null); setAudioPreviewUrl(''); }} style={{ marginTop:'6px', background:'none', color:'#ef4444', border:'none', cursor:'pointer', fontSize:'10px' }}>🗑 Remove</button>
             </div>
           )}
         </div>
       )}
-
-      <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-        <button onClick={save} disabled={saving || (greetingMode === 'recording' && !vmAudioUrl)}
-          style={{ background: (saving || (greetingMode === 'recording' && !vmAudioUrl)) ? 'rgba(184,147,58,0.3)' : 'linear-gradient(135deg,#b8933a,#d4aa50)', color: DARK, border: 'none', borderRadius: '4px', padding: '7px 20px', cursor: (saving || (greetingMode === 'recording' && !vmAudioUrl)) ? 'not-allowed' : 'pointer', fontWeight: 'bold', fontSize: '11px', letterSpacing: '1px' }}>
+      <div style={{ display:'flex', gap:'8px', alignItems:'center' }}>
+        <button onClick={save} disabled={saving || (greetingMode==='recording' && !vmAudioUrl)}
+          style={{ background: (saving||(greetingMode==='recording'&&!vmAudioUrl)) ? 'rgba(184,147,58,0.3)' : 'linear-gradient(135deg,#b8933a,#d4aa50)', color:DARK, border:'none', borderRadius:'4px', padding:'7px 20px', cursor:'pointer', fontWeight:'bold', fontSize:'11px' }}>
           {saving ? 'Saving…' : '💾 Save Greeting'}
         </button>
-        {greetingMode === 'text' && greeting && (
-          <button onClick={() => setGreeting('')}
-            style={{ background: 'rgba(255,255,255,0.04)', color: '#6b7280', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '4px', padding: '7px 14px', cursor: 'pointer', fontSize: '11px' }}>
-            Reset to Default
-          </button>
-        )}
-        {msg && <span style={{ fontSize: '11px', color: msg.startsWith('✅') ? '#4ade80' : '#ef4444' }}>{msg}</span>}
+        {msg && <span style={{ fontSize:'11px', color: msg.startsWith('✅') ? '#4ade80' : '#f59e0b', flex:1 }}>{msg}</span>}
       </div>
     </div>
   );
 }
 
-const GOLD = '#b8933a';
-const DARK = '#080f1c';
-
-function formatDur(sec) {
-  if (!sec || sec < 1) return '—';
-  const m = Math.floor(sec / 60);
-  const s = sec % 60;
-  return m > 0 ? `${m}m ${s}s` : `${s}s`;
+// ── Voicemail List Tab ───────────────────────────────────────────────────────
+function VoicemailListTab({ callLogs, onMarkListened, onOpenLead, onOpenInvestor, playingVm, setPlayingVm, audioRef }) {
+  const voicemails = callLogs.filter(l => l.vmRecordingUrl).sort((a,b)=>new Date(b.calledAt)-new Date(a.calledAt));
+  if (voicemails.length === 0) {
+    return <div style={{ color:'#4a5568', textAlign:'center', padding:'40px', fontSize:'12px' }}><div style={{ fontSize:'32px', marginBottom:'8px' }}>📩</div>No voicemails yet.</div>;
+  }
+  return (
+    <div style={{ flex:1, overflowY:'auto', padding:'8px' }}>
+      {voicemails.map(log => {
+        const isNew = !log.vmListened;
+        const isPlayingThis = playingVm === log.id;
+        return (
+          <div key={log.id} style={{ background: isNew ? 'rgba(245,158,11,0.07)' : 'rgba(255,255,255,0.02)', border:`1px solid ${isNew ? 'rgba(245,158,11,0.3)' : 'rgba(255,255,255,0.06)'}`, borderLeft:`3px solid ${isNew ? '#f59e0b' : '#4a5568'}`, borderRadius:'6px', padding:'10px 12px', marginBottom:'6px' }}>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:'8px' }}>
+              <div style={{ flex:1, minWidth:0 }}>
+                <div style={{ display:'flex', alignItems:'center', gap:'6px', marginBottom:'3px' }}>
+                  <span>📩</span>
+                  <span style={{ color: isNew ? '#e8e0d0' : '#c4cdd8', fontSize:'13px', fontWeight: isNew ? 'bold' : 'normal', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+                    {log.callerName || log.fromNumber || 'Unknown Caller'}
+                  </span>
+                  {isNew && <span style={{ background:'rgba(245,158,11,0.2)', color:'#f59e0b', fontSize:'9px', padding:'1px 6px', borderRadius:'8px', fontWeight:'bold', flexShrink:0 }}>NEW</span>}
+                </div>
+                <div style={{ color:'#60a5fa', fontSize:'11px', fontFamily:'monospace' }}>{log.fromNumber}</div>
+                {log.vmTranscription && (
+                  <div style={{ color:'#8a9ab8', fontSize:'11px', lineHeight:1.5, fontStyle:'italic', marginTop:'5px' }}>
+                    "{log.vmTranscription.slice(0,200)}{log.vmTranscription.length>200?'…':''}"
+                  </div>
+                )}
+              </div>
+              <div style={{ textAlign:'right', flexShrink:0 }}>
+                <div style={{ color:'#6b7280', fontSize:'10px', marginBottom:'4px' }}>{fmtDateTime(log.calledAt)}</div>
+                <button onClick={() => onMarkListened(log)}
+                  style={{ background: isPlayingThis ? 'rgba(239,68,68,0.15)' : 'rgba(245,158,11,0.15)', color: isPlayingThis ? '#ef4444' : '#f59e0b', border:`1px solid ${isPlayingThis ? 'rgba(239,68,68,0.35)' : 'rgba(245,158,11,0.35)'}`, borderRadius:'4px', padding:'3px 10px', cursor:'pointer', fontSize:'10px', fontWeight:'bold' }}>
+                  {isPlayingThis ? '⏹ Close' : '▶ Play'}
+                </button>
+              </div>
+            </div>
+            {isPlayingThis && <audio ref={audioRef} src={log.vmRecordingUrl} controls autoPlay style={{ width:'100%', marginTop:'8px', height:'32px' }} />}
+            <div style={{ display:'flex', gap:'6px', marginTop:'8px', flexWrap:'wrap' }}>
+              {log.leadId && onOpenLead && (
+                <button onClick={() => onOpenLead(log.leadId)} style={{ background:'rgba(167,139,250,0.1)', color:'#a78bfa', border:'1px solid rgba(167,139,250,0.25)', borderRadius:'4px', padding:'3px 10px', cursor:'pointer', fontSize:'10px' }}>📋 Open Lead Card</button>
+              )}
+              {log.investorId && onOpenInvestor && (
+                <button onClick={() => onOpenInvestor(log.investorId)} style={{ background:'rgba(184,147,58,0.1)', color:GOLD, border:'1px solid rgba(184,147,58,0.25)', borderRadius:'4px', padding:'3px 10px', cursor:'pointer', fontSize:'10px' }}>👤 Open Investor Card</button>
+              )}
+              {!log.vmListened && (
+                <button onClick={() => onMarkListened(log, true)} style={{ background:'rgba(255,255,255,0.04)', color:'#4a5568', border:'1px solid rgba(255,255,255,0.08)', borderRadius:'4px', padding:'3px 10px', cursor:'pointer', fontSize:'10px' }}>✓ Mark Read</button>
+              )}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
 }
-
-const STATUS_COLORS = {
-  answered:    { color: '#4ade80', bg: 'rgba(74,222,128,0.12)',  icon: '📞' },
-  completed:   { color: '#4ade80', bg: 'rgba(74,222,128,0.08)',  icon: '✅' },
-  missed:      { color: '#ef4444', bg: 'rgba(239,68,68,0.12)',   icon: '📵' },
-  voicemail:   { color: '#f59e0b', bg: 'rgba(245,158,11,0.12)',  icon: '📩' },
-  ringing:     { color: '#60a5fa', bg: 'rgba(96,165,250,0.08)',  icon: '🔔' },
-  'no-answer': { color: '#ef4444', bg: 'rgba(239,68,68,0.12)',   icon: '📵' },
-};
-
-// Map from number to agent label
-const NUMBER_TO_AGENT = {};
 
 // ── Live Line Bar ────────────────────────────────────────────────────────────
 function LiveLineBar({ line, logs }) {
   const [elapsed, setElapsed] = useState(0);
-
   const activeLog = logs.find(l =>
     (l.fromNumber === line.number || l.toNumber === line.number) &&
     (l.status === 'answered' || l.status === 'ringing')
   );
   const isActive = !!activeLog;
   const callStart = activeLog?.calledAt ? new Date(activeLog.calledAt) : null;
-
   useEffect(() => {
     if (!isActive || !callStart) { setElapsed(0); return; }
     const update = () => setElapsed(Math.floor((Date.now() - callStart) / 1000));
-    update();
-    const id = setInterval(update, 1000);
-    return () => clearInterval(id);
+    update(); const id = setInterval(update, 1000); return () => clearInterval(id);
   }, [isActive, callStart?.getTime()]);
-
   const displayName = activeLog?.callerName || (activeLog?.direction === 'inbound' ? activeLog?.fromNumber : activeLog?.toNumber) || '';
   const barColor = isActive ? '#4ade80' : '#ef4444';
   const barBg    = isActive ? 'rgba(74,222,128,0.08)' : 'rgba(239,68,68,0.06)';
   const barBorder= isActive ? 'rgba(74,222,128,0.3)'  : 'rgba(239,68,68,0.2)';
-  const formatElapsed = (s) => `${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;
-
+  const fmt = s => `${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;
   return (
     <div style={{ display:'flex', alignItems:'center', gap:'10px', background:barBg, border:`1px solid ${barBorder}`, borderRadius:'6px', padding:'7px 12px', transition:'all 0.3s' }}>
       <div style={{ width:'8px', height:'8px', borderRadius:'50%', background:barColor, boxShadow:isActive?`0 0 8px ${barColor}`:'none', flexShrink:0, animation:isActive?'linePulse 1.2s ease-in-out infinite':'none' }} />
@@ -262,7 +249,7 @@ function LiveLineBar({ line, logs }) {
       {isActive ? (
         <div style={{ flex:1, display:'flex', gap:'8px', alignItems:'center', minWidth:0 }}>
           <span style={{ color:'#e8e0d0', fontSize:'11px', fontWeight:'bold', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{displayName || 'Active Call'}</span>
-          <span style={{ marginLeft:'auto', color:'#4ade80', fontSize:'13px', fontFamily:'monospace', fontWeight:'bold', flexShrink:0, textShadow:'0 0 8px rgba(74,222,128,0.5)' }}>{formatElapsed(elapsed)}</span>
+          <span style={{ marginLeft:'auto', color:'#4ade80', fontSize:'13px', fontFamily:'monospace', fontWeight:'bold', flexShrink:0 }}>{fmt(elapsed)}</span>
         </div>
       ) : (
         <div style={{ flex:1, color:'#4a5568', fontSize:'11px' }}>Idle</div>
@@ -273,13 +260,12 @@ function LiveLineBar({ line, logs }) {
 
 // ── Reports Tab ──────────────────────────────────────────────────────────────
 function ReportsTab({ lines }) {
-  const [mode, setMode] = useState('day');
-  const [date, setDate] = useState(() => new Date().toISOString().slice(0,10));
-  const [year, setYear] = useState(() => new Date().getFullYear());
-  const [agentFilter, setAgentFilter] = useState('all'); // 'all' | line.number
-  const [report, setReport] = useState(null);
-  const [loading, setLoading] = useState(false);
-
+  const [mode, setMode]               = useState('day');
+  const [date, setDate]               = useState(() => new Date().toISOString().slice(0,10));
+  const [year, setYear]               = useState(() => new Date().getFullYear());
+  const [agentFilter, setAgentFilter] = useState('all');
+  const [report, setReport]           = useState(null);
+  const [loading, setLoading]         = useState(false);
   const currentYear = new Date().getFullYear();
   const years = Array.from({ length: currentYear - 2023 }, (_, i) => 2024 + i);
 
@@ -288,62 +274,41 @@ function ReportsTab({ lines }) {
     try {
       const startDate = mode === 'year' ? `${year}-01-01` : date;
       const endDate   = mode === 'year' ? `${year}-12-31` : date;
-
-      // Parallel: fetch Twilio calls + Lead conversions in the date range
       const [callRes, leadsData] = await Promise.all([
         base44.functions.invoke('twilioCallLogs', { startDate, endDate }),
         base44.entities.Lead.list('-updated_date', 5000),
       ]);
-
       const allCalls = (callRes.data?.calls || []).filter(c => c.direction !== 'inbound');
-
-      // Filter by agent line if selected
-      const filtered = agentFilter === 'all'
-        ? allCalls
-        : allCalls.filter(c => c.from === agentFilter);
-
-      const agentLabel = agentFilter === 'all'
-        ? 'All Agents'
-        : (lines.find(l => l.number === agentFilter)?.label || agentFilter);
-
-      const totalCalls    = filtered.length;
-      const answered      = filtered.filter(c => c.status === 'completed' && c.duration > 0);
-      const answeredCount = answered.length;
-      const connectionRate = totalCalls > 0 ? ((answeredCount / totalCalls) * 100).toFixed(1) : '0.0';
-      const totalDial     = filtered.reduce((sum, c) => sum + (c.duration || 0), 0);
-      const avgDial       = answeredCount > 0 ? Math.round(totalDial / answeredCount) : 0;
-      const longestCall   = filtered.reduce((max, c) => Math.max(max, c.duration || 0), 0);
-
-      // Count leads converted to prospect or nb_tech in the date range
-      const start = new Date(startDate + 'T00:00:00');
-      const end   = new Date(endDate   + 'T23:59:59');
+      const filtered = agentFilter === 'all' ? allCalls : allCalls.filter(c => c.from === agentFilter);
+      const agentLabel = agentFilter === 'all' ? 'All Agents' : (lines.find(l => l.number === agentFilter)?.label || agentFilter);
+      const totalCalls = filtered.length;
+      const answered   = filtered.filter(c => c.status === 'completed' && c.duration > 0);
+      const answeredCount   = answered.length;
+      const connectionRate  = totalCalls > 0 ? ((answeredCount / totalCalls) * 100).toFixed(1) : '0.0';
+      const totalDial       = filtered.reduce((s, c) => s + (c.duration || 0), 0);
+      const avgDial         = answeredCount > 0 ? Math.round(totalDial / answeredCount) : 0;
+      const longestCall     = filtered.reduce((max, c) => Math.max(max, c.duration || 0), 0);
+      const start = new Date(startDate + 'T00:00:00'), end = new Date(endDate + 'T23:59:59');
       const converted = (leadsData || []).filter(l => {
-        const updatedAt = new Date(l.updated_date || 0);
-        if (updatedAt < start || updatedAt > end) return false;
-        // If filtering by agent, match by pipeline owner
-        if (agentFilter !== 'all') {
-          const ownerMatch = l.leadPipelineOwner === agentLabel.toLowerCase();
-          if (!ownerMatch) return false;
-        }
+        const u = new Date(l.updated_date || 0);
+        if (u < start || u > end) return false;
+        if (agentFilter !== 'all') { if (l.leadPipelineOwner !== agentLabel.toLowerCase()) return false; }
         return l.status === 'prospect' || l.leadType === 'nb_tech';
       });
-      const convertedProspect = converted.filter(l => l.status === 'prospect').length;
-      const convertedNBTech   = converted.filter(l => l.leadType === 'nb_tech').length;
-      const convertedTotal    = converted.length;
-
       setReport({ totalCalls, answeredCount, connectionRate, totalDial, avgDial, longestCall,
-        convertedTotal, convertedProspect, convertedNBTech, date, year, mode, startDate, endDate, agentLabel });
+        convertedTotal: converted.length,
+        convertedProspect: converted.filter(l=>l.status==='prospect').length,
+        convertedNBTech:   converted.filter(l=>l.leadType==='nb_tech').length,
+        date, year, mode, agentLabel });
     } catch(e) { console.error(e); }
     setLoading(false);
   };
 
   const inp = { background:'rgba(255,255,255,0.06)', border:'1px solid rgba(255,255,255,0.12)', borderRadius:'4px', padding:'8px 12px', color:'#e8e0d0', fontSize:'12px', outline:'none', fontFamily:'Georgia, serif', colorScheme:'dark' };
-
-  const stat = (label, value, color='#e8e0d0', sub=null) => (
+  const stat = (label, value, color='#e8e0d0') => (
     <div style={{ background:'rgba(255,255,255,0.03)', border:'1px solid rgba(255,255,255,0.07)', borderRadius:'6px', padding:'14px 16px', textAlign:'center' }}>
       <div style={{ color, fontSize:'22px', fontWeight:'bold', lineHeight:1.1 }}>{value}</div>
       <div style={{ color:'#4a5568', fontSize:'9px', letterSpacing:'1.5px', textTransform:'uppercase', marginTop:'4px' }}>{label}</div>
-      {sub && <div style={{ color:'#6b7280', fontSize:'10px', marginTop:'3px' }}>{sub}</div>}
     </div>
   );
 
@@ -352,69 +317,48 @@ function ReportsTab({ lines }) {
       <div style={{ display:'flex', gap:'6px', marginBottom:'14px' }}>
         {[['day','📅 Day'], ['year','📆 Year']].map(([m, label]) => (
           <button key={m} onClick={() => { setMode(m); setReport(null); }}
-            style={{ background: mode===m ? `${GOLD}22` : 'rgba(255,255,255,0.04)', border:`1px solid ${mode===m ? GOLD+'66' : 'rgba(255,255,255,0.1)'}`, color: mode===m ? GOLD : '#6b7280', borderRadius:'20px', padding:'4px 14px', cursor:'pointer', fontSize:'11px', fontWeight: mode===m ? 'bold' : 'normal' }}>
+            style={{ background: mode===m?`${GOLD}22`:'rgba(255,255,255,0.04)', border:`1px solid ${mode===m?GOLD+'66':'rgba(255,255,255,0.1)'}`, color: mode===m?GOLD:'#6b7280', borderRadius:'20px', padding:'4px 14px', cursor:'pointer', fontSize:'11px', fontWeight: mode===m?'bold':'normal' }}>
             {label}
           </button>
         ))}
       </div>
-
       <div style={{ display:'flex', gap:'10px', alignItems:'flex-end', marginBottom:'18px', flexWrap:'wrap' }}>
-        {mode === 'day' ? (
-          <div>
-            <div style={{ color:'#6b7280', fontSize:'10px', letterSpacing:'1px', marginBottom:'5px' }}>DATE</div>
-            <input type="date" value={date} onChange={e => setDate(e.target.value)} style={{ ...inp, cursor:'pointer' }} />
-          </div>
-        ) : (
-          <div>
-            <div style={{ color:'#6b7280', fontSize:'10px', letterSpacing:'1px', marginBottom:'5px' }}>YEAR</div>
-            <select value={year} onChange={e => setYear(Number(e.target.value))} style={{ ...inp, cursor:'pointer' }}>
-              {years.map(y => <option key={y} value={y}>{y}</option>)}
-              <option value={currentYear}>{currentYear}</option>
-            </select>
-          </div>
-        )}
+        {mode === 'day'
+          ? <div><div style={{ color:'#6b7280', fontSize:'10px', letterSpacing:'1px', marginBottom:'5px' }}>DATE</div><input type="date" value={date} onChange={e=>setDate(e.target.value)} style={{ ...inp, cursor:'pointer' }} /></div>
+          : <div><div style={{ color:'#6b7280', fontSize:'10px', letterSpacing:'1px', marginBottom:'5px' }}>YEAR</div><select value={year} onChange={e=>setYear(Number(e.target.value))} style={{ ...inp, cursor:'pointer' }}>{years.map(y=><option key={y} value={y}>{y}</option>)}<option value={currentYear}>{currentYear}</option></select></div>
+        }
         <div>
           <div style={{ color:'#6b7280', fontSize:'10px', letterSpacing:'1px', marginBottom:'5px' }}>AGENT</div>
-          <select value={agentFilter} onChange={e => { setAgentFilter(e.target.value); setReport(null); }} style={{ ...inp, cursor:'pointer' }}>
+          <select value={agentFilter} onChange={e=>{ setAgentFilter(e.target.value); setReport(null); }} style={{ ...inp, cursor:'pointer' }}>
             <option value="all">👥 All Agents</option>
-            {lines.map(l => (
-              <option key={l.number} value={l.number}>{l.label === 'Steph' ? '🟣' : '🟡'} {l.label}</option>
-            ))}
+            {lines.map(l => <option key={l.number} value={l.number}>{l.label==='Steph'?'🟣':'🟡'} {l.label}</option>)}
           </select>
         </div>
-        <button onClick={generate} disabled={loading}
-          style={{ background:'linear-gradient(135deg,#b8933a,#d4aa50)', color:DARK, border:'none', borderRadius:'4px', padding:'9px 22px', cursor:'pointer', fontWeight:'700', fontSize:'11px', letterSpacing:'1.5px', textTransform:'uppercase', alignSelf:'flex-end' }}>
+        <button onClick={generate} disabled={loading} style={{ background:'linear-gradient(135deg,#b8933a,#d4aa50)', color:DARK, border:'none', borderRadius:'4px', padding:'9px 22px', cursor:'pointer', fontWeight:'700', fontSize:'11px', letterSpacing:'1.5px', textTransform:'uppercase', alignSelf:'flex-end' }}>
           {loading ? 'Generating…' : '▶ Generate'}
         </button>
       </div>
-
       {report && (
         <div>
           <div style={{ display:'flex', gap:'10px', alignItems:'center', marginBottom:'12px', flexWrap:'wrap' }}>
             <div style={{ color:GOLD, fontSize:'10px', letterSpacing:'2px', textTransform:'uppercase' }}>
-              {report.mode === 'year' ? `Report for ${report.year}` : `Report for ${fmtDate(report.date + 'T12:00:00')}`}
+              {report.mode==='year'?`Report for ${report.year}`:`Report for ${fmtDate(report.date+'T12:00:00')}`}
             </div>
-            <span style={{
-              background: report.agentLabel === 'Steph' ? 'rgba(167,139,250,0.15)' : report.agentLabel === 'All Agents' ? 'rgba(255,255,255,0.06)' : 'rgba(184,147,58,0.15)',
-              color: report.agentLabel === 'Steph' ? '#a78bfa' : report.agentLabel === 'All Agents' ? '#8a9ab8' : GOLD,
-              border: `1px solid ${report.agentLabel === 'Steph' ? 'rgba(167,139,250,0.35)' : report.agentLabel === 'All Agents' ? 'rgba(255,255,255,0.12)' : 'rgba(184,147,58,0.35)'}`,
-              borderRadius:'10px', padding:'2px 10px', fontSize:'10px', fontWeight:'bold',
-            }}>
-              {report.agentLabel === 'Steph' ? '🟣' : report.agentLabel === 'All Agents' ? '👥' : '🟡'} {report.agentLabel}
+            <span style={{ background: report.agentLabel==='Steph'?'rgba(167,139,250,0.15)':'rgba(184,147,58,0.15)', color: report.agentLabel==='Steph'?'#a78bfa':GOLD, border:`1px solid ${report.agentLabel==='Steph'?'rgba(167,139,250,0.35)':'rgba(184,147,58,0.35)'}`, borderRadius:'10px', padding:'2px 10px', fontSize:'10px', fontWeight:'bold' }}>
+              {report.agentLabel==='Steph'?'🟣':'🟡'} {report.agentLabel}
             </span>
           </div>
           <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:'8px', marginBottom:'8px' }}>
             {stat('Total Calls', report.totalCalls, GOLD)}
             {stat('Connected', report.answeredCount, '#4ade80')}
-            {stat('Connection Rate', report.connectionRate + '%', '#60a5fa')}
+            {stat('Connection Rate', report.connectionRate+'%', '#60a5fa')}
           </div>
           <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:'8px', marginBottom:'8px' }}>
             {stat('Total Dial Time', formatDur(report.totalDial), '#a78bfa')}
             {stat('Avg Call Length', formatDur(report.avgDial), '#f59e0b')}
             {stat('Longest Call', formatDur(report.longestCall), '#60a5fa')}
           </div>
-          {/* Conversions section */}
-          <div style={{ marginTop:'4px', marginBottom:'8px' }}>
+          <div style={{ marginTop:'4px' }}>
             <div style={{ color:'#4ade80', fontSize:'9px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'6px' }}>📈 Conversions</div>
             <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:'8px' }}>
               {stat('Total Converted', report.convertedTotal, '#4ade80')}
@@ -424,109 +368,191 @@ function ReportsTab({ lines }) {
           </div>
         </div>
       )}
+      {!report && !loading && <div style={{ color:'#4a5568', textAlign:'center', padding:'40px', fontSize:'12px' }}>Select a date range and click Generate.</div>}
+    </div>
+  );
+}
 
-      {!report && !loading && (
-        <div style={{ color:'#4a5568', textAlign:'center', padding:'40px', fontSize:'12px' }}>
-          Select a date range and click Generate.
+// ── Call Row (shared by inbound + outbound) ───────────────────────────────────
+function CallRow({ log, isOutbound, leads, lines, onOpenLead, onOpenInvestor, onMarkVm, playingVm, setPlayingVm, audioRef }) {
+  const [converting, setConverting] = useState(false);
+  const [converted, setConverted]   = useState(null);
+
+  const phone = isOutbound ? log.to : log.fromNumber;
+  const agent = isOutbound ? (() => {
+    const lineMatch = lines.find(l => l.number === log.from || log.from?.endsWith(l.number?.slice(-4)));
+    if (lineMatch?.label) return lineMatch.label;
+    const m = NUMBER_TO_AGENT[log.from];
+    if (m) return m;
+    if (log.from?.endsWith('5680')) return 'Admin';
+    if (log.from?.endsWith('5681')) return 'Steph';
+    return log.from?.slice(-4) || '—';
+  })() : null;
+
+  const matchedLead = leads.find(l =>
+    l.phone === phone || l.phone2 === phone ||
+    l.phone === log.fromNumber || l.phone2 === log.fromNumber
+  );
+
+  const displayName = isOutbound
+    ? (log.callerName || matchedLead ? `${matchedLead?.firstName||''} ${matchedLead?.lastName||''}`.trim() : null) || log.to
+    : (log.callerName || (matchedLead ? `${matchedLead?.firstName||''} ${matchedLead?.lastName||''}`.trim() : null) || log.fromNumber || '—');
+
+  const isNameResolved = displayName && displayName !== phone;
+
+  const connected  = isOutbound ? (log.status === 'completed' && log.duration > 0) : (log.status === 'completed' || log.status === 'answered');
+  const statusColor = isOutbound
+    ? (log.status==='completed'?(log.duration>0?'#4ade80':'#8a9ab8'):log.status==='busy'||log.status==='no-answer'?'#f59e0b':log.status==='failed'?'#ef4444':'#8a9ab8')
+    : ((STATUS_COLORS[log.status]||STATUS_COLORS.ringing).color);
+  const icon = isOutbound ? (connected?'📞':'📵') : (STATUS_COLORS[log.status]||STATUS_COLORS.ringing).icon;
+
+  const isUnread = !isOutbound && !log.dismissed && (log.status==='missed'||log.status==='no-answer'||(log.vmRecordingUrl&&!log.vmListened));
+  const isPlayingThis = !isOutbound && playingVm === log.id;
+
+  const convertLead = async (type) => {
+    if (!matchedLead) return;
+    setConverting(true);
+    try {
+      if (type === 'prospect') {
+        await base44.entities.Lead.update(matchedLead.id, { status:'prospect', leadPipelineStage:'reviewing' });
+        await base44.entities.LeadHistory.create({ leadId:matchedLead.id, type:'prospect', content:'Converted to Prospect from Call Log', createdBy:'admin' });
+      } else {
+        await base44.entities.Lead.update(matchedLead.id, { leadType:'nb_tech', leadPipelineStage: matchedLead.leadPipelineStage||'reviewing' });
+        await base44.entities.LeadHistory.create({ leadId:matchedLead.id, type:'note', content:'💡 Converted to NB Tech from Call Log', createdBy:'admin' });
+      }
+      setConverted(type);
+    } catch(e) { console.error(e); }
+    setConverting(false);
+  };
+
+  const openCard = () => {
+    const lid = isOutbound ? matchedLead?.id : (log.leadId || matchedLead?.id);
+    const iid = !isOutbound && log.investorId;
+    if (lid && onOpenLead) onOpenLead(lid);
+    else if (iid && onOpenInvestor) onOpenInvestor(iid);
+  };
+  const hasCard = (isOutbound ? !!matchedLead : !!(log.leadId || matchedLead?.id || log.investorId));
+
+  return (
+    <div style={{ background: isUnread?'rgba(255,255,255,0.04)':'rgba(255,255,255,0.015)', border:`1px solid ${isUnread?'rgba(255,255,255,0.1)':'rgba(255,255,255,0.05)'}`, borderLeft:`3px solid ${statusColor}`, borderRadius:'6px', padding:'10px 12px', marginBottom:'6px' }}>
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:'8px' }}>
+        <div style={{ flex:1, minWidth:0 }}>
+          {/* Name row — clickable if we have a card */}
+          <div style={{ display:'flex', alignItems:'center', gap:'6px', marginBottom:'3px' }}>
+            <span style={{ fontSize:'13px' }}>{icon}</span>
+            <span
+              onClick={hasCard ? openCard : undefined}
+              style={{ color: isUnread?'#e8e0d0':'#c4cdd8', fontSize:'13px', fontWeight: isUnread||isNameResolved?'bold':'normal', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', cursor: hasCard?'pointer':'default', textDecoration: hasCard?'underline':'none', textDecorationColor:'rgba(184,147,58,0.5)' }}
+              title={hasCard ? 'Open contact card' : undefined}
+            >
+              {displayName}
+            </span>
+            {!isOutbound && !log.dismissed && <span style={{ width:'6px', height:'6px', borderRadius:'50%', background:'#ef4444', flexShrink:0, display:'inline-block' }} />}
+          </div>
+          {/* Phone + agent badge */}
+          <div style={{ display:'flex', gap:'5px', flexWrap:'wrap', alignItems:'center', marginBottom:'4px' }}>
+            <span style={{ color:'#60a5fa', fontSize:'11px', fontFamily:'monospace' }}>{phone}</span>
+            {agent && (
+              <><span style={{ color:'#4a5568', fontSize:'9px' }}>·</span>
+              <span style={{ background: agent==='Steph'?'rgba(167,139,250,0.15)':'rgba(184,147,58,0.15)', color: agent==='Steph'?'#a78bfa':GOLD, border:`1px solid ${agent==='Steph'?'rgba(167,139,250,0.35)':'rgba(184,147,58,0.35)'}`, borderRadius:'3px', padding:'2px 8px', fontSize:'10px', fontWeight:'bold' }}>
+                {agent==='Steph'?'🟣':'🟡'} {agent}
+              </span></>
+            )}
+            {(isOutbound ? log.duration > 0 : log.durationSeconds > 0) && (
+              <span style={{ color:'#a78bfa', fontSize:'10px' }}>⏱ {formatDur(isOutbound ? log.duration : log.durationSeconds)}</span>
+            )}
+          </div>
+          {/* Convert buttons for outbound */}
+          {isOutbound && matchedLead && !matchedLead.status==='not_interested' && !converted && (
+            <div style={{ display:'flex', gap:'4px', alignItems:'center', flexWrap:'wrap' }}>
+              <span style={{ color:'#4a5568', fontSize:'9px' }}>Convert:</span>
+              {matchedLead.status !== 'prospect' && (
+                <button onClick={()=>convertLead('prospect')} disabled={converting}
+                  style={{ background:'rgba(74,222,128,0.12)', color:'#4ade80', border:'1px solid rgba(74,222,128,0.3)', borderRadius:'4px', padding:'2px 8px', cursor:'pointer', fontSize:'10px', fontWeight:'bold' }}>✅ Prospect</button>
+              )}
+              {matchedLead.leadType !== 'nb_tech' && (
+                <button onClick={()=>convertLead('nb_tech')} disabled={converting}
+                  style={{ background:'rgba(99,102,241,0.12)', color:'#818cf8', border:'1px solid rgba(99,102,241,0.3)', borderRadius:'4px', padding:'2px 8px', cursor:'pointer', fontSize:'10px', fontWeight:'bold' }}>💡 NB Tech</button>
+              )}
+            </div>
+          )}
+          {converted && <span style={{ color:'#4ade80', fontSize:'10px' }}>✅ Converted to {converted==='prospect'?'Prospect':'NB Tech'}</span>}
+        </div>
+        {/* Timestamp + status */}
+        <div style={{ textAlign:'right', flexShrink:0 }}>
+          <div style={{ color:'#6b7280', fontSize:'10px', marginBottom:'2px' }}>
+            {isOutbound ? (log.startTime ? fmtDateTimeShort(log.startTime) : '—') : fmtDateTime(log.calledAt)}
+          </div>
+          <span style={{ background: isOutbound?'transparent':(STATUS_COLORS[log.status]||STATUS_COLORS.ringing).bg, color:statusColor, padding:'1px 6px', borderRadius:'3px', fontSize:'10px' }}>
+            {isOutbound ? log.status : log.status}
+          </span>
+        </div>
+      </div>
+
+      {/* Voicemail player (inbound) */}
+      {!isOutbound && log.vmRecordingUrl && (
+        <div style={{ marginTop:'8px', background:'rgba(245,158,11,0.06)', border:'1px solid rgba(245,158,11,0.2)', borderRadius:'4px', padding:'7px 10px' }}>
+          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+            <span style={{ color:'#f59e0b', fontSize:'11px', fontWeight:'bold' }}>📩 Voicemail {!log.vmListened&&'· NEW'}</span>
+            <button onClick={() => onMarkVm(log)}
+              style={{ background:'rgba(245,158,11,0.15)', color:'#f59e0b', border:'1px solid rgba(245,158,11,0.35)', borderRadius:'4px', padding:'3px 10px', cursor:'pointer', fontSize:'10px' }}>
+              {isPlayingThis ? '⏹ Close' : '▶ Play'}
+            </button>
+          </div>
+          {log.vmTranscription && <div style={{ color:'#8a9ab8', fontSize:'11px', lineHeight:1.5, fontStyle:'italic', marginTop:'4px' }}>"{log.vmTranscription.slice(0,200)}{log.vmTranscription.length>200?'…':''}"</div>}
+          {isPlayingThis && <audio ref={audioRef} src={log.vmRecordingUrl} controls autoPlay style={{ width:'100%', marginTop:'6px', height:'32px' }} />}
+        </div>
+      )}
+
+      {/* Action buttons (inbound) */}
+      {!isOutbound && (
+        <div style={{ display:'flex', gap:'6px', marginTop:'6px', flexWrap:'wrap' }}>
+          {hasCard && (
+            <button onClick={openCard}
+              style={{ background:'rgba(167,139,250,0.1)', color:'#a78bfa', border:'1px solid rgba(167,139,250,0.25)', borderRadius:'4px', padding:'3px 10px', cursor:'pointer', fontSize:'10px' }}>
+              {log.investorId ? '👤 Open Investor' : '📋 Open Lead'}
+            </button>
+          )}
+          {!log.dismissed && (
+            <button onClick={async()=>{ await base44.entities.CallLog.update(log.id,{dismissed:true}).catch(()=>{}); }}
+              style={{ background:'rgba(255,255,255,0.04)', color:'#4a5568', border:'1px solid rgba(255,255,255,0.08)', borderRadius:'4px', padding:'3px 10px', cursor:'pointer', fontSize:'10px' }}>✓ Dismiss</button>
+          )}
         </div>
       )}
     </div>
   );
 }
 
-// ── Convert Lead Buttons ─────────────────────────────────────────────────────
-function ConvertButtons({ call, leads, onConverted }) {
-  const [converting, setConverting] = useState(false);
-  const [done, setDone] = useState(null); // 'prospect' | 'nb_tech'
-
-  // Try to match lead by phone number
-  const matchedLead = leads.find(l =>
-    l.phone === call.to || l.phone === call.from ||
-    l.phone2 === call.to || l.phone2 === call.from
-  );
-
-  if (!matchedLead || matchedLead.status === 'not_interested') return null;
-  if (matchedLead.status === 'prospect' && done !== 'prospect') {
-    return <span style={{ color:'#a78bfa', fontSize:'10px' }}>⭐ Prospect</span>;
-  }
-  if (matchedLead.leadType === 'nb_tech' && done !== 'nb_tech') {
-    return <span style={{ color:'#818cf8', fontSize:'10px' }}>💡 NB Tech</span>;
-  }
-  if (done) return <span style={{ color:'#4ade80', fontSize:'10px' }}>✅ Converted to {done === 'prospect' ? 'Prospect' : 'NB Tech'}</span>;
-
-  const convert = async (type) => {
-    setConverting(true);
-    try {
-      if (type === 'prospect') {
-        await base44.entities.Lead.update(matchedLead.id, { status: 'prospect', leadPipelineStage: 'reviewing' });
-        await base44.entities.LeadHistory.create({ leadId: matchedLead.id, type: 'prospect', content: 'Converted to Prospect from Call Log', createdBy: 'admin' });
-      } else {
-        await base44.entities.Lead.update(matchedLead.id, { leadType: 'nb_tech', leadPipelineStage: matchedLead.leadPipelineStage || 'reviewing' });
-        await base44.entities.LeadHistory.create({ leadId: matchedLead.id, type: 'note', content: '💡 Converted to NB Tech from Call Log', createdBy: 'admin' });
-      }
-      setDone(type);
-      onConverted && onConverted();
-    } catch(e) { console.error(e); }
-    setConverting(false);
-  };
-
-  return (
-    <div style={{ display:'flex', gap:'4px', alignItems:'center', flexWrap:'wrap' }}>
-      <span style={{ color:'#4a5568', fontSize:'9px' }}>Convert:</span>
-      <button onClick={() => convert('prospect')} disabled={converting}
-        style={{ background:'rgba(74,222,128,0.12)', color:'#4ade80', border:'1px solid rgba(74,222,128,0.3)', borderRadius:'4px', padding:'2px 8px', cursor:'pointer', fontSize:'10px', fontWeight:'bold' }}>
-        ✅ Prospect
-      </button>
-      <button onClick={() => convert('nb_tech')} disabled={converting}
-        style={{ background:'rgba(99,102,241,0.12)', color:'#818cf8', border:'1px solid rgba(99,102,241,0.3)', borderRadius:'4px', padding:'2px 8px', cursor:'pointer', fontSize:'10px', fontWeight:'bold' }}>
-        💡 NB Tech
-      </button>
-      <button disabled
-        style={{ background:'rgba(239,68,68,0.08)', color:'#ef4444', border:'1px solid rgba(239,68,68,0.2)', borderRadius:'4px', padding:'2px 8px', cursor:'not-allowed', fontSize:'10px', opacity:0.6 }}>
-        ✗ No Convert
-      </button>
-    </div>
-  );
-}
-
 // ── Main Panel ───────────────────────────────────────────────────────────────
-export default function CallLogPanel({ onClose, onOpenLead }) {
-  const [callLogs, setCallLogs]         = useState([]);
-  const [historyRows, setHistoryRows]   = useState([]);
-  const [lines, setLines]               = useState([]);
-  const [leads, setLeads]               = useState([]);
-  const [loading, setLoading]           = useState(true);
-  const [dirTab, setDirTab]             = useState('outbound');
-  const [mainTab, setMainTab]           = useState('calls');
-  const [playingVm, setPlayingVm]       = useState(null);
-  const [lineFilter, setLineFilter]     = useState('all'); // 'all' | phone number
+export default function CallLogPanel({ onClose, onOpenLead, onOpenInvestor }) {
+  const [callLogs, setCallLogs]       = useState([]);
+  const [historyRows, setHistoryRows] = useState([]);
+  const [lines, setLines]             = useState([]);
+  const [leads, setLeads]             = useState([]);
+  const [loading, setLoading]         = useState(true);
+  const [dirTab, setDirTab]           = useState('inbound');
+  const [mainTab, setMainTab]         = useState('calls');
+  const [vmSubTab, setVmSubTab]       = useState('list'); // 'list' | 'settings'
+  const [playingVm, setPlayingVm]     = useState(null);
+  const [lineFilter, setLineFilter]   = useState('all');
+  const [listStart, setListStart]     = useState(() => new Date().toISOString().slice(0,10));
+  const [listEnd,   setListEnd]       = useState(() => new Date().toISOString().slice(0,10));
   const audioRef = useRef(null);
 
-  // Drag & resize state
-  const [pos, setPos]   = useState({ x: window.innerWidth - 580, y: 70 });
+  // Drag & resize
+  const [pos, setPos]   = useState({ x: Math.max(0, window.innerWidth - 580), y: 70 });
   const [size, setSize] = useState({ w: 560, h: Math.min(window.innerHeight * 0.85, 720) });
-  const dragging  = useRef(false);
-  const resizing  = useRef(false);
-  const dragStart = useRef({ mx: 0, my: 0, px: 0, py: 0 });
-  const resStart  = useRef({ mx: 0, my: 0, w: 0, h: 0 });
+  const dragging  = useRef(false), resizing  = useRef(false);
+  const dragStart = useRef({ mx:0, my:0, px:0, py:0 });
+  const resStart  = useRef({ mx:0, my:0, w:0, h:0 });
   const panelRef  = useRef(null);
 
   useEffect(() => {
-    const onMove = (e) => {
-      if (dragging.current) {
-        setPos({
-          x: Math.max(0, Math.min(window.innerWidth - 200, dragStart.current.px + e.clientX - dragStart.current.mx)),
-          y: Math.max(0, Math.min(window.innerHeight - 60, dragStart.current.py + e.clientY - dragStart.current.my)),
-        });
-      }
-      if (resizing.current) {
-        setSize({
-          w: Math.max(400, resStart.current.w + e.clientX - resStart.current.mx),
-          h: Math.max(300, resStart.current.h + e.clientY - resStart.current.my),
-        });
-      }
+    const onMove = e => {
+      if (dragging.current) setPos({ x:Math.max(0,Math.min(window.innerWidth-200,dragStart.current.px+e.clientX-dragStart.current.mx)), y:Math.max(0,Math.min(window.innerHeight-60,dragStart.current.py+e.clientY-dragStart.current.my)) });
+      if (resizing.current) setSize({ w:Math.max(420,resStart.current.w+e.clientX-resStart.current.mx), h:Math.max(320,resStart.current.h+e.clientY-resStart.current.my) });
     };
-    const onUp = () => { dragging.current = false; resizing.current = false; };
+    const onUp = () => { dragging.current=false; resizing.current=false; };
     window.addEventListener('mousemove', onMove);
     window.addEventListener('mouseup', onUp);
     return () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
@@ -534,12 +560,9 @@ export default function CallLogPanel({ onClose, onOpenLead }) {
 
   useEffect(() => {
     loadData();
-    const poll = setInterval(loadCallLogs, 120000); // Was 30s — slowed to reduce API load
+    const poll = setInterval(loadCallLogs, 60000);
     return () => clearInterval(poll);
   }, []);
-
-  const [listStart, setListStart] = useState(() => new Date().toISOString().slice(0,10));
-  const [listEnd,   setListEnd]   = useState(() => new Date().toISOString().slice(0,10));
 
   const loadData = async () => {
     try {
@@ -548,11 +571,11 @@ export default function CallLogPanel({ onClose, onOpenLead }) {
         base44.functions.invoke('twilioGetLines', {}),
         base44.entities.Lead.list('-updated_date', 5000),
       ]);
-      setCallLogs(clData || []);
-      setLines(linesData?.data?.lines || linesData?.lines || []);
-      setLeads(leadsData || []);
       const fetchedLines = linesData?.data?.lines || linesData?.lines || [];
       fetchedLines.forEach(l => { NUMBER_TO_AGENT[l.number] = l.label; });
+      setCallLogs(clData || []);
+      setLines(fetchedLines);
+      setLeads(leadsData || []);
     } catch(e) { console.error(e); }
     await loadOutbound(listStart, listEnd);
     setLoading(false);
@@ -567,97 +590,61 @@ export default function CallLogPanel({ onClose, onOpenLead }) {
   };
 
   const loadCallLogs = async () => {
-    try {
-      const data = await base44.entities.CallLog.list('-calledAt', 150);
-      setCallLogs(data || []);
-    } catch {}
+    try { setCallLogs(await base44.entities.CallLog.list('-calledAt', 200) || []); } catch {}
   };
 
-  const logs = callLogs;
-  const inboundFiltered = callLogs.filter(l => l.direction === 'inbound');
-
-  // Filter outbound by line
-  const outboundFiltered = lineFilter === 'all'
-    ? historyRows
-    : historyRows.filter(c => c.from === lineFilter);
-
-  const markVmListened = async (log) => {
+  const markVmListened = async (log, justMark = false) => {
     if (!log.vmListened) {
       await base44.entities.CallLog.update(log.id, { vmListened: true, dismissed: true }).catch(() => {});
-      setCallLogs(prev => prev.map(l => l.id === log.id ? { ...l, vmListened: true, dismissed: true } : l));
+      setCallLogs(prev => prev.map(l => l.id===log.id ? {...l, vmListened:true, dismissed:true} : l));
     }
-    setPlayingVm(log.id === playingVm ? null : log.id);
+    if (!justMark) setPlayingVm(log.id === playingVm ? null : log.id);
   };
 
   const dismissAll = async () => {
     const unread = callLogs.filter(l => !l.dismissed);
-    await Promise.all(unread.map(l => base44.entities.CallLog.update(l.id, { dismissed: true }).catch(() => {})));
-    setCallLogs(prev => prev.map(l => ({ ...l, dismissed: true })));
+    await Promise.all(unread.map(l => base44.entities.CallLog.update(l.id, { dismissed:true }).catch(()=>{})));
+    setCallLogs(prev => prev.map(l => ({ ...l, dismissed:true })));
   };
+
+  const inboundFiltered = callLogs.filter(l => l.direction === 'inbound');
+  const outboundFiltered = lineFilter === 'all' ? historyRows : historyRows.filter(c => c.from === lineFilter);
 
   const unlistenedVm = callLogs.filter(l => l.vmRecordingUrl && !l.vmListened).length;
-  const missedCount  = callLogs.filter(l => (l.status === 'missed' || l.status === 'no-answer') && !l.dismissed).length;
+  const missedCount  = callLogs.filter(l => (l.status==='missed'||l.status==='no-answer') && !l.dismissed).length;
 
-  // Look up lead name from phone number
-  const getLeadForCall = (call) => {
-    return leads.find(l =>
-      l.phone === call.to || l.phone === call.from ||
-      l.phone2 === call.to || l.phone2 === call.from
-    );
+  const handleOpenLead = (leadId) => {
+    if (onOpenLead) { onOpenLead(leadId); onClose(); }
   };
-
-  // Determine agent (from number → line label)
-  const getAgent = (fromNumber) => {
-    if (!fromNumber) return '—';
-    // Try exact match from loaded lines first
-    const lineMatch = lines.find(l => l.number === fromNumber || fromNumber.endsWith(l.number?.slice(-4)));
-    if (lineMatch?.label) return lineMatch.label;
-    // Fallback: infer from last 4 digits via NUMBER_TO_AGENT map
-    const mapLabel = NUMBER_TO_AGENT[fromNumber];
-    if (mapLabel) return mapLabel;
-    // Last resort: known endings
-    if (fromNumber.endsWith('5680')) return 'Admin';
-    if (fromNumber.endsWith('5681')) return 'Steph';
-    if (fromNumber.endsWith('5682')) return 'Line 3';
-    return fromNumber.slice(-4);
+  const handleOpenInvestor = (investorId) => {
+    if (onOpenInvestor) { onOpenInvestor(investorId); onClose(); }
   };
 
   return (
     <>
-      <style>{`
-        @keyframes linePulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.6;transform:scale(1.3)} }
-      `}</style>
-      <div ref={panelRef} style={{
-        position: 'fixed', left: pos.x, top: pos.y, zIndex: 99990,
-        width: size.w, height: size.h,
-        background: DARK, border: `1px solid rgba(184,147,58,0.3)`,
-        borderRadius: '10px', boxShadow: '0 20px 60px rgba(0,0,0,0.9)',
-        fontFamily: 'Georgia, serif', display: 'flex', flexDirection: 'column',
-        userSelect: dragging.current || resizing.current ? 'none' : 'auto',
-        minWidth: '400px', minHeight: '300px',
-      }}>
+      <style>{`@keyframes linePulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:0.6;transform:scale(1.3)}}`}</style>
+      <div ref={panelRef} style={{ position:'fixed', left:pos.x, top:pos.y, zIndex:99990, width:size.w, height:size.h, background:DARK, border:`1px solid rgba(184,147,58,0.3)`, borderRadius:'10px', boxShadow:'0 20px 60px rgba(0,0,0,0.9)', fontFamily:'Georgia, serif', display:'flex', flexDirection:'column', minWidth:'420px', minHeight:'320px' }}>
 
-        {/* ── Header (drag handle) ── */}
-        <div
-          onMouseDown={e => { if (e.target.closest('button')) return; dragging.current = true; dragStart.current = { mx: e.clientX, my: e.clientY, px: pos.x, py: pos.y }; e.preventDefault(); }}
-          style={{ padding: '12px 16px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0, cursor: 'move' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span style={{ color: GOLD, fontSize: '12px', letterSpacing: '1.5px', textTransform: 'uppercase', fontWeight: 'bold' }}>📋 Call Log</span>
-            {unlistenedVm > 0 && <span style={{ background: 'rgba(245,158,11,0.2)', color: '#f59e0b', border: '1px solid rgba(245,158,11,0.4)', borderRadius: '10px', padding: '1px 7px', fontSize: '10px', fontWeight: 'bold' }}>📩 {unlistenedVm} VM</span>}
-            {missedCount > 0 && <span style={{ background: 'rgba(239,68,68,0.15)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.35)', borderRadius: '10px', padding: '1px 7px', fontSize: '10px', fontWeight: 'bold' }}>📵 {missedCount} Missed</span>}
+        {/* Header */}
+        <div onMouseDown={e=>{ if(e.target.closest('button'))return; dragging.current=true; dragStart.current={mx:e.clientX,my:e.clientY,px:pos.x,py:pos.y}; e.preventDefault(); }}
+          style={{ padding:'12px 16px', borderBottom:'1px solid rgba(255,255,255,0.07)', display:'flex', justifyContent:'space-between', alignItems:'center', flexShrink:0, cursor:'move' }}>
+          <div style={{ display:'flex', alignItems:'center', gap:'8px' }}>
+            <span style={{ color:GOLD, fontSize:'12px', letterSpacing:'1.5px', textTransform:'uppercase', fontWeight:'bold' }}>📋 Call Log</span>
+            {unlistenedVm > 0 && <span style={{ background:'rgba(245,158,11,0.2)', color:'#f59e0b', border:'1px solid rgba(245,158,11,0.4)', borderRadius:'10px', padding:'1px 7px', fontSize:'10px', fontWeight:'bold' }}>📩 {unlistenedVm} VM</span>}
+            {missedCount  > 0 && <span style={{ background:'rgba(239,68,68,0.15)',  color:'#ef4444', border:'1px solid rgba(239,68,68,0.35)',  borderRadius:'10px', padding:'1px 7px', fontSize:'10px', fontWeight:'bold' }}>📵 {missedCount} Missed</span>}
           </div>
-          <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-            <button onClick={dismissAll} style={{ background: 'rgba(255,255,255,0.05)', color: '#6b7280', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '4px', padding: '3px 10px', cursor: 'pointer', fontSize: '10px' }}>Mark All Read</button>
-            <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#6b7280', cursor: 'pointer', fontSize: '20px', lineHeight: 1 }}>×</button>
+          <div style={{ display:'flex', gap:'6px', alignItems:'center' }}>
+            <button onClick={dismissAll} style={{ background:'rgba(255,255,255,0.05)', color:'#6b7280', border:'1px solid rgba(255,255,255,0.1)', borderRadius:'4px', padding:'3px 10px', cursor:'pointer', fontSize:'10px' }}>Mark All Read</button>
+            <button onClick={onClose} style={{ background:'none', border:'none', color:'#6b7280', cursor:'pointer', fontSize:'20px', lineHeight:1 }}>×</button>
           </div>
         </div>
 
-        {/* ── Live Line Bars ── */}
-        <div style={{ padding: '10px 14px', borderBottom: '1px solid rgba(255,255,255,0.06)', flexShrink: 0 }}>
-          <div style={{ color: '#4a5568', fontSize: '9px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '6px' }}>Live Line Status</div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+        {/* Live Line Bars */}
+        <div style={{ padding:'10px 14px', borderBottom:'1px solid rgba(255,255,255,0.06)', flexShrink:0 }}>
+          <div style={{ color:'#4a5568', fontSize:'9px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'6px' }}>Live Line Status</div>
+          <div style={{ display:'flex', flexDirection:'column', gap:'4px' }}>
             {lines.length > 0
-              ? lines.map((line, i) => <LiveLineBar key={i} line={line} logs={callLogs} />)
+              ? lines.map((line,i) => <LiveLineBar key={i} line={line} logs={callLogs} />)
               : [0,1,2].map(n => (
                   <div key={n} style={{ display:'flex', alignItems:'center', gap:'10px', background:'rgba(239,68,68,0.04)', border:'1px solid rgba(239,68,68,0.15)', borderRadius:'6px', padding:'7px 12px' }}>
                     <div style={{ width:'8px', height:'8px', borderRadius:'50%', background:'#374151', flexShrink:0 }} />
@@ -668,197 +655,108 @@ export default function CallLogPanel({ onClose, onOpenLead }) {
           </div>
         </div>
 
-        {/* ── Main Tab: Calls | Reports | Voicemail ── */}
-        <div style={{ display: 'flex', borderBottom: '1px solid rgba(255,255,255,0.07)', flexShrink: 0 }}>
-          {[['calls','📋 Calls'], ['reports','📊 Reports'], ['voicemail','📩 Voicemail']].map(([id, label]) => (
+        {/* Main Tabs */}
+        <div style={{ display:'flex', borderBottom:'1px solid rgba(255,255,255,0.07)', flexShrink:0 }}>
+          {[['calls','📋 Calls'], ['reports','📊 Reports'], ['voicemail','📩 Voicemail' + (unlistenedVm>0?` (${unlistenedVm})`:'')]].map(([id, label]) => (
             <button key={id} onClick={() => setMainTab(id)}
-              style={{ flex: 1, background: 'none', border: 'none', borderBottom: mainTab === id ? `2px solid ${GOLD}` : '2px solid transparent', color: mainTab === id ? GOLD : '#6b7280', padding: '9px', cursor: 'pointer', fontSize: '11px', letterSpacing: '0.5px' }}>
+              style={{ flex:1, background:'none', border:'none', borderBottom: mainTab===id?`2px solid ${GOLD}`:'2px solid transparent', color: mainTab===id?GOLD:'#6b7280', padding:'9px', cursor:'pointer', fontSize:'11px', letterSpacing:'0.5px' }}>
               {label}
             </button>
           ))}
         </div>
 
-        {/* ── Voicemail Settings ── */}
+        {/* ── Voicemail Tab ── */}
         {mainTab === 'voicemail' && (
-          <VoicemailSettingsTab />
+          <>
+            <div style={{ display:'flex', borderBottom:'1px solid rgba(255,255,255,0.07)', flexShrink:0 }}>
+              {[['list','📩 Messages'], ['settings','⚙️ Greeting']].map(([id, label]) => (
+                <button key={id} onClick={() => setVmSubTab(id)}
+                  style={{ flex:1, background:'none', border:'none', borderBottom: vmSubTab===id?`2px solid #f59e0b`:'2px solid transparent', color: vmSubTab===id?'#f59e0b':'#6b7280', padding:'8px', cursor:'pointer', fontSize:'11px' }}>
+                  {label}
+                </button>
+              ))}
+            </div>
+            {vmSubTab === 'list' && (
+              <VoicemailListTab
+                callLogs={callLogs}
+                onMarkListened={markVmListened}
+                onOpenLead={handleOpenLead}
+                onOpenInvestor={handleOpenInvestor}
+                playingVm={playingVm}
+                setPlayingVm={setPlayingVm}
+                audioRef={audioRef}
+              />
+            )}
+            {vmSubTab === 'settings' && <VoicemailSettingsTab />}
+          </>
         )}
 
-        {/* ── Reports ── */}
-        {mainTab === 'reports' && (
-          <div style={{ flex: 1, overflowY: 'auto' }}>
-            <ReportsTab lines={lines} />
-          </div>
-        )}
+        {/* ── Reports Tab ── */}
+        {mainTab === 'reports' && <div style={{ flex:1, overflowY:'auto' }}><ReportsTab lines={lines} /></div>}
 
         {/* ── Calls Tab ── */}
         {mainTab === 'calls' && (
           <>
-            {/* Incoming / Outgoing Tabs */}
-            <div style={{ display: 'flex', borderBottom: '1px solid rgba(255,255,255,0.07)', flexShrink: 0 }}>
-              {[['outbound','↗ Outgoing', outboundFiltered.length], ['inbound','↙ Incoming', inboundFiltered.length]].map(([dir, label, count]) => (
+            {/* Inbound / Outbound sub-tabs */}
+            <div style={{ display:'flex', borderBottom:'1px solid rgba(255,255,255,0.07)', flexShrink:0 }}>
+              {[['inbound','↙ Incoming', inboundFiltered.length], ['outbound','↗ Outgoing', outboundFiltered.length]].map(([dir, label, count]) => (
                 <button key={dir} onClick={() => setDirTab(dir)}
-                  style={{ flex: 1, background: 'none', border: 'none', borderBottom: dirTab === dir ? `2px solid ${dir === 'inbound' ? '#60a5fa' : '#a78bfa'}` : '2px solid transparent', color: dirTab === dir ? (dir === 'inbound' ? '#60a5fa' : '#a78bfa') : '#6b7280', padding: '8px', cursor: 'pointer', fontSize: '11px' }}>
-                  {label} <span style={{ fontSize: '10px', opacity: 0.7 }}>({count})</span>
+                  style={{ flex:1, background:'none', border:'none', borderBottom: dirTab===dir?`2px solid ${dir==='inbound'?'#60a5fa':'#a78bfa'}`:'2px solid transparent', color: dirTab===dir?(dir==='inbound'?'#60a5fa':'#a78bfa'):'#6b7280', padding:'8px', cursor:'pointer', fontSize:'11px' }}>
+                  {label} <span style={{ fontSize:'10px', opacity:0.7 }}>({count})</span>
                 </button>
               ))}
             </div>
 
-            {/* Outbound filters row */}
+            {/* Outbound filters */}
             {dirTab === 'outbound' && (
               <div style={{ padding:'8px 14px', borderBottom:'1px solid rgba(255,255,255,0.06)', flexShrink:0, display:'flex', gap:'8px', alignItems:'center', flexWrap:'wrap' }}>
                 <span style={{ color:'#4a5568', fontSize:'9px', letterSpacing:'2px', textTransform:'uppercase', flexShrink:0 }}>Range:</span>
-                <input type="date" value={listStart} onChange={e => setListStart(e.target.value)}
-                  style={{ background:'rgba(255,255,255,0.06)', border:'1px solid rgba(255,255,255,0.12)', borderRadius:'4px', padding:'4px 8px', color:'#e8e0d0', fontSize:'11px', outline:'none', colorScheme:'dark' }} />
+                <input type="date" value={listStart} onChange={e=>setListStart(e.target.value)} style={{ background:'rgba(255,255,255,0.06)', border:'1px solid rgba(255,255,255,0.12)', borderRadius:'4px', padding:'4px 8px', color:'#e8e0d0', fontSize:'11px', outline:'none', colorScheme:'dark' }} />
                 <span style={{ color:'#4a5568', fontSize:'11px' }}>→</span>
-                <input type="date" value={listEnd} onChange={e => setListEnd(e.target.value)}
-                  style={{ background:'rgba(255,255,255,0.06)', border:'1px solid rgba(255,255,255,0.12)', borderRadius:'4px', padding:'4px 8px', color:'#e8e0d0', fontSize:'11px', outline:'none', colorScheme:'dark' }} />
-                <button onClick={() => { setLoading(true); loadOutbound(listStart, listEnd).then(() => setLoading(false)); }}
-                  style={{ background:'linear-gradient(135deg,#b8933a,#d4aa50)', color:DARK, border:'none', borderRadius:'4px', padding:'4px 14px', cursor:'pointer', fontSize:'10px', fontWeight:'bold' }}>
-                  Load
-                </button>
-                {/* Line/number filter */}
-                <select value={lineFilter} onChange={e => setLineFilter(e.target.value)}
-                  style={{ background:'rgba(255,255,255,0.06)', border:'1px solid rgba(255,255,255,0.12)', borderRadius:'4px', padding:'4px 8px', color:'#e8e0d0', fontSize:'11px', outline:'none', colorScheme:'dark', cursor:'pointer', marginLeft:'auto' }}>
+                <input type="date" value={listEnd} onChange={e=>setListEnd(e.target.value)} style={{ background:'rgba(255,255,255,0.06)', border:'1px solid rgba(255,255,255,0.12)', borderRadius:'4px', padding:'4px 8px', color:'#e8e0d0', fontSize:'11px', outline:'none', colorScheme:'dark' }} />
+                <button onClick={() => { setLoading(true); loadOutbound(listStart, listEnd).then(() => setLoading(false)); }} style={{ background:'linear-gradient(135deg,#b8933a,#d4aa50)', color:DARK, border:'none', borderRadius:'4px', padding:'4px 14px', cursor:'pointer', fontSize:'10px', fontWeight:'bold' }}>Load</button>
+                <select value={lineFilter} onChange={e=>setLineFilter(e.target.value)} style={{ background:'rgba(255,255,255,0.06)', border:'1px solid rgba(255,255,255,0.12)', borderRadius:'4px', padding:'4px 8px', color:'#e8e0d0', fontSize:'11px', outline:'none', colorScheme:'dark', cursor:'pointer', marginLeft:'auto' }}>
                   <option value="all">👥 All Agents</option>
-                  {lines.map(l => (
-                    <option key={l.number} value={l.number}>{l.label === 'Steph' ? '🟣' : '🟡'} {l.label}</option>
-                  ))}
+                  {lines.map(l => <option key={l.number} value={l.number}>{l.label==='Steph'?'🟣':'🟡'} {l.label}</option>)}
                 </select>
               </div>
             )}
 
-            {/* Call List */}
-            <div style={{ flex: 1, overflowY: 'auto', padding: '8px' }}>
-              {loading && <div style={{ color: '#6b7280', textAlign: 'center', padding: '40px' }}>Loading…</div>}
+            {/* Call list */}
+            <div style={{ flex:1, overflowY:'auto', padding:'8px' }}>
+              {loading && <div style={{ color:'#6b7280', textAlign:'center', padding:'40px' }}>Loading…</div>}
 
-              {/* ── OUTBOUND: from Twilio API ── */}
-              {!loading && dirTab === 'outbound' && (
+              {!loading && dirTab === 'inbound' && (
                 <>
-                  {outboundFiltered.length === 0 && (
-                    <div style={{ color: '#4a5568', textAlign: 'center', padding: '40px' }}>
-                      <div style={{ fontSize: '32px', marginBottom: '8px' }}>📋</div>No outgoing call records for this range.
-                    </div>
-                  )}
-                  {outboundFiltered.map((c) => {
-                    const connected = c.status === 'completed' && c.duration > 0;
-                    const statusColor = c.status === 'completed' ? (c.duration > 0 ? '#4ade80' : '#8a9ab8') : c.status === 'busy' || c.status === 'no-answer' ? '#f59e0b' : c.status === 'failed' ? '#ef4444' : '#8a9ab8';
-                    const matchedLead = getLeadForCall(c);
-                    const agentLabel = getAgent(c.from);
-                    const leadName = matchedLead ? `${matchedLead.firstName || ''} ${matchedLead.lastName || ''}`.trim() : null;
-                    return (
-                      <div key={c.sid} style={{
-                        background: 'rgba(255,255,255,0.02)', border: `1px solid rgba(255,255,255,0.06)`,
-                        borderLeft: `3px solid ${statusColor}`, borderRadius: '6px', padding: '10px 12px', marginBottom: '6px',
-                      }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            {/* Lead name + phone */}
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '3px' }}>
-                              <span style={{ fontSize: '13px' }}>{connected ? '📞' : '📵'}</span>
-                              {leadName ? (
-                                <span style={{ color: '#e8e0d0', fontSize: '13px', fontWeight: 'bold', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{leadName}</span>
-                              ) : (
-                                <span style={{ color: '#8a9ab8', fontSize: '12px', fontFamily:'monospace', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{c.to}</span>
-                              )}
-                            </div>
-                            {/* Phone + agent + SID */}
-                            <div style={{ display:'flex', gap:'5px', flexWrap:'wrap', alignItems:'center', marginBottom:'4px' }}>
-                              <span style={{ color:'#4ade80', fontSize:'11px', fontFamily:'monospace' }}>{c.to}</span>
-                              <span style={{ color:'#4a5568', fontSize:'9px' }}>·</span>
-                              <span style={{ background: agentLabel === 'Steph' ? 'rgba(167,139,250,0.15)' : 'rgba(184,147,58,0.15)', color: agentLabel === 'Steph' ? '#a78bfa' : GOLD, border: `1px solid ${agentLabel === 'Steph' ? 'rgba(167,139,250,0.35)' : 'rgba(184,147,58,0.35)'}`, borderRadius:'3px', padding:'2px 8px', fontSize:'10px', fontWeight:'bold' }}>
-                                {agentLabel === 'Steph' ? '🟣' : '🟡'} {agentLabel}
-                              </span>
-                              {c.duration > 0 && (
-                                <span style={{ color: '#a78bfa', fontSize: '10px' }}>⏱ {formatDur(c.duration)}</span>
-                              )}
-                            </div>
-                            {/* Convert buttons */}
-                            <ConvertButtons call={c} leads={leads} onConverted={() => base44.entities.Lead.list('-updated_date', 5000).then(setLeads).catch(()=>{})} />
-                          </div>
-                          <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                            <div style={{ color: '#6b7280', fontSize: '10px', marginBottom: '2px' }}>
-                              {c.startTime ? fmtDateTimeShort(c.startTime) : '—'}
-                            </div>
-                            <div style={{ display:'flex', gap:'4px', justifyContent:'flex-end', alignItems:'center' }}>
-                              <span style={{ color: statusColor, fontSize: '10px' }}>{c.status}</span>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
+                  {inboundFiltered.length === 0 && <div style={{ color:'#4a5568', textAlign:'center', padding:'40px' }}><div style={{ fontSize:'32px', marginBottom:'8px' }}>📋</div>No incoming call records.</div>}
+                  {inboundFiltered.map(log => (
+                    <CallRow key={log.id} log={log} isOutbound={false} leads={leads} lines={lines}
+                      onOpenLead={handleOpenLead} onOpenInvestor={handleOpenInvestor}
+                      onMarkVm={markVmListened} playingVm={playingVm} setPlayingVm={setPlayingVm} audioRef={audioRef}
+                    />
+                  ))}
                 </>
               )}
 
-              {/* ── INBOUND: from CallLog entity ── */}
-              {!loading && dirTab === 'inbound' && (
+              {!loading && dirTab === 'outbound' && (
                 <>
-                  {inboundFiltered.length === 0 && (
-                    <div style={{ color: '#4a5568', textAlign: 'center', padding: '40px' }}>
-                      <div style={{ fontSize: '32px', marginBottom: '8px' }}>📋</div>No incoming call records.
-                    </div>
-                  )}
-                  {inboundFiltered.map((log) => {
-                    const st = STATUS_COLORS[log.status] || STATUS_COLORS.ringing;
-                    const isUnread = !log.dismissed && (log.status === 'missed' || log.status === 'no-answer' || (log.vmRecordingUrl && !log.vmListened));
-                    const displayName = log.callerName || log.fromNumber || '—';
-                    const isPlayingThis = playingVm === log.id;
-                    return (
-                      <div key={log.id} style={{
-                        background: isUnread ? 'rgba(255,255,255,0.04)' : 'rgba(255,255,255,0.015)',
-                        border: `1px solid ${isUnread ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.05)'}`,
-                        borderLeft: `3px solid ${st.color}`, borderRadius: '6px', padding: '10px 12px', marginBottom: '6px',
-                      }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '2px' }}>
-                              <span style={{ fontSize: '13px' }}>{st.icon}</span>
-                              <span style={{ color: isUnread ? '#e8e0d0' : '#c4cdd8', fontSize: '13px', fontWeight: isUnread ? 'bold' : 'normal' }}>{displayName}</span>
-                              {!log.dismissed && <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#ef4444', flexShrink: 0, display: 'inline-block' }} />}
-                            </div>
-                            <div style={{ color: '#60a5fa', fontSize: '11px', fontFamily: 'monospace' }}>{log.fromNumber || '—'}</div>
-                          </div>
-                          <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                            <div style={{ color: '#6b7280', fontSize: '10px', marginBottom: '2px' }}>{fmtDateTime(log.calledAt)}</div>
-                            <div style={{ display:'flex', gap:'4px', justifyContent:'flex-end' }}>
-                              <span style={{ background: st.bg, color: st.color, padding: '1px 6px', borderRadius: '3px', fontSize: '10px' }}>{log.status}</span>
-                              {log.durationSeconds > 0 && <span style={{ color: '#6b7280', fontSize: '10px' }}>⏱ {formatDur(log.durationSeconds)}</span>}
-                            </div>
-                          </div>
-                        </div>
-                        {log.vmRecordingUrl && (
-                          <div style={{ marginTop: '8px', background: 'rgba(245,158,11,0.06)', border: '1px solid rgba(245,158,11,0.2)', borderRadius: '4px', padding: '7px 10px' }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                              <span style={{ color: '#f59e0b', fontSize: '11px', fontWeight: 'bold' }}>📩 Voicemail {!log.vmListened && '· NEW'}</span>
-                              <button onClick={() => markVmListened(log)} style={{ background: 'rgba(245,158,11,0.15)', color: '#f59e0b', border: '1px solid rgba(245,158,11,0.35)', borderRadius: '4px', padding: '3px 10px', cursor: 'pointer', fontSize: '10px' }}>
-                                {isPlayingThis ? '⏹ Close' : '▶ Play'}
-                              </button>
-                            </div>
-                            {log.vmTranscription && <div style={{ color: '#8a9ab8', fontSize: '11px', lineHeight: 1.5, fontStyle: 'italic', marginTop: '4px' }}>"{log.vmTranscription.slice(0,200)}{log.vmTranscription.length>200?'…':''}"</div>}
-                            {isPlayingThis && <audio ref={audioRef} src={log.vmRecordingUrl} controls autoPlay style={{ width: '100%', marginTop: '6px', height: '32px' }} />}
-                          </div>
-                        )}
-                        <div style={{ display: 'flex', gap: '6px', marginTop: '6px' }}>
-                          {log.leadId && onOpenLead && <button onClick={() => onOpenLead(log.leadId)} style={{ background: 'rgba(167,139,250,0.1)', color: '#a78bfa', border: '1px solid rgba(167,139,250,0.25)', borderRadius: '4px', padding: '3px 10px', cursor: 'pointer', fontSize: '10px' }}>📋 Open Lead</button>}
-                          {!log.dismissed && <button onClick={async () => { await base44.entities.CallLog.update(log.id, { dismissed: true }).catch(() => {}); setCallLogs(prev => prev.map(l => l.id === log.id ? { ...l, dismissed: true } : l)); }} style={{ background: 'rgba(255,255,255,0.04)', color: '#4a5568', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '4px', padding: '3px 10px', cursor: 'pointer', fontSize: '10px' }}>✓ Dismiss</button>}
-                        </div>
-                      </div>
-                    );
-                  })}
+                  {outboundFiltered.length === 0 && <div style={{ color:'#4a5568', textAlign:'center', padding:'40px' }}><div style={{ fontSize:'32px', marginBottom:'8px' }}>📋</div>No outgoing call records for this range.</div>}
+                  {outboundFiltered.map(c => (
+                    <CallRow key={c.sid} log={c} isOutbound={true} leads={leads} lines={lines}
+                      onOpenLead={handleOpenLead} onOpenInvestor={handleOpenInvestor}
+                      onMarkVm={null} playingVm={null} setPlayingVm={null} audioRef={audioRef}
+                    />
+                  ))}
                 </>
               )}
             </div>
           </>
         )}
 
-        {/* ── Resize handle ── */}
-        <div
-          onMouseDown={e => { resizing.current = true; resStart.current = { mx: e.clientX, my: e.clientY, w: size.w, h: size.h }; e.preventDefault(); e.stopPropagation(); }}
-          style={{ position: 'absolute', bottom: 0, right: 0, width: '20px', height: '20px', cursor: 'se-resize', display: 'flex', alignItems: 'flex-end', justifyContent: 'flex-end', padding: '4px' }}
-        >
-          <svg width="12" height="12" viewBox="0 0 10 10" fill="none">
-            <path d="M2 9L9 2M5 9L9 5M9 9L9 9" stroke="rgba(184,147,58,0.5)" strokeWidth="1.5" strokeLinecap="round"/>
-          </svg>
+        {/* Resize handle */}
+        <div onMouseDown={e=>{ resizing.current=true; resStart.current={mx:e.clientX,my:e.clientY,w:size.w,h:size.h}; e.preventDefault(); e.stopPropagation(); }}
+          style={{ position:'absolute', bottom:0, right:0, width:'20px', height:'20px', cursor:'se-resize', display:'flex', alignItems:'flex-end', justifyContent:'flex-end', padding:'4px' }}>
+          <svg width="12" height="12" viewBox="0 0 10 10" fill="none"><path d="M2 9L9 2M5 9L9 5M9 9L9 9" stroke="rgba(184,147,58,0.5)" strokeWidth="1.5" strokeLinecap="round"/></svg>
         </div>
       </div>
     </>
