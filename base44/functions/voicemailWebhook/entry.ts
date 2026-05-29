@@ -1,18 +1,14 @@
 /**
  * voicemailWebhook
  * Called by Twilio when:
- *   1. noAnswer=true  — <Dial> action callback, no one answered → return TwiML instantly
+ *   1. noAnswer=true  — <Dial> action callback, no one answered → play greeting + record
  *   2. RecordingUrl present — recording complete → store voicemail in DB
  *   3. Status callback — call status update → log call record in DB
- *
- * CRITICAL: The noAnswer branch MUST return TwiML in < 8 seconds or Twilio
- * gives up and plays "application error". We do ZERO database work here —
- * just return TwiML immediately. DB logging happens in the recording callback.
  */
 
 const DEFAULT_VM_GREETING = "Hi, you've reached us. We're unavailable right now. Please leave your message after the beep and we'll call you back shortly.";
 
-const APP_ID = Deno.env.get('BASE44_APP_ID') || '';
+const APP_ID       = Deno.env.get('BASE44_APP_ID')        || '';
 const SERVICE_TOKEN = Deno.env.get('BASE44_SERVICE_TOKEN') || '';
 
 const b44Fetch = (path, opts = {}) => fetch(
@@ -28,76 +24,87 @@ const b44Create = (entity, data) => b44Fetch(entity, { method: 'POST', body: JSO
 const b44Update = (entity, id, data) => b44Fetch(`${entity}/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
 
 Deno.serve(async (req) => {
-  if (req.method !== 'POST') return new Response('OK', { status: 200 });
-
   const urlParams = new URL(req.url).searchParams;
 
-  // ── noAnswer branch: return TwiML INSTANTLY — no DB calls at all ────────
-  // Twilio has an 8–10s timeout. Any DB query here risks a cold-start 502.
-  // We use the default greeting only. If you want a custom greeting, put
-  // the audio file at a stable CDN URL and hardcode it in vmAudioUrl below.
-  if (urlParams.get('noAnswer') === 'true') {
+  // Read body once upfront (safe for both GET and POST)
+  let bodyText = '';
+  if (req.method === 'POST') {
+    try { bodyText = await req.text(); } catch {}
+  }
+  const bodyParams = new URLSearchParams(bodyText);
+
+  console.log('[voicemailWebhook] method:', req.method,
+    'noAnswer(url):', urlParams.get('noAnswer'),
+    'noAnswer(body):', bodyParams.get('noAnswer'),
+    'DialCallStatus:', bodyParams.get('DialCallStatus'),
+    'CallStatus:', bodyParams.get('CallStatus'),
+    'RecordingUrl:', bodyParams.get('RecordingUrl') ? 'YES' : 'NO');
+
+  const vmWebhookBase = `https://run.base44.com/apps/${APP_ID}/functions/voicemailWebhook`;
+
+  // ── noAnswer branch ────────────────────────────────────────────────────────
+  // Triggered by <Dial action="...?noAnswer=true"> when the browser client
+  // doesn't answer. Must return TwiML fast (Twilio 8s timeout).
+  const isNoAnswer = urlParams.get('noAnswer') === 'true' || bodyParams.get('noAnswer') === 'true';
+  const dialCallStatus = bodyParams.get('DialCallStatus') || '';
+
+  if (isNoAnswer) {
+    // If the call was actually answered (agent picked up then hung up), skip voicemail
+    if (dialCallStatus === 'completed') {
+      console.log('[voicemailWebhook] DialCallStatus=completed — call was answered, skipping voicemail');
+      return new Response('<?xml version="1.0" encoding="UTF-8"?><Response></Response>', { headers: { 'Content-Type': 'text/xml' } });
+    }
+
+    console.log('[voicemailWebhook] noAnswer branch — DialCallStatus:', dialCallStatus);
+
+    // Try to load custom greeting (with tight timeout to stay under Twilio's 8s limit)
+    let greetingTwiml = `<Say voice="alice">${DEFAULT_VM_GREETING}</Say>`;
     try {
-      const vmWebhookBase = `https://run.base44.com/apps/${APP_ID}/functions/voicemailWebhook`;
-
-      // Try to load custom greeting from PortalSettings using service token
-      let greetingTwiml = `<Say voice="alice">${DEFAULT_VM_GREETING}</Say>`;
-      try {
-        const settingsRes = await fetch(
-          `https://api.base44.com/api/apps/${APP_ID}/entities/PortalSettings?filters=${encodeURIComponent(JSON.stringify({ key: 'main' }))}`,
-          { headers: { 'Authorization': `Bearer ${SERVICE_TOKEN}` } }
-        );
-        if (settingsRes.ok) {
-          const data = await settingsRes.json();
-          const ps = Array.isArray(data) ? data[0] : data?.items?.[0];
-          if (ps?.vmAudioUrl) {
-            greetingTwiml = `<Play>${ps.vmAudioUrl}</Play>`;
-          } else if (ps?.vmGreeting) {
-            greetingTwiml = `<Say voice="alice">${ps.vmGreeting}</Say>`;
-          }
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), 3000); // 3s max
+      const settingsRes = await fetch(
+        `https://api.base44.com/api/apps/${APP_ID}/entities/PortalSettings?filters=${encodeURIComponent(JSON.stringify({ key: 'main' }))}`,
+        { headers: { 'Authorization': `Bearer ${SERVICE_TOKEN}` }, signal: ctrl.signal }
+      );
+      clearTimeout(timer);
+      if (settingsRes.ok) {
+        const data = await settingsRes.json();
+        const ps = Array.isArray(data) ? data[0] : data?.items?.[0];
+        if (ps?.vmAudioUrl) {
+          greetingTwiml = `<Play>${ps.vmAudioUrl}</Play>`;
+          console.log('[voicemailWebhook] Using custom audio URL');
+        } else if (ps?.vmGreeting) {
+          greetingTwiml = `<Say voice="alice">${ps.vmGreeting}</Say>`;
+          console.log('[voicemailWebhook] Using custom text greeting');
         }
-      } catch {
-        // Fall through to default greeting
       }
+    } catch (e) {
+      console.log('[voicemailWebhook] Settings fetch failed/timed out, using default greeting:', e?.message);
+    }
 
-      const twiml = `<?xml version="1.0" encoding="UTF-8"?>
+    const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   ${greetingTwiml}
   <Record maxLength="120" playBeep="true" transcribe="true" transcribeCallback="${vmWebhookBase}" action="${vmWebhookBase}" method="POST" />
   <Say voice="alice">We did not receive a recording. Goodbye.</Say>
 </Response>`;
 
-      console.log('[voicemailWebhook] noAnswer → returning TwiML immediately');
-      return new Response(twiml, { headers: { 'Content-Type': 'text/xml' } });
-
-    } catch (fatalErr) {
-      // Absolute last resort — still return valid TwiML, never a 5xx
-      console.error('[voicemailWebhook] Fatal error building noAnswer TwiML:', fatalErr?.message);
-      const fallback = `<?xml version="1.0" encoding="UTF-8"?>
-<Response>
-  <Say voice="alice">${DEFAULT_VM_GREETING}</Say>
-  <Record maxLength="120" playBeep="true" />
-</Response>`;
-      return new Response(fallback, { headers: { 'Content-Type': 'text/xml' } });
-    }
+    console.log('[voicemailWebhook] Returning voicemail TwiML');
+    return new Response(twiml, { headers: { 'Content-Type': 'text/xml' } });
   }
 
-  // ── Recording complete / status callback — DB work is fine here ─────────
-  // Twilio does NOT time out on recording/status callbacks the same way.
+  // ── Recording complete / status callback ───────────────────────────────────
   try {
-    const body = await req.text();
-    const params = new URLSearchParams(body);
+    const callSid       = bodyParams.get('CallSid')           || '';
+    const callStatus    = bodyParams.get('CallStatus')        || '';
+    const direction     = bodyParams.get('Direction')         || 'inbound';
+    const from          = bodyParams.get('From')              || bodyParams.get('Caller') || '';
+    const to            = bodyParams.get('To')                || bodyParams.get('Called') || '';
+    const duration      = parseInt(bodyParams.get('CallDuration') || bodyParams.get('Duration') || '0', 10);
+    const recordingUrl  = bodyParams.get('RecordingUrl')      || '';
+    const transcription = bodyParams.get('TranscriptionText') || '';
 
-    const callSid       = params.get('CallSid')           || '';
-    const callStatus    = params.get('CallStatus')        || '';
-    const direction     = params.get('Direction')         || 'inbound';
-    const from          = params.get('From')              || params.get('Caller') || '';
-    const to            = params.get('To')                || params.get('Called') || '';
-    const duration      = parseInt(params.get('CallDuration') || params.get('Duration') || '0', 10);
-    const recordingUrl  = params.get('RecordingUrl')      || '';
-    const transcription = params.get('TranscriptionText') || '';
-
-    console.log('[voicemailWebhook] CallSid:', callSid, 'Status:', callStatus, 'RecordingUrl:', recordingUrl);
+    console.log('[voicemailWebhook] Recording/Status branch — CallSid:', callSid, 'Status:', callStatus, 'RecordingUrl:', recordingUrl ? 'YES' : 'NO');
 
     // Match caller to a lead or investor
     let callerName = '';
@@ -193,7 +200,7 @@ Deno.serve(async (req) => {
         status: logStatus,
         durationSeconds: duration || existing.durationSeconds || 0,
       });
-    } else {
+    } else if (callSid) {
       await b44Create('CallLog', {
         callSid,
         direction: direction.toLowerCase().includes('inbound') ? 'inbound' : 'outbound',
