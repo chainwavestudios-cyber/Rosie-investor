@@ -27,13 +27,7 @@ Deno.serve(async (req) => {
       const appId = Deno.env.get('BASE44_APP_ID') || '';
       const vmWebhookBase = `https://run.base44.com/apps/${appId}/functions/voicemailWebhook`;
 
-      // Optional: hardcode a custom greeting audio URL here instead of DB lookup
-      // e.g. const vmAudioUrl = 'https://your-cdn.com/greeting.mp3';
-      const vmAudioUrl = Deno.env.get('VM_AUDIO_URL') || '';
-
-      const greetingTwiml = vmAudioUrl
-        ? `<Play>${vmAudioUrl}</Play>`
-        : `<Say voice="alice">${DEFAULT_VM_GREETING}</Say>`;
+      const greetingTwiml = `<Say voice="alice">${DEFAULT_VM_GREETING}</Say>`;
 
       const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
