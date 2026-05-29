@@ -292,7 +292,7 @@ export default function LiveAssistant({ isCallActive = false, lead = null, curre
       await base44.entities.LeadHistory.create({
         leadId: l.id,
         type: 'transcript',
-        content: noteContent.slice(0, 10000),
+        content: noteContent,
       });
       setSaveMsg('Saved to notes ✓');
     } catch(e) { setSaveMsg('Error: ' + e.message); }

@@ -60,6 +60,7 @@ export default function ScriptAssistant({ lead, user, onExpandCard, isCardExpand
   // Post-call saving
   const [reportSaving, setReportSaving] = useState(false);
   const [reportSaved,  setReportSaved]  = useState(false);
+  const [showTranscriptPopup, setShowTranscriptPopup] = useState(false);
 
   const wsRef         = useRef(null);
   const streamRef     = useRef(null);
@@ -764,19 +765,52 @@ export default function ScriptAssistant({ lead, user, onExpandCard, isCardExpand
       <div style={{ flex: 1, overflowY: 'auto', padding: '10px' }}>
         {transcript.length === 0
           ? <div style={{ color: '#4a5568', fontSize: '11px', textAlign: 'center', padding: '20px' }}>{listening ? 'Listening…' : 'Connect stream to begin'}</div>
-          : [...transcript].reverse().slice(0, 30).map((t, i) => (
-            <div key={i} style={{ marginBottom: '5px', fontSize: '11px' }}>
-              <span style={{ color: '#4a5568', fontSize: '9px', marginRight: '5px' }}>{new Date(t.time).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', second: '2-digit' })}</span>
-              {t.speaker !== null && (
-                <span style={{ color: t.speaker === 1 ? GOLD : '#60a5fa', fontSize: '9px', fontWeight: 'bold', marginRight: '4px' }}>
-                  {t.speaker === 1 ? '🎙 Agent' : '👤 Prospect'}
-                </span>
-              )}
-              <span style={{ color: '#c4cdd8' }}>{t.text}</span>
-            </div>
-          ))
+          : <>
+            {[...transcript].reverse().slice(0, 8).map((t, i) => (
+              <div key={i} style={{ marginBottom: '5px', fontSize: '11px' }}>
+                <span style={{ color: '#4a5568', fontSize: '9px', marginRight: '5px' }}>{new Date(t.time).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', second: '2-digit' })}</span>
+                {t.speaker !== null && (
+                  <span style={{ color: t.speaker === 1 ? GOLD : '#60a5fa', fontSize: '9px', fontWeight: 'bold', marginRight: '4px' }}>
+                    {t.speaker === 1 ? '🎙 Agent' : '👤 Prospect'}
+                  </span>
+                )}
+                <span style={{ color: '#c4cdd8' }}>{t.text}</span>
+              </div>
+            ))}
+            {transcript.length > 0 && (
+              <button onClick={() => setShowTranscriptPopup(true)}
+                style={{ marginTop: '6px', width: '100%', background: 'rgba(184,147,58,0.08)', color: GOLD, border: '1px solid rgba(184,147,58,0.25)', borderRadius: '4px', padding: '5px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>
+                📝 View Full Transcript ({transcript.length} lines)
+              </button>
+            )}
+          </>
         }
       </div>
+
+      {/* Full transcript popup */}
+      {showTranscriptPopup && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 99999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+          <div style={{ background: '#0d1b2a', border: '1px solid rgba(184,147,58,0.4)', borderRadius: '8px', width: '100%', maxWidth: '700px', maxHeight: '80vh', display: 'flex', flexDirection: 'column', fontFamily: 'Georgia, serif' }}>
+            <div style={{ padding: '12px 16px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
+              <span style={{ color: GOLD, fontSize: '11px', letterSpacing: '1.5px', textTransform: 'uppercase' }}>📝 Full Transcript ({transcript.length} lines)</span>
+              <button onClick={() => setShowTranscriptPopup(false)} style={{ background: 'none', border: 'none', color: '#6b7280', cursor: 'pointer', fontSize: '20px' }}>×</button>
+            </div>
+            <div style={{ flex: 1, overflowY: 'auto', padding: '14px 16px' }}>
+              {transcript.map((t, i) => (
+                <div key={i} style={{ marginBottom: '7px', fontSize: '12px', borderBottom: '1px solid rgba(255,255,255,0.03)', paddingBottom: '5px' }}>
+                  <span style={{ color: '#4a5568', fontSize: '9px', marginRight: '6px' }}>{new Date(t.time).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', second: '2-digit' })}</span>
+                  {t.speaker !== null && (
+                    <span style={{ color: t.speaker === 1 ? GOLD : '#60a5fa', fontSize: '9px', fontWeight: 'bold', marginRight: '5px' }}>
+                      {t.speaker === 1 ? '🎙 Agent' : '👤 Prospect'}
+                    </span>
+                  )}
+                  <span style={{ color: '#c4cdd8' }}>{t.text}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 
