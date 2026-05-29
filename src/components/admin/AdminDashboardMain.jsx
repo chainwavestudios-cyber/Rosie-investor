@@ -32,10 +32,8 @@ import AdminChatWindow from '@/components/admin/AdminChatWindow';
 import AdminAlertPopup from '@/components/admin/AdminAlertPopup';
 import SmsConversationsPanel from '@/components/admin/SmsConversationsPanel';
 import IncomingSmsPopup from '@/components/shared/IncomingSmsPopup';
+import VoicemailNotificationPopup from '@/components/admin/VoicemailNotificationPopup';
 import { MOCK_LEADS, MOCK_INVESTORS } from '@/lib/mockData';
-
-// These are passed in as props from the page (to avoid duplication)
-// Props: { AddUserForm, SignNowRequestsView, SignNowSettings, PortalControls, AdminSettings, AudioRecorderManager, IntentEngineTuner, CoachRulesTuner }
 
 const LOGO = 'https://media.base44.com/images/public/69cd2741578c9b5ce655395b/39a31f9b9_Untitleddesign3.png';
 const GOLD = '#b8933a';
@@ -131,7 +129,7 @@ export default function AdminDashboardMain({
     if (isPortalLoading) return;
     if (!portalUser || !isAdmin) { navigate('/admin-login'); return; }
     load();
-    const interval = setInterval(load, 300000); // 5 min — no more rate limit hammering
+    const interval = setInterval(load, 300000);
     return () => clearInterval(interval);
   }, [portalUser, isAdmin, isPortalLoading, load]);
 
@@ -201,7 +199,7 @@ export default function AdminDashboardMain({
                   </button>
                 )}
               </div>
-              {/* Call Log */}
+              {/* Call Log button */}
               <div onClick={() => setShowCallLog(v => !v)}
                 style={{ display:'flex', alignItems:'center', gap:'5px', padding:'4px 12px', flexShrink:0, cursor:'pointer', background: showCallLog ? 'rgba(96,165,250,0.12)' : (callLogBadge.vm > 0 || callLogBadge.missed > 0) ? 'rgba(239,68,68,0.08)' : 'transparent', borderRadius:'3px', border: showCallLog ? '1px solid rgba(96,165,250,0.3)' : '1px solid transparent', transition:'all 0.15s' }}>
                 <span style={{ fontSize:'11px' }}>📋</span>
@@ -214,7 +212,7 @@ export default function AdminDashboardMain({
                   <div style={{ color:'#4a5568', fontSize:'7px', letterSpacing:'1px', textTransform:'uppercase' }}>Calls</div>
                 </div>
               </div>
-              {/* 💬 Chat button */}
+              {/* Chat button */}
               <div onClick={() => setShowChat(v => !v)}
                 style={{ display:'flex', alignItems:'center', gap:'5px', padding:'4px 12px', flexShrink:0, cursor:'pointer', background: showChat ? 'rgba(184,147,58,0.15)' : 'transparent', borderRadius:'3px', border: showChat ? `1px solid rgba(184,147,58,0.4)` : '1px solid transparent', transition:'all 0.15s' }}>
                 <span style={{ fontSize:'11px' }}>💬</span>
@@ -488,24 +486,35 @@ export default function AdminDashboardMain({
           </div>
         )}
 
-        {view === 'leads'            && <LeadsTab openLeadId={openLeadId} onLeadOpened={() => setOpenLeadId(null)} mockLeads={isMockUser ? MOCK_LEADS : null} />}
-        {view === 'sms'             && <SmsConversationsPanel />}
-        {view === 'marketing'        && <MarketingTab />}
+        {view === 'leads'             && <LeadsTab openLeadId={openLeadId} onLeadOpened={() => setOpenLeadId(null)} mockLeads={isMockUser ? MOCK_LEADS : null} />}
+        {view === 'sms'              && <SmsConversationsPanel />}
+        {view === 'marketing'         && <MarketingTab />}
         {view === 'nb_email_activity' && <NbEmailActivityTab />}
-        {view === 'kb'               && <KnowledgeBaseManagerComponent IntentEngineTuner={IntentEngineTuner} CoachRulesTuner={CoachRulesTuner} />}
-        {view === 'signnow'          && <SignNowRequestsView settings={portalSettings} />}
-        {view === 'signnow-settings' && <SignNowSettings settings={portalSettings} onSettingsSaved={s => setPortalSettings(s)} />}
-        {view === 'portal'           && <div><div style={{ marginBottom:'28px' }}><h2 style={{ color:'#e8e0d0', margin:'0 0 6px', fontSize:'20px', fontWeight:'normal' }}>Portal Controls</h2></div><PortalControls /></div>}
-        {view === 'settings'         && <AdminSettings changeAdminPassword={changeAdminPassword} changeAdminUsername={changeAdminUsername} />}
-        {view === 'bob'              && <BobTab />}
+        {view === 'kb'                && <KnowledgeBaseManagerComponent IntentEngineTuner={IntentEngineTuner} CoachRulesTuner={CoachRulesTuner} />}
+        {view === 'signnow'           && <SignNowRequestsView settings={portalSettings} />}
+        {view === 'signnow-settings'  && <SignNowSettings settings={portalSettings} onSettingsSaved={s => setPortalSettings(s)} />}
+        {view === 'portal'            && <div><div style={{ marginBottom:'28px' }}><h2 style={{ color:'#e8e0d0', margin:'0 0 6px', fontSize:'20px', fontWeight:'normal' }}>Portal Controls</h2></div><PortalControls /></div>}
+        {view === 'settings'          && <AdminSettings changeAdminPassword={changeAdminPassword} changeAdminUsername={changeAdminUsername} />}
+        {view === 'bob'               && <BobTab />}
       </div>
 
-      {showCallLog && <CallLogPanel onClose={() => setShowCallLog(false)} onOpenLead={(leadId) => { handleViewChange('leads'); setOpenLeadId(leadId); setShowCallLog(false); }} />}
+      {/* ── Call Log Panel ── */}
+      {showCallLog && (
+        <CallLogPanel
+          onClose={() => setShowCallLog(false)}
+          onOpenLead={(leadId) => { handleViewChange('leads'); setOpenLeadId(leadId); setShowCallLog(false); }}
+          onOpenInvestor={(investorId) => { openInvestorById(investorId); setShowCallLog(false); }}
+        />
+      )}
+
+      {/* ── Incoming Call Popup ── */}
       <IncomingCallPopup
         onAnswerInvestor={(investor) => { setContactCard(investor); }}
         onAnswerLead={(lead) => { handleViewChange('leads'); setOpenLeadId(lead.id); }}
         onCreateLead={(lead) => { handleViewChange('leads'); setOpenLeadId(lead.id); }}
       />
+
+      {/* ── Reminder Popup ── */}
       {dueReminder && (
         <ReminderPopup
           reminder={dueReminder}
@@ -528,13 +537,20 @@ export default function AdminDashboardMain({
         />
       )}
 
-      {/* ── Incoming SMS Popup — always listening ── */}
+      {/* ── Incoming SMS Popup ── */}
       <IncomingSmsPopup onOpenConversations={() => handleViewChange('sms')} />
 
-      {/* ── Alert Popup — always listening ── */}
+      {/* ── Alert Popup ── */}
       <AdminAlertPopup
         currentUsername={currentUsername}
         onOpenChat={() => setShowChat(true)}
+      />
+
+      {/* ── Voicemail Notification Popup — slide-in toast for new VMs ── */}
+      <VoicemailNotificationPopup
+        onOpenLead={(leadId) => { handleViewChange('leads'); setOpenLeadId(leadId); }}
+        onOpenInvestor={(investorId) => openInvestorById(investorId)}
+        onOpenCallLog={() => setShowCallLog(true)}
       />
     </div>
   );
