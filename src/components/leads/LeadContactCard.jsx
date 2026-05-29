@@ -95,7 +95,6 @@ function SiteAccessTab({ lead, onUpdate, onSave, createdBy = 'admin' }) {
         </div>
       ) : (
         <>
-          {/* ── SITE USERNAME ── */}
           <div style={{ background:'rgba(184,147,58,0.06)', border:'1px solid rgba(184,147,58,0.2)', borderRadius:'6px', padding:'14px 16px' }}>
             <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'12px' }}>
               <div style={{ color:GOLD, fontSize:'10px', letterSpacing:'2px', textTransform:'uppercase' }}>🔑 Site Username</div>
@@ -123,7 +122,6 @@ function SiteAccessTab({ lead, onUpdate, onSave, createdBy = 'admin' }) {
             )}
           </div>
 
-          {/* ── GENERATED URL ── */}
           <div style={{ background:'rgba(96,165,250,0.05)', border:'1px solid rgba(96,165,250,0.2)', borderRadius:'6px', padding:'14px 16px' }}>
             <div style={{ color:'#60a5fa', fontSize:'10px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'10px' }}>🔗 Generated Site URL</div>
             <div style={{ display:'flex', gap:'6px' }}>
@@ -134,7 +132,6 @@ function SiteAccessTab({ lead, onUpdate, onSave, createdBy = 'admin' }) {
             </div>
           </div>
 
-          {/* ── CONSUMER REF URL ── */}
           <div style={{ background:'rgba(167,139,250,0.05)', border:'1px solid rgba(167,139,250,0.2)', borderRadius:'6px', padding:'14px 16px' }}>
             <div style={{ color:'#a78bfa', fontSize:'10px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'10px' }}>🌐 Consumer Ref URL</div>
             <div style={{ display:'flex', gap:'6px' }}>
@@ -172,13 +169,15 @@ function OverviewTab({ editLead, setEditLead, saving, saveMsg, saveProfile, upda
   const [savingFollowUp, setSavingFollowUp] = useState(false);
   const [bottomTab, setBottomTab] = useState('notes'); // 'notes' | 'calls'
 
+  // FIXED: exclude transcript and call_report from the notes/activity feed to prevent duplicates
+  const NOTES_TYPES = ['note','status_change','callback_later','prospect','interested','call','connected','not_available','not_interested','abandoned','voicemail'];
+
   return (
     <div style={{ display:'flex', flexDirection:'column', gap:'14px' }}>
 
       {/* Contact info — with Edit button */}
       {!editing && (
         <div style={{ background:'rgba(255,255,255,0.02)', border:'1px solid rgba(255,255,255,0.06)', borderRadius:'6px', padding:'12px 14px', display:'flex', flexDirection:'column', gap:'7px' }}>
-          {/* Name + badges + Edit */}
           <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:'8px' }}>
             <div style={{ display:'flex', alignItems:'center', gap:'8px', flexWrap:'wrap', flex:1 }}>
               <span style={{ color:'#e8e0d0', fontSize:'15px', fontWeight:'bold' }}>{editLead.firstName} {editLead.lastName}</span>
@@ -199,11 +198,9 @@ function OverviewTab({ editLead, setEditLead, saving, saveMsg, saveProfile, upda
               </button>
             )}
           </div>
-          {/* Phone row + last called */}
           <div style={{ display:'flex', gap:'16px', flexWrap:'wrap', alignItems:'center' }}>
             {editLead.phone && <span style={{ color:'#4ade80', fontSize:'13px' }}>📞 {editLead.phone}</span>}
             {editLead.phone2 && <span style={{ color:'#8a9ab8', fontSize:'13px' }}>📱 {editLead.phone2}</span>}
-            {/* Last called info */}
             {editLead.lastCalledAt ? (
             <span style={{ color:'#6b7280', fontSize:'11px', display:'flex', alignItems:'center', gap:'4px', flexWrap:'wrap' }}>
             <span style={{ color:'#4a5568' }}>🕐 Last called:</span>
@@ -211,7 +208,6 @@ function OverviewTab({ editLead, setEditLead, saving, saveMsg, saveProfile, upda
               {fmtDateTime(editLead.lastCalledAt)}
             </span>
                 {(() => {
-                  // Find most recent call entry in history for duration
                   const lastCall = history.filter(h => ['call','connected'].includes(h.type) && h.callDurationSeconds > 0).sort((a,b) => new Date(b.created_date) - new Date(a.created_date))[0];
                   if (!lastCall) return null;
                   const m = Math.floor(lastCall.callDurationSeconds / 60);
@@ -223,15 +219,12 @@ function OverviewTab({ editLead, setEditLead, saving, saveMsg, saveProfile, upda
               <span style={{ color:'#4a5568', fontSize:'11px' }}>🕐 Never called</span>
             ) : null}
           </div>
-          {/* Email row */}
           {editLead.email && <div><span style={{ color:'#60a5fa', fontSize:'13px' }}>✉️ {editLead.email}</span></div>}
-          {/* Address row */}
           {(editLead.address || editLead.city || editLead.zip || editLead.state) && (
             <div style={{ color:'#8a9ab8', fontSize:'12px' }}>
               🏠 {[editLead.address, editLead.city, editLead.zip, editLead.state].filter(Boolean).join(', ')}
             </div>
           )}
-          {/* Extra info */}
           {editLead.investment && <div style={{ color:'#4ade80', fontSize:'12px' }}>💰 Investment: {editLead.investment}</div>}
           {editLead.bestTimeToCall && <div style={{ color:'#6b7280', fontSize:'12px' }}>⏰ Best time: {editLead.bestTimeToCall}</div>}
           {editLead.callbackAt && (
@@ -239,7 +232,6 @@ function OverviewTab({ editLead, setEditLead, saving, saveMsg, saveProfile, upda
               📅 Callback: {fmtDateTimeLong(editLead.callbackAt)}
             </div>
           )}
-          {/* Custom fields */}
           {(() => {
             try {
               const cf = JSON.parse(editLead.customFields || '{}');
@@ -283,7 +275,6 @@ function OverviewTab({ editLead, setEditLead, saving, saveMsg, saveProfile, upda
             </div>
           </div>
 
-          {/* Custom fields editor */}
           {(() => {
             let cf = {};
             try { cf = JSON.parse(editLead.customFields || '{}'); } catch {}
@@ -322,7 +313,6 @@ function OverviewTab({ editLead, setEditLead, saving, saveMsg, saveProfile, upda
 
       {/* Notes & Activity — tabbed */}
       <div style={{ borderTop:'1px solid rgba(255,255,255,0.06)', paddingTop:'14px' }}>
-        {/* Sub-tab headers */}
         <div style={{ display:'flex', gap:'0', borderBottom:'1px solid rgba(255,255,255,0.07)', marginBottom:'12px' }}>
           {[['notes','📋 My Notes & Activity'],['calls','📞 Call History']].map(([id,label]) => (
             <button key={id} onClick={() => setBottomTab(id)}
@@ -332,7 +322,7 @@ function OverviewTab({ editLead, setEditLead, saving, saveMsg, saveProfile, upda
           ))}
         </div>
 
-        {/* MY NOTES & ACTIVITY — excludes raw call logs */}
+        {/* MY NOTES & ACTIVITY — excludes transcript and call_report to prevent duplicates */}
         {bottomTab === 'notes' && <>
           {!isArchived && <div style={{ display:'flex', gap:'8px', marginBottom:'12px' }}>
             <input value={quickNote} onChange={e=>setQuickNote(e.target.value)}
@@ -346,10 +336,10 @@ function OverviewTab({ editLead, setEditLead, saving, saveMsg, saveProfile, upda
           </div>}
           <div style={{ display:'flex', flexDirection:'column', gap:'4px', maxHeight:'260px', overflowY:'auto', paddingRight:'4px' }}>
             {loading && <p style={{ color:'#6b7280', fontSize:'12px', textAlign:'center', padding:'16px' }}>Loading…</p>}
-            {!loading && history.filter(h => ['note','status_change','callback_later','prospect','interested','call','connected','not_available','not_interested','abandoned','voicemail'].includes(h.type)).length === 0 && (
+            {!loading && history.filter(h => NOTES_TYPES.includes(h.type)).length === 0 && (
               <p style={{ color:'#4a5568', fontSize:'12px', textAlign:'center', padding:'20px' }}>No notes or activity yet.</p>
             )}
-            {history.filter(h => ['note','status_change','callback_later','prospect','interested','call','connected','not_available','not_interested','abandoned','voicemail'].includes(h.type)).map(h => {
+            {history.filter(h => NOTES_TYPES.includes(h.type)).map(h => {
               const icon = HISTORY_ICONS[h.type] || '📝';
               const color = historyColor(h.type);
               return (
@@ -373,7 +363,7 @@ function OverviewTab({ editLead, setEditLead, saving, saveMsg, saveProfile, upda
           </div>
         </>}
 
-        {/* CALL HISTORY — calls, connected, not_available */}
+        {/* CALL HISTORY */}
         {bottomTab === 'calls' && (
           <div style={{ display:'flex', flexDirection:'column', gap:'4px', maxHeight:'260px', overflowY:'auto', paddingRight:'4px' }}>
             {loading && <p style={{ color:'#6b7280', fontSize:'12px', textAlign:'center', padding:'16px' }}>Loading…</p>}
@@ -439,9 +429,7 @@ function ClientInfoTab({ lead, onUpdate }) {
 
   return (
     <div>
-      {/* Animal + Intent header */}
       <div style={{ display:'flex', gap:'16px', marginBottom:'20px' }}>
-        {/* Animal card */}
         <div style={{ flex:1, background:'rgba(0,0,0,0.2)', border:`1px solid ${animalColor}33`, borderRadius:'4px', padding:'20px', textAlign:'center' }}>
           <div style={{ fontSize:'52px', marginBottom:'8px' }}>
             {profile.animalType === 'duck' ? '🦆' : profile.animalType === 'cow' ? '🐄' : '❓'}
@@ -457,7 +445,6 @@ function ClientInfoTab({ lead, onUpdate }) {
           )}
         </div>
 
-        {/* Intent card */}
         <div style={{ flex:1, background:'rgba(0,0,0,0.2)', border:`1px solid ${intentColor}33`, borderRadius:'4px', padding:'20px' }}>
           <div style={{ color:'#6b7280', fontSize:'10px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'12px' }}>Overall Intent</div>
           <div style={{ color:intentColor, fontSize:'22px', fontWeight:'bold', marginBottom:'8px', textTransform:'capitalize' }}>
@@ -468,7 +455,6 @@ function ClientInfoTab({ lead, onUpdate }) {
         </div>
       </div>
 
-      {/* Behavioral traits */}
       <div style={{ background:'rgba(0,0,0,0.15)', border:'1px solid rgba(255,255,255,0.07)', borderRadius:'4px', padding:'16px', marginBottom:'16px' }}>
         <div style={{ color:GOLD, fontSize:'10px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'12px' }}>Behavioral Traits</div>
         <TraitRow label="Asks a lot of questions"     value={profile.traits?.asksLotOfQuestions} />
@@ -482,7 +468,6 @@ function ClientInfoTab({ lead, onUpdate }) {
         <TraitRow label="Decision maker"              value={profile.traits?.decisionMaker} />
       </div>
 
-      {/* Key observations */}
       {profile.keyObservations?.length > 0 && (
         <div style={{ background:'rgba(0,0,0,0.15)', border:'1px solid rgba(255,255,255,0.07)', borderRadius:'4px', padding:'16px', marginBottom:'16px' }}>
           <div style={{ color:GOLD, fontSize:'10px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'10px' }}>Key Observations</div>
@@ -495,7 +480,6 @@ function ClientInfoTab({ lead, onUpdate }) {
         </div>
       )}
 
-      {/* Recommended approach */}
       {profile.recommendedApproach && (
         <div style={{ background:'rgba(96,165,250,0.06)', border:'1px solid rgba(96,165,250,0.2)', borderRadius:'4px', padding:'14px 16px', marginBottom:'16px' }}>
           <div style={{ color:'#60a5fa', fontSize:'10px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'6px' }}>Recommended Approach — Next Call</div>
@@ -503,7 +487,6 @@ function ClientInfoTab({ lead, onUpdate }) {
         </div>
       )}
 
-      {/* Last call summary */}
       {profile.lastCallSummary && (
         <div style={{ background:'rgba(184,147,58,0.05)', border:'1px solid rgba(184,147,58,0.15)', borderRadius:'4px', padding:'14px 16px' }}>
           <div style={{ color:GOLD, fontSize:'10px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'6px' }}>Last Call Summary</div>
@@ -550,12 +533,11 @@ function LeadHistoryTab({ lead, history, onNoteAdded, createdBy = 'admin' }) {
     setSaving(false);
   };
 
-  // Filter history by sub-tab
+  // FIXED: notes tab excludes transcript/call_report (they live in their own tabs only)
   const notes       = history.filter(h => ['note','status_change','call','connected','not_available','callback_later','not_interested','abandoned','interested'].includes(h.type));
   const transcripts = history.filter(h => h.type === 'transcript');
   const reports     = history.filter(h => h.type === 'call_report');
 
-  // Site access summary from lead fields
   const siteAccessSummary = lead.lastSiteVisit ? [
     { label: 'Last Visit', value: fmtDT(lead.lastSiteVisit) },
     { label: 'Portal User', value: lead.portalPasscode || '—' },
@@ -581,7 +563,6 @@ function LeadHistoryTab({ lead, history, onNoteAdded, createdBy = 'admin' }) {
 
   return (
     <div style={{ display:'flex', flexDirection:'column', height:'100%' }}>
-      {/* Sub-tabs */}
       <div style={{ display:'flex', borderBottom:'1px solid rgba(255,255,255,0.07)', marginBottom:'16px', flexShrink:0 }}>
         {SUB_TABS.map(([id, label, count]) => (
           <button key={id} onClick={() => setSub(id)}
@@ -594,12 +575,10 @@ function LeadHistoryTab({ lead, history, onNoteAdded, createdBy = 'admin' }) {
 
       <div style={{ flex:1, overflowY:'auto' }}>
 
-        {/* ── CLIENT INFO ── */}
         {sub === 'clientinfo' && (
           <ClientInfoTab lead={lead} onUpdate={onNoteAdded} />
         )}
 
-        {/* ── MY NOTES ── */}
         {sub === 'notes' && (
           <div>
             <div style={{ display:'flex', gap:'8px', marginBottom:'16px' }}>
@@ -633,7 +612,6 @@ function LeadHistoryTab({ lead, history, onNoteAdded, createdBy = 'admin' }) {
           </div>
         )}
 
-        {/* ── EMAILS ── */}
         {sub === 'emails' && (
           <div>
             {loadingEmails && <p style={{ color:'#6b7280', textAlign:'center', padding:'24px' }}>Loading…</p>}
@@ -654,7 +632,7 @@ function LeadHistoryTab({ lead, history, onNoteAdded, createdBy = 'admin' }) {
           </div>
         )}
 
-        {/* ── TRANSCRIPTS ── */}
+        {/* ── TRANSCRIPTS — only shown here, NOT in Overview ── */}
         {sub === 'transcripts' && (
           <div>
             {transcripts.length === 0 && <p style={{ color:'#4a5568', textAlign:'center', padding:'24px' }}>No call transcripts yet. Transcripts are auto-saved when you stop listening.</p>}
@@ -670,7 +648,7 @@ function LeadHistoryTab({ lead, history, onNoteAdded, createdBy = 'admin' }) {
           </div>
         )}
 
-        {/* ── CALL REPORTS ── */}
+        {/* ── CALL REPORTS — only shown here, NOT in Overview ── */}
         {sub === 'reports' && (
           <div>
             {reports.length === 0 && <p style={{ color:'#4a5568', textAlign:'center', padding:'24px' }}>No call reports yet. Reports are auto-generated when you stop listening.</p>}
@@ -686,7 +664,6 @@ function LeadHistoryTab({ lead, history, onNoteAdded, createdBy = 'admin' }) {
           </div>
         )}
 
-        {/* ── SITE ACCESS ── */}
         {sub === 'siteaccess' && (
           <div>
             <div style={{ background:'rgba(0,0,0,0.15)', border:'1px solid rgba(255,255,255,0.06)', borderRadius:'4px', padding:'12px 16px', marginBottom:'14px', fontSize:'11px', color:'#6b7280' }}>
@@ -794,10 +771,8 @@ function AIDetailsTab({ lead, onUpdate }) {
   return (
     <div style={{ display:'flex', flexDirection:'column', gap:'14px' }}>
 
-      {/* Intent score + signals */}
       {hasIntent && (
         <>
-          {/* Score row */}
           <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:'10px' }}>
             {[
               ['Intent Score', `${intent.intentScore ?? '—'}/100`, scoreColor(intent.intentScore)],
@@ -811,7 +786,6 @@ function AIDetailsTab({ lead, onUpdate }) {
             ))}
           </div>
 
-          {/* Animal type */}
           {intent.animalType && (
             <div style={{ background:'rgba(0,0,0,0.15)', border:`1px solid ${intent.animalType==='duck'?'rgba(245,158,11,0.3)':'rgba(74,222,128,0.3)'}`, borderRadius:'4px', padding:'12px 16px', display:'flex', alignItems:'center', gap:'12px' }}>
               <span style={{ fontSize:'28px' }}>{intent.animalType === 'duck' ? '🦆' : intent.animalType === 'cow' ? '🐄' : '❓'}</span>
@@ -824,7 +798,6 @@ function AIDetailsTab({ lead, onUpdate }) {
             </div>
           )}
 
-          {/* Buying signals */}
           {intent.buyingSignals?.length > 0 && (
             <div style={{ background:'rgba(74,222,128,0.05)', border:'1px solid rgba(74,222,128,0.2)', borderRadius:'4px', padding:'12px 16px' }}>
               <div style={{ color:'#4ade80', fontSize:'10px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'8px' }}>✅ Buying Signals</div>
@@ -836,7 +809,6 @@ function AIDetailsTab({ lead, onUpdate }) {
             </div>
           )}
 
-          {/* Objections */}
           {intent.objections?.length > 0 && (
             <div style={{ background:'rgba(239,68,68,0.05)', border:'1px solid rgba(239,68,68,0.2)', borderRadius:'4px', padding:'12px 16px' }}>
               <div style={{ color:'#ef4444', fontSize:'10px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'8px' }}>⚠️ Objections</div>
@@ -848,7 +820,6 @@ function AIDetailsTab({ lead, onUpdate }) {
             </div>
           )}
 
-          {/* Key moments */}
           {intent.keyMoments?.length > 0 && (
             <div style={{ background:'rgba(0,0,0,0.15)', border:'1px solid rgba(255,255,255,0.07)', borderRadius:'4px', padding:'12px 16px' }}>
               <div style={{ color:GOLD, fontSize:'10px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'8px' }}>🎯 Key Moments</div>
@@ -860,7 +831,6 @@ function AIDetailsTab({ lead, onUpdate }) {
             </div>
           )}
 
-          {/* Recommended next step */}
           {intent.recommendedNextStep && (
             <div style={{ background:'rgba(96,165,250,0.06)', border:'1px solid rgba(96,165,250,0.2)', borderRadius:'4px', padding:'12px 16px' }}>
               <div style={{ color:'#60a5fa', fontSize:'10px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'6px' }}>📋 Recommended Next Step</div>
@@ -870,7 +840,6 @@ function AIDetailsTab({ lead, onUpdate }) {
         </>
       )}
 
-      {/* Extracted call data */}
       {hasExtracted && (
         <div style={{ background:'rgba(184,147,58,0.05)', border:'1px solid rgba(184,147,58,0.2)', borderRadius:'4px', padding:'14px 16px' }}>
           <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'12px' }}>
@@ -934,7 +903,6 @@ function AIDetailsTab({ lead, onUpdate }) {
         </div>
       )}
 
-      {/* Client profile summary if present */}
       {profile.lastCallSummary && (
         <div style={{ background:'rgba(0,0,0,0.15)', border:'1px solid rgba(255,255,255,0.07)', borderRadius:'4px', padding:'12px 16px' }}>
           <div style={{ color:GOLD, fontSize:'10px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'6px' }}>Last Call Summary</div>
@@ -948,11 +916,11 @@ function AIDetailsTab({ lead, onUpdate }) {
 
 export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber, dialerRef, onResume, isDialerPaused, onNextLead, onPrevLead, currentLeadIndex, totalLeads, dialerPanelOpen, twilioStream: externalStream, onCallLogged, onDialStarted }) {
   const [moveToBack, setMoveToBack] = useState(false);
-  // Archived = migrated to CRM — card is read-only
   const isArchived = !!(lead.migratedToPortal || lead.convertedToInvestorUserId || lead.status === 'converted');
   const [cardExpanded, setCardExpanded] = useState(false);
   const [starRating, setStarRating] = useState(lead.starRating || 0);
   const [transferring, setTransferring] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
   const { portalUser } = usePortalAuth();
   const currentUsername = portalUser?.username || 'admin';
@@ -1001,18 +969,17 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
     } catch(e) { console.error(e); }
     setTransferring(false);
   };
+
   const [selectedPhone, setSelectedPhone] = useState(lead.phone || lead.phone2 || '');
   const [inlineStream, setInlineStream] = useState(null);
   const currentLeadRef = useRef(lead);
   const dialer = useInlineDialer({ onCallStream: (stream) => setInlineStream(stream), agentName: currentUsername, leadId: lead.id, onCallLogged });
-  // Prefer external stream (direct/predictive dialer) over inline dialer stream
   const twilioStream = externalStream || inlineStream;
   const [tab, setTab] = useState('overview');
   const [history, setHistory] = useState([]);
   const [editLead, setEditLead] = useState({ ...lead });
   const [smsOptedIn, setSmsOptedIn] = useState(!!(lead.badgeSmsOptIn));
 
-  // When lead prop changes (Next Lead), reset card state
   useEffect(() => {
     currentLeadRef.current = lead;
     setEditLead({ ...lead });
@@ -1023,6 +990,7 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
     setSelectedAction(null);
     setTab('overview');
   }, [lead.id]);
+
   const [saving, setSaving] = useState(false);
   const [saveMsg, setSaveMsg] = useState('');
   const [loading, setLoading] = useState(true);
@@ -1032,14 +1000,12 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
   const [sendingPortalEmail, setSendingPortalEmail] = useState(false);
   const [portalEmailMsg, setPortalEmailMsg] = useState('');
 
-  // Actions state
   const [prospectNote, setProspectNote] = useState('');
   const [callbackDate, setCallbackDate] = useState('');
   const [notAvailableNote, setNotAvailableNote] = useState('');
   const [notInterestedNote, setNotInterestedNote] = useState('');
-  const [selectedAction, setSelectedAction] = useState(null); // 'not_available' | 'not_interested'
+  const [selectedAction, setSelectedAction] = useState(null);
 
-  // Note entry in overview
   const [quickNote, setQuickNote] = useState('');
   const [addingNote, setAddingNote] = useState(false);
   const [showZoom, setShowZoom] = useState(false);
@@ -1051,7 +1017,6 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
   const [showCallLog, setShowCallLog] = useState(false);
   const [unreadSms, setUnreadSms] = useState(0);
 
-  // Poll unread SMS count
   useEffect(() => {
     const checkUnread = async () => {
       try {
@@ -1067,7 +1032,6 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
   useEffect(() => { loadHistory(); }, [lead.id]);
   useEffect(() => { setSelectedPhone(editLead.phone || editLead.phone2 || ''); }, [editLead.phone, editLead.phone2]);
 
-  // Check SMS opt-in
   useEffect(() => {
     const checkOptIn = async () => {
       try {
@@ -1087,15 +1051,12 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
   const loadHistory = async () => {
     setLoading(true);
     try {
-      // Always load LeadHistory
       const leadHist = await base44.entities.LeadHistory.filter({ leadId: lead.id }, '-created_date', 500).catch(() => []);
 
-      // For archived leads, also pull ContactNotes from the linked InvestorUser
       let contactNotes = [];
       const investorUserId = lead.convertedToInvestorUserId;
       if (isArchived && investorUserId) {
         const cn = await base44.entities.ContactNote.filter({ investorId: investorUserId }, '-createdAt', 500).catch(() => []);
-        // Convert ContactNotes to a LeadHistory-like shape so the UI renders them uniformly
         contactNotes = cn.map(n => ({
           id: 'cn_' + n.id,
           type: n.type === 'call' ? 'call' : n.type === 'email' ? 'note' : 'note',
@@ -1106,7 +1067,6 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
         }));
       }
 
-      // Merge and sort by date descending, deduplicate by content+date
       const all = [...leadHist, ...contactNotes].sort((a, b) =>
         new Date(b.created_date || 0) - new Date(a.created_date || 0)
       );
@@ -1115,13 +1075,23 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
     setLoading(false);
   };
 
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    try {
+      // Reload lead data
+      const fresh = await base44.entities.Lead.filter({ id: lead.id });
+      if (fresh?.[0]) setEditLead(fresh[0]);
+      await loadHistory();
+    } catch(e) { console.error(e); }
+    setRefreshing(false);
+  };
+
   const logHistory = async (type, content, extra = {}) => {
     await base44.entities.LeadHistory.create({ leadId: lead.id, type, content, createdBy: currentUsername, ...extra });
     await loadHistory();
   };
 
   const updateStatus = async (newStatus, histType, histContent, extra = {}) => {
-    // When marking as prospect, always assign pipeline owner to current user
     const prospectExtra = newStatus === 'prospect' ? { leadPipelineOwner: currentUsername } : {};
     await base44.entities.Lead.update(lead.id, { status: newStatus, ...prospectExtra, ...extra });
     await logHistory(histType || 'status_change', histContent || `Status changed to ${newStatus}`);
@@ -1146,7 +1116,6 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
     const note = notAvailableNote.trim();
     const now = new Date().toISOString();
     await updateStatus('not_available', 'not_available', `Not available${note ? ` — ${note}` : ` — ${fmtDateTime(now)}`}`, { lastCalledAt: now });
-    // Fire onCallLogged so LeadsTab stamps lastCalledAt and re-sorts
     onCallLogged && onCallLogged(lead.id);
     if (note) await logHistory('note', note);
     setNotAvailableNote('');
@@ -1156,7 +1125,6 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
   const handleNotInterested = async () => {
     if (!window.confirm('Remove this lead permanently? This cannot be undone.')) return;
     const note = notInterestedNote.trim();
-    // Log history first, then delete
     if (note) {
       await base44.entities.LeadHistory.create({ leadId: lead.id, type: 'not_interested', content: `Not interested — ${note}`, createdBy: currentUsername });
     }
@@ -1180,7 +1148,6 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
 
   const handleQuickCallbackLater = async (date, clearFn) => {
     if (!date) {
-      // Prompt for date inline — set a flag to show picker
       setShowCallbackPicker(true);
       return;
     }
@@ -1228,7 +1195,6 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
       });
       setEmailMsg('✓ Investor site access sent! Click "Portal Access" to send portal credentials.');
       await loadHistory();
-      // Reload lead so Portal Access tab shows the new username
       try {
         const fresh = await base44.entities.Lead.filter({ id: lead.id });
         if (fresh?.[0]) setEditLead(fresh[0]);
@@ -1245,12 +1211,10 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
     if (!editLead.email) { setPortalEmailMsg('No email on file.'); return; }
     setSendingPortalEmail(true); setPortalEmailMsg('');
     try {
-      // Build portal credentials from lead data
       const u = editLead.portalPasscode;
       const lastSlug = (lead.lastName || '').toLowerCase().replace(/[^a-z]/g, '');
       const pw = u ? `${lastSlug}#2026` : '';
       if (!u) {
-        // No username yet — create via sendLeadEmail first
         setPortalEmailMsg('Generate investor site access first — click "Investor Site Access" button.');
         setSendingPortalEmail(false);
         return;
@@ -1352,7 +1316,6 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
     <div style={{ position:'fixed', top:0, left:0, right: (dialerPanelOpen && !cardExpanded) ? '340px' : 0, bottom:0, background:'rgba(0,0,0,0.85)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:9000, padding: cardExpanded ? '0' : '16px' }}>
       <div style={{ background:'#0d1b2a', border:`1px solid ${isArchived ? 'rgba(245,158,11,0.3)' : 'rgba(184,147,58,0.3)'}`, borderRadius:'4px', width:'100%', maxWidth: cardExpanded ? '100%' : '1000px', maxHeight: cardExpanded ? '100%' : '92vh', height: cardExpanded ? '100%' : undefined, display:'flex', flexDirection:'column', boxShadow:'0 40px 120px rgba(0,0,0,0.9)', transition:'all 0.2s ease' }}>
 
-        {/* Archived banner */}
         {isArchived && (
           <div style={{ background:'rgba(245,158,11,0.1)', borderBottom:'1px solid rgba(245,158,11,0.25)', padding:'8px 24px', display:'flex', alignItems:'center', gap:'10px', flexShrink:0 }}>
             <span style={{ fontSize:'14px' }}>📦</span>
@@ -1364,10 +1327,7 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
         {/* ── HEADER ── */}
         <div style={{ padding:'14px 20px', borderBottom:'1px solid rgba(255,255,255,0.07)', background:'rgba(0,0,0,0.25)', flexShrink:0 }}>
 
-          {/* Row 1: Score + Name/Stars (left) | Status pills centered | Nav + Close (right) */}
           <div style={{ display:'flex', alignItems:'center', gap:'12px', marginBottom:'10px' }}>
-
-            {/* Left: Name + Stars */}
             <div style={{ display:'flex', alignItems:'center', gap:'12px', flexShrink:0 }}>
               <div>
                 <div style={{ display:'flex', alignItems:'center', gap:'8px', flexWrap:'wrap' }}>
@@ -1387,7 +1347,6 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
               </div>
             </div>
 
-            {/* Center: Status pills + Migrate */}
             {!isArchived && (
               <div style={{ display:'flex', gap:'6px', alignItems:'center', flexWrap:'nowrap', flex:1, justifyContent:'center', overflow:'hidden' }}>
                 {Object.entries(STATUS_LABELS).map(([s, { label, color }]) => {
@@ -1402,7 +1361,6 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
                 <button onClick={async () => {
                     const newType = editLead.leadType === 'nb_tech' ? 'standard' : 'nb_tech';
                     const updates = { leadType: newType };
-                    // When marking as NB Tech, assign pipeline owner to current user
                     if (newType === 'nb_tech') {
                       updates.leadPipelineOwner = currentUsername;
                       updates.leadPipelineStage = editLead.leadPipelineStage || 'reviewing';
@@ -1423,13 +1381,16 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
               </div>
             )}
 
-            {/* Right: Close only */}
             <div style={{ display:'flex', alignItems:'center', gap:'8px', flexShrink:0 }}>
+              {/* Refresh button */}
+              <button onClick={handleRefresh} disabled={refreshing} title="Refresh lead data"
+                style={{ background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.08)', color: refreshing ? GOLD : '#6b7280', cursor:'pointer', fontSize:'14px', width:'32px', height:'32px', borderRadius:'4px', display:'flex', alignItems:'center', justifyContent:'center', transition:'all 0.2s' }}>
+                {refreshing ? '⏳' : '↻'}
+              </button>
               <button onClick={onClose} style={{ background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.08)', color:'#6b7280', cursor:'pointer', fontSize:'18px', width:'32px', height:'32px', borderRadius:'4px', display:'flex', alignItems:'center', justifyContent:'center' }}>×</button>
             </div>
           </div>
 
-          {/* Row 2: Phone selector + Inline Call Bar */}
           {(editLead.phone || lead.phone) && !isArchived && (
             <div>
               {(editLead.phone2 || lead.phone2) && (
@@ -1456,7 +1417,6 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
                   showCallLog={showCallLog}
                   onToggleCallLog={() => setShowCallLog(v => !v)}
                 />
-                {/* Score circle — overlays top-right of call bar */}
                 <div style={{ position:'absolute', top:'12px', right:'12px', display:'flex', gap:'6px', alignItems:'center', zIndex:2, pointerEvents:'none' }}>
                   {unreadSms > 0 && (
                     <div onClick={e => { e.stopPropagation(); setTab('sms'); }} style={{ pointerEvents:'all', cursor:'pointer', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', width:'54px', height:'46px', borderRadius:'6px', background:'rgba(74,222,128,0.15)', border:'2px solid rgba(74,222,128,0.6)', animation:'smsBadgePulse 1.2s ease-in-out infinite' }}>
@@ -1482,7 +1442,6 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
             </div>
           )}
 
-          {/* Row 3: Action buttons */}
           <div style={{ display:'flex', alignItems:'center', marginTop:'10px', gap:'6px', flexWrap:'wrap', overflow:'auto', maxHeight:'60px', paddingBottom:'4px' }}>
             {isDialerPaused && (<>
               <button onClick={() => dialerRef.current?.hangupActiveCall?.()}
@@ -1543,7 +1502,6 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
             {(emailMsg || portalEmailMsg) && <span style={{ fontSize:'9px', color: (emailMsg||portalEmailMsg).startsWith('Error') ? '#ef4444' : '#4ade80', flexShrink:0 }}>{emailMsg || portalEmailMsg}</span>}
           </div>
 
-          {/* Row 4: Quick actions + Next Lead controls */}
           {!isArchived && (
             <div style={{ display:'flex', gap:'6px', flexWrap:'wrap', marginTop:'8px', alignItems:'center' }}>
               <button onClick={() => setShowCallbackPicker(p => !p)}
@@ -1558,7 +1516,6 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
                 style={{ background:'rgba(74,222,128,0.08)', color:'#4ade80', border:'1px solid rgba(74,222,128,0.25)', borderRadius:'20px', padding:'4px 12px', cursor:'pointer', fontSize:'11px', whiteSpace:'nowrap' }}>
                 📅 Schedule Follow Up
               </button>
-              {/* Move to back + Next Lead — pushed to far right */}
               {onNextLead && (<>
                 <div style={{ flex:1 }} />
                 <label style={{ display:'flex', alignItems:'center', gap:'5px', cursor:'pointer', userSelect:'none', background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.1)', borderRadius:'20px', padding:'4px 10px' }}>
@@ -1582,7 +1539,6 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
             </div>
           )}
 
-          {/* Callback date picker — inline dropdown */}
           {showCallbackPicker && !isArchived && (
             <div style={{ marginTop:'8px', background:'rgba(0,0,0,0.4)', border:'1px solid rgba(245,158,11,0.3)', borderRadius:'6px', padding:'12px', display:'flex', gap:'8px', alignItems:'center', flexWrap:'wrap' }}>
               <label style={{ color:'#f59e0b', fontSize:'10px', letterSpacing:'1.5px', textTransform:'uppercase', flexShrink:0 }}>Call Back At</label>
@@ -1598,7 +1554,7 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
           )}
         </div>
 
-        {/* Tabs row + activity badges on the right */}
+        {/* Tabs row */}
         <div style={{ display:'flex', borderBottom:'1px solid rgba(255,255,255,0.07)', flexShrink:0, alignItems:'center' }}>
           {[['overview','Overview'],['history','History'],['email','✉️ Email'],['sms',unreadSms > 0 ? `💬 SMS (${unreadSms})` : '💬 SMS'],['actions','Actions'],['access','Site Access'],['sitestats','Site Stats'],['research','Research'],['script','Script & AI'],['aidetails','🤖 AI Details']].filter(([id]) => !(isArchived && id === 'actions')).map(([id,label]) => (
             <button key={id} onClick={() => setTab(id)} style={{ background:'none', border:'none', borderBottom:tab===id?`2px solid ${GOLD}`:'2px solid transparent', color:tab===id?GOLD:'#6b7280', padding:'10px 16px', cursor:'pointer', fontSize:'11px', letterSpacing:'0.5px', whiteSpace:'nowrap' }}>{label}</button>
@@ -1609,7 +1565,6 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
         {/* Body */}
         <div style={{ flex:1, overflowY:'auto', padding:'20px 24px' }}>
 
-          {/* ── OVERVIEW ── */}
           {tab === 'overview' && (
             <OverviewTab
               editLead={editLead} setEditLead={setEditLead}
@@ -1628,12 +1583,10 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
             />
           )}
 
-          {/* ── HISTORY ── */}
           {tab === 'history' && (
             <LeadHistoryTab lead={editLead} history={history} onNoteAdded={loadHistory} createdBy={currentUsername} />
           )}
 
-          {/* ── SMS ── */}
           {tab === 'sms' && (
             <SmsTab
               toPhone={editLead.phone || lead.phone || ''}
@@ -1645,7 +1598,6 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
             />
           )}
 
-          {/* ── EMAIL ── */}
           {tab === 'email' && (
             <CustomEmailTab
               toEmail={editLead.email}
@@ -1682,12 +1634,10 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
             <AIDetailsTab lead={editLead} onUpdate={onUpdate} />
           )}
 
-          {/* ── ACTIONS ── */}
           {tab === 'actions' && (
             <div style={{ display:'flex', flexDirection:'column', gap:'12px' }}>
               <div style={{ color:GOLD, fontSize:'10px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'4px' }}>Lead Actions</div>
 
-              {/* Prospect — combined action */}
               <div style={{ background:'rgba(167,139,250,0.08)', border:'1px solid rgba(167,139,250,0.3)', borderRadius:'4px', padding:'16px 18px' }}>
                 <div style={{ display:'flex', alignItems:'center', gap:'12px', marginBottom:'12px' }}>
                   <span style={{ fontSize:'24px' }}>🚀</span>
@@ -1715,7 +1665,6 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
                 </div>
               </div>
 
-              {/* Callback Later */}
               <div style={{ background:'rgba(167,139,250,0.05)', border:'1px solid rgba(167,139,250,0.2)', borderRadius:'4px', padding:'16px 18px' }}>
                 <div style={{ display:'flex', alignItems:'center', gap:'12px', marginBottom:'12px' }}>
                   <span style={{ fontSize:'24px' }}>📅</span>
@@ -1735,7 +1684,6 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
                 </div>
               </div>
 
-              {/* Not Available */}
               <div
                 onClick={() => setSelectedAction(selectedAction === 'not_available' ? null : 'not_available')}
                 style={{ background: selectedAction === 'not_available' ? 'rgba(138,154,184,0.15)' : 'rgba(138,154,184,0.04)', border:`1px solid ${selectedAction==='not_available'?'rgba(138,154,184,0.5)':'rgba(138,154,184,0.2)'}`, borderRadius:'4px', padding:'14px 18px', cursor:'pointer', transition:'all 0.15s' }}>
@@ -1763,7 +1711,6 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
                 )}
               </div>
 
-              {/* Not Interested */}
               <div
                 onClick={() => setSelectedAction(selectedAction === 'not_interested' ? null : 'not_interested')}
                 style={{ background: selectedAction === 'not_interested' ? 'rgba(239,68,68,0.12)' : 'rgba(239,68,68,0.04)', border:`1px solid ${selectedAction==='not_interested'?'rgba(239,68,68,0.5)':'rgba(239,68,68,0.2)'}`, borderRadius:'4px', padding:'14px 18px', cursor:'pointer', transition:'all 0.15s' }}>
@@ -1800,7 +1747,7 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
     {showCallLog && (
       <CallLogPanel
         onClose={() => setShowCallLog(false)}
-        onOpenLead={(leadId) => { setShowCallLog(false); /* caller handles navigation */ }}
+        onOpenLead={(leadId) => { setShowCallLog(false); }}
       />
     )}
     </>
