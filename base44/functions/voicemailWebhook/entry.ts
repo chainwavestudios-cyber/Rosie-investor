@@ -12,6 +12,21 @@
 
 const DEFAULT_VM_GREETING = "Hi, you've reached us. We're unavailable right now. Please leave your message after the beep and we'll call you back shortly.";
 
+const APP_ID = Deno.env.get('BASE44_APP_ID') || '';
+const SERVICE_TOKEN = Deno.env.get('BASE44_SERVICE_TOKEN') || '';
+
+const b44Fetch = (path, opts = {}) => fetch(
+  `https://api.base44.com/api/apps/${APP_ID}/entities/${path}`,
+  { ...opts, headers: { 'Authorization': `Bearer ${SERVICE_TOKEN}`, 'Content-Type': 'application/json', ...(opts.headers || {}) } }
+);
+const b44Filter = async (entity, filters) => {
+  const r = await b44Fetch(`${entity}?filters=${encodeURIComponent(JSON.stringify(filters))}`);
+  const d = await r.json();
+  return Array.isArray(d) ? d : (d?.items || []);
+};
+const b44Create = (entity, data) => b44Fetch(entity, { method: 'POST', body: JSON.stringify(data) });
+const b44Update = (entity, id, data) => b44Fetch(`${entity}/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
+
 Deno.serve(async (req) => {
   if (req.method !== 'POST') return new Response('OK', { status: 200 });
 
@@ -23,16 +38,14 @@ Deno.serve(async (req) => {
   // the audio file at a stable CDN URL and hardcode it in vmAudioUrl below.
   if (urlParams.get('noAnswer') === 'true') {
     try {
-      const appId = Deno.env.get('BASE44_APP_ID') || '';
-      const serviceToken = Deno.env.get('BASE44_SERVICE_TOKEN') || '';
-      const vmWebhookBase = `https://run.base44.com/apps/${appId}/functions/voicemailWebhook`;
+      const vmWebhookBase = `https://run.base44.com/apps/${APP_ID}/functions/voicemailWebhook`;
 
       // Try to load custom greeting from PortalSettings using service token
       let greetingTwiml = `<Say voice="alice">${DEFAULT_VM_GREETING}</Say>`;
       try {
         const settingsRes = await fetch(
-          `https://api.base44.com/api/apps/${appId}/entities/PortalSettings?filters=${encodeURIComponent(JSON.stringify({ key: 'main' }))}`,
-          { headers: { 'Authorization': `Bearer ${serviceToken}` } }
+          `https://api.base44.com/api/apps/${APP_ID}/entities/PortalSettings?filters=${encodeURIComponent(JSON.stringify({ key: 'main' }))}`,
+          { headers: { 'Authorization': `Bearer ${SERVICE_TOKEN}` } }
         );
         if (settingsRes.ok) {
           const data = await settingsRes.json();
@@ -85,23 +98,6 @@ Deno.serve(async (req) => {
     const transcription = params.get('TranscriptionText') || '';
 
     console.log('[voicemailWebhook] CallSid:', callSid, 'Status:', callStatus, 'RecordingUrl:', recordingUrl);
-
-    const appId = Deno.env.get('BASE44_APP_ID') || '';
-    const serviceToken = Deno.env.get('BASE44_SERVICE_TOKEN') || '';
-
-    // Helper to call Base44 REST API with service token
-    const b44Fetch = (path, opts = {}) => fetch(
-      `https://api.base44.com/api/apps/${appId}/entities/${path}`,
-      { ...opts, headers: { 'Authorization': `Bearer ${serviceToken}`, 'Content-Type': 'application/json', ...(opts.headers || {}) } }
-    );
-
-    const b44Filter = async (entity, filters) => {
-      const r = await b44Fetch(`${entity}?filters=${encodeURIComponent(JSON.stringify(filters))}`);
-      const d = await r.json();
-      return Array.isArray(d) ? d : (d?.items || []);
-    };
-    const b44Create = (entity, data) => b44Fetch(entity, { method: 'POST', body: JSON.stringify(data) });
-    const b44Update = (entity, id, data) => b44Fetch(`${entity}/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
 
     // Match caller to a lead or investor
     let callerName = '';
