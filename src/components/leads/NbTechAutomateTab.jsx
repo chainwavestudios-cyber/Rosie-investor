@@ -42,6 +42,128 @@ function ProgressBar({ value, max, color = '#818cf8' }) {
   );
 }
 
+// ─── Edit Campaign Modal ──────────────────────────────────────────────────────
+function EditCampaignModal({ campaign, onSaved, onClose }) {
+  const [form, setForm] = useState({
+    name: campaign.name || '',
+    emailsPerSend: campaign.emailsPerSend || 2,
+    frequencyMinutes: campaign.frequencyMinutes || 30,
+    startHour: campaign.startHour ?? 8,
+    endHour: campaign.endHour ?? 17,
+    durationDays: campaign.durationDays || 7,
+    noEndDate: !campaign.endsAt,
+    daysOfWeek: (() => { try { return JSON.parse(campaign.daysOfWeek || '[0,1,2,3,4,5,6]'); } catch { return [0,1,2,3,4,5,6]; } })(),
+  });
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState('');
+
+  const toggleDay = (d) => setForm(f => ({
+    ...f, daysOfWeek: f.daysOfWeek.includes(d) ? f.daysOfWeek.filter(x => x !== d) : [...f.daysOfWeek, d].sort(),
+  }));
+
+  const handleSave = async () => {
+    setSaving(true); setMsg('');
+    try {
+      const updates = {
+        name: form.name.trim(),
+        emailsPerSend: form.emailsPerSend,
+        frequencyMinutes: form.frequencyMinutes,
+        startHour: form.startHour,
+        endHour: form.endHour,
+        durationDays: form.noEndDate ? null : form.durationDays,
+        daysOfWeek: JSON.stringify(form.daysOfWeek),
+        endsAt: form.noEndDate ? null : (() => {
+          const d = new Date();
+          d.setUTCDate(d.getUTCDate() + form.durationDays);
+          d.setUTCHours(form.endHour + 4, 0, 0, 0);
+          return d.toISOString();
+        })(),
+      };
+      await base44.entities.EmailCampaign.update(campaign.id, updates);
+      setMsg('✅ Saved!');
+      setTimeout(() => { onSaved(); onClose(); }, 800);
+    } catch (e) { setMsg('❌ ' + e.message); }
+    setSaving(false);
+  };
+
+  const DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  const inp = { background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '4px', padding: '8px 12px', color: '#e8e0d0', fontSize: '12px', outline: 'none', fontFamily: 'Georgia, serif', boxSizing: 'border-box' };
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: '20px' }}>
+      <div style={{ background: '#0d1b2a', border: '1px solid rgba(129,140,248,0.4)', borderRadius: '8px', width: '100%', maxWidth: '560px', padding: '24px', fontFamily: 'Georgia, serif', maxHeight: '90vh', overflowY: 'auto' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+          <span style={{ color: '#818cf8', fontSize: '13px', fontWeight: 'bold' }}>✏️ Edit Campaign</span>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#6b7280', cursor: 'pointer', fontSize: '20px' }}>×</button>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px 16px' }}>
+          <div style={{ gridColumn: '1 / -1' }}>
+            <label style={{ display: 'block', color: '#6b7280', fontSize: '9px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '4px' }}>Campaign Name</label>
+            <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} style={{ ...inp, width: '100%' }} />
+          </div>
+
+          <div>
+            <label style={{ display: 'block', color: '#6b7280', fontSize: '9px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '4px' }}>Emails Per Send</label>
+            <input type="number" min="1" max="50" value={form.emailsPerSend} onChange={e => setForm(f => ({ ...f, emailsPerSend: Math.max(1, Number(e.target.value)) }))} style={{ ...inp, width: '100%' }} />
+          </div>
+
+          <div>
+            <label style={{ display: 'block', color: '#6b7280', fontSize: '9px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '4px' }}>Frequency (minutes)</label>
+            <select value={form.frequencyMinutes} onChange={e => setForm(f => ({ ...f, frequencyMinutes: Number(e.target.value) }))} style={{ ...inp, width: '100%', cursor: 'pointer', colorScheme: 'dark' }}>
+              {[5,10,15,20,30,45,60,90,120].map(m => <option key={m} value={m} style={{ background: '#0d1b2a' }}>Every {m} min</option>)}
+            </select>
+          </div>
+
+          <div>
+            <label style={{ display: 'block', color: '#6b7280', fontSize: '9px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '4px' }}>Start Time (ET)</label>
+            <select value={form.startHour} onChange={e => setForm(f => ({ ...f, startHour: Number(e.target.value) }))} style={{ ...inp, width: '100%', cursor: 'pointer', colorScheme: 'dark' }}>
+              {Array.from({ length: 24 }, (_, i) => <option key={i} value={i} style={{ background: '#0d1b2a' }}>{i === 0 ? '12:00 AM' : i < 12 ? `${i}:00 AM` : i === 12 ? '12:00 PM' : `${i-12}:00 PM`}</option>)}
+            </select>
+          </div>
+
+          <div>
+            <label style={{ display: 'block', color: '#6b7280', fontSize: '9px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '4px' }}>End Time (ET)</label>
+            <select value={form.endHour} onChange={e => setForm(f => ({ ...f, endHour: Number(e.target.value) }))} style={{ ...inp, width: '100%', cursor: 'pointer', colorScheme: 'dark' }}>
+              {Array.from({ length: 24 }, (_, i) => <option key={i} value={i} style={{ background: '#0d1b2a' }}>{i === 0 ? '12:00 AM' : i < 12 ? `${i}:00 AM` : i === 12 ? '12:00 PM' : `${i-12}:00 PM`}</option>)}
+            </select>
+          </div>
+
+          <div style={{ gridColumn: '1 / -1' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', color: form.noEndDate ? '#4ade80' : '#8a9ab8', fontSize: '12px', marginBottom: '8px' }}>
+              <input type="checkbox" checked={form.noEndDate} onChange={e => setForm(f => ({ ...f, noEndDate: e.target.checked }))} style={{ cursor: 'pointer', accentColor: '#4ade80' }} />
+              No end date — run until all leads are sent
+            </label>
+            {!form.noEndDate && (
+              <div>
+                <label style={{ display: 'block', color: '#6b7280', fontSize: '9px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '4px' }}>Duration (days)</label>
+                <input type="number" min="1" max="365" value={form.durationDays} onChange={e => setForm(f => ({ ...f, durationDays: Math.max(1, Number(e.target.value)) }))} style={{ ...inp, width: '100%' }} />
+              </div>
+            )}
+          </div>
+
+          <div style={{ gridColumn: '1 / -1' }}>
+            <label style={{ display: 'block', color: '#6b7280', fontSize: '9px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '8px' }}>Days of Week</label>
+            <div style={{ display: 'flex', gap: '6px' }}>
+              {DAYS.map((d, i) => (
+                <button key={i} onClick={() => toggleDay(i)} style={{ padding: '6px 10px', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', fontFamily: 'Georgia, serif', background: form.daysOfWeek.includes(i) ? 'rgba(129,140,248,0.2)' : 'rgba(255,255,255,0.04)', border: `1px solid ${form.daysOfWeek.includes(i) ? 'rgba(129,140,248,0.5)' : 'rgba(255,255,255,0.1)'}`, color: form.daysOfWeek.includes(i) ? '#818cf8' : '#6b7280', fontWeight: form.daysOfWeek.includes(i) ? 'bold' : 'normal' }}>{d}</button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <div style={{ marginTop: '20px', display: 'flex', gap: '10px', alignItems: 'center' }}>
+          <button onClick={handleSave} disabled={saving} style={{ background: saving ? 'rgba(129,140,248,0.2)' : 'linear-gradient(135deg,#4f46e5,#818cf8)', color: '#fff', border: 'none', borderRadius: '4px', padding: '10px 24px', cursor: saving ? 'not-allowed' : 'pointer', fontWeight: 'bold', fontSize: '12px' }}>
+            {saving ? '⏳ Saving…' : '💾 Save Changes'}
+          </button>
+          <button onClick={onClose} style={{ background: 'transparent', color: '#6b7280', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '4px', padding: '10px 16px', cursor: 'pointer', fontSize: '12px' }}>Cancel</button>
+          {msg && <span style={{ fontSize: '12px', color: msg.startsWith('✅') ? '#4ade80' : '#ef4444' }}>{msg}</span>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Create Campaign Form ─────────────────────────────────────────────────────
 function CreateCampaignForm({ onCreated, currentUsername }) {
   const [contactLists, setContactLists] = useState([]);
@@ -57,6 +179,7 @@ function CreateCampaignForm({ onCreated, currentUsername }) {
     startHour: 8,
     endHour: 17,
     durationDays: 7,
+    noEndDate: false,
     daysOfWeek: [0,1,2,3,4,5,6],
   });
 
@@ -109,11 +232,11 @@ function CreateCampaignForm({ onCreated, currentUsername }) {
       const list = contactLists.find(l => l.id === form.contactListId);
       const leadIds = previewLeads.map(l => l.id);
 
-      // Calculate end date: last day at endHour ET (UTC-4)
-      const endsAt = (() => {
+      // Calculate end date if not "no end date"
+      const endsAt = form.noEndDate ? null : (() => {
         const d = new Date();
         d.setUTCDate(d.getUTCDate() + form.durationDays);
-        d.setUTCHours(form.endHour + 4, 0, 0, 0); // endHour ET → UTC
+        d.setUTCHours(form.endHour + 4, 0, 0, 0);
         return d.toISOString();
       })();
 
@@ -214,11 +337,18 @@ function CreateCampaignForm({ onCreated, currentUsername }) {
           </select>
         </div>
 
-        {/* Duration */}
-        <div>
-          <label style={{ display: 'block', color: '#6b7280', fontSize: '9px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '4px' }}>Campaign Duration (days)</label>
-          <input type="number" min="1" max="365" value={form.durationDays} onChange={e => setForm(f => ({ ...f, durationDays: Math.max(1, Number(e.target.value)) }))}
-            style={{ ...inp, width: '100%' }} />
+        {/* No end date / Duration */}
+        <div style={{ gridColumn: '1 / -1' }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', color: form.noEndDate ? '#4ade80' : '#8a9ab8', fontSize: '12px', marginBottom: '8px' }}>
+            <input type="checkbox" checked={form.noEndDate} onChange={e => setForm(f => ({ ...f, noEndDate: e.target.checked }))} style={{ cursor: 'pointer', accentColor: '#4ade80' }} />
+            No end date — run until all leads are sent
+          </label>
+          {!form.noEndDate && (
+            <div>
+              <label style={{ display: 'block', color: '#6b7280', fontSize: '9px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '4px' }}>Campaign Duration (days)</label>
+              <input type="number" min="1" max="365" value={form.durationDays} onChange={e => setForm(f => ({ ...f, durationDays: Math.max(1, Number(e.target.value)) }))} style={{ ...inp, width: '100%' }} />
+            </div>
+          )}
         </div>
 
         {/* Days of week */}
@@ -271,7 +401,7 @@ function CreateCampaignForm({ onCreated, currentUsername }) {
 }
 
 // ─── Campaign Card ─────────────────────────────────────────────────────────────
-function CampaignCard({ campaign, onRefresh }) {
+function CampaignCard({ campaign, onRefresh, onEdit }) {
   const [acting, setActing] = useState(false);
 
   let remaining = 0;
@@ -389,10 +519,16 @@ function CampaignCard({ campaign, onRefresh }) {
             </button>
           )}
           {['draft','active','paused'].includes(campaign.status) && (
-            <button onClick={() => act('cancel')} disabled={acting}
-              style={{ background: 'rgba(239,68,68,0.08)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.25)', borderRadius: '4px', padding: '5px 10px', cursor: 'pointer', fontSize: '11px' }}>
-              ✕ Cancel
-            </button>
+            <>
+              <button onClick={() => onEdit(campaign)}
+                style={{ background: 'rgba(129,140,248,0.1)', color: '#818cf8', border: '1px solid rgba(129,140,248,0.3)', borderRadius: '4px', padding: '5px 10px', cursor: 'pointer', fontSize: '11px' }}>
+                ✏️ Edit
+              </button>
+              <button onClick={() => act('cancel')} disabled={acting}
+                style={{ background: 'rgba(239,68,68,0.08)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.25)', borderRadius: '4px', padding: '5px 10px', cursor: 'pointer', fontSize: '11px' }}>
+                ✕ Cancel
+              </button>
+            </>
           )}
           {['completed','cancelled'].includes(campaign.status) && (
             <button onClick={() => act('delete')} disabled={acting}
@@ -416,7 +552,7 @@ function CampaignCard({ campaign, onRefresh }) {
       <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', fontSize: '10px', color: '#4a5568' }}>
         {campaign.lastSentAt && <span>Last sent: <span style={{ color: '#8a9ab8' }}>{fmtTime(campaign.lastSentAt)}</span></span>}
         {campaign.nextSendAt && campaign.status === 'active' && <span>Next send: <span style={{ color: '#f59e0b' }}>{fmtTime(campaign.nextSendAt)}</span></span>}
-        {campaign.endsAt && <span>Expires: <span style={{ color: '#8a9ab8' }}>{fmtTime(campaign.endsAt)}</span></span>}
+        {campaign.endsAt ? <span>Expires: <span style={{ color: '#8a9ab8' }}>{fmtTime(campaign.endsAt)}</span></span> : <span style={{ color: '#4ade80' }}>♾ No end date</span>}
         {campaign.createdBy && <span>By: <span style={{ color: '#8a9ab8' }}>{campaign.createdBy}</span></span>}
       </div>
     </div>
@@ -430,6 +566,7 @@ export default function NbTechAutomateTab() {
   const [campaigns, setCampaigns] = useState([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('all');
+  const [editingCampaign, setEditingCampaign] = useState(null);
 
   const load = async () => {
     setLoading(true);
@@ -448,6 +585,13 @@ export default function NbTechAutomateTab() {
 
   return (
     <div style={{ fontFamily: 'Georgia, serif' }}>
+      {editingCampaign && (
+        <EditCampaignModal
+          campaign={editingCampaign}
+          onSaved={load}
+          onClose={() => setEditingCampaign(null)}
+        />
+      )}
       <div style={{ marginBottom: '20px' }}>
         <h3 style={{ color: '#e8e0d0', margin: '0 0 4px', fontSize: '18px', fontWeight: 'normal' }}>⚙️ Automated NB Tech Campaigns</h3>
         <p style={{ color: '#6b7280', fontSize: '12px', margin: 0 }}>
@@ -505,7 +649,7 @@ export default function NbTechAutomateTab() {
           {campaigns.length === 0 ? 'No campaigns yet. Create one above.' : `No ${statusFilter} campaigns.`}
         </div>
       )}
-      {filtered.map(c => <CampaignCard key={c.id} campaign={c} onRefresh={load} />)}
+      {filtered.map(c => <CampaignCard key={c.id} campaign={c} onRefresh={load} onEdit={setEditingCampaign} />)}
     </div>
   );
 }
