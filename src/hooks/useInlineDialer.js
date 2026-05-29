@@ -90,20 +90,6 @@ export function useInlineDialer({ onCallStream, onCallLogged, agentName = 'admin
       setCallStatus('ended');
       setIncomingCall?.(null);
       onCallStream?.(null);
-      // Auto-log the call to DB on disconnect — covers natural hangups
-      if (leadIdRef.current) {
-        const dur = Math.floor((Date.now() - (startTimeRef.current || Date.now())) / 1000);
-        base44.entities.LeadHistory.create({
-          leadId: leadIdRef.current,
-          type: 'call',
-          content: `Outbound call — ${Math.floor(dur/60).toString().padStart(2,'0')}:${(dur%60).toString().padStart(2,'0')} · by ${agentName}`,
-          callDurationSeconds: dur,
-          twilioCallSid: call?.parameters?.CallSid || '',
-          createdBy: agentName,
-        }).catch(() => {});
-        base44.entities.Lead.update(leadIdRef.current, { lastCalledAt: new Date().toISOString() }).catch(() => {});
-        onCallLogged?.(leadIdRef.current);
-      }
     });
     call.on('cancel', () => {
       stopTimer();
