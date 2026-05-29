@@ -14,45 +14,64 @@ Deno.serve(async (req) => {
   // Twilio <Dial> action callback — no-answer → play VM greeting + record
   const urlParams = new URL(req.url).searchParams;
   if (urlParams.get('noAnswer') === 'true') {
-    const body = await req.text();
-    const params = new URLSearchParams(body);
-    const dialStatus = params.get('DialCallStatus') || '';
-    const callSid    = params.get('CallSid') || '';
-    const from       = params.get('From') || params.get('Caller') || '';
-    const to         = params.get('To') || params.get('Called') || '';
-    const appId      = Deno.env.get('BASE44_APP_ID') || '';
-    const vmWebhookBase = `https://run.base44.com/apps/${appId}/functions/voicemailWebhook`;
+    // ── TOP-LEVEL safety net: ALWAYS return valid TwiML, never a 5xx ──
+    try {
+      const body = await req.text();
+      const params = new URLSearchParams(body);
+      const dialStatus = params.get('DialCallStatus') || '';
+      const callSid    = params.get('CallSid') || '';
+      const from       = params.get('From') || params.get('Caller') || '';
+      const to         = params.get('To') || params.get('Called') || '';
+      const appId      = Deno.env.get('BASE44_APP_ID') || '';
+      const vmWebhookBase = `https://run.base44.com/apps/${appId}/functions/voicemailWebhook`;
 
-    console.log('[voicemailWebhook] noAnswer action — DialCallStatus:', dialStatus, 'CallSid:', callSid);
+      console.log('[voicemailWebhook] noAnswer action — DialCallStatus:', dialStatus, 'CallSid:', callSid);
 
-    // If no-answer or call wasn't picked up, play VM greeting
-    if (dialStatus !== 'completed' && dialStatus !== 'answered') {
-      // Load custom greeting from PortalSettings — prefer audio URL over text
-      let greetingTwiml = `<Say voice="alice">${DEFAULT_VM_GREETING}</Say>`;
-      try {
-        const base44 = createClientFromRequest(req).asServiceRole;
-        const settings = await base44.entities.PortalSettings.filter({ key: 'main' });
-        const cfg = settings?.[0];
-        if (cfg?.vmAudioUrl) {
-          greetingTwiml = `<Play>${cfg.vmAudioUrl}</Play>`;
-        } else if (cfg?.vmGreeting) {
-          greetingTwiml = `<Say voice="alice">${cfg.vmGreeting}</Say>`;
+      // If no-answer or call wasn't picked up, play VM greeting
+      if (dialStatus !== 'completed' && dialStatus !== 'answered') {
+        // Load custom greeting from PortalSettings — prefer audio URL over text
+        let greetingTwiml = `<Say voice="alice">${DEFAULT_VM_GREETING}</Say>`;
+        try {
+          const base44 = createClientFromRequest(req).asServiceRole;
+          const settings = await base44.entities.PortalSettings.filter({ key: 'main' });
+          const cfg = settings?.[0];
+          if (cfg?.vmAudioUrl) {
+            greetingTwiml = `<Play>${cfg.vmAudioUrl}</Play>`;
+          } else if (cfg?.vmGreeting) {
+            greetingTwiml = `<Say voice="alice">${cfg.vmGreeting}</Say>`;
+          }
+        } catch (settingsErr) {
+          console.warn('[voicemailWebhook] Could not load PortalSettings, using default greeting:', settingsErr?.message);
+          // Falls through to DEFAULT_VM_GREETING already set above
         }
-      } catch {}
 
-      const twiml = `<?xml version="1.0" encoding="UTF-8"?>
+        const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   ${greetingTwiml}
   <Record maxLength="120" playBeep="true" transcribe="true" transcribeCallback="${vmWebhookBase}" action="${vmWebhookBase}" method="POST" />
   <Say voice="alice">We did not receive a recording. Goodbye.</Say>
 </Response>`;
-      return new Response(twiml, { headers: { 'Content-Type': 'text/xml' } });
-    }
+        return new Response(twiml, { headers: { 'Content-Type': 'text/xml' } });
+      }
 
-    // Call was answered — log it as completed via normal callback flow
-    return new Response(`<?xml version="1.0" encoding="UTF-8"?><Response></Response>`, { headers: { 'Content-Type': 'text/xml' } });
+      // Call was answered — log it as completed via normal callback flow
+      return new Response(`<?xml version="1.0" encoding="UTF-8"?><Response></Response>`, { headers: { 'Content-Type': 'text/xml' } });
+
+    } catch (fatalErr) {
+      // Something went wrong before we could even build the TwiML (body parse, env missing, etc.)
+      // Still return valid TwiML so Twilio doesn't play "application error"
+      console.error('[voicemailWebhook] Fatal error in noAnswer branch:', fatalErr?.message);
+      const fallbackTwiml = `<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Say voice="alice">${DEFAULT_VM_GREETING}</Say>
+  <Record maxLength="120" playBeep="true" />
+  <Say voice="alice">We did not receive a recording. Goodbye.</Say>
+</Response>`;
+      return new Response(fallbackTwiml, { headers: { 'Content-Type': 'text/xml' } });
+    }
   }
 
+  // ── Recording complete / status callback ─────────────────────────────
   try {
     const body = await req.text();
     const params = new URLSearchParams(body);
