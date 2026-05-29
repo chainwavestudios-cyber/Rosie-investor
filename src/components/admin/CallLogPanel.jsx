@@ -373,32 +373,61 @@ function ReportsTab({ lines }) {
   );
 }
 
+// ── Normalize phone to last 10 digits for comparison ────────────────────────
+function normalizePhone(p) {
+  if (!p) return '';
+  const digits = p.replace(/\D/g, '');
+  return digits.slice(-10);
+}
+
 // ── Call Row (shared by inbound + outbound) ───────────────────────────────────
 function CallRow({ log, isOutbound, leads, lines, onOpenLead, onOpenInvestor, onMarkVm, playingVm, setPlayingVm, audioRef }) {
   const [converting, setConverting] = useState(false);
   const [converted, setConverted]   = useState(null);
 
+  // For outbound: log.to is the dialed number, log.from is agent's number
+  // For inbound: log.fromNumber is caller, log.toNumber is our number
   const phone = isOutbound ? log.to : log.fromNumber;
+  const phoneNorm = normalizePhone(phone);
+
   const agent = isOutbound ? (() => {
-    const lineMatch = lines.find(l => l.number === log.from || log.from?.endsWith(l.number?.slice(-4)));
+    if (!log.from) return '—';
+    // Exact match first
+    const lineMatch = lines.find(l => l.number && (
+      l.number === log.from ||
+      normalizePhone(l.number) === normalizePhone(log.from)
+    ));
     if (lineMatch?.label) return lineMatch.label;
+    // NUMBER_TO_AGENT map
     const m = NUMBER_TO_AGENT[log.from];
     if (m) return m;
-    if (log.from?.endsWith('5680')) return 'Admin';
-    if (log.from?.endsWith('5681')) return 'Steph';
-    return log.from?.slice(-4) || '—';
+    // Known last-4 fallbacks
+    const last4 = log.from.slice(-4);
+    if (last4 === '5680') return 'Admin';
+    if (last4 === '5681') return 'Steph';
+    if (last4 === '5682') return 'Line 3';
+    return last4;
   })() : null;
 
-  const matchedLead = leads.find(l =>
-    l.phone === phone || l.phone2 === phone ||
-    l.phone === log.fromNumber || l.phone2 === log.fromNumber
-  );
+  // Match lead by normalizing phone numbers — fixes "Robert Nalley on every row" bug
+  const matchedLead = phoneNorm
+    ? leads.find(l => {
+        const lp  = normalizePhone(l.phone);
+        const lp2 = normalizePhone(l.phone2);
+        return (lp && lp === phoneNorm) || (lp2 && lp2 === phoneNorm);
+      })
+    : null;
 
+  const leadName = matchedLead
+    ? `${matchedLead.firstName || ''} ${matchedLead.lastName || ''}`.trim()
+    : '';
+
+  // Fix operator-precedence bug: was (log.callerName || matchedLead) ? ...
   const displayName = isOutbound
-    ? (log.callerName || matchedLead ? `${matchedLead?.firstName||''} ${matchedLead?.lastName||''}`.trim() : null) || log.to
-    : (log.callerName || (matchedLead ? `${matchedLead?.firstName||''} ${matchedLead?.lastName||''}`.trim() : null) || log.fromNumber || '—');
+    ? (leadName || log.to || '—')
+    : (log.callerName || leadName || log.fromNumber || '—');
 
-  const isNameResolved = displayName && displayName !== phone;
+  const isNameResolved = !!leadName || (isOutbound ? false : !!log.callerName);
 
   const connected  = isOutbound ? (log.status === 'completed' && log.duration > 0) : (log.status === 'completed' || log.status === 'answered');
   const statusColor = isOutbound
@@ -431,7 +460,9 @@ function CallRow({ log, isOutbound, leads, lines, onOpenLead, onOpenInvestor, on
     if (lid && onOpenLead) onOpenLead(lid);
     else if (iid && onOpenInvestor) onOpenInvestor(iid);
   };
-  const hasCard = (isOutbound ? !!matchedLead : !!(log.leadId || matchedLead?.id || log.investorId));
+  const hasCard = isOutbound
+    ? !!matchedLead
+    : !!(log.leadId || matchedLead?.id || log.investorId);
 
   return (
     <div style={{ background: isUnread?'rgba(255,255,255,0.04)':'rgba(255,255,255,0.015)', border:`1px solid ${isUnread?'rgba(255,255,255,0.1)':'rgba(255,255,255,0.05)'}`, borderLeft:`3px solid ${statusColor}`, borderRadius:'6px', padding:'10px 12px', marginBottom:'6px' }}>
@@ -463,7 +494,7 @@ function CallRow({ log, isOutbound, leads, lines, onOpenLead, onOpenInvestor, on
             )}
           </div>
           {/* Convert buttons for outbound */}
-          {isOutbound && matchedLead && !matchedLead.status==='not_interested' && !converted && (
+          {isOutbound && matchedLead && matchedLead.status !== 'not_interested' && !converted && (
             <div style={{ display:'flex', gap:'4px', alignItems:'center', flexWrap:'wrap' }}>
               <span style={{ color:'#4a5568', fontSize:'9px' }}>Convert:</span>
               {matchedLead.status !== 'prospect' && (
@@ -584,7 +615,12 @@ export default function CallLogPanel({ onClose, onOpenLead, onOpenInvestor }) {
   const loadOutbound = async (start, end) => {
     try {
       const res = await base44.functions.invoke('twilioCallLogs', { startDate: start, endDate: end });
-      const calls = (res.data?.calls || []).filter(c => c.direction !== 'inbound');
+      const calls = (res.data?.calls || []).filter(c =>
+        c.direction !== 'inbound' &&
+        // Filter out internal browser client calls — these are not real outbound calls
+        !c.to?.startsWith('client:') &&
+        !c.to?.startsWith('sip:')
+      );
       setHistoryRows(calls);
     } catch(e) { console.error(e); }
   };
