@@ -184,8 +184,6 @@ function StageHeader({ stage, onRename, onDelete, canDelete }) {
   );
 }
 
-// ── Per-user sub-pipeline selector ─────────────────────────────────────────
-// pipelineType: 'prospect' | 'nb_tech'
 function PipelineTypeSelector({ value, onChange }) {
   return (
     <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
@@ -220,9 +218,7 @@ export default function LeadPipeline({ onOpenLead, mockLeads = null }) {
   const [addingStage, setAddingStage] = useState(false);
   const [newStageName, setNewStageName] = useState('');
 
-  // 'mine' | 'other' — which user's pipeline we're looking at
   const [pipelineView, setPipelineView] = useState('mine');
-  // Per-user sub-pipeline type: keyed by username
   const [pipelineTypes, setPipelineTypes] = useState({ [currentUsername]: 'prospect', [otherUsername]: 'prospect' });
 
   useEffect(() => {
@@ -232,8 +228,6 @@ export default function LeadPipeline({ onOpenLead, mockLeads = null }) {
       return;
     }
     loadData();
-    // No auto-poll — data loaded on mount and manual refresh only
-    // no interval to clear
   }, [mockLeads]);
 
   const loadData = async () => {
@@ -245,9 +239,6 @@ export default function LeadPipeline({ onOpenLead, mockLeads = null }) {
         base44.entities.LeadHistory.list('-created_date', 100).catch(() => []),
       ]);
 
-      // Filter: only non-migrated, non-converted leads with a pipeline role
-      // Prospect pipeline: status === 'prospect' AND leadType is NOT nb_tech
-      // NB Tech pipeline: leadType === 'nb_tech' (regardless of status)
       const merged = (allLeads || []).filter(l =>
         !l.migratedToPortal &&
         !l.convertedToInvestorUserId &&
@@ -256,7 +247,6 @@ export default function LeadPipeline({ onOpenLead, mockLeads = null }) {
         (l.leadType === 'nb_tech' || l.status === 'prospect')
       );
 
-      // Attach last call duration
       const callsByLead = {};
       histories.filter(h => h.type === 'call' && h.callDurationSeconds > 0).forEach(h => {
         if (!callsByLead[h.leadId] || new Date(h.created_date) > new Date(callsByLead[h.leadId].created_date)) {
@@ -265,7 +255,6 @@ export default function LeadPipeline({ onOpenLead, mockLeads = null }) {
       });
       const enriched = merged.map(l => ({ ...l, lastCallDurationSeconds: callsByLead[l.id]?.callDurationSeconds || null }));
 
-      // Ensure pipeline stage
       const needsStage = enriched.filter(l => !l.leadPipelineStage);
       if (needsStage.length > 0) {
         await Promise.all(needsStage.map(l => base44.entities.Lead.update(l.id, { leadPipelineStage: 'reviewing' }).catch(() => {})));
@@ -327,13 +316,9 @@ export default function LeadPipeline({ onOpenLead, mockLeads = null }) {
 
   const getStageStyle = (idx) => STAGE_COLORS[idx % STAGE_COLORS.length];
 
-  // Determine which owner and pipeline type to display
   const viewOwner = pipelineView === 'mine' ? currentUsername : otherUsername;
   const currentPipelineType = pipelineTypes[viewOwner] || 'prospect';
 
-  // Filter leads:
-  // NB Tech pipeline: show ALL nb_tech leads regardless of owner (shared pipeline)
-  // Prospect pipeline: show only leads owned by the current view user
   const visibleLeads = leads.filter(l => {
     if (currentPipelineType === 'nb_tech') return l.leadType === 'nb_tech';
     const owner = l.leadPipelineOwner || 'admin';
@@ -345,9 +330,8 @@ export default function LeadPipeline({ onOpenLead, mockLeads = null }) {
     return (todayApptLeadIds.has(b.id) ? 1 : 0) - (todayApptLeadIds.has(a.id) ? 1 : 0);
   });
 
-  // Count helpers for tab badges
   const countFor = (username, type) => leads.filter(l => {
-    if (type === 'nb_tech') return l.leadType === 'nb_tech'; // shared, not per-user
+    if (type === 'nb_tech') return l.leadType === 'nb_tech';
     const owner = l.leadPipelineOwner || 'admin';
     if (owner !== username) return false;
     return l.leadType !== 'nb_tech';
@@ -378,7 +362,7 @@ export default function LeadPipeline({ onOpenLead, mockLeads = null }) {
         })}
       </div>
 
-      {/* ── Sub-pipeline type selector for active user ── */}
+      {/* ── Sub-pipeline type selector ── */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
         <PipelineTypeSelector
           value={currentPipelineType}
@@ -411,8 +395,14 @@ export default function LeadPipeline({ onOpenLead, mockLeads = null }) {
         </p>
       </div>
 
-      {/* ── Kanban board ── */}
-      <div style={{ display: 'grid', gridTemplateColumns: `repeat(${stages.length}, minmax(180px, 1fr))`, gap: '12px', alignItems: 'start', overflowX: 'auto' }}>
+      {/* ── Kanban board — columns stretch to match the tallest ── */}
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: `repeat(${stages.length}, minmax(180px, 1fr))`,
+        gap: '12px',
+        overflowX: 'auto',
+        alignItems: 'stretch',
+      }}>
         {stages.map((stage, idx) => {
           const style = getStageStyle(idx);
           const stageWithStyle = { ...stage, ...style };
@@ -423,7 +413,15 @@ export default function LeadPipeline({ onOpenLead, mockLeads = null }) {
               onDragOver={e => { e.preventDefault(); setDragOver(stage.id); }}
               onDragLeave={() => setDragOver(null)}
               onDrop={e => handleDrop(e, stage.id)}
-              style={{ background: isOver ? style.bg : 'rgba(255,255,255,0.015)', border: `1px solid ${isOver ? style.color : 'rgba(255,255,255,0.07)'}`, borderRadius: '6px', minHeight: '500px', transition: 'all 0.15s' }}>
+              style={{
+                background: isOver ? style.bg : 'rgba(255,255,255,0.015)',
+                border: `1px solid ${isOver ? style.color : 'rgba(255,255,255,0.07)'}`,
+                borderRadius: '6px',
+                minHeight: '500px',
+                transition: 'all 0.15s',
+                display: 'flex',
+                flexDirection: 'column',
+              }}>
 
               <div style={{ padding: '12px 10px 8px', borderBottom: `2px solid ${style.color}44` }}>
                 <StageHeader stage={stageWithStyle} onRename={label => renameStage(stage.id, label)} onDelete={() => deleteStage(stage.id)} canDelete={stages.length > 1} />
@@ -435,7 +433,7 @@ export default function LeadPipeline({ onOpenLead, mockLeads = null }) {
                 </div>
               </div>
 
-              <div style={{ padding: '8px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <div style={{ padding: '8px', display: 'flex', flexDirection: 'column', gap: '8px', flex: 1 }}>
                 {cards.map(lead => (
                   <LeadPipelineCard key={lead.id} lead={lead} stage={stageWithStyle}
                     hasApptToday={todayApptLeadIds.has(lead.id)} apptTime={apptTimeMap[lead.id] || null}
