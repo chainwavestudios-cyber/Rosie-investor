@@ -69,6 +69,9 @@ Deno.serve(async (req) => {
       Deno.env.get('TWILIO_FROM_NUMBER')   || '',
       Deno.env.get('TWILIO_FROM_NUMBER_2') || '',
       Deno.env.get('TWILIO_FROM_NUMBER_3') || '',
+      Deno.env.get('TWILIO_FROM_NUMBER_4') || '',
+      Deno.env.get('TWILIO_FROM_NUMBER_5') || '',
+      Deno.env.get('TWILIO_FROM_NUMBER_6') || '',
     ].filter(Boolean);
     const toNormalized = to.replace(/\s/g, '');
     const isInboundToOurNumber = ownNumbers.includes(toNormalized) || (called && ownNumbers.includes(called.replace(/\s/g, '')));
