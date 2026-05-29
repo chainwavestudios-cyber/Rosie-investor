@@ -50,10 +50,27 @@ Deno.serve(async (req) => {
         });
       }
 
+      // Fetch custom greeting from PortalSettings (with timeout)
+      let greetingTwiml = `<Say voice="alice">${DEFAULT_VM_GREETING}</Say>`;
+      try {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 3000);
+        const r = await b44Filter('PortalSettings', {});
+        clearTimeout(timer);
+        const settings = r?.[0];
+        if (settings?.vmAudioUrl) {
+          greetingTwiml = `<Play>${settings.vmAudioUrl}</Play>`;
+        } else if (settings?.vmGreeting) {
+          greetingTwiml = `<Say voice="alice">${settings.vmGreeting}</Say>`;
+        }
+      } catch (e) {
+        console.log('[voicemailWebhook] Could not fetch settings, using default:', e.message);
+      }
+
       console.log('[voicemailWebhook] No answer — playing greeting and recording');
       const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Say voice="alice">${DEFAULT_VM_GREETING}</Say>
+  ${greetingTwiml}
   <Record maxLength="120" playBeep="true" transcribe="true" transcribeCallback="${vmWebhookBase}" action="${vmWebhookBase}" method="POST" />
   <Say voice="alice">We did not receive a recording. Goodbye.</Say>
 </Response>`;
