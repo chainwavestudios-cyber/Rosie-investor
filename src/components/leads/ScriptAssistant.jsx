@@ -125,7 +125,7 @@ export default function ScriptAssistant({ lead, user, onExpandCard, isCardExpand
   // automatically invoke connectStream() once (and only once).
   const autoStartedRef = useRef(false);
   useEffect(() => {
-    if (callDuration >= 45 && twilioStream && !listening && !autoStartedRef.current) {
+    if (callDuration >= 30 && twilioStream && !listening && !autoStartedRef.current) {
       autoStartedRef.current = true;
       startListeningFromStream(twilioStream.remoteStream, twilioStream.localStream);
     }
