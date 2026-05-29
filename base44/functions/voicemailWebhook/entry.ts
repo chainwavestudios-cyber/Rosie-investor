@@ -27,7 +27,20 @@ Deno.serve(async (req) => {
       const appId = Deno.env.get('BASE44_APP_ID') || '';
       const vmWebhookBase = `https://run.base44.com/apps/${appId}/functions/voicemailWebhook`;
 
-      const greetingTwiml = `<Say voice="alice">${DEFAULT_VM_GREETING}</Say>`;
+      // Try to load custom greeting from PortalSettings (fast lookup, <1s)
+      let greetingTwiml = `<Say voice="alice">${DEFAULT_VM_GREETING}</Say>`;
+      try {
+        const base44Admin = createClientFromRequest(req).asServiceRole;
+        const settings = await base44Admin.entities.PortalSettings.filter({ key: 'main' });
+        const ps = settings?.[0];
+        if (ps?.vmAudioUrl) {
+          greetingTwiml = `<Play>${ps.vmAudioUrl}</Play>`;
+        } else if (ps?.vmGreeting) {
+          greetingTwiml = `<Say voice="alice">${ps.vmGreeting}</Say>`;
+        }
+      } catch {
+        // Fall through to default greeting
+      }
 
       const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>

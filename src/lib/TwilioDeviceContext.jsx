@@ -123,6 +123,11 @@ export function TwilioDeviceProvider({ children }) {
     return initPromise.current;
   }, [ready]);
 
+  // Auto-initialize device on mount so it's ready to receive inbound calls
+  useEffect(() => {
+    getDevice().catch(() => {});
+  }, []);
+
   // Destroy on unmount
   useEffect(() => () => {
     try { deviceRef.current?.destroy(); } catch {}
