@@ -9,7 +9,6 @@
  * gives up and plays "application error". We do ZERO database work here —
  * just return TwiML immediately. DB logging happens in the recording callback.
  */
-import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 
 const DEFAULT_VM_GREETING = "Hi, you've reached us. We're unavailable right now. Please leave your message after the beep and we'll call you back shortly.";
 
@@ -25,18 +24,24 @@ Deno.serve(async (req) => {
   if (urlParams.get('noAnswer') === 'true') {
     try {
       const appId = Deno.env.get('BASE44_APP_ID') || '';
+      const serviceToken = Deno.env.get('BASE44_SERVICE_TOKEN') || '';
       const vmWebhookBase = `https://run.base44.com/apps/${appId}/functions/voicemailWebhook`;
 
-      // Try to load custom greeting from PortalSettings (fast lookup, <1s)
+      // Try to load custom greeting from PortalSettings using service token
       let greetingTwiml = `<Say voice="alice">${DEFAULT_VM_GREETING}</Say>`;
       try {
-        const base44Admin = createClientFromRequest(req).asServiceRole;
-        const settings = await base44Admin.entities.PortalSettings.filter({ key: 'main' });
-        const ps = settings?.[0];
-        if (ps?.vmAudioUrl) {
-          greetingTwiml = `<Play>${ps.vmAudioUrl}</Play>`;
-        } else if (ps?.vmGreeting) {
-          greetingTwiml = `<Say voice="alice">${ps.vmGreeting}</Say>`;
+        const settingsRes = await fetch(
+          `https://api.base44.com/api/apps/${appId}/entities/PortalSettings?filters=${encodeURIComponent(JSON.stringify({ key: 'main' }))}`,
+          { headers: { 'Authorization': `Bearer ${serviceToken}` } }
+        );
+        if (settingsRes.ok) {
+          const data = await settingsRes.json();
+          const ps = Array.isArray(data) ? data[0] : data?.items?.[0];
+          if (ps?.vmAudioUrl) {
+            greetingTwiml = `<Play>${ps.vmAudioUrl}</Play>`;
+          } else if (ps?.vmGreeting) {
+            greetingTwiml = `<Say voice="alice">${ps.vmGreeting}</Say>`;
+          }
         }
       } catch {
         // Fall through to default greeting
@@ -81,7 +86,22 @@ Deno.serve(async (req) => {
 
     console.log('[voicemailWebhook] CallSid:', callSid, 'Status:', callStatus, 'RecordingUrl:', recordingUrl);
 
-    const base44 = createClientFromRequest(req).asServiceRole;
+    const appId = Deno.env.get('BASE44_APP_ID') || '';
+    const serviceToken = Deno.env.get('BASE44_SERVICE_TOKEN') || '';
+
+    // Helper to call Base44 REST API with service token
+    const b44Fetch = (path, opts = {}) => fetch(
+      `https://api.base44.com/api/apps/${appId}/entities/${path}`,
+      { ...opts, headers: { 'Authorization': `Bearer ${serviceToken}`, 'Content-Type': 'application/json', ...(opts.headers || {}) } }
+    );
+
+    const b44Filter = async (entity, filters) => {
+      const r = await b44Fetch(`${entity}?filters=${encodeURIComponent(JSON.stringify(filters))}`);
+      const d = await r.json();
+      return Array.isArray(d) ? d : (d?.items || []);
+    };
+    const b44Create = (entity, data) => b44Fetch(entity, { method: 'POST', body: JSON.stringify(data) });
+    const b44Update = (entity, id, data) => b44Fetch(`${entity}/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
 
     // Match caller to a lead or investor
     let callerName = '';
@@ -93,7 +113,7 @@ Deno.serve(async (req) => {
       const plain10 = digits.slice(-10);
 
       try {
-        const investors = await base44.entities.InvestorUser.filter({});
+        const investors = await b44Filter('InvestorUser', {});
         const inv = investors.find(u => {
           const p = (u.phone || '').replace(/\D/g, '');
           return p === digits || p.slice(-10) === plain10;
@@ -103,7 +123,7 @@ Deno.serve(async (req) => {
 
       if (!callerName) {
         try {
-          const leads = await base44.entities.Lead.filter({});
+          const leads = await b44Filter('Lead', {});
           const lead = leads.find(l => {
             const p = (l.phone || '').replace(/\D/g, '');
             return p === digits || p.slice(-10) === plain10;
@@ -116,7 +136,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    const existingLogs = await base44.entities.CallLog.filter({ callSid }).catch(() => []);
+    const existingLogs = await b44Filter('CallLog', { callSid }).catch(() => []);
     const existing = existingLogs?.[0] || null;
     const now = new Date().toISOString();
 
@@ -124,7 +144,7 @@ Deno.serve(async (req) => {
     if (recordingUrl) {
       const vmUrl = recordingUrl.endsWith('.mp3') ? recordingUrl : recordingUrl + '.mp3';
       if (existing) {
-        await base44.entities.CallLog.update(existing.id, {
+        await b44Update('CallLog', existing.id, {
           status: 'voicemail',
           vmRecordingUrl: vmUrl,
           vmTranscription: transcription || '',
@@ -132,7 +152,7 @@ Deno.serve(async (req) => {
           durationSeconds: duration || existing.durationSeconds || 0,
         });
       } else {
-        await base44.entities.CallLog.create({
+        await b44Create('CallLog', {
           callSid,
           direction: 'inbound',
           fromNumber: from,
@@ -151,7 +171,7 @@ Deno.serve(async (req) => {
       }
 
       if (leadId) {
-        await base44.entities.LeadHistory.create({
+        await b44Create('LeadHistory', {
           leadId,
           type: 'voicemail',
           content: `📩 Voicemail left — ${transcription ? '"' + transcription.slice(0, 200) + '"' : 'No transcription available'}`,
@@ -173,12 +193,12 @@ Deno.serve(async (req) => {
     const logStatus = statusMap[callStatus] || 'ringing';
 
     if (existing) {
-      await base44.entities.CallLog.update(existing.id, {
+      await b44Update('CallLog', existing.id, {
         status: logStatus,
         durationSeconds: duration || existing.durationSeconds || 0,
       });
     } else {
-      await base44.entities.CallLog.create({
+      await b44Create('CallLog', {
         callSid,
         direction: direction.toLowerCase().includes('inbound') ? 'inbound' : 'outbound',
         fromNumber: from,
