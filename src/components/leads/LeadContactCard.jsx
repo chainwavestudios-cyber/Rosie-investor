@@ -201,23 +201,9 @@ function OverviewTab({ editLead, setEditLead, saving, saveMsg, saveProfile, upda
           <div style={{ display:'flex', gap:'16px', flexWrap:'wrap', alignItems:'center' }}>
             {editLead.phone && <span style={{ color:'#4ade80', fontSize:'13px' }}>📞 {editLead.phone}</span>}
             {editLead.phone2 && <span style={{ color:'#8a9ab8', fontSize:'13px' }}>📱 {editLead.phone2}</span>}
-            {editLead.lastCalledAt ? (
-            <span style={{ color:'#6b7280', fontSize:'11px', display:'flex', alignItems:'center', gap:'4px', flexWrap:'wrap' }}>
-            <span style={{ color:'#4a5568' }}>🕐 Last called:</span>
-            <span style={{ color:'#8a9ab8' }}>
-              {fmtDateTime(editLead.lastCalledAt)}
-            </span>
-                {(() => {
-                  const lastCall = history.filter(h => ['call','connected'].includes(h.type) && h.callDurationSeconds > 0).sort((a,b) => new Date(b.created_date) - new Date(a.created_date))[0];
-                  if (!lastCall) return null;
-                  const m = Math.floor(lastCall.callDurationSeconds / 60);
-                  const s = lastCall.callDurationSeconds % 60;
-                  return <span style={{ color:'#a78bfa' }}>· {m}m {s}s</span>;
-                })()}
-              </span>
-            ) : (editLead.phone || editLead.phone2) ? (
+            {!editLead.lastCalledAt && (editLead.phone || editLead.phone2) && (
               <span style={{ color:'#4a5568', fontSize:'11px' }}>🕐 Never called</span>
-            ) : null}
+            )}
           </div>
           {editLead.email && <div><span style={{ color:'#60a5fa', fontSize:'13px' }}>✉️ {editLead.email}</span></div>}
           {(editLead.address || editLead.city || editLead.zip || editLead.state) && (
@@ -1332,6 +1318,19 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
               <div>
                 <div style={{ display:'flex', alignItems:'center', gap:'8px', flexWrap:'wrap' }}>
                   <div style={{ color:'#e8e0d0', fontSize:'16px', fontFamily:'Georgia,serif', fontWeight:'normal', lineHeight:1.1 }}>{fullName}</div>
+                  {editLead.lastCalledAt && (
+                    <span style={{ color:'#6b7280', fontSize:'11px', display:'flex', alignItems:'center', gap:'4px', whiteSpace:'nowrap' }}>
+                      <span style={{ color:'#4a5568' }}>·</span>
+                      {fmtDateTime(editLead.lastCalledAt)}
+                      {(() => {
+                        const lastCall = history.filter(h => ['call','connected'].includes(h.type) && h.callDurationSeconds > 0).sort((a,b) => new Date(b.created_date) - new Date(a.created_date))[0];
+                        if (!lastCall) return null;
+                        const m = Math.floor(lastCall.callDurationSeconds / 60);
+                        const s = lastCall.callDurationSeconds % 60;
+                        return <span style={{ color:'#a78bfa' }}>· {m}m {s}s</span>;
+                      })()}
+                    </span>
+                  )}
                   {smsOptedIn && (
                     <img
                       src="https://media.base44.com/images/public/69cd2741578c9b5ce655395b/9febafab0_Untitled313x313px.png"
