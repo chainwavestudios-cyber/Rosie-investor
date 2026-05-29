@@ -251,6 +251,8 @@ export default function LeadPipeline({ onOpenLead, mockLeads = null }) {
       const merged = (allLeads || []).filter(l =>
         !l.migratedToPortal &&
         !l.convertedToInvestorUserId &&
+        l.status !== 'not_interested' &&
+        l.status !== 'abandoned' &&
         (l.leadType === 'nb_tech' || l.status === 'prospect')
       );
 
