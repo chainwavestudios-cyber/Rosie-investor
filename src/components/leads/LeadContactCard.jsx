@@ -1407,7 +1407,28 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
                   phone={selectedPhone || editLead.phone || lead.phone}
                   name={`${editLead.firstName || lead.firstName || ''} ${editLead.lastName || lead.lastName || ''}`.trim()}
                   dialer={{ ...dialer, dial: (phone) => { onDialStarted && onDialStarted(currentLeadRef.current.id); fireScorecardCall(currentUsername); dialer.dial(phone, currentLeadRef.current.id); } }}
-                  onLogCall={async () => { await loadHistory(); }}
+                  onLogCall={async () => {
+                    const lid = currentLeadRef.current?.id;
+                    if (lid) {
+                      const dur = dialer.duration;
+                      const dir = dialer.callDirection === 'inbound' ? 'Inbound' : 'Outbound';
+                      const m = Math.floor(dur / 60).toString().padStart(2, '0');
+                      const s = (dur % 60).toString().padStart(2, '0');
+                      const durationLabel = `${m}:${s}`;
+                      let content = `${dir} call — ${durationLabel} · by ${currentUsername}`;
+                      if (dur <= 50) content += '\nContact Not Available';
+                      await base44.entities.LeadHistory.create({
+                        leadId: lid,
+                        type: 'call',
+                        content,
+                        callDurationSeconds: dur,
+                        createdBy: currentUsername,
+                      });
+                      // Also update lastCalledAt on the lead
+                      await base44.entities.Lead.update(lid, { lastCalledAt: new Date().toISOString() }).catch(() => {});
+                    }
+                    await loadHistory();
+                  }}
                   isPredictive={!!isDialerPaused}
                   isDialerPaused={!!isDialerPaused}
                   onPauseCampaign={() => dialerRef.current?.pauseDialer?.()}
