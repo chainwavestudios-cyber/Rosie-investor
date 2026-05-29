@@ -156,7 +156,7 @@ Deno.serve(async (req) => {
     }
 
     // Status callback — log the call
-    const statusMap: Record<string, string> = {
+    const statusMap = {
       'completed': 'completed',
       'no-answer': 'missed',
       'busy':      'missed',
