@@ -291,8 +291,8 @@ export default function LiveAssistant({ isCallActive = false, lead = null, curre
         : `📝 Call Transcript:\n${transcriptRef.current.map(t => t.text).join(' ')}`;
       await base44.entities.LeadHistory.create({
         leadId: l.id,
-        type: 'note',
-        content: noteContent.slice(0, 2000),
+        type: 'transcript',
+        content: noteContent.slice(0, 10000),
       });
       setSaveMsg('Saved to notes ✓');
     } catch(e) { setSaveMsg('Error: ' + e.message); }
