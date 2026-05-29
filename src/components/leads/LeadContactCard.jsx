@@ -966,16 +966,24 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
   };
 
   const handleRemoveFromPipeline = async () => {
+    const isNbTech = editLead.leadType === 'nb_tech';
+    const msg = isNbTech
+      ? `Remove ${lead.firstName} ${lead.lastName} from the NB Tech pipeline?`
+      : `Remove ${lead.firstName} ${lead.lastName} from the pipeline?`;
+    if (!window.confirm(msg)) return;
     setTransferring(true);
     try {
-      await base44.entities.Lead.update(lead.id, { leadPipelineStage: null, leadPipelineOwner: null });
+      const updates = { leadPipelineStage: null, leadPipelineOwner: null };
+      if (isNbTech) updates.leadType = 'standard';
+      await base44.entities.Lead.update(lead.id, updates);
       await base44.entities.LeadHistory.create({
         leadId: lead.id, type: 'note',
-        content: `🚫 Removed from pipeline by ${currentUsername} — remains as prospect`,
+        content: `🚫 Removed from ${isNbTech ? 'NB Tech' : ''} pipeline by ${currentUsername}`,
         createdBy: currentUsername,
       });
-      setEditLead(prev => ({ ...prev, leadPipelineStage: null, leadPipelineOwner: null }));
+      setEditLead(prev => ({ ...prev, ...updates }));
       onUpdate && onUpdate();
+      onClose();
     } catch(e) { console.error(e); }
     setTransferring(false);
   };
@@ -1146,10 +1154,13 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
   };
 
   const handleNotInterested = async () => {
-    if (!window.confirm('Remove this lead permanently?')) return;
+    if (!window.confirm('Remove this lead permanently? This cannot be undone.')) return;
     const note = notInterestedNote.trim();
-    await updateStatus('not_interested', 'not_interested', `Not interested${note ? ` — ${note}` : ''}`);
-    if (note) await logHistory('note', note);
+    // Log history first, then delete
+    if (note) {
+      await base44.entities.LeadHistory.create({ leadId: lead.id, type: 'not_interested', content: `Not interested — ${note}`, createdBy: currentUsername });
+    }
+    await base44.entities.Lead.delete(lead.id);
     onClose();
     onUpdate && onUpdate();
   };
@@ -1161,8 +1172,8 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
   };
 
   const handleQuickNotInterested = async () => {
-    if (!window.confirm(`Remove ${lead.firstName} ${lead.lastName} from the lead list permanently?`)) return;
-    await updateStatus('not_interested', 'not_interested', 'Not interested — permanently removed from list');
+    if (!window.confirm(`Remove ${lead.firstName} ${lead.lastName} permanently? This cannot be undone.`)) return;
+    await base44.entities.Lead.delete(lead.id);
     onClose();
     onUpdate && onUpdate();
   };
@@ -1523,10 +1534,10 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
                 {transferring ? '⏳' : `🔁 ${otherUsername}`}
               </button>
             )}
-            {!isArchived && editLead.status === 'prospect' && editLead.leadPipelineOwner && (
+            {!isArchived && (editLead.status === 'prospect' || editLead.leadType === 'nb_tech') && (
               <button onClick={handleRemoveFromPipeline} disabled={transferring}
                 style={{ background:'rgba(239,68,68,0.1)', color:'#ef4444', border:'1px solid rgba(239,68,68,0.3)', borderRadius:'4px', padding:'6px 10px', cursor:'pointer', fontSize:'10px', fontWeight:'bold', whiteSpace:'nowrap', flexShrink:0 }}>
-                🚫 Remove
+                {transferring ? '⏳' : '🚫 Remove from Pipeline'}
               </button>
             )}
             {(emailMsg || portalEmailMsg) && <span style={{ fontSize:'9px', color: (emailMsg||portalEmailMsg).startsWith('Error') ? '#ef4444' : '#4ade80', flexShrink:0 }}>{emailMsg || portalEmailMsg}</span>}
