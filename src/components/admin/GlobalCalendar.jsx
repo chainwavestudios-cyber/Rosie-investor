@@ -161,10 +161,30 @@ export default function GlobalCalendar({ users = [], setContactCard, setView, se
   const handleOpenCardFromPopup = (evt) => {
     if (evt.type === 'investor') {
       const investorUserId = evt.raw?.investorId;
-      if (!investorUserId) return;
-      const u = users.find(u => u.id === investorUserId);
-      if (u) { setContactCard(u); }
-      else { base44.entities.InvestorUser.filter({ id: investorUserId }).then(rows => { if (rows?.[0]) setContactCard(rows[0]); }).catch(() => {}); }
+      // Try by investorId first
+      if (investorUserId) {
+        const u = users.find(u => u.id === investorUserId);
+        if (u) { setContactCard(u); return; }
+        // Not in local list — fetch directly
+        base44.entities.InvestorUser.filter({ id: investorUserId }).then(rows => {
+          if (rows?.[0]) setContactCard(rows[0]);
+        }).catch(() => {});
+        return;
+      }
+      // Fallback: match by investorEmail or investorName from the appointment
+      const appt = evt.raw;
+      if (appt?.investorEmail) {
+        const u = users.find(u => u.email === appt.investorEmail);
+        if (u) { setContactCard(u); return; }
+        base44.entities.InvestorUser.filter({ email: appt.investorEmail }).then(rows => {
+          if (rows?.[0]) setContactCard(rows[0]);
+        }).catch(() => {});
+        return;
+      }
+      if (appt?.investorName) {
+        const u = users.find(u => u.name === appt.investorName);
+        if (u) { setContactCard(u); return; }
+      }
     } else if (evt.type === 'lead') {
       // Lead events use the lead id directly
       setView('leads');
