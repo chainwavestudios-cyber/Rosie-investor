@@ -135,7 +135,7 @@ export default function GlobalCalendar({ users = [], setContactCard, setView, se
   const isToday = (d) => d.toDateString() === new Date().toDateString();
 
   const invEvents = allAppts.map(a => ({ id:a.id, type:'investor', raw:a, title:a.title||'Appointment', name:a.investorName||'', dateTime:new Date(a.scheduledAt), status:a.status||'scheduled', notes:a.notes||'', phone:null, color:'#60a5fa', leadType: null }));
-  const leadEvents = allLeads.filter(l => l.callbackAt && l.status !== 'callback_later' && l.status !== 'converted' && l.status !== 'not_interested').map(l => ({ id:l.id, type:'lead', raw:l, title:'Lead Callback', name:`${l.firstName} ${l.lastName}`, dateTime:new Date(l.callbackAt), status:'scheduled', notes: l.notes || '', phone:l.phone, color:'#a78bfa', leadType: l.leadType || 'standard' }));
+  const leadEvents = allLeads.filter(l => l.callbackAt && l.status !== 'converted' && l.status !== 'not_interested').map(l => ({ id:l.id, type:'lead', raw:l, title:'Lead Callback', name:`${l.firstName} ${l.lastName}`, dateTime:new Date(l.callbackAt), status:'scheduled', notes: l.notes || '', phone:l.phone, color:'#a78bfa', leadType: l.leadType || 'standard' }));
   const allEvents = [...invEvents, ...leadEvents].filter(e => filter === 'all' || e.type === filter);
   const eventsForDay = (day) => allEvents.filter(e => e.dateTime.toDateString() === day.toDateString()).sort((a,b) => a.dateTime - b.dateTime);
   const statusColors = { scheduled:GOLD, completed:'#4ade80', cancelled:'#4a5568', 'no-show':'#ef4444' };
