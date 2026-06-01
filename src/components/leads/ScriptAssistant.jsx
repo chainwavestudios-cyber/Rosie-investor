@@ -405,9 +405,15 @@ export default function ScriptAssistant({ lead, user, onExpandCard, isCardExpand
         if (e.code === 1008) setError('Deepgram auth failed — check DEEPGRAM_API_KEY env var');
         else if (e.code === 1011) setError('Deepgram server error — invalid audio format');
         else if (e.code !== 1000) setError(`Deepgram disconnected (code ${e.code})`);
-        setListening(false);
-        setStreamStatus('idle');
-        setAiEnabled(false);
+        // If WS closed unexpectedly while we were still listening, save the transcript
+        // wsRef.current is null if stopListening() already ran (avoid double-call)
+        if (wsRef.current !== null && transcriptRef.current?.length >= 2) {
+          stopListening();
+        } else {
+          setListening(false);
+          setStreamStatus('idle');
+          setAiEnabled(false);
+        }
       };
 
     } catch (e) {
@@ -432,7 +438,10 @@ export default function ScriptAssistant({ lead, user, onExpandCard, isCardExpand
 
   // ── Disconnect + save ─────────────────────────────────────────────
   const stopListening = async () => {
-    try { wsRef.current?.close(); } catch {}
+    // Prevent recursive call from onclose triggering stopListening again
+    const ws = wsRef.current;
+    wsRef.current = null;
+    try { ws?.close(); } catch {}
     try { processorRef.current?.disconnect(); processorRef.current?.port?.close?.(); } catch {}
     try { contextRef.current?.close(); } catch {}
     try { streamRef.current?.getTracks().forEach(t => t.stop()); } catch {}

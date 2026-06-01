@@ -43,13 +43,18 @@
       "format": "date-time",
       "title": "Submitted At"
     },
+    "submittedByUsername": {
+      "type": "string",
+      "title": "Submitted By"
+    },
     "status": {
       "type": "string",
       "title": "Status",
       "enum": [
         "pending",
         "sent",
-        "executed"
+        "executed",
+        "cancelled"
       ],
       "default": "pending"
     }
