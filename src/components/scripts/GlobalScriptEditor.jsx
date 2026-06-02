@@ -320,6 +320,12 @@ export default function GlobalScriptEditor() {
             onMouseUp={saveSelection}
             onKeyUp={saveSelection}
             onClick={() => setShowHighlights(false)}
+            onPaste={e => {
+              e.preventDefault();
+              // Always paste as plain text — strips all HTML tags from clipboard
+              const text = e.clipboardData.getData('text/plain');
+              document.execCommand('insertText', false, text);
+            }}
             data-placeholder="Type your script here… Use {{firstname}} or {{lastname}} to auto-insert the contact's name."
             style={{
               flex:1, width:'100%', background:'rgba(0,0,0,0.2)', border:'1px solid rgba(255,255,255,0.08)',
