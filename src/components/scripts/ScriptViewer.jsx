@@ -3,6 +3,29 @@ import { base44 } from '@/api/base44Client';
 
 const GOLD = '#b8933a';
 
+// Strip external HTML classes/styles (e.g. pasted from Claude), keep only inline highlight spans
+const sanitizeHtml = (html) => {
+  if (!html) return '';
+  // If it looks like plain text (no tags), return as-is wrapped in a div
+  if (!/<[a-z][\s\S]*>/i.test(html)) return html;
+  const tmp = document.createElement('div');
+  tmp.innerHTML = html;
+  // Walk all elements: strip class/style except background-color (highlights)
+  tmp.querySelectorAll('*').forEach(el => {
+    const bg = el.style?.backgroundColor;
+    el.removeAttribute('class');
+    el.removeAttribute('style');
+    if (el.tagName === 'SPAN' && bg && bg !== 'transparent') {
+      el.style.backgroundColor = bg;
+    }
+    // Replace <p> with plain text + newline, unwrap divs
+    if (el.tagName === 'P') {
+      el.insertAdjacentText('afterend', '\n');
+    }
+  });
+  return tmp.innerHTML;
+};
+
 // Replaces {{firstname}} and {{lastname}} tokens with actual values
 const applyTokens = (text, lead) => {
   if (!text) return '';
@@ -30,7 +53,7 @@ export default function ScriptViewer({ lead }) {
   }, []);
 
   const active = scripts.find(s => s.id === activeId) || scripts[0];
-  const rendered = active ? applyTokens(active.content, lead) : '';
+  const rendered = active ? applyTokens(sanitizeHtml(active.content), lead) : '';
 
   const viewer = (
     <div style={{ display:'flex', flexDirection:'column', height: expanded ? 'calc(100vh - 80px)' : '100%' }}>
