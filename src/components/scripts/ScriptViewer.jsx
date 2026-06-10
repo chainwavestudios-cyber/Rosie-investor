@@ -3,27 +3,24 @@ import { base44 } from '@/api/base44Client';
 
 const GOLD = '#b8933a';
 
-// Strip external HTML classes/styles (e.g. pasted from Claude), keep only inline highlight spans
+// Convert HTML to plain text, preserving line breaks from block elements
 const sanitizeHtml = (html) => {
   if (!html) return '';
-  // If it looks like plain text (no tags), return as-is wrapped in a div
   if (!/<[a-z][\s\S]*>/i.test(html)) return html;
   const tmp = document.createElement('div');
   tmp.innerHTML = html;
-  // Walk all elements: strip class/style except background-color (highlights)
-  tmp.querySelectorAll('*').forEach(el => {
-    const bg = el.style?.backgroundColor;
-    el.removeAttribute('class');
-    el.removeAttribute('style');
-    if (el.tagName === 'SPAN' && bg && bg !== 'transparent') {
-      el.style.backgroundColor = bg;
-    }
-    // Replace <p> with plain text + newline, unwrap divs
-    if (el.tagName === 'P') {
+  // Replace block elements with newlines before extracting text
+  tmp.querySelectorAll('p, div, br, h1, h2, h3, h4, h5, h6, li').forEach(el => {
+    if (el.tagName === 'BR') {
+      el.replaceWith('\n');
+    } else {
       el.insertAdjacentText('afterend', '\n');
     }
   });
-  return tmp.innerHTML;
+  // Get plain text, collapse excessive blank lines
+  return (tmp.textContent || tmp.innerText || '')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
 };
 
 // Replaces {{firstname}} and {{lastname}} tokens with actual values
@@ -85,10 +82,10 @@ export default function ScriptViewer({ lead }) {
           flex:1, overflowY:'auto', background:'rgba(0,0,0,0.2)', border:'1px solid rgba(255,255,255,0.08)',
           borderRadius:'4px', padding:'16px', color: active.color || '#e8e0d0',
           fontSize:`${active.fontSize || 14}px`, lineHeight:1.7, fontFamily:'Georgia, serif',
-          minHeight: expanded ? '0' : '260px',
-        }}
-          dangerouslySetInnerHTML={{ __html: rendered || '<span style="color:#4a5568;font-style:italic">No content yet.</span>' }}
-        />
+          whiteSpace: 'pre-wrap', minHeight: expanded ? '0' : '260px',
+        }}>
+          {rendered || <span style={{ color:'#4a5568', fontStyle:'italic' }}>No content yet.</span>}
+        </div>
       )}
 
       {lead && (
