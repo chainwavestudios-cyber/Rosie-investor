@@ -62,10 +62,10 @@ export default function ScriptViewer({ lead }) {
           flex:1, overflowY:'auto', background:'rgba(0,0,0,0.2)', border:'1px solid rgba(255,255,255,0.08)',
           borderRadius:'4px', padding:'16px', color: active.color || '#e8e0d0',
           fontSize:`${active.fontSize || 14}px`, lineHeight:1.7, fontFamily:'Georgia, serif',
-          whiteSpace:'pre-wrap', minHeight: expanded ? '0' : '260px',
-        }}>
-          {rendered || <span style={{ color:'#4a5568', fontStyle:'italic' }}>No content yet.</span>}
-        </div>
+          minHeight: expanded ? '0' : '260px',
+        }}
+          dangerouslySetInnerHTML={{ __html: rendered || '<span style="color:#4a5568;font-style:italic">No content yet.</span>' }}
+        />
       )}
 
       {lead && (
