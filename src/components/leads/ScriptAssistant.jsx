@@ -6,6 +6,18 @@ import AIAssistantPopup from './AIAssistantPopup';
 const GOLD = '#b8933a';
 const DARK = '#0a0f1e';
 
+const sanitizeHtml = (html) => {
+  if (!html) return '';
+  if (!/<[a-z][\s\S]*>/i.test(html)) return html;
+  const tmp = document.createElement('div');
+  tmp.innerHTML = html;
+  tmp.querySelectorAll('p, div, br, h1, h2, h3, h4, h5, h6, li').forEach(el => {
+    if (el.tagName === 'BR') { el.replaceWith('\n'); }
+    else { el.insertAdjacentText('afterend', '\n'); }
+  });
+  return (tmp.textContent || tmp.innerText || '').replace(/\n{3,}/g, '\n\n').trim();
+};
+
 const applyTokens = (text, lead, user) => {
   if (!text) return '';
   const first = lead?.firstName || user?.name?.split(' ')[0] || '';
@@ -581,7 +593,7 @@ export default function ScriptAssistant({ lead, user, onExpandCard, isCardExpand
   const scriptContentRef = useRef(null);
   
   const active   = scripts.find(s => s.id === activeId) || scripts[0];
-  const rendered = active ? applyTokens(active.content, lead, user) : '';
+  const rendered = active ? applyTokens(sanitizeHtml(active.content), lead, user) : '';
 
   // Auto-scroll effect — only scrolls the script panel, not the AI side
   const userScrollingRef = useRef(false);
@@ -664,7 +676,7 @@ export default function ScriptAssistant({ lead, user, onExpandCard, isCardExpand
       {!loadingScripts && scripts.length === 0 && <div style={{ color: '#4a5568', fontSize: '12px', textAlign: 'center', padding: '24px' }}>No scripts yet.</div>}
       {active && (
         <div ref={scriptContentRef} style={{ flex: 1, overflowY: 'auto', padding: '14px', background: 'rgba(0,0,0,0.15)', color: active.color || '#e8e0d0', fontSize: `${active.fontSize || 14}px`, lineHeight: 1.8, fontFamily: 'Georgia, serif', whiteSpace: 'pre-wrap' }}>
-          {rendered}
+          {rendered || ''}
         </div>
       )}
     </div>
