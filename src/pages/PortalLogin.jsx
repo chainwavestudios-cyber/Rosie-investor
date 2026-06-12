@@ -14,7 +14,17 @@ export default function PortalLogin() {
 
   // Auto-login from URL params (?username=john3356&password=john3356)
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
+    // Parse from the raw href so that %23 (encoded #) in the password isn't
+    // treated as a URL fragment before URLSearchParams can read it.
+    // e.g. "?username=foo&password=bar%232026" — the browser turns %23 → #
+    // which truncates window.location.search at that point. We work around it
+    // by reading the full href and extracting the query string ourselves.
+    const rawHref = window.location.href;
+    const qIdx = rawHref.indexOf('?');
+    const rawSearch = qIdx !== -1 ? rawHref.slice(qIdx) : '';
+    // Strip any fragment that the browser may have appended after a literal #
+    const cleanSearch = rawSearch.split('#')[0];
+    const params = new URLSearchParams(cleanSearch);
     const autoUser = params.get('username');
     const autoPass = params.get('password');
 
