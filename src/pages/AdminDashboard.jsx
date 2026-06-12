@@ -268,6 +268,7 @@ function PressReleasesManagerStub() {
 
 // ─── Admin Settings ───────────────────────────────────────────────────────
 function AdminSettings({ changeAdminPassword, changeAdminUsername }) {
+  const [pwTarget, setPwTarget] = useState('admin');
   const [pwForm, setPwForm] = useState({ current:'', newPw:'', confirm:'' });
   const [unForm, setUnForm] = useState({ current:'', newUsername:'' });
   const [pwMsg,  setPwMsg]  = useState(null);
@@ -285,7 +286,7 @@ function AdminSettings({ changeAdminPassword, changeAdminUsername }) {
   const handleChangePassword = async () => {
     if (pwForm.newPw !== pwForm.confirm) { setPwMsg({type:'error',text:'Passwords do not match'}); return; }
     setPwSaving(true); setPwMsg(null);
-    const r = await changeAdminPassword(pwForm.current, pwForm.newPw);
+    const r = await changeAdminPassword(pwForm.current, pwForm.newPw, pwTarget);
     if (r.success) { setPwMsg({type:'success',text:'Password updated!'}); setPwForm({current:'',newPw:'',confirm:''}); }
     else setPwMsg({type:'error',text:r.error});
     setPwSaving(false);
@@ -303,6 +304,13 @@ function AdminSettings({ changeAdminPassword, changeAdminUsername }) {
         </div>
         <div style={{ background:'rgba(255,255,255,0.03)', border:'1px solid rgba(255,255,255,0.08)', borderRadius:'2px', padding:'28px' }}>
           <h3 style={{ color:GOLD, fontSize:'12px', letterSpacing:'2px', textTransform:'uppercase', margin:'0 0 20px' }}>Change Admin Password</h3>
+          <div style={{ marginBottom:'16px' }}>
+            <label style={ls}>Which Admin Account</label>
+            <select value={pwTarget} onChange={e=>{ setPwTarget(e.target.value); setPwForm({current:'',newPw:'',confirm:''}); setPwMsg(null); }} style={{ ...inp, cursor:'pointer' }}>
+              <option value="admin">admin</option>
+              <option value="steph">steph</option>
+            </select>
+          </div>
           <F label="Current Password" value={pwForm.current} onChange={e=>setPwForm({...pwForm,current:e.target.value})} type="password" />
           <F label="New Password" value={pwForm.newPw} onChange={e=>setPwForm({...pwForm,newPw:e.target.value})} type="password" />
           <F label="Confirm New Password" value={pwForm.confirm} onChange={e=>setPwForm({...pwForm,confirm:e.target.value})} type="password" />

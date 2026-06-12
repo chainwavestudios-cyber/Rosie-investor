@@ -61,8 +61,13 @@ export const PortalAuthProvider = ({ children }) => {
   const portalLogin = async (usernameOrEmail, password) => {
     const u = (usernameOrEmail || '').toLowerCase().trim();
 
-    // Steph (second admin) — hardcoded credentials
-    if (u === 'steph' && password === 'Rosieai@@2026') {
+    // Steph (second admin) — password stored in DB (falls back to default)
+    if (u === 'steph') {
+      let stephPw = 'Rosieai@@2026';
+      try { const s = await loadPortalSettings(); stephPw = s.stephPassword || stephPw; } catch {}
+      if (password !== stephPw) return { success: false, error: 'Invalid username or password' };
+    }
+    if (u === 'steph') {
       setPortalUser(STEPH_USER);
       sessionStorage.setItem(SESSION_KEY, JSON.stringify(STEPH_USER));
       return { success: true, user: STEPH_USER };
@@ -185,7 +190,21 @@ export const PortalAuthProvider = ({ children }) => {
   };
 
   // Store admin password in DB so it works across all devices
-  const changeAdminPassword = async (currentPassword, newPassword) => {
+  const changeAdminPassword = async (currentPassword, newPassword, targetUser = 'admin') => {
+    if (targetUser === 'steph') {
+      // Steph password stored in PortalSettings as stephPassword
+      try {
+        const settings = await loadPortalSettings();
+        const stephPw = settings.stephPassword || 'Rosieai@@2026';
+        if (currentPassword !== stephPw) {
+          return { success: false, error: 'Current password is incorrect' };
+        }
+        await savePortalSettings({ stephPassword: newPassword });
+        return { success: true };
+      } catch (e) {
+        return { success: false, error: 'Failed to save: ' + e.message };
+      }
+    }
     const creds = await getAdminCreds();
     if (currentPassword !== creds.password) {
       return { success: false, error: 'Current password is incorrect' };
