@@ -388,6 +388,10 @@ export default function LeadsTab() {
     } catch {
       setSelectedLead(lead);
     }
+    // Make sure the contact card is visible — close any open dialer panel
+    // so the card isn't hidden behind it, and mark call active
+    setIsCallActive(true);
+    setIsDialerPaused(true);
   };
 
   const handleDeleteList = async (listId) => {
@@ -671,6 +675,7 @@ export default function LeadsTab() {
             onLeadConnected={handleLeadConnected}
             onPaused={() => { setIsDialerPaused(true); setIsCallActive(true); }}
             onResumed={() => { setIsDialerPaused(false); setIsCallActive(false); }}
+            onCallStream={(s) => setTwilioStream(s)}
           />
         </div>
       )}
