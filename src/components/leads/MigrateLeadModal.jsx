@@ -45,6 +45,7 @@ export default function MigrateLeadModal({ lead, history, onClose, onMigrated })
 
   const mark = (label) => setDoneSteps(prev => [...prev, label]);
   const parseAmount = (v) => v ? (parseFloat(String(v).replace(/[^0-9.]/g, '')) || undefined) : undefined;
+  const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
   const hashPw = async (pw) => {
     try {
@@ -137,7 +138,8 @@ export default function MigrateLeadModal({ lead, history, onClose, onMigrated })
       // Always fetch fresh from DB to ensure we have everything
       const allHistory = await base44.entities.LeadHistory.filter({ leadId: lead.id }, '-created_date', 500).catch(() => []);
 
-      for (const h of (allHistory || [])) {
+      for (let i = 0; i < (allHistory || []).length; i++) {
+        const h = allHistory[i];
         try {
           const noteType = ['call','connected'].includes(h.type) ? 'call'
             : h.type === 'sms' ? 'sms'
@@ -154,6 +156,7 @@ export default function MigrateLeadModal({ lead, history, onClose, onMigrated })
             createdAt:     h.created_date,
             createdBy:     h.createdBy || 'admin',
           });
+          if (i % 5 === 4) await sleep(300); // pause every 5 writes to avoid rate limits
         } catch {}
       }
       mark('Migrating call & note history');
@@ -162,7 +165,8 @@ export default function MigrateLeadModal({ lead, history, onClose, onMigrated })
       setCurrentStep('Migrating email logs');
       try {
         const logs = await base44.entities.EmailLog.filter({ leadId: lead.id });
-        for (const log of (logs||[])) {
+        for (let i = 0; i < (logs||[]).length; i++) {
+          const log = logs[i];
           try {
             await base44.entities.EmailLog.update(log.id, { investorId: iu.id });
             await base44.entities.ContactNote.create({
@@ -173,6 +177,7 @@ export default function MigrateLeadModal({ lead, history, onClose, onMigrated })
               createdAt:     log.sentAt,
               createdBy:     log.sentBy || 'admin',
             });
+            if (i % 5 === 4) await sleep(300);
           } catch {}
         }
       } catch {}
