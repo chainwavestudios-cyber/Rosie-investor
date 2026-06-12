@@ -496,22 +496,35 @@ const PredictiveDialer = forwardRef(function PredictiveDialer(
         const status     = res.data?.status || '';
         const answeredBy = res.data?.answeredBy || '';
 
+        // AMD with DetectMessageEnd: answeredBy goes through:
+        //   '' (ringing) → 'machine_start' (VM greeting started) → 'machine_end' (greeting done)
+        //   '' (ringing) → 'human' (person answered)
+        // We must wait for a definitive answeredBy value before acting.
         if (status === 'in-progress' && !connectingRef.current) {
-          if (answeredBy && answeredBy.startsWith('machine')) {
+          // Definitive machine detection — hang up and skip
+          if (answeredBy === 'machine_end' || answeredBy === 'fax') {
             clearInterval(pollsRef.current[lineIdx]);
             clearTimeout(ringTimersRef.current[lineIdx]);
-            addLog('system', `Line ${lineIdx + 1}: Voicemail — skipping`);
+            addLog('voicemail', `Line ${lineIdx + 1}: 📬 Voicemail detected — skipping`);
             await hangupCall(sid);
             cleanLine(lineIdx, 'voicemail');
+            setStats(s => ({ ...s, voicemails: s.voicemails + 1 }));
             setTimeout(() => { if (runningRef.current) dialLine(lineIdx); }, 1000);
             return;
           }
-          clearInterval(pollsRef.current[lineIdx]);
-          clearTimeout(ringTimersRef.current[lineIdx]);
-          addLog('human', `Line ${lineIdx + 1}: 🟢 ANSWERED — ${lead.firstName} ${lead.lastName}`);
-          updateLine(lineIdx, { status: 'human' });
-          const confName = linesRef.current[lineIdx]?.conferenceName;
-          await handleAutoConnect(lineIdx, lead, sid, confName);
+          // machine_start = VM greeting still playing — keep polling, don't connect
+          if (answeredBy === 'machine_start') return;
+          // Confirmed human — connect agent
+          if (answeredBy === 'human') {
+            clearInterval(pollsRef.current[lineIdx]);
+            clearTimeout(ringTimersRef.current[lineIdx]);
+            addLog('human', `Line ${lineIdx + 1}: 🟢 ANSWERED — ${lead.firstName} ${lead.lastName}`);
+            updateLine(lineIdx, { status: 'human' });
+            const confName = linesRef.current[lineIdx]?.conferenceName;
+            await handleAutoConnect(lineIdx, lead, sid, confName);
+            return;
+          }
+          // answeredBy still empty = AMD still processing, keep polling
           return;
         }
 
@@ -609,6 +622,8 @@ const PredictiveDialer = forwardRef(function PredictiveDialer(
           const s = await base44.functions.invoke('twilioCall', { action: 'getCallStatus', callSid });
           if (['completed', 'failed', 'no-answer', 'busy', 'canceled'].includes(s.data?.status)) {
             clearInterval(pollsRef.current[lineIdx]);
+            // Reset connectingRef so future human answers can connect
+            connectingRef.current = false;
             const dur = linesRef.current[lineIdx]?.duration || 0;
             base44.entities.LeadHistory.create({
               leadId: lead.id, type: 'call',
