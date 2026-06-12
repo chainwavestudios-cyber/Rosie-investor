@@ -93,9 +93,11 @@ function App() {
   if (isPublicPath()) {
     return (
       <QueryClientProvider client={queryClientInstance}>
-        <Router>
-          <PublicRoutes />
-        </Router>
+        <PortalAuthProvider>
+          <Router>
+            <PublicRoutes />
+          </Router>
+        </PortalAuthProvider>
         <Toaster />
       </QueryClientProvider>
     );
