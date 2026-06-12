@@ -44,6 +44,7 @@ export default function MigrateLeadModal({ lead, history, onClose, onMigrated })
   const loginUrl   = `${INVESTORS_SITE}/portal-login?username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}`;
 
   const mark = (label) => setDoneSteps(prev => [...prev, label]);
+  const parseAmount = (v) => v ? (parseFloat(String(v).replace(/[^0-9.]/g, '')) || undefined) : undefined;
 
   const hashPw = async (pw) => {
     try {
@@ -116,7 +117,7 @@ export default function MigrateLeadModal({ lead, history, onClose, onMigrated })
           pipelineOwner:   currentUsername,
           investmentType:  lead.investmentType  || 'cash',
           iraInformation:  lead.iraInformation  || '',
-          investmentAmount: lead.investmentAmount ? parseFloat(String(lead.investmentAmount).replace(/[^0-9.]/g, '')) || null : null,
+          investmentAmount: parseAmount(lead.investmentAmount),
           investmentDate:  lead.investmentDate   || '',
           engagementScore: lead.engagementScore  || 0,
           starRating:      lead.starRating        || 0,
