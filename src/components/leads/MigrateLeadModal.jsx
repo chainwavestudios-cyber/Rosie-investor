@@ -40,8 +40,8 @@ export default function MigrateLeadModal({ lead, history, onClose, onMigrated })
   const last4      = (lead.phone || '').replace(/\D/g, '').slice(-4) || '0000';
   const lastSlug   = (lead.lastName || '').toLowerCase().replace(/[^a-z]/g, '');
   const username   = lead.portalPasscode || `${nameSlug}${last4}`;
-  const password   = `${lastSlug}#2026`;
-  const loginUrl   = `${INVESTORS_SITE}/portal-login?username=${encodeURIComponent(username)}&password=${encodeURIComponent(password).replace(/#/g, '%23')}`;
+  const password   = `${lastSlug}@2026`;
+  const loginUrl   = `${INVESTORS_SITE}/portal-login?username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}`;
 
   const mark = (label) => setDoneSteps(prev => [...prev, label]);
   const parseAmount = (v) => v ? (parseFloat(String(v).replace(/[^0-9.]/g, '')) || undefined) : undefined;
