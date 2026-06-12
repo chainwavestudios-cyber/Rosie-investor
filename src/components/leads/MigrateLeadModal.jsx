@@ -41,7 +41,11 @@ export default function MigrateLeadModal({ lead, history, onClose, onMigrated })
   const lastSlug   = (lead.lastName || '').toLowerCase().replace(/[^a-z]/g, '');
   const username   = lead.portalPasscode || `${nameSlug}${last4}`;
   const password   = `${lastSlug}@2026`;
-  const loginUrl   = `${INVESTORS_SITE}/portal-login?username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}`;
+  // Double-encode '#' so that after one URL-decode pass (email client / browser href)
+  // it becomes %23 — which URLSearchParams correctly reads as '#'.
+  // Without this, a literal '#' in the URL fragments the query string.
+  const safePassword = encodeURIComponent(password).replace(/%23/gi, '%2523');
+  const loginUrl   = `${INVESTORS_SITE}/portal-login?username=${encodeURIComponent(username)}&password=${safePassword}`;
 
   const mark = (label) => setDoneSteps(prev => [...prev, label]);
   const parseAmount = (v) => v ? (parseFloat(String(v).replace(/[^0-9.]/g, '')) || undefined) : undefined;
