@@ -43,6 +43,14 @@ Deno.serve(async (req) => {
           'To':   toE164,
           'From': fromE164,
           'Url':  leadTwimlUrl,
+          // AMD — detect answering machines so the dialer can skip voicemails.
+          // Without this, answered_by is never set and all calls look like humans.
+          'MachineDetection':        'DetectMessageEnd',
+          'MachineDetectionTimeout': '30',
+          // Send call-status events back so the frontend AMD poll sees real statuses.
+          'StatusCallback':       statusCallbackUrl || '',
+          'StatusCallbackEvent':  'initiated ringing answered completed',
+          'StatusCallbackMethod': 'POST',
         }).toString(),
       }
     );
