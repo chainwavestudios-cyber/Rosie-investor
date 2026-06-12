@@ -176,7 +176,7 @@ Deno.serve(async (req) => {
   }
 
   // ── Send Email ───────────────────────────────────────────────────────────
-  const portalLoginUrl = loginUrl || `${PORTAL_URL}/portal-login?username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}`;
+  const portalLoginUrl = loginUrl || `${PORTAL_URL}/portal-login?username=${encodeURIComponent(username)}&password=${encodeURIComponent(password).replace(/#/g, '%23')}`;
 
   console.log(`[sendPortalAccessEmail] Sending to ${toEmail} username: ${username}`);
 
