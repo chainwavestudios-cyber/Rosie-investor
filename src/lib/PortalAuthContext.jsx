@@ -34,16 +34,16 @@ const ADMIN_PASSWORD_DEFAULT = 'password';
 const ADMIN_USERNAME_DEFAULT = 'admin';
 
 export const PortalAuthProvider = ({ children }) => {
-  const [portalUser, setPortalUser]   = useState(null);
-  const [isPortalLoading, setLoading] = useState(true);
-
-  useEffect(() => {
+  // Read session synchronously so portalUser is never null during the first
+  // render — eliminates the flash where isPortalLoading=false & portalUser=null
+  // causes InvestorPortal to redirect back to /portal-login before settling.
+  const [portalUser, setPortalUser] = useState(() => {
     try {
       const saved = sessionStorage.getItem(SESSION_KEY);
-      if (saved) setPortalUser(JSON.parse(saved));
-    } catch {}
-    setLoading(false);
-  }, []);
+      return saved ? JSON.parse(saved) : null;
+    } catch { return null; }
+  });
+  const [isPortalLoading, setLoading] = useState(false);
 
   // Load admin creds from DB (PortalSettings)
   const getAdminCreds = async () => {
