@@ -116,7 +116,7 @@ export default function MigrateLeadModal({ lead, history, onClose, onMigrated })
           pipelineOwner:   currentUsername,
           investmentType:  lead.investmentType  || 'cash',
           iraInformation:  lead.iraInformation  || '',
-          investmentAmount:lead.investmentAmount || '',
+          investmentAmount: lead.investmentAmount ? parseFloat(String(lead.investmentAmount).replace(/[^0-9.]/g, '')) || null : null,
           investmentDate:  lead.investmentDate   || '',
           engagementScore: lead.engagementScore  || 0,
           starRating:      lead.starRating        || 0,
