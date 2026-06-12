@@ -176,7 +176,10 @@ Deno.serve(async (req) => {
   }
 
   // ── Send Email ───────────────────────────────────────────────────────────
-  const portalLoginUrl = loginUrl || `${PORTAL_URL}/portal-login?username=${encodeURIComponent(username)}&password=${encodeURIComponent(password).replace(/#/g, '%23')}`;
+  // Double-encode '#' so that after one URL-decode by email clients / browsers,
+  // %2523 → %23 → '#' — keeping the password intact across URLSearchParams parsing.
+  const safePassword = encodeURIComponent(password).replace(/%23/gi, '%2523');
+  const portalLoginUrl = loginUrl || `${PORTAL_URL}/portal-login?username=${encodeURIComponent(username)}&password=${safePassword}`;
 
   console.log(`[sendPortalAccessEmail] Sending to ${toEmail} username: ${username}`);
 
