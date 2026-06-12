@@ -34,10 +34,18 @@ Deno.serve(async (req) => {
     // ── Mode 2: Lead leg — hold lead in conference ──────────────────────
     const isLeadLeg = url.searchParams.get('LeadLeg') === 'true';
     if (conferenceName && isLeadLeg) {
+      // statusCallback from the original call URL param — needed so twilioCallCallback
+      // receives participant-join events which confirm AMD result (human answered).
+      const statusCallback = url.searchParams.get('StatusCallback') || '';
+      const statusCbAttr   = statusCallback
+        ? ` statusCallback="${statusCallback}" statusCallbackEvent="start end join leave" statusCallbackMethod="POST"`
+        : '';
       const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Dial>
-    <Conference startConferenceOnEnter="false" endConferenceOnExit="true" beep="false">
+    <Conference startConferenceOnEnter="false" endConferenceOnExit="true" beep="false"
+      waitUrl="https://twimlets.com/holdmusic?Bucket=com.twilio.music.classical"
+      waitMethod="GET"${statusCbAttr}>
       ${conferenceName}
     </Conference>
   </Dial>
