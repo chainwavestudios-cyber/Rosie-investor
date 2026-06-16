@@ -5,6 +5,10 @@
  * Mode 2: Lead leg        — ConferenceName=x&LeadLeg=true → holds lead in conference
  * Mode 3: Agent leg       — ConferenceName=x → agent joins conference
  * Mode 4: Inbound         — no To param, Direction=inbound → routes to browser client
+ *
+ * Mode 4 now includes a statusCallback on the <Dial> so that every inbound
+ * call (ringing, missed, no-answer) gets a CallLog entry via voicemailWebhook,
+ * not just calls that go to voicemail.
  */
 Deno.serve(async (req) => {
   // ── Always return valid TwiML — never let Twilio see a 5xx ──────────
@@ -34,8 +38,6 @@ Deno.serve(async (req) => {
     // ── Mode 2: Lead leg — hold lead in conference ──────────────────────
     const isLeadLeg = url.searchParams.get('LeadLeg') === 'true';
     if (conferenceName && isLeadLeg) {
-      // statusCallback from the original call URL param — needed so twilioCallCallback
-      // receives participant-join events which confirm AMD result (human answered).
       const statusCallback = url.searchParams.get('StatusCallback') || '';
       const statusCbAttr   = statusCallback
         ? ` statusCallback="${statusCallback}" statusCallbackEvent="start end join leave" statusCallbackMethod="POST"`
@@ -68,9 +70,12 @@ Deno.serve(async (req) => {
       return new Response(twiml, { headers: { 'Content-Type': 'text/xml' } });
     }
 
-    // ── Mode 1: Direct outbound dial ────────────────────────────────────
-    const appId = Deno.env.get('BASE44_APP_ID') || '';
+    const appId        = Deno.env.get('BASE44_APP_ID') || '';
     const vmWebhookBase = `https://investors.rosieai.tech/functions/voicemailWebhook`;
+
+    if (!appId) {
+      console.error('[dialerVoiceHandler] BASE44_APP_ID env var is not set — voicemail webhook URL will be invalid!');
+    }
 
     // Detect inbound: To matches our own Twilio number (not a dial target)
     const ownNumbers = [
@@ -85,6 +90,7 @@ Deno.serve(async (req) => {
     const isInboundToOurNumber = ownNumbers.includes(toNormalized) || (called && ownNumbers.includes(called.replace(/\s/g, '')));
     const isClientIdentifier = !to || to.startsWith('client:') || to.startsWith('sip:');
 
+    // ── Mode 1: Direct outbound dial ────────────────────────────────────
     if (to && !isClientIdentifier && !isInboundToOurNumber) {
       const callerId = callerIdParam || Deno.env.get('TWILIO_FROM_NUMBER') || '';
       if (!callerId) {
@@ -104,16 +110,20 @@ Deno.serve(async (req) => {
     }
 
     // ── Mode 4: Inbound call → route to browser client, then voicemail ──
-    // Ring the browser client (timeout=20s). If no answer, Twilio POSTs to
-    // voicemailWebhook?noAnswer=true which plays greeting and records VM.
-    // NOTE: BASE44_APP_ID must be set in env or vmWebhookBase will be broken.
-    if (!appId) {
-      console.error('[dialerVoiceHandler] BASE44_APP_ID env var is not set — voicemail webhook URL will be invalid!');
-    }
+    // statusCallback fires on ringing/answered/completed so every inbound call
+    // gets a CallLog entry regardless of whether the agent picks up.
+    // action fires after <Dial> ends: if agent answered → log as "answered",
+    // if no answer → play greeting and record voicemail.
+    const statusCallbackUrl =
+      `${vmWebhookBase}?statusCb=true` +
+      `&StatusCallbackEvent=initiated+ringing+answered+completed`;
 
     const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Dial timeout="20" action="${vmWebhookBase}?noAnswer=true" method="POST">
+  <Dial timeout="20"
+    action="${vmWebhookBase}?noAnswer=true" method="POST"
+    statusCallback="${statusCallbackUrl}" statusCallbackMethod="POST"
+    statusCallbackEvent="initiated ringing answered completed">
     <Client>agent</Client>
   </Dial>
 </Response>`;
@@ -121,8 +131,6 @@ Deno.serve(async (req) => {
     return new Response(twiml, { headers: { 'Content-Type': 'text/xml' } });
 
   } catch (fatalErr) {
-    // Last-resort fallback — should never happen but guarantees Twilio always
-    // gets a valid TwiML response instead of a 502 "application error"
     console.error('[dialerVoiceHandler] Fatal unhandled error:', fatalErr?.message);
     return new Response(
       `<?xml version="1.0" encoding="UTF-8"?><Response><Say>We're sorry, we are unable to take your call right now. Please try again later.</Say><Hangup/></Response>`,
