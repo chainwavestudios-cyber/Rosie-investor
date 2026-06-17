@@ -323,6 +323,16 @@ function AdminSettings({ changeAdminPassword, changeAdminUsername }) {
 }
 
 // ─── Add User Form ────────────────────────────────────────────────────────
+async function hashPassword(pw) {
+  try {
+    const salt = crypto.randomUUID().replace(/-/g, '');
+    const enc  = new TextEncoder();
+    const buf  = await crypto.subtle.digest('SHA-256', enc.encode(salt + pw));
+    const hex  = Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
+    return salt + ':' + hex;
+  } catch { return pw; }
+}
+
 function AddUserForm({ onAdd, onClose }) {
   const [form, setForm] = useState({ name:'', username:'', email:'', password:'', role:'investor', company:'', phone:'', address:'', investmentType:'cash', iraInformation:'', notes:'', signnowRequested:false, status:'prospect', investmentAmount:'', investmentDate:'' });
   const [error, setError] = useState('');
@@ -349,7 +359,8 @@ function AddUserForm({ onAdd, onClose }) {
   const submit = async () => {
     if (!form.name||!form.username||!form.password) { setError('Name, username, and password are required.'); return; }
     setError('');
-    const result = await addUser(form);
+    const hashed = await hashPassword(form.password);
+    const result = await addUser({ ...form, password: hashed });
     if (result.success) { onAdd(); onClose(); } else { setError(result.error || 'Failed to create user'); }
   };
   return (
