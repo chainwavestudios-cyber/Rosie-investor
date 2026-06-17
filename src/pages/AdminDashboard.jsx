@@ -326,7 +326,26 @@ function AdminSettings({ changeAdminPassword, changeAdminUsername }) {
 function AddUserForm({ onAdd, onClose }) {
   const [form, setForm] = useState({ name:'', username:'', email:'', password:'', role:'investor', company:'', phone:'', address:'', investmentType:'cash', iraInformation:'', notes:'', signnowRequested:false, status:'prospect', investmentAmount:'', investmentDate:'' });
   const [error, setError] = useState('');
+  const [credsCopied, setCredsCopied] = useState(false);
   const { addUser } = usePortalAuth();
+
+  const generateCredentials = () => {
+    const nameParts = form.name.trim().toLowerCase().split(/\s+/);
+    const first = nameParts[0] || 'user';
+    const last  = nameParts[nameParts.length - 1] || '';
+    const rand4 = Math.floor(1000 + Math.random() * 9000);
+    const username = last ? `${first}.${last}` : `${first}${rand4}`;
+    const password = last ? `${last.charAt(0).toUpperCase()}${last.slice(1)}@${new Date().getFullYear()}` : `User@${rand4}`;
+    setForm(f => ({ ...f, username, password }));
+  };
+
+  const copyCredentials = () => {
+    const text = `Username: ${form.username}\nPassword: ${form.password}`;
+    navigator.clipboard.writeText(text);
+    setCredsCopied(true);
+    setTimeout(() => setCredsCopied(false), 2000);
+  };
+
   const submit = async () => {
     if (!form.name||!form.username||!form.password) { setError('Name, username, and password are required.'); return; }
     setError('');
@@ -347,12 +366,37 @@ function AddUserForm({ onAdd, onClose }) {
             </button>
           ))}
         </div>
+
+        {/* Name field first, then auto-generate */}
+        <F label="Full Name" value={form.name} onChange={e=>setForm({...form,name:e.target.value})} placeholder="John Smith" />
+
+        {/* Auto-generate credentials banner */}
+        <div style={{ background:'rgba(184,147,58,0.07)', border:'1px solid rgba(184,147,58,0.2)', borderRadius:'2px', padding:'12px 16px', marginBottom:'16px', display:'flex', alignItems:'center', justifyContent:'space-between', gap:'12px', flexWrap:'wrap' }}>
+          <div style={{ color:'#8a9ab8', fontSize:'12px' }}>
+            {form.username && form.password
+              ? <><span style={{ color:GOLD, fontFamily:'monospace' }}>{form.username}</span> / <span style={{ fontFamily:'monospace' }}>{form.password}</span></>
+              : <span style={{ color:'#4a5568' }}>Enter name above, then generate login credentials</span>
+            }
+          </div>
+          <div style={{ display:'flex', gap:'8px', flexShrink:0 }}>
+            <button onClick={generateCredentials} disabled={!form.name.trim()}
+              style={{ background:'linear-gradient(135deg,#b8933a,#d4aa50)', color:DARK, border:'none', borderRadius:'2px', padding:'7px 14px', cursor:form.name.trim()?'pointer':'not-allowed', fontSize:'11px', fontWeight:'700', letterSpacing:'1px', opacity:form.name.trim()?1:0.4 }}>
+              ⚡ Generate
+            </button>
+            {form.username && form.password && (
+              <button onClick={copyCredentials}
+                style={{ background:'rgba(96,165,250,0.12)', color:credsCopied?'#4ade80':'#60a5fa', border:`1px solid ${credsCopied?'rgba(74,222,128,0.3)':'rgba(96,165,250,0.3)'}`, borderRadius:'2px', padding:'7px 14px', cursor:'pointer', fontSize:'11px' }}>
+                {credsCopied ? '✓ Copied' : '📋 Copy'}
+              </button>
+            )}
+          </div>
+        </div>
+
         <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'0 20px' }}>
-          <F label="Full Name" value={form.name} onChange={e=>setForm({...form,name:e.target.value})} placeholder="John Smith" />
-          <F label="Username (for login)" value={form.username} onChange={e=>setForm({...form,username:e.target.value})} placeholder="john-smith" />
+          <F label="Username (for login)" value={form.username} onChange={e=>setForm({...form,username:e.target.value})} placeholder="john.smith" />
+          <F label="Password" value={form.password} onChange={e=>setForm({...form,password:e.target.value})} placeholder="Auto-generated or custom" />
           <F label="Email Address" value={form.email} onChange={e=>setForm({...form,email:e.target.value})} type="email" placeholder="investor@example.com" />
           <F label="Phone Number" value={form.phone} onChange={e=>setForm({...form,phone:e.target.value})} placeholder="(216) 555-0123" />
-          <F label="Password" value={form.password} onChange={e=>setForm({...form,password:e.target.value})} placeholder="Set a strong password" />
           <F label="Company / Fund" value={form.company} onChange={e=>setForm({...form,company:e.target.value})} placeholder="ABC Capital" />
         </div>
         <F label="Mailing Address" value={form.address} onChange={e=>setForm({...form,address:e.target.value})} placeholder="123 Main St, Cleveland, OH 44101" />
