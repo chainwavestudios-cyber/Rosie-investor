@@ -732,7 +732,15 @@ export default function Offering() {
   <label htmlFor="page-jump" style={{color:"rgba(255,255,255,.5)",fontSize:"10px"}}>Go to page:</label>
   <select id="page-jump" onChange={(e) => { const el = document.getElementById("p" + e.target.value); if(el) el.scrollIntoView({behavior:"smooth"}); }}>
   </select>
-  <button onClick={() => window.print()}>Print / Save PDF</button>
+  <button onClick={() => {
+    const a = document.createElement('a');
+    a.href = 'https://media.base44.com/files/public/69cd2741578c9b5ce655395b/4f3f2fc0b_RosieAI_PPMpdf.pdf';
+    a.download = 'RosieAI_PPM.pdf';
+    a.target = '_blank';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  }}>⬇ Download PDF</button>
 </div>
 
 
