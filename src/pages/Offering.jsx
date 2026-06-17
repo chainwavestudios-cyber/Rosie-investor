@@ -915,6 +915,7 @@ export default function Offering() {
     <p style={{fontSize:"9.5px",color:"var(--gray-600)"}}>Credit consumption rates (approximate): AI Voice Agent = 50 cr/min | Predictive Dialer = 30 cr/min | Email Automation = 10 cr/email | Apify Web Scraping = 20 cr/1,000 records | Rates subject to change.</p>
     <h3>Distribution Threshold &amp; Revenue Share</h3>
     <div className="kv-grid">
+      <span className="kv-key">Net Profit Distribution</span><span className="kv-val hl-gold">40%</span>
       <span className="kv-key">Fixed Monthly Operating Cost</span><span className="kv-val">$10,100</span>
       <span className="kv-key">Cash-Flow Break-Even</span><span className="kv-val">~15 Organizations (~$700 avg sub MRR)</span>
       <span className="kv-key">Class B Distributions Activate</span><span className="kv-val hl-gold">$20,000+/mo Total MRR (all streams)</span>
