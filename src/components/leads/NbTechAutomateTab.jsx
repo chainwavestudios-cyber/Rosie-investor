@@ -188,7 +188,7 @@ function CreateCampaignForm({ onCreated, currentUsername }) {
   const [msg, setMsg] = useState('');
 
   useEffect(() => {
-    base44.entities.ContactList.list('-created_date', 100).then(setContactLists).catch(() => {});
+    base44.entities.ContactList.filter({}, '-created_date', 200).then(r => setContactLists(r || [])).catch(() => {});
   }, []);
 
   useEffect(() => {
