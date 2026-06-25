@@ -225,7 +225,6 @@ export default function AdminDashboardMain({
           )}
           <div style={{ display:'flex', gap:'6px', alignItems:'center', flexShrink:0 }}>
             <button onClick={load} style={{ background:'rgba(255,255,255,0.05)', color:'#8a9ab8', border:'1px solid rgba(255,255,255,0.1)', borderRadius:'2px', padding:'5px 10px', cursor:'pointer', fontSize:'10px' }}>↻</button>
-            <button onClick={() => navigate('/portal')} style={{ background:'rgba(255,255,255,0.05)', color:'#8a9ab8', border:'1px solid rgba(255,255,255,0.1)', borderRadius:'2px', padding:'5px 10px', cursor:'pointer', fontSize:'10px' }}>Portal</button>
             <button onClick={() => { portalLogout(); navigate('/'); }} style={{ background:'transparent', color:'#6b7280', border:'1px solid rgba(255,255,255,0.1)', borderRadius:'2px', padding:'5px 10px', cursor:'pointer', fontSize:'10px' }}>Logout</button>
           </div>
         </div>
