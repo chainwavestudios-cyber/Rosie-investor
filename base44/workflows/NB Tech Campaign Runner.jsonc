@@ -1,0 +1,44 @@
+{
+  "name": "NB Tech Campaign Runner",
+  "description": "Checks all active NB Tech email campaigns every 5 minutes and fires due batches",
+  "trigger": {
+    "condition": null,
+    "config": {
+      "trigger_type": "scheduled",
+      "events": [],
+      "schedule_mode": "interval",
+      "cron_expression": null,
+      "one_time_date": null,
+      "timezone": "UTC",
+      "interval_value": 5,
+      "interval_unit": "minutes",
+      "interval_anchor": "2026-05-20T20:06:38.298000",
+      "ends_type": "never",
+      "ends_on_date": null,
+      "ends_after_count": null
+    }
+  },
+  "definition": {
+    "document": {
+      "dsl": "1.0.0",
+      "name": "nb_tech_campaign_runner",
+      "version": "1.0",
+      "namespace": "base44"
+    },
+    "do": [
+      {
+        "run_function": {
+          "call": "invoke_backend_function",
+          "with": {
+            "function_name": "runEmailCampaigns",
+            "args": {}
+          },
+          "then": "end"
+        }
+      }
+    ]
+  },
+  "x-base44-migrated-from-automation": {
+    "legacy_payload_function": "runEmailCampaigns"
+  }
+}

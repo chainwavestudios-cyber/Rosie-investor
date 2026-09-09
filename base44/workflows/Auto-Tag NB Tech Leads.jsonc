@@ -1,0 +1,38 @@
+{
+  "name": "Auto-Tag NB Tech Leads",
+  "description": "Automatically sets leadType=nb_tech and leadPipelineOwner=admin when a lead has the NB Tech email badge or Data Room Request badge.",
+  "trigger": {
+    "condition": "${ ((.trigger.data.badgeNbtechEmail == true) or (.trigger.data.badgeDataRoomRequest == true)) }",
+    "config": {
+      "trigger_type": "entity",
+      "events": [
+        "create",
+        "update"
+      ],
+      "entity_name": "Lead"
+    }
+  },
+  "definition": {
+    "document": {
+      "dsl": "1.0.0",
+      "name": "auto_tag_nb_tech_leads",
+      "version": "1.0",
+      "namespace": "base44"
+    },
+    "do": [
+      {
+        "run_function": {
+          "call": "invoke_backend_function",
+          "with": {
+            "function_name": "autoTagNbTechLeads",
+            "args": {}
+          },
+          "then": "end"
+        }
+      }
+    ]
+  },
+  "x-base44-migrated-from-automation": {
+    "legacy_payload_function": "autoTagNbTechLeads"
+  }
+}
