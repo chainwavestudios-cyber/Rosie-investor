@@ -15,6 +15,8 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { base44 } from '@/api/base44Client';
+import { DEBT_DUCK, DEBT_COW, DEBT_OWL } from '@/components/admin/bob/DebtPersonas';
+import BobKBTraining from '@/components/admin/bob/BobKBTraining';
 
 const GOLD = '#b8933a';
 const DARK = '#0a0f1e';
@@ -410,6 +412,18 @@ const KB_SYSTEMS = {
     scriptHint: 'Practice your NB Tech enterprise sales pitch against Duck, Cow, or Owl personas.',
     bobPickupLine: 'Hello, this is Bob.',
   },
+  debt: {
+    id: 'debt',
+    label: '💳 Debt Settlement KB',
+    color: '#10b981',
+    description: 'Debt consolidation training — opener transfer → closer → debt tally → program close.',
+    kbCategory: 'debt_kb',
+    kbCategory2: 'debt_faq',
+    focusTopics: ['General','The Program','How It Works','Credit Impact','Fees & Pricing','Timeline','Qualifying Debt Types','Creditor Negotiations','Enrollment Process'],
+    defaultFocus: 'General',
+    scriptHint: 'Practice your debt consolidation closer pitch — tally debt and close on the program.',
+    bobPickupLine: 'Hello.',
+  },
 };
 
 const NB_DUCK = {
@@ -523,6 +537,7 @@ function BobKB({ kbSystem }) {
         <div style={{color:'#6b7280',fontSize:'11px'}}>{sys.description}</div>
         <div style={{color:'#4a5568',fontSize:'10px',marginTop:'4px'}}>Category: <code style={{color:sys.color}}>{sys.kbCategory}</code></div>
       </div>
+      <BobKBTraining kbCategory={sys.kbCategory} systemLabel={sys.label} systemColor={sys.color} onEntriesAdded={async()=>{const all=await base44.entities.KnowledgeBase.list('-created_date',200);setEntries((all||[]).filter(e=>e.category===sys.kbCategory||e.category===sys.kbCategory2));}} />
       <div style={{marginBottom:'20px'}}>
         <div style={{color:GOLD,fontSize:'10px',letterSpacing:'2px',textTransform:'uppercase',marginBottom:'12px'}}>Add Q&A Entry</div>
         <div style={{marginBottom:'10px'}}><label style={ls}>Question</label><input value={form.question} onChange={e=>setForm(p=>({...p,question:e.target.value}))} placeholder="Enter a common question..." style={inp}/></div>
@@ -576,7 +591,8 @@ function BobControls({ personas, onPersonasChange, dgApiKey, onDgKeyChange, kbSy
   const reset=(mode)=>{
     const rosieDefaults={duck:DEFAULT_DUCK,cow:DEFAULT_COW,owl:DEFAULT_OWL};
     const nbtechDefaults={duck:NB_DUCK,cow:NB_COW,owl:NB_OWL};
-    const d=kbSystem==='nbtech'?nbtechDefaults:rosieDefaults;
+    const debtDefaults={duck:DEBT_DUCK,cow:DEBT_COW,owl:DEBT_OWL};
+    const d=kbSystem==='nbtech'?nbtechDefaults:kbSystem==='debt'?debtDefaults:rosieDefaults;
     setLocal(prev=>({...prev,[mode]:d[mode]}));
   };
   const cur=local[editMode];
@@ -1087,6 +1103,7 @@ export default function BobTab() {
   const [systemState,setSystemState]   = useState({
     rosie: { personas:{duck:DEFAULT_DUCK,cow:DEFAULT_COW,owl:DEFAULT_OWL}, dgApiKey:'', sliderValue:0, intensity:3, focusTopic:'General' },
     nbtech:{ personas:{duck:NB_DUCK,cow:NB_COW,owl:NB_OWL},               dgApiKey:'', sliderValue:0, intensity:3, focusTopic:'General' },
+    debt:  { personas:{duck:DEBT_DUCK,cow:DEBT_COW,owl:DEBT_OWL},          dgApiKey:'', sliderValue:0, intensity:3, focusTopic:'General' },
   });
 
   // Convenience getters for the active system
