@@ -18,6 +18,10 @@ export default function BobKBTraining({ kbCategory, systemLabel, systemColor, on
   const [savedCount, setSavedCount] = useState(0);
   const [error, setError] = useState('');
   const [status, setStatus] = useState('');
+  const [generatedScript, setGeneratedScript] = useState('');
+  const [scriptName, setScriptName] = useState('');
+  const [scriptSaving, setScriptSaving] = useState(false);
+  const [scriptSaved, setScriptSaved] = useState(false);
   const fileRef = useRef(null);
 
   const isProcessing = uploading || transcribing || extracting;
@@ -32,6 +36,7 @@ export default function BobKBTraining({ kbCategory, systemLabel, systemColor, on
       return;
     }
     setError(''); setStatus(''); setTranscript(''); setExtractedEntries([]); setSelectedEntries(new Set());
+    setGeneratedScript(''); setScriptName(''); setScriptSaved(false);
     setUploading(true);
     setStatus(`Uploading audio file (${(file.size / 1024 / 1024).toFixed(1)}MB)…`);
     try {
@@ -83,7 +88,38 @@ ${transcriptText}`,
       const entries = result?.entries || [];
       setExtractedEntries(entries);
       setSelectedEntries(new Set(entries.map((_, i) => i)));
-      setStatus(`${entries.length} Q&A pairs extracted from the call.`);
+      setStatus(`${entries.length} Q&A pairs extracted. Generating agent script…`);
+      // Generate agent script from transcript
+      const scriptResult = await base44.integrations.Core.InvokeLLM({
+        prompt: `You are a sales script writer. Below is a transcript of a real ${systemLabel} sales call. Create a clean, actionable agent script that a sales rep can follow on future calls. Structure it as:
+
+[OPENING]
+- The opener/greeting used and how to introduce yourself
+
+[QUALIFYING]
+- Key qualifying questions to ask the prospect
+
+[PITCH / PROGRAM OVERVIEW]
+- How to explain the program/service based on what worked in the call
+
+[OBJECTION HANDLING]
+- Common objections from the call and the best responses
+
+[DEBT TALLY / NEEDS ASSESSMENT]
+- Questions to tally up the prospect's situation (debt amounts, income, employment, etc.)
+
+[CLOSE]
+- The closing approach and language that worked
+
+Keep it practical and conversational. Use {{name}} as a placeholder for the prospect's first name. Base it on what actually worked in this real call transcript.
+
+TRANSCRIPT:
+${transcriptText}`,
+      });
+      const scriptText = typeof scriptResult === 'string' ? scriptResult : (scriptResult?.content?.[0]?.text || scriptResult?.text || '');
+      setGeneratedScript(scriptText);
+      setScriptName(`${systemLabel} — Agent Script (${new Date().toLocaleDateString()})`);
+      setStatus(`${entries.length} Q&A pairs + agent script generated.`);
     } catch (e) {
       setError('Failed to process audio: ' + (e?.message || String(e)));
       setUploading(false); setTranscribing(false); setExtracting(false);
@@ -120,11 +156,32 @@ ${transcriptText}`,
     setSaving(false);
   };
 
+  const saveScript = async () => {
+    if (!generatedScript.trim() || !scriptName.trim()) return;
+    setScriptSaving(true); setError('');
+    try {
+      await base44.entities.GlobalScript.create({
+        name: scriptName.trim(),
+        content: generatedScript,
+        scriptType: 'custom',
+        color: '#e8e0d0',
+        fontSize: 14,
+        sortOrder: 0,
+      });
+      setScriptSaved(true);
+      setStatus('Agent script saved! It will appear in BOB calls and real-time call scripts.');
+      setTimeout(() => setScriptSaved(false), 4000);
+    } catch (e) {
+      setError('Script save failed: ' + (e?.message || String(e)));
+    }
+    setScriptSaving(false);
+  };
+
   return (
     <div style={{ background:'rgba(255,255,255,0.02)', border:`1px solid ${systemColor}33`, borderRadius:'4px', padding:'20px', marginBottom:'20px' }}>
       <div style={{ color:systemColor, fontSize:'10px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'4px' }}>🎙️ Train KB from Real Call Recordings</div>
       <div style={{ color:'#6b7280', fontSize:'11px', marginBottom:'16px' }}>
-        Upload MP3 recordings of real {systemLabel} calls (up to 50MB). The AI transcribes them and extracts Q&A pairs to fill the knowledge base automatically.
+        Upload MP3 recordings of real {systemLabel} calls (up to 50MB). The AI transcribes them, extracts Q&A pairs for the knowledge base, and generates an agent script that appears in BOB training calls and real-time call scripts.
       </div>
 
       <input
@@ -220,6 +277,51 @@ ${transcriptText}`,
             {saving ? '⏳ Saving…' : `💾 Save ${selectedEntries.size} Entries to KB`}
           </button>
           {savedCount > 0 && <span style={{ color:'#4ade80', fontSize:'12px', marginLeft:'10px' }}>✓ {savedCount} entries saved!</span>}
+        </div>
+      )}
+
+      {generatedScript && (
+        <div style={{ marginTop:'20px', borderTop:'1px solid rgba(255,255,255,0.07)', paddingTop:'16px' }}>
+          <div style={{ color:systemColor, fontSize:'11px', letterSpacing:'1px', textTransform:'uppercase', marginBottom:'10px' }}>
+            📝 Generated Agent Script
+          </div>
+          <div style={{ color:'#6b7280', fontSize:'11px', marginBottom:'10px' }}>
+            Edit the script below, then save it. Saved scripts appear in the Scripts tab during BOB training calls and real-time calls.
+          </div>
+          <div style={{ marginBottom:'10px' }}>
+            <label style={{ display:'block', color:'#6b7280', fontSize:'9px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'4px' }}>Script Name</label>
+            <input
+              value={scriptName}
+              onChange={e => setScriptName(e.target.value)}
+              style={{ width:'100%', background:'rgba(255,255,255,0.05)', border:'1px solid rgba(255,255,255,0.12)', borderRadius:'4px', padding:'8px 12px', color:'#e8e0d0', fontSize:'12px', outline:'none', fontFamily:'Georgia, serif', boxSizing:'border-box' }}
+            />
+          </div>
+          <textarea
+            value={generatedScript}
+            onChange={e => setGeneratedScript(e.target.value)}
+            style={{
+              width:'100%', background:'rgba(0,0,0,0.2)', border:'1px solid rgba(255,255,255,0.08)', borderRadius:'4px',
+              padding:'14px', color:'#e8e0d0', fontSize:'13px', lineHeight:1.7, outline:'none', resize:'vertical',
+              fontFamily:'Georgia, serif', boxSizing:'border-box', minHeight:'200px',
+            }}
+          />
+          <div style={{ marginTop:'10px', display:'flex', gap:'10px', alignItems:'center' }}>
+            <button
+              onClick={saveScript}
+              disabled={scriptSaving || !generatedScript.trim() || !scriptName.trim()}
+              style={{
+                background: scriptSaving ? 'rgba(255,255,255,0.05)' : `linear-gradient(135deg,${systemColor},${systemColor}cc)`,
+                color: scriptSaving ? '#6b7280' : DARK,
+                border:'none', borderRadius:'4px', padding:'10px 24px',
+                cursor: (scriptSaving || !generatedScript.trim() || !scriptName.trim()) ? 'not-allowed' : 'pointer',
+                fontSize:'12px', fontWeight:'bold', letterSpacing:'1px', textTransform:'uppercase',
+                opacity: (scriptSaving || !generatedScript.trim() || !scriptName.trim()) ? 0.5 : 1,
+              }}
+            >
+              {scriptSaving ? '⏳ Saving…' : '💾 Save Script to Global Scripts'}
+            </button>
+            {scriptSaved && <span style={{ color:'#4ade80', fontSize:'12px' }}>✓ Script saved! Visible in BOB & live calls.</span>}
+          </div>
         </div>
       )}
     </div>
