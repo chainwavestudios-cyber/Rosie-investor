@@ -22,17 +22,31 @@ export default function BobKBTraining({ kbCategory, systemLabel, systemColor, on
 
   const isProcessing = uploading || transcribing || extracting;
 
+  const MAX_BYTES = 50 * 1024 * 1024; // 50MB
+  const WHISPER_LIMIT = 25 * 1024 * 1024; // 25MB — TranscribeAudio integration limit
+
   const handleFile = async (file) => {
     if (!file) return;
+    if (file.size > MAX_BYTES) {
+      setError(`File is ${(file.size / 1024 / 1024).toFixed(1)}MB — max is 50MB.`);
+      return;
+    }
     setError(''); setStatus(''); setTranscript(''); setExtractedEntries([]); setSelectedEntries(new Set());
     setUploading(true);
-    setStatus('Uploading audio file…');
+    setStatus(`Uploading audio file (${(file.size / 1024 / 1024).toFixed(1)}MB)…`);
     try {
       const { file_url } = await base44.integrations.Core.UploadFile({ file });
       setUploading(false);
       setTranscribing(true);
       setStatus('Transcribing audio…');
-      const transcriptText = await base44.integrations.Core.TranscribeAudio({ audio_url: file_url });
+      let transcriptText;
+      if (file.size > WHISPER_LIMIT) {
+        // Files > 25MB use Deepgram batch API (supports up to 50MB+)
+        const res = await base44.functions.invoke('transcribeAudioLarge', { audio_url: file_url });
+        transcriptText = res?.data?.transcript || res?.transcript || '';
+      } else {
+        transcriptText = await base44.integrations.Core.TranscribeAudio({ audio_url: file_url });
+      }
       setTranscribing(false);
       setTranscript(typeof transcriptText === 'string' ? transcriptText : JSON.stringify(transcriptText));
       setExtracting(true);
@@ -110,7 +124,7 @@ ${transcriptText}`,
     <div style={{ background:'rgba(255,255,255,0.02)', border:`1px solid ${systemColor}33`, borderRadius:'4px', padding:'20px', marginBottom:'20px' }}>
       <div style={{ color:systemColor, fontSize:'10px', letterSpacing:'2px', textTransform:'uppercase', marginBottom:'4px' }}>🎙️ Train KB from Real Call Recordings</div>
       <div style={{ color:'#6b7280', fontSize:'11px', marginBottom:'16px' }}>
-        Upload MP3 recordings of real {systemLabel} calls. The AI transcribes them and extracts Q&A pairs to fill the knowledge base automatically.
+        Upload MP3 recordings of real {systemLabel} calls (up to 50MB). The AI transcribes them and extracts Q&A pairs to fill the knowledge base automatically.
       </div>
 
       <input
