@@ -8,6 +8,7 @@ import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 import InvestorPage from './pages/InvestorPage';
 import LiveCodebaseExplorer from './pages/LiveCodebaseExplorer';
 import DirectD from './pages/DirectD';
+import DebtCallCoach from './pages/DebtCallCoach';
 import Home from './pages/Home';
 import PortalLogin from './pages/PortalLogin';
 import InvestorPortal from './pages/InvestorPortal';
@@ -83,6 +84,7 @@ function App() {
               <Route path="/investor-page" element={<InvestorPage />} />
               <Route path="/live-codebase-explorer" element={<LiveCodebaseExplorer />} />
               <Route path="/DirectD" element={<DirectD />} />
+              <Route path="/debt-call-coach" element={<DebtCallCoach />} />
               <Route path="*" element={<PageNotFound />} />
             </Routes>
           </ProtectedShell>
