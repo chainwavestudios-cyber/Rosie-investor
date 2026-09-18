@@ -1,0 +1,156 @@
+{
+  "name": "DebtLead",
+  "type": "object",
+  "properties": {
+    "firstName": {
+      "type": "string",
+      "title": "First Name"
+    },
+    "lastName": {
+      "type": "string",
+      "title": "Last Name"
+    },
+    "phone": {
+      "type": "string",
+      "title": "Phone"
+    },
+    "email": {
+      "type": "string",
+      "title": "Email"
+    },
+    "address": {
+      "type": "string",
+      "title": "Address"
+    },
+    "city": {
+      "type": "string",
+      "title": "City"
+    },
+    "state": {
+      "type": "string",
+      "title": "State"
+    },
+    "zip": {
+      "type": "string",
+      "title": "Zip"
+    },
+    "debtAmount": {
+      "type": "number",
+      "title": "Total Debt Amount ($)"
+    },
+    "creditorCount": {
+      "type": "number",
+      "title": "Number of Creditors"
+    },
+    "creditors": {
+      "type": "string",
+      "title": "Creditors List",
+      "format": "textarea"
+    },
+    "employmentStatus": {
+      "type": "string",
+      "title": "Employment Status",
+      "enum": [
+        "employed",
+        "self-employed",
+        "unemployed",
+        "retired",
+        "disabled"
+      ]
+    },
+    "monthlyIncome": {
+      "type": "number",
+      "title": "Monthly Income ($)"
+    },
+    "creditScore": {
+      "type": "number",
+      "title": "Credit Score"
+    },
+    "behindOnPayments": {
+      "type": "boolean",
+      "title": "Behind on Payments",
+      "default": false
+    },
+    "monthsBehind": {
+      "type": "number",
+      "title": "Months Behind"
+    },
+    "programEnrolled": {
+      "type": "boolean",
+      "title": "Enrolled in Program",
+      "default": false
+    },
+    "enrollmentDate": {
+      "type": "string",
+      "format": "date",
+      "title": "Enrollment Date"
+    },
+    "status": {
+      "type": "string",
+      "title": "Status",
+      "enum": [
+        "new",
+        "contacted",
+        "qualified",
+        "enrolled",
+        "declined",
+        "completed",
+        "callback"
+      ],
+      "default": "new"
+    },
+    "notes": {
+      "type": "string",
+      "title": "Notes",
+      "format": "textarea"
+    },
+    "profileJson": {
+      "type": "string",
+      "title": "AI Profile (JSON)",
+      "format": "textarea"
+    },
+    "lastCallAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Last Call At"
+    },
+    "callCount": {
+      "type": "number",
+      "title": "Call Count",
+      "default": 0
+    },
+    "intentScore": {
+      "type": "number",
+      "title": "Latest Intent Score"
+    },
+    "animalType": {
+      "type": "string",
+      "title": "Animal Type",
+      "enum": [
+        "duck",
+        "cow",
+        "unknown"
+      ]
+    },
+    "transcriptJson": {
+      "type": "string",
+      "title": "Last Call Transcript (JSON)",
+      "format": "textarea"
+    },
+    "callbackAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Callback At"
+    }
+  },
+  "required": [
+    "firstName",
+    "lastName"
+  ],
+  "rls": {
+    "create": null,
+    "read": null,
+    "update": null,
+    "delete": null
+  }
+}
