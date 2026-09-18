@@ -3,7 +3,7 @@
  * Pitches are organized by closer name. File names from MP3 uploads become closer names.
  * Also includes a compact pitch reference for live calls.
  */
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
 
 const GOLD = '#10b981';
@@ -27,6 +27,82 @@ export default function DebtPitchTab() {
   const [showAdd, setShowAdd] = useState(false);
   const [form, setForm] = useState({ closerName: '', title: '', content: '', pitchType: 'pitch', tags: '' });
   const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [uploadStatus, setUploadStatus] = useState('');
+  const [uploadError, setUploadError] = useState('');
+  const fileRef = useRef(null);
+
+  const MAX_BYTES = 50 * 1024 * 1024;
+
+  const handleUpload = async (file) => {
+    if (!file) return;
+    if (file.size > MAX_BYTES) { setUploadError(`File is ${(file.size / 1024 / 1024).toFixed(1)}MB — max is 50MB.`); return; }
+    setUploading(true); setUploadError(''); setUploadStatus(`Uploading ${file.name} (${(file.size / 1024 / 1024).toFixed(1)}MB)…`);
+    try {
+      const { file_url } = await base44.integrations.Core.UploadPublicFile({ file });
+      setUploadStatus('Transcribing audio…');
+      let transcriptText;
+      if (file.size > 25 * 1024 * 1024) {
+        const res = await base44.functions.invoke('transcribeAudioLarge', { audio_url: file_url });
+        transcriptText = res?.transcript || res?.data?.transcript || '';
+      } else {
+        transcriptText = await base44.integrations.Core.TranscribeAudio({ audio_url: file_url });
+      }
+      setUploadStatus('Extracting closer pitches…');
+      const closerName = file.name.replace(/\.[^.]+$/, '').replace(/[_-]/g, ' ').trim();
+      const pitchResult = await base44.integrations.Core.InvokeLLM({
+        prompt: `You are a sales pitch analyst. Below is a transcript of a real debt settlement call by a closer named "${closerName}". Extract the distinct pitches and techniques used, organized by type. For each, capture the actual language and approach the closer used.
+
+Return JSON with a "pitches" array, each having: title (short label), content (the actual pitch language/approach), pitchType (one of: opener, discovery, pitch, rebuttal, closer, full_call).
+
+Look for:
+- OPENER: How they greet and transition from the transfer
+- DISCOVERY: Questions they ask to qualify the prospect
+- PITCH: How they explain the program and its benefits
+- REBUTTAL: How they handle specific objections (bankruptcy, cost, credit impact, "think about it")
+- CLOSER: The closing language and enrollment process
+
+Aim for 3-8 distinct pitches. Base them on what the closer ACTUALLY said in the transcript.
+
+TRANSCRIPT:
+${transcriptText}`,
+        response_json_schema: {
+          type: 'object',
+          properties: {
+            pitches: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  title: { type: 'string' },
+                  content: { type: 'string' },
+                  pitchType: { type: 'string' },
+                },
+              },
+            },
+          },
+        },
+      });
+      const pitches = pitchResult?.pitches || [];
+      for (const p of pitches) {
+        await base44.entities.CloserPitch.create({
+          closerName,
+          title: p.title || 'Untitled',
+          content: p.content || '',
+          pitchType: ['opener', 'discovery', 'pitch', 'rebuttal', 'closer', 'full_call'].includes(p.pitchType) ? p.pitchType : 'pitch',
+          source: file.name,
+          tags: 'mp3-extracted',
+        });
+      }
+      setUploadStatus(`✓ ${pitches.length} pitches extracted for "${closerName}"!`);
+      setSelectedCloser(closerName);
+      load();
+      setTimeout(() => setUploadStatus(''), 5000);
+    } catch (e) {
+      setUploadError('Upload failed: ' + (e?.message || String(e)));
+    }
+    setUploading(false);
+  };
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -70,8 +146,18 @@ export default function DebtPitchTab() {
       <div style={{ background: '#0d1b2a', border: '1px solid rgba(16,185,129,0.2)', borderRadius: '6px' }}>
         <div style={{ padding: '14px 16px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div style={{ color: GOLD, fontSize: '11px', letterSpacing: '2px', textTransform: 'uppercase' }}>🎤 Closers</div>
-          <button onClick={() => setShowAdd(p => !p)} style={{ background: `${GOLD}18`, color: GOLD, border: `1px solid ${GOLD}44`, borderRadius: '4px', padding: '4px 10px', cursor: 'pointer', fontSize: '11px' }}>+ Add</button>
+          <div style={{ display: 'flex', gap: '6px' }}>
+            <input ref={fileRef} type="file" accept="audio/mpeg,audio/mp3,audio/wav,audio/m4a,audio/ogg" style={{ display: 'none' }} onChange={e => { const f = e.target.files?.[0]; if (f) handleUpload(f); e.target.value = ''; }} />
+            <button onClick={() => fileRef.current?.click()} disabled={uploading} style={{ background: uploading ? 'rgba(255,255,255,0.05)' : `${GOLD}18`, color: uploading ? '#6b7280' : GOLD, border: `1px solid ${GOLD}44`, borderRadius: '4px', padding: '4px 10px', cursor: uploading ? 'not-allowed' : 'pointer', fontSize: '11px' }}>🎵 Upload MP3</button>
+            <button onClick={() => setShowAdd(p => !p)} style={{ background: `${GOLD}18`, color: GOLD, border: `1px solid ${GOLD}44`, borderRadius: '4px', padding: '4px 10px', cursor: 'pointer', fontSize: '11px' }}>+ Add</button>
+          </div>
         </div>
+        {(uploadStatus || uploadError) && (
+          <div style={{ padding: '8px 16px', borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
+            {uploadStatus && <div style={{ color: GOLD, fontSize: '11px' }}>{uploadStatus}</div>}
+            {uploadError && <div style={{ color: '#ef4444', fontSize: '11px' }}>⚠ {uploadError}</div>}
+          </div>
+        )}
         <div style={{ maxHeight: '500px', overflowY: 'auto' }}>
           {loading ? <div style={{ color: '#4a5568', textAlign: 'center', padding: '30px 0' }}>Loading…</div> :
            closers.length === 0 ? <div style={{ color: '#4a5568', textAlign: 'center', padding: '30px 0', fontSize: '12px' }}>No closers yet. Upload MP3 call recordings (file name = closer name) or add manually.</div> :
