@@ -31,6 +31,7 @@ export default function DebtLeadCard({ lead, onLeadChange, transcript, intentSco
         firstName: lead.firstName, lastName: lead.lastName, phone: lead.phone, email: lead.email,
         address: lead.address, city: lead.city, state: lead.state, zip: lead.zip,
         debtAmount: lead.debtAmount, creditorCount: lead.creditorCount, creditors: lead.creditors,
+        debtLedgerJson: lead.debtLedgerJson,
         employmentStatus: lead.employmentStatus, monthlyIncome: lead.monthlyIncome,
         creditScore: lead.creditScore, behindOnPayments: lead.behindOnPayments,
         monthsBehind: lead.monthsBehind, programEnrolled: lead.programEnrolled,
@@ -43,7 +44,7 @@ export default function DebtLeadCard({ lead, onLeadChange, transcript, intentSco
     setSaving(false);
   };
 
-  const CARD_TABS = [['overview', 'Overview'], ['debt', 'Debt Details'], ['employment', 'Employment'], ['notes', 'Notes'], ['ai', '🤖 AI Profile']];
+  const CARD_TABS = [['overview', 'Overview'], ['debt', 'Debt Details'], ['ledger', '💳 Debt Ledger'], ['employment', 'Employment'], ['notes', 'Notes'], ['ai', '🤖 AI Profile']];
 
   return (
     <div style={{ background: '#0d1b2a', border: '1px solid rgba(16,185,129,0.3)', borderRadius: '6px', display: 'flex', flexDirection: 'column', height: '100%' }}>
@@ -110,6 +111,7 @@ export default function DebtLeadCard({ lead, onLeadChange, transcript, intentSco
             <Field label="Enrollment Date" value={lead.enrollmentDate} onChange={v => update('enrollmentDate', v)} type="date" />
           </div>
         )}
+        {tab === 'ledger' && <DebtLedgerTab lead={lead} update={update} />}
         {tab === 'employment' && (
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
             <div>
@@ -204,6 +206,113 @@ function StatBox({ label, value, color }) {
     <div style={{ flex: 1, background: 'rgba(255,255,255,0.03)', border: `1px solid ${color}33`, borderRadius: '4px', padding: '12px', textAlign: 'center' }}>
       <div style={{ color, fontSize: '16px', fontWeight: 'bold' }}>{value}</div>
       <div style={{ color: '#6b7280', fontSize: '9px', textTransform: 'uppercase', letterSpacing: '1px', marginTop: '4px' }}>{label}</div>
+    </div>
+  );
+}
+
+// ─── Debt Ledger Tab — structured creditor entries ───────────────────────────
+function DebtLedgerTab({ lead, update }) {
+  const GOLD = '#10b981';
+  const ls = { display: 'block', color: '#8a9ab8', fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '6px' };
+  const inp = { width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '4px', padding: '8px 10px', color: '#e8e0d0', fontSize: '12px', outline: 'none', boxSizing: 'border-box', fontFamily: 'Georgia, serif' };
+
+  const ledger = (() => { try { return JSON.parse(lead.debtLedgerJson || '[]'); } catch { return []; } })();
+  const setLedger = (newLedger) => update('debtLedgerJson', JSON.stringify(newLedger));
+
+  const [adding, setAdding] = useState(false);
+  const [form, setForm] = useState({ creditor: '', balance: '', interestRate: '', monthlyPayment: '', paymentSchedule: 'monthly', accountLast4: '', notes: '' });
+
+  const addCreditor = () => {
+    if (!form.creditor.trim()) return;
+    const entry = {
+      creditor: form.creditor.trim(),
+      balance: form.balance ? Number(form.balance) : null,
+      interestRate: form.interestRate ? Number(form.interestRate) : null,
+      monthlyPayment: form.monthlyPayment ? Number(form.monthlyPayment) : null,
+      paymentSchedule: form.paymentSchedule || 'monthly',
+      accountLast4: form.accountLast4 || '',
+      notes: form.notes || '',
+    };
+    setLedger([...ledger, entry]);
+    setForm({ creditor: '', balance: '', interestRate: '', monthlyPayment: '', paymentSchedule: 'monthly', accountLast4: '', notes: '' });
+    setAdding(false);
+  };
+
+  const removeCreditor = (i) => {
+    const next = [...ledger]; next.splice(i, 1); setLedger(next);
+  };
+
+  const updateCreditor = (i, field, value) => {
+    const next = [...ledger]; next[i] = { ...next[i], [field]: value }; setLedger(next);
+  };
+
+  const totalBalance = ledger.reduce((s, c) => s + (c.balance || 0), 0);
+  const totalPayment = ledger.reduce((s, c) => s + (c.monthlyPayment || 0), 0);
+  const avgRate = ledger.length > 0 ? (ledger.reduce((s, c) => s + (c.interestRate || 0), 0) / ledger.length).toFixed(1) : 0;
+
+  return (
+    <div>
+      {/* Summary */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px', marginBottom: '16px' }}>
+        <div style={{ background: 'rgba(16,185,129,0.06)', border: '1px solid rgba(16,185,129,0.2)', borderRadius: '4px', padding: '12px', textAlign: 'center' }}>
+          <div style={{ color: GOLD, fontSize: '18px', fontWeight: 'bold' }}>${totalBalance.toLocaleString()}</div>
+          <div style={{ color: '#6b7280', fontSize: '9px', textTransform: 'uppercase', letterSpacing: '1px', marginTop: '4px' }}>Total Balance</div>
+        </div>
+        <div style={{ background: 'rgba(96,165,250,0.06)', border: '1px solid rgba(96,165,250,0.2)', borderRadius: '4px', padding: '12px', textAlign: 'center' }}>
+          <div style={{ color: '#60a5fa', fontSize: '18px', fontWeight: 'bold' }}>${totalPayment.toLocaleString()}</div>
+          <div style={{ color: '#6b7280', fontSize: '9px', textTransform: 'uppercase', letterSpacing: '1px', marginTop: '4px' }}>Monthly Payments</div>
+        </div>
+        <div style={{ background: 'rgba(245,158,11,0.06)', border: '1px solid rgba(245,158,11,0.2)', borderRadius: '4px', padding: '12px', textAlign: 'center' }}>
+          <div style={{ color: '#f59e0b', fontSize: '18px', fontWeight: 'bold' }}>{avgRate}%</div>
+          <div style={{ color: '#6b7280', fontSize: '9px', textTransform: 'uppercase', letterSpacing: '1px', marginTop: '4px' }}>Avg Interest Rate</div>
+        </div>
+      </div>
+
+      {/* Add creditor form */}
+      {adding ? (
+        <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(16,185,129,0.2)', borderRadius: '4px', padding: '14px', marginBottom: '12px' }}>
+          <div style={{ color: GOLD, fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '10px' }}>+ Add Creditor</div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '10px' }}>
+            <div><label style={ls}>Creditor Name</label><input value={form.creditor} onChange={e => setForm(p => ({ ...p, creditor: e.target.value }))} placeholder="Chase Sapphire" style={inp} /></div>
+            <div><label style={ls}>Account Last 4</label><input value={form.accountLast4} onChange={e => setForm(p => ({ ...p, accountLast4: e.target.value }))} placeholder="1234" style={inp} /></div>
+            <div><label style={ls}>Balance ($)</label><input type="number" value={form.balance} onChange={e => setForm(p => ({ ...p, balance: e.target.value }))} placeholder="8500" style={inp} /></div>
+            <div><label style={ls}>Interest Rate (%)</label><input type="number" step="0.01" value={form.interestRate} onChange={e => setForm(p => ({ ...p, interestRate: e.target.value }))} placeholder="24.99" style={inp} /></div>
+            <div><label style={ls}>Monthly Payment ($)</label><input type="number" value={form.monthlyPayment} onChange={e => setForm(p => ({ ...p, monthlyPayment: e.target.value }))} placeholder="250" style={inp} /></div>
+            <div><label style={ls}>Payment Schedule</label><select value={form.paymentSchedule} onChange={e => setForm(p => ({ ...p, paymentSchedule: e.target.value }))} style={inp}><option value="monthly">Monthly</option><option value="biweekly">Bi-weekly</option><option value="weekly">Weekly</option><option value="irregular">Irregular</option><option value="past_due">Past Due</option></select></div>
+          </div>
+          <div style={{ marginBottom: '10px' }}><label style={ls}>Notes</label><input value={form.notes} onChange={e => setForm(p => ({ ...p, notes: e.target.value }))} placeholder="Behind 3 months, collections calls" style={inp} /></div>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <button onClick={addCreditor} style={{ background: 'linear-gradient(135deg,#10b981,#22c55e)', color: '#0a0f1e', border: 'none', borderRadius: '4px', padding: '8px 18px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>✓ Add</button>
+            <button onClick={() => setAdding(false)} style={{ background: 'rgba(255,255,255,0.05)', color: '#6b7280', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '4px', padding: '8px 14px', cursor: 'pointer', fontSize: '11px' }}>Cancel</button>
+          </div>
+        </div>
+      ) : (
+        <button onClick={() => setAdding(true)} style={{ width: '100%', background: 'rgba(16,185,129,0.08)', color: GOLD, border: '1px dashed rgba(16,185,129,0.3)', borderRadius: '4px', padding: '10px', cursor: 'pointer', fontSize: '12px', marginBottom: '12px' }}>+ Add Creditor to Ledger</button>
+      )}
+
+      {/* Creditor list */}
+      {ledger.length === 0 ? (
+        <div style={{ color: '#4a5568', textAlign: 'center', padding: '30px 0', fontSize: '12px' }}>No creditors in ledger yet. Add creditors manually or they\'ll auto-populate from the live call transcript.</div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          {ledger.map((c, i) => (
+            <div key={i} style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: '4px', padding: '12px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                <input value={c.creditor || ''} onChange={e => updateCreditor(i, 'creditor', e.target.value)} style={{ background: 'none', border: 'none', color: '#e8e0d0', fontSize: '13px', fontWeight: 'bold', outline: 'none', flex: 1 }} />
+                <button onClick={() => removeCreditor(i)} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '11px' }}>✕</button>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px' }}>
+                <div><label style={{ ...ls, fontSize: '8px' }}>Balance</label><input type="number" value={c.balance ?? ''} onChange={e => updateCreditor(i, 'balance', e.target.value ? Number(e.target.value) : null)} style={inp} /></div>
+                <div><label style={{ ...ls, fontSize: '8px' }}>Rate (%)</label><input type="number" step="0.01" value={c.interestRate ?? ''} onChange={e => updateCreditor(i, 'interestRate', e.target.value ? Number(e.target.value) : null)} style={inp} /></div>
+                <div><label style={{ ...ls, fontSize: '8px' }}>Payment</label><input type="number" value={c.monthlyPayment ?? ''} onChange={e => updateCreditor(i, 'monthlyPayment', e.target.value ? Number(e.target.value) : null)} style={inp} /></div>
+                <div><label style={{ ...ls, fontSize: '8px' }}>Schedule</label><select value={c.paymentSchedule || 'monthly'} onChange={e => updateCreditor(i, 'paymentSchedule', e.target.value)} style={inp}><option value="monthly">Monthly</option><option value="biweekly">Bi-weekly</option><option value="weekly">Weekly</option><option value="irregular">Irregular</option><option value="past_due">Past Due</option></select></div>
+              </div>
+              {c.accountLast4 && <div style={{ color: '#4a5568', fontSize: '10px', marginTop: '6px' }}>Account ending in {c.accountLast4}</div>}
+              {c.notes && <div style={{ color: '#6b7280', fontSize: '11px', marginTop: '4px' }}>{c.notes}</div>}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

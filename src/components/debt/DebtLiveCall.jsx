@@ -5,6 +5,8 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { base44 } from '@/api/base44Client';
 import DebtLeadCard from '@/components/debt/DebtLeadCard';
+import { DebtPitchPanel } from '@/components/debt/DebtPitchTab';
+import DebtIntentSignals, { DEBT_INTENT_RULES } from '@/components/debt/DebtIntentSignals';
 
 const GOLD = '#10b981';
 const DARK = '#0a0f1e';
@@ -32,6 +34,8 @@ export default function DebtLiveCall() {
   const [qaActive, setQaActive] = useState(true);
   const [coachActive, setCoachActive] = useState(true);
   const [intentActive, setIntentActive] = useState(true);
+  const [rightTab, setRightTab] = useState('ai');
+  const [ledgerExtracting, setLedgerExtracting] = useState(false);
   const [qaItems, setQaItems] = useState([]);
   const [coachTips, setCoachTips] = useState([]);
   const [intentScore, setIntentScore] = useState(null);
@@ -49,6 +53,7 @@ export default function DebtLiveCall() {
   const lastCoachTime = useRef(0);
   const lastIntentTime = useRef(0);
   const lastProfileTime = useRef(0);
+  const lastLedgerTime = useRef(0);
   const callStartRef = useRef(null);
 
   useEffect(() => { leadRef.current = lead; }, [lead]);
@@ -109,7 +114,7 @@ export default function DebtLiveCall() {
   }, [kbEntries]);
 
   const handleIntent = useCallback(() => {
-    base44.functions.invoke('liveAssistantAI', { transcript: transcriptRef.current.slice(-12), kbEntries, mode: 'intent' })
+    base44.functions.invoke('liveAssistantAI', { transcript: transcriptRef.current.slice(-12), kbEntries, mode: 'intent', intentRules: DEBT_INTENT_RULES })
       .then(res => { const score = res?.intent?.intentScore ?? res?.intentScore ?? res?.data?.intentScore; if (score !== undefined) setIntentScore(score); })
       .catch(() => {});
   }, [kbEntries]);
@@ -131,6 +136,60 @@ export default function DebtLiveCall() {
     } catch {}
   }, [kbEntries, intentScore]);
 
+  const handleDebtExtract = useCallback(async () => {
+    if (!leadRef.current?.id || transcriptRef.current.length < 4) return;
+    setLedgerExtracting(true);
+    try {
+      const recentText = transcriptRef.current.slice(-15).map(t => t.text).join(' ');
+      const result = await base44.integrations.Core.InvokeLLM({
+        prompt: `You are analyzing a live debt settlement call transcript. Extract any creditor/debt information the customer mentions. Look for:
+- Creditor names (Chase, Capital One, Discover, Amex, etc.)
+- Account balances
+- Interest rates
+- Monthly payment amounts
+- Payment schedules
+- Account last-4 digits
+
+Return JSON with a "creditors" array. Only include information explicitly mentioned — do NOT make up data. If nothing new is mentioned, return empty array.
+
+Transcript:
+${recentText}`,
+        response_json_schema: {
+          type: 'object',
+          properties: {
+            creditors: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  creditor: { type: 'string' },
+                  balance: { type: 'number' },
+                  interestRate: { type: 'number' },
+                  monthlyPayment: { type: 'number' },
+                  paymentSchedule: { type: 'string' },
+                  accountLast4: { type: 'string' },
+                  notes: { type: 'string' },
+                },
+              },
+            },
+          },
+        },
+      });
+      const extracted = result?.creditors || [];
+      if (extracted.length > 0) {
+        const existing = (() => { try { return JSON.parse(leadRef.current.debtLedgerJson || '[]'); } catch { return []; } })();
+        // Merge: only add creditors not already in the ledger (match by name)
+        const existingNames = existing.map(c => (c.creditor || '').toLowerCase());
+        const newEntries = extracted.filter(c => c.creditor && !existingNames.includes(c.creditor.toLowerCase()));
+        if (newEntries.length > 0) {
+          const merged = [...existing, ...newEntries];
+          setLead(prev => ({ ...prev, debtLedgerJson: JSON.stringify(merged) }));
+        }
+      }
+    } catch {}
+    setLedgerExtracting(false);
+  }, []);
+
   const processNewEntry = useCallback((entry) => {
     setTranscript(prev => [...prev, entry]);
     const text = entry.text || '';
@@ -146,7 +205,8 @@ export default function DebtLiveCall() {
     if (coachActive && (objWords.some(w => text.toLowerCase().includes(w)) || now - lastCoachTime.current > 20000)) { lastCoachTime.current = now; handleCoach(); }
     if (intentActive && now - lastIntentTime.current > 30000) { lastIntentTime.current = now; handleIntent(); }
     if (now - lastProfileTime.current > 60000) { lastProfileTime.current = now; handleProfile(); }
-  }, [qaActive, coachActive, intentActive, handleQa, handleCoach, handleIntent, handleProfile]);
+    if (now - lastLedgerTime.current > 45000) { lastLedgerTime.current = now; handleDebtExtract(); }
+  }, [qaActive, coachActive, intentActive, handleQa, handleCoach, handleIntent, handleProfile, handleDebtExtract]);
 
   const startCall = useCallback(async () => {
     // Ensure we have a lead
@@ -217,7 +277,7 @@ export default function DebtLiveCall() {
     // Final profile + intent analysis
     if (transcriptRef.current.length > 0 && leadRef.current?.id) {
       try {
-        const intentRes = await base44.functions.invoke('liveAssistantAI', { transcript: transcriptRef.current, kbEntries, mode: 'intent_final' });
+        const intentRes = await base44.functions.invoke('liveAssistantAI', { transcript: transcriptRef.current, kbEntries, mode: 'intent_final', intentRules: DEBT_INTENT_RULES });
         const intent = intentRes?.intent || intentRes?.data?.intent;
         if (intent) {
           setIntentScore(intent.intentScore);
@@ -343,17 +403,23 @@ export default function DebtLiveCall() {
           </div>
         </div>
 
-        {/* AI Assistant */}
+        {/* Right panel: AI Assistant | Pitches | Intent Signals */}
         <div style={{ background: '#0d1b2a', border: '1px solid rgba(16,185,129,0.2)', borderRadius: '6px', display: 'flex', flexDirection: 'column', minHeight: '500px', maxHeight: '70vh' }}>
-          <div style={{ padding: '12px 16px', borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
-            <div style={{ color: GOLD, fontSize: '11px', letterSpacing: '2px', textTransform: 'uppercase' }}>🤖 AI Assistant</div>
+          <div style={{ padding: '0 16px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', gap: '2px' }}>
+            {[{ id: 'ai', label: '🤖 AI' }, { id: 'pitches', label: '🎤 Pitches' }, { id: 'signals', label: '🎯 Signals' }].map(t => (
+              <button key={t.id} onClick={() => setRightTab(t.id)} style={{ padding: '10px 12px', background: 'none', border: 'none', borderBottom: `2px solid ${rightTab === t.id ? GOLD : 'transparent'}`, color: rightTab === t.id ? GOLD : '#6b7280', cursor: 'pointer', fontSize: '11px', fontWeight: rightTab === t.id ? 'bold' : 'normal', whiteSpace: 'nowrap' }}>{t.label}</button>
+            ))}
           </div>
+          {rightTab === 'ai' && (
           <div style={{ padding: '10px 16px', borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', gap: '6px' }}>
             {[{ key: 'qa', label: 'Q&A', active: qaActive, toggle: () => setQaActive(p => !p), color: '#34d399' }, { key: 'coach', label: 'Coach', active: coachActive, toggle: () => setCoachActive(p => !p), color: '#f59e0b' }, { key: 'intent', label: 'Intent', active: intentActive, toggle: () => setIntentActive(p => !p), color: '#f472b6' }].map(f => (
               <button key={f.key} onClick={f.toggle} style={{ flex: 1, padding: '7px', borderRadius: '4px', border: `1px solid ${f.active ? f.color + '66' : 'rgba(255,255,255,0.1)'}`, background: f.active ? `${f.color}18` : 'transparent', color: f.active ? f.color : '#6b7280', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase' }}>{f.active ? '● ' : '○ '}{f.label}</button>
             ))}
           </div>
+          )}
+          {rightTab === 'ai' && (
           <div style={{ flex: 1, overflowY: 'auto', padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            {ledgerExtracting && <div style={{ color: GOLD, fontSize: '10px', textAlign: 'center' }}>⏳ Extracting debt info from call…</div>}
             {intentScore !== null && (
               <div style={{ background: 'rgba(244,114,182,0.08)', border: '1px solid rgba(244,114,182,0.2)', borderRadius: '4px', padding: '10px' }}>
                 <div style={{ color: '#f472b6', fontSize: '10px', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '6px' }}>📊 Intent Score</div>
@@ -387,6 +453,9 @@ export default function DebtLiveCall() {
             )}
             {qaItems.length === 0 && coachTips.length === 0 && intentScore === null && <div style={{ color: '#4a5568', fontSize: '12px', textAlign: 'center', padding: '30px 0' }}>{phase === 'live' ? 'AI tools listening…' : 'Start a call to activate.'}</div>}
           </div>
+          )}
+          {rightTab === 'pitches' && <div style={{ flex: 1, overflowY: 'auto' }}><DebtPitchPanel /></div>}
+          {rightTab === 'signals' && <div style={{ flex: 1, overflowY: 'auto', padding: '8px' }}><DebtIntentSignals /></div>}
         </div>
       </div>
 

@@ -6,12 +6,14 @@ import { useState } from 'react';
 import DebtLiveCall from '@/components/debt/DebtLiveCall';
 import DebtKBManager from '@/components/debt/DebtKBManager';
 import DebtUserProfile from '@/components/debt/DebtUserProfile';
+import DebtPitchTab from '@/components/debt/DebtPitchTab';
 
 const GOLD = '#10b981';
 const DARK = '#0a0f1e';
 
 const TABS = [
   { id: 'live', label: '📞 Live Call' },
+  { id: 'pitches', label: '🎤 Pitches' },
   { id: 'kb', label: '🧠 Knowledge Base' },
   { id: 'profile', label: '👤 User Profiles' },
 ];
@@ -39,6 +41,7 @@ export default function DebtCallCoach() {
       </div>
 
       {tab === 'live' && <DebtLiveCall />}
+      {tab === 'pitches' && <DebtPitchTab />}
       {tab === 'kb' && <DebtKBManager />}
       {tab === 'profile' && <DebtUserProfile />}
     </div>

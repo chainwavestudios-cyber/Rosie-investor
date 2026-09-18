@@ -1,0 +1,50 @@
+{
+  "name": "CloserPitch",
+  "type": "object",
+  "properties": {
+    "closerName": {
+      "type": "string",
+      "title": "Closer Name"
+    },
+    "title": {
+      "type": "string",
+      "title": "Pitch Title / Topic"
+    },
+    "content": {
+      "type": "string",
+      "title": "Pitch Content",
+      "format": "textarea"
+    },
+    "pitchType": {
+      "type": "string",
+      "title": "Pitch Type",
+      "enum": [
+        "opener",
+        "discovery",
+        "pitch",
+        "rebuttal",
+        "closer",
+        "full_call"
+      ],
+      "default": "pitch"
+    },
+    "source": {
+      "type": "string",
+      "title": "Source File"
+    },
+    "tags": {
+      "type": "string",
+      "title": "Tags"
+    }
+  },
+  "required": [
+    "closerName",
+    "title"
+  ],
+  "rls": {
+    "create": null,
+    "read": null,
+    "update": null,
+    "delete": null
+  }
+}

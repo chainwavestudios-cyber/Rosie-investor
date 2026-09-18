@@ -289,7 +289,59 @@ function MP3Uploader({ category, onSaved }) {
       const entries = result?.entries || [];
       setExtractedEntries(entries);
       setSelectedEntries(new Set(entries.map((_, i) => i)));
-      setStatus(`${entries.length} Q&A pairs extracted. Review and save below.`);
+      setStatus(`${entries.length} Q&A pairs extracted. Extracting closer pitches…`);
+
+      // Extract closer pitches — file name (without extension) = closer name
+      const closerName = file.name.replace(/\.[^.]+$/, '').replace(/[_-]/g, ' ').trim();
+      try {
+        const pitchResult = await base44.integrations.Core.InvokeLLM({
+          prompt: `You are a sales pitch analyst. Below is a transcript of a real debt settlement call by a closer named "${closerName}". Extract the distinct pitches and techniques used, organized by type. For each, capture the actual language and approach the closer used.
+
+Return JSON with a "pitches" array, each having: title (short label), content (the actual pitch language/approach), pitchType (one of: opener, discovery, pitch, rebuttal, closer, full_call).
+
+Look for:
+- OPENER: How they greet and transition from the transfer
+- DISCOVERY: Questions they ask to qualify the prospect
+- PITCH: How they explain the program and its benefits
+- REBUTTAL: How they handle specific objections (bankruptcy, cost, credit impact, "think about it")
+- CLOSER: The closing language and enrollment process
+
+Aim for 3-8 distinct pitches. Base them on what the closer ACTUALLY said in the transcript.
+
+TRANSCRIPT:
+${transcriptText}`,
+          response_json_schema: {
+            type: 'object',
+            properties: {
+              pitches: {
+                type: 'array',
+                items: {
+                  type: 'object',
+                  properties: {
+                    title: { type: 'string' },
+                    content: { type: 'string' },
+                    pitchType: { type: 'string' },
+                  },
+                },
+              },
+            },
+          },
+        });
+        const pitches = pitchResult?.pitches || [];
+        for (const p of pitches) {
+          await base44.entities.CloserPitch.create({
+            closerName,
+            title: p.title || 'Untitled',
+            content: p.content || '',
+            pitchType: ['opener', 'discovery', 'pitch', 'rebuttal', 'closer', 'full_call'].includes(p.pitchType) ? p.pitchType : 'pitch',
+            source: file.name,
+            tags: 'mp3-extracted',
+          });
+        }
+        setStatus(`${entries.length} Q&A pairs + ${pitches.length} closer pitches extracted for "${closerName}". Review Q&A below.`);
+      } catch (e) {
+        setStatus(`${entries.length} Q&A pairs extracted. Pitch extraction failed: ${e?.message || e}.`);
+      }
     } catch (e) {
       setError('Failed: ' + (e?.message || String(e)));
     }

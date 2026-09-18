@@ -47,6 +47,11 @@
       "title": "Creditors List",
       "format": "textarea"
     },
+    "debtLedgerJson": {
+      "type": "string",
+      "title": "Debt Ledger (JSON)",
+      "format": "textarea"
+    },
     "employmentStatus": {
       "type": "string",
       "title": "Employment Status",
