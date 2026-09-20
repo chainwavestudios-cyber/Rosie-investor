@@ -20,6 +20,7 @@ import { useReminders } from '@/hooks/useReminders';
 import RemindersFloatingPanel from '@/components/shared/RemindersFloatingPanel';
 import CallLogPanel from '@/components/admin/CallLogPanel';
 import SmsTab from '@/components/shared/SmsTab';
+import DebtTab from './DebtTab';
 
 const GOLD = '#b8933a';
 const DARK = '#0a0f1e';
@@ -1576,7 +1577,7 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
 
         {/* Tabs row */}
         <div style={{ display:'flex', borderBottom:'1px solid rgba(255,255,255,0.07)', flexShrink:0, alignItems:'center' }}>
-          {[['overview','Overview'],['history','History'],['email','✉️ Email'],['sms',unreadSms > 0 ? `💬 SMS (${unreadSms})` : '💬 SMS'],['actions','Actions'],['access','Site Access'],['sitestats','Site Stats'],['research','Research'],['script','Script & AI'],['aidetails','🤖 AI Details']].filter(([id]) => !(isArchived && id === 'actions')).map(([id,label]) => (
+          {[['overview','Overview'],['history','History'],['email','✉️ Email'],['sms',unreadSms > 0 ? `💬 SMS (${unreadSms})` : '💬 SMS'],['actions','Actions'],['access','Site Access'],['sitestats','Site Stats'],['research','Research'],['script','Script & AI'],['aidetails','🤖 AI Details'],['debt','💳 Debt']].filter(([id]) => !(isArchived && id === 'actions')).map(([id,label]) => (
             <button key={id} onClick={() => setTab(id)} style={{ background:'none', border:'none', borderBottom:tab===id?`2px solid ${GOLD}`:'2px solid transparent', color:tab===id?GOLD:'#6b7280', padding:'10px 16px', cursor:'pointer', fontSize:'11px', letterSpacing:'0.5px', whiteSpace:'nowrap' }}>{label}</button>
           ))}
           <div style={{ flex:1 }} />
@@ -1652,6 +1653,10 @@ export default function LeadContactCard({ lead, onClose, onUpdate, onDialNumber,
 
           {tab === 'aidetails' && (
             <AIDetailsTab lead={editLead} onUpdate={onUpdate} />
+          )}
+
+          {tab === 'debt' && (
+            <DebtTab lead={editLead} onUpdate={onUpdate} />
           )}
 
           {tab === 'actions' && (
