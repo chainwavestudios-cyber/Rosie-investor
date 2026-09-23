@@ -14,7 +14,7 @@ async function callClaude(userContent: any, system: string, maxTokens = 8000): P
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_KEY, 'anthropic-version': '2023-06-01' },
     body: JSON.stringify({
-      model: 'claude-sonnet-4-20250514',
+      model: 'claude-sonnet-5',
       max_tokens: maxTokens,
       system,
       messages: [{ role: 'user', content: userContent }],
