@@ -32,11 +32,11 @@ export default function DebtPitchTab() {
   const [uploadError, setUploadError] = useState('');
   const fileRef = useRef(null);
 
-  const MAX_BYTES = 50 * 1024 * 1024;
+  const MAX_BYTES = 100 * 1024 * 1024;
 
   const handleUpload = async (file) => {
     if (!file) return;
-    if (file.size > MAX_BYTES) { setUploadError(`File is ${(file.size / 1024 / 1024).toFixed(1)}MB — max is 50MB.`); return; }
+    if (file.size > MAX_BYTES) { setUploadError(`File is ${(file.size / 1024 / 1024).toFixed(1)}MB — max is 100MB.`); return; }
     setUploading(true); setUploadError(''); setUploadStatus(`Uploading ${file.name} (${(file.size / 1024 / 1024).toFixed(1)}MB)…`);
     try {
       const { file_url } = await base44.integrations.Core.UploadPublicFile({ file });
