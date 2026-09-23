@@ -8,6 +8,8 @@ import { base44 } from '@/api/base44Client';
 import { useDebtBobVoice } from '@/hooks/useDebtBobVoice';
 import { DEBT_DUCK, DEBT_COW, DEBT_OWL } from '@/components/admin/bob/DebtPersonas';
 import DebtBobKB from '@/components/debt/DebtBobKB';
+import FloatingScriptBox from '@/components/debt/FloatingScriptBox';
+import DebtAIPanel from '@/components/debt/DebtAIPanel';
 
 const GOLD = '#10b981';
 const DARK = '#0a0f1e';
@@ -169,7 +171,7 @@ ${kbText || 'No KB entries yet. Upload calls, documents, and websites to BOB\'s 
 
       {/* Training Room */}
       {subTab === 'training' && (
-        <div style={{ display: 'grid', gridTemplateColumns: '380px 1fr', gap: '16px', alignItems: 'start' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '380px 1fr 400px', gap: '16px', alignItems: 'start' }}>
           {/* Left: Controls */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
             {/* Call controls */}
@@ -291,6 +293,8 @@ ${kbText || 'No KB entries yet. Upload calls, documents, and websites to BOB\'s 
 
       {/* Training Log */}
       {subTab === 'log' && <TrainingLog logs={logs} onClear={() => { if (window.confirm('Clear all logs?')) setLogs([]); }} />}
+
+      <FloatingScriptBox storageKey="bob_script" />
     </div>
   );
 }
