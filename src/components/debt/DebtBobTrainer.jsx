@@ -10,6 +10,7 @@ import { DEBT_DUCK, DEBT_COW, DEBT_OWL } from '@/components/admin/bob/DebtPerson
 import DebtBobKB from '@/components/debt/DebtBobKB';
 import FloatingScriptBox from '@/components/debt/FloatingScriptBox';
 import AIAssistantPopup from '@/components/leads/AIAssistantPopup';
+import DebtScriptEditor from '@/components/debt/DebtScriptEditor';
 
 const GOLD = '#10b981';
 const DARK = '#0a0f1e';
@@ -49,6 +50,7 @@ export default function DebtBobTrainer() {
   const [callRefs, setCallRefs] = useState([]);
   const [selectedCallRefId, setSelectedCallRefId] = useState('');
   const [showAIPopup, setShowAIPopup] = useState(false);
+  const [rightView, setRightView] = useState('transcript');
   const [qaActive, setQaActive] = useState(false);
   const [coachActive, setCoachActive] = useState(false);
   const [intentActive, setIntentActive] = useState(false);
@@ -430,9 +432,17 @@ ${kbText || 'No KB entries yet. Upload calls, documents, and websites to BOB\'s 
           {/* Right: Transcript */}
           <div style={{ background: '#0d1b2a', border: '1px solid rgba(16,185,129,0.2)', borderRadius: '6px', display: 'flex', flexDirection: 'column', minHeight: '500px', maxHeight: '70vh' }}>
             <div style={{ padding: '12px 16px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div style={{ color: GOLD, fontSize: '11px', letterSpacing: '2px', textTransform: 'uppercase' }}>📋 Live Transcript</div>
-              <div style={{ color: '#6b7280', fontSize: '10px' }}>{transcript.length} lines · <span style={{ color: GOLD }}>{sessionId}</span></div>
+              <div style={{ display: 'flex', gap: '2px' }}>
+                <button onClick={() => setRightView('transcript')} style={{ padding: '4px 12px', background: rightView === 'transcript' ? `${GOLD}12` : 'transparent', border: 'none', borderBottom: `2px solid ${rightView === 'transcript' ? GOLD : 'transparent'}`, color: rightView === 'transcript' ? GOLD : '#6b7280', cursor: 'pointer', fontSize: '11px', fontWeight: rightView === 'transcript' ? 'bold' : 'normal', letterSpacing: '1px', textTransform: 'uppercase' }}>📋 Transcript</button>
+                <button onClick={() => setRightView('scripts')} style={{ padding: '4px 12px', background: rightView === 'scripts' ? `${GOLD}12` : 'transparent', border: 'none', borderBottom: `2px solid ${rightView === 'scripts' ? GOLD : 'transparent'}`, color: rightView === 'scripts' ? GOLD : '#6b7280', cursor: 'pointer', fontSize: '11px', fontWeight: rightView === 'scripts' ? 'bold' : 'normal', letterSpacing: '1px', textTransform: 'uppercase' }}>📝 Scripts</button>
+              </div>
+              <div style={{ color: '#6b7280', fontSize: '10px' }}>{rightView === 'transcript' ? <>{transcript.length} lines · <span style={{ color: GOLD }}>{sessionId}</span></> : 'Debt Call Coach Scripts'}</div>
             </div>
+            {rightView === 'scripts' ? (
+              <div style={{ flex: 1, overflow: 'hidden', padding: '14px 16px' }}>
+                <DebtScriptEditor />
+              </div>
+            ) : (
             <div style={{ flex: 1, overflowY: 'auto', padding: '14px 16px' }}>
               {transcript.length === 0 ? (
                 <div style={{ color: '#4a5568', textAlign: 'center', padding: '60px 0', fontSize: '13px' }}>
@@ -450,6 +460,7 @@ ${kbText || 'No KB entries yet. Upload calls, documents, and websites to BOB\'s 
                 );
               })}
             </div>
+            )}
           </div>
         </div>
 
