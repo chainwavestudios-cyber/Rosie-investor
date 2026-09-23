@@ -200,8 +200,18 @@ export function useDebtBobVoice({ onTranscript, onLog } = {}) {
               try { if (audioCtxRef.current) nextStartRef.current = 0; } catch {}
               setAgentSpeaking(false);
               break;
+            case 'Error':
+              console.error('[BOB] Deepgram Error:', msg.code, msg.description);
+              setError(`Deepgram: ${msg.code} — ${msg.description}`);
+              onLog?.('session_end', `❌ Deepgram error: ${msg.code} — ${msg.description}`);
+              break;
+            case 'Warning':
+              console.warn('[BOB] Deepgram Warning:', msg.code, msg.description);
+              break;
+            default:
+              console.log('[BOB] Unhandled message type:', msg.type, msg);
           }
-        } catch {}
+        } catch (e) { console.error('[BOB] Message parse error:', e); }
       };
 
       ws.onerror = () => {
