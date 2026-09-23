@@ -36,6 +36,21 @@ export default function DebtBobTrainer() {
   const [callCount, setCallCount] = useState(0);
   const [sessionId, setSessionId] = useState('Bob');
   const [kbCount, setKbCount] = useState(0);
+  const [dgApiKey, setDgApiKey] = useState('');
+
+  // Load Deepgram API key from PortalSettings (shared with admin BobTab)
+  useEffect(() => {
+    base44.entities.PortalSettings.filter({ key: 'bob_controls_debt' })
+      .then(rows => {
+        if (rows?.length > 0 && rows[0].adminUsername) {
+          try {
+            const saved = JSON.parse(rows[0].adminUsername);
+            if (saved.dgApiKey) setDgApiKey(saved.dgApiKey);
+          } catch {}
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   const transcriptRef = useRef([]);
   useEffect(() => { transcriptRef.current = transcript; }, [transcript]);
@@ -110,12 +125,12 @@ ${kbText || 'No KB entries yet. Upload calls, documents, and websites to BOB\'s 
     const vIdx = (newCount - 1) % VOICE_MODELS.length;
     setVoiceModel(VOICE_MODELS[vIdx]);
 
-    const apiKey = import.meta.env.VITE_DEEPGRAM_API_KEY || '44294c0c2f0ebbcc81b853151056111226b853e9';
+    const apiKey = dgApiKey || '44294c0c2f0ebbcc81b853151056111226b853e9';
     const greetings = ['Hello.', 'Hello?', 'Hello, this is Bob.', 'Yeah?', 'Hello, go ahead.'];
     const greeting = greetings[Math.floor(Math.random() * greetings.length)];
 
     await startCall({ apiKey, systemPrompt: buildSystemPrompt(), voiceModel: VOICE_MODELS[vIdx], greeting, sessionLabel: label });
-  }, [callCount, startCall, buildSystemPrompt]);
+  }, [callCount, startCall, buildSystemPrompt, dgApiKey]);
 
   const sliderLabel = sliderValue < 20 ? '🦆 Full Duck' : sliderValue < 40 ? '🦆 Duck-Owl' : sliderValue < 60 ? '🦉 Owl (Hybrid)' : sliderValue < 80 ? '🐄 Owl-Cow' : '🐄 Full Cow';
   const sliderColor = sliderValue < 33 ? '#ef4444' : sliderValue < 67 ? '#f59e0b' : '#4ade80';

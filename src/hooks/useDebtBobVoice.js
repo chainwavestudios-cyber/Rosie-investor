@@ -14,6 +14,7 @@ function useRingTone() {
     if (!AC) { setTimeout(onPickup, 3800); return; }
     const ctx = new AC();
     ctxRef.current = ctx;
+    if (ctx.state === 'suspended') ctx.resume();
     const playRing = (startAt) => {
       [440, 480].forEach(freq => {
         const osc = ctx.createOscillator();
@@ -114,6 +115,9 @@ export function useDebtBobVoice({ onTranscript, onLog } = {}) {
 
       const ws = new WebSocket(DG_WS_URL, ['token', apiKey]);
       ws.binaryType = 'arraybuffer'; wsRef.current = ws;
+      console.log('[BOB] Connecting to Deepgram Voice Agent, key prefix:', apiKey.slice(0, 8) + '...');
+
+      ws.onopen = () => console.log('[BOB] WebSocket open ✓ — waiting for Welcome message');
 
       ws.onmessage = (e) => {
         if (e.data instanceof ArrayBuffer) { setAgentSpeaking(true); playChunk(e.data); return; }
