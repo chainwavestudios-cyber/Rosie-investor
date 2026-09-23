@@ -131,7 +131,11 @@ export default function DebtBobTrainer() {
 
   const buildSystemPrompt = useCallback(() => {
     const persona = getActivePersona();
-    const kbText = kbEntries.slice(0, 30).map(e => `Q: ${e.question}\nA: ${e.answer}`).join('\n\n');
+    // Limit KB to 15 entries and truncate long answers to prevent exceeding Deepgram/OpenAI token limits
+    const kbText = kbEntries.slice(0, 15).map(e => {
+      const ans = (e.answer || '').slice(0, 500);
+      return `Q: ${e.question}\nA: ${ans}`;
+    }).join('\n\n');
     const sliderLabel = sliderValue < 20 ? 'full Duck mode (hard sell — skeptical, resistant, stress-tests the closer)'
       : sliderValue < 40 ? 'Duck-leaning Owl (mostly resistant but will consider logic)'
       : sliderValue < 60 ? 'Owl/Hybrid (analytical, wants to understand the program)'

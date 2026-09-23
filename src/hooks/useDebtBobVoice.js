@@ -58,6 +58,8 @@ export function useDebtBobVoice({ onTranscript, onLog } = {}) {
   const processorRef = useRef(null);
   const nextStartRef = useRef(0);
   const listeningRef = useRef(false);
+  const onLogRef = useRef(onLog);
+  useEffect(() => { onLogRef.current = onLog; }, [onLog]);
   const ring = useRingTone();
 
   useEffect(() => {
@@ -103,7 +105,7 @@ export function useDebtBobVoice({ onTranscript, onLog } = {}) {
           const file = new File([blob], `bob-training-${Date.now()}.webm`, { type: 'audio/webm' });
           const { file_url } = await base44.integrations.Core.UploadPublicFile({ file });
           setRecordingUrl(file_url);
-          onLog?.('session_end', `🎵 Recording saved: ${file_url}`);
+          onLogRef.current?.('session_end', `🎵 Recording saved: ${file_url}`);
         } catch (e) { console.warn('[BOB] Recording upload failed:', e); }
       };
       try { rec.stop(); } catch {}
@@ -116,11 +118,11 @@ export function useDebtBobVoice({ onTranscript, onLog } = {}) {
     audioCtxRef.current = null; micStreamRef.current = null; wsRef.current = null;
     if (updatePhase) setPhase('idle');
     ring.stop();
-  }, [ring, onLog]);
+  }, [ring]);
 
   const startCall = useCallback(async ({ apiKey, systemPrompt, voiceModel, greeting, sessionLabel }) => {
     setError(''); setPhase('ringing'); setRingPhase(true);
-    onLog?.('session_start', `📞 ${sessionLabel} started.`);
+    onLogRef.current?.('session_start', `📞 ${sessionLabel} started.`);
 
     ring.play(async () => {
       setRingPhase(false); setPhase('connecting');
@@ -144,7 +146,10 @@ export function useDebtBobVoice({ onTranscript, onLog } = {}) {
       ws.binaryType = 'arraybuffer'; wsRef.current = ws;
       console.log('[BOB] Connecting to Deepgram Voice Agent, key prefix:', apiKey.slice(0, 8) + '...');
 
-      ws.onopen = () => console.log('[BOB] WebSocket open ✓ — waiting for Welcome message');
+      ws.onopen = () => {
+        console.log('[BOB] WebSocket open ✓ — waiting for Welcome message');
+        console.log('[BOB] System prompt length:', systemPrompt?.length || 0, 'chars');
+      };
 
       ws.onmessage = (e) => {
         if (e.data instanceof ArrayBuffer) { setAgentSpeaking(true); playChunk(e.data); return; }
@@ -152,7 +157,7 @@ export function useDebtBobVoice({ onTranscript, onLog } = {}) {
           const msg = JSON.parse(e.data);
           switch (msg.type) {
             case 'Welcome':
-              ws.send(JSON.stringify({
+              const settingsPayload = {
                 type: 'Settings',
                 audio: { input: { encoding: 'linear16', sample_rate: 24000 }, output: { encoding: 'linear16', sample_rate: 24000, container: 'none' } },
                 agent: {
@@ -161,7 +166,10 @@ export function useDebtBobVoice({ onTranscript, onLog } = {}) {
                   speak: { provider: { type: 'deepgram', model: voiceModel } },
                   greeting,
                 },
-              }));
+              };
+              console.log('[BOB] Got Welcome ✓ — sending Settings. Prompt length:', systemPrompt?.length, 'Voice:', voiceModel, 'Greeting:', greeting);
+              console.log('[BOB] Full Settings payload:', JSON.stringify(settingsPayload).slice(0, 500) + '...');
+              ws.send(JSON.stringify(settingsPayload));
               break;
             case 'SettingsApplied': {
               const source = ctx.createMediaStreamSource(stream);
@@ -193,7 +201,7 @@ export function useDebtBobVoice({ onTranscript, onLog } = {}) {
             case 'ConversationText': {
               const entry = { role: msg.role === 'user' ? 'trainee' : 'bob', text: msg.content, time: new Date().toISOString() };
               onTranscript?.(entry);
-              onLog?.('transcript', `[${entry.role === 'bob' ? '🤖 BOB' : '🎙 TRAINEE'}] ${msg.content}`);
+              onLogRef.current?.('transcript', `[${entry.role === 'bob' ? '🤖 BOB' : '🎙 TRAINEE'}] ${msg.content}`);
               break;
             }
             case 'UserStartedSpeaking':
@@ -203,7 +211,7 @@ export function useDebtBobVoice({ onTranscript, onLog } = {}) {
             case 'Error':
               console.error('[BOB] Deepgram Error:', msg.code, msg.description);
               setError(`Deepgram: ${msg.code} — ${msg.description}`);
-              onLog?.('session_end', `❌ Deepgram error: ${msg.code} — ${msg.description}`);
+              onLogRef.current?.('session_end', `❌ Deepgram error: ${msg.code} — ${msg.description}`);
               break;
             case 'Warning':
               console.warn('[BOB] Deepgram Warning:', msg.code, msg.description);
@@ -233,10 +241,10 @@ export function useDebtBobVoice({ onTranscript, onLog } = {}) {
         }[e.code] || `Close code ${e.code}`;
         setError(e.code !== 1000 ? `Disconnected: ${codeMsg}` : '');
         setPhase('idle'); ring.stop(); cleanup(false);
-        onLog?.('session_end', `📵 Call ended. ${codeMsg}. Reason: ${e.reason || '(none)'}`);
+        onLogRef.current?.('session_end', `📵 Call ended. ${codeMsg}. Reason: ${e.reason || '(none)'}`);
       };
     });
-  }, [micDeviceId, playChunk, ring, onTranscript, onLog, cleanup]);
+  }, [micDeviceId, playChunk, ring, onTranscript, cleanup]);
 
   const hangup = useCallback(() => { cleanup(true); }, [cleanup]);
 
