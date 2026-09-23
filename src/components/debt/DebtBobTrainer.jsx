@@ -159,8 +159,16 @@ ${kbText || 'No KB entries yet. Upload calls, documents, and websites to BOB\'s 
     const vIdx = (newCount - 1) % VOICE_MODELS.length;
     setVoiceModel(VOICE_MODELS[vIdx]);
 
-    // Use the same key source as admin BobTab: PortalSettings first, then hardcoded fallback
-    const apiKey = dgApiKey || '44294c0c2f0ebbcc81b853151056111226b853e9';
+    // Use the same key source as admin BobTab: PortalSettings first, then fresh token from deepgram2 secret, then hardcoded fallback
+    let apiKey = dgApiKey;
+    if (!apiKey) {
+      try {
+        const tokenRes = await base44.functions.invoke('deepgramToken2', {});
+        apiKey = tokenRes?.key || tokenRes?.data?.key || '';
+        console.log('[BOB] Got fresh Deepgram token, prefix:', apiKey.slice(0, 10) + '...');
+      } catch (e) { console.warn('[BOB] deepgramToken2 failed:', e); }
+    }
+    if (!apiKey) apiKey = '44294c0c2f0ebbcc81b853151056111226b853e9';
     const greetings = ['Hello.', 'Hello?', 'Hello, this is Bob.', 'Yeah?', 'Hello, go ahead.'];
     const greeting = greetings[Math.floor(Math.random() * greetings.length)];
 
