@@ -8,6 +8,7 @@ import DebtLeadCard from '@/components/debt/DebtLeadCard';
 import { DebtPitchPanel } from '@/components/debt/DebtPitchTab';
 import DebtIntentSignals, { DEBT_INTENT_RULES } from '@/components/debt/DebtIntentSignals';
 import FloatingScriptBox from '@/components/debt/FloatingScriptBox';
+import DebtAIPanel from '@/components/debt/DebtAIPanel';
 
 const GOLD = '#10b981';
 const DARK = '#0a0f1e';
@@ -404,60 +405,15 @@ ${recentText}`,
           </div>
         </div>
 
-        {/* Right panel: AI Assistant | Pitches | Intent Signals */}
-        <div style={{ background: '#0d1b2a', border: '1px solid rgba(16,185,129,0.2)', borderRadius: '6px', display: 'flex', flexDirection: 'column', minHeight: '500px', maxHeight: '70vh' }}>
-          <div style={{ padding: '0 16px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', gap: '2px' }}>
-            {[{ id: 'ai', label: '🤖 AI' }, { id: 'pitches', label: '🎤 Pitches' }, { id: 'signals', label: '🎯 Signals' }].map(t => (
-              <button key={t.id} onClick={() => setRightTab(t.id)} style={{ padding: '10px 12px', background: 'none', border: 'none', borderBottom: `2px solid ${rightTab === t.id ? GOLD : 'transparent'}`, color: rightTab === t.id ? GOLD : '#6b7280', cursor: 'pointer', fontSize: '11px', fontWeight: rightTab === t.id ? 'bold' : 'normal', whiteSpace: 'nowrap' }}>{t.label}</button>
-            ))}
-          </div>
-          {rightTab === 'ai' && (
-          <div style={{ padding: '10px 16px', borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', gap: '6px' }}>
-            {[{ key: 'qa', label: 'Q&A', active: qaActive, toggle: () => setQaActive(p => !p), color: '#34d399' }, { key: 'coach', label: 'Coach', active: coachActive, toggle: () => setCoachActive(p => !p), color: '#f59e0b' }, { key: 'intent', label: 'Intent', active: intentActive, toggle: () => setIntentActive(p => !p), color: '#f472b6' }].map(f => (
-              <button key={f.key} onClick={f.toggle} style={{ flex: 1, padding: '7px', borderRadius: '4px', border: `1px solid ${f.active ? f.color + '66' : 'rgba(255,255,255,0.1)'}`, background: f.active ? `${f.color}18` : 'transparent', color: f.active ? f.color : '#6b7280', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase' }}>{f.active ? '● ' : '○ '}{f.label}</button>
-            ))}
-          </div>
-          )}
-          {rightTab === 'ai' && (
-          <div style={{ flex: 1, overflowY: 'auto', padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-            {ledgerExtracting && <div style={{ color: GOLD, fontSize: '10px', textAlign: 'center' }}>⏳ Extracting debt info from call…</div>}
-            {intentScore !== null && (
-              <div style={{ background: 'rgba(244,114,182,0.08)', border: '1px solid rgba(244,114,182,0.2)', borderRadius: '4px', padding: '10px' }}>
-                <div style={{ color: '#f472b6', fontSize: '10px', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '6px' }}>📊 Intent Score</div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  <div style={{ flex: 1, height: '6px', background: 'rgba(255,255,255,0.1)', borderRadius: '3px', overflow: 'hidden' }}>
-                    <div style={{ width: `${intentScore}%`, height: '100%', background: 'linear-gradient(90deg,#ef4444,#f59e0b,#4ade80)', borderRadius: '3px', transition: 'width 0.5s' }} />
-                  </div>
-                  <span style={{ color: '#f472b6', fontSize: '14px', fontWeight: 'bold' }}>{intentScore}</span>
-                </div>
-              </div>
-            )}
-            {profileData && (
-              <div style={{ background: 'rgba(167,139,250,0.08)', border: '1px solid rgba(167,139,250,0.2)', borderRadius: '4px', padding: '10px' }}>
-                <div style={{ color: '#a78bfa', fontSize: '10px', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '6px' }}>🧠 Profile Building</div>
-                <div style={{ color: '#c4cdd8', fontSize: '11px' }}>Animal: <strong>{profileData.animalType || 'unknown'}</strong></div>
-                {profileData.overallIntentLabel && <div style={{ color: '#8a9ab8', fontSize: '11px' }}>Intent: {profileData.overallIntentLabel}</div>}
-                {profileData.keyObservations?.[0] && <div style={{ color: '#6b7280', fontSize: '10px', marginTop: '4px' }}>• {profileData.keyObservations[0]}</div>}
-              </div>
-            )}
-            {coachTips.length > 0 && (
-              <div>
-                <div style={{ color: '#f59e0b', fontSize: '10px', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '6px' }}>💡 Coach Tips</div>
-                {coachTips.slice(0, 5).map((t, i) => <div key={i} style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.15)', borderRadius: '4px', padding: '8px 10px', marginBottom: '5px', fontSize: '11px', color: '#c4cdd8', lineHeight: 1.5 }}>{t.tip}</div>)}
-              </div>
-            )}
-            {qaItems.length > 0 && (
-              <div>
-                <div style={{ color: '#34d399', fontSize: '10px', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '6px' }}>🔍 Q&A</div>
-                {qaItems.slice(-5).map(item => <div key={item.id} style={{ background: 'rgba(52,211,153,0.06)', border: '1px solid rgba(52,211,153,0.15)', borderRadius: '4px', padding: '8px 10px', marginBottom: '5px' }}><div style={{ color: '#34d399', fontSize: '10px' }}>Q: {item.question}</div><div style={{ color: '#c4cdd8', fontSize: '11px', lineHeight: 1.4 }}>{item.loading ? '⏳…' : `A: ${item.answer}`}</div></div>)}
-              </div>
-            )}
-            {qaItems.length === 0 && coachTips.length === 0 && intentScore === null && <div style={{ color: '#4a5568', fontSize: '12px', textAlign: 'center', padding: '30px 0' }}>{phase === 'live' ? 'AI tools listening…' : 'Start a call to activate.'}</div>}
-          </div>
-          )}
-          {rightTab === 'pitches' && <div style={{ flex: 1, overflowY: 'auto' }}><DebtPitchPanel /></div>}
-          {rightTab === 'signals' && <div style={{ flex: 1, overflowY: 'auto', padding: '8px' }}><DebtIntentSignals /></div>}
-        </div>
+        {/* AI Tools Panel — Twilio Stream + Q&A/Coach/Intent popup + Pitches + Signals */}
+        <DebtAIPanel
+          transcript={transcript}
+          kbEntries={kbEntries}
+          isActive={phase === 'live'}
+          profileData={profileData}
+          intentScore={intentScore}
+          ledgerExtracting={ledgerExtracting}
+        />
       </div>
 
       {/* Post-call report */}
