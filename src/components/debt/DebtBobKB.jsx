@@ -25,12 +25,21 @@ const UPLOAD_TABS = [
   { id: 'close_scenario', label: '🎯 Close Scenario', color: '#a78bfa' },
 ];
 
+const CATEGORY_LABELS = {
+  debt_kb: 'KB', debt_faq: 'FAQ', debt_agent: 'Agent', debt_customer: 'Customer',
+  debt_doc: 'Document', debt_web: 'Website', debt_call: 'Call Recording',
+  debt_objections: 'Objections', debt_open_scenario: 'Open Scenario', debt_close_scenario: 'Close Scenario',
+};
+
 export default function DebtBobKB({ onKBUpdated }) {
   const [uploadTab, setUploadTab] = useState('doc');
   const [entries, setEntries] = useState([]);
   const [loading, setLoading] = useState(true);
   const [status, setStatus] = useState('');
   const [error, setError] = useState('');
+  const [selectedIds, setSelectedIds] = useState(new Set());
+  const [filterCategory, setFilterCategory] = useState('all');
+  const [deleting, setDeleting] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -59,8 +68,37 @@ export default function DebtBobKB({ onKBUpdated }) {
   const del = async (id) => {
     if (!window.confirm('Delete this entry?')) return;
     await base44.entities.KnowledgeBase.delete(id);
+    setSelectedIds(prev => { const n = new Set(prev); n.delete(id); return n; });
     refresh();
   };
+
+  const toggleSelect = (id) => {
+    setSelectedIds(prev => { const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n; });
+  };
+
+  const toggleSelectAll = () => {
+    const visibleIds = filteredEntries.map(e => e.id);
+    if (visibleIds.length > 0 && visibleIds.every(id => selectedIds.has(id))) {
+      setSelectedIds(prev => { const n = new Set(prev); visibleIds.forEach(id => n.delete(id)); return n; });
+    } else {
+      setSelectedIds(prev => { const n = new Set(prev); visibleIds.forEach(id => n.add(id)); return n; });
+    }
+  };
+
+  const deleteSelected = async () => {
+    if (selectedIds.size === 0) return;
+    if (!window.confirm(`Delete ${selectedIds.size} selected entries?`)) return;
+    setDeleting(true);
+    try {
+      for (const id of selectedIds) { await base44.entities.KnowledgeBase.delete(id); }
+      setSelectedIds(new Set());
+      await refresh();
+    } catch (e) { setError('Bulk delete failed: ' + (e?.message || String(e))); }
+    setDeleting(false);
+  };
+
+  // Filter entries by category
+  const filteredEntries = filterCategory === 'all' ? entries : entries.filter(e => e.category === filterCategory);
 
   // Stats by source type
   const stats = {
@@ -112,23 +150,44 @@ export default function DebtBobKB({ onKBUpdated }) {
 
       {/* KB Entry List */}
       <div style={{ marginTop: '24px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-          <div style={{ color: GOLD, fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase' }}>BOB's Knowledge — {entries.length} Entries</div>
-          <button onClick={refresh} style={{ background: 'rgba(255,255,255,0.05)', color: '#8a9ab8', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '4px', padding: '6px 12px', cursor: 'pointer', fontSize: '11px' }}>↻ Refresh</button>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', flexWrap: 'wrap', gap: '8px' }}>
+          <div style={{ color: GOLD, fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase' }}>BOB's Knowledge — {filteredEntries.length}{filterCategory !== 'all' ? ` of ${entries.length}` : ''} Entries</div>
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+            <select value={filterCategory} onChange={e => setFilterCategory(e.target.value)} style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '4px', padding: '6px 10px', color: '#e8e0d0', fontSize: '11px', cursor: 'pointer', outline: 'none' }}>
+              <option value="all">All Categories</option>
+              {Object.entries(CATEGORY_LABELS).map(([cat, label]) => <option key={cat} value={cat}>{label}</option>)}
+            </select>
+            {selectedIds.size > 0 && (
+              <button onClick={deleteSelected} disabled={deleting} style={{ background: 'rgba(239,68,68,0.15)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '4px', padding: '6px 12px', cursor: deleting ? 'not-allowed' : 'pointer', fontSize: '11px', fontWeight: 'bold' }}>
+                {deleting ? '⏳ Deleting…' : `🗑 Delete ${selectedIds.size} Selected`}
+              </button>
+            )}
+            <button onClick={refresh} style={{ background: 'rgba(255,255,255,0.05)', color: '#8a9ab8', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '4px', padding: '6px 12px', cursor: 'pointer', fontSize: '11px' }}>↻ Refresh</button>
+          </div>
         </div>
         {loading ? <div style={{ color: '#4a5568', padding: '30px 0', textAlign: 'center' }}>Loading…</div> :
          entries.length === 0 ? <div style={{ color: '#4a5568', textAlign: 'center', padding: '40px 0', fontSize: '13px' }}>No entries yet. Upload calls, documents, or websites above to make BOB smarter.</div> :
+         filteredEntries.length === 0 ? <div style={{ color: '#4a5568', textAlign: 'center', padding: '40px 0', fontSize: '13px' }}>No entries in this category.</div> :
          <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
-           {entries.map(e => (
-             <div key={e.id} style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: '4px', padding: '12px', marginBottom: '6px' }}>
-               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                 <div style={{ color: '#e8e0d0', fontSize: '12px', fontWeight: 'bold' }}>{e.question}</div>
-                 <button onClick={() => del(e.id)} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '10px' }}>Delete</button>
-               </div>
-               <div style={{ color: '#8a9ab8', fontSize: '11px', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>{(e.answer || '').slice(0, 200)}{(e.answer || '').length > 200 ? '…' : ''}</div>
-               <div style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
-                 <span style={{ color: '#4a5568', fontSize: '9px' }}>{e.category}</span>
-                 {e.source && <span style={{ color: '#4a5568', fontSize: '9px' }}>· {e.source}</span>}
+           {/* Select All row */}
+           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', marginBottom: '6px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '4px' }}>
+             <input type="checkbox" checked={filteredEntries.length > 0 && filteredEntries.every(e => selectedIds.has(e.id))} onChange={toggleSelectAll} style={{ cursor: 'pointer', accentColor: GOLD }} />
+             <span style={{ color: '#8a9ab8', fontSize: '11px' }}>{filteredEntries.every(e => selectedIds.has(e.id)) ? 'Deselect' : 'Select'} All ({filteredEntries.length})</span>
+             {selectedIds.size > 0 && <span style={{ color: GOLD, fontSize: '11px', marginLeft: 'auto' }}>{selectedIds.size} selected</span>}
+           </div>
+           {filteredEntries.map(e => (
+             <div key={e.id} style={{ background: selectedIds.has(e.id) ? 'rgba(16,185,129,0.06)' : 'rgba(255,255,255,0.02)', border: `1px solid ${selectedIds.has(e.id) ? 'rgba(16,185,129,0.25)' : 'rgba(255,255,255,0.07)'}`, borderRadius: '4px', padding: '12px', marginBottom: '6px', display: 'flex', gap: '10px' }}>
+               <input type="checkbox" checked={selectedIds.has(e.id)} onChange={() => toggleSelect(e.id)} style={{ cursor: 'pointer', accentColor: GOLD, marginTop: '2px', flexShrink: 0 }} />
+               <div style={{ flex: 1, minWidth: 0 }}>
+                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px', gap: '8px' }}>
+                   <div style={{ color: '#e8e0d0', fontSize: '12px', fontWeight: 'bold' }}>{e.question}</div>
+                   <button onClick={() => del(e.id)} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '10px', flexShrink: 0 }}>Delete</button>
+                 </div>
+                 <div style={{ color: '#8a9ab8', fontSize: '11px', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>{(e.answer || '').slice(0, 200)}{(e.answer || '').length > 200 ? '…' : ''}</div>
+                 <div style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
+                   <span style={{ color: '#4a5568', fontSize: '9px' }}>{CATEGORY_LABELS[e.category] || e.category}</span>
+                   {e.source && <span style={{ color: '#4a5568', fontSize: '9px' }}>· {e.source}</span>}
+                 </div>
                </div>
              </div>
            ))}
