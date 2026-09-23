@@ -46,7 +46,7 @@ export default function DebtBobTrainer() {
   const [sessionId, setSessionId] = useState('Bob');
   const [kbCount, setKbCount] = useState(0);
   const [dgApiKey, setDgApiKey] = useState('');
-  const [scenario, setScenario] = useState({ customerName: 'Bob', customerCity: '', customerState: '', debtAmount: '', creditorCount: '', creditors: '', monthlyIncome: '', behindOnPayments: false, monthsBehind: '' });
+  const [scenario, setScenario] = useState({ customerName: 'Bob', customerCity: 'Green Grove Springs', customerState: 'FL', debtAmount: '35000', creditorCount: '5', creditors: 'Chase, Capital One, Discover, Amex, Citi', monthlyIncome: '3200', behindOnPayments: true, monthsBehind: '3' });
   const [callRefs, setCallRefs] = useState([]);
   const [selectedCallRefId, setSelectedCallRefId] = useState('');
   const [showAIPopup, setShowAIPopup] = useState(false);
