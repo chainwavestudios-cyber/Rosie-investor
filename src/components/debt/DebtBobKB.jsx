@@ -219,6 +219,7 @@ function DocUploader({ onStatus, onError, onDone }) {
       const base64 = await new Promise(resolve => { reader.onload = () => resolve(reader.result.split(',')[1]); reader.readAsDataURL(blob); });
       const result = await base44.functions.invoke('kbExtractFile', { fileName: file.name, fileType: file.type, base64, kbName: 'Debt Settlement' });
       const extracted = result?.entries || result?.data?.entries || [];
+      if (result?.error || result?.data?.error) throw new Error(result?.error || result?.data?.error);
       onStatus(`Saving ${extracted.length} entries to BOB's brain…`);
       for (const e of extracted) {
         await base44.entities.KnowledgeBase.create({
@@ -231,15 +232,18 @@ function DocUploader({ onStatus, onError, onDone }) {
       onStatus(`✓ ${extracted.length} entries extracted from ${file.name}! BOB is smarter.`);
       onDone();
       setTimeout(() => onStatus(''), 4000);
-    } catch (e) { onError('Failed: ' + (e?.message || String(e))); }
+    } catch (e) {
+      const errMsg = e?.response?.data?.error || e?.message || String(e);
+      onError('Failed: ' + errMsg);
+    }
     setUploading(false);
   };
 
   return (
     <div style={{ background: 'rgba(167,139,250,0.05)', border: '1px solid rgba(167,139,250,0.2)', borderRadius: '6px', padding: '20px' }}>
       <div style={{ color: '#a78bfa', fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '4px' }}>Upload Document</div>
-      <div style={{ color: '#6b7280', fontSize: '11px', marginBottom: '16px' }}>PDFs, program docs, compliance materials. AI extracts Q&A and facts to teach BOB.</div>
-      <input ref={fileRef} type="file" accept=".pdf,.txt,.doc,.docx" style={{ display: 'none' }} onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f); e.target.value = ''; }} />
+      <div style={{ color: '#6b7280', fontSize: '11px', marginBottom: '16px' }}>PDFs and text files only. AI extracts Q&A and facts to teach BOB. <strong style={{ color: '#a78bfa' }}>Word docs (.doc/.docx) are not supported — convert to PDF first.</strong></div>
+      <input ref={fileRef} type="file" accept=".pdf,.txt" style={{ display: 'none' }} onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f); e.target.value = ''; }} />
       <button onClick={() => fileRef.current?.click()} disabled={uploading}
         style={{ background: uploading ? 'rgba(255,255,255,0.05)' : 'linear-gradient(135deg,#a78bfa,#7c3aed)', color: uploading ? '#6b7280' : DARK, border: 'none', borderRadius: '4px', padding: '12px 24px', cursor: uploading ? 'not-allowed' : 'pointer', fontSize: '12px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase' }}>
         {uploading ? '⏳ Processing…' : '📁 Upload Document (PDF/TXT)'}

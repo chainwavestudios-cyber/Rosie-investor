@@ -20,6 +20,11 @@ async function callClaude(userContent: any, system: string, maxTokens = 8000): P
       messages: [{ role: 'user', content: userContent }],
     }),
   });
+  if (!res.ok) {
+    const errText = await res.text();
+    console.error('[kbExtractFile] Claude API error:', res.status, errText.slice(0, 300));
+    throw new Error(`Claude API ${res.status}: ${errText.slice(0, 200)}`);
+  }
   const data = await res.json();
   if (data.error) throw new Error(data.error.message || 'Claude error');
   return data?.content?.[0]?.text || '';
@@ -82,6 +87,11 @@ Deno.serve(async (req) => {
 
     let qaEntries:    any[] = [];
     let chunkEntries: any[] = [];
+
+    // .doc/.docx are binary — can't decode as text, and Claude document API only supports PDF
+    if (fileType === 'application/msword' || fileType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
+      return Response.json({ error: 'Word documents (.doc/.docx) are not supported. Please convert to PDF or plain text.' }, { status: 400 });
+    }
 
     if (fileType === 'application/pdf') {
       const doc = [{ type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: base64 } }];
