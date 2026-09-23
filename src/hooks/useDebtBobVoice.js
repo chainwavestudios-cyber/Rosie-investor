@@ -220,14 +220,20 @@ export function useDebtBobVoice({ onTranscript, onLog } = {}) {
       };
 
       ws.onclose = (e) => {
+        console.warn('[BOB] WS closed — code:', e.code, 'reason:', e.reason || '(empty)', 'wasClean:', e.wasClean);
         const codeMsg = {
-          1000: 'Normal close', 1006: 'Connection dropped (network or bad API key)',
-          1008: 'Auth failed — check Deepgram API key', 4000: 'Invalid API key',
-          4001: 'Unauthorized', 4002: 'Insufficient credits',
+          1000: 'Normal close',
+          1005: 'No status received — server closed without close frame (often bad API key or invalid Settings)',
+          1006: 'Connection dropped (network or bad API key)',
+          1008: 'Auth failed — check Deepgram API key',
+          1011: 'Server error — invalid audio format or model name',
+          4000: 'Invalid API key',
+          4001: 'Unauthorized',
+          4002: 'Insufficient credits',
         }[e.code] || `Close code ${e.code}`;
         setError(e.code !== 1000 ? `Disconnected: ${codeMsg}` : '');
         setPhase('idle'); ring.stop(); cleanup(false);
-        onLog?.('session_end', `📵 Call ended. ${codeMsg}.`);
+        onLog?.('session_end', `📵 Call ended. ${codeMsg}. Reason: ${e.reason || '(none)'}`);
       };
     });
   }, [micDeviceId, playChunk, ring, onTranscript, onLog, cleanup]);
