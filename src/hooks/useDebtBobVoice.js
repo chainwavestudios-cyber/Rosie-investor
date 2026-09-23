@@ -4,6 +4,7 @@
  * audio playback (Bob's voice), mic streaming, transcript tracking.
  */
 import { useState, useRef, useCallback, useEffect } from 'react';
+import { base44 } from '@/api/base44Client';
 
 const DG_WS_URL = 'wss://agent.deepgram.com/v1/agent/converse';
 
@@ -45,8 +46,13 @@ export function useDebtBobVoice({ onTranscript, onLog } = {}) {
   const [micDevices, setMicDevices] = useState([]);
   const [micDeviceId, setMicDeviceId] = useState('');
   const [ringPhase, setRingPhase] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingUrl, setRecordingUrl] = useState('');
 
   const wsRef = useRef(null);
+  const recorderRef = useRef(null);
+  const recordDestRef = useRef(null);
+  const chunksRef = useRef([]);
   const audioCtxRef = useRef(null);
   const micStreamRef = useRef(null);
   const processorRef = useRef(null);
@@ -75,6 +81,7 @@ export function useDebtBobVoice({ onTranscript, onLog } = {}) {
     ab.copyToChannel(f32, 0);
     const src = ctx.createBufferSource();
     src.buffer = ab; src.connect(ctx.destination);
+    if (recordDestRef.current) src.connect(recordDestRef.current);
     const now = ctx.currentTime;
     if (nextStartRef.current < now) nextStartRef.current = now + 0.05;
     src.start(nextStartRef.current);
@@ -84,6 +91,24 @@ export function useDebtBobVoice({ onTranscript, onLog } = {}) {
 
   const cleanup = useCallback((updatePhase = true) => {
     listeningRef.current = false;
+    if (recorderRef.current && recorderRef.current.state !== 'inactive') {
+      const rec = recorderRef.current;
+      rec.onstop = async () => {
+        setIsRecording(false);
+        if (chunksRef.current.length === 0) return;
+        const blob = new Blob(chunksRef.current, { type: 'audio/webm' });
+        chunksRef.current = [];
+        if (blob.size < 2000) return;
+        try {
+          const file = new File([blob], `bob-training-${Date.now()}.webm`, { type: 'audio/webm' });
+          const { file_url } = await base44.integrations.Core.UploadPublicFile({ file });
+          setRecordingUrl(file_url);
+          onLog?.('session_end', `🎵 Recording saved: ${file_url}`);
+        } catch (e) { console.warn('[BOB] Recording upload failed:', e); }
+      };
+      try { rec.stop(); } catch {}
+    }
+    recorderRef.current = null; recordDestRef.current = null;
     if (processorRef.current) { try { processorRef.current.disconnect(); } catch {} }
     if (micStreamRef.current) micStreamRef.current.getTracks().forEach(t => t.stop());
     if (wsRef.current) { try { wsRef.current.close(); } catch {} }
@@ -91,7 +116,7 @@ export function useDebtBobVoice({ onTranscript, onLog } = {}) {
     audioCtxRef.current = null; micStreamRef.current = null; wsRef.current = null;
     if (updatePhase) setPhase('idle');
     ring.stop();
-  }, [ring]);
+  }, [ring, onLog]);
 
   const startCall = useCallback(async ({ apiKey, systemPrompt, voiceModel, greeting, sessionLabel }) => {
     setError(''); setPhase('ringing'); setRingPhase(true);
@@ -112,6 +137,8 @@ export function useDebtBobVoice({ onTranscript, onLog } = {}) {
 
       const ctx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 24000 });
       audioCtxRef.current = ctx; nextStartRef.current = 0;
+      const recordDest = ctx.createMediaStreamDestination();
+      recordDestRef.current = recordDest;
 
       const ws = new WebSocket(DG_WS_URL, ['token', apiKey]);
       ws.binaryType = 'arraybuffer'; wsRef.current = ws;
@@ -148,8 +175,17 @@ export function useDebtBobVoice({ onTranscript, onLog } = {}) {
                 ws.send(int16.buffer);
               };
               source.connect(processor);
+              source.connect(recordDestRef.current);
               const silence = ctx.createGain(); silence.gain.value = 0;
               processor.connect(silence); silence.connect(ctx.destination);
+              try {
+                const recorder = new MediaRecorder(recordDestRef.current.stream);
+                chunksRef.current = [];
+                recorder.ondataavailable = (e) => { if (e.data.size > 0) chunksRef.current.push(e.data); };
+                recorder.start(1000);
+                recorderRef.current = recorder;
+                setIsRecording(true);
+              } catch (e) { console.warn('[BOB] Recording failed:', e); }
               setPhase('active');
               break;
             }
@@ -190,5 +226,5 @@ export function useDebtBobVoice({ onTranscript, onLog } = {}) {
 
   useEffect(() => () => cleanup(false), [cleanup]);
 
-  return { phase, error, agentSpeaking, micDevices, micDeviceId, setMicDeviceId, ringPhase, startCall, hangup };
+  return { phase, error, agentSpeaking, micDevices, micDeviceId, setMicDeviceId, ringPhase, startCall, hangup, isRecording, recordingUrl };
 }

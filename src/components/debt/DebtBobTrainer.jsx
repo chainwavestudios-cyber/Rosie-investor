@@ -81,7 +81,7 @@ export default function DebtBobTrainer() {
     setTranscript(prev => [...prev, entry]);
   }, []);
 
-  const { phase, error, agentSpeaking, micDevices, micDeviceId, setMicDeviceId, ringPhase, startCall, hangup } = useDebtBobVoice({ onTranscript: handleTranscript, onLog: addLog });
+  const { phase, error, agentSpeaking, micDevices, micDeviceId, setMicDeviceId, ringPhase, startCall, hangup, isRecording, recordingUrl } = useDebtBobVoice({ onTranscript: handleTranscript, onLog: addLog });
 
   const getActivePersona = useCallback(() => {
     if (sliderValue < 33) return DEBT_DUCK;
@@ -214,6 +214,7 @@ ${kbText || 'No KB entries yet. Upload calls, documents, and websites to BOB\'s 
                 </span>
               </div>
 
+              {isRecording && <div style={{ marginTop: '6px', color: '#ef4444', fontSize: '11px', textAlign: 'center', animation: 'pulse 1.5s infinite' }}>● REC — Recording call audio</div>}
               {ringPhase && <div style={{ marginTop: '8px', color: '#f59e0b', fontSize: '11px', textAlign: 'center', animation: 'pulse 0.8s infinite' }}>📞 Dialing… (ringing twice, then Bob picks up)</div>}
               {agentSpeaking && phase === 'active' && <div style={{ marginTop: '6px', color: GOLD, fontSize: '11px', textAlign: 'center' }}>🤖 Bob is speaking…</div>}
               {error && <div style={{ marginTop: '8px', color: '#ef4444', fontSize: '11px' }}>⚠ {error}</div>}
@@ -300,7 +301,7 @@ ${kbText || 'No KB entries yet. Upload calls, documents, and websites to BOB\'s 
       {subTab === 'brain' && <DebtBobKB onKBUpdated={loadKB} />}
 
       {/* Training Log */}
-      {subTab === 'log' && <TrainingLog logs={logs} onClear={() => { if (window.confirm('Clear all logs?')) setLogs([]); }} />}
+      {subTab === 'log' && <TrainingLog logs={logs} recordingUrl={recordingUrl} onClear={() => { if (window.confirm('Clear all logs?')) setLogs([]); }} />}
 
       <FloatingScriptBox storageKey="bob_script" />
     </div>
@@ -308,7 +309,7 @@ ${kbText || 'No KB entries yet. Upload calls, documents, and websites to BOB\'s 
 }
 
 // ─── Training Log ─────────────────────────────────────────────────────────────
-function TrainingLog({ logs, onClear }) {
+function TrainingLog({ logs, recordingUrl, onClear }) {
   const logEndRef = useRef(null);
   useEffect(() => { logEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [logs]);
   const typeColors = { session_start: '#60a5fa', session_end: '#a78bfa', transcript: '#e8e0d0', coach_tip: '#f59e0b', qa_answer: '#34d399', intent_update: '#f472b6', appointment: '#4ade80', disposition: '#f59e0b' };
@@ -318,7 +319,14 @@ function TrainingLog({ logs, onClear }) {
         <div style={{ color: GOLD, fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase' }}>Training Log — {logs.length} Events</div>
         {logs.length > 0 && <button onClick={onClear} style={{ background: 'rgba(239,68,68,0.1)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.2)', borderRadius: '4px', padding: '6px 12px', cursor: 'pointer', fontSize: '11px' }}>Clear Log</button>}
       </div>
-      {logs.length === 0 ? <div style={{ color: '#4a5568', textAlign: 'center', padding: '60px 0' }}>No sessions yet. Start a training call to see events here.</div> :
+      {recordingUrl && (
+        <div style={{ marginBottom: '16px', background: '#0d1b2a', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '6px', padding: '14px' }}>
+          <div style={{ color: '#ef4444', fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '8px' }}>● Call Recording</div>
+          <audio controls src={recordingUrl} style={{ width: '100%', outline: 'none' }} />
+          <a href={recordingUrl} target="_blank" rel="noopener noreferrer" download style={{ color: GOLD, fontSize: '11px', marginTop: '6px', display: 'inline-block' }}>⬇ Download Recording</a>
+        </div>
+      )}
+      {logs.length === 0 && !recordingUrl ? <div style={{ color: '#4a5568', textAlign: 'center', padding: '60px 0' }}>No sessions yet. Start a training call to see events here.</div> :
         <div style={{ maxHeight: '500px', overflowY: 'auto' }}>
           {logs.map((entry, i) => {
             const color = typeColors[entry.type] || '#6b7280';
