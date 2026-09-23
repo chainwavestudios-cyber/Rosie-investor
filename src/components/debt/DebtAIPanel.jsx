@@ -12,7 +12,7 @@ import DebtIntentSignals, { DEBT_INTENT_RULES } from '@/components/debt/DebtInte
 import AIAssistantPopup from '@/components/leads/AIAssistantPopup';
 
 const GOLD = '#10b981';
-const DEBT_KB_CATEGORIES = ['debt_kb', 'debt_faq', 'debt_agent', 'debt_customer', 'debt_doc', 'debt_web', 'debt_call', 'debt_hotpoints'];
+const DEBT_KB_CATEGORIES = ['debt_kb', 'debt_faq', 'debt_agent', 'debt_customer', 'debt_doc', 'debt_web', 'debt_call', 'debt_hotpoints', 'debt_objections', 'debt_open_scenario', 'debt_close_scenario'];
 
 export default function DebtAIPanel({
   transcript: externalTranscript = [],
