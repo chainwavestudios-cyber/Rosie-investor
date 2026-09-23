@@ -78,10 +78,39 @@ Deno.serve(async (req) => {
 
     const recentTranscript = buildTranscriptString(transcript, 15);
 
+    // ── LIVE COACH (non-streaming, hotpoint-aware) ──────────────────
+    if (mode === 'coach') {
+      const relevantKB = findRelevantKB(recentTranscript, kbEntries || [], 3);
+      const kbContext  = relevantKB.filter((e: any) => e.category !== 'debt_hotpoints').map((e: any) => `Q: ${e.question}\nA: ${e.answer}`).join('\n\n');
+      const hotpoints = (kbEntries || []).filter((e: any) => e.category === 'debt_hotpoints');
+      const hotpointContext = hotpoints.length > 0
+        ? hotpoints.map((e: any) => `TRIGGER: ${e.question}\nTYPE: ${e.tags || 'general'}\nGUIDANCE: ${e.answer}`).join('\n---\n')
+        : '';
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_KEY, 'anthropic-version': '2023-06-01' },
+        body: JSON.stringify({
+          model: 'claude-haiku-4-5-20251001',
+          max_tokens: 200,
+          system: `You are a real-time sales coach whispering to an agent on a live debt settlement call. Give ONE actionable tip in 1-2 sentences. Be direct and specific — agent reads this mid-call.
+Focus: handling objections, building rapport, next talking point, timing a close.
+${hotpointContext ? `\n━━━ COACHING HOTPOINTS — Watch for these triggers in the live conversation. If the customer or agent says something matching a trigger, immediately coach the agent using the guidance and strategy below: ━━━\n${hotpointContext}` : ''}
+${kbContext ? `\n\nRelevant KB:\n${kbContext}` : ''}`,
+          messages: [{ role: 'user', content: `Live conversation:\n${recentTranscript}\n\nCoaching tip now:` }],
+        }),
+      });
+      const data = await res.json();
+      return Response.json({ tip: data?.content?.[0]?.text || '' });
+    }
+
     // ── STREAMING COACH ───────────────────────────────────────────────
     if (mode === 'coach_stream') {
       const relevantKB = findRelevantKB(recentTranscript, kbEntries || [], 3);
-      const kbContext  = relevantKB.map((e: any) => `Q: ${e.question}\nA: ${e.answer}`).join('\n\n');
+      const kbContext  = relevantKB.filter((e: any) => e.category !== 'debt_hotpoints').map((e: any) => `Q: ${e.question}\nA: ${e.answer}`).join('\n\n');
+      const hotpoints = (kbEntries || []).filter((e: any) => e.category === 'debt_hotpoints');
+      const hotpointContext = hotpoints.length > 0
+        ? hotpoints.map((e: any) => `TRIGGER: ${e.question}\nTYPE: ${e.tags || 'general'}\nGUIDANCE: ${e.answer}`).join('\n---\n')
+        : '';
       const res = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
         headers: {
@@ -94,7 +123,7 @@ Deno.serve(async (req) => {
           model: 'claude-haiku-4-5-20251001',
           max_tokens: 200,
           stream: true,
-          system: `You are a real-time sales coach whispering to an agent on a live investor call. ${coachRules?.style || 'Give ONE actionable tip in 1-2 sentences. Be direct and specific — agent reads this mid-call.'}\nFocus: ${coachRules?.focusAreas || 'handling objections, building rapport, next talking point, timing a close'}.${coachRules?.additionalContext ? `\nContext: ${coachRules.additionalContext}` : ''}${callAttemptNumber ? `\nThis is call #${callAttemptNumber} with this prospect.` : ''}${kbContext ? `\n\nRelevant KB:\n${kbContext}` : ''}`,
+          system: `You are a real-time sales coach whispering to an agent on a live investor call. ${coachRules?.style || 'Give ONE actionable tip in 1-2 sentences. Be direct and specific — agent reads this mid-call.'}\nFocus: ${coachRules?.focusAreas || 'handling objections, building rapport, next talking point, timing a close'}.${coachRules?.additionalContext ? `\nContext: ${coachRules.additionalContext}` : ''}${callAttemptNumber ? `\nThis is call #${callAttemptNumber} with this prospect.` : ''}${hotpointContext ? `\n\n━━━ COACHING HOTPOINTS — Watch for these triggers. If the customer or agent says something matching a trigger, coach the agent using the guidance: ━━━\n${hotpointContext}` : ''}${kbContext ? `\n\nRelevant KB:\n${kbContext}` : ''}`,
           messages: [{ role: 'user', content: `Live conversation:\n${recentTranscript}\n\nCoaching tip now:` }],
         }),
       });

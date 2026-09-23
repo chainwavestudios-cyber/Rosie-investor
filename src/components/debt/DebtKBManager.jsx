@@ -430,8 +430,11 @@ ${transcriptText}`,
 
 // ─── Hotpoint Editor ─────────────────────────────────────────────────────────
 function HotpointEditor({ category, onSaved }) {
-  const [form, setForm] = useState({ question: '', answer: '', tags: '' });
+  const [form, setForm] = useState({ question: '', answer: '', strategy: '', tags: '' });
   const [saving, setSaving] = useState(false);
+  const [bulkText, setBulkText] = useState('');
+  const [extracting, setExtracting] = useState(false);
+  const [bulkMode, setBulkMode] = useState(false);
 
   const HOTPOINT_TYPES = [
     { id: '', label: '📋 General' },
@@ -445,32 +448,113 @@ function HotpointEditor({ category, onSaved }) {
   const save = async () => {
     if (!form.question.trim() || !form.answer.trim()) return;
     setSaving(true);
+    const answer = form.strategy.trim()
+      ? `${form.answer}\n📋 Agent Strategy: ${form.strategy}`
+      : form.answer;
     await base44.entities.KnowledgeBase.create({
       question: form.question,
-      answer: form.answer,
+      answer,
       category,
       kbName: 'Debt Settlement',
       tags: form.tags,
+      source: 'manual',
       created_date: new Date().toISOString(),
     });
-    setForm({ question: '', answer: '', tags: '' });
+    setForm({ question: '', answer: '', strategy: '', tags: '' });
     onSaved();
     setSaving(false);
   };
 
+  const extractHotpoints = async () => {
+    if (!bulkText.trim()) return;
+    setExtracting(true);
+    try {
+      const result = await base44.integrations.Core.InvokeLLM({
+        prompt: `You are a sales coaching analyst for debt settlement calls. Below is a large chunk of text that contains coaching guidance, objection handlers, scripts, or training material.
+
+Extract ALL distinct coaching hotpoints from this text. Each hotpoint should have:
+1. trigger: A specific situation or trigger moment on a call (e.g., "Customer mentions bankruptcy", "Customer asks about credit impact", "Customer says they need to think about it")
+2. type: One of: objection, closing, discovery, red_flag, buying_signal, general
+3. guidance: What the agent should do or say when this trigger occurs (1-3 sentences, specific and actionable)
+4. strategy: The strategic reasoning behind this approach — why it works (1-2 sentences)
+
+Return JSON with a "hotpoints" array. Extract as many distinct hotpoints as you can find — aim for quality and specificity. Each trigger should be a distinct, actionable moment. Don't duplicate similar triggers — merge them.
+
+TEXT TO ANALYZE:
+${bulkText}`,
+        response_json_schema: {
+          type: 'object',
+          properties: {
+            hotpoints: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  trigger: { type: 'string' },
+                  type: { type: 'string' },
+                  guidance: { type: 'string' },
+                  strategy: { type: 'string' },
+                },
+              },
+            },
+          },
+        },
+      });
+
+      const hotpoints = result?.hotpoints || [];
+      for (const h of hotpoints) {
+        const answer = h.guidance + (h.strategy ? `\n📋 Agent Strategy: ${h.strategy}` : '');
+        const validTypes = ['objection', 'closing', 'discovery', 'red_flag', 'buying_signal', 'general', ''];
+        await base44.entities.KnowledgeBase.create({
+          question: h.trigger,
+          answer,
+          category,
+          kbName: 'Debt Settlement',
+          tags: validTypes.includes(h.type) ? (h.type === 'general' ? '' : h.type) : '',
+          source: 'bulk_upload',
+          created_date: new Date().toISOString(),
+        });
+      }
+      setBulkText('');
+      onSaved();
+      alert(`✓ Extracted ${hotpoints.length} hotpoints!`);
+    } catch (e) {
+      alert('Extraction failed: ' + (e?.message || String(e)));
+    }
+    setExtracting(false);
+  };
+
   return (
-    <div style={{ background: 'rgba(251,146,60,0.05)', border: '1px solid rgba(251,146,60,0.2)', borderRadius: '6px', padding: '20px' }}>
-      <div style={{ color: '#fb923c', fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '4px' }}>Add Coaching Hotpoint</div>
-      <div style={{ color: '#6b7280', fontSize: '11px', marginBottom: '16px' }}>Key moments and triggers the live coach AI watches for during calls. When the customer says or does something matching this trigger, the coach suggests the guidance below.</div>
-      <div style={{ marginBottom: '10px' }}><label style={ls}>Trigger / Situation</label><input value={form.question} onChange={e => setForm(p => ({ ...p, question: e.target.value }))} placeholder="e.g. Customer mentions bankruptcy" style={inp} /></div>
-      <div style={{ marginBottom: '10px' }}>
-        <label style={ls}>Type</label>
-        <select value={form.tags} onChange={e => setForm(p => ({ ...p, tags: e.target.value }))} style={{ ...inp, cursor: 'pointer' }}>
-          {HOTPOINT_TYPES.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
-        </select>
+    <div>
+      {/* Mode toggle */}
+      <div style={{ display: 'flex', gap: '4px', marginBottom: '12px' }}>
+        <button onClick={() => setBulkMode(false)} style={{ flex: 1, padding: '8px', borderRadius: '4px', border: `1px solid ${!bulkMode ? '#fb923c66' : 'rgba(255,255,255,0.1)'}`, background: !bulkMode ? 'rgba(251,146,60,0.12)' : 'transparent', color: !bulkMode ? '#fb923c' : '#6b7280', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>✏️ Manual Entry</button>
+        <button onClick={() => setBulkMode(true)} style={{ flex: 1, padding: '8px', borderRadius: '4px', border: `1px solid ${bulkMode ? '#fb923c66' : 'rgba(255,255,255,0.1)'}`, background: bulkMode ? 'rgba(251,146,60,0.12)' : 'transparent', color: bulkMode ? '#fb923c' : '#6b7280', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>📄 Bulk Upload</button>
       </div>
-      <div style={{ marginBottom: '10px' }}><label style={ls}>Coaching Guidance</label><textarea value={form.answer} onChange={e => setForm(p => ({ ...p, answer: e.target.value }))} rows={4} style={{ ...inp, resize: 'vertical' }} placeholder="What the agent should do or say when this trigger occurs…" /></div>
-      <button onClick={save} disabled={saving || !form.question.trim() || !form.answer.trim()} style={{ background: 'linear-gradient(135deg,#fb923c,#f97316)', color: DARK, border: 'none', borderRadius: '4px', padding: '10px 20px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase', opacity: saving ? 0.5 : 1 }}>+ Add Hotpoint</button>
+
+      {bulkMode ? (
+        <div style={{ background: 'rgba(251,146,60,0.05)', border: '1px solid rgba(251,146,60,0.2)', borderRadius: '6px', padding: '20px' }}>
+          <div style={{ color: '#fb923c', fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '4px' }}>Bulk Extract Hotpoints</div>
+          <div style={{ color: '#6b7280', fontSize: '11px', marginBottom: '16px' }}>Paste any large chunk of text — training material, call scripts, objection handlers, coaching notes — and AI will extract distinct hotpoints with triggers, types, coaching guidance, and agent strategy.</div>
+          <textarea value={bulkText} onChange={e => setBulkText(e.target.value)} rows={12} style={{ ...inp, resize: 'vertical', marginBottom: '12px' }} placeholder="Paste your training material, scripts, objection handlers, or coaching notes here…" />
+          <button onClick={extractHotpoints} disabled={extracting || !bulkText.trim()} style={{ background: 'linear-gradient(135deg,#fb923c,#f97316)', color: DARK, border: 'none', borderRadius: '4px', padding: '10px 20px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase', opacity: extracting || !bulkText.trim() ? 0.5 : 1 }}>{extracting ? '⏳ Extracting…' : '🤖 Extract Hotpoints'}</button>
+        </div>
+      ) : (
+        <div style={{ background: 'rgba(251,146,60,0.05)', border: '1px solid rgba(251,146,60,0.2)', borderRadius: '6px', padding: '20px' }}>
+          <div style={{ color: '#fb923c', fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '4px' }}>Add Coaching Hotpoint</div>
+          <div style={{ color: '#6b7280', fontSize: '11px', marginBottom: '16px' }}>Key moments and triggers the live coach AI watches for during calls. When the customer says or does something matching this trigger, the coach suggests the guidance below.</div>
+          <div style={{ marginBottom: '10px' }}><label style={ls}>Trigger / Situation</label><input value={form.question} onChange={e => setForm(p => ({ ...p, question: e.target.value }))} placeholder="e.g. Customer mentions bankruptcy" style={inp} /></div>
+          <div style={{ marginBottom: '10px' }}>
+            <label style={ls}>Type</label>
+            <select value={form.tags} onChange={e => setForm(p => ({ ...p, tags: e.target.value }))} style={{ ...inp, cursor: 'pointer' }}>
+              {HOTPOINT_TYPES.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
+            </select>
+          </div>
+          <div style={{ marginBottom: '10px' }}><label style={ls}>Coaching Guidance</label><textarea value={form.answer} onChange={e => setForm(p => ({ ...p, answer: e.target.value }))} rows={3} style={{ ...inp, resize: 'vertical' }} placeholder="What the agent should do or say when this trigger occurs…" /></div>
+          <div style={{ marginBottom: '10px' }}><label style={ls}>Agent Strategy</label><textarea value={form.strategy} onChange={e => setForm(p => ({ ...p, strategy: e.target.value }))} rows={2} style={{ ...inp, resize: 'vertical' }} placeholder="Why this approach works strategically…" /></div>
+          <button onClick={save} disabled={saving || !form.question.trim() || !form.answer.trim()} style={{ background: 'linear-gradient(135deg,#fb923c,#f97316)', color: DARK, border: 'none', borderRadius: '4px', padding: '10px 20px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase', opacity: saving ? 0.5 : 1 }}>+ Add Hotpoint</button>
+        </div>
+      )}
     </div>
   );
 }
