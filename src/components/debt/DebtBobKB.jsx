@@ -6,19 +6,23 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import { computeFileHash, computeTextHash, checkDuplicateHash } from '@/lib/fileDedup';
+import { ObjectionUploader, ScenarioUploader } from '@/components/debt/DebtScenarioUploaders';
 
 const GOLD = '#10b981';
 const DARK = '#0a0f1e';
 const ls = { display: 'block', color: '#8a9ab8', fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '6px' };
 const inp = { width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '4px', padding: '10px 14px', color: '#e8e0d0', fontSize: '13px', outline: 'none', boxSizing: 'border-box', fontFamily: 'Georgia, serif' };
 
-const DEBT_CATEGORIES = ['debt_kb', 'debt_faq', 'debt_agent', 'debt_customer', 'debt_doc', 'debt_web', 'debt_call'];
+const DEBT_CATEGORIES = ['debt_kb', 'debt_faq', 'debt_agent', 'debt_customer', 'debt_doc', 'debt_web', 'debt_call', 'debt_objections', 'debt_open_scenario', 'debt_close_scenario'];
 
 const UPLOAD_TABS = [
   { id: 'doc', label: '📄 Document', color: '#a78bfa' },
   { id: 'mp3', label: '🎵 MP3 Call', color: '#f472b6' },
   { id: 'txt', label: '📝 Transcript', color: '#60a5fa' },
   { id: 'web', label: '🌐 Website', color: '#34d399' },
+  { id: 'objections', label: '🚫 Objections', color: '#fb923c' },
+  { id: 'open_scenario', label: '📞 Open Scenario', color: '#60a5fa' },
+  { id: 'close_scenario', label: '🎯 Close Scenario', color: '#a78bfa' },
 ];
 
 export default function DebtBobKB({ onKBUpdated }) {
@@ -95,6 +99,9 @@ export default function DebtBobKB({ onKBUpdated }) {
       {uploadTab === 'mp3' && <MP3Uploader onStatus={setStatus} onError={setError} onDone={refresh} />}
       {uploadTab === 'txt' && <TranscriptUploader onStatus={setStatus} onError={setError} onDone={refresh} />}
       {uploadTab === 'web' && <WebScraper onStatus={setStatus} onError={setError} onDone={refresh} />}
+      {uploadTab === 'objections' && <ObjectionUploader onStatus={setStatus} onError={setError} onDone={refresh} />}
+      {uploadTab === 'open_scenario' && <ScenarioUploader mode="open" onStatus={setStatus} onError={setError} onDone={refresh} />}
+      {uploadTab === 'close_scenario' && <ScenarioUploader mode="close" onStatus={setStatus} onError={setError} onDone={refresh} />}
 
       {(status || error) && (
         <div style={{ marginTop: '12px', padding: '10px 14px', background: error ? 'rgba(239,68,68,0.08)' : 'rgba(16,185,129,0.06)', border: `1px solid ${error ? 'rgba(239,68,68,0.2)' : 'rgba(16,185,129,0.2)'}`, borderRadius: '4px' }}>

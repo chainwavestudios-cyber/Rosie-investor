@@ -39,6 +39,42 @@ function useRingTone() {
   return { play, stop };
 }
 
+// ─── Transfer Agent TTS (female voice for transfer intro) ───────────────────
+function getFemaleVoice() {
+  const voices = window.speechSynthesis?.getVoices() || [];
+  return voices.find(v => /female|samantha|victoria|karen|moira|tessa|zira|fiona|serena/i.test(v.name))
+    || voices.find(v => v.lang?.startsWith('en') && /female/i.test(v.name))
+    || voices.find(v => v.lang?.startsWith('en'));
+}
+
+function speakTransfer(text, onDone) {
+  if (!window.speechSynthesis) { setTimeout(onDone, Math.max(2500, text.length * 55)); return; }
+  window.speechSynthesis.cancel();
+  const utter = new SpeechSynthesisUtterance(text);
+  const female = getFemaleVoice();
+  if (female) utter.voice = female;
+  utter.rate = 0.95;
+  utter.pitch = 1.1;
+  utter.onend = onDone;
+  utter.onerror = onDone;
+  window.speechSynthesis.speak(utter);
+}
+
+function playTransferSequence(mode, closerName, scenario, onDone) {
+  if (mode === 'open') {
+    const debtStr = scenario?.debtAmount ? `$${Number(scenario.debtAmount).toLocaleString()}` : 'some';
+    const locStr = [scenario?.customerCity, scenario?.customerState].filter(Boolean).join(', ') || 'unspecified location';
+    const nameStr = scenario?.customerName || 'Bob';
+    const line = `Hi, Drew. My name is Jocelyn Miller with DRA. I have here with me ${nameStr} from ${locStr}, and he has around roughly ${debtStr} unsecured debt.`;
+    speakTransfer(line, () => setTimeout(onDone, 1500));
+  } else {
+    const name = closerName || 'Drew';
+    const line1 = 'Good morning. Can I have your good name, sir?';
+    const line2 = `Bob, my name is Chris from BAC. I have here ${name} on the line. So we are lucky to have him as our debt specialist who will go over with your program.`;
+    speakTransfer(line1, () => setTimeout(() => speakTransfer(line2, () => setTimeout(onDone, 1500)), 4000));
+  }
+}
+
 export function useDebtBobVoice({ onTranscript, onLog } = {}) {
   const [phase, setPhase] = useState('idle');
   const [error, setError] = useState('');
@@ -46,6 +82,7 @@ export function useDebtBobVoice({ onTranscript, onLog } = {}) {
   const [micDevices, setMicDevices] = useState([]);
   const [micDeviceId, setMicDeviceId] = useState('');
   const [ringPhase, setRingPhase] = useState(false);
+  const [transferPhase, setTransferPhase] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [recordingUrl, setRecordingUrl] = useState('');
 
@@ -120,12 +157,22 @@ export function useDebtBobVoice({ onTranscript, onLog } = {}) {
     ring.stop();
   }, [ring]);
 
-  const startCall = useCallback(async ({ apiKey, systemPrompt, voiceModel, greeting, sessionLabel }) => {
+  const startCall = useCallback(async ({ apiKey, systemPrompt, voiceModel, greeting, sessionLabel, mode, closerName, scenario }) => {
     setError(''); setPhase('ringing'); setRingPhase(true);
-    onLogRef.current?.('session_start', `📞 ${sessionLabel} started.`);
+    onLogRef.current?.('session_start', `📞 ${sessionLabel} started. Mode: ${mode || 'open'}`);
 
     ring.play(async () => {
-      setRingPhase(false); setPhase('connecting');
+      setRingPhase(false);
+
+      // Transfer agent phase — female TTS introduces the call before BOB connects
+      if (mode) {
+        setTransferPhase(true); setPhase('transfer');
+        onLogRef.current?.('transcript', `📋 Transfer agent connecting call (${mode} mode)...`);
+        await new Promise(resolve => playTransferSequence(mode, closerName, scenario, resolve));
+        setTransferPhase(false);
+      }
+
+      setPhase('connecting');
 
       let stream;
       try {
@@ -253,5 +300,5 @@ export function useDebtBobVoice({ onTranscript, onLog } = {}) {
   useEffect(() => { cleanupRef.current = cleanup; }, [cleanup]);
   useEffect(() => () => { cleanupRef.current?.(false); }, []);
 
-  return { phase, error, agentSpeaking, micDevices, micDeviceId, setMicDeviceId, ringPhase, startCall, hangup, isRecording, recordingUrl };
+  return { phase, error, agentSpeaking, micDevices, micDeviceId, setMicDeviceId, ringPhase, transferPhase, startCall, hangup, isRecording, recordingUrl };
 }

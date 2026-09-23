@@ -20,9 +20,9 @@ const VOICE_MODELS = ['aura-zeus-en', 'aura-orion-en', 'aura-arcas-en', 'aura-pe
 const FOCUS_TOPICS = ['General', 'The Program', 'How It Works', 'Credit Impact', 'Fees & Pricing', 'Timeline', 'Qualifying Debt Types', 'Creditor Negotiations', 'Enrollment Process'];
 
 const PRESET_SCENARIOS = [
-  { label: '😰 Overwhelmed', data: { debtAmount: '35000', creditorCount: '5', creditors: 'Chase, Capital One, Discover, Amex, Citi', monthlyIncome: '3200', behindOnPayments: true, monthsBehind: '3' } },
-  { label: '🤔 Skeptical', data: { debtAmount: '15000', creditorCount: '3', creditors: 'Chase, Capital One, Discover', monthlyIncome: '4500', behindOnPayments: false, monthsBehind: '0' } },
-  { label: '📈 High Debt', data: { debtAmount: '75000', creditorCount: '8', creditors: 'Multiple creditors', monthlyIncome: '6000', behindOnPayments: true, monthsBehind: '2' } },
+  { label: '😰 Overwhelmed', data: { customerName: 'Bob', customerCity: 'Green Grove Springs', customerState: 'FL', debtAmount: '35000', creditorCount: '5', creditors: 'Chase, Capital One, Discover, Amex, Citi', monthlyIncome: '3200', behindOnPayments: true, monthsBehind: '3' } },
+  { label: '🤔 Skeptical', data: { customerName: 'Bob', customerCity: 'Tampa', customerState: 'FL', debtAmount: '15000', creditorCount: '3', creditors: 'Chase, Capital One, Discover', monthlyIncome: '4500', behindOnPayments: false, monthsBehind: '0' } },
+  { label: '📈 High Debt', data: { customerName: 'Bob', customerCity: 'Orlando', customerState: 'FL', debtAmount: '75000', creditorCount: '8', creditors: 'Multiple creditors', monthlyIncome: '6000', behindOnPayments: true, monthsBehind: '2' } },
 ];
 const DEBT_KB_CATEGORIES = ['debt_kb', 'debt_faq', 'debt_agent', 'debt_customer', 'debt_doc', 'debt_web', 'debt_call', 'debt_hotpoints'];
 
@@ -45,7 +45,7 @@ export default function DebtBobTrainer() {
   const [sessionId, setSessionId] = useState('Bob');
   const [kbCount, setKbCount] = useState(0);
   const [dgApiKey, setDgApiKey] = useState('');
-  const [scenario, setScenario] = useState({ debtAmount: '', creditorCount: '', creditors: '', monthlyIncome: '', behindOnPayments: false, monthsBehind: '' });
+  const [scenario, setScenario] = useState({ customerName: 'Bob', customerCity: '', customerState: '', debtAmount: '', creditorCount: '', creditors: '', monthlyIncome: '', behindOnPayments: false, monthsBehind: '' });
   const [callRefs, setCallRefs] = useState([]);
   const [selectedCallRefId, setSelectedCallRefId] = useState('');
   const [showAIPopup, setShowAIPopup] = useState(false);
@@ -55,7 +55,12 @@ export default function DebtBobTrainer() {
   const [allKbEntries, setAllKbEntries] = useState([]);
   const [kbNames, setKbNames] = useState([]);
   const [selectedKbName, setSelectedKbName] = useState('Debt Settlement');
-  const aiTranscriptRef = useRef([]);
+    const [mode, setMode] = useState('open'); // 'open' | 'close'
+    const [closerName, setCloserName] = useState('Drew');
+    const [objections, setObjections] = useState([]);
+    const [openScenarios, setOpenScenarios] = useState([]);
+    const [closeScenarios, setCloseScenarios] = useState([]);
+    const aiTranscriptRef = useRef([]);
 
   // Load Deepgram API key from PortalSettings (shared with admin BobTab)
   useEffect(() => {
@@ -101,6 +106,9 @@ export default function DebtBobTrainer() {
       const debt = (all || []).filter(e => DEBT_KB_CATEGORIES.includes(e.category));
       setKbEntries(debt);
       setKbCount(debt.length);
+      setObjections((all || []).filter(e => e.category === 'debt_objections'));
+      setOpenScenarios((all || []).filter(e => e.category === 'debt_open_scenario'));
+      setCloseScenarios((all || []).filter(e => e.category === 'debt_close_scenario'));
     } catch {}
   }, []);
 
@@ -121,7 +129,7 @@ export default function DebtBobTrainer() {
     setTranscript(prev => [...prev, entry]);
   }, []);
 
-  const { phase, error, agentSpeaking, micDevices, micDeviceId, setMicDeviceId, ringPhase, startCall, hangup, isRecording, recordingUrl } = useDebtBobVoice({ onTranscript: handleTranscript, onLog: addLog });
+  const { phase, error, agentSpeaking, micDevices, micDeviceId, setMicDeviceId, ringPhase, transferPhase, startCall, hangup, isRecording, recordingUrl } = useDebtBobVoice({ onTranscript: handleTranscript, onLog: addLog });
 
   const getActivePersona = useCallback(() => {
     if (sliderValue < 33) return DEBT_DUCK;
@@ -131,7 +139,6 @@ export default function DebtBobTrainer() {
 
   const buildSystemPrompt = useCallback(() => {
     const persona = getActivePersona();
-    // Limit KB to 15 entries and truncate long answers to prevent exceeding Deepgram/OpenAI token limits
     const kbText = kbEntries.slice(0, 15).map(e => {
       const ans = (e.answer || '').slice(0, 500);
       return `Q: ${e.question}\nA: ${ans}`;
@@ -141,13 +148,38 @@ export default function DebtBobTrainer() {
       : sliderValue < 60 ? 'Owl/Hybrid (analytical, wants to understand the program)'
       : sliderValue < 80 ? 'Cow-leaning Owl (generally agreeable but checks logic)'
       : 'full Cow mode (easy sell — stressed, drowning in debt, relieved someone called)';
-    const scenarioText = scenario.debtAmount || scenario.creditors || scenario.monthlyIncome ? `
+
+    // Objections — more for Duck, fewer for Cow
+    const objCount = sliderValue < 33 ? objections.length : sliderValue < 67 ? Math.ceil(objections.length / 2) : Math.ceil(objections.length / 4);
+    const objText = objections.slice(0, objCount).map(e => `🚫 "${e.question}" — Context: ${(e.answer || '').slice(0, 200)}`).join('\n');
+
+    // Scenario roadmap
+    const scenarioRoadmap = mode === 'open' ? openScenarios : closeScenarios;
+    const roadmapText = scenarioRoadmap.map(e => `${e.question}: ${(e.answer || '').slice(0, 300)}`).join('\n');
+
+    const scenarioText = (scenario.debtAmount || scenario.creditors || scenario.monthlyIncome || scenario.customerCity) ? `
 ━━━ CUSTOMER DEBT SCENARIO — ROLEPLAY WITH THESE DETAILS ━━━
+- Name: ${scenario.customerName || 'Bob'}
+- Location: ${[scenario.customerCity, scenario.customerState].filter(Boolean).join(', ') || 'unspecified'}
 - Total Debt: $${scenario.debtAmount || 'unspecified'}
 - Creditors: ${scenario.creditors || 'unspecified'} (${scenario.creditorCount || '?'} accounts)
 - Monthly Income: $${scenario.monthlyIncome || 'unspecified'}
 - Behind on Payments: ${scenario.behindOnPayments ? `Yes, ${scenario.monthsBehind || '?'} months behind` : 'No, current'}
 - Use these details when discussing your financial situation. Be specific about amounts and creditors when asked.` : '';
+
+    const modeText = mode === 'open' ? `
+━━━ CALL TYPE: OPENING (INCOMING CALL) ━━━
+This is an INCOMING CALL — you (the customer) called in for help with debt.
+The opener already spoke with you, gathered your basic info, and transferred you to the closer (trainee).
+The transfer agent (Jocelyn from DRA) has told the closer your name, location, and debt amount.
+The closer will now start talking to you. You called because you NEED HELP — you're skeptical about the process but willing to listen.
+Even as a "Duck", your skepticism is about whether this is legit, not hostility. You want to be helped.` : `
+━━━ CALL TYPE: CLOSING (FOLLOW-UP CALL) ━━━
+You already went through the opening process. The opener gathered your info and explained the program basics.
+Now the closer (trainee) is calling to finalize and close you on the program.
+The transfer agent (Chris from BAC) has introduced the closer to you as "our debt specialist."
+You know about the program already — you're more engaged but still have questions about fees, timeline, and whether it really works.
+Even as a "Duck", you're skeptical but hearing them out — you're closer to saying yes but need reassurance.`;
 
     const refCall = callRefs.find(r => r.id === selectedCallRefId);
     const refCallText = refCall ? `
@@ -158,11 +190,21 @@ A: ${refCall.answer}
 
     return `${persona.systemPrompt}
 
+${modeText}
+
 ━━━ CURRENT SESSION SETTINGS ━━━
+- Call Mode: ${mode === 'open' ? 'OPENING (first contact)' : 'CLOSING (follow-up)'}
 - Persona Blend: ${sliderLabel} (slider ${sliderValue}/100 — 0=full Duck/hard, 50=Owl, 100=full Cow/easy)
 - Intensity: ${intensity}/5 (higher = more extreme character behavior)
 - Call Focus Topic: "${focusTopic}" — steer objections and interest toward this topic
 ${scenarioText}${refCallText}
+
+━━━ ${mode === 'open' ? 'OPEN' : 'CLOSE'} CALL ROADMAP — HOW THIS CALL SHOULD FLOW ━━━
+${roadmapText || 'No scenario uploaded yet. Upload open/close call recordings to BOB\'s Brain to give BOB a roadmap.'}
+
+━━━ OBJECTIONS TO USE (based on slider — more objections = harder sell) ━━━
+${objText || 'No objections cataloged yet. Upload call recordings to BOB\'s Brain → Objections tab to catalog real customer objections.'}
+Use these objections NATURALLY during the call. At lower slider values (Duck), use MORE of them. At higher values (Cow), use FEWER.
 
 ━━━ DEBT SETTLEMENT KNOWLEDGE BASE — LEARNED FROM REAL CALLS ━━━
 ${kbText || 'No KB entries yet. Upload calls, documents, and websites to BOB\'s Brain to make BOB smarter and more realistic.'}
@@ -173,7 +215,7 @@ ${kbText || 'No KB entries yet. Upload calls, documents, and websites to BOB\'s 
 - Use natural speech: contractions, interruptions, "uh", "look", "listen", "I mean" — real people talk like this.
 - React to what the trainee actually says — improvise within your persona, don't just recite lines.
 - Use the KNOWLEDGE BASE above to inform your responses — if the closer mentions program details, fees, or timelines that match the KB, react realistically based on what you know.`;
-  }, [sliderValue, intensity, focusTopic, kbEntries, getActivePersona, scenario, callRefs, selectedCallRefId]);
+  }, [sliderValue, intensity, focusTopic, kbEntries, getActivePersona, scenario, callRefs, selectedCallRefId, mode, objections, openScenarios, closeScenarios]);
 
   const handleStartCall = useCallback(async () => {
     const newCount = callCount + 1;
@@ -190,13 +232,13 @@ ${kbText || 'No KB entries yet. Upload calls, documents, and websites to BOB\'s 
     const greetings = ['Hello.', 'Hello?', 'Hello, this is Bob.', 'Yeah?', 'Hello, go ahead.'];
     const greeting = greetings[Math.floor(Math.random() * greetings.length)];
 
-    await startCall({ apiKey, systemPrompt: buildSystemPrompt(), voiceModel: VOICE_MODELS[vIdx], greeting, sessionLabel: label });
-  }, [callCount, startCall, buildSystemPrompt, dgApiKey]);
+    await startCall({ apiKey, systemPrompt: buildSystemPrompt(), voiceModel: VOICE_MODELS[vIdx], greeting, sessionLabel: label, mode, closerName, scenario });
+  }, [callCount, startCall, buildSystemPrompt, dgApiKey, mode, closerName, scenario]);
 
   const sliderLabel = sliderValue < 20 ? '🦆 Full Duck' : sliderValue < 40 ? '🦆 Duck-Owl' : sliderValue < 60 ? '🦉 Owl (Hybrid)' : sliderValue < 80 ? '🐄 Owl-Cow' : '🐄 Full Cow';
   const sliderColor = sliderValue < 33 ? '#ef4444' : sliderValue < 67 ? '#f59e0b' : '#4ade80';
-  const phaseColor = { idle: '#4a5568', ringing: '#f59e0b', connecting: '#f59e0b', active: '#4ade80', error: '#ef4444' }[phase] || '#4a5568';
-  const phaseLabel = { idle: 'Idle', ringing: '📳 Ringing…', connecting: 'Connecting…', active: '🔴 LIVE', error: 'Error' }[phase] || phase;
+  const phaseColor = { idle: '#4a5568', ringing: '#f59e0b', transfer: '#60a5fa', connecting: '#f59e0b', active: '#4ade80', error: '#ef4444' }[phase] || '#4a5568';
+  const phaseLabel = { idle: 'Idle', ringing: '📳 Ringing…', transfer: '📋 Transfer…', connecting: 'Connecting…', active: '🔴 LIVE', error: 'Error' }[phase] || phase;
 
   return (
     <div>
@@ -234,6 +276,16 @@ ${kbText || 'No KB entries yet. Upload calls, documents, and websites to BOB\'s 
         <div style={{ display: 'grid', gridTemplateColumns: '380px 1fr', gap: '16px', alignItems: 'start' }}>
           {/* Left: Controls */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            {/* Mode selector — Open vs Close */}
+            <div style={{ background: '#0d1b2a', border: '1px solid rgba(16,185,129,0.2)', borderRadius: '6px', padding: '12px' }}>
+              <div style={{ color: GOLD, fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '8px' }}>Call Mode</div>
+              <div style={{ display: 'flex', gap: '6px' }}>
+                <button onClick={() => setMode('open')} disabled={phase !== 'idle'} style={{ flex: 1, padding: '10px', borderRadius: '4px', border: `1px solid ${mode === 'open' ? GOLD + '66' : 'rgba(255,255,255,0.1)'}`, background: mode === 'open' ? `${GOLD}18` : 'transparent', color: mode === 'open' ? GOLD : '#6b7280', cursor: phase !== 'idle' ? 'not-allowed' : 'pointer', fontSize: '12px', fontWeight: 'bold' }}>📞 Open Training</button>
+                <button onClick={() => setMode('close')} disabled={phase !== 'idle'} style={{ flex: 1, padding: '10px', borderRadius: '4px', border: `1px solid ${mode === 'close' ? GOLD + '66' : 'rgba(255,255,255,0.1)'}`, background: mode === 'close' ? `${GOLD}18` : 'transparent', color: mode === 'close' ? GOLD : '#6b7280', cursor: phase !== 'idle' ? 'not-allowed' : 'pointer', fontSize: '12px', fontWeight: 'bold' }}>🎯 Close Training</button>
+              </div>
+              <div style={{ color: '#4a5568', fontSize: '10px', marginTop: '6px' }}>{mode === 'open' ? 'First contact — customer calls in, opener transfers to closer.' : 'Follow-up — customer already knows the program, closer finalizes.'}</div>
+            </div>
+
             {/* Call controls */}
             <div style={{ background: '#0d1b2a', border: '1px solid rgba(16,185,129,0.2)', borderRadius: '6px', padding: '16px' }}>
               <div style={{ color: GOLD, fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '12px' }}>📞 Call Controls</div>
@@ -256,6 +308,14 @@ ${kbText || 'No KB entries yet. Upload calls, documents, and websites to BOB\'s 
                 </select>
               </div>
 
+              {/* Closer name — only in close mode (transfer agent asks for it) */}
+              {mode === 'close' && (
+                <div style={{ marginBottom: '12px' }}>
+                  <label style={ls}>👤 Your Name (Closer)</label>
+                  <input value={closerName} onChange={e => setCloserName(e.target.value)} disabled={phase !== 'idle'} placeholder="Drew" style={inp} />
+                </div>
+              )}
+
               {/* Start/Hangup */}
               <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                 {phase === 'idle' || phase === 'error' ? (
@@ -270,7 +330,8 @@ ${kbText || 'No KB entries yet. Upload calls, documents, and websites to BOB\'s 
               </div>
 
               {isRecording && <div style={{ marginTop: '6px', color: '#ef4444', fontSize: '11px', textAlign: 'center', animation: 'pulse 1.5s infinite' }}>● REC — Recording call audio</div>}
-              {ringPhase && <div style={{ marginTop: '8px', color: '#f59e0b', fontSize: '11px', textAlign: 'center', animation: 'pulse 0.8s infinite' }}>📞 Dialing… (ringing twice, then Bob picks up)</div>}
+              {ringPhase && <div style={{ marginTop: '8px', color: '#f59e0b', fontSize: '11px', textAlign: 'center', animation: 'pulse 0.8s infinite' }}>📞 Dialing… (ringing twice, then transfer agent connects)</div>}
+              {transferPhase && <div style={{ marginTop: '8px', color: '#60a5fa', fontSize: '11px', textAlign: 'center', animation: 'pulse 1s infinite' }}>📋 Transfer agent speaking… {mode === 'open' ? 'Jocelyn is introducing Bob' : 'Chris is connecting you with Bob'}</div>}
               {agentSpeaking && phase === 'active' && <div style={{ marginTop: '6px', color: GOLD, fontSize: '11px', textAlign: 'center' }}>🤖 Bob is speaking…</div>}
               {error && <div style={{ marginTop: '8px', color: '#ef4444', fontSize: '11px' }}>⚠ {error}</div>}
 
@@ -334,7 +395,12 @@ ${kbText || 'No KB entries yet. Upload calls, documents, and websites to BOB\'s 
                 {PRESET_SCENARIOS.map((p, i) => (
                   <button key={i} onClick={() => setScenario(p.data)} style={{ padding: '6px 10px', borderRadius: '4px', border: '1px solid rgba(251,146,60,0.3)', background: 'rgba(251,146,60,0.08)', color: '#fb923c', cursor: 'pointer', fontSize: '11px' }}>{p.label}</button>
                 ))}
-                <button onClick={() => setScenario({ debtAmount: '', creditorCount: '', creditors: '', monthlyIncome: '', behindOnPayments: false, monthsBehind: '' })} style={{ padding: '6px 10px', borderRadius: '4px', border: '1px solid rgba(255,255,255,0.1)', background: 'transparent', color: '#6b7280', cursor: 'pointer', fontSize: '11px' }}>Clear</button>
+                <button onClick={() => setScenario({ customerName: 'Bob', customerCity: '', customerState: '', debtAmount: '', creditorCount: '', creditors: '', monthlyIncome: '', behindOnPayments: false, monthsBehind: '' })} style={{ padding: '6px 10px', borderRadius: '4px', border: '1px solid rgba(255,255,255,0.1)', background: 'transparent', color: '#6b7280', cursor: 'pointer', fontSize: '11px' }}>Clear</button>
+              </div>
+              <div style={{ marginBottom: '8px' }}><label style={ls}>Customer Name</label><input value={scenario.customerName} onChange={e => setScenario(p => ({ ...p, customerName: e.target.value }))} placeholder="Bob" style={inp} /></div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '8px' }}>
+                <div><label style={ls}>City</label><input value={scenario.customerCity} onChange={e => setScenario(p => ({ ...p, customerCity: e.target.value }))} placeholder="Green Grove Springs" style={inp} /></div>
+                <div><label style={ls}>State</label><input value={scenario.customerState} onChange={e => setScenario(p => ({ ...p, customerState: e.target.value }))} placeholder="FL" style={inp} /></div>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '8px' }}>
                 <div><label style={ls}>Total Debt $</label><input type="number" value={scenario.debtAmount} onChange={e => setScenario(p => ({ ...p, debtAmount: e.target.value }))} placeholder="25000" style={inp} /></div>
@@ -370,7 +436,7 @@ ${kbText || 'No KB entries yet. Upload calls, documents, and websites to BOB\'s 
             <div style={{ flex: 1, overflowY: 'auto', padding: '14px 16px' }}>
               {transcript.length === 0 ? (
                 <div style={{ color: '#4a5568', textAlign: 'center', padding: '60px 0', fontSize: '13px' }}>
-                  {phase === 'active' ? 'Listening… start speaking to BOB.' : phase === 'ringing' ? '📞 Dialing BOB…' : phase === 'connecting' ? 'Connecting to Deepgram…' : 'No transcript yet. Click "Connect to BOB" to start a training call.'}
+                  {phase === 'active' ? 'Listening… start speaking to BOB.' : phase === 'ringing' ? '📞 Dialing…' : phase === 'transfer' ? '📋 Transfer agent is connecting the call…' : phase === 'connecting' ? 'Connecting to Deepgram…' : 'No transcript yet. Click "Connect to BOB" to start a training call.'}
                 </div>
               ) : transcript.map((msg, i) => {
                 const isBob = msg.role === 'bob';
