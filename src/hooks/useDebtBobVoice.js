@@ -224,7 +224,7 @@ export function useDebtBobVoice({ onTranscript, onLog } = {}) {
 
       ws.onerror = () => {
         setError('WebSocket error — check Deepgram API key.');
-        onLog?.('session_end', '❌ WebSocket error.');
+        onLogRef.current?.('session_end', '❌ WebSocket error.');
       };
 
       ws.onclose = (e) => {
@@ -248,7 +248,10 @@ export function useDebtBobVoice({ onTranscript, onLog } = {}) {
 
   const hangup = useCallback(() => { cleanup(true); }, [cleanup]);
 
-  useEffect(() => () => cleanup(false), [cleanup]);
+  // Only clean up on actual unmount — NOT on every render (which would close the WebSocket mid-call)
+  const cleanupRef = useRef(cleanup);
+  useEffect(() => { cleanupRef.current = cleanup; }, [cleanup]);
+  useEffect(() => () => { cleanupRef.current?.(false); }, []);
 
   return { phase, error, agentSpeaking, micDevices, micDeviceId, setMicDeviceId, ringPhase, startCall, hangup, isRecording, recordingUrl };
 }
