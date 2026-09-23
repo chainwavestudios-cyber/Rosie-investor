@@ -7,6 +7,7 @@ import { base44 } from '@/api/base44Client';
 import DebtLeadCard from '@/components/debt/DebtLeadCard';
 import { DebtPitchPanel } from '@/components/debt/DebtPitchTab';
 import DebtIntentSignals, { DEBT_INTENT_RULES } from '@/components/debt/DebtIntentSignals';
+import FloatingScriptBox from '@/components/debt/FloatingScriptBox';
 
 const GOLD = '#10b981';
 const DARK = '#0a0f1e';
@@ -466,6 +467,8 @@ ${recentText}`,
           {generatingReport ? <div style={{ color: '#6b7280', fontSize: '12px' }}>⏳ Generating report…</div> : report ? <div style={{ color: '#c4cdd8', fontSize: '13px', lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>{report}</div> : <div style={{ color: '#4a5568', fontSize: '12px' }}>No report generated.</div>}
         </div>
       )}
+
+      <FloatingScriptBox storageKey="live_call_script" />
     </div>
   );
 }

@@ -285,6 +285,9 @@ ${kbText || 'No KB entries yet. Upload calls, documents, and websites to BOB\'s 
               })}
             </div>
           </div>
+
+          {/* AI Tools — Q&A, Coach, Intent, Pitches, Signals */}
+          <DebtAIPanel transcript={transcript} kbEntries={kbEntries} isActive={phase === 'active'} transcriptFormat="bob" />
         </div>
       )}
 
