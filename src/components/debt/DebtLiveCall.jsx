@@ -15,11 +15,12 @@ const DARK = '#0a0f1e';
 const ls = { display: 'block', color: '#8a9ab8', fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '6px' };
 const inp = { width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '4px', padding: '8px 12px', color: '#e8e0d0', fontSize: '13px', outline: 'none', boxSizing: 'border-box', fontFamily: 'Georgia, serif' };
 
-const DEBT_KB_CATEGORIES = ['debt_agent', 'debt_customer', 'debt_doc', 'debt_web', 'debt_call', 'debt_kb', 'debt_faq'];
+const DEBT_KB_CATEGORIES = ['debt_agent', 'debt_customer', 'debt_doc', 'debt_web', 'debt_call', 'debt_kb', 'debt_faq', 'debt_hotpoints'];
 
 export default function DebtLiveCall() {
   const [micDevices, setMicDevices] = useState([]);
   const [micDeviceId, setMicDeviceId] = useState('');
+  const [customerMicId, setCustomerMicId] = useState('');
   const [phase, setPhase] = useState('idle');
   const [error, setError] = useState('');
   const [transcript, setTranscript] = useState([]);
@@ -48,6 +49,7 @@ export default function DebtLiveCall() {
 
   const wsRef = useRef(null);
   const streamRef = useRef(null);
+  const customerStreamRef = useRef(null);
   const ctxRef = useRef(null);
   const processorRef = useRef(null);
   const transcriptRef = useRef([]);
@@ -221,38 +223,73 @@ ${recentText}`,
     lastIntentTime.current = Date.now();
     lastProfileTime.current = Date.now();
 
-    let stream;
+    const dualMode = !!customerMicId && !!micDeviceId;
+
+    let agentStream, customerStream;
     try {
-      stream = await navigator.mediaDevices.getUserMedia({ audio: micDeviceId ? { deviceId: { exact: micDeviceId } } : true });
-      streamRef.current = stream;
-    } catch { setError('Microphone access denied.'); setPhase('idle'); return; }
+      agentStream = await navigator.mediaDevices.getUserMedia({ audio: micDeviceId ? { deviceId: { exact: micDeviceId } } : true });
+      streamRef.current = agentStream;
+      if (dualMode) {
+        customerStream = await navigator.mediaDevices.getUserMedia({ audio: { deviceId: { exact: customerMicId } } });
+        customerStreamRef.current = customerStream;
+      }
+    } catch { setError('Microphone/audio access denied.'); setPhase('idle'); return; }
 
     let dgKey = '';
     try { const tokenRes = await base44.functions.invoke('deepgramToken2', {}); dgKey = tokenRes?.key || tokenRes?.data?.key || ''; }
     catch { dgKey = import.meta.env.VITE_DEEPGRAM_API_KEY || ''; }
-    if (!dgKey) { setError('Could not get Deepgram API key.'); setPhase('idle'); stream.getTracks().forEach(t => t.stop()); return; }
+    if (!dgKey) { setError('Could not get Deepgram API key.'); setPhase('idle'); agentStream.getTracks().forEach(t => t.stop()); if (customerStream) customerStream.getTracks().forEach(t => t.stop()); return; }
 
     const ctx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
     ctxRef.current = ctx;
-    const source = ctx.createMediaStreamSource(stream);
-    const processor = ctx.createScriptProcessor(4096, 1, 1);
-    processorRef.current = processor;
 
-    const ws = new WebSocket('wss://api.deepgram.com/v1/listen?model=nova-3&diarize=true&smart_format=true&punctuate=true&sentiment=true&utterances=true&interim_results=false', ['token', dgKey]);
+    const dgParams = dualMode
+      ? 'model=nova-3&multichannel=true&smart_format=true&punctuate=true&sentiment=true&utterances=true&interim_results=false'
+      : 'model=nova-3&diarize=true&smart_format=true&punctuate=true&sentiment=true&utterances=true&interim_results=false';
+    const ws = new WebSocket(`wss://api.deepgram.com/v1/listen?${dgParams}`, ['token', dgKey]);
     ws.binaryType = 'arraybuffer';
     wsRef.current = ws;
 
     ws.onopen = () => {
-      processor.onaudioprocess = (ev) => {
-        if (ws.readyState !== WebSocket.OPEN) return;
-        const input = ev.inputBuffer.getChannelData(0);
-        const int16 = new Int16Array(input.length);
-        for (let i = 0; i < input.length; i++) { const s = Math.max(-1, Math.min(1, input[i])); int16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF; }
-        ws.send(int16.buffer);
-      };
-      source.connect(processor);
-      const silence = ctx.createGain(); silence.gain.value = 0;
-      processor.connect(silence); silence.connect(ctx.destination);
+      if (dualMode) {
+        // Multichannel: channel 0 = agent (left), channel 1 = customer (right)
+        const agentSrc = ctx.createMediaStreamSource(agentStream);
+        const customerSrc = ctx.createMediaStreamSource(customerStream);
+        const merger = ctx.createChannelMerger(2);
+        agentSrc.connect(merger, 0, 0);
+        customerSrc.connect(merger, 0, 1);
+        const processor = ctx.createScriptProcessor(4096, 2, 2);
+        processorRef.current = processor;
+        processor.onaudioprocess = (ev) => {
+          if (ws.readyState !== WebSocket.OPEN) return;
+          const left = ev.inputBuffer.getChannelData(0);
+          const right = ev.inputBuffer.getChannelData(1);
+          const int16 = new Int16Array(left.length * 2);
+          for (let i = 0; i < left.length; i++) {
+            int16[i * 2] = Math.max(-1, Math.min(1, left[i])) * 0x7FFF;
+            int16[i * 2 + 1] = Math.max(-1, Math.min(1, right[i])) * 0x7FFF;
+          }
+          ws.send(int16.buffer);
+        };
+        merger.connect(processor);
+        const silence = ctx.createGain(); silence.gain.value = 0;
+        processor.connect(silence); silence.connect(ctx.destination);
+      } else {
+        // Single mic with diarization
+        const source = ctx.createMediaStreamSource(agentStream);
+        const processor = ctx.createScriptProcessor(4096, 1, 1);
+        processorRef.current = processor;
+        processor.onaudioprocess = (ev) => {
+          if (ws.readyState !== WebSocket.OPEN) return;
+          const input = ev.inputBuffer.getChannelData(0);
+          const int16 = new Int16Array(input.length);
+          for (let i = 0; i < input.length; i++) { const s = Math.max(-1, Math.min(1, input[i])); int16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF; }
+          ws.send(int16.buffer);
+        };
+        source.connect(processor);
+        const silence = ctx.createGain(); silence.gain.value = 0;
+        processor.connect(silence); silence.connect(ctx.destination);
+      }
     };
 
     ws.onmessage = (e) => {
@@ -262,17 +299,19 @@ ${recentText}`,
         if (msg.type !== 'Results' || !msg.is_final) return;
         const alt = msg.channel?.alternatives?.[0];
         if (!alt || !alt.transcript?.trim()) return;
-        processNewEntry({ speaker: alt.speaker ?? (msg.speaker ?? 0), text: alt.transcript, sentiment: msg.sentiment || alt.sentiment || null, time: new Date().toISOString() });
+        const speaker = dualMode ? (msg.channel === 0 ? 0 : 1) : (alt.speaker ?? (msg.speaker ?? 0));
+        processNewEntry({ speaker, text: alt.transcript, sentiment: msg.sentiment || alt.sentiment || null, time: new Date().toISOString() });
       } catch {}
     };
 
     ws.onerror = () => { setError('Deepgram connection error.'); };
-  }, [micDeviceId, processNewEntry, lead, createNewLead]);
+  }, [micDeviceId, customerMicId, processNewEntry, lead, createNewLead]);
 
   const stopCall = useCallback(async () => {
     if (wsRef.current) { try { wsRef.current.close(); } catch {} wsRef.current = null; }
     if (processorRef.current) { try { processorRef.current.disconnect(); } catch {} processorRef.current = null; }
     if (streamRef.current) { streamRef.current.getTracks().forEach(t => t.stop()); streamRef.current = null; }
+    if (customerStreamRef.current) { customerStreamRef.current.getTracks().forEach(t => t.stop()); customerStreamRef.current = null; }
     if (ctxRef.current) { try { ctxRef.current.close(); } catch {} ctxRef.current = null; }
     setPhase('ended');
 
@@ -317,12 +356,24 @@ ${recentText}`,
       {/* Controls bar */}
       <div style={{ marginBottom: '16px', padding: '14px 18px', background: 'rgba(16,185,129,0.06)', border: '1px solid rgba(16,185,129,0.2)', borderRadius: '6px', display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
-          <label style={{ ...ls, marginBottom: 0 }}>🎙 Microphone</label>
+          <label style={{ ...ls, marginBottom: 0 }}>🎙 Agent Mic</label>
           <select value={micDeviceId} onChange={e => setMicDeviceId(e.target.value)} disabled={phase === 'live'} style={{ ...inp, minWidth: '220px', cursor: 'pointer' }}>
             {micDevices.length === 0 && <option>Default microphone</option>}
             {micDevices.map(m => <option key={m.deviceId} value={m.deviceId}>{m.label || `Mic ${m.deviceId.slice(0, 6)}`}</option>)}
           </select>
         </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+          <label style={{ ...ls, marginBottom: 0 }}>🎧 Customer Audio (Split Input)</label>
+          <select value={customerMicId} onChange={e => setCustomerMicId(e.target.value)} disabled={phase === 'live'} style={{ ...inp, minWidth: '220px', cursor: 'pointer' }}>
+            <option value="">— None (use diarization) —</option>
+            {micDevices.map(m => <option key={m.deviceId} value={m.deviceId}>{m.label || `Input ${m.deviceId.slice(0, 6)}`}</option>)}
+          </select>
+        </div>
+
+        {customerMicId && micDeviceId && (
+          <span style={{ padding: '4px 10px', background: 'rgba(96,165,250,0.12)', border: '1px solid rgba(96,165,250,0.3)', borderRadius: '4px', color: '#60a5fa', fontSize: '10px', fontWeight: 'bold', letterSpacing: '1px' }}>DUAL CHANNEL</span>
+        )}
 
         {phase !== 'live' ? (
           <button onClick={startCall} disabled={kbLoading} style={{ background: 'linear-gradient(135deg,#10b981,#22c55e)', color: DARK, border: 'none', borderRadius: '4px', padding: '10px 24px', cursor: kbLoading ? 'not-allowed' : 'pointer', fontSize: '12px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase', opacity: kbLoading ? 0.5 : 1 }}>

@@ -18,7 +18,13 @@ const inp = { width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px 
 
 const VOICE_MODELS = ['aura-zeus-en', 'aura-orion-en', 'aura-arcas-en', 'aura-perseus-en', 'aura-angus-en', 'aura-orpheus-en'];
 const FOCUS_TOPICS = ['General', 'The Program', 'How It Works', 'Credit Impact', 'Fees & Pricing', 'Timeline', 'Qualifying Debt Types', 'Creditor Negotiations', 'Enrollment Process'];
-const DEBT_KB_CATEGORIES = ['debt_kb', 'debt_faq', 'debt_agent', 'debt_customer', 'debt_doc', 'debt_web', 'debt_call'];
+
+const PRESET_SCENARIOS = [
+  { label: '😰 Overwhelmed', data: { debtAmount: '35000', creditorCount: '5', creditors: 'Chase, Capital One, Discover, Amex, Citi', monthlyIncome: '3200', behindOnPayments: true, monthsBehind: '3' } },
+  { label: '🤔 Skeptical', data: { debtAmount: '15000', creditorCount: '3', creditors: 'Chase, Capital One, Discover', monthlyIncome: '4500', behindOnPayments: false, monthsBehind: '0' } },
+  { label: '📈 High Debt', data: { debtAmount: '75000', creditorCount: '8', creditors: 'Multiple creditors', monthlyIncome: '6000', behindOnPayments: true, monthsBehind: '2' } },
+];
+const DEBT_KB_CATEGORIES = ['debt_kb', 'debt_faq', 'debt_agent', 'debt_customer', 'debt_doc', 'debt_web', 'debt_call', 'debt_hotpoints'];
 
 const SUB_TABS = [
   { id: 'training', label: '🎓 Training Room' },
@@ -39,6 +45,9 @@ export default function DebtBobTrainer() {
   const [sessionId, setSessionId] = useState('Bob');
   const [kbCount, setKbCount] = useState(0);
   const [dgApiKey, setDgApiKey] = useState('');
+  const [scenario, setScenario] = useState({ debtAmount: '', creditorCount: '', creditors: '', monthlyIncome: '', behindOnPayments: false, monthsBehind: '' });
+  const [callRefs, setCallRefs] = useState([]);
+  const [selectedCallRefId, setSelectedCallRefId] = useState('');
 
   // Load Deepgram API key from PortalSettings (shared with admin BobTab)
   useEffect(() => {
@@ -53,6 +62,13 @@ export default function DebtBobTrainer() {
 
   const transcriptRef = useRef([]);
   useEffect(() => { transcriptRef.current = transcript; }, [transcript]);
+
+  // Load reference calls (MP3 call recordings) for scenario selection
+  useEffect(() => {
+    base44.entities.KnowledgeBase.filter({ category: 'debt_call' }, '-created_date', 50)
+      .then(entries => setCallRefs(entries || []))
+      .catch(() => {});
+  }, []);
 
   // Load KB entries from all debt categories
   const loadKB = useCallback(async () => {
@@ -97,12 +113,28 @@ export default function DebtBobTrainer() {
       : sliderValue < 60 ? 'Owl/Hybrid (analytical, wants to understand the program)'
       : sliderValue < 80 ? 'Cow-leaning Owl (generally agreeable but checks logic)'
       : 'full Cow mode (easy sell — stressed, drowning in debt, relieved someone called)';
+    const scenarioText = scenario.debtAmount || scenario.creditors || scenario.monthlyIncome ? `
+━━━ CUSTOMER DEBT SCENARIO — ROLEPLAY WITH THESE DETAILS ━━━
+- Total Debt: $${scenario.debtAmount || 'unspecified'}
+- Creditors: ${scenario.creditors || 'unspecified'} (${scenario.creditorCount || '?'} accounts)
+- Monthly Income: $${scenario.monthlyIncome || 'unspecified'}
+- Behind on Payments: ${scenario.behindOnPayments ? `Yes, ${scenario.monthsBehind || '?'} months behind` : 'No, current'}
+- Use these details when discussing your financial situation. Be specific about amounts and creditors when asked.` : '';
+
+    const refCall = callRefs.find(r => r.id === selectedCallRefId);
+    const refCallText = refCall ? `
+━━━ REFERENCE CALL BEHAVIOR — LEARN FROM THIS REAL CALL ━━━
+Q: ${refCall.question}
+A: ${refCall.answer}
+— Use this as reference for how a real customer in this situation behaves and reacts.` : '';
+
     return `${persona.systemPrompt}
 
 ━━━ CURRENT SESSION SETTINGS ━━━
 - Persona Blend: ${sliderLabel} (slider ${sliderValue}/100 — 0=full Duck/hard, 50=Owl, 100=full Cow/easy)
 - Intensity: ${intensity}/5 (higher = more extreme character behavior)
 - Call Focus Topic: "${focusTopic}" — steer objections and interest toward this topic
+${scenarioText}${refCallText}
 
 ━━━ DEBT SETTLEMENT KNOWLEDGE BASE — LEARNED FROM REAL CALLS ━━━
 ${kbText || 'No KB entries yet. Upload calls, documents, and websites to BOB\'s Brain to make BOB smarter and more realistic.'}
@@ -113,7 +145,7 @@ ${kbText || 'No KB entries yet. Upload calls, documents, and websites to BOB\'s 
 - Use natural speech: contractions, interruptions, "uh", "look", "listen", "I mean" — real people talk like this.
 - React to what the trainee actually says — improvise within your persona, don't just recite lines.
 - Use the KNOWLEDGE BASE above to inform your responses — if the closer mentions program details, fees, or timelines that match the KB, react realistically based on what you know.`;
-  }, [sliderValue, intensity, focusTopic, kbEntries, getActivePersona]);
+  }, [sliderValue, intensity, focusTopic, kbEntries, getActivePersona, scenario, callRefs, selectedCallRefId]);
 
   const handleStartCall = useCallback(async () => {
     const newCount = callCount + 1;
@@ -264,6 +296,39 @@ ${kbText || 'No KB entries yet. Upload calls, documents, and websites to BOB\'s 
                   <div style={{ color: '#6b7280', fontSize: '10px' }}>{getActivePersona().description}</div>
                 </div>
               </div>
+            </div>
+
+            {/* Scenario Config */}
+            <div style={{ background: '#0d1b2a', border: '1px solid rgba(251,146,60,0.2)', borderRadius: '6px', padding: '16px' }}>
+              <div style={{ color: '#fb923c', fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '12px' }}>🎭 Customer Scenario</div>
+              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '12px' }}>
+                {PRESET_SCENARIOS.map((p, i) => (
+                  <button key={i} onClick={() => setScenario(p.data)} style={{ padding: '6px 10px', borderRadius: '4px', border: '1px solid rgba(251,146,60,0.3)', background: 'rgba(251,146,60,0.08)', color: '#fb923c', cursor: 'pointer', fontSize: '11px' }}>{p.label}</button>
+                ))}
+                <button onClick={() => setScenario({ debtAmount: '', creditorCount: '', creditors: '', monthlyIncome: '', behindOnPayments: false, monthsBehind: '' })} style={{ padding: '6px 10px', borderRadius: '4px', border: '1px solid rgba(255,255,255,0.1)', background: 'transparent', color: '#6b7280', cursor: 'pointer', fontSize: '11px' }}>Clear</button>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '8px' }}>
+                <div><label style={ls}>Total Debt $</label><input type="number" value={scenario.debtAmount} onChange={e => setScenario(p => ({ ...p, debtAmount: e.target.value }))} placeholder="25000" style={inp} /></div>
+                <div><label style={ls}>Creditors #</label><input type="number" value={scenario.creditorCount} onChange={e => setScenario(p => ({ ...p, creditorCount: e.target.value }))} placeholder="4" style={inp} /></div>
+              </div>
+              <div style={{ marginBottom: '8px' }}><label style={ls}>Creditor Names</label><input value={scenario.creditors} onChange={e => setScenario(p => ({ ...p, creditors: e.target.value }))} placeholder="Chase, Capital One, Discover" style={inp} /></div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '8px' }}>
+                <div><label style={ls}>Monthly Income $</label><input type="number" value={scenario.monthlyIncome} onChange={e => setScenario(p => ({ ...p, monthlyIncome: e.target.value }))} placeholder="3500" style={inp} /></div>
+                <div><label style={ls}>Months Behind</label><input type="number" value={scenario.monthsBehind} onChange={e => setScenario(p => ({ ...p, monthsBehind: e.target.value }))} placeholder="2" style={inp} /></div>
+              </div>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', marginBottom: '10px' }}>
+                <input type="checkbox" checked={scenario.behindOnPayments} onChange={e => setScenario(p => ({ ...p, behindOnPayments: e.target.checked }))} style={{ accentColor: '#fb923c' }} />
+                <span style={{ color: '#c4cdd8', fontSize: '12px' }}>Behind on payments</span>
+              </label>
+              {callRefs.length > 0 && (
+                <div>
+                  <label style={ls}>📖 Reference Call (learn from real customer)</label>
+                  <select value={selectedCallRefId} onChange={e => setSelectedCallRefId(e.target.value)} style={{ ...inp, cursor: 'pointer' }}>
+                    <option value="">— None —</option>
+                    {callRefs.map(r => <option key={r.id} value={r.id}>{r.question?.slice(0, 60)}</option>)}
+                  </select>
+                </div>
+              )}
             </div>
           </div>
 

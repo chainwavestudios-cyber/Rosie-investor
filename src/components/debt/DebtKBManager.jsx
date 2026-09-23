@@ -18,6 +18,7 @@ const KB_SECTIONS = [
   { id: 'docs', label: '📄 Documents', category: 'debt_doc', color: '#a78bfa', desc: 'Upload PDFs, program docs, compliance materials. AI extracts Q&A + raw chunks.' },
   { id: 'web', label: '🌐 Websites', category: 'debt_web', color: '#34d399', desc: 'Scrape competitor sites, program info pages, debt settlement resources.' },
   { id: 'mp3', label: '🎵 MP3 Call Recordings', category: 'debt_call', color: '#f472b6', desc: 'Upload real call recordings. AI transcribes and extracts Q&A + generates scripts.' },
+  { id: 'hotpoints', label: '🔥 Hotpoints', category: 'debt_hotpoints', color: '#fb923c', desc: 'Key coaching moments, objections, and triggers the live coach AI uses to guide agents during calls.' },
 ];
 
 export default function DebtKBManager() {
@@ -80,6 +81,7 @@ export default function DebtKBManager() {
       {section === 'docs' && <DocUploader category={KB_SECTIONS[2].category} onSaved={refresh} />}
       {section === 'web' && <WebScraper category={KB_SECTIONS[3].category} onSaved={refresh} />}
       {section === 'mp3' && <MP3Uploader category={KB_SECTIONS[4].category} onSaved={refresh} />}
+      {section === 'hotpoints' && <HotpointEditor category={KB_SECTIONS[5].category} onSaved={refresh} />}
 
       {/* Entry list */}
       <div style={{ marginTop: '24px' }}>
@@ -102,6 +104,7 @@ export default function DebtKBManager() {
                   <button onClick={async () => { await base44.entities.KnowledgeBase.delete(e.id); refresh(); }} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '11px' }}>Delete</button>
                 </div>
                 <div style={{ color: '#8a9ab8', fontSize: '12px', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>{e.answer?.slice(0, 300)}{e.answer?.length > 300 ? '…' : ''}</div>
+                {e.tags && section === 'hotpoints' && <span style={{ display: 'inline-block', marginTop: '6px', padding: '2px 8px', borderRadius: '2px', background: 'rgba(251,146,60,0.15)', color: '#fb923c', fontSize: '9px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '1px' }}>{e.tags || 'general'}</span>}
                 {e.source && <div style={{ color: '#4a5568', fontSize: '10px', marginTop: '4px' }}>Source: {e.source}</div>}
               </div>
             ))}
@@ -421,6 +424,53 @@ ${transcriptText}`,
           <button onClick={saveSelected} disabled={saving || selectedEntries.size === 0} style={{ marginTop: '6px', background: 'linear-gradient(135deg,#f472b6,#ec4899)', color: DARK, border: 'none', borderRadius: '4px', padding: '10px 20px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase', opacity: saving ? 0.5 : 1 }}>💾 Save {selectedEntries.size} Entries</button>
         </div>
       )}
+    </div>
+  );
+}
+
+// ─── Hotpoint Editor ─────────────────────────────────────────────────────────
+function HotpointEditor({ category, onSaved }) {
+  const [form, setForm] = useState({ question: '', answer: '', tags: '' });
+  const [saving, setSaving] = useState(false);
+
+  const HOTPOINT_TYPES = [
+    { id: '', label: '📋 General' },
+    { id: 'objection', label: '🛡️ Objection Handler' },
+    { id: 'closing', label: '✅ Closing Signal' },
+    { id: 'discovery', label: '🔍 Discovery Question' },
+    { id: 'red_flag', label: '🚩 Red Flag' },
+    { id: 'buying_signal', label: '🤝 Buying Signal' },
+  ];
+
+  const save = async () => {
+    if (!form.question.trim() || !form.answer.trim()) return;
+    setSaving(true);
+    await base44.entities.KnowledgeBase.create({
+      question: form.question,
+      answer: form.answer,
+      category,
+      kbName: 'Debt Settlement',
+      tags: form.tags,
+      created_date: new Date().toISOString(),
+    });
+    setForm({ question: '', answer: '', tags: '' });
+    onSaved();
+    setSaving(false);
+  };
+
+  return (
+    <div style={{ background: 'rgba(251,146,60,0.05)', border: '1px solid rgba(251,146,60,0.2)', borderRadius: '6px', padding: '20px' }}>
+      <div style={{ color: '#fb923c', fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '4px' }}>Add Coaching Hotpoint</div>
+      <div style={{ color: '#6b7280', fontSize: '11px', marginBottom: '16px' }}>Key moments and triggers the live coach AI watches for during calls. When the customer says or does something matching this trigger, the coach suggests the guidance below.</div>
+      <div style={{ marginBottom: '10px' }}><label style={ls}>Trigger / Situation</label><input value={form.question} onChange={e => setForm(p => ({ ...p, question: e.target.value }))} placeholder="e.g. Customer mentions bankruptcy" style={inp} /></div>
+      <div style={{ marginBottom: '10px' }}>
+        <label style={ls}>Type</label>
+        <select value={form.tags} onChange={e => setForm(p => ({ ...p, tags: e.target.value }))} style={{ ...inp, cursor: 'pointer' }}>
+          {HOTPOINT_TYPES.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
+        </select>
+      </div>
+      <div style={{ marginBottom: '10px' }}><label style={ls}>Coaching Guidance</label><textarea value={form.answer} onChange={e => setForm(p => ({ ...p, answer: e.target.value }))} rows={4} style={{ ...inp, resize: 'vertical' }} placeholder="What the agent should do or say when this trigger occurs…" /></div>
+      <button onClick={save} disabled={saving || !form.question.trim() || !form.answer.trim()} style={{ background: 'linear-gradient(135deg,#fb923c,#f97316)', color: DARK, border: 'none', borderRadius: '4px', padding: '10px 20px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase', opacity: saving ? 0.5 : 1 }}>+ Add Hotpoint</button>
     </div>
   );
 }
