@@ -52,6 +52,13 @@ export default function DebtBobTrainer() {
 
   useEffect(() => { loadKB(); }, [loadKB]);
 
+  // Listen for KB updates from the Knowledge Base tab — shared learning
+  useEffect(() => {
+    const handler = () => loadKB();
+    window.addEventListener('debt_kb_updated', handler);
+    return () => window.removeEventListener('debt_kb_updated', handler);
+  }, [loadKB]);
+
   const addLog = useCallback((type, content) => {
     setLogs(prev => [...prev, { type, content, time: new Date().toISOString(), sessionId }]);
   }, [sessionId]);

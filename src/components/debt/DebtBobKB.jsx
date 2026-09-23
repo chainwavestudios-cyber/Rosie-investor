@@ -38,9 +38,17 @@ export default function DebtBobKB({ onKBUpdated }) {
 
   useEffect(() => { load(); }, [load]);
 
+  // Listen for KB updates from the Knowledge Base tab — shared learning
+  useEffect(() => {
+    const handler = () => load();
+    window.addEventListener('debt_kb_updated', handler);
+    return () => window.removeEventListener('debt_kb_updated', handler);
+  }, [load]);
+
   const refresh = useCallback(async () => {
     await load();
     onKBUpdated?.();
+    window.dispatchEvent(new CustomEvent('debt_kb_updated'));
   }, [load, onKBUpdated]);
 
   const del = async (id) => {

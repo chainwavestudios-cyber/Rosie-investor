@@ -35,14 +35,35 @@ export default function DebtKBManager() {
       .finally(() => setLoading(false));
   }, [section]);
 
-  const refresh = useCallback(async () => {
+  const loadEntries = useCallback(async () => {
     const all = await base44.entities.KnowledgeBase.list('-created_date', 500);
     const cat = KB_SECTIONS.find(s => s.id === section).category;
     setEntries((all || []).filter(e => e.category === cat || (cat === 'debt_customer' && (e.category === 'debt_kb' || e.category === 'debt_faq'))));
   }, [section]);
 
+  const refresh = useCallback(async () => {
+    await loadEntries();
+    window.dispatchEvent(new CustomEvent('debt_kb_updated'));
+  }, [loadEntries]);
+
+  // Listen for KB updates from BOB's Brain — shared learning
+  useEffect(() => {
+    const handler = () => loadEntries();
+    window.addEventListener('debt_kb_updated', handler);
+    return () => window.removeEventListener('debt_kb_updated', handler);
+  }, [loadEntries]);
+
   return (
     <div>
+      {/* BOB shared learning banner */}
+      <div style={{ marginBottom: '16px', padding: '10px 16px', background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.2)', borderRadius: '6px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+        <span style={{ fontSize: '16px' }}>🤖</span>
+        <div>
+          <div style={{ color: GOLD, fontSize: '11px', fontWeight: 'bold' }}>BOB uses this knowledge</div>
+          <div style={{ color: '#6b7280', fontSize: '10px' }}>Every entry here — scripts, Q&A, docs, calls, websites — feeds BOB's brain in the Training tab. BOB gets smarter with every upload.</div>
+        </div>
+      </div>
+
       {/* Section selector */}
       <div style={{ display: 'flex', gap: '8px', marginBottom: '20px', flexWrap: 'wrap' }}>
         {KB_SECTIONS.map(s => (
