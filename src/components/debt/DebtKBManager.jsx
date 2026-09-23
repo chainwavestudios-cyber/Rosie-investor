@@ -5,6 +5,7 @@
  */
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { base44 } from '@/api/base44Client';
+import { computeFileHash, checkDuplicateHash } from '@/lib/fileDedup';
 
 const GOLD = '#10b981';
 const DARK = '#0a0f1e';
@@ -170,6 +171,10 @@ function DocUploader({ category, onSaved }) {
 
   const handleFile = async (file) => {
     if (!file) return;
+    setStatus('Checking for duplicates…');
+    const hash = await computeFileHash(file);
+    const dup = await checkDuplicateHash(hash);
+    if (dup.isDuplicate) { setError(`This file was already uploaded on ${new Date(dup.firstUploadDate).toLocaleDateString()} — ${dup.count} entries exist from it. Skipping to avoid duplication.`); return; }
     setUploading(true); setError(''); setStatus(`Uploading ${file.name} (${(file.size / 1024 / 1024).toFixed(1)}MB)…`);
     try {
       // Upload to public storage
@@ -196,7 +201,7 @@ function DocUploader({ category, onSaved }) {
           category: e.category === 'raw_chunk' ? 'raw_chunk' : category,
           source: file.name,
           kbName: 'Debt Settlement',
-          tags: e.keywords || '',
+          tags: `${e.keywords || ''} file_hash:${hash}`.trim(),
           created_date: new Date().toISOString(),
         });
       }
@@ -282,6 +287,7 @@ function MP3Uploader({ category, onSaved }) {
   const [extractedEntries, setExtractedEntries] = useState([]);
   const [selectedEntries, setSelectedEntries] = useState(new Set());
   const [saving, setSaving] = useState(false);
+  const [fileHash, setFileHash] = useState('');
   const fileRef = useRef(null);
 
   const MAX_BYTES = 50 * 1024 * 1024;
@@ -289,6 +295,11 @@ function MP3Uploader({ category, onSaved }) {
   const handleFile = async (file) => {
     if (!file) return;
     if (file.size > MAX_BYTES) { setError(`File is ${(file.size / 1024 / 1024).toFixed(1)}MB — max is 50MB.`); return; }
+    setStatus('Checking for duplicates…');
+    const hash = await computeFileHash(file);
+    const dup = await checkDuplicateHash(hash);
+    if (dup.isDuplicate) { setError(`This file was already uploaded on ${new Date(dup.firstUploadDate).toLocaleDateString()} — ${dup.count} entries exist from it. Skipping to avoid duplication.`); return; }
+    setFileHash(hash);
     setUploading(true); setError(''); setTranscript(''); setExtractedEntries([]); setSelectedEntries(new Set());
     setStatus(`Uploading ${file.name} (${(file.size / 1024 / 1024).toFixed(1)}MB)…`);
     try {
@@ -373,7 +384,7 @@ ${transcriptText}`,
     setSaving(true);
     const toSave = extractedEntries.filter((_, i) => selectedEntries.has(i));
     for (const e of toSave) {
-      await base44.entities.KnowledgeBase.create({ ...e, category, kbName: 'Debt Settlement', source: 'MP3 Call Recording', created_date: new Date().toISOString() });
+      await base44.entities.KnowledgeBase.create({ ...e, category, kbName: 'Debt Settlement', source: 'MP3 Call Recording', tags: `file_hash:${fileHash}`, created_date: new Date().toISOString() });
     }
     setStatus(`✓ ${toSave.length} entries saved!`);
     setExtractedEntries([]); setSelectedEntries(new Set()); setTranscript('');

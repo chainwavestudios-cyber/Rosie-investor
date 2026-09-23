@@ -5,6 +5,7 @@
  */
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
+import { computeFileHash, computeTextHash, checkDuplicateHash } from '@/lib/fileDedup';
 
 const GOLD = '#10b981';
 const DARK = '#0a0f1e';
@@ -137,6 +138,10 @@ function DocUploader({ onStatus, onError, onDone }) {
 
   const handleFile = async (file) => {
     if (!file) return;
+    onStatus('Checking for duplicates…');
+    const hash = await computeFileHash(file);
+    const dup = await checkDuplicateHash(hash);
+    if (dup.isDuplicate) { onError(`This file was already uploaded on ${new Date(dup.firstUploadDate).toLocaleDateString()} — ${dup.count} entries exist from it. Skipping to avoid duplication.`); return; }
     setUploading(true); onError('');
     onStatus(`Uploading ${file.name} (${(file.size / 1024 / 1024).toFixed(1)}MB)…`);
     try {
@@ -152,9 +157,9 @@ function DocUploader({ onStatus, onError, onDone }) {
       for (const e of extracted) {
         await base44.entities.KnowledgeBase.create({
           question: e.question, answer: e.answer,
-          category: e.category === 'raw_chunk' ? 'debt_doc' : 'debt_doc',
+          category: 'debt_doc',
           source: file.name, kbName: 'Debt Settlement',
-          tags: e.keywords || '', created_date: new Date().toISOString(),
+          tags: `${e.keywords || ''} file_hash:${hash}`.trim(), created_date: new Date().toISOString(),
         });
       }
       onStatus(`✓ ${extracted.length} entries extracted from ${file.name}! BOB is smarter.`);
@@ -183,12 +188,18 @@ function MP3Uploader({ onStatus, onError, onDone }) {
   const [extracted, setExtracted] = useState([]);
   const [selected, setSelected] = useState(new Set());
   const [saving, setSaving] = useState(false);
+  const [fileHash, setFileHash] = useState('');
   const fileRef = useRef(null);
   const MAX_BYTES = 50 * 1024 * 1024;
 
   const handleFile = async (file) => {
     if (!file) return;
     if (file.size > MAX_BYTES) { onError(`File is ${(file.size / 1024 / 1024).toFixed(1)}MB — max is 50MB.`); return; }
+    onStatus('Checking for duplicates…');
+    const hash = await computeFileHash(file);
+    const dup = await checkDuplicateHash(hash);
+    if (dup.isDuplicate) { onError(`This file was already uploaded on ${new Date(dup.firstUploadDate).toLocaleDateString()} — ${dup.count} entries exist from it. Skipping to avoid duplication.`); return; }
+    setFileHash(hash);
     setUploading(true); onError(''); setExtracted([]); setSelected(new Set());
     onStatus(`Uploading ${file.name} (${(file.size / 1024 / 1024).toFixed(1)}MB)…`);
     try {
@@ -218,7 +229,7 @@ function MP3Uploader({ onStatus, onError, onDone }) {
     setSaving(true);
     const toSave = extracted.filter((_, i) => selected.has(i));
     for (const e of toSave) {
-      await base44.entities.KnowledgeBase.create({ ...e, category: 'debt_call', kbName: 'Debt Settlement', source: 'MP3 Call Recording', created_date: new Date().toISOString() });
+      await base44.entities.KnowledgeBase.create({ ...e, category: 'debt_call', kbName: 'Debt Settlement', source: 'MP3 Call Recording', tags: `file_hash:${fileHash}`, created_date: new Date().toISOString() });
     }
     onStatus(`✓ ${toSave.length} entries saved to BOB's brain!`);
     setExtracted([]); setSelected(new Set());
@@ -262,9 +273,15 @@ function TranscriptUploader({ onStatus, onError, onDone }) {
   const [extracted, setExtracted] = useState([]);
   const [selected, setSelected] = useState(new Set());
   const [saving, setSaving] = useState(false);
+  const [textHash, setTextHash] = useState('');
 
   const extract = async () => {
     if (!text.trim()) return;
+    onStatus('Checking for duplicates…');
+    const hash = await computeTextHash(text);
+    const dup = await checkDuplicateHash(hash);
+    if (dup.isDuplicate) { onError(`This transcript was already uploaded on ${new Date(dup.firstUploadDate).toLocaleDateString()} — ${dup.count} entries exist from it. Skipping to avoid duplication.`); return; }
+    setTextHash(hash);
     setExtracting(true); onError(''); setExtracted([]);
     onStatus('Extracting Q&A from transcript…');
     try {
@@ -284,7 +301,7 @@ function TranscriptUploader({ onStatus, onError, onDone }) {
     setSaving(true);
     const toSave = extracted.filter((_, i) => selected.has(i));
     for (const e of toSave) {
-      await base44.entities.KnowledgeBase.create({ ...e, category: 'debt_call', kbName: 'Debt Settlement', source: 'Pasted Transcript', created_date: new Date().toISOString() });
+      await base44.entities.KnowledgeBase.create({ ...e, category: 'debt_call', kbName: 'Debt Settlement', source: 'Pasted Transcript', tags: `file_hash:${textHash}`, created_date: new Date().toISOString() });
     }
     onStatus(`✓ ${toSave.length} entries saved to BOB's brain!`);
     setExtracted([]); setSelected(new Set()); setText('');
