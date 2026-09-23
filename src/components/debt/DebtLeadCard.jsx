@@ -44,7 +44,7 @@ export default function DebtLeadCard({ lead, onLeadChange, transcript, intentSco
     setSaving(false);
   };
 
-  const CARD_TABS = [['overview', 'Overview'], ['debt', 'Debt Details'], ['ledger', '💳 Debt Ledger'], ['employment', 'Employment'], ['notes', 'Notes'], ['ai', '🤖 AI Profile']];
+  const CARD_TABS = [['overview', 'Overview'], ['transcript', '📋 Transcript'], ['debt', 'Debt Details'], ['ledger', '💳 Debt Ledger'], ['employment', 'Employment'], ['notes', 'Notes'], ['ai', '🤖 AI Profile']];
 
   return (
     <div style={{ background: '#0d1b2a', border: '1px solid rgba(16,185,129,0.3)', borderRadius: '6px', display: 'flex', flexDirection: 'column', height: '100%' }}>
@@ -83,6 +83,27 @@ export default function DebtLeadCard({ lead, onLeadChange, transcript, intentSco
             <Field label="City" value={lead.city} onChange={v => update('city', v)} />
             <Field label="State" value={lead.state} onChange={v => update('state', v)} />
             <Field label="Zip" value={lead.zip} onChange={v => update('zip', v)} />
+          </div>
+        )}
+        {tab === 'transcript' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            {transcript.length === 0 ? (
+              <div style={{ color: '#4a5568', textAlign: 'center', padding: '40px 0', fontSize: '12px' }}>No transcript yet. Start a call to see live transcription here.</div>
+            ) : transcript.map((msg, i) => {
+              const isAgent = msg.speaker === 0;
+              const sentColor = msg.sentiment === 'positive' ? '#4ade80' : msg.sentiment === 'negative' ? '#ef4444' : '#6b7280';
+              return (
+                <div key={i} style={{ display: 'flex', gap: '8px', justifyContent: isAgent ? 'flex-end' : 'flex-start' }}>
+                  <div style={{ maxWidth: '85%', background: isAgent ? 'rgba(96,165,250,0.1)' : 'rgba(245,158,11,0.08)', border: `1px solid ${isAgent ? 'rgba(96,165,250,0.2)' : 'rgba(245,158,11,0.2)'}`, borderRadius: isAgent ? '12px 12px 2px 12px' : '12px 12px 12px 2px', padding: '8px 12px' }}>
+                    <div style={{ display: 'flex', gap: '6px', alignItems: 'center', marginBottom: '3px' }}>
+                      <span style={{ color: isAgent ? '#60a5fa' : '#f59e0b', fontSize: '9px', fontWeight: 'bold', textTransform: 'uppercase' }}>{isAgent ? '🎙 Agent' : '👤 Customer'}</span>
+                      {msg.sentiment && <span style={{ color: sentColor, fontSize: '9px' }}>● {msg.sentiment}</span>}
+                    </div>
+                    <div style={{ color: '#c4cdd8', fontSize: '13px', lineHeight: 1.5 }}>{msg.text}</div>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         )}
         {tab === 'debt' && (

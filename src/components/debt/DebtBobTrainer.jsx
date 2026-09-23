@@ -53,8 +53,11 @@ export default function DebtBobTrainer() {
   useEffect(() => {
     base44.entities.PortalSettings.filter({ key: 'bob_controls_debt' })
       .then(rows => {
-        if (rows?.length > 0 && rows[0].bobDeepgramApiKey) {
-          setDgApiKey(rows[0].bobDeepgramApiKey);
+        if (rows?.length > 0 && rows[0].adminUsername) {
+          try {
+            const saved = JSON.parse(rows[0].adminUsername);
+            if (saved.dgApiKey) setDgApiKey(saved.dgApiKey);
+          } catch {}
         }
       })
       .catch(() => {});
@@ -156,15 +159,8 @@ ${kbText || 'No KB entries yet. Upload calls, documents, and websites to BOB\'s 
     const vIdx = (newCount - 1) % VOICE_MODELS.length;
     setVoiceModel(VOICE_MODELS[vIdx]);
 
-    // Get a fresh Deepgram API key — prefer live token, then PortalSettings, then fallback
-    let apiKey = dgApiKey;
-    if (!apiKey) {
-      try {
-        const tokenRes = await base44.functions.invoke('deepgramToken', {});
-        apiKey = tokenRes?.key || tokenRes?.data?.key || '';
-      } catch {}
-    }
-    if (!apiKey) apiKey = '44294c0c2f0ebbcc81b853151056111226b853e9';
+    // Use the same key source as admin BobTab: PortalSettings first, then hardcoded fallback
+    const apiKey = dgApiKey || '44294c0c2f0ebbcc81b853151056111226b853e9';
     const greetings = ['Hello.', 'Hello?', 'Hello, this is Bob.', 'Yeah?', 'Hello, go ahead.'];
     const greeting = greetings[Math.floor(Math.random() * greetings.length)];
 

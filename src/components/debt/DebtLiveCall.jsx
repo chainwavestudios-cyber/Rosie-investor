@@ -89,6 +89,21 @@ export default function DebtLiveCall() {
 
   useEffect(() => { transcriptRef.current = transcript; }, [transcript]);
 
+  // Auto-save transcript every 15 seconds during live call (in case audio feed drops)
+  useEffect(() => {
+    if (phase !== 'live' || !lead.id) return;
+    const interval = setInterval(async () => {
+      if (transcriptRef.current.length === 0) return;
+      try {
+        await base44.entities.DebtLead.update(leadRef.current.id, {
+          transcriptJson: JSON.stringify(transcriptRef.current),
+          lastCallAt: new Date().toISOString(),
+        });
+      } catch {}
+    }, 15000);
+    return () => clearInterval(interval);
+  }, [phase, lead.id]);
+
   const createNewLead = useCallback(async () => {
     try {
       const created = await base44.entities.DebtLead.create({
