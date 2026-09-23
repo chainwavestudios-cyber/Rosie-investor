@@ -9,7 +9,7 @@ import { useDebtBobVoice } from '@/hooks/useDebtBobVoice';
 import { DEBT_DUCK, DEBT_COW, DEBT_OWL } from '@/components/admin/bob/DebtPersonas';
 import DebtBobKB from '@/components/debt/DebtBobKB';
 import FloatingScriptBox from '@/components/debt/FloatingScriptBox';
-import DebtAIPanel from '@/components/debt/DebtAIPanel';
+import AIAssistantPopup from '@/components/leads/AIAssistantPopup';
 
 const GOLD = '#10b981';
 const DARK = '#0a0f1e';
@@ -48,6 +48,14 @@ export default function DebtBobTrainer() {
   const [scenario, setScenario] = useState({ debtAmount: '', creditorCount: '', creditors: '', monthlyIncome: '', behindOnPayments: false, monthsBehind: '' });
   const [callRefs, setCallRefs] = useState([]);
   const [selectedCallRefId, setSelectedCallRefId] = useState('');
+  const [showAIPopup, setShowAIPopup] = useState(false);
+  const [qaActive, setQaActive] = useState(false);
+  const [coachActive, setCoachActive] = useState(false);
+  const [intentActive, setIntentActive] = useState(false);
+  const [allKbEntries, setAllKbEntries] = useState([]);
+  const [kbNames, setKbNames] = useState([]);
+  const [selectedKbName, setSelectedKbName] = useState('Debt Settlement');
+  const aiTranscriptRef = useRef([]);
 
   // Load Deepgram API key from PortalSettings (shared with admin BobTab)
   useEffect(() => {
@@ -65,6 +73,19 @@ export default function DebtBobTrainer() {
 
   const transcriptRef = useRef([]);
   useEffect(() => { transcriptRef.current = transcript; }, [transcript]);
+
+  // Normalize BOB transcript for AIAssistantPopup (speaker: 0=prospect/bob, 1=agent/trainee)
+  const normalizedTranscript = transcript.map(e => ({ speaker: e.role === 'trainee' ? 1 : 0, text: e.text, time: e.time }));
+  useEffect(() => { aiTranscriptRef.current = normalizedTranscript; }, [normalizedTranscript]);
+
+  // Load all KB entries for the popup
+  useEffect(() => {
+    base44.entities.KnowledgeBase.list('-created_date', 500).then(all => {
+      const entries = all || [];
+      setAllKbEntries(entries);
+      setKbNames([...new Set(entries.map(e => e.kbName || '').filter(Boolean))]);
+    }).catch(() => {});
+  }, []);
 
   // Load reference calls (MP3 call recordings) for scenario selection
   useEffect(() => {
@@ -212,7 +233,8 @@ ${kbText || 'No KB entries yet. Upload calls, documents, and websites to BOB\'s 
 
       {/* Training Room */}
       {subTab === 'training' && (
-        <div style={{ display: 'grid', gridTemplateColumns: '380px 1fr 400px', gap: '16px', alignItems: 'start' }}>
+        <>
+        <div style={{ display: 'grid', gridTemplateColumns: '380px 1fr', gap: '16px', alignItems: 'start' }}>
           {/* Left: Controls */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
             {/* Call controls */}
@@ -254,6 +276,12 @@ ${kbText || 'No KB entries yet. Upload calls, documents, and websites to BOB\'s 
               {ringPhase && <div style={{ marginTop: '8px', color: '#f59e0b', fontSize: '11px', textAlign: 'center', animation: 'pulse 0.8s infinite' }}>📞 Dialing… (ringing twice, then Bob picks up)</div>}
               {agentSpeaking && phase === 'active' && <div style={{ marginTop: '6px', color: GOLD, fontSize: '11px', textAlign: 'center' }}>🤖 Bob is speaking…</div>}
               {error && <div style={{ marginTop: '8px', color: '#ef4444', fontSize: '11px' }}>⚠ {error}</div>}
+
+              {/* AI Assistant button — opens popup */}
+              <button onClick={() => setShowAIPopup(true)} style={{ width: '100%', marginTop: '10px', background: showAIPopup ? 'rgba(74,222,128,0.15)' : `${GOLD}18`, color: showAIPopup ? '#4ade80' : GOLD, border: `1px solid ${showAIPopup ? 'rgba(74,222,128,0.3)' : GOLD + '44'}`, borderRadius: '4px', padding: '10px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase' }}>
+                {showAIPopup ? '🟢 AI Assistant Active' : '🤖 Open AI Assistant'}
+              </button>
+              <div style={{ color: '#4a5568', fontSize: '10px', textAlign: 'center', marginTop: '4px' }}>Q&A, Coach, Intent — uses Deepgram audio stream</div>
             </div>
 
             {/* Duck-Cow Slider */}
@@ -360,10 +388,39 @@ ${kbText || 'No KB entries yet. Upload calls, documents, and websites to BOB\'s 
               })}
             </div>
           </div>
-
-          {/* AI Tools — Q&A, Coach, Intent, Pitches, Signals */}
-          <DebtAIPanel transcript={transcript} kbEntries={kbEntries} isActive={phase === 'active'} transcriptFormat="bob" />
         </div>
+
+        {/* AI Assistant Popup — draggable, resizable, same as admin panel */}
+        {showAIPopup && (
+          <AIAssistantPopup
+            lead={null}
+            transcript={normalizedTranscript}
+            transcriptRef={aiTranscriptRef}
+            kbEntries={kbEntries}
+            portalCfg={{}}
+            engagementScore={0}
+            qaActive={qaActive}
+            coachActive={coachActive}
+            intentActive={intentActive}
+            onToggleQA={() => setQaActive(p => !p)}
+            onToggleCoach={() => setCoachActive(p => !p)}
+            onToggleIntent={() => setIntentActive(p => !p)}
+            onClose={() => setShowAIPopup(false)}
+            onIntentResult={() => {}}
+            onQALog={() => {}}
+            onCoachTip={() => {}}
+            kbName={selectedKbName || ''}
+            allKbEntries={allKbEntries}
+            kbNames={kbNames}
+            selectedKbName={selectedKbName}
+            onKbChange={setSelectedKbName}
+            activeScript={null}
+            scripts={[]}
+            callAttemptNumber={callCount}
+            previousCallSummary={null}
+          />
+        )}
+        </>
       )}
 
       {/* BOB's Brain */}
