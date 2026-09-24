@@ -23,6 +23,7 @@ const UPLOAD_TABS = [
   { id: 'objections', label: '🚫 Objections', color: '#fb923c' },
   { id: 'open_scenario', label: '📞 Open Scenario', color: '#60a5fa' },
   { id: 'close_scenario', label: '🎯 Close Scenario', color: '#a78bfa' },
+  { id: 'bulkqa', label: '📋 Bulk Q&A', color: '#4ade80' },
 ];
 
 const CATEGORY_LABELS = {
@@ -140,6 +141,7 @@ export default function DebtBobKB({ onKBUpdated }) {
       {uploadTab === 'objections' && <ObjectionUploader onStatus={setStatus} onError={setError} onDone={refresh} />}
       {uploadTab === 'open_scenario' && <ScenarioUploader mode="open" onStatus={setStatus} onError={setError} onDone={refresh} />}
       {uploadTab === 'close_scenario' && <ScenarioUploader mode="close" onStatus={setStatus} onError={setError} onDone={refresh} />}
+      {uploadTab === 'bulkqa' && <BulkQAPaster onStatus={setStatus} onError={setError} onDone={refresh} />}
 
       {(status || error) && (
         <div style={{ marginTop: '12px', padding: '10px 14px', background: error ? 'rgba(239,68,68,0.08)' : 'rgba(16,185,129,0.06)', border: `1px solid ${error ? 'rgba(239,68,68,0.2)' : 'rgba(16,185,129,0.2)'}`, borderRadius: '4px' }}>
@@ -446,6 +448,106 @@ function WebScraper({ onStatus, onError, onDone }) {
           {scraping ? '⏳ Scraping…' : '🌐 Scrape'}
         </button>
       </div>
+    </div>
+  );
+}
+
+// ─── Bulk Q&A Paster ─────────────────────────────────────────────────────────
+function BulkQAPaster({ onStatus, onError, onDone }) {
+  const [text, setText] = useState('');
+  const [parsed, setParsed] = useState([]);
+  const [saving, setSaving] = useState(false);
+  const [category, setCategory] = useState('debt_kb');
+
+  const parse = () => {
+    if (!text.trim()) return;
+    const entries = [];
+
+    // Try Q:/A: format — blocks separated by blank lines
+    const blocks = text.split(/\n\s*\n/).filter(b => b.trim());
+    for (const block of blocks) {
+      const qMatch = block.match(/^Q[:.\-]\s*([\s\S]+)/im);
+      const aMatch = block.match(/^A[:.\-]\s*([\s\S]+)/im);
+      if (qMatch && aMatch) {
+        entries.push({ question: qMatch[1].trim(), answer: aMatch[1].trim() });
+      }
+    }
+
+    // If no Q:/A: entries found, try pipe-delimited format (question | answer)
+    if (entries.length === 0) {
+      const lines = text.split('\n').filter(l => l.trim());
+      for (const line of lines) {
+        const parts = line.split(/\s*\|\s*/);
+        if (parts.length >= 2 && parts[0].trim() && parts[1].trim()) {
+          entries.push({ question: parts[0].trim(), answer: parts[1].trim() });
+        }
+      }
+    }
+
+    if (entries.length === 0) {
+      onError('Could not parse any Q&A pairs. Use "Q: question" + "A: answer" (blank line between pairs) or "question | answer" per line.');
+      return;
+    }
+
+    setParsed(entries);
+    onError('');
+    onStatus(`${entries.length} Q&A pairs parsed. Review and save.`);
+  };
+
+  const save = async () => {
+    setSaving(true);
+    for (const e of parsed) {
+      await base44.entities.KnowledgeBase.create({
+        question: e.question,
+        answer: e.answer,
+        category,
+        kbName: 'Debt Settlement',
+        source: 'Bulk Q&A Paste',
+        created_date: new Date().toISOString(),
+      });
+    }
+    onStatus(`✓ ${parsed.length} entries saved to BOB's brain!`);
+    setText('');
+    setParsed([]);
+    onDone();
+    setSaving(false);
+    setTimeout(() => onStatus(''), 4000);
+  };
+
+  return (
+    <div style={{ background: 'rgba(74,222,128,0.05)', border: '1px solid rgba(74,222,128,0.2)', borderRadius: '6px', padding: '20px' }}>
+      <div style={{ color: '#4ade80', fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '4px' }}>Bulk Q&A Paste</div>
+      <div style={{ color: '#6b7280', fontSize: '11px', marginBottom: '12px', lineHeight: 1.6 }}>
+        Paste multiple Q&A pairs at once. Two formats supported:<br />
+        <strong style={{ color: '#4ade80' }}>Format 1:</strong> <code style={{ color: '#c4cdd8' }}>Q: question{'\n'}A: answer</code> (blank line between pairs)<br />
+        <strong style={{ color: '#4ade80' }}>Format 2:</strong> <code style={{ color: '#c4cdd8' }}>question | answer</code> (one per line)
+      </div>
+      <div style={{ marginBottom: '12px' }}>
+        <label style={ls}>Category</label>
+        <select value={category} onChange={e => setCategory(e.target.value)} style={{ ...inp, cursor: 'pointer' }}>
+          <option value="debt_kb">KB (General)</option>
+          <option value="debt_faq">FAQ</option>
+          <option value="debt_customer">Customer Q&A</option>
+          <option value="debt_agent">Agent Q&A</option>
+        </select>
+      </div>
+      <textarea value={text} onChange={e => setText(e.target.value)} rows={10} placeholder={'Q: What is debt settlement?\nA: Debt settlement is a process where...\n\nQ: How much does the program cost?\nA: The cost is typically...\n\n— or —\n\nWhat is debt settlement? | Debt settlement is a process...\nHow much does it cost? | The cost is typically...'} style={{ ...inp, resize: 'vertical', marginBottom: '12px', fontFamily: 'monospace', fontSize: '12px' }} />
+      <div style={{ display: 'flex', gap: '8px' }}>
+        <button onClick={parse} disabled={!text.trim()} style={{ background: !text.trim() ? 'rgba(255,255,255,0.05)' : 'linear-gradient(135deg,#4ade80,#22c55e)', color: !text.trim() ? '#6b7280' : DARK, border: 'none', borderRadius: '4px', padding: '10px 20px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase' }}>🔍 Parse Q&A</button>
+        {parsed.length > 0 && (
+          <button onClick={save} disabled={saving} style={{ background: 'linear-gradient(135deg,#4ade80,#22c55e)', color: DARK, border: 'none', borderRadius: '4px', padding: '10px 20px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase', opacity: saving ? 0.5 : 1 }}>{saving ? '⏳ Saving…' : `💾 Save ${parsed.length} Entries`}</button>
+        )}
+      </div>
+      {parsed.length > 0 && (
+        <div style={{ marginTop: '12px', maxHeight: '300px', overflowY: 'auto' }}>
+          {parsed.map((entry, i) => (
+            <div key={i} style={{ background: 'rgba(74,222,128,0.06)', border: '1px solid rgba(74,222,128,0.2)', borderRadius: '4px', padding: '10px', marginBottom: '6px' }}>
+              <div style={{ color: '#4ade80', fontSize: '10px', fontWeight: 'bold', marginBottom: '4px' }}>Q{i + 1}: {entry.question}</div>
+              <div style={{ color: '#8a9ab8', fontSize: '11px', lineHeight: 1.5 }}>{entry.answer}</div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
