@@ -52,6 +52,12 @@ export default function DebtBobTrainer() {
   const [selectedCallRefId, setSelectedCallRefId] = useState('');
   const [showAIPopup, setShowAIPopup] = useState(false);
   const [rightView, setRightView] = useState('transcript');
+  const [panelPoppedOut, setPanelPoppedOut] = useState(false);
+  const [panelPos, setPanelPos] = useState({ x: 200, y: 120 });
+  const [panelSize, setPanelSize] = useState({ width: 520, height: 600 });
+  const [panelDragging, setPanelDragging] = useState(false);
+  const [panelResizing, setPanelResizing] = useState(false);
+  const [panelOffset, setPanelOffset] = useState({ x: 0, y: 0 });
   const [qaActive, setQaActive] = useState(false);
   const [coachActive, setCoachActive] = useState(false);
   const [intentActive, setIntentActive] = useState(false);
@@ -86,6 +92,32 @@ export default function DebtBobTrainer() {
   // Normalize BOB transcript for AIAssistantPopup (speaker: 0=prospect/bob, 1=agent/trainee)
   const normalizedTranscript = transcript.map(e => ({ speaker: e.role === 'trainee' ? 1 : 0, text: e.text, time: e.time }));
   useEffect(() => { aiTranscriptRef.current = normalizedTranscript; }, [normalizedTranscript]);
+
+  // Panel drag/resize handlers (when popped out)
+  useEffect(() => {
+    if (!panelDragging && !panelResizing) return;
+    const handleMove = (e) => {
+      if (panelDragging) {
+        setPanelPos({
+          x: Math.max(0, Math.min(window.innerWidth - 100, e.clientX - panelOffset.x)),
+          y: Math.max(0, Math.min(window.innerHeight - 50, e.clientY - panelOffset.y)),
+        });
+      }
+      if (panelResizing) {
+        setPanelSize({
+          width: Math.max(350, e.clientX - panelPos.x),
+          height: Math.max(300, e.clientY - panelPos.y),
+        });
+      }
+    };
+    const handleUp = () => { setPanelDragging(false); setPanelResizing(false); };
+    window.addEventListener('mousemove', handleMove);
+    window.addEventListener('mouseup', handleUp);
+    return () => {
+      window.removeEventListener('mousemove', handleMove);
+      window.removeEventListener('mouseup', handleUp);
+    };
+  }, [panelDragging, panelResizing, panelOffset, panelPos]);
 
   // Load all KB entries for the popup
   useEffect(() => {
@@ -321,7 +353,7 @@ IMPORTANT: Ask these questions NATURALLY during the call. Weave them into the co
       {/* Training Room */}
       {subTab === 'training' && (
         <>
-        <div style={{ display: 'grid', gridTemplateColumns: '380px 1fr', gap: '16px', alignItems: 'start' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: panelPoppedOut ? '380px' : '380px 1fr', gap: '16px', alignItems: 'start' }}>
           {/* Left: Controls */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
             {/* Mode selector — Open vs Close */}
@@ -481,13 +513,16 @@ IMPORTANT: Ask these questions NATURALLY during the call. Weave them into the co
           </div>
 
           {/* Right: Transcript */}
-          <div style={{ background: '#0d1b2a', border: '1px solid rgba(16,185,129,0.2)', borderRadius: '6px', display: 'flex', flexDirection: 'column', minHeight: '500px', maxHeight: '70vh' }}>
-            <div style={{ padding: '12px 16px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={panelPoppedOut ? { position: 'fixed', left: panelPos.x, top: panelPos.y, width: panelSize.width, height: panelSize.height, zIndex: 9998, background: '#0d1b2a', border: '1px solid rgba(16,185,129,0.3)', borderRadius: '6px', display: 'flex', flexDirection: 'column', boxShadow: '0 8px 32px rgba(0,0,0,0.6)' } : { background: '#0d1b2a', border: '1px solid rgba(16,185,129,0.2)', borderRadius: '6px', display: 'flex', flexDirection: 'column', minHeight: '500px', maxHeight: '70vh' }}>
+            <div onMouseDown={panelPoppedOut ? (e) => { setPanelDragging(true); setPanelOffset({ x: e.clientX - panelPos.x, y: e.clientY - panelPos.y }); } : undefined} style={{ padding: '12px 16px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: panelPoppedOut ? 'move' : 'default', userSelect: panelPoppedOut ? 'none' : 'auto' }}>
               <div style={{ display: 'flex', gap: '2px' }}>
                 <button onClick={() => setRightView('transcript')} style={{ padding: '4px 12px', background: rightView === 'transcript' ? `${GOLD}12` : 'transparent', border: 'none', borderBottom: `2px solid ${rightView === 'transcript' ? GOLD : 'transparent'}`, color: rightView === 'transcript' ? GOLD : '#6b7280', cursor: 'pointer', fontSize: '11px', fontWeight: rightView === 'transcript' ? 'bold' : 'normal', letterSpacing: '1px', textTransform: 'uppercase' }}>📋 Transcript</button>
                 <button onClick={() => setRightView('scripts')} style={{ padding: '4px 12px', background: rightView === 'scripts' ? `${GOLD}12` : 'transparent', border: 'none', borderBottom: `2px solid ${rightView === 'scripts' ? GOLD : 'transparent'}`, color: rightView === 'scripts' ? GOLD : '#6b7280', cursor: 'pointer', fontSize: '11px', fontWeight: rightView === 'scripts' ? 'bold' : 'normal', letterSpacing: '1px', textTransform: 'uppercase' }}>📝 Scripts</button>
               </div>
-              <div style={{ color: '#6b7280', fontSize: '10px' }}>{rightView === 'transcript' ? <>{transcript.length} lines · <span style={{ color: GOLD }}>{sessionId}</span></> : 'Debt Call Coach Scripts'}</div>
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                <span style={{ color: '#6b7280', fontSize: '10px' }}>{rightView === 'transcript' ? <>{transcript.length} lines · <span style={{ color: GOLD }}>{sessionId}</span></> : 'Debt Call Coach Scripts'}</span>
+                <button onClick={() => { if (!panelPoppedOut) { setPanelPos({ x: Math.max(200, window.innerWidth - 560), y: 120 }); setPanelSize({ width: 520, height: Math.min(600, window.innerHeight - 160) }); } setPanelPoppedOut(!panelPoppedOut); }} style={{ background: panelPoppedOut ? `${GOLD}18` : 'rgba(255,255,255,0.05)', border: `1px solid ${panelPoppedOut ? GOLD + '44' : 'rgba(255,255,255,0.1)'}`, color: panelPoppedOut ? GOLD : '#8a9ab8', borderRadius: '4px', padding: '4px 10px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{panelPoppedOut ? '⬇ Pop In' : '⬆ Pop Out'}</button>
+              </div>
             </div>
             {rightView === 'scripts' ? (
               <div style={{ flex: 1, overflow: 'hidden', padding: '14px 16px' }}>
@@ -512,6 +547,9 @@ IMPORTANT: Ask these questions NATURALLY during the call. Weave them into the co
               })}
             </div>
             )}
+          {panelPoppedOut && (
+            <div onMouseDown={(e) => { e.stopPropagation(); setPanelResizing(true); }} style={{ position: 'absolute', bottom: 0, right: 0, width: '18px', height: '18px', cursor: 'nwse-resize', color: '#4a5568', display: 'flex', alignItems: 'flex-end', justifyContent: 'flex-end', padding: '2px', fontSize: '10px', userSelect: 'none' }}>⤡</div>
+          )}
           </div>
         </div>
 
