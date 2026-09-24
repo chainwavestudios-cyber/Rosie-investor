@@ -13,7 +13,7 @@ const DARK = '#0a0f1e';
 const ls = { display: 'block', color: '#8a9ab8', fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '6px' };
 const inp = { width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '4px', padding: '10px 14px', color: '#e8e0d0', fontSize: '13px', outline: 'none', boxSizing: 'border-box', fontFamily: 'Georgia, serif' };
 
-const DEBT_CATEGORIES = ['debt_kb', 'debt_faq', 'debt_agent', 'debt_customer', 'debt_doc', 'debt_web', 'debt_call', 'debt_objections', 'debt_open_scenario', 'debt_close_scenario'];
+const DEBT_CATEGORIES = ['debt_kb', 'debt_faq', 'debt_agent', 'debt_customer', 'debt_doc', 'debt_web', 'debt_call', 'debt_objections', 'debt_open_scenario', 'debt_close_scenario', 'debt_disqualify'];
 
 const UPLOAD_TABS = [
   { id: 'doc', label: '📄 Document', color: '#a78bfa' },
@@ -23,6 +23,7 @@ const UPLOAD_TABS = [
   { id: 'objections', label: '🚫 Objections', color: '#fb923c' },
   { id: 'open_scenario', label: '📞 Open Scenario', color: '#60a5fa' },
   { id: 'close_scenario', label: '🎯 Close Scenario', color: '#a78bfa' },
+  { id: 'disqualify', label: '🚫 Disqualify Q&A', color: '#ef4444' },
   { id: 'bulkqa', label: '📋 Bulk Q&A', color: '#4ade80' },
 ];
 
@@ -30,6 +31,7 @@ const CATEGORY_LABELS = {
   debt_kb: 'KB', debt_faq: 'FAQ', debt_agent: 'Agent', debt_customer: 'Customer',
   debt_doc: 'Document', debt_web: 'Website', debt_call: 'Call Recording',
   debt_objections: 'Objections', debt_open_scenario: 'Open Scenario', debt_close_scenario: 'Close Scenario',
+  debt_disqualify: 'Disqualification',
 };
 
 export default function DebtBobKB({ onKBUpdated }) {
@@ -141,6 +143,7 @@ export default function DebtBobKB({ onKBUpdated }) {
       {uploadTab === 'objections' && <ObjectionUploader onStatus={setStatus} onError={setError} onDone={refresh} />}
       {uploadTab === 'open_scenario' && <ScenarioUploader mode="open" onStatus={setStatus} onError={setError} onDone={refresh} />}
       {uploadTab === 'close_scenario' && <ScenarioUploader mode="close" onStatus={setStatus} onError={setError} onDone={refresh} />}
+      {uploadTab === 'disqualify' && <DisqualifyQA onStatus={setStatus} onError={setError} onDone={refresh} />}
       {uploadTab === 'bulkqa' && <BulkQAPaster onStatus={setStatus} onError={setError} onDone={refresh} />}
 
       {(status || error) && (
@@ -548,6 +551,110 @@ function BulkQAPaster({ onStatus, onError, onDone }) {
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+// ─── Disqualification Q&A ─────────────────────────────────────────────────────
+function DisqualifyQA({ onStatus, onError, onDone }) {
+  const [entries, setEntries] = useState([]);
+  const [q, setQ] = useState('');
+  const [a, setA] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [bulkText, setBulkText] = useState('');
+  const [bulkSaving, setBulkSaving] = useState(false);
+
+  const load = useCallback(async () => {
+    try {
+      const all = await base44.entities.KnowledgeBase.filter({ category: 'debt_disqualify' }, '-created_date', 200);
+      setEntries(all || []);
+    } catch {}
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  const add = async () => {
+    if (!q.trim() || !a.trim()) return;
+    setSaving(true);
+    try {
+      await base44.entities.KnowledgeBase.create({
+        question: q.trim(), answer: a.trim(),
+        category: 'debt_disqualify', kbName: 'Debt Settlement',
+        source: 'Manual', created_date: new Date().toISOString(),
+      });
+      setQ(''); setA('');
+      onStatus('✓ Disqualification Q&A added');
+      await load(); onDone?.();
+      setTimeout(() => onStatus(''), 3000);
+    } catch (e) { onError('Failed: ' + (e?.message || String(e))); }
+    setSaving(false);
+  };
+
+  const del = async (id) => {
+    if (!window.confirm('Delete this entry?')) return;
+    await base44.entities.KnowledgeBase.delete(id);
+    await load(); onDone?.();
+  };
+
+  const bulkAdd = async () => {
+    if (!bulkText.trim()) return;
+    setBulkSaving(true); onStatus('AI is parsing disqualification Q&A…');
+    try {
+      const result = await base44.integrations.Core.InvokeLLM({
+        prompt: `You are a debt settlement disqualification expert. Below is content about customer disqualification questions and how agents should handle them. Parse it into individual Q&A pairs where the question is the disqualification topic and the answer is how the agent should handle/ask about it. Return as JSON: {"entries":[{"question":"...","answer":"..."}]}.\n\nCONTENT:\n${bulkText}`,
+        response_json_schema: { type: 'object', properties: { entries: { type: 'array', items: { type: 'object', properties: { question: { type: 'string' }, answer: { type: 'string' } } } } } },
+      });
+      const parsed = result?.entries || [];
+      for (const e of parsed) {
+        await base44.entities.KnowledgeBase.create({
+          question: e.question, answer: e.answer,
+          category: 'debt_disqualify', kbName: 'Debt Settlement',
+          source: 'Bulk Paste', created_date: new Date().toISOString(),
+        });
+      }
+      setBulkText('');
+      onStatus(`✓ ${parsed.length} disqualification Q&A pairs added`);
+      await load(); onDone?.();
+      setTimeout(() => onStatus(''), 4000);
+    } catch (e) { onError('Failed: ' + (e?.message || String(e))); }
+    setBulkSaving(false);
+  };
+
+  return (
+    <div style={{ background: 'rgba(239,68,68,0.05)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: '6px', padding: '20px' }}>
+      <div style={{ color: '#ef4444', fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '4px' }}>Customer Disqualification Q&A</div>
+      <div style={{ color: '#6b7280', fontSize: '11px', marginBottom: '16px', lineHeight: 1.5 }}>Questions that disqualify a customer from the program, with how the agent should handle each. BOB will occasionally bring these up during calls, and the live Q&A will reference them.</div>
+
+      {/* Add form */}
+      <div style={{ marginBottom: '16px' }}>
+        <div style={{ marginBottom: '8px' }}><label style={ls}>Disqualification Question</label><input value={q} onChange={e => setQ(e.target.value)} placeholder="Has the customer filed for bankruptcy in the last 2 years?" style={inp} /></div>
+        <div style={{ marginBottom: '8px' }}><label style={ls}>Agent Answer / How to Handle</label><textarea value={a} onChange={e => setA(e.target.value)} placeholder="If yes, the customer is disqualified. Ask: 'Have you filed for bankruptcy recently?' If they have, politely explain..." style={{ ...inp, resize: 'vertical', minHeight: '60px' }} /></div>
+        <button onClick={add} disabled={saving || !q.trim() || !a.trim()} style={{ background: 'linear-gradient(135deg,#ef4444,#dc2626)', color: '#fff', border: 'none', borderRadius: '4px', padding: '10px 20px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase', opacity: (saving || !q.trim() || !a.trim()) ? 0.5 : 1 }}>{saving ? '⏳ Adding…' : '+ Add Disqualification Q&A'}</button>
+      </div>
+
+      {/* Bulk paste */}
+      <div style={{ borderTop: '1px solid rgba(255,255,255,0.08)', margin: '16px 0', paddingTop: '16px' }}>
+        <div style={{ color: '#8a9ab8', fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '8px' }}>Bulk Paste — AI will parse</div>
+        <textarea value={bulkText} onChange={e => setBulkText(e.target.value)} rows={6} placeholder="Paste disqualification Q&A content here — AI will parse it..." style={{ ...inp, resize: 'vertical', marginBottom: '8px', fontFamily: 'monospace', fontSize: '12px' }} />
+        <button onClick={bulkAdd} disabled={bulkSaving || !bulkText.trim()} style={{ background: 'linear-gradient(135deg,#ef4444,#dc2626)', color: '#fff', border: 'none', borderRadius: '4px', padding: '10px 20px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase', opacity: (bulkSaving || !bulkText.trim()) ? 0.5 : 1 }}>{bulkSaving ? '⏳ Parsing…' : '🔍 Parse & Add with AI'}</button>
+      </div>
+
+      {/* Existing entries */}
+      <div style={{ marginTop: '20px' }}>
+        <div style={{ color: '#ef4444', fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '8px' }}>Disqualification Q&A ({entries.length})</div>
+        {entries.length === 0 ? <div style={{ color: '#4a5568', textAlign: 'center', padding: '20px', fontSize: '12px' }}>No disqualification Q&A yet. Add some above.</div> :
+          <div style={{ maxHeight: '300px', overflowY: 'auto' }}>
+            {entries.map(e => (
+              <div key={e.id} style={{ background: 'rgba(239,68,68,0.04)', border: '1px solid rgba(239,68,68,0.12)', borderRadius: '4px', padding: '10px 12px', marginBottom: '6px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                  <div style={{ color: '#e8e0d0', fontSize: '12px', fontWeight: 'bold' }}>{e.question}</div>
+                  <button onClick={() => del(e.id)} style={{ background: 'none', border: 'none', color: '#ef444466', cursor: 'pointer', fontSize: '10px' }}>Delete</button>
+                </div>
+                <div style={{ color: '#8a9ab8', fontSize: '11px', lineHeight: 1.5 }}>{e.answer}</div>
+              </div>
+            ))}
+          </div>}
+      </div>
     </div>
   );
 }

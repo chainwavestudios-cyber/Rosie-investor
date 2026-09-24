@@ -26,7 +26,7 @@ const PRESET_SCENARIOS = [
   { label: '🤔 Skeptical', data: { customerName: 'Bob', customerAddress: '503 Bayshore Blvd', customerCity: 'Tampa', customerState: 'FL', customerZip: '33606', debtAmount: '15000', creditorCount: '3', creditors: 'Chase, Capital One, Discover', monthlyIncome: '4500', behindOnPayments: false, monthsBehind: '0', noticeNumber: 'N-7193', phone: '(813) 555-0188', hardship: 'I went through a divorce about a year ago and had to split everything up. My ex ran up some of the cards before we separated and I got stuck with the balances. Between legal fees and starting over on my own, I have not been able to get ahead of the interest.' } },
   { label: '📈 High Debt', data: { customerName: 'Bob', customerAddress: '742 Lakeview Pkwy', customerCity: 'Orlando', customerState: 'FL', customerZip: '32803', debtAmount: '75000', creditorCount: '8', creditors: 'Multiple creditors', monthlyIncome: '6000', behindOnPayments: true, monthsBehind: '2', noticeNumber: 'N-9051', phone: '(407) 555-0173', hardship: 'I had a medical emergency two years ago that required surgery and a hospital stay. Even with insurance, I was left with thousands in bills. I put medical expenses and living costs on credit cards while I was recovering and could not work. Now I am drowning in minimum payments.' } },
 ];
-const DEBT_KB_CATEGORIES = ['debt_kb', 'debt_faq', 'debt_agent', 'debt_customer', 'debt_doc', 'debt_web', 'debt_call', 'debt_hotpoints'];
+const DEBT_KB_CATEGORIES = ['debt_kb', 'debt_faq', 'debt_agent', 'debt_customer', 'debt_doc', 'debt_web', 'debt_call', 'debt_hotpoints', 'debt_disqualify'];
 
 const SUB_TABS = [
   { id: 'training', label: '🎓 Training Room' },
@@ -289,6 +289,9 @@ ${(debtScripts || []).slice(0, 15).map((s, i) => `${i + 1}. ${s.name}`).join('\n
 
 Hotpoint Topics — occasionally bring these up or ask about them during the call:
 ${kbEntries.filter(e => e.category === 'debt_hotpoints').slice(0, 15).map((hp, i) => `${i + 1}. ${hp.question}`).join('\n') || 'No hotpoints uploaded yet.'}
+
+Disqualification Topics — occasionally bring up something related to these (e.g., mention a bankruptcy, lawsuit, or income issue). This tests whether the agent catches the disqualification:
+${kbEntries.filter(e => e.category === 'debt_disqualify').slice(0, 15).map((d, i) => `${i + 1}. ${d.question}`).join('\n') || 'No disqualification Q&A uploaded yet.'}
 
 IMPORTANT: Ask these questions NATURALLY during the call. Weave them into the conversation — don't read them like a list. Space them out every 30-60 seconds. Pick from the list above based on what's being discussed. If the focus is General, pick from ANY topic. If a specific topic is set, pick questions related to that topic.
 
