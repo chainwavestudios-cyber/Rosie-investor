@@ -45,7 +45,6 @@ export default function KnowledgeBaseManager({ IntentEngineTuner, CoachRulesTune
   const [bulkText, setBulkText] = useState('');
   const [bulkParsed, setBulkParsed] = useState([]);
   const [bulkSaving, setBulkSaving] = useState(false);
-  const [bulkCategory, setBulkCategory] = useState('faq');
   const [bulkMsg, setBulkMsg] = useState('');
 
   // ── Rebuttals state ────────────────────────────────────────────────
@@ -532,47 +531,34 @@ export default function KnowledgeBaseManager({ IntentEngineTuner, CoachRulesTune
         <div style={{ maxWidth:'720px' }}>
           <h3 style={{ color:'#e8e0d0', fontWeight:'normal', margin:'0 0 8px', fontSize:'16px' }}>📋 Bulk Q&A Paste</h3>
           <p style={{ color:'#6b7280', fontSize:'13px', margin:'0 0 16px', lineHeight:1.7 }}>
-            Paste multiple Q&A pairs at once. Two formats supported:<br />
-            <strong style={{ color:GOLD }}>Format 1:</strong> <code style={{ color:'#c4cdd8' }}>Q: question{'\n'}A: answer</code> (blank line between pairs)<br />
-            <strong style={{ color:GOLD }}>Format 2:</strong> <code style={{ color:'#c4cdd8' }}>question | answer</code> (one per line)
+            Paste a batch of Q&A content in any format. The AI will parse it into individual Q&A pairs and automatically assign categories.
           </p>
           <div style={{ background:'rgba(184,147,58,0.06)', border:'1px solid rgba(184,147,58,0.2)', borderRadius:'6px', padding:'10px 14px', marginBottom:'16px', fontSize:'11px', color:GOLD }}>
             Adding to: <strong>{selectedKb === DEFAULT_KB ? 'Default KB' : selectedKb}</strong>
           </div>
-          <div style={{ marginBottom:'16px' }}>
-            <label style={ls}>Category</label>
-            <select value={bulkCategory} onChange={e => setBulkCategory(e.target.value)} style={{ ...inp2, cursor:'pointer' }}>
-              {['faq','financials','product','team','market','legal','process','risk','company','pricing','manual'].map(c => <option key={c} value={c}>{c.charAt(0).toUpperCase()+c.slice(1)}</option>)}
-            </select>
-          </div>
-          <textarea value={bulkText} onChange={e => setBulkText(e.target.value)} rows={12} placeholder={'Q: What is the minimum investment?\nA: The minimum investment is $25,000...\n\nQ: How does the conversion work?\nA: Every 21 shares convert to 1 NewCo share...\n\n— or —\n\nWhat is the minimum investment? | The minimum is $25,000\nHow does the conversion work? | Every 21 shares convert to 1 NewCo share'} style={{ ...ta2, fontFamily:'monospace', fontSize:'12px', marginBottom:'16px' }} />
+          <textarea value={bulkText} onChange={e => setBulkText(e.target.value)} rows={12} placeholder="Paste any Q&A content here — the AI will parse and categorize it automatically..." style={{ ...ta2, fontFamily:'monospace', fontSize:'12px', marginBottom:'16px' }} />
           <div style={{ display:'flex', gap:'10px', marginBottom:'16px' }}>
-            <button onClick={() => {
+            <button onClick={async () => {
               if (!bulkText.trim()) return;
-              const entries = [];
-              const blocks = bulkText.split(/\n\s*\n/).filter(b => b.trim());
-              for (const block of blocks) {
-                const qMatch = block.match(/^Q[:.\-]\s*([\s\S]+)/im);
-                const aMatch = block.match(/^A[:.\-]\s*([\s\S]+)/im);
-                if (qMatch && aMatch) entries.push({ question: qMatch[1].trim(), answer: aMatch[1].trim() });
-              }
-              if (entries.length === 0) {
-                const lines = bulkText.split('\n').filter(l => l.trim());
-                for (const line of lines) {
-                  const parts = line.split(/\s*\|\s*/);
-                  if (parts.length >= 2 && parts[0].trim() && parts[1].trim()) entries.push({ question: parts[0].trim(), answer: parts[1].trim() });
-                }
-              }
-              if (entries.length === 0) { setBulkMsg('Could not parse any Q&A pairs. Use "Q: question" + "A: answer" (blank line between pairs) or "question | answer" per line.'); return; }
-              setBulkParsed(entries); setBulkMsg('');
-            }} disabled={!bulkText.trim()} style={{ background:'linear-gradient(135deg,#b8933a,#d4aa50)', color:DARK, border:'none', borderRadius:'4px', padding:'10px 20px', cursor:'pointer', fontWeight:'700', fontSize:'12px', letterSpacing:'1px', textTransform:'uppercase', opacity: !bulkText.trim() ? 0.5 : 1 }}>🔍 Parse Q&A</button>
+              setBulkSaving(true); setBulkMsg('AI is parsing and categorizing…');
+              try {
+                const result = await base44.integrations.Core.InvokeLLM({
+                  prompt: `You are a knowledge base organizer. Below is a batch of Q&A content in no particular format. Parse it into individual Q&A pairs and assign each a category from this list: faq, financials, product, team, market, legal, process, risk, company, pricing, manual. Return as JSON.\n\nCONTENT:\n${bulkText}`,
+                  response_json_schema: { type: 'object', properties: { entries: { type: 'array', items: { type: 'object', properties: { question: { type: 'string' }, answer: { type: 'string' }, category: { type: 'string' } } } } } },
+                });
+                const entries = result?.entries || [];
+                if (entries.length === 0) { setBulkMsg('Could not parse any Q&A pairs from the content.'); setBulkSaving(false); return; }
+                setBulkParsed(entries); setBulkMsg('');
+              } catch (e) { setBulkMsg('Error: ' + (e?.message || String(e))); }
+              setBulkSaving(false);
+            }} disabled={!bulkText.trim() || bulkSaving} style={{ background:'linear-gradient(135deg,#b8933a,#d4aa50)', color:DARK, border:'none', borderRadius:'4px', padding:'10px 20px', cursor:'pointer', fontWeight:'700', fontSize:'12px', letterSpacing:'1px', textTransform:'uppercase', opacity: (!bulkText.trim() || bulkSaving) ? 0.5 : 1 }}>{bulkSaving ? '⏳ Parsing…' : '🔍 Parse & Categorize with AI'}</button>
             {bulkParsed.length > 0 && (
               <button onClick={async () => {
                 setBulkSaving(true);
                 let saved = 0;
                 for (const e of bulkParsed) {
                   try {
-                    await base44.entities.KnowledgeBase.create({ question: e.question, answer: e.answer, category: bulkCategory, source: 'Bulk Q&A Paste', kbName: activeKbName });
+                    await base44.entities.KnowledgeBase.create({ question: e.question, answer: e.answer, category: e.category || 'faq', source: 'Bulk Q&A Paste', kbName: activeKbName });
                     saved++;
                   } catch {}
                 }
@@ -588,7 +574,10 @@ export default function KnowledgeBaseManager({ IntentEngineTuner, CoachRulesTune
             <div style={{ maxHeight:'400px', overflowY:'auto' }}>
               {bulkParsed.map((entry, i) => (
                 <div key={i} style={{ background:'rgba(184,147,58,0.04)', border:'1px solid rgba(184,147,58,0.15)', borderRadius:'4px', padding:'10px 14px', marginBottom:'6px' }}>
-                  <div style={{ color:'#e8e0d0', fontSize:'13px', fontWeight:'bold', marginBottom:'4px' }}>Q{i + 1}: {entry.question}</div>
+                  <div style={{ display:'flex', gap:'8px', alignItems:'center', marginBottom:'4px' }}>
+                    <span style={{ color:'#e8e0d0', fontSize:'13px', fontWeight:'bold' }}>Q{i + 1}: {entry.question}</span>
+                    {entry.category && <span style={{ background:`${CAT_COLORS[entry.category]||'#6b7280'}18`, color:CAT_COLORS[entry.category]||'#6b7280', border:`1px solid ${CAT_COLORS[entry.category]||'#6b7280'}44`, borderRadius:'10px', padding:'1px 8px', fontSize:'10px', textTransform:'uppercase', flexShrink:0 }}>{entry.category}</span>}
+                  </div>
                   <div style={{ color:'#8a9ab8', fontSize:'12px', lineHeight:1.5 }}>{entry.answer}</div>
                 </div>
               ))}
