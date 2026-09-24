@@ -1,0 +1,44 @@
+{
+  "name": "Sync Debt KB",
+  "definition": {
+    "document": {
+      "dsl": "1.0.0",
+      "name": "sync_debt_kb",
+      "version": "1.0",
+      "namespace": "base44"
+    },
+    "do": [
+      {
+        "sync": {
+          "call": "invoke_backend_function",
+          "with": {
+            "function_name": "syncDebtKB"
+          },
+          "then": "end",
+          "x-base44": {
+            "title": "Sync Debt KB",
+            "description": "Ensure all debt-category entries have kbName Debt Settlement, merging BOB's Brain and the main KB"
+          }
+        }
+      }
+    ]
+  },
+  "trigger": {
+    "condition": null,
+    "config": {
+      "trigger_type": "scheduled",
+      "events": [],
+      "schedule_mode": "recurring",
+      "cron_expression": "0 */2 * * *",
+      "one_time_date": null,
+      "timezone": "America/New_York",
+      "interval_value": null,
+      "interval_unit": null,
+      "interval_anchor": null,
+      "ends_type": "never",
+      "ends_on_date": null,
+      "ends_after_count": null
+    }
+  },
+  "description": "Merges BOB's Brain and the main KB every 2 hours \u2014 ensures all debt-category entries have kbName Debt Settlement so both views show the same data and same count"
+}

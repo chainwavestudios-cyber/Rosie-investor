@@ -357,8 +357,8 @@ export default function KnowledgeBaseManager({ IntentEngineTuner, CoachRulesTune
     await load();
   };
 
-  const CATEGORIES = ['all','faq','financials','product','team','market','legal','process','risk','company','pricing','manual','raw_document'];
-  const CAT_COLORS = { faq:'#60a5fa', financials:'#4ade80', product:'#a78bfa', team:'#f59e0b', market:'#f59e0b', legal:'#ef4444', process:'#8a9ab8', risk:'#ef4444', company:'#60a5fa', pricing:'#4ade80', manual:GOLD, raw_document:'#4a5568' };
+  const CATEGORIES = ['all','faq','financials','product','team','market','legal','process','risk','company','pricing','manual','raw_document','debt_kb','debt_faq','debt_agent','debt_customer','debt_doc','debt_web','debt_call','debt_objections','debt_open_scenario','debt_close_scenario','debt_disqualify','debt_hotpoints'];
+  const CAT_COLORS = { faq:'#60a5fa', financials:'#4ade80', product:'#a78bfa', team:'#f59e0b', market:'#f59e0b', legal:'#ef4444', process:'#8a9ab8', risk:'#ef4444', company:'#60a5fa', pricing:'#4ade80', manual:GOLD, raw_document:'#4a5568', debt_kb:'#10b981', debt_faq:'#60a5fa', debt_agent:'#a78bfa', debt_customer:'#34d399', debt_doc:'#a78bfa', debt_web:'#34d399', debt_call:'#f472b6', debt_objections:'#fb923c', debt_open_scenario:'#60a5fa', debt_close_scenario:'#a78bfa', debt_disqualify:'#ef4444', debt_hotpoints:'#f59e0b' };
 
   const kbFiltered = entries.filter(e =>
     selectedKb === DEFAULT_KB ? !e.kbName || e.kbName === '' : (e.kbName || '') === selectedKb
