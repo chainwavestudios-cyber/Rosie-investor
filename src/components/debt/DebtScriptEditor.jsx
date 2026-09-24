@@ -61,7 +61,6 @@ function MyScriptsTab() {
   const [newName, setNewName] = useState('');
   const [newType, setNewType] = useState('custom');
   const [deleting, setDeleting] = useState(false);
-  const textareaRef = useRef(null);
 
   const loadScripts = useCallback(async () => {
     setLoading(true);
@@ -122,13 +121,6 @@ function MyScriptsTab() {
     } catch (e) { console.error(e); }
     setDeleting(false);
   };
-
-  // Sync textarea when switching scripts
-  useEffect(() => {
-    if (textareaRef.current && active) {
-      textareaRef.current.value = active.content || '';
-    }
-  }, [activeId]);
 
   if (loading) return <div style={{ color: '#6b7280', textAlign: 'center', padding: '40px' }}>Loading scripts…</div>;
 
@@ -193,7 +185,6 @@ function MyScriptsTab() {
 
           {/* Editor textarea */}
           <textarea
-            ref={textareaRef}
             value={active.content || ''}
             onChange={e => updateActive({ content: e.target.value })}
             placeholder="Type your script here… Use {{firstname}} or {{lastname}} for auto-insertion."
