@@ -211,7 +211,7 @@ export function useDebtBobVoice({ onTranscript, onLog } = {}) {
                 agent: {
                   listen: { provider: { type: 'deepgram', version: 'v2', model: 'flux-general-en' } },
                   think: { provider: { type: 'open_ai', model: 'gpt-4.1' }, prompt: systemPrompt },
-                  speak: { provider: { type: 'deepgram', model: voiceModel } },
+                  speak: { provider: { type: 'deepgram', version: 'v2', model: voiceModel, speed: 1.0, expressivity: 0 } },
                   greeting,
                 },
               };
