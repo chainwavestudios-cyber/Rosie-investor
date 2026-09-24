@@ -139,7 +139,7 @@ export default function DebtBobTrainer() {
   const loadKB = useCallback(async () => {
     try {
       const all = await base44.entities.KnowledgeBase.list('-created_date', 500);
-      const debt = (all || []).filter(e => DEBT_KB_CATEGORIES.includes(e.category));
+      const debt = (all || []).filter(e => e.kbName === 'Debt Settlement' || DEBT_KB_CATEGORIES.includes(e.category));
       setKbEntries(debt);
       setKbCount(debt.length);
       setObjections((all || []).filter(e => e.category === 'debt_objections'));

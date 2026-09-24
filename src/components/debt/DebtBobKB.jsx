@@ -48,7 +48,7 @@ export default function DebtBobKB({ onKBUpdated }) {
     setLoading(true);
     try {
       const all = await base44.entities.KnowledgeBase.list('-created_date', 500);
-      setEntries((all || []).filter(e => DEBT_CATEGORIES.includes(e.category)));
+      setEntries((all || []).filter(e => e.kbName === 'Debt Settlement' || DEBT_CATEGORIES.includes(e.category)));
     } catch {}
     setLoading(false);
   }, []);
