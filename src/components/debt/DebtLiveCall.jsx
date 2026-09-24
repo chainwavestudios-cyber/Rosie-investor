@@ -9,6 +9,7 @@ import { DebtPitchPanel } from '@/components/debt/DebtPitchTab';
 import DebtIntentSignals, { DEBT_INTENT_RULES } from '@/components/debt/DebtIntentSignals';
 import FloatingScriptBox from '@/components/debt/FloatingScriptBox';
 import DebtAIPanel from '@/components/debt/DebtAIPanel';
+import DoNothingCalculator from '@/components/debt/DoNothingCalculator';
 
 const GOLD = '#10b981';
 const DARK = '#0a0f1e';
@@ -46,6 +47,7 @@ export default function DebtLiveCall() {
   // Post-call
   const [report, setReport] = useState('');
   const [generatingReport, setGeneratingReport] = useState(false);
+  const [callMode, setCallMode] = useState('open'); // 'open' | 'close'
 
   const wsRef = useRef(null);
   const streamRef = useRef(null);
@@ -58,6 +60,7 @@ export default function DebtLiveCall() {
   const lastIntentTime = useRef(0);
   const lastProfileTime = useRef(0);
   const lastLedgerTime = useRef(0);
+  const lastBillsTime = useRef(0);
   const callStartRef = useRef(null);
 
   useEffect(() => { leadRef.current = lead; }, [lead]);
@@ -203,10 +206,64 @@ ${recentText}`,
         if (newEntries.length > 0) {
           const merged = [...existing, ...newEntries];
           setLead(prev => ({ ...prev, debtLedgerJson: JSON.stringify(merged) }));
+          // Auto-save to entity
+          if (leadRef.current.id) {
+            base44.entities.DebtLead.update(leadRef.current.id, { debtLedgerJson: JSON.stringify(merged), debtAmount: merged.reduce((s, c) => s + (c.balance || 0), 0), creditorCount: merged.length }).catch(() => {});
+          }
         }
       }
     } catch {}
     setLedgerExtracting(false);
+  }, []);
+
+  // Auto-extract bills (rent, auto, insurance, gas, groceries, utilities, phone, internet, student loans) from transcript
+  const handleBillsExtract = useCallback(async () => {
+    if (!leadRef.current?.id || transcriptRef.current.length < 4) return;
+    try {
+      const recentText = transcriptRef.current.slice(-15).map(t => t.text).join(' ');
+      const result = await base44.integrations.Core.InvokeLLM({
+        prompt: `You are analyzing a live debt settlement call transcript. The agent is reviewing the customer's monthly expenses/bills. Extract any monthly expense amounts the customer confirms. Look for:
+- Rent or mortgage payment
+- Auto payment (car loan/lease)
+- Auto insurance
+- Gas
+- Groceries
+- Utilities (electric, water, gas)
+- Phone bill
+- Internet bill
+- Student loan payment
+- Health insurance
+- Childcare
+- Any other recurring monthly expense
+
+Return JSON with a "bills" object mapping category keys to monthly dollar amounts. Only include expenses explicitly mentioned — do NOT make up data. Use these keys: rent, auto, autoInsurance, gas, groceries, utilities, phone, internet, studentLoans, healthInsurance, childcare, misc.
+
+Transcript:
+${recentText}`,
+        response_json_schema: {
+          type: 'object',
+          properties: {
+            bills: { type: 'object', additionalProperties: { type: 'number' } },
+            monthlyIncome: { type: 'number' },
+          },
+        },
+      });
+      const extractedBills = result?.bills || {};
+      const extractedIncome = result?.monthlyIncome;
+      const existingBills = (() => { try { return JSON.parse(leadRef.current.billsJson || '{}'); } catch { return {}; } })();
+      const mergedBills = { ...existingBills };
+      let hasNew = false;
+      for (const [k, v] of Object.entries(extractedBills)) {
+        if (v && v > 0 && !existingBills[k]) { mergedBills[k] = v; hasNew = true; }
+      }
+      const updates = {};
+      if (hasNew) updates.billsJson = JSON.stringify(mergedBills);
+      if (extractedIncome && !leadRef.current.monthlyIncome) updates.monthlyIncome = extractedIncome;
+      if (Object.keys(updates).length > 0) {
+        setLead(prev => ({ ...prev, ...updates }));
+        if (leadRef.current.id) base44.entities.DebtLead.update(leadRef.current.id, updates).catch(() => {});
+      }
+    } catch {}
   }, []);
 
   const processNewEntry = useCallback((entry) => {
@@ -225,7 +282,8 @@ ${recentText}`,
     if (intentActive && now - lastIntentTime.current > 30000) { lastIntentTime.current = now; handleIntent(); }
     if (now - lastProfileTime.current > 60000) { lastProfileTime.current = now; handleProfile(); }
     if (now - lastLedgerTime.current > 45000) { lastLedgerTime.current = now; handleDebtExtract(); }
-  }, [qaActive, coachActive, intentActive, handleQa, handleCoach, handleIntent, handleProfile, handleDebtExtract]);
+    if (now - lastBillsTime.current > 50000) { lastBillsTime.current = now; handleBillsExtract(); }
+  }, [qaActive, coachActive, intentActive, handleQa, handleCoach, handleIntent, handleProfile, handleDebtExtract, handleBillsExtract]);
 
   const startCall = useCallback(async () => {
     // Ensure we have a lead
@@ -390,6 +448,15 @@ ${recentText}`,
           <span style={{ padding: '4px 10px', background: 'rgba(96,165,250,0.12)', border: '1px solid rgba(96,165,250,0.3)', borderRadius: '4px', color: '#60a5fa', fontSize: '10px', fontWeight: 'bold', letterSpacing: '1px' }}>DUAL CHANNEL</span>
         )}
 
+        {/* Call Mode selector — Open vs Close */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+          <label style={{ ...ls, marginBottom: 0 }}>📞 Call Mode</label>
+          <div style={{ display: 'flex', gap: '4px' }}>
+            <button onClick={() => setCallMode('open')} disabled={phase === 'live'} style={{ padding: '8px 14px', borderRadius: '4px', border: `1px solid ${callMode === 'open' ? GOLD + '66' : 'rgba(255,255,255,0.1)'}`, background: callMode === 'open' ? `${GOLD}18` : 'transparent', color: callMode === 'open' ? GOLD : '#6b7280', cursor: phase === 'live' ? 'not-allowed' : 'pointer', fontSize: '11px', fontWeight: 'bold' }}>📞 Open</button>
+            <button onClick={() => setCallMode('close')} disabled={phase === 'live'} style={{ padding: '8px 14px', borderRadius: '4px', border: `1px solid ${callMode === 'close' ? GOLD + '66' : 'rgba(255,255,255,0.1)'}`, background: callMode === 'close' ? `${GOLD}18` : 'transparent', color: callMode === 'close' ? GOLD : '#6b7280', cursor: phase === 'live' ? 'not-allowed' : 'pointer', fontSize: '11px', fontWeight: 'bold' }}>🎯 Close</button>
+          </div>
+        </div>
+
         {phase !== 'live' ? (
           <button onClick={startCall} disabled={kbLoading} style={{ background: 'linear-gradient(135deg,#10b981,#22c55e)', color: DARK, border: 'none', borderRadius: '4px', padding: '10px 24px', cursor: kbLoading ? 'not-allowed' : 'pointer', fontSize: '12px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase', opacity: kbLoading ? 0.5 : 1 }}>
             {kbLoading ? 'Loading KB…' : '🔴 Start Live Call'}
@@ -481,6 +548,13 @@ ${recentText}`,
           ledgerExtracting={ledgerExtracting}
         />
       </div>
+
+      {/* Do Nothing Calculator — shows for close mode */}
+      {callMode === 'close' && lead.id && (
+        <div style={{ marginTop: '16px' }}>
+          <DoNothingCalculator lead={lead} mode={callMode} />
+        </div>
+      )}
 
       {/* Post-call report */}
       {phase === 'ended' && (

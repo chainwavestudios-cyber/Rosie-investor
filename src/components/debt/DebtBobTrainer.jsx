@@ -12,6 +12,8 @@ import FloatingScriptBox from '@/components/debt/FloatingScriptBox';
 import AIAssistantPopup from '@/components/leads/AIAssistantPopup';
 import DebtScriptEditor from '@/components/debt/DebtScriptEditor';
 import DebtCreditReport from '@/components/debt/DebtCreditReport';
+import DoNothingCalculator from '@/components/debt/DoNothingCalculator';
+import ClientProfileModal from '@/components/debt/ClientProfileModal';
 
 const GOLD = '#10b981';
 const DARK = '#0a0f1e';
@@ -76,7 +78,60 @@ export default function DebtBobTrainer() {
     const [openScenarios, setOpenScenarios] = useState([]);
     const [closeScenarios, setCloseScenarios] = useState([]);
     const [debtScripts, setDebtScripts] = useState([]);
+    const [showClientProfile, setShowClientProfile] = useState(false);
+    const [bobLead, setBobLead] = useState(null);
     const aiTranscriptRef = useRef([]);
+
+    // Save BOB scenario as a DebtLead client profile
+    const saveScenarioAsLead = useCallback(async () => {
+      try {
+        const ledger = [];
+        const creditors = (scenario.creditors || '').split(',').map(c => c.trim()).filter(Boolean);
+        const numCreditors = Number(scenario.creditorCount) || creditors.length || 1;
+        const totalDebt = Number(scenario.debtAmount) || 0;
+        const perCreditor = numCreditors > 0 ? Math.round(totalDebt / numCreditors) : totalDebt;
+        creditors.forEach(name => {
+          ledger.push({ creditor: name, balance: perCreditor, creditLimit: Math.round(perCreditor * 1.3), interestRate: 22 + Math.floor(Math.random() * 8), monthlyPayment: Math.round(perCreditor * 0.03) });
+        });
+        if (ledger.length === 0 && totalDebt > 0) {
+          ledger.push({ creditor: 'Credit Card', balance: totalDebt, creditLimit: Math.round(totalDebt * 1.3), interestRate: 24, monthlyPayment: Math.round(totalDebt * 0.03) });
+        }
+        const bills = {};
+        if (scenario.monthlyIncome) {
+          // Estimate typical bills based on income
+          const inc = Number(scenario.monthlyIncome);
+          bills.rent = Math.round(inc * 0.35);
+          bills.auto = Math.round(inc * 0.1);
+          bills.autoInsurance = 150;
+          bills.gas = 200;
+          bills.groceries = Math.round(inc * 0.15);
+          bills.utilities = 250;
+          bills.phone = 80;
+          bills.internet = 70;
+        }
+        const created = await base44.entities.DebtLead.create({
+          firstName: scenario.customerName || 'Bob',
+          lastName: 'Training',
+          phone: scenario.phone || '',
+          address: scenario.customerAddress || '',
+          city: scenario.customerCity || '',
+          state: scenario.customerState || '',
+          zip: scenario.customerZip || '',
+          debtAmount: totalDebt,
+          creditorCount: numCreditors,
+          creditors: scenario.creditors || '',
+          debtLedgerJson: JSON.stringify(ledger),
+          billsJson: JSON.stringify(bills),
+          monthlyIncome: Number(scenario.monthlyIncome) || null,
+          behindOnPayments: scenario.behindOnPayments || false,
+          monthsBehind: Number(scenario.monthsBehind) || null,
+          status: 'new',
+          notes: `BOB training session — ${mode} mode. Hardship: ${scenario.hardship || ''}`,
+        });
+        setBobLead(created);
+        setShowClientProfile(true);
+      } catch (e) { alert('Failed to save client profile: ' + (e?.message || String(e))); }
+    }, [scenario, mode]);
 
   // Load Deepgram API key from PortalSettings (shared with admin BobTab)
   useEffect(() => {
@@ -589,7 +644,7 @@ IMPORTANT: Ask these questions NATURALLY during the call. Weave them into the co
         {/* AI Assistant Popup — draggable, resizable, same as admin panel */}
         {showAIPopup && (
           <AIAssistantPopup
-            lead={null}
+            lead={bobLead || null}
             transcript={normalizedTranscript}
             transcriptRef={aiTranscriptRef}
             kbEntries={kbEntries}
@@ -615,6 +670,25 @@ IMPORTANT: Ask these questions NATURALLY during the call. Weave them into the co
             callAttemptNumber={callCount}
             previousCallSummary={null}
           />
+        )}
+
+        {/* Save scenario as client profile + Do Nothing Calculator (close mode) */}
+        <div style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+            <button onClick={saveScenarioAsLead} style={{ background: 'linear-gradient(135deg,#10b981,#22c55e)', color: DARK, border: 'none', borderRadius: '4px', padding: '10px 20px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase' }}>
+              👤 Save Client Profile
+            </button>
+            <span style={{ color: '#6b7280', fontSize: '11px' }}>Saves the scenario (debts, bills, income) as a client profile you can open in User Profiles</span>
+            {bobLead && <button onClick={() => setShowClientProfile(true)} style={{ background: `${GOLD}18`, color: GOLD, border: `1px solid ${GOLD}44`, borderRadius: '4px', padding: '8px 16px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>📂 Open Saved Profile</button>}
+          </div>
+
+          {mode === 'close' && (
+            <DoNothingCalculator lead={bobLead} scenario={scenario} mode={mode} />
+          )}
+        </div>
+
+        {showClientProfile && bobLead && (
+          <ClientProfileModal lead={bobLead} onClose={() => setShowClientProfile(false)} onSave={(updated) => setBobLead(updated)} />
         )}
         </>
       )}

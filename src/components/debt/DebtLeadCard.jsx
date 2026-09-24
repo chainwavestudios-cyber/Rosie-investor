@@ -4,6 +4,7 @@
  */
 import { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
+import ClientProfileModal from '@/components/debt/ClientProfileModal';
 
 const GOLD = '#10b981';
 const ls = { display: 'block', color: '#8a9ab8', fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '6px' };
@@ -20,6 +21,7 @@ export default function DebtLeadCard({ lead, onLeadChange, transcript, intentSco
   const [tab, setTab] = useState('overview');
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [showProfile, setShowProfile] = useState(false);
 
   const update = (field, value) => onLeadChange({ ...lead, [field]: value });
 
@@ -56,6 +58,9 @@ export default function DebtLeadCard({ lead, onLeadChange, transcript, intentSco
             <div style={{ color: '#e8e0d0', fontSize: '16px' }}>{lead.firstName} {lead.lastName}</div>
             <div style={{ color: '#6b7280', fontSize: '11px' }}>{lead.phone} · {lead.email}</div>
           </div>
+          <button onClick={() => setShowProfile(true)} style={{ background: 'linear-gradient(135deg,#10b981,#22c55e)', color: '#0a0f1e', border: 'none', borderRadius: '4px', padding: '6px 14px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
+            👤 Client Profile
+          </button>
           <span style={{ padding: '3px 10px', borderRadius: '2px', background: `${STATUS_COLORS[lead.status] || '#6b7280'}22`, color: STATUS_COLORS[lead.status] || '#6b7280', fontSize: '10px', letterSpacing: '1px', textTransform: 'uppercase' }}>{STATUS_LABELS[lead.status] || lead.status}</span>
         </div>
         <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
@@ -209,6 +214,8 @@ export default function DebtLeadCard({ lead, onLeadChange, transcript, intentSco
         {saved && <span style={{ color: '#4ade80', fontSize: '12px' }}>✓ Saved</span>}
         {!lead.id && <span style={{ color: '#4a5568', fontSize: '11px' }}>Create lead first to save</span>}
       </div>
+
+      {showProfile && <ClientProfileModal lead={lead} onClose={() => setShowProfile(false)} onSave={(updated) => onLeadChange(updated)} />}
     </div>
   );
 }

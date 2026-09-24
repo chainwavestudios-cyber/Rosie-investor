@@ -52,6 +52,11 @@
       "title": "Debt Ledger (JSON)",
       "format": "textarea"
     },
+    "billsJson": {
+      "type": "string",
+      "title": "Monthly Bills (JSON)",
+      "format": "textarea"
+    },
     "employmentStatus": {
       "type": "string",
       "title": "Employment Status",
