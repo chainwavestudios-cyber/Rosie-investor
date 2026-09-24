@@ -11,6 +11,7 @@ import DebtBobKB from '@/components/debt/DebtBobKB';
 import FloatingScriptBox from '@/components/debt/FloatingScriptBox';
 import AIAssistantPopup from '@/components/leads/AIAssistantPopup';
 import DebtScriptEditor from '@/components/debt/DebtScriptEditor';
+import DebtCreditReport from '@/components/debt/DebtCreditReport';
 
 const GOLD = '#10b981';
 const DARK = '#0a0f1e';
@@ -21,9 +22,9 @@ const VOICE_MODELS = ['aura-zeus-en', 'aura-orion-en', 'aura-arcas-en', 'aura-pe
 const FOCUS_TOPICS = ['General', 'The Program', 'How It Works', 'Credit Impact', 'Fees & Pricing', 'Timeline', 'Qualifying Debt Types', 'Creditor Negotiations', 'Enrollment Process'];
 
 const PRESET_SCENARIOS = [
-  { label: '😰 Overwhelmed', data: { customerName: 'Bob', customerCity: 'Green Grove Springs', customerState: 'FL', debtAmount: '35000', creditorCount: '5', creditors: 'Chase, Capital One, Discover, Amex, Citi', monthlyIncome: '3200', behindOnPayments: true, monthsBehind: '3', noticeNumber: 'N-4827', phone: '(352) 555-0142', hardship: 'I lost my job at the beginning of last year when the company downsized. I was out of work for about four months and had to rely on my credit cards to cover rent and groceries. Even after I found a new job, the interest rates had gone up so much that I am barely making minimum payments and the balances keep growing.' } },
-  { label: '🤔 Skeptical', data: { customerName: 'Bob', customerCity: 'Tampa', customerState: 'FL', debtAmount: '15000', creditorCount: '3', creditors: 'Chase, Capital One, Discover', monthlyIncome: '4500', behindOnPayments: false, monthsBehind: '0', noticeNumber: 'N-7193', phone: '(813) 555-0188', hardship: 'I went through a divorce about a year ago and had to split everything up. My ex ran up some of the cards before we separated and I got stuck with the balances. Between legal fees and starting over on my own, I have not been able to get ahead of the interest.' } },
-  { label: '📈 High Debt', data: { customerName: 'Bob', customerCity: 'Orlando', customerState: 'FL', debtAmount: '75000', creditorCount: '8', creditors: 'Multiple creditors', monthlyIncome: '6000', behindOnPayments: true, monthsBehind: '2', noticeNumber: 'N-9051', phone: '(407) 555-0173', hardship: 'I had a medical emergency two years ago that required surgery and a hospital stay. Even with insurance, I was left with thousands in bills. I put medical expenses and living costs on credit cards while I was recovering and could not work. Now I am drowning in minimum payments.' } },
+  { label: '😰 Overwhelmed', data: { customerName: 'Bob', customerAddress: '1428 Oak Ridge Dr', customerCity: 'Green Grove Springs', customerState: 'FL', customerZip: '32603', debtAmount: '35000', creditorCount: '5', creditors: 'Chase, Capital One, Discover, Amex, Citi', monthlyIncome: '3200', behindOnPayments: true, monthsBehind: '3', noticeNumber: 'N-4827', phone: '(352) 555-0142', hardship: 'I lost my job at the beginning of last year when the company downsized. I was out of work for about four months and had to rely on my credit cards to cover rent and groceries. Even after I found a new job, the interest rates had gone up so much that I am barely making minimum payments and the balances keep growing.' } },
+  { label: '🤔 Skeptical', data: { customerName: 'Bob', customerAddress: '503 Bayshore Blvd', customerCity: 'Tampa', customerState: 'FL', customerZip: '33606', debtAmount: '15000', creditorCount: '3', creditors: 'Chase, Capital One, Discover', monthlyIncome: '4500', behindOnPayments: false, monthsBehind: '0', noticeNumber: 'N-7193', phone: '(813) 555-0188', hardship: 'I went through a divorce about a year ago and had to split everything up. My ex ran up some of the cards before we separated and I got stuck with the balances. Between legal fees and starting over on my own, I have not been able to get ahead of the interest.' } },
+  { label: '📈 High Debt', data: { customerName: 'Bob', customerAddress: '742 Lakeview Pkwy', customerCity: 'Orlando', customerState: 'FL', customerZip: '32803', debtAmount: '75000', creditorCount: '8', creditors: 'Multiple creditors', monthlyIncome: '6000', behindOnPayments: true, monthsBehind: '2', noticeNumber: 'N-9051', phone: '(407) 555-0173', hardship: 'I had a medical emergency two years ago that required surgery and a hospital stay. Even with insurance, I was left with thousands in bills. I put medical expenses and living costs on credit cards while I was recovering and could not work. Now I am drowning in minimum payments.' } },
 ];
 const DEBT_KB_CATEGORIES = ['debt_kb', 'debt_faq', 'debt_agent', 'debt_customer', 'debt_doc', 'debt_web', 'debt_call', 'debt_hotpoints'];
 
@@ -46,7 +47,7 @@ export default function DebtBobTrainer() {
   const [sessionId, setSessionId] = useState('Bob');
   const [kbCount, setKbCount] = useState(0);
   const [dgApiKey, setDgApiKey] = useState('');
-  const [scenario, setScenario] = useState({ customerName: 'Bob', customerCity: 'Green Grove Springs', customerState: 'FL', debtAmount: '35000', creditorCount: '5', creditors: 'Chase, Capital One, Discover, Amex, Citi', monthlyIncome: '3200', behindOnPayments: true, monthsBehind: '3', noticeNumber: 'N-4827', phone: '(352) 555-0142', hardship: 'I lost my job at the beginning of last year when the company downsized. I was out of work for about four months and had to rely on my credit cards to cover rent and groceries. Even after I found a new job, the interest rates had gone up so much that I am barely making minimum payments and the balances keep growing.' });
+  const [scenario, setScenario] = useState({ customerName: 'Bob', customerAddress: '1428 Oak Ridge Dr', customerCity: 'Green Grove Springs', customerState: 'FL', customerZip: '32603', debtAmount: '35000', creditorCount: '5', creditors: 'Chase, Capital One, Discover, Amex, Citi', monthlyIncome: '3200', behindOnPayments: true, monthsBehind: '3', noticeNumber: 'N-4827', phone: '(352) 555-0142', hardship: 'I lost my job at the beginning of last year when the company downsized. I was out of work for about four months and had to rely on my credit cards to cover rent and groceries. Even after I found a new job, the interest rates had gone up so much that I am barely making minimum payments and the balances keep growing.' });
   const [callRefs, setCallRefs] = useState([]);
   const [selectedCallRefId, setSelectedCallRefId] = useState('');
   const [showAIPopup, setShowAIPopup] = useState(false);
@@ -169,8 +170,9 @@ export default function DebtBobTrainer() {
 - Behind on Payments: ${scenario.behindOnPayments ? `Yes, ${scenario.monthsBehind || '?'} months behind` : 'No, current'}
 - Notice Number: ${scenario.noticeNumber || 'N-4827'}
 - Phone: ${scenario.phone || '(352) 555-0142'}
+- Address: ${[scenario.customerAddress, scenario.customerCity, scenario.customerState, scenario.customerZip].filter(Boolean).join(', ') || 'unspecified'}
 - Hardship Story: ${scenario.hardship || 'I lost my job last year and had to rely on credit cards. Even after finding new work, the interest rates keep me from getting ahead. I am barely making minimum payments and the balances keep growing.'}
-- Use these details when discussing your financial situation. Be specific about amounts, creditors, notice number, phone, and hardship when asked.` : '';
+- Use these details when discussing your financial situation. Be specific about amounts, creditors, notice number, phone, address, and hardship when asked.` : '';
 
     const modeText = mode === 'open' ? `
 ━━━ CALL TYPE: OPENING (INCOMING CALL — OPENER SCRIPT) ━━━
@@ -422,13 +424,15 @@ ${kbText || 'No KB entries yet. Upload calls, documents, and websites to BOB\'s 
                 {PRESET_SCENARIOS.map((p, i) => (
                   <button key={i} onClick={() => setScenario(p.data)} style={{ padding: '6px 10px', borderRadius: '4px', border: '1px solid rgba(251,146,60,0.3)', background: 'rgba(251,146,60,0.08)', color: '#fb923c', cursor: 'pointer', fontSize: '11px' }}>{p.label}</button>
                 ))}
-                <button onClick={() => setScenario({ customerName: 'Bob', customerCity: '', customerState: '', debtAmount: '', creditorCount: '', creditors: '', monthlyIncome: '', behindOnPayments: false, monthsBehind: '', noticeNumber: '', phone: '', hardship: '' })} style={{ padding: '6px 10px', borderRadius: '4px', border: '1px solid rgba(255,255,255,0.1)', background: 'transparent', color: '#6b7280', cursor: 'pointer', fontSize: '11px' }}>Clear</button>
+                <button onClick={() => setScenario({ customerName: 'Bob', customerAddress: '', customerCity: '', customerState: '', customerZip: '', debtAmount: '', creditorCount: '', creditors: '', monthlyIncome: '', behindOnPayments: false, monthsBehind: '', noticeNumber: '', phone: '', hardship: '' })} style={{ padding: '6px 10px', borderRadius: '4px', border: '1px solid rgba(255,255,255,0.1)', background: 'transparent', color: '#6b7280', cursor: 'pointer', fontSize: '11px' }}>Clear</button>
               </div>
               <div style={{ marginBottom: '8px' }}><label style={ls}>Customer Name</label><input value={scenario.customerName} onChange={e => setScenario(p => ({ ...p, customerName: e.target.value }))} placeholder="Bob" style={inp} /></div>
+              <div style={{ marginBottom: '8px' }}><label style={ls}>Street Address</label><input value={scenario.customerAddress} onChange={e => setScenario(p => ({ ...p, customerAddress: e.target.value }))} placeholder="1428 Oak Ridge Dr" style={inp} /></div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '8px' }}>
                 <div><label style={ls}>City</label><input value={scenario.customerCity} onChange={e => setScenario(p => ({ ...p, customerCity: e.target.value }))} placeholder="Green Grove Springs" style={inp} /></div>
                 <div><label style={ls}>State</label><input value={scenario.customerState} onChange={e => setScenario(p => ({ ...p, customerState: e.target.value }))} placeholder="FL" style={inp} /></div>
               </div>
+              <div style={{ marginBottom: '8px' }}><label style={ls}>Zip</label><input value={scenario.customerZip} onChange={e => setScenario(p => ({ ...p, customerZip: e.target.value }))} placeholder="32603" style={inp} /></div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '8px' }}>
                 <div><label style={ls}>Total Debt $</label><input type="number" value={scenario.debtAmount} onChange={e => setScenario(p => ({ ...p, debtAmount: e.target.value }))} placeholder="25000" style={inp} /></div>
                 <div><label style={ls}>Creditors #</label><input type="number" value={scenario.creditorCount} onChange={e => setScenario(p => ({ ...p, creditorCount: e.target.value }))} placeholder="4" style={inp} /></div>
@@ -533,6 +537,7 @@ ${kbText || 'No KB entries yet. Upload calls, documents, and websites to BOB\'s 
       {/* Training Log */}
       {subTab === 'log' && <TrainingLog logs={logs} recordingUrl={recordingUrl} onClear={() => { if (window.confirm('Clear all logs?')) setLogs([]); }} />}
 
+      <DebtCreditReport scenario={scenario} visible={phase === 'active'} />
       <FloatingScriptBox storageKey="bob_script" />
     </div>
   );
