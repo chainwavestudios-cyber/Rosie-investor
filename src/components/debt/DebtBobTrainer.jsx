@@ -21,9 +21,9 @@ const VOICE_MODELS = ['aura-zeus-en', 'aura-orion-en', 'aura-arcas-en', 'aura-pe
 const FOCUS_TOPICS = ['General', 'The Program', 'How It Works', 'Credit Impact', 'Fees & Pricing', 'Timeline', 'Qualifying Debt Types', 'Creditor Negotiations', 'Enrollment Process'];
 
 const PRESET_SCENARIOS = [
-  { label: '😰 Overwhelmed', data: { customerName: 'Bob', customerCity: 'Green Grove Springs', customerState: 'FL', debtAmount: '35000', creditorCount: '5', creditors: 'Chase, Capital One, Discover, Amex, Citi', monthlyIncome: '3200', behindOnPayments: true, monthsBehind: '3' } },
-  { label: '🤔 Skeptical', data: { customerName: 'Bob', customerCity: 'Tampa', customerState: 'FL', debtAmount: '15000', creditorCount: '3', creditors: 'Chase, Capital One, Discover', monthlyIncome: '4500', behindOnPayments: false, monthsBehind: '0' } },
-  { label: '📈 High Debt', data: { customerName: 'Bob', customerCity: 'Orlando', customerState: 'FL', debtAmount: '75000', creditorCount: '8', creditors: 'Multiple creditors', monthlyIncome: '6000', behindOnPayments: true, monthsBehind: '2' } },
+  { label: '😰 Overwhelmed', data: { customerName: 'Bob', customerCity: 'Green Grove Springs', customerState: 'FL', debtAmount: '35000', creditorCount: '5', creditors: 'Chase, Capital One, Discover, Amex, Citi', monthlyIncome: '3200', behindOnPayments: true, monthsBehind: '3', noticeNumber: 'N-4827', phone: '(352) 555-0142', hardship: 'I lost my job at the beginning of last year when the company downsized. I was out of work for about four months and had to rely on my credit cards to cover rent and groceries. Even after I found a new job, the interest rates had gone up so much that I am barely making minimum payments and the balances keep growing.' } },
+  { label: '🤔 Skeptical', data: { customerName: 'Bob', customerCity: 'Tampa', customerState: 'FL', debtAmount: '15000', creditorCount: '3', creditors: 'Chase, Capital One, Discover', monthlyIncome: '4500', behindOnPayments: false, monthsBehind: '0', noticeNumber: 'N-7193', phone: '(813) 555-0188', hardship: 'I went through a divorce about a year ago and had to split everything up. My ex ran up some of the cards before we separated and I got stuck with the balances. Between legal fees and starting over on my own, I have not been able to get ahead of the interest.' } },
+  { label: '📈 High Debt', data: { customerName: 'Bob', customerCity: 'Orlando', customerState: 'FL', debtAmount: '75000', creditorCount: '8', creditors: 'Multiple creditors', monthlyIncome: '6000', behindOnPayments: true, monthsBehind: '2', noticeNumber: 'N-9051', phone: '(407) 555-0173', hardship: 'I had a medical emergency two years ago that required surgery and a hospital stay. Even with insurance, I was left with thousands in bills. I put medical expenses and living costs on credit cards while I was recovering and could not work. Now I am drowning in minimum payments.' } },
 ];
 const DEBT_KB_CATEGORIES = ['debt_kb', 'debt_faq', 'debt_agent', 'debt_customer', 'debt_doc', 'debt_web', 'debt_call', 'debt_hotpoints'];
 
@@ -46,7 +46,7 @@ export default function DebtBobTrainer() {
   const [sessionId, setSessionId] = useState('Bob');
   const [kbCount, setKbCount] = useState(0);
   const [dgApiKey, setDgApiKey] = useState('');
-  const [scenario, setScenario] = useState({ customerName: 'Bob', customerCity: 'Green Grove Springs', customerState: 'FL', debtAmount: '35000', creditorCount: '5', creditors: 'Chase, Capital One, Discover, Amex, Citi', monthlyIncome: '3200', behindOnPayments: true, monthsBehind: '3' });
+  const [scenario, setScenario] = useState({ customerName: 'Bob', customerCity: 'Green Grove Springs', customerState: 'FL', debtAmount: '35000', creditorCount: '5', creditors: 'Chase, Capital One, Discover, Amex, Citi', monthlyIncome: '3200', behindOnPayments: true, monthsBehind: '3', noticeNumber: 'N-4827', phone: '(352) 555-0142', hardship: 'I lost my job at the beginning of last year when the company downsized. I was out of work for about four months and had to rely on my credit cards to cover rent and groceries. Even after I found a new job, the interest rates had gone up so much that I am barely making minimum payments and the balances keep growing.' });
   const [callRefs, setCallRefs] = useState([]);
   const [selectedCallRefId, setSelectedCallRefId] = useState('');
   const [showAIPopup, setShowAIPopup] = useState(false);
@@ -167,15 +167,42 @@ export default function DebtBobTrainer() {
 - Creditors: ${scenario.creditors || 'unspecified'} (${scenario.creditorCount || '?'} accounts)
 - Monthly Income: $${scenario.monthlyIncome || 'unspecified'}
 - Behind on Payments: ${scenario.behindOnPayments ? `Yes, ${scenario.monthsBehind || '?'} months behind` : 'No, current'}
-- Use these details when discussing your financial situation. Be specific about amounts and creditors when asked.` : '';
+- Notice Number: ${scenario.noticeNumber || 'N-4827'}
+- Phone: ${scenario.phone || '(352) 555-0142'}
+- Hardship Story: ${scenario.hardship || 'I lost my job last year and had to rely on credit cards. Even after finding new work, the interest rates keep me from getting ahead. I am barely making minimum payments and the balances keep growing.'}
+- Use these details when discussing your financial situation. Be specific about amounts, creditors, notice number, phone, and hardship when asked.` : '';
 
     const modeText = mode === 'open' ? `
-━━━ CALL TYPE: OPENING (INCOMING CALL) ━━━
-This is an INCOMING CALL — you (the customer) called in for help with debt.
-The opener already spoke with you, gathered your basic info, and transferred you to the closer (trainee).
-The transfer agent (Jocelyn from DRA) has told the closer your name, location, and debt amount.
-The closer will now start talking to you. You called because you NEED HELP — you're skeptical about the process but willing to listen.
-Even as a "Duck", your skepticism is about whether this is legit, not hostility. You want to be helped.` : `
+━━━ CALL TYPE: OPENING (INCOMING CALL — OPENER SCRIPT) ━━━
+This is an INCOMING CALL — you (the customer) called Debt Advisors of America after receiving a NOTICE in the mail about your debt.
+You are INTERESTED and cooperative — you called THEM for help. You are not hostile.
+The receptionist has connected you to the debt specialist (trainee). The trainee will follow this script flow — respond to EACH step:
+
+1. GREETING: "Hi, this is [Agent] from Debt Advisors. On a recorded line. Can I please have your notice number?"
+   → Provide your notice number from the scenario.
+
+2. INFO PULL: Agent explains 3 reasons for the notice (balance, interest rate increase, paying 12+ months). Asks which apply.
+   → Confirm which apply to you honestly based on your debt situation.
+
+3. IDENTITY: Agent asks you to grab pen/paper, gives their name/company/direct line. Asks to confirm your phone number.
+   → Confirm your phone number. Say you're writing down their info.
+
+4. DATA GATHERING: Agent asks about total debt, primary account holder, monthly payments, min vs more, balances decreasing, still using cards, payments difficult, savings, HARDSHIP cause.
+   → Answer honestly from your scenario. For hardship, give your FULL 3+ sentence hardship story: what happened, when, how it impacted you financially.
+
+5. CREDIT PULL: Agent asks for address, DOB, last 4 of SSN, permission for soft inquiry.
+   → Provide the info. You MUST say "Yes" to give permission.
+
+6. ACCOUNT REVIEW: Agent reviews each creditor (balance, limit, min payment). Asks if you pay min or more.
+   → Confirm or correct each account honestly based on your creditors list.
+
+7. BUDGET: Agent asks income after taxes and expenses (rent, auto, insurance, gas, groceries, utilities, phone, internet, student loans, misc).
+   → Provide realistic estimates based on your monthly income.
+
+8. HOLD: Agent says they'll review and submit for approval, puts you on brief hold.
+   → Agree to hold. Say you'll keep pen and paper handy.
+
+KEY: You called them. You want help. Provide your notice number, phone, debt details, hardship story, and budget info when asked. Even as a "Duck", you are cautious about personal info but still cooperative — you called for help.` : `
 ━━━ CALL TYPE: CLOSING (FOLLOW-UP CALL) ━━━
 You already went through the opening process. The opener gathered your info and explained the program basics.
 Now the closer (trainee) is calling to finalize and close you on the program.
@@ -395,7 +422,7 @@ ${kbText || 'No KB entries yet. Upload calls, documents, and websites to BOB\'s 
                 {PRESET_SCENARIOS.map((p, i) => (
                   <button key={i} onClick={() => setScenario(p.data)} style={{ padding: '6px 10px', borderRadius: '4px', border: '1px solid rgba(251,146,60,0.3)', background: 'rgba(251,146,60,0.08)', color: '#fb923c', cursor: 'pointer', fontSize: '11px' }}>{p.label}</button>
                 ))}
-                <button onClick={() => setScenario({ customerName: 'Bob', customerCity: '', customerState: '', debtAmount: '', creditorCount: '', creditors: '', monthlyIncome: '', behindOnPayments: false, monthsBehind: '' })} style={{ padding: '6px 10px', borderRadius: '4px', border: '1px solid rgba(255,255,255,0.1)', background: 'transparent', color: '#6b7280', cursor: 'pointer', fontSize: '11px' }}>Clear</button>
+                <button onClick={() => setScenario({ customerName: 'Bob', customerCity: '', customerState: '', debtAmount: '', creditorCount: '', creditors: '', monthlyIncome: '', behindOnPayments: false, monthsBehind: '', noticeNumber: '', phone: '', hardship: '' })} style={{ padding: '6px 10px', borderRadius: '4px', border: '1px solid rgba(255,255,255,0.1)', background: 'transparent', color: '#6b7280', cursor: 'pointer', fontSize: '11px' }}>Clear</button>
               </div>
               <div style={{ marginBottom: '8px' }}><label style={ls}>Customer Name</label><input value={scenario.customerName} onChange={e => setScenario(p => ({ ...p, customerName: e.target.value }))} placeholder="Bob" style={inp} /></div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '8px' }}>
@@ -415,6 +442,11 @@ ${kbText || 'No KB entries yet. Upload calls, documents, and websites to BOB\'s 
                 <input type="checkbox" checked={scenario.behindOnPayments} onChange={e => setScenario(p => ({ ...p, behindOnPayments: e.target.checked }))} style={{ accentColor: '#fb923c' }} />
                 <span style={{ color: '#c4cdd8', fontSize: '12px' }}>Behind on payments</span>
               </label>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '8px' }}>
+                <div><label style={ls}>Notice #</label><input value={scenario.noticeNumber} onChange={e => setScenario(p => ({ ...p, noticeNumber: e.target.value }))} placeholder="N-4827" style={inp} /></div>
+                <div><label style={ls}>Phone</label><input value={scenario.phone} onChange={e => setScenario(p => ({ ...p, phone: e.target.value }))} placeholder="(352) 555-0142" style={inp} /></div>
+              </div>
+              <div style={{ marginBottom: '8px' }}><label style={ls}>Hardship Story (3+ sentences)</label><textarea value={scenario.hardship} onChange={e => setScenario(p => ({ ...p, hardship: e.target.value }))} placeholder="What happened, when, and how it impacted you financially" style={{ ...inp, resize: 'vertical', minHeight: '60px' }} /></div>
               {callRefs.length > 0 && (
                 <div>
                   <label style={ls}>📖 Reference Call (learn from real customer)</label>
