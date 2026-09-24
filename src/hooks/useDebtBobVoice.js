@@ -65,7 +65,8 @@ function playTransferSequence(mode, closerName, scenario, onDone) {
     const debtStr = scenario?.debtAmount ? `$${Number(scenario.debtAmount).toLocaleString()}` : 'some';
     const locStr = [scenario?.customerCity, scenario?.customerState].filter(Boolean).join(', ') || 'unspecified location';
     const nameStr = scenario?.customerName || 'Bob';
-    const line = `Hi, Drew. My name is Jocelyn Miller with DRA. I have here with me ${nameStr} from ${locStr}, and he has around roughly ${debtStr} unsecured debt.`;
+    const closerStr = closerName || 'Drew';
+    const line = `Hi, ${closerStr}. My name is Jocelyn Miller with DRA. I have here with me ${nameStr} from ${locStr}, and he has around roughly ${debtStr} unsecured debt.`;
     speakTransfer(line, () => setTimeout(onDone, 1500));
   } else {
     const name = closerName || 'Drew';

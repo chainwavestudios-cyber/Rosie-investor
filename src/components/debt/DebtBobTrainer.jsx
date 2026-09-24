@@ -310,13 +310,11 @@ ${kbText || 'No KB entries yet. Upload calls, documents, and websites to BOB\'s 
                 </select>
               </div>
 
-              {/* Closer name — only in close mode (transfer agent asks for it) */}
-              {mode === 'close' && (
-                <div style={{ marginBottom: '12px' }}>
-                  <label style={ls}>👤 Your Name (Closer)</label>
-                  <input value={closerName} onChange={e => setCloserName(e.target.value)} disabled={phase !== 'idle'} placeholder="Drew" style={inp} />
-                </div>
-              )}
+              {/* Closer name — used by transfer agent to introduce you */}
+              <div style={{ marginBottom: '12px' }}>
+                <label style={ls}>👤 Your Name (Closer)</label>
+                <input value={closerName} onChange={e => setCloserName(e.target.value)} disabled={phase !== 'idle'} placeholder="Drew" style={inp} />
+              </div>
 
               {/* Start/Hangup */}
               <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
