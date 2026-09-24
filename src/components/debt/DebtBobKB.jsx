@@ -5,7 +5,7 @@
  */
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
-import { computeFileHash, computeTextHash, checkDuplicateHash } from '@/lib/fileDedup';
+import { computeFileHash, computeTextHash, checkDuplicateHash, checkDuplicateUrl, checkDuplicateQuestion } from '@/lib/fileDedup';
 import { ObjectionUploader, ScenarioUploader } from '@/components/debt/DebtScenarioUploaders';
 
 const GOLD = '#10b981';
@@ -420,8 +420,11 @@ function WebScraper({ onStatus, onError, onDone }) {
   const scrape = async () => {
     if (!url.trim()) return;
     setScraping(true); onError('');
-    onStatus('Scraping website…');
+    onStatus('Checking for duplicates…');
     try {
+      const dup = await checkDuplicateUrl(url.trim());
+      if (dup.isDuplicate) { onError(`This URL was already scraped on ${dup.firstUploadDate ? new Date(dup.firstUploadDate).toLocaleDateString() : 'earlier'} — ${dup.count} entries exist. Skipping.`); setScraping(false); return; }
+      onStatus('Scraping website…');
       const result = await base44.functions.invoke('kbScrapeUrl', { url: url.trim() });
       const entries = result?.entries || result?.data?.entries || [];
       onStatus(`Saving ${entries.length} entries to BOB's brain…`);
@@ -499,6 +502,9 @@ function BulkQAPaster({ onStatus, onError, onDone }) {
 
   const save = async () => {
     setSaving(true);
+    const hash = await computeTextHash(text);
+    const dup = await checkDuplicateHash(hash);
+    if (dup.isDuplicate) { onError(`This content was already uploaded on ${dup.firstUploadDate ? new Date(dup.firstUploadDate).toLocaleDateString() : 'earlier'} — ${dup.count} entries exist. Skipping.`); setSaving(false); return; }
     for (const e of parsed) {
       await base44.entities.KnowledgeBase.create({
         question: e.question,
@@ -506,6 +512,7 @@ function BulkQAPaster({ onStatus, onError, onDone }) {
         category,
         kbName: 'Debt Settlement',
         source: 'Bulk Q&A Paste',
+        tags: `file_hash:${hash}`,
         created_date: new Date().toISOString(),
       });
     }
@@ -577,6 +584,8 @@ function DisqualifyQA({ onStatus, onError, onDone }) {
     if (!q.trim() || !a.trim()) return;
     setSaving(true);
     try {
+      const dup = await checkDuplicateQuestion(q.trim(), 'Debt Settlement');
+      if (dup.isDuplicate) { onError('This disqualification question already exists in BOB\'s brain. Skipping.'); setSaving(false); return; }
       await base44.entities.KnowledgeBase.create({
         question: q.trim(), answer: a.trim(),
         category: 'debt_disqualify', kbName: 'Debt Settlement',
@@ -598,8 +607,12 @@ function DisqualifyQA({ onStatus, onError, onDone }) {
 
   const bulkAdd = async () => {
     if (!bulkText.trim()) return;
-    setBulkSaving(true); onStatus('AI is parsing disqualification Q&A…');
+    setBulkSaving(true); onStatus('Checking for duplicates…');
     try {
+      const hash = await computeTextHash(bulkText);
+      const dup = await checkDuplicateHash(hash);
+      if (dup.isDuplicate) { onError(`This content was already uploaded on ${dup.firstUploadDate ? new Date(dup.firstUploadDate).toLocaleDateString() : 'earlier'} — ${dup.count} entries exist. Skipping.`); setBulkSaving(false); return; }
+      onStatus('AI is parsing disqualification Q&A…');
       const result = await base44.integrations.Core.InvokeLLM({
         prompt: `You are a debt settlement disqualification expert. Below is content about customer disqualification questions and how agents should handle them. Parse it into individual Q&A pairs where the question is the disqualification topic and the answer is how the agent should handle/ask about it. Return as JSON: {"entries":[{"question":"...","answer":"..."}]}.\n\nCONTENT:\n${bulkText}`,
         response_json_schema: { type: 'object', properties: { entries: { type: 'array', items: { type: 'object', properties: { question: { type: 'string' }, answer: { type: 'string' } } } } } },
@@ -609,7 +622,7 @@ function DisqualifyQA({ onStatus, onError, onDone }) {
         await base44.entities.KnowledgeBase.create({
           question: e.question, answer: e.answer,
           category: 'debt_disqualify', kbName: 'Debt Settlement',
-          source: 'Bulk Paste', created_date: new Date().toISOString(),
+          source: 'Bulk Paste', tags: `file_hash:${hash}`, created_date: new Date().toISOString(),
         });
       }
       setBulkText('');

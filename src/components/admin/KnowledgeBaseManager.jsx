@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
+import { computeFileHash, computeTextHash, checkDuplicateHash, checkDuplicateUrl, checkDuplicateQuestion } from '@/lib/fileDedup';
 
 const GOLD = '#b8933a';
 const DARK = '#0a0f1e';
@@ -254,6 +255,8 @@ export default function KnowledgeBaseManager({ IntentEngineTuner, CoachRulesTune
     if (!q.trim() || !a.trim()) return;
     setSaving(true); setSaveMsg('');
     try {
+      const dup = await checkDuplicateQuestion(q.trim(), activeKbName);
+      if (dup.isDuplicate) { setSaveMsg(`⚠ Duplicate — this question already exists in ${selectedKb === DEFAULT_KB ? 'Default KB' : selectedKb}.`); setSaving(false); return; }
       await base44.entities.KnowledgeBase.create({
         question: q.trim(), answer: a.trim(),
         category: cat, tags: tags.trim(),
@@ -269,8 +272,12 @@ export default function KnowledgeBaseManager({ IntentEngineTuner, CoachRulesTune
 
   const handleFileUpload = async (e) => {
     const file = e.target.files?.[0]; if (!file) return; e.target.value = '';
-    setUploading(true); setUploadMsg(''); setUploadProgress('Reading file…');
+    setUploading(true); setUploadMsg(''); setUploadProgress('Checking for duplicates…');
     try {
+      const hash = await computeFileHash(file);
+      const dup = await checkDuplicateHash(hash);
+      if (dup.isDuplicate) { setUploadMsg(`⚠ This file was already uploaded on ${dup.firstUploadDate ? new Date(dup.firstUploadDate).toLocaleDateString() : 'earlier'} — ${dup.count} entries exist. Skipping.`); setUploading(false); setUploadProgress(''); return; }
+      setUploadProgress('Reading file…');
       const base64 = await new Promise((res, rej) => {
         const r = new FileReader();
         r.onload = () => res(r.result.split(',')[1]);
@@ -292,7 +299,7 @@ export default function KnowledgeBaseManager({ IntentEngineTuner, CoachRulesTune
           await base44.entities.KnowledgeBase.create({
             question: entry.question, answer: entry.answer,
             category: entry.category || 'faq',
-            source: file.name, tags: entry.tags || '',
+            source: file.name, tags: `${entry.tags || ''} file_hash:${hash}`.trim(),
             kbName: activeKbName,
           });
           saved++;
@@ -309,8 +316,11 @@ export default function KnowledgeBaseManager({ IntentEngineTuner, CoachRulesTune
 
   const handleScrape = async () => {
     if (!scrapeUrl.trim()) return;
-    setScraping(true); setScrapeMsg('Fetching and analyzing page…');
+    setScraping(true); setScrapeMsg('Checking for duplicates…');
     try {
+      const dup = await checkDuplicateUrl(scrapeUrl.trim());
+      if (dup.isDuplicate) { setScrapeMsg(`⚠ This URL was already scraped on ${dup.firstUploadDate ? new Date(dup.firstUploadDate).toLocaleDateString() : 'earlier'} — ${dup.count} entries exist. Skipping.`); setScraping(false); return; }
+      setScrapeMsg('Fetching and analyzing page…');
       const result = await base44.functions.invoke('kbScrapeUrl', { url: scrapeUrl.trim() });
       const extracted = result?.data?.entries || [];
       let saved = 0;
@@ -555,10 +565,13 @@ export default function KnowledgeBaseManager({ IntentEngineTuner, CoachRulesTune
             {bulkParsed.length > 0 && (
               <button onClick={async () => {
                 setBulkSaving(true);
+                const hash = await computeTextHash(bulkText);
+                const dup = await checkDuplicateHash(hash);
+                if (dup.isDuplicate) { setBulkMsg(`⚠ This content was already uploaded on ${dup.firstUploadDate ? new Date(dup.firstUploadDate).toLocaleDateString() : 'earlier'} — ${dup.count} entries exist. Skipping.`); setBulkSaving(false); return; }
                 let saved = 0;
                 for (const e of bulkParsed) {
                   try {
-                    await base44.entities.KnowledgeBase.create({ question: e.question, answer: e.answer, category: e.category || 'faq', source: 'Bulk Q&A Paste', kbName: activeKbName });
+                    await base44.entities.KnowledgeBase.create({ question: e.question, answer: e.answer, category: e.category || 'faq', source: 'Bulk Q&A Paste', tags: `file_hash:${hash}`, kbName: activeKbName });
                     saved++;
                   } catch {}
                 }
