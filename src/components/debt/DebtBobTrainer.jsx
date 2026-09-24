@@ -18,7 +18,7 @@ const DARK = '#0a0f1e';
 const ls = { display: 'block', color: '#8a9ab8', fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '6px' };
 const inp = { width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '4px', padding: '8px 12px', color: '#e8e0d0', fontSize: '13px', outline: 'none', boxSizing: 'border-box', fontFamily: 'Georgia, serif' };
 
-const VOICE_MODELS = ['aura-zeus-en', 'aura-orion-en', 'aura-arcas-en', 'aura-perseus-en', 'aura-angus-en', 'aura-orpheus-en'];
+const VOICE_MODELS = ['aura-2-zeus-en', 'aura-2-orion-en', 'aura-2-arcas-en', 'aura-2-perseus-en', 'aura-2-angus-en', 'aura-2-orpheus-en', 'aura-2-athena-en', 'aura-2-hera-en', 'aura-2-luna-en'];
 const FOCUS_TOPICS = ['General', 'The Program', 'How It Works', 'Credit Impact', 'Fees & Pricing', 'Timeline', 'Qualifying Debt Types', 'Creditor Negotiations', 'Enrollment Process'];
 
 const PRESET_SCENARIOS = [

@@ -123,7 +123,7 @@ export function useDebtBobVoice({ onTranscript, onLog } = {}) {
     src.buffer = ab; src.connect(ctx.destination);
     if (recordDestRef.current) src.connect(recordDestRef.current);
     const now = ctx.currentTime;
-    if (nextStartRef.current < now) nextStartRef.current = now + 0.05;
+    if (nextStartRef.current < now) nextStartRef.current = now + 0.02;
     src.start(nextStartRef.current);
     nextStartRef.current += ab.duration;
     src.onended = () => { if (ctx.currentTime >= nextStartRef.current - 0.01) setAgentSpeaking(false); };
@@ -210,7 +210,7 @@ export function useDebtBobVoice({ onTranscript, onLog } = {}) {
                 audio: { input: { encoding: 'linear16', sample_rate: 24000 }, output: { encoding: 'linear16', sample_rate: 24000, container: 'none' } },
                 agent: {
                   listen: { provider: { type: 'deepgram', version: 'v2', model: 'flux-general-en' } },
-                  think: { provider: { type: 'open_ai', model: 'gpt-4.1-mini' }, prompt: systemPrompt },
+                  think: { provider: { type: 'open_ai', model: 'gpt-4.1' }, prompt: systemPrompt },
                   speak: { provider: { type: 'deepgram', model: voiceModel } },
                   greeting,
                 },
