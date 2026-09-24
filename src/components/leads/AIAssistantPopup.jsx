@@ -609,6 +609,29 @@ function CoachSection({ transcript, kbEntries, coachRules, active, collapsed, le
       .finally(() => setStreaming(false));
   }, [transcript, active, collapsed, kbEntries, coachRules, callAttemptNumber]);
 
+  // ── Hotpoint detection: deliver hotpoints when customer speech matches ──────
+  const deliveredHotpoints = useRef(new Set());
+  useEffect(() => { if (active) deliveredHotpoints.current.clear(); }, [active]);
+  useEffect(() => {
+    if (!active || !transcript.length || collapsed) return;
+    const hotpoints = (kbEntries || []).filter(e => e.category === 'debt_hotpoints');
+    if (hotpoints.length === 0) return;
+    const last = transcript[transcript.length - 1];
+    if (!last?.text) return;
+    const isProspect = last.speaker === 0 || last.speaker === null || last.speaker === undefined;
+    if (!isProspect) return;
+    const lowerText = last.text.toLowerCase();
+    for (const hp of hotpoints) {
+      if (deliveredHotpoints.current.has(hp.id)) continue;
+      const keywords = (hp.question || '').toLowerCase().split(/\s+/).filter(w => w.length > 4 && !['about','when','customer','asks','mentions','says','that','this','they','their','what','how','why','where','should','would','could'].includes(w));
+      if (keywords.length >= 2 && keywords.some(k => lowerText.includes(k))) {
+        deliveredHotpoints.current.add(hp.id);
+        const tipId = Date.now() + Math.random();
+        setAutoTips(prev => [...prev, { id: tipId, text: hp.answer || hp.question, streaming: false, time: new Date(), hotpoint: true, hotpointTitle: hp.question }]);
+      }
+    }
+  }, [transcript, active, collapsed, kbEntries]);
+
   // ── Tile definitions ─────────────────────────────────────────────────────────
   const TILES = [
     { id: 'open_strong',     label: '🎯 Open Strong' },
@@ -718,10 +741,13 @@ function CoachSection({ transcript, kbEntries, coachRules, active, collapsed, le
       {/* Auto-coach tips */}
       {autoTips.length > 0 && (
         <div>
-          <div style={{ color: '#4a5568', fontSize: '8px', letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: '5px' }}>Auto Coach (objection triggered)</div>
+          <div style={{ color: '#4a5568', fontSize: '8px', letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: '5px' }}>Auto Coach & Hotpoints</div>
           {[...autoTips].reverse().map((tip, i) => (
-            <div key={tip.id} style={{ background: 'rgba(167,139,250,0.05)', border: '1px solid rgba(167,139,250,0.12)', borderRadius: '6px', padding: '9px 12px', marginBottom: '5px' }}>
-              <div style={{ color: '#4a5568', fontSize: '8px', marginBottom: '4px' }}>{tip.time.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', second: '2-digit' })}</div>
+            <div key={tip.id} style={{ background: tip.hotpoint ? 'rgba(239,68,68,0.06)' : 'rgba(167,139,250,0.05)', border: `1px solid ${tip.hotpoint ? 'rgba(239,68,68,0.25)' : 'rgba(167,139,250,0.12)'}`, borderRadius: '6px', padding: '9px 12px', marginBottom: '5px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                <span style={{ color: tip.hotpoint ? '#ef4444' : '#4a5568', fontSize: '8px', fontWeight: tip.hotpoint ? 'bold' : 'normal', letterSpacing: '1px', textTransform: 'uppercase' }}>{tip.hotpoint ? `🔥 Hotpoint${tip.hotpointTitle ? ` — ${tip.hotpointTitle.slice(0, 60)}` : ''}` : ''}</span>
+                <span style={{ color: '#4a5568', fontSize: '8px' }}>{tip.time.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', second: '2-digit' })}</span>
+              </div>
               {tip.streaming
                 ? <div style={{ color: '#6b7280', fontSize: '11px', display: 'flex', gap: 6, alignItems: 'center' }}><div style={{ width: 5, height: 5, borderRadius: '50%', background: '#a78bfa', animation: 'aipulse 0.8s infinite' }} />Thinking…</div>
                 : <div style={{ color: '#c4cdd8', fontSize: '12px', lineHeight: 1.7 }}>{tip.text}</div>
@@ -733,7 +759,7 @@ function CoachSection({ transcript, kbEntries, coachRules, active, collapsed, le
 
       {tileOutputs.length === 0 && autoTips.length === 0 && (
         <div style={{ color: '#4a5568', fontSize: '11px', textAlign: 'center', padding: '16px 0' }}>
-          {active ? 'Click a tile above for instant coaching, or auto-coach fires on objection keywords' : 'Enable Coach to activate'}
+          {active ? 'Click a tile above for instant coaching, or auto-coach fires on objections and hotpoints' : 'Enable Coach to activate'}
         </div>
       )}
     </div>

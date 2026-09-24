@@ -287,6 +287,9 @@ ${kbEntries.filter(e => e.category === 'debt_customer' || e.category === 'debt_f
 Questions from Scripts:
 ${(debtScripts || []).slice(0, 15).map((s, i) => `${i + 1}. ${s.name}`).join('\n') || 'No scripts uploaded yet.'}
 
+Hotpoint Topics — occasionally bring these up or ask about them during the call:
+${kbEntries.filter(e => e.category === 'debt_hotpoints').slice(0, 15).map((hp, i) => `${i + 1}. ${hp.question}`).join('\n') || 'No hotpoints uploaded yet.'}
+
 IMPORTANT: Ask these questions NATURALLY during the call. Weave them into the conversation — don't read them like a list. Space them out every 30-60 seconds. Pick from the list above based on what's being discussed. If the focus is General, pick from ANY topic. If a specific topic is set, pick questions related to that topic.
 
 ━━━ CRITICAL RULES ━━━
