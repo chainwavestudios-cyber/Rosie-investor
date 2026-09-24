@@ -63,6 +63,7 @@ export default function DebtBobTrainer() {
     const [objections, setObjections] = useState([]);
     const [openScenarios, setOpenScenarios] = useState([]);
     const [closeScenarios, setCloseScenarios] = useState([]);
+    const [debtScripts, setDebtScripts] = useState([]);
     const aiTranscriptRef = useRef([]);
 
   // Load Deepgram API key from PortalSettings (shared with admin BobTab)
@@ -112,6 +113,8 @@ export default function DebtBobTrainer() {
       setObjections((all || []).filter(e => e.category === 'debt_objections'));
       setOpenScenarios((all || []).filter(e => e.category === 'debt_open_scenario'));
       setCloseScenarios((all || []).filter(e => e.category === 'debt_close_scenario'));
+      const scripts = await base44.entities.DebtScript.list('-sortOrder', 100);
+      setDebtScripts(scripts || []);
     } catch {}
   }, []);
 
@@ -240,13 +243,27 @@ Use these objections NATURALLY during the call. At lower slider values (Duck), u
 ━━━ DEBT SETTLEMENT KNOWLEDGE BASE — LEARNED FROM REAL CALLS ━━━
 ${kbText || 'No KB entries yet. Upload calls, documents, and websites to BOB\'s Brain to make BOB smarter and more realistic.'}
 
+━━━ CUSTOMER QUESTIONS — ASK THE AGENT PERIODICALLY ━━━
+You are a REAL customer with questions. Periodically ASK the agent questions during the call. Space them out naturally — don't rapid-fire. Ask one, wait for the answer, then continue the conversation.
+
+Number of questions to ask during this call: ${intensity <= 1 ? '1-2' : intensity === 2 ? '2-3' : intensity === 3 ? '3-5' : intensity === 4 ? '5-7' : '7-10'} (based on intensity ${intensity}/5)
+${focusTopic === 'General' ? `Ask questions spanning ALL topics randomly: ${FOCUS_TOPICS.filter(t => t !== 'General').join(', ')}` : `Focus your questions on the topic: "${focusTopic}"`}
+
+Questions from the Knowledge Base (customer Q&A):
+${kbEntries.filter(e => e.category === 'debt_customer' || e.category === 'debt_faq' || e.category === 'debt_kb').slice(0, 20).map((e, i) => `${i + 1}. ${e.question}`).join('\n') || 'No customer Q&A uploaded yet. Upload to BOB\'s Brain to add real customer questions.'}
+
+Questions from Scripts:
+${(debtScripts || []).slice(0, 15).map((s, i) => `${i + 1}. ${s.name}`).join('\n') || 'No scripts uploaded yet.'}
+
+IMPORTANT: Ask these questions NATURALLY during the call. Weave them into the conversation — don't read them like a list. Space them out every 30-60 seconds. Pick from the list above based on what's being discussed. If the focus is General, pick from ANY topic. If a specific topic is set, pick questions related to that topic.
+
 ━━━ CRITICAL RULES ━━━
 - You are a REAL PERSON on a phone call. Keep ALL responses 1-3 sentences.
 - Never say you are an AI. Never break character.
 - Use natural speech: contractions, interruptions, "uh", "look", "listen", "I mean" — real people talk like this.
 - React to what the trainee actually says — improvise within your persona, don't just recite lines.
 - Use the KNOWLEDGE BASE above to inform your responses — if the closer mentions program details, fees, or timelines that match the KB, react realistically based on what you know.`;
-  }, [sliderValue, intensity, focusTopic, kbEntries, getActivePersona, scenario, callRefs, selectedCallRefId, mode, objections, openScenarios, closeScenarios]);
+  }, [sliderValue, intensity, focusTopic, kbEntries, getActivePersona, scenario, callRefs, selectedCallRefId, mode, objections, openScenarios, closeScenarios, debtScripts]);
 
   const handleStartCall = useCallback(async () => {
     const newCount = callCount + 1;
