@@ -175,6 +175,27 @@ export default function DebtBobTrainer() {
 
   const { phase, error, agentSpeaking, micDevices, micDeviceId, setMicDeviceId, ringPhase, transferPhase, startCall, hangup, isRecording, recordingUrl } = useDebtBobVoice({ onTranscript: handleTranscript, onLog: addLog });
 
+  // Persist session (with recording URL + transcript) to BobSession when recording becomes available
+  const callStartRef = useRef(null);
+  useEffect(() => { if (phase === 'active' && !callStartRef.current) callStartRef.current = Date.now(); }, [phase]);
+  useEffect(() => {
+    if (!recordingUrl) return;
+    const duration = callStartRef.current ? Math.round((Date.now() - callStartRef.current) / 1000) : 0;
+    callStartRef.current = null;
+    base44.entities.BobSession.create({
+      sessionLabel: sessionId,
+      voiceModel,
+      sliderValue,
+      intensity,
+      focusTopic,
+      callMode: mode,
+      transcriptJson: JSON.stringify(transcriptRef.current || []),
+      transcriptLineCount: (transcriptRef.current || []).length,
+      durationSeconds: duration,
+      recordingUrl,
+    }).catch(e => console.warn('[BOB] Failed to save session:', e));
+  }, [recordingUrl]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const getActivePersona = useCallback(() => {
     if (sliderValue < 33) return DEBT_DUCK;
     if (sliderValue < 67) return DEBT_OWL;
@@ -613,7 +634,15 @@ IMPORTANT: Ask these questions NATURALLY during the call. Weave them into the co
 // ─── Training Log ─────────────────────────────────────────────────────────────
 function TrainingLog({ logs, recordingUrl, onClear }) {
   const logEndRef = useRef(null);
+  const [pastSessions, setPastSessions] = useState([]);
   useEffect(() => { logEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [logs]);
+
+  // Load past saved sessions (with recordings) from BobSession
+  useEffect(() => {
+    base44.entities.BobSession.list('-created_date', 20)
+      .then(rows => setPastSessions((rows || []).filter(s => s.recordingUrl)))
+      .catch(() => {});
+  }, [recordingUrl]);
   const typeColors = { session_start: '#60a5fa', session_end: '#a78bfa', transcript: '#e8e0d0', coach_tip: '#f59e0b', qa_answer: '#34d399', intent_update: '#f472b6', appointment: '#4ade80', disposition: '#f59e0b' };
   return (
     <div>
@@ -623,9 +652,32 @@ function TrainingLog({ logs, recordingUrl, onClear }) {
       </div>
       {recordingUrl && (
         <div style={{ marginBottom: '16px', background: '#0d1b2a', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '6px', padding: '14px' }}>
-          <div style={{ color: '#ef4444', fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '8px' }}>● Call Recording</div>
+          <div style={{ color: '#ef4444', fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '8px' }}>● Latest Call Recording</div>
           <audio controls src={recordingUrl} style={{ width: '100%', outline: 'none' }} />
           <a href={recordingUrl} target="_blank" rel="noopener noreferrer" download style={{ color: GOLD, fontSize: '11px', marginTop: '6px', display: 'inline-block' }}>⬇ Download Recording</a>
+        </div>
+      )}
+
+      {pastSessions.length > 0 && (
+        <div style={{ marginBottom: '16px', background: '#0d1b2a', border: '1px solid rgba(16,185,129,0.2)', borderRadius: '6px', padding: '14px' }}>
+          <div style={{ color: GOLD, fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '10px' }}>📚 Past Recordings ({pastSessions.length})</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            {pastSessions.map(s => (
+              <div key={s.id} style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: '4px', padding: '10px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                  <span style={{ color: '#e8e0d0', fontSize: '12px', fontWeight: 'bold' }}>{s.sessionLabel || 'Session'}</span>
+                  <span style={{ color: '#6b7280', fontSize: '10px' }}>{s.createdAt ? new Date(s.createdAt).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : ''}</span>
+                </div>
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '6px' }}>
+                  {s.callMode && <span style={{ color: '#8a9ab8', fontSize: '9px', background: 'rgba(255,255,255,0.05)', padding: '2px 6px', borderRadius: '3px' }}>{s.callMode === 'open' ? '📞 Open' : '🎯 Close'}</span>}
+                  {s.voiceModel && <span style={{ color: '#a78bfa', fontSize: '9px', background: 'rgba(167,139,250,0.08)', padding: '2px 6px', borderRadius: '3px' }}>{s.voiceModel}</span>}
+                  {s.durationSeconds > 0 && <span style={{ color: '#6b7280', fontSize: '9px' }}>{Math.floor(s.durationSeconds / 60)}m {s.durationSeconds % 60}s</span>}
+                  {s.transcriptLineCount > 0 && <span style={{ color: '#6b7280', fontSize: '9px' }}>{s.transcriptLineCount} lines</span>}
+                </div>
+                <audio controls src={s.recordingUrl} style={{ width: '100%', outline: 'none', height: '32px' }} />
+              </div>
+            ))}
+          </div>
         </div>
       )}
       {logs.length === 0 && !recordingUrl ? <div style={{ color: '#4a5568', textAlign: 'center', padding: '60px 0' }}>No sessions yet. Start a training call to see events here.</div> :
