@@ -41,6 +41,13 @@ export default function KnowledgeBaseManager({ IntentEngineTuner, CoachRulesTune
   const [editKb, setEditKb]         = useState('');
   const [editSaving, setEditSaving] = useState(false);
 
+  // ── Bulk Q&A state ──────────────────────────────────────────────────
+  const [bulkText, setBulkText] = useState('');
+  const [bulkParsed, setBulkParsed] = useState([]);
+  const [bulkSaving, setBulkSaving] = useState(false);
+  const [bulkCategory, setBulkCategory] = useState('faq');
+  const [bulkMsg, setBulkMsg] = useState('');
+
   // ── Rebuttals state ────────────────────────────────────────────────
   const [rebuttals, setRebuttals]         = useState([]);
   const [rebSearch, setRebSearch]         = useState('');
@@ -433,7 +440,7 @@ export default function KnowledgeBaseManager({ IntentEngineTuner, CoachRulesTune
 
       {/* ── Section Tabs ── */}
       <div style={{ display:'flex', gap:'0', borderBottom:'1px solid rgba(255,255,255,0.08)', marginBottom:'28px' }}>
-        {[['entries','📋 Entries'],['add','✏️ Add Q&A'],['upload','📄 Upload Document'],['scrape','🌐 Scrape Website'],['rebuttals','🛡 Rebuttals'],['selling','⭐ Selling Points'],['learning','🧠 Learning'],['calllog','📞 Call Log'],['intent','🦆 Intent Engine'],['coach','🎯 Coach Rules']].map(([id, label]) => (
+        {[['entries','📋 Entries'],['add','✏️ Add Q&A'],['bulk','📋 Bulk Q&A'],['upload','📄 Upload Document'],['scrape','🌐 Scrape Website'],['rebuttals','🛡 Rebuttals'],['selling','⭐ Selling Points'],['learning','🧠 Learning'],['calllog','📞 Call Log'],['intent','🦆 Intent Engine'],['coach','🎯 Coach Rules']].map(([id, label]) => (
           <button key={id} onClick={() => setSection(id)}
             style={{ background:'none', border:'none', borderBottom:section===id?`2px solid ${GOLD}`:'2px solid transparent', color:section===id?GOLD:'#6b7280', padding:'10px 20px', cursor:'pointer', fontSize:'12px', letterSpacing:'0.5px', whiteSpace:'nowrap' }}>
             {label}
@@ -517,6 +524,76 @@ export default function KnowledgeBaseManager({ IntentEngineTuner, CoachRulesTune
           </div>
           {saveMsg && <div style={{ background:saveMsg.startsWith('✓')?'rgba(74,222,128,0.1)':'rgba(239,68,68,0.1)', border:`1px solid ${saveMsg.startsWith('✓')?'rgba(74,222,128,0.3)':'rgba(239,68,68,0.3)'}`, borderRadius:'4px', padding:'10px 14px', color:saveMsg.startsWith('✓')?'#4ade80':'#ef4444', fontSize:'13px', marginBottom:'16px' }}>{saveMsg}</div>}
           <button onClick={addManual} disabled={saving||!q.trim()||!a.trim()} style={{ background:'linear-gradient(135deg,#b8933a,#d4aa50)', color:DARK, border:'none', borderRadius:'4px', padding:'12px 32px', cursor:'pointer', fontWeight:'700', fontSize:'12px', letterSpacing:'2px', textTransform:'uppercase' }}>{saving ? 'Saving…' : '+ Add Entry'}</button>
+        </div>
+      )}
+
+      {/* ── Bulk Q&A ── */}
+      {section === 'bulk' && (
+        <div style={{ maxWidth:'720px' }}>
+          <h3 style={{ color:'#e8e0d0', fontWeight:'normal', margin:'0 0 8px', fontSize:'16px' }}>📋 Bulk Q&A Paste</h3>
+          <p style={{ color:'#6b7280', fontSize:'13px', margin:'0 0 16px', lineHeight:1.7 }}>
+            Paste multiple Q&A pairs at once. Two formats supported:<br />
+            <strong style={{ color:GOLD }}>Format 1:</strong> <code style={{ color:'#c4cdd8' }}>Q: question{'\n'}A: answer</code> (blank line between pairs)<br />
+            <strong style={{ color:GOLD }}>Format 2:</strong> <code style={{ color:'#c4cdd8' }}>question | answer</code> (one per line)
+          </p>
+          <div style={{ background:'rgba(184,147,58,0.06)', border:'1px solid rgba(184,147,58,0.2)', borderRadius:'6px', padding:'10px 14px', marginBottom:'16px', fontSize:'11px', color:GOLD }}>
+            Adding to: <strong>{selectedKb === DEFAULT_KB ? 'Default KB' : selectedKb}</strong>
+          </div>
+          <div style={{ marginBottom:'16px' }}>
+            <label style={ls}>Category</label>
+            <select value={bulkCategory} onChange={e => setBulkCategory(e.target.value)} style={{ ...inp2, cursor:'pointer' }}>
+              {['faq','financials','product','team','market','legal','process','risk','company','pricing','manual'].map(c => <option key={c} value={c}>{c.charAt(0).toUpperCase()+c.slice(1)}</option>)}
+            </select>
+          </div>
+          <textarea value={bulkText} onChange={e => setBulkText(e.target.value)} rows={12} placeholder={'Q: What is the minimum investment?\nA: The minimum investment is $25,000...\n\nQ: How does the conversion work?\nA: Every 21 shares convert to 1 NewCo share...\n\n— or —\n\nWhat is the minimum investment? | The minimum is $25,000\nHow does the conversion work? | Every 21 shares convert to 1 NewCo share'} style={{ ...ta2, fontFamily:'monospace', fontSize:'12px', marginBottom:'16px' }} />
+          <div style={{ display:'flex', gap:'10px', marginBottom:'16px' }}>
+            <button onClick={() => {
+              if (!bulkText.trim()) return;
+              const entries = [];
+              const blocks = bulkText.split(/\n\s*\n/).filter(b => b.trim());
+              for (const block of blocks) {
+                const qMatch = block.match(/^Q[:.\-]\s*([\s\S]+)/im);
+                const aMatch = block.match(/^A[:.\-]\s*([\s\S]+)/im);
+                if (qMatch && aMatch) entries.push({ question: qMatch[1].trim(), answer: aMatch[1].trim() });
+              }
+              if (entries.length === 0) {
+                const lines = bulkText.split('\n').filter(l => l.trim());
+                for (const line of lines) {
+                  const parts = line.split(/\s*\|\s*/);
+                  if (parts.length >= 2 && parts[0].trim() && parts[1].trim()) entries.push({ question: parts[0].trim(), answer: parts[1].trim() });
+                }
+              }
+              if (entries.length === 0) { setBulkMsg('Could not parse any Q&A pairs. Use "Q: question" + "A: answer" (blank line between pairs) or "question | answer" per line.'); return; }
+              setBulkParsed(entries); setBulkMsg('');
+            }} disabled={!bulkText.trim()} style={{ background:'linear-gradient(135deg,#b8933a,#d4aa50)', color:DARK, border:'none', borderRadius:'4px', padding:'10px 20px', cursor:'pointer', fontWeight:'700', fontSize:'12px', letterSpacing:'1px', textTransform:'uppercase', opacity: !bulkText.trim() ? 0.5 : 1 }}>🔍 Parse Q&A</button>
+            {bulkParsed.length > 0 && (
+              <button onClick={async () => {
+                setBulkSaving(true);
+                let saved = 0;
+                for (const e of bulkParsed) {
+                  try {
+                    await base44.entities.KnowledgeBase.create({ question: e.question, answer: e.answer, category: bulkCategory, source: 'Bulk Q&A Paste', kbName: activeKbName });
+                    saved++;
+                  } catch {}
+                }
+                setBulkMsg(`✓ Saved ${saved} entries to ${selectedKb === DEFAULT_KB ? 'Default KB' : selectedKb}`);
+                setBulkText(''); setBulkParsed([]); await load();
+                setBulkSaving(false);
+                setTimeout(() => setBulkMsg(''), 4000);
+              }} disabled={bulkSaving} style={{ background:'linear-gradient(135deg,#4ade80,#22c55e)', color:DARK, border:'none', borderRadius:'4px', padding:'10px 20px', cursor:'pointer', fontWeight:'700', fontSize:'12px', letterSpacing:'1px', textTransform:'uppercase', opacity: bulkSaving ? 0.5 : 1 }}>{bulkSaving ? '⏳ Saving…' : `💾 Save ${bulkParsed.length} Entries`}</button>
+            )}
+          </div>
+          {bulkMsg && <div style={{ background:bulkMsg.startsWith('✓')?'rgba(74,222,128,0.1)':'rgba(239,68,68,0.1)', border:`1px solid ${bulkMsg.startsWith('✓')?'rgba(74,222,128,0.3)':'rgba(239,68,68,0.3)'}`, borderRadius:'4px', padding:'12px 16px', color:bulkMsg.startsWith('✓')?'#4ade80':'#ef4444', fontSize:'13px', marginBottom:'16px' }}>{bulkMsg}</div>}
+          {bulkParsed.length > 0 && (
+            <div style={{ maxHeight:'400px', overflowY:'auto' }}>
+              {bulkParsed.map((entry, i) => (
+                <div key={i} style={{ background:'rgba(184,147,58,0.04)', border:'1px solid rgba(184,147,58,0.15)', borderRadius:'4px', padding:'10px 14px', marginBottom:'6px' }}>
+                  <div style={{ color:'#e8e0d0', fontSize:'13px', fontWeight:'bold', marginBottom:'4px' }}>Q{i + 1}: {entry.question}</div>
+                  <div style={{ color:'#8a9ab8', fontSize:'12px', lineHeight:1.5 }}>{entry.answer}</div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
