@@ -6,6 +6,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import DoNothingCalculator from '@/components/debt/DoNothingCalculator';
+import { setProfileTimer, cancelProfileTimer, getActiveTimer } from '@/components/debt/ProfileTimerWatcher';
 
 const GOLD = '#10b981';
 const ls = { display: 'block', color: '#8a9ab8', fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '6px' };
@@ -38,8 +39,39 @@ export default function ClientProfileModal({ lead, onClose, onSave }) {
   const [local, setLocal] = useState(lead || {});
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [timerInput, setTimerInput] = useState({ hours: 0, minutes: 30 });
+  const [activeTimer, setActiveTimer] = useState(null);
+  const [now, setNow] = useState(Date.now());
 
   useEffect(() => { setLocal(lead || {}); }, [lead]);
+
+  // Load active timer for this lead
+  useEffect(() => {
+    if (!lead?.id) return;
+    const check = () => setActiveTimer(getActiveTimer(lead.id));
+    check();
+    const interval = setInterval(check, 1000);
+    return () => clearInterval(interval);
+  }, [lead?.id]);
+
+  // Tick for countdown display
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, []);
+
+  const handleSetTimer = () => {
+    if (!local.id) return;
+    if (setProfileTimer(local, timerInput.hours, timerInput.minutes)) {
+      setActiveTimer(getActiveTimer(local.id));
+    } else {
+      alert('Please set at least 1 minute.');
+    }
+  };
+
+  const handleCancelTimer = () => {
+    if (local.id) { cancelProfileTimer(local.id); setActiveTimer(null); }
+  };
 
   const update = (field, value) => setLocal(prev => ({ ...prev, [field]: value }));
 
@@ -99,6 +131,28 @@ export default function ClientProfileModal({ lead, onClose, onSave }) {
             {saved && <span style={{ color: '#4ade80', fontSize: '12px' }}>✓ Saved</span>}
             <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#6b7280', cursor: 'pointer', fontSize: '22px', padding: '0 4px' }}>×</button>
           </div>
+        </div>
+
+        {/* Timer bar */}
+        <div style={{ padding: '8px 20px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', gap: '8px', alignItems: 'center', flexShrink: 0, flexWrap: 'wrap', background: 'rgba(0,0,0,0.15)' }}>
+          <span style={{ color: '#8a9ab8', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '1px' }}>⏰ Profile Timer:</span>
+          {activeTimer ? (
+            <>
+              <span style={{ color: GOLD, fontSize: '12px', fontWeight: 'bold' }}>
+                {Math.floor((activeTimer.fireAt - now) / 60000)}m {Math.floor(((activeTimer.fireAt - now) % 60000) / 1000)}s remaining
+              </span>
+              <button onClick={handleCancelTimer} style={{ background: 'rgba(239,68,68,0.15)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '4px', padding: '3px 10px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>Cancel Timer</button>
+            </>
+          ) : (
+            <>
+              <input type="number" min="0" max="23" value={timerInput.hours} onChange={e => setTimerInput(p => ({ ...p, hours: Number(e.target.value) }))} style={{ width: '42px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '4px', padding: '4px 6px', color: '#e8e0d0', fontSize: '12px', outline: 'none', textAlign: 'center' }} />
+              <span style={{ color: '#6b7280', fontSize: '11px' }}>hr</span>
+              <input type="number" min="0" max="59" value={timerInput.minutes} onChange={e => setTimerInput(p => ({ ...p, minutes: Number(e.target.value) }))} style={{ width: '42px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '4px', padding: '4px 6px', color: '#e8e0d0', fontSize: '12px', outline: 'none', textAlign: 'center' }} />
+              <span style={{ color: '#6b7280', fontSize: '11px' }}>min</span>
+              <button onClick={handleSetTimer} style={{ background: `${GOLD}18`, color: GOLD, border: `1px solid ${GOLD}44`, borderRadius: '4px', padding: '4px 12px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>Set Timer</button>
+            </>
+          )}
+          <span style={{ color: '#4a5568', fontSize: '10px', marginLeft: 'auto' }}>Popup reminder will appear when timer expires</span>
         </div>
 
         {/* Tabs */}

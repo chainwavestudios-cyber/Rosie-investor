@@ -8,6 +8,9 @@ import DebtKBManager from '@/components/debt/DebtKBManager';
 import DebtUserProfile from '@/components/debt/DebtUserProfile';
 import DebtPitchTab from '@/components/debt/DebtPitchTab';
 import DebtBobTrainer from '@/components/debt/DebtBobTrainer';
+import WCRChecklist from '@/components/debt/WCRChecklist';
+import ProfileTimerWatcher from '@/components/debt/ProfileTimerWatcher';
+import ClientProfileModal from '@/components/debt/ClientProfileModal';
 
 const GOLD = '#10b981';
 const DARK = '#0a0f1e';
@@ -22,6 +25,7 @@ const TABS = [
 
 export default function DebtCallCoach() {
   const [tab, setTab] = useState('live');
+  const [timerLead, setTimerLead] = useState(null);
 
   return (
     <div style={{ fontFamily: 'Georgia, serif', minHeight: '100vh', background: DARK, color: '#e8e0d0', padding: '24px 32px' }}>
@@ -47,6 +51,17 @@ export default function DebtCallCoach() {
       {tab === 'pitches' && <DebtPitchTab />}
       {tab === 'kb' && <DebtKBManager />}
       {tab === 'profile' && <DebtUserProfile />}
+
+      {/* Floating WCR Checklist — available on all tabs */}
+      <WCRChecklist />
+
+      {/* Profile Timer Watcher — shows popup reminders, can reopen profile */}
+      <ProfileTimerWatcher onOpenProfile={(lead) => setTimerLead(lead)} />
+
+      {/* Profile opened from timer popup */}
+      {timerLead && (
+        <ClientProfileModal lead={timerLead} onClose={() => setTimerLead(null)} onSave={() => {}} />
+      )}
     </div>
   );
 }
