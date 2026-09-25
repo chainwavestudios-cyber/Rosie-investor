@@ -83,6 +83,8 @@ export default function DebtBobTrainer() {
     const [showClientProfile, setShowClientProfile] = useState(false);
     const [bobLead, setBobLead] = useState(null);
     const aiTranscriptRef = useRef([]);
+    const [savingSession, setSavingSession] = useState(false);
+    const [sessionSaved, setSessionSaved] = useState(false);
 
     // Save BOB scenario as a DebtLead client profile
     const saveScenarioAsLead = useCallback(async () => {
@@ -252,6 +254,30 @@ export default function DebtBobTrainer() {
       recordingUrl,
     }).catch(e => console.warn('[BOB] Failed to save session:', e));
   }, [recordingUrl]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Manual "Save Now" — saves the current transcript (and recording if available) to BobSession
+  const handleSaveNow = useCallback(async () => {
+    if (!transcriptRef.current || transcriptRef.current.length === 0) return;
+    setSavingSession(true);
+    try {
+      const duration = callStartRef.current ? Math.round((Date.now() - callStartRef.current) / 1000) : 0;
+      await base44.entities.BobSession.create({
+        sessionLabel: sessionId,
+        voiceModel,
+        sliderValue,
+        intensity,
+        focusTopic,
+        callMode: mode,
+        transcriptJson: JSON.stringify(transcriptRef.current),
+        transcriptLineCount: transcriptRef.current.length,
+        durationSeconds: duration,
+        recordingUrl: recordingUrl || '',
+      });
+      setSessionSaved(true);
+      setTimeout(() => setSessionSaved(false), 2000);
+    } catch (e) { alert('Failed to save session: ' + (e?.message || String(e))); }
+    setSavingSession(false);
+  }, [sessionId, voiceModel, sliderValue, intensity, focusTopic, mode, recordingUrl]);
 
   const getActivePersona = useCallback(() => {
     if (sliderValue < 33) return DEBT_DUCK;
@@ -517,13 +543,16 @@ IMPORTANT: Ask these questions NATURALLY during the call. Weave them into the co
                 <input value={closerName} onChange={e => setCloserName(e.target.value)} disabled={phase !== 'idle'} placeholder="Drew" style={inp} />
               </div>
 
-              {/* Start/Hangup */}
-              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+              {/* Start/Hangup + Save Now */}
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
                 {phase === 'idle' || phase === 'error' ? (
                   <button onClick={handleStartCall} style={{ background: 'linear-gradient(135deg,#10b981,#22c55e)', color: DARK, border: 'none', borderRadius: '4px', padding: '10px 24px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase' }}>📞 Connect to BOB</button>
                 ) : (
                   <button onClick={hangup} style={{ background: 'rgba(239,68,68,0.15)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '4px', padding: '10px 24px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase' }}>⏹ Hang Up</button>
                 )}
+                <button onClick={handleSaveNow} disabled={savingSession || transcript.length === 0} style={{ background: sessionSaved ? 'rgba(74,222,128,0.15)' : `${GOLD}18`, color: sessionSaved ? '#4ade80' : GOLD, border: `1px solid ${sessionSaved ? 'rgba(74,222,128,0.3)' : GOLD + '44'}`, borderRadius: '4px', padding: '10px 20px', cursor: (savingSession || transcript.length === 0) ? 'not-allowed' : 'pointer', fontSize: '12px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase', opacity: (savingSession || transcript.length === 0) ? 0.5 : 1 }}>
+                  {savingSession ? '⏳ Saving…' : sessionSaved ? '✓ Saved' : '💾 Save Now'}
+                </button>
                 <span style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 14px', background: `${phaseColor}18`, border: `1px solid ${phaseColor}44`, borderRadius: '20px' }}>
                   <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: phaseColor, animation: phase === 'active' ? 'pulse 1s infinite' : 'none' }} />
                   <span style={{ color: phaseColor, fontSize: '11px', fontWeight: 'bold' }}>{phaseLabel}</span>

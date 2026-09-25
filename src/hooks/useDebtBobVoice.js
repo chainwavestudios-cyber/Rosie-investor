@@ -326,7 +326,8 @@ export function useDebtBobVoice({ onTranscript, onLog } = {}) {
           4001: 'Unauthorized',
           4002: 'Insufficient credits',
         }[e.code] || `Close code ${e.code}`;
-        setError(e.code !== 1000 ? `Disconnected: ${codeMsg}` : '');
+        // 1005 (no status) and 1000 (normal) are not errors — the call just ended
+        setError((e.code !== 1000 && e.code !== 1005) ? `Disconnected: ${codeMsg}` : '');
         setPhase('idle'); ring.stop(); cleanup(false);
         onLogRef.current?.('session_end', `📵 Call ended. ${codeMsg}. Reason: ${e.reason || '(none)'}`);
       };
