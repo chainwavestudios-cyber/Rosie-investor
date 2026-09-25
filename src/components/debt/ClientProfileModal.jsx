@@ -55,6 +55,15 @@ export default function ClientProfileModal({ lead, onClose, onSave }) {
   const monthlyIncome = local.monthlyIncome || 0;
   const disposableIncome = monthlyIncome - totalBills - totalMonthlyPayments;
 
+  // Debt-to-Income ratio (monthly debt payments / monthly income)
+  const dti = monthlyIncome > 0 ? (totalMonthlyPayments / monthlyIncome) * 100 : 0;
+
+  // Annual interest charges on total debt owed
+  const annualInterest = ledger.reduce((s, c) => s + ((c.balance || 0) * ((c.interestRate || 0) / 100)), 0);
+  const monthlyInterest = annualInterest / 12;
+  // Payment needed each month to cover interest AND lower principal by the minimum payment amount
+  const paymentToLowerPrincipal = monthlyInterest + totalMonthlyPayments;
+
   const save = async () => {
     if (!local.id) return;
     setSaving(true);
@@ -136,17 +145,18 @@ export default function ClientProfileModal({ lead, onClose, onSave }) {
               <Field label="Months Behind" value={local.monthsBehind} onChange={v => update('monthsBehind', v ? Number(v) : null)} type="number" />
 
               {/* Quick stats */}
-              <div style={{ gridColumn: '1 / -1', display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '10px', marginTop: '8px' }}>
+              <div style={{ gridColumn: '1 / -1', display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '10px', marginTop: '8px' }}>
                 <StatBox label="Total Debt" value={local.debtAmount ? `$${Number(local.debtAmount).toLocaleString()}` : '—'} color="#ef4444" />
                 <StatBox label="Monthly Payments" value={`$${totalMonthlyPayments.toLocaleString()}`} color="#60a5fa" />
                 <StatBox label="Monthly Bills" value={`$${totalBills.toLocaleString()}`} color="#f59e0b" />
                 <StatBox label="Disposable Income" value={`$${Math.round(disposableIncome).toLocaleString()}`} color={disposableIncome > 0 ? '#4ade80' : '#ef4444'} />
+                <StatBox label="Debt-to-Income" value={monthlyIncome > 0 ? `${dti.toFixed(1)}%` : '—'} color={dti > 43 ? '#ef4444' : dti > 36 ? '#f59e0b' : '#4ade80'} />
               </div>
             </div>
           )}
 
           {tab === 'debt' && (
-            <DebtTab ledger={ledger} totalBalance={totalBalance} totalLimit={totalLimit} utilization={utilization} totalMonthlyPayments={totalMonthlyPayments} local={local} update={update} />
+            <DebtTab ledger={ledger} totalBalance={totalBalance} totalLimit={totalLimit} utilization={utilization} totalMonthlyPayments={totalMonthlyPayments} annualInterest={annualInterest} monthlyInterest={monthlyInterest} paymentToLowerPrincipal={paymentToLowerPrincipal} local={local} update={update} />
           )}
 
           {tab === 'bills' && (
@@ -163,7 +173,7 @@ export default function ClientProfileModal({ lead, onClose, onSave }) {
 }
 
 // ─── Debt Tab ─────────────────────────────────────────────────────────────────
-function DebtTab({ ledger, totalBalance, totalLimit, utilization, totalMonthlyPayments, local, update }) {
+function DebtTab({ ledger, totalBalance, totalLimit, utilization, totalMonthlyPayments, annualInterest, monthlyInterest, paymentToLowerPrincipal, local, update }) {
   const setLedger = (newLedger) => update('debtLedgerJson', JSON.stringify(newLedger));
 
   const updateCreditor = (i, field, value) => {
@@ -198,6 +208,20 @@ function DebtTab({ ledger, totalBalance, totalLimit, utilization, totalMonthlyPa
         <div style={{ background: 'rgba(16,185,129,0.06)', border: '1px solid rgba(16,185,129,0.2)', borderRadius: '4px', padding: '14px', textAlign: 'center' }}>
           <div style={{ color: GOLD, fontSize: '20px', fontWeight: 'bold' }}>${totalMonthlyPayments.toLocaleString()}</div>
           <div style={{ color: '#6b7280', fontSize: '9px', textTransform: 'uppercase', letterSpacing: '1px', marginTop: '4px' }}>Monthly Payments</div>
+        </div>
+      </div>
+
+      {/* Interest & principal-lowering calculations */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '16px' }}>
+        <div style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.25)', borderRadius: '4px', padding: '14px' }}>
+          <div style={{ color: '#ef4444', fontSize: '20px', fontWeight: 'bold' }}>${Math.round(annualInterest).toLocaleString()}<span style={{ fontSize: '12px', color: '#8a9ab8' }}> / yr</span></div>
+          <div style={{ color: '#6b7280', fontSize: '9px', textTransform: 'uppercase', letterSpacing: '1px', marginTop: '4px' }}>Annual Interest Charges</div>
+          <div style={{ color: '#8a9ab8', fontSize: '11px', marginTop: '6px' }}>${Math.round(monthlyInterest).toLocaleString()}/mo in interest alone — principal barely moves</div>
+        </div>
+        <div style={{ background: 'rgba(96,165,250,0.08)', border: '1px solid rgba(96,165,250,0.25)', borderRadius: '4px', padding: '14px' }}>
+          <div style={{ color: '#60a5fa', fontSize: '20px', fontWeight: 'bold' }}>${Math.round(paymentToLowerPrincipal).toLocaleString()}<span style={{ fontSize: '12px', color: '#8a9ab8' }}> / mo</span></div>
+          <div style={{ color: '#6b7280', fontSize: '9px', textTransform: 'uppercase', letterSpacing: '1px', marginTop: '4px' }}>Payment to Lower Principal</div>
+          <div style={{ color: '#8a9ab8', fontSize: '11px', marginTop: '6px' }}>Covers interest + drops principal by ${totalMonthlyPayments.toLocaleString()}/mo</div>
         </div>
       </div>
 
