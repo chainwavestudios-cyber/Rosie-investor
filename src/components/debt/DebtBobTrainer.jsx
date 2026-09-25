@@ -14,6 +14,7 @@ import DebtScriptEditor from '@/components/debt/DebtScriptEditor';
 import DebtCreditReport from '@/components/debt/DebtCreditReport';
 import DoNothingCalculator from '@/components/debt/DoNothingCalculator';
 import ClientProfileModal from '@/components/debt/ClientProfileModal';
+import { usePopOutPanel } from '@/hooks/usePopOutPanel';
 
 const GOLD = '#10b981';
 const DARK = '#0a0f1e';
@@ -73,6 +74,7 @@ export default function DebtBobTrainer() {
   const [kbNames, setKbNames] = useState([]);
   const [selectedKbName, setSelectedKbName] = useState('Debt Settlement');
     const [mode, setMode] = useState('open'); // 'open' | 'close'
+    const controlsPanel = usePopOutPanel('bob_controls', { width: 380, height: 600 });
     const [closerName, setCloserName] = useState('Drew');
     const [objections, setObjections] = useState([]);
     const [openScenarios, setOpenScenarios] = useState([]);
@@ -450,9 +452,18 @@ IMPORTANT: Ask these questions NATURALLY during the call. Weave them into the co
       {/* Training Room */}
       {subTab === 'training' && (
         <>
-        <div style={{ display: 'grid', gridTemplateColumns: panelPoppedOut ? '380px' : '380px 1fr', gap: '16px', alignItems: 'start' }}>
-          {/* Left: Controls */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: panelPoppedOut ? (controlsPanel.poppedOut ? '1fr' : '380px') : (controlsPanel.poppedOut ? '1fr' : '380px 1fr'), gap: '16px', alignItems: 'start' }}>
+          {/* Left: Controls — pop-out enabled */}
+          <div style={controlsPanel.poppedOut ? { ...controlsPanel.floatingStyle, background: '#0a0f1e', border: '1px solid rgba(16,185,129,0.3)', borderRadius: '6px', overflow: 'hidden' } : { position: 'relative' }}>
+            {controlsPanel.poppedOut ? (
+              <div onMouseDown={controlsPanel.onDragStart} style={{ padding: '8px 12px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'move', userSelect: 'none', flexShrink: 0 }}>
+                <span style={{ color: GOLD, fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase' }}>🎛 Controls</span>
+                <button onClick={controlsPanel.toggle} style={{ background: `${GOLD}18`, border: `1px solid ${GOLD}44`, color: GOLD, borderRadius: '4px', padding: '4px 10px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase' }}>⬇ Pop In</button>
+              </div>
+            ) : (
+              <button onClick={controlsPanel.toggle} style={{ position: 'absolute', top: '4px', right: '4px', zIndex: 10, background: `${GOLD}18`, border: `1px solid ${GOLD}44`, color: GOLD, borderRadius: '4px', padding: '4px 10px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase' }}>⬆ Pop Out</button>
+            )}
+            <div style={controlsPanel.poppedOut ? { flex: 1, overflow: 'auto', padding: '16px', display: 'flex', flexDirection: 'column', gap: '16px' } : { display: 'flex', flexDirection: 'column', gap: '16px' }}>
             {/* Mode selector — Open vs Close */}
             <div style={{ background: '#0d1b2a', border: '1px solid rgba(16,185,129,0.2)', borderRadius: '6px', padding: '12px' }}>
               <div style={{ color: GOLD, fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '8px' }}>Call Mode</div>
@@ -607,6 +618,10 @@ IMPORTANT: Ask these questions NATURALLY during the call. Weave them into the co
                 </div>
               )}
             </div>
+          </div>
+          {controlsPanel.poppedOut && (
+            <div onMouseDown={controlsPanel.onResizeStart} style={{ position: 'absolute', bottom: 0, right: 0, width: '18px', height: '18px', cursor: 'nwse-resize', color: '#4a5568', display: 'flex', alignItems: 'flex-end', justifyContent: 'flex-end', padding: '2px', fontSize: '10px', userSelect: 'none' }}>⤡</div>
+          )}
           </div>
 
           {/* Right: Transcript */}

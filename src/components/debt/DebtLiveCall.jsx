@@ -10,6 +10,7 @@ import DebtIntentSignals, { DEBT_INTENT_RULES } from '@/components/debt/DebtInte
 import FloatingScriptBox from '@/components/debt/FloatingScriptBox';
 import DebtAIPanel from '@/components/debt/DebtAIPanel';
 import DoNothingCalculator from '@/components/debt/DoNothingCalculator';
+import { usePopOutPanel } from '@/hooks/usePopOutPanel';
 
 const GOLD = '#10b981';
 const DARK = '#0a0f1e';
@@ -48,6 +49,7 @@ export default function DebtLiveCall() {
   const [report, setReport] = useState('');
   const [generatingReport, setGeneratingReport] = useState(false);
   const [callMode, setCallMode] = useState('open'); // 'open' | 'close'
+  const leadPanel = usePopOutPanel('live_lead_card', { width: 420, height: 600 });
 
   const wsRef = useRef(null);
   const streamRef = useRef(null);
@@ -501,15 +503,34 @@ ${recentText}`,
       )}
 
       {/* Main layout: lead card + transcript + AI tools */}
-      <div style={{ display: 'grid', gridTemplateColumns: '380px 1fr 400px', gap: '16px', alignItems: 'start' }}>
-        {/* Lead contact card */}
-        <div>
-          <div style={{ marginBottom: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div style={{ color: GOLD, fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase' }}>💳 Lead Contact Card</div>
-            <button onClick={() => setShowLeadPicker(p => !p)} style={{ background: 'rgba(16,185,129,0.1)', color: GOLD, border: '1px solid rgba(16,185,129,0.2)', borderRadius: '4px', padding: '4px 10px', cursor: 'pointer', fontSize: '10px' }}>{lead.id ? 'Switch' : 'Select'}</button>
+      <div style={{ display: 'grid', gridTemplateColumns: leadPanel.poppedOut ? '1fr 400px' : '380px 1fr 400px', gap: '16px', alignItems: 'start' }}>
+        {/* Lead contact card — pop-out enabled */}
+        {leadPanel.poppedOut ? (
+          <div style={{ ...leadPanel.floatingStyle, background: '#0d1b2a', border: '1px solid rgba(16,185,129,0.3)', borderRadius: '6px', overflow: 'hidden' }}>
+            <div onMouseDown={leadPanel.onDragStart} style={{ padding: '8px 12px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'move', userSelect: 'none', flexShrink: 0 }}>
+              <span style={{ color: GOLD, fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase' }}>💳 Lead Contact Card</span>
+              <div style={{ display: 'flex', gap: '6px' }}>
+                <button onClick={() => setShowLeadPicker(p => !p)} style={{ background: 'rgba(16,185,129,0.1)', color: GOLD, border: '1px solid rgba(16,185,129,0.2)', borderRadius: '4px', padding: '4px 10px', cursor: 'pointer', fontSize: '10px' }}>{lead.id ? 'Switch' : 'Select'}</button>
+                <button onClick={leadPanel.toggle} style={{ background: `${GOLD}18`, border: `1px solid ${GOLD}44`, color: GOLD, borderRadius: '4px', padding: '4px 10px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase' }}>⬇ Pop In</button>
+              </div>
+            </div>
+            <div style={{ flex: 1, overflow: 'auto' }}>
+              <DebtLeadCard lead={lead} onLeadChange={setLead} transcript={transcript} intentScore={intentScore} animalType={profileData?.animalType} profileData={profileData} />
+            </div>
+            <div onMouseDown={leadPanel.onResizeStart} style={{ position: 'absolute', bottom: 0, right: 0, width: '18px', height: '18px', cursor: 'nwse-resize', color: '#4a5568', display: 'flex', alignItems: 'flex-end', justifyContent: 'flex-end', padding: '2px', fontSize: '10px', userSelect: 'none' }}>⤡</div>
           </div>
-          <DebtLeadCard lead={lead} onLeadChange={setLead} transcript={transcript} intentScore={intentScore} animalType={profileData?.animalType} profileData={profileData} />
-        </div>
+        ) : (
+          <div style={{ position: 'relative' }}>
+            <div style={{ marginBottom: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ color: GOLD, fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase' }}>💳 Lead Contact Card</div>
+              <div style={{ display: 'flex', gap: '6px' }}>
+                <button onClick={() => setShowLeadPicker(p => !p)} style={{ background: 'rgba(16,185,129,0.1)', color: GOLD, border: '1px solid rgba(16,185,129,0.2)', borderRadius: '4px', padding: '4px 10px', cursor: 'pointer', fontSize: '10px' }}>{lead.id ? 'Switch' : 'Select'}</button>
+                <button onClick={leadPanel.toggle} style={{ background: `${GOLD}18`, border: `1px solid ${GOLD}44`, color: GOLD, borderRadius: '4px', padding: '4px 10px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase' }}>⬆ Pop Out</button>
+              </div>
+            </div>
+            <DebtLeadCard lead={lead} onLeadChange={setLead} transcript={transcript} intentScore={intentScore} animalType={profileData?.animalType} profileData={profileData} />
+          </div>
+        )}
 
         {/* Transcript */}
         <div style={{ background: '#0d1b2a', border: '1px solid rgba(16,185,129,0.2)', borderRadius: '6px', display: 'flex', flexDirection: 'column', minHeight: '500px', maxHeight: '70vh' }}>
