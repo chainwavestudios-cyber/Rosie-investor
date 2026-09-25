@@ -75,33 +75,59 @@ function getFemaleVoice(voices) {
   return female;
 }
 
-async function speakTransfer(text, onDone) {
+// Deepgram Aura neural TTS — same engine quality as BOB, female voice
+const TRANSFER_VOICE = 'aura-asteria-en';
+
+function speakTransferBrowser(text, onDone) {
   if (!window.speechSynthesis) { setTimeout(onDone, Math.max(2500, text.length * 55)); return; }
   window.speechSynthesis.cancel();
-  const voices = cachedVoices && cachedVoices.length > 0 ? cachedVoices : await loadVoices();
-  const utter = new SpeechSynthesisUtterance(text);
-  const female = getFemaleVoice(voices);
-  if (female) utter.voice = female;
-  utter.rate = 0.95;
-  utter.pitch = 1.15; // slightly higher pitch for female tone
-  utter.onend = onDone;
-  utter.onerror = onDone;
-  window.speechSynthesis.speak(utter);
+  loadVoices().then(voices => {
+    const utter = new SpeechSynthesisUtterance(text);
+    const female = getFemaleVoice(voices);
+    if (female) utter.voice = female;
+    utter.rate = 0.95;
+    utter.pitch = 1.15;
+    utter.onend = onDone;
+    utter.onerror = onDone;
+    window.speechSynthesis.speak(utter);
+  });
 }
 
-async function playTransferSequence(mode, closerName, scenario, onDone) {
+async function speakTransfer(text, apiKey, onDone) {
+  if (!apiKey) { speakTransferBrowser(text, onDone); return; }
+  try {
+    const res = await fetch(`https://api.deepgram.com/v1/speak?model=${TRANSFER_VOICE}`, {
+      method: 'POST',
+      headers: { 'Authorization': `Token ${apiKey}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text }),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const blob = await res.blob();
+    if (blob.size < 100) throw new Error('Empty audio');
+    const url = URL.createObjectURL(blob);
+    const audio = new Audio(url);
+    audio.onended = () => { URL.revokeObjectURL(url); onDone?.(); };
+    audio.onerror = () => { URL.revokeObjectURL(url); onDone?.(); };
+    await audio.play();
+  } catch (e) {
+    console.warn('[BOB] Deepgram TTS failed, using browser TTS:', e);
+    speakTransferBrowser(text, onDone);
+  }
+}
+
+async function playTransferSequence(mode, closerName, scenario, apiKey, onDone) {
   if (mode === 'open') {
     const nameStr = scenario?.customerName || 'Bob';
     const closerStr = closerName || 'Drew';
     const line = `Thank you for calling Debt Advisors of America. My name is Joyce Roberts. I have ${nameStr} on the line, he's calling about a notice he received in the mail. Let me connect you with ${closerStr}, one of our debt specialists.`;
-    await new Promise(r => speakTransfer(line, r));
+    await new Promise(r => speakTransfer(line, apiKey, r));
     setTimeout(onDone, 1500);
   } else {
     const name = closerName || 'Drew';
     const line1 = 'Good morning. Can I have your good name, sir?';
     const line2 = `Bob, my name is Joyce Roberts from BAC. I have here ${name} on the line. So we are lucky to have him as our debt specialist who will go over with your program.`;
-    await new Promise(r => speakTransfer(line1, r));
-    setTimeout(() => speakTransfer(line2, () => setTimeout(onDone, 1500)), 4000);
+    await new Promise(r => speakTransfer(line1, apiKey, r));
+    setTimeout(() => speakTransfer(line2, apiKey, () => setTimeout(onDone, 1500)), 4000);
   }
 }
 
@@ -200,7 +226,7 @@ export function useDebtBobVoice({ onTranscript, onLog } = {}) {
       if (mode) {
         setTransferPhase(true); setPhase('transfer');
         onLogRef.current?.('transcript', `📋 Transfer agent connecting call (${mode} mode)...`);
-        await new Promise(resolve => playTransferSequence(mode, closerName, scenario, resolve));
+        await new Promise(resolve => playTransferSequence(mode, closerName, scenario, apiKey, resolve));
         setTransferPhase(false);
       }
 
