@@ -148,12 +148,10 @@ function downloadReport(html, leadName) {
   URL.revokeObjectURL(url);
 }
 
+// Stricter question detection — only match actual questions (must end with ? or be a clear standalone question)
 const QUESTION_PATTERNS = [
-  /\b(what|how|why|when|where|who|can|could|would|is|are|do|does|will|should|have|has|tell me|explain|describe|show me|walk me through|give me)\b.{4,120}\?/gi,
-  /\b(what('?s| is| are| was| were| does| do| happens| would| will| are| can)|how (much|many|does|do|long|soon|often|would|can)|what.s the (minimum|return|catch|risk|difference|process|timeline|structure|deal|rate)|how do (i|you|we)|is (there|it|this) (a|any|an)|can (i|you|we)|what (are|is) the (minimum|return|risk|catch|process|fees|terms)|when (can|does|will|would)|who (is|are|runs|manages|owns)|tell me (about|more|how)|walk me through|what happens (if|when))\b.{4,100}/gi,
-];
-const TOPIC_FRAGMENTS = [
-  /\b(minimum|invest(ment|ing)?|return|ROI|interest rate|conversion|uplisting?|nasdaq|discount|share price|revenue|margin|EBITDA|valuation|enterprise value|cap table|capital structure|use of proceeds|timeline|roadmap|team|founder|CEO|CTO|attorney|broker|auditor|accredited|Reg D|506c|risk|exit|liquidity|lock.?up|nightowl|magnus|AI platform|commercial market|TAM|addressable market|comparable|comps|patent|drone|product|camera|NVR|recorder|doorbell)\b/gi,
+  // Must end with a question mark and start with a question word — real questions only
+  /\b(what|how|why|when|where|who|can|could|would|will|should|is|are|do|does|have|has|tell me|explain|describe)\b[^.?!]{4,120}\?/gi,
 ];
 
 function extractQuestions(text) {
@@ -161,13 +159,21 @@ function extractQuestions(text) {
   for (const pattern of QUESTION_PATTERNS) {
     pattern.lastIndex = 0;
     const matches = [...text.matchAll(pattern)];
-    matches.forEach(m => { const q = m[0].trim(); if (q.length > 8 && q.length < 200) found.add(q); });
+    matches.forEach(m => {
+      const q = m[0].trim();
+      // Require at least 4 words and a question mark — filters out fragments and noise
+      const wordCount = q.split(/\s+/).length;
+      if (q.length > 12 && q.length < 200 && wordCount >= 4 && q.endsWith('?')) found.add(q);
+    });
   }
   return [...found];
 }
 
 function hasTopicFragment(text) {
-  return TOPIC_FRAGMENTS.some(p => { p.lastIndex = 0; return p.test(text); });
+  // Only return true if the text contains a topic keyword AND looks like a question (ends with ?)
+  if (!text.includes('?')) return false;
+  const TOPIC_RE = /\b(minimum|invest(ment|ing)?|return|ROI|interest rate|conversion|nasdaq|discount|share price|revenue|margin|EBITDA|valuation|enterprise value|cap table|capital structure|use of proceeds|timeline|roadmap|team|founder|CEO|CTO|attorney|broker|auditor|accredited|Reg D|506c|risk|exit|liquidity|lock.?up|nightowl|magnus|AI platform|commercial market|TAM|addressable market|comparable|comps|patent|drone|product|camera|NVR|recorder|doorbell)\b/gi;
+  return TOPIC_RE.test(text);
 }
 
 function Dot({ active, color, size = 6 }) {

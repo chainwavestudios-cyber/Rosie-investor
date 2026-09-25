@@ -96,6 +96,7 @@ export function useDebtBobVoice({ onTranscript, onLog } = {}) {
   const processorRef = useRef(null);
   const nextStartRef = useRef(0);
   const listeningRef = useRef(false);
+  const activeSourcesRef = useRef(new Set());
   const onLogRef = useRef(onLog);
   useEffect(() => { onLogRef.current = onLog; }, [onLog]);
   const ring = useRingTone();
@@ -126,7 +127,8 @@ export function useDebtBobVoice({ onTranscript, onLog } = {}) {
     if (nextStartRef.current < now) nextStartRef.current = now + 0.02;
     src.start(nextStartRef.current);
     nextStartRef.current += ab.duration;
-    src.onended = () => { if (ctx.currentTime >= nextStartRef.current - 0.01) setAgentSpeaking(false); };
+    activeSourcesRef.current.add(src);
+    src.onended = () => { activeSourcesRef.current.delete(src); if (ctx.currentTime >= nextStartRef.current - 0.01) setAgentSpeaking(false); };
   }, []);
 
   const cleanup = useCallback((updatePhase = true) => {
@@ -253,7 +255,15 @@ export function useDebtBobVoice({ onTranscript, onLog } = {}) {
               break;
             }
             case 'UserStartedSpeaking':
-              try { if (audioCtxRef.current) nextStartRef.current = 0; } catch {}
+              // Barge-in: immediately stop ALL scheduled/playing audio from BOB
+              try {
+                if (audioCtxRef.current) {
+                  nextStartRef.current = 0;
+                  // Stop every currently-scheduled audio source so BOB cuts off mid-word
+                  activeSourcesRef.current.forEach(s => { try { s.stop(); } catch {} });
+                  activeSourcesRef.current.clear();
+                }
+              } catch {}
               setAgentSpeaking(false);
               break;
             case 'Error':
