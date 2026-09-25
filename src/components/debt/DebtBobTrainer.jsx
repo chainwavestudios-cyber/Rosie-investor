@@ -259,8 +259,8 @@ export default function DebtBobTrainer() {
 
   const buildSystemPrompt = useCallback(() => {
     const persona = getActivePersona();
-    const kbText = kbEntries.slice(0, 15).map(e => {
-      const ans = (e.answer || '').slice(0, 500);
+    const kbText = kbEntries.slice(0, 40).map(e => {
+      const ans = (e.answer || '').slice(0, 400);
       return `Q: ${e.question}\nA: ${ans}`;
     }).join('\n\n');
     const sliderLabel = sliderValue < 20 ? 'full Duck mode (hard sell — skeptical, resistant, stress-tests the closer)'
@@ -269,9 +269,10 @@ export default function DebtBobTrainer() {
       : sliderValue < 80 ? 'Cow-leaning Owl (generally agreeable but checks logic)'
       : 'full Cow mode (easy sell — stressed, drowning in debt, relieved someone called)';
 
-    // Objections — more for Duck, fewer for Cow
-    const objCount = sliderValue < 33 ? objections.length : sliderValue < 67 ? Math.ceil(objections.length / 2) : Math.ceil(objections.length / 4);
-    const objText = objections.slice(0, objCount).map(e => `🚫 "${e.question}" — Context: ${(e.answer || '').slice(0, 200)}`).join('\n');
+    // Objections — show ALL to BOB; slider controls how many he MUST raise
+    const objText = objections.map(e => `🚫 "${e.question}" — Context: ${(e.answer || '').slice(0, 250)}`).join('\n');
+    const minObjections = sliderValue < 33 ? 4 + intensity : sliderValue < 67 ? 2 + Math.ceil(intensity / 2) : Math.max(1, Math.ceil(intensity / 3));
+    const minQuestions = 3 + intensity;
 
     // Scenario roadmap
     const scenarioRoadmap = mode === 'open' ? openScenarios : closeScenarios;
@@ -340,6 +341,16 @@ A: ${refCall.answer}
 
 ${modeText}
 
+━━━ ⚠ MANDATORY BEHAVIOR — READ THIS CAREFULLY (OVERRIDES PERSONA DEFAULTS) ━━━
+You MUST actively raise objections and ask questions during this call. This is NON-NEGOTIABLE.
+- MINIMUM ${minObjections} objections from the list below — use them NATURALLY, spaced out, not all at once
+- MINIMUM ${minQuestions} questions from the Knowledge Base below — weave them into the conversation
+- Even as a Cow (easy sell), you STILL ask questions about the program — fewer objections, but you must understand it
+- As a Duck (hard sell), you MUST be skeptical and raise objections AGGRESSIVELY — do NOT just go along with everything
+- DO NOT be passive. DO NOT just say "uh-huh" and "okay" repeatedly. CHALLENGE the closer. ASK questions. RAISE concerns.
+- When the closer makes a claim, PUSH BACK if you're skeptical. Use the objections list as your ammunition.
+- Space them out — one objection or question every 30-60 seconds. Don't rapid-fire, but DON'T go silent either.
+
 ━━━ CURRENT SESSION SETTINGS ━━━
 - Call Mode: ${mode === 'open' ? 'OPENING (first contact)' : 'CLOSING (follow-up)'}
 - Persona Blend: ${sliderLabel} (slider ${sliderValue}/100 — 0=full Duck/hard, 50=Owl, 100=full Cow/easy)
@@ -350,30 +361,28 @@ ${scenarioText}${refCallText}
 ━━━ ${mode === 'open' ? 'OPEN' : 'CLOSE'} CALL ROADMAP — HOW THIS CALL SHOULD FLOW ━━━
 ${roadmapText || 'No scenario uploaded yet. Upload open/close call recordings to BOB\'s Brain to give BOB a roadmap.'}
 
-━━━ OBJECTIONS TO USE (based on slider — more objections = harder sell) ━━━
+━━━ OBJECTIONS — YOU MUST RAISE AT LEAST ${minObjections} OF THESE (slider ${sliderValue}/100) ━━━
 ${objText || 'No objections cataloged yet. Upload call recordings to BOB\'s Brain → Objections tab to catalog real customer objections.'}
-Use these objections NATURALLY during the call. At lower slider values (Duck), use MORE of them. At higher values (Cow), use FEWER.
+You MUST raise at least ${minObjections} of these objections during the call. At lower slider values (Duck), use MORE. At higher values (Cow), use fewer but still push back at least once. Pick objections that fit the moment — don't read them like a list.
 
 ━━━ DEBT SETTLEMENT KNOWLEDGE BASE — LEARNED FROM REAL CALLS ━━━
 ${kbText || 'No KB entries yet. Upload calls, documents, and websites to BOB\'s Brain to make BOB smarter and more realistic.'}
 
-━━━ CUSTOMER QUESTIONS — ASK THE AGENT PERIODICALLY ━━━
-You are a REAL customer with questions. Periodically ASK the agent questions during the call. Space them out naturally — don't rapid-fire. Ask one, wait for the answer, then continue the conversation.
-
-Number of questions to ask during this call: ${intensity <= 1 ? '1-2' : intensity === 2 ? '2-3' : intensity === 3 ? '3-5' : intensity === 4 ? '5-7' : '7-10'} (based on intensity ${intensity}/5)
+━━━ CUSTOMER QUESTIONS — YOU MUST ASK AT LEAST ${minQuestions} OF THESE ━━━
+You are a REAL customer with questions. You MUST ask at least ${minQuestions} questions during this call. Space them out naturally — one every 30-60 seconds. Ask one, wait for the full answer, then continue. DO NOT go the whole call without asking questions. Pick from the list below based on what's being discussed.
 ${focusTopic === 'General' ? `Ask questions spanning ALL topics randomly: ${FOCUS_TOPICS.filter(t => t !== 'General').join(', ')}` : `Focus your questions on the topic: "${focusTopic}"`}
 
 Questions from the Knowledge Base (customer Q&A):
-${kbEntries.filter(e => e.category === 'debt_customer' || e.category === 'debt_faq' || e.category === 'debt_kb').slice(0, 20).map((e, i) => `${i + 1}. ${e.question}`).join('\n') || 'No customer Q&A uploaded yet. Upload to BOB\'s Brain to add real customer questions.'}
+${kbEntries.filter(e => e.category === 'debt_customer' || e.category === 'debt_faq' || e.category === 'debt_kb').slice(0, 40).map((e, i) => `${i + 1}. ${e.question}`).join('\n') || 'No customer Q&A uploaded yet. Upload to BOB\'s Brain to add real customer questions.'}
 
 Questions from Scripts:
 ${(debtScripts || []).slice(0, 15).map((s, i) => `${i + 1}. ${s.name}`).join('\n') || 'No scripts uploaded yet.'}
 
 Hotpoint Topics — occasionally bring these up or ask about them during the call:
-${kbEntries.filter(e => e.category === 'debt_hotpoints').slice(0, 15).map((hp, i) => `${i + 1}. ${hp.question}`).join('\n') || 'No hotpoints uploaded yet.'}
+${kbEntries.filter(e => e.category === 'debt_hotpoints').slice(0, 25).map((hp, i) => `${i + 1}. ${hp.question}`).join('\n') || 'No hotpoints uploaded yet.'}
 
 Disqualification Topics — occasionally bring up something related to these (e.g., mention a bankruptcy, lawsuit, or income issue). This tests whether the agent catches the disqualification:
-${kbEntries.filter(e => e.category === 'debt_disqualify').slice(0, 15).map((d, i) => `${i + 1}. ${d.question}`).join('\n') || 'No disqualification Q&A uploaded yet.'}
+${kbEntries.filter(e => e.category === 'debt_disqualify').slice(0, 25).map((d, i) => `${i + 1}. ${d.question}`).join('\n') || 'No disqualification Q&A uploaded yet.'}
 
 IMPORTANT: Ask these questions NATURALLY during the call. Weave them into the conversation — don't read them like a list. Space them out every 30-60 seconds. Pick from the list above based on what's being discussed. If the focus is General, pick from ANY topic. If a specific topic is set, pick questions related to that topic.
 
