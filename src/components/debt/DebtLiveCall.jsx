@@ -569,7 +569,7 @@ ${recentText}`,
       <div style={{ display: 'grid', gridTemplateColumns: leadPanel.poppedOut ? '1fr 400px' : '380px 1fr 400px', gap: '16px', alignItems: 'start' }}>
         {/* Lead contact card — pop-out enabled */}
         {leadPanel.poppedOut ? (
-          <div style={{ ...leadPanel.floatingStyle, background: '#0d1b2a', border: '1px solid rgba(16,185,129,0.3)', borderRadius: '6px', overflow: 'hidden' }}>
+          <div style={{ ...leadPanel.floatingStyle, background: '#0d1b2a', border: '1px solid rgba(16,185,129,0.3)', borderRadius: '6px' }}>
             <div onMouseDown={leadPanel.onDragStart} style={{ padding: '8px 12px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'move', userSelect: 'none', flexShrink: 0 }}>
               <span style={{ color: GOLD, fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase' }}>💳 Lead Contact Card</span>
               <div style={{ display: 'flex', gap: '6px' }}>
@@ -580,7 +580,7 @@ ${recentText}`,
             <div style={{ flex: 1, overflow: 'auto' }}>
               <DebtLeadCard lead={lead} onLeadChange={setLead} transcript={transcript} intentScore={intentScore} animalType={profileData?.animalType} profileData={profileData} />
             </div>
-            <div onMouseDown={leadPanel.onResizeStart} style={{ position: 'absolute', bottom: 0, right: 0, width: '18px', height: '18px', cursor: 'nwse-resize', color: '#4a5568', display: 'flex', alignItems: 'flex-end', justifyContent: 'flex-end', padding: '2px', fontSize: '10px', userSelect: 'none' }}>⤡</div>
+            {leadPanel.resizeHandles}
           </div>
         ) : (
           <div style={{ position: 'relative' }}>

@@ -454,7 +454,7 @@ IMPORTANT: Ask these questions NATURALLY during the call. Weave them into the co
         <>
         <div style={{ display: 'grid', gridTemplateColumns: panelPoppedOut ? (controlsPanel.poppedOut ? '1fr' : '380px') : (controlsPanel.poppedOut ? '1fr' : '380px 1fr'), gap: '16px', alignItems: 'start' }}>
           {/* Left: Controls — pop-out enabled */}
-          <div style={controlsPanel.poppedOut ? { ...controlsPanel.floatingStyle, background: '#0a0f1e', border: '1px solid rgba(16,185,129,0.3)', borderRadius: '6px', overflow: 'hidden' } : { position: 'relative' }}>
+          <div style={controlsPanel.poppedOut ? { ...controlsPanel.floatingStyle, background: '#0a0f1e', border: '1px solid rgba(16,185,129,0.3)', borderRadius: '6px' } : { position: 'relative' }}>
             {controlsPanel.poppedOut ? (
               <div onMouseDown={controlsPanel.onDragStart} style={{ padding: '8px 12px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'move', userSelect: 'none', flexShrink: 0 }}>
                 <span style={{ color: GOLD, fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase' }}>🎛 Controls</span>
@@ -619,9 +619,7 @@ IMPORTANT: Ask these questions NATURALLY during the call. Weave them into the co
               )}
             </div>
           </div>
-          {controlsPanel.poppedOut && (
-            <div onMouseDown={controlsPanel.onResizeStart} style={{ position: 'absolute', bottom: 0, right: 0, width: '18px', height: '18px', cursor: 'nwse-resize', color: '#4a5568', display: 'flex', alignItems: 'flex-end', justifyContent: 'flex-end', padding: '2px', fontSize: '10px', userSelect: 'none' }}>⤡</div>
-          )}
+          {controlsPanel.resizeHandles}
           </div>
 
           {/* Right: Transcript */}
