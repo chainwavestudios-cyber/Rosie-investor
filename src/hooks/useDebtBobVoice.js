@@ -39,40 +39,69 @@ function useRingTone() {
   return { play, stop };
 }
 
-// ─── Transfer Agent TTS (female voice for transfer intro) ───────────────────
-function getFemaleVoice() {
-  const voices = window.speechSynthesis?.getVoices() || [];
-  return voices.find(v => /female|samantha|victoria|karen|moira|tessa|zira|fiona|serena/i.test(v.name))
-    || voices.find(v => v.lang?.startsWith('en') && /female/i.test(v.name))
-    || voices.find(v => v.lang?.startsWith('en'));
+// ─── Transfer Agent TTS (female voice — Joyce Roberts) ──────────────────────
+// Browser TTS voices load async — cache them once available.
+let cachedVoices = null;
+function loadVoices() {
+  return new Promise((resolve) => {
+    if (!window.speechSynthesis) return resolve([]);
+    const existing = window.speechSynthesis.getVoices();
+    if (existing && existing.length > 0) { cachedVoices = existing; return resolve(existing); }
+    let resolved = false;
+    const handler = () => {
+      if (resolved) return;
+      resolved = true;
+      const v = window.speechSynthesis.getVoices() || [];
+      cachedVoices = v;
+      window.speechSynthesis.removeEventListener('voiceschanged', handler);
+      resolve(v);
+    };
+    window.speechSynthesis.addEventListener('voiceschanged', handler);
+    // Fallback in case voiceschanged never fires
+    setTimeout(() => { if (!resolved) { resolved = true; resolve(window.speechSynthesis.getVoices() || []); } }, 1500);
+  });
 }
 
-function speakTransfer(text, onDone) {
+// Warm up the voice list on module load so it's ready by call time
+if (typeof window !== 'undefined' && window.speechSynthesis) {
+  loadVoices();
+}
+
+function getFemaleVoice(voices) {
+  // Prefer known female English voices by name
+  const female = voices.find(v => /samantha|victoria|karen|moira|tessa|zira|fiona|serena|allison|ava|kate|susan|jenny|aria|jane|emma/i.test(v.name))
+    || voices.find(v => v.lang?.startsWith('en') && /female|woman/i.test(v.name))
+    || voices.find(v => v.lang?.startsWith('en') && !/male|david|mark|alex|fred|daniel|george|james|oliver|arthur/i.test(v.name));
+  return female;
+}
+
+async function speakTransfer(text, onDone) {
   if (!window.speechSynthesis) { setTimeout(onDone, Math.max(2500, text.length * 55)); return; }
   window.speechSynthesis.cancel();
+  const voices = cachedVoices && cachedVoices.length > 0 ? cachedVoices : await loadVoices();
   const utter = new SpeechSynthesisUtterance(text);
-  const female = getFemaleVoice();
+  const female = getFemaleVoice(voices);
   if (female) utter.voice = female;
   utter.rate = 0.95;
-  utter.pitch = 1.1;
+  utter.pitch = 1.15; // slightly higher pitch for female tone
   utter.onend = onDone;
   utter.onerror = onDone;
   window.speechSynthesis.speak(utter);
 }
 
-function playTransferSequence(mode, closerName, scenario, onDone) {
+async function playTransferSequence(mode, closerName, scenario, onDone) {
   if (mode === 'open') {
-    const debtStr = scenario?.debtAmount ? `$${Number(scenario.debtAmount).toLocaleString()}` : 'some';
-    const locStr = [scenario?.customerCity, scenario?.customerState].filter(Boolean).join(', ') || 'unspecified location';
     const nameStr = scenario?.customerName || 'Bob';
     const closerStr = closerName || 'Drew';
-    const line = `Thank you for calling Debt Advisors of America. I have ${nameStr} on the line, he's calling about a notice he received in the mail. Let me connect you with ${closerStr}, one of our debt specialists.`;
-    speakTransfer(line, () => setTimeout(onDone, 1500));
+    const line = `Thank you for calling Debt Advisors of America. My name is Joyce Roberts. I have ${nameStr} on the line, he's calling about a notice he received in the mail. Let me connect you with ${closerStr}, one of our debt specialists.`;
+    await new Promise(r => speakTransfer(line, r));
+    setTimeout(onDone, 1500);
   } else {
     const name = closerName || 'Drew';
     const line1 = 'Good morning. Can I have your good name, sir?';
-    const line2 = `Bob, my name is Chris from BAC. I have here ${name} on the line. So we are lucky to have him as our debt specialist who will go over with your program.`;
-    speakTransfer(line1, () => setTimeout(() => speakTransfer(line2, () => setTimeout(onDone, 1500)), 4000));
+    const line2 = `Bob, my name is Joyce Roberts from BAC. I have here ${name} on the line. So we are lucky to have him as our debt specialist who will go over with your program.`;
+    await new Promise(r => speakTransfer(line1, r));
+    setTimeout(() => speakTransfer(line2, () => setTimeout(onDone, 1500)), 4000);
   }
 }
 
