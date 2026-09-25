@@ -6,7 +6,8 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import { computeFileHash, computeTextHash, checkDuplicateHash, checkDuplicateUrl, checkDuplicateQuestion } from '@/lib/fileDedup';
-import { ObjectionUploader, ScenarioUploader } from '@/components/debt/DebtScenarioUploaders';
+import { ScenarioUploader } from '@/components/debt/DebtScenarioUploaders';
+import ObjectionsManager from '@/components/debt/ObjectionsManager';
 
 const GOLD = '#10b981';
 const DARK = '#0a0f1e';
@@ -140,7 +141,7 @@ export default function DebtBobKB({ onKBUpdated }) {
       {uploadTab === 'mp3' && <MP3Uploader onStatus={setStatus} onError={setError} onDone={refresh} />}
       {uploadTab === 'txt' && <TranscriptUploader onStatus={setStatus} onError={setError} onDone={refresh} />}
       {uploadTab === 'web' && <WebScraper onStatus={setStatus} onError={setError} onDone={refresh} />}
-      {uploadTab === 'objections' && <ObjectionUploader onStatus={setStatus} onError={setError} onDone={refresh} />}
+      {uploadTab === 'objections' && <ObjectionsManager onStatus={setStatus} onError={setError} onDone={refresh} />}
       {uploadTab === 'open_scenario' && <ScenarioUploader mode="open" onStatus={setStatus} onError={setError} onDone={refresh} />}
       {uploadTab === 'close_scenario' && <ScenarioUploader mode="close" onStatus={setStatus} onError={setError} onDone={refresh} />}
       {uploadTab === 'disqualify' && <DisqualifyQA onStatus={setStatus} onError={setError} onDone={refresh} />}
