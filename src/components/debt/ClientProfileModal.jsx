@@ -1,12 +1,13 @@
 /**
- * ClientProfileModal.jsx — Full client profile modal with tabs:
+ * ClientProfileModal.jsx — Full client profile panel with tabs:
  * Overview | Debt (credit report + utilization) | Bills (monthly expenses + income) | Calculator
- * Opens from a "Client Profile" button on the lead card.
+ * Floating, draggable, resizable (8-way) via usePopOutPanel — opens from the lead card.
  */
 import { useState, useMemo, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import DoNothingCalculator from '@/components/debt/DoNothingCalculator';
 import { setProfileTimer, cancelProfileTimer, getActiveTimer } from '@/components/debt/ProfileTimerWatcher';
+import { usePopOutPanel } from '@/hooks/usePopOutPanel';
 
 const GOLD = '#10b981';
 const ls = { display: 'block', color: '#8a9ab8', fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '6px' };
@@ -42,6 +43,7 @@ export default function ClientProfileModal({ lead, onClose, onSave }) {
   const [timerInput, setTimerInput] = useState({ hours: 0, minutes: 30 });
   const [activeTimer, setActiveTimer] = useState(null);
   const [now, setNow] = useState(Date.now());
+  const panel = usePopOutPanel('client_profile', { width: 900, height: 700 });
 
   useEffect(() => { setLocal(lead || {}); }, [lead]);
 
@@ -116,112 +118,111 @@ export default function ClientProfileModal({ lead, onClose, onSave }) {
   };
 
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 30000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }} onClick={onClose}>
-      <div onClick={e => e.stopPropagation()} style={{ width: '900px', maxWidth: '95vw', maxHeight: '90vh', background: '#0a0f1e', border: `1px solid ${GOLD}44`, borderRadius: '8px', display: 'flex', flexDirection: 'column', boxShadow: '0 16px 64px rgba(0,0,0,0.8)' }}>
-        {/* Header */}
-        <div style={{ padding: '16px 20px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div>
-            <div style={{ color: GOLD, fontSize: '10px', letterSpacing: '3px', textTransform: 'uppercase' }}>👤 Client Profile</div>
-            <div style={{ color: '#e8e0d0', fontSize: '18px' }}>{local.firstName} {local.lastName}</div>
-          </div>
-          <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-            <button onClick={save} disabled={saving || !local.id} style={{ background: 'linear-gradient(135deg,#10b981,#22c55e)', color: '#0a0f1e', border: 'none', borderRadius: '4px', padding: '8px 20px', cursor: saving ? 'not-allowed' : 'pointer', fontSize: '11px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase', opacity: saving || !local.id ? 0.5 : 1 }}>
-              {saving ? '⏳ Saving…' : '💾 Save'}
-            </button>
-            {saved && <span style={{ color: '#4ade80', fontSize: '12px' }}>✓ Saved</span>}
-            <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#6b7280', cursor: 'pointer', fontSize: '22px', padding: '0 4px' }}>×</button>
-          </div>
+    <div style={{ ...panel.floatingStyle, background: '#0a0f1e', border: `1px solid ${GOLD}44`, borderRadius: '8px', boxShadow: '0 16px 64px rgba(0,0,0,0.8)' }}>
+      {/* Header — draggable */}
+      <div onMouseDown={panel.onDragStart} style={{ padding: '16px 20px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'move', userSelect: 'none', flexShrink: 0 }}>
+        <div>
+          <div style={{ color: GOLD, fontSize: '10px', letterSpacing: '3px', textTransform: 'uppercase' }}>👤 Client Profile</div>
+          <div style={{ color: '#e8e0d0', fontSize: '18px' }}>{local.firstName} {local.lastName}</div>
         </div>
-
-        {/* Timer bar */}
-        <div style={{ padding: '8px 20px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', gap: '8px', alignItems: 'center', flexShrink: 0, flexWrap: 'wrap', background: 'rgba(0,0,0,0.15)' }}>
-          <span style={{ color: '#8a9ab8', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '1px' }}>⏰ Profile Timer:</span>
-          {activeTimer ? (
-            <>
-              <span style={{ color: GOLD, fontSize: '12px', fontWeight: 'bold' }}>
-                {Math.floor((activeTimer.fireAt - now) / 60000)}m {Math.floor(((activeTimer.fireAt - now) % 60000) / 1000)}s remaining
-              </span>
-              <button onClick={handleCancelTimer} style={{ background: 'rgba(239,68,68,0.15)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '4px', padding: '3px 10px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>Cancel Timer</button>
-            </>
-          ) : (
-            <>
-              <input type="number" min="0" max="23" value={timerInput.hours} onChange={e => setTimerInput(p => ({ ...p, hours: Number(e.target.value) }))} style={{ width: '42px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '4px', padding: '4px 6px', color: '#e8e0d0', fontSize: '12px', outline: 'none', textAlign: 'center' }} />
-              <span style={{ color: '#6b7280', fontSize: '11px' }}>hr</span>
-              <input type="number" min="0" max="59" value={timerInput.minutes} onChange={e => setTimerInput(p => ({ ...p, minutes: Number(e.target.value) }))} style={{ width: '42px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '4px', padding: '4px 6px', color: '#e8e0d0', fontSize: '12px', outline: 'none', textAlign: 'center' }} />
-              <span style={{ color: '#6b7280', fontSize: '11px' }}>min</span>
-              <button onClick={handleSetTimer} style={{ background: `${GOLD}18`, color: GOLD, border: `1px solid ${GOLD}44`, borderRadius: '4px', padding: '4px 12px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>Set Timer</button>
-            </>
-          )}
-          <span style={{ color: '#4a5568', fontSize: '10px', marginLeft: 'auto' }}>Popup reminder will appear when timer expires</span>
-        </div>
-
-        {/* Tabs */}
-        <div style={{ display: 'flex', borderBottom: '1px solid rgba(255,255,255,0.07)', flexShrink: 0 }}>
-          {TABS.map(t => (
-            <button key={t.id} onClick={() => setTab(t.id)} style={{ padding: '12px 20px', background: 'none', border: 'none', borderBottom: `2px solid ${tab === t.id ? GOLD : 'transparent'}`, color: tab === t.id ? GOLD : '#6b7280', cursor: 'pointer', fontSize: '12px', fontWeight: tab === t.id ? 'bold' : 'normal' }}>{t.label}</button>
-          ))}
-        </div>
-
-        {/* Content */}
-        <div style={{ flex: 1, overflowY: 'auto', padding: '20px' }}>
-          {tab === 'overview' && (
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
-              <Field label="First Name" value={local.firstName} onChange={v => update('firstName', v)} />
-              <Field label="Last Name" value={local.lastName} onChange={v => update('lastName', v)} />
-              <Field label="Phone" value={local.phone} onChange={v => update('phone', v)} />
-              <Field label="Email" value={local.email} onChange={v => update('email', v)} />
-              <Field label="Address" value={local.address} onChange={v => update('address', v)} />
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }}>
-                <Field label="City" value={local.city} onChange={v => update('city', v)} />
-                <Field label="State" value={local.state} onChange={v => update('state', v)} />
-                <Field label="Zip" value={local.zip} onChange={v => update('zip', v)} />
-              </div>
-              <div>
-                <label style={ls}>Employment Status</label>
-                <select value={local.employmentStatus || ''} onChange={e => update('employmentStatus', e.target.value)} style={inp}>
-                  <option value="">— Select —</option>
-                  <option value="employed">Employed</option>
-                  <option value="self-employed">Self-Employed</option>
-                  <option value="unemployed">Unemployed</option>
-                  <option value="retired">Retired</option>
-                  <option value="disabled">Disabled</option>
-                </select>
-              </div>
-              <Field label="Monthly Income ($)" value={local.monthlyIncome} onChange={v => update('monthlyIncome', v ? Number(v) : null)} type="number" />
-              <Field label="Credit Score" value={local.creditScore} onChange={v => update('creditScore', v ? Number(v) : null)} type="number" />
-              <div>
-                <label style={ls}>Behind on Payments</label>
-                <select value={local.behindOnPayments ? 'yes' : 'no'} onChange={e => update('behindOnPayments', e.target.value === 'yes')} style={inp}>
-                  <option value="no">No — Current</option>
-                  <option value="yes">Yes — Behind</option>
-                </select>
-              </div>
-              <Field label="Months Behind" value={local.monthsBehind} onChange={v => update('monthsBehind', v ? Number(v) : null)} type="number" />
-
-              {/* Quick stats */}
-              <div style={{ gridColumn: '1 / -1', display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '10px', marginTop: '8px' }}>
-                <StatBox label="Total Debt" value={local.debtAmount ? `$${Number(local.debtAmount).toLocaleString()}` : '—'} color="#ef4444" />
-                <StatBox label="Monthly Payments" value={`$${totalMonthlyPayments.toLocaleString()}`} color="#60a5fa" />
-                <StatBox label="Monthly Bills" value={`$${totalBills.toLocaleString()}`} color="#f59e0b" />
-                <StatBox label="Disposable Income" value={`$${Math.round(disposableIncome).toLocaleString()}`} color={disposableIncome > 0 ? '#4ade80' : '#ef4444'} />
-                <StatBox label="Debt-to-Income" value={monthlyIncome > 0 ? `${dti.toFixed(1)}%` : '—'} color={dti > 43 ? '#ef4444' : dti > 36 ? '#f59e0b' : '#4ade80'} />
-              </div>
-            </div>
-          )}
-
-          {tab === 'debt' && (
-            <DebtTab ledger={ledger} totalBalance={totalBalance} totalLimit={totalLimit} utilization={utilization} totalMonthlyPayments={totalMonthlyPayments} annualInterest={annualInterest} monthlyInterest={monthlyInterest} paymentToLowerPrincipal={paymentToLowerPrincipal} local={local} update={update} />
-          )}
-
-          {tab === 'bills' && (
-            <BillsTab bills={bills} local={local} update={update} totalBills={totalBills} totalMonthlyPayments={totalMonthlyPayments} disposableIncome={disposableIncome} />
-          )}
-
-          {tab === 'calculator' && (
-            <DoNothingCalculator lead={local} mode="close" />
-          )}
+        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+          <button onClick={save} disabled={saving || !local.id} style={{ background: 'linear-gradient(135deg,#10b981,#22c55e)', color: '#0a0f1e', border: 'none', borderRadius: '4px', padding: '8px 20px', cursor: saving ? 'not-allowed' : 'pointer', fontSize: '11px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase', opacity: saving || !local.id ? 0.5 : 1 }}>
+            {saving ? '⏳ Saving…' : '💾 Save'}
+          </button>
+          {saved && <span style={{ color: '#4ade80', fontSize: '12px' }}>✓ Saved</span>}
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#6b7280', cursor: 'pointer', fontSize: '22px', padding: '0 4px' }}>×</button>
         </div>
       </div>
+
+      {/* Timer bar */}
+      <div style={{ padding: '8px 20px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', gap: '8px', alignItems: 'center', flexShrink: 0, flexWrap: 'wrap', background: 'rgba(0,0,0,0.15)' }}>
+        <span style={{ color: '#8a9ab8', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '1px' }}>⏰ Profile Timer:</span>
+        {activeTimer ? (
+          <>
+            <span style={{ color: GOLD, fontSize: '12px', fontWeight: 'bold' }}>
+              {Math.floor((activeTimer.fireAt - now) / 60000)}m {Math.floor(((activeTimer.fireAt - now) % 60000) / 1000)}s remaining
+            </span>
+            <button onClick={handleCancelTimer} style={{ background: 'rgba(239,68,68,0.15)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '4px', padding: '3px 10px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>Cancel Timer</button>
+          </>
+        ) : (
+          <>
+            <input type="number" min="0" max="23" value={timerInput.hours} onChange={e => setTimerInput(p => ({ ...p, hours: Number(e.target.value) }))} style={{ width: '42px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '4px', padding: '4px 6px', color: '#e8e0d0', fontSize: '12px', outline: 'none', textAlign: 'center' }} />
+            <span style={{ color: '#6b7280', fontSize: '11px' }}>hr</span>
+            <input type="number" min="0" max="59" value={timerInput.minutes} onChange={e => setTimerInput(p => ({ ...p, minutes: Number(e.target.value) }))} style={{ width: '42px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '4px', padding: '4px 6px', color: '#e8e0d0', fontSize: '12px', outline: 'none', textAlign: 'center' }} />
+            <span style={{ color: '#6b7280', fontSize: '11px' }}>min</span>
+            <button onClick={handleSetTimer} style={{ background: `${GOLD}18`, color: GOLD, border: `1px solid ${GOLD}44`, borderRadius: '4px', padding: '4px 12px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>Set Timer</button>
+          </>
+        )}
+        <span style={{ color: '#4a5568', fontSize: '10px', marginLeft: 'auto' }}>Popup reminder will appear when timer expires</span>
+      </div>
+
+      {/* Tabs */}
+      <div style={{ display: 'flex', borderBottom: '1px solid rgba(255,255,255,0.07)', flexShrink: 0 }}>
+        {TABS.map(t => (
+          <button key={t.id} onClick={() => setTab(t.id)} style={{ padding: '12px 20px', background: 'none', border: 'none', borderBottom: `2px solid ${tab === t.id ? GOLD : 'transparent'}`, color: tab === t.id ? GOLD : '#6b7280', cursor: 'pointer', fontSize: '12px', fontWeight: tab === t.id ? 'bold' : 'normal' }}>{t.label}</button>
+        ))}
+      </div>
+
+      {/* Content */}
+      <div style={{ flex: 1, overflowY: 'auto', padding: '20px' }}>
+        {tab === 'overview' && (
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
+            <Field label="First Name" value={local.firstName} onChange={v => update('firstName', v)} />
+            <Field label="Last Name" value={local.lastName} onChange={v => update('lastName', v)} />
+            <Field label="Phone" value={local.phone} onChange={v => update('phone', v)} />
+            <Field label="Email" value={local.email} onChange={v => update('email', v)} />
+            <Field label="Address" value={local.address} onChange={v => update('address', v)} />
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }}>
+              <Field label="City" value={local.city} onChange={v => update('city', v)} />
+              <Field label="State" value={local.state} onChange={v => update('state', v)} />
+              <Field label="Zip" value={local.zip} onChange={v => update('zip', v)} />
+            </div>
+            <div>
+              <label style={ls}>Employment Status</label>
+              <select value={local.employmentStatus || ''} onChange={e => update('employmentStatus', e.target.value)} style={inp}>
+                <option value="">— Select —</option>
+                <option value="employed">Employed</option>
+                <option value="self-employed">Self-Employed</option>
+                <option value="unemployed">Unemployed</option>
+                <option value="retired">Retired</option>
+                <option value="disabled">Disabled</option>
+              </select>
+            </div>
+            <Field label="Monthly Income ($)" value={local.monthlyIncome} onChange={v => update('monthlyIncome', v ? Number(v) : null)} type="number" />
+            <Field label="Credit Score" value={local.creditScore} onChange={v => update('creditScore', v ? Number(v) : null)} type="number" />
+            <div>
+              <label style={ls}>Behind on Payments</label>
+              <select value={local.behindOnPayments ? 'yes' : 'no'} onChange={e => update('behindOnPayments', e.target.value === 'yes')} style={inp}>
+                <option value="no">No — Current</option>
+                <option value="yes">Yes — Behind</option>
+              </select>
+            </div>
+            <Field label="Months Behind" value={local.monthsBehind} onChange={v => update('monthsBehind', v ? Number(v) : null)} type="number" />
+
+            {/* Quick stats */}
+            <div style={{ gridColumn: '1 / -1', display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '10px', marginTop: '8px' }}>
+              <StatBox label="Total Debt" value={local.debtAmount ? `$${Number(local.debtAmount).toLocaleString()}` : '—'} color="#ef4444" />
+              <StatBox label="Monthly Payments" value={`$${totalMonthlyPayments.toLocaleString()}`} color="#60a5fa" />
+              <StatBox label="Monthly Bills" value={`$${totalBills.toLocaleString()}`} color="#f59e0b" />
+              <StatBox label="Disposable Income" value={`$${Math.round(disposableIncome).toLocaleString()}`} color={disposableIncome > 0 ? '#4ade80' : '#ef4444'} />
+              <StatBox label="Debt-to-Income" value={monthlyIncome > 0 ? `${dti.toFixed(1)}%` : '—'} color={dti > 43 ? '#ef4444' : dti > 36 ? '#f59e0b' : '#4ade80'} />
+            </div>
+          </div>
+        )}
+
+        {tab === 'debt' && (
+          <DebtTab ledger={ledger} totalBalance={totalBalance} totalLimit={totalLimit} utilization={utilization} totalMonthlyPayments={totalMonthlyPayments} annualInterest={annualInterest} monthlyInterest={monthlyInterest} paymentToLowerPrincipal={paymentToLowerPrincipal} local={local} update={update} />
+        )}
+
+        {tab === 'bills' && (
+          <BillsTab bills={bills} local={local} update={update} totalBills={totalBills} totalMonthlyPayments={totalMonthlyPayments} disposableIncome={disposableIncome} />
+        )}
+
+        {tab === 'calculator' && (
+          <DoNothingCalculator lead={local} mode="close" />
+        )}
+      </div>
+      {panel.resizeHandles}
     </div>
   );
 }

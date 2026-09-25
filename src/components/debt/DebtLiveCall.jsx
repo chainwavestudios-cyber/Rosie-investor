@@ -10,6 +10,7 @@ import DebtIntentSignals, { DEBT_INTENT_RULES } from '@/components/debt/DebtInte
 import FloatingScriptBox from '@/components/debt/FloatingScriptBox';
 import DebtAIPanel from '@/components/debt/DebtAIPanel';
 import DoNothingCalculator from '@/components/debt/DoNothingCalculator';
+import ClientProfileModal from '@/components/debt/ClientProfileModal';
 import { usePopOutPanel } from '@/hooks/usePopOutPanel';
 
 const GOLD = '#10b981';
@@ -50,6 +51,7 @@ export default function DebtLiveCall() {
   const [report, setReport] = useState('');
   const [generatingReport, setGeneratingReport] = useState(false);
   const [callMode, setCallMode] = useState('open'); // 'open' | 'close'
+  const [showProfile, setShowProfile] = useState(false);
   const leadPanel = usePopOutPanel('live_lead_card', { width: 420, height: 600 });
 
   const wsRef = useRef(null);
@@ -651,6 +653,28 @@ ${recentText}`,
       )}
 
       <FloatingScriptBox storageKey="live_call_script" />
+
+      {/* Floating Client Profile pop-out button */}
+      <button
+        onClick={() => setShowProfile(true)}
+        disabled={!lead.id}
+        style={{
+          position: 'fixed', bottom: 24, right: 24, zIndex: 9000,
+          background: lead.id ? 'linear-gradient(135deg,#10b981,#22c55e)' : 'rgba(255,255,255,0.05)',
+          color: lead.id ? '#0a0f1e' : '#4a5568',
+          border: `1px solid ${lead.id ? 'rgba(16,185,129,0.4)' : 'rgba(255,255,255,0.1)'}`,
+          borderRadius: '28px', padding: '12px 20px', cursor: lead.id ? 'pointer' : 'not-allowed',
+          fontSize: '12px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase',
+          boxShadow: lead.id ? '0 4px 16px rgba(16,185,129,0.3)' : 'none',
+          display: 'flex', alignItems: 'center', gap: '6px',
+        }}
+      >
+        👤 Client Profile
+      </button>
+
+      {showProfile && lead.id && (
+        <ClientProfileModal lead={lead} onClose={() => setShowProfile(false)} onSave={(updated) => setLead(updated)} />
+      )}
     </div>
   );
 }
