@@ -18,7 +18,6 @@ const KB_SECTIONS = [
   { id: 'docs', label: '📄 Documents', category: 'debt_doc', color: '#a78bfa', desc: 'Upload PDFs, program docs, compliance materials. AI extracts Q&A + raw chunks.' },
   { id: 'web', label: '🌐 Websites', category: 'debt_web', color: '#34d399', desc: 'Scrape competitor sites, program info pages, debt settlement resources.' },
   { id: 'mp3', label: '🎵 MP3 Call Recordings', category: 'debt_call', color: '#f472b6', desc: 'Upload real call recordings. AI transcribes and extracts Q&A + generates scripts.' },
-  { id: 'objections', label: '🚫 Objections', category: 'debt_objections', color: '#ef4444', desc: 'Customer objections with handling guidance. Powers the live Q&A rebuttals and BOB training objection catalog.' },
   { id: 'hotpoints', label: '🔥 Hotpoints', category: 'debt_hotpoints', color: '#fb923c', desc: 'Key coaching moments, objections, and triggers the live coach AI uses to guide agents during calls.' },
 ];
 
@@ -82,8 +81,7 @@ export default function DebtKBManager() {
       {section === 'docs' && <DocUploader category={KB_SECTIONS[2].category} onSaved={refresh} />}
       {section === 'web' && <WebScraper category={KB_SECTIONS[3].category} onSaved={refresh} />}
       {section === 'mp3' && <MP3Uploader category={KB_SECTIONS[4].category} onSaved={refresh} />}
-      {section === 'objections' && <ObjectionEditor category={KB_SECTIONS.find(s => s.id === 'objections').category} onSaved={refresh} />}
-      {section === 'hotpoints' && <HotpointEditor category={KB_SECTIONS.find(s => s.id === 'hotpoints').category} onSaved={refresh} />}
+      {section === 'hotpoints' && <HotpointEditor category={KB_SECTIONS[5].category} onSaved={refresh} />}
 
       {/* Entry list */}
       <div style={{ marginTop: '24px' }}>
@@ -424,71 +422,6 @@ ${transcriptText}`,
             </div>
           ))}
           <button onClick={saveSelected} disabled={saving || selectedEntries.size === 0} style={{ marginTop: '6px', background: 'linear-gradient(135deg,#f472b6,#ec4899)', color: DARK, border: 'none', borderRadius: '4px', padding: '10px 20px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase', opacity: saving ? 0.5 : 1 }}>💾 Save {selectedEntries.size} Entries</button>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ─── Objection Editor ────────────────────────────────────────────────────────
-function ObjectionEditor({ category, onSaved }) {
-  const [form, setForm] = useState({ question: '', answer: '' });
-  const [saving, setSaving] = useState(false);
-  const [bulkText, setBulkText] = useState('');
-  const [extracting, setExtracting] = useState(false);
-  const [bulkMode, setBulkMode] = useState(false);
-
-  const save = async () => {
-    if (!form.question.trim() || !form.answer.trim()) return;
-    setSaving(true);
-    await base44.entities.KnowledgeBase.create({ ...form, category, kbName: 'Debt Settlement', source: 'manual', created_date: new Date().toISOString() });
-    setForm({ question: '', answer: '' });
-    onSaved();
-    setSaving(false);
-  };
-
-  const extractObjections = async () => {
-    if (!bulkText.trim()) return;
-    setExtracting(true);
-    try {
-      const result = await base44.integrations.Core.InvokeLLM({
-        prompt: `You are a debt settlement sales training assistant. Below is content about customer objections in debt settlement calls. Parse it into individual objection entries where the question is the objection text and the answer is the context (what triggered it, how to handle it). Return as JSON: {"entries":[{"question":"the objection text","answer":"context and how to handle it"}]}.\n\nCONTENT:\n${bulkText}`,
-        response_json_schema: { type: 'object', properties: { entries: { type: 'array', items: { type: 'object', properties: { question: { type: 'string' }, answer: { type: 'string' } } } } } },
-      });
-      const entries = result?.entries || [];
-      for (const e of entries) {
-        await base44.entities.KnowledgeBase.create({ ...e, category, kbName: 'Debt Settlement', source: 'bulk_upload', created_date: new Date().toISOString() });
-      }
-      setBulkText('');
-      onSaved();
-      alert(`✓ Extracted ${entries.length} objections!`);
-    } catch (e) {
-      alert('Extraction failed: ' + (e?.message || String(e)));
-    }
-    setExtracting(false);
-  };
-
-  return (
-    <div>
-      <div style={{ display: 'flex', gap: '4px', marginBottom: '12px' }}>
-        <button onClick={() => setBulkMode(false)} style={{ flex: 1, padding: '8px', borderRadius: '4px', border: `1px solid ${!bulkMode ? '#ef444466' : 'rgba(255,255,255,0.1)'}`, background: !bulkMode ? 'rgba(239,68,68,0.12)' : 'transparent', color: !bulkMode ? '#ef4444' : '#6b7280', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>✏️ Manual Entry</button>
-        <button onClick={() => setBulkMode(true)} style={{ flex: 1, padding: '8px', borderRadius: '4px', border: `1px solid ${bulkMode ? '#ef444466' : 'rgba(255,255,255,0.1)'}`, background: bulkMode ? 'rgba(239,68,68,0.12)' : 'transparent', color: bulkMode ? '#ef4444' : '#6b7280', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>📄 Bulk Upload</button>
-      </div>
-
-      {bulkMode ? (
-        <div style={{ background: 'rgba(239,68,68,0.05)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: '6px', padding: '20px' }}>
-          <div style={{ color: '#ef4444', fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '4px' }}>Bulk Extract Objections</div>
-          <div style={{ color: '#6b7280', fontSize: '11px', marginBottom: '16px' }}>Paste objection content — training material, call notes, objection handler scripts — and AI will parse it into individual objections with handling guidance.</div>
-          <textarea value={bulkText} onChange={e => setBulkText(e.target.value)} rows={10} style={{ ...inp, resize: 'vertical', marginBottom: '12px' }} placeholder="Paste objection content here…" />
-          <button onClick={extractObjections} disabled={extracting || !bulkText.trim()} style={{ background: 'linear-gradient(135deg,#ef4444,#dc2626)', color: '#fff', border: 'none', borderRadius: '4px', padding: '10px 20px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase', opacity: extracting || !bulkText.trim() ? 0.5 : 1 }}>{extracting ? '⏳ Extracting…' : '🤖 Extract Objections'}</button>
-        </div>
-      ) : (
-        <div style={{ background: 'rgba(239,68,68,0.05)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: '6px', padding: '20px' }}>
-          <div style={{ color: '#ef4444', fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '4px' }}>Add Objection</div>
-          <div style={{ color: '#6b7280', fontSize: '11px', marginBottom: '16px' }}>Customer objections with how to handle them. These power the live Q&A rebuttals and BOB's objection catalog during training calls.</div>
-          <div style={{ marginBottom: '10px' }}><label style={ls}>Objection Text</label><input value={form.question} onChange={e => setForm(p => ({ ...p, question: e.target.value }))} placeholder="e.g. How much is this going to cost me?" style={inp} /></div>
-          <div style={{ marginBottom: '10px' }}><label style={ls}>How to Handle / Context</label><textarea value={form.answer} onChange={e => setForm(p => ({ ...p, answer: e.target.value }))} rows={4} style={{ ...inp, resize: 'vertical' }} placeholder="Customer is worried about upfront fees. Agent should explain no upfront fees, success-based pricing…" /></div>
-          <button onClick={save} disabled={saving || !form.question.trim() || !form.answer.trim()} style={{ background: 'linear-gradient(135deg,#ef4444,#dc2626)', color: '#fff', border: 'none', borderRadius: '4px', padding: '10px 20px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase', opacity: saving ? 0.5 : 1 }}>+ Add Objection</button>
         </div>
       )}
     </div>
