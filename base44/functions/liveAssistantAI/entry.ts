@@ -90,6 +90,10 @@ Deno.serve(async (req) => {
       const objectionContext = objections.length > 0
         ? objections.map((e: any) => `OBJECTION: "${e.question}"\nHOW TO HANDLE: ${e.answer}`).join('\n---\n')
         : '';
+      const memories = body.memories || [];
+      const memoryContext = memories.length > 0
+        ? memories.map((m: any) => `- [${m.factType || 'personal'}${m.importance === 'high' ? ' ★ HIGH' : ''}] ${m.factText}${m.context ? ` (context: ${m.context})` : ''}${m.followUpDate ? ` — FOLLOW UP BY ${new Date(m.followUpDate).toLocaleDateString()}` : ''}`).join('\n')
+        : '';
       const res = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_KEY, 'anthropic-version': '2023-06-01' },
@@ -98,6 +102,7 @@ Deno.serve(async (req) => {
           max_tokens: 200,
           system: `You are a real-time sales coach whispering to an agent on a live debt settlement call. Give ONE actionable tip in 1-2 sentences. Be direct and specific — agent reads this mid-call.
 Focus: handling objections, building rapport, next talking point, timing a close.
+${memoryContext ? `\n━━━ KEY FACTS ABOUT THIS PROSPECT — Remember these from previous calls. Weave them in naturally to build rapport (e.g., ask about their wife by name, mention their kid's birthday, reference their job change). These are GOLD for building trust: ━━━\n${memoryContext}` : ''}
 ${hotpointContext ? `\n━━━ COACHING HOTPOINTS — Watch for these triggers in the live conversation. If the customer or agent says something matching a trigger, immediately coach the agent using the guidance and strategy below: ━━━\n${hotpointContext}` : ''}
 ${objectionContext ? `\n━━━ OBJECTION HANDLING CATALOG — When the customer raises any of these objections (or something close), coach the agent on how to handle them using the guidance below. Match the customer's words to the closest objection: ━━━\n${objectionContext}` : ''}
 ${kbContext ? `\n\nRelevant KB:\n${kbContext}` : ''}`,
@@ -120,6 +125,10 @@ ${kbContext ? `\n\nRelevant KB:\n${kbContext}` : ''}`,
       const objectionContext = objections.length > 0
         ? objections.map((e: any) => `OBJECTION: "${e.question}"\nHOW TO HANDLE: ${e.answer}`).join('\n---\n')
         : '';
+      const memories = body.memories || [];
+      const memoryContext = memories.length > 0
+        ? memories.map((m: any) => `- [${m.factType || 'personal'}${m.importance === 'high' ? ' ★ HIGH' : ''}] ${m.factText}${m.context ? ` (context: ${m.context})` : ''}${m.followUpDate ? ` — FOLLOW UP BY ${new Date(m.followUpDate).toLocaleDateString()}` : ''}`).join('\n')
+        : '';
       const res = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
         headers: {
@@ -132,7 +141,7 @@ ${kbContext ? `\n\nRelevant KB:\n${kbContext}` : ''}`,
           model: 'claude-haiku-4-5-20251001',
           max_tokens: 200,
           stream: true,
-          system: `You are a real-time sales coach whispering to an agent on a live investor call. ${coachRules?.style || 'Give ONE actionable tip in 1-2 sentences. Be direct and specific — agent reads this mid-call.'}\nFocus: ${coachRules?.focusAreas || 'handling objections, building rapport, next talking point, timing a close'}.${coachRules?.additionalContext ? `\nContext: ${coachRules.additionalContext}` : ''}${callAttemptNumber ? `\nThis is call #${callAttemptNumber} with this prospect.` : ''}${hotpointContext ? `\n\n━━━ COACHING HOTPOINTS — Watch for these triggers. If the customer or agent says something matching a trigger, coach the agent using the guidance: ━━━\n${hotpointContext}` : ''}${objectionContext ? `\n\n━━━ OBJECTION HANDLING CATALOG — When the customer raises any of these objections (or something close), coach the agent on how to handle them using the guidance below. Match the customer's words to the closest objection: ━━━\n${objectionContext}` : ''}${kbContext ? `\n\nRelevant KB:\n${kbContext}` : ''}`,
+          system: `You are a real-time sales coach whispering to an agent on a live investor call. ${coachRules?.style || 'Give ONE actionable tip in 1-2 sentences. Be direct and specific — agent reads this mid-call.'}\nFocus: ${coachRules?.focusAreas || 'handling objections, building rapport, next talking point, timing a close'}.${coachRules?.additionalContext ? `\nContext: ${coachRules.additionalContext}` : ''}${callAttemptNumber ? `\nThis is call #${callAttemptNumber} with this prospect.` : ''}${memoryContext ? `\n\n━━━ KEY FACTS ABOUT THIS PROSPECT — Remember these from previous calls. Weave them in naturally to build rapport (e.g., ask about their wife by name, mention their kid's birthday, reference their job change). These are GOLD for building trust: ━━━\n${memoryContext}` : ''}${hotpointContext ? `\n\n━━━ COACHING HOTPOINTS — Watch for these triggers. If the customer or agent says something matching a trigger, coach the agent using the guidance: ━━━\n${hotpointContext}` : ''}${objectionContext ? `\n\n━━━ OBJECTION HANDLING CATALOG — When the customer raises any of these objections (or something close), coach the agent on how to handle them using the guidance below. Match the customer's words to the closest objection: ━━━\n${objectionContext}` : ''}${kbContext ? `\n\nRelevant KB:\n${kbContext}` : ''}`,
           messages: [{ role: 'user', content: `Live conversation:\n${recentTranscript}\n\nCoaching tip now:` }],
         }),
       });
@@ -146,7 +155,7 @@ ${kbContext ? `\n\nRelevant KB:\n${kbContext}` : ''}`,
       });
     }
 
-    // ── POST-CALL INTENT ANALYSIS ─────────────────────────────────────
+    // ── POST-CALL INTENT ANALYSIS (ENHANCED INTENT ENGINE) ────────────
     if (mode === 'intent_final') {
       const fullTranscript = buildTranscriptString(transcript, 999);
       // Compute rich sentiment data from Deepgram utterances
@@ -180,18 +189,57 @@ ${kbContext ? `\n\nRelevant KB:\n${kbContext}` : ''}`,
         else curStreak = 0;
       }
 
+      // ── Compute talk ratio from word counts ──────────────────────────
+      const allEntries = transcript || [];
+      const prospectEntries = allEntries.filter((t: any) => t.speaker === 1 || t.speaker === null || t.speaker === undefined);
+      const agentEntries = allEntries.filter((t: any) => t.speaker === 0);
+      const prospectWords = prospectEntries.reduce((s: number, t: any) => s + (t.text || '').split(/\s+/).filter((w: string) => w.length > 0).length, 0);
+      const agentWords = agentEntries.reduce((s: number, t: any) => s + (t.text || '').split(/\s+/).filter((w: string) => w.length > 0).length, 0);
+      const totalWords = prospectWords + agentWords;
+      const talkRatioProspect = totalWords > 0 ? Math.round((prospectWords / totalWords) * 100) : 0;
+
+      // ── Compute call duration from timestamps ───────────────────────
+      let callDurationSeconds = 0;
+      if (allEntries.length >= 2) {
+        const first = allEntries[0];
+        const last = allEntries[allEntries.length - 1];
+        const t1 = first.time ? new Date(first.time).getTime() : 0;
+        const t2 = last.time ? new Date(last.time).getTime() : 0;
+        if (t1 && t2 && t2 > t1) callDurationSeconds = Math.round((t2 - t1) / 1000);
+      }
+
+      // ── Count questions asked by prospect ───────────────────────────
+      const prospectText = prospectEntries.map((t: any) => t.text || '').join(' ');
+      const questionMatches = prospectText.match(/\?/g) || [];
+      const questionCount = questionMatches.length;
+
+      // ── Count hesitation markers ─────────────────────────────────────
+      const hesitationRegex = /\b(um|uh|hmm|er|ah|let me think|I need to think|I'm not sure|maybe|perhaps|I suppose|sort of|kind of)\b/gi;
+      const hesitationCount = (prospectText.match(hesitationRegex) || []).length;
+
       const sentimentSummary = total > 0
         ? `${total} utterances with sentiment data. Overall: ${posCount} positive, ${negCount} negative, ${neuCount} neutral. Prospect specifically: ${prospectPos} positive, ${prospectNeg} negative. Sentiment arc: ${arcTrend} (first third: ${Math.round(firstPosRatio*100)}% positive → last third: ${Math.round(lastPosRatio*100)}% positive). Max consecutive negative streak: ${maxNegStreak}. ${maxNegStreak >= 3 ? 'RESISTANCE SPIKE DETECTED.' : ''}`
         : 'No Deepgram sentiment data available for this call.';
+
+      const computedMetrics = `COMPUTED METRICS (use these in your analysis):
+- Talk ratio: prospect spoke ${talkRatioProspect}% of the time (${prospectWords} words vs agent ${agentWords} words)
+- Call duration: ${callDurationSeconds} seconds (${Math.floor(callDurationSeconds/60)}m ${callDurationSeconds%60}s)
+- Questions asked by prospect: ${questionCount}
+- Hesitation markers detected: ${hesitationCount}
+- Total transcript lines: ${allEntries.length}`;
 
       const res = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_KEY, 'anthropic-version': '2023-06-01' },
         body: JSON.stringify({
           model: 'claude-haiku-4-5-20251001',
-          max_tokens: 1200,
-          system: `You are an expert sales call analyst measuring prospect intent, tonality, and interest. Also extract key facts from the conversation to auto-populate the CRM.
+          max_tokens: 1500,
+          system: `You are an expert sales call analyst running a comprehensive INTENT ENGINE that measures many dimensions of a prospect's behavior, engagement, and intent on a debt settlement sales call. Also extract key facts from the conversation to auto-populate the CRM and build a persistent memory for follow-up calls.
+
 DEEPGRAM SENTIMENT ANALYSIS: ${sentimentSummary}
+
+${computedMetrics}
+
 ${intentRules?.sentimentRules ? 'SENTIMENT BEHAVIOR RULES:\n' + (() => { try { return JSON.parse(intentRules.sentimentRules).map((r: any) => '- When ' + r.condition + ': ' + r.effect).join('\n'); } catch { return String(intentRules.sentimentRules); } })() + '\n' : ''}
 DUCK: ${intentRules?.duckDefinition || 'Skeptical, argumentative, raises objections, combative, negative tone'}
 COW: ${intentRules?.cowDefinition || 'Curious, agreeable, asks genuine buying questions, positive tone'}
@@ -208,10 +256,32 @@ Respond ONLY with this exact JSON (no markdown):
   "animalConfidence": 0-100,
   "sentimentArc": "warming|cooling|flat|volatile",
   "sentimentArcNotes": "how their tone shifted during the call",
+  "engagementScore": 0-100,
+  "engagementNotes": "1-2 sentences on how engaged they were — participation depth, responsiveness, initiative",
+  "excitementLevel": "low|medium|high",
+  "excitementNotes": "what indicated their excitement level — tone, energy words, exclamation, pace",
+  "emotionalState": "stressed|hopeful|skeptical|desperate|confident|overwhelmed|neutral",
+  "emotionalNotes": "1-2 sentences on their underlying emotional state",
+  "commitmentLevel": "none|soft|firm",
+  "commitmentDetails": "what they specifically agreed to or committed to, or null if nothing",
+  "pace": "rushed|steady|deliberate",
+  "paceNotes": "how quickly they want to move forward",
+  "rapportLevel": 0-100,
+  "rapportNotes": "how much personal connection/rapport was built during the call",
+  "questionCount": number,
+  "questionTypes": {"buying": number, "informational": number, "technical": number, "objection": number},
+  "talkRatioProspect": number,
+  "callDurationSeconds": number,
+  "hesitationCount": number,
+  "objectionCount": number,
+  "buyingSignalCount": number,
   "keyMoments": ["moment1","moment2","moment3"],
   "buyingSignals": ["signal1","signal2"],
   "objections": ["objection1","objection2"],
   "recommendedNextStep": "specific actionable next step",
+  "keyFacts": [
+    {"type":"personal|family|financial|preference|life_event|follow_up|hot_button","fact":"the key fact mentioned","context":"how it came up","importance":"high|medium|low","followUpDate":"ISO date if time-sensitive like a birthday next week, else null"}
+  ],
   "extractedData": {
     "mentionedAmount": "number only if they mentioned a dollar amount e.g. 50000, else null",
     "accountType": "cash or ira if mentioned, else null",
@@ -235,6 +305,45 @@ Respond ONLY with this exact JSON (no markdown):
         return Response.json({ intent: { ...result, intentScore: blended, rawAiScore: result.intentScore, engagementContribution: Math.round(engNorm * 0.25) } });
       } catch {
         return Response.json({ intent: null, error: 'Parse failed' });
+      }
+    }
+
+    // ── EXTRACT KEY FACTS / MEMORIES FROM CALL ────────────────────────
+    if (mode === 'extract_facts') {
+      const fullTranscript = (transcript || []).map((t: any) => `[${t.speaker === 0 ? 'AGENT' : 'PROSPECT'}]: ${t.text}`).join('\n');
+      const existingFacts = body.existingFacts || [];
+      const existingFactTexts = existingFacts.map((f: any) => (f.factText || '').toLowerCase());
+
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_KEY, 'anthropic-version': '2023-06-01' },
+        body: JSON.stringify({
+          model: 'claude-haiku-4-5-20251001',
+          max_tokens: 800,
+          system: `You are a sales CRM assistant extracting KEY FACTS and personal details from a debt settlement sales call that the agent should remember for future follow-up calls. Extract:
+- Personal details: spouse name, kids' names/ages, birthday, anniversary
+- Life events: job change, medical issue, divorce, relocation, retirement
+- Financial details: income, debt amount, creditor names, payment struggles
+- Preferences: best time to call, communication preference
+- Follow-up items: things they said to follow up on ("my wife's birthday is next week", "I get paid Friday", "call me after the holidays")
+- Hot buttons: emotional triggers, things that excited or concerned them
+
+Only extract facts that are EXPLICITLY mentioned in the transcript. Do NOT make up data.
+Return ONLY this JSON (no markdown):
+{"facts":[{"type":"personal|family|financial|preference|life_event|follow_up|hot_button","fact":"the key fact","context":"how it came up in 1 sentence","importance":"high|medium|low","followUpDate":"ISO date if time-sensitive like a birthday next week, else null"}]}
+
+EXISTING FACTS ALREADY STORED (do not duplicate these):
+${existingFactTexts.length > 0 ? existingFactTexts.join('\n') : 'None yet'}`,
+          messages: [{ role: 'user', content: `Call transcript:\n${fullTranscript.slice(0, 5000)}` }],
+        }),
+      });
+      const data = await res.json();
+      const text = data?.content?.[0]?.text || '{}';
+      try {
+        const result = JSON.parse(text.replace(/```json|```/g, '').trim());
+        return Response.json({ facts: result.facts || [] });
+      } catch {
+        return Response.json({ facts: [] });
       }
     }
 

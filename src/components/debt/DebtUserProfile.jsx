@@ -4,6 +4,7 @@
  */
 import { useState, useEffect, useCallback } from 'react';
 import { base44 } from '@/api/base44Client';
+import KeyFactsPanel from '@/components/debt/KeyFactsPanel';
 
 const GOLD = '#10b981';
 const ls = { display: 'block', color: '#8a9ab8', fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '6px' };
@@ -100,6 +101,26 @@ export default function DebtUserProfile() {
 
             {profile ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                {/* Intent Engine Metrics Grid */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px' }}>
+                  {profile.engagementScore != null && <MetricBox label="Engagement" value={profile.engagementScore} max={100} color="#4ade80" notes={profile.engagementNotes} />}
+                  {profile.excitementLevel && <MetricBox label="Excitement" value={profile.excitementLevel} color="#f472b6" notes={profile.excitementNotes} />}
+                  {profile.emotionalState && <MetricBox label="Emotional State" value={profile.emotionalState} color="#fb923c" notes={profile.emotionalNotes} />}
+                  {profile.commitmentLevel && <MetricBox label="Commitment" value={profile.commitmentLevel} color={profile.commitmentLevel === 'firm' ? '#4ade80' : profile.commitmentLevel === 'soft' ? '#f59e0b' : '#ef4444'} notes={profile.commitmentDetails} />}
+                  {profile.pace && <MetricBox label="Pace" value={profile.pace} color="#60a5fa" notes={profile.paceNotes} />}
+                  {profile.rapportLevel != null && <MetricBox label="Rapport" value={profile.rapportLevel} max={100} color="#a78bfa" notes={profile.rapportNotes} />}
+                </div>
+
+                {/* Call analytics */}
+                {(profile.questionCount != null || profile.talkRatioProspect != null || profile.callDurationSeconds != null) && (
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px' }}>
+                    {profile.questionCount != null && <StatBox label="Questions Asked" value={profile.questionCount} />}
+                    {profile.talkRatioProspect != null && <StatBox label="Talk Ratio" value={`${profile.talkRatioProspect}%`} />}
+                    {profile.callDurationSeconds != null && <StatBox label="Call Duration" value={`${Math.floor(profile.callDurationSeconds/60)}m ${profile.callDurationSeconds%60}s`} />}
+                    {profile.hesitationCount != null && <StatBox label="Hesitations" value={profile.hesitationCount} />}
+                  </div>
+                )}
+
                 {profile.overallIntentLabel && (
                   <div>
                     <div style={{ color: GOLD, fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '6px' }}>Overall Intent</div>
@@ -148,6 +169,11 @@ export default function DebtUserProfile() {
               <div style={{ color: '#4a5568', textAlign: 'center', padding: '40px 0', fontSize: '12px' }}>No AI profile yet. Run a live call to build this profile automatically.</div>
             )}
 
+            {/* Key Facts & Memory — persisted across calls, surfaced in AI Coach */}
+            <div style={{ marginTop: '20px', paddingTop: '16px', borderTop: '1px solid rgba(255,255,255,0.07)' }}>
+              <KeyFactsPanel leadId={selected.id} leadName={`${selected.firstName} ${selected.lastName}`.trim()} />
+            </div>
+
             {selected.notes && (
               <div style={{ marginTop: '20px', paddingTop: '16px', borderTop: '1px solid rgba(255,255,255,0.07)' }}>
                 <div style={{ color: GOLD, fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '6px' }}>Notes</div>
@@ -166,6 +192,24 @@ function StatBox({ label, value }) {
     <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '4px', padding: '12px', textAlign: 'center' }}>
       <div style={{ color: '#e8e0d0', fontSize: '16px', fontWeight: 'bold' }}>{value}</div>
       <div style={{ color: '#6b7280', fontSize: '9px', textTransform: 'uppercase', letterSpacing: '1px', marginTop: '4px' }}>{label}</div>
+    </div>
+  );
+}
+
+function MetricBox({ label, value, max, color, notes }) {
+  const isScore = max != null && typeof value === 'number';
+  return (
+    <div style={{ background: `${color}08`, border: `1px solid ${color}22`, borderRadius: '4px', padding: '10px 12px' }}>
+      <div style={{ color, fontSize: '9px', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '4px' }}>{label}</div>
+      <div style={{ color: '#e8e0d0', fontSize: '15px', fontWeight: 'bold', textTransform: 'capitalize' }}>
+        {isScore ? `${value}/100` : value}
+      </div>
+      {isScore && (
+        <div style={{ height: '4px', background: 'rgba(255,255,255,0.08)', borderRadius: '2px', marginTop: '6px', overflow: 'hidden' }}>
+          <div style={{ width: `${Math.min(100, value)}%`, height: '100%', background: color, borderRadius: '2px' }} />
+        </div>
+      )}
+      {notes && <div style={{ color: '#8a9ab8', fontSize: '10px', marginTop: '4px', lineHeight: 1.4 }}>{notes}</div>}
     </div>
   );
 }

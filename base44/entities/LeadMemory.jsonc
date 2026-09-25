@@ -1,0 +1,80 @@
+{
+  "name": "LeadMemory",
+  "type": "object",
+  "properties": {
+    "leadId": {
+      "type": "string",
+      "title": "Lead ID"
+    },
+    "leadName": {
+      "type": "string",
+      "title": "Lead Name (for display)"
+    },
+    "factType": {
+      "type": "string",
+      "title": "Fact Type",
+      "enum": [
+        "personal",
+        "family",
+        "financial",
+        "preference",
+        "life_event",
+        "objection",
+        "commitment",
+        "follow_up",
+        "hot_button"
+      ],
+      "default": "personal"
+    },
+    "factText": {
+      "type": "string",
+      "title": "Fact / Key Detail",
+      "format": "textarea"
+    },
+    "context": {
+      "type": "string",
+      "title": "Context (how it came up)",
+      "format": "textarea"
+    },
+    "importance": {
+      "type": "string",
+      "title": "Importance",
+      "enum": [
+        "high",
+        "medium",
+        "low"
+      ],
+      "default": "medium"
+    },
+    "callDate": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Mentioned On"
+    },
+    "followUpDate": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Follow Up By (if time-sensitive)"
+    },
+    "isResolved": {
+      "type": "boolean",
+      "title": "Resolved / Acknowledged",
+      "default": false
+    },
+    "sourceCallSid": {
+      "type": "string",
+      "title": "Source Call SID"
+    }
+  },
+  "required": [
+    "leadId",
+    "factType",
+    "factText"
+  ],
+  "rls": {
+    "create": null,
+    "read": null,
+    "update": null,
+    "delete": null
+  }
+}

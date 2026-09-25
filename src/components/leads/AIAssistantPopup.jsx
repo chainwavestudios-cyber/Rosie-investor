@@ -573,7 +573,7 @@ function QASection({ transcript, transcriptRef, kbEntries, active, qaKeywords, m
 }
 
 // ── Coach Section v2.0 ────────────────────────────────────────────────────────
-function CoachSection({ transcript, kbEntries, coachRules, active, collapsed, lead, callAttemptNumber, previousCallSummary }) {
+function CoachSection({ transcript, kbEntries, coachRules, active, collapsed, lead, callAttemptNumber, previousCallSummary, memories }) {
   const [autoTips,    setAutoTips]    = useState([]);
   const [tileOutputs, setTileOutputs] = useState([]); // [{id,tile,text,loading,time}]
   const [activeTile,  setActiveTile]  = useState(null);
@@ -603,6 +603,7 @@ function CoachSection({ transcript, kbEntries, coachRules, active, collapsed, le
       mode: 'coach_stream',
       coachRules,
       callAttemptNumber,
+      memories: memories || [],
     })
       .then(res => setAutoTips(prev => prev.map(t => t.id === tipId ? { ...t, text: res?.data?.answer || res?.data?.tip || '', streaming: false } : t)))
       .catch(e => setAutoTips(prev => prev.map(t => t.id === tipId ? { ...t, text: `Error: ${e.message}`, streaming: false } : t)))
@@ -710,6 +711,7 @@ function CoachSection({ transcript, kbEntries, coachRules, active, collapsed, le
           additionalContext: previousCallSummary ? `Previous call notes: ${previousCallSummary}` : (coachRules?.additionalContext || ''),
         },
         callAttemptNumber: callNum,
+        memories: memories || [],
       });
       const text = res?.data?.tip || res?.data?.response || res?.data?.answer || res?.data?.content || 'No suggestion — try again.';
       setTileOutputs(prev => prev.map(x => x.id === id ? { ...x, text, loading: false } : x));
@@ -747,6 +749,22 @@ function CoachSection({ transcript, kbEntries, coachRules, active, collapsed, le
         <div style={{ background: 'rgba(96,165,250,0.06)', border: '1px solid rgba(96,165,250,0.2)', borderRadius: '4px', padding: '6px 10px', fontSize: '10px', color: '#60a5fa' }}>
           📞 Call #{callAttemptNumber || lead?.callAttempts || '?'} with {lead?.firstName || 'prospect'}
           {previousCallSummary && <span style={{ color: '#4a5568' }}> · Prior call notes available</span>}
+        </div>
+      )}
+
+      {/* Key Facts / Memories — surfaced front and center for follow-up calls */}
+      {memories && memories.length > 0 && (
+        <div style={{ background: 'rgba(244,114,182,0.06)', border: '1px solid rgba(244,114,182,0.25)', borderRadius: '4px', padding: '8px 10px' }}>
+          <div style={{ color: '#f472b6', fontSize: '8px', letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: '6px', fontWeight: 'bold' }}>🧠 Key Facts — Reference These Naturally</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+            {memories.filter(m => !m.isResolved).slice(0, 6).map((m, i) => (
+              <div key={m.id || i} style={{ display: 'flex', gap: '6px', alignItems: 'flex-start', fontSize: '10px' }}>
+                <span style={{ color: '#f472b6', flexShrink: 0 }}>{m.importance === 'high' ? '★' : '•'}</span>
+                <span style={{ color: '#c4cdd8', lineHeight: 1.4 }}>{m.factText}</span>
+                {m.followUpDate && <span style={{ color: '#fb923c', fontSize: '9px', flexShrink: 0 }}>🔔 {new Date(m.followUpDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>}
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
@@ -864,6 +882,7 @@ export default function AIAssistantPopup({
   allKbEntries, kbNames, selectedKbName, onKbChange,
   activeScript, scripts,
   callAttemptNumber, previousCallSummary,
+  memories,
 }) {
   const saved = loadSavedSize();
   const [pos,    setPos]    = useState(saved ? { x: saved.x, y: saved.y } : { x: 20, y: Math.max(20, window.innerHeight - 540) });
@@ -1054,7 +1073,7 @@ export default function AIAssistantPopup({
 
               <div style={{display:'flex',flexDirection:'column',overflow:'hidden',flex:coachCollapsed?'0 0 auto':coachH,minHeight:coachCollapsed?0:60}}>
                 <SectionHeader label="🎯 Coach" color="#a78bfa" active={coachActive} onToggle={onToggleCoach} collapsed={coachCollapsed} onCollapse={()=>setCoachCollapsed(p=>!p)} />
-                <CoachSection transcript={transcript} kbEntries={kbEntries} coachRules={{focusAreas:portalCfg?.coachFocusAreas,style:portalCfg?.coachStyle,additionalContext:portalCfg?.coachAdditionalContext}} active={coachActive} collapsed={coachCollapsed} lead={lead} callAttemptNumber={callAttemptNumber || lead?.callAttempts} previousCallSummary={previousCallSummary} />
+                <CoachSection transcript={transcript} kbEntries={kbEntries} coachRules={{focusAreas:portalCfg?.coachFocusAreas,style:portalCfg?.coachStyle,additionalContext:portalCfg?.coachAdditionalContext}} active={coachActive} collapsed={coachCollapsed} lead={lead} callAttemptNumber={callAttemptNumber || lead?.callAttempts} previousCallSummary={previousCallSummary} memories={memories || []} />
               </div>
 
               {!coachCollapsed&&!intentCollapsed&&<DragHandle onDragStart={e=>{resizingDiv.current='coach-intent';divStartY.current=e.clientY;divStartH.current=coachH;e.preventDefault();}} />}

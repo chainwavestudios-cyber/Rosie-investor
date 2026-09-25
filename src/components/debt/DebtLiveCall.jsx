@@ -34,6 +34,7 @@ export default function DebtLiveCall() {
   const [lead, setLead] = useState({ firstName: '', lastName: '', status: 'new' });
   const [showLeadPicker, setShowLeadPicker] = useState(false);
   const [profileData, setProfileData] = useState(null);
+  const [memories, setMemories] = useState([]);
 
   // AI tools
   const [qaActive, setQaActive] = useState(true);
@@ -66,6 +67,24 @@ export default function DebtLiveCall() {
   const callStartRef = useRef(null);
 
   useEffect(() => { leadRef.current = lead; }, [lead]);
+
+  // Load key memories for the selected lead — surfaced in AI Coach on follow-up calls
+  const loadMemories = useCallback(async (leadId) => {
+    if (!leadId) { setMemories([]); return; }
+    try {
+      const rows = await base44.entities.LeadMemory.filter({ leadId }, '-created_date', 200);
+      setMemories(rows || []);
+    } catch { setMemories([]); }
+  }, []);
+
+  useEffect(() => { loadMemories(lead.id); }, [lead.id, loadMemories]);
+
+  // Listen for memory updates from fact extraction
+  useEffect(() => {
+    const handler = () => { if (leadRef.current?.id) loadMemories(leadRef.current.id); };
+    window.addEventListener('lead_memories_updated', handler);
+    return () => window.removeEventListener('lead_memories_updated', handler);
+  }, [loadMemories]);
 
   // Load KB
   useEffect(() => {
@@ -399,6 +418,25 @@ ${recentText}`,
           setIntentScore(intent.intentScore);
           setProfileData(prev => ({ ...prev, ...intent }));
           setLead(prev => ({ ...prev, intentScore: intent.intentScore, animalType: intent.animalType, profileJson: JSON.stringify({ ...prev, ...intent }) }));
+
+          // Save keyFacts from intent engine to LeadMemory
+          if (intent.keyFacts && intent.keyFacts.length > 0) {
+            const leadName = `${leadRef.current.firstName || ''} ${leadRef.current.lastName || ''}`.trim();
+            const nowISO = new Date().toISOString();
+            const factsToCreate = intent.keyFacts.map(f => ({
+              leadId: leadRef.current.id,
+              leadName,
+              factType: f.type || 'personal',
+              factText: f.fact || '',
+              context: f.context || '',
+              importance: f.importance || 'medium',
+              callDate: nowISO,
+              followUpDate: f.followUpDate || null,
+            })).filter(f => f.factText);
+            if (factsToCreate.length > 0) {
+              try { await base44.entities.LeadMemory.bulkCreate(factsToCreate); } catch {}
+            }
+          }
         }
         await base44.entities.DebtLead.update(leadRef.current.id, {
           lastCallAt: new Date().toISOString(),
@@ -407,6 +445,31 @@ ${recentText}`,
           intentScore: intent?.intentScore,
           animalType: intent?.animalType,
         });
+
+        // Also run dedicated fact extraction for any memories the intent engine missed
+        try {
+          const existingFactTexts = (await base44.entities.LeadMemory.filter({ leadId: leadRef.current.id }, '-created_date', 200)).map(m => (m.factText || '').toLowerCase());
+          const factsRes = await base44.functions.invoke('liveAssistantAI', { transcript: transcriptRef.current, mode: 'extract_facts', existingFacts: existingFactTexts.map(t => ({ factText: t })) });
+          const newFacts = factsRes?.facts || factsRes?.data?.facts || [];
+          if (newFacts.length > 0) {
+            const leadName = `${leadRef.current.firstName || ''} ${leadRef.current.lastName || ''}`.trim();
+            const nowISO = new Date().toISOString();
+            const factsToCreate = newFacts.map(f => ({
+              leadId: leadRef.current.id,
+              leadName,
+              factType: f.type || 'personal',
+              factText: f.fact || '',
+              context: f.context || '',
+              importance: f.importance || 'medium',
+              callDate: nowISO,
+              followUpDate: f.followUpDate || null,
+            })).filter(f => f.factText && !existingFactTexts.includes(f.fact.toLowerCase()));
+            if (factsToCreate.length > 0) {
+              await base44.entities.LeadMemory.bulkCreate(factsToCreate);
+              window.dispatchEvent(new CustomEvent('lead_memories_updated'));
+            }
+          }
+        } catch {}
       } catch {}
 
       setGeneratingReport(true);
@@ -567,6 +630,8 @@ ${recentText}`,
           profileData={profileData}
           intentScore={intentScore}
           ledgerExtracting={ledgerExtracting}
+          memories={memories}
+          lead={lead}
         />
       </div>
 

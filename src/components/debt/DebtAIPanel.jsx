@@ -22,6 +22,8 @@ export default function DebtAIPanel({
   profileData = null,
   intentScore: externalIntentScore = null,
   ledgerExtracting = false,
+  memories = [],
+  lead = null,
 }) {
   const { incomingCall } = useTwilioDevice();
 
@@ -280,7 +282,7 @@ export default function DebtAIPanel({
       {/* AI Assistant Popup — identical to admin panel: draggable, resizable, collapsible sections */}
       {showPopup && (
         <AIAssistantPopup
-          lead={null}
+          lead={lead}
           transcript={normalizedTranscript}
           transcriptRef={transcriptRef}
           kbEntries={kbEntries}
@@ -303,8 +305,9 @@ export default function DebtAIPanel({
           onKbChange={handleKbChange}
           activeScript={null}
           scripts={[]}
-          callAttemptNumber={1}
+          callAttemptNumber={lead?.callCount ? lead.callCount + 1 : 1}
           previousCallSummary={null}
+          memories={memories}
         />
       )}
     </>
