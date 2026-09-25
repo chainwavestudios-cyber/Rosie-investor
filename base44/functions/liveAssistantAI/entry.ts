@@ -86,6 +86,10 @@ Deno.serve(async (req) => {
       const hotpointContext = hotpoints.length > 0
         ? hotpoints.map((e: any) => `TRIGGER: ${e.question}\nTYPE: ${e.tags || 'general'}\nGUIDANCE: ${e.answer}`).join('\n---\n')
         : '';
+      const objections = (kbEntries || []).filter((e: any) => e.category === 'debt_objections');
+      const objectionContext = objections.length > 0
+        ? objections.map((e: any) => `OBJECTION: "${e.question}"\nHOW TO HANDLE: ${e.answer}`).join('\n---\n')
+        : '';
       const res = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_KEY, 'anthropic-version': '2023-06-01' },
@@ -95,6 +99,7 @@ Deno.serve(async (req) => {
           system: `You are a real-time sales coach whispering to an agent on a live debt settlement call. Give ONE actionable tip in 1-2 sentences. Be direct and specific — agent reads this mid-call.
 Focus: handling objections, building rapport, next talking point, timing a close.
 ${hotpointContext ? `\n━━━ COACHING HOTPOINTS — Watch for these triggers in the live conversation. If the customer or agent says something matching a trigger, immediately coach the agent using the guidance and strategy below: ━━━\n${hotpointContext}` : ''}
+${objectionContext ? `\n━━━ OBJECTION HANDLING CATALOG — When the customer raises any of these objections (or something close), coach the agent on how to handle them using the guidance below. Match the customer's words to the closest objection: ━━━\n${objectionContext}` : ''}
 ${kbContext ? `\n\nRelevant KB:\n${kbContext}` : ''}`,
           messages: [{ role: 'user', content: `Live conversation:\n${recentTranscript}\n\nCoaching tip now:` }],
         }),
@@ -111,6 +116,10 @@ ${kbContext ? `\n\nRelevant KB:\n${kbContext}` : ''}`,
       const hotpointContext = hotpoints.length > 0
         ? hotpoints.map((e: any) => `TRIGGER: ${e.question}\nTYPE: ${e.tags || 'general'}\nGUIDANCE: ${e.answer}`).join('\n---\n')
         : '';
+      const objections = (kbEntries || []).filter((e: any) => e.category === 'debt_objections');
+      const objectionContext = objections.length > 0
+        ? objections.map((e: any) => `OBJECTION: "${e.question}"\nHOW TO HANDLE: ${e.answer}`).join('\n---\n')
+        : '';
       const res = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
         headers: {
@@ -123,7 +132,7 @@ ${kbContext ? `\n\nRelevant KB:\n${kbContext}` : ''}`,
           model: 'claude-haiku-4-5-20251001',
           max_tokens: 200,
           stream: true,
-          system: `You are a real-time sales coach whispering to an agent on a live investor call. ${coachRules?.style || 'Give ONE actionable tip in 1-2 sentences. Be direct and specific — agent reads this mid-call.'}\nFocus: ${coachRules?.focusAreas || 'handling objections, building rapport, next talking point, timing a close'}.${coachRules?.additionalContext ? `\nContext: ${coachRules.additionalContext}` : ''}${callAttemptNumber ? `\nThis is call #${callAttemptNumber} with this prospect.` : ''}${hotpointContext ? `\n\n━━━ COACHING HOTPOINTS — Watch for these triggers. If the customer or agent says something matching a trigger, coach the agent using the guidance: ━━━\n${hotpointContext}` : ''}${kbContext ? `\n\nRelevant KB:\n${kbContext}` : ''}`,
+          system: `You are a real-time sales coach whispering to an agent on a live investor call. ${coachRules?.style || 'Give ONE actionable tip in 1-2 sentences. Be direct and specific — agent reads this mid-call.'}\nFocus: ${coachRules?.focusAreas || 'handling objections, building rapport, next talking point, timing a close'}.${coachRules?.additionalContext ? `\nContext: ${coachRules.additionalContext}` : ''}${callAttemptNumber ? `\nThis is call #${callAttemptNumber} with this prospect.` : ''}${hotpointContext ? `\n\n━━━ COACHING HOTPOINTS — Watch for these triggers. If the customer or agent says something matching a trigger, coach the agent using the guidance: ━━━\n${hotpointContext}` : ''}${objectionContext ? `\n\n━━━ OBJECTION HANDLING CATALOG — When the customer raises any of these objections (or something close), coach the agent on how to handle them using the guidance below. Match the customer's words to the closest objection: ━━━\n${objectionContext}` : ''}${kbContext ? `\n\nRelevant KB:\n${kbContext}` : ''}`,
           messages: [{ role: 'user', content: `Live conversation:\n${recentTranscript}\n\nCoaching tip now:` }],
         }),
       });
@@ -349,13 +358,19 @@ Respond ONLY with this exact JSON (no markdown):
         ).join('\n\n')
       : 'No relevant knowledge base entries found.';
 
+    // Include all objections so the agent can handle them with the cataloged guidance
+    const allObjections = (kbEntries || []).filter((e: any) => e.category === 'debt_objections');
+    const objectionContext = allObjections.length > 0
+      ? allObjections.map((e: any) => `OBJECTION: "${e.question}"\nHOW TO HANDLE: ${e.answer}`).join('\n---\n')
+      : '';
+
     const res = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_KEY, 'anthropic-version': '2023-06-01' },
       body: JSON.stringify({
         model: 'claude-haiku-4-5-20251001',
         max_tokens: 500,
-        system: `You are a real-time sales assistant on a live investor call. Answer questions from the knowledge base. Be concise — 2-4 sentences the agent can speak naturally. If the exact answer is in the KB, use it verbatim. If it requires synthesis, combine the relevant entries.\n\nKNOWLEDGE BASE${kbName ? ` (${kbName})` : ''}:\n${kbContext}`,
+        system: `You are a real-time sales assistant on a live investor call. Answer questions from the knowledge base. Be concise — 2-4 sentences the agent can speak naturally. If the exact answer is in the KB, use it verbatim. If it requires synthesis, combine the relevant entries. If the customer is raising an objection, use the OBJECTION HANDLING CATALOG below to give the agent the exact rebuttal.\n\nKNOWLEDGE BASE${kbName ? ` (${kbName})` : ''}:\n${kbContext}${objectionContext ? `\n\n━━━ OBJECTION HANDLING CATALOG — If the question is an objection, use the matching handling guidance: ━━━\n${objectionContext}` : ''}`,
         messages: [{ role: 'user', content: `${recentTranscript ? `Recent conversation:\n${recentTranscript}\n\n` : ''}Question: "${question}"\n\nAnswer from KB:` }],
       }),
     });

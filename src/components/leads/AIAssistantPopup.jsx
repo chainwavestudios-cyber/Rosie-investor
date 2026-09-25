@@ -632,6 +632,32 @@ function CoachSection({ transcript, kbEntries, coachRules, active, collapsed, le
     }
   }, [transcript, active, collapsed, kbEntries]);
 
+  // ── Objection detection: surface handling guidance when prospect raises a known objection ──
+  const deliveredObjections = useRef(new Set());
+  useEffect(() => { if (active) deliveredObjections.current.clear(); }, [active]);
+  useEffect(() => {
+    if (!active || !transcript.length || collapsed) return;
+    const objections = (kbEntries || []).filter(e => e.category === 'debt_objections');
+    if (objections.length === 0) return;
+    const last = transcript[transcript.length - 1];
+    if (!last?.text) return;
+    const isProspect = last.speaker === 0 || last.speaker === null || last.speaker === undefined;
+    if (!isProspect) return;
+    const lowerText = last.text.toLowerCase();
+    const now = Date.now();
+    if (now - lastFired.current < 3000) return;
+    for (const obj of objections) {
+      if (deliveredObjections.current.has(obj.id)) continue;
+      const keywords = (obj.question || '').toLowerCase().split(/\s+/).filter(w => w.length > 3 && !['what','how','why','where','when','this','that','they','them','their','have','with','from','your','just','like','know','think','want','need','going','about'].includes(w));
+      if (keywords.length >= 2 && keywords.some(k => lowerText.includes(k))) {
+        deliveredObjections.current.add(obj.id);
+        lastFired.current = now;
+        const tipId = Date.now() + Math.random();
+        setAutoTips(prev => [...prev, { id: tipId, text: `🚫 Customer objection: "${obj.question}"\n\n💡 How to handle: ${obj.answer}`, streaming: false, time: new Date(), objection: true, objectionTitle: obj.question }]);
+      }
+    }
+  }, [transcript, active, collapsed, kbEntries]);
+
   // ── Tile definitions ─────────────────────────────────────────────────────────
   const TILES = [
     { id: 'open_strong',     label: '🎯 Open Strong' },
@@ -741,11 +767,11 @@ function CoachSection({ transcript, kbEntries, coachRules, active, collapsed, le
       {/* Auto-coach tips */}
       {autoTips.length > 0 && (
         <div>
-          <div style={{ color: '#4a5568', fontSize: '8px', letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: '5px' }}>Auto Coach & Hotpoints</div>
+          <div style={{ color: '#4a5568', fontSize: '8px', letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: '5px' }}>Auto Coach & Hotpoints & Objections</div>
           {[...autoTips].reverse().map((tip, i) => (
-            <div key={tip.id} style={{ background: tip.hotpoint ? 'rgba(239,68,68,0.06)' : 'rgba(167,139,250,0.05)', border: `1px solid ${tip.hotpoint ? 'rgba(239,68,68,0.25)' : 'rgba(167,139,250,0.12)'}`, borderRadius: '6px', padding: '9px 12px', marginBottom: '5px' }}>
+            <div key={tip.id} style={{ background: tip.hotpoint ? 'rgba(239,68,68,0.06)' : tip.objection ? 'rgba(251,146,60,0.06)' : 'rgba(167,139,250,0.05)', border: `1px solid ${tip.hotpoint ? 'rgba(239,68,68,0.25)' : tip.objection ? 'rgba(251,146,60,0.25)' : 'rgba(167,139,250,0.12)'}`, borderRadius: '6px', padding: '9px 12px', marginBottom: '5px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                <span style={{ color: tip.hotpoint ? '#ef4444' : '#4a5568', fontSize: '8px', fontWeight: tip.hotpoint ? 'bold' : 'normal', letterSpacing: '1px', textTransform: 'uppercase' }}>{tip.hotpoint ? `🔥 Hotpoint${tip.hotpointTitle ? ` — ${tip.hotpointTitle.slice(0, 60)}` : ''}` : ''}</span>
+                <span style={{ color: tip.hotpoint ? '#ef4444' : tip.objection ? '#fb923c' : '#4a5568', fontSize: '8px', fontWeight: (tip.hotpoint || tip.objection) ? 'bold' : 'normal', letterSpacing: '1px', textTransform: 'uppercase' }}>{tip.hotpoint ? `🔥 Hotpoint${tip.hotpointTitle ? ` — ${tip.hotpointTitle.slice(0, 60)}` : ''}` : tip.objection ? `🚫 Objection${tip.objectionTitle ? ` — ${tip.objectionTitle.slice(0, 60)}` : ''}` : ''}</span>
                 <span style={{ color: '#4a5568', fontSize: '8px' }}>{tip.time.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', second: '2-digit' })}</span>
               </div>
               {tip.streaming
