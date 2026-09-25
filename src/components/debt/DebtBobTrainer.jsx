@@ -75,7 +75,7 @@ export default function DebtBobTrainer() {
   const [selectedKbName, setSelectedKbName] = useState('Debt Settlement');
     const [mode, setMode] = useState('open'); // 'open' | 'close'
     const controlsPanel = usePopOutPanel('bob_controls', { width: 380, height: 600 });
-    const [closerName, setCloserName] = useState('Drew');
+    const [closerName, setCloserName] = useState('Chris Bonjiorno');
     const [objections, setObjections] = useState([]);
     const [openScenarios, setOpenScenarios] = useState([]);
     const [closeScenarios, setCloseScenarios] = useState([]);
