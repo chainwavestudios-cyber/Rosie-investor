@@ -64,6 +64,9 @@ function MyScriptsTab() {
   const [newType, setNewType] = useState('custom');
   const [deleting, setDeleting] = useState(false);
 
+  const autoSaveTimer = useRef(null);
+  const activeRef = useRef(null);
+
   const loadScripts = useCallback(async () => {
     setLoading(true);
     try {
@@ -77,13 +80,39 @@ function MyScriptsTab() {
   useEffect(() => { loadScripts(); }, [loadScripts]);
 
   const active = scripts.find(s => s.id === activeId) || scripts[0];
+  useEffect(() => { activeRef.current = active; }, [active]);
 
   const updateActive = (changes) => {
     setScripts(prev => prev.map(s => s.id === activeId ? { ...s, ...changes } : s));
   };
 
+  // Auto-save with 1.2s debounce — no need to click Save
+  const scheduleAutoSave = useCallback(() => {
+    if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
+    autoSaveTimer.current = setTimeout(async () => {
+      const cur = activeRef.current;
+      if (!cur) return;
+      setSaving(true);
+      try {
+        await base44.entities.DebtScript.update(cur.id, {
+          name: cur.name, content: cur.content || '',
+          color: cur.color, fontSize: cur.fontSize, scriptType: cur.scriptType,
+        });
+        setSaveMsg('Saved ✓');
+        setTimeout(() => setSaveMsg(''), 1500);
+      } catch (e) { setSaveMsg('Error: ' + e.message); }
+      setSaving(false);
+    }, 1200);
+  }, []);
+
+  const updateAndSave = (changes) => {
+    updateActive(changes);
+    scheduleAutoSave();
+  };
+
   const saveActive = async () => {
     if (!active) return;
+    if (autoSaveTimer.current) { clearTimeout(autoSaveTimer.current); autoSaveTimer.current = null; }
     setSaving(true); setSaveMsg('');
     try {
       await base44.entities.DebtScript.update(active.id, {
@@ -95,6 +124,8 @@ function MyScriptsTab() {
     } catch (e) { setSaveMsg('Error: ' + e.message); }
     setSaving(false);
   };
+
+  useEffect(() => () => { if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current); }, []);
 
   const addScript = async () => {
     if (!newName.trim()) return;
@@ -154,8 +185,8 @@ function MyScriptsTab() {
         <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
           {/* Name + type row */}
           <div style={{ display: 'flex', gap: '8px', marginBottom: '10px', flexShrink: 0, flexWrap: 'wrap' }}>
-            <input value={active.name || ''} onChange={e => updateActive({ name: e.target.value })} placeholder="Script name…" style={{ ...inp, flex: 1, minWidth: '120px' }} />
-            <select value={active.scriptType || 'custom'} onChange={e => updateActive({ scriptType: e.target.value })} style={{ ...inp, width: '130px', cursor: 'pointer' }}>
+            <input value={active.name || ''} onChange={e => updateAndSave({ name: e.target.value })} placeholder="Script name…" style={{ ...inp, flex: 1, minWidth: '120px' }} />
+            <select value={active.scriptType || 'custom'} onChange={e => updateAndSave({ scriptType: e.target.value })} style={{ ...inp, width: '130px', cursor: 'pointer' }}>
               {SCRIPT_TYPES.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
             </select>
           </div>
@@ -164,7 +195,7 @@ function MyScriptsTab() {
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px', flexWrap: 'wrap', flexShrink: 0 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
               <span style={{ color: '#4a5568', fontSize: '10px', letterSpacing: '1px', textTransform: 'uppercase' }}>Size</span>
-              <select value={active.fontSize || 14} onChange={e => updateActive({ fontSize: parseInt(e.target.value) })} style={{ ...inp, width: '55px', padding: '3px 6px', cursor: 'pointer' }}>
+              <select value={active.fontSize || 14} onChange={e => updateAndSave({ fontSize: parseInt(e.target.value) })} style={{ ...inp, width: '55px', padding: '3px 6px', cursor: 'pointer' }}>
                 {FONT_SIZES.map(s => <option key={s} value={s}>{s}px</option>)}
               </select>
             </div>
@@ -172,7 +203,7 @@ function MyScriptsTab() {
               <span style={{ color: '#4a5568', fontSize: '10px', letterSpacing: '1px', textTransform: 'uppercase' }}>Color</span>
               <div style={{ display: 'flex', gap: '3px' }}>
                 {TEXT_COLORS.map(c => (
-                  <button key={c.value} onClick={() => updateActive({ color: c.value })} title={c.label} style={{ width: '18px', height: '18px', borderRadius: '50%', background: c.value, border: active.color === c.value ? '2px solid #fff' : '2px solid transparent', cursor: 'pointer', padding: 0 }} />
+                  <button key={c.value} onClick={() => updateAndSave({ color: c.value })} title={c.label} style={{ width: '18px', height: '18px', borderRadius: '50%', background: c.value, border: active.color === c.value ? '2px solid #fff' : '2px solid transparent', cursor: 'pointer', padding: 0 }} />
                 ))}
               </div>
             </div>
@@ -188,7 +219,7 @@ function MyScriptsTab() {
           {/* Editor textarea */}
           <textarea
             value={active.content || ''}
-            onChange={e => updateActive({ content: e.target.value })}
+            onChange={e => updateAndSave({ content: e.target.value })}
             placeholder="Type your script here… Use {{firstname}} or {{lastname}} for auto-insertion."
             style={{
               flex: 1, width: '100%', background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.08)',
