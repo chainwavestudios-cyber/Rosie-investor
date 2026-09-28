@@ -164,6 +164,26 @@
       "type": "string",
       "format": "date-time",
       "title": "Credit Report Analyzed At"
+    },
+    "hardshipWhen": {
+      "type": "string",
+      "title": "Hardship \u2014 When It Started",
+      "format": "textarea"
+    },
+    "hardshipWhy": {
+      "type": "string",
+      "title": "Hardship \u2014 Why It Happened",
+      "format": "textarea"
+    },
+    "hardshipHow": {
+      "type": "string",
+      "title": "Hardship \u2014 How It Impacted Finances",
+      "format": "textarea"
+    },
+    "cosignersJson": {
+      "type": "string",
+      "title": "Co-Signers (JSON)",
+      "format": "textarea"
     }
   },
   "required": [

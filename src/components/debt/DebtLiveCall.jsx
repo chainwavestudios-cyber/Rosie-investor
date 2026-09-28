@@ -59,6 +59,9 @@ export default function DebtLiveCall() {
   const [pendingQuestion, setPendingQuestion] = useState(null);
   const leadPanel = usePopOutPanel('live_lead_card', { width: 420, height: 600 });
   const transcriptPanel = usePopOutPanel('live_transcript', { width: 520, height: 600 });
+  const aiPanel = usePopOutPanel('live_ai_panel', { width: 420, height: 600 });
+  const [allPoppedOut, setAllPoppedOut] = useState(false);
+  const [layoutSavedMsg, setLayoutSavedMsg] = useState(false);
 
   // Click 💡 on a transcript line → send to Q&A
   const handleAnswerQuestion = useCallback((text) => {
@@ -77,6 +80,8 @@ export default function DebtLiveCall() {
   const lastProfileTime = useRef(0);
   const lastLedgerTime = useRef(0);
   const lastBillsTime = useRef(0);
+  const lastHardshipTime = useRef(0);
+  const lastCosignerTime = useRef(0);
   const callStartRef = useRef(null);
   const testCtxRef = useRef(null);
   const testAgentStreamRef = useRef(null);
@@ -315,6 +320,44 @@ ${recentText}`,
     } catch {}
   }, []);
 
+  // Auto-extract hardship info from transcript
+  const handleHardshipExtract = useCallback(async () => {
+    if (!leadRef.current?.id || transcriptRef.current.length < 4) return;
+    try {
+      const res = await base44.functions.invoke('liveAssistantAI', { transcript: transcriptRef.current.slice(-15), mode: 'hardship' });
+      const hardship = res?.hardship || res?.data?.hardship;
+      if (hardship) {
+        const updates = {};
+        if (hardship.when && !leadRef.current.hardshipWhen) updates.hardshipWhen = hardship.when;
+        if (hardship.why && !leadRef.current.hardshipWhy) updates.hardshipWhy = hardship.why;
+        if (hardship.how && !leadRef.current.hardshipHow) updates.hardshipHow = hardship.how;
+        if (Object.keys(updates).length > 0) {
+          setLead(prev => ({ ...prev, ...updates }));
+          if (leadRef.current.id) base44.entities.DebtLead.update(leadRef.current.id, updates).catch(() => {});
+        }
+      }
+    } catch {}
+  }, []);
+
+  // Auto-extract co-signers from transcript
+  const handleCosignerExtract = useCallback(async () => {
+    if (!leadRef.current?.id || transcriptRef.current.length < 4) return;
+    try {
+      const res = await base44.functions.invoke('liveAssistantAI', { transcript: transcriptRef.current.slice(-15), mode: 'cosigners' });
+      const cosigners = res?.cosigners || res?.data?.cosigners || [];
+      if (cosigners.length > 0) {
+        const existing = (() => { try { return JSON.parse(leadRef.current.cosignersJson || '[]'); } catch { return []; } })();
+        const existingNames = existing.map(c => (c.name || '').toLowerCase());
+        const newEntries = cosigners.filter(c => c.name && !existingNames.includes(c.name.toLowerCase()));
+        if (newEntries.length > 0) {
+          const merged = [...existing, ...newEntries];
+          setLead(prev => ({ ...prev, cosignersJson: JSON.stringify(merged) }));
+          if (leadRef.current.id) base44.entities.DebtLead.update(leadRef.current.id, { cosignersJson: JSON.stringify(merged) }).catch(() => {});
+        }
+      }
+    } catch {}
+  }, []);
+
   const lastEntryRef = useRef(null);
   const processNewEntry = useCallback((entry) => {
     // Deduplicate — Deepgram with utterances=true can send the same final transcript twice
@@ -339,7 +382,9 @@ ${recentText}`,
     if (now - lastProfileTime.current > 60000) { lastProfileTime.current = now; handleProfile(); }
     if (now - lastLedgerTime.current > 45000) { lastLedgerTime.current = now; handleDebtExtract(); }
     if (now - lastBillsTime.current > 50000) { lastBillsTime.current = now; handleBillsExtract(); }
-  }, [qaActive, coachActive, intentActive, handleQa, handleCoach, handleIntent, handleProfile, handleDebtExtract, handleBillsExtract]);
+    if (now - lastHardshipTime.current > 55000) { lastHardshipTime.current = now; handleHardshipExtract(); }
+    if (now - lastCosignerTime.current > 60000) { lastCosignerTime.current = now; handleCosignerExtract(); }
+  }, [qaActive, coachActive, intentActive, handleQa, handleCoach, handleIntent, handleProfile, handleDebtExtract, handleBillsExtract, handleHardshipExtract, handleCosignerExtract]);
 
   const startCall = useCallback(async () => {
     // Ensure we have a lead
@@ -351,6 +396,22 @@ ${recentText}`,
     lastCoachTime.current = Date.now();
     lastIntentTime.current = Date.now();
     lastProfileTime.current = Date.now();
+
+    // Auto-pop-out all panels to saved layout positions
+    setTimeout(() => {
+      leadPanel.popOut();
+      transcriptPanel.popOut();
+      aiPanel.popOut();
+      setAllPoppedOut(true);
+    }, 300);
+
+    // Auto-activate Q&A, Coach, and Intent engines
+    setQaActive(true);
+    setCoachActive(true);
+    setIntentActive(true);
+
+    // Auto-open client profile
+    setShowProfile(true);
 
     const dualMode = !!customerMicId && !!micDeviceId;
 
@@ -522,7 +583,28 @@ ${recentText}`,
           usedCoach: coachActive, usedQA: qaActive, usedIntent: intentActive,
           coachTips: coachTips.map(t => t.tip), qaLog: qaItems.map(q => ({ question: q.question, answer: q.answer })),
         });
-        setReport(res?.report || res?.data?.report || '');
+        const fullReport = res?.report || res?.data?.report || '';
+        setReport(fullReport);
+
+        // Save transcript + report to DebtCallTranscript entity
+        const durationSeconds = callStartRef.current ? Math.round((Date.now() - callStartRef.current.getTime()) / 1000) : 0;
+        const leadName = `${leadRef.current.firstName || ''} ${leadRef.current.lastName || ''}`.trim();
+        try {
+          await base44.entities.DebtCallTranscript.create({
+            leadId: leadRef.current.id,
+            leadName,
+            leadNumber: leadRef.current.leadNumber || '',
+            transcriptJson: JSON.stringify(transcriptRef.current),
+            transcriptLineCount: transcriptRef.current.length,
+            callMode,
+            durationSeconds,
+            intentScore: intentScore ?? null,
+            animalType: leadRef.current.animalType || null,
+            intentReport: intentScore != null ? `Intent Score: ${intentScore}/100\nAnimal: ${leadRef.current.animalType || 'unknown'}` : '',
+            followUpReport: fullReport,
+            callDate: new Date().toISOString(),
+          });
+        } catch {}
       } catch { setReport('Failed to generate report.'); }
       setGeneratingReport(false);
     }
@@ -643,6 +725,21 @@ ${recentText}`,
           </span>
         )}
         <span style={{ color: '#6b7280', fontSize: '11px' }}>{transcript.length} lines</span>
+
+        {allPoppedOut && phase === 'live' && (
+          <button
+            onClick={() => {
+              leadPanel.saveLayout();
+              transcriptPanel.saveLayout();
+              aiPanel.saveLayout();
+              setLayoutSavedMsg(true);
+              setTimeout(() => setLayoutSavedMsg(false), 2000);
+            }}
+            style={{ background: layoutSavedMsg ? 'rgba(74,222,128,0.2)' : `${GOLD}18`, color: layoutSavedMsg ? '#4ade80' : GOLD, border: `1px solid ${layoutSavedMsg ? 'rgba(74,222,128,0.4)' : GOLD + '44'}`, borderRadius: '4px', padding: '8px 16px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase', whiteSpace: 'nowrap' }}
+          >
+            {layoutSavedMsg ? '✓ Layout Saved' : '💾 Save Layout'}
+          </button>
+        )}
       </div>
 
       {error && <div style={{ marginBottom: '12px', padding: '10px 14px', background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '4px', color: '#ef4444', fontSize: '12px' }}>⚠ {error}</div>}
@@ -690,54 +787,106 @@ ${recentText}`,
         </div>
       )}
 
-      {/* Main layout: lead card + transcript + AI tools */}
-      <div style={{ display: 'grid', gridTemplateColumns: leadPanel.poppedOut && transcriptPanel.poppedOut ? '1fr' : leadPanel.poppedOut ? '1fr 400px' : transcriptPanel.poppedOut ? '380px 1fr' : '380px 1fr 400px', gap: '16px', alignItems: 'start' }}>
-        {/* Lead contact card — pop-out enabled */}
-        {leadPanel.poppedOut ? (
-          <div style={{ ...leadPanel.floatingStyle, background: '#0d1b2a', border: '1px solid rgba(16,185,129,0.3)', borderRadius: '6px' }}>
-            <div onMouseDown={leadPanel.onDragStart} style={{ padding: '8px 12px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'move', userSelect: 'none', flexShrink: 0 }}>
-              <span style={{ color: GOLD, fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase' }}>💳 Lead Contact Card</span>
-              <div style={{ display: 'flex', gap: '6px' }}>
-                <button onClick={() => setShowLeadPicker(p => !p)} style={{ background: 'rgba(16,185,129,0.1)', color: GOLD, border: '1px solid rgba(16,185,129,0.2)', borderRadius: '4px', padding: '4px 10px', cursor: 'pointer', fontSize: '10px' }}>{lead.id ? 'Switch' : 'Select'}</button>
-                <button onClick={leadPanel.toggle} style={{ background: `${GOLD}18`, border: `1px solid ${GOLD}44`, color: GOLD, borderRadius: '4px', padding: '4px 10px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase' }}>⬇ Pop In</button>
-              </div>
-            </div>
-            <div style={{ flex: 1, overflow: 'auto' }}>
-              <DebtLeadCard lead={lead} onLeadChange={setLead} transcript={transcript} intentScore={intentScore} animalType={profileData?.animalType} profileData={profileData} />
-            </div>
-            {leadPanel.resizeHandles}
-          </div>
-        ) : (
-          <div style={{ position: 'relative' }}>
-            <div style={{ marginBottom: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div style={{ color: GOLD, fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase' }}>💳 Lead Contact Card</div>
-              <div style={{ display: 'flex', gap: '6px' }}>
-                <button onClick={() => setShowLeadPicker(p => !p)} style={{ background: 'rgba(16,185,129,0.1)', color: GOLD, border: '1px solid rgba(16,185,129,0.2)', borderRadius: '4px', padding: '4px 10px', cursor: 'pointer', fontSize: '10px' }}>{lead.id ? 'Switch' : 'Select'}</button>
-                <button onClick={leadPanel.toggle} style={{ background: `${GOLD}18`, border: `1px solid ${GOLD}44`, color: GOLD, borderRadius: '4px', padding: '4px 10px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase' }}>⬆ Pop Out</button>
-              </div>
-            </div>
-            <DebtLeadCard lead={lead} onLeadChange={setLead} transcript={transcript} intentScore={intentScore} animalType={profileData?.animalType} profileData={profileData} />
-          </div>
-        )}
+      {/* Main layout: lead card + transcript + AI tools — all pop-out enabled */}
+      {(() => {
+        const cols = [];
+        if (!leadPanel.poppedOut) cols.push('380px');
+        if (!transcriptPanel.poppedOut) cols.push('1fr');
+        if (!aiPanel.poppedOut) cols.push('400px');
+        const gridCols = cols.length > 0 ? cols.join(' ') : '1fr';
+        const allOut = leadPanel.poppedOut && transcriptPanel.poppedOut && aiPanel.poppedOut;
 
-        {/* Transcript — pop-out enabled with Scripts tab */}
-        <LiveTranscriptPanel transcript={transcript} phase={phase} panel={transcriptPanel} onAnswerQuestion={handleAnswerQuestion} />
+        return (
+          <>
+            {allOut && phase === 'live' && (
+              <div style={{ padding: '40px', textAlign: 'center', background: '#0d1b2a', border: '1px dashed rgba(16,185,129,0.2)', borderRadius: '6px', color: '#6b7280', fontSize: '13px' }}>
+                🖥️ All panels popped out. Arrange them on your screen, then click <strong style={{ color: GOLD }}>💾 Save Layout</strong> in the top bar to remember their positions.
+                <br /><br />
+                <span style={{ fontSize: '11px' }}>Lead: <strong style={{ color: '#c4cdd8' }}>{lead.firstName} {lead.lastName}</strong> {lead.leadNumber && <span style={{ color: GOLD }}>({lead.leadNumber})</span>} · {transcript.length} transcript lines · Intent: {intentScore ?? '—'}</span>
+              </div>
+            )}
+            <div style={{ display: 'grid', gridTemplateColumns: gridCols, gap: '16px', alignItems: 'start' }}>
+              {/* Lead contact card — pop-out enabled */}
+              {leadPanel.poppedOut ? (
+                <div style={{ ...leadPanel.floatingStyle, background: '#0d1b2a', border: '1px solid rgba(16,185,129,0.3)', borderRadius: '6px' }}>
+                  <div onMouseDown={leadPanel.onDragStart} style={{ padding: '8px 12px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'move', userSelect: 'none', flexShrink: 0 }}>
+                    <span style={{ color: GOLD, fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase' }}>💳 Lead Contact Card</span>
+                    <div style={{ display: 'flex', gap: '6px' }}>
+                      <button onClick={() => setShowLeadPicker(p => !p)} style={{ background: 'rgba(16,185,129,0.1)', color: GOLD, border: '1px solid rgba(16,185,129,0.2)', borderRadius: '4px', padding: '4px 10px', cursor: 'pointer', fontSize: '10px' }}>{lead.id ? 'Switch' : 'Select'}</button>
+                      <button onClick={leadPanel.toggle} style={{ background: `${GOLD}18`, border: `1px solid ${GOLD}44`, color: GOLD, borderRadius: '4px', padding: '4px 10px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase' }}>⬇ Pop In</button>
+                    </div>
+                  </div>
+                  <div style={{ flex: 1, overflow: 'auto' }}>
+                    <DebtLeadCard lead={lead} onLeadChange={setLead} transcript={transcript} intentScore={intentScore} animalType={profileData?.animalType} profileData={profileData} />
+                  </div>
+                  {leadPanel.resizeHandles}
+                </div>
+              ) : (
+                <div style={{ position: 'relative' }}>
+                  <div style={{ marginBottom: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ color: GOLD, fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase' }}>💳 Lead Contact Card</div>
+                    <div style={{ display: 'flex', gap: '6px' }}>
+                      <button onClick={() => setShowLeadPicker(p => !p)} style={{ background: 'rgba(16,185,129,0.1)', color: GOLD, border: '1px solid rgba(16,185,129,0.2)', borderRadius: '4px', padding: '4px 10px', cursor: 'pointer', fontSize: '10px' }}>{lead.id ? 'Switch' : 'Select'}</button>
+                      <button onClick={leadPanel.toggle} style={{ background: `${GOLD}18`, border: `1px solid ${GOLD}44`, color: GOLD, borderRadius: '4px', padding: '4px 10px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase' }}>⬆ Pop Out</button>
+                    </div>
+                  </div>
+                  <DebtLeadCard lead={lead} onLeadChange={setLead} transcript={transcript} intentScore={intentScore} animalType={profileData?.animalType} profileData={profileData} />
+                </div>
+              )}
 
-        {/* AI Tools Panel — Twilio Stream + Q&A/Coach/Intent popup + Pitches + Signals */}
-        <DebtAIPanel
-          transcript={transcript}
-          kbEntries={kbEntries}
-          isActive={phase === 'live'}
-          profileData={profileData}
-          intentScore={intentScore}
-          ledgerExtracting={ledgerExtracting}
-          memories={memories}
-          lead={lead}
-          micDeviceId={micDeviceId}
-          customerMicId={customerMicId}
-          pendingQuestion={pendingQuestion}
-        />
-      </div>
+              {/* Transcript — pop-out enabled with Scripts tab */}
+              <LiveTranscriptPanel transcript={transcript} phase={phase} panel={transcriptPanel} onAnswerQuestion={handleAnswerQuestion} />
+
+              {/* AI Tools Panel — pop-out enabled */}
+              {aiPanel.poppedOut ? (
+                <div style={{ ...aiPanel.floatingStyle, background: '#0d1b2a', border: '1px solid rgba(16,185,129,0.3)', borderRadius: '6px' }}>
+                  <div onMouseDown={aiPanel.onDragStart} style={{ padding: '8px 12px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'move', userSelect: 'none', flexShrink: 0 }}>
+                    <span style={{ color: GOLD, fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase' }}>🤖 AI Assistant</span>
+                    <button onClick={aiPanel.toggle} style={{ background: `${GOLD}18`, border: `1px solid ${GOLD}44`, color: GOLD, borderRadius: '4px', padding: '4px 10px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase' }}>⬇ Pop In</button>
+                  </div>
+                  <div style={{ flex: 1, overflow: 'auto' }}>
+                    <DebtAIPanel
+                      transcript={transcript} kbEntries={kbEntries} isActive={phase === 'live'}
+                      profileData={profileData} intentScore={intentScore} ledgerExtracting={ledgerExtracting}
+                      memories={memories} lead={lead} micDeviceId={micDeviceId} customerMicId={customerMicId} pendingQuestion={pendingQuestion}
+                    />
+                  </div>
+                  {aiPanel.resizeHandles}
+                </div>
+              ) : (
+                <div style={{ position: 'relative' }}>
+                  <div style={{ marginBottom: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ color: GOLD, fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase' }}>🤖 AI Assistant</div>
+                    <button onClick={aiPanel.toggle} style={{ background: `${GOLD}18`, border: `1px solid ${GOLD}44`, color: GOLD, borderRadius: '4px', padding: '4px 10px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase' }}>⬆ Pop Out</button>
+                  </div>
+                  <DebtAIPanel
+                    transcript={transcript} kbEntries={kbEntries} isActive={phase === 'live'}
+                    profileData={profileData} intentScore={intentScore} ledgerExtracting={ledgerExtracting}
+                    memories={memories} lead={lead} micDeviceId={micDeviceId} customerMicId={customerMicId} pendingQuestion={pendingQuestion}
+                  />
+                </div>
+              )}
+            </div>
+          </>
+        );
+      })()}
+{/* Floating AI panel — rendered when popped out but grid is hidden */}
+      {aiPanel.poppedOut && phase === 'live' && (
+        <div style={{ ...aiPanel.floatingStyle, background: '#0d1b2a', border: '1px solid rgba(16,185,129,0.3)', borderRadius: '6px' }}>
+          <div onMouseDown={aiPanel.onDragStart} style={{ padding: '8px 12px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'move', userSelect: 'none', flexShrink: 0 }}>
+            <span style={{ color: GOLD, fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase' }}>🤖 AI Assistant</span>
+            <button onClick={aiPanel.toggle} style={{ background: `${GOLD}18`, border: `1px solid ${GOLD}44`, color: GOLD, borderRadius: '4px', padding: '4px 10px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase' }}>⬇ Pop In</button>
+          </div>
+          <div style={{ flex: 1, overflow: 'auto' }}>
+            <DebtAIPanel
+              transcript={transcript} kbEntries={kbEntries} isActive={phase === 'live'}
+              profileData={profileData} intentScore={intentScore} ledgerExtracting={ledgerExtracting}
+              memories={memories} lead={lead} micDeviceId={micDeviceId} customerMicId={customerMicId} pendingQuestion={pendingQuestion}
+            />
+          </div>
+          {aiPanel.resizeHandles}
+        </div>
+      )}
 
       {/* Do Nothing Calculator — shows for close mode */}
       {callMode === 'close' && lead.id && (

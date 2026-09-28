@@ -93,6 +93,31 @@ export function usePopOutPanel(storageKey, defaultSize = { width: 420, height: 6
     });
   }, [size.width]);
 
+  // Pop out without toggling off — used for auto-pop-out on call start
+  const popOut = useCallback(() => {
+    setPoppedOut(prev => {
+      if (prev) return prev; // already popped out
+      setPosition(p => ({
+        x: p.x <= 100 ? Math.max(20, window.innerWidth - size.width - 20) : p.x,
+        y: p.y <= 100 ? 80 : p.y,
+      }));
+      return true;
+    });
+  }, [size.width]);
+
+  // Explicitly save current layout to localStorage and return confirmation
+  const [layoutSaved, setLayoutSaved] = useState(false);
+  const saveLayout = useCallback(() => {
+    try {
+      localStorage.setItem(`popout_${storageKey}`, JSON.stringify({ poppedOut, position, size }));
+      setLayoutSaved(true);
+      setTimeout(() => setLayoutSaved(false), 2000);
+      return true;
+    } catch {
+      return false;
+    }
+  }, [storageKey, poppedOut, position, size]);
+
   const onDragStart = useCallback((e) => {
     setDragging(true);
     setOffset({ x: e.clientX - position.x, y: e.clientY - position.y });
@@ -141,5 +166,5 @@ export function usePopOutPanel(storageKey, defaultSize = { width: 420, height: 6
     </>
   );
 
-  return { poppedOut, toggle, onDragStart, onResizeStart, floatingStyle, size, resizeHandles };
+  return { poppedOut, toggle, popOut, onDragStart, onResizeStart, floatingStyle, size, resizeHandles, saveLayout, layoutSaved };
 }

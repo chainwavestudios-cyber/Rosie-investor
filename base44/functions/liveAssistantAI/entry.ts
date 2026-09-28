@@ -347,12 +347,83 @@ ${existingFactTexts.length > 0 ? existingFactTexts.join('\n') : 'None yet'}`,
       }
     }
 
+    // ── HARDSHIP EXTRACTION ────────────────────────────────────────────
+    if (mode === 'hardship') {
+      const recentText = (transcript || []).slice(-15).map((t: any) => t.text).join(' ');
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_KEY, 'anthropic-version': '2023-06-01' },
+        body: JSON.stringify({
+          model: 'claude-haiku-4-5-20251001',
+          max_tokens: 400,
+          system: `You are analyzing a live debt settlement call transcript. Extract any hardship information the customer mentions — what caused their financial difficulty, when it started, and how it impacted them.
+
+Look for:
+- WHEN: Job loss, medical emergency, divorce, death in family, business closure, reduced hours, etc. — and when it happened
+- WHY: The root cause of their financial situation
+- HOW: How it impacted their finances — fell behind on payments, used credit cards to survive, depleted savings, etc.
+
+Return JSON. Only include information explicitly mentioned — do NOT make up data. If nothing new is mentioned, return empty strings.
+
+Transcript:
+${recentText}`,
+          messages: [{ role: 'user', content: 'Extract hardship details:' }],
+          response_json_schema: undefined,
+        }),
+      });
+      const data = await res.json();
+      const text = data?.content?.[0]?.text || '{}';
+      try {
+        const result = JSON.parse(text.replace(/```json|```/g, '').trim());
+        return Response.json({ hardship: result });
+      } catch {
+        return Response.json({ hardship: null });
+      }
+    }
+
+    // ── CO-SIGNER EXTRACTION ──────────────────────────────────────────
+    if (mode === 'cosigners') {
+      const recentText = (transcript || []).slice(-15).map((t: any) => t.text).join(' ');
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_KEY, 'anthropic-version': '2023-06-01' },
+        body: JSON.stringify({
+          model: 'claude-haiku-4-5-20251001',
+          max_tokens: 500,
+          system: `You are analyzing a live debt settlement call transcript. Extract any co-signer information the customer mentions — people who co-signed on their accounts.
+
+For each co-signer, capture:
+- name: The co-signer's name
+- relationship: Spouse, parent, sibling, friend, business partner, etc.
+- phone: Phone number if mentioned
+- email: Email if mentioned
+- accounts: Which accounts/debts they co-signed on
+- employed: Whether they're employed (if mentioned)
+- notes: Any other relevant details
+
+Return JSON with a "cosigners" array. Only include information explicitly mentioned — do NOT make up data. If no co-signers are mentioned, return empty array.
+
+Transcript:
+${recentText}`,
+          messages: [{ role: 'user', content: 'Extract co-signer details:' }],
+        }),
+      });
+      const data = await res.json();
+      const text = data?.content?.[0]?.text || '{}';
+      try {
+        const result = JSON.parse(text.replace(/```json|```/g, '').trim());
+        return Response.json({ cosigners: result.cosigners || [] });
+      } catch {
+        return Response.json({ cosigners: [] });
+      }
+    }
+
     // ── POST-CALL FULL REPORT ─────────────────────────────────────────
     if (mode === 'full_report') {
       const { usedCoach, usedQA, usedIntent, coachTips, qaLog, intentResult } = body;
       const fullTranscript = (transcript || []).map((t: any) => t.text).join(' ');
 
-      let reportPrompt = `Generate a structured sales call report.\n${kbName ? `Knowledge Base Used: ${kbName}\n` : ''}\nTranscript:\n"${fullTranscript.slice(0, 5000)}"\n\nInclude these sections:\n## Call Summary\n## Prospect Interest Level\n## Key Questions Asked\n## Objections & Concerns\n## Highlights\n## Recommended Next Steps\n${kbName ? `## Knowledge Base: ${kbName}\n` : ''}## Clean Transcript\n`;
+      let reportPrompt = `Generate a comprehensive structured post-call report for a debt settlement sales call.\n${kbName ? `Knowledge Base Used: ${kbName}\n` : ''}\nTranscript:\n"${fullTranscript.slice(0, 5000)}"\n\nInclude these EXACT sections in this order:\n\n## 1. Intent Report\n- Overall intent score and interest level\n- Tonality and sentiment analysis\n- Key buying signals detected\n- Objections and resistance points\n- Emotional state and engagement level\n- Sentiment arc (how their tone shifted)\n\n## 2. Call Summary\n- Brief summary of what was discussed\n- Key points covered\n- Where the call ended up\n\n## 3. Follow-Up Report\n- What was agreed to or committed\n- What the customer needs to think about or discuss\n- Specific follow-up actions needed (e.g., "call back Tuesday after they talk to spouse")\n- Best time and method for follow-up\n- Unresolved questions or concerns\n\n## 4. Potential Strategies to Move Forward\n- 3-5 specific strategies to get this customer to move forward\n- Each strategy should be actionable and tailored to what was learned on this call\n- Include specific talking points or angles to use\n- Address their specific objections and concerns\n- Leverage their stated goals and motivations\n\n## 5. Key Information Gathered\n- Financial details mentioned (debt amount, income, creditors)\n- Personal details (spouse, kids, job, life events)\n- Hardship details if mentioned\n- Co-signers if mentioned\n\n## 6. Clean Transcript\n`;
       if (usedQA && qaLog?.length) {
         const kbLabel = kbName ? ` [KB: ${kbName}]` : '';
         reportPrompt += `\n## Q&A During Call${kbLabel}\n` + qaLog.map((qa: any) => {
@@ -373,8 +444,8 @@ ${existingFactTexts.length > 0 ? existingFactTexts.join('\n') : 'None yet'}`,
         headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_KEY, 'anthropic-version': '2023-06-01' },
         body: JSON.stringify({
           model: 'claude-haiku-4-5-20251001',
-          max_tokens: 1500,
-          system: 'You are a sales call analyst. Generate a detailed, structured post-call report.',
+          max_tokens: 2500,
+          system: 'You are an expert debt settlement sales call analyst. Generate a detailed, structured post-call report with actionable insights. Be specific and thorough — the agent uses this for follow-up strategy.',
           messages: [{ role: 'user', content: reportPrompt }],
         }),
       });
