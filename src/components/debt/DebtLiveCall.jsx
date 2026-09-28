@@ -408,7 +408,8 @@ ${recentText}`,
         if (msg.type !== 'Results' || !msg.is_final) return;
         const alt = msg.channel?.alternatives?.[0];
         if (!alt || !alt.transcript?.trim()) return;
-        const speaker = dualMode ? (msg.channel === 0 ? 0 : 1) : (alt.speaker ?? (msg.speaker ?? 0));
+        const channelNum = Array.isArray(msg.channel_index) ? msg.channel_index[0] : (typeof msg.channel === 'number' ? msg.channel : 0);
+        const speaker = dualMode ? (channelNum === 0 ? 0 : 1) : (alt.speaker ?? (msg.speaker ?? 0));
         processNewEntry({ speaker, text: alt.transcript, sentiment: msg.sentiment || alt.sentiment || null, time: new Date().toISOString() });
       } catch {}
     };
