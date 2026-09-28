@@ -299,7 +299,14 @@ ${recentText}`,
     } catch {}
   }, []);
 
+  const lastEntryRef = useRef(null);
   const processNewEntry = useCallback((entry) => {
+    // Deduplicate — Deepgram with utterances=true can send the same final transcript twice
+    const last = lastEntryRef.current;
+    if (last && last.speaker === entry.speaker && last.text === entry.text && (Date.now() - last.ts < 3000)) {
+      return;
+    }
+    lastEntryRef.current = { speaker: entry.speaker, text: entry.text, ts: Date.now() };
     setTranscript(prev => [...prev, entry]);
     const text = entry.text || '';
 
