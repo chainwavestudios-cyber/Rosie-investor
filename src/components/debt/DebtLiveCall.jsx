@@ -56,8 +56,14 @@ export default function DebtLiveCall() {
   const [generatingReport, setGeneratingReport] = useState(false);
   const [callMode, setCallMode] = useState('open'); // 'open' | 'close'
   const [showProfile, setShowProfile] = useState(false);
+  const [pendingQuestion, setPendingQuestion] = useState(null);
   const leadPanel = usePopOutPanel('live_lead_card', { width: 420, height: 600 });
   const transcriptPanel = usePopOutPanel('live_transcript', { width: 520, height: 600 });
+
+  // Click 💡 on a transcript line → send to Q&A
+  const handleAnswerQuestion = useCallback((text) => {
+    setPendingQuestion({ question: text, ts: Date.now() });
+  }, []);
 
   const wsRef = useRef(null);
   const streamRef = useRef(null);
@@ -143,11 +149,20 @@ export default function DebtLiveCall() {
 
   const createNewLead = useCallback(async () => {
     try {
+      // Auto-assign lead number: find max existing number and increment
+      const allLeads = await base44.entities.DebtLead.list('-created_date', 500);
+      const maxNum = (allLeads || []).reduce((max, l) => {
+        const n = parseInt((l.leadNumber || '').replace('#', ''), 10);
+        return isNaN(n) ? max : Math.max(max, n);
+      }, 0);
+      const leadNumber = `#${String(maxNum + 1).padStart(5, '0')}`;
+
       const created = await base44.entities.DebtLead.create({
         firstName: lead.firstName || 'New',
         lastName: lead.lastName || 'Lead',
         status: 'new',
         callCount: 0,
+        leadNumber,
       });
       setLead(created);
       loadLeads();
@@ -706,7 +721,7 @@ ${recentText}`,
         )}
 
         {/* Transcript — pop-out enabled with Scripts tab */}
-        <LiveTranscriptPanel transcript={transcript} phase={phase} panel={transcriptPanel} />
+        <LiveTranscriptPanel transcript={transcript} phase={phase} panel={transcriptPanel} onAnswerQuestion={handleAnswerQuestion} />
 
         {/* AI Tools Panel — Twilio Stream + Q&A/Coach/Intent popup + Pitches + Signals */}
         <DebtAIPanel
@@ -720,6 +735,7 @@ ${recentText}`,
           lead={lead}
           micDeviceId={micDeviceId}
           customerMicId={customerMicId}
+          pendingQuestion={pendingQuestion}
         />
       </div>
 

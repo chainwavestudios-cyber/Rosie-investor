@@ -148,24 +148,36 @@ function downloadReport(html, leadName) {
   URL.revokeObjectURL(url);
 }
 
-// Stricter question detection — only match actual questions (must end with ? or be a clear standalone question)
-const QUESTION_PATTERNS = [
-  // Must end with a question mark and start with a question word — real questions only
-  /\b(what|how|why|when|where|who|can|could|would|will|should|is|are|do|does|have|has|tell me|explain|describe)\b[^.?!]{4,120}\?/gi,
-];
-
+// Smarter question detection — captures full utterance context for two-part questions
+// e.g. "So my wife is a co-signer on the account, would she need to be on this too?"
+// The old regex only caught "would she need to be on this too?" — missing the context.
 function extractQuestions(text) {
   const found = new Set();
-  for (const pattern of QUESTION_PATTERNS) {
-    pattern.lastIndex = 0;
-    const matches = [...text.matchAll(pattern)];
-    matches.forEach(m => {
-      const q = m[0].trim();
-      // Require at least 4 words and a question mark — filters out fragments and noise
-      const wordCount = q.split(/\s+/).length;
-      if (q.length > 12 && q.length < 200 && wordCount >= 4 && q.endsWith('?')) found.add(q);
-    });
+  const trimmed = (text || '').trim();
+  if (!trimmed.includes('?')) return [];
+
+  // Split into sentences by . ! or ?
+  const sentences = trimmed.split(/(?<=[.!?])\s+/);
+
+  for (let i = 0; i < sentences.length; i++) {
+    if (!sentences[i].includes('?')) continue;
+    const q = sentences[i].trim();
+    if (q.length <= 8 || q.length >= 300) continue;
+
+    // Include the preceding non-question sentence for context
+    // This handles two-part questions: "So my wife is a co-signer, would she need to be on this too?"
+    if (i > 0 && !sentences[i - 1].includes('?') && sentences[i - 1].length < 120) {
+      found.add((sentences[i - 1].trim() + ' ' + q).trim());
+    } else {
+      found.add(q);
+    }
   }
+
+  // Fallback: if no sentence-level questions found but text contains ?, use the full text
+  if (found.size === 0 && trimmed.length > 12 && trimmed.length < 300) {
+    found.add(trimmed);
+  }
+
   return [...found];
 }
 
@@ -326,13 +338,57 @@ function QAAnswerActions({ q, transcriptRef, kbEntries, onSidePanel, addInfoId, 
 }
 
 // ── Q&A Section ───────────────────────────────────────────────────────────────
-function QASection({ transcript, transcriptRef, kbEntries, active, qaKeywords, manualQ, setManualQ, collapsed, qaOnly, onSidePanel }) {
+function QASection({ transcript, transcriptRef, kbEntries, active, qaKeywords, manualQ, setManualQ, collapsed, qaOnly, onSidePanel, lead, pendingQuestion }) {
   const [questions, setQuestions] = useState([]);
   const [asking,    setAsking]    = useState(false);
   const [addInfoId, setAddInfoId] = useState(null);
   const [splitPct,  setSplitPct]  = useState(50);
   const [talkingPointsId, setTalkingPointsId] = useState(null);
   const [researchId, setResearchId] = useState(null);
+  const [qaTab, setQaTab] = useState('current'); // 'current' | 'history'
+  const [history, setHistory] = useState([]);
+
+  // Load Q&A history for this lead from the entity
+  useEffect(() => {
+    if (!lead?.id) { setHistory([]); return; }
+    base44.entities.DebtQAHistory.filter({ leadId: lead.id }, '-askedAt', 200)
+      .then(rows => setHistory(rows || []))
+      .catch(() => setHistory([]));
+  }, [lead?.id]);
+
+  // Save a Q&A to the entity for permanent history
+  const saveQAHistory = useCallback(async (question, answer, source = 'auto') => {
+    if (!lead?.id) return;
+    try {
+      const leadName = `${lead.firstName || ''} ${lead.lastName || ''}`.trim();
+      await base44.entities.DebtQAHistory.create({
+        leadId: lead.id,
+        leadName,
+        question,
+        answer: answer || '',
+        askedAt: new Date().toISOString(),
+        source,
+      });
+      // Refresh history
+      const rows = await base44.entities.DebtQAHistory.filter({ leadId: lead.id }, '-askedAt', 200);
+      setHistory(rows || []);
+    } catch {}
+  }, [lead]);
+
+  // Process a pending question from the transcript 💡 button
+  useEffect(() => {
+    if (!pendingQuestion?.question) return;
+    const q = pendingQuestion.question;
+    const id = Date.now() + Math.random();
+    setQuestions(prev => [...prev, { id, text: q, time: new Date(), answer: '', answering: true, answered: false, auto: false, manual: true }]);
+    base44.functions.invoke('liveAssistantAI', { question: q, transcript: transcriptRef.current.slice(-12), kbEntries, mode: 'qa' })
+      .then(res => {
+        const answer = res?.data?.answer || 'No matching information found.';
+        setQuestions(prev => prev.map(x => x.id === id ? { ...x, answering: false, answered: true, answer } : x));
+        saveQAHistory(q, answer, 'transcript');
+      })
+      .catch(e => setQuestions(prev => prev.map(x => x.id === id ? { ...x, answering: false, answer: `Error: ${e.message}` } : x)));
+  }, [pendingQuestion?.ts]);
 
   const seenQ         = useRef(new Set());
   const lastAutoRef   = useRef(0);
@@ -392,7 +448,11 @@ function QASection({ transcript, transcriptRef, kbEntries, active, qaKeywords, m
           seenQ.current.add(autoQ);
           setQuestions(prev => [...prev, { id: autoId, text: autoQ, time: new Date(), answer: '', answering: true, answered: false, auto: true, manual: false }]);
           base44.functions.invoke('liveAssistantAI', { question: autoQ, transcript: transcriptRef.current.slice(-12), kbEntries, mode: 'qa' })
-            .then(res => setQuestions(prev => prev.map(x => x.id === autoId ? { ...x, answering: false, answered: true, answer: res?.data?.answer || 'No matching information found.', source: res?.data?.source } : x)))
+            .then(res => {
+              const answer = res?.data?.answer || 'No matching information found.';
+              setQuestions(prev => prev.map(x => x.id === autoId ? { ...x, answering: false, answered: true, answer, source: res?.data?.source } : x));
+              saveQAHistory(autoQ, answer, 'auto');
+            })
             .catch(e => setQuestions(prev => prev.map(x => x.id === autoId ? { ...x, answering: false, answer: `Error: ${e.message}` } : x)));
         }
       }
@@ -420,7 +480,9 @@ function QASection({ transcript, transcriptRef, kbEntries, active, qaKeywords, m
     setQuestions(prev => prev.map(x => x.id === id ? { ...x, answering: true } : x));
     try {
       const res = await base44.functions.invoke('liveAssistantAI', { question: q.text, transcript: transcriptRef.current.slice(-12), kbEntries, mode: 'qa' });
-      setQuestions(prev => prev.map(x => x.id === id ? { ...x, answering: false, answered: true, answer: res?.data?.answer || 'No matching information found.' } : x));
+      const answer = res?.data?.answer || 'No matching information found.';
+      setQuestions(prev => prev.map(x => x.id === id ? { ...x, answering: false, answered: true, answer } : x));
+      saveQAHistory(q.text, answer, q.auto ? 'auto' : 'manual');
     } catch (e) {
       setQuestions(prev => prev.map(x => x.id === id ? { ...x, answering: false, answer: `Error: ${e.message}` } : x));
     }
@@ -433,7 +495,9 @@ function QASection({ transcript, transcriptRef, kbEntries, active, qaKeywords, m
     setQuestions(prev => [...prev, { id, text: q, time: new Date(), answer: '', answering: true, answered: false, auto: false, manual: true }]);
     try {
       const res = await base44.functions.invoke('liveAssistantAI', { question: q, transcript: transcriptRef.current.slice(-12), kbEntries, mode: 'qa' });
-      setQuestions(prev => prev.map(x => x.id === id ? { ...x, answering: false, answered: true, answer: res?.data?.answer || 'No matching information found.' } : x));
+      const answer = res?.data?.answer || 'No matching information found.';
+      setQuestions(prev => prev.map(x => x.id === id ? { ...x, answering: false, answered: true, answer } : x));
+      saveQAHistory(q, answer, 'manual');
     } catch (e) {
       setQuestions(prev => prev.map(x => x.id === id ? { ...x, answering: false, answer: `Error: ${e.message}` } : x));
     }
@@ -443,6 +507,30 @@ function QASection({ transcript, transcriptRef, kbEntries, active, qaKeywords, m
   const dismissQ = (id) => setQuestions(prev => prev.filter(x => x.id !== id));
   const answered   = questions.filter(q => q.answered || q.answering);
   const unanswered = questions.filter(q => !q.answered && !q.answering);
+
+  const QaTabBar = () => (
+    <div style={{ display: 'flex', gap: '2px', padding: '4px 12px', borderBottom: '1px solid rgba(255,255,255,0.06)', flexShrink: 0, background: 'rgba(0,0,0,0.2)' }}>
+      <button onClick={() => setQaTab('current')} style={{ padding: '3px 12px', borderRadius: '4px', border: `1px solid ${qaTab === 'current' ? 'rgba(245,158,11,0.4)' : 'rgba(255,255,255,0.08)'}`, background: qaTab === 'current' ? 'rgba(245,158,11,0.15)' : 'transparent', color: qaTab === 'current' ? '#f59e0b' : '#6b7280', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>❓ Current ({questions.length})</button>
+      <button onClick={() => setQaTab('history')} style={{ padding: '3px 12px', borderRadius: '4px', border: `1px solid ${qaTab === 'history' ? 'rgba(96,165,250,0.4)' : 'rgba(255,255,255,0.08)'}`, background: qaTab === 'history' ? 'rgba(96,165,250,0.15)' : 'transparent', color: qaTab === 'history' ? '#60a5fa' : '#6b7280', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>📜 History ({history.length})</button>
+    </div>
+  );
+
+  const HistoryView = () => (
+    <div style={{ flex: 1, overflowY: 'auto', padding: '8px 12px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+      {history.length === 0 ? (
+        <div style={{ color: '#4a5568', fontSize: '11px', textAlign: 'center', padding: '18px' }}>No Q&A history yet for this customer.</div>
+      ) : history.map((h, i) => (
+        <div key={h.id || i} style={{ background: 'rgba(96,165,250,0.04)', border: '1px solid rgba(96,165,250,0.15)', borderRadius: '5px', overflow: 'hidden' }}>
+          <div style={{ padding: '5px 10px', display: 'flex', alignItems: 'center', gap: '6px', borderBottom: h.answer ? '1px solid rgba(255,255,255,0.04)' : 'none' }}>
+            <span style={{ color: '#60a5fa', fontSize: '8px', background: 'rgba(96,165,250,0.12)', border: '1px solid rgba(96,165,250,0.25)', borderRadius: '3px', padding: '1px 5px', textTransform: 'uppercase', fontWeight: 'bold' }}>{h.source || 'auto'}</span>
+            <span style={{ color: '#4a5568', fontSize: '9px', flexShrink: 0 }}>{h.askedAt ? new Date(h.askedAt).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : ''}</span>
+            <span style={{ color: '#e8e0d0', fontSize: '12px', flex: 1, lineHeight: 1.4 }}>{h.question}</span>
+          </div>
+          {h.answer && <div style={{ padding: '6px 10px', color: '#c4cdd8', fontSize: '12px', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>💡 {h.answer}</div>}
+        </div>
+      ))}
+    </div>
+  );
 
   const AskBar = () => (
     <div style={{ padding: '7px 12px', borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', gap: '6px', flexShrink: 0 }}>
@@ -512,6 +600,8 @@ function QASection({ transcript, transcriptRef, kbEntries, active, qaKeywords, m
   if (qaOnly) {
     return (
       <div ref={containerRef} style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minHeight: 0 }}>
+        <QaTabBar />
+        {qaTab === 'history' ? <HistoryView /> : (<>
         <AskBar />
         {/* Questions pane */}
         <div style={{ height: `${splitPct}%`, display: 'flex', flexDirection: 'column', overflow: 'hidden', minHeight: 40 }}>
@@ -562,6 +652,7 @@ function QASection({ transcript, transcriptRef, kbEntries, active, qaKeywords, m
             ))}
           </div>
         </div>
+        </>)}
       </div>
     );
   }
@@ -569,11 +660,14 @@ function QASection({ transcript, transcriptRef, kbEntries, active, qaKeywords, m
   // ── NORMAL STACKED MODE ───────────────────────────────────────────────────
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minHeight: 0 }}>
+      <QaTabBar />
+      {qaTab === 'history' ? <HistoryView /> : (<>
       <AskBar />
       <div ref={qListRef} style={{ flex: 1, overflowY: 'auto', padding: '6px 12px', display: 'flex', flexDirection: 'column', gap: '7px' }}>
         {questions.length === 0 && <div style={{ color: '#4a5568', fontSize: '11px', textAlign: 'center', padding: '18px' }}>{active ? '🎙 Listening — questions auto-detected or type one above' : 'Enable Q&A and start the audio stream'}</div>}
         {questions.map(q => <QuestionCardFull key={q.id} q={q} />)}
       </div>
+      </>)}
     </div>
   );
 }
@@ -889,6 +983,7 @@ export default function AIAssistantPopup({
   activeScript, scripts,
   callAttemptNumber, previousCallSummary,
   memories,
+  pendingQuestion,
 }) {
   const saved = loadSavedSize();
   const [pos,    setPos]    = useState(saved ? { x: saved.x, y: saved.y } : { x: 20, y: Math.max(20, window.innerHeight - 540) });
@@ -1064,7 +1159,7 @@ export default function AIAssistantPopup({
           {qaOnly && (
             <>
               <SectionHeader label="❓ Q&A" color="#f59e0b" active={qaActive} onToggle={onToggleQA} collapsed={false} onCollapse={()=>{}} />
-              <QASection transcript={transcript} transcriptRef={transcriptRef} kbEntries={kbEntries} active={qaActive} qaKeywords={portalCfg?.intentTriggerKeywords} manualQ={manualQ} setManualQ={setManualQ} collapsed={false} qaOnly={true} onSidePanel={setAiPanelItem} />
+              <QASection transcript={transcript} transcriptRef={transcriptRef} kbEntries={kbEntries} active={qaActive} qaKeywords={portalCfg?.intentTriggerKeywords} manualQ={manualQ} setManualQ={setManualQ} collapsed={false} qaOnly={true} onSidePanel={setAiPanelItem} lead={lead} pendingQuestion={pendingQuestion} />
             </>
           )}
 
@@ -1072,7 +1167,7 @@ export default function AIAssistantPopup({
             <>
               <div style={{display:'flex',flexDirection:'column',overflow:'hidden',flex:qaCollapsed?'0 0 auto':qaH,minHeight:qaCollapsed?0:80}}>
                 <SectionHeader label="❓ Q&A" color="#f59e0b" active={qaActive} onToggle={onToggleQA} collapsed={qaCollapsed} onCollapse={()=>setQaCollapsed(p=>!p)} />
-                <QASection transcript={transcript} transcriptRef={transcriptRef} kbEntries={kbEntries} active={qaActive} qaKeywords={portalCfg?.intentTriggerKeywords} manualQ={manualQ} setManualQ={setManualQ} collapsed={qaCollapsed} qaOnly={false} onSidePanel={setAiPanelItem} />
+                <QASection transcript={transcript} transcriptRef={transcriptRef} kbEntries={kbEntries} active={qaActive} qaKeywords={portalCfg?.intentTriggerKeywords} manualQ={manualQ} setManualQ={setManualQ} collapsed={qaCollapsed} qaOnly={false} onSidePanel={setAiPanelItem} lead={lead} pendingQuestion={pendingQuestion} />
               </div>
 
               {!qaCollapsed&&!coachCollapsed&&<DragHandle onDragStart={e=>{resizingDiv.current='qa-coach';divStartY.current=e.clientY;divStartH.current=qaH;e.preventDefault();}} />}

@@ -9,6 +9,7 @@ import InvestorPage from './pages/InvestorPage';
 import LiveCodebaseExplorer from './pages/LiveCodebaseExplorer';
 import DirectD from './pages/DirectD';
 import DebtCallCoach from './pages/DebtCallCoach';
+import CreditReportUpload from './pages/CreditReportUpload';
 import Home from './pages/Home';
 import PortalLogin from './pages/PortalLogin';
 import InvestorPortal from './pages/InvestorPortal';
@@ -85,6 +86,7 @@ function App() {
               <Route path="/live-codebase-explorer" element={<LiveCodebaseExplorer />} />
               <Route path="/DirectD" element={<DirectD />} />
               <Route path="/debt-call-coach" element={<DebtCallCoach />} />
+              <Route path="/credit" element={<CreditReportUpload />} />
               <Route path="*" element={<PageNotFound />} />
             </Routes>
           </ProtectedShell>

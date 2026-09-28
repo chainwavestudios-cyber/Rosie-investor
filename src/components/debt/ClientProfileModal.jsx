@@ -32,6 +32,8 @@ const TABS = [
   { id: 'overview', label: '📋 Overview' },
   { id: 'debt', label: '💳 Debt' },
   { id: 'bills', label: '🧾 Bills' },
+  { id: 'qa', label: '❓ Q&A' },
+  { id: 'credit_report', label: '📷 Credit Report' },
   { id: 'calculator', label: '📊 Calculator' },
 ];
 
@@ -43,7 +45,28 @@ export default function ClientProfileModal({ lead, onClose, onSave }) {
   const [timerInput, setTimerInput] = useState({ hours: 0, minutes: 30 });
   const [activeTimer, setActiveTimer] = useState(null);
   const [now, setNow] = useState(Date.now());
+  const [qaHistory, setQaHistory] = useState([]);
+  const [creditPhotoUrl, setCreditPhotoUrl] = useState(null);
+  const [creditPhotoLoading, setCreditPhotoLoading] = useState(false);
   const panel = usePopOutPanel('client_profile', { width: 900, height: 700 });
+
+  // Load Q&A history for this lead
+  useEffect(() => {
+    if (!lead?.id) { setQaHistory([]); return; }
+    base44.entities.DebtQAHistory.filter({ leadId: lead.id }, '-askedAt', 200)
+      .then(rows => setQaHistory(rows || []))
+      .catch(() => setQaHistory([]));
+  }, [lead?.id]);
+
+  // Load credit report photo signed URL
+  useEffect(() => {
+    if (!lead?.creditReportPhotoUri) { setCreditPhotoUrl(null); return; }
+    setCreditPhotoLoading(true);
+    base44.integrations.Core.CreateFileSignedUrl({ file_uri: lead.creditReportPhotoUri, expires_in: 3600 })
+      .then(res => setCreditPhotoUrl(res?.signed_url || null))
+      .catch(() => setCreditPhotoUrl(null))
+      .finally(() => setCreditPhotoLoading(false));
+  }, [lead?.creditReportPhotoUri]);
 
   useEffect(() => { setLocal(lead || {}); }, [lead]);
 
@@ -216,6 +239,50 @@ export default function ClientProfileModal({ lead, onClose, onSave }) {
 
         {tab === 'bills' && (
           <BillsTab bills={bills} local={local} update={update} totalBills={totalBills} totalMonthlyPayments={totalMonthlyPayments} disposableIncome={disposableIncome} />
+        )}
+
+        {tab === 'qa' && (
+          <div>
+            <div style={{ color: GOLD, fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '12px' }}>❓ Q&A History — {qaHistory.length} questions</div>
+            {qaHistory.length === 0 ? (
+              <div style={{ color: '#4a5568', textAlign: 'center', padding: '40px 0', fontSize: '12px' }}>No Q&A history for this customer yet. Questions asked during calls will appear here with timestamps.</div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {qaHistory.map((h, i) => (
+                  <div key={h.id || i} style={{ background: 'rgba(96,165,250,0.04)', border: '1px solid rgba(96,165,250,0.15)', borderRadius: '5px', overflow: 'hidden' }}>
+                    <div style={{ padding: '6px 12px', display: 'flex', alignItems: 'center', gap: '8px', borderBottom: h.answer ? '1px solid rgba(255,255,255,0.04)' : 'none' }}>
+                      <span style={{ color: '#60a5fa', fontSize: '8px', background: 'rgba(96,165,250,0.12)', border: '1px solid rgba(96,165,250,0.25)', borderRadius: '3px', padding: '1px 6px', textTransform: 'uppercase', fontWeight: 'bold', flexShrink: 0 }}>{h.source || 'auto'}</span>
+                      <span style={{ color: '#4a5568', fontSize: '10px', flexShrink: 0 }}>{h.askedAt ? new Date(h.askedAt).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }) : ''}</span>
+                      <span style={{ color: '#e8e0d0', fontSize: '12px', flex: 1, lineHeight: 1.4 }}>{h.question}</span>
+                    </div>
+                    {h.answer && <div style={{ padding: '8px 12px', color: '#c4cdd8', fontSize: '12px', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>💡 {h.answer}</div>}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {tab === 'credit_report' && (
+          <div>
+            <div style={{ color: GOLD, fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '12px' }}>📷 Credit Report Photo</div>
+            {creditPhotoLoading ? (
+              <div style={{ color: '#6b7280', textAlign: 'center', padding: '40px 0', fontSize: '12px' }}>Loading credit report photo…</div>
+            ) : creditPhotoUrl ? (
+              <div>
+                <img src={creditPhotoUrl} alt="Credit Report" style={{ width: '100%', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)' }} />
+                {local.creditReportAnalyzedAt && (
+                  <div style={{ color: '#6b7280', fontSize: '11px', marginTop: '8px' }}>Analyzed: {new Date(local.creditReportAnalyzedAt).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })}</div>
+                )}
+              </div>
+            ) : (
+              <div style={{ color: '#4a5568', textAlign: 'center', padding: '40px 0', fontSize: '12px' }}>
+                No credit report photo uploaded yet.
+                <br /><br />
+                <a href="/credit" style={{ color: GOLD, textDecoration: 'underline' }}>Upload one here →</a>
+              </div>
+            )}
+          </div>
         )}
 
         {tab === 'calculator' && (

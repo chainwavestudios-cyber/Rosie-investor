@@ -1,6 +1,7 @@
 /**
  * LiveTranscriptPanel.jsx — Pop-out-able transcript panel with tabs.
  * Tabs: Transcript (live call messages) | Scripts (personal teleprompter + pitches).
+ * Each customer question line has an "Answer" button to re-trigger Q&A.
  * Uses usePopOutPanel for drag/resize with localStorage layout persistence.
  */
 import { useState, useEffect } from 'react';
@@ -8,7 +9,7 @@ import { DebtPitchPanel } from '@/components/debt/DebtPitchTab';
 
 const GOLD = '#10b981';
 
-export default function LiveTranscriptPanel({ transcript, phase, panel }) {
+export default function LiveTranscriptPanel({ transcript, phase, panel, onAnswerQuestion }) {
   const [tab, setTab] = useState('transcript');
   const [script, setScript] = useState(() => { try { return localStorage.getItem('live_call_script') || ''; } catch { return ''; } });
 
@@ -32,9 +33,22 @@ export default function LiveTranscriptPanel({ transcript, phase, panel }) {
           <div style={{ color: '#4a5568', textAlign: 'center', padding: '60px 0', fontSize: '13px' }}>{phase === 'live' ? 'Listening… start speaking.' : 'No transcript yet. Start a call to begin.'}</div>
         ) : transcript.map((msg, i) => {
           const isAgent = msg.speaker === 0;
+          const isQuestion = !isAgent && msg.text && msg.text.includes('?');
           const sentColor = msg.sentiment === 'positive' ? '#4ade80' : msg.sentiment === 'negative' ? '#ef4444' : '#6b7280';
           return (
-            <div key={i} style={{ display: 'flex', gap: '8px', marginBottom: '10px', justifyContent: isAgent ? 'flex-end' : 'flex-start' }}>
+            <div key={i} style={{ display: 'flex', gap: '6px', marginBottom: '10px', justifyContent: isAgent ? 'flex-end' : 'flex-start', alignItems: 'flex-start' }}>
+              {isQuestion && onAnswerQuestion && (
+                <button
+                  onClick={() => onAnswerQuestion(msg.text)}
+                  title="Send to Q&A"
+                  style={{
+                    flexShrink: 0, marginTop: '4px', width: '28px', height: '28px', borderRadius: '50%',
+                    background: 'rgba(245,158,11,0.15)', border: '1px solid rgba(245,158,11,0.35)',
+                    color: '#f59e0b', fontSize: '14px', cursor: 'pointer', display: 'flex',
+                    alignItems: 'center', justifyContent: 'center', lineHeight: 1,
+                  }}
+                >💡</button>
+              )}
               <div style={{ maxWidth: '85%', background: isAgent ? 'rgba(96,165,250,0.1)' : 'rgba(16,185,129,0.1)', border: `1px solid ${isAgent ? 'rgba(96,165,250,0.2)' : 'rgba(16,185,129,0.2)'}`, borderRadius: isAgent ? '12px 12px 2px 12px' : '12px 12px 12px 2px', padding: '8px 12px' }}>
                 <div style={{ display: 'flex', gap: '6px', alignItems: 'center', marginBottom: '3px' }}>
                   <span style={{ color: isAgent ? '#60a5fa' : GOLD, fontSize: '9px', fontWeight: 'bold', textTransform: 'uppercase' }}>{isAgent ? '🎙 Agent' : '👤 Customer'}</span>

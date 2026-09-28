@@ -25,6 +25,7 @@ export default function DebtAIPanel({
   lead = null,
   micDeviceId = '',
   customerMicId = '',
+  pendingQuestion = null,
 }) {
 
   const [rightTab, setRightTab] = useState('ai');
@@ -313,6 +314,7 @@ export default function DebtAIPanel({
           callAttemptNumber={lead?.callCount ? lead.callCount + 1 : 1}
           previousCallSummary={null}
           memories={memories}
+          pendingQuestion={pendingQuestion}
         />
       )}
     </>

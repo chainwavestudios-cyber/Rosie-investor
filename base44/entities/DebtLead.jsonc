@@ -2,6 +2,10 @@
   "name": "DebtLead",
   "type": "object",
   "properties": {
+    "leadNumber": {
+      "type": "string",
+      "title": "Lead Number (e.g. #00001)"
+    },
     "firstName": {
       "type": "string",
       "title": "First Name"
@@ -151,6 +155,15 @@
       "type": "string",
       "format": "date-time",
       "title": "Callback At"
+    },
+    "creditReportPhotoUri": {
+      "type": "string",
+      "title": "Credit Report Photo URI"
+    },
+    "creditReportAnalyzedAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Credit Report Analyzed At"
     }
   },
   "required": [

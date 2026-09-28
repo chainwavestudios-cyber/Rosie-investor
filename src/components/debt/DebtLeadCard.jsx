@@ -56,7 +56,11 @@ export default function DebtLeadCard({ lead, onLeadChange, transcript, intentSco
           <div style={{ width: '44px', height: '44px', borderRadius: '50%', background: 'linear-gradient(135deg,rgba(16,185,129,0.3),rgba(16,185,129,0.1))', border: '2px solid rgba(16,185,129,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px' }}>💳</div>
           <div style={{ flex: 1 }}>
             <div style={{ color: '#e8e0d0', fontSize: '16px' }}>{lead.firstName} {lead.lastName}</div>
-            <div style={{ color: '#6b7280', fontSize: '11px' }}>{lead.phone} · {lead.email}</div>
+            <div style={{ color: '#6b7280', fontSize: '11px' }}>
+              {lead.leadNumber && <span style={{ color: GOLD, fontWeight: 'bold' }}>{lead.leadNumber}</span>}
+              {lead.leadNumber && (lead.phone || lead.email) ? ' · ' : ''}
+              {[lead.phone, lead.email].filter(Boolean).join(' · ')}
+            </div>
           </div>
           <button onClick={() => setShowProfile(true)} style={{ background: 'linear-gradient(135deg,#10b981,#22c55e)', color: '#0a0f1e', border: 'none', borderRadius: '4px', padding: '6px 14px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
             👤 Client Profile
