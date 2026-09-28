@@ -82,6 +82,7 @@ export default function DebtLiveCall() {
   const lastBillsTime = useRef(0);
   const lastHardshipTime = useRef(0);
   const lastCosignerTime = useRef(0);
+  const lastContactTime = useRef(0);
   const callStartRef = useRef(null);
   const testCtxRef = useRef(null);
   const testAgentStreamRef = useRef(null);
@@ -339,6 +340,28 @@ ${recentText}`,
     } catch {}
   }, []);
 
+  // Auto-extract contact info (phone, address, email) from transcript
+  const handleContactExtract = useCallback(async () => {
+    if (!leadRef.current?.id || transcriptRef.current.length < 4) return;
+    try {
+      const res = await base44.functions.invoke('liveAssistantAI', { transcript: transcriptRef.current.slice(-15), mode: 'contact' });
+      const contact = res?.contact || res?.data?.contact;
+      if (contact) {
+        const updates = {};
+        if (contact.phone && !leadRef.current.phone) updates.phone = contact.phone;
+        if (contact.email && !leadRef.current.email) updates.email = contact.email;
+        if (contact.address && !leadRef.current.address) updates.address = contact.address;
+        if (contact.city && !leadRef.current.city) updates.city = contact.city;
+        if (contact.state && !leadRef.current.state) updates.state = contact.state;
+        if (contact.zip && !leadRef.current.zip) updates.zip = contact.zip;
+        if (Object.keys(updates).length > 0) {
+          setLead(prev => ({ ...prev, ...updates }));
+          if (leadRef.current.id) base44.entities.DebtLead.update(leadRef.current.id, updates).catch(() => {});
+        }
+      }
+    } catch {}
+  }, []);
+
   // Auto-extract co-signers from transcript
   const handleCosignerExtract = useCallback(async () => {
     if (!leadRef.current?.id || transcriptRef.current.length < 4) return;
@@ -384,7 +407,8 @@ ${recentText}`,
     if (now - lastBillsTime.current > 50000) { lastBillsTime.current = now; handleBillsExtract(); }
     if (now - lastHardshipTime.current > 55000) { lastHardshipTime.current = now; handleHardshipExtract(); }
     if (now - lastCosignerTime.current > 60000) { lastCosignerTime.current = now; handleCosignerExtract(); }
-  }, [qaActive, coachActive, intentActive, handleQa, handleCoach, handleIntent, handleProfile, handleDebtExtract, handleBillsExtract, handleHardshipExtract, handleCosignerExtract]);
+    if (now - lastContactTime.current > 40000) { lastContactTime.current = now; handleContactExtract(); }
+  }, [qaActive, coachActive, intentActive, handleQa, handleCoach, handleIntent, handleProfile, handleDebtExtract, handleBillsExtract, handleHardshipExtract, handleCosignerExtract, handleContactExtract]);
 
   const startCall = useCallback(async () => {
     // Ensure we have a lead

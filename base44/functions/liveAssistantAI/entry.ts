@@ -418,6 +418,42 @@ ${recentText}`,
       }
     }
 
+    // ── CONTACT INFO EXTRACTION ───────────────────────────────────────
+    if (mode === 'contact') {
+      const recentText = (transcript || []).slice(-15).map((t: any) => t.text).join(' ');
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_KEY, 'anthropic-version': '2023-06-01' },
+        body: JSON.stringify({
+          model: 'claude-haiku-4-5-20251001',
+          max_tokens: 400,
+          system: `You are analyzing a live debt settlement call transcript. Extract any contact information the customer provides when the agent asks for or verifies it.
+
+Look for:
+- phone: Phone number (when agent asks "what's your phone number" or "can you verify your phone number")
+- email: Email address
+- address: Street address
+- city: City
+- state: State
+- zip: Zip code
+
+Return JSON. Only include fields that are explicitly mentioned — do NOT make up data. If nothing new is mentioned, return empty object.
+
+Transcript:
+${recentText}`,
+          messages: [{ role: 'user', content: 'Extract contact details:' }],
+        }),
+      });
+      const data = await res.json();
+      const text = data?.content?.[0]?.text || '{}';
+      try {
+        const result = JSON.parse(text.replace(/```json|```/g, '').trim());
+        return Response.json({ contact: result });
+      } catch {
+        return Response.json({ contact: null });
+      }
+    }
+
     // ── POST-CALL FULL REPORT ─────────────────────────────────────────
     if (mode === 'full_report') {
       const { usedCoach, usedQA, usedIntent, coachTips, qaLog, intentResult } = body;
