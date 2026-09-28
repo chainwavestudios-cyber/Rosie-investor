@@ -4,16 +4,14 @@
  * Each customer question line has an "Answer" button to re-trigger Q&A.
  * Uses usePopOutPanel for drag/resize with localStorage layout persistence.
  */
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { DebtPitchPanel } from '@/components/debt/DebtPitchTab';
+import { MyScriptsTab } from '@/components/debt/DebtScriptEditor';
 
 const GOLD = '#10b981';
 
 export default function LiveTranscriptPanel({ transcript, phase, panel, onAnswerQuestion }) {
   const [tab, setTab] = useState('transcript');
-  const [script, setScript] = useState(() => { try { return localStorage.getItem('live_call_script') || ''; } catch { return ''; } });
-
-  useEffect(() => { try { localStorage.setItem('live_call_script', script); } catch {} }, [script]);
 
   const tabs = (
     <div style={{ display: 'flex', gap: '4px' }}>
@@ -65,13 +63,7 @@ export default function LiveTranscriptPanel({ transcript, phase, panel, onAnswer
 
   const renderScripts = () => (
     <div style={{ flex: 1, overflowY: 'auto', padding: '14px 16px' }}>
-      <textarea
-        value={script}
-        onChange={e => setScript(e.target.value)}
-        placeholder={'Type or paste your script here…\n\nThis is your personal teleprompter. Your script is saved automatically.'}
-        style={{ width: '100%', height: '300px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', color: '#e8e0d0', fontSize: '14px', lineHeight: 1.6, padding: '12px', outline: 'none', resize: 'vertical', boxSizing: 'border-box', fontFamily: 'Georgia, serif', borderRadius: '4px' }}
-      />
-      <div style={{ padding: '4px 8px', color: '#4a5568', fontSize: '10px', textAlign: 'right' }}>{script.length} chars · auto-saved</div>
+      <MyScriptsTab />
       <div style={{ marginTop: '12px' }}>
         <DebtPitchPanel />
       </div>

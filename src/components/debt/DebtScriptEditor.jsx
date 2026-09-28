@@ -34,6 +34,8 @@ const AGENT_CATEGORIES = {
   debt_close_scenario: { label: '🎯 Close Scenarios', color: '#a78bfa' },
 };
 
+export { MyScriptsTab };
+
 export default function DebtScriptEditor() {
   const [tab, setTab] = useState('my');
 
