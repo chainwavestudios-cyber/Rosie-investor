@@ -6,7 +6,6 @@
  */
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { base44 } from '@/api/base44Client';
-import { useTwilioDevice } from '@/lib/TwilioDeviceContext';
 import { DebtPitchPanel } from '@/components/debt/DebtPitchTab';
 import DebtIntentSignals, { DEBT_INTENT_RULES } from '@/components/debt/DebtIntentSignals';
 import AIAssistantPopup from '@/components/leads/AIAssistantPopup';
@@ -24,8 +23,9 @@ export default function DebtAIPanel({
   ledgerExtracting = false,
   memories = [],
   lead = null,
+  micDeviceId = '',
+  customerMicId = '',
 }) {
-  const { incomingCall } = useTwilioDevice();
 
   const [rightTab, setRightTab] = useState('ai');
   const [showPopup, setShowPopup] = useState(false);
@@ -44,6 +44,7 @@ export default function DebtAIPanel({
   const audioCtxRef = useRef(null);
   const processorRef = useRef(null);
   const streamRef = useRef(null);
+  const customerStreamRef = useRef(null);
   const transcriptRef = useRef([]);
 
   // Load all KB entries
@@ -74,57 +75,49 @@ export default function DebtAIPanel({
   // Keep transcriptRef in sync
   useEffect(() => { transcriptRef.current = normalizedTranscript; }, [normalizedTranscript]);
 
-  // ── Twilio Stream Connect ──────────────────────────────────────────
+  // ── Direct Audio Stream Connect (like BOB — uses computer audio, not Twilio) ──
   const connectStream = async () => {
     if (streamStatus === 'connected') { disconnectStream(); return; }
 
     setError(''); setStreamStatus('connecting');
 
-    const call = incomingCall?.call;
-    if (!call) { setError('No active Twilio call. Start or answer a call first.'); setStreamStatus('error'); return; }
+    const dualMode = !!customerMicId && !!micDeviceId;
 
+    let agentStream, customerStream;
     try {
-      let remoteStream = call.getRemoteStream?.() || null;
-      let localStream = call.getLocalStream?.() || null;
-
-      if (!remoteStream && !localStream) {
-        for (let i = 0; i < 8; i++) {
-          await new Promise(r => setTimeout(r, 250));
-          remoteStream = call.getRemoteStream?.() || null;
-          localStream = call.getLocalStream?.() || null;
-          if (remoteStream) break;
-        }
+      agentStream = await navigator.mediaDevices.getUserMedia({ audio: micDeviceId ? { deviceId: { exact: micDeviceId } } : true });
+      streamRef.current = agentStream;
+      if (dualMode) {
+        customerStream = await navigator.mediaDevices.getUserMedia({ audio: { deviceId: { exact: customerMicId } } });
+        customerStreamRef.current = customerStream;
       }
+    } catch (e) { setError(`Audio access denied: ${e.message}`); setStreamStatus('error'); return; }
 
-      if (!remoteStream && !localStream) { setError('Could not get call audio streams.'); setStreamStatus('error'); return; }
+    let dgKey = import.meta.env.VITE_DEEPGRAM_API_KEY || '';
+    if (!dgKey) { try { const tokenRes = await base44.functions.invoke('deepgramToken2', {}); dgKey = tokenRes?.key || tokenRes?.data?.key || ''; } catch {} }
+    if (!dgKey) { setError('No Deepgram API key'); setStreamStatus('error'); agentStream.getTracks().forEach(t => t.stop()); if (customerStream) customerStream.getTracks().forEach(t => t.stop()); return; }
 
-      const audioCtx = new AudioContext({ sampleRate: 16000 });
-      if (audioCtx.state === 'suspended') await audioCtx.resume();
-      audioCtxRef.current = audioCtx;
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    if (ctx.state === 'suspended') await ctx.resume();
+    audioCtxRef.current = ctx;
+    const sr = ctx.sampleRate;
 
-      // ch0 = remote (prospect), ch1 = local (agent)
-      const merger = audioCtx.createChannelMerger(2);
-      if (remoteStream) audioCtx.createMediaStreamSource(remoteStream).connect(merger, 0, 0);
-      if (localStream) audioCtx.createMediaStreamSource(localStream).connect(merger, 0, 1);
-      const dest = audioCtx.createMediaStreamDestination();
-      merger.connect(dest);
-      streamRef.current = dest.stream;
+    const dgParams = dualMode
+      ? `model=nova-3&multichannel=true&smart_format=true&interim_results=true&endpointing=300&sentiment=true&channels=2&sample_rate=${sr}&encoding=linear16`
+      : `model=nova-3&diarize=true&smart_format=true&interim_results=true&endpointing=300&sentiment=true&sample_rate=${sr}&encoding=linear16`;
+    const ws = new WebSocket(`wss://api.deepgram.com/v1/listen?${dgParams}`, ['token', dgKey]);
+    wsRef.current = ws;
 
-      let dgKey = import.meta.env.VITE_DEEPGRAM_API_KEY || '';
-      if (!dgKey) { const tokenRes = await base44.functions.invoke('deepgramToken', {}); dgKey = tokenRes?.key || tokenRes?.data?.key || ''; }
-      if (!dgKey) throw new Error('No Deepgram token');
-
-      const ws = new WebSocket(
-        `wss://api.deepgram.com/v1/listen?model=nova-2&language=en-US&smart_format=true&interim_results=true&endpointing=300&sentiment=true&multichannel=true&channels=2&sample_rate=16000&encoding=linear16`,
-        ['token', dgKey]
-      );
-      wsRef.current = ws;
-
-      ws.onopen = () => {
-        setStreamStatus('connected');
-        const proc = audioCtx.createScriptProcessor(4096, 2, 2);
+    ws.onopen = () => {
+      setStreamStatus('connected');
+      if (dualMode) {
+        const agentSrc = ctx.createMediaStreamSource(agentStream);
+        const customerSrc = ctx.createMediaStreamSource(customerStream);
+        const merger = ctx.createChannelMerger(2);
+        agentSrc.connect(merger, 0, 0);
+        customerSrc.connect(merger, 0, 1);
+        const proc = ctx.createScriptProcessor(4096, 2, 2);
         processorRef.current = proc;
-        const src = audioCtx.createMediaStreamSource(dest.stream);
         proc.onaudioprocess = e => {
           if (ws.readyState !== WebSocket.OPEN) return;
           const ch0 = e.inputBuffer.getChannelData(0);
@@ -137,26 +130,38 @@ export default function DebtAIPanel({
           }
           ws.send(pcm.buffer);
         };
-        src.connect(proc); proc.connect(audioCtx.destination);
-      };
+        merger.connect(proc); proc.connect(ctx.destination);
+      } else {
+        const src = ctx.createMediaStreamSource(agentStream);
+        const proc = ctx.createScriptProcessor(4096, 1, 1);
+        processorRef.current = proc;
+        proc.onaudioprocess = e => {
+          if (ws.readyState !== WebSocket.OPEN) return;
+          const input = e.inputBuffer.getChannelData(0);
+          const pcm = new Int16Array(input.length);
+          for (let i = 0; i < input.length; i++) { pcm[i] = Math.max(-32768, Math.min(32767, input[i] * 32768)); }
+          ws.send(pcm.buffer);
+        };
+        src.connect(proc); proc.connect(ctx.destination);
+      }
+    };
 
-      ws.onmessage = e => {
-        try {
-          const data = JSON.parse(e.data);
-          const alt = data?.channel?.alternatives?.[0];
-          const text = alt?.transcript?.trim();
-          if (!text || !data.is_final) return;
-          const channelIdx = Array.isArray(data.channel_index) ? data.channel_index[0] : null;
-          // ch0 = remote = prospect (speaker 0), ch1 = local = agent (speaker 1)
-          const speaker = channelIdx !== null ? channelIdx : 0;
-          const entry = { text, time: new Date(), speaker, sentiment: alt?.sentiments?.segments?.[0]?.sentiment || null };
-          setTwilioTranscript(prev => [...prev, entry]);
-        } catch {}
-      };
+    ws.onmessage = e => {
+      try {
+        const data = JSON.parse(e.data);
+        const alt = data?.channel?.alternatives?.[0];
+        const text = alt?.transcript?.trim();
+        if (!text || !data.is_final) return;
+        const channel = data.channel !== undefined ? data.channel : (Array.isArray(data.channel_index) ? data.channel_index[0] : 0);
+        // ch0 = agent (speaker 0), ch1 = customer (speaker 1) — same as live call
+        const speaker = dualMode ? (channel === 0 ? 0 : 1) : (alt.speaker ?? 0);
+        const entry = { text, time: new Date(), speaker, sentiment: alt?.sentiments?.segments?.[0]?.sentiment || null };
+        setTwilioTranscript(prev => [...prev, entry]);
+      } catch {}
+    };
 
-      ws.onerror = () => { setError('Deepgram WebSocket error'); setStreamStatus('error'); };
-      ws.onclose = (e) => { if (e.code !== 1000) setError(`Stream disconnected (code ${e.code})`); setStreamStatus('idle'); };
-    } catch (e) { setError(`Stream error: ${e.message}`); setStreamStatus('error'); }
+    ws.onerror = () => { setError('Deepgram WebSocket error'); setStreamStatus('error'); };
+    ws.onclose = (e) => { if (e.code !== 1000 && e.code !== 1005) setError(`Stream disconnected (code ${e.code})`); setStreamStatus('idle'); };
   };
 
   const disconnectStream = () => {
@@ -164,12 +169,12 @@ export default function DebtAIPanel({
     try { processorRef.current?.disconnect(); } catch {}
     try { audioCtxRef.current?.close(); } catch {}
     try { streamRef.current?.getTracks().forEach(t => t.stop()); } catch {}
-    wsRef.current = null; audioCtxRef.current = null; processorRef.current = null; streamRef.current = null;
+    try { customerStreamRef.current?.getTracks().forEach(t => t.stop()); } catch {}
+    wsRef.current = null; audioCtxRef.current = null; processorRef.current = null; streamRef.current = null; customerStreamRef.current = null;
     setStreamStatus('idle');
   };
 
   useEffect(() => () => disconnectStream(), []);
-  useEffect(() => { if (!incomingCall && streamStatus === 'connected') disconnectStream(); }, [incomingCall, streamStatus]);
 
   // Toggle handlers — open popup when toggled on
   const toggleQA = () => { const n = !qaActive; setQaActive(n); if (n) setShowPopup(true); };
@@ -207,7 +212,7 @@ export default function DebtAIPanel({
               {/* Twilio Stream Connect */}
               <button onClick={connectStream} style={{ display: 'flex', alignItems: 'center', gap: '5px', background: streamStatus === 'connected' ? 'rgba(74,222,128,0.1)' : streamStatus === 'error' ? 'rgba(239,68,68,0.08)' : 'rgba(255,255,255,0.04)', border: `1px solid ${streamStatus === 'connected' ? 'rgba(74,222,128,0.4)' : streamStatus === 'error' ? 'rgba(239,68,68,0.35)' : 'rgba(255,255,255,0.12)'}`, color: streamStatus === 'connected' ? '#4ade80' : streamStatus === 'error' ? '#ef4444' : '#8a9ab8', borderRadius: '4px', padding: '6px 12px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold', whiteSpace: 'nowrap' }}>
                 <div style={{ width: 6, height: 6, borderRadius: '50%', flexShrink: 0, background: streamStatusLight, animation: streamStatus === 'connecting' ? 'pulse 0.8s infinite' : streamStatus === 'connected' ? 'pulse 2.5s infinite' : 'none' }} />
-                {streamStatus === 'connected' ? '⏹ Disconnect Stream' : '🔗 Twilio Stream Connect'}
+                {streamStatus === 'connected' ? '⏹ Disconnect Audio' : '🔗 Connect Audio Stream'}
               </button>
 
               {/* Feature toggles — open popup */}

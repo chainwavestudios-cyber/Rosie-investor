@@ -26,6 +26,10 @@ export default function DebtLiveCall() {
   const [customerMicId, setCustomerMicId] = useState('');
   const [phase, setPhase] = useState('idle');
   const [error, setError] = useState('');
+  const [dgStatus, setDgStatus] = useState('idle');
+  const [testingAudio, setTestingAudio] = useState(false);
+  const [agentLevel, setAgentLevel] = useState(0);
+  const [customerLevel, setCustomerLevel] = useState(0);
   const [transcript, setTranscript] = useState([]);
   const [kbEntries, setKbEntries] = useState([]);
   const [kbLoading, setKbLoading] = useState(true);
@@ -67,6 +71,10 @@ export default function DebtLiveCall() {
   const lastLedgerTime = useRef(0);
   const lastBillsTime = useRef(0);
   const callStartRef = useRef(null);
+  const testCtxRef = useRef(null);
+  const testAgentStreamRef = useRef(null);
+  const testCustomerStreamRef = useRef(null);
+  const testAnimRef = useRef(null);
 
   useEffect(() => { leadRef.current = lead; }, [lead]);
 
@@ -95,7 +103,7 @@ export default function DebtLiveCall() {
       .catch(() => {}).finally(() => setKbLoading(false));
   }, []);
 
-  // Load mic devices
+  // Load mic devices — auto-detect Rodecaster for customer audio
   useEffect(() => {
     navigator.mediaDevices.getUserMedia({ audio: true })
       .then(() => navigator.mediaDevices.enumerateDevices())
@@ -103,6 +111,8 @@ export default function DebtLiveCall() {
         const mics = devices.filter(d => d.kind === 'audioinput');
         setMicDevices(mics);
         if (mics.length > 0 && !micDeviceId) setMicDeviceId(mics[0].deviceId);
+        const rodecaster = mics.find(m => /rode|rodecaster|røde/i.test(m.label || ''));
+        if (rodecaster && !customerMicId) setCustomerMicId(rodecaster.deviceId);
       })
       .catch(() => {});
   }, []);
@@ -313,7 +323,7 @@ ${recentText}`,
     if (!lead.id) { await createNewLead(); }
 
     setError(''); setTranscript([]); setQaItems([]); setCoachTips([]); setIntentScore(null); setProfileData(null); setReport('');
-    setPhase('live');
+    setPhase('live'); setDgStatus('connecting');
     callStartRef.current = new Date();
     lastCoachTime.current = Date.now();
     lastIntentTime.current = Date.now();
@@ -329,24 +339,27 @@ ${recentText}`,
         customerStream = await navigator.mediaDevices.getUserMedia({ audio: { deviceId: { exact: customerMicId } } });
         customerStreamRef.current = customerStream;
       }
-    } catch { setError('Microphone/audio access denied.'); setPhase('idle'); return; }
+    } catch { setError('Microphone/audio access denied.'); setPhase('idle'); setDgStatus('error'); return; }
 
     let dgKey = '';
     try { const tokenRes = await base44.functions.invoke('deepgramToken2', {}); dgKey = tokenRes?.key || tokenRes?.data?.key || ''; }
     catch { dgKey = import.meta.env.VITE_DEEPGRAM_API_KEY || ''; }
-    if (!dgKey) { setError('Could not get Deepgram API key.'); setPhase('idle'); agentStream.getTracks().forEach(t => t.stop()); if (customerStream) customerStream.getTracks().forEach(t => t.stop()); return; }
+    if (!dgKey) { setError('Could not get Deepgram API key.'); setPhase('idle'); setDgStatus('error'); agentStream.getTracks().forEach(t => t.stop()); if (customerStream) customerStream.getTracks().forEach(t => t.stop()); return; }
 
-    const ctx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    if (ctx.state === 'suspended') await ctx.resume();
     ctxRef.current = ctx;
+    const sr = ctx.sampleRate;
 
     const dgParams = dualMode
-      ? 'model=nova-3&multichannel=true&smart_format=true&punctuate=true&sentiment=true&utterances=true&interim_results=false'
-      : 'model=nova-3&diarize=true&smart_format=true&punctuate=true&sentiment=true&utterances=true&interim_results=false';
+      ? `model=nova-3&multichannel=true&smart_format=true&punctuate=true&sentiment=true&utterances=true&interim_results=false&channels=2&sample_rate=${sr}&encoding=linear16`
+      : `model=nova-3&diarize=true&smart_format=true&punctuate=true&sentiment=true&utterances=true&interim_results=false&sample_rate=${sr}&encoding=linear16`;
     const ws = new WebSocket(`wss://api.deepgram.com/v1/listen?${dgParams}`, ['token', dgKey]);
     ws.binaryType = 'arraybuffer';
     wsRef.current = ws;
 
     ws.onopen = () => {
+      setDgStatus('connected');
       if (dualMode) {
         // Multichannel: channel 0 = agent (left), channel 1 = customer (right)
         const agentSrc = ctx.createMediaStreamSource(agentStream);
@@ -400,7 +413,11 @@ ${recentText}`,
       } catch {}
     };
 
-    ws.onerror = () => { setError('Deepgram connection error.'); };
+    ws.onclose = (e) => {
+      setDgStatus('idle');
+      if (e.code !== 1000 && e.code !== 1005) setError(`Deepgram disconnected (code ${e.code}). ${e.reason || ''}`);
+    };
+    ws.onerror = () => { setDgStatus('error'); setError('Deepgram connection error — check API key.'); };
   }, [micDeviceId, customerMicId, processNewEntry, lead, createNewLead]);
 
   const stopCall = useCallback(async () => {
@@ -409,7 +426,7 @@ ${recentText}`,
     if (streamRef.current) { streamRef.current.getTracks().forEach(t => t.stop()); streamRef.current = null; }
     if (customerStreamRef.current) { customerStreamRef.current.getTracks().forEach(t => t.stop()); customerStreamRef.current = null; }
     if (ctxRef.current) { try { ctxRef.current.close(); } catch {} ctxRef.current = null; }
-    setPhase('ended');
+    setPhase('ended'); setDgStatus('idle');
 
     // Final profile + intent analysis
     if (transcriptRef.current.length > 0 && leadRef.current?.id) {
@@ -488,6 +505,57 @@ ${recentText}`,
     loadLeads();
   }, [kbEntries, coachActive, qaActive, intentActive, coachTips, qaItems, loadLeads]);
 
+  // ── Audio Test — level meters for both inputs ──────────────────────────
+  const startAudioTest = useCallback(async () => {
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      if (ctx.state === 'suspended') await ctx.resume();
+      testCtxRef.current = ctx;
+      const agentStream = await navigator.mediaDevices.getUserMedia({ audio: micDeviceId ? { deviceId: { exact: micDeviceId } } : true });
+      testAgentStreamRef.current = agentStream;
+      const agentAnalyser = ctx.createAnalyser();
+      agentAnalyser.fftSize = 256;
+      ctx.createMediaStreamSource(agentStream).connect(agentAnalyser);
+      let customerAnalyser = null;
+      if (customerMicId) {
+        const customerStream = await navigator.mediaDevices.getUserMedia({ audio: { deviceId: { exact: customerMicId } } });
+        testCustomerStreamRef.current = customerStream;
+        customerAnalyser = ctx.createAnalyser();
+        customerAnalyser.fftSize = 256;
+        ctx.createMediaStreamSource(customerStream).connect(customerAnalyser);
+      }
+      const agentData = new Uint8Array(agentAnalyser.frequencyBinCount);
+      const customerData = customerAnalyser ? new Uint8Array(customerAnalyser.frequencyBinCount) : null;
+      const tick = () => {
+        agentAnalyser.getByteTimeDomainData(agentData);
+        let aMax = 0;
+        for (let i = 0; i < agentData.length; i++) { const v = Math.abs(agentData[i] - 128) / 128; if (v > aMax) aMax = v; }
+        setAgentLevel(Math.round(aMax * 100));
+        if (customerAnalyser) {
+          customerAnalyser.getByteTimeDomainData(customerData);
+          let cMax = 0;
+          for (let i = 0; i < customerData.length; i++) { const v = Math.abs(customerData[i] - 128) / 128; if (v > cMax) cMax = v; }
+          setCustomerLevel(Math.round(cMax * 100));
+        }
+        testAnimRef.current = requestAnimationFrame(tick);
+      };
+      tick();
+      setTestingAudio(true);
+    } catch (e) { setError('Audio test failed: ' + (e?.message || String(e))); }
+  }, [micDeviceId, customerMicId]);
+
+  const stopAudioTest = useCallback(() => {
+    if (testAnimRef.current) cancelAnimationFrame(testAnimRef.current);
+    testAnimRef.current = null;
+    if (testAgentStreamRef.current) testAgentStreamRef.current.getTracks().forEach(t => t.stop());
+    if (testCustomerStreamRef.current) testCustomerStreamRef.current.getTracks().forEach(t => t.stop());
+    if (testCtxRef.current) { try { testCtxRef.current.close(); } catch {} }
+    testCtxRef.current = null; testAgentStreamRef.current = null; testCustomerStreamRef.current = null;
+    setTestingAudio(false); setAgentLevel(0); setCustomerLevel(0);
+  }, []);
+
+  useEffect(() => () => stopAudioTest(), [stopAudioTest]);
+
   const phaseColor = { idle: '#6b7280', live: '#ef4444', ended: '#8a9ab8' }[phase];
   const phaseLabel = { idle: 'Ready', live: '● LIVE', ended: 'Ended' }[phase];
 
@@ -515,6 +583,10 @@ ${recentText}`,
           <span style={{ padding: '4px 10px', background: 'rgba(96,165,250,0.12)', border: '1px solid rgba(96,165,250,0.3)', borderRadius: '4px', color: '#60a5fa', fontSize: '10px', fontWeight: 'bold', letterSpacing: '1px' }}>DUAL CHANNEL</span>
         )}
 
+        <button onClick={testingAudio ? stopAudioTest : startAudioTest} disabled={phase === 'live'} style={{ background: testingAudio ? 'rgba(245,158,11,0.15)' : 'rgba(255,255,255,0.05)', color: testingAudio ? '#f59e0b' : '#8a9ab8', border: `1px solid ${testingAudio ? 'rgba(245,158,11,0.3)' : 'rgba(255,255,255,0.12)'}`, borderRadius: '4px', padding: '8px 14px', cursor: phase === 'live' ? 'not-allowed' : 'pointer', fontSize: '11px', fontWeight: 'bold', whiteSpace: 'nowrap', opacity: phase === 'live' ? 0.5 : 1 }}>
+          {testingAudio ? '⏹ Stop Test' : '🔊 Test Audio'}
+        </button>
+
         {/* Call Mode selector — Open vs Close */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
           <label style={{ ...ls, marginBottom: 0 }}>📞 Call Mode</label>
@@ -540,10 +612,37 @@ ${recentText}`,
           <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: phaseColor, animation: phase === 'live' ? 'pulse 1s infinite' : 'none' }} />
           <span style={{ color: phaseColor, fontSize: '11px', fontWeight: 'bold' }}>{phaseLabel}</span>
         </span>
+        {phase === 'live' && (
+          <span style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 14px', background: dgStatus === 'connected' ? 'rgba(74,222,128,0.12)' : dgStatus === 'connecting' ? 'rgba(245,158,11,0.12)' : dgStatus === 'error' ? 'rgba(239,68,68,0.12)' : 'rgba(107,114,128,0.12)', border: `1px solid ${dgStatus === 'connected' ? 'rgba(74,222,128,0.3)' : dgStatus === 'connecting' ? 'rgba(245,158,11,0.3)' : dgStatus === 'error' ? 'rgba(239,68,68,0.3)' : 'rgba(107,114,128,0.2)'}`, borderRadius: '20px' }}>
+            <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: dgStatus === 'connected' ? '#4ade80' : dgStatus === 'connecting' ? '#f59e0b' : dgStatus === 'error' ? '#ef4444' : '#6b7280', animation: dgStatus === 'connecting' ? 'pulse 0.8s infinite' : 'none' }} />
+            <span style={{ color: dgStatus === 'connected' ? '#4ade80' : dgStatus === 'connecting' ? '#f59e0b' : dgStatus === 'error' ? '#ef4444' : '#6b7280', fontSize: '11px', fontWeight: 'bold' }}>Deepgram: {dgStatus}</span>
+          </span>
+        )}
         <span style={{ color: '#6b7280', fontSize: '11px' }}>{transcript.length} lines</span>
       </div>
 
       {error && <div style={{ marginBottom: '12px', padding: '10px 14px', background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '4px', color: '#ef4444', fontSize: '12px' }}>⚠ {error}</div>}
+
+      {testingAudio && (
+        <div style={{ marginBottom: '12px', padding: '14px 18px', background: '#0d1b2a', border: '1px solid rgba(245,158,11,0.2)', borderRadius: '6px', display: 'flex', gap: '24px', alignItems: 'center' }}>
+          <div style={{ flex: 1 }}>
+            <div style={{ color: '#60a5fa', fontSize: '10px', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '6px' }}>🎙 Agent Mic</div>
+            <div style={{ height: '8px', background: 'rgba(255,255,255,0.06)', borderRadius: '4px', overflow: 'hidden' }}>
+              <div style={{ width: `${agentLevel}%`, height: '100%', background: 'linear-gradient(90deg,#60a5fa,#3b82f6)', borderRadius: '4px', transition: 'width 0.05s' }} />
+            </div>
+            <div style={{ color: '#6b7280', fontSize: '10px', marginTop: '4px' }}>{agentLevel > 2 ? '✅ Audio detected' : '🔇 No audio'}</div>
+          </div>
+          {customerMicId && (
+            <div style={{ flex: 1 }}>
+              <div style={{ color: '#f59e0b', fontSize: '10px', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '6px' }}>🎧 Customer (Rodecaster)</div>
+              <div style={{ height: '8px', background: 'rgba(255,255,255,0.06)', borderRadius: '4px', overflow: 'hidden' }}>
+                <div style={{ width: `${customerLevel}%`, height: '100%', background: 'linear-gradient(90deg,#f59e0b,#f97316)', borderRadius: '4px', transition: 'width 0.05s' }} />
+              </div>
+              <div style={{ color: '#6b7280', fontSize: '10px', marginTop: '4px' }}>{customerLevel > 2 ? '✅ Audio detected' : '🔇 No audio'}</div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Lead picker */}
       {showLeadPicker && (
@@ -634,6 +733,8 @@ ${recentText}`,
           ledgerExtracting={ledgerExtracting}
           memories={memories}
           lead={lead}
+          micDeviceId={micDeviceId}
+          customerMicId={customerMicId}
         />
       </div>
 
