@@ -29,10 +29,13 @@ const BILL_CATEGORIES = [
 ];
 
 const TABS = [
+  { id: 'hardship', label: '⚠️ Hardship' },
   { id: 'overview', label: '📋 Overview' },
+  { id: 'cosigners', label: '👥 Co-Signers' },
   { id: 'debt', label: '💳 Debt' },
   { id: 'bills', label: '🧾 Bills' },
   { id: 'qa', label: '❓ Q&A' },
+  { id: 'transcripts', label: '📝 Transcripts' },
   { id: 'credit_report', label: '📷 Credit Report' },
   { id: 'calculator', label: '📊 Calculator' },
 ];
@@ -48,6 +51,8 @@ export default function ClientProfileModal({ lead, onClose, onSave }) {
   const [qaHistory, setQaHistory] = useState([]);
   const [creditPhotoUrl, setCreditPhotoUrl] = useState(null);
   const [creditPhotoLoading, setCreditPhotoLoading] = useState(false);
+  const [callTranscripts, setCallTranscripts] = useState([]);
+  const [expandedTranscript, setExpandedTranscript] = useState(null);
   const panel = usePopOutPanel('client_profile', { width: 900, height: 700 });
 
   // Load Q&A history for this lead
@@ -56,6 +61,14 @@ export default function ClientProfileModal({ lead, onClose, onSave }) {
     base44.entities.DebtQAHistory.filter({ leadId: lead.id }, '-askedAt', 200)
       .then(rows => setQaHistory(rows || []))
       .catch(() => setQaHistory([]));
+  }, [lead?.id]);
+
+  // Load all call transcripts for this lead
+  useEffect(() => {
+    if (!lead?.id) { setCallTranscripts([]); return; }
+    base44.entities.DebtCallTranscript.filter({ leadId: lead.id }, '-callDate', 100)
+      .then(rows => setCallTranscripts(rows || []))
+      .catch(() => setCallTranscripts([]));
   }, [lead?.id]);
 
   // Load credit report photo signed URL
@@ -133,6 +146,8 @@ export default function ClientProfileModal({ lead, onClose, onSave }) {
         employmentStatus: local.employmentStatus, monthlyIncome: local.monthlyIncome,
         creditScore: local.creditScore, behindOnPayments: local.behindOnPayments,
         monthsBehind: local.monthsBehind, notes: local.notes,
+        hardshipWhen: local.hardshipWhen, hardshipWhy: local.hardshipWhy, hardshipHow: local.hardshipHow,
+        cosignersJson: local.cosignersJson,
       });
       setSaved(true); setTimeout(() => setSaved(false), 2000);
       onSave?.(local);
@@ -188,6 +203,27 @@ export default function ClientProfileModal({ lead, onClose, onSave }) {
 
       {/* Content */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '20px' }}>
+        {tab === 'hardship' && (
+          <div>
+            <div style={{ color: GOLD, fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '12px' }}>⚠️ Hardship Details</div>
+            <div style={{ background: 'rgba(245,158,11,0.06)', border: '1px solid rgba(245,158,11,0.2)', borderRadius: '4px', padding: '12px', marginBottom: '16px', color: '#8a9ab8', fontSize: '11px' }}>
+              Document the financial hardship that led this customer to seek debt settlement. This auto-populates from the call transcript when the customer discusses their situation.
+            </div>
+            <div style={{ marginBottom: '16px' }}>
+              <label style={ls}>When did the hardship start?</label>
+              <textarea value={local.hardshipWhen || ''} onChange={e => update('hardshipWhen', e.target.value)} rows={3} style={{ ...inp, resize: 'vertical' }} placeholder="e.g., Lost my job 6 months ago, medical emergency in January, divorce finalized last year..." />
+            </div>
+            <div style={{ marginBottom: '16px' }}>
+              <label style={ls}>Why did it happen?</label>
+              <textarea value={local.hardshipWhy || ''} onChange={e => update('hardshipWhy', e.target.value)} rows={3} style={{ ...inp, resize: 'vertical' }} placeholder="e.g., Company downsized and I was laid off, unexpected medical bills from a surgery, went through a divorce and lost my spouse's income..." />
+            </div>
+            <div style={{ marginBottom: '16px' }}>
+              <label style={ls}>How did it impact their finances?</label>
+              <textarea value={local.hardshipHow || ''} onChange={e => update('hardshipHow', e.target.value)} rows={4} style={{ ...inp, resize: 'vertical' }} placeholder="e.g., Fell behind on credit card payments, had to use savings to cover rent, credit score dropped 100 points, started getting collection calls..." />
+            </div>
+          </div>
+        )}
+
         {tab === 'overview' && (
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
             <Field label="First Name" value={local.firstName} onChange={v => update('firstName', v)} />
@@ -233,6 +269,8 @@ export default function ClientProfileModal({ lead, onClose, onSave }) {
           </div>
         )}
 
+        {tab === 'cosigners' && <CosignersTab local={local} update={update} />}
+
         {tab === 'debt' && (
           <DebtTab ledger={ledger} totalBalance={totalBalance} totalLimit={totalLimit} utilization={utilization} totalMonthlyPayments={totalMonthlyPayments} annualInterest={annualInterest} monthlyInterest={monthlyInterest} paymentToLowerPrincipal={paymentToLowerPrincipal} local={local} update={update} />
         )}
@@ -258,6 +296,62 @@ export default function ClientProfileModal({ lead, onClose, onSave }) {
                     {h.answer && <div style={{ padding: '8px 12px', color: '#c4cdd8', fontSize: '12px', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>💡 {h.answer}</div>}
                   </div>
                 ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {tab === 'transcripts' && (
+          <div>
+            <div style={{ color: GOLD, fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '12px' }}>📝 Call Transcripts — {callTranscripts.length} calls</div>
+            {callTranscripts.length === 0 ? (
+              <div style={{ color: '#4a5568', textAlign: 'center', padding: '40px 0', fontSize: '12px' }}>No transcripts saved yet. Every call is automatically saved here when the call ends.</div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                {callTranscripts.map((ct, i) => {
+                  const isOpen = expandedTranscript === ct.id;
+                  let lines = [];
+                  try { lines = JSON.parse(ct.transcriptJson || '[]'); } catch { lines = []; }
+                  const duration = ct.durationSeconds ? `${Math.floor(ct.durationSeconds / 60)}m ${ct.durationSeconds % 60}s` : '—';
+                  return (
+                    <div key={ct.id || i} style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: '4px', overflow: 'hidden' }}>
+                      <button onClick={() => setExpandedTranscript(isOpen ? null : ct.id)} style={{ width: '100%', background: 'none', border: 'none', padding: '12px 14px', cursor: 'pointer', textAlign: 'left', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <span style={{ color: '#60a5fa', fontSize: '11px', fontWeight: 'bold', flexShrink: 0 }}>{ct.callDate ? new Date(ct.callDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'}</span>
+                        <span style={{ padding: '2px 8px', borderRadius: '2px', background: ct.callMode === 'close' ? 'rgba(16,185,129,0.12)' : 'rgba(96,165,250,0.12)', color: ct.callMode === 'close' ? GOLD : '#60a5fa', fontSize: '9px', fontWeight: 'bold', textTransform: 'uppercase', flexShrink: 0 }}>{ct.callMode || 'open'}</span>
+                        <span style={{ color: '#6b7280', fontSize: '11px', flexShrink: 0 }}>{duration}</span>
+                        {ct.intentScore != null && <span style={{ color: '#f472b6', fontSize: '11px', fontWeight: 'bold', flexShrink: 0 }}>Intent: {ct.intentScore}</span>}
+                        <span style={{ color: '#4a5568', fontSize: '11px', flexShrink: 0 }}>{ct.transcriptLineCount || lines.length} lines</span>
+                        <span style={{ color: '#6b7280', fontSize: '12px', marginLeft: 'auto' }}>{isOpen ? '−' : '+'}</span>
+                      </button>
+                      {isOpen && (
+                        <div style={{ borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+                          {lines.length === 0 ? (
+                            <div style={{ padding: '16px', color: '#4a5568', fontSize: '12px', textAlign: 'center' }}>No transcript lines recorded.</div>
+                          ) : (
+                            <div style={{ maxHeight: '300px', overflowY: 'auto', padding: '10px 14px' }}>
+                              {lines.map((msg, j) => {
+                                const isAgent = msg.speaker === 0;
+                                return (
+                                  <div key={j} style={{ marginBottom: '6px', display: 'flex', gap: '8px' }}>
+                                    <span style={{ color: '#4a5568', fontSize: '9px', flexShrink: 0, minWidth: '50px' }}>{msg.time ? new Date(msg.time).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : ''}</span>
+                                    <span style={{ color: isAgent ? '#60a5fa' : '#10b981', fontSize: '10px', fontWeight: 'bold', flexShrink: 0, minWidth: '60px' }}>{isAgent ? 'Agent' : 'Customer'}</span>
+                                    <span style={{ color: '#c4cdd8', fontSize: '12px', lineHeight: 1.5 }}>{msg.text}</span>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                          {ct.followUpReport && (
+                            <div style={{ borderTop: '1px solid rgba(255,255,255,0.05)', padding: '12px 14px', background: 'rgba(0,0,0,0.15)' }}>
+                              <div style={{ color: GOLD, fontSize: '9px', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '6px' }}>📋 Follow-Up Report</div>
+                              <div style={{ color: '#c4cdd8', fontSize: '12px', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{ct.followUpReport}</div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>
@@ -290,6 +384,78 @@ export default function ClientProfileModal({ lead, onClose, onSave }) {
         )}
       </div>
       {panel.resizeHandles}
+    </div>
+  );
+}
+
+// ─── Co-Signers Tab ────────────────────────────────────────────────────────────
+function CosignersTab({ local, update }) {
+  const cosigners = (() => { try { return JSON.parse(local.cosignersJson || '[]'); } catch { return []; } })();
+  const setCosigners = (next) => update('cosignersJson', JSON.stringify(next));
+
+  const [adding, setAdding] = useState(false);
+  const [form, setForm] = useState({ name: '', relationship: '', phone: '', email: '', accounts: '', employed: '', notes: '' });
+
+  const addCosigner = () => {
+    if (!form.name.trim()) return;
+    setCosigners([...cosigners, { ...form, name: form.name.trim() }]);
+    setForm({ name: '', relationship: '', phone: '', email: '', accounts: '', employed: '', notes: '' });
+    setAdding(false);
+  };
+
+  const removeCosigner = (i) => { const next = [...cosigners]; next.splice(i, 1); setCosigners(next); };
+  const updateCosigner = (i, field, val) => { const next = [...cosigners]; next[i] = { ...next[i], [field]: val }; setCosigners(next); };
+
+  return (
+    <div>
+      <div style={{ color: GOLD, fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '12px' }}>👥 Co-Signers</div>
+      <div style={{ background: 'rgba(96,165,250,0.06)', border: '1px solid rgba(96,165,250,0.2)', borderRadius: '4px', padding: '12px', marginBottom: '16px', color: '#8a9ab8', fontSize: '11px' }}>
+        Co-signers on the customer's accounts. These auto-populate from the call transcript when mentioned. Co-signers may need to be involved in the enrollment process.
+      </div>
+
+      {adding ? (
+        <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(96,165,250,0.2)', borderRadius: '4px', padding: '14px', marginBottom: '12px' }}>
+          <div style={{ color: '#60a5fa', fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '10px' }}>+ Add Co-Signer</div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '10px' }}>
+            <div><label style={{ ...ls, fontSize: '8px' }}>Name</label><input value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} placeholder="Jane Smith" style={{ ...inp, fontSize: '12px' }} /></div>
+            <div><label style={{ ...ls, fontSize: '8px' }}>Relationship</label><input value={form.relationship} onChange={e => setForm(p => ({ ...p, relationship: e.target.value }))} placeholder="Spouse, Parent, Sibling..." style={{ ...inp, fontSize: '12px' }} /></div>
+            <div><label style={{ ...ls, fontSize: '8px' }}>Phone</label><input value={form.phone} onChange={e => setForm(p => ({ ...p, phone: e.target.value }))} placeholder="(555) 123-4567" style={{ ...inp, fontSize: '12px' }} /></div>
+            <div><label style={{ ...ls, fontSize: '8px' }}>Email</label><input value={form.email} onChange={e => setForm(p => ({ ...p, email: e.target.value }))} placeholder="jane@email.com" style={{ ...inp, fontSize: '12px' }} /></div>
+            <div><label style={{ ...ls, fontSize: '8px' }}>Accounts Co-Signed</label><input value={form.accounts} onChange={e => setForm(p => ({ ...p, accounts: e.target.value }))} placeholder="Chase, Discover, Capital One..." style={{ ...inp, fontSize: '12px' }} /></div>
+            <div><label style={{ ...ls, fontSize: '8px' }}>Employed?</label><input value={form.employed} onChange={e => setForm(p => ({ ...p, employed: e.target.value }))} placeholder="Yes — works at..., No, Retired..." style={{ ...inp, fontSize: '12px' }} /></div>
+          </div>
+          <div style={{ marginBottom: '10px' }}><label style={{ ...ls, fontSize: '8px' }}>Notes</label><input value={form.notes} onChange={e => setForm(p => ({ ...p, notes: e.target.value }))} placeholder="May need to be on the call for enrollment..." style={{ ...inp, fontSize: '12px' }} /></div>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <button onClick={addCosigner} style={{ background: 'linear-gradient(135deg,#10b981,#22c55e)', color: '#0a0f1e', border: 'none', borderRadius: '4px', padding: '8px 18px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>✓ Add</button>
+            <button onClick={() => setAdding(false)} style={{ background: 'rgba(255,255,255,0.05)', color: '#6b7280', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '4px', padding: '8px 14px', cursor: 'pointer', fontSize: '11px' }}>Cancel</button>
+          </div>
+        </div>
+      ) : (
+        <button onClick={() => setAdding(true)} style={{ width: '100%', background: 'rgba(96,165,250,0.08)', color: '#60a5fa', border: '1px dashed rgba(96,165,250,0.3)', borderRadius: '4px', padding: '10px', cursor: 'pointer', fontSize: '12px', marginBottom: '12px' }}>+ Add Co-Signer</button>
+      )}
+
+      {cosigners.length === 0 ? (
+        <div style={{ color: '#4a5568', textAlign: 'center', padding: '30px 0', fontSize: '12px' }}>No co-signers recorded yet. They'll auto-populate from the call transcript when the customer mentions them.</div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          {cosigners.map((c, i) => (
+            <div key={i} style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(96,165,250,0.15)', borderRadius: '4px', padding: '12px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                <input value={c.name || ''} onChange={e => updateCosigner(i, 'name', e.target.value)} style={{ background: 'none', border: 'none', color: '#e8e0d0', fontSize: '13px', fontWeight: 'bold', outline: 'none', flex: 1 }} />
+                <button onClick={() => removeCosigner(i)} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '11px' }}>✕</button>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }}>
+                <div><label style={{ ...ls, fontSize: '8px' }}>Relationship</label><input value={c.relationship || ''} onChange={e => updateCosigner(i, 'relationship', e.target.value)} style={{ ...inp, fontSize: '12px', padding: '6px 8px' }} /></div>
+                <div><label style={{ ...ls, fontSize: '8px' }}>Phone</label><input value={c.phone || ''} onChange={e => updateCosigner(i, 'phone', e.target.value)} style={{ ...inp, fontSize: '12px', padding: '6px 8px' }} /></div>
+                <div><label style={{ ...ls, fontSize: '8px' }}>Email</label><input value={c.email || ''} onChange={e => updateCosigner(i, 'email', e.target.value)} style={{ ...inp, fontSize: '12px', padding: '6px 8px' }} /></div>
+                <div style={{ gridColumn: '1 / -1' }}><label style={{ ...ls, fontSize: '8px' }}>Accounts Co-Signed</label><input value={c.accounts || ''} onChange={e => updateCosigner(i, 'accounts', e.target.value)} style={{ ...inp, fontSize: '12px', padding: '6px 8px' }} /></div>
+                <div><label style={{ ...ls, fontSize: '8px' }}>Employed</label><input value={c.employed || ''} onChange={e => updateCosigner(i, 'employed', e.target.value)} style={{ ...inp, fontSize: '12px', padding: '6px 8px' }} /></div>
+                <div style={{ gridColumn: '1 / -1' }}><label style={{ ...ls, fontSize: '8px' }}>Notes</label><input value={c.notes || ''} onChange={e => updateCosigner(i, 'notes', e.target.value)} style={{ ...inp, fontSize: '12px', padding: '6px 8px' }} /></div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

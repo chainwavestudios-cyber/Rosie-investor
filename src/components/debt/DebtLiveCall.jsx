@@ -870,23 +870,6 @@ ${recentText}`,
           </>
         );
       })()}
-{/* Floating AI panel — rendered when popped out but grid is hidden */}
-      {aiPanel.poppedOut && phase === 'live' && (
-        <div style={{ ...aiPanel.floatingStyle, background: '#0d1b2a', border: '1px solid rgba(16,185,129,0.3)', borderRadius: '6px' }}>
-          <div onMouseDown={aiPanel.onDragStart} style={{ padding: '8px 12px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'move', userSelect: 'none', flexShrink: 0 }}>
-            <span style={{ color: GOLD, fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase' }}>🤖 AI Assistant</span>
-            <button onClick={aiPanel.toggle} style={{ background: `${GOLD}18`, border: `1px solid ${GOLD}44`, color: GOLD, borderRadius: '4px', padding: '4px 10px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase' }}>⬇ Pop In</button>
-          </div>
-          <div style={{ flex: 1, overflow: 'auto' }}>
-            <DebtAIPanel
-              transcript={transcript} kbEntries={kbEntries} isActive={phase === 'live'}
-              profileData={profileData} intentScore={intentScore} ledgerExtracting={ledgerExtracting}
-              memories={memories} lead={lead} micDeviceId={micDeviceId} customerMicId={customerMicId} pendingQuestion={pendingQuestion}
-            />
-          </div>
-          {aiPanel.resizeHandles}
-        </div>
-      )}
 
       {/* Do Nothing Calculator — shows for close mode */}
       {callMode === 'close' && lead.id && (
