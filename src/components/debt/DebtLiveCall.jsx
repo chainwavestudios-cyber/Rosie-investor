@@ -7,7 +7,7 @@ import { base44 } from '@/api/base44Client';
 import DebtLeadCard from '@/components/debt/DebtLeadCard';
 import { DebtPitchPanel } from '@/components/debt/DebtPitchTab';
 import DebtIntentSignals, { DEBT_INTENT_RULES } from '@/components/debt/DebtIntentSignals';
-import FloatingScriptBox from '@/components/debt/FloatingScriptBox';
+import LiveTranscriptPanel from '@/components/debt/LiveTranscriptPanel';
 import DebtAIPanel from '@/components/debt/DebtAIPanel';
 import DoNothingCalculator from '@/components/debt/DoNothingCalculator';
 import ClientProfileModal from '@/components/debt/ClientProfileModal';
@@ -57,6 +57,7 @@ export default function DebtLiveCall() {
   const [callMode, setCallMode] = useState('open'); // 'open' | 'close'
   const [showProfile, setShowProfile] = useState(false);
   const leadPanel = usePopOutPanel('live_lead_card', { width: 420, height: 600 });
+  const transcriptPanel = usePopOutPanel('live_transcript', { width: 520, height: 600 });
 
   const wsRef = useRef(null);
   const streamRef = useRef(null);
@@ -675,7 +676,7 @@ ${recentText}`,
       )}
 
       {/* Main layout: lead card + transcript + AI tools */}
-      <div style={{ display: 'grid', gridTemplateColumns: leadPanel.poppedOut ? '1fr 400px' : '380px 1fr 400px', gap: '16px', alignItems: 'start' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: leadPanel.poppedOut && transcriptPanel.poppedOut ? '1fr' : leadPanel.poppedOut ? '1fr 400px' : transcriptPanel.poppedOut ? '380px 1fr' : '380px 1fr 400px', gap: '16px', alignItems: 'start' }}>
         {/* Lead contact card — pop-out enabled */}
         {leadPanel.poppedOut ? (
           <div style={{ ...leadPanel.floatingStyle, background: '#0d1b2a', border: '1px solid rgba(16,185,129,0.3)', borderRadius: '6px' }}>
@@ -704,32 +705,8 @@ ${recentText}`,
           </div>
         )}
 
-        {/* Transcript */}
-        <div style={{ background: '#0d1b2a', border: '1px solid rgba(16,185,129,0.2)', borderRadius: '6px', display: 'flex', flexDirection: 'column', minHeight: '500px', maxHeight: '70vh' }}>
-          <div style={{ padding: '12px 16px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div style={{ color: GOLD, fontSize: '11px', letterSpacing: '2px', textTransform: 'uppercase' }}>📋 Live Transcript</div>
-            <div style={{ color: '#6b7280', fontSize: '10px' }}><span style={{ color: '#60a5fa' }}>● Agent</span> · <span style={{ color: GOLD }}>● Customer</span></div>
-          </div>
-          <div style={{ flex: 1, overflowY: 'auto', padding: '14px 16px' }}>
-            {transcript.length === 0 ? (
-              <div style={{ color: '#4a5568', textAlign: 'center', padding: '60px 0', fontSize: '13px' }}>{phase === 'live' ? 'Listening… start speaking.' : 'No transcript yet. Start a call to begin.'}</div>
-            ) : transcript.map((msg, i) => {
-              const isAgent = msg.speaker === 0;
-              const sentColor = msg.sentiment === 'positive' ? '#4ade80' : msg.sentiment === 'negative' ? '#ef4444' : '#6b7280';
-              return (
-                <div key={i} style={{ display: 'flex', gap: '8px', marginBottom: '10px', justifyContent: isAgent ? 'flex-end' : 'flex-start' }}>
-                  <div style={{ maxWidth: '85%', background: isAgent ? 'rgba(96,165,250,0.1)' : 'rgba(16,185,129,0.1)', border: `1px solid ${isAgent ? 'rgba(96,165,250,0.2)' : 'rgba(16,185,129,0.2)'}`, borderRadius: isAgent ? '12px 12px 2px 12px' : '12px 12px 12px 2px', padding: '8px 12px' }}>
-                    <div style={{ display: 'flex', gap: '6px', alignItems: 'center', marginBottom: '3px' }}>
-                      <span style={{ color: isAgent ? '#60a5fa' : GOLD, fontSize: '9px', fontWeight: 'bold', textTransform: 'uppercase' }}>{isAgent ? '🎙 Agent' : '👤 Customer'}</span>
-                      {msg.sentiment && <span style={{ color: sentColor, fontSize: '9px' }}>● {msg.sentiment}</span>}
-                    </div>
-                    <div style={{ color: '#c4cdd8', fontSize: '13px', lineHeight: 1.5 }}>{msg.text}</div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
+        {/* Transcript — pop-out enabled with Scripts tab */}
+        <LiveTranscriptPanel transcript={transcript} phase={phase} panel={transcriptPanel} />
 
         {/* AI Tools Panel — Twilio Stream + Q&A/Coach/Intent popup + Pitches + Signals */}
         <DebtAIPanel
@@ -760,8 +737,6 @@ ${recentText}`,
           {generatingReport ? <div style={{ color: '#6b7280', fontSize: '12px' }}>⏳ Generating report…</div> : report ? <div style={{ color: '#c4cdd8', fontSize: '13px', lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>{report}</div> : <div style={{ color: '#4a5568', fontSize: '12px' }}>No report generated.</div>}
         </div>
       )}
-
-      <FloatingScriptBox storageKey="live_call_script" />
 
       {/* Floating Client Profile pop-out button */}
       <button
