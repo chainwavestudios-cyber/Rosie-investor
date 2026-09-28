@@ -24,6 +24,8 @@ export default function DebtLiveCall() {
   const [micDevices, setMicDevices] = useState([]);
   const [micDeviceId, setMicDeviceId] = useState('');
   const [customerMicId, setCustomerMicId] = useState('');
+  const [outputDevices, setOutputDevices] = useState([]);
+  const [outputDeviceId, setOutputDeviceId] = useState('');
   const [phase, setPhase] = useState('idle');
   const [error, setError] = useState('');
   const [dgStatus, setDgStatus] = useState('idle');
@@ -126,6 +128,9 @@ export default function DebtLiveCall() {
         if (mics.length > 0 && !micDeviceId) setMicDeviceId(mics[0].deviceId);
         const rodecaster = mics.find(m => /rode|rodecaster|røde/i.test(m.label || ''));
         if (rodecaster && !customerMicId) setCustomerMicId(rodecaster.deviceId);
+        const outputs = devices.filter(d => d.kind === 'audiooutput');
+        setOutputDevices(outputs);
+        if (outputs.length > 0 && !outputDeviceId) setOutputDeviceId(outputs[0].deviceId);
       })
       .catch(() => {});
   }, []);
@@ -708,6 +713,15 @@ ${recentText}`,
             {micDevices.map(m => <option key={m.deviceId} value={m.deviceId}>{m.label || `Input ${m.deviceId.slice(0, 6)}`}</option>)}
           </select>
         </div>
+
+        {outputDevices.length > 0 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+            <label style={{ ...ls, marginBottom: 0 }}>🔊 Audio Output</label>
+            <select value={outputDeviceId} onChange={e => setOutputDeviceId(e.target.value)} style={{ ...inp, minWidth: '220px', cursor: 'pointer' }}>
+              {outputDevices.map(o => <option key={o.deviceId} value={o.deviceId}>{o.label || `Speaker ${o.deviceId.slice(0, 6)}`}</option>)}
+            </select>
+          </div>
+        )}
 
         {customerMicId && micDeviceId && (
           <span style={{ padding: '4px 10px', background: 'rgba(96,165,250,0.12)', border: '1px solid rgba(96,165,250,0.3)', borderRadius: '4px', color: '#60a5fa', fontSize: '10px', fontWeight: 'bold', letterSpacing: '1px' }}>DUAL CHANNEL</span>

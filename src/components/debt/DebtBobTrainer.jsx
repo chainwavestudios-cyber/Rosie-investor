@@ -232,7 +232,7 @@ export default function DebtBobTrainer() {
     setTranscript(prev => [...prev, entry]);
   }, []);
 
-  const { phase, error, agentSpeaking, micDevices, micDeviceId, setMicDeviceId, ringPhase, transferPhase, startCall, hangup, isRecording, recordingUrl } = useDebtBobVoice({ onTranscript: handleTranscript, onLog: addLog });
+  const { phase, error, agentSpeaking, micDevices, micDeviceId, setMicDeviceId, outputDevices, outputDeviceId, setOutputDeviceId, ringPhase, transferPhase, startCall, hangup, isRecording, recordingUrl } = useDebtBobVoice({ onTranscript: handleTranscript, onLog: addLog });
 
   // Persist session (with recording URL + transcript) to BobSession when recording becomes available
   const callStartRef = useRef(null);
@@ -525,6 +525,16 @@ IMPORTANT: Ask these questions NATURALLY during the call. Weave them into the co
                   <label style={ls}>🎙 Microphone</label>
                   <select value={micDeviceId} onChange={e => setMicDeviceId(e.target.value)} disabled={phase === 'active'} style={{ ...inp, cursor: 'pointer' }}>
                     {micDevices.map(m => <option key={m.deviceId} value={m.deviceId}>{m.label || `Mic ${m.deviceId.slice(0, 6)}`}</option>)}
+                  </select>
+                </div>
+              )}
+
+              {/* Audio output selector — route BOB's voice to selected speakers/headphones */}
+              {outputDevices.length > 0 && (
+                <div style={{ marginBottom: '12px' }}>
+                  <label style={ls}>🔊 Audio Output</label>
+                  <select value={outputDeviceId} onChange={e => setOutputDeviceId(e.target.value)} disabled={phase === 'active'} style={{ ...inp, cursor: 'pointer' }}>
+                    {outputDevices.map(o => <option key={o.deviceId} value={o.deviceId}>{o.label || `Speaker ${o.deviceId.slice(0, 6)}`}</option>)}
                   </select>
                 </div>
               )}

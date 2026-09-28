@@ -137,6 +137,8 @@ export function useDebtBobVoice({ onTranscript, onLog } = {}) {
   const [agentSpeaking, setAgentSpeaking] = useState(false);
   const [micDevices, setMicDevices] = useState([]);
   const [micDeviceId, setMicDeviceId] = useState('');
+  const [outputDevices, setOutputDevices] = useState([]);
+  const [outputDeviceId, setOutputDeviceId] = useState('');
   const [ringPhase, setRingPhase] = useState(false);
   const [transferPhase, setTransferPhase] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
@@ -152,6 +154,8 @@ export function useDebtBobVoice({ onTranscript, onLog } = {}) {
   const nextStartRef = useRef(0);
   const listeningRef = useRef(false);
   const activeSourcesRef = useRef(new Set());
+  const outputAudioRef = useRef(null);
+  const outputDestRef = useRef(null);
   const onLogRef = useRef(onLog);
   useEffect(() => { onLogRef.current = onLog; }, [onLog]);
   const ring = useRingTone();
@@ -163,6 +167,9 @@ export function useDebtBobVoice({ onTranscript, onLog } = {}) {
         const mics = devices.filter(d => d.kind === 'audioinput');
         setMicDevices(mics);
         if (mics.length > 0 && !micDeviceId) setMicDeviceId(mics[0].deviceId);
+        const outputs = devices.filter(d => d.kind === 'audiooutput');
+        setOutputDevices(outputs);
+        if (outputs.length > 0 && !outputDeviceId) setOutputDeviceId(outputs[0].deviceId);
       })
       .catch(() => {});
   }, []);
@@ -176,7 +183,7 @@ export function useDebtBobVoice({ onTranscript, onLog } = {}) {
     const ab = ctx.createBuffer(1, f32.length, 24000);
     ab.copyToChannel(f32, 0);
     const src = ctx.createBufferSource();
-    src.buffer = ab; src.connect(ctx.destination);
+    src.buffer = ab; src.connect(outputDestRef.current || ctx.destination);
     if (recordDestRef.current) src.connect(recordDestRef.current);
     const now = ctx.currentTime;
     if (nextStartRef.current < now) nextStartRef.current = now + 0.02;
@@ -209,6 +216,8 @@ export function useDebtBobVoice({ onTranscript, onLog } = {}) {
     if (processorRef.current) { try { processorRef.current.disconnect(); } catch {} }
     if (micStreamRef.current) micStreamRef.current.getTracks().forEach(t => t.stop());
     if (wsRef.current) { try { wsRef.current.close(); } catch {} }
+    if (outputAudioRef.current) { try { outputAudioRef.current.pause(); } catch {} }
+    outputAudioRef.current = null; outputDestRef.current = null;
     if (audioCtxRef.current) { try { audioCtxRef.current.close(); } catch {} }
     audioCtxRef.current = null; micStreamRef.current = null; wsRef.current = null;
     if (updatePhase) setPhase('idle');
@@ -246,6 +255,14 @@ export function useDebtBobVoice({ onTranscript, onLog } = {}) {
       audioCtxRef.current = ctx; nextStartRef.current = 0;
       const recordDest = ctx.createMediaStreamDestination();
       recordDestRef.current = recordDest;
+      // Route BOB's voice through a selectable output device (setSinkId)
+      const outputDest = ctx.createMediaStreamDestination();
+      outputDestRef.current = outputDest;
+      const outputAudio = new Audio();
+      outputAudio.srcObject = outputDest.stream;
+      outputAudio.autoplay = true;
+      if (outputDeviceId) { try { outputAudio.setSinkId(outputDeviceId); } catch {} }
+      outputAudioRef.current = outputAudio;
 
       const ws = new WebSocket(DG_WS_URL, ['token', apiKey]);
       ws.binaryType = 'arraybuffer'; wsRef.current = ws;
@@ -358,7 +375,7 @@ export function useDebtBobVoice({ onTranscript, onLog } = {}) {
         onLogRef.current?.('session_end', `📵 Call ended. ${codeMsg}. Reason: ${e.reason || '(none)'}`);
       };
     });
-  }, [micDeviceId, playChunk, ring, onTranscript, cleanup]);
+  }, [micDeviceId, outputDeviceId, playChunk, ring, onTranscript, cleanup]);
 
   const hangup = useCallback(() => { cleanup(true); }, [cleanup]);
 
@@ -367,5 +384,5 @@ export function useDebtBobVoice({ onTranscript, onLog } = {}) {
   useEffect(() => { cleanupRef.current = cleanup; }, [cleanup]);
   useEffect(() => () => { cleanupRef.current?.(false); }, []);
 
-  return { phase, error, agentSpeaking, micDevices, micDeviceId, setMicDeviceId, ringPhase, transferPhase, startCall, hangup, isRecording, recordingUrl };
+  return { phase, error, agentSpeaking, micDevices, micDeviceId, setMicDeviceId, outputDevices, outputDeviceId, setOutputDeviceId, ringPhase, transferPhase, startCall, hangup, isRecording, recordingUrl };
 }
