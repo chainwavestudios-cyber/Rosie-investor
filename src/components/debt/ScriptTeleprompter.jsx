@@ -110,19 +110,38 @@ export default function ScriptTeleprompter({ content, color = '#e8e0d0', fontSiz
   // Reset position when script content changes
   useEffect(() => { setActiveIdx(0); setInterimText(''); }, [content]);
 
-  // Check if spoken text matches the NEXT script line enough to advance
+  // Get the first significant (non-stop-word) word from a line, lowercased
+  const firstContentWord = useCallback((text) => {
+    const words = (text || '').toLowerCase().replace(/[^\w\s]/g, '').split(/\s+/);
+    for (const w of words) {
+      if (w.length > 1 && !STOP_WORDS.has(w)) return w;
+    }
+    return null;
+  }, []);
+
+  // Check if spoken text matches an upcoming line — advance on FIRST WORD match.
+  // Looks ahead up to 12 lines so cue/reminder blocks (non-spoken) can be skipped.
   const checkAdvance = useCallback((spoken) => {
     const now = Date.now();
-    if (now - lastAdvanceTime.current < 700) return; // throttle
+    if (now - lastAdvanceTime.current < 500) return; // throttle
     const idx = activeIdxRef.current;
     const lines = scriptLinesRef.current;
-    const nextLine = lines[idx + 1];
-    if (!nextLine) return;
-    if (wordOverlap(spoken, nextLine.content) >= 0.35) {
-      lastAdvanceTime.current = now;
-      setActiveIdx(idx + 1);
+    const spokenLower = spoken.toLowerCase().replace(/[^\w\s]/g, '');
+    const spokenWords = spokenLower.split(/\s+/).filter(w => w.length > 1);
+
+    // Look at the next 12 script lines (handles 9-10 line jumps over cue blocks)
+    for (let offset = 1; offset <= 12 && idx + offset < lines.length; offset++) {
+      const candidate = lines[idx + offset];
+      const firstWord = firstContentWord(candidate.content);
+      if (!firstWord) continue;
+      // As soon as the first word of this line appears in the spoken text, advance
+      if (spokenWords.includes(firstWord)) {
+        lastAdvanceTime.current = now;
+        setActiveIdx(idx + offset);
+        return;
+      }
     }
-  }, []);
+  }, [firstContentWord]);
 
   // Speech recognition lifecycle
   useEffect(() => {
@@ -258,9 +277,9 @@ export default function ScriptTeleprompter({ content, color = '#e8e0d0', fontSiz
                 borderRadius: '4px',
                 cursor: 'pointer',
                 transition: 'all 0.2s',
-                background: isActive ? 'rgba(250,204,21,0.18)' : 'transparent',
+                background: isActive ? 'rgba(250,204,21,0.55)' : 'transparent',
                 borderLeft: isActive ? '4px solid #facc15' : '4px solid transparent',
-                color: isActive ? '#fef3c7' : isPast ? `${color}99` : color,
+                color: isActive ? '#1a1a2e' : isPast ? `${color}99` : color,
                 fontSize: isActive ? `${fontSize + 2}px` : `${fontSize}px`,
                 fontWeight: isActive ? 'bold' : 'normal',
                 opacity: isPast ? 0.5 : 1,

@@ -828,8 +828,11 @@ Keep it concise — the agent reads this right before dialing. Use bullet points
 
     // 2. No direct hit — use AI with relevant KB context
     const relevantKB = findRelevantKB(q, kbEntries || [], 12);
-    const kbContext  = relevantKB.length > 0
-      ? relevantKB.map((e: any) => e.category === 'raw_chunk'
+    // Only count as "has KB context" if the top hit has a meaningful score (>= 2),
+    // not just a single common-word match like "the" or "how"
+    const hasKBContext = relevantKB.length > 0 && (relevantKB[0]?.score || 0) >= 2;
+    const kbContext  = hasKBContext
+      ? relevantKB.filter((e: any) => (e.score || 0) >= 2).map((e: any) => e.category === 'raw_chunk'
           ? `[Document excerpt]: ${e.answer}`
           : `Q: ${e.question}\nA: ${formatAnswers(e)}`
         ).join('\n\n')
@@ -840,6 +843,22 @@ Keep it concise — the agent reads this right before dialing. Use bullet points
     const objectionContext = allObjections.length > 0
       ? allObjections.map((e: any) => `OBJECTION: "${e.question}"\nHOW TO HANDLE: ${e.answer}`).join('\n---\n')
       : '';
+
+    // If no meaningful KB context at all, this is a pure AI fallback — label it so the frontend can show "AI ANSWER"
+    if (!hasKBContext && !objectionContext) {
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_KEY, 'anthropic-version': '2023-06-01' },
+        body: JSON.stringify({
+          model: 'claude-haiku-4-5-20251001',
+          max_tokens: 500,
+          system: `You are a real-time sales assistant on a live call. The knowledge base has no relevant answer for this question. Use your own knowledge to provide a helpful, concise answer the agent can speak naturally — 2-4 sentences. If you truly cannot answer, say so honestly.`,
+          messages: [{ role: 'user', content: `${fullTranscriptStr ? `Full conversation so far:\n${fullTranscriptStr}\n\n` : ''}Question: "${question}"\n\nAnswer:` }],
+        }),
+      });
+      const data = await res.json();
+      return Response.json({ answer: data?.content?.[0]?.text || 'No answer found.', source: 'ai_fallback' });
+    }
 
     const res = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',

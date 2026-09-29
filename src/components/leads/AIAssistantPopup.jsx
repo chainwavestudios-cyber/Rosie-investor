@@ -212,10 +212,26 @@ function RightPanel({ transcript, aiPanelItem, onCloseAI, panelWidthPct, onWidth
   const txRef = useRef(null);
   const [selected, setSelected] = useState({});
   const [showSelectionBar, setShowSelectionBar] = useState(false);
+  const [splitPct, setSplitPct] = useState(34);
+  const splitDragging = useRef(false);
+  const panelRef = useRef(null);
 
   useEffect(() => {
     if (txRef.current) txRef.current.scrollTop = txRef.current.scrollHeight;
   }, [transcript]);
+
+  // Vertical split drag between transcript and AI info
+  useEffect(() => {
+    const onMove = (e) => {
+      if (!splitDragging.current || !panelRef.current) return;
+      const rect = panelRef.current.getBoundingClientRect();
+      setSplitPct(Math.max(15, Math.min(85, Math.round(((e.clientY - rect.top) / rect.height) * 100))));
+    };
+    const onUp = () => { splitDragging.current = false; };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+    return () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
+  }, []);
 
   const selectedIndices = Object.keys(selected).map(Number).sort((a, b) => a - b);
   const selectedCount = selectedIndices.length;
@@ -236,7 +252,7 @@ function RightPanel({ transcript, aiPanelItem, onCloseAI, panelWidthPct, onWidth
     : '💡 AI Info';
 
   return (
-    <div style={{ width: `${panelWidthPct}%`, minWidth: 200, maxWidth: '55%', display: 'flex', flexDirection: 'column', borderLeft: '1px solid rgba(184,147,58,0.35)', background: 'rgba(0,0,0,0.25)', flexShrink: 0, overflow: 'hidden' }}>
+    <div ref={panelRef} style={{ width: `${panelWidthPct}%`, minWidth: 200, maxWidth: '55%', display: 'flex', flexDirection: 'column', borderLeft: '1px solid rgba(184,147,58,0.35)', background: 'rgba(0,0,0,0.25)', flexShrink: 0, overflow: 'hidden' }}>
       {/* Width slider in header */}
       <div style={{ padding: '4px 10px', background: 'rgba(0,0,0,0.4)', borderBottom: '1px solid rgba(184,147,58,0.2)', display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
         <span style={{ color: GOLD, fontSize: '9px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase', flex: 1 }}>📋 Side Panel</span>
@@ -245,8 +261,8 @@ function RightPanel({ transcript, aiPanelItem, onCloseAI, panelWidthPct, onWidth
           style={{ width: 60, accentColor: GOLD, cursor: 'pointer' }} title="Adjust panel width" />
       </div>
 
-      {/* TOP 1/3 — Rolling Transcript with Q&A selection buttons */}
-      <div style={{ flex: '0 0 34%', display: 'flex', flexDirection: 'column', overflow: 'hidden', borderBottom: '2px solid rgba(184,147,58,0.3)' }}>
+      {/* TOP — Rolling Transcript with Q&A selection buttons (resizable via vertical slider) */}
+      <div style={{ flex: `0 0 ${splitPct}%`, display: 'flex', flexDirection: 'column', overflow: 'hidden', minHeight: 60 }}>
         <div style={{ padding: '4px 10px', background: 'rgba(0,0,0,0.3)', borderBottom: '1px solid rgba(96,165,250,0.2)', flexShrink: 0, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <span style={{ color: '#60a5fa', fontSize: '9px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase' }}>🎙 Live Transcript</span>
           {selectedCount > 0 && <span style={{ color: '#f59e0b', fontSize: '9px', fontWeight: 'bold' }}>{selectedCount} selected</span>}
@@ -292,8 +308,19 @@ function RightPanel({ transcript, aiPanelItem, onCloseAI, panelWidthPct, onWidth
         )}
       </div>
 
-      {/* BOTTOM 2/3 — AI Info panel */}
-      <div style={{ flex: '1 1 0', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+      {/* Vertical drag handle — drag up to give transcript more room, down for AI info */}
+      <div
+        onMouseDown={e => { splitDragging.current = true; e.preventDefault(); }}
+        style={{ height: 7, background: 'rgba(184,147,58,0.1)', cursor: 'row-resize', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', borderTop: '1px solid rgba(184,147,58,0.2)', borderBottom: '1px solid rgba(184,147,58,0.2)' }}
+        onMouseEnter={e => e.currentTarget.style.background = 'rgba(184,147,58,0.3)'}
+        onMouseLeave={e => e.currentTarget.style.background = 'rgba(184,147,58,0.1)'}
+        title="Drag to resize transcript vs AI info"
+      >
+        <div style={{ width: 36, height: 3, borderRadius: 2, background: 'rgba(184,147,58,0.4)' }} />
+      </div>
+
+      {/* BOTTOM — AI Info panel */}
+      <div style={{ flex: '1 1 0', display: 'flex', flexDirection: 'column', overflow: 'hidden', minHeight: 40 }}>
         <div style={{ padding: '5px 10px', background: 'rgba(0,0,0,0.3)', borderBottom: `1px solid ${aiPanelItem ? GOLD + '44' : 'rgba(255,255,255,0.08)'}`, display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
           <span style={{ color: aiPanelItem ? GOLD : '#6b7280', fontSize: '9px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase', flex: 1 }}>
             {aiPanelItem ? aiTypeLabel : '💡 AI Info — More Info / Talking Points / Research'}
@@ -652,6 +679,11 @@ function QASection({ transcript, transcriptRef, kbEntries, active, qaKeywords, m
           {q.answering
             ? <div style={{ color: '#6b7280', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '8px' }}><div style={{ width: 5, height: 5, borderRadius: '50%', background: GOLD, animation: 'aipulse 0.8s infinite' }} />Searching knowledge base…</div>
             : <div>
+                {q.source === 'ai_fallback' && (
+                  <div style={{ marginBottom: '6px' }}>
+                    <span style={{ fontSize: '8px', background: 'rgba(167,139,250,0.2)', color: '#a78bfa', border: '1px solid rgba(167,139,250,0.4)', borderRadius: '3px', padding: '2px 8px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase' }}>🤖 AI ANSWER — Not in KB</span>
+                  </div>
+                )}
                 <div style={{ marginBottom: '6px' }}><AnswerDisplay answer={q.answer} answers={q.answers} /></div>
                 <QAAnswerActions q={q} transcriptRef={transcriptRef} kbEntries={kbEntries} onSidePanel={onSidePanel}
                   addInfoId={addInfoId} setAddInfoId={setAddInfoId}
@@ -715,7 +747,14 @@ function QASection({ transcript, transcriptRef, kbEntries, active, qaKeywords, m
                 <div style={{ padding: '10px 12px' }}>
                   {q.answering
                     ? <div style={{ color: '#6b7280', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '8px' }}><div style={{ width: 5, height: 5, borderRadius: '50%', background: GOLD, animation: 'aipulse 0.8s infinite' }} />Searching knowledge base…</div>
-                    : <AnswerDisplay answer={q.answer} answers={q.answers} />
+                    : <div>
+                        {q.source === 'ai_fallback' && (
+                          <div style={{ marginBottom: '6px' }}>
+                            <span style={{ fontSize: '8px', background: 'rgba(167,139,250,0.2)', color: '#a78bfa', border: '1px solid rgba(167,139,250,0.4)', borderRadius: '3px', padding: '2px 8px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase' }}>🤖 AI ANSWER — Not in KB</span>
+                          </div>
+                        )}
+                        <AnswerDisplay answer={q.answer} answers={q.answers} />
+                      </div>
                   }
                 </div>
               </div>
