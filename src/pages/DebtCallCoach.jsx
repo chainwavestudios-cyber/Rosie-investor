@@ -5,6 +5,7 @@
 import { useState } from 'react';
 import DebtLiveCall from '@/components/debt/DebtLiveCall';
 import DebtKBManager from '@/components/debt/DebtKBManager';
+import DebtKBChat from '@/components/debt/DebtKBChat';
 import DebtUserProfile from '@/components/debt/DebtUserProfile';
 import DebtPitchTab from '@/components/debt/DebtPitchTab';
 import DebtBobTrainer from '@/components/debt/DebtBobTrainer';
@@ -20,6 +21,7 @@ const TABS = [
   { id: 'bob', label: '🤖 BOB Training' },
   { id: 'pitches', label: '🎤 Pitches' },
   { id: 'kb', label: '🧠 Knowledge Base' },
+  { id: 'kbchat', label: '💬 AI KB Chat' },
   { id: 'profile', label: '👤 User Profiles' },
 ];
 
@@ -50,6 +52,7 @@ export default function DebtCallCoach() {
       {tab === 'bob' && <DebtBobTrainer />}
       {tab === 'pitches' && <DebtPitchTab />}
       {tab === 'kb' && <DebtKBManager />}
+      {tab === 'kbchat' && <DebtKBChat />}
       {tab === 'profile' && <DebtUserProfile />}
 
       {/* Floating WCR Checklist — available on all tabs */}
