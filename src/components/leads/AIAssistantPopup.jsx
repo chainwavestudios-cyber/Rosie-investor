@@ -285,6 +285,26 @@ function RightPanel({ transcript, aiPanelItem, onCloseAI, panelWidthPct, onWidth
   );
 }
 
+// ── Multi-answer display ───────────────────────────────────────────────────────
+// Renders a single answer (string) or multiple answers (array) with clear numbering.
+function AnswerDisplay({ answer, answers }) {
+  const list = Array.isArray(answers) && answers.length > 1 ? answers : null;
+  if (!list) {
+    return <div style={{ color: '#e8e0d0', fontSize: '12px', lineHeight: 1.75, whiteSpace: 'pre-wrap' }}>{answer || 'No matching information found.'}</div>;
+  }
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+      {list.map((a, i) => (
+        <div key={i} style={{ display: 'flex', gap: '8px', alignItems: 'flex-start', padding: i > 0 ? '8px 0 0' : '0', borderTop: i > 0 ? '1px dashed rgba(255,255,255,0.1)' : 'none' }}>
+          <span style={{ color: GOLD, fontSize: '11px', fontWeight: 'bold', flexShrink: 0, marginTop: '2px', minWidth: '18px' }}>{i + 1}.</span>
+          <span style={{ color: '#e8e0d0', fontSize: '12px', lineHeight: 1.75, whiteSpace: 'pre-wrap', flex: 1 }}>{a}</span>
+        </div>
+      ))}
+      <span style={{ color: GOLD, fontSize: '9px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '1px' }}>{list.length} answers from KB</span>
+    </div>
+  );
+}
+
 // ── Q&A Answer Actions ─────────────────────────────────────────────────────────
 function QAAnswerActions({ q, transcriptRef, kbEntries, onSidePanel, addInfoId, setAddInfoId, talkingPointsId, setTalkingPointsId, researchId, setResearchId }) {
   const getMoreInfo = async () => {
@@ -380,11 +400,13 @@ function QASection({ transcript, transcriptRef, kbEntries, active, qaKeywords, m
     if (!pendingQuestion?.question) return;
     const q = pendingQuestion.question;
     const id = Date.now() + Math.random();
-    setQuestions(prev => [...prev, { id, text: q, time: new Date(), answer: '', answering: true, answered: false, auto: false, manual: true }]);
+    setQuestions(prev => [...prev, { id, text: q, time: new Date(), answer: '', answers: [], answering: true, answered: false, auto: false, manual: true }]);
     base44.functions.invoke('liveAssistantAI', { question: q, transcript: transcriptRef.current.slice(-12), kbEntries, mode: 'qa' })
       .then(res => {
-        const answer = res?.data?.answer || 'No matching information found.';
-        setQuestions(prev => prev.map(x => x.id === id ? { ...x, answering: false, answered: true, answer } : x));
+        const data = res?.data || res || {};
+        const answers = Array.isArray(data.answers) ? data.answers : [];
+        const answer = data.answer || 'No matching information found.';
+        setQuestions(prev => prev.map(x => x.id === id ? { ...x, answering: false, answered: true, answer, answers, source: data.source } : x));
         saveQAHistory(q, answer, 'transcript');
       })
       .catch(e => setQuestions(prev => prev.map(x => x.id === id ? { ...x, answering: false, answer: `Error: ${e.message}` } : x)));
@@ -449,8 +471,10 @@ function QASection({ transcript, transcriptRef, kbEntries, active, qaKeywords, m
           setQuestions(prev => [...prev, { id: autoId, text: autoQ, time: new Date(), answer: '', answering: true, answered: false, auto: true, manual: false }]);
           base44.functions.invoke('liveAssistantAI', { question: autoQ, transcript: transcriptRef.current.slice(-12), kbEntries, mode: 'qa' })
             .then(res => {
-              const answer = res?.data?.answer || 'No matching information found.';
-              setQuestions(prev => prev.map(x => x.id === autoId ? { ...x, answering: false, answered: true, answer, source: res?.data?.source } : x));
+              const data = res?.data || res || {};
+              const answers = Array.isArray(data.answers) ? data.answers : [];
+              const answer = data.answer || 'No matching information found.';
+              setQuestions(prev => prev.map(x => x.id === autoId ? { ...x, answering: false, answered: true, answer, answers, source: data.source } : x));
               saveQAHistory(autoQ, answer, 'auto');
             })
             .catch(e => setQuestions(prev => prev.map(x => x.id === autoId ? { ...x, answering: false, answer: `Error: ${e.message}` } : x)));
@@ -480,8 +504,10 @@ function QASection({ transcript, transcriptRef, kbEntries, active, qaKeywords, m
     setQuestions(prev => prev.map(x => x.id === id ? { ...x, answering: true } : x));
     try {
       const res = await base44.functions.invoke('liveAssistantAI', { question: q.text, transcript: transcriptRef.current.slice(-12), kbEntries, mode: 'qa' });
-      const answer = res?.data?.answer || 'No matching information found.';
-      setQuestions(prev => prev.map(x => x.id === id ? { ...x, answering: false, answered: true, answer } : x));
+      const data = res?.data || res || {};
+      const answers = Array.isArray(data.answers) ? data.answers : [];
+      const answer = data.answer || 'No matching information found.';
+      setQuestions(prev => prev.map(x => x.id === id ? { ...x, answering: false, answered: true, answer, answers, source: data.source } : x));
       saveQAHistory(q.text, answer, q.auto ? 'auto' : 'manual');
     } catch (e) {
       setQuestions(prev => prev.map(x => x.id === id ? { ...x, answering: false, answer: `Error: ${e.message}` } : x));
@@ -492,11 +518,13 @@ function QASection({ transcript, transcriptRef, kbEntries, active, qaKeywords, m
     if (!manualQ.trim() || asking) return;
     const q = manualQ.trim(); setManualQ(''); setAsking(true);
     const id = Date.now() + Math.random();
-    setQuestions(prev => [...prev, { id, text: q, time: new Date(), answer: '', answering: true, answered: false, auto: false, manual: true }]);
+    setQuestions(prev => [...prev, { id, text: q, time: new Date(), answer: '', answers: [], answering: true, answered: false, auto: false, manual: true }]);
     try {
       const res = await base44.functions.invoke('liveAssistantAI', { question: q, transcript: transcriptRef.current.slice(-12), kbEntries, mode: 'qa' });
-      const answer = res?.data?.answer || 'No matching information found.';
-      setQuestions(prev => prev.map(x => x.id === id ? { ...x, answering: false, answered: true, answer } : x));
+      const data = res?.data || res || {};
+      const answers = Array.isArray(data.answers) ? data.answers : [];
+      const answer = data.answer || 'No matching information found.';
+      setQuestions(prev => prev.map(x => x.id === id ? { ...x, answering: false, answered: true, answer, answers, source: data.source } : x));
       saveQAHistory(q, answer, 'manual');
     } catch (e) {
       setQuestions(prev => prev.map(x => x.id === id ? { ...x, answering: false, answer: `Error: ${e.message}` } : x));
@@ -582,7 +610,7 @@ function QASection({ transcript, transcriptRef, kbEntries, active, qaKeywords, m
           {q.answering
             ? <div style={{ color: '#6b7280', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '8px' }}><div style={{ width: 5, height: 5, borderRadius: '50%', background: GOLD, animation: 'aipulse 0.8s infinite' }} />Searching knowledge base…</div>
             : <div>
-                <div style={{ color: '#e8e0d0', fontSize: '12px', lineHeight: 1.75, whiteSpace: 'pre-wrap', marginBottom: '6px' }}>💡 {q.answer}</div>
+                <div style={{ marginBottom: '6px' }}><AnswerDisplay answer={q.answer} answers={q.answers} /></div>
                 <QAAnswerActions q={q} transcriptRef={transcriptRef} kbEntries={kbEntries} onSidePanel={onSidePanel}
                   addInfoId={addInfoId} setAddInfoId={setAddInfoId}
                   talkingPointsId={talkingPointsId} setTalkingPointsId={setTalkingPointsId}
@@ -645,7 +673,7 @@ function QASection({ transcript, transcriptRef, kbEntries, active, qaKeywords, m
                 <div style={{ padding: '10px 12px' }}>
                   {q.answering
                     ? <div style={{ color: '#6b7280', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '8px' }}><div style={{ width: 5, height: 5, borderRadius: '50%', background: GOLD, animation: 'aipulse 0.8s infinite' }} />Searching knowledge base…</div>
-                    : <div style={{ color: '#e8e0d0', fontSize: '12px', lineHeight: 1.75, whiteSpace: 'pre-wrap' }}>{q.answer}</div>
+                    : <AnswerDisplay answer={q.answer} answers={q.answers} />
                   }
                 </div>
               </div>

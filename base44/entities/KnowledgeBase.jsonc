@@ -8,7 +8,12 @@
     },
     "answer": {
       "type": "string",
-      "title": "Answer",
+      "title": "Primary Answer",
+      "format": "textarea"
+    },
+    "answersJson": {
+      "type": "string",
+      "title": "All Answers (JSON array)",
       "format": "textarea"
     },
     "category": {

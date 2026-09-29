@@ -6,11 +6,33 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { base44 } from '@/api/base44Client';
 import { computeFileHash, checkDuplicateHash } from '@/lib/fileDedup';
+import MultiAnswerEditor, { parseAnswers, serializeAnswers } from '@/components/debt/MultiAnswerEditor';
 
 const GOLD = '#10b981';
 const DARK = '#0a0f1e';
 const ls = { display: 'block', color: '#8a9ab8', fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '6px' };
 const inp = { width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '4px', padding: '10px 14px', color: '#e8e0d0', fontSize: '13px', outline: 'none', boxSizing: 'border-box', fontFamily: 'Georgia, serif' };
+
+// Renders all answers for an entry — numbered if multiple, plain if single
+function EntryAnswers({ entry }) {
+  const answers = parseAnswers(entry.answersJson, entry.answer);
+  if (answers.length === 0) return <div style={{ color: '#4a5568', fontSize: '11px', fontStyle: 'italic' }}>No answer recorded.</div>;
+  if (answers.length === 1) {
+    const a = answers[0];
+    return <div style={{ color: '#8a9ab8', fontSize: '12px', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>{a.slice(0, 300)}{a.length > 300 ? '…' : ''}</div>;
+  }
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+      {answers.map((a, i) => (
+        <div key={i} style={{ display: 'flex', gap: '6px', alignItems: 'flex-start' }}>
+          <span style={{ color: i === 0 ? GOLD : '#6b7280', fontSize: '10px', fontWeight: 'bold', flexShrink: 0, marginTop: '1px' }}>{i + 1}.</span>
+          <span style={{ color: i === 0 ? '#e8e0d0' : '#8a9ab8', fontSize: '12px', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>{a.slice(0, 240)}{a.length > 240 ? '…' : ''}</span>
+        </div>
+      ))}
+      <span style={{ color: GOLD, fontSize: '9px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '1px', marginTop: '2px' }}>{answers.length} answers</span>
+    </div>
+  );
+}
 
 const KB_SECTIONS = [
   { id: 'agent', label: '🎙️ Agent Scripts', category: 'debt_agent', color: '#60a5fa', desc: 'Openers, talking points, rebuttals, and closing scripts for the agent.' },
@@ -145,7 +167,7 @@ export default function DebtKBManager() {
                     <button onClick={async () => { await base44.entities.KnowledgeBase.delete(e.id); refresh(); }} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '11px' }}>Delete</button>
                   </div>
                 </div>
-                <div style={{ color: '#8a9ab8', fontSize: '12px', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>{e.answer?.slice(0, 300)}{e.answer?.length > 300 ? '…' : ''}</div>
+                <EntryAnswers entry={e} />
                 {e.variations && (
                   <div style={{ marginTop: '8px', padding: '8px 10px', background: 'rgba(245,158,11,0.04)', border: '1px solid rgba(245,158,11,0.12)', borderRadius: '4px' }}>
                     <div style={{ color: '#f59e0b', fontSize: '9px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '4px' }}>🔄 Alternative Phrasings</div>
@@ -165,50 +187,72 @@ export default function DebtKBManager() {
 
 // ─── Agent Script Editor ──────────────────────────────────────────────────────
 function AgentScriptEditor({ category, onSaved }) {
-  const [form, setForm] = useState({ question: '', answer: '' });
+  const [question, setQuestion] = useState('');
+  const [answers, setAnswers] = useState(['']);
   const [saving, setSaving] = useState(false);
 
   const save = async () => {
-    if (!form.question.trim() || !form.answer.trim()) return;
+    const clean = answers.filter(a => a.trim());
+    if (!question.trim() || clean.length === 0) return;
     setSaving(true);
-    await base44.entities.KnowledgeBase.create({ ...form, category, kbName: 'Debt Settlement', created_date: new Date().toISOString() });
-    setForm({ question: '', answer: '' });
+    await base44.entities.KnowledgeBase.create({
+      question: question.trim(),
+      answer: clean[0],
+      answersJson: serializeAnswers(clean),
+      category, kbName: 'Debt Settlement', created_date: new Date().toISOString(),
+    });
+    setQuestion(''); setAnswers(['']);
     onSaved();
     setSaving(false);
   };
 
+  const hasAny = question.trim() && answers.some(a => a.trim());
+
   return (
     <div style={{ background: 'rgba(96,165,250,0.05)', border: '1px solid rgba(96,165,250,0.2)', borderRadius: '6px', padding: '20px' }}>
       <div style={{ color: '#60a5fa', fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '4px' }}>Add Agent Script / Talking Point</div>
-      <div style={{ color: '#6b7280', fontSize: '11px', marginBottom: '16px' }}>Openers, rebuttals, qualifying questions, closing language. These power the Coach tool during live calls.</div>
-      <div style={{ marginBottom: '10px' }}><label style={ls}>Title / Topic</label><input value={form.question} onChange={e => setForm(p => ({ ...p, question: e.target.value }))} placeholder="e.g. Opener — Transferred Call Greeting" style={inp} /></div>
-      <div style={{ marginBottom: '10px' }}><label style={ls}>Script Content</label><textarea value={form.answer} onChange={e => setForm(p => ({ ...p, answer: e.target.value }))} rows={5} style={{ ...inp, resize: 'vertical' }} /></div>
-      <button onClick={save} disabled={saving || !form.question.trim() || !form.answer.trim()} style={{ background: 'linear-gradient(135deg,#60a5fa,#3b82f6)', color: DARK, border: 'none', borderRadius: '4px', padding: '10px 20px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase', opacity: saving ? 0.5 : 1 }}>+ Add Script</button>
+      <div style={{ color: '#6b7280', fontSize: '11px', marginBottom: '16px' }}>Openers, rebuttals, qualifying questions, closing language. These power the Coach tool during live calls. Add multiple answers to cover different angles or variations of the script.</div>
+      <div style={{ marginBottom: '10px' }}><label style={ls}>Title / Topic</label><input value={question} onChange={e => setQuestion(e.target.value)} placeholder="e.g. Opener — Transferred Call Greeting" style={inp} /></div>
+      <div style={{ marginBottom: '10px' }}>
+        <MultiAnswerEditor answers={answers} onChange={setAnswers} accentColor="#60a5fa" label="Script Content" placeholder="Type the script / talking point…" rows={5} />
+      </div>
+      <button onClick={save} disabled={saving || !hasAny} style={{ background: 'linear-gradient(135deg,#60a5fa,#3b82f6)', color: DARK, border: 'none', borderRadius: '4px', padding: '10px 20px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase', opacity: saving ? 0.5 : 1 }}>+ Add Script</button>
     </div>
   );
 }
 
 // ─── Customer Q&A Editor ─────────────────────────────────────────────────────
 function CustomerQAEditor({ category, onSaved }) {
-  const [form, setForm] = useState({ question: '', answer: '' });
+  const [question, setQuestion] = useState('');
+  const [answers, setAnswers] = useState(['']);
   const [saving, setSaving] = useState(false);
 
   const save = async () => {
-    if (!form.question.trim() || !form.answer.trim()) return;
+    const clean = answers.filter(a => a.trim());
+    if (!question.trim() || clean.length === 0) return;
     setSaving(true);
-    await base44.entities.KnowledgeBase.create({ ...form, category, kbName: 'Debt Settlement', created_date: new Date().toISOString() });
-    setForm({ question: '', answer: '' });
+    await base44.entities.KnowledgeBase.create({
+      question: question.trim(),
+      answer: clean[0],
+      answersJson: serializeAnswers(clean),
+      category, kbName: 'Debt Settlement', created_date: new Date().toISOString(),
+    });
+    setQuestion(''); setAnswers(['']);
     onSaved();
     setSaving(false);
   };
 
+  const hasAny = question.trim() && answers.some(a => a.trim());
+
   return (
     <div style={{ background: 'rgba(245,158,11,0.05)', border: '1px solid rgba(245,158,11,0.2)', borderRadius: '6px', padding: '20px' }}>
       <div style={{ color: '#f59e0b', fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '4px' }}>Add Customer Q&A</div>
-      <div style={{ color: '#6b7280', fontSize: '11px', marginBottom: '16px' }}>Common questions customers ask about debt settlement. These power the live Q&A tool for instant answers.</div>
-      <div style={{ marginBottom: '10px' }}><label style={ls}>Customer Question</label><input value={form.question} onChange={e => setForm(p => ({ ...p, question: e.target.value }))} placeholder="e.g. How does this affect my credit score?" style={inp} /></div>
-      <div style={{ marginBottom: '10px' }}><label style={ls}>Answer</label><textarea value={form.answer} onChange={e => setForm(p => ({ ...p, answer: e.target.value }))} rows={4} style={{ ...inp, resize: 'vertical' }} /></div>
-      <button onClick={save} disabled={saving || !form.question.trim() || !form.answer.trim()} style={{ background: 'linear-gradient(135deg,#f59e0b,#d97706)', color: DARK, border: 'none', borderRadius: '4px', padding: '10px 20px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase', opacity: saving ? 0.5 : 1 }}>+ Add Q&A</button>
+      <div style={{ color: '#6b7280', fontSize: '11px', marginBottom: '16px' }}>Common questions customers ask about debt settlement. These power the live Q&A tool for instant answers. Add multiple answers to cover different ways to respond — all are returned to the agent when the question is matched.</div>
+      <div style={{ marginBottom: '10px' }}><label style={ls}>Customer Question</label><input value={question} onChange={e => setQuestion(e.target.value)} placeholder="e.g. How does this affect my credit score?" style={inp} /></div>
+      <div style={{ marginBottom: '10px' }}>
+        <MultiAnswerEditor answers={answers} onChange={setAnswers} accentColor="#f59e0b" label="Answer(s)" placeholder="Type the answer the agent should give…" rows={4} />
+      </div>
+      <button onClick={save} disabled={saving || !hasAny} style={{ background: 'linear-gradient(135deg,#f59e0b,#d97706)', color: DARK, border: 'none', borderRadius: '4px', padding: '10px 20px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase', opacity: saving ? 0.5 : 1 }}>+ Add Q&A</button>
     </div>
   );
 }
@@ -478,7 +522,10 @@ ${transcriptText}`,
 
 // ─── Hotpoint Editor ─────────────────────────────────────────────────────────
 function HotpointEditor({ category, onSaved }) {
-  const [form, setForm] = useState({ question: '', answer: '', strategy: '', tags: '' });
+  const [question, setQuestion] = useState('');
+  const [answers, setAnswers] = useState(['']);
+  const [strategy, setStrategy] = useState('');
+  const [tags, setTags] = useState('');
   const [saving, setSaving] = useState(false);
   const [bulkText, setBulkText] = useState('');
   const [extracting, setExtracting] = useState(false);
@@ -494,21 +541,23 @@ function HotpointEditor({ category, onSaved }) {
   ];
 
   const save = async () => {
-    if (!form.question.trim() || !form.answer.trim()) return;
+    const clean = answers.filter(a => a.trim());
+    if (!question.trim() || clean.length === 0) return;
     setSaving(true);
-    const answer = form.strategy.trim()
-      ? `${form.answer}\n📋 Agent Strategy: ${form.strategy}`
-      : form.answer;
+    // Append strategy to the primary answer for backward compat; store all answers in answersJson
+    const primary = strategy.trim() ? `${clean[0]}\n📋 Agent Strategy: ${strategy}` : clean[0];
+    const allAnswers = strategy.trim() ? [primary, ...clean.slice(1)] : clean;
     await base44.entities.KnowledgeBase.create({
-      question: form.question,
-      answer,
+      question: question.trim(),
+      answer: primary,
+      answersJson: serializeAnswers(allAnswers),
       category,
       kbName: 'Debt Settlement',
-      tags: form.tags,
+      tags,
       source: 'manual',
       created_date: new Date().toISOString(),
     });
-    setForm({ question: '', answer: '', strategy: '', tags: '' });
+    setQuestion(''); setAnswers(['']); setStrategy(''); setTags('');
     onSaved();
     setSaving(false);
   };
@@ -591,16 +640,18 @@ ${bulkText}`,
         <div style={{ background: 'rgba(251,146,60,0.05)', border: '1px solid rgba(251,146,60,0.2)', borderRadius: '6px', padding: '20px' }}>
           <div style={{ color: '#fb923c', fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '4px' }}>Add Coaching Hotpoint</div>
           <div style={{ color: '#6b7280', fontSize: '11px', marginBottom: '16px' }}>Key moments and triggers the live coach AI watches for during calls. When the customer says or does something matching this trigger, the coach suggests the guidance below.</div>
-          <div style={{ marginBottom: '10px' }}><label style={ls}>Trigger / Situation</label><input value={form.question} onChange={e => setForm(p => ({ ...p, question: e.target.value }))} placeholder="e.g. Customer mentions bankruptcy" style={inp} /></div>
+          <div style={{ marginBottom: '10px' }}><label style={ls}>Trigger / Situation</label><input value={question} onChange={e => setQuestion(e.target.value)} placeholder="e.g. Customer mentions bankruptcy" style={inp} /></div>
           <div style={{ marginBottom: '10px' }}>
             <label style={ls}>Type</label>
-            <select value={form.tags} onChange={e => setForm(p => ({ ...p, tags: e.target.value }))} style={{ ...inp, cursor: 'pointer' }}>
+            <select value={tags} onChange={e => setTags(e.target.value)} style={{ ...inp, cursor: 'pointer' }}>
               {HOTPOINT_TYPES.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
             </select>
           </div>
-          <div style={{ marginBottom: '10px' }}><label style={ls}>Coaching Guidance</label><textarea value={form.answer} onChange={e => setForm(p => ({ ...p, answer: e.target.value }))} rows={3} style={{ ...inp, resize: 'vertical' }} placeholder="What the agent should do or say when this trigger occurs…" /></div>
-          <div style={{ marginBottom: '10px' }}><label style={ls}>Agent Strategy</label><textarea value={form.strategy} onChange={e => setForm(p => ({ ...p, strategy: e.target.value }))} rows={2} style={{ ...inp, resize: 'vertical' }} placeholder="Why this approach works strategically…" /></div>
-          <button onClick={save} disabled={saving || !form.question.trim() || !form.answer.trim()} style={{ background: 'linear-gradient(135deg,#fb923c,#f97316)', color: DARK, border: 'none', borderRadius: '4px', padding: '10px 20px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase', opacity: saving ? 0.5 : 1 }}>+ Add Hotpoint</button>
+          <div style={{ marginBottom: '10px' }}>
+            <MultiAnswerEditor answers={answers} onChange={setAnswers} accentColor="#fb923c" label="Coaching Guidance" placeholder="What the agent should do or say when this trigger occurs…" rows={3} />
+          </div>
+          <div style={{ marginBottom: '10px' }}><label style={ls}>Agent Strategy</label><textarea value={strategy} onChange={e => setStrategy(e.target.value)} rows={2} style={{ ...inp, resize: 'vertical' }} placeholder="Why this approach works strategically…" /></div>
+          <button onClick={save} disabled={saving || !question.trim() || !answers.some(a => a.trim())} style={{ background: 'linear-gradient(135deg,#fb923c,#f97316)', color: DARK, border: 'none', borderRadius: '4px', padding: '10px 20px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase', opacity: saving ? 0.5 : 1 }}>+ Add Hotpoint</button>
         </div>
       )}
     </div>

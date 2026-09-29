@@ -1,8 +1,32 @@
 const ANTHROPIC_KEY = Deno.env.get('ANTHROPIC_API_KEY') || '';
 
+// ── Multi-answer helper ─────────────────────────────────────────────────────
+// Returns all answers for an entry: parses answersJson (array) if present,
+// otherwise falls back to the single `answer` field.
+function getAnswers(e: any): string[] {
+  const out: string[] = [];
+  if (e?.answersJson) {
+    try {
+      const arr = JSON.parse(e.answersJson);
+      if (Array.isArray(arr)) {
+        for (const a of arr) { if (typeof a === 'string' && a.trim()) out.push(a); }
+      }
+    } catch {}
+  }
+  if (out.length === 0 && e?.answer && String(e.answer).trim()) out.push(String(e.answer));
+  return out;
+}
+
+// Formats all answers for an entry as a numbered list (for AI context / display)
+function formatAnswers(e: any): string {
+  const answers = getAnswers(e);
+  if (answers.length <= 1) return answers[0] || '';
+  return answers.map((a, i) => `${i + 1}. ${a}`).join('\n');
+}
+
 // ── Smart KB search ─────────────────────────────────────────────────────────
 function scoreEntry(qLower: string, words: string[], e: any): number {
-  const haystack = `${e.question||''} ${e.answer||''} ${e.keywords||''} ${e.variations||''}`.toLowerCase();
+  const haystack = `${e.question||''} ${e.answer||''} ${e.answersJson||''} ${e.keywords||''} ${e.variations||''}`.toLowerCase();
   let score = 0;
   for (const w of words) {
     if (haystack.includes(w)) score += 1;
@@ -82,7 +106,7 @@ Deno.serve(async (req) => {
     // ── LIVE COACH (non-streaming, hotpoint-aware) ──────────────────
     if (mode === 'coach') {
       const relevantKB = findRelevantKB(recentTranscript, kbEntries || [], 3);
-      const kbContext  = relevantKB.filter((e: any) => e.category !== 'debt_hotpoints').map((e: any) => `Q: ${e.question}\nA: ${e.answer}`).join('\n\n');
+      const kbContext  = relevantKB.filter((e: any) => e.category !== 'debt_hotpoints').map((e: any) => `Q: ${e.question}\nA: ${formatAnswers(e)}`).join('\n\n');
       const hotpoints = (kbEntries || []).filter((e: any) => e.category === 'debt_hotpoints');
       const hotpointContext = hotpoints.length > 0
         ? hotpoints.map((e: any) => `TRIGGER: ${e.question}\nTYPE: ${e.tags || 'general'}\nGUIDANCE: ${e.answer}`).join('\n---\n')
@@ -121,7 +145,7 @@ ${kbContext ? `\n\nRelevant KB:\n${kbContext}` : ''}`,
     // ── STREAMING COACH ───────────────────────────────────────────────
     if (mode === 'coach_stream') {
       const relevantKB = findRelevantKB(recentTranscript, kbEntries || [], 3);
-      const kbContext  = relevantKB.filter((e: any) => e.category !== 'debt_hotpoints').map((e: any) => `Q: ${e.question}\nA: ${e.answer}`).join('\n\n');
+      const kbContext  = relevantKB.filter((e: any) => e.category !== 'debt_hotpoints').map((e: any) => `Q: ${e.question}\nA: ${formatAnswers(e)}`).join('\n\n');
       const hotpoints = (kbEntries || []).filter((e: any) => e.category === 'debt_hotpoints');
       const hotpointContext = hotpoints.length > 0
         ? hotpoints.map((e: any) => `TRIGGER: ${e.question}\nTYPE: ${e.tags || 'general'}\nGUIDANCE: ${e.answer}`).join('\n---\n')
@@ -541,7 +565,7 @@ ${recentText}`,
       const kbContext  = relevantKB.length > 0
         ? relevantKB.map((e: any) => e.category === 'raw_chunk'
             ? `[Document excerpt]: ${e.answer}`
-            : `Q: ${e.question}\nA: ${e.answer}`
+            : `Q: ${e.question}\nA: ${formatAnswers(e)}`
           ).join('\n\n')
         : 'No additional KB entries found.';
       const res = await fetch('https://api.anthropic.com/v1/messages', {
@@ -561,12 +585,13 @@ ${recentText}`,
     // ── Q&A (default) — try direct hit first, AI only if needed ──────
     const q = question || recentTranscript;
 
-    // 1. Try direct KB hit — return pre-written answer with zero AI tokens
+    // 1. Try direct KB hit — return pre-written answer(s) with zero AI tokens
     if (question) {
       const directHit = findDirectHit(question, kbEntries || []);
       if (directHit) {
         console.log(`[liveAssistantAI] Direct KB hit: "${directHit.question}" (coverage high)`);
-        return Response.json({ answer: directHit.answer, source: 'kb_direct', kbEntry: directHit.question });
+        const answers = getAnswers(directHit);
+        return Response.json({ answer: answers.join('\n\n---\n\n'), answers, source: 'kb_direct', kbEntry: directHit.question });
       }
     }
 
@@ -575,7 +600,7 @@ ${recentText}`,
     const kbContext  = relevantKB.length > 0
       ? relevantKB.map((e: any) => e.category === 'raw_chunk'
           ? `[Document excerpt]: ${e.answer}`
-          : `Q: ${e.question}\nA: ${e.answer}`
+          : `Q: ${e.question}\nA: ${formatAnswers(e)}`
         ).join('\n\n')
       : 'No relevant knowledge base entries found.';
 
