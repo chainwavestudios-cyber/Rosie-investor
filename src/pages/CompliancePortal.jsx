@@ -5,6 +5,7 @@
  * Admin/SuperAdmin: Monitor + Admin + My Compliance.
  */
 import { useState } from 'react';
+import { Navigate } from 'react-router-dom';
 import { useDebtCoachAuth } from '@/lib/DebtCoachAuthContext';
 import { isComplianceManager, isComplianceAdmin } from '@/lib/complianceRoles';
 import MyComplianceTab from '@/components/compliance/MyComplianceTab';
@@ -16,9 +17,12 @@ import ComplianceContactCard from '@/components/compliance/ComplianceContactCard
 const GOLD = '#10b981';
 
 export default function CompliancePortal({ onBack }) {
-  const { user, logout } = useDebtCoachAuth();
+  const { user, logout, isAuthenticated, loading } = useDebtCoachAuth();
   const [tab, setTab] = useState('my');
   const [inspectRecord, setInspectRecord] = useState(null);
+
+  if (loading) return <div style={{ minHeight: '100vh', background: '#0a0f1e', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#6b7280' }}>Loading…</div>;
+  if (!isAuthenticated) return <Navigate to="/debt-call-coach-login" replace />;
 
   const canMonitor = isComplianceManager(user?.role);
   const canAdmin = isComplianceAdmin(user?.role);
