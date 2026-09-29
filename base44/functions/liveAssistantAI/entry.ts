@@ -491,6 +491,42 @@ ${recentText}`,
       }
     }
 
+    // ── HANDOFF INTRO EXTRACTION (transfer agent introduces customer) ──
+    if (mode === 'handoff') {
+      const openingLines = (transcript || []).slice(0, 8).map((t: any) => `[${t.speaker === 0 ? 'AGENT' : 'CALLER'}]: ${t.text}`).join('\n');
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_KEY, 'anthropic-version': '2023-06-01' },
+        body: JSON.stringify({
+          model: 'claude-haiku-4-5-20251001',
+          max_tokens: 400,
+          system: `You are analyzing the OPENING of an incoming debt settlement call. At the very start, the answering agent says something like "debt advisors this is [agent name]". Then a transfer agent (the person who warm-transferred the call) introduces the customer/prospect, saying things like "I have Bob on the line here, and he has approx 20k in debt" or "this is Sarah, she's got about 35 thousand in credit card debt".
+
+Extract from these opening lines:
+- customerFirstName: The PROSPECT/CUSTOMER's first name (the person being transferred in, NOT the agent and NOT the transfer agent). e.g. "Bob", "Sarah"
+- customerLastName: The prospect's last name if mentioned
+- debtAmount: Total debt amount mentioned (number only, no $ or commas). Handle "20k" → 20000, "35 thousand" → 35000, "approx 20k" → 20000, "15 grand" → 15000.
+- agentFirstName: The answering agent's first name if they state it ("debt advisors this is Chris" → "Chris")
+
+CRITICAL: Do NOT confuse the transfer agent's name with the customer's name. The customer is the person being transferred/introduced ("I have Bob on the line" → customer is Bob). The agent is the one who answered the phone ("debt advisors this is Chris" → agent is Chris).
+
+Return JSON. Only include fields explicitly mentioned — do NOT make up data. If nothing relevant was said, return empty object.
+
+Opening lines:
+${openingLines}`,
+          messages: [{ role: 'user', content: 'Extract handoff details:' }],
+        }),
+      });
+      const data = await res.json();
+      const text = data?.content?.[0]?.text || '{}';
+      try {
+        const result = JSON.parse(text.replace(/```json|```/g, '').trim());
+        return Response.json({ handoff: result });
+      } catch {
+        return Response.json({ handoff: null });
+      }
+    }
+
     // ── EXTRACT PERSONAL INSIGHTS (location, occupation, hobbies, etc.) ──
     if (mode === 'extract_insights') {
       const allLines = transcript || [];

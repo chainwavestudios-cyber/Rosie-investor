@@ -85,9 +85,32 @@ export function CueBlockView({ element }) {
   );
 }
 
+// ─── Client name token substitution ───────────────────────────────────────────
+// Replaces <client name>, <client>, <name>, <firstname>, <lastname> and the
+// {{firstname}} / {{lastname}} tokens with the live lead's actual name, so
+// scripts read naturally during a call ("Hi <client name>" → "Hi Bob").
+export function substituteClientName(text, clientFirstName, clientLastName) {
+  if (!text) return text;
+  const first = (clientFirstName || '').trim();
+  const last = (clientLastName || '').trim();
+  const full = [first, last].filter(Boolean).join(' ').trim() || first;
+  return text
+    .replace(/<client\s*name>/gi, full || first || '')
+    .replace(/\{\{client\s*name\}\}/gi, full || first || '')
+    .replace(/<client>/gi, first)
+    .replace(/\{\{client\}\}/gi, first)
+    .replace(/<name>/gi, first)
+    .replace(/\{\{name\}\}/gi, first)
+    .replace(/<firstname>/gi, first)
+    .replace(/\{\{firstname\}\}/gi, first)
+    .replace(/<lastname>/gi, last)
+    .replace(/\{\{lastname\}\}/gi, last);
+}
+
 // ─── Teleprompter Component ────────────────────────────────────────────────────
-export default function ScriptTeleprompter({ content, color = '#e8e0d0', fontSize = 14, liveTranscript, phase }) {
-  const elements = useMemo(() => parseScriptElements(content), [content]);
+export default function ScriptTeleprompter({ content, color = '#e8e0d0', fontSize = 14, liveTranscript, phase, clientFirstName, clientLastName }) {
+  const displayContent = useMemo(() => substituteClientName(content, clientFirstName, clientLastName), [content, clientFirstName, clientLastName]);
+  const elements = useMemo(() => parseScriptElements(displayContent), [displayContent]);
   const scriptLines = useMemo(() => elements.filter(e => e.type === 'script'), [elements]);
 
   const [activeIdx, setActiveIdx] = useState(0);

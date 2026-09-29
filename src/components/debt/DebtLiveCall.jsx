@@ -96,6 +96,7 @@ export default function DebtLiveCall() {
   const lastCosignerTime = useRef(0);
   const lastContactTime = useRef(0);
   const lastComplianceTime = useRef(0);
+  const handoffAttemptsRef = useRef(0);
   const callStartRef = useRef(null);
   const intentHistoryRef = useRef([]);
   const testCtxRef = useRef(null);
@@ -438,6 +439,32 @@ ${recentText}`,
     } catch {}
   }, []);
 
+  // Auto-extract the opening handoff: transfer agent introduces the customer
+  // ("I have Bob on the line here, and he has approx 20k in debt") → populate
+  // first name + debt amount and save the lead immediately.
+  const handleHandoffExtract = useCallback(async () => {
+    if (!leadRef.current?.id || transcriptRef.current.length < 2) return;
+    try {
+      const res = await base44.functions.invoke('liveAssistantAI', { transcript: transcriptRef.current.slice(0, 8), mode: 'handoff' });
+      const h = res?.handoff || res?.data?.handoff;
+      if (h) {
+        const updates = {};
+        const curFirst = (leadRef.current.firstName || '').trim();
+        const curLast = (leadRef.current.lastName || '').trim();
+        // Only fill name if the lead is still a blank/new placeholder
+        if (h.customerFirstName && (!curFirst || curFirst.toLowerCase() === 'new')) updates.firstName = h.customerFirstName;
+        if (h.customerLastName && (!curLast || curLast.toLowerCase() === 'lead')) updates.lastName = h.customerLastName;
+        // Always capture a freshly mentioned debt amount if none is set yet
+        if (h.debtAmount && !leadRef.current.debtAmount) updates.debtAmount = Number(h.debtAmount) || h.debtAmount;
+        if (Object.keys(updates).length > 0) {
+          setLead(prev => ({ ...prev, ...updates }));
+          if (leadRef.current.id) base44.entities.DebtLead.update(leadRef.current.id, updates).catch(() => {});
+          window.dispatchEvent(new CustomEvent('lead_autosaved', { detail: Object.keys(updates) }));
+        }
+      }
+    } catch {}
+  }, []);
+
   // Auto-extract co-signers from transcript
   const handleCosignerExtract = useCallback(async () => {
     if (!leadRef.current?.id || transcriptRef.current.length < 4) return;
@@ -495,7 +522,11 @@ ${recentText}`,
     if (now - lastCosignerTime.current > 60000) { lastCosignerTime.current = now; handleCosignerExtract(); }
     if (now - lastContactTime.current > 40000) { lastContactTime.current = now; handleContactExtract(); }
     if (now - lastComplianceTime.current > 90000) { lastComplianceTime.current = now; handleComplianceEval(); }
-  }, [qaActive, coachActive, intentActive, handleQa, flushCustomerBuffer, handleCoach, handleIntent, handleProfile, handleDebtExtract, handleBillsExtract, handleHardshipExtract, handleCosignerExtract, handleContactExtract, handleComplianceEval]);
+    // Opening handoff: try once at 3 lines, again at 7 lines if still nothing
+    const lineCount = transcriptRef.current.length;
+    if (handoffAttemptsRef.current < 1 && lineCount >= 3) { handoffAttemptsRef.current = 1; handleHandoffExtract(); }
+    else if (handoffAttemptsRef.current < 2 && lineCount >= 7) { handoffAttemptsRef.current = 2; handleHandoffExtract(); }
+  }, [qaActive, coachActive, intentActive, handleQa, flushCustomerBuffer, handleCoach, handleIntent, handleProfile, handleDebtExtract, handleBillsExtract, handleHardshipExtract, handleCosignerExtract, handleContactExtract, handleComplianceEval, handleHandoffExtract]);
 
   const startCall = useCallback(async () => {
     // Ensure we have a lead
@@ -503,6 +534,7 @@ ${recentText}`,
 
     setError(''); setTranscript([]); setQaItems([]); setCoachTips([]); setIntentScore(null); setProfileData(null); setReport('');
     intentHistoryRef.current = [];
+    handoffAttemptsRef.current = 0;
     customerBufferRef.current = []; if (bufferTimeoutRef.current) { clearTimeout(bufferTimeoutRef.current); bufferTimeoutRef.current = null; }
     setPhase('live'); setDgStatus('connecting');
     callStartRef.current = new Date();
@@ -1106,7 +1138,7 @@ ${recentText}`,
               )}
 
               {/* Transcript — pop-out enabled with Scripts tab */}
-              <LiveTranscriptPanel transcript={transcript} phase={phase} panel={transcriptPanel} onAnswerQuestion={handleAnswerQuestion} />
+              <LiveTranscriptPanel transcript={transcript} phase={phase} panel={transcriptPanel} onAnswerQuestion={handleAnswerQuestion} lead={lead} />
 
               {/* AI Tools Panel — pop-out enabled */}
               {aiPanel.poppedOut ? (
