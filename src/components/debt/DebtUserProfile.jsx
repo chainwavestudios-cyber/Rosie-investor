@@ -5,6 +5,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { base44 } from '@/api/base44Client';
 import KeyFactsPanel from '@/components/debt/KeyFactsPanel';
+import ClientProfileModal from '@/components/debt/ClientProfileModal';
 
 const GOLD = '#10b981';
 const ls = { display: 'block', color: '#8a9ab8', fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '6px' };
@@ -16,6 +17,7 @@ export default function DebtUserProfile() {
   const [leads, setLeads] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState(null);
+  const [showProfile, setShowProfile] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -78,6 +80,9 @@ export default function DebtUserProfile() {
                 <div style={{ color: '#6b7280', fontSize: '12px', marginTop: '4px' }}>{selected.phone} · {selected.email}</div>
               </div>
               <div style={{ display: 'flex', gap: '8px' }}>
+                <button onClick={() => setShowProfile(true)} style={{ background: 'linear-gradient(135deg,#10b981,#22c55e)', color: '#0a0f1e', border: 'none', borderRadius: '4px', padding: '8px 16px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  💳 Open Contact Card
+                </button>
                 <div style={{ background: `${ANIMAL_COLORS[profile?.animalType || selected.animalType || 'unknown']}18`, border: `1px solid ${ANIMAL_COLORS[profile?.animalType || selected.animalType || 'unknown']}44`, borderRadius: '4px', padding: '8px 14px', textAlign: 'center' }}>
                   <div style={{ fontSize: '20px' }}>{ANIMAL_EMOJI[profile?.animalType || selected.animalType || 'unknown']}</div>
                   <div style={{ color: ANIMAL_COLORS[profile?.animalType || selected.animalType || 'unknown'], fontSize: '9px', textTransform: 'uppercase', letterSpacing: '1px' }}>{(profile?.animalType || selected.animalType || 'unknown')}</div>
@@ -183,6 +188,10 @@ export default function DebtUserProfile() {
           </div>
         )}
       </div>
+
+      {showProfile && selected && (
+        <ClientProfileModal lead={selected} onClose={() => setShowProfile(false)} onSave={() => load()} />
+      )}
     </div>
   );
 }

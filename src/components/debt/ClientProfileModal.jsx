@@ -53,6 +53,7 @@ export default function ClientProfileModal({ lead, onClose, onSave }) {
   const [creditPhotoLoading, setCreditPhotoLoading] = useState(false);
   const [callTranscripts, setCallTranscripts] = useState([]);
   const [expandedTranscript, setExpandedTranscript] = useState(null);
+  const [showLiveTranscript, setShowLiveTranscript] = useState(false);
   const panel = usePopOutPanel('client_profile', { width: 900, height: 700 });
 
   // Load Q&A history for this lead
@@ -70,6 +71,12 @@ export default function ClientProfileModal({ lead, onClose, onSave }) {
       .then(rows => setCallTranscripts(rows || []))
       .catch(() => setCallTranscripts([]));
   }, [lead?.id]);
+
+  // Parse the auto-saved live transcript from the lead record
+  const liveTranscriptLines = useMemo(() => {
+    if (!lead?.transcriptJson) return [];
+    try { return JSON.parse(lead.transcriptJson); } catch { return []; }
+  }, [lead?.transcriptJson]);
 
   // Load credit report photo signed URL
   useEffect(() => {
@@ -303,9 +310,37 @@ export default function ClientProfileModal({ lead, onClose, onSave }) {
 
         {tab === 'transcripts' && (
           <div>
-            <div style={{ color: GOLD, fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '12px' }}>📝 Call Transcripts — {callTranscripts.length} calls</div>
+            {/* Auto-saved live transcript from the lead record */}
+            {liveTranscriptLines.length > 0 && (
+              <div style={{ marginBottom: '16px', background: 'rgba(96,165,250,0.04)', border: '1px solid rgba(96,165,250,0.2)', borderRadius: '4px', overflow: 'hidden' }}>
+                <button onClick={() => setShowLiveTranscript(p => !p)} style={{ width: '100%', background: 'none', border: 'none', padding: '12px 14px', cursor: 'pointer', textAlign: 'left', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <span style={{ color: '#60a5fa', fontSize: '11px', fontWeight: 'bold', flexShrink: 0 }}>{lead.lastCallAt ? new Date(lead.lastCallAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'}</span>
+                  <span style={{ padding: '2px 8px', borderRadius: '2px', background: 'rgba(96,165,250,0.12)', color: '#60a5fa', fontSize: '9px', fontWeight: 'bold', textTransform: 'uppercase', flexShrink: 0 }}>Latest Live</span>
+                  <span style={{ color: '#6b7280', fontSize: '11px', flexShrink: 0 }}>{liveTranscriptLines.length} lines</span>
+                  <span style={{ color: '#6b7280', fontSize: '12px', marginLeft: 'auto' }}>{showLiveTranscript ? '−' : '+'}</span>
+                </button>
+                {showLiveTranscript && (
+                  <div style={{ borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+                    <div style={{ maxHeight: '60vh', overflowY: 'auto', padding: '10px 14px' }}>
+                      {liveTranscriptLines.map((msg, j) => {
+                        const isAgent = msg.speaker === 0;
+                        return (
+                          <div key={j} style={{ marginBottom: '6px', display: 'flex', gap: '8px' }}>
+                            <span style={{ color: '#4a5568', fontSize: '9px', flexShrink: 0, minWidth: '50px' }}>{msg.time ? new Date(msg.time).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : ''}</span>
+                            <span style={{ color: isAgent ? '#60a5fa' : '#10b981', fontSize: '10px', fontWeight: 'bold', flexShrink: 0, minWidth: '60px' }}>{isAgent ? 'Agent' : 'Customer'}</span>
+                            <span style={{ color: '#c4cdd8', fontSize: '12px', lineHeight: 1.5 }}>{msg.text}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div style={{ color: GOLD, fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '12px' }}>📝 Saved Call Transcripts — {callTranscripts.length} calls</div>
             {callTranscripts.length === 0 ? (
-              <div style={{ color: '#4a5568', textAlign: 'center', padding: '40px 0', fontSize: '12px' }}>No transcripts saved yet. Every call is automatically saved here when the call ends.</div>
+              <div style={{ color: '#4a5568', textAlign: 'center', padding: '40px 0', fontSize: '12px' }}>No saved call transcripts yet. Transcripts are saved as a permanent record when a call ends properly.</div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                 {callTranscripts.map((ct, i) => {
@@ -328,7 +363,7 @@ export default function ClientProfileModal({ lead, onClose, onSave }) {
                           {lines.length === 0 ? (
                             <div style={{ padding: '16px', color: '#4a5568', fontSize: '12px', textAlign: 'center' }}>No transcript lines recorded.</div>
                           ) : (
-                            <div style={{ maxHeight: '300px', overflowY: 'auto', padding: '10px 14px' }}>
+                            <div style={{ maxHeight: '60vh', overflowY: 'auto', padding: '10px 14px' }}>
                               {lines.map((msg, j) => {
                                 const isAgent = msg.speaker === 0;
                                 return (
