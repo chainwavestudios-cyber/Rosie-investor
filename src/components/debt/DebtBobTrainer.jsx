@@ -15,6 +15,7 @@ import DebtCreditReport from '@/components/debt/DebtCreditReport';
 import DoNothingCalculator from '@/components/debt/DoNothingCalculator';
 import ClientProfileModal from '@/components/debt/ClientProfileModal';
 import { usePopOutPanel } from '@/hooks/usePopOutPanel';
+import { useDebtCoachAuth } from '@/lib/DebtCoachAuthContext';
 
 const GOLD = '#10b981';
 const DARK = '#0a0f1e';
@@ -44,6 +45,11 @@ const SUB_TABS = [
 ];
 
 export default function DebtBobTrainer() {
+  const { can, isAdmin } = useDebtCoachAuth();
+  const canBobAI = can('bobAIAssistant');
+  const canBobQA = can('bobQA');
+  const canBobCoach = can('bobCoach');
+  const canBobIntent = can('bobIntent');
   const [subTab, setSubTab] = useState('training');
   const [sliderValue, setSliderValue] = useState(0);
   const [intensity, setIntensity] = useState(3);
@@ -575,11 +581,15 @@ IMPORTANT: Ask these questions NATURALLY during the call. Weave them into the co
               {agentSpeaking && phase === 'active' && <div style={{ marginTop: '6px', color: GOLD, fontSize: '11px', textAlign: 'center' }}>🤖 Bob is speaking…</div>}
               {error && <div style={{ marginTop: '8px', color: '#ef4444', fontSize: '11px' }}>⚠ {error}</div>}
 
-              {/* AI Assistant button — opens popup */}
-              <button onClick={() => setShowAIPopup(true)} style={{ width: '100%', marginTop: '10px', background: showAIPopup ? 'rgba(74,222,128,0.15)' : `${GOLD}18`, color: showAIPopup ? '#4ade80' : GOLD, border: `1px solid ${showAIPopup ? 'rgba(74,222,128,0.3)' : GOLD + '44'}`, borderRadius: '4px', padding: '10px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase' }}>
-                {showAIPopup ? '🟢 AI Assistant Active' : '🤖 Open AI Assistant'}
-              </button>
-              <div style={{ color: '#4a5568', fontSize: '10px', textAlign: 'center', marginTop: '4px' }}>Q&A, Coach, Intent — uses Deepgram audio stream</div>
+              {/* AI Assistant button — opens popup (gated by bobAIAssistant permission) */}
+              {canBobAI && (
+                <>
+                  <button onClick={() => setShowAIPopup(true)} style={{ width: '100%', marginTop: '10px', background: showAIPopup ? 'rgba(74,222,128,0.15)' : `${GOLD}18`, color: showAIPopup ? '#4ade80' : GOLD, border: `1px solid ${showAIPopup ? 'rgba(74,222,128,0.3)' : GOLD + '44'}`, borderRadius: '4px', padding: '10px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase' }}>
+                    {showAIPopup ? '🟢 AI Assistant Active' : '🤖 Open AI Assistant'}
+                  </button>
+                  <div style={{ color: '#4a5568', fontSize: '10px', textAlign: 'center', marginTop: '4px' }}>Q&A, Coach, Intent — uses Deepgram audio stream</div>
+                </>
+              )}
             </div>
 
             {/* Duck-Cow Slider */}
@@ -718,7 +728,7 @@ IMPORTANT: Ask these questions NATURALLY during the call. Weave them into the co
         </div>
 
         {/* AI Assistant Popup — draggable, resizable, same as admin panel */}
-        {showAIPopup && (
+        {showAIPopup && canBobAI && (
           <AIAssistantPopup
             lead={bobLead || null}
             transcript={normalizedTranscript}
@@ -726,9 +736,9 @@ IMPORTANT: Ask these questions NATURALLY during the call. Weave them into the co
             kbEntries={kbEntries}
             portalCfg={{}}
             engagementScore={0}
-            qaActive={qaActive}
-            coachActive={coachActive}
-            intentActive={intentActive}
+            qaActive={qaActive && canBobQA}
+            coachActive={coachActive && canBobCoach}
+            intentActive={intentActive && canBobIntent}
             onToggleQA={() => setQaActive(p => !p)}
             onToggleCoach={() => setCoachActive(p => !p)}
             onToggleIntent={() => setIntentActive(p => !p)}
@@ -773,7 +783,7 @@ IMPORTANT: Ask these questions NATURALLY during the call. Weave them into the co
       {subTab === 'brain' && <DebtBobKB onKBUpdated={loadKB} />}
 
       {/* Training Log */}
-      {subTab === 'log' && <TrainingLog logs={logs} recordingUrl={recordingUrl} onClear={() => { if (window.confirm('Clear all logs?')) setLogs([]); }} />}
+      {subTab === 'log' && <TrainingLog logs={logs} recordingUrl={recordingUrl} onClear={() => { if (window.confirm('Clear all logs?')) setLogs([]); }} canDownload={isAdmin} canClear={isAdmin} />}
 
       <DebtCreditReport scenario={scenario} visible={phase === 'active'} />
       <FloatingScriptBox storageKey="bob_script" />
@@ -782,7 +792,7 @@ IMPORTANT: Ask these questions NATURALLY during the call. Weave them into the co
 }
 
 // ─── Training Log ─────────────────────────────────────────────────────────────
-function TrainingLog({ logs, recordingUrl, onClear }) {
+function TrainingLog({ logs, recordingUrl, onClear, canDownload = true, canClear = true }) {
   const logEndRef = useRef(null);
   const [pastSessions, setPastSessions] = useState([]);
   useEffect(() => { logEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [logs]);
@@ -798,13 +808,13 @@ function TrainingLog({ logs, recordingUrl, onClear }) {
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
         <div style={{ color: GOLD, fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase' }}>Training Log — {logs.length} Events</div>
-        {logs.length > 0 && <button onClick={onClear} style={{ background: 'rgba(239,68,68,0.1)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.2)', borderRadius: '4px', padding: '6px 12px', cursor: 'pointer', fontSize: '11px' }}>Clear Log</button>}
+        {logs.length > 0 && canClear && <button onClick={onClear} style={{ background: 'rgba(239,68,68,0.1)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.2)', borderRadius: '4px', padding: '6px 12px', cursor: 'pointer', fontSize: '11px' }}>Clear Log</button>}
       </div>
       {recordingUrl && (
         <div style={{ marginBottom: '16px', background: '#0d1b2a', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '6px', padding: '14px' }}>
           <div style={{ color: '#ef4444', fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '8px' }}>● Latest Call Recording</div>
           <audio controls src={recordingUrl} style={{ width: '100%', outline: 'none' }} />
-          <a href={recordingUrl} target="_blank" rel="noopener noreferrer" download style={{ color: GOLD, fontSize: '11px', marginTop: '6px', display: 'inline-block' }}>⬇ Download Recording</a>
+          {canDownload && <a href={recordingUrl} target="_blank" rel="noopener noreferrer" download style={{ color: GOLD, fontSize: '11px', marginTop: '6px', display: 'inline-block' }}>⬇ Download Recording</a>}
         </div>
       )}
 

@@ -26,9 +26,13 @@ export default function DebtAIPanel({
   micDeviceId = '',
   customerMicId = '',
   pendingQuestion = null,
+  canAIAssistant = true,
+  canQA = true,
+  canCoach = true,
+  canIntent = true,
 }) {
 
-  const [rightTab, setRightTab] = useState('ai');
+  const [rightTab, setRightTab] = useState(canAIAssistant ? 'ai' : 'pitches');
   const [showPopup, setShowPopup] = useState(false);
   const [qaActive, setQaActive] = useState(false);
   const [coachActive, setCoachActive] = useState(false);
@@ -196,13 +200,13 @@ export default function DebtAIPanel({
 
         {/* Tabs */}
         <div style={{ padding: '0 16px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', gap: '2px' }}>
-          {[{ id: 'ai', label: '🤖 AI' }, { id: 'pitches', label: '🎤 Pitches' }, { id: 'signals', label: '🎯 Signals' }].map(t => (
+          {[{ id: 'ai', label: '🤖 AI', allowed: canAIAssistant }, { id: 'pitches', label: '🎤 Pitches', allowed: true }, { id: 'signals', label: '🎯 Signals', allowed: true }].filter(t => t.allowed).map(t => (
             <button key={t.id} onClick={() => setRightTab(t.id)} style={{ padding: '10px 12px', background: 'none', border: 'none', borderBottom: `2px solid ${rightTab === t.id ? GOLD : 'transparent'}`, color: rightTab === t.id ? GOLD : '#6b7280', cursor: 'pointer', fontSize: '11px', fontWeight: rightTab === t.id ? 'bold' : 'normal', whiteSpace: 'nowrap' }}>{t.label}</button>
           ))}
         </div>
 
         {rightTab === 'ai' && (
-          <>
+          canAIAssistant ? (<>
             {/* Control bar */}
             <div style={{ padding: '10px 14px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', flexDirection: 'column', gap: '8px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -219,10 +223,10 @@ export default function DebtAIPanel({
               {/* Feature toggles — open popup */}
               <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', alignItems: 'center' }}>
                 {[
-                  { label: '❓ Q&A', active: qaActive, toggle: toggleQA, color: '#f59e0b' },
-                  { label: '🎯 Coach', active: coachActive, toggle: toggleCoach, color: '#a78bfa' },
-                  { label: '🦆 Intent', active: intentActive, toggle: toggleIntent, color: '#60a5fa' },
-                ].map(({ label, active, toggle, color }) => (
+                  { label: '❓ Q&A', active: qaActive, toggle: toggleQA, color: '#f59e0b', allowed: canQA },
+                  { label: '🎯 Coach', active: coachActive, toggle: toggleCoach, color: '#a78bfa', allowed: canCoach },
+                  { label: '🦆 Intent', active: intentActive, toggle: toggleIntent, color: '#60a5fa', allowed: canIntent },
+                ].filter(f => f.allowed).map(({ label, active, toggle, color }) => (
                   <button key={label} onClick={toggle} style={{ display: 'flex', alignItems: 'center', gap: '4px', background: active ? `${color}18` : 'rgba(255,255,255,0.03)', border: `1px solid ${active ? `${color}44` : 'rgba(255,255,255,0.08)'}`, color: active ? color : '#4a5568', borderRadius: '4px', padding: '4px 10px', cursor: 'pointer', fontSize: '10px', whiteSpace: 'nowrap' }}>
                     <div style={{ width: 5, height: 5, borderRadius: '50%', background: active ? color : '#4a5568', boxShadow: active ? `0 0 5px ${color}` : 'none' }} />
                     {label}
@@ -278,7 +282,9 @@ export default function DebtAIPanel({
                 ))
               )}
             </div>
-          </>
+          </>) : (
+            <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#4a5568', fontSize: '12px', textAlign: 'center', padding: '40px' }}>🔒 You don't have access to the AI Assistant. Contact your admin to enable it.</div>
+          )
         )}
 
         {rightTab === 'pitches' && <div style={{ flex: 1, overflowY: 'auto' }}><DebtPitchPanel /></div>}

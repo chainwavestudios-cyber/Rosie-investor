@@ -12,6 +12,7 @@ import DebtAIPanel from '@/components/debt/DebtAIPanel';
 import DoNothingCalculator from '@/components/debt/DoNothingCalculator';
 import ClientProfileModal from '@/components/debt/ClientProfileModal';
 import { usePopOutPanel } from '@/hooks/usePopOutPanel';
+import { useDebtCoachAuth } from '@/lib/DebtCoachAuthContext';
 
 const GOLD = '#10b981';
 const DARK = '#0a0f1e';
@@ -21,6 +22,11 @@ const inp = { width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px 
 const DEBT_KB_CATEGORIES = ['debt_agent', 'debt_customer', 'debt_doc', 'debt_web', 'debt_call', 'debt_kb', 'debt_faq', 'debt_hotpoints'];
 
 export default function DebtLiveCall() {
+  const { user: coachUser, can } = useDebtCoachAuth();
+  const canLiveAI = can('liveAIAssistant');
+  const canLiveQA = can('liveQA');
+  const canLiveCoach = can('liveCoach');
+  const canLiveIntent = can('liveIntent');
   const [micDevices, setMicDevices] = useState([]);
   const [micDeviceId, setMicDeviceId] = useState('');
   const [customerMicId, setCustomerMicId] = useState('');
@@ -44,9 +50,9 @@ export default function DebtLiveCall() {
   const [memories, setMemories] = useState([]);
 
   // AI tools
-  const [qaActive, setQaActive] = useState(true);
-  const [coachActive, setCoachActive] = useState(true);
-  const [intentActive, setIntentActive] = useState(true);
+  const [qaActive, setQaActive] = useState(canLiveAI && canLiveQA);
+  const [coachActive, setCoachActive] = useState(canLiveAI && canLiveCoach);
+  const [intentActive, setIntentActive] = useState(canLiveAI && canLiveIntent);
   const [rightTab, setRightTab] = useState('ai');
   const [ledgerExtracting, setLedgerExtracting] = useState(false);
   const [qaItems, setQaItems] = useState([]);
@@ -139,8 +145,16 @@ export default function DebtLiveCall() {
 
   // Load existing leads
   const loadLeads = useCallback(async () => {
-    try { const all = await base44.entities.DebtLead.list('-updated_date', 100); setLeads(all || []); } catch {}
-  }, []);
+    try {
+      let all;
+      if (coachUser?.role === 'dialer') {
+        all = await base44.entities.DebtLead.filter({ debtCoachOwner: coachUser.username }, '-updated_date', 100);
+      } else {
+        all = await base44.entities.DebtLead.list('-updated_date', 100);
+      }
+      setLeads(all || []);
+    } catch {}
+  }, [coachUser]);
   useEffect(() => { loadLeads(); }, [loadLeads]);
 
   useEffect(() => { transcriptRef.current = transcript; }, [transcript]);
@@ -176,12 +190,13 @@ export default function DebtLiveCall() {
         status: 'new',
         callCount: 0,
         leadNumber,
+        debtCoachOwner: coachUser?.username || null,
       });
       setLead(created);
       loadLeads();
       return created;
     } catch (e) { alert('Failed to create lead: ' + (e?.message || String(e))); }
-  }, [lead, loadLeads]);
+  }, [lead, loadLeads, coachUser]);
 
   const handleQa = useCallback((question) => {
     const id = Date.now() + Math.random();
@@ -461,10 +476,10 @@ ${recentText}`,
       setAllPoppedOut(true);
     }, 300);
 
-    // Auto-activate Q&A, Coach, and Intent engines
-    setQaActive(true);
-    setCoachActive(true);
-    setIntentActive(true);
+    // Auto-activate Q&A, Coach, and Intent engines (only if permitted)
+    setQaActive(canLiveAI && canLiveQA);
+    setCoachActive(canLiveAI && canLiveCoach);
+    setIntentActive(canLiveAI && canLiveIntent);
 
     // Auto-open client profile
     setShowProfile(true);
@@ -921,6 +936,7 @@ ${recentText}`,
                       transcript={transcript} kbEntries={kbEntries} isActive={phase === 'live'}
                       profileData={profileData} intentScore={intentScore} ledgerExtracting={ledgerExtracting}
                       memories={memories} lead={lead} micDeviceId={micDeviceId} customerMicId={customerMicId} pendingQuestion={pendingQuestion}
+                      canAIAssistant={canLiveAI} canQA={canLiveQA} canCoach={canLiveCoach} canIntent={canLiveIntent}
                     />
                   </div>
                   {aiPanel.resizeHandles}
@@ -935,6 +951,7 @@ ${recentText}`,
                     transcript={transcript} kbEntries={kbEntries} isActive={phase === 'live'}
                     profileData={profileData} intentScore={intentScore} ledgerExtracting={ledgerExtracting}
                     memories={memories} lead={lead} micDeviceId={micDeviceId} customerMicId={customerMicId} pendingQuestion={pendingQuestion}
+                    canAIAssistant={canLiveAI} canQA={canLiveQA} canCoach={canLiveCoach} canIntent={canLiveIntent}
                   />
                 </div>
               )}
