@@ -208,12 +208,27 @@ function Btn({ onClick, disabled, children, color = '#8a9ab8', bg = 'rgba(255,25
 }
 
 // ── Persistent Right Panel: top=Transcript, bottom=AI Info ───────────────────
-function RightPanel({ transcript, aiPanelItem, onCloseAI, panelWidthPct, onWidthChange }) {
+function RightPanel({ transcript, aiPanelItem, onCloseAI, panelWidthPct, onWidthChange, onSendToQA }) {
   const txRef = useRef(null);
+  const [selected, setSelected] = useState({});
+  const [showSelectionBar, setShowSelectionBar] = useState(false);
 
   useEffect(() => {
     if (txRef.current) txRef.current.scrollTop = txRef.current.scrollHeight;
   }, [transcript]);
+
+  const selectedIndices = Object.keys(selected).map(Number).sort((a, b) => a - b);
+  const selectedCount = selectedIndices.length;
+
+  const toggleSelect = (i) => setSelected(prev => { const next = { ...prev }; if (next[i]) delete next[i]; else next[i] = true; return next; });
+  const clearSelected = () => { setSelected({}); setShowSelectionBar(false); };
+
+  const sendSelected = () => {
+    if (selectedCount === 0 || !onSendToQA) return;
+    const combined = selectedIndices.map(i => transcript[i]?.text).filter(Boolean).join(' ').trim();
+    if (combined) onSendToQA(combined);
+    clearSelected();
+  };
 
   const aiTypeLabel = aiPanelItem?.type === 'moreInfo' ? '+ More Info'
     : aiPanelItem?.type === 'talkingPoints' ? '💬 Talking Points'
@@ -230,24 +245,51 @@ function RightPanel({ transcript, aiPanelItem, onCloseAI, panelWidthPct, onWidth
           style={{ width: 60, accentColor: GOLD, cursor: 'pointer' }} title="Adjust panel width" />
       </div>
 
-      {/* TOP 1/3 — Rolling Transcript */}
+      {/* TOP 1/3 — Rolling Transcript with Q&A selection buttons */}
       <div style={{ flex: '0 0 34%', display: 'flex', flexDirection: 'column', overflow: 'hidden', borderBottom: '2px solid rgba(184,147,58,0.3)' }}>
-        <div style={{ padding: '4px 10px', background: 'rgba(0,0,0,0.3)', borderBottom: '1px solid rgba(96,165,250,0.2)', flexShrink: 0 }}>
+        <div style={{ padding: '4px 10px', background: 'rgba(0,0,0,0.3)', borderBottom: '1px solid rgba(96,165,250,0.2)', flexShrink: 0, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <span style={{ color: '#60a5fa', fontSize: '9px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase' }}>🎙 Live Transcript</span>
+          {selectedCount > 0 && <span style={{ color: '#f59e0b', fontSize: '9px', fontWeight: 'bold' }}>{selectedCount} selected</span>}
         </div>
         <div ref={txRef} style={{ flex: 1, overflowY: 'auto', padding: '6px 10px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
           {transcript.length === 0 && (
             <div style={{ color: '#4a5568', fontSize: '10px', textAlign: 'center', padding: '12px' }}>Transcript will appear here…</div>
           )}
-          {transcript.slice(-60).map((t, i) => (
-            <div key={i} style={{ display: 'flex', gap: '6px', alignItems: 'flex-start' }}>
-              <span style={{ color: t.speaker === 1 ? GOLD : '#60a5fa', fontSize: '8px', fontWeight: 'bold', flexShrink: 0, marginTop: 2, minWidth: 44 }}>
-                {t.speaker === 1 ? '🎙 Agent' : '👤 Prospect'}
-              </span>
-              <span style={{ color: '#c4cdd8', fontSize: '11px', lineHeight: 1.5 }}>{t.text}</span>
-            </div>
-          ))}
+          {transcript.map((t, i) => {
+            const isAgent = t.speaker === 1;
+            const isSelected = !!selected[i];
+            return (
+              <div key={i} style={{ display: 'flex', gap: '4px', alignItems: 'flex-start' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', flexShrink: 0 }}>
+                  <button
+                    onClick={() => onSendToQA?.(t.text)}
+                    title="Send this line to Q&A"
+                    style={{ width: '20px', height: '20px', borderRadius: '50%', background: 'rgba(245,158,11,0.15)', border: '1px solid rgba(245,158,11,0.35)', color: '#f59e0b', fontSize: '10px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1, padding: 0, flexShrink: 0 }}
+                  >💡</button>
+                  <button
+                    onClick={() => { toggleSelect(i); setShowSelectionBar(true); }}
+                    title={isSelected ? 'Remove from selection' : 'Select for combined Q&A'}
+                    style={{ width: '20px', height: '20px', borderRadius: '50%', background: isSelected ? 'rgba(245,158,11,0.25)' : 'rgba(255,255,255,0.04)', border: `1px solid ${isSelected ? 'rgba(245,158,11,0.6)' : 'rgba(255,255,255,0.12)'}`, color: isSelected ? '#f59e0b' : '#6b7280', fontSize: '10px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1, padding: 0, flexShrink: 0 }}
+                  >{isSelected ? '✓' : '+'}</button>
+                </div>
+                <span style={{ color: isAgent ? GOLD : '#60a5fa', fontSize: '8px', fontWeight: 'bold', flexShrink: 0, marginTop: 2, minWidth: 44 }}>
+                  {isAgent ? '🎙 Agent' : '👤 Prospect'}
+                </span>
+                <span style={{ color: '#c4cdd8', fontSize: '11px', lineHeight: 1.5, background: isSelected ? 'rgba(245,158,11,0.12)' : 'transparent', borderRadius: '3px', padding: isSelected ? '2px 4px' : 0, flex: 1 }}>{t.text}</span>
+              </div>
+            );
+          })}
         </div>
+        {/* Selection action bar */}
+        {selectedCount > 0 && (
+          <div style={{ padding: '6px 10px', background: 'rgba(0,0,0,0.4)', borderTop: '1px solid rgba(245,158,11,0.3)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+            <span style={{ color: '#f59e0b', fontSize: '9px', fontWeight: 'bold' }}>{selectedCount} line{selectedCount !== 1 ? 's' : ''} selected</span>
+            <div style={{ display: 'flex', gap: '4px' }}>
+              <button onClick={clearSelected} style={{ background: 'rgba(255,255,255,0.05)', color: '#6b7280', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '3px', padding: '3px 8px', cursor: 'pointer', fontSize: '9px' }}>Clear</button>
+              <button onClick={sendSelected} style={{ background: 'linear-gradient(135deg,#f59e0b,#f97316)', color: '#0a0f1e', border: 'none', borderRadius: '3px', padding: '3px 10px', cursor: 'pointer', fontSize: '9px', fontWeight: 'bold' }}>💡 Send to Q&A</button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* BOTTOM 2/3 — AI Info panel */}
@@ -401,7 +443,7 @@ function QASection({ transcript, transcriptRef, kbEntries, active, qaKeywords, m
     const q = pendingQuestion.question;
     const id = Date.now() + Math.random();
     setQuestions(prev => [...prev, { id, text: q, time: new Date(), answer: '', answers: [], answering: true, answered: false, auto: false, manual: true }]);
-    base44.functions.invoke('liveAssistantAI', { question: q, transcript: transcriptRef.current.slice(-12), kbEntries, mode: 'qa' })
+    base44.functions.invoke('liveAssistantAI', { question: q, transcript: transcriptRef.current, kbEntries, mode: 'qa' })
       .then(res => {
         const data = res?.data || res || {};
         const answers = Array.isArray(data.answers) ? data.answers : [];
@@ -469,7 +511,7 @@ function QASection({ transcript, transcriptRef, kbEntries, active, qaKeywords, m
         if (!seenQ.current.has(autoQ)) {
           seenQ.current.add(autoQ);
           setQuestions(prev => [...prev, { id: autoId, text: autoQ, time: new Date(), answer: '', answering: true, answered: false, auto: true, manual: false }]);
-          base44.functions.invoke('liveAssistantAI', { question: autoQ, transcript: transcriptRef.current.slice(-12), kbEntries, mode: 'qa' })
+          base44.functions.invoke('liveAssistantAI', { question: autoQ, transcript: transcriptRef.current, kbEntries, mode: 'qa' })
             .then(res => {
               const data = res?.data || res || {};
               const answers = Array.isArray(data.answers) ? data.answers : [];
@@ -503,7 +545,7 @@ function QASection({ transcript, transcriptRef, kbEntries, active, qaKeywords, m
     cancelAutoDismiss(id);
     setQuestions(prev => prev.map(x => x.id === id ? { ...x, answering: true } : x));
     try {
-      const res = await base44.functions.invoke('liveAssistantAI', { question: q.text, transcript: transcriptRef.current.slice(-12), kbEntries, mode: 'qa' });
+      const res = await base44.functions.invoke('liveAssistantAI', { question: q.text, transcript: transcriptRef.current, kbEntries, mode: 'qa' });
       const data = res?.data || res || {};
       const answers = Array.isArray(data.answers) ? data.answers : [];
       const answer = data.answer || 'No matching information found.';
@@ -520,7 +562,7 @@ function QASection({ transcript, transcriptRef, kbEntries, active, qaKeywords, m
     const id = Date.now() + Math.random();
     setQuestions(prev => [...prev, { id, text: q, time: new Date(), answer: '', answers: [], answering: true, answered: false, auto: false, manual: true }]);
     try {
-      const res = await base44.functions.invoke('liveAssistantAI', { question: q, transcript: transcriptRef.current.slice(-12), kbEntries, mode: 'qa' });
+      const res = await base44.functions.invoke('liveAssistantAI', { question: q, transcript: transcriptRef.current, kbEntries, mode: 'qa' });
       const data = res?.data || res || {};
       const answers = Array.isArray(data.answers) ? data.answers : [];
       const answer = data.answer || 'No matching information found.';
@@ -628,9 +670,9 @@ function QASection({ transcript, transcriptRef, kbEntries, active, qaKeywords, m
   if (qaOnly) {
     return (
       <div ref={containerRef} style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minHeight: 0 }}>
-        <QaTabBar />
-        {qaTab === 'history' ? <HistoryView /> : (<>
-        <AskBar />
+        {QaTabBar()}
+        {qaTab === 'history' ? HistoryView() : (<>
+        {AskBar()}
         {/* Questions pane */}
         <div style={{ height: `${splitPct}%`, display: 'flex', flexDirection: 'column', overflow: 'hidden', minHeight: 40 }}>
           <div style={{ padding: '5px 12px', background: 'rgba(0,0,0,0.2)', borderBottom: '1px solid rgba(245,158,11,0.15)', display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
@@ -688,9 +730,9 @@ function QASection({ transcript, transcriptRef, kbEntries, active, qaKeywords, m
   // ── NORMAL STACKED MODE ───────────────────────────────────────────────────
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minHeight: 0 }}>
-      <QaTabBar />
-      {qaTab === 'history' ? <HistoryView /> : (<>
-      <AskBar />
+      {QaTabBar()}
+      {qaTab === 'history' ? HistoryView() : (<>
+      {AskBar()}
       <div ref={qListRef} style={{ flex: 1, overflowY: 'auto', padding: '6px 12px', display: 'flex', flexDirection: 'column', gap: '7px' }}>
         {questions.length === 0 && <div style={{ color: '#4a5568', fontSize: '11px', textAlign: 'center', padding: '18px' }}>{active ? '🎙 Listening — questions auto-detected or type one above' : 'Enable Q&A and start the audio stream'}</div>}
         {questions.map(q => <QuestionCardFull key={q.id} q={q} />)}
@@ -1027,7 +1069,13 @@ export default function AIAssistantPopup({
   const [intentCollapsed, setIntentCollapsed] = useState(false);
   const [qaOnly,  setQaOnly]  = useState(false);
   const [manualQ, setManualQ] = useState('');
+  const [localPendingQ, setLocalPendingQ] = useState(null);
   const [savedMsg, setSavedMsg] = useState(false);
+
+  // Sync external pendingQuestion into local state so RightPanel can also send questions
+  useEffect(() => {
+    if (pendingQuestion) setLocalPendingQ(pendingQuestion);
+  }, [pendingQuestion?.ts]);
 
   // Right panel: AI info content (transcript always shows; AI info populates when requested)
   // Always visible — default 32% width, minimum 200px
@@ -1187,7 +1235,7 @@ export default function AIAssistantPopup({
           {qaOnly && (
             <>
               <SectionHeader label="❓ Q&A" color="#f59e0b" active={qaActive} onToggle={onToggleQA} collapsed={false} onCollapse={()=>{}} />
-              <QASection transcript={transcript} transcriptRef={transcriptRef} kbEntries={kbEntries} active={qaActive} qaKeywords={portalCfg?.intentTriggerKeywords} manualQ={manualQ} setManualQ={setManualQ} collapsed={false} qaOnly={true} onSidePanel={setAiPanelItem} lead={lead} pendingQuestion={pendingQuestion} />
+              <QASection transcript={transcript} transcriptRef={transcriptRef} kbEntries={kbEntries} active={qaActive} qaKeywords={portalCfg?.intentTriggerKeywords} manualQ={manualQ} setManualQ={setManualQ} collapsed={false} qaOnly={true} onSidePanel={setAiPanelItem} lead={lead} pendingQuestion={localPendingQ || pendingQuestion} />
             </>
           )}
 
@@ -1195,7 +1243,7 @@ export default function AIAssistantPopup({
             <>
               <div style={{display:'flex',flexDirection:'column',overflow:'hidden',flex:qaCollapsed?'0 0 auto':qaH,minHeight:qaCollapsed?0:80}}>
                 <SectionHeader label="❓ Q&A" color="#f59e0b" active={qaActive} onToggle={onToggleQA} collapsed={qaCollapsed} onCollapse={()=>setQaCollapsed(p=>!p)} />
-                <QASection transcript={transcript} transcriptRef={transcriptRef} kbEntries={kbEntries} active={qaActive} qaKeywords={portalCfg?.intentTriggerKeywords} manualQ={manualQ} setManualQ={setManualQ} collapsed={qaCollapsed} qaOnly={false} onSidePanel={setAiPanelItem} lead={lead} pendingQuestion={pendingQuestion} />
+                <QASection transcript={transcript} transcriptRef={transcriptRef} kbEntries={kbEntries} active={qaActive} qaKeywords={portalCfg?.intentTriggerKeywords} manualQ={manualQ} setManualQ={setManualQ} collapsed={qaCollapsed} qaOnly={false} onSidePanel={setAiPanelItem} lead={lead} pendingQuestion={localPendingQ || pendingQuestion} />
               </div>
 
               {!qaCollapsed&&!coachCollapsed&&<DragHandle onDragStart={e=>{resizingDiv.current='qa-coach';divStartY.current=e.clientY;divStartH.current=qaH;e.preventDefault();}} />}
@@ -1245,6 +1293,7 @@ export default function AIAssistantPopup({
           onCloseAI={() => setAiPanelItem(null)}
           panelWidthPct={rightPanelWidth}
           onWidthChange={setRightPanelWidth}
+          onSendToQA={(text) => setLocalPendingQ({ question: text, ts: Date.now() })}
         />
       </div>
     </div>

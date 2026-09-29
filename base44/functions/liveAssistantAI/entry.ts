@@ -104,6 +104,7 @@ Deno.serve(async (req) => {
             callAttemptNumber } = body;
 
     const recentTranscript = buildTranscriptString(transcript, 15);
+    const fullTranscriptStr = buildTranscriptString(transcript, 9999);
 
     // ── LIVE COACH (non-streaming, hotpoint-aware) ──────────────────
     if (mode === 'coach') {
@@ -847,7 +848,7 @@ Keep it concise — the agent reads this right before dialing. Use bullet points
         model: 'claude-haiku-4-5-20251001',
         max_tokens: 500,
         system: `You are a real-time sales assistant on a live investor call. Answer questions from the knowledge base. Be concise — 2-4 sentences the agent can speak naturally. If the exact answer is in the KB, use it verbatim. If it requires synthesis, combine the relevant entries. If the customer is raising an objection, use the OBJECTION HANDLING CATALOG below to give the agent the exact rebuttal.\n\nKNOWLEDGE BASE${kbName ? ` (${kbName})` : ''}:\n${kbContext}${objectionContext ? `\n\n━━━ OBJECTION HANDLING CATALOG — If the question is an objection, use the matching handling guidance: ━━━\n${objectionContext}` : ''}`,
-        messages: [{ role: 'user', content: `${recentTranscript ? `Recent conversation:\n${recentTranscript}\n\n` : ''}Question: "${question}"\n\nAnswer from KB:` }],
+        messages: [{ role: 'user', content: `${fullTranscriptStr ? `Full conversation so far:\n${fullTranscriptStr}\n\n` : ''}Question: "${question}"\n\nAnswer from KB:` }],
       }),
     });
     const data = await res.json();
