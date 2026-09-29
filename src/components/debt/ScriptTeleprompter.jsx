@@ -86,7 +86,7 @@ export function CueBlockView({ element }) {
 }
 
 // ─── Teleprompter Component ────────────────────────────────────────────────────
-export default function ScriptTeleprompter({ content, color = '#e8e0d0', fontSize = 14 }) {
+export default function ScriptTeleprompter({ content, color = '#e8e0d0', fontSize = 14, liveTranscript, phase }) {
   const elements = useMemo(() => parseScriptElements(content), [content]);
   const scriptLines = useMemo(() => elements.filter(e => e.type === 'script'), [elements]);
 
@@ -102,6 +102,12 @@ export default function ScriptTeleprompter({ content, color = '#e8e0d0', fontSiz
   const speechOnRef = useRef(false);
   const recognitionRef = useRef(null);
   const lastAdvanceTime = useRef(0);
+  const lastTranscriptIdxRef = useRef(-1);
+
+  // When on a live call, the teleprompter listens to the agent's mic channel
+  // via the live Deepgram transcript (speaker 0 = agent) instead of starting
+  // its own SpeechRecognition (which can't select a specific input device).
+  const liveSync = phase === 'live' && Array.isArray(liveTranscript);
 
   useEffect(() => { activeIdxRef.current = activeIdx; }, [activeIdx]);
   useEffect(() => { scriptLinesRef.current = scriptLines; }, [scriptLines]);
@@ -109,6 +115,22 @@ export default function ScriptTeleprompter({ content, color = '#e8e0d0', fontSiz
 
   // Reset position when script content changes
   useEffect(() => { setActiveIdx(0); setInterimText(''); }, [content]);
+
+  // Reset transcript tracking when a new call starts
+  useEffect(() => { if (phase === 'live') lastTranscriptIdxRef.current = -1; }, [phase]);
+
+  // Live sync: drive advancing from the agent's transcript lines (speaker 0)
+  useEffect(() => {
+    if (!liveSync) return;
+    const lines = liveTranscript || [];
+    for (let i = lastTranscriptIdxRef.current + 1; i < lines.length; i++) {
+      const line = lines[i];
+      if (line && line.speaker === 0 && line.text) {
+        checkAdvance(line.text);
+      }
+    }
+    lastTranscriptIdxRef.current = lines.length - 1;
+  }, [liveTranscript, liveSync, checkAdvance]);
 
   // Get the first N significant (non-stop-word) words from a line, lowercased
   const firstContentWords = useCallback((text, count = 2) => {
@@ -151,9 +173,9 @@ export default function ScriptTeleprompter({ content, color = '#e8e0d0', fontSiz
     }
   }, [firstContentWords]);
 
-  // Speech recognition lifecycle
+  // Speech recognition lifecycle — only when NOT on a live call (live call uses Deepgram transcript)
   useEffect(() => {
-    if (!speechOn) return;
+    if (!speechOn || liveSync) return;
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SR) { setSpeechOn(false); return; }
 
@@ -235,18 +257,18 @@ export default function ScriptTeleprompter({ content, color = '#e8e0d0', fontSiz
       <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginBottom: '8px', flexShrink: 0, flexWrap: 'wrap' }}>
         <button
           onClick={() => setSpeechOn(p => !p)}
-          disabled={!speechSupported}
+          disabled={!speechSupported || liveSync}
           style={{
             padding: '6px 14px', borderRadius: '4px',
-            border: `1px solid ${speechOn ? 'rgba(239,68,68,0.4)' : 'rgba(16,185,129,0.4)'}`,
-            background: speechOn ? 'rgba(239,68,68,0.15)' : `${GOLD}18`,
-            color: speechOn ? '#ef4444' : GOLD,
-            cursor: speechSupported ? 'pointer' : 'not-allowed',
+            border: `1px solid ${liveSync ? 'rgba(16,185,129,0.5)' : speechOn ? 'rgba(239,68,68,0.4)' : 'rgba(16,185,129,0.4)'}`,
+            background: liveSync ? `${GOLD}22` : speechOn ? 'rgba(239,68,68,0.15)' : `${GOLD}18`,
+            color: liveSync ? GOLD : speechOn ? '#ef4444' : GOLD,
+            cursor: (speechSupported && !liveSync) ? 'pointer' : 'not-allowed',
             fontSize: '11px', fontWeight: 'bold',
-            opacity: speechSupported ? 1 : 0.4,
+            opacity: (speechSupported || liveSync) ? 1 : 0.4,
           }}
         >
-          {speechOn ? '⏹ Stop Voice Sync' : '🎤 Voice Sync'}
+          {liveSync ? '📡 Live Sync (auto)' : speechOn ? '⏹ Stop Voice Sync' : '🎤 Voice Sync'}
         </button>
         <button onClick={() => setActiveIdx(0)} style={{ padding: '6px 12px', borderRadius: '4px', border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.05)', color: '#8a9ab8', cursor: 'pointer', fontSize: '11px' }}>↻ Reset</button>
         <div style={{ display: 'flex', gap: '4px' }}>
@@ -255,7 +277,8 @@ export default function ScriptTeleprompter({ content, color = '#e8e0d0', fontSiz
         </div>
         <span style={{ color: '#4a5568', fontSize: '10px', marginLeft: 'auto' }}>
           Line {activeIdx + 1} / {scriptLines.length}
-          {!speechSupported && <span style={{ color: '#ef4444', marginLeft: '8px' }}>(voice sync not supported in this browser)</span>}
+          {liveSync && <span style={{ color: GOLD, marginLeft: '8px' }}>· 📡 synced to live call mic</span>}
+          {!speechSupported && !liveSync && <span style={{ color: '#ef4444', marginLeft: '8px' }}>(voice sync not supported in this browser)</span>}
           {speechOn && interimText && <span style={{ color: '#f59e0b', marginLeft: '8px' }}>🎤 "{interimText.slice(0, 40)}…"</span>}
         </span>
       </div>

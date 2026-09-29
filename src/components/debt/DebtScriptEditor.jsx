@@ -54,7 +54,7 @@ export default function DebtScriptEditor() {
 }
 
 // ─── My Scripts Tab ──────────────────────────────────────────────────────────
-function MyScriptsTab() {
+function MyScriptsTab({ liveTranscript, phase }) {
   const [scripts, setScripts] = useState([]);
   const [activeId, setActiveId] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -271,7 +271,7 @@ function MyScriptsTab() {
               </div>
             </>
           ) : (
-            <ScriptTeleprompter content={active.content || ''} color={active.color || '#e8e0d0'} fontSize={active.fontSize || 14} />
+            <ScriptTeleprompter content={active.content || ''} color={active.color || '#e8e0d0'} fontSize={active.fontSize || 14} liveTranscript={liveTranscript} phase={phase} />
           )}
         </div>
       ) : (

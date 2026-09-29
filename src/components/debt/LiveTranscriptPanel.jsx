@@ -107,7 +107,7 @@ export default function LiveTranscriptPanel({ transcript, phase, panel, onAnswer
 
   const renderScripts = () => (
     <div style={{ flex: 1, overflowY: 'auto', padding: '14px 16px' }}>
-      <MyScriptsTab />
+      <MyScriptsTab liveTranscript={transcript} phase={phase} />
       <div style={{ marginTop: '12px' }}>
         <DebtPitchPanel />
       </div>
