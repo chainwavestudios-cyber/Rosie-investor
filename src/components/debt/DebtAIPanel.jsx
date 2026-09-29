@@ -51,6 +51,7 @@ export default function DebtAIPanel({
   const streamRef = useRef(null);
   const customerStreamRef = useRef(null);
   const transcriptRef = useRef([]);
+  const aiTranscriptScrollRef = useRef(null);
 
   // Load all KB entries
   useEffect(() => {
@@ -79,6 +80,15 @@ export default function DebtAIPanel({
 
   // Keep transcriptRef in sync
   useEffect(() => { transcriptRef.current = normalizedTranscript; }, [normalizedTranscript]);
+
+  // Auto-scroll transcript to bottom when new lines arrive (unless user scrolled up to read)
+  const transcriptLineCount = activeTranscript.length;
+  useEffect(() => {
+    const el = aiTranscriptScrollRef.current;
+    if (!el) return;
+    const isNearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 150;
+    if (isNearBottom) el.scrollTop = el.scrollHeight;
+  }, [transcriptLineCount]);
 
   // ── Direct Audio Stream Connect (like BOB — uses computer audio, not Twilio) ──
   const connectStream = async () => {
@@ -266,16 +276,16 @@ export default function DebtAIPanel({
               </div>
             )}
 
-            {/* Transcript preview */}
-            <div style={{ flex: 1, overflowY: 'auto', padding: '10px 14px' }}>
+            {/* Full live transcript — scrollable, auto-scrolls to bottom */}
+            <div style={{ flex: 1, overflowY: 'auto', padding: '10px 14px' }} ref={aiTranscriptScrollRef}>
               {normalizedTranscript.length === 0 ? (
                 <div style={{ color: '#4a5568', fontSize: '11px', textAlign: 'center', padding: '20px' }}>
                   {streamStatus === 'connected' ? 'Listening…' : isActive ? 'Connect Twilio stream or start audio — toggle Q&A/Coach/Intent above' : 'Start a call to activate'}
                 </div>
               ) : (
-                [...normalizedTranscript].reverse().slice(0, 8).map((t, i) => (
+                normalizedTranscript.map((t, i) => (
                   <div key={i} style={{ marginBottom: '5px', fontSize: '11px' }}>
-                    <span style={{ color: '#4a5568', fontSize: '9px', marginRight: '5px' }}>{new Date(t.time).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', second: '2-digit' })}</span>
+                    <span style={{ color: '#4a5568', fontSize: '9px', marginRight: '5px' }}>{t.time ? new Date(t.time).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', second: '2-digit' }) : ''}</span>
                     {t.speaker !== null && <span style={{ color: t.speaker === 1 ? GOLD : '#60a5fa', fontSize: '9px', fontWeight: 'bold', marginRight: '4px' }}>{t.speaker === 1 ? '🎙 Agent' : '👤 Prospect'}</span>}
                     <span style={{ color: '#c4cdd8' }}>{t.text}</span>
                   </div>

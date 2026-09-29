@@ -165,7 +165,7 @@ export default function DebtLiveCall() {
 
   useEffect(() => { transcriptRef.current = transcript; }, [transcript]);
 
-  // Auto-save transcript every 15 seconds during live call (in case audio feed drops)
+  // Auto-save transcript every 10 seconds during live call (in case audio feed drops)
   useEffect(() => {
     if (phase !== 'live' || !lead.id) return;
     const interval = setInterval(async () => {
@@ -176,7 +176,7 @@ export default function DebtLiveCall() {
           lastCallAt: new Date().toISOString(),
         });
       } catch {}
-    }, 5000);
+    }, 10000);
     return () => clearInterval(interval);
   }, [phase, lead.id]);
 

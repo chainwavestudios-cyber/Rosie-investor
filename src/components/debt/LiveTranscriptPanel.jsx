@@ -4,7 +4,7 @@
  * Each customer question line has an "Answer" button to re-trigger Q&A.
  * Uses usePopOutPanel for drag/resize with localStorage layout persistence.
  */
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { DebtPitchPanel } from '@/components/debt/DebtPitchTab';
 import { MyScriptsTab } from '@/components/debt/DebtScriptEditor';
 
@@ -13,6 +13,15 @@ const GOLD = '#10b981';
 export default function LiveTranscriptPanel({ transcript, phase, panel, onAnswerQuestion }) {
   const [tab, setTab] = useState('transcript');
   const [selected, setSelected] = useState({});
+  const scrollRef = useRef(null);
+
+  // Auto-scroll to bottom when new lines arrive (unless user scrolled up to read)
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const isNearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 150;
+    if (isNearBottom) el.scrollTop = el.scrollHeight;
+  }, [transcript, tab]);
 
   const toggleSelect = (i) => setSelected(prev => { const next = { ...prev }; if (next[i]) delete next[i]; else next[i] = true; return next; });
   const clearSelected = () => setSelected({});
@@ -39,7 +48,7 @@ export default function LiveTranscriptPanel({ transcript, phase, panel, onAnswer
         <div style={{ color: '#6b7280', fontSize: '10px' }}><span style={{ color: '#60a5fa' }}>● Agent</span> · <span style={{ color: GOLD }}>● Customer</span></div>
         <div style={{ color: '#6b7280', fontSize: '10px' }}>{transcript.length} lines{selectedCount > 0 && <span style={{ color: '#f59e0b', marginLeft: '6px' }}>· {selectedCount} selected</span>}</div>
       </div>
-      <div style={{ flex: 1, overflowY: 'auto', padding: '14px 16px', paddingBottom: selectedCount > 0 ? '64px' : '14px' }}>
+      <div ref={scrollRef} style={{ flex: 1, overflowY: 'auto', padding: '14px 16px', paddingBottom: selectedCount > 0 ? '64px' : '14px' }}>
         {transcript.length === 0 ? (
           <div style={{ color: '#4a5568', textAlign: 'center', padding: '60px 0', fontSize: '13px' }}>{phase === 'live' ? 'Listening… start speaking.' : 'No transcript yet. Start a call to begin.'}</div>
         ) : transcript.map((msg, i) => {
