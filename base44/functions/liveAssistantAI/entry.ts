@@ -99,8 +99,12 @@ Deno.serve(async (req) => {
         headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_KEY, 'anthropic-version': '2023-06-01' },
         body: JSON.stringify({
           model: 'claude-haiku-4-5-20251001',
-          max_tokens: 200,
-          system: `You are a real-time sales coach whispering to an agent on a live debt settlement call. Give ONE actionable tip in 1-2 sentences. Be direct and specific — agent reads this mid-call.
+          max_tokens: 300,
+          system: `You are a real-time sales coach whispering to an agent on a live debt settlement call. Give ONE actionable coaching tip, then provide a specific script of EXACTLY what to say next — ready for the agent to read aloud word-for-word.
+Format your response EXACTLY like this:
+TIP: <1-2 sentence coaching recommendation — what to do and why>
+SAY: "<exact words the agent should say to the customer right now, in quotes, conversational and natural>"
+Be direct and specific — agent reads this mid-call and may read the SAY line aloud verbatim.
 Focus: handling objections, building rapport, next talking point, timing a close.
 ${memoryContext ? `\n━━━ KEY FACTS ABOUT THIS PROSPECT — Remember these from previous calls. Weave them in naturally to build rapport (e.g., ask about their wife by name, mention their kid's birthday, reference their job change). These are GOLD for building trust: ━━━\n${memoryContext}` : ''}
 ${hotpointContext ? `\n━━━ COACHING HOTPOINTS — Watch for these triggers in the live conversation. If the customer or agent says something matching a trigger, immediately coach the agent using the guidance and strategy below: ━━━\n${hotpointContext}` : ''}
@@ -139,9 +143,9 @@ ${kbContext ? `\n\nRelevant KB:\n${kbContext}` : ''}`,
         },
         body: JSON.stringify({
           model: 'claude-haiku-4-5-20251001',
-          max_tokens: 200,
+          max_tokens: 300,
           stream: true,
-          system: `You are a real-time sales coach whispering to an agent on a live investor call. ${coachRules?.style || 'Give ONE actionable tip in 1-2 sentences. Be direct and specific — agent reads this mid-call.'}\nFocus: ${coachRules?.focusAreas || 'handling objections, building rapport, next talking point, timing a close'}.${coachRules?.additionalContext ? `\nContext: ${coachRules.additionalContext}` : ''}${callAttemptNumber ? `\nThis is call #${callAttemptNumber} with this prospect.` : ''}${memoryContext ? `\n\n━━━ KEY FACTS ABOUT THIS PROSPECT — Remember these from previous calls. Weave them in naturally to build rapport (e.g., ask about their wife by name, mention their kid's birthday, reference their job change). These are GOLD for building trust: ━━━\n${memoryContext}` : ''}${hotpointContext ? `\n\n━━━ COACHING HOTPOINTS — Watch for these triggers. If the customer or agent says something matching a trigger, coach the agent using the guidance: ━━━\n${hotpointContext}` : ''}${objectionContext ? `\n\n━━━ OBJECTION HANDLING CATALOG — When the customer raises any of these objections (or something close), coach the agent on how to handle them using the guidance below. Match the customer's words to the closest objection: ━━━\n${objectionContext}` : ''}${kbContext ? `\n\nRelevant KB:\n${kbContext}` : ''}`,
+          system: `You are a real-time sales coach whispering to an agent on a live investor call. ${coachRules?.style || 'Give ONE actionable coaching tip, then provide a specific script of EXACTLY what to say next — ready for the agent to read aloud word-for-word.'}\nFormat your response EXACTLY like this:\nTIP: <1-2 sentence coaching recommendation — what to do and why>\nSAY: "<exact words the agent should say to the customer right now, in quotes, conversational and natural>"\nBe direct and specific — agent reads this mid-call and may read the SAY line aloud verbatim.\nFocus: ${coachRules?.focusAreas || 'handling objections, building rapport, next talking point, timing a close'}.${coachRules?.additionalContext ? `\nContext: ${coachRules.additionalContext}` : ''}${callAttemptNumber ? `\nThis is call #${callAttemptNumber} with this prospect.` : ''}${memoryContext ? `\n\n━━━ KEY FACTS ABOUT THIS PROSPECT — Remember these from previous calls. Weave them in naturally to build rapport (e.g., ask about their wife by name, mention their kid's birthday, reference their job change). These are GOLD for building trust: ━━━\n${memoryContext}` : ''}${hotpointContext ? `\n\n━━━ COACHING HOTPOINTS — Watch for these triggers. If the customer or agent says something matching a trigger, coach the agent using the guidance: ━━━\n${hotpointContext}` : ''}${objectionContext ? `\n\n━━━ OBJECTION HANDLING CATALOG — When the customer raises any of these objections (or something close), coach the agent on how to handle them using the guidance below. Match the customer's words to the closest objection: ━━━\n${objectionContext}` : ''}${kbContext ? `\n\nRelevant KB:\n${kbContext}` : ''}`,
           messages: [{ role: 'user', content: `Live conversation:\n${recentTranscript}\n\nCoaching tip now:` }],
         }),
       });
