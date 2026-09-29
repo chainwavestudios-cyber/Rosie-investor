@@ -154,7 +154,7 @@ export default function DebtLiveCall() {
           lastCallAt: new Date().toISOString(),
         });
       } catch {}
-    }, 15000);
+    }, 5000);
     return () => clearInterval(interval);
   }, [phase, lead.id]);
 
@@ -529,6 +529,13 @@ ${recentText}`,
 
     ws.onclose = (e) => {
       setDgStatus('idle');
+      // Final save of transcript when connection closes — captures lines since the last 15s auto-save
+      if (transcriptRef.current.length > 0 && leadRef.current?.id) {
+        base44.entities.DebtLead.update(leadRef.current.id, {
+          transcriptJson: JSON.stringify(transcriptRef.current),
+          lastCallAt: new Date().toISOString(),
+        }).catch(() => {});
+      }
       if (e.code !== 1000 && e.code !== 1005) setError(`Deepgram disconnected (code ${e.code}). ${e.reason || ''}`);
     };
     ws.onerror = () => { setDgStatus('error'); setError('Deepgram connection error — check API key.'); };

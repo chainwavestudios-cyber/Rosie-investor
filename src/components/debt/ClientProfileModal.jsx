@@ -53,7 +53,7 @@ export default function ClientProfileModal({ lead, onClose, onSave }) {
   const [creditPhotoLoading, setCreditPhotoLoading] = useState(false);
   const [callTranscripts, setCallTranscripts] = useState([]);
   const [expandedTranscript, setExpandedTranscript] = useState(null);
-  const [showLiveTranscript, setShowLiveTranscript] = useState(false);
+  const [showLiveTranscript, setShowLiveTranscript] = useState(true);
   const panel = usePopOutPanel('client_profile', { width: 900, height: 700 });
 
   // Load Q&A history for this lead
