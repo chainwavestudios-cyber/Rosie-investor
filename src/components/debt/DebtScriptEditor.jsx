@@ -4,6 +4,7 @@
  */
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { base44 } from '@/api/base44Client';
+import ScriptTeleprompter, { CUE_CATEGORIES } from '@/components/debt/ScriptTeleprompter';
 
 const GOLD = '#10b981';
 const DARK = '#0a0f1e';
@@ -66,6 +67,8 @@ function MyScriptsTab() {
 
   const autoSaveTimer = useRef(null);
   const activeRef = useRef(null);
+  const [mode, setMode] = useState('edit'); // 'edit' | 'teleprompt'
+  const textareaRef = useRef(null);
 
   const loadScripts = useCallback(async () => {
     setLoading(true);
@@ -108,6 +111,24 @@ function MyScriptsTab() {
   const updateAndSave = (changes) => {
     updateActive(changes);
     scheduleAutoSave();
+  };
+
+  const insertCueAtCursor = (category) => {
+    const ta = textareaRef.current;
+    if (!ta || !active) return;
+    const start = ta.selectionStart;
+    const end = ta.selectionEnd;
+    const prefix = active.content?.substring(0, start) || '';
+    const suffix = active.content?.substring(end) || '';
+    const needsNewlineBefore = prefix.length > 0 && !prefix.endsWith('\n');
+    const cue = `${needsNewlineBefore ? '\n' : ''}@@CUE:${category}:New ${CUE_CATEGORIES[category].label.toLowerCase()}@@\n`;
+    const newContent = prefix + cue + suffix;
+    updateAndSave({ content: newContent });
+    requestAnimationFrame(() => {
+      const pos = start + cue.length;
+      ta.focus();
+      ta.setSelectionRange(pos, pos);
+    });
   };
 
   const saveActive = async () => {
@@ -191,6 +212,12 @@ function MyScriptsTab() {
             </select>
           </div>
 
+          {/* Mode toggle: Edit / Teleprompt */}
+          <div style={{ display: 'flex', gap: '4px', marginBottom: '10px', flexShrink: 0 }}>
+            <button onClick={() => setMode('edit')} style={{ padding: '5px 14px', borderRadius: '4px', border: `1px solid ${mode === 'edit' ? GOLD + '66' : 'rgba(255,255,255,0.1)'}`, background: mode === 'edit' ? `${GOLD}18` : 'transparent', color: mode === 'edit' ? GOLD : '#6b7280', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>✏️ Edit</button>
+            <button onClick={() => setMode('teleprompt')} style={{ padding: '5px 14px', borderRadius: '4px', border: `1px solid ${mode === 'teleprompt' ? '#f59e0b66' : 'rgba(255,255,255,0.1)'}`, background: mode === 'teleprompt' ? 'rgba(245,158,11,0.15)' : 'transparent', color: mode === 'teleprompt' ? '#f59e0b' : '#6b7280', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>📍 Teleprompt</button>
+          </div>
+
           {/* Formatting toolbar */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px', flexWrap: 'wrap', flexShrink: 0 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
@@ -216,21 +243,36 @@ function MyScriptsTab() {
             </div>
           </div>
 
-          {/* Editor textarea */}
-          <textarea
-            value={active.content || ''}
-            onChange={e => updateAndSave({ content: e.target.value })}
-            placeholder="Type your script here… Use {{firstname}} or {{lastname}} for auto-insertion."
-            style={{
-              flex: 1, width: '100%', background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.08)',
-              borderRadius: '4px', padding: '16px', color: active.color || '#e8e0d0',
-              fontSize: `${active.fontSize || 14}px`, lineHeight: 1.7, outline: 'none',
-              fontFamily: 'Georgia, serif', boxSizing: 'border-box', resize: 'none', minHeight: '200px',
-            }}
-          />
-          <div style={{ marginTop: '6px', color: '#4a5568', fontSize: '10px', flexShrink: 0 }}>
-            Tokens: <span style={{ color: GOLD, fontFamily: 'monospace' }}>{'{{firstname}}'}</span> · <span style={{ color: GOLD, fontFamily: 'monospace' }}>{'{{lastname}}'}</span>
-          </div>
+          {mode === 'edit' ? (
+            <>
+              {/* Cue block insertion toolbar */}
+              <div style={{ display: 'flex', gap: '6px', marginBottom: '8px', flexShrink: 0, flexWrap: 'wrap', alignItems: 'center' }}>
+                <span style={{ color: '#4a5568', fontSize: '10px', letterSpacing: '1px', textTransform: 'uppercase' }}>Insert Cue:</span>
+                {Object.entries(CUE_CATEGORIES).map(([key, cat]) => (
+                  <button key={key} onClick={() => insertCueAtCursor(key)} style={{ padding: '4px 10px', borderRadius: '4px', border: `1px solid ${cat.color}44`, background: `${cat.color}12`, color: cat.color, cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>{cat.icon} {cat.label}</button>
+                ))}
+              </div>
+              {/* Editor textarea */}
+              <textarea
+                ref={textareaRef}
+                value={active.content || ''}
+                onChange={e => updateAndSave({ content: e.target.value })}
+                placeholder="Type your script here… Use {{firstname}} or {{lastname}} for auto-insertion. Use cue block buttons above to add non-spoken annotations."
+                style={{
+                  flex: 1, width: '100%', background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.08)',
+                  borderRadius: '4px', padding: '16px', color: active.color || '#e8e0d0',
+                  fontSize: `${active.fontSize || 14}px`, lineHeight: 1.7, outline: 'none',
+                  fontFamily: 'Georgia, serif', boxSizing: 'border-box', resize: 'none', minHeight: '200px',
+                }}
+              />
+              <div style={{ marginTop: '6px', color: '#4a5568', fontSize: '10px', flexShrink: 0 }}>
+                Tokens: <span style={{ color: GOLD, fontFamily: 'monospace' }}>{'{{firstname}}'}</span> · <span style={{ color: GOLD, fontFamily: 'monospace' }}>{'{{lastname}}'}</span>
+                <span style={{ marginLeft: '12px' }}>Cue: <span style={{ color: '#60a5fa', fontFamily: 'monospace' }}>@@CUE:reminder:text@@</span></span>
+              </div>
+            </>
+          ) : (
+            <ScriptTeleprompter content={active.content || ''} color={active.color || '#e8e0d0'} fontSize={active.fontSize || 14} />
+          )}
         </div>
       ) : (
         <div style={{ color: '#4a5568', textAlign: 'center', padding: '40px', fontSize: '13px' }}>
