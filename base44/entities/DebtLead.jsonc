@@ -188,6 +188,16 @@
     "debtCoachOwner": {
       "type": "string",
       "title": "Debt Coach Owner (username)"
+    },
+    "nextCallBriefing": {
+      "type": "string",
+      "title": "Next Call Briefing (pre-call report)",
+      "format": "textarea"
+    },
+    "nextCallBriefingAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Next Call Briefing Generated At"
     }
   },
   "required": [

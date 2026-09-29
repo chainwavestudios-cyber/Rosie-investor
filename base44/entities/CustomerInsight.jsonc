@@ -1,0 +1,79 @@
+{
+  "name": "CustomerInsight",
+  "type": "object",
+  "properties": {
+    "leadId": {
+      "type": "string",
+      "title": "Lead ID"
+    },
+    "leadName": {
+      "type": "string",
+      "title": "Lead Name (for display)"
+    },
+    "insightType": {
+      "type": "string",
+      "title": "Insight Type",
+      "enum": [
+        "location",
+        "occupation",
+        "hobby",
+        "family",
+        "life_event",
+        "other"
+      ],
+      "default": "other"
+    },
+    "insightText": {
+      "type": "string",
+      "title": "What was said"
+    },
+    "transcriptLineIndex": {
+      "type": "number",
+      "title": "Transcript Line Index"
+    },
+    "transcriptTimestamp": {
+      "type": "string",
+      "title": "Transcript Timestamp (ISO)"
+    },
+    "transcriptSnippet": {
+      "type": "string",
+      "title": "Transcript Snippet (full line for context)",
+      "format": "textarea"
+    },
+    "researchJson": {
+      "type": "string",
+      "title": "AI Research (JSON)",
+      "format": "textarea"
+    },
+    "smallTalkQuestionsJson": {
+      "type": "string",
+      "title": "Small Talk Questions (JSON array)",
+      "format": "textarea"
+    },
+    "isImportant": {
+      "type": "boolean",
+      "title": "Marked Important by Agent",
+      "default": false
+    },
+    "isResearched": {
+      "type": "boolean",
+      "title": "Has Been Researched",
+      "default": false
+    },
+    "createdBy": {
+      "type": "string",
+      "title": "Created By (agent username)"
+    }
+  },
+  "required": [
+    "leadId",
+    "insightType",
+    "insightText"
+  ],
+  "rls": {
+    "create": null,
+    "read": null,
+    "update": null,
+    "delete": null
+  }
+}

@@ -12,6 +12,8 @@ import DebtAIPanel from '@/components/debt/DebtAIPanel';
 import DoNothingCalculator from '@/components/debt/DoNothingCalculator';
 import ClientProfileModal from '@/components/debt/ClientProfileModal';
 import LiveComplianceWidget from '@/components/compliance/LiveComplianceWidget';
+import CustomerStatsPopup from '@/components/debt/CustomerStatsPopup';
+import NextCallBriefing from '@/components/debt/NextCallBriefing';
 import { usePopOutPanel } from '@/hooks/usePopOutPanel';
 import { useDebtCoachAuth } from '@/lib/DebtCoachAuthContext';
 
@@ -1177,6 +1179,21 @@ ${recentText}`,
 
       {showProfile && lead.id && (
         <ClientProfileModal lead={lead} onClose={() => setShowProfile(false)} onSave={(updated) => setLead(updated)} />
+      )}
+
+      {/* Customer Stats Popup — auto-detects insights during live calls */}
+      <CustomerStatsPopup
+        lead={lead}
+        transcript={transcript}
+        isActive={phase === 'live'}
+        agentUsername={coachUser?.username}
+      />
+
+      {/* Ready for Next Call briefing — available after call ends */}
+      {phase === 'ended' && lead.id && (
+        <div style={{ marginTop: '16px', display: 'flex', justifyContent: 'center' }}>
+          <NextCallBriefing lead={lead} agentUsername={coachUser?.username} />
+        </div>
       )}
     </div>
   );

@@ -6,6 +6,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import DoNothingCalculator from '@/components/debt/DoNothingCalculator';
+import NextCallBriefing from '@/components/debt/NextCallBriefing';
 import { setProfileTimer, cancelProfileTimer, getActiveTimer } from '@/components/debt/ProfileTimerWatcher';
 import { usePopOutPanel } from '@/hooks/usePopOutPanel';
 
@@ -31,6 +32,7 @@ const BILL_CATEGORIES = [
 const TABS = [
   { id: 'hardship', label: '⚠️ Hardship' },
   { id: 'overview', label: '📋 Overview' },
+  { id: 'insights', label: '🔍 Insights' },
   { id: 'cosigners', label: '👥 Co-Signers' },
   { id: 'debt', label: '💳 Debt' },
   { id: 'bills', label: '🧾 Bills' },
@@ -54,6 +56,8 @@ export default function ClientProfileModal({ lead, onClose, onSave }) {
   const [callTranscripts, setCallTranscripts] = useState([]);
   const [expandedTranscript, setExpandedTranscript] = useState(null);
   const [showLiveTranscript, setShowLiveTranscript] = useState(true);
+  const [insights, setInsights] = useState([]);
+  const [expandedInsight, setExpandedInsight] = useState(null);
   const panel = usePopOutPanel('client_profile', { width: 900, height: 700 });
 
   // Load Q&A history for this lead
@@ -70,6 +74,14 @@ export default function ClientProfileModal({ lead, onClose, onSave }) {
     base44.entities.DebtCallTranscript.filter({ leadId: lead.id }, '-callDate', 100)
       .then(rows => setCallTranscripts(rows || []))
       .catch(() => setCallTranscripts([]));
+  }, [lead?.id]);
+
+  // Load customer insights for this lead
+  useEffect(() => {
+    if (!lead?.id) { setInsights([]); return; }
+    base44.entities.CustomerInsight.filter({ leadId: lead.id }, '-created_date', 200)
+      .then(rows => setInsights(rows || []))
+      .catch(() => setInsights([]));
   }, [lead?.id]);
 
   // Parse the auto-saved live transcript from the lead record
@@ -276,6 +288,10 @@ export default function ClientProfileModal({ lead, onClose, onSave }) {
           </div>
         )}
 
+        {tab === 'insights' && (
+          <InsightsTab insights={insights} expandedInsight={expandedInsight} setExpandedInsight={setExpandedInsight} lead={local} />
+        )}
+
         {tab === 'cosigners' && <CosignersTab local={local} update={update} />}
 
         {tab === 'debt' && (
@@ -419,6 +435,143 @@ export default function ClientProfileModal({ lead, onClose, onSave }) {
         )}
       </div>
       {panel.resizeHandles}
+    </div>
+  );
+}
+
+// ─── Insights Tab ─────────────────────────────────────────────────────────────
+function InsightsTab({ insights, expandedInsight, setExpandedInsight, lead }) {
+  const INSIGHT_TYPES = [
+    { id: 'location', label: '📍 Location', color: '#60a5fa' },
+    { id: 'occupation', label: '💼 Occupation', color: '#34d399' },
+    { id: 'hobby', label: '🎯 Hobby', color: '#f472b6' },
+    { id: 'family', label: '👨‍👩‍👧 Family', color: '#f59e0b' },
+    { id: 'life_event', label: '🎉 Life Event', color: '#a78bfa' },
+    { id: 'other', label: '📌 Other', color: '#8a9ab8' },
+  ];
+
+  const importantInsights = insights.filter(i => i.isImportant);
+  const researchedInsights = insights.filter(i => i.isResearched);
+
+  return (
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+        <div style={{ color: GOLD, fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase' }}>🔍 Customer Insights — {insights.length} captured</div>
+        <NextCallBriefing lead={lead} compact />
+      </div>
+
+      {/* Summary stats */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px', marginBottom: '16px' }}>
+        <div style={{ background: 'rgba(96,165,250,0.06)', border: '1px solid rgba(96,165,250,0.2)', borderRadius: '4px', padding: '10px', textAlign: 'center' }}>
+          <div style={{ color: '#60a5fa', fontSize: '18px', fontWeight: 'bold' }}>{insights.length}</div>
+          <div style={{ color: '#6b7280', fontSize: '9px', textTransform: 'uppercase', letterSpacing: '1px' }}>Total Insights</div>
+        </div>
+        <div style={{ background: 'rgba(245,158,11,0.06)', border: '1px solid rgba(245,158,11,0.2)', borderRadius: '4px', padding: '10px', textAlign: 'center' }}>
+          <div style={{ color: '#f59e0b', fontSize: '18px', fontWeight: 'bold' }}>{importantInsights.length}</div>
+          <div style={{ color: '#6b7280', fontSize: '9px', textTransform: 'uppercase', letterSpacing: '1px' }}>Marked Important</div>
+        </div>
+        <div style={{ background: 'rgba(16,185,129,0.06)', border: '1px solid rgba(16,185,129,0.2)', borderRadius: '4px', padding: '10px', textAlign: 'center' }}>
+          <div style={{ color: GOLD, fontSize: '18px', fontWeight: 'bold' }}>{researchedInsights.length}</div>
+          <div style={{ color: '#6b7280', fontSize: '9px', textTransform: 'uppercase', letterSpacing: '1px' }}>Researched</div>
+        </div>
+      </div>
+
+      {/* Important insights first */}
+      {importantInsights.length > 0 && (
+        <div style={{ marginBottom: '16px' }}>
+          <div style={{ color: '#f59e0b', fontSize: '10px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '8px' }}>★ Important Reminders</div>
+          {importantInsights.map(ins => (
+            <InsightRow key={ins.id} insight={ins} INSIGHT_TYPES={INSIGHT_TYPES} expanded={expandedInsight === ins.id} onToggle={() => setExpandedInsight(expandedInsight === ins.id ? null : ins.id)} />
+          ))}
+        </div>
+      )}
+
+      {/* All insights */}
+      <div style={{ color: GOLD, fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '8px' }}>All Insights</div>
+      {insights.length === 0 ? (
+        <div style={{ color: '#4a5568', textAlign: 'center', padding: '40px 0', fontSize: '12px' }}>
+          No insights captured yet. During a live call, the Customer Stats popup auto-detects personal details the customer mentions. You can also add insights manually from the popup.
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+          {insights.map(ins => (
+            <InsightRow key={ins.id} insight={ins} INSIGHT_TYPES={INSIGHT_TYPES} expanded={expandedInsight === ins.id} onToggle={() => setExpandedInsight(expandedInsight === ins.id ? null : ins.id)} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function InsightRow({ insight, INSIGHT_TYPES, expanded, onToggle }) {
+  const typeInfo = INSIGHT_TYPES.find(t => t.id === insight.insightType) || INSIGHT_TYPES.find(t => t.id === 'other');
+  const research = insight.researchJson ? (() => { try { return JSON.parse(insight.researchJson); } catch { return null; } })() : null;
+  const smallTalk = insight.smallTalkQuestionsJson ? (() => { try { return JSON.parse(insight.smallTalkQuestionsJson); } catch { return []; } })() : [];
+  return (
+    <div style={{ background: 'rgba(255,255,255,0.02)', border: `1px solid ${insight.isImportant ? 'rgba(245,158,11,0.3)' : 'rgba(255,255,255,0.07)'}`, borderRadius: '4px', overflow: 'hidden' }}>
+      <button onClick={onToggle} style={{ width: '100%', background: 'none', border: 'none', padding: '10px 12px', cursor: 'pointer', textAlign: 'left', display: 'flex', gap: '8px', alignItems: 'flex-start' }}>
+        <span style={{ padding: '2px 6px', borderRadius: '3px', background: `${typeInfo.color}18`, color: typeInfo.color, fontSize: '9px', fontWeight: 'bold', textTransform: 'uppercase', flexShrink: 0 }}>{typeInfo.label.split(' ')[1]}</span>
+        {insight.isImportant && <span style={{ color: '#f59e0b', fontSize: '12px', flexShrink: 0 }}>★</span>}
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ color: '#e8e0d0', fontSize: '12px', fontWeight: 'bold' }}>{insight.insightText}</div>
+          <div style={{ color: '#4a5568', fontSize: '9px', marginTop: '2px' }}>
+            {insight.transcriptTimestamp ? new Date(insight.transcriptTimestamp).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : ''}
+            {insight.isResearched && ' · ✓ Researched'}
+            {insight.createdBy && ` · by ${insight.createdBy}`}
+          </div>
+        </div>
+        <span style={{ color: '#6b7280', fontSize: '12px', flexShrink: 0 }}>{expanded ? '−' : '+'}</span>
+      </button>
+      {expanded && (
+        <div style={{ padding: '12px', borderTop: '1px solid rgba(255,255,255,0.05)', background: 'rgba(0,0,0,0.15)' }}>
+          {/* Transcript link */}
+          {insight.transcriptSnippet && (
+            <div style={{ marginBottom: '10px' }}>
+              <div style={{ color: '#8a9ab8', fontSize: '9px', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '4px' }}>💬 From Transcript</div>
+              <div style={{ color: '#c4cdd8', fontSize: '11px', lineHeight: 1.5, fontStyle: 'italic', background: 'rgba(96,165,250,0.06)', padding: '6px 10px', borderRadius: '3px', border: '1px solid rgba(96,165,250,0.15)' }}>"{insight.transcriptSnippet}"</div>
+            </div>
+          )}
+          {/* Research */}
+          {research ? (
+            <div>
+              <div style={{ color: '#8a9ab8', fontSize: '9px', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '6px' }}>🔍 AI Research</div>
+              {research.summary && <div style={{ color: '#c4cdd8', fontSize: '11px', lineHeight: 1.5, marginBottom: '8px' }}>{research.summary}</div>}
+              {research.neighboringCities?.length > 0 && <InsightField label="Neighboring Cities" items={research.neighboringCities} color="#60a5fa" />}
+              {research.landmarks?.length > 0 && <InsightField label="Landmarks" items={research.landmarks} color="#34d399" />}
+              {research.famousRestaurants?.length > 0 && <InsightField label="Famous Restaurants" items={research.famousRestaurants} color="#f472b6" />}
+              {research.population && <div style={{ marginBottom: '4px' }}><span style={{ color: '#8a9ab8', fontSize: '9px', textTransform: 'uppercase', letterSpacing: '1px' }}>Population: </span><span style={{ color: '#c4cdd8', fontSize: '11px' }}>{research.population}</span></div>}
+              {research.sportsTeams?.length > 0 && <InsightField label="Sports Teams" items={research.sportsTeams} color="#f59e0b" />}
+              {research.lastChampionship && <div style={{ marginBottom: '4px' }}><span style={{ color: '#8a9ab8', fontSize: '9px', textTransform: 'uppercase', letterSpacing: '1px' }}>Last Championship: </span><span style={{ color: '#f59e0b', fontSize: '11px', fontWeight: 'bold' }}>{research.lastChampionship}</span></div>}
+              {research.funFacts?.length > 0 && <InsightField label="Fun Facts" items={research.funFacts} color="#a78bfa" />}
+              {research.conversationStarters?.length > 0 && <InsightField label="Conversation Starters" items={research.conversationStarters} color={GOLD} />}
+              {research.commonChallenges?.length > 0 && <InsightField label="Common Challenges" items={research.commonChallenges} color="#ef4444" />}
+              {research.relatedTopics?.length > 0 && <InsightField label="Related Topics" items={research.relatedTopics} color="#8a9ab8" />}
+            </div>
+          ) : (
+            <div style={{ color: '#4a5568', fontSize: '11px' }}>Not researched yet. Use "Get More Info" in the Customer Stats popup during a call to research this insight.</div>
+          )}
+          {/* Small talk questions */}
+          {smallTalk.length > 0 && (
+            <div style={{ marginTop: '10px' }}>
+              <div style={{ color: '#8a9ab8', fontSize: '9px', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '4px' }}>💬 Small Talk Questions</div>
+              {smallTalk.map((q, i) => <div key={i} style={{ color: '#c4cdd8', fontSize: '11px', lineHeight: 1.5, paddingLeft: '12px', position: 'relative' }}><span style={{ position: 'absolute', left: 0, color: GOLD }}>•</span> {q}</div>)}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function InsightField({ label, items, color }) {
+  return (
+    <div style={{ marginBottom: '6px' }}>
+      <div style={{ color: '#8a9ab8', fontSize: '9px', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '3px' }}>{label}</div>
+      {items.map((item, i) => (
+        <div key={i} style={{ color: '#c4cdd8', fontSize: '11px', lineHeight: 1.4, paddingLeft: '10px', position: 'relative' }}>
+          <span style={{ position: 'absolute', left: 0, color }}>•</span> {item}
+        </div>
+      ))}
     </div>
   );
 }

@@ -1,3 +1,5 @@
+import { createClientFromRequest } from 'npm:@base44/sdk@0.8.52';
+
 const ANTHROPIC_KEY = Deno.env.get('ANTHROPIC_API_KEY') || '';
 
 // ── Multi-answer helper ─────────────────────────────────────────────────────
@@ -486,6 +488,229 @@ ${recentText}`,
       } catch {
         return Response.json({ contact: null });
       }
+    }
+
+    // ── EXTRACT PERSONAL INSIGHTS (location, occupation, hobbies, etc.) ──
+    if (mode === 'extract_insights') {
+      const allLines = transcript || [];
+      const recentLines = allLines.slice(-20);
+      const startIndex = allLines.length - recentLines.length;
+      const transcriptStr = recentLines.map((t: any, i: number) => `[LINE ${startIndex + i}] [${t.speaker === 0 ? 'AGENT' : 'CUSTOMER'}]: ${t.text}`).join('\n');
+      const existingInsights = (body.existingInsights || []).map((ins: any) => `${ins.insightType}:${(ins.insightText || '').toLowerCase()}`);
+
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_KEY, 'anthropic-version': '2023-06-01' },
+        body: JSON.stringify({
+          model: 'claude-haiku-4-5-20251001',
+          max_tokens: 800,
+          system: `You are a sales assistant listening to a live debt settlement call. Extract personal insights the CUSTOMER mentions about themselves — things that would help the agent build rapport and make small talk on follow-up calls.
+
+Look for:
+- LOCATION: Where they're from, live, or grew up ("I'm from Dallas", "I live in Chicago", "I'm originally from Ohio")
+- OCCUPATION: What they do for a living ("I'm a nurse", "I work in construction", "I'm a teacher")
+- HOBBY: Interests, sports, activities ("I love fishing", "I play golf every weekend", "I'm a big Cowboys fan")
+- FAMILY: Spouse, kids, parents, siblings ("My wife Sarah", "My son just started college", "My dad is retired")
+- LIFE_EVENT: Recent life changes ("I just moved here", "I got married last year", "I'm retiring next month")
+- OTHER: Any other personal detail worth remembering for rapport
+
+CRITICAL RULES:
+- Only extract what the CUSTOMER says — NOT what the agent says
+- Each insight must include the transcriptLineIndex (the LINE number from the formatted transcript)
+- Only extract NEW insights not already in the existing list
+- Be specific — capture the actual detail (city name, job title, hobby, family member name)
+
+Return ONLY this JSON (no markdown):
+{"insights":[{"insightType":"location|occupation|hobby|family|life_event|other","insightText":"the specific detail","transcriptLineIndex":1234,"transcriptSnippet":"the full line from transcript"}]}
+
+EXISTING INSIGHTS ALREADY CAPTURED (do not duplicate):
+${existingInsights.length > 0 ? existingInsights.join('\n') : 'None yet'}`,
+          messages: [{ role: 'user', content: `Recent transcript:\n${transcriptStr}` }],
+        }),
+      });
+      const data = await res.json();
+      const text = data?.content?.[0]?.text || '{}';
+      try {
+        const result = JSON.parse(text.replace(/```json|```/g, '').trim());
+        return Response.json({ insights: result.insights || [] });
+      } catch {
+        return Response.json({ insights: [] });
+      }
+    }
+
+    // ── RESEARCH AN INSIGHT (location → web search, occupation → LLM) ──
+    if (mode === 'research_insight') {
+      const { insightType, insightText } = body;
+
+      if (insightType === 'location') {
+        // Use InvokeLLM with internet context for location research
+        try {
+          const base44 = createClientFromRequest(req);
+          const result = await base44.asServiceRole.integrations.Core.InvokeLLM({
+            prompt: `Research the location: "${insightText}". Find the following information:
+1. Neighboring cities and towns (3-5)
+2. Notable landmarks and attractions (2-4)
+3. Famous or popular restaurants in the area (2-4)
+4. Population of the city
+5. Sports teams (professional, college, or minor league) (2-4)
+6. Last major championship win by any local sports team (year and team)
+7. Fun facts about the area (2-3)
+8. A 2-3 sentence summary of the area`,
+            add_context_from_internet: true,
+            response_json_schema: {
+              type: 'object',
+              properties: {
+                neighboringCities: { type: 'array', items: { type: 'string' } },
+                landmarks: { type: 'array', items: { type: 'string' } },
+                famousRestaurants: { type: 'array', items: { type: 'string' } },
+                population: { type: 'string' },
+                sportsTeams: { type: 'array', items: { type: 'string' } },
+                lastChampionship: { type: 'string' },
+                funFacts: { type: 'array', items: { type: 'string' } },
+                summary: { type: 'string' },
+              },
+            },
+          });
+          return Response.json({ research: result });
+        } catch (e) {
+          // Fallback to Anthropic without web search
+          const res = await fetch('https://api.anthropic.com/v1/messages', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_KEY, 'anthropic-version': '2023-06-01' },
+            body: JSON.stringify({
+              model: 'claude-haiku-4-5-20251001',
+              max_tokens: 800,
+              system: `You are a research assistant. Research "${insightText}" from your knowledge. Find: neighboring cities, landmarks, famous restaurants, population, sports teams, last championship win, fun facts, and a summary. Return JSON with keys: neighboringCities (array), landmarks (array), famousRestaurants (array), population (string), sportsTeams (array), lastChampionship (string), funFacts (array), summary (string).`,
+              messages: [{ role: 'user', content: `Research the location: ${insightText}` }],
+            }),
+          });
+          const data = await res.json();
+          const text = data?.content?.[0]?.text || '{}';
+          try {
+            const result = JSON.parse(text.replace(/```json|```/g, '').trim());
+            return Response.json({ research: result });
+          } catch {
+            return Response.json({ research: { summary: text.slice(0, 500) || 'Could not research this location.' } });
+          }
+        }
+      } else {
+        // Use LLM for occupation/hobby/other research
+        const res = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_KEY, 'anthropic-version': '2023-06-01' },
+          body: JSON.stringify({
+            model: 'claude-haiku-4-5-20251001',
+            max_tokens: 600,
+            system: `You are a research assistant helping a sales agent learn about a customer's ${insightType} ("${insightText}") so they can build rapport and make small talk. Provide interesting, conversation-worthy details.
+
+Return ONLY this JSON (no markdown):
+{
+  "overview": "2-3 sentence description",
+  "funFacts": ["interesting fact1","interesting fact2","interesting fact3"],
+  "conversationStarters": ["question or topic1","question or topic2"],
+  "commonChallenges": ["challenge1","challenge2"],
+  "relatedTopics": ["topic1","topic2"],
+  "summary": "1 sentence summary"
+}`,
+            messages: [{ role: 'user', content: `Research this ${insightType}: ${insightText}` }],
+          }),
+        });
+        const data = await res.json();
+        const text = data?.content?.[0]?.text || '{}';
+        try {
+          const result = JSON.parse(text.replace(/```json|```/g, '').trim());
+          return Response.json({ research: result });
+        } catch {
+          return Response.json({ research: { summary: text.slice(0, 500) || 'Could not research this topic.' } });
+        }
+      }
+    }
+
+    // ── GENERATE SMALL TALK QUESTIONS FROM ALL INSIGHTS ──────────────
+    if (mode === 'generate_smalltalk') {
+      const insights = body.insights || [];
+      const insightsStr = insights.map((ins: any) => `- [${ins.insightType}] ${ins.insightText}${ins.researchJson ? ` (Research: ${ins.researchJson.slice(0, 200)})` : ''}`).join('\n');
+
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_KEY, 'anthropic-version': '2023-06-01' },
+        body: JSON.stringify({
+          model: 'claude-haiku-4-5-20251001',
+          max_tokens: 500,
+          system: `You are a sales coach helping an agent prepare small talk questions for a follow-up call with a debt settlement customer. Based on the personal insights gathered, generate 5-8 natural, conversational small talk questions the agent can use to build rapport.
+
+The questions should:
+- Feel natural and conversational, not scripted
+- Reference specific details the customer shared (their city, job, hobbies, family)
+- Show genuine interest in the customer as a person
+- Be appropriate for a debt settlement follow-up call (warm but professional)
+- Include some that reference the research done on their location/occupation
+
+Return ONLY this JSON (no markdown):
+{"questions":["question1","question2","question3","question4","question5"]}`,
+          messages: [{ role: 'user', content: `Customer insights:\n${insightsStr}` }],
+        }),
+      });
+      const data = await res.json();
+      const text = data?.content?.[0]?.text || '{}';
+      try {
+        const result = JSON.parse(text.replace(/```json|```/g, '').trim());
+        return Response.json({ questions: result.questions || [] });
+      } catch {
+        return Response.json({ questions: [] });
+      }
+    }
+
+    // ── GENERATE NEXT CALL BRIEFING ────────────────────────────────────
+    if (mode === 'next_call_briefing') {
+      const insights = body.insights || [];
+      const memories = body.memories || [];
+      const lastCallSummary = body.lastCallSummary || '';
+      const leadData = body.leadData || {};
+
+      const insightsStr = insights.map((ins: any) => {
+        const research = ins.researchJson ? (() => { try { return JSON.parse(ins.researchJson); } catch { return null; } })() : null;
+        return `- [${ins.insightType}${ins.isImportant ? ' ★IMPORTANT' : ''}] ${ins.insightText}${research?.summary ? ` — Research: ${research.summary}` : ''}${ins.smallTalkQuestionsJson ? ` — Small talk: ${ins.smallTalkQuestionsJson}` : ''}`;
+      }).join('\n');
+
+      const memoriesStr = memories.map((m: any) => `- [${m.factType}${m.importance === 'high' ? ' ★HIGH' : ''}] ${m.factText}${m.context ? ` (${m.context})` : ''}`).join('\n');
+
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_KEY, 'anthropic-version': '2023-06-01' },
+        body: JSON.stringify({
+          model: 'claude-haiku-4-5-20251001',
+          max_tokens: 1200,
+          system: `You are a sales coach preparing a pre-call briefing for an agent about to call back a debt settlement customer. The agent should read this BEFORE dialing. Create a concise, scannable briefing that covers:
+
+## CUSTOMER SNAPSHOT
+- Name, location, occupation
+- Key personal details
+
+## RAPPORT BUILDERS — SMALL TALK
+- 3-5 specific conversation starters based on what you know about them
+- Reference their city (local sports, landmarks), job, hobbies, or family
+
+## IMPORTANT REMINDERS
+- Things marked important that the agent MUST remember
+- Follow-up items from previous calls
+- Time-sensitive details (birthdays, anniversaries, upcoming events)
+
+## WHAT HAPPENED LAST TIME
+- Brief summary of the last call
+- Where things left off
+- Any commitments made
+
+## THIS CALL'S OBJECTIVES
+- 2-3 specific goals for this call
+- What to accomplish
+
+Keep it concise — the agent reads this right before dialing. Use bullet points and short sentences. No fluff.`,
+          messages: [{ role: 'user', content: `Customer: ${leadData.firstName || ''} ${leadData.lastName || ''}\nLocation: ${leadData.city || ''}, ${leadData.state || ''}\nOccupation: ${leadData.employmentStatus || ''}\n\nINSIGHTS FROM PREVIOUS CALLS:\n${insightsStr || 'None yet'}\n\nKEY MEMORIES:\n${memoriesStr || 'None yet'}\n\nLAST CALL SUMMARY:\n${lastCallSummary || 'No previous call data'}` }],
+        }),
+      });
+      const data = await res.json();
+      return Response.json({ briefing: data?.content?.[0]?.text || '' });
     }
 
     // ── POST-CALL FULL REPORT ─────────────────────────────────────────
