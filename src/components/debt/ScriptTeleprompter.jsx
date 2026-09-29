@@ -110,17 +110,23 @@ export default function ScriptTeleprompter({ content, color = '#e8e0d0', fontSiz
   // Reset position when script content changes
   useEffect(() => { setActiveIdx(0); setInterimText(''); }, [content]);
 
-  // Get the first significant (non-stop-word) word from a line, lowercased
-  const firstContentWord = useCallback((text) => {
+  // Get the first N significant (non-stop-word) words from a line, lowercased
+  const firstContentWords = useCallback((text, count = 2) => {
     const words = (text || '').toLowerCase().replace(/[^\w\s]/g, '').split(/\s+/);
+    const result = [];
     for (const w of words) {
-      if (w.length > 1 && !STOP_WORDS.has(w)) return w;
+      if (w.length > 1 && !STOP_WORDS.has(w)) {
+        result.push(w);
+        if (result.length >= count) break;
+      }
     }
-    return null;
+    return result;
   }, []);
 
-  // Check if spoken text matches an upcoming line — advance on FIRST WORD match.
-  // Looks ahead up to 12 lines so cue/reminder blocks (non-spoken) can be skipped.
+  // Check if spoken text matches an upcoming line — advance when the first AND
+  // second content words of a line both appear in the spoken text. This disambiguates
+  // lines that share the same first word (e.g. "So, ..." appearing multiple times).
+  // Looks ahead up to 20 lines so cue/reminder blocks (non-spoken) can be skipped.
   const checkAdvance = useCallback((spoken) => {
     const now = Date.now();
     if (now - lastAdvanceTime.current < 500) return; // throttle
@@ -129,19 +135,21 @@ export default function ScriptTeleprompter({ content, color = '#e8e0d0', fontSiz
     const spokenLower = spoken.toLowerCase().replace(/[^\w\s]/g, '');
     const spokenWords = spokenLower.split(/\s+/).filter(w => w.length > 1);
 
-    // Look at the next 12 script lines (handles 9-10 line jumps over cue blocks)
-    for (let offset = 1; offset <= 12 && idx + offset < lines.length; offset++) {
+    // Look at the next 20 script lines (handles large jumps over cue blocks)
+    for (let offset = 1; offset <= 20 && idx + offset < lines.length; offset++) {
       const candidate = lines[idx + offset];
-      const firstWord = firstContentWord(candidate.content);
-      if (!firstWord) continue;
-      // As soon as the first word of this line appears in the spoken text, advance
-      if (spokenWords.includes(firstWord)) {
+      const words = firstContentWords(candidate.content, 2);
+      if (words.length === 0) continue;
+      // Require both the first and second content words to be present in the
+      // spoken text. If the line only has one content word, match on that alone.
+      const allMatched = words.every(w => spokenWords.includes(w));
+      if (allMatched) {
         lastAdvanceTime.current = now;
         setActiveIdx(idx + offset);
         return;
       }
     }
-  }, [firstContentWord]);
+  }, [firstContentWords]);
 
   // Speech recognition lifecycle
   useEffect(() => {
