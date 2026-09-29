@@ -90,6 +90,8 @@ export default function DebtLiveCall() {
   const testAgentStreamRef = useRef(null);
   const testCustomerStreamRef = useRef(null);
   const testAnimRef = useRef(null);
+  const customerBufferRef = useRef([]);
+  const bufferTimeoutRef = useRef(null);
 
   useEffect(() => { leadRef.current = lead; }, [lead]);
 
@@ -188,6 +190,20 @@ export default function DebtLiveCall() {
       .then(res => { const answer = res?.answer || res?.data?.answer || 'Check knowledge base.'; setQaItems(prev => prev.map(x => x.id === id ? { ...x, answer, loading: false } : x)); })
       .catch(() => setQaItems(prev => prev.map(x => x.id === id ? { ...x, answer: 'Unable to answer.', loading: false } : x)));
   }, [kbEntries]);
+
+  // Flush buffered customer lines as a single combined question to Q&A
+  const flushCustomerBuffer = useCallback(() => {
+    if (bufferTimeoutRef.current) { clearTimeout(bufferTimeoutRef.current); bufferTimeoutRef.current = null; }
+    if (customerBufferRef.current.length === 0) return;
+    const combined = customerBufferRef.current.join(' ').trim();
+    customerBufferRef.current = [];
+    if (combined.length < 8) return;
+    // Only send if it looks like a question
+    const qPat = /\b(what|how|why|when|where|who|can|could|would|is|are|do|does|will|should|have|has|tell me|explain|show me|prove|how much|what's the)\b/i;
+    if (qPat.test(combined)) {
+      handleQa(combined);
+    }
+  }, [handleQa]);
 
   const handleCoach = useCallback(() => {
     base44.functions.invoke('liveAssistantAI', { transcript: transcriptRef.current.slice(-6), kbEntries, mode: 'coach' })
@@ -397,10 +413,20 @@ ${recentText}`,
     setTranscript(prev => [...prev, entry]);
     const text = entry.text || '';
 
+    // Q&A: buffer consecutive customer lines, flush as one combined question
     if (qaActive && entry.speaker === 1) {
-      const qPat = /\b(what|how|why|when|where|who|can|could|would|is|are|do|does|will|should|have|has|tell me|explain|show me|prove|how much|what's the)\b.{3,80}[?!]/gi;
-      const matches = [...(text.matchAll(qPat) || [])].map(m => m[0].trim());
-      matches.forEach(q => handleQa(q));
+      customerBufferRef.current.push(text);
+      if (bufferTimeoutRef.current) clearTimeout(bufferTimeoutRef.current);
+      // If this utterance ends with ? or !, flush immediately — question is complete
+      if (text.trim().endsWith('?') || text.trim().endsWith('!')) {
+        flushCustomerBuffer();
+      } else {
+        // Wait for more lines — flush after 3s of silence if no new customer line arrives
+        bufferTimeoutRef.current = setTimeout(() => flushCustomerBuffer(), 3000);
+      }
+    } else if (entry.speaker === 0) {
+      // Agent started speaking — flush any pending customer question
+      flushCustomerBuffer();
     }
 
     const objWords = ['prove', 'doubt', 'skeptical', 'risky', 'guarantee', 'fail', 'burned', 'scam', 'catch', 'cost', 'fee', 'how much', 'too much', "can't afford", 'credit score', 'trust'];
@@ -413,13 +439,14 @@ ${recentText}`,
     if (now - lastHardshipTime.current > 55000) { lastHardshipTime.current = now; handleHardshipExtract(); }
     if (now - lastCosignerTime.current > 60000) { lastCosignerTime.current = now; handleCosignerExtract(); }
     if (now - lastContactTime.current > 40000) { lastContactTime.current = now; handleContactExtract(); }
-  }, [qaActive, coachActive, intentActive, handleQa, handleCoach, handleIntent, handleProfile, handleDebtExtract, handleBillsExtract, handleHardshipExtract, handleCosignerExtract, handleContactExtract]);
+  }, [qaActive, coachActive, intentActive, handleQa, flushCustomerBuffer, handleCoach, handleIntent, handleProfile, handleDebtExtract, handleBillsExtract, handleHardshipExtract, handleCosignerExtract, handleContactExtract]);
 
   const startCall = useCallback(async () => {
     // Ensure we have a lead
     if (!lead.id) { await createNewLead(); }
 
     setError(''); setTranscript([]); setQaItems([]); setCoachTips([]); setIntentScore(null); setProfileData(null); setReport('');
+    customerBufferRef.current = []; if (bufferTimeoutRef.current) { clearTimeout(bufferTimeoutRef.current); bufferTimeoutRef.current = null; }
     setPhase('live'); setDgStatus('connecting');
     callStartRef.current = new Date();
     lastCoachTime.current = Date.now();
