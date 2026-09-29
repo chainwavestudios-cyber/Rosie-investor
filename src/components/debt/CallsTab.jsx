@@ -16,7 +16,7 @@ const ANIMAL_COLORS = { duck: '#ef4444', cow: '#4ade80', unknown: '#6b7280' };
 const ANIMAL_EMOJI = { duck: '🦆', cow: '🐄', unknown: '❓' };
 
 export default function CallsTab() {
-  const { user, canManage, isDialer } = useDebtCoachAuth();
+  const { user, canManage, isDialerRole } = useDebtCoachAuth();
   const [calls, setCalls] = useState([]);
   const [loading, setLoading] = useState(true);
   const [expandedId, setExpandedId] = useState(null);
@@ -25,7 +25,7 @@ export default function CallsTab() {
     setLoading(true);
     try {
       let all;
-      if (isDialer) {
+      if (isDialerRole) {
         all = await base44.entities.DebtCallTranscript.filter({ agentId: user.username }, '-callDate', 200);
       } else {
         all = await base44.entities.DebtCallTranscript.list('-callDate', 200);
@@ -33,7 +33,7 @@ export default function CallsTab() {
       setCalls(all || []);
     } catch { setCalls([]); }
     setLoading(false);
-  }, [user, isDialer]);
+  }, [user, isDialerRole]);
 
   useEffect(() => { loadCalls(); }, [loadCalls]);
 
@@ -41,7 +41,7 @@ export default function CallsTab() {
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
         <div style={{ color: GOLD, fontSize: '11px', letterSpacing: '2px', textTransform: 'uppercase' }}>
-          📞 Calls — {calls.length} {isDialer ? '(Your Calls)' : '(All Calls)'}
+          📞 Calls — {calls.length} {isDialerRole ? '(Your Calls)' : '(All Calls)'}
         </div>
         <button onClick={loadCalls} style={{ background: 'rgba(255,255,255,0.05)', color: '#8a9ab8', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '4px', padding: '6px 14px', cursor: 'pointer', fontSize: '11px' }}>↻ Refresh</button>
       </div>
@@ -50,7 +50,7 @@ export default function CallsTab() {
         <div style={{ color: '#4a5568', textAlign: 'center', padding: '40px 0' }}>Loading…</div>
       ) : calls.length === 0 ? (
         <div style={{ color: '#4a5568', textAlign: 'center', padding: '60px 0', fontSize: '13px' }}>
-          {isDialer ? 'No calls recorded yet. Start a live call to see your call history here.' : 'No calls recorded yet.'}
+          {isDialerRole ? 'No calls recorded yet. Start a live call to see your call history here.' : 'No calls recorded yet.'}
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>

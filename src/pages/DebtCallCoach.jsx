@@ -22,7 +22,7 @@ const GOLD = '#10b981';
 const DARK = '#0a0f1e';
 
 export default function DebtCallCoach() {
-  const { user, loading, isAuthenticated, logout, isDialer, isAdmin, isManager, isSuperManager, canManage, mustResetPassword } = useDebtCoachAuth();
+  const { user, loading, isAuthenticated, logout, isDialerRole, isAdmin, isManager, isSuperManager, canManage, mustResetPassword } = useDebtCoachAuth();
   const [tab, setTab] = useState('live');
   const [timerLead, setTimerLead] = useState(null);
   const [showCompliance, setShowCompliance] = useState(false);
@@ -42,7 +42,7 @@ export default function DebtCallCoach() {
     { id: 'bob', label: '🤖 BOB Training' },
     { id: 'pitches', label: '🎤 Pitches' },
     { id: 'kb', label: '🧠 Knowledge Base' },
-    ...(isDialer ? [] : [{ id: 'kbchat', label: '💬 AI KB Chat' }]),
+    ...(isDialerRole ? [] : [{ id: 'kbchat', label: '💬 AI KB Chat' }]),
     { id: 'profile', label: '👤 User Profiles' },
     { id: 'compliance', label: '🛡 Compliance' },
     ...(isAdmin ? [{ id: 'admin', label: '⚙️ Admin' }] : []),
@@ -83,8 +83,8 @@ export default function DebtCallCoach() {
       {tab === 'live' && <DebtLiveCall debtCoachUser={user} />}
       {tab === 'calls' && <CallsTab />}
       {tab === 'bob' && <DebtBobTrainer debtCoachUser={user} />}
-      {tab === 'pitches' && <DebtPitchTab canDelete={!isDialer} />}
-      {tab === 'kb' && <DebtKBManager readOnly={isDialer} />}
+      {tab === 'pitches' && <DebtPitchTab canDelete={!isDialerRole} />}
+      {tab === 'kb' && <DebtKBManager readOnly={isDialerRole} />}
       {tab === 'kbchat' && <DebtKBChat />}
       {tab === 'profile' && <DebtUserProfile debtCoachUser={user} />}
       {tab === 'compliance' && <CompliancePortal onBack={() => setTab('live')} />}

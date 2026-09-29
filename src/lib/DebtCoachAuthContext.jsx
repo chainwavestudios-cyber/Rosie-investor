@@ -97,13 +97,21 @@ export function DebtCoachAuthProvider({ children }) {
     changePassword,
     isAuthenticated: !!user,
     mustResetPassword: !!user?.mustResetPassword,
-    isDialer: user?.role === 'dialer',
-    isManager: user?.role === 'manager',
-    isSuperManager: user?.role === 'super_manager',
-    isAdmin: user?.role === 'admin' || user?.role === 'super_admin',
+    // Cumulative role hierarchy — every role inherits all lower roles' rights:
+    //   dialer: dialer
+    //   manager: dialer + manager
+    //   super_manager: dialer + manager + super_manager
+    //   admin: dialer + manager + super_manager + admin
+    //   super_admin: all of the above
+    isDialer: !!user, // every user has dialer rights
+    isManager: ['manager', 'super_manager', 'admin', 'super_admin'].includes(user?.role),
+    isSuperManager: ['super_manager', 'admin', 'super_admin'].includes(user?.role),
+    isAdmin: ['admin', 'super_admin'].includes(user?.role),
     isSuperAdmin: user?.role === 'super_admin',
+    // True ONLY for users whose actual role is dialer (used for dialer-only restrictions: read-only KB, no delete, own calls only)
+    isDialerRole: user?.role === 'dialer',
     // Managers and SuperManagers have full feature access (like admins) but no user management
-    canManage: user?.role === 'manager' || user?.role === 'super_manager' || user?.role === 'admin' || user?.role === 'super_admin',
+    canManage: ['manager', 'super_manager', 'admin', 'super_admin'].includes(user?.role),
     permissions,
     can: (perm) => {
       if (!user) return false;
