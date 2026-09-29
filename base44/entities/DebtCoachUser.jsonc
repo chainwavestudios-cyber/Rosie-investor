@@ -1,0 +1,62 @@
+{
+  "name": "DebtCoachUser",
+  "type": "object",
+  "properties": {
+    "username": {
+      "type": "string",
+      "title": "Username"
+    },
+    "email": {
+      "type": "string",
+      "title": "Email"
+    },
+    "passwordHash": {
+      "type": "string",
+      "title": "Password Hash (salt:hash)"
+    },
+    "role": {
+      "type": "string",
+      "title": "Role",
+      "enum": [
+        "super_admin",
+        "admin",
+        "dialer"
+      ],
+      "default": "dialer"
+    },
+    "permissions": {
+      "type": "string",
+      "title": "Permissions (JSON)",
+      "format": "textarea"
+    },
+    "mustResetPassword": {
+      "type": "boolean",
+      "title": "Must Reset Password",
+      "default": false
+    },
+    "isActive": {
+      "type": "boolean",
+      "title": "Active",
+      "default": true
+    },
+    "sessionToken": {
+      "type": "string",
+      "title": "Session Token"
+    },
+    "createdBy": {
+      "type": "string",
+      "title": "Created By (username)"
+    }
+  },
+  "required": [
+    "username",
+    "passwordHash",
+    "role"
+  ],
+  "rls": {
+    "create": null,
+    "read": null,
+    "update": null,
+    "delete": null
+  }
+}

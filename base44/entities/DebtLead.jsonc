@@ -184,6 +184,10 @@
       "type": "string",
       "title": "Co-Signers (JSON)",
       "format": "textarea"
+    },
+    "debtCoachOwner": {
+      "type": "string",
+      "title": "Debt Coach Owner (username)"
     }
   },
   "required": [

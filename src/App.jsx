@@ -9,6 +9,8 @@ import InvestorPage from './pages/InvestorPage';
 import LiveCodebaseExplorer from './pages/LiveCodebaseExplorer';
 import DirectD from './pages/DirectD';
 import DebtCallCoach from './pages/DebtCallCoach';
+import DebtCoachLogin from './pages/DebtCoachLogin';
+import { DebtCoachAuthProvider } from '@/lib/DebtCoachAuthContext';
 import CreditReportUpload from './pages/CreditReportUpload';
 import Home from './pages/Home';
 import PortalLogin from './pages/PortalLogin';
@@ -24,7 +26,7 @@ import RequestAccess from './pages/RequestAccess';
 import { PortalAuthProvider } from '@/lib/PortalAuthContext';
 import { TwilioDeviceProvider } from '@/lib/TwilioDeviceContext';
 
-const PUBLIC_PATHS = ['/optin', '/optin/screenshot', '/privacy', '/terms', '/portal-login', '/admin-login', '/request-access'];
+const PUBLIC_PATHS = ['/optin', '/optin/screenshot', '/privacy', '/terms', '/portal-login', '/admin-login', '/request-access', '/debt-call-coach-login'];
 
 // Wraps protected routes — applies AuthProvider and its loading/error guards.
 // Public routes bypass this entirely so they never trigger auth redirects.
@@ -85,7 +87,8 @@ function App() {
               <Route path="/investor-page" element={<InvestorPage />} />
               <Route path="/live-codebase-explorer" element={<LiveCodebaseExplorer />} />
               <Route path="/DirectD" element={<DirectD />} />
-              <Route path="/debt-call-coach" element={<DebtCallCoach />} />
+              <Route path="/debt-call-coach-login" element={<DebtCoachAuthProvider><DebtCoachLogin /></DebtCoachAuthProvider>} />
+              <Route path="/debt-call-coach" element={<DebtCoachAuthProvider><DebtCallCoach /></DebtCoachAuthProvider>} />
               <Route path="/credit" element={<CreditReportUpload />} />
               <Route path="*" element={<PageNotFound />} />
             </Routes>

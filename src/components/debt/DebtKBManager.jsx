@@ -43,7 +43,7 @@ const KB_SECTIONS = [
   { id: 'hotpoints', label: '🔥 Hotpoints', category: 'debt_hotpoints', color: '#fb923c', desc: 'Key coaching moments, objections, and triggers the live coach AI uses to guide agents during calls.' },
 ];
 
-export default function DebtKBManager() {
+export default function DebtKBManager({ readOnly = false }) {
   const [section, setSection] = useState('agent');
   const [entries, setEntries] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -129,12 +129,12 @@ export default function DebtKBManager() {
         ))}
       </div>
 
-      {section === 'agent' && <AgentScriptEditor category={KB_SECTIONS[0].category} onSaved={refresh} />}
-      {section === 'customer' && <CustomerQAEditor category={KB_SECTIONS[1].category} onSaved={refresh} />}
-      {section === 'docs' && <DocUploader category={KB_SECTIONS[2].category} onSaved={refresh} />}
-      {section === 'web' && <WebScraper category={KB_SECTIONS[3].category} onSaved={refresh} />}
-      {section === 'mp3' && <MP3Uploader category={KB_SECTIONS[4].category} onSaved={refresh} />}
-      {section === 'hotpoints' && <HotpointEditor category={KB_SECTIONS[5].category} onSaved={refresh} />}
+      {!readOnly && section === 'agent' && <AgentScriptEditor category={KB_SECTIONS[0].category} onSaved={refresh} />}
+      {!readOnly && section === 'customer' && <CustomerQAEditor category={KB_SECTIONS[1].category} onSaved={refresh} />}
+      {!readOnly && section === 'docs' && <DocUploader category={KB_SECTIONS[2].category} onSaved={refresh} />}
+      {!readOnly && section === 'web' && <WebScraper category={KB_SECTIONS[3].category} onSaved={refresh} />}
+      {!readOnly && section === 'mp3' && <MP3Uploader category={KB_SECTIONS[4].category} onSaved={refresh} />}
+      {!readOnly && section === 'hotpoints' && <HotpointEditor category={KB_SECTIONS[5].category} onSaved={refresh} />}
 
       {/* Entry list */}
       <div style={{ marginTop: '24px' }}>
@@ -143,9 +143,11 @@ export default function DebtKBManager() {
             {KB_SECTIONS.find(s => s.id === section).label} — {entries.length} Entries{entriesWithoutVariations > 0 && <span style={{ color: '#f59e0b', marginLeft: '6px' }}>· {entriesWithoutVariations} need variations</span>}
           </div>
           <div style={{ display: 'flex', gap: '6px' }}>
-            <button onClick={generateAllVariations} disabled={generatingAll || entriesWithoutVariations === 0} style={{ background: generatingAll ? 'rgba(255,255,255,0.05)' : 'rgba(245,158,11,0.15)', color: generatingAll ? '#6b7280' : '#f59e0b', border: '1px solid rgba(245,158,11,0.3)', borderRadius: '4px', padding: '6px 12px', cursor: generatingAll ? 'not-allowed' : 'pointer', fontSize: '11px', fontWeight: 'bold', opacity: entriesWithoutVariations === 0 && !generatingAll ? 0.4 : 1 }}>
-              {generatingAll ? '⏳ Generating…' : '🤖 Generate All Variations'}
-            </button>
+            {!readOnly && (
+              <button onClick={generateAllVariations} disabled={generatingAll || entriesWithoutVariations === 0} style={{ background: generatingAll ? 'rgba(255,255,255,0.05)' : 'rgba(245,158,11,0.15)', color: generatingAll ? '#6b7280' : '#f59e0b', border: '1px solid rgba(245,158,11,0.3)', borderRadius: '4px', padding: '6px 12px', cursor: generatingAll ? 'not-allowed' : 'pointer', fontSize: '11px', fontWeight: 'bold', opacity: entriesWithoutVariations === 0 && !generatingAll ? 0.4 : 1 }}>
+                {generatingAll ? '⏳ Generating…' : '🤖 Generate All Variations'}
+              </button>
+            )}
             <button onClick={refresh} style={{ background: 'rgba(255,255,255,0.05)', color: '#8a9ab8', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '4px', padding: '6px 12px', cursor: 'pointer', fontSize: '11px' }}>↻ Refresh</button>
           </div>
         </div>
@@ -161,10 +163,12 @@ export default function DebtKBManager() {
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px', gap: '8px' }}>
                   <div style={{ color: '#e8e0d0', fontSize: '13px', fontWeight: 'bold', flex: 1 }}>{e.question}</div>
                   <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
-                    <button onClick={() => generateVariations(e.id)} disabled={generatingId === e.id} title="Generate alternative phrasings" style={{ background: generatingId === e.id ? 'rgba(255,255,255,0.05)' : 'rgba(245,158,11,0.1)', color: generatingId === e.id ? '#6b7280' : '#f59e0b', border: '1px solid rgba(245,158,11,0.25)', borderRadius: '4px', padding: '3px 10px', cursor: generatingId === e.id ? 'not-allowed' : 'pointer', fontSize: '10px', fontWeight: 'bold', whiteSpace: 'nowrap' }}>
-                      {generatingId === e.id ? '⏳' : '🤖'} {e.variations ? 'Regenerate' : 'Variations'}
-                    </button>
-                    <button onClick={async () => { await base44.entities.KnowledgeBase.delete(e.id); refresh(); }} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '11px' }}>Delete</button>
+                    {!readOnly && (
+                      <button onClick={() => generateVariations(e.id)} disabled={generatingId === e.id} title="Generate alternative phrasings" style={{ background: generatingId === e.id ? 'rgba(255,255,255,0.05)' : 'rgba(245,158,11,0.1)', color: generatingId === e.id ? '#6b7280' : '#f59e0b', border: '1px solid rgba(245,158,11,0.25)', borderRadius: '4px', padding: '3px 10px', cursor: generatingId === e.id ? 'not-allowed' : 'pointer', fontSize: '10px', fontWeight: 'bold', whiteSpace: 'nowrap' }}>
+                        {generatingId === e.id ? '⏳' : '🤖'} {e.variations ? 'Regenerate' : 'Variations'}
+                      </button>
+                    )}
+                    {!readOnly && <button onClick={async () => { await base44.entities.KnowledgeBase.delete(e.id); refresh(); }} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '11px' }}>Delete</button>}
                   </div>
                 </div>
                 <EntryAnswers entry={e} />

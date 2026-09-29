@@ -13,7 +13,7 @@ const ls = { display: 'block', color: '#8a9ab8', fontSize: '10px', letterSpacing
 const ANIMAL_COLORS = { duck: '#ef4444', cow: '#4ade80', unknown: '#6b7280' };
 const ANIMAL_EMOJI = { duck: '🦆', cow: '🐄', unknown: '❓' };
 
-export default function DebtUserProfile() {
+export default function DebtUserProfile({ debtCoachUser }) {
   const [leads, setLeads] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState(null);
@@ -22,12 +22,17 @@ export default function DebtUserProfile() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const all = await base44.entities.DebtLead.list('-updated_date', 200);
+      let all;
+      if (debtCoachUser?.role === 'dialer') {
+        all = await base44.entities.DebtLead.filter({ debtCoachOwner: debtCoachUser.username }, '-updated_date', 200);
+      } else {
+        all = await base44.entities.DebtLead.list('-updated_date', 200);
+      }
       setLeads(all || []);
       if (all?.length > 0 && !selected) setSelected(all[0]);
     } catch {}
     setLoading(false);
-  }, [selected]);
+  }, [selected, debtCoachUser]);
 
   useEffect(() => { load(); }, []);
 

@@ -20,7 +20,7 @@ const PITCH_TYPES = [
   { id: 'full_call', label: '📞 Full Call', color: '#6b7280' },
 ];
 
-export default function DebtPitchTab() {
+export default function DebtPitchTab({ canDelete = true }) {
   const [pitches, setPitches] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedCloser, setSelectedCloser] = useState(null);
@@ -219,7 +219,7 @@ ${transcriptText}`,
                           <span style={{ padding: '2px 8px', borderRadius: '2px', background: `${pt.color}18`, color: pt.color, fontSize: '10px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase' }}>{pt.label}</span>
                           <span style={{ color: '#e8e0d0', fontSize: '14px', fontWeight: 'bold', marginLeft: '8px' }}>{p.title}</span>
                         </div>
-                        <button onClick={() => del(p.id)} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '11px' }}>Delete</button>
+                        {canDelete && <button onClick={() => del(p.id)} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '11px' }}>Delete</button>}
                       </div>
                       <div style={{ color: '#c4cdd8', fontSize: '13px', lineHeight: 1.7, whiteSpace: 'pre-wrap', fontFamily: 'Georgia, serif' }}>{p.content}</div>
                       {p.tags && <div style={{ color: '#4a5568', fontSize: '10px', marginTop: '8px' }}>Tags: {p.tags}</div>}
