@@ -5,6 +5,7 @@
 import { useState } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
 import { useDebtCoachAuth } from '@/lib/DebtCoachAuthContext';
+import { isComplianceManager } from '@/lib/complianceRoles';
 import DebtLiveCall from '@/components/debt/DebtLiveCall';
 import DebtCoachAdminPanel from '@/components/debt/DebtCoachAdminPanel';
 import DebtKBManager from '@/components/debt/DebtKBManager';
@@ -44,7 +45,7 @@ export default function DebtCallCoach() {
     { id: 'kb', label: '🧠 Knowledge Base' },
     ...(isDialerRole ? [] : [{ id: 'kbchat', label: '💬 AI KB Chat' }]),
     { id: 'profile', label: '👤 User Profiles' },
-    { id: 'compliance', label: '🛡 Compliance' },
+    ...(isSuperManager ? [{ id: 'compliance', label: '🛡 Compliance' }] : []),
     ...(isAdmin ? [{ id: 'admin', label: '⚙️ Admin' }] : []),
   ];
 
@@ -65,7 +66,7 @@ export default function DebtCallCoach() {
             <span style={{ color: '#e8e0d0', fontSize: '13px', fontWeight: 'bold' }}>{user?.username}</span>
             <span style={{ marginLeft: '8px', padding: '2px 8px', borderRadius: '2px', background: 'rgba(16,185,129,0.15)', color: GOLD, fontSize: '9px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '1px' }}>{user?.role === 'super_admin' ? 'Super Admin' : user?.role === 'admin' ? 'Admin' : user?.role === 'super_manager' ? 'Super Manager' : user?.role === 'manager' ? 'Manager' : 'Dialer'}</span>
           </div>
-          <button onClick={() => setShowCompliance(true)} style={{ background: 'rgba(239,68,68,0.1)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '4px', padding: '6px 14px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase' }}>🛡 Compliance</button>
+          {isSuperManager && <button onClick={() => setShowCompliance(true)} style={{ background: 'rgba(239,68,68,0.1)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '4px', padding: '6px 14px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase' }}>🛡 Compliance</button>}
           {(isAdmin || isManager || isSuperManager) && (
             <button onClick={() => navigate('/manager-portal')} style={{ background: 'linear-gradient(135deg,#10b981,#22c55e)', color: DARK, border: 'none', borderRadius: '4px', padding: '6px 14px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase' }}>🎛️ Manager Portal</button>
           )}

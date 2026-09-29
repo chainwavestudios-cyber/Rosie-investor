@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useDebtCoachAuth } from '@/lib/DebtCoachAuthContext';
+import AdminFlagsTab from '@/components/debt/manager/AdminFlagsTab';
 
 const GOLD = '#10b981';
 const DARK = '#0a0f1e';
@@ -23,6 +24,7 @@ const PERMISSION_KEYS = [
 
 export default function DebtCoachAdminPanel() {
   const { user, sessionUserId, sessionToken, isSuperAdmin } = useDebtCoachAuth();
+  const [adminTab, setAdminTab] = useState('users');
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
@@ -85,18 +87,28 @@ export default function DebtCoachAdminPanel() {
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-        <div style={{ color: GOLD, fontSize: '11px', letterSpacing: '2px', textTransform: 'uppercase' }}>⚙️ User Management — {users.length} Users</div>
-        <button onClick={() => setShowCreate((s) => !s)} style={{ background: `${GOLD}18`, color: GOLD, border: `1px solid ${GOLD}44`, borderRadius: '4px', padding: '8px 16px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>{showCreate ? 'Cancel' : '+ Create User'}</button>
+      {/* Admin sub-tabs: Users | Flags */}
+      <div style={{ display: 'flex', gap: '2px', marginBottom: '16px', borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
+        <button onClick={() => setAdminTab('users')} style={{ padding: '10px 18px', background: 'none', border: 'none', borderBottom: `2px solid ${adminTab === 'users' ? GOLD : 'transparent'}`, color: adminTab === 'users' ? GOLD : '#6b7280', cursor: 'pointer', fontSize: '13px', fontWeight: adminTab === 'users' ? 'bold' : 'normal' }}>👥 User Management</button>
+        <button onClick={() => setAdminTab('flags')} style={{ padding: '10px 18px', background: 'none', border: 'none', borderBottom: `2px solid ${adminTab === 'flags' ? GOLD : 'transparent'}`, color: adminTab === 'flags' ? GOLD : '#6b7280', cursor: 'pointer', fontSize: '13px', fontWeight: adminTab === 'flags' ? 'bold' : 'normal' }}>🚩 Feature Flags</button>
       </div>
 
-      {showCreate && <CreateUserForm onCreated={() => { setShowCreate(false); loadUsers(); }} sessionUserId={sessionUserId} sessionToken={sessionToken} />}
+      {adminTab === 'flags' && <AdminFlagsTab />}
 
-      {loading ? (
-        <div style={{ color: '#4a5568', textAlign: 'center', padding: '40px 0' }}>Loading…</div>
-      ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          {users.map((u) => {
+      {adminTab === 'users' && (
+        <>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+            <div style={{ color: GOLD, fontSize: '11px', letterSpacing: '2px', textTransform: 'uppercase' }}>⚙️ User Management — {users.length} Users</div>
+            <button onClick={() => setShowCreate((s) => !s)} style={{ background: `${GOLD}18`, color: GOLD, border: `1px solid ${GOLD}44`, borderRadius: '4px', padding: '8px 16px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>{showCreate ? 'Cancel' : '+ Create User'}</button>
+          </div>
+
+          {showCreate && <CreateUserForm onCreated={() => { setShowCreate(false); loadUsers(); }} sessionUserId={sessionUserId} sessionToken={sessionToken} />}
+
+          {loading ? (
+            <div style={{ color: '#4a5568', textAlign: 'center', padding: '40px 0' }}>Loading…</div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {users.map((u) => {
             const rc = ROLE_COLORS[u.role] || '#6b7280';
             const isEditing = editingId === u.id;
             const canEdit = u.role !== 'super_admin' || isSuperAdmin;
@@ -177,6 +189,8 @@ export default function DebtCoachAdminPanel() {
             );
           })}
         </div>
+      )}
+        </>
       )}
     </div>
   );
