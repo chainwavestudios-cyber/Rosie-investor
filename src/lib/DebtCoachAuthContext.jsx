@@ -79,12 +79,15 @@ export function DebtCoachAuthProvider({ children }) {
     isAuthenticated: !!user,
     mustResetPassword: !!user?.mustResetPassword,
     isDialer: user?.role === 'dialer',
+    isManager: user?.role === 'manager',
     isAdmin: user?.role === 'admin' || user?.role === 'super_admin',
     isSuperAdmin: user?.role === 'super_admin',
+    // Managers have full feature access (like admins) but no user management
+    canManage: user?.role === 'manager' || user?.role === 'admin' || user?.role === 'super_admin',
     permissions,
     can: (perm) => {
       if (!user) return false;
-      if (user.role === 'super_admin' || user.role === 'admin') return true;
+      if (user.role === 'super_admin' || user.role === 'admin' || user.role === 'manager') return true;
       try {
         const perms = JSON.parse(user.permissions || '{}');
         return !!perms[perm];

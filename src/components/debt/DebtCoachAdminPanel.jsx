@@ -7,8 +7,8 @@ const DARK = '#0a0f1e';
 const ls = { display: 'block', color: '#8a9ab8', fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '6px' };
 const inp = { width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '4px', padding: '10px 14px', color: '#e8e0d0', fontSize: '13px', outline: 'none', boxSizing: 'border-box', fontFamily: 'Georgia, serif' };
 
-const ROLE_LABELS = { super_admin: 'Super Admin', admin: 'Admin', dialer: 'Dialer' };
-const ROLE_COLORS = { super_admin: '#f472b6', admin: '#60a5fa', dialer: '#f59e0b' };
+const ROLE_LABELS = { super_admin: 'Super Admin', admin: 'Admin', manager: 'Manager', dialer: 'Dialer' };
+const ROLE_COLORS = { super_admin: '#f472b6', admin: '#60a5fa', manager: '#a78bfa', dialer: '#f59e0b' };
 
 const PERMISSION_KEYS = [
   { key: 'liveAIAssistant', label: 'Live — AI Assistant', group: 'Live Call' },
@@ -127,7 +127,7 @@ export default function DebtCoachAdminPanel() {
                 </div>
 
                 {u.role !== 'dialer' && (
-                  <div style={{ color: '#4a5568', fontSize: '11px' }}>Full access — all features enabled.</div>
+                  <div style={{ color: '#4a5568', fontSize: '11px' }}>{u.role === 'manager' ? 'Manager — full feature access + can view/edit all calls, profiles, KB, and pitches.' : 'Full access — all features enabled.'}</div>
                 )}
 
                 {u.role === 'dialer' && !isEditing && (
@@ -165,6 +165,7 @@ export default function DebtCoachAdminPanel() {
                   <div style={{ marginTop: '8px' }}>
                     <select value={u.role} onChange={(e) => changeRole(u, e.target.value)} style={{ ...inp, width: 'auto', fontSize: '11px', cursor: 'pointer', padding: '4px 10px' }}>
                       <option value="dialer">Dialer</option>
+                      <option value="manager">Manager</option>
                       <option value="admin">Admin</option>
                     </select>
                   </div>
@@ -216,7 +217,7 @@ function CreateUserForm({ onCreated, sessionUserId, sessionToken }) {
       <div style={{ marginBottom: '12px' }}>
         <label style={ls}>Role</label>
         <div style={{ display: 'flex', gap: '6px' }}>
-          {['dialer', 'admin', 'super_admin'].map((r) => (
+          {['dialer', 'manager', 'admin', 'super_admin'].map((r) => (
             <button key={r} onClick={() => setRole(r)} style={{ padding: '8px 16px', borderRadius: '4px', border: `1px solid ${role === r ? ROLE_COLORS[r] + '66' : 'rgba(255,255,255,0.1)'}`, background: role === r ? `${ROLE_COLORS[r]}18` : 'transparent', color: role === r ? ROLE_COLORS[r] : '#6b7280', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}>{ROLE_LABELS[r]}</button>
           ))}
         </div>

@@ -111,7 +111,7 @@ export default async function(req: Request): Promise<Response> {
           await base44.integrations.Core.SendEmail({
             to: body.email.trim(),
             subject: 'Welcome to Debt Settlement Call Coach',
-            body: `You've been invited to the Debt Settlement Call Coach platform.\n\nUsername: ${username}\nDefault Password: ${DEFAULT_PASSWORD}\n\nPlease log in at https://rosieai-investorpage.base44.app/debt-call-coach-login and set a new password on first login.\n\nYour role: ${role === 'super_admin' ? 'Super Admin' : role === 'admin' ? 'Admin' : 'Dialer'}`
+            body: `You've been invited to the Debt Settlement Call Coach platform.\n\nUsername: ${username}\nDefault Password: ${DEFAULT_PASSWORD}\n\nPlease log in at https://rosieai-investorpage.base44.app/debt-call-coach-login and set a new password on first login.\n\nYour role: ${role === 'super_admin' ? 'Super Admin' : role === 'admin' ? 'Admin' : role === 'manager' ? 'Manager' : 'Dialer'}`
           });
         } catch {}
       }

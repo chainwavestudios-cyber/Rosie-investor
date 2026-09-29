@@ -14,6 +14,14 @@
       "type": "string",
       "title": "Lead Number"
     },
+    "agentId": {
+      "type": "string",
+      "title": "Agent ID (username)"
+    },
+    "agentName": {
+      "type": "string",
+      "title": "Agent Name (for display)"
+    },
     "transcriptJson": {
       "type": "string",
       "title": "Full Transcript (JSON)",

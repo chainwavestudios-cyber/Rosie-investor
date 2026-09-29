@@ -12,6 +12,7 @@ import DebtKBChat from '@/components/debt/DebtKBChat';
 import DebtUserProfile from '@/components/debt/DebtUserProfile';
 import DebtPitchTab from '@/components/debt/DebtPitchTab';
 import DebtBobTrainer from '@/components/debt/DebtBobTrainer';
+import CallsTab from '@/components/debt/CallsTab';
 import WCRChecklist from '@/components/debt/WCRChecklist';
 import ProfileTimerWatcher from '@/components/debt/ProfileTimerWatcher';
 import ClientProfileModal from '@/components/debt/ClientProfileModal';
@@ -20,7 +21,7 @@ const GOLD = '#10b981';
 const DARK = '#0a0f1e';
 
 export default function DebtCallCoach() {
-  const { user, loading, isAuthenticated, logout, isDialer, isAdmin, mustResetPassword } = useDebtCoachAuth();
+  const { user, loading, isAuthenticated, logout, isDialer, isAdmin, isManager, canManage, mustResetPassword } = useDebtCoachAuth();
   const [tab, setTab] = useState('live');
   const [timerLead, setTimerLead] = useState(null);
 
@@ -34,6 +35,7 @@ export default function DebtCallCoach() {
 
   const TABS = [
     { id: 'live', label: '📞 Live Call' },
+    { id: 'calls', label: '📋 Calls' },
     { id: 'bob', label: '🤖 BOB Training' },
     { id: 'pitches', label: '🎤 Pitches' },
     { id: 'kb', label: '🧠 Knowledge Base' },
@@ -57,7 +59,7 @@ export default function DebtCallCoach() {
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           <div style={{ textAlign: 'right' }}>
             <span style={{ color: '#e8e0d0', fontSize: '13px', fontWeight: 'bold' }}>{user?.username}</span>
-            <span style={{ marginLeft: '8px', padding: '2px 8px', borderRadius: '2px', background: 'rgba(16,185,129,0.15)', color: GOLD, fontSize: '9px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '1px' }}>{user?.role === 'super_admin' ? 'Super Admin' : user?.role === 'admin' ? 'Admin' : 'Dialer'}</span>
+            <span style={{ marginLeft: '8px', padding: '2px 8px', borderRadius: '2px', background: 'rgba(16,185,129,0.15)', color: GOLD, fontSize: '9px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '1px' }}>{user?.role === 'super_admin' ? 'Super Admin' : user?.role === 'admin' ? 'Admin' : user?.role === 'manager' ? 'Manager' : 'Dialer'}</span>
           </div>
           <button onClick={logout} style={{ background: 'rgba(255,255,255,0.05)', color: '#8a9ab8', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '4px', padding: '6px 14px', cursor: 'pointer', fontSize: '11px' }}>Logout</button>
         </div>
@@ -71,6 +73,7 @@ export default function DebtCallCoach() {
       </div>
 
       {tab === 'live' && <DebtLiveCall debtCoachUser={user} />}
+      {tab === 'calls' && <CallsTab />}
       {tab === 'bob' && <DebtBobTrainer debtCoachUser={user} />}
       {tab === 'pitches' && <DebtPitchTab canDelete={!isDialer} />}
       {tab === 'kb' && <DebtKBManager readOnly={isDialer} />}

@@ -92,6 +92,7 @@ export default function DebtLiveCall() {
   const lastCosignerTime = useRef(0);
   const lastContactTime = useRef(0);
   const callStartRef = useRef(null);
+  const intentHistoryRef = useRef([]);
   const testCtxRef = useRef(null);
   const testAgentStreamRef = useRef(null);
   const testCustomerStreamRef = useRef(null);
@@ -228,7 +229,13 @@ export default function DebtLiveCall() {
 
   const handleIntent = useCallback(() => {
     base44.functions.invoke('liveAssistantAI', { transcript: transcriptRef.current.slice(-12), kbEntries, mode: 'intent', intentRules: DEBT_INTENT_RULES })
-      .then(res => { const score = res?.intent?.intentScore ?? res?.intentScore ?? res?.data?.intentScore; if (score !== undefined) setIntentScore(score); })
+      .then(res => {
+        const score = res?.intent?.intentScore ?? res?.intentScore ?? res?.data?.intentScore;
+        if (score !== undefined) {
+          setIntentScore(score);
+          intentHistoryRef.current.push({ score, time: new Date().toISOString(), animalType: res?.intent?.animalType || res?.animalType || null, report: res?.intent?.report || res?.report || null });
+        }
+      })
       .catch(() => {});
   }, [kbEntries]);
 
@@ -461,6 +468,7 @@ ${recentText}`,
     if (!lead.id) { await createNewLead(); }
 
     setError(''); setTranscript([]); setQaItems([]); setCoachTips([]); setIntentScore(null); setProfileData(null); setReport('');
+    intentHistoryRef.current = [];
     customerBufferRef.current = []; if (bufferTimeoutRef.current) { clearTimeout(bufferTimeoutRef.current); bufferTimeoutRef.current = null; }
     setPhase('live'); setDgStatus('connecting');
     callStartRef.current = new Date();
@@ -667,11 +675,15 @@ ${recentText}`,
         // Save transcript + report to DebtCallTranscript entity
         const durationSeconds = callStartRef.current ? Math.round((Date.now() - callStartRef.current.getTime()) / 1000) : 0;
         const leadName = `${leadRef.current.firstName || ''} ${leadRef.current.lastName || ''}`.trim();
+        const agentId = coachUser?.username || '';
+        let transcriptRecord = null;
         try {
-          await base44.entities.DebtCallTranscript.create({
+          transcriptRecord = await base44.entities.DebtCallTranscript.create({
             leadId: leadRef.current.id,
             leadName,
             leadNumber: leadRef.current.leadNumber || '',
+            agentId,
+            agentName: agentId,
             transcriptJson: JSON.stringify(transcriptRef.current),
             transcriptLineCount: transcriptRef.current.length,
             callMode,
@@ -682,6 +694,53 @@ ${recentText}`,
             followUpReport: fullReport,
             callDate: new Date().toISOString(),
           });
+
+          // Persist Q&A history for this call
+          if (qaItems.length > 0 && transcriptRecord?.id) {
+            const qaRecords = qaItems.filter(q => q.question && q.answer).map(q => ({
+              leadId: leadRef.current.id,
+              leadName,
+              agentId,
+              transcriptId: transcriptRecord.id,
+              question: q.question,
+              answer: q.answer,
+              askedAt: new Date().toISOString(),
+              source: 'auto',
+            }));
+            if (qaRecords.length > 0) {
+              try { await base44.entities.DebtQAHistory.bulkCreate(qaRecords); } catch {}
+            }
+          }
+
+          // Persist coaching tips for this call
+          if (coachTips.length > 0 && transcriptRecord?.id) {
+            const tipRecords = coachTips.map(t => ({
+              agentId,
+              agentName: agentId,
+              transcriptId: transcriptRecord.id,
+              leadId: leadRef.current.id,
+              leadName,
+              tip: t.tip,
+              tipTime: t.time ? t.time.toISOString() : new Date().toISOString(),
+            }));
+            try { await base44.entities.DebtCoachTip.bulkCreate(tipRecords); } catch {}
+          }
+
+          // Persist intent snapshots for this call
+          if (intentHistoryRef.current.length > 0 && transcriptRecord?.id) {
+            const snapshotRecords = intentHistoryRef.current.map(s => ({
+              agentId,
+              agentName: agentId,
+              transcriptId: transcriptRecord.id,
+              leadId: leadRef.current.id,
+              leadName,
+              intentScore: s.score,
+              animalType: s.animalType || null,
+              report: s.report || '',
+              snapshotTime: s.time,
+            }));
+            try { await base44.entities.DebtIntentSnapshot.bulkCreate(snapshotRecords); } catch {}
+          }
         } catch {}
       } catch { setReport('Failed to generate report.'); }
       setGeneratingReport(false);

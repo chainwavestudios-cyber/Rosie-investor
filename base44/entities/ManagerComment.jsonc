@@ -1,7 +1,11 @@
 {
-  "name": "DebtQAHistory",
+  "name": "ManagerComment",
   "type": "object",
   "properties": {
+    "transcriptId": {
+      "type": "string",
+      "title": "Call Transcript ID"
+    },
     "leadId": {
       "type": "string",
       "title": "Lead ID"
@@ -14,38 +18,25 @@
       "type": "string",
       "title": "Agent ID (username)"
     },
-    "transcriptId": {
+    "managerUsername": {
       "type": "string",
-      "title": "Call Transcript ID"
+      "title": "Manager Username"
     },
-    "question": {
+    "comment": {
       "type": "string",
-      "title": "Question"
-    },
-    "answer": {
-      "type": "string",
-      "title": "Answer",
+      "title": "Comment",
       "format": "textarea"
     },
-    "askedAt": {
+    "createdAt": {
       "type": "string",
       "format": "date-time",
-      "title": "Asked At"
-    },
-    "source": {
-      "type": "string",
-      "title": "Source",
-      "enum": [
-        "auto",
-        "manual",
-        "transcript"
-      ],
-      "default": "auto"
+      "title": "Created At"
     }
   },
   "required": [
-    "leadId",
-    "question"
+    "transcriptId",
+    "managerUsername",
+    "comment"
   ],
   "rls": {
     "create": null,

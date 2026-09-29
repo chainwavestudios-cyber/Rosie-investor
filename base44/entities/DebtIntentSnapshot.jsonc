@@ -1,0 +1,59 @@
+{
+  "name": "DebtIntentSnapshot",
+  "type": "object",
+  "properties": {
+    "agentId": {
+      "type": "string",
+      "title": "Agent ID (username)"
+    },
+    "agentName": {
+      "type": "string",
+      "title": "Agent Name (for display)"
+    },
+    "transcriptId": {
+      "type": "string",
+      "title": "Call Transcript ID"
+    },
+    "leadId": {
+      "type": "string",
+      "title": "Lead ID"
+    },
+    "leadName": {
+      "type": "string",
+      "title": "Lead Name (for display)"
+    },
+    "intentScore": {
+      "type": "number",
+      "title": "Intent Score"
+    },
+    "animalType": {
+      "type": "string",
+      "title": "Animal Type",
+      "enum": [
+        "duck",
+        "cow",
+        "unknown"
+      ]
+    },
+    "report": {
+      "type": "string",
+      "title": "Intent Report",
+      "format": "textarea"
+    },
+    "snapshotTime": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Snapshot Time"
+    }
+  },
+  "required": [
+    "agentId",
+    "snapshotTime"
+  ],
+  "rls": {
+    "create": null,
+    "read": null,
+    "update": null,
+    "delete": null
+  }
+}
