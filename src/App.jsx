@@ -13,6 +13,7 @@ import DebtCoachLogin from './pages/DebtCoachLogin';
 import { DebtCoachAuthProvider } from '@/lib/DebtCoachAuthContext';
 import CreditReportUpload from './pages/CreditReportUpload';
 import ManagerPortal from './pages/ManagerPortal';
+import CompliancePortal from './pages/CompliancePortal';
 import Home from './pages/Home';
 import PortalLogin from './pages/PortalLogin';
 import InvestorPortal from './pages/InvestorPortal';
@@ -92,6 +93,7 @@ function App() {
               <Route path="/debt-call-coach" element={<DebtCoachAuthProvider><DebtCallCoach /></DebtCoachAuthProvider>} />
               <Route path="/credit" element={<CreditReportUpload />} />
               <Route path="/manager-portal" element={<DebtCoachAuthProvider><ManagerPortal /></DebtCoachAuthProvider>} />
+              <Route path="/compliance-portal" element={<DebtCoachAuthProvider><CompliancePortal /></DebtCoachAuthProvider>} />
               <Route path="*" element={<PageNotFound />} />
             </Routes>
           </ProtectedShell>

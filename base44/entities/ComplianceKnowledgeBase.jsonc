@@ -1,0 +1,90 @@
+{
+  "name": "ComplianceKnowledgeBase",
+  "type": "object",
+  "properties": {
+    "title": {
+      "type": "string",
+      "title": "Title"
+    },
+    "category": {
+      "type": "string",
+      "title": "Category",
+      "enum": [
+        "regulatory_disclosure",
+        "factual_ground_truth",
+        "approved_script",
+        "policy_doc",
+        "training_material",
+        "custom_rule"
+      ],
+      "default": "custom_rule"
+    },
+    "content": {
+      "type": "string",
+      "title": "Content / Rule Text",
+      "format": "textarea"
+    },
+    "mediaType": {
+      "type": "string",
+      "title": "Source Media Type",
+      "enum": [
+        "PDF",
+        "AUDIO",
+        "TEXT",
+        "LINK",
+        "MANUAL"
+      ],
+      "default": "MANUAL"
+    },
+    "fileUrl": {
+      "type": "string",
+      "title": "Source File URL (public)"
+    },
+    "fileUri": {
+      "type": "string",
+      "title": "Source File URI (private)"
+    },
+    "ruleInstructions": {
+      "type": "string",
+      "title": "Natural Language Rule Instructions (from admin)",
+      "format": "textarea"
+    },
+    "groundTruthJson": {
+      "type": "string",
+      "title": "Ground Truth Parameters (JSON key-value pairs)",
+      "format": "textarea"
+    },
+    "thresholdValue": {
+      "type": "number",
+      "title": "Numeric Threshold (for rate/amount rules)"
+    },
+    "isApprovedScript": {
+      "type": "boolean",
+      "title": "Is Approved Script",
+      "default": false
+    },
+    "scriptId": {
+      "type": "string",
+      "title": "Linked Script ID (if approved script)"
+    },
+    "createdBy": {
+      "type": "string",
+      "title": "Created By (username)"
+    },
+    "tags": {
+      "type": "string",
+      "title": "Tags"
+    }
+  },
+  "required": [
+    "title",
+    "content",
+    "category"
+  ],
+  "rls": {
+    "create": null,
+    "read": null,
+    "update": null,
+    "delete": null
+  }
+}

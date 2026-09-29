@@ -1,0 +1,47 @@
+{
+  "name": "ComplianceNote",
+  "type": "object",
+  "properties": {
+    "complianceRecordId": {
+      "type": "string",
+      "title": "Compliance Record ID"
+    },
+    "complianceId": {
+      "type": "string",
+      "title": "Compliance ID (display)"
+    },
+    "authorId": {
+      "type": "string",
+      "title": "Author User ID"
+    },
+    "authorUsername": {
+      "type": "string",
+      "title": "Author Username"
+    },
+    "authorRole": {
+      "type": "string",
+      "title": "Author Role"
+    },
+    "message": {
+      "type": "string",
+      "title": "Message",
+      "format": "textarea"
+    },
+    "isSystem": {
+      "type": "boolean",
+      "title": "System Message",
+      "default": false
+    }
+  },
+  "required": [
+    "complianceRecordId",
+    "authorUsername",
+    "message"
+  ],
+  "rls": {
+    "create": null,
+    "read": null,
+    "update": null,
+    "delete": null
+  }
+}

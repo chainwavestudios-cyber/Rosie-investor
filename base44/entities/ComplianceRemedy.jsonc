@@ -1,0 +1,88 @@
+{
+  "name": "ComplianceRemedy",
+  "type": "object",
+  "properties": {
+    "complianceRecordId": {
+      "type": "string",
+      "title": "Compliance Record ID"
+    },
+    "complianceId": {
+      "type": "string",
+      "title": "Compliance ID (display)"
+    },
+    "mediaType": {
+      "type": "string",
+      "title": "Media Type",
+      "enum": [
+        "PDF",
+        "AUDIO",
+        "TEXT",
+        "LINK",
+        "VIDEO"
+      ],
+      "default": "TEXT"
+    },
+    "fileUrl": {
+      "type": "string",
+      "title": "File URL (public)"
+    },
+    "fileUri": {
+      "type": "string",
+      "title": "File URI (private storage)"
+    },
+    "title": {
+      "type": "string",
+      "title": "Title"
+    },
+    "description": {
+      "type": "string",
+      "title": "Description / Instructions",
+      "format": "textarea"
+    },
+    "assignedBy": {
+      "type": "string",
+      "title": "Assigned By (username)"
+    },
+    "assignedAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Assigned At"
+    },
+    "isAcknowledged": {
+      "type": "boolean",
+      "title": "Acknowledged by User",
+      "default": false
+    },
+    "acknowledgedAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Acknowledged At"
+    },
+    "quizJson": {
+      "type": "string",
+      "title": "Quiz Questions (JSON array)",
+      "format": "textarea"
+    },
+    "quizAnswersJson": {
+      "type": "string",
+      "title": "User Quiz Answers (JSON)",
+      "format": "textarea"
+    },
+    "quizPassed": {
+      "type": "boolean",
+      "title": "Quiz Passed",
+      "default": false
+    }
+  },
+  "required": [
+    "complianceRecordId",
+    "mediaType",
+    "title"
+  ],
+  "rls": {
+    "create": null,
+    "read": null,
+    "update": null,
+    "delete": null
+  }
+}

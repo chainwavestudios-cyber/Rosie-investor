@@ -1,0 +1,132 @@
+{
+  "name": "ComplianceRecord",
+  "type": "object",
+  "properties": {
+    "complianceId": {
+      "type": "string",
+      "title": "Compliance ID (e.g. CMP-2026-00001)"
+    },
+    "userId": {
+      "type": "string",
+      "title": "Monitored User ID (DebtCoachUser id)"
+    },
+    "username": {
+      "type": "string",
+      "title": "Monitored Username"
+    },
+    "monitoredById": {
+      "type": "string",
+      "title": "Monitor ID (who toggled compliance on)"
+    },
+    "monitoredByUsername": {
+      "type": "string",
+      "title": "Monitor Username"
+    },
+    "transcriptId": {
+      "type": "string",
+      "title": "Call Transcript ID (DebtCallTranscript id)"
+    },
+    "leadId": {
+      "type": "string",
+      "title": "Lead ID"
+    },
+    "leadName": {
+      "type": "string",
+      "title": "Lead Name"
+    },
+    "callMode": {
+      "type": "string",
+      "title": "Call Mode",
+      "enum": [
+        "open",
+        "close"
+      ],
+      "default": "open"
+    },
+    "status": {
+      "type": "string",
+      "title": "Status",
+      "enum": [
+        "OPEN",
+        "UNDER_REVIEW",
+        "REMEDIED",
+        "CLOSED"
+      ],
+      "default": "OPEN"
+    },
+    "complianceScore": {
+      "type": "number",
+      "title": "Compliance Score (0-100)"
+    },
+    "compliantHooks": {
+      "type": "number",
+      "title": "Compliant Hooks Count",
+      "default": 0
+    },
+    "violationsCount": {
+      "type": "number",
+      "title": "Total Violations Count",
+      "default": 0
+    },
+    "criticalCount": {
+      "type": "number",
+      "title": "Critical Violations Count",
+      "default": 0
+    },
+    "minorCount": {
+      "type": "number",
+      "title": "Minor Violations Count",
+      "default": 0
+    },
+    "sensitivityLevel": {
+      "type": "string",
+      "title": "Sensitivity Level",
+      "enum": [
+        "strict",
+        "balanced",
+        "flexible"
+      ],
+      "default": "balanced"
+    },
+    "transcriptJson": {
+      "type": "string",
+      "title": "Transcript Snapshot (JSON)",
+      "format": "textarea"
+    },
+    "recordingUrl": {
+      "type": "string",
+      "title": "Call Recording URL"
+    },
+    "closedAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Closed At"
+    },
+    "closedBy": {
+      "type": "string",
+      "title": "Closed By (username)"
+    },
+    "remedyAcknowledged": {
+      "type": "boolean",
+      "title": "Remedy Acknowledged by User",
+      "default": false
+    },
+    "quizPassed": {
+      "type": "boolean",
+      "title": "Remedy Quiz Passed",
+      "default": false
+    }
+  },
+  "required": [
+    "complianceId",
+    "userId",
+    "username",
+    "status"
+  ],
+  "rls": {
+    "create": null,
+    "read": null,
+    "update": null,
+    "delete": null
+  }
+}

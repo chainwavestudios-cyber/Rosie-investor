@@ -11,6 +11,7 @@ import LiveTranscriptPanel from '@/components/debt/LiveTranscriptPanel';
 import DebtAIPanel from '@/components/debt/DebtAIPanel';
 import DoNothingCalculator from '@/components/debt/DoNothingCalculator';
 import ClientProfileModal from '@/components/debt/ClientProfileModal';
+import LiveComplianceWidget from '@/components/compliance/LiveComplianceWidget';
 import { usePopOutPanel } from '@/hooks/usePopOutPanel';
 import { useDebtCoachAuth } from '@/lib/DebtCoachAuthContext';
 
@@ -92,6 +93,7 @@ export default function DebtLiveCall() {
   const lastHardshipTime = useRef(0);
   const lastCosignerTime = useRef(0);
   const lastContactTime = useRef(0);
+  const lastComplianceTime = useRef(0);
   const callStartRef = useRef(null);
   const intentHistoryRef = useRef([]);
   const testCtxRef = useRef(null);
@@ -386,6 +388,26 @@ ${recentText}`,
     } catch {}
   }, []);
 
+  // Run compliance evaluation on transcript (creates Compliance IDs if violations found)
+  const handleComplianceEval = useCallback(async () => {
+    if (!leadRef.current?.id || transcriptRef.current.length < 6) return;
+    try {
+      await base44.functions.invoke('complianceEngine', {
+        action: 'evaluate',
+        transcriptChunk: transcriptRef.current.slice(-20),
+        fullTranscript: transcriptRef.current,
+        username: coachUser?.username,
+        userRole: coachUser?.role,
+        userId: coachUser?.id,
+        callMode,
+        leadId: leadRef.current.id,
+        leadName: `${leadRef.current.firstName} ${leadRef.current.lastName}`.trim(),
+        sensitivityLevel: 'balanced',
+        callStartIso: callStartRef.current?.toISOString(),
+      });
+    } catch {}
+  }, [coachUser, callMode]);
+
   // Auto-extract contact info (phone, address, email) from transcript
   const handleContactExtract = useCallback(async () => {
     if (!leadRef.current?.id || transcriptRef.current.length < 4) return;
@@ -464,7 +486,8 @@ ${recentText}`,
     if (now - lastHardshipTime.current > 55000) { lastHardshipTime.current = now; handleHardshipExtract(); }
     if (now - lastCosignerTime.current > 60000) { lastCosignerTime.current = now; handleCosignerExtract(); }
     if (now - lastContactTime.current > 40000) { lastContactTime.current = now; handleContactExtract(); }
-  }, [qaActive, coachActive, intentActive, handleQa, flushCustomerBuffer, handleCoach, handleIntent, handleProfile, handleDebtExtract, handleBillsExtract, handleHardshipExtract, handleCosignerExtract, handleContactExtract]);
+    if (now - lastComplianceTime.current > 90000) { lastComplianceTime.current = now; handleComplianceEval(); }
+  }, [qaActive, coachActive, intentActive, handleQa, flushCustomerBuffer, handleCoach, handleIntent, handleProfile, handleDebtExtract, handleBillsExtract, handleHardshipExtract, handleCosignerExtract, handleContactExtract, handleComplianceEval]);
 
   const startCall = useCallback(async () => {
     // Ensure we have a lead
@@ -977,6 +1000,12 @@ ${recentText}`,
       </div>
 
       {error && <div style={{ marginBottom: '12px', padding: '10px 14px', background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '4px', color: '#ef4444', fontSize: '12px' }}>⚠ {error}</div>}
+
+      {phase === 'live' && coachUser?.username && (
+        <div style={{ marginBottom: '12px' }}>
+          <LiveComplianceWidget username={coachUser.username} isActive={phase === 'live'} />
+        </div>
+      )}
 
       {testingAudio && (
         <div style={{ marginBottom: '12px', padding: '14px 18px', background: '#0d1b2a', border: '1px solid rgba(245,158,11,0.2)', borderRadius: '6px', display: 'flex', gap: '24px', alignItems: 'center' }}>

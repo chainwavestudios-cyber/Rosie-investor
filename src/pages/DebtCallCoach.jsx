@@ -13,6 +13,7 @@ import DebtUserProfile from '@/components/debt/DebtUserProfile';
 import DebtPitchTab from '@/components/debt/DebtPitchTab';
 import DebtBobTrainer from '@/components/debt/DebtBobTrainer';
 import CallsTab from '@/components/debt/CallsTab';
+import CompliancePortal from '@/pages/CompliancePortal';
 import WCRChecklist from '@/components/debt/WCRChecklist';
 import ProfileTimerWatcher from '@/components/debt/ProfileTimerWatcher';
 import ClientProfileModal from '@/components/debt/ClientProfileModal';
@@ -21,9 +22,10 @@ const GOLD = '#10b981';
 const DARK = '#0a0f1e';
 
 export default function DebtCallCoach() {
-  const { user, loading, isAuthenticated, logout, isDialer, isAdmin, isManager, canManage, mustResetPassword } = useDebtCoachAuth();
+  const { user, loading, isAuthenticated, logout, isDialer, isAdmin, isManager, isSuperManager, canManage, mustResetPassword } = useDebtCoachAuth();
   const [tab, setTab] = useState('live');
   const [timerLead, setTimerLead] = useState(null);
+  const [showCompliance, setShowCompliance] = useState(false);
   const navigate = useNavigate();
 
   if (loading) return (
@@ -42,6 +44,7 @@ export default function DebtCallCoach() {
     { id: 'kb', label: '🧠 Knowledge Base' },
     ...(isDialer ? [] : [{ id: 'kbchat', label: '💬 AI KB Chat' }]),
     { id: 'profile', label: '👤 User Profiles' },
+    { id: 'compliance', label: '🛡 Compliance' },
     ...(isAdmin ? [{ id: 'admin', label: '⚙️ Admin' }] : []),
   ];
 
@@ -60,9 +63,10 @@ export default function DebtCallCoach() {
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           <div style={{ textAlign: 'right' }}>
             <span style={{ color: '#e8e0d0', fontSize: '13px', fontWeight: 'bold' }}>{user?.username}</span>
-            <span style={{ marginLeft: '8px', padding: '2px 8px', borderRadius: '2px', background: 'rgba(16,185,129,0.15)', color: GOLD, fontSize: '9px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '1px' }}>{user?.role === 'super_admin' ? 'Super Admin' : user?.role === 'admin' ? 'Admin' : user?.role === 'manager' ? 'Manager' : 'Dialer'}</span>
+            <span style={{ marginLeft: '8px', padding: '2px 8px', borderRadius: '2px', background: 'rgba(16,185,129,0.15)', color: GOLD, fontSize: '9px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '1px' }}>{user?.role === 'super_admin' ? 'Super Admin' : user?.role === 'admin' ? 'Admin' : user?.role === 'super_manager' ? 'Super Manager' : user?.role === 'manager' ? 'Manager' : 'Dialer'}</span>
           </div>
-          {(isAdmin || isManager) && (
+          <button onClick={() => setShowCompliance(true)} style={{ background: 'rgba(239,68,68,0.1)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '4px', padding: '6px 14px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase' }}>🛡 Compliance</button>
+          {(isAdmin || isManager || isSuperManager) && (
             <button onClick={() => navigate('/manager-portal')} style={{ background: 'linear-gradient(135deg,#10b981,#22c55e)', color: DARK, border: 'none', borderRadius: '4px', padding: '6px 14px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase' }}>🎛️ Manager Portal</button>
           )}
           <button onClick={logout} style={{ background: 'rgba(255,255,255,0.05)', color: '#8a9ab8', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '4px', padding: '6px 14px', cursor: 'pointer', fontSize: '11px' }}>Logout</button>
@@ -83,6 +87,7 @@ export default function DebtCallCoach() {
       {tab === 'kb' && <DebtKBManager readOnly={isDialer} />}
       {tab === 'kbchat' && <DebtKBChat />}
       {tab === 'profile' && <DebtUserProfile debtCoachUser={user} />}
+      {tab === 'compliance' && <CompliancePortal onBack={() => setTab('live')} />}
       {tab === 'admin' && isAdmin && <DebtCoachAdminPanel />}
 
       {/* Floating WCR Checklist — available on all tabs */}

@@ -20,6 +20,7 @@
       "enum": [
         "super_admin",
         "admin",
+        "super_manager",
         "manager",
         "dialer"
       ],
@@ -33,6 +34,11 @@
     "aiSettingsJson": {
       "type": "string",
       "title": "AI Settings (JSON \u2014 manager-controlled per-dialer toggles)",
+      "format": "textarea"
+    },
+    "complianceSettingsJson": {
+      "type": "string",
+      "title": "Compliance Settings (JSON \u2014 sensitivity, enabled, etc.)",
       "format": "textarea"
     },
     "mustResetPassword": {

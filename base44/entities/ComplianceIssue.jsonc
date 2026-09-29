@@ -1,0 +1,92 @@
+{
+  "name": "ComplianceIssue",
+  "type": "object",
+  "properties": {
+    "complianceRecordId": {
+      "type": "string",
+      "title": "Compliance Record ID"
+    },
+    "complianceId": {
+      "type": "string",
+      "title": "Compliance ID (display)"
+    },
+    "timestampInCall": {
+      "type": "number",
+      "title": "Timestamp in Call (seconds from start)"
+    },
+    "transcriptLineIndex": {
+      "type": "number",
+      "title": "Transcript Line Index"
+    },
+    "ruleViolated": {
+      "type": "string",
+      "title": "Rule Violated",
+      "enum": [
+        "regulatory_disclosure",
+        "factual_misrepresentation",
+        "script_deviation",
+        "unapproved_claim",
+        "missing_disclosure",
+        "rate_misrepresentation"
+      ]
+    },
+    "ruleReference": {
+      "type": "string",
+      "title": "Rule Reference (KB doc title or script section)"
+    },
+    "flaggedText": {
+      "type": "string",
+      "title": "Flagged Text (what was said)",
+      "format": "textarea"
+    },
+    "expectedText": {
+      "type": "string",
+      "title": "Expected Text / Approved Language",
+      "format": "textarea"
+    },
+    "severity": {
+      "type": "string",
+      "title": "Severity",
+      "enum": [
+        "LOW",
+        "MEDIUM",
+        "CRITICAL"
+      ],
+      "default": "MEDIUM"
+    },
+    "confidenceScore": {
+      "type": "number",
+      "title": "AI Confidence Score (0-100)"
+    },
+    "aiExplanation": {
+      "type": "string",
+      "title": "AI Explanation",
+      "format": "textarea"
+    },
+    "groundTruthValue": {
+      "type": "string",
+      "title": "Ground Truth Value (for factual checks)"
+    },
+    "claimedValue": {
+      "type": "string",
+      "title": "Claimed Value (what the agent said)"
+    },
+    "isResolved": {
+      "type": "boolean",
+      "title": "Issue Resolved",
+      "default": false
+    }
+  },
+  "required": [
+    "complianceRecordId",
+    "ruleViolated",
+    "flaggedText",
+    "severity"
+  ],
+  "rls": {
+    "create": null,
+    "read": null,
+    "update": null,
+    "delete": null
+  }
+}

@@ -1,0 +1,61 @@
+{
+  "name": "ComplianceSettings",
+  "type": "object",
+  "properties": {
+    "userId": {
+      "type": "string",
+      "title": "Monitored User ID (DebtCoachUser id)"
+    },
+    "username": {
+      "type": "string",
+      "title": "Monitored Username"
+    },
+    "userRole": {
+      "type": "string",
+      "title": "User Role"
+    },
+    "isEnabled": {
+      "type": "boolean",
+      "title": "Compliance Monitoring Enabled",
+      "default": false
+    },
+    "enabledBy": {
+      "type": "string",
+      "title": "Enabled By (username)"
+    },
+    "enabledById": {
+      "type": "string",
+      "title": "Enabled By User ID"
+    },
+    "sensitivityLevel": {
+      "type": "string",
+      "title": "Sensitivity Level",
+      "enum": [
+        "strict",
+        "balanced",
+        "flexible"
+      ],
+      "default": "balanced"
+    },
+    "evaluatedCallIds": {
+      "type": "string",
+      "title": "Evaluated Call IDs (JSON array)",
+      "format": "textarea"
+    },
+    "lastEvaluatedAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Last Evaluated At"
+    }
+  },
+  "required": [
+    "userId",
+    "username"
+  ],
+  "rls": {
+    "create": null,
+    "read": null,
+    "update": null,
+    "delete": null
+  }
+}
