@@ -25,6 +25,9 @@ export default function DebtKBManager() {
   const [section, setSection] = useState('agent');
   const [entries, setEntries] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [generatingAll, setGeneratingAll] = useState(false);
+  const [generatingId, setGeneratingId] = useState(null);
+  const [bulkStatus, setBulkStatus] = useState('');
 
   useEffect(() => {
     setLoading(true);
@@ -47,6 +50,34 @@ export default function DebtKBManager() {
     await loadEntries();
     window.dispatchEvent(new CustomEvent('debt_kb_updated'));
   }, [loadEntries]);
+
+  const generateVariations = async (entryId) => {
+    setGeneratingId(entryId);
+    try {
+      const res = await base44.functions.invoke('generateKBVariations', { entryId });
+      const variations = res?.variations || res?.data?.variations;
+      if (variations) {
+        setEntries(prev => prev.map(e => e.id === entryId ? { ...e, variations } : e));
+      }
+    } catch (e) { alert('Failed: ' + (e?.message || String(e))); }
+    setGeneratingId(null);
+  };
+
+  const generateAllVariations = async () => {
+    setGeneratingAll(true); setBulkStatus('');
+    try {
+      const res = await base44.functions.invoke('generateKBVariations', { bulk: true });
+      const updated = res?.updated ?? res?.data?.updated ?? 0;
+      const total = res?.total ?? res?.data?.total ?? 0;
+      setBulkStatus(`✓ Generated variations for ${updated} of ${total} entries.`);
+      await loadEntries();
+      window.dispatchEvent(new CustomEvent('debt_kb_updated'));
+      setTimeout(() => setBulkStatus(''), 5000);
+    } catch (e) { setBulkStatus('Failed: ' + (e?.message || String(e))); }
+    setGeneratingAll(false);
+  };
+
+  const entriesWithoutVariations = entries.filter(e => !e.variations || !e.variations.trim()).length;
 
   // Listen for KB updates from BOB's Brain — shared learning
   useEffect(() => {
@@ -85,25 +116,42 @@ export default function DebtKBManager() {
 
       {/* Entry list */}
       <div style={{ marginTop: '24px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', flexWrap: 'wrap', gap: '8px' }}>
           <div style={{ color: GOLD, fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase' }}>
-            {KB_SECTIONS.find(s => s.id === section).label} — {entries.length} Entries
+            {KB_SECTIONS.find(s => s.id === section).label} — {entries.length} Entries{entriesWithoutVariations > 0 && <span style={{ color: '#f59e0b', marginLeft: '6px' }}>· {entriesWithoutVariations} need variations</span>}
           </div>
-          <button onClick={refresh} style={{ background: 'rgba(255,255,255,0.05)', color: '#8a9ab8', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '4px', padding: '6px 12px', cursor: 'pointer', fontSize: '11px' }}>↻ Refresh</button>
+          <div style={{ display: 'flex', gap: '6px' }}>
+            <button onClick={generateAllVariations} disabled={generatingAll || entriesWithoutVariations === 0} style={{ background: generatingAll ? 'rgba(255,255,255,0.05)' : 'rgba(245,158,11,0.15)', color: generatingAll ? '#6b7280' : '#f59e0b', border: '1px solid rgba(245,158,11,0.3)', borderRadius: '4px', padding: '6px 12px', cursor: generatingAll ? 'not-allowed' : 'pointer', fontSize: '11px', fontWeight: 'bold', opacity: entriesWithoutVariations === 0 && !generatingAll ? 0.4 : 1 }}>
+              {generatingAll ? '⏳ Generating…' : '🤖 Generate All Variations'}
+            </button>
+            <button onClick={refresh} style={{ background: 'rgba(255,255,255,0.05)', color: '#8a9ab8', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '4px', padding: '6px 12px', cursor: 'pointer', fontSize: '11px' }}>↻ Refresh</button>
+          </div>
         </div>
+        {bulkStatus && <div style={{ marginBottom: '8px', padding: '8px 12px', background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.2)', borderRadius: '4px', color: '#f59e0b', fontSize: '12px' }}>{bulkStatus}</div>}
         {loading ? (
           <div style={{ color: '#4a5568', padding: '30px 0', textAlign: 'center' }}>Loading…</div>
         ) : entries.length === 0 ? (
           <div style={{ color: '#4a5568', textAlign: 'center', padding: '40px 0', fontSize: '13px' }}>No entries yet. Add content above.</div>
         ) : (
-          <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
+          <div style={{ maxHeight: '500px', overflowY: 'auto' }}>
             {entries.map(e => (
               <div key={e.id} style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: '4px', padding: '14px', marginBottom: '8px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
-                  <div style={{ color: '#e8e0d0', fontSize: '13px', fontWeight: 'bold' }}>{e.question}</div>
-                  <button onClick={async () => { await base44.entities.KnowledgeBase.delete(e.id); refresh(); }} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '11px' }}>Delete</button>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px', gap: '8px' }}>
+                  <div style={{ color: '#e8e0d0', fontSize: '13px', fontWeight: 'bold', flex: 1 }}>{e.question}</div>
+                  <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
+                    <button onClick={() => generateVariations(e.id)} disabled={generatingId === e.id} title="Generate alternative phrasings" style={{ background: generatingId === e.id ? 'rgba(255,255,255,0.05)' : 'rgba(245,158,11,0.1)', color: generatingId === e.id ? '#6b7280' : '#f59e0b', border: '1px solid rgba(245,158,11,0.25)', borderRadius: '4px', padding: '3px 10px', cursor: generatingId === e.id ? 'not-allowed' : 'pointer', fontSize: '10px', fontWeight: 'bold', whiteSpace: 'nowrap' }}>
+                      {generatingId === e.id ? '⏳' : '🤖'} {e.variations ? 'Regenerate' : 'Variations'}
+                    </button>
+                    <button onClick={async () => { await base44.entities.KnowledgeBase.delete(e.id); refresh(); }} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '11px' }}>Delete</button>
+                  </div>
                 </div>
                 <div style={{ color: '#8a9ab8', fontSize: '12px', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>{e.answer?.slice(0, 300)}{e.answer?.length > 300 ? '…' : ''}</div>
+                {e.variations && (
+                  <div style={{ marginTop: '8px', padding: '8px 10px', background: 'rgba(245,158,11,0.04)', border: '1px solid rgba(245,158,11,0.12)', borderRadius: '4px' }}>
+                    <div style={{ color: '#f59e0b', fontSize: '9px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '4px' }}>🔄 Alternative Phrasings</div>
+                    <div style={{ color: '#8a9ab8', fontSize: '11px', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>{e.variations}</div>
+                  </div>
+                )}
                 {e.tags && section === 'hotpoints' && <span style={{ display: 'inline-block', marginTop: '6px', padding: '2px 8px', borderRadius: '2px', background: 'rgba(251,146,60,0.15)', color: '#fb923c', fontSize: '9px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '1px' }}>{e.tags || 'general'}</span>}
                 {e.source && <div style={{ color: '#4a5568', fontSize: '10px', marginTop: '4px' }}>Source: {e.source}</div>}
               </div>

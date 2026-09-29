@@ -2,12 +2,13 @@ const ANTHROPIC_KEY = Deno.env.get('ANTHROPIC_API_KEY') || '';
 
 // ── Smart KB search ─────────────────────────────────────────────────────────
 function scoreEntry(qLower: string, words: string[], e: any): number {
-  const haystack = `${e.question||''} ${e.answer||''} ${e.keywords||''}`.toLowerCase();
+  const haystack = `${e.question||''} ${e.answer||''} ${e.keywords||''} ${e.variations||''}`.toLowerCase();
   let score = 0;
   for (const w of words) {
     if (haystack.includes(w)) score += 1;
     if ((e.question||'').toLowerCase().includes(w)) score += 0.8;
     if ((e.keywords||'').toLowerCase().includes(w)) score += 0.5;
+    if ((e.variations||'').toLowerCase().includes(w)) score += 0.6;
   }
   const phrases = qLower.match(/\b\w{4,}\s+\w{4,}\b/g) || [];
   for (const phrase of phrases) {

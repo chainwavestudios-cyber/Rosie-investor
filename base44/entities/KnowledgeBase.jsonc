@@ -26,6 +26,11 @@
     "kbName": {
       "type": "string",
       "title": "Knowledge Base Name"
+    },
+    "variations": {
+      "type": "string",
+      "title": "Alternative Phrasings / Variations",
+      "format": "textarea"
     }
   },
   "required": [
