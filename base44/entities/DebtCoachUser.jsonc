@@ -30,6 +30,11 @@
       "title": "Permissions (JSON)",
       "format": "textarea"
     },
+    "aiSettingsJson": {
+      "type": "string",
+      "title": "AI Settings (JSON \u2014 manager-controlled per-dialer toggles)",
+      "format": "textarea"
+    },
     "mustResetPassword": {
       "type": "boolean",
       "title": "Must Reset Password",

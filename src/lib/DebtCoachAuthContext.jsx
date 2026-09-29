@@ -42,14 +42,33 @@ export function DebtCoachAuthProvider({ children }) {
     setUser(data.user);
     setSessionToken(data.sessionToken);
     localStorage.setItem(STORAGE_KEY, JSON.stringify({ userId: data.user.id, token: data.sessionToken }));
+    // Mark old sessions offline, then create a new DialerSession for presence tracking
+    try {
+      const oldSessions = await base44.entities.DialerSession.filter({ username });
+      const active = (oldSessions || []).filter(s => s.status === 'logged_in' || s.status === 'on_call');
+      for (const s of active) {
+        await base44.entities.DialerSession.update(s.id, { status: 'offline', logoutAt: new Date().toISOString() });
+      }
+      await base44.entities.DialerSession.create({ username, loginAt: new Date().toISOString(), status: 'logged_in' });
+    } catch {}
     return data;
   }, []);
 
-  const logout = useCallback(() => {
+  const logout = useCallback(async () => {
+    // Update DialerSession to offline
+    if (user?.username) {
+      try {
+        const sessions = await base44.entities.DialerSession.filter({ username: user.username });
+        const active = (sessions || []).filter(s => s.status === 'logged_in' || s.status === 'on_call');
+        for (const s of active) {
+          await base44.entities.DialerSession.update(s.id, { status: 'offline', logoutAt: new Date().toISOString() });
+        }
+      } catch {}
+    }
     setUser(null);
     setSessionToken(null);
     localStorage.removeItem(STORAGE_KEY);
-  }, []);
+  }, [user]);
 
   const changePassword = useCallback(async (currentPassword, newPassword) => {
     const res = await base44.functions.invoke('debtCoachAuth', {

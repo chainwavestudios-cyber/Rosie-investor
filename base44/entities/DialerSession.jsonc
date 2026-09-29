@@ -1,0 +1,96 @@
+{
+  "name": "DialerSession",
+  "type": "object",
+  "properties": {
+    "username": {
+      "type": "string",
+      "title": "Dialer Username"
+    },
+    "loginAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Login Time"
+    },
+    "logoutAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Logout Time"
+    },
+    "status": {
+      "type": "string",
+      "title": "Session Status",
+      "enum": [
+        "logged_in",
+        "on_call",
+        "offline"
+      ],
+      "default": "logged_in"
+    },
+    "currentCallLeadId": {
+      "type": "string",
+      "title": "Current Call Lead ID"
+    },
+    "currentCallLeadName": {
+      "type": "string",
+      "title": "Current Call Lead Name"
+    },
+    "currentCallPhone": {
+      "type": "string",
+      "title": "Current Call Phone Number"
+    },
+    "currentCallStartedAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Current Call Started At"
+    },
+    "currentCallMode": {
+      "type": "string",
+      "title": "Current Call Mode",
+      "enum": [
+        "open",
+        "close"
+      ]
+    },
+    "monitorMode": {
+      "type": "string",
+      "title": "Monitor Mode (requested by manager)",
+      "enum": [
+        "none",
+        "listen",
+        "whisper",
+        "barge",
+        "takeover"
+      ],
+      "default": "none"
+    },
+    "monitorManagerUsername": {
+      "type": "string",
+      "title": "Monitoring Manager Username"
+    },
+    "webrtcOfferSdp": {
+      "type": "string",
+      "title": "WebRTC Offer SDP",
+      "format": "textarea"
+    },
+    "webrtcAnswerSdp": {
+      "type": "string",
+      "title": "WebRTC Answer SDP",
+      "format": "textarea"
+    },
+    "webrtcIceCandidatesJson": {
+      "type": "string",
+      "title": "WebRTC ICE Candidates (JSON)",
+      "format": "textarea"
+    }
+  },
+  "required": [
+    "username",
+    "loginAt"
+  ],
+  "rls": {
+    "create": null,
+    "read": null,
+    "update": null,
+    "delete": null
+  }
+}

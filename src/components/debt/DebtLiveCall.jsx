@@ -23,10 +23,11 @@ const DEBT_KB_CATEGORIES = ['debt_agent', 'debt_customer', 'debt_doc', 'debt_web
 
 export default function DebtLiveCall() {
   const { user: coachUser, can } = useDebtCoachAuth();
-  const canLiveAI = can('liveAIAssistant');
-  const canLiveQA = can('liveQA');
-  const canLiveCoach = can('liveCoach');
-  const canLiveIntent = can('liveIntent');
+  const aiSettings = (() => { try { return JSON.parse(coachUser?.aiSettingsJson || '{}'); } catch { return {}; } })();
+  const canLiveAI = can('liveAIAssistant') && aiSettings.liveAIEnabled !== false;
+  const canLiveQA = can('liveQA') && aiSettings.liveQA !== false;
+  const canLiveCoach = can('liveCoach') && aiSettings.liveCoach !== false;
+  const canLiveIntent = can('liveIntent') && aiSettings.liveIntent !== false;
   const [micDevices, setMicDevices] = useState([]);
   const [micDeviceId, setMicDeviceId] = useState('');
   const [customerMicId, setCustomerMicId] = useState('');
@@ -99,6 +100,8 @@ export default function DebtLiveCall() {
   const testAnimRef = useRef(null);
   const customerBufferRef = useRef([]);
   const bufferTimeoutRef = useRef(null);
+  const monitorPcRef = useRef(null);
+  const stopCallRef = useRef(null);
 
   useEffect(() => { leadRef.current = lead; }, [lead]);
 
@@ -523,6 +526,22 @@ ${recentText}`,
 
     ws.onopen = () => {
       setDgStatus('connected');
+      // Update DialerSession to on_call
+      if (coachUser?.username) {
+        base44.entities.DialerSession.filter({ username: coachUser.username }).then(sessions => {
+          const active = (sessions || []).find(s => s.status === 'logged_in' || s.status === 'on_call');
+          if (active) {
+            base44.entities.DialerSession.update(active.id, {
+              status: 'on_call',
+              currentCallLeadId: leadRef.current?.id || '',
+              currentCallLeadName: `${leadRef.current?.firstName || ''} ${leadRef.current?.lastName || ''}`.trim(),
+              currentCallPhone: leadRef.current?.phone || '',
+              currentCallStartedAt: new Date().toISOString(),
+              currentCallMode: callMode,
+            }).catch(() => {});
+          }
+        }).catch(() => {});
+      }
       if (dualMode) {
         // Multichannel: channel 0 = agent (left), channel 1 = customer (right)
         const agentSrc = ctx.createMediaStreamSource(agentStream);
@@ -592,6 +611,27 @@ ${recentText}`,
   }, [micDeviceId, customerMicId, processNewEntry, lead, createNewLead]);
 
   const stopCall = useCallback(async () => {
+    // Update DialerSession back to logged_in
+    if (coachUser?.username) {
+      try {
+        const sessions = await base44.entities.DialerSession.filter({ username: coachUser.username });
+        const active = (sessions || []).find(s => s.status === 'on_call');
+        if (active) {
+          await base44.entities.DialerSession.update(active.id, {
+            status: 'logged_in',
+            currentCallLeadId: '',
+            currentCallLeadName: '',
+            currentCallPhone: '',
+            currentCallStartedAt: '',
+            currentCallMode: '',
+            monitorMode: 'none',
+            monitorManagerUsername: '',
+            webrtcOfferSdp: '',
+            webrtcAnswerSdp: '',
+          });
+        }
+      } catch {}
+    }
     if (wsRef.current) { try { wsRef.current.close(); } catch {} wsRef.current = null; }
     if (processorRef.current) { try { processorRef.current.disconnect(); } catch {} processorRef.current = null; }
     if (streamRef.current) { streamRef.current.getTracks().forEach(t => t.stop()); streamRef.current = null; }
@@ -747,6 +787,54 @@ ${recentText}`,
     }
     loadLeads();
   }, [kbEntries, coachActive, qaActive, intentActive, coachTips, qaItems, loadLeads]);
+
+  // Keep stopCallRef updated for monitor polling
+  useEffect(() => { stopCallRef.current = stopCall; }, [stopCall]);
+
+  // Poll for manager monitor requests (listen, whisper, barge, takeover)
+  useEffect(() => {
+    if (phase !== 'live' || !coachUser?.username) return;
+    const interval = setInterval(async () => {
+      try {
+        const res = await base44.functions.invoke('managerCallControl', { action: 'getSession', managerUsername: coachUser.username, dialerUsername: coachUser.username });
+        const session = res?.data?.session || res?.session;
+        if (!session) return;
+        // Handle takeover — manager ends the agent's call
+        if (session.monitorMode === 'takeover') {
+          stopCallRef.current?.();
+        }
+        // Handle WebRTC monitoring request from manager
+        if ((session.monitorMode === 'listen' || session.monitorMode === 'whisper' || session.monitorMode === 'barge') && session.webrtcOfferSdp && !session.webrtcAnswerSdp) {
+          if (monitorPcRef.current) return;
+          try {
+            const pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
+            monitorPcRef.current = pc;
+            if (streamRef.current) {
+              streamRef.current.getTracks().forEach(track => pc.addTrack(track, streamRef.current));
+            }
+            await pc.setRemoteDescription({ type: 'offer', sdp: session.webrtcOfferSdp });
+            const answer = await pc.createAnswer();
+            await pc.setLocalDescription(answer);
+            await new Promise(resolve => {
+              if (pc.iceGatheringState === 'complete') return resolve();
+              pc.onicegatheringstatechange = () => { if (pc.iceGatheringState === 'complete') resolve(); };
+              setTimeout(resolve, 3000);
+            });
+            await base44.functions.invoke('managerCallControl', { action: 'sendAnswer', managerUsername: coachUser.username, dialerUsername: coachUser.username, answerSdp: pc.localDescription.sdp });
+          } catch (e) {
+            try { monitorPcRef.current?.close(); } catch {}
+            monitorPcRef.current = null;
+          }
+        }
+        // Close peer connection when monitoring stops
+        if (session.monitorMode === 'none' && monitorPcRef.current) {
+          try { monitorPcRef.current.close(); } catch {}
+          monitorPcRef.current = null;
+        }
+      } catch {}
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [phase, coachUser?.username]);
 
   // ── Audio Test — level meters for both inputs ──────────────────────────
   const startAudioTest = useCallback(async () => {

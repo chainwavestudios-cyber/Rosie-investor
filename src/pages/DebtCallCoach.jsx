@@ -3,7 +3,7 @@
  * Tabs: Live Call (headset coaching + lead card) | Knowledge Base | User Profiles.
  */
 import { useState } from 'react';
-import { Navigate } from 'react-router-dom';
+import { Navigate, useNavigate } from 'react-router-dom';
 import { useDebtCoachAuth } from '@/lib/DebtCoachAuthContext';
 import DebtLiveCall from '@/components/debt/DebtLiveCall';
 import DebtCoachAdminPanel from '@/components/debt/DebtCoachAdminPanel';
@@ -24,6 +24,7 @@ export default function DebtCallCoach() {
   const { user, loading, isAuthenticated, logout, isDialer, isAdmin, isManager, canManage, mustResetPassword } = useDebtCoachAuth();
   const [tab, setTab] = useState('live');
   const [timerLead, setTimerLead] = useState(null);
+  const navigate = useNavigate();
 
   if (loading) return (
     <div style={{ fontFamily: 'Georgia, serif', minHeight: '100vh', background: DARK, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -61,6 +62,9 @@ export default function DebtCallCoach() {
             <span style={{ color: '#e8e0d0', fontSize: '13px', fontWeight: 'bold' }}>{user?.username}</span>
             <span style={{ marginLeft: '8px', padding: '2px 8px', borderRadius: '2px', background: 'rgba(16,185,129,0.15)', color: GOLD, fontSize: '9px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '1px' }}>{user?.role === 'super_admin' ? 'Super Admin' : user?.role === 'admin' ? 'Admin' : user?.role === 'manager' ? 'Manager' : 'Dialer'}</span>
           </div>
+          {(isAdmin || isManager) && (
+            <button onClick={() => navigate('/manager-portal')} style={{ background: 'linear-gradient(135deg,#10b981,#22c55e)', color: DARK, border: 'none', borderRadius: '4px', padding: '6px 14px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase' }}>🎛️ Manager Portal</button>
+          )}
           <button onClick={logout} style={{ background: 'rgba(255,255,255,0.05)', color: '#8a9ab8', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '4px', padding: '6px 14px', cursor: 'pointer', fontSize: '11px' }}>Logout</button>
         </div>
       </div>
