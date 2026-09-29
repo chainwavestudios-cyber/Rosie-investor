@@ -357,11 +357,11 @@ ${recentText}`,
       const mergedBills = { ...existingBills };
       let hasNew = false;
       for (const [k, v] of Object.entries(extractedBills)) {
-        if (v && v > 0 && !existingBills[k]) { mergedBills[k] = v; hasNew = true; }
+        if (v && v > 0) { mergedBills[k] = v; hasNew = true; }
       }
       const updates = {};
       if (hasNew) updates.billsJson = JSON.stringify(mergedBills);
-      if (extractedIncome && !leadRef.current.monthlyIncome) updates.monthlyIncome = extractedIncome;
+      if (extractedIncome) updates.monthlyIncome = extractedIncome;
       if (Object.keys(updates).length > 0) {
         setLead(prev => ({ ...prev, ...updates }));
         if (leadRef.current.id) base44.entities.DebtLead.update(leadRef.current.id, updates).catch(() => {});
@@ -377,9 +377,9 @@ ${recentText}`,
       const hardship = res?.hardship || res?.data?.hardship;
       if (hardship) {
         const updates = {};
-        if (hardship.when && !leadRef.current.hardshipWhen) updates.hardshipWhen = hardship.when;
-        if (hardship.why && !leadRef.current.hardshipWhy) updates.hardshipWhy = hardship.why;
-        if (hardship.how && !leadRef.current.hardshipHow) updates.hardshipHow = hardship.how;
+        if (hardship.when) updates.hardshipWhen = hardship.when;
+        if (hardship.why) updates.hardshipWhy = hardship.why;
+        if (hardship.how) updates.hardshipHow = hardship.how;
         if (Object.keys(updates).length > 0) {
           setLead(prev => ({ ...prev, ...updates }));
           if (leadRef.current.id) base44.entities.DebtLead.update(leadRef.current.id, updates).catch(() => {});
@@ -408,7 +408,7 @@ ${recentText}`,
     } catch {}
   }, [coachUser, callMode]);
 
-  // Auto-extract contact info (phone, address, email) from transcript
+  // Auto-extract customer info (name, phone, address, email, debt amount) from transcript
   const handleContactExtract = useCallback(async () => {
     if (!leadRef.current?.id || transcriptRef.current.length < 4) return;
     try {
@@ -416,15 +416,21 @@ ${recentText}`,
       const contact = res?.contact || res?.data?.contact;
       if (contact) {
         const updates = {};
-        if (contact.phone && !leadRef.current.phone) updates.phone = contact.phone;
-        if (contact.email && !leadRef.current.email) updates.email = contact.email;
-        if (contact.address && !leadRef.current.address) updates.address = contact.address;
-        if (contact.city && !leadRef.current.city) updates.city = contact.city;
-        if (contact.state && !leadRef.current.state) updates.state = contact.state;
-        if (contact.zip && !leadRef.current.zip) updates.zip = contact.zip;
+        // Always update with the latest confirmed value — customer may correct info mid-call
+        if (contact.firstName) updates.firstName = contact.firstName;
+        if (contact.lastName) updates.lastName = contact.lastName;
+        if (contact.phone) updates.phone = contact.phone;
+        if (contact.email) updates.email = contact.email;
+        if (contact.address) updates.address = contact.address;
+        if (contact.city) updates.city = contact.city;
+        if (contact.state) updates.state = contact.state;
+        if (contact.zip) updates.zip = contact.zip;
+        if (contact.debtAmount) updates.debtAmount = Number(contact.debtAmount) || contact.debtAmount;
         if (Object.keys(updates).length > 0) {
           setLead(prev => ({ ...prev, ...updates }));
           if (leadRef.current.id) base44.entities.DebtLead.update(leadRef.current.id, updates).catch(() => {});
+          // Notify the lead card to flash the updated fields
+          window.dispatchEvent(new CustomEvent('lead_autosaved', { detail: Object.keys(updates) }));
         }
       }
     } catch {}

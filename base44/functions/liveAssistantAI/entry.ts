@@ -447,7 +447,7 @@ ${recentText}`,
       }
     }
 
-    // ── CONTACT INFO EXTRACTION ───────────────────────────────────────
+    // ── CUSTOMER INFO EXTRACTION (name, contact, debt amount) ────────
     if (mode === 'contact') {
       const recentText = (transcript || []).slice(-15).map((t: any) => t.text).join(' ');
       const res = await fetch('https://api.anthropic.com/v1/messages', {
@@ -455,22 +455,27 @@ ${recentText}`,
         headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_KEY, 'anthropic-version': '2023-06-01' },
         body: JSON.stringify({
           model: 'claude-haiku-4-5-20251001',
-          max_tokens: 400,
-          system: `You are analyzing a live debt settlement call transcript. Extract any contact information the customer provides when the agent asks for or verifies it.
+          max_tokens: 500,
+          system: `You are analyzing a LIVE debt settlement call transcript. Extract customer information that the CUSTOMER explicitly states or confirms. Only extract what the CUSTOMER says — NOT what the agent says or reads.
 
 Look for:
-- phone: Phone number (when agent asks "what's your phone number" or "can you verify your phone number")
+- firstName: Customer's first name (when they say "My name is John Smith" or "Yes, this is John" or "It's John")
+- lastName: Customer's last name
+- phone: Phone number (when customer states or confirms their number)
 - email: Email address
 - address: Street address
 - city: City
 - state: State
 - zip: Zip code
+- debtAmount: Total debt amount (when customer confirms "I owe about $25,000" or "My total debt is around 15,000 dollars") — number only, no $ sign
 
-Return JSON. Only include fields that are explicitly mentioned — do NOT make up data. If nothing new is mentioned, return empty object.
+CRITICAL: Only extract values the CUSTOMER actually says. If the agent says "Is your name John Smith?" and the customer says "Yes", extract firstName=John, lastName=Smith. If the customer says nothing or doesn't confirm, do NOT extract.
+
+Return JSON. Only include fields the customer explicitly mentions or confirms — do NOT make up data. If nothing new is mentioned, return empty object.
 
 Transcript:
 ${recentText}`,
-          messages: [{ role: 'user', content: 'Extract contact details:' }],
+          messages: [{ role: 'user', content: 'Extract customer details:' }],
         }),
       });
       const data = await res.json();
