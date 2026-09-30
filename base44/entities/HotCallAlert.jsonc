@@ -1,0 +1,85 @@
+{
+  "name": "HotCallAlert",
+  "type": "object",
+  "properties": {
+    "sessionId": {
+      "type": "string",
+      "title": "Dialer Session ID"
+    },
+    "dialerUsername": {
+      "type": "string",
+      "title": "Dialer Username"
+    },
+    "leadId": {
+      "type": "string",
+      "title": "Lead ID"
+    },
+    "leadName": {
+      "type": "string",
+      "title": "Lead Name"
+    },
+    "callMode": {
+      "type": "string",
+      "title": "Call Mode",
+      "enum": [
+        "open",
+        "close"
+      ],
+      "default": "open"
+    },
+    "status": {
+      "type": "string",
+      "title": "Status",
+      "enum": [
+        "monitoring",
+        "hot",
+        "critical",
+        "cold",
+        "resolved"
+      ],
+      "default": "monitoring"
+    },
+    "hotScore": {
+      "type": "number",
+      "title": "Hot Score (0-100)"
+    },
+    "hotReason": {
+      "type": "string",
+      "title": "Hot Reason"
+    },
+    "agentScore": {
+      "type": "number",
+      "title": "Agent Performance Score (0-100)"
+    },
+    "agentIssuesJson": {
+      "type": "string",
+      "title": "Agent Issues (JSON array)",
+      "format": "textarea"
+    },
+    "agentSummary": {
+      "type": "string",
+      "title": "Agent Performance Summary",
+      "format": "textarea"
+    },
+    "criticalAlert": {
+      "type": "boolean",
+      "title": "Critical Alert",
+      "default": false
+    },
+    "resolvedAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Resolved At"
+    }
+  },
+  "required": [
+    "dialerUsername",
+    "status"
+  ],
+  "rls": {
+    "create": null,
+    "read": null,
+    "update": null,
+    "delete": null
+  }
+}

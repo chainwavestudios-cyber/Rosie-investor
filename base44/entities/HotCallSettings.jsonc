@@ -1,0 +1,39 @@
+{
+  "name": "HotCallSettings",
+  "type": "object",
+  "properties": {
+    "enabled": {
+      "type": "boolean",
+      "title": "Hot Call AI Enabled",
+      "default": false
+    },
+    "applyToAll": {
+      "type": "boolean",
+      "title": "Apply to All Dialers",
+      "default": true
+    },
+    "enabledUsernamesJson": {
+      "type": "string",
+      "title": "Enabled Usernames (JSON array)",
+      "format": "textarea"
+    },
+    "enabledBy": {
+      "type": "string",
+      "title": "Enabled By (username)"
+    },
+    "enabledAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Enabled At"
+    }
+  },
+  "required": [
+    "enabled"
+  ],
+  "rls": {
+    "create": null,
+    "read": null,
+    "update": null,
+    "delete": null
+  }
+}

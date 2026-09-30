@@ -14,6 +14,7 @@ import DebtUserProfile from '@/components/debt/DebtUserProfile';
 import DebtPitchTab from '@/components/debt/DebtPitchTab';
 import DebtBobTrainer from '@/components/debt/DebtBobTrainer';
 import CallsTab from '@/components/debt/CallsTab';
+import HotCallAnalytics from '@/components/debt/HotCallAnalytics';
 import CompliancePortal from '@/pages/CompliancePortal';
 import WCRChecklist from '@/components/debt/WCRChecklist';
 import ProfileTimerWatcher from '@/components/debt/ProfileTimerWatcher';
@@ -45,6 +46,7 @@ export default function DebtCallCoach() {
     { id: 'kb', label: '🧠 Knowledge Base' },
     ...(isDialerRole ? [] : [{ id: 'kbchat', label: '💬 AI KB Chat' }]),
     { id: 'profile', label: '👤 User Profiles' },
+    ...(isDialerRole ? [{ id: 'stats', label: '📊 My Stats' }] : []),
     ...(isSuperManager ? [{ id: 'compliance', label: '🛡 Compliance' }] : []),
     ...(isAdmin ? [{ id: 'admin', label: '⚙️ Admin' }] : []),
   ];
@@ -88,6 +90,7 @@ export default function DebtCallCoach() {
       {tab === 'kb' && <DebtKBManager readOnly={isDialerRole} />}
       {tab === 'kbchat' && <DebtKBChat />}
       {tab === 'profile' && <DebtUserProfile debtCoachUser={user} />}
+      {tab === 'stats' && <HotCallAnalytics />}
       {tab === 'compliance' && <CompliancePortal onBack={() => setTab('live')} />}
       {tab === 'admin' && isAdmin && <DebtCoachAdminPanel />}
 

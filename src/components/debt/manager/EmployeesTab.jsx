@@ -11,7 +11,7 @@ const GOLD = '#10b981';
 const ROLE_COLORS = { admin: '#60a5fa', super_manager: '#34d399', manager: '#a78bfa', dialer: '#f59e0b' };
 const ROLE_ORDER = { admin: 0, super_manager: 1, manager: 2, dialer: 3 };
 
-export default function EmployeesTab({ managerUsername, managerRole }) {
+export default function EmployeesTab({ managerUsername, managerRole, autoSelectUsername }) {
   const { user } = useDebtCoachAuth();
   const [employees, setEmployees] = useState([]);
   const [sessions, setSessions] = useState([]);
@@ -39,6 +39,14 @@ export default function EmployeesTab({ managerUsername, managerRole }) {
     const interval = setInterval(load, 5000);
     return () => clearInterval(interval);
   }, [load]);
+
+  // Auto-select a dialer (e.g., when jumping from a hot-call alert popup)
+  useEffect(() => {
+    if (autoSelectUsername && employees.length) {
+      const found = employees.find(e => e.username === autoSelectUsername);
+      if (found) setSelected(found);
+    }
+  }, [autoSelectUsername, employees]);
 
   const getSession = (username) => sessions.find(s => s.username === username && (s.status === 'logged_in' || s.status === 'on_call'));
 

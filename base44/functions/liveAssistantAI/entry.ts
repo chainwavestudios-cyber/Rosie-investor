@@ -849,6 +849,62 @@ Keep it concise — the agent reads this right before dialing. Use bullet points
       return Response.json({ answer: data?.content?.[0]?.text || 'No additional information found.', source: 'kb' });
     }
 
+    // ── HOT CALL TRACKER (turbo intent + agent performance) ─────────
+    if (mode === 'hot_call_check') {
+      const allLines = transcript || [];
+      const recentLines = allLines.slice(-24);
+      const prospectEntries = allLines.filter((t: any) => t.speaker === 1 || t.speaker === null || t.speaker === undefined);
+      const agentEntries = allLines.filter((t: any) => t.speaker === 0);
+      const prospectWords = prospectEntries.reduce((s: number, t: any) => s + (t.text || '').split(/\s+/).filter((w: string) => w.length > 0).length, 0);
+      const agentWords = agentEntries.reduce((s: number, t: any) => s + (t.text || '').split(/\s+/).filter((w: string) => w.length > 0).length, 0);
+      const totalWords = prospectWords + agentWords;
+      const talkRatioProspect = totalWords > 0 ? Math.round((prospectWords / totalWords) * 100) : 0;
+      const utterances = allLines.filter((t: any) => t.sentiment);
+      const posCount = utterances.filter((t: any) => t.sentiment === 'positive').length;
+      const negCount = utterances.filter((t: any) => t.sentiment === 'negative').length;
+      const prospectQs = (prospectEntries.map((t: any) => t.text || '').join(' ').match(/\?/g) || []).length;
+      const transcriptStr = recentLines.map((t: any) => `[${t.speaker === 0 ? 'AGENT' : 'CUSTOMER'}]: ${t.text}`).join('\n');
+      const priorStatus = body.priorStatus || 'unknown';
+
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_KEY, 'anthropic-version': '2023-06-01' },
+        body: JSON.stringify({
+          model: 'claude-haiku-4-5-20251001',
+          max_tokens: 600,
+          system: `You are a HOT CALL detection engine for a debt settlement sales call — a "turbo" intent engine. A HOT CALL is a prospect showing GENUINE INTEREST: heavily engaged, asking good buying questions, eager to participate, or open to hearing about the program.
+
+COMPUTED METRICS:
+- Talk ratio (prospect): ${talkRatioProspect}% (${prospectWords} prospect words vs ${agentWords} agent words)
+- Sentiment: ${posCount} positive, ${negCount} negative utterances
+- Prospect questions asked: ${prospectQs}
+- Total lines: ${allLines.length}
+- Call duration so far: ${body.callDurationSeconds || 0}s
+- Prior status this call: ${priorStatus}
+
+TASKS:
+1. HOT DETECTION: isHot (bool), hotScore 0-100, hotReason (1 sentence), hotConfidence 0-100.
+   HOT signals: buying questions ("how do I sign up","what's the minimum","what do I need to do","tell me more"), positive/eager tone, agreeing, asking about next steps, mentioning they want to move forward, engaged follow-ups.
+   COLD signals: "not interested","don't call me","take me off your list","not right now", silence, combative/negative, very short dismissive answers.
+2. STOP MONITORING: set stopMonitoring=true if the call is CLEARLY NOT hot (hotScore < 25) AND enough has happened (duration > 45s OR 10+ lines). This saves AI credits. Once a call has been hot, NEVER set stopMonitoring.
+3. AGENT PERFORMANCE (assess always, but it only matters when isHot): agentScore 0-100, confident (bool — sounds nervous/hesitant/unsure vs in control), answeringQuestions (bool — fully answering vs deflecting/stumbling), issues (array of short strings e.g. "sounds nervous","gave incomplete answer","talking too much","missed buying signal"), summary (1 sentence).
+4. CRITICAL: true if isHot AND agentScore < 50 (a hot call the agent is blowing).
+
+Return ONLY this JSON (no markdown):
+{"isHot":false,"hotScore":0,"hotReason":"","hotConfidence":0,"stopMonitoring":false,"agentPerformance":{"score":0,"confident":true,"answeringQuestions":true,"issues":[],"summary":""},"critical":false}`,
+          messages: [{ role: 'user', content: `Recent transcript:\n${transcriptStr.slice(0, 4000)}` }],
+        }),
+      });
+      const data = await res.json();
+      const text = data?.content?.[0]?.text || '{}';
+      try {
+        const result = JSON.parse(text.replace(/```json|```/g, '').trim());
+        return Response.json({ hot: result });
+      } catch {
+        return Response.json({ hot: null });
+      }
+    }
+
     // ── Q&A (default) — try direct hit first, AI only if needed ──────
     const q = question || recentTranscript;
 

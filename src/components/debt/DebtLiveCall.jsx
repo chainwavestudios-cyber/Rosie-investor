@@ -15,6 +15,7 @@ import LiveComplianceWidget from '@/components/compliance/LiveComplianceWidget';
 import CustomerStatsPopup from '@/components/debt/CustomerStatsPopup';
 import NextCallBriefing from '@/components/debt/NextCallBriefing';
 import { usePopOutPanel } from '@/hooks/usePopOutPanel';
+import { useHotCallTracker } from '@/hooks/useHotCallTracker';
 import { useDebtCoachAuth } from '@/lib/DebtCoachAuthContext';
 
 const GOLD = '#10b981';
@@ -74,6 +75,11 @@ export default function DebtLiveCall() {
   const aiPanel = usePopOutPanel('live_ai_panel', { width: 420, height: 600 });
   const [allPoppedOut, setAllPoppedOut] = useState(false);
   const [layoutSavedMsg, setLayoutSavedMsg] = useState(false);
+
+  // 🔥 Hot Call Tracker — turbo intent engine; writes HotCallAlerts for the manager portal
+  const { hotStatus, hotScore, agentScore } = useHotCallTracker({
+    isActive: phase === 'live', lead, transcript, callMode, coachUser,
+  });
 
   // Click 💡 on a transcript line → send to Q&A
   const handleAnswerQuestion = useCallback((text) => {
@@ -1044,6 +1050,22 @@ ${recentText}`,
       {phase === 'live' && coachUser?.username && (
         <div style={{ marginBottom: '12px' }}>
           <LiveComplianceWidget username={coachUser.username} isActive={phase === 'live'} />
+        </div>
+      )}
+
+      {phase === 'live' && hotStatus !== 'off' && (
+        <div style={{ marginBottom: '12px' }}>
+          <span style={{ padding: '6px 14px', borderRadius: '20px', display: 'inline-flex', alignItems: 'center', gap: '8px',
+            background: hotStatus === 'critical' ? 'rgba(239,68,68,0.15)' : hotStatus === 'hot' ? 'rgba(245,158,11,0.15)' : hotStatus === 'cold' ? 'rgba(107,114,128,0.1)' : 'rgba(96,165,250,0.1)',
+            border: `1px solid ${hotStatus === 'critical' ? 'rgba(239,68,68,0.4)' : hotStatus === 'hot' ? 'rgba(245,158,11,0.4)' : hotStatus === 'cold' ? 'rgba(107,114,128,0.3)' : 'rgba(96,165,250,0.3)'}`,
+            color: hotStatus === 'critical' ? '#ef4444' : hotStatus === 'hot' ? '#f59e0b' : hotStatus === 'cold' ? '#6b7280' : '#60a5fa',
+            fontSize: '11px', fontWeight: 'bold' }}>
+            <div style={{ width: '8px', height: '8px', borderRadius: '50%',
+              background: hotStatus === 'critical' ? '#ef4444' : hotStatus === 'hot' ? '#f59e0b' : hotStatus === 'cold' ? '#6b7280' : '#60a5fa',
+              animation: (hotStatus === 'hot' || hotStatus === 'critical') ? 'pulse 1s infinite' : 'none' }} />
+            🔥 Hot Call Tracker: {hotStatus === 'critical' ? 'CRITICAL — agent struggling' : hotStatus === 'hot' ? 'HOT CALL' : hotStatus === 'cold' ? 'Cold — monitoring stopped (saving credits)' : 'Monitoring…'}
+            {hotScore != null && ` · ${hotScore}/100`}{agentScore != null && hotStatus !== 'cold' && ` · Agent ${agentScore}/100`}
+          </span>
         </div>
       )}
 

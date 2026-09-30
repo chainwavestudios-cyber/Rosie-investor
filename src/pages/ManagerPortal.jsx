@@ -9,6 +9,8 @@ import ComplianceAdminTab from '@/components/compliance/ComplianceAdminTab';
 import MyComplianceTab from '@/components/compliance/MyComplianceTab';
 import ComplianceToast from '@/components/compliance/ComplianceToast';
 import ComplianceContactCard from '@/components/compliance/ComplianceContactCard';
+import HotCallAlertsPopup from '@/components/debt/manager/HotCallAlertsPopup';
+import HotCallSettingsPanel from '@/components/debt/manager/HotCallSettingsPanel';
 
 const GOLD = '#10b981';
 const DARK = '#0a0f1e';
@@ -17,6 +19,7 @@ export default function ManagerPortal() {
   const { user, loading, isAuthenticated, isAdmin, isManager, isSuperManager, logout } = useDebtCoachAuth();
   const [tab, setTab] = useState('employees');
   const [inspectRecord, setInspectRecord] = useState(null);
+  const [autoSelectUsername, setAutoSelectUsername] = useState(null);
   const navigate = useNavigate();
 
   if (loading) return (
@@ -32,6 +35,7 @@ export default function ManagerPortal() {
 
   const TABS = [
     { id: 'employees', label: '👥 Employees' },
+    { id: 'hotcall', label: '🔥 Hot Call AI' },
     { id: 'transcripts', label: '📝 Transcripts' },
     ...(canMonitor ? [{ id: 'compliance_monitor', label: '🛡 Compliance Monitor' }] : []),
     ...(canMonitor ? [{ id: 'compliance_my', label: '🛡 My Compliance' }] : []),
@@ -65,12 +69,14 @@ export default function ManagerPortal() {
         ))}
       </div>
 
-      {tab === 'employees' && <EmployeesTab managerUsername={user?.username} managerRole={user?.role} />}
+      {tab === 'employees' && <EmployeesTab managerUsername={user?.username} managerRole={user?.role} autoSelectUsername={autoSelectUsername} />}
+      {tab === 'hotcall' && <HotCallSettingsPanel managerUsername={user?.username} />}
       {tab === 'transcripts' && <ManagerTranscriptTab />}
       {tab === 'compliance_monitor' && <ComplianceMonitorTab />}
       {tab === 'compliance_my' && <MyComplianceTab />}
       {tab === 'compliance_admin' && <ComplianceAdminTab />}
 
+      <HotCallAlertsPopup onInspectDialer={(u) => { setAutoSelectUsername(u); setTab('employees'); }} />
       <ComplianceToast onInspect={(id) => setInspectRecord(id)} />
       {inspectRecord && <ComplianceContactCard recordId={inspectRecord} onClose={() => setInspectRecord(null)} />}
     </div>
