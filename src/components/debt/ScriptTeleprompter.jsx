@@ -6,6 +6,7 @@
  * Used in the Scripts tab by both Live Call and BOB Training (via MyScriptsTab).
  */
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { renderFormatted, stripFormatTags } from '@/components/debt/ScriptRichText';
 
 const GOLD = '#10b981';
 
@@ -29,10 +30,11 @@ export function parseScriptElements(content) {
   const elements = [];
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
-    const m = line.match(CUE_REGEX);
+    const stripped = stripFormatTags(line).trim();
+    const m = stripped.match(CUE_REGEX);
     if (m) {
       elements.push({ id: `cue-${i}`, type: 'cue_block', category: m[1], content: m[2], origLine: i });
-    } else if (line.trim() === '') {
+    } else if (stripped === '') {
       continue;
     } else {
       elements.push({ id: `script-${i}`, type: 'script', content: line, origLine: i });
@@ -52,7 +54,7 @@ const STOP_WORDS = new Set([
 ]);
 
 function keyWords(text) {
-  return text.toLowerCase().replace(/[^\w\s]/g, '').split(/\s+/).filter(w => w.length > 2 && !STOP_WORDS.has(w));
+  return stripFormatTags(text).toLowerCase().replace(/[^\w\s]/g, '').split(/\s+/).filter(w => w.length > 2 && !STOP_WORDS.has(w));
 }
 
 /** Returns 0–1 overlap ratio between spoken text and target script line. */
@@ -157,7 +159,7 @@ export default function ScriptTeleprompter({ content, color = '#e8e0d0', fontSiz
 
   // Get the first N significant (non-stop-word) words from a line, lowercased
   const firstContentWords = useCallback((text, count = 2) => {
-    const words = (text || '').toLowerCase().replace(/[^\w\s]/g, '').split(/\s+/);
+    const words = stripFormatTags(text || '').toLowerCase().replace(/[^\w\s]/g, '').split(/\s+/);
     const result = [];
     for (const w of words) {
       if (w.length > 1 && !STOP_WORDS.has(w)) {
@@ -342,7 +344,7 @@ export default function ScriptTeleprompter({ content, color = '#e8e0d0', fontSiz
                 whiteSpace: 'pre-wrap',
               }}
             >
-              {el.content}
+              {renderFormatted(el.content)}
             </div>
           );
         })}

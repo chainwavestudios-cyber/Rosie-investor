@@ -5,6 +5,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { base44 } from '@/api/base44Client';
 import ScriptTeleprompter, { CUE_CATEGORIES } from '@/components/debt/ScriptTeleprompter';
+import ScriptFormatToolbar from '@/components/debt/ScriptFormatToolbar';
 
 const GOLD = '#10b981';
 const DARK = '#0a0f1e';
@@ -252,12 +253,16 @@ function MyScriptsTab({ liveTranscript, phase, clientFirstName, clientLastName }
                   <button key={key} onClick={() => insertCueAtCursor(key)} style={{ padding: '4px 10px', borderRadius: '4px', border: `1px solid ${cat.color}44`, background: `${cat.color}12`, color: cat.color, cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>{cat.icon} {cat.label}</button>
                 ))}
               </div>
+              {/* Inline formatting toolbar */}
+              <div style={{ marginBottom: '8px', flexShrink: 0 }}>
+                <ScriptFormatToolbar textareaRef={textareaRef} value={active.content || ''} onChange={v => updateAndSave({ content: v })} />
+              </div>
               {/* Editor textarea */}
               <textarea
                 ref={textareaRef}
                 value={active.content || ''}
                 onChange={e => updateAndSave({ content: e.target.value })}
-                placeholder="Type your script here… Use {{firstname}} or {{lastname}} for auto-insertion. Use cue block buttons above to add non-spoken annotations."
+                placeholder="Type your script here… Use {{firstname}} or {{lastname}} for auto-insertion. Highlight text and use the toolbar to color, bold, italicize, resize, or highlight it. Use cue block buttons above to add non-spoken annotations."
                 style={{
                   flex: 1, width: '100%', background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.08)',
                   borderRadius: '4px', padding: '16px', color: active.color || '#e8e0d0',
@@ -267,6 +272,7 @@ function MyScriptsTab({ liveTranscript, phase, clientFirstName, clientLastName }
               />
               <div style={{ marginTop: '6px', color: '#4a5568', fontSize: '10px', flexShrink: 0 }}>
                 Tokens: <span style={{ color: GOLD, fontFamily: 'monospace' }}>{'{{firstname}}'}</span> · <span style={{ color: GOLD, fontFamily: 'monospace' }}>{'{{lastname}}'}</span>
+                <span style={{ marginLeft: '12px' }}>Format: <span style={{ color: '#a78bfa', fontFamily: 'monospace' }}>[b]..[/b] [i]..[/i] [c=#hex]..[/c] [bg=#hex]..[/bg] [s=18]..[/s] [f=Arial]..[/f]</span></span>
                 <span style={{ marginLeft: '12px' }}>Cue: <span style={{ color: '#60a5fa', fontFamily: 'monospace' }}>@@CUE:reminder:text@@</span></span>
               </div>
             </>
