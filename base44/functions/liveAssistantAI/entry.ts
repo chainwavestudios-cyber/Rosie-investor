@@ -888,7 +888,7 @@ TASKS:
    COLD signals: "not interested","don't call me","take me off your list","not right now", silence, combative/negative, very short dismissive answers.
 2. STOP MONITORING: set stopMonitoring=true if the call is CLEARLY NOT hot (hotScore < 25) AND enough has happened (duration > 45s OR 10+ lines). This saves AI credits. Once a call has been hot, NEVER set stopMonitoring.
 3. AGENT PERFORMANCE (assess always, but it only matters when isHot): agentScore 0-100, confident (bool — sounds nervous/hesitant/unsure vs in control), answeringQuestions (bool — fully answering vs deflecting/stumbling), issues (array of short strings e.g. "sounds nervous","gave incomplete answer","talking too much","missed buying signal"), summary (1 sentence).
-4. CRITICAL: true if isHot AND agentScore < 50 (a hot call the agent is blowing).
+4. CRITICAL: true if isHot AND the agent is underperforming — agentScore < 60, OR not confident, OR not answeringQuestions fully. A hot prospect being mishandled by a nervous/hesitant agent is critical.
 
 Return ONLY this JSON (no markdown):
 {"isHot":false,"hotScore":0,"hotReason":"","hotConfidence":0,"stopMonitoring":false,"agentPerformance":{"score":0,"confident":true,"answeringQuestions":true,"issues":[],"summary":""},"critical":false}`,
