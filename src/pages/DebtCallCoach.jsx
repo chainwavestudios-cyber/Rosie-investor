@@ -16,6 +16,8 @@ import DebtBobTrainer from '@/components/debt/DebtBobTrainer';
 import CallsTab from '@/components/debt/CallsTab';
 import HotCallAnalytics from '@/components/debt/HotCallAnalytics';
 import LeadGenTab from '@/components/debt/LeadGenTab';
+import NewLeadsTab from '@/components/debt/NewLeadsTab';
+import LeadAssignmentPopup from '@/components/debt/LeadAssignmentPopup';
 import CompliancePortal from '@/pages/CompliancePortal';
 import WCRChecklist from '@/components/debt/WCRChecklist';
 import ProfileTimerWatcher from '@/components/debt/ProfileTimerWatcher';
@@ -42,7 +44,8 @@ export default function DebtCallCoach() {
   const TABS = [
     { id: 'live', label: '📞 Live Call' },
     { id: 'calls', label: '📋 Calls' },
-    { id: 'leadgen', label: '🎯 Lead Gen' },
+    ...(isAdmin ? [{ id: 'leadgen', label: '🎯 Lead Gen' }] : []),
+    { id: 'newleads', label: '📥 New Leads' },
     { id: 'bob', label: '🤖 BOB Training' },
     { id: 'pitches', label: '🎤 Pitches' },
     { id: 'kb', label: '🧠 Knowledge Base' },
@@ -83,6 +86,7 @@ export default function DebtCallCoach() {
       {tab === 'live' && <DebtLiveCall debtCoachUser={user} />}
       {tab === 'calls' && <CallsTab />}
       {tab === 'leadgen' && <LeadGenTab />}
+      {tab === 'newleads' && <NewLeadsTab />}
       {tab === 'bob' && <DebtBobTrainer debtCoachUser={user} />}
       {tab === 'pitches' && <DebtPitchTab canDelete={!isDialerRole} />}
       {tab === 'kb' && <DebtKBManager readOnly={isDialerRole} />}
@@ -102,6 +106,9 @@ export default function DebtCallCoach() {
       {timerLead && (
         <ClientProfileModal lead={timerLead} onClose={() => setTimerLead(null)} onSave={() => {}} />
       )}
+
+      {/* Popup notification when a new lead is assigned to this user */}
+      <LeadAssignmentPopup onGoToLeads={() => setTab('newleads')} />
     </div>
   );
 }

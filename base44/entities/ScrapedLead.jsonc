@@ -91,11 +91,25 @@
         "raw",
         "enriching",
         "enriched",
+        "assigned",
         "pushed",
         "rejected",
         "duplicate"
       ],
       "default": "raw"
+    },
+    "assignedTo": {
+      "type": "string",
+      "title": "Assigned To (employee username)"
+    },
+    "assignedAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Assigned At"
+    },
+    "assignedBy": {
+      "type": "string",
+      "title": "Assigned By (admin username)"
     },
     "resolvedFullName": {
       "type": "string",

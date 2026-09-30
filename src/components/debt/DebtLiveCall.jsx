@@ -779,6 +779,32 @@ ${recentText}`,
           animalType: intent?.animalType,
         });
 
+        // Log call + AI synopsis to activity history
+        try {
+          const actLeadName = `${leadRef.current.firstName || ''} ${leadRef.current.lastName || ''}`.trim();
+          const actAgentId = coachUser?.username || '';
+          const durationMin = callStartRef.current ? Math.round((Date.now() - callStartRef.current.getTime()) / 60000) : 0;
+          await base44.entities.DebtLeadActivity.create({
+            leadId: leadRef.current.id,
+            leadName: actLeadName,
+            activityType: 'call',
+            activityText: `${callMode === 'close' ? 'Close' : 'Open'} call — ${durationMin} min, ${transcriptRef.current.length} lines${intent?.intentScore != null ? `, intent ${intent.intentScore}/100` : ''}`,
+            createdBy: actAgentId,
+            metadataJson: JSON.stringify({ durationMin, mode: callMode, intentScore: intent?.intentScore, animalType: intent?.animalType }),
+          });
+          // AI synopsis — 1-2 sentence summary of the intent report
+          if (intent?.report) {
+            const synopsis = intent.report.split(/[.!?]/).filter(s => s.trim()).slice(0, 2).join('. ').trim() + '.';
+            await base44.entities.DebtLeadActivity.create({
+              leadId: leadRef.current.id,
+              leadName: actLeadName,
+              activityType: 'ai_synopsis',
+              activityText: synopsis,
+              createdBy: actAgentId,
+            });
+          }
+        } catch {}
+
         // Also run dedicated fact extraction for any memories the intent engine missed
         try {
           const existingFactTexts = (await base44.entities.LeadMemory.filter({ leadId: leadRef.current.id }, '-created_date', 200)).map(m => (m.factText || '').toLowerCase());

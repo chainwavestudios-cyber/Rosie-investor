@@ -5,6 +5,7 @@
 import { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import ClientProfileModal from '@/components/debt/ClientProfileModal';
+import LeadActivityTab from '@/components/debt/LeadActivityTab';
 
 const GOLD = '#10b981';
 const ls = { display: 'block', color: '#8a9ab8', fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '6px' };
@@ -46,7 +47,7 @@ export default function DebtLeadCard({ lead, onLeadChange, transcript, intentSco
     setSaving(false);
   };
 
-  const CARD_TABS = [['overview', 'Overview'], ['transcript', '📋 Transcript'], ['debt', 'Debt Details'], ['ledger', '💳 Debt Ledger'], ['employment', 'Employment'], ['notes', 'Notes'], ['ai', '🤖 AI Profile']];
+  const CARD_TABS = [['activity', '📋 Activity'], ['overview', 'Overview'], ['transcript', '📋 Transcript'], ['debt', 'Debt Details'], ['ledger', '💳 Debt Ledger'], ['employment', 'Employment'], ['notes', 'Notes'], ['ai', '🤖 AI Profile']];
 
   return (
     <div style={{ background: '#0d1b2a', border: '1px solid rgba(16,185,129,0.3)', borderRadius: '6px', display: 'flex', flexDirection: 'column', height: '100%' }}>
@@ -82,6 +83,7 @@ export default function DebtLeadCard({ lead, onLeadChange, transcript, intentSco
       </div>
 
       <div style={{ flex: 1, overflowY: 'auto', padding: '16px 18px' }}>
+        {tab === 'activity' && <LeadActivityTab lead={lead} />}
         {tab === 'overview' && (
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
             <Field label="First Name" value={lead.firstName} onChange={v => update('firstName', v)} />

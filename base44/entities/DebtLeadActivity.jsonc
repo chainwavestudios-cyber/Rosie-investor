@@ -1,0 +1,52 @@
+{
+  "name": "DebtLeadActivity",
+  "type": "object",
+  "properties": {
+    "leadId": {
+      "type": "string",
+      "title": "Lead ID"
+    },
+    "leadName": {
+      "type": "string",
+      "title": "Lead Name (for display)"
+    },
+    "activityType": {
+      "type": "string",
+      "title": "Activity Type",
+      "enum": [
+        "note",
+        "call",
+        "ai_synopsis",
+        "status_change",
+        "calendar_event",
+        "lead_assigned"
+      ],
+      "default": "note"
+    },
+    "activityText": {
+      "type": "string",
+      "title": "Activity Text",
+      "format": "textarea"
+    },
+    "createdBy": {
+      "type": "string",
+      "title": "Created By (username)"
+    },
+    "metadataJson": {
+      "type": "string",
+      "title": "Metadata (JSON \u2014 call duration, calendar link, etc.)",
+      "format": "textarea"
+    }
+  },
+  "required": [
+    "leadId",
+    "activityType",
+    "activityText"
+  ],
+  "rls": {
+    "create": null,
+    "read": null,
+    "update": null,
+    "delete": null
+  }
+}

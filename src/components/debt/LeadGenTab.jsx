@@ -19,7 +19,7 @@ const inp = { width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px 
 
 const PLATFORM_COLORS = { reddit: '#ff4500', x_twitter: '#1d9bf0', facebook: '#1877f2', tiktok: '#000000', manual: '#6b7280' };
 const PLATFORM_LABELS = { reddit: 'Reddit', x_twitter: 'X/Twitter', facebook: 'Facebook', tiktok: 'TikTok', manual: 'Manual' };
-const STATUS_COLORS = { raw: '#6b7280', enriching: AMBER, enriched: GOLD, pushed: BLUE, rejected: RED, duplicate: '#4a5568' };
+const STATUS_COLORS = { raw: '#6b7280', enriching: AMBER, enriched: GOLD, assigned: AMBER, pushed: BLUE, rejected: RED, duplicate: '#4a5568' };
 const DISTRESS_COLORS = { A_screwed_drowning: RED, B_emotional_panic: AMBER, C_multicard_interest: PURPLE, none: '#4a5568' };
 const DISTRESS_LABELS = { A_screwed_drowning: 'A — Drowning', B_emotional_panic: 'B — Panic', C_multicard_interest: 'C — Overwhelm', none: 'None' };
 
@@ -39,6 +39,8 @@ export default function LeadGenTab() {
   const [selectedLead, setSelectedLead] = useState(null);
   const [testText, setTestText] = useState('');
   const [testResult, setTestResult] = useState(null);
+  const [employees, setEmployees] = useState([]);
+  const [assigningLeadId, setAssigningLeadId] = useState(null);
 
   const loadLeads = useCallback(async () => {
     setLoading(true);
@@ -50,6 +52,26 @@ export default function LeadGenTab() {
   }, []);
 
   useEffect(() => { loadLeads(); }, [loadLeads]);
+
+  // Load employees for assignment dropdown
+  useEffect(() => {
+    base44.entities.DebtCoachUser.list('-created_date', 200)
+      .then(all => setEmployees((all || []).filter(u => u.isActive !== false)))
+      .catch(() => {});
+  }, []);
+
+  const assignLead = async (leadId, username) => {
+    try {
+      await base44.entities.ScrapedLead.update(leadId, {
+        assignedTo: username,
+        assignedAt: new Date().toISOString(),
+        assignedBy: coachUser?.username || '',
+        status: 'assigned',
+      });
+      setAssigningLeadId(null);
+      loadLeads();
+    } catch (e) { setError('Assignment failed: ' + (e?.message || String(e))); }
+  };
 
   const runScraper = async () => {
     setScraping(true); setError(''); setScrapeResult(null);
@@ -216,6 +238,7 @@ export default function LeadGenTab() {
           <option value="raw">Raw</option>
           <option value="enriching">Enriching</option>
           <option value="enriched">Enriched</option>
+          <option value="assigned">Assigned</option>
           <option value="pushed">Pushed</option>
           <option value="rejected">Rejected</option>
         </select>
@@ -291,6 +314,7 @@ export default function LeadGenTab() {
                   </td>
                   <td style={{ padding: '10px 12px' }}>
                     <span style={{ padding: '2px 8px', borderRadius: '2px', background: `${STATUS_COLORS[lead.status] || '#6b7280'}22`, color: STATUS_COLORS[lead.status] || '#6b7280', fontSize: '10px', fontWeight: 'bold', textTransform: 'uppercase' }}>{lead.status}</span>
+                    {lead.assignedTo && <div style={{ color: AMBER, fontSize: '10px', marginTop: '2px' }}>👤 {lead.assignedTo}</div>}
                     {lead.identityMatchConfidence != null && <div style={{ color: lead.identityMatchConfidence >= 70 ? GOLD : '#6b7280', fontSize: '10px', marginTop: '2px' }}>{lead.identityMatchConfidence}% conf</div>}
                   </td>
                   <td style={{ padding: '10px 12px', maxWidth: '180px' }}>
@@ -306,8 +330,26 @@ export default function LeadGenTab() {
                       )}
                       {lead.status !== 'pushed' && (
                         <button onClick={() => pushToCampaign(lead)} disabled={pushing === lead.id} style={{ background: 'linear-gradient(135deg,#10b981,#22c55e)', color: DARK, border: 'none', borderRadius: '3px', padding: '4px 10px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold', opacity: pushing === lead.id ? 0.5 : 1 }}>
-                          {pushing === lead.id ? '⏳' : '→ Push to Campaign'}
+                          {pushing === lead.id ? '⏳' : '→ Push'}
                         </button>
+                      )}
+                      {lead.status !== 'pushed' && (
+                        <div style={{ position: 'relative' }}>
+                          <button onClick={() => setAssigningLeadId(assigningLeadId === lead.id ? null : lead.id)} style={{ background: `${AMBER}18`, color: AMBER, border: `1px solid ${AMBER}44`, borderRadius: '3px', padding: '4px 10px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>👤 Assign</button>
+                          {assigningLeadId === lead.id && (
+                            <>
+                              <div style={{ position: 'fixed', inset: 0, zIndex: 99 }} onClick={() => setAssigningLeadId(null)} />
+                            <div style={{ position: 'absolute', right: 0, top: '100%', marginTop: '4px', background: '#0d1b2a', border: '1px solid rgba(16,185,129,0.3)', borderRadius: '4px', padding: '6px', zIndex: 100, minWidth: '180px', maxHeight: '200px', overflowY: 'auto', boxShadow: '0 4px 16px rgba(0,0,0,0.4)' }}>
+                              <div style={{ color: '#8a9ab8', fontSize: '9px', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '6px', padding: '0 4px' }}>Assign to:</div>
+                              {employees.length === 0 ? <div style={{ color: '#4a5568', fontSize: '11px', padding: '4px' }}>No employees found</div> : employees.map(emp => (
+                                <button key={emp.id} onClick={() => assignLead(lead.id, emp.username)} style={{ display: 'block', width: '100%', textAlign: 'left', background: 'none', border: 'none', color: '#c4cdd8', padding: '6px 8px', cursor: 'pointer', fontSize: '11px', borderRadius: '3px' }} onMouseEnter={e => e.target.style.background = 'rgba(16,185,129,0.1)'} onMouseLeave={e => e.target.style.background = 'none'}>
+                                  {emp.username} <span style={{ color: '#6b7280', fontSize: '9px' }}>({emp.role})</span>
+                                </button>
+                              ))}
+                            </div>
+                            </>
+                          )}
+                        </div>
                       )}
                     </div>
                   </td>
