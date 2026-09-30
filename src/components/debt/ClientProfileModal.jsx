@@ -802,11 +802,58 @@ function BillsTab({ bills, local, update, totalBills, totalMonthlyPayments, disp
             </div>
           </div>
         ))}
+        {/* Custom bill fields — AI can create these from the transcript */}
+        {Object.keys(bills).filter(k => !BILL_CATEGORIES.some(c => c.key === k)).map(customKey => (
+          <div key={customKey} style={{ background: 'rgba(167,139,250,0.06)', border: '1px solid rgba(167,139,250,0.2)', borderRadius: '4px', padding: '10px' }}>
+            <label style={{ ...ls, marginBottom: '4px', color: '#a78bfa' }}>📦 {customKey.replace(/([A-Z])/g, ' $1').replace(/^./, c => c.toUpperCase())}</label>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <span style={{ color: '#6b7280', fontSize: '13px' }}>$</span>
+              <input type="number" value={bills[customKey] ?? ''} onChange={e => setBills(customKey, e.target.value)} style={{ ...inp, fontSize: '13px', padding: '6px 8px' }} placeholder="0" />
+              <button onClick={() => { const next = { ...bills }; delete next[customKey]; update('billsJson', JSON.stringify(next)); }} title="Remove custom field" style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '12px', padding: '0 2px' }}>✕</button>
+            </div>
+          </div>
+        ))}
       </div>
 
+      {/* Add custom bill field */}
+      <AddCustomBillField bills={bills} update={update} />
+
       <div style={{ marginTop: '14px', padding: '10px 14px', background: 'rgba(0,0,0,0.2)', borderRadius: '4px', color: '#6b7280', fontSize: '11px' }}>
-        💡 Bills auto-populate from the call transcript when the agent reviews expenses with the customer.
+        💡 Bills auto-populate from the call transcript when the agent reviews expenses with the customer. Custom bill types the customer mentions are auto-created by AI.
       </div>
+    </div>
+  );
+}
+
+// ─── Add Custom Bill Field ────────────────────────────────────────────────────
+function AddCustomBillField({ bills, update }) {
+  const [adding, setAdding] = useState(false);
+  const [name, setName] = useState('');
+  const [amount, setAmount] = useState('');
+
+  const add = () => {
+    if (!name.trim()) return;
+    const key = name.trim().replace(/[^a-zA-Z0-9]/g, '').replace(/^./, c => c.toLowerCase());
+    if (!key || bills[key] !== undefined) { setAdding(false); setName(''); setAmount(''); return; }
+    const next = { ...bills, [key]: amount ? Number(amount) : 0 };
+    update('billsJson', JSON.stringify(next));
+    setAdding(false); setName(''); setAmount('');
+  };
+
+  if (!adding) {
+    return (
+      <button onClick={() => setAdding(true)} style={{ width: '100%', marginTop: '10px', background: 'rgba(167,139,250,0.08)', color: '#a78bfa', border: '1px dashed rgba(167,139,250,0.3)', borderRadius: '4px', padding: '8px', cursor: 'pointer', fontSize: '11px' }}>+ Add Custom Bill</button>
+    );
+  }
+  return (
+    <div style={{ marginTop: '10px', background: 'rgba(167,139,250,0.06)', border: '1px solid rgba(167,139,250,0.2)', borderRadius: '4px', padding: '10px', display: 'flex', gap: '8px', alignItems: 'center' }}>
+      <input value={name} onChange={e => setName(e.target.value)} placeholder="Bill name (e.g. Gym, Storage, Alimony)" style={{ ...inp, fontSize: '12px', flex: 1 }} onKeyDown={e => { if (e.key === 'Enter') add(); }} />
+      <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+        <span style={{ color: '#6b7280', fontSize: '13px' }}>$</span>
+        <input type="number" value={amount} onChange={e => setAmount(e.target.value)} placeholder="0" style={{ ...inp, fontSize: '12px', width: '80px', padding: '6px 8px' }} onKeyDown={e => { if (e.key === 'Enter') add(); }} />
+      </div>
+      <button onClick={add} style={{ background: 'linear-gradient(135deg,#a78bfa,#7c3aed)', color: '#fff', border: 'none', borderRadius: '4px', padding: '6px 14px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>✓ Add</button>
+      <button onClick={() => { setAdding(false); setName(''); setAmount(''); }} style={{ background: 'none', border: 'none', color: '#6b7280', cursor: 'pointer', fontSize: '14px' }}>✕</button>
     </div>
   );
 }

@@ -50,7 +50,7 @@ export default function DebtCallCoach() {
     { id: 'pitches', label: '🎤 Pitches' },
     { id: 'kb', label: '🧠 Knowledge Base' },
     ...(isDialerRole ? [] : [{ id: 'kbchat', label: '💬 AI KB Chat' }]),
-    { id: 'profile', label: '👤 User Profiles' },
+    { id: 'profile', label: '👤 Prospects' },
     ...(isDialerRole ? [{ id: 'stats', label: '📊 My Stats' }] : []),
     ...(isSuperManager ? [{ id: 'compliance', label: '🛡 Compliance' }] : []),
     ...(isAdmin ? [{ id: 'admin', label: '⚙️ Admin' }] : []),

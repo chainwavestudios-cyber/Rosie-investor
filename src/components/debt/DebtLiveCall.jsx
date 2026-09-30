@@ -14,6 +14,7 @@ import ClientProfileModal from '@/components/debt/ClientProfileModal';
 import LiveComplianceWidget from '@/components/compliance/LiveComplianceWidget';
 import CustomerStatsPopup from '@/components/debt/CustomerStatsPopup';
 import NextCallBriefing from '@/components/debt/NextCallBriefing';
+import NoMissedMeetingsButton from '@/components/debt/NoMissedMeetingsButton';
 import { usePopOutPanel } from '@/hooks/usePopOutPanel';
 import { useHotCallTracker } from '@/hooks/useHotCallTracker';
 import { useDebtCoachAuth } from '@/lib/DebtCoachAuthContext';
@@ -70,7 +71,10 @@ export default function DebtLiveCall() {
   // Post-call
   const [report, setReport] = useState('');
   const [generatingReport, setGeneratingReport] = useState(false);
-  const [callMode, setCallMode] = useState('open'); // 'open' | 'close'
+  const [callMode, setCallMode] = useState('close'); // 'open' | 'close' — derived from callType
+  const [callType, setCallType] = useState('front_to_back'); // 'front_to_back' | 'open_only' | 'cold_call'
+  const [autoSchedulerEnabled, setAutoSchedulerEnabled] = useState(() => localStorage.getItem('autoSchedulerEnabled') !== 'false');
+  const leadPersistedRef = useRef(false);
   const [showProfile, setShowProfile] = useState(false);
   const [pendingQuestion, setPendingQuestion] = useState(null);
   const leadPanel = usePopOutPanel('live_lead_card', { width: 420, height: 600 });
@@ -89,6 +93,91 @@ export default function DebtLiveCall() {
   const handleAnswerQuestion = useCallback((text) => {
     setPendingQuestion({ question: text, ts: Date.now() });
   }, []);
+
+  // Call type selector — drives callMode + isInbound
+  const handleCallTypeChange = useCallback((type) => {
+    setCallType(type);
+    if (type === 'front_to_back') { setCallMode('close'); setIsInbound(true); }
+    else if (type === 'open_only') { setCallMode('open'); setIsInbound(true); }
+    else if (type === 'cold_call') { setCallMode('open'); setIsInbound(false); }
+  }, []);
+
+  const toggleAutoScheduler = useCallback(() => {
+    setAutoSchedulerEnabled(prev => {
+      const next = !prev;
+      localStorage.setItem('autoSchedulerEnabled', String(next));
+      return next;
+    });
+  }, []);
+
+  // Cold call: extract "May I speak with John Smith please" from the first agent lines
+  const handleColdCallNameExtract = useCallback(async () => {
+    if (!transcriptRef.current || transcriptRef.current.length < 1) return;
+    const firstAgentLines = transcriptRef.current.filter(l => l.speaker === 0).slice(0, 3).map(l => l.text).join(' ');
+    if (!firstAgentLines || firstAgentLines.length < 10) return;
+    try {
+      const result = await base44.integrations.Core.InvokeLLM({
+        prompt: `Extract the customer's first and last name from this opening cold-call line. The agent says something like "May I speak with John Smith please?" or "Hi, is this Jane Doe?"
+
+Return JSON with firstName and lastName. If you cannot find a name, return empty strings.
+
+Agent line: "${firstAgentLines}"`,
+        response_json_schema: {
+          type: 'object',
+          properties: {
+            firstName: { type: 'string' },
+            lastName: { type: 'string' },
+          },
+        },
+      });
+      if (result?.firstName || result?.lastName) {
+        const curFirst = (leadRef.current.firstName || '').trim();
+        const curLast = (leadRef.current.lastName || '').trim();
+        // Only update if the lead is still a blank/new placeholder
+        const updates = {};
+        if (result.firstName && (!curFirst || curFirst.toLowerCase() === 'new')) updates.firstName = result.firstName;
+        if (result.lastName && (!curLast || curLast.toLowerCase() === 'lead')) updates.lastName = result.lastName;
+        if (Object.keys(updates).length > 0) {
+          setLead(prev => ({ ...prev, ...updates }));
+          window.dispatchEvent(new CustomEvent('lead_autosaved', { detail: Object.keys(updates) }));
+        }
+      }
+    } catch {}
+  }, []);
+
+  // Cold call: detect genuine interest and auto-save the lead if so
+  const INTEREST_PHRASES = ['sounds interesting', 'tell me more', 'i\'m interested', 'how does this work', 'what do i need to do', 'sign me up', 'let\'s do it', 'what are the next steps', 'how do we get started', 'how do i get started', 'i like the sound of that', 'this could work', 'what\'s the next step', 'i want to do this', 'where do i sign', 'let\'s move forward'];
+  const handleColdCallInterestCheck = useCallback(async (text) => {
+    if (callType !== 'cold_call') return;
+    if (leadPersistedRef.current) return; // already saved
+    const lower = text.toLowerCase();
+    if (!INTEREST_PHRASES.some(p => lower.includes(p))) return;
+    // Interest detected — persist the lead now if it has a name
+    const lead = leadRef.current;
+    if (!lead.firstName || lead.firstName.toLowerCase() === 'new') return; // no name yet
+    try {
+      const allLeads = await base44.entities.DebtLead.list('-created_date', 500);
+      const maxNum = (allLeads || []).reduce((max, l) => {
+        const n = parseInt((l.leadNumber || '').replace('#', ''), 10);
+        return isNaN(n) ? max : Math.max(max, n);
+      }, 0);
+      const leadNumber = `#${String(maxNum + 1).padStart(5, '0')}`;
+      const created = await base44.entities.DebtLead.create({
+        firstName: lead.firstName, lastName: lead.lastName || 'Unknown',
+        phone: lead.phone || '', email: lead.email || '',
+        status: 'new', callCount: 0, leadNumber,
+        debtCoachOwner: coachUser?.username || null,
+        notes: 'Auto-saved: genuine interest detected during cold call.',
+      });
+      if (created?.id) {
+        setLead(prev => ({ ...prev, ...created, id: created.id, leadNumber }));
+        leadRef.current = { ...leadRef.current, ...created, id: created.id, leadNumber };
+        leadPersistedRef.current = true;
+        loadLeads();
+        window.dispatchEvent(new CustomEvent('lead_autosaved', { detail: ['interest_save'] }));
+      }
+    } catch (e) { console.error('Cold call interest save failed:', e); }
+  }, [callType, coachUser, loadLeads]);
 
   const wsRef = useRef(null);
   const streamRef = useRef(null);
@@ -362,7 +451,7 @@ ${recentText}`,
 - Childcare
 - Any other recurring monthly expense
 
-Return JSON with a "bills" object mapping category keys to monthly dollar amounts. Only include expenses explicitly mentioned — do NOT make up data. Use these keys: rent, auto, autoInsurance, gas, groceries, utilities, phone, internet, studentLoans, healthInsurance, childcare, misc.
+Return JSON with a "bills" object mapping category keys to monthly dollar amounts. Only include expenses explicitly mentioned — do NOT make up data. Use these standard keys when they apply: rent, auto, autoInsurance, gas, groceries, utilities, phone, internet, studentLoans, healthInsurance, childcare, misc. If the customer mentions a bill type that doesn't fit a standard key, CREATE a custom key (camelCase, e.g. "gym", "storage", "alimony", "petInsurance") and include it with the amount.
 
 Transcript:
 ${recentText}`,
@@ -515,6 +604,13 @@ ${recentText}`,
     setTranscript(prev => [...prev, entry]);
     const text = entry.text || '';
 
+    // Cold call: extract name from opening "May I speak with X" + detect interest to auto-save
+    if (callType === 'cold_call') {
+      const lineCount = transcriptRef.current.length;
+      if (lineCount <= 2 && entry.speaker === 0) handleColdCallNameExtract();
+      if (entry.speaker === 1) handleColdCallInterestCheck(text);
+    }
+
     // Q&A: buffer consecutive customer lines, flush as one combined question
     if (qaActive && entry.speaker === 1) {
       customerBufferRef.current.push(text);
@@ -586,6 +682,7 @@ ${recentText}`,
     setError(''); setTranscript([]); setQaItems([]); setCoachTips([]); setIntentScore(null); setProfileData(null); setReport('');
     intentHistoryRef.current = [];
     handoffAttemptsRef.current = 0;
+    leadPersistedRef.current = !!lead.id;
     customerBufferRef.current = []; if (bufferTimeoutRef.current) { clearTimeout(bufferTimeoutRef.current); bufferTimeoutRef.current = null; }
     setPhase('live'); setDgStatus('connecting');
     callStartRef.current = new Date();
@@ -933,8 +1030,22 @@ ${recentText}`,
       } catch { setReport('Failed to generate report.'); }
       setGeneratingReport(false);
     }
+
+    // Auto-schedule follow-up appointment if enabled
+    if (autoSchedulerEnabled && transcriptRef.current.length > 0 && leadRef.current?.id) {
+      try {
+        const leadName = `${leadRef.current.firstName || ''} ${leadRef.current.lastName || ''}`.trim();
+        await base44.functions.invoke('autoScheduleAppointment', {
+          transcript: transcriptRef.current,
+          leadId: leadRef.current.id,
+          leadName,
+          agentName: coachUser?.username || '',
+        });
+      } catch (e) { console.error('Auto-scheduler failed:', e); }
+    }
+
     loadLeads();
-  }, [kbEntries, coachActive, qaActive, intentActive, coachTips, qaItems, loadLeads]);
+  }, [kbEntries, coachActive, qaActive, intentActive, coachTips, qaItems, loadLeads, autoSchedulerEnabled, coachUser]);
 
   // Keep stopCallRef updated for monitor polling
   useEffect(() => { stopCallRef.current = stopCall; }, [stopCall]);
@@ -1075,14 +1186,22 @@ ${recentText}`,
           {testingAudio ? '⏹ Stop Test' : '🔊 Test Audio'}
         </button>
 
-        {/* Call Mode selector — Open vs Close */}
+        {/* Call Type selector — Front to Back / Open Only / Cold Call */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
-          <label style={{ ...ls, marginBottom: 0 }}>📞 Call Mode</label>
+          <label style={{ ...ls, marginBottom: 0 }}>📞 Call Type</label>
           <div style={{ display: 'flex', gap: '4px' }}>
-            <button onClick={() => setCallMode('open')} disabled={phase === 'live'} style={{ padding: '8px 14px', borderRadius: '4px', border: `1px solid ${callMode === 'open' ? GOLD + '66' : 'rgba(255,255,255,0.1)'}`, background: callMode === 'open' ? `${GOLD}18` : 'transparent', color: callMode === 'open' ? GOLD : '#6b7280', cursor: phase === 'live' ? 'not-allowed' : 'pointer', fontSize: '11px', fontWeight: 'bold' }}>📞 Open</button>
-            <button onClick={() => setCallMode('close')} disabled={phase === 'live'} style={{ padding: '8px 14px', borderRadius: '4px', border: `1px solid ${callMode === 'close' ? GOLD + '66' : 'rgba(255,255,255,0.1)'}`, background: callMode === 'close' ? `${GOLD}18` : 'transparent', color: callMode === 'close' ? GOLD : '#6b7280', cursor: phase === 'live' ? 'not-allowed' : 'pointer', fontSize: '11px', fontWeight: 'bold' }}>🎯 Close</button>
+            <button onClick={() => handleCallTypeChange('front_to_back')} disabled={phase === 'live'} title="Inbound transfer — full open + close" style={{ padding: '8px 12px', borderRadius: '4px', border: `1px solid ${callType === 'front_to_back' ? GOLD + '66' : 'rgba(255,255,255,0.1)'}`, background: callType === 'front_to_back' ? `${GOLD}18` : 'transparent', color: callType === 'front_to_back' ? GOLD : '#6b7280', cursor: phase === 'live' ? 'not-allowed' : 'pointer', fontSize: '11px', fontWeight: 'bold', whiteSpace: 'nowrap' }}>🔄 Front→Back</button>
+            <button onClick={() => handleCallTypeChange('open_only')} disabled={phase === 'live'} title="Inbound transfer — open only, transfer at SSN" style={{ padding: '8px 12px', borderRadius: '4px', border: `1px solid ${callType === 'open_only' ? GOLD + '66' : 'rgba(255,255,255,0.1)'}`, background: callType === 'open_only' ? `${GOLD}18` : 'transparent', color: callType === 'open_only' ? GOLD : '#6b7280', cursor: phase === 'live' ? 'not-allowed' : 'pointer', fontSize: '11px', fontWeight: 'bold', whiteSpace: 'nowrap' }}>📞 Open Only</button>
+            <button onClick={() => handleCallTypeChange('cold_call')} disabled={phase === 'live'} title="Outgoing cold call — ask for name, save on interest" style={{ padding: '8px 12px', borderRadius: '4px', border: `1px solid ${callType === 'cold_call' ? GOLD + '66' : 'rgba(255,255,255,0.1)'}`, background: callType === 'cold_call' ? `${GOLD}18` : 'transparent', color: callType === 'cold_call' ? GOLD : '#6b7280', cursor: phase === 'live' ? 'not-allowed' : 'pointer', fontSize: '11px', fontWeight: 'bold', whiteSpace: 'nowrap' }}>🧊 Cold Call</button>
           </div>
         </div>
+
+        {/* Auto-Scheduler toggle */}
+        <button onClick={toggleAutoScheduler} title="Auto-schedule Google Calendar follow-ups from transcript" style={{ padding: '8px 14px', borderRadius: '4px', border: `1px solid ${autoSchedulerEnabled ? 'rgba(16,185,129,0.4)' : 'rgba(255,255,255,0.1)'}`, background: autoSchedulerEnabled ? `${GOLD}18` : 'transparent', color: autoSchedulerEnabled ? GOLD : '#6b7280', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: '5px' }}>
+          {autoSchedulerEnabled ? '✓' : '○'} 📅 Auto-Schedule
+        </button>
+
+        <NoMissedMeetingsButton />
 
         {phase !== 'live' ? (
           <button onClick={startCall} disabled={kbLoading} style={{ background: 'linear-gradient(135deg,#10b981,#22c55e)', color: DARK, border: 'none', borderRadius: '4px', padding: '10px 24px', cursor: kbLoading ? 'not-allowed' : 'pointer', fontSize: '12px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase', opacity: kbLoading ? 0.5 : 1 }}>
