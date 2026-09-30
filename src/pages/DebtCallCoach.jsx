@@ -57,10 +57,13 @@ export default function DebtCallCoach() {
 
       {/* Header */}
       <div style={{ marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div>
-          <h1 style={{ margin: 0, fontSize: '24px', fontWeight: 'normal', color: '#e8e0d0' }}>💳 Debt Settlement Call Coach</h1>
-          <div style={{ color: GOLD, fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginTop: '4px' }}>
-            Live Headset Coaching · Deepgram AI · Debt Settlement KB
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <img src="https://media.base44.com/images/public/69cd2741578c9b5ce655395b/f62cbacbf_Gemini_Generated_Image_a6l2p4a6l2p4a6l2.jpeg" alt="Settlement IQ" style={{ width: '44px', height: '44px', objectFit: 'contain', borderRadius: '6px' }} />
+          <div>
+            <h1 style={{ margin: 0, fontSize: '24px', fontWeight: 'bold', color: '#e8e0d0', letterSpacing: '0.5px' }}>Settlement IQ</h1>
+            <div style={{ color: '#74C0FC', fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginTop: '4px' }}>
+              Realtime Call Intelligence
+            </div>
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>

@@ -477,7 +477,7 @@ IMPORTANT: Ask these questions NATURALLY during the call. Weave them into the co
             <div style={{ fontSize: '24px' }}>🤖</div>
             <div>
               <h2 style={{ color: '#e8e0d0', margin: 0, fontSize: '18px', fontWeight: 'normal' }}>B.O.B. — Bot-Operated Buyer</h2>
-              <div style={{ color: GOLD, fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase' }}>Debt Settlement Training Simulator · Deepgram Voice AI</div>
+              <div style={{ color: GOLD, fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase' }}>Settlement IQ Training Simulator · Deepgram Voice AI</div>
             </div>
           </div>
           <div style={{ color: '#6b7280', fontSize: '11px' }}>Practice your debt settlement closer pitch. Duck = hard sell, Cow = easy sell. BOB learns from every uploaded call.</div>

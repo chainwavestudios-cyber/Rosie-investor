@@ -130,7 +130,7 @@ export default function CreditReportUpload() {
       <div style={{ maxWidth: '480px', margin: '0 auto' }}>
         {/* Header */}
         <div style={{ textAlign: 'center', marginBottom: '24px' }}>
-          <div style={{ color: GOLD, fontSize: '11px', letterSpacing: '3px', textTransform: 'uppercase' }}>Debt Settlement</div>
+          <div style={{ color: GOLD, fontSize: '11px', letterSpacing: '3px', textTransform: 'uppercase' }}>Settlement IQ</div>
           <h1 style={{ color: '#e8e0d0', fontSize: '24px', margin: '4px 0' }}>📷 Credit Report Upload</h1>
           <p style={{ color: '#6b7280', fontSize: '13px' }}>Snap a photo of the credit report and enter the customer #. AI will automatically extract all debts and update the profile.</p>
         </div>

@@ -58,9 +58,10 @@ export default function DebtCoachLogin() {
     <div style={{ minHeight: '100vh', background: DARK, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Georgia, serif', padding: '20px' }}>
       <div style={{ width: '100%', maxWidth: '420px' }}>
         <div style={{ textAlign: 'center', marginBottom: '32px' }}>
-          <div style={{ fontSize: '36px', marginBottom: '8px' }}>💳</div>
-          <h1 style={{ margin: 0, fontSize: '22px', fontWeight: 'normal', color: '#e8e0d0' }}>Debt Settlement Call Coach</h1>
-          <div style={{ color: GOLD, fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginTop: '6px' }}>Sign in to your account</div>
+          <img src="https://media.base44.com/images/public/69cd2741578c9b5ce655395b/f62cbacbf_Gemini_Generated_Image_a6l2p4a6l2p4a6l2.jpeg" alt="Settlement IQ" style={{ width: '88px', height: '88px', objectFit: 'contain', marginBottom: '10px', borderRadius: '8px' }} />
+          <h1 style={{ margin: 0, fontSize: '26px', fontWeight: 'bold', color: '#e8e0d0', letterSpacing: '0.5px' }}>Settlement IQ</h1>
+          <div style={{ color: '#74C0FC', fontSize: '11px', letterSpacing: '2px', textTransform: 'uppercase', marginTop: '6px' }}>Realtime Call Intelligence</div>
+          <div style={{ color: GOLD, fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginTop: '10px' }}>Sign in to your account</div>
         </div>
 
         {showReset ? (
