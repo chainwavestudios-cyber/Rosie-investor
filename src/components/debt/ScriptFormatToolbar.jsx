@@ -1,11 +1,11 @@
 /**
- * ScriptFormatToolbar.jsx — Inline formatting toolbar for the script textarea.
- * Wraps the current textarea selection with BBCode-style tags: bold, italic,
- * text color, background highlight (incl. neon), font size, font family, and
- * a clear-formatting action. Operates on a ref to the textarea.
+ * ScriptFormatToolbar.jsx — Inline formatting toolbar for the script WYSIWYG editor.
+ * Uses document.execCommand on the contentEditable to apply bold, italic, text
+ * color, background highlight (incl. neon), font size, and font family directly
+ * to the selection — true WYSIWYG, no raw BBCode tags shown to the user.
  */
 import React, { useState, useRef, useEffect } from 'react';
-import { stripFormatTags } from '@/components/debt/ScriptRichText';
+import { htmlToBbcode } from '@/components/debt/ScriptRichText';
 
 const GOLD = '#10b981';
 
@@ -20,8 +20,8 @@ const FONTS = ['Georgia', 'Arial', 'Helvetica', 'Times New Roman', 'Courier New'
 const btn = { padding: '4px 8px', borderRadius: '4px', border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.05)', color: '#c4cdd8', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold', whiteSpace: 'nowrap' };
 const popover = { padding: '8px', background: '#0d1b2a', border: `1px solid ${GOLD}44`, borderRadius: '6px', position: 'absolute', zIndex: 50, marginTop: '4px', boxShadow: '0 8px 24px rgba(0,0,0,0.5)' };
 
-export default function ScriptFormatToolbar({ textareaRef, value, onChange }) {
-  const [open, setOpen] = useState(null); // 'c' | 'bg' | 's' | 'f' | null
+export default function ScriptFormatToolbar({ editorRef, onChange }) {
+  const [open, setOpen] = useState(null);
   const rootRef = useRef(null);
 
   useEffect(() => {
@@ -31,30 +31,46 @@ export default function ScriptFormatToolbar({ textareaRef, value, onChange }) {
     return () => document.removeEventListener('mousedown', h);
   }, [open]);
 
-  const wrap = (openTag, closeTag) => {
-    const ta = textareaRef.current;
-    if (!ta) return;
-    const start = ta.selectionStart, end = ta.selectionEnd;
-    const sel = value.slice(start, end);
-    const next = value.slice(0, start) + openTag + sel + closeTag + value.slice(end);
-    onChange(next);
-    requestAnimationFrame(() => { ta.focus(); ta.setSelectionRange(start + openTag.length, end + openTag.length); });
+  const flushChange = () => {
+    const ce = editorRef?.current;
+    if (!ce) return;
+    const bbcode = htmlToBbcode(ce.innerHTML);
+    onChange(bbcode);
   };
 
-  const apply = (tag, val) => {
-    const open = val != null ? `[${tag}=${val}]` : `[${tag}]`;
-    wrap(open, `[/${tag}]`);
+  const applyCommand = (command, value) => {
+    const ce = editorRef?.current;
+    if (!ce) return;
+    ce.focus();
+    if (command === 'fontSize') {
+      // execCommand fontSize only supports 1-7; use workaround to get px sizes
+      document.execCommand('fontSize', false, '7');
+      const fonts = ce.querySelectorAll('font[size="7"]');
+      fonts.forEach(f => {
+        const span = document.createElement('span');
+        span.style.fontSize = value + 'px';
+        while (f.firstChild) span.appendChild(f.firstChild);
+        f.replaceWith(span);
+      });
+    } else if (command === 'highlight') {
+      // Try hiliteColor (Firefox) then backColor (Chrome)
+      if (!document.execCommand('hiliteColor', false, value)) {
+        document.execCommand('backColor', false, value);
+      }
+    } else {
+      document.execCommand(command, false, value);
+    }
+    flushChange();
     setOpen(null);
   };
 
-  const clear = () => {
-    const ta = textareaRef.current;
-    if (!ta) return;
-    const start = ta.selectionStart, end = ta.selectionEnd;
-    const sel = value.slice(start, end);
-    const cleaned = stripFormatTags(sel);
-    onChange(value.slice(0, start) + cleaned + value.slice(end));
-    requestAnimationFrame(() => { ta.focus(); ta.setSelectionRange(start, start + cleaned.length); });
+  const clearFormat = () => {
+    const ce = editorRef?.current;
+    if (!ce) return;
+    ce.focus();
+    document.execCommand('removeFormat');
+    document.execCommand('foreColor', false, '');
+    flushChange();
   };
 
   const Swatches = ({ colors, onPick }) => (
@@ -69,24 +85,24 @@ export default function ScriptFormatToolbar({ textareaRef, value, onChange }) {
 
   return (
     <div ref={rootRef} style={{ display: 'flex', gap: '4px', alignItems: 'flex-start', flexWrap: 'wrap', position: 'relative' }}>
-      <button onClick={() => apply('b')} style={btn} title="Bold"><b>B</b></button>
-      <button onClick={() => apply('i')} style={btn} title="Italic"><i>I</i></button>
+      <button onClick={() => applyCommand('bold')} style={btn} title="Bold"><b>B</b></button>
+      <button onClick={() => applyCommand('italic')} style={btn} title="Italic"><i>I</i></button>
 
       <div style={{ position: 'relative' }}>
         <button onClick={() => setOpen(open === 'c' ? null : 'c')} style={menuBtn('c', '🎨 Color')}>🎨 Color</button>
-        {open === 'c' && <Swatches colors={TEXT_COLORS} onPick={c => apply('c', c)} />}
+        {open === 'c' && <Swatches colors={TEXT_COLORS} onPick={c => applyCommand('foreColor', c)} />}
       </div>
 
       <div style={{ position: 'relative' }}>
         <button onClick={() => setOpen(open === 'bg' ? null : 'bg')} style={menuBtn('bg', '🖍 Highlight')}>🖍 Highlight</button>
-        {open === 'bg' && <Swatches colors={BG_COLORS} onPick={c => apply('bg', c)} />}
+        {open === 'bg' && <Swatches colors={BG_COLORS} onPick={c => applyCommand('highlight', c)} />}
       </div>
 
       <div style={{ position: 'relative' }}>
         <button onClick={() => setOpen(open === 's' ? null : 's')} style={menuBtn('s', 'Size')}>Size</button>
         {open === 's' && (
           <div style={{ ...popover, display: 'flex', flexWrap: 'wrap', gap: '4px', width: '120px' }}>
-            {FONT_SIZES.map(s => <button key={s} onClick={() => apply('s', s)} style={{ ...btn, width: '100%' }}>{s}px</button>)}
+            {FONT_SIZES.map(s => <button key={s} onClick={() => applyCommand('fontSize', s)} style={{ ...btn, width: '100%' }}>{s}px</button>)}
           </div>
         )}
       </div>
@@ -95,12 +111,12 @@ export default function ScriptFormatToolbar({ textareaRef, value, onChange }) {
         <button onClick={() => setOpen(open === 'f' ? null : 'f')} style={menuBtn('f', '🔤 Font')}>Font</button>
         {open === 'f' && (
           <div style={{ ...popover, display: 'flex', flexDirection: 'column', gap: '2px', minWidth: '150px' }}>
-            {FONTS.map(f => <button key={f} onClick={() => apply('f', f)} style={{ ...btn, fontFamily: f, textAlign: 'left', width: '100%' }}>{f}</button>)}
+            {FONTS.map(f => <button key={f} onClick={() => applyCommand('fontName', f)} style={{ ...btn, fontFamily: f, textAlign: 'left', width: '100%' }}>{f}</button>)}
           </div>
         )}
       </div>
 
-      <button onClick={clear} style={btn} title="Clear formatting on selection">✕ Clear</button>
+      <button onClick={clearFormat} style={btn} title="Clear formatting on selection">✕ Clear</button>
     </div>
   );
 }

@@ -86,4 +86,12 @@
     background-color: hsl(var(--background));
     color: hsl(var(--foreground));
   }
+
+  /* Placeholder for contentEditable script editor */
+  [contenteditable][data-placeholder]:empty::before {
+    content: attr(data-placeholder);
+    color: #4a5568;
+    pointer-events: none;
+    font-style: italic;
+  }
 }

@@ -6,6 +6,8 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { base44 } from '@/api/base44Client';
 import ScriptTeleprompter, { CUE_CATEGORIES } from '@/components/debt/ScriptTeleprompter';
 import ScriptFormatToolbar from '@/components/debt/ScriptFormatToolbar';
+import ScriptWysiwygEditor from '@/components/debt/ScriptWysiwygEditor';
+import { htmlToBbcode } from '@/components/debt/ScriptRichText';
 
 const GOLD = '#10b981';
 const DARK = '#0a0f1e';
@@ -115,21 +117,13 @@ function MyScriptsTab({ liveTranscript, phase, clientFirstName, clientLastName }
   };
 
   const insertCueAtCursor = (category) => {
-    const ta = textareaRef.current;
-    if (!ta || !active) return;
-    const start = ta.selectionStart;
-    const end = ta.selectionEnd;
-    const prefix = active.content?.substring(0, start) || '';
-    const suffix = active.content?.substring(end) || '';
-    const needsNewlineBefore = prefix.length > 0 && !prefix.endsWith('\n');
-    const cue = `${needsNewlineBefore ? '\n' : ''}@@CUE:${category}:New ${CUE_CATEGORIES[category].label.toLowerCase()}@@\n`;
-    const newContent = prefix + cue + suffix;
-    updateAndSave({ content: newContent });
-    requestAnimationFrame(() => {
-      const pos = start + cue.length;
-      ta.focus();
-      ta.setSelectionRange(pos, pos);
-    });
+    const ce = textareaRef.current;
+    if (!ce || !active) return;
+    ce.focus();
+    const cue = `<br>@@CUE:${category}:New ${CUE_CATEGORIES[category].label.toLowerCase()}@@<br>`;
+    document.execCommand('insertHTML', false, cue);
+    const bbcode = htmlToBbcode(ce.innerHTML);
+    updateAndSave({ content: bbcode });
   };
 
   const saveActive = async () => {
@@ -255,19 +249,18 @@ function MyScriptsTab({ liveTranscript, phase, clientFirstName, clientLastName }
               </div>
               {/* Inline formatting toolbar */}
               <div style={{ marginBottom: '8px', flexShrink: 0 }}>
-                <ScriptFormatToolbar textareaRef={textareaRef} value={active.content || ''} onChange={v => updateAndSave({ content: v })} />
+                <ScriptFormatToolbar editorRef={textareaRef} onChange={v => updateAndSave({ content: v })} />
               </div>
               {/* Editor textarea */}
-              <textarea
+              <ScriptWysiwygEditor
                 ref={textareaRef}
                 value={active.content || ''}
-                onChange={e => updateAndSave({ content: e.target.value })}
-                placeholder="Type your script here… Use {{firstname}} or {{lastname}} for auto-insertion. Highlight text and use the toolbar to color, bold, italicize, resize, or highlight it. Use cue block buttons above to add non-spoken annotations."
+                onChange={v => updateAndSave({ content: v })}
                 style={{
                   flex: 1, width: '100%', background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.08)',
                   borderRadius: '4px', padding: '16px', color: active.color || '#e8e0d0',
-                  fontSize: `${active.fontSize || 14}px`, lineHeight: 1.7, outline: 'none',
-                  fontFamily: 'Georgia, serif', boxSizing: 'border-box', resize: 'none', minHeight: '200px',
+                  fontSize: `${active.fontSize || 14}px`, lineHeight: 1.7,
+                  fontFamily: 'Georgia, serif', boxSizing: 'border-box', minHeight: '200px',
                 }}
               />
               <div style={{ marginTop: '6px', color: '#4a5568', fontSize: '10px', flexShrink: 0 }}>
