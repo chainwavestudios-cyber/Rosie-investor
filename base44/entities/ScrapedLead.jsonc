@@ -1,0 +1,162 @@
+{
+  "name": "ScrapedLead",
+  "type": "object",
+  "properties": {
+    "platform": {
+      "type": "string",
+      "title": "Platform",
+      "enum": [
+        "reddit",
+        "x_twitter",
+        "facebook",
+        "tiktok",
+        "manual"
+      ]
+    },
+    "userHandle": {
+      "type": "string",
+      "title": "User Handle / Username"
+    },
+    "displayName": {
+      "type": "string",
+      "title": "Display Name"
+    },
+    "bioText": {
+      "type": "string",
+      "title": "Bio / Profile Text",
+      "format": "textarea"
+    },
+    "location": {
+      "type": "string",
+      "title": "Location"
+    },
+    "postTitle": {
+      "type": "string",
+      "title": "Post / Thread Title"
+    },
+    "postText": {
+      "type": "string",
+      "title": "Full Post Snippet",
+      "format": "textarea"
+    },
+    "postUrl": {
+      "type": "string",
+      "title": "Post URL"
+    },
+    "subreddit": {
+      "type": "string",
+      "title": "Subreddit / Group / Channel"
+    },
+    "extractedDebtAmount": {
+      "type": "number",
+      "title": "Extracted Debt Amount ($)"
+    },
+    "debtAmountRaw": {
+      "type": "string",
+      "title": "Debt Amount (raw text match)"
+    },
+    "distressCategory": {
+      "type": "string",
+      "title": "Distress Category",
+      "enum": [
+        "A_screwed_drowning",
+        "B_emotional_panic",
+        "C_multicard_interest",
+        "none"
+      ]
+    },
+    "distressTag": {
+      "type": "string",
+      "title": "Primary Distress Tag (matched phrase)"
+    },
+    "matchedKeywords": {
+      "type": "string",
+      "title": "All Matched Keywords (JSON array)",
+      "format": "textarea"
+    },
+    "matchTimestamp": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Match Timestamp"
+    },
+    "postCreatedAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Original Post Created At"
+    },
+    "status": {
+      "type": "string",
+      "title": "Raw Lead Status",
+      "enum": [
+        "raw",
+        "enriching",
+        "enriched",
+        "pushed",
+        "rejected",
+        "duplicate"
+      ],
+      "default": "raw"
+    },
+    "resolvedFullName": {
+      "type": "string",
+      "title": "Resolved Full Name"
+    },
+    "resolvedEmail": {
+      "type": "string",
+      "title": "Resolved Personal Email"
+    },
+    "resolvedPhone": {
+      "type": "string",
+      "title": "Resolved Personal Phone"
+    },
+    "identityMatchConfidence": {
+      "type": "number",
+      "title": "Identity Match Confidence (0-100)"
+    },
+    "enrichmentStatus": {
+      "type": "string",
+      "title": "Enrichment Status",
+      "enum": [
+        "pending",
+        "no_public_data",
+        "partial",
+        "fully_enriched",
+        "failed"
+      ]
+    },
+    "enrichedAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Enriched At"
+    },
+    "profileDataJson": {
+      "type": "string",
+      "title": "Raw Profile Data (JSON)",
+      "format": "textarea"
+    },
+    "pushedToCampaignAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Pushed to Campaign At"
+    },
+    "pushedBy": {
+      "type": "string",
+      "title": "Pushed By (username)"
+    },
+    "convertedDebtLeadId": {
+      "type": "string",
+      "title": "Converted DebtLead ID"
+    }
+  },
+  "required": [
+    "platform",
+    "userHandle",
+    "postText"
+  ],
+  "rls": {
+    "create": null,
+    "read": null,
+    "update": null,
+    "delete": null
+  }
+}
