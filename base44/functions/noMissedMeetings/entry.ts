@@ -22,18 +22,26 @@ async function listEvents(authHeader: any, timeMin: string, timeMax: string): Pr
   return data.items || [];
 }
 
-// Check if a calendar event matches a requested follow-up (same day, within 4 hours)
-function eventMatchesRequest(ev: any, requestedISO: string, leadName: string): boolean {
+// Check if a calendar event matches a requested follow-up.
+// An event only matches if it's SPECIFICALLY for this lead — the event title
+// or description must contain the lead's first name (or the lead ID in description).
+// A random event on the same day does NOT count as a match.
+function eventMatchesRequest(ev: any, requestedISO: string, leadName: string, leadId: string): boolean {
+  const evTitle = (ev.summary || '').toLowerCase();
+  const evDesc = (ev.description || '').toLowerCase();
+  const firstName = leadName ? leadName.toLowerCase().split(' ')[0] : '';
+  // Must reference this lead by first name in title, or lead ID in description
+  const titleMatch = firstName && firstName.length > 1 && evTitle.includes(firstName);
+  const descLeadIdMatch = leadId && evDesc.includes(leadId);
+  if (!titleMatch && !descLeadIdMatch) return false;
+  // Same calendar day as the requested follow-up
   const evStart = new Date(ev.start?.dateTime || ev.start?.date || '');
   const reqStart = new Date(requestedISO);
-  // Same calendar day
   const evDay = evStart.toLocaleDateString('en-US', { timeZone: ET_TZ });
   const reqDay = reqStart.toLocaleDateString('en-US', { timeZone: ET_TZ });
-  if (evDay !== reqDay) return false;
-  // Within 4 hours of requested time, OR title contains lead name
+  // Allow same day OR within 1 day (follow-up may have been moved)
   const diffHours = Math.abs(evStart.getTime() - reqStart.getTime()) / (1000 * 60 * 60);
-  const titleMatch = leadName && (ev.summary || '').toLowerCase().includes(leadName.toLowerCase().split(' ')[0]);
-  return diffHours <= 4 || titleMatch;
+  return evDay === reqDay || diffHours <= 24;
 }
 
 export default async function(req: Request): Promise<Response> {
@@ -119,7 +127,7 @@ ${transcriptText}`,
           if (!result?.hasCallbackRequest || !result.startISO) return null;
 
           // Check if any calendar event matches this request
-          const matched = events.some((ev: any) => eventMatchesRequest(ev, result.startISO, t.leadName || ''));
+          const matched = events.some((ev: any) => eventMatchesRequest(ev, result.startISO, t.leadName || '', t.leadId || ''));
           return {
             leadName: t.leadName || 'Unknown',
             leadId: t.leadId || '',

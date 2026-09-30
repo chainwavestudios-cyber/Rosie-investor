@@ -1,7 +1,12 @@
 /**
  * autoScheduleAppointment — Scans a call transcript for callback/follow-up
  * requests, parses the requested time, checks Google Calendar for conflicts,
- * and creates a 30-minute event. If the slot is busy, pushes forward until free.
+ * and creates a 30-minute event.
+ *
+ * Actions:
+ *   'preview' — Parse transcript, find free slot, return info WITHOUT creating.
+ *   'create'  — Create the Google Calendar event (with optional attendee email).
+ *   (none)    — Backward compat: parse + auto-create (legacy behavior).
  *
  * Time defaults (America/New_York):
  *   "morning" / "AM"   → 10:00 AM
@@ -14,16 +19,13 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.52';
 
 const ET_TZ = 'America/New_York';
 
-// Convert a Date to an ISO string in UTC
 function toISO(d: Date): string { return d.toISOString(); }
 
-// Get the connector token + auth header
 async function getCalendarAuth(base44: any) {
   const { accessToken } = await base44.asServiceRole.connectors.getConnection('googlecalendar');
   return { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' };
 }
 
-// List calendar events in a time window
 async function listEvents(authHeader: any, timeMin: string, timeMax: string): Promise<any[]> {
   const url = `https://www.googleapis.com/calendar/v3/calendars/primary/events?timeMin=${encodeURIComponent(timeMin)}&timeMax=${encodeURIComponent(timeMax)}&singleEvents=true&maxResults=100&orderBy=startTime`;
   const res = await fetch(url, { headers: authHeader });
@@ -32,7 +34,6 @@ async function listEvents(authHeader: any, timeMin: string, timeMax: string): Pr
   return data.items || [];
 }
 
-// Check if a time slot conflicts with any existing event
 function hasConflict(events: any[], start: Date, end: Date): boolean {
   for (const ev of events) {
     const evStart = new Date(ev.start?.dateTime || ev.start?.date || '');
@@ -42,19 +43,15 @@ function hasConflict(events: any[], start: Date, end: Date): boolean {
   return false;
 }
 
-// Push a start time forward in 30-min increments until no conflict, within business hours
 function findFreeSlot(events: any[], start: Date, maxAttempts = 48): { start: Date; end: Date } | null {
   let s = new Date(start);
   for (let i = 0; i < maxAttempts; i++) {
-    const e = new Date(s.getTime() + 30 * 60 * 1000); // 30 min
-    // Check business hours 8am-6pm ET
+    const e = new Date(s.getTime() + 30 * 60 * 1000);
     const hourET = parseInt(s.toLocaleString('en-US', { timeZone: ET_TZ, hour: '2-digit', hour12: false }), 10);
     if (hourET >= 8 && hourET < 18) {
       if (!hasConflict(events, s, e)) return { start: s, end: e };
     }
-    // Push 30 min forward
     s = new Date(s.getTime() + 30 * 60 * 1000);
-    // If past 6pm, jump to next day 9am
     const nextHourET = parseInt(s.toLocaleString('en-US', { timeZone: ET_TZ, hour: '2-digit', hour12: false }), 10);
     if (nextHourET >= 18) {
       s.setDate(s.getDate() + 1);
@@ -68,13 +65,77 @@ export default async function(req: Request): Promise<Response> {
   try {
     const base44 = createClientFromRequest(req);
     const body = await req.json();
-    const { transcript, leadId, leadName, agentName, dryRun } = body;
+    const { transcript, leadId, leadName, agentName, dryRun, action, attendeeEmail, startISO: overrideStart } = body;
 
+    // ── CREATE action: create event directly from provided info ──────────
+    if (action === 'create') {
+      if (!overrideStart) {
+        return Response.json({ scheduled: false, error: 'No start time provided for create action' });
+      }
+      const authHeader = await getCalendarAuth(base44);
+      const start = new Date(overrideStart);
+      const end = new Date(start.getTime() + 30 * 60 * 1000);
+
+      // Check for conflict and find free slot
+      const timeMin = new Date().toISOString();
+      const timeMax = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString();
+      const events = await listEvents(authHeader, timeMin, timeMax);
+      const freeSlot = hasConflict(events, start, end) ? findFreeSlot(events, start) : { start, end };
+      if (!freeSlot) {
+        return Response.json({ scheduled: false, error: 'No free slot found' });
+      }
+
+      const title = `📞 Follow-up Call — ${leadName || 'Client'}`;
+      const description = `Auto-scheduled from call transcript\nAgent: ${agentName || '—'}\nLead ID: ${leadId || '—'}\n\n${body.summary || ''}`;
+      const attendees = attendeeEmail ? [{ email: attendeeEmail }] : [];
+
+      const createRes = await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events?sendUpdates=${attendees.length > 0 ? 'all' : 'none'}`, {
+        method: 'POST',
+        headers: authHeader,
+        body: JSON.stringify({
+          summary: title,
+          start: { dateTime: freeSlot.start.toISOString() },
+          end: { dateTime: freeSlot.end.toISOString() },
+          description,
+          ...(attendees.length > 0 ? { attendees } : {}),
+        }),
+      });
+      const createData = await createRes.json();
+      if (!createRes.ok) {
+        return Response.json({ scheduled: false, error: createData.error?.message || 'Failed to create event' });
+      }
+
+      // Log activity
+      if (leadId) {
+        try {
+          await base44.asServiceRole.entities.DebtLeadActivity.create({
+            leadId,
+            leadName: leadName || '',
+            activityType: 'calendar_event',
+            activityText: `📅 Follow-up scheduled: ${freeSlot.start.toLocaleString('en-US', { timeZone: ET_TZ, dateStyle: 'medium', timeStyle: 'short' })} ET${attendeeEmail ? ` (invite sent to ${attendeeEmail})` : ''}`,
+            createdBy: agentName || 'auto-scheduler',
+            metadataJson: JSON.stringify({ eventId: createData.id, startISO: freeSlot.start.toISOString(), endISO: freeSlot.end.toISOString(), htmlLink: createData.htmlLink, attendeeEmail }),
+          });
+        } catch {}
+      }
+
+      return Response.json({
+        scheduled: true,
+        eventId: createData.id,
+        htmlLink: createData.htmlLink,
+        resolvedTime: `${freeSlot.start.toLocaleString('en-US', { timeZone: ET_TZ, dateStyle: 'medium', timeStyle: 'short' })} ET`,
+        startISO: freeSlot.start.toISOString(),
+        endISO: freeSlot.end.toISOString(),
+        wasRescheduled: freeSlot.start.getTime() !== start.getTime(),
+        attendeeEmail: attendeeEmail || null,
+      });
+    }
+
+    // ── PREVIEW or default: parse transcript for callback requests ─────────
     if (!transcript || !Array.isArray(transcript) || transcript.length === 0) {
       return Response.json({ hasCallbackRequest: false, message: 'No transcript provided' });
     }
 
-    // Build transcript text
     const transcriptText = transcript.map((line: any) => {
       const speaker = line.speaker === 0 ? 'Agent' : 'Customer';
       return `${speaker}: ${line.text}`;
@@ -82,7 +143,6 @@ export default async function(req: Request): Promise<Response> {
 
     const nowET = new Date().toLocaleString('en-US', { timeZone: ET_TZ });
 
-    // Step 1: Use LLM to detect callback requests and parse the time
     const result = await base44.integrations.Core.InvokeLLM({
       prompt: `You are an appointment scheduler analyzing a debt settlement call transcript. Current datetime: ${nowET} (America/New_York timezone).
 
@@ -128,47 +188,46 @@ ${transcriptText}`,
     }
 
     const requestedStart = new Date(result.startISO);
-
-    // Step 2: Get calendar auth + list events for the next 7 days to check conflicts
     const authHeader = await getCalendarAuth(base44);
     const timeMin = new Date().toISOString();
     const timeMax = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString();
     const events = await listEvents(authHeader, timeMin, timeMax);
-
-    // Step 3: Find a free slot — push forward if conflict
     const freeSlot = findFreeSlot(events, requestedStart);
     if (!freeSlot) {
       return Response.json({ hasCallbackRequest: true, scheduled: false, error: 'No free slot found within 48 attempts' });
     }
 
-    const startISO = freeSlot.start.toISOString();
-    const endISO = freeSlot.end.toISOString();
+    const startISOOut = freeSlot.start.toISOString();
+    const endISOOut = freeSlot.end.toISOString();
     const wasRescheduled = freeSlot.start.getTime() !== requestedStart.getTime();
+    const resolvedTimeLabel = `${freeSlot.start.toLocaleString('en-US', { timeZone: ET_TZ, dateStyle: 'medium', timeStyle: 'short' })} ET`;
 
-    if (dryRun) {
+    // PREVIEW action: return info without creating
+    if (action === 'preview' || dryRun) {
       return Response.json({
         hasCallbackRequest: true,
         scheduled: false,
         dryRun: true,
         requestedTime: result.timeLabel,
-        resolvedTime: `${freeSlot.start.toLocaleString('en-US', { timeZone: ET_TZ })} ET`,
-        startISO, endISO,
+        resolvedTime: resolvedTimeLabel,
+        startISO: startISOOut,
+        endISO: endISOOut,
         summary: result.summary,
         wasRescheduled,
       });
     }
 
-    // Step 4: Create the Google Calendar event
+    // DEFAULT (no action): auto-create (legacy behavior)
     const title = `📞 Follow-up Call — ${leadName || 'Client'}`;
     const description = `Auto-scheduled from call transcript\nAgent: ${agentName || '—'}\nLead ID: ${leadId || '—'}\n\n${result.summary || ''}`;
 
-    const createRes = await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events', {
+    const createRes = await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events?sendUpdates=none', {
       method: 'POST',
       headers: authHeader,
       body: JSON.stringify({
         summary: title,
-        start: { dateTime: startISO },
-        end: { dateTime: endISO },
+        start: { dateTime: startISOOut },
+        end: { dateTime: endISOOut },
         description,
       }),
     });
@@ -177,16 +236,15 @@ ${transcriptText}`,
       return Response.json({ hasCallbackRequest: true, scheduled: false, error: createData.error?.message || 'Failed to create event' });
     }
 
-    // Step 5: Log activity on the lead
     if (leadId) {
       try {
         await base44.asServiceRole.entities.DebtLeadActivity.create({
           leadId,
           leadName: leadName || '',
           activityType: 'calendar_event',
-          activityText: `📅 Auto-scheduled follow-up: ${result.timeLabel}${wasRescheduled ? ` (moved to ${freeSlot.start.toLocaleString('en-US', { timeZone: ET_TZ, dateStyle: 'medium', timeStyle: 'short' })} ET due to conflict)` : ''}`,
+          activityText: `📅 Auto-scheduled follow-up: ${result.timeLabel}${wasRescheduled ? ` (moved to ${resolvedTimeLabel} due to conflict)` : ''}`,
           createdBy: agentName || 'auto-scheduler',
-          metadataJson: JSON.stringify({ eventId: createData.id, startISO, endISO, htmlLink: createData.htmlLink }),
+          metadataJson: JSON.stringify({ eventId: createData.id, startISO: startISOOut, endISO: endISOOut, htmlLink: createData.htmlLink }),
         });
       } catch {}
     }
@@ -197,8 +255,9 @@ ${transcriptText}`,
       eventId: createData.id,
       htmlLink: createData.htmlLink,
       requestedTime: result.timeLabel,
-      resolvedTime: `${freeSlot.start.toLocaleString('en-US', { timeZone: ET_TZ, dateStyle: 'medium', timeStyle: 'short' })} ET`,
-      startISO, endISO,
+      resolvedTime: resolvedTimeLabel,
+      startISO: startISOOut,
+      endISO: endISOOut,
       summary: result.summary,
       wasRescheduled,
     });

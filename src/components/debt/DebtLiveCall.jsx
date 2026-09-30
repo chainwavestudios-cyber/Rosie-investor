@@ -15,6 +15,7 @@ import LiveComplianceWidget from '@/components/compliance/LiveComplianceWidget';
 import CustomerStatsPopup from '@/components/debt/CustomerStatsPopup';
 import NextCallBriefing from '@/components/debt/NextCallBriefing';
 import NoMissedMeetingsButton from '@/components/debt/NoMissedMeetingsButton';
+import AppointmentPreviewModal from '@/components/debt/AppointmentPreviewModal';
 import { usePopOutPanel } from '@/hooks/usePopOutPanel';
 import { useHotCallTracker } from '@/hooks/useHotCallTracker';
 import { useDebtCoachAuth } from '@/lib/DebtCoachAuthContext';
@@ -74,6 +75,7 @@ export default function DebtLiveCall() {
   const [callMode, setCallMode] = useState('close'); // 'open' | 'close' — derived from callType
   const [callType, setCallType] = useState('front_to_back'); // 'front_to_back' | 'open_only' | 'cold_call'
   const [autoSchedulerEnabled, setAutoSchedulerEnabled] = useState(() => localStorage.getItem('autoSchedulerEnabled') !== 'false');
+  const [apptPreview, setApptPreview] = useState(null);
   const leadPersistedRef = useRef(false);
   const [showProfile, setShowProfile] = useState(false);
   const [pendingQuestion, setPendingQuestion] = useState(null);
@@ -1031,17 +1033,22 @@ ${recentText}`,
       setGeneratingReport(false);
     }
 
-    // Auto-schedule follow-up appointment if enabled
+    // Auto-schedule follow-up: preview first, then show modal for approval
     if (autoSchedulerEnabled && transcriptRef.current.length > 0 && leadRef.current?.id) {
       try {
         const leadName = `${leadRef.current.firstName || ''} ${leadRef.current.lastName || ''}`.trim();
-        await base44.functions.invoke('autoScheduleAppointment', {
+        const res = await base44.functions.invoke('autoScheduleAppointment', {
+          action: 'preview',
           transcript: transcriptRef.current,
           leadId: leadRef.current.id,
           leadName,
           agentName: coachUser?.username || '',
         });
-      } catch (e) { console.error('Auto-scheduler failed:', e); }
+        const data = res?.data || res;
+        if (data?.hasCallbackRequest && data?.startISO) {
+          setApptPreview(data);
+        }
+      } catch (e) { console.error('Auto-scheduler preview failed:', e); }
     }
 
     loadLeads();
@@ -1451,6 +1458,30 @@ ${recentText}`,
         <div style={{ marginTop: '16px', display: 'flex', justifyContent: 'center' }}>
           <NextCallBriefing lead={lead} agentUsername={coachUser?.username} />
         </div>
+      )}
+
+      {/* Appointment Preview — shows parsed callback info for approval */}
+      {apptPreview && lead.id && (
+        <AppointmentPreviewModal
+          preview={apptPreview}
+          lead={lead}
+          agentName={coachUser?.username}
+          onDone={(result) => {
+            // If user closed without approving (no result), auto-book without email
+            if (!result && autoSchedulerEnabled && apptPreview.startISO) {
+              const leadName = `${lead.firstName || ''} ${lead.lastName || ''}`.trim();
+              base44.functions.invoke('autoScheduleAppointment', {
+                action: 'create',
+                startISO: apptPreview.startISO,
+                leadId: lead.id,
+                leadName,
+                agentName: coachUser?.username || '',
+                summary: apptPreview.summary,
+              }).catch(() => {});
+            }
+            setApptPreview(null);
+          }}
+        />
       )}
     </div>
   );

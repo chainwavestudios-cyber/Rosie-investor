@@ -8,6 +8,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useDebtCoachAuth } from '@/lib/DebtCoachAuthContext';
 import CallAnalysisDiagram from '@/components/debt/CallAnalysisDiagram';
+import ClientProfileModal from '@/components/debt/ClientProfileModal';
 
 const GOLD = '#10b981';
 const ls = { display: 'block', color: '#8a9ab8', fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '6px' };
@@ -21,6 +22,8 @@ export default function CallsTab() {
   const [calls, setCalls] = useState([]);
   const [loading, setLoading] = useState(true);
   const [expandedId, setExpandedId] = useState(null);
+  const [profileLead, setProfileLead] = useState(null);
+  const [loadingLeadId, setLoadingLeadId] = useState(null);
 
   const loadCalls = useCallback(async () => {
     setLoading(true);
@@ -56,33 +59,57 @@ export default function CallsTab() {
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
           {calls.map((call) => (
-            <CallRow key={call.id} call={call} expanded={expandedId === call.id} onToggle={() => setExpandedId(expandedId === call.id ? null : call.id)} canManage={canManage} managerUsername={user?.username} />
+            <CallRow key={call.id} call={call} expanded={expandedId === call.id} onToggle={() => setExpandedId(expandedId === call.id ? null : call.id)} canManage={canManage} managerUsername={user?.username} onOpenProfile={async (leadId) => {
+              if (!leadId) return;
+              setLoadingLeadId(leadId);
+              try {
+                const lead = await base44.entities.DebtLead.get(leadId);
+                if (lead) setProfileLead(lead);
+              } catch { alert('Could not load lead profile.'); }
+              setLoadingLeadId(null);
+            }} loadingLeadId={loadingLeadId} />
           ))}
         </div>
+      )}
+
+      {profileLead && (
+        <ClientProfileModal lead={profileLead} onClose={() => setProfileLead(null)} onSave={(updated) => setProfileLead(updated)} />
       )}
     </div>
   );
 }
 
 // ─── Single Call Row ────────────────────────────────────────────────────────
-function CallRow({ call, expanded, onToggle, canManage, managerUsername }) {
+function CallRow({ call, expanded, onToggle, canManage, managerUsername, onOpenProfile, loadingLeadId }) {
   const duration = call.durationSeconds ? `${Math.floor(call.durationSeconds / 60)}m ${call.durationSeconds % 60}s` : '—';
   const callDate = call.callDate ? new Date(call.callDate).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }) : '—';
   const animal = call.animalType || 'unknown';
 
   return (
     <div style={{ background: '#0d1b2a', border: '1px solid rgba(16,185,129,0.15)', borderRadius: '6px', overflow: 'hidden' }}>
-      <button onClick={onToggle} style={{ width: '100%', background: 'none', border: 'none', padding: '14px 18px', cursor: 'pointer', textAlign: 'left', display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
-        <span style={{ color: '#60a5fa', fontSize: '12px', fontWeight: 'bold', flexShrink: 0, minWidth: '140px' }}>{callDate}</span>
-        <span style={{ padding: '2px 8px', borderRadius: '2px', background: call.callMode === 'close' ? 'rgba(16,185,129,0.12)' : 'rgba(96,165,250,0.12)', color: call.callMode === 'close' ? GOLD : '#60a5fa', fontSize: '9px', fontWeight: 'bold', textTransform: 'uppercase', flexShrink: 0 }}>{call.callMode || 'open'}</span>
-        <span style={{ color: '#e8e0d0', fontSize: '13px', fontWeight: 'bold', flexShrink: 0 }}>{call.leadName || 'Unknown Lead'}</span>
-        {call.leadNumber && <span style={{ color: GOLD, fontSize: '11px', flexShrink: 0 }}>({call.leadNumber})</span>}
-        <span style={{ color: '#6b7280', fontSize: '11px', flexShrink: 0 }}>{duration}</span>
-        <span style={{ fontSize: '16px', flexShrink: 0 }}>{ANIMAL_EMOJI[animal]}</span>
-        {call.intentScore != null && <span style={{ color: ANIMAL_COLORS[animal], fontSize: '13px', fontWeight: 'bold', flexShrink: 0 }}>Intent: {call.intentScore}</span>}
-        {call.agentName && <span style={{ color: '#8a9ab8', fontSize: '11px', flexShrink: 0, marginLeft: 'auto' }}>👤 {call.agentName}</span>}
-        <span style={{ color: '#6b7280', fontSize: '16px', flexShrink: 0 }}>{expanded ? '−' : '+'}</span>
-      </button>
+      <div style={{ display: 'flex', alignItems: 'stretch' }}>
+        <button onClick={onToggle} style={{ flex: 1, background: 'none', border: 'none', padding: '14px 18px', cursor: 'pointer', textAlign: 'left', display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+          <span style={{ color: '#60a5fa', fontSize: '12px', fontWeight: 'bold', flexShrink: 0, minWidth: '140px' }}>{callDate}</span>
+          <span style={{ padding: '2px 8px', borderRadius: '2px', background: call.callMode === 'close' ? 'rgba(16,185,129,0.12)' : 'rgba(96,165,250,0.12)', color: call.callMode === 'close' ? GOLD : '#60a5fa', fontSize: '9px', fontWeight: 'bold', textTransform: 'uppercase', flexShrink: 0 }}>{call.callMode || 'open'}</span>
+          <span style={{ color: '#e8e0d0', fontSize: '13px', fontWeight: 'bold', flexShrink: 0 }}>{call.leadName || 'Unknown Lead'}</span>
+          {call.leadNumber && <span style={{ color: GOLD, fontSize: '11px', flexShrink: 0 }}>({call.leadNumber})</span>}
+          <span style={{ color: '#6b7280', fontSize: '11px', flexShrink: 0 }}>{duration}</span>
+          <span style={{ fontSize: '16px', flexShrink: 0 }}>{ANIMAL_EMOJI[animal]}</span>
+          {call.intentScore != null && <span style={{ color: ANIMAL_COLORS[animal], fontSize: '13px', fontWeight: 'bold', flexShrink: 0 }}>Intent: {call.intentScore}</span>}
+          {call.agentName && <span style={{ color: '#8a9ab8', fontSize: '11px', flexShrink: 0, marginLeft: 'auto' }}>👤 {call.agentName}</span>}
+          <span style={{ color: '#6b7280', fontSize: '16px', flexShrink: 0 }}>{expanded ? '−' : '+'}</span>
+        </button>
+        {call.leadId && (
+          <button
+            onClick={(e) => { e.stopPropagation(); onOpenProfile(call.leadId); }}
+            disabled={loadingLeadId === call.leadId}
+            title="Open lead contact card"
+            style={{ background: 'rgba(16,185,129,0.08)', border: 'none', borderLeft: '1px solid rgba(255,255,255,0.05)', color: GOLD, cursor: loadingLeadId === call.leadId ? 'wait' : 'pointer', fontSize: '11px', fontWeight: 'bold', padding: '0 16px', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: '4px' }}
+          >
+            {loadingLeadId === call.leadId ? '⏳' : '👤 Open'}
+          </button>
+        )}
+      </div>
 
       {expanded && <CallDetail call={call} canManage={canManage} managerUsername={managerUsername} />}
     </div>
