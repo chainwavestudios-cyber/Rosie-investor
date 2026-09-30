@@ -206,7 +206,7 @@ export default function CustomerStatsPopup({ lead, transcript, isActive, agentUs
 
   return (
     <div style={{
-      position: 'fixed', left: pos.x, top: pos.y, zIndex: 8500,
+      position: 'fixed', left: pos.x, top: pos.y, zIndex: 99999,
       width: collapsed ? 220 : 380,
       background: DARK, border: `1px solid ${GOLD}44`, borderRadius: '8px',
       boxShadow: '0 8px 32px rgba(0,0,0,0.6)',

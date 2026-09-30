@@ -40,6 +40,17 @@
       ],
       "default": "open"
     },
+    "callType": {
+      "type": "string",
+      "title": "Call Type (flow structure)",
+      "enum": [
+        "front_to_back",
+        "open_only",
+        "cold_call",
+        "closer_call"
+      ],
+      "default": "front_to_back"
+    },
     "durationSeconds": {
       "type": "number",
       "title": "Duration (seconds)"

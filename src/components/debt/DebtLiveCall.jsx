@@ -58,6 +58,9 @@ export default function DebtLiveCall() {
   const [showLeadPicker, setShowLeadPicker] = useState(false);
   const [profileData, setProfileData] = useState(null);
   const [memories, setMemories] = useState([]);
+  const [leadSearch, setLeadSearch] = useState('');
+  const [leadSearchResults, setLeadSearchResults] = useState([]);
+  const [leadSearchFocus, setLeadSearchFocus] = useState(false);
 
   // AI tools
   const [qaActive, setQaActive] = useState(canLiveAI && canLiveQA);
@@ -73,7 +76,7 @@ export default function DebtLiveCall() {
   const [report, setReport] = useState('');
   const [generatingReport, setGeneratingReport] = useState(false);
   const [callMode, setCallMode] = useState('close'); // 'open' | 'close' — derived from callType
-  const [callType, setCallType] = useState('front_to_back'); // 'front_to_back' | 'open_only' | 'cold_call'
+  const [callType, setCallType] = useState('front_to_back'); // 'front_to_back' | 'open_only' | 'cold_call' | 'closer_call'
   const [autoSchedulerEnabled, setAutoSchedulerEnabled] = useState(() => localStorage.getItem('autoSchedulerEnabled') !== 'false');
   const [apptPreview, setApptPreview] = useState(null);
   const leadPersistedRef = useRef(false);
@@ -102,6 +105,7 @@ export default function DebtLiveCall() {
     if (type === 'front_to_back') { setCallMode('close'); setIsInbound(true); }
     else if (type === 'open_only') { setCallMode('open'); setIsInbound(true); }
     else if (type === 'cold_call') { setCallMode('open'); setIsInbound(false); }
+    else if (type === 'closer_call') { setCallMode('close'); setIsInbound(true); }
   }, []);
 
   const toggleAutoScheduler = useCallback(() => {
@@ -268,6 +272,30 @@ Agent line: "${firstAgentLines}"`,
     } catch {}
   }, [coachUser]);
   useEffect(() => { loadLeads(); }, [loadLeads]);
+
+  // Filter leads for the quick-search field next to Start Live Call
+  useEffect(() => {
+    const q = leadSearch.trim().toLowerCase();
+    if (!q || q.length < 2) { setLeadSearchResults([]); return; }
+    const filtered = (leads || []).filter(l => {
+      const name = `${l.firstName || ''} ${l.lastName || ''}`.toLowerCase();
+      const phone = (l.phone || '').toLowerCase();
+      const email = (l.email || '').toLowerCase();
+      return name.includes(q) || phone.includes(q) || email.includes(q);
+    }).slice(0, 8);
+    setLeadSearchResults(filtered);
+  }, [leadSearch, leads]);
+
+  // Select a lead from the quick-search and start the call
+  const selectLeadAndStartCall = useCallback(async (selectedLead) => {
+    setLeadSearch(''); setLeadSearchResults([]); setLeadSearchFocus(false);
+    setLead(selectedLead);
+    leadRef.current = selectedLead;
+    setProfileData(selectedLead.profileJson ? (() => { try { return JSON.parse(selectedLead.profileJson); } catch { return null; } })() : null);
+    setShowProfile(true);
+    // Start the call with this lead
+    setTimeout(() => startCall(false), 100);
+  }, [startCall]);
 
   // After Save on the lead card: lead is persisted in the card; here we close the card and open the Client Profile
   const handleLeadSaved = useCallback((savedLead) => {
@@ -661,7 +689,7 @@ ${recentText}`,
 
   const startCall = useCallback(async (forceNew = false) => {
     // Ensure we have a lead — always create a brand new one for new/inbound calls
-    if (forceNew || !lead.id) {
+    if (forceNew || !leadRef.current?.id) {
       // Create the lead in memory only (not persisted) — saved when the agent clicks Save
       try {
         const allLeads = await base44.entities.DebtLead.list('-created_date', 500);
@@ -895,9 +923,9 @@ ${recentText}`,
             leadId: leadRef.current.id,
             leadName: actLeadName,
             activityType: 'call',
-            activityText: `${callMode === 'close' ? 'Close' : 'Open'} call — ${durationMin} min, ${transcriptRef.current.length} lines${intent?.intentScore != null ? `, intent ${intent.intentScore}/100` : ''}`,
+            activityText: `${callType === 'front_to_back' ? 'Front→Back' : callType === 'open_only' ? 'Open Only' : callType === 'cold_call' ? 'Cold Call' : callType === 'closer_call' ? 'Closer Call' : 'Call'} (${callMode === 'close' ? 'close' : 'open'}) — ${durationMin} min, ${transcriptRef.current.length} lines${intent?.intentScore != null ? `, intent ${intent.intentScore}/100` : ''}`,
             createdBy: actAgentId,
-            metadataJson: JSON.stringify({ durationMin, mode: callMode, intentScore: intent?.intentScore, animalType: intent?.animalType }),
+            metadataJson: JSON.stringify({ durationMin, mode: callMode, callType, intentScore: intent?.intentScore, animalType: intent?.animalType }),
           });
           // AI synopsis — 1-2 sentence summary of the intent report
           if (intent?.report) {
@@ -952,7 +980,7 @@ ${recentText}`,
         let callAnalysisJson = '';
         try {
           const analysisRes = await base44.functions.invoke('liveAssistantAI', {
-            transcript: transcriptRef.current, mode: 'call_analysis',
+            transcript: transcriptRef.current, mode: 'call_analysis', callType,
           });
           const analysis = analysisRes?.analysis || analysisRes?.data?.analysis;
           if (analysis) callAnalysisJson = JSON.stringify(analysis);
@@ -973,6 +1001,7 @@ ${recentText}`,
             transcriptJson: JSON.stringify(transcriptRef.current),
             transcriptLineCount: transcriptRef.current.length,
             callMode,
+            callType,
             durationSeconds,
             intentScore: intentScore ?? null,
             animalType: leadRef.current.animalType || null,
@@ -1052,7 +1081,7 @@ ${recentText}`,
     }
 
     loadLeads();
-  }, [kbEntries, coachActive, qaActive, intentActive, coachTips, qaItems, loadLeads, autoSchedulerEnabled, coachUser]);
+  }, [kbEntries, coachActive, qaActive, intentActive, coachTips, qaItems, loadLeads, autoSchedulerEnabled, coachUser, callType]);
 
   // Keep stopCallRef updated for monitor polling
   useEffect(() => { stopCallRef.current = stopCall; }, [stopCall]);
@@ -1193,13 +1222,14 @@ ${recentText}`,
           {testingAudio ? '⏹ Stop Test' : '🔊 Test Audio'}
         </button>
 
-        {/* Call Type selector — Front to Back / Open Only / Cold Call */}
+        {/* Call Type selector — Front to Back / Open Only / Cold Call / Closer Call */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
           <label style={{ ...ls, marginBottom: 0 }}>📞 Call Type</label>
           <div style={{ display: 'flex', gap: '4px' }}>
             <button onClick={() => handleCallTypeChange('front_to_back')} disabled={phase === 'live'} title="Inbound transfer — full open + close" style={{ padding: '8px 12px', borderRadius: '4px', border: `1px solid ${callType === 'front_to_back' ? GOLD + '66' : 'rgba(255,255,255,0.1)'}`, background: callType === 'front_to_back' ? `${GOLD}18` : 'transparent', color: callType === 'front_to_back' ? GOLD : '#6b7280', cursor: phase === 'live' ? 'not-allowed' : 'pointer', fontSize: '11px', fontWeight: 'bold', whiteSpace: 'nowrap' }}>🔄 Front→Back</button>
             <button onClick={() => handleCallTypeChange('open_only')} disabled={phase === 'live'} title="Inbound transfer — open only, transfer at SSN" style={{ padding: '8px 12px', borderRadius: '4px', border: `1px solid ${callType === 'open_only' ? GOLD + '66' : 'rgba(255,255,255,0.1)'}`, background: callType === 'open_only' ? `${GOLD}18` : 'transparent', color: callType === 'open_only' ? GOLD : '#6b7280', cursor: phase === 'live' ? 'not-allowed' : 'pointer', fontSize: '11px', fontWeight: 'bold', whiteSpace: 'nowrap' }}>📞 Open Only</button>
             <button onClick={() => handleCallTypeChange('cold_call')} disabled={phase === 'live'} title="Outgoing cold call — ask for name, save on interest" style={{ padding: '8px 12px', borderRadius: '4px', border: `1px solid ${callType === 'cold_call' ? GOLD + '66' : 'rgba(255,255,255,0.1)'}`, background: callType === 'cold_call' ? `${GOLD}18` : 'transparent', color: callType === 'cold_call' ? GOLD : '#6b7280', cursor: phase === 'live' ? 'not-allowed' : 'pointer', fontSize: '11px', fontWeight: 'bold', whiteSpace: 'nowrap' }}>🧊 Cold Call</button>
+            <button onClick={() => handleCallTypeChange('closer_call')} disabled={phase === 'live'} title="Inbound — opener got SSN, transferred to you (account manager) for the close" style={{ padding: '8px 12px', borderRadius: '4px', border: `1px solid ${callType === 'closer_call' ? GOLD + '66' : 'rgba(255,255,255,0.1)'}`, background: callType === 'closer_call' ? `${GOLD}18` : 'transparent', color: callType === 'closer_call' ? GOLD : '#6b7280', cursor: phase === 'live' ? 'not-allowed' : 'pointer', fontSize: '11px', fontWeight: 'bold', whiteSpace: 'nowrap' }}>🤝 Closer Call</button>
           </div>
         </div>
 
@@ -1210,12 +1240,37 @@ ${recentText}`,
 
         <NoMissedMeetingsButton />
 
+        {/* Quick lead search + Start Live Call (2/3 smaller) */}
         {phase !== 'live' ? (
-          <button onClick={startCall} disabled={kbLoading} style={{ background: 'linear-gradient(135deg,#10b981,#22c55e)', color: DARK, border: 'none', borderRadius: '4px', padding: '10px 24px', cursor: kbLoading ? 'not-allowed' : 'pointer', fontSize: '12px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase', opacity: kbLoading ? 0.5 : 1 }}>
-            {kbLoading ? 'Loading KB…' : '🔴 Start Live Call'}
-          </button>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', position: 'relative' }}>
+            <label style={{ ...ls, marginBottom: 0 }}>👤 Search Client Profile</label>
+            <div style={{ display: 'flex', gap: '4px' }}>
+              <input
+                value={leadSearch}
+                onChange={e => setLeadSearch(e.target.value)}
+                onFocus={() => setLeadSearchFocus(true)}
+                onBlur={() => setTimeout(() => setLeadSearchFocus(false), 200)}
+                placeholder="Type name, phone, or email…"
+                style={{ ...inp, width: '200px', fontSize: '11px', padding: '6px 10px' }}
+              />
+              <button onClick={() => startCall(false)} disabled={kbLoading} style={{ background: 'linear-gradient(135deg,#10b981,#22c55e)', color: DARK, border: 'none', borderRadius: '4px', padding: '6px 12px', cursor: kbLoading ? 'not-allowed' : 'pointer', fontSize: '9px', fontWeight: 'bold', letterSpacing: '0.5px', textTransform: 'uppercase', opacity: kbLoading ? 0.5 : 1, whiteSpace: 'nowrap' }}>
+                {kbLoading ? 'Loading…' : '🔴 Live Call'}
+              </button>
+            </div>
+            {/* Search results dropdown */}
+            {leadSearchFocus && leadSearchResults.length > 0 && (
+              <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, marginTop: '2px', background: DARK, border: `1px solid ${GOLD}44`, borderRadius: '4px', maxHeight: '240px', overflowY: 'auto', zIndex: 10000, boxShadow: '0 8px 24px rgba(0,0,0,0.6)' }}>
+                {leadSearchResults.map(l => (
+                  <button key={l.id} onClick={() => selectLeadAndStartCall(l)} style={{ width: '100%', background: 'transparent', border: 'none', borderBottom: '1px solid rgba(255,255,255,0.04)', padding: '8px 12px', cursor: 'pointer', textAlign: 'left', color: '#c4cdd8', fontSize: '11px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span>{l.firstName} {l.lastName}</span>
+                    <span style={{ color: '#6b7280', fontSize: '9px' }}>{l.phone || l.email || l.leadNumber || ''}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         ) : (
-          <button onClick={stopCall} style={{ background: 'rgba(239,68,68,0.15)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '4px', padding: '10px 24px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase' }}>⏹ End Call</button>
+          <button onClick={stopCall} style={{ background: 'rgba(239,68,68,0.15)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '4px', padding: '6px 12px', cursor: 'pointer', fontSize: '9px', fontWeight: 'bold', letterSpacing: '0.5px', textTransform: 'uppercase' }}>⏹ End</button>
         )}
 
         {phase === 'ended' && (
