@@ -9,11 +9,12 @@ import DoNothingCalculator from '@/components/debt/DoNothingCalculator';
 import NextCallBriefing from '@/components/debt/NextCallBriefing';
 import CallAnalysisDiagram from '@/components/debt/CallAnalysisDiagram';
 import { setProfileTimer, cancelProfileTimer, getActiveTimer } from '@/components/debt/ProfileTimerWatcher';
+import LeadActivityTab from '@/components/debt/LeadActivityTab';
 import { usePopOutPanel } from '@/hooks/usePopOutPanel';
 
 const GOLD = '#10b981';
-const ls = { display: 'block', color: '#8a9ab8', fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '6px' };
-const inp = { width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '4px', padding: '8px 12px', color: '#e8e0d0', fontSize: '13px', outline: 'none', boxSizing: 'border-box', fontFamily: 'Georgia, serif' };
+const ls = { display: 'block', color: '#8a9ab8', fontSize: '9px', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '3px' };
+const inp = { width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '4px', padding: '6px 10px', color: '#e8e0d0', fontSize: '12px', outline: 'none', boxSizing: 'border-box', fontFamily: 'Georgia, serif' };
 
 const BILL_CATEGORIES = [
   { key: 'rent', label: 'Rent / Mortgage', icon: '🏠' },
@@ -31,6 +32,7 @@ const BILL_CATEGORIES = [
 ];
 
 const TABS = [
+  { id: 'activity', label: '📋 Activity' },
   { id: 'hardship', label: '⚠️ Hardship' },
   { id: 'overview', label: '📋 Overview' },
   { id: 'insights', label: '🔍 Insights' },
@@ -223,6 +225,8 @@ export default function ClientProfileModal({ lead, onClose, onSave }) {
 
       {/* Content */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '20px' }}>
+        {tab === 'activity' && <LeadActivityTab lead={local} />}
+
         {tab === 'hardship' && (
           <div>
             <div style={{ color: GOLD, fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '12px' }}>⚠️ Hardship Details</div>
@@ -245,17 +249,15 @@ export default function ClientProfileModal({ lead, onClose, onSave }) {
         )}
 
         {tab === 'overview' && (
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
-            <Field label="First Name" value={local.firstName} onChange={v => update('firstName', v)} />
-            <Field label="Last Name" value={local.lastName} onChange={v => update('lastName', v)} />
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px' }}>
+            <Field label="First" value={local.firstName} onChange={v => update('firstName', v)} />
+            <Field label="Last" value={local.lastName} onChange={v => update('lastName', v)} />
             <Field label="Phone" value={local.phone} onChange={v => update('phone', v)} />
-            <Field label="Email" value={local.email} onChange={v => update('email', v)} />
-            <Field label="Address" value={local.address} onChange={v => update('address', v)} />
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }}>
-              <Field label="City" value={local.city} onChange={v => update('city', v)} />
-              <Field label="State" value={local.state} onChange={v => update('state', v)} />
-              <Field label="Zip" value={local.zip} onChange={v => update('zip', v)} />
-            </div>
+            <div style={{ gridColumn: '1 / -1' }}><Field label="Email" value={local.email} onChange={v => update('email', v)} /></div>
+            <div style={{ gridColumn: '1 / -1' }}><Field label="Address" value={local.address} onChange={v => update('address', v)} /></div>
+            <Field label="City" value={local.city} onChange={v => update('city', v)} />
+            <Field label="State" value={local.state} onChange={v => update('state', v)} />
+            <Field label="Zip" value={local.zip} onChange={v => update('zip', v)} />
             <div>
               <label style={ls}>Employment Status</label>
               <select value={local.employmentStatus || ''} onChange={e => update('employmentStatus', e.target.value)} style={inp}>

@@ -8,8 +8,8 @@ import ClientProfileModal from '@/components/debt/ClientProfileModal';
 import LeadActivityTab from '@/components/debt/LeadActivityTab';
 
 const GOLD = '#10b981';
-const ls = { display: 'block', color: '#8a9ab8', fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '6px' };
-const inp = { width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '4px', padding: '8px 12px', color: '#e8e0d0', fontSize: '13px', outline: 'none', boxSizing: 'border-box', fontFamily: 'Georgia, serif' };
+const ls = { display: 'block', color: '#8a9ab8', fontSize: '9px', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '3px' };
+const inp = { width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '4px', padding: '6px 10px', color: '#e8e0d0', fontSize: '12px', outline: 'none', boxSizing: 'border-box', fontFamily: 'Georgia, serif' };
 
 const STATUS_COLORS = {
   new: '#60a5fa', contacted: '#f59e0b', qualified: '#a78bfa', enrolled: '#4ade80', declined: '#ef4444', completed: '#6b7280', callback: '#f59e0b',
@@ -18,7 +18,7 @@ const STATUS_LABELS = {
   new: '🔵 New', contacted: '📞 Contacted', qualified: '⭐ Qualified', enrolled: '✅ Enrolled', declined: '❌ Declined', completed: '✓ Completed', callback: '📅 Callback',
 };
 
-export default function DebtLeadCard({ lead, onLeadChange, transcript, intentScore, animalType, profileData }) {
+export default function DebtLeadCard({ lead, onLeadChange, onLeadSaved, transcript, intentScore, animalType, profileData }) {
   const [tab, setTab] = useState('overview');
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -27,10 +27,10 @@ export default function DebtLeadCard({ lead, onLeadChange, transcript, intentSco
   const update = (field, value) => onLeadChange({ ...lead, [field]: value });
 
   const save = async () => {
-    if (!lead.id) return;
+    if (!lead.firstName || !lead.lastName) return;
     setSaving(true);
     try {
-      await base44.entities.DebtLead.update(lead.id, {
+      const payload = {
         firstName: lead.firstName, lastName: lead.lastName, phone: lead.phone, email: lead.email,
         address: lead.address, city: lead.city, state: lead.state, zip: lead.zip,
         debtAmount: lead.debtAmount, creditorCount: lead.creditorCount, creditors: lead.creditors,
@@ -41,8 +41,16 @@ export default function DebtLeadCard({ lead, onLeadChange, transcript, intentSco
         enrollmentDate: lead.enrollmentDate, status: lead.status, notes: lead.notes,
         intentScore: intentScore ?? lead.intentScore, animalType: animalType || lead.animalType,
         profileJson: profileData ? JSON.stringify(profileData) : lead.profileJson,
-      });
+        leadNumber: lead.leadNumber, debtCoachOwner: lead.debtCoachOwner,
+      };
+      let saved;
+      if (lead.id) {
+        saved = await base44.entities.DebtLead.update(lead.id, payload);
+      } else {
+        saved = await base44.entities.DebtLead.create(payload);
+      }
       setSaved(true); setTimeout(() => setSaved(false), 2000);
+      onLeadSaved?.(saved);
     } catch (e) { alert('Save failed: ' + (e?.message || String(e))); }
     setSaving(false);
   };
@@ -85,12 +93,12 @@ export default function DebtLeadCard({ lead, onLeadChange, transcript, intentSco
       <div style={{ flex: 1, overflowY: 'auto', padding: '16px 18px' }}>
         {tab === 'activity' && <LeadActivityTab lead={lead} />}
         {tab === 'overview' && (
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-            <Field label="First Name" value={lead.firstName} onChange={v => update('firstName', v)} />
-            <Field label="Last Name" value={lead.lastName} onChange={v => update('lastName', v)} />
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }}>
+            <Field label="First" value={lead.firstName} onChange={v => update('firstName', v)} />
+            <Field label="Last" value={lead.lastName} onChange={v => update('lastName', v)} />
             <Field label="Phone" value={lead.phone} onChange={v => update('phone', v)} />
-            <Field label="Email" value={lead.email} onChange={v => update('email', v)} />
-            <Field label="Address" value={lead.address} onChange={v => update('address', v)} />
+            <div style={{ gridColumn: '1 / -1' }}><Field label="Email" value={lead.email} onChange={v => update('email', v)} /></div>
+            <div style={{ gridColumn: '1 / -1' }}><Field label="Address" value={lead.address} onChange={v => update('address', v)} /></div>
             <Field label="City" value={lead.city} onChange={v => update('city', v)} />
             <Field label="State" value={lead.state} onChange={v => update('state', v)} />
             <Field label="Zip" value={lead.zip} onChange={v => update('zip', v)} />
@@ -214,11 +222,11 @@ export default function DebtLeadCard({ lead, onLeadChange, transcript, intentSco
 
       {/* Save bar */}
       <div style={{ padding: '12px 18px', borderTop: '1px solid rgba(255,255,255,0.07)', display: 'flex', gap: '10px', alignItems: 'center' }}>
-        <button onClick={save} disabled={saving || !lead.id} style={{ background: 'linear-gradient(135deg,#10b981,#22c55e)', color: '#0a0f1e', border: 'none', borderRadius: '4px', padding: '8px 20px', cursor: saving ? 'not-allowed' : 'pointer', fontSize: '11px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase', opacity: saving || !lead.id ? 0.5 : 1 }}>
-          {saving ? '⏳ Saving…' : '💾 Save Lead'}
+        <button onClick={save} disabled={saving || !lead.firstName || !lead.lastName} style={{ background: 'linear-gradient(135deg,#10b981,#22c55e)', color: '#0a0f1e', border: 'none', borderRadius: '4px', padding: '8px 20px', cursor: saving ? 'not-allowed' : 'pointer', fontSize: '11px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase', opacity: saving || !lead.firstName || !lead.lastName ? 0.5 : 1 }}>
+          {saving ? '⏳ Saving…' : lead.id ? '💾 Save Lead' : '💾 Save & Open Profile'}
         </button>
         {saved && <span style={{ color: '#4ade80', fontSize: '12px' }}>✓ Saved</span>}
-        {!lead.id && <span style={{ color: '#4a5568', fontSize: '11px' }}>Create lead first to save</span>}
+        {!lead.firstName && <span style={{ color: '#4a5568', fontSize: '11px' }}>Enter a name to save</span>}
       </div>
 
       {showProfile && <ClientProfileModal lead={lead} onClose={() => setShowProfile(false)} onSave={(updated) => onLeadChange(updated)} />}

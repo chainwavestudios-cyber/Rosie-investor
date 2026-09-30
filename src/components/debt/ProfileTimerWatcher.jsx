@@ -26,6 +26,33 @@ export function setProfileTimer(lead, hours, minutes) {
   return true;
 }
 
+export function setEventReminders(lead, eventISO, eventTitle) {
+  if (!lead?.id || !eventISO) return;
+  const eventTime = new Date(eventISO).getTime();
+  const reminders = [
+    { offset: 3600000, label: '1 hour' },
+    { offset: 300000, label: '5 minutes' },
+  ];
+  const keyBase = `evt_${Date.now()}`;
+  let registered = 0;
+  reminders.forEach((r, i) => {
+    const fireAt = eventTime - r.offset;
+    if (fireAt <= Date.now()) return; // skip reminders already in the past
+    const timer = {
+      leadId: lead.id,
+      leadSnapshot: { id: lead.id, firstName: lead.firstName, lastName: lead.lastName, phone: lead.phone },
+      fireAt,
+      label: `${lead.firstName || ''} ${lead.lastName || ''}`.trim() || 'Client',
+      type: 'event',
+      eventTitle: eventTitle || 'Scheduled Event',
+      offsetLabel: r.label,
+    };
+    localStorage.setItem(`${TIMER_PREFIX}${lead.id}_${keyBase}_${i}`, JSON.stringify(timer));
+    registered++;
+  });
+  if (registered > 0) window.dispatchEvent(new CustomEvent('profile_timer_set'));
+}
+
 export function cancelProfileTimer(leadId) {
   localStorage.removeItem(TIMER_PREFIX + leadId);
   window.dispatchEvent(new CustomEvent('profile_timer_cancelled', { detail: { leadId } }));
@@ -107,8 +134,17 @@ export default function ProfileTimerWatcher({ onOpenProfile }) {
             <span style={{ color: GOLD, fontSize: '12px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase' }}>⏰ Profile Timer</span>
             <button onClick={() => dismiss(timer.leadId)} style={{ background: 'none', border: 'none', color: '#6b7280', cursor: 'pointer', fontSize: '18px', padding: 0 }}>×</button>
           </div>
-          <p style={{ color: '#e8e0d0', fontSize: '16px', fontWeight: 'bold', margin: '0 0 6px' }}>Follow up with {timer.label}</p>
-          <p style={{ color: '#6b7280', fontSize: '11px', margin: '0 0 12px' }}>Timer set from Client Profile has expired.</p>
+          {timer.type === 'event' ? (
+            <>
+              <p style={{ color: '#e8e0d0', fontSize: '16px', fontWeight: 'bold', margin: '0 0 6px' }}>{timer.eventTitle}</p>
+              <p style={{ color: '#6b7280', fontSize: '11px', margin: '0 0 12px' }}>Starts in {timer.offsetLabel} — with {timer.label}</p>
+            </>
+          ) : (
+            <>
+              <p style={{ color: '#e8e0d0', fontSize: '16px', fontWeight: 'bold', margin: '0 0 6px' }}>Follow up with {timer.label}</p>
+              <p style={{ color: '#6b7280', fontSize: '11px', margin: '0 0 12px' }}>Timer set from Client Profile has expired.</p>
+            </>
+          )}
           <button onClick={() => openProfile(timer)} style={{ width: '100%', background: `linear-gradient(135deg, ${GOLD}, #22c55e)`, color: DARK, border: 'none', borderRadius: '4px', padding: '10px', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px', letterSpacing: '1px', textTransform: 'uppercase' }}>Open Profile →</button>
         </div>
       ))}

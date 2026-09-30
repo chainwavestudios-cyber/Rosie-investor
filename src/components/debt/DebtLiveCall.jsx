@@ -175,6 +175,14 @@ export default function DebtLiveCall() {
   }, [coachUser]);
   useEffect(() => { loadLeads(); }, [loadLeads]);
 
+  // After Save on the lead card: lead is persisted in the card; here we close the card and open the Client Profile
+  const handleLeadSaved = useCallback((savedLead) => {
+    setLead(savedLead);
+    leadRef.current = savedLead;
+    loadLeads();
+    setShowProfile(true);
+  }, [loadLeads]);
+
   useEffect(() => { transcriptRef.current = transcript; }, [transcript]);
 
   // Auto-save transcript every 10 seconds during live call (in case audio feed drops)
@@ -553,6 +561,7 @@ ${recentText}`,
   const startCall = useCallback(async (forceNew = false) => {
     // Ensure we have a lead — always create a brand new one for new/inbound calls
     if (forceNew || !lead.id) {
+      // Create the lead in memory only (not persisted) — saved when the agent clicks Save
       try {
         const allLeads = await base44.entities.DebtLead.list('-created_date', 500);
         const maxNum = (allLeads || []).reduce((max, l) => {
@@ -560,16 +569,15 @@ ${recentText}`,
           return isNaN(n) ? max : Math.max(max, n);
         }, 0);
         const leadNumber = `#${String(maxNum + 1).padStart(5, '0')}`;
-        const created = await base44.entities.DebtLead.create({
+        const newLead = {
           firstName: forceNew ? 'New' : (lead.firstName || 'New'),
           lastName: forceNew ? 'Lead' : (lead.lastName || 'Lead'),
           status: 'new', callCount: 0,
           leadNumber, debtCoachOwner: coachUser?.username || null,
-        });
-        setLead(created); setProfileData(null); setMemories([]);
-        leadRef.current = created;
-        loadLeads();
-      } catch (e) { alert('Failed to create lead: ' + (e?.message || String(e))); return; }
+        };
+        setLead(newLead); setProfileData(null); setMemories([]);
+        leadRef.current = newLead;
+      } catch (e) { alert('Failed to start call: ' + (e?.message || String(e))); return; }
     }
 
     setError(''); setTranscript([]); setQaItems([]); setCoachTips([]); setIntentScore(null); setProfileData(null); setReport('');
@@ -594,9 +602,6 @@ ${recentText}`,
     setQaActive(canLiveAI && canLiveQA);
     setCoachActive(canLiveAI && canLiveCoach);
     setIntentActive(canLiveAI && canLiveIntent);
-
-    // Auto-open client profile
-    setShowProfile(true);
 
     const dualMode = !!customerMicId && !!micDeviceId;
 
@@ -1202,8 +1207,8 @@ ${recentText}`,
               </div>
             )}
             <div style={{ display: 'grid', gridTemplateColumns: gridCols, gap: '16px', alignItems: 'start' }}>
-              {/* Lead contact card — pop-out enabled */}
-              {leadPanel.poppedOut ? (
+              {/* Lead contact card — hidden when Client Profile is open */}
+              {!showProfile && (leadPanel.poppedOut ? (
                 <div style={{ ...leadPanel.floatingStyle, background: '#0d1b2a', border: '1px solid rgba(16,185,129,0.3)', borderRadius: '6px' }}>
                   <div onMouseDown={leadPanel.onDragStart} style={{ padding: '8px 12px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'move', userSelect: 'none', flexShrink: 0 }}>
                     <span style={{ color: GOLD, fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase' }}>💳 Lead Contact Card</span>
@@ -1213,7 +1218,7 @@ ${recentText}`,
                     </div>
                   </div>
                   <div style={{ flex: 1, overflow: 'auto' }}>
-                    <DebtLeadCard lead={lead} onLeadChange={setLead} transcript={transcript} intentScore={intentScore} animalType={profileData?.animalType} profileData={profileData} />
+                    <DebtLeadCard lead={lead} onLeadChange={setLead} onLeadSaved={handleLeadSaved} transcript={transcript} intentScore={intentScore} animalType={profileData?.animalType} profileData={profileData} />
                   </div>
                   {leadPanel.resizeHandles}
                 </div>
@@ -1226,9 +1231,9 @@ ${recentText}`,
                       <button onClick={leadPanel.toggle} style={{ background: `${GOLD}18`, border: `1px solid ${GOLD}44`, color: GOLD, borderRadius: '4px', padding: '4px 10px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase' }}>⬆ Pop Out</button>
                     </div>
                   </div>
-                  <DebtLeadCard lead={lead} onLeadChange={setLead} transcript={transcript} intentScore={intentScore} animalType={profileData?.animalType} profileData={profileData} />
+                  <DebtLeadCard lead={lead} onLeadChange={setLead} onLeadSaved={handleLeadSaved} transcript={transcript} intentScore={intentScore} animalType={profileData?.animalType} profileData={profileData} />
                 </div>
-              )}
+              ))}
 
               {/* Transcript — pop-out enabled with Scripts tab */}
               <LiveTranscriptPanel transcript={transcript} phase={phase} panel={transcriptPanel} onAnswerQuestion={handleAnswerQuestion} lead={lead} />
