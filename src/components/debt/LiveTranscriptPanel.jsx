@@ -15,6 +15,38 @@ export default function LiveTranscriptPanel({ transcript, phase, panel, onAnswer
   const [selected, setSelected] = useState({});
   const scrollRef = useRef(null);
 
+  // Resizable + collapsible closer-pitches panel (persisted to localStorage)
+  const [pitchHeight, setPitchHeight] = useState(() => {
+    try { const v = localStorage.getItem('debt_pitch_height'); return v ? parseInt(v) : 280; } catch { return 280; }
+  });
+  const [pitchCollapsed, setPitchCollapsed] = useState(() => {
+    try { return localStorage.getItem('debt_pitch_collapsed') === '1'; } catch { return false; }
+  });
+  useEffect(() => { try { localStorage.setItem('debt_pitch_height', String(pitchHeight)); } catch {} }, [pitchHeight]);
+  useEffect(() => { try { localStorage.setItem('debt_pitch_collapsed', pitchCollapsed ? '1' : '0'); } catch {} }, [pitchCollapsed]);
+
+  const onResizerMouseDown = (e) => {
+    e.preventDefault();
+    const startY = e.clientY;
+    const startH = pitchCollapsed ? 0 : pitchHeight;
+    if (pitchCollapsed) setPitchCollapsed(false);
+    document.body.style.cursor = 'ns-resize';
+    document.body.style.userSelect = 'none';
+    const onMove = (ev) => {
+      const dy = startY - ev.clientY; // drag up → grow
+      const next = Math.max(120, Math.min(600, startH + dy));
+      setPitchHeight(next);
+    };
+    const onUp = () => {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  };
+
   // Auto-scroll to bottom when new lines arrive (unless user scrolled up to read)
   useEffect(() => {
     const el = scrollRef.current;
@@ -106,11 +138,45 @@ export default function LiveTranscriptPanel({ transcript, phase, panel, onAnswer
   );
 
   const renderScripts = () => (
-    <div style={{ flex: 1, overflowY: 'auto', padding: '14px 16px' }}>
-      <MyScriptsTab liveTranscript={transcript} phase={phase} clientFirstName={lead?.firstName} clientLastName={lead?.lastName} />
-      <div style={{ marginTop: '12px' }}>
-        <DebtPitchPanel />
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, padding: '14px 16px' }}>
+      <div style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
+        <MyScriptsTab liveTranscript={transcript} phase={phase} clientFirstName={lead?.firstName} clientLastName={lead?.lastName} />
       </div>
+      {/* Resizer / collapse bar between script and closer pitches */}
+      <div
+        onMouseDown={onResizerMouseDown}
+        title={pitchCollapsed ? 'Show closer pitches' : 'Drag to resize · click ▲ to hide'}
+        style={{
+          flexShrink: 0, height: '22px', marginTop: '8px',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: '0 8px', cursor: pitchCollapsed ? 'default' : 'ns-resize',
+          borderTop: '1px solid rgba(255,255,255,0.1)',
+          background: pitchCollapsed ? 'rgba(16,185,129,0.06)' : 'rgba(255,255,255,0.02)',
+          borderRadius: '4px 4px 0 0', userSelect: 'none',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span style={{ color: GOLD, fontSize: '9px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase' }}>🎤 Closer Pitches</span>
+          {pitchCollapsed && <span style={{ color: '#6b7280', fontSize: '10px' }}>(hidden)</span>}
+          {!pitchCollapsed && <span style={{ color: '#4a5568', fontSize: '10px' }}>⇅ drag to resize</span>}
+        </div>
+        <button
+          onMouseDown={(e) => e.stopPropagation()}
+          onClick={(e) => { e.stopPropagation(); setPitchCollapsed(p => !p); }}
+          style={{
+            background: `${GOLD}18`, border: `1px solid ${GOLD}44`, color: GOLD,
+            borderRadius: '4px', padding: '2px 10px', cursor: 'pointer',
+            fontSize: '10px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase',
+          }}
+        >
+          {pitchCollapsed ? '▼ Show' : '▲ Hide'}
+        </button>
+      </div>
+      {!pitchCollapsed && (
+        <div style={{ height: pitchHeight, flexShrink: 0, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+          <DebtPitchPanel />
+        </div>
+      )}
     </div>
   );
 
