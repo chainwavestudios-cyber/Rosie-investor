@@ -74,6 +74,7 @@ export default function DebtLiveCall() {
   const transcriptPanel = usePopOutPanel('live_transcript', { width: 520, height: 600 });
   const aiPanel = usePopOutPanel('live_ai_panel', { width: 420, height: 600 });
   const [allPoppedOut, setAllPoppedOut] = useState(false);
+  const [isInbound, setIsInbound] = useState(false);
   const [layoutSavedMsg, setLayoutSavedMsg] = useState(false);
 
   // 🔥 Hot Call Tracker — turbo intent engine; writes HotCallAlerts for the manager portal
@@ -103,6 +104,7 @@ export default function DebtLiveCall() {
   const lastContactTime = useRef(0);
   const lastComplianceTime = useRef(0);
   const handoffAttemptsRef = useRef(0);
+  const inboundRef = useRef(false);
   const callStartRef = useRef(null);
   const intentHistoryRef = useRef([]);
   const testCtxRef = useRef(null);
@@ -115,6 +117,7 @@ export default function DebtLiveCall() {
   const stopCallRef = useRef(null);
 
   useEffect(() => { leadRef.current = lead; }, [lead]);
+  useEffect(() => { inboundRef.current = isInbound; }, [isInbound]);
 
   // Load key memories for the selected lead — surfaced in AI Coach on follow-up calls
   const loadMemories = useCallback(async (leadId) => {
@@ -528,15 +531,46 @@ ${recentText}`,
     if (now - lastCosignerTime.current > 60000) { lastCosignerTime.current = now; handleCosignerExtract(); }
     if (now - lastContactTime.current > 40000) { lastContactTime.current = now; handleContactExtract(); }
     if (now - lastComplianceTime.current > 90000) { lastComplianceTime.current = now; handleComplianceEval(); }
-    // Opening handoff: try once at 3 lines, again at 7 lines if still nothing
+    // Opening handoff: for inbound calls, listen aggressively for transfer agent intro
+    // (name, debt amount, hardship, address, phone, account details)
     const lineCount = transcriptRef.current.length;
-    if (handoffAttemptsRef.current < 1 && lineCount >= 3) { handoffAttemptsRef.current = 1; handleHandoffExtract(); }
-    else if (handoffAttemptsRef.current < 2 && lineCount >= 7) { handoffAttemptsRef.current = 2; handleHandoffExtract(); }
+    if (inboundRef.current) {
+      // Inbound: extract more frequently in the opening seconds
+      if (handoffAttemptsRef.current < 1 && lineCount >= 2) { handoffAttemptsRef.current = 1; handleHandoffExtract(); }
+      else if (handoffAttemptsRef.current < 2 && lineCount >= 4) { handoffAttemptsRef.current = 2; handleHandoffExtract(); }
+      else if (handoffAttemptsRef.current < 3 && lineCount >= 6) { handoffAttemptsRef.current = 3; handleHandoffExtract(); }
+      else if (handoffAttemptsRef.current < 4 && lineCount >= 8) { handoffAttemptsRef.current = 4; handleHandoffExtract(); }
+      // Also trigger contact, hardship, and debt extraction more aggressively for inbound
+      if (now - lastContactTime.current > 15000) { lastContactTime.current = now; handleContactExtract(); }
+      if (now - lastHardshipTime.current > 20000) { lastHardshipTime.current = now; handleHardshipExtract(); }
+      if (now - lastLedgerTime.current > 20000) { lastLedgerTime.current = now; handleDebtExtract(); }
+    } else {
+      if (handoffAttemptsRef.current < 1 && lineCount >= 3) { handoffAttemptsRef.current = 1; handleHandoffExtract(); }
+      else if (handoffAttemptsRef.current < 2 && lineCount >= 7) { handoffAttemptsRef.current = 2; handleHandoffExtract(); }
+    }
   }, [qaActive, coachActive, intentActive, handleQa, flushCustomerBuffer, handleCoach, handleIntent, handleProfile, handleDebtExtract, handleBillsExtract, handleHardshipExtract, handleCosignerExtract, handleContactExtract, handleComplianceEval, handleHandoffExtract]);
 
-  const startCall = useCallback(async () => {
-    // Ensure we have a lead
-    if (!lead.id) { await createNewLead(); }
+  const startCall = useCallback(async (forceNew = false) => {
+    // Ensure we have a lead — always create a brand new one for new/inbound calls
+    if (forceNew || !lead.id) {
+      try {
+        const allLeads = await base44.entities.DebtLead.list('-created_date', 500);
+        const maxNum = (allLeads || []).reduce((max, l) => {
+          const n = parseInt((l.leadNumber || '').replace('#', ''), 10);
+          return isNaN(n) ? max : Math.max(max, n);
+        }, 0);
+        const leadNumber = `#${String(maxNum + 1).padStart(5, '0')}`;
+        const created = await base44.entities.DebtLead.create({
+          firstName: forceNew ? 'New' : (lead.firstName || 'New'),
+          lastName: forceNew ? 'Lead' : (lead.lastName || 'Lead'),
+          status: 'new', callCount: 0,
+          leadNumber, debtCoachOwner: coachUser?.username || null,
+        });
+        setLead(created); setProfileData(null); setMemories([]);
+        leadRef.current = created;
+        loadLeads();
+      } catch (e) { alert('Failed to create lead: ' + (e?.message || String(e))); return; }
+    }
 
     setError(''); setTranscript([]); setQaItems([]); setCoachTips([]); setIntentScore(null); setProfileData(null); setReport('');
     intentHistoryRef.current = [];
@@ -677,7 +711,7 @@ ${recentText}`,
       if (e.code !== 1000 && e.code !== 1005) setError(`Deepgram disconnected (code ${e.code}). ${e.reason || ''}`);
     };
     ws.onerror = () => { setDgStatus('error'); setError('Deepgram connection error — check API key.'); };
-  }, [micDeviceId, customerMicId, processNewEntry, lead, createNewLead]);
+  }, [micDeviceId, customerMicId, processNewEntry, lead, loadLeads, coachUser]);
 
   const stopCall = useCallback(async () => {
     // Update DialerSession back to logged_in
@@ -1252,6 +1286,11 @@ ${recentText}`,
         transcript={transcript}
         isActive={phase === 'live'}
         agentUsername={coachUser?.username}
+        phase={phase}
+        onStartCall={() => startCall(true)}
+        onStopCall={stopCall}
+        isInbound={isInbound}
+        onToggleInbound={setIsInbound}
       />
 
       {/* Ready for Next Call briefing — available after call ends */}

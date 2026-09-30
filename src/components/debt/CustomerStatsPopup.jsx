@@ -18,7 +18,7 @@ const INSIGHT_TYPES = [
   { id: 'other', label: '📌 Other', color: '#8a9ab8' },
 ];
 
-export default function CustomerStatsPopup({ lead, transcript, isActive, agentUsername, onInsightsChange }) {
+export default function CustomerStatsPopup({ lead, transcript, isActive, agentUsername, onInsightsChange, phase, onStartCall, onStopCall, isInbound, onToggleInbound }) {
   const [collapsed, setCollapsed] = useState(false);
   const [insights, setInsights] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -30,6 +30,27 @@ export default function CustomerStatsPopup({ lead, transcript, isActive, agentUs
   const [newInsightFlash, setNewInsightFlash] = useState(new Set());
   const lastExtractLineCount = useRef(0);
   const existingInsightKeys = useRef(new Set());
+  const [pos, setPos] = useState(() => ({ x: 24, y: typeof window !== 'undefined' ? window.innerHeight - 350 : 100 }));
+  const [dragging, setDragging] = useState(false);
+  const dragOffset = useRef({ x: 0, y: 0 });
+  const dragMoved = useRef(false);
+
+  useEffect(() => {
+    if (!dragging) return;
+    const handleMove = (e) => { dragMoved.current = true; setPos({ x: e.clientX - dragOffset.current.x, y: e.clientY - dragOffset.current.y }); };
+    const handleUp = () => setDragging(false);
+    window.addEventListener('mousemove', handleMove);
+    window.addEventListener('mouseup', handleUp);
+    return () => { window.removeEventListener('mousemove', handleMove); window.removeEventListener('mouseup', handleUp); };
+  }, [dragging]);
+
+  const handleDragStart = (e) => {
+    e.stopPropagation();
+    dragMoved.current = false;
+    const rect = e.currentTarget.parentElement.getBoundingClientRect();
+    dragOffset.current = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+    setDragging(true);
+  };
 
   // Load existing insights for this lead
   const loadInsights = useCallback(async () => {
@@ -185,7 +206,7 @@ export default function CustomerStatsPopup({ lead, transcript, isActive, agentUs
 
   return (
     <div style={{
-      position: 'fixed', bottom: 24, left: 24, zIndex: 8500,
+      position: 'fixed', left: pos.x, top: pos.y, zIndex: 8500,
       width: collapsed ? 220 : 380,
       background: DARK, border: `1px solid ${GOLD}44`, borderRadius: '8px',
       boxShadow: '0 8px 32px rgba(0,0,0,0.6)',
@@ -197,8 +218,8 @@ export default function CustomerStatsPopup({ lead, transcript, isActive, agentUs
       <div style={{
         padding: '10px 14px', borderBottom: collapsed ? 'none' : '1px solid rgba(255,255,255,0.07)',
         display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-        cursor: 'pointer', userSelect: 'none', flexShrink: 0,
-      }} onClick={() => setCollapsed(p => !p)}>
+        cursor: dragging ? 'grabbing' : 'grab', userSelect: 'none', flexShrink: 0,
+      }} onMouseDown={handleDragStart} onClick={() => { if (!dragMoved.current) setCollapsed(p => !p); }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <span style={{ color: GOLD, fontSize: '11px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase' }}>🔍 Customer Stats</span>
           {insights.length > 0 && (
@@ -328,6 +349,21 @@ export default function CustomerStatsPopup({ lead, transcript, isActive, agentUs
                 )}
               </div>
             </>
+          )}
+        </div>
+      )}
+
+      {/* Call controls — Start/End Live Call + Inbound checkbox */}
+      {!collapsed && (
+        <div style={{ padding: '8px 10px', borderTop: '1px solid rgba(255,255,255,0.07)', display: 'flex', gap: '6px', alignItems: 'center', flexShrink: 0 }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#8a9ab8', fontSize: '10px', cursor: 'pointer', whiteSpace: 'nowrap' }} title="Check for inbound calls — listens for transfer agent intro (name, debt amount, hardship, address, phone, account details)">
+            <input type="checkbox" checked={isInbound || false} onChange={e => onToggleInbound?.(e.target.checked)} style={{ cursor: 'pointer' }} />
+            📥 Inbound
+          </label>
+          {phase !== 'live' ? (
+            <button onClick={onStartCall} style={{ flex: 1, background: 'linear-gradient(135deg,#10b981,#22c55e)', color: '#0a0f1e', border: 'none', borderRadius: '4px', padding: '8px 12px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase' }}>🔴 Start Live Call</button>
+          ) : (
+            <button onClick={onStopCall} style={{ flex: 1, background: 'rgba(239,68,68,0.15)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '4px', padding: '8px 12px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase' }}>⏹ End Live Call</button>
           )}
         </div>
       )}
