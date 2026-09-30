@@ -1,0 +1,54 @@
+{
+  "name": "Scrape Social Leads 4x Daily",
+  "trigger": {
+    "condition": null,
+    "config": {
+      "trigger_type": "scheduled",
+      "events": [],
+      "schedule_mode": "recurring",
+      "cron_expression": "0 0,6,12,18 * * *",
+      "one_time_date": null,
+      "timezone": "America/New_York",
+      "interval_value": null,
+      "interval_unit": null,
+      "interval_anchor": null,
+      "ends_type": "never",
+      "ends_on_date": null,
+      "ends_after_count": null
+    }
+  },
+  "definition": {
+    "document": {
+      "dsl": "1.0.0",
+      "name": "scrape_social_leads_4x_daily",
+      "version": "1.0",
+      "namespace": "base44"
+    },
+    "do": [
+      {
+        "scrape_leads": {
+          "call": "invoke_backend_function",
+          "with": {
+            "function_name": "scrapeSocialLeads",
+            "args": {
+              "action": "scrape",
+              "platforms": [
+                "reddit",
+                "quora",
+                "stackexchange",
+                "x_twitter",
+                "facebook"
+              ]
+            }
+          },
+          "then": "end",
+          "x-base44": {
+            "title": "Scrape all social platforms",
+            "description": "Reddit, Quora, Stack Exchange, X, Facebook"
+          }
+        }
+      }
+    ]
+  },
+  "description": "Runs the social media lead scraper 4 times a day (midnight, 6am, noon, 6pm ET) to mine Reddit, Quora, Stack Exchange, X, and Facebook for fresh debt-distress posts."
+}

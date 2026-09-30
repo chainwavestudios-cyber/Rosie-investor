@@ -6,6 +6,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useDebtCoachAuth } from '@/lib/DebtCoachAuthContext';
+import LeadCrossAIResults from '@/components/debt/LeadCrossAIResults';
 
 const GOLD = '#10b981';
 const DARK = '#0a0f1e';
@@ -41,6 +42,10 @@ export default function LeadGenTab() {
   const [testResult, setTestResult] = useState(null);
   const [employees, setEmployees] = useState([]);
   const [assigningLeadId, setAssigningLeadId] = useState(null);
+  const [selectedIds, setSelectedIds] = useState(new Set());
+  const [expandedRows, setExpandedRows] = useState(new Set());
+  const [crossEnriching, setCrossEnriching] = useState(false);
+  const [crossEnrichResult, setCrossEnrichResult] = useState(null);
 
   const loadLeads = useCallback(async () => {
     setLoading(true);
@@ -153,6 +158,92 @@ export default function LeadGenTab() {
     setPushing(null);
   };
 
+  const runLeadCrossEnrich = async () => {
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0) return;
+    setCrossEnriching(true); setError(''); setCrossEnrichResult(null);
+    try {
+      const res = await base44.functions.invoke('leadCrossEnrich', { bulk: true, leadIds: ids });
+      setCrossEnrichResult(res?.data || res);
+      loadLeads();
+    } catch (e) { setError('LeadCross AI enrichment failed: ' + (e?.message || String(e))); }
+    setCrossEnriching(false);
+  };
+
+  const enrichSingleLeadCross = async (leadId) => {
+    setCrossEnriching(true);
+    try {
+      await base44.functions.invoke('leadCrossEnrich', { leadId });
+      loadLeads();
+      // If the detail modal is open, refresh the selected lead
+      if (selectedLead?.id === leadId) {
+        const updated = await base44.entities.ScrapedLead.get(leadId);
+        setSelectedLead(updated);
+      }
+    } catch (e) { setError('LeadCross AI enrichment failed: ' + (e?.message || String(e))); }
+    setCrossEnriching(false);
+  };
+
+  const exportCSV = () => {
+    const rows = filtered.map(l => {
+      const emails = l.enrichedEmailsJson ? (() => { try { return JSON.parse(l.enrichedEmailsJson); } catch { return []; } })() : [];
+      const phones = l.enrichedPhonesJson ? (() => { try { return JSON.parse(l.enrichedPhonesJson); } catch { return []; } })() : [];
+      const bestEmail = emails.sort((a, b) => b.confidence - a.confidence)[0];
+      const bestPhone = phones.sort((a, b) => b.confidence - a.confidence)[0];
+      return {
+        platform: l.platform,
+        userHandle: l.userHandle,
+        resolvedName: l.resolvedFullName || '',
+        company: l.companyName || '',
+        domain: l.companyDomain || '',
+        jobTitle: l.jobTitle || '',
+        location: l.location || '',
+        debtAmount: l.extractedDebtAmount || '',
+        distressCategory: l.distressCategory || '',
+        postUrl: l.postUrl || '',
+        postTitle: l.postTitle || '',
+        postText: (l.postText || '').replace(/"/g, '""').replace(/\n/g, ' ').substring(0, 500),
+        bestEmail: bestEmail?.email || '',
+        emailConfidence: bestEmail?.confidence || '',
+        emailSource: bestEmail?.sourceFound || '',
+        bestPhone: bestPhone?.phone || '',
+        phoneConfidence: bestPhone?.confidence || '',
+        phoneSource: bestPhone?.source || '',
+        leadCrossStatus: l.leadCrossStatus || 'pending',
+      };
+    });
+    const headers = Object.keys(rows[0] || {});
+    const csv = [headers.join(','), ...rows.map(r => headers.map(h => `"${r[h] ?? ''}"`).join(','))].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = `leadcross_ai_export_${new Date().toISOString().split('T')[0]}.csv`;
+    a.click(); URL.revokeObjectURL(url);
+  };
+
+  const toggleRow = (id) => {
+    setExpandedRows(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelect = (id) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    setSelectedIds(prev => {
+      if (prev.size === filtered.length) return new Set();
+      return new Set(filtered.map(l => l.id));
+    });
+  };
+
   const testMatch = async () => {
     if (!testText.trim()) return;
     try {
@@ -225,6 +316,13 @@ export default function LeadGenTab() {
         </button>
         <button onClick={loadLeads} style={{ background: 'rgba(255,255,255,0.05)', color: '#8a9ab8', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '4px', padding: '10px 16px', cursor: 'pointer', fontSize: '12px' }}>🔄 Refresh</button>
 
+        <button onClick={runLeadCrossEnrich} disabled={crossEnriching || selectedIds.size === 0} style={{ background: 'linear-gradient(135deg,#a78bfa,#7c3aed)', color: '#fff', border: 'none', borderRadius: '4px', padding: '10px 20px', cursor: crossEnriching || selectedIds.size === 0 ? 'not-allowed' : 'pointer', fontSize: '12px', fontWeight: 'bold', opacity: crossEnriching || selectedIds.size === 0 ? 0.5 : 1 }}>
+          {crossEnriching ? '⏳ Cross-AI…' : `🚀 LeadCross AI (${selectedIds.size})`}
+        </button>
+        <button onClick={exportCSV} disabled={filtered.length === 0} style={{ background: `${BLUE}18`, color: BLUE, border: `1px solid ${BLUE}44`, borderRadius: '4px', padding: '10px 16px', cursor: filtered.length === 0 ? 'not-allowed' : 'pointer', fontSize: '12px', fontWeight: 'bold', opacity: filtered.length === 0 ? 0.5 : 1 }}>
+          📥 Export CSV
+        </button>
+
         <div style={{ flex: 1 }} />
 
         <input value={searchText} onChange={e => setSearchText(e.target.value)} placeholder="Search posts, handles…" style={{ ...inp, maxWidth: '240px' }} />
@@ -262,6 +360,12 @@ export default function LeadGenTab() {
         </div>
       )}
 
+      {crossEnrichResult && (
+        <div style={{ marginBottom: '12px', padding: '12px 16px', background: 'rgba(167,139,250,0.08)', border: `1px solid #a78bfa44`, borderRadius: '4px', color: '#a78bfa', fontSize: '12px' }}>
+          🚀 LeadCross AI complete: {crossEnrichResult.enriched} enriched, {crossEnrichResult.failed} failed out of {crossEnrichResult.processed} leads
+        </div>
+      )}
+
       {error && <div style={{ marginBottom: '12px', padding: '10px 14px', background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '4px', color: RED, fontSize: '12px' }}>⚠ {error}</div>}
 
       {/* Lead table */}
@@ -270,6 +374,10 @@ export default function LeadGenTab() {
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
             <thead>
               <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
+                <th style={{ padding: '10px 8px', textAlign: 'center', width: '32px' }}>
+                  <input type="checkbox" checked={selectedIds.size === filtered.length && filtered.length > 0} onChange={toggleSelectAll} style={{ cursor: 'pointer' }} />
+                </th>
+                <th style={{ padding: '10px 4px', textAlign: 'center', width: '24px' }}></th>
                 <th style={{ padding: '10px 12px', textAlign: 'left', color: '#8a9ab8', fontSize: '10px', letterSpacing: '1px', textTransform: 'uppercase' }}>Platform</th>
                 <th style={{ padding: '10px 12px', textAlign: 'left', color: '#8a9ab8', fontSize: '10px', letterSpacing: '1px', textTransform: 'uppercase' }}>User Handle</th>
                 <th style={{ padding: '10px 12px', textAlign: 'left', color: '#8a9ab8', fontSize: '10px', letterSpacing: '1px', textTransform: 'uppercase' }}>Post Snippet</th>
@@ -282,11 +390,20 @@ export default function LeadGenTab() {
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan={8} style={{ padding: '40px', textAlign: 'center', color: '#4a5568' }}>Loading scraped leads…</td></tr>
+                <tr><td colSpan={10} style={{ padding: '40px', textAlign: 'center', color: '#4a5568' }}>Loading scraped leads…</td></tr>
               ) : filtered.length === 0 ? (
-                <tr><td colSpan={8} style={{ padding: '40px', textAlign: 'center', color: '#4a5568' }}>No leads found. Run the scraper to start mining debt-distress posts.</td></tr>
+                <tr><td colSpan={10} style={{ padding: '40px', textAlign: 'center', color: '#4a5568' }}>No leads found. Run the scraper to start mining debt-distress posts.</td></tr>
               ) : filtered.map(lead => (
+                <>
                 <tr key={lead.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                  <td style={{ padding: '10px 8px', textAlign: 'center' }}>
+                    <input type="checkbox" checked={selectedIds.has(lead.id)} onChange={() => toggleSelect(lead.id)} style={{ cursor: 'pointer' }} />
+                  </td>
+                  <td style={{ padding: '10px 4px', textAlign: 'center' }}>
+                    <button onClick={() => toggleRow(lead.id)} style={{ background: 'none', border: 'none', color: expandedRows.has(lead.id) ? GOLD : '#6b7280', cursor: 'pointer', fontSize: '14px', padding: '0' }}>
+                      {expandedRows.has(lead.id) ? '−' : '▶'}
+                    </button>
+                  </td>
                   <td style={{ padding: '10px 12px' }}>
                     <span style={{ padding: '2px 8px', borderRadius: '2px', background: `${PLATFORM_COLORS[lead.platform] || '#6b7280'}22`, color: PLATFORM_COLORS[lead.platform] || '#6b7280', fontSize: '10px', fontWeight: 'bold' }}>{PLATFORM_LABELS[lead.platform] || lead.platform}</span>
                     {lead.subreddit && <div style={{ color: '#4a5568', fontSize: '9px', marginTop: '2px' }}>{lead.subreddit}</div>}
@@ -325,10 +442,13 @@ export default function LeadGenTab() {
                     {lead.resolvedEmail && <div style={{ color: GOLD, fontSize: '10px' }}>✉ {lead.resolvedEmail}</div>}
                     {lead.resolvedPhone && <div style={{ color: GOLD, fontSize: '10px' }}>📞 {lead.resolvedPhone}</div>}
                     {!lead.resolvedEmail && !lead.resolvedPhone && <span style={{ color: '#4a5568', fontSize: '10px' }}>{lead.enrichmentStatus || 'pending'}</span>}
+                    {lead.leadCrossStatus === 'enriched' && <span style={{ display: 'inline-block', marginTop: '2px', padding: '1px 6px', borderRadius: '2px', background: 'rgba(167,139,250,0.15)', color: '#a78bfa', fontSize: '8px', fontWeight: 'bold', textTransform: 'uppercase' }}>Cross-AI ✓</span>}
+                    {lead.leadCrossStatus === 'processing' && <span style={{ display: 'inline-block', marginTop: '2px', padding: '1px 6px', borderRadius: '2px', background: 'rgba(245,158,11,0.15)', color: AMBER, fontSize: '8px', fontWeight: 'bold', textTransform: 'uppercase' }}>Cross-AI ⏳</span>}
                   </td>
                   <td style={{ padding: '10px 12px', textAlign: 'center' }}>
                     <div style={{ display: 'flex', gap: '4px', justifyContent: 'center', flexWrap: 'wrap' }}>
                       <button onClick={() => setSelectedLead(lead)} style={{ background: 'rgba(255,255,255,0.05)', color: '#8a9ab8', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '3px', padding: '4px 8px', cursor: 'pointer', fontSize: '10px' }}>View</button>
+                      <button onClick={() => enrichSingleLeadCross(lead.id)} disabled={crossEnriching} style={{ background: 'rgba(167,139,250,0.18)', color: '#a78bfa', border: '1px solid rgba(167,139,250,0.44)', borderRadius: '3px', padding: '4px 8px', cursor: 'pointer', fontSize: '10px', opacity: crossEnriching ? 0.5 : 1 }}>🚀 Cross-AI</button>
                       {lead.status === 'raw' && (
                         <button onClick={() => enrichLead(lead.id)} disabled={enriching} style={{ background: `${BLUE}18`, color: BLUE, border: `1px solid ${BLUE}44`, borderRadius: '3px', padding: '4px 8px', cursor: 'pointer', fontSize: '10px', opacity: enriching ? 0.5 : 1 }}>🔍 Enrich</button>
                       )}
@@ -358,6 +478,38 @@ export default function LeadGenTab() {
                     </div>
                   </td>
                 </tr>
+                {expandedRows.has(lead.id) && (
+                  <tr key={lead.id + '-expanded'} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                    <td colSpan={10} style={{ padding: '0', background: 'rgba(0,0,0,0.2)' }}>
+                      <div style={{ padding: '14px 20px' }}>
+                        <div style={{ color: GOLD, fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '8px' }}>📝 Full Post Content</div>
+                        {lead.postTitle && <div style={{ color: '#e8e0d0', fontSize: '14px', fontWeight: 'bold', marginBottom: '8px' }}>{lead.postTitle}</div>}
+                        <div style={{ color: '#c4cdd8', fontSize: '13px', lineHeight: 1.7, whiteSpace: 'pre-wrap', fontFamily: 'Georgia, serif', maxHeight: '300px', overflowY: 'auto', background: 'rgba(0,0,0,0.2)', borderRadius: '4px', padding: '12px 16px' }}>
+                          {lead.postText || 'No post content available.'}
+                        </div>
+                        {lead.postUrl && (
+                          <a href={lead.postUrl} target="_blank" rel="noreferrer" style={{ display: 'inline-block', marginTop: '8px', color: BLUE, fontSize: '11px', textDecoration: 'underline' }}>
+                            🔗 View original post ↗
+                          </a>
+                        )}
+                        {/* LeadCross AI inline summary */}
+                        {lead.leadCrossStatus === 'enriched' && (
+                          <div style={{ marginTop: '12px', padding: '10px 14px', background: 'rgba(167,139,250,0.06)', border: '1px solid rgba(167,139,250,0.2)', borderRadius: '4px' }}>
+                            <span style={{ color: '#a78bfa', fontSize: '10px', fontWeight: 'bold', letterSpacing: '1px' }}>🚀 LeadCross AI: </span>
+                            <span style={{ color: '#c4cdd8', fontSize: '11px' }}>
+                              {lead.resolvedEmail && `✉ ${lead.resolvedEmail} · `}
+                              {lead.resolvedPhone && `📞 ${lead.resolvedPhone} · `}
+                              {lead.companyName && `🏢 ${lead.companyName} · `}
+                              {lead.companyDomain && `🌐 ${lead.companyDomain}`}
+                              {!lead.resolvedEmail && !lead.resolvedPhone && !lead.companyName && 'No contact info found — click View for details'}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                )}
+                </>
               ))}
             </tbody>
           </table>
@@ -424,6 +576,9 @@ export default function LeadGenTab() {
             <DetailRow label="Resolved Phone" value={selectedLead.resolvedPhone || '—'} />
             <DetailRow label="Confidence Score" value={selectedLead.identityMatchConfidence != null ? `${selectedLead.identityMatchConfidence}%` : '—'} />
             <DetailRow label="Enrichment Status" value={selectedLead.enrichmentStatus || 'pending'} />
+            <hr style={{ borderColor: 'rgba(255,255,255,0.1)', margin: '16px 0' }} />
+            <div style={{ color: '#a78bfa', fontSize: '11px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '12px' }}>🚀 LeadCross AI Enrichment</div>
+            <LeadCrossAIResults lead={selectedLead} onReenrich={() => enrichSingleLeadCross(selectedLead.id)} enriching={crossEnriching} />
             {selectedLead.profileDataJson && (
               <div style={{ marginBottom: '12px' }}>
                 <div style={{ ...ls }}>Raw Profile Data</div>

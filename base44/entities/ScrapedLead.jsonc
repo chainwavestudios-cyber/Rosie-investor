@@ -162,6 +162,49 @@
     "convertedDebtLeadId": {
       "type": "string",
       "title": "Converted DebtLead ID"
+    },
+    "companyName": {
+      "type": "string",
+      "title": "Company / Employer Name (resolved by LeadCross AI)"
+    },
+    "companyDomain": {
+      "type": "string",
+      "title": "Company Domain (resolved by LeadCross AI)"
+    },
+    "jobTitle": {
+      "type": "string",
+      "title": "Job Title (resolved by LeadCross AI)"
+    },
+    "enrichedEmailsJson": {
+      "type": "string",
+      "title": "LeadCross AI \u2014 Enriched Emails (JSON array)",
+      "format": "textarea"
+    },
+    "enrichedPhonesJson": {
+      "type": "string",
+      "title": "LeadCross AI \u2014 Enriched Phones (JSON array)",
+      "format": "textarea"
+    },
+    "leadCrossStatus": {
+      "type": "string",
+      "title": "LeadCross AI Status",
+      "enum": [
+        "pending",
+        "processing",
+        "enriched",
+        "failed"
+      ],
+      "default": "pending"
+    },
+    "leadCrossEnrichedAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "LeadCross AI Enriched At"
+    },
+    "leadCrossSourcesJson": {
+      "type": "string",
+      "title": "LeadCross AI \u2014 Source Traceability (JSON array of source URLs/snippets)",
+      "format": "textarea"
     }
   },
   "required": [
