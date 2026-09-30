@@ -3,7 +3,7 @@
  * Debt Settlement Call Coach platform, how roles work, and how it all fits together.
  * Public page — no auth required.
  */
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 
 const GOLD = '#10b981';
@@ -32,17 +32,24 @@ const SECTIONS = [
 
 export default function AboutDebt() {
   const [active, setActive] = useState('overview');
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    const update = () => setIsMobile(window.innerWidth < 768);
+    update();
+    window.addEventListener('resize', update);
+    return () => window.removeEventListener('resize', update);
+  }, []);
 
   return (
     <div style={{ fontFamily: 'Georgia, serif', minHeight: '100vh', background: DARK, color: '#e8e0d0' }}>
       {/* Hero */}
-      <div style={{ padding: '60px 32px 40px', borderBottom: `1px solid ${GOLD}22`, background: `linear-gradient(180deg, ${DARK}, #0d1b2a)` }}>
+      <div style={{ padding: isMobile ? '40px 16px 28px' : '60px 32px 40px', borderBottom: `1px solid ${GOLD}22`, background: `linear-gradient(180deg, ${DARK}, #0d1b2a)` }}>
         <div style={{ maxWidth: '900px', margin: '0 auto', textAlign: 'center' }}>
-          <div style={{ color: GOLD, fontSize: '12px', letterSpacing: '4px', textTransform: 'uppercase', marginBottom: '12px' }}>Complete Platform Guide</div>
-          <h1 style={{ fontSize: '42px', fontWeight: 'normal', margin: '0 0 16px', lineHeight: 1.2 }}>
+          <div style={{ color: GOLD, fontSize: isMobile ? '10px' : '12px', letterSpacing: isMobile ? '2px' : '4px', textTransform: 'uppercase', marginBottom: '12px' }}>Complete Platform Guide</div>
+          <h1 style={{ fontSize: isMobile ? '28px' : '42px', fontWeight: 'normal', margin: '0 0 16px', lineHeight: 1.2 }}>
             💳 Debt Settlement Call Coach
           </h1>
-          <p style={{ fontSize: '16px', color: '#8a9ab8', lineHeight: 1.7, maxWidth: '700px', margin: '0 auto' }}>
+          <p style={{ fontSize: isMobile ? '14px' : '16px', color: '#8a9ab8', lineHeight: 1.7, maxWidth: '700px', margin: '0 auto' }}>
             An AI-driven lead management and dialer platform that combines live call coaching, real-time speech analysis,
             roleplay training, compliance monitoring, and multi-role management — all built for debt settlement call centers.
           </p>
@@ -54,14 +61,28 @@ export default function AboutDebt() {
       </div>
 
       {/* Layout: sidebar + content */}
-      <div style={{ display: 'grid', gridTemplateColumns: '240px 1fr', gap: '0', maxWidth: '1200px', margin: '0 auto', minHeight: '60vh' }}>
-        {/* Sidebar nav */}
-        <div style={{ borderRight: '1px solid rgba(255,255,255,0.06)', padding: '24px 0', position: 'sticky', top: 0, height: 'fit-content' }}>
+      <div style={isMobile ? { display: 'flex', flexDirection: 'column' } : { display: 'grid', gridTemplateColumns: '240px 1fr', gap: '0', maxWidth: '1200px', margin: '0 auto', minHeight: '60vh' }}>
+        {/* Sidebar nav — horizontal scrollable chips on mobile, vertical sidebar on desktop */}
+        <div style={isMobile ? {
+          position: 'sticky', top: 0, zIndex: 10, background: DARK,
+          borderBottom: `1px solid ${GOLD}22`,
+          display: 'flex', gap: '6px', overflowX: 'auto', padding: '10px 12px',
+          WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none',
+        } : {
+          borderRight: '1px solid rgba(255,255,255,0.06)', padding: '24px 0', position: 'sticky', top: 0, height: 'fit-content',
+        }}>
           {SECTIONS.map(s => (
             <button
               key={s.id}
               onClick={() => { setActive(s.id); document.getElementById(s.id)?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }}
-              style={{
+              style={isMobile ? {
+                flexShrink: 0, whiteSpace: 'nowrap', padding: '8px 14px',
+                background: active === s.id ? `${GOLD}18` : 'rgba(255,255,255,0.04)',
+                border: `1px solid ${active === s.id ? GOLD + '55' : 'rgba(255,255,255,0.08)'}`,
+                borderRadius: '20px', color: active === s.id ? GOLD : '#8a9ab8',
+                cursor: 'pointer', fontSize: '12px', fontWeight: active === s.id ? 'bold' : 'normal',
+                display: 'flex', gap: '6px', alignItems: 'center', fontFamily: 'Georgia, serif',
+              } : {
                 width: '100%', padding: '10px 20px', background: active === s.id ? `${GOLD}12` : 'transparent',
                 border: 'none', borderLeft: `3px solid ${active === s.id ? GOLD : 'transparent'}`,
                 color: active === s.id ? GOLD : '#6b7280', cursor: 'pointer', fontSize: '13px',
@@ -75,7 +96,7 @@ export default function AboutDebt() {
         </div>
 
         {/* Content */}
-        <div style={{ padding: '40px 32px', maxWidth: '800px' }}>
+        <div style={{ padding: isMobile ? '24px 16px' : '40px 32px', maxWidth: isMobile ? '100%' : '800px' }}>
           <Section id="overview" title="🏠 Platform Overview" color={GOLD}>
             <p>
               The Debt Settlement Call Coach is a complete call center platform built specifically for debt settlement sales teams.
