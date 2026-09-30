@@ -5,6 +5,7 @@
 import { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import ClientProfileModal from '@/components/debt/ClientProfileModal';
+import DebtCallBar from '@/components/debt/DebtCallBar';
 import LeadActivityTab from '@/components/debt/LeadActivityTab';
 
 const GOLD = '#10b981';
@@ -81,6 +82,11 @@ export default function DebtLeadCard({ lead, onLeadChange, onLeadSaved, transcri
             <button key={s} onClick={() => update('status', s)} style={{ padding: '3px 8px', borderRadius: '20px', border: `1px solid ${lead.status === s ? STATUS_COLORS[s] + '66' : 'rgba(255,255,255,0.1)'}`, background: lead.status === s ? `${STATUS_COLORS[s]}18` : 'transparent', color: lead.status === s ? STATUS_COLORS[s] : '#6b7280', cursor: 'pointer', fontSize: '10px', whiteSpace: 'nowrap' }}>{l}</button>
           ))}
         </div>
+      </div>
+
+      {/* Live Call bar */}
+      <div style={{ padding: '0 18px 10px' }}>
+        <DebtCallBar lead={lead} />
       </div>
 
       {/* Tabs */}

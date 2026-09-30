@@ -10,6 +10,7 @@ import NextCallBriefing from '@/components/debt/NextCallBriefing';
 import CallAnalysisDiagram from '@/components/debt/CallAnalysisDiagram';
 import { setProfileTimer, cancelProfileTimer, getActiveTimer } from '@/components/debt/ProfileTimerWatcher';
 import LeadActivityTab from '@/components/debt/LeadActivityTab';
+import DebtCallBar from '@/components/debt/DebtCallBar';
 import { usePopOutPanel } from '@/hooks/usePopOutPanel';
 
 const GOLD = '#10b981';
@@ -214,6 +215,11 @@ export default function ClientProfileModal({ lead, onClose, onSave }) {
           </>
         )}
         <span style={{ color: '#4a5568', fontSize: '10px', marginLeft: 'auto' }}>Popup reminder will appear when timer expires</span>
+      </div>
+
+      {/* Live Call bar */}
+      <div style={{ padding: '0 20px 10px', borderBottom: '1px solid rgba(255,255,255,0.07)', flexShrink: 0 }}>
+        <DebtCallBar lead={local} />
       </div>
 
       {/* Tabs */}
