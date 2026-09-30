@@ -7,6 +7,8 @@
       "title": "Platform",
       "enum": [
         "reddit",
+        "quora",
+        "stackexchange",
         "x_twitter",
         "facebook",
         "tiktok",

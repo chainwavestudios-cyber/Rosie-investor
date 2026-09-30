@@ -25,6 +25,16 @@ const SEARCH_QUERIES = [
   'behind on credit card',
 ];
 
+// ── Quora topics (RSS feeds) ───────────────────────────────────────────────
+const QUORA_TOPICS = ['Debt', 'Credit-Cards', 'Personal-Debt', 'Personal-Finance-Advice'];
+
+// ── Stack Exchange sites & tags (RSS feeds) ────────────────────────────────
+const STACKEXCHANGE_FEEDS = [
+  'https://money.stackexchange.com/feeds',
+  'https://money.stackexchange.com/feeds/tag/credit-card',
+  'https://money.stackexchange.com/feeds/tag/debt',
+];
+
 // ── Debt amount regex ($10k - $200k range) ─────────────────────────────────
 const DEBT_AMOUNT_REGEX = /\b(\$?(?:1[0-9]|[2-9][0-9]|1[0-9]{2}|200)\s?k|\$?(?:1[0-9]|[2-9][0-9]|1[0-9]{2}),?000|\b(?:10|15|20|25|30|40|50|75|100|150|200)\s?grand)\b.*?(credit card|debt|balances|cards)/i;
 
@@ -151,7 +161,7 @@ function parseRssPosts(xml: string, subreddit: string): any[] {
   for (const item of items) {
     const title = item.match(/<title[^>]*>([\s\S]*?)<\/title>/)?.[1]?.trim() || '';
     const link = item.match(/<link[^>]*href="([^"]+)"/)?.[1] || item.match(/<link[^>]*>([\s\S]*?)<\/link>/)?.[1]?.trim() || '';
-    const content = item.match(/<content[^>]*>([\s\S]*?)<\/content>/)?.[1] || item.match(/<description[^>]*>([\s\S]*?)<\/description>/)?.[1] || '';
+    const content = item.match(/<content[^>]*>([\s\S]*?)<\/content>/)?.[1] || item.match(/<summary[^>]*>([\s\S]*?)<\/summary>/)?.[1] || item.match(/<description[^>]*>([\s\S]*?)<\/description>/)?.[1] || '';
     const author = item.match(/<name[^>]*>([\s\S]*?)<\/name>/)?.[1]?.trim() || item.match(/<dc:creator[^>]*>([\s\S]*?)<\/dc:creator>/)?.[1]?.trim() || 'unknown';
     const published = item.match(/<published[^>]*>([\s\S]*?)<\/published>/)?.[1] || item.match(/<pubDate[^>]*>([\s\S]*?)<\/pubDate>/)?.[1] || '';
     // Strip HTML from content
@@ -162,7 +172,7 @@ function parseRssPosts(xml: string, subreddit: string): any[] {
       title,
       selftext: textContent,
       author: author.replace(/^\/u\//, ''),
-      permalink: link.replace(/^https?:\/\/[^/]+/, ''),
+      permalink: link, // keep full URL for non-Reddit sources
       created_utc: published ? new Date(published).getTime() / 1000 : null,
     });
   }
@@ -209,6 +219,129 @@ async function fetchRedditSearch(subreddit: string, query: string): Promise<Fetc
   return fetchRedditJson(`/r/${subreddit}/search.json?q=${encodeURIComponent(query)}&restrict_sr=on&sort=new&t=month&limit=25`, `/r/${subreddit}/search.rss?q=${encodeURIComponent(query)}&restrict_sr=on&sort=new&t=month&limit=25`);
 }
 
+// ── Quora RSS fetching ─────────────────────────────────────────────────────
+async function fetchQuoraTopic(topic: string): Promise<FetchResult> {
+  const url = `https://www.quora.com/topic/${topic}.rss`;
+  const res = await fetchWithRetry(url);
+  if (!res || !res.ok) return { posts: [], status: res?.status || 403, error: `Quora ${topic}: HTTP ${res?.status || 'fetch failed'}` };
+  try {
+    const xml = await res.text();
+    const posts = parseRssPosts(xml, '');
+    return { posts, status: 200, error: '' };
+  } catch {
+    return { posts: [], status: 403, error: `Quora ${topic}: parse failed` };
+  }
+}
+
+// ── Stack Exchange RSS fetching ────────────────────────────────────────────
+async function fetchStackExchangeFeed(feedUrl: string): Promise<FetchResult> {
+  const res = await fetchWithRetry(feedUrl);
+  if (!res || !res.ok) return { posts: [], status: res?.status || 403, error: `SE ${feedUrl}: HTTP ${res?.status || 'fetch failed'}` };
+  try {
+    const xml = await res.text();
+    const posts = parseRssPosts(xml, '');
+    // Stack Exchange RSS uses <author> differently — extract from link or dc:creator
+    return { posts, status: 200, error: '' };
+  } catch {
+    return { posts: [], status: 403, error: `SE: parse failed` };
+  }
+}
+
+// ── Google search via InvokeLLM for X / LinkedIn posts ────────────────────
+// Uses Gemini's web-search capability to find indexed posts on platforms that
+// don't offer free RSS. Returns structured lead data.
+async function googleSearchLeads(base44: any, platform: 'x_twitter' | 'facebook', queries: string[]): Promise<{ leads: any[]; scanned: number; error: string }> {
+  const leads: any[] = [];
+  let scanned = 0;
+
+  for (const query of queries) {
+    try {
+      const result = await base44.integrations.Core.InvokeLLM({
+        prompt: `Search the web for REAL, recent public posts on ${platform === 'x_twitter' ? 'X/Twitter' : 'Facebook'} where people discuss being in credit card debt, drowning in debt, behind on payments, or seeking debt settlement help.
+
+Search query: "${query}"
+
+For each real post you find, extract:
+- author_handle: the person's username/handle
+- post_text: the full text of their post (or as much as visible)
+- post_url: the direct URL to the post
+- posted_date: when it was posted (ISO format if available)
+- debt_amount: any dollar amount mentioned (number only, or null)
+- distress_phrase: any distress language used (e.g. "drowning in debt", "maxed out", "can't pay")
+
+Return JSON with a "posts" array. Only include REAL posts you actually found — do NOT fabricate or hallucinate posts. If you found no real posts for this query, return an empty array.
+
+Important: Each post MUST have a real URL from ${platform === 'x_twitter' ? 'x.com or twitter.com' : 'facebook.com'}. If you cannot find the actual URL, exclude that post.`,
+        add_context_from_internet: true,
+        model: 'gemini_3_flash',
+        response_json_schema: {
+          type: 'object',
+          properties: {
+            posts: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  author_handle: { type: 'string' },
+                  post_text: { type: 'string' },
+                  post_url: { type: 'string' },
+                  posted_date: { type: 'string' },
+                  debt_amount: { type: 'number' },
+                  distress_phrase: { type: 'string' },
+                },
+              },
+            },
+          },
+        },
+      });
+
+      const posts = result?.posts || [];
+      scanned += posts.length;
+
+      for (const p of posts) {
+        if (!p.post_url || !p.post_text) continue;
+        // Validate URL belongs to the right platform
+        const urlLower = p.post_url.toLowerCase();
+        if (platform === 'x_twitter' && !urlLower.includes('x.com') && !urlLower.includes('twitter.com')) continue;
+        if (platform === 'facebook' && !urlLower.includes('facebook.com')) continue;
+
+        const fullText = `${p.post_text}`.trim();
+        if (fullText.length < 20) continue;
+
+        const debtAmount = p.debt_amount ? { amount: Number(p.debt_amount), raw: String(p.debt_amount) } : extractDebtAmount(fullText);
+        const distress = matchDistress(fullText);
+        // For Google-sourced leads, accept any debt mention or distress signal
+        if (debtAmount.amount === null && distress.category === 'none' && !p.distress_phrase) continue;
+
+        leads.push({
+          platform,
+          userHandle: p.author_handle || 'unknown',
+          displayName: p.author_handle || 'unknown',
+          bioText: '', location: '',
+          postTitle: fullText.substring(0, 120),
+          postText: fullText.substring(0, 5000),
+          postUrl: p.post_url,
+          subreddit: platform === 'x_twitter' ? 'X/Twitter' : 'Facebook',
+          extractedDebtAmount: debtAmount.amount,
+          debtAmountRaw: debtAmount.raw || p.distress_phrase || '',
+          distressCategory: distress.category !== 'none' ? distress.category : (p.distress_phrase ? 'B_emotional_panic' : 'none'),
+          distressTag: distress.tag || p.distress_phrase || '',
+          matchedKeywords: JSON.stringify(distress.keywords.length > 0 ? distress.keywords : [p.distress_phrase].filter(Boolean)),
+          matchTimestamp: new Date().toISOString(),
+          postCreatedAt: p.posted_date || null,
+          status: 'raw', enrichmentStatus: 'pending', profileDataJson: '',
+        });
+      }
+    } catch (e: any) {
+      // Continue to next query on error
+      console.error(`[scrapeSocialLeads] Google search error for "${query}":`, e?.message || String(e));
+    }
+    await new Promise(r => setTimeout(r, 1500));
+  }
+
+  return { leads, scanned, error: leads.length === 0 ? `No real ${platform} posts found via Google search` : '' };
+}
+
 // ── Main handler ───────────────────────────────────────────────────────────
 
 export default async function(req: Request): Promise<Response> {
@@ -241,7 +374,13 @@ export default async function(req: Request): Promise<Response> {
       return Response.json({
         redditAuth: 'public_json',
         existingLeads: existing?.length || 0,
-        subreddits: SUBREDDITS,
+        sources: {
+          reddit: SUBREDDITS,
+          quora: QUORA_TOPICS,
+          stackexchange: STACKEXCHANGE_FEEDS,
+          x_twitter: 'google_search',
+          facebook: 'google_search',
+        },
         queries: SEARCH_QUERIES,
       });
     }
@@ -269,7 +408,8 @@ export default async function(req: Request): Promise<Response> {
 
         for (const post of listing.posts) {
           if (!post) continue;
-          const postUrl = `https://www.reddit.com${post.permalink || ''}`;
+          const rawPermalink = post.permalink || '';
+          const postUrl = rawPermalink.startsWith('http') ? rawPermalink : `https://www.reddit.com${rawPermalink}`;
           if (seenUrls.has(postUrl)) continue;
           seenUrls.add(postUrl);
 
@@ -312,7 +452,8 @@ export default async function(req: Request): Promise<Response> {
 
             for (const post of searchResult.posts) {
               if (!post) continue;
-              const postUrl = `https://www.reddit.com${post.permalink || ''}`;
+              const rawPermalink = post.permalink || '';
+              const postUrl = rawPermalink.startsWith('http') ? rawPermalink : `https://www.reddit.com${rawPermalink}`;
               if (seenUrls.has(postUrl)) continue;
               seenUrls.add(postUrl);
 
@@ -354,13 +495,134 @@ export default async function(req: Request): Promise<Response> {
       }
     }
 
-    // ── Other platforms (placeholders) ────────────────────────────────────
+    // ── Quora scraping (RSS feeds) ─────────────────────────────────────────
+    if (platforms.includes('quora')) {
+      const quoraErrors: string[] = [];
+      for (const topic of QUORA_TOPICS) {
+        const result = await fetchQuoraTopic(topic);
+        if (result.status !== 200) {
+          quoraErrors.push(result.error);
+        }
+        totalScanned += result.posts.length;
+
+        for (const post of result.posts) {
+          if (!post) continue;
+          const postUrl = post.permalink || '';
+          if (!postUrl || seenUrls.has(postUrl)) continue;
+          seenUrls.add(postUrl);
+
+          const fullText = `${post.title || ''} ${post.selftext || ''}`.trim();
+          if (fullText.length < 20) continue;
+
+          const debtAmount = extractDebtAmount(fullText);
+          const distress = matchDistress(fullText);
+          if (debtAmount.amount === null && distress.category === 'none') continue;
+          totalMatched++;
+
+          newLeads.push({
+            platform: 'quora',
+            userHandle: post.author || 'unknown',
+            displayName: post.author || 'unknown',
+            bioText: '', location: '',
+            postTitle: post.title || '',
+            postText: fullText.substring(0, 5000),
+            postUrl, subreddit: `Quora/${topic}`,
+            extractedDebtAmount: debtAmount.amount,
+            debtAmountRaw: debtAmount.raw,
+            distressCategory: distress.category,
+            distressTag: distress.tag,
+            matchedKeywords: JSON.stringify(distress.keywords),
+            matchTimestamp: new Date().toISOString(),
+            postCreatedAt: post.created_utc ? new Date(post.created_utc * 1000).toISOString() : null,
+            status: 'raw', enrichmentStatus: 'pending', profileDataJson: '',
+          });
+        }
+        await new Promise(r => setTimeout(r, 1500));
+      }
+      if (quoraErrors.length === QUORA_TOPICS.length) {
+        errors.push(`All Quora topics failed: ${quoraErrors.join('; ')}`);
+      } else if (quoraErrors.length > 0) {
+        errors.push(`Quora partial: ${quoraErrors.join('; ')}`);
+      }
+    }
+
+    // ── Stack Exchange scraping (RSS feeds) ────────────────────────────────
+    if (platforms.includes('stackexchange')) {
+      const seErrors: string[] = [];
+      for (const feedUrl of STACKEXCHANGE_FEEDS) {
+        const result = await fetchStackExchangeFeed(feedUrl);
+        if (result.status !== 200) {
+          seErrors.push(result.error);
+        }
+        totalScanned += result.posts.length;
+
+        for (const post of result.posts) {
+          if (!post) continue;
+          const postUrl = post.permalink || '';
+          if (!postUrl || seenUrls.has(postUrl)) continue;
+          seenUrls.add(postUrl);
+
+          const fullText = `${post.title || ''} ${post.selftext || ''}`.trim();
+          if (fullText.length < 20) continue;
+
+          const debtAmount = extractDebtAmount(fullText);
+          const distress = matchDistress(fullText);
+          if (debtAmount.amount === null && distress.category === 'none') continue;
+          totalMatched++;
+
+          newLeads.push({
+            platform: 'stackexchange',
+            userHandle: post.author || 'unknown',
+            displayName: post.author || 'unknown',
+            bioText: '', location: '',
+            postTitle: post.title || '',
+            postText: fullText.substring(0, 5000),
+            postUrl, subreddit: 'money.stackexchange.com',
+            extractedDebtAmount: debtAmount.amount,
+            debtAmountRaw: debtAmount.raw,
+            distressCategory: distress.category,
+            distressTag: distress.tag,
+            matchedKeywords: JSON.stringify(distress.keywords),
+            matchTimestamp: new Date().toISOString(),
+            postCreatedAt: post.created_utc ? new Date(post.created_utc * 1000).toISOString() : null,
+            status: 'raw', enrichmentStatus: 'pending', profileDataJson: '',
+          });
+        }
+        await new Promise(r => setTimeout(r, 1000));
+      }
+      if (seErrors.length === STACKEXCHANGE_FEEDS.length) {
+        errors.push(`All Stack Exchange feeds failed: ${seErrors.join('; ')}`);
+      } else if (seErrors.length > 0) {
+        errors.push(`Stack Exchange partial: ${seErrors.join('; ')}`);
+      }
+    }
+
+    // ── X/Twitter via Google search ───────────────────────────────────────
     if (platforms.includes('x_twitter')) {
-      errors.push('X/Twitter scraping requires API credentials — not yet configured.');
+      const gsResult = await googleSearchLeads(base44, 'x_twitter', SEARCH_QUERIES);
+      totalScanned += gsResult.scanned;
+      for (const lead of gsResult.leads) {
+        if (seenUrls.has(lead.postUrl)) continue;
+        seenUrls.add(lead.postUrl);
+        totalMatched++;
+        newLeads.push(lead);
+      }
+      if (gsResult.error) errors.push(`X/Twitter: ${gsResult.error}`);
     }
+
+    // ── Facebook via Google search ────────────────────────────────────────
     if (platforms.includes('facebook')) {
-      errors.push('Facebook scraping requires Graph API credentials — not yet configured.');
+      const gsResult = await googleSearchLeads(base44, 'facebook', SEARCH_QUERIES);
+      totalScanned += gsResult.scanned;
+      for (const lead of gsResult.leads) {
+        if (seenUrls.has(lead.postUrl)) continue;
+        seenUrls.add(lead.postUrl);
+        totalMatched++;
+        newLeads.push(lead);
+      }
+      if (gsResult.error) errors.push(`Facebook: ${gsResult.error}`);
     }
+
     if (platforms.includes('tiktok')) {
       errors.push('TikTok scraping requires official API access — not yet configured.');
     }

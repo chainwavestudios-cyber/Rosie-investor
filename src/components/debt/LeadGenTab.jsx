@@ -17,8 +17,8 @@ const PURPLE = '#a78bfa';
 const ls = { display: 'block', color: '#8a9ab8', fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '6px' };
 const inp = { width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '4px', padding: '8px 12px', color: '#e8e0d0', fontSize: '13px', outline: 'none', boxSizing: 'border-box', fontFamily: 'Georgia, serif' };
 
-const PLATFORM_COLORS = { reddit: '#ff4500', x_twitter: '#1d9bf0', facebook: '#1877f2', tiktok: '#000000', manual: '#6b7280' };
-const PLATFORM_LABELS = { reddit: 'Reddit', x_twitter: 'X/Twitter', facebook: 'Facebook', tiktok: 'TikTok', manual: 'Manual' };
+const PLATFORM_COLORS = { reddit: '#ff4500', quora: '#b92b27', stackexchange: '#f48024', x_twitter: '#1d9bf0', facebook: '#1877f2', tiktok: '#000000', manual: '#6b7280' };
+const PLATFORM_LABELS = { reddit: 'Reddit', quora: 'Quora', stackexchange: 'Stack Exchange', x_twitter: 'X/Twitter', facebook: 'Facebook', tiktok: 'TikTok', manual: 'Manual' };
 const STATUS_COLORS = { raw: '#6b7280', enriching: AMBER, enriched: GOLD, assigned: AMBER, pushed: BLUE, rejected: RED, duplicate: '#4a5568' };
 const DISTRESS_COLORS = { A_screwed_drowning: RED, B_emotional_panic: AMBER, C_multicard_interest: PURPLE, none: '#4a5568' };
 const DISTRESS_LABELS = { A_screwed_drowning: 'A — Drowning', B_emotional_panic: 'B — Panic', C_multicard_interest: 'C — Overwhelm', none: 'None' };
@@ -76,7 +76,7 @@ export default function LeadGenTab() {
   const runScraper = async () => {
     setScraping(true); setError(''); setScrapeResult(null);
     try {
-      const res = await base44.functions.invoke('scrapeSocialLeads', { action: 'scrape', platforms: ['reddit'] });
+      const res = await base44.functions.invoke('scrapeSocialLeads', { action: 'scrape', platforms: ['reddit', 'quora', 'stackexchange', 'x_twitter', 'facebook'] });
       const data = res?.data || res;
       setScrapeResult(data);
       loadLeads();
@@ -182,6 +182,8 @@ export default function LeadGenTab() {
     pushed: leads.filter(l => l.status === 'pushed').length,
     byPlatform: {
       reddit: leads.filter(l => l.platform === 'reddit').length,
+      quora: leads.filter(l => l.platform === 'quora').length,
+      stackexchange: leads.filter(l => l.platform === 'stackexchange').length,
       x_twitter: leads.filter(l => l.platform === 'x_twitter').length,
       facebook: leads.filter(l => l.platform === 'facebook').length,
       tiktok: leads.filter(l => l.platform === 'tiktok').length,
@@ -200,10 +202,10 @@ export default function LeadGenTab() {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '10px', marginBottom: '16px' }}>
         <StatCard label="Total Scraped" value={stats.total} color="#c4cdd8" />
         <StatCard label="High Intent" value={stats.highIntent} color={GOLD} />
-        <StatCard label="Raw" value={stats.raw} color="#6b7280" />
-        <StatCard label="Enriched" value={stats.enriched} color={BLUE} />
-        <StatCard label="Pushed" value={stats.pushed} color={GOLD} />
         <StatCard label="Reddit" value={stats.byPlatform.reddit} color="#ff4500" />
+        <StatCard label="Quora" value={stats.byPlatform.quora} color="#b92b27" />
+        <StatCard label="Stack Exch" value={stats.byPlatform.stackexchange} color="#f48024" />
+        <StatCard label="X + FB" value={stats.byPlatform.x_twitter + stats.byPlatform.facebook} color="#1d9bf0" />
       </div>
 
       {/* Distress category breakdown */}
@@ -229,6 +231,8 @@ export default function LeadGenTab() {
         <select value={filterPlatform} onChange={e => setFilterPlatform(e.target.value)} style={{ ...inp, maxWidth: '140px', cursor: 'pointer' }}>
           <option value="all">All Platforms</option>
           <option value="reddit">Reddit</option>
+          <option value="quora">Quora</option>
+          <option value="stackexchange">Stack Exchange</option>
           <option value="x_twitter">X/Twitter</option>
           <option value="facebook">Facebook</option>
           <option value="tiktok">TikTok</option>
