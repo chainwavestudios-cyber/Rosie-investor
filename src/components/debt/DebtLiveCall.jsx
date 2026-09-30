@@ -781,6 +781,16 @@ ${recentText}`,
         const fullReport = res?.report || res?.data?.report || '';
         setReport(fullReport);
 
+        // Run structured call analysis (timeline + manager report + suggestions + follow-up)
+        let callAnalysisJson = '';
+        try {
+          const analysisRes = await base44.functions.invoke('liveAssistantAI', {
+            transcript: transcriptRef.current, mode: 'call_analysis',
+          });
+          const analysis = analysisRes?.analysis || analysisRes?.data?.analysis;
+          if (analysis) callAnalysisJson = JSON.stringify(analysis);
+        } catch {}
+
         // Save transcript + report to DebtCallTranscript entity
         const durationSeconds = callStartRef.current ? Math.round((Date.now() - callStartRef.current.getTime()) / 1000) : 0;
         const leadName = `${leadRef.current.firstName || ''} ${leadRef.current.lastName || ''}`.trim();
@@ -801,6 +811,7 @@ ${recentText}`,
             animalType: leadRef.current.animalType || null,
             intentReport: intentScore != null ? `Intent Score: ${intentScore}/100\nAnimal: ${leadRef.current.animalType || 'unknown'}` : '',
             followUpReport: fullReport,
+            callAnalysisJson,
             callDate: new Date().toISOString(),
           });
 

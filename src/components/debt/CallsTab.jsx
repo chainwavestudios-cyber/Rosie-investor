@@ -7,6 +7,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useDebtCoachAuth } from '@/lib/DebtCoachAuthContext';
+import CallAnalysisDiagram from '@/components/debt/CallAnalysisDiagram';
 
 const GOLD = '#10b981';
 const ls = { display: 'block', color: '#8a9ab8', fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '6px' };
@@ -209,6 +210,11 @@ function CallDetail({ call, canManage, managerUsername }) {
               <div style={{ color: '#c4cdd8', fontSize: '13px', lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>{call.intentReport}</div>
             ) : (
               <div style={{ color: '#4a5568', textAlign: 'center', padding: '20px 0', fontSize: '12px' }}>No intent report generated for this call.</div>
+            )}
+            {call.callAnalysisJson && (
+              <div style={{ marginTop: '16px' }}>
+                <CallAnalysisDiagram analysisJson={call.callAnalysisJson} durationSeconds={call.durationSeconds} />
+              </div>
             )}
             {call.followUpReport && (
               <div style={{ marginTop: '16px', paddingTop: '12px', borderTop: '1px solid rgba(255,255,255,0.05)' }}>

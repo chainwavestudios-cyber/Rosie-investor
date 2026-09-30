@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { base44 } from '@/api/base44Client';
+import CallAnalysisDiagram from '@/components/debt/CallAnalysisDiagram';
 
 const GOLD = '#10b981';
 const inp = { width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '4px', padding: '10px 14px', color: '#e8e0d0', fontSize: '13px', outline: 'none', boxSizing: 'border-box', fontFamily: 'Georgia, serif' };
@@ -86,6 +87,11 @@ export default function ManagerTranscriptTab() {
                         </div>
                       );
                     })}
+                   {t.callAnalysisJson && (
+                     <div style={{ marginTop: '12px' }}>
+                       <CallAnalysisDiagram analysisJson={t.callAnalysisJson} durationSeconds={t.durationSeconds} />
+                     </div>
+                   )}
                    {t.followUpReport && (
                      <div style={{ marginTop: '12px', padding: '12px', background: 'rgba(0,0,0,0.15)', borderRadius: '4px' }}>
                        <div style={{ color: GOLD, fontSize: '9px', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '6px' }}>📋 Follow-Up Report</div>

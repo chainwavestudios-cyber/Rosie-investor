@@ -785,6 +785,89 @@ Keep it concise — the agent reads this right before dialing. Use bullet points
       return Response.json({ report: data?.content?.[0]?.text || '' });
     }
 
+    // ── CALL ANALYSIS (timeline + manager report + suggestions + follow-up) ──
+    if (mode === 'call_analysis') {
+      const allEntries = transcript || [];
+      const fullTranscript = allEntries.map((t: any) => {
+        const sp = t.speaker === 0 ? 'AGENT' : 'CUSTOMER';
+        const time = t.time ? new Date(t.time).toISOString().split('T')[1]?.split('.')[0] : '';
+        return `[${time}] ${sp}: ${t.text}`;
+      }).join('\n');
+
+      // Compute call duration for timeline scaling
+      let callDurationSeconds = 0;
+      if (allEntries.length >= 2) {
+        const t1 = allEntries[0].time ? new Date(allEntries[0].time).getTime() : 0;
+        const t2 = allEntries[allEntries.length - 1].time ? new Date(allEntries[allEntries.length - 1].time).getTime() : 0;
+        if (t1 && t2 && t2 > t1) callDurationSeconds = Math.round((t2 - t1) / 1000);
+      }
+
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_KEY, 'anthropic-version': '2023-06-01' },
+        body: JSON.stringify({
+          model: 'claude-haiku-4-5-20251001',
+          max_tokens: 4000,
+          system: `You are an expert sales call analyst and sales manager reviewing a debt settlement sales call. You must produce a STRUCTURED analysis with four parts: a call timeline diagram, a manager's quality assessment, pitch/interaction suggestions, and a detailed follow-up plan.
+
+Analyze the transcript with timestamps. The call lasted approximately ${callDurationSeconds} seconds (${Math.floor(callDurationSeconds/60)}m ${callDurationSeconds%60}s).
+
+Respond ONLY with this exact JSON (no markdown):
+{
+  "timeline": [
+    {"offsetSeconds": 0, "type": "milestone|strength|issue|neutral", "label": "short label (2-4 words)", "detail": "1 sentence explaining what happened at this point", "severity": "low|medium|high"}
+  ],
+  "managerReport": {
+    "clarityScore": 0-100,
+    "clarityNotes": "how clearly the agent communicated key points",
+    "objectionHandlingScore": 0-100,
+    "objectionHandlingNotes": "how well they handled objections",
+    "callControlScore": 0-100,
+    "callControlNotes": "did they control the call or were they controlled",
+    "controlledBy": "agent|customer|balanced",
+    "closingScore": 0-100,
+    "closingNotes": "how well they moved toward or executed a close",
+    "overallGrade": "A|B|C|D|F",
+    "summary": "2-3 sentence overall assessment of the agent's performance",
+    "strengths": ["specific strength 1", "specific strength 2"],
+    "weaknesses": ["specific weakness 1", "specific weakness 2"]
+  },
+  "pitchSuggestions": [
+    {"area": "Opener|Discovery|Pitch|Objection Handling|Closing|Rapport", "issue": "what they did wrong or could improve", "suggestion": "specific change to make in their pitch or interaction style"}
+  ],
+  "detailedFollowUp": {
+    "personalityType": "description of the customer's personality based on the call (e.g. analytical skeptic, warm but cautious, rushed decision-maker)",
+    "questionProfile": "what types of questions they asked and what that tells you about their buying readiness",
+    "engagementLevel": "low|medium|high",
+    "engagementNotes": "how engaged they were and what drove that engagement",
+    "recommendedApproach": "1-2 sentences on the best approach for the next call",
+    "talkingPoints": ["specific talking point 1", "specific talking point 2", "specific talking point 3"],
+    "bestTiming": "when and how to follow up (e.g. 'Call Tuesday morning, they mentioned being free before 10am')",
+    "followUpActions": ["specific action 1", "specific action 2"]
+  }
+}
+
+GUIDELINES:
+- Timeline: identify 5-12 key moments across the call. Use "milestone" for call structure points (greeting, discovery, pitch, close), "strength" for moments the agent did well, "issue" for problems (missed objection, lost control, unclear explanation, dead air). offsetSeconds should be the approximate time in the call (0 to ${callDurationSeconds}).
+- Manager Report: grade the AGENT, not the prospect. Be honest and specific. "controlledBy" = did the agent steer the conversation or did the customer?
+- Pitch Suggestions: 3-6 concrete, actionable changes. Reference what actually happened in the call.
+- Detailed Follow-Up: base everything on what you learned about THIS customer's personality, the questions they asked, and their engagement level. Don't be generic.`,
+          messages: [{ role: 'user', content: `Call transcript with timestamps:\n${fullTranscript.slice(0, 7000)}` }],
+        }),
+      });
+      const data = await res.json();
+      const text = data?.content?.[0]?.text || '{}';
+      try {
+        // Extract the JSON object from the response (handles markdown fences and extra text)
+        const jsonMatch = text.match(/\{[\s\S]*\}/);
+        const cleanText = jsonMatch ? jsonMatch[0] : text.replace(/```json|```/g, '').trim();
+        const result = JSON.parse(cleanText);
+        return Response.json({ analysis: result });
+      } catch {
+        return Response.json({ analysis: null, error: 'Parse failed', raw: text.slice(0, 500) });
+      }
+    }
+
     // ── CLIENT PROFILE ────────────────────────────────────────────────
     if (mode === 'profile') {
       const existing = (() => { try { return JSON.parse(existingProfile || '{}'); } catch { return {}; } })();

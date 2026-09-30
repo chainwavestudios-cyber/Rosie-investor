@@ -7,6 +7,7 @@ import { useState, useMemo, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import DoNothingCalculator from '@/components/debt/DoNothingCalculator';
 import NextCallBriefing from '@/components/debt/NextCallBriefing';
+import CallAnalysisDiagram from '@/components/debt/CallAnalysisDiagram';
 import { setProfileTimer, cancelProfileTimer, getActiveTimer } from '@/components/debt/ProfileTimerWatcher';
 import { usePopOutPanel } from '@/hooks/usePopOutPanel';
 
@@ -390,6 +391,11 @@ export default function ClientProfileModal({ lead, onClose, onSave }) {
                                   </div>
                                 );
                               })}
+                            </div>
+                          )}
+                          {ct.callAnalysisJson && (
+                            <div style={{ borderTop: '1px solid rgba(255,255,255,0.05)', padding: '12px 14px' }}>
+                              <CallAnalysisDiagram analysisJson={ct.callAnalysisJson} durationSeconds={ct.durationSeconds} />
                             </div>
                           )}
                           {ct.followUpReport && (

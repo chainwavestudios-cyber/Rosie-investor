@@ -72,6 +72,11 @@
       "title": "Potential Strategies",
       "format": "textarea"
     },
+    "callAnalysisJson": {
+      "type": "string",
+      "title": "Call Analysis (JSON \u2014 timeline, manager report, suggestions, follow-up)",
+      "format": "textarea"
+    },
     "callDate": {
       "type": "string",
       "format": "date-time",
