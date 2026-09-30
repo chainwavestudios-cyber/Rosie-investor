@@ -10,7 +10,7 @@ import { MyScriptsTab } from '@/components/debt/DebtScriptEditor';
 
 const GOLD = '#10b981';
 
-export default function LiveTranscriptPanel({ transcript, phase, panel, onAnswerQuestion, lead }) {
+export default function LiveTranscriptPanel({ transcript, phase, panel, onAnswerQuestion, lead, onScriptPositionChange }) {
   const [tab, setTab] = useState('transcript');
   const [selected, setSelected] = useState({});
   const scrollRef = useRef(null);
@@ -140,7 +140,7 @@ export default function LiveTranscriptPanel({ transcript, phase, panel, onAnswer
   const renderScripts = () => (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, padding: '14px 16px' }}>
       <div style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
-        <MyScriptsTab liveTranscript={transcript} phase={phase} clientFirstName={lead?.firstName} clientLastName={lead?.lastName} />
+        <MyScriptsTab liveTranscript={transcript} phase={phase} clientFirstName={lead?.firstName} clientLastName={lead?.lastName} onScriptPositionChange={onScriptPositionChange} />
       </div>
       {/* Resizer / collapse bar between script and closer pitches */}
       <div

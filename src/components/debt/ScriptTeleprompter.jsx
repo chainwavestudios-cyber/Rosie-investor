@@ -110,7 +110,7 @@ export function substituteClientName(text, clientFirstName, clientLastName) {
 }
 
 // ─── Teleprompter Component ────────────────────────────────────────────────────
-export default function ScriptTeleprompter({ content, color = '#e8e0d0', fontSize = 14, liveTranscript, phase, clientFirstName, clientLastName }) {
+export default function ScriptTeleprompter({ content, color = '#e8e0d0', fontSize = 14, liveTranscript, phase, clientFirstName, clientLastName, onPositionChange }) {
   const displayContent = useMemo(() => substituteClientName(content, clientFirstName, clientLastName), [content, clientFirstName, clientLastName]);
   const elements = useMemo(() => parseScriptElements(displayContent), [displayContent]);
   const scriptLines = useMemo(() => elements.filter(e => e.type === 'script'), [elements]);
@@ -265,6 +265,13 @@ export default function ScriptTeleprompter({ content, color = '#e8e0d0', fontSiz
       el.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
   }, [activeIdx]);
+
+  // Report position changes to parent (for Q&A script redirect)
+  useEffect(() => {
+    if (onPositionChange) {
+      onPositionChange({ activeIdx, totalLines: scriptLines.length, content, scriptLines: scriptLines.map(l => l.content) });
+    }
+  }, [activeIdx, scriptLines, content, onPositionChange]);
 
   if (scriptLines.length === 0) {
     return (

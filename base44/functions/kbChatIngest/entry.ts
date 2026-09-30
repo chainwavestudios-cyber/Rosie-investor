@@ -59,6 +59,26 @@ function findRelevantKB(question: string, kbEntries: any[], topN = 10): any[] {
     .slice(0, topN);
 }
 
+// Find an existing KB entry with a question similar enough to be a duplicate.
+// Uses word-overlap on significant words (excluding common stop words): if >= 80%
+// of the new question's significant words appear in an existing question, it's
+// considered a duplicate.
+const STOP_WORDS_Q = new Set(['the','and','for','are','was','were','have','has','had','you','your','our','this','that','from','with','will','can','would','could','should','does','did','not','but','they','them','their','what','when','where','which','how']);
+
+function findSimilarQuestion(question: string, kbEntries: any[]): any | null {
+  const qLower = question.toLowerCase().trim();
+  const allWords = qLower.split(/\W+/).filter((w: string) => w.length >= 3);
+  const sigWords = allWords.filter(w => !STOP_WORDS_Q.has(w));
+  if (sigWords.length < 2) return null;
+  for (const e of kbEntries) {
+    const eqLower = (e.question || '').toLowerCase();
+    const matchCount = sigWords.filter(w => eqLower.includes(w)).length;
+    const coverage = matchCount / sigWords.length;
+    if (coverage >= 0.8) return e;
+  }
+  return null;
+}
+
 // ── Question detection ─────────────────────────────────────────────────
 function isQuestion(message: string): boolean {
   const q = message.toLowerCase().trim();
@@ -245,22 +265,40 @@ ${llmPrompt}`,
     const entries = result?.entries || [];
 
     // Save entries using service role (avoids auth issues for debt-coach users)
+    // For each entry, check if a similar question already exists. If so, append
+    // the new answer to the existing entry's answersJson (with timestamp) instead
+    // of creating a duplicate.
     const svc = base44.asServiceRole;
+    const allKb = await svc.entities.KnowledgeBase.list('-created_date', 500);
     const saved: any[] = [];
     for (const e of entries) {
       if (!e.question || !e.answer) continue;
       const validCats = KB_CATEGORIES.map(c => c.id);
       const category = validCats.includes(e.category) ? e.category : 'debt_kb';
       try {
-        const created = await svc.entities.KnowledgeBase.create({
-          question: e.question,
-          answer: e.answer,
-          category,
-          tags: e.tags || '',
-          kbName: 'Debt Settlement',
-          source: fileName ? `AI Chat — ${fileName}` : 'AI Chat',
-        });
-        saved.push(created);
+        // Check for similar existing question
+        const existing = findSimilarQuestion(e.question, allKb);
+        if (existing) {
+          // Append to existing entry's answersJson
+          const existingAnswers = getAnswers(existing);
+          const newAnswer = `[${new Date().toISOString().slice(0, 16).replace('T', ' ')}] ${e.answer}`;
+          existingAnswers.push(newAnswer);
+          const updated = await svc.entities.KnowledgeBase.update(existing.id, {
+            answersJson: JSON.stringify(existingAnswers),
+            answer: newAnswer, // Update primary answer to the newest
+          });
+          saved.push(updated);
+        } else {
+          const created = await svc.entities.KnowledgeBase.create({
+            question: e.question,
+            answer: e.answer,
+            category,
+            tags: e.tags || '',
+            kbName: 'Debt Settlement',
+            source: fileName ? `AI Chat — ${fileName}` : 'AI Chat',
+          });
+          saved.push(created);
+        }
       } catch {}
     }
 

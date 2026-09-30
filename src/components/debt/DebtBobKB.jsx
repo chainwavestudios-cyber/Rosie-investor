@@ -49,7 +49,9 @@ export default function DebtBobKB({ onKBUpdated }) {
     setLoading(true);
     try {
       const all = await base44.entities.KnowledgeBase.list('-created_date', 500);
-      setEntries((all || []).filter(e => e.kbName === 'Debt Settlement' || DEBT_CATEGORIES.includes(e.category)));
+      // Only count entries that belong to the Debt Settlement KB.
+      // Legacy entries without kbName but with a debt category are also included.
+      setEntries((all || []).filter(e => e.kbName === 'Debt Settlement' || (!e.kbName && DEBT_CATEGORIES.includes(e.category))));
     } catch {}
     setLoading(false);
   }, []);
@@ -190,9 +192,10 @@ export default function DebtBobKB({ onKBUpdated }) {
                    <button onClick={() => del(e.id)} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '10px', flexShrink: 0 }}>Delete</button>
                  </div>
                  <div style={{ color: '#8a9ab8', fontSize: '11px', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>{(e.answer || '').slice(0, 200)}{(e.answer || '').length > 200 ? '…' : ''}</div>
-                 <div style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
+                 <div style={{ display: 'flex', gap: '8px', marginTop: '4px', alignItems: 'center' }}>
                    <span style={{ color: '#4a5568', fontSize: '9px' }}>{CATEGORY_LABELS[e.category] || e.category}</span>
                    {e.source && <span style={{ color: '#4a5568', fontSize: '9px' }}>· {e.source}</span>}
+                   {e.created_date && <span style={{ color: '#4a5568', fontSize: '9px', marginLeft: 'auto' }}>· {new Date(e.created_date).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })}</span>}
                  </div>
                </div>
              </div>

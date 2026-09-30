@@ -95,13 +95,30 @@ function buildTranscriptString(transcript: any[], limit = 20): string {
   }).join('\n');
 }
 
+// ── Script redirect helper ──────────────────────────────────────────────────
+// Given the agent's current position in the teleprompter script, returns a
+// short redirect telling the agent what to say next to get back on script.
+function buildScriptRedirect(scriptPosition: any): string {
+  if (!scriptPosition || !scriptPosition.scriptLines || scriptPosition.activeIdx == null) return '';
+  const lines = scriptPosition.scriptLines;
+  const idx = scriptPosition.activeIdx;
+  // Grab the next 2-3 script lines after the current position
+  const nextLines: string[] = [];
+  for (let i = idx + 1; i < lines.length && nextLines.length < 3; i++) {
+    const text = (lines[i] || '').replace(/@@CUE:\w+:.*@@/g, '').trim();
+    if (text) nextLines.push(text);
+  }
+  if (nextLines.length === 0) return '';
+  return `↩ BACK TO SCRIPT (you're on line ${idx + 1}):\n${nextLines.map((l, i) => `${i === 0 ? '▶ ' : '  '} ${l}`).join('\n')}`;
+}
+
 Deno.serve(async (req) => {
   try {
     const body = await req.json();
     const { question, transcript, kbEntries, mode, existingProfile,
             intentRules, coachRules, qaHistory, engagementScore,
             kbName, previousAnswer, internetQuery,
-            callAttemptNumber } = body;
+            callAttemptNumber, scriptPosition } = body;
 
     const recentTranscript = buildTranscriptString(transcript, 15);
     const fullTranscriptStr = buildTranscriptString(transcript, 9999);
@@ -997,7 +1014,20 @@ Return ONLY this JSON (no markdown):
       if (directHit) {
         console.log(`[liveAssistantAI] Direct KB hit: "${directHit.question}" (coverage high)`);
         const answers = getAnswers(directHit);
-        return Response.json({ answer: answers.join('\n\n---\n\n'), answers, source: 'kb_direct', kbEntry: directHit.question });
+        // Notate the newest answer if there are multiple
+        let formattedAnswer: string;
+        if (answers.length > 1) {
+          formattedAnswer = answers.map((a, i) => {
+            const label = i === answers.length - 1 ? '★ NEWEST' : `Answer ${i + 1}`;
+            return `[${label}]\n${a}`;
+          }).join('\n\n---\n\n');
+        } else {
+          formattedAnswer = answers[0] || '';
+        }
+        // Append script redirect if we know the agent's position
+        const redirect = buildScriptRedirect(scriptPosition);
+        if (redirect) formattedAnswer += `\n\n${redirect}`;
+        return Response.json({ answer: formattedAnswer, answers, source: 'kb_direct', kbEntry: directHit.question });
       }
     }
 
@@ -1032,7 +1062,9 @@ Return ONLY this JSON (no markdown):
         }),
       });
       const data = await res.json();
-      return Response.json({ answer: data?.content?.[0]?.text || 'No answer found.', source: 'ai_fallback' });
+      const redirect = buildScriptRedirect(scriptPosition);
+      const answer = data?.content?.[0]?.text || 'No answer found.';
+      return Response.json({ answer: redirect ? `${answer}\n\n${redirect}` : answer, source: 'ai_fallback' });
     }
 
     const res = await fetch('https://api.anthropic.com/v1/messages', {
@@ -1046,7 +1078,9 @@ Return ONLY this JSON (no markdown):
       }),
     });
     const data = await res.json();
-    return Response.json({ answer: data?.content?.[0]?.text || 'No answer found.', source: 'kb_ai' });
+    const redirect = buildScriptRedirect(scriptPosition);
+    const answer = data?.content?.[0]?.text || 'No answer found.';
+    return Response.json({ answer: redirect ? `${answer}\n\n${redirect}` : answer, source: 'kb_ai' });
 
   } catch (e: any) {
     return Response.json({ error: e.message }, { status: 500 });

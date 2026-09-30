@@ -47,6 +47,9 @@ export default function DebtLiveCall() {
   const [kbEntries, setKbEntries] = useState([]);
   const [kbLoading, setKbLoading] = useState(true);
 
+  // Track active script position for Q&A redirect (updated by ScriptTeleprompter via LiveTranscriptPanel)
+  const scriptPositionRef = useRef(null);
+
   // Lead
   const [leads, setLeads] = useState([]);
   const [lead, setLead] = useState({ firstName: '', lastName: '', status: 'new' });
@@ -227,7 +230,7 @@ export default function DebtLiveCall() {
   const handleQa = useCallback((question) => {
     const id = Date.now() + Math.random();
     setQaItems(prev => [...prev, { id, question, answer: '', loading: true }]);
-    base44.functions.invoke('liveAssistantAI', { question, transcript: transcriptRef.current.slice(-8), kbEntries, kbName: 'Debt Settlement' })
+    base44.functions.invoke('liveAssistantAI', { question, transcript: transcriptRef.current.slice(-8), kbEntries, kbName: 'Debt Settlement', scriptPosition: scriptPositionRef.current })
       .then(res => { const answer = res?.answer || res?.data?.answer || 'Check knowledge base.'; setQaItems(prev => prev.map(x => x.id === id ? { ...x, answer, loading: false } : x)); })
       .catch(() => setQaItems(prev => prev.map(x => x.id === id ? { ...x, answer: 'Unable to answer.', loading: false } : x)));
   }, [kbEntries]);
@@ -1236,7 +1239,7 @@ ${recentText}`,
               ))}
 
               {/* Transcript — pop-out enabled with Scripts tab */}
-              <LiveTranscriptPanel transcript={transcript} phase={phase} panel={transcriptPanel} onAnswerQuestion={handleAnswerQuestion} lead={lead} />
+              <LiveTranscriptPanel transcript={transcript} phase={phase} panel={transcriptPanel} onAnswerQuestion={handleAnswerQuestion} lead={lead} onScriptPositionChange={(pos) => { scriptPositionRef.current = pos; }} />
 
               {/* AI Tools Panel — pop-out enabled */}
               {aiPanel.poppedOut ? (
