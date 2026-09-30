@@ -39,6 +39,26 @@ export default function DebtKBChat() {
   const mediaRecRef = useRef(null);
   const recordChunksRef = useRef([]);
 
+  // Ingestion history — recent AI-chat-sourced KB entries
+  const [history, setHistory] = useState([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+
+  const loadHistory = useCallback(async () => {
+    setHistoryLoading(true);
+    try {
+      const all = await base44.entities.KnowledgeBase.list('-created_date', 50);
+      setHistory((all || []).filter(e => (e.source || '').includes('AI Chat')));
+    } catch { setHistory([]); }
+    setHistoryLoading(false);
+  }, []);
+
+  useEffect(() => { loadHistory(); }, [loadHistory]);
+  useEffect(() => {
+    const handler = () => loadHistory();
+    window.addEventListener('debt_kb_updated', handler);
+    return () => window.removeEventListener('debt_kb_updated', handler);
+  }, [loadHistory]);
+
   // Auto-scroll to bottom on new messages
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
@@ -115,13 +135,15 @@ export default function DebtKBChat() {
         fileType: file?.type || null,
         fileName: file?.file?.name || null,
       });
+      const mode = res?.mode || res?.data?.mode || 'ingest';
       const aiResponse = res?.response || res?.data?.response || 'Done.';
       const entries = res?.entries || res?.data?.entries || [];
       setMessages(prev => {
         const next = [...prev];
-        next[next.length - 1] = { role: 'ai', text: aiResponse, entries, loading: false };
+        next[next.length - 1] = { role: 'ai', text: aiResponse, entries, answerMode: mode === 'answer', loading: false };
         return next;
       });
+      if (mode === 'ingest') loadHistory();
       // Notify other KB views that content was added
       window.dispatchEvent(new CustomEvent('debt_kb_updated'));
     } catch (e) {
@@ -188,7 +210,7 @@ export default function DebtKBChat() {
                 {/* Saved entries */}
                 {m.entries && m.entries.length > 0 && (
                   <div style={{ marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                    <div style={{ color: GOLD, fontSize: '9px', letterSpacing: '1px', textTransform: 'uppercase' }}>✓ Saved {m.entries.length} entr{m.entries.length === 1 ? 'y' : 'ies'}</div>
+                    <div style={{ color: m.answerMode ? '#60a5fa' : GOLD, fontSize: '9px', letterSpacing: '1px', textTransform: 'uppercase' }}>{m.answerMode ? `📚 Sources (${m.entries.length})` : `✓ Saved ${m.entries.length} entr${m.entries.length === 1 ? 'y' : 'ies'}`}</div>
                     {m.entries.map((e, j) => {
                       const color = CAT_COLORS[e.category] || '#6b7280';
                       return (
@@ -251,23 +273,39 @@ export default function DebtKBChat() {
         </div>
       </div>
 
-      {/* Side panel — tips */}
-      <div style={{ background: '#0d1b2a', border: '1px solid rgba(255,255,255,0.07)', borderRadius: '8px', padding: '16px' }}>
+      {/* Side panel — tips + ingestion history */}
+      <div style={{ background: '#0d1b2a', border: '1px solid rgba(255,255,255,0.07)', borderRadius: '8px', padding: '16px', maxHeight: '70vh', overflowY: 'auto' }}>
         <div style={{ color: GOLD, fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '12px' }}>💡 How to use</div>
-        <div style={{ color: '#8a9ab8', fontSize: '12px', lineHeight: 1.7 }}>
-          <div style={{ marginBottom: '10px' }}><strong style={{ color: '#e8e0d0' }}>Text:</strong> Paste scripts, objection handlers, training notes, or Q&A — the AI structures and categorizes them.</div>
-          <div style={{ marginBottom: '10px' }}><strong style={{ color: '#e8e0d0' }}>Images:</strong> Upload screenshots of docs, photos of program materials, or slides — the AI reads them with vision.</div>
-          <div style={{ marginBottom: '10px' }}><strong style={{ color: '#e8e0d0' }}>Audio:</strong> Upload call recordings or record live from your mic — the AI transcribes and extracts Q&A and scripts.</div>
+        <div style={{ color: '#8a9ab8', fontSize: '11px', lineHeight: 1.6 }}>
+          <div style={{ marginBottom: '8px' }}><strong style={{ color: '#e8e0d0' }}>Ingest:</strong> Paste scripts, upload images/audio — AI structures and saves them automatically.</div>
+          <div style={{ marginBottom: '8px' }}><strong style={{ color: '#e8e0d0' }}>Ask:</strong> Ask any question about the KB or your database — AI answers from your data.</div>
         </div>
+
+        {/* Ingestion history */}
         <div style={{ marginTop: '16px', paddingTop: '12px', borderTop: '1px solid rgba(255,255,255,0.07)' }}>
-          <div style={{ color: '#6b7280', fontSize: '10px', lineHeight: 1.6 }}>
-            The AI picks the right category automatically:<br />
-            <span style={{ color: '#60a5fa' }}>●</span> Agent Scripts<br />
-            <span style={{ color: '#f59e0b' }}>●</span> Customer Q&A<br />
-            <span style={{ color: '#fb923c' }}>●</span> Coaching Hotpoints<br />
-            <span style={{ color: '#a78bfa' }}>●</span> Documents<br />
-            <span style={{ color: '#34d399' }}>●</span> FAQ
-          </div>
+          <div style={{ color: GOLD, fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '10px' }}>📜 Ingestion History</div>
+          {historyLoading ? (
+            <div style={{ color: '#6b7280', fontSize: '11px' }}>Loading…</div>
+          ) : history.length === 0 ? (
+            <div style={{ color: '#4a5568', fontSize: '11px' }}>No entries ingested via chat yet.</div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              {history.map((h, i) => {
+                const color = CAT_COLORS[h.category] || '#6b7280';
+                const time = h.created_date ? new Date(h.created_date).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '';
+                return (
+                  <div key={h.id || i} style={{ background: `${color}08`, border: `1px solid ${color}22`, borderRadius: '4px', padding: '6px 8px' }}>
+                    <div style={{ display: 'flex', gap: '4px', alignItems: 'center', marginBottom: '2px' }}>
+                      <span style={{ padding: '1px 4px', borderRadius: '2px', background: `${color}22`, color, fontSize: '7px', fontWeight: 'bold', textTransform: 'uppercase' }}>{CAT_LABELS[h.category] || h.category}</span>
+                      <span style={{ color: '#4a5568', fontSize: '9px', marginLeft: 'auto' }}>{time}</span>
+                    </div>
+                    <div style={{ color: '#e8e0d0', fontSize: '11px', fontWeight: 'bold', lineHeight: 1.3 }}>{h.question}</div>
+                    <div style={{ color: '#8a9ab8', fontSize: '10px', lineHeight: 1.4, marginTop: '2px' }}>{(h.answer || '').slice(0, 120)}{(h.answer || '').length > 120 ? '…' : ''}</div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       </div>
     </div>
