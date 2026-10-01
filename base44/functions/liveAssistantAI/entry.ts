@@ -469,6 +469,80 @@ ${recentText}`,
       }
     }
 
+    // ── CREDIT REVIEW EXTRACTION (credit score, behind on payments) ──
+    if (mode === 'credit') {
+      const recentText = (transcript || []).slice(-15).map((t: any) => t.text).join(' ');
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_KEY, 'anthropic-version': '2023-06-01' },
+        body: JSON.stringify({
+          model: 'claude-haiku-4-5-20251001',
+          max_tokens: 400,
+          system: `You are analyzing a live debt settlement call transcript. The agent is reviewing the customer credit situation. Extract credit review information the customer confirms.
+
+Look for:
+- creditScore: The customer credit score (number, e.g. 680) — when they say "my score is about 680" or "it is in the 600s"
+- behindOnPayments: Whether they are behind on any credit card payments (true/false) — when they say "I am behind" or "I have missed a couple payments"
+- monthsBehind: How many months behind they are (number) — when they say "I am 3 months behind" or "I have not paid in 4 months"
+
+Return JSON. Only include fields the customer explicitly mentions or confirms — do NOT make up data. If nothing new is mentioned, return empty object.
+${aiInputActive ? '\n⚡ AI INPUT ZONE ACTIVE: The agent is at a marked collection point. The customer is actively reviewing their credit RIGHT NOW. Capture every detail: exact credit score, which cards they are behind on, how many months behind, any missed payments.' : ''}
+
+Transcript:
+${recentText}`,
+          messages: [{ role: 'user', content: 'Extract credit review details:' }],
+        }),
+      });
+      const data = await res.json();
+      const text = data?.content?.[0]?.text || '{}';
+      try {
+        const result = JSON.parse(text.replace(/```json|```/g, '').trim());
+        return Response.json({ credit: result });
+      } catch {
+        return Response.json({ credit: null });
+      }
+    }
+
+    // ── BUDGET EXTRACTION (income + monthly expenses with custom keys) ──
+    if (mode === 'budget') {
+      const recentText = (transcript || []).slice(-15).map((t: any) => t.text).join(' ');
+      const existingBillsJson = body.existingBills || '{}';
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_KEY, 'anthropic-version': '2023-06-01' },
+        body: JSON.stringify({
+          model: 'claude-haiku-4-5-20251001',
+          max_tokens: 600,
+          system: `You are analyzing a live debt settlement call transcript. The agent is reviewing the customer monthly budget — income and expenses. Extract any monthly expense amounts and income the customer confirms.
+
+Look for:
+- monthlyIncome: Monthly take-home income (number) — when they say "I take home about 4000 a month" or "my income is around 3500"
+- bills: An object mapping expense categories to monthly dollar amounts (numbers only)
+
+Standard bill keys to use when they apply: rent, auto, autoInsurance, gas, groceries, utilities, phone, internet, studentLoans, healthInsurance, childcare, misc
+CUSTOM EXPENSE KEYS: If the customer mentions a bill type that does not fit a standard key, CREATE a custom camelCase key (e.g. "gym", "storage", "alimony", "petInsurance", "tithes", "subscriptions", "childSupport") and include it with the amount. This lets the system capture ANY expense the customer mentions.
+
+Only include expenses and income the customer explicitly mentions or confirms — do NOT make up data. If nothing new is mentioned, return empty object.
+${aiInputActive ? '\n⚡ AI INPUT ZONE ACTIVE: The agent is at a marked collection point. The customer is actively going over their budget RIGHT NOW. Capture every expense: rent/mortgage, car payment, insurance, gas, groceries, utilities, phone, internet, student loans, health insurance, childcare, and ANY other bill they mention. Create custom keys for non-standard expenses. Also capture monthly income if stated.' : ''}
+
+Existing bills already captured (merge with these, do not duplicate):
+${existingBillsJson}
+
+Transcript:
+${recentText}`,
+          messages: [{ role: 'user', content: 'Extract budget details:' }],
+        }),
+      });
+      const data = await res.json();
+      const text = data?.content?.[0]?.text || '{}';
+      try {
+        const result = JSON.parse(text.replace(/```json|```/g, '').trim());
+        return Response.json({ budget: result });
+      } catch {
+        return Response.json({ budget: null });
+      }
+    }
+
     // ── CUSTOMER INFO EXTRACTION (name, contact, debt amount) ────────
     if (mode === 'contact') {
       const recentText = (transcript || []).slice(-15).map((t: any) => t.text).join(' ');

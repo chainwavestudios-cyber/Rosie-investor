@@ -218,6 +218,7 @@ Agent line: "${firstAgentLines}"`,
   const lastHardshipTime = useRef(0);
   const lastCosignerTime = useRef(0);
   const lastContactTime = useRef(0);
+  const lastCreditTime = useRef(0);
   const lastComplianceTime = useRef(0);
   const handoffAttemptsRef = useRef(0);
   const inboundRef = useRef(false);
@@ -489,40 +490,20 @@ ${recentText}`,
     setLedgerExtracting(false);
   }, []);
 
-  // Auto-extract bills (rent, auto, insurance, gas, groceries, utilities, phone, internet, student loans) from transcript
+  // Auto-extract budget (income + monthly expenses with custom keys) via backend AI
   const handleBillsExtract = useCallback(async () => {
     if (!leadRef.current?.id || transcriptRef.current.length < 4) return;
     try {
-      const recentText = transcriptRef.current.slice(-15).map(t => t.text).join(' ');
-      const result = await base44.integrations.Core.InvokeLLM({
-        prompt: `You are analyzing a live debt settlement call transcript. The agent is reviewing the customer's monthly expenses/bills. Extract any monthly expense amounts the customer confirms. Look for:
-- Rent or mortgage payment
-- Auto payment (car loan/lease)
-- Auto insurance
-- Gas
-- Groceries
-- Utilities (electric, water, gas)
-- Phone bill
-- Internet bill
-- Student loan payment
-- Health insurance
-- Childcare
-- Any other recurring monthly expense
-
-Return JSON with a "bills" object mapping category keys to monthly dollar amounts. Only include expenses explicitly mentioned — do NOT make up data. Use these standard keys when they apply: rent, auto, autoInsurance, gas, groceries, utilities, phone, internet, studentLoans, healthInsurance, childcare, misc. If the customer mentions a bill type that doesn't fit a standard key, CREATE a custom key (camelCase, e.g. "gym", "storage", "alimony", "petInsurance") and include it with the amount.
-
-Transcript:
-${recentText}`,
-        response_json_schema: {
-          type: 'object',
-          properties: {
-            bills: { type: 'object', additionalProperties: { type: 'number' } },
-            monthlyIncome: { type: 'number' },
-          },
-        },
+      const res = await base44.functions.invoke('liveAssistantAI', {
+        transcript: transcriptRef.current.slice(-15),
+        mode: 'budget',
+        aiInputActive: posHasAiInput(scriptPositionRef.current),
+        existingBills: leadRef.current.billsJson || '{}',
       });
-      const extractedBills = result?.bills || {};
-      const extractedIncome = result?.monthlyIncome;
+      const budget = res?.budget || res?.data?.budget;
+      if (!budget) return;
+      const extractedBills = budget.bills || {};
+      const extractedIncome = budget.monthlyIncome;
       const existingBills = (() => { try { return JSON.parse(leadRef.current.billsJson || '{}'); } catch { return {}; } })();
       const mergedBills = { ...existingBills };
       let hasNew = false;
@@ -532,6 +513,28 @@ ${recentText}`,
       const updates = {};
       if (hasNew) updates.billsJson = JSON.stringify(mergedBills);
       if (extractedIncome) updates.monthlyIncome = extractedIncome;
+      if (Object.keys(updates).length > 0) {
+        setLead(prev => ({ ...prev, ...updates }));
+        if (leadRef.current.id) base44.entities.DebtLead.update(leadRef.current.id, updates).catch(() => {});
+      }
+    } catch {}
+  }, []);
+
+  // Auto-extract credit review info (credit score, behind on payments, months behind) from transcript
+  const handleCreditExtract = useCallback(async () => {
+    if (!leadRef.current?.id || transcriptRef.current.length < 4) return;
+    try {
+      const res = await base44.functions.invoke('liveAssistantAI', {
+        transcript: transcriptRef.current.slice(-15),
+        mode: 'credit',
+        aiInputActive: posHasAiInput(scriptPositionRef.current),
+      });
+      const credit = res?.credit || res?.data?.credit;
+      if (!credit) return;
+      const updates = {};
+      if (credit.creditScore) updates.creditScore = Number(credit.creditScore) || credit.creditScore;
+      if (credit.behindOnPayments !== undefined) updates.behindOnPayments = credit.behindOnPayments;
+      if (credit.monthsBehind) updates.monthsBehind = Number(credit.monthsBehind) || credit.monthsBehind;
       if (Object.keys(updates).length > 0) {
         setLead(prev => ({ ...prev, ...updates }));
         if (leadRef.current.id) base44.entities.DebtLead.update(leadRef.current.id, updates).catch(() => {});
@@ -700,6 +703,7 @@ ${recentText}`,
     if (now - lastHardshipTime.current > (aiInputActive ? 15000 : 55000)) { lastHardshipTime.current = now; handleHardshipExtract(); }
     if (now - lastCosignerTime.current > (aiInputActive ? 20000 : 60000)) { lastCosignerTime.current = now; handleCosignerExtract(); }
     if (now - lastContactTime.current > (aiInputActive ? 8000 : 40000)) { lastContactTime.current = now; handleContactExtract(); }
+    if (now - lastCreditTime.current > (aiInputActive ? 12000 : 50000)) { lastCreditTime.current = now; handleCreditExtract(); }
     if (now - lastComplianceTime.current > 90000) { lastComplianceTime.current = now; handleComplianceEval(); }
     // Opening handoff: for inbound calls, listen aggressively for transfer agent intro
     // (name, debt amount, hardship, address, phone, account details)
@@ -718,7 +722,7 @@ ${recentText}`,
       if (handoffAttemptsRef.current < 1 && lineCount >= 3) { handoffAttemptsRef.current = 1; handleHandoffExtract(); }
       else if (handoffAttemptsRef.current < 2 && lineCount >= 7) { handoffAttemptsRef.current = 2; handleHandoffExtract(); }
     }
-  }, [qaActive, coachActive, intentActive, handleQa, flushCustomerBuffer, handleCoach, handleIntent, handleProfile, handleDebtExtract, handleBillsExtract, handleHardshipExtract, handleCosignerExtract, handleContactExtract, handleComplianceEval, handleHandoffExtract]);
+  }, [qaActive, coachActive, intentActive, handleQa, flushCustomerBuffer, handleCoach, handleIntent, handleProfile, handleDebtExtract, handleBillsExtract, handleHardshipExtract, handleCosignerExtract, handleContactExtract, handleCreditExtract, handleComplianceEval, handleHandoffExtract]);
 
   const startCall = useCallback(async (forceNew = false) => {
     // Ensure we have a lead — always create a brand new one for new/inbound calls
