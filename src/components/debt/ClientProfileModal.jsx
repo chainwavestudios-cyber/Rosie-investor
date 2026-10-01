@@ -33,13 +33,13 @@ const BILL_CATEGORIES = [
 ];
 
 const TABS = [
-  { id: 'activity', label: '📋 Activity' },
-  { id: 'hardship', label: '⚠️ Hardship' },
   { id: 'overview', label: '📋 Overview' },
-  { id: 'insights', label: '🔍 Insights' },
-  { id: 'cosigners', label: '👥 Co-Signers' },
+  { id: 'activity', label: '📋 Activity' },
   { id: 'debt', label: '💳 Debt' },
   { id: 'bills', label: '🧾 Bills' },
+  { id: 'insights', label: '🔍 Insights' },
+  { id: 'cosigners', label: '👥 Co-Signers' },
+  { id: 'hardship', label: '⚠️ Hardship' },
   { id: 'qa', label: '❓ Q&A' },
   { id: 'transcripts', label: '📝 Transcripts' },
   { id: 'credit_report', label: '📷 Credit Report' },
@@ -181,56 +181,102 @@ export default function ClientProfileModal({ lead, onClose, onSave }) {
   return (
     <div style={{ ...panel.floatingStyle, background: '#0a0f1e', border: `1px solid ${GOLD}44`, borderRadius: '8px', boxShadow: '0 16px 64px rgba(0,0,0,0.8)' }}>
       {/* Header — draggable */}
-      <div onMouseDown={panel.onDragStart} style={{ padding: '16px 20px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'move', userSelect: 'none', flexShrink: 0 }}>
-        <div>
-          <div style={{ color: GOLD, fontSize: '10px', letterSpacing: '3px', textTransform: 'uppercase' }}>👤 Client Profile</div>
-          <div style={{ color: '#e8e0d0', fontSize: '18px' }}>{local.firstName} {local.lastName}</div>
+      <div onMouseDown={panel.onDragStart} style={{ padding: '12px 18px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'move', userSelect: 'none', flexShrink: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: `linear-gradient(135deg,${GOLD},#22c55e)`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#0a0f1e', fontSize: '15px', fontWeight: 'bold', flexShrink: 0, textTransform: 'uppercase' }}>
+            {(local.firstName?.[0] || '?')}{(local.lastName?.[0] || '')}
+          </div>
+          <div>
+            <div style={{ color: '#e8e0d0', fontSize: '15px', fontWeight: 'bold' }}>{local.firstName || 'New'} {local.lastName || 'Lead'}</div>
+            <div style={{ display: 'flex', gap: '6px', alignItems: 'center', marginTop: '2px' }}>
+              <span style={{ padding: '1px 8px', borderRadius: '10px', fontSize: '9px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.5px', background: local.status === 'enrolled' ? 'rgba(16,185,129,0.15)' : local.status === 'qualified' ? 'rgba(96,165,250,0.15)' : local.status === 'declined' ? 'rgba(239,68,68,0.15)' : 'rgba(138,154,184,0.15)', color: local.status === 'enrolled' ? GOLD : local.status === 'qualified' ? '#60a5fa' : local.status === 'declined' ? '#ef4444' : '#8a9ab8' }}>{local.status || 'new'}</span>
+              {local.leadNumber && <span style={{ color: '#6b7280', fontSize: '10px' }}>{local.leadNumber}</span>}
+              {local.callCount > 0 && <span style={{ color: '#6b7280', fontSize: '10px' }}>· {local.callCount} call{local.callCount !== 1 ? 's' : ''}</span>}
+            </div>
+          </div>
         </div>
-        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-          <button onClick={save} disabled={saving || !local.id} style={{ background: 'linear-gradient(135deg,#10b981,#22c55e)', color: '#0a0f1e', border: 'none', borderRadius: '4px', padding: '8px 20px', cursor: saving ? 'not-allowed' : 'pointer', fontSize: '11px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase', opacity: saving || !local.id ? 0.5 : 1 }}>
-            {saving ? '⏳ Saving…' : '💾 Save'}
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+          <button onClick={save} disabled={saving || !local.id} style={{ background: 'linear-gradient(135deg,#10b981,#22c55e)', color: '#0a0f1e', border: 'none', borderRadius: '4px', padding: '7px 16px', cursor: saving || !local.id ? 'not-allowed' : 'pointer', fontSize: '11px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase', opacity: saving || !local.id ? 0.5 : 1 }}>
+            {saving ? '⏳' : '💾 Save'}
           </button>
-          {saved && <span style={{ color: '#4ade80', fontSize: '12px' }}>✓ Saved</span>}
-          <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#6b7280', cursor: 'pointer', fontSize: '22px', padding: '0 4px' }}>×</button>
+          {saved && <span style={{ color: '#4ade80', fontSize: '12px' }}>✓</span>}
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#6b7280', cursor: 'pointer', fontSize: '22px', padding: '0 4px', lineHeight: 1 }}>×</button>
         </div>
       </div>
 
-      {/* Timer bar */}
-      <div style={{ padding: '8px 20px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', gap: '8px', alignItems: 'center', flexShrink: 0, flexWrap: 'wrap', background: 'rgba(0,0,0,0.15)' }}>
-        <span style={{ color: '#8a9ab8', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '1px' }}>⏰ Profile Timer:</span>
+      {/* Timer + Call bar — compact single row */}
+      <div style={{ padding: '6px 18px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', gap: '8px', alignItems: 'center', flexShrink: 0, flexWrap: 'wrap', background: 'rgba(0,0,0,0.15)' }}>
+        <span style={{ color: '#8a9ab8', fontSize: '9px', textTransform: 'uppercase', letterSpacing: '1px' }}>⏰</span>
         {activeTimer ? (
           <>
-            <span style={{ color: GOLD, fontSize: '12px', fontWeight: 'bold' }}>
-              {Math.floor((activeTimer.fireAt - now) / 60000)}m {Math.floor(((activeTimer.fireAt - now) % 60000) / 1000)}s remaining
-            </span>
-            <button onClick={handleCancelTimer} style={{ background: 'rgba(239,68,68,0.15)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '4px', padding: '3px 10px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>Cancel Timer</button>
+            <span style={{ color: GOLD, fontSize: '11px', fontWeight: 'bold' }}>{Math.floor((activeTimer.fireAt - now) / 60000)}m {Math.floor(((activeTimer.fireAt - now) % 60000) / 1000)}s</span>
+            <button onClick={handleCancelTimer} style={{ background: 'rgba(239,68,68,0.15)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '3px', padding: '2px 8px', cursor: 'pointer', fontSize: '9px', fontWeight: 'bold' }}>Cancel</button>
           </>
         ) : (
           <>
-            <input type="number" min="0" max="23" value={timerInput.hours} onChange={e => setTimerInput(p => ({ ...p, hours: Number(e.target.value) }))} style={{ width: '42px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '4px', padding: '4px 6px', color: '#e8e0d0', fontSize: '12px', outline: 'none', textAlign: 'center' }} />
-            <span style={{ color: '#6b7280', fontSize: '11px' }}>hr</span>
-            <input type="number" min="0" max="59" value={timerInput.minutes} onChange={e => setTimerInput(p => ({ ...p, minutes: Number(e.target.value) }))} style={{ width: '42px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '4px', padding: '4px 6px', color: '#e8e0d0', fontSize: '12px', outline: 'none', textAlign: 'center' }} />
-            <span style={{ color: '#6b7280', fontSize: '11px' }}>min</span>
-            <button onClick={handleSetTimer} style={{ background: `${GOLD}18`, color: GOLD, border: `1px solid ${GOLD}44`, borderRadius: '4px', padding: '4px 12px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>Set Timer</button>
+            <input type="number" min="0" max="23" value={timerInput.hours} onChange={e => setTimerInput(p => ({ ...p, hours: Number(e.target.value) }))} style={{ width: '34px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '3px', padding: '3px 4px', color: '#e8e0d0', fontSize: '11px', outline: 'none', textAlign: 'center' }} />
+            <span style={{ color: '#6b7280', fontSize: '10px' }}>h</span>
+            <input type="number" min="0" max="59" value={timerInput.minutes} onChange={e => setTimerInput(p => ({ ...p, minutes: Number(e.target.value) }))} style={{ width: '34px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '3px', padding: '3px 4px', color: '#e8e0d0', fontSize: '11px', outline: 'none', textAlign: 'center' }} />
+            <span style={{ color: '#6b7280', fontSize: '10px' }}>m</span>
+            <button onClick={handleSetTimer} style={{ background: `${GOLD}18`, color: GOLD, border: `1px solid ${GOLD}44`, borderRadius: '3px', padding: '3px 10px', cursor: 'pointer', fontSize: '9px', fontWeight: 'bold' }}>Set</button>
           </>
         )}
-        <span style={{ color: '#4a5568', fontSize: '10px', marginLeft: 'auto' }}>Popup reminder will appear when timer expires</span>
+        <div style={{ flex: 1, minWidth: '120px' }}>
+          <DebtCallBar lead={local} />
+        </div>
       </div>
 
-      {/* Live Call bar */}
-      <div style={{ padding: '0 20px 10px', borderBottom: '1px solid rgba(255,255,255,0.07)', flexShrink: 0 }}>
-        <DebtCallBar lead={local} />
-      </div>
+      {/* Two-column layout */}
+      <div style={{ display: 'flex', flex: 1, minHeight: 0 }}>
+        {/* Left Sidebar */}
+        <div style={{ width: '260px', borderRight: '1px solid rgba(255,255,255,0.07)', overflowY: 'auto', flexShrink: 0, background: 'rgba(0,0,0,0.15)' }}>
+          {/* Action icons */}
+          <div style={{ padding: '12px 16px', display: 'flex', gap: '6px', justifyContent: 'center', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+            <ActionIcon icon="📋" title="Activity" onClick={() => setTab('activity')} />
+            <ActionIcon icon="🔍" title="Insights" onClick={() => setTab('insights')} />
+            <ActionIcon icon="💳" title="Debt" onClick={() => setTab('debt')} />
+            <ActionIcon icon="🧾" title="Bills" onClick={() => setTab('bills')} />
+            <ActionIcon icon="📊" title="Calculator" onClick={() => setTab('calculator')} />
+          </div>
 
-      {/* Tabs */}
-      <div style={{ display: 'flex', borderBottom: '1px solid rgba(255,255,255,0.07)', flexShrink: 0 }}>
-        {TABS.map(t => (
-          <button key={t.id} onClick={() => setTab(t.id)} style={{ padding: '12px 20px', background: 'none', border: 'none', borderBottom: `2px solid ${tab === t.id ? GOLD : 'transparent'}`, color: tab === t.id ? GOLD : '#6b7280', cursor: 'pointer', fontSize: '12px', fontWeight: tab === t.id ? 'bold' : 'normal' }}>{t.label}</button>
-        ))}
-      </div>
+          {/* Contact Details */}
+          <div style={{ padding: '14px 16px', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+            <div style={{ color: GOLD, fontSize: '9px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '10px' }}>Contact Details</div>
+            <DetailRow label="Phone" value={local.phone} />
+            <DetailRow label="Email" value={local.email} />
+            <DetailRow label="Address" value={local.address} />
+            <DetailRow label="Location" value={[local.city, local.state, local.zip].filter(Boolean).join(', ')} />
+            <DetailRow label="Employment" value={local.employmentStatus ? local.employmentStatus.replace('-', ' ') : null} />
+            <DetailRow label="Monthly Income" value={local.monthlyIncome ? `$${Number(local.monthlyIncome).toLocaleString()}` : null} />
+            <DetailRow label="Credit Score" value={local.creditScore} />
+            <DetailRow label="Behind" value={local.behindOnPayments ? `Yes · ${local.monthsBehind || '?'} mo` : 'Current'} />
+            <DetailRow label="Total Debt" value={local.debtAmount ? `$${Number(local.debtAmount).toLocaleString()}` : null} />
+            <DetailRow label="Lead Owner" value={local.debtCoachOwner} />
+            <DetailRow label="First Contact" value={local.created_date ? new Date(local.created_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : null} />
+            <DetailRow label="Last Call" value={local.lastCallAt ? new Date(local.lastCallAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : null} />
+          </div>
 
-      {/* Content */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '20px' }}>
+          {/* Financial Summary */}
+          <div style={{ padding: '14px 16px' }}>
+            <div style={{ color: GOLD, fontSize: '9px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '8px' }}>Financial Summary</div>
+            <MiniStat label="Mo. Payments" value={`$${totalMonthlyPayments.toLocaleString()}`} color="#60a5fa" />
+            <MiniStat label="Mo. Bills" value={`$${totalBills.toLocaleString()}`} color="#f59e0b" />
+            <MiniStat label="Disposable" value={`$${Math.round(disposableIncome).toLocaleString()}`} color={disposableIncome > 0 ? '#4ade80' : '#ef4444'} />
+            <MiniStat label="DTI Ratio" value={monthlyIncome > 0 ? `${dti.toFixed(1)}%` : '—'} color={dti > 43 ? '#ef4444' : dti > 36 ? '#f59e0b' : '#4ade80'} />
+          </div>
+        </div>
+
+        {/* Right Main Content */}
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+          {/* Tabs */}
+          <div style={{ display: 'flex', borderBottom: '1px solid rgba(255,255,255,0.07)', flexShrink: 0, overflowX: 'auto' }}>
+            {TABS.map(t => (
+              <button key={t.id} onClick={() => setTab(t.id)} style={{ padding: '10px 14px', background: 'none', border: 'none', borderBottom: `2px solid ${tab === t.id ? GOLD : 'transparent'}`, color: tab === t.id ? GOLD : '#6b7280', cursor: 'pointer', fontSize: '11px', fontWeight: tab === t.id ? 'bold' : 'normal', whiteSpace: 'nowrap', flexShrink: 0 }}>{t.label}</button>
+            ))}
+          </div>
+
+          {/* Content */}
+          <div style={{ flex: 1, overflowY: 'auto', padding: '16px' }}>
         {tab === 'activity' && <LeadActivityTab lead={local} />}
 
         {tab === 'hardship' && (
@@ -255,45 +301,48 @@ export default function ClientProfileModal({ lead, onClose, onSave }) {
         )}
 
         {tab === 'overview' && (
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px' }}>
-            <Field label="First" value={local.firstName} onChange={v => update('firstName', v)} />
-            <Field label="Last" value={local.lastName} onChange={v => update('lastName', v)} />
-            <Field label="Phone" value={local.phone} onChange={v => update('phone', v)} />
-            <div style={{ gridColumn: '1 / -1' }}><Field label="Email" value={local.email} onChange={v => update('email', v)} /></div>
-            <div style={{ gridColumn: '1 / -1' }}><Field label="Address" value={local.address} onChange={v => update('address', v)} /></div>
-            <Field label="City" value={local.city} onChange={v => update('city', v)} />
-            <Field label="State" value={local.state} onChange={v => update('state', v)} />
-            <Field label="Zip" value={local.zip} onChange={v => update('zip', v)} />
-            <div>
-              <label style={ls}>Employment Status</label>
-              <select value={local.employmentStatus || ''} onChange={e => update('employmentStatus', e.target.value)} style={inp}>
-                <option value="">— Select —</option>
-                <option value="employed">Employed</option>
-                <option value="self-employed">Self-Employed</option>
-                <option value="unemployed">Unemployed</option>
-                <option value="retired">Retired</option>
-                <option value="disabled">Disabled</option>
-              </select>
-            </div>
-            <Field label="Monthly Income ($)" value={local.monthlyIncome} onChange={v => update('monthlyIncome', v ? Number(v) : null)} type="number" />
-            <Field label="Credit Score" value={local.creditScore} onChange={v => update('creditScore', v ? Number(v) : null)} type="number" />
-            <div>
-              <label style={ls}>Behind on Payments</label>
-              <select value={local.behindOnPayments ? 'yes' : 'no'} onChange={e => update('behindOnPayments', e.target.value === 'yes')} style={inp}>
-                <option value="no">No — Current</option>
-                <option value="yes">Yes — Behind</option>
-              </select>
-            </div>
-            <Field label="Months Behind" value={local.monthsBehind} onChange={v => update('monthsBehind', v ? Number(v) : null)} type="number" />
-
-            {/* Quick stats */}
-            <div style={{ gridColumn: '1 / -1', display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '10px', marginTop: '8px' }}>
-              <StatBox label="Total Debt" value={local.debtAmount ? `$${Number(local.debtAmount).toLocaleString()}` : '—'} color="#ef4444" />
-              <StatBox label="Monthly Payments" value={`$${totalMonthlyPayments.toLocaleString()}`} color="#60a5fa" />
-              <StatBox label="Monthly Bills" value={`$${totalBills.toLocaleString()}`} color="#f59e0b" />
-              <StatBox label="Disposable Income" value={`$${Math.round(disposableIncome).toLocaleString()}`} color={disposableIncome > 0 ? '#4ade80' : '#ef4444'} />
-              <StatBox label="Debt-to-Income" value={monthlyIncome > 0 ? `${dti.toFixed(1)}%` : '—'} color={dti > 43 ? '#ef4444' : dti > 36 ? '#f59e0b' : '#4ade80'} />
-            </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+            <Card title="Personal Information">
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                <Field label="First Name" value={local.firstName} onChange={v => update('firstName', v)} />
+                <Field label="Last Name" value={local.lastName} onChange={v => update('lastName', v)} />
+                <Field label="Phone" value={local.phone} onChange={v => update('phone', v)} />
+                <Field label="Email" value={local.email} onChange={v => update('email', v)} />
+                <div style={{ gridColumn: '1 / -1' }}><Field label="Address" value={local.address} onChange={v => update('address', v)} /></div>
+                <Field label="City" value={local.city} onChange={v => update('city', v)} />
+                <Field label="State" value={local.state} onChange={v => update('state', v)} />
+                <Field label="Zip" value={local.zip} onChange={v => update('zip', v)} />
+              </div>
+            </Card>
+            <Card title="Financial Information">
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px' }}>
+                <div>
+                  <label style={ls}>Employment</label>
+                  <select value={local.employmentStatus || ''} onChange={e => update('employmentStatus', e.target.value)} style={inp}>
+                    <option value="">—</option>
+                    <option value="employed">Employed</option>
+                    <option value="self-employed">Self-Employed</option>
+                    <option value="unemployed">Unemployed</option>
+                    <option value="retired">Retired</option>
+                    <option value="disabled">Disabled</option>
+                  </select>
+                </div>
+                <Field label="Monthly Income ($)" value={local.monthlyIncome} onChange={v => update('monthlyIncome', v ? Number(v) : null)} type="number" />
+                <Field label="Credit Score" value={local.creditScore} onChange={v => update('creditScore', v ? Number(v) : null)} type="number" />
+                <div>
+                  <label style={ls}>Behind on Payments</label>
+                  <select value={local.behindOnPayments ? 'yes' : 'no'} onChange={e => update('behindOnPayments', e.target.value === 'yes')} style={inp}>
+                    <option value="no">No — Current</option>
+                    <option value="yes">Yes — Behind</option>
+                  </select>
+                </div>
+                <Field label="Months Behind" value={local.monthsBehind} onChange={v => update('monthsBehind', v ? Number(v) : null)} type="number" />
+                <Field label="Total Debt ($)" value={local.debtAmount} onChange={v => update('debtAmount', v ? Number(v) : null)} type="number" />
+              </div>
+            </Card>
+            <Card title="Notes">
+              <textarea value={local.notes || ''} onChange={e => update('notes', e.target.value)} rows={4} style={{ ...inp, resize: 'vertical' }} placeholder="Add notes about this client..." />
+            </Card>
           </div>
         )}
 
@@ -447,6 +496,8 @@ export default function ClientProfileModal({ lead, onClose, onSave }) {
         {tab === 'calculator' && (
           <DoNothingCalculator lead={local} mode="close" />
         )}
+      </div>
+      </div>
       </div>
       {panel.resizeHandles}
     </div>
@@ -873,6 +924,39 @@ function StatBox({ label, value, color }) {
     <div style={{ background: 'rgba(255,255,255,0.03)', border: `1px solid ${color}33`, borderRadius: '4px', padding: '12px', textAlign: 'center' }}>
       <div style={{ color, fontSize: '16px', fontWeight: 'bold' }}>{value}</div>
       <div style={{ color: '#6b7280', fontSize: '9px', textTransform: 'uppercase', letterSpacing: '1px', marginTop: '4px' }}>{label}</div>
+    </div>
+  );
+}
+
+function Card({ title, children }) {
+  return (
+    <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: '6px', padding: '16px' }}>
+      <div style={{ color: GOLD, fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '12px' }}>{title}</div>
+      {children}
+    </div>
+  );
+}
+
+function ActionIcon({ icon, title, onClick }) {
+  return (
+    <button onClick={onClick} title={title} style={{ width: '34px', height: '34px', borderRadius: '50%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px' }}>{icon}</button>
+  );
+}
+
+function DetailRow({ label, value }) {
+  return (
+    <div style={{ marginBottom: '10px' }}>
+      <div style={{ color: '#6b7280', fontSize: '9px', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '2px' }}>{label}</div>
+      <div style={{ color: value ? '#e8e0d0' : '#4a5568', fontSize: '12px', fontWeight: value ? '600' : 'normal' }}>{value || '—'}</div>
+    </div>
+  );
+}
+
+function MiniStat({ label, value, color }) {
+  return (
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 10px', background: 'rgba(255,255,255,0.03)', borderRadius: '4px', marginBottom: '4px' }}>
+      <span style={{ color: '#6b7280', fontSize: '10px' }}>{label}</span>
+      <span style={{ color, fontSize: '12px', fontWeight: 'bold' }}>{value}</span>
     </div>
   );
 }

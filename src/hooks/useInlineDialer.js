@@ -3,7 +3,7 @@ import { base44 } from '@/api/base44Client';
 import { useTwilioDevice } from '@/lib/TwilioDeviceContext';
 
 export function useInlineDialer({ onCallStream, onCallLogged, agentName = 'admin', leadId = null } = {}) {
-  const { getDevice, incomingCall, setIncomingCall } = useTwilioDevice();
+  const { getDevice, incomingCall, setIncomingCall } = useTwilioDevice() || {};
 
   const [dialerError, setDialerError] = useState('');
   const [callStatus,  setCallStatus]  = useState('idle');
