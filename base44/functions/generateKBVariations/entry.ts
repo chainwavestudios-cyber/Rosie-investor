@@ -32,10 +32,12 @@ export default async function(req: Request): Promise<Response> {
     if (!entry) return Response.json({ error: 'Entry not found' }, { status: 404 });
 
     const variations = await generateVariations(base44, entry);
-    if (!variations) return Response.json({ error: 'Failed to generate variations' }, { status: 500 });
-
-    await base44.entities.KnowledgeBase.update(entryId, { variations });
-    return Response.json({ variations });
+    // Return empty string instead of 500 — the LLM may occasionally return no variations
+    const result = variations || '';
+    if (result) {
+      await base44.entities.KnowledgeBase.update(entryId, { variations: result });
+    }
+    return Response.json({ variations: result });
   } catch (error) {
     return Response.json({ error: error.message }, { status: 500 });
   }

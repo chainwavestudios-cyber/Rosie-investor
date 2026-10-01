@@ -26,7 +26,7 @@ export function serializeAnswers(arr) {
   return JSON.stringify(arr.filter(a => typeof a === 'string' && a.trim()));
 }
 
-export default function MultiAnswerEditor({ answers, onChange, accentColor = GOLD, label = 'Answers', placeholder = 'Type an answer…', rows = 4 }) {
+export default function MultiAnswerEditor({ answers, onChange, accentColor = GOLD, label = 'Answers', placeholder = 'Type an answer…', rows = 4, starredIndex = 0, onStarChange }) {
   const [list, setList] = useState(answers && answers.length > 0 ? answers : ['']);
   const color = accentColor;
 
@@ -80,10 +80,13 @@ export default function MultiAnswerEditor({ answers, onChange, accentColor = GOL
         {list.map((ans, i) => (
           <div key={i} style={{ background: 'rgba(255,255,255,0.02)', border: `1px solid ${color}22`, borderRadius: '4px', padding: '8px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-              <span style={{ color: i === 0 ? color : '#6b7280', fontSize: '9px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '1px' }}>
-                {i === 0 ? '★ Primary Answer' : `Answer ${i + 1}`}
+              <span style={{ color: i === starredIndex ? '#fbbf24' : i === 0 ? color : '#6b7280', fontSize: '9px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '1px' }}>
+                {i === starredIndex ? '⭐ Starred for Q&A' : i === 0 ? '★ Primary Answer' : `Answer ${i + 1}`}
               </span>
               <div style={{ display: 'flex', gap: '3px' }}>
+                {onStarChange && (
+                  <button onClick={() => onStarChange(i)} type="button" title={i === starredIndex ? 'Unstar' : 'Star for Q&A priority'} style={{ background: i === starredIndex ? 'rgba(251,191,36,0.15)' : 'none', border: 'none', color: i === starredIndex ? '#fbbf24' : '#6b7280', cursor: 'pointer', fontSize: '14px', padding: '0 4px' }}>{i === starredIndex ? '⭐' : '☆'}</button>
+                )}
                 <button onClick={() => moveUp(i)} disabled={i === 0} type="button" title="Move up" style={{ background: 'none', border: 'none', color: i === 0 ? '#4a5568' : '#8a9ab8', cursor: i === 0 ? 'default' : 'pointer', fontSize: '12px', padding: '0 4px' }}>↑</button>
                 <button onClick={() => moveDown(i)} disabled={i === list.length - 1} type="button" title="Move down" style={{ background: 'none', border: 'none', color: i === list.length - 1 ? '#4a5568' : '#8a9ab8', cursor: i === list.length - 1 ? 'default' : 'pointer', fontSize: '12px', padding: '0 4px' }}>↓</button>
                 <button onClick={() => remove(i)} type="button" title="Remove" style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '12px', padding: '0 4px' }}>✕</button>

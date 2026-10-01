@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { base44 } from '@/api/base44Client';
+import QAPopOutPanel from './QAPopOutPanel';
 
 const GOLD = '#b8933a';
 const SIZE_KEY = 'aiPopupDefaultSize';
@@ -208,7 +209,7 @@ function Btn({ onClick, disabled, children, color = '#8a9ab8', bg = 'rgba(255,25
 }
 
 // ── Persistent Right Panel: top=Transcript, bottom=AI Info ───────────────────
-function RightPanel({ transcript, aiPanelItem, onCloseAI, panelWidthPct, onWidthChange, onSendToQA }) {
+export function RightPanel({ transcript, aiPanelItem, onCloseAI, panelWidthPct, onWidthChange, onSendToQA }) {
   const txRef = useRef(null);
   const [selected, setSelected] = useState({});
   const [showSelectionBar, setShowSelectionBar] = useState(false);
@@ -427,7 +428,7 @@ function QAAnswerActions({ q, transcriptRef, kbEntries, onSidePanel, addInfoId, 
 }
 
 // ── Q&A Section ───────────────────────────────────────────────────────────────
-function QASection({ transcript, transcriptRef, kbEntries, active, qaKeywords, manualQ, setManualQ, collapsed, qaOnly, onSidePanel, lead, pendingQuestion }) {
+export function QASection({ transcript, transcriptRef, kbEntries, active, qaKeywords, manualQ, setManualQ, collapsed, qaOnly, onSidePanel, lead, pendingQuestion }) {
   const [questions, setQuestions] = useState([]);
   const [asking,    setAsking]    = useState(false);
   const [addInfoId, setAddInfoId] = useState(null);
@@ -1107,6 +1108,9 @@ export default function AIAssistantPopup({
   const [coachCollapsed,  setCoachCollapsed]  = useState(false);
   const [intentCollapsed, setIntentCollapsed] = useState(false);
   const [qaOnly,  setQaOnly]  = useState(false);
+  const [qaPoppedOut, setQaPoppedOut] = useState(false);
+  const [qaPopPos, setQaPopPos] = useState({ x: 30, y: 80 });
+  const [qaPopSize, setQaPopSize] = useState({ w: 700, h: 600 });
   const [manualQ, setManualQ] = useState('');
   const [localPendingQ, setLocalPendingQ] = useState(null);
   const [savedMsg, setSavedMsg] = useState(false);
@@ -1256,6 +1260,10 @@ export default function AIAssistantPopup({
           {qaOnly?'❓ Q&A Only ✓':'❓ Q&A Only'}
         </button>
 
+        <button onClick={()=>setQaPoppedOut(p=>!p)} title="Pop out Q&A with talking points + transcript" style={{background:qaPoppedOut?'rgba(245,158,11,0.2)':'rgba(255,255,255,0.05)',color:qaPoppedOut?'#f59e0b':'#6b7280',border:`1px solid ${qaPoppedOut?'rgba(245,158,11,0.4)':'rgba(255,255,255,0.1)'}`,borderRadius:'4px',padding:'3px 10px',cursor:'pointer',fontSize:'10px',fontWeight:'bold'}}>
+          {qaPoppedOut?'⬇ Q&A In':'⬆ Pop Out Q&A'}
+        </button>
+
         {(scripts?.length > 0 || activeScript) && (
           <button onClick={()=>setShowScript(p=>!p)} style={{background:showScript?'rgba(96,165,250,0.2)':'rgba(255,255,255,0.05)',color:showScript?'#60a5fa':'#6b7280',border:`1px solid ${showScript?'rgba(96,165,250,0.4)':'rgba(255,255,255,0.1)'}`,borderRadius:'4px',padding:'3px 10px',cursor:'pointer',fontSize:'10px',fontWeight:'bold'}}>
             📋 Script{showScript?' ✓':''}
@@ -1280,12 +1288,14 @@ export default function AIAssistantPopup({
 
           {!qaOnly && (
             <>
-              <div style={{display:'flex',flexDirection:'column',overflow:'hidden',flex:qaCollapsed?'0 0 auto':qaH,minHeight:qaCollapsed?0:80}}>
-                <SectionHeader label="❓ Q&A" color="#f59e0b" active={qaActive} onToggle={onToggleQA} collapsed={qaCollapsed} onCollapse={()=>setQaCollapsed(p=>!p)} />
-                <QASection transcript={transcript} transcriptRef={transcriptRef} kbEntries={kbEntries} active={qaActive} qaKeywords={portalCfg?.intentTriggerKeywords} manualQ={manualQ} setManualQ={setManualQ} collapsed={qaCollapsed} qaOnly={false} onSidePanel={setAiPanelItem} lead={lead} pendingQuestion={localPendingQ || pendingQuestion} />
-              </div>
+              {!qaPoppedOut && (
+                <div style={{display:'flex',flexDirection:'column',overflow:'hidden',flex:qaCollapsed?'0 0 auto':qaH,minHeight:qaCollapsed?0:80}}>
+                  <SectionHeader label="❓ Q&A" color="#f59e0b" active={qaActive} onToggle={onToggleQA} collapsed={qaCollapsed} onCollapse={()=>setQaCollapsed(p=>!p)} />
+                  <QASection transcript={transcript} transcriptRef={transcriptRef} kbEntries={kbEntries} active={qaActive} qaKeywords={portalCfg?.intentTriggerKeywords} manualQ={manualQ} setManualQ={setManualQ} collapsed={qaCollapsed} qaOnly={false} onSidePanel={setAiPanelItem} lead={lead} pendingQuestion={localPendingQ || pendingQuestion} />
+                </div>
+              )}
 
-              {!qaCollapsed&&!coachCollapsed&&<DragHandle onDragStart={e=>{resizingDiv.current='qa-coach';divStartY.current=e.clientY;divStartH.current=qaH;e.preventDefault();}} />}
+              {!qaCollapsed&&!coachCollapsed&&!qaPoppedOut&&<DragHandle onDragStart={e=>{resizingDiv.current='qa-coach';divStartY.current=e.clientY;divStartH.current=qaH;e.preventDefault();}} />}
 
               <div style={{display:'flex',flexDirection:'column',overflow:'hidden',flex:coachCollapsed?'0 0 auto':coachH,minHeight:coachCollapsed?0:60}}>
                 <SectionHeader label="🎯 Coach" color="#a78bfa" active={coachActive} onToggle={onToggleCoach} collapsed={coachCollapsed} onCollapse={()=>setCoachCollapsed(p=>!p)} />
@@ -1335,6 +1345,27 @@ export default function AIAssistantPopup({
           onSendToQA={(text) => setLocalPendingQ({ question: text, ts: Date.now() })}
         />
       </div>
+
+      {/* Popped-out Q&A panel — has its own talking points sidebar + live transcript (duplicate) */}
+      {qaPoppedOut && (
+        <QAPopOutPanel
+          transcript={transcript}
+          transcriptRef={transcriptRef}
+          kbEntries={kbEntries}
+          lead={lead}
+          pendingQuestion={localPendingQ || pendingQuestion}
+          qaActive={qaActive}
+          onToggleQA={onToggleQA}
+          portalCfg={portalCfg}
+          manualQ={manualQ}
+          setManualQ={setManualQ}
+          onClose={() => setQaPoppedOut(false)}
+          aiPanelItem={aiPanelItem}
+          setAiPanelItem={setAiPanelItem}
+          rightPanelWidth={rightPanelWidth}
+          setRightPanelWidth={setRightPanelWidth}
+        />
+      )}
     </div>
   );
 }

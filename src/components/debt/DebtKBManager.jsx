@@ -16,20 +16,21 @@ const inp = { width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px 
 // Renders all answers for an entry — numbered if multiple, plain if single
 function EntryAnswers({ entry }) {
   const answers = parseAnswers(entry.answersJson, entry.answer);
+  const starredIdx = entry.starredAnswerIndex || 0;
   if (answers.length === 0) return <div style={{ color: '#4a5568', fontSize: '11px', fontStyle: 'italic' }}>No answer recorded.</div>;
   if (answers.length === 1) {
     const a = answers[0];
-    return <div style={{ color: '#8a9ab8', fontSize: '12px', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>{a.slice(0, 300)}{a.length > 300 ? '…' : ''}</div>;
+    return <div style={{ display: 'flex', gap: '4px', alignItems: 'flex-start' }}>{starredIdx === 0 && <span style={{ color: '#fbbf24', fontSize: '12px', flexShrink: 0 }}>⭐</span>}<div style={{ color: '#8a9ab8', fontSize: '12px', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>{a.slice(0, 300)}{a.length > 300 ? '…' : ''}</div></div>;
   }
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
       {answers.map((a, i) => (
         <div key={i} style={{ display: 'flex', gap: '6px', alignItems: 'flex-start' }}>
-          <span style={{ color: i === 0 ? GOLD : '#6b7280', fontSize: '10px', fontWeight: 'bold', flexShrink: 0, marginTop: '1px' }}>{i + 1}.</span>
-          <span style={{ color: i === 0 ? '#e8e0d0' : '#8a9ab8', fontSize: '12px', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>{a.slice(0, 240)}{a.length > 240 ? '…' : ''}</span>
+          <span style={{ color: i === starredIdx ? '#fbbf24' : i === 0 ? GOLD : '#6b7280', fontSize: '10px', fontWeight: 'bold', flexShrink: 0, marginTop: '1px' }}>{i === starredIdx ? '⭐' : `${i + 1}.`}</span>
+          <span style={{ color: i === starredIdx ? '#e8e0d0' : i === 0 ? '#e8e0d0' : '#8a9ab8', fontSize: '12px', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>{a.slice(0, 240)}{a.length > 240 ? '…' : ''}</span>
         </div>
       ))}
-      <span style={{ color: GOLD, fontSize: '9px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '1px', marginTop: '2px' }}>{answers.length} answers</span>
+      <span style={{ color: GOLD, fontSize: '9px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '1px', marginTop: '2px' }}>{answers.length} answers · ⭐ starred for Q&A</span>
     </div>
   );
 }
@@ -50,6 +51,7 @@ export default function DebtKBManager({ readOnly = false }) {
   const [generatingAll, setGeneratingAll] = useState(false);
   const [generatingId, setGeneratingId] = useState(null);
   const [bulkStatus, setBulkStatus] = useState('');
+  const [editingId, setEditingId] = useState(null);
 
   useEffect(() => {
     setLoading(true);
@@ -160,30 +162,75 @@ export default function DebtKBManager({ readOnly = false }) {
           <div style={{ maxHeight: '500px', overflowY: 'auto' }}>
             {entries.map(e => (
               <div key={e.id} style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: '4px', padding: '14px', marginBottom: '8px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px', gap: '8px' }}>
-                  <div style={{ color: '#e8e0d0', fontSize: '13px', fontWeight: 'bold', flex: 1 }}>{e.question}</div>
-                  <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
-                    {!readOnly && (
-                      <button onClick={() => generateVariations(e.id)} disabled={generatingId === e.id} title="Generate alternative phrasings" style={{ background: generatingId === e.id ? 'rgba(255,255,255,0.05)' : 'rgba(245,158,11,0.1)', color: generatingId === e.id ? '#6b7280' : '#f59e0b', border: '1px solid rgba(245,158,11,0.25)', borderRadius: '4px', padding: '3px 10px', cursor: generatingId === e.id ? 'not-allowed' : 'pointer', fontSize: '10px', fontWeight: 'bold', whiteSpace: 'nowrap' }}>
-                        {generatingId === e.id ? '⏳' : '🤖'} {e.variations ? 'Regenerate' : 'Variations'}
-                      </button>
+                {editingId === e.id ? (
+                  <EditEntryForm entry={e} onDone={() => { setEditingId(null); refresh(); }} />
+                ) : (
+                  <>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px', gap: '8px' }}>
+                      <div style={{ color: '#e8e0d0', fontSize: '13px', fontWeight: 'bold', flex: 1 }}>{e.question}</div>
+                      <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
+                        {!readOnly && <button onClick={() => setEditingId(e.id)} title="Edit this entry" style={{ background: 'rgba(96,165,250,0.1)', color: '#60a5fa', border: '1px solid rgba(96,165,250,0.25)', borderRadius: '4px', padding: '3px 10px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold', whiteSpace: 'nowrap' }}>✏️ Edit</button>}
+                        {!readOnly && (
+                          <button onClick={() => generateVariations(e.id)} disabled={generatingId === e.id} title="Generate alternative phrasings" style={{ background: generatingId === e.id ? 'rgba(255,255,255,0.05)' : 'rgba(245,158,11,0.1)', color: generatingId === e.id ? '#6b7280' : '#f59e0b', border: '1px solid rgba(245,158,11,0.25)', borderRadius: '4px', padding: '3px 10px', cursor: generatingId === e.id ? 'not-allowed' : 'pointer', fontSize: '10px', fontWeight: 'bold', whiteSpace: 'nowrap' }}>
+                            {generatingId === e.id ? '⏳' : '🤖'} {e.variations ? 'Regenerate' : 'Variations'}
+                          </button>
+                        )}
+                        {!readOnly && <button onClick={async () => { if (confirm('Delete this entry?')) { await base44.entities.KnowledgeBase.delete(e.id); refresh(); } }} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '11px' }}>Delete</button>}
+                      </div>
+                    </div>
+                    <EntryAnswers entry={e} />
+                    {e.variations && (
+                      <div style={{ marginTop: '8px', padding: '8px 10px', background: 'rgba(245,158,11,0.04)', border: '1px solid rgba(245,158,11,0.12)', borderRadius: '4px' }}>
+                        <div style={{ color: '#f59e0b', fontSize: '9px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '4px' }}>🔄 Alternative Phrasings</div>
+                        <div style={{ color: '#8a9ab8', fontSize: '11px', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>{e.variations}</div>
+                      </div>
                     )}
-                    {!readOnly && <button onClick={async () => { await base44.entities.KnowledgeBase.delete(e.id); refresh(); }} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '11px' }}>Delete</button>}
-                  </div>
-                </div>
-                <EntryAnswers entry={e} />
-                {e.variations && (
-                  <div style={{ marginTop: '8px', padding: '8px 10px', background: 'rgba(245,158,11,0.04)', border: '1px solid rgba(245,158,11,0.12)', borderRadius: '4px' }}>
-                    <div style={{ color: '#f59e0b', fontSize: '9px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '4px' }}>🔄 Alternative Phrasings</div>
-                    <div style={{ color: '#8a9ab8', fontSize: '11px', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>{e.variations}</div>
-                  </div>
+                    {e.tags && section === 'hotpoints' && <span style={{ display: 'inline-block', marginTop: '6px', padding: '2px 8px', borderRadius: '2px', background: 'rgba(251,146,60,0.15)', color: '#fb923c', fontSize: '9px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '1px' }}>{e.tags || 'general'}</span>}
+                    {e.source && <div style={{ color: '#4a5568', fontSize: '10px', marginTop: '4px' }}>Source: {e.source}</div>}
+                  </>
                 )}
-                {e.tags && section === 'hotpoints' && <span style={{ display: 'inline-block', marginTop: '6px', padding: '2px 8px', borderRadius: '2px', background: 'rgba(251,146,60,0.15)', color: '#fb923c', fontSize: '9px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '1px' }}>{e.tags || 'general'}</span>}
-                {e.source && <div style={{ color: '#4a5568', fontSize: '10px', marginTop: '4px' }}>Source: {e.source}</div>}
               </div>
             ))}
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Edit Entry Form (inline editor for any KB entry) ─────────────────────────
+function EditEntryForm({ entry, onDone }) {
+  const [question, setQuestion] = useState(entry.question || '');
+  const [answers, setAnswers] = useState(parseAnswers(entry.answersJson, entry.answer).length > 0 ? parseAnswers(entry.answersJson, entry.answer) : ['']);
+  const [starredIdx, setStarredIdx] = useState(entry.starredAnswerIndex || 0);
+  const [variations, setVariations] = useState(entry.variations || '');
+  const [saving, setSaving] = useState(false);
+
+  const save = async () => {
+    const clean = answers.filter(a => a.trim());
+    if (!question.trim() || clean.length === 0) return;
+    setSaving(true);
+    try {
+      await base44.entities.KnowledgeBase.update(entry.id, {
+        question: question.trim(),
+        answer: clean[0],
+        answersJson: serializeAnswers(clean),
+        starredAnswerIndex: Math.min(starredIdx, clean.length - 1),
+        variations: variations.trim(),
+      });
+      onDone();
+    } catch (e) { alert('Save failed: ' + (e?.message || String(e))); }
+    setSaving(false);
+  };
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+      <div><label style={ls}>Question / Title</label><input value={question} onChange={e => setQuestion(e.target.value)} style={inp} /></div>
+      <MultiAnswerEditor answers={answers} onChange={setAnswers} starredIndex={Math.min(starredIdx, answers.length - 1)} onStarChange={setStarredIdx} accentColor="#60a5fa" label="Answer(s)" rows={4} />
+      <div><label style={ls}>Variations (one per line)</label><textarea value={variations} onChange={e => setVariations(e.target.value)} rows={6} style={{ ...inp, resize: 'vertical' }} placeholder="Alternative phrasings — one per line…" /></div>
+      <div style={{ display: 'flex', gap: '8px' }}>
+        <button onClick={save} disabled={saving || !question.trim() || !answers.some(a => a.trim())} style={{ background: 'linear-gradient(135deg,#10b981,#22c55e)', color: DARK, border: 'none', borderRadius: '4px', padding: '8px 18px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase', opacity: saving ? 0.5 : 1 }}>💾 Save</button>
+        <button onClick={onDone} style={{ background: 'rgba(255,255,255,0.05)', color: '#6b7280', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '4px', padding: '8px 14px', cursor: 'pointer', fontSize: '11px' }}>Cancel</button>
       </div>
     </div>
   );

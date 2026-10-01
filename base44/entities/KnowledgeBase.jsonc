@@ -16,6 +16,11 @@
       "title": "All Answers (JSON array)",
       "format": "textarea"
     },
+    "starredAnswerIndex": {
+      "type": "number",
+      "title": "Starred Answer Index (for Q&A priority)",
+      "default": 0
+    },
     "category": {
       "type": "string",
       "title": "Category"
