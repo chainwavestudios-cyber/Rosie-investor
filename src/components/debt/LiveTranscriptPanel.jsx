@@ -7,23 +7,18 @@
 import { useState, useEffect, useRef } from 'react';
 import { DebtPitchPanel } from '@/components/debt/DebtPitchTab';
 import { MyScriptsTab } from '@/components/debt/DebtScriptEditor';
+import { useDebtCoachValue } from '@/lib/debtCoachStorage';
 
 const GOLD = '#10b981';
 
-export default function LiveTranscriptPanel({ transcript, phase, panel, onAnswerQuestion, lead, micLabel, onScriptPositionChange }) {
+export default function LiveTranscriptPanel({ transcript, phase, panel, onAnswerQuestion, lead, micLabel, username, onScriptPositionChange }) {
   const [tab, setTab] = useState('transcript');
   const [selected, setSelected] = useState({});
   const scrollRef = useRef(null);
 
-  // Resizable + collapsible closer-pitches panel (persisted to localStorage)
-  const [pitchHeight, setPitchHeight] = useState(() => {
-    try { const v = localStorage.getItem('debt_pitch_height'); return v ? parseInt(v) : 280; } catch { return 280; }
-  });
-  const [pitchCollapsed, setPitchCollapsed] = useState(() => {
-    try { return localStorage.getItem('debt_pitch_collapsed') === '1'; } catch { return false; }
-  });
-  useEffect(() => { try { localStorage.setItem('debt_pitch_height', String(pitchHeight)); } catch {} }, [pitchHeight]);
-  useEffect(() => { try { localStorage.setItem('debt_pitch_collapsed', pitchCollapsed ? '1' : '0'); } catch {} }, [pitchCollapsed]);
+  // Resizable + collapsible closer-pitches panel (persisted to database)
+  const [pitchHeight, setPitchHeight] = useDebtCoachValue(username, 'debt_pitch_height', 280);
+  const [pitchCollapsed, setPitchCollapsed] = useDebtCoachValue(username, 'debt_pitch_collapsed', false);
 
   const onResizerMouseDown = (e) => {
     e.preventDefault();

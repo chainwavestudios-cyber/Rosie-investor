@@ -1,0 +1,25 @@
+{
+  "name": "DebtCoachUserSetting",
+  "type": "object",
+  "properties": {
+    "username": {
+      "type": "string",
+      "title": "Username"
+    },
+    "settingsJson": {
+      "type": "string",
+      "title": "All User Settings (JSON \u2014 panel positions, preferences, timers, checklist, etc.)",
+      "format": "textarea"
+    }
+  },
+  "required": [
+    "username",
+    "settingsJson"
+  ],
+  "rls": {
+    "create": null,
+    "read": null,
+    "update": null,
+    "delete": null
+  }
+}

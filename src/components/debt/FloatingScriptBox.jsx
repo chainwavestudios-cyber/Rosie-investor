@@ -5,28 +5,19 @@
  */
 import { useState, useRef, useEffect } from 'react';
 import { DebtPitchPanel } from '@/components/debt/DebtPitchTab';
+import { useDebtCoachValue } from '@/lib/debtCoachStorage';
 
 const GOLD = '#10b981';
 const DARK = '#0a0f1e';
 
-export default function FloatingScriptBox({ storageKey = 'floating_script' }) {
+export default function FloatingScriptBox({ storageKey = 'floating_script', username }) {
   const [visible, setVisible] = useState(false);
   const [minimized, setMinimized] = useState(false);
   const [tab, setTab] = useState('script');
-  const [script, setScript] = useState('');
+  const [script, setScript] = useDebtCoachValue(username, storageKey, '');
   const [pos, setPos] = useState(null);
   const [dragging, setDragging] = useState(false);
   const dragStart = useRef(null);
-
-  // Load saved script from localStorage
-  useEffect(() => {
-    try { const saved = localStorage.getItem(storageKey); if (saved) setScript(saved); } catch {}
-  }, [storageKey]);
-
-  // Save script to localStorage
-  useEffect(() => {
-    try { localStorage.setItem(storageKey, script); } catch {}
-  }, [script, storageKey]);
 
   // Initialize position to bottom-right on first show
   useEffect(() => {

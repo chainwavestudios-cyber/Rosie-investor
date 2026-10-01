@@ -46,7 +46,7 @@ const TABS = [
   { id: 'calculator', label: '📊 Calculator' },
 ];
 
-export default function ClientProfileModal({ lead, onClose, onSave }) {
+export default function ClientProfileModal({ lead, username, onClose, onSave }) {
   const [tab, setTab] = useState('overview');
   const [local, setLocal] = useState(lead || {});
   const [saving, setSaving] = useState(false);
@@ -62,7 +62,7 @@ export default function ClientProfileModal({ lead, onClose, onSave }) {
   const [showLiveTranscript, setShowLiveTranscript] = useState(true);
   const [insights, setInsights] = useState([]);
   const [expandedInsight, setExpandedInsight] = useState(null);
-  const panel = usePopOutPanel('client_profile', { width: 900, height: 700 });
+  const panel = usePopOutPanel('client_profile', { width: 900, height: 700 }, username);
 
   // Load Q&A history for this lead
   useEffect(() => {
@@ -109,7 +109,7 @@ export default function ClientProfileModal({ lead, onClose, onSave }) {
   // Load active timer for this lead
   useEffect(() => {
     if (!lead?.id) return;
-    const check = () => setActiveTimer(getActiveTimer(lead.id));
+    const check = () => setActiveTimer(getActiveTimer(username, lead.id));
     check();
     const interval = setInterval(check, 1000);
     return () => clearInterval(interval);
@@ -123,15 +123,15 @@ export default function ClientProfileModal({ lead, onClose, onSave }) {
 
   const handleSetTimer = () => {
     if (!local.id) return;
-    if (setProfileTimer(local, timerInput.hours, timerInput.minutes)) {
-      setActiveTimer(getActiveTimer(local.id));
+    if (setProfileTimer(username, local, timerInput.hours, timerInput.minutes)) {
+      setActiveTimer(getActiveTimer(username, local.id));
     } else {
       alert('Please set at least 1 minute.');
     }
   };
 
   const handleCancelTimer = () => {
-    if (local.id) { cancelProfileTimer(local.id); setActiveTimer(null); }
+    if (local.id) { cancelProfileTimer(username, local.id); setActiveTimer(null); }
   };
 
   const update = (field, value) => setLocal(prev => ({ ...prev, [field]: value }));

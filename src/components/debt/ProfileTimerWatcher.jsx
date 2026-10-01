@@ -3,16 +3,18 @@
  * When a timer fires, shows a popup reminder with a button to reopen the profile.
  * Rendered at the DebtCallCoach level so it survives modal close.
  *
- * Timers stored in localStorage: `profile_timer_{leadId}` = { leadId, leadSnapshot, fireAt, label }
+ * Timers stored in the database via debtCoachStorage: key 'profile_timers' = array of timer objects.
+ * Exported functions (setProfileTimer, cancelProfileTimer, getActiveTimer, setEventReminders)
+ * require a username parameter.
  */
 import { useState, useEffect, useCallback } from 'react';
+import { getDebtCoachValue, setDebtCoachValue, getCachedDebtCoachValue } from '@/lib/debtCoachStorage';
 
 const GOLD = '#10b981';
 const DARK = '#0a0f1e';
-const TIMER_PREFIX = 'profile_timer_';
 
-export function setProfileTimer(lead, hours, minutes) {
-  if (!lead?.id) return;
+export function setProfileTimer(username, lead, hours, minutes) {
+  if (!lead?.id || !username) return false;
   const ms = (Number(hours) || 0) * 3600000 + (Number(minutes) || 0) * 60000;
   if (ms < 60000) return false;
   const timer = {
@@ -21,24 +23,27 @@ export function setProfileTimer(lead, hours, minutes) {
     fireAt: Date.now() + ms,
     label: `${lead.firstName || ''} ${lead.lastName || ''}`.trim() || 'Client',
   };
-  localStorage.setItem(TIMER_PREFIX + lead.id, JSON.stringify(timer));
+  const timers = getCachedDebtCoachValue(username, 'profile_timers', []) || [];
+  // Replace any existing timer for this lead
+  const filtered = timers.filter(t => t.leadId !== lead.id);
+  setDebtCoachValue(username, 'profile_timers', [...filtered, timer]);
   window.dispatchEvent(new CustomEvent('profile_timer_set', { detail: timer }));
   return true;
 }
 
-export function setEventReminders(lead, eventISO, eventTitle) {
-  if (!lead?.id || !eventISO) return;
+export function setEventReminders(username, lead, eventISO, eventTitle) {
+  if (!lead?.id || !eventISO || !username) return;
   const eventTime = new Date(eventISO).getTime();
   const reminders = [
     { offset: 3600000, label: '1 hour' },
     { offset: 300000, label: '5 minutes' },
   ];
-  const keyBase = `evt_${Date.now()}`;
-  let registered = 0;
-  reminders.forEach((r, i) => {
+  const timers = getCachedDebtCoachValue(username, 'profile_timers', []) || [];
+  const newTimers = [];
+  reminders.forEach((r) => {
     const fireAt = eventTime - r.offset;
-    if (fireAt <= Date.now()) return; // skip reminders already in the past
-    const timer = {
+    if (fireAt <= Date.now()) return;
+    newTimers.push({
       leadId: lead.id,
       leadSnapshot: { id: lead.id, firstName: lead.firstName, lastName: lead.lastName, phone: lead.phone },
       fireAt,
@@ -46,31 +51,39 @@ export function setEventReminders(lead, eventISO, eventTitle) {
       type: 'event',
       eventTitle: eventTitle || 'Scheduled Event',
       offsetLabel: r.label,
-    };
-    localStorage.setItem(`${TIMER_PREFIX}${lead.id}_${keyBase}_${i}`, JSON.stringify(timer));
-    registered++;
+      timerKey: `evt_${Date.now()}_${r.offset}`,
+    });
   });
-  if (registered > 0) window.dispatchEvent(new CustomEvent('profile_timer_set'));
+  if (newTimers.length > 0) {
+    setDebtCoachValue(username, 'profile_timers', [...timers, ...newTimers]);
+    window.dispatchEvent(new CustomEvent('profile_timer_set'));
+  }
 }
 
-export function cancelProfileTimer(leadId) {
-  localStorage.removeItem(TIMER_PREFIX + leadId);
+export function cancelProfileTimer(username, leadId) {
+  if (!username) return;
+  const timers = getCachedDebtCoachValue(username, 'profile_timers', []) || [];
+  const filtered = timers.filter(t => t.leadId !== leadId && !t.timerKey?.startsWith('evt_'));
+  setDebtCoachValue(username, 'profile_timers', filtered);
   window.dispatchEvent(new CustomEvent('profile_timer_cancelled', { detail: { leadId } }));
 }
 
-export function getActiveTimer(leadId) {
-  try {
-    const raw = localStorage.getItem(TIMER_PREFIX + leadId);
-    if (!raw) return null;
-    const timer = JSON.parse(raw);
-    if (timer.fireAt <= Date.now()) { localStorage.removeItem(TIMER_PREFIX + leadId); return null; }
-    return timer;
-  } catch { return null; }
+export function getActiveTimer(username, leadId) {
+  const timers = getCachedDebtCoachValue(username, 'profile_timers', []) || [];
+  const timer = timers.find(t => t.leadId === leadId && t.fireAt > Date.now());
+  return timer || null;
 }
 
-export default function ProfileTimerWatcher({ onOpenProfile }) {
+export default function ProfileTimerWatcher({ username, onOpenProfile }) {
   const [firedTimers, setFiredTimers] = useState([]);
   const [now, setNow] = useState(Date.now());
+  const [loaded, setLoaded] = useState(false);
+
+  // Load timers from database on mount
+  useEffect(() => {
+    if (!username) return;
+    getDebtCoachValue(username, 'profile_timers', []).then(() => setLoaded(true));
+  }, [username]);
 
   // Tick every second
   useEffect(() => {
@@ -80,29 +93,23 @@ export default function ProfileTimerWatcher({ onOpenProfile }) {
 
   // Check all timers for fired ones
   const checkTimers = useCallback(() => {
-    const fired = [];
-    Object.keys(localStorage).forEach(key => {
-      if (!key.startsWith(TIMER_PREFIX)) return;
+    if (!username || !loaded) return;
+    const timers = getCachedDebtCoachValue(username, 'profile_timers', []) || [];
+    const fired = timers.filter(t => t.fireAt <= Date.now());
+    if (fired.length === 0) return;
+    // Remove fired timers from DB
+    const remaining = timers.filter(t => t.fireAt > Date.now());
+    setDebtCoachValue(username, 'profile_timers', remaining);
+    setFiredTimers(prev => [...prev, ...fired]);
+    // Try browser notification
+    fired.forEach(t => {
       try {
-        const timer = JSON.parse(localStorage.getItem(key));
-        if (timer.fireAt <= Date.now()) {
-          fired.push(timer);
-          localStorage.removeItem(key);
+        if (Notification.permission === 'granted') {
+          new Notification('⏰ Profile Timer', { body: `Time to follow up with ${t.label}!` });
         }
       } catch {}
     });
-    if (fired.length > 0) {
-      setFiredTimers(prev => [...prev, ...fired]);
-      // Try browser notification
-      fired.forEach(t => {
-        try {
-          if (Notification.permission === 'granted') {
-            new Notification('⏰ Profile Timer', { body: `Time to follow up with ${t.label}!` });
-          }
-        } catch {}
-      });
-    }
-  }, []);
+  }, [username, loaded]);
 
   useEffect(() => {
     checkTimers();

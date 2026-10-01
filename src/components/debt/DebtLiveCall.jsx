@@ -19,6 +19,7 @@ import AppointmentPreviewModal from '@/components/debt/AppointmentPreviewModal';
 import { usePopOutPanel } from '@/hooks/usePopOutPanel';
 import { useHotCallTracker } from '@/hooks/useHotCallTracker';
 import { useDebtCoachAuth } from '@/lib/DebtCoachAuthContext';
+import { useDebtCoachValue } from '@/lib/debtCoachStorage';
 
 const GOLD = '#10b981';
 const DARK = '#0a0f1e';
@@ -77,14 +78,14 @@ export default function DebtLiveCall() {
   const [generatingReport, setGeneratingReport] = useState(false);
   const [callMode, setCallMode] = useState('close'); // 'open' | 'close' — derived from callType
   const [callType, setCallType] = useState('front_to_back'); // 'front_to_back' | 'open_only' | 'cold_call' | 'closer_call'
-  const [autoSchedulerEnabled, setAutoSchedulerEnabled] = useState(() => localStorage.getItem('autoSchedulerEnabled') !== 'false');
+  const [autoSchedulerEnabled, setAutoSchedulerEnabled] = useDebtCoachValue(coachUser?.username, 'autoSchedulerEnabled', true);
   const [apptPreview, setApptPreview] = useState(null);
   const leadPersistedRef = useRef(false);
   const [showProfile, setShowProfile] = useState(false);
   const [pendingQuestion, setPendingQuestion] = useState(null);
-  const leadPanel = usePopOutPanel('live_lead_card', { width: 420, height: 600 });
-  const transcriptPanel = usePopOutPanel('live_transcript', { width: 520, height: 600 });
-  const aiPanel = usePopOutPanel('live_ai_panel', { width: 420, height: 600 });
+  const leadPanel = usePopOutPanel('live_lead_card', { width: 420, height: 600 }, coachUser?.username);
+  const transcriptPanel = usePopOutPanel('live_transcript', { width: 520, height: 600 }, coachUser?.username);
+  const aiPanel = usePopOutPanel('live_ai_panel', { width: 420, height: 600 }, coachUser?.username);
   const [allPoppedOut, setAllPoppedOut] = useState(false);
   const [isInbound, setIsInbound] = useState(false);
   const [layoutSavedMsg, setLayoutSavedMsg] = useState(false);
@@ -109,12 +110,8 @@ export default function DebtLiveCall() {
   }, []);
 
   const toggleAutoScheduler = useCallback(() => {
-    setAutoSchedulerEnabled(prev => {
-      const next = !prev;
-      localStorage.setItem('autoSchedulerEnabled', String(next));
-      return next;
-    });
-  }, []);
+    setAutoSchedulerEnabled(prev => !prev);
+  }, [setAutoSchedulerEnabled]);
 
   // Cold call: extract "May I speak with John Smith please" from the first agent lines
   const handleColdCallNameExtract = useCallback(async () => {
@@ -1412,7 +1409,7 @@ ${recentText}`,
               ))}
 
               {/* Transcript — pop-out enabled with Scripts tab */}
-              <LiveTranscriptPanel transcript={transcript} phase={phase} panel={transcriptPanel} onAnswerQuestion={handleAnswerQuestion} lead={lead} micLabel={micDevices.find(m => m.deviceId === micDeviceId)?.label || 'Agent Mic'} onScriptPositionChange={(pos) => { scriptPositionRef.current = pos; }} />
+              <LiveTranscriptPanel transcript={transcript} phase={phase} panel={transcriptPanel} onAnswerQuestion={handleAnswerQuestion} lead={lead} micLabel={micDevices.find(m => m.deviceId === micDeviceId)?.label || 'Agent Mic'} username={coachUser?.username} onScriptPositionChange={(pos) => { scriptPositionRef.current = pos; }} />
 
               {/* AI Tools Panel — pop-out enabled */}
               {aiPanel.poppedOut ? (
@@ -1484,7 +1481,7 @@ ${recentText}`,
       </button>
 
       {showProfile && lead.id && (
-        <ClientProfileModal lead={lead} onClose={() => setShowProfile(false)} onSave={(updated) => setLead(updated)} />
+        <ClientProfileModal lead={lead} username={coachUser?.username} onClose={() => setShowProfile(false)} onSave={(updated) => setLead(updated)} />
       )}
 
       {/* Customer Stats Popup — auto-detects insights during live calls */}

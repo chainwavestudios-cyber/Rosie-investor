@@ -6,6 +6,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
 import LayoutSaveLoad from '@/components/debt/LayoutSaveLoad';
+import { getDebtCoachValue, setDebtCoachValue } from '@/lib/debtCoachStorage';
 
 const GOLD = '#10b981';
 const DARK = '#0a0f1e';
@@ -32,33 +33,41 @@ export default function CustomerStatsPopup({ lead, transcript, isActive, agentUs
   const [newInsightFlash, setNewInsightFlash] = useState(new Set());
   const lastExtractLineCount = useRef(0);
   const existingInsightKeys = useRef(new Set());
-  const [pos, setPos] = useState(() => {
-    try {
-      const saved = localStorage.getItem(STATS_POS_KEY);
-      if (saved) { const p = JSON.parse(saved); if (p.x != null && p.y != null) return { x: p.x, y: p.y }; }
-    } catch {}
-    return { x: 24, y: typeof window !== 'undefined' ? window.innerHeight - 350 : 100 };
-  });
+  const [pos, setPos] = useState({ x: 24, y: typeof window !== 'undefined' ? window.innerHeight - 350 : 100 });
+  const [posLoaded, setPosLoaded] = useState(false);
   const [dragging, setDragging] = useState(false);
   const dragOffset = useRef({ x: 0, y: 0 });
   const dragMoved = useRef(false);
 
-  // Persist position to localStorage so it can be saved/restored with layouts
+  // Load position from database on mount
   useEffect(() => {
-    try { localStorage.setItem(STATS_POS_KEY, JSON.stringify(pos)); } catch {}
-  }, [pos]);
+    if (!agentUsername) return;
+    let cancelled = false;
+    getDebtCoachValue(agentUsername, STATS_POS_KEY).then(saved => {
+      if (cancelled || !saved) { setPosLoaded(true); return; }
+      if (saved.x != null && saved.y != null) setPos({ x: saved.x, y: saved.y });
+      setPosLoaded(true);
+    });
+    return () => { cancelled = true; };
+  }, [agentUsername]);
 
-  // Listen for layout_restored event — re-read position from localStorage
+  // Persist position to database (debounced via setDebtCoachValue)
+  useEffect(() => {
+    if (!agentUsername || !posLoaded) return;
+    setDebtCoachValue(agentUsername, STATS_POS_KEY, pos);
+  }, [agentUsername, pos, posLoaded]);
+
+  // Listen for layout_restored event — re-read position from database
   useEffect(() => {
     const handler = () => {
-      try {
-        const saved = localStorage.getItem(STATS_POS_KEY);
-        if (saved) { const p = JSON.parse(saved); if (p.x != null && p.y != null) setPos({ x: p.x, y: p.y }); }
-      } catch {}
+      if (!agentUsername) return;
+      getDebtCoachValue(agentUsername, STATS_POS_KEY).then(saved => {
+        if (saved && saved.x != null && saved.y != null) setPos({ x: saved.x, y: saved.y });
+      });
     };
     window.addEventListener('layout_restored', handler);
     return () => window.removeEventListener('layout_restored', handler);
-  }, []);
+  }, [agentUsername]);
 
   useEffect(() => {
     if (!dragging) return;

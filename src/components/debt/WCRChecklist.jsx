@@ -5,11 +5,10 @@
  * Persisted to localStorage. Rendered at the DebtCallCoach level.
  */
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { useDebtCoachValue } from '@/lib/debtCoachStorage';
 
 const GOLD = '#10b981';
 const DARK = '#0a0f1e';
-const STORAGE_KEY = 'wcr_checklist_state';
-const SIZE_KEY = 'wcr_checklist_size';
 
 const CHECKLIST_SECTIONS = [
   {
@@ -129,40 +128,36 @@ const CHECKLIST_SECTIONS = [
 // Flatten for quick count
 const ALL_ITEMS = CHECKLIST_SECTIONS.flatMap(s => s.items.map((text, i) => ({ id: `${s.id}-${i}`, text, section: s.id })));
 
-export default function WCRChecklist() {
+export default function WCRChecklist({ username }) {
   const [visible, setVisible] = useState(false);
-  const [checked, setChecked] = useState({});
+  const [checked, setChecked] = useDebtCoachValue(username, 'wcr_checklist_state', {});
   const [collapsed, setCollapsed] = useState({});
-  const [reminder, setReminder] = useState(null); // { fireAt } or null
+  const [reminder, setReminder] = useState(null);
   const [reminderInput, setReminderInput] = useState({ hours: 0, minutes: 30 });
   const [reminderFired, setReminderFired] = useState(false);
   const [now, setNow] = useState(Date.now());
 
-  // Window position/size
-  const saved = (() => { try { return JSON.parse(localStorage.getItem(SIZE_KEY) || 'null'); } catch { return null; } })();
-  const [pos, setPos] = useState(saved ? { x: saved.x, y: saved.y } : { x: 60, y: 80 });
-  const [size, setSize] = useState(saved ? { w: saved.w, h: saved.h } : { w: 480, h: 600 });
+  // Window position/size — loaded from database
+  const [savedSize, setSavedSize] = useDebtCoachValue(username, 'wcr_checklist_size', null);
+  const [pos, setPos] = useState(savedSize ? { x: savedSize.x, y: savedSize.y } : { x: 60, y: 80 });
+  const [size, setSize] = useState(savedSize ? { w: savedSize.w, h: savedSize.h } : { w: 480, h: 600 });
   const [dragging, setDragging] = useState(false);
   const [resizing, setResizing] = useState(false);
   const dragStart = useRef(null);
 
-  // Load saved checkbox state
+  // Apply saved size from DB when it loads
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) setChecked(JSON.parse(raw));
-    } catch {}
-  }, []);
+    if (savedSize) {
+      setPos({ x: savedSize.x, y: savedSize.y });
+      setSize({ w: savedSize.w, h: savedSize.h });
+    }
+  }, [savedSize]);
 
-  // Save checkbox state
+  // Save window size/position to database
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(checked));
-  }, [checked]);
-
-  // Save window size/position
-  useEffect(() => {
-    localStorage.setItem(SIZE_KEY, JSON.stringify({ x: pos.x, y: pos.y, w: size.w, h: size.h }));
-  }, [pos, size]);
+    if (!username) return;
+    setSavedSize({ x: pos.x, y: pos.y, w: size.w, h: size.h });
+  }, [username, pos, size, setSavedSize]);
 
   // Tick every second for countdown
   useEffect(() => {
