@@ -183,7 +183,8 @@ Agent line: "${firstAgentLines}"`,
         window.dispatchEvent(new CustomEvent('lead_autosaved', { detail: ['interest_save'] }));
       }
     } catch (e) { console.error('Cold call interest save failed:', e); }
-  }, [callType, coachUser, loadLeads]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [callType, coachUser]);
 
   const wsRef = useRef(null);
   const streamRef = useRef(null);
@@ -295,7 +296,8 @@ Agent line: "${firstAgentLines}"`,
     setShowProfile(true);
     // Start the call with this lead
     setTimeout(() => startCall(false), 100);
-  }, [startCall]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // After Save on the lead card: lead is persisted in the card; here we close the card and open the Client Profile
   const handleLeadSaved = useCallback((savedLead) => {

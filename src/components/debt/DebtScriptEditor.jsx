@@ -207,34 +207,32 @@ function MyScriptsTab({ liveTranscript, phase, clientFirstName, clientLastName, 
             </select>
           </div>
 
-          {/* Mode toggle: Edit / Teleprompt */}
-          <div style={{ display: 'flex', gap: '4px', marginBottom: '10px', flexShrink: 0 }}>
-            <button onClick={() => setMode('edit')} style={{ padding: '5px 14px', borderRadius: '4px', border: `1px solid ${mode === 'edit' ? GOLD + '66' : 'rgba(255,255,255,0.1)'}`, background: mode === 'edit' ? `${GOLD}18` : 'transparent', color: mode === 'edit' ? GOLD : '#6b7280', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>✏️ Edit</button>
-            <button onClick={() => setMode('teleprompt')} style={{ padding: '5px 14px', borderRadius: '4px', border: `1px solid ${mode === 'teleprompt' ? '#f59e0b66' : 'rgba(255,255,255,0.1)'}`, background: mode === 'teleprompt' ? 'rgba(245,158,11,0.15)' : 'transparent', color: mode === 'teleprompt' ? '#f59e0b' : '#6b7280', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>📍 Teleprompt</button>
-          </div>
-
-          {/* Formatting toolbar */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px', flexWrap: 'wrap', flexShrink: 0 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-              <span style={{ color: '#4a5568', fontSize: '10px', letterSpacing: '1px', textTransform: 'uppercase' }}>Size</span>
-              <select value={active.fontSize || 14} onChange={e => updateAndSave({ fontSize: parseInt(e.target.value) })} style={{ ...inp, width: '55px', padding: '3px 6px', cursor: 'pointer' }}>
+          {/* Mode toggle + formatting toolbar — single line */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px', flexWrap: 'wrap', flexShrink: 0 }}>
+            <div style={{ display: 'flex', gap: '3px' }}>
+              <button onClick={() => setMode('edit')} style={{ padding: '4px 10px', borderRadius: '4px', border: `1px solid ${mode === 'edit' ? GOLD + '66' : 'rgba(255,255,255,0.1)'}`, background: mode === 'edit' ? `${GOLD}18` : 'transparent', color: mode === 'edit' ? GOLD : '#6b7280', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>✏️ Edit</button>
+              <button onClick={() => setMode('teleprompt')} style={{ padding: '4px 10px', borderRadius: '4px', border: `1px solid ${mode === 'teleprompt' ? '#f59e0b66' : 'rgba(255,255,255,0.1)'}`, background: mode === 'teleprompt' ? 'rgba(245,158,11,0.15)' : 'transparent', color: mode === 'teleprompt' ? '#f59e0b' : '#6b7280', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>📍 Teleprompt</button>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
+              <span style={{ color: '#4a5568', fontSize: '9px', letterSpacing: '1px', textTransform: 'uppercase' }}>Size</span>
+              <select value={active.fontSize || 14} onChange={e => updateAndSave({ fontSize: parseInt(e.target.value) })} style={{ ...inp, width: '50px', padding: '3px 4px', cursor: 'pointer' }}>
                 {FONT_SIZES.map(s => <option key={s} value={s}>{s}px</option>)}
               </select>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-              <span style={{ color: '#4a5568', fontSize: '10px', letterSpacing: '1px', textTransform: 'uppercase' }}>Color</span>
-              <div style={{ display: 'flex', gap: '3px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
+              <span style={{ color: '#4a5568', fontSize: '9px', letterSpacing: '1px', textTransform: 'uppercase' }}>Color</span>
+              <div style={{ display: 'flex', gap: '2px' }}>
                 {TEXT_COLORS.map(c => (
-                  <button key={c.value} onClick={() => updateAndSave({ color: c.value })} title={c.label} style={{ width: '18px', height: '18px', borderRadius: '50%', background: c.value, border: active.color === c.value ? '2px solid #fff' : '2px solid transparent', cursor: 'pointer', padding: 0 }} />
+                  <button key={c.value} onClick={() => updateAndSave({ color: c.value })} title={c.label} style={{ width: '16px', height: '16px', borderRadius: '50%', background: c.value, border: active.color === c.value ? '2px solid #fff' : '2px solid transparent', cursor: 'pointer', padding: 0 }} />
                 ))}
               </div>
             </div>
             <div style={{ marginLeft: 'auto', display: 'flex', gap: '6px', alignItems: 'center' }}>
               {saveMsg && <span style={{ color: saveMsg.startsWith('Error') ? '#ef4444' : '#4ade80', fontSize: '11px' }}>{saveMsg}</span>}
               {scripts.length > 1 && (
-                <button onClick={deleteActive} disabled={deleting} style={{ background: 'rgba(239,68,68,0.1)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '2px', padding: '5px 10px', cursor: 'pointer', fontSize: '11px' }}>{deleting ? '…' : '🗑'}</button>
+                <button onClick={deleteActive} disabled={deleting} style={{ background: 'rgba(239,68,68,0.1)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '2px', padding: '4px 8px', cursor: 'pointer', fontSize: '11px' }}>{deleting ? '…' : '🗑'}</button>
               )}
-              <button onClick={saveActive} disabled={saving} style={{ background: 'linear-gradient(135deg,#10b981,#22c55e)', color: DARK, border: 'none', borderRadius: '2px', padding: '5px 16px', cursor: 'pointer', fontSize: '11px', fontWeight: '700' }}>{saving ? 'Saving…' : 'Save'}</button>
+              <button onClick={saveActive} disabled={saving} style={{ background: 'linear-gradient(135deg,#10b981,#22c55e)', color: DARK, border: 'none', borderRadius: '2px', padding: '4px 14px', cursor: 'pointer', fontSize: '11px', fontWeight: '700' }}>{saving ? 'Saving…' : 'Save'}</button>
             </div>
           </div>
 

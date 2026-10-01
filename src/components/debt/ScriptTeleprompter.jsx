@@ -144,19 +144,6 @@ export default function ScriptTeleprompter({ content, color = '#e8e0d0', fontSiz
   // Reset transcript tracking when a new call starts
   useEffect(() => { if (phase === 'live') lastTranscriptIdxRef.current = -1; }, [phase]);
 
-  // Live sync: drive advancing from the agent's transcript lines (speaker 0)
-  useEffect(() => {
-    if (!liveSync) return;
-    const lines = liveTranscript || [];
-    for (let i = lastTranscriptIdxRef.current + 1; i < lines.length; i++) {
-      const line = lines[i];
-      if (line && line.speaker === 0 && line.text) {
-        checkAdvance(line.text);
-      }
-    }
-    lastTranscriptIdxRef.current = lines.length - 1;
-  }, [liveTranscript, liveSync, checkAdvance]);
-
   // Get the first N significant (non-stop-word) words from a line, lowercased
   const firstContentWords = useCallback((text, count = 2) => {
     const words = stripFormatTags(text || '').toLowerCase().replace(/[^\w\s]/g, '').split(/\s+/);
@@ -197,6 +184,19 @@ export default function ScriptTeleprompter({ content, color = '#e8e0d0', fontSiz
       }
     }
   }, [firstContentWords]);
+
+  // Live sync: drive advancing from the agent's transcript lines (speaker 0)
+  useEffect(() => {
+    if (!liveSync) return;
+    const lines = liveTranscript || [];
+    for (let i = lastTranscriptIdxRef.current + 1; i < lines.length; i++) {
+      const line = lines[i];
+      if (line && line.speaker === 0 && line.text) {
+        checkAdvance(line.text);
+      }
+    }
+    lastTranscriptIdxRef.current = lines.length - 1;
+  }, [liveTranscript, liveSync, checkAdvance]);
 
   // Speech recognition lifecycle — only when NOT on a live call (live call uses Deepgram transcript)
   useEffect(() => {
