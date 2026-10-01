@@ -1,0 +1,47 @@
+{
+  "name": "ScriptBackup",
+  "type": "object",
+  "properties": {
+    "scriptId": {
+      "type": "string",
+      "title": "Script ID"
+    },
+    "scriptName": {
+      "type": "string",
+      "title": "Script Name"
+    },
+    "backupDate": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Backup Date"
+    },
+    "content": {
+      "type": "string",
+      "title": "Script Content Snapshot",
+      "format": "textarea"
+    },
+    "scriptType": {
+      "type": "string",
+      "title": "Script Type"
+    },
+    "color": {
+      "type": "string",
+      "title": "Text Color"
+    },
+    "fontSize": {
+      "type": "number",
+      "title": "Font Size"
+    }
+  },
+  "required": [
+    "scriptId",
+    "scriptName",
+    "backupDate"
+  ],
+  "rls": {
+    "create": null,
+    "read": null,
+    "update": null,
+    "delete": null
+  }
+}

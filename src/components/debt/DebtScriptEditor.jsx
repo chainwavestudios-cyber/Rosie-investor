@@ -132,6 +132,7 @@ function MyScriptsTab({ liveTranscript, phase, clientFirstName, clientLastName, 
         await base44.entities.DebtScript.update(cur.id, {
           name: cur.name, content: cur.content || '',
           color: cur.color, fontSize: cur.fontSize, scriptType: cur.scriptType,
+          alwaysSaveBackup: cur.alwaysSaveBackup || false,
         });
         setSaveMsg('Saved ✓');
         setTimeout(() => setSaveMsg(''), 1500);
@@ -163,6 +164,7 @@ function MyScriptsTab({ liveTranscript, phase, clientFirstName, clientLastName, 
       await base44.entities.DebtScript.update(active.id, {
         name: active.name, content: active.content || '',
         color: active.color, fontSize: active.fontSize, scriptType: active.scriptType,
+        alwaysSaveBackup: active.alwaysSaveBackup || false,
       });
       setSaveMsg('Saved ✓');
       setTimeout(() => setSaveMsg(''), 2000);
@@ -229,11 +231,26 @@ function MyScriptsTab({ liveTranscript, phase, clientFirstName, clientLastName, 
       {active ? (
         <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
           {/* Name + type row */}
-          <div style={{ display: 'flex', gap: '8px', marginBottom: '10px', flexShrink: 0, flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', gap: '8px', marginBottom: '10px', flexShrink: 0, flexWrap: 'wrap', alignItems: 'center' }}>
             <input value={active.name || ''} onChange={e => updateAndSave({ name: e.target.value })} placeholder="Script name…" style={{ ...inp, flex: 1, minWidth: '120px' }} />
             <select value={active.scriptType || 'custom'} onChange={e => updateAndSave({ scriptType: e.target.value })} style={{ ...inp, width: '130px', cursor: 'pointer' }}>
               {SCRIPT_TYPES.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
             </select>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer', whiteSpace: 'nowrap', padding: '6px 10px', borderRadius: '4px', border: `1px solid ${active.alwaysSaveBackup ? 'rgba(16,185,129,0.4)' : 'rgba(255,255,255,0.1)'}`, background: active.alwaysSaveBackup ? `${GOLD}12` : 'transparent' }} title="Nightly backup — a copy of this script is saved each night and kept for 1 week">
+              <input
+                type="checkbox"
+                checked={active.alwaysSaveBackup || false}
+                onChange={(e) => {
+                  const checked = e.target.checked;
+                  if (!checked && active.alwaysSaveBackup) {
+                    if (!window.confirm(`Are you sure you want to disable nightly backups for "${active.name || 'this script'}"? This will stop automatic backups of this script.`)) return;
+                  }
+                  updateAndSave({ alwaysSaveBackup: checked });
+                }}
+                style={{ cursor: 'pointer', accentColor: GOLD }}
+              />
+              <span style={{ color: active.alwaysSaveBackup ? GOLD : '#6b7280', fontSize: '10px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase' }}>💾 Always Save</span>
+            </label>
           </div>
 
           {/* Mode toggle + formatting toolbar — single line */}

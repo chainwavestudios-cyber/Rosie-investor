@@ -1,0 +1,45 @@
+{
+  "definition": {
+    "document": {
+      "dsl": "1.0.0",
+      "name": "nightly_script_backup",
+      "version": "1.0",
+      "namespace": "base44"
+    },
+    "do": [
+      {
+        "backup": {
+          "call": "invoke_backend_function",
+          "with": {
+            "function_name": "backupScripts",
+            "args": {}
+          },
+          "then": "end",
+          "x-base44": {
+            "title": "Backup scripts",
+            "description": "Back up always-save scripts, clean up old backups"
+          }
+        }
+      }
+    ]
+  },
+  "trigger": {
+    "condition": null,
+    "config": {
+      "trigger_type": "scheduled",
+      "events": [],
+      "schedule_mode": "recurring",
+      "cron_expression": "0 2 * * *",
+      "one_time_date": null,
+      "timezone": "America/New_York",
+      "interval_value": null,
+      "interval_unit": null,
+      "interval_anchor": null,
+      "ends_type": "never",
+      "ends_on_date": null,
+      "ends_after_count": null
+    }
+  },
+  "description": "Backs up all DebtScripts with alwaysSaveBackup enabled \u2014 creates a ScriptBackup record per script, deletes backups older than 7 days. Runs nightly at 2am ET.",
+  "name": "Nightly Script Backup"
+}

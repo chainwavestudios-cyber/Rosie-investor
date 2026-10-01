@@ -37,6 +37,11 @@
       "type": "number",
       "title": "Sort Order",
       "default": 0
+    },
+    "alwaysSaveBackup": {
+      "type": "boolean",
+      "title": "Always Save Backup \u2014 nightly backup of this script (kept 1 week)",
+      "default": false
     }
   },
   "required": [
