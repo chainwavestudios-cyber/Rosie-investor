@@ -1,13 +1,14 @@
 /**
  * LayoutSaveLoad.jsx — Save and restore popped-out panel layouts to/from the database.
- * Save: collects all `popout_*` entries from localStorage + customer stats position,
- *       prompts for a name, and stores the bundle in the SavedLayout entity.
+ * Save: collects all `popout_*` entries from database-backed storage, prompts for
+ *       a name, and stores the bundle in the SavedLayout entity.
  * Open: lists the current user's saved layouts, writes the chosen one back to
- *       localStorage, and dispatches a `layout_restored` event so all pop-out
- *       panels (usePopOutPanel + CustomerStatsPopup) re-read their positions.
+ *       database-backed storage, and dispatches a `layout_restored` event so all
+ *       pop-out panels (usePopOutPanel + CustomerStatsPopup) re-read their positions.
  */
 import { useState, useEffect, useCallback } from 'react';
 import { base44 } from '@/api/base44Client';
+import { getAllDebtCoachValues, setAllDebtCoachValues } from '@/lib/debtCoachStorage';
 
 const GOLD = '#10b981';
 const DARK = '#0a0f1e';
@@ -16,25 +17,23 @@ const BLUE = '#60a5fa';
 
 const inp = { width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '4px', padding: '8px 12px', color: '#e8e0d0', fontSize: '13px', outline: 'none', boxSizing: 'border-box', fontFamily: 'Georgia, serif' };
 
-// Collect every popout_* entry from localStorage into a single object
-function collectLayoutData() {
+// Collect every popout_* entry from database-backed storage into a single object
+async function collectLayoutData(username) {
+  const allValues = await getAllDebtCoachValues(username);
   const data = {};
-  for (let i = 0; i < localStorage.length; i++) {
-    const key = localStorage.key(i);
-    if (key && key.startsWith('popout_')) {
-      try { data[key] = JSON.parse(localStorage.getItem(key)); } catch {}
-    }
+  for (const [key, val] of Object.entries(allValues)) {
+    if (key.startsWith('popout_')) data[key] = val;
   }
   return data;
 }
 
-// Write a saved layout bundle back to localStorage and notify all panels
-function applyLayoutData(layoutData) {
+// Write a saved layout bundle back to database-backed storage and notify all panels
+async function applyLayoutData(username, layoutData) {
+  const entries = {};
   for (const [key, val] of Object.entries(layoutData)) {
-    if (key.startsWith('popout_')) {
-      try { localStorage.setItem(key, JSON.stringify(val)); } catch {}
-    }
+    if (key.startsWith('popout_')) entries[key] = val;
   }
+  await setAllDebtCoachValues(username, entries);
   window.dispatchEvent(new CustomEvent('layout_restored'));
 }
 
@@ -62,7 +61,7 @@ export default function LayoutSaveLoad({ username }) {
     if (!layoutName.trim() || !username) return;
     setSaving(true); setError('');
     try {
-      const data = collectLayoutData();
+      const data = await collectLayoutData(username);
       await base44.entities.SavedLayout.create({
         layoutName: layoutName.trim(),
         username,
@@ -76,10 +75,10 @@ export default function LayoutSaveLoad({ username }) {
     setSaving(false);
   };
 
-  const handleOpen = (layout) => {
+  const handleOpen = async (layout) => {
     try {
       const data = JSON.parse(layout.layoutDataJson);
-      applyLayoutData(data);
+      await applyLayoutData(username, data);
       setShowOpen(false);
       setSaveMsg('✓ Layout applied!');
       setTimeout(() => setSaveMsg(''), 2500);

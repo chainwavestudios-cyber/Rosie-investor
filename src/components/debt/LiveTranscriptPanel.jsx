@@ -2,7 +2,7 @@
  * LiveTranscriptPanel.jsx — Pop-out-able transcript panel with tabs.
  * Tabs: Transcript (live call messages) | Scripts (personal teleprompter + pitches).
  * Each customer question line has an "Answer" button to re-trigger Q&A.
- * Uses usePopOutPanel for drag/resize with localStorage layout persistence.
+ * Uses usePopOutPanel for drag/resize with database-backed layout persistence.
  */
 import { useState, useEffect, useRef } from 'react';
 import { DebtPitchPanel } from '@/components/debt/DebtPitchTab';

@@ -2,7 +2,7 @@
  * WCRChecklist.jsx — Floating, draggable, resizable WCR (Welcome Call Review) checklist.
  * All requirements as checkable items, % complete progress bar, and a reminder setter
  * that fires a popup when it's time to finish the checklist.
- * Persisted to localStorage. Rendered at the DebtCallCoach level.
+ * Persisted to database-backed storage. Rendered at the DebtCallCoach level.
  */
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useDebtCoachValue } from '@/lib/debtCoachStorage';
