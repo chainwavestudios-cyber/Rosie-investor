@@ -5,9 +5,11 @@
  */
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
+import LayoutSaveLoad from '@/components/debt/LayoutSaveLoad';
 
 const GOLD = '#10b981';
 const DARK = '#0a0f1e';
+const STATS_POS_KEY = 'popout_customer_stats';
 
 const INSIGHT_TYPES = [
   { id: 'location', label: '📍 Location', color: '#60a5fa' },
@@ -30,10 +32,33 @@ export default function CustomerStatsPopup({ lead, transcript, isActive, agentUs
   const [newInsightFlash, setNewInsightFlash] = useState(new Set());
   const lastExtractLineCount = useRef(0);
   const existingInsightKeys = useRef(new Set());
-  const [pos, setPos] = useState(() => ({ x: 24, y: typeof window !== 'undefined' ? window.innerHeight - 350 : 100 }));
+  const [pos, setPos] = useState(() => {
+    try {
+      const saved = localStorage.getItem(STATS_POS_KEY);
+      if (saved) { const p = JSON.parse(saved); if (p.x != null && p.y != null) return { x: p.x, y: p.y }; }
+    } catch {}
+    return { x: 24, y: typeof window !== 'undefined' ? window.innerHeight - 350 : 100 };
+  });
   const [dragging, setDragging] = useState(false);
   const dragOffset = useRef({ x: 0, y: 0 });
   const dragMoved = useRef(false);
+
+  // Persist position to localStorage so it can be saved/restored with layouts
+  useEffect(() => {
+    try { localStorage.setItem(STATS_POS_KEY, JSON.stringify(pos)); } catch {}
+  }, [pos]);
+
+  // Listen for layout_restored event — re-read position from localStorage
+  useEffect(() => {
+    const handler = () => {
+      try {
+        const saved = localStorage.getItem(STATS_POS_KEY);
+        if (saved) { const p = JSON.parse(saved); if (p.x != null && p.y != null) setPos({ x: p.x, y: p.y }); }
+      } catch {}
+    };
+    window.addEventListener('layout_restored', handler);
+    return () => window.removeEventListener('layout_restored', handler);
+  }, []);
 
   useEffect(() => {
     if (!dragging) return;
@@ -350,6 +375,13 @@ export default function CustomerStatsPopup({ lead, transcript, isActive, agentUs
               </div>
             </>
           )}
+        </div>
+      )}
+
+      {/* Layout Save/Load buttons */}
+      {!collapsed && (
+        <div style={{ padding: '6px 10px', borderTop: '1px solid rgba(255,255,255,0.07)', flexShrink: 0 }}>
+          <LayoutSaveLoad username={agentUsername} />
         </div>
       )}
 

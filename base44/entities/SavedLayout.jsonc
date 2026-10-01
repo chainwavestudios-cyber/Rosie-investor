@@ -1,0 +1,30 @@
+{
+  "name": "SavedLayout",
+  "type": "object",
+  "properties": {
+    "layoutName": {
+      "type": "string",
+      "title": "Layout Name"
+    },
+    "username": {
+      "type": "string",
+      "title": "Username (owner of this layout)"
+    },
+    "layoutDataJson": {
+      "type": "string",
+      "title": "Layout Data (JSON \u2014 all panel positions/sizes)",
+      "format": "textarea"
+    }
+  },
+  "required": [
+    "layoutName",
+    "username",
+    "layoutDataJson"
+  ],
+  "rls": {
+    "create": null,
+    "read": null,
+    "update": null,
+    "delete": null
+  }
+}

@@ -36,6 +36,23 @@ export function usePopOutPanel(storageKey, defaultSize = { width: 420, height: 6
     } catch {}
   }, [storageKey, poppedOut, position, size]);
 
+  // Listen for layout_restored event (from "Open Layout") — re-read from localStorage
+  useEffect(() => {
+    const handler = () => {
+      try {
+        const saved = localStorage.getItem(`popout_${storageKey}`);
+        if (saved) {
+          const p = JSON.parse(saved);
+          if (p.poppedOut !== undefined) setPoppedOut(p.poppedOut);
+          if (p.position) setPosition(p.position);
+          if (p.size) setSize(p.size);
+        }
+      } catch {}
+    };
+    window.addEventListener('layout_restored', handler);
+    return () => window.removeEventListener('layout_restored', handler);
+  }, [storageKey]);
+
   // Global mouse handlers for drag / resize
   useEffect(() => {
     if (!dragging && !resizingEdge) return;
