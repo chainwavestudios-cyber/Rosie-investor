@@ -1,31 +1,54 @@
 /**
- * LiveTranscriptPanel.jsx — Pop-out-able transcript panel with tabs.
- * Tabs: Transcript (live call messages) | Scripts (personal teleprompter + pitches).
- * Each customer question line has an "Answer" button to re-trigger Q&A.
+ * LiveTranscriptPanel.jsx — Pop-out-able transcript panel (transcript + pitches only).
+ * Scripts are now in their own separate LiveScriptsPanel window.
+ * Each customer question line has an "Answer" button to re-trigger Q&A,
+ * plus a "+" button to join lines for multi-line questions/statements.
  * Uses usePopOutPanel for drag/resize with database-backed layout persistence.
  */
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { DebtPitchPanel } from '@/components/debt/DebtPitchTab';
-import { MyScriptsTab } from '@/components/debt/DebtScriptEditor';
 import { useDebtCoachValue } from '@/lib/debtCoachStorage';
 
 const GOLD = '#10b981';
 
-export default function LiveTranscriptPanel({ transcript, phase, panel, onAnswerQuestion, lead, micLabel, username, onScriptPositionChange }) {
+export default function LiveTranscriptPanel({ transcript, phase, panel, onAnswerQuestion, lead, micLabel, username }) {
   const [tab, setTab] = useDebtCoachValue(username, 'popout_transcript_tab', 'transcript');
   const [selected, setSelected] = useState({});
   const scrollRef = useRef(null);
+  const stickToBottomRef = useRef(true); // user wants auto-scroll; false = user scrolled up to read
 
-  // Auto-scroll to bottom when new lines arrive (unless user scrolled up to read)
-  useEffect(() => {
+  // Track whether the user has scrolled away from the bottom.
+  // While away from bottom, new lines do NOT reset scroll position.
+  const handleScroll = useCallback(() => {
     const el = scrollRef.current;
     if (!el) return;
-    const isNearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 150;
-    if (isNearBottom) el.scrollTop = el.scrollHeight;
+    const isNearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+    stickToBottomRef.current = isNearBottom;
+  }, []);
+
+  // Auto-scroll to bottom ONLY when the user is already at/near the bottom.
+  // If the user scrolled up to read or select lines, we leave the position alone.
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el || !stickToBottomRef.current) return;
+    el.scrollTop = el.scrollHeight;
   }, [transcript, tab]);
 
-  const toggleSelect = (i) => setSelected(prev => { const next = { ...prev }; if (next[i]) delete next[i]; else next[i] = true; return next; });
-  const clearSelected = () => setSelected({});
+  const toggleSelect = (i) => {
+    setSelected(prev => { const next = { ...prev }; if (next[i]) delete next[i]; else next[i] = true; return next; });
+    // Selecting a line means the user is interacting — stop auto-scroll so the
+    // selection bar stays visible and the view doesn't jump.
+    stickToBottomRef.current = false;
+  };
+  const clearSelected = () => {
+    setSelected({});
+    // After clearing, check if we're near the bottom to resume auto-scroll
+    const el = scrollRef.current;
+    if (el) {
+      const isNearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+      stickToBottomRef.current = isNearBottom;
+    }
+  };
   const selectedIndices = Object.keys(selected).map(Number).sort((a, b) => a - b);
   const selectedCount = selectedIndices.length;
 
@@ -39,7 +62,6 @@ export default function LiveTranscriptPanel({ transcript, phase, panel, onAnswer
   const tabs = (
     <div style={{ display: 'flex', gap: '4px' }}>
       <button onClick={() => setTab('transcript')} style={{ padding: '4px 10px', borderRadius: '4px', border: `1px solid ${tab === 'transcript' ? GOLD + '66' : 'rgba(255,255,255,0.1)'}`, background: tab === 'transcript' ? `${GOLD}18` : 'transparent', color: tab === 'transcript' ? GOLD : '#6b7280', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>📋 Transcript</button>
-      <button onClick={() => setTab('scripts')} style={{ padding: '4px 10px', borderRadius: '4px', border: `1px solid ${tab === 'scripts' ? GOLD + '66' : 'rgba(255,255,255,0.1)'}`, background: tab === 'scripts' ? `${GOLD}18` : 'transparent', color: tab === 'scripts' ? GOLD : '#6b7280', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>📝 Scripts</button>
       <button onClick={() => setTab('pitches')} style={{ padding: '4px 10px', borderRadius: '4px', border: `1px solid ${tab === 'pitches' ? GOLD + '66' : 'rgba(255,255,255,0.1)'}`, background: tab === 'pitches' ? `${GOLD}18` : 'transparent', color: tab === 'pitches' ? GOLD : '#6b7280', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>🎤 Pitches</button>
     </div>
   );
@@ -50,7 +72,7 @@ export default function LiveTranscriptPanel({ transcript, phase, panel, onAnswer
         <div style={{ color: '#6b7280', fontSize: '10px' }}><span style={{ color: '#60a5fa' }}>● Agent</span> · <span style={{ color: GOLD }}>● Customer</span></div>
         <div style={{ color: '#6b7280', fontSize: '10px' }}>{transcript.length} lines{selectedCount > 0 && <span style={{ color: '#f59e0b', marginLeft: '6px' }}>· {selectedCount} selected</span>}</div>
       </div>
-      <div ref={scrollRef} style={{ flex: 1, overflowY: 'auto', padding: '14px 16px', paddingBottom: selectedCount > 0 ? '64px' : '14px' }}>
+      <div ref={scrollRef} onScroll={handleScroll} style={{ flex: 1, overflowY: 'auto', padding: '14px 16px', paddingBottom: selectedCount > 0 ? '64px' : '14px' }}>
         {transcript.length === 0 ? (
           <div style={{ color: '#4a5568', textAlign: 'center', padding: '60px 0', fontSize: '13px' }}>{phase === 'live' ? 'Listening… start speaking.' : 'No transcript yet. Start a call to begin.'}</div>
         ) : transcript.map((msg, i) => {
@@ -107,12 +129,6 @@ export default function LiveTranscriptPanel({ transcript, phase, panel, onAnswer
     </>
   );
 
-  const renderScripts = () => (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, padding: '14px 16px' }}>
-      <MyScriptsTab liveTranscript={transcript} phase={phase} clientFirstName={lead?.firstName} clientLastName={lead?.lastName} micLabel={micLabel} onScriptPositionChange={onScriptPositionChange} username={username} />
-    </div>
-  );
-
   const renderPitches = () => (
     <div style={{ flex: 1, overflowY: 'auto', padding: '14px 16px' }}>
       <DebtPitchPanel />
@@ -128,7 +144,7 @@ export default function LiveTranscriptPanel({ transcript, phase, panel, onAnswer
           <button onClick={panel.toggle} style={{ background: `${GOLD}18`, border: `1px solid ${GOLD}44`, color: GOLD, borderRadius: '4px', padding: '4px 10px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase' }}>⬇ Pop In</button>
         </div>
         <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', position: 'relative' }}>
-          {tab === 'transcript' ? renderTranscript() : tab === 'scripts' ? renderScripts() : renderPitches()}
+          {tab === 'transcript' ? renderTranscript() : renderPitches()}
         </div>
         {panel.resizeHandles}
       </div>
@@ -143,7 +159,7 @@ export default function LiveTranscriptPanel({ transcript, phase, panel, onAnswer
         <button onClick={panel.toggle} style={{ background: `${GOLD}18`, border: `1px solid ${GOLD}44`, color: GOLD, borderRadius: '4px', padding: '4px 10px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase' }}>⬆ Pop Out</button>
       </div>
       <div style={{ background: '#0d1b2a', border: '1px solid rgba(16,185,129,0.2)', borderRadius: '6px', display: 'flex', flexDirection: 'column', minHeight: '500px', maxHeight: '70vh', position: 'relative' }}>
-        {tab === 'transcript' ? renderTranscript() : tab === 'scripts' ? renderScripts() : renderPitches()}
+        {tab === 'transcript' ? renderTranscript() : renderPitches()}
       </div>
     </div>
   );
