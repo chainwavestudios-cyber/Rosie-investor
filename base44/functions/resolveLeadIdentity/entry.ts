@@ -18,40 +18,49 @@
  */
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.52';
 
-async function fetchRedditUserProfile(username: string): Promise<any | null> {
+async function fetchWithTimeout(url: string, opts: RequestInit = {}, timeoutMs = 800): Promise<Response | null> {
   try {
-    const res = await fetch(`https://www.reddit.com/user/${username}/about.json`, {
-      headers: {
-        'User-Agent': 'SettlementIQ-LeadGen/1.0 (debt settlement lead intelligence bot)',
-        'Accept': 'application/json',
-      },
-    });
-    if (!res.ok) return null;
-    const data = await res.json();
-    return data?.data || null;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    const res = await fetch(url, { ...opts, signal: controller.signal });
+    clearTimeout(timer);
+    return res;
   } catch {
     return null;
   }
 }
 
-async function fetchRedditUserPosts(username: string, limit = 25): Promise<any[]> {
+async function fetchRedditUserProfile(username: string): Promise<any | null> {
+  const res = await fetchWithTimeout(`https://www.reddit.com/user/${username}/about.json`, {
+    headers: {
+      'User-Agent': 'SettlementIQ-LeadGen/1.0 (debt settlement lead intelligence bot)',
+      'Accept': 'application/json',
+    },
+  }, 5000);
+  if (!res || !res.ok) return null;
   try {
-    const res = await fetch(`https://www.reddit.com/user/${username}/.json?limit=${limit}`, {
-      headers: {
-        'User-Agent': 'SettlementIQ-LeadGen/1.0 (debt settlement lead intelligence bot)',
-        'Accept': 'application/json',
-      },
-    });
-    if (!res.ok) return [];
+    const data = await res.json();
+    return data?.data || null;
+  } catch { return null; }
+}
+
+async function fetchRedditUserPosts(username: string, limit = 25): Promise<any[]> {
+  const res = await fetchWithTimeout(`https://www.reddit.com/user/${username}/.json?limit=${limit}`, {
+    headers: {
+      'User-Agent': 'SettlementIQ-LeadGen/1.0 (debt settlement lead intelligence bot)',
+      'Accept': 'application/json',
+    },
+  }, 5000);
+  if (!res || !res.ok) return [];
+  try {
     const data = await res.json();
     const children = data?.data?.children || [];
     return children.map((c: any) => c?.data).filter(Boolean);
-  } catch {
-    return [];
-  }
+  } catch { return []; }
 }
 
 // Check if a username exists on other platforms (cross-platform handle matching)
+// Uses short timeouts — these platforms often block HEAD requests, so failures are expected and non-fatal.
 async function checkCrossPlatformHandles(username: string): Promise<{ platform: string; exists: boolean; profileSnippet: string }[]> {
   const results: { platform: string; exists: boolean; profileSnippet: string }[] = [];
   const platforms = [
@@ -60,13 +69,17 @@ async function checkCrossPlatformHandles(username: string): Promise<{ platform: 
     { name: 'facebook', url: `https://www.facebook.com/${username}` },
     { name: 'tiktok', url: `https://www.tiktok.com/@${username}` },
   ];
-  for (const p of platforms) {
-    try {
-      const res = await fetch(p.url, { method: 'HEAD', redirect: 'follow' });
-      results.push({ platform: p.name, exists: res.ok && res.status < 400, profileSnippet: p.url });
-    } catch {
-      results.push({ platform: p.name, exists: false, profileSnippet: p.url });
-    }
+  // Run all checks in parallel with short timeouts
+  const checks = await Promise.allSettled(
+    platforms.map(async (p) => {
+      const res = await fetchWithTimeout(p.url, { method: 'HEAD', redirect: 'follow' }, 3000);
+      return { platform: p.name, exists: res !== null && res.ok && res.status < 400, profileSnippet: p.url };
+    })
+  );
+  for (let i = 0; i < platforms.length; i++) {
+    const r = checks[i];
+    if (r.status === 'fulfilled') results.push(r.value);
+    else results.push({ platform: platforms[i].name, exists: false, profileSnippet: platforms[i].url });
   }
   return results;
 }
@@ -81,22 +94,19 @@ export default async function(req: Request): Promise<Response> {
     const leadId = body?.leadId;
     const bulk = body?.bulk === true;
 
-    // ── Bulk enrichment: process all 'raw' leads ──────────────────────────
+    // ── Bulk enrichment: process all 'raw' leads inline ──────────────────
     if (bulk) {
-      const rawLeads = await base44.asServiceRole.entities.ScrapedLead.filter({ status: 'raw' }, '-created_date', 50);
+      const rawLeads = await base44.asServiceRole.entities.ScrapedLead.filter({ status: 'raw' }, '-created_date', 25);
       let enrichedCount = 0;
-      let partialCount = 0;
       let failedCount = 0;
 
       for (const lead of rawLeads || []) {
         try {
-          await base44.functions.invoke('resolveLeadIdentity', { leadId: lead.id });
+          await enrichSingleLeadInternal(base44, lead);
           enrichedCount++;
         } catch {
           failedCount++;
         }
-        // Rate limit
-        await new Promise((r) => setTimeout(r, 500));
       }
       return Response.json({ status: 'success', processed: (rawLeads || []).length, enriched: enrichedCount, failed: failedCount });
     }
@@ -107,43 +117,54 @@ export default async function(req: Request): Promise<Response> {
     const lead = await base44.asServiceRole.entities.ScrapedLead.get(leadId);
     if (!lead) return Response.json({ error: 'Lead not found' }, { status: 404 });
 
-    // Mark as enriching
-    await base44.asServiceRole.entities.ScrapedLead.update(leadId, { status: 'enriching', enrichmentStatus: 'pending' });
+    const result = await enrichSingleLeadInternal(base44, lead);
+    return Response.json({ status: 'success', leadId, ...result });
+  } catch (error) {
+    return Response.json({ error: (error as Error).message }, { status: 500 });
+  }
+}
 
-    let profileData: any = {};
-    let recentPosts: any[] = [];
-    let crossPlatform: { platform: string; exists: boolean; profileSnippet: string }[] = [];
+// ── Internal: enrich a single lead (shared by single + bulk paths) ──────────
+async function enrichSingleLeadInternal(base44: any, lead: any): Promise<any> {
+  const leadId = lead.id;
 
-    // ── Step 1: Fetch public profile data from source platform ────────────
-    if (lead.platform === 'reddit') {
-      const profile = await fetchRedditUserProfile(lead.userHandle);
-      if (profile) {
-        profileData = {
-          reddit: {
-            username: lead.userHandle,
-            created_utc: profile.created_utc,
-            total_karma: profile.total_karma,
-            comment_karma: profile.comment_karma,
-            link_karma: profile.link_karma,
-            verified: profile.verified,
-            is_employee: profile.is_employee,
-            bio: profile.subreddit?.public_description || '',
-            display_name: profile.subreddit?.display_name || '',
-            title: profile.subreddit?.title || '',
-          },
-        };
-      }
-      recentPosts = await fetchRedditUserPosts(lead.userHandle, 25);
+  // Mark as enriching
+  await base44.asServiceRole.entities.ScrapedLead.update(leadId, { status: 'enriching', enrichmentStatus: 'pending' });
+
+  let profileData: any = {};
+  let recentPosts: any[] = [];
+  let crossPlatform: { platform: string; exists: boolean; profileSnippet: string }[] = [];
+
+  // ── Step 1: Fetch public profile data from source platform ────────────
+  if (lead.platform === 'reddit') {
+    const profile = await fetchRedditUserProfile(lead.userHandle);
+    if (profile) {
+      profileData = {
+        reddit: {
+          username: lead.userHandle,
+          created_utc: profile.created_utc,
+          total_karma: profile.total_karma,
+          comment_karma: profile.comment_karma,
+          link_karma: profile.link_karma,
+          verified: profile.verified,
+          is_employee: profile.is_employee,
+          bio: profile.subreddit?.public_description || '',
+          display_name: profile.subreddit?.display_name || '',
+          title: profile.subreddit?.title || '',
+        },
+      };
     }
+    recentPosts = await fetchRedditUserPosts(lead.userHandle, 25);
+  }
 
-    // ── Step 2: Cross-platform handle matching ────────────────────────────
-    crossPlatform = await checkCrossPlatformHandles(lead.userHandle);
+  // ── Step 2: Cross-platform handle matching (non-blocking, short timeouts) ─
+  crossPlatform = await checkCrossPlatformHandles(lead.userHandle);
 
-    // ── Step 3: LLM-based identity inference ──────────────────────────────
-    const postHistoryText = recentPosts.slice(0, 10).map((p: any) => p?.title || p?.body || '').join('\n').substring(0, 3000);
+  // ── Step 3: LLM-based identity inference ──────────────────────────────
+  const postHistoryText = recentPosts.slice(0, 10).map((p: any) => p?.title || p?.body || '').join('\n').substring(0, 3000);
 
-    const llmResult = await base44.asServiceRole.integrations.Core.InvokeLLM({
-      prompt: `You are a B2C identity resolution analyst. Given the following public social media profile data, infer the likely real identity of this person. Analyze their username, bio, post history, and location hints.
+  const llmResult = await base44.asServiceRole.integrations.Core.InvokeLLM({
+    prompt: `You are a B2C identity resolution analyst. Given the following public social media profile data, infer the likely real identity of this person. Analyze their username, bio, post history, and location hints.
 
 Platform: ${lead.platform}
 Username/Handle: ${lead.userHandle}
@@ -167,56 +188,51 @@ Based on this public data, provide your best inference:
 5. Key signals that informed your assessment
 
 Be conservative: do NOT fabricate email addresses or phone numbers. If the data doesn't support a real name, return "unknown".`,
-      response_json_schema: {
-        type: 'object',
-        properties: {
-          inferredFullName: { type: 'string' },
-          inferredEmail: { type: 'string' },
-          inferredPhone: { type: 'string' },
-          confidenceScore: { type: 'number' },
-          keySignals: { type: 'string' },
-          enrichmentNotes: { type: 'string' },
-        },
+    response_json_schema: {
+      type: 'object',
+      properties: {
+        inferredFullName: { type: 'string' },
+        inferredEmail: { type: 'string' },
+        inferredPhone: { type: 'string' },
+        confidenceScore: { type: 'number' },
+        keySignals: { type: 'string' },
+        enrichmentNotes: { type: 'string' },
       },
-    });
+    },
+  });
 
-    const inferredName = llmResult?.inferredFullName || 'unknown';
-    const inferredEmail = llmResult?.inferredEmail || '';
-    const inferredPhone = llmResult?.inferredPhone || '';
-    const confidence = llmResult?.confidenceScore || 0;
-    const keySignals = llmResult?.keySignals || '';
+  const inferredName = llmResult?.inferredFullName || 'unknown';
+  const inferredEmail = llmResult?.inferredEmail || '';
+  const inferredPhone = llmResult?.inferredPhone || '';
+  const confidence = llmResult?.confidenceScore || 0;
+  const keySignals = llmResult?.keySignals || '';
 
-    // Determine enrichment status
-    const hasContact = (inferredEmail && inferredEmail !== 'unknown' && inferredEmail.includes('@')) ||
-                       (inferredPhone && inferredPhone !== 'unknown');
-    const enrichmentStatus = confidence >= 70 && hasContact ? 'fully_enriched' :
-                             confidence >= 30 ? 'partial' :
-                             'no_public_data';
+  // Determine enrichment status
+  const hasContact = (inferredEmail && inferredEmail !== 'unknown' && inferredEmail.includes('@')) ||
+                     (inferredPhone && inferredPhone !== 'unknown');
+  const enrichmentStatus = confidence >= 70 && hasContact ? 'fully_enriched' :
+                           confidence >= 30 ? 'partial' :
+                           'no_public_data';
 
-    const updateData = {
-      status: enrichmentStatus === 'fully_enriched' ? 'enriched' : 'raw',
-      resolvedFullName: inferredName !== 'unknown' ? inferredName : '',
-      resolvedEmail: inferredEmail && inferredEmail !== 'unknown' ? inferredEmail : '',
-      resolvedPhone: inferredPhone && inferredPhone !== 'unknown' ? inferredPhone : '',
-      identityMatchConfidence: confidence,
-      enrichmentStatus,
-      enrichedAt: new Date().toISOString(),
-      profileDataJson: JSON.stringify({ ...profileData, crossPlatform, keySignals }),
-    };
+  const updateData = {
+    status: enrichmentStatus === 'fully_enriched' ? 'enriched' : 'raw',
+    resolvedFullName: inferredName !== 'unknown' ? inferredName : '',
+    resolvedEmail: inferredEmail && inferredEmail !== 'unknown' ? inferredEmail : '',
+    resolvedPhone: inferredPhone && inferredPhone !== 'unknown' ? inferredPhone : '',
+    identityMatchConfidence: confidence,
+    enrichmentStatus,
+    enrichedAt: new Date().toISOString(),
+    profileDataJson: JSON.stringify({ ...profileData, crossPlatform, keySignals }),
+  };
 
-    await base44.asServiceRole.entities.ScrapedLead.update(leadId, updateData);
+  await base44.asServiceRole.entities.ScrapedLead.update(leadId, updateData);
 
-    return Response.json({
-      status: 'success',
-      leadId,
-      enrichmentStatus,
-      confidence,
-      resolvedFullName: updateData.resolvedFullName,
-      resolvedEmail: updateData.resolvedEmail,
-      resolvedPhone: updateData.resolvedPhone,
-      keySignals,
-    });
-  } catch (error) {
-    return Response.json({ error: (error as Error).message }, { status: 500 });
-  }
+  return {
+    enrichmentStatus,
+    confidence,
+    resolvedFullName: updateData.resolvedFullName,
+    resolvedEmail: updateData.resolvedEmail,
+    resolvedPhone: updateData.resolvedPhone,
+    keySignals,
+  };
 }
