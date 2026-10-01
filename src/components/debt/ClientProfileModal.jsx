@@ -226,57 +226,15 @@ export default function ClientProfileModal({ lead, onClose, onSave }) {
         </div>
       </div>
 
-      {/* Two-column layout */}
-      <div style={{ display: 'flex', flex: 1, minHeight: 0 }}>
-        {/* Left Sidebar */}
-        <div style={{ width: '260px', borderRight: '1px solid rgba(255,255,255,0.07)', overflowY: 'auto', flexShrink: 0, background: 'rgba(0,0,0,0.15)' }}>
-          {/* Action icons */}
-          <div style={{ padding: '12px 16px', display: 'flex', gap: '6px', justifyContent: 'center', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-            <ActionIcon icon="📋" title="Activity" onClick={() => setTab('activity')} />
-            <ActionIcon icon="🔍" title="Insights" onClick={() => setTab('insights')} />
-            <ActionIcon icon="💳" title="Debt" onClick={() => setTab('debt')} />
-            <ActionIcon icon="🧾" title="Bills" onClick={() => setTab('bills')} />
-            <ActionIcon icon="📊" title="Calculator" onClick={() => setTab('calculator')} />
-          </div>
+      {/* Tabs */}
+      <div style={{ display: 'flex', borderBottom: '1px solid rgba(255,255,255,0.07)', flexShrink: 0, overflowX: 'auto' }}>
+        {TABS.map(t => (
+          <button key={t.id} onClick={() => setTab(t.id)} style={{ padding: '10px 14px', background: 'none', border: 'none', borderBottom: `2px solid ${tab === t.id ? GOLD : 'transparent'}`, color: tab === t.id ? GOLD : '#6b7280', cursor: 'pointer', fontSize: '11px', fontWeight: tab === t.id ? 'bold' : 'normal', whiteSpace: 'nowrap', flexShrink: 0 }}>{t.label}</button>
+        ))}
+      </div>
 
-          {/* Contact Details */}
-          <div style={{ padding: '14px 16px', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-            <div style={{ color: GOLD, fontSize: '9px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '10px' }}>Contact Details</div>
-            <DetailRow label="Phone" value={local.phone} />
-            <DetailRow label="Email" value={local.email} />
-            <DetailRow label="Address" value={local.address} />
-            <DetailRow label="Location" value={[local.city, local.state, local.zip].filter(Boolean).join(', ')} />
-            <DetailRow label="Employment" value={local.employmentStatus ? local.employmentStatus.replace('-', ' ') : null} />
-            <DetailRow label="Monthly Income" value={local.monthlyIncome ? `$${Number(local.monthlyIncome).toLocaleString()}` : null} />
-            <DetailRow label="Credit Score" value={local.creditScore} />
-            <DetailRow label="Behind" value={local.behindOnPayments ? `Yes · ${local.monthsBehind || '?'} mo` : 'Current'} />
-            <DetailRow label="Total Debt" value={local.debtAmount ? `$${Number(local.debtAmount).toLocaleString()}` : null} />
-            <DetailRow label="Lead Owner" value={local.debtCoachOwner} />
-            <DetailRow label="First Contact" value={local.created_date ? new Date(local.created_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : null} />
-            <DetailRow label="Last Call" value={local.lastCallAt ? new Date(local.lastCallAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : null} />
-          </div>
-
-          {/* Financial Summary */}
-          <div style={{ padding: '14px 16px' }}>
-            <div style={{ color: GOLD, fontSize: '9px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '8px' }}>Financial Summary</div>
-            <MiniStat label="Mo. Payments" value={`$${totalMonthlyPayments.toLocaleString()}`} color="#60a5fa" />
-            <MiniStat label="Mo. Bills" value={`$${totalBills.toLocaleString()}`} color="#f59e0b" />
-            <MiniStat label="Disposable" value={`$${Math.round(disposableIncome).toLocaleString()}`} color={disposableIncome > 0 ? '#4ade80' : '#ef4444'} />
-            <MiniStat label="DTI Ratio" value={monthlyIncome > 0 ? `${dti.toFixed(1)}%` : '—'} color={dti > 43 ? '#ef4444' : dti > 36 ? '#f59e0b' : '#4ade80'} />
-          </div>
-        </div>
-
-        {/* Right Main Content */}
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-          {/* Tabs */}
-          <div style={{ display: 'flex', borderBottom: '1px solid rgba(255,255,255,0.07)', flexShrink: 0, overflowX: 'auto' }}>
-            {TABS.map(t => (
-              <button key={t.id} onClick={() => setTab(t.id)} style={{ padding: '10px 14px', background: 'none', border: 'none', borderBottom: `2px solid ${tab === t.id ? GOLD : 'transparent'}`, color: tab === t.id ? GOLD : '#6b7280', cursor: 'pointer', fontSize: '11px', fontWeight: tab === t.id ? 'bold' : 'normal', whiteSpace: 'nowrap', flexShrink: 0 }}>{t.label}</button>
-            ))}
-          </div>
-
-          {/* Content */}
-          <div style={{ flex: 1, overflowY: 'auto', padding: '16px' }}>
+      {/* Content */}
+      <div style={{ flex: 1, overflowY: 'auto', padding: '16px' }}>
         {tab === 'activity' && <LeadActivityTab lead={local} />}
 
         {tab === 'hardship' && (
@@ -301,48 +259,58 @@ export default function ClientProfileModal({ lead, onClose, onSave }) {
         )}
 
         {tab === 'overview' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-            <Card title="Personal Information">
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-                <Field label="First Name" value={local.firstName} onChange={v => update('firstName', v)} />
-                <Field label="Last Name" value={local.lastName} onChange={v => update('lastName', v)} />
-                <Field label="Phone" value={local.phone} onChange={v => update('phone', v)} />
-                <Field label="Email" value={local.email} onChange={v => update('email', v)} />
-                <div style={{ gridColumn: '1 / -1' }}><Field label="Address" value={local.address} onChange={v => update('address', v)} /></div>
-                <Field label="City" value={local.city} onChange={v => update('city', v)} />
-                <Field label="State" value={local.state} onChange={v => update('state', v)} />
-                <Field label="Zip" value={local.zip} onChange={v => update('zip', v)} />
+          <div>
+            {/* Contact Info */}
+            <div style={{ color: GOLD, fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '10px' }}>Contact Information</div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px', marginBottom: '16px' }}>
+              <div><label style={ls}>First Name</label><input value={local.firstName || ''} onChange={e => update('firstName', e.target.value)} style={inp} /></div>
+              <div><label style={ls}>Last Name</label><input value={local.lastName || ''} onChange={e => update('lastName', e.target.value)} style={inp} /></div>
+              <div><label style={ls}>Phone</label><input value={local.phone || ''} onChange={e => update('phone', e.target.value)} style={inp} /></div>
+              <div><label style={ls}>Email</label><input value={local.email || ''} onChange={e => update('email', e.target.value)} style={inp} /></div>
+              <div style={{ gridColumn: '1 / -1' }}><label style={ls}>Address</label><input value={local.address || ''} onChange={e => update('address', e.target.value)} style={inp} /></div>
+              <div><label style={ls}>City</label><input value={local.city || ''} onChange={e => update('city', e.target.value)} style={inp} /></div>
+              <div><label style={ls}>State</label><input value={local.state || ''} onChange={e => update('state', e.target.value)} style={inp} /></div>
+              <div><label style={ls}>Zip</label><input value={local.zip || ''} onChange={e => update('zip', e.target.value)} style={inp} /></div>
+            </div>
+
+            {/* Financial Info */}
+            <div style={{ color: GOLD, fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '10px' }}>Financial Information</div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px', marginBottom: '16px' }}>
+              <div>
+                <label style={ls}>Employment Status</label>
+                <select value={local.employmentStatus || ''} onChange={e => update('employmentStatus', e.target.value)} style={inp}>
+                  <option value="">—</option>
+                  <option value="employed">Employed</option>
+                  <option value="self-employed">Self-Employed</option>
+                  <option value="unemployed">Unemployed</option>
+                  <option value="retired">Retired</option>
+                  <option value="disabled">Disabled</option>
+                </select>
               </div>
-            </Card>
-            <Card title="Financial Information">
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px' }}>
-                <div>
-                  <label style={ls}>Employment</label>
-                  <select value={local.employmentStatus || ''} onChange={e => update('employmentStatus', e.target.value)} style={inp}>
-                    <option value="">—</option>
-                    <option value="employed">Employed</option>
-                    <option value="self-employed">Self-Employed</option>
-                    <option value="unemployed">Unemployed</option>
-                    <option value="retired">Retired</option>
-                    <option value="disabled">Disabled</option>
-                  </select>
-                </div>
-                <Field label="Monthly Income ($)" value={local.monthlyIncome} onChange={v => update('monthlyIncome', v ? Number(v) : null)} type="number" />
-                <Field label="Credit Score" value={local.creditScore} onChange={v => update('creditScore', v ? Number(v) : null)} type="number" />
-                <div>
-                  <label style={ls}>Behind on Payments</label>
-                  <select value={local.behindOnPayments ? 'yes' : 'no'} onChange={e => update('behindOnPayments', e.target.value === 'yes')} style={inp}>
-                    <option value="no">No — Current</option>
-                    <option value="yes">Yes — Behind</option>
-                  </select>
-                </div>
-                <Field label="Months Behind" value={local.monthsBehind} onChange={v => update('monthsBehind', v ? Number(v) : null)} type="number" />
-                <Field label="Total Debt ($)" value={local.debtAmount} onChange={v => update('debtAmount', v ? Number(v) : null)} type="number" />
+              <div><label style={ls}>Monthly Income ($)</label><input type="number" value={local.monthlyIncome ?? ''} onChange={e => update('monthlyIncome', e.target.value ? Number(e.target.value) : null)} style={inp} /></div>
+              <div><label style={ls}>Credit Score</label><input type="number" value={local.creditScore ?? ''} onChange={e => update('creditScore', e.target.value ? Number(e.target.value) : null)} style={inp} /></div>
+              <div>
+                <label style={ls}>Behind on Payments</label>
+                <select value={local.behindOnPayments ? 'yes' : 'no'} onChange={e => update('behindOnPayments', e.target.value === 'yes')} style={inp}>
+                  <option value="no">No — Current</option>
+                  <option value="yes">Yes — Behind</option>
+                </select>
               </div>
-            </Card>
-            <Card title="Notes">
-              <textarea value={local.notes || ''} onChange={e => update('notes', e.target.value)} rows={4} style={{ ...inp, resize: 'vertical' }} placeholder="Add notes about this client..." />
-            </Card>
+              <div><label style={ls}>Months Behind</label><input type="number" value={local.monthsBehind ?? ''} onChange={e => update('monthsBehind', e.target.value ? Number(e.target.value) : null)} style={inp} /></div>
+              <div><label style={ls}>Total Debt ($)</label><input type="number" value={local.debtAmount ?? ''} onChange={e => update('debtAmount', e.target.value ? Number(e.target.value) : null)} style={inp} /></div>
+            </div>
+
+            {/* Quick Stats */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px', marginBottom: '16px' }}>
+              <StatBox label="Mo. Payments" value={`$${totalMonthlyPayments.toLocaleString()}`} color="#60a5fa" />
+              <StatBox label="Mo. Bills" value={`$${totalBills.toLocaleString()}`} color="#f59e0b" />
+              <StatBox label="Disposable" value={`$${Math.round(disposableIncome).toLocaleString()}`} color={disposableIncome > 0 ? '#4ade80' : '#ef4444'} />
+              <StatBox label="DTI Ratio" value={monthlyIncome > 0 ? `${dti.toFixed(1)}%` : '—'} color={dti > 43 ? '#ef4444' : dti > 36 ? '#f59e0b' : '#4ade80'} />
+            </div>
+
+            {/* Notes */}
+            <div style={{ color: GOLD, fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '10px' }}>Notes</div>
+            <textarea value={local.notes || ''} onChange={e => update('notes', e.target.value)} rows={4} style={{ ...inp, resize: 'vertical' }} placeholder="Add notes about this client..." />
           </div>
         )}
 
@@ -496,8 +464,6 @@ export default function ClientProfileModal({ lead, onClose, onSave }) {
         {tab === 'calculator' && (
           <DoNothingCalculator lead={local} mode="close" />
         )}
-      </div>
-      </div>
       </div>
       {panel.resizeHandles}
     </div>
@@ -910,53 +876,11 @@ function AddCustomBillField({ bills, update }) {
 }
 
 // ─── Shared ───────────────────────────────────────────────────────────────────
-function Field({ label, value, onChange, type = 'text' }) {
-  return (
-    <div>
-      <label style={ls}>{label}</label>
-      <input type={type} value={value ?? ''} onChange={e => onChange(e.target.value)} style={inp} />
-    </div>
-  );
-}
-
 function StatBox({ label, value, color }) {
   return (
     <div style={{ background: 'rgba(255,255,255,0.03)', border: `1px solid ${color}33`, borderRadius: '4px', padding: '12px', textAlign: 'center' }}>
       <div style={{ color, fontSize: '16px', fontWeight: 'bold' }}>{value}</div>
       <div style={{ color: '#6b7280', fontSize: '9px', textTransform: 'uppercase', letterSpacing: '1px', marginTop: '4px' }}>{label}</div>
-    </div>
-  );
-}
-
-function Card({ title, children }) {
-  return (
-    <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: '6px', padding: '16px' }}>
-      <div style={{ color: GOLD, fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '12px' }}>{title}</div>
-      {children}
-    </div>
-  );
-}
-
-function ActionIcon({ icon, title, onClick }) {
-  return (
-    <button onClick={onClick} title={title} style={{ width: '34px', height: '34px', borderRadius: '50%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px' }}>{icon}</button>
-  );
-}
-
-function DetailRow({ label, value }) {
-  return (
-    <div style={{ marginBottom: '10px' }}>
-      <div style={{ color: '#6b7280', fontSize: '9px', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '2px' }}>{label}</div>
-      <div style={{ color: value ? '#e8e0d0' : '#4a5568', fontSize: '12px', fontWeight: value ? '600' : 'normal' }}>{value || '—'}</div>
-    </div>
-  );
-}
-
-function MiniStat({ label, value, color }) {
-  return (
-    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 10px', background: 'rgba(255,255,255,0.03)', borderRadius: '4px', marginBottom: '4px' }}>
-      <span style={{ color: '#6b7280', fontSize: '10px' }}>{label}</span>
-      <span style={{ color, fontSize: '12px', fontWeight: 'bold' }}>{value}</span>
     </div>
   );
 }
