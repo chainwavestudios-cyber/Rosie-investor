@@ -413,6 +413,7 @@ Look for:
 - HOW: How it impacted their finances — fell behind on payments, used credit cards to survive, depleted savings, etc.
 
 Return JSON. Only include information explicitly mentioned — do NOT make up data. If nothing new is mentioned, return empty strings.
+${aiInputActive ? '\n⚡ AI INPUT ZONE ACTIVE: The agent is at a marked collection point. The customer is actively describing their hardship RIGHT NOW. Capture every detail: the exact event, timing, cause, and financial impact. Be thorough.' : ''}
 
 Transcript:
 ${recentText}`,
@@ -451,6 +452,7 @@ For each co-signer, capture:
 - notes: Any other relevant details
 
 Return JSON with a "cosigners" array. Only include information explicitly mentioned — do NOT make up data. If no co-signers are mentioned, return empty array.
+${aiInputActive ? '\n⚡ AI INPUT ZONE ACTIVE: The agent is at a marked collection point. The customer is actively discussing co-signers RIGHT NOW. Capture every co-signer detail: names, relationships, contact info, which accounts, employment status.' : ''}
 
 Transcript:
 ${recentText}`,
@@ -896,7 +898,7 @@ GUIDELINES:
           model: 'claude-haiku-4-5-20251001',
           max_tokens: 600,
           system: `You are analyzing a sales call to build a persistent client profile. Return ONLY this exact JSON (no markdown):
-{"animalType":"duck or cow or unknown","animalConfidence":0-100,"overallIntentLabel":"hot or warm or cold","traits":{"asksLotOfQuestions":true/false,"quickToInterrupt":true/false,"asksBuyingQuestions":true/false,"talksALot":true/false,"asksTechnicalQuestions":true/false,"raisesObjections":true/false,"agreeable":true/false,"priceConscious":true/false,"decisionMaker":true/false},"keyObservations":["obs1","obs2"],"recommendedApproach":"one sentence","callCount":${(existing.callCount || 0) + 1},"lastCallSummary":"2-3 sentence summary"}`,
+{"animalType":"duck or cow or unknown","animalConfidence":0-100,"overallIntentLabel":"hot or warm or cold","traits":{"asksLotOfQuestions":true/false,"quickToInterrupt":true/false,"asksBuyingQuestions":true/false,"talksALot":true/false,"asksTechnicalQuestions":true/false,"raisesObjections":true/false,"agreeable":true/false,"priceConscious":true/false,"decisionMaker":true/false},"keyObservations":["obs1","obs2"],"recommendedApproach":"one sentence","callCount":${(existing.callCount || 0) + 1},"lastCallSummary":"2-3 sentence summary"}${aiInputActive ? '\n\n⚡ AI INPUT ZONE ACTIVE: The agent is at a marked collection point. Be especially thorough in capturing personality traits, buying signals, and key observations from what the customer is actively sharing right now.' : ''}`,
           messages: [{ role: 'user', content: `Existing profile:\n${JSON.stringify(existing)}\n\nTranscript:\n"${fullTranscript.slice(0, 4000)}"` }],
         }),
       });
