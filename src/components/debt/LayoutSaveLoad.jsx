@@ -28,7 +28,7 @@ async function collectLayoutData(username) {
 }
 
 // Write a saved layout bundle back to database-backed storage and notify all panels
-async function applyLayoutData(username, layoutData) {
+export async function applyLayoutData(username, layoutData) {
   const entries = {};
   for (const [key, val] of Object.entries(layoutData)) {
     if (key.startsWith('popout_')) entries[key] = val;

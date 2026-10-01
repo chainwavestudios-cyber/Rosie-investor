@@ -5,7 +5,7 @@
  */
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
-import LayoutSaveLoad from '@/components/debt/LayoutSaveLoad';
+import LayoutSaveLoad, { applyLayoutData } from '@/components/debt/LayoutSaveLoad';
 import { getDebtCoachValue, setDebtCoachValue } from '@/lib/debtCoachStorage';
 
 const GOLD = '#10b981';
@@ -31,6 +31,8 @@ export default function CustomerStatsPopup({ lead, transcript, isActive, agentUs
   const [generatingSmallTalk, setGeneratingSmallTalk] = useState(false);
   const [showSmallTalk, setShowSmallTalk] = useState(false);
   const [newInsightFlash, setNewInsightFlash] = useState(new Set());
+  const [layouts, setLayouts] = useState([]);
+  const [selectedLayoutId, setSelectedLayoutId] = useState('');
   const lastExtractLineCount = useRef(0);
   const existingInsightKeys = useRef(new Set());
   const [pos, setPos] = useState({ x: 24, y: typeof window !== 'undefined' ? window.innerHeight - 350 : 100 });
@@ -100,6 +102,28 @@ export default function CustomerStatsPopup({ lead, transcript, isActive, agentUs
   }, [lead?.id, onInsightsChange]);
 
   useEffect(() => { loadInsights(); }, [loadInsights]);
+
+  // Load saved layouts for the dropdown selector
+  useEffect(() => {
+    if (!agentUsername) return;
+    base44.entities.SavedLayout.filter({ username: agentUsername }, '-created_date', 100)
+      .then(rows => setLayouts(rows || []))
+      .catch(() => setLayouts([]));
+  }, [agentUsername]);
+
+  // Apply selected layout then start the call
+  const handleStartCallWithLayout = useCallback(async () => {
+    if (selectedLayoutId) {
+      const layout = layouts.find(l => l.id === selectedLayoutId);
+      if (layout?.layoutDataJson) {
+        try {
+          const data = JSON.parse(layout.layoutDataJson);
+          await applyLayoutData(agentUsername, data);
+        } catch {}
+      }
+    }
+    onStartCall();
+  }, [selectedLayoutId, layouts, agentUsername, onStartCall]);
 
   // Auto-extract insights from transcript periodically during live call
   useEffect(() => {
@@ -396,21 +420,29 @@ export default function CustomerStatsPopup({ lead, transcript, isActive, agentUs
 
       {/* Call controls — Start/End Live Call + Inbound checkbox + Mic Mute */}
       {!collapsed && (
-        <div style={{ padding: '8px 10px', borderTop: '1px solid rgba(255,255,255,0.07)', display: 'flex', gap: '6px', alignItems: 'center', flexShrink: 0, flexWrap: 'wrap' }}>
-          <label style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#8a9ab8', fontSize: '10px', cursor: 'pointer', whiteSpace: 'nowrap' }} title="Check for inbound calls — listens for transfer agent intro (name, debt amount, hardship, address, phone, account details)">
-            <input type="checkbox" checked={isInbound || false} onChange={e => onToggleInbound?.(e.target.checked)} style={{ cursor: 'pointer' }} />
-            📥 Inbound
-          </label>
-          {phase === 'live' && (
-            <button onClick={onToggleMicMute} title={micMuted ? 'Unmute agent mic' : 'Mute agent mic'} style={{ background: micMuted ? 'rgba(239,68,68,0.15)' : 'rgba(255,255,255,0.05)', color: micMuted ? '#ef4444' : '#8a9ab8', border: `1px solid ${micMuted ? 'rgba(239,68,68,0.3)' : 'rgba(255,255,255,0.12)'}`, borderRadius: '4px', padding: '8px 12px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
-              {micMuted ? '🔇 Muted' : '🎙 Mic'}
-            </button>
+        <div style={{ padding: '8px 10px', borderTop: '1px solid rgba(255,255,255,0.07)', flexShrink: 0 }}>
+          {phase !== 'live' && (
+            <select value={selectedLayoutId} onChange={e => setSelectedLayoutId(e.target.value)} style={{ width: '100%', marginBottom: '6px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '4px', padding: '6px 10px', color: '#e8e0d0', fontSize: '11px', outline: 'none', cursor: 'pointer' }}>
+              <option value="">📐 No layout (default)</option>
+              {layouts.map(l => <option key={l.id} value={l.id}>{l.layoutName}</option>)}
+            </select>
           )}
-          {phase !== 'live' ? (
-            <button onClick={onStartCall} style={{ flex: 1, background: 'linear-gradient(135deg,#10b981,#22c55e)', color: '#0a0f1e', border: 'none', borderRadius: '4px', padding: '8px 12px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase' }}>🔴 Start Live Call</button>
-          ) : (
-            <button onClick={onStopCall} style={{ flex: 1, background: 'rgba(239,68,68,0.15)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '4px', padding: '8px 12px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase' }}>⏹ End Live Call</button>
-          )}
+          <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#8a9ab8', fontSize: '10px', cursor: 'pointer', whiteSpace: 'nowrap' }} title="Check for inbound calls — listens for transfer agent intro (name, debt amount, hardship, address, phone, account details)">
+              <input type="checkbox" checked={isInbound || false} onChange={e => onToggleInbound?.(e.target.checked)} style={{ cursor: 'pointer' }} />
+              📥 Inbound
+            </label>
+            {phase === 'live' && (
+              <button onClick={onToggleMicMute} title={micMuted ? 'Unmute agent mic' : 'Mute agent mic'} style={{ background: micMuted ? 'rgba(239,68,68,0.15)' : 'rgba(255,255,255,0.05)', color: micMuted ? '#ef4444' : '#8a9ab8', border: `1px solid ${micMuted ? 'rgba(239,68,68,0.3)' : 'rgba(255,255,255,0.12)'}`, borderRadius: '4px', padding: '8px 12px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
+                {micMuted ? '🔇 Muted' : '🎙 Mic'}
+              </button>
+            )}
+            {phase !== 'live' ? (
+              <button onClick={handleStartCallWithLayout} style={{ flex: 1, background: 'linear-gradient(135deg,#10b981,#22c55e)', color: '#0a0f1e', border: 'none', borderRadius: '4px', padding: '8px 12px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase' }}>🔴 Start Live Call</button>
+            ) : (
+              <button onClick={onStopCall} style={{ flex: 1, background: 'rgba(239,68,68,0.15)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '4px', padding: '8px 12px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase' }}>⏹ End Live Call</button>
+            )}
+          </div>
         </div>
       )}
     </div>
