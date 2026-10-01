@@ -14,9 +14,9 @@
  */
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.52';
 
-// ── Target subreddits & search queries ─────────────────────────────────────
-const SUBREDDITS = ['Debt', 'povertyfinance', 'CreditCards', 'personalfinance'];
-const SEARCH_QUERIES = [
+// ── Default config (used when no SmartLeadConfig entity exists yet) ────────
+const DEFAULT_SUBREDDITS = ['Debt', 'povertyfinance', 'CreditCards', 'personalfinance'];
+const DEFAULT_SEARCH_QUERIES = [
   'credit card debt',
   'drowning in debt',
   'maxed out credit card',
@@ -24,30 +24,19 @@ const SEARCH_QUERIES = [
   'debt settlement',
   'behind on credit card',
 ];
-
-// ── Quora topics (RSS feeds) ───────────────────────────────────────────────
-const QUORA_TOPICS = ['Debt', 'Credit-Cards', 'Personal-Debt', 'Personal-Finance-Advice'];
-
-// ── Stack Exchange sites & tags (RSS feeds) ────────────────────────────────
-const STACKEXCHANGE_FEEDS = [
+const DEFAULT_QUORA_TOPICS = ['Debt', 'Credit-Cards', 'Personal-Debt', 'Personal-Finance-Advice'];
+const DEFAULT_STACKEXCHANGE_FEEDS = [
   'https://money.stackexchange.com/feeds',
   'https://money.stackexchange.com/feeds/tag/credit-card',
   'https://money.stackexchange.com/feeds/tag/debt',
 ];
-
-// ── Debt amount regex ($10k - $200k range) ─────────────────────────────────
-const DEBT_AMOUNT_REGEX = /\b(\$?(?:1[0-9]|[2-9][0-9]|1[0-9]{2}|200)\s?k|\$?(?:1[0-9]|[2-9][0-9]|1[0-9]{2}),?000|\b(?:10|15|20|25|30|40|50|75|100|150|200)\s?grand)\b.*?(credit card|debt|balances|cards)/i;
-
-// ── Category A: "Screwed / Drowning" trigger phrases ───────────────────────
-const CATEGORY_A = [
+const DEFAULT_CATEGORY_A = [
   '10k in credit card debt', '15k in credit card debt', '20k in credit card debt',
   '25k in credit card debt', '30k in credit card debt', '40k in credit card debt',
   '50k in credit card debt', '75k in credit card debt', '100k in credit card debt',
   '150k in credit card debt', '200k in credit card debt',
 ];
-
-// ── Category B: Emotional distress & panic expressions ─────────────────────
-const CATEGORY_B = [
+const DEFAULT_CATEGORY_B: any[] = [
   { phrase: 'maxed out', require: ['10k', '20k', '30k', '50k', '100k'], mode: 'any' },
   { phrase: 'drowning in', require: ['credit card debt', 'card debt', 'minimum payments'], mode: 'any' },
   { phrase: 'so screwed', require: ['credit card', 'debt', 'cards'], mode: 'any' },
@@ -56,15 +45,66 @@ const CATEGORY_B = [
   { phrase: 'interest is killing me', require: ['credit card', 'balance'], mode: 'any' },
   { phrase: 'how to get out of', require: ['30k debt', '40k debt', '50k debt', '100k debt'], mode: 'any' },
 ];
-
-// ── Category C: Multi-card & interest rate overwhelm ───────────────────────
-const CATEGORY_C = [
+const DEFAULT_CATEGORY_C = [
   'paying $1000 a month in interest',
   'paying $500 a month in interest',
   '5 cards maxed', '4 cards maxed', '3 cards maxed',
   'credit card debt is ruin',
   'credit card debt is destroying',
 ];
+const DEFAULT_DEBT_MIN = 10000;
+const DEFAULT_DEBT_MAX = 200000;
+const DEFAULT_MAX_POST_AGE_DAYS = 60;
+
+// ── Loaded config (populated at runtime from SmartLeadConfig entity) ──────
+let SUBREDDITS = DEFAULT_SUBREDDITS;
+let SEARCH_QUERIES = DEFAULT_SEARCH_QUERIES;
+let QUORA_TOPICS = DEFAULT_QUORA_TOPICS;
+let STACKEXCHANGE_FEEDS = DEFAULT_STACKEXCHANGE_FEEDS;
+let CATEGORY_A = DEFAULT_CATEGORY_A;
+let CATEGORY_B: any[] = DEFAULT_CATEGORY_B;
+let CATEGORY_C = DEFAULT_CATEGORY_C;
+let DEBT_AMOUNT_MIN = DEFAULT_DEBT_MIN;
+let DEBT_AMOUNT_MAX = DEFAULT_DEBT_MAX;
+let MAX_POST_AGE_DAYS = DEFAULT_MAX_POST_AGE_DAYS;
+
+// ── Debt amount regex ($10k - $200k range) ─────────────────────────────────
+const DEBT_AMOUNT_REGEX = /\b(\$?(?:1[0-9]|[2-9][0-9]|1[0-9]{2}|200)\s?k|\$?(?:1[0-9]|[2-9][0-9]|1[0-9]{2}),?000|\b(?:10|15|20|25|30|40|50|75|100|150|200)\s?grand)\b.*?(credit card|debt|balances|cards)/i;
+
+function safeParseJson<T>(str: string | undefined | null, fallback: T): T {
+  if (!str) return fallback;
+  try { return JSON.parse(str); } catch { return fallback; }
+}
+
+// Load config from SmartLeadConfig entity (falls back to defaults)
+async function loadConfig(base44: any): Promise<void> {
+  try {
+    const configs = await base44.asServiceRole.entities.SmartLeadConfig.list('-created_date', 1);
+    if (!configs || configs.length === 0) return;
+    const c = configs[0];
+    SUBREDDITS = safeParseJson(c.subredditsJson, DEFAULT_SUBREDDITS);
+    SEARCH_QUERIES = safeParseJson(c.searchQueriesJson, DEFAULT_SEARCH_QUERIES);
+    QUORA_TOPICS = safeParseJson(c.quoraTopicsJson, DEFAULT_QUORA_TOPICS);
+    STACKEXCHANGE_FEEDS = safeParseJson(c.stackExchangeFeedsJson, DEFAULT_STACKEXCHANGE_FEEDS);
+    CATEGORY_A = safeParseJson(c.categoryAJson, DEFAULT_CATEGORY_A);
+    CATEGORY_B = safeParseJson(c.categoryBJson, DEFAULT_CATEGORY_B);
+    CATEGORY_C = safeParseJson(c.categoryCJson, DEFAULT_CATEGORY_C);
+    DEBT_AMOUNT_MIN = c.debtAmountMin || DEFAULT_DEBT_MIN;
+    DEBT_AMOUNT_MAX = c.debtAmountMax || DEFAULT_DEBT_MAX;
+    MAX_POST_AGE_DAYS = c.maxPostAgeDays || DEFAULT_MAX_POST_AGE_DAYS;
+  } catch { /* use defaults */ }
+}
+
+// Check if a post is older than MAX_POST_AGE_DAYS
+function isPostTooOld(postCreatedAt: string | null): boolean {
+  if (!postCreatedAt) return false; // if no date, allow it (might be from RSS without date)
+  try {
+    const postDate = new Date(postCreatedAt);
+    const ageMs = Date.now() - postDate.getTime();
+    const ageDays = ageMs / (1000 * 60 * 60 * 24);
+    return ageDays > MAX_POST_AGE_DAYS;
+  } catch { return false; }
+}
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -78,7 +118,7 @@ function extractDebtAmount(text: string): { amount: number | null; raw: string }
   const suffix = (numMatch[2] || '').toLowerCase();
   if (suffix === 'k') num *= 1000;
   if (suffix === 'grand') num *= 1000;
-  if (num < 10000 || num > 200000) return { amount: null, raw };
+  if (num < DEBT_AMOUNT_MIN || num > DEBT_AMOUNT_MAX) return { amount: null, raw };
   return { amount: num, raw };
 }
 
@@ -305,6 +345,9 @@ Important: Each post MUST have a real URL from ${platform === 'x_twitter' ? 'x.c
         if (platform === 'x_twitter' && !urlLower.includes('x.com') && !urlLower.includes('twitter.com')) continue;
         if (platform === 'facebook' && !urlLower.includes('facebook.com')) continue;
 
+        // Skip posts older than MAX_POST_AGE_DAYS
+        if (p.posted_date && isPostTooOld(p.posted_date)) continue;
+
         const fullText = `${p.post_text}`.trim();
         if (fullText.length < 20) continue;
 
@@ -362,6 +405,9 @@ export default async function(req: Request): Promise<Response> {
     const platforms = body?.platforms || ['reddit'];
     const maxPerSubreddit = body?.maxPerSubreddit || 25;
 
+    // Load config from SmartLeadConfig entity (falls back to defaults)
+    await loadConfig(base44);
+
     if (action === 'test_match') {
       const text = body?.text || '';
       const amount = extractDebtAmount(text);
@@ -382,6 +428,18 @@ export default async function(req: Request): Promise<Response> {
           facebook: 'google_search',
         },
         queries: SEARCH_QUERIES,
+        config: {
+          subreddits: SUBREDDITS,
+          searchQueries: SEARCH_QUERIES,
+          quoraTopics: QUORA_TOPICS,
+          stackExchangeFeeds: STACKEXCHANGE_FEEDS,
+          categoryA: CATEGORY_A,
+          categoryB: CATEGORY_B,
+          categoryC: CATEGORY_C,
+          debtAmountMin: DEBT_AMOUNT_MIN,
+          debtAmountMax: DEBT_AMOUNT_MAX,
+          maxPostAgeDays: MAX_POST_AGE_DAYS,
+        },
       });
     }
 
@@ -419,6 +477,8 @@ export default async function(req: Request): Promise<Response> {
           const debtAmount = extractDebtAmount(fullText);
           const distress = matchDistress(fullText);
           if (debtAmount.amount === null && distress.category === 'none') continue;
+          const postCreatedAtIso = post.created_utc ? new Date(post.created_utc * 1000).toISOString() : null;
+          if (isPostTooOld(postCreatedAtIso)) continue;
           totalMatched++;
 
           newLeads.push({
@@ -435,7 +495,7 @@ export default async function(req: Request): Promise<Response> {
             distressTag: distress.tag,
             matchedKeywords: JSON.stringify(distress.keywords),
             matchTimestamp: new Date().toISOString(),
-            postCreatedAt: post.created_utc ? new Date(post.created_utc * 1000).toISOString() : null,
+            postCreatedAt: postCreatedAtIso,
             status: 'raw', enrichmentStatus: 'pending', profileDataJson: '',
           });
         }
@@ -463,6 +523,8 @@ export default async function(req: Request): Promise<Response> {
               const debtAmount = extractDebtAmount(fullText);
               const distress = matchDistress(fullText);
               if (debtAmount.amount === null && distress.category === 'none') continue;
+              const searchPostCreatedAtIso = post.created_utc ? new Date(post.created_utc * 1000).toISOString() : null;
+              if (isPostTooOld(searchPostCreatedAtIso)) continue;
               totalMatched++;
 
               newLeads.push({
@@ -479,7 +541,7 @@ export default async function(req: Request): Promise<Response> {
                 distressTag: distress.tag,
                 matchedKeywords: JSON.stringify(distress.keywords),
                 matchTimestamp: new Date().toISOString(),
-                postCreatedAt: post.created_utc ? new Date(post.created_utc * 1000).toISOString() : null,
+                postCreatedAt: searchPostCreatedAtIso,
                 status: 'raw', enrichmentStatus: 'pending', profileDataJson: '',
               });
             }
@@ -517,6 +579,8 @@ export default async function(req: Request): Promise<Response> {
           const debtAmount = extractDebtAmount(fullText);
           const distress = matchDistress(fullText);
           if (debtAmount.amount === null && distress.category === 'none') continue;
+          const quoraPostCreatedAt = post.created_utc ? new Date(post.created_utc * 1000).toISOString() : null;
+          if (isPostTooOld(quoraPostCreatedAt)) continue;
           totalMatched++;
 
           newLeads.push({
@@ -568,6 +632,8 @@ export default async function(req: Request): Promise<Response> {
           const debtAmount = extractDebtAmount(fullText);
           const distress = matchDistress(fullText);
           if (debtAmount.amount === null && distress.category === 'none') continue;
+          const sePostCreatedAt = post.created_utc ? new Date(post.created_utc * 1000).toISOString() : null;
+          if (isPostTooOld(sePostCreatedAt)) continue;
           totalMatched++;
 
           newLeads.push({

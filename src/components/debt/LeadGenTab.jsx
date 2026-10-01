@@ -7,6 +7,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useDebtCoachAuth } from '@/lib/DebtCoachAuthContext';
 import LeadCrossAIResults from '@/components/debt/LeadCrossAIResults';
+import SmartLeadsRejectModal from '@/components/debt/SmartLeadsRejectModal';
 
 const GOLD = '#10b981';
 const DARK = '#0a0f1e';
@@ -46,6 +47,7 @@ export default function LeadGenTab() {
   const [expandedRows, setExpandedRows] = useState(new Set());
   const [crossEnriching, setCrossEnriching] = useState(false);
   const [crossEnrichResult, setCrossEnrichResult] = useState(null);
+  const [rejectingLead, setRejectingLead] = useState(null);
 
   const loadLeads = useCallback(async () => {
     setLoading(true);
@@ -448,6 +450,9 @@ export default function LeadGenTab() {
                   <td style={{ padding: '10px 12px', textAlign: 'center' }}>
                     <div style={{ display: 'flex', gap: '4px', justifyContent: 'center', flexWrap: 'wrap' }}>
                       <button onClick={() => setSelectedLead(lead)} style={{ background: 'rgba(255,255,255,0.05)', color: '#8a9ab8', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '3px', padding: '4px 8px', cursor: 'pointer', fontSize: '10px' }}>View</button>
+                      {lead.status !== 'pushed' && lead.status !== 'rejected' && (
+                        <button onClick={() => setRejectingLead(lead)} style={{ background: 'rgba(239,68,68,0.12)', color: RED, border: '1px solid rgba(239,68,68,0.3)', borderRadius: '3px', padding: '4px 8px', cursor: 'pointer', fontSize: '10px' }}>🚫 Reject</button>
+                      )}
                       <button onClick={() => enrichSingleLeadCross(lead.id)} disabled={crossEnriching} style={{ background: 'rgba(167,139,250,0.18)', color: '#a78bfa', border: '1px solid rgba(167,139,250,0.44)', borderRadius: '3px', padding: '4px 8px', cursor: 'pointer', fontSize: '10px', opacity: crossEnriching ? 0.5 : 1 }}>🚀 Cross-AI</button>
                       {lead.status === 'raw' && (
                         <button onClick={() => enrichLead(lead.id)} disabled={enriching} style={{ background: `${BLUE}18`, color: BLUE, border: `1px solid ${BLUE}44`, borderRadius: '3px', padding: '4px 8px', cursor: 'pointer', fontSize: '10px', opacity: enriching ? 0.5 : 1 }}>🔍 Enrich</button>
@@ -599,6 +604,16 @@ export default function LeadGenTab() {
             )}
           </div>
         </div>
+      )}
+
+      {/* Smart Leads Reject Modal */}
+      {rejectingLead && (
+        <SmartLeadsRejectModal
+          lead={rejectingLead}
+          coachUser={coachUser}
+          onClose={() => setRejectingLead(null)}
+          onSubmitted={() => { setRejectingLead(null); loadLeads(); }}
+        />
       )}
     </div>
   );

@@ -1,0 +1,66 @@
+{
+  "name": "SmartLeadFeedback",
+  "type": "object",
+  "properties": {
+    "leadId": {
+      "type": "string",
+      "title": "Scraped Lead ID"
+    },
+    "leadDataJson": {
+      "type": "string",
+      "title": "Lead Snapshot (JSON \u2014 post text, platform, distress tag, etc.)",
+      "format": "textarea"
+    },
+    "rejectionCategory": {
+      "type": "string",
+      "title": "Rejection Category",
+      "enum": [
+        "not_relevant",
+        "wrong_demographic",
+        "spam_or_bot",
+        "too_old",
+        "wrong_debt_type",
+        "wrong_debt_amount",
+        "already_enrolled",
+        "duplicate",
+        "other"
+      ],
+      "default": "not_relevant"
+    },
+    "rejectionReason": {
+      "type": "string",
+      "title": "Rejection Reason (detailed explanation)",
+      "format": "textarea"
+    },
+    "submittedBy": {
+      "type": "string",
+      "title": "Submitted By (username)"
+    },
+    "processedByAI": {
+      "type": "boolean",
+      "title": "Processed by Smart Leads AI",
+      "default": false
+    },
+    "aiLearningNotes": {
+      "type": "string",
+      "title": "AI Learning Notes (what the AI learned from this rejection)",
+      "format": "textarea"
+    },
+    "configChangesJson": {
+      "type": "string",
+      "title": "Config Changes Made (JSON array of changes the AI applied)",
+      "format": "textarea"
+    }
+  },
+  "required": [
+    "leadId",
+    "rejectionCategory",
+    "rejectionReason"
+  ],
+  "rls": {
+    "create": null,
+    "read": null,
+    "update": null,
+    "delete": null
+  }
+}

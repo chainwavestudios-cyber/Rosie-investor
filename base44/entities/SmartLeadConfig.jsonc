@@ -1,0 +1,104 @@
+{
+  "name": "SmartLeadConfig",
+  "type": "object",
+  "properties": {
+    "configName": {
+      "type": "string",
+      "title": "Config Name",
+      "default": "default"
+    },
+    "subredditsJson": {
+      "type": "string",
+      "title": "Subreddits (JSON array)",
+      "format": "textarea"
+    },
+    "searchQueriesJson": {
+      "type": "string",
+      "title": "Search Queries (JSON array)",
+      "format": "textarea"
+    },
+    "quoraTopicsJson": {
+      "type": "string",
+      "title": "Quora Topics (JSON array)",
+      "format": "textarea"
+    },
+    "stackExchangeFeedsJson": {
+      "type": "string",
+      "title": "Stack Exchange Feed URLs (JSON array)",
+      "format": "textarea"
+    },
+    "categoryAJson": {
+      "type": "string",
+      "title": "Category A \u2014 Screwed/Drowning Phrases (JSON array)",
+      "format": "textarea"
+    },
+    "categoryBJson": {
+      "type": "string",
+      "title": "Category B \u2014 Emotional Panic Rules (JSON array)",
+      "format": "textarea"
+    },
+    "categoryCJson": {
+      "type": "string",
+      "title": "Category C \u2014 Multi-Card/Interest Phrases (JSON array)",
+      "format": "textarea"
+    },
+    "debtAmountMin": {
+      "type": "number",
+      "title": "Minimum Debt Amount ($)",
+      "default": 10000
+    },
+    "debtAmountMax": {
+      "type": "number",
+      "title": "Maximum Debt Amount ($)",
+      "default": 200000
+    },
+    "maxPostAgeDays": {
+      "type": "number",
+      "title": "Max Post Age (days) \u2014 posts older than this are skipped",
+      "default": 60
+    },
+    "platformsJson": {
+      "type": "string",
+      "title": "Enabled Platforms (JSON array)",
+      "format": "textarea"
+    },
+    "autoEnrich": {
+      "type": "boolean",
+      "title": "Auto-Enrich Leads After Scraping",
+      "default": false
+    },
+    "enrichmentEnabled": {
+      "type": "boolean",
+      "title": "Enrichment Enabled",
+      "default": false
+    },
+    "scheduleEnabled": {
+      "type": "boolean",
+      "title": "Scheduled Scraping Enabled",
+      "default": true
+    },
+    "scheduleCron": {
+      "type": "string",
+      "title": "Schedule (Cron Expression)",
+      "default": "0 0,6,12,18 * * *"
+    },
+    "aiLearningsJson": {
+      "type": "string",
+      "title": "AI Learnings & Notes (JSON array \u2014 accumulated from chat + rejections)",
+      "format": "textarea"
+    },
+    "lastUpdatedBy": {
+      "type": "string",
+      "title": "Last Updated By (username or 'AI')"
+    }
+  },
+  "required": [
+    "configName"
+  ],
+  "rls": {
+    "create": null,
+    "read": null,
+    "update": null,
+    "delete": null
+  }
+}
