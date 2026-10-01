@@ -21,7 +21,7 @@ const INSIGHT_TYPES = [
   { id: 'other', label: '📌 Other', color: '#8a9ab8' },
 ];
 
-export default function CustomerStatsPopup({ lead, transcript, isActive, agentUsername, onInsightsChange, phase, onStartCall, onStopCall, isInbound, onToggleInbound }) {
+export default function CustomerStatsPopup({ lead, transcript, isActive, agentUsername, onInsightsChange, phase, onStartCall, onStopCall, isInbound, onToggleInbound, micMuted, onToggleMicMute }) {
   const [collapsed, setCollapsed] = useState(false);
   const [insights, setInsights] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -394,13 +394,18 @@ export default function CustomerStatsPopup({ lead, transcript, isActive, agentUs
         </div>
       )}
 
-      {/* Call controls — Start/End Live Call + Inbound checkbox */}
+      {/* Call controls — Start/End Live Call + Inbound checkbox + Mic Mute */}
       {!collapsed && (
-        <div style={{ padding: '8px 10px', borderTop: '1px solid rgba(255,255,255,0.07)', display: 'flex', gap: '6px', alignItems: 'center', flexShrink: 0 }}>
+        <div style={{ padding: '8px 10px', borderTop: '1px solid rgba(255,255,255,0.07)', display: 'flex', gap: '6px', alignItems: 'center', flexShrink: 0, flexWrap: 'wrap' }}>
           <label style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#8a9ab8', fontSize: '10px', cursor: 'pointer', whiteSpace: 'nowrap' }} title="Check for inbound calls — listens for transfer agent intro (name, debt amount, hardship, address, phone, account details)">
             <input type="checkbox" checked={isInbound || false} onChange={e => onToggleInbound?.(e.target.checked)} style={{ cursor: 'pointer' }} />
             📥 Inbound
           </label>
+          {phase === 'live' && (
+            <button onClick={onToggleMicMute} title={micMuted ? 'Unmute agent mic' : 'Mute agent mic'} style={{ background: micMuted ? 'rgba(239,68,68,0.15)' : 'rgba(255,255,255,0.05)', color: micMuted ? '#ef4444' : '#8a9ab8', border: `1px solid ${micMuted ? 'rgba(239,68,68,0.3)' : 'rgba(255,255,255,0.12)'}`, borderRadius: '4px', padding: '8px 12px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
+              {micMuted ? '🔇 Muted' : '🎙 Mic'}
+            </button>
+          )}
           {phase !== 'live' ? (
             <button onClick={onStartCall} style={{ flex: 1, background: 'linear-gradient(135deg,#10b981,#22c55e)', color: '#0a0f1e', border: 'none', borderRadius: '4px', padding: '8px 12px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase' }}>🔴 Start Live Call</button>
           ) : (

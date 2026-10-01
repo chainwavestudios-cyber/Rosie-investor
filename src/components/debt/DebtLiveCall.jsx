@@ -89,6 +89,18 @@ export default function DebtLiveCall() {
   const [allPoppedOut, setAllPoppedOut] = useState(false);
   const [isInbound, setIsInbound] = useState(false);
   const [layoutSavedMsg, setLayoutSavedMsg] = useState(false);
+  const [micMuted, setMicMuted] = useState(false);
+
+  // Toggle the agent mic stream tracks on/off (mutes audio sent to Deepgram)
+  const toggleMicMute = useCallback(() => {
+    const stream = streamRef.current;
+    if (!stream) { setMicMuted(false); return; }
+    const tracks = stream.getAudioTracks();
+    if (tracks.length === 0) return;
+    const anyEnabled = tracks.some(t => t.enabled);
+    tracks.forEach(t => { t.enabled = !anyEnabled; });
+    setMicMuted(!anyEnabled);
+  }, []);
 
   // 🔥 Hot Call Tracker — turbo intent engine; writes HotCallAlerts for the manager portal
   const { hotStatus, hotScore, agentScore } = useHotCallTracker({
@@ -703,6 +715,7 @@ ${recentText}`,
     handoffAttemptsRef.current = 0;
     leadPersistedRef.current = false;
     customerBufferRef.current = []; if (bufferTimeoutRef.current) { clearTimeout(bufferTimeoutRef.current); bufferTimeoutRef.current = null; }
+    setMicMuted(false);
     setPhase('live'); setDgStatus('connecting');
     callStartRef.current = new Date();
     lastCoachTime.current = Date.now();
@@ -864,6 +877,7 @@ ${recentText}`,
     if (streamRef.current) { streamRef.current.getTracks().forEach(t => t.stop()); streamRef.current = null; }
     if (customerStreamRef.current) { customerStreamRef.current.getTracks().forEach(t => t.stop()); customerStreamRef.current = null; }
     if (ctxRef.current) { try { ctxRef.current.close(); } catch {} ctxRef.current = null; }
+    setMicMuted(false);
     setPhase('ended'); setDgStatus('idle');
 
     // Final profile + intent analysis
@@ -1495,6 +1509,8 @@ ${recentText}`,
         onStopCall={stopCall}
         isInbound={isInbound}
         onToggleInbound={setIsInbound}
+        micMuted={micMuted}
+        onToggleMicMute={toggleMicMute}
       />
 
       {/* Ready for Next Call briefing — available after call ends */}
