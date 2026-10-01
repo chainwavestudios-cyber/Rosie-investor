@@ -198,6 +198,15 @@
       "type": "string",
       "format": "date-time",
       "title": "Next Call Briefing Generated At"
+    },
+    "deletedAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Soft-Deleted At (set when lead is marked for deletion; permanently removed after 7 days)"
+    },
+    "deletedBy": {
+      "type": "string",
+      "title": "Soft-Deleted By (username)"
     }
   },
   "required": [

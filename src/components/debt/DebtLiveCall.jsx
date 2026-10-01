@@ -20,6 +20,7 @@ import { usePopOutPanel } from '@/hooks/usePopOutPanel';
 import { useHotCallTracker } from '@/hooks/useHotCallTracker';
 import { useDebtCoachAuth } from '@/lib/DebtCoachAuthContext';
 import { useDebtCoachValue } from '@/lib/debtCoachStorage';
+import EndCallDialog from '@/components/debt/EndCallDialog';
 
 const GOLD = '#10b981';
 const DARK = '#0a0f1e';
@@ -81,7 +82,9 @@ export default function DebtLiveCall() {
   const [autoSchedulerEnabled, setAutoSchedulerEnabled] = useDebtCoachValue(coachUser?.username, 'autoSchedulerEnabled', true);
   const [apptPreview, setApptPreview] = useState(null);
   const leadPersistedRef = useRef(false);
+  const transcriptRecordIdRef = useRef(null);
   const [showProfile, setShowProfile] = useState(false);
+  const [showEndDialog, setShowEndDialog] = useState(false);
   const [pendingQuestion, setPendingQuestion] = useState(null);
   const leadPanel = usePopOutPanel('live_lead_card', { width: 420, height: 600 }, coachUser?.username);
   const transcriptPanel = usePopOutPanel('live_transcript', { width: 520, height: 600 }, coachUser?.username);
@@ -265,7 +268,8 @@ Agent line: "${firstAgentLines}"`,
       } else {
         all = await base44.entities.DebtLead.list('-updated_date', 100);
       }
-      setLeads(all || []);
+      // Exclude soft-deleted leads (kept for 7 days before permanent deletion)
+      setLeads((all || []).filter(l => !l.deletedAt));
     } catch {}
   }, [coachUser]);
   useEffect(() => { loadLeads(); }, [loadLeads]);
@@ -305,7 +309,7 @@ Agent line: "${firstAgentLines}"`,
 
   useEffect(() => { transcriptRef.current = transcript; }, [transcript]);
 
-  // Auto-save transcript every 10 seconds during live call (in case audio feed drops)
+  // Auto-save transcript every 15 seconds during live call (in case audio feed drops)
   useEffect(() => {
     if (phase !== 'live' || !lead.id) return;
     const interval = setInterval(async () => {
@@ -315,8 +319,14 @@ Agent line: "${firstAgentLines}"`,
           transcriptJson: JSON.stringify(transcriptRef.current),
           lastCallAt: new Date().toISOString(),
         });
+        if (transcriptRecordIdRef.current) {
+          await base44.entities.DebtCallTranscript.update(transcriptRecordIdRef.current, {
+            transcriptJson: JSON.stringify(transcriptRef.current),
+            transcriptLineCount: transcriptRef.current.length,
+          });
+        }
       } catch {}
-    }, 10000);
+    }, 15000);
     return () => clearInterval(interval);
   }, [phase, lead.id]);
 
@@ -714,6 +724,26 @@ ${recentText}`,
     intentHistoryRef.current = [];
     handoffAttemptsRef.current = 0;
     leadPersistedRef.current = false;
+    transcriptRecordIdRef.current = null;
+
+    // Create a live transcript record immediately — updated every 15s and finalized on end
+    try {
+      const leadName = `${leadRef.current.firstName || ''} ${leadRef.current.lastName || ''}`.trim();
+      const tr = await base44.entities.DebtCallTranscript.create({
+        leadId: leadRef.current.id,
+        leadName,
+        leadNumber: leadRef.current.leadNumber || '',
+        agentId: coachUser?.username || '',
+        agentName: coachUser?.username || '',
+        transcriptJson: '[]',
+        transcriptLineCount: 0,
+        callMode,
+        callType,
+        durationSeconds: 0,
+        callDate: new Date().toISOString(),
+      });
+      transcriptRecordIdRef.current = tr?.id || null;
+    } catch {}
     customerBufferRef.current = []; if (bufferTimeoutRef.current) { clearTimeout(bufferTimeoutRef.current); bufferTimeoutRef.current = null; }
     setMicMuted(false);
     setPhase('live'); setDgStatus('connecting');
@@ -844,6 +874,12 @@ ${recentText}`,
           transcriptJson: JSON.stringify(transcriptRef.current),
           lastCallAt: new Date().toISOString(),
         }).catch(() => {});
+        if (transcriptRecordIdRef.current) {
+          base44.entities.DebtCallTranscript.update(transcriptRecordIdRef.current, {
+            transcriptJson: JSON.stringify(transcriptRef.current),
+            transcriptLineCount: transcriptRef.current.length,
+          }).catch(() => {});
+        }
       }
       if (e.code !== 1000 && e.code !== 1005) setError(`Deepgram disconnected (code ${e.code}). ${e.reason || ''}`);
     };
@@ -995,24 +1031,34 @@ ${recentText}`,
         const agentId = coachUser?.username || '';
         let transcriptRecord = null;
         try {
-          transcriptRecord = await base44.entities.DebtCallTranscript.create({
-            leadId: leadRef.current.id,
-            leadName,
-            leadNumber: leadRef.current.leadNumber || '',
-            agentId,
-            agentName: agentId,
+          const transcriptData = {
             transcriptJson: JSON.stringify(transcriptRef.current),
             transcriptLineCount: transcriptRef.current.length,
-            callMode,
-            callType,
             durationSeconds,
             intentScore: intentScore ?? null,
             animalType: leadRef.current.animalType || null,
             intentReport: intentScore != null ? `Intent Score: ${intentScore}/100\nAnimal: ${leadRef.current.animalType || 'unknown'}` : '',
             followUpReport: fullReport,
             callAnalysisJson,
-            callDate: new Date().toISOString(),
-          });
+          };
+          if (transcriptRecordIdRef.current) {
+            // Update the live transcript record created at call start
+            transcriptRecord = await base44.entities.DebtCallTranscript.update(transcriptRecordIdRef.current, transcriptData);
+            transcriptRecord = { id: transcriptRecordIdRef.current, ...transcriptRecord, ...transcriptData };
+          } else {
+            // Fallback: create if the live record was never created
+            transcriptRecord = await base44.entities.DebtCallTranscript.create({
+              leadId: leadRef.current.id,
+              leadName,
+              leadNumber: leadRef.current.leadNumber || '',
+              agentId,
+              agentName: agentId,
+              callMode,
+              callType,
+              callDate: new Date().toISOString(),
+              ...transcriptData,
+            });
+          }
 
           // Persist Q&A history for this call
           if (qaItems.length > 0 && transcriptRecord?.id) {
@@ -1085,6 +1131,26 @@ ${recentText}`,
 
     loadLeads();
   }, [kbEntries, coachActive, qaActive, intentActive, coachTips, qaItems, loadLeads, autoSchedulerEnabled, coachUser, callType]);
+
+  // Show the keep/delete dialog when the agent ends a call (not for monitor takeovers)
+  const handleEndCallClick = useCallback(() => {
+    setShowEndDialog(true);
+  }, []);
+
+  // Called from EndCallDialog — always saves transcript + logs call; optionally soft-deletes lead
+  const handleEndChoice = useCallback(async (shouldDelete) => {
+    setShowEndDialog(false);
+    await stopCall();
+    if (shouldDelete && leadRef.current?.id) {
+      try {
+        await base44.entities.DebtLead.update(leadRef.current.id, {
+          deletedAt: new Date().toISOString(),
+          deletedBy: coachUser?.username || '',
+        });
+        loadLeads();
+      } catch (e) { console.error('Soft-delete failed:', e); }
+    }
+  }, [stopCall, coachUser, loadLeads]);
 
   // Keep stopCallRef updated for monitor polling
   useEffect(() => { stopCallRef.current = stopCall; }, [stopCall]);
@@ -1273,7 +1339,7 @@ ${recentText}`,
             )}
           </div>
         ) : (
-          <button onClick={stopCall} style={{ background: 'rgba(239,68,68,0.15)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '4px', padding: '6px 12px', cursor: 'pointer', fontSize: '9px', fontWeight: 'bold', letterSpacing: '0.5px', textTransform: 'uppercase' }}>⏹ End</button>
+          <button onClick={handleEndCallClick} style={{ background: 'rgba(239,68,68,0.15)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '4px', padding: '6px 12px', cursor: 'pointer', fontSize: '9px', fontWeight: 'bold', letterSpacing: '0.5px', textTransform: 'uppercase' }}>⏹ End</button>
         )}
 
         {phase === 'ended' && (
@@ -1498,6 +1564,17 @@ ${recentText}`,
         <ClientProfileModal lead={lead} username={coachUser?.username} onClose={() => setShowProfile(false)} onSave={(updated) => setLead(updated)} />
       )}
 
+      {/* End Call Dialog — asks keep or delete profile/lead contact card */}
+      {showEndDialog && phase === 'live' && (
+        <EndCallDialog
+          lead={lead}
+          transcriptLineCount={transcript.length}
+          onKeep={() => handleEndChoice(false)}
+          onDelete={() => handleEndChoice(true)}
+          onCancel={() => setShowEndDialog(false)}
+        />
+      )}
+
       {/* Customer Stats Popup — auto-detects insights during live calls */}
       <CustomerStatsPopup
         lead={lead}
@@ -1506,7 +1583,7 @@ ${recentText}`,
         agentUsername={coachUser?.username}
         phase={phase}
         onStartCall={() => startCall(true)}
-        onStopCall={stopCall}
+        onStopCall={handleEndCallClick}
         isInbound={isInbound}
         onToggleInbound={setIsInbound}
         micMuted={micMuted}

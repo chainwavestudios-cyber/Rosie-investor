@@ -1,0 +1,44 @@
+{
+  "description": "Permanently deletes DebtLead records that were soft-deleted more than 7 days ago. Runs daily at 3 AM.",
+  "trigger": {
+    "condition": null,
+    "config": {
+      "trigger_type": "scheduled",
+      "events": [],
+      "schedule_mode": "recurring",
+      "cron_expression": "0 3 * * *",
+      "one_time_date": null,
+      "timezone": "America/New_York",
+      "interval_value": null,
+      "interval_unit": null,
+      "interval_anchor": null,
+      "ends_type": "never",
+      "ends_on_date": null,
+      "ends_after_count": null
+    }
+  },
+  "name": "Cleanup Soft-Deleted Leads",
+  "definition": {
+    "document": {
+      "dsl": "1.0.0",
+      "name": "cleanup_deleted_leads",
+      "version": "1.0",
+      "namespace": "base44"
+    },
+    "do": [
+      {
+        "cleanup": {
+          "call": "invoke_backend_function",
+          "with": {
+            "function_name": "cleanupDeletedLeads"
+          },
+          "then": "end",
+          "x-base44": {
+            "title": "Delete expired soft-deleted leads",
+            "description": "Permanently remove leads soft-deleted >7 days ago"
+          }
+        }
+      }
+    ]
+  }
+}

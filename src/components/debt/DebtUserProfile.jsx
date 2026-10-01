@@ -29,8 +29,9 @@ export default function DebtUserProfile({ debtCoachUser }) {
       } else {
         all = await base44.entities.DebtLead.list('-updated_date', 200);
       }
-      setLeads(all || []);
-      if (all?.length > 0 && !selected) setSelected(all[0]);
+      const active = (all || []).filter(l => !l.deletedAt);
+      setLeads(active);
+      if (active.length > 0 && !selected) setSelected(active[0]);
     } catch {}
     setLoading(false);
   }, [selected, debtCoachUser]);
