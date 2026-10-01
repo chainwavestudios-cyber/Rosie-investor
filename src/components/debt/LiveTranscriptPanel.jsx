@@ -9,6 +9,15 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 
 const GOLD = '#10b981';
 
+// Classification badge colors
+const CLASS_COLORS = {
+  question: '#f59e0b',
+  statement: '#6b7280',
+  objection: '#ef4444',
+  greeting: '#4ade80',
+  closing: '#60a5fa',
+};
+
 export default function LiveTranscriptPanel({ transcript, phase, panel, onAnswerQuestion, lead, micLabel, username }) {
   const [selected, setSelected] = useState({});
   const scrollRef = useRef(null);
@@ -99,6 +108,9 @@ export default function LiveTranscriptPanel({ transcript, phase, panel, onAnswer
               <div style={{ maxWidth: '85%', background: isAgent ? 'rgba(96,165,250,0.1)' : isSelected ? 'rgba(245,158,11,0.12)' : 'rgba(16,185,129,0.1)', border: `1px solid ${isAgent ? 'rgba(96,165,250,0.2)' : isSelected ? 'rgba(245,158,11,0.4)' : 'rgba(16,185,129,0.2)'}`, borderRadius: isAgent ? '12px 12px 2px 12px' : '12px 12px 12px 2px', padding: '8px 12px' }}>
                 <div style={{ display: 'flex', gap: '6px', alignItems: 'center', marginBottom: '3px' }}>
                   <span style={{ color: isAgent ? '#60a5fa' : GOLD, fontSize: '9px', fontWeight: 'bold', textTransform: 'uppercase' }}>{isAgent ? '🎙 Agent' : '👤 Customer'}</span>
+                  {msg.classification && (
+                    <span style={{ color: CLASS_COLORS[msg.classification] || '#6b7280', fontSize: '8px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.5px', padding: '1px 5px', borderRadius: '2px', background: `${CLASS_COLORS[msg.classification] || '#6b7280'}18` }}>{msg.classification}</span>
+                  )}
                   {msg.sentiment && <span style={{ color: sentColor, fontSize: '9px' }}>● {msg.sentiment}</span>}
                 </div>
                 <div style={{ color: '#c4cdd8', fontSize: '13px', lineHeight: 1.5 }}>{msg.text}</div>

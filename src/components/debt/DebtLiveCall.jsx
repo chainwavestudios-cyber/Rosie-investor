@@ -368,6 +368,39 @@ Agent line: "${firstAgentLines}"`,
     return () => clearInterval(interval);
   }, [phase, lead.id]);
 
+  // ── Real-time transcript consolidation ──────────────────────────────────
+  // Every ~12 seconds, send recent transcript lines to the AI consolidation
+  // engine. It merges fragmented utterances into complete sentences and
+  // classifies each line (question / statement / objection / greeting / closing).
+  // The consolidated lines replace the fragmented ones in the display.
+  const consolidateRef = useRef(0); // tracks the start index of the in-flight consolidation
+  useEffect(() => {
+    if (phase !== 'live') return;
+    const interval = setInterval(async () => {
+      if (transcriptRef.current.length < 4) return;
+      // Take the last 25 lines for consolidation
+      const startIdx = Math.max(0, transcriptRef.current.length - 25);
+      const toConsolidate = transcriptRef.current.slice(startIdx);
+      consolidateRef.current = startIdx;
+      try {
+        const res = await base44.functions.invoke('consolidateTranscript', { transcript: toConsolidate });
+        const lines = res?.lines || res?.data?.lines;
+        if (!lines || lines.length === 0) return;
+        setTranscript(prev => {
+          // Only replace if the starting line hasn't shifted (no new lines pushed before this index)
+          const expectedStart = consolidateRef.current;
+          if (prev.length < toConsolidate.length) return prev;
+          const currentStartIdx = prev.length - toConsolidate.length;
+          if (currentStartIdx !== expectedStart) return prev;
+          // Verify the first line still matches (safety check)
+          if (prev[expectedStart] && toConsolidate[0] && prev[expectedStart].text !== toConsolidate[0].text) return prev;
+          return [...prev.slice(0, expectedStart), ...lines];
+        });
+      } catch {}
+    }, 12000);
+    return () => clearInterval(interval);
+  }, [phase]);
+
   const createNewLead = useCallback(async () => {
     try {
       // Auto-assign lead number: find max existing number and increment
@@ -407,12 +440,20 @@ Agent line: "${firstAgentLines}"`,
     const combined = customerBufferRef.current.join(' ').trim();
     customerBufferRef.current = [];
     if (combined.length < 8) return;
-    // Only send if it looks like a question
+    // Send if it looks like a question
     const qPat = /\b(what|how|why|when|where|who|can|could|would|is|are|do|does|will|should|have|has|tell me|explain|show me|prove|how much|what's the)\b/i;
-    if (qPat.test(combined)) {
-      handleQa(combined);
-    }
-  }, [handleQa]);
+    if (qPat.test(combined)) { handleQa(combined); return; }
+    // Also send if it matches a Q&A statement from the KB (statements, not just questions)
+    const lower = combined.toLowerCase();
+    const statementMatch = kbEntries.some(e => {
+      if (e.category !== 'debt_qa_statements') return false;
+      const stmt = (e.question || '').toLowerCase();
+      if (stmt && lower.includes(stmt)) return true;
+      const vars = (e.variations || '').split('\n').map(v => v.trim().toLowerCase()).filter(Boolean);
+      return vars.some(v => v && lower.includes(v));
+    });
+    if (statementMatch) handleQa(combined);
+  }, [handleQa, kbEntries]);
 
   const handleCoach = useCallback(() => {
     base44.functions.invoke('liveAssistantAI', { transcript: transcriptRef.current.slice(-6), kbEntries, mode: 'coach' })
@@ -681,7 +722,25 @@ ${recentText}`,
       return;
     }
     lastEntryRef.current = { speaker: entry.speaker, text: entry.text, ts: Date.now() };
-    setTranscript(prev => [...prev, entry]);
+    // Immediate merge: if same speaker as last line and last line doesn't end
+    // with sentence punctuation, this is a fragment — append to last line.
+    // This prevents one statement from appearing as 10 separate lines.
+    setTranscript(prev => {
+      if (prev.length === 0) return [...prev, entry];
+      const lastLine = prev[prev.length - 1];
+      if (lastLine.speaker === entry.speaker) {
+        const lastText = (lastLine.text || '').trim();
+        if (!/[.?!…]["']?$/.test(lastText)) {
+          const merged = [...prev];
+          merged[merged.length - 1] = {
+            ...lastLine,
+            text: lastText + ' ' + entry.text,
+          };
+          return merged;
+        }
+      }
+      return [...prev, entry];
+    });
     const text = entry.text || '';
 
     // Cold call: extract name from opening "May I speak with X" + detect interest to auto-save
