@@ -155,33 +155,20 @@ Agent line: "${firstAgentLines}"`,
   const INTEREST_PHRASES = ['sounds interesting', 'tell me more', 'i\'m interested', 'how does this work', 'what do i need to do', 'sign me up', 'let\'s do it', 'what are the next steps', 'how do we get started', 'how do i get started', 'i like the sound of that', 'this could work', 'what\'s the next step', 'i want to do this', 'where do i sign', 'let\'s move forward'];
   const handleColdCallInterestCheck = useCallback(async (text) => {
     if (callType !== 'cold_call') return;
-    if (leadPersistedRef.current) return; // already saved
+    if (leadPersistedRef.current) return; // already marked as interested
     const lower = text.toLowerCase();
     if (!INTEREST_PHRASES.some(p => lower.includes(p))) return;
-    // Interest detected — persist the lead now if it has a name
+    // Interest detected — update the existing lead's notes (lead was already
+    // persisted at call start, so we just flag it with interest).
     const lead = leadRef.current;
+    if (!lead?.id) return;
     if (!lead.firstName || lead.firstName.toLowerCase() === 'new') return; // no name yet
     try {
-      const allLeads = await base44.entities.DebtLead.list('-created_date', 500);
-      const maxNum = (allLeads || []).reduce((max, l) => {
-        const n = parseInt((l.leadNumber || '').replace('#', ''), 10);
-        return isNaN(n) ? max : Math.max(max, n);
-      }, 0);
-      const leadNumber = `#${String(maxNum + 1).padStart(5, '0')}`;
-      const created = await base44.entities.DebtLead.create({
-        firstName: lead.firstName, lastName: lead.lastName || 'Unknown',
-        phone: lead.phone || '', email: lead.email || '',
-        status: 'new', callCount: 0, leadNumber,
-        debtCoachOwner: coachUser?.username || null,
+      await base44.entities.DebtLead.update(lead.id, {
         notes: 'Auto-saved: genuine interest detected during cold call.',
       });
-      if (created?.id) {
-        setLead(prev => ({ ...prev, ...created, id: created.id, leadNumber }));
-        leadRef.current = { ...leadRef.current, ...created, id: created.id, leadNumber };
-        leadPersistedRef.current = true;
-        loadLeads();
-        window.dispatchEvent(new CustomEvent('lead_autosaved', { detail: ['interest_save'] }));
-      }
+      leadPersistedRef.current = true;
+      window.dispatchEvent(new CustomEvent('lead_autosaved', { detail: ['interest_save'] }));
     } catch (e) { console.error('Cold call interest save failed:', e); }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [callType, coachUser]);
@@ -692,7 +679,9 @@ ${recentText}`,
   const startCall = useCallback(async (forceNew = false) => {
     // Ensure we have a lead — always create a brand new one for new/inbound calls
     if (forceNew || !leadRef.current?.id) {
-      // Create the lead in memory only (not persisted) — saved when the agent clicks Save
+      // Persist the lead to the database immediately so transcript + auto-extraction
+      // (handoff name, contact, debt, bills, hardship, cosigners) can all save
+      // against a real lead ID throughout the call.
       try {
         const allLeads = await base44.entities.DebtLead.list('-created_date', 500);
         const maxNum = (allLeads || []).reduce((max, l) => {
@@ -700,21 +689,22 @@ ${recentText}`,
           return isNaN(n) ? max : Math.max(max, n);
         }, 0);
         const leadNumber = `#${String(maxNum + 1).padStart(5, '0')}`;
-        const newLead = {
+        const created = await base44.entities.DebtLead.create({
           firstName: forceNew ? 'New' : (lead.firstName || 'New'),
           lastName: forceNew ? 'Lead' : (lead.lastName || 'Lead'),
           status: 'new', callCount: 0,
           leadNumber, debtCoachOwner: coachUser?.username || null,
-        };
-        setLead(newLead); setProfileData(null); setMemories([]);
-        leadRef.current = newLead;
+        });
+        setLead(created); setProfileData(null); setMemories([]);
+        leadRef.current = created;
+        loadLeads();
       } catch (e) { alert('Failed to start call: ' + (e?.message || String(e))); return; }
     }
 
     setError(''); setTranscript([]); setQaItems([]); setCoachTips([]); setIntentScore(null); setProfileData(null); setReport('');
     intentHistoryRef.current = [];
     handoffAttemptsRef.current = 0;
-    leadPersistedRef.current = !!lead.id;
+    leadPersistedRef.current = false;
     customerBufferRef.current = []; if (bufferTimeoutRef.current) { clearTimeout(bufferTimeoutRef.current); bufferTimeoutRef.current = null; }
     setPhase('live'); setDgStatus('connecting');
     callStartRef.current = new Date();
@@ -1422,7 +1412,7 @@ ${recentText}`,
               ))}
 
               {/* Transcript — pop-out enabled with Scripts tab */}
-              <LiveTranscriptPanel transcript={transcript} phase={phase} panel={transcriptPanel} onAnswerQuestion={handleAnswerQuestion} lead={lead} onScriptPositionChange={(pos) => { scriptPositionRef.current = pos; }} />
+              <LiveTranscriptPanel transcript={transcript} phase={phase} panel={transcriptPanel} onAnswerQuestion={handleAnswerQuestion} lead={lead} micLabel={micDevices.find(m => m.deviceId === micDeviceId)?.label || 'Agent Mic'} onScriptPositionChange={(pos) => { scriptPositionRef.current = pos; }} />
 
               {/* AI Tools Panel — pop-out enabled */}
               {aiPanel.poppedOut ? (

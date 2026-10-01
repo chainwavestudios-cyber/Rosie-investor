@@ -57,7 +57,7 @@ export default function DebtScriptEditor() {
 }
 
 // ─── My Scripts Tab ──────────────────────────────────────────────────────────
-function MyScriptsTab({ liveTranscript, phase, clientFirstName, clientLastName, onScriptPositionChange }) {
+function MyScriptsTab({ liveTranscript, phase, clientFirstName, clientLastName, micLabel, onScriptPositionChange }) {
   const [scripts, setScripts] = useState([]);
   const [activeId, setActiveId] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -268,7 +268,7 @@ function MyScriptsTab({ liveTranscript, phase, clientFirstName, clientLastName, 
               </div>
             </>
           ) : (
-            <ScriptTeleprompter content={active.content || ''} color={active.color || '#e8e0d0'} fontSize={active.fontSize || 14} liveTranscript={liveTranscript} phase={phase} clientFirstName={clientFirstName} clientLastName={clientLastName} onPositionChange={onScriptPositionChange} />
+            <ScriptTeleprompter content={active.content || ''} color={active.color || '#e8e0d0'} fontSize={active.fontSize || 14} liveTranscript={liveTranscript} phase={phase} clientFirstName={clientFirstName} clientLastName={clientLastName} micLabel={micLabel} onPositionChange={onScriptPositionChange} />
           )}
         </div>
       ) : (

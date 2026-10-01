@@ -110,7 +110,7 @@ export function substituteClientName(text, clientFirstName, clientLastName) {
 }
 
 // ─── Teleprompter Component ────────────────────────────────────────────────────
-export default function ScriptTeleprompter({ content, color = '#e8e0d0', fontSize = 14, liveTranscript, phase, clientFirstName, clientLastName, onPositionChange }) {
+export default function ScriptTeleprompter({ content, color = '#e8e0d0', fontSize = 14, liveTranscript, phase, clientFirstName, clientLastName, micLabel, onPositionChange }) {
   const displayContent = useMemo(() => substituteClientName(content, clientFirstName, clientLastName), [content, clientFirstName, clientLastName]);
   const elements = useMemo(() => parseScriptElements(displayContent), [displayContent]);
   const scriptLines = useMemo(() => elements.filter(e => e.type === 'script'), [elements]);
@@ -129,9 +129,9 @@ export default function ScriptTeleprompter({ content, color = '#e8e0d0', fontSiz
   const lastAdvanceTime = useRef(0);
   const lastTranscriptIdxRef = useRef(-1);
 
-  // When on a live call, the teleprompter listens to the agent's mic channel
-  // via the live Deepgram transcript (speaker 0 = agent) instead of starting
-  // its own SpeechRecognition (which can't select a specific input device).
+  // When on a live call, the teleprompter listens to the live Deepgram transcript
+  // (all lines — diarization can mislabel the agent in single-mic mode) instead
+  // of starting its own SpeechRecognition (which can't select a specific input).
   const liveSync = phase === 'live' && Array.isArray(liveTranscript);
 
   useEffect(() => { activeIdxRef.current = activeIdx; }, [activeIdx]);
@@ -185,13 +185,16 @@ export default function ScriptTeleprompter({ content, color = '#e8e0d0', fontSiz
     }
   }, [firstContentWords]);
 
-  // Live sync: drive advancing from the agent's transcript lines (speaker 0)
+  // Live sync: drive advancing from ALL transcript lines.
+  // In single-mic mode, diarization can mislabel the agent as speaker 1,
+  // so we listen to every line — the word-overlap matching is specific enough
+  // (requires 2 content words) that customer speech won't falsely advance.
   useEffect(() => {
     if (!liveSync) return;
     const lines = liveTranscript || [];
     for (let i = lastTranscriptIdxRef.current + 1; i < lines.length; i++) {
       const line = lines[i];
-      if (line && line.speaker === 0 && line.text) {
+      if (line && line.text) {
         checkAdvance(line.text);
       }
     }
@@ -309,7 +312,7 @@ export default function ScriptTeleprompter({ content, color = '#e8e0d0', fontSiz
         </div>
         <span style={{ color: '#4a5568', fontSize: '10px', marginLeft: 'auto' }}>
           Line {activeIdx + 1} / {scriptLines.length}
-          {liveSync && <span style={{ color: GOLD, marginLeft: '8px' }}>· 📡 synced to live call mic</span>}
+          {liveSync && <span style={{ color: GOLD, marginLeft: '8px' }}>· 📡 synced to {micLabel || 'live call mic'}</span>}
           {!speechSupported && !liveSync && <span style={{ color: '#ef4444', marginLeft: '8px' }}>(voice sync not supported in this browser)</span>}
           {speechOn && interimText && <span style={{ color: '#f59e0b', marginLeft: '8px' }}>🎤 "{interimText.slice(0, 40)}…"</span>}
         </span>
