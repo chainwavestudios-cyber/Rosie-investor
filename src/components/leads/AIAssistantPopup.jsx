@@ -1161,7 +1161,12 @@ export default function AIAssistantPopup({
   // ── Auto-save position/size to DB (debounced via setDebtCoachValue) ──
   useEffect(() => {
     if (!username || !dbLoaded) return;
-    setDbSaved({ x: pos.x, y: pos.y, w: width, h: height, rpw: rightPanelWidth, sh: scriptH, qaOnly, qaPoppedOut });
+    const next = { x: pos.x, y: pos.y, w: width, h: height, rpw: rightPanelWidth, sh: scriptH, qaOnly, qaPoppedOut };
+    const sig = JSON.stringify(next);
+    if (sig === lastAppliedSig.current) return; // nothing changed — don't write
+    // Mark our own write as already applied so the load effect doesn't bounce it back
+    lastAppliedSig.current = sig;
+    setDbSaved(next);
   }, [pos, width, height, rightPanelWidth, scriptH, qaOnly, qaPoppedOut, username, dbLoaded]);
 
   // Script panel drag-resize

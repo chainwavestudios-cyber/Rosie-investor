@@ -22,20 +22,30 @@ const saveTimers = {};
 // Listeners for cross-component sync: key -> Set<callback>
 const listeners = {};
 
+// In-flight load promises: username -> Promise (so concurrent callers share ONE request)
+const loadPromises = {};
+
 async function ensureLoaded(username) {
   if (!username) return null;
   if (cache[username]?.loaded) return cache[username];
-  try {
-    const rows = await base44.entities.DebtCoachUserSetting.filter({ username });
-    if (rows?.length > 0) {
-      cache[username] = { data: JSON.parse(rows[0].settingsJson || '{}'), id: rows[0].id, loaded: true };
-    } else {
-      cache[username] = { data: {}, id: null, loaded: true };
+  if (loadPromises[username]) return loadPromises[username];
+  loadPromises[username] = (async () => {
+    try {
+      const rows = await base44.entities.DebtCoachUserSetting.filter({ username }, '-updated_date', 1);
+      if (rows?.length > 0) {
+        cache[username] = { data: JSON.parse(rows[0].settingsJson || '{}'), id: rows[0].id, loaded: true };
+      } else {
+        cache[username] = { data: {}, id: null, loaded: true };
+      }
+    } catch {
+      // Load failed (e.g. rate limit) — keep working in memory but never write,
+      // so we don't overwrite or duplicate the user's real saved settings.
+      cache[username] = { data: {}, id: null, loaded: true, failed: true };
     }
-  } catch {
-    cache[username] = { data: {}, id: null, loaded: true };
-  }
-  return cache[username];
+    delete loadPromises[username];
+    return cache[username];
+  })();
+  return loadPromises[username];
 }
 
 function notifyListeners(username, key, value) {
@@ -49,7 +59,7 @@ function scheduleSave(username) {
   if (saveTimers[username]) clearTimeout(saveTimers[username]);
   saveTimers[username] = setTimeout(async () => {
     const entry = cache[username];
-    if (!entry) return;
+    if (!entry || entry.failed) return;
     try {
       const json = JSON.stringify(entry.data);
       if (entry.id) {
@@ -131,6 +141,7 @@ export async function setAllDebtCoachValues(username, values) {
   }
   // Save immediately (not debounced) — this is an explicit save/restore action
   if (saveTimers[username]) clearTimeout(saveTimers[username]);
+  if (entry.failed) return;
   try {
     const json = JSON.stringify(entry.data);
     if (entry.id) {
