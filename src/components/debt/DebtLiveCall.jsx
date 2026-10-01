@@ -83,19 +83,19 @@ export default function DebtLiveCall() {
   const qaActiveRef = useRef(qaActive);
   const coachActiveRef = useRef(coachActive);
   const intentActiveRef = useRef(intentActive);
-  const qaItemsRef = useRef(qaItems);
-  const coachTipsRef = useRef(coachTips);
-  const intentScoreRef = useRef(intentScore);
   useEffect(() => { qaActiveRef.current = qaActive; }, [qaActive]);
   useEffect(() => { coachActiveRef.current = coachActive; }, [coachActive]);
   useEffect(() => { intentActiveRef.current = intentActive; }, [intentActive]);
-  useEffect(() => { qaItemsRef.current = qaItems; }, [qaItems]);
-  useEffect(() => { coachTipsRef.current = coachTips; }, [coachTips]);
-  useEffect(() => { intentScoreRef.current = intentScore; }, [intentScore]);
   const [ledgerExtracting, setLedgerExtracting] = useState(false);
   const [qaItems, setQaItems] = useState([]);
   const [coachTips, setCoachTips] = useState([]);
   const [intentScore, setIntentScore] = useState(null);
+  const qaItemsRef = useRef(qaItems);
+  const coachTipsRef = useRef(coachTips);
+  const intentScoreRef = useRef(intentScore);
+  useEffect(() => { qaItemsRef.current = qaItems; }, [qaItems]);
+  useEffect(() => { coachTipsRef.current = coachTips; }, [coachTips]);
+  useEffect(() => { intentScoreRef.current = intentScore; }, [intentScore]);
 
   // Post-call
   const [report, setReport] = useState('');
