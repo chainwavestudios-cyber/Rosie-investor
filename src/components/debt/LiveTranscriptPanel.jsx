@@ -1,18 +1,15 @@
 /**
- * LiveTranscriptPanel.jsx — Pop-out-able transcript panel (transcript + pitches only).
- * Scripts are now in their own separate LiveScriptsPanel window.
+ * LiveTranscriptPanel.jsx — Pop-out-able transcript-only panel.
+ * Scripts and Pitches are now in their own separate LiveScriptsPanel window.
  * Each customer question line has an "Answer" button to re-trigger Q&A,
  * plus a "+" button to join lines for multi-line questions/statements.
  * Uses usePopOutPanel for drag/resize with database-backed layout persistence.
  */
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { DebtPitchPanel } from '@/components/debt/DebtPitchTab';
-import { useDebtCoachValue } from '@/lib/debtCoachStorage';
 
 const GOLD = '#10b981';
 
 export default function LiveTranscriptPanel({ transcript, phase, panel, onAnswerQuestion, lead, micLabel, username }) {
-  const [tab, setTab] = useDebtCoachValue(username, 'popout_transcript_tab', 'transcript');
   const [selected, setSelected] = useState({});
   const scrollRef = useRef(null);
   const stickToBottomRef = useRef(true); // user wants auto-scroll; false = user scrolled up to read
@@ -32,7 +29,7 @@ export default function LiveTranscriptPanel({ transcript, phase, panel, onAnswer
     const el = scrollRef.current;
     if (!el || !stickToBottomRef.current) return;
     el.scrollTop = el.scrollHeight;
-  }, [transcript, tab]);
+  }, [transcript]);
 
   const toggleSelect = (i) => {
     setSelected(prev => { const next = { ...prev }; if (next[i]) delete next[i]; else next[i] = true; return next; });
@@ -58,13 +55,6 @@ export default function LiveTranscriptPanel({ transcript, phase, panel, onAnswer
     if (combined) onAnswerQuestion(combined);
     clearSelected();
   };
-
-  const tabs = (
-    <div style={{ display: 'flex', gap: '4px' }}>
-      <button onClick={() => setTab('transcript')} style={{ padding: '4px 10px', borderRadius: '4px', border: `1px solid ${tab === 'transcript' ? GOLD + '66' : 'rgba(255,255,255,0.1)'}`, background: tab === 'transcript' ? `${GOLD}18` : 'transparent', color: tab === 'transcript' ? GOLD : '#6b7280', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>📋 Transcript</button>
-      <button onClick={() => setTab('pitches')} style={{ padding: '4px 10px', borderRadius: '4px', border: `1px solid ${tab === 'pitches' ? GOLD + '66' : 'rgba(255,255,255,0.1)'}`, background: tab === 'pitches' ? `${GOLD}18` : 'transparent', color: tab === 'pitches' ? GOLD : '#6b7280', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>🎤 Pitches</button>
-    </div>
-  );
 
   const renderTranscript = () => (
     <>
@@ -129,22 +119,18 @@ export default function LiveTranscriptPanel({ transcript, phase, panel, onAnswer
     </>
   );
 
-  const renderPitches = () => (
-    <div style={{ flex: 1, overflowY: 'auto', padding: '14px 16px' }}>
-      <DebtPitchPanel />
-    </div>
-  );
+  const header = <span style={{ color: GOLD, fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase' }}>📋 Live Transcript</span>;
 
   // Popped out — floating, draggable, resizable
   if (panel.poppedOut) {
     return (
       <div style={{ ...panel.floatingStyle, background: '#0d1b2a', border: '1px solid rgba(16,185,129,0.3)', borderRadius: '6px' }}>
         <div onMouseDown={panel.onDragStart} style={{ padding: '8px 12px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'move', userSelect: 'none', flexShrink: 0 }}>
-          {tabs}
+          {header}
           <button onClick={panel.toggle} style={{ background: `${GOLD}18`, border: `1px solid ${GOLD}44`, color: GOLD, borderRadius: '4px', padding: '4px 10px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase' }}>⬇ Pop In</button>
         </div>
         <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', position: 'relative' }}>
-          {tab === 'transcript' ? renderTranscript() : renderPitches()}
+          {renderTranscript()}
         </div>
         {panel.resizeHandles}
       </div>
@@ -155,11 +141,11 @@ export default function LiveTranscriptPanel({ transcript, phase, panel, onAnswer
   return (
     <div style={{ position: 'relative' }}>
       <div style={{ marginBottom: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        {tabs}
+        {header}
         <button onClick={panel.toggle} style={{ background: `${GOLD}18`, border: `1px solid ${GOLD}44`, color: GOLD, borderRadius: '4px', padding: '4px 10px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase' }}>⬆ Pop Out</button>
       </div>
       <div style={{ background: '#0d1b2a', border: '1px solid rgba(16,185,129,0.2)', borderRadius: '6px', display: 'flex', flexDirection: 'column', minHeight: '500px', maxHeight: '70vh', position: 'relative' }}>
-        {tab === 'transcript' ? renderTranscript() : renderPitches()}
+        {renderTranscript()}
       </div>
     </div>
   );

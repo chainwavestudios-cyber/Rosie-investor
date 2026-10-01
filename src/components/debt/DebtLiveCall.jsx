@@ -8,6 +8,7 @@ import DebtLeadCard from '@/components/debt/DebtLeadCard';
 import { DebtPitchPanel } from '@/components/debt/DebtPitchTab';
 import DebtIntentSignals, { DEBT_INTENT_RULES } from '@/components/debt/DebtIntentSignals';
 import LiveTranscriptPanel from '@/components/debt/LiveTranscriptPanel';
+import LiveScriptsPanel from '@/components/debt/LiveScriptsPanel';
 import DebtAIPanel from '@/components/debt/DebtAIPanel';
 import DoNothingCalculator from '@/components/debt/DoNothingCalculator';
 import ClientProfileModal from '@/components/debt/ClientProfileModal';
@@ -27,7 +28,7 @@ const DARK = '#0a0f1e';
 const ls = { display: 'block', color: '#8a9ab8', fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '6px' };
 const inp = { width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '4px', padding: '8px 12px', color: '#e8e0d0', fontSize: '13px', outline: 'none', boxSizing: 'border-box', fontFamily: 'Georgia, serif' };
 
-const DEBT_KB_CATEGORIES = ['debt_agent', 'debt_customer', 'debt_doc', 'debt_web', 'debt_call', 'debt_kb', 'debt_faq', 'debt_hotpoints'];
+const DEBT_KB_CATEGORIES = ['debt_agent', 'debt_customer', 'debt_qa_statements', 'debt_doc', 'debt_web', 'debt_call', 'debt_kb', 'debt_faq', 'debt_hotpoints'];
 
 // Check if the agent's current script position is at or near an [[AI INPUT]] tag
 function posHasAiInput(pos) {
@@ -93,11 +94,14 @@ export default function DebtLiveCall() {
   const [apptPreview, setApptPreview] = useState(null);
   const leadPersistedRef = useRef(false);
   const transcriptRecordIdRef = useRef(null);
+  const profileAutoOpenedRef = useRef(false); // tracks if client profile was auto-opened (name or 45s)
+  const autoSaveTimerRef = useRef(null); // 45-second auto-save timer
   const [showProfile, setShowProfile] = useState(false);
   const [showEndDialog, setShowEndDialog] = useState(false);
   const [pendingQuestion, setPendingQuestion] = useState(null);
   const leadPanel = usePopOutPanel('live_lead_card', { width: 420, height: 600 }, coachUser?.username);
   const transcriptPanel = usePopOutPanel('live_transcript', { width: 520, height: 600 }, coachUser?.username);
+  const scriptsPanel = usePopOutPanel('live_scripts', { width: 480, height: 600 }, coachUser?.username);
   const aiPanel = usePopOutPanel('live_ai_panel', { width: 420, height: 600 }, coachUser?.username);
   const [allPoppedOut, setAllPoppedOut] = useState(false);
   const [isInbound, setIsInbound] = useState(false);
@@ -235,6 +239,20 @@ Agent line: "${firstAgentLines}"`,
 
   useEffect(() => { leadRef.current = lead; }, [lead]);
   useEffect(() => { inboundRef.current = isInbound; }, [isInbound]);
+
+  // Auto-pop up Client Profile when a real name is detected (transition from placeholder)
+  useEffect(() => {
+    if (profileAutoOpenedRef.current) return;
+    if (phase !== 'live') return;
+    const fn = (lead.firstName || '').trim();
+    const ln = (lead.lastName || '').trim();
+    // Placeholder names: 'New', 'Lead', empty
+    const isPlaceholder = (!fn || fn.toLowerCase() === 'new') && (!ln || ln.toLowerCase() === 'lead');
+    if (!isPlaceholder && fn && ln) {
+      profileAutoOpenedRef.current = true;
+      setShowProfile(true);
+    }
+  }, [lead.firstName, lead.lastName, phase]);
 
   // Load key memories for the selected lead — surfaced in AI Coach on follow-up calls
   const loadMemories = useCallback(async (leadId) => {
@@ -754,6 +772,7 @@ ${recentText}`,
     handoffAttemptsRef.current = 0;
     leadPersistedRef.current = false;
     transcriptRecordIdRef.current = null;
+    profileAutoOpenedRef.current = false;
 
     // Create a live transcript record immediately — updated every 15s and finalized on end
     try {
@@ -781,10 +800,20 @@ ${recentText}`,
     lastIntentTime.current = Date.now();
     lastProfileTime.current = Date.now();
 
+    // 45-second auto-save: pop up Client Profile to remind agent to save lead info
+    if (autoSaveTimerRef.current) { clearTimeout(autoSaveTimerRef.current); autoSaveTimerRef.current = null; }
+    autoSaveTimerRef.current = setTimeout(() => {
+      if (!profileAutoOpenedRef.current) {
+        profileAutoOpenedRef.current = true;
+        setShowProfile(true);
+      }
+    }, 45000);
+
     // Auto-pop-out all panels to saved layout positions
     setTimeout(() => {
       leadPanel.popOut();
       transcriptPanel.popOut();
+      scriptsPanel.popOut();
       aiPanel.popOut();
       setAllPoppedOut(true);
     }, 300);
@@ -916,6 +945,8 @@ ${recentText}`,
   }, [micDeviceId, customerMicId, processNewEntry, lead, loadLeads, coachUser, autoQA, autoCoach, autoIntent]);
 
   const stopCall = useCallback(async () => {
+    // Clear the 45-second auto-save timer
+    if (autoSaveTimerRef.current) { clearTimeout(autoSaveTimerRef.current); autoSaveTimerRef.current = null; }
     // Update DialerSession back to logged_in
     if (coachUser?.username) {
       try {
@@ -1407,6 +1438,7 @@ ${recentText}`,
             onClick={() => {
               leadPanel.saveLayout();
               transcriptPanel.saveLayout();
+              scriptsPanel.saveLayout();
               aiPanel.saveLayout();
               setLayoutSavedMsg(true);
               setTimeout(() => setLayoutSavedMsg(false), 2000);
@@ -1490,9 +1522,10 @@ ${recentText}`,
         const cols = [];
         if (!leadPanel.poppedOut) cols.push('380px');
         if (!transcriptPanel.poppedOut) cols.push('1fr');
+        if (!scriptsPanel.poppedOut) cols.push('420px');
         if (!aiPanel.poppedOut) cols.push('400px');
         const gridCols = cols.length > 0 ? cols.join(' ') : '1fr';
-        const allOut = leadPanel.poppedOut && transcriptPanel.poppedOut && aiPanel.poppedOut;
+        const allOut = leadPanel.poppedOut && transcriptPanel.poppedOut && scriptsPanel.poppedOut && aiPanel.poppedOut;
 
         return (
           <>
@@ -1532,8 +1565,11 @@ ${recentText}`,
                 </div>
               ))}
 
-              {/* Transcript — pop-out enabled with Scripts tab */}
+              {/* Transcript — pop-out enabled (transcript only) */}
               <LiveTranscriptPanel transcript={transcript} phase={phase} panel={transcriptPanel} onAnswerQuestion={handleAnswerQuestion} lead={lead} micLabel={micDevices.find(m => m.deviceId === micDeviceId)?.label || 'Agent Mic'} username={coachUser?.username} onScriptPositionChange={(pos) => { scriptPositionRef.current = pos; }} />
+
+              {/* Scripts Panel — separate pop-out window for teleprompter + pitches */}
+              <LiveScriptsPanel transcript={transcript} phase={phase} panel={scriptsPanel} lead={lead} micLabel={micDevices.find(m => m.deviceId === micDeviceId)?.label || 'Agent Mic'} username={coachUser?.username} onScriptPositionChange={(pos) => { scriptPositionRef.current = pos; }} />
 
               {/* AI Tools Panel — pop-out enabled */}
               {aiPanel.poppedOut ? (
