@@ -30,6 +30,7 @@ export default function DebtAIPanel({
   canQA = true,
   canCoach = true,
   canIntent = true,
+  username = null,
 }) {
 
   const [rightTab, setRightTab] = useState(canAIAssistant ? 'ai' : 'pitches');
@@ -331,6 +332,7 @@ export default function DebtAIPanel({
           previousCallSummary={null}
           memories={memories}
           pendingQuestion={pendingQuestion}
+          username={username}
         />
       )}
     </>

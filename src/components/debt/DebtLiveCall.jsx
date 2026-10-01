@@ -80,6 +80,10 @@ export default function DebtLiveCall() {
   const [callMode, setCallMode] = useState('close'); // 'open' | 'close' — derived from callType
   const [callType, setCallType] = useDebtCoachValue(coachUser?.username, 'defaultCallType', 'front_to_back'); // 'front_to_back' | 'open_only' | 'cold_call' | 'closer_call'
   const [autoSchedulerEnabled, setAutoSchedulerEnabled] = useDebtCoachValue(coachUser?.username, 'autoSchedulerEnabled', true);
+  // AI feature auto-enable toggles — saved with layout (popout_ prefix)
+  const [autoQA, setAutoQA] = useDebtCoachValue(coachUser?.username, 'popout_auto_qa', true);
+  const [autoCoach, setAutoCoach] = useDebtCoachValue(coachUser?.username, 'popout_auto_coach', true);
+  const [autoIntent, setAutoIntent] = useDebtCoachValue(coachUser?.username, 'popout_auto_intent', true);
   const [apptPreview, setApptPreview] = useState(null);
   const leadPersistedRef = useRef(false);
   const transcriptRecordIdRef = useRef(null);
@@ -769,10 +773,10 @@ ${recentText}`,
       setAllPoppedOut(true);
     }, 300);
 
-    // Auto-activate Q&A, Coach, and Intent engines (only if permitted)
-    setQaActive(canLiveAI && canLiveQA);
-    setCoachActive(canLiveAI && canLiveCoach);
-    setIntentActive(canLiveAI && canLiveIntent);
+    // Auto-activate Q&A, Coach, and Intent engines (only if permitted + enabled in layout)
+    setQaActive(canLiveAI && canLiveQA && autoQA);
+    setCoachActive(canLiveAI && canLiveCoach && autoCoach);
+    setIntentActive(canLiveAI && canLiveIntent && autoIntent);
 
     const dualMode = !!customerMicId && !!micDeviceId;
 
@@ -893,7 +897,7 @@ ${recentText}`,
       if (e.code !== 1000 && e.code !== 1005) setError(`Deepgram disconnected (code ${e.code}). ${e.reason || ''}`);
     };
     ws.onerror = () => { setDgStatus('error'); setError('Deepgram connection error — check API key.'); };
-  }, [micDeviceId, customerMicId, processNewEntry, lead, loadLeads, coachUser]);
+  }, [micDeviceId, customerMicId, processNewEntry, lead, loadLeads, coachUser, autoQA, autoCoach, autoIntent]);
 
   const stopCall = useCallback(async () => {
     // Update DialerSession back to logged_in
@@ -1316,6 +1320,21 @@ ${recentText}`,
           {autoSchedulerEnabled ? '✓' : '○'} 📅 Auto-Schedule
         </button>
 
+        {/* AI Feature auto-enable checkboxes — saved with layout */}
+        <div style={{ display: 'flex', gap: '4px', alignItems: 'center', padding: '4px 10px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '4px' }}>
+          <span style={{ color: '#8a9ab8', fontSize: '9px', letterSpacing: '1px', textTransform: 'uppercase', marginRight: '4px' }}>🤖 Auto:</span>
+          {[
+            { label: '❓ Q&A', value: autoQA, setter: setAutoQA, color: '#f59e0b' },
+            { label: '🎯 Coach', value: autoCoach, setter: setAutoCoach, color: '#a78bfa' },
+            { label: '🦆 Intent', value: autoIntent, setter: setAutoIntent, color: '#60a5fa' },
+          ].filter(f => canLiveAI).map(({ label, value, setter, color }) => (
+            <label key={label} style={{ display: 'flex', alignItems: 'center', gap: '3px', cursor: 'pointer', whiteSpace: 'nowrap' }} title={`Auto-enable ${label} on call start (saved in layout)`}>
+              <input type="checkbox" checked={value} onChange={e => setter(e.target.checked)} style={{ cursor: 'pointer', accentColor: color }} />
+              <span style={{ color: value ? color : '#6b7280', fontSize: '10px', fontWeight: value ? 'bold' : 'normal' }}>{label}</span>
+            </label>
+          ))}
+        </div>
+
         <NoMissedMeetingsButton />
 
         {/* Quick lead search + Start Live Call (2/3 smaller) */}
@@ -1513,6 +1532,7 @@ ${recentText}`,
                       profileData={profileData} intentScore={intentScore} ledgerExtracting={ledgerExtracting}
                       memories={memories} lead={lead} micDeviceId={micDeviceId} customerMicId={customerMicId} pendingQuestion={pendingQuestion}
                       canAIAssistant={canLiveAI} canQA={canLiveQA} canCoach={canLiveCoach} canIntent={canLiveIntent}
+                      username={coachUser?.username}
                     />
                   </div>
                   {aiPanel.resizeHandles}
@@ -1528,6 +1548,7 @@ ${recentText}`,
                     profileData={profileData} intentScore={intentScore} ledgerExtracting={ledgerExtracting}
                     memories={memories} lead={lead} micDeviceId={micDeviceId} customerMicId={customerMicId} pendingQuestion={pendingQuestion}
                     canAIAssistant={canLiveAI} canQA={canLiveQA} canCoach={canLiveCoach} canIntent={canLiveIntent}
+                    username={coachUser?.username}
                   />
                 </div>
               )}

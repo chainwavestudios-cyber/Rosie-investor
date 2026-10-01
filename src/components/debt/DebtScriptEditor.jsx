@@ -4,6 +4,7 @@
  */
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { base44 } from '@/api/base44Client';
+import { useDebtCoachValue, getDebtCoachValue, setDebtCoachValue } from '@/lib/debtCoachStorage';
 import ScriptTeleprompter, { CUE_CATEGORIES } from '@/components/debt/ScriptTeleprompter';
 import ScriptFormatToolbar from '@/components/debt/ScriptFormatToolbar';
 import ScriptWysiwygEditor from '@/components/debt/ScriptWysiwygEditor';
@@ -57,7 +58,7 @@ export default function DebtScriptEditor() {
 }
 
 // ─── My Scripts Tab ──────────────────────────────────────────────────────────
-function MyScriptsTab({ liveTranscript, phase, clientFirstName, clientLastName, micLabel, onScriptPositionChange }) {
+function MyScriptsTab({ liveTranscript, phase, clientFirstName, clientLastName, micLabel, onScriptPositionChange, username }) {
   const [scripts, setScripts] = useState([]);
   const [activeId, setActiveId] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -70,18 +71,46 @@ function MyScriptsTab({ liveTranscript, phase, clientFirstName, clientLastName, 
 
   const autoSaveTimer = useRef(null);
   const activeRef = useRef(null);
-  const [mode, setMode] = useState('edit'); // 'edit' | 'teleprompt'
+  const [mode, setMode] = useDebtCoachValue(username, 'popout_script_mode', 'edit'); // 'edit' | 'teleprompt'
   const textareaRef = useRef(null);
+  const skipActiveIdSave = useRef(true);
 
   const loadScripts = useCallback(async () => {
     setLoading(true);
     try {
       const results = await base44.entities.DebtScript.list('sortOrder', 200);
       setScripts(results || []);
-      if (results?.length > 0) setActiveId(results[0].id);
+      // Check DB for saved active script; fall back to first script
+      let initialId = results?.[0]?.id || null;
+      if (username && results?.length > 0) {
+        const savedId = await getDebtCoachValue(username, 'popout_active_script');
+        if (savedId && results.find(s => s.id === savedId)) initialId = savedId;
+      }
+      setActiveId(initialId);
     } catch (e) { console.error(e); }
     setLoading(false);
-  }, []);
+  }, [username]);
+
+  // Save activeId to DB when it changes (skip initial load)
+  useEffect(() => {
+    if (!username || !activeId) return;
+    if (skipActiveIdSave.current) { skipActiveIdSave.current = false; return; }
+    setDebtCoachValue(username, 'popout_active_script', activeId);
+  }, [activeId, username]);
+
+  // Listen for layout_restored — re-read saved active script from DB
+  useEffect(() => {
+    if (!username) return;
+    const handler = async () => {
+      const savedId = await getDebtCoachValue(username, 'popout_active_script');
+      if (savedId && scripts.find(s => s.id === savedId)) {
+        skipActiveIdSave.current = true;
+        setActiveId(savedId);
+      }
+    };
+    window.addEventListener('layout_restored', handler);
+    return () => window.removeEventListener('layout_restored', handler);
+  }, [username, scripts]);
 
   useEffect(() => { loadScripts(); }, [loadScripts]);
 

@@ -12,7 +12,7 @@ import { useDebtCoachValue } from '@/lib/debtCoachStorage';
 const GOLD = '#10b981';
 
 export default function LiveTranscriptPanel({ transcript, phase, panel, onAnswerQuestion, lead, micLabel, username, onScriptPositionChange }) {
-  const [tab, setTab] = useState('transcript');
+  const [tab, setTab] = useDebtCoachValue(username, 'popout_transcript_tab', 'transcript');
   const [selected, setSelected] = useState({});
   const scrollRef = useRef(null);
 
@@ -135,7 +135,7 @@ export default function LiveTranscriptPanel({ transcript, phase, panel, onAnswer
   const renderScripts = () => (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, padding: '14px 16px' }}>
       <div style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
-        <MyScriptsTab liveTranscript={transcript} phase={phase} clientFirstName={lead?.firstName} clientLastName={lead?.lastName} micLabel={micLabel} onScriptPositionChange={onScriptPositionChange} />
+        <MyScriptsTab liveTranscript={transcript} phase={phase} clientFirstName={lead?.firstName} clientLastName={lead?.lastName} micLabel={micLabel} onScriptPositionChange={onScriptPositionChange} username={username} />
       </div>
       {/* Resizer / collapse bar between script and closer pitches */}
       <div

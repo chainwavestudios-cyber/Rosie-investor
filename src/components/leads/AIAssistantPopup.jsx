@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { base44 } from '@/api/base44Client';
+import { useDebtCoachValue } from '@/lib/debtCoachStorage';
 import QAPopOutPanel from './QAPopOutPanel';
 
 const GOLD = '#b8933a';
@@ -1094,14 +1095,19 @@ export default function AIAssistantPopup({
   callAttemptNumber, previousCallSummary,
   memories,
   pendingQuestion,
+  username = null,
 }) {
-  const saved = loadSavedSize();
-  const [pos,    setPos]    = useState(saved ? { x: saved.x, y: saved.y } : { x: 20, y: Math.max(20, window.innerHeight - 540) });
-  const [width,  setWidth]  = useState(saved?.w || Math.min(980, window.innerWidth - 40));
-  const [height, setHeight] = useState(saved?.h || 520);
+  // DB-backed layout storage (used when username is provided — Debt Call Coach).
+  // Falls back to localStorage for admin panel usage (no username).
+  const [dbSaved, setDbSaved, dbLoaded] = useDebtCoachValue(username, 'popout_ai_popup', null);
+  const lsSaved = (!username && typeof window !== 'undefined') ? loadSavedSize() : null;
+
+  const [pos,    setPos]    = useState({ x: 20, y: Math.max(20, window.innerHeight - 540) });
+  const [width,  setWidth]  = useState(Math.min(980, window.innerWidth - 40));
+  const [height, setHeight] = useState(520);
   const [showScript, setShowScript] = useState(false);
   // Script panel height in px (draggable)
-  const [scriptH, setScriptH] = useState(saved?.sh || 180);
+  const [scriptH, setScriptH] = useState(180);
   const [qaH,    setQaH]    = useState(42);
   const [coachH, setCoachH] = useState(33);
   const [qaCollapsed,     setQaCollapsed]     = useState(false);
@@ -1123,7 +1129,40 @@ export default function AIAssistantPopup({
   // Right panel: AI info content (transcript always shows; AI info populates when requested)
   // Always visible — default 32% width, minimum 200px
   const [aiPanelItem, setAiPanelItem] = useState(null);
-  const [rightPanelWidth, setRightPanelWidth] = useState(saved?.rpw || 32);
+  const [rightPanelWidth, setRightPanelWidth] = useState(32);
+
+  // ── Load saved position/size from localStorage (admin panel — no username) ──
+  useEffect(() => {
+    if (username) return; // DB handles it
+    if (!lsSaved) return;
+    if (lsSaved.x !== undefined) setPos({ x: lsSaved.x, y: lsSaved.y });
+    if (lsSaved.w) setWidth(lsSaved.w);
+    if (lsSaved.h) setHeight(lsSaved.h);
+    if (lsSaved.rpw) setRightPanelWidth(lsSaved.rpw);
+    if (lsSaved.sh) setScriptH(lsSaved.sh);
+  }, [username]);
+
+  // ── Load saved position/size from DB (Debt Call Coach — username provided) ──
+  const lastAppliedSig = useRef('');
+  useEffect(() => {
+    if (!username || !dbLoaded || !dbSaved) return;
+    const sig = JSON.stringify(dbSaved);
+    if (sig === lastAppliedSig.current) return;
+    lastAppliedSig.current = sig;
+    if (dbSaved.x !== undefined) setPos({ x: dbSaved.x, y: dbSaved.y });
+    if (dbSaved.w) setWidth(dbSaved.w);
+    if (dbSaved.h) setHeight(dbSaved.h);
+    if (dbSaved.rpw) setRightPanelWidth(dbSaved.rpw);
+    if (dbSaved.sh) setScriptH(dbSaved.sh);
+    if (dbSaved.qaOnly !== undefined) setQaOnly(dbSaved.qaOnly);
+    if (dbSaved.qaPoppedOut !== undefined) setQaPoppedOut(dbSaved.qaPoppedOut);
+  }, [username, dbLoaded, dbSaved]);
+
+  // ── Auto-save position/size to DB (debounced via setDebtCoachValue) ──
+  useEffect(() => {
+    if (!username || !dbLoaded) return;
+    setDbSaved({ x: pos.x, y: pos.y, w: width, h: height, rpw: rightPanelWidth, sh: scriptH, qaOnly, qaPoppedOut });
+  }, [pos, width, height, rightPanelWidth, scriptH, qaOnly, qaPoppedOut, username, dbLoaded]);
 
   // Script panel drag-resize
   const scriptResizing = useRef(false);
@@ -1210,7 +1249,11 @@ export default function AIAssistantPopup({
   }, []);
 
   const saveDefaultSize = () => {
-    localStorage.setItem(SIZE_KEY, JSON.stringify({ x: pos.x, y: pos.y, w: width, h: height, rpw: rightPanelWidth, sh: scriptH }));
+    if (username) {
+      setDbSaved({ x: pos.x, y: pos.y, w: width, h: height, rpw: rightPanelWidth, sh: scriptH, qaOnly, qaPoppedOut });
+    } else {
+      localStorage.setItem(SIZE_KEY, JSON.stringify({ x: pos.x, y: pos.y, w: width, h: height, rpw: rightPanelWidth, sh: scriptH }));
+    }
     setSavedMsg(true);
     setTimeout(() => setSavedMsg(false), 2000);
   };
@@ -1364,6 +1407,7 @@ export default function AIAssistantPopup({
           setAiPanelItem={setAiPanelItem}
           rightPanelWidth={rightPanelWidth}
           setRightPanelWidth={setRightPanelWidth}
+          username={username}
         />
       )}
     </div>
