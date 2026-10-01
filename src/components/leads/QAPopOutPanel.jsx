@@ -1,11 +1,12 @@
 /**
- * QAPopOutPanel.jsx — Detached floating panel for Q&A with its own talking points
- * sidebar and live transcript. Coach and Intent stay in the main AIAssistantPopup.
- * Shares the same transcript/kbEntries/lead data — duplicated, not moved.
+ * QAPopOutPanel.jsx — Detached floating panel for Q&A only.
+ * The transcript is NOT included here — it lives in the main AI Assistant window
+ * and in its own separate transcript window, so showing it here is redundant.
+ * Coach and Intent stay in the main AIAssistantPopup.
  */
 import { useState, useRef, useEffect } from 'react';
 import { useDebtCoachValue } from '@/lib/debtCoachStorage';
-import { QASection, RightPanel } from './AIAssistantPopup';
+import { QASection } from './AIAssistantPopup';
 
 export default function QAPopOutPanel({
   transcript, transcriptRef, kbEntries, lead, pendingQuestion,
@@ -131,10 +132,8 @@ export default function QAPopOutPanel({
         <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#6b7280', cursor: 'pointer', fontSize: '18px', lineHeight: 1, padding: '0 2px', flexShrink: 0 }}>⬇ Pop In</button>
       </div>
 
-      {/* Main body: Q&A + RightPanel (talking points + transcript) */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'row', overflow: 'hidden', minHeight: 0 }}>
-        {/* Left: Q&A */}
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0 }}>
+      {/* Main body: Q&A only — full width, no transcript sidebar */}
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minHeight: 0 }}>
           <div style={{ padding: '4px 12px', background: 'rgba(0,0,0,0.3)', borderBottom: '1px solid rgba(245,158,11,0.15)', display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
             <div style={dotStyle} />
             <span style={{ color: toggleColor, fontSize: '10px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase', flex: 1 }}>❓ Q&A</span>
@@ -154,17 +153,6 @@ export default function QAPopOutPanel({
             lead={lead}
             pendingQuestion={pendingQuestion}
           />
-        </div>
-
-        {/* Right: Talking Points + Live Transcript (duplicate of main panel's RightPanel) */}
-        <RightPanel
-          transcript={transcript}
-          aiPanelItem={aiPanelItem}
-          onCloseAI={() => setAiPanelItem(null)}
-          panelWidthPct={rightPanelWidth}
-          onWidthChange={setRightPanelWidth}
-          onSendToQA={(text) => { /* sent to Q&A in the same panel */ }}
-        />
       </div>
     </div>
   );

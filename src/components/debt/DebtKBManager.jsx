@@ -38,6 +38,7 @@ function EntryAnswers({ entry }) {
 const KB_SECTIONS = [
   { id: 'agent', label: '🎙️ Agent Scripts', category: 'debt_agent', color: '#60a5fa', desc: 'Openers, talking points, rebuttals, and closing scripts for the agent.' },
   { id: 'customer', label: '👤 Customer Q&A', category: 'debt_customer', color: '#f59e0b', desc: 'Common customer questions with pre-written answers for instant Q&A lookup.' },
+  { id: 'qa_statements', label: '💬 Q&A Statements', category: 'debt_qa_statements', color: '#22d3ee', desc: 'Customer statements (not just questions) that trigger Q&A. AI prepares answers ready to read aloud to the client.' },
   { id: 'docs', label: '📄 Documents', category: 'debt_doc', color: '#a78bfa', desc: 'Upload PDFs, program docs, compliance materials. AI extracts Q&A + raw chunks.' },
   { id: 'web', label: '🌐 Websites', category: 'debt_web', color: '#34d399', desc: 'Scrape competitor sites, program info pages, debt settlement resources.' },
   { id: 'mp3', label: '🎵 MP3 Call Recordings', category: 'debt_call', color: '#f472b6', desc: 'Upload real call recordings. AI transcribes and extracts Q&A + generates scripts.' },
@@ -133,10 +134,11 @@ export default function DebtKBManager({ readOnly = false }) {
 
       {!readOnly && section === 'agent' && <AgentScriptEditor category={KB_SECTIONS[0].category} onSaved={refresh} />}
       {!readOnly && section === 'customer' && <CustomerQAEditor category={KB_SECTIONS[1].category} onSaved={refresh} />}
-      {!readOnly && section === 'docs' && <DocUploader category={KB_SECTIONS[2].category} onSaved={refresh} />}
-      {!readOnly && section === 'web' && <WebScraper category={KB_SECTIONS[3].category} onSaved={refresh} />}
-      {!readOnly && section === 'mp3' && <MP3Uploader category={KB_SECTIONS[4].category} onSaved={refresh} />}
-      {!readOnly && section === 'hotpoints' && <HotpointEditor category={KB_SECTIONS[5].category} onSaved={refresh} />}
+      {!readOnly && section === 'qa_statements' && <QAStatementsEditor category={KB_SECTIONS[2].category} onSaved={refresh} />}
+      {!readOnly && section === 'docs' && <DocUploader category={KB_SECTIONS[3].category} onSaved={refresh} />}
+      {!readOnly && section === 'web' && <WebScraper category={KB_SECTIONS[4].category} onSaved={refresh} />}
+      {!readOnly && section === 'mp3' && <MP3Uploader category={KB_SECTIONS[5].category} onSaved={refresh} />}
+      {!readOnly && section === 'hotpoints' && <HotpointEditor category={KB_SECTIONS[6].category} onSaved={refresh} />}
 
       {/* Entry list */}
       <div style={{ marginTop: '24px' }}>
@@ -304,6 +306,96 @@ function CustomerQAEditor({ category, onSaved }) {
         <MultiAnswerEditor answers={answers} onChange={setAnswers} accentColor="#f59e0b" label="Answer(s)" placeholder="Type the answer the agent should give…" rows={4} />
       </div>
       <button onClick={save} disabled={saving || !hasAny} style={{ background: 'linear-gradient(135deg,#f59e0b,#d97706)', color: DARK, border: 'none', borderRadius: '4px', padding: '10px 20px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase', opacity: saving ? 0.5 : 1 }}>+ Add Q&A</button>
+    </div>
+  );
+}
+
+// ─── Q&A Statements Editor ───────────────────────────────────────────────────
+// Customer statements (not just questions) that trigger Q&A. AI prepares
+// answers that are ready to read aloud to the client — conversational, spoken-word.
+function QAStatementsEditor({ category, onSaved }) {
+  const [statement, setStatement] = useState('');
+  const [answers, setAnswers] = useState(['']);
+  const [variations, setVariations] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [generating, setGenerating] = useState(false);
+
+  const generateReadAloudAnswer = async () => {
+    if (!statement.trim()) return;
+    setGenerating(true);
+    try {
+      const res = await base44.integrations.Core.InvokeLLM({
+        prompt: `You are a debt settlement sales expert. A customer on a live call just said:
+
+"${statement}"
+
+Write a ready-to-read-aloud answer for the agent. Requirements:
+- Conversational, natural spoken-word style (not written/academic)
+- 2-4 sentences the agent can say directly to the client
+- Address the statement's underlying concern
+- Use empathy + facts from the debt settlement program
+- No filler words, no "um", no "you know" — just clean spoken sentences
+- End with a gentle next-step question if appropriate
+
+Return ONLY the answer text, ready to read.`,
+        response_json_schema: { type: 'object', properties: { answer: { type: 'string' } } },
+      });
+      const answer = res?.answer || res?.data?.answer || '';
+      if (answer) setAnswers([answer]);
+    } catch (e) { alert('AI generation failed: ' + (e?.message || String(e))); }
+    setGenerating(false);
+  };
+
+  const generateVariationsAI = async () => {
+    if (!statement.trim()) return;
+    setGenerating(true);
+    try {
+      const res = await base44.integrations.Core.InvokeLLM({
+        prompt: `A debt settlement customer on a live call says: "${statement}"
+
+Generate 8-12 alternative ways this same statement might be phrased — different wordings, tones, and sentence structures a real person might use on a phone call. One per line. No numbering, no quotes — just the raw statements.
+
+Return ONLY a JSON object with a "variations" array of strings.`,
+        response_json_schema: { type: 'object', properties: { variations: { type: 'array', items: { type: 'string' } } } },
+      });
+      const v = res?.variations || res?.data?.variations || [];
+      if (v.length > 0) setVariations(v.join('\n'));
+    } catch (e) { alert('Variation generation failed: ' + (e?.message || String(e))); }
+    setGenerating(false);
+  };
+
+  const save = async () => {
+    const clean = answers.filter(a => a.trim());
+    if (!statement.trim() || clean.length === 0) return;
+    setSaving(true);
+    await base44.entities.KnowledgeBase.create({
+      question: statement.trim(),
+      answer: clean[0],
+      answersJson: serializeAnswers(clean),
+      variations: variations.trim(),
+      category, kbName: 'Debt Settlement', created_date: new Date().toISOString(),
+    });
+    setStatement(''); setAnswers(['']); setVariations('');
+    onSaved();
+    setSaving(false);
+  };
+
+  const hasAny = statement.trim() && answers.some(a => a.trim());
+
+  return (
+    <div style={{ background: 'rgba(34,211,238,0.05)', border: '1px solid rgba(34,211,238,0.2)', borderRadius: '6px', padding: '20px' }}>
+      <div style={{ color: '#22d3ee', fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '4px' }}>Add Q&A Statement</div>
+      <div style={{ color: '#6b7280', fontSize: '11px', marginBottom: '16px' }}>Customer statements that should trigger Q&A — not just questions, but any statement that needs a response. The AI prepares answers ready to read aloud to the client. When the customer says something matching this statement (or its variations), the Q&A surfaces the prepared answer.</div>
+      <div style={{ marginBottom: '10px' }}><label style={ls}>Customer Statement</label><input value={statement} onChange={e => setStatement(e.target.value)} placeholder="e.g. I'm worried this will ruin my credit" style={inp} /></div>
+      <div style={{ marginBottom: '10px' }}>
+        <MultiAnswerEditor answers={answers} onChange={setAnswers} accentColor="#22d3ee" label="Answer(s) — ready to read aloud" placeholder="Type the answer the agent should read to the client, or click Generate…" rows={4} />
+      </div>
+      <div style={{ display: 'flex', gap: '6px', marginBottom: '10px', flexWrap: 'wrap' }}>
+        <button onClick={generateReadAloudAnswer} disabled={generating || !statement.trim()} style={{ background: generating ? 'rgba(255,255,255,0.05)' : 'linear-gradient(135deg,#22d3ee,#06b6d4)', color: generating ? '#6b7280' : DARK, border: 'none', borderRadius: '4px', padding: '8px 16px', cursor: generating ? 'not-allowed' : 'pointer', fontSize: '11px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase', opacity: !statement.trim() ? 0.5 : 1 }}>🤖 Generate Read-Aloud Answer</button>
+        <button onClick={generateVariationsAI} disabled={generating || !statement.trim()} style={{ background: 'rgba(34,211,238,0.1)', color: '#22d3ee', border: '1px solid rgba(34,211,238,0.3)', borderRadius: '4px', padding: '8px 16px', cursor: generating ? 'not-allowed' : 'pointer', fontSize: '11px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase', opacity: !statement.trim() ? 0.5 : 1 }}>🔄 Generate Variations</button>
+      </div>
+      <div style={{ marginBottom: '10px' }}><label style={ls}>Variations — alternative phrasings (one per line)</label><textarea value={variations} onChange={e => setVariations(e.target.value)} rows={6} style={{ ...inp, resize: 'vertical' }} placeholder="Alternative ways the customer might say this — one per line. AI can generate these, or write them manually." /></div>
+      <button onClick={save} disabled={saving || !hasAny} style={{ background: 'linear-gradient(135deg,#22d3ee,#06b6d4)', color: DARK, border: 'none', borderRadius: '4px', padding: '10px 20px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase', opacity: saving ? 0.5 : 1 }}>+ Add Statement</button>
     </div>
   );
 }
