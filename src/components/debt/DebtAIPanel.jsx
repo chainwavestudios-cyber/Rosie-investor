@@ -4,7 +4,7 @@
  * Uses the same AIAssistantPopup as the admin panel — draggable, resizable, collapsible sections.
  * Works with live call transcripts (speaker: 0=agent, 1=customer) and BOB transcripts (role: 'bob'|'trainee').
  */
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { base44 } from '@/api/base44Client';
 import { DebtPitchPanel } from '@/components/debt/DebtPitchTab';
 import DebtIntentSignals, { DEBT_INTENT_RULES } from '@/components/debt/DebtIntentSignals';
@@ -88,9 +88,12 @@ export default function DebtAIPanel({
   // Normalize transcript for AIAssistantPopup (expects speaker: 0=prospect, 1=agent)
   // Live call format: speaker 0=agent, 1=customer → swap to 1=agent, 0=prospect
   // BOB format: role 'trainee'=agent→1, 'bob'=prospect→0
-  const normalizedTranscript = transcriptFormat === 'bob'
-    ? activeTranscript.map(e => ({ speaker: e.role === 'trainee' ? 1 : 0, text: e.text, time: e.time, sentiment: e.sentiment }))
-    : activeTranscript.map(e => ({ speaker: e.speaker === 0 ? 1 : 0, text: e.text, time: e.time, sentiment: e.sentiment }));
+  const normalizedTranscript = useMemo(
+    () => transcriptFormat === 'bob'
+      ? activeTranscript.map(e => ({ speaker: e.role === 'trainee' ? 1 : 0, text: e.text, time: e.time, sentiment: e.sentiment }))
+      : activeTranscript.map(e => ({ speaker: e.speaker === 0 ? 1 : 0, text: e.text, time: e.time, sentiment: e.sentiment })),
+    [activeTranscript, transcriptFormat]
+  );
 
   // Keep transcriptRef in sync
   useEffect(() => { transcriptRef.current = normalizedTranscript; }, [normalizedTranscript]);

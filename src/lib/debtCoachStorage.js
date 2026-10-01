@@ -100,6 +100,9 @@ export function getCachedDebtCoachValue(username, key, defaultValue = null) {
 export async function setDebtCoachValue(username, key, value) {
   const entry = await ensureLoaded(username);
   if (!entry) return;
+  // Skip entirely if the value is unchanged — prevents autosave → notify → re-render loops
+  const prev = entry.data[key];
+  if (prev !== undefined && JSON.stringify(prev) === JSON.stringify(value)) return;
   entry.data[key] = value;
   notifyListeners(username, key, value);
   scheduleSave(username);
@@ -134,9 +137,17 @@ export async function getAllDebtCoachValues(username) {
 export async function setAllDebtCoachValues(username, values) {
   const entry = await ensureLoaded(username);
   if (!entry) return;
-  entry.data = { ...entry.data, ...values };
-  // Notify all listeners for changed keys
+  // Only apply + notify keys whose value actually changed
+  const changed = {};
   for (const [key, value] of Object.entries(values)) {
+    const prev = entry.data[key];
+    if (prev === undefined || JSON.stringify(prev) !== JSON.stringify(value)) {
+      changed[key] = value;
+    }
+  }
+  if (Object.keys(changed).length === 0) return;
+  entry.data = { ...entry.data, ...changed };
+  for (const [key, value] of Object.entries(changed)) {
     notifyListeners(username, key, value);
   }
   // Save immediately (not debounced) — this is an explicit save/restore action
