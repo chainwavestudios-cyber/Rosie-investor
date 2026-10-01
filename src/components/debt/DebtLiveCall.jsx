@@ -76,6 +76,22 @@ export default function DebtLiveCall() {
   const [coachActive, setCoachActive] = useState(canLiveAI && canLiveCoach);
   const [intentActive, setIntentActive] = useState(canLiveAI && canLiveIntent);
   const [rightTab, setRightTab] = useState('ai');
+  // Refs mirror the AI feature flags + accumulated Q&A/coach data so that
+  // processNewEntry (captured by the WebSocket onmessage handler at call
+  // start) and stopCall always read the LIVE values, not the stale closure
+  // values from when startCall/stopCall were originally created.
+  const qaActiveRef = useRef(qaActive);
+  const coachActiveRef = useRef(coachActive);
+  const intentActiveRef = useRef(intentActive);
+  const qaItemsRef = useRef(qaItems);
+  const coachTipsRef = useRef(coachTips);
+  const intentScoreRef = useRef(intentScore);
+  useEffect(() => { qaActiveRef.current = qaActive; }, [qaActive]);
+  useEffect(() => { coachActiveRef.current = coachActive; }, [coachActive]);
+  useEffect(() => { intentActiveRef.current = intentActive; }, [intentActive]);
+  useEffect(() => { qaItemsRef.current = qaItems; }, [qaItems]);
+  useEffect(() => { coachTipsRef.current = coachTips; }, [coachTips]);
+  useEffect(() => { intentScoreRef.current = intentScore; }, [intentScore]);
   const [ledgerExtracting, setLedgerExtracting] = useState(false);
   const [qaItems, setQaItems] = useState([]);
   const [coachTips, setCoachTips] = useState([]);
@@ -363,7 +379,7 @@ Agent line: "${firstAgentLines}"`,
             transcriptLineCount: transcriptRef.current.length,
           });
         }
-      } catch {}
+      } catch (e) { console.error('15s auto-save failed:', e); }
     }, 15000);
     return () => clearInterval(interval);
   }, [phase, lead.id]);
@@ -751,7 +767,7 @@ ${recentText}`,
     }
 
     // Q&A: buffer consecutive customer lines, flush as one combined question
-    if (qaActive && entry.speaker === 1) {
+    if (qaActiveRef.current && entry.speaker === 1) {
       customerBufferRef.current.push(text);
       if (bufferTimeoutRef.current) clearTimeout(bufferTimeoutRef.current);
       // If this utterance ends with ? or !, flush immediately — question is complete
@@ -772,8 +788,8 @@ ${recentText}`,
     // aggressively extracts + saves whatever the customer says to the profile.
     const pos = scriptPositionRef.current;
     const aiInputActive = pos?.scriptLines?.some((l, i) => i >= (pos.activeIdx ?? 0) - 1 && i <= (pos.activeIdx ?? 0) + 3 && /\[\[AI\s*INPUT\]\]/i.test(l || ''));
-    if (coachActive && (objWords.some(w => text.toLowerCase().includes(w)) || now - lastCoachTime.current > 20000)) { lastCoachTime.current = now; handleCoach(); }
-    if (intentActive && now - lastIntentTime.current > 30000) { lastIntentTime.current = now; handleIntent(); }
+    if (coachActiveRef.current && (objWords.some(w => text.toLowerCase().includes(w)) || now - lastCoachTime.current > 20000)) { lastCoachTime.current = now; handleCoach(); }
+    if (intentActiveRef.current && now - lastIntentTime.current > 30000) { lastIntentTime.current = now; handleIntent(); }
     if (now - lastProfileTime.current > (aiInputActive ? 15000 : 60000)) { lastProfileTime.current = now; handleProfile(); }
     if (now - lastLedgerTime.current > (aiInputActive ? 12000 : 45000)) { lastLedgerTime.current = now; handleDebtExtract(); }
     if (now - lastBillsTime.current > (aiInputActive ? 15000 : 50000)) { lastBillsTime.current = now; handleBillsExtract(); }
@@ -799,7 +815,7 @@ ${recentText}`,
       if (handoffAttemptsRef.current < 1 && lineCount >= 3) { handoffAttemptsRef.current = 1; handleHandoffExtract(); }
       else if (handoffAttemptsRef.current < 2 && lineCount >= 7) { handoffAttemptsRef.current = 2; handleHandoffExtract(); }
     }
-  }, [qaActive, coachActive, intentActive, handleQa, flushCustomerBuffer, handleCoach, handleIntent, handleProfile, handleDebtExtract, handleBillsExtract, handleHardshipExtract, handleCosignerExtract, handleContactExtract, handleCreditExtract, handleComplianceEval, handleHandoffExtract]);
+  }, [handleQa, flushCustomerBuffer, handleCoach, handleIntent, handleProfile, handleDebtExtract, handleBillsExtract, handleHardshipExtract, handleCosignerExtract, handleContactExtract, handleCreditExtract, handleComplianceEval, handleHandoffExtract]);
 
   const startCall = useCallback(async (forceNew = false) => {
     // Ensure we have a lead — always create a brand new one for new/inbound calls
@@ -850,7 +866,7 @@ ${recentText}`,
         callDate: new Date().toISOString(),
       });
       transcriptRecordIdRef.current = tr?.id || null;
-    } catch {}
+    } catch (e) { console.error('Failed to create live transcript record:', e); }
     customerBufferRef.current = []; if (bufferTimeoutRef.current) { clearTimeout(bufferTimeoutRef.current); bufferTimeoutRef.current = null; }
     setMicMuted(false);
     setPhase('live'); setDgStatus('connecting');
@@ -1037,9 +1053,10 @@ ${recentText}`,
 
     // Final profile + intent analysis
     if (transcriptRef.current.length > 0 && leadRef.current?.id) {
+      let intent = null;
       try {
         const intentRes = await base44.functions.invoke('liveAssistantAI', { transcript: transcriptRef.current, kbEntries, mode: 'intent_final', intentRules: DEBT_INTENT_RULES });
-        const intent = intentRes?.intent || intentRes?.data?.intent;
+        intent = intentRes?.intent || intentRes?.data?.intent;
         if (intent) {
           setIntentScore(intent.intentScore);
           setProfileData(prev => ({ ...prev, ...intent }));
@@ -1128,8 +1145,8 @@ ${recentText}`,
       try {
         const res = await base44.functions.invoke('liveAssistantAI', {
           transcript: transcriptRef.current, kbEntries, kbName: 'Debt Settlement', mode: 'full_report',
-          usedCoach: coachActive, usedQA: qaActive, usedIntent: intentActive,
-          coachTips: coachTips.map(t => t.tip), qaLog: qaItems.map(q => ({ question: q.question, answer: q.answer })),
+          usedCoach: coachActiveRef.current, usedQA: qaActiveRef.current, usedIntent: intentActiveRef.current,
+          coachTips: coachTipsRef.current.map(t => t.tip), qaLog: qaItemsRef.current.map(q => ({ question: q.question, answer: q.answer })),
         });
         const fullReport = res?.report || res?.data?.report || '';
         setReport(fullReport);
@@ -1154,9 +1171,9 @@ ${recentText}`,
             transcriptJson: JSON.stringify(transcriptRef.current),
             transcriptLineCount: transcriptRef.current.length,
             durationSeconds,
-            intentScore: intentScore ?? null,
-            animalType: leadRef.current.animalType || null,
-            intentReport: intentScore != null ? `Intent Score: ${intentScore}/100\nAnimal: ${leadRef.current.animalType || 'unknown'}` : '',
+            intentScore: intent?.intentScore ?? intentScoreRef.current ?? null,
+            animalType: intent?.animalType || leadRef.current.animalType || null,
+            intentReport: intent?.report || (intent?.intentScore != null ? `Intent Score: ${intent.intentScore}/100\nAnimal: ${intent.animalType || 'unknown'}` : ''),
             followUpReport: fullReport,
             callAnalysisJson,
           };
@@ -1180,8 +1197,8 @@ ${recentText}`,
           }
 
           // Persist Q&A history for this call
-          if (qaItems.length > 0 && transcriptRecord?.id) {
-            const qaRecords = qaItems.filter(q => q.question && q.answer).map(q => ({
+          if (qaItemsRef.current.length > 0 && transcriptRecord?.id) {
+            const qaRecords = qaItemsRef.current.filter(q => q.question && q.answer).map(q => ({
               leadId: leadRef.current.id,
               leadName,
               agentId,
@@ -1192,13 +1209,13 @@ ${recentText}`,
               source: 'auto',
             }));
             if (qaRecords.length > 0) {
-              try { await base44.entities.DebtQAHistory.bulkCreate(qaRecords); } catch {}
+              try { await base44.entities.DebtQAHistory.bulkCreate(qaRecords); } catch (e) { console.error('Q&A history save failed:', e); }
             }
           }
 
           // Persist coaching tips for this call
-          if (coachTips.length > 0 && transcriptRecord?.id) {
-            const tipRecords = coachTips.map(t => ({
+          if (coachTipsRef.current.length > 0 && transcriptRecord?.id) {
+            const tipRecords = coachTipsRef.current.map(t => ({
               agentId,
               agentName: agentId,
               transcriptId: transcriptRecord.id,
@@ -1207,7 +1224,7 @@ ${recentText}`,
               tip: t.tip,
               tipTime: t.time ? t.time.toISOString() : new Date().toISOString(),
             }));
-            try { await base44.entities.DebtCoachTip.bulkCreate(tipRecords); } catch {}
+            try { await base44.entities.DebtCoachTip.bulkCreate(tipRecords); } catch (e) { console.error('Coach tips save failed:', e); }
           }
 
           // Persist intent snapshots for this call
@@ -1223,7 +1240,7 @@ ${recentText}`,
               report: s.report || '',
               snapshotTime: s.time,
             }));
-            try { await base44.entities.DebtIntentSnapshot.bulkCreate(snapshotRecords); } catch {}
+            try { await base44.entities.DebtIntentSnapshot.bulkCreate(snapshotRecords); } catch (e) { console.error('Intent snapshot save failed:', e); }
           }
         } catch {}
       } catch { setReport('Failed to generate report.'); }
@@ -1249,7 +1266,7 @@ ${recentText}`,
     }
 
     loadLeads();
-  }, [kbEntries, coachActive, qaActive, intentActive, coachTips, qaItems, loadLeads, autoSchedulerEnabled, coachUser, callType]);
+  }, [kbEntries, loadLeads, autoSchedulerEnabled, coachUser, callType]);
 
   // Show the keep/delete dialog when the agent ends a call (not for monitor takeovers)
   const handleEndCallClick = useCallback(() => {
