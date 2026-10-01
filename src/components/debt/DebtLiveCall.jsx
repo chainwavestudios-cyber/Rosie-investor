@@ -97,6 +97,18 @@ export default function DebtLiveCall() {
   useEffect(() => { coachTipsRef.current = coachTips; }, [coachTips]);
   useEffect(() => { intentScoreRef.current = intentScore; }, [intentScore]);
 
+  // Toggle handlers for the AI tools — update state AND ref so processNewEntry
+  // (captured by the WebSocket onmessage handler) sees the change immediately.
+  const toggleQaActive = useCallback(() => {
+    setQaActive(prev => { const n = !prev; qaActiveRef.current = n; return n; });
+  }, []);
+  const toggleCoachActive = useCallback(() => {
+    setCoachActive(prev => { const n = !prev; coachActiveRef.current = n; return n; });
+  }, []);
+  const toggleIntentActive = useCallback(() => {
+    setIntentActive(prev => { const n = !prev; intentActiveRef.current = n; return n; });
+  }, []);
+
   // Post-call
   const [report, setReport] = useState('');
   const [generatingReport, setGeneratingReport] = useState(false);
@@ -893,10 +905,15 @@ ${recentText}`,
       setAllPoppedOut(true);
     }, 300);
 
-    // Auto-activate Q&A, Coach, and Intent engines (only if permitted + enabled in layout)
-    setQaActive(canLiveAI && canLiveQA && autoQA);
-    setCoachActive(canLiveAI && canLiveCoach && autoCoach);
-    setIntentActive(canLiveAI && canLiveIntent && autoIntent);
+    // Auto-activate Q&A, Coach, and Intent engines (only if permitted + enabled in layout).
+    // Set the refs directly too so processNewEntry (captured by the WebSocket handler)
+    // sees the live values immediately — don't wait for the next render's useEffect sync.
+    const wantQA = canLiveAI && canLiveQA && autoQA;
+    const wantCoach = canLiveAI && canLiveCoach && autoCoach;
+    const wantIntent = canLiveAI && canLiveIntent && autoIntent;
+    setQaActive(wantQA); qaActiveRef.current = wantQA;
+    setCoachActive(wantCoach); coachActiveRef.current = wantCoach;
+    setIntentActive(wantIntent); intentActiveRef.current = wantIntent;
 
     const dualMode = !!customerMicId && !!micDeviceId;
 
@@ -1661,6 +1678,9 @@ ${recentText}`,
                       memories={memories} lead={lead} micDeviceId={micDeviceId} customerMicId={customerMicId} pendingQuestion={pendingQuestion}
                       canAIAssistant={canLiveAI} canQA={canLiveQA} canCoach={canLiveCoach} canIntent={canLiveIntent}
                       username={coachUser?.username}
+                      activeQA={qaActive} activeCoach={coachActive} activeIntent={intentActive}
+                      onToggleQA={toggleQaActive} onToggleCoach={toggleCoachActive} onToggleIntent={toggleIntentActive}
+                      autoOpenPopup={phase === 'live'}
                     />
                   </div>
                   {aiPanel.resizeHandles}
@@ -1677,6 +1697,9 @@ ${recentText}`,
                     memories={memories} lead={lead} micDeviceId={micDeviceId} customerMicId={customerMicId} pendingQuestion={pendingQuestion}
                     canAIAssistant={canLiveAI} canQA={canLiveQA} canCoach={canLiveCoach} canIntent={canLiveIntent}
                     username={coachUser?.username}
+                    activeQA={qaActive} activeCoach={coachActive} activeIntent={intentActive}
+                    onToggleQA={toggleQaActive} onToggleCoach={toggleCoachActive} onToggleIntent={toggleIntentActive}
+                    autoOpenPopup={phase === 'live'}
                   />
                 </div>
               )}

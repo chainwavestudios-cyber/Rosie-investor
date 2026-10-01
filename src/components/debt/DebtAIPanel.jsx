@@ -31,13 +31,26 @@ export default function DebtAIPanel({
   canCoach = true,
   canIntent = true,
   username = null,
+  // Controlled mode — when DebtLiveCall passes these, the panel reflects + drives the live call's AI state.
+  activeQA = null,
+  activeCoach = null,
+  activeIntent = null,
+  onToggleQA = null,
+  onToggleCoach = null,
+  onToggleIntent = null,
+  autoOpenPopup = false,
 }) {
 
   const [rightTab, setRightTab] = useState(canAIAssistant ? 'ai' : 'pitches');
   const [showPopup, setShowPopup] = useState(false);
-  const [qaActive, setQaActive] = useState(false);
-  const [coachActive, setCoachActive] = useState(false);
-  const [intentActive, setIntentActive] = useState(false);
+  // Local fallback state (used only when not controlled by DebtLiveCall)
+  const [localQaActive, setLocalQaActive] = useState(false);
+  const [localCoachActive, setLocalCoachActive] = useState(false);
+  const [localIntentActive, setLocalIntentActive] = useState(false);
+  // Controlled values take priority; otherwise fall back to local state
+  const qaActive = activeQA !== null ? activeQA : localQaActive;
+  const coachActive = activeCoach !== null ? activeCoach : localCoachActive;
+  const intentActive = activeIntent !== null ? activeIntent : localIntentActive;
   const [streamStatus, setStreamStatus] = useState('idle');
   const [error, setError] = useState('');
   const [twilioTranscript, setTwilioTranscript] = useState([]);
@@ -192,10 +205,31 @@ export default function DebtAIPanel({
 
   useEffect(() => () => disconnectStream(), []);
 
-  // Toggle handlers — open popup when toggled on
-  const toggleQA = () => { const n = !qaActive; setQaActive(n); if (n) setShowPopup(true); };
-  const toggleCoach = () => { const n = !coachActive; setCoachActive(n); if (n) setShowPopup(true); };
-  const toggleIntent = () => { const n = !intentActive; setIntentActive(n); if (n) setShowPopup(true); };
+  // Toggle handlers — controlled mode delegates to parent; local mode updates internal state.
+  // Either way, open the popup when a tool is turned on.
+  const toggleQA = () => {
+    const n = !qaActive;
+    if (onToggleQA) onToggleQA();
+    else setLocalQaActive(n);
+    if (n) setShowPopup(true);
+  };
+  const toggleCoach = () => {
+    const n = !coachActive;
+    if (onToggleCoach) onToggleCoach();
+    else setLocalCoachActive(n);
+    if (n) setShowPopup(true);
+  };
+  const toggleIntent = () => {
+    const n = !intentActive;
+    if (onToggleIntent) onToggleIntent();
+    else setLocalIntentActive(n);
+    if (n) setShowPopup(true);
+  };
+
+  // Auto-open popup when parent (DebtLiveCall) activates tools via startCall
+  useEffect(() => {
+    if (autoOpenPopup && (qaActive || coachActive || intentActive)) setShowPopup(true);
+  }, [autoOpenPopup, qaActive, coachActive, intentActive]);
 
   const streamStatusLight = { idle: '#4a5568', connecting: '#f59e0b', connected: '#4ade80', error: '#ef4444' }[streamStatus];
 
