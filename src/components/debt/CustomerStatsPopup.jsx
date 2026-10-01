@@ -6,7 +6,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
 import LayoutSaveLoad, { applyLayoutData } from '@/components/debt/LayoutSaveLoad';
-import { getDebtCoachValue, setDebtCoachValue } from '@/lib/debtCoachStorage';
+import { getDebtCoachValue, setDebtCoachValue, useDebtCoachValue } from '@/lib/debtCoachStorage';
 
 const GOLD = '#10b981';
 const DARK = '#0a0f1e';
@@ -32,7 +32,7 @@ export default function CustomerStatsPopup({ lead, transcript, isActive, agentUs
   const [showSmallTalk, setShowSmallTalk] = useState(false);
   const [newInsightFlash, setNewInsightFlash] = useState(new Set());
   const [layouts, setLayouts] = useState([]);
-  const [selectedLayoutId, setSelectedLayoutId] = useState('');
+  const [selectedLayoutId, setSelectedLayoutId] = useDebtCoachValue(agentUsername, 'defaultLayoutId', '');
   const lastExtractLineCount = useRef(0);
   const existingInsightKeys = useRef(new Set());
   const [pos, setPos] = useState({ x: 24, y: typeof window !== 'undefined' ? window.innerHeight - 350 : 100 });

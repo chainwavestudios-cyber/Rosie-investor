@@ -37,10 +37,10 @@ export default function DebtLiveCall() {
   const canLiveCoach = can('liveCoach') && aiSettings.liveCoach !== false;
   const canLiveIntent = can('liveIntent') && aiSettings.liveIntent !== false;
   const [micDevices, setMicDevices] = useState([]);
-  const [micDeviceId, setMicDeviceId] = useState('');
-  const [customerMicId, setCustomerMicId] = useState('');
+  const [micDeviceId, setMicDeviceId, micLoaded] = useDebtCoachValue(coachUser?.username, 'defaultMicDeviceId', '');
+  const [customerMicId, setCustomerMicId, customerMicLoaded] = useDebtCoachValue(coachUser?.username, 'defaultCustomerMicId', '');
   const [outputDevices, setOutputDevices] = useState([]);
-  const [outputDeviceId, setOutputDeviceId] = useState('');
+  const [outputDeviceId, setOutputDeviceId, outputLoaded] = useDebtCoachValue(coachUser?.username, 'defaultOutputDeviceId', '');
   const [phase, setPhase] = useState('idle');
   const [error, setError] = useState('');
   const [dgStatus, setDgStatus] = useState('idle');
@@ -78,7 +78,7 @@ export default function DebtLiveCall() {
   const [report, setReport] = useState('');
   const [generatingReport, setGeneratingReport] = useState(false);
   const [callMode, setCallMode] = useState('close'); // 'open' | 'close' — derived from callType
-  const [callType, setCallType] = useState('front_to_back'); // 'front_to_back' | 'open_only' | 'cold_call' | 'closer_call'
+  const [callType, setCallType] = useDebtCoachValue(coachUser?.username, 'defaultCallType', 'front_to_back'); // 'front_to_back' | 'open_only' | 'cold_call' | 'closer_call'
   const [autoSchedulerEnabled, setAutoSchedulerEnabled] = useDebtCoachValue(coachUser?.username, 'autoSchedulerEnabled', true);
   const [apptPreview, setApptPreview] = useState(null);
   const leadPersistedRef = useRef(false);
@@ -122,7 +122,15 @@ export default function DebtLiveCall() {
     else if (type === 'open_only') { setCallMode('open'); setIsInbound(true); }
     else if (type === 'cold_call') { setCallMode('open'); setIsInbound(false); }
     else if (type === 'closer_call') { setCallMode('close'); setIsInbound(true); }
-  }, []);
+  }, [setCallType]);
+
+  // Sync callMode + isInbound when saved callType loads from DB
+  useEffect(() => {
+    if (callType === 'front_to_back') { setCallMode('close'); setIsInbound(true); }
+    else if (callType === 'open_only') { setCallMode('open'); setIsInbound(true); }
+    else if (callType === 'cold_call') { setCallMode('open'); setIsInbound(false); }
+    else if (callType === 'closer_call') { setCallMode('close'); setIsInbound(true); }
+  }, [callType]);
 
   const toggleAutoScheduler = useCallback(() => {
     setAutoSchedulerEnabled(prev => !prev);
@@ -242,8 +250,9 @@ Agent line: "${firstAgentLines}"`,
       .catch(() => {}).finally(() => setKbLoading(false));
   }, []);
 
-  // Load mic devices — auto-detect Rodecaster for customer audio
+  // Load mic devices — auto-detect Rodecaster for customer audio (wait for saved defaults)
   useEffect(() => {
+    if (!micLoaded || !customerMicLoaded || !outputLoaded) return;
     navigator.mediaDevices.getUserMedia({ audio: true })
       .then(() => navigator.mediaDevices.enumerateDevices())
       .then(devices => {
@@ -257,7 +266,7 @@ Agent line: "${firstAgentLines}"`,
         if (outputs.length > 0 && !outputDeviceId) setOutputDeviceId(outputs[0].deviceId);
       })
       .catch(() => {});
-  }, []);
+  }, [micLoaded, customerMicLoaded, outputLoaded]);
 
   // Load existing leads
   const loadLeads = useCallback(async () => {
