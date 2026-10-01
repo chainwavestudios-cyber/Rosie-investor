@@ -13,6 +13,11 @@ const GOLD = '#10b981';
 // ─── Cue Block System ──────────────────────────────────────────────────────────
 export const CUE_REGEX = /^@@CUE:(reminder|objection|tone):(.*)@@$/;
 
+// ─── AI Input Tag ─────────────────────────────────────────────────────────────
+// [[AI INPUT]] — marks a spot where the agent will collect info from the customer.
+// The AI sees this and aggressively extracts + saves what the customer says to the profile.
+export const AI_INPUT_REGEX = /\[\[AI\s*INPUT\]\]/i;
+
 export const CUE_CATEGORIES = {
   reminder:  { label: 'Reminder',  icon: '💡', color: '#60a5fa', bg: 'rgba(96,165,250,0.1)',  border: 'rgba(96,165,250,0.35)' },
   objection: { label: 'Objection', icon: '⚠️', color: '#f59e0b', bg: 'rgba(245,158,11,0.1)', border: 'rgba(245,158,11,0.35)' },
@@ -34,6 +39,8 @@ export function parseScriptElements(content) {
     const m = stripped.match(CUE_REGEX);
     if (m) {
       elements.push({ id: `cue-${i}`, type: 'cue_block', category: m[1], content: m[2], origLine: i });
+    } else if (AI_INPUT_REGEX.test(stripped)) {
+      elements.push({ id: `ai-${i}`, type: 'ai_input', origLine: i });
     } else if (stripped === '') {
       continue;
     } else {
@@ -82,6 +89,23 @@ export function CueBlockView({ element }) {
       <div style={{ flex: 1 }}>
         <div style={{ color: cat.color, fontSize: '9px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '2px' }}>{cat.label}</div>
         <div style={{ color: '#c4cdd8', fontSize: '12px', lineHeight: 1.5 }}>{element.content}</div>
+      </div>
+    </div>
+  );
+}
+
+// ─── AI Input Block View ──────────────────────────────────────────────────────
+export function AiInputBlockView() {
+  return (
+    <div style={{
+      margin: '8px 0', padding: '6px 14px',
+      background: 'rgba(16,185,129,0.12)', border: `1px solid ${GOLD}55`, borderRadius: '6px',
+      display: 'flex', gap: '8px', alignItems: 'center',
+    }}>
+      <span style={{ fontSize: '13px', flexShrink: 0 }}>🤖</span>
+      <div style={{ flex: 1 }}>
+        <span style={{ color: GOLD, fontSize: '9px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '1px' }}>AI Input — listening</span>
+        <span style={{ color: '#8a9ab8', fontSize: '10px', marginLeft: '8px' }}>Auto-captures what the customer says to their profile</span>
       </div>
     </div>
   );
@@ -328,6 +352,9 @@ export default function ScriptTeleprompter({ content, color = '#e8e0d0', fontSiz
         {elements.map((el) => {
           if (el.type === 'cue_block') {
             return <CueBlockView key={el.id} element={el} />;
+          }
+          if (el.type === 'ai_input') {
+            return <AiInputBlockView key={el.id} />;
           }
           const scriptIdx = scriptLines.indexOf(el);
           const isActive = scriptIdx === activeIdx;

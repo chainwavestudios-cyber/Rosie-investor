@@ -156,6 +156,15 @@ function MyScriptsTab({ liveTranscript, phase, clientFirstName, clientLastName, 
     updateAndSave({ content: bbcode });
   };
 
+  const insertAiInputAtCursor = () => {
+    const ce = textareaRef.current;
+    if (!ce || !active) return;
+    ce.focus();
+    document.execCommand('insertHTML', false, '<br>[[AI INPUT]]<br>');
+    const bbcode = htmlToBbcode(ce.innerHTML);
+    updateAndSave({ content: bbcode });
+  };
+
   const saveActive = async () => {
     if (!active) return;
     if (autoSaveTimer.current) { clearTimeout(autoSaveTimer.current); autoSaveTimer.current = null; }
@@ -290,6 +299,7 @@ function MyScriptsTab({ liveTranscript, phase, clientFirstName, clientLastName, 
                 {Object.entries(CUE_CATEGORIES).map(([key, cat]) => (
                   <button key={key} onClick={() => insertCueAtCursor(key)} style={{ padding: '4px 10px', borderRadius: '4px', border: `1px solid ${cat.color}44`, background: `${cat.color}12`, color: cat.color, cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>{cat.icon} {cat.label}</button>
                 ))}
+                <button onClick={insertAiInputAtCursor} title="Mark this spot — AI will aggressively capture and save whatever the customer says next to their profile" style={{ padding: '4px 10px', borderRadius: '4px', border: `1px solid ${GOLD}55`, background: `${GOLD}15`, color: GOLD, cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>🤖 AI Input</button>
               </div>
               {/* Inline formatting toolbar */}
               <div style={{ marginBottom: '8px', flexShrink: 0 }}>
@@ -311,6 +321,7 @@ function MyScriptsTab({ liveTranscript, phase, clientFirstName, clientLastName, 
                 Tokens: <span style={{ color: GOLD, fontFamily: 'monospace' }}>{'{{firstname}}'}</span> · <span style={{ color: GOLD, fontFamily: 'monospace' }}>{'{{lastname}}'}</span>
                 <span style={{ marginLeft: '12px' }}>Format: <span style={{ color: '#a78bfa', fontFamily: 'monospace' }}>[b]..[/b] [i]..[/i] [c=#hex]..[/c] [bg=#hex]..[/bg] [s=18]..[/s] [f=Arial]..[/f]</span></span>
                 <span style={{ marginLeft: '12px' }}>Cue: <span style={{ color: '#60a5fa', fontFamily: 'monospace' }}>@@CUE:reminder:text@@</span></span>
+                <span style={{ marginLeft: '12px' }}>AI: <span style={{ color: GOLD, fontFamily: 'monospace' }}>[[AI INPUT]]</span> <span style={{ color: '#4a5568' }}>— auto-capture zone</span></span>
               </div>
             </>
           ) : (

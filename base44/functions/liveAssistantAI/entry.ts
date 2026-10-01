@@ -118,7 +118,7 @@ Deno.serve(async (req) => {
     const { question, transcript, kbEntries, mode, existingProfile,
             intentRules, coachRules, qaHistory, engagementScore,
             kbName, previousAnswer, internetQuery,
-            callAttemptNumber, scriptPosition } = body;
+            callAttemptNumber, scriptPosition, aiInputActive } = body;
 
     const recentTranscript = buildTranscriptString(transcript, 15);
     const fullTranscriptStr = buildTranscriptString(transcript, 9999);
@@ -490,7 +490,7 @@ Look for:
 - debtAmount: Total debt amount (when customer confirms "I owe about $25,000" or "My total debt is around 15,000 dollars") — number only, no $ sign
 
 CRITICAL: Only extract values the CUSTOMER actually says. If the agent says "Is your name John Smith?" and the customer says "Yes", extract firstName=John, lastName=Smith. If the customer says nothing or doesn't confirm, do NOT extract.
-
+${aiInputActive ? '\n⚡ AI INPUT ZONE ACTIVE: The agent is at a marked collection point in the script. The customer is actively providing information RIGHT NOW. Be thorough — capture every detail the customer confirms: full name, phone, email, address, debt amount, creditor names, balances, monthly income, expenses. Extract aggressively but still only what the customer actually says.' : ''}
 Return JSON. Only include fields the customer explicitly mentions or confirms — do NOT make up data. If nothing new is mentioned, return empty object.
 
 Transcript:
