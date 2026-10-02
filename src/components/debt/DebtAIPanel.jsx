@@ -129,14 +129,16 @@ export default function DebtAIPanel({
     if (!dgKey) { try { const tokenRes = await base44.functions.invoke('deepgramToken2', {}); dgKey = tokenRes?.key || tokenRes?.data?.key || ''; } catch {} }
     if (!dgKey) { setError('No Deepgram API key'); setStreamStatus('error'); agentStream.getTracks().forEach(t => t.stop()); if (customerStream) customerStream.getTracks().forEach(t => t.stop()); return; }
 
-    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    // Pin AudioContext to 16kHz — Deepgram nova-3 is trained on 16kHz audio.
+    // Browser default (48kHz) wastes 3x bandwidth and doesn't match the model.
+    const ctx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
     if (ctx.state === 'suspended') await ctx.resume();
     audioCtxRef.current = ctx;
     const sr = ctx.sampleRate;
 
     const dgParams = dualMode
-      ? `model=nova-3&multichannel=true&smart_format=true&interim_results=true&endpointing=300&sentiment=true&channels=2&sample_rate=${sr}&encoding=linear16`
-      : `model=nova-3&diarize=true&smart_format=true&interim_results=true&endpointing=300&sentiment=true&sample_rate=${sr}&encoding=linear16`;
+      ? `model=nova-3&multichannel=true&smart_format=true&numerals=true&interim_results=true&endpointing=300&sentiment=true&channels=2&sample_rate=${sr}&encoding=linear16`
+      : `model=nova-3&diarize=true&smart_format=true&numerals=true&interim_results=true&endpointing=300&sentiment=true&sample_rate=${sr}&encoding=linear16`;
     const ws = new WebSocket(`wss://api.deepgram.com/v1/listen?${dgParams}`, ['token', dgKey]);
     wsRef.current = ws;
 

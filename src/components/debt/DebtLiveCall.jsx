@@ -1109,14 +1109,17 @@ ${recentText}`,
     catch { dgKey = import.meta.env.VITE_DEEPGRAM_API_KEY || ''; }
     if (!dgKey) { setError('Could not get Deepgram API key.'); setPhase('idle'); setDgStatus('error'); agentStream.getTracks().forEach(t => t.stop()); if (customerStream) customerStream.getTracks().forEach(t => t.stop()); return; }
 
-    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    // Pin AudioContext to 16kHz — Deepgram nova-3 is trained on 16kHz audio.
+    // Browser default (48kHz) wastes 3x bandwidth and doesn't match the model.
+    // The browser resamples all input (mic + Twilio stream) to this rate automatically.
+    const ctx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
     if (ctx.state === 'suspended') await ctx.resume();
     ctxRef.current = ctx;
     const sr = ctx.sampleRate;
 
     const dgParams = dualMode
-      ? `model=nova-3&multichannel=true&smart_format=true&punctuate=true&sentiment=true&utterances=true&interim_results=false&channels=2&sample_rate=${sr}&encoding=linear16&${DEBT_KEYTERMS}`
-      : `model=nova-3&diarize=true&smart_format=true&punctuate=true&sentiment=true&utterances=true&interim_results=false&sample_rate=${sr}&encoding=linear16&${DEBT_KEYTERMS}`;
+      ? `model=nova-3&multichannel=true&smart_format=true&punctuate=true&numerals=true&sentiment=true&utterances=true&interim_results=false&channels=2&sample_rate=${sr}&encoding=linear16&${DEBT_KEYTERMS}`
+      : `model=nova-3&diarize=true&smart_format=true&punctuate=true&numerals=true&sentiment=true&utterances=true&interim_results=false&sample_rate=${sr}&encoding=linear16&${DEBT_KEYTERMS}`;
     let wsEverOpen = false;
     const ws = new WebSocket(`wss://api.deepgram.com/v1/listen?${dgParams}`, ['token', dgKey]);
     ws.binaryType = 'arraybuffer';
