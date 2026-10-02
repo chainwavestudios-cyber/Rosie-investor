@@ -6,20 +6,56 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.52';
 // exhausted API key. Returns an Anthropic-shaped response ({ content: [{ text }] })
 // so existing call sites parse unchanged.
 async function callLLM(req: Request, body: any): Promise<any> {
-  const base44 = createClientFromRequest(req);
+  const apiKey = process.env.ANTHROPIC_API_KEY;
   const system = body?.system || '';
   const userContent = body?.messages?.[0]?.content || '';
+  const model = body?.model || 'claude-haiku-4-5-20251001';
+  const maxTokens = body?.max_tokens || 500;
+
+  // Direct Anthropic API call with Haiku — uses ANTHROPIC_API_KEY credits
+  // instead of platform InvokeLLM credits. Falls back to InvokeLLM on error.
+  if (apiKey) {
+    try {
+      const response = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'x-api-key': apiKey,
+          'anthropic-version': '2023-06-01',
+          'content-type': 'application/json',
+          ...(process.env.ANTHROPIC_WORKSPACE_ID ? { 'anthropic-workspace-id': process.env.ANTHROPIC_WORKSPACE_ID } : {}),
+        },
+        body: JSON.stringify({
+          model,
+          max_tokens: maxTokens,
+          system,
+          messages: [{ role: 'user', content: userContent }],
+        }),
+      });
+      if (!response.ok) {
+        if ([401, 402, 403, 429].includes(response.status)) throw new Error(`CREDIT_EXHAUSTED:anthropic:${response.status}`);
+        throw new Error(`Anthropic API ${response.status}`);
+      }
+      const data = await response.json();
+      return { content: [{ type: 'text', text: data.content?.[0]?.text || '' }], usage: data.usage };
+    } catch (e: any) {
+      if (e?.message?.includes('CREDIT_EXHAUSTED')) throw e;
+      console.log('[callLLM] Anthropic failed, falling back to InvokeLLM:', e?.message || String(e));
+    }
+  }
+
+  // Fallback: InvokeLLM (platform credits, no caching)
+  const base44 = createClientFromRequest(req);
   const prompt = system ? `${system}\n\n${userContent}` : userContent;
   try {
     const res: any = await base44.asServiceRole.integrations.Core.InvokeLLM({ prompt });
     const text = typeof res === 'string' ? res : (res?.text || res?.content?.[0]?.text || JSON.stringify(res));
-    return { content: [{ type: 'text', text }] };
-  } catch (e: any) {
-    const msg = (e?.message || '').toLowerCase();
-    if (msg.includes('quota') || msg.includes('credit') || msg.includes('429') || msg.includes('402') || msg.includes('limit') || msg.includes('exhausted')) {
+    return { content: [{ type: 'text', text }], usage: null };
+  } catch (fbErr: any) {
+    const fbMsg = (fbErr?.message || '').toLowerCase();
+    if (fbMsg.includes('quota') || fbMsg.includes('credit') || fbMsg.includes('429') || fbMsg.includes('402') || fbMsg.includes('limit') || fbMsg.includes('exhausted')) {
       throw new Error('CREDIT_EXHAUSTED:anthropic:fallback');
     }
-    throw e;
+    throw fbErr;
   }
 }
 
@@ -61,7 +97,10 @@ async function callLLMCached(req: Request, opts: {
         throw new Error(`Anthropic API ${response.status}`);
       }
       const data = await response.json();
-      return { content: [{ type: 'text', text: data.content?.[0]?.text || '' }] };
+      if (data.usage) {
+        console.log(`[callLLMCached] usage: input=${data.usage.input_tokens} output=${data.usage.output_tokens} cache_read=${data.usage.cache_read_input_tokens || 0} cache_write=${data.usage.cache_creation_input_tokens || 0}`);
+      }
+      return { content: [{ type: 'text', text: data.content?.[0]?.text || '' }], usage: data.usage };
     } catch (e) {
       console.log('[callLLMCached] Anthropic failed, falling back to InvokeLLM:', e?.message || String(e));
     }
@@ -72,7 +111,7 @@ async function callLLMCached(req: Request, opts: {
     const prompt = `${opts.cachedSystem}\n\n${opts.system}\n\n${opts.userContent}`;
     const res: any = await base44.asServiceRole.integrations.Core.InvokeLLM({ prompt });
     const text = typeof res === 'string' ? res : (res?.text || res?.content?.[0]?.text || JSON.stringify(res));
-    return { content: [{ type: 'text', text }] };
+    return { content: [{ type: 'text', text }], usage: null };
   } catch (fbErr: any) {
     const fbMsg = (fbErr?.message || '').toLowerCase();
     if (fbMsg.includes('quota') || fbMsg.includes('credit') || fbMsg.includes('429') || fbMsg.includes('402') || fbMsg.includes('limit') || fbMsg.includes('exhausted')) {
@@ -1229,8 +1268,32 @@ Return ONLY this JSON (no markdown):
       }
     }
 
-    // 2. No direct hit — use AI with relevant KB context
-    const relevantKB = findRelevantKB(q, kbEntries || [], 12);
+    // 1.5. Pre-AI gating — skip short lines and pure acknowledgements (zero AI cost)
+    const qWords = (q || '').trim().split(/\s+/).filter((w: string) => w.length > 0);
+    const ACK_WORDS = new Set(['yeah', 'yes', 'no', 'okay', 'ok', 'right', 'sure', 'yep', 'nope', 'mmm', 'hmm', 'hello', 'hi', 'hey', 'thanks', 'thank', 'correct', 'exactly', 'true', 'got', 'gotcha', 'alright', 'sounds', 'good', 'see', 'makes', 'sense', 'uh', 'huh', 'oh', 'wow', 'nice', 'great', 'cool', 'fine']);
+    const isShortAck = qWords.length < 6 || qWords.every((w: string) => ACK_WORDS.has(w.toLowerCase().replace(/[.,!?;:'"]/g, '')));
+    if (isShortAck) {
+      return Response.json({ needs_answer: false, answer: '', source: 'gated_short' });
+    }
+
+    // 1.6. Haiku classifier — "does this need an answer?" before spending Q&A tokens
+    try {
+      const classifyData = await callLLM(req, {
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 10,
+        system: 'You classify whether a customer statement on a live sales call needs an answer from the agent. Respond with only "yes" or "no". Questions, concerns, objections, and implied questions = "yes". Small talk, greetings, acknowledgements, and pure statements = "no".',
+        messages: [{ role: 'user', content: `Customer said: "${q}"\n\nNeeds an answer?` }],
+      });
+      const classifyText = (classifyData?.content?.[0]?.text || '').toLowerCase().trim();
+      if (!classifyText.startsWith('yes')) {
+        return Response.json({ needs_answer: false, answer: '', source: 'gated_haiku' });
+      }
+    } catch {
+      // If classifier fails, proceed to full Q&A (don't block on classifier error)
+    }
+
+    // 2. No direct hit — use AI with relevant KB context (cut from 12 to 5 entries)
+    const relevantKB = findRelevantKB(q, kbEntries || [], 5);
     // Only count as "has KB context" if the top hit has a meaningful score (>= 2),
     // not just a single common-word match like "the" or "how"
     const hasKBContext = relevantKB.length > 0 && (relevantKB[0]?.score || 0) >= 2;
@@ -1271,7 +1334,7 @@ ${objectionContext ? `\n━━━ OBJECTION HANDLING CATALOG — If the question
         cachedSystem,
         system: dynamicSystem,
         userContent: `${fullTranscriptStr ? `Conversation so far:\n${fullTranscriptStr}\n\n` : ''}Customer's latest statement: "${question}"\n\nReturn JSON:`,
-        model: 'claude-sonnet-4-5-20250929',
+        model: 'claude-haiku-4-5-20251001',
         maxTokens: 400,
     });
     const rawText = data?.content?.[0]?.text || '';
@@ -1293,6 +1356,7 @@ ${objectionContext ? `\n━━━ OBJECTION HANDLING CATALOG — If the question
       detail: parsed?.detail || '',
       needs_answer: true,
       source: 'kb_ai',
+      usage: data?.usage || null,
     });
 
   } catch (e: any) {

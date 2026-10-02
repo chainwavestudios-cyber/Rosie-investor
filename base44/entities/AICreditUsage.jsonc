@@ -36,6 +36,21 @@
       "title": "Estimated Integration Credits",
       "default": 1
     },
+    "inputTokens": {
+      "type": "number",
+      "title": "Input Tokens (from Anthropic usage)",
+      "default": 0
+    },
+    "outputTokens": {
+      "type": "number",
+      "title": "Output Tokens (from Anthropic usage)",
+      "default": 0
+    },
+    "cacheReadTokens": {
+      "type": "number",
+      "title": "Cache Read Tokens (90% discount applied)",
+      "default": 0
+    },
     "calledAt": {
       "type": "string",
       "format": "date-time",

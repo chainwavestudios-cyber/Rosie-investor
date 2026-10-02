@@ -11,7 +11,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { base44 } from '@/api/base44Client';
 
-const CHECK_INTERVAL = 25000;
+const CHECK_INTERVAL = 75000;
 const MIN_LINES = 4;
 
 export function useHotCallTracker({ isActive, lead, transcript, callMode, coachUser }) {
@@ -27,6 +27,7 @@ export function useHotCallTracker({ isActive, lead, transcript, callMode, coachU
   const alertIdRef = useRef(null);
   const consecutiveColdRef = useRef(0);
   const stoppedRef = useRef(false);
+  const lastCustomerLineCountRef = useRef(0);
   const callStartRef = useRef(null);
   const enabledRef = useRef(false);
 
@@ -65,6 +66,7 @@ export function useHotCallTracker({ isActive, lead, transcript, callMode, coachU
       setAgentScore(null);
       consecutiveColdRef.current = 0;
       stoppedRef.current = false;
+      lastCustomerLineCountRef.current = 0;
       callStartRef.current = Date.now();
       alertIdRef.current = null;
     } else {
@@ -83,6 +85,10 @@ export function useHotCallTracker({ isActive, lead, transcript, callMode, coachU
     if (!enabledRef.current || !isActive || stoppedRef.current) return;
     const t = transcriptRef.current;
     if (!t || t.length < MIN_LINES) return;
+    // Only run when new customer lines have arrived since last check
+    const customerLineCount = t.filter((line) => line.speaker === 1).length;
+    if (customerLineCount > 0 && customerLineCount <= lastCustomerLineCountRef.current) return;
+    lastCustomerLineCountRef.current = customerLineCount;
     const dur = callStartRef.current ? Math.round((Date.now() - callStartRef.current) / 1000) : 0;
     try {
       const res = await base44.functions.invoke('liveAssistantAI', {

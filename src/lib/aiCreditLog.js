@@ -14,8 +14,8 @@ export const CREDIT_ESTIMATES = {
 
 // Fire-and-forget: logs one AI call to the AICreditUsage entity so the super-admin
 // AI Credits tab can break usage down by agent and by client. Never throws into
-// the live call flow.
-export async function logAIUsage({ agentUsername, leadId, leadName, leadNumber, transcriptId, callType, model = 'automatic', estimatedCredits = 1 }) {
+// the live call flow. Now accepts real token counts from Anthropic usage data.
+export async function logAIUsage({ agentUsername, leadId, leadName, leadNumber, transcriptId, callType, model = 'automatic', estimatedCredits = 1, inputTokens = 0, outputTokens = 0, cacheReadTokens = 0 }) {
   try {
     await base44.entities.AICreditUsage.create({
       agentUsername: agentUsername || '',
@@ -26,6 +26,9 @@ export async function logAIUsage({ agentUsername, leadId, leadName, leadNumber, 
       callType: callType || 'unknown',
       model,
       estimatedCredits,
+      inputTokens,
+      outputTokens,
+      cacheReadTokens,
       calledAt: new Date().toISOString(),
     });
   } catch (e) {

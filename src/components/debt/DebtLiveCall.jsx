@@ -36,11 +36,11 @@ const DEBT_KB_CATEGORIES = ['debt_agent', 'debt_customer', 'debt_qa_statements',
 // that the model mishears (e.g. "pay" → "training"). Nova-3 uses repeated keyterm= params.
 // Extracted from real Drew call transcripts — creditor names, financial terms, phrases.
 const DEBT_KEYTERMS = [
-  // ── Core financial terms ──
-  'pay', 'payment', 'paying', 'paid', 'payments',
+  // ── Core financial terms (trimmed: removed 'pay','paid','debt','debts' — too common, caused 'pay'→'training' mishearing) ──
+  'payment', 'paying', 'payments',
   'settle', 'settlement', 'settling', 'settled',
   'enroll', 'enrollment', 'enrolling', 'enrolled',
-  'debt', 'debts', 'debtor', 'creditor', 'creditors',
+  'debtor', 'creditor', 'creditors',
   'bankruptcy', 'hardship', 'cosigner', 'cosigners',
   'garnishment', 'consolidation', 'escrow', 'forbearance', 'repossession',
   'collector', 'collectors', 'collection', 'balance', 'balances',
@@ -971,9 +971,12 @@ ${recentText}`,
 
     const objWords = ['prove', 'doubt', 'skeptical', 'risky', 'guarantee', 'fail', 'burned', 'scam', 'catch', 'cost', 'fee', 'how much', 'too much', "can't afford", 'credit score', 'trust'];
     const now = Date.now();
-    // [[AI INPUT]] tag — when the agent is at or just past this marker, the AI
-    // aggressively extracts + saves whatever the customer says to the profile.
-    if (coachActiveRef.current && (objWords.some(w => text.toLowerCase().includes(w)) || now - lastCoachTime.current > 45000)) { lastCoachTime.current = now; handleCoach(); }
+    const isCustomer = entry.speaker === 1;
+    // Coach: only on customer lines, with a 20s minimum gap even on keyword hits
+    if (coachActiveRef.current && isCustomer && now - lastCoachTime.current > 20000 &&
+        ((objWords.some(w => text.toLowerCase().includes(w))) || now - lastCoachTime.current > 45000)) {
+      lastCoachTime.current = now; handleCoach();
+    }
     if (intentActiveRef.current && now - lastIntentTime.current > 60000) { lastIntentTime.current = now; handleIntent(); }
     // Debounce: only run timed extractors every 5 lines or when speaker changes
     extractLineCounterRef.current++;
