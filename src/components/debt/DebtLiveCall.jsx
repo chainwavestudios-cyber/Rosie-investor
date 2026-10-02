@@ -136,6 +136,12 @@ export default function DebtLiveCall() {
   const [coachActive, setCoachActive] = useState(canLiveAI && canLiveCoach);
   const [intentActive, setIntentActive] = useState(canLiveAI && canLiveIntent);
   const [rightTab, setRightTab] = useState('ai');
+  // Agent Question mode — toggle ON, ask question, toggle OFF to auto-answer in popup
+  const [agentQuestionActive, setAgentQuestionActive] = useState(false);
+  const agentQuestionActiveRef = useRef(false);
+  const agentQuestionBufferRef = useRef([]);
+  const [agentQuestionResult, setAgentQuestionResult] = useState(null);
+  useEffect(() => { agentQuestionActiveRef.current = agentQuestionActive; }, [agentQuestionActive]);
   // Refs mirror the AI feature flags + accumulated Q&A/coach data so that
   // processNewEntry (captured by the WebSocket onmessage handler at call
   // start) and stopCall always read the LIVE values, not the stale closure
@@ -168,6 +174,39 @@ export default function DebtLiveCall() {
   const toggleIntentActive = useCallback(() => {
     setIntentActive(prev => { const n = !prev; intentActiveRef.current = n; return n; });
   }, []);
+
+  // Agent Question mode — press ON, ask question, press OFF to auto-answer in a one-time popup.
+  // While ON, agent mic lines are captured (not sent to Q&A). When toggled OFF,
+  // the captured text is sent as a single question and the answer is shown in a popup.
+  const toggleAgentQuestion = useCallback(() => {
+    if (agentQuestionActiveRef.current) {
+      // Turning OFF — flush buffer as a question and show in popup
+      const combined = agentQuestionBufferRef.current.join(' ').trim();
+      agentQuestionBufferRef.current = [];
+      agentQuestionActiveRef.current = false;
+      setAgentQuestionActive(false);
+      if (combined.length > 0) {
+        const id = Date.now() + Math.random();
+        setAgentQuestionResult({ id, question: combined, answer: '', loading: true });
+        logAI('qa');
+        invokeAI('liveAssistantAI', { question: combined, transcript: transcriptRef.current.slice(-8), kbEntries, kbName: 'Debt Settlement', scriptPosition: scriptPositionRef.current })
+          .then(res => {
+            if (res?.needs_answer === false || res?.data?.needs_answer === false) {
+              setAgentQuestionResult(prev => prev?.id === id ? null : prev);
+              return;
+            }
+            const answer = res?.answer || res?.data?.answer || 'Check knowledge base.';
+            setAgentQuestionResult(prev => prev?.id === id ? { ...prev, answer, loading: false } : prev);
+          })
+          .catch(() => setAgentQuestionResult(prev => prev?.id === id ? { ...prev, answer: 'Unable to answer.', loading: false } : prev));
+      }
+    } else {
+      // Turning ON — start capturing agent mic
+      agentQuestionBufferRef.current = [];
+      agentQuestionActiveRef.current = true;
+      setAgentQuestionActive(true);
+    }
+  }, [kbEntries]);
 
   // Post-call
   const [report, setReport] = useState('');
@@ -915,7 +954,7 @@ ${recentText}`,
       } else if (entry.speaker === 1) {
         entry = { ...entry, speaker: 2 };
         if (!transferAgentDetectedRef.current) {
-          const m = entry.text.match(/i\s+have\s+(\w+)\s+(\w+)\s+from\s+(.+?),?\s+([a-z]{2,})\s+with\s+(?:approx|about|approximately)?\s*\$?([\d,.]+k?)\s*(?:in\s+|of\s+)?(?:unsecured\s+|credit\s+card\s+)?debt/i);
+          const m = entry.text.match(/i\s+have\s+(\w+)\s+(\w+)\s+(?:on\s+the\s+line,?\s+)?from\s+(.+?),?\s+([a-z]{2,})\s+(?:with|and\s+has)\s+(?:approx|about|approximately|currently)?\s*\$?([\d,.]+k?)\s*(?:currently\s+)?(?:in\s+|of\s+)?(?:unsecured\s+|credit\s+card\s+)?debt/i);
           if (m) {
             transferAgentDetectedRef.current = true;
             const [, firstName, lastName, city, state, amtRaw] = m;
@@ -964,6 +1003,11 @@ ${recentText}`,
       const lineCount = transcriptRef.current.length;
       if (lineCount <= 2 && entry.speaker === 0) handleColdCallNameExtract();
       if (entry.speaker === 1) handleColdCallInterestCheck(text);
+    }
+
+    // Agent Question mode: capture agent lines when the button is ON (not sent to Q&A until toggled OFF)
+    if (agentQuestionActiveRef.current && entry.speaker === 0) {
+      agentQuestionBufferRef.current.push(text);
     }
 
     // Q&A: buffer consecutive customer lines, flush as one combined question
@@ -1043,6 +1087,10 @@ ${recentText}`,
     handoffAttemptsRef.current = 0;
     transferAgentDoneRef.current = false;
     transferAgentDetectedRef.current = false;
+    agentQuestionBufferRef.current = [];
+    agentQuestionActiveRef.current = false;
+    setAgentQuestionActive(false);
+    setAgentQuestionResult(null);
     leadPersistedRef.current = false;
     transcriptRecordIdRef.current = null;
     profileAutoOpenedRef.current = false;
@@ -1304,6 +1352,9 @@ ${recentText}`,
     if (ctxRef.current) { try { ctxRef.current.close(); } catch {} ctxRef.current = null; }
     setMicMuted(false);
     setTestMode(false);
+    agentQuestionBufferRef.current = [];
+    agentQuestionActiveRef.current = false;
+    setAgentQuestionActive(false);
     setPhase('ended'); setDgStatus('idle');
 
     // Final profile + intent analysis
@@ -1558,6 +1609,26 @@ ${recentText}`,
   // Keep stopCallRef updated for monitor polling
   useEffect(() => { stopCallRef.current = stopCall; }, [stopCall]);
 
+  // Keyboard shortcuts: Alt+L to start live call, Alt+Q to toggle agent question
+  const startCallRef = useRef(null);
+  const toggleAgentQuestionRef = useRef(null);
+  useEffect(() => { startCallRef.current = startCall; }, [startCall]);
+  useEffect(() => { toggleAgentQuestionRef.current = toggleAgentQuestion; }, [toggleAgentQuestion]);
+  useEffect(() => {
+    const handler = (e) => {
+      if (e.altKey && (e.key === 'l' || e.key === 'L') && phase !== 'live') {
+        e.preventDefault();
+        startCallRef.current?.(false);
+      }
+      if (e.altKey && (e.key === 'q' || e.key === 'Q') && phase === 'live') {
+        e.preventDefault();
+        toggleAgentQuestionRef.current?.();
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [phase]);
+
   // Poll for manager monitor requests (listen, whisper, barge, takeover)
   useEffect(() => {
     if (phase !== 'live' || !coachUser?.username) return;
@@ -1733,6 +1804,25 @@ ${recentText}`,
 
         <NoMissedMeetingsButton />
 
+        {/* Agent Question mode — toggle ON, ask question, toggle OFF to auto-answer in popup */}
+        {phase === 'live' && canLiveAI && canLiveQA && (
+          <button
+            onClick={toggleAgentQuestion}
+            title="Press to start recording your question, press again to get the answer (Alt+Q)"
+            style={{
+              padding: '8px 14px', borderRadius: '4px',
+              border: `1px solid ${agentQuestionActive ? 'rgba(239,68,68,0.5)' : 'rgba(245,158,11,0.3)'}`,
+              background: agentQuestionActive ? 'rgba(239,68,68,0.15)' : 'rgba(245,158,11,0.08)',
+              color: agentQuestionActive ? '#ef4444' : '#f59e0b',
+              cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', whiteSpace: 'nowrap',
+              display: 'flex', alignItems: 'center', gap: '5px',
+              animation: agentQuestionActive ? 'pulse 1s infinite' : 'none',
+            }}
+          >
+            {agentQuestionActive ? '🔴 Recording Question… (press again)' : '🎤 Agent Question (Alt+Q)'}
+          </button>
+        )}
+
         {/* Quick lead search + Start Live Call (2/3 smaller) */}
         {phase !== 'live' ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', position: 'relative' }}>
@@ -1747,7 +1837,7 @@ ${recentText}`,
                 style={{ ...inp, width: '200px', fontSize: '11px', padding: '6px 10px' }}
               />
               <button onClick={() => startCall(false)} disabled={kbLoading} style={{ background: 'linear-gradient(135deg,#10b981,#22c55e)', color: DARK, border: 'none', borderRadius: '4px', padding: '6px 12px', cursor: kbLoading ? 'not-allowed' : 'pointer', fontSize: '9px', fontWeight: 'bold', letterSpacing: '0.5px', textTransform: 'uppercase', opacity: kbLoading ? 0.5 : 1, whiteSpace: 'nowrap' }}>
-                {kbLoading ? 'Loading…' : '🔴 Live Call'}
+                {kbLoading ? 'Loading…' : '🔴 Live Call (Alt+L)'}
               </button>
               <button onClick={() => startCall(false, true)} disabled={kbLoading} title="Single-mic test mode — play a pre-recorded call through speakers, no dual-channel duplicates" style={{ background: 'linear-gradient(135deg,#f59e0b,#f97316)', color: DARK, border: 'none', borderRadius: '4px', padding: '6px 12px', cursor: kbLoading ? 'not-allowed' : 'pointer', fontSize: '9px', fontWeight: 'bold', letterSpacing: '0.5px', textTransform: 'uppercase', opacity: kbLoading ? 0.5 : 1, whiteSpace: 'nowrap' }}>
                 🧪 Test Call
@@ -2013,6 +2103,26 @@ ${recentText}`,
           onDelete={() => handleEndChoice(true)}
           onCancel={() => setShowEndDialog(false)}
         />
+      )}
+
+      {/* Agent Question Result Popup — one-time display of Q&A answer */}
+      {agentQuestionResult && (
+        <div style={{ position: 'fixed', bottom: 90, right: 24, zIndex: 9100, width: '380px', maxHeight: '400px', background: '#0d1b2a', border: '1px solid rgba(245,158,11,0.4)', borderRadius: '8px', boxShadow: '0 8px 32px rgba(0,0,0,0.6)', display: 'flex', flexDirection: 'column' }}>
+          <div style={{ padding: '10px 14px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
+            <span style={{ color: '#f59e0b', fontSize: '10px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase' }}>🎤 Agent Question Answer</span>
+            <button onClick={() => setAgentQuestionResult(null)} style={{ background: 'none', border: 'none', color: '#6b7280', cursor: 'pointer', fontSize: '14px' }}>✕</button>
+          </div>
+          <div style={{ padding: '14px', overflow: 'auto' }}>
+            <div style={{ color: '#8a9ab8', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '4px' }}>Question</div>
+            <div style={{ color: '#c4cdd8', fontSize: '12px', marginBottom: '12px', fontStyle: 'italic' }}>{agentQuestionResult.question}</div>
+            <div style={{ color: '#8a9ab8', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '4px' }}>Answer</div>
+            {agentQuestionResult.loading ? (
+              <div style={{ color: '#6b7280', fontSize: '12px' }}>⏳ Getting answer…</div>
+            ) : (
+              <div style={{ color: '#e8e0d0', fontSize: '13px', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{agentQuestionResult.answer}</div>
+            )}
+          </div>
+        </div>
       )}
 
       {/* Customer Stats Popup — auto-detects insights during live calls */}
