@@ -476,38 +476,11 @@ Agent line: "${firstAgentLines}"`,
     return () => clearInterval(interval);
   }, [phase, lead.id]);
 
-  // ── Real-time transcript consolidation ──────────────────────────────────
-  // Every ~12 seconds, send recent transcript lines to the AI consolidation
-  // engine. It merges fragmented utterances into complete sentences and
-  // classifies each line (question / statement / objection / greeting / closing).
-  // The consolidated lines replace the fragmented ones in the display.
-  const consolidateRef = useRef(0); // tracks the start index of the in-flight consolidation
-  useEffect(() => {
-    if (phase !== 'live') return;
-    const interval = setInterval(async () => {
-      if (transcriptRef.current.length < 4) return;
-      // Take the last 25 lines for consolidation
-      const startIdx = Math.max(0, transcriptRef.current.length - 25);
-      const toConsolidate = transcriptRef.current.slice(startIdx);
-      consolidateRef.current = startIdx;
-      try {
-        const res = await base44.functions.invoke('consolidateTranscript', { transcript: toConsolidate });
-        const lines = res?.lines || res?.data?.lines;
-        if (!lines || lines.length === 0) return;
-        setTranscript(prev => {
-          // Only replace if the starting line hasn't shifted (no new lines pushed before this index)
-          const expectedStart = consolidateRef.current;
-          if (prev.length < toConsolidate.length) return prev;
-          const currentStartIdx = prev.length - toConsolidate.length;
-          if (currentStartIdx !== expectedStart) return prev;
-          // Verify the first line still matches (safety check)
-          if (prev[expectedStart] && toConsolidate[0] && prev[expectedStart].text !== toConsolidate[0].text) return prev;
-          return [...prev.slice(0, expectedStart), ...lines];
-        });
-      } catch {}
-    }, 30000);
-    return () => clearInterval(interval);
-  }, [phase]);
+  // ── Transcript consolidation removed ──────────────────────────────────
+  // endpointing=700 + speech_final-based chunk collection now produces clean
+  // complete-sentence lines, so the 30s consolidateTranscript call is no
+  // longer needed. The regex-based consolidateTranscript function remains
+  // available for manual use if classification labels are needed.
 
   const createNewLead = useCallback(async () => {
     try {
@@ -962,7 +935,7 @@ ${recentText}`,
         flushCustomerBuffer();
       } else {
         // Wait for more lines — flush after 3s of silence if no new customer line arrives
-        bufferTimeoutRef.current = setTimeout(() => flushCustomerBuffer(), 3000);
+        bufferTimeoutRef.current = setTimeout(() => flushCustomerBuffer(), 1500);
       }
     } else if (entry.speaker === 0) {
       // Agent started speaking — flush any pending customer question
@@ -1127,8 +1100,8 @@ ${recentText}`,
     const sr = ctx.sampleRate;
 
     const dgParams = dualMode
-      ? `model=nova-3&multichannel=true&smart_format=true&punctuate=true&numerals=true&sentiment=true&utterances=true&interim_results=false&channels=2&sample_rate=${sr}&encoding=linear16&${DEBT_KEYTERMS}`
-      : `model=nova-3&diarize=true&smart_format=true&punctuate=true&numerals=true&sentiment=true&utterances=true&interim_results=false&sample_rate=${sr}&encoding=linear16&${DEBT_KEYTERMS}`;
+      ? `model=nova-3&multichannel=true&smart_format=true&punctuate=true&numerals=true&sentiment=true&utterances=true&interim_results=false&channels=2&sample_rate=${sr}&encoding=linear16&endpointing=700&${DEBT_KEYTERMS}`
+      : `model=nova-3&diarize=true&smart_format=true&punctuate=true&numerals=true&sentiment=true&utterances=true&interim_results=false&sample_rate=${sr}&encoding=linear16&endpointing=700&${DEBT_KEYTERMS}`;
     let wsEverOpen = false;
     const ws = new WebSocket(`wss://api.deepgram.com/v1/listen?${dgParams}`, ['token', dgKey]);
     ws.binaryType = 'arraybuffer';
@@ -1194,20 +1167,47 @@ ${recentText}`,
       }
     };
 
+    // Collect is_final chunks until speech_final, then emit one complete line.
+    // Deepgram sends is_final mid-sentence; speech_final marks a real pause.
+    // endpointing=700 gives 700ms of silence before Deepgram fires speech_final.
+    const segBuf = {}; // per speaker: { text, sentiment, timer }
+    const emitSegment = (speaker) => {
+      const b = segBuf[speaker];
+      if (!b || !b.text.trim()) { delete segBuf[speaker]; return; }
+      clearTimeout(b.timer);
+      processNewEntry({ speaker, text: b.text.trim(), sentiment: b.sentiment, time: new Date().toISOString() });
+      delete segBuf[speaker];
+    };
+
     ws.onmessage = (e) => {
       if (e.data instanceof ArrayBuffer) return;
       try {
         const msg = JSON.parse(e.data);
         if (msg.type !== 'Results' || !msg.is_final) return;
         const alt = msg.channel?.alternatives?.[0];
-        if (!alt || !alt.transcript?.trim()) return;
-        const channelNum = Array.isArray(msg.channel_index) ? msg.channel_index[0] : (typeof msg.channel === 'number' ? msg.channel : 0);
-        const speaker = dualMode ? (channelNum === 0 ? 0 : 1) : (alt.speaker ?? (msg.speaker ?? 0));
-        processNewEntry({ speaker, text: alt.transcript, sentiment: msg.sentiment || alt.sentiment || null, time: new Date().toISOString() });
+        // speech_final with empty transcript = natural pause → flush all pending segments
+        if (!alt || !alt.transcript?.trim()) {
+          if (msg.speech_final) Object.keys(segBuf).forEach(k => emitSegment(Number(k)));
+          return;
+        }
+        const channelNum = Array.isArray(msg.channel_index) ? msg.channel_index[0] : 0;
+        const speaker = dualMode ? (channelNum === 0 ? 0 : 1) : (alt.words?.[0]?.speaker ?? 0);
+
+        // Speaker changed mid-buffer (single-mic mode): flush the other speaker first
+        Object.keys(segBuf).forEach(k => { if (Number(k) !== speaker) emitSegment(Number(k)); });
+
+        const b = segBuf[speaker] || (segBuf[speaker] = { text: '', sentiment: null, timer: null });
+        b.text += ' ' + alt.transcript;
+        b.sentiment = msg.sentiment || alt.sentiment || b.sentiment;
+        clearTimeout(b.timer);
+        if (msg.speech_final) emitSegment(speaker);
+        else b.timer = setTimeout(() => emitSegment(speaker), 2500); // safety flush
       } catch {}
     };
 
     ws.onclose = (e) => {
+      // Flush any pending speech segments before final save
+      Object.keys(segBuf).forEach(k => emitSegment(Number(k)));
       setDgStatus('idle');
       // Final save of transcript when connection closes — captures lines since the last 15s auto-save
       if (transcriptRef.current.length > 0 && leadRef.current?.id) {
