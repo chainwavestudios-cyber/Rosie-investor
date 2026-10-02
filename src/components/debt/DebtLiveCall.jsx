@@ -526,7 +526,7 @@ Agent line: "${firstAgentLines}"`,
     try {
       logAI('profile');
       const res = await base44.functions.invoke('liveAssistantAI', {
-        transcript: transcriptRef.current.slice(-20),
+        transcript: transcriptRef.current,
         kbEntries,
         mode: 'profile',
         existingProfile: leadRef.current.profileJson || '{}',
@@ -545,7 +545,7 @@ Agent line: "${firstAgentLines}"`,
     setLedgerExtracting(true);
     logAI('debt_extract');
     try {
-      const recentText = transcriptRef.current.slice(-15).map(t => t.text).join(' ');
+      const recentText = transcriptRef.current.map(t => t.text).join(' ').slice(0, 8000);
       const result = await base44.integrations.Core.InvokeLLM({
         prompt: `You are analyzing a live debt settlement call transcript. Extract any creditor/debt information the customer mentions. Look for:
 - Creditor names (Chase, Capital One, Discover, Amex, etc.)
@@ -605,7 +605,7 @@ ${recentText}`,
     try {
       logAI('budget');
       const res = await base44.functions.invoke('liveAssistantAI', {
-        transcript: transcriptRef.current.slice(-15),
+        transcript: transcriptRef.current,
         mode: 'budget',
         aiInputActive: posHasAiInput(scriptPositionRef.current),
         existingBills: leadRef.current.billsJson || '{}',
@@ -636,7 +636,7 @@ ${recentText}`,
     try {
       logAI('credit');
       const res = await base44.functions.invoke('liveAssistantAI', {
-        transcript: transcriptRef.current.slice(-15),
+        transcript: transcriptRef.current,
         mode: 'credit',
         aiInputActive: posHasAiInput(scriptPositionRef.current),
       });
@@ -658,7 +658,7 @@ ${recentText}`,
     if (!leadRef.current?.id || transcriptRef.current.length < 4) return;
     try {
       logAI('hardship');
-      const res = await base44.functions.invoke('liveAssistantAI', { transcript: transcriptRef.current.slice(-15), mode: 'hardship', aiInputActive: posHasAiInput(scriptPositionRef.current) });
+      const res = await base44.functions.invoke('liveAssistantAI', { transcript: transcriptRef.current, mode: 'hardship', aiInputActive: posHasAiInput(scriptPositionRef.current) });
       const hardship = res?.hardship || res?.data?.hardship;
       if (hardship) {
         const updates = {};
@@ -700,7 +700,7 @@ ${recentText}`,
     try {
       const aiInputActive = posHasAiInput(scriptPositionRef.current);
       logAI('contact');
-      const res = await base44.functions.invoke('liveAssistantAI', { transcript: transcriptRef.current.slice(-15), mode: 'contact', aiInputActive });
+      const res = await base44.functions.invoke('liveAssistantAI', { transcript: transcriptRef.current, mode: 'contact', aiInputActive });
       const contact = res?.contact || res?.data?.contact;
       if (contact) {
         const updates = {};
@@ -756,7 +756,7 @@ ${recentText}`,
     if (!leadRef.current?.id || transcriptRef.current.length < 4) return;
     try {
       logAI('cosigners');
-      const res = await base44.functions.invoke('liveAssistantAI', { transcript: transcriptRef.current.slice(-15), mode: 'cosigners', aiInputActive: posHasAiInput(scriptPositionRef.current) });
+      const res = await base44.functions.invoke('liveAssistantAI', { transcript: transcriptRef.current, mode: 'cosigners', aiInputActive: posHasAiInput(scriptPositionRef.current) });
       const cosigners = res?.cosigners || res?.data?.cosigners || [];
       if (cosigners.length > 0) {
         const existing = (() => { try { return JSON.parse(leadRef.current.cosignersJson || '[]'); } catch { return []; } })();
@@ -770,6 +770,32 @@ ${recentText}`,
       }
     } catch {}
   }, []);
+
+  // Timed extractors — run on a fixed 30s interval during live calls AND from
+  // processNewEntry so client info is captured reliably even when no new
+  // transcript lines are arriving. Each extractor keeps its own throttle.
+  // (Declared before processNewEntry and the interval useEffect to avoid TDZ.)
+  const runTimedExtractors = useCallback(() => {
+    const now = Date.now();
+    const pos = scriptPositionRef.current;
+    const aiInputActive = pos?.scriptLines?.some((l, i) => i >= (pos.activeIdx ?? 0) - 1 && i <= (pos.activeIdx ?? 0) + 3 && /\[\[AI\s*INPUT\]\]/i.test(l || ''));
+    if (now - lastProfileTime.current > (aiInputActive ? 15000 : 60000)) { lastProfileTime.current = now; handleProfile(); }
+    if (now - lastLedgerTime.current > (aiInputActive ? 12000 : 45000)) { lastLedgerTime.current = now; handleDebtExtract(); }
+    if (now - lastBillsTime.current > (aiInputActive ? 15000 : 50000)) { lastBillsTime.current = now; handleBillsExtract(); }
+    if (now - lastHardshipTime.current > (aiInputActive ? 15000 : 55000)) { lastHardshipTime.current = now; handleHardshipExtract(); }
+    if (now - lastCosignerTime.current > (aiInputActive ? 20000 : 60000)) { lastCosignerTime.current = now; handleCosignerExtract(); }
+    if (now - lastContactTime.current > (aiInputActive ? 8000 : 40000)) { lastContactTime.current = now; handleContactExtract(); }
+    if (now - lastCreditTime.current > (aiInputActive ? 12000 : 50000)) { lastCreditTime.current = now; handleCreditExtract(); }
+    if (now - lastComplianceTime.current > 90000) { lastComplianceTime.current = now; handleComplianceEval(); }
+  }, [handleProfile, handleDebtExtract, handleBillsExtract, handleHardshipExtract, handleCosignerExtract, handleContactExtract, handleCreditExtract, handleComplianceEval]);
+
+  // Run timed extractors on a fixed 30s interval during live calls so client
+  // info is captured reliably even when no new transcript lines are arriving.
+  useEffect(() => {
+    if (phase !== 'live') return;
+    const interval = setInterval(runTimedExtractors, 30000);
+    return () => clearInterval(interval);
+  }, [phase, runTimedExtractors]);
 
   const lastEntryRef = useRef(null);
   const processNewEntry = useCallback((entry) => {
@@ -827,18 +853,9 @@ ${recentText}`,
     const now = Date.now();
     // [[AI INPUT]] tag — when the agent is at or just past this marker, the AI
     // aggressively extracts + saves whatever the customer says to the profile.
-    const pos = scriptPositionRef.current;
-    const aiInputActive = pos?.scriptLines?.some((l, i) => i >= (pos.activeIdx ?? 0) - 1 && i <= (pos.activeIdx ?? 0) + 3 && /\[\[AI\s*INPUT\]\]/i.test(l || ''));
     if (coachActiveRef.current && (objWords.some(w => text.toLowerCase().includes(w)) || now - lastCoachTime.current > 20000)) { lastCoachTime.current = now; handleCoach(); }
     if (intentActiveRef.current && now - lastIntentTime.current > 30000) { lastIntentTime.current = now; handleIntent(); }
-    if (now - lastProfileTime.current > (aiInputActive ? 15000 : 60000)) { lastProfileTime.current = now; handleProfile(); }
-    if (now - lastLedgerTime.current > (aiInputActive ? 12000 : 45000)) { lastLedgerTime.current = now; handleDebtExtract(); }
-    if (now - lastBillsTime.current > (aiInputActive ? 15000 : 50000)) { lastBillsTime.current = now; handleBillsExtract(); }
-    if (now - lastHardshipTime.current > (aiInputActive ? 15000 : 55000)) { lastHardshipTime.current = now; handleHardshipExtract(); }
-    if (now - lastCosignerTime.current > (aiInputActive ? 20000 : 60000)) { lastCosignerTime.current = now; handleCosignerExtract(); }
-    if (now - lastContactTime.current > (aiInputActive ? 8000 : 40000)) { lastContactTime.current = now; handleContactExtract(); }
-    if (now - lastCreditTime.current > (aiInputActive ? 12000 : 50000)) { lastCreditTime.current = now; handleCreditExtract(); }
-    if (now - lastComplianceTime.current > 90000) { lastComplianceTime.current = now; handleComplianceEval(); }
+    runTimedExtractors();
     // Opening handoff: for inbound calls, listen aggressively for transfer agent intro
     // (name, debt amount, hardship, address, phone, account details)
     const lineCount = transcriptRef.current.length;
@@ -856,7 +873,7 @@ ${recentText}`,
       if (handoffAttemptsRef.current < 1 && lineCount >= 3) { handoffAttemptsRef.current = 1; handleHandoffExtract(); }
       else if (handoffAttemptsRef.current < 2 && lineCount >= 7) { handoffAttemptsRef.current = 2; handleHandoffExtract(); }
     }
-  }, [handleQa, flushCustomerBuffer, handleCoach, handleIntent, handleProfile, handleDebtExtract, handleBillsExtract, handleHardshipExtract, handleCosignerExtract, handleContactExtract, handleCreditExtract, handleComplianceEval, handleHandoffExtract]);
+  }, [handleQa, flushCustomerBuffer, handleCoach, handleIntent, runTimedExtractors, handleHandoffExtract]);
 
   const startCall = useCallback(async (forceNew = false) => {
     // Ensure we have a lead — always create a brand new one for new/inbound calls

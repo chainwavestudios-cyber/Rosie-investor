@@ -448,7 +448,7 @@ ${existingFactTexts.length > 0 ? existingFactTexts.join('\n') : 'None yet'}`,
 
     // ── HARDSHIP EXTRACTION ────────────────────────────────────────────
     if (mode === 'hardship') {
-      const recentText = (transcript || []).slice(-15).map((t: any) => t.text).join(' ');
+      const recentText = (transcript || []).map((t: any) => t.text).join(' ').slice(0, 8000);
       const data = await callLLM(req, {
           model: 'claude-haiku-4-5-20251001',
           max_tokens: 400,
@@ -478,7 +478,7 @@ ${recentText}`,
 
     // ── CO-SIGNER EXTRACTION ──────────────────────────────────────────
     if (mode === 'cosigners') {
-      const recentText = (transcript || []).slice(-15).map((t: any) => t.text).join(' ');
+      const recentText = (transcript || []).map((t: any) => t.text).join(' ').slice(0, 8000);
       const data = await callLLM(req, {
           model: 'claude-haiku-4-5-20251001',
           max_tokens: 500,
@@ -511,7 +511,7 @@ ${recentText}`,
 
     // ── CREDIT REVIEW EXTRACTION (credit score, behind on payments) ──
     if (mode === 'credit') {
-      const recentText = (transcript || []).slice(-15).map((t: any) => t.text).join(' ');
+      const recentText = (transcript || []).map((t: any) => t.text).join(' ').slice(0, 8000);
       const data = await callLLM(req, {
           model: 'claude-haiku-4-5-20251001',
           max_tokens: 400,
@@ -540,7 +540,7 @@ ${recentText}`,
 
     // ── BUDGET EXTRACTION (income + monthly expenses with custom keys) ──
     if (mode === 'budget') {
-      const recentText = (transcript || []).slice(-15).map((t: any) => t.text).join(' ');
+      const recentText = (transcript || []).map((t: any) => t.text).join(' ').slice(0, 8000);
       const existingBillsJson = body.existingBills || '{}';
       const data = await callLLM(req, {
           model: 'claude-haiku-4-5-20251001',
@@ -575,7 +575,7 @@ ${recentText}`,
 
     // ── CUSTOMER INFO EXTRACTION (name, contact, debt amount) ────────
     if (mode === 'contact') {
-      const recentText = (transcript || []).slice(-15).map((t: any) => t.text).join(' ');
+      const recentText = (transcript || []).map((t: any) => t.text).join(' ').slice(0, 8000);
       const data = await callLLM(req, {
           model: 'claude-haiku-4-5-20251001',
           max_tokens: 500,
