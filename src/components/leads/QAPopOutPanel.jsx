@@ -42,7 +42,12 @@ export default function QAPopOutPanel({
   // Auto-save to DB
   useEffect(() => {
     if (!username || !dbLoaded) return;
-    setDbSaved({ x: pos.x, y: pos.y, w: size.w, h: size.h });
+    const next = { x: pos.x, y: pos.y, w: size.w, h: size.h };
+    const sig = JSON.stringify(next);
+    if (sig === lastAppliedSig.current) return; // nothing changed — don't write
+    // Mark our own write as applied so the load effect doesn't bounce it back (prevents ping-pong loop)
+    lastAppliedSig.current = sig;
+    setDbSaved(next);
   }, [pos, size, username, dbLoaded]);
 
   const dragging = useRef(false);
