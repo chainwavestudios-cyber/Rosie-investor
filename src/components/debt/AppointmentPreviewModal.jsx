@@ -82,7 +82,7 @@ export default function AppointmentPreviewModal({ preview, lead, agentName, onDo
           <>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
               <div style={{ color: GOLD, fontSize: '13px', letterSpacing: '2px', textTransform: 'uppercase' }}>📅 Schedule Follow-Up</div>
-              <button onClick={() => onDone?.(null)} style={{ background: 'none', border: 'none', color: '#6b7280', cursor: 'pointer', fontSize: '22px', padding: '0 4px' }}>×</button>
+              <button onClick={() => onDone?.({ cancelled: true })} style={{ background: 'none', border: 'none', color: '#6b7280', cursor: 'pointer', fontSize: '22px', padding: '0 4px' }}>×</button>
             </div>
 
             <div style={{ background: 'rgba(16,185,129,0.06)', border: `1px solid ${GOLD}33`, borderRadius: '4px', padding: '14px', marginBottom: '16px' }}>
@@ -125,7 +125,10 @@ export default function AppointmentPreviewModal({ preview, lead, agentName, onDo
                 {creating ? '⏳' : 'Skip Email'}
               </button>
             </div>
-            <div style={{ color: '#4a5568', fontSize: '10px', textAlign: 'center', marginTop: '8px' }}>If you close this without choosing, the event auto-books at call end.</div>
+            <button onClick={() => onDone?.({ cancelled: true })} disabled={creating} style={{ width: '100%', marginTop: '8px', background: 'rgba(239,68,68,0.06)', color: RED, border: '1px solid rgba(239,68,68,0.25)', borderRadius: '4px', padding: '10px', cursor: creating ? 'not-allowed' : 'pointer', fontSize: '11px', fontWeight: 'bold', opacity: creating ? 0.5 : 1 }}>
+              ✕ Do Not Schedule Appointment
+            </button>
+            <div style={{ color: '#4a5568', fontSize: '10px', textAlign: 'center', marginTop: '8px' }}>Only schedules if you approve above. Closing this window cancels.</div>
           </>
         )}
       </div>

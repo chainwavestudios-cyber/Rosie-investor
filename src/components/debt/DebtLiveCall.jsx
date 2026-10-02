@@ -2155,18 +2155,8 @@ ${recentText}`,
           lead={lead}
           agentName={coachUser?.username}
           onDone={(result) => {
-            // If user closed without approving (no result), auto-book without email
-            if (!result && autoSchedulerEnabled && apptPreview.startISO) {
-              const leadName = `${lead.firstName || ''} ${lead.lastName || ''}`.trim();
-              base44.functions.invoke('autoScheduleAppointment', {
-                action: 'create',
-                startISO: apptPreview.startISO,
-                leadId: lead.id,
-                leadName,
-                agentName: coachUser?.username || '',
-                summary: apptPreview.summary,
-              }).catch(() => {});
-            }
+            // Only auto-schedule when the user explicitly approved (result is truthy).
+            // Closing or "Do Not Schedule" cancels — no auto-book fallback.
             setApptPreview(null);
           }}
         />
