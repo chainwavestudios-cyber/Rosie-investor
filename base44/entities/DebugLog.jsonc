@@ -8,7 +8,7 @@
     },
     "logText": {
       "type": "string",
-      "title": "Pasted Log Text",
+      "title": "Pasted Log Text (or preview of uploaded file)",
       "format": "textarea"
     },
     "sourceComputer": {
@@ -25,6 +25,14 @@
         "general"
       ],
       "default": "general"
+    },
+    "fileUri": {
+      "type": "string",
+      "title": "Uploaded .txt file URI (private storage)"
+    },
+    "fileName": {
+      "type": "string",
+      "title": "Uploaded file name"
     }
   },
   "required": [

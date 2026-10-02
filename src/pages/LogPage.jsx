@@ -2,7 +2,7 @@
  * LogPage.jsx — Paste debug logs from any computer so they can be reviewed.
  * Saved logs are stored in the DebugLog entity and listed below the paste area.
  */
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
 
 const GOLD = '#10b981';
@@ -20,6 +20,10 @@ export default function LogPage() {
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [viewing, setViewing] = useState(null);
+  const [fileUri, setFileUri] = useState('');
+  const [fileName, setFileName] = useState('');
+  const [uploading, setUploading] = useState(false);
+  const fileRef = useRef(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -37,12 +41,14 @@ export default function LogPage() {
     setSaving(true);
     try {
       await base44.entities.DebugLog.create({
-        title: title.trim() || `Log ${new Date().toLocaleString()}`,
+        title: title.trim() || (fileName || `Log ${new Date().toLocaleString()}`),
         logText,
         sourceComputer: sourceComputer.trim(),
         category,
+        fileUri: fileUri || undefined,
+        fileName: fileName || undefined,
       });
-      setLogText(''); setTitle(''); setSourceComputer(''); setCategory('general');
+      setLogText(''); setTitle(''); setSourceComputer(''); setCategory('general'); setFileUri(''); setFileName('');
       setSavedMsg('✓ Log saved');
       setTimeout(() => setSavedMsg(''), 3000);
       load();
@@ -64,6 +70,38 @@ export default function LogPage() {
       setSavedMsg('✓ Copied to clipboard');
       setTimeout(() => setSavedMsg(''), 2000);
     });
+  };
+
+  const handleFile = async (file) => {
+    if (!file) return;
+    setUploading(true);
+    try {
+      const { file_uri } = await base44.integrations.Core.UploadPrivateFile({ file });
+      setFileUri(file_uri);
+      setFileName(file.name);
+      if (!title.trim()) setTitle(file.name.replace(/\.[^.]+$/, ''));
+      // Load a preview (first 8000 chars) into the textarea; the full file is attached for download.
+      const text = await file.text();
+      const preview = text.length > 8000
+        ? text.slice(0, 8000) + `\n…[truncated — ${text.length.toLocaleString()} chars total, full file attached as download]`
+        : text;
+      setLogText(preview);
+      setSavedMsg('✓ File attached — preview loaded');
+      setTimeout(() => setSavedMsg(''), 3000);
+    } catch (e) {
+      setSavedMsg('⚠ Upload failed: ' + (e?.message || String(e)));
+    }
+    setUploading(false);
+  };
+
+  const downloadLog = async (l) => {
+    try {
+      const { signed_url } = await base44.integrations.Core.CreateFileSignedUrl({ file_uri: l.fileUri });
+      window.open(signed_url, '_blank');
+    } catch (e) {
+      setSavedMsg('⚠ Download failed: ' + (e?.message || String(e)));
+      setTimeout(() => setSavedMsg(''), 3000);
+    }
   };
 
   return (
@@ -109,7 +147,10 @@ export default function LogPage() {
             <button onClick={save} disabled={saving || !logText.trim()} style={{ background: 'linear-gradient(135deg,#10b981,#22c55e)', color: DARK, border: 'none', borderRadius: '4px', padding: '10px 24px', cursor: saving || !logText.trim() ? 'not-allowed' : 'pointer', fontSize: '11px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase', opacity: saving || !logText.trim() ? 0.5 : 1 }}>
               {saving ? 'Saving…' : '💾 Save Log'}
             </button>
-            <button onClick={() => { setLogText(''); setTitle(''); setSourceComputer(''); }} style={{ background: 'rgba(255,255,255,0.05)', color: '#6b7280', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '4px', padding: '10px 16px', cursor: 'pointer', fontSize: '11px' }}>Clear</button>
+            <button onClick={() => { setLogText(''); setTitle(''); setSourceComputer(''); setFileUri(''); setFileName(''); }} style={{ background: 'rgba(255,255,255,0.05)', color: '#6b7280', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '4px', padding: '10px 16px', cursor: 'pointer', fontSize: '11px' }}>Clear</button>
+            <input ref={fileRef} type="file" accept=".txt,text/plain" style={{ display: 'none' }} onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f); e.target.value = ''; }} />
+            <button onClick={() => fileRef.current?.click()} disabled={uploading} style={{ background: uploading ? 'rgba(255,255,255,0.05)' : `${GOLD}18`, color: uploading ? '#6b7280' : GOLD, border: `1px solid ${GOLD}44`, borderRadius: '4px', padding: '10px 16px', cursor: uploading ? 'not-allowed' : 'pointer', fontSize: '11px' }}>{uploading ? 'Uploading…' : '📄 Upload .txt'}</button>
+            {fileName && <span style={{ color: GOLD, fontSize: '11px' }}>📎 {fileName}</span>}
             {savedMsg && <span style={{ color: savedMsg.startsWith('✓') ? GOLD : '#ef4444', fontSize: '12px' }}>{savedMsg}</span>}
           </div>
         </div>
@@ -141,6 +182,7 @@ export default function LogPage() {
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', flexShrink: 0 }}>
                     <button onClick={() => setViewing(viewing?.id === l.id ? null : l)} style={{ background: 'rgba(255,255,255,0.05)', color: '#8a9ab8', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '4px', padding: '4px 10px', cursor: 'pointer', fontSize: '10px' }}>{viewing?.id === l.id ? 'Collapse' : 'Expand'}</button>
                     <button onClick={() => copyLog(l.logText)} style={{ background: 'rgba(255,255,255,0.05)', color: '#8a9ab8', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '4px', padding: '4px 10px', cursor: 'pointer', fontSize: '10px' }}>Copy</button>
+                    {l.fileUri && <button onClick={() => downloadLog(l)} style={{ background: `${GOLD}18`, color: GOLD, border: `1px solid ${GOLD}44`, borderRadius: '4px', padding: '4px 10px', cursor: 'pointer', fontSize: '10px' }}>Download</button>}
                     <button onClick={() => del(l.id)} style={{ background: 'rgba(239,68,68,0.08)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.2)', borderRadius: '4px', padding: '4px 10px', cursor: 'pointer', fontSize: '10px' }}>Delete</button>
                   </div>
                 </div>
