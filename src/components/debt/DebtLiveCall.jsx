@@ -332,6 +332,8 @@ Agent line: "${firstAgentLines}"`,
   const lastSpeakerRef = useRef(null);
   const handoffAttemptsRef = useRef(0);
   const inboundRef = useRef(false);
+  const transferAgentDoneRef = useRef(false); // true once agent says "can you hear me ok" — transfer agent leaves
+  const transferAgentDetectedRef = useRef(false); // true once regex extracts data from transfer agent's intro
   const callStartRef = useRef(null);
   const intentHistoryRef = useRef([]);
   const testCtxRef = useRef(null);
@@ -801,6 +803,7 @@ ${recentText}`,
   // ("I have Bob on the line here, and he has approx 20k in debt") → populate
   // first name + debt amount and save the lead immediately.
   const handleHandoffExtract = useCallback(async () => {
+    if (transferAgentDetectedRef.current) return; // regex already extracted the data
     if (!leadRef.current?.id || transcriptRef.current.length < 2) return;
     try {
       logAI('handoff');
@@ -898,6 +901,43 @@ ${recentText}`,
       return;
     }
     lastEntryRef.current = { speaker: entry.speaker, text: entry.text, ts: Date.now() };
+
+    // ── Transfer Agent Detection (inbound calls only) ──────────────────
+    // For front_to_back / open_only calls, the transfer agent speaks on the
+    // customer channel before the actual customer. Tag them as speaker 2
+    // until the agent says "can you hear me ok", then the customer (speaker 1)
+    // begins. Extract name, city, state, and debt amount from the intro.
+    if ((callType === 'front_to_back' || callType === 'open_only') && !transferAgentDoneRef.current) {
+      if (entry.speaker === 0) {
+        if (/\b(?:can you hear me|you there|are you there)\b/i.test(entry.text)) {
+          transferAgentDoneRef.current = true;
+        }
+      } else if (entry.speaker === 1) {
+        entry = { ...entry, speaker: 2 };
+        if (!transferAgentDetectedRef.current) {
+          const m = entry.text.match(/i\s+have\s+(\w+)\s+(\w+)\s+from\s+(.+?),?\s+([a-z]{2,})\s+with\s+(?:approx|about|approximately)?\s*\$?([\d,.]+k?)\s*(?:in\s+|of\s+)?(?:unsecured\s+|credit\s+card\s+)?debt/i);
+          if (m) {
+            transferAgentDetectedRef.current = true;
+            const [, firstName, lastName, city, state, amtRaw] = m;
+            const debtAmount = parseFloat(amtRaw.replace(/[$,]/g, '').replace(/k$/i, '000')) || 0;
+            const updates = {};
+            const curFirst = (leadRef.current.firstName || '').trim();
+            const curLast = (leadRef.current.lastName || '').trim();
+            if (firstName && (!curFirst || curFirst.toLowerCase() === 'new')) updates.firstName = firstName;
+            if (lastName && (!curLast || curLast.toLowerCase() === 'lead')) updates.lastName = lastName;
+            if (city) updates.city = city.trim();
+            if (state) updates.state = state.toUpperCase();
+            if (debtAmount > 0 && !leadRef.current.debtAmount) updates.debtAmount = debtAmount;
+            if (Object.keys(updates).length > 0) {
+              setLead(prev => ({ ...prev, ...updates }));
+              if (leadRef.current.id) base44.entities.DebtLead.update(leadRef.current.id, updates).catch(() => {});
+              window.dispatchEvent(new CustomEvent('lead_autosaved', { detail: Object.keys(updates) }));
+            }
+          }
+        }
+      }
+    }
+
     // Immediate merge: if same speaker as last line and last line doesn't end
     // with sentence punctuation, this is a fragment — append to last line.
     // This prevents one statement from appearing as 10 separate lines.
@@ -1001,6 +1041,8 @@ ${recentText}`,
     setError(''); setTranscript([]); setQaItems([]); setCoachTips([]); setIntentScore(null); setProfileData(null); setReport('');
     intentHistoryRef.current = [];
     handoffAttemptsRef.current = 0;
+    transferAgentDoneRef.current = false;
+    transferAgentDetectedRef.current = false;
     leadPersistedRef.current = false;
     transcriptRecordIdRef.current = null;
     profileAutoOpenedRef.current = false;

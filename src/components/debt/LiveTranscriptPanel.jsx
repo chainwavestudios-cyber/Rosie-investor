@@ -68,7 +68,7 @@ export default function LiveTranscriptPanel({ transcript, phase, panel, onAnswer
   const renderTranscript = () => (
     <>
       <div style={{ padding: '10px 16px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
-        <div style={{ color: '#6b7280', fontSize: '10px' }}><span style={{ color: '#60a5fa' }}>● Agent</span> · <span style={{ color: GOLD }}>● Customer</span></div>
+        <div style={{ color: '#6b7280', fontSize: '10px' }}><span style={{ color: '#60a5fa' }}>● Agent</span> · <span style={{ color: '#a78bfa' }}>● Transfer</span> · <span style={{ color: GOLD }}>● Customer</span></div>
         <div style={{ color: '#6b7280', fontSize: '10px' }}>{transcript.length} lines{selectedCount > 0 && <span style={{ color: '#f59e0b', marginLeft: '6px' }}>· {selectedCount} selected</span>}</div>
       </div>
       <div ref={scrollRef} onScroll={handleScroll} style={{ flex: 1, overflowY: 'auto', padding: '14px 16px', paddingBottom: selectedCount > 0 ? '64px' : '14px' }}>
@@ -76,11 +76,12 @@ export default function LiveTranscriptPanel({ transcript, phase, panel, onAnswer
           <div style={{ color: '#4a5568', textAlign: 'center', padding: '60px 0', fontSize: '13px' }}>{phase === 'live' ? 'Listening… start speaking.' : 'No transcript yet. Start a call to begin.'}</div>
         ) : transcript.map((msg, i) => {
           const isAgent = msg.speaker === 0;
+          const isTransferAgent = msg.speaker === 2;
           const sentColor = msg.sentiment === 'positive' ? '#4ade80' : msg.sentiment === 'negative' ? '#ef4444' : '#6b7280';
           const isSelected = !!selected[i];
           return (
             <div key={i} style={{ display: 'flex', gap: '6px', marginBottom: '10px', justifyContent: isAgent ? 'flex-end' : 'flex-start', alignItems: 'flex-start' }}>
-              {!isAgent && onAnswerQuestion && (
+              {!isAgent && !isTransferAgent && onAnswerQuestion && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', flexShrink: 0, marginTop: '2px' }}>
                   <button
                     onClick={() => onAnswerQuestion(msg.text)}
@@ -105,9 +106,9 @@ export default function LiveTranscriptPanel({ transcript, phase, panel, onAnswer
                   >{isSelected ? '✓' : '+'}</button>
                 </div>
               )}
-              <div style={{ maxWidth: '85%', background: isAgent ? 'rgba(96,165,250,0.1)' : isSelected ? 'rgba(245,158,11,0.12)' : 'rgba(16,185,129,0.1)', border: `1px solid ${isAgent ? 'rgba(96,165,250,0.2)' : isSelected ? 'rgba(245,158,11,0.4)' : 'rgba(16,185,129,0.2)'}`, borderRadius: isAgent ? '12px 12px 2px 12px' : '12px 12px 12px 2px', padding: '8px 12px' }}>
+              <div style={{ maxWidth: '85%', background: isAgent ? 'rgba(96,165,250,0.1)' : isTransferAgent ? 'rgba(167,139,250,0.1)' : isSelected ? 'rgba(245,158,11,0.12)' : 'rgba(16,185,129,0.1)', border: `1px solid ${isAgent ? 'rgba(96,165,250,0.2)' : isTransferAgent ? 'rgba(167,139,250,0.2)' : isSelected ? 'rgba(245,158,11,0.4)' : 'rgba(16,185,129,0.2)'}`, borderRadius: isAgent ? '12px 12px 2px 12px' : '12px 12px 12px 2px', padding: '8px 12px' }}>
                 <div style={{ display: 'flex', gap: '6px', alignItems: 'center', marginBottom: '3px' }}>
-                  <span style={{ color: isAgent ? '#60a5fa' : GOLD, fontSize: '9px', fontWeight: 'bold', textTransform: 'uppercase' }}>{isAgent ? '🎙 Agent' : '👤 Customer'}</span>
+                  <span style={{ color: isAgent ? '#60a5fa' : isTransferAgent ? '#a78bfa' : GOLD, fontSize: '9px', fontWeight: 'bold', textTransform: 'uppercase' }}>{isAgent ? '🎙 Agent' : isTransferAgent ? '🔀 Transfer Agent' : '👤 Customer'}</span>
                   {msg.classification && (
                     <span style={{ color: CLASS_COLORS[msg.classification] || '#6b7280', fontSize: '8px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.5px', padding: '1px 5px', borderRadius: '2px', background: `${CLASS_COLORS[msg.classification] || '#6b7280'}18` }}>{msg.classification}</span>
                   )}
