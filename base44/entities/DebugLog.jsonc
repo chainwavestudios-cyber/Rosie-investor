@@ -1,0 +1,39 @@
+{
+  "name": "DebugLog",
+  "type": "object",
+  "properties": {
+    "title": {
+      "type": "string",
+      "title": "Title / Label"
+    },
+    "logText": {
+      "type": "string",
+      "title": "Pasted Log Text",
+      "format": "textarea"
+    },
+    "sourceComputer": {
+      "type": "string",
+      "title": "Source Computer (user-entered label)"
+    },
+    "category": {
+      "type": "string",
+      "title": "Category",
+      "enum": [
+        "error",
+        "console",
+        "network",
+        "general"
+      ],
+      "default": "general"
+    }
+  },
+  "required": [
+    "logText"
+  ],
+  "rls": {
+    "create": null,
+    "read": null,
+    "update": null,
+    "delete": null
+  }
+}
