@@ -489,10 +489,24 @@ Agent line: "${firstAgentLines}"`,
 
   const handleQa = useCallback((question) => {
     const id = Date.now() + Math.random();
+    const startTime = Date.now();
     setQaItems(prev => [...prev, { id, question, answer: '', loading: true }]);
     logAI('qa');
     base44.functions.invoke('liveAssistantAI', { question, transcript: transcriptRef.current.slice(-8), kbEntries, kbName: 'Debt Settlement', scriptPosition: scriptPositionRef.current })
-      .then(res => { const answer = res?.answer || res?.data?.answer || 'Check knowledge base.'; setQaItems(prev => prev.map(x => x.id === id ? { ...x, answer, loading: false } : x)); })
+      .then(res => {
+        const responseMs = Date.now() - startTime;
+        // AI decided no answer is needed (small talk, greeting, etc.)
+        if (res?.needs_answer === false || res?.data?.needs_answer === false) {
+          setQaItems(prev => prev.filter(x => x.id !== id));
+          return;
+        }
+        const answer = res?.answer || res?.data?.answer || 'Check knowledge base.';
+        const reallyAsking = res?.really_asking || res?.data?.really_asking || '';
+        const opener = res?.opener || res?.data?.opener || '';
+        const detail = res?.detail || res?.data?.detail || '';
+        console.log(`[QA] ${responseMs}ms${reallyAsking ? ` — ${reallyAsking}` : ''}`);
+        setQaItems(prev => prev.map(x => x.id === id ? { ...x, answer, reallyAsking, opener, detail, loading: false, responseMs } : x));
+      })
       .catch(() => setQaItems(prev => prev.map(x => x.id === id ? { ...x, answer: 'Unable to answer.', loading: false } : x)));
   }, [kbEntries]);
 
@@ -502,21 +516,12 @@ Agent line: "${firstAgentLines}"`,
     if (customerBufferRef.current.length === 0) return;
     const combined = customerBufferRef.current.join(' ').trim();
     customerBufferRef.current = [];
-    if (combined.length < 8) return;
-    // Send if it looks like a question
-    const qPat = /\b(what|how|why|when|where|who|can|could|would|is|are|do|does|will|should|have|has|tell me|explain|show me|prove|how much|what's the)\b/i;
-    if (qPat.test(combined)) { handleQa(combined); return; }
-    // Also send if it matches a Q&A statement from the KB (statements, not just questions)
-    const lower = combined.toLowerCase();
-    const statementMatch = kbEntries.some(e => {
-      if (e.category !== 'debt_qa_statements') return false;
-      const stmt = (e.question || '').toLowerCase();
-      if (stmt && lower.includes(stmt)) return true;
-      const vars = (e.variations || '').split('\n').map(v => v.trim().toLowerCase()).filter(Boolean);
-      return vars.some(v => v && lower.includes(v));
-    });
-    if (statementMatch) handleQa(combined);
-  }, [handleQa, kbEntries]);
+    if (combined.length < 12) return;
+    // Send all customer statements to QA — the Sonnet model detects implied
+    // questions/concerns/objections and returns needs_answer=false for small
+    // talk, so non-questions are filtered server-side instead of by regex here.
+    handleQa(combined);
+  }, [handleQa]);
 
   const handleCoach = useCallback(() => {
     logAI('coach');

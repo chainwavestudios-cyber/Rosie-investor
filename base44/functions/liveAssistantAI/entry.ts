@@ -36,6 +36,7 @@ async function callLLMCached(req: Request, opts: {
           'x-api-key': apiKey,
           'anthropic-version': '2023-06-01',
           'content-type': 'application/json',
+          ...(process.env.ANTHROPIC_WORKSPACE_ID ? { 'anthropic-workspace-id': process.env.ANTHROPIC_WORKSPACE_ID } : {}),
         },
         body: JSON.stringify({
           model: opts.model || 'claude-haiku-4-5-20251001',
@@ -1193,32 +1194,53 @@ Return ONLY this JSON (no markdown):
       ? allObjections.map((e: any) => `OBJECTION: "${e.question}"\nHOW TO HANDLE: ${e.answer}`).join('\n---\n')
       : '';
 
-    // If no meaningful KB context at all, this is a pure AI fallback — label it so the frontend can show "AI ANSWER"
-    if (!hasKBContext && !objectionContext) {
-      const data = await callLLM(req, {
-          model: 'claude-haiku-4-5-20251001',
-          max_tokens: 500,
-          system: `You are a real-time sales assistant on a live call. The knowledge base has no relevant answer for this question. Use your own knowledge to provide a helpful, concise answer the agent can speak naturally — 2-4 sentences. If you truly cannot answer, say so honestly.`,
-          messages: [{ role: 'user', content: `${fullTranscriptStr ? `Full conversation so far:\n${fullTranscriptStr}\n\n` : ''}Question: "${question}"\n\nAnswer:` }],
-      });
-      const redirect = buildScriptRedirect(scriptPosition);
-      const answer = data?.content?.[0]?.text || 'No answer found.';
-      return Response.json({ answer: redirect ? `${answer}\n\n${redirect}` : answer, source: 'ai_fallback' });
-    }
-
     // Static (cached): base instructions + objection catalog — same for every Q&A in a session
-    const cachedSystem = `You are a real-time sales assistant on a live investor call. Answer questions from the knowledge base. Be concise — 2-4 sentences the agent can speak naturally. If the exact answer is in the KB, use it verbatim. If it requires synthesis, combine the relevant entries. If the customer is raising an objection, use the OBJECTION HANDLING CATALOG below to give the agent the exact rebuttal.${objectionContext ? `\n\n━━━ OBJECTION HANDLING CATALOG — If the question is an objection, use the matching handling guidance: ━━━\n${objectionContext}` : ''}`;
+    const cachedSystem = `You are a real-time sales assistant on a live debt settlement call. The agent is talking to a customer and needs quick, accurate answers displayed on screen.
+
+Treat statements that imply a question, concern, or objection as questions. Customers often say things like "I don't know how I'd even pay that" or "so that doesn't hurt my credit" or "my husband handles that stuff" without asking a direct question. Detect what the customer is really asking and answer that.
+
+If the customer's statement is just small talk, a greeting, or doesn't need an answer, return exactly: {"needs_answer": false}
+
+When an answer IS needed, return JSON with this exact structure:
+{"needs_answer": true, "really_asking": "one line: what they're actually asking or concerned about", "opener": "a natural bridge line for the agent — VARY THESE, never repeat the same phrase. Examples: 'That's a great question', 'Good point — let me explain', 'I'm glad you asked', 'Absolutely, let me break that down', 'Happy to clarify that'", "answer": "1-2 sentences the agent can speak naturally — concise, direct, conversational. Max 60 words.", "detail": "optional extra context if the agent needs more — 1-2 sentences max"}
+
+Rules:
+- "answer" must be 60 words max — the agent reads this aloud mid-call
+- "opener" must vary every time — never use the same opener twice in a row
+- If the exact answer is in the KB, use it verbatim or lightly paraphrase
+- If it requires synthesis, combine relevant entries
+- If the customer is raising an objection, use the OBJECTION HANDLING CATALOG
+- Return ONLY valid JSON, no markdown or commentary
+${objectionContext ? `\n━━━ OBJECTION HANDLING CATALOG — If the question is an objection, use the matching handling guidance: ━━━\n${objectionContext}` : ''}`;
     // Dynamic: relevant KB entries — changes per question
     const dynamicSystem = `KNOWLEDGE BASE${kbName ? ` (${kbName})` : ''}:\n${kbContext}`;
     const data = await callLLMCached(req, {
         cachedSystem,
         system: dynamicSystem,
-        userContent: `${fullTranscriptStr ? `Full conversation so far:\n${fullTranscriptStr}\n\n` : ''}Question: "${question}"\n\nAnswer from KB:`,
-        maxTokens: 500,
+        userContent: `${fullTranscriptStr ? `Conversation so far:\n${fullTranscriptStr}\n\n` : ''}Customer's latest statement: "${question}"\n\nReturn JSON:`,
+        model: 'claude-sonnet-4-5-20250929',
+        maxTokens: 400,
     });
+    const rawText = data?.content?.[0]?.text || '';
+    let parsed: any = null;
+    try {
+      const jsonMatch = rawText.match(/\{[\s\S]*\}/);
+      parsed = jsonMatch ? JSON.parse(jsonMatch[0]) : null;
+    } catch { parsed = null; }
+    if (parsed?.needs_answer === false) {
+      return Response.json({ needs_answer: false, answer: '', source: 'kb_ai' });
+    }
     const redirect = buildScriptRedirect(scriptPosition);
-    const answer = data?.content?.[0]?.text || 'No answer found.';
-    return Response.json({ answer: redirect ? `${answer}\n\n${redirect}` : answer, source: 'kb_ai' });
+    const answer = parsed?.answer || rawText || 'No answer found.';
+    const fullAnswer = redirect ? `${answer}\n\n${redirect}` : answer;
+    return Response.json({
+      answer: fullAnswer,
+      really_asking: parsed?.really_asking || '',
+      opener: parsed?.opener || '',
+      detail: parsed?.detail || '',
+      needs_answer: true,
+      source: 'kb_ai',
+    });
 
   } catch (e: any) {
     return Response.json({ error: e.message }, { status: 500 });
