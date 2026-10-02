@@ -254,6 +254,11 @@ Agent line: "${firstAgentLines}"`,
   const lastContactTime = useRef(0);
   const lastCreditTime = useRef(0);
   const lastComplianceTime = useRef(0);
+  // "Done" refs — once a mid-call extractor has run in its time window, it
+  // won't run again until the end-of-call sweep in stopCall.
+  const ledgerDoneRef = useRef(false);
+  const hardshipDoneRef = useRef(false);
+  const billsDoneRef = useRef(false);
   const handoffAttemptsRef = useRef(0);
   const inboundRef = useRef(false);
   const callStartRef = useRef(null);
@@ -780,23 +785,29 @@ ${recentText}`,
   // (Declared before processNewEntry and the interval useEffect to avoid TDZ.)
   const runTimedExtractors = useCallback(() => {
     const now = Date.now();
-    const pos = scriptPositionRef.current;
-    const aiInputActive = pos?.scriptLines?.some((l, i) => i >= (pos.activeIdx ?? 0) - 1 && i <= (pos.activeIdx ?? 0) + 3 && /\[\[AI\s*INPUT\]\]/i.test(l || ''));
-    if (now - lastProfileTime.current > (aiInputActive ? 30000 : 120000)) { lastProfileTime.current = now; handleProfile(); }
-    if (now - lastLedgerTime.current > (aiInputActive ? 30000 : 90000)) { lastLedgerTime.current = now; handleDebtExtract(); }
-    if (now - lastBillsTime.current > (aiInputActive ? 45000 : 120000)) { lastBillsTime.current = now; handleBillsExtract(); }
-    if (now - lastHardshipTime.current > (aiInputActive ? 45000 : 120000)) { lastHardshipTime.current = now; handleHardshipExtract(); }
-    if (now - lastCosignerTime.current > (aiInputActive ? 60000 : 180000)) { lastCosignerTime.current = now; handleCosignerExtract(); }
-    // Name-correction window: in the first 90 seconds, run the contact extractor
-    // more aggressively so a corrected/clarified name ("Actually it's Jonathan, not John")
-    // is caught quickly instead of waiting for the next cycle.
     const callElapsedSec = callStartRef.current ? (now - callStartRef.current.getTime()) / 1000 : 0;
-    const inOpeningWindow = callElapsedSec < 90;
-    const contactThrottle = aiInputActive ? 20000 : (inOpeningWindow ? 30000 : 90000);
-    if (now - lastContactTime.current > contactThrottle) { lastContactTime.current = now; handleContactExtract(); }
-    if (now - lastCreditTime.current > (aiInputActive ? 45000 : 120000)) { lastCreditTime.current = now; handleCreditExtract(); }
-    if (now - lastComplianceTime.current > 180000) { lastComplianceTime.current = now; handleComplianceEval(); }
-  }, [handleProfile, handleDebtExtract, handleBillsExtract, handleHardshipExtract, handleCosignerExtract, handleContactExtract, handleCreditExtract, handleComplianceEval]);
+
+    // Profile — every 2 min
+    if (now - lastProfileTime.current > 120000) { lastProfileTime.current = now; handleProfile(); }
+
+    // Contact — only 0-90s, every 15s (name corrections happen in the opening)
+    if (callElapsedSec < 90 && now - lastContactTime.current > 15000) { lastContactTime.current = now; handleContactExtract(); }
+
+    // Debt ledger — not until 15 min in, then once only (again at end of call)
+    if (callElapsedSec >= 900 && !ledgerDoneRef.current && now - lastLedgerTime.current > 60000) { lastLedgerTime.current = now; ledgerDoneRef.current = true; handleDebtExtract(); }
+
+    // Hardship — 15-30 min window, once only (again at end of call)
+    if (callElapsedSec >= 900 && callElapsedSec < 1800 && !hardshipDoneRef.current && now - lastHardshipTime.current > 60000) { lastHardshipTime.current = now; hardshipDoneRef.current = true; handleHardshipExtract(); }
+
+    // Budget — 15-35 min window, once only (again at end of call)
+    if (callElapsedSec >= 900 && callElapsedSec < 2100 && !billsDoneRef.current && now - lastBillsTime.current > 60000) { lastBillsTime.current = now; billsDoneRef.current = true; handleBillsExtract(); }
+
+    // Credit — every 2 min
+    if (now - lastCreditTime.current > 120000) { lastCreditTime.current = now; handleCreditExtract(); }
+
+    // Co-signers — moved to end-of-call sweep in stopCall
+    // Compliance — turned off for now
+  }, [handleProfile, handleDebtExtract, handleBillsExtract, handleHardshipExtract, handleContactExtract, handleCreditExtract]);
 
   // Run timed extractors on a 90s fallback interval during live calls — only
   // fires when no new transcript lines have triggered runTimedExtractors via
@@ -871,15 +882,10 @@ ${recentText}`,
     // (name, debt amount, hardship, address, phone, account details)
     const lineCount = transcriptRef.current.length;
     if (inboundRef.current) {
-      // Inbound: extract more frequently in the opening seconds
       if (handoffAttemptsRef.current < 1 && lineCount >= 2) { handoffAttemptsRef.current = 1; handleHandoffExtract(); }
       else if (handoffAttemptsRef.current < 2 && lineCount >= 4) { handoffAttemptsRef.current = 2; handleHandoffExtract(); }
       else if (handoffAttemptsRef.current < 3 && lineCount >= 6) { handoffAttemptsRef.current = 3; handleHandoffExtract(); }
       else if (handoffAttemptsRef.current < 4 && lineCount >= 8) { handoffAttemptsRef.current = 4; handleHandoffExtract(); }
-      // Also trigger contact, hardship, and debt extraction more aggressively for inbound
-      if (now - lastContactTime.current > 30000) { lastContactTime.current = now; handleContactExtract(); }
-      if (now - lastHardshipTime.current > 45000) { lastHardshipTime.current = now; handleHardshipExtract(); }
-      if (now - lastLedgerTime.current > 45000) { lastLedgerTime.current = now; handleDebtExtract(); }
     } else {
       if (handoffAttemptsRef.current < 1 && lineCount >= 3) { handoffAttemptsRef.current = 1; handleHandoffExtract(); }
       else if (handoffAttemptsRef.current < 2 && lineCount >= 7) { handoffAttemptsRef.current = 2; handleHandoffExtract(); }
@@ -917,6 +923,9 @@ ${recentText}`,
     leadPersistedRef.current = false;
     transcriptRecordIdRef.current = null;
     profileAutoOpenedRef.current = false;
+    ledgerDoneRef.current = false;
+    hardshipDoneRef.current = false;
+    billsDoneRef.current = false;
 
     // Create a live transcript record immediately — updated every 15s and finalized on end
     try {
@@ -1127,6 +1136,12 @@ ${recentText}`,
 
     // Final profile + intent analysis
     if (transcriptRef.current.length > 0 && leadRef.current?.id) {
+      // End-of-call extractor sweep — run each once now (co-signers only run here)
+      try { await handleDebtExtract(); } catch {}
+      try { await handleHardshipExtract(); } catch {}
+      try { await handleBillsExtract(); } catch {}
+      try { await handleCosignerExtract(); } catch {}
+
       let intent = null;
       try {
         logAI('intent_final');
@@ -1346,7 +1361,7 @@ ${recentText}`,
     }
 
     loadLeads();
-  }, [kbEntries, loadLeads, autoSchedulerEnabled, coachUser, callType]);
+  }, [kbEntries, loadLeads, autoSchedulerEnabled, coachUser, callType, handleDebtExtract, handleHardshipExtract, handleBillsExtract, handleCosignerExtract]);
 
   // Show the keep/delete dialog when the agent ends a call (not for monitor takeovers)
   const handleEndCallClick = useCallback(() => {
