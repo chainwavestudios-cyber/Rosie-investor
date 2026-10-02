@@ -15,6 +15,53 @@ async function callLLM(req: Request, body: any): Promise<any> {
   return { content: [{ type: 'text', text }] };
 }
 
+// ── Cached LLM helper (direct Anthropic API with prompt caching) ──────────
+// Sends a static system block with cache_control so the KB/hotpoints/objections
+// text is cached by Anthropic (90% discount on cached read tokens). Falls back
+// to InvokeLLM (platform credits, no caching) if the API key is missing or the
+// call fails.
+async function callLLMCached(req: Request, opts: {
+  cachedSystem: string;
+  system: string;
+  userContent: string;
+  model?: string;
+  maxTokens?: number;
+}): Promise<any> {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (apiKey) {
+    try {
+      const response = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'x-api-key': apiKey,
+          'anthropic-version': '2023-06-01',
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: opts.model || 'claude-haiku-4-5-20251001',
+          max_tokens: opts.maxTokens || 500,
+          system: [
+            { type: 'text', text: opts.cachedSystem, cache_control: { type: 'ephemeral' } },
+            { type: 'text', text: opts.system },
+          ],
+          messages: [{ role: 'user', content: opts.userContent }],
+        }),
+      });
+      if (!response.ok) throw new Error(`Anthropic API ${response.status}`);
+      const data = await response.json();
+      return { content: [{ type: 'text', text: data.content?.[0]?.text || '' }] };
+    } catch (e) {
+      console.log('[callLLMCached] Anthropic failed, falling back to InvokeLLM:', e?.message || String(e));
+    }
+  }
+  // Fallback: InvokeLLM (no caching)
+  const base44 = createClientFromRequest(req);
+  const prompt = `${opts.cachedSystem}\n\n${opts.system}\n\n${opts.userContent}`;
+  const res: any = await base44.asServiceRole.integrations.Core.InvokeLLM({ prompt });
+  const text = typeof res === 'string' ? res : (res?.text || res?.content?.[0]?.text || JSON.stringify(res));
+  return { content: [{ type: 'text', text }] };
+}
+
 // ── Multi-answer helper ─────────────────────────────────────────────────────
 // Returns all answers for an entry: parses answersJson (array) if present,
 // otherwise falls back to the single `answer` field.
@@ -152,20 +199,22 @@ Deno.serve(async (req) => {
       const memoryContext = memories.length > 0
         ? memories.map((m: any) => `- [${m.factType || 'personal'}${m.importance === 'high' ? ' ★ HIGH' : ''}] ${m.factText}${m.context ? ` (context: ${m.context})` : ''}${m.followUpDate ? ` — FOLLOW UP BY ${new Date(m.followUpDate).toLocaleDateString()}` : ''}`).join('\n')
         : '';
-      const data = await callLLM(req, {
-          model: 'claude-haiku-4-5-20251001',
-          max_tokens: 300,
-          system: `You are a real-time sales coach whispering to an agent on a live debt settlement call. Give ONE actionable coaching tip, then provide a specific script of EXACTLY what to say next — ready for the agent to read aloud word-for-word.
+      // Static (cached): base instructions + hotpoints + objections — same for every coach call in a session
+      const cachedSystem = `You are a real-time sales coach whispering to an agent on a live debt settlement call. Give ONE actionable coaching tip, then provide a specific script of EXACTLY what to say next — ready for the agent to read aloud word-for-word.
 Format your response EXACTLY like this:
 TIP: <1-2 sentence coaching recommendation — what to do and why>
 SAY: "<exact words the agent should say to the customer right now, in quotes, conversational and natural>"
 Be direct and specific — agent reads this mid-call and may read the SAY line aloud verbatim.
 Focus: handling objections, building rapport, next talking point, timing a close.
-${memoryContext ? `\n━━━ KEY FACTS ABOUT THIS PROSPECT — Remember these from previous calls. Weave them in naturally to build rapport (e.g., ask about their wife by name, mention their kid's birthday, reference their job change). These are GOLD for building trust: ━━━\n${memoryContext}` : ''}
 ${hotpointContext ? `\n━━━ COACHING HOTPOINTS — Watch for these triggers in the live conversation. If the customer or agent says something matching a trigger, immediately coach the agent using the guidance and strategy below: ━━━\n${hotpointContext}` : ''}
-${objectionContext ? `\n━━━ OBJECTION HANDLING CATALOG — When the customer raises any of these objections (or something close), coach the agent on how to handle them using the guidance below. Match the customer's words to the closest objection: ━━━\n${objectionContext}` : ''}
-${kbContext ? `\n\nRelevant KB:\n${kbContext}` : ''}`,
-          messages: [{ role: 'user', content: `Live conversation:\n${recentTranscript}\n\nCoaching tip now:` }],
+${objectionContext ? `\n━━━ OBJECTION HANDLING CATALOG — When the customer raises any of these objections (or something close), coach the agent on how to handle them using the guidance below. Match the customer's words to the closest objection: ━━━\n${objectionContext}` : ''}`;
+      // Dynamic: memories + relevant KB — changes per coach call
+      const dynamicSystem = `${memoryContext ? `━━━ KEY FACTS ABOUT THIS PROSPECT — Remember these from previous calls. Weave them in naturally to build rapport (e.g., ask about their wife by name, mention their kid's birthday, reference their job change). These are GOLD for building trust: ━━━\n${memoryContext}` : ''}${kbContext ? `\n\nRelevant KB:\n${kbContext}` : ''}`;
+      const data = await callLLMCached(req, {
+          cachedSystem,
+          system: dynamicSystem,
+          userContent: `Live conversation:\n${recentTranscript}\n\nCoaching tip now:`,
+          maxTokens: 300,
       });
       return Response.json({ tip: data?.content?.[0]?.text || '' });
     }
@@ -1157,11 +1206,15 @@ Return ONLY this JSON (no markdown):
       return Response.json({ answer: redirect ? `${answer}\n\n${redirect}` : answer, source: 'ai_fallback' });
     }
 
-    const data = await callLLM(req, {
-        model: 'claude-haiku-4-5-20251001',
-        max_tokens: 500,
-        system: `You are a real-time sales assistant on a live investor call. Answer questions from the knowledge base. Be concise — 2-4 sentences the agent can speak naturally. If the exact answer is in the KB, use it verbatim. If it requires synthesis, combine the relevant entries. If the customer is raising an objection, use the OBJECTION HANDLING CATALOG below to give the agent the exact rebuttal.\n\nKNOWLEDGE BASE${kbName ? ` (${kbName})` : ''}:\n${kbContext}${objectionContext ? `\n\n━━━ OBJECTION HANDLING CATALOG — If the question is an objection, use the matching handling guidance: ━━━\n${objectionContext}` : ''}`,
-        messages: [{ role: 'user', content: `${fullTranscriptStr ? `Full conversation so far:\n${fullTranscriptStr}\n\n` : ''}Question: "${question}"\n\nAnswer from KB:` }],
+    // Static (cached): base instructions + objection catalog — same for every Q&A in a session
+    const cachedSystem = `You are a real-time sales assistant on a live investor call. Answer questions from the knowledge base. Be concise — 2-4 sentences the agent can speak naturally. If the exact answer is in the KB, use it verbatim. If it requires synthesis, combine the relevant entries. If the customer is raising an objection, use the OBJECTION HANDLING CATALOG below to give the agent the exact rebuttal.${objectionContext ? `\n\n━━━ OBJECTION HANDLING CATALOG — If the question is an objection, use the matching handling guidance: ━━━\n${objectionContext}` : ''}`;
+    // Dynamic: relevant KB entries — changes per question
+    const dynamicSystem = `KNOWLEDGE BASE${kbName ? ` (${kbName})` : ''}:\n${kbContext}`;
+    const data = await callLLMCached(req, {
+        cachedSystem,
+        system: dynamicSystem,
+        userContent: `${fullTranscriptStr ? `Full conversation so far:\n${fullTranscriptStr}\n\n` : ''}Question: "${question}"\n\nAnswer from KB:`,
+        maxTokens: 500,
     });
     const redirect = buildScriptRedirect(scriptPosition);
     const answer = data?.content?.[0]?.text || 'No answer found.';

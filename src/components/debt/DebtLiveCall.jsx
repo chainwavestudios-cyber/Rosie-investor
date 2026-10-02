@@ -259,6 +259,18 @@ Agent line: "${firstAgentLines}"`,
   const ledgerDoneRef = useRef(false);
   const hardshipDoneRef = useRef(false);
   const billsDoneRef = useRef(false);
+  // Per-extractor cursors — track last transcript line index sent to each
+  // extractor so only NEW lines are sent (not the full 8000 chars every time).
+  const contactCursorRef = useRef(0);
+  const ledgerCursorRef = useRef(0);
+  const hardshipCursorRef = useRef(0);
+  const billsCursorRef = useRef(0);
+  const cosignerCursorRef = useRef(0);
+  const creditCursorRef = useRef(0);
+  const profileCursorRef = useRef(0);
+  // Debounce: only fire runTimedExtractors every N lines or on speaker change
+  const extractLineCounterRef = useRef(0);
+  const lastSpeakerRef = useRef(null);
   const handoffAttemptsRef = useRef(0);
   const inboundRef = useRef(false);
   const callStartRef = useRef(null);
@@ -528,10 +540,13 @@ Agent line: "${firstAgentLines}"`,
 
   const handleProfile = useCallback(async () => {
     if (!leadRef.current?.id) return;
+    const newLines = transcriptRef.current.slice(profileCursorRef.current);
+    if (newLines.length === 0) return;
+    profileCursorRef.current = transcriptRef.current.length;
     try {
       logAI('profile');
       const res = await base44.functions.invoke('liveAssistantAI', {
-        transcript: transcriptRef.current,
+        transcript: newLines,
         kbEntries,
         mode: 'profile',
         existingProfile: leadRef.current.profileJson || '{}',
@@ -547,10 +562,13 @@ Agent line: "${firstAgentLines}"`,
 
   const handleDebtExtract = useCallback(async () => {
     if (!leadRef.current?.id || transcriptRef.current.length < 4) return;
+    const newLines = transcriptRef.current.slice(ledgerCursorRef.current);
+    if (newLines.length === 0) return;
+    ledgerCursorRef.current = transcriptRef.current.length;
     setLedgerExtracting(true);
     logAI('debt_extract');
     try {
-      const recentText = transcriptRef.current.map(t => t.text).join(' ').slice(0, 8000);
+      const recentText = newLines.map(t => t.text).join(' ').slice(0, 8000);
       const result = await base44.integrations.Core.InvokeLLM({
         prompt: `You are analyzing a live debt settlement call transcript. Extract any creditor/debt information the customer mentions. Look for:
 - Creditor names (Chase, Capital One, Discover, Amex, etc.)
@@ -607,10 +625,13 @@ ${recentText}`,
   // Auto-extract budget (income + monthly expenses with custom keys) via backend AI
   const handleBillsExtract = useCallback(async () => {
     if (!leadRef.current?.id || transcriptRef.current.length < 4) return;
+    const newLines = transcriptRef.current.slice(billsCursorRef.current);
+    if (newLines.length === 0) return;
+    billsCursorRef.current = transcriptRef.current.length;
     try {
       logAI('budget');
       const res = await base44.functions.invoke('liveAssistantAI', {
-        transcript: transcriptRef.current,
+        transcript: newLines,
         mode: 'budget',
         aiInputActive: posHasAiInput(scriptPositionRef.current),
         existingBills: leadRef.current.billsJson || '{}',
@@ -638,10 +659,13 @@ ${recentText}`,
   // Auto-extract credit review info (credit score, behind on payments, months behind) from transcript
   const handleCreditExtract = useCallback(async () => {
     if (!leadRef.current?.id || transcriptRef.current.length < 4) return;
+    const newLines = transcriptRef.current.slice(creditCursorRef.current);
+    if (newLines.length === 0) return;
+    creditCursorRef.current = transcriptRef.current.length;
     try {
       logAI('credit');
       const res = await base44.functions.invoke('liveAssistantAI', {
-        transcript: transcriptRef.current,
+        transcript: newLines,
         mode: 'credit',
         aiInputActive: posHasAiInput(scriptPositionRef.current),
       });
@@ -661,9 +685,12 @@ ${recentText}`,
   // Auto-extract hardship info from transcript
   const handleHardshipExtract = useCallback(async () => {
     if (!leadRef.current?.id || transcriptRef.current.length < 4) return;
+    const newLines = transcriptRef.current.slice(hardshipCursorRef.current);
+    if (newLines.length === 0) return;
+    hardshipCursorRef.current = transcriptRef.current.length;
     try {
       logAI('hardship');
-      const res = await base44.functions.invoke('liveAssistantAI', { transcript: transcriptRef.current, mode: 'hardship', aiInputActive: posHasAiInput(scriptPositionRef.current) });
+      const res = await base44.functions.invoke('liveAssistantAI', { transcript: newLines, mode: 'hardship', aiInputActive: posHasAiInput(scriptPositionRef.current) });
       const hardship = res?.hardship || res?.data?.hardship;
       if (hardship) {
         const updates = {};
@@ -702,10 +729,13 @@ ${recentText}`,
   // Auto-extract customer info (name, phone, address, email, debt amount) from transcript
   const handleContactExtract = useCallback(async () => {
     if (!leadRef.current?.id || transcriptRef.current.length < 4) return;
+    const newLines = transcriptRef.current.slice(contactCursorRef.current);
+    if (newLines.length === 0) return;
+    contactCursorRef.current = transcriptRef.current.length;
     try {
       const aiInputActive = posHasAiInput(scriptPositionRef.current);
       logAI('contact');
-      const res = await base44.functions.invoke('liveAssistantAI', { transcript: transcriptRef.current, mode: 'contact', aiInputActive });
+      const res = await base44.functions.invoke('liveAssistantAI', { transcript: newLines, mode: 'contact', aiInputActive });
       const contact = res?.contact || res?.data?.contact;
       if (contact) {
         const updates = {};
@@ -762,9 +792,12 @@ ${recentText}`,
   // Auto-extract co-signers from transcript
   const handleCosignerExtract = useCallback(async () => {
     if (!leadRef.current?.id || transcriptRef.current.length < 4) return;
+    const newLines = transcriptRef.current.slice(cosignerCursorRef.current);
+    if (newLines.length === 0) return;
+    cosignerCursorRef.current = transcriptRef.current.length;
     try {
       logAI('cosigners');
-      const res = await base44.functions.invoke('liveAssistantAI', { transcript: transcriptRef.current, mode: 'cosigners', aiInputActive: posHasAiInput(scriptPositionRef.current) });
+      const res = await base44.functions.invoke('liveAssistantAI', { transcript: newLines, mode: 'cosigners', aiInputActive: posHasAiInput(scriptPositionRef.current) });
       const cosigners = res?.cosigners || res?.data?.cosigners || [];
       if (cosigners.length > 0) {
         const existing = (() => { try { return JSON.parse(leadRef.current.cosignersJson || '[]'); } catch { return []; } })();
@@ -877,7 +910,14 @@ ${recentText}`,
     // aggressively extracts + saves whatever the customer says to the profile.
     if (coachActiveRef.current && (objWords.some(w => text.toLowerCase().includes(w)) || now - lastCoachTime.current > 45000)) { lastCoachTime.current = now; handleCoach(); }
     if (intentActiveRef.current && now - lastIntentTime.current > 60000) { lastIntentTime.current = now; handleIntent(); }
-    runTimedExtractors();
+    // Debounce: only run timed extractors every 5 lines or when speaker changes
+    extractLineCounterRef.current++;
+    const speakerChanged = entry.speaker !== lastSpeakerRef.current;
+    lastSpeakerRef.current = entry.speaker;
+    if (extractLineCounterRef.current >= 5 || speakerChanged) {
+      extractLineCounterRef.current = 0;
+      runTimedExtractors();
+    }
     // Opening handoff: for inbound calls, listen aggressively for transfer agent intro
     // (name, debt amount, hardship, address, phone, account details)
     const lineCount = transcriptRef.current.length;
@@ -926,6 +966,15 @@ ${recentText}`,
     ledgerDoneRef.current = false;
     hardshipDoneRef.current = false;
     billsDoneRef.current = false;
+    contactCursorRef.current = 0;
+    ledgerCursorRef.current = 0;
+    hardshipCursorRef.current = 0;
+    billsCursorRef.current = 0;
+    cosignerCursorRef.current = 0;
+    creditCursorRef.current = 0;
+    profileCursorRef.current = 0;
+    extractLineCounterRef.current = 0;
+    lastSpeakerRef.current = null;
 
     // Create a live transcript record immediately — updated every 15s and finalized on end
     try {
