@@ -31,6 +31,24 @@ const inp = { width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px 
 
 const DEBT_KB_CATEGORIES = ['debt_agent', 'debt_customer', 'debt_qa_statements', 'debt_doc', 'debt_web', 'debt_call', 'debt_kb', 'debt_faq', 'debt_hotpoints'];
 
+// Deepgram Nova-3 keyterm prompting — boosts recognition of debt settlement vocabulary
+// that the model mishears (e.g. "pay" → "training"). Nova-3 uses repeated keyterm= params.
+const DEBT_KEYTERMS = [
+  'pay', 'payment', 'paying', 'paid', 'payments',
+  'settle', 'settlement', 'settling', 'settled',
+  'enroll', 'enrollment', 'enrolling', 'enrolled',
+  'debt', 'debts', 'debtor', 'creditor', 'creditors',
+  'bankruptcy', 'hardship', 'cosigner', 'cosigners',
+  'garnishment', 'consolidation', 'escrow', 'forbearance', 'repossession',
+  'collector', 'collectors', 'collection',
+  'balance', 'balances', 'minimum+payment', 'charge+off', 'charged+off',
+  'monthly+payment', 'credit+score', 'credit+report',
+  'lump+sum', 'social+security', 'account+number',
+  'interest+rate', 'APR',
+  'Chase', 'Discover', 'Amex', 'Citi', 'Synchrony', 'Comenity',
+  'Barclaycard', 'Wells+Fargo', 'Capital+One', 'American+Express',
+].map(k => `keyterm=${k}`).join('&');
+
 // Check if the agent's current script position is at or near an [[AI INPUT]] tag
 function posHasAiInput(pos) {
   if (!pos?.scriptLines || pos.activeIdx == null) return false;
@@ -1058,8 +1076,8 @@ ${recentText}`,
     const sr = ctx.sampleRate;
 
     const dgParams = dualMode
-      ? `model=nova-3&multichannel=true&smart_format=true&punctuate=true&sentiment=true&utterances=true&interim_results=false&channels=2&sample_rate=${sr}&encoding=linear16`
-      : `model=nova-3&diarize=true&smart_format=true&punctuate=true&sentiment=true&utterances=true&interim_results=false&sample_rate=${sr}&encoding=linear16`;
+      ? `model=nova-3&multichannel=true&smart_format=true&punctuate=true&sentiment=true&utterances=true&interim_results=false&channels=2&sample_rate=${sr}&encoding=linear16&${DEBT_KEYTERMS}`
+      : `model=nova-3&diarize=true&smart_format=true&punctuate=true&sentiment=true&utterances=true&interim_results=false&sample_rate=${sr}&encoding=linear16&${DEBT_KEYTERMS}`;
     const ws = new WebSocket(`wss://api.deepgram.com/v1/listen?${dgParams}`, ['token', dgKey]);
     ws.binaryType = 'arraybuffer';
     wsRef.current = ws;
