@@ -9,6 +9,7 @@ import { base44 } from '@/api/base44Client';
 import { DebtPitchPanel } from '@/components/debt/DebtPitchTab';
 import DebtIntentSignals, { DEBT_INTENT_RULES } from '@/components/debt/DebtIntentSignals';
 import AIAssistantPopup from '@/components/leads/AIAssistantPopup';
+import CommonQuestionsTab from '@/components/debt/CommonQuestionsTab';
 
 const GOLD = '#10b981';
 const DEBT_KB_CATEGORIES = ['debt_kb', 'debt_faq', 'debt_agent', 'debt_customer', 'debt_doc', 'debt_web', 'debt_call', 'debt_hotpoints', 'debt_objections', 'debt_open_scenario', 'debt_close_scenario', 'debt_disqualify'];
@@ -250,7 +251,7 @@ export default function DebtAIPanel({
 
         {/* Tabs */}
         <div style={{ padding: '0 16px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', gap: '2px' }}>
-          {[{ id: 'ai', label: '🤖 AI', allowed: canAIAssistant }, { id: 'pitches', label: '🎤 Pitches', allowed: true }, { id: 'signals', label: '🎯 Signals', allowed: true }].filter(t => t.allowed).map(t => (
+          {[{ id: 'ai', label: '🤖 AI', allowed: canAIAssistant }, { id: 'commonqa', label: '❓ Common Q&A', allowed: true }, { id: 'pitches', label: '🎤 Pitches', allowed: true }, { id: 'signals', label: '🎯 Signals', allowed: true }].filter(t => t.allowed).map(t => (
             <button key={t.id} onClick={() => setRightTab(t.id)} style={{ padding: '10px 12px', background: 'none', border: 'none', borderBottom: `2px solid ${rightTab === t.id ? GOLD : 'transparent'}`, color: rightTab === t.id ? GOLD : '#6b7280', cursor: 'pointer', fontSize: '11px', fontWeight: rightTab === t.id ? 'bold' : 'normal', whiteSpace: 'nowrap' }}>{t.label}</button>
           ))}
         </div>
@@ -337,6 +338,7 @@ export default function DebtAIPanel({
           )
         )}
 
+        {rightTab === 'commonqa' && <div style={{ flex: 1, overflowY: 'auto' }}><CommonQuestionsTab /></div>}
         {rightTab === 'pitches' && <div style={{ flex: 1, overflowY: 'auto' }}><DebtPitchPanel /></div>}
         {rightTab === 'signals' && <div style={{ flex: 1, overflowY: 'auto', padding: '8px' }}><DebtIntentSignals /></div>}
       </div>
