@@ -33,20 +33,43 @@ const DEBT_KB_CATEGORIES = ['debt_agent', 'debt_customer', 'debt_qa_statements',
 
 // Deepgram Nova-3 keyterm prompting — boosts recognition of debt settlement vocabulary
 // that the model mishears (e.g. "pay" → "training"). Nova-3 uses repeated keyterm= params.
+// Extracted from real Drew call transcripts — creditor names, financial terms, phrases.
 const DEBT_KEYTERMS = [
+  // ── Core financial terms ──
   'pay', 'payment', 'paying', 'paid', 'payments',
   'settle', 'settlement', 'settling', 'settled',
   'enroll', 'enrollment', 'enrolling', 'enrolled',
   'debt', 'debts', 'debtor', 'creditor', 'creditors',
   'bankruptcy', 'hardship', 'cosigner', 'cosigners',
   'garnishment', 'consolidation', 'escrow', 'forbearance', 'repossession',
-  'collector', 'collectors', 'collection',
-  'balance', 'balances', 'minimum+payment', 'charge+off', 'charged+off',
-  'monthly+payment', 'credit+score', 'credit+report',
-  'lump+sum', 'social+security', 'account+number',
-  'interest+rate', 'APR',
-  'Chase', 'Discover', 'Amex', 'Citi', 'Synchrony', 'Comenity',
-  'Barclaycard', 'Wells+Fargo', 'Capital+One', 'American+Express',
+  'collector', 'collectors', 'collection', 'balance', 'balances',
+  'delinquent', 'delinquency', 'utilization', 'negotiate', 'negotiation',
+  // ── Financial phrases ──
+  'minimum+payment', 'charge+off', 'charged+off', 'monthly+payment',
+  'credit+score', 'credit+report', 'credit+card', 'debit+card',
+  'lump+sum', 'social+security', 'account+number', 'interest+rate',
+  'unsecured+debt', 'soft+credit+check', 'fixed+income',
+  'debt+settlement', 'debt+consolidation', 'debt+management',
+  'authorized+user', 'past+due', 'escrow+account', 'trust+account',
+  'tax+write-off', 'checking+account', 'savings+account', 'routing+number',
+  'minimum+payment+warning', 'debt+to+income+ratio',
+  // ── Creditor names ──
+  'Chase', 'Discover', 'Amex', 'American+Express', 'Citi', 'Citibank',
+  'Synchrony', 'Synchrony+Bank', 'Comenity', 'Comenity+Capital',
+  'Barclaycard', 'Wells+Fargo', 'Capital+One', 'Bank+of+America',
+  'Best+Egg', 'Venmo', 'One+Main', 'Home+Depot', 'Best+Buy',
+  'Credit+One', 'Credit+One+Bank', 'First+Premier', 'Milestone',
+  'Indigo', 'PayPal', 'Samsung', 'Amazon', 'Chevron',
+  'Rooms+to+Go', 'Care+Credit', 'Farm+Bureau', 'First+Savings+Bank',
+  'Goldman+Sachs', 'Navy+Federal', 'Pentagon', 'Vistar', 'Greenwood',
+  'Bank+of+Missouri', 'Alfion', 'Alfion+Dental', 'Tampa+Bay',
+  // ── Company / program names ──
+  'Start+New+Financial', 'Global+Holdings', 'Evergreen+Legal',
+  'Debt+Advisors', 'Better+Business+Bureau', 'Trustpilot',
+  'DocuSign', 'LinkedIn', 'Torch+Award',
+  // ── Bankruptcy / legal terms ──
+  'Chapter+7', 'Chapter+13', 'means+test', 'liquidation',
+  'APR',
 ].map(k => `keyterm=${k}`).join('&');
 
 // Check if the agent's current script position is at or near an [[AI INPUT]] tag
