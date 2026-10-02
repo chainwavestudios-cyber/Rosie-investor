@@ -1,6 +1,19 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.52';
 
-const ANTHROPIC_KEY = Deno.env.get('ANTHROPIC_API_KEY') || '';
+// ── Platform LLM helper ────────────────────────────────────────────────────
+// Routes all AI features through the platform InvokeLLM integration (platform
+// credits) instead of direct Anthropic API calls, which were failing due to an
+// exhausted API key. Returns an Anthropic-shaped response ({ content: [{ text }] })
+// so existing call sites parse unchanged.
+async function callLLM(req: Request, body: any): Promise<any> {
+  const base44 = createClientFromRequest(req);
+  const system = body?.system || '';
+  const userContent = body?.messages?.[0]?.content || '';
+  const prompt = system ? `${system}\n\n${userContent}` : userContent;
+  const res: any = await base44.asServiceRole.integrations.Core.InvokeLLM({ prompt });
+  const text = typeof res === 'string' ? res : (res?.text || res?.content?.[0]?.text || JSON.stringify(res));
+  return { content: [{ type: 'text', text }] };
+}
 
 // ── Multi-answer helper ─────────────────────────────────────────────────────
 // Returns all answers for an entry: parses answersJson (array) if present,
@@ -139,10 +152,7 @@ Deno.serve(async (req) => {
       const memoryContext = memories.length > 0
         ? memories.map((m: any) => `- [${m.factType || 'personal'}${m.importance === 'high' ? ' ★ HIGH' : ''}] ${m.factText}${m.context ? ` (context: ${m.context})` : ''}${m.followUpDate ? ` — FOLLOW UP BY ${new Date(m.followUpDate).toLocaleDateString()}` : ''}`).join('\n')
         : '';
-      const res = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_KEY, 'anthropic-version': '2023-06-01' },
-        body: JSON.stringify({
+      const data = await callLLM(req, {
           model: 'claude-haiku-4-5-20251001',
           max_tokens: 300,
           system: `You are a real-time sales coach whispering to an agent on a live debt settlement call. Give ONE actionable coaching tip, then provide a specific script of EXACTLY what to say next — ready for the agent to read aloud word-for-word.
@@ -156,9 +166,7 @@ ${hotpointContext ? `\n━━━ COACHING HOTPOINTS — Watch for these triggers
 ${objectionContext ? `\n━━━ OBJECTION HANDLING CATALOG — When the customer raises any of these objections (or something close), coach the agent on how to handle them using the guidance below. Match the customer's words to the closest objection: ━━━\n${objectionContext}` : ''}
 ${kbContext ? `\n\nRelevant KB:\n${kbContext}` : ''}`,
           messages: [{ role: 'user', content: `Live conversation:\n${recentTranscript}\n\nCoaching tip now:` }],
-        }),
       });
-      const data = await res.json();
       return Response.json({ tip: data?.content?.[0]?.text || '' });
     }
 
@@ -178,30 +186,13 @@ ${kbContext ? `\n\nRelevant KB:\n${kbContext}` : ''}`,
       const memoryContext = memories.length > 0
         ? memories.map((m: any) => `- [${m.factType || 'personal'}${m.importance === 'high' ? ' ★ HIGH' : ''}] ${m.factText}${m.context ? ` (context: ${m.context})` : ''}${m.followUpDate ? ` — FOLLOW UP BY ${new Date(m.followUpDate).toLocaleDateString()}` : ''}`).join('\n')
         : '';
-      const res = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': ANTHROPIC_KEY,
-          'anthropic-version': '2023-06-01',
-          'anthropic-beta': 'messages-2023-06-01',
-        },
-        body: JSON.stringify({
+      const data = await callLLM(req, {
           model: 'claude-haiku-4-5-20251001',
           max_tokens: 300,
-          stream: true,
           system: `You are a real-time sales coach whispering to an agent on a live investor call. ${coachRules?.style || 'Give ONE actionable coaching tip, then provide a specific script of EXACTLY what to say next — ready for the agent to read aloud word-for-word.'}\nFormat your response EXACTLY like this:\nTIP: <1-2 sentence coaching recommendation — what to do and why>\nSAY: "<exact words the agent should say to the customer right now, in quotes, conversational and natural>"\nBe direct and specific — agent reads this mid-call and may read the SAY line aloud verbatim.\nFocus: ${coachRules?.focusAreas || 'handling objections, building rapport, next talking point, timing a close'}.${coachRules?.additionalContext ? `\nContext: ${coachRules.additionalContext}` : ''}${callAttemptNumber ? `\nThis is call #${callAttemptNumber} with this prospect.` : ''}${memoryContext ? `\n\n━━━ KEY FACTS ABOUT THIS PROSPECT — Remember these from previous calls. Weave them in naturally to build rapport (e.g., ask about their wife by name, mention their kid's birthday, reference their job change). These are GOLD for building trust: ━━━\n${memoryContext}` : ''}${hotpointContext ? `\n\n━━━ COACHING HOTPOINTS — Watch for these triggers. If the customer or agent says something matching a trigger, coach the agent using the guidance: ━━━\n${hotpointContext}` : ''}${objectionContext ? `\n\n━━━ OBJECTION HANDLING CATALOG — When the customer raises any of these objections (or something close), coach the agent on how to handle them using the guidance below. Match the customer's words to the closest objection: ━━━\n${objectionContext}` : ''}${kbContext ? `\n\nRelevant KB:\n${kbContext}` : ''}`,
           messages: [{ role: 'user', content: `Live conversation:\n${recentTranscript}\n\nCoaching tip now:` }],
-        }),
       });
-      // Stream the response directly back
-      return new Response(res.body, {
-        headers: {
-          'Content-Type': 'text/event-stream',
-          'Cache-Control': 'no-cache',
-          'Access-Control-Allow-Origin': '*',
-        },
-      });
+      return Response.json({ tip: data?.content?.[0]?.text || '' });
     }
 
     // ── POST-CALL INTENT ANALYSIS (ENHANCED INTENT ENGINE) ────────────
@@ -277,10 +268,7 @@ ${kbContext ? `\n\nRelevant KB:\n${kbContext}` : ''}`,
 - Hesitation markers detected: ${hesitationCount}
 - Total transcript lines: ${allEntries.length}`;
 
-      const res = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_KEY, 'anthropic-version': '2023-06-01' },
-        body: JSON.stringify({
+      const data = await callLLM(req, {
           model: 'claude-haiku-4-5-20251001',
           max_tokens: 1500,
           system: `You are an expert sales call analyst running a comprehensive INTENT ENGINE that measures many dimensions of a prospect's behavior, engagement, and intent on a debt settlement sales call. Also extract key facts from the conversation to auto-populate the CRM and build a persistent memory for follow-up calls.
@@ -342,9 +330,7 @@ Respond ONLY with this exact JSON (no markdown):
   }
 }`,
           messages: [{ role: 'user', content: `Full call transcript:\n${fullTranscript.slice(0, 6000)}` }],
-        }),
       });
-      const data = await res.json();
       const text = data?.content?.[0]?.text || '{}';
       let result: any = null;
       try {
@@ -432,10 +418,7 @@ ${fullTranscript.slice(0, 6000)}`,
       const existingFacts = body.existingFacts || [];
       const existingFactTexts = existingFacts.map((f: any) => (f.factText || '').toLowerCase());
 
-      const res = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_KEY, 'anthropic-version': '2023-06-01' },
-        body: JSON.stringify({
+      const data = await callLLM(req, {
           model: 'claude-haiku-4-5-20251001',
           max_tokens: 800,
           system: `You are a sales CRM assistant extracting KEY FACTS and personal details from a debt settlement sales call that the agent should remember for future follow-up calls. Extract:
@@ -453,9 +436,7 @@ Return ONLY this JSON (no markdown):
 EXISTING FACTS ALREADY STORED (do not duplicate these):
 ${existingFactTexts.length > 0 ? existingFactTexts.join('\n') : 'None yet'}`,
           messages: [{ role: 'user', content: `Call transcript:\n${fullTranscript.slice(0, 5000)}` }],
-        }),
       });
-      const data = await res.json();
       const text = data?.content?.[0]?.text || '{}';
       try {
         const result = JSON.parse(text.replace(/```json|```/g, '').trim());
@@ -468,10 +449,7 @@ ${existingFactTexts.length > 0 ? existingFactTexts.join('\n') : 'None yet'}`,
     // ── HARDSHIP EXTRACTION ────────────────────────────────────────────
     if (mode === 'hardship') {
       const recentText = (transcript || []).slice(-15).map((t: any) => t.text).join(' ');
-      const res = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_KEY, 'anthropic-version': '2023-06-01' },
-        body: JSON.stringify({
+      const data = await callLLM(req, {
           model: 'claude-haiku-4-5-20251001',
           max_tokens: 400,
           system: `You are analyzing a live debt settlement call transcript. Extract any hardship information the customer mentions — what caused their financial difficulty, when it started, and how it impacted them.
@@ -488,9 +466,7 @@ Transcript:
 ${recentText}`,
           messages: [{ role: 'user', content: 'Extract hardship details:' }],
           response_json_schema: undefined,
-        }),
       });
-      const data = await res.json();
       const text = data?.content?.[0]?.text || '{}';
       try {
         const result = JSON.parse(text.replace(/```json|```/g, '').trim());
@@ -503,10 +479,7 @@ ${recentText}`,
     // ── CO-SIGNER EXTRACTION ──────────────────────────────────────────
     if (mode === 'cosigners') {
       const recentText = (transcript || []).slice(-15).map((t: any) => t.text).join(' ');
-      const res = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_KEY, 'anthropic-version': '2023-06-01' },
-        body: JSON.stringify({
+      const data = await callLLM(req, {
           model: 'claude-haiku-4-5-20251001',
           max_tokens: 500,
           system: `You are analyzing a live debt settlement call transcript. Extract any co-signer information the customer mentions — people who co-signed on their accounts.
@@ -526,9 +499,7 @@ ${aiInputActive ? '\n⚡ AI INPUT ZONE ACTIVE: The agent is at a marked collecti
 Transcript:
 ${recentText}`,
           messages: [{ role: 'user', content: 'Extract co-signer details:' }],
-        }),
       });
-      const data = await res.json();
       const text = data?.content?.[0]?.text || '{}';
       try {
         const result = JSON.parse(text.replace(/```json|```/g, '').trim());
@@ -541,10 +512,7 @@ ${recentText}`,
     // ── CREDIT REVIEW EXTRACTION (credit score, behind on payments) ──
     if (mode === 'credit') {
       const recentText = (transcript || []).slice(-15).map((t: any) => t.text).join(' ');
-      const res = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_KEY, 'anthropic-version': '2023-06-01' },
-        body: JSON.stringify({
+      const data = await callLLM(req, {
           model: 'claude-haiku-4-5-20251001',
           max_tokens: 400,
           system: `You are analyzing a live debt settlement call transcript. The agent is reviewing the customer credit situation. Extract credit review information the customer confirms.
@@ -560,9 +528,7 @@ ${aiInputActive ? '\n⚡ AI INPUT ZONE ACTIVE: The agent is at a marked collecti
 Transcript:
 ${recentText}`,
           messages: [{ role: 'user', content: 'Extract credit review details:' }],
-        }),
       });
-      const data = await res.json();
       const text = data?.content?.[0]?.text || '{}';
       try {
         const result = JSON.parse(text.replace(/```json|```/g, '').trim());
@@ -576,10 +542,7 @@ ${recentText}`,
     if (mode === 'budget') {
       const recentText = (transcript || []).slice(-15).map((t: any) => t.text).join(' ');
       const existingBillsJson = body.existingBills || '{}';
-      const res = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_KEY, 'anthropic-version': '2023-06-01' },
-        body: JSON.stringify({
+      const data = await callLLM(req, {
           model: 'claude-haiku-4-5-20251001',
           max_tokens: 600,
           system: `You are analyzing a live debt settlement call transcript. The agent is reviewing the customer monthly budget — income and expenses. Extract any monthly expense amounts and income the customer confirms.
@@ -600,9 +563,7 @@ ${existingBillsJson}
 Transcript:
 ${recentText}`,
           messages: [{ role: 'user', content: 'Extract budget details:' }],
-        }),
       });
-      const data = await res.json();
       const text = data?.content?.[0]?.text || '{}';
       try {
         const result = JSON.parse(text.replace(/```json|```/g, '').trim());
@@ -615,10 +576,7 @@ ${recentText}`,
     // ── CUSTOMER INFO EXTRACTION (name, contact, debt amount) ────────
     if (mode === 'contact') {
       const recentText = (transcript || []).slice(-15).map((t: any) => t.text).join(' ');
-      const res = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_KEY, 'anthropic-version': '2023-06-01' },
-        body: JSON.stringify({
+      const data = await callLLM(req, {
           model: 'claude-haiku-4-5-20251001',
           max_tokens: 500,
           system: `You are analyzing a LIVE debt settlement call transcript. Extract customer information that the CUSTOMER explicitly states or confirms. Only extract what the CUSTOMER says — NOT what the agent says or reads.
@@ -641,9 +599,7 @@ Return JSON. Only include fields the customer explicitly mentions or confirms �
 Transcript:
 ${recentText}`,
           messages: [{ role: 'user', content: 'Extract customer details:' }],
-        }),
       });
-      const data = await res.json();
       const text = data?.content?.[0]?.text || '{}';
       try {
         const result = JSON.parse(text.replace(/```json|```/g, '').trim());
@@ -656,10 +612,7 @@ ${recentText}`,
     // ── HANDOFF INTRO EXTRACTION (transfer agent introduces customer) ──
     if (mode === 'handoff') {
       const openingLines = (transcript || []).slice(0, 8).map((t: any) => `[${t.speaker === 0 ? 'AGENT' : 'CALLER'}]: ${t.text}`).join('\n');
-      const res = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_KEY, 'anthropic-version': '2023-06-01' },
-        body: JSON.stringify({
+      const data = await callLLM(req, {
           model: 'claude-haiku-4-5-20251001',
           max_tokens: 400,
           system: `You are analyzing the OPENING of an incoming debt settlement call. At the very start, the answering agent says something like "debt advisors this is [agent name]". Then a transfer agent (the person who warm-transferred the call) introduces the customer/prospect, saying things like "I have Bob on the line here, and he has approx 20k in debt" or "this is Sarah, she's got about 35 thousand in credit card debt".
@@ -677,9 +630,7 @@ Return JSON. Only include fields explicitly mentioned — do NOT make up data. I
 Opening lines:
 ${openingLines}`,
           messages: [{ role: 'user', content: 'Extract handoff details:' }],
-        }),
       });
-      const data = await res.json();
       const text = data?.content?.[0]?.text || '{}';
       try {
         const result = JSON.parse(text.replace(/```json|```/g, '').trim());
@@ -697,10 +648,7 @@ ${openingLines}`,
       const transcriptStr = recentLines.map((t: any, i: number) => `[LINE ${startIndex + i}] [${t.speaker === 0 ? 'AGENT' : 'CUSTOMER'}]: ${t.text}`).join('\n');
       const existingInsights = (body.existingInsights || []).map((ins: any) => `${ins.insightType}:${(ins.insightText || '').toLowerCase()}`);
 
-      const res = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_KEY, 'anthropic-version': '2023-06-01' },
-        body: JSON.stringify({
+      const data = await callLLM(req, {
           model: 'claude-haiku-4-5-20251001',
           max_tokens: 800,
           system: `You are a sales assistant listening to a live debt settlement call. Extract personal insights the CUSTOMER mentions about themselves — things that would help the agent build rapport and make small talk on follow-up calls.
@@ -725,9 +673,7 @@ Return ONLY this JSON (no markdown):
 EXISTING INSIGHTS ALREADY CAPTURED (do not duplicate):
 ${existingInsights.length > 0 ? existingInsights.join('\n') : 'None yet'}`,
           messages: [{ role: 'user', content: `Recent transcript:\n${transcriptStr}` }],
-        }),
       });
-      const data = await res.json();
       const text = data?.content?.[0]?.text || '{}';
       try {
         const result = JSON.parse(text.replace(/```json|```/g, '').trim());
@@ -773,17 +719,12 @@ ${existingInsights.length > 0 ? existingInsights.join('\n') : 'None yet'}`,
           return Response.json({ research: result });
         } catch (e) {
           // Fallback to Anthropic without web search
-          const res = await fetch('https://api.anthropic.com/v1/messages', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_KEY, 'anthropic-version': '2023-06-01' },
-            body: JSON.stringify({
+          const data = await callLLM(req, {
               model: 'claude-haiku-4-5-20251001',
               max_tokens: 800,
               system: `You are a research assistant. Research "${insightText}" from your knowledge. Find: neighboring cities, landmarks, famous restaurants, population, sports teams, last championship win, fun facts, and a summary. Return JSON with keys: neighboringCities (array), landmarks (array), famousRestaurants (array), population (string), sportsTeams (array), lastChampionship (string), funFacts (array), summary (string).`,
               messages: [{ role: 'user', content: `Research the location: ${insightText}` }],
-            }),
           });
-          const data = await res.json();
           const text = data?.content?.[0]?.text || '{}';
           try {
             const result = JSON.parse(text.replace(/```json|```/g, '').trim());
@@ -794,10 +735,7 @@ ${existingInsights.length > 0 ? existingInsights.join('\n') : 'None yet'}`,
         }
       } else {
         // Use LLM for occupation/hobby/other research
-        const res = await fetch('https://api.anthropic.com/v1/messages', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_KEY, 'anthropic-version': '2023-06-01' },
-          body: JSON.stringify({
+        const data = await callLLM(req, {
             model: 'claude-haiku-4-5-20251001',
             max_tokens: 600,
             system: `You are a research assistant helping a sales agent learn about a customer's ${insightType} ("${insightText}") so they can build rapport and make small talk. Provide interesting, conversation-worthy details.
@@ -812,9 +750,7 @@ Return ONLY this JSON (no markdown):
   "summary": "1 sentence summary"
 }`,
             messages: [{ role: 'user', content: `Research this ${insightType}: ${insightText}` }],
-          }),
         });
-        const data = await res.json();
         const text = data?.content?.[0]?.text || '{}';
         try {
           const result = JSON.parse(text.replace(/```json|```/g, '').trim());
@@ -830,10 +766,7 @@ Return ONLY this JSON (no markdown):
       const insights = body.insights || [];
       const insightsStr = insights.map((ins: any) => `- [${ins.insightType}] ${ins.insightText}${ins.researchJson ? ` (Research: ${ins.researchJson.slice(0, 200)})` : ''}`).join('\n');
 
-      const res = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_KEY, 'anthropic-version': '2023-06-01' },
-        body: JSON.stringify({
+      const data = await callLLM(req, {
           model: 'claude-haiku-4-5-20251001',
           max_tokens: 500,
           system: `You are a sales coach helping an agent prepare small talk questions for a follow-up call with a debt settlement customer. Based on the personal insights gathered, generate 5-8 natural, conversational small talk questions the agent can use to build rapport.
@@ -848,9 +781,7 @@ The questions should:
 Return ONLY this JSON (no markdown):
 {"questions":["question1","question2","question3","question4","question5"]}`,
           messages: [{ role: 'user', content: `Customer insights:\n${insightsStr}` }],
-        }),
       });
-      const data = await res.json();
       const text = data?.content?.[0]?.text || '{}';
       try {
         const result = JSON.parse(text.replace(/```json|```/g, '').trim());
@@ -874,10 +805,7 @@ Return ONLY this JSON (no markdown):
 
       const memoriesStr = memories.map((m: any) => `- [${m.factType}${m.importance === 'high' ? ' ★HIGH' : ''}] ${m.factText}${m.context ? ` (${m.context})` : ''}`).join('\n');
 
-      const res = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_KEY, 'anthropic-version': '2023-06-01' },
-        body: JSON.stringify({
+      const data = await callLLM(req, {
           model: 'claude-haiku-4-5-20251001',
           max_tokens: 1200,
           system: `You are a sales coach preparing a pre-call briefing for an agent about to call back a debt settlement customer. The agent should read this BEFORE dialing. Create a concise, scannable briefing that covers:
@@ -906,9 +834,7 @@ Return ONLY this JSON (no markdown):
 
 Keep it concise — the agent reads this right before dialing. Use bullet points and short sentences. No fluff.`,
           messages: [{ role: 'user', content: `Customer: ${leadData.firstName || ''} ${leadData.lastName || ''}\nLocation: ${leadData.city || ''}, ${leadData.state || ''}\nOccupation: ${leadData.employmentStatus || ''}\n\nINSIGHTS FROM PREVIOUS CALLS:\n${insightsStr || 'None yet'}\n\nKEY MEMORIES:\n${memoriesStr || 'None yet'}\n\nLAST CALL SUMMARY:\n${lastCallSummary || 'No previous call data'}` }],
-        }),
       });
-      const data = await res.json();
       return Response.json({ briefing: data?.content?.[0]?.text || '' });
     }
 
@@ -933,17 +859,12 @@ Keep it concise — the agent reads this right before dialing. Use bullet points
         reportPrompt += `\n## Intent Analysis\nIntent Score: ${intentResult.intentScore}/100\nInterest Level: ${intentResult.interestLevel}\nTonality: ${intentResult.tonality}\nSentiment Arc: ${intentResult.sentimentArc}\n${intentResult.intentReason || ''}`;
       }
 
-      const res = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_KEY, 'anthropic-version': '2023-06-01' },
-        body: JSON.stringify({
+      const data = await callLLM(req, {
           model: 'claude-haiku-4-5-20251001',
           max_tokens: 2500,
           system: 'You are an expert debt settlement sales call analyst. Generate a detailed, structured post-call report with actionable insights. Be specific and thorough — the agent uses this for follow-up strategy.',
           messages: [{ role: 'user', content: reportPrompt }],
-        }),
       });
-      const data = await res.json();
       return Response.json({ report: data?.content?.[0]?.text || '' });
     }
 
@@ -964,10 +885,7 @@ Keep it concise — the agent reads this right before dialing. Use bullet points
         if (t1 && t2 && t2 > t1) callDurationSeconds = Math.round((t2 - t1) / 1000);
       }
 
-      const res = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_KEY, 'anthropic-version': '2023-06-01' },
-        body: JSON.stringify({
+      const data = await callLLM(req, {
           model: 'claude-haiku-4-5-20251001',
           max_tokens: 4000,
           system: `You are an expert sales call analyst and sales manager reviewing a debt settlement sales call. You must produce a STRUCTURED analysis with four parts: a call timeline diagram, a manager's quality assessment, pitch/interaction suggestions, and a detailed follow-up plan.
@@ -1015,9 +933,7 @@ GUIDELINES:
 - Pitch Suggestions: 3-6 concrete, actionable changes. Reference what actually happened in the call.
 - Detailed Follow-Up: base everything on what you learned about THIS customer's personality, the questions they asked, and their engagement level. Don't be generic.`,
           messages: [{ role: 'user', content: `Call transcript with timestamps:\n${fullTranscript.slice(0, 7000)}` }],
-        }),
       });
-      const data = await res.json();
       const text = data?.content?.[0]?.text || '{}';
       try {
         // Extract the JSON object from the response (handles markdown fences and extra text)
@@ -1034,18 +950,13 @@ GUIDELINES:
     if (mode === 'profile') {
       const existing = (() => { try { return JSON.parse(existingProfile || '{}'); } catch { return {}; } })();
       const fullTranscript = (transcript || []).map((t: any) => t.text).join(' ');
-      const res = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_KEY, 'anthropic-version': '2023-06-01' },
-        body: JSON.stringify({
+      const data = await callLLM(req, {
           model: 'claude-haiku-4-5-20251001',
           max_tokens: 600,
           system: `You are analyzing a sales call to build a persistent client profile. Return ONLY this exact JSON (no markdown):
 {"animalType":"duck or cow or unknown","animalConfidence":0-100,"overallIntentLabel":"hot or warm or cold","traits":{"asksLotOfQuestions":true/false,"quickToInterrupt":true/false,"asksBuyingQuestions":true/false,"talksALot":true/false,"asksTechnicalQuestions":true/false,"raisesObjections":true/false,"agreeable":true/false,"priceConscious":true/false,"decisionMaker":true/false},"keyObservations":["obs1","obs2"],"recommendedApproach":"one sentence","callCount":${(existing.callCount || 0) + 1},"lastCallSummary":"2-3 sentence summary"}${aiInputActive ? '\n\n⚡ AI INPUT ZONE ACTIVE: The agent is at a marked collection point. Be especially thorough in capturing personality traits, buying signals, and key observations from what the customer is actively sharing right now.' : ''}`,
           messages: [{ role: 'user', content: `Existing profile:\n${JSON.stringify(existing)}\n\nTranscript:\n"${fullTranscript.slice(0, 4000)}"` }],
-        }),
       });
-      const data = await res.json();
       const text2 = data?.content?.[0]?.text || '{}';
       try { return Response.json({ profile: JSON.parse(text2.replace(/```json|```/g, '').trim()) }); }
       catch { return Response.json({ profile: existing }); }
@@ -1054,20 +965,17 @@ GUIDELINES:
     // ── Internet search ───────────────────────────────────────────────
     if (mode === 'internet_search') {
       const searchQ = internetQuery || question || '';
-      const res = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_KEY, 'anthropic-version': '2023-06-01', 'anthropic-beta': 'web-search-2025-03-05' },
-        body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514',
-          max_tokens: 600,
-          tools: [{ type: 'web_search_20250305', name: 'web_search' }],
-          system: 'You are a sales assistant helping an agent on a live investor call. Search the web for current, accurate information to answer the question. Provide a concise, factual answer in 2-4 sentences that the agent can speak naturally.',
-          messages: [{ role: 'user', content: `Search for current information to answer this question for an investor call:\n\n${searchQ}` }],
-        }),
-      });
-      const data = await res.json();
-      const answer = data?.content?.filter((c: any) => c.type === 'text').map((c: any) => c.text).join(' ') || 'Could not find information.';
-      return Response.json({ answer, source: 'internet' });
+      try {
+        const base44 = createClientFromRequest(req);
+        const result: any = await base44.asServiceRole.integrations.Core.InvokeLLM({
+          prompt: `You are a sales assistant helping an agent on a live investor call. Search the web for current, accurate information to answer the question. Provide a concise, factual answer in 2-4 sentences that the agent can speak naturally.\n\nSearch for current information to answer this question for an investor call:\n\n${searchQ}`,
+          add_context_from_internet: true,
+        });
+        const answer = (typeof result === 'string' ? result : (result?.text || '')) || 'Could not find information.';
+        return Response.json({ answer, source: 'internet' });
+      } catch (e: any) {
+        return Response.json({ answer: 'Could not search the web right now: ' + (e?.message || String(e)), source: 'internet' });
+      }
     }
 
     // ── Q&A expand (additional information) ───────────────────────────
@@ -1080,17 +988,12 @@ GUIDELINES:
             : `Q: ${e.question}\nA: ${formatAnswers(e)}`
           ).join('\n\n')
         : 'No additional KB entries found.';
-      const res = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_KEY, 'anthropic-version': '2023-06-01' },
-        body: JSON.stringify({
+      const data = await callLLM(req, {
           model: 'claude-haiku-4-5-20251001',
           max_tokens: 600,
           system: `You are a sales assistant providing expanded information from a knowledge base. The agent already gave an initial answer and needs more detail. Search the KB context and provide additional relevant facts, numbers, or context not already covered.\n\nKNOWLEDGE BASE:\n${kbContext}`,
           messages: [{ role: 'user', content: `Question: "${question}"\n\nInitial answer already given: "${previousAnswer || ''}"\n\nProvide ADDITIONAL specific details, numbers, or context from the KB that wasn't in the initial answer:` }],
-        }),
       });
-      const data = await res.json();
       return Response.json({ answer: data?.content?.[0]?.text || 'No additional information found.', source: 'kb' });
     }
 
@@ -1111,10 +1014,7 @@ GUIDELINES:
       const transcriptStr = recentLines.map((t: any) => `[${t.speaker === 0 ? 'AGENT' : 'CUSTOMER'}]: ${t.text}`).join('\n');
       const priorStatus = body.priorStatus || 'unknown';
 
-      const res = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_KEY, 'anthropic-version': '2023-06-01' },
-        body: JSON.stringify({
+      const data = await callLLM(req, {
           model: 'claude-haiku-4-5-20251001',
           max_tokens: 600,
           system: `You are a HOT CALL detection engine for a debt settlement sales call — a "turbo" intent engine. A HOT CALL is a prospect showing GENUINE INTEREST: heavily engaged, asking good buying questions, eager to participate, or open to hearing about the program.
@@ -1138,9 +1038,7 @@ TASKS:
 Return ONLY this JSON (no markdown):
 {"isHot":false,"hotScore":0,"hotReason":"","hotConfidence":0,"stopMonitoring":false,"agentPerformance":{"score":0,"confident":true,"answeringQuestions":true,"issues":[],"summary":""},"critical":false}`,
           messages: [{ role: 'user', content: `Recent transcript:\n${transcriptStr.slice(0, 4000)}` }],
-        }),
       });
-      const data = await res.json();
       const text = data?.content?.[0]?.text || '{}';
       try {
         const result = JSON.parse(text.replace(/```json|```/g, '').trim());
@@ -1196,33 +1094,23 @@ Return ONLY this JSON (no markdown):
 
     // If no meaningful KB context at all, this is a pure AI fallback — label it so the frontend can show "AI ANSWER"
     if (!hasKBContext && !objectionContext) {
-      const res = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_KEY, 'anthropic-version': '2023-06-01' },
-        body: JSON.stringify({
+      const data = await callLLM(req, {
           model: 'claude-haiku-4-5-20251001',
           max_tokens: 500,
           system: `You are a real-time sales assistant on a live call. The knowledge base has no relevant answer for this question. Use your own knowledge to provide a helpful, concise answer the agent can speak naturally — 2-4 sentences. If you truly cannot answer, say so honestly.`,
           messages: [{ role: 'user', content: `${fullTranscriptStr ? `Full conversation so far:\n${fullTranscriptStr}\n\n` : ''}Question: "${question}"\n\nAnswer:` }],
-        }),
       });
-      const data = await res.json();
       const redirect = buildScriptRedirect(scriptPosition);
       const answer = data?.content?.[0]?.text || 'No answer found.';
       return Response.json({ answer: redirect ? `${answer}\n\n${redirect}` : answer, source: 'ai_fallback' });
     }
 
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_KEY, 'anthropic-version': '2023-06-01' },
-      body: JSON.stringify({
+    const data = await callLLM(req, {
         model: 'claude-haiku-4-5-20251001',
         max_tokens: 500,
         system: `You are a real-time sales assistant on a live investor call. Answer questions from the knowledge base. Be concise — 2-4 sentences the agent can speak naturally. If the exact answer is in the KB, use it verbatim. If it requires synthesis, combine the relevant entries. If the customer is raising an objection, use the OBJECTION HANDLING CATALOG below to give the agent the exact rebuttal.\n\nKNOWLEDGE BASE${kbName ? ` (${kbName})` : ''}:\n${kbContext}${objectionContext ? `\n\n━━━ OBJECTION HANDLING CATALOG — If the question is an objection, use the matching handling guidance: ━━━\n${objectionContext}` : ''}`,
         messages: [{ role: 'user', content: `${fullTranscriptStr ? `Full conversation so far:\n${fullTranscriptStr}\n\n` : ''}Question: "${question}"\n\nAnswer from KB:` }],
-      }),
     });
-    const data = await res.json();
     const redirect = buildScriptRedirect(scriptPosition);
     const answer = data?.content?.[0]?.text || 'No answer found.';
     return Response.json({ answer: redirect ? `${answer}\n\n${redirect}` : answer, source: 'kb_ai' });
