@@ -346,15 +346,84 @@ Respond ONLY with this exact JSON (no markdown):
       });
       const data = await res.json();
       const text = data?.content?.[0]?.text || '{}';
+      let result: any = null;
       try {
-        const result = JSON.parse(text.replace(/```json|```/g, '').trim());
-        // Blend with engagement score (max 25% influence)
-        const engNorm = Math.min(100, Math.max(0, engagementScore || 0));
-        const blended = Math.round(result.intentScore * 0.75 + engNorm * 0.25);
-        return Response.json({ intent: { ...result, intentScore: blended, rawAiScore: result.intentScore, engagementContribution: Math.round(engNorm * 0.25) } });
-      } catch {
-        return Response.json({ intent: null, error: 'Parse failed' });
+        const parsed = JSON.parse(text.replace(/```json|```/g, '').trim());
+        if (parsed && typeof parsed.intentScore === 'number' && !Number.isNaN(parsed.intentScore)) result = parsed;
+      } catch {}
+      // Fallback to the platform InvokeLLM integration when the direct Anthropic
+      // call failed (out-of-credits, rate limit, or unparseable response). InvokeLLM
+      // uses platform credits, so the intent engine still runs.
+      if (!result) {
+        try {
+          const base44 = createClientFromRequest(req);
+          const fb: any = await base44.asServiceRole.integrations.Core.InvokeLLM({
+            prompt: `You are an expert sales call analyst running a comprehensive INTENT ENGINE for a debt settlement sales call. Also extract key facts to auto-populate the CRM and build a persistent memory for follow-up calls.
+
+DEEPGRAM SENTIMENT ANALYSIS: ${sentimentSummary}
+
+${computedMetrics}
+
+DUCK: ${intentRules?.duckDefinition || 'Skeptical, argumentative, raises objections, combative, negative tone'}
+COW: ${intentRules?.cowDefinition || 'Curious, agreeable, asks genuine buying questions, positive tone'}
+POSITIVE SIGNALS TO DETECT: ${intentRules?.positiveSignals || 'that sounds amazing, I love that, how do I sign up, I\'m ready, let\'s do it, what\'s the minimum, send me the portal, I want to move forward, that makes sense, tell me more'}
+NEGATIVE SIGNALS TO DETECT: ${intentRules?.negativeSignals || 'not interested, call me later, I need to think about it, talk to my spouse, too risky, too expensive, I\'ve been burned before, what\'s the guarantee, I doubt that, prove it, what\'s the catch'}
+
+Analyze the transcript and return a JSON object with: intentScore (0-100), tonality (positive|neutral|negative|mixed), tonalityNotes, interestLevel (high|medium|low), interestReason, animalType (duck|cow|unknown), animalConfidence (0-100), sentimentArc (warming|cooling|flat|volatile), sentimentArcNotes, engagementScore (0-100), engagementNotes, excitementLevel (low|medium|high), excitementNotes, emotionalState (stressed|hopeful|skeptical|desperate|confident|overwhelmed|neutral), emotionalNotes, commitmentLevel (none|soft|firm), commitmentDetails, pace (rushed|steady|deliberate), paceNotes, rapportLevel (0-100), rapportNotes, questionCount, talkRatioProspect, callDurationSeconds, hesitationCount, objectionCount, buyingSignalCount, keyMoments (array of strings), buyingSignals (array of strings), objections (array of strings), recommendedNextStep, keyFacts (array of {type, fact, context, importance, followUpDate}), and extractedData ({mentionedAmount, accountType, iraDetails, bestTimeToCall, positiveSignals, negativeSignals, extractedNotes}).
+
+Full call transcript:
+${fullTranscript.slice(0, 6000)}`,
+            response_json_schema: {
+              type: 'object',
+              properties: {
+                intentScore: { type: 'number' },
+                tonality: { type: 'string' },
+                tonalityNotes: { type: 'string' },
+                interestLevel: { type: 'string' },
+                interestReason: { type: 'string' },
+                animalType: { type: 'string' },
+                animalConfidence: { type: 'number' },
+                sentimentArc: { type: 'string' },
+                sentimentArcNotes: { type: 'string' },
+                engagementScore: { type: 'number' },
+                engagementNotes: { type: 'string' },
+                excitementLevel: { type: 'string' },
+                excitementNotes: { type: 'string' },
+                emotionalState: { type: 'string' },
+                emotionalNotes: { type: 'string' },
+                commitmentLevel: { type: 'string' },
+                commitmentDetails: { type: 'string' },
+                pace: { type: 'string' },
+                paceNotes: { type: 'string' },
+                rapportLevel: { type: 'number' },
+                rapportNotes: { type: 'string' },
+                questionCount: { type: 'number' },
+                talkRatioProspect: { type: 'number' },
+                callDurationSeconds: { type: 'number' },
+                hesitationCount: { type: 'number' },
+                objectionCount: { type: 'number' },
+                buyingSignalCount: { type: 'number' },
+                keyMoments: { type: 'array', items: { type: 'string' } },
+                buyingSignals: { type: 'array', items: { type: 'string' } },
+                objections: { type: 'array', items: { type: 'string' } },
+                recommendedNextStep: { type: 'string' },
+                keyFacts: { type: 'array', items: { type: 'object', properties: { type: { type: 'string' }, fact: { type: 'string' }, context: { type: 'string' }, importance: { type: 'string' }, followUpDate: { type: 'string' } } } },
+                extractedData: { type: 'object' },
+              },
+            },
+          });
+          if (fb && typeof fb.intentScore === 'number' && !Number.isNaN(fb.intentScore)) result = fb;
+        } catch (e) {
+          return Response.json({ intent: null, error: 'Intent engine failed (Anthropic + InvokeLLM fallback): ' + (e?.message || String(e)) });
+        }
       }
+      if (!result || typeof result.intentScore !== 'number' || Number.isNaN(result.intentScore)) {
+        return Response.json({ intent: null, error: 'Intent engine returned no score' });
+      }
+      // Blend with engagement score (max 25% influence)
+      const engNorm = Math.min(100, Math.max(0, engagementScore || 0));
+      const blended = Math.round(result.intentScore * 0.75 + engNorm * 0.25);
+      return Response.json({ intent: { ...result, intentScore: blended, rawAiScore: result.intentScore, engagementContribution: Math.round(engNorm * 0.25) } });
     }
 
     // ── EXTRACT KEY FACTS / MEMORIES FROM CALL ────────────────────────

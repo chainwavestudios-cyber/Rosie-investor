@@ -387,6 +387,8 @@ Agent line: "${firstAgentLines}"`,
         });
         if (transcriptRecordIdRef.current) {
           await base44.entities.DebtCallTranscript.update(transcriptRecordIdRef.current, {
+            leadName: `${leadRef.current.firstName || ''} ${leadRef.current.lastName || ''}`.trim(),
+            leadNumber: leadRef.current.leadNumber || '',
             transcriptJson: JSON.stringify(transcriptRef.current),
             transcriptLineCount: transcriptRef.current.length,
           });
@@ -1102,8 +1104,8 @@ ${recentText}`,
           lastCallAt: new Date().toISOString(),
           callCount: (leadRef.current.callCount || 0) + 1,
           transcriptJson: JSON.stringify(transcriptRef.current),
-          intentScore: intent?.intentScore,
-          animalType: intent?.animalType,
+          intentScore: (intent && typeof intent.intentScore === 'number' && !Number.isNaN(intent.intentScore)) ? intent.intentScore : null,
+          animalType: intent?.animalType || null,
         });
 
         // Log call + AI synopsis to activity history
@@ -1185,12 +1187,14 @@ ${recentText}`,
         let transcriptRecord = null;
         try {
           const transcriptData = {
+            leadName,
+            leadNumber: leadRef.current.leadNumber || '',
             transcriptJson: JSON.stringify(transcriptRef.current),
             transcriptLineCount: transcriptRef.current.length,
             durationSeconds,
-            intentScore: intent?.intentScore ?? intentScoreRef.current ?? null,
+            intentScore: (intent && typeof intent.intentScore === 'number' && !Number.isNaN(intent.intentScore)) ? intent.intentScore : (intentScoreRef.current ?? null),
             animalType: intent?.animalType || leadRef.current.animalType || null,
-            intentReport: intent?.report || (intent?.intentScore != null ? `Intent Score: ${intent.intentScore}/100\nAnimal: ${intent.animalType || 'unknown'}` : ''),
+            intentReport: intent?.report || (intent && typeof intent.intentScore === 'number' && !Number.isNaN(intent.intentScore) ? `Intent Score: ${intent.intentScore}/100\nAnimal: ${intent.animalType || 'unknown'}` : ''),
             followUpReport: fullReport,
             callAnalysisJson,
           };
