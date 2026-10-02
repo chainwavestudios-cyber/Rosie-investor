@@ -790,6 +790,7 @@ function CoachSection({ transcript, kbEntries, coachRules, active, collapsed, le
   const [activeTile,  setActiveTile]  = useState(null);
   const [streaming,   setStreaming]   = useState(false);
   const lastFired     = useRef(0);
+  const lastCoachLineKey = useRef('');
   const tileLoading   = useRef(false);
   const transcriptRef = useRef([]);
   useEffect(() => { transcriptRef.current = transcript; }, [transcript]);
@@ -797,10 +798,15 @@ function CoachSection({ transcript, kbEntries, coachRules, active, collapsed, le
   // ── Auto-coach: fires on objection keywords ──────────────────────────────────
   useEffect(() => {
     if (!active || !transcript.length || collapsed) return;
-    const now = Date.now();
-    if (now - lastFired.current < 4000) return;
     const last = transcript[transcript.length - 1];
     if (!last?.text) return;
+    // Only evaluate each transcript line once — the effect re-runs on every parent
+    // render (new coachRules object), which used to re-fire on the same line forever.
+    const lineKey = `${transcript.length}:${last.text}`;
+    if (lineKey === lastCoachLineKey.current) return;
+    lastCoachLineKey.current = lineKey;
+    const now = Date.now();
+    if (now - lastFired.current < 4000) return;
     const objWords = ['prove','doubt','skeptical','risky','guarantee','fail','burned','bubble','catch','too much','not sure','need time','my advisor','think about','talk to my','not interested','call me later'];
     if (!objWords.some(w => last.text.toLowerCase().includes(w))) return;
     lastFired.current = now;
