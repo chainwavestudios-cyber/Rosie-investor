@@ -18,6 +18,7 @@ import NextCallBriefing from '@/components/debt/NextCallBriefing';
 import NoMissedMeetingsButton from '@/components/debt/NoMissedMeetingsButton';
 import AppointmentPreviewModal from '@/components/debt/AppointmentPreviewModal';
 import { usePopOutPanel } from '@/hooks/usePopOutPanel';
+import { notifyCreditExhaustion, checkAIResponseForCreditError, checkErrorForCreditError } from '@/lib/creditAlert';
 import { useHotCallTracker } from '@/hooks/useHotCallTracker';
 import { useDebtCoachAuth } from '@/lib/DebtCoachAuthContext';
 import { useDebtCoachValue } from '@/lib/debtCoachStorage';
@@ -71,6 +72,21 @@ const DEBT_KEYTERMS = [
   'Chapter+7', 'Chapter+13', 'means+test', 'liquidation',
   'APR',
 ].map(k => `keyterm=${k}`).join('&');
+
+// Wrapper for liveAssistantAI calls — detects credit exhaustion in responses/errors
+// and triggers the CreditAlertPopup automatically.
+async function invokeAI(functionName, payload) {
+  try {
+    const res = await base44.functions.invoke(functionName, payload);
+    const creditErr = checkAIResponseForCreditError(res);
+    if (creditErr) notifyCreditExhaustion(creditErr.service, creditErr.detail);
+    return res;
+  } catch (e) {
+    const creditErr = checkErrorForCreditError(e);
+    if (creditErr) notifyCreditExhaustion(creditErr.service, creditErr.detail);
+    throw e;
+  }
+}
 
 // Check if the agent's current script position is at or near an [[AI INPUT]] tag
 function posHasAiInput(pos) {
@@ -533,7 +549,7 @@ Agent line: "${firstAgentLines}"`,
     const startTime = Date.now();
     setQaItems(prev => [...prev, { id, question, answer: '', loading: true }]);
     logAI('qa');
-    base44.functions.invoke('liveAssistantAI', { question, transcript: transcriptRef.current.slice(-8), kbEntries, kbName: 'Debt Settlement', scriptPosition: scriptPositionRef.current })
+    invokeAI('liveAssistantAI', { question, transcript: transcriptRef.current.slice(-8), kbEntries, kbName: 'Debt Settlement', scriptPosition: scriptPositionRef.current })
       .then(res => {
         const responseMs = Date.now() - startTime;
         // AI decided no answer is needed (small talk, greeting, etc.)
@@ -566,14 +582,14 @@ Agent line: "${firstAgentLines}"`,
 
   const handleCoach = useCallback(() => {
     logAI('coach');
-    base44.functions.invoke('liveAssistantAI', { transcript: transcriptRef.current.slice(-6), kbEntries, mode: 'coach' })
+    invokeAI('liveAssistantAI', { transcript: transcriptRef.current.slice(-6), kbEntries, mode: 'coach' })
       .then(res => { const tip = res?.tip || res?.response || res?.answer || ''; if (tip) setCoachTips(prev => [{ tip, time: new Date() }, ...prev].slice(0, 8)); })
       .catch(() => {});
   }, [kbEntries]);
 
   const handleIntent = useCallback(() => {
     logAI('intent');
-    base44.functions.invoke('liveAssistantAI', { transcript: transcriptRef.current.slice(-12), kbEntries, mode: 'intent', intentRules: DEBT_INTENT_RULES })
+    invokeAI('liveAssistantAI', { transcript: transcriptRef.current.slice(-12), kbEntries, mode: 'intent', intentRules: DEBT_INTENT_RULES })
       .then(res => {
         const score = res?.intent?.intentScore ?? res?.intentScore ?? res?.data?.intentScore;
         if (score !== undefined) {
@@ -591,7 +607,7 @@ Agent line: "${firstAgentLines}"`,
     profileCursorRef.current = transcriptRef.current.length;
     try {
       logAI('profile');
-      const res = await base44.functions.invoke('liveAssistantAI', {
+      const res = await invokeAI('liveAssistantAI', {
         transcript: newLines,
         kbEntries,
         mode: 'profile',
@@ -676,7 +692,7 @@ ${recentText}`,
     billsCursorRef.current = transcriptRef.current.length;
     try {
       logAI('budget');
-      const res = await base44.functions.invoke('liveAssistantAI', {
+      const res = await invokeAI('liveAssistantAI', {
         transcript: newLines,
         mode: 'budget',
         aiInputActive: posHasAiInput(scriptPositionRef.current),
@@ -710,7 +726,7 @@ ${recentText}`,
     creditCursorRef.current = transcriptRef.current.length;
     try {
       logAI('credit');
-      const res = await base44.functions.invoke('liveAssistantAI', {
+      const res = await invokeAI('liveAssistantAI', {
         transcript: newLines,
         mode: 'credit',
         aiInputActive: posHasAiInput(scriptPositionRef.current),
@@ -736,7 +752,7 @@ ${recentText}`,
     hardshipCursorRef.current = transcriptRef.current.length;
     try {
       logAI('hardship');
-      const res = await base44.functions.invoke('liveAssistantAI', { transcript: newLines, mode: 'hardship', aiInputActive: posHasAiInput(scriptPositionRef.current) });
+      const res = await invokeAI('liveAssistantAI', { transcript: newLines, mode: 'hardship', aiInputActive: posHasAiInput(scriptPositionRef.current) });
       const hardship = res?.hardship || res?.data?.hardship;
       if (hardship) {
         const updates = {};
@@ -781,7 +797,7 @@ ${recentText}`,
     try {
       const aiInputActive = posHasAiInput(scriptPositionRef.current);
       logAI('contact');
-      const res = await base44.functions.invoke('liveAssistantAI', { transcript: newLines, mode: 'contact', aiInputActive });
+      const res = await invokeAI('liveAssistantAI', { transcript: newLines, mode: 'contact', aiInputActive });
       const contact = res?.contact || res?.data?.contact;
       if (contact) {
         const updates = {};
@@ -812,7 +828,7 @@ ${recentText}`,
     if (!leadRef.current?.id || transcriptRef.current.length < 2) return;
     try {
       logAI('handoff');
-      const res = await base44.functions.invoke('liveAssistantAI', { transcript: transcriptRef.current.slice(0, 8), mode: 'handoff' });
+      const res = await invokeAI('liveAssistantAI', { transcript: transcriptRef.current.slice(0, 8), mode: 'handoff' });
       const h = res?.handoff || res?.data?.handoff;
       if (h) {
         const updates = {};
@@ -843,7 +859,7 @@ ${recentText}`,
     cosignerCursorRef.current = transcriptRef.current.length;
     try {
       logAI('cosigners');
-      const res = await base44.functions.invoke('liveAssistantAI', { transcript: newLines, mode: 'cosigners', aiInputActive: posHasAiInput(scriptPositionRef.current) });
+      const res = await invokeAI('liveAssistantAI', { transcript: newLines, mode: 'cosigners', aiInputActive: posHasAiInput(scriptPositionRef.current) });
       const cosigners = res?.cosigners || res?.data?.cosigners || [];
       if (cosigners.length > 0) {
         const existing = (() => { try { return JSON.parse(leadRef.current.cosignersJson || '[]'); } catch { return []; } })();
@@ -1101,11 +1117,13 @@ ${recentText}`,
     const dgParams = dualMode
       ? `model=nova-3&multichannel=true&smart_format=true&punctuate=true&sentiment=true&utterances=true&interim_results=false&channels=2&sample_rate=${sr}&encoding=linear16&${DEBT_KEYTERMS}`
       : `model=nova-3&diarize=true&smart_format=true&punctuate=true&sentiment=true&utterances=true&interim_results=false&sample_rate=${sr}&encoding=linear16&${DEBT_KEYTERMS}`;
+    let wsEverOpen = false;
     const ws = new WebSocket(`wss://api.deepgram.com/v1/listen?${dgParams}`, ['token', dgKey]);
     ws.binaryType = 'arraybuffer';
     wsRef.current = ws;
 
     ws.onopen = () => {
+      wsEverOpen = true;
       setDgStatus('connected');
       // Update DialerSession to on_call
       if (coachUser?.username) {
@@ -1194,7 +1212,11 @@ ${recentText}`,
       }
       if (e.code !== 1000 && e.code !== 1005) setError(`Deepgram disconnected (code ${e.code}). ${e.reason || ''}`);
     };
-    ws.onerror = () => { setDgStatus('error'); setError('Deepgram connection error — check API key.'); };
+    ws.onerror = () => {
+      setDgStatus('error');
+      setError('Deepgram connection error — check API key.');
+      if (!wsEverOpen) notifyCreditExhaustion('deepgram', 'WebSocket failed to connect — credits may be exhausted or API key invalid.');
+    };
   }, [micDeviceId, customerMicId, processNewEntry, lead, loadLeads, coachUser, autoQA, autoCoach, autoIntent]);
 
   const stopCall = useCallback(async () => {
@@ -1240,7 +1262,7 @@ ${recentText}`,
       let intent = null;
       try {
         logAI('intent_final');
-        const intentRes = await base44.functions.invoke('liveAssistantAI', { transcript: transcriptRef.current, kbEntries, mode: 'intent_final', intentRules: DEBT_INTENT_RULES });
+        const intentRes = await invokeAI('liveAssistantAI', { transcript: transcriptRef.current, kbEntries, mode: 'intent_final', intentRules: DEBT_INTENT_RULES });
         intent = intentRes?.intent || intentRes?.data?.intent;
         if (intent) {
           setIntentScore(intent.intentScore);
@@ -1304,7 +1326,7 @@ ${recentText}`,
         try {
           const existingFactTexts = (await base44.entities.LeadMemory.filter({ leadId: leadRef.current.id }, '-created_date', 200)).map(m => (m.factText || '').toLowerCase());
           logAI('extract_facts');
-          const factsRes = await base44.functions.invoke('liveAssistantAI', { transcript: transcriptRef.current, mode: 'extract_facts', existingFacts: existingFactTexts.map(t => ({ factText: t })) });
+          const factsRes = await invokeAI('liveAssistantAI', { transcript: transcriptRef.current, mode: 'extract_facts', existingFacts: existingFactTexts.map(t => ({ factText: t })) });
           const newFacts = factsRes?.facts || factsRes?.data?.facts || [];
           if (newFacts.length > 0) {
             const leadName = `${leadRef.current.firstName || ''} ${leadRef.current.lastName || ''}`.trim();
@@ -1330,7 +1352,7 @@ ${recentText}`,
       setGeneratingReport(true);
       try {
         logAI('full_report');
-        const res = await base44.functions.invoke('liveAssistantAI', {
+        const res = await invokeAI('liveAssistantAI', {
           transcript: transcriptRef.current, kbEntries, kbName: 'Debt Settlement', mode: 'full_report',
           usedCoach: coachActiveRef.current, usedQA: qaActiveRef.current, usedIntent: intentActiveRef.current,
           coachTips: coachTipsRef.current.map(t => t.tip), qaLog: qaItemsRef.current.map(q => ({ question: q.question, answer: q.answer })),
@@ -1342,7 +1364,7 @@ ${recentText}`,
         let callAnalysisJson = '';
         try {
           logAI('call_analysis');
-          const analysisRes = await base44.functions.invoke('liveAssistantAI', {
+          const analysisRes = await invokeAI('liveAssistantAI', {
             transcript: transcriptRef.current, mode: 'call_analysis', callType,
           });
           const analysis = analysisRes?.analysis || analysisRes?.data?.analysis;

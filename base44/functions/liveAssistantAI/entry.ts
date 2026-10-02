@@ -10,9 +10,17 @@ async function callLLM(req: Request, body: any): Promise<any> {
   const system = body?.system || '';
   const userContent = body?.messages?.[0]?.content || '';
   const prompt = system ? `${system}\n\n${userContent}` : userContent;
-  const res: any = await base44.asServiceRole.integrations.Core.InvokeLLM({ prompt });
-  const text = typeof res === 'string' ? res : (res?.text || res?.content?.[0]?.text || JSON.stringify(res));
-  return { content: [{ type: 'text', text }] };
+  try {
+    const res: any = await base44.asServiceRole.integrations.Core.InvokeLLM({ prompt });
+    const text = typeof res === 'string' ? res : (res?.text || res?.content?.[0]?.text || JSON.stringify(res));
+    return { content: [{ type: 'text', text }] };
+  } catch (e: any) {
+    const msg = (e?.message || '').toLowerCase();
+    if (msg.includes('quota') || msg.includes('credit') || msg.includes('429') || msg.includes('402') || msg.includes('limit') || msg.includes('exhausted')) {
+      throw new Error('CREDIT_EXHAUSTED:anthropic:fallback');
+    }
+    throw e;
+  }
 }
 
 // ── Cached LLM helper (direct Anthropic API with prompt caching) ──────────
@@ -48,7 +56,10 @@ async function callLLMCached(req: Request, opts: {
           messages: [{ role: 'user', content: opts.userContent }],
         }),
       });
-      if (!response.ok) throw new Error(`Anthropic API ${response.status}`);
+      if (!response.ok) {
+        if ([401, 402, 403, 429].includes(response.status)) throw new Error(`CREDIT_EXHAUSTED:anthropic:${response.status}`);
+        throw new Error(`Anthropic API ${response.status}`);
+      }
       const data = await response.json();
       return { content: [{ type: 'text', text: data.content?.[0]?.text || '' }] };
     } catch (e) {
@@ -56,11 +67,19 @@ async function callLLMCached(req: Request, opts: {
     }
   }
   // Fallback: InvokeLLM (no caching)
-  const base44 = createClientFromRequest(req);
-  const prompt = `${opts.cachedSystem}\n\n${opts.system}\n\n${opts.userContent}`;
-  const res: any = await base44.asServiceRole.integrations.Core.InvokeLLM({ prompt });
-  const text = typeof res === 'string' ? res : (res?.text || res?.content?.[0]?.text || JSON.stringify(res));
-  return { content: [{ type: 'text', text }] };
+  try {
+    const base44 = createClientFromRequest(req);
+    const prompt = `${opts.cachedSystem}\n\n${opts.system}\n\n${opts.userContent}`;
+    const res: any = await base44.asServiceRole.integrations.Core.InvokeLLM({ prompt });
+    const text = typeof res === 'string' ? res : (res?.text || res?.content?.[0]?.text || JSON.stringify(res));
+    return { content: [{ type: 'text', text }] };
+  } catch (fbErr: any) {
+    const fbMsg = (fbErr?.message || '').toLowerCase();
+    if (fbMsg.includes('quota') || fbMsg.includes('credit') || fbMsg.includes('429') || fbMsg.includes('402') || fbMsg.includes('limit') || fbMsg.includes('exhausted')) {
+      throw new Error('CREDIT_EXHAUSTED:anthropic:fallback');
+    }
+    throw fbErr;
+  }
 }
 
 // ── Multi-answer helper ─────────────────────────────────────────────────────
@@ -1243,6 +1262,10 @@ ${objectionContext ? `\n━━━ OBJECTION HANDLING CATALOG — If the question
     });
 
   } catch (e: any) {
-    return Response.json({ error: e.message }, { status: 500 });
+    const msg = e?.message || String(e);
+    if (msg.includes('CREDIT_EXHAUSTED')) {
+      return Response.json({ error: msg, creditError: true, creditService: msg.includes('deepgram') ? 'deepgram' : 'anthropic' }, { status: 500 });
+    }
+    return Response.json({ error: msg }, { status: 500 });
   }
 });
