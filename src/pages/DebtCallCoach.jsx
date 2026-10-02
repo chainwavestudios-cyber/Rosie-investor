@@ -14,6 +14,7 @@ import DebtUserProfile from '@/components/debt/DebtUserProfile';
 import DebtPitchTab from '@/components/debt/DebtPitchTab';
 import DebtBobTrainer from '@/components/debt/DebtBobTrainer';
 import CallsTab from '@/components/debt/CallsTab';
+import AICreditsTab from '@/components/debt/AICreditsTab';
 import HotCallAnalytics from '@/components/debt/HotCallAnalytics';
 import LeadGenTab from '@/components/debt/LeadGenTab';
 import NewLeadsTab from '@/components/debt/NewLeadsTab';
@@ -28,7 +29,7 @@ const GOLD = '#10b981';
 const DARK = '#0a0f1e';
 
 export default function DebtCallCoach() {
-  const { user, loading, isAuthenticated, logout, isDialerRole, isAdmin, isManager, isSuperManager, canManage, mustResetPassword } = useDebtCoachAuth();
+  const { user, loading, isAuthenticated, logout, isDialerRole, isAdmin, isManager, isSuperManager, isSuperAdmin, canManage, mustResetPassword } = useDebtCoachAuth();
   const [tab, setTab] = useState('live');
   const [timerLead, setTimerLead] = useState(null);
   const [showCompliance, setShowCompliance] = useState(false);
@@ -55,6 +56,7 @@ export default function DebtCallCoach() {
     { id: 'profile', label: '👤 Prospects' },
     ...(isDialerRole ? [{ id: 'stats', label: '📊 My Stats' }] : []),
     ...(isSuperManager ? [{ id: 'compliance', label: '🛡 Compliance' }] : []),
+    ...(isSuperAdmin ? [{ id: 'aicredits', label: '💳 AI Credits' }] : []),
     ...(isAdmin ? [{ id: 'admin', label: '⚙️ Admin' }] : []),
   ];
 
@@ -98,6 +100,7 @@ export default function DebtCallCoach() {
       {tab === 'stats' && <HotCallAnalytics />}
       {tab === 'compliance' && <CompliancePortal onBack={() => setTab('live')} />}
       {tab === 'admin' && isAdmin && <DebtCoachAdminPanel />}
+      {tab === 'aicredits' && isSuperAdmin && <AICreditsTab />}
 
       {/* Floating WCR Checklist — available on all tabs */}
       <WCRChecklist />

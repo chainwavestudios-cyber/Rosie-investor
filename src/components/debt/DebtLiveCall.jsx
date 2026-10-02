@@ -22,6 +22,7 @@ import { useHotCallTracker } from '@/hooks/useHotCallTracker';
 import { useDebtCoachAuth } from '@/lib/DebtCoachAuthContext';
 import { useDebtCoachValue } from '@/lib/debtCoachStorage';
 import EndCallDialog from '@/components/debt/EndCallDialog';
+import { logAIUsage, CREDIT_ESTIMATES } from '@/lib/aiCreditLog';
 
 const GOLD = '#10b981';
 const DARK = '#0a0f1e';
@@ -184,6 +185,7 @@ export default function DebtLiveCall() {
     const firstAgentLines = transcriptRef.current.filter(l => l.speaker === 0).slice(0, 3).map(l => l.text).join(' ');
     if (!firstAgentLines || firstAgentLines.length < 10) return;
     try {
+      logAI('cold_call_name');
       const result = await base44.integrations.Core.InvokeLLM({
         prompt: `Extract the customer's first and last name from this opening cold-call line. The agent says something like "May I speak with John Smith please?" or "Hi, is this Jane Doe?"
 
@@ -455,9 +457,23 @@ Agent line: "${firstAgentLines}"`,
     } catch (e) { alert('Failed to create lead: ' + (e?.message || String(e))); }
   }, [lead, loadLeads, coachUser]);
 
+  // Log an AI call to AICreditUsage for the super-admin AI Credits tab (fire-and-forget).
+  const logAI = useCallback((callType) => {
+    logAIUsage({
+      agentUsername: coachUser?.username,
+      leadId: leadRef.current?.id,
+      leadName: `${leadRef.current?.firstName || ''} ${leadRef.current?.lastName || ''}`.trim(),
+      leadNumber: leadRef.current?.leadNumber || '',
+      transcriptId: transcriptRecordIdRef.current,
+      callType,
+      estimatedCredits: CREDIT_ESTIMATES[callType] ?? 1,
+    });
+  }, [coachUser]);
+
   const handleQa = useCallback((question) => {
     const id = Date.now() + Math.random();
     setQaItems(prev => [...prev, { id, question, answer: '', loading: true }]);
+    logAI('qa');
     base44.functions.invoke('liveAssistantAI', { question, transcript: transcriptRef.current.slice(-8), kbEntries, kbName: 'Debt Settlement', scriptPosition: scriptPositionRef.current })
       .then(res => { const answer = res?.answer || res?.data?.answer || 'Check knowledge base.'; setQaItems(prev => prev.map(x => x.id === id ? { ...x, answer, loading: false } : x)); })
       .catch(() => setQaItems(prev => prev.map(x => x.id === id ? { ...x, answer: 'Unable to answer.', loading: false } : x)));
@@ -486,12 +502,14 @@ Agent line: "${firstAgentLines}"`,
   }, [handleQa, kbEntries]);
 
   const handleCoach = useCallback(() => {
+    logAI('coach');
     base44.functions.invoke('liveAssistantAI', { transcript: transcriptRef.current.slice(-6), kbEntries, mode: 'coach' })
       .then(res => { const tip = res?.tip || res?.response || res?.answer || ''; if (tip) setCoachTips(prev => [{ tip, time: new Date() }, ...prev].slice(0, 8)); })
       .catch(() => {});
   }, [kbEntries]);
 
   const handleIntent = useCallback(() => {
+    logAI('intent');
     base44.functions.invoke('liveAssistantAI', { transcript: transcriptRef.current.slice(-12), kbEntries, mode: 'intent', intentRules: DEBT_INTENT_RULES })
       .then(res => {
         const score = res?.intent?.intentScore ?? res?.intentScore ?? res?.data?.intentScore;
@@ -506,6 +524,7 @@ Agent line: "${firstAgentLines}"`,
   const handleProfile = useCallback(async () => {
     if (!leadRef.current?.id) return;
     try {
+      logAI('profile');
       const res = await base44.functions.invoke('liveAssistantAI', {
         transcript: transcriptRef.current.slice(-20),
         kbEntries,
@@ -524,6 +543,7 @@ Agent line: "${firstAgentLines}"`,
   const handleDebtExtract = useCallback(async () => {
     if (!leadRef.current?.id || transcriptRef.current.length < 4) return;
     setLedgerExtracting(true);
+    logAI('debt_extract');
     try {
       const recentText = transcriptRef.current.slice(-15).map(t => t.text).join(' ');
       const result = await base44.integrations.Core.InvokeLLM({
@@ -583,6 +603,7 @@ ${recentText}`,
   const handleBillsExtract = useCallback(async () => {
     if (!leadRef.current?.id || transcriptRef.current.length < 4) return;
     try {
+      logAI('budget');
       const res = await base44.functions.invoke('liveAssistantAI', {
         transcript: transcriptRef.current.slice(-15),
         mode: 'budget',
@@ -613,6 +634,7 @@ ${recentText}`,
   const handleCreditExtract = useCallback(async () => {
     if (!leadRef.current?.id || transcriptRef.current.length < 4) return;
     try {
+      logAI('credit');
       const res = await base44.functions.invoke('liveAssistantAI', {
         transcript: transcriptRef.current.slice(-15),
         mode: 'credit',
@@ -635,6 +657,7 @@ ${recentText}`,
   const handleHardshipExtract = useCallback(async () => {
     if (!leadRef.current?.id || transcriptRef.current.length < 4) return;
     try {
+      logAI('hardship');
       const res = await base44.functions.invoke('liveAssistantAI', { transcript: transcriptRef.current.slice(-15), mode: 'hardship', aiInputActive: posHasAiInput(scriptPositionRef.current) });
       const hardship = res?.hardship || res?.data?.hardship;
       if (hardship) {
@@ -654,6 +677,7 @@ ${recentText}`,
   const handleComplianceEval = useCallback(async () => {
     if (!leadRef.current?.id || transcriptRef.current.length < 6) return;
     try {
+      logAI('compliance');
       await base44.functions.invoke('complianceEngine', {
         action: 'evaluate',
         transcriptChunk: transcriptRef.current.slice(-20),
@@ -675,6 +699,7 @@ ${recentText}`,
     if (!leadRef.current?.id || transcriptRef.current.length < 4) return;
     try {
       const aiInputActive = posHasAiInput(scriptPositionRef.current);
+      logAI('contact');
       const res = await base44.functions.invoke('liveAssistantAI', { transcript: transcriptRef.current.slice(-15), mode: 'contact', aiInputActive });
       const contact = res?.contact || res?.data?.contact;
       if (contact) {
@@ -705,6 +730,7 @@ ${recentText}`,
   const handleHandoffExtract = useCallback(async () => {
     if (!leadRef.current?.id || transcriptRef.current.length < 2) return;
     try {
+      logAI('handoff');
       const res = await base44.functions.invoke('liveAssistantAI', { transcript: transcriptRef.current.slice(0, 8), mode: 'handoff' });
       const h = res?.handoff || res?.data?.handoff;
       if (h) {
@@ -729,6 +755,7 @@ ${recentText}`,
   const handleCosignerExtract = useCallback(async () => {
     if (!leadRef.current?.id || transcriptRef.current.length < 4) return;
     try {
+      logAI('cosigners');
       const res = await base44.functions.invoke('liveAssistantAI', { transcript: transcriptRef.current.slice(-15), mode: 'cosigners', aiInputActive: posHasAiInput(scriptPositionRef.current) });
       const cosigners = res?.cosigners || res?.data?.cosigners || [];
       if (cosigners.length > 0) {
@@ -1074,6 +1101,7 @@ ${recentText}`,
     if (transcriptRef.current.length > 0 && leadRef.current?.id) {
       let intent = null;
       try {
+        logAI('intent_final');
         const intentRes = await base44.functions.invoke('liveAssistantAI', { transcript: transcriptRef.current, kbEntries, mode: 'intent_final', intentRules: DEBT_INTENT_RULES });
         intent = intentRes?.intent || intentRes?.data?.intent;
         if (intent) {
@@ -1137,6 +1165,7 @@ ${recentText}`,
         // Also run dedicated fact extraction for any memories the intent engine missed
         try {
           const existingFactTexts = (await base44.entities.LeadMemory.filter({ leadId: leadRef.current.id }, '-created_date', 200)).map(m => (m.factText || '').toLowerCase());
+          logAI('extract_facts');
           const factsRes = await base44.functions.invoke('liveAssistantAI', { transcript: transcriptRef.current, mode: 'extract_facts', existingFacts: existingFactTexts.map(t => ({ factText: t })) });
           const newFacts = factsRes?.facts || factsRes?.data?.facts || [];
           if (newFacts.length > 0) {
@@ -1162,6 +1191,7 @@ ${recentText}`,
 
       setGeneratingReport(true);
       try {
+        logAI('full_report');
         const res = await base44.functions.invoke('liveAssistantAI', {
           transcript: transcriptRef.current, kbEntries, kbName: 'Debt Settlement', mode: 'full_report',
           usedCoach: coachActiveRef.current, usedQA: qaActiveRef.current, usedIntent: intentActiveRef.current,
@@ -1173,6 +1203,7 @@ ${recentText}`,
         // Run structured call analysis (timeline + manager report + suggestions + follow-up)
         let callAnalysisJson = '';
         try {
+          logAI('call_analysis');
           const analysisRes = await base44.functions.invoke('liveAssistantAI', {
             transcript: transcriptRef.current, mode: 'call_analysis', callType,
           });
