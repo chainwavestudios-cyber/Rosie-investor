@@ -145,6 +145,7 @@ export default function CustomerStatsPopup({ lead, transcript, isActive, agentUs
         if (newInsights.length > 0) {
           const leadName = `${lead.firstName || ''} ${lead.lastName || ''}`.trim();
           const flashKeys = new Set();
+          const createdLocationInsights = [];
           for (const ins of newInsights) {
             const key = `${ins.insightType}:${(ins.insightText || '').toLowerCase()}`;
             if (!existingInsightKeys.current.has(key)) {
@@ -153,7 +154,7 @@ export default function CustomerStatsPopup({ lead, transcript, isActive, agentUs
               // Find the transcript line for timestamp
               const lineIdx = ins.transcriptLineIndex ?? 0;
               const transcriptLine = transcript[lineIdx] || transcript[transcript.length - 1];
-              await base44.entities.CustomerInsight.create({
+              const created = await base44.entities.CustomerInsight.create({
                 leadId: lead.id,
                 leadName,
                 insightType: ins.insightType,
@@ -163,6 +164,10 @@ export default function CustomerStatsPopup({ lead, transcript, isActive, agentUs
                 transcriptSnippet: ins.transcriptSnippet || transcriptLine?.text || '',
                 createdBy: agentUsername,
               });
+              // Track new location insights to auto-research (landmarks, sports, etc.)
+              if (created && ins.insightType === 'location' && created.id) {
+                createdLocationInsights.push(created);
+              }
             }
           }
           if (flashKeys.size > 0) {
@@ -170,10 +175,66 @@ export default function CustomerStatsPopup({ lead, transcript, isActive, agentUs
             setTimeout(() => setNewInsightFlash(new Set()), 3000);
           }
           loadInsights();
+          // Auto-research new location insights in the background (landmarks, restaurants, sports)
+          for (const locIns of createdLocationInsights) {
+            base44.functions.invoke('liveAssistantAI', {
+              mode: 'research_insight',
+              insightType: 'location',
+              insightText: locIns.insightText,
+            }).then(researchRes => {
+              const research = researchRes?.research || researchRes?.data?.research;
+              if (research) {
+                base44.entities.CustomerInsight.update(locIns.id, {
+                  researchJson: JSON.stringify(research),
+                  isResearched: true,
+                }).then(() => loadInsights()).catch(() => {});
+              }
+            }).catch(() => {});
+          }
         }
       } catch {}
       setLoading(false);
     }, 2000);
+    return () => clearTimeout(timer);
+  }, [isActive, lead?.id, transcript, insights, agentUsername, loadInsights]);
+
+  // Auto-detect DOB and research birth-year facts (inventions, events, president, election year)
+  // Runs once per lead — resets when the lead changes.
+  const dobResearchedRef = useRef(false);
+  useEffect(() => { dobResearchedRef.current = false; lastExtractLineCount.current = 0; }, [lead?.id]);
+  useEffect(() => {
+    if (!isActive || !lead?.id || !transcript) return;
+    if (dobResearchedRef.current) return;
+    if (transcript.length < 6) return; // need enough conversation before checking
+    const timer = setTimeout(async () => {
+      if (dobResearchedRef.current) return;
+      try {
+        const res = await base44.functions.invoke('liveAssistantAI', { mode: 'dob_research', transcript });
+        const dob = res?.dob || res?.data?.dob;
+        if (dob?.birthYear) {
+          dobResearchedRef.current = true;
+          const leadName = `${lead.firstName || ''} ${lead.lastName || ''}`.trim();
+          const lastLine = transcript[transcript.length - 1];
+          const insightText = `Born in ${dob.birthYear}${dob.dateOfBirth ? ` (${dob.dateOfBirth})` : ''}`;
+          const existing = insights.find(i => i.insightType === 'life_event' && (i.insightText || '').includes(`Born in ${dob.birthYear}`));
+          if (!existing) {
+            await base44.entities.CustomerInsight.create({
+              leadId: lead.id,
+              leadName,
+              insightType: 'life_event',
+              insightText,
+              transcriptLineIndex: transcript.length - 1,
+              transcriptTimestamp: lastLine?.time || new Date().toISOString(),
+              transcriptSnippet: lastLine?.text || '',
+              createdBy: agentUsername,
+              researchJson: JSON.stringify(dob.research || {}),
+              isResearched: true,
+            });
+            loadInsights();
+          }
+        }
+      } catch {}
+    }, 3000);
     return () => clearTimeout(timer);
   }, [isActive, lead?.id, transcript, insights, agentUsername, loadInsights]);
 
@@ -362,6 +423,10 @@ export default function CustomerStatsPopup({ lead, transcript, isActive, agentUs
                         {research.conversationStarters && research.conversationStarters.length > 0 && <ResearchField label="Conversation Starters" items={research.conversationStarters} color={GOLD} />}
                         {research.commonChallenges && research.commonChallenges.length > 0 && <ResearchField label="Common Challenges" items={research.commonChallenges} color="#ef4444" />}
                         {research.relatedTopics && research.relatedTopics.length > 0 && <ResearchField label="Related Topics" items={research.relatedTopics} color="#8a9ab8" />}
+                        {research.inventions && research.inventions.length > 0 && <ResearchField label="Inventions That Year" items={research.inventions} color="#60a5fa" />}
+                        {research.majorEvents && research.majorEvents.length > 0 && <ResearchField label="Major Events" items={research.majorEvents} color="#f59e0b" />}
+                        {research.popCulture && research.popCulture.length > 0 && <ResearchField label="Pop Culture" items={research.popCulture} color="#f472b6" />}
+                        {research.president && <div style={{ marginBottom: '4px' }}><span style={{ color: '#8a9ab8', fontSize: '9px', textTransform: 'uppercase', letterSpacing: '1px' }}>President: </span><span style={{ color: '#c4cdd8', fontSize: '11px', fontWeight: 'bold' }}>{research.president}</span>{research.wasElectionYear !== undefined && <span style={{ color: research.wasElectionYear ? '#34d399' : '#8a9ab8', fontSize: '10px', marginLeft: '8px' }}>{research.wasElectionYear ? '🗳️ Election Year' : 'Not an election year'}</span>}</div>}
                       </div>
                     )}
                   </div>

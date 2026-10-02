@@ -623,6 +623,8 @@ Extract from these opening lines:
 - customerFirstName: The PROSPECT/CUSTOMER's first name (the person being transferred in, NOT the agent and NOT the transfer agent). e.g. "Bob", "Sarah"
 - customerLastName: The prospect's last name if mentioned
 - debtAmount: Total debt amount mentioned (number only, no $ or commas). Handle "20k" → 20000, "35 thousand" → 35000, "approx 20k" → 20000, "15 grand" → 15000.
+- city: The prospect's city if the transfer agent mentions where they're from ("he's calling from Dallas" → "Dallas", "she's out in Phoenix, AZ" → "Phoenix")
+- state: The prospect's state if mentioned ("out in Phoenix, AZ" → "AZ", "from Tampa, Florida" → "FL"). Use the 2-letter state abbreviation if the full state name is given.
 - agentFirstName: The answering agent's first name if they state it ("debt advisors this is Chris" → "Chris")
 
 CRITICAL: Do NOT confuse the transfer agent's name with the customer's name. The customer is the person being transferred/introduced ("I have Bob on the line" → customer is Bob). The agent is the one who answered the phone ("debt advisors this is Chris" → agent is Chris).
@@ -645,9 +647,9 @@ ${openingLines}`,
     // ── EXTRACT PERSONAL INSIGHTS (location, occupation, hobbies, etc.) ──
     if (mode === 'extract_insights') {
       const allLines = transcript || [];
-      const recentLines = allLines.slice(-20);
-      const startIndex = allLines.length - recentLines.length;
-      const transcriptStr = recentLines.map((t: any, i: number) => `[LINE ${startIndex + i}] [${t.speaker === 0 ? 'AGENT' : 'CUSTOMER'}]: ${t.text}`).join('\n');
+      // Scan the FULL transcript (capped at 8000 chars) so early mentions of
+      // location/occupation aren't missed when the conversation has moved on.
+      const transcriptStr = allLines.map((t: any, i: number) => `[LINE ${i}] [${t.speaker === 0 ? 'AGENT' : 'CUSTOMER'}]: ${t.text}`).join('\n').slice(0, 8000);
       const existingInsights = (body.existingInsights || []).map((ins: any) => `${ins.insightType}:${(ins.insightText || '').toLowerCase()}`);
 
       const data = await callLLM(req, {
@@ -682,6 +684,54 @@ ${existingInsights.length > 0 ? existingInsights.join('\n') : 'None yet'}`,
         return Response.json({ insights: result.insights || [] });
       } catch {
         return Response.json({ insights: [] });
+      }
+    }
+
+    // ── DOB / BIRTH YEAR RESEARCH (auto internet search for birth-year facts) ──
+    if (mode === 'dob_research') {
+      const fullText = (transcript || []).map((t: any) => `[${t.speaker === 0 ? 'AGENT' : 'CUSTOMER'}]: ${t.text}`).join('\n').slice(0, 8000);
+      // 1. Extract DOB / birth year from transcript
+      const extractData = await callLLM(req, {
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 200,
+        system: `Extract the customer's date of birth from this call transcript. The customer may say "I was born on March 15, 1985" or "My birthday is 03/15/1985" or "DOB is 4/22/1972" or "I'm 41 years old" (estimate birth year from age). Return JSON with dateOfBirth (raw text as stated) and birthYear (4-digit number). If no DOB or age is mentioned, return empty object {}.
+Transcript:
+${fullText}`,
+        messages: [{ role: 'user', content: 'Extract DOB:' }],
+      });
+      const dobText = extractData?.content?.[0]?.text || '{}';
+      let dobResult: any = {};
+      try { dobResult = JSON.parse(dobText.replace(/```json|```/g, '').trim()); } catch {}
+      if (!dobResult.birthYear) return Response.json({ dob: null });
+
+      const birthYear = Number(dobResult.birthYear);
+      // 2. Internet search for fun facts about that birth year
+      try {
+        const base44 = createClientFromRequest(req);
+        const research: any = await base44.asServiceRole.integrations.Core.InvokeLLM({
+          prompt: `Research the year ${birthYear} — the year this person was born. Find fun, conversation-worthy facts a sales agent could use to build rapport:
+1. Notable inventions or breakthroughs from ${birthYear}
+2. Major world events that happened in ${birthYear}
+3. Who was the US President in ${birthYear}
+4. Was ${birthYear} a US presidential election year?
+5. Popular culture: top movies, songs, or cultural moments from ${birthYear}
+6. A fun 2-3 sentence summary a sales agent could use to build rapport with someone born in ${birthYear}`,
+          add_context_from_internet: true,
+          response_json_schema: {
+            type: 'object',
+            properties: {
+              inventions: { type: 'array', items: { type: 'string' } },
+              majorEvents: { type: 'array', items: { type: 'string' } },
+              president: { type: 'string' },
+              wasElectionYear: { type: 'boolean' },
+              popCulture: { type: 'array', items: { type: 'string' } },
+              summary: { type: 'string' },
+            },
+          },
+        });
+        return Response.json({ dob: { dateOfBirth: dobResult.dateOfBirth || '', birthYear, research } });
+      } catch (e: any) {
+        return Response.json({ dob: { dateOfBirth: dobResult.dateOfBirth || '', birthYear, research: { summary: 'Could not research birth year: ' + (e?.message || String(e)) } } });
       }
     }
 

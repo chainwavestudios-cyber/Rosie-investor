@@ -742,6 +742,9 @@ ${recentText}`,
         if (h.customerLastName && (!curLast || curLast.toLowerCase() === 'lead')) updates.lastName = h.customerLastName;
         // Always capture a freshly mentioned debt amount if none is set yet
         if (h.debtAmount && !leadRef.current.debtAmount) updates.debtAmount = Number(h.debtAmount) || h.debtAmount;
+        // Transfer agent often states where the prospect is from — always populate
+        if (h.city) updates.city = h.city;
+        if (h.state) updates.state = h.state;
         if (Object.keys(updates).length > 0) {
           setLead(prev => ({ ...prev, ...updates }));
           if (leadRef.current.id) base44.entities.DebtLead.update(leadRef.current.id, updates).catch(() => {});
