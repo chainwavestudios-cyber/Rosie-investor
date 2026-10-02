@@ -110,6 +110,7 @@ export default function DebtLiveCall() {
   const [error, setError] = useState('');
   const [dgStatus, setDgStatus] = useState('idle');
   const [testingAudio, setTestingAudio] = useState(false);
+  const [testMode, setTestMode] = useState(false);
   const [agentLevel, setAgentLevel] = useState(0);
   const [customerLevel, setCustomerLevel] = useState(0);
   const [transcript, setTranscript] = useState([]);
@@ -994,7 +995,7 @@ ${recentText}`,
     }
   }, [handleQa, flushCustomerBuffer, handleCoach, handleIntent, runTimedExtractors, handleHandoffExtract]);
 
-  const startCall = useCallback(async (forceNew = false) => {
+  const startCall = useCallback(async (forceNew = false, testModeArg = false) => {
     // Ensure we have a lead — always create a brand new one for new/inbound calls
     if (forceNew || !leadRef.current?.id) {
       // Persist the lead to the database immediately so transcript + auto-extraction
@@ -1058,6 +1059,7 @@ ${recentText}`,
     } catch (e) { console.error('Failed to create live transcript record:', e); }
     customerBufferRef.current = []; if (bufferTimeoutRef.current) { clearTimeout(bufferTimeoutRef.current); bufferTimeoutRef.current = null; }
     setMicMuted(false);
+    setTestMode(testModeArg);
     setPhase('live'); setDgStatus('connecting');
     callStartRef.current = new Date();
     lastCoachTime.current = Date.now();
@@ -1092,7 +1094,9 @@ ${recentText}`,
     setCoachActive(wantCoach); coachActiveRef.current = wantCoach;
     setIntentActive(wantIntent); intentActiveRef.current = wantIntent;
 
-    const dualMode = !!customerMicId && !!micDeviceId;
+    // Test mode forces single-mic diarization — one feed, no dual-channel duplicates.
+    // Used when playing pre-recorded calls through speakers for testing.
+    const dualMode = !!customerMicId && !!micDeviceId && !testModeArg;
 
     let agentStream, customerStream;
     try {
@@ -1252,6 +1256,7 @@ ${recentText}`,
     if (customerStreamRef.current) { customerStreamRef.current.getTracks().forEach(t => t.stop()); customerStreamRef.current = null; }
     if (ctxRef.current) { try { ctxRef.current.close(); } catch {} ctxRef.current = null; }
     setMicMuted(false);
+    setTestMode(false);
     setPhase('ended'); setDgStatus('idle');
 
     // Final profile + intent analysis
@@ -1634,9 +1639,11 @@ ${recentText}`,
           </div>
         )}
 
-        {customerMicId && micDeviceId && (
+        {testMode ? (
+          <span style={{ padding: '4px 10px', background: 'rgba(245,158,11,0.15)', border: '1px solid rgba(245,158,11,0.4)', borderRadius: '4px', color: '#f59e0b', fontSize: '10px', fontWeight: 'bold', letterSpacing: '1px' }}>🧪 TEST MODE — Single Feed</span>
+        ) : customerMicId && micDeviceId ? (
           <span style={{ padding: '4px 10px', background: 'rgba(96,165,250,0.12)', border: '1px solid rgba(96,165,250,0.3)', borderRadius: '4px', color: '#60a5fa', fontSize: '10px', fontWeight: 'bold', letterSpacing: '1px' }}>DUAL CHANNEL</span>
-        )}
+        ) : null}
 
         <button onClick={testingAudio ? stopAudioTest : startAudioTest} disabled={phase === 'live'} style={{ background: testingAudio ? 'rgba(245,158,11,0.15)' : 'rgba(255,255,255,0.05)', color: testingAudio ? '#f59e0b' : '#8a9ab8', border: `1px solid ${testingAudio ? 'rgba(245,158,11,0.3)' : 'rgba(255,255,255,0.12)'}`, borderRadius: '4px', padding: '8px 14px', cursor: phase === 'live' ? 'not-allowed' : 'pointer', fontSize: '11px', fontWeight: 'bold', whiteSpace: 'nowrap', opacity: phase === 'live' ? 0.5 : 1 }}>
           {testingAudio ? '⏹ Stop Test' : '🔊 Test Audio'}
@@ -1690,6 +1697,9 @@ ${recentText}`,
               />
               <button onClick={() => startCall(false)} disabled={kbLoading} style={{ background: 'linear-gradient(135deg,#10b981,#22c55e)', color: DARK, border: 'none', borderRadius: '4px', padding: '6px 12px', cursor: kbLoading ? 'not-allowed' : 'pointer', fontSize: '9px', fontWeight: 'bold', letterSpacing: '0.5px', textTransform: 'uppercase', opacity: kbLoading ? 0.5 : 1, whiteSpace: 'nowrap' }}>
                 {kbLoading ? 'Loading…' : '🔴 Live Call'}
+              </button>
+              <button onClick={() => startCall(false, true)} disabled={kbLoading} title="Single-mic test mode — play a pre-recorded call through speakers, no dual-channel duplicates" style={{ background: 'linear-gradient(135deg,#f59e0b,#f97316)', color: DARK, border: 'none', borderRadius: '4px', padding: '6px 12px', cursor: kbLoading ? 'not-allowed' : 'pointer', fontSize: '9px', fontWeight: 'bold', letterSpacing: '0.5px', textTransform: 'uppercase', opacity: kbLoading ? 0.5 : 1, whiteSpace: 'nowrap' }}>
+                🧪 Test Call
               </button>
             </div>
             {/* Search results dropdown */}
