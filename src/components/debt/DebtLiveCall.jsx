@@ -111,6 +111,7 @@ export default function DebtLiveCall() {
   const [dgStatus, setDgStatus] = useState('idle');
   const [testingAudio, setTestingAudio] = useState(false);
   const [testMode, setTestMode] = useState(false);
+  const [statsPaused, setStatsPaused] = useDebtCoachValue(coachUser?.username, 'statsPaused', true);
   const [agentLevel, setAgentLevel] = useState(0);
   const [customerLevel, setCustomerLevel] = useState(0);
   const [transcript, setTranscript] = useState([]);
@@ -812,6 +813,7 @@ ${recentText}`,
         if (contact.state) updates.state = contact.state;
         if (contact.zip) updates.zip = contact.zip;
         if (contact.debtAmount) updates.debtAmount = Number(contact.debtAmount) || contact.debtAmount;
+        if (contact.dateOfBirth) updates.dateOfBirth = contact.dateOfBirth;
         if (Object.keys(updates).length > 0) {
           setLead(prev => ({ ...prev, ...updates }));
           if (leadRef.current.id) base44.entities.DebtLead.update(leadRef.current.id, updates).catch(() => {});
@@ -1649,6 +1651,10 @@ ${recentText}`,
           {testingAudio ? '⏹ Stop Test' : '🔊 Test Audio'}
         </button>
 
+        <button onClick={() => setStatsPaused(p => !p)} title="Pause/resume auto customer stats extraction during calls" style={{ padding: '8px 14px', borderRadius: '4px', border: `1px solid ${statsPaused ? 'rgba(107,113,128,0.2)' : 'rgba(16,185,129,0.3)'}`, background: statsPaused ? 'rgba(255,255,255,0.03)' : `${GOLD}18`, color: statsPaused ? '#6b7280' : GOLD, cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', whiteSpace: 'nowrap' }}>
+          {statsPaused ? '⏸ Stats Paused' : '▶ Stats On'}
+        </button>
+
         {/* Call Type selector — Front to Back / Open Only / Cold Call / Closer Call */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
           <label style={{ ...ls, marginBottom: 0 }}>📞 Call Type</label>
@@ -1977,6 +1983,7 @@ ${recentText}`,
         onToggleInbound={setIsInbound}
         micMuted={micMuted}
         onToggleMicMute={toggleMicMute}
+        paused={statsPaused}
       />
 
       {/* Ready for Next Call briefing — available after call ends */}

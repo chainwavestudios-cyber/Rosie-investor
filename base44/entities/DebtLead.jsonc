@@ -38,6 +38,11 @@
       "type": "string",
       "title": "Zip"
     },
+    "dateOfBirth": {
+      "type": "string",
+      "format": "date",
+      "title": "Date of Birth"
+    },
     "debtAmount": {
       "type": "number",
       "title": "Total Debt Amount ($)"

@@ -659,6 +659,7 @@ Look for:
 - city: City
 - state: State
 - zip: Zip code
+- dateOfBirth: Date of birth (KEYWORD: "date of birth", "DOB", "born on", "birthday is", "I was born on", "I'm X years old" — format as YYYY-MM-DD when full date is given; if only age is mentioned, estimate birth year and use YYYY-01-01)
 - debtAmount: Total debt amount (when customer confirms "I owe about $25,000" or "My total debt is around 15,000 dollars") — number only, no $ sign
 
 NAME CORRECTIONS: The customer may CORRECT their name after initially stating it — e.g. "It's John" then later "Actually it's Jonathan, not John" or "My full name is Jonathan". Always return the LATEST, most-correct version of the name the customer confirms. If a correction appears later in the transcript, use the corrected name, not the original. Also catch clarifications like "Yes, with an H" or "That's J-O-N-A-T-H-A-N" — apply the correction.
@@ -801,6 +802,39 @@ ${fullText}`,
         return Response.json({ dob: { dateOfBirth: dobResult.dateOfBirth || '', birthYear, research } });
       } catch (e: any) {
         return Response.json({ dob: { dateOfBirth: dobResult.dateOfBirth || '', birthYear, research: { summary: 'Could not research birth year: ' + (e?.message || String(e)) } } });
+      }
+    }
+
+    // ── BIRTH YEAR RESEARCH (internet search for birth-year facts from a known year) ──
+    if (mode === 'birth_year_research') {
+      const birthYear = Number(body.birthYear);
+      if (!birthYear) return Response.json({ research: null });
+      try {
+        const base44 = createClientFromRequest(req);
+        const research: any = await base44.asServiceRole.integrations.Core.InvokeLLM({
+          prompt: `Research the year ${birthYear} — the year this person was born. Find fun, conversation-worthy facts a sales agent could use to build rapport:
+1. Notable inventions or breakthroughs from ${birthYear}
+2. Major world events that happened in ${birthYear}
+3. Who was the US President in ${birthYear}
+4. Was ${birthYear} a US presidential election year?
+5. Popular culture: top movies, songs, or cultural moments from ${birthYear}
+6. A fun 2-3 sentence summary a sales agent could use to build rapport with someone born in ${birthYear}`,
+          add_context_from_internet: true,
+          response_json_schema: {
+            type: 'object',
+            properties: {
+              inventions: { type: 'array', items: { type: 'string' } },
+              majorEvents: { type: 'array', items: { type: 'string' } },
+              president: { type: 'string' },
+              wasElectionYear: { type: 'boolean' },
+              popCulture: { type: 'array', items: { type: 'string' } },
+              summary: { type: 'string' },
+            },
+          },
+        });
+        return Response.json({ research });
+      } catch (e: any) {
+        return Response.json({ research: { summary: 'Could not research birth year: ' + (e?.message || String(e)) } });
       }
     }
 

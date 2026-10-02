@@ -21,7 +21,7 @@ const INSIGHT_TYPES = [
   { id: 'other', label: '📌 Other', color: '#8a9ab8' },
 ];
 
-export default function CustomerStatsPopup({ lead, transcript, isActive, agentUsername, onInsightsChange, phase, onStartCall, onStopCall, isInbound, onToggleInbound, micMuted, onToggleMicMute }) {
+export default function CustomerStatsPopup({ lead, transcript, isActive, agentUsername, onInsightsChange, phase, onStartCall, onStopCall, isInbound, onToggleInbound, micMuted, onToggleMicMute, paused }) {
   const [collapsed, setCollapsed] = useState(false);
   const [insights, setInsights] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -127,7 +127,7 @@ export default function CustomerStatsPopup({ lead, transcript, isActive, agentUs
 
   // Auto-extract insights from transcript periodically during live call
   useEffect(() => {
-    if (!isActive || !lead?.id || !transcript) return;
+    if (!isActive || !lead?.id || !transcript || paused) return;
     const lineCount = transcript.length;
     // Only extract when new lines arrive and enough time has passed
     if (lineCount < lastExtractLineCount.current + 8) return;

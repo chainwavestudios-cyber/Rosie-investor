@@ -3,7 +3,7 @@
  * Overview | Debt (credit report + utilization) | Bills (monthly expenses + income) | Calculator
  * Floating, draggable, resizable (8-way) via usePopOutPanel — opens from the lead card.
  */
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
 import DoNothingCalculator from '@/components/debt/DoNothingCalculator';
 import NextCallBriefing from '@/components/debt/NextCallBriefing';
@@ -62,6 +62,10 @@ export default function ClientProfileModal({ lead, username, onClose, onSave }) 
   const [showLiveTranscript, setShowLiveTranscript] = useState(true);
   const [insights, setInsights] = useState([]);
   const [expandedInsight, setExpandedInsight] = useState(null);
+  const [locationResearch, setLocationResearch] = useState(null);
+  const [locationResearching, setLocationResearching] = useState(false);
+  const [dobResearch, setDobResearch] = useState(null);
+  const [dobResearching, setDobResearching] = useState(false);
   const panel = usePopOutPanel('client_profile', { width: 900, height: 700 }, username);
 
   // Load Q&A history for this lead
@@ -136,6 +140,37 @@ export default function ClientProfileModal({ lead, username, onClose, onSave }) 
 
   const update = (field, value) => setLocal(prev => ({ ...prev, [field]: value }));
 
+  const handleLocationResearch = async () => {
+    const loc = [local.city, local.state].filter(Boolean).join(', ');
+    if (!loc) return;
+    setLocationResearching(true);
+    try {
+      const res = await base44.functions.invoke('liveAssistantAI', { mode: 'research_insight', insightType: 'location', insightText: loc });
+      setLocationResearch(res?.research || res?.data?.research || null);
+    } catch { setLocationResearch(null); }
+    setLocationResearching(false);
+  };
+
+  const dobResearchedRef = useRef(null);
+  const handleDobResearch = async () => {
+    if (!local.dateOfBirth) return;
+    const birthYear = new Date(local.dateOfBirth).getFullYear();
+    if (!birthYear) return;
+    dobResearchedRef.current = local.dateOfBirth;
+    setDobResearching(true);
+    try {
+      const res = await base44.functions.invoke('liveAssistantAI', { mode: 'birth_year_research', birthYear });
+      setDobResearch(res?.research || res?.data?.research || null);
+    } catch { setDobResearch(null); }
+    setDobResearching(false);
+  };
+
+  useEffect(() => {
+    if (local.dateOfBirth && dobResearchedRef.current !== local.dateOfBirth && !dobResearching) {
+      handleDobResearch();
+    }
+  }, [local.dateOfBirth]);
+
   const ledger = useMemo(() => { try { return JSON.parse(local.debtLedgerJson || '[]'); } catch { return []; } }, [local]);
   const bills = useMemo(() => { try { return JSON.parse(local.billsJson || '{}'); } catch { return {}; } }, [local]);
 
@@ -163,7 +198,7 @@ export default function ClientProfileModal({ lead, username, onClose, onSave }) 
     try {
       await base44.entities.DebtLead.update(local.id, {
         firstName: local.firstName, lastName: local.lastName, phone: local.phone, email: local.email,
-        address: local.address, city: local.city, state: local.state, zip: local.zip,
+        address: local.address, city: local.city, state: local.state, zip: local.zip, dateOfBirth: local.dateOfBirth,
         debtAmount: local.debtAmount, creditorCount: local.creditorCount, creditors: local.creditors,
         debtLedgerJson: local.debtLedgerJson, billsJson: local.billsJson,
         employmentStatus: local.employmentStatus, monthlyIncome: local.monthlyIncome,
@@ -270,8 +305,30 @@ export default function ClientProfileModal({ lead, username, onClose, onSave }) 
               <div style={{ gridColumn: '1 / -1' }}><label style={ls}>Address</label><input value={local.address || ''} onChange={e => update('address', e.target.value)} style={inp} /></div>
               <div><label style={ls}>City</label><input value={local.city || ''} onChange={e => update('city', e.target.value)} style={inp} /></div>
               <div><label style={ls}>State</label><input value={local.state || ''} onChange={e => update('state', e.target.value)} style={inp} /></div>
-              <div><label style={ls}>Zip</label><input value={local.zip || ''} onChange={e => update('zip', e.target.value)} style={inp} /></div>
+              <div style={{ display: 'flex', gap: '4px', alignItems: 'flex-end' }}>
+                <div style={{ flex: 1 }}><label style={ls}>Zip</label><input value={local.zip || ''} onChange={e => update('zip', e.target.value)} style={inp} /></div>
+                <button onClick={handleLocationResearch} disabled={!local.city || locationResearching} title="Search the internet for landmarks, restaurants, sports teams near this city" style={{ background: `${GOLD}18`, color: GOLD, border: `1px solid ${GOLD}44`, borderRadius: '4px', padding: '6px 12px', cursor: (!local.city || locationResearching) ? 'not-allowed' : 'pointer', fontSize: '10px', fontWeight: 'bold', whiteSpace: 'nowrap', opacity: (!local.city || locationResearching) ? 0.5 : 1 }}>
+                  {locationResearching ? '⏳' : '🔍 More Info'}
+                </button>
+              </div>
+              <div><label style={ls}>Date of Birth</label><input type="date" value={local.dateOfBirth || ''} onChange={e => update('dateOfBirth', e.target.value)} style={inp} /></div>
             </div>
+
+            {/* Location Research Results */}
+            {locationResearch && (
+              <div style={{ marginBottom: '16px', background: 'rgba(96,165,250,0.06)', border: '1px solid rgba(96,165,250,0.2)', borderRadius: '4px', padding: '12px' }}>
+                <div style={{ color: '#60a5fa', fontSize: '10px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '8px' }}>🔍 {local.city}, {local.state} — Area Research</div>
+                <ResearchDisplay research={locationResearch} />
+              </div>
+            )}
+
+            {/* DOB Research Results */}
+            {(dobResearch || dobResearching) && local.dateOfBirth && (
+              <div style={{ marginBottom: '16px', background: 'rgba(167,139,250,0.06)', border: '1px solid rgba(167,139,250,0.2)', borderRadius: '4px', padding: '12px' }}>
+                <div style={{ color: '#a78bfa', fontSize: '10px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '8px' }}>🎂 Born in {new Date(local.dateOfBirth).getFullYear()} — Birth Year Research</div>
+                {dobResearching ? <div style={{ color: '#6b7280', fontSize: '12px' }}>⏳ Searching the internet for {new Date(local.dateOfBirth).getFullYear()} facts…</div> : <ResearchDisplay research={dobResearch} />}
+              </div>
+            )}
 
             {/* Financial Info */}
             <div style={{ color: GOLD, fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '10px' }}>Financial Information</div>
@@ -876,6 +933,41 @@ function AddCustomBillField({ bills, update }) {
 }
 
 // ─── Shared ───────────────────────────────────────────────────────────────────
+function ResearchDisplay({ research }) {
+  if (!research) return null;
+  const List = ({ label, items }) => items && items.length > 0 ? (
+    <div style={{ marginBottom: '6px' }}>
+      <div style={{ color: '#8a9ab8', fontSize: '10px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '3px' }}>{label}</div>
+      <ul style={{ margin: 0, paddingLeft: '16px' }}>
+        {items.map((item, i) => <li key={i} style={{ color: '#c4cdd8', fontSize: '12px', lineHeight: 1.5 }}>{item}</li>)}
+      </ul>
+    </div>
+  ) : null;
+  const Field = ({ label, value }) => value ? (
+    <div style={{ marginBottom: '4px' }}>
+      <span style={{ color: '#8a9ab8', fontSize: '10px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{label}: </span>
+      <span style={{ color: '#c4cdd8', fontSize: '12px' }}>{value}</span>
+    </div>
+  ) : null;
+  return (
+    <div>
+      {research.summary && <div style={{ color: '#e8e0d0', fontSize: '12px', lineHeight: 1.6, marginBottom: '8px', fontStyle: 'italic' }}>{research.summary}</div>}
+      <Field label="President" value={research.president} />
+      {research.wasElectionYear !== undefined && <Field label="Election Year" value={research.wasElectionYear ? 'Yes' : 'No'} />}
+      <Field label="Population" value={research.population} />
+      <Field label="Last Championship" value={research.lastChampionship} />
+      <List label="Inventions" items={research.inventions} />
+      <List label="Major Events" items={research.majorEvents} />
+      <List label="Pop Culture" items={research.popCulture} />
+      <List label="Landmarks" items={research.landmarks} />
+      <List label="Famous Restaurants" items={research.famousRestaurants} />
+      <List label="Sports Teams" items={research.sportsTeams} />
+      <List label="Neighboring Cities" items={research.neighboringCities} />
+      <List label="Fun Facts" items={research.funFacts} />
+    </div>
+  );
+}
+
 function StatBox({ label, value, color }) {
   return (
     <div style={{ background: 'rgba(255,255,255,0.03)', border: `1px solid ${color}33`, borderRadius: '4px', padding: '12px', textAlign: 'center' }}>
