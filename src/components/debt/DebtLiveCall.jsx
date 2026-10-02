@@ -784,7 +784,13 @@ ${recentText}`,
     if (now - lastBillsTime.current > (aiInputActive ? 15000 : 50000)) { lastBillsTime.current = now; handleBillsExtract(); }
     if (now - lastHardshipTime.current > (aiInputActive ? 15000 : 55000)) { lastHardshipTime.current = now; handleHardshipExtract(); }
     if (now - lastCosignerTime.current > (aiInputActive ? 20000 : 60000)) { lastCosignerTime.current = now; handleCosignerExtract(); }
-    if (now - lastContactTime.current > (aiInputActive ? 8000 : 40000)) { lastContactTime.current = now; handleContactExtract(); }
+    // Name-correction window: in the first 90 seconds, run the contact extractor
+    // aggressively so a corrected/clarified name ("Actually it's Jonathan, not John")
+    // is caught quickly instead of waiting up to 40s for the next cycle.
+    const callElapsedSec = callStartRef.current ? (now - callStartRef.current.getTime()) / 1000 : 0;
+    const inOpeningWindow = callElapsedSec < 90;
+    const contactThrottle = aiInputActive ? 8000 : (inOpeningWindow ? 12000 : 40000);
+    if (now - lastContactTime.current > contactThrottle) { lastContactTime.current = now; handleContactExtract(); }
     if (now - lastCreditTime.current > (aiInputActive ? 12000 : 50000)) { lastCreditTime.current = now; handleCreditExtract(); }
     if (now - lastComplianceTime.current > 90000) { lastComplianceTime.current = now; handleComplianceEval(); }
   }, [handleProfile, handleDebtExtract, handleBillsExtract, handleHardshipExtract, handleCosignerExtract, handleContactExtract, handleCreditExtract, handleComplianceEval]);
