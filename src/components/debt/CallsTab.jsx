@@ -34,7 +34,21 @@ export default function CallsTab() {
       } else {
         all = await base44.entities.DebtCallTranscript.list('-callDate', 200);
       }
-      setCalls(all || []);
+      const callsList = all || [];
+      // Resolve the real lead name from the DebtLead entity. The transcript
+      // record's leadName is saved at call start as "New Lead" and was not
+      // updated for calls made before the name-capture fix, so the call log
+      // showed the lead number with a stale/blank name. Joining here fixes
+      // both old and new calls without mutating stored data.
+      const leadIds = [...new Set(callsList.map(c => c.leadId).filter(Boolean))];
+      const leadMap = {};
+      if (leadIds.length > 0) {
+        try {
+          const leads = await base44.entities.DebtLead.filter({ id: { $in: leadIds } });
+          for (const l of (leads || [])) leadMap[l.id] = `${l.firstName || ''} ${l.lastName || ''}`.trim();
+        } catch {}
+      }
+      setCalls(callsList.map(c => ({ ...c, resolvedLeadName: leadMap[c.leadId] || c.leadName || '' })));
     } catch { setCalls([]); }
     setLoading(false);
   }, [user, isDialerRole]);
@@ -91,7 +105,7 @@ function CallRow({ call, expanded, onToggle, canManage, managerUsername, onOpenP
         <button onClick={onToggle} style={{ flex: 1, background: 'none', border: 'none', padding: '14px 18px', cursor: 'pointer', textAlign: 'left', display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
           <span style={{ color: '#60a5fa', fontSize: '12px', fontWeight: 'bold', flexShrink: 0, minWidth: '140px' }}>{callDate}</span>
           <span style={{ padding: '2px 8px', borderRadius: '2px', background: call.callMode === 'close' ? 'rgba(16,185,129,0.12)' : 'rgba(96,165,250,0.12)', color: call.callMode === 'close' ? GOLD : '#60a5fa', fontSize: '9px', fontWeight: 'bold', textTransform: 'uppercase', flexShrink: 0 }}>{call.callMode || 'open'}</span>
-          <span style={{ color: '#e8e0d0', fontSize: '13px', fontWeight: 'bold', flexShrink: 0 }}>{call.leadName || 'Unknown Lead'}</span>
+          <span style={{ color: '#e8e0d0', fontSize: '13px', fontWeight: 'bold', flexShrink: 0 }}>{call.resolvedLeadName || 'Unknown Lead'}</span>
           {call.leadNumber && <span style={{ color: GOLD, fontSize: '11px', flexShrink: 0 }}>({call.leadNumber})</span>}
           <span style={{ color: '#6b7280', fontSize: '11px', flexShrink: 0 }}>{duration}</span>
           <span style={{ fontSize: '16px', flexShrink: 0 }}>{ANIMAL_EMOJI[animal]}</span>
