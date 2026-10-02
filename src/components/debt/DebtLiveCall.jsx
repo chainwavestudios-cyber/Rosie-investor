@@ -429,7 +429,7 @@ Agent line: "${firstAgentLines}"`,
           return [...prev.slice(0, expectedStart), ...lines];
         });
       } catch {}
-    }, 12000);
+    }, 30000);
     return () => clearInterval(interval);
   }, [phase]);
 
@@ -782,27 +782,29 @@ ${recentText}`,
     const now = Date.now();
     const pos = scriptPositionRef.current;
     const aiInputActive = pos?.scriptLines?.some((l, i) => i >= (pos.activeIdx ?? 0) - 1 && i <= (pos.activeIdx ?? 0) + 3 && /\[\[AI\s*INPUT\]\]/i.test(l || ''));
-    if (now - lastProfileTime.current > (aiInputActive ? 15000 : 60000)) { lastProfileTime.current = now; handleProfile(); }
-    if (now - lastLedgerTime.current > (aiInputActive ? 12000 : 45000)) { lastLedgerTime.current = now; handleDebtExtract(); }
-    if (now - lastBillsTime.current > (aiInputActive ? 15000 : 50000)) { lastBillsTime.current = now; handleBillsExtract(); }
-    if (now - lastHardshipTime.current > (aiInputActive ? 15000 : 55000)) { lastHardshipTime.current = now; handleHardshipExtract(); }
-    if (now - lastCosignerTime.current > (aiInputActive ? 20000 : 60000)) { lastCosignerTime.current = now; handleCosignerExtract(); }
+    if (now - lastProfileTime.current > (aiInputActive ? 30000 : 120000)) { lastProfileTime.current = now; handleProfile(); }
+    if (now - lastLedgerTime.current > (aiInputActive ? 30000 : 90000)) { lastLedgerTime.current = now; handleDebtExtract(); }
+    if (now - lastBillsTime.current > (aiInputActive ? 45000 : 120000)) { lastBillsTime.current = now; handleBillsExtract(); }
+    if (now - lastHardshipTime.current > (aiInputActive ? 45000 : 120000)) { lastHardshipTime.current = now; handleHardshipExtract(); }
+    if (now - lastCosignerTime.current > (aiInputActive ? 60000 : 180000)) { lastCosignerTime.current = now; handleCosignerExtract(); }
     // Name-correction window: in the first 90 seconds, run the contact extractor
-    // aggressively so a corrected/clarified name ("Actually it's Jonathan, not John")
-    // is caught quickly instead of waiting up to 40s for the next cycle.
+    // more aggressively so a corrected/clarified name ("Actually it's Jonathan, not John")
+    // is caught quickly instead of waiting for the next cycle.
     const callElapsedSec = callStartRef.current ? (now - callStartRef.current.getTime()) / 1000 : 0;
     const inOpeningWindow = callElapsedSec < 90;
-    const contactThrottle = aiInputActive ? 8000 : (inOpeningWindow ? 12000 : 40000);
+    const contactThrottle = aiInputActive ? 20000 : (inOpeningWindow ? 30000 : 90000);
     if (now - lastContactTime.current > contactThrottle) { lastContactTime.current = now; handleContactExtract(); }
-    if (now - lastCreditTime.current > (aiInputActive ? 12000 : 50000)) { lastCreditTime.current = now; handleCreditExtract(); }
-    if (now - lastComplianceTime.current > 90000) { lastComplianceTime.current = now; handleComplianceEval(); }
+    if (now - lastCreditTime.current > (aiInputActive ? 45000 : 120000)) { lastCreditTime.current = now; handleCreditExtract(); }
+    if (now - lastComplianceTime.current > 180000) { lastComplianceTime.current = now; handleComplianceEval(); }
   }, [handleProfile, handleDebtExtract, handleBillsExtract, handleHardshipExtract, handleCosignerExtract, handleContactExtract, handleCreditExtract, handleComplianceEval]);
 
-  // Run timed extractors on a fixed 30s interval during live calls so client
-  // info is captured reliably even when no new transcript lines are arriving.
+  // Run timed extractors on a 90s fallback interval during live calls — only
+  // fires when no new transcript lines have triggered runTimedExtractors via
+  // processNewEntry. processNewEntry is the primary driver; this catches
+  // quiet periods without re-scanning the same transcript every 30s.
   useEffect(() => {
     if (phase !== 'live') return;
-    const interval = setInterval(runTimedExtractors, 30000);
+    const interval = setInterval(runTimedExtractors, 90000);
     return () => clearInterval(interval);
   }, [phase, runTimedExtractors]);
 
@@ -862,8 +864,8 @@ ${recentText}`,
     const now = Date.now();
     // [[AI INPUT]] tag — when the agent is at or just past this marker, the AI
     // aggressively extracts + saves whatever the customer says to the profile.
-    if (coachActiveRef.current && (objWords.some(w => text.toLowerCase().includes(w)) || now - lastCoachTime.current > 20000)) { lastCoachTime.current = now; handleCoach(); }
-    if (intentActiveRef.current && now - lastIntentTime.current > 30000) { lastIntentTime.current = now; handleIntent(); }
+    if (coachActiveRef.current && (objWords.some(w => text.toLowerCase().includes(w)) || now - lastCoachTime.current > 45000)) { lastCoachTime.current = now; handleCoach(); }
+    if (intentActiveRef.current && now - lastIntentTime.current > 60000) { lastIntentTime.current = now; handleIntent(); }
     runTimedExtractors();
     // Opening handoff: for inbound calls, listen aggressively for transfer agent intro
     // (name, debt amount, hardship, address, phone, account details)
@@ -875,9 +877,9 @@ ${recentText}`,
       else if (handoffAttemptsRef.current < 3 && lineCount >= 6) { handoffAttemptsRef.current = 3; handleHandoffExtract(); }
       else if (handoffAttemptsRef.current < 4 && lineCount >= 8) { handoffAttemptsRef.current = 4; handleHandoffExtract(); }
       // Also trigger contact, hardship, and debt extraction more aggressively for inbound
-      if (now - lastContactTime.current > 15000) { lastContactTime.current = now; handleContactExtract(); }
-      if (now - lastHardshipTime.current > 20000) { lastHardshipTime.current = now; handleHardshipExtract(); }
-      if (now - lastLedgerTime.current > 20000) { lastLedgerTime.current = now; handleDebtExtract(); }
+      if (now - lastContactTime.current > 30000) { lastContactTime.current = now; handleContactExtract(); }
+      if (now - lastHardshipTime.current > 45000) { lastHardshipTime.current = now; handleHardshipExtract(); }
+      if (now - lastLedgerTime.current > 45000) { lastLedgerTime.current = now; handleDebtExtract(); }
     } else {
       if (handoffAttemptsRef.current < 1 && lineCount >= 3) { handoffAttemptsRef.current = 1; handleHandoffExtract(); }
       else if (handoffAttemptsRef.current < 2 && lineCount >= 7) { handoffAttemptsRef.current = 2; handleHandoffExtract(); }
