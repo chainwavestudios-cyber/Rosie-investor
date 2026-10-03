@@ -23,6 +23,7 @@ import { useHotCallTracker } from '@/hooks/useHotCallTracker';
 import { useDebtCoachAuth } from '@/lib/DebtCoachAuthContext';
 import { useDebtCoachValue } from '@/lib/debtCoachStorage';
 import EndCallDialog from '@/components/debt/EndCallDialog';
+import { useCallRecorder } from '@/hooks/useCallRecorder';
 import { logAIUsage, CREDIT_ESTIMATES } from '@/lib/aiCreditLog';
 
 const GOLD = '#10b981';
@@ -96,6 +97,7 @@ function posHasAiInput(pos) {
 
 export default function DebtLiveCall() {
   const { user: coachUser, can } = useDebtCoachAuth();
+  const recorder = useCallRecorder();
   const aiSettings = (() => { try { return JSON.parse(coachUser?.aiSettingsJson || '{}'); } catch { return {}; } })();
   const canLiveAI = can('liveAIAssistant') && aiSettings.liveAIEnabled !== false;
   const canLiveQA = can('liveQA') && aiSettings.liveQA !== false;
@@ -559,13 +561,19 @@ Agent line: "${firstAgentLines}"`,
       agentQuestionBufferRef.current = [];
       agentQuestionActiveRef.current = false;
       setAgentQuestionActive(false);
-      if (combined.length > 0) handleQa(combined);
+      // Send to the visible Q&A list in the AI Assistant popup via pendingQuestion.
+      // (handleQa writes to an internal log that isn't displayed — the popup's
+      // QASection is what the agent actually sees.)
+      if (combined.length > 0) {
+        logAI('qa');
+        setPendingQuestion({ question: combined, ts: Date.now() });
+      }
     } else {
       agentQuestionBufferRef.current = [];
       agentQuestionActiveRef.current = true;
       setAgentQuestionActive(true);
     }
-  }, [handleQa]);
+  }, [logAI]);
 
   // Flush buffered customer lines as a single combined question to Q&A
   const flushCustomerBuffer = useCallback(() => {
@@ -1328,11 +1336,19 @@ ${recentText}`,
         }
       } catch {}
     }
+    // Stop audio recording and save the file to the transcript record
+    let recordingUri = null;
+    if (recorder.isRecording) {
+      try { recordingUri = await recorder.stop(); } catch {}
+    }
     if (wsRef.current) { try { wsRef.current.close(); } catch {} wsRef.current = null; }
     if (processorRef.current) { try { processorRef.current.disconnect(); } catch {} processorRef.current = null; }
     if (streamRef.current) { streamRef.current.getTracks().forEach(t => t.stop()); streamRef.current = null; }
     if (customerStreamRef.current) { customerStreamRef.current.getTracks().forEach(t => t.stop()); customerStreamRef.current = null; }
     if (ctxRef.current) { try { ctxRef.current.close(); } catch {} ctxRef.current = null; }
+    if (recordingUri && transcriptRecordIdRef.current) {
+      base44.entities.DebtCallTranscript.update(transcriptRecordIdRef.current, { recordingUrl: recordingUri }).catch(() => {});
+    }
     setMicMuted(false);
     setTestMode(false);
     agentQuestionBufferRef.current = [];
@@ -1567,7 +1583,7 @@ ${recentText}`,
     }
 
     loadLeads();
-  }, [kbEntries, loadLeads, autoSchedulerEnabled, coachUser, callType, handleDebtExtract, handleHardshipExtract, handleBillsExtract, handleCosignerExtract]);
+  }, [kbEntries, loadLeads, autoSchedulerEnabled, coachUser, callType, handleDebtExtract, handleHardshipExtract, handleBillsExtract, handleCosignerExtract, recorder]);
 
   // Show the keep/delete dialog when the agent ends a call (not for monitor takeovers)
   const handleEndCallClick = useCallback(() => {
@@ -1804,6 +1820,37 @@ ${recentText}`,
           >
             {agentQuestionActive ? '🔴 Recording Question… (press again)' : '🎤 Agent Question (Alt+Q)'}
           </button>
+        )}
+
+        {/* Audio recording — record the live call (agent + customer mixed) to a private file */}
+        {phase === 'live' && (
+          <button
+            onClick={async () => {
+              if (recorder.isRecording) {
+                const uri = await recorder.stop();
+                if (uri && transcriptRecordIdRef.current) {
+                  base44.entities.DebtCallTranscript.update(transcriptRecordIdRef.current, { recordingUrl: uri }).catch(() => {});
+                }
+              } else {
+                recorder.start(streamRef.current, customerStreamRef.current);
+              }
+            }}
+            title={recorder.isRecording ? 'Stop recording the call audio' : 'Record the call audio (agent + customer)'}
+            style={{
+              padding: '8px 14px', borderRadius: '4px',
+              border: `1px solid ${recorder.isRecording ? 'rgba(239,68,68,0.5)' : 'rgba(239,68,68,0.3)'}`,
+              background: recorder.isRecording ? 'rgba(239,68,68,0.15)' : 'rgba(239,68,68,0.08)',
+              color: '#ef4444',
+              cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', whiteSpace: 'nowrap',
+              display: 'flex', alignItems: 'center', gap: '5px',
+              animation: recorder.isRecording ? 'pulse 1.5s infinite' : 'none',
+            }}
+          >
+            {recorder.isRecording ? '⏹ Stop Recording' : '● Record Call'}
+          </button>
+        )}
+        {recorder.recordingError && phase === 'live' && (
+          <span style={{ color: '#ef4444', fontSize: '10px' }}>⚠ {recorder.recordingError}</span>
         )}
 
         {/* Quick lead search + Start Live Call (2/3 smaller) */}
