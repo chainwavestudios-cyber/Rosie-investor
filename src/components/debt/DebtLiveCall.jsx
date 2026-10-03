@@ -140,7 +140,7 @@ export default function DebtLiveCall() {
   const [agentQuestionActive, setAgentQuestionActive] = useState(false);
   const agentQuestionActiveRef = useRef(false);
   const agentQuestionBufferRef = useRef([]);
-  const [agentQuestionResult, setAgentQuestionResult] = useState(null);
+
   useEffect(() => { agentQuestionActiveRef.current = agentQuestionActive; }, [agentQuestionActive]);
   // Refs mirror the AI feature flags + accumulated Q&A/coach data so that
   // processNewEntry (captured by the WebSocket onmessage handler at call
@@ -180,33 +180,19 @@ export default function DebtLiveCall() {
   // the captured text is sent as a single question and the answer is shown in a popup.
   const toggleAgentQuestion = useCallback(() => {
     if (agentQuestionActiveRef.current) {
-      // Turning OFF — flush buffer as a question and show in popup
+      // Turning OFF — flush buffer as a question into the normal Q&A answers list
       const combined = agentQuestionBufferRef.current.join(' ').trim();
       agentQuestionBufferRef.current = [];
       agentQuestionActiveRef.current = false;
       setAgentQuestionActive(false);
-      if (combined.length > 0) {
-        const id = Date.now() + Math.random();
-        setAgentQuestionResult({ id, question: combined, answer: '', loading: true });
-        logAI('qa');
-        invokeAI('liveAssistantAI', { question: combined, transcript: transcriptRef.current.slice(-8), kbEntries, kbName: 'Debt Settlement', scriptPosition: scriptPositionRef.current })
-          .then(res => {
-            if (res?.needs_answer === false || res?.data?.needs_answer === false) {
-              setAgentQuestionResult(prev => prev?.id === id ? null : prev);
-              return;
-            }
-            const answer = res?.answer || res?.data?.answer || 'Check knowledge base.';
-            setAgentQuestionResult(prev => prev?.id === id ? { ...prev, answer, loading: false } : prev);
-          })
-          .catch(() => setAgentQuestionResult(prev => prev?.id === id ? { ...prev, answer: 'Unable to answer.', loading: false } : prev));
-      }
+      if (combined.length > 0) handleQa(combined);
     } else {
       // Turning ON — start capturing agent mic
       agentQuestionBufferRef.current = [];
       agentQuestionActiveRef.current = true;
       setAgentQuestionActive(true);
     }
-  }, [kbEntries]);
+  }, [handleQa]);
 
   // Post-call
   const [report, setReport] = useState('');
@@ -1090,7 +1076,6 @@ ${recentText}`,
     agentQuestionBufferRef.current = [];
     agentQuestionActiveRef.current = false;
     setAgentQuestionActive(false);
-    setAgentQuestionResult(null);
     leadPersistedRef.current = false;
     transcriptRecordIdRef.current = null;
     profileAutoOpenedRef.current = false;
@@ -2103,26 +2088,6 @@ ${recentText}`,
           onDelete={() => handleEndChoice(true)}
           onCancel={() => setShowEndDialog(false)}
         />
-      )}
-
-      {/* Agent Question Result Popup — one-time display of Q&A answer */}
-      {agentQuestionResult && (
-        <div style={{ position: 'fixed', bottom: 90, right: 24, zIndex: 9100, width: '380px', maxHeight: '400px', background: '#0d1b2a', border: '1px solid rgba(245,158,11,0.4)', borderRadius: '8px', boxShadow: '0 8px 32px rgba(0,0,0,0.6)', display: 'flex', flexDirection: 'column' }}>
-          <div style={{ padding: '10px 14px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
-            <span style={{ color: '#f59e0b', fontSize: '10px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase' }}>🎤 Agent Question Answer</span>
-            <button onClick={() => setAgentQuestionResult(null)} style={{ background: 'none', border: 'none', color: '#6b7280', cursor: 'pointer', fontSize: '14px' }}>✕</button>
-          </div>
-          <div style={{ padding: '14px', overflow: 'auto' }}>
-            <div style={{ color: '#8a9ab8', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '4px' }}>Question</div>
-            <div style={{ color: '#c4cdd8', fontSize: '12px', marginBottom: '12px', fontStyle: 'italic' }}>{agentQuestionResult.question}</div>
-            <div style={{ color: '#8a9ab8', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '4px' }}>Answer</div>
-            {agentQuestionResult.loading ? (
-              <div style={{ color: '#6b7280', fontSize: '12px' }}>⏳ Getting answer…</div>
-            ) : (
-              <div style={{ color: '#e8e0d0', fontSize: '13px', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{agentQuestionResult.answer}</div>
-            )}
-          </div>
-        </div>
       )}
 
       {/* Customer Stats Popup — auto-detects insights during live calls */}
