@@ -175,25 +175,6 @@ export default function DebtLiveCall() {
     setIntentActive(prev => { const n = !prev; intentActiveRef.current = n; return n; });
   }, []);
 
-  // Agent Question mode — press ON, ask question, press OFF to auto-answer in a one-time popup.
-  // While ON, agent mic lines are captured (not sent to Q&A). When toggled OFF,
-  // the captured text is sent as a single question and the answer is shown in a popup.
-  const toggleAgentQuestion = useCallback(() => {
-    if (agentQuestionActiveRef.current) {
-      // Turning OFF — flush buffer as a question into the normal Q&A answers list
-      const combined = agentQuestionBufferRef.current.join(' ').trim();
-      agentQuestionBufferRef.current = [];
-      agentQuestionActiveRef.current = false;
-      setAgentQuestionActive(false);
-      if (combined.length > 0) handleQa(combined);
-    } else {
-      // Turning ON — start capturing agent mic
-      agentQuestionBufferRef.current = [];
-      agentQuestionActiveRef.current = true;
-      setAgentQuestionActive(true);
-    }
-  }, [handleQa]);
-
   // Post-call
   const [report, setReport] = useState('');
   const [generatingReport, setGeneratingReport] = useState(false);
@@ -568,6 +549,23 @@ Agent line: "${firstAgentLines}"`,
       })
       .catch(() => setQaItems(prev => prev.map(x => x.id === id ? { ...x, answer: 'Unable to answer.', loading: false } : x)));
   }, [kbEntries]);
+
+  // Agent Question mode — press ON, ask question, press OFF to auto-answer in the Q&A list.
+  // While ON, agent mic lines are captured (not sent to Q&A). When toggled OFF,
+  // the captured text is sent as a single question and the answer appears in the Q&A list.
+  const toggleAgentQuestion = useCallback(() => {
+    if (agentQuestionActiveRef.current) {
+      const combined = agentQuestionBufferRef.current.join(' ').trim();
+      agentQuestionBufferRef.current = [];
+      agentQuestionActiveRef.current = false;
+      setAgentQuestionActive(false);
+      if (combined.length > 0) handleQa(combined);
+    } else {
+      agentQuestionBufferRef.current = [];
+      agentQuestionActiveRef.current = true;
+      setAgentQuestionActive(true);
+    }
+  }, [handleQa]);
 
   // Flush buffered customer lines as a single combined question to Q&A
   const flushCustomerBuffer = useCallback(() => {
