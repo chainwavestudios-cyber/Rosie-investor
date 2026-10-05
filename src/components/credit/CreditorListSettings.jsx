@@ -19,6 +19,8 @@ export default function CreditorListSettings() {
   const [uploadingTo, setUploadingTo] = useState(null); // 'accepted' | 'non_accepted' | null
   const acceptedFileRef = useRef(null);
   const nonAcceptedFileRef = useRef(null);
+  const acceptedTxtRef = useRef(null);
+  const nonAcceptedTxtRef = useRef(null);
 
   const load = useCallback(async () => {
     try {
@@ -63,16 +65,46 @@ export default function CreditorListSettings() {
       });
       const names = (res?.creditors || []).filter(Boolean);
       if (names.length === 0) { alert('No creditor names found in the image.'); setUploadingTo(null); return; }
-      // Bulk create, skip duplicates
-      const existing = listType === 'accepted' ? accepted : nonAccepted;
-      const existingNames = existing.map(e => e.creditorName.toLowerCase());
-      const toCreate = names.filter(n => !existingNames.includes(n.toLowerCase())).map(n => ({ creditorName: n, listType }));
-      if (toCreate.length > 0) await base44.entities.CreditorListEntry.bulkCreate(toCreate);
-      load();
+      await bulkAdd(listType, names);
     } catch (e) {
       alert('Upload failed: ' + (e?.message || String(e)));
     }
     setUploadingTo(null);
+  };
+
+  // Parse a .txt file — each non-empty line is one creditor. Handles very large
+  // lists entirely client-side (no upload/AI), then bulk-creates in batches.
+  const handleTxtUpload = async (listType, file) => {
+    if (!file) return;
+    setUploadingTo(listType);
+    try {
+      const text = await file.text();
+      const names = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+      if (names.length === 0) { alert('No creditor names found in the file.'); setUploadingTo(null); return; }
+      await bulkAdd(listType, names);
+    } catch (e) {
+      alert('TXT import failed: ' + (e?.message || String(e)));
+    }
+    setUploadingTo(null);
+  };
+
+  // Bulk create creditors, skipping duplicates. Batches of 500 (entity limit).
+  const bulkAdd = async (listType, names) => {
+    const existing = listType === 'accepted' ? accepted : nonAccepted;
+    const existingNames = new Set(existing.map(e => e.creditorName.toLowerCase()));
+    const seen = new Set();
+    const toCreate = [];
+    for (const n of names) {
+      const key = n.toLowerCase();
+      if (existingNames.has(key) || seen.has(key)) continue;
+      seen.add(key);
+      toCreate.push({ creditorName: n, listType });
+    }
+    if (toCreate.length === 0) { alert('All creditors already exist in the list.'); return; }
+    for (let i = 0; i < toCreate.length; i += 500) {
+      await base44.entities.CreditorListEntry.bulkCreate(toCreate.slice(i, i + 500));
+    }
+    load();
   };
 
   return (
@@ -91,7 +123,9 @@ export default function CreditorListSettings() {
           loading={loading}
           uploading={uploadingTo === 'accepted'}
           fileRef={acceptedFileRef}
+          txtRef={acceptedTxtRef}
           onUpload={(f) => handleUpload('accepted', f)}
+          onTxtUpload={(f) => handleTxtUpload('accepted', f)}
           newValue={newAccepted}
           onNewValueChange={setNewAccepted}
           onAdd={() => addCreditor('accepted', newAccepted)}
@@ -106,7 +140,9 @@ export default function CreditorListSettings() {
           loading={loading}
           uploading={uploadingTo === 'non_accepted'}
           fileRef={nonAcceptedFileRef}
+          txtRef={nonAcceptedTxtRef}
           onUpload={(f) => handleUpload('non_accepted', f)}
+          onTxtUpload={(f) => handleTxtUpload('non_accepted', f)}
           newValue={newNonAccepted}
           onNewValueChange={setNewNonAccepted}
           onAdd={() => addCreditor('non_accepted', newNonAccepted)}
@@ -117,16 +153,23 @@ export default function CreditorListSettings() {
   );
 }
 
-function CreditorListSection({ title, color, entries, loading, uploading, fileRef, onUpload, newValue, onNewValueChange, onAdd, onRemove }) {
+function CreditorListSection({ title, color, entries, loading, uploading, fileRef, txtRef, onUpload, onTxtUpload, newValue, onNewValueChange, onAdd, onRemove }) {
   return (
     <div style={{ background: '#0d1b2a', border: `1px solid ${color}33`, borderRadius: '8px', padding: '16px' }}>
       <div style={{ color, fontSize: '13px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '12px' }}>{title} ({entries.length})</div>
 
       {/* Upload photo */}
       <input ref={fileRef} type="file" accept="image/*" capture="environment" style={{ display: 'none' }} onChange={e => { const f = e.target.files?.[0]; if (f) onUpload(f); e.target.value = ''; }} />
-      <button onClick={() => fileRef.current?.click()} disabled={uploading} style={{ width: '100%', padding: '10px', background: `${color}11`, color, border: `1px dashed ${color}44`, borderRadius: '8px', cursor: uploading ? 'not-allowed' : 'pointer', fontSize: '12px', fontWeight: 'bold', marginBottom: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
-        {uploading ? '⏳ Extracting…' : '📸 Upload Photo of List'}
-      </button>
+      {/* Upload .txt — one creditor per line, parsed client-side */}
+      <input ref={txtRef} type="file" accept=".txt,text/plain" style={{ display: 'none' }} onChange={e => { const f = e.target.files?.[0]; if (f) onTxtUpload(f); e.target.value = ''; }} />
+      <div style={{ display: 'flex', gap: '8px', marginBottom: '12px' }}>
+        <button onClick={() => fileRef.current?.click()} disabled={uploading} style={{ flex: 1, padding: '10px', background: `${color}11`, color, border: `1px dashed ${color}44`, borderRadius: '8px', cursor: uploading ? 'not-allowed' : 'pointer', fontSize: '12px', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+          {uploading ? '⏳ Processing…' : '📸 Photo'}
+        </button>
+        <button onClick={() => txtRef.current?.click()} disabled={uploading} title="Upload a .txt file — one creditor per line" style={{ flex: 1, padding: '10px', background: `${color}11`, color, border: `1px dashed ${color}44`, borderRadius: '8px', cursor: uploading ? 'not-allowed' : 'pointer', fontSize: '12px', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+          📄 .TXT List
+        </button>
+      </div>
 
       {/* Add single */}
       <div style={{ display: 'flex', gap: '6px', marginBottom: '12px' }}>
