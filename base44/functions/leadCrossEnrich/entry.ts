@@ -25,6 +25,44 @@
  */
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.52';
 
+// ── Apify Google Search ─────────────────────────────────────────────────────
+// Uses the Apify Google Search Scraper actor to gather raw web results,
+// which are then fed to the LLM as context for better enrichment.
+const APIFY_TOKEN = process.env.APIFY_API_TOKEN || '';
+
+async function apifyGoogleSearch(query: string, maxResults = 10): Promise<{ title: string; url: string; snippet: string }[]> {
+  if (!APIFY_TOKEN) return [];
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 30000);
+    const res = await fetch(
+      `https://api.apify.com/v2/acts/apify~google-search-scraper/run-sync-get-dataset-items?token=${APIFY_TOKEN}&timeout=120`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          queries: query,
+          maxPagesPerQuery: 1,
+          resultsPerPage: maxResults,
+        }),
+        signal: controller.signal,
+      }
+    );
+    clearTimeout(timer);
+    if (!res.ok) return [];
+    const items: any[] = await res.json();
+    return (items || [])
+      .filter((item: any) => item?.url || item?.link)
+      .map((item: any) => ({
+        title: item?.title || '',
+        url: item?.url || item?.link || '',
+        snippet: item?.description || item?.snippet || '',
+      }));
+  } catch {
+    return [];
+  }
+}
+
 // ── Email syntax patterns ──────────────────────────────────────────────────
 const EMAIL_PATTERNS = [
   '{first}.{last}@{domain}',
@@ -312,40 +350,74 @@ async function enrichSingleLead(base44: any, leadId: string): Promise<any> {
   const sources: { type: string; url: string; snippet: string }[] = [];
   const personName = lead.resolvedFullName || lead.displayName || '';
   const { first, last } = normalizeName(personName);
+  let directPhoneResults: { phone: string; type: string; locationMatch: boolean; confidence: number; source: string }[] = [];
+
+  // ── Phase 0: Apify Google Search — gather raw web results ────────────────
+  // Run Apify first to collect public pages about this person, then feed
+  // those results to the LLM phases as context for better enrichment.
+  const searchQuery = [personName, lead.location, 'debt', 'contact'].filter(Boolean).join(' ');
+  let apifyResults: { title: string; url: string; snippet: string }[] = [];
+  if (personName && personName !== 'unknown') {
+    try {
+      apifyResults = await apifyGoogleSearch(searchQuery, 10);
+      for (const r of apifyResults) {
+        if (r.url) sources.push({ type: 'apify_google_search', url: r.url, snippet: r.title || r.snippet || '' });
+      }
+    } catch (e: any) {
+      console.error('[leadCrossEnrich] Apify search failed:', e?.message);
+    }
+  }
+  const apifyContext = apifyResults.length > 0
+    ? `\n\nWeb search results from Apify (use these as primary evidence):\n${apifyResults.map(r => `- ${r.title}: ${r.url}\n  ${r.snippet}`).join('\n')}`
+    : '';
 
   // ── Phase A: Extract company & resolve domain ───────────────────────────
   let companyName = lead.companyName || '';
   let jobTitle = lead.jobTitle || '';
   if (!companyName) {
-    const extracted = await extractCompanyFromPost(base44, lead);
-    companyName = extracted.company;
-    jobTitle = extracted.jobTitle;
+    try {
+      const extracted = await extractCompanyFromPost(base44, lead);
+      companyName = extracted.company;
+      jobTitle = extracted.jobTitle;
+    } catch (e: any) {
+      console.error('[leadCrossEnrich] Phase A extract failed:', e?.message);
+    }
   }
 
   let companyDomain = lead.companyDomain || '';
   if (companyName && companyName !== 'unknown' && !companyDomain) {
-    const domainResult = await resolveCompanyDomain(base44, companyName, personName, lead.location || '');
-    companyDomain = domainResult.domain;
-    if (domainResult.source) sources.push({ type: 'domain_resolution', url: domainResult.source, snippet: `Domain for ${companyName}` });
+    try {
+      const domainResult = await resolveCompanyDomain(base44, companyName, personName, lead.location || '');
+      companyDomain = domainResult.domain;
+      if (domainResult.source) sources.push({ type: 'domain_resolution', url: domainResult.source, snippet: `Domain for ${companyName}` });
+    } catch (e: any) {
+      console.error('[leadCrossEnrich] Phase A domain failed:', e?.message);
+    }
   }
 
   // ── Phase B: Email syntax matrix & cross-referencing ────────────────────
   let enrichedEmails: any[] = [];
   if (first && companyDomain) {
-    const variations = generateEmailVariations(first, last, companyDomain);
-    enrichedEmails = await crossReferenceEmails(base44, variations, companyName, personName);
-    for (const e of enrichedEmails) {
-      if (e.sourceFound) sources.push({ type: 'email_verification', url: e.sourceFound, snippet: `Email: ${e.email} (${e.validationType})` });
+    try {
+      const variations = generateEmailVariations(first, last, companyDomain);
+      enrichedEmails = await crossReferenceEmails(base44, variations, companyName, personName);
+      for (const e of enrichedEmails) {
+        if (e.sourceFound) sources.push({ type: 'email_verification', url: e.sourceFound, snippet: `Email: ${e.email} (${e.validationType})` });
+      }
+    } catch (e: any) {
+      console.error('[leadCrossEnrich] Phase B failed:', e?.message);
     }
   }
 
   // Also try a direct name + location web search for personal email/phone
   // (works for B2C leads without a company)
   if (!companyDomain || enrichedEmails.length === 0) {
+    try {
     const directResult = await base44.asServiceRole.integrations.Core.InvokeLLM({
       prompt: `Search the web for contact information (email and phone number) for a person named "${personName}"${lead.location ? ` in ${lead.location}` : ''} who posted about debt/financial distress on ${lead.platform}.
 
 Their post mentioned: "${(lead.postText || '').substring(0, 500)}"
+${apifyContext}
 
 Search for their name in public records, social media profiles, directory listings, etc.
 
@@ -409,13 +481,21 @@ Return JSON with:
     for (const p of directPhones) {
       if (p.source) sources.push({ type: 'phone_direct_search', url: p.source, snippet: `Phone: ${p.phone}` });
     }
-    var directPhoneResults = directPhones;
+    directPhoneResults = directPhones;
+    } catch (e: any) {
+      console.error('[leadCrossEnrich] Direct search phase failed:', e?.message);
+    }
   }
 
   // ── Phase C: Phone number resolution ───────────────────────────────────
-  let enrichedPhones = await resolvePhoneNumbers(base44, personName, companyName, companyDomain, lead.location || '', '');
+  let enrichedPhones: { phone: string; type: string; locationMatch: boolean; confidence: number; source: string }[] = [];
+  try {
+    enrichedPhones = await resolvePhoneNumbers(base44, personName, companyName, companyDomain, lead.location || '', '');
+  } catch (e: any) {
+    console.error('[leadCrossEnrich] Phase C failed:', e?.message);
+  }
   // Merge direct phone results if available
-  if (typeof directPhoneResults !== 'undefined' && directPhoneResults.length > 0) {
+  if (directPhoneResults.length > 0) {
     enrichedPhones = [...enrichedPhones, ...directPhoneResults];
     // Deduplicate by phone number
     const seen = new Set<string>();
