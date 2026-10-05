@@ -114,7 +114,7 @@ export default function LiveTranscriptPanel({ transcript, phase, panel, onAnswer
                   )}
                   {msg.sentiment && <span style={{ color: sentColor, fontSize: '9px' }}>● {msg.sentiment}</span>}
                 </div>
-                <div style={{ color: '#c4cdd8', fontSize: '13px', lineHeight: 1.5 }}>{msg.text}</div>
+                <div style={{ color: '#c4cdd8', fontSize: '13px', lineHeight: 1.5, opacity: msg.interim ? 0.6 : 1, fontStyle: msg.interim ? 'italic' : 'normal' }}>{msg.text}</div>
               </div>
             </div>
           );

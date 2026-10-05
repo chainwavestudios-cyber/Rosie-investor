@@ -972,13 +972,16 @@ ${recentText}`,
     // Immediate merge: if same speaker as last line and last line doesn't end
     // with sentence punctuation, this is a fragment — append to last line.
     // This prevents one statement from appearing as 10 separate lines.
+    // Also remove any interim (live preview) line for this speaker — the final
+    // text is replacing it.
     setTranscript(prev => {
-      if (prev.length === 0) return [...prev, entry];
-      const lastLine = prev[prev.length - 1];
+      const withoutInterim = prev.filter(l => !(l.interim && l.speaker === entry.speaker));
+      if (withoutInterim.length === 0) return [...withoutInterim, entry];
+      const lastLine = withoutInterim[withoutInterim.length - 1];
       if (lastLine.speaker === entry.speaker) {
         const lastText = (lastLine.text || '').trim();
         if (!/[.?!…]["']?$/.test(lastText)) {
-          const merged = [...prev];
+          const merged = [...withoutInterim];
           merged[merged.length - 1] = {
             ...lastLine,
             text: lastText + ' ' + entry.text,
@@ -986,7 +989,7 @@ ${recentText}`,
           return merged;
         }
       }
-      return [...prev, entry];
+      return [...withoutInterim, entry];
     });
     const text = entry.text || '';
 
@@ -1048,6 +1051,21 @@ ${recentText}`,
       else if (handoffAttemptsRef.current < 2 && lineCount >= 7) { handoffAttemptsRef.current = 2; handleHandoffExtract(); }
     }
   }, [handleQa, flushCustomerBuffer, handleCoach, handleIntent, runTimedExtractors, handleHandoffExtract]);
+
+  // Show live partial transcript text as it arrives (interim results from Deepgram).
+  // The interim line is replaced on each update and removed when the final text
+  // is committed via processNewEntry (on speech_final).
+  const updateInterimLine = useCallback((speaker, text) => {
+    setTranscript(prev => {
+      const last = prev[prev.length - 1];
+      if (last && last.speaker === speaker && last.interim) {
+        const updated = [...prev];
+        updated[updated.length - 1] = { ...last, text, time: new Date().toISOString() };
+        return updated;
+      }
+      return [...prev, { speaker, text, time: new Date().toISOString(), interim: true, sentiment: null }];
+    });
+  }, []);
 
   const startCall = useCallback(async (forceNew = false, testModeArg = false) => {
     // Ensure we have a lead — always create a brand new one for new/inbound calls
@@ -1181,8 +1199,8 @@ ${recentText}`,
     const sr = ctx.sampleRate;
 
     const dgParams = dualMode
-      ? `model=nova-3&multichannel=true&smart_format=true&punctuate=true&numerals=true&sentiment=true&utterances=true&interim_results=false&channels=2&sample_rate=${sr}&encoding=linear16&endpointing=700&${DEBT_KEYTERMS}`
-      : `model=nova-3&diarize=true&smart_format=true&punctuate=true&numerals=true&sentiment=true&utterances=true&interim_results=false&sample_rate=${sr}&encoding=linear16&endpointing=700&${DEBT_KEYTERMS}`;
+      ? `model=nova-3&multichannel=true&smart_format=true&punctuate=true&numerals=true&sentiment=true&utterances=true&interim_results=true&channels=2&sample_rate=${sr}&encoding=linear16&endpointing=700&${DEBT_KEYTERMS}`
+      : `model=nova-3&diarize=true&smart_format=true&punctuate=true&numerals=true&sentiment=true&utterances=true&interim_results=true&sample_rate=${sr}&encoding=linear16&endpointing=700&${DEBT_KEYTERMS}`;
     let wsEverOpen = false;
     const ws = new WebSocket(`wss://api.deepgram.com/v1/listen?${dgParams}`, ['token', dgKey]);
     ws.binaryType = 'arraybuffer';
@@ -1264,11 +1282,11 @@ ${recentText}`,
       if (e.data instanceof ArrayBuffer) return;
       try {
         const msg = JSON.parse(e.data);
-        if (msg.type !== 'Results' || !msg.is_final) return;
+        if (msg.type !== 'Results') return;
         const alt = msg.channel?.alternatives?.[0];
         // speech_final with empty transcript = natural pause → flush all pending segments
         if (!alt || !alt.transcript?.trim()) {
-          if (msg.speech_final) Object.keys(segBuf).forEach(k => emitSegment(Number(k)));
+          if (msg.is_final && msg.speech_final) Object.keys(segBuf).forEach(k => emitSegment(Number(k)));
           return;
         }
         const channelNum = Array.isArray(msg.channel_index) ? msg.channel_index[0] : 0;
@@ -1277,12 +1295,25 @@ ${recentText}`,
         // Speaker changed mid-buffer (single-mic mode): flush the other speaker first
         Object.keys(segBuf).forEach(k => { if (Number(k) !== speaker) emitSegment(Number(k)); });
 
-        const b = segBuf[speaker] || (segBuf[speaker] = { text: '', sentiment: null, timer: null });
-        b.text += ' ' + alt.transcript;
-        b.sentiment = msg.sentiment || alt.sentiment || b.sentiment;
-        clearTimeout(b.timer);
-        if (msg.speech_final) emitSegment(speaker);
-        else b.timer = setTimeout(() => emitSegment(speaker), 2500); // safety flush
+        if (msg.is_final) {
+          // Finalized chunk — accumulate in segBuf
+          const b = segBuf[speaker] || (segBuf[speaker] = { text: '', sentiment: null, timer: null });
+          b.text += ' ' + alt.transcript;
+          b.sentiment = msg.sentiment || alt.sentiment || b.sentiment;
+          clearTimeout(b.timer);
+          if (msg.speech_final) {
+            emitSegment(speaker);
+          } else {
+            // Show the accumulated text so far as a live preview
+            updateInterimLine(speaker, b.text.trim());
+            b.timer = setTimeout(() => emitSegment(speaker), 2500); // safety flush
+          }
+        } else {
+          // Interim result — show live partial text (accumulated + current partial)
+          const b = segBuf[speaker];
+          const accumulated = b ? b.text.trim() : '';
+          updateInterimLine(speaker, (accumulated + ' ' + alt.transcript).trim());
+        }
       } catch {}
     };
 
@@ -1310,7 +1341,7 @@ ${recentText}`,
       setError('Deepgram connection error — check API key.');
       if (!wsEverOpen) notifyCreditExhaustion('deepgram', 'WebSocket failed to connect — credits may be exhausted or API key invalid.');
     };
-  }, [micDeviceId, customerMicId, processNewEntry, lead, loadLeads, coachUser, autoQA, autoCoach, autoIntent]);
+  }, [micDeviceId, customerMicId, processNewEntry, updateInterimLine, lead, loadLeads, coachUser, autoQA, autoCoach, autoIntent]);
 
   const stopCall = useCallback(async () => {
     // Clear the 45-second auto-save timer

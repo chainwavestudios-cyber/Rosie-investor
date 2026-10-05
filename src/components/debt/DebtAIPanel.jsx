@@ -91,8 +91,8 @@ export default function DebtAIPanel({
   // BOB format: role 'trainee'=agent→1, 'bob'=prospect→0
   const normalizedTranscript = useMemo(
     () => transcriptFormat === 'bob'
-      ? activeTranscript.map(e => ({ speaker: e.role === 'trainee' ? 1 : 0, text: e.text, time: e.time, sentiment: e.sentiment }))
-      : activeTranscript.map(e => ({ speaker: e.speaker === 0 ? 1 : 0, text: e.text, time: e.time, sentiment: e.sentiment })),
+      ? activeTranscript.map(e => ({ speaker: e.role === 'trainee' ? 1 : 0, text: e.text, time: e.time, sentiment: e.sentiment, interim: e.interim }))
+      : activeTranscript.map(e => ({ speaker: e.speaker === 0 ? 1 : 0, text: e.text, time: e.time, sentiment: e.sentiment, interim: e.interim })),
     [activeTranscript, transcriptFormat]
   );
 
@@ -328,7 +328,7 @@ export default function DebtAIPanel({
                   <div key={i} style={{ marginBottom: '5px', fontSize: '11px' }}>
                     <span style={{ color: '#4a5568', fontSize: '9px', marginRight: '5px' }}>{t.time ? new Date(t.time).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', second: '2-digit' }) : ''}</span>
                     {t.speaker !== null && <span style={{ color: t.speaker === 1 ? GOLD : '#60a5fa', fontSize: '9px', fontWeight: 'bold', marginRight: '4px' }}>{t.speaker === 1 ? '🎙 Agent' : '👤 Prospect'}</span>}
-                    <span style={{ color: '#c4cdd8' }}>{t.text}</span>
+                    <span style={{ color: '#c4cdd8', opacity: t.interim ? 0.6 : 1, fontStyle: t.interim ? 'italic' : 'normal' }}>{t.text}</span>
                   </div>
                 ))
               )}
