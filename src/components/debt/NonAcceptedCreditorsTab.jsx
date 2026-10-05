@@ -8,11 +8,31 @@ const GOLD = '#10b981';
 const ls = { display: 'block', color: '#8a9ab8', fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '6px' };
 const inp = { width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '4px', padding: '8px 10px', color: '#e8e0d0', fontSize: '12px', outline: 'none', boxSizing: 'border-box', fontFamily: 'Georgia, serif' };
 
+const UNACCEPTABLE_DEBT_TYPES = [
+  'Accounts with a law firm at the time of enrollment must be sent for approval before enrolling debt',
+  'Auto Loans (Even If Repossessions Of Any Kind — Auto, Boat, RV, etc.)',
+  'Back Rent, even if in collection and client no longer lives there',
+  'Business Debt of any kind',
+  'Client cannot have a security clearance through active military or a job requiring them to maintain a certain credit score/credit history',
+  'Consumer Disputes — Reinvestigation in progress',
+  'Consumer Disputes (unless the client no longer is disputing — must note the file)',
+  'Dental — considered medical debt',
+  'Installment Sales Contract (not the same as an installment loan)',
+  'Lease accounts, even if charged off or in collections',
+  'Line of Credit (LOC)',
+  'Medical debt',
+  'No student loan debt of any kind (EXCEPT NAVIENT)',
+  'Payday loans',
+  'Tribal loans',
+  'Write off / profit loss write off on the credit report UNLESS a statement can be provided no older than 45 days old',
+];
+
 export default function NonAcceptedCreditorsTab({ lead, update }) {
   const list = (() => { try { return JSON.parse(lead.nonAcceptedCreditorsJson || '[]'); } catch { return []; } })();
   const setList = (next) => update('nonAcceptedCreditorsJson', JSON.stringify(next));
 
   const [adding, setAdding] = useState(false);
+  const [showDebtTypes, setShowDebtTypes] = useState(false);
   const [form, setForm] = useState({ creditor: '', balance: '', accountLast4: '', notes: '' });
 
   const add = () => {
@@ -42,6 +62,26 @@ export default function NonAcceptedCreditorsTab({ lead, update }) {
           <div style={{ color: '#ef4444', fontSize: '16px', fontWeight: 'bold' }}>${totalBalance.toLocaleString()}</div>
           <div style={{ color: '#6b7280', fontSize: '9px', textTransform: 'uppercase', letterSpacing: '1px' }}>Total Balance</div>
         </div>
+      </div>
+
+      {/* Unacceptable Debt Types — collapsible reference */}
+      <div style={{ marginBottom: '14px', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(239,68,68,0.15)', borderRadius: '4px', overflow: 'hidden' }}>
+        <button onClick={() => setShowDebtTypes(p => !p)} style={{ width: '100%', background: 'none', border: 'none', padding: '10px 12px', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: '#ef4444', fontSize: '11px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase' }}>
+          <span>⚠️ Unacceptable Debt Types ({UNACCEPTABLE_DEBT_TYPES.length})</span>
+          <span style={{ color: '#6b7280', fontSize: '14px' }}>{showDebtTypes ? '−' : '+'}</span>
+        </button>
+        {showDebtTypes && (
+          <div style={{ padding: '0 12px 12px', borderTop: '1px solid rgba(239,68,68,0.1)' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '10px' }}>
+              {UNACCEPTABLE_DEBT_TYPES.map((t, i) => (
+                <div key={i} style={{ display: 'flex', gap: '8px', alignItems: 'flex-start', color: '#c4cdd8', fontSize: '12px', lineHeight: 1.5 }}>
+                  <span style={{ color: '#ef4444', fontSize: '10px', marginTop: '2px', flexShrink: 0 }}>✕</span>
+                  <span>{t}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {adding ? (
