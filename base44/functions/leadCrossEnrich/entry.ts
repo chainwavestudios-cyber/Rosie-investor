@@ -547,7 +547,8 @@ Return JSON with:
     : enrichedEmails.length > 0 || enrichedPhones.length > 0
       ? 'partial'
       : 'no_public_data';
-  updateData.status = hasHighConfidenceEmail || hasHighConfidencePhone ? 'enriched' : lead.status;
+  // Mark as enriched whenever LeadCross AI completes — enrichmentStatus captures the quality
+  updateData.status = lead.status === 'pushed' ? 'pushed' : 'enriched';
 
   await base44.asServiceRole.entities.ScrapedLead.update(leadId, updateData);
 
