@@ -20,6 +20,7 @@ import LeadGenTab from '@/components/debt/LeadGenTab';
 import NewLeadsTab from '@/components/debt/NewLeadsTab';
 import SmartLeadsTab from '@/components/debt/SmartLeadsTab';
 import LeadAssignmentPopup from '@/components/debt/LeadAssignmentPopup';
+import PopOutTab from '@/components/debt/PopOutTab';
 import CompliancePortal from '@/pages/CompliancePortal';
 import WCRChecklist from '@/components/debt/WCRChecklist';
 import ProfileTimerWatcher from '@/components/debt/ProfileTimerWatcher';
@@ -89,9 +90,15 @@ export default function DebtCallCoach() {
       </div>
 
       {tab === 'live' && <DebtLiveCall debtCoachUser={user} />}
-      {tab === 'calls' && <CallsTab />}
-      {tab === 'leadgen' && <LeadGenTab />}
-      {tab === 'smartleads' && <SmartLeadsTab />}
+      <PopOutTab storageKey="calls_tab" title="Calls" icon="📞" active={tab === 'calls'}>
+        <CallsTab />
+      </PopOutTab>
+      <PopOutTab storageKey="leadgen_tab" title="Lead Gen" icon="🎯" active={tab === 'leadgen'}>
+        <LeadGenTab />
+      </PopOutTab>
+      <PopOutTab storageKey="smartleads_tab" title="Smart Leads" icon="🧠" active={tab === 'smartleads'}>
+        <SmartLeadsTab />
+      </PopOutTab>
       {tab === 'newleads' && <NewLeadsTab />}
       {tab === 'bob' && <DebtBobTrainer debtCoachUser={user} />}
       {tab === 'pitches' && <DebtPitchTab canDelete={!isDialerRole} />}
