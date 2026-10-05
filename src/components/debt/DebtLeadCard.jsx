@@ -8,6 +8,9 @@ import ClientProfileModal from '@/components/debt/ClientProfileModal';
 import DebtCallBar from '@/components/debt/DebtCallBar';
 import LeadActivityTab from '@/components/debt/LeadActivityTab';
 import NonAcceptedCreditorsTab from '@/components/debt/NonAcceptedCreditorsTab';
+import AcceptedCreditorRulesRef from '@/components/debt/AcceptedCreditorRulesRef';
+import FullCreditorListTab from '@/components/debt/FullCreditorListTab';
+import { matchCreditorRule } from '@/components/debt/creditorRules';
 
 const GOLD = '#10b981';
 const ls = { display: 'block', color: '#8a9ab8', fontSize: '9px', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '3px' };
@@ -58,7 +61,7 @@ export default function DebtLeadCard({ lead, onLeadChange, onLeadSaved, transcri
     setSaving(false);
   };
 
-  const CARD_TABS = [['activity', '📋 Activity'], ['overview', 'Overview'], ['transcript', '📋 Transcript'], ['debt', 'Debt Details'], ['ledger', '💳 Debt Ledger'], ['nonaccepted', '❌ Non-Accepted'], ['employment', 'Employment'], ['notes', 'Notes'], ['ai', '🤖 AI Profile']];
+  const CARD_TABS = [['activity', '📋 Activity'], ['overview', 'Overview'], ['transcript', '📋 Transcript'], ['debt', 'Debt Details'], ['fulllist', '📋 Full List'], ['ledger', '💳 Debt Ledger'], ['nonaccepted', '❌ Non-Accepted'], ['employment', 'Employment'], ['notes', 'Notes'], ['ai', '🤖 AI Profile']];
 
   return (
     <div style={{ background: '#0d1b2a', border: '1px solid rgba(16,185,129,0.3)', borderRadius: '6px', display: 'flex', flexDirection: 'column', height: '100%' }}>
@@ -159,6 +162,7 @@ export default function DebtLeadCard({ lead, onLeadChange, onLeadSaved, transcri
             <Field label="Enrollment Date" value={lead.enrollmentDate} onChange={v => update('enrollmentDate', v)} type="date" />
           </div>
         )}
+        {tab === 'fulllist' && <FullCreditorListTab lead={lead} />}
         {tab === 'ledger' && <DebtLedgerTab lead={lead} update={update} />}
         {tab === 'nonaccepted' && <NonAcceptedCreditorsTab lead={lead} update={update} />}
         {tab === 'employment' && (
@@ -303,6 +307,9 @@ function DebtLedgerTab({ lead, update }) {
 
   return (
     <div>
+      {/* Accepted creditor rules reference */}
+      <AcceptedCreditorRulesRef />
+
       {/* Summary */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px', marginBottom: '16px' }}>
         <div style={{ background: 'rgba(16,185,129,0.06)', border: '1px solid rgba(16,185,129,0.2)', borderRadius: '4px', padding: '12px', textAlign: 'center' }}>
@@ -360,6 +367,12 @@ function DebtLedgerTab({ lead, update }) {
               </div>
               {c.accountLast4 && <div style={{ color: '#4a5568', fontSize: '10px', marginTop: '6px' }}>Account ending in {c.accountLast4}</div>}
               {c.notes && <div style={{ color: '#6b7280', fontSize: '11px', marginTop: '4px' }}>{c.notes}</div>}
+              {(() => { const rule = matchCreditorRule(c.creditor); return rule ? (
+                <div style={{ marginTop: '6px', padding: '6px 8px', background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.2)', borderRadius: '3px' }}>
+                  <div style={{ color: '#f59e0b', fontSize: '9px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '3px' }}>⚠ Rule: {rule.name}</div>
+                  <div style={{ color: '#c4cdd8', fontSize: '11px', lineHeight: 1.4 }}>{rule.rule}</div>
+                </div>
+              ) : null; })()}
             </div>
           ))}
         </div>
