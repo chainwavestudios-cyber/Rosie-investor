@@ -145,9 +145,6 @@ export default function CreditReportTab() {
 
       {status === 'done' && result && (
         <div style={{ marginTop: '20px' }}>
-          <div style={{ padding: '14px 16px', background: 'rgba(74,222,128,0.08)', border: '1px solid rgba(74,222,128,0.3)', borderRadius: '8px', color: '#4ade80', fontSize: '14px', marginBottom: '16px', textAlign: 'center' }}>
-            ✅ Credit report analyzed and saved to {lead?.firstName} {lead?.lastName}'s profile!
-          </div>
           {calc && (
             <>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '16px' }}>
@@ -173,7 +170,42 @@ export default function CreditReportTab() {
           )}
         </div>
       )}
+
+      {status === 'done' && lead && (
+        <CompletionPopup lead={lead} onClose={() => { setPhoto(null); setPhotoUrl(null); setResult(null); setStatus('idle'); setLead(null); setLeadNumber(''); }} />
+      )}
+
       <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+    </div>
+  );
+}
+
+function CompletionPopup({ lead, onClose }) {
+  const clientName = `${lead?.firstName || ''} ${lead?.lastName || ''}`.trim();
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: '20px' }}>
+      <div style={{ background: '#0d1b2a', border: '1px solid rgba(16,185,129,0.4)', borderRadius: '12px', padding: '28px 24px', maxWidth: '360px', width: '100%', textAlign: 'center', boxShadow: '0 16px 64px rgba(0,0,0,0.8)' }}>
+        <div style={{ width: '64px', height: '64px', borderRadius: '50%', background: 'rgba(74,222,128,0.15)', border: '2px solid rgba(74,222,128,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px', fontSize: '32px' }}>✅</div>
+        <div style={{ color: '#4ade80', fontSize: '18px', fontWeight: 'bold', marginBottom: '8px' }}>{clientName} debt list updated</div>
+        <div style={{ color: '#6b7280', fontSize: '12px', marginBottom: '20px' }}>Credit report analysis complete and saved to profile.</div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '20px', textAlign: 'left' }}>
+          <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '8px', padding: '10px 14px' }}>
+            <div style={{ color: '#8a9ab8', fontSize: '9px', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '3px' }}>Client Name</div>
+            <div style={{ color: '#e8e0d0', fontSize: '14px', fontWeight: 'bold' }}>{clientName}</div>
+          </div>
+          <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '8px', padding: '10px 14px' }}>
+            <div style={{ color: '#8a9ab8', fontSize: '9px', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '3px' }}>User ID</div>
+            <div style={{ color: '#e8e0d0', fontSize: '13px', fontFamily: 'monospace', wordBreak: 'break-all' }}>{lead?.id}</div>
+          </div>
+          {lead?.leadNumber && (
+            <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '8px', padding: '10px 14px' }}>
+              <div style={{ color: '#8a9ab8', fontSize: '9px', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '3px' }}>Lead #</div>
+              <div style={{ color: '#10b981', fontSize: '14px', fontWeight: 'bold' }}>{lead.leadNumber}</div>
+            </div>
+          )}
+        </div>
+        <button onClick={onClose} style={{ width: '100%', padding: '14px', borderRadius: '8px', background: 'linear-gradient(135deg,#10b981,#22c55e)', color: '#0a0f1e', border: 'none', fontSize: '14px', fontWeight: 'bold', cursor: 'pointer', letterSpacing: '1px', textTransform: 'uppercase' }}>Done</button>
+      </div>
     </div>
   );
 }
