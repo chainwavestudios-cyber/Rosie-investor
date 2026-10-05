@@ -49,10 +49,11 @@ export default function AccountTypesTab() {
     setError('');
 
     try {
-      // 1. Find the lead
-      const leads = await base44.entities.DebtLead.filter({ leadNumber: leadNumber.trim() }, '-created_date', 5);
+      // 1. Find the lead — normalize # prefix so "00079" and "#00079" both work
+      const normalizedNum = leadNumber.trim().startsWith('#') ? leadNumber.trim() : `#${leadNumber.trim()}`;
+      const leads = await base44.entities.DebtLead.filter({ leadNumber: normalizedNum }, '-created_date', 5);
       const matchedLead = leads && leads[0];
-      if (!matchedLead) { setError(`No lead found with # ${leadNumber.trim()}.`); setStatus('idle'); return; }
+      if (!matchedLead) { setError(`No lead found with # ${normalizedNum}.`); setStatus('idle'); return; }
       setLead(matchedLead);
 
       // 2. Upload photo privately
