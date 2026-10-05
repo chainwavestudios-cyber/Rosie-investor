@@ -61,6 +61,11 @@
       "title": "Debt Ledger (JSON)",
       "format": "textarea"
     },
+    "nonAcceptedCreditorsJson": {
+      "type": "string",
+      "title": "Non-Accepted Creditors (JSON)",
+      "format": "textarea"
+    },
     "billsJson": {
       "type": "string",
       "title": "Monthly Bills (JSON)",

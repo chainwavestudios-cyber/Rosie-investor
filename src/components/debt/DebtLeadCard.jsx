@@ -7,6 +7,7 @@ import { base44 } from '@/api/base44Client';
 import ClientProfileModal from '@/components/debt/ClientProfileModal';
 import DebtCallBar from '@/components/debt/DebtCallBar';
 import LeadActivityTab from '@/components/debt/LeadActivityTab';
+import NonAcceptedCreditorsTab from '@/components/debt/NonAcceptedCreditorsTab';
 
 const GOLD = '#10b981';
 const ls = { display: 'block', color: '#8a9ab8', fontSize: '9px', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '3px' };
@@ -36,6 +37,7 @@ export default function DebtLeadCard({ lead, onLeadChange, onLeadSaved, transcri
         address: lead.address, city: lead.city, state: lead.state, zip: lead.zip,
         debtAmount: lead.debtAmount, creditorCount: lead.creditorCount, creditors: lead.creditors,
         debtLedgerJson: lead.debtLedgerJson,
+        nonAcceptedCreditorsJson: lead.nonAcceptedCreditorsJson,
         employmentStatus: lead.employmentStatus, monthlyIncome: lead.monthlyIncome,
         creditScore: lead.creditScore, behindOnPayments: lead.behindOnPayments,
         monthsBehind: lead.monthsBehind, programEnrolled: lead.programEnrolled,
@@ -56,7 +58,7 @@ export default function DebtLeadCard({ lead, onLeadChange, onLeadSaved, transcri
     setSaving(false);
   };
 
-  const CARD_TABS = [['activity', '📋 Activity'], ['overview', 'Overview'], ['transcript', '📋 Transcript'], ['debt', 'Debt Details'], ['ledger', '💳 Debt Ledger'], ['employment', 'Employment'], ['notes', 'Notes'], ['ai', '🤖 AI Profile']];
+  const CARD_TABS = [['activity', '📋 Activity'], ['overview', 'Overview'], ['transcript', '📋 Transcript'], ['debt', 'Debt Details'], ['ledger', '💳 Debt Ledger'], ['nonaccepted', '❌ Non-Accepted'], ['employment', 'Employment'], ['notes', 'Notes'], ['ai', '🤖 AI Profile']];
 
   return (
     <div style={{ background: '#0d1b2a', border: '1px solid rgba(16,185,129,0.3)', borderRadius: '6px', display: 'flex', flexDirection: 'column', height: '100%' }}>
@@ -158,6 +160,7 @@ export default function DebtLeadCard({ lead, onLeadChange, onLeadSaved, transcri
           </div>
         )}
         {tab === 'ledger' && <DebtLedgerTab lead={lead} update={update} />}
+        {tab === 'nonaccepted' && <NonAcceptedCreditorsTab lead={lead} update={update} />}
         {tab === 'employment' && (
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
             <div>
