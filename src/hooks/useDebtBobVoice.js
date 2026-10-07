@@ -67,36 +67,37 @@ if (typeof window !== 'undefined' && window.speechSynthesis) {
   loadVoices();
 }
 
-function getFemaleVoice(voices) {
-  // Prefer known female English voices by name
-  const female = voices.find(v => /samantha|victoria|karen|moira|tessa|zira|fiona|serena|allison|ava|kate|susan|jenny|aria|jane|emma/i.test(v.name))
+function getVoiceByGender(voices, gender) {
+  if (gender === 'male') {
+    return voices.find(v => /daniel|alex|david|mark|fred|george|james|oliver|arthur|aaron|tom|rishi/i.test(v.name))
+      || voices.find(v => v.lang?.startsWith('en') && /male|man/i.test(v.name))
+      || voices.find(v => v.lang?.startsWith('en') && !/samantha|victoria|karen|moira|tessa|zira|fiona|serena|allison|ava|kate|susan|jenny|aria|jane|emma|female|woman/i.test(v.name));
+  }
+  // female (default)
+  return voices.find(v => /samantha|victoria|karen|moira|tessa|zira|fiona|serena|allison|ava|kate|susan|jenny|aria|jane|emma/i.test(v.name))
     || voices.find(v => v.lang?.startsWith('en') && /female|woman/i.test(v.name))
     || voices.find(v => v.lang?.startsWith('en') && !/male|david|mark|alex|fred|daniel|george|james|oliver|arthur/i.test(v.name));
-  return female;
 }
 
-// Deepgram Aura neural TTS — same engine quality as BOB, female voice
-const TRANSFER_VOICE = 'aura-asteria-en';
-
-function speakTransferBrowser(text, onDone) {
+function speakTransferBrowser(text, gender, onDone) {
   if (!window.speechSynthesis) { setTimeout(onDone, Math.max(2500, text.length * 55)); return; }
   window.speechSynthesis.cancel();
   loadVoices().then(voices => {
     const utter = new SpeechSynthesisUtterance(text);
-    const female = getFemaleVoice(voices);
-    if (female) utter.voice = female;
+    const v = getVoiceByGender(voices, gender);
+    if (v) utter.voice = v;
     utter.rate = 0.95;
-    utter.pitch = 1.15;
+    utter.pitch = gender === 'male' ? 0.9 : 1.15;
     utter.onend = onDone;
     utter.onerror = onDone;
     window.speechSynthesis.speak(utter);
   });
 }
 
-async function speakTransfer(text, apiKey, onDone) {
-  if (!apiKey) { speakTransferBrowser(text, onDone); return; }
+async function speakTransfer(text, voiceModel, gender, apiKey, onDone) {
+  if (!apiKey) { speakTransferBrowser(text, gender, onDone); return; }
   try {
-    const res = await fetch(`https://api.deepgram.com/v1/speak?model=${TRANSFER_VOICE}`, {
+    const res = await fetch(`https://api.deepgram.com/v1/speak?model=${voiceModel}`, {
       method: 'POST',
       headers: { 'Authorization': `Token ${apiKey}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ text }),
@@ -111,23 +112,26 @@ async function speakTransfer(text, apiKey, onDone) {
     await audio.play();
   } catch (e) {
     console.warn('[BOB] Deepgram TTS failed, using browser TTS:', e);
-    speakTransferBrowser(text, onDone);
+    speakTransferBrowser(text, gender, onDone);
   }
 }
 
-async function playTransferSequence(mode, closerName, scenario, apiKey, onDone) {
+async function playTransferSequence(mode, closerName, scenario, transferVoice, apiKey, onDone) {
+  const voiceModel = transferVoice?.voiceModel || 'aura-asteria-en';
+  const gender = transferVoice?.gender || 'female';
+  const agentName = transferVoice?.name || 'Joyce Roberts';
   if (mode === 'open') {
     const nameStr = scenario?.customerName || 'Bob';
     const closerStr = closerName || 'Drew';
-    const line = `Thank you for calling Debt Advisors of America. My name is Joyce Roberts. I have ${nameStr} on the line, he's calling about a notice he received in the mail. Let me connect you with ${closerStr}, one of our debt specialists.`;
-    await new Promise(r => speakTransfer(line, apiKey, r));
+    const line = `Thank you for calling Debt Advisors of America. My name is ${agentName}. I have ${nameStr} on the line, he's calling about a notice he received in the mail. Let me connect you with ${closerStr}, one of our debt specialists.`;
+    await new Promise(r => speakTransfer(line, voiceModel, gender, apiKey, r));
     setTimeout(onDone, 1500);
   } else {
     const name = closerName || 'Drew';
     const line1 = 'Good morning. Can I have your good name, sir?';
-    const line2 = `Bob, my name is Joyce Roberts from BAC. I have here ${name} on the line. So we are lucky to have him as our debt specialist who will go over with your program.`;
-    await new Promise(r => speakTransfer(line1, apiKey, r));
-    setTimeout(() => speakTransfer(line2, apiKey, () => setTimeout(onDone, 1500)), 4000);
+    const line2 = `Bob, my name is ${agentName} from BAC. I have here ${name} on the line. So we are lucky to have him as our debt specialist who will go over with your program.`;
+    await new Promise(r => speakTransfer(line1, voiceModel, gender, apiKey, r));
+    setTimeout(() => speakTransfer(line2, voiceModel, gender, apiKey, () => setTimeout(onDone, 1500)), 4000);
   }
 }
 
@@ -224,7 +228,7 @@ export function useDebtBobVoice({ onTranscript, onLog } = {}) {
     ring.stop();
   }, [ring]);
 
-  const startCall = useCallback(async ({ apiKey, systemPrompt, voiceModel, greeting, sessionLabel, mode, closerName, scenario, thinkModel }) => {
+  const startCall = useCallback(async ({ apiKey, systemPrompt, voiceModel, greeting, sessionLabel, mode, closerName, scenario, thinkModel, transferVoice }) => {
     setError(''); setPhase('ringing'); setRingPhase(true);
     onLogRef.current?.('session_start', `📞 ${sessionLabel} started. Mode: ${mode || 'open'}`);
 
@@ -235,7 +239,7 @@ export function useDebtBobVoice({ onTranscript, onLog } = {}) {
       if (mode) {
         setTransferPhase(true); setPhase('transfer');
         onLogRef.current?.('transcript', `📋 Transfer agent connecting call (${mode} mode)...`);
-        await new Promise(resolve => playTransferSequence(mode, closerName, scenario, apiKey, resolve));
+        await new Promise(resolve => playTransferSequence(mode, closerName, scenario, transferVoice, apiKey, resolve));
         setTransferPhase(false);
       }
 

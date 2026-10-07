@@ -199,6 +199,25 @@ export function getCharacter(id) {
   return BOB_CHARACTERS.find(c => c.id === id) || BOB_CHARACTERS[0];
 }
 
+// ── Transfer Agent Voices ──────────────────────────────────────────────────
+// The agent who answers the phone and introduces the call BEFORE BOB connects.
+// Each profile pairs a Deepgram Aura TTS voice with a browser-TTS gender hint
+// (fallback) and an agent name used in the spoken intro script.
+export const TRANSFER_VOICES = [
+  { id: 'joyce',   name: 'Joyce Roberts',  gender: 'female', voiceModel: 'aura-asteria-en', description: 'Default — warm, professional female agent.' },
+  { id: 'marcus',  name: 'Marcus',         gender: 'male',   voiceModel: 'aura-perseus-en', description: 'Steady, professional male agent.' },
+  { id: 'luna',    name: 'Luna',           gender: 'female', voiceModel: 'aura-luna-en',    description: 'Soft, warm female agent.' },
+  { id: 'orion',   name: 'Orion',          gender: 'male',   voiceModel: 'aura-orion-en',   description: 'Deep, calm male agent.' },
+  { id: 'stella',  name: 'Stella',         gender: 'female', voiceModel: 'aura-stella-en',  description: 'Upbeat, friendly female agent.' },
+  { id: 'helios',  name: 'Helios',         gender: 'male',   voiceModel: 'aura-helios-en',  description: 'Energetic, confident male agent.' },
+];
+
+export const DEFAULT_TRANSFER_VOICE_ID = 'joyce';
+
+export function getTransferVoice(id) {
+  return TRANSFER_VOICES.find(v => v.id === id) || TRANSFER_VOICES[0];
+}
+
 // Deepgram Voice Agent "think" model options. Higher = smarter but slower/costlier.
 export const BOB_THINK_MODELS = [
   { id: 'gpt-4.1', label: 'GPT-4.1 (balanced — default)', description: 'Strong reasoning, good speed. The standard for BOB.' },

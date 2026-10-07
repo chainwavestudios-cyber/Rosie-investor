@@ -7,7 +7,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useDebtBobVoice } from '@/hooks/useDebtBobVoice';
 import { DEBT_DUCK, DEBT_COW, DEBT_OWL } from '@/components/admin/bob/DebtPersonas';
-import { BOB_CHARACTERS, getCharacter, DEFAULT_CHARACTER_ID, BOB_THINK_MODELS, DEFAULT_THINK_MODEL } from '@/components/debt/bob/BobCharacters';
+import { BOB_CHARACTERS, getCharacter, DEFAULT_CHARACTER_ID, BOB_THINK_MODELS, DEFAULT_THINK_MODEL, TRANSFER_VOICES, getTransferVoice, DEFAULT_TRANSFER_VOICE_ID } from '@/components/debt/bob/BobCharacters';
 import DebtBobKB from '@/components/debt/DebtBobKB';
 import FloatingScriptBox from '@/components/debt/FloatingScriptBox';
 import AIAssistantPopup from '@/components/leads/AIAssistantPopup';
@@ -57,6 +57,7 @@ export default function DebtBobTrainer() {
   const [focusTopic, setFocusTopic] = useState('General');
   const [voiceModel, setVoiceModel] = useState(VOICE_MODELS[0]);
   const [characterId, setCharacterId] = useState(DEFAULT_CHARACTER_ID);
+  const [transferVoiceId, setTransferVoiceId] = useState(DEFAULT_TRANSFER_VOICE_ID);
   const [thinkModel, setThinkModel] = useState(DEFAULT_THINK_MODEL);
   const [brainDigest, setBrainDigest] = useState('');
   const [buildingBrain, setBuildingBrain] = useState(false);
@@ -554,8 +555,8 @@ IMPORTANT: Ask these questions NATURALLY during the call. Weave them into the co
     const greetings = ['Hello.', 'Hello?', 'Yeah?', 'Hello, go ahead.', 'Hi?'];
     const greeting = greetings[Math.floor(Math.random() * greetings.length)];
 
-    await startCall({ apiKey, systemPrompt: buildSystemPrompt(), voiceModel: character.voiceModel, greeting, sessionLabel: label, mode, closerName, scenario, thinkModel });
-  }, [callCount, startCall, buildSystemPrompt, dgApiKey, mode, closerName, scenario, characterId, thinkModel, ensureBrainDigest]);
+    await startCall({ apiKey, systemPrompt: buildSystemPrompt(), voiceModel: character.voiceModel, greeting, sessionLabel: label, mode, closerName, scenario, thinkModel, transferVoice: getTransferVoice(transferVoiceId) });
+  }, [callCount, startCall, buildSystemPrompt, dgApiKey, mode, closerName, scenario, characterId, thinkModel, ensureBrainDigest, transferVoiceId]);
 
   const sliderLabel = sliderValue < 20 ? '🦆 Full Duck' : sliderValue < 40 ? '🦆 Duck-Owl' : sliderValue < 60 ? '🦉 Owl (Hybrid)' : sliderValue < 80 ? '🐄 Owl-Cow' : '🐄 Full Cow';
   const sliderColor = sliderValue < 33 ? '#ef4444' : sliderValue < 67 ? '#f59e0b' : '#4ade80';
@@ -671,6 +672,15 @@ IMPORTANT: Ask these questions NATURALLY during the call. Weave them into the co
               <div style={{ marginBottom: '12px' }}>
                 <label style={ls}>👤 Your Name (Closer)</label>
                 <input value={closerName} onChange={e => setCloserName(e.target.value)} disabled={phase !== 'idle'} placeholder="Drew" style={inp} />
+              </div>
+
+              {/* Transfer agent voice — the agent who answers & introduces the call before BOB connects */}
+              <div style={{ marginBottom: '12px' }}>
+                <label style={ls}>☎️ Transfer Agent Voice</label>
+                <select value={transferVoiceId} onChange={e => setTransferVoiceId(e.target.value)} disabled={phase !== 'idle'} style={{ ...inp, cursor: 'pointer' }}>
+                  {TRANSFER_VOICES.map(v => <option key={v.id} value={v.id}>{v.gender === 'female' ? '👩' : '👨'} {v.name} — {v.voiceModel}</option>)}
+                </select>
+                <div style={{ color: '#6b7280', fontSize: '10px', marginTop: '4px' }}>{getTransferVoice(transferVoiceId).description}</div>
               </div>
 
               {/* Start/Hangup + Save Now */}
