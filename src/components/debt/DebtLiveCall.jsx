@@ -98,7 +98,7 @@ function posHasAiInput(pos) {
   return pos.scriptLines.some((l, i) => i >= pos.activeIdx - 1 && i <= pos.activeIdx + 3 && /\[\[AI\s*INPUT\]\]/i.test(l || ''));
 }
 
-export default function DebtLiveCall() {
+export default function DebtLiveCall({ onCallStart, onCallEnd }) {
   const { user: coachUser, can } = useDebtCoachAuth();
   const recorder = useCallRecorder();
   const aiSettings = (() => { try { return JSON.parse(coachUser?.aiSettingsJson || '{}'); } catch { return {}; } })();
@@ -123,6 +123,14 @@ export default function DebtLiveCall() {
   const { activeObjection, dismissObjection } = useObjectionEngine(transcript);
   const [kbEntries, setKbEntries] = useState([]);
   const [kbLoading, setKbLoading] = useState(true);
+
+  // Notify parent when a live call starts/ends so it can auto-switch tabs and pop out panels
+  const prevPhaseRef = useRef('idle');
+  useEffect(() => {
+    if (prevPhaseRef.current !== 'live' && phase === 'live') onCallStart?.();
+    if (prevPhaseRef.current === 'live' && phase !== 'live') onCallEnd?.();
+    prevPhaseRef.current = phase;
+  }, [phase]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Track active script position for Q&A redirect (updated by ScriptTeleprompter via LiveTranscriptPanel)
   const scriptPositionRef = useRef(null);

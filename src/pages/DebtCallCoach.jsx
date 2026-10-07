@@ -37,6 +37,7 @@ export default function DebtCallCoach() {
   const [tab, setTab] = useState('live');
   const [timerLead, setTimerLead] = useState(null);
   const [showCompliance, setShowCompliance] = useState(false);
+  const [liveCallActive, setLiveCallActive] = useState(false);
   const navigate = useNavigate();
 
   if (loading) return (
@@ -93,8 +94,8 @@ export default function DebtCallCoach() {
         ))}
       </div>
 
-      {tab === 'live' && <DebtLiveCall debtCoachUser={user} />}
-      <PopOutTab storageKey="closing_tab" title="Closing Flow" icon="🏁" active={tab === 'closing'} defaultSize={{ width: 460, height: 720 }}>
+      {tab === 'live' && <DebtLiveCall debtCoachUser={user} onCallStart={() => { setTab('live'); setLiveCallActive(true); }} onCallEnd={() => setLiveCallActive(false)} />}
+      <PopOutTab storageKey="closing_tab" title="Closing Flow" icon="🏁" active={tab === 'closing'} defaultSize={{ width: 460, height: 720 }} autoPopOut={liveCallActive}>
         <SmartClose leadId={timerLead?.id} />
       </PopOutTab>
       <PopOutTab storageKey="calls_tab" title="Calls" icon="📞" active={tab === 'calls'}>

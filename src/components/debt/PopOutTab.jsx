@@ -4,6 +4,7 @@
  * panel that persists even when the user switches to other tabs — so multiple
  * tabs can be open simultaneously on a wide monitor.
  */
+import { useEffect } from 'react';
 import { usePopOutPanel } from '@/hooks/usePopOutPanel';
 import { useDebtCoachAuth } from '@/lib/DebtCoachAuthContext';
 
@@ -14,9 +15,14 @@ const sizeBtn = {
   borderRadius: '3px', padding: '3px 7px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold',
 };
 
-export default function PopOutTab({ storageKey, title, icon, active, children, defaultSize }) {
+export default function PopOutTab({ storageKey, title, icon, active, children, defaultSize, autoPopOut }) {
   const { user } = useDebtCoachAuth();
   const panel = usePopOutPanel(storageKey, defaultSize || { width: 900, height: 700 }, user?.username);
+
+  // Auto pop out when the trigger flips true (e.g. a live call starts) — fires once per rising edge
+  useEffect(() => {
+    if (autoPopOut && !panel.poppedOut) panel.popOut();
+  }, [autoPopOut]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <>
