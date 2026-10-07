@@ -121,7 +121,7 @@ export default async function(req: Request): Promise<Response> {
       const currentLearnings = safeParseJson(config.aiLearningsJson || '[]', [] as any[]);
 
       // Ask the AI to analyze the rejection and suggest config changes
-      const aiResult = await base44.integrations.Core.InvokeLLM({
+      const aiResult = await base44.asServiceRole.integrations.Core.InvokeLLM({
         prompt: `You are the Smart Leads AI director for a debt settlement lead generation engine. A user has rejected a scraped lead and provided feedback. Your job is to analyze WHY the lead was rejected and determine what config changes (if any) should be made to avoid finding similar irrelevant leads in the future.
 
 REJECTION FEEDBACK:
@@ -281,7 +281,7 @@ ${await getRecentFeedback(base44, 10)}
         return Response.json({ error: 'No user message found' }, { status: 400 });
       }
 
-      const aiResult = await base44.integrations.Core.InvokeLLM({
+      const aiResult = await base44.asServiceRole.integrations.Core.InvokeLLM({
         prompt: `You are "Smart Leads" — the AI director for a debt settlement lead generation engine. Your purpose is to help the user refine the lead scraper to find BETTER, more relevant leads.
 
 You can:
