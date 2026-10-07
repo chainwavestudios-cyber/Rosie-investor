@@ -69,6 +69,7 @@ export default function DebtBobTrainer() {
   const [callCount, setCallCount] = useState(0);
   const [sessionId, setSessionId] = useState('Bob');
   const [kbCount, setKbCount] = useState(0);
+  const [qaHistory, setQaHistory] = useState([]);
   const [dgApiKey, setDgApiKey] = useState('');
   const [scenario, setScenario] = useState({ customerName: 'Bob', customerAddress: '1428 Oak Ridge Dr', customerCity: 'Green Grove Springs', customerState: 'FL', customerZip: '32603', debtAmount: '35000', creditorCount: '5', creditors: 'Chase, Capital One, Discover, Amex, Citi', monthlyIncome: '3200', behindOnPayments: true, monthsBehind: '3', noticeNumber: 'N-4827', phone: '(352) 555-0142', hardship: 'I lost my job at the beginning of last year when the company downsized. I was out of work for about four months and had to rely on my credit cards to cover rent and groceries. Even after I found a new job, the interest rates had gone up so much that I am barely making minimum payments and the balances keep growing.' });
   const [callRefs, setCallRefs] = useState([]);
@@ -226,6 +227,10 @@ export default function DebtBobTrainer() {
       setCloseScenarios((all || []).filter(e => e.category === 'debt_close_scenario'));
       const scripts = await base44.entities.DebtScript.list('-sortOrder', 100);
       setDebtScripts(scripts || []);
+      try {
+        const qa = await base44.entities.DebtQAHistory.list('-created_date', 200);
+        setQaHistory(qa || []);
+      } catch {}
     } catch {}
   }, []);
 
@@ -304,7 +309,7 @@ export default function DebtBobTrainer() {
   // high-quality digest instead of 40 truncated raw entries. Cached by KB size
   // so it only rebuilds when the brain actually changes.
   const ensureBrainDigest = useCallback(async () => {
-    const cacheKey = `${kbEntries.length}:${kbCount}`;
+    const cacheKey = `${kbEntries.length}:${kbCount}:${qaHistory.length}`;
     if (brainDigestKeyRef.current === cacheKey && brainDigestRef.current) {
       return brainDigestRef.current;
     }
@@ -318,8 +323,9 @@ export default function DebtBobTrainer() {
     try {
       const kbText = kbEntries.map(e => `Q: ${e.question}\nA: ${(e.answer || '').slice(0, 600)}`).join('\n\n');
       const scriptText = (debtScripts || []).map(s => `SCRIPT: ${s.name}\n${(s.content || '').slice(0, 500)}`).join('\n\n');
+      const qaText = (qaHistory || []).slice(0, 100).map(q => `Q: ${q.question}\nA: ${(q.answer || '').slice(0, 400)}`).join('\n\n');
       const result = await base44.integrations.Core.InvokeLLM({
-        prompt: `You are preparing a condensed briefing for BOB, a roleplay customer in debt-settlement sales training. BOB has learned from the uploaded calls, transcripts, documents, websites, objections, and Q&A below.
+        prompt: `You are preparing a condensed briefing for BOB, a roleplay customer in debt-settlement sales training. BOB has learned from the uploaded calls, transcripts, documents, websites, objections, Q&A, and live-call Q&A history below.
 
 Synthesize everything into a TIGHT, ACTIONABLE briefing BOB will use to act like a real, well-informed customer. Organize as:
 
@@ -328,14 +334,18 @@ Synthesize everything into a TIGHT, ACTIONABLE briefing BOB will use to act like
 3. CUSTOMER QUESTIONS (8-12): Real questions customers ask, phrased naturally.
 4. CLOSING SIGNALS (4-6): What customers say when they are ready to enroll, so BOB knows when to let the closer close.
 5. DISQUALIFIERS (3-5): Topics that would disqualify a customer (bankruptcy, income, debt type) that BOB might mention naturally.
+6. CONFLICTS (0-5): Any contradictions between sources (e.g., two different fee percentages, conflicting timeline claims). List each conflict so BOB does not state contradictory facts. If no conflicts, return empty.
 
-Keep it under 1200 words. No fluff. This is injected directly into BOB's system prompt.
+Cross-reference ALL sources — KB entries, scripts, and live-call Q&A — for conflicts before writing the briefing. Keep it under 1200 words. No fluff. This is injected directly into BOB's system prompt.
 
 ━━━ KNOWLEDGE BASE ENTRIES (${kbEntries.length}) ━━━
 ${kbText}
 
 ━━━ SCRIPTS (${debtScripts?.length || 0}) ━━━
-${scriptText || 'None'}`,
+${scriptText || 'None'}
+
+━━━ LIVE-CALL Q&A HISTORY (${qaHistory?.length || 0}) ━━━
+${qaText || 'None'}`,
         response_json_schema: {
           type: 'object',
           properties: {
@@ -344,6 +354,7 @@ ${scriptText || 'None'}`,
             questions: { type: 'array', items: { type: 'string' } },
             closing_signals: { type: 'array', items: { type: 'string' } },
             disqualifiers: { type: 'array', items: { type: 'string' } },
+            conflicts: { type: 'array', items: { type: 'string' } },
           },
         },
       });
@@ -363,7 +374,10 @@ CLOSING SIGNALS (when BOB is ready to enroll):
 ${(r.closing_signals || []).map(c => `- ${c}`).join('\n') || '- (none yet)'}
 
 DISQUALIFIERS BOB MIGHT MENTION:
-${(r.disqualifiers || []).map(d => `- ${d}`).join('\n') || '- (none yet)'}`;
+${(r.disqualifiers || []).map(d => `- ${d}`).join('\n') || '- (none yet)'}
+
+CONFLICTS TO AVOID (do not state contradictory facts):
+${(r.conflicts || []).map(c => `- ${c}`).join('\n') || '- (none — sources agree)'}`;
       brainDigestRef.current = digest;
       brainDigestKeyRef.current = cacheKey;
       setBrainDigest(digest);
@@ -378,7 +392,7 @@ ${(r.disqualifiers || []).map(d => `- ${d}`).join('\n') || '- (none yet)'}`;
     } finally {
       setBuildingBrain(false);
     }
-  }, [kbEntries, kbCount, debtScripts]);
+  }, [kbEntries, kbCount, debtScripts, qaHistory]);
 
   const buildSystemPrompt = useCallback(() => {
     const persona = getActivePersona();
