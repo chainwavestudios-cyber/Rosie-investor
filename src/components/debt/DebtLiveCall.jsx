@@ -412,17 +412,22 @@ Agent line: "${firstAgentLines}"`,
   useEffect(() => {
     if (!micLoaded || !customerMicLoaded || !outputLoaded) return;
     navigator.mediaDevices.getUserMedia({ audio: true })
-      .then(() => navigator.mediaDevices.enumerateDevices())
-      .then(devices => {
-        const mics = devices.filter(d => d.kind === 'audioinput');
-        setMicDevices(mics);
-        if (mics.length > 0 && !micDeviceId) setMicDeviceId(mics[0].deviceId);
-        const rodecaster = mics.find(m => /rode|rodecaster|røde/i.test(m.label || ''));
-        if (rodecaster && !customerMicId) setCustomerMicId(rodecaster.deviceId);
-        const outputs = devices.filter(d => d.kind === 'audiooutput');
-        setOutputDevices(outputs);
-        if (outputs.length > 0 && !outputDeviceId) setOutputDeviceId(outputs[0].deviceId);
-      })
+      .then(stream => navigator.mediaDevices.enumerateDevices()
+        .then(devices => {
+          // Release the mic immediately — we only grabbed it to populate device labels.
+          // Keeping it open leaves Chrome showing "using mic" and can cause the later
+          // call-start getUserMedia to be denied.
+          stream.getTracks().forEach(t => t.stop());
+          const mics = devices.filter(d => d.kind === 'audioinput');
+          setMicDevices(mics);
+          if (mics.length > 0 && !micDeviceId) setMicDeviceId(mics[0].deviceId);
+          const rodecaster = mics.find(m => /rode|rodecaster|røde/i.test(m.label || ''));
+          if (rodecaster && !customerMicId) setCustomerMicId(rodecaster.deviceId);
+          const outputs = devices.filter(d => d.kind === 'audiooutput');
+          setOutputDevices(outputs);
+          if (outputs.length > 0 && !outputDeviceId) setOutputDeviceId(outputs[0].deviceId);
+        })
+      )
       .catch(() => {});
   }, [micLoaded, customerMicLoaded, outputLoaded]);
 
