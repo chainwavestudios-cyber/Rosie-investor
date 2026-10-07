@@ -81,8 +81,17 @@ export default function LeadGenTab() {
   const loadLeads = useCallback(async () => {
     setLoading(true);
     try {
-      const all = await base44.entities.ScrapedLead.list('-created_date', 200);
-      setLeads(all || []);
+      let all = [];
+      const pageSize = 500;
+      let skip = 0;
+      while (true) {
+        const batch = await base44.entities.ScrapedLead.list('-created_date', pageSize, skip);
+        if (!batch || batch.length === 0) break;
+        all = all.concat(batch);
+        if (batch.length < pageSize) break;
+        skip += pageSize;
+      }
+      setLeads(all);
     } catch (e) { setError('Failed to load leads: ' + (e?.message || String(e))); }
     setLoading(false);
   }, []);
@@ -462,15 +471,16 @@ export default function LeadGenTab() {
                 <th style={{ padding: '10px 12px', textAlign: 'right', color: '#8a9ab8', fontSize: '10px', letterSpacing: '1px', textTransform: 'uppercase' }}>Debt Amt</th>
                 <th style={{ padding: '10px 12px', textAlign: 'left', color: '#8a9ab8', fontSize: '10px', letterSpacing: '1px', textTransform: 'uppercase' }}>Distress Tag</th>
                 <th style={{ padding: '10px 12px', textAlign: 'left', color: '#8a9ab8', fontSize: '10px', letterSpacing: '1px', textTransform: 'uppercase' }}>Status</th>
+                <th style={{ padding: '10px 12px', textAlign: 'left', color: '#8a9ab8', fontSize: '10px', letterSpacing: '1px', textTransform: 'uppercase' }}>AI Reason</th>
                 <th style={{ padding: '10px 12px', textAlign: 'left', color: '#8a9ab8', fontSize: '10px', letterSpacing: '1px', textTransform: 'uppercase' }}>Identity</th>
                 <th style={{ padding: '10px 12px', textAlign: 'center', color: '#8a9ab8', fontSize: '10px', letterSpacing: '1px', textTransform: 'uppercase' }}>Actions</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan={10} style={{ padding: '40px', textAlign: 'center', color: '#4a5568' }}>Loading scraped leads…</td></tr>
+                <tr><td colSpan={11} style={{ padding: '40px', textAlign: 'center', color: '#4a5568' }}>Loading scraped leads…</td></tr>
               ) : filtered.length === 0 ? (
-                <tr><td colSpan={10} style={{ padding: '40px', textAlign: 'center', color: '#4a5568' }}>No leads found. Run the scraper to start mining debt-distress posts.</td></tr>
+                <tr><td colSpan={11} style={{ padding: '40px', textAlign: 'center', color: '#4a5568' }}>No leads found. Run the scraper to start mining debt-distress posts.</td></tr>
               ) : filtered.map(lead => (
                 <>
                 <tr key={lead.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
@@ -517,12 +527,19 @@ export default function LeadGenTab() {
                     {lead.assignedTo && <div style={{ color: AMBER, fontSize: '10px', marginTop: '2px' }}>👤 {lead.assignedTo}</div>}
                     {lead.identityMatchConfidence != null && <div style={{ color: lead.identityMatchConfidence >= 70 ? GOLD : '#6b7280', fontSize: '10px', marginTop: '2px' }}>{lead.identityMatchConfidence}% conf</div>}
                   </td>
+                  <td style={{ padding: '10px 12px', maxWidth: '260px' }}>
+                    {lead.debtFitStatus === 'fit' && <span style={{ display: 'inline-block', marginBottom: '4px', padding: '1px 6px', borderRadius: '2px', background: 'rgba(34,211,238,0.15)', color: '#22d3ee', fontSize: '8px', fontWeight: 'bold', textTransform: 'uppercase' }}>Fit ✓</span>}
+                    {lead.debtFitStatus === 'not_fit' && <span style={{ display: 'inline-block', marginBottom: '4px', padding: '1px 6px', borderRadius: '2px', background: 'rgba(107,114,128,0.15)', color: '#9ca3af', fontSize: '8px', fontWeight: 'bold', textTransform: 'uppercase' }}>Excluded ✗</span>}
+                    {lead.debtFitStatus === 'ambiguous' && <span style={{ display: 'inline-block', marginBottom: '4px', padding: '1px 6px', borderRadius: '2px', background: 'rgba(245,158,11,0.15)', color: AMBER, fontSize: '8px', fontWeight: 'bold', textTransform: 'uppercase' }}>Ambiguous ?</span>}
+                    {(!lead.debtFitStatus || lead.debtFitStatus === 'pending' || lead.debtFitStatus === 'screening') && <span style={{ display: 'inline-block', marginBottom: '4px', padding: '1px 6px', borderRadius: '2px', background: 'rgba(138,154,184,0.1)', color: '#8a9ab8', fontSize: '8px', fontWeight: 'bold', textTransform: 'uppercase' }}>{lead.debtFitStatus === 'screening' ? 'Screening…' : 'Not Screened'}</span>}
+                    {lead.debtFitReason ? (
+                      <div style={{ color: lead.debtFitStatus === 'not_fit' ? '#9ca3af' : lead.debtFitStatus === 'fit' ? '#c4cdd8' : AMBER, fontSize: '11px', lineHeight: 1.4 }}>{lead.debtFitReason}</div>
+                    ) : (
+                      <span style={{ color: '#4a5568', fontSize: '10px' }}>—</span>
+                    )}
+                    {lead.debtFitConfidence != null && <div style={{ color: '#6b7280', fontSize: '9px', marginTop: '3px' }}>{lead.debtFitConfidence}% confidence</div>}
+                  </td>
                   <td style={{ padding: '10px 12px', maxWidth: '180px' }}>
-                    {lead.debtFitStatus === 'fit' && <span style={{ display: 'inline-block', marginBottom: '2px', padding: '1px 6px', borderRadius: '2px', background: 'rgba(34,211,238,0.15)', color: '#22d3ee', fontSize: '8px', fontWeight: 'bold', textTransform: 'uppercase' }}>Debt-Fit ✓</span>}
-                    {lead.debtFitStatus === 'not_fit' && <span style={{ display: 'inline-block', marginBottom: '2px', padding: '1px 6px', borderRadius: '2px', background: 'rgba(107,114,128,0.15)', color: '#9ca3af', fontSize: '8px', fontWeight: 'bold', textTransform: 'uppercase' }}>Excluded ✗</span>}
-                    {lead.debtFitStatus === 'ambiguous' && <span style={{ display: 'inline-block', marginBottom: '2px', padding: '1px 6px', borderRadius: '2px', background: 'rgba(245,158,11,0.15)', color: AMBER, fontSize: '8px', fontWeight: 'bold', textTransform: 'uppercase' }}>Ambiguous ?</span>}
-                    {(!lead.debtFitStatus || lead.debtFitStatus === 'pending' || lead.debtFitStatus === 'screening') && <span style={{ display: 'inline-block', marginBottom: '2px', padding: '1px 6px', borderRadius: '2px', background: 'rgba(138,154,184,0.1)', color: '#8a9ab8', fontSize: '8px', fontWeight: 'bold', textTransform: 'uppercase' }}>{lead.debtFitStatus === 'screening' ? 'Screening…' : 'Not Screened'}</span>}
-                    {lead.debtFitReason && <div style={{ color: '#6b7280', fontSize: '9px', marginTop: '2px', lineHeight: 1.3, maxHeight: '28px', overflow: 'hidden' }}>{lead.debtFitReason}</div>}
                     {getEnrichedEmails(lead).map((em, i) => <div key={'e' + i} style={{ color: GOLD, fontSize: '10px', marginTop: '2px' }}>✉ {em}</div>)}
                     {getEnrichedPhones(lead).map((ph, i) => <div key={'p' + i} style={{ color: GOLD, fontSize: '10px' }}>📞 {ph}</div>)}
                     {getEnrichedPhones(lead).length === 0 && getEnrichedEmails(lead).length === 0 && <span style={{ color: '#4a5568', fontSize: '10px' }}>{lead.enrichmentStatus || 'pending'}</span>}
@@ -565,7 +582,7 @@ export default function LeadGenTab() {
                 </tr>
                 {expandedRows.has(lead.id) && (
                   <tr key={lead.id + '-expanded'} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-                    <td colSpan={10} style={{ padding: '0', background: 'rgba(0,0,0,0.2)' }}>
+                    <td colSpan={11} style={{ padding: '0', background: 'rgba(0,0,0,0.2)' }}>
                       <div style={{ padding: '14px 20px' }}>
                         <div style={{ color: GOLD, fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '8px' }}>📝 Full Post Content</div>
                         {lead.postTitle && <div style={{ color: '#e8e0d0', fontSize: '14px', fontWeight: 'bold', marginBottom: '4px' }}>{lead.postTitle}</div>}
