@@ -741,14 +741,31 @@ IMPORTANT: Ask these questions NATURALLY during the call. Weave them into the co
               </div>
             </div>
 
-            {/* Active persona info */}
+            {/* Active character + persona info */}
             <div style={{ background: '#0d1b2a', border: `1px solid ${sliderColor}33`, borderRadius: '6px', padding: '14px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
-                <span style={{ fontSize: '20px' }}>{getActivePersona().emoji}</span>
-                <div>
-                  <div style={{ color: sliderColor, fontSize: '12px', fontWeight: 'bold' }}>{getActivePersona().name}</div>
-                  <div style={{ color: '#6b7280', fontSize: '10px' }}>{getActivePersona().description}</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                <span style={{ fontSize: '24px' }}>{getCharacter(characterId).emoji}</span>
+                <div style={{ flex: 1 }}>
+                  <div style={{ color: GOLD, fontSize: '13px', fontWeight: 'bold' }}>{getCharacter(characterId).name}</div>
+                  <div style={{ color: '#6b7280', fontSize: '10px' }}>{getCharacter(characterId).description}</div>
                 </div>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', paddingTop: '8px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+                <span style={{ fontSize: '16px' }}>{getActivePersona().emoji}</span>
+                <div>
+                  <div style={{ color: sliderColor, fontSize: '11px', fontWeight: 'bold' }}>Difficulty: {getActivePersona().name}</div>
+                  <div style={{ color: '#6b7280', fontSize: '9px' }}>{getActivePersona().description}</div>
+                </div>
+              </div>
+              <div style={{ marginTop: '8px', paddingTop: '8px', borderTop: '1px solid rgba(255,255,255,0.06)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ color: '#8a9ab8', fontSize: '10px' }}>🧠 Brain: {kbCount} items learned</span>
+                {buildingBrain ? (
+                  <span style={{ color: '#f59e0b', fontSize: '10px', animation: 'pulse 1s infinite' }}>⏳ Synthesizing brain…</span>
+                ) : brainDigest ? (
+                  <span style={{ color: '#4ade80', fontSize: '10px' }}>✓ Briefing ready</span>
+                ) : (
+                  <span style={{ color: '#4a5568', fontSize: '10px' }}>Builds on connect</span>
+                )}
               </div>
             </div>
 
