@@ -172,7 +172,7 @@ export default function LeadGenTab() {
     try {
       const rawLeadIds = leads.filter(l => l.status === 'raw').map(l => l.id);
       if (rawLeadIds.length === 0) { setEnriching(false); return; }
-      await base44.functions.invoke('leadCrossEnrich', { bulk: true, leadIds: rawLeadIds });
+      await runBatchEnrich(rawLeadIds);
       loadLeads();
     } catch (e) { setError('Bulk enrichment failed: ' + (e?.message || String(e))); }
     setEnriching(false);
@@ -229,13 +229,35 @@ export default function LeadGenTab() {
     setPushing(null);
   };
 
+  // Process enrichment one lead per function call in small concurrent batches.
+  // Each call is a single-lead enrichment that finishes well within the function
+  // timeout, avoiding the 504s we hit when sending all IDs to one bulk invocation.
+  const runBatchEnrich = async (ids, concurrency = 3) => {
+    let enriched = 0, failed = 0;
+    const queue = [...ids];
+    const workers = Array.from({ length: Math.min(concurrency, queue.length) }, async () => {
+      while (queue.length) {
+        const id = queue.shift();
+        try {
+          await base44.functions.invoke('leadCrossEnrich', { leadId: id });
+          enriched++;
+        } catch (e) {
+          console.error(`[leadCrossEnrich] Failed for ${id}:`, e?.message);
+          failed++;
+        }
+      }
+    });
+    await Promise.all(workers);
+    return { processed: ids.length, enriched, failed };
+  };
+
   const runLeadCrossEnrich = async () => {
     const ids = Array.from(selectedIds);
     if (ids.length === 0) return;
     setCrossEnriching(true); setError(''); setCrossEnrichResult(null);
     try {
-      const res = await base44.functions.invoke('leadCrossEnrich', { bulk: true, leadIds: ids });
-      setCrossEnrichResult(res?.data || res);
+      const res = await runBatchEnrich(ids);
+      setCrossEnrichResult(res);
       loadLeads();
     } catch (e) { setError('LeadCross AI enrichment failed: ' + (e?.message || String(e))); }
     setCrossEnriching(false);
