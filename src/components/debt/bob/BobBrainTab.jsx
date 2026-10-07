@@ -12,7 +12,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
 import { computeFileHash, computeTextHash, checkDuplicateHash } from '@/lib/fileDedup';
 import { crossReferenceBatch } from './bobBrainUtils';
-import BobBrainChat from './BobBrainChat';
+import BobBrainScanner from './BobBrainScanner';
 import ConflictResolutionPopup from './ConflictResolutionPopup';
 
 const GOLD = '#10b981';
@@ -256,10 +256,10 @@ export default function BobBrainTab({ onKBUpdated }) {
         {/* Right: Chat with BOB */}
         <div style={{ background: '#0d1b2a', border: '1px solid rgba(167,139,250,0.2)', borderRadius: '6px', display: 'flex', flexDirection: 'column', minHeight: '500px' }}>
           <div style={{ padding: '10px 14px', borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
-            <div style={{ color: PURPLE, fontSize: '11px', letterSpacing: '2px', textTransform: 'uppercase' }}>💬 Chat with BOB</div>
-            <div style={{ color: '#6b7280', fontSize: '10px' }}>Ask what it knows, tell it what to forget, or teach it something new.</div>
+            <div style={{ color: PURPLE, fontSize: '11px', letterSpacing: '2px', textTransform: 'uppercase' }}>🧠 BOB Scanner & KB Builder</div>
+            <div style={{ color: '#6b7280', fontSize: '10px' }}>Instruct BOB to scan all calls for a topic, catalog the references, enhance the language, and push to the KB.</div>
           </div>
-          <BobBrainChat kbEntries={kbEntries} transcripts={transcripts} onKBChanged={loadAll} />
+          <BobBrainScanner kbEntries={kbEntries} transcripts={transcripts} onKBChanged={loadAll} />
         </div>
       </div>
 
