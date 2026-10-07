@@ -11,7 +11,7 @@ import LiveTranscriptPanel from '@/components/debt/LiveTranscriptPanel';
 import LiveScriptsPanel from '@/components/debt/LiveScriptsPanel';
 import DebtAIPanel from '@/components/debt/DebtAIPanel';
 import DoNothingCalculator from '@/components/debt/DoNothingCalculator';
-import ClosingChecklist from '@/components/debt/closing/ClosingChecklist';
+import SmartClose from '@/components/debt/closing/SmartClose';
 import ClientProfileModal from '@/components/debt/ClientProfileModal';
 import LiveComplianceWidget from '@/components/compliance/LiveComplianceWidget';
 import CustomerStatsPopup from '@/components/debt/CustomerStatsPopup';
@@ -2130,7 +2130,7 @@ ${recentText}`,
             <button onClick={closingPanel.toggle} style={{ background: `${GOLD}18`, border: `1px solid ${GOLD}44`, color: GOLD, borderRadius: '4px', padding: '4px 10px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase' }}>⬇ Dock</button>
           </div>
           <div style={{ flex: 1, overflow: 'auto', padding: '12px' }}>
-            <ClosingChecklist leadId={lead.id} compact />
+            <SmartClose leadId={lead.id} liveTranscript={transcript} intentScore={intentScore} animalType={profileData?.animalType || lead.animalType} compact />
           </div>
           {closingPanel.resizeHandles}
         </div>

@@ -2,29 +2,35 @@
  * ClosingChecklist.jsx — Reusable step-by-step closing tool.
  * Renders the CLOSING_MODULES as checkable steps with a progress bar.
  * Progress persists to localStorage (per lead) so it survives tab switches.
- * Used both as a standalone Closing tab and as a live-call pop-out panel.
+ *
+ * Supports a controlled mode (used by SmartClose): pass `done` + `onToggle`
+ * to drive the checked state externally, and `autoDone` to mark steps that
+ * were auto-detected by the AI (shown with a small ✦ indicator).
  */
 import { useState, useEffect } from 'react';
 import { CLOSING_MODULES } from './ClosingModules';
 
 const GOLD = '#10b981';
+const PURPLE = '#a78bfa';
 
-export default function ClosingChecklist({ leadId, compact = false }) {
+export default function ClosingChecklist({ leadId, compact = false, done: controlledDone, onToggle, autoDone, smartMode }) {
   const storageKey = `closing_progress_${leadId || 'general'}`;
-  const [done, setDone] = useState(() => {
+  const [internalDone, setInternalDone] = useState(() => {
     try { return JSON.parse(localStorage.getItem(storageKey) || '{}'); } catch { return {}; }
   });
 
   useEffect(() => {
-    try { localStorage.setItem(storageKey, JSON.stringify(done)); } catch {}
-  }, [done, storageKey]);
+    try { localStorage.setItem(storageKey, JSON.stringify(internalDone)); } catch {}
+  }, [internalDone, storageKey]);
 
   // Reset when lead changes
   useEffect(() => {
-    try { setDone(JSON.parse(localStorage.getItem(storageKey) || '{}')); } catch { setDone({}); }
+    try { setInternalDone(JSON.parse(localStorage.getItem(storageKey) || '{}')); } catch { setInternalDone({}); }
   }, [storageKey]);
 
-  const toggle = (key) => setDone(prev => ({ ...prev, [key]: !prev[key] }));
+  const isControlled = controlledDone !== undefined;
+  const done = isControlled ? controlledDone : internalDone;
+  const toggle = onToggle || ((key) => setInternalDone(prev => ({ ...prev, [key]: !prev[key] })));
 
   const totalSteps = CLOSING_MODULES.reduce((n, m) => n + m.steps.length, 0);
   const completedSteps = Object.values(done).filter(Boolean).length;
@@ -36,11 +42,11 @@ export default function ClosingChecklist({ leadId, compact = false }) {
       {/* Progress bar */}
       <div style={{ marginBottom: '14px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
-          <span style={{ color: GOLD, fontSize: '11px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase' }}>Close Progress</span>
+          <span style={{ color: GOLD, fontSize: '11px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase' }}>Close Progress {smartMode && <span style={{ color: PURPLE, fontSize: '9px' }}>· Smart</span>}</span>
           <span style={{ color: '#c4cdd8', fontSize: '11px', fontWeight: 'bold' }}>{pct}% · {completedModules}/{CLOSING_MODULES.length} modules</span>
         </div>
         <div style={{ height: '8px', background: 'rgba(255,255,255,0.06)', borderRadius: '4px', overflow: 'hidden' }}>
-          <div style={{ width: `${pct}%`, height: '100%', background: 'linear-gradient(90deg,#10b981,#22c55e)', borderRadius: '4px', transition: 'width 0.3s' }} />
+          <div style={{ width: `${pct}%`, height: '100%', background: smartMode ? 'linear-gradient(90deg,#a78bfa,#7c3aed)' : 'linear-gradient(90deg,#10b981,#22c55e)', borderRadius: '4px', transition: 'width 0.3s' }} />
         </div>
       </div>
 
@@ -60,10 +66,14 @@ export default function ClosingChecklist({ leadId, compact = false }) {
                 {mod.steps.map((step, i) => {
                   const key = `${mod.id}_${i}`;
                   const checked = !!done[key];
+                  const auto = smartMode && autoDone && autoDone[key];
                   return (
                     <label key={key} style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', padding: '5px 0', cursor: 'pointer' }}>
-                      <input type="checkbox" checked={checked} onChange={() => toggle(key)} style={{ marginTop: '2px', cursor: 'pointer', accentColor: GOLD, flexShrink: 0 }} />
-                      <span style={{ color: checked ? '#6b7280' : '#c4cdd8', fontSize: '12px', lineHeight: 1.4, textDecoration: checked ? 'line-through' : 'none' }}>{step}</span>
+                      <input type="checkbox" checked={checked} onChange={() => toggle(key)} style={{ marginTop: '2px', cursor: 'pointer', accentColor: smartMode ? PURPLE : GOLD, flexShrink: 0 }} />
+                      <span style={{ color: checked ? '#6b7280' : '#c4cdd8', fontSize: '12px', lineHeight: 1.4, textDecoration: checked ? 'line-through' : 'none', flex: 1 }}>
+                        {step}
+                        {auto && <span style={{ color: PURPLE, fontSize: '9px', marginLeft: '4px', fontWeight: 'bold' }} title="Auto-detected by Smart Close">✦</span>}
+                      </span>
                     </label>
                   );
                 })}
@@ -79,7 +89,9 @@ export default function ClosingChecklist({ leadId, compact = false }) {
         })}
       </div>
 
-      <button onClick={() => { if (confirm('Reset all closing steps for this lead?')) setDone({}); }} style={{ marginTop: '12px', width: '100%', background: 'rgba(255,255,255,0.03)', color: '#6b7280', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '4px', padding: '8px', cursor: 'pointer', fontSize: '11px' }}>↺ Reset Progress</button>
+      {!isControlled && (
+        <button onClick={() => { if (confirm('Reset all closing steps for this lead?')) setInternalDone({}); }} style={{ marginTop: '12px', width: '100%', background: 'rgba(255,255,255,0.03)', color: '#6b7280', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '4px', padding: '8px', cursor: 'pointer', fontSize: '11px' }}>↺ Reset Progress</button>
+      )}
     </div>
   );
 }

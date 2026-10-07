@@ -21,7 +21,7 @@ import NewLeadsTab from '@/components/debt/NewLeadsTab';
 import SmartLeadsTab from '@/components/debt/SmartLeadsTab';
 import LeadAssignmentPopup from '@/components/debt/LeadAssignmentPopup';
 import PopOutTab from '@/components/debt/PopOutTab';
-import ClosingChecklist from '@/components/debt/closing/ClosingChecklist';
+import SmartClose from '@/components/debt/closing/SmartClose';
 import CompliancePortal from '@/pages/CompliancePortal';
 import WCRChecklist from '@/components/debt/WCRChecklist';
 import ProfileTimerWatcher from '@/components/debt/ProfileTimerWatcher';
@@ -93,7 +93,7 @@ export default function DebtCallCoach() {
 
       {tab === 'live' && <DebtLiveCall debtCoachUser={user} />}
       <PopOutTab storageKey="closing_tab" title="Closing Flow" icon="🏁" active={tab === 'closing'} defaultSize={{ width: 460, height: 720 }}>
-        <ClosingChecklist leadId={timerLead?.id} />
+        <SmartClose leadId={timerLead?.id} />
       </PopOutTab>
       <PopOutTab storageKey="calls_tab" title="Calls" icon="📞" active={tab === 'calls'}>
         <CallsTab />
