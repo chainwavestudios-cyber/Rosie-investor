@@ -1,37 +1,25 @@
 /**
- * leadCrossEnrich — LeadCross AI enrichment engine.
+ * leadCrossEnrich — Unified lead enrichment engine.
  *
- * Takes a ScrapedLead and performs multi-phase web cross-referencing to find
- * verified emails and phone numbers using ZERO paid data APIs. Uses Gemini's
- * built-in Google Search (add_context_from_internet) to cross-reference public
- * indexes, press releases, SEC filings, company team pages, etc.
+ * ONE enrichment process that uses both Apify and AI together:
+ *   1. Apify Google Search gathers raw web results (2 targeted queries in parallel)
+ *   2. Reddit profile data is fetched in parallel (if platform is reddit)
+ *   3. ONE LLM call (Gemini with Google Search) analyzes all the gathered data
+ *      to extract: company, domain, job title, full name, emails, and phones
  *
- * Phase A: Entity & Domain Resolution
- *   - Normalize name, extract company/employer from post text/bio
- *   - Web search for company official domain if not known
+ * This replaces the old multi-phase approach (5-6 LLM calls) that caused 500
+ * errors from timeouts. Now it's a single LLM call with rich context.
  *
- * Phase B: Email Syntax Matrix & Cross-Referencing
- *   - Generate standard corporate email variations (first.last@, flast@, etc.)
- *   - Web search each variation with exact-match quotes
- *   - Score: High (exact public match), Medium (domain pattern confirmed),
- *     Low (unverified permutation)
- *
- * Phase C: Multi-Point Phone Number Resolution
- *   - Search for company HQ phone, direct dial, personal mobile
- *   - Parse to E.164 format, validate area-code geography
- *
- * Results are stored in enrichedEmailsJson, enrichedPhonesJson, and
- * leadCrossSourcesJson on the ScrapedLead record.
+ * Results are stored in enrichedEmailsJson, enrichedPhonesJson,
+ * leadCrossSourcesJson, and the resolved* fields on the ScrapedLead record.
  */
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.52';
 
-// ── Apify Google Search ─────────────────────────────────────────────────────
-// Uses the Apify Google Search Scraper actor to gather raw web results,
-// which are then fed to the LLM as context for better enrichment.
 const APIFY_TOKEN = process.env.APIFY_API_TOKEN || '';
 
+// ── Apify Google Search ─────────────────────────────────────────────────────
 async function apifyGoogleSearch(query: string, maxResults = 10): Promise<{ title: string; url: string; snippet: string }[]> {
-  if (!APIFY_TOKEN) return [];
+  if (!APIFY_TOKEN || !query) return [];
   try {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 30000);
@@ -63,50 +51,6 @@ async function apifyGoogleSearch(query: string, maxResults = 10): Promise<{ titl
   }
 }
 
-// ── Email syntax patterns ──────────────────────────────────────────────────
-const EMAIL_PATTERNS = [
-  '{first}.{last}@{domain}',
-  '{first}{last}@{domain}',
-  '{f}{last}@{domain}',
-  '{first}.{l}@{domain}',
-  '{first}@{domain}',
-  '{last}@{domain}',
-  '{first}_{last}@{domain}',
-  '{f}.{last}@{domain}',
-];
-
-function normalizeName(fullName: string): { first: string; last: string; clean: string } {
-  if (!fullName || fullName === 'unknown') return { first: '', last: '', clean: '' };
-  const parts = fullName.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return { first: '', last: '', clean: '' };
-  const first = parts[0].toLowerCase().replace(/[^a-z]/g, '');
-  const last = parts.length > 1 ? parts[parts.length - 1].toLowerCase().replace(/[^a-z]/g, '') : '';
-  return { first, last, clean: fullName.trim() };
-}
-
-function generateEmailVariations(first: string, last: string, domain: string): { email: string; pattern: string }[] {
-  if (!first || !domain) return [];
-  const f = first[0] || '';
-  const l = last ? last[0] : '';
-  const variations: { email: string; pattern: string }[] = [];
-  for (const pattern of EMAIL_PATTERNS) {
-    const email = pattern
-      .replace('{first}', first)
-      .replace('{last}', last || '')
-      .replace('{f}', f)
-      .replace('{l}', l)
-      .replace('{domain}', domain);
-    variations.push({ email, pattern });
-  }
-  // Deduplicate
-  const seen = new Set<string>();
-  return variations.filter(v => {
-    if (seen.has(v.email)) return false;
-    seen.add(v.email);
-    return true;
-  });
-}
-
 function toE164(phone: string): string {
   let cleaned = phone.replace(/[^\d+]/g, '');
   if (cleaned.startsWith('+')) return cleaned;
@@ -116,188 +60,25 @@ function toE164(phone: string): string {
   return phone;
 }
 
-// ── Phase A: Domain Resolution ─────────────────────────────────────────────
-async function resolveCompanyDomain(base44: any, companyName: string, personName: string, location: string): Promise<{ domain: string; source: string }> {
-  if (!companyName || companyName === 'unknown') return { domain: '', source: '' };
-  const result = await base44.asServiceRole.integrations.Core.InvokeLLM({
-    prompt: `Search the web for the official website domain of a company called "${companyName}"${location ? ` located in ${location}` : ''}${personName ? `, where ${personName} works` : ''}.
-
-Return JSON with:
-- domain: the primary root domain (e.g., "company.com") — NOT www., NOT http://, just the root domain
-- source: the URL where you found this domain confirmed
-
-If you cannot find a real official website, return empty strings. Do NOT guess or fabricate a domain.`,
-    add_context_from_internet: true,
-    model: 'gemini_3_flash',
-    response_json_schema: {
-      type: 'object',
-      properties: {
-        domain: { type: 'string' },
-        source: { type: 'string' },
+// ── Reddit profile fetch (for additional context) ──────────────────────────
+async function fetchRedditUserProfile(username: string): Promise<any | null> {
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 5000);
+    const res = await fetch(`https://www.reddit.com/user/${username}/about.json`, {
+      headers: {
+        'User-Agent': 'SettlementIQ-LeadGen/1.0 (debt settlement lead intelligence bot)',
+        'Accept': 'application/json',
       },
-    },
-  });
-  return { domain: result?.domain || '', source: result?.source || '' };
-}
-
-// ── Phase B: Email Cross-Referencing ────────────────────────────────────────
-async function crossReferenceEmails(
-  base44: any,
-  variations: { email: string; pattern: string }[],
-  companyName: string,
-  personName: string
-): Promise<{ email: string; pattern: string; confidence: number; sourceFound: string; validationType: string }[]> {
-  const results: { email: string; pattern: string; confidence: number; sourceFound: string; validationType: string }[] = [];
-
-  // Batch: ask Gemini to search for all variations at once
-  const emailList = variations.map(v => v.email).join('\n');
-  const result = await base44.asServiceRole.integrations.Core.InvokeLLM({
-    prompt: `You are a lead enrichment analyst. Search the web to verify which of these email addresses are real and publicly associated with "${personName}"${companyName ? ` at "${companyName}"` : ''}.
-
-Email variations to verify:
-${emailList}
-
-For each email, search for it in public indexes — press releases, PDF documents, SEC filings, GitHub commits, conference slides, company team pages, LinkedIn profiles, etc.
-
-Return JSON with a "results" array, one entry per email:
-- email: the email address
-- found: true if you found this email publicly indexed alongside the target name/company
-- confidence: 0-100 score (90-100 = exact match found publicly, 60-89 = domain pattern confirmed from co-workers, <60 = unverified permutation)
-- source_url: the URL where you found the match (empty if not found)
-- source_snippet: a short snippet of where it appeared (empty if not found)
-- validation_type: "exact_public_match", "domain_pattern_confirmed", or "unverified_permutation"
-
-Be conservative: only report "found: true" if you actually found the email in a real public source. Do NOT fabricate sources.`,
-    add_context_from_internet: true,
-    model: 'gemini_3_flash',
-    response_json_schema: {
-      type: 'object',
-      properties: {
-        results: {
-          type: 'array',
-          items: {
-            type: 'object',
-            properties: {
-              email: { type: 'string' },
-              found: { type: 'boolean' },
-              confidence: { type: 'number' },
-              source_url: { type: 'string' },
-              source_snippet: { type: 'string' },
-              validation_type: { type: 'string' },
-            },
-          },
-        },
-      },
-    },
-  });
-
-  const llmResults = result?.results || [];
-  for (const v of variations) {
-    const match = llmResults.find((r: any) => r.email === v.email);
-    if (match) {
-      results.push({
-        email: v.email,
-        pattern: v.pattern,
-        confidence: match.confidence || 0,
-        sourceFound: match.source_url || match.source_snippet || '',
-        validationType: match.validation_type || 'unverified_permutation',
-      });
-    } else {
-      results.push({
-        email: v.email,
-        pattern: v.pattern,
-        confidence: 20,
-        sourceFound: '',
-        validationType: 'unverified_permutation',
-      });
-    }
+      signal: controller.signal,
+    });
+    clearTimeout(timer);
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data?.data || null;
+  } catch {
+    return null;
   }
-
-  return results;
-}
-
-// ── Phase C: Phone Number Resolution ────────────────────────────────────────
-async function resolvePhoneNumbers(
-  base44: any,
-  personName: string,
-  companyName: string,
-  companyDomain: string,
-  city: string,
-  state: string
-): Promise<{ phone: string; type: string; locationMatch: boolean; confidence: number; source: string }[]> {
-  const result = await base44.asServiceRole.integrations.Core.InvokeLLM({
-    prompt: `You are a lead enrichment analyst. Search the web for phone numbers associated with:
-- Person: "${personName}"
-${companyName ? `- Company: "${companyName}"` : ''}
-${city || state ? `- Location: ${city || ''} ${state || ''}`.trim() : ''}
-
-Search for:
-1. Company main headquarters phone number (if company is known)
-2. Direct dial or personal mobile numbers for this person
-3. Any public phone numbers linked to this person or company in directories, press releases, or public records
-
-Return JSON with a "phones" array:
-- phone: the phone number in E.164 format (e.g., +1XXXXXXXXXX)
-- type: "company_hq", "direct_dial", "mobile", or "unknown"
-- location_match: true if the area code aligns with the person's listed city/state
-- confidence: 0-100 score
-- source: the URL where you found this number
-
-Only include REAL phone numbers you actually found via web search. Do NOT fabricate numbers. If you found none, return an empty array.`,
-    add_context_from_internet: true,
-    model: 'gemini_3_flash',
-    response_json_schema: {
-      type: 'object',
-      properties: {
-        phones: {
-          type: 'array',
-          items: {
-            type: 'object',
-            properties: {
-              phone: { type: 'string' },
-              type: { type: 'string' },
-              location_match: { type: 'boolean' },
-              confidence: { type: 'number' },
-              source: { type: 'string' },
-            },
-          },
-        },
-      },
-    },
-  });
-
-  return (result?.phones || []).map((p: any) => ({
-    phone: toE164(p.phone || ''),
-    type: p.type || 'unknown',
-    locationMatch: p.location_match ?? false,
-    confidence: p.confidence || 0,
-    source: p.source || '',
-  }));
-}
-
-// ── Extract company/employer from post text ────────────────────────────────
-async function extractCompanyFromPost(base44: any, lead: any): Promise<{ company: string; jobTitle: string }> {
-  const postText = `${lead.postTitle || ''} ${lead.postText || ''} ${lead.bioText || ''}`.substring(0, 3000);
-  const result = await base44.asServiceRole.integrations.Core.InvokeLLM({
-    prompt: `Analyze this social media post by user "${lead.userHandle}" (display name: ${lead.displayName || 'N/A'}, location: ${lead.location || 'N/A'}). 
-
-Post text:
-${postText}
-
-Extract:
-1. company: The person's employer or company they work for (if mentioned). Only return a real company name if it's explicitly stated in the post. Return "unknown" if not mentioned.
-2. job_title: Their job title (if mentioned). Return "unknown" if not mentioned.
-
-Return JSON. Be conservative — do NOT guess.`,
-    response_json_schema: {
-      type: 'object',
-      properties: {
-        company: { type: 'string' },
-        jobTitle: { type: 'string' },
-      },
-    },
-  });
-  return { company: result?.company || 'unknown', jobTitle: result?.jobTitle || 'unknown' };
 }
 
 // ── Main handler ───────────────────────────────────────────────────────────
@@ -327,6 +108,7 @@ export default async function(req: Request): Promise<Response> {
           console.error(`[leadCrossEnrich] Failed for ${id}:`, e?.message);
           failed++;
         }
+        // Rate limit between leads
         await new Promise(r => setTimeout(r, 2000));
       }
       return Response.json({ status: 'success', processed: leadIds.length, enriched, failed });
@@ -336,9 +118,12 @@ export default async function(req: Request): Promise<Response> {
     const result = await enrichSingleLead(base44, leadId);
     return Response.json(result);
   } catch (error) {
-    return Response.json({ error: (error as Error).message, stack: (error as Error).stack }, { status: 500 });
+    console.error('[leadCrossEnrich] Fatal error:', error);
+    return Response.json({ error: (error as Error).message }, { status: 500 });
   }
 }
+
+// ── Single lead enrichment (the ONE process) ────────────────────────────────
 
 async function enrichSingleLead(base44: any, leadId: string): Promise<any> {
   const lead = await base44.asServiceRole.entities.ScrapedLead.get(leadId);
@@ -347,171 +132,155 @@ async function enrichSingleLead(base44: any, leadId: string): Promise<any> {
   // Mark as processing
   await base44.asServiceRole.entities.ScrapedLead.update(leadId, { leadCrossStatus: 'processing' });
 
-  const sources: { type: string; url: string; snippet: string }[] = [];
   const personName = lead.resolvedFullName || lead.displayName || '';
-  const { first, last } = normalizeName(personName);
-  let directPhoneResults: { phone: string; type: string; locationMatch: boolean; confidence: number; source: string }[] = [];
+  const sources: { type: string; url: string; snippet: string }[] = [];
 
-  // ── Phase 0: Apify Google Search — gather raw web results ────────────────
-  // Run Apify first to collect public pages about this person, then feed
-  // those results to the LLM phases as context for better enrichment.
-  const searchQuery = [personName, lead.location, 'debt', 'contact'].filter(Boolean).join(' ');
-  let apifyResults: { title: string; url: string; snippet: string }[] = [];
-  if (personName && personName !== 'unknown') {
-    try {
-      apifyResults = await apifyGoogleSearch(searchQuery, 10);
-      for (const r of apifyResults) {
-        if (r.url) sources.push({ type: 'apify_google_search', url: r.url, snippet: r.title || r.snippet || '' });
-      }
-    } catch (e: any) {
-      console.error('[leadCrossEnrich] Apify search failed:', e?.message);
-    }
-  }
-  const apifyContext = apifyResults.length > 0
-    ? `\n\nWeb search results from Apify (use these as primary evidence):\n${apifyResults.map(r => `- ${r.title}: ${r.url}\n  ${r.snippet}`).join('\n')}`
+  // ── Phase 0: Gather raw data (Apify + Reddit profile, ALL in parallel) ──
+  // Run 2 Apify searches + Reddit profile fetch simultaneously
+  const apifyQuery1 = personName && personName !== 'unknown'
+    ? [personName, lead.location, 'contact'].filter(Boolean).join(' ')
+    : '';
+  const apifyQuery2 = personName && personName !== 'unknown'
+    ? [personName, lead.location, 'debt financial'].filter(Boolean).join(' ')
     : '';
 
-  // ── Phase A: Extract company & resolve domain ───────────────────────────
-  let companyName = lead.companyName || '';
-  let jobTitle = lead.jobTitle || '';
-  if (!companyName) {
-    try {
-      const extracted = await extractCompanyFromPost(base44, lead);
-      companyName = extracted.company;
-      jobTitle = extracted.jobTitle;
-    } catch (e: any) {
-      console.error('[leadCrossEnrich] Phase A extract failed:', e?.message);
+  const [apifyResults1, apifyResults2, redditProfile] = await Promise.all([
+    apifyQuery1 ? apifyGoogleSearch(apifyQuery1, 10) : Promise.resolve([]),
+    apifyQuery2 ? apifyGoogleSearch(apifyQuery2, 10) : Promise.resolve([]),
+    lead.platform === 'reddit' ? fetchRedditUserProfile(lead.userHandle) : Promise.resolve(null),
+  ]);
+
+  // Merge Apify results and record sources
+  const apifyResults = [...apifyResults1, ...apifyResults2];
+  const seenUrls = new Set<string>();
+  for (const r of apifyResults) {
+    if (r.url && !seenUrls.has(r.url)) {
+      seenUrls.add(r.url);
+      sources.push({ type: 'apify_google_search', url: r.url, snippet: r.title || r.snippet || '' });
     }
   }
 
-  let companyDomain = lead.companyDomain || '';
-  if (companyName && companyName !== 'unknown' && !companyDomain) {
-    try {
-      const domainResult = await resolveCompanyDomain(base44, companyName, personName, lead.location || '');
-      companyDomain = domainResult.domain;
-      if (domainResult.source) sources.push({ type: 'domain_resolution', url: domainResult.source, snippet: `Domain for ${companyName}` });
-    } catch (e: any) {
-      console.error('[leadCrossEnrich] Phase A domain failed:', e?.message);
-    }
-  }
+  // Build context strings for the LLM
+  const apifyContext = apifyResults.length > 0
+    ? `\n\n--- APIFY WEB SEARCH RESULTS (primary evidence) ---\n${apifyResults.slice(0, 15).map((r, i) => `[${i + 1}] ${r.title}\n    URL: ${r.url}\n    ${r.snippet}`).join('\n')}`
+    : '';
 
-  // ── Phase B: Email syntax matrix & cross-referencing ────────────────────
-  let enrichedEmails: any[] = [];
-  if (first && companyDomain) {
-    try {
-      const variations = generateEmailVariations(first, last, companyDomain);
-      enrichedEmails = await crossReferenceEmails(base44, variations, companyName, personName);
-      for (const e of enrichedEmails) {
-        if (e.sourceFound) sources.push({ type: 'email_verification', url: e.sourceFound, snippet: `Email: ${e.email} (${e.validationType})` });
-      }
-    } catch (e: any) {
-      console.error('[leadCrossEnrich] Phase B failed:', e?.message);
-    }
-  }
+  const redditContext = redditProfile
+    ? `\n\n--- REDDIT PROFILE ---\n- Username: ${lead.userHandle}\n- Total karma: ${redditProfile.total_karma || 'N/A'}\n- Bio: ${redditProfile.subreddit?.public_description || 'N/A'}\n- Display name: ${redditProfile.subreddit?.display_name || 'N/A'}`
+    : '';
 
-  // Also try a direct name + location web search for personal email/phone
-  // (works for B2C leads without a company)
-  if (!companyDomain || enrichedEmails.length === 0) {
-    try {
-    const directResult = await base44.asServiceRole.integrations.Core.InvokeLLM({
-      prompt: `Search the web for contact information (email and phone number) for a person named "${personName}"${lead.location ? ` in ${lead.location}` : ''} who posted about debt/financial distress on ${lead.platform}.
+  // ── Phase 1: ONE LLM call with ALL context + web search ─────────────────
+  // Gemini uses its own Google Search (add_context_from_internet) PLUS the
+  // Apify results we gathered, giving it the best of both data sources.
+  const postText = `${lead.postTitle || ''} ${lead.postText || ''} ${lead.bioText || ''}`.substring(0, 2000);
 
-Their post mentioned: "${(lead.postText || '').substring(0, 500)}"
+  const result = await base44.asServiceRole.integrations.Core.InvokeLLM({
+    prompt: `You are a lead enrichment analyst. Find REAL contact information for a person who posted about debt/financial distress on ${lead.platform}.
+
+PERSON DETAILS:
+- Name: ${personName || 'unknown'}
+- Username/Handle: ${lead.userHandle}
+- Display Name: ${lead.displayName || 'N/A'}
+- Location: ${lead.location || 'N/A'}
+- Platform: ${lead.platform}
+
+POST TEXT:
+${postText}
 ${apifyContext}
+${redditContext}
 
-Search for their name in public records, social media profiles, directory listings, etc.
+Using the Apify web search results above as primary evidence AND your own web search, extract ALL of the following:
 
-Return JSON with:
-- emails: array of { email, confidence (0-100), source_url }
-- phones: array of { phone, confidence (0-100), source_url, type }
-- Only include REAL contacts you actually found. Do NOT fabricate.`,
-      add_context_from_internet: true,
-      model: 'gemini_3_flash',
-      response_json_schema: {
-        type: 'object',
-        properties: {
-          emails: {
-            type: 'array',
-            items: {
-              type: 'object',
-              properties: {
-                email: { type: 'string' },
-                confidence: { type: 'number' },
-                source_url: { type: 'string' },
-              },
+1. company: Their employer/company (if found). "unknown" if not found.
+2. company_domain: The company's official website domain (e.g., "company.com" — no www, no http). Empty if not found.
+3. job_title: Their job title. "unknown" if not found.
+4. full_name: Their real full name if you can determine it from search results. "unknown" if not found.
+5. emails: Array of email addresses found publicly. Each with: email, confidence (0-100), source_url, validation_type ("exact_public_match", "domain_pattern_confirmed", or "web_search_match").
+6. phones: Array of phone numbers found. Each with: phone (E.164 format like +1XXXXXXXXXX), confidence (0-100), source_url, type ("company_hq", "direct_dial", "mobile", or "unknown").
+
+RULES:
+- Only include REAL contacts you actually found via web search or the Apify results above.
+- Do NOT fabricate or guess emails or phone numbers.
+- If you found nothing, return empty arrays.
+- Score confidence: 90-100 = exact public match, 60-89 = domain pattern confirmed, 30-59 = web search match, <30 = weak inference.`,
+    add_context_from_internet: true,
+    model: 'gemini_3_flash',
+    response_json_schema: {
+      type: 'object',
+      properties: {
+        company: { type: 'string' },
+        company_domain: { type: 'string' },
+        job_title: { type: 'string' },
+        full_name: { type: 'string' },
+        emails: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              email: { type: 'string' },
+              confidence: { type: 'number' },
+              source_url: { type: 'string' },
+              validation_type: { type: 'string' },
             },
           },
-          phones: {
-            type: 'array',
-            items: {
-              type: 'object',
-              properties: {
-                phone: { type: 'string' },
-                confidence: { type: 'number' },
-                source_url: { type: 'string' },
-                type: { type: 'string' },
-              },
+        },
+        phones: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              phone: { type: 'string' },
+              confidence: { type: 'number' },
+              source_url: { type: 'string' },
+              type: { type: 'string' },
             },
           },
         },
       },
-    });
+    },
+  });
 
-    for (const e of (directResult?.emails || [])) {
-      if (e.email && e.email.includes('@')) {
-        enrichedEmails.push({
-          email: e.email,
-          pattern: 'web_search_direct',
-          confidence: e.confidence || 40,
-          sourceFound: e.source_url || '',
-          validationType: 'web_search_match',
-        });
-        if (e.source_url) sources.push({ type: 'email_direct_search', url: e.source_url, snippet: `Email: ${e.email}` });
-      }
-    }
+  // ── Phase 2: Process and save results ───────────────────────────────────
+  const companyName = result?.company && result.company !== 'unknown' ? result.company : '';
+  const companyDomain = result?.company_domain || '';
+  const jobTitle = result?.job_title && result.job_title !== 'unknown' ? result.job_title : '';
+  const fullName = result?.full_name && result.full_name !== 'unknown' ? result.full_name : '';
 
-    // Merge direct phone results into Phase C
-    const directPhones = (directResult?.phones || []).map((p: any) => ({
-      phone: toE164(p.phone || ''),
+  const enrichedEmails = (result?.emails || [])
+    .filter((e: any) => e.email && e.email.includes('@'))
+    .map((e: any) => ({
+      email: e.email,
+      pattern: 'web_search',
+      confidence: e.confidence || 40,
+      sourceFound: e.source_url || '',
+      validationType: e.validation_type || 'web_search_match',
+    }));
+
+  const enrichedPhones = (result?.phones || [])
+    .filter((p: any) => p.phone)
+    .map((p: any) => ({
+      phone: toE164(p.phone),
       type: p.type || 'unknown',
       locationMatch: false,
       confidence: p.confidence || 30,
       source: p.source_url || '',
     }));
-    for (const p of directPhones) {
-      if (p.source) sources.push({ type: 'phone_direct_search', url: p.source, snippet: `Phone: ${p.phone}` });
-    }
-    directPhoneResults = directPhones;
-    } catch (e: any) {
-      console.error('[leadCrossEnrich] Direct search phase failed:', e?.message);
-    }
-  }
 
-  // ── Phase C: Phone number resolution ───────────────────────────────────
-  let enrichedPhones: { phone: string; type: string; locationMatch: boolean; confidence: number; source: string }[] = [];
-  try {
-    enrichedPhones = await resolvePhoneNumbers(base44, personName, companyName, companyDomain, lead.location || '', '');
-  } catch (e: any) {
-    console.error('[leadCrossEnrich] Phase C failed:', e?.message);
-  }
-  // Merge direct phone results if available
-  if (directPhoneResults.length > 0) {
-    enrichedPhones = [...enrichedPhones, ...directPhoneResults];
-    // Deduplicate by phone number
-    const seen = new Set<string>();
-    enrichedPhones = enrichedPhones.filter(p => {
-      if (seen.has(p.phone)) return false;
-      seen.add(p.phone);
-      return true;
-    });
+  // Record sources from LLM findings
+  for (const e of enrichedEmails) {
+    if (e.sourceFound && !seenUrls.has(e.sourceFound)) {
+      seenUrls.add(e.sourceFound);
+      sources.push({ type: 'email_verification', url: e.sourceFound, snippet: `Email: ${e.email}` });
+    }
   }
   for (const p of enrichedPhones) {
-    if (p.source && !sources.some(s => s.url === p.source)) {
+    if (p.source && !seenUrls.has(p.source)) {
+      seenUrls.add(p.source);
       sources.push({ type: 'phone_verification', url: p.source, snippet: `Phone: ${p.phone} (${p.type})` });
     }
   }
 
-  // ── Determine best email/phone ─────────────────────────────────────────
+  // Best email/phone
   const bestEmail = enrichedEmails.length > 0
     ? enrichedEmails.reduce((best, e) => e.confidence > best.confidence ? e : best)
     : null;
@@ -519,36 +288,39 @@ Return JSON with:
     ? enrichedPhones.reduce((best, p) => p.confidence > best.confidence ? p : p)
     : null;
 
-  // ── Update the lead ────────────────────────────────────────────────────
+  // Enrichment status
+  const hasHighConfidenceEmail = enrichedEmails.some(e => e.confidence >= 70);
+  const hasHighConfidencePhone = enrichedPhones.some(p => p.confidence >= 70);
+  const enrichmentStatus = hasHighConfidenceEmail || hasHighConfidencePhone
+    ? 'fully_enriched'
+    : enrichedEmails.length > 0 || enrichedPhones.length > 0
+      ? 'partial'
+      : 'no_public_data';
+
+  // Identity confidence (max of all contact confidences)
+  const maxConfidence = Math.max(
+    ...enrichedEmails.map(e => e.confidence),
+    ...enrichedPhones.map(p => p.confidence),
+    0,
+  );
+
   const updateData: any = {
     leadCrossStatus: 'enriched',
     leadCrossEnrichedAt: new Date().toISOString(),
     enrichedEmailsJson: JSON.stringify(enrichedEmails),
     enrichedPhonesJson: JSON.stringify(enrichedPhones),
     leadCrossSourcesJson: JSON.stringify(sources),
-    companyName: companyName !== 'unknown' ? companyName : '',
+    companyName,
     companyDomain,
-    jobTitle: jobTitle !== 'unknown' ? jobTitle : '',
+    jobTitle,
+    enrichmentStatus,
+    status: lead.status === 'pushed' ? 'pushed' : 'enriched',
   };
 
-  // Update resolved email/phone with best results
-  if (bestEmail && bestEmail.confidence >= 50) {
-    updateData.resolvedEmail = bestEmail.email;
-  }
-  if (bestPhone && bestPhone.confidence >= 50) {
-    updateData.resolvedPhone = bestPhone.phone;
-  }
-
-  // Update enrichment status
-  const hasHighConfidenceEmail = enrichedEmails.some(e => e.confidence >= 70);
-  const hasHighConfidencePhone = enrichedPhones.some(p => p.confidence >= 70);
-  updateData.enrichmentStatus = hasHighConfidenceEmail || hasHighConfidencePhone
-    ? 'fully_enriched'
-    : enrichedEmails.length > 0 || enrichedPhones.length > 0
-      ? 'partial'
-      : 'no_public_data';
-  // Mark as enriched whenever LeadCross AI completes — enrichmentStatus captures the quality
-  updateData.status = lead.status === 'pushed' ? 'pushed' : 'enriched';
+  if (fullName) updateData.resolvedFullName = fullName;
+  if (bestEmail && bestEmail.confidence >= 50) updateData.resolvedEmail = bestEmail.email;
+  if (bestPhone && bestPhone.confidence >= 50) updateData.resolvedPhone = bestPhone.phone;
+  if (maxConfidence > 0) updateData.identityMatchConfidence = maxConfidence;
 
   await base44.asServiceRole.entities.ScrapedLead.update(leadId, updateData);
 
@@ -561,7 +333,7 @@ Return JSON with:
     enrichedPhones: enrichedPhones.length,
     bestEmail: bestEmail?.email || null,
     bestPhone: bestPhone?.phone || null,
-    enrichmentStatus: updateData.enrichmentStatus,
+    enrichmentStatus,
     sources: sources.length,
   };
 }
