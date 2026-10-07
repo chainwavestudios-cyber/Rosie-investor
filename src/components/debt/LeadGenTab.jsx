@@ -77,6 +77,8 @@ export default function LeadGenTab() {
   const [fitScreening, setFitScreening] = useState(false);
   const [fitScreenResult, setFitScreenResult] = useState(null);
   const [showExcluded, setShowExcluded] = useState(false);
+  const [filterHasPhone, setFilterHasPhone] = useState('all');
+  const [filterHasEmail, setFilterHasEmail] = useState('all');
 
   const loadLeads = useCallback(async () => {
     setLoading(true);
@@ -327,6 +329,16 @@ export default function LeadGenTab() {
     if (filterPlatform !== 'all' && l.platform !== filterPlatform) return false;
     if (filterStatus !== 'all' && l.status !== filterStatus) return false;
     if (filterDistress !== 'all' && l.distressCategory !== filterDistress) return false;
+    if (filterHasPhone !== 'all') {
+      const hasPhone = getEnrichedPhones(l).length > 0;
+      if (filterHasPhone === 'yes' && !hasPhone) return false;
+      if (filterHasPhone === 'no' && hasPhone) return false;
+    }
+    if (filterHasEmail !== 'all') {
+      const hasEmail = getEnrichedEmails(l).length > 0;
+      if (filterHasEmail === 'yes' && !hasEmail) return false;
+      if (filterHasEmail === 'no' && hasEmail) return false;
+    }
     if (searchText) {
       const s = searchText.toLowerCase();
       const hay = `${l.userHandle} ${l.postTitle} ${l.postText} ${l.resolvedFullName}`.toLowerCase();
@@ -358,18 +370,23 @@ export default function LeadGenTab() {
     fitLeads: leads.filter(l => l.debtFitStatus === 'fit').length,
     notFitLeads: leads.filter(l => l.debtFitStatus === 'not_fit').length,
     pendingFit: leads.filter(l => !l.debtFitStatus || l.debtFitStatus === 'pending' || l.debtFitStatus === 'screening').length,
+    withPhone: leads.filter(l => getEnrichedPhones(l).length > 0).length,
+    withEmail: leads.filter(l => getEnrichedEmails(l).length > 0).length,
+    withContact: leads.filter(l => getEnrichedPhones(l).length > 0 || getEnrichedEmails(l).length > 0).length,
   };
 
   return (
     <div>
       {/* Stats bar */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '10px', marginBottom: '16px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(8, 1fr)', gap: '10px', marginBottom: '16px' }}>
         <StatCard label="Total Scraped" value={stats.total} color="#c4cdd8" />
+        <StatCard label="With Phone 📞" value={stats.withPhone} color={GOLD} />
+        <StatCard label="With Email ✉" value={stats.withEmail} color={GOLD} />
+        <StatCard label="Has Contact" value={stats.withContact} color="#22d3ee" />
         <StatCard label="Debt-Fit ✓" value={stats.fitLeads} color="#22d3ee" />
         <StatCard label="Excluded ✗" value={stats.notFitLeads} color="#6b7280" />
         <StatCard label="Pending Screen" value={stats.pendingFit} color={AMBER} />
         <StatCard label="High Intent" value={stats.highIntent} color={GOLD} />
-        <StatCard label="Reddit" value={stats.byPlatform.reddit} color="#ff4500" />
       </div>
 
       {/* Distress category breakdown */}
@@ -427,6 +444,16 @@ export default function LeadGenTab() {
           <option value="B_emotional_panic">B — Panic</option>
           <option value="C_multicard_interest">C — Overwhelm</option>
           <option value="none">None</option>
+        </select>
+        <select value={filterHasPhone} onChange={e => setFilterHasPhone(e.target.value)} style={{ ...inp, maxWidth: '140px', cursor: 'pointer' }}>
+          <option value="all">All — Phone</option>
+          <option value="yes">Has Phone 📞</option>
+          <option value="no">No Phone</option>
+        </select>
+        <select value={filterHasEmail} onChange={e => setFilterHasEmail(e.target.value)} style={{ ...inp, maxWidth: '140px', cursor: 'pointer' }}>
+          <option value="all">All — Email</option>
+          <option value="yes">Has Email ✉</option>
+          <option value="no">No Email</option>
         </select>
         <label style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#8a9ab8', fontSize: '11px', cursor: 'pointer', whiteSpace: 'nowrap' }}>
           <input type="checkbox" checked={showExcluded} onChange={e => setShowExcluded(e.target.checked)} style={{ cursor: 'pointer' }} />
