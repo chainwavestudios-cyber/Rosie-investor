@@ -1,0 +1,55 @@
+{
+  "name": "BobTranscript",
+  "type": "object",
+  "properties": {
+    "sourceName": {
+      "type": "string",
+      "title": "Source Name (file name or label)"
+    },
+    "sourceType": {
+      "type": "string",
+      "title": "Source Type",
+      "enum": [
+        "mp3",
+        "pasted"
+      ],
+      "default": "mp3"
+    },
+    "transcriptText": {
+      "type": "string",
+      "title": "Full Transcript Text",
+      "format": "textarea"
+    },
+    "fileUri": {
+      "type": "string",
+      "title": "Private File URI (for MP3s)"
+    },
+    "fileHash": {
+      "type": "string",
+      "title": "File / Text Hash (for dedup)"
+    },
+    "extractedQaCount": {
+      "type": "number",
+      "title": "Q&A Entries Extracted",
+      "default": 0
+    },
+    "durationLabel": {
+      "type": "string",
+      "title": "Duration / Size Label"
+    },
+    "tags": {
+      "type": "string",
+      "title": "Tags"
+    }
+  },
+  "required": [
+    "sourceName",
+    "transcriptText"
+  ],
+  "rls": {
+    "create": null,
+    "read": null,
+    "update": null,
+    "delete": null
+  }
+}

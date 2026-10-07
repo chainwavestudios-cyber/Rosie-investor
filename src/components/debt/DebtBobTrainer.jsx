@@ -9,6 +9,7 @@ import { useDebtBobVoice } from '@/hooks/useDebtBobVoice';
 import { DEBT_DUCK, DEBT_COW, DEBT_OWL } from '@/components/admin/bob/DebtPersonas';
 import { BOB_CHARACTERS, getCharacter, DEFAULT_CHARACTER_ID, BOB_THINK_MODELS, DEFAULT_THINK_MODEL, TRANSFER_VOICES, getTransferVoice, DEFAULT_TRANSFER_VOICE_ID } from '@/components/debt/bob/BobCharacters';
 import DebtBobKB from '@/components/debt/DebtBobKB';
+import BobBrainTab from '@/components/debt/bob/BobBrainTab';
 import FloatingScriptBox from '@/components/debt/FloatingScriptBox';
 import AIAssistantPopup from '@/components/leads/AIAssistantPopup';
 import DebtScriptEditor from '@/components/debt/DebtScriptEditor';
@@ -41,7 +42,8 @@ const DEBT_KB_CATEGORIES = ['debt_kb', 'debt_faq', 'debt_agent', 'debt_customer'
 
 const SUB_TABS = [
   { id: 'training', label: '🎓 Training Room' },
-  { id: 'brain', label: '🧠 BOB\'s Brain' },
+  { id: 'bobbrain', label: '🧠 BobBrain' },
+  { id: 'brain', label: '📚 KB Library' },
   { id: 'log', label: '📋 Training Log' },
 ];
 
@@ -70,6 +72,7 @@ export default function DebtBobTrainer() {
   const [sessionId, setSessionId] = useState('Bob');
   const [kbCount, setKbCount] = useState(0);
   const [qaHistory, setQaHistory] = useState([]);
+  const [bobTranscripts, setBobTranscripts] = useState([]);
   const [dgApiKey, setDgApiKey] = useState('');
   const [scenario, setScenario] = useState({ customerName: 'Bob', customerAddress: '1428 Oak Ridge Dr', customerCity: 'Green Grove Springs', customerState: 'FL', customerZip: '32603', debtAmount: '35000', creditorCount: '5', creditors: 'Chase, Capital One, Discover, Amex, Citi', monthlyIncome: '3200', behindOnPayments: true, monthsBehind: '3', noticeNumber: 'N-4827', phone: '(352) 555-0142', hardship: 'I lost my job at the beginning of last year when the company downsized. I was out of work for about four months and had to rely on my credit cards to cover rent and groceries. Even after I found a new job, the interest rates had gone up so much that I am barely making minimum payments and the balances keep growing.' });
   const [callRefs, setCallRefs] = useState([]);
@@ -231,6 +234,10 @@ export default function DebtBobTrainer() {
         const qa = await base44.entities.DebtQAHistory.list('-created_date', 200);
         setQaHistory(qa || []);
       } catch {}
+      try {
+        const ts = await base44.entities.BobTranscript.list('-created_date', 30);
+        setBobTranscripts(ts || []);
+      } catch {}
     } catch {}
   }, []);
 
@@ -309,7 +316,7 @@ export default function DebtBobTrainer() {
   // high-quality digest instead of 40 truncated raw entries. Cached by KB size
   // so it only rebuilds when the brain actually changes.
   const ensureBrainDigest = useCallback(async () => {
-    const cacheKey = `${kbEntries.length}:${kbCount}:${qaHistory.length}`;
+    const cacheKey = `${kbEntries.length}:${kbCount}:${qaHistory.length}:${bobTranscripts.length}`;
     if (brainDigestKeyRef.current === cacheKey && brainDigestRef.current) {
       return brainDigestRef.current;
     }
@@ -324,6 +331,7 @@ export default function DebtBobTrainer() {
       const kbText = kbEntries.map(e => `Q: ${e.question}\nA: ${(e.answer || '').slice(0, 600)}`).join('\n\n');
       const scriptText = (debtScripts || []).map(s => `SCRIPT: ${s.name}\n${(s.content || '').slice(0, 500)}`).join('\n\n');
       const qaText = (qaHistory || []).slice(0, 100).map(q => `Q: ${q.question}\nA: ${(q.answer || '').slice(0, 400)}`).join('\n\n');
+      const transcriptText = (bobTranscripts || []).slice(0, 15).map(t => `[${t.sourceName}]: ${(t.transcriptText || '').slice(0, 800)}`).join('\n---\n');
       const result = await base44.integrations.Core.InvokeLLM({
         prompt: `You are preparing a condensed briefing for BOB, a roleplay customer in debt-settlement sales training. BOB has learned from the uploaded calls, transcripts, documents, websites, objections, Q&A, and live-call Q&A history below.
 
@@ -345,7 +353,10 @@ ${kbText}
 ${scriptText || 'None'}
 
 ━━━ LIVE-CALL Q&A HISTORY (${qaHistory?.length || 0}) ━━━
-${qaText || 'None'}`,
+${qaText || 'None'}
+
+━━━ SAVED CALL TRANSCRIPTS (${bobTranscripts?.length || 0}) ━━━
+${transcriptText || 'None'}`,
         response_json_schema: {
           type: 'object',
           properties: {
@@ -392,7 +403,7 @@ ${(r.conflicts || []).map(c => `- ${c}`).join('\n') || '- (none — sources agre
     } finally {
       setBuildingBrain(false);
     }
-  }, [kbEntries, kbCount, debtScripts, qaHistory]);
+  }, [kbEntries, kbCount, debtScripts, qaHistory, bobTranscripts]);
 
   const buildSystemPrompt = useCallback(() => {
     const persona = getActivePersona();
@@ -934,7 +945,10 @@ IMPORTANT: Ask these questions NATURALLY during the call. Weave them into the co
         </>
       )}
 
-      {/* BOB's Brain */}
+      {/* BobBrain — master knowledge engine */}
+      {subTab === 'bobbrain' && <BobBrainTab onKBUpdated={loadKB} />}
+
+      {/* KB Library — docs, websites, objections, scenarios */}
       {subTab === 'brain' && <DebtBobKB onKBUpdated={loadKB} />}
 
       {/* Training Log */}
