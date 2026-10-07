@@ -25,6 +25,32 @@ const STATUS_COLORS = { raw: '#6b7280', enriching: AMBER, enriched: GOLD, assign
 const DISTRESS_COLORS = { A_screwed_drowning: RED, B_emotional_panic: AMBER, C_multicard_interest: PURPLE, none: '#4a5568' };
 const DISTRESS_LABELS = { A_screwed_drowning: 'A — Drowning', B_emotional_panic: 'B — Panic', C_multicard_interest: 'C — Overwhelm', none: 'None' };
 
+// Extract all phone numbers from a scraped lead (resolved + LeadCross AI enriched)
+function getEnrichedPhones(lead) {
+  const phones = [];
+  if (lead.resolvedPhone) phones.push(lead.resolvedPhone);
+  try {
+    const enriched = JSON.parse(lead.enrichedPhonesJson || '[]');
+    for (const p of enriched) {
+      if (p.phone && !phones.includes(p.phone)) phones.push(p.phone);
+    }
+  } catch {}
+  return phones;
+}
+
+// Extract all emails from a scraped lead (resolved + LeadCross AI enriched)
+function getEnrichedEmails(lead) {
+  const emails = [];
+  if (lead.resolvedEmail) emails.push(lead.resolvedEmail);
+  try {
+    const enriched = JSON.parse(lead.enrichedEmailsJson || '[]');
+    for (const e of enriched) {
+      if (e.email && !emails.includes(e.email)) emails.push(e.email);
+    }
+  } catch {}
+  return emails;
+}
+
 export default function LeadGenTab() {
   const { user: coachUser } = useDebtCoachAuth();
   const [leads, setLeads] = useState([]);
@@ -442,9 +468,9 @@ export default function LeadGenTab() {
                     {lead.identityMatchConfidence != null && <div style={{ color: lead.identityMatchConfidence >= 70 ? GOLD : '#6b7280', fontSize: '10px', marginTop: '2px' }}>{lead.identityMatchConfidence}% conf</div>}
                   </td>
                   <td style={{ padding: '10px 12px', maxWidth: '180px' }}>
-                    {lead.resolvedEmail && <div style={{ color: GOLD, fontSize: '10px' }}>✉ {lead.resolvedEmail}</div>}
-                    {lead.resolvedPhone && <div style={{ color: GOLD, fontSize: '10px' }}>📞 {lead.resolvedPhone}</div>}
-                    {!lead.resolvedEmail && !lead.resolvedPhone && <span style={{ color: '#4a5568', fontSize: '10px' }}>{lead.enrichmentStatus || 'pending'}</span>}
+                    {getEnrichedEmails(lead).map((em, i) => <div key={'e' + i} style={{ color: GOLD, fontSize: '10px' }}>✉ {em}</div>)}
+                    {getEnrichedPhones(lead).map((ph, i) => <div key={'p' + i} style={{ color: GOLD, fontSize: '10px' }}>📞 {ph}</div>)}
+                    {getEnrichedPhones(lead).length === 0 && getEnrichedEmails(lead).length === 0 && <span style={{ color: '#4a5568', fontSize: '10px' }}>{lead.enrichmentStatus || 'pending'}</span>}
                     {lead.leadCrossStatus === 'enriched' && <span style={{ display: 'inline-block', marginTop: '2px', padding: '1px 6px', borderRadius: '2px', background: 'rgba(167,139,250,0.15)', color: '#a78bfa', fontSize: '8px', fontWeight: 'bold', textTransform: 'uppercase' }}>Cross-AI ✓</span>}
                     {lead.leadCrossStatus === 'processing' && <span style={{ display: 'inline-block', marginTop: '2px', padding: '1px 6px', borderRadius: '2px', background: 'rgba(245,158,11,0.15)', color: AMBER, fontSize: '8px', fontWeight: 'bold', textTransform: 'uppercase' }}>Cross-AI ⏳</span>}
                   </td>
