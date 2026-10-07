@@ -7,6 +7,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useDebtBobVoice } from '@/hooks/useDebtBobVoice';
 import { DEBT_DUCK, DEBT_COW, DEBT_OWL } from '@/components/admin/bob/DebtPersonas';
+import { BOB_CHARACTERS, getCharacter, DEFAULT_CHARACTER_ID, BOB_THINK_MODELS, DEFAULT_THINK_MODEL } from '@/components/debt/bob/BobCharacters';
 import DebtBobKB from '@/components/debt/DebtBobKB';
 import FloatingScriptBox from '@/components/debt/FloatingScriptBox';
 import AIAssistantPopup from '@/components/leads/AIAssistantPopup';
@@ -55,6 +56,12 @@ export default function DebtBobTrainer() {
   const [intensity, setIntensity] = useState(3);
   const [focusTopic, setFocusTopic] = useState('General');
   const [voiceModel, setVoiceModel] = useState(VOICE_MODELS[0]);
+  const [characterId, setCharacterId] = useState(DEFAULT_CHARACTER_ID);
+  const [thinkModel, setThinkModel] = useState(DEFAULT_THINK_MODEL);
+  const [brainDigest, setBrainDigest] = useState('');
+  const [buildingBrain, setBuildingBrain] = useState(false);
+  const brainDigestRef = useRef('');
+  const brainDigestKeyRef = useRef('');
   const [kbEntries, setKbEntries] = useState([]);
   const [transcript, setTranscript] = useState([]);
   const [logs, setLogs] = useState([]);
@@ -291,8 +298,91 @@ export default function DebtBobTrainer() {
     return DEBT_COW;
   }, [sliderValue]);
 
+  // ── Smarter Brain: synthesize ALL uploaded KB (MP3s, transcripts, docs, Q&A,
+  // objections, scripts) into one condensed briefing via LLM, so BOB gets a
+  // high-quality digest instead of 40 truncated raw entries. Cached by KB size
+  // so it only rebuilds when the brain actually changes.
+  const ensureBrainDigest = useCallback(async () => {
+    const cacheKey = `${kbEntries.length}:${kbCount}`;
+    if (brainDigestKeyRef.current === cacheKey && brainDigestRef.current) {
+      return brainDigestRef.current;
+    }
+    if (kbEntries.length === 0) {
+      brainDigestRef.current = '';
+      brainDigestKeyRef.current = cacheKey;
+      setBrainDigest('');
+      return '';
+    }
+    setBuildingBrain(true);
+    try {
+      const kbText = kbEntries.map(e => `Q: ${e.question}\nA: ${(e.answer || '').slice(0, 600)}`).join('\n\n');
+      const scriptText = (debtScripts || []).map(s => `SCRIPT: ${s.name}\n${(s.content || '').slice(0, 500)}`).join('\n\n');
+      const result = await base44.integrations.Core.InvokeLLM({
+        prompt: `You are preparing a condensed briefing for BOB, a roleplay customer in debt-settlement sales training. BOB has learned from the uploaded calls, transcripts, documents, websites, objections, and Q&A below.
+
+Synthesize everything into a TIGHT, ACTIONABLE briefing BOB will use to act like a real, well-informed customer. Organize as:
+
+1. KEY PROGRAM FACTS (8-12 bullets): What BOB knows about how the program works — escrow, negotiations, 30-40% reductions, zero interest, credit impact, timeline, fees, creditor behavior.
+2. COMMON OBJECTIONS (6-10): Real objections customers raise, phrased the way a customer would actually say them.
+3. CUSTOMER QUESTIONS (8-12): Real questions customers ask, phrased naturally.
+4. CLOSING SIGNALS (4-6): What customers say when they are ready to enroll, so BOB knows when to let the closer close.
+5. DISQUALIFIERS (3-5): Topics that would disqualify a customer (bankruptcy, income, debt type) that BOB might mention naturally.
+
+Keep it under 1200 words. No fluff. This is injected directly into BOB's system prompt.
+
+━━━ KNOWLEDGE BASE ENTRIES (${kbEntries.length}) ━━━
+${kbText}
+
+━━━ SCRIPTS (${debtScripts?.length || 0}) ━━━
+${scriptText || 'None'}`,
+        response_json_schema: {
+          type: 'object',
+          properties: {
+            key_facts: { type: 'array', items: { type: 'string' } },
+            objections: { type: 'array', items: { type: 'string' } },
+            questions: { type: 'array', items: { type: 'string' } },
+            closing_signals: { type: 'array', items: { type: 'string' } },
+            disqualifiers: { type: 'array', items: { type: 'string' } },
+          },
+        },
+      });
+      const r = result?.data || result || {};
+      const digest = `━━━ BOB'S BRAIN — CONDENSED BRIEFING (synthesized from ${kbEntries.length} learned items) ━━━
+
+KEY PROGRAM FACTS BOB KNOWS:
+${(r.key_facts || []).map(f => `- ${f}`).join('\n') || '- (none yet)'}
+
+OBJECTIONS BOB WILL VOICE NATURALLY:
+${(r.objections || []).map(o => `- ${o}`).join('\n') || '- (none yet)'}
+
+QUESTIONS BOB WILL ASK NATURALLY:
+${(r.questions || []).map(q => `- ${q}`).join('\n') || '- (none yet)'}
+
+CLOSING SIGNALS (when BOB is ready to enroll):
+${(r.closing_signals || []).map(c => `- ${c}`).join('\n') || '- (none yet)'}
+
+DISQUALIFIERS BOB MIGHT MENTION:
+${(r.disqualifiers || []).map(d => `- ${d}`).join('\n') || '- (none yet)'}`;
+      brainDigestRef.current = digest;
+      brainDigestKeyRef.current = cacheKey;
+      setBrainDigest(digest);
+      return digest;
+    } catch (e) {
+      console.warn('[BOB] Brain digest failed, using raw KB:', e);
+      const fallback = kbEntries.slice(0, 40).map(e => `Q: ${e.question}\nA: ${(e.answer || '').slice(0, 400)}`).join('\n\n');
+      brainDigestRef.current = fallback;
+      brainDigestKeyRef.current = cacheKey;
+      setBrainDigest(fallback);
+      return fallback;
+    } finally {
+      setBuildingBrain(false);
+    }
+  }, [kbEntries, kbCount, debtScripts]);
+
   const buildSystemPrompt = useCallback(() => {
     const persona = getActivePersona();
+    const character = getCharacter(characterId);
+    const digest = brainDigestRef.current || brainDigest || '';
     const kbText = kbEntries.slice(0, 40).map(e => {
       const ans = (e.answer || '').slice(0, 400);
       return `Q: ${e.question}\nA: ${ans}`;
@@ -373,6 +463,8 @@ A: ${refCall.answer}
 
     return `${persona.systemPrompt}
 
+${character.personalityPrompt}
+
 ━━━ ⚠ CRITICAL — REACT, DON'T VOLUNTEER ━━━
 You called in for help. WAIT for the closer to speak and guide the call. You do NOT volunteer information before being asked.
 - Do NOT offer your notice number, phone, address, or debt details until the closer specifically asks for them.
@@ -415,7 +507,7 @@ ${objText || 'No objections cataloged yet. Upload call recordings to BOB\'s Brai
 You MUST raise at least ${minObjections} of these objections during the call. At lower slider values (Duck), use MORE. At higher values (Cow), use fewer but still push back at least once. Pick objections that fit the moment — don't read them like a list.
 
 ━━━ DEBT SETTLEMENT KNOWLEDGE BASE — LEARNED FROM REAL CALLS ━━━
-${kbText || 'No KB entries yet. Upload calls, documents, and websites to BOB\'s Brain to make BOB smarter and more realistic.'}
+${digest || kbText || 'No KB entries yet. Upload calls, documents, and websites to BOB\'s Brain to make BOB smarter and more realistic.'}
 
 ━━━ CUSTOMER QUESTIONS — YOU MUST ASK AT LEAST ${minQuestions} OF THESE ━━━
 You are a REAL customer with questions. You MUST ask at least ${minQuestions} questions during this call. Space them out naturally — one every 30-60 seconds. Ask one, wait for the full answer, then continue. DO NOT go the whole call without asking questions. Pick from the list below based on what's being discussed.
@@ -441,25 +533,29 @@ IMPORTANT: Ask these questions NATURALLY during the call. Weave them into the co
 - Use natural speech: contractions, interruptions, "uh", "look", "listen", "I mean" — real people talk like this.
 - React to what the trainee actually says — improvise within your persona, don't just recite lines.
 - Use the KNOWLEDGE BASE above to inform your responses — if the closer mentions program details, fees, or timelines that match the KB, react realistically based on what you know.`;
-  }, [sliderValue, intensity, focusTopic, kbEntries, getActivePersona, scenario, callRefs, selectedCallRefId, mode, objections, openScenarios, closeScenarios, debtScripts]);
+  }, [sliderValue, intensity, focusTopic, kbEntries, getActivePersona, scenario, callRefs, selectedCallRefId, mode, objections, openScenarios, closeScenarios, debtScripts, characterId, brainDigest]);
 
   const handleStartCall = useCallback(async () => {
     const newCount = callCount + 1;
     setCallCount(newCount);
-    const label = newCount === 1 ? 'Bob' : `Bob${newCount - 1}`;
+    const character = getCharacter(characterId);
+    const label = character.name;
     setSessionId(label);
     setTranscript([]);
-    const vIdx = (newCount - 1) % VOICE_MODELS.length;
-    setVoiceModel(VOICE_MODELS[vIdx]);
+    // Use the character's matched voice — no more random cycling per call
+    setVoiceModel(character.voiceModel);
+
+    // Build the smarter brain digest before the call so BOB has synthesized knowledge
+    await ensureBrainDigest();
 
     // Use the same key as the admin BobTab — the hardcoded Voice Agent key works there
     const apiKey = dgApiKey || '44294c0c2f0ebbcc81b853151056111226b853e9';
-    console.log('[BOB] Using Deepgram key prefix:', apiKey.slice(0, 8) + '...');
-    const greetings = ['Hello.', 'Hello?', 'Hello, this is Bob.', 'Yeah?', 'Hello, go ahead.'];
+    console.log('[BOB] Using Deepgram key prefix:', apiKey.slice(0, 8) + '...', 'Voice:', character.voiceModel, 'Think:', thinkModel);
+    const greetings = ['Hello.', 'Hello?', 'Yeah?', 'Hello, go ahead.', 'Hi?'];
     const greeting = greetings[Math.floor(Math.random() * greetings.length)];
 
-    await startCall({ apiKey, systemPrompt: buildSystemPrompt(), voiceModel: VOICE_MODELS[vIdx], greeting, sessionLabel: label, mode, closerName, scenario });
-  }, [callCount, startCall, buildSystemPrompt, dgApiKey, mode, closerName, scenario]);
+    await startCall({ apiKey, systemPrompt: buildSystemPrompt(), voiceModel: character.voiceModel, greeting, sessionLabel: label, mode, closerName, scenario, thinkModel });
+  }, [callCount, startCall, buildSystemPrompt, dgApiKey, mode, closerName, scenario, characterId, thinkModel, ensureBrainDigest]);
 
   const sliderLabel = sliderValue < 20 ? '🦆 Full Duck' : sliderValue < 40 ? '🦆 Duck-Owl' : sliderValue < 60 ? '🦉 Owl (Hybrid)' : sliderValue < 80 ? '🐄 Owl-Cow' : '🐄 Full Cow';
   const sliderColor = sliderValue < 33 ? '#ef4444' : sliderValue < 67 ? '#f59e0b' : '#4ade80';
@@ -545,12 +641,30 @@ IMPORTANT: Ask these questions NATURALLY during the call. Weave them into the co
                 </div>
               )}
 
-              {/* Voice model */}
+              {/* Character / personality selector — matches voice to personality */}
               <div style={{ marginBottom: '12px' }}>
-                <label style={ls}>🗣 Voice Model</label>
+                <label style={ls}>🎭 Character / Personality</label>
+                <select value={characterId} onChange={e => { setCharacterId(e.target.value); const c = getCharacter(e.target.value); setVoiceModel(c.voiceModel); }} disabled={phase !== 'idle'} style={{ ...inp, cursor: 'pointer' }}>
+                  {BOB_CHARACTERS.map(c => <option key={c.id} value={c.id}>{c.emoji} {c.name}</option>)}
+                </select>
+                <div style={{ color: '#6b7280', fontSize: '10px', marginTop: '4px' }}>{getCharacter(characterId).description}</div>
+              </div>
+
+              {/* Voice model — auto-matched to character, but still adjustable */}
+              <div style={{ marginBottom: '12px' }}>
+                <label style={ls}>🗣 Voice Model (matched to character)</label>
                 <select value={voiceModel} onChange={e => setVoiceModel(e.target.value)} disabled={phase !== 'idle'} style={{ ...inp, cursor: 'pointer' }}>
                   {VOICE_MODELS.map(v => <option key={v} value={v}>{v}</option>)}
                 </select>
+              </div>
+
+              {/* LLM brain model — controls how smart BOB thinks */}
+              <div style={{ marginBottom: '12px' }}>
+                <label style={ls}>🧠 BOB Brain (LLM Model)</label>
+                <select value={thinkModel} onChange={e => setThinkModel(e.target.value)} disabled={phase !== 'idle'} style={{ ...inp, cursor: 'pointer' }}>
+                  {BOB_THINK_MODELS.map(m => <option key={m.id} value={m.id}>{m.label}</option>)}
+                </select>
+                <div style={{ color: '#6b7280', fontSize: '10px', marginTop: '4px' }}>{(BOB_THINK_MODELS.find(m => m.id === thinkModel) || {}).description}</div>
               </div>
 
               {/* Closer name — used by transfer agent to introduce you */}
