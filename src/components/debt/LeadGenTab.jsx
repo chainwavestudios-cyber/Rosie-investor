@@ -120,7 +120,7 @@ export default function LeadGenTab() {
   const enrichLead = async (leadId) => {
     setEnriching(true);
     try {
-      await base44.functions.invoke('resolveLeadIdentity', { leadId });
+      await base44.functions.invoke('leadCrossEnrich', { leadId });
       loadLeads();
     } catch (e) { setError('Enrichment failed: ' + (e?.message || String(e))); }
     setEnriching(false);
@@ -129,7 +129,9 @@ export default function LeadGenTab() {
   const enrichAll = async () => {
     setEnriching(true);
     try {
-      await base44.functions.invoke('resolveLeadIdentity', { bulk: true });
+      const rawLeadIds = leads.filter(l => l.status === 'raw').map(l => l.id);
+      if (rawLeadIds.length === 0) { setEnriching(false); return; }
+      await base44.functions.invoke('leadCrossEnrich', { bulk: true, leadIds: rawLeadIds });
       loadLeads();
     } catch (e) { setError('Bulk enrichment failed: ' + (e?.message || String(e))); }
     setEnriching(false);
@@ -339,8 +341,8 @@ export default function LeadGenTab() {
         <button onClick={runScraper} disabled={scraping} style={{ background: 'linear-gradient(135deg,#10b981,#22c55e)', color: DARK, border: 'none', borderRadius: '4px', padding: '10px 24px', cursor: scraping ? 'not-allowed' : 'pointer', fontSize: '12px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase', opacity: scraping ? 0.5 : 1 }}>
           {scraping ? '⏳ Scraping…' : '🔴 Run Scraper'}
         </button>
-        <button onClick={enrichAll} disabled={enriching} style={{ background: `${BLUE}18`, color: BLUE, border: `1px solid ${BLUE}44`, borderRadius: '4px', padding: '10px 20px', cursor: enriching ? 'not-allowed' : 'pointer', fontSize: '12px', fontWeight: 'bold', opacity: enriching ? 0.5 : 1 }}>
-          {enriching ? '⏳ Enriching…' : '🔍 Enrich All Raw'}
+        <button onClick={enrichAll} disabled={enriching} style={{ background: 'linear-gradient(135deg,#a78bfa,#7c3aed)', color: '#fff', border: 'none', borderRadius: '4px', padding: '10px 20px', cursor: enriching ? 'not-allowed' : 'pointer', fontSize: '12px', fontWeight: 'bold', opacity: enriching ? 0.5 : 1 }}>
+          {enriching ? '⏳ Enriching…' : '🚀 Enrich All Raw'}
         </button>
         <button onClick={loadLeads} style={{ background: 'rgba(255,255,255,0.05)', color: '#8a9ab8', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '4px', padding: '10px 16px', cursor: 'pointer', fontSize: '12px' }}>🔄 Refresh</button>
 
@@ -480,10 +482,7 @@ export default function LeadGenTab() {
                       {lead.status !== 'pushed' && lead.status !== 'rejected' && (
                         <button onClick={() => setRejectingLead(lead)} style={{ background: 'rgba(239,68,68,0.12)', color: RED, border: '1px solid rgba(239,68,68,0.3)', borderRadius: '3px', padding: '4px 8px', cursor: 'pointer', fontSize: '10px' }}>🚫 Reject</button>
                       )}
-                      <button onClick={() => enrichSingleLeadCross(lead.id)} disabled={crossEnriching} style={{ background: 'rgba(167,139,250,0.18)', color: '#a78bfa', border: '1px solid rgba(167,139,250,0.44)', borderRadius: '3px', padding: '4px 8px', cursor: 'pointer', fontSize: '10px', opacity: crossEnriching ? 0.5 : 1 }}>🚀 Cross-AI</button>
-                      {lead.status === 'raw' && (
-                        <button onClick={() => enrichLead(lead.id)} disabled={enriching} style={{ background: `${BLUE}18`, color: BLUE, border: `1px solid ${BLUE}44`, borderRadius: '3px', padding: '4px 8px', cursor: 'pointer', fontSize: '10px', opacity: enriching ? 0.5 : 1 }}>🔍 Enrich</button>
-                      )}
+                      <button onClick={() => enrichSingleLeadCross(lead.id)} disabled={crossEnriching} style={{ background: 'rgba(167,139,250,0.18)', color: '#a78bfa', border: '1px solid rgba(167,139,250,0.44)', borderRadius: '3px', padding: '4px 8px', cursor: 'pointer', fontSize: '10px', opacity: crossEnriching ? 0.5 : 1 }}>🚀 Enrich</button>
                       {lead.status !== 'pushed' && (
                         <button onClick={() => pushToCampaign(lead)} disabled={pushing === lead.id} style={{ background: 'linear-gradient(135deg,#10b981,#22c55e)', color: DARK, border: 'none', borderRadius: '3px', padding: '4px 10px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold', opacity: pushing === lead.id ? 0.5 : 1 }}>
                           {pushing === lead.id ? '⏳' : '→ Push'}
