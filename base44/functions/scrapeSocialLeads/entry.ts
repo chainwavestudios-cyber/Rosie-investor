@@ -704,7 +704,7 @@ export default async function(req: Request): Promise<Response> {
       }
       for (const lead of newLeads) {
         if (existingUrls.has(lead.postUrl)) { duplicatesSkipped++; continue; }
-        toCreate.push(lead);
+        toCreate.push({ ...lead, debtFitStatus: 'pending' });
       }
     }
 

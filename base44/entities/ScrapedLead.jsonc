@@ -205,6 +205,32 @@
       "type": "string",
       "title": "LeadCross AI \u2014 Source Traceability (JSON array of source URLs/snippets)",
       "format": "textarea"
+    },
+    "debtFitStatus": {
+      "type": "string",
+      "title": "AI Debt-Fit Screening Status",
+      "enum": [
+        "pending",
+        "screening",
+        "fit",
+        "not_fit",
+        "ambiguous"
+      ],
+      "default": "pending"
+    },
+    "debtFitReason": {
+      "type": "string",
+      "title": "AI Debt-Fit Reason (brief explanation)",
+      "format": "textarea"
+    },
+    "debtFitConfidence": {
+      "type": "number",
+      "title": "AI Debt-Fit Confidence (0-100)"
+    },
+    "debtFitScreenedAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "AI Debt-Fit Screened At"
     }
   },
   "required": [

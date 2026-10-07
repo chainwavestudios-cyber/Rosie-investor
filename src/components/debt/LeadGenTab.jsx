@@ -74,6 +74,9 @@ export default function LeadGenTab() {
   const [crossEnriching, setCrossEnriching] = useState(false);
   const [crossEnrichResult, setCrossEnrichResult] = useState(null);
   const [rejectingLead, setRejectingLead] = useState(null);
+  const [fitScreening, setFitScreening] = useState(false);
+  const [fitScreenResult, setFitScreenResult] = useState(null);
+  const [showExcluded, setShowExcluded] = useState(false);
 
   const loadLeads = useCallback(async () => {
     setLoading(true);
@@ -113,8 +116,35 @@ export default function LeadGenTab() {
       const data = res?.data || res;
       setScrapeResult(data);
       loadLeads();
+      // Auto-trigger debt-fit screening for newly scraped leads
+      if (data?.newLeadsCreated > 0) {
+        screenPendingLeads();
+      }
     } catch (e) { setError('Scrape failed: ' + (e?.message || String(e))); }
     setScraping(false);
+  };
+
+  const screenPendingLeads = async () => {
+    setFitScreening(true); setFitScreenResult(null);
+    try {
+      const res = await base44.functions.invoke('screenDebtFit', { bulk: true, pending: true });
+      setFitScreenResult(res?.data || res);
+      loadLeads();
+    } catch (e) { setError('Debt-fit screening failed: ' + (e?.message || String(e))); }
+    setFitScreening(false);
+  };
+
+  const screenSingleFit = async (leadId) => {
+    setFitScreening(true);
+    try {
+      await base44.functions.invoke('screenDebtFit', { leadId });
+      loadLeads();
+      if (selectedLead?.id === leadId) {
+        const updated = await base44.entities.ScrapedLead.get(leadId);
+        setSelectedLead(updated);
+      }
+    } catch (e) { setError('Debt-fit screening failed: ' + (e?.message || String(e))); }
+    setFitScreening(false);
   };
 
   const enrichLead = async (leadId) => {
@@ -282,8 +312,9 @@ export default function LeadGenTab() {
     } catch (e) { setError('Test failed: ' + (e?.message || String(e))); }
   };
 
-  // Filter leads
+  // Filter leads — exclude AI debt-fit "not_fit" leads unless user toggles showExcluded
   const filtered = leads.filter(l => {
+    if (!showExcluded && l.debtFitStatus === 'not_fit') return false;
     if (filterPlatform !== 'all' && l.platform !== filterPlatform) return false;
     if (filterStatus !== 'all' && l.status !== filterStatus) return false;
     if (filterDistress !== 'all' && l.distressCategory !== filterDistress) return false;
@@ -315,6 +346,9 @@ export default function LeadGenTab() {
       C_multicard_interest: leads.filter(l => l.distressCategory === 'C_multicard_interest').length,
     },
     highIntent: leads.filter(l => l.extractedDebtAmount >= 10000 || l.distressCategory !== 'none').length,
+    fitLeads: leads.filter(l => l.debtFitStatus === 'fit').length,
+    notFitLeads: leads.filter(l => l.debtFitStatus === 'not_fit').length,
+    pendingFit: leads.filter(l => !l.debtFitStatus || l.debtFitStatus === 'pending' || l.debtFitStatus === 'screening').length,
   };
 
   return (
@@ -322,11 +356,11 @@ export default function LeadGenTab() {
       {/* Stats bar */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '10px', marginBottom: '16px' }}>
         <StatCard label="Total Scraped" value={stats.total} color="#c4cdd8" />
+        <StatCard label="Debt-Fit ✓" value={stats.fitLeads} color="#22d3ee" />
+        <StatCard label="Excluded ✗" value={stats.notFitLeads} color="#6b7280" />
+        <StatCard label="Pending Screen" value={stats.pendingFit} color={AMBER} />
         <StatCard label="High Intent" value={stats.highIntent} color={GOLD} />
         <StatCard label="Reddit" value={stats.byPlatform.reddit} color="#ff4500" />
-        <StatCard label="Quora" value={stats.byPlatform.quora} color="#b92b27" />
-        <StatCard label="Stack Exch" value={stats.byPlatform.stackexchange} color="#f48024" />
-        <StatCard label="X + FB" value={stats.byPlatform.x_twitter + stats.byPlatform.facebook} color="#1d9bf0" />
       </div>
 
       {/* Distress category breakdown */}
@@ -345,6 +379,10 @@ export default function LeadGenTab() {
           {enriching ? '⏳ Enriching…' : '🚀 Enrich All Raw'}
         </button>
         <button onClick={loadLeads} style={{ background: 'rgba(255,255,255,0.05)', color: '#8a9ab8', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '4px', padding: '10px 16px', cursor: 'pointer', fontSize: '12px' }}>🔄 Refresh</button>
+
+        <button onClick={screenPendingLeads} disabled={fitScreening} style={{ background: 'linear-gradient(135deg,#22d3ee,#0891b2)', color: '#0a0f1e', border: 'none', borderRadius: '4px', padding: '10px 20px', cursor: fitScreening ? 'not-allowed' : 'pointer', fontSize: '12px', fontWeight: 'bold', opacity: fitScreening ? 0.5 : 1 }}>
+          {fitScreening ? '⏳ Screening…' : '🧠 Screen Debt Fit'}
+        </button>
 
         <button onClick={runLeadCrossEnrich} disabled={crossEnriching || selectedIds.size === 0} style={{ background: 'linear-gradient(135deg,#a78bfa,#7c3aed)', color: '#fff', border: 'none', borderRadius: '4px', padding: '10px 20px', cursor: crossEnriching || selectedIds.size === 0 ? 'not-allowed' : 'pointer', fontSize: '12px', fontWeight: 'bold', opacity: crossEnriching || selectedIds.size === 0 ? 0.5 : 1 }}>
           {crossEnriching ? '⏳ Cross-AI…' : `🚀 LeadCross AI (${selectedIds.size})`}
@@ -381,6 +419,10 @@ export default function LeadGenTab() {
           <option value="C_multicard_interest">C — Overwhelm</option>
           <option value="none">None</option>
         </select>
+        <label style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#8a9ab8', fontSize: '11px', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+          <input type="checkbox" checked={showExcluded} onChange={e => setShowExcluded(e.target.checked)} style={{ cursor: 'pointer' }} />
+          Show excluded
+        </label>
       </div>
 
       {scrapeResult && (
@@ -393,6 +435,12 @@ export default function LeadGenTab() {
       {crossEnrichResult && (
         <div style={{ marginBottom: '12px', padding: '12px 16px', background: 'rgba(167,139,250,0.08)', border: `1px solid #a78bfa44`, borderRadius: '4px', color: '#a78bfa', fontSize: '12px' }}>
           🚀 LeadCross AI complete: {crossEnrichResult.enriched} enriched, {crossEnrichResult.failed} failed out of {crossEnrichResult.processed} leads
+        </div>
+      )}
+
+      {fitScreenResult && (
+        <div style={{ marginBottom: '12px', padding: '12px 16px', background: 'rgba(34,211,238,0.08)', border: `1px solid #22d3ee44`, borderRadius: '4px', color: '#22d3ee', fontSize: '12px' }}>
+          🧠 Debt-fit screening complete: {fitScreenResult.fit} fit, {fitScreenResult.notFit} excluded, {fitScreenResult.ambiguous} ambiguous out of {fitScreenResult.processed} leads
         </div>
       )}
 
@@ -470,7 +518,12 @@ export default function LeadGenTab() {
                     {lead.identityMatchConfidence != null && <div style={{ color: lead.identityMatchConfidence >= 70 ? GOLD : '#6b7280', fontSize: '10px', marginTop: '2px' }}>{lead.identityMatchConfidence}% conf</div>}
                   </td>
                   <td style={{ padding: '10px 12px', maxWidth: '180px' }}>
-                    {getEnrichedEmails(lead).map((em, i) => <div key={'e' + i} style={{ color: GOLD, fontSize: '10px' }}>✉ {em}</div>)}
+                    {lead.debtFitStatus === 'fit' && <span style={{ display: 'inline-block', marginBottom: '2px', padding: '1px 6px', borderRadius: '2px', background: 'rgba(34,211,238,0.15)', color: '#22d3ee', fontSize: '8px', fontWeight: 'bold', textTransform: 'uppercase' }}>Debt-Fit ✓</span>}
+                    {lead.debtFitStatus === 'not_fit' && <span style={{ display: 'inline-block', marginBottom: '2px', padding: '1px 6px', borderRadius: '2px', background: 'rgba(107,114,128,0.15)', color: '#9ca3af', fontSize: '8px', fontWeight: 'bold', textTransform: 'uppercase' }}>Excluded ✗</span>}
+                    {lead.debtFitStatus === 'ambiguous' && <span style={{ display: 'inline-block', marginBottom: '2px', padding: '1px 6px', borderRadius: '2px', background: 'rgba(245,158,11,0.15)', color: AMBER, fontSize: '8px', fontWeight: 'bold', textTransform: 'uppercase' }}>Ambiguous ?</span>}
+                    {(!lead.debtFitStatus || lead.debtFitStatus === 'pending' || lead.debtFitStatus === 'screening') && <span style={{ display: 'inline-block', marginBottom: '2px', padding: '1px 6px', borderRadius: '2px', background: 'rgba(138,154,184,0.1)', color: '#8a9ab8', fontSize: '8px', fontWeight: 'bold', textTransform: 'uppercase' }}>{lead.debtFitStatus === 'screening' ? 'Screening…' : 'Not Screened'}</span>}
+                    {lead.debtFitReason && <div style={{ color: '#6b7280', fontSize: '9px', marginTop: '2px', lineHeight: 1.3, maxHeight: '28px', overflow: 'hidden' }}>{lead.debtFitReason}</div>}
+                    {getEnrichedEmails(lead).map((em, i) => <div key={'e' + i} style={{ color: GOLD, fontSize: '10px', marginTop: '2px' }}>✉ {em}</div>)}
                     {getEnrichedPhones(lead).map((ph, i) => <div key={'p' + i} style={{ color: GOLD, fontSize: '10px' }}>📞 {ph}</div>)}
                     {getEnrichedPhones(lead).length === 0 && getEnrichedEmails(lead).length === 0 && <span style={{ color: '#4a5568', fontSize: '10px' }}>{lead.enrichmentStatus || 'pending'}</span>}
                     {lead.leadCrossStatus === 'enriched' && <span style={{ display: 'inline-block', marginTop: '2px', padding: '1px 6px', borderRadius: '2px', background: 'rgba(167,139,250,0.15)', color: '#a78bfa', fontSize: '8px', fontWeight: 'bold', textTransform: 'uppercase' }}>Cross-AI ✓</span>}
@@ -479,6 +532,7 @@ export default function LeadGenTab() {
                   <td style={{ padding: '10px 12px', textAlign: 'center' }}>
                     <div style={{ display: 'flex', gap: '4px', justifyContent: 'center', flexWrap: 'wrap' }}>
                       <button onClick={() => setSelectedLead(lead)} style={{ background: 'rgba(255,255,255,0.05)', color: '#8a9ab8', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '3px', padding: '4px 8px', cursor: 'pointer', fontSize: '10px' }}>View</button>
+                      <button onClick={() => screenSingleFit(lead.id)} disabled={fitScreening} style={{ background: 'rgba(34,211,238,0.18)', color: '#22d3ee', border: '1px solid rgba(34,211,238,0.44)', borderRadius: '3px', padding: '4px 8px', cursor: 'pointer', fontSize: '10px', opacity: fitScreening ? 0.5 : 1 }}>🧠 Screen</button>
                       {lead.status !== 'pushed' && lead.status !== 'rejected' && (
                         <button onClick={() => setRejectingLead(lead)} style={{ background: 'rgba(239,68,68,0.12)', color: RED, border: '1px solid rgba(239,68,68,0.3)', borderRadius: '3px', padding: '4px 8px', cursor: 'pointer', fontSize: '10px' }}>🚫 Reject</button>
                       )}
@@ -608,6 +662,21 @@ export default function LeadGenTab() {
             <DetailRow label="Resolved Phone" value={selectedLead.resolvedPhone || '—'} />
             <DetailRow label="Confidence Score" value={selectedLead.identityMatchConfidence != null ? `${selectedLead.identityMatchConfidence}%` : '—'} />
             <DetailRow label="Enrichment Status" value={selectedLead.enrichmentStatus || 'pending'} />
+            <hr style={{ borderColor: 'rgba(255,255,255,0.1)', margin: '16px 0' }} />
+            <div style={{ color: '#22d3ee', fontSize: '11px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '12px' }}>🧠 AI Debt-Fit Screening</div>
+            <DetailRow label="Fit Status" value={
+              selectedLead.debtFitStatus === 'fit' ? <span style={{ color: '#22d3ee', fontWeight: 'bold' }}>✓ Fit — credit-card/unsecured debt</span> :
+              selectedLead.debtFitStatus === 'not_fit' ? <span style={{ color: '#9ca3af', fontWeight: 'bold' }}>✗ Excluded — not relevant</span> :
+              selectedLead.debtFitStatus === 'ambiguous' ? <span style={{ color: AMBER, fontWeight: 'bold' }}>? Ambiguous</span> :
+              selectedLead.debtFitStatus === 'screening' ? <span style={{ color: AMBER }}>Screening…</span> :
+              <span style={{ color: '#6b7280' }}>Not yet screened</span>
+            } />
+            {selectedLead.debtFitConfidence != null && <DetailRow label="Confidence" value={`${selectedLead.debtFitConfidence}%`} />}
+            {selectedLead.debtFitReason && <div style={{ marginBottom: '12px' }}><div style={{ ...ls }}>AI Reason</div><div style={{ color: '#c4cdd8', fontSize: '12px', lineHeight: 1.5, background: 'rgba(0,0,0,0.2)', borderRadius: '4px', padding: '10px' }}>{selectedLead.debtFitReason}</div></div>}
+            {selectedLead.debtFitScreenedAt && <DetailRow label="Screened At" value={new Date(selectedLead.debtFitScreenedAt).toLocaleString()} />}
+            <button onClick={() => screenSingleFit(selectedLead.id)} disabled={fitScreening} style={{ marginBottom: '12px', background: 'rgba(34,211,238,0.18)', color: '#22d3ee', border: '1px solid rgba(34,211,238,0.44)', borderRadius: '4px', padding: '8px 16px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', opacity: fitScreening ? 0.5 : 1 }}>
+              {fitScreening ? '⏳ Screening…' : '🧠 Re-screen This Lead'}
+            </button>
             <hr style={{ borderColor: 'rgba(255,255,255,0.1)', margin: '16px 0' }} />
             <div style={{ color: '#a78bfa', fontSize: '11px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '12px' }}>🚀 LeadCross AI Enrichment</div>
             <LeadCrossAIResults lead={selectedLead} onReenrich={() => enrichSingleLeadCross(selectedLead.id)} enriching={crossEnriching} />
