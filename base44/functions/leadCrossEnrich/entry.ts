@@ -88,6 +88,44 @@ async function fetchRedditUserProfile(username: string): Promise<any | null> {
   }
 }
 
+// ── Omkar Twitter profile + tweets (for x_twitter leads) ───────────────────
+// Uses the same PHONE_LOOKUP_API_KEY (ok_... prefix). Base: twitter-scraper.omkar.cloud
+async function fetchOmkarTwitterProfile(username: string): Promise<any | null> {
+  if (!username) return null;
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 10000);
+    const res = await fetch(
+      `https://twitter-scraper.omkar.cloud/users/profile?user=${encodeURIComponent(username)}`,
+      { headers: { 'API-Key': PHONE_LOOKUP_KEY }, signal: controller.signal }
+    );
+    clearTimeout(timer);
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data?.user || data || null;
+  } catch {
+    return null;
+  }
+}
+
+async function fetchOmkarTwitterTweets(username: string, count = 20): Promise<any[]> {
+  if (!username) return [];
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 15000);
+    const res = await fetch(
+      `https://twitter-scraper.omkar.cloud/users/tweets?user=${encodeURIComponent(username)}&count=${count}`,
+      { headers: { 'API-Key': PHONE_LOOKUP_KEY }, signal: controller.signal }
+    );
+    clearTimeout(timer);
+    if (!res.ok) return [];
+    const data = await res.json();
+    return data?.tweets || [];
+  } catch {
+    return [];
+  }
+}
+
 // ── Apify Waterfall Contact Enrichment (B2B, needs company domain) ──────────
 // $0.20/contact, SMTP-verified email + phone. Only call when we have a domain.
 async function apifyWaterfallEnrichment(
@@ -287,10 +325,13 @@ async function enrichSingleLead(base44: any, leadId: string): Promise<any> {
     ? [personName, lead.location, 'debt financial'].filter(Boolean).join(' ')
     : '';
 
-  const [apifyResults1, apifyResults2, redditProfile] = await Promise.all([
+  const isTwitter = lead.platform === 'x_twitter';
+  const [apifyResults1, apifyResults2, redditProfile, twitterProfile, twitterTweets] = await Promise.all([
     apifyQuery1 ? apifyGoogleSearch(apifyQuery1, 10) : Promise.resolve([]),
     apifyQuery2 ? apifyGoogleSearch(apifyQuery2, 10) : Promise.resolve([]),
     lead.platform === 'reddit' ? fetchRedditUserProfile(lead.userHandle) : Promise.resolve(null),
+    isTwitter ? fetchOmkarTwitterProfile(lead.userHandle) : Promise.resolve(null),
+    isTwitter ? fetchOmkarTwitterTweets(lead.userHandle, 20) : Promise.resolve([]),
   ]);
 
   // Merge Apify results and record sources
@@ -312,6 +353,14 @@ async function enrichSingleLead(base44: any, leadId: string): Promise<any> {
     ? `\n\n--- REDDIT PROFILE ---\n- Username: ${lead.userHandle}\n- Total karma: ${redditProfile.total_karma || 'N/A'}\n- Bio: ${redditProfile.subreddit?.public_description || 'N/A'}\n- Display name: ${redditProfile.subreddit?.display_name || 'N/A'}`
     : '';
 
+  const twitterContext = twitterProfile || twitterTweets.length > 0
+    ? `\n\n--- TWITTER/X PROFILE (via Omkar) ---\n- Handle: @${lead.userHandle}\n- Name: ${twitterProfile?.name || twitterProfile?.displayName || 'N/A'}\n- Bio: ${twitterProfile?.description || twitterProfile?.bio || 'N/A'}\n- Location: ${twitterProfile?.location || 'N/A'}\n- Followers: ${twitterProfile?.followers_count || twitterProfile?.followers || 'N/A'}\n- Following: ${twitterProfile?.following_count || twitterProfile?.following || 'N/A'}\n- Verified: ${twitterProfile?.verified ? 'Yes' : 'No'}\n- Profile URL: ${twitterProfile?.url || 'N/A'}\n\n--- RECENT TWEETS (${twitterTweets.length}) ---\n${twitterTweets.slice(0, 15).map((t: any, i: number) => `[${i + 1}] ${(t.text || '').substring(0, 300)}\n    Posted: ${t.created_at || 'N/A'} | Likes: ${t.stats?.likes ?? t.likes ?? 'N/A'}`).join('\n')}`
+    : '';
+
+  if (twitterProfile || twitterTweets.length > 0) {
+    sources.push({ type: 'omkar_twitter', url: `https://twitter.com/${lead.userHandle}`, snippet: `@${lead.userHandle} — ${twitterTweets.length} tweets fetched via Omkar` });
+  }
+
   // ── Phase 1: ONE LLM call with ALL context + web search ─────────────────
   // Gemini uses its own Google Search (add_context_from_internet) PLUS the
   // Apify results we gathered, giving it the best of both data sources.
@@ -331,6 +380,7 @@ POST TEXT:
 ${postText}
 ${apifyContext}
 ${redditContext}
+${twitterContext}
 
 Using the Apify web search results above as primary evidence AND your own web search, extract ALL of the following:
 
