@@ -9,6 +9,10 @@ import { useDebtCoachAuth } from '@/lib/DebtCoachAuthContext';
 
 const GOLD = '#10b981';
 const DARK = '#0a0f1e';
+const sizeBtn = {
+  background: 'rgba(255,255,255,0.04)', color: '#8a9ab8', border: '1px solid rgba(255,255,255,0.1)',
+  borderRadius: '3px', padding: '3px 7px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold',
+};
 
 export default function PopOutTab({ storageKey, title, icon, active, children, defaultSize }) {
   const { user } = useDebtCoachAuth();
@@ -19,18 +23,19 @@ export default function PopOutTab({ storageKey, title, icon, active, children, d
       {/* Inline mode — only show when this tab is active and not popped out */}
       {active && !panel.poppedOut && (
         <div>
-          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '4px' }}>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '8px' }}>
             <button
               onClick={panel.popOut}
-              title="Pop out this tab into a floating window"
+              title="Pop out this tab into a floating, draggable, resizable window"
               style={{
-                background: `${GOLD}12`, color: GOLD, border: `1px solid ${GOLD}44`,
-                borderRadius: '4px', padding: '4px 12px', cursor: 'pointer',
-                fontSize: '11px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase',
-                display: 'flex', alignItems: 'center', gap: '4px',
+                background: `linear-gradient(135deg,${GOLD},#22c55e)`, color: DARK, border: 'none',
+                borderRadius: '6px', padding: '8px 18px', cursor: 'pointer',
+                fontSize: '12px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase',
+                display: 'flex', alignItems: 'center', gap: '6px',
+                boxShadow: '0 4px 14px rgba(16,185,129,0.3)',
               }}
             >
-              ⤢ Pop Out
+              ⤢ Pop Out Window
             </button>
           </div>
           {children}
@@ -66,17 +71,24 @@ export default function PopOutTab({ storageKey, title, icon, active, children, d
             <span style={{ color: GOLD, fontSize: '12px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase' }}>
               {icon} {title}
             </span>
-            <button
-              onClick={panel.toggle}
-              title="Dock this tab back into the main area"
-              style={{
-                background: `${GOLD}18`, color: GOLD, border: `1px solid ${GOLD}44`,
-                borderRadius: '4px', padding: '3px 10px', cursor: 'pointer',
-                fontSize: '10px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase',
-              }}
-            >
-              ⤡ Dock
-            </button>
+            <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+              <button onClick={() => panel.setSize({ width: 380, height: 560 })} title="Small (380×560)" style={sizeBtn}>S</button>
+              <button onClick={() => panel.setSize({ width: 560, height: 760 })} title="Medium (560×760)" style={sizeBtn}>M</button>
+              <button onClick={() => panel.setSize({ width: 760, height: 960 })} title="Large (760×960)" style={sizeBtn}>L</button>
+              <button onClick={() => panel.setSize({ width: Math.min(900, window.innerWidth - 40), height: Math.min(1000, window.innerHeight - 80) })} title="Extra large" style={sizeBtn}>XL</button>
+              <button onClick={panel.center} title="Recenter on screen" style={{ ...sizeBtn, padding: '3px 8px' }}>⊕</button>
+              <button
+                onClick={panel.toggle}
+                title="Dock this tab back into the main area"
+                style={{
+                  background: `${GOLD}18`, color: GOLD, border: `1px solid ${GOLD}44`,
+                  borderRadius: '4px', padding: '3px 10px', cursor: 'pointer',
+                  fontSize: '10px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase',
+                }}
+              >
+                ⤡ Dock
+              </button>
+            </div>
           </div>
 
           {/* Content */}

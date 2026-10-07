@@ -160,18 +160,25 @@ export function usePopOutPanel(storageKey, defaultSize = { width: 420, height: 6
     boxShadow: '0 8px 32px rgba(0,0,0,0.6)',
   };
 
+  const center = useCallback(() => {
+    setPosition({
+      x: Math.max(0, Math.round((window.innerWidth - size.width) / 2)),
+      y: Math.max(0, Math.round((window.innerHeight - size.height) / 2)),
+    });
+  }, [size.width, size.height]);
+
   const resizeHandles = poppedOut && (
     <>
-      <div onMouseDown={onResizeStart('n')} style={{ position: 'absolute', top: -2, left: 14, right: 14, height: 6, cursor: 'ns-resize', zIndex: 10 }} />
-      <div onMouseDown={onResizeStart('s')} style={{ position: 'absolute', bottom: -2, left: 14, right: 14, height: 6, cursor: 'ns-resize', zIndex: 10 }} />
-      <div onMouseDown={onResizeStart('w')} style={{ position: 'absolute', left: -2, top: 14, bottom: 14, width: 6, cursor: 'ew-resize', zIndex: 10 }} />
-      <div onMouseDown={onResizeStart('e')} style={{ position: 'absolute', right: -2, top: 14, bottom: 14, width: 6, cursor: 'ew-resize', zIndex: 10 }} />
-      <div onMouseDown={onResizeStart('nw')} style={{ position: 'absolute', top: -2, left: -2, width: 14, height: 14, cursor: 'nwse-resize', zIndex: 11 }} />
-      <div onMouseDown={onResizeStart('ne')} style={{ position: 'absolute', top: -2, right: -2, width: 14, height: 14, cursor: 'nesw-resize', zIndex: 11 }} />
-      <div onMouseDown={onResizeStart('sw')} style={{ position: 'absolute', bottom: -2, left: -2, width: 14, height: 14, cursor: 'nesw-resize', zIndex: 11 }} />
-      <div onMouseDown={onResizeStart('se')} style={{ position: 'absolute', bottom: -2, right: -2, width: 14, height: 14, cursor: 'nwse-resize', zIndex: 11 }} />
+      <div onMouseDown={onResizeStart('n')} style={{ position: 'absolute', top: -3, left: 18, right: 18, height: 7, cursor: 'ns-resize', zIndex: 10, background: 'rgba(16,185,129,0.0)', borderTop: '2px solid rgba(16,185,129,0.25)', borderRadius: '3px' }} />
+      <div onMouseDown={onResizeStart('s')} style={{ position: 'absolute', bottom: -3, left: 18, right: 18, height: 7, cursor: 'ns-resize', zIndex: 10, background: 'rgba(16,185,129,0.0)', borderBottom: '2px solid rgba(16,185,129,0.25)', borderRadius: '3px' }} />
+      <div onMouseDown={onResizeStart('w')} style={{ position: 'absolute', left: -3, top: 18, bottom: 18, width: 7, cursor: 'ew-resize', zIndex: 10, background: 'rgba(16,185,129,0.0)', borderLeft: '2px solid rgba(16,185,129,0.25)', borderRadius: '3px' }} />
+      <div onMouseDown={onResizeStart('e')} style={{ position: 'absolute', right: -3, top: 18, bottom: 18, width: 7, cursor: 'ew-resize', zIndex: 10, background: 'rgba(16,185,129,0.0)', borderRight: '2px solid rgba(16,185,129,0.25)', borderRadius: '3px' }} />
+      <div onMouseDown={onResizeStart('nw')} style={{ position: 'absolute', top: -3, left: -3, width: 16, height: 16, cursor: 'nwse-resize', zIndex: 11, background: 'rgba(16,185,129,0.2)', border: '1px solid rgba(16,185,129,0.5)', borderRadius: '3px 0 0 0' }} />
+      <div onMouseDown={onResizeStart('ne')} style={{ position: 'absolute', top: -3, right: -3, width: 16, height: 16, cursor: 'nesw-resize', zIndex: 11, background: 'rgba(16,185,129,0.2)', border: '1px solid rgba(16,185,129,0.5)', borderRadius: '0 3px 0 0' }} />
+      <div onMouseDown={onResizeStart('sw')} style={{ position: 'absolute', bottom: -3, left: -3, width: 16, height: 16, cursor: 'nesw-resize', zIndex: 11, background: 'rgba(16,185,129,0.2)', border: '1px solid rgba(16,185,129,0.5)', borderRadius: '0 0 0 3px' }} />
+      <div onMouseDown={onResizeStart('se')} style={{ position: 'absolute', bottom: -3, right: -3, width: 16, height: 16, cursor: 'nwse-resize', zIndex: 11, background: 'rgba(16,185,129,0.2)', border: '1px solid rgba(16,185,129,0.5)', borderRadius: '0 0 3px 0' }} />
     </>
   );
 
-  return { poppedOut, toggle, popOut, onDragStart, onResizeStart, floatingStyle, size, resizeHandles, saveLayout, layoutSaved };
+  return { poppedOut, toggle, popOut, onDragStart, onResizeStart, floatingStyle, size, setSize, setPosition, center, resizeHandles, saveLayout, layoutSaved };
 }
