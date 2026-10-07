@@ -930,8 +930,12 @@ ${recentText}`,
   const processNewEntry = useCallback((entry) => {
     // Deduplicate — Deepgram with utterances=true can send the same final transcript twice
     const last = lastEntryRef.current;
-    if (last && last.speaker === entry.speaker && last.text === entry.text && (Date.now() - last.ts < 3000)) {
-      return;
+    if (last && last.speaker === entry.speaker) {
+      const dt = Date.now() - last.ts;
+      // Exact duplicate within 3s
+      if (last.text === entry.text && dt < 3000) return;
+      // Partial duplicate: one text contained in the other within 5s (re-emitted / overlapping chunks)
+      if (dt < 5000 && entry.text.length > 10 && (last.text.includes(entry.text) || entry.text.includes(last.text))) return;
     }
     lastEntryRef.current = { speaker: entry.speaker, text: entry.text, ts: Date.now() };
 
@@ -982,7 +986,14 @@ ${recentText}`,
       const lastLine = withoutInterim[withoutInterim.length - 1];
       if (lastLine.speaker === entry.speaker) {
         const lastText = (lastLine.text || '').trim();
-        if (!/[.?!…]["']?$/.test(lastText)) {
+        const lastTime = lastLine.time ? new Date(lastLine.time).getTime() : 0;
+        const entryTime = entry.time ? new Date(entry.time).getTime() : Date.now();
+        const gap = entryTime - lastTime;
+        // Merge consecutive same-speaker fragments into one line per turn:
+        //  • if the last line has no terminal punctuation (mid-sentence fragment), or
+        //  • if the two segments were emitted within 3s (rapid bursts in the same turn).
+        // This prevents sentences from being broken into many tiny lines.
+        if (!/[.?!…]["']?$/.test(lastText) || gap < 3000) {
           const merged = [...withoutInterim];
           merged[merged.length - 1] = {
             ...lastLine,
@@ -1299,9 +1310,10 @@ ${recentText}`,
         Object.keys(segBuf).forEach(k => { if (Number(k) !== speaker) emitSegment(Number(k)); });
 
         if (msg.is_final) {
-          // Finalized chunk — accumulate in segBuf
+          // Finalized chunk — accumulate in segBuf (guard against duplicate is_final chunks)
           const b = segBuf[speaker] || (segBuf[speaker] = { text: '', sentiment: null, timer: null });
-          b.text += ' ' + alt.transcript;
+          const chunk = alt.transcript.trim();
+          if (chunk && !b.text.trim().endsWith(chunk)) b.text += ' ' + chunk;
           b.sentiment = msg.sentiment || alt.sentiment || b.sentiment;
           clearTimeout(b.timer);
           if (msg.speech_final) {
