@@ -25,6 +25,8 @@ import { useDebtCoachAuth } from '@/lib/DebtCoachAuthContext';
 import { useDebtCoachValue } from '@/lib/debtCoachStorage';
 import EndCallDialog from '@/components/debt/EndCallDialog';
 import { useCallRecorder } from '@/hooks/useCallRecorder';
+import { useObjectionEngine } from '@/hooks/useObjectionEngine';
+import ObjectionPopup from '@/components/debt/ObjectionPopup';
 import { logAIUsage, CREDIT_ESTIMATES } from '@/lib/aiCreditLog';
 
 const GOLD = '#10b981';
@@ -118,6 +120,7 @@ export default function DebtLiveCall() {
   const [agentLevel, setAgentLevel] = useState(0);
   const [customerLevel, setCustomerLevel] = useState(0);
   const [transcript, setTranscript] = useState([]);
+  const { activeObjection, dismissObjection } = useObjectionEngine(transcript);
   const [kbEntries, setKbEntries] = useState([]);
   const [kbLoading, setKbLoading] = useState(true);
 
@@ -2232,6 +2235,9 @@ ${recentText}`,
           }}
         />
       )}
+
+      {/* Objection Engine — live popup when a high-priority objection is detected */}
+      <ObjectionPopup objection={activeObjection} onDismiss={dismissObjection} />
     </div>
   );
 }

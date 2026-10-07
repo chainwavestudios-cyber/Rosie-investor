@@ -22,6 +22,7 @@ import SmartLeadsTab from '@/components/debt/SmartLeadsTab';
 import LeadAssignmentPopup from '@/components/debt/LeadAssignmentPopup';
 import PopOutTab from '@/components/debt/PopOutTab';
 import SmartClose from '@/components/debt/closing/SmartClose';
+import ObjectionsEngineTab from '@/components/debt/ObjectionsEngineTab';
 import CompliancePortal from '@/pages/CompliancePortal';
 import WCRChecklist from '@/components/debt/WCRChecklist';
 import ProfileTimerWatcher from '@/components/debt/ProfileTimerWatcher';
@@ -55,6 +56,7 @@ export default function DebtCallCoach() {
     { id: 'newleads', label: '📥 New Leads' },
     { id: 'bob', label: '🤖 BOB Training' },
     { id: 'pitches', label: '🎤 Pitches' },
+    { id: 'objections', label: '🛡️ Objections' },
     { id: 'kb', label: '🧠 Knowledge Base' },
     ...(isDialerRole ? [] : [{ id: 'kbchat', label: '💬 AI KB Chat' }]),
     { id: 'profile', label: '👤 Prospects' },
@@ -107,6 +109,7 @@ export default function DebtCallCoach() {
       {tab === 'newleads' && <NewLeadsTab />}
       {tab === 'bob' && <DebtBobTrainer debtCoachUser={user} />}
       {tab === 'pitches' && <DebtPitchTab canDelete={!isDialerRole} />}
+      {tab === 'objections' && <ObjectionsEngineTab readOnly={isDialerRole} />}
       {tab === 'kb' && <DebtKBManager readOnly={isDialerRole} />}
       {tab === 'kbchat' && <DebtKBChat />}
       {tab === 'profile' && <DebtUserProfile debtCoachUser={user} />}
