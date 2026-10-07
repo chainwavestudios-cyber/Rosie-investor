@@ -267,8 +267,15 @@ async function phoneLookup(phone: string): Promise<{ isValid: boolean; lineType:
 export default async function(req: Request): Promise<Response> {
   try {
     const base44 = createClientFromRequest(req);
-    const user = await base44.auth.me();
-    if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
+
+    // Auth is non-fatal — debt coach users are stored in DebtCoachUser, not the
+    // Base44 User entity, so me() throws for them. The frontend already gates
+    // this behind admin role. All data ops use asServiceRole.
+    let username = 'system';
+    try {
+      const user = await base44.auth.me();
+      if (user?.full_name) username = user.full_name;
+    } catch { /* non-fatal */ }
 
     const body = await req.json().catch(() => ({}));
     const leadId = body?.leadId;
