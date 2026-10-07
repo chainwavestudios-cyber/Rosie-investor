@@ -415,10 +415,11 @@ export default function LeadGenTab() {
                     {lead.resolvedFullName && lead.resolvedFullName !== lead.userHandle && <div style={{ color: GOLD, fontSize: '10px' }}>→ {lead.resolvedFullName}</div>}
                     {lead.location && <div style={{ color: '#4a5568', fontSize: '10px' }}>📍 {lead.location}</div>}
                   </td>
-                  <td style={{ padding: '10px 12px', maxWidth: '300px' }}>
-                    <div style={{ color: '#c4cdd8', fontSize: '12px', lineHeight: 1.4, overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
-                      {lead.postTitle && <span style={{ fontWeight: 'bold' }}>{lead.postTitle} — </span>}{lead.postText?.substring(0, 200)}
+                  <td style={{ padding: '10px 12px', maxWidth: '400px' }}>
+                    <div style={{ color: '#c4cdd8', fontSize: '12px', lineHeight: 1.4, maxHeight: '120px', overflowY: 'auto' }}>
+                      {lead.postTitle && <span style={{ fontWeight: 'bold' }}>{lead.postTitle} — </span>}{lead.postText}
                     </div>
+                    {lead.postCreatedAt && <div style={{ color: '#6b7280', fontSize: '10px', marginTop: '4px' }}>📅 {new Date(lead.postCreatedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</div>}
                     {lead.postUrl && <a href={lead.postUrl} target="_blank" rel="noreferrer" style={{ color: BLUE, fontSize: '10px', textDecoration: 'underline' }}>View post ↗</a>}
                   </td>
                   <td style={{ padding: '10px 12px', textAlign: 'right' }}>
@@ -488,7 +489,8 @@ export default function LeadGenTab() {
                     <td colSpan={10} style={{ padding: '0', background: 'rgba(0,0,0,0.2)' }}>
                       <div style={{ padding: '14px 20px' }}>
                         <div style={{ color: GOLD, fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '8px' }}>📝 Full Post Content</div>
-                        {lead.postTitle && <div style={{ color: '#e8e0d0', fontSize: '14px', fontWeight: 'bold', marginBottom: '8px' }}>{lead.postTitle}</div>}
+                        {lead.postTitle && <div style={{ color: '#e8e0d0', fontSize: '14px', fontWeight: 'bold', marginBottom: '4px' }}>{lead.postTitle}</div>}
+                        {lead.postCreatedAt && <div style={{ color: '#6b7280', fontSize: '11px', marginBottom: '8px' }}>📅 Posted {new Date(lead.postCreatedAt).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })}</div>}
                         <div style={{ color: '#c4cdd8', fontSize: '13px', lineHeight: 1.7, whiteSpace: 'pre-wrap', fontFamily: 'Georgia, serif', maxHeight: '300px', overflowY: 'auto', background: 'rgba(0,0,0,0.2)', borderRadius: '4px', padding: '12px 16px' }}>
                           {lead.postText || 'No post content available.'}
                         </div>
