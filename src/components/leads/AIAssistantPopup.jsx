@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useDebtCoachValue } from '@/lib/debtCoachStorage';
 import QAPopOutPanel from './QAPopOutPanel';
+import { CommonQAView, CommonQAPopOut, starToCommon } from './CommonQAView';
 
 const GOLD = '#b8933a';
 const SIZE_KEY = 'aiPopupDefaultSize';
@@ -378,6 +379,20 @@ function AnswerDisplay({ answer, answers }) {
 
 // ── Q&A Answer Actions ─────────────────────────────────────────────────────────
 function QAAnswerActions({ q, transcriptRef, kbEntries, onSidePanel, addInfoId, setAddInfoId, talkingPointsId, setTalkingPointsId, researchId, setResearchId }) {
+  const [starred, setStarred] = useState(false);
+  const [starring, setStarring] = useState(false);
+
+  const addToCommon = async () => {
+    if (starring || starred) return;
+    setStarring(true);
+    try {
+      await starToCommon(q.text, q.answer, q.answers);
+      setStarred(true);
+      setTimeout(() => setStarred(false), 2500);
+    } catch (e) { alert('Could not save to Common: ' + (e?.message || String(e))); }
+    setStarring(false);
+  };
+
   const getMoreInfo = async () => {
     onSidePanel({ type: 'moreInfo', question: q.text, loading: true, content: '' });
     setAddInfoId(q.id);
@@ -424,6 +439,7 @@ function QAAnswerActions({ q, transcriptRef, kbEntries, onSidePanel, addInfoId, 
       <Btn onClick={getMoreInfo} disabled={addInfoId === q.id} color="#60a5fa" bg="rgba(96,165,250,0.1)" border="rgba(96,165,250,0.25)" style={{ padding: '2px 8px', fontSize: '9px' }}>{addInfoId === q.id ? '⏳ More…' : '+ More Info'}</Btn>
       <Btn onClick={getTalkingPoints} disabled={talkingPointsId === q.id} color="#4ade80" bg="rgba(74,222,128,0.1)" border="rgba(74,222,128,0.25)" style={{ padding: '2px 8px', fontSize: '9px' }}>{talkingPointsId === q.id ? '⏳ Points…' : '💬 Talking Points'}</Btn>
       <Btn onClick={getResearch} disabled={researchId === q.id} color="#a78bfa" bg="rgba(167,139,250,0.1)" border="rgba(167,139,250,0.25)" style={{ padding: '2px 8px', fontSize: '9px' }}>{researchId === q.id ? '⏳ Searching…' : '🔍 Internet Research'}</Btn>
+      <Btn onClick={addToCommon} disabled={starring || starred} color="#f59e0b" bg="rgba(245,158,11,0.12)" border="rgba(245,158,11,0.3)" style={{ padding: '2px 8px', fontSize: '9px' }}>{starring ? '⏳' : starred ? '✓ Added' : '★ Add to Common'}</Btn>
     </div>
   );
 }
@@ -436,8 +452,25 @@ export function QASection({ transcript, transcriptRef, kbEntries, active, qaKeyw
   const [splitPct,  setSplitPct]  = useState(50);
   const [talkingPointsId, setTalkingPointsId] = useState(null);
   const [researchId, setResearchId] = useState(null);
-  const [qaTab, setQaTab] = useState('current'); // 'current' | 'history'
+  const [qaTab, setQaTab] = useState('current'); // 'current' | 'history' | 'common'
   const [history, setHistory] = useState([]);
+  const [commonPopOut, setCommonPopOut] = useState(false);
+  const [commonCount, setCommonCount] = useState(0);
+
+  // Live count of starred common questions for the tab badge
+  useEffect(() => {
+    let active = true;
+    const loadCount = async () => {
+      try {
+        const all = await base44.entities.KnowledgeBase.filter({ kbName: 'Common Asked Questions' }, '-created_date', 200);
+        if (active) setCommonCount((all || []).length);
+      } catch {}
+    };
+    loadCount();
+    const h = () => loadCount();
+    window.addEventListener('debt_common_qa_updated', h);
+    return () => { active = false; window.removeEventListener('debt_common_qa_updated', h); };
+  }, []);
 
   // Load Q&A history for this lead from the entity
   useEffect(() => {
@@ -611,6 +644,7 @@ export function QASection({ transcript, transcriptRef, kbEntries, active, qaKeyw
     <div style={{ display: 'flex', gap: '2px', padding: '4px 12px', borderBottom: '1px solid rgba(255,255,255,0.06)', flexShrink: 0, background: 'rgba(0,0,0,0.2)' }}>
       <button onClick={() => setQaTab('current')} style={{ padding: '3px 12px', borderRadius: '4px', border: `1px solid ${qaTab === 'current' ? 'rgba(245,158,11,0.4)' : 'rgba(255,255,255,0.08)'}`, background: qaTab === 'current' ? 'rgba(245,158,11,0.15)' : 'transparent', color: qaTab === 'current' ? '#f59e0b' : '#6b7280', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>❓ Current ({questions.length})</button>
       <button onClick={() => setQaTab('history')} style={{ padding: '3px 12px', borderRadius: '4px', border: `1px solid ${qaTab === 'history' ? 'rgba(96,165,250,0.4)' : 'rgba(255,255,255,0.08)'}`, background: qaTab === 'history' ? 'rgba(96,165,250,0.15)' : 'transparent', color: qaTab === 'history' ? '#60a5fa' : '#6b7280', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>📜 History ({history.length})</button>
+      <button onClick={() => setQaTab('common')} style={{ padding: '3px 12px', borderRadius: '4px', border: `1px solid ${qaTab === 'common' ? 'rgba(245,158,11,0.4)' : 'rgba(255,255,255,0.08)'}`, background: qaTab === 'common' ? 'rgba(245,158,11,0.15)' : 'transparent', color: qaTab === 'common' ? '#f59e0b' : '#6b7280', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>⭐ Common ({commonCount})</button>
     </div>
   );
 
@@ -705,7 +739,7 @@ export function QASection({ transcript, transcriptRef, kbEntries, active, qaKeyw
     return (
       <div ref={containerRef} style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minHeight: 0 }}>
         {QaTabBar()}
-        {qaTab === 'history' ? HistoryView() : (<>
+        {qaTab === 'history' ? HistoryView() : qaTab === 'common' ? <CommonQAView onPopOut={() => setCommonPopOut(true)} /> : (<>
         {AskBar()}
         {/* Questions pane */}
         <div style={{ height: `${splitPct}%`, display: 'flex', flexDirection: 'column', overflow: 'hidden', minHeight: 40 }}>
@@ -764,6 +798,7 @@ export function QASection({ transcript, transcriptRef, kbEntries, active, qaKeyw
           </div>
         </div>
         </>)}
+        {commonPopOut && <CommonQAPopOut onClose={() => setCommonPopOut(false)} />}
       </div>
     );
   }
@@ -772,13 +807,14 @@ export function QASection({ transcript, transcriptRef, kbEntries, active, qaKeyw
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minHeight: 0 }}>
       {QaTabBar()}
-      {qaTab === 'history' ? HistoryView() : (<>
+      {qaTab === 'history' ? HistoryView() : qaTab === 'common' ? <CommonQAView onPopOut={() => setCommonPopOut(true)} /> : (<>
       {AskBar()}
       <div ref={qListRef} style={{ flex: 1, overflowY: 'auto', padding: '6px 12px', display: 'flex', flexDirection: 'column', gap: '7px' }}>
         {questions.length === 0 && <div style={{ color: '#4a5568', fontSize: '11px', textAlign: 'center', padding: '18px' }}>{active ? '🎙 Listening — questions auto-detected or type one above' : 'Enable Q&A and start the audio stream'}</div>}
         {questions.map(q => <QuestionCardFull key={q.id} q={q} />)}
       </div>
       </>)}
+      {commonPopOut && <CommonQAPopOut onClose={() => setCommonPopOut(false)} />}
     </div>
   );
 }
