@@ -12,6 +12,7 @@ const PRIO_RANK = { high: 0, medium: 1, low: 2 };
 
 export function useObjectionEngine(transcript) {
   const [objections, setObjections] = useState([]);
+  const [kbEntries, setKbEntries] = useState([]);
   const [activeObjection, setActiveObjection] = useState(null);
   const [recentMatches, setRecentMatches] = useState([]);
   const lastCheckedKeyRef = useRef('');
@@ -30,6 +31,18 @@ export function useObjectionEngine(transcript) {
       window.removeEventListener('objections_updated', handler);
       if (unsub) try { unsub(); } catch {}
     };
+  }, []);
+
+  // Load KB entries so we can cross-reference objection matches against
+  // recorded-call answers — if the KB answer differs, the agent gets both.
+  useEffect(() => {
+    const load = () => base44.entities.KnowledgeBase.list('-created_date', 500)
+      .then(rows => setKbEntries(rows || []))
+      .catch(() => setKbEntries([]));
+    load();
+    const handler = () => load();
+    window.addEventListener('kb_updated', handler);
+    return () => window.removeEventListener('kb_updated', handler);
   }, []);
 
   // Watch the latest committed customer line for objection matches.
@@ -63,9 +76,34 @@ export function useObjectionEngine(transcript) {
 
     // High priority → blocking popup with the response text
     if (top.priority === 'high') {
-      setActiveObjection({ ...top, lineText: latest.text, lineTime: latest.time });
+      // Cross-reference the KB for recorded-call answers to this objection.
+      // If the KB answer differs from the engine's response, include it as an
+      // alternative option so the agent can choose which to read back.
+      const phrases = (() => { try { return JSON.parse(top.triggerPhrases || '[]').map(p => String(p).toLowerCase()); } catch { return []; } })();
+      const objectionResponse = (top.responseText || '').trim();
+      const kbOptions = [];
+      const seen = new Set([objectionResponse]);
+      for (const kb of kbEntries) {
+        const q = (kb.question || '').toLowerCase();
+        const v = (kb.variations || '').toLowerCase();
+        if (!phrases.some(p => q.includes(p) || v.includes(p))) continue;
+        const allAnswers = [];
+        if (kb.answer) allAnswers.push(kb.answer);
+        try {
+          const extra = JSON.parse(kb.answersJson || '[]');
+          if (Array.isArray(extra)) extra.forEach(a => { if (a && !allAnswers.includes(a)) allAnswers.push(a); });
+        } catch {}
+        for (const ans of allAnswers) {
+          const t = (ans || '').trim();
+          if (t && !seen.has(t)) {
+            seen.add(t);
+            kbOptions.push({ answer: ans, source: kb.kbName || kb.source || 'Knowledge Base', question: kb.question });
+          }
+        }
+      }
+      setActiveObjection({ ...top, lineText: latest.text, lineTime: latest.time, kbOptions });
     }
-  }, [transcript, objections]);
+  }, [transcript, objections, kbEntries]);
 
   const dismiss = useCallback(() => setActiveObjection(null), []);
   const clearRecent = useCallback(() => setRecentMatches([]), []);

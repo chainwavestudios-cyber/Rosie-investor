@@ -28,6 +28,8 @@ export default function ObjectionsEngineTab({ readOnly }) {
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState(blankForm());
+  const [enhancing, setEnhancing] = useState(false);
+  const [enhanceProgress, setEnhanceProgress] = useState({ done: 0, total: 0, changed: 0 });
 
   const load = useCallback(() => {
     setLoading(true);
@@ -91,6 +93,53 @@ export default function ObjectionsEngineTab({ readOnly }) {
 
   const parsePhrases = (s) => { try { return JSON.parse(s || '[]'); } catch { return []; } };
 
+  // Review & enhance all KB answers — rewrites each with strong, confident,
+  // empathetic, flow-controlling tone WITHOUT changing any facts. Runs with
+  // limited concurrency to avoid timeouts.
+  const enhanceKb = async () => {
+    if (!confirm('This will review and rewrite ALL knowledge base answers with strong, confident, empathetic, flow-controlling language (facts unchanged). This uses AI credits for each entry. Continue?')) return;
+    setEnhancing(true);
+    setEnhanceProgress({ done: 0, total: 0, changed: 0 });
+    try {
+      const all = await base44.entities.KnowledgeBase.list('-created_date', 500);
+      const entries = (all || []).filter(e => e.answer && e.answer.trim().length > 0);
+      setEnhanceProgress({ done: 0, total: entries.length, changed: 0 });
+      let done = 0, changed = 0;
+      const queue = [...entries];
+      const concurrency = 3;
+      const workers = Array.from({ length: Math.min(concurrency, queue.length) }, async () => {
+        while (queue.length) {
+          const entry = queue.shift();
+          try {
+            const res = await base44.integrations.Core.InvokeLLM({
+              prompt: `You are reviewing a debt settlement knowledge base answer that a phone agent reads verbatim to customers. Rewrite the answer so it:
+- Uses strong, confident language that conveys expertise and ability
+- Shows genuine empathy for the customer's difficult financial situation
+- Controls the flow of the call — guides the customer and ends with an engaging question when appropriate
+- Does NOT change any facts, numbers, program terms, creditor names, legal/regulatory details, or the core meaning
+- Is conversational and natural to read aloud
+
+Original question: ${entry.question || ''}
+Original answer: ${entry.answer || ''}
+
+Return ONLY the rewritten answer text, nothing else.`,
+            });
+            const rewritten = (res || '').trim();
+            if (rewritten && rewritten !== (entry.answer || '').trim()) {
+              await base44.entities.KnowledgeBase.update(entry.id, { answer: rewritten });
+              changed++;
+            }
+          } catch (e) { console.error('KB enhance failed:', entry.id, e); }
+          done++;
+          setEnhanceProgress({ done, total: entries.length, changed });
+        }
+      });
+      await Promise.all(workers);
+      window.dispatchEvent(new CustomEvent('kb_updated'));
+    } catch (e) { alert('KB enhancement failed: ' + (e?.message || String(e))); }
+    setEnhancing(false);
+  };
+
   return (
     <div>
       {/* Header */}
@@ -99,8 +148,18 @@ export default function ObjectionsEngineTab({ readOnly }) {
           <div style={{ color: GOLD, fontSize: '14px', fontWeight: 'bold', letterSpacing: '1px' }}>🛡️ Objection Engine</div>
           <div style={{ color: '#6b7280', fontSize: '11px', marginTop: '2px' }}>Live transcript scanner — detects customer objections and surfaces the response for the agent in real time.</div>
         </div>
-        {!readOnly && <button onClick={startAdd} style={{ background: 'linear-gradient(135deg,#10b981,#22c55e)', color: DARK, border: 'none', borderRadius: '4px', padding: '8px 18px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase' }}>+ Add Objection</button>}
+        <div style={{ display: 'flex', gap: '8px' }}>
+          {!readOnly && <button onClick={enhanceKb} disabled={enhancing} title="Review and rewrite all KB answers with confident, empathetic, flow-controlling tone (facts unchanged)" style={{ background: enhancing ? 'rgba(167,139,250,0.15)' : 'linear-gradient(135deg,#a78bfa,#7c3aed)', color: enhancing ? '#a78bfa' : '#fff', border: 'none', borderRadius: '4px', padding: '8px 18px', cursor: enhancing ? 'not-allowed' : 'pointer', fontSize: '11px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase', opacity: enhancing ? 0.7 : 1, whiteSpace: 'nowrap' }}>{enhancing ? `⏳ ${enhanceProgress.done}/${enhanceProgress.total}` : '📖 Review & Enhance KB'}</button>}
+          {!readOnly && <button onClick={startAdd} style={{ background: 'linear-gradient(135deg,#10b981,#22c55e)', color: DARK, border: 'none', borderRadius: '4px', padding: '8px 18px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase' }}>+ Add Objection</button>}
+        </div>
       </div>
+
+      {/* Enhance progress */}
+      {enhancing && (
+        <div style={{ marginBottom: '14px', padding: '10px 14px', background: 'rgba(167,139,250,0.08)', border: '1px solid rgba(167,139,250,0.25)', borderRadius: '4px', color: '#a78bfa', fontSize: '12px' }}>
+          ⏳ Reviewing KB answers: {enhanceProgress.done} / {enhanceProgress.total} processed · {enhanceProgress.changed} enhanced
+        </div>
+      )}
 
       {/* Priority legend */}
       <div style={{ display: 'flex', gap: '10px', marginBottom: '14px', flexWrap: 'wrap' }}>
