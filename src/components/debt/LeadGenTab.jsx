@@ -356,9 +356,16 @@ export default function LeadGenTab() {
     } catch (e) { setError('Test failed: ' + (e?.message || String(e))); }
   };
 
-  // Filter leads — exclude AI debt-fit "not_fit" leads unless user toggles showExcluded
+  // Filter leads — ONLY show leads that have been screened by AI.
+  // Default: only 'fit' leads (AI read the full post and confirmed unsecured
+  // credit-card / personal-loan debt). "Show excluded" reveals not_fit +
+  // ambiguous (screened but rejected). Pending / unscreened leads are hidden
+  // — they are auto-screened on tab load and appear once the AI has verdict.
+  const SCREENED_PASS = ['fit'];
+  const SCREENED_ALL = ['fit', 'not_fit', 'ambiguous'];
   const filtered = leads.filter(l => {
-    if (!showExcluded && l.debtFitStatus === 'not_fit') return false;
+    const allowed = showExcluded ? SCREENED_ALL : SCREENED_PASS;
+    if (!allowed.includes(l.debtFitStatus)) return false;
     if (filterPlatform !== 'all' && l.platform !== filterPlatform) return false;
     if (filterStatus !== 'all' && l.status !== filterStatus) return false;
     if (filterDistress !== 'all' && l.distressCategory !== filterDistress) return false;
@@ -486,7 +493,7 @@ export default function LeadGenTab() {
           <option value="yes">Has Email ✉</option>
           <option value="no">No Email</option>
         </select>
-        <label style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#8a9ab8', fontSize: '11px', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+        <label style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#8a9ab8', fontSize: '11px', cursor: 'pointer', whiteSpace: 'nowrap' }} title="Default shows only AI-verified fit leads. Check to also show screened-but-rejected (not fit / ambiguous). Unscreended leads are hidden and auto-screened on load.">
           <input type="checkbox" checked={showExcluded} onChange={e => setShowExcluded(e.target.checked)} style={{ cursor: 'pointer' }} />
           Show excluded
         </label>
@@ -538,7 +545,11 @@ export default function LeadGenTab() {
               {loading ? (
                 <tr><td colSpan={11} style={{ padding: '40px', textAlign: 'center', color: '#4a5568' }}>Loading scraped leads…</td></tr>
               ) : filtered.length === 0 ? (
-                <tr><td colSpan={11} style={{ padding: '40px', textAlign: 'center', color: '#4a5568' }}>No leads found. Run the scraper to start mining debt-distress posts.</td></tr>
+                <tr><td colSpan={11} style={{ padding: '40px', textAlign: 'center', color: '#4a5568' }}>
+                  {stats.pendingFit > 0
+                    ? `🧠 AI is screening ${stats.pendingFit} unscreened lead(s)… only AI-verified fit leads appear here.`
+                    : 'No AI-verified fit leads yet. Run the scraper, then the AI screens new posts and the fit ones appear here.'}
+                </td></tr>
               ) : filtered.map(lead => (
                 <>
                 <tr key={lead.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
