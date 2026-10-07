@@ -108,6 +108,8 @@ async function screenSingleLead(base44: any, leadId: string): Promise<any> {
     debtFitReason: r.reason,
     debtFitConfidence: r.confidence,
     debtFitScreenedAt: new Date().toISOString(),
+    // Eliminate non-fits from the active pipeline automatically
+    ...(r.status === 'not_fit' ? { status: 'rejected' } : {}),
   });
 
   return { leadId, status: r.status, confidence: r.confidence, reason: r.reason };
@@ -180,6 +182,8 @@ export default async function(req: Request): Promise<Response> {
               debtFitReason: r.reason,
               debtFitConfidence: r.confidence,
               debtFitScreenedAt: new Date().toISOString(),
+              // Eliminate non-fits from the active pipeline automatically
+              ...(r.status === 'not_fit' ? { status: 'rejected' } : {}),
             });
           }
         } catch (e: any) {

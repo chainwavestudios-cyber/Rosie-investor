@@ -145,6 +145,17 @@ export default function LeadGenTab() {
     setFitScreening(false);
   };
 
+  // Auto-screen on load — AI screens every pending/unscreenscreened lead and eliminates non-fits.
+  // No button needed; runs silently in the background whenever the tab opens.
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await base44.functions.invoke('screenDebtFit', { bulk: true, pending: true });
+        if (res?.processed > 0) { setFitScreenResult(res); loadLeads(); }
+      } catch { /* silent — surfaced via the manual re-screen if needed */ }
+    })();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   const screenSingleFit = async (leadId) => {
     setFitScreening(true);
     try {
@@ -428,9 +439,7 @@ export default function LeadGenTab() {
         </button>
         <button onClick={loadLeads} style={{ background: 'rgba(255,255,255,0.05)', color: '#8a9ab8', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '4px', padding: '10px 16px', cursor: 'pointer', fontSize: '12px' }}>🔄 Refresh</button>
 
-        <button onClick={screenPendingLeads} disabled={fitScreening} style={{ background: 'linear-gradient(135deg,#22d3ee,#0891b2)', color: '#0a0f1e', border: 'none', borderRadius: '4px', padding: '10px 20px', cursor: fitScreening ? 'not-allowed' : 'pointer', fontSize: '12px', fontWeight: 'bold', opacity: fitScreening ? 0.5 : 1 }}>
-          {fitScreening ? '⏳ Screening…' : '🧠 Screen Debt Fit'}
-        </button>
+        {fitScreening && <span style={{ color: '#22d3ee', fontSize: '11px', fontStyle: 'italic' }}>🧠 Auto-screening…</span>}
 
         <button onClick={runLeadCrossEnrich} disabled={crossEnriching || selectedIds.size === 0} style={{ background: 'linear-gradient(135deg,#a78bfa,#7c3aed)', color: '#fff', border: 'none', borderRadius: '4px', padding: '10px 20px', cursor: crossEnriching || selectedIds.size === 0 ? 'not-allowed' : 'pointer', fontSize: '12px', fontWeight: 'bold', opacity: crossEnriching || selectedIds.size === 0 ? 0.5 : 1 }}>
           {crossEnriching ? '⏳ Cross-AI…' : `🚀 LeadCross AI (${selectedIds.size})`}
