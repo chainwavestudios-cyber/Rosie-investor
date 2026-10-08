@@ -99,6 +99,17 @@ function posHasAiInput(pos) {
   return pos.scriptLines.some((l, i) => i >= pos.activeIdx - 1 && i <= pos.activeIdx + 3 && /\[\[AI\s*INPUT\]\]/i.test(l || ''));
 }
 
+// Word-overlap ratio between two strings — used to detect cross-channel bleed
+// (agent mic picking up customer audio from an external speaker).
+function textSimilarity(a, b) {
+  const wa = new Set((a || '').toLowerCase().split(/\s+/).filter(Boolean));
+  const wb = new Set((b || '').toLowerCase().split(/\s+/).filter(Boolean));
+  if (wa.size === 0 || wb.size === 0) return 0;
+  let common = 0;
+  for (const w of wa) if (wb.has(w)) common++;
+  return common / Math.min(wa.size, wb.size);
+}
+
 export default function DebtLiveCall({ onCallStart, onCallEnd }) {
   const { user: coachUser, can } = useDebtCoachAuth();
   const recorder = useCallRecorder();
@@ -945,6 +956,7 @@ ${recentText}`,
   }, [phase, runTimedExtractors]);
 
   const lastEntryRef = useRef(null);
+  const recentBleedRef = useRef([]);
   const processNewEntry = useCallback((entry) => {
     // Deduplicate — Deepgram with utterances=true can send the same final transcript twice
     const last = lastEntryRef.current;
@@ -956,6 +968,21 @@ ${recentText}`,
       if (dt < 5000 && entry.text.length > 10 && (last.text.includes(entry.text) || entry.text.includes(last.text))) return;
     }
     lastEntryRef.current = { speaker: entry.speaker, text: entry.text, ts: Date.now() };
+
+    // Cross-channel bleed detection: the agent mic picks up customer audio from
+    // the external speaker, so the same text appears on channel 0 (agent) shortly
+    // after it appears on channel 1 (customer). Discard the agent-channel version
+    // as bleed — only for longer utterances to avoid discarding legitimate short
+    // agent acknowledgments that happen to match customer words.
+    if (entry.speaker === 0 && entry.text.length > 10) {
+      const now = Date.now();
+      for (const r of recentBleedRef.current) {
+        if (r.speaker === 0) continue;
+        if (now - r.ts > 6000) continue;
+        if (textSimilarity(entry.text, r.text) > 0.65) return; // bleed — discard
+      }
+    }
+    recentBleedRef.current = [...recentBleedRef.current, { speaker: entry.speaker, text: entry.text, ts: Date.now() }].slice(-20);
 
     // ── Transfer Agent Detection (inbound calls only) ──────────────────
     // For front_to_back / open_only calls, the transfer agent speaks on the
@@ -1000,6 +1027,16 @@ ${recentText}`,
     // text is replacing it.
     setTranscript(prev => {
       const withoutInterim = prev.filter(l => !(l.interim && l.speaker === entry.speaker));
+      // Reverse bleed: if this is a clean customer line and the last committed
+      // line was an agent line with near-identical text, that agent line was
+      // external-speaker bleed that arrived before the clean audio — remove it
+      // and let the clean customer line replace it.
+      if (entry.speaker === 1 && entry.text.length > 10 && withoutInterim.length > 0) {
+        const lastCommitted = withoutInterim[withoutInterim.length - 1];
+        if (lastCommitted.speaker === 0 && !lastCommitted.interim && textSimilarity(entry.text, lastCommitted.text) > 0.65) {
+          withoutInterim.pop();
+        }
+      }
       if (withoutInterim.length === 0) return [...withoutInterim, entry];
       const lastLine = withoutInterim[withoutInterim.length - 1];
       if (lastLine.speaker === entry.speaker) {
@@ -1209,7 +1246,7 @@ ${recentText}`,
 
     let agentStream, customerStream;
     try {
-      agentStream = await navigator.mediaDevices.getUserMedia({ audio: micDeviceId ? { deviceId: { exact: micDeviceId } } : true });
+      agentStream = await navigator.mediaDevices.getUserMedia({ audio: micDeviceId ? { deviceId: { exact: micDeviceId }, echoCancellation: true, noiseSuppression: true, autoGainControl: true } : { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
       streamRef.current = agentStream;
       if (dualMode) {
         customerStream = await navigator.mediaDevices.getUserMedia({ audio: { deviceId: { exact: customerMicId } } });
@@ -1753,7 +1790,7 @@ ${recentText}`,
       const ctx = new (window.AudioContext || window.webkitAudioContext)();
       if (ctx.state === 'suspended') await ctx.resume();
       testCtxRef.current = ctx;
-      const agentStream = await navigator.mediaDevices.getUserMedia({ audio: micDeviceId ? { deviceId: { exact: micDeviceId } } : true });
+      const agentStream = await navigator.mediaDevices.getUserMedia({ audio: micDeviceId ? { deviceId: { exact: micDeviceId }, echoCancellation: true, noiseSuppression: true, autoGainControl: true } : { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
       testAgentStreamRef.current = agentStream;
       const agentAnalyser = ctx.createAnalyser();
       agentAnalyser.fftSize = 256;
