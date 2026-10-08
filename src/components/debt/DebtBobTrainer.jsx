@@ -49,23 +49,25 @@ const SUB_TABS = [
   { id: 'log', label: '📋 Training Log' },
 ];
 
-// Truncate transcript JSON to fit within entity field size limits.
-// A 30-min call can produce a transcript too large for the database.
-// Keeps the most recent lines that fit within the size budget.
-const MAX_TRANSCRIPT_JSON_SIZE = 50000; // 50KB safety limit
-function truncateTranscriptForSave(lines) {
-  const full = JSON.stringify(lines);
-  if (full.length <= MAX_TRANSCRIPT_JSON_SIZE) return { transcriptJson: full, transcriptLineCount: lines.length };
-  const kept = [];
-  let size = 2; // "[]" overhead
+// Long calls produce transcripts too large for a database field, so the full
+// transcript is uploaded as a file and only its URL + a small preview are stored.
+const PREVIEW_MAX_SIZE = 8000;
+async function buildSessionTranscript(lines) {
+  const full = JSON.stringify(lines || []);
+  const file = new File([full], `bob-transcript-${Date.now()}.json`, { type: 'application/json' });
+  const { file_url } = await base44.integrations.Core.UploadPublicFile({ file });
+  const preview = [];
+  let size = 2;
   for (let i = lines.length - 1; i >= 0; i--) {
-    const lineJson = JSON.stringify(lines[i]);
-    if (size + lineJson.length + 1 > MAX_TRANSCRIPT_JSON_SIZE) break;
-    kept.unshift(lines[i]);
-    size += lineJson.length + 1;
+    const len = JSON.stringify(lines[i]).length + 1;
+    if (size + len > PREVIEW_MAX_SIZE) break;
+    preview.unshift(lines[i]);
+    size += len;
   }
-  return { transcriptJson: JSON.stringify(kept), transcriptLineCount: kept.length };
+  return { transcriptJson: JSON.stringify(preview), transcriptFileUrl: file_url, transcriptLineCount: lines.length };
 }
+// Local blob: URLs only exist in this browser tab — never store them.
+const cloudUrl = (url) => (url && !url.startsWith('blob:') ? url : '');
 
 export default function DebtBobTrainer() {
   const { can, isAdmin } = useDebtCoachAuth();
@@ -292,19 +294,17 @@ export default function DebtBobTrainer() {
     if (!recordingUrl) return;
     const duration = callStartRef.current ? Math.round((Date.now() - callStartRef.current) / 1000) : 0;
     callStartRef.current = null;
-    const { transcriptJson, transcriptLineCount } = truncateTranscriptForSave(transcriptRef.current || []);
-    base44.entities.BobSession.create({
+    buildSessionTranscript(transcriptRef.current || []).then(t => base44.entities.BobSession.create({
       sessionLabel: sessionId,
       voiceModel,
       sliderValue,
       intensity,
       focusTopic,
       callMode: mode,
-      transcriptJson,
-      transcriptLineCount,
+      ...t,
       durationSeconds: duration,
-      recordingUrl,
-    }).catch(e => console.warn('[BOB] Failed to save session:', e));
+      recordingUrl: cloudUrl(recordingUrl),
+    })).catch(e => console.warn('[BOB] Failed to save session:', e));
   }, [recordingUrl]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Manual "Save Now" — saves the current transcript (and recording if available) to BobSession
@@ -313,7 +313,7 @@ export default function DebtBobTrainer() {
     setSavingSession(true);
     try {
       const duration = callStartRef.current ? Math.round((Date.now() - callStartRef.current) / 1000) : 0;
-      const { transcriptJson, transcriptLineCount } = truncateTranscriptForSave(transcriptRef.current);
+      const t = await buildSessionTranscript(transcriptRef.current);
       await base44.entities.BobSession.create({
         sessionLabel: sessionId,
         voiceModel,
@@ -321,10 +321,9 @@ export default function DebtBobTrainer() {
         intensity,
         focusTopic,
         callMode: mode,
-        transcriptJson,
-        transcriptLineCount,
+        ...t,
         durationSeconds: duration,
-        recordingUrl: recordingUrl || '',
+        recordingUrl: cloudUrl(recordingUrl),
       });
       setSessionSaved(true);
       setTimeout(() => setSessionSaved(false), 2000);

@@ -36,8 +36,12 @@
     },
     "transcriptJson": {
       "type": "string",
-      "title": "Transcript (JSON)",
+      "title": "Transcript Preview (JSON \u2014 last lines only; full transcript in transcriptFileUrl)",
       "format": "textarea"
+    },
+    "transcriptFileUrl": {
+      "type": "string",
+      "title": "Full Transcript File URL (JSON)"
     },
     "transcriptLineCount": {
       "type": "number",
