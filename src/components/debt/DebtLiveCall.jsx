@@ -166,6 +166,7 @@ export default function DebtLiveCall({ onCallStart, onCallEnd }) {
   const [agentQuestionActive, setAgentQuestionActive] = useState(false);
   const agentQuestionActiveRef = useRef(false);
   const agentQuestionBufferRef = useRef([]);
+  const agentQuestionWaitingRef = useRef(false);
 
   useEffect(() => { agentQuestionActiveRef.current = agentQuestionActive; }, [agentQuestionActive]);
   // Refs mirror the AI feature flags + accumulated Q&A/coach data so that
@@ -588,17 +589,25 @@ Agent line: "${firstAgentLines}"`,
   // the captured text is sent as a single question and the answer appears in the Q&A list.
   const toggleAgentQuestion = useCallback(() => {
     if (agentQuestionActiveRef.current) {
-      const combined = agentQuestionBufferRef.current.join(' ').trim();
-      agentQuestionBufferRef.current = [];
-      agentQuestionActiveRef.current = false;
-      setAgentQuestionActive(false);
-      // Send to the visible Q&A list in the AI Assistant popup via pendingQuestion.
-      // (handleQa writes to an internal log that isn't displayed — the popup's
-      // QASection is what the agent actually sees.)
-      if (combined.length > 0) {
-        logAI('qa');
-        setPendingQuestion({ question: combined, ts: Date.now() });
-      }
+      // Turning OFF — wait briefly for pending Deepgram final transcripts to
+      // arrive before combining the buffer.  Deepgram can take 1-2.5s after
+      // the user stops speaking to emit the final segment; if we combine
+      // immediately the buffer is empty and the question is never sent.
+      if (agentQuestionWaitingRef.current) return; // already waiting
+      agentQuestionWaitingRef.current = true;
+      setAgentQuestionActive(false); // UI shows OFF immediately
+      // Keep agentQuestionActiveRef TRUE during the wait so that final
+      // transcripts arriving now are still captured in the buffer.
+      setTimeout(() => {
+        const combined = agentQuestionBufferRef.current.join(' ').trim();
+        agentQuestionBufferRef.current = [];
+        agentQuestionActiveRef.current = false;
+        agentQuestionWaitingRef.current = false;
+        if (combined.length > 0) {
+          logAI('qa');
+          setPendingQuestion({ question: combined, ts: Date.now() });
+        }
+      }, 2500);
     } else {
       agentQuestionBufferRef.current = [];
       agentQuestionActiveRef.current = true;
