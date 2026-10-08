@@ -6,6 +6,8 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useDebtBobVoice } from '@/hooks/useDebtBobVoice';
+import { useObjectionEngine } from '@/hooks/useObjectionEngine';
+import ObjectionPopup from '@/components/debt/ObjectionPopup';
 import { DEBT_DUCK, DEBT_COW, DEBT_OWL } from '@/components/admin/bob/DebtPersonas';
 import { BOB_CHARACTERS, getCharacter, DEFAULT_CHARACTER_ID, BOB_THINK_MODELS, DEFAULT_THINK_MODEL, TRANSFER_VOICES, getTransferVoice, DEFAULT_TRANSFER_VOICE_ID } from '@/components/debt/bob/BobCharacters';
 import DebtBobKB from '@/components/debt/DebtBobKB';
@@ -175,6 +177,11 @@ export default function DebtBobTrainer() {
   // Normalize BOB transcript for AIAssistantPopup (speaker: 0=prospect/bob, 1=agent/trainee)
   const normalizedTranscript = transcript.map(e => ({ speaker: e.role === 'trainee' ? 1 : 0, text: e.text, time: e.time }));
   useEffect(() => { aiTranscriptRef.current = normalizedTranscript; }, [normalizedTranscript]);
+
+  // Objection engine — BOB is the mock customer (speaker 1), trainee is the agent (speaker 0).
+  // Same engine as live calls so trainees practice handling objections in training too.
+  const objectionTranscript = transcript.map(e => ({ speaker: e.role === 'bob' ? 1 : 0, text: e.text, time: e.time }));
+  const { activeObjection, dismiss: dismissObjection } = useObjectionEngine(objectionTranscript);
 
   // Panel drag/resize handlers (when popped out)
   useEffect(() => {
@@ -724,7 +731,19 @@ IMPORTANT: Ask these questions NATURALLY during the call. Weave them into the co
                 </span>
               </div>
 
-              {isRecording && <div style={{ marginTop: '6px', color: '#ef4444', fontSize: '11px', textAlign: 'center', animation: 'pulse 1.5s infinite' }}>● REC — Recording call audio</div>}
+              {/* Audio recording indicator — auto-records the call; download link appears after */}
+              {phase === 'active' && isRecording && (
+                <div style={{ marginTop: '8px', display: 'flex', gap: '8px', alignItems: 'center', justifyContent: 'center', padding: '6px 12px', background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '4px' }}>
+                  <span style={{ color: '#ef4444', fontSize: '12px', fontWeight: 'bold', animation: 'pulse 1.5s infinite' }}>● REC</span>
+                  <span style={{ color: '#8a9ab8', fontSize: '11px' }}>Recording call audio…</span>
+                </div>
+              )}
+              {recordingUrl && phase !== 'active' && (
+                <div style={{ marginTop: '8px', display: 'flex', gap: '10px', alignItems: 'center', padding: '8px 12px', background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.25)', borderRadius: '4px' }}>
+                  <span style={{ color: GOLD, fontSize: '11px', fontWeight: 'bold' }}>🎵 Recording ready</span>
+                  <a href={recordingUrl} target="_blank" rel="noopener noreferrer" download style={{ color: GOLD, fontSize: '11px', textDecoration: 'underline', fontWeight: 'bold' }}>⬇ Download MP3</a>
+                </div>
+              )}
               {ringPhase && <div style={{ marginTop: '8px', color: '#f59e0b', fontSize: '11px', textAlign: 'center', animation: 'pulse 0.8s infinite' }}>📞 Dialing… (ringing twice, then transfer agent connects)</div>}
               {transferPhase && <div style={{ marginTop: '8px', color: '#60a5fa', fontSize: '11px', textAlign: 'center', animation: 'pulse 1s infinite' }}>📋 Transfer agent speaking… {mode === 'open' ? 'Jocelyn is introducing Bob' : 'Chris is connecting you with Bob'}</div>}
               {agentSpeaking && phase === 'active' && <div style={{ marginTop: '6px', color: GOLD, fontSize: '11px', textAlign: 'center' }}>🤖 Bob is speaking…</div>}
@@ -956,6 +975,9 @@ IMPORTANT: Ask these questions NATURALLY during the call. Weave them into the co
 
       <DebtCreditReport scenario={scenario} visible={phase === 'active'} />
       <FloatingScriptBox storageKey="bob_script" />
+
+      {/* Objection Engine — same non-blocking floating card as live calls */}
+      <ObjectionPopup objection={activeObjection} onDismiss={dismissObjection} />
     </div>
   );
 }
