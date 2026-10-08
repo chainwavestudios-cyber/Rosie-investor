@@ -884,7 +884,7 @@ IMPORTANT: Ask these questions NATURALLY during the call. Weave them into the co
               </div>
             </div>
             {rightView === 'scripts' ? (
-              <div style={{ flex: 1, overflow: 'hidden', padding: '14px 16px' }}>
+              <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', padding: '14px 16px' }}>
                 <DebtScriptEditor />
               </div>
             ) : (

@@ -45,12 +45,12 @@ export default function DebtScriptEditor() {
   const [tab, setTab] = useState('my');
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100%' }}>
       <div style={{ display: 'flex', gap: '2px', marginBottom: '12px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
         <button onClick={() => setTab('my')} style={{ padding: '8px 16px', background: tab === 'my' ? `${GOLD}12` : 'transparent', border: 'none', borderBottom: `2px solid ${tab === 'my' ? GOLD : 'transparent'}`, color: tab === 'my' ? GOLD : '#6b7280', cursor: 'pointer', fontSize: '12px', fontWeight: tab === 'my' ? 'bold' : 'normal' }}>📝 My Scripts</button>
         <button onClick={() => setTab('agent')} style={{ padding: '8px 16px', background: tab === 'agent' ? `${GOLD}12` : 'transparent', border: 'none', borderBottom: `2px solid ${tab === 'agent' ? GOLD : 'transparent'}`, color: tab === 'agent' ? GOLD : '#6b7280', cursor: 'pointer', fontSize: '12px', fontWeight: tab === 'agent' ? 'bold' : 'normal' }}>🤖 Agent Scripts</button>
       </div>
-      <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
         {tab === 'my' ? <MyScriptsTab /> : <AgentScriptsTab />}
       </div>
     </div>
