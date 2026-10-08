@@ -216,12 +216,31 @@ export function useDebtBobVoice({ onTranscript, onLog } = {}) {
         const blob = new Blob(chunksRef.current, { type: 'audio/webm' });
         chunksRef.current = [];
         if (blob.size < 2000) return;
+        // Always create a local object URL first — this is the safety net.
+        // If the cloud upload fails (file too large, network error, etc.),
+        // the recording is never lost: it downloads to the user's computer.
+        const localUrl = URL.createObjectURL(blob);
+        const fileName = `bob-training-${Date.now()}.webm`;
         try {
-          const file = new File([blob], `bob-training-${Date.now()}.webm`, { type: 'audio/webm' });
+          const file = new File([blob], fileName, { type: 'audio/webm' });
           const { file_url } = await base44.integrations.Core.UploadPublicFile({ file });
           setRecordingUrl(file_url);
           onLogRef.current?.('session_end', `🎵 Recording saved: ${file_url}`);
-        } catch (e) { console.warn('[BOB] Recording upload failed:', e); }
+        } catch (e) {
+          console.warn('[BOB] Recording cloud upload failed, saving locally:', e);
+          // Cloud upload failed — trigger a local download so the recording
+          // is never lost. The user can re-upload it later from Downloads.
+          setRecordingUrl(localUrl);
+          const a = document.createElement('a');
+          a.href = localUrl;
+          a.download = fileName;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          const sizeMB = (blob.size / 1024 / 1024).toFixed(1);
+          setError(`Recording (${sizeMB} MB) was too large for cloud upload. It has been downloaded to your computer — check your Downloads folder. You can re-upload it from there if needed.`);
+          onLogRef.current?.('session_end', `⚠️ Cloud upload failed (${sizeMB} MB). Recording downloaded locally — check your Downloads folder.`);
+        }
       };
       try { rec.stop(); } catch {}
     }
@@ -322,7 +341,7 @@ export function useDebtBobVoice({ onTranscript, onLog } = {}) {
               const silence = ctx.createGain(); silence.gain.value = 0;
               processor.connect(silence); silence.connect(ctx.destination);
               try {
-                const recorder = new MediaRecorder(recordDestRef.current.stream);
+                const recorder = new MediaRecorder(recordDestRef.current.stream, { audioBitsPerSecond: 32000 });
                 chunksRef.current = [];
                 recorder.ondataavailable = (e) => { if (e.data.size > 0) chunksRef.current.push(e.data); };
                 recorder.start(1000);
