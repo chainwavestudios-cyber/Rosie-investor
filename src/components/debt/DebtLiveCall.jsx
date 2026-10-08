@@ -988,7 +988,25 @@ ${recentText}`,
       for (const r of recentBleedRef.current) {
         if (r.speaker === 0) continue;
         if (now - r.ts > 6000) continue;
-        if (textSimilarity(entry.text, r.text) > 0.65) return; // bleed — discard
+        if (textSimilarity(entry.text, r.text) > 0.65) {
+          // Partial bleed: the agent line starts with customer words (picked up
+          // from the external speaker) but then continues with real agent speech.
+          // Find the split point: trim progressively more words from the agent
+          // text until the remaining portion has low similarity with the customer
+          // text, then keep the portion after the bleed prefix.
+          const agtWords = entry.text.split(/\s+/);
+          let bestCut = 0;
+          for (let cut = 1; cut < agtWords.length; cut++) {
+            const remaining = agtWords.slice(cut).join(' ');
+            if (remaining.trim().length < 5) { bestCut = cut; break; }
+            if (textSimilarity(remaining, r.text) < 0.4) { bestCut = cut; break; }
+            bestCut = cut;
+          }
+          const remaining = agtWords.slice(bestCut).join(' ').trim();
+          if (remaining.length < 5) return; // all bleed — discard
+          entry = { ...entry, text: remaining };
+          break;
+        }
       }
     }
     recentBleedRef.current = [...recentBleedRef.current, { speaker: entry.speaker, text: entry.text, ts: Date.now() }].slice(-20);
@@ -1043,16 +1061,44 @@ ${recentText}`,
       if (entry.speaker === 1 && entry.text.length > 10 && withoutInterim.length > 0) {
         const lastCommitted = withoutInterim[withoutInterim.length - 1];
         if (lastCommitted.speaker === 0 && !lastCommitted.interim && textSimilarity(entry.text, lastCommitted.text) > 0.65) {
-          withoutInterim.pop();
+          // Partial reverse bleed: the agent line may start with customer bleed
+          // but also contain real agent speech. Trim the bleed prefix instead
+          // of removing the entire line.
+          const agtWords = (lastCommitted.text || '').split(/\s+/);
+          let bestCut = 0;
+          for (let cut = 1; cut < agtWords.length; cut++) {
+            const remaining = agtWords.slice(cut).join(' ');
+            if (remaining.trim().length < 5) { bestCut = cut; break; }
+            if (textSimilarity(remaining, entry.text) < 0.4) { bestCut = cut; break; }
+            bestCut = cut;
+          }
+          const remaining = agtWords.slice(bestCut).join(' ').trim();
+          if (remaining.length < 5) {
+            withoutInterim.pop(); // all bleed — remove
+          } else {
+            withoutInterim[withoutInterim.length - 1] = { ...lastCommitted, text: remaining };
+          }
         }
       }
       if (withoutInterim.length === 0) return [...withoutInterim, entry];
       const lastLine = withoutInterim[withoutInterim.length - 1];
       if (lastLine.speaker === entry.speaker) {
         const lastText = (lastLine.text || '').trim();
+        const entryText = (entry.text || '').trim();
         const lastTime = lastLine.time ? new Date(lastLine.time).getTime() : 0;
         const entryTime = entry.time ? new Date(entry.time).getTime() : Date.now();
         const gap = entryTime - lastTime;
+        // Progressive/cumulative dedup: Deepgram sometimes re-emits the full
+        // accumulated text as a new "final" result. If one text starts with
+        // the other, keep the longer one instead of creating a duplicate line.
+        if (entryText.length > 10 && lastText.length > 5 && (entryText.startsWith(lastText) || lastText.startsWith(entryText))) {
+          const merged = [...withoutInterim];
+          merged[merged.length - 1] = {
+            ...lastLine,
+            text: entryText.length >= lastText.length ? entryText : lastText,
+          };
+          return merged;
+        }
         // Merge consecutive same-speaker fragments into one line per turn:
         //  • if the last line has no terminal punctuation (mid-sentence fragment), or
         //  • if the two segments were emitted within 3s (rapid bursts in the same turn).
@@ -1134,11 +1180,17 @@ ${recentText}`,
   // is committed via processNewEntry (on speech_final).
   const updateInterimLine = useCallback((speaker, text) => {
     setTranscript(prev => {
-      const last = prev[prev.length - 1];
-      if (last && last.speaker === speaker && last.interim) {
-        const updated = [...prev];
-        updated[updated.length - 1] = { ...last, text, time: new Date().toISOString() };
-        return updated;
+      // Search backwards for the most recent interim line for this speaker.
+      // Stop at the first non-interim line for this speaker (it was already committed).
+      for (let i = prev.length - 1; i >= 0; i--) {
+        if (prev[i].speaker === speaker) {
+          if (prev[i].interim) {
+            const updated = [...prev];
+            updated[i] = { ...prev[i], text, time: new Date().toISOString() };
+            return updated;
+          }
+          break; // hit a committed line for this speaker — create a new interim
+        }
       }
       return [...prev, { speaker, text, time: new Date().toISOString(), interim: true, sentiment: null }];
     });
@@ -1384,10 +1436,22 @@ ${recentText}`,
         Object.keys(segBuf).forEach(k => { if (Number(k) !== speaker) emitSegment(Number(k)); });
 
         if (msg.is_final) {
-          // Finalized chunk — accumulate in segBuf (guard against duplicate is_final chunks)
+          // Finalized chunk — accumulate in segBuf
           const b = segBuf[speaker] || (segBuf[speaker] = { text: '', sentiment: null, timer: null });
           const chunk = alt.transcript.trim();
-          if (chunk && !b.text.trim().endsWith(chunk)) b.text += ' ' + chunk;
+          if (chunk) {
+            const acc = b.text.trim();
+            if (!acc) {
+              b.text = chunk;
+            } else if (chunk.startsWith(acc)) {
+              // Deepgram re-sent the full accumulated text — replace, don't append
+              b.text = chunk;
+            } else if (acc.endsWith(chunk)) {
+              // Exact duplicate chunk — skip
+            } else {
+              b.text += ' ' + chunk;
+            }
+          }
           b.sentiment = msg.sentiment || alt.sentiment || b.sentiment;
           clearTimeout(b.timer);
           if (msg.speech_final) {
