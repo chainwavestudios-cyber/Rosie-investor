@@ -88,6 +88,10 @@
       "title": "Call Analysis (JSON \u2014 timeline, manager report, suggestions, follow-up)",
       "format": "textarea"
     },
+    "recordingUrl": {
+      "type": "string",
+      "title": "Call Recording (private file URI \u2014 audio/webm)"
+    },
     "callDate": {
       "type": "string",
       "format": "date-time",

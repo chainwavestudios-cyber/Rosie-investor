@@ -140,6 +140,8 @@ function CallDetail({ call, canManage, managerUsername }) {
   const [newComment, setNewComment] = useState('');
   const [savingComment, setSavingComment] = useState(false);
   const [loadingSection, setLoadingSection] = useState(false);
+  const [recordingSignedUrl, setRecordingSignedUrl] = useState(null);
+  const [loadingRecording, setLoadingRecording] = useState(false);
 
   // Parse transcript lines
   let transcriptLines = [];
@@ -151,6 +153,7 @@ function CallDetail({ call, canManage, managerUsername }) {
     { id: 'qa', label: '❓ Q&A History' },
     { id: 'coaching', label: '💡 Coaching History' },
     { id: 'intentHistory', label: '📊 Intent History' },
+    ...(call.recordingUrl ? [{ id: 'recording', label: '🎵 Recording' }] : []),
     { id: 'comments', label: '💬 Manager Comments' },
   ];
 
@@ -180,6 +183,13 @@ function CallDetail({ call, canManage, managerUsername }) {
         .then(r => setComments(r || []))
         .catch(() => setComments([]))
         .finally(() => setLoadingSection(false));
+    } else if (section === 'recording' && call.recordingUrl) {
+      setLoadingRecording(true);
+      setRecordingSignedUrl(null);
+      base44.integrations.Core.CreateFileSignedUrl({ file_uri: call.recordingUrl, expires_in: 3600 })
+        .then(res => setRecordingSignedUrl(res?.signed_url || null))
+        .catch(() => setRecordingSignedUrl(null))
+        .finally(() => setLoadingRecording(false));
     }
   }, [section, call.id]);
 
@@ -319,6 +329,28 @@ function CallDetail({ call, canManage, managerUsername }) {
                 </div>
               ))}
             </div>
+          )
+        )}
+
+        {/* Call Recording — audio player + download */}
+        {section === 'recording' && (
+          !call.recordingUrl ? (
+            <div style={{ color: '#4a5568', textAlign: 'center', padding: '20px 0', fontSize: '12px' }}>No audio recording for this call.</div>
+          ) : loadingRecording ? (
+            <div style={{ color: '#4a5568', textAlign: 'center', padding: '20px 0' }}>Loading recording…</div>
+          ) : recordingSignedUrl ? (
+            <div>
+              <div style={{ color: GOLD, fontSize: '10px', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '10px' }}>🎵 Call Audio Recording</div>
+              <audio controls src={recordingSignedUrl} style={{ width: '100%', marginBottom: '14px', maxWidth: '420px' }} />
+              <div>
+                <a href={recordingSignedUrl} download={`call-${call.leadNumber || call.id}.webm`} style={{ display: 'inline-block', background: 'linear-gradient(135deg,#10b981,#22c55e)', color: '#0a0f1e', border: 'none', borderRadius: '4px', padding: '10px 24px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase', textDecoration: 'none' }}>
+                  ⬇ Download Recording
+                </a>
+                <span style={{ color: '#6b7280', fontSize: '10px', marginLeft: '12px' }}>(audio/webm — playable in most media players)</span>
+              </div>
+            </div>
+          ) : (
+            <div style={{ color: '#ef4444', textAlign: 'center', padding: '20px 0', fontSize: '12px' }}>Could not load recording. The file may have expired or been removed.</div>
           )
         )}
 
