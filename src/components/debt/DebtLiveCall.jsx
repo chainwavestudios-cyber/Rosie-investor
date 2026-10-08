@@ -1235,7 +1235,7 @@ ${recentText}`,
       transcriptPanel.popOut();
       scriptsPanel.popOut();
       aiPanel.popOut();
-      if (callMode === 'close') closingPanel.popOut();
+      closingPanel.popOut();
       setAllPoppedOut(true);
     }, 300);
 
@@ -2218,7 +2218,7 @@ ${recentText}`,
         );
       })()}
 
-      {/* Closing Flow pop-out — auto-opens for close-mode calls (Front→Back, Closer) */}
+      {/* Closing Flow pop-out — auto-opens on every live call */}
       {closingPanel.poppedOut && phase === 'live' && (
         <div style={{ ...closingPanel.floatingStyle, background: '#0d1b2a', border: '1px solid rgba(16,185,129,0.3)', borderRadius: '6px' }}>
           <div onMouseDown={closingPanel.onDragStart} style={{ padding: '8px 12px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'move', userSelect: 'none', flexShrink: 0 }}>

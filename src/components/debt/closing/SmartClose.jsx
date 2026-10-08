@@ -5,6 +5,10 @@
  * checks completed steps, flags skipped steps (popup: ignore/save/confirm),
  * and surfaces close-specific recommendations + close-readiness score.
  *
+ * Progress persists to the DebtLead entity (closingProgressJson) so it
+ * survives across calls, devices, and browser cache clears. localStorage
+ * is used as a fast cache/fallback.
+ *
  * Works two ways:
  *   1. Standalone Closing tab — polls the lead's saved transcript (auto-saved
  *      every 15s during a live call) + intent data from the lead record.
@@ -44,6 +48,14 @@ function labelForKey(key) {
   return key;
 }
 
+// Load progress from the lead record (DB), falling back to localStorage
+function loadProgress(leadId, leadRecord) {
+  if (leadRecord?.closingProgressJson) {
+    try { return JSON.parse(leadRecord.closingProgressJson); } catch {}
+  }
+  try { return JSON.parse(localStorage.getItem(`closing_progress_${leadId || 'general'}`) || '{}'); } catch { return {}; }
+}
+
 export default function SmartClose({ leadId, liveTranscript, intentScore, animalType, compact }) {
   const [smartOn, setSmartOn] = useState(false);
   const [lead, setLead] = useState(null);
@@ -60,10 +72,13 @@ export default function SmartClose({ leadId, liveTranscript, intentScore, animal
   const [error, setError] = useState('');
   const [leadSearch, setLeadSearch] = useState('');
   const [leadResults, setLeadResults] = useState([]);
+  const [saving, setSaving] = useState(false);
+  const [savedAt, setSavedAt] = useState(null);
   const lastAnalyzedLinesRef = useRef(0);
   const dismissedRef = useRef({});
   const manualRef = useRef(manualDone);
   const savedNotesRef = useRef(savedNotes);
+  const saveTimerRef = useRef(null);
 
   useEffect(() => { dismissedRef.current = dismissedSkips; }, [dismissedSkips]);
   useEffect(() => { manualRef.current = manualDone; }, [manualDone]);
@@ -72,11 +87,18 @@ export default function SmartClose({ leadId, liveTranscript, intentScore, animal
   const transcript = (liveTranscript && liveTranscript.length > 0) ? liveTranscript : savedTranscript;
   const combinedDone = { ...autoDone, ...manualDone };
 
-  // Load lead
+  // Load lead + closing progress from DB
   useEffect(() => {
     if (!leadId) { setLead(null); setSavedTranscript([]); return; }
     let cancelled = false;
-    base44.entities.DebtLead.get(leadId).then(l => { if (!cancelled) setLead(l); }).catch(() => {});
+    base44.entities.DebtLead.get(leadId).then(l => {
+      if (cancelled) return;
+      setLead(l);
+      // Load progress from DB record (falls back to localStorage)
+      const dbProgress = loadProgress(leadId, l);
+      setManualDone(dbProgress);
+      if (l.closingProgressUpdatedAt) setSavedAt(l.closingProgressUpdatedAt);
+    }).catch(() => {});
     return () => { cancelled = true; };
   }, [leadId]);
 
@@ -95,9 +117,25 @@ export default function SmartClose({ leadId, liveTranscript, intentScore, animal
     return () => clearInterval(interval);
   }, [leadId, liveTranscript]);
 
-  // Persist manualDone to localStorage (same key as plain checklist → compatible)
+  // Persist manualDone to localStorage (fast cache)
   useEffect(() => {
     try { localStorage.setItem(`closing_progress_${leadId || 'general'}`, JSON.stringify(manualDone)); } catch {}
+  }, [manualDone, leadId]);
+
+  // Auto-save to DB (debounced 3s after last toggle)
+  useEffect(() => {
+    if (!leadId) return;
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(async () => {
+      try {
+        await base44.entities.DebtLead.update(leadId, {
+          closingProgressJson: JSON.stringify(manualDone),
+          closingProgressUpdatedAt: new Date().toISOString(),
+        });
+        setSavedAt(new Date().toISOString());
+      } catch {}
+    }, 3000);
+    return () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current); };
   }, [manualDone, leadId]);
 
   // Reset state when lead changes
@@ -191,6 +229,20 @@ ${recentText}`,
 
   const handleToggle = (key) => setManualDone(prev => ({ ...prev, [key]: !prev[key] }));
 
+  // Explicit save button — persists immediately to DB
+  const handleSave = async () => {
+    if (!leadId) return;
+    setSaving(true);
+    try {
+      await base44.entities.DebtLead.update(leadId, {
+        closingProgressJson: JSON.stringify(manualDone),
+        closingProgressUpdatedAt: new Date().toISOString(),
+      });
+      setSavedAt(new Date().toISOString());
+    } catch (e) { setError('Save failed: ' + (e?.message || String(e))); }
+    setSaving(false);
+  };
+
   const handleSkipIgnore = (key) => {
     setDismissedSkips(prev => ({ ...prev, [key]: true }));
     setSkippedQueue(prev => prev.slice(1));
@@ -280,6 +332,14 @@ ${recentText}`,
         autoDone={smartOn ? autoDone : undefined}
         smartMode={smartOn}
       />
+
+      {/* Save button — persists closing progress to the lead record */}
+      <div style={{ marginTop: '12px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+        <button onClick={handleSave} disabled={saving || !leadId} style={{ background: 'linear-gradient(135deg,#10b981,#22c55e)', color: DARK, border: 'none', borderRadius: '4px', padding: '8px 20px', cursor: saving || !leadId ? 'not-allowed' : 'pointer', fontSize: '11px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase', opacity: saving || !leadId ? 0.5 : 1 }}>
+          {saving ? '⏳ Saving…' : '💾 Save Progress'}
+        </button>
+        {savedAt && <span style={{ color: '#6b7280', fontSize: '10px' }}>✓ Saved {new Date(savedAt).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</span>}
+      </div>
 
       {/* Smart recommendations — close-focused coaching */}
       {smartOn && analysis?.recommendations?.length > 0 && (

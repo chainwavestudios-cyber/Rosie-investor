@@ -8,6 +8,7 @@ import { base44 } from '@/api/base44Client';
 import DoNothingCalculator from '@/components/debt/DoNothingCalculator';
 import NextCallBriefing from '@/components/debt/NextCallBriefing';
 import CallAnalysisDiagram from '@/components/debt/CallAnalysisDiagram';
+import ClosingTab from '@/components/debt/closing/ClosingTab';
 import { setProfileTimer, cancelProfileTimer, getActiveTimer } from '@/components/debt/ProfileTimerWatcher';
 import LeadActivityTab from '@/components/debt/LeadActivityTab';
 import DebtCallBar from '@/components/debt/DebtCallBar';
@@ -43,6 +44,7 @@ const TABS = [
   { id: 'qa', label: '❓ Q&A' },
   { id: 'transcripts', label: '📝 Transcripts' },
   { id: 'credit_report', label: '📷 Credit Report' },
+  { id: 'closing', label: '🏁 Closing' },
   { id: 'calculator', label: '📊 Calculator' },
 ];
 
@@ -516,6 +518,10 @@ export default function ClientProfileModal({ lead, username, onClose, onSave }) 
               </div>
             )}
           </div>
+        )}
+
+        {tab === 'closing' && (
+          <ClosingTab lead={local} update={update} username={username} />
         )}
 
         {tab === 'calculator' && (

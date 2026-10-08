@@ -209,6 +209,16 @@
       "format": "date-time",
       "title": "Next Call Briefing Generated At"
     },
+    "closingProgressJson": {
+      "type": "string",
+      "title": "Closing Checklist Progress (JSON \u2014 step keys checked, saved across calls)",
+      "format": "textarea"
+    },
+    "closingProgressUpdatedAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Closing Progress Last Saved At"
+    },
     "deletedAt": {
       "type": "string",
       "format": "date-time",
