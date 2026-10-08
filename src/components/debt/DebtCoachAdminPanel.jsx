@@ -180,6 +180,7 @@ export default function DebtCoachAdminPanel() {
                       <option value="manager">Manager</option>
                       <option value="super_manager">Super Manager</option>
                       <option value="admin">Admin</option>
+                      <option value="fronter">Fronter</option>
                     </select>
                   </div>
                 )}
@@ -232,7 +233,7 @@ function CreateUserForm({ onCreated, sessionUserId, sessionToken }) {
       <div style={{ marginBottom: '12px' }}>
         <label style={ls}>Role</label>
         <div style={{ display: 'flex', gap: '6px' }}>
-          {['dialer', 'manager', 'super_manager', 'admin', 'super_admin'].map((r) => (
+          {['dialer', 'manager', 'super_manager', 'admin', 'super_admin', 'fronter'].map((r) => (
             <button key={r} onClick={() => setRole(r)} style={{ padding: '8px 16px', borderRadius: '4px', border: `1px solid ${role === r ? ROLE_COLORS[r] + '66' : 'rgba(255,255,255,0.1)'}`, background: role === r ? `${ROLE_COLORS[r]}18` : 'transparent', color: role === r ? ROLE_COLORS[r] : '#6b7280', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}>{ROLE_LABELS[r]}</button>
           ))}
         </div>

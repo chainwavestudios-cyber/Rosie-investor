@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
 import { useDebtCoachAuth } from '@/lib/DebtCoachAuthContext';
 import { isComplianceManager, isComplianceAdmin } from '@/lib/complianceRoles';
@@ -16,8 +16,9 @@ const GOLD = '#10b981';
 const DARK = '#0a0f1e';
 
 export default function ManagerPortal() {
-  const { user, loading, isAuthenticated, isAdmin, isManager, isSuperManager, logout } = useDebtCoachAuth();
+  const { user, loading, isAuthenticated, isAdmin, isManager, isSuperManager, logout, isFronter } = useDebtCoachAuth();
   const [tab, setTab] = useState('employees');
+  useEffect(() => { if (isFronter) navigate('/fronter', { replace: true }); }, [isFronter, navigate]);
   const [inspectRecord, setInspectRecord] = useState(null);
   const [autoSelectUsername, setAutoSelectUsername] = useState(null);
   const navigate = useNavigate();

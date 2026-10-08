@@ -22,7 +22,8 @@
         "admin",
         "super_manager",
         "manager",
-        "dialer"
+        "dialer",
+        "fronter"
       ],
       "default": "dialer"
     },

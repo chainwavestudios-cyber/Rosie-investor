@@ -108,6 +108,7 @@ export function DebtCoachAuthProvider({ children }) {
     isSuperManager: ['super_manager', 'admin', 'super_admin'].includes(user?.role),
     isAdmin: ['admin', 'super_admin'].includes(user?.role),
     isSuperAdmin: user?.role === 'super_admin',
+    isFronter: user?.role === 'fronter',
     // True ONLY for users whose actual role is dialer (used for dialer-only restrictions: read-only KB, no delete, own calls only)
     isDialerRole: user?.role === 'dialer',
     // Managers and SuperManagers have full feature access (like admins) but no user management

@@ -4,8 +4,8 @@
  * SuperManager: Monitor + My Compliance.
  * Admin/SuperAdmin: Monitor + Admin + My Compliance.
  */
-import { useState } from 'react';
-import { Navigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { Navigate, useNavigate } from 'react-router-dom';
 import { useDebtCoachAuth } from '@/lib/DebtCoachAuthContext';
 import { isComplianceManager, isComplianceAdmin } from '@/lib/complianceRoles';
 import MyComplianceTab from '@/components/compliance/MyComplianceTab';
@@ -17,8 +17,10 @@ import ComplianceContactCard from '@/components/compliance/ComplianceContactCard
 const GOLD = '#10b981';
 
 export default function CompliancePortal({ onBack }) {
-  const { user, logout, isAuthenticated, loading } = useDebtCoachAuth();
+  const { user, logout, isAuthenticated, loading, isFronter } = useDebtCoachAuth();
+  const navigate = useNavigate();
   const [tab, setTab] = useState('my');
+  useEffect(() => { if (isFronter) navigate('/fronter', { replace: true }); }, [isFronter, navigate]);
   const [inspectRecord, setInspectRecord] = useState(null);
 
   if (loading) return <div style={{ minHeight: '100vh', background: '#0a0f1e', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#6b7280' }}>Loading…</div>;

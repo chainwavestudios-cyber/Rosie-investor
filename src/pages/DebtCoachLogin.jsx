@@ -18,7 +18,7 @@ export default function DebtCoachLogin() {
   const [confirmPassword, setConfirmPassword] = useState('');
 
   useEffect(() => {
-    if (isAuthenticated && !mustResetPassword) navigate('/debt-call-coach', { replace: true });
+    if (isAuthenticated && !mustResetPassword) navigate(user?.role === 'fronter' ? '/fronter' : '/debt-call-coach', { replace: true });
     if (isAuthenticated && mustResetPassword) setShowReset(true);
   }, [isAuthenticated, mustResetPassword, navigate]);
 
@@ -31,7 +31,7 @@ export default function DebtCoachLogin() {
       if (res.mustResetPassword) {
         setShowReset(true);
       } else {
-        navigate('/debt-call-coach', { replace: true });
+        navigate(res.user?.role === 'fronter' ? '/fronter' : '/debt-call-coach', { replace: true });
       }
     } catch (err) {
       setError(err.message);

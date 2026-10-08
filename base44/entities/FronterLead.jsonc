@@ -1,0 +1,89 @@
+{
+  "name": "FronterLead",
+  "type": "object",
+  "properties": {
+    "leadNumber": {
+      "type": "string",
+      "title": "Lead Number (e.g. #F0001)"
+    },
+    "firstName": {
+      "type": "string",
+      "title": "First Name"
+    },
+    "lastName": {
+      "type": "string",
+      "title": "Last Name"
+    },
+    "phone": {
+      "type": "string",
+      "title": "Phone"
+    },
+    "status": {
+      "type": "string",
+      "title": "Status",
+      "enum": [
+        "prospect",
+        "lead",
+        "transferred",
+        "removed"
+      ],
+      "default": "prospect"
+    },
+    "assignedTo": {
+      "type": "string",
+      "title": "Assigned To (fronter username)"
+    },
+    "assignedAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Assigned At"
+    },
+    "assignedBy": {
+      "type": "string",
+      "title": "Assigned By (admin username)"
+    },
+    "callCount": {
+      "type": "number",
+      "title": "Call Count (max 3 before removal)",
+      "default": 0
+    },
+    "lastCalledAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Last Called At"
+    },
+    "lastCallResult": {
+      "type": "string",
+      "title": "Last Call Result (no_answer, voicemail, connected, transferred)"
+    },
+    "transferredTo": {
+      "type": "string",
+      "title": "Transferred To (agent name or number)"
+    },
+    "transferredAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Transferred At"
+    },
+    "notes": {
+      "type": "string",
+      "title": "Notes",
+      "format": "textarea"
+    },
+    "uploadedBy": {
+      "type": "string",
+      "title": "Uploaded By (admin username)"
+    }
+  },
+  "required": [
+    "firstName",
+    "lastName",
+    "phone"
+  ],
+  "rls": {
+    "create": null,
+    "read": null,
+    "update": null,
+    "delete": null
+  }
+}

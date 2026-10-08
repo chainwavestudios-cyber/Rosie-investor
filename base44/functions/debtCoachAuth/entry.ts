@@ -96,6 +96,7 @@ export default async function(req: Request): Promise<Response> {
 
       const role = body.role || 'dialer';
       if (role === 'super_admin' && admin.role !== 'super_admin') return Response.json({ error: 'Only super admins can create super admins' }, { status: 403 });
+      if (role === 'fronter' && admin.role !== 'super_admin') return Response.json({ error: 'Only super admins can create fronter users' }, { status: 403 });
 
       const hash = await hashPassword(DEFAULT_PASSWORD);
       const permissions = body.permissions ? JSON.stringify(body.permissions) : '';
@@ -111,7 +112,7 @@ export default async function(req: Request): Promise<Response> {
           await base44.integrations.Core.SendEmail({
             to: body.email.trim(),
             subject: 'Welcome to Debt Settlement Call Coach',
-            body: `You've been invited to the Debt Settlement Call Coach platform.\n\nUsername: ${username}\nDefault Password: ${DEFAULT_PASSWORD}\n\nPlease log in at https://rosieai-investorpage.base44.app/debt-call-coach-login and set a new password on first login.\n\nYour role: ${role === 'super_admin' ? 'Super Admin' : role === 'admin' ? 'Admin' : role === 'manager' ? 'Manager' : 'Dialer'}`
+            body: `You've been invited to the Debt Settlement Call Coach platform.\n\nUsername: ${username}\nDefault Password: ${DEFAULT_PASSWORD}\n\nPlease log in at https://rosieai-investorpage.base44.app/debt-call-coach-login and set a new password on first login.\n\nYour role: ${role === 'super_admin' ? 'Super Admin' : role === 'admin' ? 'Admin' : role === 'manager' ? 'Manager' : role === 'fronter' ? 'Fronter' : 'Dialer'}`
           });
         } catch {}
       }

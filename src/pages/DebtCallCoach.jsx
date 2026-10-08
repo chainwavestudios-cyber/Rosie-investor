@@ -2,7 +2,7 @@
  * DebtCallCoach.jsx — Standalone debt settlement call coaching platform.
  * Tabs: Live Call (headset coaching + lead card) | Knowledge Base | User Profiles.
  */
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
 import { useDebtCoachAuth } from '@/lib/DebtCoachAuthContext';
 import { isComplianceManager } from '@/lib/complianceRoles';
@@ -33,8 +33,9 @@ const GOLD = '#10b981';
 const DARK = '#0a0f1e';
 
 export default function DebtCallCoach() {
-  const { user, loading, isAuthenticated, logout, isDialerRole, isAdmin, isManager, isSuperManager, isSuperAdmin, canManage, mustResetPassword } = useDebtCoachAuth();
+  const { user, loading, isAuthenticated, logout, isDialerRole, isAdmin, isManager, isSuperManager, isSuperAdmin, canManage, mustResetPassword, isFronter } = useDebtCoachAuth();
   const [tab, setTab] = useState('live');
+  useEffect(() => { if (isFronter) navigate('/fronter', { replace: true }); }, [isFronter, navigate]);
   const [timerLead, setTimerLead] = useState(null);
   const [showCompliance, setShowCompliance] = useState(false);
   const [liveCallActive, setLiveCallActive] = useState(false);

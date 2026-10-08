@@ -1,0 +1,37 @@
+{
+  "name": "FronterLineAssignment",
+  "type": "object",
+  "properties": {
+    "username": {
+      "type": "string",
+      "title": "Fronter Username"
+    },
+    "twilioLineKey": {
+      "type": "string",
+      "title": "Twilio Line Key (env var name, e.g. TWILIO_FROM_NUMBER_2)"
+    },
+    "twilioNumber": {
+      "type": "string",
+      "title": "Twilio Number (the actual phone number)"
+    },
+    "assignedBy": {
+      "type": "string",
+      "title": "Assigned By (admin username)"
+    },
+    "assignedAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Assigned At"
+    }
+  },
+  "required": [
+    "username",
+    "twilioLineKey"
+  ],
+  "rls": {
+    "create": null,
+    "read": null,
+    "update": null,
+    "delete": null
+  }
+}
