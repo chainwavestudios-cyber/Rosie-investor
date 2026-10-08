@@ -50,7 +50,7 @@ export default function DebtScriptEditor() {
         <button onClick={() => setTab('my')} style={{ padding: '8px 16px', background: tab === 'my' ? `${GOLD}12` : 'transparent', border: 'none', borderBottom: `2px solid ${tab === 'my' ? GOLD : 'transparent'}`, color: tab === 'my' ? GOLD : '#6b7280', cursor: 'pointer', fontSize: '12px', fontWeight: tab === 'my' ? 'bold' : 'normal' }}>📝 My Scripts</button>
         <button onClick={() => setTab('agent')} style={{ padding: '8px 16px', background: tab === 'agent' ? `${GOLD}12` : 'transparent', border: 'none', borderBottom: `2px solid ${tab === 'agent' ? GOLD : 'transparent'}`, color: tab === 'agent' ? GOLD : '#6b7280', cursor: 'pointer', fontSize: '12px', fontWeight: tab === 'agent' ? 'bold' : 'normal' }}>🤖 Agent Scripts</button>
       </div>
-      <div style={{ flex: 1, overflow: 'hidden' }}>
+      <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
         {tab === 'my' ? <MyScriptsTab /> : <AgentScriptsTab />}
       </div>
     </div>
@@ -214,7 +214,7 @@ function MyScriptsTab({ liveTranscript, phase, clientFirstName, clientLastName, 
   if (loading) return <div style={{ color: '#6b7280', textAlign: 'center', padding: '40px' }}>Loading scripts…</div>;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
       {/* Script tabs */}
       <div style={{ display: 'flex', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.07)', marginBottom: '12px', overflowX: 'auto', flexShrink: 0, gap: 0 }}>
         {scripts.map(s => (

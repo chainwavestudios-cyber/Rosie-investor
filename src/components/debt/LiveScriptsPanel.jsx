@@ -21,7 +21,7 @@ export default function LiveScriptsPanel({ transcript, phase, panel, lead, micLa
   );
 
   const renderScripts = () => (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, padding: '14px 16px' }}>
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden', padding: '14px 16px' }}>
       <MyScriptsTab liveTranscript={transcript} phase={phase} clientFirstName={lead?.firstName} clientLastName={lead?.lastName} micLabel={micLabel} onScriptPositionChange={onScriptPositionChange} username={username} />
     </div>
   );
@@ -55,7 +55,7 @@ export default function LiveScriptsPanel({ transcript, phase, panel, lead, micLa
         {tabs}
         <button onClick={panel.toggle} style={{ background: `${GOLD}18`, border: `1px solid ${GOLD}44`, color: GOLD, borderRadius: '4px', padding: '4px 10px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase' }}>⬆ Pop Out</button>
       </div>
-      <div style={{ background: '#0d1b2a', border: '1px solid rgba(16,185,129,0.2)', borderRadius: '6px', display: 'flex', flexDirection: 'column', minHeight: '500px', maxHeight: '70vh', position: 'relative' }}>
+      <div style={{ background: '#0d1b2a', border: '1px solid rgba(16,185,129,0.2)', borderRadius: '6px', display: 'flex', flexDirection: 'column', minHeight: '500px', maxHeight: '70vh', overflow: 'hidden', position: 'relative' }}>
         {tab === 'scripts' ? renderScripts() : renderPitches()}
       </div>
     </div>
