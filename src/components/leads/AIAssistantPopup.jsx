@@ -533,17 +533,26 @@ export function QASection({ transcript, transcriptRef, kbEntries, active, qaKeyw
     return new RegExp(`\\b(${escaped.join('|')})\\b`, 'i');
   }, [qaKeywords]);
 
-  const autoDismissTimers = useRef({});
-  const scheduleAutoDismiss = (id) => {
-    autoDismissTimers.current[id] = setTimeout(() => {
-      setQuestions(prev => prev.filter(x => x.id !== id || x.answered || x.answering || x.manual));
-      delete autoDismissTimers.current[id];
-    }, 30000);
+  // Pagination — never auto-delete questions or answers; paginate instead
+  const [qaPage, setQaPage] = useState(1);
+  const QA_PAGE_SIZE = 8;
+  const totalQaPages = Math.max(1, Math.ceil(questions.length / QA_PAGE_SIZE));
+  const pagedQuestions = questions.slice((qaPage - 1) * QA_PAGE_SIZE, qaPage * QA_PAGE_SIZE);
+  // Auto-advance to the latest page when new questions arrive
+  const prevQLenRef = useRef(0);
+  useEffect(() => {
+    if (questions.length > prevQLenRef.current) setQaPage(Math.max(1, Math.ceil(questions.length / QA_PAGE_SIZE)));
+    else if (questions.length === 0) setQaPage(1);
+    prevQLenRef.current = questions.length;
+  }, [questions.length]);
+  const clearQaPage = () => {
+    const start = (qaPage - 1) * QA_PAGE_SIZE;
+    const end = qaPage * QA_PAGE_SIZE;
+    const pageIds = new Set(questions.slice(start, end).map(q => q.id));
+    const remaining = questions.length - pageIds.size;
+    setQuestions(prev => prev.filter(q => !pageIds.has(q.id)));
+    setQaPage(Math.min(qaPage, Math.max(1, Math.ceil(remaining / QA_PAGE_SIZE))));
   };
-  const cancelAutoDismiss = (id) => {
-    if (autoDismissTimers.current[id]) { clearTimeout(autoDismissTimers.current[id]); delete autoDismissTimers.current[id]; }
-  };
-  useEffect(() => () => { Object.values(autoDismissTimers.current).forEach(t => clearTimeout(t)); }, []);
 
   useEffect(() => {
     if (!transcript.length) return;
@@ -559,7 +568,6 @@ export function QASection({ transcript, transcriptRef, kbEntries, active, qaKeyw
         seenQ.current.add(q);
         const id = Date.now() + Math.random();
         setQuestions(prev => [...prev, { id, text: q, time: new Date(), answer: '', answering: false, answered: false, auto: false, manual: false }]);
-        scheduleAutoDismiss(id);
       }
     });
     const now = Date.now();
@@ -604,7 +612,6 @@ export function QASection({ transcript, transcriptRef, kbEntries, active, qaKeyw
   const answerQ = async (id) => {
     const q = questions.find(x => x.id === id);
     if (!q || q.answering) return;
-    cancelAutoDismiss(id);
     setQuestions(prev => prev.map(x => x.id === id ? { ...x, answering: true } : x));
     try {
       const res = await base44.functions.invoke('liveAssistantAI', { question: q.text, transcript: transcriptRef.current, kbEntries, mode: 'qa' });
@@ -637,8 +644,8 @@ export function QASection({ transcript, transcriptRef, kbEntries, active, qaKeyw
   };
 
   const dismissQ = (id) => setQuestions(prev => prev.filter(x => x.id !== id));
-  const answered   = questions.filter(q => q.answered || q.answering);
-  const unanswered = questions.filter(q => !q.answered && !q.answering);
+  const answered   = pagedQuestions.filter(q => q.answered || q.answering);
+  const unanswered = pagedQuestions.filter(q => !q.answered && !q.answering);
 
   const QaTabBar = () => (
     <div style={{ display: 'flex', gap: '2px', padding: '4px 12px', borderBottom: '1px solid rgba(255,255,255,0.06)', flexShrink: 0, background: 'rgba(0,0,0,0.2)' }}>
@@ -745,11 +752,11 @@ export function QASection({ transcript, transcriptRef, kbEntries, active, qaKeyw
         <div style={{ height: `${splitPct}%`, display: 'flex', flexDirection: 'column', overflow: 'hidden', minHeight: 40 }}>
           <div style={{ padding: '5px 12px', background: 'rgba(0,0,0,0.2)', borderBottom: '1px solid rgba(245,158,11,0.15)', display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
             <span style={{ color: '#f59e0b', fontSize: '9px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase', flex: 1 }}>❓ Questions ({questions.length})</span>
-            {questions.length > 0 && <Btn onClick={() => { setQuestions([]); seenQ.current.clear(); }} color="#ef4444" style={{ padding: '2px 8px', fontSize: '9px' }}>Clear All</Btn>}
+            {pagedQuestions.length > 0 && <Btn onClick={clearQaPage} color="#ef4444" style={{ padding: '2px 8px', fontSize: '9px' }}>Clear Page {qaPage}</Btn>}
           </div>
           <div ref={qListRef} style={{ flex: 1, overflowY: 'auto', padding: '6px 12px', display: 'flex', flexDirection: 'column', gap: '5px' }}>
             {questions.length === 0 && <div style={{ color: '#4a5568', fontSize: '11px', textAlign: 'center', padding: '18px' }}>{active ? '🎙 Listening for questions — or type one above' : 'Enable Q&A and start audio stream'}</div>}
-            {questions.map(q => <QuestionCardCompact key={q.id} q={q} />)}
+            {pagedQuestions.map(q => <QuestionCardCompact key={q.id} q={q} />)}
           </div>
         </div>
 
@@ -764,7 +771,6 @@ export function QASection({ transcript, transcriptRef, kbEntries, active, qaKeyw
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minHeight: 40 }}>
           <div style={{ padding: '5px 12px', background: 'rgba(0,0,0,0.2)', borderBottom: '1px solid rgba(74,222,128,0.15)', display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
             <span style={{ color: '#4ade80', fontSize: '9px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase', flex: 1 }}>💡 Answers ({answered.length})</span>
-            {answered.length > 0 && <Btn onClick={() => setQuestions(prev => prev.filter(q => !q.answered && !q.answering))} color="#ef4444" style={{ padding: '2px 8px', fontSize: '9px' }}>Clear Answers</Btn>}
           </div>
           <div ref={aListRef} style={{ flex: 1, overflowY: 'auto', padding: '8px 12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
             {answered.length === 0 && <div style={{ color: '#4a5568', fontSize: '11px', textAlign: 'center', padding: '18px' }}>Answers appear here when questions are answered</div>}
@@ -797,6 +803,15 @@ export function QASection({ transcript, transcriptRef, kbEntries, active, qaKeyw
             ))}
           </div>
         </div>
+        {totalQaPages > 1 && (
+          <div style={{ display: 'flex', gap: '4px', alignItems: 'center', justifyContent: 'center', padding: '5px 12px', borderTop: '1px solid rgba(255,255,255,0.06)', flexShrink: 0, background: 'rgba(0,0,0,0.2)' }}>
+            <button onClick={() => setQaPage(1)} disabled={qaPage === 1} style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '3px', padding: '2px 8px', cursor: qaPage === 1 ? 'not-allowed' : 'pointer', color: qaPage === 1 ? '#4a5568' : '#8a9ab8', fontSize: '10px' }}>⟪</button>
+            <button onClick={() => setQaPage(p => Math.max(1, p - 1))} disabled={qaPage === 1} style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '3px', padding: '2px 8px', cursor: qaPage === 1 ? 'not-allowed' : 'pointer', color: qaPage === 1 ? '#4a5568' : '#8a9ab8', fontSize: '10px' }}>‹ Prev</button>
+            <span style={{ color: '#8a9ab8', fontSize: '10px', fontWeight: 'bold' }}>Page {qaPage} / {totalQaPages}</span>
+            <button onClick={() => setQaPage(p => Math.min(totalQaPages, p + 1))} disabled={qaPage === totalQaPages} style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '3px', padding: '2px 8px', cursor: qaPage === totalQaPages ? 'not-allowed' : 'pointer', color: qaPage === totalQaPages ? '#4a5568' : '#8a9ab8', fontSize: '10px' }}>Next ›</button>
+            <button onClick={() => setQaPage(totalQaPages)} disabled={qaPage === totalQaPages} style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '3px', padding: '2px 8px', cursor: qaPage === totalQaPages ? 'not-allowed' : 'pointer', color: qaPage === totalQaPages ? '#4a5568' : '#8a9ab8', fontSize: '10px' }}>⟫</button>
+          </div>
+        )}
         </>)}
         {commonPopOut && <CommonQAPopOut onClose={() => setCommonPopOut(false)} />}
       </div>
@@ -811,8 +826,22 @@ export function QASection({ transcript, transcriptRef, kbEntries, active, qaKeyw
       {AskBar()}
       <div ref={qListRef} style={{ flex: 1, overflowY: 'auto', padding: '6px 12px', display: 'flex', flexDirection: 'column', gap: '7px' }}>
         {questions.length === 0 && <div style={{ color: '#4a5568', fontSize: '11px', textAlign: 'center', padding: '18px' }}>{active ? '🎙 Listening — questions auto-detected or type one above' : 'Enable Q&A and start the audio stream'}</div>}
-        {questions.map(q => <QuestionCardFull key={q.id} q={q} />)}
+        {pagedQuestions.map(q => <QuestionCardFull key={q.id} q={q} />)}
       </div>
+      {questions.length > 0 && (
+        <div style={{ display: 'flex', gap: '4px', alignItems: 'center', justifyContent: 'center', padding: '5px 12px', borderTop: '1px solid rgba(255,255,255,0.06)', flexShrink: 0, background: 'rgba(0,0,0,0.2)' }}>
+          {totalQaPages > 1 && (
+            <>
+              <button onClick={() => setQaPage(1)} disabled={qaPage === 1} style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '3px', padding: '2px 8px', cursor: qaPage === 1 ? 'not-allowed' : 'pointer', color: qaPage === 1 ? '#4a5568' : '#8a9ab8', fontSize: '10px' }}>⟪</button>
+              <button onClick={() => setQaPage(p => Math.max(1, p - 1))} disabled={qaPage === 1} style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '3px', padding: '2px 8px', cursor: qaPage === 1 ? 'not-allowed' : 'pointer', color: qaPage === 1 ? '#4a5568' : '#8a9ab8', fontSize: '10px' }}>‹ Prev</button>
+              <span style={{ color: '#8a9ab8', fontSize: '10px', fontWeight: 'bold' }}>Page {qaPage} / {totalQaPages}</span>
+              <button onClick={() => setQaPage(p => Math.min(totalQaPages, p + 1))} disabled={qaPage === totalQaPages} style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '3px', padding: '2px 8px', cursor: qaPage === totalQaPages ? 'not-allowed' : 'pointer', color: qaPage === totalQaPages ? '#4a5568' : '#8a9ab8', fontSize: '10px' }}>Next ›</button>
+              <button onClick={() => setQaPage(totalQaPages)} disabled={qaPage === totalQaPages} style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '3px', padding: '2px 8px', cursor: qaPage === totalQaPages ? 'not-allowed' : 'pointer', color: qaPage === totalQaPages ? '#4a5568' : '#8a9ab8', fontSize: '10px' }}>⟫</button>
+            </>
+          )}
+          <button onClick={clearQaPage} style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '3px', padding: '2px 10px', cursor: 'pointer', color: '#ef4444', fontSize: '10px', fontWeight: 'bold', marginLeft: totalQaPages > 1 ? '8px' : '0' }}>Clear Page {qaPage}</button>
+        </div>
+      )}
       </>)}
       {commonPopOut && <CommonQAPopOut onClose={() => setCommonPopOut(false)} />}
     </div>
