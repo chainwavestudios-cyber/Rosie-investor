@@ -94,4 +94,28 @@
     pointer-events: none;
     font-style: italic;
   }
+
+  /* Moving neon border for objection popups */
+  @property --neon-angle {
+    syntax: '<angle>';
+    initial-value: 0deg;
+    inherits: false;
+  }
+
+  @keyframes objection-neon-spin {
+    to { --neon-angle: 360deg; }
+  }
+
+  @keyframes objection-neon-glow {
+    0%, 100% { box-shadow: 0 0 12px rgba(16,185,129,0.4), 0 0 24px rgba(167,139,250,0.3), 0 12px 48px rgba(0,0,0,0.7); }
+    50% { box-shadow: 0 0 20px rgba(16,185,129,0.6), 0 0 40px rgba(167,139,250,0.5), 0 12px 48px rgba(0,0,0,0.7); }
+  }
+
+  .objection-neon-border {
+    border: 2px solid transparent;
+    background:
+      linear-gradient(#0a0f1e, #0a0f1e) padding-box,
+      conic-gradient(from var(--neon-angle), #10b981, #a78bfa, #ef4444, #f59e0b, #10b981) border-box;
+    animation: objection-neon-spin 3s linear infinite, objection-neon-glow 2s ease-in-out infinite;
+  }
 }
