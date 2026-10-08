@@ -20,8 +20,8 @@ const DEFAULT_AI_SETTINGS = {
   bobAIEnabled: true, bobQA: true, bobCoach: true, bobIntent: true,
 };
 
-const ROLE_LABELS = { super_admin: 'Super Admin', admin: 'Admin', super_manager: 'Super Manager', manager: 'Manager', dialer: 'Dialer' };
-const ROLE_COLORS = { super_admin: '#f472b6', admin: '#60a5fa', super_manager: '#34d399', manager: '#a78bfa', dialer: '#f59e0b' };
+const ROLE_LABELS = { super_admin: 'Super Admin', admin: 'Admin', super_manager: 'Super Manager', manager: 'Manager', dialer: 'Dialer', fronter: 'Fronter' };
+const ROLE_COLORS = { super_admin: '#f472b6', admin: '#60a5fa', super_manager: '#34d399', manager: '#a78bfa', dialer: '#f59e0b', fronter: '#22d3ee' };
 
 export default function EmployeeContactCard({ employee, session, managerUsername, managerRole, onRefresh, onClose }) {
   const { user } = useDebtCoachAuth();

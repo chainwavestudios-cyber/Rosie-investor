@@ -17,11 +17,11 @@ const DARK = '#0a0f1e';
 
 export default function ManagerPortal() {
   const { user, loading, isAuthenticated, isAdmin, isManager, isSuperManager, logout, isFronter } = useDebtCoachAuth();
+  const navigate = useNavigate();
   const [tab, setTab] = useState('employees');
   useEffect(() => { if (isFronter) navigate('/fronter', { replace: true }); }, [isFronter, navigate]);
   const [inspectRecord, setInspectRecord] = useState(null);
   const [autoSelectUsername, setAutoSelectUsername] = useState(null);
-  const navigate = useNavigate();
 
   if (loading) return (
     <div style={{ fontFamily: 'Georgia, serif', minHeight: '100vh', background: DARK, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>

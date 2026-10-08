@@ -8,8 +8,8 @@ import { useDebtCoachAuth } from '@/lib/DebtCoachAuthContext';
 import EmployeeContactCard from './EmployeeContactCard';
 
 const GOLD = '#10b981';
-const ROLE_COLORS = { admin: '#60a5fa', super_manager: '#34d399', manager: '#a78bfa', dialer: '#f59e0b' };
-const ROLE_ORDER = { admin: 0, super_manager: 1, manager: 2, dialer: 3 };
+const ROLE_COLORS = { admin: '#60a5fa', super_manager: '#34d399', manager: '#a78bfa', dialer: '#f59e0b', fronter: '#22d3ee' };
+const ROLE_ORDER = { admin: 0, super_manager: 1, manager: 2, dialer: 3, fronter: 4 };
 
 export default function EmployeesTab({ managerUsername, managerRole, autoSelectUsername }) {
   const { user } = useDebtCoachAuth();
@@ -61,6 +61,7 @@ export default function EmployeesTab({ managerUsername, managerRole, autoSelectU
     manager: employees.filter(e => e.role === 'manager').length,
     super_manager: employees.filter(e => e.role === 'super_manager').length,
     admin: employees.filter(e => e.role === 'admin').length,
+    fronter: employees.filter(e => e.role === 'fronter').length,
   };
 
   return (
@@ -74,11 +75,12 @@ export default function EmployeesTab({ managerUsername, managerRole, autoSelectU
         <SummaryCard value={counts.manager} label="Managers" color="#a78bfa" />
         <SummaryCard value={counts.super_manager} label="Super Managers" color="#34d399" />
         <SummaryCard value={counts.admin} label="Admins" color="#60a5fa" />
+        <SummaryCard value={counts.fronter} label="Fronters" color="#22d3ee" />
       </div>
 
       {/* Role filter */}
       <div style={{ display: 'flex', gap: '6px', marginBottom: '12px' }}>
-        {[['all', 'All'], ['dialer', 'Dialers'], ['manager', 'Managers'], ['super_manager', 'Super Managers'], ['admin', 'Admins']].map(([r, label]) => (
+        {[['all', 'All'], ['dialer', 'Dialers'], ['manager', 'Managers'], ['super_manager', 'Super Managers'], ['admin', 'Admins'], ['fronter', 'Fronters']].map(([r, label]) => (
           <button key={r} onClick={() => setRoleFilter(r)} style={{ padding: '6px 14px', borderRadius: '4px', border: `1px solid ${roleFilter === r ? GOLD + '66' : 'rgba(255,255,255,0.1)'}`, background: roleFilter === r ? `${GOLD}18` : 'transparent', color: roleFilter === r ? GOLD : '#6b7280', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>{label}</button>
         ))}
       </div>
