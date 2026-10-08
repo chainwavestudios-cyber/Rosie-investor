@@ -27,6 +27,7 @@ import EndCallDialog from '@/components/debt/EndCallDialog';
 import { useCallRecorder } from '@/hooks/useCallRecorder';
 import { useObjectionEngine } from '@/hooks/useObjectionEngine';
 import ObjectionPopup from '@/components/debt/ObjectionPopup';
+import EmergencyScripts from '@/components/debt/EmergencyScripts';
 import { logAIUsage, CREDIT_ESTIMATES } from '@/lib/aiCreditLog';
 
 const GOLD = '#10b981';
@@ -206,6 +207,7 @@ export default function DebtLiveCall({ onCallStart, onCallEnd }) {
   const autoSaveTimerRef = useRef(null); // 45-second auto-save timer
   const [showProfile, setShowProfile] = useState(false);
   const [showEndDialog, setShowEndDialog] = useState(false);
+  const [showEmergencyScripts, setShowEmergencyScripts] = useState(false);
   const [pendingQuestion, setPendingQuestion] = useState(null);
   const leadPanel = usePopOutPanel('live_lead_card', { width: 420, height: 600 }, coachUser?.username);
   const transcriptPanel = usePopOutPanel('live_transcript', { width: 520, height: 600 }, coachUser?.username);
@@ -1670,11 +1672,13 @@ ${recentText}`,
   // Keep stopCallRef updated for monitor polling
   useEffect(() => { stopCallRef.current = stopCall; }, [stopCall]);
 
-  // Keyboard shortcuts: Alt+L to start live call, Alt+Q to toggle agent question
+  // Keyboard shortcuts: Alt+L start call, Alt+Q agent question, Alt+X end call, Alt+E emergency scripts
   const startCallRef = useRef(null);
   const toggleAgentQuestionRef = useRef(null);
+  const handleEndCallClickRef = useRef(null);
   useEffect(() => { startCallRef.current = startCall; }, [startCall]);
   useEffect(() => { toggleAgentQuestionRef.current = toggleAgentQuestion; }, [toggleAgentQuestion]);
+  useEffect(() => { handleEndCallClickRef.current = handleEndCallClick; }, [handleEndCallClick]);
   useEffect(() => {
     const handler = (e) => {
       if (e.altKey && (e.key === 'l' || e.key === 'L') && phase !== 'live') {
@@ -1684,6 +1688,14 @@ ${recentText}`,
       if (e.altKey && (e.key === 'q' || e.key === 'Q') && phase === 'live') {
         e.preventDefault();
         toggleAgentQuestionRef.current?.();
+      }
+      if (e.altKey && (e.key === 'x' || e.key === 'X') && phase === 'live') {
+        e.preventDefault();
+        handleEndCallClickRef.current?.();
+      }
+      if (e.altKey && (e.key === 'e' || e.key === 'E')) {
+        e.preventDefault();
+        setShowEmergencyScripts(p => !p);
       }
     };
     window.addEventListener('keydown', handler);
@@ -2251,6 +2263,9 @@ ${recentText}`,
 
       {/* Objection Engine — live popup when a high-priority objection is detected */}
       <ObjectionPopup objection={activeObjection} onDismiss={dismissObjection} />
+
+      {/* Emergency Scripts — Alt+E, overlays all other windows */}
+      <EmergencyScripts open={showEmergencyScripts} onClose={() => setShowEmergencyScripts(false)} />
     </div>
   );
 }

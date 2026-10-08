@@ -237,6 +237,12 @@ export default function DebtAIPanel({
     if (autoOpenPopup && (qaActive || coachActive || intentActive)) setShowPopup(true);
   }, [autoOpenPopup, qaActive, coachActive, intentActive]);
 
+  // Auto-open popup when the Agent Question feature sends a pending question —
+  // if the popup is closed the question would be lost (QASection never mounts).
+  useEffect(() => {
+    if (pendingQuestion?.question) setShowPopup(true);
+  }, [pendingQuestion?.ts]);
+
   const streamStatusLight = { idle: '#4a5568', connecting: '#f59e0b', connected: '#4ade80', error: '#ef4444' }[streamStatus];
 
   const handleKbChange = (name) => {
