@@ -1303,13 +1303,23 @@ ${recentText}`,
         customerSrc.connect(merger, 0, 1);
         const processor = ctx.createScriptProcessor(4096, 2, 2);
         processorRef.current = processor;
+        // Audio gate: when the customer channel (Rodecaster) has audio, the agent
+        // mic is picking up the external speaker — mute channel 0 to prevent the
+        // customer's voice from bleeding into the agent transcript. Hold the gate
+        // closed for a few buffers after the customer stops so brief pauses don't
+        // reopen it mid-sentence.
+        let gateHold = 0;
         processor.onaudioprocess = (ev) => {
           if (ws.readyState !== WebSocket.OPEN) return;
           const left = ev.inputBuffer.getChannelData(0);
           const right = ev.inputBuffer.getChannelData(1);
+          let customerPeak = 0;
+          for (let i = 0; i < right.length; i++) { const v = Math.abs(right[i]); if (v > customerPeak) customerPeak = v; }
+          if (customerPeak > 0.012) gateHold = 3; else if (gateHold > 0) gateHold--;
+          const gateOpen = gateHold === 0;
           const int16 = new Int16Array(left.length * 2);
           for (let i = 0; i < left.length; i++) {
-            int16[i * 2] = Math.max(-1, Math.min(1, left[i])) * 0x7FFF;
+            int16[i * 2] = gateOpen ? Math.max(-1, Math.min(1, left[i])) * 0x7FFF : 0;
             int16[i * 2 + 1] = Math.max(-1, Math.min(1, right[i])) * 0x7FFF;
           }
           ws.send(int16.buffer);

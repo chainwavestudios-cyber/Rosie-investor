@@ -123,8 +123,17 @@ async function playTransferSequence(mode, closerName, scenario, transferVoice, a
   if (mode === 'open') {
     const nameStr = scenario?.customerName || 'Bob';
     const closerStr = closerName || 'Drew';
-    const line = `Thank you for calling Debt Advisors of America. My name is ${agentName}. I have ${nameStr} on the line, he's calling about a notice he received in the mail. Let me connect you with ${closerStr}, one of our debt specialists.`;
-    await new Promise(r => speakTransfer(line, voiceModel, gender, apiKey, r));
+    const debtStr = scenario?.debtAmount ? `approximately $${Number(scenario.debtAmount).toLocaleString()}` : '';
+    const locStr = [scenario?.customerCity, scenario?.customerState].filter(Boolean).join(', ');
+    // 1. Agent answers and identifies himself
+    const line1 = `Hello, this is ${agentName}.`;
+    // 2. Transfer info: customer name, debt amount, location
+    const line2 = `I have ${nameStr} on the line${debtStr ? `, he has ${debtStr}` : ''}${locStr ? `, and is from ${locStr}` : ''}.`;
+    // 3. Handoff to the closer
+    const line3 = `${nameStr}, I have ${closerStr} on the line, from Debt Advisors of America, he is a Sr Debt Specialist and will take over the call. Have a great day.`;
+    await new Promise(r => speakTransfer(line1, voiceModel, gender, apiKey, r));
+    await new Promise(r => speakTransfer(line2, voiceModel, gender, apiKey, r));
+    await new Promise(r => speakTransfer(line3, voiceModel, gender, apiKey, r));
     setTimeout(onDone, 1500);
   } else {
     const name = closerName || 'Drew';
