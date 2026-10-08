@@ -49,6 +49,24 @@ const SUB_TABS = [
   { id: 'log', label: '📋 Training Log' },
 ];
 
+// Truncate transcript JSON to fit within entity field size limits.
+// A 30-min call can produce a transcript too large for the database.
+// Keeps the most recent lines that fit within the size budget.
+const MAX_TRANSCRIPT_JSON_SIZE = 50000; // 50KB safety limit
+function truncateTranscriptForSave(lines) {
+  const full = JSON.stringify(lines);
+  if (full.length <= MAX_TRANSCRIPT_JSON_SIZE) return { transcriptJson: full, transcriptLineCount: lines.length };
+  const kept = [];
+  let size = 2; // "[]" overhead
+  for (let i = lines.length - 1; i >= 0; i--) {
+    const lineJson = JSON.stringify(lines[i]);
+    if (size + lineJson.length + 1 > MAX_TRANSCRIPT_JSON_SIZE) break;
+    kept.unshift(lines[i]);
+    size += lineJson.length + 1;
+  }
+  return { transcriptJson: JSON.stringify(kept), transcriptLineCount: kept.length };
+}
+
 export default function DebtBobTrainer() {
   const { can, isAdmin } = useDebtCoachAuth();
   const canBobAI = can('bobAIAssistant');
@@ -274,6 +292,7 @@ export default function DebtBobTrainer() {
     if (!recordingUrl) return;
     const duration = callStartRef.current ? Math.round((Date.now() - callStartRef.current) / 1000) : 0;
     callStartRef.current = null;
+    const { transcriptJson, transcriptLineCount } = truncateTranscriptForSave(transcriptRef.current || []);
     base44.entities.BobSession.create({
       sessionLabel: sessionId,
       voiceModel,
@@ -281,8 +300,8 @@ export default function DebtBobTrainer() {
       intensity,
       focusTopic,
       callMode: mode,
-      transcriptJson: JSON.stringify(transcriptRef.current || []),
-      transcriptLineCount: (transcriptRef.current || []).length,
+      transcriptJson,
+      transcriptLineCount,
       durationSeconds: duration,
       recordingUrl,
     }).catch(e => console.warn('[BOB] Failed to save session:', e));
@@ -294,6 +313,7 @@ export default function DebtBobTrainer() {
     setSavingSession(true);
     try {
       const duration = callStartRef.current ? Math.round((Date.now() - callStartRef.current) / 1000) : 0;
+      const { transcriptJson, transcriptLineCount } = truncateTranscriptForSave(transcriptRef.current);
       await base44.entities.BobSession.create({
         sessionLabel: sessionId,
         voiceModel,
@@ -301,8 +321,8 @@ export default function DebtBobTrainer() {
         intensity,
         focusTopic,
         callMode: mode,
-        transcriptJson: JSON.stringify(transcriptRef.current),
-        transcriptLineCount: transcriptRef.current.length,
+        transcriptJson,
+        transcriptLineCount,
         durationSeconds: duration,
         recordingUrl: recordingUrl || '',
       });
