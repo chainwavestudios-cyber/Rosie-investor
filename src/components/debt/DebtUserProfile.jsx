@@ -19,6 +19,7 @@ export default function DebtUserProfile({ debtCoachUser }) {
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState(null);
   const [showProfile, setShowProfile] = useState(false);
+  const [creating, setCreating] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -38,6 +39,30 @@ export default function DebtUserProfile({ debtCoachUser }) {
 
   useEffect(() => { load(); }, []);
 
+  const createNewProspect = async () => {
+    setCreating(true);
+    try {
+      const all = await base44.entities.DebtLead.list('-created_date', 500);
+      const maxNum = (all || []).reduce((max, l) => {
+        const n = parseInt((l.leadNumber || '').replace('#', ''), 10);
+        return isNaN(n) ? max : Math.max(max, n);
+      }, 0);
+      const leadNumber = `#${String(maxNum + 1).padStart(5, '0')}`;
+      const created = await base44.entities.DebtLead.create({
+        firstName: 'New',
+        lastName: 'Prospect',
+        status: 'new',
+        callCount: 0,
+        leadNumber,
+        debtCoachOwner: debtCoachUser?.username || null,
+      });
+      await load();
+      setSelected(created);
+      setShowProfile(true);
+    } catch (e) { alert('Failed to create prospect: ' + (e?.message || String(e))); }
+    setCreating(false);
+  };
+
   const profile = selected?.profileJson ? (() => { try { return JSON.parse(selected.profileJson); } catch { return null; } })() : null;
 
   return (
@@ -46,7 +71,10 @@ export default function DebtUserProfile({ debtCoachUser }) {
       <div style={{ background: '#0d1b2a', border: '1px solid rgba(16,185,129,0.2)', borderRadius: '6px' }}>
         <div style={{ padding: '14px 18px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div style={{ color: GOLD, fontSize: '11px', letterSpacing: '2px', textTransform: 'uppercase' }}>👤 Debt Leads</div>
-          <button onClick={load} style={{ background: 'rgba(255,255,255,0.05)', color: '#8a9ab8', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '4px', padding: '4px 10px', cursor: 'pointer', fontSize: '11px' }}>↻</button>
+          <div style={{ display: 'flex', gap: '6px' }}>
+            <button onClick={createNewProspect} disabled={creating} style={{ background: 'linear-gradient(135deg,#10b981,#22c55e)', color: '#0a0f1e', border: 'none', borderRadius: '4px', padding: '4px 12px', cursor: creating ? 'not-allowed' : 'pointer', fontSize: '11px', fontWeight: 'bold', opacity: creating ? 0.5 : 1 }}>+ New</button>
+            <button onClick={load} style={{ background: 'rgba(255,255,255,0.05)', color: '#8a9ab8', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '4px', padding: '4px 10px', cursor: 'pointer', fontSize: '11px' }}>↻</button>
+          </div>
         </div>
         <div style={{ maxHeight: '600px', overflowY: 'auto' }}>
           {loading ? (
