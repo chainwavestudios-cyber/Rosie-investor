@@ -56,6 +56,10 @@
       "type": "string",
       "title": "Session Token"
     },
+    "voiceprintUri": {
+      "type": "string",
+      "title": "Voiceprint File URI (private storage \u2014 for voice login)"
+    },
     "createdBy": {
       "type": "string",
       "title": "Created By (username)"

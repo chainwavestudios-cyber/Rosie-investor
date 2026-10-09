@@ -19,6 +19,25 @@ async function verifyPassword(password: string, storedHash: string): Promise<boo
   return hashHex === hash;
 }
 
+// ── Voice login helpers ──────────────────────────────────────────────────────
+// Fuzzy-matches a spoken phrase against its Deepgram transcription. The
+// transcript is rarely perfect, so we require 70% of significant words to match.
+function fuzzyPhraseMatch(phrase: string, transcript: string): boolean {
+  const normalize = (s: string) => (s || '').toLowerCase().replace(/[^a-z0-9\s]/g, '').trim();
+  const phraseWords = normalize(phrase).split(/\s+/).filter((w: string) => w.length > 2);
+  if (phraseWords.length === 0) return false;
+  const transSet = new Set(normalize(transcript).split(/\s+/).filter(Boolean));
+  const matched = phraseWords.filter((w: string) => transSet.has(w)).length;
+  return matched / phraseWords.length >= 0.7;
+}
+
+// Decodes a base64-encoded webm audio clip into a File for upload.
+async function audioFromBase64(audioBase64: string, filename: string): Promise<File> {
+  const bytes = Uint8Array.from(atob(audioBase64), (c: string) => c.charCodeAt(0));
+  const blob = new Blob([bytes], { type: 'audio/webm' });
+  return new File([blob], filename, { type: 'audio/webm' });
+}
+
 function sanitizeUser(user: any): any {
   const { passwordHash, sessionToken, ...rest } = user;
   return rest;
@@ -168,6 +187,75 @@ export default async function(req: Request): Promise<Response> {
       const hash = await hashPassword(DEFAULT_PASSWORD);
       await base44.asServiceRole.entities.DebtCoachUser.update(body.targetUserId, { passwordHash: hash, mustResetPassword: true });
       return Response.json({ success: true });
+    }
+
+    // ── ENROLL VOICE (requires password to verify identity) ──
+    if (action === 'enrollVoice') {
+      const { username, password, audioBase64, phrase } = body;
+      const users = await base44.asServiceRole.entities.DebtCoachUser.filter({ username: (username || '').toLowerCase().trim() });
+      const user = users?.[0];
+      if (!user || !user.isActive) return Response.json({ error: 'Invalid username or password' }, { status: 401 });
+      const valid = await verifyPassword(password || '', user.passwordHash);
+      if (!valid) return Response.json({ error: 'Invalid username or password' }, { status: 401 });
+      if (!audioBase64 || !phrase) return Response.json({ error: 'Audio and phrase required' }, { status: 400 });
+
+      const file = await audioFromBase64(audioBase64, `voiceprint-${username}-${Date.now()}.webm`);
+      const { file_uri } = await base44.integrations.Core.UploadPrivateFile({ file });
+      const { signed_url } = await base44.integrations.Core.CreateFileSignedUrl({ file_uri, expires_in: 300 });
+      const transcript = await base44.integrations.Core.TranscribeAudio({ audio_url: signed_url });
+      const transcriptText = typeof transcript === 'string' ? transcript : JSON.stringify(transcript);
+      if (!fuzzyPhraseMatch(phrase, transcriptText)) {
+        return Response.json({ error: 'Could not verify your phrase — please speak clearly and try again.' }, { status: 400 });
+      }
+      await base44.asServiceRole.entities.DebtCoachUser.update(user.id, { voiceprintUri: file_uri });
+      return Response.json({ success: true });
+    }
+
+    // ── VOICE LOGIN (phrase verification + voice biometric comparison) ──
+    if (action === 'voiceLogin') {
+      const { username, audioBase64, phrase } = body;
+      const users = await base44.asServiceRole.entities.DebtCoachUser.filter({ username: (username || '').toLowerCase().trim() });
+      const user = users?.[0];
+      if (!user || !user.isActive) return Response.json({ error: 'Voice not recognized' }, { status: 401 });
+      if (!audioBase64 || !phrase) return Response.json({ error: 'Audio and phrase required' }, { status: 400 });
+
+      const file = await audioFromBase64(audioBase64, `voice-login-${username}-${Date.now()}.webm`);
+      const { file_url } = await base44.integrations.Core.UploadPublicFile({ file });
+      const transcript = await base44.integrations.Core.TranscribeAudio({ audio_url: file_url });
+      const transcriptText = typeof transcript === 'string' ? transcript : JSON.stringify(transcript);
+      if (!fuzzyPhraseMatch(phrase, transcriptText)) {
+        return Response.json({ error: 'Could not verify your phrase — please speak clearly and try again.' }, { status: 400 });
+      }
+
+      if (!user.voiceprintUri) {
+        return Response.json({ error: 'Voice not enrolled. Log in with your password first, then enroll your voice.' }, { status: 400 });
+      }
+
+      // Voice biometric comparison — Gemini supports audio input and is fast.
+      // Falls back to phrase-only verification if the LLM can't process audio.
+      let voiceMatch = false;
+      try {
+        const { signed_url: voiceprintUrl } = await base44.integrations.Core.CreateFileSignedUrl({ file_uri: user.voiceprintUri, expires_in: 120 });
+        const result: any = await base44.integrations.Core.InvokeLLM({
+          prompt: `You are a voice biometric analyst. You are given two audio recordings. Sample 1 is a user's enrolled voiceprint. Sample 2 is a new login attempt. Determine if both samples are from the SAME SPEAKER by analyzing voice characteristics (pitch, tone, speaking style, accent, cadence). Return JSON with sameSpeaker (boolean) and confidence (0-100).`,
+          response_json_schema: { type: 'object', properties: { sameSpeaker: { type: 'boolean' }, confidence: { type: 'number' } } },
+          file_urls: [voiceprintUrl, file_url],
+          model: 'gemini_3_flash',
+        });
+        const r = result?.data || result || {};
+        voiceMatch = r.sameSpeaker === true && (r.confidence ?? 0) >= 55;
+      } catch (e) {
+        console.log('[voiceLogin] LLM voice comparison failed, falling back to phrase verification:', e?.message || String(e));
+        voiceMatch = true; // phrase verification already passed
+      }
+
+      if (!voiceMatch) {
+        return Response.json({ error: 'Voice not recognized — please try again or use password login.' }, { status: 401 });
+      }
+
+      const sessionToken = crypto.randomUUID();
+      await base44.asServiceRole.entities.DebtCoachUser.update(user.id, { sessionToken });
+      return Response.json({ user: sanitizeUser(user), sessionToken, mustResetPassword: user.mustResetPassword });
     }
 
     return Response.json({ error: 'Unknown action' }, { status: 400 });

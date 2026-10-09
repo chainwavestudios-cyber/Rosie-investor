@@ -54,6 +54,31 @@ export function DebtCoachAuthProvider({ children }) {
     return data;
   }, []);
 
+  const voiceLogin = useCallback(async (username, audioBase64, phrase) => {
+    const res = await base44.functions.invoke('debtCoachAuth', { action: 'voiceLogin', username, audioBase64, phrase });
+    const data = res?.data || res;
+    if (data?.error) throw new Error(data.error);
+    setUser(data.user);
+    setSessionToken(data.sessionToken);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ userId: data.user.id, token: data.sessionToken }));
+    try {
+      const oldSessions = await base44.entities.DialerSession.filter({ username });
+      const active = (oldSessions || []).filter(s => s.status === 'logged_in' || s.status === 'on_call');
+      for (const s of active) {
+        await base44.entities.DialerSession.update(s.id, { status: 'offline', logoutAt: new Date().toISOString() });
+      }
+      await base44.entities.DialerSession.create({ username, loginAt: new Date().toISOString(), status: 'logged_in' });
+    } catch {}
+    return data;
+  }, []);
+
+  const enrollVoice = useCallback(async (username, password, audioBase64, phrase) => {
+    const res = await base44.functions.invoke('debtCoachAuth', { action: 'enrollVoice', username, password, audioBase64, phrase });
+    const data = res?.data || res;
+    if (data?.error) throw new Error(data.error);
+    return data;
+  }, []);
+
   const logout = useCallback(async () => {
     // Update DialerSession to offline
     if (user?.username) {
@@ -93,6 +118,8 @@ export function DebtCoachAuthProvider({ children }) {
     sessionUserId: user?.id,
     loading,
     login,
+    voiceLogin,
+    enrollVoice,
     logout,
     changePassword,
     isAuthenticated: !!user,
