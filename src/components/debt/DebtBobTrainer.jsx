@@ -341,19 +341,24 @@ export default function DebtBobTrainer() {
     }
   }, [phase]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Autosave every 3 minutes during the call: transcript + audio recorded so far.
+  // Autosave every 30 seconds during the call: transcript + audio recorded so far.
   useEffect(() => {
     if (phase !== 'active') return;
+    let busy = false; // skip a tick if the previous autosave is still uploading
     const iv = setInterval(async () => {
-      saveTranscript().catch(() => {});
-      const blob = getRecordingSnapshot();
-      if (!blob) return;
+      if (busy) return;
+      busy = true;
       try {
-        const file = new File([blob], `bob-training-partial-${Date.now()}.webm`, { type: 'audio/webm' });
-        const { file_url } = await base44.integrations.Core.UploadPublicFile({ file });
-        await saveRecordingUrl(file_url);
+        await saveTranscript().catch(() => {});
+        const blob = getRecordingSnapshot();
+        if (blob) {
+          const file = new File([blob], `bob-training-partial-${Date.now()}.webm`, { type: 'audio/webm' });
+          const { file_url } = await base44.integrations.Core.UploadPublicFile({ file });
+          await saveRecordingUrl(file_url);
+        }
       } catch (e) { setSaveStatus(`⚠ Recording autosave failed: ${errMsg(e)}`); }
-    }, 180000);
+      busy = false;
+    }, 30000);
     return () => clearInterval(iv);
   }, [phase, saveTranscript, saveRecordingUrl, getRecordingSnapshot]);
 
