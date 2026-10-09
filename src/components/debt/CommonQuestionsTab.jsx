@@ -8,6 +8,8 @@ import { base44 } from '@/api/base44Client';
 
 const GOLD = '#10b981';
 const CATEGORY = 'debt_common_qa';
+// Show ALL debt KB entries (same set Bob's Brain uses), not just one category
+const DEBT_KB_CATEGORIES = ['debt_call', 'debt_faq', 'debt_customer', 'debt_kb', 'debt_objections', 'debt_hotpoints', 'debt_disqualify', 'debt_doc', 'debt_open_scenario', 'debt_close_scenario', 'debt_agent', 'debt_qa_statements', 'debt_web', 'debt_common_qa'];
 
 const ls = { color: '#8a9ab8', fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '6px' };
 const inp = { width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '4px', padding: '8px 12px', color: '#e8e0d0', fontSize: '13px', outline: 'none', boxSizing: 'border-box', fontFamily: 'Georgia, serif' };
@@ -24,8 +26,9 @@ export default function CommonQuestionsTab() {
   const loadEntries = useCallback(async () => {
     setLoading(true);
     try {
-      const all = await base44.entities.KnowledgeBase.filter({ category: CATEGORY }, '-created_date', 500);
-      setEntries(all || []);
+      const all = await base44.entities.KnowledgeBase.list('-created_date', 500);
+      // Include every debt-related entry (matches Bob's Brain), not just one category
+      setEntries((all || []).filter(e => e.kbName === 'Debt Settlement' || DEBT_KB_CATEGORIES.includes(e.category)));
     } catch (e) {
       console.error('Failed to load common Q&A:', e);
     }

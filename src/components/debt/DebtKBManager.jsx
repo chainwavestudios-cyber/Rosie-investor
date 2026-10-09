@@ -89,16 +89,26 @@ export default function DebtKBManager({ readOnly = false }) {
   };
 
   const generateAllVariations = async () => {
-    setGeneratingAll(true); setBulkStatus('');
-    try {
-      const res = await base44.functions.invoke('generateKBVariations', { bulk: true });
-      const updated = res?.updated ?? res?.data?.updated ?? 0;
-      const total = res?.total ?? res?.data?.total ?? 0;
-      setBulkStatus(`✓ Generated variations for ${updated} of ${total} entries.`);
-      await loadEntries();
-      window.dispatchEvent(new CustomEvent('debt_kb_updated'));
-      setTimeout(() => setBulkStatus(''), 5000);
-    } catch (e) { setBulkStatus('Failed: ' + (e?.message || String(e))); }
+    // Frontend-managed batching: one function call per entry avoids the backend
+    // timeout that a single bulk loop hits when there are 100+ entries.
+    const need = entries.filter(e => !e.variations || !e.variations.trim());
+    if (need.length === 0) return;
+    setGeneratingAll(true); setBulkStatus(`Generating variations — 0 of ${need.length}…`);
+    let done = 0, failed = 0;
+    for (const entry of need) {
+      try {
+        const res = await base44.functions.invoke('generateKBVariations', { entryId: entry.id });
+        const variations = res?.variations || res?.data?.variations;
+        if (variations) {
+          setEntries(prev => prev.map(e => e.id === entry.id ? { ...e, variations } : e));
+          done++;
+        }
+      } catch { failed++; }
+      setBulkStatus(`Generating variations — ${done + failed} of ${need.length}…`);
+    }
+    setBulkStatus(`✓ Generated variations for ${done} of ${need.length} entries${failed > 0 ? ` (${failed} failed)` : ''}.`);
+    window.dispatchEvent(new CustomEvent('debt_kb_updated'));
+    setTimeout(() => setBulkStatus(''), 6000);
     setGeneratingAll(false);
   };
 
