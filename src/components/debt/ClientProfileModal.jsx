@@ -13,6 +13,7 @@ import { setProfileTimer, cancelProfileTimer, getActiveTimer } from '@/component
 import LeadActivityTab from '@/components/debt/LeadActivityTab';
 import DebtCallBar from '@/components/debt/DebtCallBar';
 import { usePopOutPanel } from '@/hooks/usePopOutPanel';
+import VoiceFieldUpdater, { VOICE_TABS } from '@/components/debt/VoiceFieldUpdater';
 
 const GOLD = '#10b981';
 const ls = { display: 'block', color: '#8a9ab8', fontSize: '9px', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '3px' };
@@ -194,23 +195,26 @@ export default function ClientProfileModal({ lead, username, onClose, onSave }) 
   // Payment needed each month to cover interest AND lower principal by the minimum payment amount
   const paymentToLowerPrincipal = monthlyInterest + totalMonthlyPayments;
 
-  const save = async () => {
-    if (!local.id) return;
+  // Accepts optional overrides from VoiceFieldUpdater — merges with current
+  // local state so voice updates persist even before React re-renders.
+  const save = async (overrides = {}) => {
+    const merged = { ...local, ...overrides };
+    if (!merged.id) return;
     setSaving(true);
     try {
-      await base44.entities.DebtLead.update(local.id, {
-        firstName: local.firstName, lastName: local.lastName, phone: local.phone, email: local.email,
-        address: local.address, city: local.city, state: local.state, zip: local.zip, dateOfBirth: local.dateOfBirth,
-        debtAmount: local.debtAmount, creditorCount: local.creditorCount, creditors: local.creditors,
-        debtLedgerJson: local.debtLedgerJson, billsJson: local.billsJson,
-        employmentStatus: local.employmentStatus, monthlyIncome: local.monthlyIncome,
-        creditScore: local.creditScore, behindOnPayments: local.behindOnPayments,
-        monthsBehind: local.monthsBehind, notes: local.notes,
-        hardshipWhen: local.hardshipWhen, hardshipWhy: local.hardshipWhy, hardshipHow: local.hardshipHow,
-        cosignersJson: local.cosignersJson,
+      await base44.entities.DebtLead.update(merged.id, {
+        firstName: merged.firstName, lastName: merged.lastName, phone: merged.phone, email: merged.email,
+        address: merged.address, city: merged.city, state: merged.state, zip: merged.zip, dateOfBirth: merged.dateOfBirth,
+        debtAmount: merged.debtAmount, creditorCount: merged.creditorCount, creditors: merged.creditors,
+        debtLedgerJson: merged.debtLedgerJson, billsJson: merged.billsJson,
+        employmentStatus: merged.employmentStatus, monthlyIncome: merged.monthlyIncome,
+        creditScore: merged.creditScore, behindOnPayments: merged.behindOnPayments,
+        monthsBehind: merged.monthsBehind, notes: merged.notes,
+        hardshipWhen: merged.hardshipWhen, hardshipWhy: merged.hardshipWhy, hardshipHow: merged.hardshipHow,
+        cosignersJson: merged.cosignersJson,
       });
       setSaved(true); setTimeout(() => setSaved(false), 2000);
-      onSave?.(local);
+      onSave?.(merged);
     } catch (e) { alert('Save failed: ' + (e?.message || String(e))); }
     setSaving(false);
   };
@@ -272,6 +276,11 @@ export default function ClientProfileModal({ lead, username, onClose, onSave }) 
 
       {/* Content */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '16px' }}>
+        {VOICE_TABS.includes(tab) && (
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '10px' }}>
+            <VoiceFieldUpdater tab={tab} local={local} update={update} onSave={save} />
+          </div>
+        )}
         {tab === 'activity' && <LeadActivityTab lead={local} />}
 
         {tab === 'hardship' && (
