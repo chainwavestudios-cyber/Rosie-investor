@@ -35,7 +35,7 @@ const DARK = '#0a0f1e';
 const ls = { display: 'block', color: '#8a9ab8', fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '6px' };
 const inp = { width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '4px', padding: '8px 12px', color: '#e8e0d0', fontSize: '13px', outline: 'none', boxSizing: 'border-box', fontFamily: 'Georgia, serif' };
 
-const DEBT_KB_CATEGORIES = ['debt_agent', 'debt_customer', 'debt_qa_statements', 'debt_doc', 'debt_web', 'debt_call', 'debt_kb', 'debt_faq', 'debt_hotpoints'];
+const DEBT_KB_CATEGORIES = ['debt_agent', 'debt_customer', 'debt_qa_statements', 'debt_doc', 'debt_web', 'debt_call', 'debt_kb', 'debt_faq', 'debt_hotpoints', 'debt_common_qa', 'debt_objections', 'debt_disqualify', 'debt_open_scenario', 'debt_close_scenario'];
 
 // Deepgram Nova-3 keyterm prompting — boosts recognition of debt settlement vocabulary
 // that the model mishears (e.g. "pay" → "training"). Nova-3 uses repeated keyterm= params.

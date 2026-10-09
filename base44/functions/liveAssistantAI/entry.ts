@@ -175,7 +175,7 @@ function findDirectHit(question: string, kbEntries: any[]): any | null {
       const aScore    = scoreEntry(qLower, words, e);
       return { ...e, coverage, aScore };
     })
-    .filter((e: any) => e.coverage >= 0.65 && e.aScore >= 2)
+    .filter((e: any) => e.coverage >= 0.5 && e.aScore >= 2)
     .sort((a: any, b: any) => b.coverage - a.coverage || b.aScore - a.aScore);
   return candidates.length > 0 ? candidates[0] : null;
 }
