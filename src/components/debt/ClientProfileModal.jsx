@@ -68,7 +68,7 @@ export default function ClientProfileModal({ lead, username, onClose, onSave }) 
   const [locationResearching, setLocationResearching] = useState(false);
   const [dobResearch, setDobResearch] = useState(null);
   const [dobResearching, setDobResearching] = useState(false);
-  const panel = usePopOutPanel('client_profile', { width: 900, height: 700 }, username);
+  const panel = usePopOutPanel('client_profile', { width: 900, height: 700 }, username, 15000);
 
   // Load Q&A history for this lead
   useEffect(() => {

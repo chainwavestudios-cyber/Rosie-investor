@@ -167,6 +167,7 @@ export default function DebtLiveCall({ onCallStart, onCallEnd }) {
   const agentQuestionActiveRef = useRef(false);
   const agentQuestionBufferRef = useRef([]);
   const agentQuestionWaitingRef = useRef(false);
+  const agentQuestionTimeoutRef = useRef(null);
 
   useEffect(() => { agentQuestionActiveRef.current = agentQuestionActive; }, [agentQuestionActive]);
   // Refs mirror the AI feature flags + accumulated Q&A/coach data so that
@@ -584,36 +585,37 @@ Agent line: "${firstAgentLines}"`,
       .catch(() => setQaItems(prev => prev.map(x => x.id === id ? { ...x, answer: 'Unable to answer.', loading: false } : x)));
   }, [kbEntries]);
 
-  // Agent Question mode — press ON, ask question, press OFF to auto-answer in the Q&A list.
-  // While ON, agent mic lines are captured (not sent to Q&A). When toggled OFF,
-  // the captured text is sent as a single question and the answer appears in the Q&A list.
+  // Auto-flush the agent question buffer — combines captured lines and sends
+  // as a single Q&A question. Called by the silence timeout, customer-speech
+  // detection, question-mark detection, or a manual second press.
+  const flushAgentQuestion = useCallback(() => {
+    if (agentQuestionTimeoutRef.current) { clearTimeout(agentQuestionTimeoutRef.current); agentQuestionTimeoutRef.current = null; }
+    const combined = agentQuestionBufferRef.current.join(' ').trim();
+    agentQuestionBufferRef.current = [];
+    agentQuestionActiveRef.current = false;
+    agentQuestionWaitingRef.current = false;
+    setAgentQuestionActive(false);
+    if (combined.length > 0) {
+      logAI('qa');
+      setPendingQuestion({ question: combined, ts: Date.now() });
+    }
+  }, [logAI]);
+
+  // Agent Question mode — press ONCE to start, speak your question, and it
+  // auto-answers when you stop speaking (3s silence), when the customer starts
+  // talking, or when your sentence ends with ? or !. Press again for an
+  // immediate answer without waiting for the silence timeout.
   const toggleAgentQuestion = useCallback(() => {
     if (agentQuestionActiveRef.current) {
-      // Turning OFF — wait briefly for pending Deepgram final transcripts to
-      // arrive before combining the buffer.  Deepgram can take 1-2.5s after
-      // the user stops speaking to emit the final segment; if we combine
-      // immediately the buffer is empty and the question is never sent.
-      if (agentQuestionWaitingRef.current) return; // already waiting
-      agentQuestionWaitingRef.current = true;
-      setAgentQuestionActive(false); // UI shows OFF immediately
-      // Keep agentQuestionActiveRef TRUE during the wait so that final
-      // transcripts arriving now are still captured in the buffer.
-      setTimeout(() => {
-        const combined = agentQuestionBufferRef.current.join(' ').trim();
-        agentQuestionBufferRef.current = [];
-        agentQuestionActiveRef.current = false;
-        agentQuestionWaitingRef.current = false;
-        if (combined.length > 0) {
-          logAI('qa');
-          setPendingQuestion({ question: combined, ts: Date.now() });
-        }
-      }, 2500);
+      // Already ON — manual flush for an immediate answer
+      flushAgentQuestion();
     } else {
       agentQuestionBufferRef.current = [];
+      agentQuestionWaitingRef.current = false;
       agentQuestionActiveRef.current = true;
       setAgentQuestionActive(true);
     }
-  }, [logAI]);
+  }, [flushAgentQuestion]);
 
   // Flush buffered customer lines as a single combined question to Q&A
   const flushCustomerBuffer = useCallback(() => {
@@ -1123,9 +1125,19 @@ ${recentText}`,
       if (entry.speaker === 1) handleColdCallInterestCheck(text);
     }
 
-    // Agent Question mode: capture agent lines when the button is ON (not sent to Q&A until toggled OFF)
+    // Agent Question mode: capture agent lines, auto-answer on silence / customer speech / question mark
     if (agentQuestionActiveRef.current && entry.speaker === 0) {
       agentQuestionBufferRef.current.push(text);
+      if (text.trim().endsWith('?') || text.trim().endsWith('!')) {
+        flushAgentQuestion();
+      } else {
+        if (agentQuestionTimeoutRef.current) clearTimeout(agentQuestionTimeoutRef.current);
+        agentQuestionTimeoutRef.current = setTimeout(() => flushAgentQuestion(), 3000);
+      }
+    }
+    // Customer started speaking — agent is done asking, flush the question immediately
+    if (agentQuestionActiveRef.current && entry.speaker === 1 && agentQuestionBufferRef.current.length > 0) {
+      flushAgentQuestion();
     }
 
     // Q&A: buffer consecutive customer lines, flush as one combined question
@@ -1173,7 +1185,7 @@ ${recentText}`,
       if (handoffAttemptsRef.current < 1 && lineCount >= 3) { handoffAttemptsRef.current = 1; handleHandoffExtract(); }
       else if (handoffAttemptsRef.current < 2 && lineCount >= 7) { handoffAttemptsRef.current = 2; handleHandoffExtract(); }
     }
-  }, [handleQa, flushCustomerBuffer, handleCoach, handleIntent, runTimedExtractors, handleHandoffExtract]);
+  }, [handleQa, flushCustomerBuffer, flushAgentQuestion, handleCoach, handleIntent, runTimedExtractors, handleHandoffExtract]);
 
   // Show live partial transcript text as it arrives (interim results from Deepgram).
   // The interim line is replaced on each update and removed when the final text
@@ -2001,7 +2013,7 @@ ${recentText}`,
         {phase === 'live' && canLiveAI && canLiveQA && (
           <button
             onClick={toggleAgentQuestion}
-            title="Press to start recording your question, press again to get the answer (Alt+Q)"
+            title="Press once, ask your question — it auto-answers when you stop speaking (Alt+Q)"
             style={{
               padding: '8px 14px', borderRadius: '4px',
               border: `1px solid ${agentQuestionActive ? 'rgba(239,68,68,0.5)' : 'rgba(245,158,11,0.3)'}`,
@@ -2012,7 +2024,7 @@ ${recentText}`,
               animation: agentQuestionActive ? 'pulse 1s infinite' : 'none',
             }}
           >
-            {agentQuestionActive ? '🔴 Recording Question… (press again)' : '🎤 Agent Question (Alt+Q)'}
+            {agentQuestionActive ? '🔴 Listening… (auto-answers when you stop)' : '🎤 Agent Question (Alt+Q)'}
           </button>
         )}
 

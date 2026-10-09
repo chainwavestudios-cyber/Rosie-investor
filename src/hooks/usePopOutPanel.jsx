@@ -6,7 +6,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { getDebtCoachValue, setDebtCoachValue } from '@/lib/debtCoachStorage';
 
-export function usePopOutPanel(storageKey, defaultSize = { width: 420, height: 600 }, username = null) {
+export function usePopOutPanel(storageKey, defaultSize = { width: 420, height: 600 }, username = null, zIndex = 9998) {
   const [poppedOut, setPoppedOut] = useState(false);
   const [position, setPosition] = useState({ x: 100, y: 100 });
   const [size, setSize] = useState(defaultSize);
@@ -154,7 +154,7 @@ export function usePopOutPanel(storageKey, defaultSize = { width: 420, height: 6
     top: position.y,
     width: size.width,
     height: size.height,
-    zIndex: 9998,
+    zIndex: zIndex,
     display: 'flex',
     flexDirection: 'column',
     boxShadow: '0 8px 32px rgba(0,0,0,0.6)',
