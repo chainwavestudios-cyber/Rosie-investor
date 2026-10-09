@@ -49,31 +49,35 @@ Deno.serve(async (req) => {
 
     // ── MERGE: convert 1:1 call → conference, dial agent in ──
     if (action === 'merge') {
-      const { fronterCallSid, agentPhone, lineKey } = body;
-      if (!fronterCallSid) return Response.json({ error: 'fronterCallSid required' }, { status: 400 });
+      const { fronterCallSid, agentPhone, lineKey, conferenceName } = body;
+      if (!fronterCallSid && !conferenceName) return Response.json({ error: 'fronterCallSid or conferenceName required' }, { status: 400 });
       if (!agentPhone) return Response.json({ error: 'agentPhone required' }, { status: 400 });
 
       const fromNumber = lineNumber(lineKey);
-      const confName = `fronter_merge_${Date.now()}`;
+      // Reuse an existing conference (e.g. created by hold) or create a new one
+      const confName = conferenceName || `fronter_conf_${fronterCallSid}`;
+      const existingConf = await findConferenceSid(confName);
 
-      // Find the customer's child call (the other leg of the fronter's call)
-      const childCalls = await twilioFetch(`/Calls.json?ParentCallSid=${fronterCallSid}`);
-      const customerCallSid = childCalls.calls?.[0]?.sid;
+      if (!existingConf) {
+        // Find the customer's child call (the other leg of the fronter's call)
+        const childCalls = await twilioFetch(`/Calls.json?ParentCallSid=${fronterCallSid}`);
+        const customerCallSid = childCalls.calls?.[0]?.sid;
 
-      // Redirect fronter's leg into the conference
-      await twilioFetch(`/Calls/${fronterCallSid}.json`, {
-        method: 'POST',
-        body: new URLSearchParams({ Twiml: confTwiML(confName) }),
-      });
+        // Redirect fronter's leg into the conference
+        await twilioFetch(`/Calls/${fronterCallSid}.json`, {
+          method: 'POST',
+          body: new URLSearchParams({ Twiml: confTwiML(confName) }),
+        });
 
-      // Redirect customer's leg into the conference (if found)
-      if (customerCallSid) {
-        try {
-          await twilioFetch(`/Calls/${customerCallSid}.json`, {
-            method: 'POST',
-            body: new URLSearchParams({ Twiml: confTwiML(confName) }),
-          });
-        } catch {}
+        // Redirect customer's leg into the conference (if found)
+        if (customerCallSid) {
+          try {
+            await twilioFetch(`/Calls/${customerCallSid}.json`, {
+              method: 'POST',
+              body: new URLSearchParams({ Twiml: confTwiML(confName) }),
+            });
+          } catch {}
+        }
       }
 
       // Dial the agent into the conference
@@ -87,6 +91,119 @@ Deno.serve(async (req) => {
       });
 
       return Response.json({ ok: true, conferenceName: confName });
+    }
+
+    // ── HOLD: convert 1:1 call → conference, hold the customer ──
+    if (action === 'hold') {
+      const { fronterCallSid, lineKey } = body;
+      if (!fronterCallSid) return Response.json({ error: 'fronterCallSid required' }, { status: 400 });
+
+      const confName = `fronter_conf_${fronterCallSid}`;
+      const existingConf = await findConferenceSid(confName);
+
+      if (!existingConf) {
+        // First hold — convert 1:1 call to conference
+        const childCalls = await twilioFetch(`/Calls.json?ParentCallSid=${fronterCallSid}`);
+        const customerCallSid = childCalls.calls?.[0]?.sid;
+
+        await twilioFetch(`/Calls/${fronterCallSid}.json`, {
+          method: 'POST',
+          body: new URLSearchParams({ Twiml: confTwiML(confName) }),
+        });
+        if (customerCallSid) {
+          try {
+            await twilioFetch(`/Calls/${customerCallSid}.json`, {
+              method: 'POST',
+              body: new URLSearchParams({ Twiml: confTwiML(confName) }),
+            });
+          } catch {}
+        }
+      }
+
+      // Wait for conference to exist, then hold the customer's participant
+      let confSid: string | null = null;
+      for (let i = 0; i < 10; i++) {
+        confSid = await findConferenceSid(confName);
+        if (confSid) break;
+        await new Promise(r => setTimeout(r, 500));
+      }
+      if (!confSid) return Response.json({ error: 'Conference not found' }, { status: 404 });
+
+      const participants = await twilioFetch(`/Conferences/${confSid}/Participants.json`);
+      // Hold all non-client participants (the customer, not the fronter browser leg)
+      for (const p of participants.participants || []) {
+        if (!p.to?.startsWith('client:')) {
+          await twilioFetch(`/Conferences/${confSid}/Participants/${p.callSid}.json`, {
+            method: 'POST',
+            body: new URLSearchParams({ Hold: 'true' }),
+          });
+        }
+      }
+      return Response.json({ ok: true, conferenceName: confName });
+    }
+
+    // ── UNHOLD: release the customer from hold ──
+    if (action === 'unhold') {
+      const { conferenceName, fronterCallSid } = body;
+      const confName = conferenceName || (fronterCallSid ? `fronter_conf_${fronterCallSid}` : '');
+      if (!confName) return Response.json({ error: 'conferenceName required' }, { status: 400 });
+
+      const confSid = await findConferenceSid(confName);
+      if (!confSid) return Response.json({ error: 'Conference not found' }, { status: 404 });
+
+      const participants = await twilioFetch(`/Conferences/${confSid}/Participants.json`);
+      for (const p of participants.participants || []) {
+        if (p.hold) {
+          await twilioFetch(`/Conferences/${confSid}/Participants/${p.callSid}.json`, {
+            method: 'POST',
+            body: new URLSearchParams({ Hold: 'false' }),
+          });
+        }
+      }
+      return Response.json({ ok: true });
+    }
+
+    // ── TRANSFER: cold transfer customer to a new number, drop fronter ──
+    if (action === 'transfer') {
+      const { fronterCallSid, transferTo, lineKey, conferenceName } = body;
+      if (!transferTo) return Response.json({ error: 'transferTo required' }, { status: 400 });
+
+      const fromNumber = lineNumber(lineKey);
+      const transferTwiML = `<Response><Dial callerId="${fromNumber}"><Number>${transferTo}</Number></Dial></Response>`;
+
+      if (conferenceName) {
+        const confSid = await findConferenceSid(conferenceName);
+        if (confSid) {
+          const participants = await twilioFetch(`/Conferences/${confSid}/Participants.json`);
+          const customerPart = (participants.participants || []).find((p: any) => !p.to?.startsWith('client:'));
+          if (customerPart) {
+            await twilioFetch(`/Calls/${customerPart.callSid}.json`, {
+              method: 'POST',
+              body: new URLSearchParams({ Twiml: transferTwiML }),
+            });
+          }
+        }
+      } else if (fronterCallSid) {
+        const childCalls = await twilioFetch(`/Calls.json?ParentCallSid=${fronterCallSid}`);
+        const customerCallSid = childCalls.calls?.[0]?.sid;
+        if (customerCallSid) {
+          await twilioFetch(`/Calls/${customerCallSid}.json`, {
+            method: 'POST',
+            body: new URLSearchParams({ Twiml: transferTwiML }),
+          });
+        }
+      }
+
+      // Hang up the fronter's leg
+      if (fronterCallSid) {
+        try {
+          await twilioFetch(`/Calls/${fronterCallSid}.json`, {
+            method: 'POST',
+            body: new URLSearchParams({ Status: 'completed' }),
+          });
+        } catch {}
+      }
+      return Response.json({ ok: true });
     }
 
     // ── LISTEN: admin joins conference muted ──

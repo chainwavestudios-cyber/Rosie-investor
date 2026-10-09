@@ -20,6 +20,8 @@ export default function FronterPage() {
   const navigate = useNavigate();
   const [tab, setTab] = useState('leads');
   const [lineAssignment, setLineAssignment] = useState(null);
+  const [availableLines, setAvailableLines] = useState([]);
+  const [adminLineKey, setAdminLineKey] = useState('');
 
   const isAdmin = isSuperAdmin;
   // Fronter sees leads + scripts; admin sees admin + leads + scripts
@@ -32,10 +34,24 @@ export default function FronterPage() {
     try {
       const assignments = await base44.entities.FronterLineAssignment.filter({ username: user.username });
       setLineAssignment(assignments?.[0] || null);
+      // Admins with no assignment can pick from all available lines
+      if (isAdmin && !(assignments?.[0])) {
+        const res = await base44.functions.invoke('twilioGetLines', {});
+        const lines = res?.data?.lines || res?.lines || [];
+        setAvailableLines(lines);
+        if (lines.length > 0) setAdminLineKey(lines[0].key);
+      }
     } catch {}
-  }, [user?.username]);
+  }, [user?.username, isAdmin]);
 
   useEffect(() => { loadLine(); }, [loadLine]);
+
+  // Resolve the line to use for the leads tab
+  const activeLine = isFronter
+    ? lineAssignment
+    : (lineAssignment || availableLines.find(l => l.key === adminLineKey) || null);
+  const activeLineKey = activeLine?.twilioLineKey || activeLine?.key || '';
+  const activeLineNumber = activeLine?.twilioNumber || activeLine?.number || '';
 
   if (loading) return (
     <div style={{ minHeight: '100vh', background: DARK, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -88,8 +104,9 @@ export default function FronterPage() {
             lineAssignment ? (
               <FronterLeadsTab
                 username={user.username}
-                lineKey={lineAssignment.twilioLineKey}
-                lineNumber={lineAssignment.twilioNumber}
+                lineKey={activeLineKey}
+                lineNumber={activeLineNumber}
+                isAdmin={false}
               />
             ) : (
               <div style={{ color: '#4a5568', textAlign: 'center', padding: '60px', fontSize: '14px' }}>
@@ -97,9 +114,21 @@ export default function FronterPage() {
               </div>
             )
           ) : (
-            <div style={{ color: '#4a5568', textAlign: 'center', padding: '60px', fontSize: '14px' }}>
-              Admins can manage leads from the Admin tab.
-            </div>
+            activeLineKey ? (
+              <FronterLeadsTab
+                username={user.username}
+                lineKey={activeLineKey}
+                lineNumber={activeLineNumber}
+                isAdmin={true}
+                availableLines={availableLines}
+                adminLineKey={adminLineKey}
+                onLineChange={setAdminLineKey}
+              />
+            ) : (
+              <div style={{ color: '#4a5568', textAlign: 'center', padding: '60px', fontSize: '14px' }}>
+                No Twilio lines available. Configure lines in the Admin tab.
+              </div>
+            )
           )
         )}
 

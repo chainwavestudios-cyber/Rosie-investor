@@ -1,6 +1,7 @@
 /**
- * FronterDialer.jsx — Outbound Twilio call controls for the fronter.
- * Call → Merge (conference in agent) → Disconnect (leave customer + agent).
+ * FronterDialer.jsx — Outbound Twilio call controls for the fronter/admin.
+ * Full dialpad: call, mute, hold, transfer (cold), merge (conference in agent),
+ * hang up / disconnect. Live call screen shows lead name, date/time, duration.
  * Uses the fronterClientToken for per-user Twilio identity.
  */
 import { useState, useRef, useEffect, useCallback } from 'react';
@@ -9,20 +10,30 @@ import { Device } from '@twilio/voice-sdk';
 
 const GOLD = '#10b981';
 const DARK = '#0a0f1e';
+const RED = '#ef4444';
+const BLUE = '#60a5fa';
+const AMBER = '#f59e0b';
+const PURPLE = '#a78bfa';
 
 export default function FronterDialer({ lead, username, lineKey, lineNumber, onCallStarted, onCallEnded, onLeadCalled }) {
   const [callStatus, setCallStatus] = useState('idle');
   const [duration, setDuration] = useState(0);
+  const [now, setNow] = useState(new Date());
   const [error, setError] = useState('');
   const [muted, setMuted] = useState(false);
+  const [onHold, setOnHold] = useState(false);
   const [merged, setMerged] = useState(false);
-  const [mergeNumber, setMergeNumber] = useState('');
   const [conferenceName, setConferenceName] = useState('');
   const [showMergeInput, setShowMergeInput] = useState(false);
+  const [showTransferInput, setShowTransferInput] = useState(false);
+  const [mergeNumber, setMergeNumber] = useState('');
+  const [transferNumber, setTransferNumber] = useState('');
+  const [busy, setBusy] = useState(false);
 
   const deviceRef = useRef(null);
   const callRef = useRef(null);
   const timerRef = useRef(null);
+  const clockRef = useRef(null);
   const startTimeRef = useRef(null);
 
   const fmt = (s) => `${Math.floor(s / 60).toString().padStart(2, '0')}:${(s % 60).toString().padStart(2, '0')}`;
@@ -33,6 +44,12 @@ export default function FronterDialer({ lead, username, lineKey, lineNumber, onC
     timerRef.current = setInterval(() => setDuration(Math.floor((Date.now() - startTimeRef.current) / 1000)), 1000);
   };
   const stopTimer = () => clearInterval(timerRef.current);
+
+  // Live clock for the date/time display
+  useEffect(() => {
+    clockRef.current = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(clockRef.current);
+  }, []);
 
   useEffect(() => () => {
     stopTimer();
@@ -66,8 +83,7 @@ export default function FronterDialer({ lead, username, lineKey, lineNumber, onC
     call.on('disconnect', () => {
       stopTimer();
       setCallStatus('ended');
-      setMerged(false);
-      setConferenceName('');
+      setMuted(false); setOnHold(false); setMerged(false); setConferenceName('');
       onCallEnded?.();
       setTimeout(() => setCallStatus('idle'), 2000);
     });
@@ -77,42 +93,16 @@ export default function FronterDialer({ lead, username, lineKey, lineNumber, onC
 
   const dial = async () => {
     if (!lead?.phone) { setError('No phone number'); return; }
-    setError(''); setCallStatus('calling'); setDuration(0); setMuted(false); setMerged(false); setConferenceName('');
+    setError(''); setCallStatus('calling'); setDuration(0); setMuted(false); setOnHold(false); setMerged(false); setConferenceName('');
     try {
       const device = await getDevice();
       const digits = lead.phone.replace(/\D/g, '');
       const e164 = digits.length === 10 ? `+1${digits}` : digits.length === 11 && digits.startsWith('1') ? `+${digits}` : lead.phone;
-      const call = await device.connect({
-        params: { To: e164, CallerId: lineNumber },
-      });
+      const call = await device.connect({ params: { To: e164, CallerId: lineNumber } });
       callRef.current = call;
       wireCall(call);
       onCallStarted?.(lead);
     } catch (e) { setError(e.message || 'Call failed'); setCallStatus('idle'); }
-  };
-
-  const handleMerge = async () => {
-    if (!mergeNumber.trim()) { setError('Enter a number to merge'); return; }
-    setError('');
-    try {
-      const fronterCallSid = callRef.current?.parameters?.CallSid;
-      if (!fronterCallSid) { setError('No active call to merge'); return; }
-      const res = await base44.functions.invoke('fronterCall', {
-        action: 'merge', fronterCallSid, agentPhone: mergeNumber.trim(), lineKey,
-      });
-      const data = res?.data || res;
-      if (data?.conferenceName) {
-        setConferenceName(data.conferenceName);
-        setMerged(true);
-        setShowMergeInput(false);
-      }
-    } catch (e) { setError('Merge failed: ' + (e?.message || String(e))); }
-  };
-
-  const disconnect = () => {
-    // If merged, just drop the fronter's leg — customer + agent stay in conference
-    try { callRef.current?.disconnect(); } catch {}
-    stopTimer();
   };
 
   const toggleMute = () => {
@@ -123,15 +113,62 @@ export default function FronterDialer({ lead, username, lineKey, lineNumber, onC
     });
   };
 
+  const handleHold = async () => {
+    const fronterCallSid = callRef.current?.parameters?.CallSid;
+    if (!fronterCallSid && !conferenceName) { setError('No active call to hold'); return; }
+    setBusy(true); setError('');
+    try {
+      const res = await base44.functions.invoke('fronterCall', {
+        action: onHold ? 'unhold' : 'hold', fronterCallSid, conferenceName, lineKey,
+      });
+      const data = res?.data || res;
+      if (data?.conferenceName && !conferenceName) setConferenceName(data.conferenceName);
+      setOnHold(!onHold);
+    } catch (e) { setError('Hold failed: ' + (e?.message || String(e))); }
+    setBusy(false);
+  };
+
+  const handleMerge = async () => {
+    if (!mergeNumber.trim()) { setError('Enter a number to merge'); return; }
+    setBusy(true); setError('');
+    try {
+      const fronterCallSid = callRef.current?.parameters?.CallSid;
+      const res = await base44.functions.invoke('fronterCall', {
+        action: 'merge', fronterCallSid, agentPhone: mergeNumber.trim(), lineKey, conferenceName,
+      });
+      const data = res?.data || res;
+      if (data?.conferenceName) { setConferenceName(data.conferenceName); setMerged(true); setShowMergeInput(false); }
+    } catch (e) { setError('Merge failed: ' + (e?.message || String(e))); }
+    setBusy(false);
+  };
+
+  const handleTransfer = async () => {
+    if (!transferNumber.trim()) { setError('Enter a number to transfer to'); return; }
+    if (!confirm(`Cold transfer ${lead?.firstName} to ${transferNumber.trim()}? You will be dropped from the call.`)) return;
+    setBusy(true); setError('');
+    try {
+      const fronterCallSid = callRef.current?.parameters?.CallSid;
+      await base44.functions.invoke('fronterCall', {
+        action: 'transfer', fronterCallSid, transferTo: transferNumber.trim(), lineKey, conferenceName,
+      });
+      setShowTransferInput(false);
+      stopTimer();
+      setCallStatus('idle'); setMuted(false); setOnHold(false); setMerged(false); setConferenceName('');
+      onCallEnded?.();
+    } catch (e) { setError('Transfer failed: ' + (e?.message || String(e))); }
+    setBusy(false);
+  };
+
+  const disconnect = () => {
+    try { callRef.current?.disconnect(); } catch {}
+    stopTimer();
+  };
+
   const handleCallResult = async (result) => {
     if (!lead?.id) return;
     try {
       const newCount = (lead.callCount || 0) + 1;
-      const updates = {
-        callCount: newCount,
-        lastCalledAt: new Date().toISOString(),
-        lastCallResult: result,
-      };
+      const updates = { callCount: newCount, lastCalledAt: new Date().toISOString(), lastCallResult: result };
       if (newCount >= 3) updates.status = 'removed';
       await base44.entities.FronterLead.update(lead.id, updates);
       onLeadCalled?.(lead.id, newCount);
@@ -139,6 +176,7 @@ export default function FronterDialer({ lead, username, lineKey, lineNumber, onC
   };
 
   const isActive = ['calling', 'ringing', 'connected'].includes(callStatus);
+  const statusColor = callStatus === 'connected' ? '#4ade80' : callStatus === 'ringing' ? AMBER : callStatus === 'calling' ? AMBER : '#4a5568';
 
   return (
     <div style={{ background: '#0d1b2a', border: '1px solid rgba(16,185,129,0.2)', borderRadius: '6px', padding: '14px' }}>
@@ -147,20 +185,35 @@ export default function FronterDialer({ lead, username, lineKey, lineNumber, onC
         {lineNumber && <div style={{ color: '#6b7280', fontSize: '10px' }}>Line: {lineNumber}</div>}
       </div>
 
-      {error && <div style={{ color: '#ef4444', fontSize: '11px', marginBottom: '8px' }}>⚠ {error}</div>}
+      {error && <div style={{ color: RED, fontSize: '11px', marginBottom: '8px' }}>⚠ {error}</div>}
 
-      {/* Call status */}
+      {/* ── Call info screen ── */}
       {isActive && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px', padding: '8px 12px', background: 'rgba(16,185,129,0.06)', borderRadius: '4px' }}>
-          <div style={{ width: 8, height: 8, borderRadius: '50%', background: callStatus === 'connected' ? '#4ade80' : '#f59e0b', animation: 'pulse 1s infinite' }} />
-          <span style={{ color: callStatus === 'connected' ? '#4ade80' : '#f59e0b', fontSize: '12px', fontWeight: 'bold', textTransform: 'uppercase' }}>{callStatus}</span>
-          {callStatus === 'connected' && <span style={{ color: '#c4cdd8', fontSize: '14px', fontFamily: 'monospace', marginLeft: 'auto' }}>{fmt(duration)}</span>}
-          {merged && <span style={{ color: GOLD, fontSize: '10px', fontWeight: 'bold', textTransform: 'uppercase' }}>· Merged</span>}
+        <div style={{ background: 'rgba(0,0,0,0.3)', border: `1px solid ${statusColor}33`, borderRadius: '6px', padding: '14px', marginBottom: '12px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+            <div style={{ width: 8, height: 8, borderRadius: '50%', background: statusColor, animation: 'pulse 1s infinite' }} />
+            <span style={{ color: statusColor, fontSize: '11px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '1px' }}>{callStatus}</span>
+            {muted && <span style={{ color: RED, fontSize: '10px', fontWeight: 'bold' }}>· MUTED</span>}
+            {onHold && <span style={{ color: AMBER, fontSize: '10px', fontWeight: 'bold' }}>· ON HOLD</span>}
+            {merged && <span style={{ color: GOLD, fontSize: '10px', fontWeight: 'bold' }}>· MERGED</span>}
+          </div>
+          <div style={{ color: '#e8e0d0', fontSize: '18px', fontWeight: 'bold', marginBottom: '4px' }}>
+            {lead?.firstName} {lead?.lastName}
+          </div>
+          <div style={{ color: '#6b7280', fontSize: '11px', marginBottom: '6px' }}>{lead?.phone}</div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '8px' }}>
+            <div style={{ color: '#8a9ab8', fontSize: '11px' }}>
+              {now.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} · {now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+            </div>
+            <div style={{ color: statusColor, fontSize: '20px', fontFamily: 'monospace', fontWeight: 'bold' }}>
+              {callStatus === 'connected' ? fmt(duration) : '--:--'}
+            </div>
+          </div>
         </div>
       )}
 
-      {/* Controls */}
-      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+      {/* ── Controls ── */}
+      <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
         {!isActive ? (
           <button onClick={dial} disabled={!lead?.phone} style={{ background: 'linear-gradient(135deg,#10b981,#22c55e)', color: DARK, border: 'none', borderRadius: '4px', padding: '10px 20px', cursor: !lead?.phone ? 'not-allowed' : 'pointer', fontSize: '12px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase', opacity: !lead?.phone ? 0.5 : 1 }}>
             📞 Call {lead?.firstName ? lead.firstName : ''}
@@ -169,18 +222,24 @@ export default function FronterDialer({ lead, username, lineKey, lineNumber, onC
           <>
             {callStatus === 'connected' && (
               <>
-                <button onClick={toggleMute} style={{ background: muted ? 'rgba(239,68,68,0.15)' : 'rgba(255,255,255,0.05)', color: muted ? '#ef4444' : '#c4cdd8', border: `1px solid ${muted ? 'rgba(239,68,68,0.3)' : 'rgba(255,255,255,0.12)'}`, borderRadius: '4px', padding: '8px 14px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>
+                <button onClick={toggleMute} style={ctrlBtn(muted ? RED : '#c4cdd8', muted)}>
                   {muted ? '🔇 Unmute' : '🎤 Mute'}
                 </button>
-                {!merged ? (
-                  <button onClick={() => setShowMergeInput(p => !p)} style={{ background: `${GOLD}18`, color: GOLD, border: `1px solid ${GOLD}44`, borderRadius: '4px', padding: '8px 14px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>
+                <button onClick={handleHold} disabled={busy} style={ctrlBtn(onHold ? AMBER : BLUE, onHold)}>
+                  {busy ? '⏳' : onHold ? '▶ Unhold' : '⏸ Hold'}
+                </button>
+                {!merged && !onHold && (
+                  <button onClick={() => setShowMergeInput(p => !p)} style={ctrlBtn(GOLD, false)}>
                     🔗 Merge
                   </button>
-                ) : null}
+                )}
+                <button onClick={() => setShowTransferInput(p => !p)} style={ctrlBtn(PURPLE, false)}>
+                  ↗ Transfer
+                </button>
               </>
             )}
-            <button onClick={disconnect} style={{ background: 'rgba(239,68,68,0.15)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '4px', padding: '8px 14px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>
-              {merged ? '👋 Disconnect (Leave)' : '📵 Hang Up'}
+            <button onClick={disconnect} style={{ background: 'rgba(239,68,68,0.15)', color: RED, border: '1px solid rgba(239,68,68,0.3)', borderRadius: '4px', padding: '8px 14px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>
+              {merged ? '👋 Leave' : '📵 Hang Up'}
             </button>
           </>
         )}
@@ -188,13 +247,27 @@ export default function FronterDialer({ lead, username, lineKey, lineNumber, onC
 
       {/* Merge input */}
       {showMergeInput && !merged && callStatus === 'connected' && (
-        <div style={{ marginTop: '10px', display: 'flex', gap: '8px', alignItems: 'center', padding: '10px', background: 'rgba(16,185,129,0.06)', borderRadius: '4px' }}>
-          <input value={mergeNumber} onChange={e => setMergeNumber(e.target.value)} placeholder="Agent number (e.g. +1 555-123-4567)" style={{ flex: 1, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '4px', padding: '8px 12px', color: '#e8e0d0', fontSize: '12px', outline: 'none' }} onKeyDown={e => { if (e.key === 'Enter') handleMerge(); }} />
-          <button onClick={handleMerge} style={{ background: 'linear-gradient(135deg,#10b981,#22c55e)', color: DARK, border: 'none', borderRadius: '4px', padding: '8px 16px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>Merge In</button>
+        <div style={inputBox(GOLD)}>
+          <div style={{ color: GOLD, fontSize: '10px', marginBottom: '6px' }}>🔗 Merge in an agent (conference)</div>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <input value={mergeNumber} onChange={e => setMergeNumber(e.target.value)} placeholder="Agent number (+1 555-123-4567)" style={inputStyle()} onKeyDown={e => { if (e.key === 'Enter') handleMerge(); }} />
+            <button onClick={handleMerge} disabled={busy} style={{ background: 'linear-gradient(135deg,#10b981,#22c55e)', color: DARK, border: 'none', borderRadius: '4px', padding: '8px 16px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>{busy ? '⏳' : 'Merge'}</button>
+          </div>
         </div>
       )}
 
-      {/* Call result buttons (after call connects) */}
+      {/* Transfer input */}
+      {showTransferInput && callStatus === 'connected' && (
+        <div style={inputBox(PURPLE)}>
+          <div style={{ color: PURPLE, fontSize: '10px', marginBottom: '6px' }}>↗ Cold transfer (you will be dropped)</div>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <input value={transferNumber} onChange={e => setTransferNumber(e.target.value)} placeholder="Transfer to (+1 555-123-4567)" style={inputStyle()} onKeyDown={e => { if (e.key === 'Enter') handleTransfer(); }} />
+            <button onClick={handleTransfer} disabled={busy} style={{ background: PURPLE, color: DARK, border: 'none', borderRadius: '4px', padding: '8px 16px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>{busy ? '⏳' : 'Transfer'}</button>
+          </div>
+        </div>
+      )}
+
+      {/* Call result buttons */}
       {callStatus === 'connected' && !merged && (
         <div style={{ marginTop: '10px', display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
           <span style={{ color: '#6b7280', fontSize: '10px', width: '100%', marginBottom: '2px' }}>Call result:</span>
@@ -209,4 +282,23 @@ export default function FronterDialer({ lead, username, lineKey, lineNumber, onC
       )}
     </div>
   );
+}
+
+function ctrlBtn(color, active) {
+  return {
+    background: active ? `${color}22` : 'rgba(255,255,255,0.05)',
+    color: active ? color : '#c4cdd8',
+    border: `1px solid ${active ? color + '55' : 'rgba(255,255,255,0.12)'}`,
+    borderRadius: '4px',
+    padding: '8px 14px',
+    cursor: 'pointer',
+    fontSize: '11px',
+    fontWeight: 'bold',
+  };
+}
+function inputBox(color) {
+  return { marginTop: '10px', padding: '10px', background: `${color}0d`, border: `1px solid ${color}33`, borderRadius: '4px' };
+}
+function inputStyle() {
+  return { flex: 1, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '4px', padding: '8px 12px', color: '#e8e0d0', fontSize: '12px', outline: 'none' };
 }
