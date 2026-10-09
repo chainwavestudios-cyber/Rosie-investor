@@ -156,6 +156,7 @@ export function useDebtBobVoice({ onTranscript, onLog } = {}) {
   const [transferPhase, setTransferPhase] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [recordingUrl, setRecordingUrl] = useState('');
+  const [paused, setPaused] = useState(false);
 
   const wsRef = useRef(null);
   const recorderRef = useRef(null);
@@ -411,6 +412,24 @@ export function useDebtBobVoice({ onTranscript, onLog } = {}) {
 
   const hangup = useCallback(() => { cleanup(true); }, [cleanup]);
 
+  // Pause BOB: stop sending mic audio + cut off any BOB speech, keep the call alive.
+  const pauseCall = useCallback(() => {
+    listeningRef.current = false;
+    setAgentSpeaking(false);
+    // Immediately silence any scheduled/playing BOB audio
+    nextStartRef.current = 0;
+    activeSourcesRef.current.forEach(s => { try { s.stop(); } catch {} });
+    activeSourcesRef.current.clear();
+    setPaused(true);
+  }, []);
+
+  // Resume: BOB starts listening to the mic again.
+  const resumeCall = useCallback(() => {
+    nextStartRef.current = 0;
+    listeningRef.current = true;
+    setPaused(false);
+  }, []);
+
   // Audio recorded so far (playable webm) — used for mid-call autosave.
   const getRecordingSnapshot = useCallback(() => (chunksRef.current.length ? new Blob(chunksRef.current, { type: 'audio/webm' }) : null), []);
 
@@ -419,5 +438,5 @@ export function useDebtBobVoice({ onTranscript, onLog } = {}) {
   useEffect(() => { cleanupRef.current = cleanup; }, [cleanup]);
   useEffect(() => () => { cleanupRef.current?.(false); }, []);
 
-  return { phase, error, agentSpeaking, micDevices, micDeviceId, setMicDeviceId, outputDevices, outputDeviceId, setOutputDeviceId, ringPhase, transferPhase, startCall, hangup, isRecording, recordingUrl, getRecordingSnapshot };
+  return { phase, error, agentSpeaking, micDevices, micDeviceId, setMicDeviceId, outputDevices, outputDeviceId, setOutputDeviceId, ringPhase, transferPhase, startCall, hangup, isRecording, recordingUrl, getRecordingSnapshot, paused, pauseCall, resumeCall };
 }

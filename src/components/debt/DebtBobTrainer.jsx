@@ -285,7 +285,7 @@ export default function DebtBobTrainer() {
     setTranscript(prev => [...prev, entry]);
   }, []);
 
-  const { phase, error, agentSpeaking, micDevices, micDeviceId, setMicDeviceId, outputDevices, outputDeviceId, setOutputDeviceId, ringPhase, transferPhase, startCall, hangup, isRecording, recordingUrl, getRecordingSnapshot } = useDebtBobVoice({ onTranscript: handleTranscript, onLog: addLog });
+  const { phase, error, agentSpeaking, micDevices, micDeviceId, setMicDeviceId, outputDevices, outputDeviceId, setOutputDeviceId, ringPhase, transferPhase, startCall, hangup, isRecording, recordingUrl, getRecordingSnapshot, paused, pauseCall, resumeCall } = useDebtBobVoice({ onTranscript: handleTranscript, onLog: addLog });
 
   // ── Session persistence ──
   // The session record is created the moment the call goes live, then the
@@ -791,14 +791,17 @@ IMPORTANT: Ask these questions NATURALLY during the call. Weave them into the co
                 {phase === 'idle' || phase === 'error' ? (
                   <button onClick={handleStartCall} style={{ background: 'linear-gradient(135deg,#10b981,#22c55e)', color: DARK, border: 'none', borderRadius: '4px', padding: '10px 24px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase' }}>📞 Connect to BOB</button>
                 ) : (
-                  <button onClick={hangup} style={{ background: 'rgba(239,68,68,0.15)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '4px', padding: '10px 24px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase' }}>⏹ Hang Up</button>
+                  <>
+                    <button onClick={hangup} style={{ background: 'rgba(239,68,68,0.15)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '4px', padding: '10px 24px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase' }}>⏹ Hang Up</button>
+                    <button onClick={paused ? resumeCall : pauseCall} style={{ background: paused ? 'linear-gradient(135deg,#10b981,#22c55e)' : 'rgba(251,191,36,0.15)', color: paused ? DARK : '#fbbf24', border: `1px solid ${paused ? 'rgba(16,185,129,0.4)' : 'rgba(251,191,36,0.3)'}`, borderRadius: '4px', padding: '10px 20px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase' }}>{paused ? '▶ Resume' : '⏸ Pause'}</button>
+                  </>
                 )}
                 <button onClick={handleSaveNow} disabled={savingSession || transcript.length === 0} style={{ background: sessionSaved ? 'rgba(74,222,128,0.15)' : `${GOLD}18`, color: sessionSaved ? '#4ade80' : GOLD, border: `1px solid ${sessionSaved ? 'rgba(74,222,128,0.3)' : GOLD + '44'}`, borderRadius: '4px', padding: '10px 20px', cursor: (savingSession || transcript.length === 0) ? 'not-allowed' : 'pointer', fontSize: '12px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase', opacity: (savingSession || transcript.length === 0) ? 0.5 : 1 }}>
                   {savingSession ? '⏳ Saving…' : sessionSaved ? '✓ Saved' : '💾 Save Now'}
                 </button>
                 <span style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 14px', background: `${phaseColor}18`, border: `1px solid ${phaseColor}44`, borderRadius: '20px' }}>
-                  <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: phaseColor, animation: phase === 'active' ? 'pulse 1s infinite' : 'none' }} />
-                  <span style={{ color: phaseColor, fontSize: '11px', fontWeight: 'bold' }}>{phaseLabel}</span>
+                  <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: phaseColor, animation: phase === 'active' && !paused ? 'pulse 1s infinite' : 'none' }} />
+                  <span style={{ color: phaseColor, fontSize: '11px', fontWeight: 'bold' }}>{paused ? '⏸ Paused' : phaseLabel}</span>
                 </span>
               </div>
 
@@ -960,10 +963,16 @@ IMPORTANT: Ask these questions NATURALLY during the call. Weave them into the co
                 <DebtScriptEditor />
               </div>
             ) : (
-            <div style={{ flex: 1, overflowY: 'auto', padding: '14px 16px' }}>
+            <div style={{ flex: 1, overflowY: 'auto', padding: '14px 16px', position: 'relative' }}>
+              {paused && transcript.length > 0 && (
+                <div style={{ position: 'sticky', top: 0, left: 0, right: 0, marginBottom: '10px', padding: '10px 14px', background: 'rgba(251,191,36,0.12)', border: '1px solid rgba(251,191,36,0.4)', borderRadius: '6px', display: 'flex', alignItems: 'center', gap: '8px', zIndex: 2 }}>
+                  <span style={{ fontSize: '16px' }}>⏸</span>
+                  <span style={{ color: '#fbbf24', fontSize: '12px', fontWeight: 'bold' }}>BOB is paused — your mic is muted to BOB. Click Resume to continue.</span>
+                </div>
+              )}
               {transcript.length === 0 ? (
                 <div style={{ color: '#4a5568', textAlign: 'center', padding: '60px 0', fontSize: '13px' }}>
-                  {phase === 'active' ? 'Listening… start speaking to BOB.' : phase === 'ringing' ? '📞 Dialing…' : phase === 'transfer' ? '📋 Transfer agent is connecting the call…' : phase === 'connecting' ? 'Connecting to Deepgram…' : 'No transcript yet. Click "Connect to BOB" to start a training call.'}
+                  {paused ? '⏸ BOB is paused. Click Resume to continue the call.' : phase === 'active' ? 'Listening… start speaking to BOB.' : phase === 'ringing' ? '📞 Dialing…' : phase === 'transfer' ? '📋 Transfer agent is connecting the call…' : phase === 'connecting' ? 'Connecting to Deepgram…' : 'No transcript yet. Click "Connect to BOB" to start a training call.'}
                 </div>
               ) : transcript.map((msg, i) => {
                 const isBob = msg.role === 'bob';
