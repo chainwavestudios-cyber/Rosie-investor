@@ -285,51 +285,97 @@ export default function DebtBobTrainer() {
     setTranscript(prev => [...prev, entry]);
   }, []);
 
-  const { phase, error, agentSpeaking, micDevices, micDeviceId, setMicDeviceId, outputDevices, outputDeviceId, setOutputDeviceId, ringPhase, transferPhase, startCall, hangup, isRecording, recordingUrl } = useDebtBobVoice({ onTranscript: handleTranscript, onLog: addLog });
+  const { phase, error, agentSpeaking, micDevices, micDeviceId, setMicDeviceId, outputDevices, outputDeviceId, setOutputDeviceId, ringPhase, transferPhase, startCall, hangup, isRecording, recordingUrl, getRecordingSnapshot } = useDebtBobVoice({ onTranscript: handleTranscript, onLog: addLog });
 
-  // Persist session (with recording URL + transcript) to BobSession when recording becomes available
+  // ── Session persistence ──
+  // The session record is created the moment the call goes live, then the
+  // transcript and the recording are saved SEPARATELY — a failure in one never
+  // affects the other. Both also autosave every 3 minutes during the call.
   const callStartRef = useRef(null);
-  useEffect(() => { if (phase === 'active' && !callStartRef.current) callStartRef.current = Date.now(); }, [phase]);
-  useEffect(() => {
-    if (!recordingUrl) return;
-    const duration = callStartRef.current ? Math.round((Date.now() - callStartRef.current) / 1000) : 0;
-    callStartRef.current = null;
-    buildSessionTranscript(transcriptRef.current || []).then(t => base44.entities.BobSession.create({
-      sessionLabel: sessionId,
-      voiceModel,
-      sliderValue,
-      intensity,
-      focusTopic,
-      callMode: mode,
-      ...t,
-      durationSeconds: duration,
-      recordingUrl: cloudUrl(recordingUrl),
-    })).catch(e => console.warn('[BOB] Failed to save session:', e));
-  }, [recordingUrl]); // eslint-disable-line react-hooks/exhaustive-deps
+  const callEndRef = useRef(null);
+  const sessionRecIdRef = useRef(null);
+  const metaRef = useRef({});
+  metaRef.current = { sessionLabel: sessionId, voiceModel, sliderValue, intensity, focusTopic, callMode: mode };
+  const [saveStatus, setSaveStatus] = useState('');
+  const errMsg = (e) => e?.response?.data?.message || e?.message || String(e);
+  const getDuration = () => (callStartRef.current ? Math.round(((callEndRef.current || Date.now()) - callStartRef.current) / 1000) : 0);
 
-  // Manual "Save Now" — saves the current transcript (and recording if available) to BobSession
+  const ensureSession = useCallback(async () => {
+    if (!sessionRecIdRef.current) {
+      const rec = await base44.entities.BobSession.create({ ...metaRef.current, transcriptLineCount: 0, durationSeconds: 0, createdAt: new Date().toISOString() });
+      sessionRecIdRef.current = rec.id;
+    }
+    return sessionRecIdRef.current;
+  }, []);
+
+  const saveTranscript = useCallback(async () => {
+    const lines = transcriptRef.current || [];
+    if (lines.length === 0) return;
+    try {
+      const id = await ensureSession();
+      const t = await buildSessionTranscript(lines);
+      await base44.entities.BobSession.update(id, { ...t, durationSeconds: getDuration() });
+      setSaveStatus(`✓ Transcript saved (${lines.length} lines) at ${new Date().toLocaleTimeString()}`);
+    } catch (e) {
+      setSaveStatus(`⚠ Transcript save failed: ${errMsg(e)}`);
+      throw e;
+    }
+  }, [ensureSession]);
+
+  const saveRecordingUrl = useCallback(async (url) => {
+    try {
+      const id = await ensureSession();
+      await base44.entities.BobSession.update(id, { recordingUrl: url, durationSeconds: getDuration() });
+    } catch (e) { setSaveStatus(`⚠ Recording link save failed: ${errMsg(e)}`); }
+  }, [ensureSession]);
+
+  // Call goes live → create the session record. Call ends → save transcript right away.
+  useEffect(() => {
+    if (phase === 'active' && !callStartRef.current) {
+      callStartRef.current = Date.now();
+      ensureSession().catch(e => setSaveStatus(`⚠ Session create failed: ${errMsg(e)}`));
+    }
+    if ((phase === 'idle' || phase === 'error') && callStartRef.current && !callEndRef.current) {
+      callEndRef.current = Date.now();
+      saveTranscript().catch(() => {});
+    }
+  }, [phase]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Autosave every 3 minutes during the call: transcript + audio recorded so far.
+  useEffect(() => {
+    if (phase !== 'active') return;
+    const iv = setInterval(async () => {
+      saveTranscript().catch(() => {});
+      const blob = getRecordingSnapshot();
+      if (!blob) return;
+      try {
+        const file = new File([blob], `bob-training-partial-${Date.now()}.webm`, { type: 'audio/webm' });
+        const { file_url } = await base44.integrations.Core.UploadPublicFile({ file });
+        await saveRecordingUrl(file_url);
+      } catch (e) { setSaveStatus(`⚠ Recording autosave failed: ${errMsg(e)}`); }
+    }, 180000);
+    return () => clearInterval(iv);
+  }, [phase, saveTranscript, saveRecordingUrl, getRecordingSnapshot]);
+
+  // Final recording uploaded → attach it to the session (replaces any partial).
+  useEffect(() => {
+    const url = cloudUrl(recordingUrl);
+    if (url) saveRecordingUrl(url);
+  }, [recordingUrl, saveRecordingUrl]);
+
+  // Manual "Save Now" — saves the current transcript (and recording if available)
   const handleSaveNow = useCallback(async () => {
     if (!transcriptRef.current || transcriptRef.current.length === 0) return;
     setSavingSession(true);
     try {
-      const duration = callStartRef.current ? Math.round((Date.now() - callStartRef.current) / 1000) : 0;
-      const t = await buildSessionTranscript(transcriptRef.current);
-      await base44.entities.BobSession.create({
-        sessionLabel: sessionId,
-        voiceModel,
-        sliderValue,
-        intensity,
-        focusTopic,
-        callMode: mode,
-        ...t,
-        durationSeconds: duration,
-        recordingUrl: cloudUrl(recordingUrl),
-      });
+      await saveTranscript();
+      const url = cloudUrl(recordingUrl);
+      if (url) await saveRecordingUrl(url);
       setSessionSaved(true);
       setTimeout(() => setSessionSaved(false), 2000);
-    } catch (e) { alert('Failed to save session: ' + (e?.message || String(e))); }
+    } catch (e) { alert('Failed to save session: ' + errMsg(e)); }
     setSavingSession(false);
-  }, [sessionId, voiceModel, sliderValue, intensity, focusTopic, mode, recordingUrl]);
+  }, [saveTranscript, saveRecordingUrl, recordingUrl]);
 
   const getActivePersona = useCallback(() => {
     if (sliderValue < 33) return DEBT_DUCK;
@@ -594,6 +640,7 @@ IMPORTANT: Ask these questions NATURALLY during the call. Weave them into the co
     const label = character.name;
     setSessionId(label);
     setTranscript([]);
+    sessionRecIdRef.current = null; callStartRef.current = null; callEndRef.current = null; setSaveStatus('');
     // Use the character's matched voice — no more random cycling per call
     setVoiceModel(character.voiceModel);
 
@@ -767,6 +814,7 @@ IMPORTANT: Ask these questions NATURALLY during the call. Weave them into the co
               {transferPhase && <div style={{ marginTop: '8px', color: '#60a5fa', fontSize: '11px', textAlign: 'center', animation: 'pulse 1s infinite' }}>📋 Transfer agent speaking… {mode === 'open' ? 'Jocelyn is introducing Bob' : 'Chris is connecting you with Bob'}</div>}
               {agentSpeaking && phase === 'active' && <div style={{ marginTop: '6px', color: GOLD, fontSize: '11px', textAlign: 'center' }}>🤖 Bob is speaking…</div>}
               {error && <div style={{ marginTop: '8px', color: '#ef4444', fontSize: '11px' }}>⚠ {error}</div>}
+              {saveStatus && <div style={{ marginTop: '6px', color: saveStatus.startsWith('✓') ? '#4ade80' : '#ef4444', fontSize: '11px' }}>{saveStatus}</div>}
 
               {/* AI Assistant button — opens popup (gated by bobAIAssistant permission) */}
               {canBobAI && (

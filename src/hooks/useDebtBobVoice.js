@@ -238,7 +238,7 @@ export function useDebtBobVoice({ onTranscript, onLog } = {}) {
           a.click();
           document.body.removeChild(a);
           const sizeMB = (blob.size / 1024 / 1024).toFixed(1);
-          setError(`Recording (${sizeMB} MB) was too large for cloud upload. It has been downloaded to your computer — check your Downloads folder. You can re-upload it from there if needed.`);
+          setError(`Recording (${sizeMB} MB) cloud upload failed (${e?.message || e}). It has been downloaded to your computer — check your Downloads folder.`);
           onLogRef.current?.('session_end', `⚠️ Cloud upload failed (${sizeMB} MB). Recording downloaded locally — check your Downloads folder.`);
         }
       };
@@ -411,10 +411,13 @@ export function useDebtBobVoice({ onTranscript, onLog } = {}) {
 
   const hangup = useCallback(() => { cleanup(true); }, [cleanup]);
 
+  // Audio recorded so far (playable webm) — used for mid-call autosave.
+  const getRecordingSnapshot = useCallback(() => (chunksRef.current.length ? new Blob(chunksRef.current, { type: 'audio/webm' }) : null), []);
+
   // Only clean up on actual unmount — NOT on every render (which would close the WebSocket mid-call)
   const cleanupRef = useRef(cleanup);
   useEffect(() => { cleanupRef.current = cleanup; }, [cleanup]);
   useEffect(() => () => { cleanupRef.current?.(false); }, []);
 
-  return { phase, error, agentSpeaking, micDevices, micDeviceId, setMicDeviceId, outputDevices, outputDeviceId, setOutputDeviceId, ringPhase, transferPhase, startCall, hangup, isRecording, recordingUrl };
+  return { phase, error, agentSpeaking, micDevices, micDeviceId, setMicDeviceId, outputDevices, outputDeviceId, setOutputDeviceId, ringPhase, transferPhase, startCall, hangup, isRecording, recordingUrl, getRecordingSnapshot };
 }
