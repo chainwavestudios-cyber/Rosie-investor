@@ -37,6 +37,9 @@ export default function BobBrainTab({ onKBUpdated }) {
   const [viewingTranscript, setViewingTranscript] = useState(null);
   const mp3Ref = useRef(null);
   const MAX_BYTES = 50 * 1024 * 1024;
+  const [mp3QueueProgress, setMp3QueueProgress] = useState(null); // { current, total, currentName }
+  const [duplicateGroups, setDuplicateGroups] = useState(null);
+  const [searchingDuplicates, setSearchingDuplicates] = useState(false);
 
   const loadAll = useCallback(async () => {
     try {
@@ -54,21 +57,46 @@ export default function BobBrainTab({ onKBUpdated }) {
 
   const debtKb = () => kbEntries.filter(e => e.kbName === 'Debt Settlement' || DEBT_KB_CATEGORIES.includes(e.category));
 
-  // ── MP3 upload: transcribe → save transcript → extract Q&A → cross-reference ──
-  const handleMP3 = async (file) => {
-    if (!file) return;
-    if (file.size > MAX_BYTES) { setError(`File is ${(file.size / 1024 / 1024).toFixed(1)}MB — max is 50MB.`); return; }
-    setMp3Uploading(true); setError(''); setStatus('Checking for duplicates…');
+  // ── MP3 batch upload: queue up to 30 files, process 1 at a time ──
+  const handleMP3Batch = async (files) => {
+    const fileArr = Array.from(files).slice(0, 30);
+    if (fileArr.length === 0) return;
+    setMp3Uploading(true); setError('');
+    const allFlagged = [];
+    let saved = 0, skipped = 0;
+    for (let i = 0; i < fileArr.length; i++) {
+      setMp3QueueProgress({ current: i + 1, total: fileArr.length, currentName: fileArr[i].name });
+      const res = await processSingleMP3(fileArr[i]);
+      if (res?.flagged?.length > 0) allFlagged.push(...res.flagged);
+      if (res?.skipped) skipped++; else saved += res?.savedCount || 0;
+    }
+    setMp3QueueProgress(null);
+    setMp3Uploading(false);
+    if (allFlagged.length > 0) {
+      setConflicts({ flagged: allFlagged, fileHash: 'batch', source: `Batch of ${fileArr.length} files` });
+      setStatus(`✓ Batch complete: ${saved} entries saved, ${skipped} duplicates skipped, ${allFlagged.length} duplicate-like statements need review.`);
+    } else {
+      setStatus(`✓ Batch complete: ${fileArr.length} files processed, ${saved} entries saved, ${skipped} duplicates skipped.`);
+    }
+    loadAll();
+    onKBUpdated?.();
+    setTimeout(() => { if (!conflicts) setStatus(''); }, 5000);
+  };
+
+  // Process a single MP3 — returns { flagged, savedCount, skipped }
+  const processSingleMP3 = async (file) => {
+    if (file.size > MAX_BYTES) { setError(`${file.name} is ${(file.size / 1024 / 1024).toFixed(1)}MB — max 50MB. Skipping.`); return { skipped: true }; }
     try {
+      setStatus(`Checking ${file.name} for duplicates…`);
       const hash = await computeFileHash(file);
       const dup = await checkDuplicateHash(hash);
-      if (dup.isDuplicate) { setError(`This recording was already uploaded on ${new Date(dup.firstUploadDate).toLocaleDateString()}. Skipping.`); setMp3Uploading(false); setStatus(''); return; }
+      if (dup.isDuplicate) { setStatus(`⚠ ${file.name} already uploaded on ${new Date(dup.firstUploadDate).toLocaleDateString()}. Skipping.`); return { skipped: true }; }
 
       setStatus(`Uploading ${file.name} (${(file.size / 1024 / 1024).toFixed(1)}MB)…`);
       const { file_uri } = await base44.integrations.Core.UploadPrivateFile({ file });
       const { signed_url } = await base44.integrations.Core.CreateFileSignedUrl({ file_uri, expires_in: 3600 });
 
-      setStatus('Transcribing audio…');
+      setStatus(`Transcribing ${file.name}…`);
       let transcriptText = '';
       if (file.size > 25 * 1024 * 1024) {
         const res = await base44.functions.invoke('transcribeAudioLarge', { audio_url: signed_url });
@@ -78,45 +106,63 @@ export default function BobBrainTab({ onKBUpdated }) {
       }
       if (!transcriptText || transcriptText.length < 20) throw new Error('Transcription came back empty.');
 
-      setStatus('Saving transcript to BOB\'s brain…');
+      setStatus(`Saving ${file.name} transcript to brain…`);
       await base44.entities.BobTranscript.create({
-        sourceName: file.name,
-        sourceType: 'mp3',
-        transcriptText,
-        fileUri: file_uri,
-        fileHash: hash,
-        durationLabel: `${(file.size / 1024 / 1024).toFixed(1)}MB`,
-        tags: `file_hash:${hash}`,
+        sourceName: file.name, sourceType: 'mp3', transcriptText, fileUri: file_uri, fileHash: hash,
+        durationLabel: `${(file.size / 1024 / 1024).toFixed(1)}MB`, tags: `file_hash:${hash}`,
       });
 
-      setStatus('Extracting Q&A from transcript…');
+      setStatus(`Extracting Q&A from ${file.name}…`);
       const result = await base44.integrations.Core.InvokeLLM({
         prompt: `You are a debt settlement sales training assistant. Below is a transcript of a real debt settlement call. Extract the most important Q&A pairs — customer questions, objections, program details, debt tally questions, and closing techniques. Return as JSON: {"entries":[{"question":"...","answer":"..."}]}. Aim for 10-20 entries.\n\nTRANSCRIPT:\n${transcriptText}`,
         response_json_schema: { type: 'object', properties: { entries: { type: 'array', items: { type: 'object', properties: { question: { type: 'string' }, answer: { type: 'string' } } } } } },
       });
       const entries = (result?.entries || result?.data?.entries || []).map(e => ({ question: e.question, answer: e.answer }));
 
-      setStatus('Cross-referencing for duplicate statements…');
+      setStatus(`Cross-referencing ${file.name}…`);
       const { flagged, clean } = crossReferenceBatch(entries, debtKb());
-
-      // Save the clean (non-duplicate) entries immediately
       for (const e of clean) {
         await base44.entities.KnowledgeBase.create({ ...e, category: 'debt_call', kbName: 'Debt Settlement', source: file.name, tags: `file_hash:${hash}`, created_date: new Date().toISOString() });
       }
-
-      if (flagged.length > 0) {
-        setConflicts({ flagged, fileHash: hash, source: file.name });
-        setStatus(`${clean.length} new entries saved. ${flagged.length} duplicate-like statements need your review.`);
-      } else {
-        setStatus(`✓ ${entries.length} entries extracted, ${clean.length} saved to BOB's brain. No duplicates found.`);
-      }
+      setStatus(`✓ ${file.name}: ${entries.length} extracted, ${clean.length} saved${flagged.length > 0 ? `, ${flagged.length} flagged` : ''}.`);
       loadAll();
-      onKBUpdated?.();
+      return { flagged, savedCount: clean.length };
     } catch (e) {
-      setError('MP3 processing failed: ' + (e?.message || String(e)));
+      setError(`${file.name} failed: ${e?.message || String(e)}`);
+      return { flagged: [], savedCount: 0 };
     }
-    setMp3Uploading(false);
-    setTimeout(() => { if (!conflicts) setStatus(''); }, 5000);
+  };
+
+  // ── Duplicates search: find KB entries with similar questions ──
+  const findDuplicates = async () => {
+    setSearchingDuplicates(true); setError('');
+    try {
+      const all = await base44.entities.KnowledgeBase.list('-created_date', 500);
+      const groups = [];
+      const used = new Set();
+      for (let i = 0; i < all.length; i++) {
+        if (used.has(all[i].id)) continue;
+        const group = [all[i]];
+        for (let j = i + 1; j < all.length; j++) {
+          if (used.has(all[j].id)) continue;
+          if (textSimilarity(all[i].question || '', all[j].question || '') > 0.65) {
+            group.push(all[j]); used.add(all[j].id);
+          }
+        }
+        if (group.length > 1) { used.add(all[i].id); groups.push(group); }
+      }
+      setDuplicateGroups(groups);
+      if (groups.length === 0) setStatus('✓ No duplicate entries found in the knowledge base.');
+    } catch (e) { setError('Duplicate search failed: ' + (e?.message || String(e))); }
+    setSearchingDuplicates(false);
+  };
+
+  const deleteDuplicateEntry = async (id) => {
+    try {
+      await base44.entities.KnowledgeBase.delete(id);
+      setDuplicateGroups(prev => prev.map(g => g.filter(e => e.id !== id)).filter(g => g.length > 1));
+      loadAll();
+    } catch (e) { setError('Delete failed: ' + (e?.message || String(e))); }
   };
 
   // ── Paste transcript: save → extract Q&A → cross-reference ──
@@ -202,16 +248,33 @@ export default function BobBrainTab({ onKBUpdated }) {
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', alignItems: 'start' }}>
         {/* Left: Upload + Paste */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-          {/* MP3 upload */}
+          {/* MP3 upload — batch up to 30, queued 1 at a time */}
           <div style={{ background: 'rgba(244,114,182,0.05)', border: '1px solid rgba(244,114,182,0.2)', borderRadius: '6px', padding: '18px' }}>
-            <div style={{ color: PINK, fontSize: '11px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '4px' }}>🎵 Upload Call Recording (MP3)</div>
+            <div style={{ color: PINK, fontSize: '11px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '4px' }}>🎵 Upload Call Recordings (MP3)</div>
             <div style={{ color: '#8a9ab8', fontSize: '11px', marginBottom: '14px', lineHeight: 1.5 }}>
-              The master place to feed BOB new calls. Each MP3 is <strong style={{ color: PINK }}>auto-transcribed and the transcript is saved to the brain</strong> — so BOB gets smarter with every upload. Q&A is then extracted and cross-referenced for duplicates.
+              The master place to feed BOB new calls. Select <strong style={{ color: PINK }}>up to 30 MP3s at once</strong> — they're queued and processed one at a time (transcribe → save → extract Q&A → cross-reference). Each upload is stored **privately** — no public URL, so access follows your app's permissions.
             </div>
-            <input ref={mp3Ref} type="file" accept="audio/mpeg,audio/mp3,audio/wav,audio/m4a,audio/ogg" style={{ display: 'none' }} onChange={e => { const f = e.target.files?.[0]; if (f) handleMP3(f); e.target.value = ''; }} />
-            <button onClick={() => mp3Ref.current?.click()} disabled={mp3Uploading} style={{ background: mp3Uploading ? 'rgba(255,255,255,0.05)' : 'linear-gradient(135deg,#f472b6,#ec4899)', color: mp3Uploading ? '#6b7280' : DARK, border: 'none', borderRadius: '4px', padding: '11px 22px', cursor: mp3Uploading ? 'not-allowed' : 'pointer', fontSize: '12px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase' }}>
-              {mp3Uploading ? '⏳ Processing…' : '🎵 Upload MP3 to Brain'}
-            </button>
+            <input ref={mp3Ref} type="file" accept="audio/mpeg,audio/mp3,audio/wav,audio/m4a,audio/ogg" multiple style={{ display: 'none' }} onChange={e => { if (e.target.files?.length > 0) handleMP3Batch(e.target.files); e.target.value = ''; }} />
+            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+              <button onClick={() => mp3Ref.current?.click()} disabled={mp3Uploading} style={{ background: mp3Uploading ? 'rgba(255,255,255,0.05)' : 'linear-gradient(135deg,#f472b6,#ec4899)', color: mp3Uploading ? '#6b7280' : DARK, border: 'none', borderRadius: '4px', padding: '11px 22px', cursor: mp3Uploading ? 'not-allowed' : 'pointer', fontSize: '12px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase' }}>
+                {mp3Uploading ? '⏳ Processing…' : '🎵 Upload MP3s to Brain'}
+              </button>
+              <button onClick={findDuplicates} disabled={searchingDuplicates || mp3Uploading} style={{ background: searchingDuplicates ? 'rgba(255,255,255,0.05)' : 'rgba(167,139,250,0.15)', color: searchingDuplicates ? '#6b7280' : PURPLE, border: `1px solid ${PURPLE}44`, borderRadius: '4px', padding: '11px 18px', cursor: searchingDuplicates || mp3Uploading ? 'not-allowed' : 'pointer', fontSize: '12px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase' }}>
+                {searchingDuplicates ? '⏳ Searching…' : '🔍 Find Duplicates'}
+              </button>
+            </div>
+            {/* Queue progress */}
+            {mp3QueueProgress && (
+              <div style={{ marginTop: '12px', background: 'rgba(244,114,182,0.08)', border: `1px solid ${PINK}33`, borderRadius: '4px', padding: '10px 14px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                  <span style={{ color: PINK, fontSize: '11px', fontWeight: 'bold' }}>Processing {mp3QueueProgress.current}/{mp3QueueProgress.total}</span>
+                  <span style={{ color: '#6b7280', fontSize: '10px' }}>{mp3QueueProgress.currentName}</span>
+                </div>
+                <div style={{ height: '4px', background: 'rgba(255,255,255,0.08)', borderRadius: '2px', overflow: 'hidden' }}>
+                  <div style={{ height: '100%', width: `${(mp3QueueProgress.current / mp3QueueProgress.total) * 100}%`, background: PINK, borderRadius: '2px', transition: 'width 0.3s' }} />
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Paste transcript */}
@@ -263,6 +326,40 @@ export default function BobBrainTab({ onKBUpdated }) {
         </div>
       </div>
 
+      {/* Duplicates search results */}
+      {duplicateGroups && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 10001, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }} onClick={() => setDuplicateGroups(null)}>
+          <div style={{ background: '#0d1b2a', border: `1px solid ${PURPLE}44`, borderRadius: '8px', maxWidth: '750px', width: '100%', maxHeight: '85vh', display: 'flex', flexDirection: 'column' }} onClick={e => e.stopPropagation()}>
+            <div style={{ padding: '12px 18px', borderBottom: '1px solid rgba(255,255,255,0.08)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <div style={{ color: PURPLE, fontSize: '13px', fontWeight: 'bold' }}>🔍 Duplicate KB Entries</div>
+                <div style={{ color: '#6b7280', fontSize: '10px' }}>{duplicateGroups.length} groups of similar questions found. Delete the duplicates you don't need.</div>
+              </div>
+              <button onClick={() => setDuplicateGroups(null)} style={{ background: 'rgba(255,255,255,0.05)', color: '#8a9ab8', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '4px', padding: '4px 12px', cursor: 'pointer' }}>✕</button>
+            </div>
+            <div style={{ flex: 1, overflowY: 'auto', padding: '12px 18px' }}>
+              {duplicateGroups.length === 0 ? (
+                <div style={{ color: GOLD, fontSize: '13px', textAlign: 'center', padding: '40px 0' }}>✓ No duplicates found!</div>
+              ) : duplicateGroups.map((group, gi) => (
+                <div key={gi} style={{ marginBottom: '14px', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '6px', padding: '12px' }}>
+                  <div style={{ color: PURPLE, fontSize: '10px', fontWeight: 'bold', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '1px' }}>Group {gi + 1} — {group.length} similar entries</div>
+                  {group.map(e => (
+                    <div key={e.id} style={{ display: 'flex', gap: '10px', alignItems: 'flex-start', padding: '8px', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ color: '#e8e0d0', fontSize: '12px', fontWeight: 'bold' }}>{e.question}</div>
+                        <div style={{ color: '#6b7280', fontSize: '10px', marginTop: '2px' }}>{(e.answer || '').slice(0, 120)}{e.answer?.length > 120 ? '…' : ''}</div>
+                        <div style={{ color: '#4a5568', fontSize: '9px', marginTop: '2px' }}>{e.category} · {e.source || 'unknown'}</div>
+                      </div>
+                      <button onClick={() => deleteDuplicateEntry(e.id)} style={{ background: 'rgba(239,68,68,0.12)', color: RED, border: '1px solid rgba(239,68,68,0.3)', borderRadius: '3px', padding: '4px 10px', cursor: 'pointer', fontSize: '10px', flexShrink: 0 }}>🗑 Delete</button>
+                    </div>
+                  ))}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Conflict resolution popup */}
       {conflicts && (
         <ConflictResolutionPopup
@@ -288,6 +385,16 @@ export default function BobBrainTab({ onKBUpdated }) {
       )}
     </div>
   );
+}
+
+// Jaccard similarity over significant words — used to group duplicate KB questions.
+function textSimilarity(a, b) {
+  const aw = new Set((a || '').toLowerCase().split(/\s+/).filter(w => w.length > 3));
+  const bw = new Set((b || '').toLowerCase().split(/\s+/).filter(w => w.length > 3));
+  if (aw.size === 0 || bw.size === 0) return 0;
+  const intersection = [...aw].filter(w => bw.has(w)).length;
+  const union = new Set([...aw, ...bw]).size;
+  return intersection / union;
 }
 
 function StatBox({ label, value, color }) {
