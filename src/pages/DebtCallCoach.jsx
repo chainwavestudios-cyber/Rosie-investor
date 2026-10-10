@@ -97,7 +97,7 @@ export default function DebtCallCoach() {
       </div>
 
       {tab === 'live' && <DebtLiveCall debtCoachUser={user} onCallStart={(callLead) => { setLiveCallActive(true); if (callLead?.id) setClosingLeadId(callLead.id); }} onCallEnd={() => setLiveCallActive(false)} />}
-      <PopOutTab storageKey="closing_tab" title="Closing Flow" icon="🏁" active={tab === 'closing'} defaultSize={{ width: 460, height: 720 }} autoPopOut={liveCallActive}>
+      <PopOutTab storageKey="closing_tab" title="Closing Flow" icon="🏁" active={tab === 'closing'} defaultSize={{ width: 460, height: 720 }} autoPopOut={liveCallActive} zIndex={14500}>
         <SmartClose leadId={closingLeadId} canEditPhones={!isDialerRole} />
       </PopOutTab>
       <PopOutTab storageKey="calls_tab" title="Calls" icon="📞" active={tab === 'calls'}>

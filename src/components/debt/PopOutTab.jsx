@@ -15,17 +15,30 @@ const sizeBtn = {
   borderRadius: '3px', padding: '3px 7px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold',
 };
 
-export default function PopOutTab({ storageKey, title, icon, active, children, defaultSize, autoPopOut }) {
+export default function PopOutTab({ storageKey, title, icon, active, children, defaultSize, autoPopOut, zIndex }) {
   const { user } = useDebtCoachAuth();
-  const panel = usePopOutPanel(storageKey, defaultSize || { width: 900, height: 700 }, user?.username);
+  const panel = usePopOutPanel(storageKey, defaultSize || { width: 900, height: 700 }, user?.username, zIndex);
 
-  // Auto pop out when the trigger flips true (e.g. a live call starts) — fires once per rising edge
+  // Auto pop out when the trigger flips true (e.g. a live call starts) — and bring it on-screen
   useEffect(() => {
-    if (autoPopOut && !panel.poppedOut) panel.popOut();
+    if (!autoPopOut) return;
+    if (!panel.poppedOut) panel.popOut();
+    else panel.center();
   }, [autoPopOut]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <>
+      {/* Tab clicked while popped out — show where it is instead of an empty page */}
+      {active && panel.poppedOut && (
+        <div style={{ padding: '40px 20px', textAlign: 'center', background: 'rgba(16,185,129,0.05)', border: `1px dashed ${GOLD}55`, borderRadius: '8px' }}>
+          <div style={{ color: GOLD, fontSize: '14px', fontWeight: 'bold', marginBottom: '6px' }}>{icon} {title} is open in a floating window</div>
+          <div style={{ color: '#8a9ab8', fontSize: '12px', marginBottom: '14px' }}>Can't see it? Bring it to the center of the screen or dock it back here.</div>
+          <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
+            <button onClick={panel.center} style={{ background: `linear-gradient(135deg,${GOLD},#22c55e)`, color: DARK, border: 'none', borderRadius: '6px', padding: '8px 16px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}>⊕ Bring Window Here</button>
+            <button onClick={panel.toggle} style={{ background: `${GOLD}18`, color: GOLD, border: `1px solid ${GOLD}44`, borderRadius: '6px', padding: '8px 16px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}>⤡ Dock Into Tab</button>
+          </div>
+        </div>
+      )}
       {/* Inline mode — only show when this tab is active and not popped out */}
       {active && !panel.poppedOut && (
         <div>

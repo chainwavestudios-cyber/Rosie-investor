@@ -148,12 +148,17 @@ export function usePopOutPanel(storageKey, defaultSize = { width: 420, height: 6
     setResizingEdge(edge);
   }, [position, size]);
 
+  // Clamp to the current viewport so a layout saved on a larger screen never renders off-screen
+  const vw = typeof window !== 'undefined' ? window.innerWidth : 1200;
+  const vh = typeof window !== 'undefined' ? window.innerHeight : 800;
+  const clampedW = Math.min(size.width, vw - 10);
+  const clampedH = Math.min(size.height, vh - 10);
   const floatingStyle = {
     position: 'fixed',
-    left: position.x,
-    top: position.y,
-    width: size.width,
-    height: size.height,
+    left: Math.max(0, Math.min(position.x, vw - clampedW)),
+    top: Math.max(0, Math.min(position.y, vh - clampedH)),
+    width: clampedW,
+    height: clampedH,
     zIndex: zIndex,
     display: 'flex',
     flexDirection: 'column',
