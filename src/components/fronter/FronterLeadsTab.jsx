@@ -34,7 +34,8 @@ export default function FronterLeadsTab({ username, lineKey, lineNumber, isAdmin
       const all = isAdmin
         ? await base44.entities.FronterLead.list('-created_date', 500)
         : await base44.entities.FronterLead.filter({ assignedTo: username }, '-created_date', 500);
-      // Sort: un-called first, then by oldest call (back of list), exclude removed
+      // Prospects: ONLY status === 'prospect' (never show converted leads)
+      // Leads: status === 'lead' or 'transferred'
       const active = mode === 'leads'
         ? (all || []).filter(l => l.status === 'lead' || l.status === 'transferred')
         : (all || []).filter(l => l.status === 'prospect' && (l.callCount || 0) < 3);
@@ -219,24 +220,51 @@ export default function FronterLeadsTab({ username, lineKey, lineNumber, isAdmin
           {loading ? (
             <div style={{ color: '#4a5568', textAlign: 'center', padding: '40px 0' }}>Loading…</div>
           ) : leads.length === 0 ? (
-            <div style={{ color: '#4a5568', textAlign: 'center', padding: '40px 0', fontSize: '13px' }}>No leads assigned to you. Ask your admin to upload and assign leads.</div>
+            <div style={{ color: '#4a5568', textAlign: 'center', padding: '40px 0', fontSize: '13px' }}>No {mode === 'leads' ? 'leads' : 'prospects'} assigned to you. Ask your admin to upload and assign leads.</div>
           ) : (
-            leads.map((l, i) => (
-              <div key={l.id} onClick={() => setContactCardLead(l)} style={{ padding: '12px 16px', borderBottom: '1px solid rgba(255,255,255,0.04)', cursor: 'pointer', background: contactCardLead?.id === l.id ? 'rgba(16,185,129,0.06)' : 'transparent', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <span style={{ color: '#4a5568', fontSize: '11px', minWidth: '24px' }}>{i + 1}.</span>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ color: '#e8e0d0', fontSize: '13px', fontWeight: 'bold' }}>{l.firstName} {l.lastName}</div>
-                  <div style={{ color: '#6b7280', fontSize: '11px' }}>{l.phone}</div>
-                </div>
-                <button onClick={(e) => { e.stopPropagation(); setActiveLead(l); setDialTrigger(n => n + 1); }} title="Call now" style={{ background: 'linear-gradient(135deg,#10b981,#22c55e)', color: DARK, border: 'none', borderRadius: '4px', padding: '5px 10px', cursor: 'pointer', fontSize: '13px', flexShrink: 0 }}>📞</button>
-                <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                  <span style={{ padding: '2px 8px', borderRadius: '10px', fontSize: '9px', fontWeight: 'bold', textTransform: 'uppercase', background: l.status === 'lead' ? 'rgba(16,185,129,0.15)' : 'rgba(96,165,250,0.15)', color: l.status === 'lead' ? GOLD : '#60a5fa' }}>{l.status}</span>
-                  <div style={{ color: '#4a5568', fontSize: '9px', marginTop: '3px' }}>
-                    {(l.callCount || 0)}/3 calls · {fmtTime(l.lastCalledAt)}
-                  </div>
-                </div>
-              </div>
-            ))
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+                <thead>
+                  <tr style={{ borderBottom: `2px solid ${GOLD}33` }}>
+                    {['#', 'Name', 'Phone', 'Debt', 'Status', 'Calls', 'Last Called', 'Actions'].map(h => (
+                      <th key={h} style={{ color: GOLD, padding: '10px 12px', textAlign: 'left', fontSize: '10px', letterSpacing: '1.5px', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {leads.map((l, i) => {
+                    const sc = l.status === 'lead' ? GOLD : l.status === 'transferred' ? '#a78bfa' : '#60a5fa';
+                    return (
+                      <tr key={l.id}
+                        style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', cursor: 'pointer', transition: 'background 0.1s', background: contactCardLead?.id === l.id ? 'rgba(16,185,129,0.06)' : 'transparent' }}
+                        onMouseEnter={e => e.currentTarget.style.background = 'rgba(16,185,129,0.05)'}
+                        onMouseLeave={e => e.currentTarget.style.background = contactCardLead?.id === l.id ? 'rgba(16,185,129,0.06)' : 'transparent'}
+                        onClick={() => setContactCardLead(l)}>
+                        <td style={{ padding: '10px 12px', color: '#4a5568', fontSize: '11px' }}>{i + 1}</td>
+                        <td style={{ padding: '10px 12px' }}>
+                          <div style={{ color: '#e8e0d0', fontWeight: 'bold' }}>{l.firstName} {l.lastName}</div>
+                          {l.leadNumber && <div style={{ color: '#4a5568', fontSize: '10px' }}>{l.leadNumber}</div>}
+                        </td>
+                        <td style={{ padding: '10px 12px' }}>
+                          <button onClick={e => { e.stopPropagation(); setActiveLead(l); setDialTrigger(n => n + 1); }} style={{ background: 'rgba(16,185,129,0.1)', color: GOLD, border: '1px solid rgba(16,185,129,0.25)', borderRadius: '3px', padding: '4px 10px', cursor: 'pointer', fontSize: '12px', fontFamily: 'monospace' }}>📞 {l.phone}</button>
+                        </td>
+                        <td style={{ padding: '10px 12px', color: l.debtAmount ? GOLD : '#4a5568', fontSize: '12px' }}>{l.debtAmount ? `$${Number(l.debtAmount).toLocaleString()}` : '—'}</td>
+                        <td style={{ padding: '10px 12px' }}>
+                          <span style={{ display: 'inline-block', background: `${sc}22`, color: sc, border: `1px solid ${sc}55`, padding: '3px 10px', borderRadius: '4px', fontSize: '10px', letterSpacing: '1px', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{l.status}</span>
+                        </td>
+                        <td style={{ padding: '10px 12px', color: '#8a9ab8', fontSize: '12px', textAlign: 'center' }}>{l.callCount || 0}/3</td>
+                        <td style={{ padding: '10px 12px', fontSize: '11px' }}>
+                          {l.lastCalledAt ? <span style={{ color: '#f59e0b' }}>{fmtTime(l.lastCalledAt)}</span> : <span style={{ color: '#4a5568' }}>Never</span>}
+                        </td>
+                        <td style={{ padding: '10px 12px' }}>
+                          <button onClick={e => { e.stopPropagation(); setContactCardLead(l); }} style={{ background: 'rgba(16,185,129,0.15)', color: GOLD, border: '1px solid rgba(16,185,129,0.3)', borderRadius: '3px', padding: '4px 10px', cursor: 'pointer', fontSize: '11px' }}>Open →</button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           )}
         </div>
       </div>

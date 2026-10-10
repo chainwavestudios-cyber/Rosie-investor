@@ -1,0 +1,50 @@
+{
+  "name": "FronterChatMessage",
+  "type": "object",
+  "properties": {
+    "senderUsername": {
+      "type": "string",
+      "title": "Sender Username"
+    },
+    "senderRole": {
+      "type": "string",
+      "title": "Sender Role",
+      "enum": [
+        "fronter",
+        "admin"
+      ],
+      "default": "fronter"
+    },
+    "message": {
+      "type": "string",
+      "title": "Message",
+      "format": "textarea"
+    },
+    "recipientUsername": {
+      "type": "string",
+      "title": "Recipient Username (empty = broadcast to all)",
+      "default": ""
+    },
+    "readByAdmin": {
+      "type": "boolean",
+      "title": "Read By Admin",
+      "default": false
+    },
+    "readByFronter": {
+      "type": "boolean",
+      "title": "Read By Fronter",
+      "default": false
+    }
+  },
+  "required": [
+    "senderUsername",
+    "senderRole",
+    "message"
+  ],
+  "rls": {
+    "create": null,
+    "read": null,
+    "update": null,
+    "delete": null
+  }
+}

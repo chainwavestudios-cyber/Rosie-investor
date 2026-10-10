@@ -10,6 +10,8 @@
  *   endListen   — Remove the admin's participant leg from the conference.
  *   getConference — Fetch conference status + participants by name.
  */
+import { createClientFromRequest } from 'npm:@base44/sdk@0.8.52';
+
 const ACCOUNT_SID   = Deno.env.get('TWILIO_ACCOUNT_SID')  || '';
 const AUTH_TOKEN    = Deno.env.get('TWILIO_AUTH_TOKEN')   || '';
 const twilioBase    = `https://api.twilio.com/2010-04-01/Accounts/${ACCOUNT_SID}`;
@@ -44,7 +46,15 @@ async function findConferenceSid(name: string): Promise<string | null> {
 
 Deno.serve(async (req) => {
   try {
-    const body = await req.json();
+    // Parse body — JSON for app calls, form-encoded for Twilio callbacks
+    const contentType = req.headers.get('content-type') || '';
+    let body: any;
+    if (contentType.includes('application/json')) {
+      body = await req.json();
+    } else {
+      const form = await req.formData();
+      body = Object.fromEntries(form.entries());
+    }
     const { action } = body;
 
     // ── MERGE: convert 1:1 call → conference, dial agent in ──
@@ -256,6 +266,37 @@ Deno.serve(async (req) => {
           method: 'POST',
           body: new URLSearchParams({ Status: 'completed' }),
         });
+      }
+      return Response.json({ ok: true });
+    }
+
+    // ── START RECORDING: record a live call via Twilio API ──
+    if (action === 'startRecording') {
+      const { callSid } = body;
+      if (!callSid) return Response.json({ error: 'callSid required' }, { status: 400 });
+
+      const callbackUrl = `https://rosieai-investorpage.base44.app/functions/fronterCall`;
+      await twilioFetch(`/Calls/${callSid}/Recordings.json`, {
+        method: 'POST',
+        body: new URLSearchParams({
+          RecordingStatusCallback: callbackUrl,
+          RecordingStatusCallbackMethod: 'POST',
+          RecordingChannels: 'dual',
+        }),
+      });
+      return Response.json({ ok: true });
+    }
+
+    // ── RECORDING CALLBACK: Twilio sends recording URL when ready ──
+    if (body.RecordingUrl || body.recordingUrl) {
+      const recordingUrl = body.RecordingUrl || body.recordingUrl;
+      const callSid = body.CallSid || body.callSid;
+      if (recordingUrl && callSid) {
+        const base44 = createClientFromRequest(req).asServiceRole;
+        const transcripts = await base44.entities.FronterCallTranscript.filter({ callSid });
+        if (transcripts?.[0]) {
+          await base44.entities.FronterCallTranscript.update(transcripts[0].id, { recordingUrl });
+        }
       }
       return Response.json({ ok: true });
     }

@@ -18,6 +18,8 @@ import FronterBobTrainer from '@/components/fronter/FronterBobTrainer';
 import FronterClockBar from '@/components/fronter/FronterClockBar';
 import FronterHRTab from '@/components/fronter/FronterHRTab';
 import FronterHeadsUpPopup from '@/components/fronter/FronterHeadsUpPopup';
+import FronterFeedbackTab from '@/components/fronter/FronterFeedbackTab';
+import FronterChatBox from '@/components/fronter/FronterChatBox';
 
 const GOLD = '#10b981';
 const DARK = '#0a0f1e';
@@ -38,8 +40,8 @@ export default function FronterPage() {
   const isAdmin = isSuperAdmin;
   // Fronter sees leads + scripts; admin sees admin + leads + scripts
   const TABS = isAdmin
-    ? [{ id: 'admin', label: '⚙️ Admin' }, { id: 'prospects', label: '📋 Prospects' }, { id: 'leads', label: '📋 Leads' }, { id: 'bob', label: '🤖 BOB Training' }, { id: 'hr', label: '🕐 HR' }, { id: 'scripts', label: '📜 Scripts' }, { id: 'settings', label: '🔧 Settings' }]
-    : [{ id: 'prospects', label: '📋 Prospects' }, { id: 'leads', label: '📋 Leads' }, { id: 'bob', label: '🤖 BOB Training' }, { id: 'hr', label: '🕐 HR' }, { id: 'scripts', label: '📜 Scripts' }, { id: 'settings', label: '🔧 Settings' }];
+    ? [{ id: 'admin', label: '⚙️ Admin' }, { id: 'prospects', label: '📋 Prospects' }, { id: 'leads', label: '📋 Leads' }, { id: 'feedback', label: '💬 Feedback' }, { id: 'bob', label: '🤖 BOB Training' }, { id: 'hr', label: '🕐 HR' }, { id: 'scripts', label: '📜 Scripts' }, { id: 'settings', label: '🔧 Settings' }]
+    : [{ id: 'prospects', label: '📋 Prospects' }, { id: 'leads', label: '📋 Leads' }, { id: 'feedback', label: '💬 Feedback' }, { id: 'bob', label: '🤖 BOB Training' }, { id: 'hr', label: '🕐 HR' }, { id: 'scripts', label: '📜 Scripts' }, { id: 'settings', label: '🔧 Settings' }];
 
   const loadLine = useCallback(async () => {
     if (!user?.username) return;
@@ -252,6 +254,8 @@ export default function FronterPage() {
           )
         )}
 
+        {tab === 'feedback' && <FronterFeedbackTab username={user.username} />}
+
         {tab === 'bob' && <FronterBobTrainer username={user.username} />}
 
         {tab === 'hr' && <FronterHRTab username={user.username} />}
@@ -270,6 +274,9 @@ export default function FronterPage() {
       {showMonitor && isAdmin && (
         <FronterMonitorPanel onClose={() => setShowMonitor(false)} adminUsername={user?.username} />
       )}
+
+      {/* Chat box — fronter chats with admin, admin chats with fronters */}
+      <FronterChatBox username={user?.username} role={isAdmin ? 'admin' : 'fronter'} adminUsername="chris" />
 
       {/* Heads Up alerts — super admin only */}
       {isAdmin && (

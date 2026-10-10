@@ -37,6 +37,14 @@
     "callResult": {
       "type": "string",
       "title": "Call Result"
+    },
+    "callSid": {
+      "type": "string",
+      "title": "Twilio Call SID (for recording matching)"
+    },
+    "recordingUrl": {
+      "type": "string",
+      "title": "Recording URL (Twilio)"
     }
   },
   "required": [

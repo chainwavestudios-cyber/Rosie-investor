@@ -1,0 +1,72 @@
+{
+  "name": "FronterCallComment",
+  "type": "object",
+  "properties": {
+    "transcriptId": {
+      "type": "string",
+      "title": "FronterCallTranscript ID"
+    },
+    "fronterUsername": {
+      "type": "string",
+      "title": "Fronter Username"
+    },
+    "leadName": {
+      "type": "string",
+      "title": "Lead Name"
+    },
+    "callDate": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Call Date"
+    },
+    "durationSeconds": {
+      "type": "number",
+      "title": "Call Duration (seconds)",
+      "default": 0
+    },
+    "recordingUrl": {
+      "type": "string",
+      "title": "Recording URL (if available)"
+    },
+    "comment": {
+      "type": "string",
+      "title": "Admin Comment",
+      "format": "textarea"
+    },
+    "commentBy": {
+      "type": "string",
+      "title": "Comment Author (admin username)"
+    },
+    "commentAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Comment Created At"
+    },
+    "reviewedByFronter": {
+      "type": "boolean",
+      "title": "Reviewed By Fronter",
+      "default": false
+    },
+    "reviewedAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Reviewed At (fronter clicked Read Comments)"
+    },
+    "deleteAfter": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Auto-Delete After (24h past review)"
+    }
+  },
+  "required": [
+    "fronterUsername",
+    "comment",
+    "commentBy"
+  ],
+  "rls": {
+    "create": null,
+    "read": null,
+    "update": null,
+    "delete": null
+  }
+}

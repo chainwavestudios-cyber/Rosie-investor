@@ -182,6 +182,7 @@ Provide your analysis as JSON with these fields:
 
       // Create transcript record
       try {
+        const callSid = callRef.current?.parameters?.CallSid || '';
         const rec = await base44.entities.FronterCallTranscript.create({
           leadId: lead?.id || '',
           leadName: `${lead?.firstName || ''} ${lead?.lastName || ''}`.trim(),
@@ -190,8 +191,14 @@ Provide your analysis as JSON with these fields:
           transcriptLineCount: 0,
           durationSeconds: 0,
           callDate: new Date().toISOString(),
+          callSid,
         });
         transcriptIdRef.current = rec.id;
+
+        // Start Twilio recording
+        if (callSid) {
+          try { await base44.functions.invoke('fronterCall', { action: 'startRecording', callSid }); } catch {}
+        }
 
         // Save transcript every 5 seconds
         saveIntervalRef.current = setInterval(async () => {
