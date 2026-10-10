@@ -11,6 +11,7 @@ import { useDebtBobVoice } from '@/hooks/useDebtBobVoice';
 import { BOB_CHARACTERS, getCharacter, DEFAULT_CHARACTER_ID, BOB_THINK_MODELS, DEFAULT_THINK_MODEL } from '@/components/debt/bob/BobCharacters';
 import FronterQAPopup from '@/components/fronter/FronterQAPopup';
 import { substituteScriptVars } from '@/lib/scriptSubstitute';
+import { renderFormatted } from '@/components/debt/ScriptRichText';
 
 const GOLD = '#10b981';
 const DARK = '#0a0f1e';
@@ -574,7 +575,7 @@ function FloatingScripts({ scripts, fronterFirstName, onClose }) {
         {!activeScript ? (
           <div style={{ color: '#4a5568', textAlign: 'center', padding: '40px 0', fontSize: '13px' }}>No scripts yet.</div>
         ) : (
-          <div style={{ color: '#e8e0d0', fontSize: '14px', lineHeight: 1.8, fontFamily: 'Georgia, serif', whiteSpace: 'pre-wrap' }}>{substituteScriptVars(activeScript.content, { fronterFirstName })}</div>
+          <div style={{ color: '#e8e0d0', fontSize: '14px', lineHeight: 1.8, fontFamily: 'Georgia, serif', whiteSpace: 'pre-wrap' }}>{renderFormatted(substituteScriptVars(activeScript.content, { fronterFirstName }))}</div>
         )}
       </div>
       <div onMouseDown={(e) => {

@@ -15,6 +15,8 @@ import FronterAdminCallsTab from '@/components/fronter/FronterAdminCallsTab';
 import FronterHoldAudioTab from '@/components/fronter/FronterHoldAudioTab';
 import FronterUsersTab from '@/components/fronter/FronterUsersTab';
 import FronterLeadImportModal from '@/components/fronter/FronterLeadImportModal';
+import FronterScriptEditor from '@/components/fronter/FronterScriptEditor';
+import { renderFormatted } from '@/components/debt/ScriptRichText';
 
 const GOLD = '#10b981';
 const DARK = '#0a0f1e';
@@ -34,6 +36,7 @@ export default function FronterAdminTab({ adminUsername }) {
   const [leadForm, setLeadForm] = useState({ firstName: '', lastName: '', phone: '', assignedTo: '', notes: '' });
   const [bulkText, setBulkText] = useState('');
   const [scriptForm, setScriptForm] = useState({ name: '', content: '' });
+  const [editingScriptId, setEditingScriptId] = useState(null);
   const [activeConferences, setActiveConferences] = useState({});
   const [showImportModal, setShowImportModal] = useState(false);
   const fileRef = useRef(null);
@@ -164,11 +167,19 @@ export default function FronterAdminTab({ adminUsername }) {
   };
 
   // ── Scripts ──
-  const addScript = async () => {
-    if (!scriptForm.name.trim() || !scriptForm.content.trim()) return;
+  const addScript = async (data) => {
+    if (!data?.name?.trim() || !data?.content?.trim()) return;
     try {
-      await base44.entities.FronterScript.create({ name: scriptForm.name, content: scriptForm.content, sortOrder: scripts.length });
-      setScriptForm({ name: '', content: '' });
+      await base44.entities.FronterScript.create({ name: data.name, content: data.content, sortOrder: scripts.length });
+      loadAll();
+    } catch (e) { alert('Failed: ' + (e?.message || String(e))); }
+  };
+
+  const saveEditScript = async (data) => {
+    if (!data?.name?.trim()) return;
+    try {
+      await base44.entities.FronterScript.update(editingScriptId, { name: data.name, content: data.content });
+      setEditingScriptId(null);
       loadAll();
     } catch (e) { alert('Failed: ' + (e?.message || String(e))); }
   };
@@ -445,18 +456,25 @@ export default function FronterAdminTab({ adminUsername }) {
         <div>
           <div style={{ color: GOLD, fontSize: '11px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '12px' }}>📜 Fronter Scripts</div>
           <div style={{ background: '#0d1b2a', border: '1px solid rgba(16,185,129,0.2)', borderRadius: '6px', padding: '16px', marginBottom: '14px' }}>
-            <div style={{ marginBottom: '10px' }}><label style={ls}>Script Name</label><input value={scriptForm.name} onChange={e => setScriptForm(p => ({ ...p, name: e.target.value }))} placeholder="Fronter Opener" style={inp} /></div>
-            <div style={{ marginBottom: '10px' }}><label style={ls}>Script Content</label><textarea value={scriptForm.content} onChange={e => setScriptForm(p => ({ ...p, content: e.target.value }))} rows={8} style={{ ...inp, resize: 'vertical' }} placeholder="Hi, is this [name]?..." /></div>
-            <button onClick={addScript} disabled={!scriptForm.name || !scriptForm.content} style={{ background: 'linear-gradient(135deg,#10b981,#22c55e)', color: DARK, border: 'none', borderRadius: '4px', padding: '8px 18px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', opacity: (!scriptForm.name || !scriptForm.content) ? 0.5 : 1 }}>Add Script</button>
+            <FronterScriptEditor submitLabel="Add Script" onSubmit={addScript} />
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
             {scripts.map(s => (
               <div key={s.id} style={{ background: '#0d1b2a', border: '1px solid rgba(255,255,255,0.07)', borderRadius: '4px', padding: '14px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                  <span style={{ color: '#e8e0d0', fontSize: '14px', fontWeight: 'bold' }}>{s.name}</span>
-                  <button onClick={() => deleteScript(s.id)} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '11px' }}>Delete</button>
-                </div>
-                <div style={{ color: '#c4cdd8', fontSize: '13px', lineHeight: 1.6, whiteSpace: 'pre-wrap', fontFamily: 'Georgia, serif', maxHeight: '200px', overflowY: 'auto' }}>{s.content}</div>
+                {editingScriptId === s.id ? (
+                  <FronterScriptEditor initialName={s.name} initialContent={s.content} submitLabel="Save Changes" onSubmit={saveEditScript} onCancel={() => setEditingScriptId(null)} />
+                ) : (
+                  <>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                      <span style={{ color: '#e8e0d0', fontSize: '14px', fontWeight: 'bold' }}>{s.name}</span>
+                      <div style={{ display: 'flex', gap: '8px' }}>
+                        <button onClick={() => setEditingScriptId(s.id)} style={{ background: 'none', border: 'none', color: '#60a5fa', cursor: 'pointer', fontSize: '11px' }}>✎ Edit</button>
+                        <button onClick={() => deleteScript(s.id)} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '11px' }}>Delete</button>
+                      </div>
+                    </div>
+                    <div style={{ color: '#c4cdd8', fontSize: '13px', lineHeight: 1.6, fontFamily: 'Georgia, serif', maxHeight: '200px', overflowY: 'auto' }}>{renderFormatted(s.content)}</div>
+                  </>
+                )}
               </div>
             ))}
             {scripts.length === 0 && <div style={{ color: '#4a5568', textAlign: 'center', padding: '20px', fontSize: '12px' }}>No scripts yet.</div>}

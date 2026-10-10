@@ -7,7 +7,7 @@
  */
 import React from 'react';
 
-const TAG_RE = /\[(\/?)(b|i|c|bg|s|f)(?:=([^\]]+))?\]/gi;
+const TAG_RE = /\[(\/?)(b|i|c|bg|s|f|anim)(?:=([^\]]+))?\]/gi;
 
 export function stripFormatTags(text) {
   if (!text) return text;
@@ -22,6 +22,7 @@ function styleForTag(tag, value) {
     case 'bg': return { backgroundColor: value, padding: '0 2px', borderRadius: '2px' };
     case 's': { const n = parseInt(value, 10); return { fontSize: (isNaN(n) ? 14 : n) + 'px' }; }
     case 'f': return { fontFamily: value };
+    case 'anim': { const a = (value || 'pulse').toLowerCase(); return { animation: `script-${a} 1.5s ease-in-out infinite`, display: 'inline-block' }; }
     default: return {};
   }
 }
@@ -74,7 +75,8 @@ export function bbcodeToHtml(text) {
     .replace(/\[c=([^\]]+)\]/gi, '<span style="color:$1">').replace(/\[\/c\]/gi, '</span>')
     .replace(/\[bg=([^\]]+)\]/gi, '<span style="background-color:$1">').replace(/\[\/bg\]/gi, '</span>')
     .replace(/\[s=([^\]]+)\]/gi, (m, p1) => `<span style="font-size:${p1}px">`).replace(/\[\/s\]/gi, '</span>')
-    .replace(/\[f=([^\]]+)\]/gi, '<span style="font-family:$1">').replace(/\[\/f\]/gi, '</span>');
+    .replace(/\[f=([^\]]+)\]/gi, '<span style="font-family:$1">').replace(/\[\/f\]/gi, '</span>')
+    .replace(/\[anim=([^\]]+)\]/gi, (m, p1) => `<span style="animation:script-${p1} 1.5s ease-in-out infinite;display:inline-block">`).replace(/\[\/anim\]/gi, '</span>');
   html = html.replace(/\n/g, '<br>');
   return html;
 }
@@ -103,10 +105,12 @@ function nodeToBbcode(node) {
         const bgMatch = style.match(/background-color:\s*([^;]+)/i) || style.match(/background:\s*([^;]+)/i);
         const sizeMatch = style.match(/font-size:\s*(\d+)px/i);
         const fontMatch = style.match(/font-family:\s*([^;]+)/i);
+        const animMatch = style.match(/animation:\s*script-(\w+)/i);
         const fontColor = child.getAttribute('color');
         const fontFace = child.getAttribute('face');
         let openTags = '';
         let closeTags = '';
+        if (animMatch) { openTags += `[anim=${animMatch[1]}]`; closeTags = '[/anim]' + closeTags; }
         if (colorMatch) { openTags += `[c=${colorMatch[1].trim()}]`; closeTags = '[/c]' + closeTags; }
         else if (fontColor) { openTags += `[c=${fontColor}]`; closeTags = '[/c]' + closeTags; }
         if (bgMatch) { openTags += `[bg=${bgMatch[1].trim()}]`; closeTags = '[/bg]' + closeTags; }
