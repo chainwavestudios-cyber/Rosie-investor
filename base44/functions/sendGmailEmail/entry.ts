@@ -3,7 +3,7 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.53';
 Deno.serve(async (req) => {
   const base44 = createClientFromRequest(req);
 
-  const { to, subject, html, text, leadId, sentBy } = await req.json();
+  const { to, subject, html, text, leadId, sentBy, inlineImages } = await req.json();
 
   if (!to || !subject) {
     return Response.json({ error: 'Recipient and subject are required' }, { status: 400 });
@@ -12,8 +12,8 @@ Deno.serve(async (req) => {
   try {
     const { accessToken } = await base44.asServiceRole.connectors.getConnection('gmail');
 
-    // Build RFC 2822 MIME message
-    const mimeMessage = buildMime(to, subject, html, text);
+    // Build RFC 2822 MIME message (with inline images if provided)
+    const mimeMessage = buildMime(to, subject, html, text, inlineImages);
 
     // Base64url encode for Gmail API
     const bytes = new TextEncoder().encode(mimeMessage);
@@ -70,7 +70,7 @@ Deno.serve(async (req) => {
   }
 });
 
-function buildMime(to: string, subject: string, html?: string, text?: string): string {
+function buildMime(to: string, subject: string, html?: string, text?: string, inlineImages?: Array<{contentId: string; base64: string; mimeType: string}>): string {
   const lines: string[] = [];
   lines.push(`To: ${to}`);
   // RFC 2047 encode subject if non-ASCII
@@ -84,7 +84,34 @@ function buildMime(to: string, subject: string, html?: string, text?: string): s
   }
   lines.push('MIME-Version: 1.0');
 
-  if (html) {
+  const hasImages = Array.isArray(inlineImages) && inlineImages.length > 0;
+
+  if (html && hasImages) {
+    // Multipart/related: HTML part + inline image attachments
+    const boundary = `rel_${Math.random().toString(36).slice(2)}`;
+    lines.push(`Content-Type: multipart/related; boundary="${boundary}"`);
+    lines.push('');
+    lines.push(`--${boundary}`);
+    lines.push('Content-Type: text/html; charset=utf-8');
+    lines.push('Content-Transfer-Encoding: 7bit');
+    lines.push('');
+    lines.push(html);
+    // Inline image attachments
+    for (const img of inlineImages) {
+      lines.push(`--${boundary}`);
+      lines.push(`Content-Type: ${img.mimeType || 'image/png'}; name="${img.contentId}"`);
+      lines.push('Content-Transfer-Encoding: base64');
+      lines.push('Content-ID: <' + img.contentId + '>');
+      lines.push('Content-Disposition: inline; filename="' + img.contentId + '"');
+      lines.push('');
+      // Chunk base64 into 76-char lines per RFC 2045
+      const b64 = img.base64.replace(/^data:[^;]+;base64,/, '');
+      for (let i = 0; i < b64.length; i += 76) {
+        lines.push(b64.slice(i, i + 76));
+      }
+    }
+    lines.push(`--${boundary}--`);
+  } else if (html) {
     lines.push('Content-Type: text/html; charset=utf-8');
     lines.push('Content-Transfer-Encoding: 7bit');
     lines.push('');

@@ -1,22 +1,24 @@
 /**
  * FronterCredsEmailPopup.jsx — Popup to email company credentials to a lead.
- * Auto-populates the customer's email, offers credential templates, and sends
- * via the connected Gmail account. On send, marks credsSentAt on the lead and
- * auto-graduates prospects to lead status.
+ * Templates are database-backed (create/delete/edit). Supports inline image
+ * embedding in the email body (multipart/related via cid: references).
+ * Sends via connected Gmail. On send, marks credsSentAt and auto-graduates
+ * prospects to lead status.
  */
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
 import FronterPopup from './FronterPopup';
 
 const GOLD = '#10b981';
 const DARK = '#0a0f1e';
 const BLUE = '#60a5fa';
+const RED = '#ef4444';
 const inp = { width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '4px', padding: '8px 12px', color: '#e8e0d0', fontSize: '13px', outline: 'none', boxSizing: 'border-box', fontFamily: 'Georgia, serif' };
 const ls = { display: 'block', color: '#8a9ab8', fontSize: '10px', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '4px' };
 
-const CREDS_TEMPLATES = [
+// Built-in defaults — seeded to the DB on first load, then fully editable/deletable
+const DEFAULT_TEMPLATES = [
   {
-    id: 'portal_access',
     label: '🔑 Portal Access Credentials',
     subject: 'Your Portal Access Credentials',
     body: `<div style="font-family:Georgia,serif;font-size:14px;color:#333;">
@@ -26,10 +28,9 @@ const CREDS_TEMPLATES = [
 <strong>Username:</strong> {{email}}</p>
 <p>You will receive a separate email with your temporary password. Please log in and change your password upon first access.</p>
 <p>Best regards,<br/>Rosie AI Team</p>
-</div>`
+</div>`,
   },
   {
-    id: 'account_setup',
     label: '📋 Account Setup Instructions',
     subject: 'Account Setup Instructions',
     body: `<div style="font-family:Georgia,serif;font-size:14px;color:#333;">
@@ -40,10 +41,9 @@ const CREDS_TEMPLATES = [
 3. Follow the prompts to set up your account</p>
 <p>If you have any questions, please do not hesitate to reach out.</p>
 <p>Best regards,<br/>Rosie AI Team</p>
-</div>`
+</div>`,
   },
   {
-    id: 'welcome_login',
     label: '👋 Welcome & Login Info',
     subject: 'Welcome to Rosie AI — Your Login Information',
     body: `<div style="font-family:Georgia,serif;font-size:14px;color:#333;">
@@ -54,62 +54,155 @@ Portal: https://rosieai-investorpage.base44.app/portal-login<br/>
 Email: {{email}}</p>
 <p>You will receive a separate email with your temporary password. Please log in and complete your profile at your earliest convenience.</p>
 <p>Best regards,<br/>Rosie AI Team</p>
-</div>`
-  },
-  {
-    id: 'custom',
-    label: '✏️ Custom Credentials',
-    subject: '',
-    body: ''
+</div>`,
   },
 ];
 
+function fillTemplate(text, lead, to) {
+  const fillName = lead?.firstName || '';
+  const fillEmail = lead?.email || to || '';
+  return (text || '').replace(/{{firstName}}/g, fillName).replace(/{{email}}/g, fillEmail);
+}
+
 export default function FronterCredsEmailPopup({ lead, username, onClose, onSent }) {
   const [to, setTo] = useState(lead?.email || '');
-  const [selectedTemplateId, setSelectedTemplateId] = useState('portal_access');
+  const [templates, setTemplates] = useState([]);
+  const [selectedTemplateId, setSelectedTemplateId] = useState('');
   const [subject, setSubject] = useState('');
   const [body, setBody] = useState('');
+  const [inlineImages, setInlineImages] = useState([]); // [{contentId, base64, mimeType}]
   const [sending, setSending] = useState(false);
   const [status, setStatus] = useState('');
+  const [loadingTemplates, setLoadingTemplates] = useState(true);
+  const [showTemplateManager, setShowTemplateManager] = useState(false);
+  const [newTemplate, setNewTemplate] = useState({ label: '', subject: '', body: '' });
+  const imageInputRef = useRef(null);
 
-  // Apply template on mount and when template changes
-  useEffect(() => {
-    const t = CREDS_TEMPLATES.find(t => t.id === selectedTemplateId);
-    if (t) {
-      const fillName = (lead?.firstName || '');
-      const fillEmail = (lead?.email || to || '');
-      setSubject(t.subject.replace(/{{firstName}}/g, fillName).replace(/{{email}}/g, fillEmail));
-      setBody(t.body.replace(/{{firstName}}/g, fillName).replace(/{{email}}/g, fillEmail));
+  // Load templates from DB, seed defaults if empty
+  const loadTemplates = async () => {
+    setLoadingTemplates(true);
+    try {
+      const raw = await base44.entities.FronterEmailTemplate.list('sortOrder', 100);
+      const all = Array.isArray(raw) ? raw : (raw?.items || []);
+      if (all.length === 0) {
+        // Seed defaults
+        const seeded = await base44.entities.FronterEmailTemplate.bulkCreate(
+          DEFAULT_TEMPLATES.map((t, i) => ({ ...t, sortOrder: i, isDefault: true }))
+        );
+        const seededArr = seeded?.records || seeded || [];
+        setTemplates(Array.isArray(seededArr) ? seededArr : []);
+      } else {
+        setTemplates(all);
+      }
+    } catch (e) {
+      // Fallback: use defaults in-memory
+      setTemplates(DEFAULT_TEMPLATES.map((t, i) => ({ id: `default_${i}`, ...t, isDefault: true })));
     }
-  }, [selectedTemplateId]);
+    setLoadingTemplates(false);
+  };
 
+  useEffect(() => { loadTemplates(); }, []);
+
+  // Apply template when selection changes
+  useEffect(() => {
+    if (!selectedTemplateId || templates.length === 0) return;
+    const t = templates.find(t => t.id === selectedTemplateId);
+    if (t) {
+      setSubject(fillTemplate(t.subject, lead, to));
+      setBody(fillTemplate(t.body, lead, to));
+      setInlineImages([]); // reset inline images on template switch
+    }
+  }, [selectedTemplateId, templates]);
+
+  // Auto-select first template once loaded
+  useEffect(() => {
+    if (templates.length > 0 && !selectedTemplateId) {
+      setSelectedTemplateId(templates[0].id);
+    }
+  }, [templates]);
+
+  // ── Inline image handling ──
+  const onPickImage = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 2 * 1024 * 1024) { alert('Image must be under 2MB for inline embedding.'); return; }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const base64 = reader.result; // data:image/png;base64,....
+      const contentId = `img_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+      const mimeType = file.type || 'image/png';
+      setInlineImages(prev => [...prev, { contentId, base64, mimeType }]);
+      // Insert <img> at end of body
+      const imgTag = `<img src="cid:${contentId}" alt="${file.name}" style="max-width:100%;height:auto;border-radius:6px;margin:8px 0;" />`;
+      setBody(prev => (prev || '') + '\n' + imgTag);
+    };
+    reader.readAsDataURL(file);
+    e.target.value = ''; // reset so same file can be picked again
+  };
+
+  const removeInlineImage = (contentId) => {
+    setInlineImages(prev => prev.filter(i => i.contentId !== contentId));
+    // Also strip the <img> tag from the body
+    setBody(prev => (prev || '').replace(new RegExp(`<img[^>]*cid:${contentId}[^>]*>`, 'gi'), ''));
+  };
+
+  // ── Template CRUD ──
+  const createTemplate = async () => {
+    if (!newTemplate.label.trim()) { alert('Template label is required.'); return; }
+    try {
+      const created = await base44.entities.FronterEmailTemplate.create({
+        label: newTemplate.label.trim(),
+        subject: newTemplate.subject.trim(),
+        body: newTemplate.body.trim(),
+        sortOrder: templates.length,
+        isDefault: false,
+      });
+      setTemplates(prev => [...prev, created]);
+      setSelectedTemplateId(created.id);
+      setNewTemplate({ label: '', subject: '', body: '' });
+      setShowTemplateManager(false);
+    } catch (e) { alert('Failed to create template: ' + (e?.message || String(e))); }
+  };
+
+  const deleteTemplate = async (id) => {
+    const t = templates.find(x => x.id === id);
+    if (!t) return;
+    if (!confirm(`Delete template "${t.label}"? This cannot be undone.`)) return;
+    try {
+      await base44.entities.FronterEmailTemplate.delete(id);
+      const remaining = templates.filter(x => x.id !== id);
+      setTemplates(remaining);
+      if (selectedTemplateId === id) {
+        setSelectedTemplateId(remaining[0]?.id || '');
+      }
+    } catch (e) { alert('Failed to delete: ' + (e?.message || String(e))); }
+  };
+
+  // ── Send ──
   const send = async () => {
     if (!to.trim() || !subject.trim() || !body.trim()) return;
     setSending(true);
     setStatus('');
     try {
-      // 1. Send the email via Gmail
       const res = await base44.functions.invoke('sendGmailEmail', {
         to: to.trim(),
         subject: subject.trim(),
         html: body.trim(),
         leadId: lead?.id,
         sentBy: username,
+        inlineImages: inlineImages.map(({ contentId, base64, mimeType }) => ({ contentId, base64, mimeType })),
       });
       if (res?.error) throw new Error(res.error);
 
-      // 2. Update the lead: mark creds sent + auto-graduate prospect to lead
       const now = new Date().toISOString();
-      const templateLabel = CREDS_TEMPLATES.find(t => t.id === selectedTemplateId)?.label || selectedTemplateId;
+      const templateLabel = templates.find(t => t.id === selectedTemplateId)?.label || selectedTemplateId;
       const updates = {
         credsSentAt: now,
         credsSentTemplate: templateLabel,
       };
-      // Auto-graduate prospect to lead
       if (lead?.status === 'prospect') {
         updates.status = 'lead';
       }
-      // Add a note to the notes log
       try {
         const log = JSON.parse(lead?.notesLogJson || '[]');
         log.push({ text: `🔑 Company credentials emailed to ${to.trim()} (${templateLabel})`, timestamp: now, author: username, type: 'creds' });
@@ -119,9 +212,7 @@ export default function FronterCredsEmailPopup({ lead, username, onClose, onSent
       await base44.entities.FronterLead.update(lead.id, updates);
 
       setStatus('success');
-      setTimeout(() => {
-        onSent?.({ ...updates, email: to.trim() });
-      }, 1000);
+      setTimeout(() => { onSent?.({ ...updates, email: to.trim() }); }, 1000);
     } catch (e) {
       setStatus('error: ' + (e?.message || String(e)));
     }
@@ -129,7 +220,7 @@ export default function FronterCredsEmailPopup({ lead, username, onClose, onSent
   };
 
   return (
-    <FronterPopup title="🔑 Email Company Credentials" subtitle="Sends from connected Gmail · auto-graduates to lead" accent={BLUE} onClose={onClose} initialSize={{ w: 540, h: 600 }} minW={400} minH={320} zIndex={10060}>
+    <FronterPopup title="🔑 Email Company Credentials" subtitle="Sends from connected Gmail · auto-graduates to lead" accent={BLUE} onClose={onClose} initialSize={{ w: 560, h: 640 }} minW={400} minH={320} zIndex={10060}>
       <div style={{ padding: '16px' }}>
           {/* Recipient */}
           <div style={{ marginBottom: '12px' }}>
@@ -137,13 +228,45 @@ export default function FronterCredsEmailPopup({ lead, username, onClose, onSent
             <input value={to} onChange={e => setTo(e.target.value)} placeholder="customer@email.com" style={inp} />
           </div>
 
-          {/* Template selector */}
+          {/* Template selector + manage button */}
           <div style={{ marginBottom: '12px' }}>
-            <label style={ls}>Credential Template</label>
-            <select value={selectedTemplateId} onChange={e => setSelectedTemplateId(e.target.value)} style={inp}>
-              {CREDS_TEMPLATES.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '4px' }}>
+              <label style={{ ...ls, marginBottom: 0 }}>Credential Template</label>
+              <button onClick={() => setShowTemplateManager(p => !p)} style={{ background: `${BLUE}18`, color: BLUE, border: `1px solid ${BLUE}44`, borderRadius: '3px', padding: '3px 10px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>{showTemplateManager ? '✕ Close Manager' : '⚙ Manage Templates'}</button>
+            </div>
+            <select value={selectedTemplateId} onChange={e => setSelectedTemplateId(e.target.value)} style={inp} disabled={loadingTemplates}>
+              <option value="">{loadingTemplates ? 'Loading…' : '— Select a template —'}</option>
+              {templates.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
             </select>
           </div>
+
+          {/* Template manager — create new / delete existing */}
+          {showTemplateManager && (
+            <div style={{ marginBottom: '12px', padding: '12px', background: 'rgba(96,165,250,0.05)', border: `1px solid ${BLUE}33`, borderRadius: '6px' }}>
+              {/* Existing templates with delete buttons */}
+              <div style={{ marginBottom: '10px' }}>
+                <div style={{ ...ls, color: BLUE }}>Existing Templates</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', maxHeight: '120px', overflowY: 'auto' }}>
+                  {templates.length === 0 && <span style={{ color: '#6b7280', fontSize: '11px' }}>No templates yet.</span>}
+                  {templates.map(t => (
+                    <div key={t.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 8px', background: 'rgba(255,255,255,0.03)', borderRadius: '3px', border: '1px solid rgba(255,255,255,0.06)' }}>
+                      <span style={{ color: '#e8e0d0', fontSize: '12px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{t.label}</span>
+                      <button onClick={() => deleteTemplate(t.id)} title="Delete template" style={{ background: 'rgba(239,68,68,0.12)', color: RED, border: `1px solid ${RED}33`, borderRadius: '3px', padding: '2px 8px', cursor: 'pointer', fontSize: '11px', marginLeft: '8px', flexShrink: 0 }}>🗑 Delete</button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Create new template */}
+              <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '10px' }}>
+                <div style={{ ...ls, color: BLUE, marginBottom: '6px' }}>+ Create New Template</div>
+                <div style={{ marginBottom: '6px' }}><input value={newTemplate.label} onChange={e => setNewTemplate(p => ({ ...p, label: e.target.value }))} placeholder="Template label (e.g. 🔑 Password Reset)" style={inp} /></div>
+                <div style={{ marginBottom: '6px' }}><input value={newTemplate.subject} onChange={e => setNewTemplate(p => ({ ...p, subject: e.target.value }))} placeholder="Default subject" style={inp} /></div>
+                <div style={{ marginBottom: '6px' }}><textarea value={newTemplate.body} onChange={e => setNewTemplate(p => ({ ...p, body: e.target.value }))} rows={5} placeholder="Email body (HTML). Use {{firstName}} and {{email}} for merge fields." style={{ ...inp, resize: 'vertical', fontFamily: 'monospace', fontSize: '11px' }} /></div>
+                <button onClick={createTemplate} disabled={!newTemplate.label.trim()} style={{ background: 'linear-gradient(135deg,#60a5fa,#3b82f6)', color: '#fff', border: 'none', borderRadius: '4px', padding: '7px 18px', cursor: newTemplate.label.trim() ? 'pointer' : 'not-allowed', fontSize: '11px', fontWeight: 'bold', opacity: newTemplate.label.trim() ? 1 : 0.5 }}>+ Create Template</button>
+              </div>
+            </div>
+          )}
 
           {/* Subject */}
           <div style={{ marginBottom: '12px' }}>
@@ -151,11 +274,30 @@ export default function FronterCredsEmailPopup({ lead, username, onClose, onSent
             <input value={subject} onChange={e => setSubject(e.target.value)} placeholder="Email subject…" style={inp} />
           </div>
 
-          {/* Body */}
-          <div style={{ marginBottom: '12px' }}>
-            <label style={ls}>Body (HTML — editable)</label>
+          {/* Body + insert image button */}
+          <div style={{ marginBottom: '8px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '4px' }}>
+              <label style={{ ...ls, marginBottom: 0 }}>Body (HTML — editable)</label>
+              <button onClick={() => imageInputRef.current?.click()} style={{ background: `${GOLD}18`, color: GOLD, border: `1px solid ${GOLD}44`, borderRadius: '3px', padding: '3px 10px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>🖼 Insert Image</button>
+              <input ref={imageInputRef} type="file" accept="image/*" onChange={onPickImage} style={{ display: 'none' }} />
+            </div>
             <textarea value={body} onChange={e => setBody(e.target.value)} rows={8} style={{ ...inp, resize: 'vertical', fontFamily: 'monospace', fontSize: '11px' }} />
           </div>
+
+          {/* Inline images list */}
+          {inlineImages.length > 0 && (
+            <div style={{ marginBottom: '12px' }}>
+              <label style={ls}>Inline Images ({inlineImages.length})</label>
+              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                {inlineImages.map(img => (
+                  <div key={img.contentId} style={{ position: 'relative', width: '60px', height: '60px', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '4px', overflow: 'hidden' }}>
+                    <img src={img.base64} alt={img.contentId} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    <button onClick={() => removeInlineImage(img.contentId)} title="Remove image" style={{ position: 'absolute', top: 0, right: 0, background: 'rgba(0,0,0,0.7)', color: RED, border: 'none', borderRadius: '0 0 0 3px', cursor: 'pointer', fontSize: '12px', padding: '1px 5px', lineHeight: 1 }}>×</button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Preview */}
           {body && (
@@ -164,7 +306,7 @@ export default function FronterCredsEmailPopup({ lead, username, onClose, onSent
               <div style={{ background: '#fff', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '4px', padding: '12px', maxHeight: '200px', overflowY: 'auto' }} dangerouslySetInnerHTML={{ __html: body }} />
             </div>
           )}
-        </div>
+      </div>
 
       <div style={{ padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px' }}>
         {status === 'success' && <span style={{ color: '#4ade80', fontSize: '12px', fontWeight: 'bold' }}>✓ Credentials sent! Lead graduated.</span>}
