@@ -82,6 +82,13 @@
     border-color: hsl(var(--border));
   }
 
+  html {
+    /* Dark canvas behind dark-themed pages so scrolling past minHeight: 100vh
+       never reveals a white gap. Light pages (OptIn, Privacy, Terms) carry
+       their own minHeight: 100vh light background that covers this. */
+    background-color: #0a0f1e;
+  }
+
   body {
     background-color: hsl(var(--background));
     color: hsl(var(--foreground));
