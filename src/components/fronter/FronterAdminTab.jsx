@@ -17,6 +17,7 @@ import FronterUsersTab from '@/components/fronter/FronterUsersTab';
 import FronterLeadImportModal from '@/components/fronter/FronterLeadImportModal';
 import FronterScriptEditor from '@/components/fronter/FronterScriptEditor';
 import FronterQuoteTab from '@/components/fronter/FronterQuoteTab';
+import FronterContactCard from '@/components/fronter/FronterContactCard';
 import { renderFormatted } from '@/components/debt/ScriptRichText';
 
 const GOLD = '#10b981';
@@ -40,6 +41,7 @@ export default function FronterAdminTab({ adminUsername }) {
   const [editingScriptId, setEditingScriptId] = useState(null);
   const [activeConferences, setActiveConferences] = useState({});
   const [showImportModal, setShowImportModal] = useState(false);
+  const [contactCardLead, setContactCardLead] = useState(null);
   const fileRef = useRef(null);
 
   const loadAll = useCallback(async () => {
@@ -352,7 +354,7 @@ export default function FronterAdminTab({ adminUsername }) {
           <div style={{ color: GOLD, fontSize: '10px', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '8px' }}>All Leads — {leads.length}</div>
           <div style={{ maxHeight: '400px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '4px' }}>
             {leads.slice(0, 100).map(l => (
-              <div key={l.id} style={{ background: '#0d1b2a', border: '1px solid rgba(255,255,255,0.05)', borderRadius: '4px', padding: '8px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div key={l.id} onClick={() => setContactCardLead(l)} style={{ background: '#0d1b2a', border: '1px solid rgba(255,255,255,0.05)', borderRadius: '4px', padding: '8px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', transition: 'border-color 0.15s' }} onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(16,185,129,0.3)'} onMouseLeave={e => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.05)'}>
                 <div>
                   <span style={{ color: '#e8e0d0', fontSize: '12px', fontWeight: 'bold' }}>{l.firstName} {l.lastName}</span>
                   <span style={{ color: '#6b7280', fontSize: '11px', marginLeft: '8px' }}>{l.phone}</span>
@@ -361,6 +363,7 @@ export default function FronterAdminTab({ adminUsername }) {
                   <span style={{ color: '#4a5568', fontSize: '10px' }}>{l.assignedTo}</span>
                   <span style={{ padding: '1px 6px', borderRadius: '8px', fontSize: '9px', fontWeight: 'bold', textTransform: 'uppercase', background: l.status === 'lead' ? 'rgba(16,185,129,0.15)' : l.status === 'transferred' ? 'rgba(167,139,250,0.15)' : l.status === 'removed' ? 'rgba(239,68,68,0.15)' : 'rgba(96,165,250,0.15)', color: l.status === 'lead' ? GOLD : l.status === 'transferred' ? '#a78bfa' : l.status === 'removed' ? '#ef4444' : '#60a5fa' }}>{l.status}</span>
                   <span style={{ color: '#4a5568', fontSize: '10px' }}>{l.callCount || 0}/3</span>
+                  <span style={{ color: GOLD, fontSize: '10px' }}>Open →</span>
                 </div>
               </div>
             ))}
@@ -474,6 +477,17 @@ export default function FronterAdminTab({ adminUsername }) {
           assignedBy={adminUsername}
           onClose={() => setShowImportModal(false)}
           onImported={() => { setShowImportModal(false); loadAll(); }}
+        />
+      )}
+
+      {/* Contact card — same as fronter view */}
+      {contactCardLead && (
+        <FronterContactCard
+          lead={contactCardLead}
+          username={adminUsername}
+          isAdmin={true}
+          onClose={() => setContactCardLead(null)}
+          onSave={(updated) => { setContactCardLead(prev => ({ ...prev, ...updated })); loadAll(); }}
         />
       )}
 

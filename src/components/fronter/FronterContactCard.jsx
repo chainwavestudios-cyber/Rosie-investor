@@ -214,25 +214,18 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
               </div>
             </div>
           </div>
-          <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-            <button onClick={(e) => { e.stopPropagation(); sendHeadsUp(); }} disabled={headsUpSending} style={{ background: headsUpSent ? 'rgba(74,222,128,0.15)' : 'rgba(239,68,68,0.15)', color: headsUpSent ? '#4ade80' : '#ef4444', border: '1px solid ' + (headsUpSent ? 'rgba(74,222,128,0.3)' : 'rgba(239,68,68,0.3)'), borderRadius: '4px', padding: '5px 12px', cursor: headsUpSending ? 'not-allowed' : 'pointer', fontSize: '11px', fontWeight: 'bold', opacity: headsUpSending ? 0.5 : 1 }}>
-              {headsUpSending ? '⏳' : headsUpSent ? '✓ Sent' : '🚨 Transfer Coming'}
-            </button>
-            {onNext && <button onClick={(e) => { e.stopPropagation(); onNext(); }} style={{ background: GOLD + '18', color: GOLD, border: '1px solid ' + GOLD + '44', borderRadius: '4px', padding: '5px 12px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>Next →</button>}
-            <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#6b7280', cursor: 'pointer', fontSize: '20px', padding: 0, lineHeight: 1 }}>×</button>
+          <div style={{ display: 'flex', gap: '3px', alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+            {local.credsSentAt && <span title="Credentials Sent" style={{ padding: '2px 6px', borderRadius: '8px', background: 'rgba(74,222,128,0.12)', border: '1px solid rgba(74,222,128,0.3)', color: '#4ade80', fontSize: '10px' }}>🔑✓</span>}
+            <button onClick={(e) => { e.stopPropagation(); sendHeadsUp(); }} disabled={headsUpSending} title="Transfer Coming" style={{ background: headsUpSent ? 'rgba(74,222,128,0.15)' : 'rgba(239,68,68,0.15)', color: headsUpSent ? '#4ade80' : '#ef4444', border: '1px solid ' + (headsUpSent ? 'rgba(74,222,128,0.3)' : 'rgba(239,68,68,0.3)'), borderRadius: '4px', padding: '4px 8px', cursor: headsUpSending ? 'not-allowed' : 'pointer', fontSize: '13px', opacity: headsUpSending ? 0.5 : 1 }}>🚨</button>
+            <button onClick={(e) => { e.stopPropagation(); setShowCredsPopup(true); }} title="Email Company Credentials" style={{ background: 'rgba(96,165,250,0.12)', color: BLUE, border: '1px solid rgba(96,165,250,0.25)', borderRadius: '4px', padding: '4px 8px', cursor: 'pointer', fontSize: '13px' }}>🔑</button>
+            {local.status === 'prospect' && <>
+              <button onClick={(e) => { e.stopPropagation(); setMeetingDisposition('interested'); setShowMeetingScheduler(true); }} title="Interested" style={{ background: 'rgba(16,185,129,0.15)', color: GOLD, border: '1px solid rgba(16,185,129,0.3)', borderRadius: '4px', padding: '4px 8px', cursor: 'pointer', fontSize: '13px' }}>✓</button>
+              <button onClick={(e) => { e.stopPropagation(); setMeetingDisposition('appointment'); setShowMeetingScheduler(true); }} title="Requests Meeting" style={{ background: 'rgba(96,165,250,0.15)', color: BLUE, border: '1px solid rgba(96,165,250,0.3)', borderRadius: '4px', padding: '4px 8px', cursor: 'pointer', fontSize: '13px' }}>📅</button>
+            </>}
+            {isAdmin && local.status !== 'closed_deal' && <button onClick={(e) => { e.stopPropagation(); markClosedDeal(); }} title="Mark as Closed Deal" style={{ background: 'rgba(167,139,250,0.15)', color: '#a78bfa', border: '1px solid rgba(167,139,250,0.3)', borderRadius: '4px', padding: '4px 8px', cursor: 'pointer', fontSize: '13px' }}>💎</button>}
+            {onNext && <button onClick={(e) => { e.stopPropagation(); onNext(); }} title="Next Lead" style={{ background: GOLD + '18', color: GOLD, border: '1px solid ' + GOLD + '44', borderRadius: '4px', padding: '4px 8px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}>→</button>}
+            <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#6b7280', cursor: 'pointer', fontSize: '18px', padding: 0, lineHeight: 1 }}>×</button>
           </div>
-        </div>
-
-        {/* Company credentials row */}
-        <div style={{ padding: '8px 18px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0, background: 'rgba(0,0,0,0.15)' }}>
-          <button onClick={() => setShowCredsPopup(true)} style={{ background: 'rgba(96,165,250,0.12)', color: BLUE, border: '1px solid rgba(96,165,250,0.25)', borderRadius: '4px', padding: '6px 14px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '6px' }}>
-            🔑 Email Company Credentials
-          </button>
-          {local.credsSentAt && (
-            <span style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '4px 10px', borderRadius: '12px', background: 'rgba(74,222,128,0.12)', border: '1px solid rgba(74,222,128,0.3)', color: '#4ade80', fontSize: '10px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase' }}>
-              🔑 Creds Sent
-            </span>
-          )}
         </div>
 
         {/* Call control — LED timer + animal + auto-record indicator */}
@@ -271,17 +264,18 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
                   <div style={{ marginBottom: '8px' }}><label style={ls}>First Name</label><input value={local.firstName || ''} onChange={e => update('firstName', e.target.value)} style={inp} /></div>
                   <div style={{ marginBottom: '8px' }}><label style={ls}>Last Name</label><input value={local.lastName || ''} onChange={e => update('lastName', e.target.value)} style={inp} /></div>
                   <div style={{ marginBottom: '8px' }}>
-                    <label style={ls}>Primary Phone (click to dial)</label>
-                    <button onClick={() => { setCallActive(true); setCallStartTime(Date.now()); setCallDuration(0); onDial?.({ ...local, phone: local.phone }); }} style={{ ...inp, textAlign: 'left', cursor: 'pointer', color: GOLD, border: '1px solid rgba(16,185,129,0.3)', background: 'rgba(16,185,129,0.06)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <span style={{ fontSize: '14px' }}>📞</span> {local.phone || '—'}
-                    </button>
+                    <label style={ls}>Primary Phone</label>
+                    <div style={{ display: 'flex', gap: '4px' }}>
+                      <input value={local.phone || ''} onChange={e => update('phone', e.target.value)} placeholder="555-123-4567" style={{ ...inp, flex: 1 }} />
+                      <button onClick={() => { if (!local.phone) return; setCallActive(true); setCallStartTime(Date.now()); setCallDuration(0); onDial?.({ ...local, phone: local.phone }); }} disabled={!local.phone} title="Dial" style={{ background: 'rgba(16,185,129,0.15)', color: GOLD, border: '1px solid rgba(16,185,129,0.3)', borderRadius: '4px', padding: '0 10px', cursor: local.phone ? 'pointer' : 'not-allowed', fontSize: '14px', flexShrink: 0, opacity: local.phone ? 1 : 0.4 }}>📞</button>
+                    </div>
                   </div>
                   <div style={{ marginBottom: '8px' }}>
-                    <label style={ls}>Secondary Phone (click to dial)</label>
-                    <button onClick={() => { if (!local.phone2) return; setCallActive(true); setCallStartTime(Date.now()); setCallDuration(0); onDial?.({ ...local, phone: local.phone2 }); }} disabled={!local.phone2} style={{ ...inp, textAlign: 'left', cursor: local.phone2 ? 'pointer' : 'not-allowed', color: local.phone2 ? GOLD : '#4a5568', border: '1px solid rgba(16,185,129,0.3)', background: 'rgba(16,185,129,0.06)', display: 'flex', alignItems: 'center', gap: '6px', opacity: local.phone2 ? 1 : 0.5 }}>
-                      <span style={{ fontSize: '14px' }}>📞</span> {local.phone2 || '—'}
-                    </button>
-                    <input value={local.phone2 || ''} onChange={e => update('phone2', e.target.value)} placeholder="555-987-6543" style={{ ...inp, marginTop: '4px' }} />
+                    <label style={ls}>Secondary Phone</label>
+                    <div style={{ display: 'flex', gap: '4px' }}>
+                      <input value={local.phone2 || ''} onChange={e => update('phone2', e.target.value)} placeholder="555-987-6543" style={{ ...inp, flex: 1 }} />
+                      <button onClick={() => { if (!local.phone2) return; setCallActive(true); setCallStartTime(Date.now()); setCallDuration(0); onDial?.({ ...local, phone: local.phone2 }); }} disabled={!local.phone2} title="Dial" style={{ background: 'rgba(16,185,129,0.15)', color: GOLD, border: '1px solid rgba(16,185,129,0.3)', borderRadius: '4px', padding: '0 10px', cursor: local.phone2 ? 'pointer' : 'not-allowed', fontSize: '14px', flexShrink: 0, opacity: local.phone2 ? 1 : 0.4 }}>📞</button>
+                    </div>
                   </div>
                   <div style={{ marginBottom: '8px' }}><label style={ls}>Email</label><input value={local.email || ''} onChange={e => update('email', e.target.value)} style={inp} placeholder="customer@email.com" /></div>
                   <div style={{ marginBottom: '8px' }}><label style={ls}>Address</label><input value={local.address || ''} onChange={e => update('address', e.target.value)} style={inp} placeholder="123 Main St, City, State 12345" /></div>
@@ -303,15 +297,12 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
                   </div>
                   <div>
                     <label style={ls}>Type of Debt</label>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
                       {DEBT_TYPES.map(type => {
                         const selected = debtTypes.includes(type);
                         return (
-                          <button key={type} onClick={() => toggleDebtType(type)} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', borderRadius: '4px', border: `1px solid ${selected ? GOLD + '55' : 'rgba(255,255,255,0.1)'}`, background: selected ? `${GOLD}12` : 'rgba(255,255,255,0.02)', color: selected ? GOLD : '#8a9ab8', cursor: 'pointer', fontSize: '11px', fontWeight: selected ? 'bold' : 'normal', fontFamily: 'Georgia, serif', textAlign: 'left', transition: 'all 0.2s' }}>
-                            <div style={{ width: 16, height: 16, borderRadius: '3px', border: `1.5px solid ${selected ? GOLD : '#4a5568'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, background: selected ? GOLD : 'transparent' }}>
-                              {selected && <span style={{ color: DARK, fontSize: '10px', fontWeight: 'bold' }}>✓</span>}
-                            </div>
-                            {type}
+                          <button key={type} onClick={() => toggleDebtType(type)} style={{ padding: '3px 8px', borderRadius: '10px', border: `1px solid ${selected ? GOLD + '55' : 'rgba(255,255,255,0.1)'}`, background: selected ? `${GOLD}12` : 'transparent', color: selected ? GOLD : '#8a9ab8', cursor: 'pointer', fontSize: '10px', fontWeight: selected ? 'bold' : 'normal', whiteSpace: 'nowrap' }}>
+                            {selected ? '✓ ' : ''}{type}
                           </button>
                         );
                       })}
@@ -368,20 +359,6 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
                 </div>
               </div>
 
-              {/* Disposition: Interested / Requests Meeting */}
-              {local.status === 'prospect' && (
-                <div style={{ marginTop: '14px', display: 'flex', gap: '8px' }}>
-                  <button onClick={() => { setMeetingDisposition('interested'); setShowMeetingScheduler(true); }} style={{ flex: 1, background: 'linear-gradient(135deg,#10b981,#22c55e)', color: DARK, border: 'none', borderRadius: '4px', padding: '10px 14px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>✓ Interested</button>
-                  <button onClick={() => { setMeetingDisposition('appointment'); setShowMeetingScheduler(true); }} style={{ flex: 1, background: 'linear-gradient(135deg,#60a5fa,#3b82f6)', color: '#fff', border: 'none', borderRadius: '4px', padding: '10px 14px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>📅 Requests Meeting</button>
-                </div>
-              )}
-
-              {/* Mark as Closed Deal — super admin only */}
-              {isAdmin && local.status !== 'closed_deal' && (
-                <div style={{ marginTop: '14px', padding: '12px', background: 'rgba(167,139,250,0.08)', border: '1px solid rgba(167,139,250,0.25)', borderRadius: '4px', textAlign: 'center' }}>
-                  <button onClick={markClosedDeal} style={{ background: 'linear-gradient(135deg,#a78bfa,#8b5cf6)', color: '#fff', border: 'none', borderRadius: '4px', padding: '10px 28px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}>💎 Mark as Closed Deal</button>
-                </div>
-              )}
             </div>
           )}
 
