@@ -3,7 +3,10 @@
  * Sub-tabs: Time Sheet (daily/weekly hours + bonuses) | Payment Info.
  * Time sheet shows clock in, lunch out, lunch in, clock out for each day (Sun-Sat),
  * total hours per day, and weekly total.
- * Bonuses: 10 transfers/day = $5, 15/day = another $5. Weekly 50 fronts = $20, 75 = $30.
+ * Bonuses (Closed Deals):
+ *   Daily: 1 deal = $10, 2 deals = $25, 3+ deals = $50
+ *   Weekly (Sun–Sat): 4+ deals = $50, 6+ deals = $80, 9+ deals = $125
+ * Valid Transfer = transferred to Sr. Debt Specialist AND 30+ seconds on the phone with them.
  */
 import { useState, useEffect, useCallback } from 'react';
 import { base44 } from '@/api/base44Client';
@@ -14,6 +17,7 @@ const BLUE = '#60a5fa';
 const AMBER = '#f59e0b';
 const GREEN = '#4ade80';
 const PURPLE = '#a78bfa';
+const RED = '#ef4444';
 const ls = { display: 'block', color: '#8a9ab8', fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '6px' };
 const inp = { width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '4px', padding: '8px 12px', color: '#e8e0d0', fontSize: '13px', outline: 'none', boxSizing: 'border-box', fontFamily: 'Georgia, serif' };
 
@@ -49,6 +53,7 @@ export default function FronterHRTab({ username }) {
   const [subtab, setSubtab] = useState('timesheet');
   const [entries, setEntries] = useState([]);
   const [transfers, setTransfers] = useState([]);
+  const [closedDeals, setClosedDeals] = useState([]);
   const [loading, setLoading] = useState(true);
   const today = getETDate();
   const weekDates = getWeekDates(today);
@@ -60,7 +65,9 @@ export default function FronterHRTab({ username }) {
         base44.entities.FronterLead.filter({ assignedTo: username }, '-created_date', 500),
       ]);
       setEntries(allEntries || []);
-      setTransfers((allLeads || []).filter(l => l.status === 'transferred' && l.transferredAt));
+      const leads = allLeads || [];
+      setTransfers(leads.filter(l => (l.status === 'transferred' || l.status === 'closed_deal') && l.transferredAt));
+      setClosedDeals(leads.filter(l => l.status === 'closed_deal' && l.closedDealAt));
     } catch {}
     setLoading(false);
   }, [username]);
@@ -83,9 +90,26 @@ export default function FronterHRTab({ username }) {
   const todayTransfers = transfersByDate[today] || 0;
   const weekTransfers = weekDates.reduce((sum, d) => sum + (transfersByDate[d] || 0), 0);
 
-  // Bonus calculations
-  const dailyBonus = todayTransfers >= 15 ? 10 : todayTransfers >= 10 ? 5 : 0;
-  const weeklyBonus = weekTransfers >= 75 ? 30 : weekTransfers >= 50 ? 20 : 0;
+  // Closed deals by date
+  const closedDealsByDate = {};
+  (closedDeals || []).forEach(l => {
+    if (!l.closedDealAt) return;
+    const d = new Date(l.closedDealAt).toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
+    closedDealsByDate[d] = (closedDealsByDate[d] || 0) + 1;
+  });
+
+  const todayClosedDeals = closedDealsByDate[today] || 0;
+  const weekClosedDeals = weekDates.reduce((sum, d) => sum + (closedDealsByDate[d] || 0), 0);
+
+  // Valid transfers: transferred to Sr. Debt Specialist AND 30+ seconds on the phone
+  const validTransfers = (transfers || []).filter(l => l.transferredTo && (l.lastCallDurationSeconds || 0) >= 30);
+  const invalidTransfers = (transfers || []).filter(l => !l.transferredTo || (l.lastCallDurationSeconds || 0) < 30);
+
+  // Daily bonus: 1 deal = $10, 2 deals = $25, 3+ deals = $50
+  const dailyBonus = todayClosedDeals >= 3 ? 50 : todayClosedDeals === 2 ? 25 : todayClosedDeals === 1 ? 10 : 0;
+
+  // Weekly bonus: 4+ = $50, 6+ = $80, 9+ = $125
+  const weeklyBonus = weekClosedDeals >= 9 ? 125 : weekClosedDeals >= 6 ? 80 : weekClosedDeals >= 4 ? 50 : 0;
   const totalBonus = dailyBonus + weeklyBonus;
 
   return (
@@ -117,7 +141,7 @@ export default function FronterHRTab({ username }) {
               const isToday = d === today;
               const dayTransfers = transfersByDate[d] || 0;
               return (
-                <div key={d} style={{ background: isToday ? 'rgba(16,185,129,0.06)' : '#0d1b2a', border: `1px solid ${isToday ? 'rgba(16,185,129,0.3)' : 'rgba(255,255,255,0.07)'}`, borderRadius: '6px', padding: '12px 16px', display: 'grid', gridTemplateColumns: '120px 1fr 1fr 1fr 1fr 100px 80px', gap: '10px', alignItems: 'center' }}>
+                <div key={d} style={{ background: isToday ? 'rgba(16,185,129,0.06)' : '#0d1b2a', border: `1px solid ${isToday ? 'rgba(16,185,129,0.3)' : 'rgba(255,255,255,0.07)'}`, borderRadius: '6px', padding: '12px 16px', display: 'grid', gridTemplateColumns: '120px 1fr 1fr 1fr 1fr 100px 80px 80px', gap: '10px', alignItems: 'center' }}>
                   <div>
                     <div style={{ color: isToday ? GOLD : '#e8e0d0', fontSize: '13px', fontWeight: 'bold' }}>{DAY_NAMES[i]}</div>
                     <div style={{ color: '#6b7280', fontSize: '10px' }}>{new Date(d + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</div>
@@ -128,6 +152,7 @@ export default function FronterHRTab({ username }) {
                   <div><div style={{ color: '#6b7280', fontSize: '8px', textTransform: 'uppercase' }}>Clock Out</div><div style={{ color: '#8a9ab8', fontSize: '12px', fontFamily: 'monospace' }}>{fmtTime(e?.clockOut)}</div></div>
                   <div><div style={{ color: '#6b7280', fontSize: '8px', textTransform: 'uppercase' }}>Hours</div><div style={{ color: BLUE, fontSize: '13px', fontFamily: 'monospace', fontWeight: 'bold' }}>{fmtDur(e?.totalSeconds || 0)}</div></div>
                   <div><div style={{ color: '#6b7280', fontSize: '8px', textTransform: 'uppercase' }}>Transfers</div><div style={{ color: PURPLE, fontSize: '13px', fontWeight: 'bold' }}>{dayTransfers}</div></div>
+                  <div><div style={{ color: '#6b7280', fontSize: '8px', textTransform: 'uppercase' }}>Deals</div><div style={{ color: GOLD, fontSize: '13px', fontWeight: 'bold' }}>{closedDealsByDate[d] || 0}</div></div>
                 </div>
               );
             })}
@@ -138,14 +163,40 @@ export default function FronterHRTab({ username }) {
       {/* ── BONUSES ── */}
       {subtab === 'bonuses' && !loading && (
         <div>
-          <div style={{ color: GOLD, fontSize: '11px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '14px' }}>💰 Bonus Tracker</div>
+          <div style={{ color: GOLD, fontSize: '11px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '14px' }}>💰 Closed Deals Bonus Tracker</div>
 
-          {/* Daily bonus */}
+          {/* Transfer validation */}
+          <div style={{ background: '#0d1b2a', border: '1px solid rgba(96,165,250,0.2)', borderRadius: '6px', padding: '16px', marginBottom: '14px' }}>
+            <div style={{ color: BLUE, fontSize: '10px', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '10px' }}>🔍 Transfer Validation</div>
+            <div style={{ color: '#8a9ab8', fontSize: '11px', marginBottom: '10px', lineHeight: 1.5 }}>A valid transfer = customer was transferred to a Sr. Debt Specialist AND spent at least 30 seconds on the phone with them.</div>
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <div style={{ flex: 1, padding: '12px', background: validTransfers.length > 0 ? `${GREEN}12` : 'rgba(255,255,255,0.03)', border: `1px solid ${validTransfers.length > 0 ? GREEN + '44' : 'rgba(255,255,255,0.07)'}`, borderRadius: '4px', textAlign: 'center' }}>
+                <div style={{ color: GREEN, fontSize: '22px', fontWeight: 'bold' }}>{validTransfers.length}</div>
+                <div style={{ color: '#6b7280', fontSize: '9px', textTransform: 'uppercase', letterSpacing: '1px', marginTop: '3px' }}>✓ Valid Transfers</div>
+              </div>
+              <div style={{ flex: 1, padding: '12px', background: invalidTransfers.length > 0 ? `${RED}12` : 'rgba(255,255,255,0.03)', border: `1px solid ${invalidTransfers.length > 0 ? RED + '44' : 'rgba(255,255,255,0.07)'}`, borderRadius: '4px', textAlign: 'center' }}>
+                <div style={{ color: RED, fontSize: '22px', fontWeight: 'bold' }}>{invalidTransfers.length}</div>
+                <div style={{ color: '#6b7280', fontSize: '9px', textTransform: 'uppercase', letterSpacing: '1px', marginTop: '3px' }}>⚠ Invalid Transfers</div>
+              </div>
+              <div style={{ flex: 1, padding: '12px', background: `${GOLD}12`, border: `1px solid ${GOLD}44`, borderRadius: '4px', textAlign: 'center' }}>
+                <div style={{ color: GOLD, fontSize: '22px', fontWeight: 'bold' }}>{closedDeals.length}</div>
+                <div style={{ color: '#6b7280', fontSize: '9px', textTransform: 'uppercase', letterSpacing: '1px', marginTop: '3px' }}>💎 Closed Deals</div>
+              </div>
+            </div>
+            {invalidTransfers.length > 0 && (
+              <div style={{ marginTop: '10px', padding: '8px 12px', background: `${RED}08`, border: `1px solid ${RED}22`, borderRadius: '4px', color: RED, fontSize: '10px' }}>
+                ⚠ {invalidTransfers.length} transfer(s) did not meet the 30-second minimum or have no Sr. Debt Specialist assigned — they won't count toward closed deals.
+              </div>
+            )}
+          </div>
+
+          {/* Daily bonus — Closed Deals */}
           <div style={{ background: '#0d1b2a', border: '1px solid rgba(16,185,129,0.2)', borderRadius: '6px', padding: '16px', marginBottom: '14px' }}>
-            <div style={{ color: '#e8e0d0', fontSize: '14px', fontWeight: 'bold', marginBottom: '10px' }}>📅 Today's Transfers: <span style={{ color: PURPLE, fontSize: '18px' }}>{todayTransfers}</span></div>
+            <div style={{ color: '#e8e0d0', fontSize: '14px', fontWeight: 'bold', marginBottom: '10px' }}>📅 Today's Closed Deals: <span style={{ color: GOLD, fontSize: '18px' }}>{todayClosedDeals}</span></div>
             <div style={{ display: 'flex', gap: '10px', marginBottom: '10px' }}>
-              <BonusTier label="10 Transfers" reward="$5" achieved={todayTransfers >= 10} progress={Math.min(todayTransfers, 10)} max={10} color={GOLD} />
-              <BonusTier label="15 Transfers" reward="+$5" achieved={todayTransfers >= 15} progress={Math.min(Math.max(todayTransfers - 10, 0), 5)} max={5} color={PURPLE} />
+              <BonusTier label="1 Deal" reward="$10" achieved={todayClosedDeals >= 1} progress={Math.min(todayClosedDeals, 1)} max={1} color={GOLD} />
+              <BonusTier label="2 Deals" reward="$25" achieved={todayClosedDeals >= 2} progress={Math.min(Math.max(todayClosedDeals, 0), 2)} max={2} color={GREEN} />
+              <BonusTier label="3+ Deals" reward="$50" achieved={todayClosedDeals >= 3} progress={Math.min(Math.max(todayClosedDeals, 0), 3)} max={3} color={PURPLE} />
             </div>
             <div style={{ padding: '10px 14px', background: dailyBonus > 0 ? `${GOLD}12` : 'rgba(255,255,255,0.03)', border: `1px solid ${dailyBonus > 0 ? GOLD + '44' : 'rgba(255,255,255,0.07)'}`, borderRadius: '4px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span style={{ color: '#8a9ab8', fontSize: '12px' }}>Today's Bonus Earned</span>
@@ -153,12 +204,13 @@ export default function FronterHRTab({ username }) {
             </div>
           </div>
 
-          {/* Weekly bonus */}
+          {/* Weekly bonus — Closed Deals */}
           <div style={{ background: '#0d1b2a', border: '1px solid rgba(96,165,250,0.2)', borderRadius: '6px', padding: '16px', marginBottom: '14px' }}>
-            <div style={{ color: '#e8e0d0', fontSize: '14px', fontWeight: 'bold', marginBottom: '10px' }}>📆 This Week's Fronts: <span style={{ color: BLUE, fontSize: '18px' }}>{weekTransfers}</span></div>
+            <div style={{ color: '#e8e0d0', fontSize: '14px', fontWeight: 'bold', marginBottom: '10px' }}>📆 This Week's Closed Deals (Sun–Sat): <span style={{ color: BLUE, fontSize: '18px' }}>{weekClosedDeals}</span></div>
             <div style={{ display: 'flex', gap: '10px', marginBottom: '10px' }}>
-              <BonusTier label="50 Fronts" reward="$20" achieved={weekTransfers >= 50} progress={Math.min(weekTransfers, 50)} max={50} color={BLUE} />
-              <BonusTier label="75 Fronts" reward="$30" achieved={weekTransfers >= 75} progress={Math.min(Math.max(weekTransfers - 50, 0), 25)} max={25} color={GREEN} />
+              <BonusTier label="4+ Deals" reward="$50" achieved={weekClosedDeals >= 4} progress={Math.min(weekClosedDeals, 4)} max={4} color={BLUE} />
+              <BonusTier label="6+ Deals" reward="$80" achieved={weekClosedDeals >= 6} progress={Math.min(weekClosedDeals, 6)} max={6} color={GREEN} />
+              <BonusTier label="9+ Deals" reward="$125" achieved={weekClosedDeals >= 9} progress={Math.min(weekClosedDeals, 9)} max={9} color={PURPLE} />
             </div>
             <div style={{ padding: '10px 14px', background: weeklyBonus > 0 ? `${BLUE}12` : 'rgba(255,255,255,0.03)', border: `1px solid ${weeklyBonus > 0 ? BLUE + '44' : 'rgba(255,255,255,0.07)'}`, borderRadius: '4px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span style={{ color: '#8a9ab8', fontSize: '12px' }}>Weekly Bonus Earned</span>
