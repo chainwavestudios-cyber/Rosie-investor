@@ -1,0 +1,90 @@
+{
+  "name": "FronterMeeting",
+  "type": "object",
+  "properties": {
+    "leadId": {
+      "type": "string",
+      "title": "Lead ID"
+    },
+    "leadName": {
+      "type": "string",
+      "title": "Lead Name"
+    },
+    "leadPhone": {
+      "type": "string",
+      "title": "Lead Phone"
+    },
+    "leadEmail": {
+      "type": "string",
+      "title": "Lead Email"
+    },
+    "leadAddress": {
+      "type": "string",
+      "title": "Lead Address"
+    },
+    "fronterUsername": {
+      "type": "string",
+      "title": "Fronter Username"
+    },
+    "meetingStartISO": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Meeting Start (ISO)"
+    },
+    "meetingEndISO": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Meeting End (ISO)"
+    },
+    "customerTimezone": {
+      "type": "string",
+      "title": "Customer Timezone",
+      "default": "America/New_York"
+    },
+    "customerReminder": {
+      "type": "boolean",
+      "title": "Customer Reminder Enabled",
+      "default": false
+    },
+    "nightBeforeReminderSent": {
+      "type": "boolean",
+      "title": "Night-Before Reminder Sent",
+      "default": false
+    },
+    "hourBeforeReminderSent": {
+      "type": "boolean",
+      "title": "1-Hour-Before Reminder Sent",
+      "default": false
+    },
+    "eventId": {
+      "type": "string",
+      "title": "Google Calendar Event ID"
+    },
+    "meetingNotes": {
+      "type": "string",
+      "title": "Meeting Notes",
+      "format": "textarea"
+    },
+    "status": {
+      "type": "string",
+      "title": "Status",
+      "enum": [
+        "scheduled",
+        "completed",
+        "cancelled"
+      ],
+      "default": "scheduled"
+    }
+  },
+  "required": [
+    "leadId",
+    "fronterUsername",
+    "meetingStartISO"
+  ],
+  "rls": {
+    "create": null,
+    "read": null,
+    "update": null,
+    "delete": null
+  }
+}

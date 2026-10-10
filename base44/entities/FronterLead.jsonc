@@ -18,6 +18,10 @@
       "type": "string",
       "title": "Phone"
     },
+    "email": {
+      "type": "string",
+      "title": "Email"
+    },
     "address": {
       "type": "string",
       "title": "Address"
@@ -73,7 +77,7 @@
     },
     "lastCallResult": {
       "type": "string",
-      "title": "Last Call Result (no_answer, voicemail, connected, transferred, hung_up, not_interested)"
+      "title": "Last Call Result (no_answer, voicemail, connected, transferred, hung_up, not_interested, interested, appointment)"
     },
     "lastCallDurationSeconds": {
       "type": "number",

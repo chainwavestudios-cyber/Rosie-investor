@@ -9,6 +9,7 @@ import { base44 } from '@/api/base44Client';
 import { substituteScriptVars } from '@/lib/scriptSubstitute';
 import { renderFormatted } from '@/components/debt/ScriptRichText';
 import FronterCardAudioControls from './FronterCardAudioControls';
+import FronterMeetingScheduler from './FronterMeetingScheduler';
 
 const GOLD = '#10b981';
 const DARK = '#0a0f1e';
@@ -47,6 +48,8 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
   const [callActive, setCallActive] = useState(false);
   const [callStartTime, setCallStartTime] = useState(null);
   const [callDuration, setCallDuration] = useState(0);
+  const [showMeetingScheduler, setShowMeetingScheduler] = useState(false);
+  const [meetingDisposition, setMeetingDisposition] = useState('interested');
 
   useEffect(() => {
     setLocal(lead || {});
@@ -139,7 +142,7 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
     try {
       await base44.entities.FronterLead.update(lead.id, {
         firstName: local.firstName, lastName: local.lastName, phone: local.phone,
-        address: local.address, debtAmount: local.debtAmount, debtTypesJson: local.debtTypesJson,
+        email: local.email, address: local.address, debtAmount: local.debtAmount, debtTypesJson: local.debtTypesJson,
         notesLogJson: JSON.stringify(notesLog),
       });
       setSaved(true); setTimeout(() => setSaved(false), 2000);
@@ -256,6 +259,7 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
                       <span style={{ fontSize: '14px' }}>📞</span> {local.phone || '—'}
                     </button>
                   </div>
+                  <div style={{ marginBottom: '8px' }}><label style={ls}>Email</label><input value={local.email || ''} onChange={e => update('email', e.target.value)} style={inp} placeholder="customer@email.com" /></div>
                   <div><label style={ls}>Address</label><input value={local.address || ''} onChange={e => update('address', e.target.value)} style={inp} placeholder="123 Main St, City, State 12345" /></div>
                 </div>
 
@@ -312,6 +316,14 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
                   )}
                 </div>
               </div>
+
+              {/* Disposition: Interested / Requests Meeting */}
+              {local.status === 'prospect' && (
+                <div style={{ marginTop: '14px', display: 'flex', gap: '8px' }}>
+                  <button onClick={() => { setMeetingDisposition('interested'); setShowMeetingScheduler(true); }} style={{ flex: 1, background: 'linear-gradient(135deg,#10b981,#22c55e)', color: DARK, border: 'none', borderRadius: '4px', padding: '10px 14px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>✓ Interested</button>
+                  <button onClick={() => { setMeetingDisposition('appointment'); setShowMeetingScheduler(true); }} style={{ flex: 1, background: 'linear-gradient(135deg,#60a5fa,#3b82f6)', color: '#fff', border: 'none', borderRadius: '4px', padding: '10px 14px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>📅 Requests Meeting</button>
+                </div>
+              )}
 
               {/* Mark as Closed Deal — super admin only */}
               {isAdmin && local.status !== 'closed_deal' && (
@@ -384,6 +396,17 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
             document.addEventListener('mouseup', onUp);
           }} style={{ position: 'absolute', bottom: 0, right: 0, width: '16px', height: '16px', cursor: 'nwse-resize', color: '#4a5568', textAlign: 'right', paddingRight: '2px' }}>⌟</div>
         </div>
+      )}
+
+      {/* Meeting scheduler popup */}
+      {showMeetingScheduler && (
+        <FronterMeetingScheduler
+          lead={local}
+          username={username}
+          disposition={meetingDisposition}
+          onClose={() => setShowMeetingScheduler(false)}
+          onScheduled={() => { setShowMeetingScheduler(false); onSave?.(local); }}
+        />
       )}
     </>
   );

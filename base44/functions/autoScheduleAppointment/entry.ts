@@ -16,32 +16,9 @@
  * Duration: 30 minutes. Business hours: 8 AM – 6 PM ET.
  */
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.52';
-
-const ET_TZ = 'America/New_York';
+import { ET_TZ, getCalendarAuth, listEvents, hasConflict } from '../../shared/googleCalendarHelpers.ts';
 
 function toISO(d: Date): string { return d.toISOString(); }
-
-async function getCalendarAuth(base44: any) {
-  const { accessToken } = await base44.asServiceRole.connectors.getConnection('googlecalendar');
-  return { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' };
-}
-
-async function listEvents(authHeader: any, timeMin: string, timeMax: string): Promise<any[]> {
-  const url = `https://www.googleapis.com/calendar/v3/calendars/primary/events?timeMin=${encodeURIComponent(timeMin)}&timeMax=${encodeURIComponent(timeMax)}&singleEvents=true&maxResults=100&orderBy=startTime`;
-  const res = await fetch(url, { headers: authHeader });
-  if (!res.ok) return [];
-  const data = await res.json();
-  return data.items || [];
-}
-
-function hasConflict(events: any[], start: Date, end: Date): boolean {
-  for (const ev of events) {
-    const evStart = new Date(ev.start?.dateTime || ev.start?.date || '');
-    const evEnd = new Date(ev.end?.dateTime || ev.end?.date || '');
-    if (start < evEnd && end > evStart) return true;
-  }
-  return false;
-}
 
 function findFreeSlot(events: any[], start: Date, maxAttempts = 48): { start: Date; end: Date } | null {
   let s = new Date(start);

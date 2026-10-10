@@ -1,0 +1,44 @@
+{
+  "name": "Fronter Meeting Reminders",
+  "description": "Checks scheduled meetings every 15 minutes and sends customer reminder emails (night before at 8pm customer timezone, and 1 hour before the meeting).",
+  "definition": {
+    "document": {
+      "dsl": "1.0.0",
+      "name": "fronter_meeting_reminders",
+      "version": "1.0",
+      "namespace": "base44"
+    },
+    "do": [
+      {
+        "send_reminders": {
+          "call": "invoke_backend_function",
+          "with": {
+            "function_name": "sendFronterMeetingReminders"
+          },
+          "then": "end",
+          "x-base44": {
+            "title": "Send meeting reminders",
+            "description": "Check and send night-before + 1-hour-before emails"
+          }
+        }
+      }
+    ]
+  },
+  "trigger": {
+    "condition": null,
+    "config": {
+      "trigger_type": "scheduled",
+      "events": [],
+      "schedule_mode": "recurring",
+      "cron_expression": "*/15 * * * *",
+      "one_time_date": null,
+      "timezone": "America/New_York",
+      "interval_value": null,
+      "interval_unit": null,
+      "interval_anchor": null,
+      "ends_type": "never",
+      "ends_on_date": null,
+      "ends_after_count": null
+    }
+  }
+}
