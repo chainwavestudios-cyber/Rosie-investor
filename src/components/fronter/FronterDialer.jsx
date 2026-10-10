@@ -2,11 +2,13 @@
  * FronterDialer.jsx — Outbound Twilio call controls for the fronter/admin.
  * Full dialpad: call, mute, hold, transfer (cold), merge (conference in agent),
  * hang up / disconnect. Live call screen shows lead name, date/time, duration.
- * Uses the fronterClientToken for per-user Twilio identity.
+ * Deepgram live transcription with 5-second transcript saves to FronterCallTranscript.
+ * Post-call report auto-generated at call end (script adherence, objections, sentiment).
  */
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { base44 } from '@/api/base44Client';
 import { Device } from '@twilio/voice-sdk';
+import { useFronterDeepgram } from '@/hooks/useFronterDeepgram';
 
 const GOLD = '#10b981';
 const DARK = '#0a0f1e';
@@ -29,12 +31,18 @@ export default function FronterDialer({ lead, username, lineKey, lineNumber, onC
   const [mergeNumber, setMergeNumber] = useState('');
   const [transferNumber, setTransferNumber] = useState('');
   const [busy, setBusy] = useState(false);
+  const [transcriptLineCount, setTranscriptLineCount] = useState(0);
+  const [generatingReport, setGeneratingReport] = useState(false);
 
   const deviceRef = useRef(null);
   const callRef = useRef(null);
   const timerRef = useRef(null);
   const clockRef = useRef(null);
   const startTimeRef = useRef(null);
+  const transcriptIdRef = useRef(null);
+  const saveIntervalRef = useRef(null);
+
+  const deepgram = useFronterDeepgram();
 
   const fmt = (s) => `${Math.floor(s / 60).toString().padStart(2, '0')}:${(s % 60).toString().padStart(2, '0')}`;
 
@@ -45,7 +53,6 @@ export default function FronterDialer({ lead, username, lineKey, lineNumber, onC
   };
   const stopTimer = () => clearInterval(timerRef.current);
 
-  // Live clock for the date/time display
   useEffect(() => {
     clockRef.current = setInterval(() => setNow(new Date()), 1000);
     return () => clearInterval(clockRef.current);
@@ -53,11 +60,12 @@ export default function FronterDialer({ lead, username, lineKey, lineNumber, onC
 
   useEffect(() => () => {
     stopTimer();
+    if (saveIntervalRef.current) clearInterval(saveIntervalRef.current);
     try { callRef.current?.disconnect(); } catch {}
     try { deviceRef.current?.destroy(); } catch {}
+    deepgram.stop();
   }, []);
 
-  // Auto-dial when triggered from the lead list call button
   useEffect(() => {
     if (autoDialTrigger > 0 && lead?.phone) dial();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -83,27 +91,159 @@ export default function FronterDialer({ lead, username, lineKey, lineNumber, onC
     return device;
   };
 
+  // ── Post-call report generation ──
+  const generatePostCallReport = async (finalLines, callDur) => {
+    if (!finalLines || finalLines.length < 2) return;
+    setGeneratingReport(true);
+    try {
+      // Load scripts for adherence analysis
+      const scripts = await base44.entities.FronterScript.list('sortOrder', 50);
+      const scriptsText = (scripts || []).map(s => `=== ${s.name} ===\n${s.content}`).join('\n\n');
+      const transcriptText = finalLines.map(l => `${l.speaker === 0 ? 'Agent' : 'Customer'}: ${l.text}`).join('\n');
+
+      const res = await base44.integrations.Core.InvokeLLM({
+        prompt: `You are a call center supervisor analyzing a fronter's outbound call for debt settlement. Analyze the following call transcript and provide a structured report.
+
+SCRIPTS (what the fronter should have followed):
+${scriptsText || '(no scripts configured)'}
+
+CALL TRANSCRIPT (${finalLines.length} lines, ${callDur}s):
+${transcriptText}
+
+Provide your analysis as JSON with these fields:
+- scriptAdherence: How well did the fronter stick to the script? Did they follow the opening, qualification questions, and flow? (2-3 sentences)
+- objectionHandling: How quickly and effectively did the fronter handle objections? Were they caught off guard or did they respond smoothly? (2-3 sentences)
+- sentiment: Overall sentiment of the call — one of: "very positive", "positive", "neutral", "negative", "very negative" plus a brief reason
+- personalityReview: Review of the customer's personality, demeanor, and communication style. Were they receptive, guarded, hostile, friendly? (2-3 sentences)
+- customerInterest: Level of interest the customer showed — one of: "high", "medium", "low", "none" plus a brief reason
+- fullReport: A comprehensive narrative summary of the call covering the flow, key moments, outcome, and coaching recommendations (3-5 paragraphs)`,
+        response_json_schema: {
+          type: 'object',
+          properties: {
+            scriptAdherence: { type: 'string' },
+            objectionHandling: { type: 'string' },
+            sentiment: { type: 'string' },
+            personalityReview: { type: 'string' },
+            customerInterest: { type: 'string' },
+            fullReport: { type: 'string' },
+          },
+        },
+      });
+
+      if (res) {
+        await base44.entities.FronterCallReport.create({
+          transcriptId: transcriptIdRef.current || '',
+          leadId: lead?.id || '',
+          leadName: `${lead?.firstName || ''} ${lead?.lastName || ''}`.trim(),
+          fronterUsername: username,
+          callDate: new Date().toISOString(),
+          durationSeconds: callDur,
+          scriptAdherence: res.scriptAdherence || '',
+          objectionHandling: res.objectionHandling || '',
+          sentiment: res.sentiment || '',
+          personalityReview: res.personalityReview || '',
+          customerInterest: res.customerInterest || '',
+          fullReport: res.fullReport || '',
+        });
+      }
+    } catch (e) {
+      console.error('Post-call report failed:', e);
+    }
+    setGeneratingReport(false);
+  };
+
   const wireCall = (call) => {
     call.on('ringing', () => setCallStatus('ringing'));
-    call.on('accept', () => { setCallStatus('connected'); startTimer(); });
-    call.on('disconnect', () => {
+    call.on('accept', async () => {
+      setCallStatus('connected');
+      startTimer();
+
+      // Start Deepgram transcription
+      const micDeviceId = localStorage.getItem('fronter_mic_device') || '';
+      deepgram.start(micDeviceId).then(() => {
+        setTranscriptLineCount(0);
+      }).catch(e => console.error('Deepgram start failed:', e));
+
+      // Create transcript record
+      try {
+        const rec = await base44.entities.FronterCallTranscript.create({
+          leadId: lead?.id || '',
+          leadName: `${lead?.firstName || ''} ${lead?.lastName || ''}`.trim(),
+          fronterUsername: username,
+          transcriptJson: '[]',
+          transcriptLineCount: 0,
+          durationSeconds: 0,
+          callDate: new Date().toISOString(),
+        });
+        transcriptIdRef.current = rec.id;
+
+        // Save transcript every 5 seconds
+        saveIntervalRef.current = setInterval(async () => {
+          const lines = deepgram.getLines();
+          const dur = startTimeRef.current ? Math.floor((Date.now() - startTimeRef.current) / 1000) : 0;
+          setTranscriptLineCount(lines.length);
+          try {
+            await base44.entities.FronterCallTranscript.update(transcriptIdRef.current, {
+              transcriptJson: JSON.stringify(lines),
+              transcriptLineCount: lines.length,
+              durationSeconds: dur,
+            });
+          } catch {}
+        }, 5000);
+      } catch (e) { console.error('Transcript record creation failed:', e); }
+    });
+    call.on('disconnect', async () => {
       stopTimer();
+      if (saveIntervalRef.current) { clearInterval(saveIntervalRef.current); saveIntervalRef.current = null; }
+      deepgram.stop();
+
       const dur = startTimeRef.current ? Math.floor((Date.now() - startTimeRef.current) / 1000) : 0;
+      const finalLines = deepgram.getLines();
+
+      // Final transcript save
+      if (transcriptIdRef.current) {
+        try {
+          await base44.entities.FronterCallTranscript.update(transcriptIdRef.current, {
+            transcriptJson: JSON.stringify(finalLines),
+            transcriptLineCount: finalLines.length,
+            durationSeconds: dur,
+          });
+        } catch {}
+      }
+
+      // Update lead with duration
+      if (lead?.id && dur > 0) {
+        try { await base44.entities.FronterLead.update(lead.id, { lastCallDurationSeconds: dur }); } catch {}
+      }
+
       setCallStatus('ended');
       setMuted(false); setOnHold(false); setMerged(false); setConferenceName('');
-      if (lead?.id && dur > 0) {
-        base44.entities.FronterLead.update(lead.id, { lastCallDurationSeconds: dur }).catch(() => {});
-      }
+      setTranscriptLineCount(0);
       onCallEnded?.();
+
+      // Generate post-call report (async, non-blocking)
+      generatePostCallReport(finalLines, dur);
+
       setTimeout(() => setCallStatus('idle'), 2000);
+      transcriptIdRef.current = null;
     });
-    call.on('cancel', () => { stopTimer(); setCallStatus('idle'); onCallEnded?.(); });
-    call.on('error', (e) => { setError(e.message); stopTimer(); setCallStatus('idle'); onCallEnded?.(); });
+    call.on('cancel', () => {
+      stopTimer();
+      if (saveIntervalRef.current) { clearInterval(saveIntervalRef.current); saveIntervalRef.current = null; }
+      deepgram.stop();
+      setCallStatus('idle'); onCallEnded?.();
+    });
+    call.on('error', (e) => {
+      setError(e.message); stopTimer();
+      if (saveIntervalRef.current) { clearInterval(saveIntervalRef.current); saveIntervalRef.current = null; }
+      deepgram.stop();
+      setCallStatus('idle'); onCallEnded?.();
+    });
   };
 
   const dial = async () => {
     if (!lead?.phone) { setError('No phone number'); return; }
-    setError(''); setCallStatus('calling'); setDuration(0); setMuted(false); setOnHold(false); setMerged(false); setConferenceName('');
+    setError(''); setCallStatus('calling'); setDuration(0); setMuted(false); setOnHold(false); setMerged(false); setConferenceName(''); setTranscriptLineCount(0);
     onDial?.(lead);
     try {
       const device = await getDevice();
@@ -164,6 +304,8 @@ export default function FronterDialer({ lead, username, lineKey, lineNumber, onC
       });
       setShowTransferInput(false);
       stopTimer();
+      if (saveIntervalRef.current) { clearInterval(saveIntervalRef.current); saveIntervalRef.current = null; }
+      deepgram.stop();
       setCallStatus('idle'); setMuted(false); setOnHold(false); setMerged(false); setConferenceName('');
       onCallEnded?.();
     } catch (e) { setError('Transfer failed: ' + (e?.message || String(e))); }
@@ -194,12 +336,16 @@ export default function FronterDialer({ lead, username, lineKey, lineNumber, onC
     <div style={{ background: '#0d1b2a', border: '1px solid rgba(16,185,129,0.2)', borderRadius: '6px', padding: '14px' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
         <div style={{ color: GOLD, fontSize: '11px', letterSpacing: '2px', textTransform: 'uppercase' }}>📞 Dialer</div>
-        {lineNumber && <div style={{ color: '#6b7280', fontSize: '10px' }}>Line: {lineNumber}</div>}
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+          {deepgram.connected && <span style={{ color: BLUE, fontSize: '10px', fontWeight: 'bold' }}>🎙️ Transcribing ({transcriptLineCount} lines)</span>}
+          {generatingReport && <span style={{ color: PURPLE, fontSize: '10px', fontWeight: 'bold' }}>⏳ Generating report…</span>}
+          {lineNumber && <div style={{ color: '#6b7280', fontSize: '10px' }}>Line: {lineNumber}</div>}
+        </div>
       </div>
 
       {error && <div style={{ color: RED, fontSize: '11px', marginBottom: '8px' }}>⚠ {error}</div>}
 
-      {/* ── Call info screen ── */}
+      {/* Call info screen */}
       {isActive && (
         <div style={{ background: 'rgba(0,0,0,0.3)', border: `1px solid ${statusColor}33`, borderRadius: '6px', padding: '14px', marginBottom: '12px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
@@ -224,7 +370,7 @@ export default function FronterDialer({ lead, username, lineKey, lineNumber, onC
         </div>
       )}
 
-      {/* ── Controls ── */}
+      {/* Controls */}
       <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
         {!isActive ? (
           <button onClick={dial} disabled={!lead?.phone} style={{ background: 'linear-gradient(135deg,#10b981,#22c55e)', color: DARK, border: 'none', borderRadius: '4px', padding: '10px 20px', cursor: !lead?.phone ? 'not-allowed' : 'pointer', fontSize: '12px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase', opacity: !lead?.phone ? 0.5 : 1 }}>

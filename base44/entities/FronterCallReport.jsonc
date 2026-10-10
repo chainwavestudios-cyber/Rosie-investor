@@ -1,0 +1,70 @@
+{
+  "name": "FronterCallReport",
+  "type": "object",
+  "properties": {
+    "transcriptId": {
+      "type": "string",
+      "title": "Transcript ID"
+    },
+    "leadId": {
+      "type": "string",
+      "title": "Lead ID"
+    },
+    "leadName": {
+      "type": "string",
+      "title": "Lead Name"
+    },
+    "fronterUsername": {
+      "type": "string",
+      "title": "Fronter Username"
+    },
+    "callDate": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Call Date"
+    },
+    "durationSeconds": {
+      "type": "number",
+      "title": "Duration (seconds)",
+      "default": 0
+    },
+    "scriptAdherence": {
+      "type": "string",
+      "title": "Script Adherence Analysis",
+      "format": "textarea"
+    },
+    "objectionHandling": {
+      "type": "string",
+      "title": "Objection Handling Analysis",
+      "format": "textarea"
+    },
+    "sentiment": {
+      "type": "string",
+      "title": "Overall Sentiment"
+    },
+    "personalityReview": {
+      "type": "string",
+      "title": "Customer Personality Review",
+      "format": "textarea"
+    },
+    "customerInterest": {
+      "type": "string",
+      "title": "Customer Interest Level"
+    },
+    "fullReport": {
+      "type": "string",
+      "title": "Full Narrative Report",
+      "format": "textarea"
+    }
+  },
+  "required": [
+    "fronterUsername",
+    "callDate"
+  ],
+  "rls": {
+    "create": null,
+    "read": null,
+    "update": null,
+    "delete": null
+  }
+}

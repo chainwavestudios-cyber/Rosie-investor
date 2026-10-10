@@ -1,0 +1,53 @@
+{
+  "name": "FronterCallTranscript",
+  "type": "object",
+  "properties": {
+    "leadId": {
+      "type": "string",
+      "title": "Lead ID"
+    },
+    "leadName": {
+      "type": "string",
+      "title": "Lead Name"
+    },
+    "fronterUsername": {
+      "type": "string",
+      "title": "Fronter Username"
+    },
+    "transcriptJson": {
+      "type": "string",
+      "title": "Transcript (JSON array of {speaker, text, time})",
+      "format": "textarea"
+    },
+    "transcriptLineCount": {
+      "type": "number",
+      "title": "Line Count",
+      "default": 0
+    },
+    "durationSeconds": {
+      "type": "number",
+      "title": "Duration (seconds)",
+      "default": 0
+    },
+    "callDate": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Call Date"
+    },
+    "callResult": {
+      "type": "string",
+      "title": "Call Result"
+    }
+  },
+  "required": [
+    "leadId",
+    "fronterUsername",
+    "callDate"
+  ],
+  "rls": {
+    "create": null,
+    "read": null,
+    "update": null,
+    "delete": null
+  }
+}

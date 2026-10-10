@@ -10,6 +10,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import FronterCallMetricsTab from '@/components/fronter/FronterCallMetricsTab';
+import FronterReportsTab from '@/components/fronter/FronterReportsTab';
 
 const GOLD = '#10b981';
 const DARK = '#0a0f1e';
@@ -214,6 +215,7 @@ export default function FronterAdminTab({ adminUsername }) {
     { id: 'lines', label: '📞 Lines' },
     { id: 'leads', label: '📋 Leads' },
     { id: 'callmetrics', label: '📈 Call Metrics' },
+    { id: 'reports', label: '📊 Reports' },
     { id: 'metrics', label: '📊 Metrics' },
     { id: 'monitor', label: '🎧 Monitor' },
     { id: 'scripts', label: '📜 Scripts' },
@@ -333,6 +335,11 @@ export default function FronterAdminTab({ adminUsername }) {
       {/* ── CALL METRICS ── */}
       {subtab === 'callmetrics' && !loading && (
         <FronterCallMetricsTab fronters={fronters} />
+      )}
+
+      {/* ── DAILY REPORTS ── */}
+      {subtab === 'reports' && !loading && (
+        <FronterReportsTab fronters={fronters} />
       )}
 
       {/* ── METRICS ── */}

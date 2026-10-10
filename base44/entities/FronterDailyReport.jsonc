@@ -1,0 +1,60 @@
+{
+  "name": "FronterDailyReport",
+  "type": "object",
+  "properties": {
+    "fronterUsername": {
+      "type": "string",
+      "title": "Fronter Username"
+    },
+    "reportDate": {
+      "type": "string",
+      "format": "date",
+      "title": "Report Date"
+    },
+    "totalCalls": {
+      "type": "number",
+      "title": "Total Calls",
+      "default": 0
+    },
+    "loginTime": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Login Time"
+    },
+    "logoutTime": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Logout Time"
+    },
+    "totalTalkTimeSeconds": {
+      "type": "number",
+      "title": "Total Talk Time (seconds)",
+      "default": 0
+    },
+    "transferCalls": {
+      "type": "number",
+      "title": "Transfer Calls",
+      "default": 0
+    },
+    "futureMeetingCalls": {
+      "type": "number",
+      "title": "Future Meeting / Callback Calls",
+      "default": 0
+    },
+    "cumulativeReport": {
+      "type": "string",
+      "title": "Cumulative Daily Report",
+      "format": "textarea"
+    }
+  },
+  "required": [
+    "fronterUsername",
+    "reportDate"
+  ],
+  "rls": {
+    "create": null,
+    "read": null,
+    "update": null,
+    "delete": null
+  }
+}
