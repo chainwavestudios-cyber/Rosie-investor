@@ -1,8 +1,8 @@
 /**
  * FronterMonitorPanel.jsx — Floating, draggable, resizable live monitor for super admins.
- * Checkbox-select up to 3 fronters. Each box shows: status, call status, live transcript,
- * call duration, customer name, calls today, time logged on, time in current status.
- * Admin can change any fronter's status via dropdown.
+ * Checkbox-select up to 3 fronters. Each box shows: status (view-only), call status,
+ * live transcript, call duration, customer name, calls today, time logged on, time in status.
+ * Listen and Barge buttons for active calls (requires conference).
  */
 import { useState, useEffect, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
@@ -34,24 +34,29 @@ function fmtCallDur(s) {
   return `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, '0')}`;
 }
 
-export default function FronterMonitorPanel({ onClose }) {
+export default function FronterMonitorPanel({ onClose, adminUsername }) {
   const [fronters, setFronters] = useState([]);
   const [sessions, setSessions] = useState([]);
   const [selected, setSelected] = useState([]);
   const [transcripts, setTranscripts] = useState({});
   const [callsToday, setCallsToday] = useState({});
+  const [lineAssignments, setLineAssignments] = useState([]);
   const [now, setNow] = useState(Date.now());
   const [pos, setPos] = useState({ x: 30, y: 70 });
   const [size, setSize] = useState({ w: 860, h: 520 });
   const [showCheckboxes, setShowCheckboxes] = useState(true);
+  const [listenStatus, setListenStatus] = useState({}); // {username: 'listening' | 'barged' | ''}
   const dragRef = useRef(null);
 
-  // Load fronters
+  // Load fronters + line assignments
   useEffect(() => {
-    base44.entities.DebtCoachUser.list('-created_date', 500).then(all => {
-      const f = (all || []).filter(u => (u.role === 'fronter' || u.role === 'super_admin') && u.isActive);
+    Promise.all([
+      base44.entities.DebtCoachUser.list('-created_date', 500),
+      base44.entities.FronterLineAssignment.list('-assignedAt', 100),
+    ]).then(([users, assignments]) => {
+      const f = (users || []).filter(u => (u.role === 'fronter' || u.role === 'super_admin') && u.isActive);
       setFronters(f);
-      // Auto-select first 3
+      setLineAssignments(assignments || []);
       setSelected(f.slice(0, 3).map(u => u.username));
     }).catch(() => {});
   }, []);
@@ -67,14 +72,12 @@ export default function FronterMonitorPanel({ onClose }) {
         ]);
         setSessions(allSessions || []);
 
-        // Count calls today per fronter
         const counts = {};
         (todayTranscripts || []).forEach(t => {
           counts[t.fronterUsername] = (counts[t.fronterUsername] || 0) + 1;
         });
         setCallsToday(counts);
 
-        // Get latest transcript for fronters on call
         const onCallSessions = (allSessions || []).filter(s => s.status === 'on_call');
         const latest = {};
         for (const s of onCallSessions) {
@@ -89,7 +92,6 @@ export default function FronterMonitorPanel({ onClose }) {
     return () => clearInterval(interval);
   }, []);
 
-  // Tick for time displays
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(t);
@@ -97,10 +99,7 @@ export default function FronterMonitorPanel({ onClose }) {
 
   const onDragStart = (e) => {
     dragRef.current = { startX: e.clientX - pos.x, startY: e.clientY - pos.y };
-    const onMove = (ev) => {
-      if (!dragRef.current) return;
-      setPos({ x: ev.clientX - dragRef.current.startX, y: ev.clientY - dragRef.current.startY });
-    };
+    const onMove = (ev) => { if (dragRef.current) setPos({ x: ev.clientX - dragRef.current.startX, y: ev.clientY - dragRef.current.startY }); };
     const onUp = () => { dragRef.current = null; document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); };
     document.addEventListener('mousemove', onMove);
     document.addEventListener('mouseup', onUp);
@@ -114,21 +113,55 @@ export default function FronterMonitorPanel({ onClose }) {
     });
   };
 
-  const changeStatus = async (username, newStatus) => {
-    const session = sessions.find(s => s.username === username);
-    if (!session) return;
+  const getSession = (username) => sessions.find(s => s.username === username);
+
+  // Listen / Barge / End
+  const handleListen = async (username) => {
+    const session = getSession(username);
+    if (!session?.currentCallConferenceName) { alert('No active conference for this fronter. The fronter must merge or hold the call first.'); return; }
+    const assignment = lineAssignments.find(a => a.username === username);
     try {
-      await base44.entities.DialerSession.update(session.id, {
-        fronterStatus: newStatus,
-        fronterStatusAt: new Date().toISOString(),
+      await base44.functions.invoke('fronterCall', {
+        action: 'listen',
+        conferenceName: session.currentCallConferenceName,
+        adminUsername: adminUsername || 'admin',
+        lineKey: assignment?.twilioLineKey || 'TWILIO_FROM_NUMBER',
       });
+      setListenStatus(prev => ({ ...prev, [username]: 'listening' }));
+    } catch (e) { alert('Listen failed: ' + (e?.message || String(e))); }
+  };
+
+  const handleBarge = async (username) => {
+    const session = getSession(username);
+    if (!session?.currentCallConferenceName) { alert('No active conference for this fronter. The fronter must merge or hold the call first.'); return; }
+    const assignment = lineAssignments.find(a => a.username === username);
+    try {
+      await base44.functions.invoke('fronterCall', {
+        action: 'barge',
+        conferenceName: session.currentCallConferenceName,
+        adminUsername: adminUsername || 'admin',
+        lineKey: assignment?.twilioLineKey || 'TWILIO_FROM_NUMBER',
+      });
+      setListenStatus(prev => ({ ...prev, [username]: 'barged' }));
+    } catch (e) { alert('Barge failed: ' + (e?.message || String(e))); }
+  };
+
+  const handleEndListen = async (username) => {
+    const session = getSession(username);
+    if (!session?.currentCallConferenceName) return;
+    try {
+      await base44.functions.invoke('fronterCall', {
+        action: 'endListen',
+        conferenceName: session.currentCallConferenceName,
+        adminUsername: adminUsername || 'admin',
+      });
+      setListenStatus(prev => ({ ...prev, [username]: '' }));
     } catch {}
   };
 
-  const getSession = (username) => sessions.find(s => s.username === username);
-
   return (
     <div style={{ position: 'fixed', left: pos.x, top: pos.y, width: size.w, height: size.h, background: '#0d1b2a', border: '1px solid rgba(96,165,250,0.3)', borderRadius: '8px', boxShadow: '0 16px 64px rgba(0,0,0,0.8)', zIndex: 10000, display: 'flex', flexDirection: 'column' }}>
+      <style>{`@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}`}</style>
       {/* Header — draggable */}
       <div onMouseDown={onDragStart} style={{ padding: '10px 16px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'move', userSelect: 'none', flexShrink: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -164,9 +197,8 @@ export default function FronterMonitorPanel({ onClose }) {
           <div style={{ color: '#4a5568', textAlign: 'center', padding: '40px', fontSize: '13px', gridColumn: '1 / -1' }}>Select fronters above to monitor them.</div>
         ) : (
           selected.map(username => {
-            const fronter = fronters.find(f => f.username === username);
             const session = getSession(username);
-            return <FronterBox key={username} username={username} session={session} transcript={transcripts[username]} callsTodayCount={callsToday[username] || 0} now={now} onStatusChange={changeStatus} />;
+            return <FronterBox key={username} username={username} session={session} transcript={transcripts[username]} callsTodayCount={callsToday[username] || 0} now={now} listenStatus={listenStatus[username] || ''} onListen={() => handleListen(username)} onBarge={() => handleBarge(username)} onEndListen={() => handleEndListen(username)} />;
           })
         )}
       </div>
@@ -184,9 +216,10 @@ export default function FronterMonitorPanel({ onClose }) {
   );
 }
 
-function FronterBox({ username, session, transcript, callsTodayCount, now, onStatusChange }) {
+function FronterBox({ username, session, transcript, callsTodayCount, now, listenStatus, onListen, onBarge, onEndListen }) {
   const status = session?.fronterStatus || 'offline';
   const isOnCall = session?.status === 'on_call';
+  const hasConference = !!session?.currentCallConferenceName;
   const callDur = isOnCall && session?.currentCallStartedAt ? Math.floor((now - new Date(session.currentCallStartedAt).getTime()) / 1000) : 0;
   const loggedOn = session?.loginAt ? Math.floor((now - new Date(session.loginAt).getTime()) / 1000) : 0;
   const statusDur = session?.fronterStatusAt ? Math.floor((now - new Date(session.fronterStatusAt).getTime()) / 1000) : 0;
@@ -199,31 +232,33 @@ function FronterBox({ username, session, transcript, callsTodayCount, now, onSta
 
   return (
     <div style={{ background: 'rgba(0,0,0,0.2)', border: `1px solid ${statusCfg.color}33`, borderRadius: '6px', display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden' }}>
-      {/* Name + status dropdown */}
+      {/* Name + status badge (view-only) */}
       <div style={{ padding: '8px 10px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '6px' }}>
         <span style={{ color: '#e8e0d0', fontSize: '13px', fontWeight: 'bold', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{username}</span>
-        <select value={status} onChange={e => onStatusChange(username, e.target.value)} style={{ background: 'rgba(255,255,255,0.05)', border: `1px solid ${statusCfg.color}44`, borderRadius: '3px', padding: '3px 6px', color: statusCfg.color, fontSize: '10px', cursor: 'pointer', fontFamily: 'Georgia, serif', flexShrink: 0 }}>
-          <option value="dialing">📞 Dialing</option>
-          <option value="lunch_break">🍽️ Lunch</option>
-          <option value="bathroom_break">🚻 Bathroom</option>
-          <option value="offline">⭕ Offline</option>
-        </select>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '2px 8px', borderRadius: '10px', background: `${statusCfg.color}18`, border: `1px solid ${statusCfg.color}33`, flexShrink: 0 }}>
+          <div style={{ width: 6, height: 6, borderRadius: '50%', background: statusCfg.color }} />
+          <span style={{ color: statusCfg.color, fontSize: '9px', fontWeight: 'bold' }}>{statusCfg.icon} {statusCfg.label}</span>
+        </div>
       </div>
 
-      {/* Status badge */}
-      <div style={{ padding: '4px 10px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-        <div style={{ width: 7, height: 7, borderRadius: '50%', background: statusCfg.color, flexShrink: 0 }} />
-        <span style={{ color: statusCfg.color, fontSize: '11px', fontWeight: 'bold' }}>{statusCfg.icon} {statusCfg.label}</span>
-        <span style={{ color: '#6b7280', fontSize: '10px', marginLeft: 'auto' }}>· {fmtDur(statusDur)}</span>
-      </div>
-
-      {/* Call status */}
+      {/* Call status + Listen/Barge buttons */}
       <div style={{ padding: '4px 10px', display: 'flex', alignItems: 'center', gap: '6px', borderTop: '1px solid rgba(255,255,255,0.04)' }}>
         {isOnCall ? (
           <>
             <div style={{ width: 7, height: 7, borderRadius: '50%', background: '#4ade80', animation: 'pulse 1s infinite', flexShrink: 0 }} />
             <span style={{ color: '#4ade80', fontSize: '11px', fontWeight: 'bold' }}>● On Call</span>
-            <span style={{ color: '#e8e0d0', fontSize: '11px', fontWeight: 'bold', marginLeft: 'auto', fontFamily: 'monospace' }}>{fmtCallDur(callDur)}</span>
+            <span style={{ color: '#e8e0d0', fontSize: '11px', fontWeight: 'bold', fontFamily: 'monospace' }}>{fmtCallDur(callDur)}</span>
+            {hasConference && !listenStatus && (
+              <div style={{ display: 'flex', gap: '4px', marginLeft: 'auto' }}>
+                <button onClick={onListen} style={{ background: 'rgba(96,165,250,0.15)', color: BLUE, border: '1px solid rgba(96,165,250,0.3)', borderRadius: '3px', padding: '3px 8px', cursor: 'pointer', fontSize: '9px', fontWeight: 'bold' }}>🎧 Listen</button>
+                <button onClick={onBarge} style={{ background: 'rgba(245,158,11,0.15)', color: AMBER, border: '1px solid rgba(245,158,11,0.3)', borderRadius: '3px', padding: '3px 8px', cursor: 'pointer', fontSize: '9px', fontWeight: 'bold' }}>📢 Barge</button>
+              </div>
+            )}
+            {listenStatus && (
+              <button onClick={onEndListen} style={{ marginLeft: 'auto', background: 'rgba(239,68,68,0.15)', color: RED, border: '1px solid rgba(239,68,68,0.3)', borderRadius: '3px', padding: '3px 8px', cursor: 'pointer', fontSize: '9px', fontWeight: 'bold' }}>
+                {listenStatus === 'barged' ? '📢 Barged · End' : '🎧 Listening · End'}
+              </button>
+            )}
           </>
         ) : (
           <>
@@ -236,9 +271,7 @@ function FronterBox({ username, session, transcript, callsTodayCount, now, onSta
       {/* On call details: customer name + transcript */}
       {isOnCall && (
         <div style={{ flex: 1, minHeight: 0, borderTop: '1px solid rgba(255,255,255,0.04)', display: 'flex', flexDirection: 'column' }}>
-          {/* Customer name */}
           <div style={{ padding: '4px 10px', color: BLUE, fontSize: '11px', fontWeight: 'bold' }}>👤 {session?.currentCallLeadName || 'Unknown'}</div>
-          {/* Live transcript */}
           <div style={{ flex: 1, overflowY: 'auto', padding: '4px 10px', fontSize: '10px', lineHeight: 1.4 }}>
             {transcriptLines.length === 0 ? (
               <div style={{ color: '#4a5568', textAlign: 'center', padding: '8px' }}>Waiting for transcript…</div>

@@ -1,6 +1,7 @@
 /**
- * FronterContactCard.jsx — Floating, draggable, resizable contact card.
- * Tabs: Contact (fields + notes) | Script (scripts with popout).
+ * FronterContactCard.jsx — Professional floating contact card for fronters.
+ * Two-column layout: Contact fields (left) | Notes + Debt info (right).
+ * Tabs: Contact | Script (with popout).
  * Next button cycles to the next lead. Phone click-to-dial.
  */
 import { useState, useEffect, useRef } from 'react';
@@ -8,8 +9,9 @@ import { base44 } from '@/api/base44Client';
 
 const GOLD = '#10b981';
 const DARK = '#0a0f1e';
-const ls = { display: 'block', color: '#8a9ab8', fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '6px' };
-const inp = { width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '4px', padding: '8px 12px', color: '#e8e0d0', fontSize: '13px', outline: 'none', boxSizing: 'border-box', fontFamily: 'Georgia, serif' };
+const BLUE = '#60a5fa';
+const ls = { display: 'block', color: '#8a9ab8', fontSize: '9px', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '4px' };
+const inp = { width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '4px', padding: '7px 10px', color: '#e8e0d0', fontSize: '12px', outline: 'none', boxSizing: 'border-box', fontFamily: 'Georgia, serif', transition: 'border-color 0.2s' };
 
 const DEBT_TYPES = ['Unsecured Credit Card', 'Unsecured Loans'];
 
@@ -17,7 +19,7 @@ function fmtET(iso) {
   if (!iso) return '—';
   return new Date(iso).toLocaleString('en-US', {
     timeZone: 'America/New_York',
-    month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit',
+    month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
   });
 }
 
@@ -28,17 +30,13 @@ export default function FronterContactCard({ lead, username, onClose, onSave, on
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [cardTab, setCardTab] = useState('contact');
-
-  // Panel position/size
-  const [pos, setPos] = useState({ x: 80, y: 60 });
-  const [size, setSize] = useState({ w: 480, h: 620 });
+  const [pos, setPos] = useState({ x: 60, y: 50 });
+  const [size, setSize] = useState({ w: 560, h: 600 });
   const dragRef = useRef(null);
-
-  // Scripts
   const [scripts, setScripts] = useState([]);
   const [activeScript, setActiveScript] = useState(null);
   const [scriptPoppedOut, setScriptPoppedOut] = useState(false);
-  const [scriptPos, setScriptPos] = useState({ x: 580, y: 80 });
+  const [scriptPos, setScriptPos] = useState({ x: 660, y: 80 });
   const [scriptSize, setScriptSize] = useState({ w: 400, h: 500 });
   const scriptDragRef = useRef(null);
 
@@ -47,7 +45,6 @@ export default function FronterContactCard({ lead, username, onClose, onSave, on
     try { setNotesLog(JSON.parse(lead?.notesLogJson || '[]')); } catch { setNotesLog([]); }
   }, [lead]);
 
-  // Load scripts
   useEffect(() => {
     base44.entities.FronterScript.list('sortOrder', 50).then(all => {
       setScripts(all || []);
@@ -55,25 +52,17 @@ export default function FronterContactCard({ lead, username, onClose, onSave, on
     }).catch(() => {});
   }, []);
 
-  // Drag handler for contact card
   const onDragStart = (e) => {
     dragRef.current = { startX: e.clientX - pos.x, startY: e.clientY - pos.y };
-    const onMove = (ev) => {
-      if (!dragRef.current) return;
-      setPos({ x: ev.clientX - dragRef.current.startX, y: ev.clientY - dragRef.current.startY });
-    };
+    const onMove = (ev) => { if (dragRef.current) setPos({ x: ev.clientX - dragRef.current.startX, y: ev.clientY - dragRef.current.startY }); };
     const onUp = () => { dragRef.current = null; document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); };
     document.addEventListener('mousemove', onMove);
     document.addEventListener('mouseup', onUp);
   };
 
-  // Drag handler for script popout
   const onScriptDragStart = (e) => {
     scriptDragRef.current = { startX: e.clientX - scriptPos.x, startY: e.clientY - scriptPos.y };
-    const onMove = (ev) => {
-      if (!scriptDragRef.current) return;
-      setScriptPos({ x: ev.clientX - scriptDragRef.current.startX, y: ev.clientY - scriptDragRef.current.startY });
-    };
+    const onMove = (ev) => { if (scriptDragRef.current) setScriptPos({ x: ev.clientX - scriptDragRef.current.startX, y: ev.clientY - scriptDragRef.current.startY }); };
     const onUp = () => { scriptDragRef.current = null; document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); };
     document.addEventListener('mousemove', onMove);
     document.addEventListener('mouseup', onUp);
@@ -111,7 +100,6 @@ export default function FronterContactCard({ lead, username, onClose, onSave, on
     setSaving(false);
   };
 
-  // Script content (shared between inline and popout)
   const scriptContent = (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       {scripts.length > 1 && (
@@ -131,21 +119,32 @@ export default function FronterContactCard({ lead, username, onClose, onSave, on
     </div>
   );
 
+  const initials = `${(local.firstName?.[0] || '?')}${(local.lastName?.[0] || '')}`;
+
   return (
     <>
-      {/* Main contact card — floating, draggable, resizable */}
-      <div style={{ position: 'fixed', left: pos.x, top: pos.y, width: size.w, height: size.h, background: '#0d1b2a', border: '1px solid rgba(16,185,129,0.3)', borderRadius: '8px', boxShadow: '0 16px 64px rgba(0,0,0,0.8)', zIndex: 10000, display: 'flex', flexDirection: 'column' }}>
+      <div style={{ position: 'fixed', left: pos.x, top: pos.y, width: size.w, height: size.h, background: '#0d1b2a', border: '1px solid rgba(16,185,129,0.3)', borderRadius: '10px', boxShadow: '0 20px 60px rgba(0,0,0,0.7)', zIndex: 10000, display: 'flex', flexDirection: 'column' }}>
         {/* Header — draggable */}
-        <div onMouseDown={onDragStart} style={{ padding: '10px 16px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'move', userSelect: 'none', flexShrink: 0 }}>
-          <span style={{ color: GOLD, fontSize: '12px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase' }}>📇 {local.firstName} {local.lastName}</span>
+        <div onMouseDown={onDragStart} style={{ padding: '12px 18px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'move', userSelect: 'none', flexShrink: 0, background: 'linear-gradient(135deg, rgba(16,185,129,0.06), transparent)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <div style={{ width: '38px', height: '38px', borderRadius: '50%', background: `linear-gradient(135deg, ${GOLD}, #22c55e)`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: DARK, fontSize: '14px', fontWeight: 'bold', flexShrink: 0, textTransform: 'uppercase' }}>{initials}</div>
+            <div>
+              <div style={{ color: '#e8e0d0', fontSize: '15px', fontWeight: 'bold' }}>{local.firstName || 'New'} {local.lastName || 'Lead'}</div>
+              <div style={{ display: 'flex', gap: '6px', alignItems: 'center', marginTop: '2px' }}>
+                {local.leadNumber && <span style={{ color: '#6b7280', fontSize: '10px' }}>{local.leadNumber}</span>}
+                <span style={{ padding: '1px 7px', borderRadius: '8px', fontSize: '8px', fontWeight: 'bold', textTransform: 'uppercase', background: local.status === 'lead' ? 'rgba(16,185,129,0.15)' : local.status === 'transferred' ? 'rgba(167,139,250,0.15)' : 'rgba(96,165,250,0.15)', color: local.status === 'lead' ? GOLD : local.status === 'transferred' ? '#a78bfa' : BLUE }}>{local.status || 'prospect'}</span>
+                {local.callCount > 0 && <span style={{ color: '#6b7280', fontSize: '9px' }}>· {local.callCount}/3 calls</span>}
+              </div>
+            </div>
+          </div>
           <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-            {onNext && <button onClick={(e) => { e.stopPropagation(); onNext(); }} style={{ background: `${GOLD}18`, color: GOLD, border: `1px solid ${GOLD}44`, borderRadius: '4px', padding: '4px 12px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>Next →</button>}
+            {onNext && <button onClick={(e) => { e.stopPropagation(); onNext(); }} style={{ background: `${GOLD}18`, color: GOLD, border: `1px solid ${GOLD}44`, borderRadius: '4px', padding: '5px 12px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>Next →</button>}
             <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#6b7280', cursor: 'pointer', fontSize: '20px', padding: 0, lineHeight: 1 }}>×</button>
           </div>
         </div>
 
         {/* Tabs */}
-        <div style={{ display: 'flex', gap: '2px', borderBottom: '1px solid rgba(255,255,255,0.07)', flexShrink: 0 }}>
+        <div style={{ display: 'flex', gap: '2px', borderBottom: '1px solid rgba(255,255,255,0.07)', flexShrink: 0, padding: '0 14px' }}>
           <button onClick={() => setCardTab('contact')} style={{ padding: '8px 16px', background: 'none', border: 'none', borderBottom: `2px solid ${cardTab === 'contact' ? GOLD : 'transparent'}`, color: cardTab === 'contact' ? GOLD : '#6b7280', cursor: 'pointer', fontSize: '11px', fontWeight: cardTab === 'contact' ? 'bold' : 'normal' }}>📇 Contact</button>
           <button onClick={() => setCardTab('script')} style={{ padding: '8px 16px', background: 'none', border: 'none', borderBottom: `2px solid ${cardTab === 'script' ? GOLD : 'transparent'}`, color: cardTab === 'script' ? GOLD : '#6b7280', cursor: 'pointer', fontSize: '11px', fontWeight: cardTab === 'script' ? 'bold' : 'normal' }}>📜 Script</button>
         </div>
@@ -153,76 +152,77 @@ export default function FronterContactCard({ lead, username, onClose, onSave, on
         {/* Content */}
         <div style={{ flex: 1, overflowY: 'auto', padding: '16px' }}>
           {cardTab === 'contact' && (
-            <>
-              {/* Name */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '14px' }}>
-                <div><label style={ls}>First Name</label><input value={local.firstName || ''} onChange={e => update('firstName', e.target.value)} style={inp} /></div>
-                <div><label style={ls}>Last Name</label><input value={local.lastName || ''} onChange={e => update('lastName', e.target.value)} style={inp} /></div>
-              </div>
+            <div>
+              {/* Two-column layout */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '14px' }}>
+                {/* Left column: Contact info */}
+                <div>
+                  <div style={{ color: GOLD, fontSize: '9px', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '8px', paddingBottom: '4px', borderBottom: '1px solid rgba(16,185,129,0.15)' }}>Contact</div>
+                  <div style={{ marginBottom: '8px' }}><label style={ls}>First Name</label><input value={local.firstName || ''} onChange={e => update('firstName', e.target.value)} style={inp} /></div>
+                  <div style={{ marginBottom: '8px' }}><label style={ls}>Last Name</label><input value={local.lastName || ''} onChange={e => update('lastName', e.target.value)} style={inp} /></div>
+                  <div style={{ marginBottom: '8px' }}>
+                    <label style={ls}>Phone (click to dial)</label>
+                    <button onClick={() => onDial?.(local)} style={{ ...inp, textAlign: 'left', cursor: 'pointer', color: GOLD, border: '1px solid rgba(16,185,129,0.3)', background: 'rgba(16,185,129,0.06)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span style={{ fontSize: '14px' }}>📞</span> {local.phone || '—'}
+                    </button>
+                  </div>
+                  <div><label style={ls}>Address</label><input value={local.address || ''} onChange={e => update('address', e.target.value)} style={inp} placeholder="123 Main St, City, State 12345" /></div>
+                </div>
 
-              {/* Phone — click to dial */}
-              <div style={{ marginBottom: '14px' }}>
-                <label style={ls}>Phone (click to dial)</label>
-                <button onClick={() => onDial?.(local)} style={{ ...inp, textAlign: 'left', cursor: 'pointer', color: GOLD, border: '1px solid rgba(16,185,129,0.3)', background: 'rgba(16,185,129,0.06)' }}>📞 {local.phone || '—'}</button>
-              </div>
-
-              {/* Address */}
-              <div style={{ marginBottom: '14px' }}>
-                <label style={ls}>Address</label>
-                <input value={local.address || ''} onChange={e => update('address', e.target.value)} style={inp} placeholder="123 Main St, City, State 12345" />
-              </div>
-
-              {/* Debt Amount */}
-              <div style={{ marginBottom: '14px' }}>
-                <label style={ls}>Amount of Debt ($)</label>
-                <input type="number" value={local.debtAmount ?? ''} onChange={e => update('debtAmount', e.target.value ? Number(e.target.value) : null)} style={inp} placeholder="0" />
-              </div>
-
-              {/* Debt Type */}
-              <div style={{ marginBottom: '14px' }}>
-                <label style={ls}>Type of Debt (select at least one)</label>
-                <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-                  {DEBT_TYPES.map(type => {
-                    const selected = debtTypes.includes(type);
-                    return (
-                      <button key={type} onClick={() => toggleDebtType(type)} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 14px', borderRadius: '4px', border: `1px solid ${selected ? GOLD + '66' : 'rgba(255,255,255,0.12)'}`, background: selected ? `${GOLD}18` : 'rgba(255,255,255,0.03)', color: selected ? GOLD : '#8a9ab8', cursor: 'pointer', fontSize: '12px', fontWeight: selected ? 'bold' : 'normal', fontFamily: 'Georgia, serif' }}>
-                        <span style={{ color: selected ? GOLD : '#4a5568', fontSize: '14px' }}>{selected ? '☑' : '☐'}</span>
-                        {type}
-                      </button>
-                    );
-                  })}
+                {/* Right column: Debt info */}
+                <div>
+                  <div style={{ color: GOLD, fontSize: '9px', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '8px', paddingBottom: '4px', borderBottom: '1px solid rgba(16,185,129,0.15)' }}>Debt Info</div>
+                  <div style={{ marginBottom: '8px' }}>
+                    <label style={ls}>Amount of Debt ($)</label>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <span style={{ color: '#6b7280', fontSize: '14px' }}>$</span>
+                      <input type="number" value={local.debtAmount ?? ''} onChange={e => update('debtAmount', e.target.value ? Number(e.target.value) : null)} style={inp} placeholder="0" />
+                    </div>
+                  </div>
+                  <div>
+                    <label style={ls}>Type of Debt</label>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                      {DEBT_TYPES.map(type => {
+                        const selected = debtTypes.includes(type);
+                        return (
+                          <button key={type} onClick={() => toggleDebtType(type)} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', borderRadius: '4px', border: `1px solid ${selected ? GOLD + '55' : 'rgba(255,255,255,0.1)'}`, background: selected ? `${GOLD}12` : 'rgba(255,255,255,0.02)', color: selected ? GOLD : '#8a9ab8', cursor: 'pointer', fontSize: '11px', fontWeight: selected ? 'bold' : 'normal', fontFamily: 'Georgia, serif', textAlign: 'left', transition: 'all 0.2s' }}>
+                            <div style={{ width: 16, height: 16, borderRadius: '3px', border: `1.5px solid ${selected ? GOLD : '#4a5568'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, background: selected ? GOLD : 'transparent' }}>
+                              {selected && <span style={{ color: DARK, fontSize: '10px', fontWeight: 'bold' }}>✓</span>}
+                            </div>
+                            {type}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
                 </div>
               </div>
 
-              {/* Notes Log */}
-              <div style={{ marginBottom: '14px' }}>
-                <label style={ls}>Notes (Eastern Time)</label>
-                <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
+              {/* Notes section — full width */}
+              <div>
+                <div style={{ color: GOLD, fontSize: '9px', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '8px', paddingBottom: '4px', borderBottom: '1px solid rgba(16,185,129,0.15)' }}>Notes (Eastern Time)</div>
+                <div style={{ display: 'flex', gap: '8px', marginBottom: '10px' }}>
                   <input value={newNote} onChange={e => setNewNote(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') addNote(); }} placeholder="Add a note..." style={inp} />
-                  <button onClick={addNote} disabled={!newNote.trim()} style={{ background: `${GOLD}18`, color: GOLD, border: `1px solid ${GOLD}44`, borderRadius: '4px', padding: '0 14px', cursor: !newNote.trim() ? 'not-allowed' : 'pointer', fontSize: '12px', fontWeight: 'bold', opacity: newNote.trim() ? 1 : 0.5, fontFamily: 'Georgia, serif' }}>Add</button>
+                  <button onClick={addNote} disabled={!newNote.trim()} style={{ background: `${GOLD}18`, color: GOLD, border: `1px solid ${GOLD}44`, borderRadius: '4px', padding: '0 14px', cursor: !newNote.trim() ? 'not-allowed' : 'pointer', fontSize: '11px', fontWeight: 'bold', opacity: newNote.trim() ? 1 : 0.5, fontFamily: 'Georgia, serif', whiteSpace: 'nowrap' }}>Add</button>
                 </div>
-                <div style={{ maxHeight: '160px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <div style={{ maxHeight: '180px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '5px' }}>
                   {notesLog.length === 0 ? (
-                    <div style={{ color: '#4a5568', fontSize: '11px', textAlign: 'center', padding: '12px' }}>No notes yet.</div>
+                    <div style={{ color: '#4a5568', fontSize: '11px', textAlign: 'center', padding: '16px' }}>No notes yet.</div>
                   ) : (
                     [...notesLog].reverse().map((n, i) => (
-                      <div key={i} style={{ padding: '8px 10px', background: n.type === 'dial' ? 'rgba(96,165,250,0.06)' : 'rgba(255,255,255,0.03)', border: `1px solid ${n.type === 'dial' ? 'rgba(96,165,250,0.15)' : 'rgba(255,255,255,0.06)'}`, borderRadius: '4px' }}>
-                        <div style={{ color: n.type === 'dial' ? '#60a5fa' : '#c4cdd8', fontSize: '12px' }}>{n.text}</div>
-                        <div style={{ color: '#4a5568', fontSize: '9px', marginTop: '3px' }}>{fmtET(n.timestamp)} · {n.author || '—'}</div>
+                      <div key={i} style={{ padding: '8px 12px', background: n.type === 'dial' ? 'rgba(96,165,250,0.06)' : 'rgba(255,255,255,0.03)', border: `1px solid ${n.type === 'dial' ? 'rgba(96,165,250,0.15)' : 'rgba(255,255,255,0.06)'}`, borderRadius: '4px', borderLeft: `3px solid ${n.type === 'dial' ? BLUE : 'rgba(255,255,255,0.15)'}` }}>
+                        <div style={{ color: n.type === 'dial' ? BLUE : '#c4cdd8', fontSize: '12px', lineHeight: 1.4 }}>{n.text}</div>
+                        <div style={{ color: '#4a5568', fontSize: '9px', marginTop: '3px', display: 'flex', gap: '6px', alignItems: 'center' }}>
+                          <span>{fmtET(n.timestamp)}</span>
+                          <span>·</span>
+                          <span>{n.author || '—'}</span>
+                        </div>
                       </div>
                     ))
                   )}
                 </div>
               </div>
-
-              {/* Save */}
-              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                <button onClick={save} disabled={saving} style={{ background: 'linear-gradient(135deg,#10b981,#22c55e)', color: DARK, border: 'none', borderRadius: '4px', padding: '10px 24px', cursor: saving ? 'not-allowed' : 'pointer', fontSize: '12px', fontWeight: 'bold', opacity: saving ? 0.5 : 1 }}>
-                  {saving ? '⏳ Saving…' : '💾 Save'}
-                </button>
-                {saved && <span style={{ color: '#4ade80', fontSize: '12px' }}>✓ Saved</span>}
-              </div>
-            </>
+            </div>
           )}
 
           {cardTab === 'script' && (
@@ -247,18 +247,26 @@ export default function FronterContactCard({ lead, username, onClose, onSave, on
           )}
         </div>
 
+        {/* Save bar */}
+        <div style={{ padding: '10px 18px', borderTop: '1px solid rgba(255,255,255,0.07)', display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '10px', flexShrink: 0, background: 'rgba(0,0,0,0.2)' }}>
+          {saved && <span style={{ color: '#4ade80', fontSize: '12px' }}>✓ Saved</span>}
+          <button onClick={save} disabled={saving} style={{ background: 'linear-gradient(135deg,#10b981,#22c55e)', color: DARK, border: 'none', borderRadius: '4px', padding: '9px 28px', cursor: saving ? 'not-allowed' : 'pointer', fontSize: '12px', fontWeight: 'bold', opacity: saving ? 0.5 : 1 }}>
+            {saving ? '⏳ Saving…' : '💾 Save Changes'}
+          </button>
+        </div>
+
         {/* Resize handle */}
         <div onMouseDown={(e) => {
           e.stopPropagation();
           const startX = e.clientX, startY = e.clientY, startW = size.w, startH = size.h;
-          const onMove = (ev) => setSize({ w: Math.max(320, startW + ev.clientX - startX), h: Math.max(300, startH + ev.clientY - startY) });
+          const onMove = (ev) => setSize({ w: Math.max(400, startW + ev.clientX - startX), h: Math.max(400, startH + ev.clientY - startY) });
           const onUp = () => { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); };
           document.addEventListener('mousemove', onMove);
           document.addEventListener('mouseup', onUp);
         }} style={{ position: 'absolute', bottom: 0, right: 0, width: '16px', height: '16px', cursor: 'nwse-resize', color: '#4a5568', textAlign: 'right', paddingRight: '2px' }}>⌟</div>
       </div>
 
-      {/* Script popout — separate floating panel */}
+      {/* Script popout */}
       {scriptPoppedOut && (
         <div style={{ position: 'fixed', left: scriptPos.x, top: scriptPos.y, width: scriptSize.w, height: scriptSize.h, background: '#0d1b2a', border: `1px solid ${GOLD}44`, borderRadius: '8px', boxShadow: '0 16px 64px rgba(0,0,0,0.8)', zIndex: 10001, display: 'flex', flexDirection: 'column' }}>
           <div onMouseDown={onScriptDragStart} style={{ padding: '10px 14px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'move', userSelect: 'none', flexShrink: 0 }}>

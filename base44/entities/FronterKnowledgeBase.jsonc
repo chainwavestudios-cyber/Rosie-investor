@@ -19,6 +19,20 @@
       "type": "string",
       "title": "Tags"
     },
+    "sourceType": {
+      "type": "string",
+      "title": "Source Type (manual, document, mp3_call)",
+      "enum": [
+        "manual",
+        "document",
+        "mp3_call"
+      ],
+      "default": "manual"
+    },
+    "sourceFileName": {
+      "type": "string",
+      "title": "Source File Name (for document/mp3 uploads)"
+    },
     "sortOrder": {
       "type": "number",
       "title": "Sort Order",
