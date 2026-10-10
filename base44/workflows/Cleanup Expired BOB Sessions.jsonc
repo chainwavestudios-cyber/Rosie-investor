@@ -1,0 +1,44 @@
+{
+  "name": "Cleanup Expired BOB Sessions",
+  "definition": {
+    "document": {
+      "dsl": "1.0.0",
+      "name": "cleanup_expired_bob_sessions",
+      "version": "1.0",
+      "namespace": "base44"
+    },
+    "do": [
+      {
+        "cleanup": {
+          "call": "invoke_backend_function",
+          "with": {
+            "function_name": "cleanupBobSessions"
+          },
+          "then": "end",
+          "x-base44": {
+            "title": "Delete expired BOB sessions",
+            "description": "Remove recordings past 24h retention"
+          }
+        }
+      }
+    ]
+  },
+  "description": "Deletes BOB training session recordings (and their session records) after their 24-hour expiry. Runs every hour.",
+  "trigger": {
+    "condition": null,
+    "config": {
+      "trigger_type": "scheduled",
+      "events": [],
+      "schedule_mode": "recurring",
+      "cron_expression": "0 * * * *",
+      "one_time_date": null,
+      "timezone": "America/New_York",
+      "interval_value": null,
+      "interval_unit": null,
+      "interval_anchor": null,
+      "ends_type": "never",
+      "ends_on_date": null,
+      "ends_after_count": null
+    }
+  }
+}

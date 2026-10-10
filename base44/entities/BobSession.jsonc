@@ -81,6 +81,20 @@
     "traineeUsername": {
       "type": "string",
       "title": "Trainee Username"
+    },
+    "expiresAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Expires At (recording auto-deleted after this time)"
+    },
+    "sourceType": {
+      "type": "string",
+      "title": "Source Type (debt_coach, fronter)",
+      "enum": [
+        "debt_coach",
+        "fronter"
+      ],
+      "default": "debt_coach"
     }
   },
   "required": [
