@@ -12,6 +12,8 @@ import { BOB_CHARACTERS, getCharacter, DEFAULT_CHARACTER_ID, BOB_THINK_MODELS, D
 import FronterQAPopup from '@/components/fronter/FronterQAPopup';
 import { substituteScriptVars } from '@/lib/scriptSubstitute';
 import { renderFormatted } from '@/components/debt/ScriptRichText';
+import FronterBobScenarioBuilder from './FronterBobScenarioBuilder';
+import FronterBobOpeningScenarios from './FronterBobOpeningScenarios';
 
 const GOLD = '#10b981';
 const DARK = '#0a0f1e';
@@ -143,6 +145,8 @@ export default function FronterBobTrainer({ username, fronterFirstName }) {
   const [sessionSaved, setSessionSaved] = useState(false);
   const [saveStatus, setSaveStatus] = useState('');
   const [dgApiKey, setDgApiKey] = useState('');
+  const [showScenarioBuilder, setShowScenarioBuilder] = useState(false);
+  const [showOpeningScenarios, setShowOpeningScenarios] = useState(false);
   const transcriptRef = useRef([]);
   const callStartRef = useRef(null);
   const sessionRecIdRef = useRef(null);
@@ -265,14 +269,16 @@ export default function FronterBobTrainer({ username, fronterFirstName }) {
     const minObjections = sliderValue < 33 ? 3 + intensity : sliderValue < 67 ? 2 + Math.ceil(intensity / 2) : Math.max(1, Math.ceil(intensity / 3));
     const minQuestions = 2 + intensity;
 
-    const scenarioText = (scenario.debtAmount || scenario.creditors) ? `
+    const scenarioText = (scenario.debtAmount || scenario.creditors || scenario.customerAddress) ? `
 ━━━ YOUR DEBT SITUATION — USE THESE DETAILS ━━━
 - Name: ${scenario.customerName || 'Bob'}
+${scenario.customerAddress ? `- Address: ${scenario.customerAddress}` : ''}
 - Total Debt: $${scenario.debtAmount || 'unspecified'}
 - Creditors: ${scenario.creditors || 'unspecified'} (${scenario.creditorCount || '?'} accounts)
 - Monthly Income: $${scenario.monthlyIncome || 'unspecified'}
 - Months Behind: ${scenario.monthsBehind || '0'}
 - Hardship: ${scenario.hardship || 'I lost my job and had to rely on credit cards. Even after finding new work, the interest rates keep me from getting ahead.'}
+${scenario.openingLine ? `- OPENING LINE: When you answer the phone, say exactly: "${scenario.openingLine}" Then wait for the fronter to respond.` : ''}
 - Use these details when discussing your financial situation. Be specific when asked.` : '';
 
     return `${persona.systemPrompt}
@@ -324,7 +330,7 @@ ${kbText || 'No KB entries yet. The fronter should upload calls and documents to
     const apiKey = dgApiKey || '44294c0c2f0ebbcc81b853151056111226b853e9';
     const customerName = scenario.customerName || 'Bob';
     const greetings = [`Hello?`, `This is ${customerName}.`, `Hello?`, `Yeah, this is ${customerName}.`];
-    const greeting = greetings[Math.floor(Math.random() * greetings.length)];
+    const greeting = scenario.openingLine || greetings[Math.floor(Math.random() * greetings.length)];
 
     // No transfer agent for fronter calls — direct cold call
     await startCall({ apiKey, systemPrompt: buildSystemPrompt(), voiceModel: character.voiceModel, greeting, sessionLabel: character.name, thinkModel });
@@ -479,12 +485,22 @@ ${kbText || 'No KB entries yet. The fronter should upload calls and documents to
                 <button key={i} onClick={() => setScenario(p.data)} style={{ padding: '5px 8px', borderRadius: '3px', border: '1px solid rgba(251,146,60,0.3)', background: 'rgba(251,146,60,0.08)', color: '#fb923c', cursor: 'pointer', fontSize: '10px' }}>{p.label}</button>
               ))}
             </div>
+            <div style={{ display: 'flex', gap: '5px', marginBottom: '10px' }}>
+              <button onClick={() => setShowScenarioBuilder(true)} style={{ flex: 1, padding: '7px 8px', borderRadius: '4px', border: '1px solid rgba(167,139,250,0.4)', background: 'rgba(167,139,250,0.1)', color: PURPLE, cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>🤖 AI Builder</button>
+              <button onClick={() => setShowOpeningScenarios(true)} style={{ flex: 1, padding: '7px 8px', borderRadius: '4px', border: '1px solid rgba(96,165,250,0.4)', background: 'rgba(96,165,250,0.1)', color: BLUE, cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>📞 Real Openings</button>
+            </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px', marginBottom: '6px' }}>
+              <div><label style={ls}>Customer Name</label><input value={scenario.customerName || ''} onChange={e => setScenario(p => ({ ...p, customerName: e.target.value }))} style={inp} placeholder="Bob" /></div>
               <div><label style={ls}>Total Debt $</label><input type="number" value={scenario.debtAmount} onChange={e => setScenario(p => ({ ...p, debtAmount: e.target.value }))} style={inp} /></div>
+            </div>
+            <div style={{ marginBottom: '6px' }}><label style={ls}>Customer Address</label><input value={scenario.customerAddress || ''} onChange={e => setScenario(p => ({ ...p, customerAddress: e.target.value }))} style={inp} placeholder="123 Main St, City, State 12345" /></div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px', marginBottom: '6px' }}>
               <div><label style={ls}>Income $</label><input type="number" value={scenario.monthlyIncome} onChange={e => setScenario(p => ({ ...p, monthlyIncome: e.target.value }))} style={inp} /></div>
+              <div><label style={ls}>Months Behind</label><input type="number" value={scenario.monthsBehind || ''} onChange={e => setScenario(p => ({ ...p, monthsBehind: e.target.value }))} style={inp} /></div>
             </div>
             <div style={{ marginBottom: '6px' }}><label style={ls}>Creditors</label><input value={scenario.creditors} onChange={e => setScenario(p => ({ ...p, creditors: e.target.value }))} style={inp} /></div>
             <div><label style={ls}>Hardship Story</label><textarea value={scenario.hardship} onChange={e => setScenario(p => ({ ...p, hardship: e.target.value }))} rows={3} style={{ ...inp, resize: 'vertical' }} /></div>
+            {scenario.openingLine && <div style={{ marginTop: '8px', padding: '8px 10px', background: 'rgba(96,165,250,0.08)', border: '1px solid rgba(96,165,250,0.25)', borderRadius: '4px' }}><div style={{ color: BLUE, fontSize: '9px', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '4px' }}>Custom Opening Line</div><div style={{ color: '#c4cdd8', fontSize: '11px', fontStyle: 'italic' }}>"{scenario.openingLine}"</div><button onClick={() => setScenario(p => ({ ...p, openingLine: '' }))} style={{ marginTop: '4px', background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '10px' }}>✕ Clear</button></div>}
           </div>
 
           {/* Stats */}
@@ -534,6 +550,16 @@ ${kbText || 'No KB entries yet. The fronter should upload calls and documents to
       {/* Auto-popout: Scripts */}
       {showScripts && (
         <FloatingScripts scripts={scripts} fronterFirstName={fronterFirstName} onClose={() => setShowScripts(false)} />
+      )}
+
+      {/* AI Scenario Builder */}
+      {showScenarioBuilder && (
+        <FronterBobScenarioBuilder onApply={(s) => { setScenario(s); setShowScenarioBuilder(false); }} onClose={() => setShowScenarioBuilder(false)} />
+      )}
+
+      {/* Real Call Openings */}
+      {showOpeningScenarios && (
+        <FronterBobOpeningScenarios onApply={(s) => { setScenario(s); setShowOpeningScenarios(false); }} onClose={() => setShowOpeningScenarios(false)} />
       )}
     </div>
   );
