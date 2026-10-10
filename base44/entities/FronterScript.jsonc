@@ -11,6 +11,33 @@
       "title": "Script Content",
       "format": "textarea"
     },
+    "scriptType": {
+      "type": "string",
+      "title": "Script Type",
+      "enum": [
+        "open",
+        "close",
+        "discovery",
+        "rebuttal",
+        "custom"
+      ],
+      "default": "custom"
+    },
+    "color": {
+      "type": "string",
+      "title": "Text Color (hex)",
+      "default": "#e8e0d0"
+    },
+    "fontSize": {
+      "type": "number",
+      "title": "Font Size (px)",
+      "default": 14
+    },
+    "alwaysSaveBackup": {
+      "type": "boolean",
+      "title": "Always Save Backup (nightly)",
+      "default": false
+    },
     "sortOrder": {
       "type": "number",
       "title": "Sort Order",

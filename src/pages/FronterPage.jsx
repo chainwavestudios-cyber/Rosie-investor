@@ -300,7 +300,7 @@ export default function FronterPage() {
 
         {tab === 'hr' && <FronterHRTab username={user.username} />}
 
-        {tab === 'scripts' && <FronterScriptsTab fronterFirstName={user?.firstName} />}
+        {tab === 'scripts' && <FronterScriptsTab fronterFirstName={user?.firstName} username={user.username} />}
 
         {tab === 'settings' && <FronterSettingsTab />}
       </div>
