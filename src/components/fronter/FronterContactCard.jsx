@@ -11,6 +11,9 @@ import { renderFormatted } from '@/components/debt/ScriptRichText';
 import FronterCardAudioControls from './FronterCardAudioControls';
 import FronterMeetingScheduler from './FronterMeetingScheduler';
 import FronterCredsEmailPopup from './FronterCredsEmailPopup';
+import FronterCardActions from './FronterCardActions';
+import FronterHardshipField from './FronterHardshipField';
+import FronterNotesSection from './FronterNotesSection';
 
 const GOLD = '#10b981';
 const DARK = '#0a0f1e';
@@ -36,7 +39,7 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
   const [saved, setSaved] = useState(false);
   const [cardTab, setCardTab] = useState('contact');
   const [pos, setPos] = useState({ x: 60, y: 50 });
-  const [size, setSize] = useState({ w: 560, h: 600 });
+  const [size, setSize] = useState({ w: 720, h: 640 });
   const dragRef = useRef(null);
   const [scripts, setScripts] = useState([]);
   const [activeScript, setActiveScript] = useState(null);
@@ -129,13 +132,31 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
     setHeadsUpSending(false);
   };
 
-  const addNote = async () => {
-    if (!newNote.trim() || !lead?.id) return;
-    const entry = { text: newNote.trim(), timestamp: new Date().toISOString(), author: username, type: 'note' };
+  const addNote = async (entry) => {
+    if (!lead?.id) return;
     const nextLog = [...notesLog, entry];
     setNotesLog(nextLog);
-    setNewNote('');
     try { await base44.entities.FronterLead.update(lead.id, { notesLogJson: JSON.stringify(nextLog) }); } catch {}
+  };
+
+  const setDisposition = async (updates, confirmMsg) => {
+    if (!lead?.id) return;
+    if (confirmMsg && !confirm(confirmMsg)) return;
+    try {
+      await base44.entities.FronterLead.update(lead.id, updates);
+      setLocal(prev => ({ ...prev, ...updates }));
+      onSave?.({ ...local, ...updates });
+    } catch (e) { alert('Update failed: ' + (e?.message || String(e))); }
+  };
+
+  const markTransferred = () => {
+    const now = new Date().toISOString();
+    setDisposition({ status: 'transferred', lastCallResult: 'transferred', transferredAt: now, lastCalledAt: now }, `Mark ${local.firstName || 'this contact'} as Transferred? The card becomes a Lead.`);
+  };
+
+  const markBooked = () => {
+    if (!isAdmin) return;
+    setDisposition({ status: 'booked', lastCallResult: 'booked', bookedAt: new Date().toISOString(), bookedBy: username }, `Mark ${local.firstName || 'this contact'} as Booked?`);
   };
 
   const save = async () => {
@@ -146,7 +167,7 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
         firstName: local.firstName, lastName: local.lastName, phone: local.phone, phone2: local.phone2,
         email: local.email, address: local.address, state: local.state, zipCode: local.zipCode,
         preferredCallTime: local.preferredCallTime, employmentStatus: local.employmentStatus,
-        annualIncome: local.annualIncome, referralSource: local.referralSource,
+        hardshipQualification: local.hardshipQualification || '', referralSource: local.referralSource,
         debtAmount: local.debtAmount, debtTypesJson: local.debtTypesJson,
         notesLogJson: JSON.stringify(notesLog),
       });
@@ -190,9 +211,9 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
   );
 
   const initials = `${(local.firstName?.[0] || '?')}${(local.lastName?.[0] || '')}`;
-  const leadTypeColor = local.status === 'lead' ? GOLD : local.status === 'transferred' ? '#a78bfa' : local.status === 'closed_deal' ? '#a78bfa' : '#60a5fa';
-  const leadTypeLabel = local.status === 'lead' ? 'LEAD' : local.status === 'transferred' ? 'TRANSFERRED' : local.status === 'closed_deal' ? 'CLOSED DEAL' : 'PROSPECT';
-  const animalEmoji = local.status === 'closed_deal' ? '💎' : local.status === 'transferred' ? '🦄' : local.status === 'lead' ? '🐄' : '🦆';
+  const leadTypeColor = local.status === 'lead' ? GOLD : local.status === 'transferred' ? '#a78bfa' : local.status === 'booked' ? '#f59e0b' : local.status === 'closed_deal' ? '#c084fc' : '#60a5fa';
+  const leadTypeLabel = local.status === 'lead' ? 'LEAD CONTACT' : local.status === 'transferred' ? 'LEAD CONTACT · TRANSFERRED' : local.status === 'booked' ? 'BOOKED CONTACT' : local.status === 'closed_deal' ? 'CLOSED DEAL' : 'PROSPECT CONTACT';
+  const animalEmoji = local.status === 'closed_deal' ? '💎' : local.status === 'booked' ? '📗' : local.status === 'transferred' ? '🦄' : local.status === 'lead' ? '🐄' : '🦆';
 
   return (
     <>
@@ -202,7 +223,7 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
           <span style={{ color: leadTypeColor, fontSize: '11px', fontWeight: 'bold', letterSpacing: '3px', textTransform: 'uppercase' }}>● {leadTypeLabel} ●</span>
         </div>
         {/* Header — draggable */}
-        <div onMouseDown={onDragStart} style={{ padding: '12px 18px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'move', userSelect: 'none', flexShrink: 0, background: 'linear-gradient(135deg, rgba(16,185,129,0.06), transparent)' }}>
+        <div onMouseDown={onDragStart} style={{ padding: '12px 18px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px', cursor: 'move', userSelect: 'none', flexShrink: 0, background: 'linear-gradient(135deg, rgba(16,185,129,0.06), transparent)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             <div style={{ width: '38px', height: '38px', borderRadius: '50%', background: `linear-gradient(135deg, ${GOLD}, #22c55e)`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: DARK, fontSize: '14px', fontWeight: 'bold', flexShrink: 0, textTransform: 'uppercase' }}>{initials}</div>
             <div>
@@ -214,18 +235,21 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
               </div>
             </div>
           </div>
-          <div style={{ display: 'flex', gap: '3px', alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-            {local.credsSentAt && <span title="Credentials Sent" style={{ padding: '2px 6px', borderRadius: '8px', background: 'rgba(74,222,128,0.12)', border: '1px solid rgba(74,222,128,0.3)', color: '#4ade80', fontSize: '10px' }}>🔑✓</span>}
-            <button onClick={(e) => { e.stopPropagation(); sendHeadsUp(); }} disabled={headsUpSending} title="Transfer Coming" style={{ background: headsUpSent ? 'rgba(74,222,128,0.15)' : 'rgba(239,68,68,0.15)', color: headsUpSent ? '#4ade80' : '#ef4444', border: '1px solid ' + (headsUpSent ? 'rgba(74,222,128,0.3)' : 'rgba(239,68,68,0.3)'), borderRadius: '4px', padding: '4px 8px', cursor: headsUpSending ? 'not-allowed' : 'pointer', fontSize: '13px', opacity: headsUpSending ? 0.5 : 1 }}>🚨</button>
-            <button onClick={(e) => { e.stopPropagation(); setShowCredsPopup(true); }} title="Email Company Credentials" style={{ background: 'rgba(96,165,250,0.12)', color: BLUE, border: '1px solid rgba(96,165,250,0.25)', borderRadius: '4px', padding: '4px 8px', cursor: 'pointer', fontSize: '13px' }}>🔑</button>
-            {local.status === 'prospect' && <>
-              <button onClick={(e) => { e.stopPropagation(); setMeetingDisposition('interested'); setShowMeetingScheduler(true); }} title="Interested" style={{ background: 'rgba(16,185,129,0.15)', color: GOLD, border: '1px solid rgba(16,185,129,0.3)', borderRadius: '4px', padding: '4px 8px', cursor: 'pointer', fontSize: '13px' }}>✓</button>
-              <button onClick={(e) => { e.stopPropagation(); setMeetingDisposition('appointment'); setShowMeetingScheduler(true); }} title="Requests Meeting" style={{ background: 'rgba(96,165,250,0.15)', color: BLUE, border: '1px solid rgba(96,165,250,0.3)', borderRadius: '4px', padding: '4px 8px', cursor: 'pointer', fontSize: '13px' }}>📅</button>
-            </>}
-            {isAdmin && local.status !== 'closed_deal' && <button onClick={(e) => { e.stopPropagation(); markClosedDeal(); }} title="Mark as Closed Deal" style={{ background: 'rgba(167,139,250,0.15)', color: '#a78bfa', border: '1px solid rgba(167,139,250,0.3)', borderRadius: '4px', padding: '4px 8px', cursor: 'pointer', fontSize: '13px' }}>💎</button>}
-            {onNext && <button onClick={(e) => { e.stopPropagation(); onNext(); }} title="Next Lead" style={{ background: GOLD + '18', color: GOLD, border: '1px solid ' + GOLD + '44', borderRadius: '4px', padding: '4px 8px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}>→</button>}
-            <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#6b7280', cursor: 'pointer', fontSize: '18px', padding: 0, lineHeight: 1 }}>×</button>
-          </div>
+          <FronterCardActions
+            status={local.status || 'prospect'}
+            isAdmin={isAdmin}
+            credsSent={!!local.credsSentAt}
+            headsUpSent={headsUpSent}
+            headsUpSending={headsUpSending}
+            onHeadsUp={sendHeadsUp}
+            onCreds={() => setShowCredsPopup(true)}
+            onInterested={() => { setMeetingDisposition('interested'); setShowMeetingScheduler(true); }}
+            onTransferred={markTransferred}
+            onBooked={markBooked}
+            onClosedDeal={markClosedDeal}
+            onNext={onNext}
+            onClose={onClose}
+          />
         </div>
 
         {/* Call control — LED timer + animal + auto-record indicator */}
@@ -322,42 +346,14 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
                         <option value="disabled">Disabled</option>
                       </select>
                     </div>
-                    <div style={{ marginBottom: '8px' }}>
-                      <label style={ls}>Annual Income ($)</label>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                        <span style={{ color: '#6b7280', fontSize: '14px' }}>$</span>
-                        <input type="number" value={local.annualIncome ?? ''} onChange={e => update('annualIncome', e.target.value ? Number(e.target.value) : null)} style={inp} placeholder="0" />
-                      </div>
-                    </div>
+                    <FronterHardshipField value={local.hardshipQualification} onChange={v => update('hardshipQualification', v)} labelStyle={ls} inputStyle={inp} />
                     <div><label style={ls}>Lead Source / Referral</label><input value={local.referralSource || ''} onChange={e => update('referralSource', e.target.value)} style={inp} placeholder="Facebook, Google, Referral…" /></div>
                   </div>
                 </div>
               </div>
 
               {/* Notes section — full width */}
-              <div>
-                <div style={{ color: GOLD, fontSize: '9px', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '8px', paddingBottom: '4px', borderBottom: '1px solid rgba(16,185,129,0.15)' }}>Notes (Eastern Time)</div>
-                <div style={{ display: 'flex', gap: '8px', marginBottom: '10px' }}>
-                  <input value={newNote} onChange={e => setNewNote(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') addNote(); }} placeholder="Add a note..." style={inp} />
-                  <button onClick={addNote} disabled={!newNote.trim()} style={{ background: `${GOLD}18`, color: GOLD, border: `1px solid ${GOLD}44`, borderRadius: '4px', padding: '0 14px', cursor: !newNote.trim() ? 'not-allowed' : 'pointer', fontSize: '11px', fontWeight: 'bold', opacity: newNote.trim() ? 1 : 0.5, fontFamily: 'Georgia, serif', whiteSpace: 'nowrap' }}>Add</button>
-                </div>
-                <div style={{ maxHeight: '180px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '5px' }}>
-                  {notesLog.length === 0 ? (
-                    <div style={{ color: '#4a5568', fontSize: '11px', textAlign: 'center', padding: '16px' }}>No notes yet.</div>
-                  ) : (
-                    [...notesLog].reverse().map((n, i) => (
-                      <div key={i} style={{ padding: '8px 12px', background: n.type === 'dial' ? 'rgba(96,165,250,0.06)' : 'rgba(255,255,255,0.03)', border: `1px solid ${n.type === 'dial' ? 'rgba(96,165,250,0.15)' : 'rgba(255,255,255,0.06)'}`, borderRadius: '4px', borderLeft: `3px solid ${n.type === 'dial' ? BLUE : 'rgba(255,255,255,0.15)'}` }}>
-                        <div style={{ color: n.type === 'dial' ? BLUE : '#c4cdd8', fontSize: '12px', lineHeight: 1.4 }}>{n.text}</div>
-                        <div style={{ color: '#4a5568', fontSize: '9px', marginTop: '3px', display: 'flex', gap: '6px', alignItems: 'center' }}>
-                          <span>{fmtET(n.timestamp)}</span>
-                          <span>·</span>
-                          <span>{n.author || '—'}</span>
-                        </div>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </div>
+              <FronterNotesSection notesLog={notesLog} username={username} onAdd={addNote} inputStyle={inp} />
 
             </div>
           )}
@@ -443,7 +439,7 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
           username={username}
           disposition={meetingDisposition}
           onClose={() => setShowMeetingScheduler(false)}
-          onScheduled={() => { setShowMeetingScheduler(false); onSave?.(local); }}
+          onScheduled={() => { const upd = { status: 'lead', lastCallResult: meetingDisposition }; setShowMeetingScheduler(false); setLocal(prev => ({ ...prev, ...upd })); onSave?.({ ...local, ...upd }); }}
         />
       )}
     </>

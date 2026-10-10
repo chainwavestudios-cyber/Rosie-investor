@@ -59,6 +59,11 @@
       "type": "number",
       "title": "Annual Income ($)"
     },
+    "hardshipQualification": {
+      "type": "string",
+      "title": "Hardship Qualification",
+      "format": "textarea"
+    },
     "referralSource": {
       "type": "string",
       "title": "Lead Source / Referral"
@@ -74,7 +79,7 @@
     },
     "notesLogJson": {
       "type": "string",
-      "title": "Notes Log (JSON array of {text, timestamp, author, type})",
+      "title": "Notes Log (JSON array of {text, timestamp, author, type, attachment})",
       "format": "textarea"
     },
     "status": {
@@ -84,6 +89,7 @@
         "prospect",
         "lead",
         "transferred",
+        "booked",
         "closed_deal",
         "removed"
       ],
@@ -114,7 +120,7 @@
     },
     "lastCallResult": {
       "type": "string",
-      "title": "Last Call Result (no_answer, voicemail, connected, transferred, hung_up, not_interested, interested, appointment)"
+      "title": "Last Call Result (no_answer, voicemail, connected, transferred, hung_up, not_interested, interested, appointment, booked)"
     },
     "lastCallDurationSeconds": {
       "type": "number",
@@ -129,6 +135,15 @@
       "type": "string",
       "format": "date-time",
       "title": "Transferred At"
+    },
+    "bookedAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Booked At (set by admin)"
+    },
+    "bookedBy": {
+      "type": "string",
+      "title": "Booked By (admin username)"
     },
     "closedDealAt": {
       "type": "string",

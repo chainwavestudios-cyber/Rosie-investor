@@ -48,11 +48,11 @@ export default function FronterAdminTab({ adminUsername }) {
     setLoading(true);
     try {
       const [users, assignments, ls, allLeads, scrs] = await Promise.all([
-        base44.entities.DebtCoachUser.list('-created_date', 500),
-        base44.entities.FronterLineAssignment.list('-assignedAt', 100),
-        base44.functions.invoke('twilioGetLines', {}),
-        base44.entities.FronterLead.list('-created_date', 500),
-        base44.entities.FronterScript.list('sortOrder', 50),
+        base44.entities.DebtCoachUser.list('-created_date', 500).catch(() => []),
+        base44.entities.FronterLineAssignment.list('-assignedAt', 100).catch(() => []),
+        base44.functions.invoke('twilioGetLines', {}).catch(() => ({})),
+        base44.entities.FronterLead.list('-created_date', 500).catch(() => []),
+        base44.entities.FronterScript.list('sortOrder', 50).catch(() => []),
       ]);
       const allU = users || [];
       setAllUsers(allU);
@@ -175,9 +175,11 @@ export default function FronterAdminTab({ adminUsername }) {
 
   // ── Scripts ──
   const addScript = async (data) => {
-    if (!data?.name?.trim() || !data?.content?.trim()) return;
+    if (!data?.name?.trim()) { alert('Please enter a script name.'); return; }
+    if (!data?.content?.trim()) { alert('Script content is empty — nothing was saved.'); return; }
     try {
       await base44.entities.FronterScript.create({ name: data.name, content: data.content, sortOrder: scripts.length });
+      alert('Script saved.');
       loadAll();
     } catch (e) { alert('Failed: ' + (e?.message || String(e))); }
   };

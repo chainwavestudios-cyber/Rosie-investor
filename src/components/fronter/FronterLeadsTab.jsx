@@ -44,7 +44,7 @@ export default function FronterLeadsTab({ username, lineKey, lineNumber, isAdmin
       // Prospects: ONLY status === 'prospect' (never show converted leads)
       // Leads: ONLY status === 'lead' or 'transferred' (never show prospects)
       let active = mode === 'leads'
-        ? all.filter(l => l.status === 'lead' || l.status === 'transferred')
+        ? all.filter(l => l.status === 'lead' || l.status === 'transferred' || l.status === 'booked')
         : all.filter(l => l.status === 'prospect' && (l.callCount || 0) < 3);
       // Admin fronter filter
       if (isAdmin && fronterFilter) {
@@ -187,15 +187,15 @@ export default function FronterLeadsTab({ username, lineKey, lineNumber, isAdmin
 
   // Compute status counts and filtered leads
   const statusCounts = mode === 'leads'
-    ? { all: leads.length, transferred: leads.filter(l => l.status === 'transferred').length, interested: leads.filter(l => l.lastCallResult === 'interested').length, appointment: leads.filter(l => l.lastCallResult === 'appointment').length }
+    ? { all: leads.length, booked: leads.filter(l => l.status === 'booked').length, transferred: leads.filter(l => l.status === 'transferred').length, interested: leads.filter(l => l.lastCallResult === 'interested').length, appointment: leads.filter(l => l.lastCallResult === 'appointment').length }
     : { all: leads.length, never_called: leads.filter(l => !l.lastCalledAt).length, called: leads.filter(l => l.lastCalledAt).length };
   const FILTER_TABS = mode === 'leads'
-    ? [{ id: 'all', label: 'All Leads' }, { id: 'transferred', label: 'Transferred' }, { id: 'interested', label: 'Interested' }, { id: 'appointment', label: 'Appointment' }]
+    ? [{ id: 'all', label: 'All Leads' }, { id: 'booked', label: 'Booked' }, { id: 'transferred', label: 'Transferred' }, { id: 'interested', label: 'Interested' }, { id: 'appointment', label: 'Appointment' }]
     : [{ id: 'all', label: 'All Prospects' }, { id: 'never_called', label: 'Never Called' }, { id: 'called', label: 'Called' }];
   let displayLeads = leads;
   if (statusFilter !== 'all') {
     if (mode === 'leads') {
-      if (statusFilter === 'transferred') displayLeads = leads.filter(l => l.status === 'transferred');
+      if (statusFilter === 'transferred' || statusFilter === 'booked') displayLeads = leads.filter(l => l.status === statusFilter);
       else displayLeads = leads.filter(l => l.lastCallResult === statusFilter);
     } else {
       if (statusFilter === 'never_called') displayLeads = leads.filter(l => !l.lastCalledAt);
@@ -315,7 +315,7 @@ export default function FronterLeadsTab({ username, lineKey, lineNumber, isAdmin
                 </thead>
                 <tbody>
                   {displayLeads.map((l, i) => {
-                    const sc = l.status === 'lead' ? GOLD : l.status === 'transferred' ? '#a78bfa' : '#60a5fa';
+                    const sc = l.status === 'lead' ? GOLD : l.status === 'transferred' ? '#a78bfa' : l.status === 'booked' ? '#f59e0b' : '#60a5fa';
                     return (
                       <tr key={l.id}
                         style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', cursor: 'pointer', transition: 'background 0.1s', background: contactCardLead?.id === l.id ? 'rgba(16,185,129,0.06)' : 'transparent' }}
@@ -388,17 +388,7 @@ export default function FronterLeadsTab({ username, lineKey, lineNumber, isAdmin
 
             {/* Status update */}
             <div style={{ marginTop: '12px', padding: '12px', background: 'rgba(255,255,255,0.03)', borderRadius: '4px' }}>
-              <div style={{ color: GOLD, fontSize: '10px', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '8px' }}>Convert to Lead</div>
-              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                {activeLead.status === 'prospect' && (
-                  <>
-                    <button onClick={() => convertToLead(activeLead.id, 'transferred')} style={{ background: 'linear-gradient(135deg,#10b981,#22c55e)', color: DARK, border: 'none', borderRadius: '4px', padding: '8px 14px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>✓ Transferred (Lead)</button>
-                    <button onClick={() => convertToLead(activeLead.id, 'interested')} style={{ background: 'linear-gradient(135deg,#10b981,#22c55e)', color: DARK, border: 'none', borderRadius: '4px', padding: '8px 14px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>✓ Interested</button>
-                    <button onClick={() => convertToLead(activeLead.id, 'appointment')} style={{ background: 'linear-gradient(135deg,#10b981,#22c55e)', color: DARK, border: 'none', borderRadius: '4px', padding: '8px 14px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>✓ Appointment (Lead)</button>
-                  </>
-                )}
-              </div>
-              <div style={{ color: '#6b7280', fontSize: '9px', textTransform: 'uppercase', letterSpacing: '1px', margin: '10px 0 6px' }}>Call Result</div>
+              <div style={{ color: '#6b7280', fontSize: '9px', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '6px' }}>Call Result</div>
               <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
                 <button onClick={() => markCallResult(activeLead.id, 'not_interested')} style={{ background: 'rgba(239,68,68,0.1)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.25)', borderRadius: '4px', padding: '7px 12px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>✗ Not Interested</button>
                 <button onClick={() => markCallResult(activeLead.id, 'voicemail')} style={{ background: 'rgba(245,158,11,0.1)', color: '#f59e0b', border: '1px solid rgba(245,158,11,0.25)', borderRadius: '4px', padding: '7px 12px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>📞 Voicemail</button>

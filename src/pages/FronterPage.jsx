@@ -24,6 +24,7 @@ import FronterOnboarding from '@/components/fronter/FronterOnboarding';
 import FronterClosedDealsTab from '@/components/fronter/FronterClosedDealsTab';
 import FronterCongratsPopup from '@/components/fronter/FronterCongratsPopup';
 import FronterChatroom from '@/components/fronter/FronterChatroom';
+import FronterEmergencyScript from '@/components/fronter/FronterEmergencyScript';
 
 const GOLD = '#10b981';
 const DARK = '#0a0f1e';
@@ -320,6 +321,9 @@ export default function FronterPage() {
       {showChatroom && (
         <FronterChatroom username={user?.username} role={isAdmin ? 'admin' : 'fronter'} onClose={() => setShowChatroom(false)} />
       )}
+
+      {/* Emergency script — Alt+S */}
+      <FronterEmergencyScript />
 
       {/* Congrats popup — shows when a deal is closed */}
       {isFronter && <FronterCongratsPopup username={user.username} fronterFirstName={user?.firstName} />}
