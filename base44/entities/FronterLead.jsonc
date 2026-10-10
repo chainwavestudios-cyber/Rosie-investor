@@ -54,7 +54,12 @@
     },
     "lastCallResult": {
       "type": "string",
-      "title": "Last Call Result (no_answer, voicemail, connected, transferred)"
+      "title": "Last Call Result (no_answer, voicemail, connected, transferred, hung_up, not_interested)"
+    },
+    "lastCallDurationSeconds": {
+      "type": "number",
+      "title": "Last Call Duration (seconds)",
+      "default": 0
     },
     "transferredTo": {
       "type": "string",

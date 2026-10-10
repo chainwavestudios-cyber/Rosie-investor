@@ -22,6 +22,7 @@ export default function FronterPage() {
   const [lineAssignment, setLineAssignment] = useState(null);
   const [availableLines, setAvailableLines] = useState([]);
   const [adminLineKey, setAdminLineKey] = useState('');
+  const [metrics, setMetrics] = useState({ callsToday: 0, talkTimeSeconds: 0, transferredToday: 0 });
 
   const isAdmin = isSuperAdmin;
   // Fronter sees leads + scripts; admin sees admin + leads + scripts
@@ -45,6 +46,25 @@ export default function FronterPage() {
   }, [user?.username, isAdmin]);
 
   useEffect(() => { loadLine(); }, [loadLine]);
+
+  // Load per-user daily metrics (calls today, talk time, transferred)
+  useEffect(() => {
+    if (!user?.username) return;
+    const compute = async () => {
+      try {
+        const all = await base44.entities.FronterLead.filter({ assignedTo: user.username }, '-created_date', 500);
+        const today = new Date(); today.setHours(0, 0, 0, 0);
+        const todayLeads = (all || []).filter(l => l.lastCalledAt && new Date(l.lastCalledAt) >= today);
+        const callsToday = todayLeads.length;
+        const talkTimeSeconds = todayLeads.reduce((s, l) => s + (l.lastCallDurationSeconds || 0), 0);
+        const transferredToday = (all || []).filter(l => l.status === 'transferred' && l.transferredAt && new Date(l.transferredAt) >= today).length;
+        setMetrics({ callsToday, talkTimeSeconds, transferredToday });
+      } catch {}
+    };
+    compute();
+    const interval = setInterval(compute, 30000);
+    return () => clearInterval(interval);
+  }, [user?.username]);
 
   // Resolve the line to use for the leads tab
   const activeLine = isFronter
@@ -81,6 +101,22 @@ export default function FronterPage() {
           {isAdmin && <span style={{ padding: '2px 8px', borderRadius: '10px', background: 'rgba(16,185,129,0.15)', color: GOLD, fontSize: '9px', fontWeight: 'bold', textTransform: 'uppercase' }}>Super Admin</span>}
         </div>
         <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+          {/* Daily metrics for this user */}
+          <div style={{ display: 'flex', gap: '14px', alignItems: 'center', padding: '0 14px', borderLeft: '1px solid rgba(255,255,255,0.07)', borderRight: '1px solid rgba(255,255,255,0.07)' }}>
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ color: '#60a5fa', fontSize: '15px', fontWeight: 'bold' }}>{metrics.callsToday}</div>
+              <div style={{ color: '#6b7280', fontSize: '8px', textTransform: 'uppercase', letterSpacing: '1px' }}>Calls Today</div>
+            </div>
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ color: GOLD, fontSize: '15px', fontWeight: 'bold' }}>{Math.floor(metrics.talkTimeSeconds / 60)}m {metrics.talkTimeSeconds % 60}s</div>
+              <div style={{ color: '#6b7280', fontSize: '8px', textTransform: 'uppercase', letterSpacing: '1px' }}>Talk Time</div>
+            </div>
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ color: '#a78bfa', fontSize: '15px', fontWeight: 'bold' }}>{metrics.transferredToday}</div>
+              <div style={{ color: '#6b7280', fontSize: '8px', textTransform: 'uppercase', letterSpacing: '1px' }}>Transferred</div>
+            </div>
+          </div>
+          <button onClick={() => setTab('leads')} title="Home" style={{ background: `${GOLD}18`, color: GOLD, border: `1px solid ${GOLD}44`, borderRadius: '4px', padding: '6px 12px', cursor: 'pointer', fontSize: '14px' }}>🏠</button>
           {isAdmin && (
             <button onClick={() => navigate('/debt-call-coach', { replace: true })} style={{ background: 'rgba(255,255,255,0.05)', color: '#8a9ab8', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '4px', padding: '6px 14px', cursor: 'pointer', fontSize: '11px' }}>← Back to Coach</button>
           )}

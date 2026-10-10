@@ -22,6 +22,7 @@ export default function FronterLeadsTab({ username, lineKey, lineNumber, isAdmin
   const [fronters, setFronters] = useState([]);
   const [leadForm, setLeadForm] = useState({ firstName: '', lastName: '', phone: '', assignedTo: '', notes: '' });
   const [bulkText, setBulkText] = useState('');
+  const [dialTrigger, setDialTrigger] = useState(0);
   const fileRef = useRef(null);
 
   const load = useCallback(async () => {
@@ -105,7 +106,22 @@ export default function FronterLeadsTab({ username, lineKey, lineNumber, isAdmin
 
   const updateStatus = async (leadId, status) => {
     try {
-      await base44.entities.FronterLead.update(leadId, { status });
+      const updates = { status };
+      if (status === 'transferred') updates.transferredAt = new Date().toISOString();
+      await base44.entities.FronterLead.update(leadId, updates);
+      setRefreshKey(k => k + 1);
+      if (activeLead?.id === leadId) setActiveLead(null);
+    } catch {}
+  };
+
+  const markCallResult = async (leadId, result) => {
+    try {
+      const l = leads.find(x => x.id === leadId);
+      const newCount = (l?.callCount || 0) + 1;
+      const updates = { callCount: newCount, lastCalledAt: new Date().toISOString(), lastCallResult: result };
+      if (result === 'not_interested') updates.status = 'removed';
+      if (newCount >= 3) updates.status = 'removed';
+      await base44.entities.FronterLead.update(leadId, updates);
       setRefreshKey(k => k + 1);
       if (activeLead?.id === leadId) setActiveLead(null);
     } catch {}
@@ -181,6 +197,7 @@ export default function FronterLeadsTab({ username, lineKey, lineNumber, isAdmin
                   <div style={{ color: '#e8e0d0', fontSize: '13px', fontWeight: 'bold' }}>{l.firstName} {l.lastName}</div>
                   <div style={{ color: '#6b7280', fontSize: '11px' }}>{l.phone}</div>
                 </div>
+                <button onClick={(e) => { e.stopPropagation(); setActiveLead(l); setDialTrigger(n => n + 1); }} title="Call now" style={{ background: 'linear-gradient(135deg,#10b981,#22c55e)', color: DARK, border: 'none', borderRadius: '4px', padding: '5px 10px', cursor: 'pointer', fontSize: '13px', flexShrink: 0 }}>📞</button>
                 <div style={{ textAlign: 'right', flexShrink: 0 }}>
                   <span style={{ padding: '2px 8px', borderRadius: '10px', fontSize: '9px', fontWeight: 'bold', textTransform: 'uppercase', background: l.status === 'lead' ? 'rgba(16,185,129,0.15)' : 'rgba(96,165,250,0.15)', color: l.status === 'lead' ? GOLD : '#60a5fa' }}>{l.status}</span>
                   <div style={{ color: '#4a5568', fontSize: '9px', marginTop: '3px' }}>
@@ -221,6 +238,7 @@ export default function FronterLeadsTab({ username, lineKey, lineNumber, isAdmin
               lineKey={lineKey}
               lineNumber={lineNumber}
               onLeadCalled={handleLeadCalled}
+              autoDialTrigger={dialTrigger}
             />
 
             {/* Status update */}
@@ -231,6 +249,13 @@ export default function FronterLeadsTab({ username, lineKey, lineNumber, isAdmin
                   <button onClick={() => updateStatus(activeLead.id, 'lead')} style={{ background: 'linear-gradient(135deg,#10b981,#22c55e)', color: DARK, border: 'none', borderRadius: '4px', padding: '8px 14px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>✓ Agree to Speak → Lead</button>
                 )}
                 <button onClick={() => updateStatus(activeLead.id, 'transferred')} style={{ background: `${GOLD}18`, color: GOLD, border: `1px solid ${GOLD}44`, borderRadius: '4px', padding: '8px 14px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>Transferred</button>
+              </div>
+              <div style={{ color: '#6b7280', fontSize: '9px', textTransform: 'uppercase', letterSpacing: '1px', margin: '10px 0 6px' }}>Call Result</div>
+              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                <button onClick={() => markCallResult(activeLead.id, 'not_interested')} style={{ background: 'rgba(239,68,68,0.1)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.25)', borderRadius: '4px', padding: '7px 12px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>✗ Not Interested</button>
+                <button onClick={() => markCallResult(activeLead.id, 'voicemail')} style={{ background: 'rgba(245,158,11,0.1)', color: '#f59e0b', border: '1px solid rgba(245,158,11,0.25)', borderRadius: '4px', padding: '7px 12px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>📞 Voicemail</button>
+                <button onClick={() => markCallResult(activeLead.id, 'hung_up')} style={{ background: 'rgba(239,68,68,0.1)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.25)', borderRadius: '4px', padding: '7px 12px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>📵 Hung Up</button>
+                <button onClick={() => markCallResult(activeLead.id, 'no_answer')} style={{ background: 'rgba(138,154,184,0.1)', color: '#8a9ab8', border: '1px solid rgba(138,154,184,0.25)', borderRadius: '4px', padding: '7px 12px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>🚫 No Answer</button>
               </div>
             </div>
 

@@ -15,7 +15,7 @@ const BLUE = '#60a5fa';
 const AMBER = '#f59e0b';
 const PURPLE = '#a78bfa';
 
-export default function FronterDialer({ lead, username, lineKey, lineNumber, onCallStarted, onCallEnded, onLeadCalled }) {
+export default function FronterDialer({ lead, username, lineKey, lineNumber, onCallStarted, onCallEnded, onLeadCalled, autoDialTrigger = 0 }) {
   const [callStatus, setCallStatus] = useState('idle');
   const [duration, setDuration] = useState(0);
   const [now, setNow] = useState(new Date());
@@ -57,6 +57,12 @@ export default function FronterDialer({ lead, username, lineKey, lineNumber, onC
     try { deviceRef.current?.destroy(); } catch {}
   }, []);
 
+  // Auto-dial when triggered from the lead list call button
+  useEffect(() => {
+    if (autoDialTrigger > 0 && lead?.phone) dial();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoDialTrigger]);
+
   const getDevice = async () => {
     if (deviceRef.current) return deviceRef.current;
     const res = await base44.functions.invoke('fronterClientToken', { username });
@@ -82,8 +88,12 @@ export default function FronterDialer({ lead, username, lineKey, lineNumber, onC
     call.on('accept', () => { setCallStatus('connected'); startTimer(); });
     call.on('disconnect', () => {
       stopTimer();
+      const dur = startTimeRef.current ? Math.floor((Date.now() - startTimeRef.current) / 1000) : 0;
       setCallStatus('ended');
       setMuted(false); setOnHold(false); setMerged(false); setConferenceName('');
+      if (lead?.id && dur > 0) {
+        base44.entities.FronterLead.update(lead.id, { lastCallDurationSeconds: dur }).catch(() => {});
+      }
       onCallEnded?.();
       setTimeout(() => setCallStatus('idle'), 2000);
     });
@@ -168,7 +178,8 @@ export default function FronterDialer({ lead, username, lineKey, lineNumber, onC
     if (!lead?.id) return;
     try {
       const newCount = (lead.callCount || 0) + 1;
-      const updates = { callCount: newCount, lastCalledAt: new Date().toISOString(), lastCallResult: result };
+      const dur = startTimeRef.current ? Math.floor((Date.now() - startTimeRef.current) / 1000) : 0;
+      const updates = { callCount: newCount, lastCalledAt: new Date().toISOString(), lastCallResult: result, lastCallDurationSeconds: dur };
       if (newCount >= 3) updates.status = 'removed';
       await base44.entities.FronterLead.update(lead.id, updates);
       onLeadCalled?.(lead.id, newCount);
