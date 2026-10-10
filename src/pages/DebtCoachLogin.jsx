@@ -8,7 +8,7 @@ const DARK = '#0a0f1e';
 const inp = { width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '4px', padding: '12px 16px', color: '#e8e0d0', fontSize: '14px', outline: 'none', boxSizing: 'border-box', fontFamily: 'Georgia, serif' };
 
 export default function DebtCoachLogin() {
-  const { login, voiceLogin, enrollVoice, changePassword, isAuthenticated, mustResetPassword, user } = useDebtCoachAuth();
+  const { login, voiceLogin, enrollVoice, resetMyPassword, isAuthenticated, mustResetPassword, user } = useDebtCoachAuth();
   const navigate = useNavigate();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -57,8 +57,8 @@ export default function DebtCoachLogin() {
     if (newPassword.length < 6) { setError('Password must be at least 6 characters'); return; }
     setLoading(true);
     try {
-      await changePassword(password, newPassword);
-      navigate('/debt-call-coach', { replace: true });
+      await resetMyPassword(newPassword);
+      // mustResetPassword flips to false in context → useEffect navigates to the right page
     } catch (err) {
       setError(err.message);
     }
