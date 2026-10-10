@@ -37,14 +37,15 @@ export default function FronterLeadsTab({ username, lineKey, lineNumber, isAdmin
     setLoading(true);
     try {
       // Admin sees all active leads; fronter sees only their own
-      const all = isAdmin
+      const raw = isAdmin
         ? await base44.entities.FronterLead.list('-created_date', 500)
         : await base44.entities.FronterLead.filter({ assignedTo: username }, '-created_date', 500);
+      const all = Array.isArray(raw) ? raw : (raw?.items || []);
       // Prospects: ONLY status === 'prospect' (never show converted leads)
-      // Leads: status === 'lead' or 'transferred'
+      // Leads: ONLY status === 'lead' or 'transferred' (never show prospects)
       let active = mode === 'leads'
-        ? (all || []).filter(l => l.status === 'transferred' || (l.status === 'lead' && ['interested', 'appointment', 'transferred'].includes(l.lastCallResult)))
-        : (all || []).filter(l => l.status === 'prospect' && (l.callCount || 0) < 3);
+        ? all.filter(l => l.status === 'lead' || l.status === 'transferred')
+        : all.filter(l => l.status === 'prospect' && (l.callCount || 0) < 3);
       // Admin fronter filter
       if (isAdmin && fronterFilter) {
         active = active.filter(l => l.assignedTo === fronterFilter);
@@ -62,7 +63,7 @@ export default function FronterLeadsTab({ username, lineKey, lineNumber, isAdmin
       }
     } catch {}
     setLoading(false);
-  }, [username, refreshKey, isAdmin, fronterFilter]);
+  }, [username, refreshKey, isAdmin, fronterFilter, mode]);
 
   // ── Lead upload (admin) ──
   const addLead = async () => {
@@ -76,7 +77,7 @@ export default function FronterLeadsTab({ username, lineKey, lineNumber, isAdmin
         status: 'prospect', assignedTo: leadForm.assignedTo, assignedAt: new Date().toISOString(),
         assignedBy: username, uploadedBy: username, notes: leadForm.notes,
       });
-      setLeadForm({ firstName: '', lastName: '', phone: '', assignedTo: leadForm.assignedTo, notes: '' });
+      setLeadForm({ firstName: '', lastName: '', phone: '', assignedTo: leadForm.assignedTo, assignedTos: leadForm.assignedTos, notes: '' });
       setRefreshKey(k => k + 1);
     } catch (e) { alert('Failed: ' + (e?.message || String(e))); }
   };
@@ -327,7 +328,7 @@ export default function FronterLeadsTab({ username, lineKey, lineNumber, isAdmin
                           {l.leadNumber && <div style={{ color: '#4a5568', fontSize: '10px' }}>{l.leadNumber}</div>}
                         </td>
                         <td style={{ padding: '10px 12px' }}>
-                          <button onClick={e => { e.stopPropagation(); setActiveLead(l); setDialTrigger(n => n + 1); }} style={{ background: 'rgba(16,185,129,0.1)', color: GOLD, border: '1px solid rgba(16,185,129,0.25)', borderRadius: '3px', padding: '4px 10px', cursor: 'pointer', fontSize: '12px', fontFamily: 'monospace' }}>📞 {l.phone}</button>
+                          <button onClick={e => { e.stopPropagation(); setContactCardLead(l); }} style={{ background: 'rgba(16,185,129,0.1)', color: GOLD, border: '1px solid rgba(16,185,129,0.25)', borderRadius: '3px', padding: '4px 10px', cursor: 'pointer', fontSize: '12px', fontFamily: 'monospace' }}>📞 {l.phone}</button>
                         </td>
                         <td style={{ padding: '10px 12px', color: l.debtAmount ? GOLD : '#4a5568', fontSize: '12px' }}>{l.debtAmount ? `$${Number(l.debtAmount).toLocaleString()}` : '—'}</td>
                         <td style={{ padding: '10px 12px' }}>
