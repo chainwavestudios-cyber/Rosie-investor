@@ -17,9 +17,10 @@ export default function FronterUsersTab({ adminUsername }) {
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
-  const [form, setForm] = useState({ firstName: '', lastName: '', username: '', password: '', email: '' });
+  const [form, setForm] = useState({ firstName: '', lastName: '', username: '', password: '', confirmPassword: '', email: '' });
   const [resetPasswordId, setResetPasswordId] = useState(null);
   const [newPassword, setNewPassword] = useState('');
+  const [confirmNewPassword, setConfirmNewPassword] = useState('');
   const [saving, setSaving] = useState(false);
 
   const load = useCallback(async () => {
@@ -34,7 +35,7 @@ export default function FronterUsersTab({ adminUsername }) {
   useEffect(() => { load(); }, [load]);
 
   const resetForm = () => {
-    setForm({ firstName: '', lastName: '', username: '', password: '', email: '' });
+    setForm({ firstName: '', lastName: '', username: '', password: '', confirmPassword: '', email: '' });
     setEditingId(null);
     setShowForm(false);
   };
@@ -42,6 +43,11 @@ export default function FronterUsersTab({ adminUsername }) {
   const saveUser = async () => {
     if (!form.firstName.trim() || !form.lastName.trim() || !form.username.trim() || !form.email.trim()) return;
     if (!editingId && !form.password.trim()) return;
+    // Password confirmation check
+    if (form.password.trim() && form.password !== form.confirmPassword) {
+      alert('Passwords do not match.');
+      return;
+    }
 
     setSaving(true);
     try {
@@ -55,7 +61,9 @@ export default function FronterUsersTab({ adminUsername }) {
         // If password provided, hash and update
         if (form.password.trim()) {
           const hashRes = await base44.functions.invoke('hashPassword', { action: 'hash', password: form.password.trim() });
-          await base44.entities.DebtCoachUser.update(editingId, { passwordHash: hashRes.hash });
+          const hash = hashRes?.data?.hash || hashRes?.hash;
+          if (!hash) throw new Error('Password hashing failed');
+          await base44.entities.DebtCoachUser.update(editingId, { passwordHash: hash });
         }
         resetForm();
         load();
@@ -69,12 +77,14 @@ export default function FronterUsersTab({ adminUsername }) {
         }
         // Hash password
         const hashRes = await base44.functions.invoke('hashPassword', { action: 'hash', password: form.password.trim() });
+        const hash = hashRes?.data?.hash || hashRes?.hash;
+        if (!hash) throw new Error('Password hashing failed');
         await base44.entities.DebtCoachUser.create({
           username: form.username.trim(),
           firstName: form.firstName.trim(),
           lastName: form.lastName.trim(),
           email: form.email.trim(),
-          passwordHash: hashRes.hash,
+          passwordHash: hash,
           role: 'fronter',
           isActive: true,
           createdBy: adminUsername,
@@ -105,18 +115,25 @@ export default function FronterUsersTab({ adminUsername }) {
 
   const startEdit = (user) => {
     setEditingId(user.id);
-    setForm({ firstName: user.firstName || '', lastName: user.lastName || '', username: user.username, password: '', email: user.email || '' });
+    setForm({ firstName: user.firstName || '', lastName: user.lastName || '', username: user.username, password: '', confirmPassword: '', email: user.email || '' });
     setShowForm(true);
   };
 
   const doResetPassword = async () => {
     if (!newPassword.trim() || !resetPasswordId) return;
+    if (newPassword !== confirmNewPassword) {
+      alert('Passwords do not match.');
+      return;
+    }
     setSaving(true);
     try {
       const hashRes = await base44.functions.invoke('hashPassword', { action: 'hash', password: newPassword.trim() });
-      await base44.entities.DebtCoachUser.update(resetPasswordId, { passwordHash: hashRes.hash });
+      const hash = hashRes?.data?.hash || hashRes?.hash;
+      if (!hash) throw new Error('Password hashing failed');
+      await base44.entities.DebtCoachUser.update(resetPasswordId, { passwordHash: hash });
       setResetPasswordId(null);
       setNewPassword('');
+      setConfirmNewPassword('');
       alert('Password reset successfully.');
     } catch (e) { alert('Reset failed: ' + (e?.message || String(e))); }
     setSaving(false);
@@ -126,7 +143,7 @@ export default function FronterUsersTab({ adminUsername }) {
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
         <div style={{ color: GOLD, fontSize: '11px', letterSpacing: '2px', textTransform: 'uppercase' }}>👥 Fronter Users</div>
-        {!showForm && <button onClick={() => { setShowForm(true); setEditingId(null); setForm({ firstName: '', lastName: '', username: '', password: '', email: '' }); }} style={{ background: 'linear-gradient(135deg,#10b981,#22c55e)', color: DARK, border: 'none', borderRadius: '4px', padding: '8px 18px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>+ Add User</button>}
+        {!showForm && <button onClick={() => { setShowForm(true); setEditingId(null); setForm({ firstName: '', lastName: '', username: '', password: '', confirmPassword: '', email: '' }); }} style={{ background: 'linear-gradient(135deg,#10b981,#22c55e)', color: DARK, border: 'none', borderRadius: '4px', padding: '8px 18px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>+ Add User</button>}
       </div>
 
       {/* Create / Edit form */}
@@ -141,12 +158,20 @@ export default function FronterUsersTab({ adminUsername }) {
             <div><label style={ls}>Username * {editingId && <span style={{ color: '#4a5568', fontSize: '9px' }}>(cannot change)</span>}</label><input value={form.username} onChange={e => setForm(p => ({ ...p, username: e.target.value }))} disabled={!!editingId} style={{ ...inp, opacity: editingId ? 0.5 : 1 }} /></div>
             <div><label style={ls}>Email *</label><input value={form.email} onChange={e => setForm(p => ({ ...p, email: e.target.value }))} style={inp} placeholder="name@example.com" /></div>
           </div>
-          <div style={{ marginBottom: '12px' }}>
-            <label style={ls}>Password {editingId ? '(leave blank to keep current)' : '*'}</label>
-            <input type="password" value={form.password} onChange={e => setForm(p => ({ ...p, password: e.target.value }))} style={inp} placeholder={editingId ? '••••••••' : 'Enter password'} />
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '12px' }}>
+            <div>
+              <label style={ls}>Password {editingId ? '(leave blank to keep)' : '*'}</label>
+              <input type="text" value={form.password} onChange={e => setForm(p => ({ ...p, password: e.target.value }))} style={inp} placeholder={editingId ? '••••••••' : 'Enter password'} />
+            </div>
+            <div>
+              <label style={ls}>Confirm Password {editingId ? '(leave blank to keep)' : '*'}</label>
+              <input type="text" value={form.confirmPassword} onChange={e => setForm(p => ({ ...p, confirmPassword: e.target.value }))} style={{ ...inp, borderColor: form.confirmPassword && form.password !== form.confirmPassword ? 'rgba(239,68,68,0.4)' : undefined }} placeholder={editingId ? '••••••••' : 'Re-enter password'} />
+              {form.confirmPassword && form.password !== form.confirmPassword && <div style={{ color: RED, fontSize: '10px', marginTop: '4px' }}>✗ Passwords do not match</div>}
+              {form.confirmPassword && form.password === form.confirmPassword && <div style={{ color: GOLD, fontSize: '10px', marginTop: '4px' }}>✓ Passwords match</div>}
+            </div>
           </div>
           <div style={{ display: 'flex', gap: '8px' }}>
-            <button onClick={saveUser} disabled={saving || !form.firstName.trim() || !form.lastName.trim() || !form.username.trim() || !form.email.trim() || (!editingId && !form.password.trim())} style={{ background: 'linear-gradient(135deg,#10b981,#22c55e)', color: DARK, border: 'none', borderRadius: '4px', padding: '8px 18px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', opacity: saving ? 0.5 : 1 }}>{saving ? '⏳ Saving…' : editingId ? 'Update User' : 'Create User'}</button>
+            <button onClick={saveUser} disabled={saving || !form.firstName.trim() || !form.lastName.trim() || !form.username.trim() || !form.email.trim() || (!editingId && !form.password.trim()) || (!!form.password.trim() && form.password !== form.confirmPassword)} style={{ background: 'linear-gradient(135deg,#10b981,#22c55e)', color: DARK, border: 'none', borderRadius: '4px', padding: '8px 18px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', opacity: saving ? 0.5 : 1 }}>{saving ? '⏳ Saving…' : editingId ? 'Update User' : 'Create User'}</button>
             <button onClick={resetForm} style={{ background: 'rgba(255,255,255,0.05)', color: '#8a9ab8', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '4px', padding: '8px 18px', cursor: 'pointer', fontSize: '11px' }}>Cancel</button>
           </div>
         </div>
@@ -156,11 +181,21 @@ export default function FronterUsersTab({ adminUsername }) {
       {resetPasswordId && (
         <div style={{ background: '#0d1b2a', border: '1px solid rgba(245,158,11,0.2)', borderRadius: '6px', padding: '16px', marginBottom: '14px' }}>
           <div style={{ color: '#f59e0b', fontSize: '10px', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '8px' }}>🔑 Reset Password</div>
-          <div style={{ display: 'flex', gap: '8px' }}>
-            <input type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} placeholder="New password" style={inp} />
-            <button onClick={doResetPassword} disabled={saving || !newPassword.trim()} style={{ background: '#f59e0b', color: DARK, border: 'none', borderRadius: '4px', padding: '8px 16px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', opacity: saving ? 0.5 : 1 }}>{saving ? '⏳' : 'Reset'}</button>
-            <button onClick={() => { setResetPasswordId(null); setNewPassword(''); }} style={{ background: 'rgba(255,255,255,0.05)', color: '#8a9ab8', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '4px', padding: '8px 16px', cursor: 'pointer', fontSize: '11px' }}>Cancel</button>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: '8px', alignItems: 'end' }}>
+            <div>
+              <label style={ls}>New Password</label>
+              <input type="text" value={newPassword} onChange={e => setNewPassword(e.target.value)} placeholder="New password" style={inp} />
+            </div>
+            <div>
+              <label style={ls}>Confirm Password</label>
+              <input type="text" value={confirmNewPassword} onChange={e => setConfirmNewPassword(e.target.value)} placeholder="Re-enter password" style={{ ...inp, borderColor: confirmNewPassword && newPassword !== confirmNewPassword ? 'rgba(239,68,68,0.4)' : undefined }} />
+            </div>
+            <div style={{ display: 'flex', gap: '6px' }}>
+              <button onClick={doResetPassword} disabled={saving || !newPassword.trim() || newPassword !== confirmNewPassword} style={{ background: '#f59e0b', color: DARK, border: 'none', borderRadius: '4px', padding: '8px 16px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', opacity: saving || !newPassword.trim() || newPassword !== confirmNewPassword ? 0.5 : 1 }}>{saving ? '⏳' : 'Reset'}</button>
+              <button onClick={() => { setResetPasswordId(null); setNewPassword(''); setConfirmNewPassword(''); }} style={{ background: 'rgba(255,255,255,0.05)', color: '#8a9ab8', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '4px', padding: '8px 16px', cursor: 'pointer', fontSize: '11px' }}>Cancel</button>
+            </div>
           </div>
+          {confirmNewPassword && newPassword !== confirmNewPassword && <div style={{ color: RED, fontSize: '10px', marginTop: '6px' }}>✗ Passwords do not match</div>}
         </div>
       )}
 
