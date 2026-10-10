@@ -211,7 +211,7 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
           </div>
           <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
             <button onClick={(e) => { e.stopPropagation(); sendHeadsUp(); }} disabled={headsUpSending} style={{ background: headsUpSent ? 'rgba(74,222,128,0.15)' : 'rgba(239,68,68,0.15)', color: headsUpSent ? '#4ade80' : '#ef4444', border: '1px solid ' + (headsUpSent ? 'rgba(74,222,128,0.3)' : 'rgba(239,68,68,0.3)'), borderRadius: '4px', padding: '5px 12px', cursor: headsUpSending ? 'not-allowed' : 'pointer', fontSize: '11px', fontWeight: 'bold', opacity: headsUpSending ? 0.5 : 1 }}>
-              {headsUpSending ? '⏳' : headsUpSent ? '✓ Sent' : '🚨 Heads Up'}
+              {headsUpSending ? '⏳' : headsUpSent ? '✓ Sent' : '🚨 Transfer Coming'}
             </button>
             {onNext && <button onClick={(e) => { e.stopPropagation(); onNext(); }} style={{ background: GOLD + '18', color: GOLD, border: '1px solid ' + GOLD + '44', borderRadius: '4px', padding: '5px 12px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>Next →</button>}
             <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#6b7280', cursor: 'pointer', fontSize: '20px', padding: 0, lineHeight: 1 }}>×</button>
