@@ -19,6 +19,16 @@ export default function TrainingSessionCard({ sessionType, sessionName, sessionT
   const [pending, setPending] = useState([]);
   const [submitting, setSubmitting] = useState(false);
   const [status, setStatus] = useState('');
+  const [checkedAttendees, setCheckedAttendees] = useState(new Set());
+
+  const toggleCheck = (id) => {
+    setCheckedAttendees(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
 
   const searchResults = search.trim()
     ? allFronters
@@ -47,24 +57,37 @@ export default function TrainingSessionCard({ sessionType, sessionName, sessionT
   };
 
   const submit = async () => {
-    if (pending.length === 0 || submitting) return;
+    if (submitting) return;
+    const toRemove = existingAttendees.filter(a => checkedAttendees.has(a.id));
     const validAttendees = pending.filter(a => a.email.trim());
-    if (validAttendees.length === 0) {
+    if (pending.length > 0 && validAttendees.length === 0) {
       alert('All selected attendees need an email address to receive calendar invitations.');
       return;
     }
+    if (pending.length === 0 && toRemove.length === 0) return;
     setSubmitting(true);
     setStatus('');
     try {
-      const res = await base44.functions.invoke('scheduleTraining', {
-        sessionType,
-        attendees: validAttendees,
-        addedBy,
-      });
-      const data = res?.data || res;
-      if (data?.error) throw new Error(data.error);
-      setStatus(`✅ ${validAttendees.length} attendee(s) added to "${sessionName}"! Calendar event updated and reminders sent.`);
+      if (toRemove.length > 0) {
+        for (const a of toRemove) {
+          try { await base44.entities.TrainingAttendee.delete(a.id); } catch (e) { console.warn('Delete failed:', a.id, e?.message); }
+        }
+      }
+      if (validAttendees.length > 0) {
+        const res = await base44.functions.invoke('scheduleTraining', {
+          sessionType,
+          attendees: validAttendees,
+          addedBy,
+        });
+        const data = res?.data || res;
+        if (data?.error) throw new Error(data.error);
+      }
+      let msg = '';
+      if (validAttendees.length > 0) msg += `✅ ${validAttendees.length} added to "${sessionName}". `;
+      if (toRemove.length > 0) msg += `🗑️ ${toRemove.length} removed from the list.`;
+      setStatus(msg.trim() || 'No changes made.');
       setPending([]);
+      setCheckedAttendees(new Set());
       onSubmitted?.();
     } catch (e) {
       setStatus('❌ Failed: ' + (e?.message || String(e)));
@@ -83,13 +106,17 @@ export default function TrainingSessionCard({ sessionType, sessionName, sessionT
         </div>
       </div>
 
-      {/* Already signed up */}
+      {/* Already signed up — with checkboxes to remove after training */}
       {existingAttendees.length > 0 && (
         <div>
-          <div style={{ ...ls, color: GOLD }}>✓ Already Added ({existingAttendees.length})</div>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+          <div style={{ ...ls, color: GOLD }}>✓ Added to Session ({existingAttendees.length}) — check off to remove</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
             {existingAttendees.map((a, i) => (
-              <span key={i} style={{ padding: '3px 10px', borderRadius: '12px', background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.2)', color: GOLD, fontSize: '11px' }}>{a.fronterName}</span>
+              <label key={i} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '5px 10px', background: checkedAttendees.has(a.id) ? 'rgba(239,68,68,0.08)' : 'rgba(16,185,129,0.06)', border: `1px solid ${checkedAttendees.has(a.id) ? 'rgba(239,68,68,0.25)' : 'rgba(16,185,129,0.2)'}`, borderRadius: '4px', cursor: 'pointer' }}>
+                <input type="checkbox" checked={checkedAttendees.has(a.id)} onChange={() => toggleCheck(a.id)} style={{ cursor: 'pointer', accentColor: GOLD }} />
+                <span style={{ color: checkedAttendees.has(a.id) ? '#f59e0b' : GOLD, fontSize: '12px' }}>{a.fronterName}</span>
+                {a.fronterEmail && <span style={{ color: '#6b7280', fontSize: '10px' }}>{a.fronterEmail}</span>}
+              </label>
             ))}
           </div>
         </div>
@@ -138,14 +165,14 @@ export default function TrainingSessionCard({ sessionType, sessionName, sessionT
       )}
 
       {/* Submit */}
-      <button onClick={submit} disabled={pending.length === 0 || submitting}
+      <button onClick={submit} disabled={(pending.length === 0 && checkedAttendees.size === 0) || submitting}
         style={{
-          background: pending.length === 0 || submitting ? 'rgba(255,255,255,0.05)' : `linear-gradient(135deg,${accent},#22c55e)`,
-          color: pending.length === 0 || submitting ? '#4a5568' : DARK,
-          border: 'none', borderRadius: '6px', padding: '10px 20px', cursor: pending.length === 0 || submitting ? 'not-allowed' : 'pointer',
+          background: (pending.length === 0 && checkedAttendees.size === 0) || submitting ? 'rgba(255,255,255,0.05)' : `linear-gradient(135deg,${accent},#22c55e)`,
+          color: (pending.length === 0 && checkedAttendees.size === 0) || submitting ? '#4a5568' : DARK,
+          border: 'none', borderRadius: '6px', padding: '10px 20px', cursor: (pending.length === 0 && checkedAttendees.size === 0) || submitting ? 'not-allowed' : 'pointer',
           fontSize: '13px', fontWeight: 'bold', opacity: submitting ? 0.6 : 1,
         }}>
-        {submitting ? '⏳ Scheduling…' : `📅 Submit & Add ${pending.length || ''} to Calendar`}
+        {submitting ? '⏳ Processing…' : `📅 Submit & Add to Calendar${pending.length > 0 ? ` (${pending.length})` : ''}${checkedAttendees.size > 0 ? ` · Remove ${checkedAttendees.size}` : ''}`}
       </button>
     </div>
   );

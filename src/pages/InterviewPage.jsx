@@ -25,7 +25,7 @@ const btnGold = { background: 'linear-gradient(135deg,#10b981,#22c55e)', color: 
 const btnGhost = { background: 'rgba(255,255,255,0.05)', color: '#8a9ab8', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '6px', padding: '10px 24px', cursor: 'pointer', fontSize: '14px' };
 const btnPass = { background: 'rgba(245,158,11,0.12)', color: '#f59e0b', border: '1px solid rgba(245,158,11,0.3)', borderRadius: '6px', padding: '10px 24px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold' };
 
-const STEP_LABELS = ['Start', 'Name', 'Contact', 'Company', 'Experience', 'Job Details', 'Credentials', 'Complete'];
+const STEP_LABELS = ['Start', 'Name', 'Contact', 'Company', 'Opportunity', 'Experience', 'Job Details', 'Credentials', 'Complete'];
 
 export default function InterviewPage() {
   const { user, loading, isAuthenticated, isSuperAdmin, logout } = useDebtCoachAuth();
@@ -33,7 +33,7 @@ export default function InterviewPage() {
   const [step, setStep] = useState(0);
   const [data, setData] = useState({
     firstName: '', lastName: '', telegramId: '', email: '', notes: '',
-    responses: { companyReaction: '', phoneExperience: '', scriptComfort: '', canStart: '', candidateQuestions: '' },
+    responses: { companyReaction: '', phoneExperience: '', scriptComfort: '', canStart: '', candidateQuestions: '', opportunityReaction: '', trainingAttendance: '' },
     candidateRating: 0, candidateNotes: '',
   });
   const [credForm, setCredForm] = useState({ firstName: '', lastName: '', username: '', password: 'fronter2026!!', email: '' });
@@ -51,7 +51,7 @@ export default function InterviewPage() {
   }, [step]);
 
   useEffect(() => {
-    if (step === 6 && !credForm.username) {
+    if (step === 7 && !credForm.username) {
       const auto = (data.firstName + (data.lastName[0] || '')).toLowerCase();
       setCredForm({ firstName: data.firstName, lastName: data.lastName, username: auto, password: 'fronter2026!!', email: data.email });
     }
@@ -128,27 +128,27 @@ export default function InterviewPage() {
       } catch (e) { console.warn('Email send failed:', e?.message || String(e)); }
       await saveInterview('hired', { hiredUsername: credForm.username.trim() });
       setHireResult('hired');
-      setStep(7);
+      setStep(8);
     } catch (e) { alert('Failed: ' + (e?.message || String(e))); }
     setSaving(false);
   };
 
   const passForNow = async () => {
     setSaving(true);
-    try { await saveInterview('passed'); setHireResult('passed'); setStep(7); }
+    try { await saveInterview('passed'); setHireResult('passed'); setStep(8); }
     catch (e) { alert('Failed: ' + (e?.message || String(e))); }
     setSaving(false);
   };
 
   const resetInterview = () => {
     setStep(0);
-    setData({ firstName: '', lastName: '', telegramId: '', email: '', notes: '', responses: { companyReaction: '', phoneExperience: '', scriptComfort: '', canStart: '', candidateQuestions: '' }, candidateRating: 0, candidateNotes: '' });
+    setData({ firstName: '', lastName: '', telegramId: '', email: '', notes: '', responses: { companyReaction: '', phoneExperience: '', scriptComfort: '', canStart: '', candidateQuestions: '', opportunityReaction: '', trainingAttendance: '' }, candidateRating: 0, candidateNotes: '' });
     setCredForm({ firstName: '', lastName: '', username: '', password: 'fronter2026!!', email: '' });
     setHireResult(null);
     setAudioFileUri('');
   };
 
-  const next = () => setStep(s => Math.min(s + 1, 7));
+  const next = () => setStep(s => Math.min(s + 1, 8));
   const back = () => setStep(s => Math.max(s - 1, 0));
   const canNextName = data.firstName.trim() && data.lastName.trim();
   const canNextContact = data.telegramId.trim() && data.email.trim();
@@ -171,9 +171,9 @@ export default function InterviewPage() {
       </div>
 
       {/* Progress indicator */}
-      {step > 0 && step < 7 && (
+      {step > 0 && step < 8 && (
         <div style={{ padding: '12px 24px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-          {STEP_LABELS.slice(1, 7).map((label, i) => {
+          {STEP_LABELS.slice(1, 8).map((label, i) => {
             const stepNum = i + 1;
             const isActive = step === stepNum;
             const isDone = step > stepNum;
@@ -181,7 +181,7 @@ export default function InterviewPage() {
               <div key={label} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <div style={{ width: '28px', height: '28px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: 'bold', background: isActive ? GOLD : isDone ? `${GOLD}33` : 'rgba(255,255,255,0.05)', color: isActive ? DARK : isDone ? GOLD : '#6b7280', border: `1px solid ${isActive ? GOLD : isDone ? `${GOLD}44` : 'rgba(255,255,255,0.1)'}` }}>{isDone ? '✓' : stepNum}</div>
                 <span style={{ color: isActive ? GOLD : '#6b7280', fontSize: '11px', fontWeight: isActive ? 'bold' : 'normal' }}>{label}</span>
-                {i < 5 && <div style={{ width: '20px', height: '1px', background: isDone ? `${GOLD}44` : 'rgba(255,255,255,0.1)' }} />}
+                {i < 6 && <div style={{ width: '20px', height: '1px', background: isDone ? `${GOLD}44` : 'rgba(255,255,255,0.1)' }} />}
               </div>
             );
           })}
@@ -243,7 +243,21 @@ So, I said a lot. I wanna know more about you. First I need the spelling of your
         {/* Step 2: Contact */}
         {step === 2 && (
           <div>
-            <StepHeader num={2} title="Contact Information" instruction="Confirm the candidate's Telegram ID and email address." />
+            <StepHeader num={2} title="Contact Information" instruction="Read the phone sales script, then confirm the candidate's Telegram ID and email." />
+            <div style={{ ...scriptBox, marginBottom: '20px' }}>
+              <div style={{ color: GOLD, fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '10px' }}>🎙️ Read to Candidate — Phone Sales Experience</div>
+              <div style={{ color: '#e8e0d0', fontSize: '14px', lineHeight: 1.8, fontFamily: 'Georgia, serif', whiteSpace: 'pre-wrap' }}>{`So tell me about your experience working the phones, talking to customers, selling customers a solution, and the art of overcoming objections!
+
+Let them talk.....
+
+What do you feel is most challenging about phone sales?
+
+Well, I think you're going to be very excited when you see our system fully at work. An average smart person can take 2 weeks of intense training and condense it into 3 days with our system.
+
+We provide you not just with knowledge at the tip of your fingers, but CONFIDENCE — one of the biggest traits required to make consistent sales. Your customer asks a question, there is no hesitation. You always reply with, "that's a great question, and I'm definitely going to give you a complete answer." Again, great question.
+
+Now at this point, that's been enough time for your personal AI agent to query the intense knowledge base I have built. It gets a full, verbatim answer in about 2 seconds. It will pop up on the screen, ready to read word for word. No stressing, looking through notes. Just pure confidence — the most important thing a consumer looks for in a phone sales person.`}</div>
+            </div>
             <div style={{ marginBottom: '14px' }}><label style={ls}>Telegram ID *</label><input value={data.telegramId} onChange={e => setData(p => ({ ...p, telegramId: e.target.value }))} style={inp} placeholder="@username" /></div>
             <div style={{ marginBottom: '24px' }}><label style={ls}>Email Address *</label><input type="email" value={data.email} onChange={e => setData(p => ({ ...p, email: e.target.value }))} style={inp} placeholder="name@example.com" /></div>
             <NavButtons onBack={back} onNext={next} nextDisabled={!canNextContact} />
@@ -254,9 +268,17 @@ So, I said a lot. I wanna know more about you. First I need the spelling of your
         {step === 3 && (
           <div>
             <StepHeader num={3} title="Company Background" instruction="Read this to the candidate, then record their reaction below." />
-            <div style={scriptBox}>{`So we are a debt settlement company. But due to compliance rules, we can't pitch the company name or its services. But we can pitch the idea, and then state you are going to transfer you to Chris Bongiorno, a Sr Debt Specialist at the company.
-
-But really what we are looking for are experienced phone jockeys. See, you're not selling anything in this gig. You are connecting a consumer, who is drowning in debt, with a very good solution to getting them debt free, reducing overall debt load, and increasing their monthly cash flow, within weeks. Our team connects these consumers with one of the best companies in the industry. In fact, this company came in second place last year, NATIONWIDE, for the annual BBB ethics award, and that covers all businesses in the USA. Only one company in the US was ahead of them. So that's impressive.`}</div>
+            <div style={{ ...scriptBox, whiteSpace: 'normal' }}>
+              <div style={{ color: GOLD, fontSize: '14px', fontWeight: 'bold', marginBottom: '12px' }}>Our Use Case, This Opportunity, and the Path Forward</div>
+              <div style={{ marginBottom: '16px' }}>This is our initial use case, and this gig is what will help build the momentum needed to license the app. For the right candidate, this could be an incredible opportunity to grow with a new startup and work toward becoming a senior member of the team as we expand.</div>
+              <div style={{ color: GOLD, fontSize: '13px', fontWeight: 'bold', marginBottom: '8px' }}>What This Gig Is All About</div>
+              <div style={{ marginBottom: '12px' }}>We operate in the debt settlement industry. Due to compliance requirements, our callers cannot directly pitch the company's name or its specific services during the initial conversation. Instead, your job is to introduce the general concept of debt relief, identify consumers who may benefit from exploring their options, and then connect them with Chris Bongiorno, a Senior Debt Specialist at the company.</div>
+              <div style={{ marginBottom: '12px' }}>We're looking for experienced phone jockeys — people who know how to control a conversation, build rapport quickly, handle objections confidently, and keep a call moving toward its intended outcome.</div>
+              <div style={{ marginBottom: '12px' }}>Here's the important part: you're not responsible for selling or closing a debt settlement program. Your job is to connect the right consumer with the right specialist.</div>
+              <div style={{ marginBottom: '12px' }}>Think about it: we're reaching people who may be struggling under the weight of high-interest debt and looking for a way forward. Our team helps connect those consumers with an established company that can evaluate their situation and determine whether debt settlement could help them reduce their overall debt, improve their monthly cash flow, and work toward becoming debt-free.</div>
+              <div style={{ marginBottom: '12px' }}>For consumers who qualify, some programs may begin improving their monthly cash flow within weeks, depending on their circumstances and program terms.</div>
+              <div>We're also connecting consumers with a company that has built a strong reputation in the industry. According to our information, the company finished second nationwide last year in the annual Better Business Bureau ethics awards. That's a significant distinction, provided we can verify the award and its exact ranking.</div>
+            </div>
             <div style={answerBox}>
               <label style={{ ...ls, color: BLUE }}>✍️ Candidate's Reaction / Response</label>
               <textarea value={data.responses.companyReaction} onChange={e => updateResp('companyReaction', e.target.value)} rows={3} style={{ ...inp, resize: 'vertical', marginTop: '6px' }} placeholder="How did they react? Any questions about the company?" />
@@ -265,8 +287,28 @@ But really what we are looking for are experienced phone jockeys. See, you're no
           </div>
         )}
 
-        {/* Step 4: Experience */}
+        {/* Step 4: Opportunity */}
         {step === 4 && (
+          <div>
+            <StepHeader num={4} title="Why This Opportunity Is Different" instruction="Read this to the candidate, then ask the question and record their response." />
+            <div style={{ ...scriptBox, whiteSpace: 'normal' }}>
+              <div style={{ marginBottom: '14px' }}>We're not simply looking for someone to read a script. We want people who understand how to have a real conversation, listen to the person on the other end of the phone, recognize a potential opportunity, and confidently guide that person to the next step.</div>
+              <div style={{ marginBottom: '14px' }}>If you have experience in cold calling, lead generation, appointment setting, or high-volume outbound calling, this could be an excellent fit.</div>
+              <div style={{ marginBottom: '14px' }}>And there's a bigger picture here.</div>
+              <div style={{ marginBottom: '14px' }}>This initial campaign is the use case that can help demonstrate the app's value, generate traction, and build momentum toward licensing the technology. We're building something with room to grow, and we want the right people involved from the beginning.</div>
+              <div>For the right candidate, this isn't just another phone job. It's an opportunity to prove yourself, contribute to a growing startup, and potentially earn a place as a senior member of the team as the business develops.</div>
+            </div>
+            <div style={answerBox}>
+              <label style={{ ...ls, color: BLUE }}>✍️ Question to Ask the Candidate</label>
+              <div style={{ color: '#e8e0d0', fontSize: '14px', lineHeight: 1.8, fontFamily: 'Georgia, serif', marginBottom: '10px', fontStyle: 'italic' }}>So what do you think so far, does this sound like something you would be willing to put 150% effort into? We are looking for 3 people. 3 people that are willing to work hard, willing to grind, willing to take their expertise and strength, and onboard new people every single day.</div>
+              <textarea value={data.responses.opportunityReaction} onChange={e => updateResp('opportunityReaction', e.target.value)} rows={3} style={{ ...inp, resize: 'vertical', marginTop: '6px' }} placeholder="Record the candidate's response…" />
+            </div>
+            <NavButtons onBack={back} onNext={next} />
+          </div>
+        )}
+
+        {/* Step 5: Experience */}
+        {step === 5 && (
           <div>
             <StepHeader num={4} title="Experience & Skills" instruction="Ask these questions, then record the candidate's answers below." />
             <div style={scriptBox}>{`So tell me a little bit about your experience working on the phone, handling objections...
@@ -299,8 +341,8 @@ Our AI tools will make your job a lot easier.`}</div>
           </div>
         )}
 
-        {/* Step 5: Job Details */}
-        {step === 5 && (
+        {/* Step 6: Job Details */}
+        {step === 6 && (
           <div>
             <StepHeader num={5} title="Job Details & Availability" instruction="Read this to the candidate, then record their availability and any questions." />
             <div style={scriptBox}>{`So, when could you start? We are looking for people to train later today and tomorrow and Monday morning hit the ground running.
@@ -317,13 +359,23 @@ Once you sign that, it's automatically counter-signed, and you will be emailed a
                 <label style={{ ...ls, color: BLUE }}>✍️ Candidate's Questions / Concerns</label>
                 <textarea value={data.responses.candidateQuestions} onChange={e => updateResp('candidateQuestions', e.target.value)} rows={3} style={{ ...inp, resize: 'vertical', marginTop: '6px' }} placeholder="Any questions they asked about the job, pay, or training?" />
               </div>
+              <div style={{ marginBottom: '12px' }}>
+                <label style={{ ...ls, color: BLUE }}>✍️ Can They Make the Training?</label>
+                <select value={data.responses.trainingAttendance} onChange={e => updateResp('trainingAttendance', e.target.value)} style={{ ...inp, marginTop: '6px' }}>
+                  <option value="">— Select —</option>
+                  <option value="tonight_830">Yes — 8:30 PM EST tonight</option>
+                  <option value="tomorrow_1pm">Yes — 1:00 PM EST tomorrow</option>
+                  <option value="both">Yes — Both work</option>
+                  <option value="neither">No — Neither works</option>
+                </select>
+              </div>
             </div>
             <NavButtons onBack={back} onNext={next} />
           </div>
         )}
 
-        {/* Step 6: Credential Setup */}
-        {step === 6 && (
+        {/* Step 7: Credential Setup */}
+        {step === 7 && (
           <div>
             <StepHeader num={6} title="Credential Setup" instruction="Review the candidate's responses, then create their fronter account or pass for now." />
             {/* Response summary */}
@@ -335,6 +387,8 @@ Once you sign that, it's automatically counter-signed, and you will be emailed a
                 {data.responses.scriptComfort && <RespRow label="Script comfort" value={data.responses.scriptComfort === 'yes' ? 'Comfortable' : data.responses.scriptComfort === 'hesitant' ? 'Hesitant but willing' : 'Not comfortable'} />}
                 {data.responses.canStart && <RespRow label="Can start" value={data.responses.canStart} />}
                 {data.responses.candidateQuestions && <RespRow label="Questions" value={data.responses.candidateQuestions} />}
+                {data.responses.opportunityReaction && <RespRow label="Opportunity reaction" value={data.responses.opportunityReaction} />}
+                {data.responses.trainingAttendance && <RespRow label="Training" value={data.responses.trainingAttendance === 'tonight_830' ? '8:30 PM tonight' : data.responses.trainingAttendance === 'tomorrow_1pm' ? '1:00 PM tomorrow' : data.responses.trainingAttendance === 'both' ? 'Both sessions' : 'Neither'} />}
               </div>
             )}
             <div style={{ background: '#0d1b2a', border: '1px solid rgba(16,185,129,0.2)', borderRadius: '8px', padding: '20px', marginBottom: '20px' }}>
@@ -364,8 +418,8 @@ Once you sign that, it's automatically counter-signed, and you will be emailed a
           </div>
         )}
 
-        {/* Step 7: Result — Hired */}
-        {step === 7 && hireResult === 'hired' && (
+        {/* Step 8: Result — Hired */}
+        {step === 8 && hireResult === 'hired' && (
           <div>
             <div style={{ textAlign: 'center', marginBottom: '28px' }}>
               <div style={{ fontSize: '56px', marginBottom: '8px' }}>🎉</div>
@@ -391,6 +445,8 @@ Once you sign that, it's automatically counter-signed, and you will be emailed a
                 ['Script comfort', data.responses.scriptComfort === 'yes' ? 'Comfortable' : data.responses.scriptComfort === 'hesitant' ? 'Hesitant but willing' : data.responses.scriptComfort === 'no' ? 'Not comfortable' : '—'],
                 ['Can start', data.responses.canStart || '—'],
                 ['Questions', data.responses.candidateQuestions || '—'],
+                ['Opportunity reaction', data.responses.opportunityReaction || '—'],
+                ['Training', data.responses.trainingAttendance === 'tonight_830' ? '8:30 PM tonight' : data.responses.trainingAttendance === 'tomorrow_1pm' ? '1:00 PM tomorrow' : data.responses.trainingAttendance === 'both' ? 'Both sessions' : data.responses.trainingAttendance === 'neither' ? 'Neither' : '—'],
               ]} />
               <div style={{ background: '#0d1b2a', border: '1px solid rgba(16,185,129,0.2)', borderRadius: '8px', padding: '18px 22px' }}>
                 <div style={{ color: GOLD, fontSize: '11px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '12px' }}>📋 Next Steps — Tell the New Hire</div>
@@ -410,8 +466,8 @@ Once you sign that, it's automatically counter-signed, and you will be emailed a
           </div>
         )}
 
-        {/* Step 7: Result — Passed */}
-        {step === 7 && hireResult === 'passed' && (
+        {/* Step 8: Result — Passed */}
+        {step === 8 && hireResult === 'passed' && (
           <div style={{ textAlign: 'center' }}>
             <div style={{ fontSize: '48px', marginBottom: '16px' }}>👋</div>
             <h1 style={{ color: '#8a9ab8', fontSize: '24px', marginBottom: '8px' }}>Thank You</h1>
@@ -430,17 +486,17 @@ Once you sign that, it's automatically counter-signed, and you will be emailed a
       </div>
 
       {/* AI Assistant — available on all steps */}
-      {step > 0 && step < 7 && (
+      {step > 0 && step < 8 && (
         <InterviewAssistant step={step} stepLabel={STEP_LABELS[step]} candidateData={data} />
       )}
 
       {/* Audio recorder — available during interview steps */}
-      {step > 0 && step < 7 && (
+      {step > 0 && step < 8 && (
         <InterviewAudioRecorder onAudioReady={setAudioFileUri} candidateName={`${data.firstName}_${data.lastName}`} />
       )}
 
       {/* Add bottom padding so content isn't hidden behind the fixed recorder bar */}
-      {step > 0 && step < 7 && <div style={{ height: '70px' }} />}
+      {step > 0 && step < 8 && <div style={{ height: '70px' }} />}
     </div>
   );
 }
