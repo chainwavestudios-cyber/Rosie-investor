@@ -145,12 +145,14 @@ export default function FronterAdminTab({ adminUsername }) {
       const parts = line.split(',').map(p => p.trim());
       if (parts.length >= 3) {
         try {
+          const debtAmount = parts[3] ? parseFloat(parts[3].replace(/[^0-9.]/g, '')) || 0 : 0;
           await base44.entities.FronterLead.create({
             leadNumber: `#F${String(num++).padStart(4, '0')}`,
             firstName: parts[0], lastName: parts[1], phone: parts[2],
+            debtAmount: debtAmount || undefined,
             status: 'prospect', assignedTo: leadForm.assignedTo,
             assignedAt: new Date().toISOString(), assignedBy: adminUsername, uploadedBy: adminUsername,
-            notes: parts[3] || '',
+            notes: parts[4] || '',
           });
           success++;
         } catch {}
