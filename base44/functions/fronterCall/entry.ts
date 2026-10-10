@@ -317,6 +317,50 @@ Deno.serve(async (req) => {
       return Response.json({ ok: true });
     }
 
+    // ── TAKEOVER: admin joins unmuted, fronter is removed from conference ──
+    if (action === 'takeover') {
+      const { conferenceName, adminUsername, lineKey } = body;
+      if (!conferenceName) return Response.json({ error: 'conferenceName required' }, { status: 400 });
+      if (!adminUsername) return Response.json({ error: 'adminUsername required' }, { status: 400 });
+
+      const fromNumber = lineNumber(lineKey);
+      const adminIdentity = `client:${adminUsername.replace(/[^a-zA-Z0-9_]/g, '_')}`;
+
+      let confSid: string | null = null;
+      for (let i = 0; i < 10; i++) {
+        confSid = await findConferenceSid(conferenceName);
+        if (confSid) break;
+        await new Promise(r => setTimeout(r, 500));
+      }
+      if (!confSid) return Response.json({ error: 'Conference not found' }, { status: 404 });
+
+      // Add admin unmuted (barge in)
+      await twilioFetch(`/Conferences/${confSid}/Participants.json`, {
+        method: 'POST',
+        body: new URLSearchParams({
+          To: adminIdentity,
+          From: fromNumber,
+          Muted: 'false',
+          Beep: 'false',
+        }),
+      });
+
+      // Remove the fronter's browser leg (client: participant that isn't the admin)
+      const participants = await twilioFetch(`/Conferences/${confSid}/Participants.json`);
+      for (const p of participants.participants || []) {
+        if (p.to?.startsWith('client:') && p.to !== adminIdentity) {
+          try {
+            await twilioFetch(`/Conferences/${confSid}/Participants/${p.callSid}.json`, {
+              method: 'POST',
+              body: new URLSearchParams({ Status: 'completed' }),
+            });
+          } catch {}
+        }
+      }
+
+      return Response.json({ ok: true });
+    }
+
     // ── START RECORDING: record a live call via Twilio API ──
     if (action === 'startRecording') {
       const { callSid } = body;

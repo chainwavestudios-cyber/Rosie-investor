@@ -5,6 +5,7 @@
  * Listen and Barge buttons for active calls (requires conference).
  */
 import { useState, useEffect, useRef } from 'react';
+import { Device } from '@twilio/voice-sdk';
 import { base44 } from '@/api/base44Client';
 
 const GOLD = '#10b981';
@@ -46,7 +47,55 @@ export default function FronterMonitorPanel({ onClose, adminUsername }) {
   const [size, setSize] = useState({ w: 860, h: 520 });
   const [showCheckboxes, setShowCheckboxes] = useState(true);
   const [listenStatus, setListenStatus] = useState({}); // {username: 'listening' | 'barged' | ''}
+  const [viewTab, setViewTab] = useState('monitor');
+  const [transferQueue, setTransferQueue] = useState([]);
+  const [takeoverStatus, setTakeoverStatus] = useState({}); // {headsUpId: 'taking_over' | 'done' | ''}
+  const [deviceReady, setDeviceReady] = useState(false);
   const dragRef = useRef(null);
+  const deviceRef = useRef(null);
+  const incomingCallRef = useRef(null);
+
+  // Initialize Twilio device for the admin so they can receive listen/barge/takeover calls
+  useEffect(() => {
+    let destroyed = false;
+    const initDevice = async () => {
+      try {
+        await navigator.mediaDevices.getUserMedia({ audio: true });
+        const res = await base44.functions.invoke('fronterClientToken', { username: adminUsername });
+        const token = res?.data?.token || res?.token;
+        if (!token) throw new Error('No Twilio token');
+        const device = new Device(token, {
+          codecPreferences: ['opus', 'pcmu'],
+          fakeLocalDTMF: true,
+          enableRingingState: true,
+          logLevel: 'error',
+        });
+        await new Promise((resolve, reject) => {
+          device.once('registered', resolve);
+          device.once('error', reject);
+          device.register();
+        });
+        if (destroyed) { try { device.destroy(); } catch {} return; }
+        // Auto-accept incoming calls (listen/barge/takeover)
+        device.on('incoming', (call) => {
+          incomingCallRef.current = call;
+          call.accept();
+          call.on('disconnect', () => { incomingCallRef.current = null; });
+          call.on('cancel', () => { incomingCallRef.current = null; });
+          call.on('error', () => { incomingCallRef.current = null; });
+        });
+        deviceRef.current = device;
+        setDeviceReady(true);
+      } catch (e) { console.warn('Monitor Twilio device init failed:', e.message); }
+    };
+    initDevice();
+    return () => {
+      destroyed = true;
+      try { incomingCallRef.current?.disconnect(); } catch {}
+      try { deviceRef.current?.destroy(); } catch {}
+      deviceRef.current = null;
+    };
+  }, [adminUsername]);
 
   // Load fronters + line assignments
   useEffect(() => {
@@ -85,6 +134,19 @@ export default function FronterMonitorPanel({ onClose, adminUsername }) {
           if (fronterTranscripts.length > 0) latest[s.username] = fronterTranscripts[0];
         }
         setTranscripts(latest);
+
+        // Fetch transfer queue (active headsUp alerts)
+        const queueRaw = await base44.entities.FronterHeadsUp.filter({ status: 'active' }, '-createdAt', 20);
+        const queueItems = queueRaw || [];
+        const leadIds = queueItems.map(q => q.leadId).filter(Boolean);
+        let leadMap = {};
+        if (leadIds.length > 0) {
+          try {
+            const leadsData = await base44.entities.FronterLead.filter({ id: { $in: leadIds } }, '-created_date', 50);
+            (leadsData || []).forEach(l => { leadMap[l.id] = l; });
+          } catch {}
+        }
+        setTransferQueue(queueItems.map(q => ({ ...q, lead: leadMap[q.leadId] })));
       } catch {}
     };
     poll();
@@ -159,6 +221,26 @@ export default function FronterMonitorPanel({ onClose, adminUsername }) {
     } catch {}
   };
 
+  const handleTakeover = async (item) => {
+    if (!item.conferenceName) { alert('No active conference for this transfer. The fronter needs to merge the call first.'); return; }
+    if (!deviceReady) { alert('Twilio device not ready. Please allow microphone access and try again.'); return; }
+    setTakeoverStatus(prev => ({ ...prev, [item.id]: 'taking_over' }));
+    try {
+      await base44.functions.invoke('fronterCall', {
+        action: 'takeover',
+        conferenceName: item.conferenceName,
+        adminUsername: adminUsername || 'admin',
+        lineKey: item.lineKey || 'TWILIO_FROM_NUMBER',
+      });
+      setTakeoverStatus(prev => ({ ...prev, [item.id]: 'done' }));
+      // Close the headsUp alert since the admin took over
+      try { await base44.entities.FronterHeadsUp.update(item.id, { status: 'closed' }); } catch {}
+    } catch (e) {
+      alert('Takeover failed: ' + (e?.message || String(e)));
+      setTakeoverStatus(prev => ({ ...prev, [item.id]: '' }));
+    }
+  };
+
   return (
     <div style={{ position: 'fixed', left: pos.x, top: pos.y, width: size.w, height: size.h, background: '#0d1b2a', border: '1px solid rgba(96,165,250,0.3)', borderRadius: '8px', boxShadow: '0 16px 64px rgba(0,0,0,0.8)', zIndex: 10000, display: 'flex', flexDirection: 'column' }}>
       <style>{`@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}`}</style>
@@ -166,16 +248,21 @@ export default function FronterMonitorPanel({ onClose, adminUsername }) {
       <div onMouseDown={onDragStart} style={{ padding: '10px 16px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'move', userSelect: 'none', flexShrink: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <span style={{ color: BLUE, fontSize: '12px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase' }}>📡 Fronter Monitor</span>
-          <span style={{ color: '#6b7280', fontSize: '10px' }}>{selected.length}/3 selected</span>
+          <div style={{ display: 'flex', gap: '2px', marginLeft: '4px' }}>
+            <button onClick={() => setViewTab('monitor')} style={{ padding: '3px 10px', background: viewTab === 'monitor' ? `${BLUE}18` : 'transparent', border: `1px solid ${viewTab === 'monitor' ? BLUE + '44' : 'rgba(255,255,255,0.1)'}`, borderRadius: '3px', color: viewTab === 'monitor' ? BLUE : '#8a9ab8', cursor: 'pointer', fontSize: '10px', fontWeight: viewTab === 'monitor' ? 'bold' : 'normal' }}>Monitor</button>
+            <button onClick={() => setViewTab('queue')} style={{ padding: '3px 10px', background: viewTab === 'queue' ? `${RED}18` : 'transparent', border: `1px solid ${viewTab === 'queue' ? RED + '44' : 'rgba(255,255,255,0.1)'}`, borderRadius: '3px', color: viewTab === 'queue' ? RED : '#8a9ab8', cursor: 'pointer', fontSize: '10px', fontWeight: viewTab === 'queue' ? 'bold' : 'normal' }}>🚨 Transfer Queue {transferQueue.length > 0 && `(${transferQueue.length})`}</button>
+          </div>
+          {viewTab === 'monitor' && <span style={{ color: '#6b7280', fontSize: '10px' }}>{selected.length}/3 selected</span>}
+          {!deviceReady && <span style={{ color: AMBER, fontSize: '9px' }}>⚠ Mic needed for takeover</span>}
         </div>
         <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-          <button onClick={() => setShowCheckboxes(p => !p)} style={{ background: 'rgba(255,255,255,0.05)', color: '#8a9ab8', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '3px', padding: '3px 10px', cursor: 'pointer', fontSize: '10px' }}>{showCheckboxes ? 'Hide' : 'Show'} Fronters</button>
+          {viewTab === 'monitor' && <button onClick={() => setShowCheckboxes(p => !p)} style={{ background: 'rgba(255,255,255,0.05)', color: '#8a9ab8', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '3px', padding: '3px 10px', cursor: 'pointer', fontSize: '10px' }}>{showCheckboxes ? 'Hide' : 'Show'} Fronters</button>}
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#6b7280', cursor: 'pointer', fontSize: '20px', padding: 0, lineHeight: 1 }}>×</button>
         </div>
       </div>
 
       {/* Checkbox section */}
-      {showCheckboxes && (
+      {showCheckboxes && viewTab === 'monitor' && (
         <div style={{ padding: '8px 12px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', gap: '6px', flexWrap: 'wrap', flexShrink: 0, maxHeight: '80px', overflowY: 'auto' }}>
           {fronters.map(f => {
             const isSel = selected.includes(f.username);
@@ -191,17 +278,75 @@ export default function FronterMonitorPanel({ onClose, adminUsername }) {
         </div>
       )}
 
-      {/* Grid of selected fronters */}
-      <div style={{ flex: 1, overflow: 'auto', padding: '10px', display: 'grid', gridTemplateColumns: `repeat(${Math.max(1, selected.length)}, 1fr)`, gap: '10px', minWidth: 0 }}>
-        {selected.length === 0 ? (
-          <div style={{ color: '#4a5568', textAlign: 'center', padding: '40px', fontSize: '13px', gridColumn: '1 / -1' }}>Select fronters above to monitor them.</div>
-        ) : (
-          selected.map(username => {
-            const session = getSession(username);
-            return <FronterBox key={username} username={username} session={session} transcript={transcripts[username]} callsTodayCount={callsToday[username] || 0} now={now} listenStatus={listenStatus[username] || ''} onListen={() => handleListen(username)} onBarge={() => handleBarge(username)} onEndListen={() => handleEndListen(username)} />;
-          })
-        )}
-      </div>
+      {/* Transfer Queue tab */}
+      {viewTab === 'queue' && (
+        <div style={{ flex: 1, overflow: 'auto', padding: '10px' }}>
+          {transferQueue.length === 0 ? (
+            <div style={{ color: '#4a5568', textAlign: 'center', padding: '40px', fontSize: '13px' }}>No leads waiting in the transfer queue.</div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {transferQueue.map(item => {
+                const holdSeconds = item.createdAt ? Math.floor((now - new Date(item.createdAt).getTime()) / 1000) : 0;
+                const holdMin = Math.floor(holdSeconds / 60);
+                const holdSec = holdSeconds % 60;
+                const status = takeoverStatus[item.id] || '';
+                const hasConf = !!item.conferenceName;
+                return (
+                  <div key={item.id} style={{ background: 'rgba(0,0,0,0.2)', border: `1px solid ${hasConf ? RED + '44' : 'rgba(255,255,255,0.07)'}`, borderRadius: '6px', padding: '12px 14px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    {/* Hold time badge */}
+                    <div style={{ textAlign: 'center', flexShrink: 0, minWidth: '60px' }}>
+                      <div style={{ color: holdSeconds > 60 ? RED : AMBER, fontSize: '18px', fontWeight: 'bold', fontFamily: 'monospace' }}>{holdMin}:{holdSec.toString().padStart(2, '0')}</div>
+                      <div style={{ color: '#6b7280', fontSize: '8px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>On Hold</div>
+                    </div>
+                    {/* Lead info */}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ color: '#e8e0d0', fontSize: '14px', fontWeight: 'bold' }}>{item.leadName || 'Unknown Lead'}</div>
+                      <div style={{ display: 'flex', gap: '10px', alignItems: 'center', marginTop: '3px', flexWrap: 'wrap' }}>
+                        {item.lead?.debtAmount ? <span style={{ color: GOLD, fontSize: '12px', fontWeight: 'bold' }}>${Number(item.lead.debtAmount).toLocaleString()}</span> : <span style={{ color: '#4a5568', fontSize: '12px' }}>Debt: —</span>}
+                        <span style={{ color: '#6b7280', fontSize: '11px' }}>from {item.fronterUsername}</span>
+                        {item.leadPhone && <span style={{ color: '#4a5568', fontSize: '11px' }}>· {item.leadPhone}</span>}
+                      </div>
+                    </div>
+                    {/* Takeover button */}
+                    <button
+                      onClick={() => handleTakeover(item)}
+                      disabled={!hasConf || status === 'taking_over' || status === 'done'}
+                      style={{
+                        background: status === 'done' ? 'rgba(74,222,128,0.15)' : hasConf ? 'linear-gradient(135deg,#ef4444,#f87171)' : 'rgba(255,255,255,0.05)',
+                        color: status === 'done' ? '#4ade80' : hasConf ? '#fff' : '#6b7280',
+                        border: `1px solid ${status === 'done' ? 'rgba(74,222,128,0.3)' : hasConf ? RED + '66' : 'rgba(255,255,255,0.1)'}`,
+                        borderRadius: '4px',
+                        padding: '8px 18px',
+                        cursor: (!hasConf || status === 'taking_over' || status === 'done') ? 'not-allowed' : 'pointer',
+                        fontSize: '12px',
+                        fontWeight: 'bold',
+                        opacity: (!hasConf || status === 'taking_over') ? 0.5 : 1,
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {status === 'taking_over' ? '⏳ Taking over…' : status === 'done' ? '✓ Taken Over' : hasConf ? '🎯 Takeover' : 'No Conference'}
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Monitor tab — Grid of selected fronters */}
+      {viewTab === 'monitor' && (
+        <div style={{ flex: 1, overflow: 'auto', padding: '10px', display: 'grid', gridTemplateColumns: `repeat(${Math.max(1, selected.length)}, 1fr)`, gap: '10px', minWidth: 0 }}>
+          {selected.length === 0 ? (
+            <div style={{ color: '#4a5568', textAlign: 'center', padding: '40px', fontSize: '13px', gridColumn: '1 / -1' }}>Select fronters above to monitor them.</div>
+          ) : (
+            selected.map(username => {
+              const session = getSession(username);
+              return <FronterBox key={username} username={username} session={session} transcript={transcripts[username]} callsTodayCount={callsToday[username] || 0} now={now} listenStatus={listenStatus[username] || ''} onListen={() => handleListen(username)} onBarge={() => handleBarge(username)} onEndListen={() => handleEndListen(username)} />;
+            })
+          )}
+        </div>
+      )}
 
       {/* Resize handle */}
       <div onMouseDown={(e) => {
