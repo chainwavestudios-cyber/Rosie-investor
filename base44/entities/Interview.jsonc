@@ -32,6 +32,11 @@
       "type": "string",
       "title": "Created Fronter Username (if hired)"
     },
+    "responsesJson": {
+      "type": "string",
+      "title": "Candidate Responses (JSON \u2014 companyReaction, phoneExperience, scriptComfort, canStart, candidateQuestions)",
+      "format": "textarea"
+    },
     "notes": {
       "type": "string",
       "title": "Interviewer Notes",
