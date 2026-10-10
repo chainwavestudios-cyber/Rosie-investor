@@ -25,6 +25,10 @@ export default function FronterQAPopup({ username, onClose }) {
   const [kbSearch, setKbSearch] = useState('');
   const [showAddKb, setShowAddKb] = useState(false);
   const [kbForm, setKbForm] = useState({ question: '', answer: '', category: '' });
+  const [editingAnswer, setEditingAnswer] = useState(false);
+  const [editedAnswer, setEditedAnswer] = useState('');
+  const [editingKbId, setEditingKbId] = useState(null);
+  const [editKbForm, setEditKbForm] = useState({ question: '', answer: '', category: '' });
   const [uploadingDoc, setUploadingDoc] = useState(false);
   const [uploadingMp3, setUploadingMp3] = useState(false);
   const [uploadStatus, setUploadStatus] = useState('');
@@ -114,6 +118,8 @@ QUESTION: ${q}
 Provide a clear, concise answer:`,
       });
       setAnswer(res || 'No answer generated.');
+      setEditedAnswer(res || 'No answer generated.');
+      setEditingAnswer(false);
     } catch (e) { setAnswer('Error: ' + (e?.message || String(e))); }
     setAsking(false);
   };
@@ -132,6 +138,37 @@ Provide a clear, concise answer:`,
   const deleteKb = async (id) => {
     if (!confirm('Delete this KB entry?')) return;
     await base44.entities.FronterKnowledgeBase.delete(id); loadKb();
+  };
+
+  const startEditKb = (e) => {
+    setEditingKbId(e.id);
+    setEditKbForm({ question: e.question || '', answer: e.answer || '', category: e.category || '' });
+  };
+
+  const saveEditKb = async (id) => {
+    if (!editKbForm.question.trim() || !editKbForm.answer.trim()) return;
+    try {
+      await base44.entities.FronterKnowledgeBase.update(id, {
+        question: editKbForm.question.trim(),
+        answer: editKbForm.answer.trim(),
+        category: editKbForm.category,
+      });
+      setEditingKbId(null); loadKb();
+    } catch (e) { alert('Failed: ' + (e?.message || String(e))); }
+  };
+
+  const saveAnswerToKb = async () => {
+    if (!editedAnswer.trim()) return;
+    try {
+      await base44.entities.FronterKnowledgeBase.create({
+        question: (question || 'Saved from Q&A').trim(),
+        answer: editedAnswer.trim(),
+        category: 'From Q&A',
+        sourceType: 'manual',
+      });
+      setEditingAnswer(false);
+      loadKb();
+    } catch (e) { alert('Failed: ' + (e?.message || String(e))); }
   };
 
   // ── Document upload (txt, pdf, doc) → extract Q&A ──
@@ -355,8 +392,24 @@ ${transcript.slice(0, 15000)}`,
                 </button>
                 {answer && (
                   <div style={{ padding: '12px', background: 'rgba(96,165,250,0.06)', border: '1px solid rgba(96,165,250,0.2)', borderRadius: '4px' }}>
-                    <div style={{ color: BLUE, fontSize: '9px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '6px' }}>Answer</div>
-                    <div style={{ color: '#c4cdd8', fontSize: '12px', lineHeight: 1.7, whiteSpace: 'pre-wrap', fontFamily: 'Georgia, serif' }}>{answer}</div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                      <div style={{ color: BLUE, fontSize: '9px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '1px' }}>Answer</div>
+                      <div style={{ display: 'flex', gap: '4px' }}>
+                        {editingAnswer ? (
+                          <>
+                            <button onClick={saveAnswerToKb} style={{ background: `${GOLD}18`, color: GOLD, border: `1px solid ${GOLD}44`, borderRadius: '3px', padding: '3px 8px', cursor: 'pointer', fontSize: '9px', fontWeight: 'bold' }}>💾 Save to KB</button>
+                            <button onClick={() => { setEditingAnswer(false); setEditedAnswer(answer); }} style={{ background: 'rgba(255,255,255,0.05)', color: '#8a9ab8', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '3px', padding: '3px 8px', cursor: 'pointer', fontSize: '9px' }}>Cancel</button>
+                          </>
+                        ) : (
+                          <button onClick={() => { setEditingAnswer(true); setEditedAnswer(answer); }} style={{ background: `${BLUE}18`, color: BLUE, border: `1px solid ${BLUE}44`, borderRadius: '3px', padding: '3px 8px', cursor: 'pointer', fontSize: '9px', fontWeight: 'bold' }}>✎ Edit</button>
+                        )}
+                      </div>
+                    </div>
+                    {editingAnswer ? (
+                      <textarea value={editedAnswer} onChange={e => setEditedAnswer(e.target.value)} rows={6} style={{ ...inp, resize: 'vertical', fontFamily: 'Georgia, serif' }} />
+                    ) : (
+                      <div style={{ color: '#c4cdd8', fontSize: '12px', lineHeight: 1.7, whiteSpace: 'pre-wrap', fontFamily: 'Georgia, serif' }}>{answer}</div>
+                    )}
                   </div>
                 )}
                 {/* Live questions detected from transcript */}
@@ -369,7 +422,10 @@ ${transcript.slice(0, 15000)}`,
                         <div key={i} style={{ padding: '10px', background: 'rgba(16,185,129,0.04)', border: '1px solid rgba(16,185,129,0.15)', borderRadius: '4px', marginBottom: '6px' }}>
                           <div style={{ color: GOLD, fontSize: '11px', fontWeight: 'bold', marginBottom: '4px' }}>"{q.text}"</div>
                           {match ? (
-                            <div style={{ color: '#c4cdd8', fontSize: '11px', lineHeight: 1.5, borderLeft: '2px solid rgba(16,185,129,0.3)', paddingLeft: '8px' }}>{match.answer}</div>
+                            <>
+                              <div style={{ color: '#c4cdd8', fontSize: '11px', lineHeight: 1.5, borderLeft: '2px solid rgba(16,185,129,0.3)', paddingLeft: '8px', marginBottom: '4px' }}>{match.answer}</div>
+                              <button onClick={() => { setQaTab('kb'); startEditKb(match); }} style={{ background: `${BLUE}18`, color: BLUE, border: `1px solid ${BLUE}44`, borderRadius: '3px', padding: '3px 8px', cursor: 'pointer', fontSize: '9px', fontWeight: 'bold' }}>✎ Edit Answer</button>
+                            </>
                           ) : (
                             <button onClick={() => ask(q.text)} disabled={asking} style={{ background: `${BLUE}18`, color: BLUE, border: `1px solid ${BLUE}44`, borderRadius: '3px', padding: '4px 10px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold', opacity: asking ? 0.5 : 1 }}>{asking ? '⏳ Asking...' : 'Ask AI →'}</button>
                           )}
@@ -429,25 +485,43 @@ ${transcript.slice(0, 15000)}`,
                   ) : (
                     filteredKb.map(e => {
                       const alts = parseAlts(e);
+                      const isEditing = editingKbId === e.id;
                       return (
-                      <div key={e.id} style={{ padding: '8px 10px', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: '4px' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '6px' }}>
-                          <div style={{ color: '#e8e0d0', fontSize: '11px', fontWeight: 'bold', flex: 1 }}>{e.question}</div>
-                          <button onClick={() => deleteKb(e.id)} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '10px', flexShrink: 0 }}>✕</button>
-                        </div>
-                        {alts.length > 0 && (
-                          <div style={{ marginTop: '4px', display: 'flex', flexWrap: 'wrap', gap: '3px' }}>
-                            {alts.map((alt, i) => (
-                              <span key={i} style={{ padding: '1px 6px', borderRadius: '3px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: '#8a9ab8', fontSize: '9px', fontStyle: 'italic' }}>{alt}</span>
-                            ))}
-                          </div>
+                      <div key={e.id} style={{ padding: isEditing ? '12px' : '8px 10px', background: isEditing ? 'rgba(16,185,129,0.06)' : 'rgba(255,255,255,0.02)', border: `1px solid ${isEditing ? 'rgba(16,185,129,0.3)' : 'rgba(255,255,255,0.07)'}`, borderRadius: '4px' }}>
+                        {isEditing ? (
+                          <>
+                            <div style={{ marginBottom: '6px' }}><label style={ls}>Question</label><input value={editKbForm.question} onChange={ev => setEditKbForm(p => ({ ...p, question: ev.target.value }))} style={inp} /></div>
+                            <div style={{ marginBottom: '6px' }}><label style={ls}>Answer</label><textarea value={editKbForm.answer} onChange={ev => setEditKbForm(p => ({ ...p, answer: ev.target.value }))} rows={4} style={{ ...inp, resize: 'vertical' }} /></div>
+                            <div style={{ marginBottom: '8px' }}><label style={ls}>Category</label><input value={editKbForm.category} onChange={ev => setEditKbForm(p => ({ ...p, category: ev.target.value }))} style={inp} /></div>
+                            <div style={{ display: 'flex', gap: '6px' }}>
+                              <button onClick={() => saveEditKb(e.id)} disabled={!editKbForm.question.trim() || !editKbForm.answer.trim()} style={{ background: 'linear-gradient(135deg,#10b981,#22c55e)', color: DARK, border: 'none', borderRadius: '4px', padding: '6px 16px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold', opacity: (!editKbForm.question.trim() || !editKbForm.answer.trim()) ? 0.5 : 1 }}>✓ Save</button>
+                              <button onClick={() => setEditingKbId(null)} style={{ background: 'rgba(255,255,255,0.05)', color: '#8a9ab8', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '4px', padding: '6px 14px', cursor: 'pointer', fontSize: '10px' }}>Cancel</button>
+                            </div>
+                          </>
+                        ) : (
+                          <>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '6px' }}>
+                              <div style={{ color: '#e8e0d0', fontSize: '11px', fontWeight: 'bold', flex: 1 }}>{e.question}</div>
+                              <div style={{ display: 'flex', gap: '4px', flexShrink: 0 }}>
+                                <button onClick={() => startEditKb(e)} style={{ background: 'none', border: 'none', color: BLUE, cursor: 'pointer', fontSize: '10px' }}>✎</button>
+                                <button onClick={() => deleteKb(e.id)} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '10px' }}>✕</button>
+                              </div>
+                            </div>
+                            {alts.length > 0 && (
+                              <div style={{ marginTop: '4px', display: 'flex', flexWrap: 'wrap', gap: '3px' }}>
+                                {alts.map((alt, i) => (
+                                  <span key={i} style={{ padding: '1px 6px', borderRadius: '3px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: '#8a9ab8', fontSize: '9px', fontStyle: 'italic' }}>{alt}</span>
+                                ))}
+                              </div>
+                            )}
+                            <div style={{ color: '#c4cdd8', fontSize: '11px', lineHeight: 1.5, marginTop: '5px', whiteSpace: 'pre-wrap', borderLeft: '2px solid rgba(16,185,129,0.3)', paddingLeft: '8px' }}>{e.answer}</div>
+                            <div style={{ display: 'flex', gap: '4px', marginTop: '4px' }}>
+                              {e.category && <span style={{ padding: '1px 5px', borderRadius: '2px', background: 'rgba(96,165,250,0.12)', color: BLUE, fontSize: '8px', fontWeight: 'bold', textTransform: 'uppercase' }}>{e.category}</span>}
+                              {e.sourceType === 'document' && <span style={{ padding: '1px 5px', borderRadius: '2px', background: 'rgba(96,165,250,0.12)', color: BLUE, fontSize: '8px' }}>📄 {e.sourceFileName || 'doc'}</span>}
+                              {e.sourceType === 'mp3_call' && <span style={{ padding: '1px 5px', borderRadius: '2px', background: 'rgba(167,139,250,0.12)', color: PURPLE, fontSize: '8px' }}>🎵 {e.sourceFileName || 'mp3'}</span>}
+                            </div>
+                          </>
                         )}
-                        <div style={{ color: '#c4cdd8', fontSize: '11px', lineHeight: 1.5, marginTop: '5px', whiteSpace: 'pre-wrap', borderLeft: '2px solid rgba(16,185,129,0.3)', paddingLeft: '8px' }}>{e.answer}</div>
-                        <div style={{ display: 'flex', gap: '4px', marginTop: '4px' }}>
-                          {e.category && <span style={{ padding: '1px 5px', borderRadius: '2px', background: 'rgba(96,165,250,0.12)', color: BLUE, fontSize: '8px', fontWeight: 'bold', textTransform: 'uppercase' }}>{e.category}</span>}
-                          {e.sourceType === 'document' && <span style={{ padding: '1px 5px', borderRadius: '2px', background: 'rgba(96,165,250,0.12)', color: BLUE, fontSize: '8px' }}>📄 {e.sourceFileName || 'doc'}</span>}
-                          {e.sourceType === 'mp3_call' && <span style={{ padding: '1px 5px', borderRadius: '2px', background: 'rgba(167,139,250,0.12)', color: PURPLE, fontSize: '8px' }}>🎵 {e.sourceFileName || 'mp3'}</span>}
-                        </div>
                       </div>
                       );
                     })
