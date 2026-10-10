@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import { usePortalAuth } from '@/lib/PortalAuthContext';
 import NbTechAutomateTab from './NbTechAutomateTab';
-import GmailTemplateSender from '@/components/shared/GmailTemplateSender';
 
 const GOLD = '#b8933a';
 const DARK = '#0a0f1e';
@@ -167,7 +166,6 @@ function NbtechEmailSection({ currentUsername }) {
   const [search, setSearch] = useState('');
   const [tallyKey, setTallyKey] = useState(0);
   const [includeAlreadySent, setIncludeAlreadySent] = useState(false);
-  const [showGmail, setShowGmail] = useState(false);
 
   const loadLeads = async (listId) => {
     setLoading(true);
@@ -357,18 +355,6 @@ function NbtechEmailSection({ currentUsername }) {
           }}>
           {sending ? <><span>⏳</span> Sending…</> : <><span>💡</span> Send NB Tech Email</>}
         </button>
-        <button
-          onClick={() => setShowGmail(true)}
-          style={{
-            background: 'rgba(96,165,250,0.12)',
-            color: '#60a5fa',
-            border: '1px solid rgba(96,165,250,0.25)',
-            borderRadius: '4px', padding: '10px 18px',
-            cursor: 'pointer', fontWeight: 'bold', fontSize: '12px',
-            display: 'flex', alignItems: 'center', gap: '6px',
-          }}>
-          <span>📧</span> Gmail Send
-        </button>
       </div>
 
       {sendMsg && (
@@ -407,12 +393,6 @@ function NbtechEmailSection({ currentUsername }) {
             {filteredLeads.length} lead{filteredLeads.length !== 1 ? 's' : ''} · {nbtechSentCount} already sent NB Tech email
           </div>
         </>
-      )}
-      {showGmail && (
-        <GmailTemplateSender
-          sentBy={currentUsername}
-          onClose={() => setShowGmail(false)}
-        />
       )}
     </div>
   );

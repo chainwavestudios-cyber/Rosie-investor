@@ -10,6 +10,7 @@ import { substituteScriptVars } from '@/lib/scriptSubstitute';
 import { renderFormatted } from '@/components/debt/ScriptRichText';
 import FronterCardAudioControls from './FronterCardAudioControls';
 import FronterMeetingScheduler from './FronterMeetingScheduler';
+import FronterCredsEmailPopup from './FronterCredsEmailPopup';
 
 const GOLD = '#10b981';
 const DARK = '#0a0f1e';
@@ -49,6 +50,7 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
   const [callStartTime, setCallStartTime] = useState(null);
   const [callDuration, setCallDuration] = useState(0);
   const [showMeetingScheduler, setShowMeetingScheduler] = useState(false);
+  const [showCredsPopup, setShowCredsPopup] = useState(false);
   const [meetingDisposition, setMeetingDisposition] = useState('interested');
 
   useEffect(() => {
@@ -219,6 +221,18 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
             {onNext && <button onClick={(e) => { e.stopPropagation(); onNext(); }} style={{ background: GOLD + '18', color: GOLD, border: '1px solid ' + GOLD + '44', borderRadius: '4px', padding: '5px 12px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>Next →</button>}
             <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#6b7280', cursor: 'pointer', fontSize: '20px', padding: 0, lineHeight: 1 }}>×</button>
           </div>
+        </div>
+
+        {/* Company credentials row */}
+        <div style={{ padding: '8px 18px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0, background: 'rgba(0,0,0,0.15)' }}>
+          <button onClick={() => setShowCredsPopup(true)} style={{ background: 'rgba(96,165,250,0.12)', color: BLUE, border: '1px solid rgba(96,165,250,0.25)', borderRadius: '4px', padding: '6px 14px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '6px' }}>
+            🔑 Email Company Credentials
+          </button>
+          {local.credsSentAt && (
+            <span style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '4px 10px', borderRadius: '12px', background: 'rgba(74,222,128,0.12)', border: '1px solid rgba(74,222,128,0.3)', color: '#4ade80', fontSize: '10px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase' }}>
+              🔑 Creds Sent
+            </span>
+          )}
         </div>
 
         {/* Call control — LED timer + animal + auto-record indicator */}
@@ -433,6 +447,16 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
             document.addEventListener('mouseup', onUp);
           }} style={{ position: 'absolute', bottom: 0, right: 0, width: '16px', height: '16px', cursor: 'nwse-resize', color: '#4a5568', textAlign: 'right', paddingRight: '2px' }}>⌟</div>
         </div>
+      )}
+
+      {/* Company credentials email popup */}
+      {showCredsPopup && (
+        <FronterCredsEmailPopup
+          lead={local}
+          username={username}
+          onClose={() => setShowCredsPopup(false)}
+          onSent={(updated) => { setLocal(prev => ({ ...prev, ...updated })); setShowCredsPopup(false); onSave?.({ ...local, ...updated }); }}
+        />
       )}
 
       {/* Meeting scheduler popup */}

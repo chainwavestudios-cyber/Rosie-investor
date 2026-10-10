@@ -147,6 +147,15 @@
     "uploadedBy": {
       "type": "string",
       "title": "Uploaded By (admin username)"
+    },
+    "credsSentAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Credentials Sent At"
+    },
+    "credsSentTemplate": {
+      "type": "string",
+      "title": "Credentials Template Sent"
     }
   },
   "required": [
