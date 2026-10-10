@@ -50,6 +50,10 @@
       "type": "string",
       "title": "Current Call Lead Name"
     },
+    "currentCallConferenceName": {
+      "type": "string",
+      "title": "Current Call Conference Name (for listen/barge)"
+    },
     "currentCallPhone": {
       "type": "string",
       "title": "Current Call Phone Number"

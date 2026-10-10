@@ -17,7 +17,7 @@ const BLUE = '#60a5fa';
 const AMBER = '#f59e0b';
 const PURPLE = '#a78bfa';
 
-export default function FronterDialer({ lead, username, lineKey, lineNumber, onCallStarted, onCallEnded, onLeadCalled, autoDialTrigger = 0, onDial }) {
+export default function FronterDialer({ lead, username, lineKey, lineNumber, onCallStarted, onCallEnded, onLeadCalled, autoDialTrigger = 0, onDial, onCallConnected }) {
   const [callStatus, setCallStatus] = useState('idle');
   const [duration, setDuration] = useState(0);
   const [now, setNow] = useState(new Date());
@@ -171,6 +171,9 @@ Provide your analysis as JSON with these fields:
         }
       } catch {}
 
+      // Auto-open Q&A popup
+      onCallConnected?.(lead);
+
       // Start Deepgram transcription
       const micDeviceId = localStorage.getItem('fronter_mic_device') || '';
       deepgram.start(micDeviceId).then(() => {
@@ -299,7 +302,16 @@ Provide your analysis as JSON with these fields:
         action: onHold ? 'unhold' : 'hold', fronterCallSid, conferenceName, lineKey,
       });
       const data = res?.data || res;
-      if (data?.conferenceName && !conferenceName) setConferenceName(data.conferenceName);
+      if (data?.conferenceName && !conferenceName) {
+        setConferenceName(data.conferenceName);
+        // Save conference name to DialerSession for listen/barge
+        try {
+          const sessions = await base44.entities.DialerSession.filter({ username });
+          if (sessions?.[0]) {
+            await base44.entities.DialerSession.update(sessions[0].id, { currentCallConferenceName: data.conferenceName });
+          }
+        } catch {}
+      }
       setOnHold(!onHold);
     } catch (e) { setError('Hold failed: ' + (e?.message || String(e))); }
     setBusy(false);
@@ -314,7 +326,16 @@ Provide your analysis as JSON with these fields:
         action: 'merge', fronterCallSid, agentPhone: mergeNumber.trim(), lineKey, conferenceName,
       });
       const data = res?.data || res;
-      if (data?.conferenceName) { setConferenceName(data.conferenceName); setMerged(true); setShowMergeInput(false); }
+      if (data?.conferenceName) {
+        setConferenceName(data.conferenceName); setMerged(true); setShowMergeInput(false);
+        // Save conference name to DialerSession for listen/barge
+        try {
+          const sessions = await base44.entities.DialerSession.filter({ username });
+          if (sessions?.[0]) {
+            await base44.entities.DialerSession.update(sessions[0].id, { currentCallConferenceName: data.conferenceName });
+          }
+        } catch {}
+      }
     } catch (e) { setError('Merge failed: ' + (e?.message || String(e))); }
     setBusy(false);
   };

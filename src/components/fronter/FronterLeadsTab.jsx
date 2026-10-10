@@ -14,7 +14,7 @@ const DARK = '#0a0f1e';
 const ls = { display: 'block', color: '#8a9ab8', fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '6px' };
 const inp = { width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '4px', padding: '8px 12px', color: '#e8e0d0', fontSize: '13px', outline: 'none', boxSizing: 'border-box', fontFamily: 'Georgia, serif' };
 
-export default function FronterLeadsTab({ username, lineKey, lineNumber, isAdmin = false, availableLines = [], adminLineKey = '', onLineChange, mode = 'prospects' }) {
+export default function FronterLeadsTab({ username, lineKey, lineNumber, isAdmin = false, availableLines = [], adminLineKey = '', onLineChange, mode = 'prospects', onCallConnected }) {
   const [leads, setLeads] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeLead, setActiveLead] = useState(null);
@@ -112,6 +112,16 @@ export default function FronterLeadsTab({ username, lineKey, lineNumber, isAdmin
     try {
       const updates = { status };
       if (status === 'transferred') updates.transferredAt = new Date().toISOString();
+      await base44.entities.FronterLead.update(leadId, updates);
+      setRefreshKey(k => k + 1);
+      if (activeLead?.id === leadId) setActiveLead(null);
+    } catch {}
+  };
+
+  const convertToLead = async (leadId, result) => {
+    try {
+      const updates = { status: 'lead', lastCallResult: result, lastCalledAt: new Date().toISOString() };
+      if (result === 'transferred') { updates.transferredAt = new Date().toISOString(); updates.status = 'transferred'; }
       await base44.entities.FronterLead.update(leadId, updates);
       setRefreshKey(k => k + 1);
       if (activeLead?.id === leadId) setActiveLead(null);
@@ -261,16 +271,20 @@ export default function FronterLeadsTab({ username, lineKey, lineNumber, isAdmin
               onLeadCalled={handleLeadCalled}
               autoDialTrigger={dialTrigger}
               onDial={handleDialLog}
+              onCallConnected={onCallConnected}
             />
 
             {/* Status update */}
             <div style={{ marginTop: '12px', padding: '12px', background: 'rgba(255,255,255,0.03)', borderRadius: '4px' }}>
-              <div style={{ color: GOLD, fontSize: '10px', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '8px' }}>Update Status</div>
+              <div style={{ color: GOLD, fontSize: '10px', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '8px' }}>Convert to Lead</div>
               <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
                 {activeLead.status === 'prospect' && (
-                  <button onClick={() => updateStatus(activeLead.id, 'lead')} style={{ background: 'linear-gradient(135deg,#10b981,#22c55e)', color: DARK, border: 'none', borderRadius: '4px', padding: '8px 14px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>✓ Agree to Speak → Lead</button>
+                  <>
+                    <button onClick={() => convertToLead(activeLead.id, 'transferred')} style={{ background: 'linear-gradient(135deg,#10b981,#22c55e)', color: DARK, border: 'none', borderRadius: '4px', padding: '8px 14px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>✓ Transferred (Lead)</button>
+                    <button onClick={() => convertToLead(activeLead.id, 'interested')} style={{ background: 'linear-gradient(135deg,#10b981,#22c55e)', color: DARK, border: 'none', borderRadius: '4px', padding: '8px 14px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>✓ Interested</button>
+                    <button onClick={() => convertToLead(activeLead.id, 'appointment')} style={{ background: 'linear-gradient(135deg,#10b981,#22c55e)', color: DARK, border: 'none', borderRadius: '4px', padding: '8px 14px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>✓ Appointment (Lead)</button>
+                  </>
                 )}
-                <button onClick={() => updateStatus(activeLead.id, 'transferred')} style={{ background: `${GOLD}18`, color: GOLD, border: `1px solid ${GOLD}44`, borderRadius: '4px', padding: '8px 14px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>Transferred</button>
               </div>
               <div style={{ color: '#6b7280', fontSize: '9px', textTransform: 'uppercase', letterSpacing: '1px', margin: '10px 0 6px' }}>Call Result</div>
               <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>

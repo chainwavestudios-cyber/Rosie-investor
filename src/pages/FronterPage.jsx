@@ -219,6 +219,7 @@ export default function FronterPage() {
                 lineNumber={activeLineNumber}
                 isAdmin={false}
                 mode={tab}
+                onCallConnected={() => setShowQA(true)}
               />
             ) : (
               <div style={{ color: '#4a5568', textAlign: 'center', padding: '60px', fontSize: '14px' }}>
@@ -236,6 +237,7 @@ export default function FronterPage() {
                 adminLineKey={adminLineKey}
                 onLineChange={setAdminLineKey}
                 mode={tab}
+                onCallConnected={() => setShowQA(true)}
               />
             ) : (
               <div style={{ color: '#4a5568', textAlign: 'center', padding: '60px', fontSize: '14px' }}>
@@ -257,7 +259,7 @@ export default function FronterPage() {
 
       {/* Fronter Monitor — super admin only */}
       {showMonitor && isAdmin && (
-        <FronterMonitorPanel onClose={() => setShowMonitor(false)} />
+        <FronterMonitorPanel onClose={() => setShowMonitor(false)} adminUsername={user?.username} />
       )}
     </div>
   );
