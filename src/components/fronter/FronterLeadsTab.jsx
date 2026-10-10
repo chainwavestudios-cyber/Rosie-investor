@@ -141,6 +141,13 @@ export default function FronterLeadsTab({ username, lineKey, lineNumber, isAdmin
     } catch {}
   };
 
+  const handleNextLead = () => {
+    if (!contactCardLead || leads.length === 0) return;
+    const idx = leads.findIndex(l => l.id === contactCardLead.id);
+    const nextIdx = (idx + 1) % leads.length;
+    setContactCardLead(leads[nextIdx]);
+  };
+
   const fmtTime = (iso) => {
     if (!iso) return '—';
     const d = new Date(iso);
@@ -295,7 +302,8 @@ export default function FronterLeadsTab({ username, lineKey, lineNumber, isAdmin
           username={username}
           onClose={() => setContactCardLead(null)}
           onSave={(updated) => { setRefreshKey(k => k + 1); setContactCardLead(prev => ({ ...prev, ...updated })); }}
-          onDial={(l) => { setContactCardLead(null); setActiveLead(l); setDialTrigger(n => n + 1); }}
+          onDial={(l) => { setActiveLead(l); setDialTrigger(n => n + 1); }}
+          onNext={handleNextLead}
         />
       )}
     </div>

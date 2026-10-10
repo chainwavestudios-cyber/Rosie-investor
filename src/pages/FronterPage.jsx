@@ -11,6 +11,7 @@ import { base44 } from '@/api/base44Client';
 import FronterLeadsTab from '@/components/fronter/FronterLeadsTab';
 import FronterScriptsTab from '@/components/fronter/FronterScriptsTab';
 import FronterAdminTab from '@/components/fronter/FronterAdminTab';
+import FronterQAPopup from '@/components/fronter/FronterQAPopup';
 
 const GOLD = '#10b981';
 const DARK = '#0a0f1e';
@@ -23,6 +24,7 @@ export default function FronterPage() {
   const [availableLines, setAvailableLines] = useState([]);
   const [adminLineKey, setAdminLineKey] = useState('');
   const [metrics, setMetrics] = useState({ callsToday: 0, talkTimeSeconds: 0, transferredToday: 0 });
+  const [showQA, setShowQA] = useState(false);
 
   const isAdmin = isSuperAdmin;
   // Fronter sees leads + scripts; admin sees admin + leads + scripts
@@ -121,6 +123,7 @@ export default function FronterPage() {
             </div>
           </div>
           <button onClick={() => setTab('leads')} title="Home" style={{ background: `${GOLD}18`, color: GOLD, border: `1px solid ${GOLD}44`, borderRadius: '4px', padding: '6px 12px', cursor: 'pointer', fontSize: '14px' }}>🏠</button>
+          <button onClick={() => setShowQA(p => !p)} title="Live Q&A" style={{ background: showQA ? `${GOLD}30` : `${GOLD}18`, color: GOLD, border: `1px solid ${GOLD}44`, borderRadius: '4px', padding: '6px 12px', cursor: 'pointer', fontSize: '14px' }}>💬</button>
           {isAdmin && (
             <button onClick={() => navigate('/debt-call-coach', { replace: true })} style={{ background: 'rgba(255,255,255,0.05)', color: '#8a9ab8', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '4px', padding: '6px 14px', cursor: 'pointer', fontSize: '11px' }}>← Back to Coach</button>
           )}
@@ -176,6 +179,11 @@ export default function FronterPage() {
 
         {tab === 'scripts' && <FronterScriptsTab />}
       </div>
+
+      {/* Live Q&A popup — available on all tabs */}
+      {showQA && (
+        <FronterQAPopup username={user?.username} onClose={() => setShowQA(false)} />
+      )}
     </div>
   );
 }
