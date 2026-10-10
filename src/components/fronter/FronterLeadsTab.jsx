@@ -9,6 +9,7 @@ import { base44 } from '@/api/base44Client';
 import FronterDialer from './FronterDialer';
 import FronterContactCard from './FronterContactCard';
 import FronterLeadImportModal from './FronterLeadImportModal';
+import FronterAgentStatsBar from './FronterAgentStatsBar';
 
 const GOLD = '#10b981';
 const DARK = '#0a0f1e';
@@ -28,6 +29,8 @@ export default function FronterLeadsTab({ username, lineKey, lineNumber, isAdmin
   const [contactCardLead, setContactCardLead] = useState(null);
   const [fronterFilter, setFronterFilter] = useState('');
   const [showImportModal, setShowImportModal] = useState(false);
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [search, setSearch] = useState('');
   const fileRef = useRef(null);
 
   const load = useCallback(async () => {
@@ -177,12 +180,63 @@ export default function FronterLeadsTab({ username, lineKey, lineNumber, isAdmin
     return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   };
 
+  // Compute status counts and filtered leads
+  const statusCounts = mode === 'leads'
+    ? { all: leads.length, transferred: leads.filter(l => l.status === 'transferred').length, interested: leads.filter(l => l.lastCallResult === 'interested').length, appointment: leads.filter(l => l.lastCallResult === 'appointment').length }
+    : { all: leads.length, never_called: leads.filter(l => !l.lastCalledAt).length, called: leads.filter(l => l.lastCalledAt).length };
+  const FILTER_TABS = mode === 'leads'
+    ? [{ id: 'all', label: 'All Leads' }, { id: 'transferred', label: 'Transferred' }, { id: 'interested', label: 'Interested' }, { id: 'appointment', label: 'Appointment' }]
+    : [{ id: 'all', label: 'All Prospects' }, { id: 'never_called', label: 'Never Called' }, { id: 'called', label: 'Called' }];
+  let displayLeads = leads;
+  if (statusFilter !== 'all') {
+    if (mode === 'leads') {
+      if (statusFilter === 'transferred') displayLeads = leads.filter(l => l.status === 'transferred');
+      else displayLeads = leads.filter(l => l.lastCallResult === statusFilter);
+    } else {
+      if (statusFilter === 'never_called') displayLeads = leads.filter(l => !l.lastCalledAt);
+      else displayLeads = leads.filter(l => l.lastCalledAt);
+    }
+  }
+  if (search) {
+    const q = search.toLowerCase();
+    displayLeads = displayLeads.filter(l => `${l.firstName} ${l.lastName} ${l.phone}`.toLowerCase().includes(q));
+  }
+
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 380px', gap: '14px', alignItems: 'start' }}>
+    <div>
+      {/* Header */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px', flexWrap: 'wrap', gap: '12px' }}>
+        <div>
+          <h2 style={{ color: '#e8e0d0', margin: '0 0 4px', fontSize: '20px', fontWeight: 'normal' }}>{mode === 'leads' ? 'Leads' : 'Prospects'}</h2>
+          <p style={{ color: '#6b7280', fontSize: '13px', margin: 0 }}>
+            Never-called {mode === 'leads' ? 'leads' : 'prospects'} appear first · Auto-refreshes every 10s
+            <span style={{ marginLeft: '8px', display: 'inline-block', width: '6px', height: '6px', borderRadius: '50%', background: '#4ade80', boxShadow: '0 0 6px #4ade80', verticalAlign: 'middle' }} />
+          </p>
+        </div>
+      </div>
+
+      {/* Agent stats bar — admin only */}
+      {isAdmin && <FronterAgentStatsBar />}
+
+      {/* Status filter tabs */}
+      <div style={{ display: 'flex', gap: '0', borderBottom: '1px solid rgba(255,255,255,0.07)', marginBottom: '16px', overflowX: 'auto' }}>
+        {FILTER_TABS.map(t => (
+          <button key={t.id} onClick={() => setStatusFilter(t.id)} style={{ background: 'none', border: 'none', borderBottom: statusFilter === t.id ? `2px solid ${GOLD}` : '2px solid transparent', color: statusFilter === t.id ? GOLD : '#6b7280', padding: '10px 16px', cursor: 'pointer', fontSize: '12px', letterSpacing: '1px', whiteSpace: 'nowrap' }}>
+            {t.label} <span style={{ fontSize: '11px' }}>({statusCounts[t.id] || 0})</span>
+          </button>
+        ))}
+      </div>
+
+      {/* Search */}
+      <div style={{ marginBottom: '16px', display: 'flex', gap: '8px' }}>
+        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search by name, phone…" style={{ flex: 1, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '4px', padding: '8px 14px', color: '#e8e0d0', fontSize: '13px', outline: 'none', fontFamily: 'Georgia, serif' }} />
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 380px', gap: '14px', alignItems: 'start' }}>
       {/* Lead list */}
       <div style={{ background: '#0d1b2a', border: '1px solid rgba(16,185,129,0.2)', borderRadius: '6px' }}>
         <div style={{ padding: '14px 16px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
-          <div style={{ color: GOLD, fontSize: '11px', letterSpacing: '2px', textTransform: 'uppercase' }}>📋 {mode === 'leads' ? (isAdmin ? 'All Leads' : 'My Leads') : (isAdmin ? 'All Prospects' : 'My Prospects')} — {leads.length} {mode === 'leads' ? 'total' : 'remaining'}</div>
+          <div style={{ color: GOLD, fontSize: '11px', letterSpacing: '2px', textTransform: 'uppercase' }}>📋 {mode === 'leads' ? (isAdmin ? 'All Leads' : 'My Leads') : (isAdmin ? 'All Prospects' : 'My Prospects')} — {displayLeads.length} {mode === 'leads' ? 'total' : 'remaining'}</div>
           <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
             {isAdmin && (
               <select value={fronterFilter} onChange={e => setFronterFilter(e.target.value)} style={{ ...inp, width: 'auto', fontSize: '10px', padding: '4px 8px' }}>
@@ -228,7 +282,7 @@ export default function FronterLeadsTab({ username, lineKey, lineNumber, isAdmin
         <div style={{ maxHeight: '70vh', overflowY: 'auto' }}>
           {loading ? (
             <div style={{ color: '#4a5568', textAlign: 'center', padding: '40px 0' }}>Loading…</div>
-          ) : leads.length === 0 ? (
+          ) : displayLeads.length === 0 ? (
             <div style={{ color: '#4a5568', textAlign: 'center', padding: '40px 0', fontSize: '13px' }}>No {mode === 'leads' ? 'leads' : 'prospects'} assigned to you. Ask your admin to upload and assign leads.</div>
           ) : (
             <div style={{ overflowX: 'auto' }}>
@@ -241,7 +295,7 @@ export default function FronterLeadsTab({ username, lineKey, lineNumber, isAdmin
                   </tr>
                 </thead>
                 <tbody>
-                  {leads.map((l, i) => {
+                  {displayLeads.map((l, i) => {
                     const sc = l.status === 'lead' ? GOLD : l.status === 'transferred' ? '#a78bfa' : '#60a5fa';
                     return (
                       <tr key={l.id}
@@ -368,8 +422,10 @@ export default function FronterLeadsTab({ username, lineKey, lineNumber, isAdmin
           onSave={(updated) => { setRefreshKey(k => k + 1); setContactCardLead(prev => ({ ...prev, ...updated })); }}
           onDial={(l) => { setActiveLead(l); setDialTrigger(n => n + 1); }}
           onNext={handleNextLead}
+          isAdmin={isAdmin}
         />
       )}
+      </div>
     </div>
   );
 }

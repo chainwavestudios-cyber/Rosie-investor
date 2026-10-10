@@ -7,6 +7,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
 import { substituteScriptVars } from '@/lib/scriptSubstitute';
+import { renderFormatted } from '@/components/debt/ScriptRichText';
+import FronterCardAudioControls from './FronterCardAudioControls';
 
 const GOLD = '#10b981';
 const DARK = '#0a0f1e';
@@ -24,7 +26,7 @@ function fmtET(iso) {
   });
 }
 
-export default function FronterContactCard({ lead, username, fronterFirstName, onClose, onSave, onDial, onNext }) {
+export default function FronterContactCard({ lead, username, fronterFirstName, onClose, onSave, onDial, onNext, isAdmin }) {
   const [local, setLocal] = useState(lead || {});
   const [notesLog, setNotesLog] = useState([]);
   const [newNote, setNewNote] = useState('');
@@ -42,6 +44,9 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
   const scriptDragRef = useRef(null);
   const [headsUpSent, setHeadsUpSent] = useState(false);
   const [headsUpSending, setHeadsUpSending] = useState(false);
+  const [callActive, setCallActive] = useState(false);
+  const [callStartTime, setCallStartTime] = useState(null);
+  const [callDuration, setCallDuration] = useState(0);
 
   useEffect(() => {
     setLocal(lead || {});
@@ -54,6 +59,15 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
       if (all?.length > 0) setActiveScript(prev => prev || all[0]);
     }).catch(() => {});
   }, []);
+
+  // Call timer — ticks every second while a call is active
+  useEffect(() => {
+    if (!callActive) return;
+    const interval = setInterval(() => {
+      setCallDuration(Math.floor((Date.now() - callStartTime) / 1000));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [callActive, callStartTime]);
 
   const onDragStart = (e) => {
     dragRef.current = { startX: e.clientX - pos.x, startY: e.clientY - pos.y };
@@ -134,6 +148,20 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
     setSaving(false);
   };
 
+  const markClosedDeal = async () => {
+    if (!lead?.id || !isAdmin) return;
+    if (!confirm(`Mark ${local.firstName} ${local.lastName} as a Closed Deal? This will trigger a congratulatory popup for the fronter.`)) return;
+    try {
+      await base44.entities.FronterLead.update(lead.id, {
+        status: 'closed_deal',
+        closedDealAt: new Date().toISOString(),
+        closedDealBy: username,
+      });
+      onSave?.({ ...local, status: 'closed_deal', closedDealAt: new Date().toISOString(), closedDealBy: username });
+      onClose?.();
+    } catch (e) { alert('Failed: ' + (e?.message || String(e))); }
+  };
+
   const scriptContent = (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       {scripts.length > 1 && (
@@ -147,15 +175,16 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
         {!activeScript ? (
           <div style={{ color: '#4a5568', textAlign: 'center', padding: '40px 0', fontSize: '13px' }}>No scripts yet. Ask your admin to add a script.</div>
         ) : (
-          <div style={{ color: '#e8e0d0', fontSize: '14px', lineHeight: 1.8, fontFamily: 'Georgia, serif', whiteSpace: 'pre-wrap' }}>{substituteScriptVars(activeScript.content, { lead: local, fronterFirstName })}</div>
+          <div style={{ color: '#e8e0d0', fontSize: '14px', lineHeight: 1.8, fontFamily: 'Georgia, serif', whiteSpace: 'pre-wrap' }}>{renderFormatted(substituteScriptVars(activeScript.content, { lead: local, fronterFirstName }))}</div>
         )}
       </div>
     </div>
   );
 
   const initials = `${(local.firstName?.[0] || '?')}${(local.lastName?.[0] || '')}`;
-  const leadTypeColor = local.status === 'lead' ? GOLD : local.status === 'transferred' ? '#a78bfa' : '#60a5fa';
-  const leadTypeLabel = local.status === 'lead' ? 'LEAD' : local.status === 'transferred' ? 'TRANSFERRED' : 'PROSPECT';
+  const leadTypeColor = local.status === 'lead' ? GOLD : local.status === 'transferred' ? '#a78bfa' : local.status === 'closed_deal' ? '#a78bfa' : '#60a5fa';
+  const leadTypeLabel = local.status === 'lead' ? 'LEAD' : local.status === 'transferred' ? 'TRANSFERRED' : local.status === 'closed_deal' ? 'CLOSED DEAL' : 'PROSPECT';
+  const animalEmoji = local.status === 'closed_deal' ? '💎' : local.status === 'transferred' ? '🦄' : local.status === 'lead' ? '🐄' : '🦆';
 
   return (
     <>
@@ -186,6 +215,21 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
           </div>
         </div>
 
+        {/* Call control — LED timer + animal + auto-record indicator */}
+        <div style={{ padding: '10px 18px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', alignItems: 'center', gap: '14px', flexShrink: 0, background: 'rgba(0,0,0,0.2)' }}>
+          <div style={{ fontSize: '28px', flexShrink: 0 }}>{animalEmoji}</div>
+          <div style={{ flex: 1, background: '#001a0a', border: '1px solid rgba(74,222,128,0.3)', borderRadius: '4px', padding: '8px 14px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <div style={{ width: 8, height: 8, borderRadius: '50%', background: callActive ? '#4ade80' : '#4a5568', boxShadow: callActive ? '0 0 8px #4ade80' : 'none', animation: callActive ? 'pulse 1s infinite' : 'none' }} />
+            <span style={{ color: '#4ade80', fontFamily: 'monospace', fontSize: '18px', fontWeight: 'bold', letterSpacing: '2px' }}>
+              {String(Math.floor(callDuration / 60)).padStart(2, '0')}:{String(callDuration % 60).padStart(2, '0')}
+            </span>
+            <span style={{ color: '#4a5568', fontSize: '10px', marginLeft: 'auto' }}>{callActive ? '🔴 LIVE · ● REC' : 'Ready to call'}</span>
+          </div>
+          {callActive && (
+            <button onClick={() => { setCallActive(false); setCallStartTime(null); }} style={{ background: 'rgba(239,68,68,0.15)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '4px', padding: '6px 14px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>⏹ End</button>
+          )}
+        </div>
+
         {/* Tabs */}
         <div style={{ display: 'flex', gap: '2px', borderBottom: '1px solid rgba(255,255,255,0.07)', flexShrink: 0, padding: '0 14px' }}>
           <button onClick={() => setCardTab('contact')} style={{ padding: '8px 16px', background: 'none', border: 'none', borderBottom: `2px solid ${cardTab === 'contact' ? GOLD : 'transparent'}`, color: cardTab === 'contact' ? GOLD : '#6b7280', cursor: 'pointer', fontSize: '11px', fontWeight: cardTab === 'contact' ? 'bold' : 'normal' }}>📇 Contact</button>
@@ -196,6 +240,9 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
         <div style={{ flex: 1, overflowY: 'auto', padding: '16px' }}>
           {cardTab === 'contact' && (
             <div>
+              {/* Audio controls */}
+              <FronterCardAudioControls />
+
               {/* Two-column layout */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '14px' }}>
                 {/* Left column: Contact info */}
@@ -205,7 +252,7 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
                   <div style={{ marginBottom: '8px' }}><label style={ls}>Last Name</label><input value={local.lastName || ''} onChange={e => update('lastName', e.target.value)} style={inp} /></div>
                   <div style={{ marginBottom: '8px' }}>
                     <label style={ls}>Phone (click to dial)</label>
-                    <button onClick={() => onDial?.(local)} style={{ ...inp, textAlign: 'left', cursor: 'pointer', color: GOLD, border: '1px solid rgba(16,185,129,0.3)', background: 'rgba(16,185,129,0.06)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <button onClick={() => { setCallActive(true); setCallStartTime(Date.now()); setCallDuration(0); onDial?.(local); }} style={{ ...inp, textAlign: 'left', cursor: 'pointer', color: GOLD, border: '1px solid rgba(16,185,129,0.3)', background: 'rgba(16,185,129,0.06)', display: 'flex', alignItems: 'center', gap: '6px' }}>
                       <span style={{ fontSize: '14px' }}>📞</span> {local.phone || '—'}
                     </button>
                   </div>
@@ -265,6 +312,13 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
                   )}
                 </div>
               </div>
+
+              {/* Mark as Closed Deal — super admin only */}
+              {isAdmin && local.status !== 'closed_deal' && (
+                <div style={{ marginTop: '14px', padding: '12px', background: 'rgba(167,139,250,0.08)', border: '1px solid rgba(167,139,250,0.25)', borderRadius: '4px', textAlign: 'center' }}>
+                  <button onClick={markClosedDeal} style={{ background: 'linear-gradient(135deg,#a78bfa,#8b5cf6)', color: '#fff', border: 'none', borderRadius: '4px', padding: '10px 28px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}>💎 Mark as Closed Deal</button>
+                </div>
+              )}
             </div>
           )}
 

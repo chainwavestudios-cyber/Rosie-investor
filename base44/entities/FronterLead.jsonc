@@ -43,6 +43,7 @@
         "prospect",
         "lead",
         "transferred",
+        "closed_deal",
         "removed"
       ],
       "default": "prospect"
@@ -87,6 +88,15 @@
       "type": "string",
       "format": "date-time",
       "title": "Transferred At"
+    },
+    "closedDealAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Closed Deal At (set when lead is marked as closed_deal)"
+    },
+    "closedDealBy": {
+      "type": "string",
+      "title": "Closed Deal By (admin username who marked it closed)"
     },
     "notes": {
       "type": "string",
