@@ -93,22 +93,21 @@ export default function BobBrainTab({ onKBUpdated }) {
       if (dup.isDuplicate) { setStatus(`⚠ ${file.name} already uploaded on ${new Date(dup.firstUploadDate).toLocaleDateString()}. Skipping.`); return { skipped: true }; }
 
       setStatus(`Uploading ${file.name} (${(file.size / 1024 / 1024).toFixed(1)}MB)…`);
-      const { file_uri } = await base44.integrations.Core.UploadPrivateFile({ file });
-      const { signed_url } = await base44.integrations.Core.CreateFileSignedUrl({ file_uri, expires_in: 3600 });
+      const { file_url } = await base44.integrations.Core.UploadPublicFile({ file });
 
       setStatus(`Transcribing ${file.name}…`);
       let transcriptText = '';
       if (file.size > 25 * 1024 * 1024) {
-        const res = await base44.functions.invoke('transcribeAudioLarge', { audio_url: signed_url });
+        const res = await base44.functions.invoke('transcribeAudioLarge', { audio_url: file_url });
         transcriptText = res?.transcript || res?.data?.transcript || '';
       } else {
-        transcriptText = await base44.integrations.Core.TranscribeAudio({ audio_url: signed_url });
+        transcriptText = await base44.integrations.Core.TranscribeAudio({ audio_url: file_url });
       }
       if (!transcriptText || transcriptText.length < 20) throw new Error('Transcription came back empty.');
 
       setStatus(`Saving ${file.name} transcript to brain…`);
       await base44.entities.BobTranscript.create({
-        sourceName: file.name, sourceType: 'mp3', transcriptText, fileUri: file_uri, fileHash: hash,
+        sourceName: file.name, sourceType: 'mp3', transcriptText, fileUri: file_url, fileHash: hash,
         durationLabel: `${(file.size / 1024 / 1024).toFixed(1)}MB`, tags: `file_hash:${hash}`,
       });
 
@@ -252,7 +251,7 @@ export default function BobBrainTab({ onKBUpdated }) {
           <div style={{ background: 'rgba(244,114,182,0.05)', border: '1px solid rgba(244,114,182,0.2)', borderRadius: '6px', padding: '18px' }}>
             <div style={{ color: PINK, fontSize: '11px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '4px' }}>🎵 Upload Call Recordings (MP3)</div>
             <div style={{ color: '#8a9ab8', fontSize: '11px', marginBottom: '14px', lineHeight: 1.5 }}>
-              The master place to feed BOB new calls. Select <strong style={{ color: PINK }}>up to 30 MP3s at once</strong> — they're queued and processed one at a time (transcribe → save → extract Q&A → cross-reference). Each upload is stored **privately** — no public URL, so access follows your app's permissions.
+              The master place to feed BOB new calls. Select <strong style={{ color: PINK }}>up to 30 MP3s at once</strong> — they're queued and processed one at a time (transcribe → save → extract Q&A → cross-reference).
             </div>
             <input ref={mp3Ref} type="file" accept="audio/mpeg,audio/mp3,audio/wav,audio/m4a,audio/ogg" multiple style={{ display: 'none' }} onChange={e => { if (e.target.files?.length > 0) handleMP3Batch(e.target.files); e.target.value = ''; }} />
             <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
