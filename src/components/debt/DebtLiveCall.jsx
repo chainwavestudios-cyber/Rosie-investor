@@ -11,7 +11,6 @@ import LiveTranscriptPanel from '@/components/debt/LiveTranscriptPanel';
 import LiveScriptsPanel from '@/components/debt/LiveScriptsPanel';
 import DebtAIPanel from '@/components/debt/DebtAIPanel';
 import DoNothingCalculator from '@/components/debt/DoNothingCalculator';
-import SmartClose from '@/components/debt/closing/SmartClose';
 import ClientProfileModal from '@/components/debt/ClientProfileModal';
 import LiveComplianceWidget from '@/components/compliance/LiveComplianceWidget';
 import CustomerStatsPopup from '@/components/debt/CustomerStatsPopup';
@@ -139,7 +138,7 @@ export default function DebtLiveCall({ onCallStart, onCallEnd }) {
   // Notify parent when a live call starts/ends so it can auto-switch tabs and pop out panels
   const prevPhaseRef = useRef('idle');
   useEffect(() => {
-    if (prevPhaseRef.current !== 'live' && phase === 'live') onCallStart?.();
+    if (prevPhaseRef.current !== 'live' && phase === 'live') onCallStart?.(lead);
     if (prevPhaseRef.current === 'live' && phase !== 'live') onCallEnd?.();
     prevPhaseRef.current = phase;
   }, [phase]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -226,7 +225,6 @@ export default function DebtLiveCall({ onCallStart, onCallEnd }) {
   const transcriptPanel = usePopOutPanel('live_transcript', { width: 520, height: 600 }, coachUser?.username);
   const scriptsPanel = usePopOutPanel('live_scripts', { width: 480, height: 600 }, coachUser?.username);
   const aiPanel = usePopOutPanel('live_ai_panel', { width: 420, height: 600 }, coachUser?.username);
-  const closingPanel = usePopOutPanel('live_closing', { width: 400, height: 640 }, coachUser?.username);
   const [allPoppedOut, setAllPoppedOut] = useState(false);
   const [isInbound, setIsInbound] = useState(false);
   const [layoutSavedMsg, setLayoutSavedMsg] = useState(false);
@@ -1299,7 +1297,6 @@ ${recentText}`,
       transcriptPanel.popOut();
       scriptsPanel.popOut();
       aiPanel.popOut();
-      closingPanel.popOut();
       setAllPoppedOut(true);
     }, 300);
 
@@ -2118,7 +2115,6 @@ ${recentText}`,
               transcriptPanel.saveLayout();
               scriptsPanel.saveLayout();
               aiPanel.saveLayout();
-              closingPanel.saveLayout();
               setLayoutSavedMsg(true);
               setTimeout(() => setLayoutSavedMsg(false), 2000);
             }}
@@ -2293,20 +2289,6 @@ ${recentText}`,
           </>
         );
       })()}
-
-      {/* Closing Flow pop-out — auto-opens on every live call */}
-      {closingPanel.poppedOut && phase === 'live' && (
-        <div style={{ ...closingPanel.floatingStyle, background: '#0d1b2a', border: '1px solid rgba(16,185,129,0.3)', borderRadius: '6px' }}>
-          <div onMouseDown={closingPanel.onDragStart} style={{ padding: '8px 12px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'move', userSelect: 'none', flexShrink: 0 }}>
-            <span style={{ color: GOLD, fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase' }}>🏁 Closing Flow</span>
-            <button onClick={closingPanel.toggle} style={{ background: `${GOLD}18`, border: `1px solid ${GOLD}44`, color: GOLD, borderRadius: '4px', padding: '4px 10px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase' }}>⬇ Dock</button>
-          </div>
-          <div style={{ flex: 1, overflow: 'auto', padding: '12px' }}>
-            <SmartClose leadId={lead.id} liveTranscript={transcript} intentScore={intentScore} animalType={profileData?.animalType || lead.animalType} compact />
-          </div>
-          {closingPanel.resizeHandles}
-        </div>
-      )}
 
       {/* Do Nothing Calculator — shows for close mode */}
       {callMode === 'close' && lead.id && (
