@@ -23,6 +23,7 @@ import FronterChatBox from '@/components/fronter/FronterChatBox';
 import FronterOnboarding from '@/components/fronter/FronterOnboarding';
 import FronterClosedDealsTab from '@/components/fronter/FronterClosedDealsTab';
 import FronterCongratsPopup from '@/components/fronter/FronterCongratsPopup';
+import FronterChatroom from '@/components/fronter/FronterChatroom';
 
 const GOLD = '#10b981';
 const DARK = '#0a0f1e';
@@ -38,6 +39,7 @@ export default function FronterPage() {
   const [metrics, setMetrics] = useState({ callsToday: 0, talkTimeSeconds: 0, transferredToday: 0 });
   const [showQA, setShowQA] = useState(false);
   const [showMonitor, setShowMonitor] = useState(false);
+  const [showChatroom, setShowChatroom] = useState(false);
   const [fronterStatus, setFronterStatus] = useState('dialing');
   const [agreementLoaded, setAgreementLoaded] = useState(false);
   const [agreementNeeded, setAgreementNeeded] = useState(false);
@@ -312,7 +314,12 @@ export default function FronterPage() {
       )}
 
       {/* Chat box — fronter chats with admin, admin chats with fronters */}
-      <FronterChatBox username={user?.username} role={isAdmin ? 'admin' : 'fronter'} adminUsername="chris" />
+      <FronterChatBox username={user?.username} role={isAdmin ? 'admin' : 'fronter'} adminUsername="chris" onOpenChatroom={() => setShowChatroom(true)} />
+
+      {/* Fronters Chatroom popup */}
+      {showChatroom && (
+        <FronterChatroom username={user?.username} role={isAdmin ? 'admin' : 'fronter'} onClose={() => setShowChatroom(false)} />
+      )}
 
       {/* Congrats popup — shows when a deal is closed */}
       {isFronter && <FronterCongratsPopup username={user.username} fronterFirstName={user?.firstName} />}

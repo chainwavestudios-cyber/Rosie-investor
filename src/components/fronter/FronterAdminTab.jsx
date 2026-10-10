@@ -16,6 +16,7 @@ import FronterHoldAudioTab from '@/components/fronter/FronterHoldAudioTab';
 import FronterUsersTab from '@/components/fronter/FronterUsersTab';
 import FronterLeadImportModal from '@/components/fronter/FronterLeadImportModal';
 import FronterScriptEditor from '@/components/fronter/FronterScriptEditor';
+import FronterQuoteTab from '@/components/fronter/FronterQuoteTab';
 import { renderFormatted } from '@/components/debt/ScriptRichText';
 
 const GOLD = '#10b981';
@@ -238,6 +239,7 @@ export default function FronterAdminTab({ adminUsername }) {
     { id: 'holdaudio', label: '🔊 Hold Audio' },
     { id: 'users', label: '👥 Users' },
     { id: 'scripts', label: '📜 Scripts' },
+    { id: 'quotes', label: '💬 Quotes' },
   ];
 
   return (
@@ -439,6 +441,11 @@ export default function FronterAdminTab({ adminUsername }) {
       {/* ── USERS ── */}
       {subtab === 'users' && !loading && (
         <FronterUsersTab adminUsername={adminUsername} />
+      )}
+
+      {/* ── QUOTES ── */}
+      {subtab === 'quotes' && !loading && (
+        <FronterQuoteTab adminUsername={adminUsername} />
       )}
 
       {/* CSV import modal */}

@@ -1,0 +1,44 @@
+{
+  "description": "Posts scheduled motivational quotes to the fronter chatroom every 15 minutes. Generates twice-daily AI quotes (9am & 3pm ET) and posts admin-scheduled custom quotes.",
+  "name": "Fronter Quote Broadcaster",
+  "trigger": {
+    "condition": null,
+    "config": {
+      "trigger_type": "scheduled",
+      "events": [],
+      "schedule_mode": "recurring",
+      "cron_expression": "*/15 * * * *",
+      "one_time_date": null,
+      "timezone": "America/New_York",
+      "interval_value": null,
+      "interval_unit": null,
+      "interval_anchor": null,
+      "ends_type": "never",
+      "ends_on_date": null,
+      "ends_after_count": null
+    }
+  },
+  "definition": {
+    "document": {
+      "dsl": "1.0.0",
+      "name": "fronter_quote_broadcaster",
+      "version": "1.0",
+      "namespace": "base44"
+    },
+    "do": [
+      {
+        "post_quotes": {
+          "call": "invoke_backend_function",
+          "with": {
+            "function_name": "postScheduledQuotes"
+          },
+          "then": "end",
+          "x-base44": {
+            "title": "Post scheduled quotes",
+            "description": "Generate AI quotes + post due quotes to chatroom"
+          }
+        }
+      }
+    ]
+  }
+}
