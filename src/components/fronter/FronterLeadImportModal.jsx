@@ -58,7 +58,7 @@ function autoMatchHeader(header) {
   return '';
 }
 
-export default function FronterLeadImportModal({ assignedTo, assignedBy, onClose, onImported }) {
+export default function FronterLeadImportModal({ assignedTos, assignedBy, onClose, onImported }) {
   const [csvText, setCsvText] = useState('');
   const [headers, setHeaders] = useState([]);
   const [rows, setRows] = useState([]);
@@ -95,7 +95,7 @@ export default function FronterLeadImportModal({ assignedTo, assignedBy, onClose
   const canImport = hasFirstName && hasLastName && hasPhone && rows.length > 0 && !importing;
 
   const handleImport = async () => {
-    if (!assignedTo) { alert('Select a fronter to assign leads to first.'); return; }
+    if (!assignedTos || assignedTos.length === 0) { alert('Select at least one fronter to assign leads to first.'); return; }
     if (!canImport) return;
     setImporting(true);
     let success = 0, failed = 0;
@@ -107,7 +107,6 @@ export default function FronterLeadImportModal({ assignedTo, assignedBy, onClose
       for (const row of rows) {
         const rec = {
           status: 'prospect',
-          assignedTo,
           assignedAt: new Date().toISOString(),
           assignedBy,
           uploadedBy: assignedBy,
@@ -127,6 +126,9 @@ export default function FronterLeadImportModal({ assignedTo, assignedBy, onClose
           failed++;
         }
       }
+
+      // Round-robin assign across selected fronters (split evenly)
+      records.forEach((rec, i) => { rec.assignedTo = assignedTos[i % assignedTos.length]; });
 
       // Bulk create in batches of 400
       for (let i = 0; i < records.length; i += 400) {
@@ -149,7 +151,7 @@ export default function FronterLeadImportModal({ assignedTo, assignedBy, onClose
         <div style={{ padding: '14px 20px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
           <div>
             <div style={{ color: GOLD, fontSize: '13px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase' }}>📁 Import Leads from CSV</div>
-            <div style={{ color: '#6b7280', fontSize: '10px', marginTop: '2px' }}>Assigning to: <span style={{ color: BLUE, fontWeight: 'bold' }}>{assignedTo || '— select a fronter first —'}</span></div>
+            <div style={{ color: '#6b7280', fontSize: '10px', marginTop: '2px' }}>Assigning to: <span style={{ color: BLUE, fontWeight: 'bold' }}>{(assignedTos && assignedTos.length > 0) ? assignedTos.join(', ') : '— select fronter(s) first —'}</span></div>
           </div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#6b7280', cursor: 'pointer', fontSize: '20px', padding: 0 }}>×</button>
         </div>
@@ -238,7 +240,7 @@ export default function FronterLeadImportModal({ assignedTo, assignedBy, onClose
               <div style={{ fontSize: '48px', marginBottom: '12px' }}>{result.failed > 0 ? '⚠️' : '✓'}</div>
               <div style={{ color: GOLD, fontSize: '18px', fontWeight: 'bold', marginBottom: '6px' }}>Import Complete</div>
               <div style={{ color: '#8a9ab8', fontSize: '13px', marginBottom: '20px' }}>
-                <span style={{ color: GOLD, fontWeight: 'bold' }}>{result.success}</span> leads imported as Prospect and assigned to <span style={{ color: BLUE, fontWeight: 'bold' }}>{assignedTo}</span>
+                <span style={{ color: GOLD, fontWeight: 'bold' }}>{result.success}</span> leads imported as Prospect and split across: <span style={{ color: BLUE, fontWeight: 'bold' }}>{(assignedTos || []).join(', ')}</span>
                 {result.failed > 0 && <><br/><span style={{ color: RED }}>{result.failed} rows skipped (missing required fields)</span></>}
               </div>
               <button onClick={onClose} style={{ background: 'linear-gradient(135deg,#10b981,#22c55e)', color: DARK, border: 'none', borderRadius: '4px', padding: '12px 28px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}>Done</button>

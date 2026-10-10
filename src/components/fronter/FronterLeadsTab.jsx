@@ -23,7 +23,7 @@ export default function FronterLeadsTab({ username, lineKey, lineNumber, isAdmin
   const [refreshKey, setRefreshKey] = useState(0);
   const [showUpload, setShowUpload] = useState(false);
   const [fronters, setFronters] = useState([]);
-  const [leadForm, setLeadForm] = useState({ firstName: '', lastName: '', phone: '', assignedTo: '', notes: '' });
+  const [leadForm, setLeadForm] = useState({ firstName: '', lastName: '', phone: '', assignedTo: '', assignedTos: [], notes: '' });
   const [bulkText, setBulkText] = useState('');
   const [dialTrigger, setDialTrigger] = useState(0);
   const [contactCardLead, setContactCardLead] = useState(null);
@@ -82,11 +82,12 @@ export default function FronterLeadsTab({ username, lineKey, lineNumber, isAdmin
   };
 
   const bulkUpload = async () => {
-    if (!bulkText.trim() || !leadForm.assignedTo) { alert('Enter lead data and select a fronter'); return; }
+    if (!bulkText.trim() || leadForm.assignedTos.length === 0) { alert('Enter lead data and select at least one fronter'); return; }
     const lines = bulkText.trim().split('\n').filter(l => l.trim());
     let success = 0;
     const existing = await base44.entities.FronterLead.list('-created_date', 1);
     let num = existing?.[0]?.leadNumber ? parseInt(existing[0].leadNumber.replace(/\D/g, '')) + 1 : 1;
+    let fronterIdx = 0;
     for (const line of lines) {
       const parts = line.split(',').map(p => p.trim());
       if (parts.length >= 3) {
@@ -96,15 +97,16 @@ export default function FronterLeadsTab({ username, lineKey, lineNumber, isAdmin
             leadNumber: `#F${String(num++).padStart(4, '0')}`,
             firstName: parts[0], lastName: parts[1], phone: parts[2],
             debtAmount: debtAmount || undefined,
-            status: 'prospect', assignedTo: leadForm.assignedTo, assignedAt: new Date().toISOString(),
+            status: 'prospect', assignedTo: leadForm.assignedTos[fronterIdx % leadForm.assignedTos.length], assignedAt: new Date().toISOString(),
             assignedBy: username, uploadedBy: username, notes: parts[4] || '',
           });
+          fronterIdx++;
           success++;
         } catch {}
       }
     }
     setBulkText('');
-    alert(`${success} leads uploaded and assigned to ${leadForm.assignedTo}`);
+    alert(`${success} leads uploaded and split across ${leadForm.assignedTos.join(', ')}`);
     setRefreshKey(k => k + 1);
   };
 
@@ -260,11 +262,18 @@ export default function FronterLeadsTab({ username, lineKey, lineNumber, isAdmin
         {isAdmin && mode === 'prospects' && showUpload && (
           <div style={{ padding: '14px 16px', borderBottom: '1px solid rgba(255,255,255,0.07)', background: 'rgba(16,185,129,0.04)' }}>
             <div style={{ marginBottom: '10px' }}>
-              <label style={ls}>Assign Leads To</label>
-              <select value={leadForm.assignedTo} onChange={e => setLeadForm(p => ({ ...p, assignedTo: e.target.value }))} style={{ ...inp, maxWidth: '300px' }}>
-                <option value="">— Select fronter —</option>
-                {fronters.map(f => <option key={f.id} value={f.username}>{f.username}</option>)}
-              </select>
+              <label style={ls}>Assign Leads To (select one or more — leads split evenly)</label>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', maxWidth: '500px' }}>
+                {fronters.map(f => (
+                  <label key={f.id} style={{ display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer', padding: '4px 10px', background: leadForm.assignedTos.includes(f.username) ? 'rgba(16,185,129,0.1)' : 'rgba(255,255,255,0.03)', border: `1px solid ${leadForm.assignedTos.includes(f.username) ? 'rgba(16,185,129,0.3)' : 'rgba(255,255,255,0.08)'}`, borderRadius: '4px', fontSize: '11px', fontFamily: 'Georgia, serif' }}>
+                    <input type="checkbox" checked={leadForm.assignedTos.includes(f.username)} onChange={e => {
+                      if (e.target.checked) setLeadForm(p => ({ ...p, assignedTos: [...p.assignedTos, f.username], assignedTo: p.assignedTo || f.username }));
+                      else setLeadForm(p => { const n = p.assignedTos.filter(u => u !== f.username); return { ...p, assignedTos: n, assignedTo: n[0] || '' }; });
+                    }} />
+                    {f.username}
+                  </label>
+                ))}
+              </div>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px', marginBottom: '8px' }}>
               <div><label style={ls}>First Name</label><input value={leadForm.firstName} onChange={e => setLeadForm(p => ({ ...p, firstName: e.target.value }))} style={inp} /></div>
@@ -414,7 +423,7 @@ export default function FronterLeadsTab({ username, lineKey, lineNumber, isAdmin
       {/* CSV import modal */}
       {showImportModal && (
         <FronterLeadImportModal
-          assignedTo={leadForm.assignedTo}
+          assignedTos={leadForm.assignedTos}
           assignedBy={username}
           onClose={() => setShowImportModal(false)}
           onImported={() => { setShowImportModal(false); setRefreshKey(k => k + 1); }}
