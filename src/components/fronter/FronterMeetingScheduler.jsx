@@ -5,6 +5,7 @@
  */
 import { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
+import FronterPopup from './FronterPopup';
 
 const GOLD = '#10b981';
 const DARK = '#0a0f1e';
@@ -144,19 +145,8 @@ export default function FronterMeetingScheduler({ lead, username, disposition, o
   const tzLabel = TZ_LABELS[customerTimezone] || 'Eastern Time';
 
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 10001, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <div style={{ width: '480px', maxHeight: '85vh', overflowY: 'auto', background: '#0d1b2a', border: `1px solid ${GOLD}44`, borderRadius: '10px', boxShadow: '0 20px 60px rgba(0,0,0,0.8)' }}>
-        {/* Header */}
-        <div style={{ padding: '14px 18px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div>
-            <div style={{ color: GOLD, fontSize: '14px', fontWeight: 'bold' }}>📅 Schedule Meeting</div>
-            <div style={{ color: '#6b7280', fontSize: '11px' }}>{lead.firstName} {lead.lastName} · Disposition: {disposition === 'appointment' ? 'Requests Meeting' : 'Interested'}</div>
-          </div>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#6b7280', cursor: 'pointer', fontSize: '20px', padding: 0 }}>×</button>
-        </div>
-
-        {/* Content */}
-        <div style={{ padding: '18px' }}>
+    <FronterPopup title="📅 Schedule Meeting" subtitle={`${lead.firstName} ${lead.lastName} · Disposition: ${disposition === 'appointment' ? 'Requests Meeting' : 'Interested'}`} accent={GOLD} onClose={onClose} initialSize={{ w: 500, h: 580 }} minW={380} minH={360} zIndex={10060}>
+      <div style={{ padding: '18px' }}>
           {scanning && (
             <div style={{ textAlign: 'center', padding: '30px 0', color: BLUE, fontSize: '13px' }}>
               <div style={{ display: 'inline-block', width: 24, height: 24, border: '3px solid rgba(96,165,250,0.2)', borderTop: `3px solid ${BLUE}`, borderRadius: '50%', animation: 'spin 1s linear infinite', marginBottom: '10px' }} />
@@ -254,8 +244,7 @@ export default function FronterMeetingScheduler({ lead, username, disposition, o
               </div>
             </div>
           )}
-        </div>
       </div>
-    </div>
+    </FronterPopup>
   );
 }

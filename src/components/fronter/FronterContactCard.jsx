@@ -19,7 +19,7 @@ const GOLD = '#10b981';
 const DARK = '#0a0f1e';
 const BLUE = '#60a5fa';
 const ls = { display: 'block', color: '#8a9ab8', fontSize: '9px', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '4px' };
-const inp = { width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '4px', padding: '7px 10px', color: '#e8e0d0', fontSize: '12px', outline: 'none', boxSizing: 'border-box', fontFamily: 'Georgia, serif', transition: 'border-color 0.2s' };
+const inp = { width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '4px', padding: '5px 8px', color: '#e8e0d0', fontSize: '12px', outline: 'none', boxSizing: 'border-box', fontFamily: 'Georgia, serif', transition: 'border-color 0.2s' };
 
 const DEBT_TYPES = ['Unsecured Credit Card', 'Unsecured Loans'];
 
@@ -280,46 +280,51 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
               {/* Audio controls */}
               <FronterCardAudioControls />
 
-              {/* Two-column layout */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '14px' }}>
+              {/* Compact two-column layout */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '12px' }}>
                 {/* Left column: Contact info */}
                 <div>
-                  <div style={{ color: GOLD, fontSize: '9px', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '8px', paddingBottom: '4px', borderBottom: '1px solid rgba(16,185,129,0.15)' }}>Contact</div>
-                  <div style={{ marginBottom: '8px' }}><label style={ls}>First Name</label><input value={local.firstName || ''} onChange={e => update('firstName', e.target.value)} style={inp} /></div>
-                  <div style={{ marginBottom: '8px' }}><label style={ls}>Last Name</label><input value={local.lastName || ''} onChange={e => update('lastName', e.target.value)} style={inp} /></div>
-                  <div style={{ marginBottom: '8px' }}>
+                  <div style={{ color: GOLD, fontSize: '9px', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '6px', paddingBottom: '3px', borderBottom: '1px solid rgba(16,185,129,0.15)' }}>Contact</div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px', marginBottom: '6px' }}>
+                    <div><label style={ls}>First Name</label><input value={local.firstName || ''} onChange={e => update('firstName', e.target.value)} style={inp} /></div>
+                    <div><label style={ls}>Last Name</label><input value={local.lastName || ''} onChange={e => update('lastName', e.target.value)} style={inp} /></div>
+                  </div>
+                  <div style={{ marginBottom: '6px' }}>
                     <label style={ls}>Primary Phone</label>
                     <div style={{ display: 'flex', gap: '4px' }}>
                       <input value={local.phone || ''} onChange={e => update('phone', e.target.value)} placeholder="555-123-4567" style={{ ...inp, flex: 1 }} />
-                      <button onClick={() => { if (!local.phone) return; setCallActive(true); setCallStartTime(Date.now()); setCallDuration(0); onDial?.({ ...local, phone: local.phone }); }} disabled={!local.phone} title="Dial" style={{ background: 'rgba(16,185,129,0.15)', color: GOLD, border: '1px solid rgba(16,185,129,0.3)', borderRadius: '4px', padding: '0 10px', cursor: local.phone ? 'pointer' : 'not-allowed', fontSize: '14px', flexShrink: 0, opacity: local.phone ? 1 : 0.4 }}>📞</button>
+                      <button onClick={() => { if (!local.phone) return; setCallActive(true); setCallStartTime(Date.now()); setCallDuration(0); onDial?.({ ...local, phone: local.phone }); }} disabled={!local.phone} title="Dial" style={{ background: 'rgba(16,185,129,0.15)', color: GOLD, border: '1px solid rgba(16,185,129,0.3)', borderRadius: '4px', padding: '0 9px', cursor: local.phone ? 'pointer' : 'not-allowed', fontSize: '13px', flexShrink: 0, opacity: local.phone ? 1 : 0.4 }}>📞</button>
                     </div>
                   </div>
-                  <div style={{ marginBottom: '8px' }}>
+                  <div style={{ marginBottom: '6px' }}>
                     <label style={ls}>Secondary Phone</label>
                     <div style={{ display: 'flex', gap: '4px' }}>
                       <input value={local.phone2 || ''} onChange={e => update('phone2', e.target.value)} placeholder="555-987-6543" style={{ ...inp, flex: 1 }} />
-                      <button onClick={() => { if (!local.phone2) return; setCallActive(true); setCallStartTime(Date.now()); setCallDuration(0); onDial?.({ ...local, phone: local.phone2 }); }} disabled={!local.phone2} title="Dial" style={{ background: 'rgba(16,185,129,0.15)', color: GOLD, border: '1px solid rgba(16,185,129,0.3)', borderRadius: '4px', padding: '0 10px', cursor: local.phone2 ? 'pointer' : 'not-allowed', fontSize: '14px', flexShrink: 0, opacity: local.phone2 ? 1 : 0.4 }}>📞</button>
+                      <button onClick={() => { if (!local.phone2) return; setCallActive(true); setCallStartTime(Date.now()); setCallDuration(0); onDial?.({ ...local, phone: local.phone2 }); }} disabled={!local.phone2} title="Dial" style={{ background: 'rgba(16,185,129,0.15)', color: GOLD, border: '1px solid rgba(16,185,129,0.3)', borderRadius: '4px', padding: '0 9px', cursor: local.phone2 ? 'pointer' : 'not-allowed', fontSize: '13px', flexShrink: 0, opacity: local.phone2 ? 1 : 0.4 }}>📞</button>
                     </div>
                   </div>
-                  <div style={{ marginBottom: '8px' }}><label style={ls}>Email</label><input value={local.email || ''} onChange={e => update('email', e.target.value)} style={inp} placeholder="customer@email.com" /></div>
-                  <div style={{ marginBottom: '8px' }}><label style={ls}>Address</label><input value={local.address || ''} onChange={e => update('address', e.target.value)} style={inp} placeholder="123 Main St, City, State 12345" /></div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
-                    <div><label style={ls}>State</label><input value={local.state || ''} onChange={e => update('state', e.target.value)} style={inp} placeholder="NY" /></div>
-                    <div><label style={ls}>Zip Code</label><input value={local.zipCode || ''} onChange={e => update('zipCode', e.target.value)} style={inp} placeholder="10001" /></div>
+                  <div style={{ marginBottom: '6px' }}><label style={ls}>Email</label><input value={local.email || ''} onChange={e => update('email', e.target.value)} style={inp} placeholder="customer@email.com" /></div>
+                  <div style={{ marginBottom: '6px' }}><label style={ls}>Address</label><input value={local.address || ''} onChange={e => update('address', e.target.value)} style={inp} placeholder="123 Main St, City, State 12345" /></div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '90px 1fr', gap: '6px' }}>
+                    <div><label style={ls}>State</label><input value={local.state || ''} onChange={e => update('state', e.target.value)} style={inp} placeholder="NY" maxLength={2} /></div>
+                    <div><label style={ls}>Zip</label><input value={local.zipCode || ''} onChange={e => update('zipCode', e.target.value)} style={inp} placeholder="10001" /></div>
                   </div>
                 </div>
 
                 {/* Right column: Debt info */}
                 <div>
-                  <div style={{ color: GOLD, fontSize: '9px', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '8px', paddingBottom: '4px', borderBottom: '1px solid rgba(16,185,129,0.15)' }}>Debt Info</div>
-                  <div style={{ marginBottom: '8px' }}>
-                    <label style={ls}>Amount of Debt ($)</label>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      <span style={{ color: '#6b7280', fontSize: '14px' }}>$</span>
+                  <div style={{ color: GOLD, fontSize: '9px', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '6px', paddingBottom: '3px', borderBottom: '1px solid rgba(16,185,129,0.15)' }}>Debt Info</div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px', marginBottom: '6px' }}>
+                    <div>
+                      <label style={ls}>Debt Amount ($)</label>
                       <input type="number" value={local.debtAmount ?? ''} onChange={e => update('debtAmount', e.target.value ? Number(e.target.value) : null)} style={inp} placeholder="0" />
                     </div>
+                    <div>
+                      <label style={ls}>Best Time to Call</label>
+                      <input value={local.preferredCallTime || ''} onChange={e => update('preferredCallTime', e.target.value)} style={inp} placeholder="After 5pm" />
+                    </div>
                   </div>
-                  <div>
+                  <div style={{ marginBottom: '6px' }}>
                     <label style={ls}>Type of Debt</label>
                     <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
                       {DEBT_TYPES.map(type => {
@@ -332,23 +337,19 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
                       })}
                     </div>
                   </div>
-                  <div style={{ marginTop: '10px', paddingTop: '8px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
-                    <div style={{ color: GOLD, fontSize: '9px', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '8px' }}>Qualifying Info</div>
-                    <div style={{ marginBottom: '8px' }}><label style={ls}>Best Time to Call</label><input value={local.preferredCallTime || ''} onChange={e => update('preferredCallTime', e.target.value)} style={inp} placeholder="Weekdays after 5pm" /></div>
-                    <div style={{ marginBottom: '8px' }}>
-                      <label style={ls}>Employment Status</label>
-                      <select value={local.employmentStatus || 'unknown'} onChange={e => update('employmentStatus', e.target.value)} style={inp}>
-                        <option value="unknown">— Unknown —</option>
-                        <option value="employed">Employed</option>
-                        <option value="self_employed">Self-Employed</option>
-                        <option value="unemployed">Unemployed</option>
-                        <option value="retired">Retired</option>
-                        <option value="disabled">Disabled</option>
-                      </select>
-                    </div>
-                    <FronterHardshipField value={local.hardshipQualification} onChange={v => update('hardshipQualification', v)} labelStyle={ls} inputStyle={inp} />
-                    <div><label style={ls}>Lead Source / Referral</label><input value={local.referralSource || ''} onChange={e => update('referralSource', e.target.value)} style={inp} placeholder="Facebook, Google, Referral…" /></div>
+                  <div style={{ marginBottom: '6px' }}>
+                    <label style={ls}>Employment Status</label>
+                    <select value={local.employmentStatus || 'unknown'} onChange={e => update('employmentStatus', e.target.value)} style={inp}>
+                      <option value="unknown">— Unknown —</option>
+                      <option value="employed">Employed</option>
+                      <option value="self_employed">Self-Employed</option>
+                      <option value="unemployed">Unemployed</option>
+                      <option value="retired">Retired</option>
+                      <option value="disabled">Disabled</option>
+                    </select>
                   </div>
+                  <FronterHardshipField value={local.hardshipQualification} onChange={v => update('hardshipQualification', v)} labelStyle={ls} inputStyle={inp} />
+                  <div><label style={ls}>Lead Source / Referral</label><input value={local.referralSource || ''} onChange={e => update('referralSource', e.target.value)} style={inp} placeholder="Facebook, Google, Referral…" /></div>
                 </div>
               </div>
 

@@ -4,8 +4,9 @@
  * via the connected Gmail account. On send, marks credsSentAt on the lead and
  * auto-graduates prospects to lead status.
  */
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
+import FronterPopup from './FronterPopup';
 
 const GOLD = '#10b981';
 const DARK = '#0a0f1e';
@@ -70,8 +71,6 @@ export default function FronterCredsEmailPopup({ lead, username, onClose, onSent
   const [body, setBody] = useState('');
   const [sending, setSending] = useState(false);
   const [status, setStatus] = useState('');
-  const [pos, setPos] = useState({ x: 200, y: 80 });
-  const dragRef = useRef(null);
 
   // Apply template on mount and when template changes
   useEffect(() => {
@@ -129,31 +128,9 @@ export default function FronterCredsEmailPopup({ lead, username, onClose, onSent
     setSending(false);
   };
 
-  const onDragStart = (e) => {
-    dragRef.current = { startX: e.clientX - pos.x, startY: e.clientY - pos.y };
-    const onMove = (ev) => { if (dragRef.current) setPos({ x: ev.clientX - dragRef.current.startX, y: ev.clientY - dragRef.current.startY }); };
-    const onUp = () => { dragRef.current = null; document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); };
-    document.addEventListener('mousemove', onMove);
-    document.addEventListener('mouseup', onUp);
-  };
-
   return (
-    <>
-      <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 9998 }} onClick={onClose} />
-      <div style={{ position: 'fixed', left: pos.x, top: pos.y, width: 520, maxHeight: '85vh', background: '#0d1b2a', border: `1px solid ${BLUE}55`, borderRadius: '10px', boxShadow: '0 20px 60px rgba(0,0,0,0.7)', zIndex: 9999, display: 'flex', flexDirection: 'column' }}>
-        {/* Header */}
-        <div onMouseDown={onDragStart} style={{ padding: '12px 16px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'move', userSelect: 'none', flexShrink: 0, background: 'linear-gradient(135deg, rgba(96,165,250,0.08), transparent)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span style={{ fontSize: '18px' }}>🔑</span>
-            <div>
-              <div style={{ color: '#e8e0d0', fontSize: '14px', fontWeight: 'bold' }}>Email Company Credentials</div>
-              <div style={{ color: BLUE, fontSize: '9px', letterSpacing: '1px', textTransform: 'uppercase' }}>Sends from connected Gmail · auto-graduates to lead</div>
-            </div>
-          </div>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#6b7280', cursor: 'pointer', fontSize: '20px' }}>×</button>
-        </div>
-
-        <div style={{ flex: 1, overflowY: 'auto', padding: '16px' }}>
+    <FronterPopup title="🔑 Email Company Credentials" subtitle="Sends from connected Gmail · auto-graduates to lead" accent={BLUE} onClose={onClose} initialSize={{ w: 540, h: 600 }} minW={400} minH={320} zIndex={10060}>
+      <div style={{ padding: '16px' }}>
           {/* Recipient */}
           <div style={{ marginBottom: '12px' }}>
             <label style={ls}>Customer Email {lead?.email ? '(auto-filled from contact card)' : '(enter email)'}</label>
@@ -189,16 +166,14 @@ export default function FronterCredsEmailPopup({ lead, username, onClose, onSent
           )}
         </div>
 
-        {/* Footer */}
-        <div style={{ padding: '12px 16px', borderTop: '1px solid rgba(255,255,255,0.07)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
-          {status === 'success' && <span style={{ color: '#4ade80', fontSize: '12px', fontWeight: 'bold' }}>✓ Credentials sent! Lead graduated.</span>}
-          {status.startsWith('error') && <span style={{ color: '#ef4444', fontSize: '11px' }}>{status}</span>}
-          {!status && <span style={{ color: '#6b7280', fontSize: '10px' }}>Sending credentials auto-graduates prospect to lead</span>}
-          <button onClick={send} disabled={sending || !to.trim() || !subject.trim() || !body.trim()} style={{ background: 'linear-gradient(135deg,#60a5fa,#3b82f6)', color: '#fff', border: 'none', borderRadius: '4px', padding: '9px 24px', cursor: sending || !to.trim() || !subject.trim() || !body.trim() ? 'not-allowed' : 'pointer', fontSize: '12px', fontWeight: 'bold', opacity: sending || !to.trim() || !subject.trim() || !body.trim() ? 0.5 : 1 }}>
-            {sending ? '⏳ Sending…' : '🔑 Send Credentials'}
-          </button>
-        </div>
+      <div style={{ padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px' }}>
+        {status === 'success' && <span style={{ color: '#4ade80', fontSize: '12px', fontWeight: 'bold' }}>✓ Credentials sent! Lead graduated.</span>}
+        {status.startsWith('error') && <span style={{ color: '#ef4444', fontSize: '11px' }}>{status}</span>}
+        {!status && <span style={{ color: '#6b7280', fontSize: '10px' }}>Sending credentials auto-graduates prospect to lead</span>}
+        <button onClick={send} disabled={sending || !to.trim() || !subject.trim() || !body.trim()} style={{ background: 'linear-gradient(135deg,#60a5fa,#3b82f6)', color: '#fff', border: 'none', borderRadius: '4px', padding: '9px 24px', cursor: sending || !to.trim() || !subject.trim() || !body.trim() ? 'not-allowed' : 'pointer', fontSize: '12px', fontWeight: 'bold', opacity: sending || !to.trim() || !subject.trim() || !body.trim() ? 0.5 : 1, marginLeft: 'auto' }}>
+          {sending ? '⏳ Sending…' : '🔑 Send Credentials'}
+        </button>
       </div>
-    </>
+    </FronterPopup>
   );
 }
