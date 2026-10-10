@@ -255,6 +255,7 @@ export default function FronterPage() {
                 isAdmin={false}
                 mode={tab}
                 onCallConnected={() => setShowQA(true)}
+                fronterFirstName={user?.firstName}
               />
             ) : (
               <div style={{ color: '#4a5568', textAlign: 'center', padding: '60px', fontSize: '14px' }}>
@@ -273,6 +274,7 @@ export default function FronterPage() {
                 onLineChange={setAdminLineKey}
                 mode={tab}
                 onCallConnected={() => setShowQA(true)}
+                fronterFirstName={user?.firstName}
               />
             ) : (
               <div style={{ color: '#4a5568', textAlign: 'center', padding: '60px', fontSize: '14px' }}>
@@ -284,11 +286,11 @@ export default function FronterPage() {
 
         {tab === 'feedback' && <FronterFeedbackTab username={user.username} />}
 
-        {tab === 'bob' && <FronterBobTrainer username={user.username} />}
+        {tab === 'bob' && <FronterBobTrainer username={user.username} fronterFirstName={user?.firstName} />}
 
         {tab === 'hr' && <FronterHRTab username={user.username} />}
 
-        {tab === 'scripts' && <FronterScriptsTab />}
+        {tab === 'scripts' && <FronterScriptsTab fronterFirstName={user?.firstName} />}
 
         {tab === 'settings' && <FronterSettingsTab />}
       </div>

@@ -10,6 +10,7 @@ import { base44 } from '@/api/base44Client';
 import { useDebtBobVoice } from '@/hooks/useDebtBobVoice';
 import { BOB_CHARACTERS, getCharacter, DEFAULT_CHARACTER_ID, BOB_THINK_MODELS, DEFAULT_THINK_MODEL } from '@/components/debt/bob/BobCharacters';
 import FronterQAPopup from '@/components/fronter/FronterQAPopup';
+import { substituteScriptVars } from '@/lib/scriptSubstitute';
 
 const GOLD = '#10b981';
 const DARK = '#0a0f1e';
@@ -123,7 +124,7 @@ async function buildSessionTranscript(lines) {
   return { transcriptJson: JSON.stringify(preview), transcriptFileUrl: file_url, transcriptLineCount: lines.length };
 }
 
-export default function FronterBobTrainer({ username }) {
+export default function FronterBobTrainer({ username, fronterFirstName }) {
   const [sliderValue, setSliderValue] = useState(0);
   const [intensity, setIntensity] = useState(3);
   const [characterId, setCharacterId] = useState(DEFAULT_CHARACTER_ID);
@@ -530,14 +531,14 @@ ${kbText || 'No KB entries yet. The fronter should upload calls and documents to
 
       {/* Auto-popout: Scripts */}
       {showScripts && (
-        <FloatingScripts scripts={scripts} onClose={() => setShowScripts(false)} />
+        <FloatingScripts scripts={scripts} fronterFirstName={fronterFirstName} onClose={() => setShowScripts(false)} />
       )}
     </div>
   );
 }
 
 // ─── Floating Scripts Panel (auto-pops out on BOB connect) ──────────────────
-function FloatingScripts({ scripts, onClose }) {
+function FloatingScripts({ scripts, fronterFirstName, onClose }) {
   const [activeScript, setActiveScript] = useState(null);
   const [pos, setPos] = useState({ x: 500, y: 60 });
   const [size, setSize] = useState({ w: 380, h: 480 });
@@ -572,7 +573,7 @@ function FloatingScripts({ scripts, onClose }) {
         {!activeScript ? (
           <div style={{ color: '#4a5568', textAlign: 'center', padding: '40px 0', fontSize: '13px' }}>No scripts yet.</div>
         ) : (
-          <div style={{ color: '#e8e0d0', fontSize: '14px', lineHeight: 1.8, fontFamily: 'Georgia, serif', whiteSpace: 'pre-wrap' }}>{activeScript.content}</div>
+          <div style={{ color: '#e8e0d0', fontSize: '14px', lineHeight: 1.8, fontFamily: 'Georgia, serif', whiteSpace: 'pre-wrap' }}>{substituteScriptVars(activeScript.content, { fronterFirstName })}</div>
         )}
       </div>
       <div onMouseDown={(e) => {

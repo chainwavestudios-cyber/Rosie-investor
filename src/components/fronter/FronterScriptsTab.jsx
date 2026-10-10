@@ -4,11 +4,12 @@
  */
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { base44 } from '@/api/base44Client';
+import { substituteScriptVars } from '@/lib/scriptSubstitute';
 
 const GOLD = '#10b981';
 const DARK = '#0a0f1e';
 
-export default function FronterScriptsTab() {
+export default function FronterScriptsTab({ fronterFirstName }) {
   const [scripts, setScripts] = useState([]);
   const [activeScript, setActiveScript] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -57,7 +58,7 @@ export default function FronterScriptsTab() {
         ) : !activeScript ? (
           <div style={{ color: '#4a5568', textAlign: 'center', padding: '40px 0', fontSize: '13px' }}>No scripts yet. Ask your admin to add a script.</div>
         ) : (
-          <div style={{ color: '#e8e0d0', fontSize: '15px', lineHeight: 1.8, fontFamily: 'Georgia, serif', whiteSpace: 'pre-wrap' }}>{activeScript.content}</div>
+          <div style={{ color: '#e8e0d0', fontSize: '15px', lineHeight: 1.8, fontFamily: 'Georgia, serif', whiteSpace: 'pre-wrap' }}>{substituteScriptVars(activeScript.content, { fronterFirstName })}</div>
         )}
       </div>
     </div>

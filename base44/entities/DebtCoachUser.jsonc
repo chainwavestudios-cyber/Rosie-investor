@@ -6,6 +6,14 @@
       "type": "string",
       "title": "Username"
     },
+    "firstName": {
+      "type": "string",
+      "title": "First Name"
+    },
+    "lastName": {
+      "type": "string",
+      "title": "Last Name"
+    },
     "email": {
       "type": "string",
       "title": "Email"

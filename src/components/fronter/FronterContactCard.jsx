@@ -6,6 +6,7 @@
  */
 import { useState, useEffect, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
+import { substituteScriptVars } from '@/lib/scriptSubstitute';
 
 const GOLD = '#10b981';
 const DARK = '#0a0f1e';
@@ -23,7 +24,7 @@ function fmtET(iso) {
   });
 }
 
-export default function FronterContactCard({ lead, username, onClose, onSave, onDial, onNext }) {
+export default function FronterContactCard({ lead, username, fronterFirstName, onClose, onSave, onDial, onNext }) {
   const [local, setLocal] = useState(lead || {});
   const [notesLog, setNotesLog] = useState([]);
   const [newNote, setNewNote] = useState('');
@@ -146,7 +147,7 @@ export default function FronterContactCard({ lead, username, onClose, onSave, on
         {!activeScript ? (
           <div style={{ color: '#4a5568', textAlign: 'center', padding: '40px 0', fontSize: '13px' }}>No scripts yet. Ask your admin to add a script.</div>
         ) : (
-          <div style={{ color: '#e8e0d0', fontSize: '14px', lineHeight: 1.8, fontFamily: 'Georgia, serif', whiteSpace: 'pre-wrap' }}>{activeScript.content}</div>
+          <div style={{ color: '#e8e0d0', fontSize: '14px', lineHeight: 1.8, fontFamily: 'Georgia, serif', whiteSpace: 'pre-wrap' }}>{substituteScriptVars(activeScript.content, { lead: local, fronterFirstName })}</div>
         )}
       </div>
     </div>
