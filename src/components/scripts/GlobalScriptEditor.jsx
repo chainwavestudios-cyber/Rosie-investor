@@ -94,8 +94,8 @@ export default function GlobalScriptEditor() {
   const saveActive = async () => {
     if (!active) return;
     setSaving(true); setSaveMsg('');
-    // Grab latest HTML from DOM before saving
-    const htmlContent = editorRef.current ? editorRef.current.innerHTML : (active.content || '');
+    // Grab latest HTML from DOM before saving (strip helper brs used for cursor display)
+    const htmlContent = editorRef.current ? editorRef.current.innerHTML.replace(/<br[^>]*data-helper="1"[^>]*>/gi, '') : (active.content || '');
     try {
       await base44.entities.GlobalScript.update(active.id, {
         name: active.name,
@@ -180,10 +180,11 @@ export default function GlobalScriptEditor() {
     setShowHighlights(false);
   };
 
-  // Sync editor content → state on input
+  // Sync editor content → state on input (strip helper brs used for cursor display)
   const handleEditorInput = useCallback(() => {
     if (editorRef.current) {
-      updateActive({ content: editorRef.current.innerHTML });
+      const html = editorRef.current.innerHTML.replace(/<br[^>]*data-helper="1"[^>]*>/gi, '');
+      updateActive({ content: html });
     }
   }, [activeId]);
 
@@ -317,6 +318,27 @@ export default function GlobalScriptEditor() {
             contentEditable
             suppressContentEditableWarning
             onInput={handleEditorInput}
+            onKeyDown={e => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                const sel = window.getSelection();
+                if (!sel.rangeCount) return;
+                const range = sel.getRangeAt(0);
+                range.deleteContents();
+                const br = document.createElement('br');
+                range.insertNode(br);
+                range.setStartAfter(br);
+                range.setEndAfter(br);
+                sel.removeAllRanges();
+                sel.addRange(range);
+                if (!br.nextSibling) {
+                  const helper = document.createElement('br');
+                  helper.setAttribute('data-helper', '1');
+                  br.parentNode.appendChild(helper);
+                }
+                handleEditorInput();
+              }
+            }}
             onMouseUp={saveSelection}
             onKeyUp={saveSelection}
             onClick={() => setShowHighlights(false)}

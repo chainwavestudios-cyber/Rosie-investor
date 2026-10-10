@@ -33,6 +33,33 @@ const ScriptWysiwygEditor = forwardRef(({ value, onChange, style }, ref) => {
     onChange(bbcode);
   };
 
+  // Intercept Enter to insert a <br> (instead of browser-default <div>).
+  // This makes line breaks reliable and consistent across browsers.
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const sel = window.getSelection();
+      if (!sel.rangeCount) return;
+      const range = sel.getRangeAt(0);
+      range.deleteContents();
+      const br = document.createElement('br');
+      range.insertNode(br);
+      range.setStartAfter(br);
+      range.setEndAfter(br);
+      sel.removeAllRanges();
+      sel.addRange(range);
+      // If the br is at the end of the container, add a helper br so the
+      // cursor shows on the new line. It's marked data-helper so the BBCode
+      // converter skips it — no extra \n in the saved content.
+      if (!br.nextSibling) {
+        const helper = document.createElement('br');
+        helper.setAttribute('data-helper', '1');
+        br.parentNode.appendChild(helper);
+      }
+      handleInput();
+    }
+  };
+
   // Paste as plain text to avoid messy external HTML polluting the editor
   const handlePaste = (e) => {
     e.preventDefault();
@@ -46,6 +73,7 @@ const ScriptWysiwygEditor = forwardRef(({ value, onChange, style }, ref) => {
       contentEditable
       suppressContentEditableWarning
       onInput={handleInput}
+      onKeyDown={handleKeyDown}
       onPaste={handlePaste}
       data-placeholder="Type your script here… Use {{firstname}} or {{lastname}} for auto-insertion. Highlight text and use the toolbar to color, bold, italicize, resize, or highlight it. Use cue block buttons above to add non-spoken annotations."
       style={{

@@ -94,6 +94,8 @@ function nodeToBbcode(node) {
     } else if (child.nodeType === Node.ELEMENT_NODE) {
       const tag = child.tagName.toLowerCase();
       if (tag === 'br') {
+        // Skip helper brs (used only for cursor display in the editor)
+        if (child.getAttribute && child.getAttribute('data-helper') === '1') continue;
         result += '\n';
       } else if (tag === 'div' || tag === 'p') {
         const style = child.getAttribute('style') || '';
@@ -142,5 +144,7 @@ export function htmlToBbcode(html) {
   if (!html) return '';
   const div = document.createElement('div');
   div.innerHTML = html;
-  return nodeToBbcode(div).replace(/\n{3,}/g, '\n\n').trim();
+  // Only trim leading newlines — preserve trailing line breaks so Enter
+  // at the end of a script survives the save/reload cycle.
+  return nodeToBbcode(div).replace(/\n{3,}/g, '\n\n').replace(/^\n+/, '');
 }
