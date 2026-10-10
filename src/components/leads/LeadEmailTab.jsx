@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import { usePortalAuth } from '@/lib/PortalAuthContext';
+import GmailTemplateSender from '@/components/shared/GmailTemplateSender';
 
 const GOLD = '#b8933a';
 const inp = { width:'100%', background:'rgba(255,255,255,0.05)', border:'1px solid rgba(255,255,255,0.12)', borderRadius:'2px', padding:'8px 12px', color:'#e8e0d0', fontSize:'13px', outline:'none', boxSizing:'border-box', fontFamily:'Georgia, serif' };
@@ -25,6 +26,7 @@ export default function LeadEmailTab({ lead, onUpdate }) {
   const [replyMsg, setReplyMsg] = useState('');
   const [selected, setSelected] = useState(new Set());
   const [deleting, setDeleting] = useState(false);
+  const [showGmail, setShowGmail] = useState(false);
 
   useEffect(() => {
     loadEmails();
@@ -106,6 +108,7 @@ export default function LeadEmailTab({ lead, onUpdate }) {
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'12px' }}>
         <div style={{ color: GOLD, fontSize:'10px', letterSpacing:'2px', textTransform:'uppercase' }}>Email History</div>
         <div style={{ display:'flex', alignItems:'center', gap:'8px' }}>
+          <button onClick={() => setShowGmail(true)} style={{ background:'rgba(96,165,250,0.12)', color:'#60a5fa', border:'1px solid rgba(96,165,250,0.25)', borderRadius:'2px', padding:'4px 12px', cursor:'pointer', fontSize:'11px', fontWeight:'bold' }}>📧 Gmail Send</button>
           <span style={{ color:'#6b7280', fontSize:'11px' }}>{emails.length} email{emails.length !== 1 ? 's' : ''}</span>
           {emails.length > 0 && (
             <>
@@ -212,6 +215,16 @@ export default function LeadEmailTab({ lead, onUpdate }) {
           );
         })}
       </div>
+
+      {showGmail && (
+        <GmailTemplateSender
+          defaultRecipient={lead.email || ''}
+          leadId={lead.id}
+          leadFirstName={lead.firstName || ''}
+          sentBy={currentUsername}
+          onClose={() => { setShowGmail(false); loadEmails(); }}
+        />
+      )}
     </div>
   );
 }

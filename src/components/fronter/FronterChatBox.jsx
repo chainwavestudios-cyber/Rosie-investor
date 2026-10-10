@@ -22,7 +22,8 @@ export default function FronterChatBox({ username, role = 'fronter', adminUserna
   const [unread, setUnread] = useState(0);
   const [fronters, setFronters] = useState([]);
   const [recipientFilter, setRecipientFilter] = useState(''); // admin: '' = broadcast, 'username' = private, '__chatroom__' = chatroom
-  const [sendMode, setSendMode] = useState('admin'); // fronter: 'admin' = Sr Debt Advisor, 'broadcast' = all, 'chatroom' = chatroom
+  const [sendMode, setSendMode] = useState('admin'); // fronter: 'admin' = Sr Debt Advisor, 'broadcast' = all, 'chatroom' = chatroom, 'private' = specific fronter
+  const [privateRecipient, setPrivateRecipient] = useState('');
   const dragRef = useRef(null);
   const scrollRef = useRef(null);
   const frontersLoadedRef = useRef(false);
@@ -33,7 +34,7 @@ export default function FronterChatBox({ username, role = 'fronter', adminUserna
       let sorted = (all || []).reverse();
 
       // Load fronter list for admin dropdown (once)
-      if (role === 'admin' && !frontersLoadedRef.current) {
+      if (!frontersLoadedRef.current) {
         frontersLoadedRef.current = true;
         try {
           const users = await base44.entities.DebtCoachUser.list('-created_date', 500);
@@ -53,8 +54,13 @@ export default function FronterChatBox({ username, role = 'fronter', adminUserna
           // Broadcast messages: recipientUsername === '' (broadcast to all)
           sorted = sorted.filter(m => m.recipientUsername === '');
         } else if (sendMode === 'chatroom') {
-          // Chatroom messages handled by the chatroom popup, not here
           sorted = [];
+        } else if (sendMode === 'private' && privateRecipient) {
+          sorted = sorted.filter(m =>
+            m.recipientUsername !== '' && m.recipientUsername !== CHATROOM_RECIPIENT &&
+            ((m.senderUsername === privateRecipient && m.recipientUsername === username) ||
+             (m.senderUsername === username && m.recipientUsername === privateRecipient))
+          );
         }
       } else if (role === 'admin') {
         if (recipientFilter === CHATROOM_RECIPIENT) {
@@ -82,7 +88,7 @@ export default function FronterChatBox({ username, role = 'fronter', adminUserna
         setUnread(unreadCount);
       }
     } catch {}
-  }, [username, role, recipientFilter, minimized, sendMode, adminUsername]);
+  }, [username, role, recipientFilter, minimized, sendMode, adminUsername, privateRecipient]);
 
   useEffect(() => {
     load();
@@ -132,6 +138,7 @@ export default function FronterChatBox({ username, role = 'fronter', adminUserna
         if (sendMode === 'admin') recipient = adminUsername;
         else if (sendMode === 'broadcast') recipient = '';
         else if (sendMode === 'chatroom') recipient = CHATROOM_RECIPIENT;
+        else if (sendMode === 'private') recipient = privateRecipient;
       } else {
         recipient = recipientFilter; // '' = broadcast, 'username' = private, '__chatroom__' = chatroom
       }
@@ -159,9 +166,10 @@ export default function FronterChatBox({ username, role = 'fronter', adminUserna
   // Determine header label
   const getHeaderLabel = () => {
     if (role === 'fronter') {
-      if (sendMode === 'admin') return 'SR DEBT ADVISOR';
+      if (sendMode === 'admin') return 'CHRIS (SR ADVISOR)';
       if (sendMode === 'broadcast') return 'BROADCAST TO ALL';
       if (sendMode === 'chatroom') return 'FRONTERS CHATROOM';
+      if (sendMode === 'private') return `PRIVATE: ${privateRecipient.toUpperCase()}`;
     } else {
       if (recipientFilter === CHATROOM_RECIPIENT) return 'FRONTERS CHATROOM';
       if (recipientFilter) return recipientFilter.toUpperCase();
@@ -174,6 +182,7 @@ export default function FronterChatBox({ username, role = 'fronter', adminUserna
       if (sendMode === 'admin') return GOLD;
       if (sendMode === 'broadcast') return AMBER;
       if (sendMode === 'chatroom') return PURPLE;
+      if (sendMode === 'private') return BLUE;
     } else {
       if (recipientFilter === CHATROOM_RECIPIENT) return PURPLE;
       if (recipientFilter) return BLUE;
@@ -225,10 +234,25 @@ export default function FronterChatBox({ username, role = 'fronter', adminUserna
 
       {/* Fronter send mode selector */}
       {role === 'fronter' && (
-        <div style={{ padding: '8px 10px', borderBottom: '1px solid rgba(255,255,255,0.07)', flexShrink: 0, display: 'flex', gap: '4px' }}>
-          <button onClick={() => setSendMode('admin')} style={{ flex: 1, padding: '6px 8px', borderRadius: '4px', border: `1px solid ${sendMode === 'admin' ? GOLD + '66' : 'rgba(255,255,255,0.1)'}`, background: sendMode === 'admin' ? `${GOLD}18` : 'transparent', color: sendMode === 'admin' ? GOLD : '#6b7280', cursor: 'pointer', fontSize: '10px', fontWeight: sendMode === 'admin' ? 'bold' : 'normal' }}>⭐ Sr Advisor</button>
-          <button onClick={() => setSendMode('broadcast')} style={{ flex: 1, padding: '6px 8px', borderRadius: '4px', border: `1px solid ${sendMode === 'broadcast' ? AMBER + '66' : 'rgba(255,255,255,0.1)'}`, background: sendMode === 'broadcast' ? `${AMBER}18` : 'transparent', color: sendMode === 'broadcast' ? AMBER : '#6b7280', cursor: 'pointer', fontSize: '10px', fontWeight: sendMode === 'broadcast' ? 'bold' : 'normal' }}>📢 Broadcast</button>
-          <button onClick={() => setSendMode('chatroom')} style={{ flex: 1, padding: '6px 8px', borderRadius: '4px', border: `1px solid ${PURPLE}66`, background: `${PURPLE}18`, color: PURPLE, cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>🗣️ Chatroom</button>
+        <div style={{ padding: '8px 12px', borderBottom: '1px solid rgba(255,255,255,0.07)', flexShrink: 0 }}>
+          <select
+            value={sendMode === 'private' ? `private:${privateRecipient}` : sendMode}
+            onChange={e => {
+              const val = e.target.value;
+              if (val.startsWith('private:')) { setSendMode('private'); setPrivateRecipient(val.replace('private:', '')); }
+              else { setSendMode(val); setPrivateRecipient(''); }
+            }}
+            style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '4px', padding: '6px 10px', color: '#e8e0d0', fontSize: '12px', outline: 'none', fontFamily: 'Georgia, serif' }}
+          >
+            <option value="admin">⭐ Chris (Sr Debt Advisor)</option>
+            <option value="broadcast">📢 Broadcast to All</option>
+            <option value="chatroom">🗣️ Fronters Chatroom</option>
+            {fronters.length > 0 && (
+              <optgroup label="── Private Messages ──">
+                {fronters.map(f => <option key={f.id} value={`private:${f.username}`}>💬 {f.username}</option>)}
+              </optgroup>
+            )}
+          </select>
         </div>
       )}
 
@@ -247,7 +271,7 @@ export default function FronterChatBox({ username, role = 'fronter', adminUserna
       <div ref={scrollRef} style={{ flex: 1, overflowY: 'auto', padding: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
         {messages.length === 0 ? (
           <div style={{ color: '#4a5568', textAlign: 'center', padding: '40px 0', fontSize: '13px' }}>
-            {role === 'fronter' && sendMode === 'admin' ? 'No messages from Sr Debt Advisor yet.' : role === 'fronter' && sendMode === 'broadcast' ? 'No broadcast messages yet.' : 'No messages yet. Say hi! 👋'}
+            {role === 'fronter' && sendMode === 'admin' ? 'No messages from Sr Debt Advisor yet.' : role === 'fronter' && sendMode === 'broadcast' ? 'No broadcast messages yet.' : role === 'fronter' && sendMode === 'private' ? `No messages with ${privateRecipient} yet.` : 'No messages yet. Say hi! 👋'}
           </div>
         ) : (
           messages.map((m, i) => {
@@ -285,7 +309,7 @@ export default function FronterChatBox({ username, role = 'fronter', adminUserna
           value={input}
           onChange={e => setInput(e.target.value)}
           onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }}
-          placeholder={role === 'fronter' && sendMode === 'admin' ? 'Message Sr Debt Advisor...' : role === 'fronter' && sendMode === 'broadcast' ? 'Broadcast to all fronters...' : role === 'admin' && !recipientFilter ? 'Broadcast to all fronters...' : role === 'admin' && recipientFilter === CHATROOM_RECIPIENT ? 'Message the chatroom...' : 'Type a message...'}
+          placeholder={role === 'fronter' && sendMode === 'admin' ? 'Message Sr Debt Advisor...' : role === 'fronter' && sendMode === 'broadcast' ? 'Broadcast to all fronters...' : role === 'fronter' && sendMode === 'private' ? `Message ${privateRecipient}...` : role === 'admin' && !recipientFilter ? 'Broadcast to all fronters...' : role === 'admin' && recipientFilter === CHATROOM_RECIPIENT ? 'Message the chatroom...' : 'Type a message...'}
           style={{ flex: 1, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '4px', padding: '8px 12px', color: '#e8e0d0', fontSize: '13px', outline: 'none', fontFamily: 'Georgia, serif' }}
         />
         <button onClick={send} disabled={!input.trim()} style={{ background: 'linear-gradient(135deg,#10b981,#22c55e)', color: DARK, border: 'none', borderRadius: '4px', padding: '0 16px', cursor: !input.trim() ? 'not-allowed' : 'pointer', fontSize: '12px', fontWeight: 'bold', opacity: input.trim() ? 1 : 0.5 }}>Send</button>
