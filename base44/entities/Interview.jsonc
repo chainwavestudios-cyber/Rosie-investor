@@ -1,0 +1,55 @@
+{
+  "name": "Interview",
+  "type": "object",
+  "properties": {
+    "firstName": {
+      "type": "string",
+      "title": "First Name"
+    },
+    "lastName": {
+      "type": "string",
+      "title": "Last Name"
+    },
+    "telegramId": {
+      "type": "string",
+      "title": "Telegram ID"
+    },
+    "email": {
+      "type": "string",
+      "title": "Email Address"
+    },
+    "status": {
+      "type": "string",
+      "title": "Status",
+      "enum": [
+        "in_progress",
+        "hired",
+        "passed"
+      ],
+      "default": "in_progress"
+    },
+    "hiredUsername": {
+      "type": "string",
+      "title": "Created Fronter Username (if hired)"
+    },
+    "notes": {
+      "type": "string",
+      "title": "Interviewer Notes",
+      "format": "textarea"
+    },
+    "createdBy": {
+      "type": "string",
+      "title": "Interviewer Username"
+    }
+  },
+  "required": [
+    "firstName",
+    "lastName"
+  ],
+  "rls": {
+    "create": null,
+    "read": null,
+    "update": null,
+    "delete": null
+  }
+}
