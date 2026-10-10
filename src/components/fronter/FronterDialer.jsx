@@ -158,6 +158,19 @@ Provide your analysis as JSON with these fields:
       setCallStatus('connected');
       startTimer();
 
+      // Update DialerSession to on_call
+      try {
+        const sessions = await base44.entities.DialerSession.filter({ username });
+        if (sessions?.[0]) {
+          await base44.entities.DialerSession.update(sessions[0].id, {
+            status: 'on_call',
+            currentCallLeadId: lead?.id || '',
+            currentCallLeadName: `${lead?.firstName || ''} ${lead?.lastName || ''}`.trim(),
+            currentCallStartedAt: new Date().toISOString(),
+          });
+        }
+      } catch {}
+
       // Start Deepgram transcription
       const micDeviceId = localStorage.getItem('fronter_mic_device') || '';
       deepgram.start(micDeviceId).then(() => {
@@ -196,6 +209,19 @@ Provide your analysis as JSON with these fields:
       stopTimer();
       if (saveIntervalRef.current) { clearInterval(saveIntervalRef.current); saveIntervalRef.current = null; }
       deepgram.stop();
+
+      // Update DialerSession to logged_in
+      try {
+        const sessions = await base44.entities.DialerSession.filter({ username });
+        if (sessions?.[0]) {
+          await base44.entities.DialerSession.update(sessions[0].id, {
+            status: 'logged_in',
+            currentCallLeadId: '',
+            currentCallLeadName: '',
+            currentCallStartedAt: null,
+          });
+        }
+      } catch {}
 
       const dur = startTimeRef.current ? Math.floor((Date.now() - startTimeRef.current) / 1000) : 0;
       const finalLines = deepgram.getLines();

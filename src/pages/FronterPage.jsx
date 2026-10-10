@@ -13,9 +13,11 @@ import FronterScriptsTab from '@/components/fronter/FronterScriptsTab';
 import FronterAdminTab from '@/components/fronter/FronterAdminTab';
 import FronterQAPopup from '@/components/fronter/FronterQAPopup';
 import FronterSettingsTab from '@/components/fronter/FronterSettingsTab';
+import FronterMonitorPanel from '@/components/fronter/FronterMonitorPanel';
 
 const GOLD = '#10b981';
 const DARK = '#0a0f1e';
+const BLUE = '#60a5fa';
 
 export default function FronterPage() {
   const { user, loading, isAuthenticated, logout, isFronter, isSuperAdmin } = useDebtCoachAuth();
@@ -26,6 +28,8 @@ export default function FronterPage() {
   const [adminLineKey, setAdminLineKey] = useState('');
   const [metrics, setMetrics] = useState({ callsToday: 0, talkTimeSeconds: 0, transferredToday: 0 });
   const [showQA, setShowQA] = useState(false);
+  const [showMonitor, setShowMonitor] = useState(false);
+  const [fronterStatus, setFronterStatus] = useState('dialing');
 
   const isAdmin = isSuperAdmin;
   // Fronter sees leads + scripts; admin sees admin + leads + scripts
@@ -63,6 +67,49 @@ export default function FronterPage() {
       }
     }
   }, [user?.username]);
+
+  // Initialize / update DialerSession for fronter status tracking
+  useEffect(() => {
+    if (!user?.username || !isFronter) return;
+    const initSession = async () => {
+      try {
+        const sessions = await base44.entities.DialerSession.filter({ username: user.username });
+        if (sessions?.[0]) {
+          const s = sessions[0];
+          setFronterStatus(s.fronterStatus || 'dialing');
+          await base44.entities.DialerSession.update(s.id, {
+            status: 'logged_in',
+            loginAt: s.loginAt || new Date().toISOString(),
+            fronterStatus: s.fronterStatus || 'dialing',
+            fronterStatusAt: s.fronterStatusAt || new Date().toISOString(),
+          });
+        } else {
+          await base44.entities.DialerSession.create({
+            username: user.username,
+            loginAt: new Date().toISOString(),
+            status: 'logged_in',
+            fronterStatus: 'dialing',
+            fronterStatusAt: new Date().toISOString(),
+          });
+        }
+      } catch {}
+    };
+    initSession();
+  }, [user?.username, isFronter]);
+
+  const handleFronterStatusChange = async (newStatus) => {
+    setFronterStatus(newStatus);
+    if (!user?.username) return;
+    try {
+      const sessions = await base44.entities.DialerSession.filter({ username: user.username });
+      if (sessions?.[0]) {
+        await base44.entities.DialerSession.update(sessions[0].id, {
+          fronterStatus: newStatus,
+          fronterStatusAt: new Date().toISOString(),
+        });
+      }
+    } catch {}
+  };
 
   // Load per-user daily metrics (calls today, talk time, transferred)
   useEffect(() => {
@@ -136,6 +183,16 @@ export default function FronterPage() {
           <button onClick={() => setTab('leads')} title="Home" style={{ background: `${GOLD}18`, color: GOLD, border: `1px solid ${GOLD}44`, borderRadius: '4px', padding: '6px 12px', cursor: 'pointer', fontSize: '14px' }}>🏠</button>
           <button onClick={() => setShowQA(p => !p)} title="Live Q&A" style={{ background: showQA ? `${GOLD}30` : `${GOLD}18`, color: GOLD, border: `1px solid ${GOLD}44`, borderRadius: '4px', padding: '6px 12px', cursor: 'pointer', fontSize: '14px' }}>💬</button>
           {isAdmin && (
+            <button onClick={() => setShowMonitor(p => !p)} title="Fronter Monitor" style={{ background: showMonitor ? `${BLUE}30` : `${BLUE}18`, color: BLUE, border: `1px solid ${BLUE}44`, borderRadius: '4px', padding: '6px 12px', cursor: 'pointer', fontSize: '14px' }}>📡</button>
+          )}
+          {isFronter && (
+            <select value={fronterStatus} onChange={e => handleFronterStatusChange(e.target.value)} title="My Status" style={{ background: 'rgba(255,255,255,0.05)', border: `1px solid ${fronterStatus === 'dialing' ? GOLD + '44' : fronterStatus === 'lunch_break' ? '#f59e0b44' : fronterStatus === 'bathroom_break' ? '#60a5fa44' : 'rgba(255,255,255,0.12)'}`, borderRadius: '4px', padding: '5px 8px', color: fronterStatus === 'dialing' ? GOLD : fronterStatus === 'lunch_break' ? '#f59e0b' : fronterStatus === 'bathroom_break' ? '#60a5fa' : '#8a9ab8', fontSize: '11px', cursor: 'pointer', fontFamily: 'Georgia, serif' }}>
+              <option value="dialing">📞 Dialing</option>
+              <option value="lunch_break">🍽️ Lunch Break</option>
+              <option value="bathroom_break">🚻 Bathroom Break</option>
+            </select>
+          )}
+          {isAdmin && (
             <button onClick={() => navigate('/debt-call-coach', { replace: true })} style={{ background: 'rgba(255,255,255,0.05)', color: '#8a9ab8', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '4px', padding: '6px 14px', cursor: 'pointer', fontSize: '11px' }}>← Back to Coach</button>
           )}
           <button onClick={() => { if (user?.username) localStorage.setItem(`fronter_logout_${user.username}`, new Date().toISOString()); logout(); navigate('/debt-call-coach-login', { replace: true }); }} style={{ background: 'rgba(239,68,68,0.1)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.2)', borderRadius: '4px', padding: '6px 14px', cursor: 'pointer', fontSize: '11px' }}>Logout</button>
@@ -196,6 +253,11 @@ export default function FronterPage() {
       {/* Live Q&A popup — available on all tabs */}
       {showQA && (
         <FronterQAPopup username={user?.username} onClose={() => setShowQA(false)} />
+      )}
+
+      {/* Fronter Monitor — super admin only */}
+      {showMonitor && isAdmin && (
+        <FronterMonitorPanel onClose={() => setShowMonitor(false)} />
       )}
     </div>
   );

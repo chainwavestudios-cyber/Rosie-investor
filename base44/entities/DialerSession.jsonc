@@ -26,6 +26,22 @@
       ],
       "default": "logged_in"
     },
+    "fronterStatus": {
+      "type": "string",
+      "title": "Fronter Status (dialing, lunch, bathroom, offline)",
+      "enum": [
+        "dialing",
+        "lunch_break",
+        "bathroom_break",
+        "offline"
+      ],
+      "default": "offline"
+    },
+    "fronterStatusAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Fronter Status Changed At"
+    },
     "currentCallLeadId": {
       "type": "string",
       "title": "Current Call Lead ID"
