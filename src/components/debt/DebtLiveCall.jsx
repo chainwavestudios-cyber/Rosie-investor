@@ -1757,22 +1757,27 @@ ${recentText}`,
       setGeneratingReport(false);
     }
 
-    // Auto-schedule follow-up: preview first, then show modal for approval
+    // Auto-schedule follow-up: auto-create the calendar event directly
     if (autoSchedulerEnabled && transcriptRef.current.length > 0 && leadRef.current?.id) {
       try {
         const leadName = `${leadRef.current.firstName || ''} ${leadRef.current.lastName || ''}`.trim();
         const res = await base44.functions.invoke('autoScheduleAppointment', {
-          action: 'preview',
           transcript: transcriptRef.current,
           leadId: leadRef.current.id,
           leadName,
           agentName: coachUser?.username || '',
         });
         const data = res?.data || res;
-        if (data?.hasCallbackRequest && data?.startISO) {
+        // Only show modal if a callback was requested but event wasn't created (e.g. no free slot)
+        if (data?.hasCallbackRequest && !data?.scheduled && data?.startISO) {
           setApptPreview(data);
         }
-      } catch (e) { console.error('Auto-scheduler preview failed:', e); }
+      } catch (e) { console.error('Auto-scheduler failed:', e); }
+    }
+
+    // Run No Missed Meetings scan to catch any missed follow-ups from today's calls
+    if (transcriptRef.current.length > 0) {
+      try { await base44.functions.invoke('noMissedMeetings', { todayOnly: true }); } catch (e) { console.error('No Missed Meetings scan failed:', e); }
     }
 
     loadLeads();
