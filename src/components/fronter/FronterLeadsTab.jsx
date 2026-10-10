@@ -275,6 +275,13 @@ export default function FronterLeadsTab({ username, lineKey, lineNumber, isAdmin
             <button onClick={addLead} disabled={!leadForm.firstName || !leadForm.lastName || !leadForm.phone || !leadForm.assignedTo} style={{ background: 'linear-gradient(135deg,#10b981,#22c55e)', color: DARK, border: 'none', borderRadius: '4px', padding: '8px 18px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', opacity: (!leadForm.firstName || !leadForm.assignedTo) ? 0.5 : 1 }}>Add Lead</button>
 
             <div style={{ marginTop: '14px', borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '12px' }}>
+              <div style={{ color: GOLD, fontSize: '10px', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '4px' }}>+ Bulk Paste Import</div>
+              <div style={{ color: '#8a9ab8', fontSize: '10px', marginBottom: '6px' }}>Format: <span style={{ color: GOLD, fontFamily: 'monospace' }}>First Name, Last Name, Phone, Debt Amount, Notes</span> — one lead per line</div>
+              <textarea value={bulkText} onChange={e => setBulkText(e.target.value)} rows={5} placeholder={'John,Smith,555-123-4567,15000,Interested in debt relief\nJane,Doe,555-987-6543,25000,Callback tomorrow'} style={{ ...inp, resize: 'vertical', fontFamily: 'monospace', fontSize: '11px', marginBottom: '8px' }} />
+              <button onClick={bulkUpload} disabled={!bulkText.trim() || !leadForm.assignedTo} style={{ background: 'linear-gradient(135deg,#10b981,#22c55e)', color: DARK, border: 'none', borderRadius: '4px', padding: '8px 18px', cursor: bulkText.trim() && leadForm.assignedTo ? 'pointer' : 'not-allowed', fontSize: '11px', fontWeight: 'bold', opacity: bulkText.trim() && leadForm.assignedTo ? 1 : 0.5 }}>📋 Bulk Upload</button>
+            </div>
+
+            <div style={{ marginTop: '14px', borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '12px' }}>
               <div style={{ color: GOLD, fontSize: '10px', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '8px' }}>Bulk Import with Field Mapping</div>
               <button onClick={() => setShowImportModal(true)} disabled={!leadForm.assignedTo} style={{ background: 'linear-gradient(135deg,#10b981,#22c55e)', color: DARK, border: 'none', borderRadius: '4px', padding: '8px 18px', cursor: leadForm.assignedTo ? 'pointer' : 'not-allowed', fontSize: '11px', fontWeight: 'bold', opacity: leadForm.assignedTo ? 1 : 0.5 }}>📁 Import CSV (Map Fields)</button>
               <div style={{ color: '#4a5568', fontSize: '9px', marginTop: '6px' }}>Upload a CSV and match each column to the right contact card field. All imported leads start as Prospect.</div>
