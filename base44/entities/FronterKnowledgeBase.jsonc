@@ -4,11 +4,16 @@
   "properties": {
     "question": {
       "type": "string",
-      "title": "Question"
+      "title": "Question (customer's exact phrase)"
     },
     "answer": {
       "type": "string",
-      "title": "Answer",
+      "title": "Answer (read verbatim to customer)",
+      "format": "textarea"
+    },
+    "alternativeQuestions": {
+      "type": "string",
+      "title": "Alternative Questions (JSON array \u2014 other ways the customer might phrase it, including statement-form)",
       "format": "textarea"
     },
     "category": {
