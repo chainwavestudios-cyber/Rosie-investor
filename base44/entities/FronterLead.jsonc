@@ -18,6 +18,10 @@
       "type": "string",
       "title": "Phone"
     },
+    "phone2": {
+      "type": "string",
+      "title": "Secondary Phone"
+    },
     "email": {
       "type": "string",
       "title": "Email"
@@ -25,6 +29,39 @@
     "address": {
       "type": "string",
       "title": "Address"
+    },
+    "state": {
+      "type": "string",
+      "title": "State"
+    },
+    "zipCode": {
+      "type": "string",
+      "title": "Zip Code"
+    },
+    "preferredCallTime": {
+      "type": "string",
+      "title": "Best Time to Call"
+    },
+    "employmentStatus": {
+      "type": "string",
+      "title": "Employment Status",
+      "enum": [
+        "employed",
+        "self_employed",
+        "unemployed",
+        "retired",
+        "disabled",
+        "unknown"
+      ],
+      "default": "unknown"
+    },
+    "annualIncome": {
+      "type": "number",
+      "title": "Annual Income ($)"
+    },
+    "referralSource": {
+      "type": "string",
+      "title": "Lead Source / Referral"
     },
     "debtAmount": {
       "type": "number",
