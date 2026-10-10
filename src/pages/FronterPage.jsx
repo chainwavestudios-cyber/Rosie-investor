@@ -27,7 +27,7 @@ const DARK = '#0a0f1e';
 const BLUE = '#60a5fa';
 
 export default function FronterPage() {
-  const { user, loading, isAuthenticated, logout, isFronter, isSuperAdmin } = useDebtCoachAuth();
+  const { user, loading, isAuthenticated, logout, isFronter, isSuperAdmin, mustResetPassword } = useDebtCoachAuth();
   const navigate = useNavigate();
   const [tab, setTab] = useState('leads');
   const [lineAssignment, setLineAssignment] = useState(null);
@@ -181,8 +181,8 @@ export default function FronterPage() {
       </div>
     );
   }
-  if (isFronter && agreementNeeded) {
-    return <FronterOnboarding username={user.username} onDone={() => setAgreementNeeded(false)} />;
+  if (isFronter && (mustResetPassword || agreementNeeded)) {
+    return <FronterOnboarding username={user.username} mustResetPassword={mustResetPassword} onDone={() => setAgreementNeeded(false)} />;
   }
 
   return (

@@ -87,6 +87,7 @@ export default function FronterUsersTab({ adminUsername }) {
           passwordHash: hash,
           role: 'fronter',
           isActive: true,
+          mustResetPassword: true,
           createdBy: adminUsername,
         });
         resetForm();

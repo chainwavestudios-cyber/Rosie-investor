@@ -103,6 +103,17 @@ export default async function(req: Request): Promise<Response> {
       return Response.json({ success: true });
     }
 
+    // ── RESET MY PASSWORD (first-login forced reset — session-verified, no current password needed) ──
+    if (action === 'resetMyPassword') {
+      const user = await verifySession(base44, body.sessionUserId, body.sessionToken);
+      if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
+      if (!user.mustResetPassword) return Response.json({ error: 'Password reset is not required' }, { status: 400 });
+      if (!body.newPassword || body.newPassword.length < 6) return Response.json({ error: 'Password must be at least 6 characters' }, { status: 400 });
+      const newHash = await hashPassword(body.newPassword);
+      await base44.asServiceRole.entities.DebtCoachUser.update(user.id, { passwordHash: newHash, mustResetPassword: false });
+      return Response.json({ success: true });
+    }
+
     // ── CREATE USER (admin/super_admin only) ──
     if (action === 'createUser') {
       const admin = await verifySession(base44, body.sessionUserId, body.sessionToken);

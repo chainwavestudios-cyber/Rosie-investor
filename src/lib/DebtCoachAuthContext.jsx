@@ -108,6 +108,19 @@ export function DebtCoachAuthProvider({ children }) {
     return data;
   }, [user, sessionToken]);
 
+  const resetMyPassword = useCallback(async (newPassword) => {
+    const res = await base44.functions.invoke('debtCoachAuth', {
+      action: 'resetMyPassword',
+      sessionUserId: user?.id,
+      sessionToken,
+      newPassword,
+    });
+    const data = res?.data || res;
+    if (data?.error) throw new Error(data.error);
+    setUser(prev => prev ? { ...prev, mustResetPassword: false } : prev);
+    return data;
+  }, [user, sessionToken]);
+
   const permissions = (() => {
     try { return JSON.parse(user?.permissions || '{}'); } catch { return {}; }
   })();
@@ -122,6 +135,7 @@ export function DebtCoachAuthProvider({ children }) {
     enrollVoice,
     logout,
     changePassword,
+    resetMyPassword,
     isAuthenticated: !!user,
     mustResetPassword: !!user?.mustResetPassword,
     // Cumulative role hierarchy — every role inherits all lower roles' rights:
