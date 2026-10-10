@@ -1,0 +1,57 @@
+{
+  "name": "FronterAgreement",
+  "type": "object",
+  "properties": {
+    "username": {
+      "type": "string",
+      "title": "Username"
+    },
+    "fullName": {
+      "type": "string",
+      "title": "Full Legal Name"
+    },
+    "address": {
+      "type": "string",
+      "title": "Address",
+      "format": "textarea"
+    },
+    "phone": {
+      "type": "string",
+      "title": "Phone Number"
+    },
+    "email": {
+      "type": "string",
+      "title": "Email Address"
+    },
+    "agreementText": {
+      "type": "string",
+      "title": "Full Signed Agreement Text",
+      "format": "textarea"
+    },
+    "agreementDate": {
+      "type": "string",
+      "format": "date",
+      "title": "Agreement Date"
+    },
+    "signedAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Signed At (timestamp)"
+    }
+  },
+  "required": [
+    "username",
+    "fullName",
+    "address",
+    "phone",
+    "email",
+    "agreementText",
+    "agreementDate"
+  ],
+  "rls": {
+    "create": null,
+    "read": null,
+    "update": null,
+    "delete": null
+  }
+}

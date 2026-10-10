@@ -20,6 +20,7 @@ import FronterHRTab from '@/components/fronter/FronterHRTab';
 import FronterHeadsUpPopup from '@/components/fronter/FronterHeadsUpPopup';
 import FronterFeedbackTab from '@/components/fronter/FronterFeedbackTab';
 import FronterChatBox from '@/components/fronter/FronterChatBox';
+import FronterOnboarding from '@/components/fronter/FronterOnboarding';
 
 const GOLD = '#10b981';
 const DARK = '#0a0f1e';
@@ -36,6 +37,8 @@ export default function FronterPage() {
   const [showQA, setShowQA] = useState(false);
   const [showMonitor, setShowMonitor] = useState(false);
   const [fronterStatus, setFronterStatus] = useState('dialing');
+  const [agreementLoaded, setAgreementLoaded] = useState(false);
+  const [agreementNeeded, setAgreementNeeded] = useState(false);
 
   const isAdmin = isSuperAdmin;
   // Fronter sees leads + scripts; admin sees admin + leads + scripts
@@ -73,6 +76,19 @@ export default function FronterPage() {
       }
     }
   }, [user?.username]);
+
+  // Check if fronter has signed their onboarding agreement
+  useEffect(() => {
+    if (!user?.username || !isFronter) { setAgreementLoaded(true); return; }
+    const check = async () => {
+      try {
+        const existing = await base44.entities.FronterAgreement.filter({ username: user.username });
+        if (!existing || existing.length === 0) setAgreementNeeded(true);
+      } catch {}
+      setAgreementLoaded(true);
+    };
+    check();
+  }, [user?.username, isFronter]);
 
   // Initialize / update DialerSession for fronter status tracking
   useEffect(() => {
@@ -155,6 +171,18 @@ export default function FronterPage() {
   if (!isFronter && !isSuperAdmin) {
     navigate('/debt-call-coach', { replace: true });
     return null;
+  }
+
+  // Fronters must complete onboarding (form + signed agreement) before accessing the dashboard
+  if (isFronter && !agreementLoaded) {
+    return (
+      <div style={{ minHeight: '100vh', background: DARK, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ color: '#6b7280', fontSize: '14px' }}>Loading…</div>
+      </div>
+    );
+  }
+  if (isFronter && agreementNeeded) {
+    return <FronterOnboarding username={user.username} onDone={() => setAgreementNeeded(false)} />;
   }
 
   return (
