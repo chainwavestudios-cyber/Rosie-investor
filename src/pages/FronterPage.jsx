@@ -51,12 +51,12 @@ export default function FronterPage() {
     try {
       const assignments = await base44.entities.FronterLineAssignment.filter({ username: user.username });
       setLineAssignment(assignments?.[0] || null);
-      // Admins with no assignment can pick from all available lines
-      if (isAdmin && !(assignments?.[0])) {
+      // Admins can always pick from all available lines
+      if (isAdmin) {
         const res = await base44.functions.invoke('twilioGetLines', {});
         const lines = res?.data?.lines || res?.lines || [];
         setAvailableLines(lines);
-        if (lines.length > 0) setAdminLineKey(lines[0].key);
+        setAdminLineKey(prev => prev || (lines.length > 0 ? lines[0].key : ''));
       }
     } catch {}
   }, [user?.username, isAdmin]);

@@ -25,6 +25,7 @@ export default function FronterLeadsTab({ username, lineKey, lineNumber, isAdmin
   const [bulkText, setBulkText] = useState('');
   const [dialTrigger, setDialTrigger] = useState(0);
   const [contactCardLead, setContactCardLead] = useState(null);
+  const [fronterFilter, setFronterFilter] = useState('');
   const fileRef = useRef(null);
 
   const load = useCallback(async () => {
@@ -36,9 +37,13 @@ export default function FronterLeadsTab({ username, lineKey, lineNumber, isAdmin
         : await base44.entities.FronterLead.filter({ assignedTo: username }, '-created_date', 500);
       // Prospects: ONLY status === 'prospect' (never show converted leads)
       // Leads: status === 'lead' or 'transferred'
-      const active = mode === 'leads'
+      let active = mode === 'leads'
         ? (all || []).filter(l => l.status === 'lead' || l.status === 'transferred')
         : (all || []).filter(l => l.status === 'prospect' && (l.callCount || 0) < 3);
+      // Admin fronter filter
+      if (isAdmin && fronterFilter) {
+        active = active.filter(l => l.assignedTo === fronterFilter);
+      }
       const sorted = [...active].sort((a, b) => {
         if (!a.lastCalledAt && b.lastCalledAt) return -1;
         if (a.lastCalledAt && !b.lastCalledAt) return 1;
@@ -52,7 +57,7 @@ export default function FronterLeadsTab({ username, lineKey, lineNumber, isAdmin
       }
     } catch {}
     setLoading(false);
-  }, [username, refreshKey, isAdmin]);
+  }, [username, refreshKey, isAdmin, fronterFilter]);
 
   // ── Lead upload (admin) ──
   const addLead = async () => {
@@ -177,6 +182,12 @@ export default function FronterLeadsTab({ username, lineKey, lineNumber, isAdmin
         <div style={{ padding: '14px 16px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
           <div style={{ color: GOLD, fontSize: '11px', letterSpacing: '2px', textTransform: 'uppercase' }}>📋 {mode === 'leads' ? (isAdmin ? 'All Leads' : 'My Leads') : (isAdmin ? 'All Prospects' : 'My Prospects')} — {leads.length} {mode === 'leads' ? 'total' : 'remaining'}</div>
           <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+            {isAdmin && (
+              <select value={fronterFilter} onChange={e => setFronterFilter(e.target.value)} style={{ ...inp, width: 'auto', fontSize: '10px', padding: '4px 8px' }}>
+                <option value="">All Fronters</option>
+                {fronters.map(f => <option key={f.id} value={f.username}>{f.username}</option>)}
+              </select>
+            )}
             {isAdmin && availableLines.length > 0 && (
               <select value={adminLineKey} onChange={e => onLineChange?.(e.target.value)} style={{ ...inp, width: 'auto', fontSize: '10px', padding: '4px 8px' }}>
                 {availableLines.map(l => <option key={l.key} value={l.key}>{l.label} ({l.number})</option>)}
@@ -226,7 +237,7 @@ export default function FronterLeadsTab({ username, lineKey, lineNumber, isAdmin
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
                 <thead>
                   <tr style={{ borderBottom: `2px solid ${GOLD}33` }}>
-                    {['#', 'Name', 'Phone', 'Debt', 'Status', 'Calls', 'Last Called', 'Actions'].map(h => (
+                    {['#', 'Name', 'Phone', 'Debt', 'Status', 'Calls', ...(isAdmin ? ['Owner'] : []), 'Last Called', 'Actions'].map(h => (
                       <th key={h} style={{ color: GOLD, padding: '10px 12px', textAlign: 'left', fontSize: '10px', letterSpacing: '1.5px', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{h}</th>
                     ))}
                   </tr>
@@ -253,6 +264,7 @@ export default function FronterLeadsTab({ username, lineKey, lineNumber, isAdmin
                           <span style={{ display: 'inline-block', background: `${sc}22`, color: sc, border: `1px solid ${sc}55`, padding: '3px 10px', borderRadius: '4px', fontSize: '10px', letterSpacing: '1px', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{l.status}</span>
                         </td>
                         <td style={{ padding: '10px 12px', color: '#8a9ab8', fontSize: '12px', textAlign: 'center' }}>{l.callCount || 0}/3</td>
+                        {isAdmin && <td style={{ padding: '10px 12px' }}><span style={{ color: '#60a5fa', fontSize: '11px', fontWeight: 'bold' }}>{l.assignedTo || '—'}</span></td>}
                         <td style={{ padding: '10px 12px', fontSize: '11px' }}>
                           {l.lastCalledAt ? <span style={{ color: '#f59e0b' }}>{fmtTime(l.lastCalledAt)}</span> : <span style={{ color: '#4a5568' }}>Never</span>}
                         </td>

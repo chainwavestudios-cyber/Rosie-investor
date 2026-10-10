@@ -8,7 +8,7 @@ Deno.serve(async () => {
     { key: 'TWILIO_FROM_NUMBER_2', label: 'Steph',  agent: 'steph' },
     { key: 'TWILIO_FROM_NUMBER_3', label: 'Line 3', agent: 'line3' },
   ]
-    .map(({ key, label, agent }) => ({ label, agent, number: Deno.env.get(key) || '' }))
+    .map(({ key, label, agent }) => ({ key, label, agent, number: Deno.env.get(key) || '' }))
     .filter(l => l.number);
 
   return Response.json({ lines });
