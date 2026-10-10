@@ -48,7 +48,42 @@ export default async function(req: Request): Promise<Response> {
   try {
     const base44 = createClientFromRequest(req);
     const body = await req.json();
-    const { todayOnly, dateFrom, dateTo } = body;
+    const { todayOnly, dateFrom, dateTo, action, missedMeetings } = body;
+
+    // ── SET ALL MISSED: create calendar events for each missed meeting ──
+    if (action === 'setAllMissed') {
+      const authHeader = await getCalendarAuth(base44);
+      const created: any[] = [];
+      const failed: any[] = [];
+
+      for (const m of (missedMeetings || [])) {
+        try {
+          const start = new Date(m.requestedISO);
+          const end = new Date(start.getTime() + 30 * 60 * 1000);
+          const createRes = await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events?sendUpdates=none', {
+            method: 'POST',
+            headers: authHeader,
+            body: JSON.stringify({
+              summary: `Follow-up Call — ${m.leadName || 'Client'}`,
+              start: { dateTime: start.toISOString() },
+              end: { dateTime: end.toISOString() },
+              description: `Lead ID: ${m.leadId || ''}\nTranscript ID: ${m.transcriptId || ''}\n\n${m.summary || ''}`,
+            }),
+          });
+          const createData = await createRes.json();
+          if (createRes.ok) {
+            created.push({ leadName: m.leadName, eventId: createData.id, htmlLink: createData.htmlLink });
+          } else {
+            failed.push({ leadName: m.leadName, error: createData.error?.message || 'Unknown error' });
+          }
+        } catch (e: any) {
+          failed.push({ leadName: m.leadName, error: e.message || String(e) });
+        }
+      }
+
+      return Response.json({ created, failed, createdCount: created.length, failedCount: failed.length });
+    }
+
 
     // Determine date range
     let start: Date, end: Date;

@@ -14,6 +14,8 @@ const BLUE = '#60a5fa';
 export default function NoMissedMeetingsButton() {
   const [open, setOpen] = useState(false);
   const [scanning, setScanning] = useState(false);
+  const [setting, setSetting] = useState(false);
+  const [allSetResult, setAllSetResult] = useState(null);
   const [result, setResult] = useState(null);
   const [error, setError] = useState('');
   const [mode, setMode] = useState('today'); // 'today' | 'range'
@@ -21,13 +23,23 @@ export default function NoMissedMeetingsButton() {
   const [dateTo, setDateTo] = useState('');
 
   const runScan = async () => {
-    setScanning(true); setError(''); setResult(null);
+    setScanning(true); setError(''); setResult(null); setAllSetResult(null);
     try {
       const payload = mode === 'today' ? { todayOnly: true } : { dateFrom, dateTo };
       const res = await base44.functions.invoke('noMissedMeetings', payload);
       setResult(res?.data || res);
     } catch (e) { setError('Scan failed: ' + (e?.message || String(e))); }
     setScanning(false);
+  };
+
+  const setAllMissed = async () => {
+    if (!result?.missed?.length) return;
+    setSetting(true); setError('');
+    try {
+      const res = await base44.functions.invoke('noMissedMeetings', { action: 'setAllMissed', missedMeetings: result.missed });
+      setAllSetResult(res?.data || res);
+    } catch (e) { setError('Failed to set meetings: ' + (e?.message || String(e))); }
+    setSetting(false);
   };
 
   return (
@@ -90,7 +102,18 @@ export default function NoMissedMeetingsButton() {
                   </div>
                 ) : (
                   <div>
-                    <div style={{ color: RED, fontSize: '11px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '10px' }}>⚠ Missed Meetings — No Calendar Event Found</div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', flexWrap: 'wrap', gap: '8px' }}>
+                      <div style={{ color: RED, fontSize: '11px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase' }}>⚠ Missed Meetings — No Calendar Event Found</div>
+                      <button onClick={setAllMissed} disabled={setting} style={{ background: 'linear-gradient(135deg,#10b981,#22c55e)', color: '#0a0f1e', border: 'none', borderRadius: '4px', padding: '7px 16px', cursor: setting ? 'not-allowed' : 'pointer', fontSize: '11px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase', opacity: setting ? 0.5 : 1, whiteSpace: 'nowrap' }}>
+                        {setting ? '⏳ Setting…' : '📅 Set All Missed Meetings'}
+                      </button>
+                    </div>
+                    {allSetResult && (
+                      <div style={{ padding: '10px 14px', background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.3)', borderRadius: '4px', marginBottom: '10px', fontSize: '12px' }}>
+                        <span style={{ color: GOLD, fontWeight: 'bold' }}>✓ Created {allSetResult.createdCount || 0} event(s)</span>
+                        {allSetResult.failedCount > 0 && <span style={{ color: RED, marginLeft: '12px' }}>⚠ {allSetResult.failedCount} failed</span>}
+                      </div>
+                    )}
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                       {(result.missed || []).map((m, i) => (
                         <div key={i} style={{ background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: '4px', padding: '12px 14px' }}>
