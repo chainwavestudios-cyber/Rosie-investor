@@ -22,6 +22,7 @@ const ANIMATIONS = [
   { id: 'shake', label: '📳 Shake' },
   { id: 'glow', label: '✨ Glow' },
 ];
+const SPACING = [10, 20, 30, 40, 50];
 
 const btn = { padding: '4px 8px', borderRadius: '4px', border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.05)', color: '#c4cdd8', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold', whiteSpace: 'nowrap' };
 const popover = { padding: '8px', background: '#0d1b2a', border: `1px solid ${GOLD}44`, borderRadius: '6px', position: 'absolute', zIndex: 50, marginTop: '4px', boxShadow: '0 8px 24px rgba(0,0,0,0.5)' };
@@ -87,6 +88,15 @@ export default function ScriptFormatToolbar({ editorRef, onChange }) {
     setOpen(null);
   };
 
+  const insertGap = (px) => {
+    const ce = editorRef?.current;
+    if (!ce) return;
+    ce.focus();
+    document.execCommand('insertHTML', false, `<div style="height:${px}px"></div>`);
+    flushChange();
+    setOpen(null);
+  };
+
   const clearFormat = () => {
     const ce = editorRef?.current;
     if (!ce) return;
@@ -144,6 +154,15 @@ export default function ScriptFormatToolbar({ editorRef, onChange }) {
         {open === 'anim' && (
           <div style={{ ...popover, display: 'flex', flexDirection: 'column', gap: '2px', minWidth: '120px' }}>
             {ANIMATIONS.map(a => <button key={a.id} onClick={() => applyAnimation(a.id)} style={{ ...btn, textAlign: 'left', width: '100%' }}>{a.label}</button>)}
+          </div>
+        )}
+      </div>
+
+      <div style={{ position: 'relative' }}>
+        <button onClick={() => setOpen(open === 'gap' ? null : 'gap')} style={menuBtn('gap', '↕ Space')}>↕ Space</button>
+        {open === 'gap' && (
+          <div style={{ ...popover, display: 'flex', flexWrap: 'wrap', gap: '4px', width: '120px' }}>
+            {SPACING.map(s => <button key={s} onClick={() => insertGap(s)} style={{ ...btn, width: '100%' }}>{s}px gap</button>)}
           </div>
         )}
       </div>

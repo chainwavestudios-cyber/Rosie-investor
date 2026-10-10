@@ -7,7 +7,7 @@
  */
 import React from 'react';
 
-const TAG_RE = /\[(\/?)(b|i|c|bg|s|f|anim)(?:=([^\]]+))?\]/gi;
+const TAG_RE = /\[(\/?)(b|i|c|bg|s|f|anim|gap)(?:=([^\]]+))?\]/gi;
 
 export function stripFormatTags(text) {
   if (!text) return text;
@@ -48,6 +48,9 @@ export function renderFormatted(text) {
     const value = m[3];
     if (isClose) {
       if (stack.length > 1) stack.pop();
+    } else if (tag === 'gap') {
+      const px = parseInt(value, 10);
+      if (!isNaN(px)) nodes.push(<div key={key++} style={{ height: px + 'px' }} />);
     } else {
       stack.push({ ...stack[stack.length - 1], ...styleForTag(tag, value) });
     }
@@ -76,7 +79,8 @@ export function bbcodeToHtml(text) {
     .replace(/\[bg=([^\]]+)\]/gi, '<span style="background-color:$1">').replace(/\[\/bg\]/gi, '</span>')
     .replace(/\[s=([^\]]+)\]/gi, (m, p1) => `<span style="font-size:${p1}px">`).replace(/\[\/s\]/gi, '</span>')
     .replace(/\[f=([^\]]+)\]/gi, '<span style="font-family:$1">').replace(/\[\/f\]/gi, '</span>')
-    .replace(/\[anim=([^\]]+)\]/gi, (m, p1) => `<span style="animation:script-${p1} 1.5s ease-in-out infinite;display:inline-block">`).replace(/\[\/anim\]/gi, '</span>');
+    .replace(/\[anim=([^\]]+)\]/gi, (m, p1) => `<span style="animation:script-${p1} 1.5s ease-in-out infinite;display:inline-block">`).replace(/\[\/anim\]/gi, '</span>')
+    .replace(/\[gap=(\d+)\]/gi, (m, p1) => `<div style="height:${p1}px"></div>`);
   html = html.replace(/\n/g, '<br>');
   return html;
 }
@@ -92,9 +96,17 @@ function nodeToBbcode(node) {
       if (tag === 'br') {
         result += '\n';
       } else if (tag === 'div' || tag === 'p') {
-        if (result && !result.endsWith('\n')) result += '\n';
-        result += nodeToBbcode(child);
-        if (!result.endsWith('\n')) result += '\n';
+        const style = child.getAttribute('style') || '';
+        const heightMatch = style.match(/height:\s*(\d+)px/i);
+        if (heightMatch) {
+          if (result && !result.endsWith('\n')) result += '\n';
+          result += `[gap=${heightMatch[1]}]`;
+          if (!result.endsWith('\n')) result += '\n';
+        } else {
+          if (result && !result.endsWith('\n')) result += '\n';
+          result += nodeToBbcode(child);
+          if (!result.endsWith('\n')) result += '\n';
+        }
       } else if (tag === 'b' || tag === 'strong') {
         result += '[b]' + nodeToBbcode(child) + '[/b]';
       } else if (tag === 'i' || tag === 'em') {
