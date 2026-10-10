@@ -11,6 +11,7 @@ import { useDebtCoachAuth } from '@/lib/DebtCoachAuthContext';
 import { base44 } from '@/api/base44Client';
 import InterviewAssistant from '@/components/interviews/InterviewAssistant';
 import InterviewAudioRecorder from '@/components/interviews/InterviewAudioRecorder';
+import CandidateNotesBox from '@/components/interviews/CandidateNotesBox';
 
 const GOLD = '#10b981';
 const DARK = '#0a0f1e';
@@ -33,6 +34,7 @@ export default function InterviewPage() {
   const [data, setData] = useState({
     firstName: '', lastName: '', telegramId: '', email: '', notes: '',
     responses: { companyReaction: '', phoneExperience: '', scriptComfort: '', canStart: '', candidateQuestions: '' },
+    candidateRating: 0, candidateNotes: '',
   });
   const [credForm, setCredForm] = useState({ firstName: '', lastName: '', username: '', password: 'fronter2026!!', email: '' });
   const [saving, setSaving] = useState(false);
@@ -140,7 +142,7 @@ export default function InterviewPage() {
 
   const resetInterview = () => {
     setStep(0);
-    setData({ firstName: '', lastName: '', telegramId: '', email: '', notes: '', responses: { companyReaction: '', phoneExperience: '', scriptComfort: '', canStart: '', candidateQuestions: '' } });
+    setData({ firstName: '', lastName: '', telegramId: '', email: '', notes: '', responses: { companyReaction: '', phoneExperience: '', scriptComfort: '', canStart: '', candidateQuestions: '' }, candidateRating: 0, candidateNotes: '' });
     setCredForm({ firstName: '', lastName: '', username: '', password: 'fronter2026!!', email: '' });
     setHireResult(null);
     setAudioFileUri('');
@@ -218,11 +220,22 @@ export default function InterviewPage() {
         {/* Step 1: Name */}
         {step === 1 && (
           <div>
-            <StepHeader num={1} title="Candidate Name" instruction="Enter the candidate's first and last name to begin." />
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', marginBottom: '24px' }}>
+            <StepHeader num={1} title="Candidate Name" instruction="Read the introduction to the candidate, then enter their name and rate them." />
+            {/* Introduction script */}
+            <div style={{ ...scriptBox, marginBottom: '20px', position: 'relative' }}>
+              <div style={{ color: GOLD, fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '10px' }}>🎙️ Introduction — Read to Candidate</div>
+              <div style={{ color: '#e8e0d0', fontSize: '14px', lineHeight: 1.8, fontFamily: 'Georgia, serif', whiteSpace: 'pre-wrap' }}>{`<Candidate Name>, thank you so much for taking this interview. I am excited to talk to you about the position. So a little bit about me and the company. I am one of the founding managing partners. We built a very unique AI CRM sales training and sales agent solution. Today we are doing use case studies, but real world examples, so every choice counts, ok? We are only looking for top tier phone jockeys that wanna make some real money. You prove that you are worthy and talented, we will create a pathway for great success for you, and that's a promise.
+
+So today, I am going to go through some basic information, and onboard you into our CRM with a new username and password. Then I will need you to attend training either tonight at 8:30 PM EST or tomorrow at 1:00 PM EST. Training will only last 30-60 min. Why so short you ask? Are we on our own? Not even close! You see, here at Rosie, we built a suite of sales and training tools that are fully automated. So when you train and work on your pitch, instead of roleplaying with your boss, you will be pitching BOB — our in-house AI agent and our forever customer to train with. It's that easy. Also, we have a live Q&A — we are talking real time analysis of your calls, and when BOB or a real customer asks a question, within a second, the exact answer, ready for you to tell the customer, is right before your eyes. Yeah, Rosie is a little cheater, buttttt you're always gonna be on point.
+
+So, I said a lot. I wanna know more about you. First I need the spelling of your first and last name, and tell me where you're from, and have you ever traveled to the United States?`}</div>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', marginBottom: '16px' }}>
               <div><label style={ls}>First Name *</label><input value={data.firstName} onChange={e => setData(p => ({ ...p, firstName: e.target.value }))} style={inp} placeholder="John" /></div>
               <div><label style={ls}>Last Name *</label><input value={data.lastName} onChange={e => setData(p => ({ ...p, lastName: e.target.value }))} style={inp} placeholder="Smith" /></div>
             </div>
+            {/* Candidate Notes with star rating */}
+            <CandidateNotesBox rating={data.candidateRating || 0} notes={data.candidateNotes || ''} onRatingChange={v => setData(p => ({ ...p, candidateRating: v }))} onNotesChange={v => setData(p => ({ ...p, candidateNotes: v }))} />
             <NavButtons onBack={back} onNext={next} nextDisabled={!canNextName} />
           </div>
         )}
