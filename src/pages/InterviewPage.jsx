@@ -386,7 +386,8 @@ Once you sign that, it's automatically counter-signed, and you will be emailed a
                 </ul>
               </div>
             </div>
-            <div style={{ textAlign: 'center', marginTop: '28px' }}>
+            <div style={{ display: 'flex', gap: '12px', justifyContent: 'center', marginTop: '28px', flexWrap: 'wrap' }}>
+              <button onClick={() => navigate('/training')} style={{ background: 'linear-gradient(135deg,#60a5fa,#3b82f6)', color: '#fff', border: 'none', borderRadius: '6px', padding: '14px 28px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold' }}>📅 Schedule Training</button>
               <button onClick={resetInterview} style={{ ...btnGold, fontSize: '16px', padding: '14px 40px' }}>▶ Start New Interview</button>
             </div>
           </div>

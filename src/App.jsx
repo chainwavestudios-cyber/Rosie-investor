@@ -16,6 +16,7 @@ import ManagerPortal from './pages/ManagerPortal';
 import CompliancePortal from './pages/CompliancePortal';
 import FronterPage from './pages/FronterPage';
 import InterviewPage from './pages/InterviewPage';
+import TrainingPage from './pages/TrainingPage';
 import AboutDebt from './pages/AboutDebt';
 import Home from './pages/Home';
 import PortalLogin from './pages/PortalLogin';
@@ -32,7 +33,7 @@ import LogPage from './pages/LogPage';
 import { PortalAuthProvider } from '@/lib/PortalAuthContext';
 import { TwilioDeviceProvider } from '@/lib/TwilioDeviceContext';
 
-const PUBLIC_PATHS = ['/optin', '/optin/screenshot', '/privacy', '/terms', '/portal-login', '/admin-login', '/request-access', '/debt-call-coach-login', '/aboutdebt', '/debt-call-coach', '/manager-portal', '/compliance-portal', '/fronter', '/interviews', '/log'];
+const PUBLIC_PATHS = ['/optin', '/optin/screenshot', '/privacy', '/terms', '/portal-login', '/admin-login', '/request-access', '/debt-call-coach-login', '/aboutdebt', '/debt-call-coach', '/manager-portal', '/compliance-portal', '/fronter', '/interviews', '/training', '/log'];
 
 // Wraps protected routes — applies AuthProvider and its loading/error guards.
 // Public routes bypass this entirely so they never trigger auth redirects.
@@ -102,6 +103,7 @@ function App() {
               <Route path="/compliance-portal" element={<DebtCoachAuthProvider><CompliancePortal /></DebtCoachAuthProvider>} />
               <Route path="/fronter" element={<DebtCoachAuthProvider><FronterPage /></DebtCoachAuthProvider>} />
               <Route path="/interviews" element={<DebtCoachAuthProvider><InterviewPage /></DebtCoachAuthProvider>} />
+              <Route path="/training" element={<DebtCoachAuthProvider><TrainingPage /></DebtCoachAuthProvider>} />
               <Route path="*" element={<PageNotFound />} />
             </Routes>
           </ProtectedShell>

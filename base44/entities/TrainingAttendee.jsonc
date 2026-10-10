@@ -1,0 +1,46 @@
+{
+  "name": "TrainingAttendee",
+  "type": "object",
+  "properties": {
+    "sessionType": {
+      "type": "string",
+      "title": "Session Type",
+      "enum": [
+        "A",
+        "B"
+      ]
+    },
+    "fronterUsername": {
+      "type": "string",
+      "title": "Fronter Username"
+    },
+    "fronterName": {
+      "type": "string",
+      "title": "Fronter Name"
+    },
+    "fronterEmail": {
+      "type": "string",
+      "title": "Fronter Email"
+    },
+    "addedBy": {
+      "type": "string",
+      "title": "Added By (interviewer username)"
+    },
+    "addedAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Added At"
+    }
+  },
+  "required": [
+    "sessionType",
+    "fronterName",
+    "fronterEmail"
+  ],
+  "rls": {
+    "create": null,
+    "read": null,
+    "update": null,
+    "delete": null
+  }
+}
