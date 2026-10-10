@@ -76,6 +76,8 @@ export default function FronterCredsEmailPopup({ lead, username, onClose, onSent
   const [loadingTemplates, setLoadingTemplates] = useState(true);
   const [showTemplateManager, setShowTemplateManager] = useState(false);
   const [newTemplate, setNewTemplate] = useState({ label: '', subject: '', body: '' });
+  const [trackingEvents, setTrackingEvents] = useState([]);
+  const [showTracking, setShowTracking] = useState(false);
   const imageInputRef = useRef(null);
 
   // Load templates from DB, seed defaults if empty
@@ -102,6 +104,17 @@ export default function FronterCredsEmailPopup({ lead, username, onClose, onSent
   };
 
   useEffect(() => { loadTemplates(); }, []);
+
+  // Load tracking events for this lead
+  const loadTracking = async () => {
+    if (!lead?.id) return;
+    try {
+      const events = await base44.entities.EmailTrackingEvent.filter({ leadId: lead.id }, '-trackedAt', 50);
+      setTrackingEvents(Array.isArray(events) ? events : (events?.items || []));
+    } catch { setTrackingEvents([]); }
+  };
+
+  useEffect(() => { loadTracking(); }, [lead?.id]);
 
   // Apply template when selection changes
   useEffect(() => {
@@ -304,6 +317,34 @@ export default function FronterCredsEmailPopup({ lead, username, onClose, onSent
             <div style={{ marginBottom: '12px' }}>
               <label style={ls}>Preview</label>
               <div style={{ background: '#fff', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '4px', padding: '12px', maxHeight: '200px', overflowY: 'auto' }} dangerouslySetInnerHTML={{ __html: body }} />
+            </div>
+          )}
+
+          {/* Tracking status */}
+          {lead?.id && (
+            <div style={{ marginBottom: '12px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                <label style={{ ...ls, marginBottom: 0 }}>📊 Email Tracking</label>
+                <button onClick={() => { setShowTracking(p => !p); if (!showTracking) loadTracking(); }} style={{ background: 'rgba(255,255,255,0.05)', color: '#8a9ab8', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '3px', padding: '3px 10px', cursor: 'pointer', fontSize: '10px' }}>{showTracking ? '✕ Hide' : '↻ Show'} Tracking</button>
+              </div>
+              {showTracking && (
+                <div style={{ background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: '4px', padding: '10px', maxHeight: '160px', overflowY: 'auto' }}>
+                  {trackingEvents.length === 0 ? (
+                    <span style={{ color: '#6b7280', fontSize: '11px' }}>No tracking events yet. Events appear here when the customer opens the email or clicks a link.</span>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                      {trackingEvents.map((ev, i) => (
+                        <div key={ev.id || i} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '4px 6px', background: 'rgba(255,255,255,0.03)', borderRadius: '3px', fontSize: '11px' }}>
+                          <span style={{ fontSize: '14px', flexShrink: 0 }}>{ev.eventType === 'open' ? '👁️' : '🖱️'}</span>
+                          <span style={{ color: ev.eventType === 'open' ? GOLD : BLUE, fontWeight: 'bold', flexShrink: 0, textTransform: 'capitalize' }}>{ev.eventType}</span>
+                          {ev.url && <span style={{ color: '#8a9ab8', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{ev.url}</span>}
+                          <span style={{ color: '#6b7280', fontSize: '10px', flexShrink: 0, marginLeft: 'auto' }}>{new Date(ev.trackedAt).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
       </div>

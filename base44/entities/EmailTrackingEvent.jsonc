@@ -1,0 +1,49 @@
+{
+  "name": "EmailTrackingEvent",
+  "type": "object",
+  "properties": {
+    "leadId": {
+      "type": "string",
+      "title": "Lead ID"
+    },
+    "sendId": {
+      "type": "string",
+      "title": "Send ID (unique per email send)"
+    },
+    "eventType": {
+      "type": "string",
+      "title": "Event Type",
+      "enum": [
+        "open",
+        "click"
+      ]
+    },
+    "url": {
+      "type": "string",
+      "title": "Clicked URL (for click events)"
+    },
+    "userAgent": {
+      "type": "string",
+      "title": "User Agent"
+    },
+    "ipAddress": {
+      "type": "string",
+      "title": "IP Address"
+    },
+    "trackedAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Tracked At"
+    }
+  },
+  "required": [
+    "leadId",
+    "eventType"
+  ],
+  "rls": {
+    "create": null,
+    "read": null,
+    "update": null,
+    "delete": null
+  }
+}

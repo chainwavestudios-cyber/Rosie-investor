@@ -12,8 +12,14 @@ Deno.serve(async (req) => {
   try {
     const { accessToken } = await base44.asServiceRole.connectors.getConnection('gmail');
 
+    // Generate a unique send ID for tracking
+    const sendId = `${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+
+    // Inject open-tracking pixel and rewrite links for click tracking
+    const trackedHtml = leadId ? injectTracking(html, leadId, sendId) : html;
+
     // Build RFC 2822 MIME message (with inline images if provided)
-    const mimeMessage = buildMime(to, subject, html, text, inlineImages);
+    const mimeMessage = buildMime(to, subject, trackedHtml, text, inlineImages);
 
     // Base64url encode for Gmail API
     const bytes = new TextEncoder().encode(mimeMessage);
@@ -63,12 +69,29 @@ Deno.serve(async (req) => {
       }).catch(() => {});
     }
 
-    return Response.json({ success: true, messageId: data.id });
+    return Response.json({ success: true, messageId: data.id, sendId });
   } catch (error) {
     console.error('[sendGmailEmail] Error:', error);
     return Response.json({ error: error.message }, { status: 500 });
   }
 });
+
+const TRACKING_BASE = 'https://rosieai-investorpage.base44.app/functions';
+
+function injectTracking(html: string, leadId: string, sendId: string): string {
+  if (!html) return html;
+  const trackOpenUrl = `${TRACKING_BASE}/emailTrackOpen?leadId=${encodeURIComponent(leadId)}&sendId=${sendId}`;
+  const trackClickBase = `${TRACKING_BASE}/emailTrackClick?leadId=${encodeURIComponent(leadId)}&sendId=${sendId}&url=`;
+
+  // Rewrite all http/https links in <a href="..."> to go through the click tracker
+  let result = html.replace(/(<a\s+[^>]*?href=")(https?:\/\/[^"]+)"/gi, (match, prefix, url) => {
+    return `${prefix}${trackClickBase}${encodeURIComponent(url)}"`;
+  });
+
+  // Append the 1x1 tracking pixel
+  result += `<img src="${trackOpenUrl}" width="1" height="1" alt="" style="display:none;width:1px;height:1px;"/>`;
+  return result;
+}
 
 function buildMime(to: string, subject: string, html?: string, text?: string, inlineImages?: Array<{contentId: string; base64: string; mimeType: string}>): string {
   const lines: string[] = [];
