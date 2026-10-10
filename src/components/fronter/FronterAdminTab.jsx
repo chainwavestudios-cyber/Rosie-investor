@@ -14,6 +14,7 @@ import FronterReportsTab from '@/components/fronter/FronterReportsTab';
 import FronterAdminCallsTab from '@/components/fronter/FronterAdminCallsTab';
 import FronterHoldAudioTab from '@/components/fronter/FronterHoldAudioTab';
 import FronterUsersTab from '@/components/fronter/FronterUsersTab';
+import FronterLeadImportModal from '@/components/fronter/FronterLeadImportModal';
 
 const GOLD = '#10b981';
 const DARK = '#0a0f1e';
@@ -34,6 +35,7 @@ export default function FronterAdminTab({ adminUsername }) {
   const [bulkText, setBulkText] = useState('');
   const [scriptForm, setScriptForm] = useState({ name: '', content: '' });
   const [activeConferences, setActiveConferences] = useState({});
+  const [showImportModal, setShowImportModal] = useState(false);
   const fileRef = useRef(null);
 
   const loadAll = useCallback(async () => {
@@ -307,15 +309,11 @@ export default function FronterAdminTab({ adminUsername }) {
             <button onClick={addLead} disabled={!leadForm.firstName || !leadForm.lastName || !leadForm.phone || !leadForm.assignedTo} style={{ background: 'linear-gradient(135deg,#10b981,#22c55e)', color: DARK, border: 'none', borderRadius: '4px', padding: '8px 18px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', opacity: (!leadForm.firstName || !leadForm.assignedTo) ? 0.5 : 1 }}>Add Lead</button>
           </div>
 
-          {/* Bulk upload */}
+          {/* Bulk import with field mapping */}
           <div style={{ background: '#0d1b2a', border: '1px solid rgba(255,255,255,0.07)', borderRadius: '6px', padding: '16px', marginBottom: '14px' }}>
-            <div style={{ color: GOLD, fontSize: '10px', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '10px' }}>+ Bulk Upload (CSV: First, Last, Phone, Notes)</div>
-            <div style={{ display: 'flex', gap: '10px', marginBottom: '10px' }}>
-              <input ref={fileRef} type="file" accept=".csv,.txt" style={{ display: 'none' }} onChange={e => { const f = e.target.files?.[0]; if (f) handleFileUpload(f); e.target.value = ''; }} />
-              <button onClick={() => fileRef.current?.click()} style={{ background: `${GOLD}18`, color: GOLD, border: `1px solid ${GOLD}44`, borderRadius: '4px', padding: '8px 14px', cursor: 'pointer', fontSize: '11px' }}>📁 Upload CSV</button>
-            </div>
-            <textarea value={bulkText} onChange={e => setBulkText(e.target.value)} rows={6} placeholder="John,Smith,555-123-4567,interested&#10;Jane,Doe,555-987-6543," style={{ ...inp, resize: 'vertical', marginBottom: '10px' }} />
-            <button onClick={bulkUpload} disabled={!bulkText.trim() || !leadForm.assignedTo} style={{ background: 'linear-gradient(135deg,#10b981,#22c55e)', color: DARK, border: 'none', borderRadius: '4px', padding: '8px 18px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', opacity: (!bulkText.trim() || !leadForm.assignedTo) ? 0.5 : 1 }}>Upload & Assign</button>
+            <div style={{ color: GOLD, fontSize: '10px', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '10px' }}>+ Bulk Import (CSV with Field Mapping)</div>
+            <button onClick={() => setShowImportModal(true)} disabled={!leadForm.assignedTo} style={{ background: 'linear-gradient(135deg,#10b981,#22c55e)', color: DARK, border: 'none', borderRadius: '4px', padding: '8px 18px', cursor: leadForm.assignedTo ? 'pointer' : 'not-allowed', fontSize: '11px', fontWeight: 'bold', opacity: leadForm.assignedTo ? 1 : 0.5 }}>📁 Import CSV (Map Fields)</button>
+            <div style={{ color: '#4a5568', fontSize: '10px', marginTop: '6px' }}>Upload a CSV and match each column to the right contact card field. All imported leads start as Prospect.</div>
           </div>
 
           {/* Existing leads */}
@@ -430,6 +428,16 @@ export default function FronterAdminTab({ adminUsername }) {
       {/* ── USERS ── */}
       {subtab === 'users' && !loading && (
         <FronterUsersTab adminUsername={adminUsername} />
+      )}
+
+      {/* CSV import modal */}
+      {showImportModal && (
+        <FronterLeadImportModal
+          assignedTo={leadForm.assignedTo}
+          assignedBy={adminUsername}
+          onClose={() => setShowImportModal(false)}
+          onImported={() => { setShowImportModal(false); loadAll(); }}
+        />
       )}
 
       {/* ── SCRIPTS ── */}

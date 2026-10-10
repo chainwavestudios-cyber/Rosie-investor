@@ -8,6 +8,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
 import FronterDialer from './FronterDialer';
 import FronterContactCard from './FronterContactCard';
+import FronterLeadImportModal from './FronterLeadImportModal';
 
 const GOLD = '#10b981';
 const DARK = '#0a0f1e';
@@ -26,6 +27,7 @@ export default function FronterLeadsTab({ username, lineKey, lineNumber, isAdmin
   const [dialTrigger, setDialTrigger] = useState(0);
   const [contactCardLead, setContactCardLead] = useState(null);
   const [fronterFilter, setFronterFilter] = useState('');
+  const [showImportModal, setShowImportModal] = useState(false);
   const fileRef = useRef(null);
 
   const load = useCallback(async () => {
@@ -38,7 +40,7 @@ export default function FronterLeadsTab({ username, lineKey, lineNumber, isAdmin
       // Prospects: ONLY status === 'prospect' (never show converted leads)
       // Leads: status === 'lead' or 'transferred'
       let active = mode === 'leads'
-        ? (all || []).filter(l => l.status === 'lead' || l.status === 'transferred')
+        ? (all || []).filter(l => l.status === 'transferred' || (l.status === 'lead' && ['interested', 'appointment', 'transferred'].includes(l.lastCallResult)))
         : (all || []).filter(l => l.status === 'prospect' && (l.callCount || 0) < 3);
       // Admin fronter filter
       if (isAdmin && fronterFilter) {
@@ -217,13 +219,9 @@ export default function FronterLeadsTab({ username, lineKey, lineNumber, isAdmin
             <button onClick={addLead} disabled={!leadForm.firstName || !leadForm.lastName || !leadForm.phone || !leadForm.assignedTo} style={{ background: 'linear-gradient(135deg,#10b981,#22c55e)', color: DARK, border: 'none', borderRadius: '4px', padding: '8px 18px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', opacity: (!leadForm.firstName || !leadForm.assignedTo) ? 0.5 : 1 }}>Add Lead</button>
 
             <div style={{ marginTop: '14px', borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '12px' }}>
-              <div style={{ color: GOLD, fontSize: '10px', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '8px' }}>Bulk Upload (CSV: First, Last, Phone, Notes)</div>
-              <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
-                <input ref={fileRef} type="file" accept=".csv,.txt" style={{ display: 'none' }} onChange={e => { const f = e.target.files?.[0]; if (f) handleFileUpload(f); e.target.value = ''; }} />
-                <button onClick={() => fileRef.current?.click()} style={{ background: `${GOLD}18`, color: GOLD, border: `1px solid ${GOLD}44`, borderRadius: '4px', padding: '6px 12px', cursor: 'pointer', fontSize: '11px' }}>📁 Upload CSV</button>
-              </div>
-              <textarea value={bulkText} onChange={e => setBulkText(e.target.value)} rows={4} placeholder="John,Smith,555-123-4567,interested&#10;Jane,Doe,555-987-6543," style={{ ...inp, resize: 'vertical', marginBottom: '8px' }} />
-              <button onClick={bulkUpload} disabled={!bulkText.trim() || !leadForm.assignedTo} style={{ background: 'linear-gradient(135deg,#10b981,#22c55e)', color: DARK, border: 'none', borderRadius: '4px', padding: '8px 18px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', opacity: (!bulkText.trim() || !leadForm.assignedTo) ? 0.5 : 1 }}>Upload & Assign</button>
+              <div style={{ color: GOLD, fontSize: '10px', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '8px' }}>Bulk Import with Field Mapping</div>
+              <button onClick={() => setShowImportModal(true)} disabled={!leadForm.assignedTo} style={{ background: 'linear-gradient(135deg,#10b981,#22c55e)', color: DARK, border: 'none', borderRadius: '4px', padding: '8px 18px', cursor: leadForm.assignedTo ? 'pointer' : 'not-allowed', fontSize: '11px', fontWeight: 'bold', opacity: leadForm.assignedTo ? 1 : 0.5 }}>📁 Import CSV (Map Fields)</button>
+              <div style={{ color: '#4a5568', fontSize: '9px', marginTop: '6px' }}>Upload a CSV and match each column to the right contact card field. All imported leads start as Prospect.</div>
             </div>
           </div>
         )}
@@ -237,7 +235,7 @@ export default function FronterLeadsTab({ username, lineKey, lineNumber, isAdmin
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
                 <thead>
                   <tr style={{ borderBottom: `2px solid ${GOLD}33` }}>
-                    {['#', 'Name', 'Phone', 'Debt', 'Status', 'Calls', ...(isAdmin ? ['Owner'] : []), 'Last Called', 'Actions'].map(h => (
+                    {['#', 'Name', 'Phone', 'Debt', 'Status', ...(mode === 'leads' ? ['Disposition'] : []), 'Calls', ...(isAdmin ? ['Owner'] : []), 'Last Called', 'Actions'].map(h => (
                       <th key={h} style={{ color: GOLD, padding: '10px 12px', textAlign: 'left', fontSize: '10px', letterSpacing: '1.5px', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{h}</th>
                     ))}
                   </tr>
@@ -263,6 +261,7 @@ export default function FronterLeadsTab({ username, lineKey, lineNumber, isAdmin
                         <td style={{ padding: '10px 12px' }}>
                           <span style={{ display: 'inline-block', background: `${sc}22`, color: sc, border: `1px solid ${sc}55`, padding: '3px 10px', borderRadius: '4px', fontSize: '10px', letterSpacing: '1px', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{l.status}</span>
                         </td>
+                        {mode === 'leads' && <td style={{ padding: '10px 12px' }}><span style={{ color: l.lastCallResult === 'transferred' ? '#a78bfa' : GOLD, fontSize: '11px', fontWeight: 'bold' }}>{l.lastCallResult ? l.lastCallResult.replace(/_/g, ' ') : '—'}</span></td>}
                         <td style={{ padding: '10px 12px', color: '#8a9ab8', fontSize: '12px', textAlign: 'center' }}>{l.callCount || 0}/3</td>
                         {isAdmin && <td style={{ padding: '10px 12px' }}><span style={{ color: '#60a5fa', fontSize: '11px', fontWeight: 'bold' }}>{l.assignedTo || '—'}</span></td>}
                         <td style={{ padding: '10px 12px', fontSize: '11px' }}>
@@ -348,6 +347,16 @@ export default function FronterLeadsTab({ username, lineKey, lineNumber, isAdmin
           </div>
         )}
       </div>
+
+      {/* CSV import modal */}
+      {showImportModal && (
+        <FronterLeadImportModal
+          assignedTo={leadForm.assignedTo}
+          assignedBy={username}
+          onClose={() => setShowImportModal(false)}
+          onImported={() => { setShowImportModal(false); setRefreshKey(k => k + 1); }}
+        />
+      )}
 
       {/* Contact card modal */}
       {contactCardLead && (
