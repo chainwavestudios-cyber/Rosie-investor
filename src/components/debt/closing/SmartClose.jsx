@@ -20,6 +20,7 @@ import { base44 } from '@/api/base44Client';
 import { CLOSING_MODULES } from './ClosingModules';
 import ClosingChecklist from './ClosingChecklist';
 import SkippedStepPopup from './SkippedStepPopup';
+import ClosingPhoneNumbersTab from './ClosingPhoneNumbersTab';
 import { logAIUsage, CREDIT_ESTIMATES } from '@/lib/aiCreditLog';
 
 const GOLD = '#10b981';
@@ -56,7 +57,8 @@ function loadProgress(leadId, leadRecord) {
   try { return JSON.parse(localStorage.getItem(`closing_progress_${leadId || 'general'}`) || '{}'); } catch { return {}; }
 }
 
-export default function SmartClose({ leadId, liveTranscript, intentScore, animalType, compact }) {
+export default function SmartClose({ leadId, liveTranscript, intentScore, animalType, compact, canEditPhones = false }) {
+  const [closeTab, setCloseTab] = useState('checklist');
   const [smartOn, setSmartOn] = useState(false);
   const [lead, setLead] = useState(null);
   const [savedTranscript, setSavedTranscript] = useState([]);
@@ -267,29 +269,51 @@ ${recentText}`,
   const currentStage = analysis?.currentStage ? CLOSING_MODULES.find(m => m.id === analysis.currentStage) : null;
   const readiness = analysis?.closeReadiness;
 
+  // Tab bar — Checklist vs Phone #s
+  const tabBar = (
+    <div style={{ display: 'flex', gap: '2px', marginBottom: '12px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+      <button onClick={() => setCloseTab('checklist')} style={{ padding: '8px 16px', background: 'none', border: 'none', borderBottom: `2px solid ${closeTab === 'checklist' ? GOLD : 'transparent'}`, color: closeTab === 'checklist' ? GOLD : '#6b7280', cursor: 'pointer', fontSize: '12px', fontWeight: closeTab === 'checklist' ? 'bold' : 'normal' }}>✅ Checklist</button>
+      <button onClick={() => setCloseTab('phones')} style={{ padding: '8px 16px', background: 'none', border: 'none', borderBottom: `2px solid ${closeTab === 'phones' ? GOLD : 'transparent'}`, color: closeTab === 'phones' ? GOLD : '#6b7280', cursor: 'pointer', fontSize: '12px', fontWeight: closeTab === 'phones' ? 'bold' : 'normal' }}>📞 Phone #s</button>
+    </div>
+  );
+
+  // Phone #s tab — always available, no lead needed
+  if (closeTab === 'phones') {
+    return (
+      <div>
+        {tabBar}
+        <ClosingPhoneNumbersTab canEdit={canEditPhones} />
+      </div>
+    );
+  }
+
   // No lead selected — show a lead picker
   if (!leadId && !lead) {
     return (
-      <div style={{ background: '#0d1b2a', border: '1px solid rgba(16,185,129,0.2)', borderRadius: '6px', padding: '18px' }}>
-        <div style={{ color: GOLD, fontSize: '12px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '4px' }}>🏁 Smart Close</div>
-        <div style={{ color: '#6b7280', fontSize: '11px', marginBottom: '14px' }}>Select a client to track their closing progress against the live transcript.</div>
-        <input value={leadSearch} onChange={e => setLeadSearch(e.target.value)} placeholder="Search by name, phone, or lead #…" style={inp} autoFocus />
-        {leadResults.length > 0 && (
-          <div style={{ marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-            {leadResults.map(l => (
-              <button key={l.id} onClick={() => { setLeadSearch(''); setLeadResults([]); window.dispatchEvent(new CustomEvent('smart_close_select_lead', { detail: l.id })); }} style={{ background: 'rgba(255,255,255,0.03)', color: '#c4cdd8', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '4px', padding: '8px 12px', cursor: 'pointer', fontSize: '12px', textAlign: 'left' }}>
-                {l.firstName} {l.lastName} <span style={{ color: '#6b7280', fontSize: '10px' }}>{l.leadNumber || l.phone || ''}</span>
-              </button>
-            ))}
-          </div>
-        )}
-        <div style={{ marginTop: '14px', color: '#4a5568', fontSize: '11px' }}>Tip: start a live call on the Live Call tab and Smart Close will track it here automatically once a lead is selected.</div>
+      <div>
+        {tabBar}
+        <div style={{ background: '#0d1b2a', border: '1px solid rgba(16,185,129,0.2)', borderRadius: '6px', padding: '18px' }}>
+          <div style={{ color: GOLD, fontSize: '12px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '4px' }}>🏁 Smart Close</div>
+          <div style={{ color: '#6b7280', fontSize: '11px', marginBottom: '14px' }}>Select a client to track their closing progress against the live transcript.</div>
+          <input value={leadSearch} onChange={e => setLeadSearch(e.target.value)} placeholder="Search by name, phone, or lead #…" style={inp} autoFocus />
+          {leadResults.length > 0 && (
+            <div style={{ marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              {leadResults.map(l => (
+                <button key={l.id} onClick={() => { setLeadSearch(''); setLeadResults([]); window.dispatchEvent(new CustomEvent('smart_close_select_lead', { detail: l.id })); }} style={{ background: 'rgba(255,255,255,0.03)', color: '#c4cdd8', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '4px', padding: '8px 12px', cursor: 'pointer', fontSize: '12px', textAlign: 'left' }}>
+                  {l.firstName} {l.lastName} <span style={{ color: '#6b7280', fontSize: '10px' }}>{l.leadNumber || l.phone || ''}</span>
+                </button>
+              ))}
+            </div>
+          )}
+          <div style={{ marginTop: '14px', color: '#4a5568', fontSize: '11px' }}>Tip: start a live call on the Live Call tab and Smart Close will track it here automatically once a lead is selected.</div>
+        </div>
       </div>
     );
   }
 
   return (
     <div>
+      {tabBar}
       {/* Smart Close toggle bar */}
       <div style={{ marginBottom: '12px', padding: '12px 16px', background: smartOn ? 'rgba(167,139,250,0.08)' : 'rgba(255,255,255,0.03)', border: `1px solid ${smartOn ? 'rgba(167,139,250,0.35)' : 'rgba(255,255,255,0.08)'}`, borderRadius: '6px', display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
         <button

@@ -38,6 +38,7 @@ export default function DebtCallCoach() {
   const [tab, setTab] = useState('live');
   useEffect(() => { if (isFronter) navigate('/fronter', { replace: true }); }, [isFronter, navigate]);
   const [timerLead, setTimerLead] = useState(null);
+  const [closingLeadId, setClosingLeadId] = useState(null);
   const [showCompliance, setShowCompliance] = useState(false);
   const [liveCallActive, setLiveCallActive] = useState(false);
 
@@ -95,9 +96,9 @@ export default function DebtCallCoach() {
         ))}
       </div>
 
-      {tab === 'live' && <DebtLiveCall debtCoachUser={user} onCallStart={(callLead) => { setTab('live'); setLiveCallActive(true); if (callLead?.id) setTimerLead(callLead); }} onCallEnd={() => setLiveCallActive(false)} />}
+      {tab === 'live' && <DebtLiveCall debtCoachUser={user} onCallStart={(callLead) => { setLiveCallActive(true); if (callLead?.id) setClosingLeadId(callLead.id); }} onCallEnd={() => setLiveCallActive(false)} />}
       <PopOutTab storageKey="closing_tab" title="Closing Flow" icon="🏁" active={tab === 'closing'} defaultSize={{ width: 460, height: 720 }} autoPopOut={liveCallActive}>
-        <SmartClose leadId={timerLead?.id} />
+        <SmartClose leadId={closingLeadId} canEditPhones={!isDialerRole} />
       </PopOutTab>
       <PopOutTab storageKey="calls_tab" title="Calls" icon="📞" active={tab === 'calls'}>
         <CallsTab />
