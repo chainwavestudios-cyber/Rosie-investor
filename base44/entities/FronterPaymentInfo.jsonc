@@ -1,0 +1,54 @@
+{
+  "name": "FronterPaymentInfo",
+  "type": "object",
+  "properties": {
+    "username": {
+      "type": "string",
+      "title": "Fronter Username"
+    },
+    "paymentMethod": {
+      "type": "string",
+      "title": "Payment Method",
+      "enum": [
+        "cashapp",
+        "crypto",
+        "custom"
+      ],
+      "default": "cashapp"
+    },
+    "cashappId": {
+      "type": "string",
+      "title": "Cash App ID ($cashtag or phone/email)"
+    },
+    "cryptoType": {
+      "type": "string",
+      "title": "Crypto Type",
+      "enum": [
+        "ETH",
+        "BTC",
+        "SOL"
+      ]
+    },
+    "cryptoAddress": {
+      "type": "string",
+      "title": "Crypto Wallet Address"
+    },
+    "customLabel": {
+      "type": "string",
+      "title": "Custom Payment Label (e.g. Venmo, PayPal, Zelle)"
+    },
+    "customValue": {
+      "type": "string",
+      "title": "Custom Payment Value (ID, handle, or address)"
+    }
+  },
+  "required": [
+    "username"
+  ],
+  "rls": {
+    "create": null,
+    "read": null,
+    "update": null,
+    "delete": null
+  }
+}

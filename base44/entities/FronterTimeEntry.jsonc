@@ -1,0 +1,50 @@
+{
+  "name": "FronterTimeEntry",
+  "type": "object",
+  "properties": {
+    "username": {
+      "type": "string",
+      "title": "Fronter Username"
+    },
+    "date": {
+      "type": "string",
+      "format": "date",
+      "title": "Date (YYYY-MM-DD, Eastern Time)"
+    },
+    "clockIn": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Clock In Time"
+    },
+    "lunchOut": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Lunch Out Time"
+    },
+    "lunchIn": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Lunch In Time"
+    },
+    "clockOut": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Clock Out Time"
+    },
+    "totalSeconds": {
+      "type": "number",
+      "title": "Total Worked Seconds (lunch excluded)",
+      "default": 0
+    }
+  },
+  "required": [
+    "username",
+    "date"
+  ],
+  "rls": {
+    "create": null,
+    "read": null,
+    "update": null,
+    "delete": null
+  }
+}

@@ -1,0 +1,54 @@
+{
+  "name": "FronterHeadsUp",
+  "type": "object",
+  "properties": {
+    "fronterUsername": {
+      "type": "string",
+      "title": "Fronter Username"
+    },
+    "leadId": {
+      "type": "string",
+      "title": "Lead ID"
+    },
+    "leadName": {
+      "type": "string",
+      "title": "Lead Name"
+    },
+    "leadPhone": {
+      "type": "string",
+      "title": "Lead Phone"
+    },
+    "conferenceName": {
+      "type": "string",
+      "title": "Conference Name (for listen/barge)"
+    },
+    "lineKey": {
+      "type": "string",
+      "title": "Twilio Line Key (for listen)"
+    },
+    "status": {
+      "type": "string",
+      "title": "Status",
+      "enum": [
+        "active",
+        "closed"
+      ],
+      "default": "active"
+    },
+    "createdAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Created At"
+    }
+  },
+  "required": [
+    "fronterUsername",
+    "leadId"
+  ],
+  "rls": {
+    "create": null,
+    "read": null,
+    "update": null,
+    "delete": null
+  }
+}

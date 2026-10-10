@@ -39,6 +39,8 @@ export default function FronterContactCard({ lead, username, onClose, onSave, on
   const [scriptPos, setScriptPos] = useState({ x: 660, y: 80 });
   const [scriptSize, setScriptSize] = useState({ w: 400, h: 500 });
   const scriptDragRef = useRef(null);
+  const [headsUpSent, setHeadsUpSent] = useState(false);
+  const [headsUpSending, setHeadsUpSending] = useState(false);
 
   useEffect(() => {
     setLocal(lead || {});
@@ -74,6 +76,37 @@ export default function FronterContactCard({ lead, username, onClose, onSave, on
   const toggleDebtType = (type) => {
     const next = debtTypes.includes(type) ? debtTypes.filter(t => t !== type) : [...debtTypes, type];
     update('debtTypesJson', JSON.stringify(next));
+  };
+
+  const sendHeadsUp = async () => {
+    if (!lead?.id || headsUpSending) return;
+    setHeadsUpSending(true);
+    try {
+      // Look up the fronter's active DialerSession for conference name
+      let conferenceName = '';
+      let lineKey = '';
+      try {
+        const sessions = await base44.entities.DialerSession.filter({ username });
+        if (sessions?.[0]) {
+          conferenceName = sessions[0].currentCallConferenceName || '';
+        }
+        const assignments = await base44.entities.FronterLineAssignment.filter({ username });
+        if (assignments?.[0]) lineKey = assignments[0].twilioLineKey || '';
+      } catch {}
+      await base44.entities.FronterHeadsUp.create({
+        fronterUsername: username,
+        leadId: lead.id,
+        leadName: (lead.firstName || '') + ' ' + (lead.lastName || ''),
+        leadPhone: lead.phone || '',
+        conferenceName,
+        lineKey,
+        status: 'active',
+        createdAt: new Date().toISOString(),
+      });
+      setHeadsUpSent(true);
+      setTimeout(() => setHeadsUpSent(false), 3000);
+    } catch (e) { alert('Heads Up failed: ' + (e?.message || String(e))); }
+    setHeadsUpSending(false);
   };
 
   const addNote = async () => {
@@ -138,7 +171,10 @@ export default function FronterContactCard({ lead, username, onClose, onSave, on
             </div>
           </div>
           <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-            {onNext && <button onClick={(e) => { e.stopPropagation(); onNext(); }} style={{ background: `${GOLD}18`, color: GOLD, border: `1px solid ${GOLD}44`, borderRadius: '4px', padding: '5px 12px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>Next →</button>}
+            <button onClick={(e) => { e.stopPropagation(); sendHeadsUp(); }} disabled={headsUpSending} style={{ background: headsUpSent ? 'rgba(74,222,128,0.15)' : 'rgba(239,68,68,0.15)', color: headsUpSent ? '#4ade80' : '#ef4444', border: '1px solid ' + (headsUpSent ? 'rgba(74,222,128,0.3)' : 'rgba(239,68,68,0.3)'), borderRadius: '4px', padding: '5px 12px', cursor: headsUpSending ? 'not-allowed' : 'pointer', fontSize: '11px', fontWeight: 'bold', opacity: headsUpSending ? 0.5 : 1 }}>
+              {headsUpSending ? '⏳' : headsUpSent ? '✓ Sent' : '🚨 Heads Up'}
+            </button>
+            {onNext && <button onClick={(e) => { e.stopPropagation(); onNext(); }} style={{ background: GOLD + '18', color: GOLD, border: '1px solid ' + GOLD + '44', borderRadius: '4px', padding: '5px 12px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>Next →</button>}
             <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#6b7280', cursor: 'pointer', fontSize: '20px', padding: 0, lineHeight: 1 }}>×</button>
           </div>
         </div>
