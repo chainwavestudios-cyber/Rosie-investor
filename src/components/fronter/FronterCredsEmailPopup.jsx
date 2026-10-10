@@ -159,14 +159,34 @@ export default function FronterCredsEmailPopup({ lead, username, onClose, onSent
     setBody(prev => (prev || '').replace(new RegExp(`<img[^>]*cid:${contentId}[^>]*>`, 'gi'), ''));
   };
 
+  // Upload inline (cid:-referenced) images to public storage and replace
+  // cid: references with permanent URLs so the template body is self-contained.
+  const persistInlineImages = async (htmlBody) => {
+    if (!inlineImages.length) return htmlBody;
+    let result = htmlBody;
+    for (const img of inlineImages) {
+      try {
+        const blob = await fetch(img.base64).then(r => r.blob());
+        const ext = (img.mimeType || 'image/png').split('/')[1] || 'png';
+        const file = new File([blob], `${img.contentId}.${ext}`, { type: img.mimeType });
+        const res = await base44.integrations.Core.UploadPublicFile({ file });
+        if (res?.file_url) {
+          result = result.replace(new RegExp(`cid:${img.contentId}`, 'gi'), res.file_url);
+        }
+      } catch (e) { console.warn('Image upload failed:', e?.message || String(e)); }
+    }
+    return result;
+  };
+
   // ── Template CRUD ──
   const createTemplate = async () => {
     if (!newTemplate.label.trim()) { alert('Template label is required.'); return; }
     try {
+      const savedBody = await persistInlineImages(newTemplate.body.trim());
       const created = await base44.entities.FronterEmailTemplate.create({
         label: newTemplate.label.trim(),
         subject: newTemplate.subject.trim(),
-        body: newTemplate.body.trim(),
+        body: savedBody,
         sortOrder: templates.length,
         isDefault: false,
       });
@@ -175,6 +195,29 @@ export default function FronterCredsEmailPopup({ lead, username, onClose, onSent
       setNewTemplate({ label: '', subject: '', body: '' });
       setShowTemplateManager(false);
     } catch (e) { alert('Failed to create template: ' + (e?.message || String(e))); }
+  };
+
+  // Update the currently-selected template with the edited subject/body/images
+  const [updating, setUpdating] = useState(false);
+  const updateTemplate = async () => {
+    if (!selectedTemplateId) { alert('Select a template to update.'); return; }
+    const t = templates.find(x => x.id === selectedTemplateId);
+    if (!t) return;
+    if (!confirm(`Update template "${t.label}" with the current subject, body, and images?`)) return;
+    setUpdating(true);
+    try {
+      const savedBody = await persistInlineImages(body.trim());
+      await base44.entities.FronterEmailTemplate.update(selectedTemplateId, {
+        subject: subject.trim(),
+        body: savedBody,
+      });
+      setTemplates(prev => prev.map(x => x.id === selectedTemplateId ? { ...x, subject: subject.trim(), body: savedBody } : x));
+      setBody(savedBody);
+      setInlineImages([]);
+      setStatus('template_saved');
+      setTimeout(() => setStatus(''), 2000);
+    } catch (e) { alert('Failed to update template: ' + (e?.message || String(e))); }
+    setUpdating(false);
   };
 
   const deleteTemplate = async (id) => {
@@ -247,10 +290,13 @@ export default function FronterCredsEmailPopup({ lead, username, onClose, onSent
               <label style={{ ...ls, marginBottom: 0 }}>Credential Template</label>
               <button onClick={() => setShowTemplateManager(p => !p)} style={{ background: `${BLUE}18`, color: BLUE, border: `1px solid ${BLUE}44`, borderRadius: '3px', padding: '3px 10px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>{showTemplateManager ? '✕ Close Manager' : '⚙ Manage Templates'}</button>
             </div>
-            <select value={selectedTemplateId} onChange={e => setSelectedTemplateId(e.target.value)} style={inp} disabled={loadingTemplates}>
-              <option value="">{loadingTemplates ? 'Loading…' : '— Select a template —'}</option>
-              {templates.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
-            </select>
+            <div style={{ display: 'flex', alignItems: 'center' }}>
+              <select value={selectedTemplateId} onChange={e => setSelectedTemplateId(e.target.value)} style={{ ...inp, flex: 1 }} disabled={loadingTemplates}>
+                <option value="">{loadingTemplates ? 'Loading…' : '— Select a template —'}</option>
+                {templates.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
+              </select>
+              <button onClick={updateTemplate} disabled={!selectedTemplateId || updating} title="Save current subject, body, and inline images back to this template" style={{ background: `${GOLD}18`, color: GOLD, border: `1px solid ${GOLD}44`, borderRadius: '3px', padding: '7px 12px', cursor: !selectedTemplateId || updating ? 'not-allowed' : 'pointer', fontSize: '10px', fontWeight: 'bold', whiteSpace: 'nowrap', flexShrink: 0, marginLeft: '6px', opacity: !selectedTemplateId || updating ? 0.5 : 1 }}>{updating ? '⏳' : '💾 Save to Template'}</button>
+            </div>
           </div>
 
           {/* Template manager — create new / delete existing */}
@@ -351,6 +397,7 @@ export default function FronterCredsEmailPopup({ lead, username, onClose, onSent
 
       <div style={{ padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px' }}>
         {status === 'success' && <span style={{ color: '#4ade80', fontSize: '12px', fontWeight: 'bold' }}>✓ Credentials sent! Lead graduated.</span>}
+        {status === 'template_saved' && <span style={{ color: GOLD, fontSize: '12px', fontWeight: 'bold' }}>✓ Template updated!</span>}
         {status.startsWith('error') && <span style={{ color: '#ef4444', fontSize: '11px' }}>{status}</span>}
         {!status && <span style={{ color: '#6b7280', fontSize: '10px' }}>Sending credentials auto-graduates prospect to lead</span>}
         <button onClick={send} disabled={sending || !to.trim() || !subject.trim() || !body.trim()} style={{ background: 'linear-gradient(135deg,#60a5fa,#3b82f6)', color: '#fff', border: 'none', borderRadius: '4px', padding: '9px 24px', cursor: sending || !to.trim() || !subject.trim() || !body.trim() ? 'not-allowed' : 'pointer', fontSize: '12px', fontWeight: 'bold', opacity: sending || !to.trim() || !subject.trim() || !body.trim() ? 0.5 : 1, marginLeft: 'auto' }}>
