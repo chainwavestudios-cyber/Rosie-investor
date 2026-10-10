@@ -132,7 +132,7 @@ export default function FronterAdminTab({ adminUsername }) {
         uploadedBy: adminUsername,
         notes: leadForm.notes,
       });
-      setLeadForm({ firstName: '', lastName: '', phone: '', assignedTo: leadForm.assignedTo, notes: '' });
+      setLeadForm({ firstName: '', lastName: '', phone: '', assignedTo: leadForm.assignedTo, assignedTos: leadForm.assignedTos, notes: '' });
       loadAll();
     } catch (e) { alert('Failed: ' + (e?.message || String(e))); }
   };
