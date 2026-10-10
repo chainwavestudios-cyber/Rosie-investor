@@ -171,6 +171,26 @@
     "credsSentTemplate": {
       "type": "string",
       "title": "Credentials Template Sent"
+    },
+    "emailOpenedAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Email Opened At (auto-tracked or manual override)"
+    },
+    "emailLinksClickedJson": {
+      "type": "string",
+      "title": "Email Links Clicked (JSON array of {url, clickedAt, manual})",
+      "format": "textarea"
+    },
+    "leadConfirmedChecklistJson": {
+      "type": "string",
+      "title": "Lead Confirmed Checklist (JSON array of {step, completed, completedAt})",
+      "format": "textarea"
+    },
+    "transferCreditedAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Transfer Credited At (when 30s+ transfer credit was given)"
     }
   },
   "required": [
