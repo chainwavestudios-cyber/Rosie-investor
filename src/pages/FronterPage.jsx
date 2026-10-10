@@ -25,6 +25,7 @@ import FronterClosedDealsTab from '@/components/fronter/FronterClosedDealsTab';
 import FronterCongratsPopup from '@/components/fronter/FronterCongratsPopup';
 import FronterChatroom from '@/components/fronter/FronterChatroom';
 import FronterEmergencyScript from '@/components/fronter/FronterEmergencyScript';
+import FronterEmailTrackingNotifications from '@/components/fronter/FronterEmailTrackingNotifications';
 
 const GOLD = '#10b981';
 const DARK = '#0a0f1e';
@@ -327,6 +328,9 @@ export default function FronterPage() {
 
       {/* Congrats popup — shows when a deal is closed */}
       {isFronter && <FronterCongratsPopup username={user.username} fronterFirstName={user?.firstName} />}
+
+      {/* Email tracking notifications — real-time open/click popups */}
+      <FronterEmailTrackingNotifications />
 
       {/* Heads Up alerts — super admin only */}
       {isAdmin && (

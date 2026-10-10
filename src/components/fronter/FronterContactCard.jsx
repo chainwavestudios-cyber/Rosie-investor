@@ -14,6 +14,9 @@ import FronterCredsEmailPopup from './FronterCredsEmailPopup';
 import FronterCardActions from './FronterCardActions';
 import FronterHardshipField from './FronterHardshipField';
 import FronterNotesSection from './FronterNotesSection';
+import FronterEmailTrackingBadges from './FronterEmailTrackingBadges';
+import FronterLeadConfirmedChecklist from './FronterLeadConfirmedChecklist';
+import FronterClosedDealCelebration from './FronterClosedDealCelebration';
 
 const GOLD = '#10b981';
 const DARK = '#0a0f1e';
@@ -55,6 +58,8 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
   const [showMeetingScheduler, setShowMeetingScheduler] = useState(false);
   const [showCredsPopup, setShowCredsPopup] = useState(false);
   const [meetingDisposition, setMeetingDisposition] = useState('interested');
+  const [showChecklist, setShowChecklist] = useState(false);
+  const [showClosedDealCelebration, setShowClosedDealCelebration] = useState(false);
 
   useEffect(() => {
     setLocal(lead || {});
@@ -149,9 +154,38 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
     } catch (e) { alert('Update failed: ' + (e?.message || String(e))); }
   };
 
-  const markTransferred = () => {
+  const markTransferred = async () => {
+    if (!confirm(`Mark ${local.firstName || 'this contact'} as Transferred? The card becomes a Lead.`)) return;
     const now = new Date().toISOString();
-    setDisposition({ status: 'transferred', lastCallResult: 'transferred', transferredAt: now, lastCalledAt: now }, `Mark ${local.firstName || 'this contact'} as Transferred? The card becomes a Lead.`);
+    const updates = { status: 'transferred', lastCallResult: 'transferred', transferredAt: now, lastCalledAt: now };
+    try {
+      await base44.entities.FronterLead.update(lead.id, updates);
+      setLocal(prev => ({ ...prev, ...updates }));
+      onSave?.({ ...local, ...updates });
+
+      // Transfer credit: if call duration >= 30s, credit the agent and send congrats
+      if (callDuration >= 30) {
+        try {
+          await base44.entities.FronterLead.update(lead.id, { transferCreditedAt: now });
+          const today = new Date().toISOString().split('T')[0];
+          const existing = await base44.entities.FronterDailyReport.filter({ fronterUsername: username, reportDate: today });
+          if (existing?.[0]) {
+            await base44.entities.FronterDailyReport.update(existing[0].id, { transferCalls: (existing[0].transferCalls || 0) + 1 });
+          } else {
+            await base44.entities.FronterDailyReport.create({ fronterUsername: username, reportDate: today, transferCalls: 1, totalCalls: 0, totalTalkTimeSeconds: 0, futureMeetingCalls: 0 });
+          }
+          const agentName = fronterFirstName || username;
+          await base44.entities.FronterChatMessage.create({
+            senderUsername: 'system',
+            senderRole: 'admin',
+            message: `🎉 Congrats ${agentName}, on a successful open and transfer!!`,
+            recipientUsername: username,
+            readByAdmin: true,
+            readByFronter: false,
+          });
+        } catch (e) { console.warn('Transfer credit failed:', e.message); }
+      }
+    } catch (e) { alert('Transfer failed: ' + (e?.message || String(e))); }
   };
 
   const markBooked = () => {
@@ -187,7 +221,7 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
         closedDealBy: username,
       });
       onSave?.({ ...local, status: 'closed_deal', closedDealAt: new Date().toISOString(), closedDealBy: username });
-      onClose?.();
+      setShowClosedDealCelebration(true);
     } catch (e) { alert('Failed: ' + (e?.message || String(e))); }
   };
 
@@ -267,6 +301,12 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
           )}
         </div>
 
+        {/* Email tracking badges + Lead Confirmed button */}
+        <div style={{ padding: '8px 18px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px', flexShrink: 0, flexWrap: 'wrap' }}>
+          <FronterEmailTrackingBadges lead={local} username={username} onManualUpdate={(upd) => setLocal(prev => ({ ...prev, ...upd }))} />
+          <button onClick={() => setShowChecklist(true)} style={{ background: 'rgba(16,185,129,0.15)', color: GOLD, border: `1px solid ${GOLD}44`, borderRadius: '4px', padding: '4px 12px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold', whiteSpace: 'nowrap' }}>✅ Lead Confirmed</button>
+        </div>
+
         {/* Tabs */}
         <div style={{ display: 'flex', gap: '2px', borderBottom: '1px solid rgba(255,255,255,0.07)', flexShrink: 0, padding: '0 14px' }}>
           <button onClick={() => setCardTab('contact')} style={{ padding: '8px 16px', background: 'none', border: 'none', borderBottom: `2px solid ${cardTab === 'contact' ? GOLD : 'transparent'}`, color: cardTab === 'contact' ? GOLD : '#6b7280', cursor: 'pointer', fontSize: '11px', fontWeight: cardTab === 'contact' ? 'bold' : 'normal' }}>📇 Contact</button>
@@ -293,7 +333,7 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
                     <label style={ls}>Primary Phone</label>
                     <div style={{ display: 'flex', gap: '4px' }}>
                       <input value={local.phone || ''} onChange={e => update('phone', e.target.value)} placeholder="555-123-4567" style={{ ...inp, flex: 1 }} />
-                      <button onClick={() => { if (!local.phone) return; setCallActive(true); setCallStartTime(Date.now()); setCallDuration(0); onDial?.({ ...local, phone: local.phone }); }} disabled={!local.phone} title="Dial" style={{ background: 'rgba(16,185,129,0.15)', color: GOLD, border: '1px solid rgba(16,185,129,0.3)', borderRadius: '4px', padding: '0 9px', cursor: local.phone ? 'pointer' : 'not-allowed', fontSize: '13px', flexShrink: 0, opacity: local.phone ? 1 : 0.4 }}>📞</button>
+                      <button onClick={() => { if (!local.phone) return; setCallActive(true); setCallStartTime(Date.now()); setCallDuration(0); setShowChecklist(true); onDial?.({ ...local, phone: local.phone }); }} disabled={!local.phone} title="Dial" style={{ background: 'rgba(16,185,129,0.15)', color: GOLD, border: '1px solid rgba(16,185,129,0.3)', borderRadius: '4px', padding: '0 9px', cursor: local.phone ? 'pointer' : 'not-allowed', fontSize: '13px', flexShrink: 0, opacity: local.phone ? 1 : 0.4 }}>📞</button>
                     </div>
                   </div>
                   <div style={{ marginBottom: '6px' }}>
@@ -430,6 +470,26 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
           username={username}
           onClose={() => setShowCredsPopup(false)}
           onSent={(updated) => { setLocal(prev => ({ ...prev, ...updated })); setShowCredsPopup(false); onSave?.({ ...local, ...updated }); }}
+        />
+      )}
+
+      {/* Lead Confirmed checklist popup */}
+      {showChecklist && (
+        <FronterLeadConfirmedChecklist
+          lead={local}
+          username={username}
+          onClose={() => setShowChecklist(false)}
+          onAllComplete={() => {}}
+          onEmailCreds={() => setShowCredsPopup(true)}
+        />
+      )}
+
+      {/* Closed Deal celebration */}
+      {showClosedDealCelebration && (
+        <FronterClosedDealCelebration
+          agentName={fronterFirstName || username}
+          username={username}
+          onClose={() => { setShowClosedDealCelebration(false); onClose?.(); }}
         />
       )}
 
