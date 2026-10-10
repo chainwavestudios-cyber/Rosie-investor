@@ -7,13 +7,14 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
 import FronterDialer from './FronterDialer';
+import FronterContactCard from './FronterContactCard';
 
 const GOLD = '#10b981';
 const DARK = '#0a0f1e';
 const ls = { display: 'block', color: '#8a9ab8', fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '6px' };
 const inp = { width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '4px', padding: '8px 12px', color: '#e8e0d0', fontSize: '13px', outline: 'none', boxSizing: 'border-box', fontFamily: 'Georgia, serif' };
 
-export default function FronterLeadsTab({ username, lineKey, lineNumber, isAdmin = false, availableLines = [], adminLineKey = '', onLineChange }) {
+export default function FronterLeadsTab({ username, lineKey, lineNumber, isAdmin = false, availableLines = [], adminLineKey = '', onLineChange, mode = 'prospects' }) {
   const [leads, setLeads] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeLead, setActiveLead] = useState(null);
@@ -23,6 +24,7 @@ export default function FronterLeadsTab({ username, lineKey, lineNumber, isAdmin
   const [leadForm, setLeadForm] = useState({ firstName: '', lastName: '', phone: '', assignedTo: '', notes: '' });
   const [bulkText, setBulkText] = useState('');
   const [dialTrigger, setDialTrigger] = useState(0);
+  const [contactCardLead, setContactCardLead] = useState(null);
   const fileRef = useRef(null);
 
   const load = useCallback(async () => {
@@ -33,7 +35,9 @@ export default function FronterLeadsTab({ username, lineKey, lineNumber, isAdmin
         ? await base44.entities.FronterLead.list('-created_date', 500)
         : await base44.entities.FronterLead.filter({ assignedTo: username }, '-created_date', 500);
       // Sort: un-called first, then by oldest call (back of list), exclude removed
-      const active = (all || []).filter(l => l.status !== 'removed' && l.status !== 'transferred' && (l.callCount || 0) < 3);
+      const active = mode === 'leads'
+        ? (all || []).filter(l => l.status === 'lead' || l.status === 'transferred')
+        : (all || []).filter(l => l.status === 'prospect' && (l.callCount || 0) < 3);
       const sorted = [...active].sort((a, b) => {
         if (!a.lastCalledAt && b.lastCalledAt) return -1;
         if (a.lastCalledAt && !b.lastCalledAt) return 1;
@@ -127,6 +131,16 @@ export default function FronterLeadsTab({ username, lineKey, lineNumber, isAdmin
     } catch {}
   };
 
+  const handleDialLog = async (dialLead) => {
+    try {
+      const log = JSON.parse(dialLead.notesLogJson || '[]');
+      const now = new Date().toISOString();
+      log.push({ text: `📞 Dialed ${dialLead.phone}`, timestamp: now, author: username, type: 'dial' });
+      await base44.entities.FronterLead.update(dialLead.id, { notesLogJson: JSON.stringify(log), lastCalledAt: now });
+      setRefreshKey(k => k + 1);
+    } catch {}
+  };
+
   const fmtTime = (iso) => {
     if (!iso) return '—';
     const d = new Date(iso);
@@ -143,20 +157,20 @@ export default function FronterLeadsTab({ username, lineKey, lineNumber, isAdmin
       {/* Lead list */}
       <div style={{ background: '#0d1b2a', border: '1px solid rgba(16,185,129,0.2)', borderRadius: '6px' }}>
         <div style={{ padding: '14px 16px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
-          <div style={{ color: GOLD, fontSize: '11px', letterSpacing: '2px', textTransform: 'uppercase' }}>📋 {isAdmin ? 'All Leads' : 'My Leads'} — {leads.length} remaining</div>
+          <div style={{ color: GOLD, fontSize: '11px', letterSpacing: '2px', textTransform: 'uppercase' }}>📋 {mode === 'leads' ? (isAdmin ? 'All Leads' : 'My Leads') : (isAdmin ? 'All Prospects' : 'My Prospects')} — {leads.length} {mode === 'leads' ? 'total' : 'remaining'}</div>
           <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
             {isAdmin && availableLines.length > 0 && (
               <select value={adminLineKey} onChange={e => onLineChange?.(e.target.value)} style={{ ...inp, width: 'auto', fontSize: '10px', padding: '4px 8px' }}>
                 {availableLines.map(l => <option key={l.key} value={l.key}>{l.label} ({l.number})</option>)}
               </select>
             )}
-            {isAdmin && <button onClick={() => setShowUpload(p => !p)} style={{ background: `${GOLD}18`, color: GOLD, border: `1px solid ${GOLD}44`, borderRadius: '4px', padding: '4px 10px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>+ Upload</button>}
+            {isAdmin && mode === 'prospects' && <button onClick={() => setShowUpload(p => !p)} style={{ background: `${GOLD}18`, color: GOLD, border: `1px solid ${GOLD}44`, borderRadius: '4px', padding: '4px 10px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>+ Upload</button>}
             <button onClick={() => setRefreshKey(k => k + 1)} style={{ background: `${GOLD}18`, color: GOLD, border: `1px solid ${GOLD}44`, borderRadius: '4px', padding: '4px 10px', cursor: 'pointer', fontSize: '10px' }}>↻ Refresh</button>
           </div>
         </div>
 
         {/* Admin upload panel */}
-        {isAdmin && showUpload && (
+        {isAdmin && mode === 'prospects' && showUpload && (
           <div style={{ padding: '14px 16px', borderBottom: '1px solid rgba(255,255,255,0.07)', background: 'rgba(16,185,129,0.04)' }}>
             <div style={{ marginBottom: '10px' }}>
               <label style={ls}>Assign Leads To</label>
@@ -191,7 +205,7 @@ export default function FronterLeadsTab({ username, lineKey, lineNumber, isAdmin
             <div style={{ color: '#4a5568', textAlign: 'center', padding: '40px 0', fontSize: '13px' }}>No leads assigned to you. Ask your admin to upload and assign leads.</div>
           ) : (
             leads.map((l, i) => (
-              <div key={l.id} onClick={() => setActiveLead(l)} style={{ padding: '12px 16px', borderBottom: '1px solid rgba(255,255,255,0.04)', cursor: 'pointer', background: activeLead?.id === l.id ? 'rgba(16,185,129,0.06)' : 'transparent', display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <div key={l.id} onClick={() => setContactCardLead(l)} style={{ padding: '12px 16px', borderBottom: '1px solid rgba(255,255,255,0.04)', cursor: 'pointer', background: contactCardLead?.id === l.id ? 'rgba(16,185,129,0.06)' : 'transparent', display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <span style={{ color: '#4a5568', fontSize: '11px', minWidth: '24px' }}>{i + 1}.</span>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ color: '#e8e0d0', fontSize: '13px', fontWeight: 'bold' }}>{l.firstName} {l.lastName}</div>
@@ -239,6 +253,7 @@ export default function FronterLeadsTab({ username, lineKey, lineNumber, isAdmin
               lineNumber={lineNumber}
               onLeadCalled={handleLeadCalled}
               autoDialTrigger={dialTrigger}
+              onDial={handleDialLog}
             />
 
             {/* Status update */}
@@ -268,10 +283,21 @@ export default function FronterLeadsTab({ username, lineKey, lineNumber, isAdmin
           </div>
         ) : (
           <div style={{ background: '#0d1b2a', border: '1px solid rgba(255,255,255,0.07)', borderRadius: '6px', padding: '40px 20px', textAlign: 'center' }}>
-            <div style={{ color: '#4a5568', fontSize: '13px' }}>Select a lead from the list to start calling</div>
+            <div style={{ color: '#4a5568', fontSize: '13px' }}>Select a {mode === 'leads' ? 'lead' : 'prospect'} from the list to start calling</div>
           </div>
         )}
       </div>
+
+      {/* Contact card modal */}
+      {contactCardLead && (
+        <FronterContactCard
+          lead={contactCardLead}
+          username={username}
+          onClose={() => setContactCardLead(null)}
+          onSave={(updated) => { setRefreshKey(k => k + 1); setContactCardLead(prev => ({ ...prev, ...updated })); }}
+          onDial={(l) => { setContactCardLead(null); setActiveLead(l); setDialTrigger(n => n + 1); }}
+        />
+      )}
     </div>
   );
 }

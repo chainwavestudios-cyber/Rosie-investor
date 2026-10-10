@@ -15,7 +15,7 @@ const BLUE = '#60a5fa';
 const AMBER = '#f59e0b';
 const PURPLE = '#a78bfa';
 
-export default function FronterDialer({ lead, username, lineKey, lineNumber, onCallStarted, onCallEnded, onLeadCalled, autoDialTrigger = 0 }) {
+export default function FronterDialer({ lead, username, lineKey, lineNumber, onCallStarted, onCallEnded, onLeadCalled, autoDialTrigger = 0, onDial }) {
   const [callStatus, setCallStatus] = useState('idle');
   const [duration, setDuration] = useState(0);
   const [now, setNow] = useState(new Date());
@@ -104,6 +104,7 @@ export default function FronterDialer({ lead, username, lineKey, lineNumber, onC
   const dial = async () => {
     if (!lead?.phone) { setError('No phone number'); return; }
     setError(''); setCallStatus('calling'); setDuration(0); setMuted(false); setOnHold(false); setMerged(false); setConferenceName('');
+    onDial?.(lead);
     try {
       const device = await getDevice();
       const digits = lead.phone.replace(/\D/g, '');

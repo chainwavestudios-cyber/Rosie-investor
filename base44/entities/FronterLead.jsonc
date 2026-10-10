@@ -18,6 +18,24 @@
       "type": "string",
       "title": "Phone"
     },
+    "address": {
+      "type": "string",
+      "title": "Address"
+    },
+    "debtAmount": {
+      "type": "number",
+      "title": "Amount of Debt ($)"
+    },
+    "debtTypesJson": {
+      "type": "string",
+      "title": "Debt Types (JSON array \u2014 Unsecured Credit Card, Unsecured Loans)",
+      "format": "textarea"
+    },
+    "notesLogJson": {
+      "type": "string",
+      "title": "Notes Log (JSON array of {text, timestamp, author, type})",
+      "format": "textarea"
+    },
     "status": {
       "type": "string",
       "title": "Status",

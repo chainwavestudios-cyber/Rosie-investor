@@ -27,8 +27,8 @@ export default function FronterPage() {
   const isAdmin = isSuperAdmin;
   // Fronter sees leads + scripts; admin sees admin + leads + scripts
   const TABS = isAdmin
-    ? [{ id: 'admin', label: '⚙️ Admin' }, { id: 'leads', label: '📋 Leads' }, { id: 'scripts', label: '📜 Scripts' }]
-    : [{ id: 'leads', label: '📋 Leads' }, { id: 'scripts', label: '📜 Scripts' }];
+    ? [{ id: 'admin', label: '⚙️ Admin' }, { id: 'prospects', label: '📋 Prospects' }, { id: 'leads', label: '📋 Leads' }, { id: 'scripts', label: '📜 Scripts' }]
+    : [{ id: 'prospects', label: '📋 Prospects' }, { id: 'leads', label: '📋 Leads' }, { id: 'scripts', label: '📜 Scripts' }];
 
   const loadLine = useCallback(async () => {
     if (!user?.username) return;
@@ -45,7 +45,11 @@ export default function FronterPage() {
     } catch {}
   }, [user?.username, isAdmin]);
 
-  useEffect(() => { loadLine(); }, [loadLine]);
+  useEffect(() => {
+    loadLine();
+    const interval = setInterval(loadLine, 10000);
+    return () => clearInterval(interval);
+  }, [loadLine]);
 
   // Load per-user daily metrics (calls today, talk time, transferred)
   useEffect(() => {
@@ -135,7 +139,7 @@ export default function FronterPage() {
       <div style={{ padding: '20px 24px' }}>
         {tab === 'admin' && isAdmin && <FronterAdminTab adminUsername={user.username} />}
 
-        {tab === 'leads' && (
+        {['prospects', 'leads'].includes(tab) && (
           isFronter ? (
             lineAssignment ? (
               <FronterLeadsTab
@@ -143,6 +147,7 @@ export default function FronterPage() {
                 lineKey={activeLineKey}
                 lineNumber={activeLineNumber}
                 isAdmin={false}
+                mode={tab}
               />
             ) : (
               <div style={{ color: '#4a5568', textAlign: 'center', padding: '60px', fontSize: '14px' }}>
@@ -159,6 +164,7 @@ export default function FronterPage() {
                 availableLines={availableLines}
                 adminLineKey={adminLineKey}
                 onLineChange={setAdminLineKey}
+                mode={tab}
               />
             ) : (
               <div style={{ color: '#4a5568', textAlign: 'center', padding: '60px', fontSize: '14px' }}>
