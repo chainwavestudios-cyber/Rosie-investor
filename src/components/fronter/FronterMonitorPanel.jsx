@@ -4,7 +4,7 @@
  * live transcript, call duration, customer name, calls today, time logged on, time in status.
  * Listen and Barge buttons for active calls (requires conference).
  */
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Device } from '@twilio/voice-sdk';
 import { base44 } from '@/api/base44Client';
 
@@ -41,6 +41,8 @@ export default function FronterMonitorPanel({ onClose, adminUsername }) {
   const [selected, setSelected] = useState([]);
   const [transcripts, setTranscripts] = useState({});
   const [callsToday, setCallsToday] = useState({});
+  const [credsToday, setCredsToday] = useState({});
+  const [refreshing, setRefreshing] = useState({});
   const [lineAssignments, setLineAssignments] = useState([]);
   const [now, setNow] = useState(Date.now());
   const [pos, setPos] = useState({ x: 30, y: 70 });
@@ -110,49 +112,66 @@ export default function FronterMonitorPanel({ onClose, adminUsername }) {
     }).catch(() => {});
   }, []);
 
+  // Poll sessions, transcripts, calls, creds
+  const poll = useCallback(async (fronterUsername) => {
+    try {
+      const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
+      const todayISO = todayStart.toISOString();
+      const [allSessions, todayTranscripts, credsLeads] = await Promise.all([
+        base44.entities.DialerSession.filter({ status: { $in: ['logged_in', 'on_call'] } }, '-loginAt', 100),
+        base44.entities.FronterCallTranscript.filter({ callDate: { $gte: todayISO } }, '-callDate', 200),
+        base44.entities.FronterLead.filter({ credsSentAt: { $gte: todayISO } }, '-created_date', 200),
+      ]);
+      setSessions(allSessions || []);
+
+      const callCounts = {};
+      (todayTranscripts || []).forEach(t => {
+        callCounts[t.fronterUsername] = (callCounts[t.fronterUsername] || 0) + 1;
+      });
+      setCallsToday(callCounts);
+
+      const credCounts = {};
+      (credsLeads || []).forEach(l => {
+        const owner = l.assignedTo;
+        if (owner) credCounts[owner] = (credCounts[owner] || 0) + 1;
+      });
+      setCredsToday(credCounts);
+
+      const onCallSessions = (allSessions || []).filter(s => s.status === 'on_call');
+      const latest = {};
+      for (const s of onCallSessions) {
+        const fronterTranscripts = (todayTranscripts || []).filter(t => t.fronterUsername === s.username);
+        if (fronterTranscripts.length > 0) latest[s.username] = fronterTranscripts[0];
+      }
+      setTranscripts(latest);
+
+      // Fetch transfer queue (active headsUp alerts)
+      const queueRaw = await base44.entities.FronterHeadsUp.filter({ status: 'active' }, '-createdAt', 20);
+      const queueItems = queueRaw || [];
+      const leadIds = queueItems.map(q => q.leadId).filter(Boolean);
+      let leadMap = {};
+      if (leadIds.length > 0) {
+        try {
+          const leadsData = await base44.entities.FronterLead.filter({ id: { $in: leadIds } }, '-created_date', 50);
+          (leadsData || []).forEach(l => { leadMap[l.id] = l; });
+        } catch {}
+      }
+      setTransferQueue(queueItems.map(q => ({ ...q, lead: leadMap[q.leadId] })));
+    } catch {}
+    if (fronterUsername) setRefreshing(prev => ({ ...prev, [fronterUsername]: false }));
+  }, []);
+
   // Poll sessions, transcripts, calls
   useEffect(() => {
-    const poll = async () => {
-      try {
-        const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
-        const [allSessions, todayTranscripts] = await Promise.all([
-          base44.entities.DialerSession.filter({ status: { $in: ['logged_in', 'on_call'] } }, '-loginAt', 100),
-          base44.entities.FronterCallTranscript.filter({ callDate: { $gte: todayStart.toISOString() } }, '-callDate', 200),
-        ]);
-        setSessions(allSessions || []);
-
-        const counts = {};
-        (todayTranscripts || []).forEach(t => {
-          counts[t.fronterUsername] = (counts[t.fronterUsername] || 0) + 1;
-        });
-        setCallsToday(counts);
-
-        const onCallSessions = (allSessions || []).filter(s => s.status === 'on_call');
-        const latest = {};
-        for (const s of onCallSessions) {
-          const fronterTranscripts = (todayTranscripts || []).filter(t => t.fronterUsername === s.username);
-          if (fronterTranscripts.length > 0) latest[s.username] = fronterTranscripts[0];
-        }
-        setTranscripts(latest);
-
-        // Fetch transfer queue (active headsUp alerts)
-        const queueRaw = await base44.entities.FronterHeadsUp.filter({ status: 'active' }, '-createdAt', 20);
-        const queueItems = queueRaw || [];
-        const leadIds = queueItems.map(q => q.leadId).filter(Boolean);
-        let leadMap = {};
-        if (leadIds.length > 0) {
-          try {
-            const leadsData = await base44.entities.FronterLead.filter({ id: { $in: leadIds } }, '-created_date', 50);
-            (leadsData || []).forEach(l => { leadMap[l.id] = l; });
-          } catch {}
-        }
-        setTransferQueue(queueItems.map(q => ({ ...q, lead: leadMap[q.leadId] })));
-      } catch {}
-    };
     poll();
-    const interval = setInterval(poll, 3000);
+    const interval = setInterval(() => poll(), 3000);
     return () => clearInterval(interval);
-  }, []);
+  }, [poll]);
+
+  const refreshFronter = (username) => {
+    setRefreshing(prev => ({ ...prev, [username]: true }));
+    poll(username);
+  };
 
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 1000);
@@ -342,7 +361,7 @@ export default function FronterMonitorPanel({ onClose, adminUsername }) {
           ) : (
             selected.map(username => {
               const session = getSession(username);
-              return <FronterBox key={username} username={username} session={session} transcript={transcripts[username]} callsTodayCount={callsToday[username] || 0} now={now} listenStatus={listenStatus[username] || ''} onListen={() => handleListen(username)} onBarge={() => handleBarge(username)} onEndListen={() => handleEndListen(username)} />;
+              return <FronterBox key={username} username={username} session={session} transcript={transcripts[username]} callsTodayCount={callsToday[username] || 0} credsTodayCount={credsToday[username] || 0} now={now} listenStatus={listenStatus[username] || ''} refreshing={!!refreshing[username]} onRefresh={() => refreshFronter(username)} onListen={() => handleListen(username)} onBarge={() => handleBarge(username)} onEndListen={() => handleEndListen(username)} />;
             })
           )}
         </div>
@@ -361,7 +380,7 @@ export default function FronterMonitorPanel({ onClose, adminUsername }) {
   );
 }
 
-function FronterBox({ username, session, transcript, callsTodayCount, now, listenStatus, onListen, onBarge, onEndListen }) {
+function FronterBox({ username, session, transcript, callsTodayCount, credsTodayCount, now, listenStatus, refreshing, onRefresh, onListen, onBarge, onEndListen }) {
   const status = session?.fronterStatus || 'offline';
   const isOnCall = session?.status === 'on_call';
   const hasConference = !!session?.currentCallConferenceName;
@@ -380,9 +399,14 @@ function FronterBox({ username, session, transcript, callsTodayCount, now, liste
       {/* Name + status badge (view-only) */}
       <div style={{ padding: '8px 10px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '6px' }}>
         <span style={{ color: '#e8e0d0', fontSize: '13px', fontWeight: 'bold', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{username}</span>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '2px 8px', borderRadius: '10px', background: `${statusCfg.color}18`, border: `1px solid ${statusCfg.color}33`, flexShrink: 0 }}>
-          <div style={{ width: 6, height: 6, borderRadius: '50%', background: statusCfg.color }} />
-          <span style={{ color: statusCfg.color, fontSize: '9px', fontWeight: 'bold' }}>{statusCfg.icon} {statusCfg.label}</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0 }}>
+          <button onClick={onRefresh} disabled={refreshing} title="Refresh data" style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '3px', padding: '2px 7px', cursor: refreshing ? 'not-allowed' : 'pointer', fontSize: '11px', color: '#8a9ab8', lineHeight: 1 }}>
+            {refreshing ? '⏳' : '↻'}
+          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '2px 8px', borderRadius: '10px', background: `${statusCfg.color}18`, border: `1px solid ${statusCfg.color}33` }}>
+            <div style={{ width: 6, height: 6, borderRadius: '50%', background: statusCfg.color }} />
+            <span style={{ color: statusCfg.color, fontSize: '9px', fontWeight: 'bold' }}>{statusCfg.icon} {statusCfg.label}</span>
+          </div>
         </div>
       </div>
 
@@ -437,6 +461,10 @@ function FronterBox({ username, session, transcript, callsTodayCount, now, liste
         <div style={{ textAlign: 'center' }}>
           <div style={{ color: BLUE, fontSize: '13px', fontWeight: 'bold' }}>{callsTodayCount}</div>
           <div style={{ color: '#6b7280', fontSize: '8px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Calls</div>
+        </div>
+        <div style={{ textAlign: 'center' }}>
+          <div style={{ color: '#4ade80', fontSize: '13px', fontWeight: 'bold' }}>{credsTodayCount}</div>
+          <div style={{ color: '#6b7280', fontSize: '8px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Creds Sent</div>
         </div>
         <div style={{ textAlign: 'center' }}>
           <div style={{ color: GOLD, fontSize: '13px', fontWeight: 'bold' }}>{fmtDur(loggedOn)}</div>
