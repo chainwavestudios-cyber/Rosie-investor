@@ -26,6 +26,7 @@ import FronterCongratsPopup from '@/components/fronter/FronterCongratsPopup';
 import FronterChatroom from '@/components/fronter/FronterChatroom';
 import FronterEmergencyScript from '@/components/fronter/FronterEmergencyScript';
 import FronterEmailTrackingNotifications from '@/components/fronter/FronterEmailTrackingNotifications';
+import FronterContactCard from '@/components/fronter/FronterContactCard';
 
 const GOLD = '#10b981';
 const DARK = '#0a0f1e';
@@ -41,6 +42,7 @@ export default function FronterPage() {
   const [metrics, setMetrics] = useState({ callsToday: 0, talkTimeSeconds: 0, transferredToday: 0 });
   const [showQA, setShowQA] = useState(false);
   const [showMonitor, setShowMonitor] = useState(false);
+  const [monitorLead, setMonitorLead] = useState(null);
   const [showChatroom, setShowChatroom] = useState(false);
   const [fronterStatus, setFronterStatus] = useState('dialing');
   const [agreementLoaded, setAgreementLoaded] = useState(false);
@@ -312,7 +314,7 @@ export default function FronterPage() {
 
       {/* Fronter Monitor — super admin only */}
       {showMonitor && isAdmin && (
-        <FronterMonitorPanel onClose={() => setShowMonitor(false)} adminUsername={user?.username} />
+        <FronterMonitorPanel onClose={() => setShowMonitor(false)} adminUsername={user?.username} onOpenLead={async (leadId) => { try { const lead = await base44.entities.FronterLead.get(leadId); setMonitorLead(lead); } catch {} }} />
       )}
 
       {/* Chat box — fronter chats with admin, admin chats with fronters */}
@@ -347,6 +349,17 @@ export default function FronterPage() {
             } catch (e) { alert('Listen failed: ' + (e?.message || String(e))); }
           }}
           onOpenLead={(leadId) => { setTab('leads'); }}
+        />
+      )}
+
+      {/* Contact card opened from monitor email alert */}
+      {monitorLead && (
+        <FronterContactCard
+          lead={monitorLead}
+          username={user?.username}
+          isAdmin={true}
+          onClose={() => setMonitorLead(null)}
+          onSave={(updated) => setMonitorLead(prev => ({ ...prev, ...updated }))}
         />
       )}
     </div>

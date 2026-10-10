@@ -83,12 +83,33 @@ function injectTracking(html: string, leadId: string, sendId: string): string {
   const trackOpenUrl = `${TRACKING_BASE}/emailTrackOpen?leadId=${encodeURIComponent(leadId)}&sendId=${sendId}`;
   const trackClickBase = `${TRACKING_BASE}/emailTrackClick?leadId=${encodeURIComponent(leadId)}&sendId=${sendId}&url=`;
 
-  // Rewrite all http/https links in <a href="..."> to go through the click tracker
+  // 1. Rewrite existing <a href="..."> links to go through the click tracker
   let result = html.replace(/(<a\s+[^>]*?href=")(https?:\/\/[^"]+)"/gi, (match, prefix, url) => {
+    if (url.includes('emailTrackClick')) return match;
     return `${prefix}${trackClickBase}${encodeURIComponent(url)}"`;
   });
 
-  // Append the 1x1 tracking pixel
+  // 2. Protect <a>...</a> blocks so we don't double-wrap URLs in their display text
+  const linkBlocks: string[] = [];
+  result = result.replace(/<a\s[^>]*>[\s\S]*?<\/a>/gi, (block) => {
+    const idx = linkBlocks.length;
+    linkBlocks.push(block);
+    return `__PROTECTED_LINK_${idx}__`;
+  });
+
+  // 3. Wrap bare URLs (plain-text URLs not inside <a> tags) in tracked links.
+  //    Negative lookbehind on ["'=] skips URLs inside HTML attributes.
+  result = result.replace(/(?<!=["'=])https?:\/\/[^\s<"'<>]+/gi, (url) => {
+    if (url.includes('emailTrackClick') || url.includes('emailTrackOpen')) return url;
+    return `<a href="${trackClickBase}${encodeURIComponent(url)}" style="color:#3b82f6;text-decoration:underline;">${url}</a>`;
+  });
+
+  // 4. Restore protected <a> blocks
+  linkBlocks.forEach((block, i) => {
+    result = result.replace(`__PROTECTED_LINK_${i}__`, block);
+  });
+
+  // 5. Append the 1x1 tracking pixel
   result += `<img src="${trackOpenUrl}" width="1" height="1" alt="" style="display:none;width:1px;height:1px;"/>`;
   return result;
 }

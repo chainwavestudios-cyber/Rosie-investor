@@ -35,7 +35,7 @@ function fmtCallDur(s) {
   return `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, '0')}`;
 }
 
-export default function FronterMonitorPanel({ onClose, adminUsername }) {
+export default function FronterMonitorPanel({ onClose, adminUsername, onOpenLead }) {
   const [fronters, setFronters] = useState([]);
   const [sessions, setSessions] = useState([]);
   const [selected, setSelected] = useState([]);
@@ -53,9 +53,76 @@ export default function FronterMonitorPanel({ onClose, adminUsername }) {
   const [transferQueue, setTransferQueue] = useState([]);
   const [takeoverStatus, setTakeoverStatus] = useState({}); // {headsUpId: 'taking_over' | 'done' | ''}
   const [deviceReady, setDeviceReady] = useState(false);
+  // Email alert: { [username]: { leadName, leadId, type, blinkKey, shownAt } }
+  const [emailAlerts, setEmailAlerts] = useState({});
+  const leadCacheRef = useRef({});
+  const alertTimersRef = useRef({});
   const dragRef = useRef(null);
   const deviceRef = useRef(null);
   const incomingCallRef = useRef(null);
+
+  // ── Email tracking subscription: blink + ding when a monitored fronter's lead opens/clicks ──
+  useEffect(() => {
+    const getLead = async (leadId) => {
+      if (leadCacheRef.current[leadId]) return leadCacheRef.current[leadId];
+      try {
+        const lead = await base44.entities.FronterLead.get(leadId);
+        leadCacheRef.current[leadId] = lead;
+        return lead;
+      } catch { return null; }
+    };
+
+    const playDing = () => {
+      try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.frequency.value = 880;
+        gain.gain.setValueAtTime(0.3, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.4);
+        osc.start();
+        osc.stop(ctx.currentTime + 0.4);
+      } catch {}
+    };
+
+    const unsub = base44.entities.EmailTrackingEvent.subscribe(async (event) => {
+      if (event.type !== 'create' || !event.data?.leadId) return;
+      const ev = event.data;
+      const eventId = ev.id || `${ev.leadId}_${ev.trackedAt}_${ev.eventType}_${Math.random()}`;
+      // 30-second bot filter delay
+      alertTimersRef.current[eventId] = setTimeout(async () => {
+        const lead = await getLead(ev.leadId);
+        if (!lead?.assignedTo) return;
+        const fronterUsername = lead.assignedTo;
+        const leadName = `${lead.firstName || ''} ${lead.lastName || ''}`.trim() || 'Unknown';
+        setEmailAlerts(prev => ({
+          ...prev,
+          [fronterUsername]: {
+            leadName,
+            leadId: ev.leadId,
+            type: ev.eventType,
+            blinkKey: Date.now(),
+            shownAt: Date.now(),
+          },
+        }));
+        playDing();
+        // Auto-clear after 12 seconds
+        setTimeout(() => {
+          setEmailAlerts(prev => {
+            const next = { ...prev };
+            delete next[fronterUsername];
+            return next;
+          });
+        }, 12000);
+      }, 30000);
+    });
+    return () => {
+      try { unsub(); } catch {}
+      Object.values(alertTimersRef.current).forEach(t => clearTimeout(t));
+    };
+  }, []);
 
   // Initialize Twilio device for the admin so they can receive listen/barge/takeover calls
   useEffect(() => {
@@ -262,7 +329,7 @@ export default function FronterMonitorPanel({ onClose, adminUsername }) {
 
   return (
     <div style={{ position: 'fixed', left: pos.x, top: pos.y, width: size.w, height: size.h, background: '#0d1b2a', border: '1px solid rgba(96,165,250,0.3)', borderRadius: '8px', boxShadow: '0 16px 64px rgba(0,0,0,0.8)', zIndex: 10000, display: 'flex', flexDirection: 'column' }}>
-      <style>{`@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}`}</style>
+      <style>{`@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}@keyframes emailAlertBlink{0%,100%{border-color:rgba(16,185,129,0.3);box-shadow:0 0 4px rgba(16,185,129,0.1)}50%{border-color:#10b981;box-shadow:0 0 20px rgba(16,185,129,0.6)}}`}</style>
       {/* Header — draggable */}
       <div onMouseDown={onDragStart} style={{ padding: '10px 16px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'move', userSelect: 'none', flexShrink: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -361,7 +428,7 @@ export default function FronterMonitorPanel({ onClose, adminUsername }) {
           ) : (
             selected.map(username => {
               const session = getSession(username);
-              return <FronterBox key={username} username={username} session={session} transcript={transcripts[username]} callsTodayCount={callsToday[username] || 0} credsTodayCount={credsToday[username] || 0} now={now} listenStatus={listenStatus[username] || ''} refreshing={!!refreshing[username]} onRefresh={() => refreshFronter(username)} onListen={() => handleListen(username)} onBarge={() => handleBarge(username)} onEndListen={() => handleEndListen(username)} />;
+              return <FronterBox key={username} username={username} session={session} transcript={transcripts[username]} callsTodayCount={callsToday[username] || 0} credsTodayCount={credsToday[username] || 0} now={now} listenStatus={listenStatus[username] || ''} refreshing={!!refreshing[username]} emailAlert={emailAlerts[username] || null} onOpenLead={onOpenLead} onRefresh={() => refreshFronter(username)} onListen={() => handleListen(username)} onBarge={() => handleBarge(username)} onEndListen={() => handleEndListen(username)} />;
             })
           )}
         </div>
@@ -380,7 +447,7 @@ export default function FronterMonitorPanel({ onClose, adminUsername }) {
   );
 }
 
-function FronterBox({ username, session, transcript, callsTodayCount, credsTodayCount, now, listenStatus, refreshing, onRefresh, onListen, onBarge, onEndListen }) {
+function FronterBox({ username, session, transcript, callsTodayCount, credsTodayCount, now, listenStatus, refreshing, emailAlert, onOpenLead, onRefresh, onListen, onBarge, onEndListen }) {
   const status = session?.fronterStatus || 'offline';
   const isOnCall = session?.status === 'on_call';
   const hasConference = !!session?.currentCallConferenceName;
@@ -394,8 +461,11 @@ function FronterBox({ username, session, transcript, callsTodayCount, credsToday
     try { transcriptLines = JSON.parse(transcript.transcriptJson); } catch {}
   }
 
+  const hasEmailAlert = !!emailAlert;
+  const alertKey = `emailBlink_${username}_${emailAlert?.blinkKey || 0}`;
+
   return (
-    <div style={{ background: 'rgba(0,0,0,0.2)', border: `1px solid ${statusCfg.color}33`, borderRadius: '6px', display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden' }}>
+    <div key={alertKey} style={{ background: 'rgba(0,0,0,0.2)', border: `1px solid ${hasEmailAlert ? '#10b981' : statusCfg.color + '33'}`, borderRadius: '6px', display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden', animation: hasEmailAlert ? 'emailAlertBlink 0.5s ease-in-out 3' : 'none', boxShadow: hasEmailAlert ? '0 0 16px rgba(16,185,129,0.4)' : 'none' }}>
       {/* Name + status badge (view-only) */}
       <div style={{ padding: '8px 10px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '6px' }}>
         <span style={{ color: '#e8e0d0', fontSize: '13px', fontWeight: 'bold', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{username}</span>
@@ -409,6 +479,17 @@ function FronterBox({ username, session, transcript, callsTodayCount, credsToday
           </div>
         </div>
       </div>
+
+      {/* Email alert banner */}
+      {hasEmailAlert && (
+        <div style={{ padding: '6px 10px', background: 'rgba(16,185,129,0.12)', borderBottom: '1px solid rgba(16,185,129,0.2)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <span style={{ fontSize: '14px', flexShrink: 0 }}>{emailAlert.type === 'open' ? '📧' : '🖱️'}</span>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ color: '#10b981', fontSize: '10px', fontWeight: 'bold' }}>{emailAlert.type === 'open' ? 'EMAIL OPENED' : 'LINK CLICKED'}</div>
+            <button onClick={() => onOpenLead?.(emailAlert.leadId)} style={{ background: 'none', border: 'none', color: '#e8e0d0', fontSize: '11px', cursor: 'pointer', padding: 0, textDecoration: 'underline', textAlign: 'left' }}>{emailAlert.leadName} →</button>
+          </div>
+        </div>
+      )}
 
       {/* Call status + Listen/Barge buttons */}
       <div style={{ padding: '4px 10px', display: 'flex', alignItems: 'center', gap: '6px', borderTop: '1px solid rgba(255,255,255,0.04)' }}>
