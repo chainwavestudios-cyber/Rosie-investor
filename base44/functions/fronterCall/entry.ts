@@ -63,13 +63,9 @@ Deno.serve(async (req) => {
         const childCalls = await twilioFetch(`/Calls.json?ParentCallSid=${fronterCallSid}`);
         const customerCallSid = childCalls.calls?.[0]?.sid;
 
-        // Redirect fronter's leg into the conference
-        await twilioFetch(`/Calls/${fronterCallSid}.json`, {
-          method: 'POST',
-          body: new URLSearchParams({ Twiml: confTwiML(confName) }),
-        });
-
-        // Redirect customer's leg into the conference (if found)
+        // Redirect the CUSTOMER'S leg first — if the parent (fronter) is
+        // redirected first, Twilio tears down the child call (customer)
+        // before it can be moved into the conference, disconnecting them.
         if (customerCallSid) {
           try {
             await twilioFetch(`/Calls/${customerCallSid}.json`, {
@@ -78,6 +74,12 @@ Deno.serve(async (req) => {
             });
           } catch {}
         }
+
+        // Now redirect the fronter's leg into the conference
+        await twilioFetch(`/Calls/${fronterCallSid}.json`, {
+          method: 'POST',
+          body: new URLSearchParams({ Twiml: confTwiML(confName) }),
+        });
       }
 
       // Dial the agent into the conference
@@ -102,14 +104,12 @@ Deno.serve(async (req) => {
       const existingConf = await findConferenceSid(confName);
 
       if (!existingConf) {
-        // First hold — convert 1:1 call to conference
+        // First hold — convert 1:1 call to conference.
+        // Redirect the customer (child) BEFORE the fronter (parent) —
+        // redirecting the parent first tears down the child call.
         const childCalls = await twilioFetch(`/Calls.json?ParentCallSid=${fronterCallSid}`);
         const customerCallSid = childCalls.calls?.[0]?.sid;
 
-        await twilioFetch(`/Calls/${fronterCallSid}.json`, {
-          method: 'POST',
-          body: new URLSearchParams({ Twiml: confTwiML(confName) }),
-        });
         if (customerCallSid) {
           try {
             await twilioFetch(`/Calls/${customerCallSid}.json`, {
@@ -118,6 +118,10 @@ Deno.serve(async (req) => {
             });
           } catch {}
         }
+        await twilioFetch(`/Calls/${fronterCallSid}.json`, {
+          method: 'POST',
+          body: new URLSearchParams({ Twiml: confTwiML(confName) }),
+        });
       }
 
       // Wait for conference to exist, then hold the customer's participant
