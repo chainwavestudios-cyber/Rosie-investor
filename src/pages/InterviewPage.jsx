@@ -10,6 +10,7 @@ import { Navigate, useNavigate } from 'react-router-dom';
 import { useDebtCoachAuth } from '@/lib/DebtCoachAuthContext';
 import { base44 } from '@/api/base44Client';
 import InterviewAssistant from '@/components/interviews/InterviewAssistant';
+import InterviewAudioRecorder from '@/components/interviews/InterviewAudioRecorder';
 
 const GOLD = '#10b981';
 const DARK = '#0a0f1e';
@@ -37,6 +38,7 @@ export default function InterviewPage() {
   const [saving, setSaving] = useState(false);
   const [hireResult, setHireResult] = useState(null);
   const [recentInterviews, setRecentInterviews] = useState([]);
+  const [audioFileUri, setAudioFileUri] = useState('');
 
   useEffect(() => {
     if (step === 0) {
@@ -72,7 +74,8 @@ export default function InterviewPage() {
   const saveInterview = async (status, extra = {}) => {
     await base44.entities.Interview.create({
       firstName: data.firstName, lastName: data.lastName, telegramId: data.telegramId, email: data.email,
-      status, notes: data.notes, responsesJson: JSON.stringify(data.responses), createdBy: user.username, ...extra,
+      status, notes: data.notes, responsesJson: JSON.stringify(data.responses), createdBy: user.username,
+      audioFileUri: audioFileUri || '', ...extra,
     });
   };
 
@@ -140,6 +143,7 @@ export default function InterviewPage() {
     setData({ firstName: '', lastName: '', telegramId: '', email: '', notes: '', responses: { companyReaction: '', phoneExperience: '', scriptComfort: '', canStart: '', candidateQuestions: '' } });
     setCredForm({ firstName: '', lastName: '', username: '', password: 'fronter2026!!', email: '' });
     setHireResult(null);
+    setAudioFileUri('');
   };
 
   const next = () => setStep(s => Math.min(s + 1, 7));
@@ -413,9 +417,17 @@ Once you sign that, it's automatically counter-signed, and you will be emailed a
       </div>
 
       {/* AI Assistant — available on all steps */}
-      {step > 0 && (
+      {step > 0 && step < 7 && (
         <InterviewAssistant step={step} stepLabel={STEP_LABELS[step]} candidateData={data} />
       )}
+
+      {/* Audio recorder — available during interview steps */}
+      {step > 0 && step < 7 && (
+        <InterviewAudioRecorder onAudioReady={setAudioFileUri} candidateName={`${data.firstName}_${data.lastName}`} />
+      )}
+
+      {/* Add bottom padding so content isn't hidden behind the fixed recorder bar */}
+      {step > 0 && step < 7 && <div style={{ height: '70px' }} />}
     </div>
   );
 }

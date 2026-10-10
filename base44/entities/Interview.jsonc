@@ -42,6 +42,10 @@
       "title": "Interviewer Notes",
       "format": "textarea"
     },
+    "audioFileUri": {
+      "type": "string",
+      "title": "Audio Recording File URI (private storage)"
+    },
     "createdBy": {
       "type": "string",
       "title": "Interviewer Username"
