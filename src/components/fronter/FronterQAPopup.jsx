@@ -96,7 +96,11 @@ export default function FronterQAPopup({ username, onClose }) {
     if (!question.trim()) return;
     setAsking(true); setAnswer('');
     try {
-      const kbContext = kbEntries.map(e => `Q: ${e.question}\nA: ${e.answer}`).join('\n\n');
+      const kbContext = kbEntries.map(e => {
+        const alts = parseAlts(e);
+        const altStr = alts.length > 0 ? `\n(Also matches: ${alts.join('; ')})` : '';
+        return `Q: ${e.question}\nA: ${e.answer}${altStr}`;
+      }).join('\n\n');
       const res = await base44.integrations.Core.InvokeLLM({
         prompt: `You are a helpful sales assistant for a debt settlement fronter (caller). Answer the following question using the knowledge base below and your general knowledge. If the KB has a relevant answer, use it. Otherwise, provide a helpful answer from your general knowledge. Keep answers clear, concise, and actionable — the fronter may be on a live call.
 
@@ -268,8 +272,16 @@ ${transcript.slice(0, 15000)}`,
     setUploadingMp3(false);
   };
 
+  const parseAlts = (e) => { try { return JSON.parse(e.alternativeQuestions || '[]'); } catch { return []; } };
+
   const filteredKb = kbSearch.trim()
-    ? kbEntries.filter(e => (e.question || '').toLowerCase().includes(kbSearch.toLowerCase()) || (e.answer || '').toLowerCase().includes(kbSearch.toLowerCase()))
+    ? kbEntries.filter(e => {
+        const q = (e.question || '').toLowerCase();
+        const a = (e.answer || '').toLowerCase();
+        const alts = parseAlts(e).join(' ').toLowerCase();
+        const s = kbSearch.toLowerCase();
+        return q.includes(s) || a.includes(s) || alts.includes(s);
+      })
     : kbEntries;
 
   return (
@@ -353,20 +365,30 @@ ${transcript.slice(0, 15000)}`,
                   {filteredKb.length === 0 ? (
                     <div style={{ color: '#4a5568', textAlign: 'center', padding: '24px 0', fontSize: '11px' }}>No KB entries yet. Add manually or upload documents/MP3s.</div>
                   ) : (
-                    filteredKb.map(e => (
+                    filteredKb.map(e => {
+                      const alts = parseAlts(e);
+                      return (
                       <div key={e.id} style={{ padding: '8px 10px', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: '4px' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '6px' }}>
                           <div style={{ color: '#e8e0d0', fontSize: '11px', fontWeight: 'bold', flex: 1 }}>{e.question}</div>
                           <button onClick={() => deleteKb(e.id)} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '10px', flexShrink: 0 }}>✕</button>
                         </div>
-                        <div style={{ color: '#c4cdd8', fontSize: '11px', lineHeight: 1.5, marginTop: '3px', whiteSpace: 'pre-wrap' }}>{e.answer}</div>
+                        {alts.length > 0 && (
+                          <div style={{ marginTop: '4px', display: 'flex', flexWrap: 'wrap', gap: '3px' }}>
+                            {alts.map((alt, i) => (
+                              <span key={i} style={{ padding: '1px 6px', borderRadius: '3px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: '#8a9ab8', fontSize: '9px', fontStyle: 'italic' }}>{alt}</span>
+                            ))}
+                          </div>
+                        )}
+                        <div style={{ color: '#c4cdd8', fontSize: '11px', lineHeight: 1.5, marginTop: '5px', whiteSpace: 'pre-wrap', borderLeft: '2px solid rgba(16,185,129,0.3)', paddingLeft: '8px' }}>{e.answer}</div>
                         <div style={{ display: 'flex', gap: '4px', marginTop: '4px' }}>
                           {e.category && <span style={{ padding: '1px 5px', borderRadius: '2px', background: 'rgba(96,165,250,0.12)', color: BLUE, fontSize: '8px', fontWeight: 'bold', textTransform: 'uppercase' }}>{e.category}</span>}
                           {e.sourceType === 'document' && <span style={{ padding: '1px 5px', borderRadius: '2px', background: 'rgba(96,165,250,0.12)', color: BLUE, fontSize: '8px' }}>📄 {e.sourceFileName || 'doc'}</span>}
                           {e.sourceType === 'mp3_call' && <span style={{ padding: '1px 5px', borderRadius: '2px', background: 'rgba(167,139,250,0.12)', color: PURPLE, fontSize: '8px' }}>🎵 {e.sourceFileName || 'mp3'}</span>}
                         </div>
                       </div>
-                    ))
+                      );
+                    })
                   )}
                 </div>
               </div>
