@@ -48,11 +48,12 @@ export default function FronterQAPopup({ username, onClose }) {
     if (!username) return;
     try {
       const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
-      const records = await base44.entities.FronterCallTranscript.filter(
+      const result = await base44.entities.FronterCallTranscript.filter(
         { fronterUsername: username, callDate: { $gte: todayStart.toISOString() } },
         '-callDate', 1
       );
-      const latest = records?.[0];
+      const records = Array.isArray(result) ? result : (result?.items || []);
+      const latest = records[0];
       if (latest) {
         let lines = [];
         try { lines = JSON.parse(latest.transcriptJson || '[]'); } catch {}
@@ -92,8 +93,9 @@ export default function FronterQAPopup({ username, onClose }) {
     document.addEventListener('mouseup', onUp);
   };
 
-  const ask = async () => {
-    if (!question.trim()) return;
+  const ask = async (overrideQuestion) => {
+    const q = (overrideQuestion || question).trim();
+    if (!q) return;
     setAsking(true); setAnswer('');
     try {
       const kbContext = kbEntries.map(e => {
@@ -107,7 +109,7 @@ export default function FronterQAPopup({ username, onClose }) {
 KNOWLEDGE BASE:
 ${kbContext || '(empty — use general knowledge)'}
 
-QUESTION: ${question}
+QUESTION: ${q}
 
 Provide a clear, concise answer:`,
       });
@@ -274,6 +276,46 @@ ${transcript.slice(0, 15000)}`,
 
   const parseAlts = (e) => { try { return JSON.parse(e.alternativeQuestions || '[]'); } catch { return []; } };
 
+  // Detect questions/statements-as-questions from customer transcript lines
+  const detectQuestions = (lines) => {
+    const qWords = ['what', 'how', 'why', 'when', 'where', 'who', 'which', 'can', 'could', 'would', 'will', 'is', 'are', 'do', 'does', 'have', 'has', 'should', 'may', 'might', 'so'];
+    const stmtPatterns = ["i'm not sure", "i was wondering", "i don't understand", "what do you mean", "can you explain", "tell me about", "how does it work", "i don't know", "not really sure", "what exactly", "i don't get", "confused about", "i have a question", "quick question", "how much", "how long"];
+    return (lines || [])
+      .filter(l => l.speaker !== 0)
+      .filter(l => {
+        const t = (l.text || '').toLowerCase().trim();
+        if (t.endsWith('?')) return true;
+        if (qWords.some(w => t.startsWith(w + ' '))) return true;
+        if (stmtPatterns.some(p => t.includes(p))) return true;
+        return false;
+      });
+  };
+
+  // Match a question against KB entries (local string matching, no API call)
+  const matchKb = (question) => {
+    const q = (question || '').toLowerCase().trim();
+    if (!q || kbEntries.length === 0) return null;
+    let best = null, bestScore = 0;
+    for (const e of kbEntries) {
+      const eq = (e.question || '').toLowerCase();
+      const alts = parseAlts(e).map(a => a.toLowerCase());
+      let score = 0;
+      if (eq === q) score = 100;
+      else if (alts.some(a => a === q)) score = 90;
+      else if (eq.includes(q) || q.includes(eq)) score = 70;
+      else if (alts.some(a => a.includes(q) || q.includes(a))) score = 60;
+      else {
+        const qWords = q.split(/\s+/).filter(w => w.length > 3);
+        const allKb = (eq + ' ' + alts.join(' ')).split(/\s+/);
+        score = qWords.filter(w => allKb.includes(w)).length * 10;
+      }
+      if (score > bestScore) { bestScore = score; best = e; }
+    }
+    return bestScore >= 20 ? best : null;
+  };
+
+  const detectedQuestions = detectQuestions(liveTranscript);
+
   const filteredKb = kbSearch.trim()
     ? kbEntries.filter(e => {
         const q = (e.question || '').toLowerCase();
@@ -317,6 +359,26 @@ ${transcript.slice(0, 15000)}`,
                     <div style={{ color: '#c4cdd8', fontSize: '12px', lineHeight: 1.7, whiteSpace: 'pre-wrap', fontFamily: 'Georgia, serif' }}>{answer}</div>
                   </div>
                 )}
+                {/* Live questions detected from transcript */}
+                {detectedQuestions.length > 0 && (
+                  <div style={{ marginTop: '14px' }}>
+                    <div style={{ color: GOLD, fontSize: '10px', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '8px' }}>🎯 Live Questions from Transcript ({detectedQuestions.length})</div>
+                    {detectedQuestions.slice(-5).reverse().map((q, i) => {
+                      const match = matchKb(q.text);
+                      return (
+                        <div key={i} style={{ padding: '10px', background: 'rgba(16,185,129,0.04)', border: '1px solid rgba(16,185,129,0.15)', borderRadius: '4px', marginBottom: '6px' }}>
+                          <div style={{ color: GOLD, fontSize: '11px', fontWeight: 'bold', marginBottom: '4px' }}>"{q.text}"</div>
+                          {match ? (
+                            <div style={{ color: '#c4cdd8', fontSize: '11px', lineHeight: 1.5, borderLeft: '2px solid rgba(16,185,129,0.3)', paddingLeft: '8px' }}>{match.answer}</div>
+                          ) : (
+                            <button onClick={() => ask(q.text)} disabled={asking} style={{ background: `${BLUE}18`, color: BLUE, border: `1px solid ${BLUE}44`, borderRadius: '3px', padding: '4px 10px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold', opacity: asking ? 0.5 : 1 }}>{asking ? '⏳ Asking...' : 'Ask AI →'}</button>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
                 <div style={{ marginTop: '12px', padding: '8px 10px', background: 'rgba(255,255,255,0.02)', borderRadius: '4px', color: '#4a5568', fontSize: '10px' }}>
                   💡 Answers from Fronter KB ({kbEntries.length} entries) + AI. Add KB entries via the KB tab.
                 </div>

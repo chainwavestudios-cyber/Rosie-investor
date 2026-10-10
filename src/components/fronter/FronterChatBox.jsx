@@ -1,6 +1,6 @@
 /**
  * FronterChatBox.jsx — Floating, draggable, minimizable chat box.
- * Fronters chat with Chris (the super admin). Minimizes to a bar.
+ * Fronters chat with the admin. Admins can select "All Fronters" or a specific fronter.
  */
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { base44 } from '@/api/base44Client';
@@ -15,27 +15,46 @@ export default function FronterChatBox({ username, role = 'fronter', adminUserna
   const [input, setInput] = useState('');
   const [pos, setPos] = useState({ x: window.innerWidth - 340, y: window.innerHeight - 500 });
   const [unread, setUnread] = useState(0);
+  const [fronters, setFronters] = useState([]);
+  const [recipientFilter, setRecipientFilter] = useState(''); // '' = all fronters
   const dragRef = useRef(null);
   const scrollRef = useRef(null);
-  const lastCountRef = useRef(0);
+  const frontersLoadedRef = useRef(false);
 
   const load = useCallback(async () => {
     try {
-      const all = await base44.entities.FronterChatMessage.list('-created_date', 100);
-      const sorted = (all || []).reverse();
+      const all = await base44.entities.FronterChatMessage.list('-created_date', 200);
+      let sorted = (all || []).reverse();
+
+      // Load fronter list for admin dropdown (once)
+      if (role === 'admin' && !frontersLoadedRef.current) {
+        frontersLoadedRef.current = true;
+        try {
+          const users = await base44.entities.DebtCoachUser.list('-created_date', 500);
+          setFronters((users || []).filter(u => (u.role === 'fronter' || u.role === 'super_admin') && u.isActive && u.username !== username));
+        } catch {}
+      }
+
+      // For admin, filter by selected fronter
+      if (role === 'admin' && recipientFilter) {
+        sorted = sorted.filter(m =>
+          m.senderUsername === recipientFilter ||
+          (m.senderUsername === username && m.recipientUsername === recipientFilter)
+        );
+      }
+
       setMessages(sorted);
-      // Count unread
-      if (sorted.length > lastCountRef.current) {
-        const newOnes = sorted.slice(lastCountRef.current);
-        const unreadNew = newOnes.filter(m =>
+
+      // Count unread from displayed messages (only when minimized)
+      if (minimized) {
+        const unreadCount = sorted.filter(m =>
           m.senderUsername !== username &&
           ((role === 'fronter' && !m.readByFronter) || (role === 'admin' && !m.readByAdmin))
         ).length;
-        if (unreadNew > 0) setUnread(u => u + unreadNew);
+        setUnread(unreadCount);
       }
-      lastCountRef.current = sorted.length;
     } catch {}
-  }, [username, role]);
+  }, [username, role, recipientFilter, minimized]);
 
   useEffect(() => {
     load();
@@ -84,7 +103,7 @@ export default function FronterChatBox({ username, role = 'fronter', adminUserna
         senderUsername: username,
         senderRole: role,
         message: msg,
-        recipientUsername: role === 'fronter' ? adminUsername : '',
+        recipientUsername: role === 'fronter' ? adminUsername : recipientFilter,
         readByFronter: role === 'fronter',
         readByAdmin: role === 'admin',
       });
@@ -110,7 +129,7 @@ export default function FronterChatBox({ username, role = 'fronter', adminUserna
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <span style={{ fontSize: '16px' }}>💬</span>
-            <span style={{ color: GOLD, fontSize: '12px', fontWeight: 'bold', letterSpacing: '1px' }}>CHAT WITH {role === 'fronter' ? 'ADMIN' : 'FRONTERS'}</span>
+            <span style={{ color: GOLD, fontSize: '12px', fontWeight: 'bold', letterSpacing: '1px' }}>{role === 'admin' ? (recipientFilter ? recipientFilter : 'ALL FRONTERS') : 'CHAT WITH ADMIN'}</span>
             {unread > 0 && <span style={{ background: '#ef4444', color: '#fff', borderRadius: '10px', padding: '1px 7px', fontSize: '10px', fontWeight: 'bold' }}>{unread}</span>}
           </div>
           <button onClick={(e) => { e.stopPropagation(); setMinimized(false); }} style={{ background: `${GOLD}18`, color: GOLD, border: `1px solid ${GOLD}44`, borderRadius: '4px', padding: '3px 10px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>Open</button>
@@ -125,10 +144,20 @@ export default function FronterChatBox({ username, role = 'fronter', adminUserna
       <div onMouseDown={onDragStart} style={{ padding: '10px 14px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'move', userSelect: 'none', flexShrink: 0, background: 'linear-gradient(135deg, rgba(16,185,129,0.06), transparent)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <span style={{ fontSize: '16px' }}>💬</span>
-          <span style={{ color: GOLD, fontSize: '12px', fontWeight: 'bold', letterSpacing: '1px' }}>CHAT WITH {role === 'fronter' ? 'ADMIN' : 'FRONTERS'}</span>
+          <span style={{ color: GOLD, fontSize: '12px', fontWeight: 'bold', letterSpacing: '1px' }}>{role === 'admin' ? 'FRONTER CHAT' : 'CHAT WITH ADMIN'}</span>
         </div>
         <button onClick={(e) => { e.stopPropagation(); setMinimized(true); }} style={{ background: 'rgba(255,255,255,0.05)', color: '#8a9ab8', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '4px', padding: '3px 10px', cursor: 'pointer', fontSize: '11px' }}>—</button>
       </div>
+
+      {/* Admin recipient selector */}
+      {role === 'admin' && (
+        <div style={{ padding: '8px 12px', borderBottom: '1px solid rgba(255,255,255,0.07)', flexShrink: 0 }}>
+          <select value={recipientFilter} onChange={e => setRecipientFilter(e.target.value)} style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '4px', padding: '6px 10px', color: '#e8e0d0', fontSize: '12px', outline: 'none', fontFamily: 'Georgia, serif' }}>
+            <option value="">📢 All Fronters (Broadcast)</option>
+            {fronters.map(f => <option key={f.id} value={f.username}>{f.username}</option>)}
+          </select>
+        </div>
+      )}
 
       {/* Messages */}
       <div ref={scrollRef} style={{ flex: 1, overflowY: 'auto', padding: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
@@ -156,7 +185,7 @@ export default function FronterChatBox({ username, role = 'fronter', adminUserna
           value={input}
           onChange={e => setInput(e.target.value)}
           onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }}
-          placeholder="Type a message..."
+          placeholder={role === 'admin' && !recipientFilter ? 'Broadcast to all fronters...' : 'Type a message...'}
           style={{ flex: 1, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '4px', padding: '8px 12px', color: '#e8e0d0', fontSize: '13px', outline: 'none', fontFamily: 'Georgia, serif' }}
         />
         <button onClick={send} disabled={!input.trim()} style={{ background: 'linear-gradient(135deg,#10b981,#22c55e)', color: DARK, border: 'none', borderRadius: '4px', padding: '0 16px', cursor: !input.trim() ? 'not-allowed' : 'pointer', fontSize: '12px', fontWeight: 'bold', opacity: input.trim() ? 1 : 0.5 }}>Send</button>
