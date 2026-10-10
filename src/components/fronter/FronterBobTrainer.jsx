@@ -321,7 +321,8 @@ ${kbText || 'No KB entries yet. The fronter should upload calls and documents to
     setVoiceModel(character.voiceModel);
 
     const apiKey = dgApiKey || '44294c0c2f0ebbcc81b853151056111226b853e9';
-    const greetings = ['Hello?', 'Yeah?', 'Hello, who is this?', 'Hello, go ahead.'];
+    const customerName = scenario.customerName || 'Bob';
+    const greetings = [`Hello?`, `This is ${customerName}.`, `Hello?`, `Yeah, this is ${customerName}.`];
     const greeting = greetings[Math.floor(Math.random() * greetings.length)];
 
     // No transfer agent for fronter calls — direct cold call
@@ -526,7 +527,7 @@ ${kbText || 'No KB entries yet. The fronter should upload calls and documents to
 
       {/* Auto-popout: Q&A */}
       {showQA && (
-        <FronterQAPopup username={username} onClose={() => setShowQA(false)} />
+        <FronterQAPopup username={username} onClose={() => setShowQA(false)} externalTranscript={transcript} />
       )}
 
       {/* Auto-popout: Scripts */}

@@ -16,7 +16,7 @@ const PURPLE = '#a78bfa';
 const ls = { display: 'block', color: '#8a9ab8', fontSize: '9px', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '4px' };
 const inp = { width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '4px', padding: '7px 10px', color: '#e8e0d0', fontSize: '12px', outline: 'none', boxSizing: 'border-box', fontFamily: 'Georgia, serif' };
 
-export default function FronterQAPopup({ username, onClose }) {
+export default function FronterQAPopup({ username, onClose, externalTranscript }) {
   const [qaTab, setQaTab] = useState('qa');
   const [question, setQuestion] = useState('');
   const [answer, setAnswer] = useState('');
@@ -33,6 +33,7 @@ export default function FronterQAPopup({ username, onClose }) {
   const [uploadingMp3, setUploadingMp3] = useState(false);
   const [uploadStatus, setUploadStatus] = useState('');
   const [liveTranscript, setLiveTranscript] = useState([]);
+  const [objections, setObjections] = useState([]);
   const [transcriptInfo, setTranscriptInfo] = useState(null);
   const [pos, setPos] = useState({ x: 120, y: 60 });
   const [size, setSize] = useState({ w: 720, h: 560 });
@@ -49,7 +50,7 @@ export default function FronterQAPopup({ username, onClose }) {
   };
 
   const loadTranscript = async () => {
-    if (!username) return;
+    if (externalTranscript || !username) return;
     try {
       const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
       const result = await base44.entities.FronterCallTranscript.filter(
@@ -70,13 +71,45 @@ export default function FronterQAPopup({ username, onClose }) {
     } catch {}
   };
 
+  const loadObjections = async () => {
+    try {
+      const all = await base44.entities.Objection.filter({ enabled: true }, 'sortOrder', 100);
+      setObjections(all || []);
+    } catch {}
+  };
+
+  const detectObjections = (lines) => {
+    const customerLines = (lines || []).filter(l => l.speaker !== 0);
+    const detected = [];
+    for (const line of customerLines) {
+      const text = (line.text || '').toLowerCase().trim();
+      for (const obj of objections) {
+        let triggers = [];
+        try { triggers = JSON.parse(obj.triggerPhrases || '[]'); } catch {}
+        if (triggers.some(t => text.includes(t.toLowerCase()))) {
+          if (!detected.find(d => d.id === obj.id)) detected.push({ ...obj, matchedText: line.text });
+        }
+      }
+    }
+    return detected;
+  };
+
+  // Use external transcript (from BOB trainer) if provided, otherwise poll DB
+  useEffect(() => {
+    if (!externalTranscript) return;
+    const mapped = externalTranscript.map(l => ({ speaker: l.role === 'bob' ? 1 : 0, text: l.text }));
+    setLiveTranscript(mapped);
+    setTranscriptInfo({ leadName: 'BOB Training', callDate: new Date().toISOString(), lineCount: mapped.length });
+  }, [externalTranscript]);
+
   useEffect(() => {
     loadKb();
-    loadTranscript();
+    loadObjections();
+    if (!externalTranscript) loadTranscript();
     const kbInterval = setInterval(loadKb, 10000);
-    const transcriptInterval = setInterval(loadTranscript, 3000);
-    return () => { clearInterval(kbInterval); clearInterval(transcriptInterval); };
-  }, [username]);
+    const transcriptInterval = externalTranscript ? null : setInterval(loadTranscript, 3000);
+    return () => { clearInterval(kbInterval); if (transcriptInterval) clearInterval(transcriptInterval); };
+  }, [username, externalTranscript]);
 
   // Auto-scroll transcript
   useEffect(() => {
@@ -352,6 +385,7 @@ ${transcript.slice(0, 15000)}`,
   };
 
   const detectedQuestions = detectQuestions(liveTranscript);
+  const detectedObjections = detectObjections(liveTranscript);
 
   const filteredKb = kbSearch.trim()
     ? kbEntries.filter(e => {
@@ -412,6 +446,20 @@ ${transcript.slice(0, 15000)}`,
                     )}
                   </div>
                 )}
+                {/* Live objections detected from transcript */}
+                {detectedObjections.length > 0 && (
+                  <div style={{ marginTop: '14px' }}>
+                    <div style={{ color: '#ef4444', fontSize: '10px', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '8px' }}>⚠️ Live Objections ({detectedObjections.length})</div>
+                    {detectedObjections.slice(-4).reverse().map((obj, i) => (
+                      <div key={i} style={{ padding: '10px', background: 'rgba(239,68,68,0.04)', border: '1px solid rgba(239,68,68,0.15)', borderRadius: '4px', marginBottom: '6px' }}>
+                        <div style={{ color: '#ef4444', fontSize: '10px', fontWeight: 'bold', marginBottom: '4px' }}>"{obj.matchedText}"</div>
+                        <div style={{ color: '#c4cdd8', fontSize: '11px', lineHeight: 1.5, borderLeft: '2px solid rgba(239,68,68,0.3)', paddingLeft: '8px', marginBottom: '4px' }}>{obj.responseText}</div>
+                        {obj.mindset && <div style={{ color: '#8a9ab8', fontSize: '9px', fontStyle: 'italic' }}>Mindset: {obj.mindset}</div>}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
                 {/* Live questions detected from transcript */}
                 {detectedQuestions.length > 0 && (
                   <div style={{ marginTop: '14px' }}>
