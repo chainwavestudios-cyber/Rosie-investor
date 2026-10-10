@@ -1,0 +1,47 @@
+{
+  "name": "FronterHoldAudio",
+  "type": "object",
+  "properties": {
+    "fileName": {
+      "type": "string",
+      "title": "File Name"
+    },
+    "fileType": {
+      "type": "string",
+      "title": "File Type (mp3, wav)",
+      "enum": [
+        "mp3",
+        "wav"
+      ]
+    },
+    "fileUri": {
+      "type": "string",
+      "title": "Private File URI"
+    },
+    "uploadedBy": {
+      "type": "string",
+      "title": "Uploaded By (admin username)"
+    },
+    "uploadedAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Uploaded At"
+    },
+    "isActive": {
+      "type": "boolean",
+      "title": "Active (currently in use)",
+      "default": true
+    }
+  },
+  "required": [
+    "fileName",
+    "fileUri",
+    "uploadedBy"
+  ],
+  "rls": {
+    "create": null,
+    "read": null,
+    "update": null,
+    "delete": null
+  }
+}

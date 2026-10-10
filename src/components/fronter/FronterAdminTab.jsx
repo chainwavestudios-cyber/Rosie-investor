@@ -12,6 +12,7 @@ import { base44 } from '@/api/base44Client';
 import FronterCallMetricsTab from '@/components/fronter/FronterCallMetricsTab';
 import FronterReportsTab from '@/components/fronter/FronterReportsTab';
 import FronterAdminCallsTab from '@/components/fronter/FronterAdminCallsTab';
+import FronterHoldAudioTab from '@/components/fronter/FronterHoldAudioTab';
 
 const GOLD = '#10b981';
 const DARK = '#0a0f1e';
@@ -220,6 +221,7 @@ export default function FronterAdminTab({ adminUsername }) {
     { id: 'reports', label: '📊 Reports' },
     { id: 'metrics', label: '📊 Metrics' },
     { id: 'monitor', label: '🎧 Monitor' },
+    { id: 'holdaudio', label: '🔊 Hold Audio' },
     { id: 'scripts', label: '📜 Scripts' },
   ];
 
@@ -416,6 +418,11 @@ export default function FronterAdminTab({ adminUsername }) {
             </div>
           )}
         </div>
+      )}
+
+      {/* ── HOLD AUDIO ── */}
+      {subtab === 'holdaudio' && !loading && (
+        <FronterHoldAudioTab adminUsername={adminUsername} />
       )}
 
       {/* ── SCRIPTS ── */}

@@ -35,8 +35,21 @@ async function twilioFetch(path: string, opts: RequestInit = {}): Promise<any> {
   return data;
 }
 
-function confTwiML(name: string, muted = false): string {
-  return `<Response><Dial><Conference name="${name}" muted="${muted}" beep="false" startConferenceOnEnter="true" endConferenceOnExit="false">${name}</Conference></Dial></Response>`;
+function confTwiML(name: string, muted = false, waitUrl = ''): string {
+  const waitAttr = waitUrl ? ` waitUrl="${waitUrl}" waitMethod="GET"` : '';
+  return `<Response><Dial><Conference name="${name}" muted="${muted}" beep="false" startConferenceOnEnter="true" endConferenceOnExit="false"${waitAttr}>${name}</Conference></Dial></Response>`;
+}
+
+async function getHoldAudioUrl(req: Request): Promise<string> {
+  try {
+    const base44 = createClientFromRequest(req).asServiceRole;
+    const activeAudio = await base44.entities.FronterHoldAudio.filter({ isActive: true }, '-uploadedAt', 1);
+    if (activeAudio?.[0]?.fileUri) {
+      const signed = await base44.integrations.Core.CreateFileSignedUrl({ file_uri: activeAudio[0].fileUri, expires_in: 3600 });
+      return signed?.signed_url || '';
+    }
+  } catch {}
+  return '';
 }
 
 async function findConferenceSid(name: string): Promise<string | null> {
@@ -58,38 +71,72 @@ Deno.serve(async (req) => {
     const { action } = body;
 
     // ── MERGE: convert 1:1 call → conference, dial agent in ──
+    //   If hold audio is configured, the customer hears it while the agent
+    //   is being connected. The fronter's leg is NOT redirected into the
+    //   conference (their <Dial> completes and the call ends naturally) so
+    //   the customer is alone in the conference and hears the waitUrl audio.
+    //   When the agent joins, the customer is no longer alone and the audio
+    //   stops automatically — the merged call proceeds with customer + agent.
     if (action === 'merge') {
       const { fronterCallSid, agentPhone, lineKey, conferenceName } = body;
       if (!fronterCallSid && !conferenceName) return Response.json({ error: 'fronterCallSid or conferenceName required' }, { status: 400 });
       if (!agentPhone) return Response.json({ error: 'agentPhone required' }, { status: 400 });
 
       const fromNumber = lineNumber(lineKey);
-      // Reuse an existing conference (e.g. created by hold) or create a new one
       const confName = conferenceName || `fronter_conf_${fronterCallSid}`;
       const existingConf = await findConferenceSid(confName);
+
+      // Fetch the admin-configured hold audio (if any) and create a signed URL
+      const holdAudioUrl = await getHoldAudioUrl(req);
 
       if (!existingConf) {
         // Find the customer's child call (the other leg of the fronter's call)
         const childCalls = await twilioFetch(`/Calls.json?ParentCallSid=${fronterCallSid}`);
         const customerCallSid = childCalls.calls?.[0]?.sid;
 
-        // Redirect the CUSTOMER'S leg first — if the parent (fronter) is
-        // redirected first, Twilio tears down the child call (customer)
-        // before it can be moved into the conference, disconnecting them.
-        if (customerCallSid) {
-          try {
-            await twilioFetch(`/Calls/${customerCallSid}.json`, {
-              method: 'POST',
-              body: new URLSearchParams({ Twiml: confTwiML(confName) }),
-            });
-          } catch {}
+        if (holdAudioUrl) {
+          // With hold audio: redirect ONLY the customer into the conference.
+          // The customer hears the hold audio (waitUrl) while alone. The
+          // fronter's <Dial> completes and their call ends naturally. When
+          // the agent joins, the customer is no longer alone and the audio
+          // stops automatically.
+          if (customerCallSid) {
+            try {
+              await twilioFetch(`/Calls/${customerCallSid}.json`, {
+                method: 'POST',
+                body: new URLSearchParams({ Twiml: confTwiML(confName, false, holdAudioUrl) }),
+              });
+            } catch {}
+          }
+        } else {
+          // No hold audio: redirect both customer and fronter (original behavior)
+          if (customerCallSid) {
+            try {
+              await twilioFetch(`/Calls/${customerCallSid}.json`, {
+                method: 'POST',
+                body: new URLSearchParams({ Twiml: confTwiML(confName) }),
+              });
+            } catch {}
+          }
+          await twilioFetch(`/Calls/${fronterCallSid}.json`, {
+            method: 'POST',
+            body: new URLSearchParams({ Twiml: confTwiML(confName) }),
+          });
         }
-
-        // Now redirect the fronter's leg into the conference
-        await twilioFetch(`/Calls/${fronterCallSid}.json`, {
-          method: 'POST',
-          body: new URLSearchParams({ Twiml: confTwiML(confName) }),
-        });
+      } else {
+        // Existing conference (e.g. from hold): unhold the customer so they
+        // can hear the agent when they join.
+        const participants = await twilioFetch(`/Conferences/${existingConf}/Participants.json`);
+        for (const p of participants.participants || []) {
+          if (p.hold) {
+            try {
+              await twilioFetch(`/Conferences/${existingConf}/Participants/${p.callSid}.json`, {
+                method: 'POST',
+                body: new URLSearchParams({ Hold: 'false' }),
+              });
+            } catch {}
+          }
+        }
       }
 
       // Dial the agent into the conference
@@ -98,7 +145,7 @@ Deno.serve(async (req) => {
         body: new URLSearchParams({
           To: agentPhone,
           From: fromNumber,
-          Twiml: confTwiML(confName),
+          Twiml: confTwiML(confName, false, holdAudioUrl),
         }),
       });
 
