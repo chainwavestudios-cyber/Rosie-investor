@@ -65,6 +65,8 @@ export default function FronterHoldAudioRecorder({ onRecorded }) {
   const [error, setError] = useState('');
   const [micLevel, setMicLevel] = useState(0);
   const [converting, setConverting] = useState(false);
+  const [micDevices, setMicDevices] = useState([]);
+  const [micDeviceId, setMicDeviceId] = useState('');
 
   const audioCtxRef = useRef(null);
   const micGainRef = useRef(null);
@@ -79,6 +81,22 @@ export default function FronterHoldAudioRecorder({ onRecorded }) {
   const rafRef = useRef(null);
   const musicFileRef = useRef(null);
   const recordedBlobRef = useRef(null);
+
+  // Enumerate microphone devices
+  useEffect(() => {
+    const loadMics = async () => {
+      try {
+        // Must request permission first to get device labels
+        const tmp = await navigator.mediaDevices.getUserMedia({ audio: true });
+        tmp.getTracks().forEach(t => t.stop());
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const mics = devices.filter(d => d.kind === 'audioinput');
+        setMicDevices(mics);
+        if (mics.length > 0 && !micDeviceId) setMicDeviceId(mics[0].deviceId);
+      } catch {}
+    };
+    loadMics();
+  }, []);
 
   useEffect(() => {
     return () => {
@@ -108,7 +126,13 @@ export default function FronterHoldAudioRecorder({ onRecorded }) {
     chunksRef.current = [];
 
     try {
-      const micStream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
+      const micStream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          deviceId: micDeviceId ? { exact: micDeviceId } : undefined,
+        },
+      });
       micStreamRef.current = micStream;
 
       const audioCtx = new AudioContext();
@@ -289,6 +313,16 @@ export default function FronterHoldAudioRecorder({ onRecorded }) {
           {!musicFileName && <div style={{ color: '#4a5568', fontSize: '9px', marginTop: '4px' }}>Add music to enable</div>}
         </div>
       </div>
+
+      {/* Mic selector */}
+      {micDevices.length > 0 && (
+        <div style={{ marginBottom: '12px' }}>
+          <label style={{ display: 'block', color: '#8a9ab8', fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '4px' }}>🎙 Microphone</label>
+          <select value={micDeviceId} onChange={e => setMicDeviceId(e.target.value)} disabled={recording} style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '4px', padding: '6px 10px', color: '#e8e0d0', fontSize: '11px', outline: 'none', cursor: 'pointer', opacity: recording ? 0.5 : 1 }}>
+            {micDevices.map(m => <option key={m.deviceId} value={m.deviceId}>{m.label || `Mic ${m.deviceId.slice(0, 6)}`}</option>)}
+          </select>
+        </div>
+      )}
 
       {/* Record / Stop */}
       <div style={{ display: 'flex', gap: '10px', alignItems: 'center', marginBottom: '14px' }}>
