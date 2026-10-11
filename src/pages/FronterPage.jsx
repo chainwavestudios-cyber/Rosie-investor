@@ -281,6 +281,7 @@ export default function FronterPage() {
                 isAdmin={false}
                 mode={tab}
                 onCallConnected={() => setShowQA(true)}
+                onOpenQA={() => setShowQA(true)}
                 fronterFirstName={user?.firstName}
                 onTranscriptChange={setLiveTranscript}
               />
@@ -301,6 +302,7 @@ export default function FronterPage() {
                 onLineChange={setAdminLineKey}
                 mode={tab}
                 onCallConnected={() => setShowQA(true)}
+                onOpenQA={() => setShowQA(true)}
                 fronterFirstName={user?.firstName}
                 onTranscriptChange={setLiveTranscript}
               />

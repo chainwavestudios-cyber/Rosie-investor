@@ -35,7 +35,7 @@ function fmtET(iso) {
   });
 }
 
-export default function FronterContactCard({ lead, username, fronterFirstName, onClose, onSave, onDial, onNext, isAdmin, lineKey, lineNumber, onTranscriptUpdate, onCallConnected }) {
+export default function FronterContactCard({ lead, username, fronterFirstName, onClose, onSave, onDial, onNext, isAdmin, lineKey, lineNumber, onTranscriptUpdate, onCallConnected, onOpenQA }) {
   const [local, setLocal] = useState(lead || {});
   const [notesLog, setNotesLog] = useState([]);
   const [newNote, setNewNote] = useState('');
@@ -307,6 +307,7 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
             onClosedDeal={markClosedDeal}
             onNext={onNext}
             onClose={onClose}
+            onQA={onOpenQA}
           />
         </div>
 

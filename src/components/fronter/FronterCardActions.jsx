@@ -7,11 +7,14 @@ const btn = (color, bg, border) => ({
   padding: '5px 10px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', whiteSpace: 'nowrap',
 });
 
-export default function FronterCardActions({ status, isAdmin, credsSent, headsUpSent, headsUpSending, onHeadsUp, onCreds, onInterested, onTransferred, onEmailSent, onClosedDeal, onNext, onClose }) {
+export default function FronterCardActions({ status, isAdmin, credsSent, headsUpSent, headsUpSending, onHeadsUp, onCreds, onInterested, onTransferred, onEmailSent, onClosedDeal, onNext, onClose, onQA }) {
   const stop = (fn) => (e) => { e.stopPropagation(); fn?.(); };
   const canDisposition = status === 'prospect' || status === 'lead';
   return (
     <div onMouseDown={e => e.stopPropagation()} style={{ display: 'flex', gap: '4px', alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+      <button onClick={stop(onQA)} title="Open Live Q&A" style={btn('#60a5fa', 'rgba(96,165,250,0.15)', 'rgba(96,165,250,0.35)')}>
+        💬 Q&A
+      </button>
       <button onClick={stop(onHeadsUp)} disabled={headsUpSending} style={{ ...btn(headsUpSent ? '#4ade80' : '#ef4444', headsUpSent ? 'rgba(74,222,128,0.15)' : 'rgba(239,68,68,0.15)', headsUpSent ? 'rgba(74,222,128,0.3)' : 'rgba(239,68,68,0.3)'), opacity: headsUpSending ? 0.5 : 1 }}>
         🚨 {headsUpSent ? 'Sent' : 'Transfer Coming'}
       </button>

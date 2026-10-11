@@ -15,7 +15,7 @@ const DARK = '#0a0f1e';
 const ls = { display: 'block', color: '#8a9ab8', fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '6px' };
 const inp = { width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '4px', padding: '8px 12px', color: '#e8e0d0', fontSize: '13px', outline: 'none', boxSizing: 'border-box', fontFamily: 'Georgia, serif' };
 
-export default function FronterLeadsTab({ username, lineKey, lineNumber, isAdmin = false, availableLines = [], adminLineKey = '', onLineChange, mode = 'prospects', onCallConnected, fronterFirstName, onTranscriptChange }) {
+export default function FronterLeadsTab({ username, lineKey, lineNumber, isAdmin = false, availableLines = [], adminLineKey = '', onLineChange, mode = 'prospects', onCallConnected, fronterFirstName, onTranscriptChange, onOpenQA }) {
   const [leads, setLeads] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeLead, setActiveLead] = useState(null);
@@ -378,6 +378,7 @@ export default function FronterLeadsTab({ username, lineKey, lineNumber, isAdmin
           isAdmin={isAdmin}
           onTranscriptUpdate={onTranscriptChange}
           onCallConnected={onCallConnected}
+          onOpenQA={onOpenQA}
         />
       )}
       </div>
