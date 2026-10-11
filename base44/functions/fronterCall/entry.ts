@@ -16,6 +16,7 @@ const ACCOUNT_SID   = Deno.env.get('TWILIO_ACCOUNT_SID')  || '';
 const AUTH_TOKEN    = Deno.env.get('TWILIO_AUTH_TOKEN')   || '';
 const twilioBase    = `https://api.twilio.com/2010-04-01/Accounts/${ACCOUNT_SID}`;
 const twilioAuth    = 'Basic ' + btoa(`${ACCOUNT_SID}:${AUTH_TOKEN}`);
+const BASE_URL      = 'https://rosieai-investorpage.base44.app';
 
 function lineNumber(lineKey: string): string {
   return Deno.env.get(lineKey) || Deno.env.get('TWILIO_FROM_NUMBER') || '';
@@ -70,7 +71,33 @@ Deno.serve(async (req) => {
     }
     const { action } = body;
 
-    // ── MERGE: convert 1:1 call → conference, dial agent in ──
+    // ── AGENT STATUS CALLBACK: redirect customer from hold to conference ──
+    //   When the agent answers (CallStatus=in-progress), pull the customer
+    //   out of the hold+<Gather> TwiML and into the conference so they can
+    //   talk to the agent.
+    const url = new URL(req.url);
+    const agentStatusCallback = url.searchParams.get('agentStatusCallback');
+    if (agentStatusCallback === '1') {
+      const cbCustomerCallSid = url.searchParams.get('customerCallSid') || '';
+      const cbConfName = url.searchParams.get('conferenceName') || '';
+      if (body.CallStatus === 'in-progress' && cbCustomerCallSid && cbConfName) {
+        const holdAudioUrl = await getHoldAudioUrl(req);
+        try {
+          await twilioFetch(`/Calls/${cbCustomerCallSid}.json`, {
+            method: 'POST',
+            body: new URLSearchParams({ Twiml: confTwiML(cbConfName, false, holdAudioUrl) }),
+          });
+        } catch {}
+      }
+      return Response.json({ ok: true });
+    }
+
+    // ── MERGE: put customer on hold (per-caller audio + appointment detection) ──
+    //   Customer is redirected to the appointmentVoiceHandler which plays the
+    //   hold audio on their own call leg (starts from the beginning for each
+    //   person) while a <Gather> listens for "appointment". The agent is dialed
+    //   into a conference; when the agent answers, a status callback redirects
+    //   the customer from hold into the conference.
     //   If hold audio is configured, the customer hears it while the agent
     //   is being connected. The fronter's leg is NOT redirected into the
     //   conference (their <Dial> completes and the call ends naturally) so
@@ -78,76 +105,57 @@ Deno.serve(async (req) => {
     //   When the agent joins, the customer is no longer alone and the audio
     //   stops automatically — the merged call proceeds with customer + agent.
     if (action === 'merge') {
-      const { fronterCallSid, agentPhone, lineKey, conferenceName } = body;
+      const { fronterCallSid, agentPhone, lineKey, conferenceName, leadId, leadEmail } = body;
       if (!fronterCallSid && !conferenceName) return Response.json({ error: 'fronterCallSid or conferenceName required' }, { status: 400 });
       if (!agentPhone) return Response.json({ error: 'agentPhone required' }, { status: 400 });
 
       const fromNumber = lineNumber(lineKey);
       const confName = conferenceName || `fronter_conf_${fronterCallSid}`;
-      const existingConf = await findConferenceSid(confName);
-
-      // Fetch the admin-configured hold audio (if any) and create a signed URL
       const holdAudioUrl = await getHoldAudioUrl(req);
 
-      if (!existingConf) {
-        // Find the customer's child call (the other leg of the fronter's call)
-        const childCalls = await twilioFetch(`/Calls.json?ParentCallSid=${fronterCallSid}`);
-        const customerCallSid = childCalls.calls?.[0]?.sid;
+      // Find the customer's child call (the other leg of the fronter's call)
+      const childCalls = await twilioFetch(`/Calls.json?ParentCallSid=${fronterCallSid}`);
+      const customerCallSid = childCalls.calls?.[0]?.sid;
 
-        if (holdAudioUrl) {
-          // With hold audio: redirect ONLY the customer into the conference.
-          // The customer hears the hold audio (waitUrl) while alone. The
-          // fronter's <Dial> completes and their call ends naturally. When
-          // the agent joins, the customer is no longer alone and the audio
-          // stops automatically.
-          if (customerCallSid) {
-            try {
-              await twilioFetch(`/Calls/${customerCallSid}.json`, {
-                method: 'POST',
-                body: new URLSearchParams({ Twiml: confTwiML(confName, false, holdAudioUrl) }),
-              });
-            } catch {}
-          }
-        } else {
-          // No hold audio: redirect both customer and fronter (original behavior)
-          if (customerCallSid) {
-            try {
-              await twilioFetch(`/Calls/${customerCallSid}.json`, {
-                method: 'POST',
-                body: new URLSearchParams({ Twiml: confTwiML(confName) }),
-              });
-            } catch {}
-          }
-          await twilioFetch(`/Calls/${fronterCallSid}.json`, {
+      // Redirect customer to the hold + appointment detection flow.
+      // Each customer gets their own <Play> on their own call leg, so the
+      // hold audio starts from the beginning for each person independently.
+      if (customerCallSid) {
+        const holdUrl = `${BASE_URL}/functions/appointmentVoiceHandler?step=hold&leadId=${encodeURIComponent(leadId || '')}`;
+        try {
+          await twilioFetch(`/Calls/${customerCallSid}.json`, {
             method: 'POST',
-            body: new URLSearchParams({ Twiml: confTwiML(confName) }),
+            body: new URLSearchParams({ Url: holdUrl }),
           });
-        }
-      } else {
-        // Existing conference (e.g. from hold): unhold the customer so they
-        // can hear the agent when they join.
-        const participants = await twilioFetch(`/Conferences/${existingConf}/Participants.json`);
-        for (const p of participants.participants || []) {
-          if (p.hold) {
-            try {
-              await twilioFetch(`/Conferences/${existingConf}/Participants/${p.callSid}.json`, {
-                method: 'POST',
-                body: new URLSearchParams({ Hold: 'false' }),
-              });
-            } catch {}
-          }
-        }
+        } catch {}
       }
 
-      // Dial the agent into the conference
+      // Dial the agent into the conference with a status callback.
+      // When the agent answers, the callback redirects the customer from
+      // the hold <Gather> into the conference so they can talk.
+      const statusCallbackUrl = `${BASE_URL}/functions/fronterCall?agentStatusCallback=1&customerCallSid=${encodeURIComponent(customerCallSid || '')}&conferenceName=${encodeURIComponent(confName)}`;
       await twilioFetch(`/Calls.json`, {
         method: 'POST',
         body: new URLSearchParams({
           To: agentPhone,
           From: fromNumber,
           Twiml: confTwiML(confName, false, holdAudioUrl),
+          StatusCallback: statusCallbackUrl,
+          StatusCallbackEvent: 'in-progress',
+          StatusCallbackMethod: 'POST',
         }),
       });
+
+      // Update FronterHeadsUp with customerCallSid + conferenceName
+      if (customerCallSid && leadId) {
+        try {
+          const b44 = createClientFromRequest(req).asServiceRole;
+          const headsUps = await b44.entities.FronterHeadsUp.filter({ leadId, status: 'active' });
+          if (headsUps?.[0]) {
+            await b44.entities.FronterHeadsUp.update(headsUps[0].id, { customerCallSid, conferenceName: confName });
+          }
+        } catch {}
+      }
 
       return Response.json({ ok: true, conferenceName: confName });
     }
@@ -318,6 +326,8 @@ Deno.serve(async (req) => {
     }
 
     // ── TAKEOVER: admin joins unmuted, fronter is removed from conference ──
+    //   If the customer is still on hold (<Gather> TwiML, conference doesn't
+    //   exist yet), redirect them into the conference first, then add the admin.
     if (action === 'takeover') {
       const { conferenceName, adminUsername, lineKey } = body;
       if (!conferenceName) return Response.json({ error: 'conferenceName required' }, { status: 400 });
@@ -332,6 +342,31 @@ Deno.serve(async (req) => {
         if (confSid) break;
         await new Promise(r => setTimeout(r, 500));
       }
+
+      // Conference doesn't exist — customer is still on hold (<Gather>).
+      // Look up customerCallSid from FronterHeadsUp and redirect them
+      // into the conference so the admin can join.
+      if (!confSid) {
+        try {
+          const b44 = createClientFromRequest(req).asServiceRole;
+          const headsUps = await b44.entities.FronterHeadsUp.filter({ conferenceName, status: 'active' });
+          const customerCallSid = headsUps?.[0]?.customerCallSid;
+          if (customerCallSid) {
+            const holdAudioUrl = await getHoldAudioUrl(req);
+            await twilioFetch(`/Calls/${customerCallSid}.json`, {
+              method: 'POST',
+              body: new URLSearchParams({ Twiml: confTwiML(conferenceName, false, holdAudioUrl) }),
+            });
+            // Wait for conference to be created
+            for (let i = 0; i < 10; i++) {
+              confSid = await findConferenceSid(conferenceName);
+              if (confSid) break;
+              await new Promise(r => setTimeout(r, 500));
+            }
+          }
+        } catch {}
+      }
+
       if (!confSid) return Response.json({ error: 'Conference not found' }, { status: 404 });
 
       // Add admin unmuted (barge in)

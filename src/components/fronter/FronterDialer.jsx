@@ -335,7 +335,7 @@ Provide your analysis as JSON with these fields:
     try {
       const fronterCallSid = callRef.current?.parameters?.CallSid;
       const res = await base44.functions.invoke('fronterCall', {
-        action: 'merge', fronterCallSid, agentPhone: mergeNumber.trim(), lineKey, conferenceName,
+        action: 'merge', fronterCallSid, agentPhone: mergeNumber.trim(), lineKey, conferenceName, leadId: lead?.id, leadEmail: lead?.email,
       });
       const data = res?.data || res;
       if (data?.conferenceName) {

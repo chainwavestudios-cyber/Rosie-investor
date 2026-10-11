@@ -136,6 +136,7 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
         leadId: lead.id,
         leadName: (lead.firstName || '') + ' ' + (lead.lastName || ''),
         leadPhone: lead.phone || '',
+        leadEmail: lead.email || '',
         conferenceName,
         lineKey,
         status: 'active',

@@ -18,9 +18,17 @@
       "type": "string",
       "title": "Lead Phone"
     },
+    "leadEmail": {
+      "type": "string",
+      "title": "Lead Email (for appointment reminders)"
+    },
     "conferenceName": {
       "type": "string",
       "title": "Conference Name (for listen/barge)"
+    },
+    "customerCallSid": {
+      "type": "string",
+      "title": "Customer Call SID (for redirect from hold queue)"
     },
     "lineKey": {
       "type": "string",
