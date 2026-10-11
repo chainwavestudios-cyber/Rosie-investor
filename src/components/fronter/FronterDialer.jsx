@@ -163,20 +163,7 @@ Provide your analysis as JSON with these fields:
       setCallStatus('connected');
       startTimer();
 
-      // Update DialerSession to on_call
-      try {
-        const sessions = await base44.entities.DialerSession.filter({ username });
-        if (sessions?.[0]) {
-          await base44.entities.DialerSession.update(sessions[0].id, {
-            status: 'on_call',
-            currentCallLeadId: lead?.id || '',
-            currentCallLeadName: `${lead?.firstName || ''} ${lead?.lastName || ''}`.trim(),
-            currentCallStartedAt: new Date().toISOString(),
-          });
-        }
-      } catch {}
-
-      // Auto-open Q&A popup
+      // Auto-open Q&A popup FIRST — don't block on async SDK calls
       onCallConnected?.(lead);
 
       // Start Deepgram transcription
@@ -184,6 +171,18 @@ Provide your analysis as JSON with these fields:
       deepgram.start(micDeviceId).then(() => {
         setTranscriptLineCount(0);
       }).catch(e => console.error('Deepgram start failed:', e));
+
+      // Update DialerSession to on_call (non-blocking)
+      base44.entities.DialerSession.filter({ username }).then(sessions => {
+        if (sessions?.[0]) {
+          base44.entities.DialerSession.update(sessions[0].id, {
+            status: 'on_call',
+            currentCallLeadId: lead?.id || '',
+            currentCallLeadName: `${lead?.firstName || ''} ${lead?.lastName || ''}`.trim(),
+            currentCallStartedAt: new Date().toISOString(),
+          });
+        }
+      }).catch(() => {});
 
       // Create transcript record
       try {

@@ -30,12 +30,17 @@ export function useFronterDeepgram() {
       const stream = await navigator.mediaDevices.getUserMedia(constraints);
       streamRef.current = stream;
 
-      // Audio processing at 16kHz mono
-      const audioCtx = new AudioContext({ sampleRate: 16000 });
+      // Audio processing — use default sample rate (custom rates fail in many browsers)
+      const audioCtx = new AudioContext();
       audioCtxRef.current = audioCtx;
+      if (audioCtx.state === 'suspended') await audioCtx.resume();
       const source = audioCtx.createMediaStreamSource(stream);
       const processor = audioCtx.createScriptProcessor(4096, 1, 1);
       processorRef.current = processor;
+      // Silent gain node — processor must connect to a destination to fire
+      // onaudioprocess, but we don't want mic audio playing through speakers
+      const silentGain = audioCtx.createGain();
+      silentGain.gain.value = 0;
 
       // Open Deepgram WebSocket with diarization
       const params = new URLSearchParams({
@@ -43,7 +48,7 @@ export function useFronterDeepgram() {
         diarize: 'true',
         punctuate: 'true',
         smart_format: 'true',
-        interim_results: 'false',
+        interim_results: 'true',
       });
       const ws = new WebSocket(`wss://api.deepgram.com/v1/listen?${params}`, ['token', token]);
       wsRef.current = ws;
@@ -51,7 +56,8 @@ export function useFronterDeepgram() {
       ws.onopen = () => {
         setConnected(true);
         source.connect(processor);
-        processor.connect(audioCtx.destination);
+        processor.connect(silentGain);
+        silentGain.connect(audioCtx.destination);
         processor.onaudioprocess = (e) => {
           if (ws.readyState === WebSocket.OPEN) {
             const data = e.inputBuffer.getChannelData(0);
@@ -68,7 +74,7 @@ export function useFronterDeepgram() {
       ws.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
-          if (data.type === 'Results' && data.channel?.alternatives?.[0]) {
+          if (data.type === 'Results' && data.channel?.alternatives?.[0] && data.is_final) {
             const alt = data.channel.alternatives[0];
             const transcript = alt.transcript;
             if (transcript && transcript.trim()) {
