@@ -83,13 +83,20 @@ async function generateFlexTTS(text: string, base44: any): Promise<string> {
   }
 }
 
+// ── XML-escape URLs for TwiML (Twilio requires valid XML) ──
+function xmlEscape(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
 // ── Build hold + <Gather> TwiML (per-caller audio restart) ──
 function holdGatherTwiML(holdAudioUrl: string, actionUrl: string): string {
-  if (holdAudioUrl) {
-    return `<Response><Gather input="speech" action="${actionUrl}" timeout="300" speechTimeout="auto" hints="appointment" language="en-US"><Play loop="0">${holdAudioUrl}</Play></Gather><Redirect>${actionUrl}&timeout=1</Redirect></Response>`;
+  const escAction = xmlEscape(actionUrl);
+  const escHold = holdAudioUrl ? xmlEscape(holdAudioUrl) : '';
+  if (escHold) {
+    return `<Response><Gather input="speech" action="${escAction}" timeout="300" speechTimeout="auto" hints="appointment" language="en-US"><Play loop="0">${escHold}</Play></Gather><Redirect>${escAction}&amp;timeout=1</Redirect></Response>`;
   }
   // No hold audio — periodic voice prompt + listen
-  return `<Response><Gather input="speech" action="${actionUrl}" timeout="60" speechTimeout="auto" hints="appointment" language="en-US"><Say voice="Polly.Joanna-Neural">Please wait. Say appointment to schedule an appointment.</Say></Gather><Redirect>${actionUrl}&timeout=1</Redirect></Response>`;
+  return `<Response><Gather input="speech" action="${escAction}" timeout="60" speechTimeout="auto" hints="appointment" language="en-US"><Say voice="Polly.Joanna-Neural">Please wait. Say appointment to schedule an appointment.</Say></Gather><Redirect>${escAction}&amp;timeout=1</Redirect></Response>`;
 }
 
 // ── Build TTS TwiML (Flex voice via <Play>, fallback to <Say>) ──
@@ -144,10 +151,10 @@ Deno.serve(async (req: Request) => {
         // Switch to booking flow — ask for date/time with Flex voice
         const ttsText = "I'd be happy to schedule an appointment for you. What day and time works best for you?";
         const ttsUrl = await generateFlexTTS(ttsText, base44);
-        const collectUrl = `${actionBase}?step=collect&leadId=${encodeURIComponent(leadId)}`;
+        const collectUrl = xmlEscape(`${actionBase}?step=collect&leadId=${encodeURIComponent(leadId)}`);
 
         return new Response(
-          `<Response>${ttsTwiML(ttsUrl, ttsText)}<Gather input="speech" action="${collectUrl}" timeout="30" speechTimeout="auto" language="en-US"><Say voice="Polly.Joanna-Neural">Please say your preferred day and time after the prompt.</Say></Gather><Redirect>${collectUrl}&timeout=1</Redirect></Response>`,
+          `<Response>${ttsTwiML(ttsUrl, ttsText)}<Gather input="speech" action="${collectUrl}" timeout="30" speechTimeout="auto" language="en-US"><Say voice="Polly.Joanna-Neural">Please say your preferred day and time after the prompt.</Say></Gather><Redirect>${collectUrl}&amp;timeout=1</Redirect></Response>`,
           { headers: { 'Content-Type': 'text/xml' } }
         );
       }
@@ -168,8 +175,9 @@ Deno.serve(async (req: Request) => {
       if (isTimeout || !speechResult) {
         const ttsText = "I didn't catch that. What day and time works best for you?";
         const ttsUrl = await generateFlexTTS(ttsText, base44);
+        const escCollect = xmlEscape(collectUrl);
         return new Response(
-          `<Response>${ttsTwiML(ttsUrl, ttsText)}<Gather input="speech" action="${collectUrl}" timeout="30" speechTimeout="auto" language="en-US"><Say voice="Polly.Joanna-Neural">Please say your preferred day and time.</Say></Gather><Redirect>${collectUrl}&timeout=1</Redirect></Response>`,
+          `<Response>${ttsTwiML(ttsUrl, ttsText)}<Gather input="speech" action="${escCollect}" timeout="30" speechTimeout="auto" language="en-US"><Say voice="Polly.Joanna-Neural">Please say your preferred day and time.</Say></Gather><Redirect>${escCollect}&amp;timeout=1</Redirect></Response>`,
           { headers: { 'Content-Type': 'text/xml' } }
         );
       }
@@ -210,8 +218,9 @@ Return JSON:
         // Parsing failed — ask again
         const ttsText = "I'm sorry, I couldn't understand that. Could you please say something like Tuesday at 2 PM?";
         const ttsUrl = await generateFlexTTS(ttsText, base44);
+        const escCollect = xmlEscape(collectUrl);
         return new Response(
-          `<Response>${ttsTwiML(ttsUrl, ttsText)}<Gather input="speech" action="${collectUrl}" timeout="30" speechTimeout="auto" language="en-US"><Say voice="Polly.Joanna-Neural">Please say your preferred day and time.</Say></Gather><Redirect>${collectUrl}&timeout=1</Redirect></Response>`,
+          `<Response>${ttsTwiML(ttsUrl, ttsText)}<Gather input="speech" action="${escCollect}" timeout="30" speechTimeout="auto" language="en-US"><Say voice="Polly.Joanna-Neural">Please say your preferred day and time.</Say></Gather><Redirect>${escCollect}&amp;timeout=1</Redirect></Response>`,
           { headers: { 'Content-Type': 'text/xml' } }
         );
       }
@@ -276,7 +285,7 @@ Return JSON:
         const ttsText = "I'm sorry, I couldn't book the appointment right now. Please stay on the line and an agent will be with you shortly.";
         const ttsUrl = await generateFlexTTS(ttsText, base44);
         return new Response(
-          `<Response>${ttsTwiML(ttsUrl, ttsText)}<Redirect>${gatherUrl}</Redirect></Response>`,
+          `<Response>${ttsTwiML(ttsUrl, ttsText)}<Redirect>${xmlEscape(gatherUrl)}</Redirect></Response>`,
           { headers: { 'Content-Type': 'text/xml' } }
         );
       }
@@ -311,7 +320,7 @@ Return JSON:
 
       // Return to hold after confirmation
       return new Response(
-        `<Response>${ttsTwiML(ttsUrl, confirmText)}<Redirect>${gatherUrl}</Redirect></Response>`,
+        `<Response>${ttsTwiML(ttsUrl, confirmText)}<Redirect>${xmlEscape(gatherUrl)}</Redirect></Response>`,
         { headers: { 'Content-Type': 'text/xml' } }
       );
     }
