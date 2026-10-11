@@ -6,7 +6,6 @@
  */
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
-import FronterDialer from './FronterDialer';
 import FronterContactCard from './FronterContactCard';
 import FronterLeadImportModal from './FronterLeadImportModal';
 import FronterAgentStatsBar from './FronterAgentStatsBar';
@@ -16,7 +15,7 @@ const DARK = '#0a0f1e';
 const ls = { display: 'block', color: '#8a9ab8', fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '6px' };
 const inp = { width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '4px', padding: '8px 12px', color: '#e8e0d0', fontSize: '13px', outline: 'none', boxSizing: 'border-box', fontFamily: 'Georgia, serif' };
 
-export default function FronterLeadsTab({ username, lineKey, lineNumber, isAdmin = false, availableLines = [], adminLineKey = '', onLineChange, mode = 'prospects', onCallConnected, fronterFirstName }) {
+export default function FronterLeadsTab({ username, lineKey, lineNumber, isAdmin = false, availableLines = [], adminLineKey = '', onLineChange, mode = 'prospects', onCallConnected, fronterFirstName, onTranscriptChange }) {
   const [leads, setLeads] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeLead, setActiveLead] = useState(null);
@@ -237,7 +236,7 @@ export default function FronterLeadsTab({ username, lineKey, lineNumber, isAdmin
         <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search by name, phone…" style={{ flex: 1, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '4px', padding: '8px 14px', color: '#e8e0d0', fontSize: '13px', outline: 'none', fontFamily: 'Georgia, serif' }} />
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 380px', gap: '14px', alignItems: 'start' }}>
+      <div>
       {/* Lead list */}
       <div style={{ background: '#0d1b2a', border: '1px solid rgba(16,185,129,0.2)', borderRadius: '6px' }}>
         <div style={{ padding: '14px 16px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
@@ -353,63 +352,6 @@ export default function FronterLeadsTab({ username, lineKey, lineNumber, isAdmin
         </div>
       </div>
 
-      {/* Active lead + dialer */}
-      <div>
-        {activeLead ? (
-          <div style={{ background: '#0d1b2a', border: '1px solid rgba(16,185,129,0.3)', borderRadius: '6px', padding: '16px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
-              <div>
-                <div style={{ color: '#e8e0d0', fontSize: '16px', fontWeight: 'bold' }}>{activeLead.firstName} {activeLead.lastName}</div>
-                <div style={{ color: '#6b7280', fontSize: '12px' }}>{activeLead.phone}</div>
-              </div>
-              <button onClick={() => setActiveLead(null)} style={{ background: 'none', border: 'none', color: '#6b7280', cursor: 'pointer', fontSize: '20px' }}>×</button>
-            </div>
-
-            <div style={{ marginBottom: '12px', display: 'flex', gap: '6px' }}>
-              <span style={{ padding: '3px 10px', borderRadius: '10px', fontSize: '10px', fontWeight: 'bold', textTransform: 'uppercase', background: activeLead.status === 'lead' ? 'rgba(16,185,129,0.15)' : 'rgba(96,165,250,0.15)', color: activeLead.status === 'lead' ? GOLD : '#60a5fa' }}>{activeLead.status}</span>
-              <span style={{ padding: '3px 10px', borderRadius: '10px', fontSize: '10px', background: 'rgba(255,255,255,0.05)', color: '#8a9ab8' }}>{activeLead.callCount || 0}/3 calls</span>
-            </div>
-
-            {activeLead.lastCalledAt && (
-              <div style={{ color: '#4a5568', fontSize: '11px', marginBottom: '10px' }}>Last called: {new Date(activeLead.lastCalledAt).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })}</div>
-            )}
-
-            {/* Dialer */}
-            <FronterDialer
-              lead={activeLead}
-              username={username}
-              lineKey={lineKey}
-              lineNumber={lineNumber}
-              onLeadCalled={handleLeadCalled}
-              autoDialTrigger={dialTrigger}
-              onDial={handleDialLog}
-              onCallConnected={onCallConnected}
-            />
-
-            {/* Status update */}
-            <div style={{ marginTop: '12px', padding: '12px', background: 'rgba(255,255,255,0.03)', borderRadius: '4px' }}>
-              <div style={{ color: '#6b7280', fontSize: '9px', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '6px' }}>Call Result</div>
-              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                <button onClick={() => markCallResult(activeLead.id, 'not_interested')} style={{ background: 'rgba(239,68,68,0.1)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.25)', borderRadius: '4px', padding: '7px 12px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>✗ Not Interested</button>
-                <button onClick={() => markCallResult(activeLead.id, 'voicemail')} style={{ background: 'rgba(245,158,11,0.1)', color: '#f59e0b', border: '1px solid rgba(245,158,11,0.25)', borderRadius: '4px', padding: '7px 12px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>📞 Voicemail</button>
-                <button onClick={() => markCallResult(activeLead.id, 'hung_up')} style={{ background: 'rgba(239,68,68,0.1)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.25)', borderRadius: '4px', padding: '7px 12px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>📵 Hung Up</button>
-                <button onClick={() => markCallResult(activeLead.id, 'no_answer')} style={{ background: 'rgba(138,154,184,0.1)', color: '#8a9ab8', border: '1px solid rgba(138,154,184,0.25)', borderRadius: '4px', padding: '7px 12px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>🚫 No Answer</button>
-              </div>
-            </div>
-
-            {activeLead.notes && (
-              <div style={{ marginTop: '10px', padding: '10px', background: 'rgba(0,0,0,0.2)', borderRadius: '4px' }}>
-                <div style={{ color: '#6b7280', fontSize: '9px', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '4px' }}>Notes</div>
-                <div style={{ color: '#c4cdd8', fontSize: '12px', lineHeight: 1.5 }}>{activeLead.notes}</div>
-              </div>
-            )}
-          </div>
-        ) : (
-          <div style={{ background: '#0d1b2a', border: '1px solid rgba(255,255,255,0.07)', borderRadius: '6px', padding: '40px 20px', textAlign: 'center' }}>
-            <div style={{ color: '#4a5568', fontSize: '13px' }}>Select a {mode === 'leads' ? 'lead' : 'prospect'} from the list to start calling</div>
-          </div>
-        )}
-      </div>
 
       {/* CSV import modal */}
       {showImportModal && (
@@ -427,11 +369,15 @@ export default function FronterLeadsTab({ username, lineKey, lineNumber, isAdmin
           lead={contactCardLead}
           username={username}
           fronterFirstName={fronterFirstName}
+          lineKey={lineKey}
+          lineNumber={lineNumber}
           onClose={() => setContactCardLead(null)}
           onSave={(updated) => { setRefreshKey(k => k + 1); setContactCardLead(prev => ({ ...prev, ...updated })); }}
-          onDial={(l) => { setActiveLead(l); setDialTrigger(n => n + 1); }}
+          onDial={(l) => handleDialLog(l)}
           onNext={handleNextLead}
           isAdmin={isAdmin}
+          onTranscriptUpdate={onTranscriptChange}
+          onCallConnected={onCallConnected}
         />
       )}
       </div>

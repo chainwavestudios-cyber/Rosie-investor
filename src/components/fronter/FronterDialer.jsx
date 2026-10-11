@@ -17,7 +17,7 @@ const BLUE = '#60a5fa';
 const AMBER = '#f59e0b';
 const PURPLE = '#a78bfa';
 
-export default function FronterDialer({ lead, username, lineKey, lineNumber, onCallStarted, onCallEnded, onLeadCalled, autoDialTrigger = 0, onDial, onCallConnected }) {
+export default function FronterDialer({ lead, username, lineKey, lineNumber, onCallStarted, onCallEnded, onLeadCalled, autoDialTrigger = 0, onDial, onCallConnected, onTranscriptUpdate, embedded = false }) {
   const [callStatus, setCallStatus] = useState('idle');
   const [duration, setDuration] = useState(0);
   const [now, setNow] = useState(new Date());
@@ -70,6 +70,11 @@ export default function FronterDialer({ lead, username, lineKey, lineNumber, onC
     if (autoDialTrigger > 0 && lead?.phone) dial();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [autoDialTrigger]);
+
+  // Push live transcript lines to parent for real-time display
+  useEffect(() => {
+    if (onTranscriptUpdate) onTranscriptUpdate(deepgram.lines);
+  }, [deepgram.lines, onTranscriptUpdate]);
 
   const getDevice = async () => {
     if (deviceRef.current) return deviceRef.current;
@@ -387,15 +392,15 @@ Provide your analysis as JSON with these fields:
   const statusColor = callStatus === 'connected' ? '#4ade80' : callStatus === 'ringing' ? AMBER : callStatus === 'calling' ? AMBER : '#4a5568';
 
   return (
-    <div style={{ background: '#0d1b2a', border: '1px solid rgba(16,185,129,0.2)', borderRadius: '6px', padding: '14px' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
-        <div style={{ color: GOLD, fontSize: '11px', letterSpacing: '2px', textTransform: 'uppercase' }}>📞 Dialer</div>
-        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+    <div style={embedded ? { display: 'flex', flexDirection: 'column' } : { background: '#0d1b2a', border: '1px solid rgba(16,185,129,0.2)', borderRadius: '6px', padding: '14px' }}>
+      {(!embedded || deepgram.connected || generatingReport) && (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: embedded ? 'flex-end' : 'space-between', marginBottom: embedded ? '4px' : '10px', gap: '8px' }}>
+          {!embedded && <div style={{ color: GOLD, fontSize: '11px', letterSpacing: '2px', textTransform: 'uppercase' }}>📞 Dialer</div>}
           {deepgram.connected && <span style={{ color: BLUE, fontSize: '10px', fontWeight: 'bold' }}>🎙️ Transcribing ({transcriptLineCount} lines)</span>}
           {generatingReport && <span style={{ color: PURPLE, fontSize: '10px', fontWeight: 'bold' }}>⏳ Generating report…</span>}
-          {lineNumber && <div style={{ color: '#6b7280', fontSize: '10px' }}>Line: {lineNumber}</div>}
+          {!embedded && lineNumber && <div style={{ color: '#6b7280', fontSize: '10px' }}>Line: {lineNumber}</div>}
         </div>
-      </div>
+      )}
 
       {error && <div style={{ color: RED, fontSize: '11px', marginBottom: '8px' }}>⚠ {error}</div>}
 
@@ -479,19 +484,6 @@ Provide your analysis as JSON with these fields:
         </div>
       )}
 
-      {/* Call result buttons */}
-      {callStatus === 'connected' && !merged && (
-        <div style={{ marginTop: '10px', display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-          <span style={{ color: '#6b7280', fontSize: '10px', width: '100%', marginBottom: '2px' }}>Call result:</span>
-          {[
-            { label: 'No Answer', val: 'no_answer' },
-            { label: 'Voicemail', val: 'voicemail' },
-            { label: 'Connected', val: 'connected' },
-          ].map(r => (
-            <button key={r.val} onClick={() => handleCallResult(r.val)} style={{ background: 'rgba(255,255,255,0.05)', color: '#8a9ab8', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '4px', padding: '5px 10px', cursor: 'pointer', fontSize: '10px' }}>{r.label}</button>
-          ))}
-        </div>
-      )}
     </div>
   );
 }

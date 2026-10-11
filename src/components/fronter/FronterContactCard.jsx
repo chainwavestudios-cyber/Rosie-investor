@@ -17,6 +17,7 @@ import FronterNotesSection from './FronterNotesSection';
 import FronterEmailTrackingBadges from './FronterEmailTrackingBadges';
 import FronterLeadConfirmedChecklist from './FronterLeadConfirmedChecklist';
 import FronterClosedDealCelebration from './FronterClosedDealCelebration';
+import FronterDialer from './FronterDialer';
 
 const GOLD = '#10b981';
 const DARK = '#0a0f1e';
@@ -34,7 +35,7 @@ function fmtET(iso) {
   });
 }
 
-export default function FronterContactCard({ lead, username, fronterFirstName, onClose, onSave, onDial, onNext, isAdmin }) {
+export default function FronterContactCard({ lead, username, fronterFirstName, onClose, onSave, onDial, onNext, isAdmin, lineKey, lineNumber, onTranscriptUpdate, onCallConnected }) {
   const [local, setLocal] = useState(lead || {});
   const [notesLog, setNotesLog] = useState([]);
   const [newNote, setNewNote] = useState('');
@@ -50,6 +51,7 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
   const [scriptPos, setScriptPos] = useState({ x: 660, y: 80 });
   const [scriptSize, setScriptSize] = useState({ w: 400, h: 500 });
   const scriptDragRef = useRef(null);
+  const transcriptScrollRef = useRef(null);
   const [headsUpSent, setHeadsUpSent] = useState(false);
   const [headsUpSending, setHeadsUpSending] = useState(false);
   const [callActive, setCallActive] = useState(false);
@@ -60,6 +62,7 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
   const [meetingDisposition, setMeetingDisposition] = useState('interested');
   const [showChecklist, setShowChecklist] = useState(false);
   const [showClosedDealCelebration, setShowClosedDealCelebration] = useState(false);
+  const [liveTranscript, setLiveTranscript] = useState([]);
 
   useEffect(() => {
     setLocal(lead || {});
@@ -72,6 +75,13 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
       if (all?.length > 0) setActiveScript(prev => prev || all[0]);
     }).catch(() => {});
   }, []);
+
+  // Auto-scroll transcript to bottom
+  useEffect(() => {
+    const el = transcriptScrollRef.current;
+    if (!el) return;
+    el.scrollTop = el.scrollHeight;
+  }, [liveTranscript.length]);
 
   // Call timer — ticks every second while a call is active
   useEffect(() => {
@@ -193,6 +203,19 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
     setDisposition({ status: 'booked', lastCallResult: 'booked', bookedAt: new Date().toISOString(), bookedBy: username }, `Mark ${local.firstName || 'this contact'} as Booked?`);
   };
 
+  const handleCallResult = async (result) => {
+    if (!lead?.id) return;
+    try {
+      const newCount = (local.callCount || 0) + 1;
+      const updates = { callCount: newCount, lastCalledAt: new Date().toISOString(), lastCallResult: result };
+      if (result === 'not_interested') updates.status = 'removed';
+      if (newCount >= 3) updates.status = 'removed';
+      await base44.entities.FronterLead.update(lead.id, updates);
+      setLocal(prev => ({ ...prev, ...updates }));
+      onSave?.({ ...local, ...updates });
+    } catch (e) { console.error('Call result update failed:', e); }
+  };
+
   const save = async () => {
     if (!lead?.id) return;
     setSaving(true);
@@ -286,19 +309,33 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
           />
         </div>
 
-        {/* Call control — LED timer + animal + auto-record indicator */}
-        <div style={{ padding: '10px 18px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', alignItems: 'center', gap: '14px', flexShrink: 0, background: 'rgba(0,0,0,0.2)' }}>
-          <div style={{ fontSize: '28px', flexShrink: 0 }}>{animalEmoji}</div>
-          <div style={{ flex: 1, background: '#001a0a', border: '1px solid rgba(74,222,128,0.3)', borderRadius: '4px', padding: '8px 14px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <div style={{ width: 8, height: 8, borderRadius: '50%', background: callActive ? '#4ade80' : '#4a5568', boxShadow: callActive ? '0 0 8px #4ade80' : 'none', animation: callActive ? 'pulse 1s infinite' : 'none' }} />
-            <span style={{ color: '#4ade80', fontFamily: 'monospace', fontSize: '18px', fontWeight: 'bold', letterSpacing: '2px' }}>
-              {String(Math.floor(callDuration / 60)).padStart(2, '0')}:{String(callDuration % 60).padStart(2, '0')}
-            </span>
-            <span style={{ color: '#4a5568', fontSize: '10px', marginLeft: 'auto' }}>{callActive ? '🔴 LIVE · ● REC' : 'Ready to call'}</span>
-          </div>
-          {callActive && (
-            <button onClick={() => { setCallActive(false); setCallStartTime(null); }} style={{ background: 'rgba(239,68,68,0.15)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '4px', padding: '6px 14px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>⏹ End</button>
-          )}
+        {/* Green screen — embedded dialer with real call controls */}
+        <div style={{ borderBottom: '1px solid rgba(255,255,255,0.07)', flexShrink: 0, background: 'rgba(0,0,0,0.2)', padding: '0 14px' }}>
+          <FronterDialer
+            lead={local}
+            username={username}
+            lineKey={lineKey}
+            lineNumber={lineNumber}
+            embedded
+            onDial={onDial}
+            onCallConnected={(l) => { setCallActive(true); setCallStartTime(Date.now()); onCallConnected?.(l); }}
+            onCallEnded={() => { setCallActive(false); }}
+            onLeadCalled={(leadId, newCount) => { setLocal(prev => ({ ...prev, callCount: newCount })); }}
+            onTranscriptUpdate={(lines) => { setLiveTranscript(lines); onTranscriptUpdate?.(lines); }}
+          />
+        </div>
+
+        {/* Dispositions — below green screen */}
+        <div style={{ padding: '8px 18px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center', flexShrink: 0 }}>
+          <span style={{ color: '#6b7280', fontSize: '9px', textTransform: 'uppercase', letterSpacing: '1px', marginRight: '4px' }}>Dispositions:</span>
+          {[
+            { label: '✗ Not Interested', val: 'not_interested', color: '#ef4444' },
+            { label: '📞 Voicemail', val: 'voicemail', color: '#f59e0b' },
+            { label: '📵 Hung Up', val: 'hung_up', color: '#ef4444' },
+            { label: '🚫 No Answer', val: 'no_answer', color: '#8a9ab8' },
+          ].map(r => (
+            <button key={r.val} onClick={() => handleCallResult(r.val)} style={{ background: `${r.color}15`, color: r.color, border: `1px solid ${r.color}33`, borderRadius: '4px', padding: '4px 10px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold', whiteSpace: 'nowrap' }}>{r.label}</button>
+          ))}
         </div>
 
         {/* Email tracking badges + Lead Confirmed button */}
@@ -311,6 +348,7 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
         <div style={{ display: 'flex', gap: '2px', borderBottom: '1px solid rgba(255,255,255,0.07)', flexShrink: 0, padding: '0 14px' }}>
           <button onClick={() => setCardTab('contact')} style={{ padding: '8px 16px', background: 'none', border: 'none', borderBottom: `2px solid ${cardTab === 'contact' ? GOLD : 'transparent'}`, color: cardTab === 'contact' ? GOLD : '#6b7280', cursor: 'pointer', fontSize: '11px', fontWeight: cardTab === 'contact' ? 'bold' : 'normal' }}>📇 Contact</button>
           <button onClick={() => setCardTab('script')} style={{ padding: '8px 16px', background: 'none', border: 'none', borderBottom: `2px solid ${cardTab === 'script' ? GOLD : 'transparent'}`, color: cardTab === 'script' ? GOLD : '#6b7280', cursor: 'pointer', fontSize: '11px', fontWeight: cardTab === 'script' ? 'bold' : 'normal' }}>📜 Script</button>
+          <button onClick={() => setCardTab('transcript')} style={{ padding: '8px 16px', background: 'none', border: 'none', borderBottom: `2px solid ${cardTab === 'transcript' ? '#60a5fa' : 'transparent'}`, color: cardTab === 'transcript' ? '#60a5fa' : '#6b7280', cursor: 'pointer', fontSize: '11px', fontWeight: cardTab === 'transcript' ? 'bold' : 'normal' }}>📝 Transcript {liveTranscript.length > 0 && <span style={{ fontSize: '10px' }}>({liveTranscript.length})</span>}</button>
         </div>
 
         {/* Content */}
@@ -417,6 +455,37 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
                   </div>
                 </div>
               )}
+            </div>
+          )}
+
+          {cardTab === 'transcript' && (
+            <div style={{ display: 'flex', flexDirection: 'column', height: '100%', marginLeft: '-16px', marginRight: '-16px', marginTop: '-16px', marginBottom: '-16px' }}>
+              <div style={{ padding: '8px 16px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
+                <span style={{ color: '#60a5fa', fontSize: '10px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '1px' }}>📝 Live Transcript</span>
+                {liveTranscript.length > 0 && <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#4ade80', animation: 'pulse 1.5s infinite' }} />}
+              </div>
+              <div style={{ padding: '4px 16px', borderBottom: '1px solid rgba(255,255,255,0.04)', color: '#6b7280', fontSize: '10px', flexShrink: 0 }}>
+                <span style={{ color: '#60a5fa' }}>● Agent</span> · <span style={{ color: GOLD }}>● Customer</span>
+              </div>
+              <div ref={transcriptScrollRef} style={{ flex: 1, overflowY: 'auto', padding: '14px 16px' }}>
+                {liveTranscript.length === 0 ? (
+                  <div style={{ color: '#4a5568', textAlign: 'center', padding: '40px 10px', fontSize: '13px' }}>
+                    {callActive ? 'Listening… start speaking.' : 'No active call. Transcript will appear here when a call starts.'}
+                  </div>
+                ) : liveTranscript.map((msg, i) => {
+                  const isAgent = msg.speaker === 0;
+                  return (
+                    <div key={i} style={{ display: 'flex', marginBottom: '10px', justifyContent: isAgent ? 'flex-end' : 'flex-start' }}>
+                      <div style={{ maxWidth: '85%', background: isAgent ? 'rgba(96,165,250,0.1)' : 'rgba(16,185,129,0.1)', border: `1px solid ${isAgent ? 'rgba(96,165,250,0.2)' : 'rgba(16,185,129,0.2)'}`, borderRadius: isAgent ? '12px 12px 2px 12px' : '12px 12px 12px 2px', padding: '8px 12px' }}>
+                        <div style={{ marginBottom: '3px' }}>
+                          <span style={{ color: isAgent ? '#60a5fa' : GOLD, fontSize: '9px', fontWeight: 'bold', textTransform: 'uppercase' }}>{isAgent ? '🎙 Agent' : '👤 Customer'}</span>
+                        </div>
+                        <div style={{ color: '#c4cdd8', fontSize: '13px', lineHeight: 1.5 }}>{msg.text}</div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           )}
         </div>

@@ -44,6 +44,7 @@ export default function FronterPage() {
   const [showMonitor, setShowMonitor] = useState(false);
   const [monitorLead, setMonitorLead] = useState(null);
   const [showChatroom, setShowChatroom] = useState(false);
+  const [liveTranscript, setLiveTranscript] = useState([]);
   const [fronterStatus, setFronterStatus] = useState('dialing');
   const [agreementLoaded, setAgreementLoaded] = useState(false);
   const [agreementNeeded, setAgreementNeeded] = useState(false);
@@ -264,6 +265,7 @@ export default function FronterPage() {
                 mode={tab}
                 onCallConnected={() => setShowQA(true)}
                 fronterFirstName={user?.firstName}
+                onTranscriptChange={setLiveTranscript}
               />
             ) : (
               <div style={{ color: '#4a5568', textAlign: 'center', padding: '60px', fontSize: '14px' }}>
@@ -283,6 +285,7 @@ export default function FronterPage() {
                 mode={tab}
                 onCallConnected={() => setShowQA(true)}
                 fronterFirstName={user?.firstName}
+                onTranscriptChange={setLiveTranscript}
               />
             ) : (
               <div style={{ color: '#4a5568', textAlign: 'center', padding: '60px', fontSize: '14px' }}>
@@ -309,7 +312,7 @@ export default function FronterPage() {
 
       {/* Live Q&A popup — available on all tabs */}
       {showQA && (
-        <FronterQAPopup username={user?.username} onClose={() => setShowQA(false)} />
+        <FronterQAPopup username={user?.username} onClose={() => setShowQA(false)} externalTranscript={liveTranscript} />
       )}
 
       {/* Fronter Monitor — super admin only */}

@@ -94,12 +94,15 @@ export default function FronterQAPopup({ username, onClose, externalTranscript }
     return detected;
   };
 
-  // Use external transcript (from BOB trainer) if provided, otherwise poll DB
+  // Use external transcript (from live call or BOB trainer) if provided, otherwise poll DB
   useEffect(() => {
-    if (!externalTranscript) return;
-    const mapped = externalTranscript.map(l => ({ speaker: l.role === 'bob' ? 1 : 0, text: l.text }));
+    if (!externalTranscript || externalTranscript.length === 0) return;
+    const mapped = externalTranscript.map(l => ({
+      speaker: l.speaker !== undefined ? l.speaker : (l.role === 'bob' ? 1 : 0),
+      text: l.text,
+    }));
     setLiveTranscript(mapped);
-    setTranscriptInfo({ leadName: 'BOB Training', callDate: new Date().toISOString(), lineCount: mapped.length });
+    setTranscriptInfo({ leadName: 'Live Call', callDate: new Date().toISOString(), lineCount: mapped.length });
   }, [externalTranscript]);
 
   useEffect(() => {
@@ -582,16 +585,22 @@ ${transcript.slice(0, 15000)}`,
 
         {/* Right column: Live transcript */}
         <div style={{ width: '280px', display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
-          <div style={{ padding: '7px 12px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
-            <span style={{ color: GOLD, fontSize: '10px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '1px' }}>📝 Live Transcript</span>
-            {liveTranscript.length > 0 && <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#4ade80', animation: 'pulse 1.5s infinite' }} />}
+          <div style={{ padding: '7px 12px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <span style={{ color: GOLD, fontSize: '10px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '1px' }}>📝 Live Transcript</span>
+              {liveTranscript.length > 0 && <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#4ade80', animation: 'pulse 1.5s infinite' }} />}
+            </div>
+            <span style={{ color: '#6b7280', fontSize: '10px' }}>{liveTranscript.length} lines</span>
+          </div>
+          <div style={{ padding: '3px 12px', borderBottom: '1px solid rgba(255,255,255,0.04)', color: '#6b7280', fontSize: '9px', flexShrink: 0 }}>
+            <span style={{ color: BLUE }}>● Agent</span> · <span style={{ color: GOLD }}>● Customer</span>
           </div>
           {transcriptInfo && (
             <div style={{ padding: '4px 12px', borderBottom: '1px solid rgba(255,255,255,0.04)', color: BLUE, fontSize: '10px', fontWeight: 'bold', flexShrink: 0 }}>
               👤 {transcriptInfo.leadName || 'Unknown'}
             </div>
           )}
-          <div ref={transcriptScrollRef} style={{ flex: 1, overflowY: 'auto', padding: '8px 12px' }}>
+          <div ref={transcriptScrollRef} style={{ flex: 1, overflowY: 'auto', padding: '10px 12px' }}>
             {liveTranscript.length === 0 ? (
               <div style={{ color: '#4a5568', textAlign: 'center', padding: '30px 10px', fontSize: '11px' }}>
                 {transcriptInfo ? 'Waiting for speech…' : 'No active call. Transcript will appear here when a call starts.'}
@@ -600,9 +609,13 @@ ${transcript.slice(0, 15000)}`,
               liveTranscript.map((l, i) => {
                 const isAgent = l.speaker === 0;
                 return (
-                  <div key={i} style={{ marginBottom: '5px', fontSize: '11px', lineHeight: 1.4 }}>
-                    <span style={{ color: isAgent ? BLUE : GOLD, fontSize: '9px', fontWeight: 'bold', marginRight: '4px' }}>{isAgent ? 'Agent' : 'Cust'}</span>
-                    <span style={{ color: '#c4cdd8' }}>{l.text}</span>
+                  <div key={i} style={{ display: 'flex', marginBottom: '8px', justifyContent: isAgent ? 'flex-end' : 'flex-start' }}>
+                    <div style={{ maxWidth: '88%', background: isAgent ? 'rgba(96,165,250,0.1)' : 'rgba(16,185,129,0.1)', border: `1px solid ${isAgent ? 'rgba(96,165,250,0.2)' : 'rgba(16,185,129,0.2)'}`, borderRadius: isAgent ? '12px 12px 2px 12px' : '12px 12px 12px 2px', padding: '7px 11px' }}>
+                      <div style={{ marginBottom: '2px' }}>
+                        <span style={{ color: isAgent ? BLUE : GOLD, fontSize: '9px', fontWeight: 'bold', textTransform: 'uppercase' }}>{isAgent ? '🎙 Agent' : '👤 Customer'}</span>
+                      </div>
+                      <div style={{ color: '#c4cdd8', fontSize: '12px', lineHeight: 1.5 }}>{l.text}</div>
+                    </div>
                   </div>
                 );
               })
