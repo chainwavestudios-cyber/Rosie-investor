@@ -36,9 +36,14 @@ async function twilioFetch(path: string, opts: RequestInit = {}): Promise<any> {
   return data;
 }
 
+function xmlEscape(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
 function confTwiML(name: string, muted = false, waitUrl = ''): string {
-  const waitAttr = waitUrl ? ` waitUrl="${waitUrl}" waitMethod="GET"` : '';
-  return `<Response><Dial><Conference name="${name}" muted="${muted}" beep="false" startConferenceOnEnter="true" endConferenceOnExit="false"${waitAttr}>${name}</Conference></Dial></Response>`;
+  const escName = xmlEscape(name);
+  const waitAttr = waitUrl ? ` waitUrl="${xmlEscape(waitUrl)}" waitMethod="GET"` : '';
+  return `<Response><Dial><Conference name="${escName}" muted="${muted}" beep="false" startConferenceOnEnter="true" endConferenceOnExit="false"${waitAttr}>${escName}</Conference></Dial></Response>`;
 }
 
 async function getHoldAudioUrl(req: Request): Promise<string> {
