@@ -172,8 +172,11 @@ Deno.serve(async (req) => {
         // First hold — convert 1:1 call to conference.
         // Redirect the customer (child) BEFORE the fronter (parent) —
         // redirecting the parent first tears down the child call.
-        const childCalls = await twilioFetch(`/Calls.json?ParentCallSid=${fronterCallSid}`);
-        const customerCallSid = childCalls.calls?.[0]?.sid;
+        let customerCallSid: string | null = null;
+        try {
+          const childCalls = await twilioFetch(`/Calls.json?ParentCallSid=${fronterCallSid}`);
+          customerCallSid = childCalls.calls?.[0]?.sid || null;
+        } catch (e) { console.warn('Child calls lookup failed:', e.message); }
 
         if (customerCallSid) {
           try {
@@ -181,12 +184,18 @@ Deno.serve(async (req) => {
               method: 'POST',
               body: new URLSearchParams({ Twiml: confTwiML(confName) }),
             });
-          } catch {}
+          } catch (e) { console.warn('Customer redirect failed:', e.message); }
         }
-        await twilioFetch(`/Calls/${fronterCallSid}.json`, {
-          method: 'POST',
-          body: new URLSearchParams({ Twiml: confTwiML(confName) }),
-        });
+        // Redirect the fronter's parent leg into the conference.
+        // Wrapped in try/catch — if the call is in a state that can't be
+        // modified (e.g. already redirecting), we still proceed to poll
+        // for the conference (the customer redirect may have created it).
+        try {
+          await twilioFetch(`/Calls/${fronterCallSid}.json`, {
+            method: 'POST',
+            body: new URLSearchParams({ Twiml: confTwiML(confName) }),
+          });
+        } catch (e) { console.warn('Fronter redirect failed:', e.message); }
       }
 
       // Wait for conference to exist, then hold the customer's participant
@@ -196,16 +205,23 @@ Deno.serve(async (req) => {
         if (confSid) break;
         await new Promise(r => setTimeout(r, 500));
       }
-      if (!confSid) return Response.json({ error: 'Conference not found' }, { status: 404 });
+      if (!confSid) return Response.json({ error: 'Conference not found — the call may have ended' }, { status: 404 });
 
-      const participants = await twilioFetch(`/Conferences/${confSid}/Participants.json`);
+      let participants: any;
+      try {
+        participants = await twilioFetch(`/Conferences/${confSid}/Participants.json`);
+      } catch (e) {
+        return Response.json({ error: 'Failed to list conference participants: ' + e.message }, { status: 500 });
+      }
       // Hold all non-client participants (the customer, not the fronter browser leg)
       for (const p of participants.participants || []) {
         if (!p.to?.startsWith('client:')) {
-          await twilioFetch(`/Conferences/${confSid}/Participants/${p.callSid}.json`, {
-            method: 'POST',
-            body: new URLSearchParams({ Hold: 'true' }),
-          });
+          try {
+            await twilioFetch(`/Conferences/${confSid}/Participants/${p.callSid}.json`, {
+              method: 'POST',
+              body: new URLSearchParams({ Hold: 'true' }),
+            });
+          } catch (e) { console.warn('Hold participant failed:', e.message); }
         }
       }
       return Response.json({ ok: true, conferenceName: confName });
