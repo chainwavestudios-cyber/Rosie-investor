@@ -5,6 +5,7 @@
  */
 import { useState, useEffect, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
+import FronterHoldAudioRecorder from './FronterHoldAudioRecorder';
 
 const GOLD = '#10b981';
 const DARK = '#0a0f1e';
@@ -125,6 +126,9 @@ export default function FronterHoldAudioTab({ adminUsername }) {
           {status}
         </div>
       )}
+
+      {/* Recording Studio */}
+      <FronterHoldAudioRecorder onRecorded={handleUpload} />
 
       {/* Current active audio */}
       {activeAudio ? (
