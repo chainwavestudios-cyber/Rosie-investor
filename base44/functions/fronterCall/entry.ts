@@ -86,11 +86,12 @@ Deno.serve(async (req) => {
       const cbCustomerCallSid = url.searchParams.get('customerCallSid') || '';
       const cbConfName = url.searchParams.get('conferenceName') || '';
       if (body.CallStatus === 'in-progress' && cbCustomerCallSid && cbConfName) {
-        const holdAudioUrl = await getHoldAudioUrl(req);
+        // No waitUrl — the agent is already in (or joining) the conference.
+        // The customer should join silently and talk to the agent, no music.
         try {
           await twilioFetch(`/Calls/${cbCustomerCallSid}.json`, {
             method: 'POST',
-            body: new URLSearchParams({ Twiml: confTwiML(cbConfName, false, holdAudioUrl) }),
+            body: new URLSearchParams({ Twiml: confTwiML(cbConfName, false, '') }),
           });
         } catch {}
       }
@@ -144,7 +145,7 @@ Deno.serve(async (req) => {
         body: new URLSearchParams({
           To: agentPhone,
           From: fromNumber,
-          Twiml: confTwiML(confName, false, holdAudioUrl),
+          Twiml: confTwiML(confName, false, ''),
           StatusCallback: statusCallbackUrl,
           StatusCallbackEvent: 'in-progress',
           StatusCallbackMethod: 'POST',
@@ -171,12 +172,16 @@ Deno.serve(async (req) => {
       if (!fronterCallSid) return Response.json({ error: 'fronterCallSid required' }, { status: 400 });
 
       const confName = `fronter_conf_${fronterCallSid}`;
+      const holdAudioUrl = await getHoldAudioUrl(req);
       const existingConf = await findConferenceSid(confName);
 
       if (!existingConf) {
         // First hold — convert 1:1 call to conference.
         // Redirect the customer (child) BEFORE the fronter (parent) —
         // redirecting the parent first tears down the child call.
+        // The customer's conference TwiML includes waitUrl (custom hold audio)
+        // so when they're put on hold via Hold=true, they hear the custom audio
+        // instead of Twilio's default hold music.
         let customerCallSid: string | null = null;
         try {
           const childCalls = await twilioFetch(`/Calls.json?ParentCallSid=${fronterCallSid}`);
@@ -187,18 +192,16 @@ Deno.serve(async (req) => {
           try {
             await twilioFetch(`/Calls/${customerCallSid}.json`, {
               method: 'POST',
-              body: new URLSearchParams({ Twiml: confTwiML(confName) }),
+              body: new URLSearchParams({ Twiml: confTwiML(confName, false, holdAudioUrl) }),
             });
           } catch (e) { console.warn('Customer redirect failed:', e.message); }
         }
-        // Redirect the fronter's parent leg into the conference.
-        // Wrapped in try/catch — if the call is in a state that can't be
-        // modified (e.g. already redirecting), we still proceed to poll
-        // for the conference (the customer redirect may have created it).
+        // Redirect the fronter's parent leg into the conference (no waitUrl —
+        // fronter is not put on hold).
         try {
           await twilioFetch(`/Calls/${fronterCallSid}.json`, {
             method: 'POST',
-            body: new URLSearchParams({ Twiml: confTwiML(confName) }),
+            body: new URLSearchParams({ Twiml: confTwiML(confName, false, '') }),
           });
         } catch (e) { console.warn('Fronter redirect failed:', e.message); }
       }
