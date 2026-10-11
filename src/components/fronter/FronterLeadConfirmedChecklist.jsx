@@ -19,7 +19,7 @@ const STEPS = [
   { id: 5, label: 'Email Company Credentials', icon: '📧' },
 ];
 
-export default function FronterLeadConfirmedChecklist({ lead, username, onClose, onAllComplete, onEmailCreds }) {
+export default function FronterLeadConfirmedChecklist({ lead, username, onClose, onAllComplete, onEmailCreds, embedded = false }) {
   const [checklist, setChecklist] = useState([]);
   const [saving, setSaving] = useState(false);
 
@@ -73,9 +73,8 @@ export default function FronterLeadConfirmedChecklist({ lead, username, onClose,
     if (next.every(c => c.completed)) onAllComplete?.();
   };
 
-  return (
-    <FronterPopup title="✅ Lead Confirmed Checklist" initialWidth={420} initialHeight={520} onClose={onClose} accentColor={allComplete ? GOLD : RED}>
-      <div style={{ padding: '14px' }}>
+  const content = (
+    <div style={{ padding: embedded ? '0' : '14px' }}>
         {/* Lead name banner */}
         <div style={{ marginBottom: '14px', padding: '8px 12px', background: 'rgba(255,255,255,0.03)', borderRadius: '6px' }}>
           <div style={{ color: '#e8e0d0', fontSize: '14px', fontWeight: 'bold' }}>{lead?.firstName} {lead?.lastName}</div>
@@ -159,6 +158,13 @@ export default function FronterLeadConfirmedChecklist({ lead, username, onClose,
 
         {saving && <div style={{ color: '#6b7280', fontSize: '10px', textAlign: 'center', marginTop: '6px' }}>Saving…</div>}
       </div>
+  );
+
+  if (embedded) return content;
+
+  return (
+    <FronterPopup title="✅ Lead Confirmed Checklist" initialWidth={420} initialHeight={520} onClose={onClose} accentColor={allComplete ? GOLD : RED}>
+      {content}
     </FronterPopup>
   );
 }

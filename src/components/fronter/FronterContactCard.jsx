@@ -341,7 +341,7 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
         {/* Email tracking badges + Lead Confirmed button */}
         <div style={{ padding: '8px 18px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px', flexShrink: 0, flexWrap: 'wrap' }}>
           <FronterEmailTrackingBadges lead={local} username={username} onManualUpdate={(upd) => setLocal(prev => ({ ...prev, ...upd }))} />
-          <button onClick={() => setShowChecklist(true)} style={{ background: 'rgba(16,185,129,0.15)', color: GOLD, border: `1px solid ${GOLD}44`, borderRadius: '4px', padding: '4px 12px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold', whiteSpace: 'nowrap' }}>✅ Lead Confirmed</button>
+          <button onClick={() => setCardTab('checklist')} style={{ background: 'rgba(16,185,129,0.15)', color: GOLD, border: `1px solid ${GOLD}44`, borderRadius: '4px', padding: '4px 12px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold', whiteSpace: 'nowrap' }}>✅ Lead Confirmed</button>
         </div>
 
         {/* Tabs */}
@@ -349,6 +349,7 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
           <button onClick={() => setCardTab('contact')} style={{ padding: '8px 16px', background: 'none', border: 'none', borderBottom: `2px solid ${cardTab === 'contact' ? GOLD : 'transparent'}`, color: cardTab === 'contact' ? GOLD : '#6b7280', cursor: 'pointer', fontSize: '11px', fontWeight: cardTab === 'contact' ? 'bold' : 'normal' }}>📇 Contact</button>
           <button onClick={() => setCardTab('script')} style={{ padding: '8px 16px', background: 'none', border: 'none', borderBottom: `2px solid ${cardTab === 'script' ? GOLD : 'transparent'}`, color: cardTab === 'script' ? GOLD : '#6b7280', cursor: 'pointer', fontSize: '11px', fontWeight: cardTab === 'script' ? 'bold' : 'normal' }}>📜 Script</button>
           <button onClick={() => setCardTab('transcript')} style={{ padding: '8px 16px', background: 'none', border: 'none', borderBottom: `2px solid ${cardTab === 'transcript' ? '#60a5fa' : 'transparent'}`, color: cardTab === 'transcript' ? '#60a5fa' : '#6b7280', cursor: 'pointer', fontSize: '11px', fontWeight: cardTab === 'transcript' ? 'bold' : 'normal' }}>📝 Transcript {liveTranscript.length > 0 && <span style={{ fontSize: '10px' }}>({liveTranscript.length})</span>}</button>
+          <button onClick={() => setCardTab('checklist')} style={{ padding: '8px 16px', background: 'none', border: 'none', borderBottom: `2px solid ${cardTab === 'checklist' ? GOLD : 'transparent'}`, color: cardTab === 'checklist' ? GOLD : '#6b7280', cursor: 'pointer', fontSize: '11px', fontWeight: cardTab === 'checklist' ? 'bold' : 'normal' }}>✅ Checklist</button>
         </div>
 
         {/* Content */}
@@ -488,6 +489,16 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
               </div>
             </div>
           )}
+
+          {cardTab === 'checklist' && (
+            <FronterLeadConfirmedChecklist
+              lead={local}
+              username={username}
+              embedded
+              onAllComplete={() => {}}
+              onEmailCreds={() => setShowCredsPopup(true)}
+            />
+          )}
         </div>
 
         {/* Save bar */}
@@ -539,17 +550,6 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
           username={username}
           onClose={() => setShowCredsPopup(false)}
           onSent={(updated) => { setLocal(prev => ({ ...prev, ...updated })); setShowCredsPopup(false); onSave?.({ ...local, ...updated }); }}
-        />
-      )}
-
-      {/* Lead Confirmed checklist popup */}
-      {showChecklist && (
-        <FronterLeadConfirmedChecklist
-          lead={local}
-          username={username}
-          onClose={() => setShowChecklist(false)}
-          onAllComplete={() => {}}
-          onEmailCreds={() => setShowCredsPopup(true)}
         />
       )}
 
