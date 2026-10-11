@@ -1,0 +1,53 @@
+{
+  "name": "Email Follow-Up Automation",
+  "description": "When a lead opens their credentials email and clicks at least 2 of 3 tracked websites, auto-sends a follow-up email. When the follow-up email is opened, creates a 15-minute Google Calendar call event within the hour.",
+  "definition": {
+    "document": {
+      "dsl": "1.0.0",
+      "name": "email_followup_automation",
+      "version": "1.0",
+      "namespace": "base44"
+    },
+    "do": [
+      {
+        "bot_filter_wait": {
+          "wait": "PT30S",
+          "then": "process_event",
+          "x-base44": {
+            "title": "Bot filter delay",
+            "description": "Wait 30s to filter bot activity"
+          }
+        }
+      },
+      {
+        "process_event": {
+          "call": "invoke_backend_function",
+          "with": {
+            "function_name": "processEmailTrackingEvent",
+            "args": {
+              "leadId": "${ .trigger.data.leadId }",
+              "sendId": "${ .trigger.data.sendId }",
+              "eventType": "${ .trigger.data.eventType }",
+              "url": "${ .trigger.data.url }"
+            }
+          },
+          "then": "end",
+          "x-base44": {
+            "title": "Process tracking event",
+            "description": "Check conditions, send follow-up, create calendar event"
+          }
+        }
+      }
+    ]
+  },
+  "trigger": {
+    "condition": null,
+    "config": {
+      "trigger_type": "entity",
+      "events": [
+        "create"
+      ],
+      "entity_name": "EmailTrackingEvent"
+    }
+  }
+}

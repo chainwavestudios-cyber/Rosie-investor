@@ -56,6 +56,21 @@ Email: {{email}}</p>
 <p>Best regards,<br/>Rosie AI Team</p>
 </div>`,
   },
+  {
+    label: '📨 Follow-Up — High Interest',
+    subject: '{{firstName}}, ready to take the next step?',
+    body: `<div style="font-family:Georgia,serif;font-size:14px;color:#333;">
+<p>Hi {{firstName}},</p>
+<p>I noticed you have been reviewing our resources, and I wanted to reach out personally. It looks like you are serious about taking control of your financial future, and I would love to help you get there.</p>
+<p>I have a few questions about your situation and I think a quick 15-minute call would be the best way to see if we can help. We have helped thousands of people just like you reduce their debt and get back on track.</p>
+<p>Check out what our clients are saying:<br/>
+<a href="https://www.trustpilot.com/review/debtadvisorsofamerica.com">Read our Trustpilot Reviews</a><br/>
+<a href="https://www.bbb.org/us/ca/san-diego/profile/debt-relief-services/debt-advisors-of-america-1126-1000064078">See our BBB Accreditation</a><br/>
+<a href="https://www.debtadvisorsofamerica.com/">Visit Our Website</a></p>
+<p>Are you available for a quick call today or tomorrow? Just reply to this email or give us a call and we will get you scheduled.</p>
+<p>Best regards,<br/>Debt Advisors of America Team</p>
+</div>`,
+  },
 ];
 
 function fillTemplate(text, lead, to) {

@@ -191,6 +191,24 @@
       "type": "string",
       "format": "date-time",
       "title": "Transfer Credited At (when 30s+ transfer credit was given)"
+    },
+    "followUpEmailSentAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Follow-Up Email Sent At (auto-sent when email opened + 2/3 links clicked)"
+    },
+    "followUpSendId": {
+      "type": "string",
+      "title": "Follow-Up Email Send ID (for matching open tracking events)"
+    },
+    "followUpCallEventId": {
+      "type": "string",
+      "title": "Follow-Up Call Calendar Event ID (Google Calendar)"
+    },
+    "followUpCallEventAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Follow-Up Call Event Start Time"
     }
   },
   "required": [

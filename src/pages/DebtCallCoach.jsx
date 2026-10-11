@@ -28,6 +28,7 @@ import WCRChecklist from '@/components/debt/WCRChecklist';
 import ProfileTimerWatcher from '@/components/debt/ProfileTimerWatcher';
 import ClientProfileModal from '@/components/debt/ClientProfileModal';
 import CreditAlertPopup from '@/components/debt/CreditAlertPopup';
+import UpcomingCallEventsPopup from '@/components/debt/UpcomingCallEventsPopup';
 
 const GOLD = '#10b981';
 const DARK = '#0a0f1e';
@@ -135,6 +136,7 @@ export default function DebtCallCoach() {
       {/* Popup notification when a new lead is assigned to this user */}
       <LeadAssignmentPopup onGoToLeads={() => setTab('newleads')} />
       <CreditAlertPopup />
+      <UpcomingCallEventsPopup />
     </div>
   );
 }
