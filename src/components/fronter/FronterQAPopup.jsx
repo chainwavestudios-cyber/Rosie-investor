@@ -26,6 +26,7 @@ export default function FronterQAPopup({ username, onClose, externalTranscript }
   const [showAddKb, setShowAddKb] = useState(false);
   const [kbForm, setKbForm] = useState({ question: '', answer: '', category: '' });
   const [editingAnswer, setEditingAnswer] = useState(false);
+  const [qaResult, setQaResult] = useState(null);
   const [editedAnswer, setEditedAnswer] = useState('');
   const [editingKbId, setEditingKbId] = useState(null);
   const [editKbForm, setEditKbForm] = useState({ question: '', answer: '', category: '' });
@@ -136,25 +137,44 @@ export default function FronterQAPopup({ username, onClose, externalTranscript }
   const ask = async (overrideQuestion) => {
     const q = (overrideQuestion || question).trim();
     if (!q) return;
-    setAsking(true); setAnswer('');
+    setAsking(true); setAnswer(''); setQaResult(null);
     try {
-      const kbContext = kbEntries.map(e => {
-        const alts = parseAlts(e);
-        const altStr = alts.length > 0 ? `\n(Also matches: ${alts.join('; ')})` : '';
-        return `Q: ${e.question}\nA: ${e.answer}${altStr}`;
-      }).join('\n\n');
-      const res = await base44.integrations.Core.InvokeLLM({
-        prompt: `You are a helpful sales assistant for a debt settlement fronter (caller). Answer the following question using the knowledge base below and your general knowledge. If the KB has a relevant answer, use it. Otherwise, provide a helpful answer from your general knowledge. Keep answers clear, concise, and actionable — the fronter may be on a live call.
-
-KNOWLEDGE BASE:
-${kbContext || '(empty — use general knowledge)'}
-
-QUESTION: ${q}
-
-Provide a clear, concise answer:`,
+      const transcriptForAI = (liveTranscript || []).map(l => ({
+        speaker: l.speaker,
+        text: l.text,
+        time: l.time || new Date().toISOString(),
+      }));
+      const res = await base44.functions.invoke('liveAssistantAI', {
+        question: q,
+        transcript: transcriptForAI,
+        kbEntries: kbEntries.map(e => ({
+          id: e.id,
+          question: e.question,
+          answer: e.answer,
+          alternativeQuestions: e.alternativeQuestions,
+          category: e.category,
+          tags: e.tags,
+        })),
       });
-      setAnswer(res || 'No answer generated.');
-      setEditedAnswer(res || 'No answer generated.');
+      const data = res?.data || res;
+      if (data?.needs_answer === false) {
+        setAnswer('');
+        setQaResult({ needs_answer: false, source: data.source || 'gated' });
+      } else if (data?.answer) {
+        setAnswer(data.answer);
+        setEditedAnswer(data.answer);
+        setQaResult({
+          needs_answer: true,
+          really_asking: data.really_asking || '',
+          opener: data.opener || '',
+          detail: data.detail || '',
+          source: data.source || 'kb_ai',
+        });
+      } else if (data?.error) {
+        setAnswer('Error: ' + data.error);
+      } else {
+        setAnswer('No answer generated.');
+      }
       setEditingAnswer(false);
     } catch (e) { setAnswer('Error: ' + (e?.message || String(e))); }
     setAsking(false);
@@ -427,10 +447,27 @@ ${transcript.slice(0, 15000)}`,
                 <button onClick={ask} disabled={asking || !question.trim()} style={{ background: 'linear-gradient(135deg,#60a5fa,#3b82f6)', color: '#fff', border: 'none', borderRadius: '4px', padding: '8px 20px', cursor: asking || !question.trim() ? 'not-allowed' : 'pointer', fontSize: '11px', fontWeight: 'bold', opacity: asking || !question.trim() ? 0.5 : 1, marginBottom: '12px' }}>
                   {asking ? '⏳ Thinking…' : '💬 Ask (Ctrl+Enter)'}
                 </button>
-                {answer && (
+                {asking && !answer && (
                   <div style={{ padding: '12px', background: 'rgba(96,165,250,0.06)', border: '1px solid rgba(96,165,250,0.2)', borderRadius: '4px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                      <div style={{ color: BLUE, fontSize: '9px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '1px' }}>Answer</div>
+                    <div style={{ color: '#6b7280', fontSize: '12px' }}>⏳ Thinking…</div>
+                  </div>
+                )}
+                {qaResult?.needs_answer === false && (
+                  <div style={{ padding: '12px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '4px' }}>
+                    <div style={{ color: '#6b7280', fontSize: '11px' }}>⏭ Skipped — {qaResult.source === 'gated_short' ? 'too short to need an answer' : qaResult.source === 'gated_haiku' ? 'AI classified as not needing an answer' : 'no answer needed'}</div>
+                  </div>
+                )}
+                {answer && qaResult?.needs_answer !== false && (
+                  <div style={{ padding: '12px', background: 'rgba(96,165,250,0.06)', border: '1px solid rgba(96,165,250,0.2)', borderRadius: '4px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                      <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                        <div style={{ color: BLUE, fontSize: '9px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '1px' }}>Answer</div>
+                        {qaResult?.source && (
+                          <span style={{ padding: '1px 6px', borderRadius: '3px', fontSize: '8px', fontWeight: 'bold', textTransform: 'uppercase', background: qaResult.source === 'kb_direct' ? 'rgba(16,185,129,0.15)' : 'rgba(96,165,250,0.15)', color: qaResult.source === 'kb_direct' ? GOLD : BLUE }}>
+                            {qaResult.source === 'kb_direct' ? '⚡ Direct KB' : qaResult.source === 'kb_ai' ? '🤖 KB+AI' : qaResult.source}
+                          </span>
+                        )}
+                      </div>
                       <div style={{ display: 'flex', gap: '4px' }}>
                         {editingAnswer ? (
                           <>
@@ -442,10 +479,19 @@ ${transcript.slice(0, 15000)}`,
                         )}
                       </div>
                     </div>
+                    {qaResult?.really_asking && !editingAnswer && (
+                      <div style={{ color: '#f59e0b', fontSize: '10px', fontStyle: 'italic', marginBottom: '6px' }}>Really asking: {qaResult.really_asking}</div>
+                    )}
+                    {qaResult?.opener && !editingAnswer && (
+                      <div style={{ color: GOLD, fontSize: '11px', fontWeight: 'bold', marginBottom: '6px', borderLeft: `3px solid ${GOLD}`, paddingLeft: '8px' }}>{qaResult.opener}</div>
+                    )}
                     {editingAnswer ? (
                       <textarea value={editedAnswer} onChange={e => setEditedAnswer(e.target.value)} rows={6} style={{ ...inp, resize: 'vertical', fontFamily: 'Georgia, serif' }} />
                     ) : (
                       <div style={{ color: '#c4cdd8', fontSize: '12px', lineHeight: 1.7, whiteSpace: 'pre-wrap', fontFamily: 'Georgia, serif' }}>{answer}</div>
+                    )}
+                    {qaResult?.detail && !editingAnswer && (
+                      <div style={{ color: '#8a9ab8', fontSize: '11px', lineHeight: 1.5, marginTop: '8px', paddingTop: '8px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>{qaResult.detail}</div>
                     )}
                   </div>
                 )}

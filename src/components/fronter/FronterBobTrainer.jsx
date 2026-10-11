@@ -259,15 +259,11 @@ export default function FronterBobTrainer({ username, fronterFirstName }) {
   const buildSystemPrompt = useCallback(() => {
     const persona = getActivePersona();
     const character = getCharacter(characterId);
-    const kbText = kbEntries.slice(0, 40).map(e => `Q: ${e.question}\nA: ${(e.answer || '').slice(0, 400)}`).join('\n\n');
     const sliderLabel = sliderValue < 20 ? 'full Duck mode (hard — skeptical, annoyed, guards info)'
       : sliderValue < 40 ? 'Duck-leaning Owl (mostly resistant but will consider logic)'
       : sliderValue < 60 ? 'Owl/Hybrid (analytical, wants to understand)'
       : sliderValue < 80 ? 'Cow-leaning Owl (generally agreeable but checks logic)'
       : 'full Cow mode (easy — stressed, drowning in debt, relieved someone called)';
-
-    const minObjections = sliderValue < 33 ? 3 + intensity : sliderValue < 67 ? 2 + Math.ceil(intensity / 2) : Math.max(1, Math.ceil(intensity / 3));
-    const minQuestions = 2 + intensity;
 
     const scenarioText = (scenario.debtAmount || scenario.creditors || scenario.customerAddress) ? `
 ━━━ YOUR DEBT SITUATION — USE THESE DETAILS ━━━
@@ -301,22 +297,23 @@ GOOD: "Wait, how much is this going to cost me?" / "I don't know, I've been burn
 - Intensity: ${intensity}/5
 ${scenarioText}
 
-━━━ OBJECTIONS & QUESTIONS — REACTIVE, NOT PREEMPTIVE ━━━
-- MINIMUM ${minObjections} objections during the call — but ONLY raise an objection AFTER the fronter makes a claim. Don't object to nothing.
-- MINIMUM ${minQuestions} questions during the call — but ONLY ask questions that relate to what the fronter just said.
-- Space them out — one objection or question every 30-60 seconds, triggered by the conversation.
+━━━ OBJECTIONS & QUESTIONS — NATURAL, NOT FORCED ━━━
+- You are a REAL CUSTOMER on a cold call. You do NOT have insider knowledge about debt settlement.
+- Only raise an objection when the fronter makes a claim you genuinely disagree with or don't understand.
+- Only ask a question when you genuinely need clarification — NOT to test the fronter.
+- Do NOT ask leading questions that reveal you know the answer (e.g., "Do you need my last 4 SSN for a soft credit pull?" — a real customer would never say that).
+- Do NOT use industry jargon you wouldn't know (e.g., "soft credit pull", "settlement offer", "creditor relations", "hardship qualification").
+- A real customer might go several minutes without asking anything. Silence is fine.
+- Quality over quantity — one genuine objection is better than five forced ones.
 - At the very start: just greet them and WAIT. Do NOT object or ask anything until the fronter has spoken first.
-
-━━━ FRONTER KNOWLEDGE BASE — LEARNED FROM REAL CALLS ━━━
-${kbText || 'No KB entries yet. The fronter should upload calls and documents to the KB to make BOB smarter.'}
 
 ━━━ CRITICAL RULES ━━━
 - You are a REAL PERSON on a phone call. Keep ALL responses 1-3 sentences.
 - Never say you are an AI. Never break character.
 - Use natural speech: contractions, interruptions, "uh", "look", "listen", "I mean."
 - React to what the fronter actually says — improvise within your persona.
-- Use the KNOWLEDGE BASE above to inform your responses.`;
-  }, [sliderValue, intensity, kbEntries, getActivePersona, scenario, characterId]);
+- You are a CUSTOMER, not a debt settlement expert. You do NOT know industry terminology or processes.`;
+  }, [sliderValue, intensity, getActivePersona, scenario, characterId]);
 
   const handleStartCall = useCallback(async () => {
     const newCount = callCount + 1;
