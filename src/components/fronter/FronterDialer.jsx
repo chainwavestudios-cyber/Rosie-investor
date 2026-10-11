@@ -29,6 +29,10 @@ export default function FronterDialer({ lead, username, lineKey, lineNumber, onC
   const [showMergeInput, setShowMergeInput] = useState(false);
   const [showTransferInput, setShowTransferInput] = useState(false);
   const [mergeNumber, setMergeNumber] = useState('');
+  const [mergeStep, setMergeStep] = useState('idle');
+  const [mergeNumbers, setMergeNumbers] = useState([]);
+  const [selectedMergeNumber, setSelectedMergeNumber] = useState('');
+  const [customMergeNumber, setCustomMergeNumber] = useState('');
   const [transferNumber, setTransferNumber] = useState('');
   const [busy, setBusy] = useState(false);
   const [transcriptLineCount, setTranscriptLineCount] = useState(0);
@@ -41,8 +45,21 @@ export default function FronterDialer({ lead, username, lineKey, lineNumber, onC
   const startTimeRef = useRef(null);
   const transcriptIdRef = useRef(null);
   const saveIntervalRef = useRef(null);
+  const mergeStepRef = useRef('idle');
+  const conferenceNameRef = useRef('');
 
   const deepgram = useFronterDeepgram();
+
+  // Load saved merge numbers (ClosingPhoneNumber entity)
+  useEffect(() => {
+    base44.entities.ClosingPhoneNumber.list('sortOrder', 50).then(all => {
+      setMergeNumbers(all || []);
+    }).catch(() => {});
+  }, []);
+
+  // Sync refs for use in disconnect handler
+  useEffect(() => { mergeStepRef.current = mergeStep; }, [mergeStep]);
+  useEffect(() => { conferenceNameRef.current = conferenceName; }, [conferenceName]);
 
   const fmt = (s) => `${Math.floor(s / 60).toString().padStart(2, '0')}:${(s % 60).toString().padStart(2, '0')}`;
 
@@ -220,6 +237,10 @@ Provide your analysis as JSON with these fields:
       } catch (e) { console.error('Transcript record creation failed:', e); }
     });
     call.on('disconnect', async () => {
+      // Auto-connect merge if fronter disconnects during connected phase
+      if (mergeStepRef.current === 'connected' && conferenceNameRef.current) {
+        try { await base44.functions.invoke('fronterCall', { action: 'mergeConnect', conferenceName: conferenceNameRef.current }); } catch {}
+      }
       stopTimer();
       if (saveIntervalRef.current) { clearInterval(saveIntervalRef.current); saveIntervalRef.current = null; }
       deepgram.stop();
@@ -257,7 +278,7 @@ Provide your analysis as JSON with these fields:
       }
 
       setCallStatus('ended');
-      setMuted(false); setOnHold(false); setMerged(false); setConferenceName('');
+      setMuted(false); setOnHold(false); setMerged(false); setConferenceName(''); setMergeStep('idle');
       setTranscriptLineCount(0);
       onCallEnded?.();
 
@@ -283,7 +304,7 @@ Provide your analysis as JSON with these fields:
 
   const dial = async () => {
     if (!lead?.phone) { setError('No phone number'); return; }
-    setError(''); setCallStatus('calling'); setDuration(0); setMuted(false); setOnHold(false); setMerged(false); setConferenceName(''); setTranscriptLineCount(0);
+    setError(''); setCallStatus('calling'); setDuration(0); setMuted(false); setOnHold(false); setMerged(false); setConferenceName(''); setMergeStep('idle'); setSelectedMergeNumber(''); setCustomMergeNumber(''); setTranscriptLineCount(0);
     onDial?.(lead);
     try {
       const device = await getDevice();
@@ -328,18 +349,20 @@ Provide your analysis as JSON with these fields:
     setBusy(false);
   };
 
-  const handleMerge = async () => {
-    if (!mergeNumber.trim()) { setError('Enter a number to merge'); return; }
+  const handleMergeDial = async () => {
+    const number = selectedMergeNumber === '__custom__' ? customMergeNumber.trim() : selectedMergeNumber;
+    if (!number) { setError('Select or enter a number'); return; }
     setBusy(true); setError('');
+    setMergeStep('dialing');
     try {
       const fronterCallSid = callRef.current?.parameters?.CallSid;
       const res = await base44.functions.invoke('fronterCall', {
-        action: 'merge', fronterCallSid, agentPhone: mergeNumber.trim(), lineKey, conferenceName, leadId: lead?.id, leadEmail: lead?.email,
+        action: 'mergeDial', fronterCallSid, agentPhone: number, lineKey, conferenceName, leadId: lead?.id, leadEmail: lead?.email,
       });
       const data = res?.data || res;
       if (data?.conferenceName) {
-        setConferenceName(data.conferenceName); setMerged(true); setShowMergeInput(false);
-        // Save conference name to DialerSession for listen/barge
+        setConferenceName(data.conferenceName);
+        setMergeStep('connected');
         try {
           const sessions = await base44.entities.DialerSession.filter({ username });
           if (sessions?.[0]) {
@@ -347,7 +370,16 @@ Provide your analysis as JSON with these fields:
           }
         } catch {}
       }
-    } catch (e) { setError('Merge failed: ' + (e?.message || String(e))); }
+    } catch (e) { setError('Merge dial failed: ' + (e?.message || String(e))); setMergeStep('select'); }
+    setBusy(false);
+  };
+
+  const handleMergeConnect = async () => {
+    setBusy(true); setError('');
+    try {
+      await base44.functions.invoke('fronterCall', { action: 'mergeConnect', conferenceName });
+      setMerged(true); setMergeStep('idle'); setShowMergeInput(false);
+    } catch (e) { setError('Connect failed: ' + (e?.message || String(e))); }
     setBusy(false);
   };
 
@@ -364,7 +396,7 @@ Provide your analysis as JSON with these fields:
       stopTimer();
       if (saveIntervalRef.current) { clearInterval(saveIntervalRef.current); saveIntervalRef.current = null; }
       deepgram.stop();
-      setCallStatus('idle'); setMuted(false); setOnHold(false); setMerged(false); setConferenceName('');
+      setCallStatus('idle'); setMuted(false); setOnHold(false); setMerged(false); setConferenceName(''); setMergeStep('idle');
       onCallEnded?.();
     } catch (e) { setError('Transfer failed: ' + (e?.message || String(e))); }
     setBusy(false);
@@ -444,8 +476,8 @@ Provide your analysis as JSON with these fields:
                 <button onClick={handleHold} disabled={busy} style={ctrlBtn(onHold ? AMBER : BLUE, onHold)}>
                   {busy ? '⏳' : onHold ? '▶ Unhold' : '⏸ Hold'}
                 </button>
-                {!merged && !onHold && (
-                  <button onClick={() => setShowMergeInput(p => !p)} style={ctrlBtn(GOLD, false)}>
+                {mergeStep === 'idle' && !onHold && !merged && (
+                  <button onClick={() => { setShowMergeInput(true); setMergeStep('select'); }} style={ctrlBtn(GOLD, false)}>
                     🔗 Merge
                   </button>
                 )}
@@ -455,7 +487,7 @@ Provide your analysis as JSON with these fields:
               </>
             )}
             <button onClick={disconnect} style={{ background: 'rgba(239,68,68,0.15)', color: RED, border: '1px solid rgba(239,68,68,0.3)', borderRadius: '4px', padding: '8px 14px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>
-              {merged ? '👋 Leave' : '📵 Hang Up'}
+              {merged || mergeStep === 'connected' ? '👋 Leave' : '📵 Hang Up'}
             </button>
           </>
         )}
@@ -464,11 +496,32 @@ Provide your analysis as JSON with these fields:
       {/* Merge input */}
       {showMergeInput && !merged && callStatus === 'connected' && (
         <div style={inputBox(GOLD)}>
-          <div style={{ color: GOLD, fontSize: '10px', marginBottom: '6px' }}>🔗 Merge in an agent (conference)</div>
-          <div style={{ display: 'flex', gap: '8px' }}>
-            <input value={mergeNumber} onChange={e => setMergeNumber(e.target.value)} placeholder="Agent number (+1 555-123-4567)" style={inputStyle()} onKeyDown={e => { if (e.key === 'Enter') handleMerge(); }} />
-            <button onClick={handleMerge} disabled={busy} style={{ background: 'linear-gradient(135deg,#10b981,#22c55e)', color: DARK, border: 'none', borderRadius: '4px', padding: '8px 16px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>{busy ? '⏳' : 'Merge'}</button>
-          </div>
+          {mergeStep === 'select' && (
+            <>
+              <div style={{ color: GOLD, fontSize: '10px', marginBottom: '6px' }}>🔗 Merge in an agent</div>
+              <select value={selectedMergeNumber} onChange={e => setSelectedMergeNumber(e.target.value)} style={{ ...inputStyle(), marginBottom: '6px' }}>
+                <option value="">— Select a number —</option>
+                {mergeNumbers.map(n => <option key={n.id} value={n.phoneNumber}>{n.label}: {n.phoneNumber}</option>)}
+                <option value="__custom__">— Custom number —</option>
+              </select>
+              {selectedMergeNumber === '__custom__' && (
+                <input value={customMergeNumber} onChange={e => setCustomMergeNumber(e.target.value)} placeholder="Agent number (+1 555-123-4567)" style={{ ...inputStyle(), marginBottom: '8px' }} />
+              )}
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button onClick={() => { setShowMergeInput(false); setMergeStep('idle'); }} style={ctrlBtn('#6b7280', false)}>Cancel</button>
+                <button onClick={handleMergeDial} disabled={busy || (!selectedMergeNumber || (selectedMergeNumber === '__custom__' && !customMergeNumber.trim()))} style={{ background: 'linear-gradient(135deg,#10b981,#22c55e)', color: DARK, border: 'none', borderRadius: '4px', padding: '8px 16px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', opacity: (!selectedMergeNumber || (selectedMergeNumber === '__custom__' && !customMergeNumber.trim())) ? 0.5 : 1 }}>{busy ? '⏳' : '📞 Dial Agent'}</button>
+              </div>
+            </>
+          )}
+          {mergeStep === 'dialing' && (
+            <div style={{ color: GOLD, fontSize: '11px', padding: '4px 0' }}>⏳ Dialing agent…</div>
+          )}
+          {mergeStep === 'connected' && (
+            <>
+              <div style={{ color: '#4ade80', fontSize: '10px', marginBottom: '6px' }}>✓ Connected to agent. Press Connect to bridge customer.</div>
+              <button onClick={handleMergeConnect} disabled={busy} style={{ background: 'linear-gradient(135deg,#10b981,#22c55e)', color: DARK, border: 'none', borderRadius: '4px', padding: '8px 16px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>{busy ? '⏳' : '🔗 Connect'}</button>
+            </>
+          )}
         </div>
       )}
 
