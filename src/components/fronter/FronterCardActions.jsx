@@ -7,7 +7,7 @@ const btn = (color, bg, border) => ({
   padding: '5px 10px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', whiteSpace: 'nowrap',
 });
 
-export default function FronterCardActions({ status, isAdmin, credsSent, headsUpSent, headsUpSending, onHeadsUp, onCreds, onInterested, onTransferred, onBooked, onClosedDeal, onNext, onClose }) {
+export default function FronterCardActions({ status, isAdmin, credsSent, headsUpSent, headsUpSending, onHeadsUp, onCreds, onInterested, onTransferred, onEmailSent, onClosedDeal, onNext, onClose }) {
   const stop = (fn) => (e) => { e.stopPropagation(); fn?.(); };
   const canDisposition = status === 'prospect' || status === 'lead';
   return (
@@ -24,8 +24,8 @@ export default function FronterCardActions({ status, isAdmin, credsSent, headsUp
       {canDisposition && (
         <button onClick={stop(onTransferred)} style={btn('#a78bfa', 'rgba(167,139,250,0.15)', 'rgba(167,139,250,0.35)')}>🔀 Transferred</button>
       )}
-      {isAdmin && status !== 'booked' && status !== 'closed_deal' && (
-        <button onClick={stop(onBooked)} style={btn('#f59e0b', 'rgba(245,158,11,0.15)', 'rgba(245,158,11,0.35)')}>📗 Booked</button>
+      {isAdmin && status === 'prospect' && (
+        <button onClick={stop(onEmailSent)} style={btn('#f59e0b', 'rgba(245,158,11,0.15)', 'rgba(245,158,11,0.35)')}>📧 Email Sent</button>
       )}
       {isAdmin && status !== 'closed_deal' && (
         <button onClick={stop(onClosedDeal)} style={btn('#c084fc', 'rgba(192,132,252,0.12)', 'rgba(192,132,252,0.3)')}>💎 Closed Deal</button>

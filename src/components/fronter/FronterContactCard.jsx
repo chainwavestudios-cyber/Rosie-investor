@@ -199,9 +199,9 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
     } catch (e) { alert('Transfer failed: ' + (e?.message || String(e))); }
   };
 
-  const markBooked = () => {
+  const markEmailSent = () => {
     if (!isAdmin) return;
-    setDisposition({ status: 'booked', lastCallResult: 'booked', bookedAt: new Date().toISOString(), bookedBy: username }, `Mark ${local.firstName || 'this contact'} as Booked?`);
+    setDisposition({ status: 'lead', lastCallResult: 'email_sent' }, `Mark ${local.firstName || 'this contact'} as Email Sent? This promotes them to a Lead.`);
   };
 
   const handleCallResult = async (result) => {
@@ -303,7 +303,7 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
             onCreds={() => setShowCredsPopup(true)}
             onInterested={() => { setMeetingDisposition('interested'); setShowMeetingScheduler(true); }}
             onTransferred={markTransferred}
-            onBooked={markBooked}
+            onEmailSent={markEmailSent}
             onClosedDeal={markClosedDeal}
             onNext={onNext}
             onClose={onClose}
