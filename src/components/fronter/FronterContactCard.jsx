@@ -516,7 +516,7 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
           )}
 
           {cardTab === 'ai_populate' && (
-            <AIPopulateTab lead={local} />
+            <AIPopulateTab lead={local} leadType="fronter" />
           )}
         </div>
 

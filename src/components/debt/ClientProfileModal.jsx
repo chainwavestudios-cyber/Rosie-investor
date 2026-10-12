@@ -540,7 +540,7 @@ export default function ClientProfileModal({ lead, username, onClose, onSave }) 
         )}
 
         {tab === 'ai_populate' && (
-          <AIPopulateTab lead={local} />
+          <AIPopulateTab lead={local} leadType="debt" onUpdate={() => setLocal(prev => ({ ...prev, _aiPopulatedAt: Date.now() }))} />
         )}
       </div>
       {panel.resizeHandles}

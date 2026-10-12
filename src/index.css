@@ -143,4 +143,8 @@
     0%, 100% { text-shadow: 0 0 4px currentColor; }
     50% { text-shadow: 0 0 12px currentColor, 0 0 20px currentColor; }
   }
+
+  @keyframes ai-populate-spin {
+    to { transform: rotate(360deg); }
+  }
 }
