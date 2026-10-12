@@ -226,6 +226,8 @@ export default function FronterPage() {
     return <FronterOnboarding username={user.username} mustResetPassword={mustResetPassword} onDone={() => setAgreementNeeded(false)} />;
   }
 
+  const statusColor = fronterStatus === 'dialing' ? GOLD : fronterStatus === 'bob_training' ? '#a78bfa' : fronterStatus === 'lunch_break' ? '#f59e0b' : fronterStatus === 'bathroom_break' ? '#60a5fa' : '#6b7280';
+
   return (
     <div style={{ minHeight: '100vh', background: DARK, fontFamily: 'Georgia, serif', color: '#e8e0d0' }}>
       <style>{`@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}`}</style>
@@ -241,6 +243,15 @@ export default function FronterPage() {
         </div>
         <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
           <FronterTimeCardButton username={user.username} />
+          {(isFronter || isSuperAdmin) && (
+            <select value={fronterStatus} onChange={e => handleFronterStatusChange(e.target.value)} title="My Status" style={{ background: `${statusColor}18`, border: `1px solid ${statusColor}44`, borderRadius: '4px', padding: '5px 8px', color: statusColor, fontSize: '11px', cursor: 'pointer', fontFamily: 'Georgia, serif' }}>
+              <option value="dialing">📞 Dialing</option>
+              <option value="bob_training">🤖 BOB Training</option>
+              <option value="lunch_break">🍽️ Lunch Break</option>
+              <option value="bathroom_break">🚻 Bathroom Break</option>
+              <option value="offline">⭕ Offline</option>
+            </select>
+          )}
           {/* Daily metrics for this user */}
           <div style={{ display: 'flex', gap: '14px', alignItems: 'center', padding: '0 14px', borderLeft: '1px solid rgba(255,255,255,0.07)', borderRight: '1px solid rgba(255,255,255,0.07)' }}>
             <div style={{ textAlign: 'center' }}>
@@ -260,13 +271,6 @@ export default function FronterPage() {
           <button onClick={() => setShowCallCard(p => !p)} title="Call Card (Alt+C)" style={{ background: showCallCard ? `${GOLD}30` : `${GOLD}18`, color: GOLD, border: `1px solid ${GOLD}44`, borderRadius: '4px', padding: '6px 12px', cursor: 'pointer', fontSize: '14px' }}>📞</button>
           {isAdmin && (
             <button onClick={() => setShowMonitor(p => !p)} title="Fronter Monitor" style={{ background: showMonitor ? `${BLUE}30` : `${BLUE}18`, color: BLUE, border: `1px solid ${BLUE}44`, borderRadius: '4px', padding: '6px 12px', cursor: 'pointer', fontSize: '14px' }}>📡</button>
-          )}
-          {isFronter && (
-            <select value={fronterStatus} onChange={e => handleFronterStatusChange(e.target.value)} title="My Status" style={{ background: 'rgba(255,255,255,0.05)', border: `1px solid ${fronterStatus === 'dialing' ? GOLD + '44' : fronterStatus === 'lunch_break' ? '#f59e0b44' : fronterStatus === 'bathroom_break' ? '#60a5fa44' : 'rgba(255,255,255,0.12)'}`, borderRadius: '4px', padding: '5px 8px', color: fronterStatus === 'dialing' ? GOLD : fronterStatus === 'lunch_break' ? '#f59e0b' : fronterStatus === 'bathroom_break' ? '#60a5fa' : '#8a9ab8', fontSize: '11px', cursor: 'pointer', fontFamily: 'Georgia, serif' }}>
-              <option value="dialing">📞 Dialing</option>
-              <option value="lunch_break">🍽️ Lunch Break</option>
-              <option value="bathroom_break">🚻 Bathroom Break</option>
-            </select>
           )}
           {isAdmin && (
             <button onClick={() => navigate('/debt-call-coach', { replace: true })} style={{ background: 'rgba(255,255,255,0.05)', color: '#8a9ab8', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '4px', padding: '6px 14px', cursor: 'pointer', fontSize: '11px' }}>← Back to Coach</button>

@@ -28,9 +28,10 @@
     },
     "fronterStatus": {
       "type": "string",
-      "title": "Fronter Status (dialing, lunch, bathroom, offline)",
+      "title": "Fronter Status (dialing, bob_training, lunch, bathroom, offline)",
       "enum": [
         "dialing",
+        "bob_training",
         "lunch_break",
         "bathroom_break",
         "offline"

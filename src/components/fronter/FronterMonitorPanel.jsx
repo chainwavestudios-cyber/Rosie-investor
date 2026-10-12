@@ -17,6 +17,7 @@ const RED = '#ef4444';
 
 const STATUS_CONFIG = {
   dialing: { label: 'Dialing', color: GOLD, icon: '📞' },
+  bob_training: { label: 'BOB Training', color: PURPLE, icon: '🤖' },
   lunch_break: { label: 'Lunch Break', color: AMBER, icon: '🍽️' },
   bathroom_break: { label: 'Bathroom Break', color: BLUE, icon: '🚻' },
   offline: { label: 'Offline', color: '#6b7280', icon: '⭕' },
@@ -42,6 +43,10 @@ export default function FronterMonitorPanel({ onClose, adminUsername, onOpenLead
   const [transcripts, setTranscripts] = useState({});
   const [callsToday, setCallsToday] = useState({});
   const [credsToday, setCredsToday] = useState({});
+  const [bobCallsToday, setBobCallsToday] = useState({});
+  const [talkTimeToday, setTalkTimeToday] = useState({});
+  const [transfersToday, setTransfersToday] = useState({});
+  const [bobTranscripts, setBobTranscripts] = useState({});
   const [refreshing, setRefreshing] = useState({});
   const [lineAssignments, setLineAssignments] = useState([]);
   const [now, setNow] = useState(Date.now());
@@ -184,10 +189,12 @@ export default function FronterMonitorPanel({ onClose, adminUsername, onOpenLead
     try {
       const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
       const todayISO = todayStart.toISOString();
-      const [allSessions, todayTranscripts, credsLeads] = await Promise.all([
+      const [allSessions, todayTranscripts, credsLeads, bobSessions, transferredLeads] = await Promise.all([
         base44.entities.DialerSession.filter({ status: { $in: ['logged_in', 'on_call'] } }, '-loginAt', 100),
         base44.entities.FronterCallTranscript.filter({ callDate: { $gte: todayISO } }, '-callDate', 200),
         base44.entities.FronterLead.filter({ credsSentAt: { $gte: todayISO } }, '-created_date', 200),
+        base44.entities.BobSession.filter({ createdAt: { $gte: todayISO }, sourceType: 'fronter' }, '-createdAt', 200),
+        base44.entities.FronterLead.filter({ status: 'transferred', transferredAt: { $gte: todayISO } }, '-created_date', 200),
       ]);
       setSessions(allSessions || []);
 
@@ -203,6 +210,34 @@ export default function FronterMonitorPanel({ onClose, adminUsername, onOpenLead
         if (owner) credCounts[owner] = (credCounts[owner] || 0) + 1;
       });
       setCredsToday(credCounts);
+
+      // BOB calls per fronter (today, resets at midnight)
+      const bobCallCounts = {};
+      (bobSessions || []).forEach(s => {
+        if (s.traineeUsername) bobCallCounts[s.traineeUsername] = (bobCallCounts[s.traineeUsername] || 0) + 1;
+      });
+      setBobCallsToday(bobCallCounts);
+
+      // Talk time per fronter (sum of call durations today)
+      const talkTimeSecs = {};
+      (todayTranscripts || []).forEach(t => {
+        talkTimeSecs[t.fronterUsername] = (talkTimeSecs[t.fronterUsername] || 0) + (t.durationSeconds || 0);
+      });
+      setTalkTimeToday(talkTimeSecs);
+
+      // Transfers per fronter (today)
+      const transferCounts = {};
+      (transferredLeads || []).forEach(l => {
+        if (l.assignedTo) transferCounts[l.assignedTo] = (transferCounts[l.assignedTo] || 0) + 1;
+      });
+      setTransfersToday(transferCounts);
+
+      // Latest BOB session per fronter for live transcript (already sorted by -createdAt)
+      const latestBob = {};
+      (bobSessions || []).forEach(s => {
+        if (s.traineeUsername && !latestBob[s.traineeUsername]) latestBob[s.traineeUsername] = s;
+      });
+      setBobTranscripts(latestBob);
 
       const onCallSessions = (allSessions || []).filter(s => s.status === 'on_call');
       const latest = {};
@@ -428,7 +463,7 @@ export default function FronterMonitorPanel({ onClose, adminUsername, onOpenLead
           ) : (
             selected.map(username => {
               const session = getSession(username);
-              return <FronterBox key={username} username={username} session={session} transcript={transcripts[username]} callsTodayCount={callsToday[username] || 0} credsTodayCount={credsToday[username] || 0} now={now} listenStatus={listenStatus[username] || ''} refreshing={!!refreshing[username]} emailAlert={emailAlerts[username] || null} onOpenLead={onOpenLead} onRefresh={() => refreshFronter(username)} onListen={() => handleListen(username)} onBarge={() => handleBarge(username)} onEndListen={() => handleEndListen(username)} />;
+              return <FronterBox key={username} username={username} session={session} transcript={transcripts[username]} callsTodayCount={callsToday[username] || 0} credsTodayCount={credsToday[username] || 0} bobCallsCount={bobCallsToday[username] || 0} talkTimeSeconds={talkTimeToday[username] || 0} transferCount={transfersToday[username] || 0} bobTranscript={bobTranscripts[username] || null} now={now} listenStatus={listenStatus[username] || ''} refreshing={!!refreshing[username]} emailAlert={emailAlerts[username] || null} onOpenLead={onOpenLead} onRefresh={() => refreshFronter(username)} onListen={() => handleListen(username)} onBarge={() => handleBarge(username)} onEndListen={() => handleEndListen(username)} />;
             })
           )}
         </div>
@@ -447,7 +482,7 @@ export default function FronterMonitorPanel({ onClose, adminUsername, onOpenLead
   );
 }
 
-function FronterBox({ username, session, transcript, callsTodayCount, credsTodayCount, now, listenStatus, refreshing, emailAlert, onOpenLead, onRefresh, onListen, onBarge, onEndListen }) {
+function FronterBox({ username, session, transcript, callsTodayCount, credsTodayCount, bobCallsCount, talkTimeSeconds, transferCount, bobTranscript, now, listenStatus, refreshing, emailAlert, onOpenLead, onRefresh, onListen, onBarge, onEndListen }) {
   const status = session?.fronterStatus || 'offline';
   const isOnCall = session?.status === 'on_call';
   const hasConference = !!session?.currentCallConferenceName;
@@ -537,19 +572,49 @@ function FronterBox({ username, session, transcript, callsTodayCount, credsToday
         </div>
       )}
 
+      {/* BOB training live transcript */}
+      {!isOnCall && status === 'bob_training' && bobTranscript && (() => {
+        let bobLines = [];
+        try { bobLines = JSON.parse(bobTranscript.transcriptJson || '[]'); } catch {}
+        return (
+          <div style={{ flex: 1, minHeight: 0, borderTop: '1px solid rgba(167,139,250,0.2)', display: 'flex', flexDirection: 'column' }}>
+            <div style={{ padding: '4px 10px', color: PURPLE, fontSize: '11px', fontWeight: 'bold' }}>🤖 BOB Training · {bobTranscript.bobName || 'BOB'}</div>
+            <div style={{ flex: 1, overflowY: 'auto', padding: '4px 10px', fontSize: '10px', lineHeight: 1.4 }}>
+              {bobLines.length === 0 ? (
+                <div style={{ color: '#4a5568', textAlign: 'center', padding: '8px' }}>Waiting for BOB transcript…</div>
+              ) : (
+                bobLines.slice(-8).map((l, i) => {
+                  const isBob = l.role === 'bob';
+                  return (
+                    <div key={i} style={{ marginBottom: '2px', display: 'flex', gap: '4px' }}>
+                      <span style={{ color: isBob ? GOLD : BLUE, fontWeight: 'bold', flexShrink: 0, minWidth: '32px' }}>{isBob ? 'BOB' : 'Agent'}</span>
+                      <span style={{ color: '#c4cdd8' }}>{l.text}</span>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
+        );
+      })()}
+
       {/* Bottom stats */}
-      <div style={{ padding: '6px 10px', borderTop: '1px solid rgba(255,255,255,0.07)', display: 'flex', gap: '12px', flexShrink: 0, background: 'rgba(0,0,0,0.15)' }}>
+      <div style={{ padding: '6px 10px', borderTop: '1px solid rgba(255,255,255,0.07)', display: 'flex', gap: '10px', flexShrink: 0, background: 'rgba(0,0,0,0.15)' }}>
         <div style={{ textAlign: 'center' }}>
           <div style={{ color: BLUE, fontSize: '13px', fontWeight: 'bold' }}>{callsTodayCount}</div>
           <div style={{ color: '#6b7280', fontSize: '8px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Calls</div>
         </div>
         <div style={{ textAlign: 'center' }}>
-          <div style={{ color: '#4ade80', fontSize: '13px', fontWeight: 'bold' }}>{credsTodayCount}</div>
-          <div style={{ color: '#6b7280', fontSize: '8px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Creds Sent</div>
+          <div style={{ color: GOLD, fontSize: '13px', fontWeight: 'bold' }}>{fmtDur(talkTimeSeconds)}</div>
+          <div style={{ color: '#6b7280', fontSize: '8px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Talk Time</div>
         </div>
         <div style={{ textAlign: 'center' }}>
-          <div style={{ color: GOLD, fontSize: '13px', fontWeight: 'bold' }}>{fmtDur(loggedOn)}</div>
-          <div style={{ color: '#6b7280', fontSize: '8px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Logged On</div>
+          <div style={{ color: '#a78bfa', fontSize: '13px', fontWeight: 'bold' }}>{transferCount}</div>
+          <div style={{ color: '#6b7280', fontSize: '8px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Transfers</div>
+        </div>
+        <div style={{ textAlign: 'center' }}>
+          <div style={{ color: PURPLE, fontSize: '13px', fontWeight: 'bold' }}>{bobCallsCount}</div>
+          <div style={{ color: '#6b7280', fontSize: '8px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>BOB</div>
         </div>
         <div style={{ textAlign: 'center' }}>
           <div style={{ color: statusCfg.color, fontSize: '13px', fontWeight: 'bold' }}>{fmtDur(statusDur)}</div>
