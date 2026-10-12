@@ -74,7 +74,7 @@ export default function FronterPage() {
   const loadLine = useCallback(async () => {
     if (!user?.username) return;
     try {
-      const assignments = await base44.entities.FronterLineAssignment.filter({ username: user.username });
+      const assignments = await base44.entities.FronterLineAssignment.filter({ username: { $regex: `^${user.username.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, $options: 'i' } });
       setLineAssignment(assignments?.[0] || null);
       // Admins can always pick from all available lines
       if (isAdmin) {
@@ -120,7 +120,7 @@ export default function FronterPage() {
     if (!user?.username || !isFronter) { setAgreementLoaded(true); return; }
     const check = async () => {
       try {
-        const existing = await base44.entities.FronterAgreement.filter({ username: user.username });
+        const existing = await base44.entities.FronterAgreement.filter({ username: { $regex: `^${user.username.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, $options: 'i' } });
         if (!existing || existing.length === 0) setAgreementNeeded(true);
       } catch {}
       setAgreementLoaded(true);
@@ -133,7 +133,7 @@ export default function FronterPage() {
     if (!user?.username || !isFronter) return;
     const initSession = async () => {
       try {
-        const sessions = await base44.entities.DialerSession.filter({ username: user.username });
+        const sessions = await base44.entities.DialerSession.filter({ username: { $regex: `^${user.username.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, $options: 'i' } });
         if (sessions?.[0]) {
           const s = sessions[0];
           setFronterStatus(s.fronterStatus || 'dialing');
@@ -161,7 +161,7 @@ export default function FronterPage() {
     setFronterStatus(newStatus);
     if (!user?.username) return;
     try {
-      const sessions = await base44.entities.DialerSession.filter({ username: user.username });
+      const sessions = await base44.entities.DialerSession.filter({ username: { $regex: `^${user.username.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, $options: 'i' } });
       if (sessions?.[0]) {
         await base44.entities.DialerSession.update(sessions[0].id, {
           fronterStatus: newStatus,
@@ -176,7 +176,7 @@ export default function FronterPage() {
     if (!user?.username) return;
     const compute = async () => {
       try {
-        const all = await base44.entities.FronterLead.filter({ assignedTo: user.username }, '-created_date', 500);
+        const all = await base44.entities.FronterLead.filter({ assignedTo: { $regex: `^${user.username.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, $options: 'i' } }, '-created_date', 500);
         const today = new Date(); today.setHours(0, 0, 0, 0);
         const todayLeads = (all || []).filter(l => l.lastCalledAt && new Date(l.lastCalledAt) >= today);
         const callsToday = todayLeads.length;

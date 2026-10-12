@@ -35,19 +35,20 @@ export default function FronterLeadsTab({ username, lineKey, lineNumber, isAdmin
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      // Admin sees all active leads; fronter sees only their own
+      // Admin sees all active leads; fronter sees only their own (case-insensitive match)
       const raw = isAdmin
         ? await base44.entities.FronterLead.list('-created_date', 500)
-        : await base44.entities.FronterLead.filter({ assignedTo: username }, '-created_date', 500);
+        : await base44.entities.FronterLead.filter({ assignedTo: { $regex: `^${(username || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, $options: 'i' } }, '-created_date', 500);
       const all = Array.isArray(raw) ? raw : (raw?.items || []);
       // Prospects: ONLY status === 'prospect' (never show converted leads)
       // Leads: ONLY status === 'lead' or 'transferred' (never show prospects)
       let active = mode === 'leads'
         ? all.filter(l => l.status === 'lead' || l.status === 'transferred' || l.status === 'booked')
         : all.filter(l => l.status === 'prospect' && (l.callCount || 0) < 3);
-      // Admin fronter filter
+      // Admin fronter filter (case-insensitive)
       if (isAdmin && fronterFilter) {
-        active = active.filter(l => l.assignedTo === fronterFilter);
+        const ff = fronterFilter.toLowerCase();
+        active = active.filter(l => (l.assignedTo || '').toLowerCase() === ff);
       }
       const sorted = [...active].sort((a, b) => {
         if (!a.lastCalledAt && b.lastCalledAt) return -1;

@@ -43,13 +43,16 @@ export function DebtCoachAuthProvider({ children }) {
     setSessionToken(data.sessionToken);
     localStorage.setItem(STORAGE_KEY, JSON.stringify({ userId: data.user.id, token: data.sessionToken }));
     // Mark old sessions offline, then create a new DialerSession for presence tracking
+    // Use the canonical username from the DB (always lowercase) so session records
+    // match regardless of the casing the user typed at login.
     try {
-      const oldSessions = await base44.entities.DialerSession.filter({ username });
+      const canon = data.user.username;
+      const oldSessions = await base44.entities.DialerSession.filter({ username: canon });
       const active = (oldSessions || []).filter(s => s.status === 'logged_in' || s.status === 'on_call');
       for (const s of active) {
         await base44.entities.DialerSession.update(s.id, { status: 'offline', logoutAt: new Date().toISOString() });
       }
-      await base44.entities.DialerSession.create({ username, loginAt: new Date().toISOString(), status: 'logged_in' });
+      await base44.entities.DialerSession.create({ username: canon, loginAt: new Date().toISOString(), status: 'logged_in' });
     } catch {}
     return data;
   }, []);
@@ -62,12 +65,13 @@ export function DebtCoachAuthProvider({ children }) {
     setSessionToken(data.sessionToken);
     localStorage.setItem(STORAGE_KEY, JSON.stringify({ userId: data.user.id, token: data.sessionToken }));
     try {
-      const oldSessions = await base44.entities.DialerSession.filter({ username });
+      const canon = data.user.username;
+      const oldSessions = await base44.entities.DialerSession.filter({ username: canon });
       const active = (oldSessions || []).filter(s => s.status === 'logged_in' || s.status === 'on_call');
       for (const s of active) {
         await base44.entities.DialerSession.update(s.id, { status: 'offline', logoutAt: new Date().toISOString() });
       }
-      await base44.entities.DialerSession.create({ username, loginAt: new Date().toISOString(), status: 'logged_in' });
+      await base44.entities.DialerSession.create({ username: canon, loginAt: new Date().toISOString(), status: 'logged_in' });
     } catch {}
     return data;
   }, []);
