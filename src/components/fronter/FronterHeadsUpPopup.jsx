@@ -1,7 +1,7 @@
 /**
  * FronterHeadsUpPopup.jsx — Polls for active FronterHeadsUp alerts and shows
- * a popup with an audio tone for super admins on the /fronter page.
- * Popup shows: lead name (clickable to open contact card), LISTEN TO CALL button,
+ * a TRANSFER popup with green pulsing LED edges for super admins on /fronter.
+ * Popup shows: TRANSFER label, fronter name, lead name (clickable), LISTEN button,
  * and a close button. Plays a repeating beep tone until closed.
  */
 import { useState, useEffect, useRef, useCallback } from 'react';
@@ -37,23 +37,24 @@ function playAlertTone() {
 export default function FronterHeadsUpPopup({ adminUsername, onListen, onOpenLead }) {
   const [alerts, setAlerts] = useState([]);
   const [dismissed, setDismissed] = useState(new Set());
-  const prevCountRef = useRef(0);
+  const prevIdsRef = useRef(new Set());
 
   const load = useCallback(async () => {
     try {
       const active = await base44.entities.FronterHeadsUp.filter({ status: 'active' }, '-createdAt', 20);
       const newAlerts = (active || []).filter(a => !dismissed.has(a.id));
-      if (newAlerts.length > prevCountRef.current) {
-        playAlertTone();
-      }
-      prevCountRef.current = newAlerts.length;
+      // Play tone only for genuinely new alerts (not seen before)
+      const currentIds = new Set(newAlerts.map(a => a.id));
+      const hasNew = newAlerts.some(a => !prevIdsRef.current.has(a.id));
+      if (hasNew) playAlertTone();
+      prevIdsRef.current = currentIds;
       setAlerts(newAlerts);
     } catch {}
   }, [dismissed]);
 
   useEffect(() => {
     load();
-    const iv = setInterval(load, 5000);
+    const iv = setInterval(load, 3000);
     return () => clearInterval(iv);
   }, [load]);
 
@@ -75,22 +76,43 @@ export default function FronterHeadsUpPopup({ adminUsername, onListen, onOpenLea
 
   return (
     <>
+      <style>{`
+        @keyframes transfer-led-pulse {
+          0%, 100% { box-shadow: 0 0 8px rgba(16,185,129,0.6), 0 0 24px rgba(16,185,129,0.4), 0 0 48px rgba(16,185,129,0.2), 0 16px 64px rgba(0,0,0,0.7); }
+          50% { box-shadow: 0 0 20px rgba(16,185,129,1), 0 0 48px rgba(16,185,129,0.7), 0 0 80px rgba(16,185,129,0.4), 0 16px 64px rgba(0,0,0,0.7); }
+        }
+        @keyframes transfer-border-blink {
+          0%, 100% { border-color: rgba(16,185,129,0.5); }
+          50% { border-color: #10b981; }
+        }
+        @keyframes transfer-led-dot {
+          0%, 100% { opacity: 1; box-shadow: 0 0 6px rgba(16,185,129,1), 0 0 12px rgba(16,185,129,0.6); }
+          50% { opacity: 0.3; box-shadow: 0 0 3px rgba(16,185,129,0.3); }
+        }
+      `}</style>
       {alerts.map(alert => (
-        <div key={alert.id} style={{ position: 'fixed', top: '20px', right: '20px', width: '340px', background: '#0d1b2a', border: '2px solid ' + RED, borderRadius: '10px', boxShadow: '0 16px 64px rgba(239,68,68,0.4)', zIndex: 10002, animation: 'pulse 1s infinite' }}>
-          <div style={{ padding: '12px 16px', borderBottom: '1px solid ' + RED + '33', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: RED + '12', borderRadius: '10px 10px 0 0' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span style={{ fontSize: '20px' }}>🚨</span>
-              <span style={{ color: RED, fontSize: '13px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase' }}>Heads Up!</span>
+        <div key={alert.id} style={{
+          position: 'fixed', top: '20px', right: '20px', width: '360px', background: '#0d1b2a',
+          border: '3px solid #10b981', borderRadius: '10px',
+          animation: 'transfer-led-pulse 1s ease-in-out infinite, transfer-border-blink 0.8s ease-in-out infinite',
+          zIndex: 10002,
+        }}>
+          {/* Header */}
+          <div style={{ padding: '14px 16px', borderBottom: '1px solid rgba(16,185,129,0.3)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(16,185,129,0.08)', borderRadius: '7px 7px 0 0' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <div style={{ width: 12, height: 12, borderRadius: '50%', background: '#10b981', animation: 'transfer-led-dot 0.6s ease-in-out infinite' }} />
+              <span style={{ color: '#10b981', fontSize: '18px', fontWeight: 'bold', letterSpacing: '3px', textTransform: 'uppercase' }}>TRANSFER</span>
             </div>
-            <button onClick={() => closeAlert(alert)} style={{ background: 'rgba(239,68,68,0.2)', border: '1px solid ' + RED + '44', color: RED, borderRadius: '4px', padding: '4px 10px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>✕ Close</button>
+            <button onClick={() => closeAlert(alert)} style={{ background: 'rgba(16,185,129,0.15)', border: '1px solid rgba(16,185,129,0.4)', color: '#10b981', borderRadius: '4px', padding: '4px 10px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>✕ Close</button>
           </div>
 
+          {/* Body */}
           <div style={{ padding: '16px' }}>
             <div style={{ color: '#6b7280', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '4px' }}>From Fronter</div>
-            <div style={{ color: AMBER, fontSize: '13px', fontWeight: 'bold', marginBottom: '12px' }}>{alert.fronterUsername}</div>
+            <div style={{ color: AMBER, fontSize: '14px', fontWeight: 'bold', marginBottom: '14px' }}>{alert.fronterUsername}</div>
 
             <div style={{ color: '#6b7280', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '4px' }}>Lead</div>
-            <button onClick={() => onOpenLead?.(alert.leadId)} style={{ display: 'block', background: GOLD + '12', border: '1px solid ' + GOLD + '33', color: GOLD, borderRadius: '4px', padding: '8px 12px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold', textAlign: 'left', marginBottom: '12px', width: '100%' }}>
+            <button onClick={() => onOpenLead?.(alert.leadId)} style={{ display: 'block', background: 'rgba(16,185,129,0.12)', border: '1px solid rgba(16,185,129,0.33)', color: '#10b981', borderRadius: '4px', padding: '10px 12px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold', textAlign: 'left', marginBottom: '14px', width: '100%' }}>
               👤 {alert.leadName || 'Unknown Lead'}
               {alert.leadPhone && <span style={{ color: '#6b7280', fontSize: '11px', fontWeight: 'normal', marginLeft: '8px' }}>· {alert.leadPhone}</span>}
             </button>
