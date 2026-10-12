@@ -239,7 +239,7 @@ Provide your analysis as JSON with these fields:
     call.on('disconnect', async () => {
       // Auto-connect merge if fronter disconnects during connected phase
       if (mergeStepRef.current === 'connected' && conferenceNameRef.current) {
-        try { await base44.functions.invoke('fronterCall', { action: 'mergeConnect', conferenceName: conferenceNameRef.current }); } catch {}
+        try { await base44.functions.invoke('fronterCall', { action: 'mergeConnect', conferenceName: conferenceNameRef.current, fronterCallSid: callRef.current?.parameters?.CallSid }); } catch {}
       }
       stopTimer();
       if (saveIntervalRef.current) { clearInterval(saveIntervalRef.current); saveIntervalRef.current = null; }
@@ -377,7 +377,7 @@ Provide your analysis as JSON with these fields:
   const handleMergeConnect = async () => {
     setBusy(true); setError('');
     try {
-      await base44.functions.invoke('fronterCall', { action: 'mergeConnect', conferenceName });
+      await base44.functions.invoke('fronterCall', { action: 'mergeConnect', conferenceName, fronterCallSid: callRef.current?.parameters?.CallSid });
       setMerged(true); setMergeStep('idle'); setShowMergeInput(false);
     } catch (e) { setError('Connect failed: ' + (e?.message || String(e))); }
     setBusy(false);

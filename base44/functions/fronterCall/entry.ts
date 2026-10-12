@@ -58,6 +58,37 @@ async function getHoldAudioUrl(req: Request): Promise<string> {
   return '';
 }
 
+// Fronter's browser call SID is encoded in the conference name (fronter_conf_<CallSid>)
+function fronterSidFromConf(name: string): string {
+  return (name || '').startsWith('fronter_conf_') ? name.slice('fronter_conf_'.length) : '';
+}
+
+// Move customer (child) + fronter (parent) into the conference at the same time,
+// so the parent's <Dial> ending can't hang the fronter up before it is redirected.
+async function moveIntoConference(fronterCallSid: string, confName: string, holdAudioUrl: string): Promise<string | null> {
+  let customerCallSid: string | null = null;
+  try {
+    const childCalls = await twilioFetch(`/Calls.json?ParentCallSid=${fronterCallSid}&Status=in-progress`);
+    customerCallSid = childCalls.calls?.[0]?.sid || null;
+  } catch (e) { console.warn('Child calls lookup failed:', e.message); }
+  await Promise.all([
+    customerCallSid
+      ? twilioFetch(`/Calls/${customerCallSid}.json`, { method: 'POST', body: new URLSearchParams({ Twiml: confTwiML(confName, false, holdAudioUrl) }) }).catch(e => console.warn('Customer redirect failed:', e.message))
+      : Promise.resolve(),
+    twilioFetch(`/Calls/${fronterCallSid}.json`, { method: 'POST', body: new URLSearchParams({ Twiml: confTwiML(confName, false, '') }) }).catch(e => console.warn('Fronter redirect failed:', e.message)),
+  ]);
+  return customerCallSid;
+}
+
+async function waitForConference(name: string): Promise<string | null> {
+  for (let i = 0; i < 12; i++) {
+    const sid = await findConferenceSid(name);
+    if (sid) return sid;
+    await new Promise(r => setTimeout(r, 500));
+  }
+  return null;
+}
+
 async function findConferenceSid(name: string): Promise<string | null> {
   const data = await twilioFetch(`/Conferences.json?FriendlyName=${encodeURIComponent(name)}&Status=in-progress`);
   return data.conferences?.[0]?.sid || null;
@@ -179,29 +210,11 @@ Deno.serve(async (req) => {
       const holdAudioUrl = await getHoldAudioUrl(req);
 
       const existingConf = await findConferenceSid(confName);
+      const fronterSid = fronterCallSid || fronterSidFromConf(confName);
 
       if (!existingConf) {
-        // Create conference: redirect customer (on hold) + fronter into it
-        let customerCallSid: string | null = null;
-        try {
-          const childCalls = await twilioFetch(`/Calls.json?ParentCallSid=${fronterCallSid}`);
-          customerCallSid = childCalls.calls?.[0]?.sid || null;
-        } catch {}
-
-        if (customerCallSid) {
-          try {
-            await twilioFetch(`/Calls/${customerCallSid}.json`, {
-              method: 'POST',
-              body: new URLSearchParams({ Twiml: confTwiML(confName, false, holdAudioUrl) }),
-            });
-          } catch (e) { console.warn('Customer redirect failed:', e.message); }
-        }
-        try {
-          await twilioFetch(`/Calls/${fronterCallSid}.json`, {
-            method: 'POST',
-            body: new URLSearchParams({ Twiml: confTwiML(confName, false, '') }),
-          });
-        } catch (e) { console.warn('Fronter redirect failed:', e.message); }
+        // Create conference: move customer + fronter into it together
+        const customerCallSid = await moveIntoConference(fronterSid, confName, holdAudioUrl);
 
         if (customerCallSid && leadId) {
           try {
@@ -214,21 +227,17 @@ Deno.serve(async (req) => {
         }
       }
 
-      // Wait for conference to exist
-      let confSid: string | null = null;
-      for (let i = 0; i < 10; i++) {
-        confSid = await findConferenceSid(confName);
-        if (confSid) break;
-        await new Promise(r => setTimeout(r, 500));
-      }
+      const confSid = await waitForConference(confName);
       if (!confSid) return Response.json({ error: 'Conference not found — the call may have ended' }, { status: 404 });
+      // Give the customer leg a moment to join before holding it
+      await new Promise(r => setTimeout(r, 800));
 
-      // Hold all non-client participants (customer)
+      // Hold everyone except the fronter (i.e. the customer)
       try {
         const participants = await twilioFetch(`/Conferences/${confSid}/Participants.json`);
         for (const p of participants.participants || []) {
-          if (!p.to?.startsWith('client:') && !p.hold) {
-            await twilioFetch(`/Conferences/${confSid}/Participants/${p.callSid}.json`, {
+          if (p.call_sid !== fronterSid && !p.hold) {
+            await twilioFetch(`/Conferences/${confSid}/Participants/${p.call_sid}.json`, {
               method: 'POST',
               body: new URLSearchParams({ Hold: 'true' }),
             });
@@ -258,23 +267,24 @@ Deno.serve(async (req) => {
       const confSid = await findConferenceSid(conferenceName);
       if (!confSid) return Response.json({ error: 'Conference not found' }, { status: 404 });
 
+      const fronterSid = body.fronterCallSid || fronterSidFromConf(conferenceName);
       const participants = await twilioFetch(`/Conferences/${confSid}/Participants.json`);
       // Unhold all held participants (customer)
       for (const p of participants.participants || []) {
         if (p.hold) {
           try {
-            await twilioFetch(`/Conferences/${confSid}/Participants/${p.callSid}.json`, {
+            await twilioFetch(`/Conferences/${confSid}/Participants/${p.call_sid}.json`, {
               method: 'POST',
               body: new URLSearchParams({ Hold: 'false' }),
             });
           } catch (e) { console.warn('Unhold failed:', e.message); }
         }
       }
-      // Remove fronter's browser leg (client: participant)
+      // Remove fronter's browser leg
       for (const p of participants.participants || []) {
-        if (p.to?.startsWith('client:')) {
+        if (fronterSid && p.call_sid === fronterSid) {
           try {
-            await twilioFetch(`/Conferences/${confSid}/Participants/${p.callSid}.json`, {
+            await twilioFetch(`/Conferences/${confSid}/Participants/${p.call_sid}.json`, {
               method: 'POST',
               body: new URLSearchParams({ Status: 'completed' }),
             });
@@ -295,44 +305,13 @@ Deno.serve(async (req) => {
       const existingConf = await findConferenceSid(confName);
 
       if (!existingConf) {
-        // First hold — convert 1:1 call to conference.
-        // Redirect the customer (child) BEFORE the fronter (parent) —
-        // redirecting the parent first tears down the child call.
-        // The customer's conference TwiML includes waitUrl (custom hold audio)
-        // so when they're put on hold via Hold=true, they hear the custom audio
-        // instead of Twilio's default hold music.
-        let customerCallSid: string | null = null;
-        try {
-          const childCalls = await twilioFetch(`/Calls.json?ParentCallSid=${fronterCallSid}`);
-          customerCallSid = childCalls.calls?.[0]?.sid || null;
-        } catch (e) { console.warn('Child calls lookup failed:', e.message); }
-
-        if (customerCallSid) {
-          try {
-            await twilioFetch(`/Calls/${customerCallSid}.json`, {
-              method: 'POST',
-              body: new URLSearchParams({ Twiml: confTwiML(confName, false, holdAudioUrl) }),
-            });
-          } catch (e) { console.warn('Customer redirect failed:', e.message); }
-        }
-        // Redirect the fronter's parent leg into the conference (no waitUrl —
-        // fronter is not put on hold).
-        try {
-          await twilioFetch(`/Calls/${fronterCallSid}.json`, {
-            method: 'POST',
-            body: new URLSearchParams({ Twiml: confTwiML(confName, false, '') }),
-          });
-        } catch (e) { console.warn('Fronter redirect failed:', e.message); }
+        // First hold — convert 1:1 call to conference (customer gets custom hold audio as waitUrl)
+        await moveIntoConference(fronterCallSid, confName, holdAudioUrl);
       }
 
-      // Wait for conference to exist, then hold the customer's participant
-      let confSid: string | null = null;
-      for (let i = 0; i < 10; i++) {
-        confSid = await findConferenceSid(confName);
-        if (confSid) break;
-        await new Promise(r => setTimeout(r, 500));
-      }
+      const confSid = await waitForConference(confName);
       if (!confSid) return Response.json({ error: 'Conference not found — the call may have ended' }, { status: 404 });
+      await new Promise(r => setTimeout(r, 800));
 
       let participants: any;
       try {
@@ -340,11 +319,11 @@ Deno.serve(async (req) => {
       } catch (e) {
         return Response.json({ error: 'Failed to list conference participants: ' + e.message }, { status: 500 });
       }
-      // Hold all non-client participants (the customer, not the fronter browser leg)
+      // Hold everyone except the fronter's browser leg
       for (const p of participants.participants || []) {
-        if (!p.to?.startsWith('client:')) {
+        if (p.call_sid !== fronterCallSid) {
           try {
-            await twilioFetch(`/Conferences/${confSid}/Participants/${p.callSid}.json`, {
+            await twilioFetch(`/Conferences/${confSid}/Participants/${p.call_sid}.json`, {
               method: 'POST',
               body: new URLSearchParams({ Hold: 'true' }),
             });
@@ -366,7 +345,7 @@ Deno.serve(async (req) => {
       const participants = await twilioFetch(`/Conferences/${confSid}/Participants.json`);
       for (const p of participants.participants || []) {
         if (p.hold) {
-          await twilioFetch(`/Conferences/${confSid}/Participants/${p.callSid}.json`, {
+          await twilioFetch(`/Conferences/${confSid}/Participants/${p.call_sid}.json`, {
             method: 'POST',
             body: new URLSearchParams({ Hold: 'false' }),
           });
@@ -387,9 +366,10 @@ Deno.serve(async (req) => {
         const confSid = await findConferenceSid(conferenceName);
         if (confSid) {
           const participants = await twilioFetch(`/Conferences/${confSid}/Participants.json`);
-          const customerPart = (participants.participants || []).find((p: any) => !p.to?.startsWith('client:'));
+          const fSid = fronterCallSid || fronterSidFromConf(conferenceName);
+          const customerPart = (participants.participants || []).find((p: any) => p.call_sid !== fSid);
           if (customerPart) {
-            await twilioFetch(`/Calls/${customerPart.callSid}.json`, {
+            await twilioFetch(`/Calls/${customerPart.call_sid}.json`, {
               method: 'POST',
               body: new URLSearchParams({ Twiml: transferTwiML }),
             });
@@ -528,7 +508,7 @@ Deno.serve(async (req) => {
       for (const p of participants.participants || []) {
         if (p.to?.startsWith('client:') && p.to !== adminIdentity) {
           try {
-            await twilioFetch(`/Conferences/${confSid}/Participants/${p.callSid}.json`, {
+            await twilioFetch(`/Conferences/${confSid}/Participants/${p.call_sid}.json`, {
               method: 'POST',
               body: new URLSearchParams({ Status: 'completed' }),
             });
@@ -579,7 +559,7 @@ Deno.serve(async (req) => {
       return Response.json({
         ok: true,
         participants: (participants.participants || []).map((p: any) => ({
-          callSid: p.callSid,
+          callSid: p.call_sid,
           from: p.from,
           to: p.to,
           muted: p.muted,
