@@ -156,7 +156,8 @@ function generateAgreementPdf(fullName, dateStr, username) {
 }
 
 export default function FronterOnboarding({ username, onDone, mustResetPassword: mustReset = false }) {
-  const { resetMyPassword } = useDebtCoachAuth();
+  const { resetMyPassword, user: authUser } = useDebtCoachAuth();
+  const contractRequired = authUser?.contractRequired !== false;
   const [step, setStep] = useState(mustReset ? 1 : 2);
   const [pwForm, setPwForm] = useState({ newPassword: '', confirm: '' });
   const [pwSaving, setPwSaving] = useState(false);
@@ -229,8 +230,8 @@ export default function FronterOnboarding({ username, onDone, mustResetPassword:
     } catch (e) { setEmailStatus('error: ' + (e?.message || String(e))); }
   };
 
-  const steps = mustReset ? [1, 2, 3, 4] : [2, 3, 4];
-  const stepLabels = { 1: 'Password', 2: 'Details', 3: 'Agreement', 4: 'Welcome' };
+  const steps = contractRequired ? (mustReset ? [1, 2, 3, 4] : [2, 3, 4]) : (mustReset ? [1, 2] : [2]);
+  const stepLabels = { 1: 'Password', 2: 'Details', ...(contractRequired ? { 3: 'Agreement', 4: 'Welcome' } : { 3: 'Welcome', 4: 'Welcome' }) };
 
   return (
     <div style={{ minHeight: '100vh', background: DARK, fontFamily: 'Georgia, serif', color: '#e8e0d0', display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '40px 20px' }}>
@@ -292,8 +293,8 @@ export default function FronterOnboarding({ username, onDone, mustResetPassword:
                 <input value={form.email} onChange={e => setForm(p => ({ ...p, email: e.target.value }))} style={inp} placeholder="you@email.com" />
               </div>
             </div>
-            <button onClick={() => setStep(3)} disabled={!canSubmitForm} style={{ width: '100%', background: 'linear-gradient(135deg,#10b981,#22c55e)', color: DARK, border: 'none', borderRadius: '6px', padding: '12px', cursor: canSubmitForm ? 'pointer' : 'not-allowed', fontSize: '13px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase', opacity: canSubmitForm ? 1 : 0.4 }}>
-              Continue to Agreement →
+            <button onClick={() => contractRequired ? setStep(3) : onDone()} disabled={!canSubmitForm} style={{ width: '100%', background: 'linear-gradient(135deg,#10b981,#22c55e)', color: DARK, border: 'none', borderRadius: '6px', padding: '12px', cursor: canSubmitForm ? 'pointer' : 'not-allowed', fontSize: '13px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase', opacity: canSubmitForm ? 1 : 0.4 }}>
+              {contractRequired ? 'Continue to Agreement →' : '🚀 Enter Dashboard — Welcome Aboard!'}
             </button>
           </div>
         )}

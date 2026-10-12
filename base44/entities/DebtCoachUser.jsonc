@@ -71,6 +71,11 @@
     "createdBy": {
       "type": "string",
       "title": "Created By (username)"
+    },
+    "contractRequired": {
+      "type": "boolean",
+      "title": "Contract Required (generate Dialer Agreement on onboarding)",
+      "default": true
     }
   },
   "required": [

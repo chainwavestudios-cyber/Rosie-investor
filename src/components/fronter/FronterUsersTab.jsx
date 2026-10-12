@@ -17,7 +17,7 @@ export default function FronterUsersTab({ adminUsername }) {
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
-  const [form, setForm] = useState({ firstName: '', lastName: '', username: '', password: '', confirmPassword: '', email: '' });
+  const [form, setForm] = useState({ firstName: '', lastName: '', username: '', password: '', confirmPassword: '', email: '', contractRequired: true });
   const [resetPasswordId, setResetPasswordId] = useState(null);
   const [newPassword, setNewPassword] = useState('');
   const [confirmNewPassword, setConfirmNewPassword] = useState('');
@@ -35,7 +35,7 @@ export default function FronterUsersTab({ adminUsername }) {
   useEffect(() => { load(); }, [load]);
 
   const resetForm = () => {
-    setForm({ firstName: '', lastName: '', username: '', password: '', confirmPassword: '', email: '' });
+    setForm({ firstName: '', lastName: '', username: '', password: '', confirmPassword: '', email: '', contractRequired: true });
     setEditingId(null);
     setShowForm(false);
   };
@@ -52,11 +52,12 @@ export default function FronterUsersTab({ adminUsername }) {
     setSaving(true);
     try {
       if (editingId) {
-        // Edit existing — update name/email only
+        // Edit existing — update name/email/contract only
         await base44.entities.DebtCoachUser.update(editingId, {
           firstName: form.firstName.trim(),
           lastName: form.lastName.trim(),
           email: form.email.trim(),
+          contractRequired: form.contractRequired !== false,
         });
         // If password provided, hash and update
         if (form.password.trim()) {
@@ -89,6 +90,7 @@ export default function FronterUsersTab({ adminUsername }) {
           isActive: true,
           mustResetPassword: true,
           createdBy: adminUsername,
+          contractRequired: form.contractRequired !== false,
         });
         resetForm();
         load();
@@ -116,7 +118,7 @@ export default function FronterUsersTab({ adminUsername }) {
 
   const startEdit = (user) => {
     setEditingId(user.id);
-    setForm({ firstName: user.firstName || '', lastName: user.lastName || '', username: user.username, password: '', confirmPassword: '', email: user.email || '' });
+    setForm({ firstName: user.firstName || '', lastName: user.lastName || '', username: user.username, password: '', confirmPassword: '', email: user.email || '', contractRequired: user.contractRequired !== false });
     setShowForm(true);
   };
 
@@ -171,6 +173,10 @@ export default function FronterUsersTab({ adminUsername }) {
               {form.confirmPassword && form.password === form.confirmPassword && <div style={{ color: GOLD, fontSize: '10px', marginTop: '4px' }}>✓ Passwords match</div>}
             </div>
           </div>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px', cursor: 'pointer' }}>
+            <input type="checkbox" checked={form.contractRequired !== false} onChange={e => setForm(p => ({ ...p, contractRequired: e.target.checked }))} style={{ width: '16px', height: '16px', cursor: 'pointer' }} />
+            <span style={{ color: '#8a9ab8', fontSize: '12px' }}>Require Dialer Agreement contract on onboarding {form.contractRequired === false ? <span style={{ color: '#f59e0b', fontSize: '10px' }}>(no contract will be generated)</span> : <span style={{ color: GOLD, fontSize: '10px' }}>(contract generated on first login)</span>}</span>
+          </label>
           <div style={{ display: 'flex', gap: '8px' }}>
             <button onClick={saveUser} disabled={saving || !form.firstName.trim() || !form.lastName.trim() || !form.username.trim() || !form.email.trim() || (!editingId && !form.password.trim()) || (!!form.password.trim() && form.password !== form.confirmPassword)} style={{ background: 'linear-gradient(135deg,#10b981,#22c55e)', color: DARK, border: 'none', borderRadius: '4px', padding: '8px 18px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', opacity: saving ? 0.5 : 1 }}>{saving ? '⏳ Saving…' : editingId ? 'Update User' : 'Create User'}</button>
             <button onClick={resetForm} style={{ background: 'rgba(255,255,255,0.05)', color: '#8a9ab8', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '4px', padding: '8px 18px', cursor: 'pointer', fontSize: '11px' }}>Cancel</button>

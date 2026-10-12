@@ -120,6 +120,8 @@ export default function FronterPage() {
     if (!user?.username || !isFronter) { setAgreementLoaded(true); return; }
     const check = async () => {
       try {
+        // Users marked as not requiring a contract skip the agreement entirely
+        if (user.contractRequired === false) { setAgreementNeeded(false); setAgreementLoaded(true); return; }
         const existing = await base44.entities.FronterAgreement.filter({ username: { $regex: `^${user.username.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, $options: 'i' } });
         if (!existing || existing.length === 0) setAgreementNeeded(true);
       } catch {}
