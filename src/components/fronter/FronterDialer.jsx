@@ -374,6 +374,16 @@ Provide your analysis as JSON with these fields:
     setBusy(false);
   };
 
+  const saveMergeNumber = async () => {
+    const phoneNumber = customMergeNumber.trim();
+    if (!phoneNumber) return;
+    const label = prompt('Name for this number (e.g. Closer - Mike):');
+    if (!label?.trim()) return;
+    const rec = await base44.entities.ClosingPhoneNumber.create({ label: label.trim(), phoneNumber, sortOrder: mergeNumbers.length + 1 });
+    setMergeNumbers(prev => [...prev, rec]);
+    setSelectedMergeNumber(phoneNumber);
+  };
+
   const handleMergeConnect = async () => {
     setBusy(true); setError('');
     try {
@@ -505,7 +515,10 @@ Provide your analysis as JSON with these fields:
                 <option value="__custom__">— Custom number —</option>
               </select>
               {selectedMergeNumber === '__custom__' && (
-                <input value={customMergeNumber} onChange={e => setCustomMergeNumber(e.target.value)} placeholder="Agent number (+1 555-123-4567)" style={{ ...inputStyle(), marginBottom: '8px' }} />
+                <div style={{ display: 'flex', gap: '6px', marginBottom: '8px' }}>
+                  <input value={customMergeNumber} onChange={e => setCustomMergeNumber(e.target.value)} placeholder="Agent number (555-123-4567)" style={inputStyle()} />
+                  <button onClick={saveMergeNumber} disabled={!customMergeNumber.trim()} title="Save to dropdown" style={ctrlBtn(GOLD, false)}>⭐ Save</button>
+                </div>
               )}
               <div style={{ display: 'flex', gap: '8px' }}>
                 <button onClick={() => { setShowMergeInput(false); setMergeStep('idle'); }} style={ctrlBtn('#6b7280', false)}>Cancel</button>

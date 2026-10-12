@@ -19,7 +19,7 @@ const twilioAuth    = 'Basic ' + btoa(`${ACCOUNT_SID}:${AUTH_TOKEN}`);
 const BASE_URL      = 'https://rosieai-investorpage.base44.app';
 
 function lineNumber(lineKey: string): string {
-  return Deno.env.get(lineKey) || Deno.env.get('TWILIO_FROM_NUMBER') || '';
+  return (lineKey && Deno.env.get(lineKey)) || Deno.env.get('TWILIO_FROM_NUMBER') || '';
 }
 
 async function twilioFetch(path: string, opts: RequestInit = {}): Promise<any> {
@@ -34,6 +34,15 @@ async function twilioFetch(path: string, opts: RequestInit = {}): Promise<any> {
   const data = await res.json();
   if (!res.ok) throw new Error(data.message || `Twilio error ${res.status}`);
   return data;
+}
+
+// Twilio requires E.164 (+15551234567) — normalize "(800) 555-0100", "555-123-4567", etc.
+function toE164(raw: string): string {
+  const s = String(raw || '').trim();
+  const digits = s.replace(/\D/g, '');
+  if (digits.length === 10) return `+1${digits}`;
+  if (digits.length === 11 && digits.startsWith('1')) return `+${digits}`;
+  return s.startsWith('+') ? `+${digits}` : `+${digits}`;
 }
 
 function xmlEscape(s: string): string {
@@ -174,7 +183,7 @@ Deno.serve(async (req) => {
       await twilioFetch(`/Calls.json`, {
         method: 'POST',
         body: new URLSearchParams({
-          To: agentPhone,
+          To: toE164(agentPhone),
           From: fromNumber,
           Twiml: confTwiML(confName, false, ''),
           StatusCallback: statusCallbackUrl,
@@ -246,10 +255,11 @@ Deno.serve(async (req) => {
       } catch (e) { console.warn('Hold customer failed:', e.message); }
 
       // Dial the agent into the conference
+      console.log('mergeDial: dialing agent', toE164(agentPhone), 'from', fromNumber, 'conf', confName);
       await twilioFetch(`/Calls.json`, {
         method: 'POST',
         body: new URLSearchParams({
-          To: agentPhone,
+          To: toE164(agentPhone),
           From: fromNumber,
           Twiml: confTwiML(confName, false, ''),
         }),
@@ -360,7 +370,7 @@ Deno.serve(async (req) => {
       if (!transferTo) return Response.json({ error: 'transferTo required' }, { status: 400 });
 
       const fromNumber = lineNumber(lineKey);
-      const transferTwiML = `<Response><Dial callerId="${fromNumber}"><Number>${transferTo}</Number></Dial></Response>`;
+      const transferTwiML = `<Response><Dial callerId="${fromNumber}"><Number>${toE164(transferTo)}</Number></Dial></Response>`;
 
       if (conferenceName) {
         const confSid = await findConferenceSid(conferenceName);
