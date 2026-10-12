@@ -320,7 +320,14 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
             lineNumber={lineNumber}
             embedded
             onDial={onDial}
-            onCallConnected={(l) => { setCallActive(true); setCallStartTime(Date.now()); onCallConnected?.(l); }}
+            onCallConnected={(l) => {
+            setCallActive(true);
+            setCallStartTime(Date.now());
+            setCardTab('script');
+            setScriptPoppedOut(true);
+            onCallConnected?.(l);
+            onOpenQA?.();
+          }}
             onCallEnded={() => { setCallActive(false); }}
             onLeadCalled={(leadId, newCount) => { setLocal(prev => ({ ...prev, callCount: newCount })); }}
             onTranscriptUpdate={(lines) => { setLiveTranscript(lines); onTranscriptUpdate?.(lines); }}
