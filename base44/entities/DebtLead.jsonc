@@ -133,6 +133,11 @@
       "title": "AI Profile (JSON)",
       "format": "textarea"
     },
+    "aiPopulateLogJson": {
+      "type": "string",
+      "title": "AI Populate Log (JSON array of {fieldName, oldValue, newValue, timestamp, isFinal})",
+      "format": "textarea"
+    },
     "lastCallAt": {
       "type": "string",
       "format": "date-time",

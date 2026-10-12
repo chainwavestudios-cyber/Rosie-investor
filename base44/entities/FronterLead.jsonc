@@ -82,6 +82,11 @@
       "title": "Notes Log (JSON array of {text, timestamp, author, type, attachment})",
       "format": "textarea"
     },
+    "aiPopulateLogJson": {
+      "type": "string",
+      "title": "AI Populate Log (JSON array of {fieldName, oldValue, newValue, timestamp, isFinal})",
+      "format": "textarea"
+    },
     "status": {
       "type": "string",
       "title": "Status",

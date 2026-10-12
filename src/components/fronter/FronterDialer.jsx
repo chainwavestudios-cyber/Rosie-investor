@@ -9,6 +9,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { base44 } from '@/api/base44Client';
 import { Device } from '@twilio/voice-sdk';
 import { useFronterDeepgram } from '@/hooks/useFronterDeepgram';
+import { useAIContactFiller } from '@/hooks/useAIContactFiller';
 
 const GOLD = '#10b981';
 const DARK = '#0a0f1e';
@@ -49,6 +50,9 @@ export default function FronterDialer({ lead, username, lineKey, lineNumber, onC
   const conferenceNameRef = useRef('');
 
   const deepgram = useFronterDeepgram();
+  const { runFiller: runContactFiller } = useAIContactFiller({ leadId: lead?.id, leadType: 'fronter', transcript: deepgram.lines, isActive: callStatus === 'connected' });
+  const runContactFillerRef = useRef(runContactFiller);
+  useEffect(() => { runContactFillerRef.current = runContactFiller; }, [runContactFiller]);
 
   // Load saved merge numbers (ClosingPhoneNumber entity)
   useEffect(() => {
@@ -287,6 +291,9 @@ Provide your analysis as JSON with these fields:
 
       // Generate post-call report (async, non-blocking)
       generatePostCallReport(finalLines, dur);
+
+      // Run AI Contact Filler at call end — auto-populate contact card from transcript
+      runContactFillerRef.current?.(true, finalLines);
 
       setTimeout(() => setCallStatus('idle'), 2000);
       transcriptIdRef.current = null;
