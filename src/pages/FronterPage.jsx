@@ -11,7 +11,7 @@ import { base44 } from '@/api/base44Client';
 import FronterLeadsTab from '@/components/fronter/FronterLeadsTab';
 import FronterScriptsTab from '@/components/fronter/FronterScriptsTab';
 import FronterAdminTab from '@/components/fronter/FronterAdminTab';
-import AIAssistantPopup from '@/components/leads/AIAssistantPopup';
+import FronterAIPanel from '@/components/fronter/FronterAIPanel';
 import FronterSettingsTab from '@/components/fronter/FronterSettingsTab';
 import FronterMonitorPanel from '@/components/fronter/FronterMonitorPanel';
 import FronterBobTrainer from '@/components/fronter/FronterBobTrainer';
@@ -41,9 +41,7 @@ export default function FronterPage() {
   const [adminLineKey, setAdminLineKey] = useState('');
   const [metrics, setMetrics] = useState({ callsToday: 0, talkTimeSeconds: 0, transferredToday: 0 });
   const [showQA, setShowQA] = useState(false);
-  const [qaActive, setQaActive] = useState(true);
-  const [coachActive, setCoachActive] = useState(false);
-  const [intentActive, setIntentActive] = useState(false);
+
   const [fronterKbEntries, setFronterKbEntries] = useState([]);
   const [showMonitor, setShowMonitor] = useState(false);
   const [monitorLead, setMonitorLead] = useState(null);
@@ -329,38 +327,19 @@ export default function FronterPage() {
         {tab === 'settings' && <FronterSettingsTab />}
       </div>
 
-      {/* Live Q&A popup — uses the same AIAssistantPopup as Debt Call Coach, with Fronter KB */}
+      {/* Live Q&A panel — same AIAssistantPopup as Debt Call Coach, with Fronter KB */}
       {showQA && (
-        <AIAssistantPopup
-          lead={null}
-          transcript={liveTranscript.map(l => ({ ...l, speaker: l.speaker === 0 ? 1 : 0 }))}
-          transcriptRef={{ current: liveTranscript.map(l => ({ ...l, speaker: l.speaker === 0 ? 1 : 0 })) }}
-          kbEntries={fronterKbEntries}
-          portalCfg={{}}
-          engagementScore={0}
-          qaActive={qaActive}
-          coachActive={coachActive}
-          intentActive={intentActive}
-          onToggleQA={() => setQaActive(p => !p)}
-          onToggleCoach={() => setCoachActive(p => !p)}
-          onToggleIntent={() => setIntentActive(p => !p)}
-          onClose={() => setShowQA(false)}
-          onIntentResult={() => {}}
-          onQALog={() => {}}
-          onCoachTip={() => {}}
-          kbName="Fronter KB"
-          allKbEntries={fronterKbEntries}
-          kbNames={[]}
-          selectedKbName=""
-          onKbChange={() => {}}
-          activeScript={null}
-          scripts={[]}
-          callAttemptNumber={1}
-          previousCallSummary={null}
-          memories={[]}
-          pendingQuestion={null}
-          username={user?.username}
-        />
+        <div style={{ position: 'fixed', top: '60px', right: '20px', width: '420px', zIndex: 20001, maxHeight: '80vh' }}>
+          <FronterAIPanel
+            transcript={liveTranscript}
+            kbEntries={fronterKbEntries}
+            isActive={liveTranscript.length > 0}
+            transcriptFormat="live"
+            username={user?.username}
+            autoOpenPopup={true}
+            lead={null}
+          />
+        </div>
       )}
 
       {/* Fronter Monitor — super admin only */}

@@ -9,7 +9,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useDebtBobVoice } from '@/hooks/useDebtBobVoice';
 import { BOB_CHARACTERS, getCharacter, DEFAULT_CHARACTER_ID, BOB_THINK_MODELS, DEFAULT_THINK_MODEL } from '@/components/debt/bob/BobCharacters';
-import AIAssistantPopup from '@/components/leads/AIAssistantPopup';
+import FronterAIPanel from '@/components/fronter/FronterAIPanel';
 import { substituteScriptVars } from '@/lib/scriptSubstitute';
 import { renderFormatted } from '@/components/debt/ScriptRichText';
 import FronterBobScenarioBuilder from './FronterBobScenarioBuilder';
@@ -141,10 +141,6 @@ export default function FronterBobTrainer({ username, fronterFirstName }) {
   const [scenario, setScenario] = useState(PRESET_SCENARIOS[0].data);
   const [showQA, setShowQA] = useState(false);
   const [showScripts, setShowScripts] = useState(false);
-  const [qaActive, setQaActive] = useState(true);
-  const [coachActive, setCoachActive] = useState(false);
-  const [intentActive, setIntentActive] = useState(false);
-  const [allFronterKbEntries, setAllFronterKbEntries] = useState([]);
   const [savingSession, setSavingSession] = useState(false);
   const [sessionSaved, setSessionSaved] = useState(false);
   const [saveStatus, setSaveStatus] = useState('');
@@ -152,15 +148,10 @@ export default function FronterBobTrainer({ username, fronterFirstName }) {
   const [showScenarioBuilder, setShowScenarioBuilder] = useState(false);
   const [showOpeningScenarios, setShowOpeningScenarios] = useState(false);
   const transcriptRef = useRef([]);
-  const aiTranscriptRef = useRef([]);
   const callStartRef = useRef(null);
   const sessionRecIdRef = useRef(null);
 
   useEffect(() => { transcriptRef.current = transcript; }, [transcript]);
-
-  // Normalize transcript for AIAssistantPopup (expects speaker: 0=customer/bob, 1=agent/fronter)
-  const normalizedTranscript = transcript.map(e => ({ speaker: e.role === 'bob' ? 0 : 1, text: e.text, time: e.time }));
-  useEffect(() => { aiTranscriptRef.current = normalizedTranscript; }, [normalizedTranscript]);
 
   // Load KB + scripts
   useEffect(() => {
@@ -170,7 +161,6 @@ export default function FronterBobTrainer({ username, fronterFirstName }) {
     ]).then(([kb, scrs]) => {
       setKbEntries(kb || []);
       setScripts(scrs || []);
-      setAllFronterKbEntries(kb || []);
     }).catch(() => {});
   }, []);
 
@@ -549,38 +539,20 @@ ${scenarioText}
         </div>
       </div>
 
-      {/* Auto-popout: Q&A — uses the same AIAssistantPopup as Debt Call Coach */}
+      {/* Auto-popout: Q&A — uses the same FronterAIPanel (matching Debt Call Coach) */}
       {showQA && (
-        <AIAssistantPopup
-          lead={null}
-          transcript={normalizedTranscript}
-          transcriptRef={aiTranscriptRef}
-          kbEntries={kbEntries}
-          portalCfg={{}}
-          engagementScore={0}
-          qaActive={qaActive}
-          coachActive={coachActive}
-          intentActive={intentActive}
-          onToggleQA={() => setQaActive(p => !p)}
-          onToggleCoach={() => setCoachActive(p => !p)}
-          onToggleIntent={() => setIntentActive(p => !p)}
-          onClose={() => setShowQA(false)}
-          onIntentResult={() => {}}
-          onQALog={() => {}}
-          onCoachTip={() => {}}
-          kbName="Fronter KB"
-          allKbEntries={allFronterKbEntries}
-          kbNames={[]}
-          selectedKbName=""
-          onKbChange={() => {}}
-          activeScript={null}
-          scripts={[]}
-          callAttemptNumber={callCount}
-          previousCallSummary={null}
-          memories={[]}
-          pendingQuestion={null}
-          username={username}
-        />
+        <div style={{ position: 'fixed', top: '60px', right: '20px', width: '420px', zIndex: 20001, maxHeight: '80vh' }}>
+          <FronterAIPanel
+            transcript={transcript}
+            transcriptFormat="bob"
+            kbEntries={kbEntries}
+            isActive={phase === 'live'}
+            username={username}
+            autoOpenPopup={true}
+            lead={null}
+            callAttemptNumber={callCount}
+          />
+        </div>
       )}
 
       {/* Auto-popout: Scripts */}

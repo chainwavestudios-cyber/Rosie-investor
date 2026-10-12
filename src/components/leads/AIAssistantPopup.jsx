@@ -673,9 +673,10 @@ export function QASection({ transcript, transcriptRef, kbEntries, active, qaKeyw
   );
 
   const AskBar = () => (
-    <div style={{ padding: '7px 12px', borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', gap: '6px', flexShrink: 0 }}>
-      <input value={manualQ} onChange={e => setManualQ(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') askManual(); }} placeholder="Ask anything about this deal…"
-        style={{ flex: 1, background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '4px', padding: '6px 10px', color: '#e8e0d0', fontSize: '12px', outline: 'none', fontFamily: 'Georgia, serif' }} />
+    <div style={{ padding: '7px 12px', borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', gap: '6px', flexShrink: 0, alignItems: 'flex-end' }}>
+      <textarea value={manualQ} onChange={e => setManualQ(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); askManual(); } }} placeholder="Ask anything about this deal… (Shift+Enter for new line)"
+        rows={1}
+        style={{ flex: 1, background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '4px', padding: '6px 10px', color: '#e8e0d0', fontSize: '12px', outline: 'none', fontFamily: 'Georgia, serif', resize: 'vertical', minHeight: '32px', maxHeight: '120px' }} />
       <Btn onClick={askManual} disabled={!manualQ.trim() || asking} bg={manualQ.trim() && !asking ? 'linear-gradient(135deg,#b8933a,#d4aa50)' : undefined} color={manualQ.trim() && !asking ? '#0a0f1e' : undefined} style={{ padding: '6px 14px', fontSize: '11px' }}>{asking ? '⏳' : 'Ask →'}</Btn>
     </div>
   );
