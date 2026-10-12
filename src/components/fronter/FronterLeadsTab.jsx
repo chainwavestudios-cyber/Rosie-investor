@@ -6,7 +6,7 @@
  */
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
-import FronterContactCard from './FronterContactCard';
+import FronterCallCard from './FronterCallCard';
 import FronterLeadImportModal from './FronterLeadImportModal';
 import FronterAgentStatsBar from './FronterAgentStatsBar';
 
@@ -15,7 +15,7 @@ const DARK = '#0a0f1e';
 const ls = { display: 'block', color: '#8a9ab8', fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '6px' };
 const inp = { width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '4px', padding: '8px 12px', color: '#e8e0d0', fontSize: '13px', outline: 'none', boxSizing: 'border-box', fontFamily: 'Georgia, serif' };
 
-export default function FronterLeadsTab({ username, lineKey, lineNumber, isAdmin = false, availableLines = [], adminLineKey = '', onLineChange, mode = 'prospects', onCallConnected, fronterFirstName, onTranscriptChange, onOpenQA }) {
+export default function FronterLeadsTab({ username, lineKey, lineNumber, isAdmin = false, availableLines = [], adminLineKey = '', onLineChange, mode = 'prospects', onCallConnected, fronterFirstName, onTranscriptChange, onOpenQA, showCallCard, setShowCallCard, transcript = [], fronterKbEntries = [] }) {
   const [leads, setLeads] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeLead, setActiveLead] = useState(null);
@@ -320,14 +320,14 @@ export default function FronterLeadsTab({ username, lineKey, lineNumber, isAdmin
                         style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', cursor: 'pointer', transition: 'background 0.1s', background: contactCardLead?.id === l.id ? 'rgba(16,185,129,0.06)' : 'transparent' }}
                         onMouseEnter={e => e.currentTarget.style.background = 'rgba(16,185,129,0.05)'}
                         onMouseLeave={e => e.currentTarget.style.background = contactCardLead?.id === l.id ? 'rgba(16,185,129,0.06)' : 'transparent'}
-                        onClick={() => setContactCardLead(l)}>
+                        onClick={() => { setContactCardLead(l); setShowCallCard?.(true); }}>
                         <td style={{ padding: '10px 12px', color: '#4a5568', fontSize: '11px' }}>{i + 1}</td>
                         <td style={{ padding: '10px 12px' }}>
                           <div style={{ color: '#e8e0d0', fontWeight: 'bold' }}>{l.firstName} {l.lastName}</div>
                           {l.leadNumber && <div style={{ color: '#4a5568', fontSize: '10px' }}>{l.leadNumber}</div>}
                         </td>
                         <td style={{ padding: '10px 12px' }}>
-                          <button onClick={e => { e.stopPropagation(); setContactCardLead(l); }} style={{ background: 'rgba(16,185,129,0.1)', color: GOLD, border: '1px solid rgba(16,185,129,0.25)', borderRadius: '3px', padding: '4px 10px', cursor: 'pointer', fontSize: '12px', fontFamily: 'monospace' }}>📞 {l.phone}</button>
+                          <button onClick={e => { e.stopPropagation(); setContactCardLead(l); setShowCallCard?.(true); }} style={{ background: 'rgba(16,185,129,0.1)', color: GOLD, border: '1px solid rgba(16,185,129,0.25)', borderRadius: '3px', padding: '4px 10px', cursor: 'pointer', fontSize: '12px', fontFamily: 'monospace' }}>📞 {l.phone}</button>
                         </td>
                         <td style={{ padding: '10px 12px', color: l.debtAmount ? GOLD : '#4a5568', fontSize: '12px' }}>{l.debtAmount ? `$${Number(l.debtAmount).toLocaleString()}` : '—'}</td>
                         <td style={{ padding: '10px 12px' }}>
@@ -340,7 +340,7 @@ export default function FronterLeadsTab({ username, lineKey, lineNumber, isAdmin
                           {l.lastCalledAt ? <span style={{ color: '#f59e0b' }}>{fmtTime(l.lastCalledAt)}</span> : <span style={{ color: '#4a5568' }}>Never</span>}
                         </td>
                         <td style={{ padding: '10px 12px' }}>
-                          <button onClick={e => { e.stopPropagation(); setContactCardLead(l); }} style={{ background: 'rgba(16,185,129,0.15)', color: GOLD, border: '1px solid rgba(16,185,129,0.3)', borderRadius: '3px', padding: '4px 10px', cursor: 'pointer', fontSize: '11px' }}>Open →</button>
+                          <button onClick={e => { e.stopPropagation(); setContactCardLead(l); setShowCallCard?.(true); }} style={{ background: 'rgba(16,185,129,0.15)', color: GOLD, border: '1px solid rgba(16,185,129,0.3)', borderRadius: '3px', padding: '4px 10px', cursor: 'pointer', fontSize: '11px' }}>Open →</button>
                         </td>
                       </tr>
                     );
@@ -363,24 +363,25 @@ export default function FronterLeadsTab({ username, lineKey, lineNumber, isAdmin
         />
       )}
 
-      {/* Contact card modal */}
-      {contactCardLead && (
-        <FronterContactCard
-          lead={contactCardLead}
-          username={username}
-          fronterFirstName={fronterFirstName}
-          lineKey={lineKey}
-          lineNumber={lineNumber}
-          onClose={() => setContactCardLead(null)}
-          onSave={(updated) => { setRefreshKey(k => k + 1); setContactCardLead(prev => ({ ...prev, ...updated })); }}
-          onDial={(l) => handleDialLog(l)}
-          onNext={handleNextLead}
-          isAdmin={isAdmin}
-          onTranscriptUpdate={onTranscriptChange}
-          onCallConnected={onCallConnected}
-          onOpenQA={onOpenQA}
-        />
-      )}
+      {/* Call Card — unified floating window with Contact + Q&A + Script (Alt+C) */}
+      <FronterCallCard
+        show={!!showCallCard && !!contactCardLead}
+        onClose={() => setShowCallCard?.(false)}
+        username={username}
+        lead={contactCardLead}
+        fronterFirstName={fronterFirstName}
+        lineKey={lineKey}
+        lineNumber={lineNumber}
+        isAdmin={isAdmin}
+        transcript={transcript}
+        fronterKbEntries={fronterKbEntries}
+        onSaveLead={(updated) => { setRefreshKey(k => k + 1); setContactCardLead(prev => ({ ...prev, ...updated })); }}
+        onDial={(l) => handleDialLog(l)}
+        onNext={handleNextLead}
+        onTranscriptChange={onTranscriptChange}
+        onCallConnected={onCallConnected}
+        onOpenQA={onOpenQA}
+      />
       </div>
     </div>
   );

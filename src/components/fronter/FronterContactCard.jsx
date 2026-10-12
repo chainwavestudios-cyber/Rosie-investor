@@ -35,7 +35,7 @@ function fmtET(iso) {
   });
 }
 
-export default function FronterContactCard({ lead, username, fronterFirstName, onClose, onSave, onDial, onNext, isAdmin, lineKey, lineNumber, onTranscriptUpdate, onCallConnected, onOpenQA }) {
+export default function FronterContactCard({ lead, username, fronterFirstName, onClose, onSave, onDial, onNext, isAdmin, lineKey, lineNumber, onTranscriptUpdate, onCallConnected, onOpenQA, embedded = false }) {
   const [local, setLocal] = useState(lead || {});
   const [notesLog, setNotesLog] = useState([]);
   const [newNote, setNewNote] = useState('');
@@ -273,15 +273,19 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
   const leadTypeLabel = local.status === 'lead' ? 'LEAD CONTACT' : local.status === 'transferred' ? 'LEAD CONTACT · TRANSFERRED' : local.status === 'booked' ? 'BOOKED CONTACT' : local.status === 'closed_deal' ? 'CLOSED DEAL' : 'PROSPECT CONTACT';
   const animalEmoji = local.status === 'closed_deal' ? '💎' : local.status === 'booked' ? '📗' : local.status === 'transferred' ? '🦄' : local.status === 'lead' ? '🐄' : '🦆';
 
+  const outerStyle = embedded
+    ? { flex: 1, display: 'flex', flexDirection: 'column', width: '100%', height: '100%', background: '#0d1b2a', border: `1px solid ${leadTypeColor}33`, borderRadius: '6px', overflow: 'hidden' }
+    : { position: 'fixed', left: pos.x, top: pos.y, width: size.w, height: size.h, background: '#0d1b2a', border: `2px solid ${leadTypeColor}55`, borderRadius: '10px', boxShadow: '0 20px 60px rgba(0,0,0,0.7)', zIndex: 10000, display: 'flex', flexDirection: 'column' };
+
   return (
     <>
-      <div style={{ position: 'fixed', left: pos.x, top: pos.y, width: size.w, height: size.h, background: '#0d1b2a', border: `2px solid ${leadTypeColor}55`, borderRadius: '10px', boxShadow: '0 20px 60px rgba(0,0,0,0.7)', zIndex: 10000, display: 'flex', flexDirection: 'column' }}>
+      <div style={outerStyle}>
         {/* Lead type banner */}
         <div style={{ padding: '6px 18px', background: `${leadTypeColor}18`, borderBottom: `1px solid ${leadTypeColor}33`, display: 'flex', justifyContent: 'center', alignItems: 'center', flexShrink: 0 }}>
           <span style={{ color: leadTypeColor, fontSize: '11px', fontWeight: 'bold', letterSpacing: '3px', textTransform: 'uppercase' }}>● {leadTypeLabel} ●</span>
         </div>
-        {/* Header — draggable */}
-        <div onMouseDown={onDragStart} style={{ padding: '12px 18px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px', cursor: 'move', userSelect: 'none', flexShrink: 0, background: 'linear-gradient(135deg, rgba(16,185,129,0.06), transparent)' }}>
+        {/* Header — draggable (disabled when embedded) */}
+        <div onMouseDown={embedded ? undefined : onDragStart} style={{ padding: '12px 18px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px', cursor: embedded ? 'default' : 'move', userSelect: 'none', flexShrink: 0, background: 'linear-gradient(135deg, rgba(16,185,129,0.06), transparent)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             <div style={{ width: '38px', height: '38px', borderRadius: '50%', background: `linear-gradient(135deg, ${GOLD}, #22c55e)`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: DARK, fontSize: '14px', fontWeight: 'bold', flexShrink: 0, textTransform: 'uppercase' }}>{initials}</div>
             <div>
@@ -518,7 +522,8 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
           </button>
         </div>
 
-        {/* Resize handle */}
+        {/* Resize handle — hidden when embedded (Call Card provides resize) */}
+        {!embedded && (
         <div onMouseDown={(e) => {
           e.stopPropagation();
           const startX = e.clientX, startY = e.clientY, startW = size.w, startH = size.h;
@@ -527,6 +532,7 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
           document.addEventListener('mousemove', onMove);
           document.addEventListener('mouseup', onUp);
         }} style={{ position: 'absolute', bottom: 0, right: 0, width: '16px', height: '16px', cursor: 'nwse-resize', color: '#4a5568', textAlign: 'right', paddingRight: '2px' }}>⌟</div>
+        )}
       </div>
 
       {/* Script popout */}

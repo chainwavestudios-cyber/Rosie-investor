@@ -16,6 +16,7 @@ import FronterSettingsTab from '@/components/fronter/FronterSettingsTab';
 import FronterMonitorPanel from '@/components/fronter/FronterMonitorPanel';
 import FronterBobTrainer from '@/components/fronter/FronterBobTrainer';
 import FronterTimeCardButton from '@/components/fronter/FronterTimeCardButton';
+import FronterCallCard from '@/components/fronter/FronterCallCard';
 import FronterHRTab from '@/components/fronter/FronterHRTab';
 import FronterHeadsUpPopup from '@/components/fronter/FronterHeadsUpPopup';
 import FronterFeedbackTab from '@/components/fronter/FronterFeedbackTab';
@@ -41,6 +42,19 @@ export default function FronterPage() {
   const [adminLineKey, setAdminLineKey] = useState('');
   const [metrics, setMetrics] = useState({ callsToday: 0, talkTimeSeconds: 0, transferredToday: 0 });
   const [showQA, setShowQA] = useState(false);
+  const [showCallCard, setShowCallCard] = useState(false);
+
+  // Alt+C toggles the Call Card
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.altKey && (e.key === 'c' || e.key === 'C')) {
+        e.preventDefault();
+        setShowCallCard(p => !p);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
 
   const [fronterKbEntries, setFronterKbEntries] = useState([]);
   const [showMonitor, setShowMonitor] = useState(false);
@@ -240,7 +254,7 @@ export default function FronterPage() {
             </div>
           </div>
           <button onClick={() => setTab('leads')} title="Home" style={{ background: `${GOLD}18`, color: GOLD, border: `1px solid ${GOLD}44`, borderRadius: '4px', padding: '6px 12px', cursor: 'pointer', fontSize: '14px' }}>🏠</button>
-          <button onClick={() => setShowQA(p => !p)} title="Live Q&A" style={{ background: showQA ? `${GOLD}30` : `${GOLD}18`, color: GOLD, border: `1px solid ${GOLD}44`, borderRadius: '4px', padding: '6px 12px', cursor: 'pointer', fontSize: '14px' }}>💬</button>
+          <button onClick={() => setShowCallCard(p => !p)} title="Call Card (Alt+C)" style={{ background: showCallCard ? `${GOLD}30` : `${GOLD}18`, color: GOLD, border: `1px solid ${GOLD}44`, borderRadius: '4px', padding: '6px 12px', cursor: 'pointer', fontSize: '14px' }}>📞</button>
           {isAdmin && (
             <button onClick={() => setShowMonitor(p => !p)} title="Fronter Monitor" style={{ background: showMonitor ? `${BLUE}30` : `${BLUE}18`, color: BLUE, border: `1px solid ${BLUE}44`, borderRadius: '4px', padding: '6px 12px', cursor: 'pointer', fontSize: '14px' }}>📡</button>
           )}
@@ -278,10 +292,14 @@ export default function FronterPage() {
                 lineNumber={activeLineNumber}
                 isAdmin={false}
                 mode={tab}
-                onCallConnected={() => setShowQA(true)}
-                onOpenQA={() => setShowQA(true)}
+                onCallConnected={() => setShowCallCard(true)}
+                onOpenQA={() => setShowCallCard(true)}
                 fronterFirstName={user?.firstName}
                 onTranscriptChange={setLiveTranscript}
+                showCallCard={showCallCard}
+                setShowCallCard={setShowCallCard}
+                transcript={liveTranscript}
+                fronterKbEntries={fronterKbEntries}
               />
             ) : (
               <div style={{ color: '#4a5568', textAlign: 'center', padding: '60px', fontSize: '14px' }}>
@@ -299,10 +317,14 @@ export default function FronterPage() {
                 adminLineKey={adminLineKey}
                 onLineChange={setAdminLineKey}
                 mode={tab}
-                onCallConnected={() => setShowQA(true)}
-                onOpenQA={() => setShowQA(true)}
+                onCallConnected={() => setShowCallCard(true)}
+                onOpenQA={() => setShowCallCard(true)}
                 fronterFirstName={user?.firstName}
                 onTranscriptChange={setLiveTranscript}
+                showCallCard={showCallCard}
+                setShowCallCard={setShowCallCard}
+                transcript={liveTranscript}
+                fronterKbEntries={fronterKbEntries}
               />
             ) : (
               <div style={{ color: '#4a5568', textAlign: 'center', padding: '60px', fontSize: '14px' }}>
@@ -327,20 +349,7 @@ export default function FronterPage() {
         {tab === 'settings' && <FronterSettingsTab />}
       </div>
 
-      {/* Live Q&A panel — same AIAssistantPopup as Debt Call Coach, with Fronter KB */}
-      {showQA && (
-        <div style={{ position: 'fixed', top: '60px', right: '20px', width: '420px', zIndex: 20001, maxHeight: '80vh' }}>
-          <FronterAIPanel
-            transcript={liveTranscript}
-            kbEntries={fronterKbEntries}
-            isActive={liveTranscript.length > 0}
-            transcriptFormat="live"
-            username={user?.username}
-            autoOpenPopup={true}
-            lead={null}
-          />
-        </div>
-      )}
+      {/* Live Q&A panel is now inside the Call Card (Alt+C) — removed the docked popup */}
 
       {/* Fronter Monitor — super admin only */}
       {showMonitor && isAdmin && (
