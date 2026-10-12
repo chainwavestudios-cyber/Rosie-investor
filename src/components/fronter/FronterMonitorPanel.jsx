@@ -7,6 +7,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Device } from '@twilio/voice-sdk';
 import { base44 } from '@/api/base44Client';
+import FronterMonitorAIAgent from './FronterMonitorAIAgent';
 
 const GOLD = '#10b981';
 const DARK = '#0a0f1e';
@@ -372,6 +373,7 @@ export default function FronterMonitorPanel({ onClose, adminUsername, onOpenLead
           <div style={{ display: 'flex', gap: '2px', marginLeft: '4px' }}>
             <button onClick={() => setViewTab('monitor')} style={{ padding: '3px 10px', background: viewTab === 'monitor' ? `${BLUE}18` : 'transparent', border: `1px solid ${viewTab === 'monitor' ? BLUE + '44' : 'rgba(255,255,255,0.1)'}`, borderRadius: '3px', color: viewTab === 'monitor' ? BLUE : '#8a9ab8', cursor: 'pointer', fontSize: '10px', fontWeight: viewTab === 'monitor' ? 'bold' : 'normal' }}>Monitor</button>
             <button onClick={() => setViewTab('queue')} style={{ padding: '3px 10px', background: viewTab === 'queue' ? `${RED}18` : 'transparent', border: `1px solid ${viewTab === 'queue' ? RED + '44' : 'rgba(255,255,255,0.1)'}`, borderRadius: '3px', color: viewTab === 'queue' ? RED : '#8a9ab8', cursor: 'pointer', fontSize: '10px', fontWeight: viewTab === 'queue' ? 'bold' : 'normal' }}>🚨 Transfer Queue {transferQueue.length > 0 && `(${transferQueue.length})`}</button>
+            <button onClick={() => setViewTab('ai_agent')} style={{ padding: '3px 10px', background: viewTab === 'ai_agent' ? `${PURPLE}18` : 'transparent', border: `1px solid ${viewTab === 'ai_agent' ? PURPLE + '44' : 'rgba(255,255,255,0.1)'}`, borderRadius: '3px', color: viewTab === 'ai_agent' ? PURPLE : '#8a9ab8', cursor: 'pointer', fontSize: '10px', fontWeight: viewTab === 'ai_agent' ? 'bold' : 'normal' }}>🤖 AI Agent</button>
           </div>
           {viewTab === 'monitor' && <span style={{ color: '#6b7280', fontSize: '10px' }}>{selected.length}/3 selected</span>}
           {!deviceReady && <span style={{ color: AMBER, fontSize: '9px' }}>⚠ Mic needed for takeover</span>}
@@ -452,6 +454,13 @@ export default function FronterMonitorPanel({ onClose, adminUsername, onOpenLead
               })}
             </div>
           )}
+        </div>
+      )}
+
+      {/* AI Agent tab */}
+      {viewTab === 'ai_agent' && (
+        <div style={{ flex: 1, overflow: 'hidden' }}>
+          <FronterMonitorAIAgent adminUsername={adminUsername} />
         </div>
       )}
 
