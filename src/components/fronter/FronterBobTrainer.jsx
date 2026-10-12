@@ -14,6 +14,7 @@ import { substituteScriptVars } from '@/lib/scriptSubstitute';
 import { renderFormatted } from '@/components/debt/ScriptRichText';
 import FronterBobScenarioBuilder from './FronterBobScenarioBuilder';
 import FronterBobOpeningScenarios from './FronterBobOpeningScenarios';
+import FronterBobObjectionsPopup from './FronterBobObjectionsPopup';
 
 const GOLD = '#10b981';
 const DARK = '#0a0f1e';
@@ -147,9 +148,13 @@ export default function FronterBobTrainer({ username, fronterFirstName }) {
   const [dgApiKey, setDgApiKey] = useState('');
   const [showScenarioBuilder, setShowScenarioBuilder] = useState(false);
   const [showOpeningScenarios, setShowOpeningScenarios] = useState(false);
+  const [manualObjections, setManualObjections] = useState(false);
+  const [showObjectionsPopup, setShowObjectionsPopup] = useState(false);
   const transcriptRef = useRef([]);
   const callStartRef = useRef(null);
   const sessionRecIdRef = useRef(null);
+  const manualObjectionsRef = useRef(false);
+  manualObjectionsRef.current = manualObjections;
 
   useEffect(() => { transcriptRef.current = transcript; }, [transcript]);
 
@@ -182,13 +187,14 @@ export default function FronterBobTrainer({ username, fronterFirstName }) {
     setTranscript(prev => [...prev, entry]);
   }, []);
 
-  const { phase, error, agentSpeaking, micDevices, micDeviceId, setMicDeviceId, outputDevices, outputDeviceId, setOutputDeviceId, ringPhase, transferPhase, startCall, hangup, isRecording, recordingUrl, getRecordingSnapshot, paused, pauseCall, resumeCall } = useDebtBobVoice({ onTranscript: handleTranscript, onLog: addLog });
+  const { phase, error, agentSpeaking, micDevices, micDeviceId, setMicDeviceId, outputDevices, outputDeviceId, setOutputDeviceId, ringPhase, transferPhase, startCall, hangup, isRecording, recordingUrl, getRecordingSnapshot, paused, pauseCall, resumeCall, injectObjection } = useDebtBobVoice({ onTranscript: handleTranscript, onLog: addLog });
 
   // Auto-popout Q&A and scripts when call connects
   useEffect(() => {
     if (phase === 'active') {
       setShowQA(true);
       setShowScripts(true);
+      if (manualObjectionsRef.current) setShowObjectionsPopup(true);
     }
   }, [phase]);
 
@@ -312,8 +318,11 @@ ${scenarioText}
 - Never say you are an AI. Never break character.
 - Use natural speech: contractions, interruptions, "uh", "look", "listen", "I mean."
 - React to what the fronter actually says — improvise within your persona.
-- You are a CUSTOMER, not a debt settlement expert. You do NOT know industry terminology or processes.`;
-  }, [sliderValue, intensity, getActivePersona, scenario, characterId]);
+- You are a CUSTOMER, not a debt settlement expert. You do NOT know industry terminology or processes.
+${manualObjections ? `
+━━━ MANUAL OBJECTIONS MODE — ACTIVE ━━━
+You are in MANUAL OBJECTIONS mode. You will NOT raise any objections, questions, or concerns automatically. You are completely agreeable and cooperative — go with the flow, answer questions directly and honestly, and follow the fronter's lead. Any objections will be injected manually by the trainer. When an objection is injected, say it naturally as if you just thought of it in the moment.` : ''}`;
+  }, [sliderValue, intensity, getActivePersona, scenario, characterId, manualObjections]);
 
   const handleStartCall = useCallback(async () => {
     const newCount = callCount + 1;
@@ -415,6 +424,13 @@ ${scenarioText}
               </select>
             </div>
 
+            {phase === 'idle' && (
+              <label style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 10px', background: manualObjections ? 'rgba(167,139,250,0.1)' : 'rgba(255,255,255,0.03)', border: `1px solid ${manualObjections ? 'rgba(167,139,250,0.3)' : 'rgba(255,255,255,0.08)'}`, borderRadius: '4px', cursor: 'pointer', fontSize: '11px', fontFamily: 'Georgia, serif', marginBottom: '8px' }}>
+                <input type="checkbox" checked={manualObjections} onChange={e => setManualObjections(e.target.checked)} style={{ accentColor: PURPLE, width: '14px', height: '14px' }} />
+                <span style={{ color: manualObjections ? PURPLE : '#8a9ab8', fontWeight: manualObjections ? 'bold' : 'normal' }}>🎯 Manual Objections</span>
+                <span style={{ color: '#6b7280', fontSize: '9px' }}>(BOB won't object unless you trigger them)</span>
+              </label>
+            )}
             <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap' }}>
               {phase === 'idle' || phase === 'error' ? (
                 <button onClick={handleStartCall} style={{ background: 'linear-gradient(135deg,#10b981,#22c55e)', color: DARK, border: 'none', borderRadius: '4px', padding: '9px 20px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase' }}>📞 Connect to BOB</button>
@@ -568,6 +584,17 @@ ${scenarioText}
       {/* Real Call Openings */}
       {showOpeningScenarios && (
         <FronterBobOpeningScenarios onApply={(s) => { setScenario(s); setShowOpeningScenarios(false); }} onClose={() => setShowOpeningScenarios(false)} />
+      )}
+
+      {/* Manual Objections Popup — auto-pops when call starts with Manual Objections enabled */}
+      {showObjectionsPopup && phase === 'active' && (
+        <FronterBobObjectionsPopup
+          onAsk={(objection) => {
+            injectObjection(objection);
+            handleTranscript({ role: 'bob', text: objection, time: new Date().toISOString() });
+          }}
+          onClose={() => setShowObjectionsPopup(false)}
+        />
       )}
     </div>
   );

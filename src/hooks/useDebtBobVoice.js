@@ -410,6 +410,12 @@ export function useDebtBobVoice({ onTranscript, onLog } = {}) {
     });
   }, [micDeviceId, outputDeviceId, playChunk, ring, onTranscript, cleanup]);
 
+  const injectObjection = useCallback((text) => {
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({ type: 'Inject', content: text, role: 'assistant' }));
+    }
+  }, []);
+
   const hangup = useCallback(() => { cleanup(true); }, [cleanup]);
 
   // Pause BOB: stop sending mic audio + cut off any BOB speech, keep the call alive.
@@ -438,5 +444,5 @@ export function useDebtBobVoice({ onTranscript, onLog } = {}) {
   useEffect(() => { cleanupRef.current = cleanup; }, [cleanup]);
   useEffect(() => () => { cleanupRef.current?.(false); }, []);
 
-  return { phase, error, agentSpeaking, micDevices, micDeviceId, setMicDeviceId, outputDevices, outputDeviceId, setOutputDeviceId, ringPhase, transferPhase, startCall, hangup, isRecording, recordingUrl, getRecordingSnapshot, paused, pauseCall, resumeCall };
+  return { phase, error, agentSpeaking, micDevices, micDeviceId, setMicDeviceId, outputDevices, outputDeviceId, setOutputDeviceId, ringPhase, transferPhase, startCall, hangup, isRecording, recordingUrl, getRecordingSnapshot, paused, pauseCall, resumeCall, injectObjection };
 }
