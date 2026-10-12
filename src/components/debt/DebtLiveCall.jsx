@@ -28,6 +28,7 @@ import { useObjectionEngine } from '@/hooks/useObjectionEngine';
 import ObjectionPopup from '@/components/debt/ObjectionPopup';
 import EmergencyScripts from '@/components/debt/EmergencyScripts';
 import { logAIUsage, CREDIT_ESTIMATES } from '@/lib/aiCreditLog';
+import { useAIContactFiller } from '@/hooks/useAIContactFiller';
 
 const GOLD = '#10b981';
 const DARK = '#0a0f1e';
@@ -337,6 +338,9 @@ Agent line: "${firstAgentLines}"`,
   const processorRef = useRef(null);
   const transcriptRef = useRef([]);
   const leadRef = useRef(lead);
+  const { runFiller: runContactFiller } = useAIContactFiller({ leadId: lead?.id, leadType: 'debt', transcript, isActive: phase === 'live' });
+  const runContactFillerRef = useRef(runContactFiller);
+  useEffect(() => { runContactFillerRef.current = runContactFiller; }, [runContactFiller]);
   const lastCoachTime = useRef(0);
   const lastIntentTime = useRef(0);
   const lastProfileTime = useRef(0);
@@ -1556,6 +1560,9 @@ ${recentText}`,
       try { await handleHardshipExtract(); } catch {}
       try { await handleBillsExtract(); } catch {}
       try { await handleCosignerExtract(); } catch {}
+
+      // AI Contact Filler — auto-populate contact card from full transcript
+      try { await runContactFillerRef.current?.(true, transcriptRef.current); } catch {}
 
       let intent = null;
       try {

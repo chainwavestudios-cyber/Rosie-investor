@@ -14,6 +14,7 @@ import LeadActivityTab from '@/components/debt/LeadActivityTab';
 import DebtCallBar from '@/components/debt/DebtCallBar';
 import { usePopOutPanel } from '@/hooks/usePopOutPanel';
 import VoiceFieldUpdater, { VOICE_TABS } from '@/components/debt/VoiceFieldUpdater';
+import AIPopulateTab from '@/components/shared/AIPopulateTab';
 
 const GOLD = '#10b981';
 const ls = { display: 'block', color: '#8a9ab8', fontSize: '9px', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '3px' };
@@ -47,6 +48,7 @@ const TABS = [
   { id: 'credit_report', label: '📷 Credit Report' },
   { id: 'closing', label: '🏁 Closing' },
   { id: 'calculator', label: '📊 Calculator' },
+  { id: 'ai_populate', label: '🤖 AI Populate' },
 ];
 
 export default function ClientProfileModal({ lead, username, onClose, onSave }) {
@@ -535,6 +537,10 @@ export default function ClientProfileModal({ lead, username, onClose, onSave }) 
 
         {tab === 'calculator' && (
           <DoNothingCalculator lead={local} mode="close" />
+        )}
+
+        {tab === 'ai_populate' && (
+          <AIPopulateTab lead={local} />
         )}
       </div>
       {panel.resizeHandles}
