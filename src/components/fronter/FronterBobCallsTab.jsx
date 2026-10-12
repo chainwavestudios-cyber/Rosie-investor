@@ -42,6 +42,21 @@ export default function FronterBobCallsTab() {
   const [expanded, setExpanded] = useState(null);
   const [traineeFilter, setTraineeFilter] = useState('');
   const [trainees, setTrainees] = useState([]);
+  const [fullTranscripts, setFullTranscripts] = useState({});
+  const [loadingTranscript, setLoadingTranscript] = useState({});
+
+  const fetchFullTranscript = useCallback(async (session) => {
+    if (fullTranscripts[session.id] || !session.transcriptFileUrl) return;
+    setLoadingTranscript(prev => ({ ...prev, [session.id]: true }));
+    try {
+      const res = await fetch(session.transcriptFileUrl);
+      const lines = await res.json();
+      setFullTranscripts(prev => ({ ...prev, [session.id]: lines }));
+    } catch (e) {
+      console.warn('Failed to fetch full transcript:', e);
+    }
+    setLoadingTranscript(prev => ({ ...prev, [session.id]: false }));
+  }, [fullTranscripts]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -101,7 +116,7 @@ export default function FronterBobCallsTab() {
             try { previewLines = JSON.parse(s.transcriptJson || '[]'); } catch {}
             return (
               <div key={s.id} style={{ background: '#0d1b2a', border: `1px solid ${isOpen ? 'rgba(16,185,129,0.35)' : 'rgba(255,255,255,0.07)'}`, borderRadius: '6px', overflow: 'hidden' }}>
-                <div onClick={() => setExpanded(isOpen ? null : s.id)} style={{ padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', gap: '10px', flexWrap: 'wrap' }}>
+                <div onClick={() => { const newId = isOpen ? null : s.id; setExpanded(newId); if (newId && s.transcriptFileUrl) fetchFullTranscript(s); }} style={{ padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', gap: '10px', flexWrap: 'wrap' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
                     <div style={{ width: 8, height: 8, borderRadius: '50%', background: s.recordingUrl ? '#4ade80' : '#4a5568' }} />
                     <div>
@@ -131,27 +146,34 @@ export default function FronterBobCallsTab() {
                         <audio controls src={s.recordingUrl} style={{ width: '100%', height: '32px' }} />
                       </div>
                     )}
-                    <div style={{ color: GOLD, fontSize: '9px', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '6px' }}>📝 Transcript Preview {s.transcriptFileUrl && <span style={{ color: '#6b7280', textTransform: 'none', letterSpacing: '0' }}>(last {previewLines.length} lines)</span>}</div>
-                    {previewLines.length === 0 ? (
-                      <div style={{ color: '#4a5568', fontSize: '12px', padding: '12px 0' }}>No transcript available.</div>
-                    ) : (
-                      <div style={{ maxHeight: '300px', overflowY: 'auto', padding: '4px 0' }}>
-                        {previewLines.map((m, i) => {
-                          const isBob = m.role === 'bob' || m.speaker === 'bob';
-                          const text = m.text || m.content || '';
-                          return (
-                            <div key={i} style={{ display: 'flex', gap: '8px', marginBottom: '6px', justifyContent: isBob ? 'flex-start' : 'flex-end' }}>
-                              <div style={{ maxWidth: '85%', background: isBob ? 'rgba(16,185,129,0.08)' : 'rgba(96,165,250,0.08)', border: `1px solid ${isBob ? 'rgba(16,185,129,0.2)' : 'rgba(96,165,250,0.2)'}`, borderRadius: isBob ? '10px 10px 10px 2px' : '10px 10px 2px 10px', padding: '6px 10px' }}>
-                                <div style={{ color: isBob ? GOLD : BLUE, fontSize: '8px', fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '2px' }}>{isBob ? '🤖 BOB' : '🎙 Trainee'}</div>
-                                <div style={{ color: '#c4cdd8', fontSize: '12px', lineHeight: 1.4 }}>{text}</div>
+                    <div style={{ color: GOLD, fontSize: '9px', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '6px' }}>📝 Full Transcript {s.transcriptFileUrl && <span style={{ color: '#6b7280', textTransform: 'none', letterSpacing: '0' }}>({(fullTranscripts[s.id] || previewLines).length} lines)</span>}</div>
+                    {(() => {
+                      const allLines = fullTranscripts[s.id] || previewLines;
+                      if (allLines.length === 0) {
+                        return <div style={{ color: '#4a5568', fontSize: '12px', padding: '12px 0' }}>No transcript available.</div>;
+                      }
+                      if (loadingTranscript[s.id] && !fullTranscripts[s.id]) {
+                        return <div style={{ color: '#6b7280', fontSize: '12px', padding: '12px 0', textAlign: 'center' }}>⏳ Loading full transcript…</div>;
+                      }
+                      return (
+                        <div style={{ maxHeight: '400px', overflowY: 'auto', padding: '4px 0' }}>
+                          {allLines.map((m, i) => {
+                            const isBob = m.role === 'bob' || m.speaker === 'bob';
+                            const text = m.text || m.content || '';
+                            return (
+                              <div key={i} style={{ display: 'flex', gap: '8px', marginBottom: '6px', justifyContent: isBob ? 'flex-start' : 'flex-end' }}>
+                                <div style={{ maxWidth: '85%', background: isBob ? 'rgba(16,185,129,0.08)' : 'rgba(96,165,250,0.08)', border: `1px solid ${isBob ? 'rgba(16,185,129,0.2)' : 'rgba(96,165,250,0.2)'}`, borderRadius: isBob ? '10px 10px 10px 2px' : '10px 10px 2px 10px', padding: '6px 10px' }}>
+                                  <div style={{ color: isBob ? GOLD : BLUE, fontSize: '8px', fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '2px' }}>{isBob ? '🤖 BOB' : '🎙 Trainee'}</div>
+                                  <div style={{ color: '#c4cdd8', fontSize: '12px', lineHeight: 1.4 }}>{text}</div>
+                                </div>
                               </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
+                            );
+                          })}
+                        </div>
+                      );
+                    })()}
                     {s.transcriptFileUrl && (
-                      <a href={s.transcriptFileUrl} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-block', marginTop: '8px', color: PURPLE, fontSize: '10px', textDecoration: 'underline' }}>View full transcript JSON ↗</a>
+                      <a href={s.transcriptFileUrl} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-block', marginTop: '8px', color: PURPLE, fontSize: '10px', textDecoration: 'underline' }}>Download full transcript JSON ↗</a>
                     )}
                   </div>
                 )}
