@@ -67,6 +67,11 @@ async function getHoldAudioUrl(req: Request): Promise<string> {
   return '';
 }
 
+// Twilio plays HoldUrl to a held participant (default is generic Twilio music)
+function holdParams(holdAudioUrl: string): Record<string, string> {
+  return holdAudioUrl ? { Hold: 'true', HoldUrl: holdAudioUrl, HoldMethod: 'GET' } : { Hold: 'true' };
+}
+
 // Fronter's browser call SID is encoded in the conference name (fronter_conf_<CallSid>)
 function fronterSidFromConf(name: string): string {
   return (name || '').startsWith('fronter_conf_') ? name.slice('fronter_conf_'.length) : '';
@@ -96,13 +101,21 @@ async function moveIntoConference(fronterCallSid: string, confName: string, hold
     } catch (e) { console.warn('Customer redirect failed:', e.message); }
   }
 
-  // 2. Brief pause so the customer's redirect is processed before we break
-  //    the fronter's <Dial>. Without this the fronter redirect can land first
-  //    and drop the customer.
-  await new Promise(r => setTimeout(r, 500));
-
-  // 3. Redirect the fronter into the conference (no waitUrl needed — the
-  //    conference already has the custom hold audio from the customer's TwiML).
+  // 2. Moving the customer ends the fronter's <Dial>; its action callback
+  //    (voicemailWebhook) puts the fronter into the same conference.
+  //    Fallback: if the fronter isn't in the conference after a few seconds, redirect them.
+  if (customerCallSid) {
+    for (let i = 0; i < 10; i++) {
+      await new Promise(r => setTimeout(r, 400));
+      try {
+        const confSid = await findConferenceSid(confName);
+        if (confSid) {
+          const parts = await twilioFetch(`/Conferences/${confSid}/Participants.json`);
+          if ((parts.participants || []).some((p: any) => p.call_sid === fronterCallSid)) return customerCallSid;
+        }
+      } catch {}
+    }
+  }
   try {
     await twilioFetch(`/Calls/${fronterCallSid}.json`, {
       method: 'POST',
@@ -272,7 +285,7 @@ Deno.serve(async (req) => {
           if (p.call_sid !== fronterSid && !p.hold) {
             await twilioFetch(`/Conferences/${confSid}/Participants/${p.call_sid}.json`, {
               method: 'POST',
-              body: new URLSearchParams({ Hold: 'true' }),
+              body: new URLSearchParams(holdParams(holdAudioUrl)),
             });
           }
         }
@@ -359,7 +372,7 @@ Deno.serve(async (req) => {
           try {
             await twilioFetch(`/Conferences/${confSid}/Participants/${p.call_sid}.json`, {
               method: 'POST',
-              body: new URLSearchParams({ Hold: 'true' }),
+              body: new URLSearchParams(holdParams(holdAudioUrl)),
             });
           } catch (e) { console.warn('Hold participant failed:', e.message); }
         }

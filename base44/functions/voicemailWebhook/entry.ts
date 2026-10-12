@@ -81,6 +81,28 @@ Deno.serve(async (req) => {
 
     console.log('[voicemailWebhook] noAnswer, DialCallStatus:', dialStatus, 'CallSid:', callSid);
 
+    // Fronter hold/merge: the customer leg was moved into fronter_conf_<CallSid>,
+    // which ends this <Dial>. Put the fronter into that conference instead of hanging up.
+    if (callSid && (dialStatus === 'completed' || dialStatus === 'answered')) {
+      const confName = `fronter_conf_${callSid}`;
+      const sid = Deno.env.get('TWILIO_ACCOUNT_SID') || '';
+      const tok = Deno.env.get('TWILIO_AUTH_TOKEN') || '';
+      for (let i = 0; i < 6; i++) {
+        try {
+          const r = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${sid}/Conferences.json?FriendlyName=${encodeURIComponent(confName)}`, {
+            headers: { Authorization: 'Basic ' + btoa(`${sid}:${tok}`) },
+          });
+          const d = await r.json();
+          if ((d.conferences || []).some((c: any) => c.status !== 'completed')) {
+            console.log('[voicemailWebhook] Fronter joining conference:', confName);
+            return new Response(`<?xml version="1.0" encoding="UTF-8"?><Response><Dial><Conference beep="false" startConferenceOnEnter="true" endConferenceOnExit="false">${confName}</Conference></Dial></Response>`,
+              { headers: { 'Content-Type': 'text/xml' } });
+          }
+        } catch {}
+        await new Promise(r => setTimeout(r, 300));
+      }
+    }
+
     // Agent answered — log as "answered" and return empty TwiML immediately.
     // DB write is fire-and-forget so Twilio doesn't time out waiting.
     if (dialStatus === 'completed' || dialStatus === 'answered') {
