@@ -41,6 +41,32 @@ const FONT_SIZES = [12, 13, 14, 15, 16, 18, 20];
 
 export default function FronterScriptsTab({ fronterFirstName, username }) {
   const panel = usePopOutPanel('fronter_scripts', { width: 480, height: 600 }, username, 9998);
+  // Docked height — persisted per user, draggable from the bottom edge
+  const [dockedHeight, setDockedHeight] = useDebtCoachValue(username, 'fronter_scripts_docked_h', 560);
+  const resizeRef = useRef(null);
+  const resizeStartY = useRef(0);
+  const resizeStartH = useRef(0);
+
+  useEffect(() => {
+    const onMove = (e) => {
+      if (!resizeRef.current) return;
+      const dy = e.clientY - resizeStartY.current;
+      const next = Math.max(360, Math.min(window.innerHeight - 120, resizeStartH.current + dy));
+      setDockedHeight(next);
+    };
+    const onUp = () => { resizeRef.current = false; document.body.style.cursor = ''; };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+    return () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
+  }, [setDockedHeight]);
+
+  const startDockedResize = (e) => {
+    e.preventDefault();
+    resizeRef.current = true;
+    resizeStartY.current = e.clientY;
+    resizeStartH.current = typeof dockedHeight === 'number' ? dockedHeight : 560;
+    document.body.style.cursor = 'ns-resize';
+  };
 
   const scriptContent = (
     <FronterScriptsContent fronterFirstName={fronterFirstName} username={username} />
@@ -62,14 +88,24 @@ export default function FronterScriptsTab({ fronterFirstName, username }) {
     );
   }
 
-  // Docked — inline with pop-out button
+  // Docked — inline with pop-out button + draggable bottom edge to resize height
   return (
     <div style={{ position: 'relative' }}>
       <div style={{ marginBottom: '8px', display: 'flex', justifyContent: 'flex-end' }}>
         <button onClick={panel.toggle} style={{ background: `${GOLD}18`, border: `1px solid ${GOLD}44`, color: GOLD, borderRadius: '4px', padding: '4px 10px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase' }}>⬆ Pop Out</button>
       </div>
-      <div style={{ background: '#0d1b2a', border: '1px solid rgba(16,185,129,0.2)', borderRadius: '6px', display: 'flex', flexDirection: 'column', minHeight: '500px', maxHeight: '70vh', overflow: 'hidden', position: 'relative' }}>
+      <div style={{ background: '#0d1b2a', border: '1px solid rgba(16,185,129,0.2)', borderRadius: '6px', display: 'flex', flexDirection: 'column', height: `${typeof dockedHeight === 'number' ? dockedHeight : 560}px`, maxHeight: '85vh', overflow: 'hidden', position: 'relative' }}>
         {scriptContent}
+      </div>
+      {/* Drag handle — drag up to shrink, down to expand */}
+      <div
+        onMouseDown={startDockedResize}
+        title="Drag to resize"
+        style={{ height: 10, marginTop: 2, cursor: 'ns-resize', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '4px', background: 'rgba(16,185,129,0.06)', borderTop: '1px solid rgba(16,185,129,0.2)', borderBottom: '1px solid rgba(16,185,129,0.2)' }}
+        onMouseEnter={e => e.currentTarget.style.background = 'rgba(16,185,129,0.18)'}
+        onMouseLeave={e => e.currentTarget.style.background = 'rgba(16,185,129,0.06)'}
+      >
+        <div style={{ width: 40, height: 3, borderRadius: 2, background: 'rgba(16,185,129,0.4)' }} />
       </div>
     </div>
   );
