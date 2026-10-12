@@ -185,7 +185,10 @@ Provide your analysis as JSON with these fields:
 
       // Start Deepgram transcription
       const micDeviceId = localStorage.getItem('fronter_mic_device') || '';
-      deepgram.start(micDeviceId).then(() => {
+      // Pass the customer's call audio so their side is transcribed too (Q&A listens to the customer)
+      let remoteStream = null;
+      try { remoteStream = call.getRemoteStream?.() || null; } catch {}
+      deepgram.start(micDeviceId, remoteStream).then(() => {
         setTranscriptLineCount(0);
       }).catch(e => console.error('Deepgram start failed:', e));
 

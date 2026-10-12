@@ -15,7 +15,7 @@ import FronterAIPanel from '@/components/fronter/FronterAIPanel';
 import FronterSettingsTab from '@/components/fronter/FronterSettingsTab';
 import FronterMonitorPanel from '@/components/fronter/FronterMonitorPanel';
 import FronterBobTrainer from '@/components/fronter/FronterBobTrainer';
-import FronterClockBar from '@/components/fronter/FronterClockBar';
+import FronterTimeCardButton from '@/components/fronter/FronterTimeCardButton';
 import FronterHRTab from '@/components/fronter/FronterHRTab';
 import FronterHeadsUpPopup from '@/components/fronter/FronterHeadsUpPopup';
 import FronterFeedbackTab from '@/components/fronter/FronterFeedbackTab';
@@ -223,7 +223,7 @@ export default function FronterPage() {
           {isAdmin && <span style={{ padding: '2px 8px', borderRadius: '10px', background: 'rgba(16,185,129,0.15)', color: GOLD, fontSize: '9px', fontWeight: 'bold', textTransform: 'uppercase' }}>Super Admin</span>}
         </div>
         <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-          {isFronter && <FronterClockBar username={user.username} />}
+          <FronterTimeCardButton username={user.username} />
           {/* Daily metrics for this user */}
           <div style={{ display: 'flex', gap: '14px', alignItems: 'center', padding: '0 14px', borderLeft: '1px solid rgba(255,255,255,0.07)', borderRight: '1px solid rgba(255,255,255,0.07)' }}>
             <div style={{ textAlign: 'center' }}>

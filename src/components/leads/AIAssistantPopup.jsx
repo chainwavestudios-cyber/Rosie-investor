@@ -1221,9 +1221,15 @@ export default function AIAssistantPopup({
     const sig = JSON.stringify(dbSaved);
     if (sig === lastAppliedSig.current) return;
     lastAppliedSig.current = sig;
-    if (dbSaved.x !== undefined) setPos({ x: dbSaved.x, y: dbSaved.y });
-    if (dbSaved.w) setWidth(dbSaved.w);
-    if (dbSaved.h) setHeight(dbSaved.h);
+    // Clamp to the current screen — a layout saved on a bigger monitor must never land off-screen
+    const w = dbSaved.w ? Math.min(dbSaved.w, window.innerWidth - 20) : width;
+    const h = dbSaved.h ? Math.min(dbSaved.h, window.innerHeight - 20) : height;
+    if (dbSaved.w) setWidth(w);
+    if (dbSaved.h) setHeight(h);
+    if (dbSaved.x !== undefined) setPos({
+      x: Math.max(0, Math.min(dbSaved.x, window.innerWidth - w)),
+      y: Math.max(0, Math.min(dbSaved.y, window.innerHeight - h)),
+    });
     if (dbSaved.rpw) setRightPanelWidth(dbSaved.rpw);
     if (dbSaved.sh) setScriptH(dbSaved.sh);
     if (dbSaved.qaOnly !== undefined) setQaOnly(dbSaved.qaOnly);
