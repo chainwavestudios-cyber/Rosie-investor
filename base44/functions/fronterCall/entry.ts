@@ -72,20 +72,44 @@ function fronterSidFromConf(name: string): string {
   return (name || '').startsWith('fronter_conf_') ? name.slice('fronter_conf_'.length) : '';
 }
 
-// Move customer (child) + fronter (parent) into the conference at the same time,
-// so the parent's <Dial> ending can't hang the fronter up before it is redirected.
+// Move customer (child) into the conference FIRST, then the fronter (parent).
+// Redirecting both at once via Promise.all races: if the fronter's redirect
+// lands first, the <Dial> breaks and the customer's call is dropped before
+// their redirect takes effect. Redirecting the customer first also ensures
+// the conference's waitUrl is the custom hold audio (the first participant
+// to join sets it), so holding the customer later plays the right audio.
 async function moveIntoConference(fronterCallSid: string, confName: string, holdAudioUrl: string): Promise<string | null> {
   let customerCallSid: string | null = null;
   try {
     const childCalls = await twilioFetch(`/Calls.json?ParentCallSid=${fronterCallSid}&Status=in-progress`);
     customerCallSid = childCalls.calls?.[0]?.sid || null;
   } catch (e) { console.warn('Child calls lookup failed:', e.message); }
-  await Promise.all([
-    customerCallSid
-      ? twilioFetch(`/Calls/${customerCallSid}.json`, { method: 'POST', body: new URLSearchParams({ Twiml: confTwiML(confName, false, holdAudioUrl) }) }).catch(e => console.warn('Customer redirect failed:', e.message))
-      : Promise.resolve(),
-    twilioFetch(`/Calls/${fronterCallSid}.json`, { method: 'POST', body: new URLSearchParams({ Twiml: confTwiML(confName, false, '') }) }).catch(e => console.warn('Fronter redirect failed:', e.message)),
-  ]);
+
+  // 1. Redirect the customer into the conference with the custom hold audio
+  //    as waitUrl. This creates the conference and sets its wait music.
+  if (customerCallSid) {
+    try {
+      await twilioFetch(`/Calls/${customerCallSid}.json`, {
+        method: 'POST',
+        body: new URLSearchParams({ Twiml: confTwiML(confName, false, holdAudioUrl) }),
+      });
+    } catch (e) { console.warn('Customer redirect failed:', e.message); }
+  }
+
+  // 2. Brief pause so the customer's redirect is processed before we break
+  //    the fronter's <Dial>. Without this the fronter redirect can land first
+  //    and drop the customer.
+  await new Promise(r => setTimeout(r, 500));
+
+  // 3. Redirect the fronter into the conference (no waitUrl needed — the
+  //    conference already has the custom hold audio from the customer's TwiML).
+  try {
+    await twilioFetch(`/Calls/${fronterCallSid}.json`, {
+      method: 'POST',
+      body: new URLSearchParams({ Twiml: confTwiML(confName, false, '') }),
+    });
+  } catch (e) { console.warn('Fronter redirect failed:', e.message); }
+
   return customerCallSid;
 }
 
