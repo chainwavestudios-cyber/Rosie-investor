@@ -20,16 +20,23 @@ const inp = { width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px 
 const CEO_NAME = 'Chris Bongiorno';
 const CEO_TITLE = 'CEO, ChainWave Studios LLC';
 
-export function buildAgreementText(fullName, dateStr) {
+export function buildAgreementText(fullName, dateStr, username) {
+  const isSean = username && username.toLowerCase() === 'sean';
+  const basePaySchedule = isSean
+    ? 'payable every Friday'
+    : 'payable on the 1st and 15th of each month';
+  const bonusPayNote = isSean
+    ? 'All bonuses shall be paid on the 1st and 15th of each month.'
+    : 'All bonuses shall be paid on the 1st and 15th of each month, alongside the base compensation.';
   return `DIALER AGREEMENT
 
 This Dialer Agreement ("Agreement") is entered into on ${dateStr}, by and between ChainWave Studios LLC ("Company") and ${fullName} ("Dialer").
 
 1. BASE COMPENSATION
-Dialer shall receive a base compensation of $300 per month, payable on the 1st and 15th of each month.
+Dialer shall receive a base compensation of $300 per month, ${basePaySchedule}.
 
 2. BONUSES
-All bonuses shall be paid on the 1st and 15th of each month, alongside the base compensation.
+${bonusPayNote}
 
 a) Sales Bonus: To qualify for a sales bonus, a transferred prospect must convert into a sale. All sales will be updated in the leads tab daily. A bonus of $10 per converted sale will be paid.
 
@@ -63,7 +70,14 @@ ${CEO_TITLE}
 Date: ${dateStr}`;
 }
 
-function buildSignedAgreementHtml(fullName, dateStr) {
+function buildSignedAgreementHtml(fullName, dateStr, username) {
+  const isSean = username && username.toLowerCase() === 'sean';
+  const basePaySchedule = isSean
+    ? 'payable every Friday'
+    : 'payable on the 1st and 15th of each month';
+  const bonusPayNote = isSean
+    ? 'All bonuses shall be paid on the 1st and 15th of each month.'
+    : 'All bonuses shall be paid on the 1st and 15th of each month, alongside the base compensation.';
   return `<!DOCTYPE html>
 <html><head><meta charset="utf-8"><title>Dialer Agreement - ${fullName}</title>
 <style>
@@ -78,10 +92,10 @@ function buildSignedAgreementHtml(fullName, dateStr) {
 <div class="meta">This Dialer Agreement ("Agreement") is entered into on <strong>${dateStr}</strong>, by and between <strong>ChainWave Studios LLC</strong> ("Company") and <strong>${fullName}</strong> ("Dialer").</div>
 
 <h2>1. Base Compensation</h2>
-<p>Dialer shall receive a base compensation of $300 per month, payable on the 1st and 15th of each month.</p>
+<p>Dialer shall receive a base compensation of $300 per month, ${basePaySchedule}.</p>
 
 <h2>2. Bonuses</h2>
-<p>All bonuses shall be paid on the 1st and 15th of each month, alongside the base compensation.</p>
+<p>${bonusPayNote}</p>
 <p><strong>a) Sales Bonus:</strong> To qualify for a sales bonus, a transferred prospect must convert into a sale. All sales will be updated in the leads tab daily. A bonus of $10 per converted sale will be paid.</p>
 <p><strong>b) Daily Volume Bonus:</strong></p>
 <ul><li>10 successful transfers in one day = $10 bonus</li><li>15 successful transfers in one day = $20 bonus</li></ul>
@@ -111,7 +125,7 @@ function buildSignedAgreementHtml(fullName, dateStr) {
 </body></html>`;
 }
 
-function generateAgreementPdf(fullName, dateStr) {
+function generateAgreementPdf(fullName, dateStr, username) {
   const doc = new jsPDF({ unit: 'pt', format: 'letter' });
   const margin = 50;
   const pageWidth = doc.internal.pageSize.getWidth();
@@ -126,7 +140,7 @@ function generateAgreementPdf(fullName, dateStr) {
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(10);
-  const text = buildAgreementText(fullName, dateStr);
+  const text = buildAgreementText(fullName, dateStr, username);
   const paragraphs = text.split('\n\n');
   for (const para of paragraphs) {
     const lines = doc.splitTextToSize(para, maxWidth);
@@ -176,7 +190,7 @@ export default function FronterOnboarding({ username, onDone, mustResetPassword:
     if (!canSign) return;
     setSaving(true); setError('');
     try {
-      const agreementText = buildAgreementText(form.fullName.trim(), today);
+      const agreementText = buildAgreementText(form.fullName.trim(), today, username);
       await base44.entities.FronterAgreement.create({
         username,
         fullName: form.fullName.trim(),
@@ -187,7 +201,7 @@ export default function FronterOnboarding({ username, onDone, mustResetPassword:
         agreementDate: todayISO,
         signedAt: new Date().toISOString(),
       });
-      setSavedAgreement({ text: agreementText, html: buildSignedAgreementHtml(form.fullName.trim(), today), fullName: form.fullName.trim() });
+      setSavedAgreement({ text: agreementText, html: buildSignedAgreementHtml(form.fullName.trim(), today, username), fullName: form.fullName.trim() });
       setStep(4);
     } catch (e) { setError('Failed to save agreement: ' + (e?.message || String(e))); }
     setSaving(false);
@@ -195,7 +209,7 @@ export default function FronterOnboarding({ username, onDone, mustResetPassword:
 
   const handleDownload = () => {
     if (!savedAgreement) return;
-    const doc = generateAgreementPdf(savedAgreement.fullName, today);
+    const doc = generateAgreementPdf(savedAgreement.fullName, today, username);
     doc.save(`Dialer_Agreement_${savedAgreement.fullName.replace(/\s+/g, '_')}.pdf`);
   };
 
@@ -203,7 +217,7 @@ export default function FronterOnboarding({ username, onDone, mustResetPassword:
     if (!savedAgreement) return;
     setEmailStatus('sending');
     try {
-      const doc = generateAgreementPdf(savedAgreement.fullName, today);
+      const doc = generateAgreementPdf(savedAgreement.fullName, today, username);
       const pdfBase64 = doc.output('datauristring').split(',')[1];
       await base44.integrations.Core.SendEmail({
         to: form.email.trim(),
@@ -292,7 +306,7 @@ export default function FronterOnboarding({ username, onDone, mustResetPassword:
               <div style={{ color: '#6b7280', fontSize: '11px' }}>{today}</div>
             </div>
             <div style={{ background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: '6px', padding: '18px', maxHeight: '320px', overflowY: 'auto', marginBottom: '18px', color: '#c4cdd8', fontSize: '12px', lineHeight: 1.7, whiteSpace: 'pre-wrap', fontFamily: 'Georgia, serif' }}>
-              {buildAgreementText(form.fullName.trim() || '[Your Name]', today)}
+              {buildAgreementText(form.fullName.trim() || '[Your Name]', today, username)}
             </div>
 
             {/* Signature */}
