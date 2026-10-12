@@ -17,6 +17,7 @@ import FronterUsersTab from '@/components/fronter/FronterUsersTab';
 import FronterLeadImportModal from '@/components/fronter/FronterLeadImportModal';
 import FronterScriptEditor from '@/components/fronter/FronterScriptEditor';
 import FronterQuoteTab from '@/components/fronter/FronterQuoteTab';
+import FronterBobCallsTab from '@/components/fronter/FronterBobCallsTab';
 import FronterContactCard from '@/components/fronter/FronterContactCard';
 import { renderFormatted } from '@/components/debt/ScriptRichText';
 
@@ -248,6 +249,7 @@ export default function FronterAdminTab({ adminUsername }) {
     { id: 'users', label: '👥 Users' },
     { id: 'scripts', label: '📜 Scripts' },
     { id: 'quotes', label: '💬 Quotes' },
+    { id: 'bobcalls', label: '🤖 Bob Calls' },
   ];
 
   return (
@@ -470,6 +472,11 @@ export default function FronterAdminTab({ adminUsername }) {
       {/* ── QUOTES ── */}
       {subtab === 'quotes' && !loading && (
         <FronterQuoteTab adminUsername={adminUsername} />
+      )}
+
+      {/* ── BOB CALLS (last 24h training sessions) ── */}
+      {subtab === 'bobcalls' && !loading && (
+        <FronterBobCallsTab />
       )}
 
       {/* CSV import modal */}
