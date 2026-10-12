@@ -26,6 +26,7 @@ import FronterClosedDealsTab from '@/components/fronter/FronterClosedDealsTab';
 import FronterCongratsPopup from '@/components/fronter/FronterCongratsPopup';
 import FronterChatroom from '@/components/fronter/FronterChatroom';
 import FronterEmergencyScript from '@/components/fronter/FronterEmergencyScript';
+import FronterAIAgentTab from '@/components/fronter/FronterAIAgentTab';
 import FronterEmailTrackingNotifications from '@/components/fronter/FronterEmailTrackingNotifications';
 import FronterContactCard from '@/components/fronter/FronterContactCard';
 
@@ -68,7 +69,7 @@ export default function FronterPage() {
   const isAdmin = isSuperAdmin;
   // Fronter sees leads + scripts; admin sees admin + leads + scripts
   const TABS = isAdmin
-    ? [{ id: 'admin', label: '⚙️ Admin' }, { id: 'prospects', label: '📋 Prospects' }, { id: 'leads', label: '📋 Leads' }, { id: 'closed_deals', label: '💎 Closed Deals' }, { id: 'feedback', label: '💬 Feedback' }, { id: 'bob', label: '🤖 BOB Training' }, { id: 'hr', label: '🕐 HR' }, { id: 'scripts', label: '📜 Scripts' }, { id: 'settings', label: '🔧 Settings' }]
+    ? [{ id: 'admin', label: '⚙️ Admin' }, { id: 'ai_agent', label: '🤖 AI Agent' }, { id: 'prospects', label: '📋 Prospects' }, { id: 'leads', label: '📋 Leads' }, { id: 'closed_deals', label: '💎 Closed Deals' }, { id: 'feedback', label: '💬 Feedback' }, { id: 'bob', label: '🤖 BOB Training' }, { id: 'hr', label: '🕐 HR' }, { id: 'scripts', label: '📜 Scripts' }, { id: 'settings', label: '🔧 Settings' }]
     : [{ id: 'prospects', label: '📋 Prospects' }, { id: 'leads', label: '📋 Leads' }, { id: 'closed_deals', label: '💎 Closed Deals' }, { id: 'feedback', label: '💬 Feedback' }, { id: 'bob', label: '🤖 BOB Training' }, { id: 'hr', label: '🕐 HR' }, { id: 'scripts', label: '📜 Scripts' }, { id: 'settings', label: '🔧 Settings' }];
 
   const loadLine = useCallback(async () => {
@@ -284,6 +285,8 @@ export default function FronterPage() {
       {/* Content */}
       <div style={{ padding: '20px 24px' }}>
         {tab === 'admin' && isAdmin && <FronterAdminTab adminUsername={user.username} />}
+
+        {tab === 'ai_agent' && isAdmin && <FronterAIAgentTab adminUsername={user.username} />}
 
         {['prospects', 'leads'].includes(tab) && (
           isFronter ? (
