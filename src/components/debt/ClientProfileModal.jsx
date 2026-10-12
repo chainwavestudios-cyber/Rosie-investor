@@ -47,7 +47,7 @@ const TABS = [
   { id: 'transcripts', label: '📝 Transcripts' },
   { id: 'credit_report', label: '📷 Credit Report' },
   { id: 'closing', label: '🏁 Closing' },
-  { id: 'calculator', label: '📊 Calculator' },
+  { id: 'calculator', label: '📊 Do Nothing Calculator' },
   { id: 'ai_populate', label: '🤖 AI Populate' },
 ];
 
