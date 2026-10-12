@@ -7,6 +7,8 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { base44 } from '@/api/base44Client';
 import { computeFileHash, checkDuplicateHash } from '@/lib/fileDedup';
 import MultiAnswerEditor, { parseAnswers, serializeAnswers } from '@/components/debt/MultiAnswerEditor';
+import CustomerQADocUploader from '@/components/debt/CustomerQADocUploader';
+import { saveQAWithPriority } from '@/lib/kbPriority';
 
 const GOLD = '#10b981';
 const DARK = '#0a0f1e';
@@ -143,6 +145,7 @@ export default function DebtKBManager({ readOnly = false }) {
       </div>
 
       {!readOnly && section === 'agent' && <AgentScriptEditor category={KB_SECTIONS[0].category} onSaved={refresh} />}
+      {!readOnly && section === 'customer' && <CustomerQADocUploader category={KB_SECTIONS[1].category} onSaved={refresh} />}
       {!readOnly && section === 'customer' && <CustomerQAEditor category={KB_SECTIONS[1].category} onSaved={refresh} />}
       {!readOnly && section === 'qa_statements' && <QAStatementsEditor category={KB_SECTIONS[2].category} onSaved={refresh} />}
       {!readOnly && section === 'docs' && <DocUploader category={KB_SECTIONS[3].category} onSaved={refresh} />}
@@ -288,20 +291,31 @@ function AgentScriptEditor({ category, onSaved }) {
 function CustomerQAEditor({ category, onSaved }) {
   const [question, setQuestion] = useState('');
   const [answers, setAnswers] = useState(['']);
+  const [priority, setPriority] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [feedback, setFeedback] = useState('');
 
   const save = async () => {
     const clean = answers.filter(a => a.trim());
     if (!question.trim() || clean.length === 0) return;
     setSaving(true);
-    await base44.entities.KnowledgeBase.create({
-      question: question.trim(),
-      answer: clean[0],
-      answersJson: serializeAnswers(clean),
-      category, kbName: 'Debt Settlement', created_date: new Date().toISOString(),
-    });
-    setQuestion(''); setAnswers(['']);
-    onSaved();
+    setFeedback('');
+    try {
+      const res = await saveQAWithPriority({
+        question, answers: clean, category, priority,
+        source: 'manual', tags: '', variations: '',
+      });
+      if (res?.merged) {
+        setFeedback(`✓ Merged into existing question — ${clean.length} answer(s) prepended and starred as priority.`);
+      } else {
+        setFeedback(`✓ Added new Q&A entry.`);
+      }
+      setQuestion(''); setAnswers(['']); setPriority(false);
+      onSaved();
+      setTimeout(() => setFeedback(''), 4000);
+    } catch (e) {
+      alert('Save failed: ' + (e?.message || String(e)));
+    }
     setSaving(false);
   };
 
@@ -315,7 +329,16 @@ function CustomerQAEditor({ category, onSaved }) {
       <div style={{ marginBottom: '10px' }}>
         <MultiAnswerEditor answers={answers} onChange={setAnswers} accentColor="#f59e0b" label="Answer(s)" placeholder="Type the answer the agent should give…" rows={4} />
       </div>
-      <button onClick={save} disabled={saving || !hasAny} style={{ background: 'linear-gradient(135deg,#f59e0b,#d97706)', color: DARK, border: 'none', borderRadius: '4px', padding: '10px 20px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase', opacity: saving ? 0.5 : 1 }}>+ Add Q&A</button>
+      {/* Priority checkbox */}
+      <label style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px', cursor: 'pointer', userSelect: 'none' }}>
+        <input type="checkbox" checked={priority} onChange={e => setPriority(e.target.checked)} style={{ width: '16px', height: '16px', cursor: 'pointer', accentColor: '#f59e0b' }} />
+        <span style={{ color: priority ? '#f59e0b' : '#8a9ab8', fontSize: '12px', fontWeight: 'bold' }}>⭐ Priority Answer</span>
+        <span style={{ color: '#6b7280', fontSize: '11px' }}>— if this question already exists, the new answer becomes the first (starred) answer</span>
+      </label>
+      {feedback && <div style={{ marginBottom: '10px', padding: '8px 12px', background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.2)', borderRadius: '4px', color: GOLD, fontSize: '12px' }}>{feedback}</div>}
+      <button onClick={save} disabled={saving || !hasAny} style={{ background: 'linear-gradient(135deg,#f59e0b,#d97706)', color: DARK, border: 'none', borderRadius: '4px', padding: '10px 20px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase', opacity: saving ? 0.5 : 1 }}>
+        {saving ? '⏳ Saving…' : '+ Add Q&A'}
+      </button>
     </div>
   );
 }
