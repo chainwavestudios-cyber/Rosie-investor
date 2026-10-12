@@ -1,12 +1,10 @@
 /**
- * ObjectionPopup — non-blocking floating card shown during a live call when a
- * high-priority objection is detected. Sits in the bottom-right corner so the
- * agent can still see their script, transcript, and call panels. Does NOT take
- * over the screen. Shows the customer's words, the objection mindset/goal,
- * and every available response as a selectable option the agent can read
- * verbatim, then dismiss with the X or "Got it" button.
+ * ObjectionPopup — floating, draggable, resizable, dockable card shown during
+ * a live call when a high-priority objection is detected. Can be dragged by
+ * the header, resized from the bottom-right corner, and minimized/docked to
+ * a compact bar to get it out of the way without dismissing it.
  */
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 
 const GOLD = '#10b981';
 const DARK = '#0a0f1e';
@@ -16,6 +14,15 @@ const PURPLE = '#a78bfa';
 export default function ObjectionPopup({ objection, onDismiss }) {
   const [selected, setSelected] = useState(0);
   const [copied, setCopied] = useState(false);
+  const [minimized, setMinimized] = useState(false);
+  const [pos, setPos] = useState({ x: window.innerWidth - 460, y: window.innerHeight - 420 });
+  const [size, setSize] = useState({ w: 440, h: 480 });
+  const dragRef = useRef(null);
+
+  // Reset selection when a new objection appears
+  useEffect(() => {
+    if (objection) { setSelected(0); setCopied(false); setMinimized(false); }
+  }, [objection?.id, objection?.lineTime]);
 
   // Build the list of answer options: engine response first, then KB answers.
   const options = useMemo(() => {
@@ -39,11 +46,34 @@ export default function ObjectionPopup({ objection, onDismiss }) {
     }).catch(() => {});
   };
 
+  const onDragStart = (e) => {
+    dragRef.current = { startX: e.clientX - pos.x, startY: e.clientY - pos.y };
+    const onMove = (ev) => { if (dragRef.current) setPos({ x: ev.clientX - dragRef.current.startX, y: ev.clientY - dragRef.current.startY }); };
+    const onUp = () => { dragRef.current = null; document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  };
+
+  // Minimized / docked bar — compact, still draggable, click to expand
+  if (minimized) {
+    return (
+      <div style={{ position: 'fixed', left: pos.x, top: pos.y, zIndex: 10001, display: 'flex', alignItems: 'center', gap: '8px', background: DARK, border: `2px solid ${GOLD}`, borderRadius: '8px', padding: '8px 12px', boxShadow: '0 8px 32px rgba(0,0,0,0.7)' }}>
+        <div onMouseDown={onDragStart} style={{ cursor: 'move', display: 'flex', alignItems: 'center', gap: '8px', flex: 1, userSelect: 'none' }}>
+          <span style={{ fontSize: '16px' }}>🛡️</span>
+          <span style={{ color: GOLD, fontSize: '11px', fontWeight: 'bold', letterSpacing: '1px' }}>OBJECTION</span>
+          <span style={{ color: '#e8e0d0', fontSize: '12px', maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{objection.title}</span>
+        </div>
+        <button onClick={() => setMinimized(false)} title="Expand" style={{ background: `${GOLD}18`, border: `1px solid ${GOLD}44`, color: GOLD, borderRadius: '4px', padding: '3px 10px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>⬆</button>
+        <button onClick={onDismiss} title="Dismiss" style={{ background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.3)', color: '#ef4444', borderRadius: '4px', padding: '3px 10px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>✕</button>
+      </div>
+    );
+  }
+
   return (
-    <div style={{ position: 'fixed', bottom: 16, right: 16, zIndex: 10001, width: '440px', maxWidth: 'calc(100vw - 32px)', maxHeight: '78vh', display: 'flex', flexDirection: 'column', boxShadow: '0 12px 48px rgba(0,0,0,0.7)', pointerEvents: 'auto' }}>
+    <div style={{ position: 'fixed', left: pos.x, top: pos.y, width: size.w, maxHeight: '78vh', zIndex: 10001, display: 'flex', flexDirection: 'column', boxShadow: '0 12px 48px rgba(0,0,0,0.7)' }}>
       <div style={{ background: DARK, border: `2px solid ${GOLD}`, borderRadius: '10px', display: 'flex', flexDirection: 'column', maxHeight: '78vh', overflow: 'hidden' }}>
-        {/* Header — drag-free, close button always clickable */}
-        <div style={{ padding: '12px 16px', borderBottom: `1px solid ${GOLD}33`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: `${GOLD}10`, flexShrink: 0 }}>
+        {/* Header — draggable, with minimize + close */}
+        <div onMouseDown={onDragStart} style={{ padding: '12px 16px', borderBottom: `1px solid ${GOLD}33`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: `${GOLD}10`, flexShrink: 0, cursor: 'move', userSelect: 'none' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0, flex: 1 }}>
             <span style={{ fontSize: '20px', flexShrink: 0 }}>🛡️</span>
             <div style={{ minWidth: 0 }}>
@@ -51,7 +81,10 @@ export default function ObjectionPopup({ objection, onDismiss }) {
               <div style={{ color: '#e8e0d0', fontSize: '13px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{objection.title}</div>
             </div>
           </div>
-          <button onClick={onDismiss} title="Close (does not take over the screen)" style={{ background: 'rgba(239,68,68,0.15)', border: `1px solid rgba(239,68,68,0.3)`, color: '#ef4444', cursor: 'pointer', fontSize: '18px', fontWeight: 'bold', padding: '2px 10px', borderRadius: '4px', lineHeight: 1, flexShrink: 0 }}>×</button>
+          <div style={{ display: 'flex', gap: '4px', alignItems: 'center', flexShrink: 0 }}>
+            <button onClick={() => setMinimized(true)} title="Minimize (dock)" style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: '#8a9ab8', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold', padding: '2px 10px', borderRadius: '4px', lineHeight: 1 }}>—</button>
+            <button onClick={onDismiss} title="Close" style={{ background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.3)', color: '#ef4444', cursor: 'pointer', fontSize: '18px', fontWeight: 'bold', padding: '2px 10px', borderRadius: '4px', lineHeight: 1 }}>×</button>
+          </div>
         </div>
 
         <div style={{ overflowY: 'auto', flex: 1 }}>
@@ -96,10 +129,21 @@ export default function ObjectionPopup({ objection, onDismiss }) {
         </div>
 
         {/* Footer */}
-        <div style={{ padding: '10px 16px', borderTop: '1px solid rgba(255,255,255,0.05)', display: 'flex', justifyContent: 'flex-end', flexShrink: 0 }}>
+        <div style={{ padding: '10px 16px', borderTop: '1px solid rgba(255,255,255,0.05)', display: 'flex', justifyContent: 'flex-end', gap: '8px', flexShrink: 0 }}>
+          <button onClick={() => setMinimized(true)} style={{ background: 'rgba(255,255,255,0.05)', color: '#8a9ab8', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', padding: '8px 16px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}>— Dock</button>
           <button onClick={onDismiss} style={{ background: 'linear-gradient(135deg,#10b981,#22c55e)', color: DARK, border: 'none', borderRadius: '6px', padding: '8px 24px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase' }}>Got it ✓</button>
         </div>
       </div>
+
+      {/* Resize handle */}
+      <div onMouseDown={(e) => {
+        e.stopPropagation();
+        const startX = e.clientX, startY = e.clientY, startW = size.w, startH = size.h;
+        const onMove = (ev) => setSize({ w: Math.max(320, startW + ev.clientX - startX), h: Math.max(300, startH + ev.clientY - startY) });
+        const onUp = () => { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); };
+        document.addEventListener('mousemove', onMove);
+        document.addEventListener('mouseup', onUp);
+      }} style={{ position: 'absolute', bottom: 0, right: 0, width: '16px', height: '16px', cursor: 'nwse-resize', color: '#4a5568', textAlign: 'right', paddingRight: '2px', fontSize: '10px', userSelect: 'none' }}>⌟</div>
     </div>
   );
 }

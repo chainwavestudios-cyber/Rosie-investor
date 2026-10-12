@@ -802,13 +802,22 @@ You are in MANUAL OBJECTIONS mode. You will NOT raise any objections, questions,
                 <div style={{ color: '#6b7280', fontSize: '10px', marginTop: '4px' }}>{getTransferVoice(transferVoiceId).description}</div>
               </div>
 
-              {/* Manual Objections toggle */}
-              {phase === 'idle' && (
-                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 10px', background: manualObjections ? 'rgba(167,139,250,0.1)' : 'rgba(255,255,255,0.03)', border: `1px solid ${manualObjections ? 'rgba(167,139,250,0.3)' : 'rgba(255,255,255,0.08)'}`, borderRadius: '4px', cursor: 'pointer', fontSize: '12px', fontFamily: 'Georgia, serif', marginBottom: '12px' }}>
-                  <input type="checkbox" checked={manualObjections} onChange={e => setManualObjections(e.target.checked)} style={{ accentColor: PURPLE, width: '14px', height: '14px' }} />
-                  <span style={{ color: manualObjections ? PURPLE : '#8a9ab8', fontWeight: manualObjections ? 'bold' : 'normal' }}>🎯 Manual Objections</span>
-                  <span style={{ color: '#6b7280', fontSize: '10px' }}>(BOB won't object unless you trigger them)</span>
-                </label>
+              {/* Manual Objections toggle — visible during idle AND active calls */}
+              <label style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 10px', background: manualObjections ? 'rgba(167,139,250,0.1)' : 'rgba(255,255,255,0.03)', border: `1px solid ${manualObjections ? 'rgba(167,139,250,0.3)' : 'rgba(255,255,255,0.08)'}`, borderRadius: '4px', cursor: 'pointer', fontSize: '12px', fontFamily: 'Georgia, serif', marginBottom: '12px' }}>
+                <input type="checkbox" checked={manualObjections} onChange={e => {
+                  const next = e.target.checked;
+                  setManualObjections(next);
+                  if (next && phase === 'active') setShowObjectionsPopup(true);
+                  if (!next) setShowObjectionsPopup(false);
+                }} style={{ accentColor: PURPLE, width: '14px', height: '14px' }} />
+                <span style={{ color: manualObjections ? PURPLE : '#8a9ab8', fontWeight: manualObjections ? 'bold' : 'normal' }}>🎯 Manual Objections</span>
+                <span style={{ color: '#6b7280', fontSize: '10px' }}>(BOB won't object unless you trigger them)</span>
+              </label>
+              {/* Open Manual Objections popup button — visible during active call when enabled */}
+              {manualObjections && phase === 'active' && (
+                <button onClick={() => setShowObjectionsPopup(p => !p)} style={{ width: '100%', marginBottom: '12px', background: showObjectionsPopup ? 'rgba(167,139,250,0.15)' : `${PURPLE}18`, color: showObjectionsPopup ? '#c4b5fd' : PURPLE, border: `1px solid ${showObjectionsPopup ? 'rgba(167,139,250,0.4)' : PURPLE + '44'}`, borderRadius: '4px', padding: '8px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase' }}>
+                  {showObjectionsPopup ? '🎯 Objections Popup Open' : '🎯 Open Objections Popup'}
+                </button>
               )}
 
               {/* Start/Hangup + Save Now */}

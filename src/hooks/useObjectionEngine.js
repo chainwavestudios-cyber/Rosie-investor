@@ -16,6 +16,7 @@ export function useObjectionEngine(transcript) {
   const [activeObjection, setActiveObjection] = useState(null);
   const [recentMatches, setRecentMatches] = useState([]);
   const lastCheckedKeyRef = useRef('');
+  const dismissedKeyRef = useRef('');
 
   // Load enabled objections; reload when the management tab saves changes.
   useEffect(() => {
@@ -54,6 +55,8 @@ export function useObjectionEngine(transcript) {
     const key = (latest.time || '') + '|' + (latest.text || '').slice(0, 60);
     if (key === lastCheckedKeyRef.current) return;
     lastCheckedKeyRef.current = key;
+    // Don't re-trigger an objection the user already dismissed for this line
+    if (key === dismissedKeyRef.current) return;
 
     const text = (latest.text || '').toLowerCase();
     const matched = objections
@@ -105,7 +108,10 @@ export function useObjectionEngine(transcript) {
     }
   }, [transcript, objections, kbEntries]);
 
-  const dismiss = useCallback(() => setActiveObjection(null), []);
+  const dismiss = useCallback(() => {
+    dismissedKeyRef.current = lastCheckedKeyRef.current;
+    setActiveObjection(null);
+  }, []);
   const clearRecent = useCallback(() => setRecentMatches([]), []);
 
   return { objections, activeObjection, dismiss, recentMatches, clearRecent };
