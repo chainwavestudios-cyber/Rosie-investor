@@ -1,0 +1,48 @@
+{
+  "name": "FronterActivityLog",
+  "type": "object",
+  "properties": {
+    "username": {
+      "type": "string",
+      "title": "Fronter Username"
+    },
+    "activityType": {
+      "type": "string",
+      "title": "Activity Type",
+      "enum": [
+        "login",
+        "logout",
+        "auto_logout",
+        "tab_change",
+        "call_start",
+        "call_end",
+        "clock_in",
+        "clock_out",
+        "status_change"
+      ]
+    },
+    "tabName": {
+      "type": "string",
+      "title": "Tab / Section Name (for tab_change)"
+    },
+    "details": {
+      "type": "string",
+      "title": "Details (extra context)"
+    },
+    "durationSeconds": {
+      "type": "number",
+      "title": "Time on Previous Tab (seconds, for tab_change)",
+      "default": 0
+    }
+  },
+  "required": [
+    "username",
+    "activityType"
+  ],
+  "rls": {
+    "create": null,
+    "read": null,
+    "update": null,
+    "delete": null
+  }
+}

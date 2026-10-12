@@ -19,6 +19,7 @@ import FronterScriptEditor from '@/components/fronter/FronterScriptEditor';
 import FronterQuoteTab from '@/components/fronter/FronterQuoteTab';
 import FronterBobCallsTab from '@/components/fronter/FronterBobCallsTab';
 import FronterContactCard from '@/components/fronter/FronterContactCard';
+import FronterActivityLogTab from '@/components/fronter/FronterActivityLogTab';
 import { renderFormatted } from '@/components/debt/ScriptRichText';
 
 const GOLD = '#10b981';
@@ -250,6 +251,7 @@ export default function FronterAdminTab({ adminUsername }) {
     { id: 'scripts', label: '📜 Scripts' },
     { id: 'quotes', label: '💬 Quotes' },
     { id: 'bobcalls', label: '🤖 Bob Calls' },
+    { id: 'activity', label: '📊 Activity Log' },
   ];
 
   return (
@@ -529,6 +531,11 @@ export default function FronterAdminTab({ adminUsername }) {
             {scripts.length === 0 && <div style={{ color: '#4a5568', textAlign: 'center', padding: '20px', fontSize: '12px' }}>No scripts yet.</div>}
           </div>
         </div>
+      )}
+
+      {/* ── ACTIVITY LOG ── */}
+      {subtab === 'activity' && !loading && (
+        <FronterActivityLogTab />
       )}
     </div>
   );

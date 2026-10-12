@@ -18,6 +18,19 @@ export default function DebtCoachLogin() {
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loginMode, setLoginMode] = useState('password'); // 'password' | 'voice' | 'enroll'
+  const [saveCreds, setSaveCreds] = useState(false);
+  const SAVED_CREDS_KEY = 'debtCoachSavedCreds';
+
+  // Pre-fill from saved credentials (only super_admin credentials are ever saved)
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(SAVED_CREDS_KEY);
+      if (saved) {
+        const { username: u, password: p } = JSON.parse(saved);
+        setUsername(u || ''); setPassword(p || ''); setSaveCreds(true);
+      }
+    } catch {}
+  }, []);
 
   useEffect(() => {
     if (isAuthenticated && !mustResetPassword) navigate(user?.role === 'fronter' ? '/fronter' : '/debt-call-coach', { replace: true });
@@ -30,6 +43,12 @@ export default function DebtCoachLogin() {
     setLoading(true);
     try {
       const res = await login(username, password);
+      // Only super_admins are allowed to save credentials
+      if (res.user?.role === 'super_admin' && saveCreds) {
+        localStorage.setItem(SAVED_CREDS_KEY, JSON.stringify({ username, password }));
+      } else {
+        localStorage.removeItem(SAVED_CREDS_KEY);
+      }
       if (res.mustResetPassword) {
         setShowReset(true);
       } else {
@@ -110,6 +129,10 @@ export default function DebtCoachLogin() {
                   <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Enter password" style={inp} />
                 </div>
                 {error && <div style={{ color: '#ef4444', fontSize: '12px', marginBottom: '12px' }}>⚠ {error}</div>}
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px', cursor: 'pointer', color: '#8a9ab8', fontSize: '11px' }}>
+                  <input type="checkbox" checked={saveCreds} onChange={e => setSaveCreds(e.target.checked)} style={{ accentColor: GOLD, width: '14px', height: '14px' }} />
+                  <span>Save credentials <span style={{ color: '#4a5568', fontSize: '10px' }}>(super admins only)</span></span>
+                </label>
                 <button type="submit" disabled={loading} style={{ width: '100%', background: 'linear-gradient(135deg,#10b981,#22c55e)', color: DARK, border: 'none', borderRadius: '4px', padding: '12px', cursor: loading ? 'not-allowed' : 'pointer', fontSize: '12px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase', opacity: loading ? 0.5 : 1 }}>
                   {loading ? 'Signing in…' : 'Sign In'}
                 </button>

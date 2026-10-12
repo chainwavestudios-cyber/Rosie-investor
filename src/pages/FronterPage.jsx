@@ -29,6 +29,7 @@ import FronterEmergencyScript from '@/components/fronter/FronterEmergencyScript'
 import FronterAIAgentTab from '@/components/fronter/FronterAIAgentTab';
 import FronterEmailTrackingNotifications from '@/components/fronter/FronterEmailTrackingNotifications';
 import FronterContactCard from '@/components/fronter/FronterContactCard';
+import { useFronterActivityTracker, clockOutAtTime, logFronterActivity } from '@/hooks/useFronterActivityTracker';
 
 const GOLD = '#10b981';
 const DARK = '#0a0f1e';
@@ -44,6 +45,25 @@ export default function FronterPage() {
   const [metrics, setMetrics] = useState({ callsToday: 0, talkTimeSeconds: 0, transferredToday: 0 });
   const [showQA, setShowQA] = useState(false);
   const [showCallCard, setShowCallCard] = useState(false);
+  const [autoLoggedOutMsg, setAutoLoggedOutMsg] = useState('');
+
+  // Activity tracker — logs tab navigation, auto-logs-out after 45 min inactivity
+  const handleInactive = useCallback(async (lastActivityISO) => {
+    // Clock out at the last activity time (not now — 45 min later)
+    const clockedOut = await clockOutAtTime(user.username, lastActivityISO);
+    await logFronterActivity(user.username, 'auto_logout', `Inactive 45+ min. Last activity: ${new Date(lastActivityISO).toLocaleTimeString('en-US', { timeZone: 'America/New_York' })}. ${clockedOut ? 'Clocked out at last activity time.' : 'Was not clocked in.'}`);
+    await logout();
+    sessionStorage.setItem('fronterAutoLogoutMsg', `You were logged out after 45 minutes of inactivity. Last activity: ${new Date(lastActivityISO).toLocaleTimeString('en-US', { timeZone: 'America/New_York' })}.`);
+    navigate('/debt-call-coach-login', { replace: true });
+  }, [user, logout, navigate]);
+
+  useFronterActivityTracker({ username: user?.username, role: user?.role, tab, onInactive: handleInactive });
+
+  // Show auto-logout message if returning from one
+  useEffect(() => {
+    const msg = sessionStorage.getItem('fronterAutoLogoutMsg');
+    if (msg) { setAutoLoggedOutMsg(msg); sessionStorage.removeItem('fronterAutoLogoutMsg'); setTimeout(() => setAutoLoggedOutMsg(''), 8000); }
+  }, []);
 
   // Alt+C toggles the Call Card
   useEffect(() => {
@@ -231,6 +251,10 @@ export default function FronterPage() {
   return (
     <div style={{ minHeight: '100vh', background: DARK, fontFamily: 'Georgia, serif', color: '#e8e0d0' }}>
       <style>{`@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}`}</style>
+
+      {autoLoggedOutMsg && (
+        <div style={{ position: 'fixed', top: '20px', left: '50%', transform: 'translateX(-50%)', background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.4)', borderRadius: '8px', padding: '12px 24px', color: '#ef4444', fontSize: '13px', fontWeight: 'bold', zIndex: 50000, boxShadow: '0 8px 32px rgba(0,0,0,0.6)' }}>⏰ {autoLoggedOutMsg}</div>
+      )}
 
       {/* Header */}
       <div style={{ padding: '14px 24px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(0,0,0,0.3)' }}>

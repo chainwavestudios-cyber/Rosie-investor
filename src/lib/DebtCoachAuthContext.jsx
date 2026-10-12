@@ -52,7 +52,10 @@ export function DebtCoachAuthProvider({ children }) {
       for (const s of active) {
         await base44.entities.DialerSession.update(s.id, { status: 'offline', logoutAt: new Date().toISOString() });
       }
-      await base44.entities.DialerSession.create({ username: canon, loginAt: new Date().toISOString(), status: 'logged_in' });
+      await base44.entities.DialerSession.create({ username: canon, loginAt: new Date().toISOString(), status: 'logged_in', lastActivityAt: new Date().toISOString() });
+      if (data.user.role === 'fronter') {
+        try { await base44.entities.FronterActivityLog.create({ username: canon, activityType: 'login' }); } catch {}
+      }
     } catch {}
     return data;
   }, []);
@@ -71,7 +74,10 @@ export function DebtCoachAuthProvider({ children }) {
       for (const s of active) {
         await base44.entities.DialerSession.update(s.id, { status: 'offline', logoutAt: new Date().toISOString() });
       }
-      await base44.entities.DialerSession.create({ username: canon, loginAt: new Date().toISOString(), status: 'logged_in' });
+      await base44.entities.DialerSession.create({ username: canon, loginAt: new Date().toISOString(), status: 'logged_in', lastActivityAt: new Date().toISOString() });
+      if (data.user.role === 'fronter') {
+        try { await base44.entities.FronterActivityLog.create({ username: canon, activityType: 'login', details: 'voice login' }); } catch {}
+      }
     } catch {}
     return data;
   }, []);
@@ -91,6 +97,9 @@ export function DebtCoachAuthProvider({ children }) {
         const active = (sessions || []).filter(s => s.status === 'logged_in' || s.status === 'on_call');
         for (const s of active) {
           await base44.entities.DialerSession.update(s.id, { status: 'offline', logoutAt: new Date().toISOString() });
+        }
+        if (user.role === 'fronter') {
+          try { await base44.entities.FronterActivityLog.create({ username: user.username, activityType: 'logout' }); } catch {}
         }
       } catch {}
     }
