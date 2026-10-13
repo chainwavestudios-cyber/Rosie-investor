@@ -18,6 +18,7 @@ const FIELDS = [
   { key: 'phone2', label: 'Secondary Phone' },
   { key: 'email', label: 'Email' },
   { key: 'address', label: 'Address' },
+  { key: 'city', label: 'City' },
   { key: 'state', label: 'State' },
   { key: 'zipCode', label: 'Zip Code' },
   { key: 'debtAmount', label: 'Debt Amount ($)' },
@@ -45,7 +46,8 @@ function autoMatch(header) {
   if (['phone2', 'secondary phone', 'alt phone', 'alternate phone', 'second phone'].some(p => h === p || h.includes(p))) return 'phone2';
   if (['email', 'e-mail', 'email address'].some(p => h === p || h.includes(p))) return 'email';
   if (['address', 'street', 'addr', 'mailing'].some(p => h === p || h.includes(p))) return 'address';
-  if (['state'].some(p => h === p || h.includes(p))) return 'state';
+  if (['city', 'town', 'municipality'].some(p => h === p || h.includes(p))) return 'city';
+  if (['state', 'province', 'region'].some(p => h === p || h.includes(p))) return 'state';
   if (['zip', 'zip code', 'postal', 'postcode'].some(p => h === p || h.includes(p))) return 'zipCode';
   if (['debt', 'amount', 'balance', 'debt amount', 'debt balance', 'total debt'].some(p => h === p || h.includes(p))) return 'debtAmount';
   if (['note', 'notes', 'comment', 'comments', 'remark', 'description', 'desc'].some(p => h === p || h.includes(p))) return 'notes';

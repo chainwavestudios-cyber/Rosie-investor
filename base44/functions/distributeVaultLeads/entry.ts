@@ -59,6 +59,7 @@ export default async function(req: Request): Promise<Response> {
         phone2: entry.phone2 || '',
         email: entry.email || '',
         address: entry.address || '',
+        city: entry.city || '',
         state: entry.state || '',
         zipCode: entry.zipCode || '',
         debtAmount: entry.debtAmount || 0,

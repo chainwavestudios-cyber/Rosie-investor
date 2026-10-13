@@ -227,7 +227,7 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
     try {
       await base44.entities.FronterLead.update(lead.id, {
         firstName: local.firstName, lastName: local.lastName, phone: local.phone, phone2: local.phone2,
-        email: local.email, address: local.address, state: local.state, zipCode: local.zipCode,
+        email: local.email, address: local.address, city: local.city, state: local.state, zipCode: local.zipCode,
         preferredCallTime: local.preferredCallTime, employmentStatus: local.employmentStatus,
         hardshipQualification: local.hardshipQualification || '', referralSource: local.referralSource,
         debtAmount: local.debtAmount, debtTypesJson: local.debtTypesJson,
@@ -406,8 +406,9 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
                     {local.phone2Carrier && <div style={{ color: '#4a5568', fontSize: '9px', marginTop: '2px' }}>{local.phone2Carrier}{local.phone2LineType && local.phone2LineType !== 'unknown' ? ` · ${local.phone2LineType}` : ''}</div>}
                   </div>
                   <div style={{ marginBottom: '6px' }}><label style={ls}>Email</label><input value={local.email || ''} onChange={e => update('email', e.target.value)} style={inp} placeholder="customer@email.com" /></div>
-                  <div style={{ marginBottom: '6px' }}><label style={ls}>Address</label><input value={local.address || ''} onChange={e => update('address', e.target.value)} style={inp} placeholder="123 Main St, City, State 12345" /></div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '90px 1fr', gap: '6px' }}>
+                  <div style={{ marginBottom: '6px' }}><label style={ls}>Address</label><input value={local.address || ''} onChange={e => update('address', e.target.value)} style={inp} placeholder="123 Main St" /></div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 70px 1fr', gap: '6px', marginBottom: '6px' }}>
+                    <div><label style={ls}>City</label><input value={local.city || ''} onChange={e => update('city', e.target.value)} style={inp} placeholder="New York" /></div>
                     <div><label style={ls}>State</label><input value={local.state || ''} onChange={e => update('state', e.target.value)} style={inp} placeholder="NY" maxLength={2} /></div>
                     <div><label style={ls}>Zip</label><input value={local.zipCode || ''} onChange={e => update('zipCode', e.target.value)} style={inp} placeholder="10001" /></div>
                   </div>

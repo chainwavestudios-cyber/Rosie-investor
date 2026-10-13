@@ -18,6 +18,9 @@ const FIELDS = [
   { key: 'lastName', label: 'Last Name', required: true },
   { key: 'phone', label: 'Phone', required: true },
   { key: 'address', label: 'Address' },
+  { key: 'city', label: 'City' },
+  { key: 'state', label: 'State' },
+  { key: 'zipCode', label: 'Zip Code' },
   { key: 'debtAmount', label: 'Debt Amount ($)' },
   { key: 'notes', label: 'Notes' },
 ];
@@ -53,6 +56,9 @@ function autoMatchHeader(header) {
   if (['last name', 'last', 'lname', 'last_name', 'surname', 'family name'].some(p => h === p || h.includes(p))) return 'lastName';
   if (['phone', 'phone number', 'tel', 'mobile', 'cell', 'cell phone', 'telephone'].some(p => h === p || h.includes(p))) return 'phone';
   if (['address', 'street', 'addr', 'mailing'].some(p => h === p || h.includes(p))) return 'address';
+  if (['city', 'town', 'municipality'].some(p => h === p || h.includes(p))) return 'city';
+  if (['state', 'province', 'region'].some(p => h === p || h.includes(p))) return 'state';
+  if (['zip', 'zip code', 'postal', 'postcode', 'postal code'].some(p => h === p || h.includes(p))) return 'zipCode';
   if (['debt', 'amount', 'balance', 'debt amount', 'debt balance', 'total debt'].some(p => h === p || h.includes(p))) return 'debtAmount';
   if (['note', 'notes', 'comment', 'comments', 'remark', 'description', 'desc'].some(p => h === p || h.includes(p))) return 'notes';
   return '';
@@ -142,7 +148,7 @@ export default function FronterLeadImportModal({ assignedTos, assignedBy, onClos
     setImporting(false);
   };
 
-  const placeholderText = 'First Name,Last Name,Phone,Address,Debt Amount,Notes\nJohn,Smith,555-123-4567,123 Main St,15000,Interested\nJane,Doe,555-987-6543,456 Oak Ave,25000,callback tomorrow';
+  const placeholderText = 'First Name,Last Name,Phone,Address,City,State,Zip,Debt Amount,Notes\nJohn,Smith,555-123-4567,123 Main St,New York,NY,10001,15000,Interested\nJane,Doe,555-987-6543,456 Oak Ave,Los Angeles,CA,90001,25000,callback tomorrow';
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }} onClick={onClose}>
