@@ -32,7 +32,7 @@ const WORK_DAYS = [
   { date: '2026-10-04', day: 'Sun', scraping: 3.0, smartLeads: 2.5, enrichment: 1.5,  bob: 5.5, notes: 'SmartLeadsRejectModal; engagement tracking; BOB open + close sims (Sunday session)' },
   { date: '2026-10-05', day: 'Mon', scraping: 2.5, smartLeads: 3.0, enrichment: 1.5,  bob: 6.0, notes: 'SmartLeadConfig; open/click pixels; BOB open + close sims' },
   { date: '2026-10-06', day: 'Tue', scraping: 2.0, smartLeads: 3.0, enrichment: 1.5,  bob: 6.5, notes: 'SmartLeadFeedback loop; engagement intent scoring; BOB sims' },
-  { date: '2026-10-07', day: 'Wed', scraping: 1.5, smartLeads: 3.0, enrichment: 2.0,  bob: 7.0, notes: 'Credit report OCR; funnel analytics; BOB sims + first follow-ups' },
+  { date: '2026-10-07', day: 'Wed', scraping: 1.5, smartLeads: 3.0, enrichment: 2.0,  bob: 7.0, notes: 'Bob Close main focus for training; funnel analytics; continue to fine tune lead gen system' },
   { date: '2026-10-08', day: 'Thu', scraping: 1.0, smartLeads: 3.0, enrichment: 2.0,  bob: 7.5, notes: 'Campaign analytics; DAA transfer workflow; BOB sims + follow-ups' },
   { date: '2026-10-09', day: 'Fri', scraping: 0.8, smartLeads: 3.0, enrichment: 2.7,  bob: 7.5, notes: 'Enrichment-to-DAA-pitch funnel reporting; BOB sims + follow-ups' },
   { date: '2026-10-10', day: 'Sat', scraping: 0.5, smartLeads: 2.5, enrichment: 3.2,  bob: 8.0, notes: 'Campaign engagement dashboard; final BOB sims + follow-ups' },
