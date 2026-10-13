@@ -54,11 +54,10 @@ export default function FronterDialer({ lead, username, lineKey, lineNumber, onC
   const runContactFillerRef = useRef(runContactFiller);
   useEffect(() => { runContactFillerRef.current = runContactFiller; }, [runContactFiller]);
 
-  // Load saved merge numbers (ClosingPhoneNumber entity)
+  // Single hardcoded merge number — DAA deskline
   useEffect(() => {
-    base44.entities.ClosingPhoneNumber.list('sortOrder', 50).then(all => {
-      setMergeNumbers(all || []);
-    }).catch(() => {});
+    setMergeNumbers([{ label: 'DAA Deskline', phoneNumber: '12162586934' }]);
+    setSelectedMergeNumber('12162586934');
   }, []);
 
   // Sync refs for use in disconnect handler
@@ -314,7 +313,7 @@ Provide your analysis as JSON with these fields:
 
   const dial = async () => {
     if (!lead?.phone) { setError('No phone number'); return; }
-    setError(''); setCallStatus('calling'); setDuration(0); setMuted(false); setOnHold(false); setMerged(false); setConferenceName(''); setMergeStep('idle'); setSelectedMergeNumber(''); setCustomMergeNumber(''); setTranscriptLineCount(0);
+    setError(''); setCallStatus('calling'); setDuration(0); setMuted(false); setOnHold(false); setMerged(false); setConferenceName(''); setMergeStep('idle'); setSelectedMergeNumber('12162586934'); setCustomMergeNumber(''); setTranscriptLineCount(0);
     onDial?.(lead);
     try {
       const device = await getDevice();
@@ -497,7 +496,7 @@ Provide your analysis as JSON with these fields:
                   {busy ? '⏳' : onHold ? '▶ Unhold' : '⏸ Hold'}
                 </button>
                 {mergeStep === 'idle' && !onHold && !merged && (
-                  <button onClick={() => { setShowMergeInput(true); setMergeStep('select'); }} style={ctrlBtn(GOLD, false)}>
+                  <button onClick={() => { setShowMergeInput(true); setMergeStep('select'); setSelectedMergeNumber('12162586934'); }} style={ctrlBtn(GOLD, false)}>
                     🔗 Merge
                   </button>
                 )}
@@ -519,20 +518,12 @@ Provide your analysis as JSON with these fields:
           {mergeStep === 'select' && (
             <>
               <div style={{ color: GOLD, fontSize: '10px', marginBottom: '6px' }}>🔗 Merge in an agent</div>
-              <select value={selectedMergeNumber} onChange={e => setSelectedMergeNumber(e.target.value)} style={{ ...inputStyle(), marginBottom: '6px' }}>
-                <option value="">— Select a number —</option>
-                {mergeNumbers.map(n => <option key={n.id} value={n.phoneNumber}>{n.label}: {n.phoneNumber}</option>)}
-                <option value="__custom__">— Custom number —</option>
+              <select value={selectedMergeNumber} onChange={e => setSelectedMergeNumber(e.target.value)} style={{ ...inputStyle(), marginBottom: '8px' }}>
+                <option value="12162586934">DAA Deskline: 1 216 258 6934</option>
               </select>
-              {selectedMergeNumber === '__custom__' && (
-                <div style={{ display: 'flex', gap: '6px', marginBottom: '8px' }}>
-                  <input value={customMergeNumber} onChange={e => setCustomMergeNumber(e.target.value)} placeholder="Agent number (555-123-4567)" style={inputStyle()} />
-                  <button onClick={saveMergeNumber} disabled={!customMergeNumber.trim()} title="Save to dropdown" style={ctrlBtn(GOLD, false)}>⭐ Save</button>
-                </div>
-              )}
               <div style={{ display: 'flex', gap: '8px' }}>
                 <button onClick={() => { setShowMergeInput(false); setMergeStep('idle'); }} style={ctrlBtn('#6b7280', false)}>Cancel</button>
-                <button onClick={handleMergeDial} disabled={busy || (!selectedMergeNumber || (selectedMergeNumber === '__custom__' && !customMergeNumber.trim()))} style={{ background: 'linear-gradient(135deg,#10b981,#22c55e)', color: DARK, border: 'none', borderRadius: '4px', padding: '8px 16px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', opacity: (!selectedMergeNumber || (selectedMergeNumber === '__custom__' && !customMergeNumber.trim())) ? 0.5 : 1 }}>{busy ? '⏳' : '📞 Dial Agent'}</button>
+                <button onClick={handleMergeDial} disabled={busy || !selectedMergeNumber} style={{ background: 'linear-gradient(135deg,#10b981,#22c55e)', color: DARK, border: 'none', borderRadius: '4px', padding: '8px 16px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', opacity: !selectedMergeNumber ? 0.5 : 1 }}>{busy ? '⏳' : '📞 Dial Agent'}</button>
               </div>
             </>
           )}
