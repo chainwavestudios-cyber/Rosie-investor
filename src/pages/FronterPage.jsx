@@ -29,6 +29,8 @@ import FronterEmergencyScript from '@/components/fronter/FronterEmergencyScript'
 import FronterAIAgentTab from '@/components/fronter/FronterAIAgentTab';
 import FronterEmailTrackingNotifications from '@/components/fronter/FronterEmailTrackingNotifications';
 import FronterContactCard from '@/components/fronter/FronterContactCard';
+import FronterAIReportsTab from '@/components/fronter/FronterAIReportsTab';
+import FronterReportPopup from '@/components/fronter/FronterReportPopup';
 import { useFronterActivityTracker, clockOutAtTime, logFronterActivity } from '@/hooks/useFronterActivityTracker';
 
 const GOLD = '#10b981';
@@ -46,6 +48,9 @@ export default function FronterPage() {
   const [showQA, setShowQA] = useState(false);
   const [showCallCard, setShowCallCard] = useState(false);
   const [autoLoggedOutMsg, setAutoLoggedOutMsg] = useState('');
+  const [callActive, setCallActive] = useState(false);
+  const [pendingReports, setPendingReports] = useState([]);
+  const [showReportPopup, setShowReportPopup] = useState(false);
 
   // Activity tracker — logs tab navigation, auto-logs-out after 45 min inactivity
   const handleInactive = useCallback(async (lastActivityISO) => {
@@ -89,8 +94,8 @@ export default function FronterPage() {
   const isAdmin = isSuperAdmin;
   // Fronter sees leads + scripts; admin sees admin + leads + scripts
   const TABS = isAdmin
-    ? [{ id: 'admin', label: '⚙️ Admin' }, { id: 'ai_agent', label: '🤖 AI Agent' }, { id: 'prospects', label: '📋 Prospects' }, { id: 'leads', label: '📋 Leads' }, { id: 'closed_deals', label: '💎 Closed Deals' }, { id: 'feedback', label: '💬 Feedback' }, { id: 'bob', label: '🤖 BOB Training' }, { id: 'hr', label: '🕐 HR' }, { id: 'scripts', label: '📜 Scripts' }, { id: 'settings', label: '🔧 Settings' }]
-    : [{ id: 'prospects', label: '📋 Prospects' }, { id: 'leads', label: '📋 Leads' }, { id: 'closed_deals', label: '💎 Closed Deals' }, { id: 'feedback', label: '💬 Feedback' }, { id: 'bob', label: '🤖 BOB Training' }, { id: 'hr', label: '🕐 HR' }, { id: 'scripts', label: '📜 Scripts' }, { id: 'settings', label: '🔧 Settings' }];
+    ? [{ id: 'admin', label: '⚙️ Admin' }, { id: 'ai_agent', label: '🤖 AI Agent' }, { id: 'prospects', label: '📋 Prospects' }, { id: 'leads', label: '📋 Leads' }, { id: 'closed_deals', label: '💎 Closed Deals' }, { id: 'reports', label: '📊 Reports' }, { id: 'feedback', label: '💬 Feedback' }, { id: 'bob', label: '🤖 BOB Training' }, { id: 'hr', label: '🕐 HR' }, { id: 'scripts', label: '📜 Scripts' }, { id: 'settings', label: '🔧 Settings' }]
+    : [{ id: 'prospects', label: '📋 Prospects' }, { id: 'leads', label: '📋 Leads' }, { id: 'closed_deals', label: '💎 Closed Deals' }, { id: 'reports', label: '📊 Reports' }, { id: 'feedback', label: '💬 Feedback' }, { id: 'bob', label: '🤖 BOB Training' }, { id: 'hr', label: '🕐 HR' }, { id: 'scripts', label: '📜 Scripts' }, { id: 'settings', label: '🔧 Settings' }];
 
   const loadLine = useCallback(async () => {
     if (!user?.username) return;
@@ -212,6 +217,62 @@ export default function FronterPage() {
     const interval = setInterval(compute, 30000);
     return () => clearInterval(interval);
   }, [user?.username]);
+
+  // Track active call status — popup waits until call ends before showing
+  useEffect(() => {
+    if (!user?.username) return;
+    const check = async () => {
+      try {
+        const sessions = await base44.entities.DialerSession.filter({ username: user.username });
+        setCallActive(sessions?.[0]?.status === 'on_call');
+      } catch {}
+    };
+    check();
+    const interval = setInterval(check, 5000);
+    return () => clearInterval(interval);
+  }, [user?.username]);
+
+  // Load unviewed performance reports on mount + subscribe to new ones
+  useEffect(() => {
+    if (!user?.username) return;
+    const loadUnviewed = async () => {
+      try {
+        const all = await base44.entities.FronterPerformanceReport.filter(
+          { fronterUsername: user.username, viewedByFronter: false },
+          { sort: '-reportTimestamp', limit: 10 }
+        );
+        const items = all?.items || all || [];
+        if (items.length > 0) setPendingReports(items);
+      } catch {}
+    };
+    loadUnviewed();
+    const unsubscribe = base44.entities.FronterPerformanceReport.subscribe((event) => {
+      if (event.type === 'create' && event.data?.fronterUsername === user.username && !event.data?.viewedByFronter) {
+        setPendingReports(prev => [...prev, event.data]);
+      }
+    });
+    return () => unsubscribe();
+  }, [user?.username]);
+
+  // Show popup when call ends and there are pending reports
+  useEffect(() => {
+    if (!callActive && pendingReports.length > 0 && !showReportPopup) {
+      setShowReportPopup(true);
+    }
+  }, [callActive, pendingReports, showReportPopup]);
+
+  // Mark report as viewed and advance to next pending
+  const handleCloseReport = async () => {
+    const report = pendingReports[0];
+    if (report?.id) {
+      try {
+        await base44.entities.FronterPerformanceReport.update(report.id, { viewedByFronter: true, viewedAt: new Date().toISOString() });
+      } catch {}
+    }
+    const remaining = pendingReports.slice(1);
+    setPendingReports(remaining);
+    setShowReportPopup(false);
+  };
 
   // Resolve the line to use for the leads tab
   const activeLine = isFronter
@@ -371,6 +432,10 @@ export default function FronterPage() {
           <FronterClosedDealsTab username={user.username} isAdmin={isAdmin} fronterFirstName={user?.firstName} />
         )}
 
+        {tab === 'reports' && (
+          <FronterAIReportsTab username={user.username} isAdmin={isAdmin} />
+        )}
+
         {tab === 'feedback' && <FronterFeedbackTab username={user.username} />}
 
         {tab === 'bob' && <FronterBobTrainer username={user.username} fronterFirstName={user?.firstName} />}
@@ -433,6 +498,11 @@ export default function FronterPage() {
           onClose={() => setMonitorLead(null)}
           onSave={(updated) => setMonitorLead(prev => ({ ...prev, ...updated }))}
         />
+      )}
+
+      {/* AI Performance Audit popup — shows after call ends, movable */}
+      {showReportPopup && pendingReports[0] && (
+        <FronterReportPopup report={pendingReports[0]} onClose={handleCloseReport} />
       )}
     </div>
   );

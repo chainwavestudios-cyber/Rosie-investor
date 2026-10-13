@@ -1,0 +1,47 @@
+{
+  "definition": {
+    "document": {
+      "dsl": "1.0.0",
+      "name": "fronter_performance_audits",
+      "version": "1.0",
+      "namespace": "base44"
+    },
+    "do": [
+      {
+        "check_and_generate": {
+          "call": "invoke_backend_function",
+          "with": {
+            "function_name": "fronterPerformanceAudit",
+            "args": {
+              "action": "check"
+            }
+          },
+          "then": "end",
+          "x-base44": {
+            "title": "Check fronters and generate audits",
+            "description": "Iterates all fronters with a time entry today \u2014 generates AM report at 4.5h after clock-in, PM report at clock-out"
+          }
+        }
+      }
+    ]
+  },
+  "trigger": {
+    "condition": null,
+    "config": {
+      "trigger_type": "scheduled",
+      "events": [],
+      "schedule_mode": "recurring",
+      "cron_expression": "*/10 * * * *",
+      "one_time_date": null,
+      "timezone": "America/New_York",
+      "interval_value": null,
+      "interval_unit": null,
+      "interval_anchor": null,
+      "ends_type": "never",
+      "ends_on_date": null,
+      "ends_after_count": null
+    }
+  },
+  "description": "Runs every 10 minutes \u2014 checks all fronters with a FronterTimeEntry for today and generates AM (4.5h after clock-in) or PM (at clock-out) AI performance audit reports as needed.",
+  "name": "Fronter Performance Audits"
+}
