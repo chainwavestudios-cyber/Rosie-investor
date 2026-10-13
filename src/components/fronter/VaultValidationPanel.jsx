@@ -1,6 +1,6 @@
 /**
  * VaultValidationPanel.jsx — Shows validation progress, remaining quota,
- * and a button to validate pending vault entries in batches.
+ * and buttons to validate pending vault entries in batches.
  */
 import { useState } from 'react';
 import { base44 } from '@/api/base44Client';
@@ -15,11 +15,11 @@ export default function VaultValidationPanel({ stats, onValidated }) {
   const [validating, setValidating] = useState(false);
   const [lastResult, setLastResult] = useState(null);
 
-  const handleValidate = async () => {
+  const runValidation = async (mode) => {
     if (validating) return;
     setValidating(true);
     try {
-      const res = await base44.functions.invoke('validateVaultPhones', { maxCount: 50 });
+      const res = await base44.functions.invoke('validateVaultPhones', { maxCount: 50, mode });
       const data = res?.data || res;
       setLastResult(data);
       if (data?.error) {
@@ -33,18 +33,23 @@ export default function VaultValidationPanel({ stats, onValidated }) {
     setValidating(false);
   };
 
+  const handleValidate = () => runValidation(undefined);
+  const handleRetryFailed = () => runValidation('retry_failed');
+
   const remaining = stats?.remaining ?? 100;
   const used = stats?.used ?? 0;
   const limit = stats?.limit ?? 100;
   const quotaPct = limit > 0 ? Math.min(100, (used / limit) * 100) : 0;
   const quotaColor = quotaPct >= 90 ? RED : quotaPct >= 70 ? AMBER : GOLD;
 
+  const keyErrors = lastResult?.keyErrors;
+
   return (
     <div style={{ background: '#0d1b2a', border: '1px solid rgba(96,165,250,0.2)', borderRadius: '8px', padding: '20px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
         <div style={{ color: BLUE, fontSize: '13px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase' }}>🔍 Phone Validation</div>
         {lastResult && !lastResult.error && (
-          <span style={{ color: GOLD, fontSize: '11px' }}>Last batch: {lastResult.validated} validated, {lastResult.apiCalls} API calls</span>
+          <span style={{ color: GOLD, fontSize: '11px' }}>Last batch: {lastResult.validated} valid · {lastResult.failedCalls || 0} failed · {lastResult.apiCalls} calls</span>
         )}
       </div>
 
@@ -61,6 +66,32 @@ export default function VaultValidationPanel({ stats, onValidated }) {
           <div style={{ color: RED, fontSize: '10px', marginTop: '6px' }}>⚠ All API keys exhausted this month. Add more keys or upgrade your Omkar plan.</div>
         )}
       </div>
+
+      {/* Key error warning */}
+      {keyErrors && Object.keys(keyErrors).length > 0 && (
+        <div style={{ marginBottom: '14px', padding: '10px 12px', background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '6px' }}>
+          <div style={{ color: RED, fontSize: '11px', fontWeight: 'bold', marginBottom: '4px' }}>⚠ API Key Error — {Object.keys(keyErrors).join(', ')} skipped</div>
+          {Object.entries(keyErrors).map(([k, err]) => (
+            <div key={k} style={{ color: '#8a9ab8', fontSize: '10px', fontFamily: 'monospace', marginTop: '2px' }}>{k}: {String(err).slice(0, 120)}</div>
+          ))}
+          <div style={{ color: AMBER, fontSize: '10px', marginTop: '6px' }}>Activate the free plan at omkar.cloud/tools/carrier-lookup-api/pricing to use this key again.</div>
+        </div>
+      )}
+
+      {/* All keys exhausted warning */}
+      {lastResult?.allKeysExhausted && (
+        <div style={{ marginBottom: '14px', padding: '12px', background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.4)', borderRadius: '6px' }}>
+          <div style={{ color: RED, fontSize: '12px', fontWeight: 'bold', marginBottom: '6px' }}>🚫 All API keys exhausted or broken</div>
+          <div style={{ color: '#8a9ab8', fontSize: '11px', lineHeight: 1.5 }}>
+            No leads could be validated. To fix this:
+            <ul style={{ margin: '6px 0 0 16px', padding: 0 }}>
+              <li>Activate key2's free plan at omkar.cloud/tools/carrier-lookup-api/pricing</li>
+              <li>Wait for next month when key1 & key3 quotas reset</li>
+              <li>Or add a new API key (PHONE_LOOKUP_API_KEY_4) in Secrets</li>
+            </ul>
+          </div>
+        </div>
+      )}
 
       {/* Stats grid */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px', marginBottom: '14px' }}>
@@ -91,9 +122,18 @@ export default function VaultValidationPanel({ stats, onValidated }) {
         </div>
       )}
 
+      {/* Validate button */}
       <button onClick={handleValidate} disabled={validating || remaining <= 0 || (stats?.pending ?? 0) === 0} style={{ width: '100%', background: 'linear-gradient(135deg,#3b82f6,#60a5fa)', color: DARK, border: 'none', borderRadius: '4px', padding: '12px', cursor: (validating || remaining <= 0 || (stats?.pending ?? 0) === 0) ? 'not-allowed' : 'pointer', fontSize: '13px', fontWeight: 'bold', opacity: (validating || remaining <= 0 || (stats?.pending ?? 0) === 0) ? 0.5 : 1 }}>
-        {validating ? '⏳ Validating batch (up to 50)…' : `🔍 Validate Next Batch (up to ${Math.min(50, remaining)} numbers)`}
+        {validating ? '⏳ Validating batch (up to 50)…' : `🔍 Validate Pending (up to ${Math.min(50, remaining)} numbers)`}
       </button>
+
+      {/* Retry failed button */}
+      {(stats?.failed ?? 0) > 0 && (
+        <button onClick={handleRetryFailed} disabled={validating || remaining <= 0} style={{ width: '100%', marginTop: '8px', background: 'rgba(245,158,11,0.15)', color: AMBER, border: '1px solid rgba(245,158,11,0.3)', borderRadius: '4px', padding: '10px', cursor: (validating || remaining <= 0) ? 'not-allowed' : 'pointer', fontSize: '12px', fontWeight: 'bold', opacity: (validating || remaining <= 0) ? 0.5 : 1 }}>
+          {validating ? '⏳ Working…' : `🔄 Retry Failed ({stats.failed} entries)`}
+        </button>
+      )}
+
       {remaining > 0 && (stats?.pending ?? 0) > remaining && (
         <div style={{ color: AMBER, fontSize: '10px', textAlign: 'center', marginTop: '6px' }}>⚠ Only {remaining} validations left this month — {stats.pending - remaining} leads will remain pending</div>
       )}
