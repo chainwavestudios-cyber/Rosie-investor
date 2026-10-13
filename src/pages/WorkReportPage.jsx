@@ -89,6 +89,10 @@ const RESULTS = {
       'Chat-based interface means any team member can research a lead conversationally — no training needed, just ask questions',
       'Identity resolution turns anonymous social handles into callable contacts with verified phone and email — scraping directly connects to dialing',
     ],
+    screenshots: [
+      { url: 'https://media.base44.com/images/public/69cd2741578c9b5ce655395b/16af1d972_Screenshot2026-10-13at124615AM.png', label: 'Smart Leads AI Director — chat interface that learns from feedback to refine the scraper and find better leads automatically' },
+      { url: 'https://media.base44.com/images/public/69cd2741578c9b5ce655395b/b6439cd10_Screenshot2026-10-13at124602AM.png', label: 'Scraped Leads Dashboard — AI-scored lead table with platform, debt amount, distress tag, AI reasoning, and enrichment actions' },
+    ],
   },
   enrichment: {
     label: 'Campaign → Enrichment → Bongiorno DAA Pipeline',
@@ -148,6 +152,10 @@ const RESULTS = {
       '28 close-call simulations conducted (avg 53m 17s each)',
       '15 secondary follow-up calls (avg 33 minutes each) — Bob isn\'t just a single-call trainer; he remembers prior conversations and continues where the last session left off',
       'For every training exercise completed, Bob gets smarter — generating more intelligent questions and statements with each session as the knowledge base grows',
+    ],
+    screenshots: [
+      { url: 'https://media.base44.com/images/public/69cd2741578c9b5ce655395b/5890249f3_Screenshot2026-10-13at124657AM.png', label: 'Call Mode Configuration — character selection, voice model, LM brain, transfer agent voice, and manual objections toggle' },
+      { url: 'https://media.base44.com/images/public/69cd2741578c9b5ce655395b/eb5802f1a_Screenshot2026-10-13at124721AM.png', label: 'Customer Scenario Builder — Duck↔Cow slider, intensity selector, and full customer profile with debt ledger and hardship story' },
     ],
   },
 };
@@ -268,6 +276,21 @@ export default function WorkReportPage() {
                             <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', color: '#8a9ab8', fontSize: '12px', lineHeight: 1.5 }}>
                               <span style={{ color: c.color, fontSize: '10px', marginTop: '4px' }}>●</span>
                               <span>{d}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Product screenshots */}
+                    {c.screenshots && (
+                      <div style={{ marginTop: '20px', paddingTop: '16px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+                        <div style={{ color: c.color, fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '12px' }}>📸 Product Screenshots</div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                          {c.screenshots.map((s, i) => (
+                            <div key={i} style={{ borderRadius: '6px', overflow: 'hidden', border: `1px solid ${c.color}22` }}>
+                              <img src={s.url} alt={s.label} style={{ display: 'block', width: '100%', height: 'auto' }} />
+                              <div style={{ padding: '8px 12px', background: `${c.color}08`, color: '#8a9ab8', fontSize: '11px', lineHeight: 1.4 }}>{s.label}</div>
                             </div>
                           ))}
                         </div>
