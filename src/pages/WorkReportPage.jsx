@@ -16,19 +16,22 @@ const RED = '#ef4444';
 const TEAL = '#06b6d4';
 
 // ── Mock daily work log (12 working days, 6 days/week × 2 weeks) ──
+// Hours split across 4 categories: scraping, smartLeads, enrichment, bob.
+// BOB total (47.7h) is derived from simulation stats:
+//   47 open × 18m36s + 28 close × 53m17s + 15 follow-up × 33m = 47.7h
 const WORK_DAYS = [
-  { date: '2026-09-28', day: 'Mon', leadGen: 3.5, bob: 3.0, notes: 'AI enrichment pipeline skeleton (leadCrossEnrich); BOB persona engine' },
-  { date: '2026-09-29', day: 'Tue', leadGen: 4.0, bob: 3.5, notes: 'Identity resolution + debt qualification; BOB voice synthesis' },
-  { date: '2026-09-30', day: 'Wed', leadGen: 2.5, bob: 3.0, notes: 'Campaign trigger system (email + SMS); 4 open BOB simulations' },
-  { date: '2026-10-01', day: 'Thu', leadGen: 3.0, bob: 3.0, notes: 'Engagement tracking (open/click pixels); BOB scenario builder' },
-  { date: '2026-10-02', day: 'Fri', leadGen: 4.5, bob: 2.5, notes: 'Intent scoring from engagement signals; 5 open + 2 close BOB simulations' },
-  { date: '2026-10-03', day: 'Sat', leadGen: 3.0, bob: 3.5, notes: 'Human validation flow ($10k + hardship + relief); 6 open BOB simulations' },
+  { date: '2026-09-28', day: 'Mon', scraping: 2.0, smartLeads: 0.5, enrichment: 0,   bob: 0,   notes: 'Social lead scraping engine — Reddit, Quora, X signal collection; SmartLeads chat concept' },
+  { date: '2026-09-29', day: 'Tue', scraping: 1.5, smartLeads: 1.0, enrichment: 0,   bob: 0,   notes: 'Debt-distress keyword detection; intent scoring pipeline design' },
+  { date: '2026-09-30', day: 'Wed', scraping: 1.0, smartLeads: 1.0, enrichment: 0.5, bob: 2.5, notes: 'Scrape dedup & source rotation; ScreenDebtFit AI skeleton; first BOB open sims' },
+  { date: '2026-10-01', day: 'Thu', scraping: 0.5, smartLeads: 1.5, enrichment: 0.5, bob: 3.5, notes: 'Smart lead filtering; identity resolution; BOB open simulations' },
+  { date: '2026-10-02', day: 'Fri', scraping: 0,   smartLeads: 1.0, enrichment: 0.5, bob: 4.5, notes: 'LeadCrossAIResults panel; campaign trigger engine; BOB open + close sims' },
+  { date: '2026-10-03', day: 'Sat', scraping: 0,   smartLeads: 1.0, enrichment: 0.5, bob: 5.0, notes: 'SmartLeadsRejectModal; engagement tracking; BOB open + close sims' },
   { date: '2026-10-04', day: 'Sun', off: true },
-  { date: '2026-10-05', day: 'Mon', leadGen: 2.5, bob: 4.0, notes: 'DAA transfer + pitch workflow; 5 open + 3 close BOB simulations' },
-  { date: '2026-10-06', day: 'Tue', leadGen: 3.5, bob: 3.5, notes: 'Credit report OCR for debt verification; 4 open + 4 close BOB simulations' },
-  { date: '2026-10-07', day: 'Wed', leadGen: 3.0, bob: 3.0, notes: 'ScreenDebtFit AI qualification; BOB objection engine tuning' },
-  { date: '2026-10-08', day: 'Thu', leadGen: 4.0, bob: 3.5, notes: 'Campaign engagement analytics dashboard; 5 open + 5 close BOB simulations' },
-  { date: '2026-10-09', day: 'Fri', leadGen: 2.5, bob: 3.0, notes: 'Enrichment-to-DAA-pitch funnel reporting; 4 open + 4 close BOB simulations' },
+  { date: '2026-10-05', day: 'Mon', scraping: 0,   smartLeads: 0.5, enrichment: 1.0, bob: 5.5, notes: 'SmartLeadConfig; open/click pixels; BOB open + close sims' },
+  { date: '2026-10-06', day: 'Tue', scraping: 0,   smartLeads: 0.5, enrichment: 1.0, bob: 6.0, notes: 'SmartLeadFeedback loop; engagement intent scoring; BOB sims' },
+  { date: '2026-10-07', day: 'Wed', scraping: 0,   smartLeads: 0.5, enrichment: 1.5, bob: 6.5, notes: 'Credit report OCR; funnel analytics; BOB sims + first follow-ups' },
+  { date: '2026-10-08', day: 'Thu', scraping: 0,   smartLeads: 0.5, enrichment: 2.3, bob: 7.0, notes: 'Campaign analytics; DAA transfer workflow; BOB sims + follow-ups' },
+  { date: '2026-10-09', day: 'Fri', scraping: 0,   smartLeads: 0,   enrichment: 3.0, bob: 7.2, notes: 'Enrichment-to-DAA-pitch funnel reporting; final BOB sims + follow-ups' },
 ];
 
 // ── Project results (mock metrics) ──
@@ -130,7 +133,7 @@ const RESULTS = {
       { label: 'Follow-Up Calls', value: '15' },
       { label: 'Avg Open Sim Duration', value: '18m 36s' },
       { label: 'Avg Close Sim Duration', value: '53m 17s' },
-      { label: 'Total Training Time', value: '39.4h' },
+      { label: 'Total Training Time', value: '47.7h' },
       { label: 'AI Personas Built', value: '3' },
     ],
     deliverables: [
@@ -167,11 +170,15 @@ export default function WorkReportPage() {
   const [expanded, setExpanded] = useState({ scraping: true, smartLeads: true, enrichment: true, bob: true });
 
   const workingDays = WORK_DAYS.filter(d => !d.off);
-  const totalHours = workingDays.reduce((s, d) => s + d.leadGen + d.bob, 0);
-  const totalLeadGen = workingDays.reduce((s, d) => s + d.leadGen, 0);
+  const totalScraping = workingDays.reduce((s, d) => s + d.scraping, 0);
+  const totalSmartLeads = workingDays.reduce((s, d) => s + d.smartLeads, 0);
+  const totalEnrichment = workingDays.reduce((s, d) => s + d.enrichment, 0);
   const totalBob = workingDays.reduce((s, d) => s + d.bob, 0);
+  const totalLeadGen = totalScraping + totalSmartLeads + totalEnrichment;
+  const totalHours = totalLeadGen + totalBob;
   const avgPerDay = totalHours / workingDays.length;
-  const maxDaily = Math.max(...workingDays.map(d => d.leadGen + d.bob));
+  const maxDaily = Math.max(...workingDays.map(d => d.scraping + d.smartLeads + d.enrichment + d.bob));
+  const categoryHours = { scraping: totalScraping, smartLeads: totalSmartLeads, enrichment: totalEnrichment, bob: totalBob };
 
   const startDate = workingDays[0].date;
   const endDate = workingDays[workingDays.length - 1].date;
@@ -233,7 +240,7 @@ export default function WorkReportPage() {
                   <span style={{ fontSize: '24px' }}>{c.icon}</span>
                   <div style={{ flex: 1 }}>
                     <div style={{ color: c.color, fontSize: '16px', fontWeight: 'bold' }}>{c.label}</div>
-                    <div style={{ color: '#6b7280', fontSize: '11px' }}>{(key === 'scraping' || key === 'smartLeads') ? 'Included in lead gen' : `${key === 'enrichment' ? totalLeadGen : totalBob}h invested`} · {c.deliverables.length} deliverables</div>
+                    <div style={{ color: '#6b7280', fontSize: '11px' }}>{fmtHours(categoryHours[key])} invested · {c.deliverables.length} deliverables</div>
                   </div>
                   <span style={{ color: '#4a5568', fontSize: '14px' }}>{isExpanded ? '▾' : '▸'}</span>
                 </div>
@@ -320,9 +327,9 @@ export default function WorkReportPage() {
         <div style={{ background: '#0d1b2a', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '8px', padding: '24px', marginBottom: '40px' }}>
           <h2 style={{ color: '#e8e0d0', fontSize: '18px', fontWeight: 'normal', margin: '0 0 16px' }}>📊 Time Distribution by Project</h2>
           <div style={{ display: 'flex', height: '36px', borderRadius: '6px', overflow: 'hidden', marginBottom: '12px' }}>
-            {['enrichment', 'bob'].map(key => {
+            {['scraping', 'smartLeads', 'enrichment', 'bob'].map(key => {
               const c = cat(key);
-              const hrs = key === 'enrichment' ? totalLeadGen : totalBob;
+              const hrs = categoryHours[key];
               const pct = (hrs / totalHours) * 100;
               return (
                 <div key={key} style={{ width: `${pct}%`, background: c.color, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 'bold', color: DARK, transition: 'width 0.3s' }}>
@@ -334,7 +341,7 @@ export default function WorkReportPage() {
           <div style={{ display: 'flex', gap: '24px', flexWrap: 'wrap' }}>
             {['scraping', 'smartLeads', 'enrichment', 'bob'].map(key => {
               const c = cat(key);
-              const hrs = key === 'enrichment' ? totalLeadGen : key === 'bob' ? totalBob : totalLeadGen;
+              const hrs = categoryHours[key];
               return (
                 <div key={key} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <div style={{ width: 12, height: 12, borderRadius: '3px', background: c.color }} />
@@ -363,14 +370,15 @@ export default function WorkReportPage() {
               </thead>
               <tbody>
                 {WORK_DAYS.map((d, i) => {
-                  const total = d.off ? 0 : d.leadGen + d.bob;
+                  const leadGen = d.off ? 0 : d.scraping + d.smartLeads + d.enrichment;
+                  const total = d.off ? 0 : leadGen + d.bob;
                   return (
                     <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
                       <td style={{ padding: '10px 16px', whiteSpace: 'nowrap' }}>
                         <div style={{ color: '#e8e0d0', fontSize: '12px' }}>{fmtDate(d.date)}</div>
                         <div style={{ color: '#4a5568', fontSize: '10px' }}>{d.day}</div>
                       </td>
-                      <td style={{ padding: '10px 16px', textAlign: 'center', color: d.off ? '#4a5568' : BLUE, fontSize: '12px' }}>{d.off ? '—' : fmtHours(d.leadGen)}</td>
+                      <td style={{ padding: '10px 16px', textAlign: 'center', color: d.off ? '#4a5568' : BLUE, fontSize: '12px' }}>{d.off ? '—' : fmtHours(leadGen)}</td>
                       <td style={{ padding: '10px 16px', textAlign: 'center', color: d.off ? '#4a5568' : PURPLE, fontSize: '12px' }}>{d.off ? '—' : fmtHours(d.bob)}</td>
                       <td style={{ padding: '10px 16px', textAlign: 'center' }}>
                         {d.off ? (
@@ -401,13 +409,18 @@ export default function WorkReportPage() {
           <h2 style={{ color: GOLD, fontSize: '14px', letterSpacing: '2px', textTransform: 'uppercase', margin: '0 0 16px' }}>📋 Executive Summary</h2>
           <p style={{ color: '#8a9ab8', fontSize: '14px', lineHeight: 1.8, margin: 0 }}>
             Over the two-week period of {fmtDate(startDate)} to {fmtDate(endDate)}, a total of <strong style={{ color: GOLD }}>{fmtHours(totalHours)}</strong> were invested across
-            two core development tracks. The enrichment pipeline processed <strong style={{ color: BLUE }}>1,247 AI-enriched leads</strong> with a 78% qualification success rate,
+            four core development tracks: <strong style={{ color: '#fb923c' }}>{fmtHours(totalScraping)}</strong> in lead scraping & AI intent engine,
+            <strong style={{ color: TEAL }}> {fmtHours(totalSmartLeads)}</strong> in smart leads development & AI qualification,
+            <strong style={{ color: BLUE }}> {fmtHours(totalEnrichment)}</strong> in the campaign-to-DAA pipeline, and
+            <strong style={{ color: PURPLE }}> {fmtHours(totalBob)}</strong> in BOB training & AI development.
+            The enrichment pipeline processed <strong style={{ color: BLUE }}>1,247 AI-enriched leads</strong> with a 78% qualification success rate,
             triggering <strong style={{ color: AMBER }}>12 automated campaigns</strong> that generated 487 engaged leads. Human fronters then validated 312 leads by phone,
             confirming <strong style={{ color: GOLD }}>164 qualified prospects</strong> who met all three gates ($10k+ debt, confirmed hardship, actively seeking relief) —
             these were transferred to DAA closers, resulting in <strong style={{ color: GOLD }}>62 program enrollments</strong> (1.3% end-to-end conversion).
-            The BOB training system was both built and actively used — <strong style={{ color: PURPLE }}>47 open-call simulations</strong> (avg 18m 36s) and
-            <strong style={{ color: PURPLE }}> 28 close-call simulations</strong> (avg 53m 17s) were completed, totaling over 39 hours of live AI-driven training.
-            Work was conducted 6 days per week at an average of <strong style={{ color: GOLD }}>{fmtHours(avgPerDay)} per day</strong>, with peak days exceeding 11 hours.
+            The BOB training system was both built and actively used — <strong style={{ color: PURPLE }}>47 open-call simulations</strong> (avg 18m 36s),
+            <strong style={{ color: PURPLE }}>28 close-call simulations</strong> (avg 53m 17s), and
+            <strong style={{ color: PURPLE }}>15 follow-up calls</strong> (avg 33m each) were completed, totaling <strong style={{ color: PURPLE }}>47.7 hours</strong> of live AI-driven training.
+            Work was conducted 6 days per week at an average of <strong style={{ color: GOLD }}>{fmtHours(avgPerDay)} per day</strong>, with the longest day at {fmtHours(maxDaily)}.
           </p>
         </div>
 
