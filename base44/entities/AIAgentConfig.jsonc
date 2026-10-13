@@ -19,7 +19,7 @@
     "transferPhoneNumber": {
       "type": "string",
       "title": "Transfer Target Phone Number (E.164)",
-      "default": "6192224232"
+      "default": "2162586934"
     },
     "queueTimeoutSeconds": {
       "type": "number",
