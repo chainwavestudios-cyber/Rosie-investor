@@ -1,6 +1,8 @@
 /**
  * FronterClockBar.jsx — Clock in/out, lunch, and break tracking bar.
  * Buttons: Clock In, Lunch Out/In, AM Break Out/In, PM Break Out/In, Clock Out.
+ * Supports multiple clock-in/out cycles per day: each completed session is
+ * archived into sessionsJson, and totalSeconds accumulates across all sessions.
  */
 import { useState, useEffect, useCallback } from 'react';
 import { base44 } from '@/api/base44Client';
@@ -11,6 +13,7 @@ const RED = '#ef4444';
 const GREEN = '#4ade80';
 const CYAN = '#22d3ee';
 const PURPLE = '#a78bfa';
+const BLUE = '#60a5fa';
 
 function getETDate() {
   return new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
@@ -43,6 +46,14 @@ function calcTotal(entry, nowIso) {
   return Math.max(0, Math.floor(total));
 }
 
+function archivedSessions(entry) {
+  try { return JSON.parse(entry?.sessionsJson || '[]') || []; } catch { return []; }
+}
+
+function sumSessions(entry) {
+  return archivedSessions(entry).reduce((s, x) => s + (x.totalSeconds || 0), 0);
+}
+
 export default function FronterClockBar({ username }) {
   const [entry, setEntry] = useState(null);
   const [now, setNow] = useState(new Date());
@@ -71,16 +82,21 @@ export default function FronterClockBar({ username }) {
 
   const clockIn = async () => {
     try {
-      if (entry) {
+      const nowIso = new Date().toISOString();
+      if (entry?.id && entry.clockIn && entry.clockOut) {
+        // Archive the completed session, then start a fresh one
+        const sessions = [...archivedSessions(entry), { clockIn: entry.clockIn, clockOut: entry.clockOut, totalSeconds: calcTotal(entry, entry.clockOut) }];
         await base44.entities.FronterTimeEntry.update(entry.id, {
-          clockIn: new Date().toISOString(), clockOut: null,
+          sessionsJson: JSON.stringify(sessions),
+          clockIn: nowIso, clockOut: null,
           lunchOut: null, lunchIn: null,
           amBreakOut: null, amBreakIn: null,
           pmBreakOut: null, pmBreakIn: null,
-          totalSeconds: 0,
         });
+      } else if (entry?.id) {
+        await base44.entities.FronterTimeEntry.update(entry.id, { clockIn: nowIso, clockOut: null });
       } else {
-        await base44.entities.FronterTimeEntry.create({ username, date: today, clockIn: new Date().toISOString() });
+        await base44.entities.FronterTimeEntry.create({ username, date: today, clockIn: nowIso });
       }
       load();
     } catch (e) { alert('Clock in failed: ' + (e?.message || String(e))); }
@@ -97,7 +113,7 @@ export default function FronterClockBar({ username }) {
   const clockOut = async () => {
     if (!entry?.id) return;
     const nowIso = new Date().toISOString();
-    const total = calcTotal(entry, nowIso);
+    const total = sumSessions(entry) + calcTotal(entry, nowIso);
     try { await base44.entities.FronterTimeEntry.update(entry.id, { clockOut: nowIso, totalSeconds: total }); load(); } catch {}
   };
 
@@ -106,7 +122,8 @@ export default function FronterClockBar({ username }) {
   const onAmBreak = !!entry?.amBreakOut && !entry?.amBreakIn;
   const onPmBreak = !!entry?.pmBreakOut && !entry?.pmBreakIn;
   const isClockedOut = !!entry?.clockOut;
-  const liveTotal = isClockedIn ? calcTotal(entry, now.toISOString()) : (entry?.totalSeconds || 0);
+  const priorSessions = archivedSessions(entry);
+  const liveTotal = isClockedIn ? sumSessions(entry) + calcTotal(entry, now.toISOString()) : (entry?.totalSeconds || 0);
   const fmtDur = (s) => `${Math.floor(s / 3600)}h ${Math.floor((s % 3600) / 60)}m`;
 
   // Determine current status
@@ -131,8 +148,8 @@ export default function FronterClockBar({ username }) {
         <span style={{ color: statusColor, fontSize: '10px', fontWeight: 'bold' }}>{statusLabel}</span>
       </span>
       {isClockedIn && !onBreak && <span style={{ color: GREEN, fontSize: '11px', fontFamily: 'monospace', fontWeight: 'bold' }}>{fmtDur(liveTotal)}</span>}
-      {!isClockedIn && !isClockedOut && (
-        <button onClick={clockIn} style={btn('rgba(74,222,128,0.15)', GREEN)}>🕐 Clock In</button>
+      {!isClockedIn && (
+        <button onClick={clockIn} style={btn('rgba(74,222,128,0.15)', GREEN)}>🕐 {isClockedOut ? 'Clock In Again' : 'Clock In'}</button>
       )}
       {isClockedIn && !onBreak && !entry?.lunchOut && (
         <button onClick={() => stamp('lunchOut')} style={btn('rgba(245,158,11,0.15)', AMBER)}>🍽️ Lunch Out</button>
@@ -163,6 +180,9 @@ export default function FronterClockBar({ username }) {
           {entry?.pmBreakOut ? ` · PM ${fmtTime(entry.pmBreakOut)}–${fmtTime(entry.pmBreakIn)}` : ''}
           {entry?.clockOut ? ` · out ${fmtTime(entry.clockOut)}` : ''}
         </span>
+      )}
+      {priorSessions.length > 0 && (
+        <span style={{ color: BLUE, fontSize: '9px' }}>· {priorSessions.length} prior session{priorSessions.length !== 1 ? 's' : ''} ({fmtDur(priorSessions.reduce((s, x) => s + (x.totalSeconds || 0), 0))})</span>
       )}
     </div>
   );

@@ -14,7 +14,7 @@
     "clockIn": {
       "type": "string",
       "format": "date-time",
-      "title": "Clock In Time"
+      "title": "Clock In Time (active session)"
     },
     "lunchOut": {
       "type": "string",
@@ -49,11 +49,16 @@
     "clockOut": {
       "type": "string",
       "format": "date-time",
-      "title": "Clock Out Time"
+      "title": "Clock Out Time (active session)"
+    },
+    "sessionsJson": {
+      "type": "string",
+      "title": "Prior Sessions (JSON array of {clockIn, clockOut, totalSeconds})",
+      "format": "textarea"
     },
     "totalSeconds": {
       "type": "number",
-      "title": "Total Worked Seconds (lunch + breaks excluded)",
+      "title": "Total Worked Seconds (all sessions, lunch + breaks excluded)",
       "default": 0
     }
   },

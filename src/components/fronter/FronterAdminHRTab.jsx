@@ -71,6 +71,22 @@ function calcTotal(entry, nowIso) {
   return Math.max(0, Math.floor(total));
 }
 
+function archivedSessions(entry) {
+  try { return JSON.parse(entry?.sessionsJson || '[]') || []; } catch { return []; }
+}
+
+function sumSessions(entry) {
+  return archivedSessions(entry).reduce((s, x) => s + (x.totalSeconds || 0), 0);
+}
+
+// Grand total across all sessions (archived + active)
+function grandTotal(entry, nowIso) {
+  if (!entry) return 0;
+  if (entry.clockOut) return entry.totalSeconds || 0; // already includes archived sessions
+  if (entry.clockIn) return sumSessions(entry) + calcTotal(entry, nowIso);
+  return 0;
+}
+
 export default function FronterAdminHRTab({ fronters }) {
   const [selectedDate, setSelectedDate] = useState(getETDate());
   const [entries, setEntries] = useState([]);
@@ -119,9 +135,15 @@ export default function FronterAdminHRTab({ fronters }) {
         const val = draft[f.key];
         updates[f.key] = val ? inputToIso(val) : null;
       });
-      // Recalculate totalSeconds
+      // Recalculate totalSeconds (archived sessions + active session)
       const tempEntry = { ...existing, ...updates };
-      updates.totalSeconds = updates.clockOut ? calcTotal(tempEntry, new Date().toISOString()) : (existing?.totalSeconds || 0);
+      if (tempEntry.clockIn && tempEntry.clockOut) {
+        updates.totalSeconds = sumSessions(tempEntry) + calcTotal(tempEntry, tempEntry.clockOut);
+      } else if (tempEntry.clockIn) {
+        updates.totalSeconds = 0; // active session — live calc takes over
+      } else {
+        updates.totalSeconds = 0;
+      }
 
       if (existing?.id) {
         await base44.entities.FronterTimeEntry.update(existing.id, updates);
@@ -143,10 +165,18 @@ export default function FronterAdminHRTab({ fronters }) {
     const existing = entryByUser[username];
     const nowIso = new Date().toISOString();
     try {
-      if (existing?.id) {
+      if (existing?.id && existing.clockIn && existing.clockOut) {
+        // Archive the completed session, then start a fresh one
+        const sessions = [...archivedSessions(existing), { clockIn: existing.clockIn, clockOut: existing.clockOut, totalSeconds: calcTotal(existing, existing.clockOut) }];
+        await base44.entities.FronterTimeEntry.update(existing.id, {
+          sessionsJson: JSON.stringify(sessions),
+          clockIn: nowIso, clockOut: null, lunchOut: null, lunchIn: null,
+          amBreakOut: null, amBreakIn: null, pmBreakOut: null, pmBreakIn: null,
+        });
+      } else if (existing?.id) {
         await base44.entities.FronterTimeEntry.update(existing.id, {
           clockIn: nowIso, clockOut: null, lunchOut: null, lunchIn: null,
-          amBreakOut: null, amBreakIn: null, pmBreakOut: null, pmBreakIn: null, totalSeconds: 0,
+          amBreakOut: null, amBreakIn: null, pmBreakOut: null, pmBreakIn: null,
         });
       } else {
         await base44.entities.FronterTimeEntry.create({ username, date: selectedDate, clockIn: nowIso });
@@ -174,6 +204,47 @@ export default function FronterAdminHRTab({ fronters }) {
       await base44.entities.FronterTimeEntry.delete(existing.id);
       await load();
     } catch (e) { alert('Clear failed: ' + (e?.message || String(e))); }
+  };
+
+  // Delete a single punch field (e.g. just the clockOut, or just the clockIn)
+  const deletePunch = async (username, field) => {
+    const existing = entryByUser[username];
+    if (!existing?.id || !existing[field]) return;
+    if (!confirm(`Delete the ${PUNCH_FIELDS.find(f => f.key === field)?.label || field} punch for ${username}?`)) return;
+    try {
+      const updates = { [field]: null };
+      const tempEntry = { ...existing, [field]: null };
+      // Recompute totalSeconds based on remaining state
+      if (tempEntry.clockIn && tempEntry.clockOut) {
+        updates.totalSeconds = sumSessions(tempEntry) + calcTotal(tempEntry, tempEntry.clockOut);
+      } else if (tempEntry.clockIn) {
+        updates.totalSeconds = 0; // active session — live calc takes over
+      } else {
+        updates.totalSeconds = 0;
+      }
+      await base44.entities.FronterTimeEntry.update(existing.id, updates);
+      await load();
+    } catch (e) { alert('Delete failed: ' + (e?.message || String(e))); }
+  };
+
+  // Delete one archived session from sessionsJson
+  const deleteSession = async (username, idx) => {
+    const existing = entryByUser[username];
+    if (!existing?.id) return;
+    if (!confirm(`Delete prior session #${idx + 1} for ${username}?`)) return;
+    try {
+      const sessions = archivedSessions(existing);
+      sessions.splice(idx, 1);
+      const updates = { sessionsJson: JSON.stringify(sessions) };
+      if (existing.clockOut) {
+        const tempEntry = { ...existing, sessionsJson: JSON.stringify(sessions) };
+        updates.totalSeconds = sumSessions(tempEntry) + calcTotal(tempEntry, existing.clockOut);
+      } else {
+        updates.totalSeconds = 0;
+      }
+      await base44.entities.FronterTimeEntry.update(existing.id, updates);
+      await load();
+    } catch (e) { alert('Delete failed: ' + (e?.message || String(e))); }
   };
 
   const today = getETDate();
@@ -209,7 +280,8 @@ export default function FronterAdminHRTab({ fronters }) {
             const isEditing = !!draft;
             const isSaving = saving[f.username];
             const justSaved = saved[f.username];
-            const totalSeconds = entry?.clockOut ? (entry.totalSeconds || 0) : (entry?.clockIn ? calcTotal(entry, new Date().toISOString()) : 0);
+            const totalSeconds = grandTotal(entry, new Date().toISOString());
+            const priorSessions = archivedSessions(entry);
 
             let statusColor = '#6b7280';
             let statusLabel = 'Not Clocked In';
@@ -233,8 +305,8 @@ export default function FronterAdminHRTab({ fronters }) {
                     {justSaved && <span style={{ color: GREEN, fontSize: '11px', fontWeight: 'bold' }}>✓ Saved</span>}
                     {!isEditing ? (
                       <>
-                        {isToday && !isClockedIn && !isClockedOut && (
-                          <button onClick={() => quickClockIn(f.username)} style={{ background: 'rgba(74,222,128,0.15)', color: GREEN, border: `1px solid ${GREEN}44`, borderRadius: '4px', padding: '5px 12px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>🕐 Clock In Now</button>
+                        {isToday && !isClockedIn && (
+                          <button onClick={() => quickClockIn(f.username)} style={{ background: 'rgba(74,222,128,0.15)', color: GREEN, border: `1px solid ${GREEN}44`, borderRadius: '4px', padding: '5px 12px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>🕐 {isClockedOut ? 'Clock In Again' : 'Clock In Now'}</button>
                         )}
                         {isToday && isClockedIn && (
                           <button onClick={() => quickClockOut(f.username)} style={{ background: 'rgba(239,68,68,0.15)', color: RED, border: `1px solid ${RED}44`, borderRadius: '4px', padding: '5px 12px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>⏹ Clock Out Now</button>
@@ -253,15 +325,19 @@ export default function FronterAdminHRTab({ fronters }) {
 
                 {/* Punch fields */}
                 {!isEditing ? (
+                  <>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px' }}>
                     {PUNCH_FIELDS.map(field => {
                       const val = entry?.[field.key];
                       return (
-                        <div key={field.key} style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '4px', padding: '6px 10px' }}>
+                        <div key={field.key} style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '4px', padding: '6px 10px', position: 'relative' }}>
                           <div style={{ color: '#6b7280', fontSize: '8px', textTransform: 'uppercase', letterSpacing: '1px' }}>{field.label}</div>
                           <div style={{ color: val ? field.color : '#4a5568', fontSize: '12px', fontFamily: 'monospace', marginTop: '2px' }}>
                             {val ? new Date(val).toLocaleTimeString('en-US', { timeZone: 'America/New_York', hour: 'numeric', minute: '2-digit' }) : '—'}
                           </div>
+                          {val && (
+                            <button onClick={() => deletePunch(f.username, field.key)} title={`Delete ${field.label}`} style={{ position: 'absolute', top: '4px', right: '4px', background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '11px', padding: '0 3px', lineHeight: 1 }}>✕</button>
+                          )}
                         </div>
                       );
                     })}
@@ -270,6 +346,24 @@ export default function FronterAdminHRTab({ fronters }) {
                       <div style={{ color: BLUE, fontSize: '13px', fontFamily: 'monospace', fontWeight: 'bold', marginTop: '2px' }}>{fmtDur(totalSeconds)}</div>
                     </div>
                   </div>
+                  {priorSessions.length > 0 && (
+                    <div style={{ marginTop: '8px' }}>
+                      <div style={{ color: BLUE, fontSize: '9px', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '4px' }}>Prior Sessions ({priorSessions.length})</div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                        {priorSessions.map((s, idx) => (
+                          <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '10px', background: 'rgba(96,165,250,0.04)', border: '1px solid rgba(96,165,250,0.15)', borderRadius: '4px', padding: '4px 10px' }}>
+                            <span style={{ color: '#6b7280', fontSize: '10px', fontFamily: 'monospace' }}>#{idx + 1}</span>
+                            <span style={{ color: GREEN, fontSize: '11px', fontFamily: 'monospace' }}>{new Date(s.clockIn).toLocaleTimeString('en-US', { timeZone: 'America/New_York', hour: 'numeric', minute: '2-digit' })}</span>
+                            <span style={{ color: '#6b7280', fontSize: '10px' }}>→</span>
+                            <span style={{ color: RED, fontSize: '11px', fontFamily: 'monospace' }}>{new Date(s.clockOut).toLocaleTimeString('en-US', { timeZone: 'America/New_York', hour: 'numeric', minute: '2-digit' })}</span>
+                            <span style={{ color: BLUE, fontSize: '11px', fontFamily: 'monospace', fontWeight: 'bold', marginLeft: 'auto' }}>{fmtDur(s.totalSeconds || 0)}</span>
+                            <button onClick={() => deleteSession(f.username, idx)} title="Delete session" style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '11px', padding: '0 3px', lineHeight: 1 }}>✕</button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  </>
                 ) : (
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px' }}>
                     {PUNCH_FIELDS.map(field => (
