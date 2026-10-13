@@ -303,6 +303,32 @@ ${objectionContext ? `\n━━━ OBJECTION HANDLING CATALOG — When the custom
       return Response.json({ tip: data?.content?.[0]?.text || '' });
     }
 
+    // ── MID-CALL INTENT CHECK (lightweight, from recent transcript slice) ──
+    if (mode === 'intent') {
+      const recentText = buildTranscriptString(transcript, 12);
+      const data = await callLLM(req, {
+          model: 'claude-haiku-4-5-20251001',
+          max_tokens: 600,
+          system: `You are a real-time intent scoring engine on a live debt settlement call. Analyze the recent conversation and return a quick intent assessment.
+${intentRules?.duckDefinition ? `DUCK: ${intentRules.duckDefinition}` : ''}
+${intentRules?.cowDefinition ? `COW: ${intentRules.cowDefinition}` : ''}
+${intentRules?.positiveSignals ? `POSITIVE SIGNALS: ${intentRules.positiveSignals}` : ''}
+${intentRules?.negativeSignals ? `NEGATIVE SIGNALS: ${intentRules.negativeSignals}` : ''}
+
+Return ONLY this JSON (no markdown):
+{"intentScore": 0-100, "animalType": "duck|cow|unknown", "animalConfidence": 0-100, "report": "1-2 sentence summary of their current intent level and why"}`,
+          messages: [{ role: 'user', content: `Recent conversation:\n${recentText}` }],
+      });
+      const text = data?.content?.[0]?.text || '{}';
+      try {
+        const result = JSON.parse(text.replace(/```json|```/g, '').trim());
+        if (result && typeof result.intentScore === 'number' && !Number.isNaN(result.intentScore)) {
+          return Response.json({ intent: result });
+        }
+      } catch {}
+      return Response.json({ intent: null });
+    }
+
     // ── POST-CALL INTENT ANALYSIS (ENHANCED INTENT ENGINE) ────────────
     if (mode === 'intent_final') {
       const fullTranscript = buildTranscriptString(transcript, 999);

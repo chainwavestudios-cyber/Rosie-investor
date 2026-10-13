@@ -2,12 +2,19 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useTwilioDevice } from '@/lib/TwilioDeviceContext';
 
+// ── Module-level call state — survives component remounts so the timer
+// doesn't reset when DebtCallBar unmounts (contact card closed, profile opened, etc.)
+let _activeCallStart = null;
+let _activeCallStatus = 'idle';
+let _activeCallLeadId = null;
+
 export function useInlineDialer({ onCallStream, onCallLogged, agentName = 'admin', leadId = null } = {}) {
   const { getDevice, incomingCall, setIncomingCall } = useTwilioDevice() || {};
 
   const [dialerError, setDialerError] = useState('');
-  const [callStatus,  setCallStatus]  = useState('idle');
-  const [duration,    setDuration]    = useState(0);
+  // Restore from module-level state so the timer survives remounts
+  const [callStatus,  setCallStatus]  = useState(_activeCallStatus);
+  const [duration,    setDuration]    = useState(_activeCallStart ? Math.floor((Date.now() - _activeCallStart) / 1000) : 0);
   const [muted,       setMuted]       = useState(false);
   const [callerId,    setCallerId]    = useState('');
   const [lines,       setLines]       = useState([]);
@@ -30,6 +37,7 @@ export function useInlineDialer({ onCallStream, onCallLogged, agentName = 'admin
 
   const startTimer = () => {
     startTimeRef.current = Date.now();
+    _activeCallStart = startTimeRef.current;
     clearInterval(timerRef.current);
     timerRef.current = setInterval(() =>
       setDuration(Math.floor((Date.now() - startTimeRef.current) / 1000)), 1000);
@@ -37,11 +45,36 @@ export function useInlineDialer({ onCallStream, onCallLogged, agentName = 'admin
 
   const stopTimer = () => clearInterval(timerRef.current);
 
+  // Sync call status to module-level state so remounts can restore it
+  const updateCallStatus = useCallback((status) => {
+    setCallStatus(status);
+    _activeCallStatus = status;
+    if (status === 'idle' || status === 'ended') {
+      _activeCallStart = null;
+      _activeCallLeadId = null;
+    } else if (leadId) {
+      _activeCallLeadId = leadId;
+    }
+  }, [leadId]);
+
+  // Resume timer if a call was already active before this remount
+  useEffect(() => {
+    if (_activeCallStart && _activeCallStatus === 'connected') {
+      startTimeRef.current = _activeCallStart;
+      clearInterval(timerRef.current);
+      timerRef.current = setInterval(() =>
+        setDuration(Math.floor((Date.now() - startTimeRef.current) / 1000)), 1000);
+    }
+    return () => { clearInterval(timerRef.current); };
+  }, []);
+
   useEffect(() => { leadIdRef.current = leadId; }, [leadId]);
 
+  // On unmount: stop the local timer interval but DON'T disconnect the call —
+  // the call persists at the Twilio device level and the timer resumes on remount
+  // via the module-level _activeCallStart timestamp.
   useEffect(() => () => {
     stopTimer();
-    try { callRef.current?.disconnect(); } catch {}
   }, []);
 
   useEffect(() => {
@@ -71,9 +104,9 @@ export function useInlineDialer({ onCallStream, onCallLogged, agentName = 'admin
 
   // ── Shared call event wiring ─────────────────────────────────────────
   const wireCallEvents = useCallback((call) => {
-    call.on('ringing',    () => setCallStatus('ringing'));
+    call.on('ringing',    () => updateCallStatus('ringing'));
     call.on('accept',     (c) => {
-      setCallStatus('connected');
+      updateCallStatus('connected');
       startTimer();
       setTimeout(() => {
         try {
@@ -87,20 +120,20 @@ export function useInlineDialer({ onCallStream, onCallLogged, agentName = 'admin
     });
     call.on('disconnect', () => {
       stopTimer();
-      setCallStatus('ended');
+      updateCallStatus('ended');
       setIncomingCall?.(null);
       onCallStream?.(null);
     });
     call.on('cancel', () => {
       stopTimer();
-      setCallStatus('idle');
+      updateCallStatus('idle');
       setIncomingCall?.(null);
       onCallStream?.(null);
     });
     call.on('error', (e) => {
       setDialerError(`Call error: ${e.message}`);
       stopTimer();
-      setCallStatus('ended');
+      updateCallStatus('ended');
       setIncomingCall?.(null);
       onCallStream?.(null);
     });
@@ -111,7 +144,7 @@ export function useInlineDialer({ onCallStream, onCallLogged, agentName = 'admin
     if (!phone) return;
     if (overrideLeadId) leadIdRef.current = overrideLeadId;
     setDialerError('');
-    setCallStatus('calling');
+    updateCallStatus('calling');
     setCallDirection('outbound');
     setDuration(0);
     setMuted(false);
@@ -146,7 +179,7 @@ export function useInlineDialer({ onCallStream, onCallLogged, agentName = 'admin
     const call = incomingCall?.call;
     if (!call) return;
     setDialerError('');
-    setCallStatus('connected');
+    updateCallStatus('connected');
     setCallDirection('inbound');
     setDuration(0);
     setMuted(false);
@@ -170,10 +203,10 @@ export function useInlineDialer({ onCallStream, onCallLogged, agentName = 'admin
   const hangup = useCallback(() => {
     stopTimer();
     try { callRef.current?.disconnect(); } catch {}
-    setCallStatus('ended');
+    updateCallStatus('ended');
     setIncomingCall?.(null);
     onCallStream?.(null);
-  }, [onCallStream, setIncomingCall]);
+  }, [updateCallStatus, setIncomingCall, onCallStream]);
 
   const toggleMute = useCallback(() => {
     setMuted(prev => {
@@ -188,13 +221,13 @@ export function useInlineDialer({ onCallStream, onCallLogged, agentName = 'admin
   }, []);
 
   const reset = useCallback(() => {
-    setCallStatus('idle');
+    updateCallStatus('idle');
     setDuration(0);
     setMuted(false);
     setDialerError('');
     setCallDirection('outbound');
     callRef.current = null;
-  }, []);
+  }, [updateCallStatus]);
 
   const logLeadCall = useCallback(async (leadId) => {
     const dur = Math.floor((Date.now() - (startTimeRef.current || Date.now())) / 1000);
