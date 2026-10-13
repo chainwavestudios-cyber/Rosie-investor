@@ -111,7 +111,7 @@ const RESULTS = {
     trainingProgress: [
       '47 open-call simulations conducted (avg 18m 36s each)',
       '28 close-call simulations conducted (avg 53m 17s each)',
-      '15 secondary follow-up calls — Bob isn\'t just a single-call trainer; he remembers prior conversations and continues where the last session left off',
+      '15 secondary follow-up calls (avg 33 minutes each) — Bob isn\'t just a single-call trainer; he remembers prior conversations and continues where the last session left off',
       'For every training exercise completed, Bob gets smarter — generating more intelligent questions and statements with each session as the knowledge base grows',
     ],
   },
