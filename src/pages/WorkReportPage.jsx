@@ -16,18 +16,18 @@ const RED = '#ef4444';
 
 // ── Mock daily work log (12 working days, 6 days/week × 2 weeks) ──
 const WORK_DAYS = [
-  { date: '2026-09-29', day: 'Tue', enrichment: 3.5, bob: 3.0, portal: 4.5, notes: 'AI enrichment pipeline skeleton (leadCrossEnrich); BOB persona engine; fronter lead import modal' },
-  { date: '2026-09-30', day: 'Wed', enrichment: 4.0, bob: 3.5, portal: 4.0, notes: 'Identity resolution + debt qualification; BOB voice synthesis; FronterContactCard component' },
-  { date: '2026-10-01', day: 'Thu', enrichment: 2.5, bob: 3.0, portal: 4.5, notes: 'Campaign trigger system (email + SMS); 4 open BOB simulations; dialer session management' },
-  { date: '2026-10-02', day: 'Fri', enrichment: 3.0, bob: 3.0, portal: 5.5, notes: 'Engagement tracking (open/click pixels); BOB scenario builder; FronterLeadsTab with status filters' },
-  { date: '2026-10-03', day: 'Sat', enrichment: 4.5, bob: 2.5, portal: 3.5, notes: 'Intent scoring from engagement signals; 5 open + 2 close BOB simulations; Twilio line assignment' },
+  { date: '2026-09-29', day: 'Tue', leadGen: 3.5, bob: 3.0, portal: 4.5, notes: 'AI enrichment pipeline skeleton (leadCrossEnrich); BOB persona engine; fronter lead import modal' },
+  { date: '2026-09-30', day: 'Wed', leadGen: 4.0, bob: 3.5, portal: 4.0, notes: 'Identity resolution + debt qualification; BOB voice synthesis; FronterContactCard component' },
+  { date: '2026-10-01', day: 'Thu', leadGen: 2.5, bob: 3.0, portal: 4.5, notes: 'Campaign trigger system (email + SMS); 4 open BOB simulations; dialer session management' },
+  { date: '2026-10-02', day: 'Fri', leadGen: 3.0, bob: 3.0, portal: 5.5, notes: 'Engagement tracking (open/click pixels); BOB scenario builder; FronterLeadsTab with status filters' },
+  { date: '2026-10-03', day: 'Sat', leadGen: 4.5, bob: 2.5, portal: 3.5, notes: 'Intent scoring from engagement signals; 5 open + 2 close BOB simulations; Twilio line assignment' },
   { date: '2026-10-04', day: 'Sun', off: true },
-  { date: '2026-10-05', day: 'Mon', enrichment: 3.0, bob: 3.5, portal: 5.0, notes: 'Human validation flow ($10k + hardship + relief); 6 open BOB simulations; FronterAIPanel live transcript' },
-  { date: '2026-10-06', day: 'Tue', enrichment: 2.5, bob: 4.0, portal: 4.0, notes: 'DAA transfer + pitch workflow; 5 open + 3 close BOB simulations; FronterCallCard floating window' },
-  { date: '2026-10-07', day: 'Wed', enrichment: 3.5, bob: 3.5, portal: 4.5, notes: 'Credit report OCR for debt verification; 4 open + 4 close BOB simulations; FronterContactCard with debt ledger' },
-  { date: '2026-10-08', day: 'Thu', enrichment: 3.0, bob: 3.0, portal: 5.0, notes: 'ScreenDebtFit AI qualification; BOB objection engine tuning; FronterHeadsUpPopup real-time alerts' },
-  { date: '2026-10-09', day: 'Fri', enrichment: 4.0, bob: 3.5, portal: 4.5, notes: 'Campaign engagement analytics dashboard; 5 open + 5 close BOB simulations; FronterMonitorPanel for admins' },
-  { date: '2026-10-10', day: 'Sat', enrichment: 2.5, bob: 3.0, portal: 4.5, notes: 'Enrichment-to-DAA-pitch funnel reporting; 4 open + 4 close BOB simulations; FronterPerformanceReport audit system' },
+  { date: '2026-10-05', day: 'Mon', leadGen: 3.0, bob: 3.5, portal: 5.0, notes: 'Human validation flow ($10k + hardship + relief); 6 open BOB simulations; FronterAIPanel live transcript' },
+  { date: '2026-10-06', day: 'Tue', leadGen: 2.5, bob: 4.0, portal: 4.0, notes: 'DAA transfer + pitch workflow; 5 open + 3 close BOB simulations; FronterCallCard floating window' },
+  { date: '2026-10-07', day: 'Wed', leadGen: 3.5, bob: 3.5, portal: 4.5, notes: 'Credit report OCR for debt verification; 4 open + 4 close BOB simulations; FronterContactCard with debt ledger' },
+  { date: '2026-10-08', day: 'Thu', leadGen: 3.0, bob: 3.0, portal: 5.0, notes: 'ScreenDebtFit AI qualification; BOB objection engine tuning; FronterHeadsUpPopup real-time alerts' },
+  { date: '2026-10-09', day: 'Fri', leadGen: 4.0, bob: 3.5, portal: 4.5, notes: 'Campaign engagement analytics dashboard; 5 open + 5 close BOB simulations; FronterMonitorPanel for admins' },
+  { date: '2026-10-10', day: 'Sat', leadGen: 2.5, bob: 3.0, portal: 4.5, notes: 'Enrichment-to-DAA-pitch funnel reporting; 4 open + 4 close BOB simulations; FronterPerformanceReport audit system' },
   { date: '2026-10-11', day: 'Sun', off: true },
 ];
 
@@ -150,12 +150,12 @@ export default function WorkReportPage() {
   const [expanded, setExpanded] = useState({ scraping: true, enrichment: true, bob: true, portal: true });
 
   const workingDays = WORK_DAYS.filter(d => !d.off);
-  const totalHours = workingDays.reduce((s, d) => s + d.enrichment + d.bob + d.portal, 0);
-  const totalEnrichment = workingDays.reduce((s, d) => s + d.enrichment, 0);
+  const totalHours = workingDays.reduce((s, d) => s + d.leadGen + d.bob + d.portal, 0);
+  const totalLeadGen = workingDays.reduce((s, d) => s + d.leadGen, 0);
   const totalBob = workingDays.reduce((s, d) => s + d.bob, 0);
   const totalPortal = workingDays.reduce((s, d) => s + d.portal, 0);
   const avgPerDay = totalHours / workingDays.length;
-  const maxDaily = Math.max(...workingDays.map(d => d.enrichment + d.bob + d.portal));
+  const maxDaily = Math.max(...workingDays.map(d => d.leadGen + d.bob + d.portal));
 
   const startDate = workingDays[0].date;
   const endDate = workingDays[workingDays.length - 1].date;
@@ -207,7 +207,7 @@ export default function WorkReportPage() {
           <div style={{ display: 'flex', height: '36px', borderRadius: '6px', overflow: 'hidden', marginBottom: '12px' }}>
             {['enrichment', 'bob', 'portal'].map(key => {
               const c = cat(key);
-              const hrs = key === 'enrichment' ? totalEnrichment : key === 'bob' ? totalBob : totalPortal;
+              const hrs = key === 'enrichment' ? totalLeadGen : key === 'bob' ? totalBob : totalPortal;
               const pct = (hrs / totalHours) * 100;
               return (
                 <div key={key} style={{ width: `${pct}%`, background: c.color, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 'bold', color: DARK, transition: 'width 0.3s' }}>
@@ -219,7 +219,7 @@ export default function WorkReportPage() {
           <div style={{ display: 'flex', gap: '24px', flexWrap: 'wrap' }}>
             {['scraping', 'enrichment', 'bob', 'portal'].map(key => {
               const c = cat(key);
-              const hrs = key === 'enrichment' ? totalEnrichment : key === 'bob' ? totalBob : key === 'scraping' ? totalEnrichment : totalPortal;
+              const hrs = key === 'enrichment' ? totalLeadGen : key === 'bob' ? totalBob : key === 'scraping' ? totalLeadGen : totalPortal;
               return (
                 <div key={key} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <div style={{ width: 12, height: 12, borderRadius: '3px', background: c.color }} />
@@ -240,7 +240,7 @@ export default function WorkReportPage() {
               <thead>
                 <tr style={{ borderBottom: `2px solid ${GOLD}22` }}>
                   <th style={{ padding: '12px 16px', textAlign: 'left', color: GOLD, fontSize: '10px', letterSpacing: '1.5px', textTransform: 'uppercase' }}>Date</th>
-                  <th style={{ padding: '12px 16px', textAlign: 'center', color: BLUE, fontSize: '10px', letterSpacing: '1.5px', textTransform: 'uppercase' }}>Enrichment</th>
+                  <th style={{ padding: '12px 16px', textAlign: 'center', color: BLUE, fontSize: '10px', letterSpacing: '1.5px', textTransform: 'uppercase' }}>Lead Gen Dev</th>
                   <th style={{ padding: '12px 16px', textAlign: 'center', color: PURPLE, fontSize: '10px', letterSpacing: '1.5px', textTransform: 'uppercase' }}>BOB Training</th>
                   <th style={{ padding: '12px 16px', textAlign: 'center', color: GOLD, fontSize: '10px', letterSpacing: '1.5px', textTransform: 'uppercase' }}>Portal Dev</th>
                   <th style={{ padding: '12px 16px', textAlign: 'center', color: '#e8e0d0', fontSize: '10px', letterSpacing: '1.5px', textTransform: 'uppercase' }}>Total</th>
@@ -249,14 +249,14 @@ export default function WorkReportPage() {
               </thead>
               <tbody>
                 {WORK_DAYS.map((d, i) => {
-                  const total = d.off ? 0 : d.enrichment + d.bob + d.portal;
+                  const total = d.off ? 0 : d.leadGen + d.bob + d.portal;
                   return (
                     <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
                       <td style={{ padding: '10px 16px', whiteSpace: 'nowrap' }}>
                         <div style={{ color: '#e8e0d0', fontSize: '12px' }}>{fmtDate(d.date)}</div>
                         <div style={{ color: '#4a5568', fontSize: '10px' }}>{d.day}</div>
                       </td>
-                      <td style={{ padding: '10px 16px', textAlign: 'center', color: d.off ? '#4a5568' : BLUE, fontSize: '12px' }}>{d.off ? '—' : fmtHours(d.enrichment)}</td>
+                      <td style={{ padding: '10px 16px', textAlign: 'center', color: d.off ? '#4a5568' : BLUE, fontSize: '12px' }}>{d.off ? '—' : fmtHours(d.leadGen)}</td>
                       <td style={{ padding: '10px 16px', textAlign: 'center', color: d.off ? '#4a5568' : PURPLE, fontSize: '12px' }}>{d.off ? '—' : fmtHours(d.bob)}</td>
                       <td style={{ padding: '10px 16px', textAlign: 'center', color: d.off ? '#4a5568' : GOLD, fontSize: '12px' }}>{d.off ? '—' : fmtHours(d.portal)}</td>
                       <td style={{ padding: '10px 16px', textAlign: 'center' }}>
@@ -273,7 +273,7 @@ export default function WorkReportPage() {
                 {/* Totals row */}
                 <tr style={{ borderTop: `2px solid ${GOLD}33`, background: 'rgba(16,185,129,0.04)' }}>
                   <td style={{ padding: '12px 16px', color: GOLD, fontSize: '11px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase' }}>Totals</td>
-                  <td style={{ padding: '12px 16px', textAlign: 'center', color: BLUE, fontSize: '14px', fontWeight: 'bold' }}>{fmtHours(totalEnrichment)}</td>
+                  <td style={{ padding: '12px 16px', textAlign: 'center', color: BLUE, fontSize: '14px', fontWeight: 'bold' }}>{fmtHours(totalLeadGen)}</td>
                   <td style={{ padding: '12px 16px', textAlign: 'center', color: PURPLE, fontSize: '14px', fontWeight: 'bold' }}>{fmtHours(totalBob)}</td>
                   <td style={{ padding: '12px 16px', textAlign: 'center', color: GOLD, fontSize: '14px', fontWeight: 'bold' }}>{fmtHours(totalPortal)}</td>
                   <td style={{ padding: '12px 16px', textAlign: 'center', color: GOLD, fontSize: '16px', fontWeight: 'bold' }}>{fmtHours(totalHours)}</td>
@@ -299,7 +299,7 @@ export default function WorkReportPage() {
                   <span style={{ fontSize: '24px' }}>{c.icon}</span>
                   <div style={{ flex: 1 }}>
                     <div style={{ color: c.color, fontSize: '16px', fontWeight: 'bold' }}>{c.label}</div>
-                    <div style={{ color: '#6b7280', fontSize: '11px' }}>{key === 'scraping' ? 'Included in enrichment' : `${key === 'enrichment' ? totalEnrichment : key === 'bob' ? totalBob : totalPortal}h invested`} · {c.deliverables.length} deliverables</div>
+                    <div style={{ color: '#6b7280', fontSize: '11px' }}>{key === 'scraping' ? 'Included in lead gen' : `${key === 'enrichment' ? totalLeadGen : key === 'bob' ? totalBob : totalPortal}h invested`} · {c.deliverables.length} deliverables</div>
                   </div>
                   <span style={{ color: '#4a5568', fontSize: '14px' }}>{isExpanded ? '▾' : '▸'}</span>
                 </div>
