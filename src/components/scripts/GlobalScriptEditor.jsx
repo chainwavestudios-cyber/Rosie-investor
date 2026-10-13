@@ -261,6 +261,12 @@ export default function GlobalScriptEditor() {
 
           {/* Formatting toolbar */}
           <div style={{ display:'flex', alignItems:'center', gap:'10px', marginBottom:'10px', flexWrap:'wrap', flexShrink:0 }}>
+            {/* Bold / Italic / Underline */}
+            <div style={{ display:'flex', alignItems:'center', gap:'3px', padding:'3px', background:'rgba(255,255,255,0.04)', borderRadius:'4px', border:'1px solid rgba(255,255,255,0.08)' }}>
+              <button onClick={() => document.execCommand('bold')} title="Bold (Ctrl+B)" style={{ background:'rgba(255,255,255,0.05)', border:'1px solid rgba(255,255,255,0.1)', borderRadius:'3px', padding:'3px 9px', cursor:'pointer', fontSize:'12px', fontWeight:'700', color:'#e8e0d0', fontFamily:'Georgia, serif' }}>B</button>
+              <button onClick={() => document.execCommand('italic')} title="Italic (Ctrl+I)" style={{ background:'rgba(255,255,255,0.05)', border:'1px solid rgba(255,255,255,0.1)', borderRadius:'3px', padding:'3px 9px', cursor:'pointer', fontSize:'12px', fontStyle:'italic', color:'#e8e0d0', fontFamily:'Georgia, serif' }}>I</button>
+              <button onClick={() => document.execCommand('underline')} title="Underline (Ctrl+U)" style={{ background:'rgba(255,255,255,0.05)', border:'1px solid rgba(255,255,255,0.1)', borderRadius:'3px', padding:'3px 9px', cursor:'pointer', fontSize:'12px', textDecoration:'underline', color:'#e8e0d0', fontFamily:'Georgia, serif' }}>U</button>
+            </div>
             <div style={{ display:'flex', alignItems:'center', gap:'4px' }}>
               <span style={{ color:'#4a5568', fontSize:'10px', letterSpacing:'1px', textTransform:'uppercase' }}>Size</span>
               <select value={active.fontSize || 14} onChange={e => updateActive({ fontSize: parseInt(e.target.value) })}
@@ -317,25 +323,25 @@ export default function GlobalScriptEditor() {
             ref={editorRef}
             contentEditable
             suppressContentEditableWarning
+            spellCheck
+            lang="en"
             onInput={handleEditorInput}
             onKeyDown={e => {
-              if (e.key === 'Enter') {
+              if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
                 const sel = window.getSelection();
                 if (!sel.rangeCount) return;
                 const range = sel.getRangeAt(0);
                 range.deleteContents();
-                const br = document.createElement('br');
-                range.insertNode(br);
-                range.setStartAfter(br);
-                range.setEndAfter(br);
+                // Insert two <br> for a visual paragraph break (Shift+Enter = single line break)
+                const br1 = document.createElement('br');
+                const br2 = document.createElement('br');
+                range.insertNode(br2);
+                range.insertNode(br1);
+                range.setStartAfter(br1);
+                range.setEndAfter(br1);
                 sel.removeAllRanges();
                 sel.addRange(range);
-                if (!br.nextSibling) {
-                  const helper = document.createElement('br');
-                  helper.setAttribute('data-helper', '1');
-                  br.parentNode.appendChild(helper);
-                }
                 handleEditorInput();
               }
             }}
@@ -350,17 +356,22 @@ export default function GlobalScriptEditor() {
             }}
             data-placeholder="Type your script here… Use {{firstname}} or {{lastname}} to auto-insert the contact's name."
             style={{
-              flex:1, width:'100%', background:'rgba(0,0,0,0.2)', border:'1px solid rgba(255,255,255,0.08)',
-              borderRadius:'4px', padding:'16px', color: active.color || '#e8e0d0',
-              fontSize: `${active.fontSize || 14}px`, lineHeight: 1.7, outline:'none',
-              fontFamily:'Georgia, serif', boxSizing:'border-box', minHeight: expanded ? '0' : '300px',
+              flex:1, width:'100%', background:'rgba(0,0,0,0.25)', border:'1px solid rgba(255,255,255,0.1)',
+              borderRadius:'6px', padding:'20px 24px', color: active.color || '#e8e0d0',
+              fontSize: `${active.fontSize || 14}px`, lineHeight: 1.8, outline:'none',
+              fontFamily:'Georgia, serif', boxSizing:'border-box', minHeight: expanded ? '0' : '320px',
               overflowY:'auto', whiteSpace:'pre-wrap', wordBreak:'break-word',
             }}
           />
 
-          {/* Token hint */}
-          <div style={{ marginTop:'8px', color:'#4a5568', fontSize:'10px', flexShrink:0 }}>
-            Tokens: <span style={{ color:GOLD, fontFamily:'monospace' }}>{'{{firstname}}'}</span> · <span style={{ color:GOLD, fontFamily:'monospace' }}>{'{{lastname}}'}</span> · Select text then click <span style={{ color:'#f59e0b' }}>Highlight</span> to add a colored background.
+          {/* Token hint + spell check status */}
+          <div style={{ marginTop:'8px', display:'flex', justifyContent:'space-between', alignItems:'center', flexShrink:0, flexWrap:'wrap', gap:'8px' }}>
+            <div style={{ color:'#4a5568', fontSize:'10px' }}>
+              Tokens: <span style={{ color:GOLD, fontFamily:'monospace' }}>{'{{firstname}}'}</span> · <span style={{ color:GOLD, fontFamily:'monospace' }}>{'{{lastname}}'}</span> · Select text then click <span style={{ color:'#f59e0b' }}>Highlight</span> to add a colored background.
+            </div>
+            <div style={{ color:'#4a5568', fontSize:'10px' }}>
+              ✅ Spell check on · <strong style={{ color:'#8a9ab8' }}>{(active.content || '').replace(/<[^>]*>/g, '').trim().split(/\s+/).filter(Boolean).length}</strong> words · <kbd style={{ background:'rgba(255,255,255,0.08)', padding:'1px 5px', borderRadius:'3px', fontFamily:'monospace', fontSize:'9px' }}>Enter</kbd> = paragraph · <kbd style={{ background:'rgba(255,255,255,0.08)', padding:'1px 5px', borderRadius:'3px', fontFamily:'monospace', fontSize:'9px' }}>Shift+Enter</kbd> = new line
+            </div>
           </div>
 
           {/* Preview panel */}
