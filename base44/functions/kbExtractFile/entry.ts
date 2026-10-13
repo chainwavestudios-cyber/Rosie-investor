@@ -19,17 +19,16 @@ function makeKeywords(question: string, answer: string, category: string): strin
   return [...new Set(kws)].join(',');
 }
 
-const SYSTEM = `You are building a comprehensive knowledge base from uploaded documents.
-Extract EVERY useful Q&A pair from the document. Cover ALL topics: financials, projections,
-team bios, legal structure, market size, product details, competitive advantages, risks,
-timelines, processes, FAQs, specific numbers, percentages, dates, requirements, and anything
-a salesperson or agent needs.
+const SYSTEM = `You are extracting Q&A pairs from an uploaded document into a knowledge base.
+Extract EVERY Q&A pair from the document VERBATIM — copy the exact question and exact answer
+as they appear in the document, word-for-word, with no summarization, condensing, or shortening.
 Rules:
-- EXHAUSTIVE — extract every useful fact, not just the obvious ones
-- Each entry covers ONE specific fact or topic
-- Answers complete and self-contained (2-5 sentences)
-- Do NOT bundle unrelated facts
-- Include: every team member, every metric, every legal detail, every timeline step, every risk
+- VERBATIM — copy questions and answers exactly as written, preserving full detail, length, and wording
+- Do NOT summarize, condense, shorten, or paraphrase any answer — keep the full original text
+- Do NOT split a single Q&A pair into multiple entries — keep each question with its complete original answer
+- Extract every Q&A pair you can find in the document
+- If the document has an explicit Q&A format, follow it exactly
+- Preserve all numbers, percentages, names, dates, and specific details exactly as written
 - Categories: financials|product|team|market|legal|process|risk|faq|company
 Return a JSON object with an "entries" array.`;
 
@@ -44,7 +43,7 @@ Deno.serve(async (req) => {
 
     const base44 = createClientFromRequest(req);
 
-    let prompt = 'Extract ALL useful Q&A pairs from this document. Cover every fact, figure, name, date, process, and detail. Return a JSON object with an "entries" array, each entry having question, answer, and category fields.';
+    let prompt = 'Extract every Q&A pair from this document VERBATIM. Copy the exact question and exact answer word-for-word as they appear in the document — do NOT summarize, condense, or shorten any answer. Keep each question paired with its complete original answer. Return a JSON object with an "entries" array, each entry having question, answer, and category fields.';
     const invokeArgs: any = { prompt, response_json_schema: {
       type: 'object',
       properties: {
