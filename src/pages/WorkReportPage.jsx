@@ -88,6 +88,7 @@ const RESULTS = {
     metrics: [
       { label: 'Open Simulations Run', value: '47' },
       { label: 'Close Simulations Run', value: '28' },
+      { label: 'Follow-Up Calls', value: '15' },
       { label: 'Avg Open Sim Duration', value: '18m 36s' },
       { label: 'Avg Close Sim Duration', value: '53m 17s' },
       { label: 'Total Training Time', value: '39.4h' },
@@ -95,17 +96,23 @@ const RESULTS = {
     ],
     deliverables: [
       'BOB cold-call training simulator with live Twilio voice integration',
-      'Three AI customer personas — Duck (passive), Owl (analytical), Cow (stubborn)',
-      'BOB scenario builder with preset debt-relief cold-call situations',
-      'BOB objection engine with dynamic rebuttal generation',
-      '47 open-call simulations conducted (avg 18m 36s each)',
-      '28 close-call simulations conducted (avg 53m 17s each)',
+      'Three AI customer personas — Duck (passive), Owl (analytical), Cow (stubborn) — each with distinct personality traits, response patterns, and objection styles that adjust the course of the call in real time based on trainee input',
+      'BOB scenario builder with preset debt-relief cold-call situations — open, close, objection, and discovery variations',
+      'BOB objection engine with dynamic rebuttal generation — persona-driven objections that shift difficulty mid-call',
       'BOB transcript persistence with recording retention & auto-cleanup',
       'BOB brain scanner for knowledge-base ingestion and training',
-      'BOB callback scheduling for follow-up training sessions',
+      'BOB callback scheduling for follow-up training sessions — Bob remembers prior conversations and builds on them across calls',
       'Manual objection injection panel for targeted coaching',
       'BOB training log entity for progress tracking and analytics',
       'Pop-out coaching panel with real-time AI feedback during simulations',
+      'Post-call intent reports — automated intent scoring after every simulation to measure prospect engagement levels',
+      'Post-call agent reports — automated agent performance audit after every simulation to track coaching progress and identify improvement areas',
+    ],
+    trainingProgress: [
+      '47 open-call simulations conducted (avg 18m 36s each)',
+      '28 close-call simulations conducted (avg 53m 17s each)',
+      '15 secondary follow-up calls — Bob isn\'t just a single-call trainer; he remembers prior conversations and continues where the last session left off',
+      'For every training exercise completed, Bob gets smarter — generating more intelligent questions and statements with each session as the knowledge base grows',
     ],
   },
   portal: {
@@ -235,6 +242,21 @@ export default function WorkReportPage() {
                         ))}
                       </div>
                     </div>
+
+                    {/* Training progress (BOB only) */}
+                    {c.trainingProgress && (
+                      <div style={{ marginTop: '20px', paddingTop: '16px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+                        <div style={{ color: c.color, fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '10px' }}>Training Progress</div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                          {c.trainingProgress.map((d, i) => (
+                            <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', color: '#8a9ab8', fontSize: '12px', lineHeight: 1.5 }}>
+                              <span style={{ color: c.color, fontSize: '10px', marginTop: '4px' }}>●</span>
+                              <span>{d}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
