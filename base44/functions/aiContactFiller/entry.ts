@@ -101,6 +101,20 @@ RULES:
 9. For number fields, return numbers only (no $ signs or commas).
 10. For name corrections, if the customer corrects their name later in the call, use the corrected version.
 
+CRITICAL — SPELLED-OUT TEXT RECONSTRUCTION:
+Customers often spell out their email, name, or address letter by letter, sometimes using phonetic alphabet. You MUST reconstruct these into the final value.
+- "j as in john, o as in ocean, h as in hotel, n at gmail dot com" → email: "john@gmail.com"
+- "s m i t h" → lastName: "Smith"
+- "b as in bravo, o as in oscar, b as in bravo" → "Bob"
+- "at the rate" or "at" → "@"
+- "dot" → "."
+- "underscore" → "_"
+- "dash" or "hyphen" → "-"
+- Numbers spelled out: "seven seven seven" → "777"
+- If the customer spells something phonetically ("f as in foxtrot"), reconstruct the full word/value from the sequence of letters.
+- Pay special attention to emails — they are VERY frequently spelled out letter-by-letter. Always reconstruct the full email address from spelled letters.
+- Pay special attention to last names — they are frequently spelled out. Always reconstruct the full last name from spelled letters.
+
 Return ONLY this JSON (no markdown):
 {
   "updates": { "fieldName": "newValue", ... },
@@ -112,8 +126,8 @@ Return ONLY this JSON (no markdown):
 }`;
 
     const data = await callLLM(req, {
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 1500,
+      model: 'claude-sonnet-5',
+      max_tokens: 2000,
       system,
       messages: [{ role: 'user', content: `Current lead data:\n${JSON.stringify(cleanLead)}\n\nCall transcript:\n${transcriptStr}` }],
     });
