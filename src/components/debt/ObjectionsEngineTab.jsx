@@ -30,6 +30,7 @@ export default function ObjectionsEngineTab({ readOnly }) {
   const [form, setForm] = useState(blankForm());
   const [enhancing, setEnhancing] = useState(false);
   const [enhanceProgress, setEnhanceProgress] = useState({ done: 0, total: 0, changed: 0 });
+  const [aiGen, setAiGen] = useState(null);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -92,6 +93,60 @@ export default function ObjectionsEngineTab({ readOnly }) {
   };
 
   const parsePhrases = (s) => { try { return JSON.parse(s || '[]'); } catch { return []; } };
+
+  // ── AI generation helpers ──
+  const aiGenTriggers = async () => {
+    if (!form.title.trim()) { alert('Enter a title first.'); return; }
+    setAiGen('triggerPhrases');
+    try {
+      const existing = parsePhrases(form.triggerPhrases);
+      const res = await base44.integrations.Core.InvokeLLM({
+        prompt: `You are a debt settlement sales trainer. Given the objection title below, generate 8-12 different trigger phrases — the exact words a customer might say that match this objection. Include variations in phrasing, tone, and length (short and long, formal and casual). Do NOT duplicate any existing phrases. Return a JSON object: {"phrases": ["phrase1", "phrase2", ...]}.
+
+Objection title: ${form.title}
+Existing trigger phrases (do not duplicate): ${JSON.stringify(existing)}`,
+        response_json_schema: { type: 'object', properties: { phrases: { type: 'array', items: { type: 'string' } } } },
+      });
+      const newPhrases = (res?.phrases || []).map(p => p.trim()).filter(Boolean);
+      const merged = [...new Set([...existing, ...newPhrases])];
+      setForm(p => ({ ...p, triggerPhrases: JSON.stringify(merged, null, 2) }));
+    } catch (e) { alert('AI generation failed: ' + (e?.message || String(e))); }
+    setAiGen(null);
+  };
+
+  const aiGenMindset = async () => {
+    if (!form.title.trim()) { alert('Enter a title first.'); return; }
+    setAiGen('mindset');
+    try {
+      const phrases = parsePhrases(form.triggerPhrases);
+      const res = await base44.integrations.Core.InvokeLLM({
+        prompt: `You are a debt settlement sales trainer. Based on the objection title and trigger phrases below, write a concise "Customer Mindset" — what the customer is thinking and feeling when they raise this objection. 2-3 sentences. Return ONLY the mindset text, no labels or explanation.
+
+Objection title: ${form.title}
+Trigger phrases: ${JSON.stringify(phrases)}`,
+      });
+      const text = (res || '').trim();
+      if (text) setForm(p => ({ ...p, mindset: text }));
+    } catch (e) { alert('AI generation failed: ' + (e?.message || String(e))); }
+    setAiGen(null);
+  };
+
+  const aiGenGoal = async () => {
+    if (!form.title.trim()) { alert('Enter a title first.'); return; }
+    setAiGen('goal');
+    try {
+      const phrases = parsePhrases(form.triggerPhrases);
+      const res = await base44.integrations.Core.InvokeLLM({
+        prompt: `You are a debt settlement sales trainer. Based on the objection title and trigger phrases below, write a concise "Agent Goal" — what the agent should achieve when responding to this objection. 2-3 sentences. Return ONLY the goal text, no labels or explanation.
+
+Objection title: ${form.title}
+Trigger phrases: ${JSON.stringify(phrases)}`,
+      });
+      const text = (res || '').trim();
+      if (text) setForm(p => ({ ...p, goal: text }));
+    } catch (e) { alert('AI generation failed: ' + (e?.message || String(e))); }
+    setAiGen(null);
+  };
 
   // Review & enhance all KB answers — rewrites each with strong, confident,
   // empathetic, flow-controlling tone WITHOUT changing any facts. Runs with
@@ -230,6 +285,8 @@ Return ONLY the rewritten answer text, nothing else.`,
             <div style={{ marginBottom: '12px' }}>
               <label style={ls}>Title *</label>
               <input value={form.title} onChange={e => setForm(p => ({ ...p, title: e.target.value }))} placeholder="e.g. I'm not interested / I'm good" style={inp} />
+              <button onClick={aiGenTriggers} disabled={aiGen === 'triggerPhrases' || !form.title.trim()} style={{ marginTop: '6px', background: aiGen === 'triggerPhrases' ? 'rgba(167,139,250,0.15)' : 'linear-gradient(135deg,#a78bfa,#7c3aed)', color: aiGen === 'triggerPhrases' ? '#a78bfa' : '#fff', border: 'none', borderRadius: '4px', padding: '6px 14px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase', opacity: !form.title.trim() ? 0.5 : 1 }}>{aiGen === 'triggerPhrases' ? '⏳ Generating…' : '🤖 AI Generate Trigger Phrases'}</button>
+              <div style={{ color: '#6b7280', fontSize: '9px', marginTop: '3px' }}>Generates trigger phrases from the title. Click again after changing the title to add more phrases.</div>
             </div>
             <div style={{ marginBottom: '12px' }}>
               <label style={ls}>Trigger Phrases (JSON array — customer says any of these) *</label>
@@ -244,10 +301,12 @@ Return ONLY the rewritten answer text, nothing else.`,
               <div>
                 <label style={ls}>Customer Mindset</label>
                 <textarea value={form.mindset} onChange={e => setForm(p => ({ ...p, mindset: e.target.value }))} rows={2} style={{ ...inp, resize: 'vertical' }} />
+                <button onClick={aiGenMindset} disabled={aiGen === 'mindset' || !form.title.trim()} style={{ marginTop: '6px', background: aiGen === 'mindset' ? 'rgba(167,139,250,0.15)' : 'linear-gradient(135deg,#a78bfa,#7c3aed)', color: aiGen === 'mindset' ? '#a78bfa' : '#fff', border: 'none', borderRadius: '4px', padding: '6px 14px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase', opacity: !form.title.trim() ? 0.5 : 1 }}>{aiGen === 'mindset' ? '⏳ Generating…' : '🤖 AI Generate'}</button>
               </div>
               <div>
                 <label style={ls}>Agent Goal</label>
                 <textarea value={form.goal} onChange={e => setForm(p => ({ ...p, goal: e.target.value }))} rows={2} style={{ ...inp, resize: 'vertical' }} />
+                <button onClick={aiGenGoal} disabled={aiGen === 'goal' || !form.title.trim()} style={{ marginTop: '6px', background: aiGen === 'goal' ? 'rgba(167,139,250,0.15)' : 'linear-gradient(135deg,#a78bfa,#7c3aed)', color: aiGen === 'goal' ? '#a78bfa' : '#fff', border: 'none', borderRadius: '4px', padding: '6px 14px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase', opacity: !form.title.trim() ? 0.5 : 1 }}>{aiGen === 'goal' ? '⏳ Generating…' : '🤖 AI Generate'}</button>
               </div>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '16px' }}>
