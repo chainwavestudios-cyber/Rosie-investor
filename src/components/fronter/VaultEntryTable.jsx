@@ -24,7 +24,7 @@ const statusColor = (s) => {
   return AMBER;
 };
 
-export default function VaultEntryTable({ entries }) {
+export default function VaultEntryTable({ entries, serverStats }) {
   const [filter, setFilter] = useState('all');
   const [search, setSearch] = useState('');
 
@@ -43,14 +43,17 @@ export default function VaultEntryTable({ entries }) {
     return true;
   });
 
+  // Use server-side counts when available (accurate across ALL vault entries,
+  // not just the 500 loaded for the table view). Fall back to counting loaded entries.
+  const sc = serverStats || {};
   const FILTERS = [
-    { id: 'all', label: 'All', count: entries.length },
-    { id: 'available', label: '✓ Available', color: GOLD, count: entries.filter(e => e.validationStatus === 'validated' && e.phoneValid && e.phoneLineType !== 'voip' && e.destination === 'none').length },
-    { id: 'pending', label: '⏳ Pending', color: AMBER, count: entries.filter(e => e.validationStatus === 'pending').length },
-    { id: 'mobile', label: '📱 Mobile', color: GOLD, count: entries.filter(e => e.phoneLineType === 'mobile').length },
-    { id: 'landline', label: '☎️ Landline', color: BLUE, count: entries.filter(e => e.phoneLineType === 'landline').length },
-    { id: 'voip', label: '📵 VoIP', color: RED, count: entries.filter(e => e.phoneLineType === 'voip').length },
-    { id: 'distributed', label: '📤 Distributed', color: PURPLE, count: entries.filter(e => e.destination !== 'none').length },
+    { id: 'all', label: 'All', count: sc.total ?? entries.length },
+    { id: 'available', label: '✓ Available', color: GOLD, count: sc.availableCount ?? entries.filter(e => e.validationStatus === 'validated' && e.phoneValid && e.phoneLineType !== 'voip' && e.destination === 'none').length },
+    { id: 'pending', label: '⏳ Pending', color: AMBER, count: sc.pending ?? entries.filter(e => e.validationStatus === 'pending').length },
+    { id: 'mobile', label: '📱 Mobile', color: GOLD, count: sc.mobileCount ?? entries.filter(e => e.phoneLineType === 'mobile').length },
+    { id: 'landline', label: '☎️ Landline', color: BLUE, count: sc.landlineCount ?? entries.filter(e => e.phoneLineType === 'landline').length },
+    { id: 'voip', label: '📵 VoIP', color: RED, count: sc.voipCount ?? entries.filter(e => e.phoneLineType === 'voip').length },
+    { id: 'distributed', label: '📤 Distributed', color: PURPLE, count: sc.distributed ?? entries.filter(e => e.destination !== 'none').length },
   ];
 
   return (
