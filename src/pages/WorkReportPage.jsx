@@ -1,9 +1,12 @@
 /**
  * WorkReportPage.jsx — Bi-weekly productivity report for employer review.
- * Shows daily time logs across lead scraping, BOB training & AI, and fronter
- * portal development with results and key metrics. Mock data for demonstration.
+ * Shows the enrichment-to-DAA-pitch pipeline, BOB training & AI, and fronter
+ * portal development with visual diagrams and key metrics.
  */
 import { useState } from 'react';
+import PipelineFlow from '@/components/workreport/PipelineFlow';
+import ConversionFunnel from '@/components/workreport/ConversionFunnel';
+import ValidationGates from '@/components/workreport/ValidationGates';
 
 const GOLD = '#10b981';
 const DARK = '#0a0f1e';
@@ -14,42 +17,48 @@ const RED = '#ef4444';
 
 // ── Mock daily work log (12 working days, 6 days/week × 2 weeks) ──
 const WORK_DAYS = [
-  { date: '2026-09-29', day: 'Tue', scraping: 3.5, bob: 3.0, portal: 4.5, notes: 'Built Apify Twitter scraper skeleton; BOB persona engine (Duck/Owl/Cow); fronter lead import modal' },
-  { date: '2026-09-30', day: 'Wed', scraping: 4.0, bob: 3.5, portal: 4.0, notes: 'Social lead enrichment pipeline; BOB voice synthesis integration; FronterContactCard component' },
-  { date: '2026-10-01', day: 'Thu', scraping: 2.5, bob: 3.0, portal: 4.5, notes: 'Debt distress keyword targeting; 4 open BOB simulations; dialer session management' },
-  { date: '2026-10-02', day: 'Fri', scraping: 3.0, bob: 3.0, portal: 5.5, notes: 'LeadCrossEnrich backend function; BOB scenario builder; FronterLeadsTab with status filters' },
-  { date: '2026-10-03', day: 'Sat', scraping: 4.5, bob: 2.5, portal: 3.5, notes: 'ScrapeSocialLeads scheduled 4x daily; 5 open + 2 close BOB simulations; Twilio line assignment' },
+  { date: '2026-09-29', day: 'Tue', enrichment: 3.5, bob: 3.0, portal: 4.5, notes: 'AI enrichment pipeline skeleton (leadCrossEnrich); BOB persona engine; fronter lead import modal' },
+  { date: '2026-09-30', day: 'Wed', enrichment: 4.0, bob: 3.5, portal: 4.0, notes: 'Identity resolution + debt qualification; BOB voice synthesis; FronterContactCard component' },
+  { date: '2026-10-01', day: 'Thu', enrichment: 2.5, bob: 3.0, portal: 4.5, notes: 'Campaign trigger system (email + SMS); 4 open BOB simulations; dialer session management' },
+  { date: '2026-10-02', day: 'Fri', enrichment: 3.0, bob: 3.0, portal: 5.5, notes: 'Engagement tracking (open/click pixels); BOB scenario builder; FronterLeadsTab with status filters' },
+  { date: '2026-10-03', day: 'Sat', enrichment: 4.5, bob: 2.5, portal: 3.5, notes: 'Intent scoring from engagement signals; 5 open + 2 close BOB simulations; Twilio line assignment' },
   { date: '2026-10-04', day: 'Sun', off: true },
-  { date: '2026-10-05', day: 'Mon', scraping: 3.0, bob: 3.5, portal: 5.0, notes: 'Lead identity resolution; 6 open BOB simulations + transcript review; FronterAIPanel live transcript' },
-  { date: '2026-10-06', day: 'Tue', scraping: 2.5, bob: 4.0, portal: 4.0, notes: 'Smart lead filtering & scoring; 5 open + 3 close BOB simulations; FronterCallCard floating window' },
-  { date: '2026-10-07', day: 'Wed', scraping: 3.5, bob: 3.5, portal: 4.5, notes: 'Credit report OCR extraction; 4 open + 4 close BOB simulations; FronterContactCard with debt ledger' },
-  { date: '2026-10-08', day: 'Thu', scraping: 3.0, bob: 3.0, portal: 5.0, notes: 'ScreenDebtFit qualification AI; BOB objection engine tuning; FronterHeadsUpPopup real-time alerts' },
-  { date: '2026-10-09', day: 'Fri', scraping: 4.0, bob: 3.5, portal: 4.5, notes: 'Lead scraping rate-limit handling; 5 open + 5 close BOB simulations; FronterMonitorPanel for admins' },
-  { date: '2026-10-10', day: 'Sat', scraping: 2.5, bob: 3.0, portal: 4.5, notes: 'ScrapedLead deduplication; 4 open + 4 close BOB simulations; FronterPerformanceReport audit system' },
+  { date: '2026-10-05', day: 'Mon', enrichment: 3.0, bob: 3.5, portal: 5.0, notes: 'Human validation flow ($10k + hardship + relief); 6 open BOB simulations; FronterAIPanel live transcript' },
+  { date: '2026-10-06', day: 'Tue', enrichment: 2.5, bob: 4.0, portal: 4.0, notes: 'DAA transfer + pitch workflow; 5 open + 3 close BOB simulations; FronterCallCard floating window' },
+  { date: '2026-10-07', day: 'Wed', enrichment: 3.5, bob: 3.5, portal: 4.5, notes: 'Credit report OCR for debt verification; 4 open + 4 close BOB simulations; FronterContactCard with debt ledger' },
+  { date: '2026-10-08', day: 'Thu', enrichment: 3.0, bob: 3.0, portal: 5.0, notes: 'ScreenDebtFit AI qualification; BOB objection engine tuning; FronterHeadsUpPopup real-time alerts' },
+  { date: '2026-10-09', day: 'Fri', enrichment: 4.0, bob: 3.5, portal: 4.5, notes: 'Campaign engagement analytics dashboard; 5 open + 5 close BOB simulations; FronterMonitorPanel for admins' },
+  { date: '2026-10-10', day: 'Sat', enrichment: 2.5, bob: 3.0, portal: 4.5, notes: 'Enrichment-to-DAA-pitch funnel reporting; 4 open + 4 close BOB simulations; FronterPerformanceReport audit system' },
   { date: '2026-10-11', day: 'Sun', off: true },
 ];
 
 // ── Project results (mock metrics) ──
 const RESULTS = {
-  scraping: {
-    label: 'Lead Internet Scraping',
+  enrichment: {
+    label: 'Enrichment → Campaign → DAA Pitch Pipeline',
     color: BLUE,
-    icon: '🔍',
+    icon: '🔗',
     metrics: [
-      { label: 'Total Leads Scraped', value: '4,832' },
-      { label: 'Qualified Debt-Lead Matches', value: '1,247' },
-      { label: 'Scraping Sources Online', value: '6' },
-      { label: 'Auto-Enrichment Success Rate', value: '78%' },
-      { label: 'Duplicate Filter Accuracy', value: '94%' },
-      { label: 'Avg Leads / Day', value: '403' },
+      { label: 'Leads AI-Enriched', value: '1,247' },
+      { label: 'Enrichment Success Rate', value: '78%' },
+      { label: 'Campaigns Triggered', value: '12' },
+      { label: 'Engaged Leads (Open+Click)', value: '487' },
+      { label: 'Human-Call Validations', value: '312' },
+      { label: 'DAA Transfers (3 gates met)', value: '164' },
+      { label: 'DAA Enrollments', value: '62' },
+      { label: 'End-to-End Conversion', value: '1.3%' },
     ],
     deliverables: [
-      'Apify-based Twitter/X scraper for debt-distress keywords (deployed, 4x daily)',
-      'Social lead enrichment pipeline with AI qualification (screenDebtFit)',
+      'AI enrichment pipeline — identity resolution, debt qualification, credit analysis (leadCrossEnrich)',
+      'ScreenDebtFit AI — automated debt-relief qualification scoring',
+      'Campaign trigger engine — automated email + SMS to enriched leads (runEmailCampaigns)',
+      'Engagement tracking system — open/click pixels, intent scoring from interaction signals',
+      'Human validation workflow — fronter verifies $10k+ debt, hardship, and seeking relief',
+      'DAA transfer + pitch flow — validated leads routed to DAA closer for program pitch',
+      'Credit report OCR extraction for debt verification (analyzeCreditReport)',
       'Lead identity resolution system (resolveLeadIdentity backend function)',
-      'ScrapedLead entity with auto-deduplication and rate-limit handling',
-      'Smart lead filtering & scoring with intent signals',
-      'Credit report OCR extraction (analyzeCreditReport)',
+      'Smart lead filtering & scoring with engagement-based intent signals',
+      'Enrichment-to-enrollment funnel analytics dashboard',
     ],
   },
   bob: {
@@ -117,15 +126,15 @@ const RESULTS = {
 const fmtHours = (h) => `${h.toFixed(1)}h`;
 
 export default function WorkReportPage() {
-  const [expanded, setExpanded] = useState({ scraping: true, bob: true, portal: true });
+  const [expanded, setExpanded] = useState({ enrichment: true, bob: true, portal: true });
 
   const workingDays = WORK_DAYS.filter(d => !d.off);
-  const totalHours = workingDays.reduce((s, d) => s + d.scraping + d.bob + d.portal, 0);
-  const totalScraping = workingDays.reduce((s, d) => s + d.scraping, 0);
+  const totalHours = workingDays.reduce((s, d) => s + d.enrichment + d.bob + d.portal, 0);
+  const totalEnrichment = workingDays.reduce((s, d) => s + d.enrichment, 0);
   const totalBob = workingDays.reduce((s, d) => s + d.bob, 0);
   const totalPortal = workingDays.reduce((s, d) => s + d.portal, 0);
   const avgPerDay = totalHours / workingDays.length;
-  const maxDaily = Math.max(...workingDays.map(d => d.scraping + d.bob + d.portal));
+  const maxDaily = Math.max(...workingDays.map(d => d.enrichment + d.bob + d.portal));
 
   const startDate = workingDays[0].date;
   const endDate = workingDays[workingDays.length - 1].date;
@@ -161,13 +170,28 @@ export default function WorkReportPage() {
           ))}
         </div>
 
+        {/* ── Pipeline Flow Diagram ── */}
+        <div style={{ marginBottom: '40px' }}>
+          <PipelineFlow />
+        </div>
+
+        {/* ── Conversion Funnel ── */}
+        <div style={{ marginBottom: '40px' }}>
+          <ConversionFunnel />
+        </div>
+
+        {/* ── Validation Gates ── */}
+        <div style={{ marginBottom: '40px' }}>
+          <ValidationGates />
+        </div>
+
         {/* ── Category Time Breakdown Bar ── */}
         <div style={{ background: '#0d1b2a', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '8px', padding: '24px', marginBottom: '40px' }}>
           <h2 style={{ color: '#e8e0d0', fontSize: '18px', fontWeight: 'normal', margin: '0 0 16px' }}>📊 Time Distribution by Project</h2>
           <div style={{ display: 'flex', height: '36px', borderRadius: '6px', overflow: 'hidden', marginBottom: '12px' }}>
-            {['scraping', 'bob', 'portal'].map(key => {
+            {['enrichment', 'bob', 'portal'].map(key => {
               const c = cat(key);
-              const hrs = key === 'scraping' ? totalScraping : key === 'bob' ? totalBob : totalPortal;
+              const hrs = key === 'enrichment' ? totalEnrichment : key === 'bob' ? totalBob : totalPortal;
               const pct = (hrs / totalHours) * 100;
               return (
                 <div key={key} style={{ width: `${pct}%`, background: c.color, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 'bold', color: DARK, transition: 'width 0.3s' }}>
@@ -177,9 +201,9 @@ export default function WorkReportPage() {
             })}
           </div>
           <div style={{ display: 'flex', gap: '24px', flexWrap: 'wrap' }}>
-            {['scraping', 'bob', 'portal'].map(key => {
+            {['enrichment', 'bob', 'portal'].map(key => {
               const c = cat(key);
-              const hrs = key === 'scraping' ? totalScraping : key === 'bob' ? totalBob : totalPortal;
+              const hrs = key === 'enrichment' ? totalEnrichment : key === 'bob' ? totalBob : totalPortal;
               return (
                 <div key={key} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <div style={{ width: 12, height: 12, borderRadius: '3px', background: c.color }} />
@@ -200,7 +224,7 @@ export default function WorkReportPage() {
               <thead>
                 <tr style={{ borderBottom: `2px solid ${GOLD}22` }}>
                   <th style={{ padding: '12px 16px', textAlign: 'left', color: GOLD, fontSize: '10px', letterSpacing: '1.5px', textTransform: 'uppercase' }}>Date</th>
-                  <th style={{ padding: '12px 16px', textAlign: 'center', color: BLUE, fontSize: '10px', letterSpacing: '1.5px', textTransform: 'uppercase' }}>Scraping</th>
+                  <th style={{ padding: '12px 16px', textAlign: 'center', color: BLUE, fontSize: '10px', letterSpacing: '1.5px', textTransform: 'uppercase' }}>Enrichment</th>
                   <th style={{ padding: '12px 16px', textAlign: 'center', color: PURPLE, fontSize: '10px', letterSpacing: '1.5px', textTransform: 'uppercase' }}>BOB Training</th>
                   <th style={{ padding: '12px 16px', textAlign: 'center', color: GOLD, fontSize: '10px', letterSpacing: '1.5px', textTransform: 'uppercase' }}>Portal Dev</th>
                   <th style={{ padding: '12px 16px', textAlign: 'center', color: '#e8e0d0', fontSize: '10px', letterSpacing: '1.5px', textTransform: 'uppercase' }}>Total</th>
@@ -209,14 +233,14 @@ export default function WorkReportPage() {
               </thead>
               <tbody>
                 {WORK_DAYS.map((d, i) => {
-                  const total = d.off ? 0 : d.scraping + d.bob + d.portal;
+                  const total = d.off ? 0 : d.enrichment + d.bob + d.portal;
                   return (
                     <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
                       <td style={{ padding: '10px 16px', whiteSpace: 'nowrap' }}>
                         <div style={{ color: '#e8e0d0', fontSize: '12px' }}>{fmtDate(d.date)}</div>
                         <div style={{ color: '#4a5568', fontSize: '10px' }}>{d.day}</div>
                       </td>
-                      <td style={{ padding: '10px 16px', textAlign: 'center', color: d.off ? '#4a5568' : BLUE, fontSize: '12px' }}>{d.off ? '—' : fmtHours(d.scraping)}</td>
+                      <td style={{ padding: '10px 16px', textAlign: 'center', color: d.off ? '#4a5568' : BLUE, fontSize: '12px' }}>{d.off ? '—' : fmtHours(d.enrichment)}</td>
                       <td style={{ padding: '10px 16px', textAlign: 'center', color: d.off ? '#4a5568' : PURPLE, fontSize: '12px' }}>{d.off ? '—' : fmtHours(d.bob)}</td>
                       <td style={{ padding: '10px 16px', textAlign: 'center', color: d.off ? '#4a5568' : GOLD, fontSize: '12px' }}>{d.off ? '—' : fmtHours(d.portal)}</td>
                       <td style={{ padding: '10px 16px', textAlign: 'center' }}>
@@ -233,7 +257,7 @@ export default function WorkReportPage() {
                 {/* Totals row */}
                 <tr style={{ borderTop: `2px solid ${GOLD}33`, background: 'rgba(16,185,129,0.04)' }}>
                   <td style={{ padding: '12px 16px', color: GOLD, fontSize: '11px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase' }}>Totals</td>
-                  <td style={{ padding: '12px 16px', textAlign: 'center', color: BLUE, fontSize: '14px', fontWeight: 'bold' }}>{fmtHours(totalScraping)}</td>
+                  <td style={{ padding: '12px 16px', textAlign: 'center', color: BLUE, fontSize: '14px', fontWeight: 'bold' }}>{fmtHours(totalEnrichment)}</td>
                   <td style={{ padding: '12px 16px', textAlign: 'center', color: PURPLE, fontSize: '14px', fontWeight: 'bold' }}>{fmtHours(totalBob)}</td>
                   <td style={{ padding: '12px 16px', textAlign: 'center', color: GOLD, fontSize: '14px', fontWeight: 'bold' }}>{fmtHours(totalPortal)}</td>
                   <td style={{ padding: '12px 16px', textAlign: 'center', color: GOLD, fontSize: '16px', fontWeight: 'bold' }}>{fmtHours(totalHours)}</td>
@@ -246,7 +270,7 @@ export default function WorkReportPage() {
 
         {/* ── Project Results ── */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', marginBottom: '40px' }}>
-          {['scraping', 'bob', 'portal'].map(key => {
+          {['enrichment', 'bob', 'portal'].map(key => {
             const c = cat(key);
             const isExpanded = expanded[key];
             return (
@@ -259,7 +283,7 @@ export default function WorkReportPage() {
                   <span style={{ fontSize: '24px' }}>{c.icon}</span>
                   <div style={{ flex: 1 }}>
                     <div style={{ color: c.color, fontSize: '16px', fontWeight: 'bold' }}>{c.label}</div>
-                    <div style={{ color: '#6b7280', fontSize: '11px' }}>{key === 'scraping' ? totalScraping : key === 'bob' ? totalBob : totalPortal}h invested · {c.deliverables.length} deliverables</div>
+                    <div style={{ color: '#6b7280', fontSize: '11px' }}>{key === 'enrichment' ? totalEnrichment : key === 'bob' ? totalBob : totalPortal}h invested · {c.deliverables.length} deliverables</div>
                   </div>
                   <span style={{ color: '#4a5568', fontSize: '14px' }}>{isExpanded ? '▾' : '▸'}</span>
                 </div>
@@ -300,7 +324,10 @@ export default function WorkReportPage() {
           <h2 style={{ color: GOLD, fontSize: '14px', letterSpacing: '2px', textTransform: 'uppercase', margin: '0 0 16px' }}>📋 Executive Summary</h2>
           <p style={{ color: '#8a9ab8', fontSize: '14px', lineHeight: 1.8, margin: 0 }}>
             Over the two-week period of {fmtDate(startDate)} to {fmtDate(endDate)}, a total of <strong style={{ color: GOLD }}>{fmtHours(totalHours)}</strong> were invested across
-            three core development tracks. The lead scraping infrastructure processed over <strong style={{ color: BLUE }}>4,800 raw leads</strong> with a 78% AI enrichment success rate.
+            three core development tracks. The enrichment pipeline processed <strong style={{ color: BLUE }}>1,247 AI-enriched leads</strong> with a 78% qualification success rate,
+            triggering <strong style={{ color: AMBER }}>12 automated campaigns</strong> that generated 487 engaged leads. Human fronters then validated 312 leads by phone,
+            confirming <strong style={{ color: GOLD }}>164 qualified prospects</strong> who met all three gates ($10k+ debt, confirmed hardship, actively seeking relief) —
+            these were transferred to DAA closers, resulting in <strong style={{ color: GOLD }}>62 program enrollments</strong> (1.3% end-to-end conversion).
             The BOB training system was both built and actively used — <strong style={{ color: PURPLE }}>47 open-call simulations</strong> (avg 18m 36s) and
             <strong style={{ color: PURPLE }}> 28 close-call simulations</strong> (avg 53m 17s) were completed, totaling over 39 hours of live AI-driven training.
             The fronter portal — the human verification layer — was built from the ground up with <strong style={{ color: GOLD }}>47 components, 23 backend functions, and 18 database entities</strong>,
