@@ -72,6 +72,7 @@ export default function VaultEntryTable({ entries }) {
             <tr style={{ borderBottom: '2px solid rgba(255,255,255,0.1)' }}>
               <th style={{ padding: '8px 12px', textAlign: 'left', color: '#6b7280', fontSize: '9px', textTransform: 'uppercase', letterSpacing: '1px' }}>Name</th>
               <th style={{ padding: '8px 12px', textAlign: 'left', color: '#6b7280', fontSize: '9px', textTransform: 'uppercase', letterSpacing: '1px' }}>Phone</th>
+              <th style={{ padding: '8px 12px', textAlign: 'left', color: '#6b7280', fontSize: '9px', textTransform: 'uppercase', letterSpacing: '1px' }}>City, State</th>
               <th style={{ padding: '8px 12px', textAlign: 'center', color: '#6b7280', fontSize: '9px', textTransform: 'uppercase', letterSpacing: '1px' }}>Status</th>
               <th style={{ padding: '8px 12px', textAlign: 'center', color: '#6b7280', fontSize: '9px', textTransform: 'uppercase', letterSpacing: '1px' }}>Line Type</th>
               <th style={{ padding: '8px 12px', textAlign: 'left', color: '#6b7280', fontSize: '9px', textTransform: 'uppercase', letterSpacing: '1px' }}>Carrier</th>
@@ -80,7 +81,7 @@ export default function VaultEntryTable({ entries }) {
           </thead>
           <tbody>
             {filtered.length === 0 ? (
-              <tr><td colSpan={6} style={{ padding: '30px', textAlign: 'center', color: '#4a5568', fontSize: '13px' }}>No entries match this filter.</td></tr>
+              <tr><td colSpan={7} style={{ padding: '30px', textAlign: 'center', color: '#4a5568', fontSize: '13px' }}>No entries match this filter.</td></tr>
             ) : filtered.slice(0, 200).map(e => (
               <tr key={e.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
                 <td style={{ padding: '6px 12px', color: '#e8e0d0', fontSize: '12px', whiteSpace: 'nowrap' }}>{e.firstName} {e.lastName}</td>
@@ -90,6 +91,7 @@ export default function VaultEntryTable({ entries }) {
                     <span style={{ marginLeft: '4px' }}><PhoneVerifyBadge phoneValid={e.phoneValid} phoneLineType={e.phoneLineType} compact /></span>
                   )}
                 </td>
+                <td style={{ padding: '6px 12px', color: '#8a9ab8', fontSize: '11px', whiteSpace: 'nowrap' }}>{[e.city, e.state].filter(Boolean).join(', ') || '—'}</td>
                 <td style={{ padding: '6px 12px', textAlign: 'center' }}>
                   <span style={{ padding: '2px 8px', borderRadius: '8px', fontSize: '9px', fontWeight: 'bold', background: `${statusColor(e.validationStatus)}15`, color: statusColor(e.validationStatus) }}>{e.validationStatus}</span>
                 </td>
