@@ -8,6 +8,8 @@
  *   - "pending" (default): validate entries with validationStatus='pending'
  *   - "retry_failed": re-validate entries with validationStatus='failed'
  *   - "all": process all pending+failed in one call (loops internally up to quota)
+ *   - "twilio": use Twilio Lookup API instead of Omkar (paid, ~$0.004/lookup)
+ *   - "diagnostic": test each Omkar key with one lookup
  */
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.52';
 import { secrets } from 'base44:runtime';
@@ -78,6 +80,39 @@ async function carrierLookup(phone: string, apiKey: string): Promise<LookupResul
   }
 }
 
+/** Twilio Lookup API fallback — uses existing TWILIO_ACCOUNT_SID + TWILIO_AUTH_TOKEN. */
+async function twilioLookup(phone: string): Promise<LookupResult | null> {
+  const e164 = toE164(phone);
+  const sid = secrets.get('TWILIO_ACCOUNT_SID') || '';
+  const token = secrets.get('TWILIO_AUTH_TOKEN') || '';
+  if (!e164 || !sid || !token) return null;
+  try {
+    const auth = btoa(`${sid}:${token}`);
+    const res = await fetch(
+      `https://lookups.twilio.com/v1/PhoneNumbers/${encodeURIComponent(e164)}?Type=carrier`,
+      { headers: { Authorization: `Basic ${auth}` }, signal: AbortSignal.timeout(15000) }
+    );
+    if (res.status === 404) return { isValid: false, lineType: 'unknown', carrier: '', e164: '', quotaHit: false };
+    if (!res.ok) {
+      let body = '';
+      try { body = await res.text(); } catch {}
+      return { isValid: false, lineType: 'unknown', carrier: '', e164: '', quotaHit: false, error: `HTTP ${res.status}: ${body.slice(0, 200)}` };
+    }
+    const data = await res.json();
+    const lt = (data?.carrier?.type || 'unknown').toLowerCase();
+    const lineType = lt.includes('voip') ? 'voip' : lt.includes('mobile') ? 'mobile' : lt.includes('landline') ? 'landline' : 'unknown';
+    return {
+      isValid: true, // Twilio returns 200 only for valid numbers
+      lineType,
+      carrier: data?.carrier?.name || '',
+      e164: data?.phone_number || e164,
+      quotaHit: false,
+    };
+  } catch (e) {
+    return { isValid: false, lineType: 'unknown', carrier: '', e164: '', quotaHit: false, error: e?.message || 'fetch_failed' };
+  }
+}
+
 function getMonthKey(d = new Date()): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 }
@@ -95,7 +130,58 @@ export default async function(req: Request): Promise<Response> {
     const retryFailed = mode === 'retry_failed' || mode === 'all';
     const processAll = mode === 'all';
     const diagnostic = mode === 'diagnostic';
+    const useTwilio = mode === 'twilio';
     const limit = processAll ? 500 : Math.min(Math.max(1, maxCount || 50), 50);
+
+    // ── Twilio Lookup API mode (paid fallback) ──
+    if (useTwilio) {
+      const sid = secrets.get('TWILIO_ACCOUNT_SID') || '';
+      const token = secrets.get('TWILIO_AUTH_TOKEN') || '';
+      if (!sid || !token) return Response.json({ error: 'TWILIO_ACCOUNT_SID / TWILIO_AUTH_TOKEN secrets required for Twilio mode' }, { status: 500 });
+
+      const query: any = { destination: 'none' };
+      query.$or = [{ validationStatus: 'pending' }, { validationStatus: 'failed' }];
+      if (batchLabel) query.batchLabel = batchLabel;
+      const page = await base44.asServiceRole.entities.LeadVaultEntry.filter(query, { sort: 'created_date', limit });
+      const entries = page?.items || page || [];
+      if (!entries || entries.length === 0) return Response.json({ validated: 0, apiCalls: 0, failedCalls: 0, provider: 'twilio', done: true });
+
+      let validated = 0, apiCalls = 0, failedCalls = 0;
+      const updateBatch: any[] = [];
+      for (const entry of entries) {
+        const result = await twilioLookup(entry.phone);
+        apiCalls++;
+        if (result?.error) {
+          failedCalls++;
+          updateBatch.push({ id: entry.id, data: { validationStatus: 'failed', validatedAt: new Date().toISOString() } });
+        } else if (!result) {
+          failedCalls++;
+          updateBatch.push({ id: entry.id, data: { validationStatus: 'failed', validatedAt: new Date().toISOString() } });
+        } else {
+          updateBatch.push({
+            id: entry.id,
+            data: {
+              validationStatus: 'validated',
+              phoneValid: result.isValid,
+              phoneLineType: result.lineType,
+              phoneCarrier: result.carrier,
+              phoneE164: result.e164,
+              validatedAt: new Date().toISOString(),
+            },
+          });
+          if (result.isValid) validated++;
+        }
+      }
+      if (updateBatch.length > 0) {
+        await base44.asServiceRole.entities.LeadVaultEntry.bulkUpdate(updateBatch.map(u => ({ id: u.id, ...u.data })));
+      }
+      return Response.json({
+        validated, apiCalls, failedCalls,
+        provider: 'twilio',
+        cost: `$${(apiCalls * 0.004).toFixed(2)}`,
+        done: entries.length < limit,
+      });
+    }
 
     // ── Load key pool ──
     const keyPool = loadKeyPool();

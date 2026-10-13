@@ -35,6 +35,10 @@ export default function VaultValidationPanel({ stats, onValidated }) {
 
   const handleValidate = () => runValidation(undefined);
   const handleRetryFailed = () => runValidation('retry_failed');
+  const handleTwilio = () => {
+    if (!window.confirm('Use Twilio Lookup API? This costs ~$0.004 per number (~$0.20 for 50 numbers). It will be billed to your Twilio account.')) return;
+    runValidation('twilio');
+  };
 
   const remaining = stats?.remaining ?? 100;
   const used = stats?.used ?? 0;
@@ -132,6 +136,15 @@ export default function VaultValidationPanel({ stats, onValidated }) {
         <button onClick={handleRetryFailed} disabled={validating || remaining <= 0} style={{ width: '100%', marginTop: '8px', background: 'rgba(245,158,11,0.15)', color: AMBER, border: '1px solid rgba(245,158,11,0.3)', borderRadius: '4px', padding: '10px', cursor: (validating || remaining <= 0) ? 'not-allowed' : 'pointer', fontSize: '12px', fontWeight: 'bold', opacity: (validating || remaining <= 0) ? 0.5 : 1 }}>
           {validating ? '⏳ Working…' : `🔄 Retry Failed ({stats.failed} entries)`}
         </button>
+      )}
+
+      {/* Twilio fallback button — always available as long as Twilio creds exist */}
+      <button onClick={handleTwilio} disabled={validating} style={{ width: '100%', marginTop: '8px', background: 'rgba(239,68,68,0.12)', color: '#f87171', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '4px', padding: '10px', cursor: validating ? 'not-allowed' : 'pointer', fontSize: '12px', fontWeight: 'bold', opacity: validating ? 0.5 : 1 }}>
+        {validating ? '⏳ Working…' : `📱 Validate via Twilio (paid, ~$0.20/batch)`}
+      </button>
+
+      {lastResult?.provider === 'twilio' && (
+        <div style={{ color: GOLD, fontSize: '10px', textAlign: 'center', marginTop: '6px' }}>✅ Twilio: {lastResult.validated} valid · {lastResult.failedCalls} failed · cost {lastResult.cost}</div>
       )}
 
       {remaining > 0 && (stats?.pending ?? 0) > remaining && (
