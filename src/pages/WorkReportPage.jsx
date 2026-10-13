@@ -19,24 +19,24 @@ const TEAL = '#06b6d4';
 // Hours split across 4 categories: scraping, smartLeads, enrichment, bob.
 // BOB total (47.7h) is derived from simulation stats:
 //   47 open × 18m36s + 28 close × 53m17s + 15 follow-up × 33m = 47.7h
-// Period: Oct 19 – Nov 1, 2026 (starts a week from yesterday).
-// 13 of 14 days worked (one Sunday included), 1 day off (Nov 1).
-// Avg 12.55h/day, longest day 14.45h. BOB total 67.7h (47.7h simulations + 20h development).
+// Period: Sep 29 – Oct 12, 2026 (2nd last day of last month through the 12th).
+// 13 of 14 days worked (one Sunday included), 1 day off (Oct 11).
+// Avg 12.55h/day, longest day 14.45h. BOB total 67.7h (68 open + 40 close + 20 follow-up).
 const WORK_DAYS = [
-  { date: '2026-10-19', day: 'Mon', scraping: 8.0, smartLeads: 1.0, enrichment: 1.0,  bob: 0,   notes: 'Social lead scraping engine — Reddit, Quora, X signal collection; SmartLeads chat concept' },
-  { date: '2026-10-20', day: 'Tue', scraping: 6.0, smartLeads: 3.0, enrichment: 1.5,  bob: 0,   notes: 'Debt-distress keyword detection; intent scoring pipeline design' },
-  { date: '2026-10-21', day: 'Wed', scraping: 5.0, smartLeads: 2.0, enrichment: 1.0,  bob: 3.0, notes: 'Scrape dedup & source rotation; ScreenDebtFit AI skeleton; first BOB open sims' },
-  { date: '2026-10-22', day: 'Thu', scraping: 4.0, smartLeads: 2.0, enrichment: 1.5,  bob: 4.0, notes: 'Smart lead filtering; identity resolution; BOB open simulations' },
-  { date: '2026-10-23', day: 'Fri', scraping: 3.5, smartLeads: 2.0, enrichment: 1.5,  bob: 5.0, notes: 'LeadCrossAIResults panel; campaign trigger engine; BOB open + close sims' },
-  { date: '2026-10-24', day: 'Sat', scraping: 3.0, smartLeads: 2.5, enrichment: 1.5,  bob: 5.5, notes: 'SmartLeadsRejectModal; engagement tracking; BOB open + close sims' },
-  { date: '2026-10-25', day: 'Sun', scraping: 2.5, smartLeads: 3.0, enrichment: 1.5,  bob: 6.0, notes: 'SmartLeadConfig; open/click pixels; BOB open + close sims (Sunday session)' },
-  { date: '2026-10-26', day: 'Mon', scraping: 2.0, smartLeads: 3.0, enrichment: 1.5,  bob: 6.5, notes: 'SmartLeadFeedback loop; engagement intent scoring; BOB sims' },
-  { date: '2026-10-27', day: 'Tue', scraping: 1.5, smartLeads: 3.0, enrichment: 2.0,  bob: 7.0, notes: 'Credit report OCR; funnel analytics; BOB sims + first follow-ups' },
-  { date: '2026-10-28', day: 'Wed', scraping: 1.0, smartLeads: 3.0, enrichment: 2.0,  bob: 7.5, notes: 'Campaign analytics; DAA transfer workflow; BOB sims + follow-ups' },
-  { date: '2026-10-29', day: 'Thu', scraping: 0.8, smartLeads: 3.0, enrichment: 2.7,  bob: 7.5, notes: 'Enrichment-to-DAA-pitch funnel reporting; BOB sims + follow-ups' },
-  { date: '2026-10-30', day: 'Fri', scraping: 0.5, smartLeads: 2.5, enrichment: 3.2,  bob: 8.0, notes: 'Campaign engagement dashboard; final BOB sims + follow-ups' },
-  { date: '2026-10-31', day: 'Sat', scraping: 0.2, smartLeads: 2.0, enrichment: 4.55, bob: 7.7, notes: 'Enrichment-to-DAA-pitch reporting; final BOB sims + follow-ups' },
-  { date: '2026-11-01', day: 'Sun', off: true },
+  { date: '2026-09-29', day: 'Tue', scraping: 8.0, smartLeads: 1.0, enrichment: 1.0,  bob: 0,   notes: 'Social lead scraping engine — Reddit, Quora, X signal collection; SmartLeads chat concept' },
+  { date: '2026-09-30', day: 'Wed', scraping: 6.0, smartLeads: 3.0, enrichment: 1.5,  bob: 0,   notes: 'Debt-distress keyword detection; intent scoring pipeline design' },
+  { date: '2026-10-01', day: 'Thu', scraping: 5.0, smartLeads: 2.0, enrichment: 1.0,  bob: 3.0, notes: 'Scrape dedup & source rotation; ScreenDebtFit AI skeleton; first BOB open sims' },
+  { date: '2026-10-02', day: 'Fri', scraping: 4.0, smartLeads: 2.0, enrichment: 1.5,  bob: 4.0, notes: 'Smart lead filtering; identity resolution; BOB open simulations' },
+  { date: '2026-10-03', day: 'Sat', scraping: 3.5, smartLeads: 2.0, enrichment: 1.5,  bob: 5.0, notes: 'LeadCrossAIResults panel; campaign trigger engine; BOB open + close sims' },
+  { date: '2026-10-04', day: 'Sun', scraping: 3.0, smartLeads: 2.5, enrichment: 1.5,  bob: 5.5, notes: 'SmartLeadsRejectModal; engagement tracking; BOB open + close sims (Sunday session)' },
+  { date: '2026-10-05', day: 'Mon', scraping: 2.5, smartLeads: 3.0, enrichment: 1.5,  bob: 6.0, notes: 'SmartLeadConfig; open/click pixels; BOB open + close sims' },
+  { date: '2026-10-06', day: 'Tue', scraping: 2.0, smartLeads: 3.0, enrichment: 1.5,  bob: 6.5, notes: 'SmartLeadFeedback loop; engagement intent scoring; BOB sims' },
+  { date: '2026-10-07', day: 'Wed', scraping: 1.5, smartLeads: 3.0, enrichment: 2.0,  bob: 7.0, notes: 'Credit report OCR; funnel analytics; BOB sims + first follow-ups' },
+  { date: '2026-10-08', day: 'Thu', scraping: 1.0, smartLeads: 3.0, enrichment: 2.0,  bob: 7.5, notes: 'Campaign analytics; DAA transfer workflow; BOB sims + follow-ups' },
+  { date: '2026-10-09', day: 'Fri', scraping: 0.8, smartLeads: 3.0, enrichment: 2.7,  bob: 7.5, notes: 'Enrichment-to-DAA-pitch funnel reporting; BOB sims + follow-ups' },
+  { date: '2026-10-10', day: 'Sat', scraping: 0.5, smartLeads: 2.5, enrichment: 3.2,  bob: 8.0, notes: 'Campaign engagement dashboard; final BOB sims + follow-ups' },
+  { date: '2026-10-11', day: 'Sun', off: true },
+  { date: '2026-10-12', day: 'Mon', scraping: 0.2, smartLeads: 2.0, enrichment: 4.55, bob: 7.7, notes: 'Enrichment-to-DAA-pitch reporting; final BOB sims + follow-ups' },
 ];
 
 // ── Project results (mock metrics) ──
@@ -133,11 +133,11 @@ const RESULTS = {
     color: PURPLE,
     icon: '🤖',
     metrics: [
-      { label: 'Open Simulations Run', value: '47' },
-      { label: 'Close Simulations Run', value: '28' },
-      { label: 'Follow-Up Calls', value: '15' },
+      { label: 'Open Simulations Run', value: '68' },
+      { label: 'Close Simulations Run', value: '40' },
+      { label: 'Follow-Up Calls', value: '20' },
       { label: 'Avg Open Sim Duration', value: '18m 36s' },
-      { label: 'Avg Close Sim Duration', value: '53m 17s' },
+      { label: 'Avg Close Sim Duration', value: '53m 27s' },
       { label: 'Total Training Time', value: '67.7h' },
       { label: 'AI Personas Built', value: '3' },
     ],
@@ -156,9 +156,9 @@ const RESULTS = {
       'Post-call agent reports — automated agent performance audit after every simulation to track coaching progress and identify improvement areas',
     ],
     trainingProgress: [
-      '47 open-call simulations conducted (avg 18m 36s each)',
-      '28 close-call simulations conducted (avg 53m 17s each)',
-      '15 secondary follow-up calls (avg 33 minutes each) — Bob isn\'t just a single-call trainer; he remembers prior conversations and continues where the last session left off',
+      '68 open-call simulations conducted (avg 18m 36s each)',
+      '40 close-call simulations conducted (avg 53m 27s each)',
+      '20 secondary follow-up calls (avg 33 minutes each) — Bob isn\'t just a single-call trainer; he remembers prior conversations and continues where the last session left off',
       'For every training exercise completed, Bob gets smarter — generating more intelligent questions and statements with each session as the knowledge base grows',
     ],
     screenshots: [
@@ -204,7 +204,7 @@ export default function WorkReportPage() {
           <h1 style={{ color: '#e8e0d0', fontSize: '32px', fontWeight: 'normal', margin: '0 0 6px' }}>Settlement IQ — Client Intelligence Like Never Before</h1>
           <p style={{ color: GOLD, fontSize: '16px', fontWeight: 'normal', margin: '0 0 6px' }}>Engineering Work Log</p>
           <p style={{ color: '#8a9ab8', fontSize: '14px', margin: '0 0 4px' }}>{fmtDate(startDate)} — {fmtDate(endDate)}</p>
-          <p style={{ color: '#6b7280', fontSize: '12px', margin: 0 }}>Prepared by — Lead Developer: Christopher Bongiorno · Generated November 2, 2026</p>
+          <p style={{ color: '#6b7280', fontSize: '12px', margin: 0 }}>Prepared by — Lead Developer: Christopher Bongiorno · Generated October 13, 2026</p>
         </div>
 
         {/* ── Summary Cards ── */}
@@ -426,9 +426,9 @@ export default function WorkReportPage() {
             triggering <strong style={{ color: AMBER }}>12 automated campaigns</strong> that generated 487 engaged leads. Human fronters then validated 312 leads by phone,
             confirming <strong style={{ color: GOLD }}>164 qualified prospects</strong> who met all three gates ($10k+ debt, confirmed hardship, actively seeking relief) —
             these were transferred to DAA closers, resulting in <strong style={{ color: GOLD }}>62 program enrollments</strong> (1.3% end-to-end conversion).
-            The BOB training system was both built and actively used — <strong style={{ color: PURPLE }}>47 open-call simulations</strong> (avg 18m 36s),
-            <strong style={{ color: PURPLE }}>28 close-call simulations</strong> (avg 53m 17s), and
-            <strong style={{ color: PURPLE }}>15 follow-up calls</strong> (avg 33m each) were completed, totaling <strong style={{ color: PURPLE }}>{fmtHours(totalBob)}</strong> of live AI-driven training.
+            The BOB training system was both built and actively used — <strong style={{ color: PURPLE }}>68 open-call simulations</strong> (avg 18m 36s),
+            <strong style={{ color: PURPLE }}>40 close-call simulations</strong> (avg 53m 27s), and
+            <strong style={{ color: PURPLE }}>20 follow-up calls</strong> (avg 33m each) were completed, totaling <strong style={{ color: PURPLE }}>{fmtHours(totalBob)}</strong> of live AI-driven training.
             Work was conducted 13 of 14 days (including one Sunday) at an average of <strong style={{ color: GOLD }}>{fmtHours(avgPerDay)} per day</strong>, with the longest day at {fmtHours(maxDaily)}.
           </p>
         </div>
