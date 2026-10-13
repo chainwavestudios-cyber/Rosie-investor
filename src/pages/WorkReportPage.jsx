@@ -423,10 +423,6 @@ export default function WorkReportPage() {
             <strong style={{ color: TEAL }}> {fmtHours(totalSmartLeads)}</strong> in smart leads development & AI qualification,
             <strong style={{ color: BLUE }}> {fmtHours(totalEnrichment)}</strong> in the campaign-to-DAA pipeline, and
             <strong style={{ color: PURPLE }}> {fmtHours(totalBob)}</strong> in BOB training & AI development.
-            The enrichment pipeline processed <strong style={{ color: BLUE }}>1,247 AI-enriched leads</strong> with a 78% qualification success rate,
-            triggering <strong style={{ color: AMBER }}>12 automated campaigns</strong> that generated 487 engaged leads. Human fronters then validated 312 leads by phone,
-            confirming <strong style={{ color: GOLD }}>164 qualified prospects</strong> who met all three gates ($10k+ debt, confirmed hardship, actively seeking relief) —
-            these were transferred to DAA closers, resulting in <strong style={{ color: GOLD }}>62 program enrollments</strong> (1.3% end-to-end conversion).
             The BOB training system was both built and actively used — <strong style={{ color: PURPLE }}>68 open-call simulations</strong> (avg 18m 36s),
             <strong style={{ color: PURPLE }}>40 close-call simulations</strong> (avg 53m 27s), and
             <strong style={{ color: PURPLE }}>20 follow-up calls</strong> (avg 33m each) were completed, totaling <strong style={{ color: PURPLE }}>{fmtHours(totalBob)}</strong> of live AI-driven training.
