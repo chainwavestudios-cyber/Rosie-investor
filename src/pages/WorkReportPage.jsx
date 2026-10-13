@@ -287,14 +287,26 @@ export default function WorkReportPage() {
                     {c.screenshots && (
                       <div style={{ marginTop: '20px', paddingTop: '16px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
                         <div style={{ color: c.color, fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '12px' }}>📸 Product Screenshots</div>
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-                          {c.screenshots.map((s, i) => (
-                            <div key={i} style={{ borderRadius: '6px', overflow: 'hidden', border: `1px solid ${c.color}22`, display: 'flex', flexDirection: 'column' }}>
-                              <img src={s.url} alt={s.label} style={{ display: 'block', width: '100%', height: 'auto' }} />
-                              <div style={{ padding: '8px 12px', background: `${c.color}08`, color: '#8a9ab8', fontSize: '11px', lineHeight: 1.4, flexShrink: 0 }}>{s.label}</div>
+                        {/* First screenshot — full width, 75% size centered */}
+                        {c.screenshots[0] && (
+                          <div style={{ marginBottom: '16px', display: 'flex', justifyContent: 'center' }}>
+                            <div style={{ width: '75%', borderRadius: '6px', overflow: 'hidden', border: `1px solid ${c.color}22`, display: 'flex', flexDirection: 'column' }}>
+                              <img src={c.screenshots[0].url} alt={c.screenshots[0].label} style={{ display: 'block', width: '100%', height: 'auto' }} />
+                              <div style={{ padding: '8px 12px', background: `${c.color}08`, color: '#8a9ab8', fontSize: '11px', lineHeight: 1.4, flexShrink: 0 }}>{c.screenshots[0].label}</div>
                             </div>
-                          ))}
-                        </div>
+                          </div>
+                        )}
+                        {/* Remaining screenshots — side by side, 85% size */}
+                        {c.screenshots.length > 1 && (
+                          <div style={{ display: 'flex', justifyContent: 'center', gap: '16px' }}>
+                            {c.screenshots.slice(1).map((s, i) => (
+                              <div key={i} style={{ width: '42.5%', borderRadius: '6px', overflow: 'hidden', border: `1px solid ${c.color}22`, display: 'flex', flexDirection: 'column' }}>
+                                <img src={s.url} alt={s.label} style={{ display: 'block', width: '100%', height: 'auto' }} />
+                                <div style={{ padding: '8px 12px', background: `${c.color}08`, color: '#8a9ab8', fontSize: '11px', lineHeight: 1.4, flexShrink: 0 }}>{s.label}</div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
