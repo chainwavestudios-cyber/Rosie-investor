@@ -154,7 +154,8 @@ const RESULTS = {
       'For every training exercise completed, Bob gets smarter — generating more intelligent questions and statements with each session as the knowledge base grows',
     ],
     screenshots: [
-      { url: 'https://media.base44.com/images/public/69cd2741578c9b5ce655395b/5890249f3_Screenshot2026-10-13at124657AM.png', label: 'Call Mode Configuration — character selection, voice model, LM brain, transfer agent voice, and manual objections toggle' },
+      { url: 'https://media.base44.com/images/public/69cd2741578c9b5ce655395b/c92369d28_Screenshot2026-10-13at10414AM.png', label: 'BOB Training Room — live transcript, AI Q&A assistant, scripts, and call controls in one unified workspace' },
+      { url: 'https://media.base44.com/images/public/69cd2741578c9b5ce655395b/5890249f3_Screenshot2026-10-13at124657AM.png', label: 'Call Mode Configuration — character, voice model, LLM brain, transfer agent voice, and manual objections toggle' },
       { url: 'https://media.base44.com/images/public/69cd2741578c9b5ce655395b/eb5802f1a_Screenshot2026-10-13at124721AM.png', label: 'Customer Scenario Builder — Duck↔Cow slider, intensity selector, and full customer profile with debt ledger and hardship story' },
     ],
   },
@@ -286,11 +287,11 @@ export default function WorkReportPage() {
                     {c.screenshots && (
                       <div style={{ marginTop: '20px', paddingTop: '16px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
                         <div style={{ color: c.color, fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '12px' }}>📸 Product Screenshots</div>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
                           {c.screenshots.map((s, i) => (
-                            <div key={i} style={{ borderRadius: '6px', overflow: 'hidden', border: `1px solid ${c.color}22` }}>
+                            <div key={i} style={{ borderRadius: '6px', overflow: 'hidden', border: `1px solid ${c.color}22`, display: 'flex', flexDirection: 'column' }}>
                               <img src={s.url} alt={s.label} style={{ display: 'block', width: '100%', height: 'auto' }} />
-                              <div style={{ padding: '8px 12px', background: `${c.color}08`, color: '#8a9ab8', fontSize: '11px', lineHeight: 1.4 }}>{s.label}</div>
+                              <div style={{ padding: '8px 12px', background: `${c.color}08`, color: '#8a9ab8', fontSize: '11px', lineHeight: 1.4, flexShrink: 0 }}>{s.label}</div>
                             </div>
                           ))}
                         </div>
