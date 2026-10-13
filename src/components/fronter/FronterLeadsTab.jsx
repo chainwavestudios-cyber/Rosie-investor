@@ -6,7 +6,7 @@
  */
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
-import FronterCallCard from './FronterCallCard';
+import FronterContactCard from './FronterContactCard';
 import FronterLeadImportModal from './FronterLeadImportModal';
 import FronterAgentStatsBar from './FronterAgentStatsBar';
 
@@ -364,25 +364,24 @@ export default function FronterLeadsTab({ username, lineKey, lineNumber, isAdmin
         />
       )}
 
-      {/* Call Card — unified floating window with Contact + Q&A + Script (Alt+C) */}
-      <FronterCallCard
-        show={!!showCallCard && !!contactCardLead}
-        onClose={() => setShowCallCard?.(false)}
-        username={username}
-        lead={contactCardLead}
-        fronterFirstName={fronterFirstName}
-        lineKey={lineKey}
-        lineNumber={lineNumber}
-        isAdmin={isAdmin}
-        transcript={transcript}
-        fronterKbEntries={fronterKbEntries}
-        onSaveLead={(updated) => { setRefreshKey(k => k + 1); setContactCardLead(prev => ({ ...prev, ...updated })); }}
-        onDial={(l) => handleDialLog(l)}
-        onNext={handleNextLead}
-        onTranscriptChange={onTranscriptChange}
-        onCallConnected={onCallConnected}
-        onOpenQA={onOpenQA}
-      />
+      {/* Contact Card — floating window opened when clicking a prospect/lead (Alt+C) */}
+      {showCallCard && contactCardLead && (
+        <FronterContactCard
+          lead={contactCardLead}
+          username={username}
+          fronterFirstName={fronterFirstName}
+          lineKey={lineKey}
+          lineNumber={lineNumber}
+          isAdmin={isAdmin}
+          onClose={() => { setShowCallCard?.(false); setContactCardLead(null); }}
+          onSave={(updated) => { setRefreshKey(k => k + 1); setContactCardLead(prev => ({ ...prev, ...updated })); }}
+          onDial={(l) => handleDialLog(l)}
+          onNext={handleNextLead}
+          onTranscriptUpdate={onTranscriptChange}
+          onCallConnected={onCallConnected}
+          onOpenQA={onOpenQA}
+        />
+      )}
       </div>
     </div>
   );
