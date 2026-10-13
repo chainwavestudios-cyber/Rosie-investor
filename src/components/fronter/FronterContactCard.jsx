@@ -18,6 +18,7 @@ import FronterEmailTrackingBadges from './FronterEmailTrackingBadges';
 import FronterLeadConfirmedChecklist from './FronterLeadConfirmedChecklist';
 import FronterClosedDealCelebration from './FronterClosedDealCelebration';
 import FronterDialer from './FronterDialer';
+import FronterAIPanel from './FronterAIPanel';
 import AIPopulateTab from '@/components/shared/AIPopulateTab';
 
 const GOLD = '#10b981';
@@ -64,6 +65,7 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
   const [showChecklist, setShowChecklist] = useState(false);
   const [showClosedDealCelebration, setShowClosedDealCelebration] = useState(false);
   const [liveTranscript, setLiveTranscript] = useState([]);
+  const [showQAPanel, setShowQAPanel] = useState(false);
 
   useEffect(() => {
     setLocal(lead || {});
@@ -312,7 +314,7 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
             onClosedDeal={markClosedDeal}
             onNext={onNext}
             onClose={onClose}
-            onQA={onOpenQA}
+            onQA={() => { setShowQAPanel(p => !p); onOpenQA?.(); }}
           />
         </div>
 
@@ -330,6 +332,7 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
             setCallStartTime(Date.now());
             setCardTab('script');
             setScriptPoppedOut(true);
+            setShowQAPanel(true);
             onCallConnected?.(l);
             onOpenQA?.();
           }}
@@ -592,6 +595,35 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
           onClose={() => setShowMeetingScheduler(false)}
           onScheduled={() => { const upd = { status: 'lead', lastCallResult: meetingDisposition }; setShowMeetingScheduler(false); setLocal(prev => ({ ...prev, ...upd })); onSave?.({ ...local, ...upd }); }}
         />
+      )}
+
+      {/* Live Q&A floating panel — toggled by Q&A button or auto-opened on call connect */}
+      {showQAPanel && (
+        <div style={{ position: 'fixed', top: 80, right: 20, width: 720, height: 560, background: '#0d1b2a', border: '1px solid rgba(96,165,250,0.4)', borderRadius: '8px', boxShadow: '0 16px 64px rgba(0,0,0,0.85)', zIndex: 21000, display: 'flex', flexDirection: 'column', overflow: 'hidden', fontFamily: 'Georgia, serif' }}>
+          <div style={{ padding: '8px 14px', background: 'rgba(0,0,0,0.4)', borderBottom: '1px solid rgba(96,165,250,0.25)', display: 'flex', alignItems: 'center', gap: '10px', cursor: 'move', userSelect: 'none', flexShrink: 0 }}
+            onMouseDown={(e) => {
+              const startX = e.clientX, startY = e.clientY, startL = e.currentTarget.parentElement.offsetLeft, startT = e.currentTarget.parentElement.offsetTop;
+              const onMove = (ev) => { e.currentTarget.parentElement.style.left = (startL + ev.clientX - startX) + 'px'; e.currentTarget.parentElement.style.top = (startT + ev.clientY - startY) + 'px'; e.currentTarget.parentElement.style.right = 'auto'; };
+              const onUp = () => { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); };
+              document.addEventListener('mousemove', onMove);
+              document.addEventListener('mouseup', onUp);
+            }}>
+            <span style={{ color: BLUE, fontSize: '11px', fontWeight: 'bold', letterSpacing: '2px', textTransform: 'uppercase' }}>💬 Live Q&A</span>
+            {callActive && <span style={{ color: GOLD, fontSize: '10px' }}>· Call Active</span>}
+            <div style={{ flex: 1 }} />
+            <button onClick={() => setShowQAPanel(false)} style={{ background: 'rgba(239,68,68,0.15)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '4px', padding: '3px 11px', cursor: 'pointer', fontSize: '15px', fontWeight: 'bold', lineHeight: 1 }}>×</button>
+          </div>
+          <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+            <FronterAIPanel
+              transcript={liveTranscript}
+              isActive={callActive || liveTranscript.length > 0}
+              transcriptFormat="live"
+              username={username}
+              autoOpenPopup={false}
+              lead={local}
+            />
+          </div>
+        </div>
       )}
     </>
   );
