@@ -80,7 +80,7 @@ const RESULTS = {
     ],
     deliverables: [
       'SmartLeads chat — AI-powered lead research and qualification conversation interface (smartLeadsChat backend function)',
-      'Lead cross-enrichment engine — AI resolves identity, verifies debt, and cross-references multiple data sources in one pass (leadCrossEnrich)',
+      'Lead cross-enrichment engine — AI resolves identity, and cross-references multiple data sources in one pass (leadCrossEnrich)',
       'ScreenDebtFit AI — automated debt-relief qualification scoring that approves or rejects leads based on debt type, amount, and service area',
       'SmartLeadsRejectModal — transparent rejection flow showing exactly why a lead didn\'t qualify, with override capability for edge cases',
       'SmartLeadsSettings — configurable qualification thresholds (min debt, accepted creditor types, geographic filters)',
@@ -143,7 +143,8 @@ const RESULTS = {
       { label: 'AI Personas Built', value: '3' },
     ],
     deliverables: [
-      'BOB cold-call training simulator with live Twilio voice integration',
+      'BOB cold-call training simulator with live LLM, TTS, STT real time voice integration',
+      'Chat GPT 4.1 LLM, DEEPGRAM TTS & STT, FLUX VOICE MODELS',
       'Three AI customer personas — Duck (passive), Owl (analytical), Cow (stubborn) — each with distinct personality traits, response patterns, and objection styles that adjust the course of the call in real time based on trainee input',
       'BOB scenario builder with preset debt-relief cold-call situations — open, close, objection, and discovery variations',
       'BOB objection engine with dynamic rebuttal generation — persona-driven objections that shift difficulty mid-call',
@@ -205,7 +206,7 @@ export default function WorkReportPage() {
           <h1 style={{ color: '#e8e0d0', fontSize: '32px', fontWeight: 'normal', margin: '0 0 6px' }}>Settlement IQ — Client Intelligence Like Never Before</h1>
           <p style={{ color: GOLD, fontSize: '16px', fontWeight: 'normal', margin: '0 0 6px' }}>Engineering Work Log</p>
           <p style={{ color: '#8a9ab8', fontSize: '14px', margin: '0 0 4px' }}>{fmtDate(startDate)} — {fmtDate(endDate)}</p>
-          <p style={{ color: '#6b7280', fontSize: '12px', margin: 0 }}>Prepared by — Lead Developer: Christopher Bongiorno · Generated October 13, 2026</p>
+          <p style={{ color: '#6b7280', fontSize: '12px', margin: 0 }}>Prepared by — Lead Developer/ Sr. Debt Advisor : Christopher Bongiorno · Generated October 11th, 2026</p>
         </div>
 
         {/* ── Summary Cards ── */}
