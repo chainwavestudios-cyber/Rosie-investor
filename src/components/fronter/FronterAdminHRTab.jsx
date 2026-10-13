@@ -37,41 +37,19 @@ function fmtDur(s) {
   return `${Math.floor(s / 3600)}h ${Math.floor((s % 3600) / 60)}m`;
 }
 
-// Convert ISO string to a datetime-local input value in America/New_York
+// Convert ISO to datetime-local input value (browser local time, which is ET for this admin)
 function isoToInput(iso) {
   if (!iso) return '';
-  try {
-    const parts = new Date(iso).toLocaleString('en-CA', {
-      timeZone: 'America/New_York',
-      year: 'numeric', month: '2-digit', day: '2-digit',
-      hour: '2-digit', minute: '2-digit', hour12: false,
-    });
-    // en-CA gives "YYYY-MM-DD, HH:MM" — join with T
-    return parts.replace(', ', 'T');
-  } catch { return ''; }
+  const d = new Date(iso);
+  const off = d.getTimezoneOffset();
+  const local = new Date(d.getTime() - off * 60000);
+  return local.toISOString().slice(0, 16);
 }
 
-// Convert a datetime-local input value (interpreted as ET) back to ISO
+// Convert datetime-local input value back to ISO
 function inputToIso(val) {
   if (!val) return null;
-  // val is "YYYY-MM-DDTHH:MM" in America/New_York local time.
-  // Append the ET offset so Date parses it correctly.
-  // Use a fixed -04:00 (EDT) / -05:00 (EST) — compute via Intl to be safe.
-  const dt = new Date(val);
-  // Use the formatter to get the offset at that time
-  const offsetMs = new Date(val).getTimezoneOffset() * 60000;
-  // datetime-local is interpreted as browser-local; we want it as ET wall-clock → ISO.
-  // Simpler: treat the input as a wall-clock in ET by constructing the ISO with the
-  // tz offset derived from the browser at that instant.
-  return new Date(dt.getTime() - offsetMs + getEtOffsetMinutes(val) * 60000).toISOString();
-}
-
-function getEtOffsetMinutes(dateVal) {
-  // Returns the America/New_York UTC offset in minutes for the given date
-  const dt = new Date(dateVal);
-  const etString = dt.toLocaleString('en-US', { timeZone: 'America/New_York' });
-  const etDate = new Date(etString);
-  return Math.round((etDate - dt) / 60000);
+  return new Date(val).toISOString();
 }
 
 // Subtract a break interval from total
