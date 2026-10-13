@@ -47,7 +47,7 @@ export default function ValidationGates() {
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px', marginTop: '20px', paddingTop: '16px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
         <div style={{ color: '#6b7280', fontSize: '11px' }}>All 3 gates passed</div>
         <div style={{ color: GOLD, fontSize: '20px' }}>→</div>
-        <div style={{ background: `${GOLD}15`, border: `1px solid ${GOLD}44`, borderRadius: '6px', padding: '8px 18px', color: GOLD, fontSize: '13px', fontWeight: 'bold' }}>Transfer to DAA Closer · Pitch Program</div>
+        <div style={{ background: `${GOLD}15`, border: `1px solid ${GOLD}44`, borderRadius: '6px', padding: '8px 18px', color: GOLD, fontSize: '13px', fontWeight: 'bold' }}>Transfer to Christopher Bongiorno · Pitches DAA Program for First Time</div>
       </div>
     </div>
   );

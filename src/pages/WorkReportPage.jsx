@@ -5,7 +5,6 @@
  */
 import { useState } from 'react';
 import PipelineFlow from '@/components/workreport/PipelineFlow';
-import ConversionFunnel from '@/components/workreport/ConversionFunnel';
 import ValidationGates from '@/components/workreport/ValidationGates';
 
 const GOLD = '#10b981';
@@ -175,11 +174,6 @@ export default function WorkReportPage() {
           <PipelineFlow />
         </div>
 
-        {/* ── Conversion Funnel ── */}
-        <div style={{ marginBottom: '40px' }}>
-          <ConversionFunnel />
-        </div>
-
         {/* ── Validation Gates ── */}
         <div style={{ marginBottom: '40px' }}>
           <ValidationGates />
@@ -290,16 +284,6 @@ export default function WorkReportPage() {
 
                 {isExpanded && (
                   <div style={{ padding: '20px 24px' }}>
-                    {/* Metrics grid */}
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '12px', marginBottom: '20px' }}>
-                      {c.metrics.map((m, i) => (
-                        <div key={i} style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '6px', padding: '14px', textAlign: 'center' }}>
-                          <div style={{ color: c.color, fontSize: '22px', fontWeight: 'bold', marginBottom: '4px' }}>{m.value}</div>
-                          <div style={{ color: '#6b7280', fontSize: '10px', letterSpacing: '0.5px', textTransform: 'uppercase' }}>{m.label}</div>
-                        </div>
-                      ))}
-                    </div>
-
                     {/* Deliverables list */}
                     <div>
                       <div style={{ color: c.color, fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '10px' }}>Key Deliverables Shipped</div>

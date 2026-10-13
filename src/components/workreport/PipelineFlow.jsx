@@ -10,11 +10,11 @@ const EMERALD = '#34d399';
 const DARK = '#0a0f1e';
 
 const STEPS = [
-  { id: 1, icon: '🧠', title: 'AI Enrichment', subtitle: 'Identity resolution · debt qualification · credit analysis', color: BLUE, count: '1,247 leads' },
-  { id: 2, icon: '✉️', title: 'Campaign Trigger', subtitle: 'Automated email + SMS to enriched leads', color: AMBER, count: '892 contacted' },
-  { id: 3, icon: '📊', title: 'Engagement Tracking', subtitle: 'Open / click tracking · intent scoring', color: PURPLE, count: '487 engaged' },
-  { id: 4, icon: '✅', title: 'Human Validation', subtitle: 'Fronter verifies: $10k+ debt · hardship · seeking relief', color: GOLD, count: '164 validated' },
-  { id: 5, icon: '🤝', title: 'DAA Pitch', subtitle: 'Transfer to DAA closer · pitch debt-relief program', color: EMERALD, count: '62 enrolled' },
+  { id: 1, icon: '🧠', title: 'AI Enrichment', subtitle: 'Identity resolution · debt qualification · credit analysis', color: BLUE },
+  { id: 2, icon: '✉️', title: 'Campaign Trigger', subtitle: 'Automated email + SMS to enriched leads', color: AMBER },
+  { id: 3, icon: '📊', title: 'Engagement Tracking', subtitle: 'Open / click tracking · intent scoring', color: PURPLE },
+  { id: 4, icon: '✅', title: 'Human Validation', subtitle: 'Fronter verifies: $10k+ debt · hardship · seeking relief', color: GOLD },
+  { id: 5, icon: '🤝', title: 'DAA Pitch', subtitle: 'Transfer to Christopher Bongiorno · pitches DAA program for first time', color: EMERALD },
 ];
 
 export default function PipelineFlow() {
@@ -48,10 +48,8 @@ export default function PipelineFlow() {
                 fontSize: '20px', marginBottom: '10px',
                 boxShadow: `0 0 12px ${step.color}33`,
               }}>{step.icon}</div>
-              <div style={{ color: step.color, fontSize: '9px', fontWeight: 'bold', letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: '4px' }}>Step {step.id}</div>
               <div style={{ color: '#e8e0d0', fontSize: '13px', fontWeight: 'bold', marginBottom: '6px' }}>{step.title}</div>
-              <div style={{ color: '#8a9ab8', fontSize: '10px', lineHeight: 1.4, marginBottom: '8px' }}>{step.subtitle}</div>
-              <div style={{ color: step.color, fontSize: '14px', fontWeight: 'bold', marginTop: 'auto', padding: '4px 10px', background: `${step.color}15`, borderRadius: '4px', whiteSpace: 'nowrap' }}>{step.count}</div>
+              <div style={{ color: '#8a9ab8', fontSize: '10px', lineHeight: 1.4 }}>{step.subtitle}</div>
             </div>
             {/* Arrow */}
             {i < STEPS.length - 1 && (
@@ -81,10 +79,8 @@ export default function PipelineFlow() {
                 fontSize: '18px', flexShrink: 0,
               }}>{step.icon}</div>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ color: step.color, fontSize: '9px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase' }}>Step {step.id}</div>
                 <div style={{ color: '#e8e0d0', fontSize: '13px', fontWeight: 'bold' }}>{step.title}</div>
                 <div style={{ color: '#8a9ab8', fontSize: '10px', lineHeight: 1.4 }}>{step.subtitle}</div>
-                <div style={{ color: step.color, fontSize: '12px', fontWeight: 'bold', marginTop: '4px' }}>{step.count}</div>
               </div>
             </div>
             {i < STEPS.length - 1 && <div style={{ textAlign: 'center', color: '#4a5568', fontSize: '16px', padding: '2px 0' }}>↓</div>}
