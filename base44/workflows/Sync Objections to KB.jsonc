@@ -1,0 +1,44 @@
+{
+  "name": "Sync Objections to KB",
+  "definition": {
+    "document": {
+      "dsl": "1.0.0",
+      "name": "sync_objections_to_kb",
+      "version": "1.0",
+      "namespace": "base44"
+    },
+    "do": [
+      {
+        "sync": {
+          "call": "invoke_backend_function",
+          "with": {
+            "function_name": "syncObjectionsToKB"
+          },
+          "then": "end",
+          "x-base44": {
+            "title": "Sync Objections to KB",
+            "description": "Copy enabled Objection records into KnowledgeBase as debt_objections entries"
+          }
+        }
+      }
+    ]
+  },
+  "trigger": {
+    "condition": null,
+    "config": {
+      "trigger_type": "scheduled",
+      "events": [],
+      "schedule_mode": "recurring",
+      "cron_expression": "0 */2 * * *",
+      "one_time_date": null,
+      "timezone": "America/New_York",
+      "interval_value": null,
+      "interval_unit": null,
+      "interval_anchor": null,
+      "ends_type": "never",
+      "ends_on_date": null,
+      "ends_after_count": null
+    }
+  },
+  "description": "Syncs enabled Objection records into the KnowledgeBase every 2 hours so BOB training and live-call AI panels automatically pick up new objections without manual duplication"
+}
