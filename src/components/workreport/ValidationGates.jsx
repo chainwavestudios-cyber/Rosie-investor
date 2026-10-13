@@ -15,7 +15,7 @@ export default function ValidationGates() {
   return (
     <div style={{ background: '#0d1b2a', border: `1px solid ${GOLD}22`, borderRadius: '8px', padding: '28px 24px' }}>
       <h2 style={{ color: '#e8e0d0', fontSize: '18px', fontWeight: 'normal', margin: '0 0 6px' }}>🚦 Human Validation Gates</h2>
-      <p style={{ color: '#6b7280', fontSize: '12px', margin: '0 0 20px' }}>All three conditions must be verified by a human fronter before the lead is transferred to DAA for the program pitch</p>
+      <p style={{ color: '#6b7280', fontSize: '12px', margin: '0 0 20px' }}>All three conditions must be verified by a human fronter before the lead is put into Christopher Bongiorno's Queue, where he can click and transfer to his official DAA lines to pitch the DAA program for the first time</p>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', justifyContent: 'center' }}>
         {GATES.map((gate, i) => (

@@ -16,19 +16,18 @@ const RED = '#ef4444';
 
 // ── Mock daily work log (12 working days, 6 days/week × 2 weeks) ──
 const WORK_DAYS = [
-  { date: '2026-09-29', day: 'Tue', leadGen: 3.5, bob: 3.0, portal: 4.5, notes: 'AI enrichment pipeline skeleton (leadCrossEnrich); BOB persona engine; fronter lead import modal' },
-  { date: '2026-09-30', day: 'Wed', leadGen: 4.0, bob: 3.5, portal: 4.0, notes: 'Identity resolution + debt qualification; BOB voice synthesis; FronterContactCard component' },
-  { date: '2026-10-01', day: 'Thu', leadGen: 2.5, bob: 3.0, portal: 4.5, notes: 'Campaign trigger system (email + SMS); 4 open BOB simulations; dialer session management' },
-  { date: '2026-10-02', day: 'Fri', leadGen: 3.0, bob: 3.0, portal: 5.5, notes: 'Engagement tracking (open/click pixels); BOB scenario builder; FronterLeadsTab with status filters' },
-  { date: '2026-10-03', day: 'Sat', leadGen: 4.5, bob: 2.5, portal: 3.5, notes: 'Intent scoring from engagement signals; 5 open + 2 close BOB simulations; Twilio line assignment' },
+  { date: '2026-09-28', day: 'Mon', leadGen: 3.5, bob: 3.0, portal: 4.5, notes: 'AI enrichment pipeline skeleton (leadCrossEnrich); BOB persona engine; fronter lead import modal' },
+  { date: '2026-09-29', day: 'Tue', leadGen: 4.0, bob: 3.5, portal: 4.0, notes: 'Identity resolution + debt qualification; BOB voice synthesis; FronterContactCard component' },
+  { date: '2026-09-30', day: 'Wed', leadGen: 2.5, bob: 3.0, portal: 4.5, notes: 'Campaign trigger system (email + SMS); 4 open BOB simulations; dialer session management' },
+  { date: '2026-10-01', day: 'Thu', leadGen: 3.0, bob: 3.0, portal: 5.5, notes: 'Engagement tracking (open/click pixels); BOB scenario builder; FronterLeadsTab with status filters' },
+  { date: '2026-10-02', day: 'Fri', leadGen: 4.5, bob: 2.5, portal: 3.5, notes: 'Intent scoring from engagement signals; 5 open + 2 close BOB simulations; Twilio line assignment' },
+  { date: '2026-10-03', day: 'Sat', leadGen: 3.0, bob: 3.5, portal: 5.0, notes: 'Human validation flow ($10k + hardship + relief); 6 open BOB simulations; FronterAIPanel live transcript' },
   { date: '2026-10-04', day: 'Sun', off: true },
-  { date: '2026-10-05', day: 'Mon', leadGen: 3.0, bob: 3.5, portal: 5.0, notes: 'Human validation flow ($10k + hardship + relief); 6 open BOB simulations; FronterAIPanel live transcript' },
-  { date: '2026-10-06', day: 'Tue', leadGen: 2.5, bob: 4.0, portal: 4.0, notes: 'DAA transfer + pitch workflow; 5 open + 3 close BOB simulations; FronterCallCard floating window' },
-  { date: '2026-10-07', day: 'Wed', leadGen: 3.5, bob: 3.5, portal: 4.5, notes: 'Credit report OCR for debt verification; 4 open + 4 close BOB simulations; FronterContactCard with debt ledger' },
-  { date: '2026-10-08', day: 'Thu', leadGen: 3.0, bob: 3.0, portal: 5.0, notes: 'ScreenDebtFit AI qualification; BOB objection engine tuning; FronterHeadsUpPopup real-time alerts' },
-  { date: '2026-10-09', day: 'Fri', leadGen: 4.0, bob: 3.5, portal: 4.5, notes: 'Campaign engagement analytics dashboard; 5 open + 5 close BOB simulations; FronterMonitorPanel for admins' },
-  { date: '2026-10-10', day: 'Sat', leadGen: 2.5, bob: 3.0, portal: 4.5, notes: 'Enrichment-to-DAA-pitch funnel reporting; 4 open + 4 close BOB simulations; FronterPerformanceReport audit system' },
-  { date: '2026-10-11', day: 'Sun', off: true },
+  { date: '2026-10-05', day: 'Mon', leadGen: 2.5, bob: 4.0, portal: 4.0, notes: 'DAA transfer + pitch workflow; 5 open + 3 close BOB simulations; FronterCallCard floating window' },
+  { date: '2026-10-06', day: 'Tue', leadGen: 3.5, bob: 3.5, portal: 4.5, notes: 'Credit report OCR for debt verification; 4 open + 4 close BOB simulations; FronterContactCard with debt ledger' },
+  { date: '2026-10-07', day: 'Wed', leadGen: 3.0, bob: 3.0, portal: 5.0, notes: 'ScreenDebtFit AI qualification; BOB objection engine tuning; FronterHeadsUpPopup real-time alerts' },
+  { date: '2026-10-08', day: 'Thu', leadGen: 4.0, bob: 3.5, portal: 4.5, notes: 'Campaign engagement analytics dashboard; 5 open + 5 close BOB simulations; FronterMonitorPanel for admins' },
+  { date: '2026-10-09', day: 'Fri', leadGen: 2.5, bob: 3.0, portal: 4.5, notes: 'Enrichment-to-DAA-pitch funnel reporting; 4 open + 4 close BOB simulations; FronterPerformanceReport audit system' },
 ];
 
 // ── Project results (mock metrics) ──
@@ -169,10 +168,11 @@ export default function WorkReportPage() {
       <div style={{ maxWidth: 1100, margin: '0 auto' }}>
         {/* ── Report Header ── */}
         <div style={{ textAlign: 'center', marginBottom: '40px' }}>
-          <div style={{ color: GOLD, fontSize: '12px', letterSpacing: '4px', textTransform: 'uppercase', marginBottom: '8px' }}>Bi-Weekly Development Report</div>
-          <h1 style={{ color: '#e8e0d0', fontSize: '32px', fontWeight: 'normal', margin: '0 0 6px' }}>RoieAI Investor Platform — Engineering Work Log</h1>
+          <div style={{ color: GOLD, fontSize: '12px', letterSpacing: '4px', textTransform: 'uppercase', marginBottom: '8px' }}>Development, Lead Generation and Training Report for Christopher Bongiorno</div>
+          <h1 style={{ color: '#e8e0d0', fontSize: '32px', fontWeight: 'normal', margin: '0 0 6px' }}>Settlement IQ — Client Intelligence Like Never Before</h1>
+          <p style={{ color: GOLD, fontSize: '16px', fontWeight: 'normal', margin: '0 0 6px' }}>Engineering Work Log</p>
           <p style={{ color: '#8a9ab8', fontSize: '14px', margin: '0 0 4px' }}>{fmtDate(startDate)} — {fmtDate(endDate)}</p>
-          <p style={{ color: '#6b7280', fontSize: '12px', margin: 0 }}>Prepared by: Lead Developer · Generated {new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</p>
+          <p style={{ color: '#6b7280', fontSize: '12px', margin: 0 }}>Prepared by — Lead Developer: Christopher Bongiorno · Generated October 12, 2026</p>
         </div>
 
         {/* ── Summary Cards ── */}
