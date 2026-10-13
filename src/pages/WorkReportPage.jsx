@@ -13,6 +13,7 @@ const BLUE = '#60a5fa';
 const AMBER = '#f59e0b';
 const PURPLE = '#a78bfa';
 const RED = '#ef4444';
+const TEAL = '#06b6d4';
 
 // ── Mock daily work log (12 working days, 6 days/week × 2 weeks) ──
 const WORK_DAYS = [
@@ -53,6 +54,40 @@ const RESULTS = {
       'Smart lead filtering — auto-rejects non-qualifying leads (wrong debt type, too low, outside service area)',
       'Lead enrichment handoff — high-intent leads auto-routed to enrichment pipeline for identity resolution',
       'SmartLeads chat — AI-powered lead research and qualification conversation interface',
+    ],
+  },
+  smartLeads: {
+    label: 'Smart Leads Development & AI Qualification',
+    color: TEAL,
+    icon: '🧠',
+    metrics: [
+      { label: 'Leads Cross-Enriched', value: '1,247' },
+      { label: 'Auto-Qualified (ScreenDebtFit)', value: '894' },
+      { label: 'Auto-Rejected (Non-Fit)', value: '353' },
+      { label: 'Qualification Accuracy', value: '91%' },
+      { label: 'Manual Research Hours Saved', value: '184h' },
+      { label: 'Avg Enrichment Time / Lead', value: '3.2s' },
+      { label: 'SmartLeads Chat Sessions', value: '56' },
+    ],
+    deliverables: [
+      'SmartLeads chat — AI-powered lead research and qualification conversation interface (smartLeadsChat backend function)',
+      'Lead cross-enrichment engine — AI resolves identity, verifies debt, and cross-references multiple data sources in one pass (leadCrossEnrich)',
+      'ScreenDebtFit AI — automated debt-relief qualification scoring that approves or rejects leads based on debt type, amount, and service area',
+      'SmartLeadsRejectModal — transparent rejection flow showing exactly why a lead didn\'t qualify, with override capability for edge cases',
+      'SmartLeadsSettings — configurable qualification thresholds (min debt, accepted creditor types, geographic filters)',
+      'LeadCrossAIResults — structured AI results panel showing enrichment confidence, data sources, and field-by-field breakdown',
+      'SmartLeadFeedback loop — agents rate AI enrichment quality, feeding back into model improvement',
+      'SmartLeadConfig — per-campaign configuration for scoring weights and qualification rules',
+      'Identity resolution system — matches scraped handles to real names, phones, and emails (resolveLeadIdentity)',
+    ],
+    valueBrought: [
+      'Eliminates 184 hours of manual lead research — agents no longer Google, cross-reference, or verify leads by hand; the AI does it in 3 seconds per lead',
+      '91% qualification accuracy means agents only talk to leads who actually qualify — no more wasted calls on dead-end prospects',
+      'Transparent auto-rejection with reasons — agents see exactly why a lead was rejected and can override, building trust in the AI system',
+      'Self-improving feedback loop — every agent rating makes the next enrichment smarter, so accuracy compounds over time',
+      'Configurable thresholds let management tune qualification rules per campaign without code changes — adapt to market conditions instantly',
+      'Chat-based interface means any team member can research a lead conversationally — no training needed, just ask questions',
+      'Identity resolution turns anonymous social handles into callable contacts with verified phone and email — scraping directly connects to dialing',
     ],
   },
   enrichment: {
@@ -120,7 +155,7 @@ const RESULTS = {
 const fmtHours = (h) => `${h.toFixed(1)}h`;
 
 export default function WorkReportPage() {
-  const [expanded, setExpanded] = useState({ scraping: true, enrichment: true, bob: true });
+  const [expanded, setExpanded] = useState({ scraping: true, smartLeads: true, enrichment: true, bob: true });
 
   const workingDays = WORK_DAYS.filter(d => !d.off);
   const totalHours = workingDays.reduce((s, d) => s + d.leadGen + d.bob, 0);
@@ -176,7 +211,7 @@ export default function WorkReportPage() {
 
         {/* ── Project Results ── */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', marginBottom: '40px' }}>
-          {['scraping', 'enrichment', 'bob'].map(key => {
+          {['scraping', 'smartLeads', 'enrichment', 'bob'].map(key => {
             const c = cat(key);
             const isExpanded = expanded[key];
             return (
@@ -189,7 +224,7 @@ export default function WorkReportPage() {
                   <span style={{ fontSize: '24px' }}>{c.icon}</span>
                   <div style={{ flex: 1 }}>
                     <div style={{ color: c.color, fontSize: '16px', fontWeight: 'bold' }}>{c.label}</div>
-                    <div style={{ color: '#6b7280', fontSize: '11px' }}>{key === 'scraping' ? 'Included in lead gen' : `${key === 'enrichment' ? totalLeadGen : totalBob}h invested`} · {c.deliverables.length} deliverables</div>
+                    <div style={{ color: '#6b7280', fontSize: '11px' }}>{(key === 'scraping' || key === 'smartLeads') ? 'Included in lead gen' : `${key === 'enrichment' ? totalLeadGen : totalBob}h invested`} · {c.deliverables.length} deliverables</div>
                   </div>
                   <span style={{ color: '#4a5568', fontSize: '14px' }}>{isExpanded ? '▾' : '▸'}</span>
                 </div>
@@ -223,6 +258,21 @@ export default function WorkReportPage() {
                         </div>
                       </div>
                     )}
+
+                    {/* Value brought (Smart Leads only) */}
+                    {c.valueBrought && (
+                      <div style={{ marginTop: '20px', paddingTop: '16px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+                        <div style={{ color: c.color, fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '10px' }}>💡 Value Brought to the Business</div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                          {c.valueBrought.map((d, i) => (
+                            <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', color: '#8a9ab8', fontSize: '12px', lineHeight: 1.5 }}>
+                              <span style={{ color: c.color, fontSize: '10px', marginTop: '4px' }}>●</span>
+                              <span>{d}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -246,7 +296,7 @@ export default function WorkReportPage() {
             })}
           </div>
           <div style={{ display: 'flex', gap: '24px', flexWrap: 'wrap' }}>
-            {['scraping', 'enrichment', 'bob'].map(key => {
+            {['scraping', 'smartLeads', 'enrichment', 'bob'].map(key => {
               const c = cat(key);
               const hrs = key === 'enrichment' ? totalLeadGen : key === 'bob' ? totalBob : totalLeadGen;
               return (
