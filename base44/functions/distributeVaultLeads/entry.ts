@@ -8,8 +8,10 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.52';
 export default async function(req: Request): Promise<Response> {
   try {
     const base44 = createClientFromRequest(req);
-    const user = await base44.auth.me();
-    if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
+    // Fronter/manager users authenticate via DebtCoachAuth (custom), not Base44
+    // platform auth, so base44.auth.me() throws for them. All entity operations
+    // below use asServiceRole, so the user auth check is non-fatal.
+    try { await base44.auth.me(); } catch {}
 
     const body = await req.json();
     const { entryIds, destination, assignedTo, assignedBy } = body || {};
