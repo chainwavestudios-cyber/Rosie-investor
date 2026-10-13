@@ -208,7 +208,8 @@ export default function DebtLiveCall({ onCallStart, onCallEnd }) {
   const [generatingReport, setGeneratingReport] = useState(false);
   const [callMode, setCallMode] = useState('close'); // 'open' | 'close' — derived from callType
   const [callType, setCallType] = useDebtCoachValue(coachUser?.username, 'defaultCallType', 'front_to_back'); // 'front_to_back' | 'open_only' | 'cold_call' | 'closer_call'
-  const [autoSchedulerEnabled, setAutoSchedulerEnabled] = useDebtCoachValue(coachUser?.username, 'autoSchedulerEnabled', true);
+  // Auto-scheduler permanently disabled — appointments are created on demand
+  // via the Live Profile Agent or the Appointment Preview modal.
   // AI feature auto-enable toggles — saved with layout (popout_ prefix)
   const [autoQA, setAutoQA] = useDebtCoachValue(coachUser?.username, 'popout_auto_qa', true);
   const [autoCoach, setAutoCoach] = useDebtCoachValue(coachUser?.username, 'popout_auto_coach', true);
@@ -268,10 +269,6 @@ export default function DebtLiveCall({ onCallStart, onCallEnd }) {
     else if (callType === 'cold_call') { setCallMode('open'); setIsInbound(false); }
     else if (callType === 'closer_call') { setCallMode('close'); setIsInbound(true); }
   }, [callType]);
-
-  const toggleAutoScheduler = useCallback(() => {
-    setAutoSchedulerEnabled(prev => !prev);
-  }, [setAutoSchedulerEnabled]);
 
   // Cold call: extract "May I speak with John Smith please" from the first agent lines
   const handleColdCallNameExtract = useCallback(async () => {
@@ -1764,23 +1761,8 @@ ${recentText}`,
       setGeneratingReport(false);
     }
 
-    // Auto-schedule follow-up: auto-create the calendar event directly
-    if (autoSchedulerEnabled && transcriptRef.current.length > 0 && leadRef.current?.id) {
-      try {
-        const leadName = `${leadRef.current.firstName || ''} ${leadRef.current.lastName || ''}`.trim();
-        const res = await base44.functions.invoke('autoScheduleAppointment', {
-          transcript: transcriptRef.current,
-          leadId: leadRef.current.id,
-          leadName,
-          agentName: coachUser?.username || '',
-        });
-        const data = res?.data || res;
-        // Only show modal if a callback was requested but event wasn't created (e.g. no free slot)
-        if (data?.hasCallbackRequest && !data?.scheduled && data?.startISO) {
-          setApptPreview(data);
-        }
-      } catch (e) { console.error('Auto-scheduler failed:', e); }
-    }
+    // Auto-scheduler permanently disabled — appointments are created on demand
+    // via the Live Profile Agent or the Appointment Preview modal.
 
     // Run No Missed Meetings scan to catch any missed follow-ups from today's calls
     if (transcriptRef.current.length > 0) {
@@ -1788,7 +1770,7 @@ ${recentText}`,
     }
 
     loadLeads();
-  }, [kbEntries, loadLeads, autoSchedulerEnabled, coachUser, callType, handleDebtExtract, handleHardshipExtract, handleBillsExtract, handleCosignerExtract, recorder]);
+  }, [kbEntries, loadLeads, coachUser, callType, handleDebtExtract, handleHardshipExtract, handleBillsExtract, handleCosignerExtract, recorder]);
 
   // Show the keep/delete dialog when the agent ends a call (not for monitor takeovers)
   const handleEndCallClick = useCallback(() => {
@@ -1995,11 +1977,6 @@ ${recentText}`,
             <button onClick={() => handleCallTypeChange('closer_call')} disabled={phase === 'live'} title="Inbound — opener got SSN, transferred to you (account manager) for the close" style={{ padding: '8px 12px', borderRadius: '4px', border: `1px solid ${callType === 'closer_call' ? GOLD + '66' : 'rgba(255,255,255,0.1)'}`, background: callType === 'closer_call' ? `${GOLD}18` : 'transparent', color: callType === 'closer_call' ? GOLD : '#6b7280', cursor: phase === 'live' ? 'not-allowed' : 'pointer', fontSize: '11px', fontWeight: 'bold', whiteSpace: 'nowrap' }}>🤝 Closer Call</button>
           </div>
         </div>
-
-        {/* Auto-Scheduler toggle */}
-        <button onClick={toggleAutoScheduler} title="Auto-schedule Google Calendar follow-ups from transcript" style={{ padding: '8px 14px', borderRadius: '4px', border: `1px solid ${autoSchedulerEnabled ? 'rgba(16,185,129,0.4)' : 'rgba(255,255,255,0.1)'}`, background: autoSchedulerEnabled ? `${GOLD}18` : 'transparent', color: autoSchedulerEnabled ? GOLD : '#6b7280', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: '5px' }}>
-          {autoSchedulerEnabled ? '✓' : '○'} 📅 Auto-Schedule
-        </button>
 
         {/* AI Feature auto-enable checkboxes — saved with layout */}
         <div style={{ display: 'flex', gap: '4px', alignItems: 'center', padding: '4px 10px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '4px' }}>

@@ -13,7 +13,7 @@ import { setProfileTimer, cancelProfileTimer, getActiveTimer } from '@/component
 import LeadActivityTab from '@/components/debt/LeadActivityTab';
 import DebtCallBar from '@/components/debt/DebtCallBar';
 import { usePopOutPanel } from '@/hooks/usePopOutPanel';
-import VoiceFieldUpdater, { VOICE_TABS } from '@/components/debt/VoiceFieldUpdater';
+import LiveProfileAgent from '@/components/debt/LiveProfileAgent';
 import AIPopulateTab from '@/components/shared/AIPopulateTab';
 
 const GOLD = '#10b981';
@@ -278,11 +278,7 @@ export default function ClientProfileModal({ lead, username, onClose, onSave }) 
 
       {/* Content */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '16px' }}>
-        {VOICE_TABS.includes(tab) && (
-          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '10px' }}>
-            <VoiceFieldUpdater tab={tab} local={local} update={update} onSave={save} />
-          </div>
-        )}
+        <LiveProfileAgent local={local} update={update} onSave={save} lead={local} username={username} />
         {tab === 'activity' && <LeadActivityTab lead={local} />}
 
         {tab === 'hardship' && (
