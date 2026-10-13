@@ -34,7 +34,7 @@ const WORK_DAYS = [
 // ── Project results (mock metrics) ──
 const RESULTS = {
   enrichment: {
-    label: 'Enrichment → Campaign → DAA Pitch Pipeline',
+    label: 'Campaign → Enrichment → Bongiorno DAA Pipeline',
     color: BLUE,
     icon: '🔗',
     metrics: [
@@ -53,8 +53,7 @@ const RESULTS = {
       'Campaign trigger engine — automated email + SMS to enriched leads (runEmailCampaigns)',
       'Engagement tracking system — open/click pixels, intent scoring from interaction signals',
       'Human validation workflow — fronter verifies $10k+ debt, hardship, and seeking relief',
-      'DAA transfer + pitch flow — validated leads routed to DAA closer for program pitch',
-      'Credit report OCR extraction for debt verification (analyzeCreditReport)',
+      'Bongiorno transfer + pitch flow — validated leads routed to DAA closer for program pitch',
       'Lead identity resolution system (resolveLeadIdentity backend function)',
       'Smart lead filtering & scoring with engagement-based intent signals',
       'Enrichment-to-enrollment funnel analytics dashboard',
