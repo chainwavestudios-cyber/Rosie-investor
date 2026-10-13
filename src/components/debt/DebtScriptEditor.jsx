@@ -75,6 +75,11 @@ function MyScriptsTab({ liveTranscript, phase, clientFirstName, clientLastName, 
   const textareaRef = useRef(null);
   const skipActiveIdSave = useRef(true);
 
+  // Auto-switch to teleprompter mode when a live call starts
+  useEffect(() => {
+    if (phase === 'live') setMode('teleprompt');
+  }, [phase, setMode]);
+
   const loadScripts = useCallback(async () => {
     setLoading(true);
     try {
