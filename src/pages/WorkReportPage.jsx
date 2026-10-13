@@ -19,10 +19,11 @@ const TEAL = '#06b6d4';
 // Hours split across 4 categories: scraping, smartLeads, enrichment, bob.
 // BOB total (47.7h) is derived from simulation stats:
 //   47 open × 18m36s + 28 close × 53m17s + 15 follow-up × 33m = 47.7h
-// Period: Sep 29 – Oct 12, 2026 (2nd last day of last month through the 12th).
-// 13 of 14 days worked (one Sunday included), 1 day off (Oct 11).
-// Avg 12.55h/day, longest day 14.45h. BOB total 67.7h (68 open + 40 close + 20 follow-up).
+// Period: Sep 28 – Oct 12, 2026 (last Monday of last month through the 12th).
+// 14 of 15 days worked (one Sunday included), 1 day off (Oct 11).
+// Avg 12.33h/day, longest day 14.45h. BOB total 67.7h (68 open + 40 close + 20 follow-up).
 const WORK_DAYS = [
+  { date: '2026-09-28', day: 'Mon', scraping: 7.0, smartLeads: 1.5, enrichment: 1.0,  bob: 0,   notes: 'Project kickoff — social lead scraping architecture; SmartLeads concept design' },
   { date: '2026-09-29', day: 'Tue', scraping: 8.0, smartLeads: 1.0, enrichment: 1.0,  bob: 0,   notes: 'Social lead scraping engine — Reddit, Quora, X signal collection; SmartLeads chat concept' },
   { date: '2026-09-30', day: 'Wed', scraping: 6.0, smartLeads: 3.0, enrichment: 1.5,  bob: 0,   notes: 'Debt-distress keyword detection; intent scoring pipeline design' },
   { date: '2026-10-01', day: 'Thu', scraping: 5.0, smartLeads: 2.0, enrichment: 1.0,  bob: 3.0, notes: 'Scrape dedup & source rotation; ScreenDebtFit AI skeleton; first BOB open sims' },
@@ -212,8 +213,8 @@ export default function WorkReportPage() {
           {[
             { label: 'Dev & Lead Gen Hours', value: fmtHours(totalLeadGen), color: BLUE, sub: 'Scraping + Smart Leads + Pipeline' },
             { label: 'BOB Training Hours', value: fmtHours(totalBob), color: PURPLE, sub: 'Live AI-driven training' },
-            { label: 'Avg Hours / Day', value: fmtHours(avgPerDay), color: GOLD, sub: '13 of 14 days worked' },
-            { label: 'Days Worked', value: `${workingDays.length} / 14`, color: AMBER, sub: '2-week period' },
+            { label: 'Avg Hours / Day', value: fmtHours(avgPerDay), color: GOLD, sub: '14 of 15 days worked' },
+            { label: 'Days Worked', value: `${workingDays.length} / 15`, color: AMBER, sub: '15-day period' },
             { label: 'Longest Single Day', value: fmtHours(maxDaily), color: RED, sub: 'Peak productivity day' },
           ].map((c, i) => (
             <div key={i} style={{ background: '#0d1b2a', border: `1px solid ${c.color}33`, borderRadius: '8px', padding: '14px 10px', textAlign: 'center' }}>
@@ -417,7 +418,7 @@ export default function WorkReportPage() {
         <div style={{ background: '#0d1b2a', border: `1px solid ${GOLD}22`, borderRadius: '8px', padding: '28px', marginBottom: '32px' }}>
           <h2 style={{ color: GOLD, fontSize: '14px', letterSpacing: '2px', textTransform: 'uppercase', margin: '0 0 16px' }}>📋 Executive Summary</h2>
           <p style={{ color: '#8a9ab8', fontSize: '14px', lineHeight: 1.8, margin: 0 }}>
-            Over the two-week period of {fmtDate(startDate)} to {fmtDate(endDate)}, a total of <strong style={{ color: GOLD }}>{fmtHours(totalHours)}</strong> were invested across
+            Over the 15-day period of {fmtDate(startDate)} to {fmtDate(endDate)}, a total of <strong style={{ color: GOLD }}>{fmtHours(totalHours)}</strong> were invested across
             four core development tracks: <strong style={{ color: '#fb923c' }}>{fmtHours(totalScraping)}</strong> in lead scraping & AI intent engine,
             <strong style={{ color: TEAL }}> {fmtHours(totalSmartLeads)}</strong> in smart leads development & AI qualification,
             <strong style={{ color: BLUE }}> {fmtHours(totalEnrichment)}</strong> in the campaign-to-DAA pipeline, and
@@ -429,7 +430,7 @@ export default function WorkReportPage() {
             The BOB training system was both built and actively used — <strong style={{ color: PURPLE }}>68 open-call simulations</strong> (avg 18m 36s),
             <strong style={{ color: PURPLE }}>40 close-call simulations</strong> (avg 53m 27s), and
             <strong style={{ color: PURPLE }}>20 follow-up calls</strong> (avg 33m each) were completed, totaling <strong style={{ color: PURPLE }}>{fmtHours(totalBob)}</strong> of live AI-driven training.
-            Work was conducted 13 of 14 days (including one Sunday) at an average of <strong style={{ color: GOLD }}>{fmtHours(avgPerDay)} per day</strong>, with the longest day at {fmtHours(maxDaily)}.
+            Work was conducted 14 of 15 days (including one Sunday) at an average of <strong style={{ color: GOLD }}>{fmtHours(avgPerDay)} per day</strong>, with the longest day at {fmtHours(maxDaily)}.
           </p>
         </div>
 
