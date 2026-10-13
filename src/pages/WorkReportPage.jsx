@@ -46,7 +46,7 @@ const RESULTS = {
       { label: 'Scrape Cadence', value: '4x daily' },
     ],
     deliverables: [
-      'Social lead scraping engine — automated debt-distress signal collection across 6 sources (scrapeSocialLeads)',
+      'Social lead scraping engine — automated debt-distress signal collection across 6 sources: Reddit, Quora, Money Stack Exchange, X/Twitter, Facebook, TikTok (scrapeSocialLeads)',
       'Smart AI intent engine — LLM-powered scoring of scraped text for debt-relief buying intent',
       'Debt-distress keyword detection — hardship language, behind-on-payments, creditor harassment signals',
       'Automated 4x-daily scrape workflow with deduplication and source rotation',
@@ -201,6 +201,47 @@ export default function WorkReportPage() {
           <ValidationGates />
         </div>
 
+        {/* ── Project Results ── */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', marginBottom: '40px' }}>
+          {['scraping', 'enrichment', 'bob', 'portal'].map(key => {
+            const c = cat(key);
+            const isExpanded = expanded[key];
+            return (
+              <div key={key} style={{ background: '#0d1b2a', border: `1px solid ${c.color}22`, borderRadius: '8px', overflow: 'hidden' }}>
+                {/* Header */}
+                <div
+                  onClick={() => setExpanded(p => ({ ...p, [key]: !p[key] }))}
+                  style={{ padding: '18px 24px', display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer', borderBottom: isExpanded ? `1px solid ${c.color}22` : 'none' }}
+                >
+                  <span style={{ fontSize: '24px' }}>{c.icon}</span>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ color: c.color, fontSize: '16px', fontWeight: 'bold' }}>{c.label}</div>
+                    <div style={{ color: '#6b7280', fontSize: '11px' }}>{key === 'scraping' ? 'Included in lead gen' : `${key === 'enrichment' ? totalLeadGen : key === 'bob' ? totalBob : totalPortal}h invested`} · {c.deliverables.length} deliverables</div>
+                  </div>
+                  <span style={{ color: '#4a5568', fontSize: '14px' }}>{isExpanded ? '▾' : '▸'}</span>
+                </div>
+
+                {isExpanded && (
+                  <div style={{ padding: '20px 24px' }}>
+                    {/* Deliverables list */}
+                    <div>
+                      <div style={{ color: c.color, fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '10px' }}>Key Deliverables Shipped</div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                        {c.deliverables.map((d, i) => (
+                          <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', color: '#8a9ab8', fontSize: '12px', lineHeight: 1.5 }}>
+                            <span style={{ color: c.color, fontSize: '10px', marginTop: '4px' }}>●</span>
+                            <span>{d}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
         {/* ── Category Time Breakdown Bar ── */}
         <div style={{ background: '#0d1b2a', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '8px', padding: '24px', marginBottom: '40px' }}>
           <h2 style={{ color: '#e8e0d0', fontSize: '18px', fontWeight: 'normal', margin: '0 0 16px' }}>📊 Time Distribution by Project</h2>
@@ -282,47 +323,6 @@ export default function WorkReportPage() {
               </tbody>
             </table>
           </div>
-        </div>
-
-        {/* ── Project Results ── */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', marginBottom: '40px' }}>
-          {['scraping', 'enrichment', 'bob', 'portal'].map(key => {
-            const c = cat(key);
-            const isExpanded = expanded[key];
-            return (
-              <div key={key} style={{ background: '#0d1b2a', border: `1px solid ${c.color}22`, borderRadius: '8px', overflow: 'hidden' }}>
-                {/* Header */}
-                <div
-                  onClick={() => setExpanded(p => ({ ...p, [key]: !p[key] }))}
-                  style={{ padding: '18px 24px', display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer', borderBottom: isExpanded ? `1px solid ${c.color}22` : 'none' }}
-                >
-                  <span style={{ fontSize: '24px' }}>{c.icon}</span>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ color: c.color, fontSize: '16px', fontWeight: 'bold' }}>{c.label}</div>
-                    <div style={{ color: '#6b7280', fontSize: '11px' }}>{key === 'scraping' ? 'Included in lead gen' : `${key === 'enrichment' ? totalLeadGen : key === 'bob' ? totalBob : totalPortal}h invested`} · {c.deliverables.length} deliverables</div>
-                  </div>
-                  <span style={{ color: '#4a5568', fontSize: '14px' }}>{isExpanded ? '▾' : '▸'}</span>
-                </div>
-
-                {isExpanded && (
-                  <div style={{ padding: '20px 24px' }}>
-                    {/* Deliverables list */}
-                    <div>
-                      <div style={{ color: c.color, fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '10px' }}>Key Deliverables Shipped</div>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                        {c.deliverables.map((d, i) => (
-                          <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', color: '#8a9ab8', fontSize: '12px', lineHeight: 1.5 }}>
-                            <span style={{ color: c.color, fontSize: '10px', marginTop: '4px' }}>●</span>
-                            <span>{d}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-            );
-          })}
         </div>
 
         {/* ── Summary Statement ── */}

@@ -9,12 +9,15 @@ const GOLD = '#10b981';
 const EMERALD = '#34d399';
 const DARK = '#0a0f1e';
 
+const ORANGE = '#fb923c';
+
 const STEPS = [
-  { id: 1, icon: '🧠', title: 'AI Enrichment', subtitle: 'Identity resolution · debt qualification · credit analysis', color: BLUE },
-  { id: 2, icon: '✉️', title: 'Campaign Trigger', subtitle: 'Automated email + SMS to enriched leads', color: AMBER },
-  { id: 3, icon: '📊', title: 'Engagement Tracking', subtitle: 'Open / click tracking · intent scoring', color: PURPLE },
-  { id: 4, icon: '✅', title: 'Human Validation', subtitle: 'Fronter verifies: $10k+ debt · hardship · seeking relief', color: GOLD },
-  { id: 5, icon: '🤝', title: 'DAA Pitch', subtitle: 'Transfer to Christopher Bongiorno · pitches DAA program for first time', color: EMERALD },
+  { id: 1, icon: '🎯', title: 'Lead Scraping', subtitle: 'Reddit · Quora · Stack Exchange · X · Facebook · TikTok — debt-distress signal collection', color: ORANGE },
+  { id: 2, icon: '🧠', title: 'AI Enrichment', subtitle: 'Identity resolution · debt qualification · credit analysis', color: BLUE },
+  { id: 3, icon: '✉️', title: 'Campaign Trigger', subtitle: 'Automated email + SMS to enriched leads', color: AMBER },
+  { id: 4, icon: '📊', title: 'Engagement Tracking', subtitle: 'Open / click tracking · intent scoring', color: PURPLE },
+  { id: 5, icon: '✅', title: 'Human Validation', subtitle: 'Fronter verifies: $10k+ debt · hardship · seeking relief', color: GOLD },
+  { id: 6, icon: '🤝', title: 'DAA Pitch', subtitle: 'Transfer to Christopher Bongiorno · pitches DAA program for first time', color: EMERALD },
 ];
 
 export default function PipelineFlow() {
