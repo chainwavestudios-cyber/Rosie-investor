@@ -6,19 +6,25 @@
       "type": "string",
       "title": "Month Key (YYYY-MM)"
     },
+    "keyLabel": {
+      "type": "string",
+      "title": "API Key Label (key1, key2, ...)",
+      "default": "key1"
+    },
     "requestCount": {
       "type": "number",
-      "title": "API Requests Used This Month",
+      "title": "API Requests Used This Month (for this key)",
       "default": 0
     },
     "monthlyLimit": {
       "type": "number",
-      "title": "Monthly API Request Limit",
+      "title": "Monthly API Request Limit (per key)",
       "default": 100
     }
   },
   "required": [
-    "monthKey"
+    "monthKey",
+    "keyLabel"
   ],
   "rls": {
     "create": null,

@@ -36,10 +36,11 @@ export default function LeadVaultTab({ adminUsername }) {
       const now = new Date();
       const monthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
       const usageRecords = await base44.entities.PhoneValidationUsage.filter({ monthKey }).catch(() => []);
-      const u = usageRecords?.[0];
-      if (u) {
-        setUsage({ used: u.requestCount || 0, limit: u.monthlyLimit || 100, remaining: (u.monthlyLimit || 100) - (u.requestCount || 0) });
-      }
+      // Aggregate across all keys (each key has its own 100/month limit)
+      const totalUsed = (usageRecords || []).reduce((s, r) => s + (r.requestCount || 0), 0);
+      const keyCount = (usageRecords || []).length || 1;
+      const totalLimit = keyCount * 100;
+      setUsage({ used: totalUsed, limit: totalLimit, remaining: totalLimit - totalUsed, keyCount });
     } catch {}
     setLoading(false);
   }, []);
@@ -58,6 +59,7 @@ export default function LeadVaultTab({ adminUsername }) {
     remaining: usage.remaining,
     used: usage.used,
     limit: usage.limit,
+    keyCount: usage.keyCount ?? 1,
   };
 
   const availableCount = entries.filter(e =>

@@ -51,14 +51,14 @@ export default function VaultValidationPanel({ stats, onValidated }) {
       {/* Quota bar */}
       <div style={{ marginBottom: '14px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-          <span style={{ color: '#8a9ab8', fontSize: '10px' }}>Monthly API Quota (Omkar Carrier Lookup)</span>
+          <span style={{ color: '#8a9ab8', fontSize: '10px' }}>Monthly API Quota (Omkar · {stats?.keyCount ?? 1} key{stats?.keyCount > 1 ? 's' : ''} × 100)</span>
           <span style={{ color: quotaColor, fontSize: '11px', fontWeight: 'bold' }}>{used} / {limit} used · {remaining} left</span>
         </div>
         <div style={{ height: '8px', background: 'rgba(255,255,255,0.06)', borderRadius: '4px', overflow: 'hidden' }}>
           <div style={{ width: `${quotaPct}%`, height: '100%', background: quotaColor, borderRadius: '4px', transition: 'width 0.3s' }} />
         </div>
         {remaining <= 0 && (
-          <div style={{ color: RED, fontSize: '10px', marginTop: '6px' }}>⚠ Monthly quota exhausted. Upgrade your Omkar plan to continue validating.</div>
+          <div style={{ color: RED, fontSize: '10px', marginTop: '6px' }}>⚠ All API keys exhausted this month. Add more keys or upgrade your Omkar plan.</div>
         )}
       </div>
 

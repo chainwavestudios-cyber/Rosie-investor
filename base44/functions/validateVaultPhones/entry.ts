@@ -1,11 +1,14 @@
 /**
  * validateVaultPhones — Validates pending LeadVaultEntry phone numbers via
- * Omkar Carrier Lookup API. Enforces monthly quota. Returns progress + remaining.
+ * Omkar Carrier Lookup API. Rotates through a pool of API keys (each with its
+ * own 100/month quota) so multiple free-tier keys can be stacked. Returns
+ * progress + remaining across all keys.
  */
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.52';
 import { secrets } from 'base44:runtime';
 
 const OMKAR_URL = 'https://carrier-lookup-api.omkar.cloud/lookup';
+const PER_KEY_LIMIT = 100;
 
 function toE164(phone: string): string {
   if (!phone) return '';
@@ -18,8 +21,20 @@ function toE164(phone: string): string {
   return '';
 }
 
+/** Load all available Omkar API keys from secrets (key1, key2, ... up to 10). */
+function loadKeyPool(): { label: string; apiKey: string }[] {
+  const pool: { label: string; apiKey: string }[] = [];
+  const primary = secrets.get('PHONE_LOOKUP_API_KEY') || '';
+  if (primary) pool.push({ label: 'key1', apiKey: primary });
+  for (let i = 2; i <= 10; i++) {
+    const k = secrets.get(`PHONE_LOOKUP_API_KEY_${i}`) || '';
+    if (k) pool.push({ label: `key${i}`, apiKey: k });
+  }
+  return pool;
+}
+
 async function carrierLookup(phone: string, apiKey: string): Promise<{
-  isValid: boolean; lineType: string; carrier: string; e164: string;
+  isValid: boolean; lineType: string; carrier: string; e164: string; quotaHit: boolean;
 } | null> {
   const e164 = toE164(phone);
   if (!e164 || !apiKey) return null;
@@ -28,6 +43,8 @@ async function carrierLookup(phone: string, apiKey: string): Promise<{
       `${OMKAR_URL}?phone=${encodeURIComponent(e164)}`,
       { headers: { 'API-Key': apiKey }, signal: AbortSignal.timeout(12000) }
     );
+    // 429 = rate limited / quota exhausted for this key
+    if (res.status === 429) return { isValid: false, lineType: 'unknown', carrier: '', e164: '', quotaHit: true };
     if (!res.ok) return null;
     const data = await res.json();
     const lt = (data?.line_type || 'unknown').toLowerCase();
@@ -37,6 +54,7 @@ async function carrierLookup(phone: string, apiKey: string): Promise<{
       lineType,
       carrier: data?.carrier || '',
       e164: data?.phone_number || e164,
+      quotaHit: false,
     };
   } catch {
     return null;
@@ -57,21 +75,35 @@ export default async function(req: Request): Promise<Response> {
     const { batchLabel, maxCount } = body || {};
     const limit = Math.min(Math.max(1, maxCount || 50), 50);
 
-    const apiKey = secrets.get('PHONE_LOOKUP_API_KEY') || '';
-    if (!apiKey) return Response.json({ error: 'PHONE_LOOKUP_API_KEY not set' }, { status: 500 });
+    // ── Load key pool ──
+    const keyPool = loadKeyPool();
+    if (keyPool.length === 0) return Response.json({ error: 'No PHONE_LOOKUP_API_KEY secrets set' }, { status: 500 });
 
-    // ── Monthly usage tracking ──
+    // ── Get or create usage record for each key this month ──
     const monthKey = getMonthKey();
-    const usageRecords = await base44.asServiceRole.entities.PhoneValidationUsage.filter({ monthKey });
-    let usage = usageRecords?.[0];
-    if (!usage) {
-      usage = await base44.asServiceRole.entities.PhoneValidationUsage.create({ monthKey, requestCount: 0, monthlyLimit: 100 });
+    const usageByLabel: Record<string, { id: string; requestCount: number; monthlyLimit: number }> = {};
+    for (const k of keyPool) {
+      const existing = await base44.asServiceRole.entities.PhoneValidationUsage.filter({ monthKey, keyLabel: k.label });
+      let rec = existing?.[0];
+      if (!rec) {
+        rec = await base44.asServiceRole.entities.PhoneValidationUsage.create({
+          monthKey, keyLabel: k.label, requestCount: 0, monthlyLimit: PER_KEY_LIMIT,
+        });
+      }
+      usageByLabel[k.label] = { id: rec.id, requestCount: rec.requestCount || 0, monthlyLimit: rec.monthlyLimit || PER_KEY_LIMIT };
     }
-    const remaining = (usage.monthlyLimit || 100) - (usage.requestCount || 0);
-    if (remaining <= 0) {
-      return Response.json({ error: 'Monthly validation quota exhausted', remaining: 0, used: usage.requestCount, limit: usage.monthlyLimit });
+
+    // ── Total remaining across all keys ──
+    const totalRemaining = keyPool.reduce((sum, k) => {
+      const u = usageByLabel[k.label];
+      return sum + Math.max(0, (u.monthlyLimit) - u.requestCount);
+    }, 0);
+
+    if (totalRemaining <= 0) {
+      return Response.json({ error: 'All API keys exhausted for this month', remaining: 0, used: keyPool.reduce((s, k) => s + usageByLabel[k.label].requestCount, 0), limit: keyPool.length * PER_KEY_LIMIT, keyCount: keyPool.length });
     }
-    const toValidate = Math.min(limit, remaining);
+
+    const toValidate = Math.min(limit, totalRemaining);
 
     // ── Fetch pending entries ──
     const query: any = { validationStatus: 'pending', destination: 'none' };
@@ -80,24 +112,55 @@ export default async function(req: Request): Promise<Response> {
     const entries = page?.items || page || [];
 
     if (!entries || entries.length === 0) {
-      return Response.json({ validated: 0, remaining, used: usage.requestCount, limit: usage.monthlyLimit, done: true });
+      return Response.json({ validated: 0, remaining: totalRemaining, used: keyPool.reduce((s, k) => s + usageByLabel[k.label].requestCount, 0), limit: keyPool.length * PER_KEY_LIMIT, keyCount: keyPool.length, done: true });
     }
 
-    // ── Validate in parallel batches of 6 ──
+    // ── Validate, rotating keys when one hits its limit ──
     let validated = 0;
     let apiCalls = 0;
     const updateBatch: any[] = [];
+    // Track per-key call counts for batch increment
+    const callsPerKey: Record<string, number> = {};
+    keyPool.forEach(k => { callsPerKey[k.label] = 0; });
+
+    // Start with the first key that has remaining quota
+    let keyIdx = 0;
+    const pickActiveKey = () => {
+      while (keyIdx < keyPool.length) {
+        const k = keyPool[keyIdx];
+        const u = usageByLabel[k.label];
+        if (u.requestCount + callsPerKey[k.label] < u.monthlyLimit) return k;
+        keyIdx++;
+      }
+      return null;
+    };
 
     for (let i = 0; i < entries.length; i += 6) {
       const batch = entries.slice(i, i + 6);
       const results = await Promise.allSettled(batch.map(async (entry) => {
-        const result = await carrierLookup(entry.phone, apiKey);
-        apiCalls++;
-        return { entry, result };
+        let activeKey = pickActiveKey();
+        if (!activeKey) return { entry, result: null, exhausted: true };
+        let result = await carrierLookup(entry.phone, activeKey.apiKey);
+        // If quota hit on this key, try the next one
+        if (result?.quotaHit) {
+          keyIdx++;
+          const nextKey = pickActiveKey();
+          if (nextKey) {
+            result = await carrierLookup(entry.phone, nextKey.apiKey);
+            activeKey = nextKey;
+          } else {
+            return { entry, result: null, exhausted: true };
+          }
+        }
+        if (result && !result.quotaHit) callsPerKey[activeKey.label]++;
+        return { entry, result, exhausted: false };
       }));
+
       for (const r of results) {
         if (r.status !== 'fulfilled') continue;
-        const { entry, result } = r.value;
+        const { entry, result, exhausted } = r.value;
+        if (exhausted) break;
+        apiCalls++;
         if (!result) {
           updateBatch.push({ id: entry.id, data: { validationStatus: 'failed', validatedAt: new Date().toISOString() } });
         } else {
@@ -115,6 +178,7 @@ export default async function(req: Request): Promise<Response> {
           validated++;
         }
       }
+      if (keyIdx >= keyPool.length) break; // all keys exhausted
     }
 
     // ── Update entries ──
@@ -124,19 +188,27 @@ export default async function(req: Request): Promise<Response> {
       );
     }
 
-    // ── Increment usage ──
-    await base44.asServiceRole.entities.PhoneValidationUsage.update(usage.id, {
-      requestCount: (usage.requestCount || 0) + apiCalls,
-    });
+    // ── Increment usage per key ──
+    for (const k of keyPool) {
+      if (callsPerKey[k.label] > 0) {
+        const u = usageByLabel[k.label];
+        await base44.asServiceRole.entities.PhoneValidationUsage.update(u.id, {
+          requestCount: u.requestCount + callsPerKey[k.label],
+        });
+      }
+    }
 
-    const newRemaining = (usage.monthlyLimit || 100) - (usage.requestCount || 0) - apiCalls;
+    const totalUsed = keyPool.reduce((s, k) => s + usageByLabel[k.label].requestCount + callsPerKey[k.label], 0);
+    const totalLimit = keyPool.length * PER_KEY_LIMIT;
+    const newRemaining = totalLimit - totalUsed;
 
     return Response.json({
       validated,
       apiCalls,
       remaining: newRemaining,
-      used: (usage.requestCount || 0) + apiCalls,
-      limit: usage.monthlyLimit || 100,
+      used: totalUsed,
+      limit: totalLimit,
+      keyCount: keyPool.length,
       done: entries.length < toValidate,
     });
   } catch (error) {
