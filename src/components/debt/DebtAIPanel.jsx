@@ -118,10 +118,10 @@ export default function DebtAIPanel({
 
     let agentStream, customerStream;
     try {
-      agentStream = await navigator.mediaDevices.getUserMedia({ audio: micDeviceId ? { deviceId: { exact: micDeviceId } } : true });
+      agentStream = await navigator.mediaDevices.getUserMedia({ audio: micDeviceId ? { deviceId: { ideal: micDeviceId } } : true });
       streamRef.current = agentStream;
       if (dualMode) {
-        customerStream = await navigator.mediaDevices.getUserMedia({ audio: { deviceId: { exact: customerMicId } } });
+        customerStream = await navigator.mediaDevices.getUserMedia({ audio: { deviceId: { ideal: customerMicId } } });
         customerStreamRef.current = customerStream;
       }
     } catch (e) { setError(`Audio access denied: ${e.message}`); setStreamStatus('error'); return; }

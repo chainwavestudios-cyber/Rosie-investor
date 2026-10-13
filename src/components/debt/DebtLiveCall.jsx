@@ -1320,10 +1320,10 @@ ${recentText}`,
 
     let agentStream, customerStream;
     try {
-      agentStream = await navigator.mediaDevices.getUserMedia({ audio: micDeviceId ? { deviceId: { exact: micDeviceId }, echoCancellation: true, noiseSuppression: true, autoGainControl: true } : { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
+      agentStream = await navigator.mediaDevices.getUserMedia({ audio: micDeviceId ? { deviceId: { ideal: micDeviceId }, echoCancellation: true, noiseSuppression: true, autoGainControl: true } : { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
       streamRef.current = agentStream;
       if (dualMode) {
-        customerStream = await navigator.mediaDevices.getUserMedia({ audio: { deviceId: { exact: customerMicId } } });
+        customerStream = await navigator.mediaDevices.getUserMedia({ audio: { deviceId: { ideal: customerMicId } } });
         customerStreamRef.current = customerStream;
       }
     } catch { setError('Microphone/audio access denied.'); setPhase('idle'); setDgStatus('error'); return; }
@@ -1894,14 +1894,14 @@ ${recentText}`,
       const ctx = new (window.AudioContext || window.webkitAudioContext)();
       if (ctx.state === 'suspended') await ctx.resume();
       testCtxRef.current = ctx;
-      const agentStream = await navigator.mediaDevices.getUserMedia({ audio: micDeviceId ? { deviceId: { exact: micDeviceId }, echoCancellation: true, noiseSuppression: true, autoGainControl: true } : { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
+      const agentStream = await navigator.mediaDevices.getUserMedia({ audio: micDeviceId ? { deviceId: { ideal: micDeviceId }, echoCancellation: true, noiseSuppression: true, autoGainControl: true } : { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
       testAgentStreamRef.current = agentStream;
       const agentAnalyser = ctx.createAnalyser();
       agentAnalyser.fftSize = 256;
       ctx.createMediaStreamSource(agentStream).connect(agentAnalyser);
       let customerAnalyser = null;
       if (customerMicId) {
-        const customerStream = await navigator.mediaDevices.getUserMedia({ audio: { deviceId: { exact: customerMicId } } });
+        const customerStream = await navigator.mediaDevices.getUserMedia({ audio: { deviceId: { ideal: customerMicId } } });
         testCustomerStreamRef.current = customerStream;
         customerAnalyser = ctx.createAnalyser();
         customerAnalyser.fftSize = 256;
