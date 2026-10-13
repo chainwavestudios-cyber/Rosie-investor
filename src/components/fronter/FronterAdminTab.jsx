@@ -20,6 +20,7 @@ import FronterQuoteTab from '@/components/fronter/FronterQuoteTab';
 import FronterBobCallsTab from '@/components/fronter/FronterBobCallsTab';
 import FronterContactCard from '@/components/fronter/FronterContactCard';
 import FronterActivityLogTab from '@/components/fronter/FronterActivityLogTab';
+import FronterAdminHRTab from '@/components/fronter/FronterAdminHRTab';
 import LeadVaultTab from '@/components/fronter/LeadVaultTab';
 import { renderFormatted } from '@/components/debt/ScriptRichText';
 
@@ -249,6 +250,7 @@ export default function FronterAdminTab({ adminUsername }) {
     { id: 'metrics', label: '📊 Metrics' },
     { id: 'monitor', label: '🎧 Monitor' },
     { id: 'holdaudio', label: '🔊 Hold Audio' },
+    { id: 'hr', label: '🕐 HR' },
     { id: 'users', label: '👥 Users' },
     { id: 'scripts', label: '📜 Scripts' },
     { id: 'quotes', label: '💬 Quotes' },
@@ -466,6 +468,11 @@ export default function FronterAdminTab({ adminUsername }) {
       {/* ── HOLD AUDIO ── */}
       {subtab === 'holdaudio' && !loading && (
         <FronterHoldAudioTab adminUsername={adminUsername} />
+      )}
+
+      {/* ── HR (time card management) ── */}
+      {subtab === 'hr' && !loading && (
+        <FronterAdminHRTab fronters={fronters} />
       )}
 
       {/* ── USERS ── */}
