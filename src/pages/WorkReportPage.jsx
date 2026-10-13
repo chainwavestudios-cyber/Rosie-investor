@@ -3,9 +3,10 @@
  * Shows the enrichment-to-DAA-pitch pipeline and BOB training & AI
  * with visual diagrams and key metrics.
  */
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import PipelineFlow from '@/components/workreport/PipelineFlow';
 import ValidationGates from '@/components/workreport/ValidationGates';
+import { downloadWorkReportA3 } from '@/lib/workReportPdf';
 
 const GOLD = '#10b981';
 const DARK = '#0a0f1e';
@@ -179,6 +180,19 @@ const fmtHours = (h) => {
 
 export default function WorkReportPage() {
   const [expanded, setExpanded] = useState({ scraping: true, smartLeads: true, enrichment: true, bob: true });
+  const [downloading, setDownloading] = useState(false);
+  const reportRef = useRef(null);
+
+  const handleDownloadPdf = async () => {
+    if (!reportRef.current || downloading) return;
+    setDownloading(true);
+    try {
+      await downloadWorkReportA3(reportRef.current);
+    } catch (e) {
+      console.error('PDF generation failed:', e);
+    }
+    setDownloading(false);
+  };
 
   const workingDays = WORK_DAYS.filter(d => !d.off);
   const totalScraping = workingDays.reduce((s, d) => s + d.scraping, 0);
@@ -200,7 +214,7 @@ export default function WorkReportPage() {
 
   return (
     <div style={{ minHeight: '100vh', background: DARK, fontFamily: 'Georgia, serif', color: '#e8e0d0', padding: '32px 24px' }}>
-      <div style={{ maxWidth: 1100, margin: '0 auto' }}>
+      <div ref={reportRef} style={{ maxWidth: 1100, margin: '0 auto' }}>
         {/* ── Report Header ── */}
         <div style={{ textAlign: 'center', marginBottom: '40px' }}>
           <div style={{ color: GOLD, fontSize: '12px', letterSpacing: '4px', textTransform: 'uppercase', marginBottom: '8px' }}>Development, Lead Generation and Training Report for Christopher Bongiorno</div>
@@ -208,6 +222,7 @@ export default function WorkReportPage() {
           <p style={{ color: GOLD, fontSize: '16px', fontWeight: 'normal', margin: '0 0 6px' }}>Engineering Work Log</p>
           <p style={{ color: '#8a9ab8', fontSize: '14px', margin: '0 0 4px' }}>{fmtDate(startDate)} — {fmtDate(endDate)}</p>
           <p style={{ color: '#6b7280', fontSize: '12px', margin: 0 }}>Prepared by — Lead Developer/ Sr. Debt Advisor : Christopher Bongiorno · Generated October 11th, 2026</p>
+          <button onClick={handleDownloadPdf} disabled={downloading} style={{ marginTop: '16px', background: 'linear-gradient(135deg, #10b981, #22c55e)', color: DARK, border: 'none', borderRadius: '6px', padding: '10px 24px', cursor: downloading ? 'not-allowed' : 'pointer', fontSize: '12px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase', opacity: downloading ? 0.6 : 1 }}>{downloading ? '⏳ Generating PDF…' : '📄 Download A3 PDF'}</button>
         </div>
 
         {/* ── Summary Cards ── */}
