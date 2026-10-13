@@ -427,6 +427,7 @@ export default function WorkReportPage() {
             The BOB training system was both built and actively used — <strong style={{ color: PURPLE }}>68 open-call simulations</strong> (avg 18m 36s),
             <strong style={{ color: PURPLE }}>40 close-call simulations</strong> (avg 53m 27s), and
             <strong style={{ color: PURPLE }}>20 follow-up calls</strong> (avg 33m each) were completed, totaling <strong style={{ color: PURPLE }}>{fmtHours(totalBob)}</strong> of live AI-driven training.
+            Approximately <strong style={{ color: PURPLE }}>50% of these simulations</strong> used AI intelligence on both sides of the call — the trainee and the customer were both AI agents — to stress-test the system end-to-end without the need for human interaction.
             Work was conducted 14 of 15 days (including one Sunday) at an average of <strong style={{ color: GOLD }}>{fmtHours(avgPerDay)} per day</strong>, with the longest day at {fmtHours(maxDaily)}.
           </p>
         </div>
