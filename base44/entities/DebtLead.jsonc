@@ -123,6 +123,20 @@
       ],
       "default": "new"
     },
+    "isHotLead": {
+      "type": "boolean",
+      "title": "Hot Lead (tagged by coach for priority follow-up)",
+      "default": false
+    },
+    "hotLeadTaggedAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Hot Lead Tagged At"
+    },
+    "hotLeadTaggedBy": {
+      "type": "string",
+      "title": "Hot Lead Tagged By (username)"
+    },
     "notes": {
       "type": "string",
       "title": "Notes",

@@ -19,6 +19,7 @@ import HotCallAnalytics from '@/components/debt/HotCallAnalytics';
 import LeadGenTab from '@/components/debt/LeadGenTab';
 import NewLeadsTab from '@/components/debt/NewLeadsTab';
 import SmartLeadsTab from '@/components/debt/SmartLeadsTab';
+import HotLeadsTab from '@/components/debt/HotLeadsTab';
 import LeadAssignmentPopup from '@/components/debt/LeadAssignmentPopup';
 import PopOutTab from '@/components/debt/PopOutTab';
 import SmartClose from '@/components/debt/closing/SmartClose';
@@ -39,6 +40,7 @@ export default function DebtCallCoach() {
   const [tab, setTab] = useState('live');
   useEffect(() => { if (isFronter) navigate('/fronter', { replace: true }); }, [isFronter, navigate]);
   const [timerLead, setTimerLead] = useState(null);
+  const [hotLead, setHotLead] = useState(null);
   const [closingLeadId, setClosingLeadId] = useState(null);
   const [showCompliance, setShowCompliance] = useState(false);
   const [liveCallActive, setLiveCallActive] = useState(false);
@@ -58,6 +60,7 @@ export default function DebtCallCoach() {
     ...(isAdmin ? [{ id: 'leadgen', label: '🎯 Lead Gen' }] : []),
     ...(isAdmin ? [{ id: 'smartleads', label: '🧠 Smart Leads' }] : []),
     { id: 'newleads', label: '📥 New Leads' },
+    { id: 'hotleads', label: '🔥 Hot Leads' },
     { id: 'bob', label: '🤖 BOB Training' },
     { id: 'pitches', label: '🎤 Pitches' },
     { id: 'objections', label: '🛡️ Objections' },
@@ -111,6 +114,7 @@ export default function DebtCallCoach() {
         <SmartLeadsTab />
       </PopOutTab>
       {tab === 'newleads' && <NewLeadsTab />}
+      {tab === 'hotleads' && <HotLeadsTab onOpenLead={(lead) => setHotLead(lead)} />}
       {tab === 'bob' && <DebtBobTrainer debtCoachUser={user} />}
       {tab === 'pitches' && <DebtPitchTab canDelete={!isDialerRole} />}
       {tab === 'objections' && <ObjectionsEngineTab readOnly={isDialerRole} />}
@@ -131,6 +135,11 @@ export default function DebtCallCoach() {
       {/* Profile opened from timer popup */}
       {timerLead && (
         <ClientProfileModal lead={timerLead} onClose={() => setTimerLead(null)} onSave={() => {}} />
+      )}
+
+      {/* Profile opened from Hot Leads tab */}
+      {hotLead && (
+        <ClientProfileModal lead={hotLead} username={user?.username} onClose={() => setHotLead(null)} onSave={(updated) => setHotLead(updated)} />
       )}
 
       {/* Popup notification when a new lead is assigned to this user */}

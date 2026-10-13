@@ -56,6 +56,7 @@ export default function ClientProfileModal({ lead, username, onClose, onSave }) 
   const [local, setLocal] = useState(lead || {});
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [togglingHot, setTogglingHot] = useState(false);
   const [timerInput, setTimerInput] = useState({ hours: 0, minutes: 30 });
   const [activeTimer, setActiveTimer] = useState(null);
   const [now, setNow] = useState(Date.now());
@@ -197,6 +198,26 @@ export default function ClientProfileModal({ lead, username, onClose, onSave }) 
   // Payment needed each month to cover interest AND lower principal by the minimum payment amount
   const paymentToLowerPrincipal = monthlyInterest + totalMonthlyPayments;
 
+  // Toggle the Hot Lead tag on this lead
+  const toggleHotLead = async () => {
+    if (!local.id) return;
+    setTogglingHot(true);
+    try {
+      const newVal = !local.isHotLead;
+      const patch = {
+        isHotLead: newVal,
+        hotLeadTaggedAt: newVal ? new Date().toISOString() : null,
+        hotLeadTaggedBy: newVal ? (username || '') : null,
+      };
+      await base44.entities.DebtLead.update(local.id, patch);
+      setLocal(prev => ({ ...prev, ...patch }));
+      onSave?.({ ...local, ...patch });
+    } catch (e) {
+      alert('Failed to toggle hot lead: ' + (e?.message || String(e)));
+    }
+    setTogglingHot(false);
+  };
+
   // Accepts optional overrides from VoiceFieldUpdater — merges with current
   // local state so voice updates persist even before React re-renders.
   const save = async (overrides = {}) => {
@@ -214,6 +235,7 @@ export default function ClientProfileModal({ lead, username, onClose, onSave }) 
         monthsBehind: merged.monthsBehind, notes: merged.notes,
         hardshipWhen: merged.hardshipWhen, hardshipWhy: merged.hardshipWhy, hardshipHow: merged.hardshipHow,
         cosignersJson: merged.cosignersJson,
+        isHotLead: merged.isHotLead, hotLeadTaggedAt: merged.hotLeadTaggedAt, hotLeadTaggedBy: merged.hotLeadTaggedBy,
       });
       setSaved(true); setTimeout(() => setSaved(false), 2000);
       onSave?.(merged);
@@ -235,6 +257,9 @@ export default function ClientProfileModal({ lead, username, onClose, onSave }) 
               <span style={{ padding: '1px 8px', borderRadius: '10px', fontSize: '9px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.5px', background: local.status === 'enrolled' ? 'rgba(16,185,129,0.15)' : local.status === 'qualified' ? 'rgba(96,165,250,0.15)' : local.status === 'declined' ? 'rgba(239,68,68,0.15)' : 'rgba(138,154,184,0.15)', color: local.status === 'enrolled' ? GOLD : local.status === 'qualified' ? '#60a5fa' : local.status === 'declined' ? '#ef4444' : '#8a9ab8' }}>{local.status || 'new'}</span>
               {local.leadNumber && <span style={{ color: '#6b7280', fontSize: '10px' }}>{local.leadNumber}</span>}
               {local.callCount > 0 && <span style={{ color: '#6b7280', fontSize: '10px' }}>· {local.callCount} call{local.callCount !== 1 ? 's' : ''}</span>}
+              <button onClick={toggleHotLead} disabled={togglingHot || !local.id} title={local.isHotLead ? 'Remove Hot Lead tag' : 'Tag as Hot Lead'} style={{ marginLeft: '4px', padding: '1px 8px', borderRadius: '10px', fontSize: '9px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.5px', cursor: (togglingHot || !local.id) ? 'not-allowed' : 'pointer', border: `1px solid ${local.isHotLead ? '#ef444466' : 'rgba(255,255,255,0.12)'}`, background: local.isHotLead ? 'rgba(239,68,68,0.15)' : 'transparent', color: local.isHotLead ? '#ef4444' : '#6b7280', opacity: (togglingHot || !local.id) ? 0.5 : 1 }}>
+                {togglingHot ? '⏳' : '🔥'} Hot Lead
+              </button>
             </div>
           </div>
         </div>
