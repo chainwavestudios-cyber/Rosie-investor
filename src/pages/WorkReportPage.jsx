@@ -1,6 +1,6 @@
 /**
  * WorkReportPage.jsx — Bi-weekly productivity report for employer review.
- * Shows daily time logs across lead scraping, email automation, and fronter
+ * Shows daily time logs across lead scraping, BOB training & AI, and fronter
  * portal development with results and key metrics. Mock data for demonstration.
  */
 import { useState } from 'react';
@@ -14,18 +14,18 @@ const RED = '#ef4444';
 
 // ── Mock daily work log (12 working days, 6 days/week × 2 weeks) ──
 const WORK_DAYS = [
-  { date: '2026-09-29', day: 'Tue', scraping: 3.5, email: 2.5, portal: 5.0, notes: 'Built Apify Twitter scraper skeleton; email template designer; fronter lead import modal' },
-  { date: '2026-09-30', day: 'Wed', scraping: 4.0, email: 3.0, portal: 4.5, notes: 'Social lead enrichment pipeline; Mailjet webhook setup; FronterContactCard component' },
-  { date: '2026-10-01', day: 'Thu', scraping: 2.5, email: 3.5, portal: 5.0, notes: 'Debt distress keyword targeting; email open/click tracking; dialer session management' },
-  { date: '2026-10-02', day: 'Fri', scraping: 3.0, email: 2.0, portal: 6.0, notes: 'LeadCrossEnrich backend function; SendEmail integration; FronterLeadsTab with status filters' },
-  { date: '2026-10-03', day: 'Sat', scraping: 4.5, email: 1.5, portal: 4.0, notes: 'ScrapeSocialLeads scheduled 4x daily; follow-up email automation workflow; Twilio line assignment' },
+  { date: '2026-09-29', day: 'Tue', scraping: 3.5, bob: 3.0, portal: 4.5, notes: 'Built Apify Twitter scraper skeleton; BOB persona engine (Duck/Owl/Cow); fronter lead import modal' },
+  { date: '2026-09-30', day: 'Wed', scraping: 4.0, bob: 3.5, portal: 4.0, notes: 'Social lead enrichment pipeline; BOB voice synthesis integration; FronterContactCard component' },
+  { date: '2026-10-01', day: 'Thu', scraping: 2.5, bob: 3.0, portal: 4.5, notes: 'Debt distress keyword targeting; 4 open BOB simulations; dialer session management' },
+  { date: '2026-10-02', day: 'Fri', scraping: 3.0, bob: 3.0, portal: 5.5, notes: 'LeadCrossEnrich backend function; BOB scenario builder; FronterLeadsTab with status filters' },
+  { date: '2026-10-03', day: 'Sat', scraping: 4.5, bob: 2.5, portal: 3.5, notes: 'ScrapeSocialLeads scheduled 4x daily; 5 open + 2 close BOB simulations; Twilio line assignment' },
   { date: '2026-10-04', day: 'Sun', off: true },
-  { date: '2026-10-05', day: 'Mon', scraping: 3.0, email: 3.0, portal: 5.5, notes: 'Lead identity resolution; email tracking pixel system; FronterAIPanel live transcript integration' },
-  { date: '2026-10-06', day: 'Tue', scraping: 2.5, email: 4.0, portal: 4.5, notes: 'Smart lead filtering & scoring; email campaign runner workflow; FronterCallCard floating window' },
-  { date: '2026-10-07', day: 'Wed', scraping: 3.5, email: 2.5, portal: 5.0, notes: 'Credit report OCR extraction; email link click tracking; FronterContactCard with debt ledger' },
-  { date: '2026-10-08', day: 'Thu', scraping: 3.0, email: 3.0, portal: 5.5, notes: 'ScreenDebtFit qualification AI; SendGmailEmail connector; FronterHeadsUpPopup real-time alerts' },
-  { date: '2026-10-09', day: 'Fri', scraping: 4.0, email: 2.0, portal: 5.0, notes: 'Lead scraping rate-limit handling; email tracking event processor; FronterMonitorPanel for admins' },
-  { date: '2026-10-10', day: 'Sat', scraping: 2.5, email: 3.5, portal: 5.0, notes: 'ScrapedLead deduplication; follow-up email auto-send logic; FronterPerformanceReport audit system' },
+  { date: '2026-10-05', day: 'Mon', scraping: 3.0, bob: 3.5, portal: 5.0, notes: 'Lead identity resolution; 6 open BOB simulations + transcript review; FronterAIPanel live transcript' },
+  { date: '2026-10-06', day: 'Tue', scraping: 2.5, bob: 4.0, portal: 4.0, notes: 'Smart lead filtering & scoring; 5 open + 3 close BOB simulations; FronterCallCard floating window' },
+  { date: '2026-10-07', day: 'Wed', scraping: 3.5, bob: 3.5, portal: 4.5, notes: 'Credit report OCR extraction; 4 open + 4 close BOB simulations; FronterContactCard with debt ledger' },
+  { date: '2026-10-08', day: 'Thu', scraping: 3.0, bob: 3.0, portal: 5.0, notes: 'ScreenDebtFit qualification AI; BOB objection engine tuning; FronterHeadsUpPopup real-time alerts' },
+  { date: '2026-10-09', day: 'Fri', scraping: 4.0, bob: 3.5, portal: 4.5, notes: 'Lead scraping rate-limit handling; 5 open + 5 close BOB simulations; FronterMonitorPanel for admins' },
+  { date: '2026-10-10', day: 'Sat', scraping: 2.5, bob: 3.0, portal: 4.5, notes: 'ScrapedLead deduplication; 4 open + 4 close BOB simulations; FronterPerformanceReport audit system' },
   { date: '2026-10-11', day: 'Sun', off: true },
 ];
 
@@ -52,26 +52,31 @@ const RESULTS = {
       'Credit report OCR extraction (analyzeCreditReport)',
     ],
   },
-  email: {
-    label: 'Email Automation',
-    color: AMBER,
-    icon: '✉️',
+  bob: {
+    label: 'BOB Training & AI Development',
+    color: PURPLE,
+    icon: '🤖',
     metrics: [
-      { label: 'Emails Sent (Auto)', value: '3,156' },
-      { label: 'Open Rate', value: '34.2%' },
-      { label: 'Click-Through Rate', value: '11.8%' },
-      { label: 'Follow-Up Auto-Sends', value: '892' },
-      { label: 'Templates Built', value: '14' },
-      { label: 'Tracking Events Processed', value: '5,847' },
+      { label: 'Open Simulations Run', value: '47' },
+      { label: 'Close Simulations Run', value: '28' },
+      { label: 'Avg Open Sim Duration', value: '18m 36s' },
+      { label: 'Avg Close Sim Duration', value: '53m 17s' },
+      { label: 'Total Training Time', value: '39.4h' },
+      { label: 'AI Personas Built', value: '3' },
     ],
     deliverables: [
-      'Mailjet webhook integration for delivery & bounce tracking',
-      'Email open/click tracking pixel system (emailTrackOpen, emailTrackClick)',
-      'Automated follow-up email workflow (Email Follow-Up Automation)',
-      'Email campaign runner with scheduling (runEmailCampaigns)',
-      'Gmail connector integration for fronter credential sends',
-      'Custom email template library (FronterEmailTemplate entity)',
-      'Email tracking event processor with real-time UI notifications',
+      'BOB cold-call training simulator with live Twilio voice integration',
+      'Three AI customer personas — Duck (passive), Owl (analytical), Cow (stubborn)',
+      'BOB scenario builder with preset debt-relief cold-call situations',
+      'BOB objection engine with dynamic rebuttal generation',
+      '47 open-call simulations conducted (avg 18m 36s each)',
+      '28 close-call simulations conducted (avg 53m 17s each)',
+      'BOB transcript persistence with recording retention & auto-cleanup',
+      'BOB brain scanner for knowledge-base ingestion and training',
+      'BOB callback scheduling for follow-up training sessions',
+      'Manual objection injection panel for targeted coaching',
+      'BOB training log entity for progress tracking and analytics',
+      'Pop-out coaching panel with real-time AI feedback during simulations',
     ],
   },
   portal: {
@@ -112,15 +117,15 @@ const RESULTS = {
 const fmtHours = (h) => `${h.toFixed(1)}h`;
 
 export default function WorkReportPage() {
-  const [expanded, setExpanded] = useState({ scraping: true, email: true, portal: true });
+  const [expanded, setExpanded] = useState({ scraping: true, bob: true, portal: true });
 
   const workingDays = WORK_DAYS.filter(d => !d.off);
-  const totalHours = workingDays.reduce((s, d) => s + d.scraping + d.email + d.portal, 0);
+  const totalHours = workingDays.reduce((s, d) => s + d.scraping + d.bob + d.portal, 0);
   const totalScraping = workingDays.reduce((s, d) => s + d.scraping, 0);
-  const totalEmail = workingDays.reduce((s, d) => s + d.email, 0);
+  const totalBob = workingDays.reduce((s, d) => s + d.bob, 0);
   const totalPortal = workingDays.reduce((s, d) => s + d.portal, 0);
   const avgPerDay = totalHours / workingDays.length;
-  const maxDaily = Math.max(...workingDays.map(d => d.scraping + d.email + d.portal));
+  const maxDaily = Math.max(...workingDays.map(d => d.scraping + d.bob + d.portal));
 
   const startDate = workingDays[0].date;
   const endDate = workingDays[workingDays.length - 1].date;
@@ -160,9 +165,9 @@ export default function WorkReportPage() {
         <div style={{ background: '#0d1b2a', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '8px', padding: '24px', marginBottom: '40px' }}>
           <h2 style={{ color: '#e8e0d0', fontSize: '18px', fontWeight: 'normal', margin: '0 0 16px' }}>📊 Time Distribution by Project</h2>
           <div style={{ display: 'flex', height: '36px', borderRadius: '6px', overflow: 'hidden', marginBottom: '12px' }}>
-            {['scraping', 'email', 'portal'].map(key => {
+            {['scraping', 'bob', 'portal'].map(key => {
               const c = cat(key);
-              const hrs = key === 'scraping' ? totalScraping : key === 'email' ? totalEmail : totalPortal;
+              const hrs = key === 'scraping' ? totalScraping : key === 'bob' ? totalBob : totalPortal;
               const pct = (hrs / totalHours) * 100;
               return (
                 <div key={key} style={{ width: `${pct}%`, background: c.color, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 'bold', color: DARK, transition: 'width 0.3s' }}>
@@ -172,9 +177,9 @@ export default function WorkReportPage() {
             })}
           </div>
           <div style={{ display: 'flex', gap: '24px', flexWrap: 'wrap' }}>
-            {['scraping', 'email', 'portal'].map(key => {
+            {['scraping', 'bob', 'portal'].map(key => {
               const c = cat(key);
-              const hrs = key === 'scraping' ? totalScraping : key === 'email' ? totalEmail : totalPortal;
+              const hrs = key === 'scraping' ? totalScraping : key === 'bob' ? totalBob : totalPortal;
               return (
                 <div key={key} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <div style={{ width: 12, height: 12, borderRadius: '3px', background: c.color }} />
@@ -196,7 +201,7 @@ export default function WorkReportPage() {
                 <tr style={{ borderBottom: `2px solid ${GOLD}22` }}>
                   <th style={{ padding: '12px 16px', textAlign: 'left', color: GOLD, fontSize: '10px', letterSpacing: '1.5px', textTransform: 'uppercase' }}>Date</th>
                   <th style={{ padding: '12px 16px', textAlign: 'center', color: BLUE, fontSize: '10px', letterSpacing: '1.5px', textTransform: 'uppercase' }}>Scraping</th>
-                  <th style={{ padding: '12px 16px', textAlign: 'center', color: AMBER, fontSize: '10px', letterSpacing: '1.5px', textTransform: 'uppercase' }}>Email Auto.</th>
+                  <th style={{ padding: '12px 16px', textAlign: 'center', color: PURPLE, fontSize: '10px', letterSpacing: '1.5px', textTransform: 'uppercase' }}>BOB Training</th>
                   <th style={{ padding: '12px 16px', textAlign: 'center', color: GOLD, fontSize: '10px', letterSpacing: '1.5px', textTransform: 'uppercase' }}>Portal Dev</th>
                   <th style={{ padding: '12px 16px', textAlign: 'center', color: '#e8e0d0', fontSize: '10px', letterSpacing: '1.5px', textTransform: 'uppercase' }}>Total</th>
                   <th style={{ padding: '12px 16px', textAlign: 'left', color: '#8a9ab8', fontSize: '10px', letterSpacing: '1.5px', textTransform: 'uppercase' }}>Key Work Completed</th>
@@ -204,7 +209,7 @@ export default function WorkReportPage() {
               </thead>
               <tbody>
                 {WORK_DAYS.map((d, i) => {
-                  const total = d.off ? 0 : d.scraping + d.email + d.portal;
+                  const total = d.off ? 0 : d.scraping + d.bob + d.portal;
                   return (
                     <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
                       <td style={{ padding: '10px 16px', whiteSpace: 'nowrap' }}>
@@ -212,7 +217,7 @@ export default function WorkReportPage() {
                         <div style={{ color: '#4a5568', fontSize: '10px' }}>{d.day}</div>
                       </td>
                       <td style={{ padding: '10px 16px', textAlign: 'center', color: d.off ? '#4a5568' : BLUE, fontSize: '12px' }}>{d.off ? '—' : fmtHours(d.scraping)}</td>
-                      <td style={{ padding: '10px 16px', textAlign: 'center', color: d.off ? '#4a5568' : AMBER, fontSize: '12px' }}>{d.off ? '—' : fmtHours(d.email)}</td>
+                      <td style={{ padding: '10px 16px', textAlign: 'center', color: d.off ? '#4a5568' : PURPLE, fontSize: '12px' }}>{d.off ? '—' : fmtHours(d.bob)}</td>
                       <td style={{ padding: '10px 16px', textAlign: 'center', color: d.off ? '#4a5568' : GOLD, fontSize: '12px' }}>{d.off ? '—' : fmtHours(d.portal)}</td>
                       <td style={{ padding: '10px 16px', textAlign: 'center' }}>
                         {d.off ? (
@@ -229,7 +234,7 @@ export default function WorkReportPage() {
                 <tr style={{ borderTop: `2px solid ${GOLD}33`, background: 'rgba(16,185,129,0.04)' }}>
                   <td style={{ padding: '12px 16px', color: GOLD, fontSize: '11px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase' }}>Totals</td>
                   <td style={{ padding: '12px 16px', textAlign: 'center', color: BLUE, fontSize: '14px', fontWeight: 'bold' }}>{fmtHours(totalScraping)}</td>
-                  <td style={{ padding: '12px 16px', textAlign: 'center', color: AMBER, fontSize: '14px', fontWeight: 'bold' }}>{fmtHours(totalEmail)}</td>
+                  <td style={{ padding: '12px 16px', textAlign: 'center', color: PURPLE, fontSize: '14px', fontWeight: 'bold' }}>{fmtHours(totalBob)}</td>
                   <td style={{ padding: '12px 16px', textAlign: 'center', color: GOLD, fontSize: '14px', fontWeight: 'bold' }}>{fmtHours(totalPortal)}</td>
                   <td style={{ padding: '12px 16px', textAlign: 'center', color: GOLD, fontSize: '16px', fontWeight: 'bold' }}>{fmtHours(totalHours)}</td>
                   <td style={{ padding: '12px 16px', color: '#6b7280', fontSize: '11px' }}>Avg {fmtHours(avgPerDay)}/day over {workingDays.length} working days</td>
@@ -241,7 +246,7 @@ export default function WorkReportPage() {
 
         {/* ── Project Results ── */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', marginBottom: '40px' }}>
-          {['scraping', 'email', 'portal'].map(key => {
+          {['scraping', 'bob', 'portal'].map(key => {
             const c = cat(key);
             const isExpanded = expanded[key];
             return (
@@ -254,7 +259,7 @@ export default function WorkReportPage() {
                   <span style={{ fontSize: '24px' }}>{c.icon}</span>
                   <div style={{ flex: 1 }}>
                     <div style={{ color: c.color, fontSize: '16px', fontWeight: 'bold' }}>{c.label}</div>
-                    <div style={{ color: '#6b7280', fontSize: '11px' }}>{key === 'scraping' ? totalScraping : key === 'email' ? totalEmail : totalPortal}h invested · {c.deliverables.length} deliverables</div>
+                    <div style={{ color: '#6b7280', fontSize: '11px' }}>{key === 'scraping' ? totalScraping : key === 'bob' ? totalBob : totalPortal}h invested · {c.deliverables.length} deliverables</div>
                   </div>
                   <span style={{ color: '#4a5568', fontSize: '14px' }}>{isExpanded ? '▾' : '▸'}</span>
                 </div>
@@ -296,8 +301,9 @@ export default function WorkReportPage() {
           <p style={{ color: '#8a9ab8', fontSize: '14px', lineHeight: 1.8, margin: 0 }}>
             Over the two-week period of {fmtDate(startDate)} to {fmtDate(endDate)}, a total of <strong style={{ color: GOLD }}>{fmtHours(totalHours)}</strong> were invested across
             three core development tracks. The lead scraping infrastructure processed over <strong style={{ color: BLUE }}>4,800 raw leads</strong> with a 78% AI enrichment success rate.
-            The email automation system sent <strong style={{ color: AMBER }}>3,100+ automated emails</strong> with a 34% open rate and full open/click tracking. The fronter portal —
-            the human verification layer — was built from the ground up with <strong style={{ color: GOLD }}>47 components, 23 backend functions, and 18 database entities</strong>,
+            The BOB training system was both built and actively used — <strong style={{ color: PURPLE }}>47 open-call simulations</strong> (avg 18m 36s) and
+            <strong style={{ color: PURPLE }}> 28 close-call simulations</strong> (avg 53m 17s) were completed, totaling over 39 hours of live AI-driven training.
+            The fronter portal — the human verification layer — was built from the ground up with <strong style={{ color: GOLD }}>47 components, 23 backend functions, and 18 database entities</strong>,
             including a full Twilio-powered dialer, live AI assistant, admin monitoring panel, automated performance audits, and time tracking. Work was conducted 6 days per week
             at an average of <strong style={{ color: GOLD }}>{fmtHours(avgPerDay)} per day</strong>, with peak days exceeding 11 hours.
           </p>
