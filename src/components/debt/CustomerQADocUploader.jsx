@@ -46,17 +46,10 @@ export default function CustomerQADocUploader({ category, onSaved }) {
     try {
       const { file_url } = await base44.integrations.Core.UploadPublicFile({ file });
       setStatus('Extracting Q&A from document (this may take a minute)…');
-      const resp = await fetch(file_url);
-      const blob = await resp.blob();
-      const reader = new FileReader();
-      const base64 = await new Promise((resolve) => {
-        reader.onload = () => resolve(reader.result.split(',')[1]);
-        reader.readAsDataURL(blob);
-      });
       const result = await base44.functions.invoke('kbExtractFile', {
         fileName: file.name,
         fileType: file.type,
-        base64,
+        file_url,
         kbName: 'Debt Settlement',
       });
       const entries = (result?.entries || result?.data?.entries || []).filter(
