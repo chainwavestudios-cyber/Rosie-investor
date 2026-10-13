@@ -90,8 +90,8 @@ const RESULTS = {
       'Identity resolution turns anonymous social handles into callable contacts with verified phone and email — scraping directly connects to dialing',
     ],
     screenshots: [
-      { url: 'https://media.base44.com/images/public/69cd2741578c9b5ce655395b/16af1d972_Screenshot2026-10-13at124615AM.png', label: 'Smart Leads AI Director — chat interface that learns from feedback to refine the scraper and find better leads automatically', width: '75%' },
-      { url: 'https://media.base44.com/images/public/69cd2741578c9b5ce655395b/b6439cd10_Screenshot2026-10-13at124602AM.png', label: 'Scraped Leads Dashboard — AI-scored lead table with platform, debt amount, distress tag, AI reasoning, and enrichment actions', width: '37.5%' },
+      { url: 'https://media.base44.com/images/public/69cd2741578c9b5ce655395b/16af1d972_Screenshot2026-10-13at124615AM.png', label: 'Smart Leads AI Director — chat interface that learns from feedback to refine the scraper and find better leads automatically', width: '100%' },
+      { url: 'https://media.base44.com/images/public/69cd2741578c9b5ce655395b/b6439cd10_Screenshot2026-10-13at124602AM.png', label: 'Scraped Leads Dashboard — AI-scored lead table with platform, debt amount, distress tag, AI reasoning, and enrichment actions', width: '100%' },
     ],
   },
   enrichment: {
