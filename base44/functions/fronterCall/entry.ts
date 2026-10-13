@@ -11,49 +11,9 @@
  *   getConference — Fetch conference status + participants by name.
  */
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.52';
+import { lineNumber, toE164, xmlEscape, twilioFetch, confTwiML, findConferenceSid, waitForConference } from '../../shared/twilioHelpers.ts';
 
-const ACCOUNT_SID   = Deno.env.get('TWILIO_ACCOUNT_SID')  || '';
-const AUTH_TOKEN    = Deno.env.get('TWILIO_AUTH_TOKEN')   || '';
-const twilioBase    = `https://api.twilio.com/2010-04-01/Accounts/${ACCOUNT_SID}`;
-const twilioAuth    = 'Basic ' + btoa(`${ACCOUNT_SID}:${AUTH_TOKEN}`);
-const BASE_URL      = 'https://rosieai-investorpage.base44.app';
-
-function lineNumber(lineKey: string): string {
-  return (lineKey && Deno.env.get(lineKey)) || Deno.env.get('TWILIO_FROM_NUMBER') || '';
-}
-
-async function twilioFetch(path: string, opts: RequestInit = {}): Promise<any> {
-  const res = await fetch(`${twilioBase}${path}`, {
-    ...opts,
-    headers: {
-      Authorization: twilioAuth,
-      'Content-Type': 'application/x-www-form-urlencoded',
-      ...(opts.headers || {}),
-    },
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.message || `Twilio error ${res.status}`);
-  return data;
-}
-
-// Twilio requires E.164 (+15551234567) — normalize "(800) 555-0100", "555-123-4567", etc.
-function toE164(raw: string): string {
-  const s = String(raw || '').trim();
-  const digits = s.replace(/\D/g, '');
-  if (digits.length === 10) return `+1${digits}`;
-  if (digits.length === 11 && digits.startsWith('1')) return `+${digits}`;
-  return s.startsWith('+') ? `+${digits}` : `+${digits}`;
-}
-
-function xmlEscape(s: string): string {
-  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-}
-
-function confTwiML(name: string, muted = false, waitUrl = ''): string {
-  const escName = xmlEscape(name);
-  const waitAttr = waitUrl ? ` waitUrl="${xmlEscape(waitUrl)}" waitMethod="GET"` : '';
-  return `<Response><Dial><Conference name="${escName}" muted="${muted}" beep="false" startConferenceOnEnter="true" endConferenceOnExit="false"${waitAttr}>${escName}</Conference></Dial></Response>`;
-}
+const BASE_URL = 'https://rosieai-investorpage.base44.app';
 
 async function getHoldAudioUrl(req: Request): Promise<string> {
   try {
@@ -124,20 +84,6 @@ async function moveIntoConference(fronterCallSid: string, confName: string, hold
   } catch (e) { console.warn('Fronter redirect failed:', e.message); }
 
   return customerCallSid;
-}
-
-async function waitForConference(name: string): Promise<string | null> {
-  for (let i = 0; i < 12; i++) {
-    const sid = await findConferenceSid(name);
-    if (sid) return sid;
-    await new Promise(r => setTimeout(r, 500));
-  }
-  return null;
-}
-
-async function findConferenceSid(name: string): Promise<string | null> {
-  const data = await twilioFetch(`/Conferences.json?FriendlyName=${encodeURIComponent(name)}&Status=in-progress`);
-  return data.conferences?.[0]?.sid || null;
 }
 
 Deno.serve(async (req) => {

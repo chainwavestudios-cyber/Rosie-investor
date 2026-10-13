@@ -35,6 +35,37 @@ Deno.serve(async (req) => {
 
     console.log('[dialerVoiceHandler] method:', req.method, 'to:', to, 'conf:', conferenceName, 'direction:', direction, 'called:', called);
 
+    // ── Mode AI: AI Agent outbound call ──────────────────────────────────
+    //   When the AI agent dials a lead (via aiAgentDial), the call connects
+    //   here. We read the AIAgentConfig for the greeting, say it, then connect
+    //   to a Media Stream for the AI conversation (STT → LLM → TTS loop).
+    const aiMode = url.searchParams.get('Mode') === 'aiAgent';
+    if (aiMode) {
+      const leadId = url.searchParams.get('LeadId') || '';
+      let greeting = 'Hello, I am calling from Rosie AI about debt relief. How are you today?';
+      try {
+        const { createClientFromRequest } = await import('npm:@base44/sdk@0.8.52');
+        const base44 = createClientFromRequest(req).asServiceRole;
+        const configs = await base44.entities.AIAgentConfig.filter({ configName: 'default' });
+        if (configs?.[0]?.systemPrompt) {
+          // Extract the first line of the system prompt as the greeting
+          const firstLine = configs[0].systemPrompt.split('\n').find(l => l.trim() && !l.startsWith('#'));
+          if (firstLine) greeting = firstLine.trim();
+        }
+      } catch {}
+
+      const streamUrl = `wss://rosieai-investorpage.base44.app/functions/aiAgentStream?leadId=${encodeURIComponent(leadId)}`;
+      const twiml = `<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Say voice="Polly.Joanna-Neural">${greeting}</Say>
+  <Connect>
+    <Stream url="${streamUrl}" />
+  </Connect>
+</Response>`;
+      console.log('[dialerVoiceHandler] → Mode AI Agent outbound, leadId:', leadId);
+      return new Response(twiml, { headers: { 'Content-Type': 'text/xml' } });
+    }
+
     // ── Mode 2: Lead leg — hold lead in conference ──────────────────────
     const isLeadLeg = url.searchParams.get('LeadLeg') === 'true';
     if (conferenceName && isLeadLeg) {

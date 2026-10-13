@@ -26,6 +26,26 @@
       "format": "date-time",
       "title": "Lunch In Time"
     },
+    "amBreakOut": {
+      "type": "string",
+      "format": "date-time",
+      "title": "AM Break Out Time"
+    },
+    "amBreakIn": {
+      "type": "string",
+      "format": "date-time",
+      "title": "AM Break In Time"
+    },
+    "pmBreakOut": {
+      "type": "string",
+      "format": "date-time",
+      "title": "PM Break Out Time"
+    },
+    "pmBreakIn": {
+      "type": "string",
+      "format": "date-time",
+      "title": "PM Break In Time"
+    },
     "clockOut": {
       "type": "string",
       "format": "date-time",
@@ -33,7 +53,7 @@
     },
     "totalSeconds": {
       "type": "number",
-      "title": "Total Worked Seconds (lunch excluded)",
+      "title": "Total Worked Seconds (lunch + breaks excluded)",
       "default": 0
     }
   },

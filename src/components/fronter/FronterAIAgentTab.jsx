@@ -10,6 +10,7 @@ import AIAgentTelephonySection from './aiagent/AIAgentTelephonySection';
 import AIAgentVoiceSection from './aiagent/AIAgentVoiceSection';
 import AIAgentKnowledgeSection from './aiagent/AIAgentKnowledgeSection';
 import AIAgentPromptSection, { DEFAULT_SYSTEM_PROMPT, DEFAULT_SCRIPT_FLOW, DEFAULT_REBUTTALS, DEFAULT_QA_TUNING } from './aiagent/AIAgentPromptSection';
+import AIAgentDialer from './AIAgentDialer';
 
 const GOLD = '#10b981';
 const DARK = '#0a0f1e';
@@ -176,6 +177,9 @@ export default function FronterAIAgentTab({ adminUsername }) {
         <label style={SECTION_LABEL}>✏️ Prompt & Script Tuning Workbench</label>
         <AIAgentPromptSection config={config} update={update} />
       </div>
+
+      {/* Lead Dialer */}
+      <AIAgentDialer adminUsername={adminUsername} />
     </div>
   );
 }
