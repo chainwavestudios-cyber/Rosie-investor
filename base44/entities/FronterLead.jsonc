@@ -168,6 +168,44 @@
       "type": "string",
       "title": "Uploaded By (admin username)"
     },
+    "phoneValid": {
+      "type": "boolean",
+      "title": "Primary Phone Valid (carrier-verified)"
+    },
+    "phoneLineType": {
+      "type": "string",
+      "title": "Primary Phone Line Type",
+      "enum": [
+        "mobile",
+        "landline",
+        "voip",
+        "unknown"
+      ],
+      "default": "unknown"
+    },
+    "phoneCarrier": {
+      "type": "string",
+      "title": "Primary Phone Carrier"
+    },
+    "phone2Valid": {
+      "type": "boolean",
+      "title": "Secondary Phone Valid (carrier-verified)"
+    },
+    "phone2LineType": {
+      "type": "string",
+      "title": "Secondary Phone Line Type",
+      "enum": [
+        "mobile",
+        "landline",
+        "voip",
+        "unknown"
+      ],
+      "default": "unknown"
+    },
+    "phone2Carrier": {
+      "type": "string",
+      "title": "Secondary Phone Carrier"
+    },
     "credsSentAt": {
       "type": "string",
       "format": "date-time",

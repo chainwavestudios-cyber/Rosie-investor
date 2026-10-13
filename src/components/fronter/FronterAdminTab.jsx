@@ -20,6 +20,7 @@ import FronterQuoteTab from '@/components/fronter/FronterQuoteTab';
 import FronterBobCallsTab from '@/components/fronter/FronterBobCallsTab';
 import FronterContactCard from '@/components/fronter/FronterContactCard';
 import FronterActivityLogTab from '@/components/fronter/FronterActivityLogTab';
+import LeadVaultTab from '@/components/fronter/LeadVaultTab';
 import { renderFormatted } from '@/components/debt/ScriptRichText';
 
 const GOLD = '#10b981';
@@ -241,6 +242,7 @@ export default function FronterAdminTab({ adminUsername }) {
   const SUBTABS = [
     { id: 'lines', label: '📞 Lines' },
     { id: 'leads', label: '📋 Leads' },
+    { id: 'vault', label: '🏦 Lead Vault' },
     { id: 'calls', label: '📞 Calls' },
     { id: 'callmetrics', label: '📈 Call Metrics' },
     { id: 'reports', label: '📊 Reports' },
@@ -536,6 +538,11 @@ export default function FronterAdminTab({ adminUsername }) {
       {/* ── ACTIVITY LOG ── */}
       {subtab === 'activity' && !loading && (
         <FronterActivityLogTab />
+      )}
+
+      {/* ── LEAD VAULT ── */}
+      {subtab === 'vault' && !loading && (
+        <LeadVaultTab adminUsername={adminUsername} />
       )}
     </div>
   );

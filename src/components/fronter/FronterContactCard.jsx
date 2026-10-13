@@ -20,6 +20,7 @@ import FronterClosedDealCelebration from './FronterClosedDealCelebration';
 import FronterDialer from './FronterDialer';
 import FronterAIPanel from './FronterAIPanel';
 import AIPopulateTab from '@/components/shared/AIPopulateTab';
+import PhoneVerifyBadge from './PhoneVerifyBadge';
 
 const GOLD = '#10b981';
 const DARK = '#0a0f1e';
@@ -388,17 +389,21 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
                   </div>
                   <div style={{ marginBottom: '6px' }}>
                     <label style={ls}>Primary Phone</label>
-                    <div style={{ display: 'flex', gap: '4px' }}>
+                    <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
                       <input value={local.phone || ''} onChange={e => update('phone', e.target.value)} placeholder="555-123-4567" style={{ ...inp, flex: 1 }} />
                       <button onClick={() => { if (!local.phone) return; setCallActive(true); setCallStartTime(Date.now()); setCallDuration(0); setShowChecklist(true); onDial?.({ ...local, phone: local.phone }); }} disabled={!local.phone} title="Dial" style={{ background: 'rgba(16,185,129,0.15)', color: GOLD, border: '1px solid rgba(16,185,129,0.3)', borderRadius: '4px', padding: '0 9px', cursor: local.phone ? 'pointer' : 'not-allowed', fontSize: '13px', flexShrink: 0, opacity: local.phone ? 1 : 0.4 }}>📞</button>
+                      <PhoneVerifyBadge phoneValid={local.phoneValid} phoneLineType={local.phoneLineType} size={36} />
                     </div>
+                    {local.phoneCarrier && <div style={{ color: '#4a5568', fontSize: '9px', marginTop: '2px' }}>{local.phoneCarrier}{local.phoneLineType && local.phoneLineType !== 'unknown' ? ` · ${local.phoneLineType}` : ''}</div>}
                   </div>
                   <div style={{ marginBottom: '6px' }}>
                     <label style={ls}>Secondary Phone</label>
-                    <div style={{ display: 'flex', gap: '4px' }}>
+                    <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
                       <input value={local.phone2 || ''} onChange={e => update('phone2', e.target.value)} placeholder="555-987-6543" style={{ ...inp, flex: 1 }} />
                       <button onClick={() => { if (!local.phone2) return; setCallActive(true); setCallStartTime(Date.now()); setCallDuration(0); onDial?.({ ...local, phone: local.phone2 }); }} disabled={!local.phone2} title="Dial" style={{ background: 'rgba(16,185,129,0.15)', color: GOLD, border: '1px solid rgba(16,185,129,0.3)', borderRadius: '4px', padding: '0 9px', cursor: local.phone2 ? 'pointer' : 'not-allowed', fontSize: '13px', flexShrink: 0, opacity: local.phone2 ? 1 : 0.4 }}>📞</button>
+                      <PhoneVerifyBadge phoneValid={local.phone2Valid} phoneLineType={local.phone2LineType} size={36} />
                     </div>
+                    {local.phone2Carrier && <div style={{ color: '#4a5568', fontSize: '9px', marginTop: '2px' }}>{local.phone2Carrier}{local.phone2LineType && local.phone2LineType !== 'unknown' ? ` · ${local.phone2LineType}` : ''}</div>}
                   </div>
                   <div style={{ marginBottom: '6px' }}><label style={ls}>Email</label><input value={local.email || ''} onChange={e => update('email', e.target.value)} style={inp} placeholder="customer@email.com" /></div>
                   <div style={{ marginBottom: '6px' }}><label style={ls}>Address</label><input value={local.address || ''} onChange={e => update('address', e.target.value)} style={inp} placeholder="123 Main St, City, State 12345" /></div>

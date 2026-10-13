@@ -1,0 +1,159 @@
+{
+  "name": "LeadVaultEntry",
+  "type": "object",
+  "properties": {
+    "batchLabel": {
+      "type": "string",
+      "title": "Batch Label (upload name or source)"
+    },
+    "firstName": {
+      "type": "string",
+      "title": "First Name"
+    },
+    "lastName": {
+      "type": "string",
+      "title": "Last Name"
+    },
+    "phone": {
+      "type": "string",
+      "title": "Primary Phone"
+    },
+    "phone2": {
+      "type": "string",
+      "title": "Secondary Phone"
+    },
+    "email": {
+      "type": "string",
+      "title": "Email"
+    },
+    "address": {
+      "type": "string",
+      "title": "Address"
+    },
+    "state": {
+      "type": "string",
+      "title": "State"
+    },
+    "zipCode": {
+      "type": "string",
+      "title": "Zip Code"
+    },
+    "debtAmount": {
+      "type": "number",
+      "title": "Debt Amount ($)"
+    },
+    "notes": {
+      "type": "string",
+      "title": "Notes",
+      "format": "textarea"
+    },
+    "validationStatus": {
+      "type": "string",
+      "title": "Validation Status",
+      "enum": [
+        "pending",
+        "validated",
+        "failed"
+      ],
+      "default": "pending"
+    },
+    "phoneValid": {
+      "type": "boolean",
+      "title": "Primary Phone Valid"
+    },
+    "phoneLineType": {
+      "type": "string",
+      "title": "Primary Phone Line Type",
+      "enum": [
+        "mobile",
+        "landline",
+        "voip",
+        "unknown"
+      ],
+      "default": "unknown"
+    },
+    "phoneCarrier": {
+      "type": "string",
+      "title": "Primary Phone Carrier"
+    },
+    "phoneE164": {
+      "type": "string",
+      "title": "Primary Phone E.164 Format"
+    },
+    "phone2Valid": {
+      "type": "boolean",
+      "title": "Secondary Phone Valid"
+    },
+    "phone2LineType": {
+      "type": "string",
+      "title": "Secondary Phone Line Type",
+      "enum": [
+        "mobile",
+        "landline",
+        "voip",
+        "unknown"
+      ],
+      "default": "unknown"
+    },
+    "phone2Carrier": {
+      "type": "string",
+      "title": "Secondary Phone Carrier"
+    },
+    "phone2E164": {
+      "type": "string",
+      "title": "Secondary Phone E.164 Format"
+    },
+    "validatedAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Validated At"
+    },
+    "destination": {
+      "type": "string",
+      "title": "Distribution Destination",
+      "enum": [
+        "none",
+        "fronter",
+        "ai_dialer"
+      ],
+      "default": "none"
+    },
+    "assignedTo": {
+      "type": "string",
+      "title": "Assigned To (fronter username)"
+    },
+    "assignedAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Assigned At"
+    },
+    "distributedAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Distributed At"
+    },
+    "distributedBy": {
+      "type": "string",
+      "title": "Distributed By (admin username)"
+    },
+    "fronterLeadId": {
+      "type": "string",
+      "title": "Fronter Lead ID (created on distribution)"
+    },
+    "uploadedBy": {
+      "type": "string",
+      "title": "Uploaded By (admin username)"
+    }
+  },
+  "required": [
+    "firstName",
+    "lastName",
+    "phone"
+  ],
+  "rls": {
+    "create": null,
+    "read": null,
+    "update": null,
+    "delete": null
+  }
+}

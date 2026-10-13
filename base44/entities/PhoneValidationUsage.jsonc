@@ -1,0 +1,29 @@
+{
+  "name": "PhoneValidationUsage",
+  "type": "object",
+  "properties": {
+    "monthKey": {
+      "type": "string",
+      "title": "Month Key (YYYY-MM)"
+    },
+    "requestCount": {
+      "type": "number",
+      "title": "API Requests Used This Month",
+      "default": 0
+    },
+    "monthlyLimit": {
+      "type": "number",
+      "title": "Monthly API Request Limit",
+      "default": 100
+    }
+  },
+  "required": [
+    "monthKey"
+  ],
+  "rls": {
+    "create": null,
+    "read": null,
+    "update": null,
+    "delete": null
+  }
+}
