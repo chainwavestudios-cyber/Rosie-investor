@@ -33,6 +33,29 @@ const WORK_DAYS = [
 
 // ── Project results (mock metrics) ──
 const RESULTS = {
+  scraping: {
+    label: 'Lead Scraping & Smart AI Intent Engine',
+    color: '#fb923c',
+    icon: '🎯',
+    metrics: [
+      { label: 'Leads Scraped', value: '8,400' },
+      { label: 'Debt-Distress Signals Found', value: '2,180' },
+      { label: 'AI Intent Scored', value: '1,640' },
+      { label: 'High-Intent Leads (70+)', value: '712' },
+      { label: 'Scrape Sources', value: '6' },
+      { label: 'Scrape Cadence', value: '4x daily' },
+    ],
+    deliverables: [
+      'Social lead scraping engine — automated debt-distress signal collection across 6 sources (scrapeSocialLeads)',
+      'Smart AI intent engine — LLM-powered scoring of scraped text for debt-relief buying intent',
+      'Debt-distress keyword detection — hardship language, behind-on-payments, creditor harassment signals',
+      'Automated 4x-daily scrape workflow with deduplication and source rotation',
+      'Intent scoring pipeline — engagement signals + language patterns → 0-100 intent score',
+      'Smart lead filtering — auto-rejects non-qualifying leads (wrong debt type, too low, outside service area)',
+      'Lead enrichment handoff — high-intent leads auto-routed to enrichment pipeline for identity resolution',
+      'SmartLeads chat — AI-powered lead research and qualification conversation interface',
+    ],
+  },
   enrichment: {
     label: 'Campaign → Enrichment → Bongiorno DAA Pipeline',
     color: BLUE,
@@ -124,7 +147,7 @@ const RESULTS = {
 const fmtHours = (h) => `${h.toFixed(1)}h`;
 
 export default function WorkReportPage() {
-  const [expanded, setExpanded] = useState({ enrichment: true, bob: true, portal: true });
+  const [expanded, setExpanded] = useState({ scraping: true, enrichment: true, bob: true, portal: true });
 
   const workingDays = WORK_DAYS.filter(d => !d.off);
   const totalHours = workingDays.reduce((s, d) => s + d.enrichment + d.bob + d.portal, 0);
@@ -194,9 +217,9 @@ export default function WorkReportPage() {
             })}
           </div>
           <div style={{ display: 'flex', gap: '24px', flexWrap: 'wrap' }}>
-            {['enrichment', 'bob', 'portal'].map(key => {
+            {['scraping', 'enrichment', 'bob', 'portal'].map(key => {
               const c = cat(key);
-              const hrs = key === 'enrichment' ? totalEnrichment : key === 'bob' ? totalBob : totalPortal;
+              const hrs = key === 'enrichment' ? totalEnrichment : key === 'bob' ? totalBob : key === 'scraping' ? totalEnrichment : totalPortal;
               return (
                 <div key={key} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <div style={{ width: 12, height: 12, borderRadius: '3px', background: c.color }} />
@@ -263,7 +286,7 @@ export default function WorkReportPage() {
 
         {/* ── Project Results ── */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', marginBottom: '40px' }}>
-          {['enrichment', 'bob', 'portal'].map(key => {
+          {['scraping', 'enrichment', 'bob', 'portal'].map(key => {
             const c = cat(key);
             const isExpanded = expanded[key];
             return (
@@ -276,7 +299,7 @@ export default function WorkReportPage() {
                   <span style={{ fontSize: '24px' }}>{c.icon}</span>
                   <div style={{ flex: 1 }}>
                     <div style={{ color: c.color, fontSize: '16px', fontWeight: 'bold' }}>{c.label}</div>
-                    <div style={{ color: '#6b7280', fontSize: '11px' }}>{key === 'enrichment' ? totalEnrichment : key === 'bob' ? totalBob : totalPortal}h invested · {c.deliverables.length} deliverables</div>
+                    <div style={{ color: '#6b7280', fontSize: '11px' }}>{key === 'scraping' ? 'Included in enrichment' : `${key === 'enrichment' ? totalEnrichment : key === 'bob' ? totalBob : totalPortal}h invested`} · {c.deliverables.length} deliverables</div>
                   </div>
                   <span style={{ color: '#4a5568', fontSize: '14px' }}>{isExpanded ? '▾' : '▸'}</span>
                 </div>
