@@ -208,7 +208,7 @@ export default function WorkReportPage() {
         </div>
 
         {/* ── Summary Cards ── */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginBottom: '40px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '12px', marginBottom: '40px' }}>
           {[
             { label: 'Dev & Lead Gen Hours', value: fmtHours(totalLeadGen), color: BLUE, sub: 'Scraping + Smart Leads + Pipeline' },
             { label: 'BOB Training Hours', value: fmtHours(totalBob), color: PURPLE, sub: 'Live AI-driven training' },
@@ -216,10 +216,10 @@ export default function WorkReportPage() {
             { label: 'Days Worked', value: `${workingDays.length} / 14`, color: AMBER, sub: '2-week period' },
             { label: 'Longest Single Day', value: fmtHours(maxDaily), color: RED, sub: 'Peak productivity day' },
           ].map((c, i) => (
-            <div key={i} style={{ background: '#0d1b2a', border: `1px solid ${c.color}33`, borderRadius: '8px', padding: '20px', textAlign: 'center' }}>
-              <div style={{ color: '#6b7280', fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '8px' }}>{c.label}</div>
-              <div style={{ color: c.color, fontSize: '28px', fontWeight: 'bold', marginBottom: '4px' }}>{c.value}</div>
-              <div style={{ color: '#4a5568', fontSize: '11px' }}>{c.sub}</div>
+            <div key={i} style={{ background: '#0d1b2a', border: `1px solid ${c.color}33`, borderRadius: '8px', padding: '14px 10px', textAlign: 'center' }}>
+              <div style={{ color: '#6b7280', fontSize: '9px', letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: '6px' }}>{c.label}</div>
+              <div style={{ color: c.color, fontSize: '24px', fontWeight: 'bold', marginBottom: '3px' }}>{c.value}</div>
+              <div style={{ color: '#4a5568', fontSize: '10px' }}>{c.sub}</div>
             </div>
           ))}
         </div>
