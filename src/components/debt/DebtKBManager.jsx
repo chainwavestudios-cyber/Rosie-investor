@@ -292,8 +292,32 @@ function CustomerQAEditor({ category, onSaved }) {
   const [question, setQuestion] = useState('');
   const [answers, setAnswers] = useState(['']);
   const [priority, setPriority] = useState(false);
+  const [variations, setVariations] = useState('');
   const [saving, setSaving] = useState(false);
+  const [generating, setGenerating] = useState(false);
   const [feedback, setFeedback] = useState('');
+
+  const generateVariationsAI = async () => {
+    if (!question.trim()) return;
+    setGenerating(true);
+    try {
+      const res = await base44.integrations.Core.InvokeLLM({
+        prompt: `A debt settlement customer on a live call asks: "${question}"
+
+Generate 8-12 alternative ways this same question might be phrased — different wordings, tones, and sentence structures a real person might use on a phone call. Include both question forms and statement forms. One per line. No numbering, no quotes — just the raw phrases.
+
+Return ONLY a JSON object with a "variations" array of strings.`,
+        response_json_schema: { type: 'object', properties: { variations: { type: 'array', items: { type: 'string' } } } },
+      });
+      const v = res?.variations || res?.data?.variations || [];
+      if (v.length > 0) {
+        const existing = variations.trim() ? variations.trim().split('\n').map(s => s.trim()).filter(Boolean) : [];
+        const merged = [...new Set([...existing, ...v.map(s => s.trim())])];
+        setVariations(merged.join('\n'));
+      }
+    } catch (e) { alert('Variation generation failed: ' + (e?.message || String(e))); }
+    setGenerating(false);
+  };
 
   const save = async () => {
     const clean = answers.filter(a => a.trim());
@@ -303,14 +327,14 @@ function CustomerQAEditor({ category, onSaved }) {
     try {
       const res = await saveQAWithPriority({
         question, answers: clean, category, priority,
-        source: 'manual', tags: '', variations: '',
+        source: 'manual', tags: '', variations: variations.trim(),
       });
       if (res?.merged) {
         setFeedback(`✓ Merged into existing question — ${clean.length} answer(s) prepended and starred as priority.`);
       } else {
         setFeedback(`✓ Added new Q&A entry.`);
       }
-      setQuestion(''); setAnswers(['']); setPriority(false);
+      setQuestion(''); setAnswers(['']); setPriority(false); setVariations('');
       onSaved();
       setTimeout(() => setFeedback(''), 4000);
     } catch (e) {
@@ -328,6 +352,14 @@ function CustomerQAEditor({ category, onSaved }) {
       <div style={{ marginBottom: '10px' }}><label style={ls}>Customer Question</label><input value={question} onChange={e => setQuestion(e.target.value)} placeholder="e.g. How does this affect my credit score?" style={inp} /></div>
       <div style={{ marginBottom: '10px' }}>
         <MultiAnswerEditor answers={answers} onChange={setAnswers} accentColor="#f59e0b" label="Answer(s)" placeholder="Type the answer the agent should give…" rows={4} />
+      </div>
+      {/* AI Variants + manual variations */}
+      <div style={{ marginBottom: '10px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+          <label style={ls}>Variations — alternative phrasings (one per line)</label>
+          <button onClick={generateVariationsAI} disabled={generating || !question.trim()} style={{ background: generating ? 'rgba(245,158,11,0.1)' : 'linear-gradient(135deg,#f59e0b,#d97706)', color: generating ? '#6b7280' : DARK, border: 'none', borderRadius: '4px', padding: '5px 12px', cursor: generating ? 'not-allowed' : 'pointer', fontSize: '10px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase', opacity: !question.trim() ? 0.5 : 1, whiteSpace: 'nowrap' }}>{generating ? '⏳ Generating…' : '🤖 AI Variants'}</button>
+        </div>
+        <textarea value={variations} onChange={e => setVariations(e.target.value)} rows={5} style={{ ...inp, resize: 'vertical' }} placeholder="Alternative ways the customer might ask this question — one per line. Click AI Variants to generate, or type them manually. All variations surface the same answer(s)." />
       </div>
       {/* Priority checkbox */}
       <label style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px', cursor: 'pointer', userSelect: 'none' }}>
