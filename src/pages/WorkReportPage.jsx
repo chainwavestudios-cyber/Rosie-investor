@@ -90,8 +90,8 @@ const RESULTS = {
       'Identity resolution turns anonymous social handles into callable contacts with verified phone and email — scraping directly connects to dialing',
     ],
     screenshots: [
-      { url: 'https://media.base44.com/images/public/69cd2741578c9b5ce655395b/16af1d972_Screenshot2026-10-13at124615AM.png', label: 'Smart Leads AI Director — chat interface that learns from feedback to refine the scraper and find better leads automatically' },
-      { url: 'https://media.base44.com/images/public/69cd2741578c9b5ce655395b/b6439cd10_Screenshot2026-10-13at124602AM.png', label: 'Scraped Leads Dashboard — AI-scored lead table with platform, debt amount, distress tag, AI reasoning, and enrichment actions' },
+      { url: 'https://media.base44.com/images/public/69cd2741578c9b5ce655395b/16af1d972_Screenshot2026-10-13at124615AM.png', label: 'Smart Leads AI Director — chat interface that learns from feedback to refine the scraper and find better leads automatically', width: '75%' },
+      { url: 'https://media.base44.com/images/public/69cd2741578c9b5ce655395b/b6439cd10_Screenshot2026-10-13at124602AM.png', label: 'Scraped Leads Dashboard — AI-scored lead table with platform, debt amount, distress tag, AI reasoning, and enrichment actions', width: '37.5%' },
     ],
   },
   enrichment: {
@@ -287,20 +287,20 @@ export default function WorkReportPage() {
                     {c.screenshots && (
                       <div style={{ marginTop: '20px', paddingTop: '16px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
                         <div style={{ color: c.color, fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '12px' }}>📸 Product Screenshots</div>
-                        {/* First screenshot — full width, 75% size centered */}
+                        {/* First screenshot — full width, 75% size centered (or custom width) */}
                         {c.screenshots[0] && (
                           <div style={{ marginBottom: '16px', display: 'flex', justifyContent: 'center' }}>
-                            <div style={{ width: '75%', borderRadius: '6px', overflow: 'hidden', border: `1px solid ${c.color}22`, display: 'flex', flexDirection: 'column' }}>
+                            <div style={{ width: c.screenshots[0].width || '75%', borderRadius: '6px', overflow: 'hidden', border: `1px solid ${c.color}22`, display: 'flex', flexDirection: 'column' }}>
                               <img src={c.screenshots[0].url} alt={c.screenshots[0].label} style={{ display: 'block', width: '100%', height: 'auto' }} />
                               <div style={{ padding: '8px 12px', background: `${c.color}08`, color: '#8a9ab8', fontSize: '11px', lineHeight: 1.4, flexShrink: 0 }}>{c.screenshots[0].label}</div>
                             </div>
                           </div>
                         )}
-                        {/* Remaining screenshots — side by side, 85% size */}
+                        {/* Remaining screenshots — side by side, 85% size (or custom width) */}
                         {c.screenshots.length > 1 && (
                           <div style={{ display: 'flex', justifyContent: 'center', gap: '16px' }}>
                             {c.screenshots.slice(1).map((s, i) => (
-                              <div key={i} style={{ width: '42.5%', borderRadius: '6px', overflow: 'hidden', border: `1px solid ${c.color}22`, display: 'flex', flexDirection: 'column' }}>
+                              <div key={i} style={{ width: s.width || '42.5%', borderRadius: '6px', overflow: 'hidden', border: `1px solid ${c.color}22`, display: 'flex', flexDirection: 'column' }}>
                                 <img src={s.url} alt={s.label} style={{ display: 'block', width: '100%', height: 'auto' }} />
                                 <div style={{ padding: '8px 12px', background: `${c.color}08`, color: '#8a9ab8', fontSize: '11px', lineHeight: 1.4, flexShrink: 0 }}>{s.label}</div>
                               </div>
