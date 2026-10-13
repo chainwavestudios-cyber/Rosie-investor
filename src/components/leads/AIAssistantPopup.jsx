@@ -435,11 +435,11 @@ function QAAnswerActions({ q, transcriptRef, kbEntries, onSidePanel, addInfoId, 
   };
 
   return (
-    <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
-      <Btn onClick={getMoreInfo} disabled={addInfoId === q.id} color="#60a5fa" bg="rgba(96,165,250,0.1)" border="rgba(96,165,250,0.25)" style={{ padding: '2px 8px', fontSize: '9px' }}>{addInfoId === q.id ? '⏳ More…' : '+ More Info'}</Btn>
-      <Btn onClick={getTalkingPoints} disabled={talkingPointsId === q.id} color="#4ade80" bg="rgba(74,222,128,0.1)" border="rgba(74,222,128,0.25)" style={{ padding: '2px 8px', fontSize: '9px' }}>{talkingPointsId === q.id ? '⏳ Points…' : '💬 Talking Points'}</Btn>
-      <Btn onClick={getResearch} disabled={researchId === q.id} color="#a78bfa" bg="rgba(167,139,250,0.1)" border="rgba(167,139,250,0.25)" style={{ padding: '2px 8px', fontSize: '9px' }}>{researchId === q.id ? '⏳ Searching…' : '🔍 Internet Research'}</Btn>
-      <Btn onClick={addToCommon} disabled={starring || starred} color="#f59e0b" bg="rgba(245,158,11,0.12)" border="rgba(245,158,11,0.3)" style={{ padding: '2px 8px', fontSize: '9px' }}>{starring ? '⏳' : starred ? '✓ Added' : '★ Add to Common'}</Btn>
+    <div style={{ display: 'flex', gap: '3px', flexWrap: 'wrap' }}>
+      <Btn onClick={getMoreInfo} disabled={addInfoId === q.id} color="#60a5fa" bg="rgba(96,165,250,0.1)" border="rgba(96,165,250,0.25)" style={{ padding: '1px 6px', fontSize: '8px' }}>{addInfoId === q.id ? '⏳' : '+ More'}</Btn>
+      <Btn onClick={getTalkingPoints} disabled={talkingPointsId === q.id} color="#4ade80" bg="rgba(74,222,128,0.1)" border="rgba(74,222,128,0.25)" style={{ padding: '1px 6px', fontSize: '8px' }}>{talkingPointsId === q.id ? '⏳' : '💬 Points'}</Btn>
+      <Btn onClick={getResearch} disabled={researchId === q.id} color="#a78bfa" bg="rgba(167,139,250,0.1)" border="rgba(167,139,250,0.25)" style={{ padding: '1px 6px', fontSize: '8px' }}>{researchId === q.id ? '⏳' : '🔍 Research'}</Btn>
+      <Btn onClick={addToCommon} disabled={starring || starred} color="#f59e0b" bg="rgba(245,158,11,0.12)" border="rgba(245,158,11,0.3)" style={{ padding: '1px 6px', fontSize: '8px' }}>{starring ? '⏳' : starred ? '✓' : '★ Common'}</Btn>
     </div>
   );
 }
@@ -535,7 +535,7 @@ export function QASection({ transcript, transcriptRef, kbEntries, active, qaKeyw
 
   // Pagination — never auto-delete questions or answers; paginate instead
   const [qaPage, setQaPage] = useState(1);
-  const QA_PAGE_SIZE = 8;
+  const QA_PAGE_SIZE = 3;
   const totalQaPages = Math.max(1, Math.ceil(questions.length / QA_PAGE_SIZE));
   const pagedQuestions = questions.slice((qaPage - 1) * QA_PAGE_SIZE, qaPage * QA_PAGE_SIZE);
   // Auto-advance to the latest page when new questions arrive
@@ -770,36 +770,45 @@ export function QASection({ transcript, transcriptRef, kbEntries, active, qaKeyw
 
         {/* Answers pane */}
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minHeight: 40 }}>
-          <div style={{ padding: '5px 12px', background: 'rgba(0,0,0,0.2)', borderBottom: '1px solid rgba(74,222,128,0.15)', display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
-            <span style={{ color: '#4ade80', fontSize: '9px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase', flex: 1 }}>💡 Answers ({answered.length})</span>
+          <div style={{ padding: '4px 12px', background: 'rgba(0,0,0,0.2)', borderBottom: '1px solid rgba(74,222,128,0.15)', display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0, flexWrap: 'wrap' }}>
+            <span style={{ color: '#4ade80', fontSize: '9px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase' }}>💡 Answers ({answered.length})</span>
+            <div style={{ flex: 1 }} />
+            {totalQaPages > 1 && Array.from({ length: totalQaPages }, (_, i) => i + 1).map(pg => (
+              <button key={pg} onClick={() => setQaPage(pg)} style={{ padding: '2px 8px', borderRadius: '3px', border: `1px solid ${qaPage === pg ? 'rgba(74,222,128,0.4)' : 'rgba(255,255,255,0.1)'}`, background: qaPage === pg ? 'rgba(74,222,128,0.15)' : 'transparent', color: qaPage === pg ? '#4ade80' : '#6b7280', cursor: 'pointer', fontSize: '10px', fontWeight: qaPage === pg ? 'bold' : 'normal' }}>Page {pg}</button>
+            ))}
           </div>
           <div ref={aListRef} style={{ flex: 1, overflowY: 'auto', padding: '8px 12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
             {answered.length === 0 && <div style={{ color: '#4a5568', fontSize: '11px', textAlign: 'center', padding: '18px' }}>Answers appear here when questions are answered</div>}
             {answered.map(q => (
               <div key={q.id} style={{ background: 'rgba(74,222,128,0.03)', border: '1px solid rgba(74,222,128,0.15)', borderRadius: '5px', overflow: 'hidden' }}>
-                <div style={{ padding: '5px 10px', background: 'rgba(0,0,0,0.15)', borderBottom: '1px solid rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <span style={{ color: '#f59e0b', fontSize: '10px', flex: 1, fontStyle: 'italic' }}>Re: "{q.text.slice(0, 60)}{q.text.length > 60 ? '…' : ''}"</span>
-                  {q.answered && !q.answering && (
-                    <QAAnswerActions q={q} transcriptRef={transcriptRef} kbEntries={kbEntries} onSidePanel={onSidePanel}
-                      addInfoId={addInfoId} setAddInfoId={setAddInfoId}
-                      talkingPointsId={talkingPointsId} setTalkingPointsId={setTalkingPointsId}
-                      researchId={researchId} setResearchId={setResearchId} />
-                  )}
-                  <button onClick={() => setQuestions(prev => prev.filter(x => x.id !== q.id))} style={{ background: 'none', border: 'none', color: '#4a5568', cursor: 'pointer', fontSize: '13px', lineHeight: 1, padding: '0 2px' }}>×</button>
+                {/* Question — full-width single line across top */}
+                <div style={{ padding: '3px 10px', background: 'rgba(0,0,0,0.15)', borderBottom: '1px solid rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span style={{ color: '#f59e0b', fontSize: '10px', flex: 1, fontStyle: 'italic', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Re: "{q.text}"</span>
+                  <button onClick={() => setQuestions(prev => prev.filter(x => x.id !== q.id))} style={{ background: 'none', border: 'none', color: '#4a5568', cursor: 'pointer', fontSize: '13px', lineHeight: 1, padding: '0 2px', flexShrink: 0 }}>×</button>
                 </div>
-                <div style={{ padding: '10px 12px' }}>
+                {/* Answer body — compact */}
+                <div style={{ padding: '5px 10px' }}>
                   {q.answering
                     ? <div style={{ color: '#6b7280', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '8px' }}><div style={{ width: 5, height: 5, borderRadius: '50%', background: GOLD, animation: 'aipulse 0.8s infinite' }} />Searching knowledge base…</div>
                     : <div>
                         {q.source === 'ai_fallback' && (
-                          <div style={{ marginBottom: '6px' }}>
-                            <span style={{ fontSize: '8px', background: 'rgba(167,139,250,0.2)', color: '#a78bfa', border: '1px solid rgba(167,139,250,0.4)', borderRadius: '3px', padding: '2px 8px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase' }}>🤖 AI ANSWER — Not in KB</span>
+                          <div style={{ marginBottom: '4px' }}>
+                            <span style={{ fontSize: '8px', background: 'rgba(167,139,250,0.2)', color: '#a78bfa', border: '1px solid rgba(167,139,250,0.4)', borderRadius: '3px', padding: '1px 6px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase' }}>🤖 AI — Not in KB</span>
                           </div>
                         )}
                         <AnswerDisplay answer={q.answer} answers={q.answers} />
                       </div>
                   }
                 </div>
+                {/* Action buttons — compact row at bottom */}
+                {q.answered && !q.answering && (
+                  <div style={{ padding: '2px 10px 4px', borderTop: '1px solid rgba(255,255,255,0.04)' }}>
+                    <QAAnswerActions q={q} transcriptRef={transcriptRef} kbEntries={kbEntries} onSidePanel={onSidePanel}
+                      addInfoId={addInfoId} setAddInfoId={setAddInfoId}
+                      talkingPointsId={talkingPointsId} setTalkingPointsId={setTalkingPointsId}
+                      researchId={researchId} setResearchId={setResearchId} />
+                  </div>
+                )}
               </div>
             ))}
           </div>
