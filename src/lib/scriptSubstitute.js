@@ -12,10 +12,19 @@ export function substituteScriptVars(content, { lead, fronterFirstName } = {}) {
   if (!content) return '';
   const vars = {
     first_name: lead?.firstName || '',
+    'first name': lead?.firstName || '',
     last_name: lead?.lastName || '',
+    'last name': lead?.lastName || '',
     email: lead?.email || '',
     phone_number: lead?.phone || '',
+    phone: lead?.phone || '',
+    zip: lead?.zipCode || '',
+    'zip code': lead?.zipCode || '',
+    city: lead?.city || '',
+    state: lead?.state || '',
+    street: lead?.address || '',
     address: [lead?.address, lead?.city, lead?.state, lead?.zipCode].filter(Boolean).join(', '),
+    debt_amount: lead?.debtAmount ? '$' + Number(lead.debtAmount).toLocaleString() : '',
     hardship_statement: lead?.hardshipQualification || '',
     contingency_time: lead?.preferredCallTime || '',
   };
