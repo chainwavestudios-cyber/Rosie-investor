@@ -126,9 +126,10 @@ export function useFronterDeepgram() {
   }, []);
 
   const getLines = useCallback(() => linesRef.current, []);
+  const getMicStream = useCallback(() => streamRef.current, []);
   const clear = useCallback(() => { linesRef.current = []; setLines([]); }, []);
 
   useEffect(() => () => stop(), [stop]);
 
-  return { lines, connected, start, stop, getLines, clear, setMicMuted };
+  return { lines, connected, start, stop, getLines, getMicStream, clear, setMicMuted };
 }

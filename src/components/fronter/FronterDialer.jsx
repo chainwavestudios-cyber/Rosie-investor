@@ -9,6 +9,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { base44 } from '@/api/base44Client';
 import { Device } from '@twilio/voice-sdk';
 import { useFronterDeepgram } from '@/hooks/useFronterDeepgram';
+import { useCallRecorder } from '@/hooks/useCallRecorder';
 import { useAIContactFiller } from '@/hooks/useAIContactFiller';
 import { useDebtCoachAuth } from '@/lib/DebtCoachAuthContext';
 import { checkCallCutoff } from '@/lib/phoneTimeZone';
@@ -94,6 +95,9 @@ export default function FronterDialer({ lead, username, lineKey, lineNumber, onC
   };
 
   const deepgram = useFronterDeepgram();
+  const recorder = useCallRecorder();
+  const recorderRef = useRef(recorder);
+  useEffect(() => { recorderRef.current = recorder; }, [recorder]);
   const { runFiller: runContactFiller } = useAIContactFiller({ leadId: lead?.id, leadType: 'fronter', transcript: deepgram.lines, isActive: callStatus === 'connected' });
   const runContactFillerRef = useRef(runContactFiller);
   useEffect(() => { runContactFillerRef.current = runContactFiller; }, [runContactFiller]);
@@ -248,6 +252,11 @@ Provide your analysis as JSON with these fields:
       } catch { remoteStream = null; }
       deepgram.start(micDeviceId, remoteStream).then(() => {
         setTranscriptLineCount(0);
+        // Start native browser recording (replaces paid Twilio recording)
+        const micStream = deepgram.getMicStream();
+        if (micStream || remoteStream) {
+          recorderRef.current.start(micStream, remoteStream);
+        }
       }).catch(e => console.error('Deepgram start failed:', e));
 
       // Update DialerSession to on_call (non-blocking)
@@ -276,11 +285,6 @@ Provide your analysis as JSON with these fields:
           callSid,
         });
         transcriptIdRef.current = rec.id;
-
-        // Start Twilio recording
-        if (callSid) {
-          try { await base44.functions.invoke('fronterCall', { action: 'startRecording', callSid }); } catch {}
-        }
 
         // Save transcript every 5 seconds
         saveIntervalRef.current = setInterval(async () => {
@@ -323,6 +327,12 @@ Provide your analysis as JSON with these fields:
       const dur = startTimeRef.current ? Math.floor((Date.now() - startTimeRef.current) / 1000) : 0;
       const finalLines = deepgram.getLines();
 
+      // Stop native browser recording and save to transcript
+      const recUri = await recorderRef.current.stop();
+      if (recUri && transcriptIdRef.current) {
+        try { await base44.entities.FronterCallTranscript.update(transcriptIdRef.current, { recordingUrl: recUri }); } catch {}
+      }
+
       // Final transcript save
       if (transcriptIdRef.current) {
         try {
@@ -358,6 +368,7 @@ Provide your analysis as JSON with these fields:
       stopTimer();
       if (saveIntervalRef.current) { clearInterval(saveIntervalRef.current); saveIntervalRef.current = null; }
       deepgram.stop();
+      recorderRef.current.cancel();
       setCallStatus('idle'); onCallEnded?.();
     });
     call.on('error', (e) => {
@@ -365,6 +376,7 @@ Provide your analysis as JSON with these fields:
       setError(e.message); stopTimer();
       if (saveIntervalRef.current) { clearInterval(saveIntervalRef.current); saveIntervalRef.current = null; }
       deepgram.stop();
+      recorderRef.current.cancel();
       setCallStatus('idle'); onCallEnded?.();
     });
   };
