@@ -21,7 +21,8 @@ export const FRONTER_CONTACT_FIELDS = [
   { field: 'preferredCallTime',  label: 'Best Time to Call' },
   { field: 'employmentStatus',  label: 'Employment Status' },
   { field: 'annualIncome',       label: 'Annual Income' },
-  { field: 'debtAmount',         label: 'Debt Amount' },
+  { field: 'debtAmount',         label: 'Total Debt Amount' },
+  { field: 'debtTypesJson',      label: 'Debt Type' },
   { field: 'hardshipQualification', label: 'Hardship' },
   { field: 'referralSource',    label: 'Lead Source' },
 ];

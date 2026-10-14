@@ -41,7 +41,7 @@ export function parseScriptElements(content) {
       elements.push({ id: `cue-${i}`, type: 'cue_block', category: m[1], content: m[2], origLine: i });
     } else if (AI_INPUT_REGEX.test(stripped)) {
       elements.push({ id: `ai-${i}`, type: 'ai_input', origLine: i });
-    } else if (stripped === '@@DEBT_CONFIRM@@' || stripped === '@@COMPLETED_STEPS@@') {
+    } else if (stripped === '@@DEBT_CONFIRM@@' || stripped === '@@COMPLETED_STEPS@@' || stripped === '@@AI_INPUT@@' || stripped === '@@SEND_EMAIL@@') {
       // Interactive buttons — not spoken, skip in teleprompt mode
       continue;
     } else if (stripped === '') {

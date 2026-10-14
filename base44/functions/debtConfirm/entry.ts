@@ -22,18 +22,36 @@ export default async function(req: Request): Promise<Response> {
       return `[${speaker}]: ${t.text}`;
     }).join('\n').slice(0, 8000);
 
-    // Check if script has debt-related tags
+    // Check if script has debt-related tags — extract the specific tagged
+    // sections so the LLM knows exactly where in the script the debt amount
+    // and debt type are discussed, then maps that to the transcript.
     let scriptContext = '';
     if (scriptContent && typeof scriptContent === 'string') {
       const cleaned = scriptContent
         .replace(/\[\/?(b|i|c|bg|s|f|anim|gap)(?:=[^\]]+)?\]/gi, '')
         .replace(/@@CUE:\w+:.*?@@/g, '')
         .replace(/@@COMPLETED_STEPS@@/g, '')
+        .replace(/@@AI_INPUT@@/g, '')
+        .replace(/@@SEND_EMAIL@@/g, '')
         .replace(/@@DEBT_CONFIRM@@/g, '[DEBT CONFIRM POINT]')
         .trim();
-      const hasDebtTags = /\[\[AI:debtAmount\]\]/i.test(cleaned) || /\[\[AI:debtTypesJson\]\]/i.test(cleaned);
-      if (hasDebtTags || cleaned.includes('[DEBT CONFIRM POINT]')) {
-        scriptContext = `\n\nSCRIPT CONTEXT:\n${cleaned.slice(0, 3000)}`;
+      const hasDebtAmountTag = /\[\[AI:debtAmount\]\]/i.test(cleaned);
+      const hasDebtTypeTag = /\[\[AI:debtTypesJson\]\]/i.test(cleaned);
+      if (hasDebtAmountTag || hasDebtTypeTag || cleaned.includes('[DEBT CONFIRM POINT]')) {
+        // Extract lines near the debt tags to give the LLM focused context
+        const lines = cleaned.split('\n');
+        const taggedLines: string[] = [];
+        for (let i = 0; i < lines.length; i++) {
+          if (/\[\[AI:debtAmount\]\]/i.test(lines[i]) || /\[\[AI:debtTypesJson\]\]/i.test(lines[i])) {
+            const start = Math.max(0, i - 2);
+            const end = Math.min(lines.length, i + 3);
+            for (let j = start; j < end; j++) taggedLines.push(`  L${j + 1}: ${lines[j]}`);
+          }
+        }
+        const taggedContext = taggedLines.length > 0
+          ? `\n\nTAGGED SCRIPT SECTIONS (where debt amount/type are discussed):\n${taggedLines.join('\n')}`
+          : '';
+        scriptContext = `\n\nSCRIPT CONTEXT:\n${cleaned.slice(0, 3000)}${taggedContext}`;
       }
     }
 
@@ -45,8 +63,10 @@ export default async function(req: Request): Promise<Response> {
     const system = `You are an AI assistant analyzing a sales call transcript to confirm the customer's debt type and debt amount.
 
 Your job is to determine what the CUSTOMER explicitly stated or confirmed about:
-1. Their total debt amount (dollar amount)
-2. Their type of debt (must be one of: "Unsecured Credit Card", "Unsecured Loans", or both)
+1. Their total debt amount (dollar amount) — the script may have [[AI:debtAmount]] tags marking where this is discussed
+2. Their type of debt (must be one of: "Unsecured Credit Card", "Unsecured Loans", or both) — the script may have [[AI:debtTypesJson]] tags marking where this is discussed
+
+If the script has tagged sections, pay special attention to the transcript lines that correspond to those script sections — that is where the customer is most likely to have stated their debt amount and type.
 
 VALID DEBT TYPES:
 - "Unsecured Credit Card" — credit card debt

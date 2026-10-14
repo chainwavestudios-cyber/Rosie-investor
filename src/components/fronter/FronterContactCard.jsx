@@ -78,6 +78,8 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
   const [debtConfirming, setDebtConfirming] = useState(false);
   const [debtConfirmMsg, setDebtConfirmMsg] = useState('');
   const [transferScript, setTransferScript] = useState('');
+  const [aiInputRunning, setAiInputRunning] = useState(false);
+  const [aiInputMsg, setAiInputMsg] = useState('');
 
   useEffect(() => {
     setLocal(lead || {});
@@ -398,6 +400,34 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
     setDebtConfirming(false);
   };
 
+  // ── AI Input: summarize transcript so far into notes ──
+  // Called when the fronter presses the AI Input button in the script.
+  // Reviews the entire transcript up to the point of invocation and adds
+  // a concise summary to the lead's notes log.
+  const runAiInput = async () => {
+    if (aiInputRunning) return;
+    if (liveTranscript.length < 2) { alert('No transcript available. Start a call first.'); return; }
+    setAiInputRunning(true);
+    setAiInputMsg('');
+    try {
+      const res = await base44.functions.invoke('aiInputSummary', { transcript: liveTranscript });
+      const data = res?.data || res;
+      if (data?.error) throw new Error(data.error);
+      const summary = data?.summary || '';
+      if (summary) {
+        const noteEntry = { text: `🤖 AI Input Summary: ${summary}`, timestamp: new Date().toISOString(), author: 'AI', type: 'ai_input' };
+        await addNote(noteEntry);
+        setAiInputMsg('✓ Summary added to notes');
+      } else {
+        setAiInputMsg('No summary generated');
+      }
+      setTimeout(() => setAiInputMsg(''), 5000);
+    } catch (e) {
+      alert('AI Input failed: ' + (e?.message || String(e)));
+    }
+    setAiInputRunning(false);
+  };
+
   // ── Quick-send credentials email using lead's email ──
   const quickSendCreds = async () => {
     if (!local.email) { alert('No email address on the contact card. Please add an email first.'); return; }
@@ -437,10 +467,13 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
   const mainScriptPart = hasCompletedSteps ? substitutedScript.slice(0, completedStepsIdx) : substitutedScript;
   const remainingScriptPart = hasCompletedSteps ? substitutedScript.slice(completedStepsIdx + '@@COMPLETED_STEPS@@'.length).trim() : '';
   const hasDebtConfirm = substitutedScript.includes('@@DEBT_CONFIRM@@');
+  const hasAiInput = substitutedScript.includes('@@AI_INPUT@@');
+  const hasSendEmail = substitutedScript.includes('@@SEND_EMAIL@@');
   const hasAiTags = /\[\[AI:\w+\]\]/i.test(rawScript);
 
-  // Split main script at @@DEBT_CONFIRM@@ markers for inline button rendering
-  const debtConfirmSegments = mainScriptPart.split('@@DEBT_CONFIRM@@');
+  // Split main script at all interactive markers for inline button rendering.
+  // The capturing group includes the marker name in the result array.
+  const interactiveSegments = mainScriptPart.split(/@@(DEBT_CONFIRM|AI_INPUT|SEND_EMAIL)@@/);
 
   const scriptContent = (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
@@ -456,11 +489,10 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
           <div style={{ color: '#4a5568', textAlign: 'center', padding: '40px 0', fontSize: '13px' }}>No scripts yet. Ask your admin to add a script.</div>
         ) : (
           <div style={{ color: '#e8e0d0', fontSize: '14px', lineHeight: 1.8, fontFamily: 'Georgia, serif', whiteSpace: 'pre-wrap' }}>
-            {debtConfirmSegments.map((seg, i) => (
-              <span key={i}>
-                {renderFormatted(seg.replace(/\[\[AI:\w+\]\]/gi, ''))}
-                {i < debtConfirmSegments.length - 1 && (
-                  <div style={{ margin: '12px 0', display: 'flex', justifyContent: 'center' }}>
+            {interactiveSegments.map((seg, i) => {
+              if (seg === 'DEBT_CONFIRM') {
+                return (
+                  <div key={i} style={{ margin: '12px 0', display: 'flex', justifyContent: 'center' }}>
                     <button
                       onClick={runDebtConfirm}
                       disabled={debtConfirming}
@@ -469,9 +501,36 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
                       {debtConfirming ? '⏳ Confirming…' : '💰 Confirm Debt'}
                     </button>
                   </div>
-                )}
-              </span>
-            ))}
+                );
+              }
+              if (seg === 'AI_INPUT') {
+                return (
+                  <div key={i} style={{ margin: '12px 0', display: 'flex', justifyContent: 'center' }}>
+                    <button
+                      onClick={runAiInput}
+                      disabled={aiInputRunning}
+                      style={{ background: 'rgba(167,139,250,0.18)', color: '#a78bfa', border: '2px solid rgba(167,139,250,0.55)', borderRadius: '8px', padding: '10px 24px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold', fontFamily: 'Georgia, serif', boxShadow: '0 0 12px rgba(167,139,250,0.33)' }}
+                    >
+                      {aiInputRunning ? '⏳ Summarizing…' : '🤖 AI Input'}
+                    </button>
+                  </div>
+                );
+              }
+              if (seg === 'SEND_EMAIL') {
+                return (
+                  <div key={i} style={{ margin: '12px 0', display: 'flex', justifyContent: 'center' }}>
+                    <button
+                      onClick={quickSendCreds}
+                      disabled={emailSending || !local.email}
+                      style={{ background: 'rgba(96,165,250,0.18)', color: BLUE, border: '2px solid rgba(96,165,250,0.55)', borderRadius: '8px', padding: '10px 24px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold', fontFamily: 'Georgia, serif', boxShadow: '0 0 12px rgba(96,165,250,0.33)', opacity: (!local.email && !emailSending) ? 0.5 : 1 }}
+                    >
+                      {emailSending ? '⏳ Sending…' : emailSent ? '✓ Sent!' : '📧 Send Email'}
+                    </button>
+                  </div>
+                );
+              }
+              return <span key={i}>{renderFormatted(seg.replace(/\[\[AI:\w+\]\]/gi, ''))}</span>;
+            })}
             {hasCompletedSteps && (
               <div style={{ margin: '16px 0', display: 'flex', justifyContent: 'center' }}>
                 <button
@@ -490,6 +549,9 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
         <button onClick={runAIReview} disabled={aiReviewing} style={{ background: `${GOLD}18`, color: GOLD, border: `1px solid ${GOLD}44`, borderRadius: '4px', padding: '6px 12px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '4px' }}>
           {aiReviewing ? '⏳ Reviewing…' : '🤖 AI Review'}
         </button>
+        <button onClick={runAiInput} disabled={aiInputRunning} style={{ background: 'rgba(167,139,250,0.18)', color: '#a78bfa', border: '1px solid rgba(167,139,250,0.44)', borderRadius: '4px', padding: '6px 12px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '4px' }}>
+          {aiInputRunning ? '⏳ Summarizing…' : '🤖 AI Input'}
+        </button>
         {hasDebtConfirm && (
           <button onClick={runDebtConfirm} disabled={debtConfirming} style={{ background: `${GOLD}18`, color: GOLD, border: `1px solid ${GOLD}44`, borderRadius: '4px', padding: '6px 12px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '4px' }}>
             {debtConfirming ? '⏳ Confirming…' : '💰 Debt Confirm'}
@@ -499,6 +561,7 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
           {emailSending ? '⏳ Sending…' : emailSent ? '✓ Sent!' : '🔑 Send Credentials'}
         </button>
         {aiReviewMsg && <span style={{ color: aiReviewMsg.startsWith('✓') ? GOLD : '#8a9ab8', fontSize: '10px', marginLeft: '4px' }}>{aiReviewMsg}</span>}
+        {aiInputMsg && <span style={{ color: aiInputMsg.startsWith('✓') ? '#a78bfa' : '#8a9ab8', fontSize: '10px', marginLeft: '4px' }}>{aiInputMsg}</span>}
         {debtConfirmMsg && <span style={{ color: debtConfirmMsg.startsWith('✓') ? GOLD : '#f59e0b', fontSize: '10px', marginLeft: '4px' }}>{debtConfirmMsg}</span>}
       </div>
     </div>
