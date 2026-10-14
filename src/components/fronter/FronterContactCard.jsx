@@ -68,7 +68,10 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
   const [showChecklist, setShowChecklist] = useState(false);
   const [showClosedDealCelebration, setShowClosedDealCelebration] = useState(false);
   const [liveTranscript, setLiveTranscript] = useState([]);
-  const [showQAPanel, setShowQAPanel] = useState(false);
+  const [qaPoppedOut, setQaPoppedOut] = useState(false);
+  const [qaPos, setQaPos] = useState({ x: 200, y: 80 });
+  const [qaSize, setQaSize] = useState({ w: 720, h: 560 });
+  const qaDragRef = useRef(null);
   const [scriptFullscreen, setScriptFullscreen] = useState(false);
   const [aiReviewing, setAiReviewing] = useState(false);
   const [aiReviewMsg, setAiReviewMsg] = useState('');
@@ -126,6 +129,14 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
     scriptDragRef.current = { startX: e.clientX - scriptPos.x, startY: e.clientY - scriptPos.y };
     const onMove = (ev) => { if (scriptDragRef.current) setScriptPos({ x: ev.clientX - scriptDragRef.current.startX, y: ev.clientY - scriptDragRef.current.startY }); };
     const onUp = () => { scriptDragRef.current = null; document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  };
+
+  const onQaDragStart = (e) => {
+    qaDragRef.current = { startX: e.clientX - qaPos.x, startY: e.clientY - qaPos.y };
+    const onMove = (ev) => { if (qaDragRef.current) setQaPos({ x: ev.clientX - qaDragRef.current.startX, y: ev.clientY - qaDragRef.current.startY }); };
+    const onUp = () => { qaDragRef.current = null; document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); };
     document.addEventListener('mousemove', onMove);
     document.addEventListener('mouseup', onUp);
   };
@@ -209,12 +220,18 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
 
   // NO CONNECT — fronter couldn't reach Chris. The popup already told the backend to
   // drop the fronter + agent legs and keep the customer on hold. Here we record the
-  // disposition, rotate to the first unassigned line for the next call, and advance.
+  // disposition as "queued_no_connect", migrate the prospect to lead status, rotate
+  // to an available line for the next call, and advance to the next prospect.
   const handleNoConnect = async () => {
     if (!lead?.id) return;
     try {
       const newCount = (local.callCount || 0) + 1;
-      const updates = { callCount: newCount, lastCalledAt: new Date().toISOString(), lastCallResult: 'no_connect' };
+      const updates = {
+        callCount: newCount,
+        lastCalledAt: new Date().toISOString(),
+        lastCallResult: 'queued_no_connect',
+        status: 'lead',
+      };
       await base44.entities.FronterLead.update(lead.id, updates);
       setLocal(prev => ({ ...prev, ...updates }));
       onSave?.({ ...local, ...updates });
@@ -700,7 +717,7 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
             onClosedDeal={markClosedDeal}
             onNext={onNext}
             onClose={onClose}
-            onQA={() => { setShowQAPanel(p => !p); onOpenQA?.(); }}
+            onQA={() => { setQaPoppedOut(p => !p); onOpenQA?.(); }}
           />
         </div>
 
@@ -719,7 +736,7 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
             setCallStartTime(Date.now());
             setCardTab('script');
             setScriptPoppedOut(true);
-            setShowQAPanel(true);
+            setQaPoppedOut(true);
             onCallConnected?.(l);
             onOpenQA?.();
           }}
@@ -1000,21 +1017,19 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
         />
       )}
 
-      {/* Live Q&A floating panel — toggled by Q&A button or auto-opened on call connect */}
-      {showQAPanel && (
-        <div style={{ position: 'fixed', top: 80, right: 20, width: 720, height: 560, background: '#0d1b2a', border: '1px solid rgba(96,165,250,0.4)', borderRadius: '8px', boxShadow: '0 16px 64px rgba(0,0,0,0.85)', zIndex: 21000, display: 'flex', flexDirection: 'column', overflow: 'hidden', fontFamily: 'Georgia, serif' }}>
-          <div style={{ padding: '8px 14px', background: 'rgba(0,0,0,0.4)', borderBottom: '1px solid rgba(96,165,250,0.25)', display: 'flex', alignItems: 'center', gap: '10px', cursor: 'move', userSelect: 'none', flexShrink: 0 }}
-            onMouseDown={(e) => {
-              const startX = e.clientX, startY = e.clientY, startL = e.currentTarget.parentElement.offsetLeft, startT = e.currentTarget.parentElement.offsetTop;
-              const onMove = (ev) => { e.currentTarget.parentElement.style.left = (startL + ev.clientX - startX) + 'px'; e.currentTarget.parentElement.style.top = (startT + ev.clientY - startY) + 'px'; e.currentTarget.parentElement.style.right = 'auto'; };
-              const onUp = () => { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); };
-              document.addEventListener('mousemove', onMove);
-              document.addEventListener('mouseup', onUp);
-            }}>
-            <span style={{ color: BLUE, fontSize: '11px', fontWeight: 'bold', letterSpacing: '2px', textTransform: 'uppercase' }}>💬 Live Q&A</span>
-            {callActive && <span style={{ color: GOLD, fontSize: '10px' }}>· Call Active</span>}
-            <div style={{ flex: 1 }} />
-            <button onClick={() => setShowQAPanel(false)} style={{ background: 'rgba(239,68,68,0.15)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '4px', padding: '3px 11px', cursor: 'pointer', fontSize: '15px', fontWeight: 'bold', lineHeight: 1 }}>×</button>
+      {/* Q&A popout — draggable, resizable, not docked */}
+      {qaPoppedOut && (
+        <div style={{ position: 'fixed', left: qaPos.x, top: qaPos.y, width: qaSize.w, height: qaSize.h, background: '#0d1b2a', border: '1px solid rgba(96,165,250,0.4)', borderRadius: '8px', boxShadow: '0 16px 64px rgba(0,0,0,0.85)', zIndex: 21000, display: 'flex', flexDirection: 'column', overflow: 'hidden', fontFamily: 'Georgia, serif' }}>
+          <div onMouseDown={onQaDragStart} style={{ padding: '10px 14px', background: 'rgba(0,0,0,0.4)', borderBottom: '1px solid rgba(96,165,250,0.25)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'move', userSelect: 'none', flexShrink: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <span style={{ color: BLUE, fontSize: '11px', fontWeight: 'bold', letterSpacing: '2px', textTransform: 'uppercase' }}>💬 Q&A</span>
+              {callActive && <span style={{ color: GOLD, fontSize: '10px' }}>· Call Active</span>}
+            </div>
+            <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+              <button onClick={() => setQaSize(s => ({ ...s, w: Math.max(400, s.w - 50) }))} style={{ background: 'rgba(255,255,255,0.05)', color: '#6b7280', border: 'none', borderRadius: '3px', padding: '2px 8px', cursor: 'pointer', fontSize: '12px' }}>−</button>
+              <button onClick={() => setQaSize(s => ({ ...s, w: s.w + 50, h: s.h + 50 }))} style={{ background: 'rgba(255,255,255,0.05)', color: '#6b7280', border: 'none', borderRadius: '3px', padding: '2px 8px', cursor: 'pointer', fontSize: '12px' }}>+</button>
+              <button onClick={() => setQaPoppedOut(false)} style={{ background: 'none', border: 'none', color: '#6b7280', cursor: 'pointer', fontSize: '18px', padding: '0 4px' }}>×</button>
+            </div>
           </div>
           <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
             <FronterAIPanel
@@ -1026,6 +1041,14 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
               lead={local}
             />
           </div>
+          <div onMouseDown={(e) => {
+            e.stopPropagation();
+            const startX = e.clientX, startY = e.clientY, startW = qaSize.w, startH = qaSize.h;
+            const onMove = (ev) => setQaSize({ w: Math.max(400, startW + ev.clientX - startX), h: Math.max(300, startH + ev.clientY - startY) });
+            const onUp = () => { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); };
+            document.addEventListener('mousemove', onMove);
+            document.addEventListener('mouseup', onUp);
+          }} style={{ position: 'absolute', bottom: 0, right: 0, width: '16px', height: '16px', cursor: 'nwse-resize', color: '#4a5568', textAlign: 'right', paddingRight: '2px' }}>⌟</div>
         </div>
       )}
     </>

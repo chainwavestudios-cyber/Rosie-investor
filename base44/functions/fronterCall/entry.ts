@@ -335,6 +335,19 @@ Deno.serve(async (req) => {
       return Response.json({ ok: true });
     }
 
+    // ── CANCEL AGENT CALL: cancel the agent's outbound call without touching the conference ──
+    if (action === 'cancelAgentCall') {
+      const { agentCallSid } = body;
+      if (!agentCallSid) return Response.json({ error: 'agentCallSid required' }, { status: 400 });
+      try {
+        await twilioFetch(`/Calls/${agentCallSid}.json`, {
+          method: 'POST',
+          body: new URLSearchParams({ Status: 'completed' }),
+        });
+      } catch (e) { console.warn('Cancel agent call failed:', e.message); }
+      return Response.json({ ok: true });
+    }
+
     // ── HOLD: convert 1:1 call → conference, hold the customer ──
     if (action === 'hold') {
       const { fronterCallSid, lineKey } = body;
