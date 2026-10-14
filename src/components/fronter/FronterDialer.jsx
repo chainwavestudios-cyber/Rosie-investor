@@ -54,6 +54,44 @@ export default function FronterDialer({ lead, username, lineKey, lineNumber, onC
   const saveIntervalRef = useRef(null);
   const mergeStepRef = useRef('idle');
   const conferenceNameRef = useRef('');
+  const ringbackRef = useRef(null);
+  const ringbackTimersRef = useRef([]);
+
+  // ── Ringback tone (US pattern: 440Hz + 480Hz, 2s on / 4s off) ──
+  const startRingback = () => {
+    stopRingback();
+    try {
+      const ctx = new AudioContext();
+      const osc1 = ctx.createOscillator();
+      const osc2 = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc1.frequency.value = 440;
+      osc2.frequency.value = 480;
+      gain.gain.value = 0;
+      osc1.connect(gain);
+      osc2.connect(gain);
+      gain.connect(ctx.destination);
+      osc1.start();
+      osc2.start();
+      ringbackRef.current = { ctx, osc1, osc2, gain };
+      const playCycle = () => {
+        if (!ringbackRef.current) return;
+        const { ctx, gain } = ringbackRef.current;
+        gain.gain.setValueAtTime(0.15, ctx.currentTime);
+        gain.gain.setValueAtTime(0, ctx.currentTime + 2);
+        ringbackTimersRef.current.push(setTimeout(playCycle, 6000));
+      };
+      playCycle();
+    } catch {}
+  };
+  const stopRingback = () => {
+    ringbackTimersRef.current.forEach(t => clearTimeout(t));
+    ringbackTimersRef.current = [];
+    if (ringbackRef.current) {
+      try { ringbackRef.current.osc1.stop(); ringbackRef.current.osc2.stop(); ringbackRef.current.ctx.close(); } catch {}
+      ringbackRef.current = null;
+    }
+  };
 
   const deepgram = useFronterDeepgram();
   const { runFiller: runContactFiller } = useAIContactFiller({ leadId: lead?.id, leadType: 'fronter', transcript: deepgram.lines, isActive: callStatus === 'connected' });
@@ -80,6 +118,7 @@ export default function FronterDialer({ lead, username, lineKey, lineNumber, onC
 
   useEffect(() => () => {
     stopTimer();
+    stopRingback();
     if (saveIntervalRef.current) clearInterval(saveIntervalRef.current);
     try { callRef.current?.disconnect(); } catch {}
     try { deviceRef.current?.destroy(); } catch {}
@@ -178,8 +217,9 @@ Provide your analysis as JSON with these fields:
   };
 
   const wireCall = (call) => {
-    call.on('ringing', () => setCallStatus('ringing'));
+    call.on('ringing', () => { setCallStatus('ringing'); startRingback(); });
     call.on('accept', async () => {
+      stopRingback();
       setCallStatus('connected');
       startTimer();
 
@@ -191,9 +231,21 @@ Provide your analysis as JSON with these fields:
 
       // Start Deepgram transcription
       const micDeviceId = localStorage.getItem('fronter_mic_device') || '';
-      // Pass the customer's call audio so their side is transcribed too (Q&A listens to the customer)
+      // Pass the customer's call audio so their side is transcribed too.
+      // The remote stream may not be established the instant `accept` fires,
+      // so retry briefly until it has audio tracks.
       let remoteStream = null;
-      try { remoteStream = call.getRemoteStream?.() || null; } catch {}
+      try {
+        for (let i = 0; i < 6; i++) {
+          remoteStream = call.getRemoteStream?.() || null;
+          if (remoteStream && remoteStream.getAudioTracks().length > 0) break;
+          await new Promise(r => setTimeout(r, 300));
+        }
+        if (!remoteStream || remoteStream.getAudioTracks().length === 0) {
+          console.warn('Fronter transcription: no remote call audio after retries — customer will not be transcribed');
+          remoteStream = null;
+        }
+      } catch { remoteStream = null; }
       deepgram.start(micDeviceId, remoteStream).then(() => {
         setTranscriptLineCount(0);
       }).catch(e => console.error('Deepgram start failed:', e));
@@ -246,6 +298,7 @@ Provide your analysis as JSON with these fields:
       } catch (e) { console.error('Transcript record creation failed:', e); }
     });
     call.on('disconnect', async () => {
+      stopRingback();
       // Auto-connect merge if fronter disconnects during connected phase
       if (mergeStepRef.current === 'connected' && conferenceNameRef.current) {
         try { await base44.functions.invoke('fronterCall', { action: 'mergeConnect', conferenceName: conferenceNameRef.current, fronterCallSid: callRef.current?.parameters?.CallSid }); } catch {}
@@ -301,12 +354,14 @@ Provide your analysis as JSON with these fields:
       transcriptIdRef.current = null;
     });
     call.on('cancel', () => {
+      stopRingback();
       stopTimer();
       if (saveIntervalRef.current) { clearInterval(saveIntervalRef.current); saveIntervalRef.current = null; }
       deepgram.stop();
       setCallStatus('idle'); onCallEnded?.();
     });
     call.on('error', (e) => {
+      stopRingback();
       setError(e.message); stopTimer();
       if (saveIntervalRef.current) { clearInterval(saveIntervalRef.current); saveIntervalRef.current = null; }
       deepgram.stop();
@@ -347,6 +402,7 @@ Provide your analysis as JSON with these fields:
     setMuted(prev => {
       const next = !prev;
       try { callRef.current?.mute(next); } catch {}
+      deepgram.setMicMuted(next);
       return next;
     });
   };

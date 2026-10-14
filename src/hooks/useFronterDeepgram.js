@@ -16,6 +16,7 @@ export function useFronterDeepgram() {
   const audioCtxRef = useRef(null);
   const nodesRef = useRef([]);
   const linesRef = useRef([]);
+  const micGainRef = useRef(null);
 
   // Pipe one MediaStream into its own Deepgram socket, tagging every line with `speaker`
   const openSource = (audioCtx, stream, token, speaker) => {
@@ -24,7 +25,17 @@ export function useFronterDeepgram() {
     // Silent gain node — processor must reach a destination to fire, without playing audio
     const silentGain = audioCtx.createGain();
     silentGain.gain.value = 0;
-    nodesRef.current.push(source, processor, silentGain);
+    // For the mic (speaker 0), insert a muteable gain node so toggleMute can
+    // silence the mic feed to Deepgram independently of Twilio's own mute.
+    let micGain = null;
+    if (speaker === 0) {
+      micGain = audioCtx.createGain();
+      micGain.gain.value = 1;
+      micGainRef.current = micGain;
+      nodesRef.current.push(source, micGain, processor, silentGain);
+    } else {
+      nodesRef.current.push(source, processor, silentGain);
+    }
 
     const params = new URLSearchParams({
       model: 'nova-3',
@@ -39,7 +50,12 @@ export function useFronterDeepgram() {
 
     ws.onopen = () => {
       setConnected(true);
-      source.connect(processor);
+      if (micGain) {
+        source.connect(micGain);
+        micGain.connect(processor);
+      } else {
+        source.connect(processor);
+      }
       processor.connect(silentGain);
       silentGain.connect(audioCtx.destination);
       processor.onaudioprocess = (e) => {
@@ -98,9 +114,15 @@ export function useFronterDeepgram() {
     socketsRef.current = [];
     nodesRef.current.forEach(n => { try { n.disconnect(); } catch {} });
     nodesRef.current = [];
+    micGainRef.current = null;
     if (streamRef.current) { streamRef.current.getTracks().forEach(t => t.stop()); streamRef.current = null; }
     if (audioCtxRef.current) { try { audioCtxRef.current.close(); } catch {} audioCtxRef.current = null; }
     setConnected(false);
+  }, []);
+
+  // Mute/unmute the mic feed to Deepgram (independent of Twilio's call mute)
+  const setMicMuted = useCallback((muted) => {
+    if (micGainRef.current) micGainRef.current.gain.value = muted ? 0 : 1;
   }, []);
 
   const getLines = useCallback(() => linesRef.current, []);
@@ -108,5 +130,5 @@ export function useFronterDeepgram() {
 
   useEffect(() => () => stop(), [stop]);
 
-  return { lines, connected, start, stop, getLines, clear };
+  return { lines, connected, start, stop, getLines, clear, setMicMuted };
 }
