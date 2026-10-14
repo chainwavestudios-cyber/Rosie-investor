@@ -31,6 +31,7 @@ import ClientProfileModal from '@/components/debt/ClientProfileModal';
 import CreditAlertPopup from '@/components/debt/CreditAlertPopup';
 import UpcomingCallEventsPopup from '@/components/debt/UpcomingCallEventsPopup';
 import DealMonitorPopout from '@/components/debt/DealMonitorPopout';
+import HeatMapPopout from '@/components/debt/HeatMapPopout';
 import PipelineTab from '@/components/debt/PipelineTab';
 import MeetingAlertPopup from '@/components/debt/MeetingAlertPopup';
 
@@ -48,6 +49,7 @@ export default function DebtCallCoach() {
   const [showCompliance, setShowCompliance] = useState(false);
   const [liveCallActive, setLiveCallActive] = useState(false);
   const [dealMonitorVisible, setDealMonitorVisible] = useState(false);
+  const [heatMapVisible, setHeatMapVisible] = useState(false);
   const [pipelineLead, setPipelineLead] = useState(null);
 
   // Alt+D hotkey → toggle Deal Monitor popout
@@ -56,6 +58,10 @@ export default function DebtCallCoach() {
       if (e.altKey && (e.key === 'd' || e.key === 'D')) {
         e.preventDefault();
         setDealMonitorVisible(prev => !prev);
+      }
+      if (e.altKey && (e.key === 'h' || e.key === 'H')) {
+        e.preventDefault();
+        setHeatMapVisible(prev => !prev);
       }
     };
     window.addEventListener('keydown', handler);
@@ -173,6 +179,9 @@ export default function DebtCallCoach() {
 
       {/* Alt+D Deal Monitor — floating popout, not docked */}
       <DealMonitorPopout visible={dealMonitorVisible} username={user?.username} onOpenLead={(lead) => setPipelineLead(lead)} onClose={() => setDealMonitorVisible(false)} />
+
+      {/* Alt+H Heat Map — floating popout showing deal distribution */}
+      <HeatMapPopout visible={heatMapVisible} username={user?.username} onOpenLead={(lead) => setPipelineLead(lead)} onClose={() => setHeatMapVisible(false)} />
 
       {/* Meeting alert — 5 min before a meeting, popup with audible tone */}
       <MeetingAlertPopup />

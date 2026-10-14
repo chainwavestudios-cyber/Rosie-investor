@@ -67,6 +67,7 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
   const [showClosedDealCelebration, setShowClosedDealCelebration] = useState(false);
   const [liveTranscript, setLiveTranscript] = useState([]);
   const [showQAPanel, setShowQAPanel] = useState(false);
+  const [scriptFullscreen, setScriptFullscreen] = useState(false);
 
   useEffect(() => {
     setLocal(lead || {});
@@ -278,12 +279,35 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
   const animalEmoji = local.status === 'closed_deal' ? '💎' : local.status === 'booked' ? '📗' : local.status === 'transferred' ? '🦄' : local.status === 'lead' ? '🐄' : '🦆';
 
   const outerStyle = embedded
-    ? { flex: 1, display: 'flex', flexDirection: 'column', width: '100%', height: '100%', background: '#0d1b2a', border: `1px solid ${leadTypeColor}33`, borderRadius: '6px', overflow: 'hidden' }
+    ? { position: 'relative', flex: 1, display: 'flex', flexDirection: 'column', width: '100%', height: '100%', background: '#0d1b2a', border: `1px solid ${leadTypeColor}33`, borderRadius: '6px', overflow: 'hidden' }
     : { position: 'fixed', left: pos.x, top: pos.y, width: size.w, height: size.h, background: '#0d1b2a', border: `2px solid ${leadTypeColor}55`, borderRadius: '10px', boxShadow: '0 20px 60px rgba(0,0,0,0.7)', zIndex: 10000, display: 'flex', flexDirection: 'column' };
 
   return (
     <>
       <div style={outerStyle}>
+        {/* Fullscreen script overlay — script + checklist fill the entire card */}
+        {scriptFullscreen && (
+          <div style={{ position: 'absolute', inset: 0, background: '#0d1b2a', borderRadius: embedded ? '6px' : '10px', display: 'flex', flexDirection: 'column', zIndex: 200 }}>
+            <div style={{ padding: '8px 14px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0, background: 'linear-gradient(135deg, rgba(16,185,129,0.08), transparent)' }}>
+              <span style={{ color: GOLD, fontSize: '11px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase' }}>📜 Fullscreen Script + ✅ Checklist</span>
+              <button onClick={() => setScriptFullscreen(false)} style={{ background: `${GOLD}18`, color: GOLD, border: `1px solid ${GOLD}44`, borderRadius: '4px', padding: '4px 12px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>⛶ Exit Fullscreen</button>
+            </div>
+            <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
+              <div style={{ flex: 3, borderRight: '1px solid rgba(255,255,255,0.07)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+                {scriptContent}
+              </div>
+              <div style={{ flex: 2, overflowY: 'auto', padding: '8px' }}>
+                <FronterLeadConfirmedChecklist
+                  lead={local}
+                  username={username}
+                  embedded
+                  onAllComplete={() => {}}
+                  onEmailCreds={() => setShowCredsPopup(true)}
+                />
+              </div>
+            </div>
+          </div>
+        )}
         {/* Lead type banner */}
         <div style={{ padding: '6px 18px', background: `${leadTypeColor}18`, borderBottom: `1px solid ${leadTypeColor}33`, display: 'flex', justifyContent: 'center', alignItems: 'center', flexShrink: 0 }}>
           <span style={{ color: leadTypeColor, fontSize: '11px', fontWeight: 'bold', letterSpacing: '3px', textTransform: 'uppercase' }}>● {leadTypeLabel} ●</span>
@@ -468,7 +492,10 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
                 <>
                   <div style={{ padding: '8px 16px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <span style={{ color: GOLD, fontSize: '10px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase' }}>📜 Scripts</span>
-                    <button onClick={() => setScriptPoppedOut(true)} style={{ background: `${GOLD}18`, color: GOLD, border: `1px solid ${GOLD}44`, borderRadius: '4px', padding: '4px 10px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>↗ Pop Out</button>
+                    <div style={{ display: 'flex', gap: '6px' }}>
+                      <button onClick={() => setScriptFullscreen(true)} style={{ background: `${GOLD}18`, color: GOLD, border: `1px solid ${GOLD}44`, borderRadius: '4px', padding: '4px 10px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>⛶ Fullscreen</button>
+                      <button onClick={() => setScriptPoppedOut(true)} style={{ background: `${GOLD}18`, color: GOLD, border: `1px solid ${GOLD}44`, borderRadius: '4px', padding: '4px 10px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>↗ Pop Out</button>
+                    </div>
                   </div>
                   {scriptContent}
                 </>
