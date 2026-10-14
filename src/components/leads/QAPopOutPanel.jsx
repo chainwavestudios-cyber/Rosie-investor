@@ -5,7 +5,6 @@
  * Coach and Intent stay in the main AIAssistantPopup.
  */
 import { useState, useRef, useEffect } from 'react';
-import { useDebtCoachValue } from '@/lib/debtCoachStorage';
 import { QASection } from './AIAssistantPopup';
 
 export default function QAPopOutPanel({
@@ -13,42 +12,17 @@ export default function QAPopOutPanel({
   qaActive, onToggleQA, portalCfg, manualQ, setManualQ,
   onClose, aiPanelItem, setAiPanelItem, rightPanelWidth, setRightPanelWidth,
   username = null,
+  initialLayout = null,
+  layoutRef = null,
+  onSave = null,
 }) {
-  // DB-backed layout storage (Debt Call Coach) — falls back to localStorage (admin panel)
-  const [dbSaved, setDbSaved, dbLoaded] = useDebtCoachValue(username, 'popout_qa_popup', null);
-  const lsSaved = (!username && typeof window !== 'undefined') ? (() => { try { return JSON.parse(localStorage.getItem('qaPopOutSize')); } catch { return null; } })() : null;
+  const [pos, setPos] = useState(initialLayout ? { x: initialLayout.x, y: initialLayout.y } : { x: 30, y: 80 });
+  const [size, setSize] = useState(initialLayout ? { w: initialLayout.w, h: initialLayout.h } : { w: 700, h: 600 });
 
-  const [pos, setPos] = useState({ x: 30, y: 80 });
-  const [size, setSize] = useState({ w: 700, h: 600 });
-
-  // Load from localStorage (admin panel — no username)
+  // Report current layout to parent ref (no re-render)
   useEffect(() => {
-    if (username || !lsSaved) return;
-    if (lsSaved.x !== undefined) setPos({ x: lsSaved.x, y: lsSaved.y });
-    if (lsSaved.w) setSize({ w: lsSaved.w, h: lsSaved.h });
-  }, [username]);
-
-  // Load from DB (Debt Call Coach)
-  const lastAppliedSig = useRef('');
-  useEffect(() => {
-    if (!username || !dbLoaded || !dbSaved) return;
-    const sig = JSON.stringify(dbSaved);
-    if (sig === lastAppliedSig.current) return;
-    lastAppliedSig.current = sig;
-    if (dbSaved.x !== undefined) setPos({ x: dbSaved.x, y: dbSaved.y });
-    if (dbSaved.w) setSize({ w: dbSaved.w, h: dbSaved.h });
-  }, [username, dbLoaded, dbSaved]);
-
-  // Auto-save to DB
-  useEffect(() => {
-    if (!username || !dbLoaded) return;
-    const next = { x: pos.x, y: pos.y, w: size.w, h: size.h };
-    const sig = JSON.stringify(next);
-    if (sig === lastAppliedSig.current) return; // nothing changed — don't write
-    // Mark our own write as applied so the load effect doesn't bounce it back (prevents ping-pong loop)
-    lastAppliedSig.current = sig;
-    setDbSaved(next);
-  }, [pos, size, username, dbLoaded]);
+    if (layoutRef) layoutRef.current = { x: pos.x, y: pos.y, w: size.w, h: size.h };
+  }, [pos, size, layoutRef]);
 
   const dragging = useRef(false);
   const dragStart = useRef({ mx: 0, my: 0, px: 0, py: 0 });
@@ -97,11 +71,7 @@ export default function QAPopOutPanel({
   };
 
   const saveSize = () => {
-    if (username) {
-      setDbSaved({ x: pos.x, y: pos.y, w: size.w, h: size.h });
-    } else {
-      localStorage.setItem('qaPopOutSize', JSON.stringify({ x: pos.x, y: pos.y, w: size.w, h: size.h }));
-    }
+    if (onSave) onSave({ x: pos.x, y: pos.y, w: size.w, h: size.h });
   };
 
   const EDGE = { position: 'absolute', zIndex: 1 };

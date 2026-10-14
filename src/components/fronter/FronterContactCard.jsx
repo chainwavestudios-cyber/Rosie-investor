@@ -24,6 +24,7 @@ import FronterTranscriptPopout from './FronterTranscriptPopout';
 import AIPopulateTab from '@/components/shared/AIPopulateTab';
 import PhoneVerifyBadge from './PhoneVerifyBadge';
 import DebtBadge from './DebtBadge';
+import { loadFronterLayout, saveFronterLayout } from '@/lib/fronterPopoutLayout';
 
 const GOLD = '#10b981';
 const DARK = '#0a0f1e';
@@ -54,12 +55,13 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
   const [scripts, setScripts] = useState([]);
   const [activeScript, setActiveScript] = useState(null);
   const [scriptPoppedOut, setScriptPoppedOut] = useState(false);
-  const [scriptPos, setScriptPos] = useState(() => {
-    try { const s = JSON.parse(localStorage.getItem('fronter_script_popout_pos') || '{}'); return { x: s.x ?? 660, y: s.y ?? 80 }; } catch { return { x: 660, y: 80 }; }
-  });
-  const [scriptSize, setScriptSize] = useState(() => {
-    try { const s = JSON.parse(localStorage.getItem('fronter_script_popout_size') || '{}'); return { w: s.w ?? 800, h: s.h ?? 500 }; } catch { return { w: 800, h: 500 }; }
-  });
+  const savedLayoutRef = useRef(loadFronterLayout(username));
+  const [scriptPos, setScriptPos] = useState(() => ({ x: savedLayoutRef.current.script.x, y: savedLayoutRef.current.script.y }));
+  const [scriptSize, setScriptSize] = useState(() => ({ w: savedLayoutRef.current.script.w, h: savedLayoutRef.current.script.h }));
+  const [callKey, setCallKey] = useState(0);
+  const [layoutSavedMsg, setLayoutSavedMsg] = useState(false);
+  const qaLayoutRef = useRef(null);
+  const transcriptLayoutRef = useRef(null);
   const [scriptSaveMsg, setScriptSaveMsg] = useState(false);
   const scriptDragRef = useRef(null);
   const transcriptScrollRef = useRef(null);
@@ -147,6 +149,26 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
     }, 1000);
     return () => clearInterval(interval);
   }, [callActive, callStartTime]);
+
+  // Alt-L (Windows/Linux) or Command-L (Mac) — save all popout layouts at once
+  useEffect(() => {
+    const onKey = (e) => {
+      if ((e.altKey || e.metaKey) && (e.key === 'l' || e.key === 'L')) {
+        e.preventDefault();
+        const layout = {
+          qa: qaLayoutRef.current || savedLayoutRef.current.qa,
+          script: { x: scriptPos.x, y: scriptPos.y, w: scriptSize.w, h: scriptSize.h },
+          transcript: transcriptLayoutRef.current || savedLayoutRef.current.transcript,
+        };
+        saveFronterLayout(username, layout);
+        savedLayoutRef.current = layout;
+        setLayoutSavedMsg(true);
+        setTimeout(() => setLayoutSavedMsg(false), 2000);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [username, scriptPos, scriptSize]);
 
   const onDragStart = (e) => {
     dragRef.current = { startX: e.clientX - pos.x, startY: e.clientY - pos.y };
@@ -709,6 +731,12 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
             setCallActive(true);
             setCallStartTime(Date.now());
             setCardTab('script');
+            // Restore saved layout for this call
+            const layout = loadFronterLayout(username);
+            savedLayoutRef.current = layout;
+            setScriptPos(layout.script);
+            setScriptSize({ w: layout.script.w, h: layout.script.h });
+            setCallKey(k => k + 1);
             setScriptPoppedOut(true);
             setQaPoppedOut(true);
             setTranscriptPoppedOut(true);
@@ -928,7 +956,7 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
             <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
               <button onClick={() => setScriptSize(s => ({ ...s, w: Math.max(300, s.w - 50) }))} style={{ background: 'rgba(255,255,255,0.05)', color: '#6b7280', border: 'none', borderRadius: '3px', padding: '2px 8px', cursor: 'pointer', fontSize: '12px' }}>−</button>
               <button onClick={() => setScriptSize(s => ({ ...s, w: s.w + 50, h: s.h + 50 }))} style={{ background: 'rgba(255,255,255,0.05)', color: '#6b7280', border: 'none', borderRadius: '3px', padding: '2px 8px', cursor: 'pointer', fontSize: '12px' }}>+</button>
-              <button onClick={() => { try { localStorage.setItem('fronter_script_popout_size', JSON.stringify(scriptSize)); localStorage.setItem('fronter_script_popout_pos', JSON.stringify(scriptPos)); } catch {} setScriptSaveMsg(true); setTimeout(() => setScriptSaveMsg(false), 2000); }} style={{ background: scriptSaveMsg ? 'rgba(74,222,128,0.15)' : 'rgba(255,255,255,0.05)', color: scriptSaveMsg ? '#4ade80' : '#6b7280', border: `1px solid ${scriptSaveMsg ? 'rgba(74,222,128,0.4)' : 'rgba(255,255,255,0.1)'}`, borderRadius: '3px', padding: '2px 10px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>{scriptSaveMsg ? '✓ Saved' : '📐 Save Size'}</button>
+              <button onClick={() => { const layout = loadFronterLayout(username); layout.script = { ...scriptPos, ...scriptSize }; saveFronterLayout(username, layout); savedLayoutRef.current = layout; setScriptSaveMsg(true); setTimeout(() => setScriptSaveMsg(false), 2000); }} style={{ background: scriptSaveMsg ? 'rgba(74,222,128,0.15)' : 'rgba(255,255,255,0.05)', color: scriptSaveMsg ? '#4ade80' : '#6b7280', border: `1px solid ${scriptSaveMsg ? 'rgba(74,222,128,0.4)' : 'rgba(255,255,255,0.1)'}`, borderRadius: '3px', padding: '2px 10px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>{scriptSaveMsg ? '✓ Saved' : '📐 Save Size'}</button>
               <button onClick={() => setScriptPoppedOut(false)} style={{ background: 'none', border: 'none', color: '#6b7280', cursor: 'pointer', fontSize: '18px', padding: '0 4px' }}>×</button>
             </div>
           </div>
@@ -1000,16 +1028,21 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
       {/* Transcript popout — narrow full-height window, auto-opens on call connect */}
       {transcriptPoppedOut && (
         <FronterTranscriptPopout
+          key={`transcript-${callKey}`}
           transcript={liveTranscript}
           callActive={callActive}
           callDuration={callDuration}
           onClose={() => setTranscriptPoppedOut(false)}
+          initialLayout={savedLayoutRef.current?.transcript}
+          layoutRef={transcriptLayoutRef}
+          onSave={(l) => { const layout = loadFronterLayout(username); layout.transcript = l; saveFronterLayout(username, layout); savedLayoutRef.current = layout; setLayoutSavedMsg(true); setTimeout(() => setLayoutSavedMsg(false), 2000); }}
         />
       )}
 
       {/* Q&A popout — standalone Q&A panel (no wrapper, no transcript sidebar) */}
       {qaPoppedOut && (
         <QAPopOutPanel
+          key={`qa-${callKey}`}
           transcript={qaNormalizedTranscript}
           transcriptRef={qaTranscriptRef}
           kbEntries={qaKbEntries}
@@ -1026,7 +1059,15 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
           rightPanelWidth={32}
           setRightPanelWidth={() => {}}
           username={username}
+          initialLayout={savedLayoutRef.current?.qa}
+          layoutRef={qaLayoutRef}
+          onSave={(l) => { const layout = loadFronterLayout(username); layout.qa = l; saveFronterLayout(username, layout); savedLayoutRef.current = layout; setLayoutSavedMsg(true); setTimeout(() => setLayoutSavedMsg(false), 2000); }}
         />
+      )}
+
+      {/* Layout saved confirmation toast */}
+      {layoutSavedMsg && (
+        <div style={{ position: 'fixed', bottom: '24px', left: '50%', transform: 'translateX(-50%)', background: 'rgba(16,185,129,0.15)', border: '1px solid rgba(16,185,129,0.4)', borderRadius: '8px', padding: '10px 24px', color: GOLD, fontSize: '13px', fontWeight: 'bold', zIndex: 50000, boxShadow: '0 8px 32px rgba(0,0,0,0.6)' }}>✓ Layout saved (Alt+L / ⌘L)</div>
       )}
     </>
   );

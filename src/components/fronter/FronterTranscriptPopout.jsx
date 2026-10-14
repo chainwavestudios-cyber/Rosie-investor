@@ -9,22 +9,13 @@ const GOLD = '#10b981';
 const BLUE = '#60a5fa';
 const DARK = '#0a0f1e';
 
-const STORAGE_KEY = 'fronter_transcript_popout_layout';
-
-function loadLayout() {
-  try {
-    const s = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
-    return {
-      pos: { x: s.x ?? 20, y: s.y ?? 20 },
-      size: { w: s.w ?? 340, h: s.h ?? (window.innerHeight - 40) },
-    };
-  } catch {
+export default function FronterTranscriptPopout({ transcript, callActive, callDuration, onClose, initialLayout = null, layoutRef = null, onSave = null }) {
+  const [layout, setLayout] = useState(() => {
+    if (initialLayout) {
+      return { pos: { x: initialLayout.x, y: initialLayout.y }, size: { w: initialLayout.w, h: initialLayout.h } };
+    }
     return { pos: { x: 20, y: 20 }, size: { w: 340, h: window.innerHeight - 40 } };
-  }
-}
-
-export default function FronterTranscriptPopout({ transcript, callActive, callDuration, onClose }) {
-  const [layout, setLayout] = useState(loadLayout);
+  });
   const [saveMsg, setSaveMsg] = useState(false);
   const dragRef = useRef(null);
   const resizeRef = useRef(null);
@@ -35,6 +26,11 @@ export default function FronterTranscriptPopout({ transcript, callActive, callDu
     if (!el) return;
     el.scrollTop = el.scrollHeight;
   }, [transcript?.length]);
+
+  // Report current layout to parent ref (no re-render)
+  useEffect(() => {
+    if (layoutRef) layoutRef.current = { ...layout.pos, ...layout.size };
+  }, [layout, layoutRef]);
 
   const onDragStart = (e) => {
     dragRef.current = { startX: e.clientX - layout.pos.x, startY: e.clientY - layout.pos.y };
@@ -67,11 +63,11 @@ export default function FronterTranscriptPopout({ transcript, callActive, callDu
   };
 
   const saveLayout = () => {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...layout.pos, ...layout.size }));
+    if (onSave) {
+      onSave({ ...layout.pos, ...layout.size });
       setSaveMsg(true);
       setTimeout(() => setSaveMsg(false), 2000);
-    } catch {}
+    }
   };
 
   const fmtDuration = (s) => `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, '0')}`;

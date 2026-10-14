@@ -20,11 +20,9 @@ import FronterCallCard from '@/components/fronter/FronterCallCard';
 import FronterHRTab from '@/components/fronter/FronterHRTab';
 import FronterHeadsUpPopup from '@/components/fronter/FronterHeadsUpPopup';
 import FronterFeedbackTab from '@/components/fronter/FronterFeedbackTab';
-import FronterChatBox from '@/components/fronter/FronterChatBox';
 import FronterOnboarding from '@/components/fronter/FronterOnboarding';
 import FronterClosedDealsTab from '@/components/fronter/FronterClosedDealsTab';
 import FronterCongratsPopup from '@/components/fronter/FronterCongratsPopup';
-import FronterChatroom from '@/components/fronter/FronterChatroom';
 import FronterEmergencyScript from '@/components/fronter/FronterEmergencyScript';
 import FronterAIAgentTab from '@/components/fronter/FronterAIAgentTab';
 import FronterEmailTrackingNotifications from '@/components/fronter/FronterEmailTrackingNotifications';
@@ -96,7 +94,6 @@ export default function FronterPage() {
   const [fronterKbEntries, setFronterKbEntries] = useState([]);
   const [showMonitor, setShowMonitor] = useState(false);
   const [monitorLead, setMonitorLead] = useState(null);
-  const [showChatroom, setShowChatroom] = useState(false);
   const [liveTranscript, setLiveTranscript] = useState([]);
   const [fronterStatus, setFronterStatus] = useState('dialing');
   const [agreementLoaded, setAgreementLoaded] = useState(false);
@@ -488,14 +485,6 @@ export default function FronterPage() {
       {/* Fronter Monitor — super admin only */}
       {showMonitor && isAdmin && (
         <FronterMonitorPanel onClose={() => setShowMonitor(false)} adminUsername={user?.username} onOpenLead={async (leadId) => { try { const lead = await base44.entities.FronterLead.get(leadId); setMonitorLead(lead); } catch {} }} />
-      )}
-
-      {/* Chat box — fronter chats with admin, admin chats with fronters */}
-      <FronterChatBox username={user?.username} role={isAdmin ? 'admin' : 'fronter'} adminUsername="chris" onOpenChatroom={() => setShowChatroom(true)} />
-
-      {/* Fronters Chatroom popup */}
-      {showChatroom && (
-        <FronterChatroom username={user?.username} role={isAdmin ? 'admin' : 'fronter'} onClose={() => setShowChatroom(false)} />
       )}
 
       {/* Emergency script — Alt+S */}
