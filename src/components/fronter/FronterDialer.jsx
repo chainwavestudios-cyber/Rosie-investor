@@ -10,6 +10,10 @@ import { base44 } from '@/api/base44Client';
 import { Device } from '@twilio/voice-sdk';
 import { useFronterDeepgram } from '@/hooks/useFronterDeepgram';
 import { useAIContactFiller } from '@/hooks/useAIContactFiller';
+import { useDebtCoachAuth } from '@/lib/DebtCoachAuthContext';
+import { checkCallCutoff } from '@/lib/phoneTimeZone';
+import CallCutoffOverride from '@/components/fronter/CallCutoffOverride';
+import callError from '@/components/fronter/callError';
 
 const GOLD = '#10b981';
 const DARK = '#0a0f1e';
@@ -19,6 +23,8 @@ const AMBER = '#f59e0b';
 const PURPLE = '#a78bfa';
 
 export default function FronterDialer({ lead, username, lineKey, lineNumber, onCallStarted, onCallEnded, onLeadCalled, autoDialTrigger = 0, onDial, onCallConnected, onTranscriptUpdate, embedded = false }) {
+  const { isSuperAdmin, sessionUserId, sessionToken } = useDebtCoachAuth();
+  const [overrideCutoff, setOverrideCutoff] = useState(false);
   const [callStatus, setCallStatus] = useState('idle');
   const [duration, setDuration] = useState(0);
   const [now, setNow] = useState(new Date());
@@ -313,17 +319,31 @@ Provide your analysis as JSON with these fields:
 
   const dial = async () => {
     if (!lead?.phone) { setError('No phone number'); return; }
+    const bypass = isSuperAdmin && overrideCutoff;
+    const cutoff = checkCallCutoff(lead.phone);
+    if (cutoff.blocked && !bypass) {
+      setError(`${cutoff.localTime} ${cutoff.tzLabel} — outside the 8am–8pm calling window.`);
+      return;
+    }
     setError(''); setCallStatus('calling'); setDuration(0); setMuted(false); setOnHold(false); setMerged(false); setConferenceName(''); setMergeStep('idle'); setSelectedMergeNumber('12162586934'); setCustomMergeNumber(''); setTranscriptLineCount(0);
-    onDial?.(lead);
     try {
+      let overrideToken = '';
+      if (bypass) {
+        const permission = await base44.functions.invoke('fronterClientToken', {
+          action: 'authorizeOverride', phone: lead.phone, sessionUserId, sessionToken,
+        });
+        overrideToken = permission.data?.overrideToken || '';
+        if (!overrideToken) throw new Error('Calling-hours override was not authorized.');
+      }
+      onDial?.(lead);
       const device = await getDevice();
       const digits = lead.phone.replace(/\D/g, '');
       const e164 = digits.length === 10 ? `+1${digits}` : digits.length === 11 && digits.startsWith('1') ? `+${digits}` : lead.phone;
-      const call = await device.connect({ params: { To: e164, CallerId: lineNumber } });
+      const call = await device.connect({ params: { To: e164, CallerId: lineNumber, ...(overrideToken ? { CallCutoffOverride: overrideToken } : {}) } });
       callRef.current = call;
       wireCall(call);
       onCallStarted?.(lead);
-    } catch (e) { setError(e.message || 'Call failed'); setCallStatus('idle'); }
+    } catch (e) { setError(callError(e)); setCallStatus('idle'); }
   };
 
   const toggleMute = () => {
@@ -478,6 +498,8 @@ Provide your analysis as JSON with these fields:
           </div>
         </div>
       )}
+
+      <CallCutoffOverride enabled={isSuperAdmin && overrideCutoff} onChange={setOverrideCutoff} disabled={isActive} buttonStyle={ctrlBtn(AMBER, isSuperAdmin && overrideCutoff)} />
 
       {/* Controls */}
       <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>

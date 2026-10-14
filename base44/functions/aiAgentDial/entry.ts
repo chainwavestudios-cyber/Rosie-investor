@@ -14,7 +14,7 @@ import { checkCallCutoff, getTzLabel } from '../../shared/phoneTimeZone.ts';
 
 const BASE_URL = 'https://rosieai-investorpage.base44.app';
 
-Deno.serve(async (req) => {
+export default async function(req) {
   try {
     const base44 = createClientFromRequest(req);
     const contentType = req.headers.get('content-type') || '';
@@ -33,6 +33,9 @@ Deno.serve(async (req) => {
     if (action === 'startDial') {
       const { phone, firstName, lastName, city, state, debtAmount, leadId, adminUsername, overrideCutoff } = body;
       if (!phone) return Response.json({ error: 'phone required' }, { status: 400 });
+      if (!/^\+[1-9]\d{7,14}$/.test(toE164(String(phone)))) {
+        return Response.json({ error: 'Enter a valid phone number, including the country code for numbers outside the US.' }, { status: 400 });
+      }
 
       // ── 8pm local-time cutoff: no calls past 7:59pm in the recipient's tz ──
       // overrideCutoff lets admins bypass for test calls to their own number
@@ -154,6 +157,7 @@ Deno.serve(async (req) => {
     return Response.json({ error: 'Unknown action' }, { status: 400 });
   } catch (error) {
     console.error('[aiAgentDial] Error:', error.message);
-    return Response.json({ error: error.message }, { status: 500 });
+    const status = error.status >= 400 && error.status < 500 ? error.status : 500;
+    return Response.json({ error: error.message, twilioCode: error.twilioCode || null }, { status });
   }
-});
+}

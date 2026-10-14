@@ -7,6 +7,7 @@
 import { useState, useRef, useCallback } from 'react';
 import { base44 } from '@/api/base44Client';
 import { checkCallCutoff, getTzLabel, getLocalTimeString } from '@/lib/phoneTimeZone';
+import callError from '@/components/fronter/callError';
 
 const GOLD = '#10b981';
 const DARK = '#0a0f1e';
@@ -103,9 +104,9 @@ export default function AIAgentDialer({ adminUsername }) {
         }]);
       } else {
         setError(data?.error || 'Dial failed');
+        setStatus('');
       }
-    } catch (e) { setError('Dial failed: ' + (e?.message || String(e))); }
-    setStatus('');
+    } catch (e) { setError('Dial failed: ' + callError(e)); setStatus(''); }
   };
 
   // ── Sequential dialing ──
@@ -147,7 +148,7 @@ export default function AIAgentDialer({ adminUsername }) {
           setQueue(prev => prev.map((q, idx) => idx === i ? { ...q, status: 'failed', error: data?.error || 'Unknown' } : q));
         }
       } catch (e) {
-        setQueue(prev => prev.map((q, idx) => idx === i ? { ...q, status: 'failed', error: e?.message || String(e) } : q));
+        setQueue(prev => prev.map((q, idx) => idx === i ? { ...q, status: 'failed', error: callError(e) } : q));
       }
 
       // Wait between calls to avoid rate limits (5 seconds)
@@ -278,6 +279,7 @@ export default function AIAgentDialer({ adminUsername }) {
                   <span style={{ color: '#60a5fa', fontSize: '10px', marginLeft: '6px' }}>{tzLabel} {localTime}</span>
                   {q.city && <span style={{ color: '#4a5568', fontSize: '10px', marginLeft: '6px' }}>{q.city}, {q.state}</span>}
                   {q.debtAmount > 0 && <span style={{ color: '#4a5568', fontSize: '10px', marginLeft: '6px' }}>${q.debtAmount.toLocaleString()}</span>}
+                  {q.error && <div style={{ color: RED, fontSize: '11px', marginTop: '4px' }}>{q.error}</div>}
                 </div>
                 <span style={{ color: statusColor, fontSize: '10px', fontWeight: 'bold', textTransform: 'uppercase' }}>
                   {q.status === 'dialed' ? '✓ Dialed' : q.status === 'dialing' ? '⏳ Dialing…' : q.status === 'failed' ? '✗ Failed' : q.status === 'blocked' ? '🚫 Past 8pm' : '○ Pending'}

@@ -11,6 +11,8 @@
  * not just calls that go to voicemail.
  */
 import { xmlEscape } from '../../shared/twilioHelpers.ts';
+import { checkCallCutoff } from '../../shared/phoneTimeZone.ts';
+import { verifyCallCutoffOverride } from '../../shared/callCutoffOverride.ts';
 
 export default async function(req) {
   // ── Always return valid TwiML — never let Twilio see a 5xx ──────────
@@ -22,6 +24,7 @@ export default async function(req) {
     let callerIdParam  = url.searchParams.get('CallerId')       || '';
     let direction      = url.searchParams.get('Direction')      || '';
     let called         = url.searchParams.get('Called')         || '';
+    let overrideToken  = url.searchParams.get('CallCutoffOverride') || '';
 
     if (req.method === 'POST') {
       try {
@@ -32,6 +35,7 @@ export default async function(req) {
         callerIdParam  = callerIdParam  || params.get('CallerId')       || '';
         direction      = direction      || params.get('Direction')      || '';
         called         = called         || params.get('Called')         || '';
+        overrideToken  = overrideToken  || params.get('CallCutoffOverride') || '';
       } catch {}
     }
 
@@ -132,6 +136,10 @@ export default async function(req) {
           { headers: { 'Content-Type': 'text/xml' } }
         );
       }
+      const cutoff = checkCallCutoff(to);
+      if (cutoff.blocked && !await verifyCallCutoffOverride(overrideToken, to)) {
+        return new Response('<?xml version="1.0" encoding="UTF-8"?><Response><Say>Calls are allowed only between 8 AM and 8 PM in the recipient time zone.</Say><Hangup/></Response>', { headers: { 'Content-Type': 'text/xml' } });
+      }
       const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Dial callerId="${callerId}" timeout="30" action="${vmWebhookBase}?noAnswer=true" method="POST">
@@ -155,9 +163,9 @@ export default async function(req) {
 <Response>
   <Dial timeout="20"
     action="${vmWebhookBase}?noAnswer=true" method="POST"
-    statusCallback="${xmlEscape(statusCallbackUrl)}" statusCallbackMethod="POST"
-    statusCallbackEvent="initiated ringing answered completed">
-    <Client>agent</Client>
+    >
+    <Client statusCallback="${xmlEscape(statusCallbackUrl)}" statusCallbackMethod="POST"
+      statusCallbackEvent="initiated ringing answered completed">agent</Client>
   </Dial>
 </Response>`;
     console.log('[dialerVoiceHandler] → Mode 4 Inbound → routing to browser client (to:', to, 'called:', called, ')');

@@ -34,7 +34,12 @@ export async function twilioFetch(path: string, opts: RequestInit = {}): Promise
     },
   });
   const data = await res.json();
-  if (!res.ok) throw new Error(data.message || `Twilio error ${res.status}`);
+  if (!res.ok) {
+    const error = new Error(data.message || `Twilio error ${res.status}`);
+    error.status = res.status;
+    error.twilioCode = data.code;
+    throw error;
+  }
   return data;
 }
 
