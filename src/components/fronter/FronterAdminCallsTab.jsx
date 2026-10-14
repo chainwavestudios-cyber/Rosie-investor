@@ -22,7 +22,7 @@ function fmtET(iso) {
   });
 }
 
-export default function FronterAdminCallsTab({ adminUsername, fronters }) {
+export default function FronterAdminCallsTab({ adminUsername, fronters, onOpenLead }) {
   const [calls, setCalls] = useState([]);
   const [loading, setLoading] = useState(true);
   const [playingId, setPlayingId] = useState(null);
@@ -57,19 +57,26 @@ export default function FronterAdminCallsTab({ adminUsername, fronters }) {
     return () => clearInterval(interval);
   }, [load]);
 
-  const playCall = (call) => {
+  const playCall = async (call) => {
     if (!call.recordingUrl) { alert('No recording available for this call.'); return; }
-    // Stop current audio if playing
-    if (audioRef.current) {
-      audioRef.current.pause();
-      audioRef.current = null;
-    }
-    const audio = new Audio(call.recordingUrl);
-    audioRef.current = audio;
-    audio.play();
+    if (playingId === call.id) { stopPlay(); return; }
+    if (audioRef.current) { audioRef.current.pause(); audioRef.current = null; }
     setPlayingId(call.id);
-    audio.onended = () => setPlayingId(null);
-    audio.onerror = () => { setPlayingId(null); alert('Failed to play recording.'); };
+    try {
+      let url = call.recordingUrl;
+      if (!url.startsWith('http')) {
+        const res = await base44.integrations.Core.CreateFileSignedUrl({ file_uri: url });
+        url = res?.signed_url || url;
+      }
+      const audio = new Audio(url);
+      audioRef.current = audio;
+      audio.play();
+      audio.onended = () => setPlayingId(null);
+      audio.onerror = () => { setPlayingId(null); alert('Failed to play recording.'); };
+    } catch (e) {
+      setPlayingId(null);
+      alert('Failed to load recording: ' + (e?.message || String(e)));
+    }
   };
 
   const stopPlay = () => {
@@ -129,14 +136,20 @@ export default function FronterAdminCallsTab({ adminUsername, fronters }) {
                     <td style={{ padding: '10px 12px' }}>
                       <span style={{ color: '#e8e0d0', fontSize: '13px', fontWeight: 'bold' }}>{call.fronterUsername}</span>
                     </td>
-                    <td style={{ padding: '10px 12px', color: '#c4cdd8', fontSize: '13px' }}>{call.leadName || '—'}</td>
+                    <td style={{ padding: '10px 12px' }}>
+                      {call.leadId && onOpenLead ? (
+                        <button onClick={() => onOpenLead(call.leadId)} style={{ background: 'none', border: 'none', color: GOLD, fontSize: '13px', cursor: 'pointer', padding: 0, textAlign: 'left', textDecoration: 'underline', textUnderlineOffset: '2px' }}>{call.leadName || '—'}</button>
+                      ) : (
+                        <span style={{ color: '#c4cdd8', fontSize: '13px' }}>{call.leadName || '—'}</span>
+                      )}
+                    </td>
                     <td style={{ padding: '10px 12px', color: GOLD, fontSize: '12px', fontFamily: 'monospace' }}>{fmtDuration(call.durationSeconds)}</td>
                     <td style={{ padding: '10px 12px' }}>
                       {call.recordingUrl ? (
                         playingId === call.id ? (
                           <button onClick={stopPlay} style={{ background: 'rgba(239,68,68,0.15)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '4px', padding: '4px 10px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>⏸ Stop</button>
                         ) : (
-                          <button onClick={() => playCall(call)} style={{ background: 'rgba(16,185,129,0.15)', color: GOLD, border: '1px solid rgba(16,185,129,0.3)', borderRadius: '4px', padding: '4px 10px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>▶ Play</button>
+                         <button onClick={() => playCall(call)} style={{ background: 'rgba(16,185,129,0.15)', color: GOLD, border: '1px solid rgba(16,185,129,0.3)', borderRadius: '4px', padding: '4px 10px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>▶ Play</button>
                         )
                       ) : (
                         <span style={{ color: '#4a5568', fontSize: '11px' }}>No recording</span>

@@ -24,6 +24,7 @@ import FronterTranscriptPopout from './FronterTranscriptPopout';
 import AIPopulateTab from '@/components/shared/AIPopulateTab';
 import PhoneVerifyBadge from './PhoneVerifyBadge';
 import DebtBadge from './DebtBadge';
+import FronterCallHistoryTab from './FronterCallHistoryTab';
 import { loadFronterLayout, saveFronterLayout } from '@/lib/fronterPopoutLayout';
 
 const GOLD = '#10b981';
@@ -773,6 +774,7 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
           <button onClick={() => setCardTab('contact')} style={{ padding: '8px 16px', background: 'none', border: 'none', borderBottom: `2px solid ${cardTab === 'contact' ? GOLD : 'transparent'}`, color: cardTab === 'contact' ? GOLD : '#6b7280', cursor: 'pointer', fontSize: '11px', fontWeight: cardTab === 'contact' ? 'bold' : 'normal' }}>📇 Contact</button>
           <button onClick={() => setCardTab('script')} style={{ padding: '8px 16px', background: 'none', border: 'none', borderBottom: `2px solid ${cardTab === 'script' ? GOLD : 'transparent'}`, color: cardTab === 'script' ? GOLD : '#6b7280', cursor: 'pointer', fontSize: '11px', fontWeight: cardTab === 'script' ? 'bold' : 'normal' }}>📜 Script</button>
           <button onClick={() => setCardTab('transcript')} style={{ padding: '8px 16px', background: 'none', border: 'none', borderBottom: `2px solid ${cardTab === 'transcript' ? '#60a5fa' : 'transparent'}`, color: cardTab === 'transcript' ? '#60a5fa' : '#6b7280', cursor: 'pointer', fontSize: '11px', fontWeight: cardTab === 'transcript' ? 'bold' : 'normal' }}>📝 Transcript {liveTranscript.length > 0 && <span style={{ fontSize: '10px' }}>({liveTranscript.length})</span>}</button>
+          <button onClick={() => setCardTab('call_history')} style={{ padding: '8px 16px', background: 'none', border: 'none', borderBottom: `2px solid ${cardTab === 'call_history' ? BLUE : 'transparent'}`, color: cardTab === 'call_history' ? BLUE : '#6b7280', cursor: 'pointer', fontSize: '11px', fontWeight: cardTab === 'call_history' ? 'bold' : 'normal' }}>📋 Transcripts</button>
           <button onClick={() => setCardTab('checklist')} style={{ padding: '8px 16px', background: 'none', border: 'none', borderBottom: `2px solid ${cardTab === 'checklist' ? GOLD : 'transparent'}`, color: cardTab === 'checklist' ? GOLD : '#6b7280', cursor: 'pointer', fontSize: '11px', fontWeight: cardTab === 'checklist' ? 'bold' : 'normal' }}>✅ Checklist</button>
           <button onClick={() => setCardTab('ai_populate')} style={{ padding: '8px 16px', background: 'none', border: 'none', borderBottom: `2px solid ${cardTab === 'ai_populate' ? '#a78bfa' : 'transparent'}`, color: cardTab === 'ai_populate' ? '#a78bfa' : '#6b7280', cursor: 'pointer', fontSize: '11px', fontWeight: cardTab === 'ai_populate' ? 'bold' : 'normal' }}>🤖 AI Populate</button>
         </div>
@@ -911,6 +913,10 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
                 })}
               </div>
             </div>
+          )}
+
+          {cardTab === 'call_history' && (
+            <FronterCallHistoryTab leadId={local?.id} />
           )}
 
           {cardTab === 'checklist' && (

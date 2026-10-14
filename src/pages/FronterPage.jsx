@@ -404,7 +404,7 @@ export default function FronterPage() {
 
       {/* Content */}
       <div style={{ padding: '20px 24px' }}>
-        {tab === 'admin' && isAdmin && <FronterAdminTab adminUsername={user.username} />}
+        {tab === 'admin' && isAdmin && <FronterAdminTab adminUsername={user.username} onOpenLead={async (leadId) => { try { const lead = await base44.entities.FronterLead.get(leadId); setMonitorLead(lead); } catch {} }} />}
 
         {tab === 'ai_agent' && isAdmin && <FronterAIAgentTab adminUsername={user.username} />}
 

@@ -29,7 +29,7 @@ const DARK = '#0a0f1e';
 const ls = { display: 'block', color: '#8a9ab8', fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '6px' };
 const inp = { width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '4px', padding: '8px 12px', color: '#e8e0d0', fontSize: '13px', outline: 'none', boxSizing: 'border-box', fontFamily: 'Georgia, serif' };
 
-export default function FronterAdminTab({ adminUsername }) {
+export default function FronterAdminTab({ adminUsername, onOpenLead }) {
   const [subtab, setSubtab] = useState('lines');
   const [fronters, setFronters] = useState([]);
   const [allUsers, setAllUsers] = useState([]);
@@ -382,7 +382,7 @@ export default function FronterAdminTab({ adminUsername }) {
 
       {/* ── CALLS (last 24h with recordings + comments) ── */}
       {subtab === 'calls' && !loading && (
-        <FronterAdminCallsTab adminUsername={adminUsername} fronters={fronters} />
+        <FronterAdminCallsTab adminUsername={adminUsername} fronters={fronters} onOpenLead={onOpenLead} />
       )}
 
       {/* ── CALL METRICS ── */}
