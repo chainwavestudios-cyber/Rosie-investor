@@ -1339,8 +1339,8 @@ ${recentText}`,
     const sr = ctx.sampleRate;
 
     const dgParams = dualMode
-      ? `model=nova-3&multichannel=true&smart_format=true&punctuate=true&numerals=true&sentiment=true&utterances=true&interim_results=true&channels=2&sample_rate=${sr}&encoding=linear16&endpointing=700&${DEBT_KEYTERMS}`
-      : `model=nova-3&diarize=true&smart_format=true&punctuate=true&numerals=true&sentiment=true&utterances=true&interim_results=true&sample_rate=${sr}&encoding=linear16&endpointing=700&${DEBT_KEYTERMS}`;
+      ? `model=nova-3&multichannel=true&smart_format=true&punctuate=true&numerals=true&sentiment=true&utterances=true&interim_results=true&channels=2&sample_rate=${sr}&encoding=linear16&endpointing=400&${DEBT_KEYTERMS}`
+      : `model=nova-3&diarize=true&smart_format=true&punctuate=true&numerals=true&sentiment=true&utterances=true&interim_results=true&sample_rate=${sr}&encoding=linear16&endpointing=400&${DEBT_KEYTERMS}`;
     let wsEverOpen = false;
     const ws = new WebSocket(`wss://api.deepgram.com/v1/listen?${dgParams}`, ['token', dgKey]);
     ws.binaryType = 'arraybuffer';
@@ -1469,7 +1469,7 @@ ${recentText}`,
           } else {
             // Show the accumulated text so far as a live preview
             updateInterimLine(speaker, b.text.trim());
-            b.timer = setTimeout(() => emitSegment(speaker), 2500); // safety flush
+            b.timer = setTimeout(() => emitSegment(speaker), 1500); // safety flush
           }
         } else {
           // Interim result — show live partial text (accumulated + current partial)
