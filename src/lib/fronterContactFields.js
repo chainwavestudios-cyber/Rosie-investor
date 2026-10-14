@@ -23,6 +23,7 @@ export const FRONTER_CONTACT_FIELDS = [
   { field: 'annualIncome',       label: 'Annual Income' },
   { field: 'debtAmount',         label: 'Total Debt Amount' },
   { field: 'debtTypesJson',      label: 'Debt Type' },
+  { field: 'debtAmountsJson',   label: 'Blended Debt Amounts (per-type)' },
   { field: 'hardshipQualification', label: 'Hardship' },
   { field: 'referralSource',    label: 'Lead Source' },
 ];

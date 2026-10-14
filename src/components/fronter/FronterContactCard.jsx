@@ -77,8 +77,6 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
   const [emailSent, setEmailSent] = useState(false);
   const [debtConfirming, setDebtConfirming] = useState(false);
   const [debtConfirmMsg, setDebtConfirmMsg] = useState('');
-  const [blendedDebtConfirming, setBlendedDebtConfirming] = useState(false);
-  const [blendedDebtConfirmMsg, setBlendedDebtConfirmMsg] = useState('');
   const [transferScript, setTransferScript] = useState('');
   const [aiInputRunning, setAiInputRunning] = useState(false);
   const [aiInputMsg, setAiInputMsg] = useState('');
@@ -365,10 +363,11 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
     setAiReviewing(false);
   };
 
-  // ── DebtConfirm: review transcript to confirm debt type + amount ──
-  // Looks for [[AI:debtAmount]] and [[AI:debtTypesJson]] tags in the script,
-  // extracts confirmed debt info from the transcript, and updates the
-  // contact card with the confirmed values + badges.
+  // ── DebtConfirm: review transcript to confirm debt type + total + per-type amounts ──
+  // Looks for [[AI:debtAmount]], [[AI:debtTypesJson]], and [[AI:debtAmountsJson]]
+  // tags in the script, extracts confirmed debt info from the transcript in one
+  // pass, and updates the contact card with the confirmed values + badges.
+  // Each badge shows its own per-type amount when a blended breakdown is available.
   const runDebtConfirm = async () => {
     if (debtConfirming) return;
     if (liveTranscript.length < 2) { alert('No transcript available. Start a call first.'); return; }
@@ -387,12 +386,20 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
           debtAmount: data.debtAmount,
           debtTypesJson: data.debtTypesJson || JSON.stringify(data.debtTypes),
         };
+        // Per-type blended amounts — each badge shows its own amount
+        const amounts = (() => { try { return JSON.parse(data.debtAmountsJson || '[]'); } catch { return []; } })();
+        if (amounts.length > 0) {
+          updates.debtAmountsJson = data.debtAmountsJson;
+        } else {
+          // No per-type breakdown — apply the total to each badge
+          updates.debtAmountsJson = JSON.stringify(data.debtTypes.map(t => ({ type: t, amount: data.debtAmount })));
+        }
         setLocal(prev => ({ ...prev, ...updates }));
         if (lead?.id) {
           await base44.entities.FronterLead.update(lead.id, updates);
         }
-        const typeLabels = data.debtTypes.join(' + ');
-        setDebtConfirmMsg(`✓ Debt Confirmed: ${typeLabels} — $${Number(data.debtAmount).toLocaleString()}`);
+        const parts = (JSON.parse(updates.debtAmountsJson) || []).map(a => `${a.type}: $${Number(a.amount).toLocaleString()}`);
+        setDebtConfirmMsg(`✓ ${parts.join(' · ')}`);
         // Add summary note
         if (data.summary && lead?.id) {
           const noteEntry = { text: `💰 Debt Confirm: ${data.summary}`, timestamp: new Date().toISOString(), author: 'AI', type: 'debt_confirm' };
@@ -406,58 +413,6 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
       alert('Debt Confirm failed: ' + (e?.message || String(e)));
     }
     setDebtConfirming(false);
-  };
-
-  // ── BlendedDebtConfirm: review transcript to confirm per-type debt amounts ──
-  // Activated by the @@BLENDED_DEBT_CONFIRM@@ script tag. Extracts the dollar
-  // amount for EACH debt type (e.g. $10k credit card, $5k unsecured loans)
-  // and applies them to the individual badge images + contact card.
-  const runBlendedDebtConfirm = async () => {
-    if (blendedDebtConfirming) return;
-    if (liveTranscript.length < 2) { alert('No transcript available. Start a call first.'); return; }
-    setBlendedDebtConfirming(true);
-    setBlendedDebtConfirmMsg('');
-    try {
-      const scriptContent = activeScript?.content || '';
-      const res = await base44.functions.invoke('debtConfirm', {
-        transcript: liveTranscript,
-        currentLeadData: local,
-        scriptContent,
-      });
-      const data = res?.data || res;
-      if (data?.confirmed) {
-        const updates = {};
-        if (data.debtAmount != null) updates.debtAmount = data.debtAmount;
-        if (data.debtTypesJson) updates.debtTypesJson = data.debtTypesJson;
-        if (data.debtAmountsJson) updates.debtAmountsJson = data.debtAmountsJson;
-        else if (data.debtAmount != null) {
-          // No per-type breakdown — build from total + types
-          const types = data.debtTypes || [];
-          if (types.length > 0) updates.debtAmountsJson = JSON.stringify(types.map(t => ({ type: t, amount: data.debtAmount })));
-        }
-        setLocal(prev => ({ ...prev, ...updates }));
-        if (lead?.id) {
-          await base44.entities.FronterLead.update(lead.id, updates);
-        }
-        const amounts = (() => { try { return JSON.parse(updates.debtAmountsJson || '[]'); } catch { return []; } })();
-        if (amounts.length > 0) {
-          const parts = amounts.map(a => `${a.type}: $${Number(a.amount).toLocaleString()}`);
-          setBlendedDebtConfirmMsg(`✓ Blended: ${parts.join(' · ')}`);
-          if (data.summary && lead?.id) {
-            const noteEntry = { text: `💎 Blended Debt Confirm: ${data.summary}`, timestamp: new Date().toISOString(), author: 'AI', type: 'blended_debt_confirm' };
-            await addNote(noteEntry);
-          }
-        } else {
-          setBlendedDebtConfirmMsg(`✓ Total confirmed: $${Number(data.debtAmount).toLocaleString()} (no per-type breakdown)`);
-        }
-      } else {
-        setBlendedDebtConfirmMsg(data?.message || 'Debt not yet confirmed — customer must state per-type amounts.');
-      }
-      setTimeout(() => setBlendedDebtConfirmMsg(''), 5000);
-    } catch (e) {
-      alert('Blended Debt Confirm failed: ' + (e?.message || String(e)));
-    }
-    setBlendedDebtConfirming(false);
   };
 
   // ── AI Input: summarize transcript so far into notes ──
@@ -527,14 +482,13 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
   const mainScriptPart = hasCompletedSteps ? substitutedScript.slice(0, completedStepsIdx) : substitutedScript;
   const remainingScriptPart = hasCompletedSteps ? substitutedScript.slice(completedStepsIdx + '@@COMPLETED_STEPS@@'.length).trim() : '';
   const hasDebtConfirm = substitutedScript.includes('@@DEBT_CONFIRM@@');
-  const hasBlendedDebtConfirm = substitutedScript.includes('@@BLENDED_DEBT_CONFIRM@@');
   const hasAiInput = substitutedScript.includes('@@AI_INPUT@@');
   const hasSendEmail = substitutedScript.includes('@@SEND_EMAIL@@');
   const hasAiTags = /\[\[AI:\w+\]\]/i.test(rawScript);
 
   // Split main script at all interactive markers for inline button rendering.
   // The capturing group includes the marker name in the result array.
-  const interactiveSegments = mainScriptPart.split(/@@(DEBT_CONFIRM|BLENDED_DEBT_CONFIRM|AI_INPUT|SEND_EMAIL)@@/);
+  const interactiveSegments = mainScriptPart.split(/@@(DEBT_CONFIRM|AI_INPUT|SEND_EMAIL)@@/);
 
   const scriptContent = (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
@@ -561,20 +515,6 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
                     >
                       {debtConfirming ? '⏳ Confirming…' : '💰 Confirm Debt'}
                     </button>
-                  </div>
-                );
-              }
-              if (seg === 'BLENDED_DEBT_CONFIRM') {
-                return (
-                  <div key={i} style={{ margin: '12px 0', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
-                    <button
-                      onClick={runBlendedDebtConfirm}
-                      disabled={blendedDebtConfirming}
-                      style={{ background: 'rgba(34,211,238,0.18)', color: '#22d3ee', border: '2px solid rgba(34,211,238,0.55)', borderRadius: '8px', padding: '10px 24px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold', fontFamily: 'Georgia, serif', boxShadow: '0 0 12px rgba(34,211,238,0.33)' }}
-                    >
-                      {blendedDebtConfirming ? '⏳ Confirming…' : '💎 Confirm Blended Debt'}
-                    </button>
-                    {blendedDebtConfirmMsg && <span style={{ color: blendedDebtConfirmMsg.startsWith('✓') ? '#22d3ee' : '#8a9ab8', fontSize: '11px' }}>{blendedDebtConfirmMsg}</span>}
                   </div>
                 );
               }
@@ -632,18 +572,12 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
             {debtConfirming ? '⏳ Confirming…' : '💰 Debt Confirm'}
           </button>
         )}
-        {hasBlendedDebtConfirm && (
-          <button onClick={runBlendedDebtConfirm} disabled={blendedDebtConfirming} style={{ background: 'rgba(34,211,238,0.18)', color: '#22d3ee', border: '1px solid rgba(34,211,238,0.44)', borderRadius: '4px', padding: '6px 12px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '4px' }}>
-            {blendedDebtConfirming ? '⏳ Confirming…' : '💎 Blended Debt'}
-          </button>
-        )}
         <button onClick={quickSendCreds} disabled={emailSending || !local.email} style={{ background: emailSent ? 'rgba(74,222,128,0.15)' : 'rgba(96,165,250,0.12)', color: emailSent ? '#4ade80' : BLUE, border: `1px solid ${emailSent ? 'rgba(74,222,128,0.3)' : BLUE + '30'}`, borderRadius: '4px', padding: '6px 12px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold', opacity: (!local.email && !emailSending) ? 0.5 : 1 }}>
           {emailSending ? '⏳ Sending…' : emailSent ? '✓ Sent!' : '🔑 Send Credentials'}
         </button>
         {aiReviewMsg && <span style={{ color: aiReviewMsg.startsWith('✓') ? GOLD : '#8a9ab8', fontSize: '10px', marginLeft: '4px' }}>{aiReviewMsg}</span>}
         {aiInputMsg && <span style={{ color: aiInputMsg.startsWith('✓') ? '#a78bfa' : '#8a9ab8', fontSize: '10px', marginLeft: '4px' }}>{aiInputMsg}</span>}
         {debtConfirmMsg && <span style={{ color: debtConfirmMsg.startsWith('✓') ? GOLD : '#f59e0b', fontSize: '10px', marginLeft: '4px' }}>{debtConfirmMsg}</span>}
-        {blendedDebtConfirmMsg && <span style={{ color: blendedDebtConfirmMsg.startsWith('✓') ? '#22d3ee' : '#8a9ab8', fontSize: '10px', marginLeft: '4px' }}>{blendedDebtConfirmMsg}</span>}
       </div>
     </div>
   );
