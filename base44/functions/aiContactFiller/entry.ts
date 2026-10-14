@@ -56,7 +56,7 @@ IMPORTANT FIELDS TO CHECK (report as missingFields if still empty/null AND not m
 export default async function(req: Request): Promise<Response> {
   try {
     const body = await req.json();
-    const { transcript, leadType, currentLeadData } = body;
+    const { transcript, leadType, currentLeadData, scriptContent } = body;
 
     if (!transcript || !Array.isArray(transcript) || transcript.length < 2) {
       return Response.json({ updates: {}, overwrites: [], missingFields: [] });
@@ -85,9 +85,35 @@ export default async function(req: Request): Promise<Response> {
       }
     }
 
+    // ── Parse script field tags for context ──────────────────────────
+    // The agent's script may contain [[AI:fieldName]] markers. These tell
+    // the AI that the conversation lines near each marker are relevant for
+    // that specific contact-card field. We pass the cleaned script (BBCode
+    // stripped, tags preserved) so the LLM can map transcript lines to fields.
+    let scriptContext = '';
+    if (scriptContent && typeof scriptContent === 'string') {
+      // Strip BBCode formatting tags but preserve [[AI:fieldName]] markers
+      const cleaned = scriptContent
+        .replace(/\[\/?(b|i|c|bg|s|f|anim|gap)(?:=[^\]]+)?\]/gi, '')
+        .replace(/@@CUE:\w+:.*?@@/g, '')
+        .replace(/@@CUE:\w+:[^@]*@@/g, '')
+        .trim();
+      const tagMatches = [...cleaned.matchAll(/\[\[AI:(\w+)\]\]/gi)];
+      if (tagMatches.length > 0) {
+        const taggedFields = [...new Set(tagMatches.map(m => m[1]))];
+        scriptContext = `\n\nSCRIPT COLLECTION MARKERS:
+The agent's script contains collection markers in the format [[AI:fieldName]]. Each marker indicates that at that point in the script, the agent is collecting the specified field. When the customer provides information near a marked section, associate that information with the marked field.
+
+Tagged fields in this script: ${taggedFields.join(', ')}
+
+Script with markers (use this to understand what the agent was collecting at each point):
+${cleaned.slice(0, 4000)}`;
+      }
+    }
+
     const system = `You are an AI assistant analyzing a sales call transcript to auto-populate a contact card (${entityName}). Extract all information the CUSTOMER explicitly provided during the call.
 
-${fields}
+${fields}${scriptContext}
 
 RULES:
 1. Only extract values the CUSTOMER explicitly stated or confirmed — NOT what the agent said or read.

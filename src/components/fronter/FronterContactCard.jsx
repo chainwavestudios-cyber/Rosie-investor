@@ -69,14 +69,11 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
   const [liveTranscript, setLiveTranscript] = useState([]);
   const [showQAPanel, setShowQAPanel] = useState(false);
   const [scriptFullscreen, setScriptFullscreen] = useState(false);
-  const [hardshipMonitoring, setHardshipMonitoring] = useState(false);
-  const [hardshipMonitorStart, setHardshipMonitorStart] = useState(null);
-  const [hardshipAIProcessing, setHardshipAIProcessing] = useState(false);
-  const [debtScanning, setDebtScanning] = useState(false);
+  const [aiReviewing, setAiReviewing] = useState(false);
+  const [aiReviewMsg, setAiReviewMsg] = useState('');
   const [showMergePopup, setShowMergePopup] = useState(false);
   const [emailSending, setEmailSending] = useState(false);
   const [emailSent, setEmailSent] = useState(false);
-  const hardshipTimerRef = useRef(null);
 
   useEffect(() => {
     setLocal(lead || {});
@@ -263,74 +260,69 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
     } catch (e) { alert('Failed: ' + (e?.message || String(e))); }
   };
 
-  // ── Hardship AI: monitor transcript, then generate hardship text ──
-  const toggleHardshipAI = () => {
-    if (hardshipMonitoring) {
-      stopHardshipAI();
-    } else {
-      setHardshipMonitoring(true);
-      setHardshipMonitorStart(Date.now());
-      hardshipTimerRef.current = setTimeout(() => stopHardshipAI(), 120000);
-    }
-  };
-
-  const stopHardshipAI = async () => {
-    setHardshipMonitoring(false);
-    if (hardshipTimerRef.current) { clearTimeout(hardshipTimerRef.current); hardshipTimerRef.current = null; }
+  // ── AI Review: review transcript up to now, auto-update contact card ──
+  // Uses aiContactFiller (claude-sonnet-5) — same LLM as debt call coach
+  // end-of-call contact card update. Passes the active script content with
+  // [[AI:fieldName]] tags so the AI knows which transcript lines belong to
+  // which contact card fields.
+  const runAIReview = async () => {
+    if (aiReviewing) return;
     if (liveTranscript.length < 2) { alert('No transcript available. Start a call first.'); return; }
-    setHardshipAIProcessing(true);
+    setAiReviewing(true);
+    setAiReviewMsg('');
     try {
-      const transcriptText = liveTranscript.map(t => `${t.speaker === 0 ? 'Agent' : 'Customer'}: ${t.text}`).join('\n');
-      const res = await base44.integrations.Core.InvokeLLM({
-        prompt: `You are a debt settlement call assistant. Based on the following call transcript, write a concise hardship explanation for this customer. The hardship should explain what happened (job loss, medical, divorce, etc.) and how it impacted their finances. Write it in third person as if documenting it for their file. Keep it to 2-3 sentences.
-
-Customer: ${local.firstName} ${local.lastName}
-
-Transcript:
-${transcriptText}`,
-        response_json_schema: { type: 'object', properties: { hardship: { type: 'string' } } },
+      const scriptContent = activeScript?.content || '';
+      const res = await base44.functions.invoke('aiContactFiller', {
+        transcript: liveTranscript,
+        leadType: 'fronter',
+        currentLeadData: local,
+        scriptContent,
       });
-      if (res?.hardship) {
-        update('hardshipQualification', res.hardship);
-        if (lead?.id) await base44.entities.FronterLead.update(lead.id, { hardshipQualification: res.hardship });
-        scanDebtInfo(transcriptText);
-      }
-    } catch (e) { alert('AI hardship generation failed: ' + (e?.message || String(e))); }
-    setHardshipAIProcessing(false);
-  };
+      const data = res?.data || res;
+      const updates = data?.updates || {};
+      const overwrites = data?.overwrites || [];
+      const missingFields = data?.missingFields || [];
 
-  // ── Scan transcript for debt amount and types ──
-  const scanDebtInfo = async (transcriptText) => {
-    setDebtScanning(true);
-    try {
-      const text = transcriptText || liveTranscript.map(t => t.text).join(' ');
-      if (!text.trim()) { setDebtScanning(false); return; }
-      const res = await base44.integrations.Core.InvokeLLM({
-        prompt: `Analyze this call transcript and extract the customer's debt information. Return JSON with:
-- debtAmount: the total unsecured debt amount (number, or null if not mentioned)
-- debtTypes: array of strings from ["Unsecured Credit Card", "Unsecured Loans"] based on what the customer has
+      const updateCount = Object.keys(updates).length;
+      const overwriteCount = overwrites.filter(o => o.fieldName && o.oldValue != null && o.oldValue !== '').length;
 
-Transcript:
-${text}`,
-        response_json_schema: {
-          type: 'object',
-          properties: {
-            debtAmount: { type: 'number' },
-            debtTypes: { type: 'array', items: { type: 'string' } },
-          },
-        },
-      });
-      if (res) {
-        const updates = {};
-        if (res.debtAmount) updates.debtAmount = res.debtAmount;
-        if (res.debtTypes) updates.debtTypesJson = JSON.stringify(res.debtTypes);
-        if (Object.keys(updates).length > 0) {
-          setLocal(prev => ({ ...prev, ...updates }));
-          if (lead?.id) await base44.entities.FronterLead.update(lead.id, updates);
+      if (updateCount > 0 || overwriteCount > 0) {
+        // Apply updates to local state
+        setLocal(prev => ({ ...prev, ...updates }));
+
+        // Persist to lead record
+        if (lead?.id) {
+          const updatePayload = { ...updates };
+          // Log overwrites to aiPopulateLogJson
+          if (overwriteCount > 0) {
+            const logEntries = overwrites
+              .filter(o => o.fieldName && o.oldValue != null && o.oldValue !== '' && String(o.oldValue) !== String(o.newValue))
+              .map(o => ({
+                fieldName: o.fieldName,
+                oldValue: String(o.oldValue),
+                newValue: String(o.newValue),
+                timestamp: new Date().toISOString(),
+                isFinal: false,
+              }));
+            if (logEntries.length > 0) {
+              let existingLog = [];
+              try { existingLog = JSON.parse(local.aiPopulateLogJson || '[]'); } catch {}
+              updatePayload.aiPopulateLogJson = JSON.stringify([...existingLog, ...logEntries]);
+            }
+          }
+          await base44.entities.FronterLead.update(lead.id, updatePayload);
         }
+
+        const msg = `✓ AI Review: ${updateCount} field${updateCount !== 1 ? 's' : ''} updated${overwriteCount > 0 ? `, ${overwriteCount} overwrite${overwriteCount !== 1 ? 's' : ''} logged` : ''}`;
+        setAiReviewMsg(msg);
+      } else {
+        setAiReviewMsg('AI Review: No new information found in transcript.');
       }
-    } catch (e) { console.error('Debt scan failed:', e); }
-    setDebtScanning(false);
+      setTimeout(() => setAiReviewMsg(''), 5000);
+    } catch (e) {
+      alert('AI Review failed: ' + (e?.message || String(e)));
+    }
+    setAiReviewing(false);
   };
 
   // ── Quick-send credentials email using lead's email ──
@@ -364,8 +356,6 @@ ${text}`,
     setEmailSending(false);
   };
 
-  useEffect(() => () => { if (hardshipTimerRef.current) clearTimeout(hardshipTimerRef.current); }, []);
-
   const scriptContent = (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       {scripts.length > 1 && (
@@ -383,17 +373,14 @@ ${text}`,
         )}
       </div>
       {/* Interactive AI buttons */}
-      <div style={{ padding: '8px 14px', borderTop: '1px solid rgba(255,255,255,0.07)', display: 'flex', gap: '6px', flexShrink: 0, flexWrap: 'wrap' }}>
-        <button onClick={toggleHardshipAI} disabled={hardshipAIProcessing} style={{ background: hardshipMonitoring ? 'rgba(239,68,68,0.15)' : `${GOLD}18`, color: hardshipMonitoring ? '#ef4444' : GOLD, border: `1px solid ${hardshipMonitoring ? 'rgba(239,68,68,0.3)' : GOLD + '44'}`, borderRadius: '4px', padding: '6px 12px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '4px' }}>
-          {hardshipMonitoring ? '⏹ Stop & Generate' : hardshipAIProcessing ? '⏳ Generating…' : '🤖 Invoke AI — Hardship'}
-          {hardshipMonitoring && hardshipMonitorStart && <span style={{ fontSize: '9px', opacity: 0.7 }}>{Math.floor((Date.now() - hardshipMonitorStart) / 1000)}s</span>}
-        </button>
-        <button onClick={() => scanDebtInfo()} disabled={debtScanning} style={{ background: `${BLUE}18`, color: BLUE, border: `1px solid ${BLUE}44`, borderRadius: '4px', padding: '6px 12px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>
-          {debtScanning ? '⏳ Scanning…' : '🔍 Scan Debt Info'}
+      <div style={{ padding: '8px 14px', borderTop: '1px solid rgba(255,255,255,0.07)', display: 'flex', gap: '6px', flexShrink: 0, flexWrap: 'wrap', alignItems: 'center' }}>
+        <button onClick={runAIReview} disabled={aiReviewing} style={{ background: `${GOLD}18`, color: GOLD, border: `1px solid ${GOLD}44`, borderRadius: '4px', padding: '6px 12px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '4px' }}>
+          {aiReviewing ? '⏳ Reviewing…' : '🤖 AI Review'}
         </button>
         <button onClick={quickSendCreds} disabled={emailSending || !local.email} style={{ background: emailSent ? 'rgba(74,222,128,0.15)' : 'rgba(96,165,250,0.12)', color: emailSent ? '#4ade80' : BLUE, border: `1px solid ${emailSent ? 'rgba(74,222,128,0.3)' : BLUE + '30'}`, borderRadius: '4px', padding: '6px 12px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold', opacity: (!local.email && !emailSending) ? 0.5 : 1 }}>
           {emailSending ? '⏳ Sending…' : emailSent ? '✓ Sent!' : '🔑 Send Credentials'}
         </button>
+        {aiReviewMsg && <span style={{ color: aiReviewMsg.startsWith('✓') ? GOLD : '#8a9ab8', fontSize: '10px', marginLeft: '4px' }}>{aiReviewMsg}</span>}
       </div>
     </div>
   );
