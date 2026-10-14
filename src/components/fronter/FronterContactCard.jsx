@@ -99,6 +99,12 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
   const effectiveLineKey = borrowedLine?.key || lineKey;
   const effectiveLineNumber = borrowedLine?.number || lineNumber;
 
+  // ── Ref for onNext: ensures setTimeout always calls the latest version ──
+  // Without this, markTransferred/handleNoConnect capture a stale onNext from
+  // the render before onSave triggers a FronterLeadsTab re-render.
+  const onNextRef = useRef(onNext);
+  onNextRef.current = onNext;
+
   useEffect(() => {
     setLocal(lead || {});
     setCallSid('');
@@ -290,7 +296,7 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
       }
       setShowMergePopup(false);
       setTransferScript('');
-      setTimeout(() => { onNext?.(); }, 800);
+      setTimeout(() => { onNextRef.current?.(); }, 800);
     } catch (e) { alert('NO CONNECT failed: ' + (e?.message || String(e))); }
   };
 
@@ -327,7 +333,7 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
       }
 
       // Auto-advance to the next prospect lead
-      setTimeout(() => { onNext?.(); }, 1500);
+      setTimeout(() => { onNextRef.current?.(); }, 1500);
     } catch (e) { alert('Transfer failed: ' + (e?.message || String(e))); }
   };
 

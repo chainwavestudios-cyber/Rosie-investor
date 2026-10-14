@@ -188,9 +188,13 @@ export default function FronterLeadsTab({ username, lineKey, lineNumber, isAdmin
   };
 
   const handleNextLead = () => {
+    // Refresh the list so the transferred/queued lead is removed and the next
+    // prospect is at the correct position.
+    setRefreshKey(k => k + 1);
     if (!contactCardLead || leads.length === 0) return;
     const idx = leads.findIndex(l => l.id === contactCardLead.id);
-    const nextIdx = (idx + 1) % leads.length;
+    // If the lead is no longer in the list (already transferred/queued), start from the top
+    const nextIdx = idx === -1 ? 0 : (idx + 1) % leads.length;
     setContactCardLead(leads[nextIdx]);
   };
 
