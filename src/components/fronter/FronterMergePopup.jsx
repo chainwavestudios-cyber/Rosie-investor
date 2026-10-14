@@ -54,6 +54,7 @@ export default function FronterMergePopup({ lead, username, fronterFirstName, is
   const [countdown, setCountdown] = useState(0);
   const fallbackTimerRef = useRef(null);
   const countdownTimerRef = useRef(null);
+  const pollTimerRef = useRef(null);
 
   const loadScript = useCallback(async () => {
     if (transferScript) { setScript({ content: transferScript }); setLoading(false); return; }
@@ -79,6 +80,7 @@ export default function FronterMergePopup({ lead, username, fronterFirstName, is
   useEffect(() => () => {
     if (fallbackTimerRef.current) clearTimeout(fallbackTimerRef.current);
     if (countdownTimerRef.current) clearInterval(countdownTimerRef.current);
+    if (pollTimerRef.current) clearInterval(pollTimerRef.current);
   }, []);
 
   const handleSave = async () => {
@@ -95,6 +97,7 @@ export default function FronterMergePopup({ lead, username, fronterFirstName, is
   const clearTimers = () => {
     if (fallbackTimerRef.current) { clearTimeout(fallbackTimerRef.current); fallbackTimerRef.current = null; }
     if (countdownTimerRef.current) { clearInterval(countdownTimerRef.current); countdownTimerRef.current = null; }
+    if (pollTimerRef.current) { clearInterval(pollTimerRef.current); pollTimerRef.current = null; }
   };
 
   // ── Dial Chris on a specific number index ──
@@ -138,6 +141,39 @@ export default function FronterMergePopup({ lead, username, fronterFirstName, is
           // Timer expired — Chris didn't answer on this number
           handleNoAnswer(numberIdx);
         }, FALLBACK_TIMEOUT_MS);
+
+        // Poll the agent call status to detect when Chris answers (human)
+        // or when it goes to voicemail (machine detection). This lets the
+        // fronter connect immediately on a human answer and auto-fallback
+        // to the next number on voicemail — without waiting for the 30s timer.
+        const agentSid = data.agentCallSid || '';
+        if (agentSid) {
+          pollTimerRef.current = setInterval(async () => {
+            try {
+              const statusRes = await base44.functions.invoke('fronterCall', { action: 'getAgentCallStatus', agentCallSid: agentSid });
+              const statusData = statusRes?.data || statusRes;
+              const st = statusData?.status || '';
+              const ab = (statusData?.answeredBy || '').toLowerCase();
+              // Human answered — transition to connected so the fronter can merge
+              if (st === 'in-progress' && (ab === 'human' || ab === '')) {
+                clearTimers();
+                setMergeState('connected');
+                setDialingMsg('✓ Chris answered on ' + label);
+              }
+              // Machine detected (voicemail) — auto-fallback to next number
+              if (ab === 'machine' || (st === 'completed' && ab === 'machine')) {
+                clearTimers();
+                setDialingMsg('Voicemail on ' + label + ' — trying next number…');
+                handleNoAnswer(numberIdx);
+              }
+              // Call ended without a human answer — no answer or busy
+              if (st === 'no-answer' || st === 'busy' || st === 'failed') {
+                clearTimers();
+                handleNoAnswer(numberIdx);
+              }
+            } catch {}
+          }, 2000);
+        }
       } else {
         setMergeState('failed');
         setDialingMsg('');

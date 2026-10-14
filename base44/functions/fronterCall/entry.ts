@@ -237,7 +237,9 @@ Deno.serve(async (req) => {
         }
       } catch (e) { console.warn('Hold customer failed:', e.message); }
 
-      // Dial the agent into the conference
+      // Dial the agent into the conference with machine detection so the
+      // frontend can distinguish a human answer from voicemail and auto-
+      // fallback to the next number on machine detection.
       console.log('mergeDial: dialing agent', toE164(agentPhone), 'from', fromNumber, 'conf', confName);
       const agentCall = await twilioFetch(`/Calls.json`, {
         method: 'POST',
@@ -245,6 +247,7 @@ Deno.serve(async (req) => {
           To: toE164(agentPhone),
           From: fromNumber,
           Twiml: confTwiML(confName, false, ''),
+          MachineDetection: 'Enable',
         }),
       });
 
@@ -333,6 +336,18 @@ Deno.serve(async (req) => {
       }
 
       return Response.json({ ok: true });
+    }
+
+    // ── GET AGENT CALL STATUS: poll the agent's outbound call status + machine detection result ──
+    if (action === 'getAgentCallStatus') {
+      const { agentCallSid } = body;
+      if (!agentCallSid) return Response.json({ error: 'agentCallSid required' }, { status: 400 });
+      try {
+        const call = await twilioFetch(`/Calls/${agentCallSid}.json`);
+        return Response.json({ status: call.status, answeredBy: call.AnsweredBy || '' });
+      } catch (e) {
+        return Response.json({ error: e.message }, { status: 500 });
+      }
     }
 
     // ── CANCEL AGENT CALL: cancel the agent's outbound call without touching the conference ──

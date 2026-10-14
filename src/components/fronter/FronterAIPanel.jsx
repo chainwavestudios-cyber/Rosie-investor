@@ -8,6 +8,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { base44 } from '@/api/base44Client';
 import AIAssistantPopup from '@/components/leads/AIAssistantPopup';
+import QAPopOutPanel from '@/components/leads/QAPopOutPanel';
 
 const GOLD = '#10b981';
 
@@ -22,6 +23,7 @@ export default function FronterAIPanel({
   callAttemptNumber = 1,
 }) {
   const [showPopup, setShowPopup] = useState(false);
+  const [qaPopOutOnly, setQaPopOutOnly] = useState(false);
   const [qaActive, setQaActive] = useState(true);
   const [coachActive, setCoachActive] = useState(false);
   const [intentActive, setIntentActive] = useState(false);
@@ -109,6 +111,7 @@ export default function FronterAIPanel({
             {(qaActive || coachActive || intentActive) && (
               <button onClick={() => setShowPopup(true)} style={{ background: `${GOLD}18`, color: GOLD, border: `1px solid ${GOLD}44`, borderRadius: '4px', padding: '4px 10px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>↗ Open Popup</button>
             )}
+            <button onClick={() => setQaPopOutOnly(true)} style={{ background: 'rgba(245,158,11,0.18)', color: '#f59e0b', border: '1px solid rgba(245,158,11,0.44)', borderRadius: '4px', padding: '4px 10px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>❓ Pop Out Q&A</button>
           </div>
         </div>
 
@@ -129,6 +132,28 @@ export default function FronterAIPanel({
           )}
         </div>
       </div>
+
+      {/* Q&A Only popout — standalone Q&A window without the full AI Assistant */}
+      {qaPopOutOnly && (
+        <QAPopOutPanel
+          transcript={normalizedTranscript}
+          transcriptRef={transcriptRef}
+          kbEntries={kbEntries}
+          lead={lead}
+          pendingQuestion={null}
+          qaActive={qaActive}
+          onToggleQA={() => setQaActive(p => !p)}
+          portalCfg={{}}
+          manualQ=""
+          setManualQ={() => {}}
+          onClose={() => setQaPopOutOnly(false)}
+          aiPanelItem={null}
+          setAiPanelItem={() => {}}
+          rightPanelWidth={32}
+          setRightPanelWidth={() => {}}
+          username={username}
+        />
+      )}
 
       {/* AI Assistant Popup — draggable, resizable, collapsible sections */}
       {showPopup && (

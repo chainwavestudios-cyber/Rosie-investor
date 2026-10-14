@@ -19,6 +19,7 @@ import FronterClosedDealCelebration from './FronterClosedDealCelebration';
 import FronterDialer from './FronterDialer';
 import FronterMergePopup from './FronterMergePopup';
 import FronterAIPanel from './FronterAIPanel';
+import FronterCredsEmailPopup from './FronterCredsEmailPopup';
 import AIPopulateTab from '@/components/shared/AIPopulateTab';
 import PhoneVerifyBadge from './PhoneVerifyBadge';
 import DebtBadge from './DebtBadge';
@@ -52,8 +53,13 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
   const [scripts, setScripts] = useState([]);
   const [activeScript, setActiveScript] = useState(null);
   const [scriptPoppedOut, setScriptPoppedOut] = useState(false);
-  const [scriptPos, setScriptPos] = useState({ x: 660, y: 80 });
-  const [scriptSize, setScriptSize] = useState({ w: 400, h: 500 });
+  const [scriptPos, setScriptPos] = useState(() => {
+    try { const s = JSON.parse(localStorage.getItem('fronter_script_popout_pos') || '{}'); return { x: s.x ?? 660, y: s.y ?? 80 }; } catch { return { x: 660, y: 80 }; }
+  });
+  const [scriptSize, setScriptSize] = useState(() => {
+    try { const s = JSON.parse(localStorage.getItem('fronter_script_popout_size') || '{}'); return { w: s.w ?? 800, h: s.h ?? 500 }; } catch { return { w: 800, h: 500 }; }
+  });
+  const [scriptSaveMsg, setScriptSaveMsg] = useState(false);
   const scriptDragRef = useRef(null);
   const transcriptScrollRef = useRef(null);
   const [headsUpSent, setHeadsUpSent] = useState(false);
@@ -74,6 +80,7 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
   const [aiReviewing, setAiReviewing] = useState(false);
   const [aiReviewMsg, setAiReviewMsg] = useState('');
   const [showMergePopup, setShowMergePopup] = useState(false);
+  const [showCredsEmail, setShowCredsEmail] = useState(false);
   const [debtConfirming, setDebtConfirming] = useState(false);
   const [debtConfirmMsg, setDebtConfirmMsg] = useState('');
   const [transferScript, setTransferScript] = useState('');
@@ -558,7 +565,18 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
                   </div>
                 );
               }
-              if (seg.toUpperCase() === 'SEND_EMAIL') return null;
+              if (seg.toUpperCase() === 'SEND_EMAIL') {
+                return (
+                  <div key={i} style={{ margin: '12px 0', display: 'flex', justifyContent: 'center' }}>
+                    <button
+                      onClick={() => setShowCredsEmail(true)}
+                      style={{ background: 'rgba(96,165,250,0.18)', color: BLUE, border: '2px solid rgba(96,165,250,0.55)', borderRadius: '8px', padding: '10px 24px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold', fontFamily: 'Georgia, serif', boxShadow: '0 0 12px rgba(96,165,250,0.33)' }}
+                    >
+                      📧 Send Credentials Email
+                    </button>
+                  </div>
+                );
+              }
               return <span key={i}>{renderFormatted(seg)}</span>;
             })}
             {hasCompletedSteps && (
@@ -889,6 +907,7 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
             <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
               <button onClick={() => setScriptSize(s => ({ ...s, w: Math.max(300, s.w - 50) }))} style={{ background: 'rgba(255,255,255,0.05)', color: '#6b7280', border: 'none', borderRadius: '3px', padding: '2px 8px', cursor: 'pointer', fontSize: '12px' }}>−</button>
               <button onClick={() => setScriptSize(s => ({ ...s, w: s.w + 50, h: s.h + 50 }))} style={{ background: 'rgba(255,255,255,0.05)', color: '#6b7280', border: 'none', borderRadius: '3px', padding: '2px 8px', cursor: 'pointer', fontSize: '12px' }}>+</button>
+              <button onClick={() => { try { localStorage.setItem('fronter_script_popout_size', JSON.stringify(scriptSize)); localStorage.setItem('fronter_script_popout_pos', JSON.stringify(scriptPos)); } catch {} setScriptSaveMsg(true); setTimeout(() => setScriptSaveMsg(false), 2000); }} style={{ background: scriptSaveMsg ? 'rgba(74,222,128,0.15)' : 'rgba(255,255,255,0.05)', color: scriptSaveMsg ? '#4ade80' : '#6b7280', border: `1px solid ${scriptSaveMsg ? 'rgba(74,222,128,0.4)' : 'rgba(255,255,255,0.1)'}`, borderRadius: '3px', padding: '2px 10px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>{scriptSaveMsg ? '✓ Saved' : '📐 Save Size'}</button>
               <button onClick={() => setScriptPoppedOut(false)} style={{ background: 'none', border: 'none', color: '#6b7280', cursor: 'pointer', fontSize: '18px', padding: '0 4px' }}>×</button>
             </div>
           </div>
@@ -922,6 +941,20 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
           disposition={meetingDisposition}
           onClose={() => setShowMeetingScheduler(false)}
           onScheduled={() => { const upd = { status: 'lead', lastCallResult: meetingDisposition }; setShowMeetingScheduler(false); setLocal(prev => ({ ...prev, ...upd })); onSave?.({ ...local, ...upd }); }}
+        />
+      )}
+
+      {/* Credentials email popup — triggered by @@SEND_EMAIL@@ in the script */}
+      {showCredsEmail && (
+        <FronterCredsEmailPopup
+          lead={local}
+          username={username}
+          onClose={() => setShowCredsEmail(false)}
+          onSent={(data) => {
+            setShowCredsEmail(false);
+            setLocal(prev => ({ ...prev, credsSentAt: data?.credsSentAt || new Date().toISOString(), credsSentTemplate: data?.credsSentTemplate }));
+            onSave?.({ ...local, credsSentAt: data?.credsSentAt || new Date().toISOString(), credsSentTemplate: data?.credsSentTemplate });
+          }}
         />
       )}
 
