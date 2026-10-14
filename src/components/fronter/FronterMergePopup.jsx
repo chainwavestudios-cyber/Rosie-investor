@@ -35,7 +35,7 @@ const CHRIS_LABELS = ['619-353-0919', '216-258-6934'];
 
 const DEFAULT_MERGE_SCRIPT = `Alright {{first name}}, I've got a senior debt advisor ready to help you through this. I'm going to connect you now — stay on the line and they'll be right with you.`;
 
-export default function FronterMergePopup({ lead, username, fronterFirstName, isAdmin, callActive, callDuration, callSid, lineKey, onMerge, onNoConnect, onClose, transferScript }) {
+export default function FronterMergePopup({ lead, username, fronterFirstName, isAdmin, callActive, callDuration, callSid, lineKey, onMerge, onNoConnect, onClose, transferScript, onAiInput, onDebtConfirm, onSendEmail }) {
   const [script, setScript] = useState(null);
   const [loading, setLoading] = useState(true);
   const [editMode, setEditMode] = useState(false);
@@ -221,6 +221,12 @@ export default function FronterMergePopup({ lead, username, fronterFirstName, is
 
   const fmtDuration = (s) => `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, '0')}`;
 
+  // Parse script for interactive markers — same rendering as FronterContactCard
+  const rawMergeScript = transferScript || script?.content || DEFAULT_MERGE_SCRIPT;
+  const substitutedMergeScript = substituteScriptVars(rawMergeScript, { lead, fronterFirstName });
+  const displayMergeScript = substitutedMergeScript.replace(/\[\[AI:\w+\]\]/gi, '');
+  const mergeSegments = displayMergeScript.split(/@@(DEBT_CONFIRM|AI_INPUT|SEND_EMAIL)@@/i);
+
   const canDial = mergeState === 'idle' && callSid && callActive && lineKey;
   const canMerge = mergeState === 'connected';
   const canNoConnect = mergeState === 'connected' || mergeState === 'dialing' || mergeState === 'no_answer';
@@ -265,7 +271,33 @@ export default function FronterMergePopup({ lead, username, fronterFirstName, is
           ) : (
             <div style={{ flex: 1, overflowY: 'auto', background: 'rgba(0,0,0,0.15)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '4px', padding: '16px' }}>
               <div style={{ color: '#e8e0d0', fontSize: '16px', lineHeight: 1.9, fontFamily: 'Georgia, serif', whiteSpace: 'pre-wrap' }}>
-                {renderFormatted(substituteScriptVars(script?.content || DEFAULT_MERGE_SCRIPT, { lead, fronterFirstName }))}
+                {mergeSegments.map((seg, i) => {
+                  if (seg.toUpperCase() === 'DEBT_CONFIRM') {
+                    if (!onDebtConfirm) return null;
+                    return (
+                      <div key={i} style={{ margin: '12px 0', display: 'flex', justifyContent: 'center' }}>
+                        <button onClick={onDebtConfirm} style={{ background: `${GOLD}18`, color: GOLD, border: `2px solid ${GOLD}55`, borderRadius: '8px', padding: '10px 24px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold', fontFamily: 'Georgia, serif', boxShadow: `0 0 12px ${GOLD}33` }}>💰 Confirm Debt</button>
+                      </div>
+                    );
+                  }
+                  if (seg.toUpperCase() === 'AI_INPUT') {
+                    if (!onAiInput) return null;
+                    return (
+                      <div key={i} style={{ margin: '12px 0', display: 'flex', justifyContent: 'center' }}>
+                        <button onClick={onAiInput} style={{ background: 'rgba(167,139,250,0.18)', color: '#a78bfa', border: '2px solid rgba(167,139,250,0.55)', borderRadius: '8px', padding: '10px 24px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold', fontFamily: 'Georgia, serif', boxShadow: '0 0 12px rgba(167,139,250,0.33)' }}>🤖 AI Input</button>
+                      </div>
+                    );
+                  }
+                  if (seg.toUpperCase() === 'SEND_EMAIL') {
+                    if (!onSendEmail) return null;
+                    return (
+                      <div key={i} style={{ margin: '12px 0', display: 'flex', justifyContent: 'center' }}>
+                        <button onClick={onSendEmail} style={{ background: 'rgba(96,165,250,0.18)', color: BLUE, border: '2px solid rgba(96,165,250,0.55)', borderRadius: '8px', padding: '10px 24px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold', fontFamily: 'Georgia, serif', boxShadow: '0 0 12px rgba(96,165,250,0.33)' }}>📧 Send Credentials Email</button>
+                      </div>
+                    );
+                  }
+                  return <span key={i}>{renderFormatted(seg)}</span>;
+                })}
               </div>
             </div>
           )}

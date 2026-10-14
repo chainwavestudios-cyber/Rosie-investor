@@ -12,9 +12,13 @@ export function substituteScriptVars(content, { lead, fronterFirstName } = {}) {
   if (!content) return '';
   const vars = {
     first_name: lead?.firstName || '',
+    firstname: lead?.firstName || '',
     'first name': lead?.firstName || '',
     last_name: lead?.lastName || '',
+    lastname: lead?.lastName || '',
     'last name': lead?.lastName || '',
+    totaldebt: lead?.debtAmount ? '$' + Number(lead.debtAmount).toLocaleString() : '',
+    total_debt: lead?.debtAmount ? '$' + Number(lead.debtAmount).toLocaleString() : '',
     email: lead?.email || '',
     phone_number: lead?.phone || '',
     phone: lead?.phone || '',
