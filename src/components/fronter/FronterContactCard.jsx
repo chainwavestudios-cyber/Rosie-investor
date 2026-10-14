@@ -493,7 +493,6 @@ ${text}`,
             setCallActive(true);
             setCallStartTime(Date.now());
             setCardTab('script');
-            setScriptPoppedOut(true);
             setShowQAPanel(true);
             onCallConnected?.(l);
             onOpenQA?.();
