@@ -6,6 +6,7 @@
  */
 import { useState, useRef, useCallback } from 'react';
 import { base44 } from '@/api/base44Client';
+import { checkCallCutoff, getTzLabel, getLocalTimeString } from '@/lib/phoneTimeZone';
 
 const GOLD = '#10b981';
 const DARK = '#0a0f1e';
@@ -67,7 +68,16 @@ export default function AIAgentDialer({ adminUsername }) {
   // ── Manual dial ──
   const manualDial = async () => {
     if (!manualPhone.trim()) return;
-    setError(''); setStatus('Dialing...');
+    setError(''); 
+    // Pre-check 8pm cutoff before dialing
+    const cutoff = checkCallCutoff(manualPhone.trim());
+    if (cutoff.blocked) {
+      setError(cutoff.localHour >= 20
+        ? `🚫 ${cutoff.localTime} ${cutoff.tzLabel} — past 8pm in this number's time zone. No calls after 8pm.`
+        : `🚫 ${cutoff.localTime} ${cutoff.tzLabel} — before 8am in this number's time zone.`);
+      return;
+    }
+    setStatus('Dialing...');
     try {
       const res = await base44.functions.invoke('aiAgentDial', {
         action: 'startDial',
@@ -103,6 +113,13 @@ export default function AIAgentDialer({ adminUsername }) {
     for (let i = 0; i < queue.length; i++) {
       const lead = queue[i];
       if (!lead.phone) continue;
+
+      // Pre-check 8pm cutoff — skip blocked numbers
+      const cutoff = checkCallCutoff(lead.phone);
+      if (cutoff.blocked) {
+        setQueue(prev => prev.map((q, idx) => idx === i ? { ...q, status: 'blocked', error: `${cutoff.localTime} ${cutoff.tzLabel} — past 8pm` } : q));
+        continue;
+      }
 
       setCurrentIdx(i);
       setQueue(prev => prev.map((q, idx) => idx === i ? { ...q, status: 'dialing' } : q));
@@ -159,6 +176,7 @@ export default function AIAgentDialer({ adminUsername }) {
     dialing: queue.filter(q => q.status === 'dialing').length,
     dialed: queue.filter(q => q.status === 'dialed').length,
     failed: queue.filter(q => q.status === 'failed').length,
+    blocked: queue.filter(q => q.status === 'blocked').length,
   };
 
   return (
@@ -209,6 +227,7 @@ export default function AIAgentDialer({ adminUsername }) {
             <span style={{ color: '#8a9ab8' }}>Dialing: <b style={{ color: AMBER }}>{stats.dialing}</b></span>
             <span style={{ color: '#8a9ab8' }}>Dialed: <b style={{ color: GREEN }}>{stats.dialed}</b></span>
             <span style={{ color: '#8a9ab8' }}>Failed: <b style={{ color: RED }}>{stats.failed}</b></span>
+            {stats.blocked > 0 && <span style={{ color: '#8a9ab8' }}>Blocked (8pm): <b style={{ color: RED }}>{stats.blocked}</b></span>}
           </div>
           <div style={{ display: 'flex', gap: '6px' }}>
             {!dialing ? (
@@ -238,17 +257,20 @@ export default function AIAgentDialer({ adminUsername }) {
         <div style={{ maxHeight: '300px', overflowY: 'auto', border: '1px solid rgba(255,255,255,0.07)', borderRadius: '4px' }}>
           {queue.map((q, i) => {
             const isCurrent = i === currentIdx;
-            const statusColor = q.status === 'dialed' ? GREEN : q.status === 'dialing' ? AMBER : q.status === 'failed' ? RED : '#6b7280';
+            const statusColor = q.status === 'dialed' ? GREEN : q.status === 'dialing' ? AMBER : q.status === 'failed' ? RED : q.status === 'blocked' ? RED : '#6b7280';
+            const tzLabel = getTzLabel(q.phone);
+            const localTime = getLocalTimeString(q.phone);
             return (
               <div key={i} style={{ padding: '8px 12px', borderBottom: '1px solid rgba(255,255,255,0.04)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: isCurrent ? 'rgba(245,158,11,0.08)' : 'transparent' }}>
                 <div>
                   <span style={{ color: '#e8e0d0', fontSize: '12px', fontWeight: 'bold' }}>{q.firstName} {q.lastName}</span>
                   <span style={{ color: '#6b7280', fontSize: '11px', marginLeft: '8px' }}>{q.phone}</span>
+                  <span style={{ color: '#60a5fa', fontSize: '10px', marginLeft: '6px' }}>{tzLabel} {localTime}</span>
                   {q.city && <span style={{ color: '#4a5568', fontSize: '10px', marginLeft: '6px' }}>{q.city}, {q.state}</span>}
                   {q.debtAmount > 0 && <span style={{ color: '#4a5568', fontSize: '10px', marginLeft: '6px' }}>${q.debtAmount.toLocaleString()}</span>}
                 </div>
                 <span style={{ color: statusColor, fontSize: '10px', fontWeight: 'bold', textTransform: 'uppercase' }}>
-                  {q.status === 'dialed' ? '✓ Dialed' : q.status === 'dialing' ? '⏳ Dialing…' : q.status === 'failed' ? '✗ Failed' : '○ Pending'}
+                  {q.status === 'dialed' ? '✓ Dialed' : q.status === 'dialing' ? '⏳ Dialing…' : q.status === 'failed' ? '✗ Failed' : q.status === 'blocked' ? '🚫 Past 8pm' : '○ Pending'}
                 </span>
               </div>
             );

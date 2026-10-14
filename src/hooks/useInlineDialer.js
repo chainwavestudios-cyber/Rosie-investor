@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useTwilioDevice } from '@/lib/TwilioDeviceContext';
+import { checkCallCutoff } from '@/lib/phoneTimeZone';
 
 // ── Module-level call state — survives component remounts so the timer
 // doesn't reset when DebtCallBar unmounts (contact card closed, profile opened, etc.)
@@ -144,6 +145,17 @@ export function useInlineDialer({ onCallStream, onCallLogged, agentName = 'admin
     if (!phone) return;
     if (overrideLeadId) leadIdRef.current = overrideLeadId;
     setDialerError('');
+
+    // ── 8pm local-time cutoff: block calls past 7:59pm in the recipient's tz ──
+    const cutoff = checkCallCutoff(phone);
+    if (cutoff.blocked) {
+      const reason = cutoff.localHour >= 20
+        ? `It's ${cutoff.localTime} ${cutoff.tzLabel} — past 8pm. No calls after 8pm in the recipient's time zone.`
+        : `It's ${cutoff.localTime} ${cutoff.tzLabel} — before 8am. No calls before 8am.`;
+      setDialerError(reason);
+      return;
+    }
+
     updateCallStatus('calling');
     setCallDirection('outbound');
     setDuration(0);

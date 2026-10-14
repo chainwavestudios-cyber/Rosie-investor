@@ -10,6 +10,7 @@
  */
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.52';
 import { lineNumber, toE164, xmlEscape, twilioFetch } from '../../shared/twilioHelpers.ts';
+import { checkCallCutoff, getTzLabel } from '../../shared/phoneTimeZone.ts';
 
 const BASE_URL = 'https://rosieai-investorpage.base44.app';
 
@@ -32,6 +33,21 @@ Deno.serve(async (req) => {
     if (action === 'startDial') {
       const { phone, firstName, lastName, city, state, debtAmount, leadId, adminUsername } = body;
       if (!phone) return Response.json({ error: 'phone required' }, { status: 400 });
+
+      // ── 8pm local-time cutoff: no calls past 7:59pm in the recipient's tz ──
+      const cutoff = checkCallCutoff(phone);
+      if (cutoff.blocked) {
+        const reason = cutoff.localHour >= 20
+          ? `It is ${cutoff.localTime} ${cutoff.tzLabel} — past the 8pm cutoff for this number's time zone.`
+          : `It is ${cutoff.localTime} ${cutoff.tzLabel} — before the 8am calling window.`;
+        return Response.json({
+          error: 'CALL_TIME_BLOCKED',
+          message: reason,
+          localTime: cutoff.localTime,
+          tzLabel: cutoff.tzLabel,
+          tz: cutoff.tz,
+        }, { status: 403 });
+      }
 
       // Get AI agent config for the line
       let lineKey = '';

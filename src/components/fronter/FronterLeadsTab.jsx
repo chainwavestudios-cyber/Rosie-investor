@@ -9,6 +9,7 @@ import { base44 } from '@/api/base44Client';
 import FronterContactCard from './FronterContactCard';
 import FronterLeadImportModal from './FronterLeadImportModal';
 import FronterAgentStatsBar from './FronterAgentStatsBar';
+import { getTzLabel, getLocalTimeString, checkCallCutoff } from '@/lib/phoneTimeZone';
 
 const GOLD = '#10b981';
 const DARK = '#0a0f1e';
@@ -30,6 +31,8 @@ export default function FronterLeadsTab({ username, lineKey, lineNumber, isAdmin
   const [showImportModal, setShowImportModal] = useState(false);
   const [statusFilter, setStatusFilter] = useState('all');
   const [search, setSearch] = useState('');
+  const [sortBy, setSortBy] = useState('lastCalled'); // 'lastCalled' | 'timezone'
+  const [tzTick, setTzTick] = useState(0); // re-render every 60s for live local times
   const fileRef = useRef(null);
 
   const load = useCallback(async () => {
@@ -50,7 +53,15 @@ export default function FronterLeadsTab({ username, lineKey, lineNumber, isAdmin
         const ff = fronterFilter.toLowerCase();
         active = active.filter(l => (l.assignedTo || '').toLowerCase() === ff);
       }
+      // Sort: by timezone (ET first → HI last, so fronters call East Coast while
+      // it's still in-window) or by last-called (never-called first).
+      const tzOrder = { ET: 0, CT: 1, MT: 2, PT: 3, AK: 4, HI: 5 };
       const sorted = [...active].sort((a, b) => {
+        if (sortBy === 'timezone') {
+          const ta = tzOrder[getTzLabel(a.phone)] ?? 0;
+          const tb = tzOrder[getTzLabel(b.phone)] ?? 0;
+          if (ta !== tb) return ta - tb;
+        }
         if (!a.lastCalledAt && b.lastCalledAt) return -1;
         if (a.lastCalledAt && !b.lastCalledAt) return 1;
         if (a.lastCalledAt && b.lastCalledAt) return new Date(a.lastCalledAt) - new Date(b.lastCalledAt);
@@ -63,7 +74,7 @@ export default function FronterLeadsTab({ username, lineKey, lineNumber, isAdmin
       }
     } catch {}
     setLoading(false);
-  }, [username, refreshKey, isAdmin, fronterFilter, mode]);
+  }, [username, refreshKey, isAdmin, fronterFilter, mode, sortBy]);
 
   // ── Lead upload (admin) ──
   const addLead = async () => {
@@ -118,6 +129,12 @@ export default function FronterLeadsTab({ username, lineKey, lineNumber, isAdmin
   };
 
   useEffect(() => { load(); }, [load]);
+
+  // Re-render every 60s so the live local-time column stays current
+  useEffect(() => {
+    const t = setInterval(() => setTzTick(t => t + 1), 60000);
+    return () => clearInterval(t);
+  }, []);
 
   const handleLeadCalled = (leadId, newCount) => {
     setRefreshKey(k => k + 1);
@@ -232,9 +249,13 @@ export default function FronterLeadsTab({ username, lineKey, lineNumber, isAdmin
         ))}
       </div>
 
-      {/* Search */}
+      {/* Search + Sort */}
       <div style={{ marginBottom: '16px', display: 'flex', gap: '8px' }}>
         <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search by name, phone…" style={{ flex: 1, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '4px', padding: '8px 14px', color: '#e8e0d0', fontSize: '13px', outline: 'none', fontFamily: 'Georgia, serif' }} />
+        <select value={sortBy} onChange={e => setSortBy(e.target.value)} style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '4px', padding: '8px 14px', color: '#e8e0d0', fontSize: '12px', outline: 'none', cursor: 'pointer', fontFamily: 'Georgia, serif' }}>
+          <option value="lastCalled">Sort: Last Called</option>
+          <option value="timezone">Sort: Time Zone (ET→HI)</option>
+        </select>
       </div>
 
       <div>
@@ -308,7 +329,7 @@ export default function FronterLeadsTab({ username, lineKey, lineNumber, isAdmin
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
                 <thead>
                   <tr style={{ borderBottom: `2px solid ${GOLD}33` }}>
-                    {['#', 'Name', 'Phone', 'Debt', 'Status', ...(mode === 'leads' ? ['Disposition'] : []), 'Calls', ...(isAdmin ? ['Owner'] : []), 'Last Called', 'Actions'].map(h => (
+                    {['#', 'Name', 'Phone', 'TZ', 'Debt', 'Status', ...(mode === 'leads' ? ['Disposition'] : []), 'Calls', ...(isAdmin ? ['Owner'] : []), 'Last Called', 'Actions'].map(h => (
                       <th key={h} style={{ color: GOLD, padding: '10px 12px', textAlign: 'left', fontSize: '10px', letterSpacing: '1.5px', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{h}</th>
                     ))}
                   </tr>
@@ -329,6 +350,20 @@ export default function FronterLeadsTab({ username, lineKey, lineNumber, isAdmin
                         </td>
                         <td style={{ padding: '10px 12px' }}>
                           <button onClick={e => { e.stopPropagation(); setContactCardLead(l); setShowCallCard?.(true); }} style={{ background: 'rgba(16,185,129,0.1)', color: GOLD, border: '1px solid rgba(16,185,129,0.25)', borderRadius: '3px', padding: '4px 10px', cursor: 'pointer', fontSize: '12px', fontFamily: 'monospace' }}>📞 {l.phone}</button>
+                        </td>
+                        <td style={{ padding: '10px 12px', whiteSpace: 'nowrap' }}>
+                          {(() => {
+                            const tzLabel = getTzLabel(l.phone);
+                            const localTime = getLocalTimeString(l.phone);
+                            const cutoff = checkCallCutoff(l.phone);
+                            const tzColor = cutoff.blocked ? '#ef4444' : (cutoff.localHour >= 19 ? '#f59e0b' : '#60a5fa');
+                            return (
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}>
+                                <span style={{ color: tzColor, fontSize: '10px', fontWeight: 'bold', letterSpacing: '1px' }}>{tzLabel}</span>
+                                <span style={{ color: cutoff.blocked ? '#ef4444' : '#8a9ab8', fontSize: '10px' }}>{localTime}{cutoff.blocked ? ' 🚫' : ''}</span>
+                              </div>
+                            );
+                          })()}
                         </td>
                         <td style={{ padding: '10px 12px', color: l.debtAmount ? GOLD : '#4a5568', fontSize: '12px' }}>{l.debtAmount ? `$${Number(l.debtAmount).toLocaleString()}` : '—'}</td>
                         <td style={{ padding: '10px 12px' }}>
