@@ -48,22 +48,29 @@ export default async function(req) {
     const aiMode = url.searchParams.get('Mode') === 'aiAgent';
     if (aiMode) {
       const leadId = url.searchParams.get('LeadId') || '';
-      let greeting = 'Hello, I am calling from Rosie AI about debt relief. How are you today?';
+      let greeting = 'Hi, may I speak with the head of the household please?';
+      let firstName = '';
       try {
         const { createClientFromRequest } = await import('npm:@base44/sdk@0.8.52');
         const base44 = createClientFromRequest(req).asServiceRole;
         const configs = await base44.entities.AIAgentConfig.filter({ configName: 'default' });
-        if (configs?.[0]?.systemPrompt) {
-          // Extract the first line of the system prompt as the greeting
-          const firstLine = configs[0].systemPrompt.split('\n').find(l => l.trim() && !l.startsWith('#'));
-          if (firstLine) greeting = firstLine.trim();
+        if (configs?.[0]?.greeting) {
+          greeting = configs[0].greeting;
+        }
+        // Substitute {{first_name}} from the lead record
+        if (leadId) {
+          try {
+            const lead = await base44.entities.FronterLead.get(leadId);
+            firstName = lead?.firstName || '';
+          } catch {}
         }
       } catch {}
+      if (firstName) greeting = greeting.replace(/\{\{first_name\}\}/g, firstName);
 
       const streamUrl = `wss://rosieai-investorpage.base44.app/functions/aiAgentStream?leadId=${encodeURIComponent(leadId)}`;
       const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Say voice="Polly.Joanna-Neural">${greeting}</Say>
+  <Say voice="Polly.Joanna-Neural">${xmlEscape(greeting)}</Say>
   <Connect>
     <Stream url="${streamUrl}" />
   </Connect>

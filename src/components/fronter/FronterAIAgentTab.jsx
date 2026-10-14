@@ -9,7 +9,7 @@ import { base44 } from '@/api/base44Client';
 import AIAgentTelephonySection from './aiagent/AIAgentTelephonySection';
 import AIAgentVoiceSection from './aiagent/AIAgentVoiceSection';
 import AIAgentKnowledgeSection from './aiagent/AIAgentKnowledgeSection';
-import AIAgentPromptSection, { DEFAULT_SYSTEM_PROMPT, DEFAULT_SCRIPT_FLOW, DEFAULT_REBUTTALS, DEFAULT_QA_TUNING } from './aiagent/AIAgentPromptSection';
+import AIAgentPromptSection, { DEFAULT_GREETING, DEFAULT_SYSTEM_PROMPT, DEFAULT_SCRIPT_FLOW, DEFAULT_REBUTTALS, DEFAULT_QA_TUNING } from './aiagent/AIAgentPromptSection';
 import AIAgentDialer from './AIAgentDialer';
 
 const GOLD = '#10b981';
@@ -32,6 +32,7 @@ function defaultConfig() {
     llmModel: 'claude-sonnet-5',
     kbPrimary: 'fronter',
     kbSecondary: 'debtcallcoach',
+    greeting: DEFAULT_GREETING,
     systemPrompt: DEFAULT_SYSTEM_PROMPT,
     scriptFlow: DEFAULT_SCRIPT_FLOW,
     dynamicRebuttals: DEFAULT_REBUTTALS,

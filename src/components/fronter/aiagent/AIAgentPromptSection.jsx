@@ -4,6 +4,8 @@ const GOLD = '#10b981';
 const ls = { display: 'block', color: '#8a9ab8', fontSize: '9px', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '4px' };
 const ta = { width: '100%', background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '4px', padding: '10px 12px', color: '#e8e0d0', fontSize: '12px', outline: 'none', boxSizing: 'border-box', fontFamily: 'Georgia, serif', lineHeight: 1.6, resize: 'vertical' };
 
+export const DEFAULT_GREETING = `Hi, may I speak with {{first_name}} please?`;
+
 export const DEFAULT_SYSTEM_PROMPT = `# AI AGENT SYSTEM PROMPT: Debt Relief Pre-Qualifier
 
 ## System Identity & Role
@@ -135,6 +137,8 @@ export const DEFAULT_QA_TUNING = `## TONE & SPEED
 export default function AIAgentPromptSection({ config, update }) {
   const [activeEditor, setActiveEditor] = useState('system');
 
+  const greetingVal = config.greeting || '';
+
   const EDITORS = [
     { id: 'system', label: 'System Prompt', field: 'systemPrompt', default: DEFAULT_SYSTEM_PROMPT },
     { id: 'flow', label: 'Script Flow', field: 'scriptFlow', default: DEFAULT_SCRIPT_FLOW },
@@ -147,6 +151,18 @@ export default function AIAgentPromptSection({ config, update }) {
 
   return (
     <div>
+      {/* Greeting — spoken aloud when the prospect picks up */}
+      <div style={{ marginBottom: '14px', padding: '10px 12px', background: 'rgba(16,185,129,0.05)', border: '1px solid rgba(16,185,129,0.2)', borderRadius: '4px' }}>
+        <label style={{ ...ls, color: GOLD }}>🗣 Opening Greeting (spoken aloud when prospect answers — use {'{{first_name}}'} for personalization)</label>
+        <input
+          value={greetingVal}
+          onChange={e => update('greeting', e.target.value)}
+          placeholder="Hi, may I speak with {{first_name}} please?"
+          style={{ width: '100%', background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '4px', padding: '8px 10px', color: '#e8e0d0', fontSize: '12px', outline: 'none', boxSizing: 'border-box', fontFamily: 'Georgia, serif' }}
+        />
+        <div style={{ color: '#4a5568', fontSize: '10px', marginTop: '3px' }}>This is what the prospect hears first. The system prompt below is instructions for the AI — never read aloud.</div>
+      </div>
+
       {/* Editor tabs */}
       <div style={{ display: 'flex', gap: '2px', borderBottom: '1px solid rgba(255,255,255,0.07)', marginBottom: '10px' }}>
         {EDITORS.map(e => (

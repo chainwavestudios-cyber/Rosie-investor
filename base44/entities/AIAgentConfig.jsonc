@@ -80,9 +80,15 @@
       ],
       "default": "debtcallcoach"
     },
+    "greeting": {
+      "type": "string",
+      "title": "Opening Greeting (spoken aloud when the prospect answers \u2014 NOT the system prompt)",
+      "format": "textarea",
+      "default": "Hi, may I speak with {{first_name}} please?"
+    },
     "systemPrompt": {
       "type": "string",
-      "title": "System Prompt (full agent instructions)",
+      "title": "System Prompt (full agent instructions \u2014 never read aloud)",
       "format": "textarea"
     },
     "scriptFlow": {
