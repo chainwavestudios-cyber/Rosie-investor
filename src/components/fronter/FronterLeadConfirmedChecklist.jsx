@@ -12,8 +12,8 @@ const DARK = '#0a0f1e';
 const RED = '#ef4444';
 
 const STEPS = [
-  { id: 1, label: 'Obtain Name and Address', icon: '👤' },
-  { id: 2, label: 'Confirm Debt Amount and Type', icon: '💰' },
+  { id: 1, label: 'Validate Unsecured Debt > $10,000', icon: '💰' },
+  { id: 2, label: 'Confirm Debt Amount & Type (Cards or Personal Loans)', icon: '💳' },
   { id: 3, label: 'Confirm: Not in Collections, Not with Another Settlement Company', icon: '🚫' },
   { id: 4, label: 'Establish Hardship (AI-Assisted Explanation)', icon: '📝' },
   { id: 5, label: 'Email Company Credentials', icon: '📧' },

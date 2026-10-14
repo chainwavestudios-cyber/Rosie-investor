@@ -18,6 +18,7 @@ import FronterEmailTrackingBadges from './FronterEmailTrackingBadges';
 import FronterLeadConfirmedChecklist from './FronterLeadConfirmedChecklist';
 import FronterClosedDealCelebration from './FronterClosedDealCelebration';
 import FronterDialer from './FronterDialer';
+import FronterMergePopup from './FronterMergePopup';
 import FronterAIPanel from './FronterAIPanel';
 import AIPopulateTab from '@/components/shared/AIPopulateTab';
 import PhoneVerifyBadge from './PhoneVerifyBadge';
@@ -68,6 +69,14 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
   const [liveTranscript, setLiveTranscript] = useState([]);
   const [showQAPanel, setShowQAPanel] = useState(false);
   const [scriptFullscreen, setScriptFullscreen] = useState(false);
+  const [hardshipMonitoring, setHardshipMonitoring] = useState(false);
+  const [hardshipMonitorStart, setHardshipMonitorStart] = useState(null);
+  const [hardshipAIProcessing, setHardshipAIProcessing] = useState(false);
+  const [debtScanning, setDebtScanning] = useState(false);
+  const [showMergePopup, setShowMergePopup] = useState(false);
+  const [emailSending, setEmailSending] = useState(false);
+  const [emailSent, setEmailSent] = useState(false);
+  const hardshipTimerRef = useRef(null);
 
   useEffect(() => {
     setLocal(lead || {});
@@ -254,6 +263,109 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
     } catch (e) { alert('Failed: ' + (e?.message || String(e))); }
   };
 
+  // ── Hardship AI: monitor transcript, then generate hardship text ──
+  const toggleHardshipAI = () => {
+    if (hardshipMonitoring) {
+      stopHardshipAI();
+    } else {
+      setHardshipMonitoring(true);
+      setHardshipMonitorStart(Date.now());
+      hardshipTimerRef.current = setTimeout(() => stopHardshipAI(), 120000);
+    }
+  };
+
+  const stopHardshipAI = async () => {
+    setHardshipMonitoring(false);
+    if (hardshipTimerRef.current) { clearTimeout(hardshipTimerRef.current); hardshipTimerRef.current = null; }
+    if (liveTranscript.length < 2) { alert('No transcript available. Start a call first.'); return; }
+    setHardshipAIProcessing(true);
+    try {
+      const transcriptText = liveTranscript.map(t => `${t.speaker === 0 ? 'Agent' : 'Customer'}: ${t.text}`).join('\n');
+      const res = await base44.integrations.Core.InvokeLLM({
+        prompt: `You are a debt settlement call assistant. Based on the following call transcript, write a concise hardship explanation for this customer. The hardship should explain what happened (job loss, medical, divorce, etc.) and how it impacted their finances. Write it in third person as if documenting it for their file. Keep it to 2-3 sentences.
+
+Customer: ${local.firstName} ${local.lastName}
+
+Transcript:
+${transcriptText}`,
+        response_json_schema: { type: 'object', properties: { hardship: { type: 'string' } } },
+      });
+      if (res?.hardship) {
+        update('hardshipQualification', res.hardship);
+        if (lead?.id) await base44.entities.FronterLead.update(lead.id, { hardshipQualification: res.hardship });
+        scanDebtInfo(transcriptText);
+      }
+    } catch (e) { alert('AI hardship generation failed: ' + (e?.message || String(e))); }
+    setHardshipAIProcessing(false);
+  };
+
+  // ── Scan transcript for debt amount and types ──
+  const scanDebtInfo = async (transcriptText) => {
+    setDebtScanning(true);
+    try {
+      const text = transcriptText || liveTranscript.map(t => t.text).join(' ');
+      if (!text.trim()) { setDebtScanning(false); return; }
+      const res = await base44.integrations.Core.InvokeLLM({
+        prompt: `Analyze this call transcript and extract the customer's debt information. Return JSON with:
+- debtAmount: the total unsecured debt amount (number, or null if not mentioned)
+- debtTypes: array of strings from ["Unsecured Credit Card", "Unsecured Loans"] based on what the customer has
+
+Transcript:
+${text}`,
+        response_json_schema: {
+          type: 'object',
+          properties: {
+            debtAmount: { type: 'number' },
+            debtTypes: { type: 'array', items: { type: 'string' } },
+          },
+        },
+      });
+      if (res) {
+        const updates = {};
+        if (res.debtAmount) updates.debtAmount = res.debtAmount;
+        if (res.debtTypes) updates.debtTypesJson = JSON.stringify(res.debtTypes);
+        if (Object.keys(updates).length > 0) {
+          setLocal(prev => ({ ...prev, ...updates }));
+          if (lead?.id) await base44.entities.FronterLead.update(lead.id, updates);
+        }
+      }
+    } catch (e) { console.error('Debt scan failed:', e); }
+    setDebtScanning(false);
+  };
+
+  // ── Quick-send credentials email using lead's email ──
+  const quickSendCreds = async () => {
+    if (!local.email) { alert('No email address on the contact card. Please add an email first.'); return; }
+    setEmailSending(true);
+    try {
+      const raw = await base44.entities.FronterEmailTemplate.list('sortOrder', 10);
+      const all = Array.isArray(raw) ? raw : (raw?.items || []);
+      const t = all[0];
+      if (!t) { alert('No email templates found.'); setEmailSending(false); return; }
+      const filledSubject = (t.subject || '').replace(/{{firstName}}/g, local.firstName || '').replace(/{{email}}/g, local.email || '');
+      const filledBody = (t.body || '').replace(/{{firstName}}/g, local.firstName || '').replace(/{{email}}/g, local.email || '');
+      const res = await base44.functions.invoke('sendGmailEmail', {
+        to: local.email, subject: filledSubject, html: filledBody, leadId: lead?.id, sentBy: username,
+      });
+      if (res?.error) throw new Error(res.error);
+      const now = new Date().toISOString();
+      const updates = { credsSentAt: now, credsSentTemplate: t.label };
+      if (local.status === 'prospect') updates.status = 'lead';
+      try {
+        const log = JSON.parse(local.notesLogJson || '[]');
+        log.push({ text: `🔑 Company credentials emailed to ${local.email} (${t.label})`, timestamp: now, author: username, type: 'creds' });
+        updates.notesLogJson = JSON.stringify(log);
+      } catch {}
+      if (lead?.id) await base44.entities.FronterLead.update(lead.id, updates);
+      setLocal(prev => ({ ...prev, ...updates }));
+      setEmailSent(true);
+      setTimeout(() => setEmailSent(false), 3000);
+    } catch (e) { alert('Failed to send: ' + (e?.message || String(e))); }
+    setEmailSending(false);
+  };
+
+  useEffect(() => () => { if (hardshipTimerRef.current) clearTimeout(hardshipTimerRef.current); }, []);
+
   const scriptContent = (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       {scripts.length > 1 && (
@@ -269,6 +381,19 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
         ) : (
           <div style={{ color: '#e8e0d0', fontSize: '14px', lineHeight: 1.8, fontFamily: 'Georgia, serif', whiteSpace: 'pre-wrap' }}>{renderFormatted(substituteScriptVars(activeScript.content, { lead: local, fronterFirstName }))}</div>
         )}
+      </div>
+      {/* Interactive AI buttons */}
+      <div style={{ padding: '8px 14px', borderTop: '1px solid rgba(255,255,255,0.07)', display: 'flex', gap: '6px', flexShrink: 0, flexWrap: 'wrap' }}>
+        <button onClick={toggleHardshipAI} disabled={hardshipAIProcessing} style={{ background: hardshipMonitoring ? 'rgba(239,68,68,0.15)' : `${GOLD}18`, color: hardshipMonitoring ? '#ef4444' : GOLD, border: `1px solid ${hardshipMonitoring ? 'rgba(239,68,68,0.3)' : GOLD + '44'}`, borderRadius: '4px', padding: '6px 12px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '4px' }}>
+          {hardshipMonitoring ? '⏹ Stop & Generate' : hardshipAIProcessing ? '⏳ Generating…' : '🤖 Invoke AI — Hardship'}
+          {hardshipMonitoring && hardshipMonitorStart && <span style={{ fontSize: '9px', opacity: 0.7 }}>{Math.floor((Date.now() - hardshipMonitorStart) / 1000)}s</span>}
+        </button>
+        <button onClick={() => scanDebtInfo()} disabled={debtScanning} style={{ background: `${BLUE}18`, color: BLUE, border: `1px solid ${BLUE}44`, borderRadius: '4px', padding: '6px 12px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>
+          {debtScanning ? '⏳ Scanning…' : '🔍 Scan Debt Info'}
+        </button>
+        <button onClick={quickSendCreds} disabled={emailSending || !local.email} style={{ background: emailSent ? 'rgba(74,222,128,0.15)' : 'rgba(96,165,250,0.12)', color: emailSent ? '#4ade80' : BLUE, border: `1px solid ${emailSent ? 'rgba(74,222,128,0.3)' : BLUE + '30'}`, borderRadius: '4px', padding: '6px 12px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold', opacity: (!local.email && !emailSending) ? 0.5 : 1 }}>
+          {emailSending ? '⏳ Sending…' : emailSent ? '✓ Sent!' : '🔑 Send Credentials'}
+        </button>
       </div>
     </div>
   );
@@ -301,7 +426,7 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
                   lead={local}
                   username={username}
                   embedded
-                  onAllComplete={() => {}}
+                  onAllComplete={() => setShowMergePopup(true)}
                   onEmailCreds={() => setShowCredsPopup(true)}
                 />
               </div>
@@ -311,6 +436,18 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
         {/* Lead type banner */}
         <div style={{ padding: '6px 18px', background: `${leadTypeColor}18`, borderBottom: `1px solid ${leadTypeColor}33`, display: 'flex', justifyContent: 'center', alignItems: 'center', flexShrink: 0 }}>
           <span style={{ color: leadTypeColor, fontSize: '11px', fontWeight: 'bold', letterSpacing: '3px', textTransform: 'uppercase' }}>● {leadTypeLabel} ●</span>
+        </div>
+        {/* Debt badge — visible on front of contact card */}
+        <div style={{ padding: '4px 18px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0, background: 'rgba(0,0,0,0.15)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+            <span style={{ color: GOLD, fontSize: '12px' }}>💰</span>
+            <span style={{ color: '#e8e0d0', fontSize: '13px', fontWeight: 'bold' }}>${(local.debtAmount || 0).toLocaleString()}</span>
+          </div>
+          {debtTypes.map(type => (
+            <span key={type} style={{ padding: '1px 8px', borderRadius: '10px', fontSize: '9px', fontWeight: 'bold', background: type === 'Unsecured Credit Card' ? 'rgba(96,165,250,0.15)' : 'rgba(167,139,250,0.15)', color: type === 'Unsecured Credit Card' ? BLUE : '#a78bfa', whiteSpace: 'nowrap' }}>
+              {type === 'Unsecured Credit Card' ? '💳' : '📄'} {type}
+            </span>
+          ))}
         </div>
         {/* Header — draggable (disabled when embedded) */}
         <div onMouseDown={embedded ? undefined : onDragStart} style={{ padding: '12px 18px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px', cursor: embedded ? 'default' : 'move', userSelect: 'none', flexShrink: 0, background: 'linear-gradient(135deg, rgba(16,185,129,0.06), transparent)' }}>
@@ -464,19 +601,7 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
                       })}
                     </div>
                   </div>
-                  <div style={{ marginBottom: '6px' }}>
-                    <label style={ls}>Employment Status</label>
-                    <select value={local.employmentStatus || 'unknown'} onChange={e => update('employmentStatus', e.target.value)} style={inp}>
-                      <option value="unknown">— Unknown —</option>
-                      <option value="employed">Employed</option>
-                      <option value="self_employed">Self-Employed</option>
-                      <option value="unemployed">Unemployed</option>
-                      <option value="retired">Retired</option>
-                      <option value="disabled">Disabled</option>
-                    </select>
-                  </div>
                   <FronterHardshipField value={local.hardshipQualification} onChange={v => update('hardshipQualification', v)} labelStyle={ls} inputStyle={inp} />
-                  <div><label style={ls}>Lead Source / Referral</label><input value={local.referralSource || ''} onChange={e => update('referralSource', e.target.value)} style={inp} placeholder="Facebook, Google, Referral…" /></div>
                 </div>
               </div>
 
@@ -546,7 +671,7 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
               lead={local}
               username={username}
               embedded
-              onAllComplete={() => {}}
+              onAllComplete={() => setShowMergePopup(true)}
               onEmailCreds={() => setShowCredsPopup(true)}
             />
           )}
@@ -627,6 +752,20 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
           disposition={meetingDisposition}
           onClose={() => setShowMeetingScheduler(false)}
           onScheduled={() => { const upd = { status: 'lead', lastCallResult: meetingDisposition }; setShowMeetingScheduler(false); setLocal(prev => ({ ...prev, ...upd })); onSave?.({ ...local, ...upd }); }}
+        />
+      )}
+
+      {/* Merge popup — when all checklist items are complete */}
+      {showMergePopup && (
+        <FronterMergePopup
+          lead={local}
+          username={username}
+          fronterFirstName={fronterFirstName}
+          isAdmin={isAdmin}
+          callActive={callActive}
+          callDuration={callDuration}
+          onMerge={() => { setShowMergePopup(false); markTransferred(); }}
+          onClose={() => setShowMergePopup(false)}
         />
       )}
 
