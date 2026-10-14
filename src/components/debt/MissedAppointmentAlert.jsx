@@ -58,6 +58,10 @@ export default function MissedAppointmentAlert({ onOpenLead }) {
       };
       playBeep();
       beepIntervalRef.current = setInterval(playBeep, 1000);
+      // Auto-stop audio after 5 seconds
+      setTimeout(() => {
+        if (beepIntervalRef.current) { clearInterval(beepIntervalRef.current); beepIntervalRef.current = null; }
+      }, 5000);
     } catch {}
   }, []);
 
@@ -172,7 +176,12 @@ export default function MissedAppointmentAlert({ onOpenLead }) {
           <div className="missed-led-container" style={{ animation: 'missed-led-pulse 1.5s ease-in-out infinite' }}>
             <div className="missed-led-ring" />
             <div className="missed-led-inner" style={{ padding: '20px 24px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '14px' }}>
+              <button
+                onClick={() => dismiss(ev)}
+                aria-label="Close"
+                style={{ position: 'absolute', top: '10px', right: '10px', background: 'rgba(239,68,68,0.15)', color: RED, border: `1px solid ${RED}55`, borderRadius: '50%', width: '28px', height: '28px', cursor: 'pointer', fontSize: '16px', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1, zIndex: 2 }}
+              >×</button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '14px', paddingRight: '20px' }}>
                 <span style={{ fontSize: '32px' }}>🚨</span>
                 <div>
                   <div style={{ color: RED, fontSize: '16px', fontWeight: 'bold', letterSpacing: '1px' }}>MISSED APPOINTMENT</div>
@@ -206,16 +215,6 @@ export default function MissedAppointmentAlert({ onOpenLead }) {
                   }}
                 >
                   ✓ Mark Completed
-                </button>
-                <button
-                  onClick={() => dismiss(ev)}
-                  style={{
-                    background: 'rgba(239,68,68,0.15)', color: RED,
-                    border: `1px solid ${RED}55`, borderRadius: '6px', padding: '10px 14px', cursor: 'pointer',
-                    fontSize: '12px', fontWeight: 'bold',
-                  }}
-                >
-                  🔇
                 </button>
               </div>
             </div>

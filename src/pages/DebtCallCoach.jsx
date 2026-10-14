@@ -188,8 +188,8 @@ export default function DebtCallCoach() {
       {/* Meeting alert — 5 min before a meeting, popup with audible tone */}
       <MeetingAlertPopup />
 
-      {/* Missed appointment alert — checks every 15 min, 10am-10pm ET Mon-Sat */}
-      <MissedAppointmentAlert onOpenLead={(ev) => {
+      {/* Missed appointment alert — checks every 15 min, 10am-10pm ET Mon-Sat (superadmins only) */}
+      {isSuperAdmin && <MissedAppointmentAlert onOpenLead={(ev) => {
         // Try to find a matching lead from the event title
         const title = (ev.title || '').toLowerCase();
         base44.entities.DebtLead.filter({ isHotLead: true }, { sort: '-hotLeadTaggedAt', limit: 200 })
@@ -202,7 +202,7 @@ export default function DebtCallCoach() {
             if (match) setHotLead(match);
           })
           .catch(() => {});
-      }} />
+      }} />}
     </div>
   );
 }
