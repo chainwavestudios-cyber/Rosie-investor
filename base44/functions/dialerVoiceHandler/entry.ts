@@ -10,7 +10,9 @@
  * call (ringing, missed, no-answer) gets a CallLog entry via voicemailWebhook,
  * not just calls that go to voicemail.
  */
-Deno.serve(async (req) => {
+import { xmlEscape } from '../../shared/twilioHelpers.ts';
+
+export default async function(req) {
   // ── Always return valid TwiML — never let Twilio see a 5xx ──────────
   try {
     const url = new URL(req.url);
@@ -153,7 +155,7 @@ Deno.serve(async (req) => {
 <Response>
   <Dial timeout="20"
     action="${vmWebhookBase}?noAnswer=true" method="POST"
-    statusCallback="${statusCallbackUrl}" statusCallbackMethod="POST"
+    statusCallback="${xmlEscape(statusCallbackUrl)}" statusCallbackMethod="POST"
     statusCallbackEvent="initiated ringing answered completed">
     <Client>agent</Client>
   </Dial>
@@ -168,4 +170,4 @@ Deno.serve(async (req) => {
       { headers: { 'Content-Type': 'text/xml' }, status: 200 }
     );
   }
-});
+}
