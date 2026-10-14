@@ -48,6 +48,7 @@ const VARIABLES = [
   { token: '{{city}}', desc: 'City from contact card' },
   { token: '{{state}}', desc: 'State from contact card' },
   { token: '{{email}}', desc: 'Email from contact card' },
+  { token: '{{frontername}}', desc: 'Fronter first name (from admin panel)' },
 ];
 
 export default function FronterScriptsTab({ fronterFirstName, username, active = true }) {

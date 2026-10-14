@@ -27,6 +27,8 @@ export function substituteScriptVars(content, { lead, fronterFirstName } = {}) {
     debt_amount: lead?.debtAmount ? '$' + Number(lead.debtAmount).toLocaleString() : '',
     hardship_statement: lead?.hardshipQualification || '',
     contingency_time: lead?.preferredCallTime || '',
+    frontername: fronterFirstName || '',
+    'fronter name': fronterFirstName || '',
   };
   let result = content;
   // {{variable}} format
