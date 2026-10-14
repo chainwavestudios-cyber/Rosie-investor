@@ -991,8 +991,8 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
           callSid={callSid}
           lineKey={effectiveLineKey}
           transferScript={transferScript}
-          onMerge={() => { setShowMergePopup(false); setTransferScript(''); markTransferred(); }}
-          onNoConnect={handleNoConnect}
+          onMerge={() => { setScriptPoppedOut(false); setQaPoppedOut(false); setTranscriptPoppedOut(false); setShowMergePopup(false); setTransferScript(''); markTransferred(); }}
+          onNoConnect={() => { setScriptPoppedOut(false); setQaPoppedOut(false); setTranscriptPoppedOut(false); handleNoConnect(); }}
           onClose={() => { setShowMergePopup(false); setTransferScript(''); }}
         />
       )}
