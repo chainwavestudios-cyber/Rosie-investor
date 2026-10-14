@@ -155,26 +155,26 @@ export default async function(req) {
         { headers: { 'Content-Type': 'text/xml' } });
     }
 
-    // No answer / busy / failed → play greeting and record voicemail
+    // No answer / busy / failed → AI Scheduling Agent conversation
+    // Instead of recording a voicemail, the AI agent asks the caller to
+    // schedule a 15-minute follow-up call, checks Chris's Google Calendar,
+    // and books the appointment — all via Twilio <Gather> speech.
     try {
-      const vmAudioUrl  = Deno.env.get('VM_AUDIO_URL')     || '';
-      const vmGreeting  = Deno.env.get('VM_GREETING_TEXT') || DEFAULT_VM_GREETING;
-      const greetingTwiml = vmAudioUrl
-        ? `<Play>${vmAudioUrl}</Play>`
-        : `<Say voice="alice">${vmGreeting}</Say>`;
+      const scheduleAgentUrl = VM_BASE.replace('voicemailWebhook', 'aiScheduleAgent');
+      const greeting = "Chris is currently on another call with a client. What time today would be a good time to follow up?";
 
       const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  ${greetingTwiml}
-  <Record maxLength="120" playBeep="true" transcribe="true"
-    transcribeCallback="${VM_BASE}"
-    action="${VM_BASE}" method="POST" />
-  <Say voice="alice">We did not receive a recording. Goodbye.</Say>
+  <Say voice="Polly.Joanna-Neural">${greeting}</Say>
+  <Gather input="speech" speechTimeout="auto" action="${scheduleAgentUrl}" method="POST" language="en-US" enhanced="true" speechModel="conversational" />
+  <Say voice="Polly.Joanna-Neural">I didn't catch that. I'll try again later. Have a great day!</Say>
+  <Hangup/>
 </Response>`;
+      console.log('[voicemailWebhook] → AI Scheduling Agent for no-answer call');
       return new Response(twiml, { headers: { 'Content-Type': 'text/xml' } });
 
     } catch (e) {
-      console.error('[voicemailWebhook] noAnswer greeting fatal:', e.message);
+      console.error('[voicemailWebhook] Scheduling agent greeting fatal:', e.message);
       return new Response(
         `<?xml version="1.0" encoding="UTF-8"?><Response><Say voice="alice">${DEFAULT_VM_GREETING}</Say><Record maxLength="120" playBeep="true" /></Response>`,
         { headers: { 'Content-Type': 'text/xml' } }
