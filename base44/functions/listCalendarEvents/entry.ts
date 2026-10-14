@@ -12,7 +12,10 @@ export default async function(req: Request): Promise<Response> {
     const body = await req.json().catch(() => ({}));
     const days = Math.min(Math.max(1, body?.days || 3), 14);
 
-    const timeMin = new Date().toISOString();
+    // Start from midnight ET today so past appointments for the current day are included
+    const nowET = new Date(new Date().toLocaleString('en-US', { timeZone: ET_TZ }));
+    nowET.setHours(0, 0, 0, 0);
+    const timeMin = nowET.toISOString();
     const timeMax = new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString();
 
     const authHeader = await getCalendarAuth(base44);

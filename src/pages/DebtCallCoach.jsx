@@ -5,6 +5,7 @@
 import { useState, useEffect } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
 import { useDebtCoachAuth } from '@/lib/DebtCoachAuthContext';
+import { base44 } from '@/api/base44Client';
 import { isComplianceManager } from '@/lib/complianceRoles';
 import DebtLiveCall from '@/components/debt/DebtLiveCall';
 import DebtCoachAdminPanel from '@/components/debt/DebtCoachAdminPanel';
@@ -34,6 +35,7 @@ import DealMonitorPopout from '@/components/debt/DealMonitorPopout';
 import HeatMapPopout from '@/components/debt/HeatMapPopout';
 import PipelineTab from '@/components/debt/PipelineTab';
 import MeetingAlertPopup from '@/components/debt/MeetingAlertPopup';
+import MissedAppointmentAlert from '@/components/debt/MissedAppointmentAlert';
 
 const GOLD = '#10b981';
 const DARK = '#0a0f1e';
@@ -185,6 +187,22 @@ export default function DebtCallCoach() {
 
       {/* Meeting alert — 5 min before a meeting, popup with audible tone */}
       <MeetingAlertPopup />
+
+      {/* Missed appointment alert — checks every 15 min, 10am-10pm ET Mon-Sat */}
+      <MissedAppointmentAlert onOpenLead={(ev) => {
+        // Try to find a matching lead from the event title
+        const title = (ev.title || '').toLowerCase();
+        base44.entities.DebtLead.filter({ isHotLead: true }, { sort: '-hotLeadTaggedAt', limit: 200 })
+          .then(page => {
+            const all = page?.items || page || [];
+            const match = all.find(l => {
+              const name = `${l.firstName} ${l.lastName}`.toLowerCase();
+              return title.includes(name) || title.includes((l.firstName || '').toLowerCase());
+            });
+            if (match) setHotLead(match);
+          })
+          .catch(() => {});
+      }} />
     </div>
   );
 }
