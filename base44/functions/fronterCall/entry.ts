@@ -239,7 +239,7 @@ Deno.serve(async (req) => {
 
       // Dial the agent into the conference
       console.log('mergeDial: dialing agent', toE164(agentPhone), 'from', fromNumber, 'conf', confName);
-      await twilioFetch(`/Calls.json`, {
+      const agentCall = await twilioFetch(`/Calls.json`, {
         method: 'POST',
         body: new URLSearchParams({
           To: toE164(agentPhone),
@@ -248,7 +248,7 @@ Deno.serve(async (req) => {
         }),
       });
 
-      return Response.json({ ok: true, conferenceName: confName });
+      return Response.json({ ok: true, conferenceName: confName, agentCallSid: agentCall?.sid || '' });
     }
 
     // ── MERGE CONNECT: unhold customer, remove fronter from conference ──
@@ -283,6 +283,53 @@ Deno.serve(async (req) => {
             });
           } catch (e) { console.warn('Remove fronter failed:', e.message); }
         }
+      }
+
+      return Response.json({ ok: true });
+    }
+
+    // ── NO CONNECT: remove fronter + agent from conference, keep customer on hold ──
+    //   The fronter couldn't reach the agent. The fronter's browser leg and the
+    //   agent's leg are removed from the conference; the customer stays on hold
+    //   in the queue with hold music. The fronter is free to dial the next prospect.
+    if (action === 'noConnect') {
+      const { conferenceName, fronterCallSid, agentCallSid } = body;
+      if (!conferenceName) return Response.json({ error: 'conferenceName required' }, { status: 400 });
+
+      // Cancel the agent's call if it's still ringing (not yet a conference participant)
+      if (agentCallSid) {
+        try {
+          await twilioFetch(`/Calls/${agentCallSid}.json`, {
+            method: 'POST',
+            body: new URLSearchParams({ Status: 'completed' }),
+          });
+        } catch (e) { console.warn('Cancel agent call failed:', e.message); }
+      }
+
+      const confSid = await findConferenceSid(conferenceName);
+      if (!confSid) return Response.json({ error: 'Conference not found' }, { status: 404 });
+
+      const fronterSid = fronterCallSid || fronterSidFromConf(conferenceName);
+      const participants = await twilioFetch(`/Conferences/${confSid}/Participants.json`);
+      for (const p of participants.participants || []) {
+        if (p.call_sid === fronterSid) {
+          // Remove the fronter's browser leg
+          try {
+            await twilioFetch(`/Conferences/${confSid}/Participants/${p.call_sid}.json`, {
+              method: 'POST',
+              body: new URLSearchParams({ Status: 'completed' }),
+            });
+          } catch (e) { console.warn('Remove fronter failed:', e.message); }
+        } else if (!p.hold) {
+          // Non-held, non-fronter participant = the agent (if already joined) — remove it
+          try {
+            await twilioFetch(`/Conferences/${confSid}/Participants/${p.call_sid}.json`, {
+              method: 'POST',
+              body: new URLSearchParams({ Status: 'completed' }),
+            });
+          } catch (e) { console.warn('Remove agent participant failed:', e.message); }
+        }
+        // Held participant = the customer → keep them in the queue
       }
 
       return Response.json({ ok: true });

@@ -22,7 +22,7 @@ const BLUE = '#60a5fa';
 const AMBER = '#f59e0b';
 const PURPLE = '#a78bfa';
 
-export default function FronterDialer({ lead, username, lineKey, lineNumber, onCallStarted, onCallEnded, onLeadCalled, autoDialTrigger = 0, onDial, onCallConnected, onTranscriptUpdate, embedded = false }) {
+export default function FronterDialer({ lead, username, lineKey, lineNumber, onCallStarted, onCallEnded, onLeadCalled, autoDialTrigger = 0, onDial, onCallConnected, onCallSid, onTranscriptUpdate, embedded = false }) {
   const { isSuperAdmin, sessionUserId, sessionToken } = useDebtCoachAuth();
   const [overrideCutoff, setOverrideCutoff] = useState(false);
   const [callStatus, setCallStatus] = useState('idle');
@@ -59,12 +59,6 @@ export default function FronterDialer({ lead, username, lineKey, lineNumber, onC
   const { runFiller: runContactFiller } = useAIContactFiller({ leadId: lead?.id, leadType: 'fronter', transcript: deepgram.lines, isActive: callStatus === 'connected' });
   const runContactFillerRef = useRef(runContactFiller);
   useEffect(() => { runContactFillerRef.current = runContactFiller; }, [runContactFiller]);
-
-  // Single hardcoded merge number — DAA deskline
-  useEffect(() => {
-    setMergeNumbers([{ label: 'DAA Deskline', phoneNumber: '12162586934' }]);
-    setSelectedMergeNumber('12162586934');
-  }, []);
 
   // Sync refs for use in disconnect handler
   useEffect(() => { mergeStepRef.current = mergeStep; }, [mergeStep]);
@@ -188,6 +182,9 @@ Provide your analysis as JSON with these fields:
     call.on('accept', async () => {
       setCallStatus('connected');
       startTimer();
+
+      // Expose the Twilio call SID to the parent (used by the merge popup)
+      onCallSid?.(call.parameters?.CallSid || callRef.current?.parameters?.CallSid || '');
 
       // Auto-open Q&A popup FIRST — don't block on async SDK calls
       onCallConnected?.(lead);
@@ -325,7 +322,7 @@ Provide your analysis as JSON with these fields:
       setError(`${cutoff.localTime} ${cutoff.tzLabel} — outside the 8am–8pm calling window.`);
       return;
     }
-    setError(''); setCallStatus('calling'); setDuration(0); setMuted(false); setOnHold(false); setMerged(false); setConferenceName(''); setMergeStep('idle'); setSelectedMergeNumber('12162586934'); setCustomMergeNumber(''); setTranscriptLineCount(0);
+    setError(''); setCallStatus('calling'); setDuration(0); setMuted(false); setOnHold(false); setMerged(false); setConferenceName(''); setMergeStep('idle'); setTranscriptLineCount(0);
     try {
       let overrideToken = '';
       if (bypass) {
@@ -517,11 +514,6 @@ Provide your analysis as JSON with these fields:
                 <button onClick={handleHold} disabled={busy} style={ctrlBtn(onHold ? AMBER : BLUE, onHold)}>
                   {busy ? '⏳' : onHold ? '▶ Unhold' : '⏸ Hold'}
                 </button>
-                {mergeStep === 'idle' && !onHold && !merged && (
-                  <button onClick={() => { setShowMergeInput(true); setMergeStep('select'); setSelectedMergeNumber('12162586934'); }} style={ctrlBtn(GOLD, false)}>
-                    🔗 Merge
-                  </button>
-                )}
                 <button onClick={() => setShowTransferInput(p => !p)} style={ctrlBtn(PURPLE, false)}>
                   ↗ Transfer
                 </button>
@@ -533,33 +525,6 @@ Provide your analysis as JSON with these fields:
           </>
         )}
       </div>
-
-      {/* Merge input */}
-      {showMergeInput && !merged && callStatus === 'connected' && (
-        <div style={inputBox(GOLD)}>
-          {mergeStep === 'select' && (
-            <>
-              <div style={{ color: GOLD, fontSize: '10px', marginBottom: '6px' }}>🔗 Merge in an agent</div>
-              <select value={selectedMergeNumber} onChange={e => setSelectedMergeNumber(e.target.value)} style={{ ...inputStyle(), marginBottom: '8px' }}>
-                <option value="12162586934">DAA Deskline: 1 216 258 6934</option>
-              </select>
-              <div style={{ display: 'flex', gap: '8px' }}>
-                <button onClick={() => { setShowMergeInput(false); setMergeStep('idle'); }} style={ctrlBtn('#6b7280', false)}>Cancel</button>
-                <button onClick={handleMergeDial} disabled={busy || !selectedMergeNumber} style={{ background: 'linear-gradient(135deg,#10b981,#22c55e)', color: DARK, border: 'none', borderRadius: '4px', padding: '8px 16px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', opacity: !selectedMergeNumber ? 0.5 : 1 }}>{busy ? '⏳' : '📞 Dial Agent'}</button>
-              </div>
-            </>
-          )}
-          {mergeStep === 'dialing' && (
-            <div style={{ color: GOLD, fontSize: '11px', padding: '4px 0' }}>⏳ Dialing agent…</div>
-          )}
-          {mergeStep === 'connected' && (
-            <>
-              <div style={{ color: '#4ade80', fontSize: '10px', marginBottom: '6px' }}>✓ Connected to agent. Press Connect to bridge customer.</div>
-              <button onClick={handleMergeConnect} disabled={busy} style={{ background: 'linear-gradient(135deg,#10b981,#22c55e)', color: DARK, border: 'none', borderRadius: '4px', padding: '8px 16px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>{busy ? '⏳' : '🔗 Connect'}</button>
-            </>
-          )}
-        </div>
-      )}
 
       {/* Transfer input */}
       {showTransferInput && callStatus === 'connected' && (

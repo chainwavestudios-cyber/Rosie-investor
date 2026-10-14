@@ -80,9 +80,14 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
   const [transferScript, setTransferScript] = useState('');
   const [aiInputRunning, setAiInputRunning] = useState(false);
   const [aiInputMsg, setAiInputMsg] = useState('');
+  const [callSid, setCallSid] = useState('');
+  const [borrowedLine, setBorrowedLine] = useState(null);
+  const effectiveLineKey = borrowedLine?.key || lineKey;
+  const effectiveLineNumber = borrowedLine?.number || lineNumber;
 
   useEffect(() => {
     setLocal(lead || {});
+    setCallSid('');
     try { setNotesLog(JSON.parse(lead?.notesLogJson || '[]')); } catch { setNotesLog([]); }
   }, [lead]);
 
@@ -186,6 +191,43 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
       setLocal(prev => ({ ...prev, ...updates }));
       onSave?.({ ...local, ...updates });
     } catch (e) { alert('Update failed: ' + (e?.message || String(e))); }
+  };
+
+  // Find the first Twilio line not assigned to any fronter (used after NO CONNECT,
+  // when the fronter's own line is tied up holding the queued customer).
+  const findUnassignedLine = async () => {
+    try {
+      const [linesRes, assignments] = await Promise.all([
+        base44.functions.invoke('twilioGetLines', {}),
+        base44.entities.FronterLineAssignment.list('-assignedAt', 100),
+      ]);
+      const lines = linesRes?.data?.lines || linesRes?.lines || [];
+      const assignedKeys = new Set((assignments || []).map(a => a.twilioLineKey));
+      return lines.find(l => l.number && !assignedKeys.has(l.key)) || null;
+    } catch { return null; }
+  };
+
+  // NO CONNECT — fronter couldn't reach Chris. The popup already told the backend to
+  // drop the fronter + agent legs and keep the customer on hold. Here we record the
+  // disposition, rotate to the first unassigned line for the next call, and advance.
+  const handleNoConnect = async () => {
+    if (!lead?.id) return;
+    try {
+      const newCount = (local.callCount || 0) + 1;
+      const updates = { callCount: newCount, lastCalledAt: new Date().toISOString(), lastCallResult: 'no_connect' };
+      await base44.entities.FronterLead.update(lead.id, updates);
+      setLocal(prev => ({ ...prev, ...updates }));
+      onSave?.({ ...local, ...updates });
+      const unassigned = await findUnassignedLine();
+      if (unassigned) {
+        setBorrowedLine(unassigned);
+      } else {
+        alert('No unassigned lines available for the next call. Your assigned line may still be holding the queued customer — contact an admin.');
+      }
+      setShowMergePopup(false);
+      setTransferScript('');
+      setTimeout(() => { onNext?.(); }, 800);
+    } catch (e) { alert('NO CONNECT failed: ' + (e?.message || String(e))); }
   };
 
   const markTransferred = async () => {
@@ -665,9 +707,10 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
           <FronterDialer
             lead={local}
             username={username}
-            lineKey={lineKey}
-            lineNumber={lineNumber}
+            lineKey={effectiveLineKey}
+            lineNumber={effectiveLineNumber}
             embedded
+            onCallSid={(sid) => setCallSid(sid)}
             onDial={onDial}
             onCallConnected={(l) => {
             setCallActive(true);
@@ -945,8 +988,11 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
           isAdmin={isAdmin}
           callActive={callActive}
           callDuration={callDuration}
+          callSid={callSid}
+          lineKey={effectiveLineKey}
           transferScript={transferScript}
           onMerge={() => { setShowMergePopup(false); setTransferScript(''); markTransferred(); }}
+          onNoConnect={handleNoConnect}
           onClose={() => { setShowMergePopup(false); setTransferScript(''); }}
         />
       )}
