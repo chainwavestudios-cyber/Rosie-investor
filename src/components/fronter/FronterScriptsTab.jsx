@@ -10,6 +10,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useDebtCoachValue, getDebtCoachValue, setDebtCoachValue } from '@/lib/debtCoachStorage';
 import { usePopOutPanel } from '@/hooks/usePopOutPanel';
+import FronterScriptsWindow from '@/components/fronter/FronterScriptsWindow';
 import ScriptTeleprompter, { CUE_CATEGORIES } from '@/components/debt/ScriptTeleprompter';
 import ScriptFormatToolbar from '@/components/debt/ScriptFormatToolbar';
 import ScriptWysiwygEditor from '@/components/debt/ScriptWysiwygEditor';
@@ -39,8 +40,8 @@ const TEXT_COLORS = [
 
 const FONT_SIZES = [12, 13, 14, 15, 16, 18, 20];
 
-export default function FronterScriptsTab({ fronterFirstName, username }) {
-  const panel = usePopOutPanel('fronter_scripts', { width: 480, height: 600 }, username, 9998);
+export default function FronterScriptsTab({ fronterFirstName, username, active = true }) {
+  const panel = usePopOutPanel('fronter_scripts', { width: 640, height: 640 }, username, 30000);
   // Docked height — persisted per user, draggable from the bottom edge
   const [dockedHeight, setDockedHeight] = useDebtCoachValue(username, 'fronter_scripts_docked_h', 560);
   const resizeRef = useRef(null);
@@ -72,27 +73,30 @@ export default function FronterScriptsTab({ fronterFirstName, username }) {
     <FronterScriptsContent fronterFirstName={fronterFirstName} username={username} />
   );
 
-  // Popped out — floating, draggable, resizable
+  // Keep the window mounted across workspace tabs and outside clipping containers.
   if (panel.poppedOut) {
     return (
-      <div style={{ ...panel.floatingStyle, background: '#0d1b2a', border: '1px solid rgba(16,185,129,0.3)', borderRadius: '6px', display: 'flex', flexDirection: 'column' }}>
-        <div onMouseDown={panel.onDragStart} style={{ padding: '8px 12px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'move', userSelect: 'none', flexShrink: 0 }}>
-          <span style={{ color: GOLD, fontSize: '11px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase' }}>📜 Scripts</span>
-          <button onClick={panel.toggle} style={{ background: `${GOLD}18`, border: `1px solid ${GOLD}44`, color: GOLD, borderRadius: '4px', padding: '4px 10px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase' }}>⬇ Pop In</button>
-        </div>
-        <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', position: 'relative' }}>
-          {scriptContent}
-        </div>
-        {panel.resizeHandles}
-      </div>
+      <>
+        {active && (
+          <div className="dark flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-card p-4 text-card-foreground">
+            <span>Scripts are open in a floating window.</span>
+            <div className="flex gap-2">
+              <button type="button" onClick={panel.center} className="rounded border border-border bg-secondary px-3 py-2 text-sm">Bring Window Here</button>
+              <button type="button" onClick={panel.toggle} className="rounded border border-border bg-secondary px-3 py-2 text-sm">Dock Scripts</button>
+            </div>
+          </div>
+        )}
+        <FronterScriptsWindow panel={panel}>{scriptContent}</FronterScriptsWindow>
+      </>
     );
   }
+  if (!active) return null;
 
   // Docked — inline with pop-out button + draggable bottom edge to resize height
   return (
     <div style={{ position: 'relative' }}>
       <div style={{ marginBottom: '8px', display: 'flex', justifyContent: 'flex-end' }}>
-        <button onClick={panel.toggle} style={{ background: `${GOLD}18`, border: `1px solid ${GOLD}44`, color: GOLD, borderRadius: '4px', padding: '4px 10px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase' }}>⬆ Pop Out</button>
+        <button type="button" onClick={panel.popOut} aria-label="Pop Out Scripts" style={{ background: `${GOLD}18`, border: `1px solid ${GOLD}44`, color: GOLD, borderRadius: '4px', padding: '8px 14px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase' }}>Pop Out Scripts</button>
       </div>
       <div style={{ background: '#0d1b2a', border: '1px solid rgba(16,185,129,0.2)', borderRadius: '6px', display: 'flex', flexDirection: 'column', height: `${typeof dockedHeight === 'number' ? dockedHeight : 560}px`, maxHeight: '85vh', overflow: 'hidden', position: 'relative' }}>
         {scriptContent}

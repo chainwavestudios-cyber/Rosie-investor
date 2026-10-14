@@ -93,9 +93,12 @@ export default function FronterPage() {
 
   const isAdmin = isSuperAdmin;
   // Fronter sees leads + scripts; admin sees admin + leads + scripts
-  const TABS = isAdmin
-    ? [{ id: 'admin', label: '⚙️ Admin' }, { id: 'ai_agent', label: '🤖 AI Agent' }, { id: 'prospects', label: '📋 Prospects' }, { id: 'leads', label: '📋 Leads' }, { id: 'closed_deals', label: '💎 Closed Deals' }, { id: 'reports', label: '📊 Reports' }, { id: 'feedback', label: '💬 Feedback' }, { id: 'bob', label: '🤖 BOB Training' }, { id: 'hr', label: '🕐 HR' }, { id: 'scripts', label: '📜 Scripts' }, { id: 'settings', label: '🔧 Settings' }]
-    : [{ id: 'prospects', label: '📋 Prospects' }, { id: 'leads', label: '📋 Leads' }, { id: 'closed_deals', label: '💎 Closed Deals' }, { id: 'reports', label: '📊 Reports' }, { id: 'feedback', label: '💬 Feedback' }, { id: 'bob', label: '🤖 BOB Training' }, { id: 'hr', label: '🕐 HR' }, { id: 'scripts', label: '📜 Scripts' }, { id: 'settings', label: '🔧 Settings' }];
+  const TABS = [
+    { id: 'scripts', label: 'Scripts' },
+    ...(isAdmin
+      ? [{ id: 'admin', label: '⚙️ Admin' }, { id: 'ai_agent', label: '🤖 AI Agent' }, { id: 'prospects', label: '📋 Prospects' }, { id: 'leads', label: '📋 Leads' }, { id: 'closed_deals', label: '💎 Closed Deals' }, { id: 'reports', label: '📊 Reports' }, { id: 'feedback', label: '💬 Feedback' }, { id: 'bob', label: '🤖 BOB Training' }, { id: 'hr', label: '🕐 HR' }, { id: 'settings', label: '🔧 Settings' }]
+      : [{ id: 'prospects', label: '📋 Prospects' }, { id: 'leads', label: '📋 Leads' }, { id: 'closed_deals', label: '💎 Closed Deals' }, { id: 'reports', label: '📊 Reports' }, { id: 'feedback', label: '💬 Feedback' }, { id: 'bob', label: '🤖 BOB Training' }, { id: 'hr', label: '🕐 HR' }, { id: 'settings', label: '🔧 Settings' }]),
+  ];
 
   const loadLine = useCallback(async () => {
     if (!user?.username) return;
@@ -365,9 +368,9 @@ export default function FronterPage() {
       </div>
 
       {/* Tabs */}
-      <div style={{ padding: '0 24px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', gap: '2px' }}>
+      <div role="tablist" aria-label="Fronter workspace" style={{ padding: '0 24px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', gap: '2px', overflowX: 'auto' }}>
         {TABS.map(t => (
-          <button key={t.id} onClick={() => setTab(t.id)} style={{ padding: '12px 18px', background: 'none', border: 'none', borderBottom: `2px solid ${tab === t.id ? GOLD : 'transparent'}`, color: tab === t.id ? GOLD : '#6b7280', cursor: 'pointer', fontSize: '13px', fontWeight: tab === t.id ? 'bold' : 'normal' }}>{t.label}</button>
+          <button role="tab" aria-selected={tab === t.id} key={t.id} onClick={() => setTab(t.id)} style={{ padding: '12px 18px', background: 'none', border: 'none', borderBottom: `2px solid ${tab === t.id ? GOLD : 'transparent'}`, color: tab === t.id ? GOLD : '#6b7280', cursor: 'pointer', fontSize: '13px', fontWeight: tab === t.id ? 'bold' : 'normal', whiteSpace: 'nowrap', flexShrink: 0 }}>{t.label}</button>
         ))}
       </div>
 
@@ -442,7 +445,7 @@ export default function FronterPage() {
 
         {tab === 'hr' && <FronterHRTab username={user.username} />}
 
-        {tab === 'scripts' && <FronterScriptsTab fronterFirstName={user?.firstName} username={user.username} />}
+        <FronterScriptsTab active={tab === 'scripts'} fronterFirstName={user?.firstName} username={user.username} />
 
         {tab === 'settings' && <FronterSettingsTab />}
       </div>
