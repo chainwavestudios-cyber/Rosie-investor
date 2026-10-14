@@ -22,7 +22,7 @@ export const CLOSING_MODULES = [
   },
   {
     id: 'discovery',
-    title: 'Discovery & Hardship',
+    title: 'Discovery',
     icon: '🔍',
     steps: [
       'Ask how card balances got to this point (inflation, COVID, loss of income, unexpected expenses)',
@@ -31,9 +31,8 @@ export const CLOSING_MODULES = [
       'Ask: payments manageable? Still using accounts or paying down?',
       'Ask: able to put anything into savings after payments?',
       'Ask: how much of payments going to interest?',
-      'Capture the hardship story (when / why / how)',
     ],
-    capture: ['Hardship summary', 'Co-finances?', 'Interest burden noted'],
+    capture: ['Co-finances?', 'Interest burden noted'],
   },
   {
     id: 'credit',
@@ -87,7 +86,6 @@ export const CLOSING_MODULES = [
       'Groceries',
       'Medical insurance out of pocket',
       'Confirm surplus after program payment',
-      'Repeat hardship summary for underwriting',
       'Ask: anything else to mention for underwriting?',
     ],
     capture: ['Monthly income', 'Total expenses', 'Surplus', 'Employer / occupation'],

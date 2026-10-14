@@ -1,7 +1,7 @@
 /**
  * FronterLeadConfirmedChecklist.jsx — Popup checklist that appears when a customer is dialed.
  * Items must be completed in order before the lead can be transferred/merged.
- * Steps: Name+Address → Debt Amount+Type → Not in Collections → Hardship → Email Creds
+ * Steps: Name+Address → Debt Amount+Type → Not in Collections → Email Creds
  */
 import { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
@@ -15,8 +15,7 @@ const STEPS = [
   { id: 1, label: 'Validate Unsecured Debt > $10,000', icon: '💰' },
   { id: 2, label: 'Confirm Debt Amount & Type (Cards or Personal Loans)', icon: '💳' },
   { id: 3, label: 'Confirm: Not in Collections, Not with Another Settlement Company', icon: '🚫' },
-  { id: 4, label: 'Establish Hardship (AI-Assisted Explanation)', icon: '📝' },
-  { id: 5, label: 'Email Company Credentials', icon: '📧' },
+  { id: 4, label: 'Email Company Credentials', icon: '📧' },
 ];
 
 export default function FronterLeadConfirmedChecklist({ lead, username, onClose, onAllComplete, onEmailCreds, embedded = false }) {
@@ -65,8 +64,8 @@ export default function FronterLeadConfirmedChecklist({ lead, username, onClose,
   const currentStep = checklist.findIndex(c => !c.completed);
 
   const handleEmailCreds = () => {
-    // Mark step 5 as complete and trigger the creds popup
-    const next = checklist.map(c => c.step === 5 ? { ...c, completed: true, completedAt: new Date().toISOString() } : c);
+    // Mark step 4 as complete and trigger the creds popup
+    const next = checklist.map(c => c.step === 4 ? { ...c, completed: true, completedAt: new Date().toISOString() } : c);
     setChecklist(next);
     persist(next);
     onEmailCreds?.();
@@ -109,7 +108,7 @@ export default function FronterLeadConfirmedChecklist({ lead, username, onClose,
                 transition: 'all 0.2s',
               }}>
                 <button
-                  onClick={() => step.id === 5 ? handleEmailCreds() : toggleStep(step.id)}
+                  onClick={() => step.id === 4 ? handleEmailCreds() : toggleStep(step.id)}
                   disabled={!canCheck}
                   style={{
                     width: '24px',
@@ -133,7 +132,7 @@ export default function FronterLeadConfirmedChecklist({ lead, username, onClose,
                   <div style={{ color: completed ? GOLD : '#e8e0d0', fontSize: '12px', fontWeight: completed ? 'bold' : 'normal' }}>
                     {step.icon} {step.label}
                   </div>
-                  {step.id === 5 && canCheck && !completed && (
+                  {step.id === 4 && canCheck && !completed && (
                     <div style={{ color: '#f59e0b', fontSize: '10px', marginTop: '3px' }}>Click to send credentials email →</div>
                   )}
                 </div>
