@@ -48,8 +48,8 @@ export default async function(req) {
     const aiMode = url.searchParams.get('Mode') === 'aiAgent';
     if (aiMode) {
       const leadId = url.searchParams.get('LeadId') || '';
-      let greeting = 'Hi, may I speak with the head of the household please?';
-      let firstName = '';
+      let greeting = 'Hi, may I speak with {{first_name}} please?';
+      let leadData: any = null;
       try {
         const { createClientFromRequest } = await import('npm:@base44/sdk@0.8.52');
         const base44 = createClientFromRequest(req).asServiceRole;
@@ -57,15 +57,24 @@ export default async function(req) {
         if (configs?.[0]?.greeting) {
           greeting = configs[0].greeting;
         }
-        // Substitute {{first_name}} from the lead record
         if (leadId) {
-          try {
-            const lead = await base44.entities.FronterLead.get(leadId);
-            firstName = lead?.firstName || '';
-          } catch {}
+          try { leadData = await base44.entities.FronterLead.get(leadId); } catch {}
         }
       } catch {}
-      if (firstName) greeting = greeting.replace(/\{\{first_name\}\}/g, firstName);
+      // Substitute all {{...}} variables from the lead record
+      if (leadData) {
+        const vars: Record<string, string> = {
+          first_name: leadData.firstName || '',
+          last_name: leadData.lastName || '',
+          email: leadData.email || '',
+          phone_number: leadData.phone || '',
+          address: [leadData.address, leadData.city, leadData.state, leadData.zipCode].filter(Boolean).join(', '),
+          hardship_statement: leadData.hardshipQualification || '',
+        };
+        for (const [key, val] of Object.entries(vars)) {
+          greeting = greeting.replace(new RegExp(`\\{\\{${key}\\}\\}`, 'g'), val);
+        }
+      }
 
       const streamUrl = `wss://rosieai-investorpage.base44.app/functions/aiAgentStream?leadId=${encodeURIComponent(leadId)}`;
       const twiml = `<?xml version="1.0" encoding="UTF-8"?>
