@@ -1,6 +1,7 @@
 /**
  * FronterAdminCallsTab.jsx — Lists all fronter calls chronologically for the last 24 hours.
- * Admin can play recordings and add comments. Comments appear in the fronter's Feedback tab.
+ * Admin can play recordings, view dispositions, click lead names to open contact cards,
+ * and add comments. Comments appear in the fronter's Feedback tab.
  */
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
@@ -22,13 +23,38 @@ function fmtET(iso) {
   });
 }
 
+const DISPOSITION_COLORS = {
+  transferred: '#a78bfa',
+  connected: '#10b981',
+  interested: '#10b981',
+  appointment: '#f59e0b',
+  booked: '#f59e0b',
+  voicemail: '#f59e0b',
+  no_answer: '#8a9ab8',
+  hung_up: '#ef4444',
+  not_interested: '#ef4444',
+  queued_no_connect: '#f59e0b',
+  email_sent: '#60a5fa',
+};
+
+function DispositionBadge({ disposition }) {
+  if (!disposition) return <span style={{ color: '#4a5568', fontSize: '11px' }}>—</span>;
+  const color = DISPOSITION_COLORS[disposition] || '#8a9ab8';
+  const label = disposition.replace(/_/g, ' ');
+  return (
+    <span style={{ display: 'inline-block', background: `${color}22`, color, border: `1px solid ${color}55`, padding: '2px 8px', borderRadius: '4px', fontSize: '10px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.5px', whiteSpace: 'nowrap' }}>{label}</span>
+  );
+}
+
 export default function FronterAdminCallsTab({ adminUsername, fronters, onOpenLead }) {
   const [calls, setCalls] = useState([]);
   const [loading, setLoading] = useState(true);
   const [playingId, setPlayingId] = useState(null);
+  const [loadingRecId, setLoadingRecId] = useState(null);
   const [commentingId, setCommentingId] = useState(null);
   const [commentText, setCommentText] = useState('');
   const [comments, setComments] = useState({});
+  const [leadMap, setLeadMap] = useState({});
   const audioRef = useRef(null);
 
   const load = useCallback(async () => {
@@ -47,6 +73,18 @@ export default function FronterAdminCallsTab({ adminUsername, fronters, onOpenLe
         commentMap[c.transcriptId].push(c);
       }
       setComments(commentMap);
+
+      // Batch-load lead dispositions for all calls
+      const leadIds = [...new Set(recent.map(c => c.leadId).filter(Boolean))];
+      if (leadIds.length > 0) {
+        const leads = await base44.entities.FronterLead.filter({ id: { $in: leadIds } }, '-created_date', 500);
+        const leadItems = Array.isArray(leads) ? leads : (leads?.items || []);
+        const map = {};
+        for (const l of leadItems) {
+          map[l.id] = l;
+        }
+        setLeadMap(map);
+      }
     } catch {}
     setLoading(false);
   }, []);
@@ -57,31 +95,71 @@ export default function FronterAdminCallsTab({ adminUsername, fronters, onOpenLe
     return () => clearInterval(interval);
   }, [load]);
 
+  // Cleanup audio on unmount
+  useEffect(() => () => { if (audioRef.current) audioRef.current.pause(); }, []);
+
   const playCall = async (call) => {
     if (!call.recordingUrl) { alert('No recording available for this call.'); return; }
     if (playingId === call.id) { stopPlay(); return; }
     if (audioRef.current) { audioRef.current.pause(); audioRef.current = null; }
+    setLoadingRecId(call.id);
     setPlayingId(call.id);
     try {
       let url = call.recordingUrl;
       if (!url.startsWith('http')) {
-        const res = await base44.integrations.Core.CreateFileSignedUrl({ file_uri: url });
+        const res = await base44.integrations.Core.CreateFileSignedUrl({ file_uri: url, expires_in: 3600 });
         url = res?.signed_url || url;
       }
+      if (playingId !== call.id) return; // user clicked stop while loading
       const audio = new Audio(url);
+      audio.crossOrigin = 'anonymous';
       audioRef.current = audio;
-      audio.play();
-      audio.onended = () => setPlayingId(null);
-      audio.onerror = () => { setPlayingId(null); alert('Failed to play recording.'); };
+      await audio.play();
+      setLoadingRecId(null);
+      audio.onended = () => { setPlayingId(null); setLoadingRecId(null); };
+      audio.onerror = () => { setPlayingId(null); setLoadingRecId(null); console.error('Audio playback error for call', call.id); };
     } catch (e) {
       setPlayingId(null);
-      alert('Failed to load recording: ' + (e?.message || String(e)));
+      setLoadingRecId(null);
+      console.error('Failed to play recording:', e);
+      // Fallback: open the signed URL in a new tab so the browser handles it
+      try {
+        let url = call.recordingUrl;
+        if (!url.startsWith('http')) {
+          const res = await base44.integrations.Core.CreateFileSignedUrl({ file_uri: url, expires_in: 3600 });
+          url = res?.signed_url || url;
+        }
+        window.open(url, '_blank');
+      } catch {
+        alert('Failed to play recording. Try the download button.');
+      }
     }
   };
 
   const stopPlay = () => {
     if (audioRef.current) { audioRef.current.pause(); audioRef.current = null; }
     setPlayingId(null);
+    setLoadingRecId(null);
+  };
+
+  const downloadRecording = async (call) => {
+    if (!call.recordingUrl) { alert('No recording available.'); return; }
+    try {
+      let url = call.recordingUrl;
+      if (!url.startsWith('http')) {
+        const res = await base44.integrations.Core.CreateFileSignedUrl({ file_uri: url, expires_in: 3600 });
+        url = res?.signed_url || url;
+      }
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `recording-${call.leadName || 'call'}.webm`;
+      a.target = '_blank';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    } catch (e) {
+      alert('Failed to download recording: ' + (e?.message || String(e)));
+    }
   };
 
   const submitComment = async (call) => {
@@ -105,6 +183,12 @@ export default function FronterAdminCallsTab({ adminUsername, fronters, onOpenLe
     } catch (e) { alert('Failed to save comment: ' + (e?.message || String(e))); }
   };
 
+  const handleNameClick = (call) => {
+    if (call.leadId && onOpenLead) {
+      onOpenLead(call.leadId);
+    }
+  };
+
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
@@ -121,7 +205,7 @@ export default function FronterAdminCallsTab({ adminUsername, fronters, onOpenLe
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
             <thead>
               <tr style={{ borderBottom: `2px solid ${GOLD}33` }}>
-                {['Time (ET)', 'Fronter', 'Lead', 'Duration', 'Recording', 'Comments', 'Actions'].map(h => (
+                {['Time (ET)', 'Fronter', 'Lead', 'Disposition', 'Duration', 'Recording', 'Comments', 'Actions'].map(h => (
                   <th key={h} style={{ color: GOLD, padding: '10px 12px', textAlign: 'left', fontSize: '10px', letterSpacing: '1.5px', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{h}</th>
                 ))}
               </tr>
@@ -130,6 +214,10 @@ export default function FronterAdminCallsTab({ adminUsername, fronters, onOpenLe
               {calls.map(call => {
                 const callComments = comments[call.id] || [];
                 const hasComment = callComments.length > 0;
+                const lead = leadMap[call.leadId];
+                const disposition = lead?.lastCallResult;
+                const isPlaying = playingId === call.id;
+                const isLoadingRec = loadingRecId === call.id;
                 return (
                   <tr key={call.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
                     <td style={{ padding: '10px 12px', color: '#8a9ab8', fontSize: '12px', whiteSpace: 'nowrap' }}>{fmtET(call.callDate)}</td>
@@ -137,20 +225,44 @@ export default function FronterAdminCallsTab({ adminUsername, fronters, onOpenLe
                       <span style={{ color: '#e8e0d0', fontSize: '13px', fontWeight: 'bold' }}>{call.fronterUsername}</span>
                     </td>
                     <td style={{ padding: '10px 12px' }}>
-                      {call.leadId && onOpenLead ? (
-                        <button onClick={() => onOpenLead(call.leadId)} style={{ background: 'none', border: 'none', color: GOLD, fontSize: '13px', cursor: 'pointer', padding: 0, textAlign: 'left', textDecoration: 'underline', textUnderlineOffset: '2px' }}>{call.leadName || '—'}</button>
+                      {call.leadId ? (
+                        <button
+                          onClick={() => handleNameClick(call)}
+                          style={{ background: 'none', border: 'none', color: GOLD, fontSize: '13px', cursor: 'pointer', padding: 0, textAlign: 'left', textDecoration: 'underline', textUnderlineOffset: '2px', fontWeight: 'bold' }}
+                          title="Open contact card"
+                        >
+                          {call.leadName || '—'}
+                        </button>
                       ) : (
                         <span style={{ color: '#c4cdd8', fontSize: '13px' }}>{call.leadName || '—'}</span>
                       )}
                     </td>
+                    <td style={{ padding: '10px 12px' }}>
+                      <DispositionBadge disposition={disposition} />
+                    </td>
                     <td style={{ padding: '10px 12px', color: GOLD, fontSize: '12px', fontFamily: 'monospace' }}>{fmtDuration(call.durationSeconds)}</td>
                     <td style={{ padding: '10px 12px' }}>
                       {call.recordingUrl ? (
-                        playingId === call.id ? (
-                          <button onClick={stopPlay} style={{ background: 'rgba(239,68,68,0.15)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '4px', padding: '4px 10px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>⏸ Stop</button>
-                        ) : (
-                         <button onClick={() => playCall(call)} style={{ background: 'rgba(16,185,129,0.15)', color: GOLD, border: '1px solid rgba(16,185,129,0.3)', borderRadius: '4px', padding: '4px 10px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>▶ Play</button>
-                        )
+                        <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                          {isPlaying ? (
+                            <button onClick={stopPlay} style={{ background: 'rgba(239,68,68,0.15)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '4px', padding: '4px 10px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', whiteSpace: 'nowrap' }}>⏸ Stop</button>
+                          ) : (
+                            <button
+                              onClick={() => playCall(call)}
+                              disabled={isLoadingRec}
+                              style={{ background: isLoadingRec ? 'rgba(96,165,250,0.15)' : 'rgba(16,185,129,0.15)', color: isLoadingRec ? BLUE : GOLD, border: `1px solid ${isLoadingRec ? 'rgba(96,165,250,0.3)' : 'rgba(16,185,129,0.3)'}`, borderRadius: '4px', padding: '4px 10px', cursor: isLoadingRec ? 'wait' : 'pointer', fontSize: '11px', fontWeight: 'bold', whiteSpace: 'nowrap', opacity: isLoadingRec ? 0.7 : 1 }}
+                            >
+                              {isLoadingRec ? '⏳ Loading…' : '▶ Play'}
+                            </button>
+                          )}
+                          <button
+                            onClick={() => downloadRecording(call)}
+                            title="Download recording"
+                            style={{ background: 'rgba(96,165,250,0.1)', color: BLUE, border: '1px solid rgba(96,165,250,0.2)', borderRadius: '4px', padding: '4px 8px', cursor: 'pointer', fontSize: '11px' }}
+                          >
+                            ⬇
+                          </button>
+                        </div>
                       ) : (
                         <span style={{ color: '#4a5568', fontSize: '11px' }}>No recording</span>
                       )}
