@@ -9,6 +9,7 @@ export const twilioBase   = `https://api.twilio.com/2010-04-01/Accounts/${ACCOUN
 export const twilioAuth   = 'Basic ' + btoa(`${ACCOUNT_SID}:${AUTH_TOKEN}`);
 
 export function lineNumber(lineKey: string): string {
+  if (lineKey && lineKey.startsWith('+')) return lineKey; // already a phone number (line without env var)
   return (lineKey && Deno.env.get(lineKey)) || Deno.env.get('TWILIO_FROM_NUMBER') || '';
 }
 

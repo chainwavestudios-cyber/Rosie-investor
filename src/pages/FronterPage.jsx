@@ -115,11 +115,11 @@ export default function FronterPage() {
     try {
       const assignments = await base44.entities.FronterLineAssignment.filter({ username: { $regex: `^${user.username.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, $options: 'i' } });
       setLineAssignment(assignments?.[0] || null);
-      // Admins can always pick from all available lines
+      // Always load available lines so fronters resolve their current number too
+      const res = await base44.functions.invoke('twilioGetLines', {});
+      const lines = res?.data?.lines || res?.lines || [];
+      setAvailableLines(lines);
       if (isAdmin) {
-        const res = await base44.functions.invoke('twilioGetLines', {});
-        const lines = res?.data?.lines || res?.lines || [];
-        setAvailableLines(lines);
         setAdminLineKey(prev => prev || (lines.length > 0 ? lines[0].key : ''));
       }
     } catch {}
@@ -292,7 +292,9 @@ export default function FronterPage() {
     ? lineAssignment
     : (lineAssignment || availableLines.find(l => l.key === adminLineKey) || null);
   const activeLineKey = activeLine?.twilioLineKey || activeLine?.key || '';
-  const activeLineNumber = activeLine?.twilioNumber || activeLine?.number || '';
+  const activeLineNumber = isFronter
+    ? (availableLines.find(l => l.key === lineAssignment?.twilioLineKey)?.number || lineAssignment?.twilioNumber || '')
+    : (activeLine?.twilioNumber || activeLine?.number || '');
 
   if (loading) return (
     <div style={{ minHeight: '100vh', background: DARK, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -351,7 +353,7 @@ export default function FronterPage() {
           <div style={{ color: GOLD, fontSize: '18px', fontWeight: 'bold', letterSpacing: '2px' }}>FRONTER</div>
           <span style={{ color: '#6b7280', fontSize: '12px' }}>|</span>
           <span style={{ color: '#8a9ab8', fontSize: '13px' }}>{user?.username}</span>
-          {lineAssignment && <span style={{ color: GOLD, fontSize: '11px' }}>· Line: {lineAssignment.twilioNumber}</span>}
+          {lineAssignment && <span style={{ color: GOLD, fontSize: '11px' }}>· Line: {availableLines.find(l => l.key === lineAssignment.twilioLineKey)?.number || lineAssignment.twilioNumber}</span>}
           {isAdmin && <span style={{ padding: '2px 8px', borderRadius: '10px', background: 'rgba(16,185,129,0.15)', color: GOLD, fontSize: '9px', fontWeight: 'bold', textTransform: 'uppercase' }}>Super Admin</span>}
         </div>
         <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>

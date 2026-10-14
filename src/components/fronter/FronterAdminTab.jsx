@@ -299,8 +299,7 @@ export default function FronterAdminTab({ adminUsername }) {
                   <div key={a.id} style={{ background: '#0d1b2a', border: '1px solid rgba(255,255,255,0.07)', borderRadius: '4px', padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <div>
                       <span style={{ color: '#e8e0d0', fontSize: '14px', fontWeight: 'bold' }}>{a.username}</span>
-                      <span style={{ color: '#6b7280', fontSize: '12px', marginLeft: '12px' }}>{a.twilioNumber}</span>
-                      <span style={{ color: '#4a5568', fontSize: '10px', marginLeft: '8px' }}>({a.twilioLineKey})</span>
+                      <span style={{ color: '#6b7280', fontSize: '12px', marginLeft: '12px' }}>{lines.find(l => l.key === a.twilioLineKey)?.number || a.twilioNumber}</span>
                     </div>
                     <button onClick={() => removeLine(a.id)} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '12px' }}>Remove</button>
                   </div>
