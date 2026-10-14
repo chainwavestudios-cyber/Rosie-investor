@@ -7,7 +7,7 @@ const btn = (color, bg, border) => ({
   padding: '5px 10px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', whiteSpace: 'nowrap',
 });
 
-export default function FronterCardActions({ status, isAdmin, credsSent, headsUpSent, headsUpSending, onHeadsUp, onCreds, onInterested, onTransferred, onEmailSent, onClosedDeal, onNext, onClose, onQA }) {
+export default function FronterCardActions({ status, isAdmin, headsUpSent, headsUpSending, onHeadsUp, onInterested, onTransferred, onEmailSent, onClosedDeal, onNext, onClose, onQA }) {
   const stop = (fn) => (e) => { e.stopPropagation(); fn?.(); };
   const canDisposition = status === 'prospect' || status === 'lead';
   return (
@@ -17,9 +17,6 @@ export default function FronterCardActions({ status, isAdmin, credsSent, headsUp
       </button>
       <button onClick={stop(onHeadsUp)} disabled={headsUpSending} style={{ ...btn(headsUpSent ? '#4ade80' : '#ef4444', headsUpSent ? 'rgba(74,222,128,0.15)' : 'rgba(239,68,68,0.15)', headsUpSent ? 'rgba(74,222,128,0.3)' : 'rgba(239,68,68,0.3)'), opacity: headsUpSending ? 0.5 : 1 }}>
         🚨 {headsUpSent ? 'Sent' : 'Transfer Coming'}
-      </button>
-      <button onClick={stop(onCreds)} style={btn('#60a5fa', 'rgba(96,165,250,0.12)', 'rgba(96,165,250,0.3)')}>
-        🔑 Email Company Credentials{credsSent ? ' ✓' : ''}
       </button>
       {status === 'prospect' && (
         <button onClick={stop(onInterested)} style={btn('#10b981', 'rgba(16,185,129,0.15)', 'rgba(16,185,129,0.35)')}>✓ Interested – Requests Meeting</button>

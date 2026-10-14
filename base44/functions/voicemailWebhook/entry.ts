@@ -10,6 +10,8 @@
  * is fire-and-forget (no await before returning TwiML).
  */
 
+import twilioVoiceParams from '../../shared/twilioVoiceParams.ts';
+
 const DEFAULT_VM_GREETING = "Hi, you've reached Newport Beach Tech Acquisitions. We're unavailable right now. Please leave your message after the beep and we'll call you back shortly.";
 
 // Direct Base44 REST helpers — no SDK cold-start overhead
@@ -60,18 +62,17 @@ async function resolveCallerName(appId, token, from) {
   return { callerName, leadId, investorId };
 }
 
-Deno.serve(async (req) => {
+export default async function(req) {
   const APP_ID  = Deno.env.get('BASE44_APP_ID')        || '';
   const TOKEN   = Deno.env.get('BASE44_SERVICE_TOKEN') || '';
-  const VM_BASE = `https://investors.rosieai.tech/functions/voicemailWebhook`;
-
-  const urlParams = new URL(req.url).searchParams;
-  const noAnswer  = urlParams.get('noAnswer') === 'true';
+  const VM_BASE = `${req.headers.get('X-Base44-App-Url') || 'https://rosieai-investorpage.base44.app'}/functions/voicemailWebhook`;
+  let bodyParams;
+  try { bodyParams = await twilioVoiceParams(req); }
+  catch { return new Response('<Response><Hangup/></Response>', { headers: { 'Content-Type': 'text/xml' } }); }
+  const noAnswer = bodyParams.get('noAnswer') === 'true';
 
   // ── 1. noAnswer: <Dial> action callback ─────────────────────────────────
   if (noAnswer) {
-    let bodyParams = new URLSearchParams();
-    try { bodyParams = new URLSearchParams(await req.text()); } catch {}
 
     const dialStatus = bodyParams.get('DialCallStatus') || '';
     const callSid    = bodyParams.get('CallSid')        || '';
@@ -80,6 +81,19 @@ Deno.serve(async (req) => {
     const duration   = parseInt(bodyParams.get('DialCallDuration') || bodyParams.get('CallDuration') || '0', 10);
 
     console.log('[voicemailWebhook] noAnswer, DialCallStatus:', dialStatus, 'CallSid:', callSid);
+
+    // A browser-originated call is outbound even though Twilio labels its
+    // parent leg "inbound". Never play our inbound voicemail to the fronter.
+    const isOutbound = from.startsWith('client:') || bodyParams.get('outbound') === 'true';
+    if (isOutbound && dialStatus !== 'completed' && dialStatus !== 'answered') {
+      const message = dialStatus === 'busy'
+        ? 'The number you dialed is busy. Please try again later.'
+        : dialStatus === 'no-answer'
+          ? 'The number you dialed did not answer.'
+          : 'The outgoing call could not connect. Please check the destination number and try again.';
+      return new Response(`<?xml version="1.0" encoding="UTF-8"?><Response><Say>${message}</Say><Hangup/></Response>`,
+        { headers: { 'Content-Type': 'text/xml' } });
+    }
 
     // Fronter hold/merge: the customer leg was moved into fronter_conf_<CallSid>,
     // which ends this <Dial>. Put the fronter into that conference instead of hanging up.
@@ -170,9 +184,6 @@ Deno.serve(async (req) => {
 
   // ── 2 & 3. Recording complete or status callback ─────────────────────────
   try {
-    let bodyParams = new URLSearchParams();
-    try { bodyParams = new URLSearchParams(await req.text()); } catch {}
-
     const callSid       = bodyParams.get('CallSid')           || '';
     const callStatus    = bodyParams.get('CallStatus')        || '';
     const direction     = bodyParams.get('Direction')         || 'inbound';
@@ -276,4 +287,4 @@ Deno.serve(async (req) => {
     console.error('[voicemailWebhook] error:', e.message);
     return new Response('OK', { status: 200 });
   }
-});
+}

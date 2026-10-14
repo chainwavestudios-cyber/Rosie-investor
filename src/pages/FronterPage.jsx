@@ -287,14 +287,18 @@ export default function FronterPage() {
     setShowReportPopup(false);
   };
 
-  // Resolve the line to use for the leads tab
+  // Resolve assignments only against the account's live, voice-capable inventory.
+  // A stored number is authoritative; a stale key must not select a different line.
+  const assignedLiveLine = lineAssignment
+    ? availableLines.find(l => lineAssignment.twilioNumber
+      ? l.number === lineAssignment.twilioNumber
+      : l.key === lineAssignment.twilioLineKey)
+    : null;
   const activeLine = isFronter
-    ? lineAssignment
-    : (lineAssignment || availableLines.find(l => l.key === adminLineKey) || null);
-  const activeLineKey = activeLine?.twilioLineKey || activeLine?.key || '';
-  const activeLineNumber = isFronter
-    ? (availableLines.find(l => l.key === lineAssignment?.twilioLineKey)?.number || lineAssignment?.twilioNumber || '')
-    : (activeLine?.twilioNumber || activeLine?.number || '');
+    ? assignedLiveLine
+    : (assignedLiveLine || availableLines.find(l => l.key === adminLineKey) || null);
+  const activeLineKey = activeLine?.key || '';
+  const activeLineNumber = activeLine?.number || '';
 
   if (loading) return (
     <div style={{ minHeight: '100vh', background: DARK, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -409,7 +413,7 @@ export default function FronterPage() {
 
         {['prospects', 'leads'].includes(tab) && (
           isFronter ? (
-            lineAssignment ? (
+            assignedLiveLine ? (
               <FronterLeadsTab
                 username={user.username}
                 lineKey={activeLineKey}
@@ -428,7 +432,7 @@ export default function FronterPage() {
               />
             ) : (
               <div style={{ color: '#4a5568', textAlign: 'center', padding: '60px', fontSize: '14px' }}>
-                No Twilio line assigned to you yet. Contact your admin to assign a line.
+                {lineAssignment ? 'Your assigned line is not available in the live Twilio account. Contact your admin to check the assignment.' : 'No Twilio line assigned to you yet. Contact your admin to assign a line.'}
               </div>
             )
           ) : (

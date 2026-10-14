@@ -387,11 +387,18 @@ Provide your analysis as JSON with these fields:
         overrideToken = permission.data?.overrideToken || '';
         if (!overrideToken) throw new Error('Calling-hours override was not authorized.');
       }
-      onDial?.(lead);
-      const device = await getDevice();
+      const inventory = await base44.functions.invoke('twilioGetLines', {});
+      const liveLine = (inventory.data?.lines || []).find(l => lineNumber ? l.number === lineNumber : l.key === lineKey);
+      if (!liveLine) throw new Error('Your assigned line is not a live voice number in this Twilio account. Contact your admin.');
+      if (!isSuperAdmin && liveLine.assignedTo && liveLine.assignedTo.toLowerCase() !== (username || '').toLowerCase()) {
+        throw new Error('This line is assigned to another fronter. Contact your admin.');
+      }
       const digits = lead.phone.replace(/\D/g, '');
       const e164 = digits.length === 10 ? `+1${digits}` : digits.length === 11 && digits.startsWith('1') ? `+${digits}` : lead.phone;
-      const call = await device.connect({ params: { To: e164, CallerId: lineNumber, ...(overrideToken ? { CallCutoffOverride: overrideToken } : {}) } });
+      if (!/^\+[1-9]\d{7,14}$/.test(e164)) throw new Error('Please enter a valid destination phone number.');
+      const device = await getDevice();
+      onDial?.(lead);
+      const call = await device.connect({ params: { To: e164, CallerId: liveLine.number, ...(overrideToken ? { CallCutoffOverride: overrideToken } : {}) } });
       callRef.current = call;
       wireCall(call);
       onCallStarted?.(lead);

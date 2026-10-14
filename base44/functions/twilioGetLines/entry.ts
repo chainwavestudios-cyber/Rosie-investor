@@ -58,7 +58,7 @@ export default async function(req: Request): Promise<Response> {
     // 4. Build lines: each Twilio number → { key, number, label, assignedTo }
     const lines = twilioNumbers.map((number: string) => {
       const key = envNumberToKey.get(number) || number; // use phone number as key if no env var
-      const assignment = assignments.find((a: any) => a.twilioLineKey === key);
+      const assignment = assignments.find((a: any) => a.twilioNumber === number || a.twilioLineKey === key || a.twilioLineKey === number);
       const fronterName = assignment
         ? (displayNames.get((assignment.username || '').toLowerCase()) || assignment.username)
         : '';

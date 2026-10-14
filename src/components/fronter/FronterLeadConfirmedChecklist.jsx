@@ -15,21 +15,16 @@ const STEPS = [
   { id: 1, label: 'Validate Unsecured Debt > $10,000', icon: '💰' },
   { id: 2, label: 'Confirm Debt Amount & Type (Cards or Personal Loans)', icon: '💳' },
   { id: 3, label: 'Confirm: Not in Collections, Not with Another Settlement Company', icon: '🚫' },
-  { id: 4, label: 'Email Company Credentials', icon: '📧' },
 ];
 
-export default function FronterLeadConfirmedChecklist({ lead, username, onClose, onAllComplete, onEmailCreds, embedded = false }) {
+export default function FronterLeadConfirmedChecklist({ lead, username, onClose, onAllComplete, embedded = false }) {
   const [checklist, setChecklist] = useState([]);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     try {
       const parsed = JSON.parse(lead?.leadConfirmedChecklistJson || '[]');
-      if (parsed.length === STEPS.length) {
-        setChecklist(parsed);
-      } else {
-        setChecklist(STEPS.map(s => ({ step: s.id, completed: false, completedAt: null })));
-      }
+      setChecklist(STEPS.map(s => parsed.find(c => c.step === s.id) || { step: s.id, completed: false, completedAt: null }));
     } catch {
       setChecklist(STEPS.map(s => ({ step: s.id, completed: false, completedAt: null })));
     }
@@ -63,14 +58,6 @@ export default function FronterLeadConfirmedChecklist({ lead, username, onClose,
   const allComplete = checklist.length > 0 && checklist.every(c => c.completed);
   const currentStep = checklist.findIndex(c => !c.completed);
 
-  const handleEmailCreds = () => {
-    // Mark step 4 as complete and trigger the creds popup
-    const next = checklist.map(c => c.step === 4 ? { ...c, completed: true, completedAt: new Date().toISOString() } : c);
-    setChecklist(next);
-    persist(next);
-    onEmailCreds?.();
-    if (next.every(c => c.completed)) onAllComplete?.();
-  };
 
   const content = (
     <div style={{ padding: embedded ? '0' : '14px' }}>
@@ -108,7 +95,8 @@ export default function FronterLeadConfirmedChecklist({ lead, username, onClose,
                 transition: 'all 0.2s',
               }}>
                 <button
-                  onClick={() => step.id === 4 ? handleEmailCreds() : toggleStep(step.id)}
+                  onClick={() => toggleStep(step.id)}
+                  aria-label={step.label}
                   disabled={!canCheck}
                   style={{
                     width: '24px',
@@ -132,9 +120,6 @@ export default function FronterLeadConfirmedChecklist({ lead, username, onClose,
                   <div style={{ color: completed ? GOLD : '#e8e0d0', fontSize: '12px', fontWeight: completed ? 'bold' : 'normal' }}>
                     {step.icon} {step.label}
                   </div>
-                  {step.id === 4 && canCheck && !completed && (
-                    <div style={{ color: '#f59e0b', fontSize: '10px', marginTop: '3px' }}>Click to send credentials email →</div>
-                  )}
                 </div>
                 {completed && item?.completedAt && (
                   <span style={{ color: '#6b7280', fontSize: '9px', flexShrink: 0 }}>

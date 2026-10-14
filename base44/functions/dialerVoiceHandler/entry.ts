@@ -11,6 +11,7 @@
  * not just calls that go to voicemail.
  */
 import { xmlEscape } from '../../shared/twilioHelpers.ts';
+import twilioVoiceParams from '../../shared/twilioVoiceParams.ts';
 import { checkCallCutoff } from '../../shared/phoneTimeZone.ts';
 import { verifyCallCutoffOverride } from '../../shared/callCutoffOverride.ts';
 
@@ -19,25 +20,13 @@ export default async function(req) {
   try {
     const url = new URL(req.url);
 
-    let to             = url.searchParams.get('To')             || '';
-    let conferenceName = url.searchParams.get('ConferenceName') || '';
-    let callerIdParam  = url.searchParams.get('CallerId')       || '';
-    let direction      = url.searchParams.get('Direction')      || '';
-    let called         = url.searchParams.get('Called')         || '';
-    let overrideToken  = url.searchParams.get('CallCutoffOverride') || '';
-
-    if (req.method === 'POST') {
-      try {
-        const body   = await req.text();
-        const params = new URLSearchParams(body);
-        to             = to             || params.get('To')             || '';
-        conferenceName = conferenceName || params.get('ConferenceName') || '';
-        callerIdParam  = callerIdParam  || params.get('CallerId')       || '';
-        direction      = direction      || params.get('Direction')      || '';
-        called         = called         || params.get('Called')         || '';
-        overrideToken  = overrideToken  || params.get('CallCutoffOverride') || '';
-      } catch {}
-    }
+    const params = await twilioVoiceParams(req);
+    const to = params.get('To') || '';
+    const conferenceName = params.get('ConferenceName') || '';
+    const callerIdParam = params.get('CallerId') || '';
+    const direction = params.get('Direction') || '';
+    const called = params.get('Called') || '';
+    const overrideToken = params.get('CallCutoffOverride') || '';
 
     console.log('[dialerVoiceHandler] method:', req.method, 'to:', to, 'conf:', conferenceName, 'direction:', direction, 'called:', called);
 
@@ -124,7 +113,7 @@ export default async function(req) {
     }
 
     const appId        = Deno.env.get('BASE44_APP_ID') || '';
-    const vmWebhookBase = `https://investors.rosieai.tech/functions/voicemailWebhook`;
+    const vmWebhookBase = `${req.headers.get('X-Base44-App-Url') || 'https://rosieai-investorpage.base44.app'}/functions/voicemailWebhook`;
 
     if (!appId) {
       console.error('[dialerVoiceHandler] BASE44_APP_ID env var is not set — voicemail webhook URL will be invalid!');
@@ -158,8 +147,8 @@ export default async function(req) {
       }
       const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Dial callerId="${callerId}" timeout="30" action="${vmWebhookBase}?noAnswer=true" method="POST">
-    <Number>${to}</Number>
+  <Dial callerId="${xmlEscape(callerId)}" answerOnBridge="true" timeout="30" action="${xmlEscape(vmWebhookBase + '?noAnswer=true&outbound=true')}" method="POST">
+    <Number>${xmlEscape(to)}</Number>
   </Dial>
 </Response>`;
       console.log('[dialerVoiceHandler] → Mode 1 Direct dial:', to);

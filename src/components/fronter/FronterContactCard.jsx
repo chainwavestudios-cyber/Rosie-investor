@@ -10,7 +10,6 @@ import { substituteScriptVars } from '@/lib/scriptSubstitute';
 import { renderFormatted } from '@/components/debt/ScriptRichText';
 import FronterCardAudioControls from './FronterCardAudioControls';
 import FronterMeetingScheduler from './FronterMeetingScheduler';
-import FronterCredsEmailPopup from './FronterCredsEmailPopup';
 import FronterCardActions from './FronterCardActions';
 import FronterHardshipField from './FronterHardshipField';
 import FronterNotesSection from './FronterNotesSection';
@@ -63,7 +62,6 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
   const [callStartTime, setCallStartTime] = useState(null);
   const [callDuration, setCallDuration] = useState(0);
   const [showMeetingScheduler, setShowMeetingScheduler] = useState(false);
-  const [showCredsPopup, setShowCredsPopup] = useState(false);
   const [meetingDisposition, setMeetingDisposition] = useState('interested');
   const [showChecklist, setShowChecklist] = useState(false);
   const [showClosedDealCelebration, setShowClosedDealCelebration] = useState(false);
@@ -76,8 +74,6 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
   const [aiReviewing, setAiReviewing] = useState(false);
   const [aiReviewMsg, setAiReviewMsg] = useState('');
   const [showMergePopup, setShowMergePopup] = useState(false);
-  const [emailSending, setEmailSending] = useState(false);
-  const [emailSent, setEmailSent] = useState(false);
   const [debtConfirming, setDebtConfirming] = useState(false);
   const [debtConfirmMsg, setDebtConfirmMsg] = useState('');
   const [transferScript, setTransferScript] = useState('');
@@ -502,36 +498,6 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
     setAiInputRunning(false);
   };
 
-  // ── Quick-send credentials email using lead's email ──
-  const quickSendCreds = async () => {
-    if (!local.email) { alert('No email address on the contact card. Please add an email first.'); return; }
-    setEmailSending(true);
-    try {
-      const raw = await base44.entities.FronterEmailTemplate.list('sortOrder', 10);
-      const all = Array.isArray(raw) ? raw : (raw?.items || []);
-      const t = all[0];
-      if (!t) { alert('No email templates found.'); setEmailSending(false); return; }
-      const filledSubject = (t.subject || '').replace(/{{firstName}}/g, local.firstName || '').replace(/{{email}}/g, local.email || '');
-      const filledBody = (t.body || '').replace(/{{firstName}}/g, local.firstName || '').replace(/{{email}}/g, local.email || '');
-      const res = await base44.functions.invoke('sendGmailEmail', {
-        to: local.email, subject: filledSubject, html: filledBody, leadId: lead?.id, sentBy: username,
-      });
-      if (res?.error) throw new Error(res.error);
-      const now = new Date().toISOString();
-      const updates = { credsSentAt: now, credsSentTemplate: t.label };
-      if (local.status === 'prospect') updates.status = 'lead';
-      try {
-        const log = JSON.parse(local.notesLogJson || '[]');
-        log.push({ text: `🔑 Company credentials emailed to ${local.email} (${t.label})`, timestamp: now, author: username, type: 'creds' });
-        updates.notesLogJson = JSON.stringify(log);
-      } catch {}
-      if (lead?.id) await base44.entities.FronterLead.update(lead.id, updates);
-      setLocal(prev => ({ ...prev, ...updates }));
-      setEmailSent(true);
-      setTimeout(() => setEmailSent(false), 3000);
-    } catch (e) { alert('Failed to send: ' + (e?.message || String(e))); }
-    setEmailSending(false);
-  };
 
   // ── Script parsing: split at @@COMPLETED_STEPS@@ and handle @@DEBT_CONFIRM@@ ──
   const rawScript = activeScript?.content || '';
@@ -592,19 +558,7 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
                   </div>
                 );
               }
-              if (seg.toUpperCase() === 'SEND_EMAIL') {
-                return (
-                  <div key={i} style={{ margin: '12px 0', display: 'flex', justifyContent: 'center' }}>
-                    <button
-                      onClick={quickSendCreds}
-                      disabled={emailSending || !local.email}
-                      style={{ background: 'rgba(96,165,250,0.18)', color: BLUE, border: '2px solid rgba(96,165,250,0.55)', borderRadius: '8px', padding: '10px 24px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold', fontFamily: 'Georgia, serif', boxShadow: '0 0 12px rgba(96,165,250,0.33)', opacity: (!local.email && !emailSending) ? 0.5 : 1 }}
-                    >
-                      {emailSending ? '⏳ Sending…' : emailSent ? '✓ Sent!' : '📧 Send Email'}
-                    </button>
-                  </div>
-                );
-              }
+              if (seg.toUpperCase() === 'SEND_EMAIL') return null;
               return <span key={i}>{renderFormatted(seg)}</span>;
             })}
             {hasCompletedSteps && (
@@ -620,26 +574,11 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
           </div>
         )}
       </div>
-      {/* Interactive AI buttons — shown when script has AI tags or always available */}
-      <div style={{ padding: '8px 14px', borderTop: '1px solid rgba(255,255,255,0.07)', display: 'flex', gap: '6px', flexShrink: 0, flexWrap: 'wrap', alignItems: 'center' }}>
-        <button onClick={runAIReview} disabled={aiReviewing} style={{ background: `${GOLD}18`, color: GOLD, border: `1px solid ${GOLD}44`, borderRadius: '4px', padding: '6px 12px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '4px' }}>
-          {aiReviewing ? '⏳ Reviewing…' : '🤖 AI Review'}
-        </button>
-        <button onClick={runAiInput} disabled={aiInputRunning} style={{ background: 'rgba(167,139,250,0.18)', color: '#a78bfa', border: '1px solid rgba(167,139,250,0.44)', borderRadius: '4px', padding: '6px 12px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '4px' }}>
-          {aiInputRunning ? '⏳ Summarizing…' : '🤖 AI Input'}
-        </button>
-        {hasDebtConfirm && (
-          <button onClick={runDebtConfirm} disabled={debtConfirming} style={{ background: `${GOLD}18`, color: GOLD, border: `1px solid ${GOLD}44`, borderRadius: '4px', padding: '6px 12px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '4px' }}>
-            {debtConfirming ? '⏳ Confirming…' : '💰 Debt Confirm'}
-          </button>
-        )}
-        <button onClick={quickSendCreds} disabled={emailSending || !local.email} style={{ background: emailSent ? 'rgba(74,222,128,0.15)' : 'rgba(96,165,250,0.12)', color: emailSent ? '#4ade80' : BLUE, border: `1px solid ${emailSent ? 'rgba(74,222,128,0.3)' : BLUE + '30'}`, borderRadius: '4px', padding: '6px 12px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold', opacity: (!local.email && !emailSending) ? 0.5 : 1 }}>
-          {emailSending ? '⏳ Sending…' : emailSent ? '✓ Sent!' : '🔑 Send Credentials'}
-        </button>
-        {aiReviewMsg && <span style={{ color: aiReviewMsg.startsWith('✓') ? GOLD : '#8a9ab8', fontSize: '10px', marginLeft: '4px' }}>{aiReviewMsg}</span>}
-        {aiInputMsg && <span style={{ color: aiInputMsg.startsWith('✓') ? '#a78bfa' : '#8a9ab8', fontSize: '10px', marginLeft: '4px' }}>{aiInputMsg}</span>}
-        {debtConfirmMsg && <span style={{ color: debtConfirmMsg.startsWith('✓') ? GOLD : '#f59e0b', fontSize: '10px', marginLeft: '4px' }}>{debtConfirmMsg}</span>}
-      </div>
+      {(aiInputMsg || debtConfirmMsg) && (
+        <div style={{ padding: '8px 14px', color: GOLD, fontSize: '10px' }}>
+          {aiInputMsg || debtConfirmMsg}
+        </div>
+      )}
     </div>
   );
 
@@ -672,7 +611,6 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
                   username={username}
                   embedded
                   onAllComplete={() => setShowMergePopup(true)}
-                  onEmailCreds={() => setShowCredsPopup(true)}
                 />
               </div>
             </div>
@@ -706,11 +644,9 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
           <FronterCardActions
             status={local.status || 'prospect'}
             isAdmin={isAdmin}
-            credsSent={!!local.credsSentAt}
             headsUpSent={headsUpSent}
             headsUpSending={headsUpSending}
             onHeadsUp={sendHeadsUp}
-            onCreds={() => setShowCredsPopup(true)}
             onInterested={() => { setMeetingDisposition('interested'); setShowMeetingScheduler(true); }}
             onTransferred={markTransferred}
             onEmailSent={markEmailSent}
@@ -916,7 +852,6 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
               username={username}
               embedded
               onAllComplete={() => setShowMergePopup(true)}
-              onEmailCreds={() => setShowCredsPopup(true)}
             />
           )}
 
@@ -969,15 +904,6 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
         </div>
       )}
 
-      {/* Company credentials email popup */}
-      {showCredsPopup && (
-        <FronterCredsEmailPopup
-          lead={local}
-          username={username}
-          onClose={() => setShowCredsPopup(false)}
-          onSent={(updated) => { setLocal(prev => ({ ...prev, ...updated })); setShowCredsPopup(false); onSave?.({ ...local, ...updated }); }}
-        />
-      )}
 
       {/* Closed Deal celebration */}
       {showClosedDealCelebration && (
