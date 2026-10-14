@@ -1,0 +1,29 @@
+{
+  "name": "ClosingScriptConfig",
+  "type": "object",
+  "properties": {
+    "configName": {
+      "type": "string",
+      "title": "Config Name (singleton key)",
+      "default": "default"
+    },
+    "modulesJson": {
+      "type": "string",
+      "title": "Modules JSON (array of {id, title, icon, steps: [{text, keywords}], scriptText, capture})",
+      "format": "textarea"
+    },
+    "updatedBy": {
+      "type": "string",
+      "title": "Last Updated By (username)"
+    }
+  },
+  "required": [
+    "configName"
+  ],
+  "rls": {
+    "create": null,
+    "read": null,
+    "update": null,
+    "delete": null
+  }
+}

@@ -19,9 +19,20 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { base44 } from '@/api/base44Client';
 import { CLOSING_MODULES } from './ClosingModules';
 import ClosingChecklist from './ClosingChecklist';
+import ClosingScriptView from './ClosingScriptView';
 import SkippedStepPopup from './SkippedStepPopup';
 import ClosingPhoneNumbersTab from './ClosingPhoneNumbersTab';
 import { logAIUsage, CREDIT_ESTIMATES } from '@/lib/aiCreditLog';
+
+// Build default editable modules from the hardcoded CLOSING_MODULES
+function defaultScriptModules() {
+  return CLOSING_MODULES.map(m => ({
+    id: m.id, title: m.title, icon: m.icon,
+    steps: m.steps.map(s => ({ text: s, keywords: [] })),
+    scriptText: m.steps.map(s => s).join('\n\n'),
+    capture: m.capture || [],
+  }));
+}
 
 const GOLD = '#10b981';
 const DARK = '#0a0f1e';
@@ -32,19 +43,11 @@ const PURPLE = '#a78bfa';
 const ls = { display: 'block', color: '#8a9ab8', fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '6px' };
 const inp = { width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '4px', padding: '8px 12px', color: '#e8e0d0', fontSize: '13px', outline: 'none', boxSizing: 'border-box', fontFamily: 'Georgia, serif' };
 
-// Compact module map for the AI prompt
-function modulesForAI() {
-  return CLOSING_MODULES.map(m => ({
-    id: m.id, title: m.title,
-    steps: m.steps.map((s, i) => ({ key: `${m.id}_${i}`, text: s })),
-  }));
-}
-
-// Human-readable label for a step key
-function labelForKey(key) {
-  for (const m of CLOSING_MODULES) {
+// Human-readable label for a step key (uses editable script modules at runtime)
+function labelForKey(key, modules) {
+  for (const m of modules) {
     const i = Number(key.replace(m.id + '_', ''));
-    if (key.startsWith(m.id + '_') && m.steps[i]) return `${m.title}: ${m.steps[i]}`;
+    if (key.startsWith(m.id + '_') && m.steps[i]) return `${m.title}: ${m.steps[i].text || m.steps[i]}`;
   }
   return key;
 }
@@ -57,7 +60,7 @@ function loadProgress(leadId, leadRecord) {
   try { return JSON.parse(localStorage.getItem(`closing_progress_${leadId || 'general'}`) || '{}'); } catch { return {}; }
 }
 
-export default function SmartClose({ leadId, liveTranscript, intentScore, animalType, compact, canEditPhones = false }) {
+export default function SmartClose({ leadId, liveTranscript, intentScore, animalType, compact, canEditPhones = false, canEditScripts = false }) {
   const [closeTab, setCloseTab] = useState('checklist');
   const [smartOn, setSmartOn] = useState(false);
   const [lead, setLead] = useState(null);
@@ -76,11 +79,19 @@ export default function SmartClose({ leadId, liveTranscript, intentScore, animal
   const [leadResults, setLeadResults] = useState([]);
   const [saving, setSaving] = useState(false);
   const [savedAt, setSavedAt] = useState(null);
+  // ── Closing script config (editable modules with keywords + script text) ──
+  const [scriptModules, setScriptModules] = useState(defaultScriptModules());
+  const [scriptConfigId, setScriptConfigId] = useState(null);
+  const [scriptEdit, setScriptEdit] = useState(false);
+  const [scriptSaving, setScriptSaving] = useState(false);
+  const [scriptSaveMsg, setScriptSaveMsg] = useState('');
   const lastAnalyzedLinesRef = useRef(0);
   const dismissedRef = useRef({});
   const manualRef = useRef(manualDone);
   const savedNotesRef = useRef(savedNotes);
   const saveTimerRef = useRef(null);
+  const scriptModulesRef = useRef(scriptModules);
+  useEffect(() => { scriptModulesRef.current = scriptModules; }, [scriptModules]);
 
   useEffect(() => { dismissedRef.current = dismissedSkips; }, [dismissedSkips]);
   useEffect(() => { manualRef.current = manualDone; }, [manualDone]);
@@ -160,6 +171,62 @@ export default function SmartClose({ leadId, liveTranscript, intentScore, animal
     }).catch(() => {});
   }, [leadSearch, leadId]);
 
+  // ── Load editable closing script config from DB (singleton) ──
+  useEffect(() => {
+    let cancelled = false;
+    base44.entities.ClosingScriptConfig.filter({ configName: 'default' }).then(results => {
+      if (cancelled) return;
+      const cfg = results?.[0];
+      if (cfg) {
+        setScriptConfigId(cfg.id);
+        if (cfg.modulesJson) {
+          try { setScriptModules(JSON.parse(cfg.modulesJson)); } catch {}
+        }
+      }
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
+
+  // ── Keyword-based auto-detection: when a step's keywords appear in the ──
+  //    transcript, auto-check that step. Cheap (string match), runs on every
+  //    transcript update alongside the heavier AI analysis.
+  useEffect(() => {
+    if (!transcript || transcript.length === 0) return;
+    const text = transcript.map(t => t.text || '').join(' ').toLowerCase();
+    if (!text.trim()) return;
+    const modules = scriptModulesRef.current;
+    let changed = false;
+    const newAuto = { ...autoDone };
+    for (const mod of modules) {
+      mod.steps.forEach((step, i) => {
+        const key = `${mod.id}_${i}`;
+        if (step.keywords && step.keywords.length > 0 && !newAuto[key] && !manualDone[key]) {
+          const matched = step.keywords.some(kw => kw && kw.trim() && text.includes(kw.trim().toLowerCase()));
+          if (matched) { newAuto[key] = true; changed = true; }
+        }
+      });
+    }
+    if (changed) setAutoDone(newAuto);
+  }, [transcript, autoDone, manualDone]);
+
+  // ── Save editable script config to DB ──
+  const handleSaveScript = async () => {
+    setScriptSaving(true);
+    setScriptSaveMsg('');
+    try {
+      const data = { configName: 'default', modulesJson: JSON.stringify(scriptModules) };
+      if (scriptConfigId) {
+        await base44.entities.ClosingScriptConfig.update(scriptConfigId, data);
+      } else {
+        const created = await base44.entities.ClosingScriptConfig.create(data);
+        setScriptConfigId(created.id);
+      }
+      setScriptSaveMsg('Saved ✓');
+      setTimeout(() => setScriptSaveMsg(''), 2000);
+    } catch (e) { setScriptSaveMsg('Error: ' + (e?.message || String(e))); }
+    setScriptSaving(false);
+  };
+
   const runAnalysis = useCallback(async () => {
     if (!transcript || transcript.length < 4) return;
     setAnalyzing(true);
@@ -170,10 +237,15 @@ export default function SmartClose({ leadId, liveTranscript, intentScore, animal
         callType: 'smart_close', estimatedCredits: CREDIT_ESTIMATES.smart_close ?? 2,
       });
       const recentText = transcript.slice(-60).map(t => `${t.speaker === 0 ? 'Agent' : 'Customer'}: ${t.text}`).join('\n');
+      // Use editable script modules (with keywords) for the AI prompt
+      const aiModules = scriptModulesRef.current.map(m => ({
+        id: m.id, title: m.title,
+        steps: m.steps.map((s, i) => ({ key: `${m.id}_${i}`, text: s.text, keywords: s.keywords || [] })),
+      }));
       const res = await base44.integrations.Core.InvokeLLM({
         prompt: `You are a debt-settlement closing coach analyzing a live call transcript. The call follows these closing modules in order:
 
-${JSON.stringify(modulesForAI())}
+${JSON.stringify(aiModules)}
 
 Based on the transcript, return JSON with:
 - currentStage: the module id the agent is currently in (or just finished).
@@ -206,7 +278,7 @@ ${recentText}`,
       // Queue skipped steps not already dismissed/saved/confirmed
       const newSkips = (result.skippedSteps || [])
         .filter(s => s.key && !dismissedRef.current[s.key] && !manualRef.current[s.key] && !savedNotesRef.current.find(n => n.key === s.key))
-        .map(s => ({ ...s, label: labelForKey(s.key) }));
+        .map(s => ({ ...s, label: labelForKey(s.key, scriptModulesRef.current) }));
       if (newSkips.length > 0) setSkippedQueue(prev => [...prev, ...newSkips]);
       lastAnalyzedLinesRef.current = transcript.length;
     } catch (e) { setError('Smart Close analysis failed: ' + (e?.message || String(e))); }
@@ -266,13 +338,14 @@ ${recentText}`,
     setSkippedQueue(prev => prev.slice(1));
   };
 
-  const currentStage = analysis?.currentStage ? CLOSING_MODULES.find(m => m.id === analysis.currentStage) : null;
+  const currentStage = analysis?.currentStage ? scriptModules.find(m => m.id === analysis.currentStage) : null;
   const readiness = analysis?.closeReadiness;
 
-  // Tab bar — Checklist vs Phone #s
+  // Tab bar — Checklist vs Script vs Phone #s
   const tabBar = (
     <div style={{ display: 'flex', gap: '2px', marginBottom: '12px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
       <button onClick={() => setCloseTab('checklist')} style={{ padding: '8px 16px', background: 'none', border: 'none', borderBottom: `2px solid ${closeTab === 'checklist' ? GOLD : 'transparent'}`, color: closeTab === 'checklist' ? GOLD : '#6b7280', cursor: 'pointer', fontSize: '12px', fontWeight: closeTab === 'checklist' ? 'bold' : 'normal' }}>✅ Checklist</button>
+      <button onClick={() => setCloseTab('script')} style={{ padding: '8px 16px', background: 'none', border: 'none', borderBottom: `2px solid ${closeTab === 'script' ? GOLD : 'transparent'}`, color: closeTab === 'script' ? GOLD : '#6b7280', cursor: 'pointer', fontSize: '12px', fontWeight: closeTab === 'script' ? 'bold' : 'normal' }}>📜 Script</button>
       <button onClick={() => setCloseTab('phones')} style={{ padding: '8px 16px', background: 'none', border: 'none', borderBottom: `2px solid ${closeTab === 'phones' ? GOLD : 'transparent'}`, color: closeTab === 'phones' ? GOLD : '#6b7280', cursor: 'pointer', fontSize: '12px', fontWeight: closeTab === 'phones' ? 'bold' : 'normal' }}>📞 Phone #s</button>
     </div>
   );
@@ -283,6 +356,29 @@ ${recentText}`,
       <div>
         {tabBar}
         <ClosingPhoneNumbersTab canEdit={canEditPhones} />
+      </div>
+    );
+  }
+
+  // Script tab — expandable step blocks with checkboxes + keywords + edit mode
+  if (closeTab === 'script') {
+    return (
+      <div>
+        {tabBar}
+        <ClosingScriptView
+          modules={scriptModules}
+          done={smartOn ? combinedDone : manualDone}
+          onToggle={smartOn ? handleToggle : undefined}
+          autoDone={smartOn ? autoDone : undefined}
+          smartMode={smartOn}
+          canEdit={canEditScripts}
+          editMode={scriptEdit}
+          onEditModeChange={setScriptEdit}
+          onModulesChange={setScriptModules}
+          onSaveScript={handleSaveScript}
+          saving={scriptSaving}
+          saveMsg={scriptSaveMsg}
+        />
       </div>
     );
   }
