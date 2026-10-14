@@ -387,6 +387,7 @@ export default function FronterPage() {
                 lineKey={activeLineKey}
                 lineNumber={activeLineNumber}
                 isAdmin={false}
+                isSuperAdmin={isSuperAdmin}
                 mode={tab}
                 onCallConnected={() => setShowCallCard(true)}
                 onOpenQA={() => setShowCallCard(true)}
@@ -409,6 +410,7 @@ export default function FronterPage() {
                 lineKey={activeLineKey}
                 lineNumber={activeLineNumber}
                 isAdmin={true}
+                isSuperAdmin={isSuperAdmin}
                 availableLines={availableLines}
                 adminLineKey={adminLineKey}
                 onLineChange={setAdminLineKey}

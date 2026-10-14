@@ -14,7 +14,7 @@ const BLUE = '#60a5fa';
 
 const DEFAULT_MERGE_SCRIPT = `Alright {{firstname}}, I've got a senior debt advisor ready to help you through this. I'm going to connect you now — stay on the line and they'll be right with you.`;
 
-export default function FronterMergePopup({ lead, username, fronterFirstName, isAdmin, callActive, callDuration, onMerge, onClose }) {
+export default function FronterMergePopup({ lead, username, fronterFirstName, isAdmin, callActive, callDuration, onMerge, onClose, transferScript }) {
   const [script, setScript] = useState(null);
   const [loading, setLoading] = useState(true);
   const [editMode, setEditMode] = useState(false);
@@ -22,6 +22,12 @@ export default function FronterMergePopup({ lead, username, fronterFirstName, is
   const [saving, setSaving] = useState(false);
 
   const loadScript = useCallback(async () => {
+    // If a transfer script was passed from the Completed Steps button, use it directly
+    if (transferScript) {
+      setScript({ content: transferScript });
+      setLoading(false);
+      return;
+    }
     try {
       const results = await base44.entities.FronterScript.filter({ name: '🔀 Merge Call Script' });
       const all = Array.isArray(results) ? results : (results?.items || []);
@@ -41,7 +47,7 @@ export default function FronterMergePopup({ lead, username, fronterFirstName, is
       }
     } catch (e) { console.error('Merge script load:', e); }
     setLoading(false);
-  }, []);
+  }, [transferScript]);
 
   useEffect(() => { loadScript(); }, [loadScript]);
 

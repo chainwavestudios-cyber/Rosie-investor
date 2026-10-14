@@ -22,6 +22,7 @@ import FronterMergePopup from './FronterMergePopup';
 import FronterAIPanel from './FronterAIPanel';
 import AIPopulateTab from '@/components/shared/AIPopulateTab';
 import PhoneVerifyBadge from './PhoneVerifyBadge';
+import DebtBadge from './DebtBadge';
 
 const GOLD = '#10b981';
 const DARK = '#0a0f1e';
@@ -39,7 +40,7 @@ function fmtET(iso) {
   });
 }
 
-export default function FronterContactCard({ lead, username, fronterFirstName, onClose, onSave, onDial, onNext, isAdmin, lineKey, lineNumber, onTranscriptUpdate, onCallConnected, onOpenQA, embedded = false }) {
+export default function FronterContactCard({ lead, username, fronterFirstName, onClose, onSave, onDial, onNext, isAdmin, isSuperAdmin, lineKey, lineNumber, onTranscriptUpdate, onCallConnected, onOpenQA, embedded = false }) {
   const [local, setLocal] = useState(lead || {});
   const [notesLog, setNotesLog] = useState([]);
   const [newNote, setNewNote] = useState('');
@@ -74,6 +75,9 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
   const [showMergePopup, setShowMergePopup] = useState(false);
   const [emailSending, setEmailSending] = useState(false);
   const [emailSent, setEmailSent] = useState(false);
+  const [debtConfirming, setDebtConfirming] = useState(false);
+  const [debtConfirmMsg, setDebtConfirmMsg] = useState('');
+  const [transferScript, setTransferScript] = useState('');
 
   useEffect(() => {
     setLocal(lead || {});
@@ -207,6 +211,9 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
           });
         } catch (e) { console.warn('Transfer credit failed:', e.message); }
       }
+
+      // Auto-advance to the next prospect lead
+      setTimeout(() => { onNext?.(); }, 1500);
     } catch (e) { alert('Transfer failed: ' + (e?.message || String(e))); }
   };
 
@@ -232,14 +239,19 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
     if (!lead?.id) return;
     setSaving(true);
     try {
-      await base44.entities.FronterLead.update(lead.id, {
+      const savePayload = {
         firstName: local.firstName, lastName: local.lastName, phone: local.phone, phone2: local.phone2,
         email: local.email, address: local.address, city: local.city, state: local.state, zipCode: local.zipCode,
         preferredCallTime: local.preferredCallTime, employmentStatus: local.employmentStatus,
-        hardshipQualification: local.hardshipQualification || '', referralSource: local.referralSource,
         debtAmount: local.debtAmount, debtTypesJson: local.debtTypesJson,
         notesLogJson: JSON.stringify(notesLog),
-      });
+      };
+      // Only super admins can save hardship and lead source
+      if (isSuperAdmin) {
+        savePayload.hardshipQualification = local.hardshipQualification || '';
+        savePayload.referralSource = local.referralSource;
+      }
+      await base44.entities.FronterLead.update(lead.id, savePayload);
       setSaved(true); setTimeout(() => setSaved(false), 2000);
       onSave?.(local);
     } catch (e) { alert('Save failed: ' + (e?.message || String(e))); }
@@ -290,6 +302,18 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
         // Apply updates to local state
         setLocal(prev => ({ ...prev, ...updates }));
 
+        // Build a summary of what was updated
+        const updatedFieldNames = Object.keys(updates);
+        const summaryParts = updatedFieldNames.map(f => {
+          const val = updates[f];
+          if (val == null || val === '') return null;
+          const displayVal = typeof val === 'number' ? `$${val.toLocaleString()}` : String(val);
+          return `${f}: ${displayVal}`;
+        }).filter(Boolean);
+        const summaryText = summaryParts.length > 0
+          ? `🤖 AI Review Summary — Updated: ${summaryParts.join(', ')}`
+          : '🤖 AI Review: ran but no new fields to update';
+
         // Persist to lead record
         if (lead?.id) {
           const updatePayload = { ...updates };
@@ -311,6 +335,12 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
             }
           }
           await base44.entities.FronterLead.update(lead.id, updatePayload);
+
+          // Add summary note to notes log
+          const noteEntry = { text: summaryText, timestamp: new Date().toISOString(), author: 'AI', type: 'ai_review' };
+          const nextLog = [...notesLog, noteEntry];
+          setNotesLog(nextLog);
+          try { await base44.entities.FronterLead.update(lead.id, { notesLogJson: JSON.stringify(nextLog) }); } catch {}
         }
 
         const msg = `✓ AI Review: ${updateCount} field${updateCount !== 1 ? 's' : ''} updated${overwriteCount > 0 ? `, ${overwriteCount} overwrite${overwriteCount !== 1 ? 's' : ''} logged` : ''}`;
@@ -323,6 +353,49 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
       alert('AI Review failed: ' + (e?.message || String(e)));
     }
     setAiReviewing(false);
+  };
+
+  // ── DebtConfirm: review transcript to confirm debt type + amount ──
+  // Looks for [[AI:debtAmount]] and [[AI:debtTypesJson]] tags in the script,
+  // extracts confirmed debt info from the transcript, and updates the
+  // contact card with the confirmed values + badges.
+  const runDebtConfirm = async () => {
+    if (debtConfirming) return;
+    if (liveTranscript.length < 2) { alert('No transcript available. Start a call first.'); return; }
+    setDebtConfirming(true);
+    setDebtConfirmMsg('');
+    try {
+      const scriptContent = activeScript?.content || '';
+      const res = await base44.functions.invoke('debtConfirm', {
+        transcript: liveTranscript,
+        currentLeadData: local,
+        scriptContent,
+      });
+      const data = res?.data || res;
+      if (data?.confirmed && data.debtAmount != null && data.debtTypes?.length > 0) {
+        const updates = {
+          debtAmount: data.debtAmount,
+          debtTypesJson: data.debtTypesJson || JSON.stringify(data.debtTypes),
+        };
+        setLocal(prev => ({ ...prev, ...updates }));
+        if (lead?.id) {
+          await base44.entities.FronterLead.update(lead.id, updates);
+        }
+        const typeLabels = data.debtTypes.join(' + ');
+        setDebtConfirmMsg(`✓ Debt Confirmed: ${typeLabels} — $${Number(data.debtAmount).toLocaleString()}`);
+        // Add summary note
+        if (data.summary && lead?.id) {
+          const noteEntry = { text: `💰 Debt Confirm: ${data.summary}`, timestamp: new Date().toISOString(), author: 'AI', type: 'debt_confirm' };
+          await addNote(noteEntry);
+        }
+      } else {
+        setDebtConfirmMsg(data?.message || 'Debt not yet confirmed — customer must state debt type and amount.');
+      }
+      setTimeout(() => setDebtConfirmMsg(''), 5000);
+    } catch (e) {
+      alert('Debt Confirm failed: ' + (e?.message || String(e)));
+    }
+    setDebtConfirming(false);
   };
 
   // ── Quick-send credentials email using lead's email ──
@@ -356,6 +429,19 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
     setEmailSending(false);
   };
 
+  // ── Script parsing: split at @@COMPLETED_STEPS@@ and handle @@DEBT_CONFIRM@@ ──
+  const rawScript = activeScript?.content || '';
+  const substitutedScript = substituteScriptVars(rawScript, { lead: local, fronterFirstName });
+  const completedStepsIdx = substitutedScript.indexOf('@@COMPLETED_STEPS@@');
+  const hasCompletedSteps = completedStepsIdx !== -1;
+  const mainScriptPart = hasCompletedSteps ? substitutedScript.slice(0, completedStepsIdx) : substitutedScript;
+  const remainingScriptPart = hasCompletedSteps ? substitutedScript.slice(completedStepsIdx + '@@COMPLETED_STEPS@@'.length).trim() : '';
+  const hasDebtConfirm = substitutedScript.includes('@@DEBT_CONFIRM@@');
+  const hasAiTags = /\[\[AI:\w+\]\]/i.test(rawScript);
+
+  // Split main script at @@DEBT_CONFIRM@@ markers for inline button rendering
+  const debtConfirmSegments = mainScriptPart.split('@@DEBT_CONFIRM@@');
+
   const scriptContent = (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       {scripts.length > 1 && (
@@ -369,18 +455,51 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
         {!activeScript ? (
           <div style={{ color: '#4a5568', textAlign: 'center', padding: '40px 0', fontSize: '13px' }}>No scripts yet. Ask your admin to add a script.</div>
         ) : (
-          <div style={{ color: '#e8e0d0', fontSize: '14px', lineHeight: 1.8, fontFamily: 'Georgia, serif', whiteSpace: 'pre-wrap' }}>{renderFormatted(substituteScriptVars(activeScript.content, { lead: local, fronterFirstName }))}</div>
+          <div style={{ color: '#e8e0d0', fontSize: '14px', lineHeight: 1.8, fontFamily: 'Georgia, serif', whiteSpace: 'pre-wrap' }}>
+            {debtConfirmSegments.map((seg, i) => (
+              <span key={i}>
+                {renderFormatted(seg.replace(/\[\[AI:\w+\]\]/gi, ''))}
+                {i < debtConfirmSegments.length - 1 && (
+                  <div style={{ margin: '12px 0', display: 'flex', justifyContent: 'center' }}>
+                    <button
+                      onClick={runDebtConfirm}
+                      disabled={debtConfirming}
+                      style={{ background: `${GOLD}18`, color: GOLD, border: `2px solid ${GOLD}55`, borderRadius: '8px', padding: '10px 24px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold', fontFamily: 'Georgia, serif', boxShadow: `0 0 12px ${GOLD}33` }}
+                    >
+                      {debtConfirming ? '⏳ Confirming…' : '💰 Confirm Debt'}
+                    </button>
+                  </div>
+                )}
+              </span>
+            ))}
+            {hasCompletedSteps && (
+              <div style={{ margin: '16px 0', display: 'flex', justifyContent: 'center' }}>
+                <button
+                  onClick={() => { setTransferScript(remainingScriptPart); setShowMergePopup(true); }}
+                  style={{ background: 'linear-gradient(135deg,#10b981,#22c55e)', color: DARK, border: 'none', borderRadius: '8px', padding: '12px 32px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold', fontFamily: 'Georgia, serif', boxShadow: '0 0 16px rgba(16,185,129,0.4)' }}
+                >
+                  ✅ Completed Steps → Transfer
+                </button>
+              </div>
+            )}
+          </div>
         )}
       </div>
-      {/* Interactive AI buttons */}
+      {/* Interactive AI buttons — shown when script has AI tags or always available */}
       <div style={{ padding: '8px 14px', borderTop: '1px solid rgba(255,255,255,0.07)', display: 'flex', gap: '6px', flexShrink: 0, flexWrap: 'wrap', alignItems: 'center' }}>
         <button onClick={runAIReview} disabled={aiReviewing} style={{ background: `${GOLD}18`, color: GOLD, border: `1px solid ${GOLD}44`, borderRadius: '4px', padding: '6px 12px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '4px' }}>
           {aiReviewing ? '⏳ Reviewing…' : '🤖 AI Review'}
         </button>
+        {hasDebtConfirm && (
+          <button onClick={runDebtConfirm} disabled={debtConfirming} style={{ background: `${GOLD}18`, color: GOLD, border: `1px solid ${GOLD}44`, borderRadius: '4px', padding: '6px 12px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '4px' }}>
+            {debtConfirming ? '⏳ Confirming…' : '💰 Debt Confirm'}
+          </button>
+        )}
         <button onClick={quickSendCreds} disabled={emailSending || !local.email} style={{ background: emailSent ? 'rgba(74,222,128,0.15)' : 'rgba(96,165,250,0.12)', color: emailSent ? '#4ade80' : BLUE, border: `1px solid ${emailSent ? 'rgba(74,222,128,0.3)' : BLUE + '30'}`, borderRadius: '4px', padding: '6px 12px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold', opacity: (!local.email && !emailSending) ? 0.5 : 1 }}>
           {emailSending ? '⏳ Sending…' : emailSent ? '✓ Sent!' : '🔑 Send Credentials'}
         </button>
         {aiReviewMsg && <span style={{ color: aiReviewMsg.startsWith('✓') ? GOLD : '#8a9ab8', fontSize: '10px', marginLeft: '4px' }}>{aiReviewMsg}</span>}
+        {debtConfirmMsg && <span style={{ color: debtConfirmMsg.startsWith('✓') ? GOLD : '#f59e0b', fontSize: '10px', marginLeft: '4px' }}>{debtConfirmMsg}</span>}
       </div>
     </div>
   );
@@ -424,18 +543,14 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
         <div style={{ padding: '6px 18px', background: `${leadTypeColor}18`, borderBottom: `1px solid ${leadTypeColor}33`, display: 'flex', justifyContent: 'center', alignItems: 'center', flexShrink: 0 }}>
           <span style={{ color: leadTypeColor, fontSize: '11px', fontWeight: 'bold', letterSpacing: '3px', textTransform: 'uppercase' }}>● {leadTypeLabel} ●</span>
         </div>
-        {/* Debt badge — visible on front of contact card */}
-        <div style={{ padding: '4px 18px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0, background: 'rgba(0,0,0,0.15)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-            <span style={{ color: GOLD, fontSize: '12px' }}>💰</span>
-            <span style={{ color: '#e8e0d0', fontSize: '13px', fontWeight: 'bold' }}>${(local.debtAmount || 0).toLocaleString()}</span>
+        {/* Debt badges — visual badge cards with amount overlay (shown when debt type + amount confirmed) */}
+        {debtTypes.length > 0 && local.debtAmount != null && local.debtAmount > 0 && (
+          <div style={{ padding: '6px 18px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0, background: 'rgba(0,0,0,0.15)' }}>
+            {debtTypes.map(type => (
+              <DebtBadge key={type} debtType={type} amount={local.debtAmount} size={72} />
+            ))}
           </div>
-          {debtTypes.map(type => (
-            <span key={type} style={{ padding: '1px 8px', borderRadius: '10px', fontSize: '9px', fontWeight: 'bold', background: type === 'Unsecured Credit Card' ? 'rgba(96,165,250,0.15)' : 'rgba(167,139,250,0.15)', color: type === 'Unsecured Credit Card' ? BLUE : '#a78bfa', whiteSpace: 'nowrap' }}>
-              {type === 'Unsecured Credit Card' ? '💳' : '📄'} {type}
-            </span>
-          ))}
-        </div>
+        )}
         {/* Header — draggable (disabled when embedded) */}
         <div onMouseDown={embedded ? undefined : onDragStart} style={{ padding: '12px 18px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px', cursor: embedded ? 'default' : 'move', userSelect: 'none', flexShrink: 0, background: 'linear-gradient(135deg, rgba(16,185,129,0.06), transparent)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -587,7 +702,9 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
                       })}
                     </div>
                   </div>
-                  <FronterHardshipField value={local.hardshipQualification} onChange={v => update('hardshipQualification', v)} labelStyle={ls} inputStyle={inp} />
+                  {isSuperAdmin && (
+                    <FronterHardshipField value={local.hardshipQualification} onChange={v => update('hardshipQualification', v)} labelStyle={ls} inputStyle={inp} />
+                  )}
                 </div>
               </div>
 
@@ -750,8 +867,9 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
           isAdmin={isAdmin}
           callActive={callActive}
           callDuration={callDuration}
-          onMerge={() => { setShowMergePopup(false); markTransferred(); }}
-          onClose={() => setShowMergePopup(false)}
+          transferScript={transferScript}
+          onMerge={() => { setShowMergePopup(false); setTransferScript(''); markTransferred(); }}
+          onClose={() => { setShowMergePopup(false); setTransferScript(''); }}
         />
       )}
 

@@ -231,6 +231,24 @@ function FronterScriptsContent({ fronterFirstName, username }) {
     updateAndSave({ content: bbcode });
   };
 
+  const insertDebtConfirmTag = () => {
+    const ce = textareaRef.current;
+    if (!ce || !active) return;
+    ce.focus();
+    document.execCommand('insertHTML', false, '<br>@@DEBT_CONFIRM@@<br>');
+    const bbcode = htmlToBbcode(ce.innerHTML);
+    updateAndSave({ content: bbcode });
+  };
+
+  const insertCompletedStepsTag = () => {
+    const ce = textareaRef.current;
+    if (!ce || !active) return;
+    ce.focus();
+    document.execCommand('insertHTML', false, '<br>@@COMPLETED_STEPS@@<br>');
+    const bbcode = htmlToBbcode(ce.innerHTML);
+    updateAndSave({ content: bbcode });
+  };
+
   const insertVariableAtCursor = (token) => {
     const ce = textareaRef.current;
     if (!ce || !active) return;
@@ -392,6 +410,8 @@ function FronterScriptsContent({ fronterFirstName, username }) {
                     <option key={f.field} value={f.field} style={{ color: '#0a0f1e', background: '#fff' }}>{f.label}</option>
                   ))}
                 </select>
+                <button onClick={insertDebtConfirmTag} title="Insert Debt Confirm button — fronter presses this to confirm debt type + amount from the transcript" style={{ padding: '4px 10px', borderRadius: '4px', border: `1px solid ${GOLD}55`, background: `${GOLD}15`, color: GOLD, cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>💰 Debt Confirm</button>
+                <button onClick={insertCompletedStepsTag} title="Insert Completed Steps button — everything below this marker becomes the transfer script shown in the merge popup" style={{ padding: '4px 10px', borderRadius: '4px', border: '1px solid #22c55e55', background: 'rgba(34,197,94,0.15)', color: '#22c55e', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>✅ Completed Steps</button>
               </div>
               {/* Inline formatting toolbar */}
               <div style={{ marginBottom: '8px', flexShrink: 0 }}>
@@ -414,6 +434,8 @@ function FronterScriptsContent({ fronterFirstName, username }) {
                 <span style={{ marginLeft: '12px' }}>Format: <span style={{ color: '#a78bfa', fontFamily: 'monospace' }}>[b]..[/b] [i]..[/i] [c=#hex]..[/c] [bg=#hex]..[/bg] [s=18]..[/s] [f=Arial]..[/f]</span></span>
                 <span style={{ marginLeft: '12px' }}>Cue: <span style={{ color: '#60a5fa', fontFamily: 'monospace' }}>@@CUE:reminder:text@@</span></span>
                 <span style={{ marginLeft: '12px' }}>AI Tag: <span style={{ color: GOLD, fontFamily: 'monospace' }}>[[AI:fieldName]]</span> <span style={{ color: '#4a5568' }}>— marks transcript lines for that contact card field (used by AI Review)</span></span>
+                <span style={{ marginLeft: '12px' }}>Debt Confirm: <span style={{ color: GOLD, fontFamily: 'monospace' }}>@@DEBT_CONFIRM@@</span> <span style={{ color: '#4a5568' }}>— renders a button the fronter presses to confirm debt type + amount</span></span>
+                <span style={{ marginLeft: '12px' }}>Completed Steps: <span style={{ color: '#22c55e', fontFamily: 'monospace' }}>@@COMPLETED_STEPS@@</span> <span style={{ color: '#4a5568' }}>— renders a button that opens the transfer popup with the script below it</span></span>
               </div>
             </>
           ) : (
