@@ -139,6 +139,10 @@ export default function DebtLiveCall({ onCallStart, onCallEnd }) {
   // Notify parent when a live call starts/ends so it can auto-switch tabs and pop out panels
   const prevPhaseRef = useRef('idle');
   useEffect(() => {
+    // Global flag so MissedAppointmentAlert and other components know a live
+    // call is active and can suppress audio playback (beeps get picked up by
+    // the agent mic and pollute the Deepgram transcript).
+    window.__debtCallActive = phase === 'live';
     if (prevPhaseRef.current !== 'live' && phase === 'live') onCallStart?.(lead);
     if (prevPhaseRef.current === 'live' && phase !== 'live') onCallEnd?.();
     prevPhaseRef.current = phase;

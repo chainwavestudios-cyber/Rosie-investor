@@ -81,7 +81,7 @@ export default function ObjectionPopup({ objection, onDismiss }) {
               <div style={{ color: '#e8e0d0', fontSize: '13px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{objection.title}</div>
             </div>
           </div>
-          <div style={{ display: 'flex', gap: '4px', alignItems: 'center', flexShrink: 0 }}>
+          <div onMouseDown={e => e.stopPropagation()} style={{ display: 'flex', gap: '4px', alignItems: 'center', flexShrink: 0 }}>
             <button onClick={() => setMinimized(true)} title="Minimize (dock)" style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: '#8a9ab8', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold', padding: '2px 10px', borderRadius: '4px', lineHeight: 1 }}>—</button>
             <button onClick={onDismiss} title="Close" style={{ background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.3)', color: '#ef4444', cursor: 'pointer', fontSize: '18px', fontWeight: 'bold', padding: '2px 10px', borderRadius: '4px', lineHeight: 1 }}>×</button>
           </div>

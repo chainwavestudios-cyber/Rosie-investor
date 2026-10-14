@@ -37,6 +37,9 @@ export default function MissedAppointmentAlert({ onOpenLead }) {
 
   const startTone = useCallback(() => {
     if (beepIntervalRef.current) return;
+    // Don't play beeps during a live call — the agent mic picks up the audio
+    // and sends it to Deepgram, polluting the transcript.
+    if (window.__debtCallActive) return;
     try {
       if (!audioCtxRef.current) {
         audioCtxRef.current = new (window.AudioContext || window.webkitAudioContext)();
@@ -113,6 +116,9 @@ export default function MissedAppointmentAlert({ onOpenLead }) {
     const next = { ...dismissed, [ev.id]: true };
     setDismissed(next);
     localStorage.setItem('missed_appt_dismissed', JSON.stringify(next));
+    // Immediately remove from the displayed popup — don't wait for the async
+    // checkMissed backend call to re-filter.
+    setMissedEvents(prev => prev.filter(e => e.id !== ev.id));
   };
 
   // Clean up dismissed entries older than 24h
