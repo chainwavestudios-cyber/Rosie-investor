@@ -81,6 +81,11 @@
       "title": "Debt Types (JSON array \u2014 Unsecured Credit Card, Unsecured Loans)",
       "format": "textarea"
     },
+    "debtAmountsJson": {
+      "type": "string",
+      "title": "Blended Debt Amounts (JSON array of {type, amount} \u2014 per-type breakdown)",
+      "format": "textarea"
+    },
     "notesLogJson": {
       "type": "string",
       "title": "Notes Log (JSON array of {text, timestamp, author, type, attachment})",
