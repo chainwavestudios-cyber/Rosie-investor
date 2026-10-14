@@ -42,10 +42,11 @@ export default function HotLeadsTab({ onOpenLead }) {
     setLoading(true);
     try {
       const page = await base44.entities.DebtLead.filter(
-        { isHotLead: true, deletedAt: { $exists: false } },
+        { isHotLead: true },
         { sort: '-hotLeadTaggedAt', limit: 200 }
       );
-      setLeads(page?.items || page || []);
+      const all = page?.items || page || [];
+      setLeads(all.filter(l => !l.deletedAt));
     } catch (e) {
       console.error('Hot leads load failed:', e);
     }

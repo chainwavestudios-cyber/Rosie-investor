@@ -26,12 +26,26 @@ import { logAIUsage, CREDIT_ESTIMATES } from '@/lib/aiCreditLog';
 
 // Build default editable modules from the hardcoded CLOSING_MODULES
 function defaultScriptModules() {
-  return CLOSING_MODULES.map(m => ({
+  const modules = CLOSING_MODULES.map(m => ({
     id: m.id, title: m.title, icon: m.icon,
-    steps: m.steps.map(s => ({ text: s, keywords: [] })),
+    steps: m.steps.map(s => ({ text: s, keywords: [], score: 0 })),
     scriptText: m.steps.map(s => s).join('\n\n'),
     capture: m.capture || [],
   }));
+  // Distribute 100 points across all steps so all-checked = dealScore 100
+  let totalSteps = 0;
+  modules.forEach(m => { totalSteps += m.steps.length; });
+  let remaining = 100;
+  let stepIdx = 0;
+  modules.forEach(m => {
+    m.steps.forEach(s => {
+      const stepsLeft = totalSteps - stepIdx;
+      s.score = Math.ceil(remaining / stepsLeft);
+      remaining -= s.score;
+      stepIdx++;
+    });
+  });
+  return modules;
 }
 
 const GOLD = '#10b981';
@@ -100,6 +114,17 @@ export default function SmartClose({ leadId, liveTranscript, intentScore, animal
   const transcript = (liveTranscript && liveTranscript.length > 0) ? liveTranscript : savedTranscript;
   const combinedDone = { ...autoDone, ...manualDone };
 
+  // Calculate deal score from checked steps (sum of step scores, capped at 100)
+  const dealScore = (() => {
+    let score = 0;
+    scriptModules.forEach(m => {
+      m.steps.forEach((s, i) => {
+        if (combinedDone[`${m.id}_${i}`]) score += (s.score || 0);
+      });
+    });
+    return Math.min(100, score);
+  })();
+
   // Load lead + closing progress from DB
   useEffect(() => {
     if (!leadId) { setLead(null); setSavedTranscript([]); return; }
@@ -150,6 +175,21 @@ export default function SmartClose({ leadId, liveTranscript, intentScore, animal
     }, 3000);
     return () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current); };
   }, [manualDone, leadId]);
+
+  // Save dealScore to lead + auto-enroll at 100 (debounced 2s)
+  useEffect(() => {
+    if (!leadId) return;
+    const t = setTimeout(async () => {
+      const updates = { dealScore };
+      if (dealScore >= 100 && lead?.status !== 'enrolled') {
+        updates.status = 'enrolled';
+        updates.programEnrolled = true;
+        updates.enrollmentDate = new Date().toISOString().split('T')[0];
+      }
+      try { await base44.entities.DebtLead.update(leadId, updates); } catch {}
+    }, 2000);
+    return () => clearTimeout(t);
+  }, [dealScore, leadId, lead?.status]);
 
   // Reset state when lead changes
   useEffect(() => {
@@ -459,6 +499,11 @@ ${recentText}`,
           {saving ? '⏳ Saving…' : '💾 Save Progress'}
         </button>
         {savedAt && <span style={{ color: '#6b7280', fontSize: '10px' }}>✓ Saved {new Date(savedAt).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</span>}
+        <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <span style={{ color: '#8a9ab8', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '1px' }}>Deal Score</span>
+          <span style={{ color: dealScore >= 100 ? GOLD : dealScore >= 75 ? PURPLE : dealScore >= 50 ? BLUE : dealScore >= 25 ? AMBER : '#ef4444', fontSize: '16px', fontWeight: 'bold' }}>{dealScore}/100</span>
+          {dealScore >= 100 && <span style={{ color: GOLD, fontSize: '11px', fontWeight: 'bold' }}>🎓 Enrolled!</span>}
+        </span>
       </div>
 
       {/* Smart recommendations — close-focused coaching */}

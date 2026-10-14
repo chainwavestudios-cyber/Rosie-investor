@@ -30,6 +30,9 @@ import ProfileTimerWatcher from '@/components/debt/ProfileTimerWatcher';
 import ClientProfileModal from '@/components/debt/ClientProfileModal';
 import CreditAlertPopup from '@/components/debt/CreditAlertPopup';
 import UpcomingCallEventsPopup from '@/components/debt/UpcomingCallEventsPopup';
+import DealMonitorPopout from '@/components/debt/DealMonitorPopout';
+import PipelineTab from '@/components/debt/PipelineTab';
+import MeetingAlertPopup from '@/components/debt/MeetingAlertPopup';
 
 const GOLD = '#10b981';
 const DARK = '#0a0f1e';
@@ -44,6 +47,20 @@ export default function DebtCallCoach() {
   const [closingLeadId, setClosingLeadId] = useState(null);
   const [showCompliance, setShowCompliance] = useState(false);
   const [liveCallActive, setLiveCallActive] = useState(false);
+  const [dealMonitorVisible, setDealMonitorVisible] = useState(false);
+  const [pipelineLead, setPipelineLead] = useState(null);
+
+  // Alt+D hotkey → toggle Deal Monitor popout
+  useEffect(() => {
+    const handler = (e) => {
+      if (e.altKey && (e.key === 'd' || e.key === 'D')) {
+        e.preventDefault();
+        setDealMonitorVisible(prev => !prev);
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, []);
 
   if (loading) return (
     <div style={{ fontFamily: 'Georgia, serif', minHeight: '100vh', background: DARK, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -61,6 +78,7 @@ export default function DebtCallCoach() {
     ...(isAdmin ? [{ id: 'smartleads', label: '🧠 Smart Leads' }] : []),
     { id: 'newleads', label: '📥 New Leads' },
     { id: 'hotleads', label: '🔥 Hot Leads' },
+    { id: 'pipeline', label: '📊 Pipeline' },
     { id: 'bob', label: '🤖 BOB Training' },
     { id: 'pitches', label: '🎤 Pitches' },
     { id: 'objections', label: '🛡️ Objections' },
@@ -115,6 +133,7 @@ export default function DebtCallCoach() {
       </PopOutTab>
       {tab === 'newleads' && <NewLeadsTab />}
       {tab === 'hotleads' && <HotLeadsTab onOpenLead={(lead) => setHotLead(lead)} />}
+      {tab === 'pipeline' && <PipelineTab onOpenLead={(lead) => setPipelineLead(lead)} />}
       {tab === 'bob' && <DebtBobTrainer debtCoachUser={user} />}
       {tab === 'pitches' && <DebtPitchTab canDelete={!isDialerRole} />}
       {tab === 'objections' && <ObjectionsEngineTab readOnly={isDialerRole} />}
@@ -142,10 +161,21 @@ export default function DebtCallCoach() {
         <ClientProfileModal lead={hotLead} username={user?.username} onClose={() => setHotLead(null)} onSave={(updated) => setHotLead(updated)} />
       )}
 
+      {/* Profile opened from Pipeline tab or Deal Monitor */}
+      {pipelineLead && (
+        <ClientProfileModal lead={pipelineLead} username={user?.username} onClose={() => setPipelineLead(null)} onSave={(updated) => setPipelineLead(updated)} />
+      )}
+
       {/* Popup notification when a new lead is assigned to this user */}
       <LeadAssignmentPopup onGoToLeads={() => setTab('newleads')} />
       <CreditAlertPopup />
       <UpcomingCallEventsPopup />
+
+      {/* Alt+D Deal Monitor — floating popout, not docked */}
+      <DealMonitorPopout visible={dealMonitorVisible} username={user?.username} onOpenLead={(lead) => setPipelineLead(lead)} onClose={() => setDealMonitorVisible(false)} />
+
+      {/* Meeting alert — 5 min before a meeting, popup with audible tone */}
+      <MeetingAlertPopup />
     </div>
   );
 }

@@ -166,6 +166,11 @@
       "type": "number",
       "title": "Latest Intent Score"
     },
+    "dealScore": {
+      "type": "number",
+      "title": "Deal Score (0-100, 100 = enrolled)",
+      "default": 0
+    },
     "animalType": {
       "type": "string",
       "title": "Animal Type",

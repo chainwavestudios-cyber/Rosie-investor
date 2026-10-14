@@ -78,6 +78,13 @@ export default function ClosingScriptView({
     } : m));
   };
 
+  const updateStepScore = (modId, stepIdx, score) => {
+    const n = Math.max(0, Math.min(100, parseInt(score) || 0));
+    onModulesChange(modules.map(m => m.id === modId ? {
+      ...m, steps: m.steps.map((s, i) => i === stepIdx ? { ...s, score: n } : s)
+    } : m));
+  };
+
   const updateModuleScript = (modId, scriptText) => {
     onModulesChange(modules.map(m => m.id === modId ? { ...m, scriptText } : m));
   };
@@ -205,11 +212,22 @@ export default function ClosingScriptView({
                                   placeholder="keywords (comma-separated) — auto-checks when heard"
                                   style={{ ...inp, marginTop: '4px', fontSize: '10px', color: BLUE, border: '1px solid rgba(96,165,250,0.2)' }}
                                 />
-                              </div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '4px' }}>
+                                  <label style={{ color: GOLD, fontSize: '9px', fontWeight: 'bold', textTransform: 'uppercase' }}>Score</label>
+                                  <input
+                                    type="number" min="0" max="100"
+                                    value={step.score ?? 0}
+                                    onChange={e => updateStepScore(mod.id, i, e.target.value)}
+                                    style={{ width: '60px', background: 'rgba(0,0,0,0.25)', border: '1px solid rgba(16,185,129,0.2)', borderRadius: '4px', padding: '4px 8px', color: GOLD, fontSize: '11px', fontWeight: 'bold', outline: 'none', boxSizing: 'border-box' }}
+                                  />
+                                  <span style={{ color: '#4a5568', fontSize: '9px' }}>points (100 = enrolled)</span>
+                                </div>
+                                </div>
                             ) : (
                               <span style={{ color: checked ? '#6b7280' : '#c4dd8', fontSize: '12px', lineHeight: 1.5, textDecoration: checked ? 'line-through' : 'none' }}>
                                 {step.text}
                                 {auto && <span style={{ color: PURPLE, fontSize: '9px', marginLeft: '4px', fontWeight: 'bold' }} title="Auto-detected by Smart Close">✦</span>}
+    {step.score > 0 && <span style={{ color: GOLD, fontSize: '9px', marginLeft: '4px', fontWeight: 'bold' }}>+{step.score}pt</span>}
                                 {step.keywords?.length > 0 && !editMode && (
                                   <span style={{ marginLeft: '6px' }}>
                                     {step.keywords.map((kw, ki) => (
