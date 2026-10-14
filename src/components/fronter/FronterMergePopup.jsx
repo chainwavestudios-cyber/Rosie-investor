@@ -1,15 +1,18 @@
 /**
- * FronterMergePopup.jsx — Transfer/merge popup shown when all checklist items are complete.
+ * FronterMergePopup.jsx — Manual transfer/merge popup shown when all checklist
+ * items are complete.
  *
- * Flow:
- *   1. Resolves Chris Bongiorno's assigned Twilio line (FronterLineAssignment username ~ "chris").
- *   2. Auto-dials Chris (mergeDial): customer is placed on hold in the queue with custom hold
- *      music while the fronter's leg stays in the conference to talk to Chris.
- *   3. When Chris answers, the fronter presses "Merge & Transfer" (mergeConnect) to bridge
- *      Chris + customer, remove the fronter's leg, mark the lead transferred, and advance.
- *   4. If Chris can't be reached, the fronter presses "NO CONNECT" (noConnect) to disconnect
- *      from the customer while leaving the customer on hold in the queue, then advance to the
- *      next prospect (the parent rotates to the first unassigned line).
+ * Flow (fronter-driven — nothing auto-dials):
+ *   1. The remaining script (below @@COMPLETED_STEPS@@) is displayed prominently
+ *      so the fronter can read it to the customer and complete the final steps.
+ *   2. When ready, the fronter presses "📞 Dial Chris" (mergeDial): the customer
+ *      is placed on hold in the queue with custom hold music while Chris is dialed.
+ *   3. When Chris answers, the fronter presses "🔀 Merge & Transfer" (mergeConnect)
+ *      to bridge Chris + customer, remove the fronter's leg, mark the lead
+ *      transferred, and advance.
+ *   4. If Chris can't be reached, the fronter presses "🚫 NO CONNECT" (noConnect)
+ *      to disconnect from the customer while leaving the customer on hold in the
+ *      queue, then advance to the next prospect (the parent rotates lines).
  */
 import { useState, useEffect, useCallback } from 'react';
 import { base44 } from '@/api/base44Client';
@@ -20,8 +23,9 @@ import FronterPopup from './FronterPopup';
 const GOLD = '#10b981';
 const DARK = '#0a0f1e';
 const RED = '#ef4444';
+const BLUE = '#60a5fa';
 
-const DEFAULT_MERGE_SCRIPT = `Alright {{firstname}}, I've got a senior debt advisor ready to help you through this. I'm going to connect you now — stay on the line and they'll be right with you.`;
+const DEFAULT_MERGE_SCRIPT = `Alright {{first name}}, I've got a senior debt advisor ready to help you through this. I'm going to connect you now — stay on the line and they'll be right with you.`;
 
 export default function FronterMergePopup({ lead, username, fronterFirstName, isAdmin, callActive, callDuration, callSid, lineKey, onMerge, onNoConnect, onClose, transferScript }) {
   const [script, setScript] = useState(null);
@@ -36,6 +40,7 @@ export default function FronterMergePopup({ lead, username, fronterFirstName, is
   const [conferenceName, setConferenceName] = useState('');
   const [agentCallSid, setAgentCallSid] = useState('');
   const [error, setError] = useState('');
+  const [dialingMsg, setDialingMsg] = useState('');
 
   // Resolve Chris Bongiorno's assigned Twilio line
   useEffect(() => {
@@ -71,41 +76,6 @@ export default function FronterMergePopup({ lead, username, fronterFirstName, is
 
   useEffect(() => { loadScript(); }, [loadScript]);
 
-  // Auto-trigger mergeDial once we have Chris's line + the active call SID
-  useEffect(() => {
-    if (mergeState !== 'idle') return;
-    if (resolvingChris) return;
-    if (!chrisLine?.twilioNumber) return;
-    if (!callSid || !callActive || !lineKey) return;
-    const trigger = async () => {
-      setMergeState('dialing');
-      setError('');
-      try {
-        const res = await base44.functions.invoke('fronterCall', {
-          action: 'mergeDial',
-          fronterCallSid: callSid,
-          agentPhone: chrisLine.twilioNumber,
-          lineKey,
-          leadId: lead?.id,
-          leadEmail: lead?.email,
-        });
-        const data = res?.data || res;
-        if (data?.conferenceName) {
-          setConferenceName(data.conferenceName);
-          setAgentCallSid(data.agentCallSid || '');
-          setMergeState('connected');
-        } else {
-          setMergeState('failed');
-          setError('Could not start the merge — no conference created.');
-        }
-      } catch (e) {
-        setMergeState('failed');
-        setError('Merge dial failed: ' + (e?.message || String(e)));
-      }
-    };
-    trigger();
-  }, [chrisLine, callSid, callActive, lineKey, mergeState, resolvingChris, lead?.id, lead?.email]);
-
   const handleSave = async () => {
     if (!script) return;
     setSaving(true);
@@ -115,6 +85,41 @@ export default function FronterMergePopup({ lead, username, fronterFirstName, is
       setEditMode(false);
     } catch (e) { alert('Save failed: ' + (e?.message || String(e))); }
     setSaving(false);
+  };
+
+  // ── Manual: fronter initiates the dial to Chris ──
+  const handleDialChris = async () => {
+    if (mergeState !== 'idle') return;
+    if (!chrisLine?.twilioNumber) { setError('Chris has no assigned Twilio line.'); return; }
+    if (!callSid || !callActive || !lineKey) { setError('No active call. Start a call from the contact card first.'); return; }
+    setMergeState('dialing');
+    setError('');
+    setDialingMsg('Putting customer on hold — dialing Chris…');
+    try {
+      const res = await base44.functions.invoke('fronterCall', {
+        action: 'mergeDial',
+        fronterCallSid: callSid,
+        agentPhone: chrisLine.twilioNumber,
+        lineKey,
+        leadId: lead?.id,
+        leadEmail: lead?.email,
+      });
+      const data = res?.data || res;
+      if (data?.conferenceName) {
+        setConferenceName(data.conferenceName);
+        setAgentCallSid(data.agentCallSid || '');
+        setMergeState('connected');
+        setDialingMsg('');
+      } else {
+        setMergeState('failed');
+        setDialingMsg('');
+        setError('Could not start the merge — no conference created.');
+      }
+    } catch (e) {
+      setMergeState('failed');
+      setDialingMsg('');
+      setError('Merge dial failed: ' + (e?.message || String(e)));
+    }
   };
 
   const handleMergeTransfer = async () => {
@@ -144,54 +149,37 @@ export default function FronterMergePopup({ lead, username, fronterFirstName, is
 
   const fmtDuration = (s) => `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, '0')}`;
 
-  const blockedNoCall = !resolvingChris && chrisLine && (!callSid || !callActive);
+  const canDial = mergeState === 'idle' && chrisLine?.twilioNumber && callSid && callActive && lineKey;
   const canMerge = mergeState === 'connected';
   const canNoConnect = mergeState === 'connected' || mergeState === 'dialing';
 
   return (
-    <FronterPopup title="🔀 Merge Call" subtitle="All checklist items complete" accent={GOLD} onClose={onClose} initialSize={{ w: 480, h: 620 }} minW={360} minH={420} zIndex={10500}>
+    <FronterPopup title="🔀 Merge Call" subtitle="Complete the steps, then connect" accent={GOLD} onClose={onClose} initialSize={{ w: 520, h: 680 }} minW={380} minH={480} zIndex={10500}>
       <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', height: '100%' }}>
-        {/* Call status */}
-        <div style={{ marginBottom: '12px', padding: '10px 14px', background: callActive ? 'rgba(16,185,129,0.08)' : 'rgba(255,255,255,0.03)', border: `1px solid ${callActive ? GOLD + '33' : 'rgba(255,255,255,0.08)'}`, borderRadius: '6px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div>
-            <div style={{ color: callActive ? GOLD : '#6b7280', fontSize: '11px', fontWeight: 'bold' }}>
-              {callActive ? '📞 Call Active' : '📞 No Active Call'}
-            </div>
-            {callActive && <div style={{ color: '#e8e0d0', fontSize: '20px', fontWeight: 'bold', fontFamily: 'monospace' }}>{fmtDuration(callDuration)}</div>}
+        {/* Compact call + Chris status strip */}
+        <div style={{ marginBottom: '10px', display: 'flex', gap: '8px' }}>
+          <div style={{ flex: 1, padding: '8px 12px', background: callActive ? 'rgba(16,185,129,0.08)' : 'rgba(255,255,255,0.03)', border: `1px solid ${callActive ? GOLD + '33' : 'rgba(255,255,255,0.08)'}`, borderRadius: '6px' }}>
+            <div style={{ color: callActive ? GOLD : '#6b7280', fontSize: '10px', fontWeight: 'bold' }}>{callActive ? '📞 Call Active' : '📞 No Call'}</div>
+            {callActive && <div style={{ color: '#e8e0d0', fontSize: '16px', fontWeight: 'bold', fontFamily: 'monospace' }}>{fmtDuration(callDuration)}</div>}
           </div>
-          <div style={{ textAlign: 'right' }}>
-            <div style={{ color: '#e8e0d0', fontSize: '13px', fontWeight: 'bold' }}>{lead?.firstName} {lead?.lastName}</div>
-            <div style={{ color: '#6b7280', fontSize: '11px' }}>{lead?.phone}</div>
-          </div>
-        </div>
-
-        {/* Chris line status */}
-        <div style={{ marginBottom: '12px', padding: '10px 14px', background: resolvingChris ? 'rgba(96,165,250,0.06)' : chrisLine ? 'rgba(16,185,129,0.08)' : 'rgba(239,68,68,0.08)', border: `1px solid ${resolvingChris ? 'rgba(96,165,250,0.25)' : chrisLine ? GOLD + '33' : 'rgba(239,68,68,0.3)'}`, borderRadius: '6px' }}>
-          {resolvingChris ? (
-            <div style={{ color: '#60a5fa', fontSize: '12px' }}>⏳ Resolving Chris Bongiorno's line…</div>
-          ) : chrisLine ? (
-            <div>
-              <div style={{ color: GOLD, fontSize: '11px', fontWeight: 'bold' }}>✓ Chris Bongiorno's line: <span style={{ fontFamily: 'monospace' }}>{chrisLine.twilioNumber}</span></div>
-              <div style={{ color: '#6b7280', fontSize: '10px', marginTop: '2px' }}>
-                {mergeState === 'dialing' && '⏳ Customer on hold — dialing Chris…'}
-                {mergeState === 'connected' && "✓ Chris is connected. Confirm he is ready, then press Merge & Transfer."}
-                {mergeState === 'merging' && '⏳ Bridging customer + Chris…'}
-                {mergeState === 'done' && '✓ Done.'}
-                {mergeState === 'failed' && '⚠ Merge could not start.'}
-                {mergeState === 'idle' && 'Preparing merge…'}
+          <div style={{ flex: 1, padding: '8px 12px', background: resolvingChris ? 'rgba(96,165,250,0.06)' : chrisLine ? 'rgba(16,185,129,0.08)' : 'rgba(239,68,68,0.08)', border: `1px solid ${resolvingChris ? 'rgba(96,165,250,0.25)' : chrisLine ? GOLD + '33' : 'rgba(239,68,68,0.3)'}`, borderRadius: '6px' }}>
+            {resolvingChris ? (
+              <div style={{ color: BLUE, fontSize: '10px' }}>⏳ Resolving Chris's line…</div>
+            ) : chrisLine ? (
+              <div>
+                <div style={{ color: GOLD, fontSize: '10px', fontWeight: 'bold' }}>✓ Chris: <span style={{ fontFamily: 'monospace' }}>{chrisLine.twilioNumber}</span></div>
+                <div style={{ color: '#6b7280', fontSize: '9px', marginTop: '2px' }}>{lead?.firstName} {lead?.lastName} · {lead?.phone}</div>
               </div>
-            </div>
-          ) : (
-            <div style={{ color: RED, fontSize: '12px', fontWeight: 'bold' }}>⚠ Chris Bongiorno has no assigned Twilio line. Ask an admin to assign a line to "chris" before merging.</div>
-          )}
+            ) : (
+              <div style={{ color: RED, fontSize: '10px', fontWeight: 'bold' }}>⚠ Chris has no line</div>
+            )}
+          </div>
         </div>
 
-        {error && <div style={{ color: RED, fontSize: '11px', marginBottom: '8px' }}>⚠ {error}</div>}
-
-        {/* Merge script */}
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', marginBottom: '12px' }}>
+        {/* Remaining script — the fronter reads this to the customer first */}
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', marginBottom: '12px', minHeight: 0 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-            <span style={{ color: GOLD, fontSize: '11px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase' }}>📜 Merge Script</span>
+            <span style={{ color: GOLD, fontSize: '11px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase' }}>📜 Remaining Script — Read to Customer</span>
             {isAdmin && !editMode && (
               <button onClick={() => { setEditText(script?.content || ''); setEditMode(true); }} style={{ background: `${GOLD}18`, color: GOLD, border: `1px solid ${GOLD}44`, borderRadius: '4px', padding: '4px 10px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>✏️ Edit</button>
             )}
@@ -205,73 +193,114 @@ export default function FronterMergePopup({ lead, username, fronterFirstName, is
           {loading ? (
             <div style={{ color: '#6b7280', fontSize: '13px', textAlign: 'center', padding: '20px' }}>Loading…</div>
           ) : editMode ? (
-            <textarea value={editText} onChange={e => setEditText(e.target.value)} style={{ flex: 1, width: '100%', background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '4px', padding: '14px', color: '#e8e0d0', fontSize: '14px', lineHeight: 1.7, fontFamily: 'Georgia, serif', resize: 'none', outline: 'none', boxSizing: 'border-box' }} />
+            <textarea value={editText} onChange={e => setEditText(e.target.value)} style={{ flex: 1, width: '100%', background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '4px', padding: '14px', color: '#e8e0d0', fontSize: '15px', lineHeight: 1.7, fontFamily: 'Georgia, serif', resize: 'none', outline: 'none', boxSizing: 'border-box' }} />
           ) : (
-            <div style={{ flex: 1, overflowY: 'auto', background: 'rgba(0,0,0,0.15)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '4px', padding: '14px' }}>
-              <div style={{ color: '#e8e0d0', fontSize: '16px', lineHeight: 1.8, fontFamily: 'Georgia, serif', whiteSpace: 'pre-wrap' }}>
+            <div style={{ flex: 1, overflowY: 'auto', background: 'rgba(0,0,0,0.15)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '4px', padding: '16px' }}>
+              <div style={{ color: '#e8e0d0', fontSize: '16px', lineHeight: 1.9, fontFamily: 'Georgia, serif', whiteSpace: 'pre-wrap' }}>
                 {renderFormatted(substituteScriptVars(script?.content || DEFAULT_MERGE_SCRIPT, { lead, fronterFirstName }))}
               </div>
             </div>
           )}
         </div>
 
-        {/* Action buttons */}
-        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-          <button
-            onClick={handleMergeTransfer}
-            disabled={!canMerge}
-            style={{
-              flex: 1,
-              background: canMerge ? `linear-gradient(135deg,${GOLD},#22c55e)` : 'rgba(255,255,255,0.05)',
-              color: canMerge ? DARK : '#6b7280',
-              border: 'none',
-              borderRadius: '6px',
-              padding: '14px',
-              cursor: canMerge ? 'pointer' : 'not-allowed',
-              fontSize: '14px',
-              fontWeight: 'bold',
-              opacity: canMerge ? 1 : 0.5,
-            }}
-          >
-            {mergeState === 'merging' ? '⏳ Bridging…' : '🔀 Merge & Transfer'}
-          </button>
-          <button
-            onClick={handleNoConnect}
-            disabled={!canNoConnect}
-            style={{
-              background: 'rgba(239,68,68,0.15)',
-              color: RED,
-              border: '1px solid rgba(239,68,68,0.4)',
-              borderRadius: '6px',
-              padding: '14px 18px',
-              cursor: canNoConnect ? 'pointer' : 'not-allowed',
-              fontSize: '13px',
-              fontWeight: 'bold',
-              opacity: canNoConnect ? 1 : 0.5,
-            }}
-          >
-            🚫 NO CONNECT
-          </button>
-          <button
-            onClick={onClose}
-            style={{
-              background: 'rgba(255,255,255,0.05)',
-              color: '#6b7280',
-              border: '1px solid rgba(255,255,255,0.1)',
-              borderRadius: '6px',
-              padding: '14px 18px',
-              cursor: 'pointer',
-              fontSize: '13px',
-              fontWeight: 'bold',
-            }}
-          >
-            Close
-          </button>
-        </div>
+        {error && <div style={{ color: RED, fontSize: '11px', marginBottom: '8px' }}>⚠ {error}</div>}
+        {dialingMsg && <div style={{ color: BLUE, fontSize: '11px', marginBottom: '8px' }}>⏳ {dialingMsg}</div>}
 
-        {blockedNoCall && (
-          <div style={{ marginTop: '8px', color: '#f59e0b', fontSize: '11px', textAlign: 'center' }}>No active call detected. Start a call from the contact card before merging.</div>
-        )}
+        {/* Phone controls — fronter drives the flow manually */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          {mergeState === 'idle' && (
+            <button
+              onClick={handleDialChris}
+              disabled={!canDial}
+              style={{
+                width: '100%',
+                background: canDial ? `linear-gradient(135deg,${GOLD},#22c55e)` : 'rgba(255,255,255,0.05)',
+                color: canDial ? DARK : '#6b7280',
+                border: 'none',
+                borderRadius: '6px',
+                padding: '14px',
+                cursor: canDial ? 'pointer' : 'not-allowed',
+                fontSize: '15px',
+                fontWeight: 'bold',
+                opacity: canDial ? 1 : 0.5,
+              }}
+            >
+              📞 Dial Chris Bongiorno
+            </button>
+          )}
+          {mergeState === 'dialing' && (
+            <button disabled style={{ width: '100%', background: 'rgba(96,165,250,0.15)', color: BLUE, border: `1px solid ${BLUE}44`, borderRadius: '6px', padding: '14px', fontSize: '15px', fontWeight: 'bold', cursor: 'wait' }}>
+              ⏳ Dialing Chris…
+            </button>
+          )}
+          {(mergeState === 'connected' || mergeState === 'merging') && (
+            <button
+              onClick={handleMergeTransfer}
+              disabled={!canMerge}
+              style={{
+                width: '100%',
+                background: canMerge ? `linear-gradient(135deg,${GOLD},#22c55e)` : 'rgba(255,255,255,0.05)',
+                color: canMerge ? DARK : '#6b7280',
+                border: 'none',
+                borderRadius: '6px',
+                padding: '14px',
+                cursor: canMerge ? 'pointer' : 'not-allowed',
+                fontSize: '15px',
+                fontWeight: 'bold',
+                opacity: canMerge ? 1 : 0.5,
+              }}
+            >
+              {mergeState === 'merging' ? '⏳ Bridging…' : '🔀 Merge & Transfer'}
+            </button>
+          )}
+          {mergeState === 'done' && (
+            <div style={{ width: '100%', textAlign: 'center', background: 'rgba(16,185,129,0.12)', color: GOLD, border: `1px solid ${GOLD}44`, borderRadius: '6px', padding: '14px', fontSize: '15px', fontWeight: 'bold' }}>✓ Transfer Complete</div>
+          )}
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <button
+              onClick={handleNoConnect}
+              disabled={!canNoConnect}
+              style={{
+                flex: 1,
+                background: 'rgba(239,68,68,0.15)',
+                color: RED,
+                border: '1px solid rgba(239,68,68,0.4)',
+                borderRadius: '6px',
+                padding: '12px',
+                cursor: canNoConnect ? 'pointer' : 'not-allowed',
+                fontSize: '13px',
+                fontWeight: 'bold',
+                opacity: canNoConnect ? 1 : 0.5,
+              }}
+            >
+              🚫 NO CONNECT
+            </button>
+            <button
+              onClick={onClose}
+              style={{
+                flex: 1,
+                background: 'rgba(255,255,255,0.05)',
+                color: '#6b7280',
+                border: '1px solid rgba(255,255,255,0.1)',
+                borderRadius: '6px',
+                padding: '12px',
+                cursor: 'pointer',
+                fontSize: '13px',
+                fontWeight: 'bold',
+              }}
+            >
+              Close
+            </button>
+          </div>
+          {mergeState === 'idle' && !canDial && !resolvingChris && (
+            <div style={{ color: '#f59e0b', fontSize: '11px', textAlign: 'center' }}>
+              {!chrisLine?.twilioNumber ? 'Chris has no assigned line — ask an admin.' : !callActive ? 'Start a call from the contact card first.' : 'Waiting for call details…'}
+            </div>
+          )}
+          {mergeState === 'connected' && (
+            <div style={{ color: GOLD, fontSize: '11px', textAlign: 'center' }}>✓ Chris is connected. Confirm he's ready, then press Merge & Transfer.</div>
+          )}
+        </div>
       </div>
     </FronterPopup>
   );
