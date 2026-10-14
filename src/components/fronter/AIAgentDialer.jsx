@@ -26,6 +26,7 @@ export default function AIAgentDialer({ adminUsername }) {
   const [manualName, setManualName] = useState({ firstName: '', lastName: '' });
   const [status, setStatus] = useState('');
   const [error, setError] = useState('');
+  const [overrideCutoff, setOverrideCutoff] = useState(false);
   const fileRef = useRef(null);
 
   // ── CSV parsing ──
@@ -69,13 +70,15 @@ export default function AIAgentDialer({ adminUsername }) {
   const manualDial = async () => {
     if (!manualPhone.trim()) return;
     setError(''); 
-    // Pre-check 8pm cutoff before dialing
-    const cutoff = checkCallCutoff(manualPhone.trim());
-    if (cutoff.blocked) {
-      setError(cutoff.localHour >= 20
-        ? `🚫 ${cutoff.localTime} ${cutoff.tzLabel} — past 8pm in this number's time zone. No calls after 8pm.`
-        : `🚫 ${cutoff.localTime} ${cutoff.tzLabel} — before 8am in this number's time zone.`);
-      return;
+    // Pre-check 8pm cutoff before dialing (unless override is on)
+    if (!overrideCutoff) {
+      const cutoff = checkCallCutoff(manualPhone.trim());
+      if (cutoff.blocked) {
+        setError(cutoff.localHour >= 20
+          ? `🚫 ${cutoff.localTime} ${cutoff.tzLabel} — past 8pm in this number's time zone. No calls after 8pm.`
+          : `🚫 ${cutoff.localTime} ${cutoff.tzLabel} — before 8am in this number's time zone.`);
+        return;
+      }
     }
     setStatus('Dialing...');
     try {
@@ -85,6 +88,7 @@ export default function AIAgentDialer({ adminUsername }) {
         firstName: manualName.firstName || 'Test',
         lastName: manualName.lastName || 'Lead',
         adminUsername,
+        overrideCutoff,
       });
       const data = res?.data || res;
       if (data?.ok) {
@@ -204,6 +208,12 @@ export default function AIAgentDialer({ adminUsername }) {
           <button onClick={manualDial} disabled={!manualPhone.trim()} style={{ background: 'linear-gradient(135deg,#60a5fa,#3b82f6)', color: DARK, border: 'none', borderRadius: '4px', padding: '8px 18px', cursor: manualPhone.trim() ? 'pointer' : 'not-allowed', fontSize: '11px', fontWeight: 'bold', whiteSpace: 'nowrap', opacity: manualPhone.trim() ? 1 : 0.5 }}>
             📞 Dial Now
           </button>
+        </div>
+        <div style={{ marginTop: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <button onClick={() => setOverrideCutoff(p => !p)} style={{ background: overrideCutoff ? 'rgba(245,158,11,0.15)' : 'rgba(255,255,255,0.05)', color: overrideCutoff ? AMBER : '#6b7280', border: `1px solid ${overrideCutoff ? 'rgba(245,158,11,0.4)' : 'rgba(255,255,255,0.1)'}`, borderRadius: '4px', padding: '5px 12px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold', whiteSpace: 'nowrap' }}>
+            {overrideCutoff ? '⚠ Override ON' : '🔒 Override 8pm Cutoff'}
+          </button>
+          {overrideCutoff && <span style={{ color: AMBER, fontSize: '10px' }}>Bypasses time zone check — use for test calls to your own number only.</span>}
         </div>
       </div>
 

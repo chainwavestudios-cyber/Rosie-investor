@@ -31,12 +31,13 @@ Deno.serve(async (req) => {
 
     // ── startDial: initiate outbound call to a lead ──
     if (action === 'startDial') {
-      const { phone, firstName, lastName, city, state, debtAmount, leadId, adminUsername } = body;
+      const { phone, firstName, lastName, city, state, debtAmount, leadId, adminUsername, overrideCutoff } = body;
       if (!phone) return Response.json({ error: 'phone required' }, { status: 400 });
 
       // ── 8pm local-time cutoff: no calls past 7:59pm in the recipient's tz ──
+      // overrideCutoff lets admins bypass for test calls to their own number
       const cutoff = checkCallCutoff(phone);
-      if (cutoff.blocked) {
+      if (cutoff.blocked && !overrideCutoff) {
         const reason = cutoff.localHour >= 20
           ? `It is ${cutoff.localTime} ${cutoff.tzLabel} — past the 8pm cutoff for this number's time zone.`
           : `It is ${cutoff.localTime} ${cutoff.tzLabel} — before the 8am calling window.`;
