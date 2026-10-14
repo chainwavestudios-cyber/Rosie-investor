@@ -76,13 +76,13 @@ export default async function(req) {
         }
       }
 
-      const streamUrl = `wss://rosieai-investorpage.base44.app/functions/aiAgentStream?leadId=${encodeURIComponent(leadId)}`;
+      const respondUrl = `https://rosieai-investorpage.base44.app/functions/aiAgentRespond?leadId=${encodeURIComponent(leadId)}`;
       const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Say voice="Polly.Joanna-Neural">${xmlEscape(greeting)}</Say>
-  <Connect>
-    <Stream url="${streamUrl}" />
-  </Connect>
+  <Gather input="speech" speechTimeout="auto" action="${respondUrl}" method="POST" language="en-US" enhanced="true" speechModel="conversational" />
+  <Say voice="Polly.Joanna-Neural">I didn't catch that. I'll try again later. Goodbye.</Say>
+  <Hangup/>
 </Response>`;
       console.log('[dialerVoiceHandler] → Mode AI Agent outbound, leadId:', leadId);
       return new Response(twiml, { headers: { 'Content-Type': 'text/xml' } });
