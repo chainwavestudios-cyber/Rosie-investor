@@ -274,7 +274,7 @@ Deno.serve(async (req) => {
           } catch (e) { console.warn('Unhold failed:', e.message); }
         }
       }
-      // Remove fronter's browser leg
+      // Remove fronter's browser leg from conference + explicitly hang up their call
       for (const p of participants.participants || []) {
         if (fronterSid && p.call_sid === fronterSid) {
           try {
@@ -284,6 +284,15 @@ Deno.serve(async (req) => {
             });
           } catch (e) { console.warn('Remove fronter failed:', e.message); }
         }
+      }
+      // Explicitly hang up the fronter's browser call so the Twilio device disconnects immediately
+      if (fronterSid) {
+        try {
+          await twilioFetch(`/Calls/${fronterSid}.json`, {
+            method: 'POST',
+            body: new URLSearchParams({ Status: 'completed' }),
+          });
+        } catch (e) { console.warn('Fronter call hangup failed:', e.message); }
       }
 
       return Response.json({ ok: true });
@@ -331,6 +340,85 @@ Deno.serve(async (req) => {
           } catch (e) { console.warn('Remove agent participant failed:', e.message); }
         }
         // Held participant = the customer → keep them in the queue
+      }
+
+      // Explicitly hang up the fronter's browser call so the Twilio device disconnects immediately
+      if (fronterSid) {
+        try {
+          await twilioFetch(`/Calls/${fronterSid}.json`, {
+            method: 'POST',
+            body: new URLSearchParams({ Status: 'completed' }),
+          });
+        } catch (e) { console.warn('Fronter call hangup failed:', e.message); }
+      }
+
+      return Response.json({ ok: true });
+    }
+
+    // ── GRAB QUEUED CALL: Chris joins the conference unmuted, customer is unholded ──
+    //   After NO CONNECT, the customer is left on hold in the queue. Chris (or an
+    //   admin) can grab the call: join the conference unmuted, unhold the customer,
+    //   and update the lead's disposition from 'queued_no_connect' to 'transferred'.
+    if (action === 'grabQueuedCall') {
+      const { conferenceName, adminUsername, lineKey, leadId } = body;
+      if (!conferenceName) return Response.json({ error: 'conferenceName required' }, { status: 400 });
+      if (!adminUsername) return Response.json({ error: 'adminUsername required' }, { status: 400 });
+
+      const fromNumber = lineNumber(lineKey);
+      const adminIdentity = `client:${adminUsername.replace(/[^a-zA-Z0-9_]/g, '_')}`;
+
+      let confSid: string | null = null;
+      for (let i = 0; i < 10; i++) {
+        confSid = await findConferenceSid(conferenceName);
+        if (confSid) break;
+        await new Promise(r => setTimeout(r, 500));
+      }
+      if (!confSid) return Response.json({ error: 'Conference not found — the customer may have hung up' }, { status: 404 });
+
+      // Unhold all held participants (the customer)
+      const participants = await twilioFetch(`/Conferences/${confSid}/Participants.json`);
+      for (const p of participants.participants || []) {
+        if (p.hold) {
+          try {
+            await twilioFetch(`/Conferences/${confSid}/Participants/${p.call_sid}.json`, {
+              method: 'POST',
+              body: new URLSearchParams({ Hold: 'false' }),
+            });
+          } catch (e) { console.warn('Unhold failed:', e.message); }
+        }
+      }
+
+      // Add Chris/admin to the conference unmuted
+      await twilioFetch(`/Conferences/${confSid}/Participants.json`, {
+        method: 'POST',
+        body: new URLSearchParams({
+          To: adminIdentity,
+          From: fromNumber,
+          Muted: 'false',
+          Beep: 'false',
+        }),
+      });
+
+      // Update the lead's disposition from 'queued_no_connect' to 'transferred'
+      if (leadId) {
+        try {
+          const b44 = createClientFromRequest(req).asServiceRole;
+          const lead = await b44.entities.FronterLead.get(leadId);
+          if (lead && lead.lastCallResult === 'queued_no_connect') {
+            const now = new Date().toISOString();
+            await b44.entities.FronterLead.update(leadId, {
+              status: 'transferred',
+              lastCallResult: 'transferred',
+              transferredAt: now,
+              transferredTo: adminUsername,
+            });
+          }
+          // Close the heads-up alert
+          const headsUps = await b44.entities.FronterHeadsUp.filter({ leadId, status: 'active' });
+          for (const hu of headsUps || []) {
+            await b44.entities.FronterHeadsUp.update(hu.id, { status: 'closed' });
+          }
+        } catch (e) { console.warn('Lead update failed:', e.message); }
       }
 
       return Response.json({ ok: true });

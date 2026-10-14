@@ -95,6 +95,7 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
   const [aiInputMsg, setAiInputMsg] = useState('');
   const [callSid, setCallSid] = useState('');
   const [borrowedLine, setBorrowedLine] = useState(null);
+  const [hangupSignal, setHangupSignal] = useState(0);
   const effectiveLineKey = borrowedLine?.key || lineKey;
   const effectiveLineNumber = borrowedLine?.number || lineNumber;
 
@@ -293,8 +294,8 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
     } catch (e) { alert('NO CONNECT failed: ' + (e?.message || String(e))); }
   };
 
-  const markTransferred = async () => {
-    if (!confirm(`Mark ${local.firstName || 'this contact'} as Transferred? The card becomes a Lead.`)) return;
+  const markTransferred = async (skipConfirm = false) => {
+    if (!skipConfirm && !confirm(`Mark ${local.firstName || 'this contact'} as Transferred? The card becomes a Lead.`)) return;
     const now = new Date().toISOString();
     const updates = { status: 'transferred', lastCallResult: 'transferred', transferredAt: now, lastCalledAt: now };
     try {
@@ -726,6 +727,7 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
             lineKey={effectiveLineKey}
             lineNumber={effectiveLineNumber}
             embedded
+            hangupSignal={hangupSignal}
             onCallSid={(sid) => setCallSid(sid)}
             onDial={onDial}
             onCallConnected={(l) => {
@@ -1028,8 +1030,8 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
           onAiInput={runAiInput}
           onDebtConfirm={runDebtConfirm}
           onSendEmail={() => setShowCredsEmail(true)}
-          onMerge={() => { setScriptPoppedOut(false); setQaPoppedOut(false); setTranscriptPoppedOut(false); setShowMergePopup(false); setTransferScript(''); markTransferred(); }}
-          onNoConnect={() => { setScriptPoppedOut(false); setQaPoppedOut(false); setTranscriptPoppedOut(false); handleNoConnect(); }}
+          onMerge={() => { setScriptPoppedOut(false); setQaPoppedOut(false); setTranscriptPoppedOut(false); setShowMergePopup(false); setTransferScript(''); setHangupSignal(s => s + 1); markTransferred(true); }}
+          onNoConnect={() => { setScriptPoppedOut(false); setQaPoppedOut(false); setTranscriptPoppedOut(false); setHangupSignal(s => s + 1); handleNoConnect(); }}
           onClose={() => { setShowMergePopup(false); setTransferScript(''); }}
         />
       )}

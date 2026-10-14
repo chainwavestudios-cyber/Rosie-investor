@@ -49,6 +49,8 @@ export default function FronterMergePopup({ lead, username, fronterFirstName, is
   const [error, setError] = useState('');
   const [dialingMsg, setDialingMsg] = useState('');
   const pollTimerRef = useRef(null);
+  const [aiInputRunning, setAiInputRunning] = useState(false);
+  const [aiInputMsg, setAiInputMsg] = useState('');
 
   const loadScript = useCallback(async () => {
     if (transferScript) { setScript({ content: transferScript }); setLoading(false); return; }
@@ -283,8 +285,27 @@ export default function FronterMergePopup({ lead, username, fronterFirstName, is
                   if (seg.toUpperCase() === 'AI_INPUT') {
                     if (!onAiInput) return null;
                     return (
-                      <div key={i} style={{ margin: '12px 0', display: 'flex', justifyContent: 'center' }}>
-                        <button onClick={onAiInput} style={{ background: 'rgba(167,139,250,0.18)', color: '#a78bfa', border: '2px solid rgba(167,139,250,0.55)', borderRadius: '8px', padding: '10px 24px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold', fontFamily: 'Georgia, serif', boxShadow: '0 0 12px rgba(167,139,250,0.33)' }}>🤖 AI Input</button>
+                      <div key={i} style={{ margin: '12px 0', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
+                        <button
+                          onClick={async () => {
+                            if (aiInputRunning) return;
+                            setAiInputRunning(true);
+                            setAiInputMsg('');
+                            try {
+                              await onAiInput();
+                              setAiInputMsg('✓ Summary added to notes');
+                            } catch (e) {
+                              setAiInputMsg('⚠ AI Input failed: ' + (e?.message || String(e)));
+                            }
+                            setAiInputRunning(false);
+                            setTimeout(() => setAiInputMsg(''), 5000);
+                          }}
+                          disabled={aiInputRunning}
+                          style={{ background: 'rgba(167,139,250,0.18)', color: '#a78bfa', border: '2px solid rgba(167,139,250,0.55)', borderRadius: '8px', padding: '10px 24px', cursor: aiInputRunning ? 'wait' : 'pointer', fontSize: '13px', fontWeight: 'bold', fontFamily: 'Georgia, serif', boxShadow: '0 0 12px rgba(167,139,250,0.33)', opacity: aiInputRunning ? 0.6 : 1 }}
+                        >
+                          {aiInputRunning ? '⏳ Summarizing…' : '🤖 AI Input'}
+                        </button>
+                        {aiInputMsg && <span style={{ color: aiInputMsg.startsWith('✓') ? '#4ade80' : RED, fontSize: '11px' }}>{aiInputMsg}</span>}
                       </div>
                     );
                   }

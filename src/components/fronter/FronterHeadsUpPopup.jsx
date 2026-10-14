@@ -34,7 +34,7 @@ function playAlertTone() {
   } catch (e) { console.warn('Audio tone failed:', e); }
 }
 
-export default function FronterHeadsUpPopup({ adminUsername, onListen, onOpenLead }) {
+export default function FronterHeadsUpPopup({ adminUsername, onListen, onOpenLead, onGrab }) {
   const [alerts, setAlerts] = useState([]);
   const [dismissed, setDismissed] = useState(new Set());
   const prevIdsRef = useRef(new Set());
@@ -120,9 +120,17 @@ export default function FronterHeadsUpPopup({ adminUsername, onListen, onOpenLea
             <button
               onClick={() => handleListen(alert)}
               disabled={!alert.conferenceName}
-              style={{ width: '100%', background: alert.conferenceName ? 'linear-gradient(135deg,#3b82f6,#60a5fa)' : 'rgba(255,255,255,0.05)', color: alert.conferenceName ? '#fff' : '#6b7280', border: '1px solid ' + (alert.conferenceName ? BLUE + '66' : 'rgba(255,255,255,0.1)'), borderRadius: '4px', padding: '10px', cursor: alert.conferenceName ? 'pointer' : 'not-allowed', fontSize: '13px', fontWeight: 'bold', opacity: alert.conferenceName ? 1 : 0.5 }}
+              style={{ width: '100%', background: alert.conferenceName ? 'linear-gradient(135deg,#3b82f6,#60a5fa)' : 'rgba(255,255,255,0.05)', color: alert.conferenceName ? '#fff' : '#6b7280', border: '1px solid ' + (alert.conferenceName ? BLUE + '66' : 'rgba(255,255,255,0.1)'), borderRadius: '4px', padding: '10px', cursor: alert.conferenceName ? 'pointer' : 'not-allowed', fontSize: '13px', fontWeight: 'bold', opacity: alert.conferenceName ? 1 : 0.5, marginBottom: '8px' }}
             >
               🎧 {alert.conferenceName ? 'LISTEN TO CALL' : 'No Active Call to Listen'}
+            </button>
+
+            <button
+              onClick={() => onGrab?.(alert)}
+              disabled={!alert.conferenceName}
+              style={{ width: '100%', background: alert.conferenceName ? 'linear-gradient(135deg,#10b981,#22c55e)' : 'rgba(255,255,255,0.05)', color: alert.conferenceName ? '#0a0f1e' : '#6b7280', border: '1px solid ' + (alert.conferenceName ? GOLD + '66' : 'rgba(255,255,255,0.1)'), borderRadius: '4px', padding: '10px', cursor: alert.conferenceName ? 'pointer' : 'not-allowed', fontSize: '13px', fontWeight: 'bold', opacity: alert.conferenceName ? 1 : 0.5 }}
+            >
+              🤝 {alert.conferenceName ? 'GRAB CALL' : 'No Call to Grab'}
             </button>
 
             <div style={{ color: '#4a5568', fontSize: '9px', textAlign: 'center', marginTop: '8px' }}>{new Date(alert.createdAt).toLocaleTimeString('en-US', { timeZone: 'America/New_York', hour: 'numeric', minute: '2-digit' })}</div>

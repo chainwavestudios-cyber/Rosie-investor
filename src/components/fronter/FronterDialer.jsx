@@ -5,7 +5,7 @@
  * Deepgram live transcription with 5-second transcript saves to FronterCallTranscript.
  * Post-call report auto-generated at call end (script adherence, objections, sentiment).
  */
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import { Device } from '@twilio/voice-sdk';
 import { useFronterDeepgram } from '@/hooks/useFronterDeepgram';
@@ -23,7 +23,7 @@ const BLUE = '#60a5fa';
 const AMBER = '#f59e0b';
 const PURPLE = '#a78bfa';
 
-export default function FronterDialer({ lead, username, lineKey, lineNumber, onCallStarted, onCallEnded, onLeadCalled, autoDialTrigger = 0, onDial, onCallConnected, onCallSid, onTranscriptUpdate, embedded = false }) {
+export default function FronterDialer({ lead, username, lineKey, lineNumber, onCallStarted, onCallEnded, onLeadCalled, autoDialTrigger = 0, onDial, onCallConnected, onCallSid, onTranscriptUpdate, embedded = false, hangupSignal = 0 }) {
   const { isSuperAdmin, sessionUserId, sessionToken } = useDebtCoachAuth();
   const [overrideCutoff, setOverrideCutoff] = useState(false);
   const [callStatus, setCallStatus] = useState('idle');
@@ -57,6 +57,20 @@ export default function FronterDialer({ lead, username, lineKey, lineNumber, onC
   const conferenceNameRef = useRef('');
   const ringbackRef = useRef(null);
   const ringbackTimersRef = useRef([]);
+
+  // ── External hangup signal: when hangupSignal changes (and is non-zero),
+  //    disconnect the call immediately. Used after merge/no-connect to hang up
+  //    the fronter's browser leg without waiting for the backend to remove them.
+  useEffect(() => {
+    if (hangupSignal > 0 && callRef.current) {
+      try { callRef.current.disconnect(); } catch {}
+      stopTimer();
+      if (saveIntervalRef.current) { clearInterval(saveIntervalRef.current); saveIntervalRef.current = null; }
+      try { deepgram.stop(); } catch {}
+      setCallStatus('idle'); setMuted(false); setOnHold(false); setMerged(false); setConferenceName(''); setMergeStep('idle');
+      onCallEnded?.();
+    }
+  }, [hangupSignal]);
 
   // ── Ringback tone (US pattern: 440Hz + 480Hz, 2s on / 4s off) ──
   const startRingback = () => {

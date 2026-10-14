@@ -11,12 +11,10 @@ import { base44 } from '@/api/base44Client';
 import FronterLeadsTab from '@/components/fronter/FronterLeadsTab';
 import FronterScriptsTab from '@/components/fronter/FronterScriptsTab';
 import FronterAdminTab from '@/components/fronter/FronterAdminTab';
-import FronterAIPanel from '@/components/fronter/FronterAIPanel';
 import FronterSettingsTab from '@/components/fronter/FronterSettingsTab';
 import FronterMonitorPanel from '@/components/fronter/FronterMonitorPanel';
 import FronterBobTrainer from '@/components/fronter/FronterBobTrainer';
 import FronterTimeCardButton from '@/components/fronter/FronterTimeCardButton';
-import FronterCallCard from '@/components/fronter/FronterCallCard';
 import FronterHRTab from '@/components/fronter/FronterHRTab';
 import FronterHeadsUpPopup from '@/components/fronter/FronterHeadsUpPopup';
 import FronterFeedbackTab from '@/components/fronter/FronterFeedbackTab';
@@ -103,8 +101,8 @@ export default function FronterPage() {
   // Fronter sees leads + scripts; admin sees admin + leads + scripts
   const TABS = [
     ...(isAdmin
-      ? [{ id: 'scripts', label: 'Scripts' }, { id: 'admin', label: '⚙️ Admin' }, { id: 'ai_agent', label: '🤖 AI Agent' }, { id: 'prospects', label: '📋 Prospects' }, { id: 'leads', label: '📋 Leads' }, { id: 'closed_deals', label: '💎 Closed Deals' }, { id: 'reports', label: '📊 Reports' }, { id: 'feedback', label: '💬 Feedback' }, { id: 'bob', label: '🤖 BOB Training' }, { id: 'hr', label: '🕐 HR' }, { id: 'settings', label: '🔧 Settings' }]
-      : [{ id: 'prospects', label: '📋 Prospects' }, { id: 'leads', label: '📋 Leads' }, { id: 'closed_deals', label: '💎 Closed Deals' }, { id: 'reports', label: '📊 Reports' }, { id: 'feedback', label: '💬 Feedback' }, { id: 'bob', label: '🤖 BOB Training' }, { id: 'hr', label: '🕐 HR' }, { id: 'settings', label: '🔧 Settings' }]),
+      ? [{ id: 'scripts', label: 'Scripts' }, { id: 'admin', label: '⚙️ Admin' }, { id: 'ai_agent', label: '🤖 AI Agent' }, { id: 'prospects', label: '📋 Prospects' }, { id: 'leads', label: '📋 Leads' }, { id: 'queued_no_connect', label: '📋 Queued No Connect' }, { id: 'closed_deals', label: '💎 Closed Deals' }, { id: 'reports', label: '📊 Reports' }, { id: 'feedback', label: '💬 Feedback' }, { id: 'bob', label: '🤖 BOB Training' }, { id: 'hr', label: '🕐 HR' }, { id: 'settings', label: '🔧 Settings' }]
+      : [{ id: 'prospects', label: '📋 Prospects' }, { id: 'leads', label: '📋 Leads' }, { id: 'queued_no_connect', label: '📋 Queued No Connect' }, { id: 'closed_deals', label: '💎 Closed Deals' }, { id: 'reports', label: '📊 Reports' }, { id: 'feedback', label: '💬 Feedback' }, { id: 'bob', label: '🤖 BOB Training' }, { id: 'hr', label: '🕐 HR' }, { id: 'settings', label: '🔧 Settings' }]),
   ];
 
   const loadLine = useCallback(async () => {
@@ -408,7 +406,7 @@ export default function FronterPage() {
 
         {tab === 'ai_agent' && isAdmin && <FronterAIAgentTab adminUsername={user.username} />}
 
-        {['prospects', 'leads'].includes(tab) && (
+        {['prospects', 'leads', 'queued_no_connect'].includes(tab) && (
           isFronter ? (
             assignedLiveLine ? (
               <FronterLeadsTab
@@ -511,6 +509,17 @@ export default function FronterPage() {
             } catch (e) { alert('Listen failed: ' + (e?.message || String(e))); }
           }}
           onOpenLead={(leadId) => { setTab('leads'); }}
+          onGrab={async (alert) => {
+            try {
+              await base44.functions.invoke('fronterCall', {
+                action: 'grabQueuedCall',
+                conferenceName: alert.conferenceName,
+                adminUsername: user.username,
+                lineKey: alert.lineKey || 'TWILIO_FROM_NUMBER',
+                leadId: alert.leadId,
+              });
+            } catch (e) { alert('Grab failed: ' + (e?.message || String(e))); }
+          }}
         />
       )}
 
