@@ -94,9 +94,8 @@ export default function FronterPage() {
   const isAdmin = isSuperAdmin;
   // Fronter sees leads + scripts; admin sees admin + leads + scripts
   const TABS = [
-    { id: 'scripts', label: 'Scripts' },
     ...(isAdmin
-      ? [{ id: 'admin', label: '⚙️ Admin' }, { id: 'ai_agent', label: '🤖 AI Agent' }, { id: 'prospects', label: '📋 Prospects' }, { id: 'leads', label: '📋 Leads' }, { id: 'closed_deals', label: '💎 Closed Deals' }, { id: 'reports', label: '📊 Reports' }, { id: 'feedback', label: '💬 Feedback' }, { id: 'bob', label: '🤖 BOB Training' }, { id: 'hr', label: '🕐 HR' }, { id: 'settings', label: '🔧 Settings' }]
+      ? [{ id: 'scripts', label: 'Scripts' }, { id: 'admin', label: '⚙️ Admin' }, { id: 'ai_agent', label: '🤖 AI Agent' }, { id: 'prospects', label: '📋 Prospects' }, { id: 'leads', label: '📋 Leads' }, { id: 'closed_deals', label: '💎 Closed Deals' }, { id: 'reports', label: '📊 Reports' }, { id: 'feedback', label: '💬 Feedback' }, { id: 'bob', label: '🤖 BOB Training' }, { id: 'hr', label: '🕐 HR' }, { id: 'settings', label: '🔧 Settings' }]
       : [{ id: 'prospects', label: '📋 Prospects' }, { id: 'leads', label: '📋 Leads' }, { id: 'closed_deals', label: '💎 Closed Deals' }, { id: 'reports', label: '📊 Reports' }, { id: 'feedback', label: '💬 Feedback' }, { id: 'bob', label: '🤖 BOB Training' }, { id: 'hr', label: '🕐 HR' }, { id: 'settings', label: '🔧 Settings' }]),
   ];
 
@@ -445,7 +444,7 @@ export default function FronterPage() {
 
         {tab === 'hr' && <FronterHRTab username={user.username} />}
 
-        <FronterScriptsTab active={tab === 'scripts'} fronterFirstName={user?.firstName} username={user.username} />
+        {isAdmin && <FronterScriptsTab active={tab === 'scripts'} fronterFirstName={user?.firstName} username={user.username} />}
 
         {tab === 'settings' && <FronterSettingsTab />}
       </div>

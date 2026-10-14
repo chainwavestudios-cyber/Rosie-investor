@@ -40,6 +40,16 @@ const TEXT_COLORS = [
 
 const FONT_SIZES = [12, 13, 14, 15, 16, 18, 20];
 
+const VARIABLES = [
+  { token: '{{first name}}', desc: 'First name from contact card' },
+  { token: '{{last name}}', desc: 'Last name from contact card' },
+  { token: '{{phone}}', desc: 'Phone number from contact card' },
+  { token: '{{zip}}', desc: 'Zip code from contact card' },
+  { token: '{{city}}', desc: 'City from contact card' },
+  { token: '{{state}}', desc: 'State from contact card' },
+  { token: '{{email}}', desc: 'Email from contact card' },
+];
+
 export default function FronterScriptsTab({ fronterFirstName, username, active = true }) {
   const panel = usePopOutPanel('fronter_scripts', { width: 640, height: 640 }, username, 30000);
   // Docked height — persisted per user, draggable from the bottom edge
@@ -219,6 +229,15 @@ function FronterScriptsContent({ fronterFirstName, username }) {
     updateAndSave({ content: bbcode });
   };
 
+  const insertVariableAtCursor = (token) => {
+    const ce = textareaRef.current;
+    if (!ce || !active) return;
+    ce.focus();
+    document.execCommand('insertHTML', false, token);
+    const bbcode = htmlToBbcode(ce.innerHTML);
+    updateAndSave({ content: bbcode });
+  };
+
   const saveActive = async () => {
     if (!active) return;
     if (autoSaveTimer.current) { clearTimeout(autoSaveTimer.current); autoSaveTimer.current = null; }
@@ -347,6 +366,13 @@ function FronterScriptsContent({ fronterFirstName, username }) {
 
           {mode === 'edit' ? (
             <>
+              {/* Variable insertion toolbar */}
+              <div style={{ display: 'flex', gap: '4px', marginBottom: '8px', flexShrink: 0, flexWrap: 'wrap', alignItems: 'center' }}>
+                <span style={{ color: '#4a5568', fontSize: '10px', letterSpacing: '1px', textTransform: 'uppercase' }}>Insert Variable:</span>
+                {VARIABLES.map(v => (
+                  <button key={v.token} onClick={() => insertVariableAtCursor(v.token)} title={v.desc} style={{ padding: '4px 8px', borderRadius: '4px', border: `1px solid ${GOLD}44`, background: `${GOLD}12`, color: GOLD, cursor: 'pointer', fontSize: '10px', fontFamily: 'monospace', fontWeight: 'bold' }}>{v.token}</button>
+                ))}
+              </div>
               {/* Cue block insertion toolbar */}
               <div style={{ display: 'flex', gap: '6px', marginBottom: '8px', flexShrink: 0, flexWrap: 'wrap', alignItems: 'center' }}>
                 <span style={{ color: '#4a5568', fontSize: '10px', letterSpacing: '1px', textTransform: 'uppercase' }}>Insert Cue:</span>
@@ -372,7 +398,7 @@ function FronterScriptsContent({ fronterFirstName, username }) {
                 }}
               />
               <div style={{ marginTop: '6px', color: '#4a5568', fontSize: '10px', flexShrink: 0 }}>
-                Tokens: <span style={{ color: GOLD, fontFamily: 'monospace' }}>{'{{firstname}}'}</span> · <span style={{ color: GOLD, fontFamily: 'monospace' }}>{'{{lastname}}'}</span>
+                Tokens: <span style={{ color: GOLD, fontFamily: 'monospace' }}>{'{{first name}} {{last name}} {{phone}} {{zip}} {{city}} {{state}} {{email}}'}</span>
                 <span style={{ marginLeft: '12px' }}>Format: <span style={{ color: '#a78bfa', fontFamily: 'monospace' }}>[b]..[/b] [i]..[/i] [c=#hex]..[/c] [bg=#hex]..[/bg] [s=18]..[/s] [f=Arial]..[/f]</span></span>
                 <span style={{ marginLeft: '12px' }}>Cue: <span style={{ color: '#60a5fa', fontFamily: 'monospace' }}>@@CUE:reminder:text@@</span></span>
                 <span style={{ marginLeft: '12px' }}>AI: <span style={{ color: GOLD, fontFamily: 'monospace' }}>[[AI INPUT]]</span> <span style={{ color: '#4a5568' }}>— auto-capture zone</span></span>
