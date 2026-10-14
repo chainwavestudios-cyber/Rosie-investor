@@ -76,7 +76,7 @@ function loadProgress(leadId, leadRecord) {
 
 export default function SmartClose({ leadId, liveTranscript, intentScore, animalType, compact, canEditPhones = false, canEditScripts = false }) {
   const [closeTab, setCloseTab] = useState('checklist');
-  const [smartOn, setSmartOn] = useState(false);
+  const [smartOn, setSmartOn] = useState(true);
   const [lead, setLead] = useState(null);
   const [savedTranscript, setSavedTranscript] = useState([]);
   const [analysis, setAnalysis] = useState(null);
@@ -343,6 +343,18 @@ ${recentText}`,
 
   const handleToggle = (key) => setManualDone(prev => ({ ...prev, [key]: !prev[key] }));
 
+  // Force-complete an entire section: checks every step in the module at once,
+  // awarding all of that section's points to the deal score immediately.
+  const handleCompleteSection = (modId) => {
+    const mod = scriptModules.find(m => m.id === modId);
+    if (!mod) return;
+    setManualDone(prev => {
+      const next = { ...prev };
+      mod.steps.forEach((_, i) => { next[`${modId}_${i}`] = true; });
+      return next;
+    });
+  };
+
   // Explicit save button — persists immediately to DB
   const handleSave = async () => {
     if (!leadId) return;
@@ -409,6 +421,7 @@ ${recentText}`,
           modules={scriptModules}
           done={smartOn ? combinedDone : manualDone}
           onToggle={smartOn ? handleToggle : undefined}
+          onCompleteSection={smartOn ? handleCompleteSection : undefined}
           autoDone={smartOn ? autoDone : undefined}
           smartMode={smartOn}
           canEdit={canEditScripts}

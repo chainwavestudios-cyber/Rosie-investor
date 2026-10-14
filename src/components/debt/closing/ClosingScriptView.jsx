@@ -50,6 +50,7 @@ export default function ClosingScriptView({
   modules,
   done,
   onToggle,
+  onCompleteSection,
   autoDone,
   smartMode,
   canEdit,
@@ -272,6 +273,34 @@ export default function ClosingScriptView({
                     <div style={{ marginTop: '8px', paddingTop: '8px', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
                       <div style={{ ...ls, color: '#4a5568' }}>Capture</div>
                       {mod.capture.map((c, i) => <div key={i} style={{ color: '#8a9ab8', fontSize: '11px' }}>• {c}</div>)}
+                    </div>
+                  )}
+
+                  {/* Complete Section button — awards all points for this section at once */}
+                  {!editMode && onCompleteSection && (
+                    <div style={{ marginTop: '12px', paddingTop: '10px', borderTop: '1px solid rgba(255,255,255,0.05)', display: 'flex', justifyContent: 'center' }}>
+                      <button
+                        onClick={() => onCompleteSection(mod.id)}
+                        style={{
+                          background: modDone ? 'rgba(16,185,129,0.15)' : 'linear-gradient(135deg,#10b981,#22c55e)',
+                          color: modDone ? GOLD : '#0a0f1e',
+                          border: modDone ? `1px solid ${GOLD}55` : 'none',
+                          borderRadius: '8px',
+                          padding: '10px 28px',
+                          cursor: 'pointer',
+                          fontSize: '13px',
+                          fontWeight: 'bold',
+                          fontFamily: 'Georgia, serif',
+                          boxShadow: modDone ? 'none' : '0 0 12px rgba(16,185,129,0.3)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                        }}
+                      >
+                        {modDone
+                          ? `✓ ${mod.title} Complete (+${mod.steps.reduce((s, st) => s + (st.score || 0), 0)} pts)`
+                          : `✅ Complete ${mod.title} (+${mod.steps.reduce((s, st) => s + (st.score || 0), 0)} pts)`}
+                      </button>
                     </div>
                   )}
                 </div>
