@@ -45,7 +45,7 @@ function isToday(dateStr) {
   return dateStr === today;
 }
 
-export default function HotLeadsTab({ onOpenLead }) {
+export default function HotLeadsTab({ onOpenLead, onOpenHeatMap }) {
   const [leads, setLeads] = useState([]);
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -294,7 +294,12 @@ export default function HotLeadsTab({ onOpenLead }) {
             <span style={{ color: RED, fontSize: '15px', fontWeight: 'bold' }}>🔥 Hot Leads</span>
             <span style={{ color: '#6b7280', fontSize: '11px', marginLeft: '8px' }}>{leads.length} tagged</span>
           </div>
-          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search hot leads…" style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '4px', padding: '5px 10px', color: '#e8e0d0', fontSize: '11px', outline: 'none', fontFamily: 'Georgia, serif', width: '200px' }} />
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+            {onOpenHeatMap && (
+              <button onClick={onOpenHeatMap} title="Pop out the Deal Heat Map" style={{ background: `${RED}18`, color: RED, border: `1px solid ${RED}44`, borderRadius: '4px', padding: '5px 12px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', whiteSpace: 'nowrap', fontFamily: 'Georgia, serif' }}>🔥 Heat Meter</button>
+            )}
+            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search hot leads…" style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '4px', padding: '5px 10px', color: '#e8e0d0', fontSize: '11px', outline: 'none', fontFamily: 'Georgia, serif', width: '200px' }} />
+          </div>
         </div>
 
         {loading ? (
@@ -347,7 +352,7 @@ export default function HotLeadsTab({ onOpenLead }) {
         <div style={{
           position: 'fixed', left: calPos.x, top: calPos.y, width: calSize.w, height: calSize.h,
           background: '#0d1b2a', border: `2px solid ${BLUE}44`, borderRadius: '8px',
-          boxShadow: '0 16px 64px rgba(0,0,0,0.8)', zIndex: 10001,
+          boxShadow: '0 16px 64px rgba(0,0,0,0.8)', zIndex: 14650,
           display: 'flex', flexDirection: 'column', overflow: 'hidden',
         }}>
           <div onMouseDown={onCalDragStart} style={{

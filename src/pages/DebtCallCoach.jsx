@@ -22,6 +22,7 @@ import LeadGenTab from '@/components/debt/LeadGenTab';
 import NewLeadsTab from '@/components/debt/NewLeadsTab';
 import SmartLeadsTab from '@/components/debt/SmartLeadsTab';
 import HotLeadsTab from '@/components/debt/HotLeadsTab';
+import DebtScriptsPanel from '@/components/debt/DebtScriptsPanel';
 import LeadAssignmentPopup from '@/components/debt/LeadAssignmentPopup';
 import PopOutTab from '@/components/debt/PopOutTab';
 import SmartClose from '@/components/debt/closing/SmartClose';
@@ -81,6 +82,7 @@ export default function DebtCallCoach() {
 
   const TABS = [
     { id: 'live', label: '📞 Live Call' },
+    { id: 'scripts', label: '📜 Scripts' },
     { id: 'closing', label: '🏁 Closing' },
     { id: 'calls', label: '📋 Calls' },
     ...(isAdmin ? [{ id: 'leadgen', label: '🎯 Lead Gen' }] : []),
@@ -135,6 +137,9 @@ export default function DebtCallCoach() {
       </div>
 
       {tab === 'live' && <DebtLiveCall debtCoachUser={user} onCallStart={(callLead) => { setLiveCallActive(true); if (callLead?.id) setClosingLeadId(callLead.id); }} onCallEnd={() => setLiveCallActive(false)} />}
+      <PopOutTab storageKey="debt_scripts_tab" title="Scripts" icon="📜" active={tab === 'scripts'} autoPopOut={liveCallActive} defaultSize={{ width: 520, height: 720 }} zIndex={14600}>
+        <DebtScriptsPanel username={user?.username} />
+      </PopOutTab>
       <PopOutTab storageKey="closing_tab" title="Closing Flow" icon="🏁" active={tab === 'closing'} defaultSize={{ width: 460, height: 720 }} autoPopOut={liveCallActive} zIndex={14500}>
         <SmartClose leadId={closingLeadId} canEditPhones={!isDialerRole} canEditScripts={!isDialerRole} />
       </PopOutTab>
@@ -148,7 +153,9 @@ export default function DebtCallCoach() {
         <SmartLeadsTab />
       </PopOutTab>
       {tab === 'newleads' && <NewLeadsTab />}
-      {tab === 'hotleads' && <HotLeadsTab onOpenLead={(lead) => setHotLead(lead)} />}
+      <PopOutTab storageKey="hotleads_tab" title="Hot Leads" icon="🔥" active={tab === 'hotleads'} defaultSize={{ width: 940, height: 700 }} zIndex={14600}>
+        <HotLeadsTab onOpenLead={(lead) => setHotLead(lead)} onOpenHeatMap={() => setHeatMapVisible(true)} />
+      </PopOutTab>
       {tab === 'pipeline' && <PipelineTab onOpenLead={(lead) => setPipelineLead(lead)} />}
       {tab === 'bob' && <DebtBobTrainer debtCoachUser={user} />}
       {tab === 'pitches' && <DebtPitchTab canDelete={!isDialerRole} />}
