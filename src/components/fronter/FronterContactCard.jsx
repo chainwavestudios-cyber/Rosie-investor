@@ -519,18 +519,20 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
   // ── Script parsing: split at @@COMPLETED_STEPS@@ and handle @@DEBT_CONFIRM@@ ──
   const rawScript = activeScript?.content || '';
   const substitutedScript = substituteScriptVars(rawScript, { lead: local, fronterFirstName });
-  const completedStepsIdx = substitutedScript.indexOf('@@COMPLETED_STEPS@@');
+  // Strip [[AI:fieldName]] tags from display — they're for AI Review only, not for the fronter to see
+  const displayScript = substitutedScript.replace(/\[\[AI:\w+\]\]/gi, '');
+  const completedStepsIdx = displayScript.indexOf('@@COMPLETED_STEPS@@');
   const hasCompletedSteps = completedStepsIdx !== -1;
-  const mainScriptPart = hasCompletedSteps ? substitutedScript.slice(0, completedStepsIdx) : substitutedScript;
-  const remainingScriptPart = hasCompletedSteps ? substitutedScript.slice(completedStepsIdx + '@@COMPLETED_STEPS@@'.length).trim() : '';
-  const hasDebtConfirm = substitutedScript.includes('@@DEBT_CONFIRM@@');
-  const hasAiInput = substitutedScript.includes('@@AI_INPUT@@');
-  const hasSendEmail = substitutedScript.includes('@@SEND_EMAIL@@');
+  const mainScriptPart = hasCompletedSteps ? displayScript.slice(0, completedStepsIdx) : displayScript;
+  const remainingScriptPart = hasCompletedSteps ? displayScript.slice(completedStepsIdx + '@@COMPLETED_STEPS@@'.length).trim() : '';
+  const hasDebtConfirm = /@@DEBT_CONFIRM@@/i.test(displayScript);
+  const hasAiInput = /@@AI_INPUT@@/i.test(displayScript);
+  const hasSendEmail = /@@SEND_EMAIL@@/i.test(displayScript);
   const hasAiTags = /\[\[AI:\w+\]\]/i.test(rawScript);
 
   // Split main script at all interactive markers for inline button rendering.
   // The capturing group includes the marker name in the result array.
-  const interactiveSegments = mainScriptPart.split(/@@(DEBT_CONFIRM|AI_INPUT|SEND_EMAIL)@@/);
+  const interactiveSegments = mainScriptPart.split(/@@(DEBT_CONFIRM|AI_INPUT|SEND_EMAIL)@@/i);
 
   const scriptContent = (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
@@ -547,7 +549,7 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
         ) : (
           <div style={{ color: '#e8e0d0', fontSize: '14px', lineHeight: 1.8, fontFamily: 'Georgia, serif', whiteSpace: 'pre-wrap' }}>
             {interactiveSegments.map((seg, i) => {
-              if (seg === 'DEBT_CONFIRM') {
+              if (seg.toUpperCase() === 'DEBT_CONFIRM') {
                 return (
                   <div key={i} style={{ margin: '12px 0', display: 'flex', justifyContent: 'center' }}>
                     <button
@@ -560,7 +562,7 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
                   </div>
                 );
               }
-              if (seg === 'AI_INPUT') {
+              if (seg.toUpperCase() === 'AI_INPUT') {
                 return (
                   <div key={i} style={{ margin: '12px 0', display: 'flex', justifyContent: 'center' }}>
                     <button
@@ -573,7 +575,7 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
                   </div>
                 );
               }
-              if (seg === 'SEND_EMAIL') {
+              if (seg.toUpperCase() === 'SEND_EMAIL') {
                 return (
                   <div key={i} style={{ margin: '12px 0', display: 'flex', justifyContent: 'center' }}>
                     <button
@@ -586,7 +588,7 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
                   </div>
                 );
               }
-              return <span key={i}>{renderFormatted(seg.replace(/\[\[AI:\w+\]\]/gi, ''))}</span>;
+              return <span key={i}>{renderFormatted(seg)}</span>;
             })}
             {hasCompletedSteps && (
               <div style={{ margin: '16px 0', display: 'flex', justifyContent: 'center' }}>
@@ -716,6 +718,7 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
             setCallActive(true);
             setCallStartTime(Date.now());
             setCardTab('script');
+            setScriptPoppedOut(true);
             setShowQAPanel(true);
             onCallConnected?.(l);
             onOpenQA?.();

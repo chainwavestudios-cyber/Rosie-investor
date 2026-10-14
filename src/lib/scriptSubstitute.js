@@ -31,9 +31,9 @@ export function substituteScriptVars(content, { lead, fronterFirstName } = {}) {
     'fronter name': fronterFirstName || '',
   };
   let result = content;
-  // {{variable}} format
+  // {{variable}} format — function replacement avoids $ being interpreted as backreferences
   for (const [key, val] of Object.entries(vars)) {
-    result = result.replace(new RegExp(`\\{\\{${key}\\}\\}`, 'gi'), val);
+    result = result.replace(new RegExp(`\\{\\{\\s*${key}\\s*\\}\\}`, 'gi'), () => val);
   }
   // <First Name> format (legacy)
   result = result
