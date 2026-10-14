@@ -20,6 +20,7 @@ import FronterDialer from './FronterDialer';
 import FronterMergePopup from './FronterMergePopup';
 import FronterCredsEmailPopup from './FronterCredsEmailPopup';
 import QAPopOutPanel from '@/components/leads/QAPopOutPanel';
+import FronterTranscriptPopout from './FronterTranscriptPopout';
 import AIPopulateTab from '@/components/shared/AIPopulateTab';
 import PhoneVerifyBadge from './PhoneVerifyBadge';
 import DebtBadge from './DebtBadge';
@@ -73,6 +74,7 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
   const [showClosedDealCelebration, setShowClosedDealCelebration] = useState(false);
   const [liveTranscript, setLiveTranscript] = useState([]);
   const [qaPoppedOut, setQaPoppedOut] = useState(false);
+  const [transcriptPoppedOut, setTranscriptPoppedOut] = useState(false);
   const [qaActive, setQaActive] = useState(true);
   const [qaKbEntries, setQaKbEntries] = useState([]);
   const [qaManualQ, setQaManualQ] = useState('');
@@ -709,6 +711,7 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
             setCardTab('script');
             setScriptPoppedOut(true);
             setQaPoppedOut(true);
+            setTranscriptPoppedOut(true);
             onCallConnected?.(l);
             onOpenQA?.();
           }}
@@ -991,6 +994,16 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
           onMerge={() => { setShowMergePopup(false); setTransferScript(''); markTransferred(); }}
           onNoConnect={handleNoConnect}
           onClose={() => { setShowMergePopup(false); setTransferScript(''); }}
+        />
+      )}
+
+      {/* Transcript popout — narrow full-height window, auto-opens on call connect */}
+      {transcriptPoppedOut && (
+        <FronterTranscriptPopout
+          transcript={liveTranscript}
+          callActive={callActive}
+          callDuration={callDuration}
+          onClose={() => setTranscriptPoppedOut(false)}
         />
       )}
 

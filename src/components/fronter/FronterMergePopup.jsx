@@ -228,7 +228,7 @@ export default function FronterMergePopup({ lead, username, fronterFirstName, is
   const isLastNumber = currentNumberIdx >= CHRIS_NUMBERS.length - 1;
 
   return (
-    <FronterPopup title="🔀 Merge Call" subtitle="Complete the steps, then connect" accent={GOLD} onClose={onClose} initialSize={{ w: 520, h: 680 }} minW={380} minH={480} zIndex={10500}>
+    <FronterPopup title="🔀 Merge Call" subtitle="Complete the steps, then connect" accent={GOLD} onClose={onClose} initialSize={{ w: 520, h: 680 }} minW={380} minH={480} zIndex={11000}>
       <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', height: '100%' }}>
         {/* Compact call + Chris status strip */}
         <div style={{ marginBottom: '10px', display: 'flex', gap: '8px' }}>
