@@ -76,6 +76,16 @@
       "type": "boolean",
       "title": "Contract Required (generate Dialer Agreement on onboarding)",
       "default": true
+    },
+    "timezone": {
+      "type": "string",
+      "title": "Timezone (IANA, e.g. America/New_York, Asia/Manila)",
+      "default": "America/New_York"
+    },
+    "timezonePrompted": {
+      "type": "boolean",
+      "title": "Timezone Prompt Completed (first-login prompt answered)",
+      "default": false
     }
   },
   "required": [

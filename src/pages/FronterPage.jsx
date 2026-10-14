@@ -31,6 +31,9 @@ import FronterEmailTrackingNotifications from '@/components/fronter/FronterEmail
 import FronterContactCard from '@/components/fronter/FronterContactCard';
 import FronterAIReportsTab from '@/components/fronter/FronterAIReportsTab';
 import FronterReportPopup from '@/components/fronter/FronterReportPopup';
+import DualClockBar from '@/components/shared/DualClockBar';
+import TimezonePrompt from '@/components/shared/TimezonePrompt';
+import EasternTimeReminder from '@/components/shared/EasternTimeReminder';
 import { useFronterActivityTracker, clockOutAtTime, logFronterActivity } from '@/hooks/useFronterActivityTracker';
 
 const GOLD = '#10b981';
@@ -51,6 +54,8 @@ export default function FronterPage() {
   const [callActive, setCallActive] = useState(false);
   const [pendingReports, setPendingReports] = useState([]);
   const [showReportPopup, setShowReportPopup] = useState(false);
+  const [showTzPrompt, setShowTzPrompt] = useState(false);
+  const [userTz, setUserTz] = useState(user?.timezone || 'America/New_York');
 
   // Activity tracker — logs tab navigation, auto-logs-out after 45 min inactivity
   const handleInactive = useCallback(async (lastActivityISO) => {
@@ -69,6 +74,12 @@ export default function FronterPage() {
     const msg = sessionStorage.getItem('fronterAutoLogoutMsg');
     if (msg) { setAutoLoggedOutMsg(msg); sessionStorage.removeItem('fronterAutoLogoutMsg'); setTimeout(() => setAutoLoggedOutMsg(''), 8000); }
   }, []);
+
+  // First-login timezone prompt — show if user hasn't been prompted yet
+  useEffect(() => {
+    if (user?.id && !user.timezonePrompted) setShowTzPrompt(true);
+    if (user?.timezone) setUserTz(user.timezone);
+  }, [user?.id, user?.timezonePrompted, user?.timezone]);
 
   // Alt+C toggles the Call Card
   useEffect(() => {
@@ -318,6 +329,21 @@ export default function FronterPage() {
       {autoLoggedOutMsg && (
         <div style={{ position: 'fixed', top: '20px', left: '50%', transform: 'translateX(-50%)', background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.4)', borderRadius: '8px', padding: '12px 24px', color: '#ef4444', fontSize: '13px', fontWeight: 'bold', zIndex: 50000, boxShadow: '0 8px 32px rgba(0,0,0,0.6)' }}>⏰ {autoLoggedOutMsg}</div>
       )}
+
+      {/* Dual clock bar — Eastern Time + user's timezone (or PHT for super admins) */}
+      <DualClockBar userTimezone={userTz} isSuperAdmin={isAdmin} />
+
+      {/* First-login timezone prompt */}
+      {showTzPrompt && user?.id && (
+        <TimezonePrompt
+          userId={user.id}
+          currentTz={userTz}
+          onDone={(tz) => { setShowTzPrompt(false); setUserTz(tz); }}
+        />
+      )}
+
+      {/* Eastern Time communication reminder — shows once per user */}
+      <EasternTimeReminder username={user?.username} />
 
       {/* Header */}
       <div style={{ padding: '14px 24px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(0,0,0,0.3)' }}>

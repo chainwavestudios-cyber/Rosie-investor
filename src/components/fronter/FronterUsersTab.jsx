@@ -17,7 +17,7 @@ export default function FronterUsersTab({ adminUsername }) {
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
-  const [form, setForm] = useState({ firstName: '', lastName: '', username: '', password: '', confirmPassword: '', email: '', contractRequired: true });
+  const [form, setForm] = useState({ firstName: '', lastName: '', username: '', password: '', confirmPassword: '', email: '', contractRequired: true, timezone: 'America/New_York' });
   const [resetPasswordId, setResetPasswordId] = useState(null);
   const [newPassword, setNewPassword] = useState('');
   const [confirmNewPassword, setConfirmNewPassword] = useState('');
@@ -35,7 +35,7 @@ export default function FronterUsersTab({ adminUsername }) {
   useEffect(() => { load(); }, [load]);
 
   const resetForm = () => {
-    setForm({ firstName: '', lastName: '', username: '', password: '', confirmPassword: '', email: '', contractRequired: true });
+    setForm({ firstName: '', lastName: '', username: '', password: '', confirmPassword: '', email: '', contractRequired: true, timezone: 'America/New_York' });
     setEditingId(null);
     setShowForm(false);
   };
@@ -58,6 +58,7 @@ export default function FronterUsersTab({ adminUsername }) {
           lastName: form.lastName.trim(),
           email: form.email.trim(),
           contractRequired: form.contractRequired !== false,
+          timezone: form.timezone || 'America/New_York',
         });
         // If password provided, hash and update
         if (form.password.trim()) {
@@ -91,6 +92,7 @@ export default function FronterUsersTab({ adminUsername }) {
           mustResetPassword: true,
           createdBy: adminUsername,
           contractRequired: form.contractRequired !== false,
+          timezone: form.timezone || 'America/New_York',
         });
         resetForm();
         load();
@@ -118,7 +120,7 @@ export default function FronterUsersTab({ adminUsername }) {
 
   const startEdit = (user) => {
     setEditingId(user.id);
-    setForm({ firstName: user.firstName || '', lastName: user.lastName || '', username: user.username, password: '', confirmPassword: '', email: user.email || '', contractRequired: user.contractRequired !== false });
+    setForm({ firstName: user.firstName || '', lastName: user.lastName || '', username: user.username, password: '', confirmPassword: '', email: user.email || '', contractRequired: user.contractRequired !== false, timezone: user.timezone || 'America/New_York' });
     setShowForm(true);
   };
 
@@ -173,6 +175,22 @@ export default function FronterUsersTab({ adminUsername }) {
               {form.confirmPassword && form.password === form.confirmPassword && <div style={{ color: GOLD, fontSize: '10px', marginTop: '4px' }}>✓ Passwords match</div>}
             </div>
           </div>
+          <div style={{ marginBottom: '12px' }}>
+            <label style={ls}>Timezone</label>
+            <select value={form.timezone} onChange={e => setForm(p => ({ ...p, timezone: e.target.value }))} style={{ ...inp, cursor: 'pointer' }}>
+              <option value="America/New_York" style={{ color: DARK, background: '#fff' }}>Eastern Time (ET) — New York, Miami, Atlanta</option>
+              <option value="America/Chicago" style={{ color: DARK, background: '#fff' }}>Central Time (CT) — Chicago, Dallas, Houston</option>
+              <option value="America/Denver" style={{ color: DARK, background: '#fff' }}>Mountain Time (MT) — Denver, Phoenix</option>
+              <option value="America/Los_Angeles" style={{ color: DARK, background: '#fff' }}>Pacific Time (PT) — Los Angeles, Seattle</option>
+              <option value="Asia/Manila" style={{ color: DARK, background: '#fff' }}>Philippine Time (PHT, GMT+8) — Manila</option>
+              <option value="Asia/Karachi" style={{ color: DARK, background: '#fff' }}>Pakistan Time (PKT, GMT+5) — Karachi</option>
+              <option value="Asia/Kolkata" style={{ color: DARK, background: '#fff' }}>India Time (IST, GMT+5:30) — Mumbai, Delhi</option>
+              <option value="Europe/London" style={{ color: DARK, background: '#fff' }}>UK Time (GMT) — London</option>
+              <option value="Australia/Sydney" style={{ color: DARK, background: '#fff' }}>Sydney Time (AEDT) — Australia</option>
+              <option value="America/Anchorage" style={{ color: DARK, background: '#fff' }}>Alaska Time — Anchorage</option>
+              <option value="Pacific/Honolulu" style={{ color: DARK, background: '#fff' }}>Hawaii Time — Honolulu</option>
+            </select>
+          </div>
           <label style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px', cursor: 'pointer' }}>
             <input type="checkbox" checked={form.contractRequired !== false} onChange={e => setForm(p => ({ ...p, contractRequired: e.target.checked }))} style={{ width: '16px', height: '16px', cursor: 'pointer' }} />
             <span style={{ color: '#8a9ab8', fontSize: '12px' }}>Require Dialer Agreement contract on onboarding {form.contractRequired === false ? <span style={{ color: '#f59e0b', fontSize: '10px' }}>(no contract will be generated)</span> : <span style={{ color: GOLD, fontSize: '10px' }}>(contract generated on first login)</span>}</span>
@@ -219,7 +237,7 @@ export default function FronterUsersTab({ adminUsername }) {
                 <div style={{ width: 36, height: 36, borderRadius: '50%', background: u.isActive ? 'linear-gradient(135deg,#10b981,#22c55e)' : 'rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: DARK, fontSize: '13px', fontWeight: 'bold', textTransform: 'uppercase' }}>{(u.firstName?.[0] || '?')}{(u.lastName?.[0] || '')}</div>
                 <div>
                   <div style={{ color: '#e8e0d0', fontSize: '14px', fontWeight: 'bold' }}>{u.firstName || ''} {u.lastName || ''}</div>
-                  <div style={{ color: '#6b7280', fontSize: '11px' }}>@{u.username} · {u.email || 'no email'}</div>
+                  <div style={{ color: '#6b7280', fontSize: '11px' }}>@{u.username} · {u.email || 'no email'} · 🌐 {u.timezone || 'America/New_York'}</div>
                 </div>
                 <span style={{ padding: '2px 8px', borderRadius: '10px', fontSize: '9px', fontWeight: 'bold', textTransform: 'uppercase', background: u.isActive ? 'rgba(16,185,129,0.15)' : 'rgba(239,68,68,0.15)', color: u.isActive ? GOLD : RED }}>{u.isActive ? 'Active' : 'Inactive'}</span>
               </div>

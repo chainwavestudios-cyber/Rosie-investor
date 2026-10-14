@@ -6,6 +6,7 @@ import { useState, useEffect } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
 import { useDebtCoachAuth } from '@/lib/DebtCoachAuthContext';
 import { base44 } from '@/api/base44Client';
+import DualClockBar from '@/components/shared/DualClockBar';
 import { isComplianceManager } from '@/lib/complianceRoles';
 import DebtLiveCall from '@/components/debt/DebtLiveCall';
 import DebtCoachAdminPanel from '@/components/debt/DebtCoachAdminPanel';
@@ -102,6 +103,13 @@ export default function DebtCallCoach() {
   return (
     <div style={{ fontFamily: 'Georgia, serif', minHeight: '100vh', background: DARK, color: '#e8e0d0', padding: '24px 32px' }}>
       <style>{`@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.5}}`}</style>
+
+      {/* Dual clock bar — super admins see Eastern + Philippine Time */}
+      {isSuperAdmin && (
+        <div style={{ marginBottom: '12px' }}>
+          <DualClockBar userTimezone="Asia/Manila" isSuperAdmin={true} />
+        </div>
+      )}
 
       {/* Header — logo left, user controls right */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
