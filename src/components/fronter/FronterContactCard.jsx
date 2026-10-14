@@ -18,8 +18,8 @@ import FronterLeadConfirmedChecklist from './FronterLeadConfirmedChecklist';
 import FronterClosedDealCelebration from './FronterClosedDealCelebration';
 import FronterDialer from './FronterDialer';
 import FronterMergePopup from './FronterMergePopup';
-import FronterAIPanel from './FronterAIPanel';
 import FronterCredsEmailPopup from './FronterCredsEmailPopup';
+import QAPopOutPanel from '@/components/leads/QAPopOutPanel';
 import AIPopulateTab from '@/components/shared/AIPopulateTab';
 import PhoneVerifyBadge from './PhoneVerifyBadge';
 import DebtBadge from './DebtBadge';
@@ -73,9 +73,11 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
   const [showClosedDealCelebration, setShowClosedDealCelebration] = useState(false);
   const [liveTranscript, setLiveTranscript] = useState([]);
   const [qaPoppedOut, setQaPoppedOut] = useState(false);
-  const [qaPos, setQaPos] = useState({ x: 200, y: 80 });
-  const [qaSize, setQaSize] = useState({ w: 720, h: 560 });
-  const qaDragRef = useRef(null);
+  const [qaActive, setQaActive] = useState(true);
+  const [qaKbEntries, setQaKbEntries] = useState([]);
+  const [qaManualQ, setQaManualQ] = useState('');
+  const [qaAiPanelItem, setQaAiPanelItem] = useState(null);
+  const qaTranscriptRef = useRef([]);
   const [scriptFullscreen, setScriptFullscreen] = useState(false);
   const [aiReviewing, setAiReviewing] = useState(false);
   const [aiReviewMsg, setAiReviewMsg] = useState('');
@@ -111,6 +113,30 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
     el.scrollTop = el.scrollHeight;
   }, [liveTranscript.length]);
 
+  // Load FronterKnowledgeBase entries for the Q&A popout
+  useEffect(() => {
+    const loadKb = async () => {
+      try {
+        const all = await base44.entities.FronterKnowledgeBase.list('-created_date', 500);
+        setQaKbEntries(all || []);
+      } catch {}
+    };
+    loadKb();
+    const iv = setInterval(loadKb, 15000);
+    return () => clearInterval(iv);
+  }, []);
+
+  // Normalize transcript for QAPopOutPanel (expects speaker 0=prospect, 1=agent)
+  // Live call format: speaker 0=agent, 1=customer → swap
+  const qaNormalizedTranscript = liveTranscript.map(e => ({
+    speaker: e.speaker === 0 ? 1 : 0,
+    text: e.text,
+    time: e.time,
+    sentiment: e.sentiment,
+    interim: e.interim,
+  }));
+  useEffect(() => { qaTranscriptRef.current = qaNormalizedTranscript; }, [qaNormalizedTranscript]);
+
   // Call timer — ticks every second while a call is active
   useEffect(() => {
     if (!callActive) return;
@@ -132,14 +158,6 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
     scriptDragRef.current = { startX: e.clientX - scriptPos.x, startY: e.clientY - scriptPos.y };
     const onMove = (ev) => { if (scriptDragRef.current) setScriptPos({ x: ev.clientX - scriptDragRef.current.startX, y: ev.clientY - scriptDragRef.current.startY }); };
     const onUp = () => { scriptDragRef.current = null; document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); };
-    document.addEventListener('mousemove', onMove);
-    document.addEventListener('mouseup', onUp);
-  };
-
-  const onQaDragStart = (e) => {
-    qaDragRef.current = { startX: e.clientX - qaPos.x, startY: e.clientY - qaPos.y };
-    const onMove = (ev) => { if (qaDragRef.current) setQaPos({ x: ev.clientX - qaDragRef.current.startX, y: ev.clientY - qaDragRef.current.startY }); };
-    const onUp = () => { qaDragRef.current = null; document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); };
     document.addEventListener('mousemove', onMove);
     document.addEventListener('mouseup', onUp);
   };
@@ -976,39 +994,26 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
         />
       )}
 
-      {/* Q&A popout — draggable, resizable, not docked */}
+      {/* Q&A popout — standalone Q&A panel (no wrapper, no transcript sidebar) */}
       {qaPoppedOut && (
-        <div style={{ position: 'fixed', left: qaPos.x, top: qaPos.y, width: qaSize.w, height: qaSize.h, background: '#0d1b2a', border: '1px solid rgba(96,165,250,0.4)', borderRadius: '8px', boxShadow: '0 16px 64px rgba(0,0,0,0.85)', zIndex: 21000, display: 'flex', flexDirection: 'column', overflow: 'hidden', fontFamily: 'Georgia, serif' }}>
-          <div onMouseDown={onQaDragStart} style={{ padding: '10px 14px', background: 'rgba(0,0,0,0.4)', borderBottom: '1px solid rgba(96,165,250,0.25)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'move', userSelect: 'none', flexShrink: 0 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <span style={{ color: BLUE, fontSize: '11px', fontWeight: 'bold', letterSpacing: '2px', textTransform: 'uppercase' }}>💬 Q&A</span>
-              {callActive && <span style={{ color: GOLD, fontSize: '10px' }}>· Call Active</span>}
-            </div>
-            <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-              <button onClick={() => setQaSize(s => ({ ...s, w: Math.max(400, s.w - 50) }))} style={{ background: 'rgba(255,255,255,0.05)', color: '#6b7280', border: 'none', borderRadius: '3px', padding: '2px 8px', cursor: 'pointer', fontSize: '12px' }}>−</button>
-              <button onClick={() => setQaSize(s => ({ ...s, w: s.w + 50, h: s.h + 50 }))} style={{ background: 'rgba(255,255,255,0.05)', color: '#6b7280', border: 'none', borderRadius: '3px', padding: '2px 8px', cursor: 'pointer', fontSize: '12px' }}>+</button>
-              <button onClick={() => setQaPoppedOut(false)} style={{ background: 'none', border: 'none', color: '#6b7280', cursor: 'pointer', fontSize: '18px', padding: '0 4px' }}>×</button>
-            </div>
-          </div>
-          <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-            <FronterAIPanel
-              transcript={liveTranscript}
-              isActive={callActive || liveTranscript.length > 0}
-              transcriptFormat="live"
-              username={username}
-              autoOpenPopup={false}
-              lead={local}
-            />
-          </div>
-          <div onMouseDown={(e) => {
-            e.stopPropagation();
-            const startX = e.clientX, startY = e.clientY, startW = qaSize.w, startH = qaSize.h;
-            const onMove = (ev) => setQaSize({ w: Math.max(400, startW + ev.clientX - startX), h: Math.max(300, startH + ev.clientY - startY) });
-            const onUp = () => { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); };
-            document.addEventListener('mousemove', onMove);
-            document.addEventListener('mouseup', onUp);
-          }} style={{ position: 'absolute', bottom: 0, right: 0, width: '16px', height: '16px', cursor: 'nwse-resize', color: '#4a5568', textAlign: 'right', paddingRight: '2px' }}>⌟</div>
-        </div>
+        <QAPopOutPanel
+          transcript={qaNormalizedTranscript}
+          transcriptRef={qaTranscriptRef}
+          kbEntries={qaKbEntries}
+          lead={local}
+          pendingQuestion={null}
+          qaActive={qaActive}
+          onToggleQA={() => setQaActive(p => !p)}
+          portalCfg={{}}
+          manualQ={qaManualQ}
+          setManualQ={setQaManualQ}
+          onClose={() => setQaPoppedOut(false)}
+          aiPanelItem={qaAiPanelItem}
+          setAiPanelItem={setQaAiPanelItem}
+          rightPanelWidth={32}
+          setRightPanelWidth={() => {}}
+          username={username}
+        />
       )}
     </>
   );

@@ -2,20 +2,18 @@
  * FronterMergePopup.jsx — Manual transfer/merge popup shown when all checklist
  * items are complete.
  *
- * Flow (fronter-driven with automatic fallback):
- *   1. The remaining script (below @@COMPLETED_STEPS@@) is displayed prominently
- *      so the fronter can read it to the customer and complete the final steps.
+ * Flow (fronter-driven, no auto-detection):
+ *   1. The remaining script (below @@COMPLETED_STEPS@@) is displayed so the
+ *      fronter can read it to the customer and complete the final steps.
  *   2. When ready, the fronter presses "📞 Dial Chris" — the customer is placed
- *      on hold in the queue with custom hold music while Chris is dialed on his
- *      first external number (619-353-0919).
- *   3. If Chris doesn't answer within 30 seconds (voicemail), the system
- *      automatically cancels that call and tries his second number
- *      (216-258-6934).
- *   4. If the second number also goes to voicemail, a popup tells the fronter
- *      "Chris isn't available" with a NO CONNECT button.
- *   5. When Chris answers on either number, the fronter presses
- *      "🔀 Merge & Transfer" to bridge Chris + customer, remove the fronter's
- *      leg, mark the lead transferred, and advance.
+ *      on hold in the queue while Chris is dialed on his first number.
+ *   3. When Chris answers (call status = in-progress), the popup transitions to
+ *      "connected" and shows "🔀 Merge & Transfer" + "📞 Hangup & Try 2nd Line".
+ *   4. If the fronter hears voicemail or wants the other line, they press
+ *      "Hangup & Try 2nd Line" — the current agent call is cancelled, the
+ *      customer stays on hold, and Chris's 2nd number is dialed.
+ *   5. When the 2nd number answers, the fronter can "Merge & Transfer" or
+ *      "NO CONNECT". No 3rd number — the fronter decides.
  *   6. NO CONNECT: disconnects the fronter while leaving the customer on hold
  *      in the queue. The parent sets disposition to "queued_no_connect",
  *      migrates the prospect to lead status, and pulls up the next prospect.
@@ -34,7 +32,6 @@ const AMBER = '#f59e0b';
 
 const CHRIS_NUMBERS = ['+16193530919', '+12162586934'];
 const CHRIS_LABELS = ['619-353-0919', '216-258-6934'];
-const FALLBACK_TIMEOUT_MS = 30000; // 30 seconds before trying the next number
 
 const DEFAULT_MERGE_SCRIPT = `Alright {{first name}}, I've got a senior debt advisor ready to help you through this. I'm going to connect you now — stay on the line and they'll be right with you.`;
 
@@ -51,9 +48,6 @@ export default function FronterMergePopup({ lead, username, fronterFirstName, is
   const [currentNumberIdx, setCurrentNumberIdx] = useState(0);
   const [error, setError] = useState('');
   const [dialingMsg, setDialingMsg] = useState('');
-  const [countdown, setCountdown] = useState(0);
-  const fallbackTimerRef = useRef(null);
-  const countdownTimerRef = useRef(null);
   const pollTimerRef = useRef(null);
 
   const loadScript = useCallback(async () => {
@@ -78,8 +72,6 @@ export default function FronterMergePopup({ lead, username, fronterFirstName, is
   useEffect(() => { loadScript(); }, [loadScript]);
 
   useEffect(() => () => {
-    if (fallbackTimerRef.current) clearTimeout(fallbackTimerRef.current);
-    if (countdownTimerRef.current) clearInterval(countdownTimerRef.current);
     if (pollTimerRef.current) clearInterval(pollTimerRef.current);
   }, []);
 
@@ -94,9 +86,7 @@ export default function FronterMergePopup({ lead, username, fronterFirstName, is
     setSaving(false);
   };
 
-  const clearTimers = () => {
-    if (fallbackTimerRef.current) { clearTimeout(fallbackTimerRef.current); fallbackTimerRef.current = null; }
-    if (countdownTimerRef.current) { clearInterval(countdownTimerRef.current); countdownTimerRef.current = null; }
+  const clearPoll = () => {
     if (pollTimerRef.current) { clearInterval(pollTimerRef.current); pollTimerRef.current = null; }
   };
 
@@ -108,7 +98,6 @@ export default function FronterMergePopup({ lead, username, fronterFirstName, is
     const number = CHRIS_NUMBERS[numberIdx];
     const label = CHRIS_LABELS[numberIdx];
     setDialingMsg(`Dialing Chris on ${label}…`);
-    setCountdown(Math.floor(FALLBACK_TIMEOUT_MS / 1000));
 
     try {
       const res = await base44.functions.invoke('fronterCall', {
@@ -123,53 +112,37 @@ export default function FronterMergePopup({ lead, username, fronterFirstName, is
       if (data?.conferenceName) {
         setConferenceName(data.conferenceName);
         setAgentCallSid(data.agentCallSid || '');
-        setDialingMsg(`Dialing Chris on ${label}… (${Math.floor(FALLBACK_TIMEOUT_MS / 1000)}s until fallback)`);
+        setDialingMsg(`Dialing Chris on ${label}… waiting for answer`);
 
-        // Start countdown
-        let remaining = Math.floor(FALLBACK_TIMEOUT_MS / 1000);
-        countdownTimerRef.current = setInterval(() => {
-          remaining--;
-          setCountdown(remaining);
-          if (remaining <= 0 && countdownTimerRef.current) {
-            clearInterval(countdownTimerRef.current);
-            countdownTimerRef.current = null;
-          }
-        }, 1000);
-
-        // Start fallback timer
-        fallbackTimerRef.current = setTimeout(() => {
-          // Timer expired — Chris didn't answer on this number
-          handleNoAnswer(numberIdx);
-        }, FALLBACK_TIMEOUT_MS);
-
-        // Poll the agent call status to detect when Chris answers (human)
-        // or when it goes to voicemail (machine detection). This lets the
-        // fronter connect immediately on a human answer and auto-fallback
-        // to the next number on voicemail — without waiting for the 30s timer.
+        // Poll the agent call status to detect when Chris answers.
+        // No machine detection — the fronter listens and decides manually.
         const agentSid = data.agentCallSid || '';
         if (agentSid) {
+          let wasInProgress = false;
           pollTimerRef.current = setInterval(async () => {
             try {
               const statusRes = await base44.functions.invoke('fronterCall', { action: 'getAgentCallStatus', agentCallSid: agentSid });
               const statusData = statusRes?.data || statusRes;
               const st = statusData?.status || '';
-              const ab = (statusData?.answeredBy || '').toLowerCase();
-              // Human answered — transition to connected so the fronter can merge
-              if (st === 'in-progress' && (ab === 'human' || ab === '')) {
-                clearTimers();
+              // Human answered — transition to connected so the fronter can merge or try next
+              if (st === 'in-progress') {
+                wasInProgress = true;
+                clearPoll();
                 setMergeState('connected');
                 setDialingMsg('✓ Chris answered on ' + label);
               }
-              // Machine detected (voicemail) — auto-fallback to next number
-              if (ab === 'machine' || (st === 'completed' && ab === 'machine')) {
-                clearTimers();
-                setDialingMsg('Voicemail on ' + label + ' — trying next number…');
-                handleNoAnswer(numberIdx);
-              }
               // Call ended without a human answer — no answer or busy
-              if (st === 'no-answer' || st === 'busy' || st === 'failed') {
-                clearTimers();
-                handleNoAnswer(numberIdx);
+              if (wasInProgress) {
+                // Was connected but now ended — Chris hung up
+                if (st === 'completed') {
+                  clearPoll();
+                  setMergeState('no_answer');
+                  setDialingMsg('Chris hung up on ' + label);
+                }
+              } else if (st === 'no-answer' || st === 'busy' || st === 'failed' || st === 'canceled') {
+                clearPoll();
+                setMergeState('no_answer');
+                setDialingMsg('No answer on ' + label);
               }
             } catch {}
           }, 2000);
@@ -186,9 +159,10 @@ export default function FronterMergePopup({ lead, username, fronterFirstName, is
     }
   };
 
-  // ── No answer on current number — try next or show NO CONNECT popup ──
-  const handleNoAnswer = async (numberIdx) => {
-    clearTimers();
+  // ── Hangup & Try Next Line: cancel current agent call, dial next number ──
+  // Customer stays on hold in the queue. Fronter drives this manually.
+  const handleHangupTryNext = async () => {
+    clearPoll();
     setDialingMsg('');
 
     // Cancel the current agent call
@@ -198,14 +172,13 @@ export default function FronterMergePopup({ lead, username, fronterFirstName, is
       } catch {}
     }
 
-    const nextIdx = numberIdx + 1;
+    const nextIdx = currentNumberIdx + 1;
     if (nextIdx < CHRIS_NUMBERS.length) {
-      // Try the next number
       setCurrentNumberIdx(nextIdx);
-      setDialingMsg(`No answer on ${CHRIS_LABELS[numberIdx]} — trying ${CHRIS_LABELS[nextIdx]}…`);
+      setDialingMsg(`Hanging up ${CHRIS_LABELS[currentNumberIdx]} — trying ${CHRIS_LABELS[nextIdx]}…`);
+      setMergeState('idle');
       setTimeout(() => dialChris(nextIdx), 1000);
     } else {
-      // All numbers exhausted — show NO CONNECT popup
       setMergeState('no_answer');
       setDialingMsg('');
     }
@@ -220,7 +193,7 @@ export default function FronterMergePopup({ lead, username, fronterFirstName, is
 
   // ── Fronter confirms Chris answered and wants to merge ──
   const handleMergeTransfer = async () => {
-    clearTimers();
+    clearPoll();
     setMergeState('merging');
     setError('');
     try {
@@ -235,7 +208,7 @@ export default function FronterMergePopup({ lead, username, fronterFirstName, is
 
   // ── NO CONNECT: leave customer in queue, disconnect fronter ──
   const handleNoConnect = async () => {
-    clearTimers();
+    clearPoll();
     setError('');
     try {
       await base44.functions.invoke('fronterCall', { action: 'noConnect', conferenceName, fronterCallSid: callSid, agentCallSid });
@@ -251,6 +224,8 @@ export default function FronterMergePopup({ lead, username, fronterFirstName, is
   const canDial = mergeState === 'idle' && callSid && callActive && lineKey;
   const canMerge = mergeState === 'connected';
   const canNoConnect = mergeState === 'connected' || mergeState === 'dialing' || mergeState === 'no_answer';
+  const canTryNext = (mergeState === 'connected' || mergeState === 'no_answer') && currentNumberIdx < CHRIS_NUMBERS.length - 1;
+  const isLastNumber = currentNumberIdx >= CHRIS_NUMBERS.length - 1;
 
   return (
     <FronterPopup title="🔀 Merge Call" subtitle="Complete the steps, then connect" accent={GOLD} onClose={onClose} initialSize={{ w: 520, h: 680 }} minW={380} minH={480} zIndex={10500}>
@@ -266,9 +241,6 @@ export default function FronterMergePopup({ lead, username, fronterFirstName, is
             <div style={{ color: '#6b7280', fontSize: '9px', marginTop: '2px' }}>
               {mergeState === 'dialing' ? `📞 ${CHRIS_LABELS[currentNumberIdx]}` : mergeState === 'connected' ? '✓ Connected' : mergeState === 'no_answer' ? '⚠ Unavailable' : `${CHRIS_LABELS.join(' · ')}`}
             </div>
-            {mergeState === 'dialing' && countdown > 0 && (
-              <div style={{ color: AMBER, fontSize: '9px', marginTop: '2px' }}>⏱ {countdown}s until fallback</div>
-            )}
           </div>
         </div>
 
@@ -302,11 +274,11 @@ export default function FronterMergePopup({ lead, username, fronterFirstName, is
         {error && <div style={{ color: RED, fontSize: '11px', marginBottom: '8px' }}>⚠ {error}</div>}
         {dialingMsg && <div style={{ color: BLUE, fontSize: '11px', marginBottom: '8px' }}>⏳ {dialingMsg}</div>}
 
-        {/* Chris isn't available popup — shown when all numbers go to voicemail */}
-        {mergeState === 'no_answer' && (
+        {/* Chris isn't available popup — shown when all numbers exhausted */}
+        {mergeState === 'no_answer' && isLastNumber && (
           <div style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '6px', padding: '14px', marginBottom: '10px', textAlign: 'center' }}>
             <div style={{ color: RED, fontSize: '14px', fontWeight: 'bold', marginBottom: '4px' }}>⚠ Chris Isn't Available</div>
-            <div style={{ color: '#8a9ab8', fontSize: '11px', marginBottom: '10px' }}>Both numbers went to voicemail. The customer is still on hold in the queue.</div>
+            <div style={{ color: '#8a9ab8', fontSize: '11px', marginBottom: '10px' }}>Both numbers have been tried. The customer is still on hold in the queue.</div>
           </div>
         )}
 
@@ -334,28 +306,49 @@ export default function FronterMergePopup({ lead, username, fronterFirstName, is
           )}
           {mergeState === 'dialing' && (
             <button disabled style={{ width: '100%', background: 'rgba(96,165,250,0.15)', color: BLUE, border: `1px solid ${BLUE}44`, borderRadius: '6px', padding: '14px', fontSize: '15px', fontWeight: 'bold', cursor: 'wait' }}>
-              ⏳ Dialing Chris on {CHRIS_LABELS[currentNumberIdx]}… {countdown > 0 && `(${countdown}s)`}
+              ⏳ Dialing Chris on {CHRIS_LABELS[currentNumberIdx]}…
             </button>
           )}
           {(mergeState === 'connected' || mergeState === 'merging') && (
-            <button
-              onClick={handleMergeTransfer}
-              disabled={!canMerge}
-              style={{
-                width: '100%',
-                background: canMerge ? `linear-gradient(135deg,${GOLD},#22c55e)` : 'rgba(255,255,255,0.05)',
-                color: canMerge ? DARK : '#6b7280',
-                border: 'none',
-                borderRadius: '6px',
-                padding: '14px',
-                cursor: canMerge ? 'pointer' : 'not-allowed',
-                fontSize: '15px',
-                fontWeight: 'bold',
-                opacity: canMerge ? 1 : 0.5,
-              }}
-            >
-              {mergeState === 'merging' ? '⏳ Bridging…' : '🔀 Merge & Transfer'}
-            </button>
+            <>
+              <button
+                onClick={handleMergeTransfer}
+                disabled={!canMerge}
+                style={{
+                  width: '100%',
+                  background: canMerge ? `linear-gradient(135deg,${GOLD},#22c55e)` : 'rgba(255,255,255,0.05)',
+                  color: canMerge ? DARK : '#6b7280',
+                  border: 'none',
+                  borderRadius: '6px',
+                  padding: '14px',
+                  cursor: canMerge ? 'pointer' : 'not-allowed',
+                  fontSize: '15px',
+                  fontWeight: 'bold',
+                  opacity: canMerge ? 1 : 0.5,
+                }}
+              >
+                {mergeState === 'merging' ? '⏳ Bridging…' : '🔀 Merge & Transfer'}
+              </button>
+              {/* Hangup & Try 2nd Line — only on the 1st number, next to Merge */}
+              {canTryNext && (
+                <button
+                  onClick={handleHangupTryNext}
+                  style={{
+                    width: '100%',
+                    background: 'rgba(245,158,11,0.15)',
+                    color: AMBER,
+                    border: '1px solid rgba(245,158,11,0.4)',
+                    borderRadius: '6px',
+                    padding: '12px',
+                    cursor: 'pointer',
+                    fontSize: '13px',
+                    fontWeight: 'bold',
+                  }}
+                >
+                  📞 Hangup & Try 2nd Line ({CHRIS_LABELS[currentNumberIdx + 1]})
+                </button>
+              )}
+            </>
           )}
           {mergeState === 'done' && (
             <div style={{ width: '100%', textAlign: 'center', background: 'rgba(16,185,129,0.12)', color: GOLD, border: `1px solid ${GOLD}44`, borderRadius: '6px', padding: '14px', fontSize: '15px', fontWeight: 'bold' }}>✓ Transfer Complete</div>
@@ -401,8 +394,14 @@ export default function FronterMergePopup({ lead, username, fronterFirstName, is
               {!callActive ? 'Start a call from the contact card first.' : 'Waiting for call details…'}
             </div>
           )}
-          {mergeState === 'connected' && (
-            <div style={{ color: GOLD, fontSize: '11px', textAlign: 'center' }}>✓ Chris is connected. Confirm he's ready, then press Merge & Transfer.</div>
+          {mergeState === 'connected' && !isLastNumber && (
+            <div style={{ color: GOLD, fontSize: '11px', textAlign: 'center' }}>✓ Chris is connected on {CHRIS_LABELS[currentNumberIdx]}. Merge & Transfer, or Hangup & Try 2nd Line if this is voicemail.</div>
+          )}
+          {mergeState === 'connected' && isLastNumber && (
+            <div style={{ color: GOLD, fontSize: '11px', textAlign: 'center' }}>✓ Chris is connected on {CHRIS_LABELS[currentNumberIdx]}. Merge & Transfer or NO CONNECT.</div>
+          )}
+          {mergeState === 'no_answer' && canTryNext && (
+            <div style={{ color: AMBER, fontSize: '11px', textAlign: 'center' }}>No answer on {CHRIS_LABELS[currentNumberIdx]}. Try the 2nd line or NO CONNECT.</div>
           )}
         </div>
       </div>

@@ -237,9 +237,8 @@ Deno.serve(async (req) => {
         }
       } catch (e) { console.warn('Hold customer failed:', e.message); }
 
-      // Dial the agent into the conference with machine detection so the
-      // frontend can distinguish a human answer from voicemail and auto-
-      // fallback to the next number on machine detection.
+      // Dial the agent into the conference. No machine detection — the fronter
+      // listens and manually decides: merge, try next line, or no connect.
       console.log('mergeDial: dialing agent', toE164(agentPhone), 'from', fromNumber, 'conf', confName);
       const agentCall = await twilioFetch(`/Calls.json`, {
         method: 'POST',
@@ -247,7 +246,6 @@ Deno.serve(async (req) => {
           To: toE164(agentPhone),
           From: fromNumber,
           Twiml: confTwiML(confName, false, ''),
-          MachineDetection: 'Enable',
         }),
       });
 
