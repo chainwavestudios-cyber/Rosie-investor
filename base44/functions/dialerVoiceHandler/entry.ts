@@ -71,6 +71,40 @@ export default async function(req) {
         }
       }
 
+      // ── Connect to the Render WS Bridge for Media Stream transport ──
+      // The bridge relays audio to mediaStreamRelay (Phase 1: transport only).
+      // Phase 2: flip AI_PROCESSING_ENABLED in mediaStreamRelay to enable
+      // Deepgram STT → LLM → TTS responses back through the bridge.
+      let streamUrl = '';
+      try {
+        const { secrets } = await import('base44:runtime');
+        const bridgeUrl = (secrets.get('WS_BRIDGE_URL') || '').replace(/\/$/, '');
+        const streamToken = secrets.get('STREAM_AUTH_TOKEN') || '';
+        if (bridgeUrl) {
+          let wssUrl = bridgeUrl.replace(/^https:\/\//, 'wss://').replace(/^http:\/\//, 'ws://');
+          if (!wssUrl.endsWith('/ws')) wssUrl += '/ws';
+          if (streamToken) wssUrl += `?token=${encodeURIComponent(streamToken)}`;
+          streamUrl = wssUrl;
+        }
+      } catch (e) {
+        console.warn('[dialerVoiceHandler] Failed to read bridge secrets:', e?.message);
+      }
+
+      if (streamUrl) {
+        const twiml = `<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Say voice="${pollyVoice}">${xmlEscape(greeting)}</Say>
+  <Connect>
+    <Stream url="${xmlEscape(streamUrl)}" name="rosie-ai-agent">
+      <Parameter name="leadId" value="${xmlEscape(leadId)}" />
+    </Stream>
+  </Connect>
+</Response>`;
+        console.log('[dialerVoiceHandler] → Mode AI Agent → Media Stream bridge, leadId:', leadId);
+        return new Response(twiml, { headers: { 'Content-Type': 'text/xml' } });
+      }
+
+      // Fallback: Gather-based flow (if bridge URL not configured)
       const respondUrl = `https://rosieai-investorpage.base44.app/functions/aiAgentRespond?leadId=${encodeURIComponent(leadId)}`;
       const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
@@ -79,7 +113,7 @@ export default async function(req) {
   <Say voice="${pollyVoice}">I didn't catch that. I'll try again later. Goodbye.</Say>
   <Hangup/>
 </Response>`;
-      console.log('[dialerVoiceHandler] → Mode AI Agent outbound, leadId:', leadId);
+      console.log('[dialerVoiceHandler] → Mode AI Agent outbound (Gather fallback), leadId:', leadId);
       return new Response(twiml, { headers: { 'Content-Type': 'text/xml' } });
     }
 
