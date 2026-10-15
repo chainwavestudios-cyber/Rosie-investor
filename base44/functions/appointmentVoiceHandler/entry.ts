@@ -89,14 +89,14 @@ function xmlEscape(s: string): string {
 }
 
 // ── Build hold + <Gather> TwiML (per-caller audio restart) ──
+// Plays hold audio once (starts from the beginning each cycle), then a Polly
+// voice prompt for appointment detection. Polly <Say> works reliably with
+// <Gather> speech recognition; <Play loop="0"> did not.
 function holdGatherTwiML(holdAudioUrl: string, actionUrl: string): string {
   const escAction = xmlEscape(actionUrl);
   const escHold = holdAudioUrl ? xmlEscape(holdAudioUrl) : '';
-  if (escHold) {
-    return `<Response><Gather input="speech" action="${escAction}" timeout="300" speechTimeout="auto" hints="appointment" language="en-US"><Play loop="0">${escHold}</Play></Gather><Redirect>${escAction}&amp;timeout=1</Redirect></Response>`;
-  }
-  // No hold audio — periodic voice prompt + listen
-  return `<Response><Gather input="speech" action="${escAction}" timeout="60" speechTimeout="auto" hints="appointment" language="en-US"><Say voice="Polly.Joanna-Neural">Please wait. Say appointment to schedule an appointment.</Say></Gather><Redirect>${escAction}&amp;timeout=1</Redirect></Response>`;
+  const playTag = escHold ? `<Play>${escHold}</Play>` : '';
+  return `<Response><Gather input="speech" action="${escAction}" timeout="60" speechTimeout="auto" hints="appointment" language="en-US">${playTag}<Say voice="Polly.Joanna-Neural">Please wait. Say appointment to schedule an appointment.</Say></Gather><Redirect>${escAction}&amp;timeout=1</Redirect></Response>`;
 }
 
 // ── Build TTS TwiML (Flex voice via <Play>, fallback to <Say>) ──
