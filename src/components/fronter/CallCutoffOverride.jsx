@@ -1,8 +1,8 @@
 import { useDebtCoachAuth } from '@/lib/DebtCoachAuthContext';
 
 export default function CallCutoffOverride({ enabled, onChange, disabled, buttonStyle }) {
-  const { isSuperAdmin } = useDebtCoachAuth();
-  if (!isSuperAdmin) return null;
+  const { isSuperAdmin, user } = useDebtCoachAuth();
+  if (!isSuperAdmin && user?.username !== 'firstfronter') return null;
   return (
     <div className="flex flex-wrap items-center gap-2 py-2">
       <button type="button" aria-pressed={enabled} disabled={disabled} onClick={() => onChange(!enabled)} style={buttonStyle}>

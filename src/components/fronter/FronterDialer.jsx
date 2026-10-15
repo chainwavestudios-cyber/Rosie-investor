@@ -24,7 +24,8 @@ const AMBER = '#f59e0b';
 const PURPLE = '#a78bfa';
 
 export default function FronterDialer({ lead, username, lineKey, lineNumber, onCallStarted, onCallEnded, onLeadCalled, autoDialTrigger = 0, onDial, onCallConnected, onCallSid, onTranscriptUpdate, embedded = false, hangupSignal = 0 }) {
-  const { isSuperAdmin, sessionUserId, sessionToken } = useDebtCoachAuth();
+  const { isSuperAdmin, sessionUserId, sessionToken, user } = useDebtCoachAuth();
+  const canOverride = isSuperAdmin || user?.username === 'firstfronter';
   const [overrideCutoff, setOverrideCutoff] = useState(false);
   const [callStatus, setCallStatus] = useState('idle');
   const [duration, setDuration] = useState(0);
@@ -397,7 +398,7 @@ Provide your analysis as JSON with these fields:
 
   const dial = async () => {
     if (!lead?.phone) { setError('No phone number'); return; }
-    const bypass = isSuperAdmin && overrideCutoff;
+    const bypass = canOverride && overrideCutoff;
     const cutoff = checkCallCutoff(lead.phone);
     if (cutoff.blocked && !bypass) {
       setError(`${cutoff.localTime} ${cutoff.tzLabel} — outside the 8am–8pm calling window.`);
@@ -585,7 +586,7 @@ Provide your analysis as JSON with these fields:
         </div>
       )}
 
-      <CallCutoffOverride enabled={isSuperAdmin && overrideCutoff} onChange={setOverrideCutoff} disabled={isActive} buttonStyle={ctrlBtn(AMBER, isSuperAdmin && overrideCutoff)} />
+      <CallCutoffOverride enabled={canOverride && overrideCutoff} onChange={setOverrideCutoff} disabled={isActive} buttonStyle={ctrlBtn(AMBER, canOverride && overrideCutoff)} />
 
       {/* Controls */}
       <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
