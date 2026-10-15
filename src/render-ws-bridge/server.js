@@ -506,7 +506,8 @@ function openDeepgram(session, streamSid) {
   // Nova uses /v1/listen with VAD + endpointing (speech_final events).
   let params, endpoint;
   if (isFlux) {
-    params = new URLSearchParams({ encoding: 'mulaw', sample_rate: '8000', channels: '1', model: sttModel });
+    // v2/listen does not accept 'channels' — it auto-detects from the audio stream
+    params = new URLSearchParams({ encoding: 'mulaw', sample_rate: '8000', model: sttModel });
     endpoint = 'v2/listen';
   } else {
     params = new URLSearchParams({
