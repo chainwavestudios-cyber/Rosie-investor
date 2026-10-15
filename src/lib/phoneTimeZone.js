@@ -203,7 +203,8 @@ export function getAreaCode(phone) {
  * Get the IANA timezone for a US phone number based on its area code.
  * Falls back to America/New_York (Eastern) for unknown codes.
  */
-export function getTzFromPhone(phone) {
+export function getTzFromPhone(phone, overrideTz) {
+  if (overrideTz) return overrideTz;
   const ac = getAreaCode(phone);
   return AREA_CODE_TZ[ac] || DEFAULT_TZ;
 }
@@ -211,8 +212,8 @@ export function getTzFromPhone(phone) {
 /**
  * Get a short label for the timezone (ET, CT, MT, PT, AK, HI).
  */
-export function getTzLabel(phone) {
-  const tz = getTzFromPhone(phone);
+export function getTzLabel(phone, overrideTz) {
+  const tz = getTzFromPhone(phone, overrideTz);
   if (tz === 'America/New_York') return 'ET';
   if (tz === 'America/Chicago') return 'CT';
   if (tz === 'America/Denver') return 'MT';
@@ -226,8 +227,8 @@ export function getTzLabel(phone) {
  * Get the current hour (0-23) in the phone number's timezone.
  * Uses Intl.DateTimeFormat for DST-aware conversion.
  */
-export function getHourInTz(phone, date = new Date()) {
-  const tz = getTzFromPhone(phone);
+export function getHourInTz(phone, date = new Date(), overrideTz) {
+  const tz = getTzFromPhone(phone, overrideTz);
   try {
     const fmt = new Intl.DateTimeFormat('en-US', {
       timeZone: tz, hour: '2-digit', hour12: false,
@@ -242,8 +243,8 @@ export function getHourInTz(phone, date = new Date()) {
 /**
  * Get the current minutes (0-59) in the phone number's timezone.
  */
-export function getMinutesInTz(phone, date = new Date()) {
-  const tz = getTzFromPhone(phone);
+export function getMinutesInTz(phone, date = new Date(), overrideTz) {
+  const tz = getTzFromPhone(phone, overrideTz);
   try {
     const fmt = new Intl.DateTimeFormat('en-US', {
       timeZone: tz, minute: '2-digit', hour12: false,
@@ -257,8 +258,8 @@ export function getMinutesInTz(phone, date = new Date()) {
 /**
  * Get the current time as "H:MM AM/PM" string in the phone's timezone.
  */
-export function getLocalTimeString(phone, date = new Date()) {
-  const tz = getTzFromPhone(phone);
+export function getLocalTimeString(phone, date = new Date(), overrideTz) {
+  const tz = getTzFromPhone(phone, overrideTz);
   try {
     return new Intl.DateTimeFormat('en-US', {
       timeZone: tz,
@@ -278,11 +279,11 @@ export function getLocalTimeString(phone, date = new Date()) {
  * "After 7:59pm" = hour >= 20 (8:00pm or later).
  * Also blocks before 8am (hour < 8) as an early-morning guard.
  */
-export function checkCallCutoff(phone, cutoffHour = 20, date = new Date()) {
-  const localHour = getHourInTz(phone, date);
-  const localMinutes = getMinutesInTz(phone, date);
-  const tzLabel = getTzLabel(phone);
-  const localTime = getLocalTimeString(phone, date);
+export function checkCallCutoff(phone, cutoffHour = 20, date = new Date(), overrideTz) {
+  const localHour = getHourInTz(phone, date, overrideTz);
+  const localMinutes = getMinutesInTz(phone, date, overrideTz);
+  const tzLabel = getTzLabel(phone, overrideTz);
+  const localTime = getLocalTimeString(phone, date, overrideTz);
 
   // Blocked if 8:00pm or later (hour >= 20), or before 8:00am (hour < 8)
   const blocked = localHour >= cutoffHour || localHour < 8;

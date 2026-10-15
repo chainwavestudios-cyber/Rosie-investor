@@ -404,10 +404,11 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
         debtAmount: local.debtAmount, debtTypesJson: local.debtTypesJson, debtAmountsJson: local.debtAmountsJson,
         notesLogJson: JSON.stringify(notesLog),
       };
-      // Only super admins can save hardship and lead source
+      // Only super admins can save hardship, lead source, and timezone override
       if (isSuperAdmin) {
         savePayload.hardshipQualification = local.hardshipQualification || '';
         savePayload.referralSource = local.referralSource;
+        savePayload.timezoneOverride = local.timezoneOverride || null;
       }
       await base44.entities.FronterLead.update(lead.id, savePayload);
       setSaved(true); setTimeout(() => setSaved(false), 2000);
@@ -905,6 +906,33 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
                   </div>
                   {isSuperAdmin && (
                     <FronterHardshipField value={local.hardshipQualification} onChange={v => update('hardshipQualification', v)} labelStyle={ls} inputStyle={inp} />
+                  )}
+                  {isSuperAdmin && (
+                    <div style={{ marginBottom: '6px', padding: '8px', background: 'rgba(96,165,250,0.06)', borderRadius: '4px', border: '1px solid rgba(96,165,250,0.15)' }}>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', color: BLUE, fontSize: '10px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '1px' }}>
+                        <input
+                          type="checkbox"
+                          checked={!!local.timezoneOverride}
+                          onChange={e => update('timezoneOverride', e.target.checked ? 'America/New_York' : null)}
+                          style={{ cursor: 'pointer' }}
+                        />
+                        🌐 Override Timezone
+                      </label>
+                      {local.timezoneOverride && (
+                        <select
+                          value={local.timezoneOverride}
+                          onChange={e => update('timezoneOverride', e.target.value)}
+                          style={{ ...inp, marginTop: '6px', cursor: 'pointer' }}
+                        >
+                          <option value="America/New_York">Eastern (ET) — America/New_York</option>
+                          <option value="America/Chicago">Central (CT) — America/Chicago</option>
+                          <option value="America/Denver">Mountain (MT) — America/Denver</option>
+                          <option value="America/Los_Angeles">Pacific (PT) — America/Los_Angeles</option>
+                          <option value="America/Anchorage">Alaska (AK) — America/Anchorage</option>
+                          <option value="Pacific/Honolulu">Hawaii (HI) — Pacific/Honolulu</option>
+                        </select>
+                      )}
+                    </div>
                   )}
                 </div>
               </div>

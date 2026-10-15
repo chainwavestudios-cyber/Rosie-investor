@@ -196,6 +196,18 @@
       "type": "string",
       "title": "Primary Phone Carrier"
     },
+    "timezoneOverride": {
+      "type": "string",
+      "title": "Timezone Override (IANA \u2014 set by super admin to override area-code detection)",
+      "enum": [
+        "America/New_York",
+        "America/Chicago",
+        "America/Denver",
+        "America/Los_Angeles",
+        "America/Anchorage",
+        "Pacific/Honolulu"
+      ]
+    },
     "phone2Valid": {
       "type": "boolean",
       "title": "Secondary Phone Valid (carrier-verified)"

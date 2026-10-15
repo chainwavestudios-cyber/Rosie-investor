@@ -364,9 +364,9 @@ export default function FronterLeadsTab({ username, lineKey, lineNumber, isAdmin
                         </td>
                         <td style={{ padding: '10px 12px', whiteSpace: 'nowrap' }}>
                           {(() => {
-                            const tzLabel = getTzLabel(l.phone);
-                            const localTime = getLocalTimeString(l.phone);
-                            const cutoff = checkCallCutoff(l.phone);
+                            const tzLabel = getTzLabel(l.phone, l.timezoneOverride);
+                            const localTime = getLocalTimeString(l.phone, undefined, l.timezoneOverride);
+                            const cutoff = checkCallCutoff(l.phone, 20, new Date(), l.timezoneOverride);
                             const tzColor = cutoff.blocked ? '#ef4444' : (cutoff.localHour >= 19 ? '#f59e0b' : '#60a5fa');
                             return (
                               <div style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}>
