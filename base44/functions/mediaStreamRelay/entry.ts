@@ -70,6 +70,7 @@ export default async function(req: Request): Promise<Response> {
         lead,
         config,
         audioBuffer: [] as string[],
+        recordingBuffer: [] as string[],
         conversation: [] as Array<{ role: string; content: string }>,
         batchCount: 0,
         startedAt: Date.now(),
@@ -97,6 +98,7 @@ export default async function(req: Request): Promise<Response> {
         for (const m of media) {
           if (m.track === 'inbound' && m.payload) {
             session.audioBuffer.push(m.payload);
+            session.recordingBuffer.push(m.payload);
             session.batchCount++;
           }
         }
@@ -117,10 +119,21 @@ export default async function(req: Request): Promise<Response> {
         const dur = Math.round((Date.now() - session.startedAt) / 1000);
         console.log('[mediaStreamRelay] STOP', streamSid, 'batches:', session.batchCount, 'dur:', dur + 's');
 
+        // Upload recording to private storage
+        let recordingUri = '';
+        if (session.recordingBuffer.length > 0) {
+          try {
+            recordingUri = await uploadRecording(base44, session);
+            console.log('[mediaStreamRelay] Recording uploaded:', recordingUri);
+          } catch (e) {
+            console.warn('[mediaStreamRelay] recording upload failed:', e?.message);
+          }
+        }
+
         // Save transcript if we captured any conversation
         if (session.conversation.length > 0 && session.leadId && session.callSid) {
           try {
-            await saveTranscript(base44, session);
+            await saveTranscript(base44, session, recordingUri);
           } catch (e) {
             console.warn('[mediaStreamRelay] transcript save failed:', e?.message);
           }
@@ -277,6 +290,9 @@ async function processWithAI(req: Request, base44: any, session: any, streamSid:
     for (let i = 0; i < ttsBytes.length; i++) binary += String.fromCharCode(ttsBytes[i]);
     const ttsBase64 = btoa(binary);
 
+    // Add TTS audio to recording buffer (agent's side)
+    session.recordingBuffer.push(ttsBase64);
+
     // 5. Send TTS audio to bridge /play endpoint → Twilio Media Stream
     const bridgeUrl = (secrets.get('WS_BRIDGE_URL') || '').replace(/\/$/, '');
     const bridgeToken = secrets.get('WS_BRIDGE_AUTH_TOKEN') || '';
@@ -358,7 +374,7 @@ async function processWithAI(req: Request, base44: any, session: any, streamSid:
 /**
  * Save the conversation as a FronterCallTranscript record.
  */
-async function saveTranscript(base44: any, session: any) {
+async function saveTranscript(base44: any, session: any, recordingUri: string = '') {
   const transcriptData = session.conversation.map((m: any) => ({
     speaker: m.role === 'assistant' ? 0 : 1,
     text: m.content,
@@ -366,14 +382,64 @@ async function saveTranscript(base44: any, session: any) {
   }));
 
   const leadName = `${session.lead?.firstName || ''} ${session.lead?.lastName || ''}`.trim();
+  const duration = Math.round((Date.now() - session.startedAt) / 1000);
   await base44.entities.FronterCallTranscript.create({
     leadId: session.leadId,
     leadName,
     fronterUsername: 'ai_agent',
     transcriptJson: JSON.stringify(transcriptData),
     transcriptLineCount: transcriptData.length,
+    durationSeconds: duration,
     callSid: session.callSid,
     callDate: new Date().toISOString(),
     callResult: 'media_stream',
+    recordingUrl: recordingUri || undefined,
   });
+}
+
+/**
+ * Create a WAV file from μ-law audio chunks and upload to private storage (stored privately).
+ */
+async function uploadRecording(base44: any, session: any): Promise<string> {
+  // Concatenate all base64 mulaw audio chunks into raw bytes
+  let totalLen = 0;
+  const rawChunks: Uint8Array[] = [];
+  for (const b64 of session.recordingBuffer) {
+    const raw = atob(b64);
+    const bytes = new Uint8Array(raw.length);
+    for (let i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i);
+    rawChunks.push(bytes);
+    totalLen += bytes.length;
+  }
+
+  // Build WAV header (mulaw, 8kHz, mono, 8-bit)
+  const header = new Uint8Array(44);
+  const view = new DataView(header.buffer);
+  view.setUint32(0, 0x52494646, false);   // "RIFF"
+  view.setUint32(4, 36 + totalLen, true);   // file size - 8
+  view.setUint32(8, 0x57415645, false);    // "WAVE"
+  view.setUint32(12, 0x666d7420, false);   // "fmt "
+  view.setUint32(16, 16, true);             // chunk size
+  view.setUint16(20, 7, true);              // format = μ-law
+  view.setUint16(22, 1, true);              // channels = 1
+  view.setUint32(24, 8000, true);           // sample rate
+  view.setUint32(28, 8000, true);           // byte rate
+  view.setUint16(32, 1, true);              // block align
+  view.setUint16(34, 8, true);              // bits per sample
+  view.setUint32(36, 0x64617461, false);   // "data"
+  view.setUint32(40, totalLen, true);       // data size
+
+  // Combine header + audio
+  const wav = new Uint8Array(44 + totalLen);
+  wav.set(header, 0);
+  let offset = 44;
+  for (const chunk of rawChunks) {
+    wav.set(chunk, offset);
+    offset += chunk.length;
+  }
+
+  // Upload to private storage
+  const file = new File([wav], `recording-${session.callSid || 'unknown'}.wav`, { type: 'audio/wav' });
+  const result = await base44.integrations.Core.UploadPrivateFile({ file });
+  return result?.file_uri || '';
 }
