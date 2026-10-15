@@ -94,6 +94,24 @@ export default async function(req) {
       }
 
       if (streamUrl) {
+        // Retry counter: if the WebSocket fails (bridge cold-start, network blip),
+        // Twilio falls through to the fallback. The fallback says a brief message
+        // and redirects back to retry the stream (max 2 retries).
+        const retryCount = parseInt(url.searchParams.get('retry') || '0', 10);
+        const maxRetries = 2;
+        const appUrl = req.headers.get('X-Base44-App-Url') || 'https://rosieai-investorpage.base44.app';
+        const retryUrl = `${appUrl}/functions/dialerVoiceHandler?Mode=aiAgent&LeadId=${encodeURIComponent(leadId)}&retry=${retryCount + 1}`;
+
+        if (retryCount >= maxRetries) {
+          const twiml = `<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Say voice="${pollyVoice}">I'm sorry, I'm having trouble connecting right now. Please try again shortly. Goodbye.</Say>
+  <Hangup/>
+</Response>`;
+          console.log('[dialerVoiceHandler] → Mode AI Agent — max retries reached, hanging up, leadId:', leadId);
+          return new Response(twiml, { headers: { 'Content-Type': 'text/xml' } });
+        }
+
         const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Connect>
@@ -102,8 +120,10 @@ export default async function(req) {
       ${streamToken ? `<Parameter name="streamToken" value="${xmlEscape(streamToken)}" />` : ''}
     </Stream>
   </Connect>
+  <Say voice="${pollyVoice}">Please hold for just a moment.</Say>
+  <Redirect method="POST">${xmlEscape(retryUrl)}</Redirect>
 </Response>`;
-        console.log('[dialerVoiceHandler] → Mode AI Agent → Media Stream bridge (Deepgram STT + ElevenLabs TTS), leadId:', leadId);
+        console.log(`[dialerVoiceHandler] → Mode AI Agent → Media Stream bridge (retry ${retryCount}/${maxRetries}), leadId:`, leadId);
         return new Response(twiml, { headers: { 'Content-Type': 'text/xml' } });
       }
 
