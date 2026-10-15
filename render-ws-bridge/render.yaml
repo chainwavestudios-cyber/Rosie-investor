@@ -1,0 +1,24 @@
+# Render Blueprint for the Rosie WS Bridge (prebuilt image).
+# Build & push the image to your registry, then Render deploys from the image URL.
+# Docs: https://render.com/docs/websocket
+services:
+  - type: web
+    name: rosie-ws-bridge
+    # Point this at your published image, e.g. ghcr.io/<owner>/rosie-ws-bridge:latest
+    image: <your-registry>/rosie-ws-bridge:latest
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: APP_WEBHOOK_URL
+        # Base44 function URL that receives media batches, e.g.
+        # https://rosieai-investorpage.base44.app/functions/mediaStreamRelay
+      - key: APP_AUTH_TOKEN
+        sync: false
+      - key: STREAM_AUTH_TOKEN
+        sync: false
+      - key: AUDIO_BATCH_MS
+        value: "250"
+      - key: PING_INTERVAL_MS
+        value: "30000"
+      - key: LOG_LEVEL
+        value: "info"
