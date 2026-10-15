@@ -671,7 +671,7 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
               return <span key={i}>{renderFormatted(seg)}</span>;
             })}
             {hasCompletedSteps && (
-              <div style={{ position: 'sticky', bottom: 0, display: 'flex', justifyContent: 'center', padding: '14px 0 4px', background: 'linear-gradient(to top, #0d1b2a 70%, rgba(13,27,42,0.7) 90%, transparent)', zIndex: 5 }}>
+              <div style={{ margin: '12px 0', display: 'flex', justifyContent: 'center' }}>
                 <button
                   onClick={() => { setTransferScript(remainingScriptPart); setShowMergePopup(true); }}
                   style={{ background: 'linear-gradient(135deg,#10b981,#22c55e)', color: DARK, border: 'none', borderRadius: '8px', padding: '12px 32px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold', fontFamily: 'Georgia, serif', boxShadow: '0 0 16px rgba(16,185,129,0.4)' }}

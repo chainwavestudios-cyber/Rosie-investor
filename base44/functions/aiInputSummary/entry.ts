@@ -6,7 +6,7 @@
  *
  * Returns: { summary: string }
  */
-import { callLLM } from '../../shared/llmHelper.ts';
+import { createClientFromRequest } from 'npm:@base44/sdk@0.8.52';
 
 export default async function(req: Request): Promise<Response> {
   try {
@@ -36,18 +36,16 @@ Rules:
 - This summary will be saved to the lead's notes, so make it useful for future reference.
 - Do not use em-dashes. Use commas or periods instead.`;
 
-    const data = await callLLM(req, {
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 500,
-      system,
-      messages: [{ role: 'user', content: `Call transcript so far:\n${transcriptStr}` }],
+    const base44 = createClientFromRequest(req).asServiceRole;
+    const result = await base44.integrations.Core.InvokeLLM({
+      prompt: `${system}\n\nCall transcript so far:\n${transcriptStr}`,
     });
 
-    const summary = data?.content?.[0]?.text || '';
+    const summary = typeof result === 'string' ? result : (result?.text || result?.content?.[0]?.text || '');
     return Response.json({ summary });
   } catch (e: any) {
     const msg = e?.message || String(e);
-    if (msg.includes('CREDIT_EXHAUSTED')) {
+    if (msg.includes('CREDIT_EXHAUSTED') || msg.includes('quota') || msg.includes('429') || msg.includes('402')) {
       return Response.json({ error: msg, creditError: true }, { status: 500 });
     }
     return Response.json({ error: msg }, { status: 500 });
