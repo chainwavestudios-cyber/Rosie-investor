@@ -12,6 +12,7 @@ import AIAgentKnowledgeSection from './aiagent/AIAgentKnowledgeSection';
 import AIAgentPromptSection, { DEFAULT_GREETING, DEFAULT_SYSTEM_PROMPT, DEFAULT_SCRIPT_FLOW, DEFAULT_REBUTTALS, DEFAULT_QA_TUNING } from './aiagent/AIAgentPromptSection';
 import AIAgentDialer from './AIAgentDialer';
 import AIAgentLiveConfig from './aiagent/AIAgentLiveConfig';
+import useAIAgentPipeline from '@/hooks/useAIAgentPipeline';
 
 const GOLD = '#10b981';
 const DARK = '#0a0f1e';
@@ -30,7 +31,8 @@ function defaultConfig() {
     sttEngine: 'deepgram-nova-2',
     ttsEngine: 'deepgram-aura',
     ttsVoiceModel: 'aura-2-thalia-en',
-    llmModel: 'claude-sonnet-5',
+    llmModel: 'automatic',
+    ttsSynthesisModel: 'eleven_turbo_v2_5',
     kbPrimary: 'fronter',
     kbSecondary: 'debtcallcoach',
     greeting: DEFAULT_GREETING,
@@ -44,6 +46,7 @@ function defaultConfig() {
 }
 
 export default function FronterAIAgentTab({ adminUsername }) {
+  const { saveConfig } = useAIAgentPipeline();
   const [config, setConfig] = useState(null);
   const [availableLines, setAvailableLines] = useState([]);
   const [fronterKbCount, setFronterKbCount] = useState(0);
@@ -89,29 +92,21 @@ export default function FronterAIAgentTab({ adminUsername }) {
   const save = async () => {
     setSaving(true); setError('');
     try {
-      const existing = await base44.entities.AIAgentConfig.filter({ configName: 'default' });
-      const payload = { ...config, updatedBy: adminUsername, updated_date: new Date().toISOString() };
-      if (existing?.[0]) {
-        await base44.entities.AIAgentConfig.update(existing[0].id, payload);
-      } else {
-        await base44.entities.AIAgentConfig.create(payload);
-      }
+      const persisted = await saveConfig(config);
+      setConfig({ ...defaultConfig(), ...persisted });
       setSaved(true); setTimeout(() => setSaved(false), 2000);
-    } catch (e) { setError('Save failed: ' + (e?.message || String(e))); }
+    } catch (e) { setError('Save failed: ' + (e?.response?.data?.error || e?.message || String(e))); }
     setSaving(false);
   };
 
   const toggleActive = async () => {
     if (!config.twilioLineKey) { alert('Select a Twilio line before activating the agent.'); return; }
-    const next = !config.isActive;
-    update('isActive', next);
-    // Persist immediately so the backend can read the flag
+    setSaving(true); setError('');
     try {
-      const existing = await base44.entities.AIAgentConfig.filter({ configName: 'default' });
-      const payload = { ...config, isActive: next, updatedBy: adminUsername, updated_date: new Date().toISOString() };
-      if (existing?.[0]) await base44.entities.AIAgentConfig.update(existing[0].id, payload);
-      else await base44.entities.AIAgentConfig.create(payload);
-    } catch (e) { setError('Toggle failed: ' + (e?.message || String(e))); }
+      const persisted = await saveConfig({ ...config, isActive: !config.isActive });
+      setConfig({ ...defaultConfig(), ...persisted });
+    } catch (e) { setError('Toggle failed: ' + (e?.response?.data?.error || e?.message || String(e))); }
+    setSaving(false);
   };
 
   if (!config) {
@@ -130,6 +125,7 @@ export default function FronterAIAgentTab({ adminUsername }) {
           {saved && <span style={{ color: '#4ade80', fontSize: '12px' }}>✓ Saved</span>}
           <button
             onClick={toggleActive}
+            disabled={saving}
             style={{
               background: config.isActive ? 'rgba(239,68,68,0.15)' : 'rgba(16,185,129,0.15)',
               color: config.isActive ? RED : GOLD,

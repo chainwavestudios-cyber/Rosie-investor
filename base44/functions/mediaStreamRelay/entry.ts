@@ -30,16 +30,7 @@ import { twilioFetch } from '../../shared/twilioHelpers.ts';
 
 const BASE_URL = 'https://rosieai-investorpage.base44.app';
 
-// Map config LLM names to valid InvokeLLM model names
-const MODEL_MAP: Record<string, string> = {
-  'gemini-3-flash': 'gemini_3_flash',
-  'gpt-5-mini': 'gpt_5_mini',
-  'claude-sonnet-5': 'claude-sonnet-5',
-  'claude-opus-5': 'claude_opus_5',
-  'claude-sonnet-4-6': 'claude_sonnet_4_6',
-  'gpt-5-4': 'gpt_5_4',
-  'gemini-3-1-pro': 'gemini_3_1_pro',
-};
+import { resolvePipeline } from '../../shared/aiAgentPipeline.ts';
 
 const VALID_ACTIONS = ['speak', 'transfer', 'end_call'];
 const VALID_DISPOSITIONS = ['interested', 'not_interested', 'callback_requested', 'transferred', 'opt_out', 'no_response', 'technical_failure'];
@@ -66,66 +57,6 @@ async function playToBridge(streamSid: string, body: any): Promise<any> {
     console.warn('[mediaStreamRelay] /play error:', e?.message);
     return null;
   }
-}
-
-// Generate TTS audio (base64 mulaw 8kHz) via ElevenLabs, fallback Deepgram Aura
-async function generateTTS(text: string, config: any): Promise<string> {
-  const elevenlabsKey = secrets.get('ELEVENLABS_API_KEY') || '';
-  const deepgramKey = secrets.get('DEEPGRAM_API_KEY') || '';
-  const engine = config.ttsEngine || 'elevenlabs';
-
-  if (engine === 'elevenlabs' && elevenlabsKey) {
-    try {
-      const voiceId = config.ttsVoiceModel || '21m00Tcm4TlvDq8ikWAM';
-      const res = await fetch(
-        `https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(voiceId)}?output_format=ulaw_8000`,
-        {
-          method: 'POST',
-          headers: { 'xi-api-key': elevenlabsKey, 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            text,
-            model_id: 'eleven_turbo_v2_5',
-            voice_settings: { stability: 0.5, similarity_boost: 0.75 },
-          }),
-          signal: AbortSignal.timeout(10000),
-        }
-      );
-      if (res.ok) {
-        const bytes = new Uint8Array(await res.arrayBuffer());
-        let binary = '';
-        for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
-        return btoa(binary);
-      }
-      console.warn('[mediaStreamRelay] ElevenLabs TTS error:', res.status);
-    } catch (e) {
-      console.warn('[mediaStreamRelay] ElevenLabs TTS failed:', e?.message);
-    }
-  }
-
-  if (deepgramKey) {
-    try {
-      const voice = config.ttsVoiceModel || 'aura-2-thalia-en';
-      const res = await fetch(
-        `https://api.deepgram.com/v1/speak?model=${encodeURIComponent(voice)}&encoding=mulaw&sample_rate=8000&container=none`,
-        {
-          method: 'POST',
-          headers: { 'Authorization': `Token ${deepgramKey}`, 'Content-Type': 'text/plain' },
-          body: text,
-          signal: AbortSignal.timeout(10000),
-        }
-      );
-      if (res.ok) {
-        const bytes = new Uint8Array(await res.arrayBuffer());
-        let binary = '';
-        for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
-        return btoa(binary);
-      }
-      console.warn('[mediaStreamRelay] Deepgram TTS error:', res.status);
-    } catch (e) {
-      console.warn('[mediaStreamRelay] Deepgram TTS failed:', e?.message);
-    }
-  }
-  return '';
 }
 
 // Estimate playback duration: ~12 chars/sec, min 2s, plus 500ms buffer
@@ -194,18 +125,17 @@ async function handleInit(base44: any, body: any): Promise<Response> {
     }
   }
 
-  const ttsEngine = config.ttsEngine || 'elevenlabs';
-  const ttsVoiceModel = config.ttsVoiceModel || '';
+  const pipeline = resolvePipeline(config);
+  if (!pipeline.valid) return Response.json({ error: pipeline.errors.join(' ') }, { status: 400 });
+  const { ttsEngine, ttsVoiceModel } = pipeline;
 
   return Response.json({
     greeting,
-    ttsEngine,
-    ttsVoiceModel,
-    // Route the voice ID to the correct provider so the bridge never
-    // sends a Deepgram voice name to ElevenLabs or vice versa.
+    ...pipeline,
+    pipeline,
+    configUpdatedAt: config.updated_date || null,
     elevenLabsVoiceId: ttsEngine === 'elevenlabs' ? ttsVoiceModel : '',
     deepgramTtsVoice: ttsEngine === 'deepgram-aura' ? ttsVoiceModel : '',
-    llmModel: config.llmModel || 'gemini-3-flash',
     leadId: lead?.id || leadId,
     leadFirstName: lead?.firstName || '',
     leadLastName: lead?.lastName || '',
@@ -242,7 +172,12 @@ async function handleTurn(base44: any, body: any): Promise<Response> {
     .map((m: any) => `${m.role === 'user' ? 'Prospect' : 'Agent'}: ${m.content}`)
     .join('\n');
 
-  const llmModel = MODEL_MAP[config.llmModel] || 'gemini-3-flash';
+  // Pin the pipeline selected at call start; never silently substitute a model.
+  const pipeline = resolvePipeline(body.pipeline || config);
+  if (!pipeline.valid) return Response.json({ error: pipeline.errors.join(' ') }, { status: 400 });
+  const llmModel = pipeline.llmRequestModel;
+  const startedAt = Date.now();
+  const llmRuntime = { model: llmModel, state: 'requested', at: new Date().toISOString(), ms: 0 };
 
   let action = 'speak';
   let text = '';
@@ -278,6 +213,8 @@ Return JSON with:
       model: llmModel,
     });
 
+    llmRuntime.state = 'accepted';
+    llmRuntime.ms = Date.now() - startedAt;
     // Validate LLM response against schema
     action = VALID_ACTIONS.includes(result?.action) ? result.action : 'speak';
     text = typeof result?.text === 'string' ? result.text : '';
@@ -285,6 +222,8 @@ Return JSON with:
     disposition = VALID_DISPOSITIONS.includes(result?.disposition) ? result.disposition : 'no_response';
   } catch (e) {
     console.error('[mediaStreamRelay] LLM error:', e?.message);
+    llmRuntime.state = 'error';
+    llmRuntime.ms = Date.now() - startedAt;
     action = 'speak';
     text = "I'm sorry, could you repeat that?";
   }
@@ -296,7 +235,7 @@ Return JSON with:
     disposition = 'not_interested';
   }
 
-  return Response.json({ action, text, disposition });
+  return Response.json({ action, text, disposition, llmRuntime });
 }
 
 // ── TRANSFER: execute transfer prep + redirect Twilio call ───────────────
@@ -322,12 +261,9 @@ async function handleTransfer(req: Request, base44: any, body: any): Promise<Res
 
   // Play transfer announcement via bridge (ElevenLabs/Deepgram) before redirect
   const transferMsg = "Let me connect you with one of our senior debt advisors. Please hold for just a moment.";
-  const ttsAudio = await generateTTS(transferMsg, config);
-  if (ttsAudio) {
-    await playToBridge(body.streamSid, { clear: true });
-    await playToBridge(body.streamSid, { payload: ttsAudio });
-    await new Promise(r => setTimeout(r, estimatePlaybackMs(transferMsg)));
-  }
+  // The bridge uses this call's pinned TTS selections and records actual audio evidence.
+  const playback = await playToBridge(body.streamSid, { clear: true, text: transferMsg });
+  if (playback?.ok) await new Promise(r => setTimeout(r, estimatePlaybackMs(transferMsg)));
 
   // Redirect Twilio call to transfer TwiML (SkipSay since message already played via bridge)
   if (callSid) {
@@ -379,12 +315,8 @@ async function handleEndCall(base44: any, body: any): Promise<Response> {
 
   // Play goodbye via bridge (ElevenLabs/Deepgram) before redirect
   const endMsg = "Thank you for your time. Have a great day. Goodbye.";
-  const ttsAudio = await generateTTS(endMsg, config);
-  if (ttsAudio) {
-    await playToBridge(streamSid, { clear: true });
-    await playToBridge(streamSid, { payload: ttsAudio });
-    await new Promise(r => setTimeout(r, estimatePlaybackMs(endMsg)));
-  }
+  const playback = await playToBridge(streamSid, { clear: true, text: endMsg });
+  if (playback?.ok) await new Promise(r => setTimeout(r, estimatePlaybackMs(endMsg)));
 
   // Redirect Twilio call to endcall TwiML (SkipSay since message already played via bridge)
   if (callSid) {

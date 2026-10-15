@@ -6,7 +6,8 @@
   "type": "commonjs",
   "scripts": {
     "start": "node server.js",
-    "test": "node --test server.test.cjs"
+    "test": "node --test server.test.cjs",
+    "test:pipeline": "node --test ../src/render-ws-bridge/pipeline.test.cjs"
   },
   "engines": {
     "node": ">=20"

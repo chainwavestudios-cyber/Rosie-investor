@@ -1,0 +1,40 @@
+// One catalog and resolver for the settings UI, validation, and call relay.
+export const PIPELINE_VERSION = 'selector-runtime-v1';
+const option = (value, label, model = value) => ({ value, label, model });
+export const pipelineCatalog = {
+  llm: [
+    option('automatic', 'Automatic (provider model not disclosed)'),
+    ...['gemini_3_8_flash', 'gpt_6_luna', 'claude-sonnet-5', 'claude_opus_5_5', 'gpt_6_sol', 'gpt_6_astra', 'claude_fable_5_1', 'glm_5_2'].map(id => option(id, id)),
+  ],
+  stt: [option('deepgram-nova-2', 'Deepgram Nova-2', 'nova-2'), option('deepgram-nova-3', 'Deepgram Nova-3', 'nova-3')],
+  tts: [option('elevenlabs', 'ElevenLabs'), option('deepgram-aura', 'Deepgram Aura-2')],
+  synthesis: [option('eleven_flash_v2_5', 'ElevenLabs Flash v2.5'), option('eleven_turbo_v2_5', 'ElevenLabs Turbo v2.5 (legacy)')],
+  voices: { 'deepgram-aura': ['thalia', 'asteria', 'arcas', 'orpheus'].map(name => option(`aura-2-${name}-en`, name)), elevenlabs: [option('1SM7GgM6IMuvQlz2BwM3', 'Configured custom voice'), option('21m00Tcm4TlvDq8ikWAM', 'Rachel'), option('pNInz6obpgDQGcFmaJgB', 'Adam')] },
+};
+const legacyLlmAliases = { 'gemini-3-flash': 'gemini_3_flash', 'gpt-5-mini': 'gpt_5_mini', 'claude-opus-5': 'claude_opus_5', 'claude-sonnet-4-6': 'claude_sonnet_4_6', 'gpt-5-4': 'gpt_5_4', 'gemini-3-1-pro': 'gemini_3_1_pro' };
+export function resolvePipeline(config = {}) {
+  const errors = [];
+  const warnings = [];
+  const resolve = (key, value) => {
+    const item = pipelineCatalog[key].find(item => item.value === value);
+    if (!item) errors.push(`Unsupported ${key} selection: ${value || '(empty)'}`);
+    return item?.model || null;
+  };
+  const llmModel = config.llmModel || 'automatic';
+  const sttEngine = config.sttEngine || 'deepgram-nova-2';
+  const ttsEngine = config.ttsEngine || 'deepgram-aura';
+  const ttsVoiceModel = config.ttsVoiceModel || '';
+  const ttsSynthesisModel = config.ttsSynthesisModel || 'eleven_turbo_v2_5';
+  // Preserve an existing legacy selection without advertising old IDs as new choices.
+  const llmRequestModel = legacyLlmAliases[llmModel] || resolve('llm', llmModel);
+  if (legacyLlmAliases[llmModel]) warnings.push(`Saved legacy LLM alias: ${llmModel} → ${llmRequestModel}. Choose a current catalog model when changing it; actual acceptance is verified only on a call.`);
+  const sttModel = resolve('stt', sttEngine);
+  resolve('tts', ttsEngine);
+  if (!ttsVoiceModel || (ttsEngine === 'deepgram-aura' ? !/^aura-2-[a-z]+-(en|es|de|fr|nl|it|ja)$/.test(ttsVoiceModel) : !/^[A-Za-z0-9_-]{8,100}$/.test(ttsVoiceModel))) errors.push('Select a voice belonging to the selected TTS provider.');
+  if (ttsEngine === 'elevenlabs') resolve('synthesis', ttsSynthesisModel);
+  return { version: PIPELINE_VERSION, llmModel, llmRequestModel, sttEngine, sttModel, ttsEngine, ttsVoiceModel, ttsSynthesisModel: ttsEngine === 'elevenlabs' ? ttsSynthesisModel : ttsVoiceModel, errors, warnings, valid: errors.length === 0 };
+}
+export async function loadAgentConfig(client) {
+  const page = await client.entities.AIAgentConfig.filter({ configName: 'default' }, { limit: 1 });
+  return page.items[0] || null;
+}

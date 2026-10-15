@@ -4,6 +4,7 @@
  */
 import { useState, useEffect, useCallback } from 'react';
 import { base44 } from '@/api/base44Client';
+import AIAgentLiveConfig from '@/components/fronter/aiagent/AIAgentLiveConfig';
 
 const GOLD = '#10b981';
 const RED = '#ef4444';
@@ -86,6 +87,8 @@ export default function FronterMonitorAIAgent({ adminUsername }) {
         </button>
       </div>
 
+      <AIAgentLiveConfig />
+
       {/* Config grid */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
         {/* Telephony */}
@@ -98,10 +101,10 @@ export default function FronterMonitorAIAgent({ adminUsername }) {
 
         {/* Voice Pipeline */}
         <div style={{ background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: '6px', padding: '12px' }}>
-          <div style={{ color: BLUE, fontSize: '10px', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '8px', borderBottom: '1px solid rgba(96,165,250,0.15)', paddingBottom: '4px' }}>🎙 Voice Pipeline</div>
+          <div style={{ color: BLUE, fontSize: '10px', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '8px', borderBottom: '1px solid rgba(96,165,250,0.15)', paddingBottom: '4px' }}>🎙 Saved Pipeline (not runtime proof)</div>
           <div style={{ marginBottom: '8px' }}><label style={ls}>STT Engine</label><div style={val}>{config.sttEngine || '—'}</div></div>
           <div style={{ marginBottom: '8px' }}><label style={ls}>TTS Engine</label><div style={val}>{config.ttsEngine || '—'}</div></div>
-          <div style={{ marginBottom: '8px' }}><label style={ls}>TTS Voice</label><div style={{ val, fontSize: '11px' }}>{config.ttsVoiceModel || '—'}</div></div>
+          <div style={{ marginBottom: '8px' }}><label style={ls}>TTS Voice</label><div style={{ ...val, fontSize: '11px' }}>{config.ttsVoiceModel || '—'}</div></div>
           <div><label style={ls}>LLM Model</label><div style={val}>{config.llmModel || '—'}</div></div>
         </div>
 

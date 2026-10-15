@@ -53,7 +53,6 @@ const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY || '';
 const TTS_ENGINE = process.env.TTS_ENGINE || 'elevenlabs';
 const ELEVENLABS_VOICE_ID = process.env.ELEVENLABS_VOICE_ID || '1SM7GgM6IMuvQlz2BwM3';
 const DEEPGRAM_TTS_VOICE = process.env.DEEPGRAM_TTS_VOICE || 'aura-2-thalia-en';
-const DEEPGRAM_STT_MODEL = process.env.DEEPGRAM_STT_MODEL || 'nova-2';
 const PING_INTERVAL_MS = Number(process.env.PING_INTERVAL_MS || 30000);
 const LOG_LEVEL = process.env.LOG_LEVEL || 'info';
 const NODE_ENV = process.env.NODE_ENV || 'development';
@@ -82,6 +81,13 @@ const debug = (...a) => {
 
 // ── State: streamSid → session ──────────────────────────────────────────
 const streams = new Map();
+const PIPELINE_VERSION = 'selector-runtime-v1';
+let lastCall = null;
+const runtimeSnapshot = session => ({
+  callSid: session.callSid, state: session.state,
+  startedAt: new Date(session.startedAt).toISOString(), observedAt: new Date().toISOString(),
+  selected: session.config, stt: session.stt, tts: session.tts, llm: session.llm, error: session.error,
+});
 
 // ── Express ──────────────────────────────────────────────────────────────
 const app = express();
@@ -104,6 +110,16 @@ app.get('/ready', (req, res) => {
   res.status(ready ? 200 : 503).json({ ready, checks });
 });
 
+// Runtime evidence is private: the app proxies it after checking admin access.
+app.get('/runtime', (req, res) => {
+  if (!PLAY_AUTH_TOKEN || req.headers.authorization !== `Bearer ${PLAY_AUTH_TOKEN}`) return res.status(401).json({ error: 'unauthorized' });
+  res.set('Cache-Control', 'no-store');
+  return res.json({ version: PIPELINE_VERSION, checkedAt: new Date().toISOString(),
+    credentials: { deepgram: !!DEEPGRAM_API_KEY, elevenlabs: !!ELEVENLABS_API_KEY },
+    calls: Array.from(streams.values(), runtimeSnapshot), lastCall,
+  });
+});
+
 // ── /play: app → Twilio audio (AUTHENTICATED) ───────────────────────────
 // POST /play { streamSid, payload }  — play base64 mulaw audio
 // POST /play { streamSid, clear }     — clear playback queue
@@ -116,9 +132,15 @@ app.post('/play', async (req, res) => {
       return res.status(401).json({ error: 'unauthorized' });
     }
   }
-  const { streamSid, payload, clear, mark } = req.body || {};
+  const { streamSid, text, clear, mark } = req.body || {};
+  let { payload } = req.body || {};
   const s = streamSid && streams.get(streamSid);
   if (!s) return res.status(404).json({ error: 'stream_not_found' });
+  if (text) {
+    payload = await generateTTS(String(text), s.config, s);
+    if (!payload) return res.status(502).json({ error: 'tts_failed' });
+    s.recordingBuffer.push(payload);
+  }
   if (clear) sendToTwilio(s.ws, { event: 'clear', streamSid });
   if (mark) sendToTwilio(s.ws, { event: 'mark', streamSid, mark: { name: mark.name || 'mark' } });
   if (payload) sendToTwilio(s.ws, { event: 'media', streamSid, media: { payload } });
@@ -203,7 +225,7 @@ async function handleStreamStart(ws, streamSid, start) {
     leadId,
     dgWs: null,
     generation: 0,        // increments on each AI response (barge-in tracking)
-    state: 'listening',   // listening | thinking | speaking
+    state: 'initializing', // pipeline is loaded before opening STT
     conversation: [],
     recordingBuffer: [],
     eventQueue: Promise.resolve(),
@@ -214,28 +236,15 @@ async function handleStreamStart(ws, streamSid, start) {
   streams.set(streamSid, session);
   log('stream start', streamSid, 'call', start.callSid, 'lead', leadId);
 
-  // Open Deepgram streaming STT (doesn't need config — runs in parallel)
-  openDeepgram(session, streamSid);
-
-  // Call relay init (gets config + greeting)
+  // Load the selected pipeline FIRST; environment defaults must not override selectors.
   try {
     const initResp = await callRelay({ event: 'init', streamSid, callSid: start.callSid, leadId });
+    if (session.stopping) return;
+    if (!initResp.pipeline?.valid || initResp.pipeline.version !== PIPELINE_VERSION) throw new Error('Relay pipeline is missing or outdated; update the relay.');
     session.leadId = initResp.leadId || leadId;
-    session.config = {
-      ttsEngine: initResp.ttsEngine || TTS_ENGINE,
-
-      // Only use this field when it is an actual Deepgram voice/model ID.
-      ttsVoiceModel: initResp.ttsVoiceModel || '',
-
-      // These provider-specific fields are optional.
-      elevenLabsVoiceId:
-        initResp.elevenLabsVoiceId || ELEVENLABS_VOICE_ID,
-
-      deepgramTtsVoice:
-        initResp.deepgramTtsVoice || DEEPGRAM_TTS_VOICE,
-
-      llmModel: initResp.llmModel || 'claude-sonnet-5',
-    };
+    session.config = { ...initResp.pipeline, configUpdatedAt: initResp.configUpdatedAt };
+    session.state = 'listening';
+    openDeepgram(session, streamSid);
 
     // Generate and play greeting
     if (initResp.greeting) {
@@ -243,7 +252,7 @@ async function handleStreamStart(ws, streamSid, start) {
       session.state = 'speaking';
       session.generation++;
       const gen = session.generation;
-      const tts = await generateTTS(initResp.greeting, session.config);
+      const tts = await generateTTS(initResp.greeting, session.config, session);
       if (tts && session.generation === gen) {
         session.recordingBuffer.push(tts);
         playAudio(streamSid, tts, gen);
@@ -252,6 +261,8 @@ async function handleStreamStart(ws, streamSid, start) {
       }
     }
   } catch (e) {
+    session.state = 'error';
+    session.error = e?.message;
     log('init failed', e?.message);
   }
 }
@@ -320,12 +331,15 @@ async function handleStreamStop(streamSid) {
     }
   });
 
+  lastCall = { ...runtimeSnapshot(session), state: 'completed' };
   log('stream stop', streamSid, 'dur', Math.round((Date.now() - session.startedAt) / 1000) + 's');
 }
 
 // ── Deepgram streaming STT ──────────────────────────────────────────────
 function openDeepgram(session, streamSid) {
+  session.stt = { model: session.config.sttModel, state: 'connecting', at: new Date().toISOString() };
   if (!DEEPGRAM_API_KEY) {
+    session.stt.state = 'error'; session.stt.error = 'Deepgram key missing';
     log('no DEEPGRAM_API_KEY, skipping STT');
     return;
   }
@@ -334,7 +348,7 @@ function openDeepgram(session, streamSid) {
     encoding: 'mulaw',
     sample_rate: '8000',
     channels: '1',
-    model: DEEPGRAM_STT_MODEL,
+    model: session.config.sttModel,
     smart_format: 'true',
     punctuate: 'true',
     interim_results: 'true',
@@ -346,13 +360,16 @@ function openDeepgram(session, streamSid) {
     headers: { Authorization: `Token ${DEEPGRAM_API_KEY}` },
   });
 
-  dgWs.on('open', () => log('deepgram connected', streamSid));
+  dgWs.on('open', () => { session.stt.state = 'connected'; session.stt.at = new Date().toISOString(); log('deepgram connected', streamSid, session.config.sttModel); });
 
   dgWs.on('message', (raw) => {
     let msg;
     try { msg = JSON.parse(raw.toString()); } catch { return; }
 
     if (msg.type === 'Results') {
+      session.stt.state = 'accepted'; session.stt.at = new Date().toISOString();
+      const modelInfo = Object.values(msg.metadata?.model_info || {})[0];
+      if (modelInfo?.name) session.stt.providerModel = modelInfo.name;
       const transcript = msg.channel?.alternatives?.[0]?.transcript || '';
 
       // Barge-in: caller speaks during AI playback → interrupt
@@ -372,8 +389,8 @@ function openDeepgram(session, streamSid) {
     }
   });
 
-  dgWs.on('error', (e) => log('deepgram error', e?.message));
-  dgWs.on('close', () => { session.dgWs = null; log('deepgram disconnected', streamSid); });
+  dgWs.on('error', (e) => { session.stt.state = 'error'; session.stt.error = 'Deepgram connection failed'; log('deepgram error', e?.message); });
+  dgWs.on('close', () => { session.dgWs = null; if (session.stt.state !== 'error') session.stt.state = 'disconnected'; log('deepgram disconnected', streamSid); });
 
   session.dgWs = dgWs;
 }
@@ -394,8 +411,10 @@ async function handleUtterance(streamSid, transcript) {
       transcript,
       conversation: session.conversation.slice(-20), // window: last 20 messages
       leadId: session.leadId,
+      pipeline: session.config,
     });
 
+    session.llm = resp.llmRuntime || { state: 'unverified' };
     const { action, text, disposition } = resp;
     session.conversation.push({ role: 'assistant', content: text || '' });
 
@@ -428,7 +447,7 @@ async function handleUtterance(streamSid, transcript) {
       session.state = 'speaking';
       session.generation++;
       const gen = session.generation;
-      const tts = await generateTTS(text, session.config);
+      const tts = await generateTTS(text, session.config, session);
       if (tts && session.generation === gen) {
         session.recordingBuffer.push(tts);
         playAudio(streamSid, tts, gen);
@@ -445,17 +464,17 @@ async function handleUtterance(streamSid, transcript) {
 }
 
 // ── TTS generation (ElevenLabs preferred, Deepgram Aura fallback) ──────
-async function generateTTS(text, config = {}) {
+async function generateTTS(text, config = {}, session = null) {
   const engine = config.ttsEngine || TTS_ENGINE;
-
-  // Keep each provider's voice ID separate.
-  const elevenLabsVoiceId =
-    config.elevenLabsVoiceId || ELEVENLABS_VOICE_ID;
-
-  const deepgramVoice =
-    config.deepgramTtsVoice ||
-    (engine === 'deepgram-aura' ? config.ttsVoiceModel : '') ||
-    DEEPGRAM_TTS_VOICE;
+  const elevenLabsVoiceId = engine === 'elevenlabs' ? (config.ttsVoiceModel || ELEVENLABS_VOICE_ID) : ELEVENLABS_VOICE_ID;
+  const deepgramVoice = engine === 'deepgram-aura' ? (config.ttsVoiceModel || DEEPGRAM_TTS_VOICE) : DEEPGRAM_TTS_VOICE;
+  const synthesisModel = config.ttsSynthesisModel || 'eleven_turbo_v2_5';
+  const startedAt = Date.now();
+  let fallback = null;
+  const record = (provider, model, voice, state, error = null) => {
+    if (session) session.tts = { engine: provider, model, voice, state, fallback, error, ms: Date.now() - startedAt, at: new Date().toISOString() };
+  };
+  record(engine, engine === 'elevenlabs' ? synthesisModel : deepgramVoice, config.ttsVoiceModel, 'requested');
 
   // Try ElevenLabs first when selected and configured.
   if (engine === 'elevenlabs' && ELEVENLABS_API_KEY) {
@@ -471,7 +490,7 @@ async function generateTTS(text, config = {}) {
           },
           body: JSON.stringify({
             text,
-            model_id: 'eleven_turbo_v2_5',
+            model_id: synthesisModel,
             voice_settings: {
               stability: 0.5,
               similarity_boost: 0.75,
@@ -486,6 +505,7 @@ async function generateTTS(text, config = {}) {
 
         if (audio.length > 0) {
           log('elevenlabs TTS success; bytes', audio.length);
+          record('elevenlabs', synthesisModel, elevenLabsVoiceId, 'accepted');
           return audio.toString('base64');
         }
 
@@ -503,6 +523,7 @@ async function generateTTS(text, config = {}) {
     }
   }
 
+  if (engine === 'elevenlabs') fallback = 'ElevenLabs failed or its key is missing; using Deepgram Aura.';
   // Deepgram Aura fallback, or primary provider if selected.
   if (DEEPGRAM_API_KEY) {
     try {
@@ -525,6 +546,7 @@ async function generateTTS(text, config = {}) {
 
         if (audio.length > 0) {
           log('deepgram TTS success; bytes', audio.length);
+          record('deepgram-aura', deepgramVoice, deepgramVoice, 'accepted');
           return audio.toString('base64');
         }
 
@@ -544,6 +566,7 @@ async function generateTTS(text, config = {}) {
     log('Deepgram fallback unavailable: missing DEEPGRAM_API_KEY');
   }
 
+  record(engine, engine === 'elevenlabs' ? synthesisModel : deepgramVoice, config.ttsVoiceModel, 'error', 'No provider returned audio.');
   log('TTS failed: no provider returned audio');
   return null;
 }

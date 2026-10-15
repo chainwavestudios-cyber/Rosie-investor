@@ -54,19 +54,36 @@
       "title": "TTS Voice Model / Voice ID",
       "default": "aura-2-thalia-en"
     },
+    "ttsSynthesisModel": {
+      "type": "string",
+      "title": "ElevenLabs Synthesis Model",
+      "enum": [
+        "eleven_turbo_v2_5",
+        "eleven_flash_v2_5"
+      ],
+      "default": "eleven_turbo_v2_5"
+    },
     "llmModel": {
       "type": "string",
-      "title": "LLM Model (gemini-3-flash = fastest for real-time voice)",
+      "title": "LLM selection (exact request ID shown in runtime cross-check)",
       "enum": [
+        "automatic",
+        "gemini_3_8_flash",
+        "gpt_6_luna",
+        "claude-sonnet-5",
+        "claude_opus_5_5",
+        "gpt_6_sol",
+        "gpt_6_astra",
+        "claude_fable_5_1",
+        "glm_5_2",
         "gemini-3-flash",
         "gpt-5-mini",
-        "claude-sonnet-5",
         "claude-opus-5",
         "claude-sonnet-4-6",
         "gpt-5-4",
         "gemini-3-1-pro"
       ],
-      "default": "gemini-3-flash"
+      "default": "automatic"
     },
     "kbPrimary": {
       "type": "string",
