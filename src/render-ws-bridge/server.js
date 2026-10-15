@@ -90,6 +90,27 @@ const runtimeSnapshot = session => ({
   selected: session.config, stt: session.stt, tts: session.tts, llm: session.llm, error: session.error,
 });
 
+// ── Speaking watchdog ───────────────────────────────────────────────────
+// When the AI speaks, state = 'speaking' and only returns to 'listening' once
+// Twilio sends the 'mark' event (playback complete). If the TTS provider errors,
+// times out, or closes without delivering that mark, state would stay stuck in
+// 'speaking' forever — and since caller speech is only processed when listening,
+// the AI would go deaf after the greeting. This timer forces state back to
+// 'listening' if no mark arrives within the safety window.
+const SPEAKING_WATCHDOG_MS = 12000;
+function armSpeakingWatchdog(session, streamSid) {
+  clearSpeakingWatchdog(session);
+  session.speakingTimer = setTimeout(() => {
+    if (session.state === 'speaking') {
+      log('speaking watchdog: mark never arrived, forcing listen', streamSid);
+      session.state = 'listening';
+    }
+  }, SPEAKING_WATCHDOG_MS);
+}
+function clearSpeakingWatchdog(session) {
+  if (session.speakingTimer) { clearTimeout(session.speakingTimer); session.speakingTimer = null; }
+}
+
 // ── Express ──────────────────────────────────────────────────────────────
 const app = express();
 app.use(express.json({ limit: '10mb' }));
@@ -225,6 +246,7 @@ async function streamFluxTTS(text, streamSid, session, generation) {
 
   return new Promise((resolve) => {
     let played = false;
+    let markSent = false;
     let chunkCount = 0;
     let resolved = false;
     const params = new URLSearchParams({ model: voice, encoding: 'mulaw', sample_rate: '8000' });
@@ -238,6 +260,15 @@ async function streamFluxTTS(text, streamSid, session, generation) {
       session.tts.ms = Date.now() - startedAt;
       session.tts.state = result;
       resolve(result === 'accepted');
+    };
+
+    // Always send the mark when audio was played, even if SpeechMetadata never
+    // arrives (timeout/error) — otherwise the speaking state sticks and the AI
+    // goes deaf to the caller's response.
+    const ensureMark = () => {
+      if (markSent || !played || generation !== session.generation) return;
+      markSent = true;
+      sendToTwilio(session.ws, { event: 'mark', streamSid, mark: { name: `gen-${generation}` } });
     };
 
     ws.on('open', () => {
@@ -259,9 +290,7 @@ async function streamFluxTTS(text, streamSid, session, generation) {
         try {
           const msg = JSON.parse(data.toString());
           if (msg.type === 'SpeechMetadata') {
-            if (played && generation === session.generation) {
-              sendToTwilio(session.ws, { event: 'mark', streamSid, mark: { name: `gen-${generation}` } });
-            }
+            ensureMark();
             ws.close();
             finish(chunkCount > 0 ? 'accepted' : 'empty');
           }
@@ -269,8 +298,8 @@ async function streamFluxTTS(text, streamSid, session, generation) {
       }
     });
 
-    ws.on('close', () => finish(chunkCount > 0 ? 'accepted' : 'empty'));
-    ws.on('error', (e) => { log('[streamFluxTTS] error:', e?.message); finish('error'); });
+    ws.on('close', () => { ensureMark(); finish(chunkCount > 0 ? 'accepted' : 'empty'); });
+    ws.on('error', (e) => { log('[streamFluxTTS] error:', e?.message); ensureMark(); finish('error'); });
     setTimeout(() => { if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) ws.close(); }, 8000);
   });
 }
@@ -319,7 +348,15 @@ async function streamDeepgramTTS(text, streamSid, session, generation) {
       cleanup(chunkCount > 0 ? 'accepted' : 'empty');
     });
 
-    ws.on('error', (e) => { log('[streamTTS] Deepgram stream error:', e?.message); cleanup('error'); });
+    ws.on('error', (e) => {
+      log('[streamTTS] Deepgram stream error:', e?.message);
+      // If audio was already played, send the mark so the speaking state
+      // doesn't stick — otherwise the AI would never hear the caller again.
+      if (played && generation === session.generation) {
+        sendToTwilio(session.ws, { event: 'mark', streamSid, mark: { name: `gen-${generation}` } });
+      }
+      cleanup('error');
+    });
     setTimeout(() => { if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) { ws.close(); } }, 8000);
   });
 }
@@ -360,6 +397,7 @@ async function handleStreamStart(ws, streamSid, start) {
       session.state = 'speaking';
       session.generation++;
       const gen = session.generation;
+      armSpeakingWatchdog(session, streamSid);
       const ttsEngine = session.config.ttsEngine || TTS_ENGINE;
       let ok = false;
       if (ttsEngine === 'flux' && DEEPGRAM_API_KEY) {
@@ -370,9 +408,10 @@ async function handleStreamStart(ws, streamSid, start) {
       if (!ok) {
         const tts = await generateTTS(initResp.greeting, session.config, session);
         if (tts && session.generation === gen) { session.recordingBuffer.push(tts); playAudio(streamSid, tts, gen); }
-        else { session.state = 'listening'; }
+        else { session.state = 'listening'; clearSpeakingWatchdog(session); }
       } else if (session.generation !== gen) {
         session.state = 'listening';
+        clearSpeakingWatchdog(session);
       }
     }
   } catch (e) {
@@ -406,6 +445,7 @@ function handleMark(streamSid, mark) {
   // Mark received = playback completed → resume listening
   if (session.state === 'speaking') {
     session.state = 'listening';
+    clearSpeakingWatchdog(session);
     debug('playback completed, gen', session.generation);
   }
 }
@@ -414,6 +454,7 @@ async function handleStreamStop(streamSid) {
   const session = streams.get(streamSid);
   if (!session || session.stopping) return; // idempotent
   session.stopping = true;
+  clearSpeakingWatchdog(session);
   streams.delete(streamSid);
 
   // Close Deepgram connection (flush final results)
@@ -562,6 +603,7 @@ async function handleUtterance(streamSid, transcript) {
       session.state = 'speaking';
       session.generation++;
       const gen = session.generation;
+      armSpeakingWatchdog(session, streamSid);
       const ttsEngine = session.config.ttsEngine || TTS_ENGINE;
       let ok = false;
       if (ttsEngine === 'flux' && DEEPGRAM_API_KEY) {
@@ -572,9 +614,10 @@ async function handleUtterance(streamSid, transcript) {
       if (!ok) {
         const tts = await generateTTS(text, session.config, session);
         if (tts && session.generation === gen) { session.recordingBuffer.push(tts); playAudio(streamSid, tts, gen); }
-        else { session.state = 'listening'; }
+        else { session.state = 'listening'; clearSpeakingWatchdog(session); }
       } else if (session.generation !== gen) {
         session.state = 'listening';
+        clearSpeakingWatchdog(session);
       }
     } else {
       session.state = 'listening';
