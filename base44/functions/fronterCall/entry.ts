@@ -224,18 +224,31 @@ Deno.serve(async (req) => {
       // Give the customer leg a moment to join before holding it
       await new Promise(r => setTimeout(r, 800));
 
-      // Hold everyone except the fronter (i.e. the customer)
+      // Redirect customer to appointmentVoiceHandler for per-caller hold audio
+      // (starts from the beginning each time) + Polly-based appointment detection.
+      // The customer leaves the conference; mergeConnect/noConnect bring them back.
       try {
         const participants = await twilioFetch(`/Conferences/${confSid}/Participants.json`);
         for (const p of participants.participants || []) {
           if (p.call_sid !== fronterSid && !p.hold) {
-            await twilioFetch(`/Conferences/${confSid}/Participants/${p.call_sid}.json`, {
+            const holdUrl = `${BASE_URL}/functions/appointmentVoiceHandler?step=hold&leadId=${encodeURIComponent(leadId || '')}`;
+            await twilioFetch(`/Calls/${p.call_sid}.json`, {
               method: 'POST',
-              body: new URLSearchParams(holdParams(holdAudioUrl)),
+              body: new URLSearchParams({ Url: holdUrl }),
             });
+            // Store customer call SID in FronterHeadsUp for mergeConnect/noConnect/grab
+            if (leadId) {
+              try {
+                const b44 = createClientFromRequest(req).asServiceRole;
+                const headsUps = await b44.entities.FronterHeadsUp.filter({ leadId, status: 'active' });
+                if (headsUps?.[0]) {
+                  await b44.entities.FronterHeadsUp.update(headsUps[0].id, { customerCallSid: p.call_sid, conferenceName: confName });
+                }
+              } catch {}
+            }
           }
         }
-      } catch (e) { console.warn('Hold customer failed:', e.message); }
+      } catch (e) { console.warn('Redirect customer to hold failed:', e.message); }
 
       // Dial the agent into the conference. No machine detection — the fronter
       // listens and manually decides: merge, try next line, or no connect.
@@ -263,7 +276,7 @@ Deno.serve(async (req) => {
 
       const fronterSid = body.fronterCallSid || fronterSidFromConf(conferenceName);
       const participants = await twilioFetch(`/Conferences/${confSid}/Participants.json`);
-      // Unhold all held participants (customer)
+      // Unhold any held participants in the conference (legacy Hold API flow)
       for (const p of participants.participants || []) {
         if (p.hold) {
           try {
@@ -274,6 +287,19 @@ Deno.serve(async (req) => {
           } catch (e) { console.warn('Unhold failed:', e.message); }
         }
       }
+      // Redirect customer from appointmentVoiceHandler back into the conference
+      // (new flow — customer was redirected to hold, not held in the conference)
+      try {
+        const b44 = createClientFromRequest(req).asServiceRole;
+        const headsUps = await b44.entities.FronterHeadsUp.filter({ conferenceName, status: 'active' });
+        const customerCallSid = headsUps?.[0]?.customerCallSid;
+        if (customerCallSid) {
+          await twilioFetch(`/Calls/${customerCallSid}.json`, {
+            method: 'POST',
+            body: new URLSearchParams({ Twiml: confTwiML(conferenceName, false, '') }),
+          });
+        }
+      } catch (e) { console.warn('Redirect customer from hold failed:', e.message); }
       // Remove fronter's browser leg from conference + explicitly hang up their call
       for (const p of participants.participants || []) {
         if (fronterSid && p.call_sid === fronterSid) {
@@ -303,7 +329,7 @@ Deno.serve(async (req) => {
     //   agent's leg are removed from the conference; the customer stays on hold
     //   in the queue with hold music. The fronter is free to dial the next prospect.
     if (action === 'noConnect') {
-      const { conferenceName, fronterCallSid, agentCallSid } = body;
+      const { conferenceName, fronterCallSid, agentCallSid, leadId, leadName, leadPhone, leadEmail, fronterUsername, lineKey } = body;
       if (!conferenceName) return Response.json({ error: 'conferenceName required' }, { status: 400 });
 
       // Cancel the agent's call if it's still ringing (not yet a conference participant)
@@ -352,6 +378,29 @@ Deno.serve(async (req) => {
         } catch (e) { console.warn('Fronter call hangup failed:', e.message); }
       }
 
+      // Create/update FronterHeadsUp so the queued customer shows in the monitor
+      if (leadId) {
+        try {
+          const b44 = createClientFromRequest(req).asServiceRole;
+          const headsUps = await b44.entities.FronterHeadsUp.filter({ leadId, status: 'active' });
+          if (headsUps?.[0]) {
+            await b44.entities.FronterHeadsUp.update(headsUps[0].id, { conferenceName, status: 'active' });
+          } else {
+            await b44.entities.FronterHeadsUp.create({
+              fronterUsername: fronterUsername || '',
+              leadId,
+              leadName: leadName || '',
+              leadPhone: leadPhone || '',
+              leadEmail: leadEmail || '',
+              conferenceName,
+              lineKey: lineKey || '',
+              status: 'active',
+              createdAt: new Date().toISOString(),
+            });
+          }
+        } catch (e) { console.warn('HeadsUp create failed:', e.message); }
+      }
+
       return Response.json({ ok: true });
     }
 
@@ -375,7 +424,7 @@ Deno.serve(async (req) => {
       }
       if (!confSid) return Response.json({ error: 'Conference not found — the customer may have hung up' }, { status: 404 });
 
-      // Unhold all held participants (the customer)
+      // Unhold any held participants in the conference (legacy Hold API flow)
       const participants = await twilioFetch(`/Conferences/${confSid}/Participants.json`);
       for (const p of participants.participants || []) {
         if (p.hold) {
@@ -387,6 +436,19 @@ Deno.serve(async (req) => {
           } catch (e) { console.warn('Unhold failed:', e.message); }
         }
       }
+      // Redirect customer from appointmentVoiceHandler back into the conference
+      // (new flow — customer was redirected to hold, not held in the conference)
+      try {
+        const b44 = createClientFromRequest(req).asServiceRole;
+        const headsUps = await b44.entities.FronterHeadsUp.filter({ conferenceName, status: 'active' });
+        const customerCallSid = headsUps?.[0]?.customerCallSid;
+        if (customerCallSid) {
+          await twilioFetch(`/Calls/${customerCallSid}.json`, {
+            method: 'POST',
+            body: new URLSearchParams({ Twiml: confTwiML(conferenceName, false, '') }),
+          });
+        }
+      } catch (e) { console.warn('Redirect customer from hold failed:', e.message); }
 
       // Add Chris/admin to the conference unmuted
       await twilioFetch(`/Conferences/${confSid}/Participants.json`, {

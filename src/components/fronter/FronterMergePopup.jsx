@@ -213,7 +213,7 @@ export default function FronterMergePopup({ lead, username, fronterFirstName, is
     clearPoll();
     setError('');
     try {
-      await base44.functions.invoke('fronterCall', { action: 'noConnect', conferenceName, fronterCallSid: callSid, agentCallSid });
+      await base44.functions.invoke('fronterCall', { action: 'noConnect', conferenceName, fronterCallSid: callSid, agentCallSid, leadId: lead?.id, leadName: `${lead?.firstName || ''} ${lead?.lastName || ''}`.trim(), leadPhone: lead?.phone || '', leadEmail: lead?.email || '', fronterUsername: username, lineKey });
       setMergeState('done');
       onNoConnect?.();
     } catch (e) {
