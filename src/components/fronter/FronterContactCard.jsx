@@ -1055,7 +1055,11 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
             <button onClick={() => { const layout = loadFronterLayout(username); layout.script = { ...scriptPos, ...scriptSize }; saveFronterLayout(username, layout); savedLayoutRef.current = layout; setScriptSaveMsg(true); setTimeout(() => setScriptSaveMsg(false), 2000); }} style={{ background: scriptSaveMsg ? 'rgba(74,222,128,0.15)' : 'rgba(255,255,255,0.05)', color: scriptSaveMsg ? '#4ade80' : '#6b7280', border: `1px solid ${scriptSaveMsg ? 'rgba(74,222,128,0.4)' : 'rgba(255,255,255,0.1)'}`, borderRadius: '3px', padding: '2px 10px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>{scriptSaveMsg ? '✓ Saved' : '📐 Save Size'}</button>
             <button onClick={() => setScriptPoppedOut(false)} style={{ background: 'none', border: 'none', color: '#6b7280', cursor: 'pointer', fontSize: '18px', padding: '0 4px' }}>×</button>
           </div>
-          {scriptContent}
+          <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+              {scriptContent}
+            </div>
+          </div>
           <div onMouseDown={(e) => {
             e.stopPropagation();
             const startX = e.clientX, startY = e.clientY, startW = scriptSize.w, startH = scriptSize.h;
