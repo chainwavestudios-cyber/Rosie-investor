@@ -18,8 +18,13 @@
     },
     "transferPhoneNumber": {
       "type": "string",
-      "title": "Transfer Target Phone Number (E.164)",
-      "default": "2162586934"
+      "title": "Transfer Target Phone Number \u2014 Primary (E.164)",
+      "default": "+16193530919"
+    },
+    "transferPhoneNumber2": {
+      "type": "string",
+      "title": "Transfer Target Phone Number \u2014 Secondary (E.164)",
+      "default": "+12162586934"
     },
     "queueTimeoutSeconds": {
       "type": "number",

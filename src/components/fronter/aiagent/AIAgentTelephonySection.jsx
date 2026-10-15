@@ -20,10 +20,16 @@ export default function AIAgentTelephonySection({ config, update, availableLines
         </select>
       </div>
 
-      {/* Transfer Number */}
+      {/* Transfer Number — Primary */}
       <div>
-        <label style={ls}>Transfer Target (Chris Bongiorno)</label>
-        <input value={config.transferPhoneNumber || ''} onChange={e => update('transferPhoneNumber', e.target.value)} style={inp} placeholder="6192224232" />
+        <label style={ls}>Transfer Target — Primary (Chris Bongiorno)</label>
+        <input value={config.transferPhoneNumber || ''} onChange={e => update('transferPhoneNumber', e.target.value)} style={inp} placeholder="+16193530919" />
+      </div>
+
+      {/* Transfer Number — Secondary */}
+      <div>
+        <label style={ls}>Transfer Target — Secondary (Chris Bongiorno 2nd Line)</label>
+        <input value={config.transferPhoneNumber2 || ''} onChange={e => update('transferPhoneNumber2', e.target.value)} style={inp} placeholder="+12162586934" />
       </div>
 
       {/* Queue Timeout */}

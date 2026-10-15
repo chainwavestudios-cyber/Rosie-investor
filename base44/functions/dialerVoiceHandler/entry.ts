@@ -45,6 +45,9 @@ export default async function(req) {
         const configs = await base44.entities.AIAgentConfig.filter({ configName: 'default' });
         if (configs?.[0]?.greeting) {
           greeting = configs[0].greeting;
+        } else {
+          // Default to Step 1 of the 5-step fronter script
+          greeting = 'Hi, may I speak with {{first_name}} please?';
         }
         if (leadId) {
           try { leadData = await base44.entities.FronterLead.get(leadId); } catch {}
