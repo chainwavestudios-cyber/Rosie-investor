@@ -1048,17 +1048,12 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
         )}
       </div>
 
-      {/* Script popout */}
+      {/* Script popout — clean floating window, no header name, just script content + drag/close/save */}
       {scriptPoppedOut && (
         <div style={{ position: 'fixed', left: scriptPos.x, top: scriptPos.y, width: scriptSize.w, height: scriptSize.h, background: '#0d1b2a', border: `1px solid ${GOLD}44`, borderRadius: '8px', boxShadow: '0 16px 64px rgba(0,0,0,0.8)', zIndex: 10001, display: 'flex', flexDirection: 'column' }}>
-          <div onMouseDown={onScriptDragStart} style={{ padding: '10px 14px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'move', userSelect: 'none', flexShrink: 0 }}>
-            <span style={{ color: GOLD, fontSize: '11px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase' }}>📜 {activeScript?.name || 'Script'}</span>
-            <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-              <button onClick={() => setScriptSize(s => ({ ...s, w: Math.max(300, s.w - 50) }))} style={{ background: 'rgba(255,255,255,0.05)', color: '#6b7280', border: 'none', borderRadius: '3px', padding: '2px 8px', cursor: 'pointer', fontSize: '12px' }}>−</button>
-              <button onClick={() => setScriptSize(s => ({ ...s, w: s.w + 50, h: s.h + 50 }))} style={{ background: 'rgba(255,255,255,0.05)', color: '#6b7280', border: 'none', borderRadius: '3px', padding: '2px 8px', cursor: 'pointer', fontSize: '12px' }}>+</button>
-              <button onClick={() => { const layout = loadFronterLayout(username); layout.script = { ...scriptPos, ...scriptSize }; saveFronterLayout(username, layout); savedLayoutRef.current = layout; setScriptSaveMsg(true); setTimeout(() => setScriptSaveMsg(false), 2000); }} style={{ background: scriptSaveMsg ? 'rgba(74,222,128,0.15)' : 'rgba(255,255,255,0.05)', color: scriptSaveMsg ? '#4ade80' : '#6b7280', border: `1px solid ${scriptSaveMsg ? 'rgba(74,222,128,0.4)' : 'rgba(255,255,255,0.1)'}`, borderRadius: '3px', padding: '2px 10px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>{scriptSaveMsg ? '✓ Saved' : '📐 Save Size'}</button>
-              <button onClick={() => setScriptPoppedOut(false)} style={{ background: 'none', border: 'none', color: '#6b7280', cursor: 'pointer', fontSize: '18px', padding: '0 4px' }}>×</button>
-            </div>
+          <div onMouseDown={onScriptDragStart} style={{ padding: '4px 10px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '6px', cursor: 'move', userSelect: 'none', flexShrink: 0, background: 'linear-gradient(135deg, rgba(16,185,129,0.06), transparent)' }}>
+            <button onClick={() => { const layout = loadFronterLayout(username); layout.script = { ...scriptPos, ...scriptSize }; saveFronterLayout(username, layout); savedLayoutRef.current = layout; setScriptSaveMsg(true); setTimeout(() => setScriptSaveMsg(false), 2000); }} style={{ background: scriptSaveMsg ? 'rgba(74,222,128,0.15)' : 'rgba(255,255,255,0.05)', color: scriptSaveMsg ? '#4ade80' : '#6b7280', border: `1px solid ${scriptSaveMsg ? 'rgba(74,222,128,0.4)' : 'rgba(255,255,255,0.1)'}`, borderRadius: '3px', padding: '2px 10px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>{scriptSaveMsg ? '✓ Saved' : '📐 Save Size'}</button>
+            <button onClick={() => setScriptPoppedOut(false)} style={{ background: 'none', border: 'none', color: '#6b7280', cursor: 'pointer', fontSize: '18px', padding: '0 4px' }}>×</button>
           </div>
           {scriptContent}
           <div onMouseDown={(e) => {
