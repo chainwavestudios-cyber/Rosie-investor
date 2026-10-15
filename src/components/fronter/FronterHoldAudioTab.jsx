@@ -19,6 +19,8 @@ export default function FronterHoldAudioTab({ adminUsername }) {
   const [uploading, setUploading] = useState(false);
   const [status, setStatus] = useState('');
   const [previewUrl, setPreviewUrl] = useState('');
+  const [transcribing, setTranscribing] = useState(false);
+  const [transcript, setTranscript] = useState('');
   const fileRef = useRef(null);
 
   const load = async () => {
@@ -100,6 +102,23 @@ export default function FronterHoldAudioTab({ adminUsername }) {
     }
   };
 
+  const handleTranscribe = async () => {
+    if (!previewUrl) return;
+    setTranscribing(true);
+    setTranscript('');
+    setStatus('Transcribing hold audio…');
+    try {
+      const res = await base44.integrations.Core.TranscribeAudio({ audio_url: previewUrl });
+      const text = typeof res === 'string' ? res : (res?.text || res?.transcript || JSON.stringify(res));
+      setTranscript(text);
+      setStatus('');
+    } catch (e) {
+      setStatus('✗ Transcription failed: ' + (e?.message || String(e)));
+      setTimeout(() => setStatus(''), 6000);
+    }
+    setTranscribing(false);
+  };
+
   if (loading) return <div style={{ color: '#4a5568', textAlign: 'center', padding: '40px' }}>Loading…</div>;
 
   return (
@@ -158,7 +177,20 @@ export default function FronterHoldAudioTab({ adminUsername }) {
           {previewUrl && (
             <div style={{ marginTop: '8px', paddingTop: '10px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
               <label style={ls}>Preview</label>
-              <audio controls src={previewUrl} style={{ width: '100%', height: '36px' }} />
+              <audio controls src={previewUrl} style={{ width: '100%', height: '36px', marginBottom: '10px' }} />
+              <button
+                onClick={handleTranscribe}
+                disabled={transcribing}
+                style={{ background: transcribing ? 'rgba(96,165,250,0.1)' : 'rgba(96,165,250,0.15)', color: BLUE, border: '1px solid rgba(96,165,250,0.3)', borderRadius: '4px', padding: '7px 16px', cursor: transcribing ? 'not-allowed' : 'pointer', fontSize: '11px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase', opacity: transcribing ? 0.6 : 1 }}
+              >
+                {transcribing ? '⏳ Transcribing…' : '📝 Transcribe Current Audio'}
+              </button>
+            </div>
+          )}
+          {transcript && (
+            <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+              <label style={ls}>Transcript (for re-recording)</label>
+              <div style={{ background: 'rgba(96,165,250,0.06)', border: '1px solid rgba(96,165,250,0.15)', borderRadius: '4px', padding: '12px', color: '#e8e0d0', fontSize: '13px', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{transcript}</div>
             </div>
           )}
         </div>
