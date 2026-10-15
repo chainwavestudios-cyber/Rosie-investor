@@ -7,7 +7,6 @@
  * Works for both FronterLead (leadType='fronter') and DebtLead (leadType='debt').
  */
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.52';
-import { callLLM } from '../../shared/llmHelper.ts';
 
 const FRONTER_FIELDS = `Extract these fields (only what the CUSTOMER explicitly states or confirms):
 - firstName (string): Customer's first name
@@ -151,14 +150,25 @@ Return ONLY this JSON (no markdown):
   "missingFields": ["fieldName1", "fieldName2", ...]
 }`;
 
-    const data = await callLLM(req, {
-      model: 'claude-sonnet-5',
-      max_tokens: 2000,
-      system,
-      messages: [{ role: 'user', content: `Current lead data:\n${JSON.stringify(cleanLead)}\n\nCall transcript:\n${transcriptStr}` }],
-    });
-
-    const text = data?.content?.[0]?.text || '{}';
+    // Use platform InvokeLLM directly with claude-sonnet-5 for reliable extraction.
+    // The direct Anthropic API rejects 'claude-sonnet-5' as a model ID (400 error)
+    // and the ANTHROPIC_API_KEY credits are exhausted, so InvokeLLM is the right path.
+    const base44 = createClientFromRequest(req);
+    const prompt = `${system}\n\nCurrent lead data:\n${JSON.stringify(cleanLead)}\n\nCall transcript:\n${transcriptStr}`;
+    let text = '{}';
+    try {
+      const res: any = await base44.asServiceRole.integrations.Core.InvokeLLM({
+        prompt,
+        model: 'claude-sonnet-5',
+      });
+      text = typeof res === 'string' ? res : (res?.text || res?.content?.[0]?.text || '{}');
+    } catch (e: any) {
+      const msg = e?.message || String(e);
+      if (msg.includes('quota') || msg.includes('credit') || msg.includes('429') || msg.includes('402') || msg.includes('limit') || msg.includes('exhausted')) {
+        return Response.json({ error: 'CREDIT_EXHAUSTED:' + msg, creditError: true }, { status: 500 });
+      }
+      throw e;
+    }
     try {
       const result = JSON.parse(text.replace(/```json|```/g, '').trim());
       return Response.json({

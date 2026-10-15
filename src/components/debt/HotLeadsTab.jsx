@@ -94,7 +94,9 @@ export default function HotLeadsTab({ onOpenLead, onOpenHeatMap }) {
     loadLeads();
     loadCalendar();
     const interval = setInterval(loadCalendar, 60000);
-    return () => clearInterval(interval);
+    // Realtime: refresh hot leads immediately when any DebtLead changes (tag/untag)
+    const unsubscribe = base44.entities.DebtLead.subscribe(() => { loadLeads(); });
+    return () => { clearInterval(interval); unsubscribe?.(); };
   }, [loadLeads, loadCalendar]);
 
   const removeHotTag = async (lead) => {

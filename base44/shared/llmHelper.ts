@@ -43,14 +43,15 @@ export async function callLLM(req: Request, body: any): Promise<any> {
     }
   }
 
-  // Fallback: InvokeLLM (platform credits)
+  // Fallback: InvokeLLM (platform credits) — pass the requested model so the
+  // fallback uses the same quality model instead of defaulting to 'automatic'.
   const base44 = createClientFromRequest(req);
   const prompt = system ? `${system}\n\n${userContent}` : userContent;
   try {
-    const res: any = await base44.asServiceRole.integrations.Core.InvokeLLM({
-      prompt,
-      ...(body?.response_json_schema ? { response_json_schema: body.response_json_schema } : {}),
-    });
+    const invokeOpts: any = { prompt };
+    if (body?.model) invokeOpts.model = body.model;
+    if (body?.response_json_schema) invokeOpts.response_json_schema = body.response_json_schema;
+    const res: any = await base44.asServiceRole.integrations.Core.InvokeLLM(invokeOpts);
     const text = typeof res === 'string' ? res : (res?.text || res?.content?.[0]?.text || JSON.stringify(res));
     return { content: [{ type: 'text', text }], usage: null };
   } catch (fbErr: any) {
