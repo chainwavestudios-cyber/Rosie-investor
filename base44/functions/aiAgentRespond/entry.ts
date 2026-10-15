@@ -32,8 +32,13 @@ import { xmlEscape, toE164 } from '../../shared/twilioHelpers.ts';
 import { callLLM } from '../../shared/llmHelper.ts';
 import { getPollyVoice } from '../../shared/aiVoiceMap.ts';
 import { prepareTransfer, FRONTER_SCRIPT_SYSTEM_PROMPT } from '../../shared/aiAgentHelpers.ts';
+import { verifyTwilioSignature } from '../../shared/verifyTwilioSignature.ts';
 
 const BASE_URL = 'https://rosieai-investorpage.base44.app';
+
+// In-memory guard: prevents duplicate transfer execution for the same CallSid.
+// Twilio can fire multiple speech callbacks before the first finishes.
+const transferringCalls = new Set<string>();
 
 // Map config LLM names to valid InvokeLLM model names (the Anthropic direct
 // call in llmHelper will fail for these and fall back to InvokeLLM, which
@@ -98,6 +103,19 @@ async function saveAiAgentTranscript(base44: any, callSid: string, leadId: strin
 }
 
 export default async function(req: Request): Promise<Response> {
+  // ── Read raw body once for signature verification, then parse ──
+  // req.text() consumes the body stream, so we parse from the raw string
+  // instead of calling req.formData() again.
+  const rawBody = await req.text();
+
+  // Verify Twilio signature (skips silently in dev/preview with no auth token)
+  if (!await verifyTwilioSignature(req, rawBody)) {
+    console.warn('[aiAgentRespond] Twilio signature verification failed');
+    return Response.json({ error: 'unauthorized' }, { status: 401 });
+  }
+
+  const form = new URLSearchParams(rawBody);
+
   try {
     const url = new URL(req.url);
     const leadId = url.searchParams.get('leadId') || '';
@@ -106,25 +124,19 @@ export default async function(req: Request): Promise<Response> {
 
     // ── Transfer fallback: primary dial ended (no answer) → dial 2nd line ──
     if (transferFallback && leadId) {
-      return await handleTransferFallback(req, leadId);
+      return await handleTransferFallback(req, leadId, form);
     }
 
     // ── Transfer NO CONNECT: 2nd dial also ended (no answer) → disconnect ──
     if (transferNoConnect && leadId) {
-      return await handleTransferNoConnect(req, leadId);
+      return await handleTransferNoConnect(req, leadId, form);
     }
 
     // ── Normal conversation flow ──
     // Twilio sends form-encoded SpeechResult
-    let speechResult = '';
-    let confidence = '';
-    let callSid = '';
-    try {
-      const form = await req.formData();
-      speechResult = (form.get('SpeechResult') || '').toString().trim();
-      confidence = (form.get('Confidence') || '').toString();
-      callSid = (form.get('CallSid') || '').toString();
-    } catch {}
+    const speechResult = (form.get('SpeechResult') || '').toString().trim();
+    const confidence = (form.get('Confidence') || '').toString();
+    const callSid = (form.get('CallSid') || '').toString();
 
     console.log('[aiAgentRespond] leadId:', leadId, 'speech:', speechResult, 'conf:', confidence);
 
@@ -151,12 +163,29 @@ export default async function(req: Request): Promise<Response> {
       return twimlResponse(`<Response><Say voice="${pollyVoice}">There was an error. Goodbye.</Say><Hangup/></Response>`);
     }
 
-    // ── Load conversation history from notes field ──
+    // ── Load conversation history from the call transcript (keyed by CallSid) ──
+    // This isolates conversation state per call, preventing contamination when
+    // the same lead is called twice or two calls overlap. Lead notes are kept
+    // free for human-authored notes and AI input summaries.
     let conversation: Array<{ role: string; content: string }> = [];
-    try {
-      const parsed = JSON.parse(leadData.notes || '[]');
-      if (Array.isArray(parsed)) conversation = parsed;
-    } catch {}
+    if (callSid) {
+      try {
+        const results = await base44.entities.FronterCallTranscript.filter({ callSid });
+        const items = results?.items || (Array.isArray(results) ? results : []);
+        const existingTranscript = items[0];
+        if (existingTranscript?.transcriptJson) {
+          const parsed = JSON.parse(existingTranscript.transcriptJson);
+          if (Array.isArray(parsed)) {
+            conversation = parsed.map((m: any) => ({
+              role: m.speaker === 0 ? 'assistant' : 'user',
+              content: m.text,
+            }));
+          }
+        }
+      } catch (e) {
+        console.warn('[aiAgentRespond] Failed to load transcript for callSid:', callSid, e?.message);
+      }
+    }
 
     // First turn: seed the conversation with the greeting so the LLM has context
     if (conversation.length === 0 && config.greeting) {
@@ -201,37 +230,36 @@ export default async function(req: Request): Promise<Response> {
 Conversation so far:
 ${conversationText}
 
-Respond as the Agent. Keep your response to 1-3 sentences since it will be spoken aloud on a phone call. Do not use formatting, emojis, or special characters. If the prospect is qualified and ready for transfer, say "TRANSFER" to connect them to an advisor. If the prospect is not qualified or not interested, say "ENDCALL" to end the call politely. Otherwise, continue the conversation naturally.`;
+Respond as the Agent. Keep your response to 1-3 sentences since it will be spoken aloud on a phone call. Do not use formatting, emojis, or special characters.
 
-    let llmResponse = 'I see, can you tell me more about that?';
+At the very end of your response, append an action tag on its own line:
+  [ACTION: transfer] — if the prospect is qualified and ready for transfer
+  [ACTION: end_call] — if the prospect is not qualified (debt under $10,000) or not interested
+  [ACTION: continue] — if the conversation should continue naturally
+Only include ONE action tag. The text before the tag is what gets spoken aloud.`;
+
+    let llmResponse = 'I see, can you tell me more about that? [ACTION: continue]';
     try {
-      const data = await callLLM(req, { model: llmModel, max_tokens: 300, system: filledPrompt, messages: [{ role: 'user', content: conversationText }] });
+      const data = await callLLM(req, { model: llmModel, max_tokens: 300, system: filledPrompt, messages: [{ role: 'user', content: prompt }] });
       llmResponse = data?.content?.[0]?.text || '';
-      if (llmResponse.length > 500) llmResponse = llmResponse.slice(0, 497) + '...';
+      if (llmResponse.length > 600) llmResponse = llmResponse.slice(0, 597) + '...';
     } catch (e) {
       console.error('[aiAgentRespond] LLM error:', e?.message);
     }
 
-    // Strip TRANSFER/ENDCALL keywords from the spoken response
-    const upperResponse = llmResponse.toUpperCase();
-    const wantsTransfer = upperResponse.includes('TRANSFER');
-    const wantsEndCall = upperResponse.includes('ENDCALL');
-    const spokenResponse = llmResponse.replace(/\bTRANSFER\b|\bENDCALL\b/gi, '').trim() || llmResponse;
+    // ── Structured action parsing: [ACTION: transfer|end_call|continue] ──
+    // More robust than keyword matching — the tag is clearly delimited and
+    // validated against an allowlist. Defaults to 'continue' if absent.
+    const actionMatch = llmResponse.match(/\[ACTION:\s*(transfer|end_call|continue)\s*\]/i);
+    const action = actionMatch ? actionMatch[1].toLowerCase() : 'continue';
+    const wantsTransfer = action === 'transfer';
+    const wantsEndCall = action === 'end_call';
+    const spokenResponse = llmResponse.replace(/\[ACTION:\s*(?:transfer|end_call|continue)\s*\]/gi, '').trim() || llmResponse;
 
     // Add agent response to conversation
     conversation.push({ role: 'assistant', content: spokenResponse });
 
-    // Save conversation back to lead (lightweight state buffer for Gather flow)
-    try {
-      await base44.entities.FronterLead.update(leadId, {
-        notes: JSON.stringify(conversation),
-        lastCalledAt: new Date().toISOString(),
-      });
-    } catch (e) {
-      console.warn('[aiAgentRespond] Failed to save conversation:', e?.message);
-    }
-
-    // Save transcript to FronterCallTranscript entity (proper storage)
+    // Save transcript to FronterCallTranscript entity (per-call conversation state)
     if (callSid) {
       try {
         await saveAiAgentTranscript(base44, callSid, leadId, `${leadData.firstName || ''} ${leadData.lastName || ''}`.trim(), conversation);
@@ -280,7 +308,7 @@ Respond as the Agent. Keep your response to 1-3 sentences since it will be spoke
 </Response>`);
   } catch (error) {
     console.error('[aiAgentRespond] Fatal error:', error?.message);
-    return twimlResponse(`<Response><Say voice="${pollyVoice}">I am sorry, there was an error. Goodbye.</Say><Hangup/></Response>`);
+    return twimlResponse(`<Response><Say voice="Polly.Joanna-Neural">I am sorry, there was an error. Goodbye.</Say><Hangup/></Response>`);
   }
 }
 
@@ -300,7 +328,44 @@ async function executeTransfer(req: Request, base44: any, leadData: any, config:
   const now = new Date().toISOString();
   const callerId = Deno.env.get('TWILIO_FROM_NUMBER') || '';
   const primaryNumber = config.transferPhoneNumber || '+16193530919';
-  const secondaryNumber = config.transferPhoneNumber2 || '+12162586934';
+  const pollyVoice = getPollyVoice(config.ttsVoiceModel || 'aura-2-thalia-en');
+
+  // ── Idempotency: prevent duplicate transfers for the same call ──
+  if (callSid && transferringCalls.has(callSid)) {
+    console.log('[aiAgentRespond] Transfer already in progress for callSid:', callSid, '— skipping');
+    return twimlResponse(`<Response><Hangup/></Response>`);
+  }
+  // Also check if the lead was already transferred (covers cross-call duplicates)
+  if (leadData.status === 'transferred') {
+    console.log('[aiAgentRespond] Lead already transferred — skipping');
+    return twimlResponse(`<Response><Hangup/></Response>`);
+  }
+  if (callSid) transferringCalls.add(callSid);
+
+  // ── Deterministic qualification: reject if debt is known and below $10k ──
+  // The LLM's system prompt instructs it to say ENDCALL for debt < $10k, but
+  // we enforce it here in code so a hallucinated TRANSFER can't bypass it.
+  if (leadData.debtAmount != null && leadData.debtAmount > 0 && leadData.debtAmount < 10000) {
+    console.log('[aiAgentRespond] Debt amount $' + leadData.debtAmount + ' below $10k threshold — denying transfer');
+    if (callSid) transferringCalls.delete(callSid);
+    try {
+      await base44.entities.FronterLead.update(leadId, {
+        callCount: (leadData.callCount || 0) + 1,
+        lastCallResult: 'not_interested',
+        status: 'removed',
+        lastCalledAt: now,
+      });
+    } catch {}
+    if (callSid) {
+      try {
+        await saveAiAgentTranscript(base44, callSid, leadId, `${leadData.firstName || ''} ${leadData.lastName || ''}`.trim(), conversation, 'not_interested');
+      } catch {}
+    }
+    return twimlResponse(`<Response>
+  <Say voice="${pollyVoice}">I appreciate your time, but our programs are designed for debt amounts of $10,000 or more. If your situation changes, please don't hesitate to reach out. Have a great day.</Say>
+  <Hangup/>
+</Response>`);
+  }
 
   console.log('[aiAgentRespond] → TRANSFER sequence for lead', leadId);
 
@@ -317,7 +382,6 @@ async function executeTransfer(req: Request, base44: any, leadData: any, config:
   }
 
   // 5. Return TwiML: transfer message → dial primary number
-  const pollyVoice = getPollyVoice(config.ttsVoiceModel || 'aura-2-thalia-en');
   const fallbackUrl = `${BASE_URL}/functions/aiAgentRespond?transferFallback=1&leadId=${encodeURIComponent(leadId)}`;
   const transferMessage = spokenResponse || 'Great! Let me connect you with one of our senior debt advisors. Please hold for just a moment.';
 
@@ -333,19 +397,13 @@ async function executeTransfer(req: Request, base44: any, leadData: any, config:
  * Transfer fallback — primary dial ended (no answer/voicemail).
  * Dial the secondary number with a no-connect action callback.
  */
-async function handleTransferFallback(req: Request, leadId: string): Promise<Response> {
+async function handleTransferFallback(req: Request, leadId: string, form: URLSearchParams): Promise<Response> {
   const base44 = createClientFromRequest(req).asServiceRole;
   const callerId = Deno.env.get('TWILIO_FROM_NUMBER') || '';
 
   // Check the primary dial result — only dial secondary if primary failed.
   // Twilio sends DialCallStatus in the action callback form data.
-  let dialStatus = '';
-  try {
-    const form = await req.formData();
-    dialStatus = (form.get('DialCallStatus') || '').toString();
-  } catch (e) {
-    console.warn('[aiAgentRespond] Failed to read DialCallStatus from fallback:', e?.message);
-  }
+  const dialStatus = (form.get('DialCallStatus') || '').toString();
 
   console.log('[aiAgentRespond] → Transfer fallback: primary DialCallStatus:', dialStatus);
 
@@ -381,18 +439,14 @@ async function handleTransferFallback(req: Request, leadId: string): Promise<Res
  * Transfer NO CONNECT — both lines failed.
  * Update lead disposition and hang up.
  */
-async function handleTransferNoConnect(req: Request, leadId: string): Promise<Response> {
+async function handleTransferNoConnect(req: Request, leadId: string, form: URLSearchParams): Promise<Response> {
   const base44 = createClientFromRequest(req).asServiceRole;
   const now = new Date().toISOString();
   const pollyVoice = getPollyVoice('aura-2-thalia-en');
 
   // Parse CallSid from the Dial action callback form data
-  let callSid = '';
+  const callSid = (form.get('CallSid') || '').toString();
   let leadName = '';
-  try {
-    const form = await req.formData();
-    callSid = (form.get('CallSid') || '').toString();
-  } catch {}
 
   console.log('[aiAgentRespond] → Transfer NO CONNECT: both lines failed for lead', leadId);
 
@@ -412,11 +466,18 @@ async function handleTransferNoConnect(req: Request, leadId: string): Promise<Re
       // Load lead for the name
       const lead = await base44.entities.FronterLead.get(leadId);
       leadName = `${lead?.firstName || ''} ${lead?.lastName || ''}`.trim();
-      // Load the conversation from notes (last saved state)
+      // Load the conversation from the call transcript (per-call state)
       let conversation: any[] = [];
       try {
-        const parsed = JSON.parse(lead?.notes || '[]');
-        if (Array.isArray(parsed)) conversation = parsed;
+        const results = await base44.entities.FronterCallTranscript.filter({ callSid });
+        const items = results?.items || (Array.isArray(results) ? results : []);
+        const transcript = items[0];
+        if (transcript?.transcriptJson) {
+          const parsed = JSON.parse(transcript.transcriptJson);
+          if (Array.isArray(parsed)) {
+            conversation = parsed.map((m: any) => ({ role: m.speaker === 0 ? 'assistant' : 'user', content: m.text }));
+          }
+        }
       } catch {}
       await saveAiAgentTranscript(base44, callSid, leadId, leadName, conversation, 'queued_no_connect');
     } catch (e) {
