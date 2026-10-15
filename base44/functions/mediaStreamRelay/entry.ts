@@ -165,6 +165,13 @@ async function handleTurn(base44: any, body: any): Promise<Response> {
     .replace(/\{\{city\}\}/g, lead?.city || '')
     .replace(/\{\{state\}\}/g, lead?.state || '');
 
+  // Append script flow, dynamic rebuttals, and Q&A tuning (configured but previously never sent to the LLM)
+  const promptSections = [filledPrompt];
+  if (config.scriptFlow) promptSections.push(`CALL EXECUTION FLOW:\n${config.scriptFlow}`);
+  if (config.dynamicRebuttals) promptSections.push(`OBJECTION HANDLING:\n${config.dynamicRebuttals}`);
+  if (config.qaTuning) promptSections.push(`TONE & Q&A GUIDANCE:\n${config.qaTuning}`);
+  const fullSystemPrompt = promptSections.join('\n\n---\n\n');
+
   // Build conversation text from structured messages (preserves role distinction)
   const conversationText = (conversation || [])
     .map((m: any) => `${m.role === 'user' ? 'Prospect' : 'Agent'}: ${m.content}`)
@@ -183,7 +190,7 @@ async function handleTurn(base44: any, body: any): Promise<Response> {
 
   try {
     const result = await base44.integrations.Core.InvokeLLM({
-      prompt: `${filledPrompt}
+      prompt: `${fullSystemPrompt}
 
 Conversation so far:
 ${conversationText}
