@@ -139,6 +139,7 @@ export default function AIAgentDialer({ adminUsername }) {
           city: lead.city,
           state: lead.state,
           debtAmount: lead.debtAmount,
+          leadId: lead.leadId,
           adminUsername,
         });
         const data = res?.data || res;
@@ -167,6 +168,33 @@ export default function AIAgentDialer({ adminUsername }) {
     setDialing(false);
     setCurrentIdx(-1);
     setStatus('Dialing stopped.');
+  };
+
+  // ── Load leads distributed to the AI dialer from the vault ──
+  const loadFromVault = async () => {
+    setError('');
+    try {
+      const page = await base44.entities.LeadVaultEntry.filter({ destination: 'ai_dialer' }, { sort: 'created_date', limit: 500 });
+      const entries = page?.items || page || [];
+      if (!entries || entries.length === 0) {
+        setError('No leads found in the vault assigned to the AI dialer. Distribute leads to "AI Dialer" in the Lead Vault first.');
+        return;
+      }
+      const leads = entries.map(e => ({
+        firstName: e.firstName || '',
+        lastName: e.lastName || '',
+        phone: e.phone || '',
+        city: e.city || '',
+        state: e.state || '',
+        debtAmount: e.debtAmount || 0,
+        leadId: e.fronterLeadId || '',
+        status: 'pending',
+      }));
+      setQueue(leads);
+      setStatus(`Loaded ${leads.length} leads from the vault. Click "Start Dialing" to begin.`);
+    } catch (e) {
+      setError('Failed to load vault leads: ' + (e?.message || String(e)));
+    }
   };
 
   const clearQueue = () => {
@@ -225,9 +253,14 @@ export default function AIAgentDialer({ adminUsername }) {
           Format: <span style={{ color: GOLD, fontFamily: 'monospace' }}>First Name, Last Name, Phone, City, State, Debt Amount</span> — one lead per line. A prospect contact card is created for each lead automatically.
         </div>
         <input ref={fileRef} type="file" accept=".csv,.txt" style={{ display: 'none' }} onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f); e.target.value = ''; }} />
-        <button onClick={() => fileRef.current?.click()} style={{ background: 'linear-gradient(135deg,#10b981,#22c55e)', color: DARK, border: 'none', borderRadius: '4px', padding: '8px 18px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>
-          📁 Upload CSV
-        </button>
+        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+          <button onClick={() => fileRef.current?.click()} style={{ background: 'linear-gradient(135deg,#10b981,#22c55e)', color: DARK, border: 'none', borderRadius: '4px', padding: '8px 18px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>
+            📁 Upload CSV
+          </button>
+          <button onClick={loadFromVault} style={{ background: 'linear-gradient(135deg,#a78bfa,#8b5cf6)', color: DARK, border: 'none', borderRadius: '4px', padding: '8px 18px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>
+            🏦 Load from Vault
+          </button>
+        </div>
       </div>
 
       {/* Queue stats + controls */}
