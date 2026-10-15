@@ -36,7 +36,8 @@
       "title": "STT Engine",
       "enum": [
         "deepgram-nova-2",
-        "deepgram-nova-3"
+        "deepgram-nova-3",
+        "flux"
       ],
       "default": "deepgram-nova-2"
     },

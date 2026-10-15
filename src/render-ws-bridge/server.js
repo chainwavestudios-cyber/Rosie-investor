@@ -493,30 +493,35 @@ async function handleStreamStop(streamSid) {
 
 // ── Deepgram streaming STT ──────────────────────────────────────────────
 function openDeepgram(session, streamSid) {
-  session.stt = { model: session.config.sttModel, state: 'connecting', at: new Date().toISOString() };
+  const sttModel = session.config.sttModel || 'nova-2';
+  const isFlux = sttModel.startsWith('flux');
+  session.stt = { model: sttModel, state: 'connecting', at: new Date().toISOString() };
   if (!DEEPGRAM_API_KEY) {
     session.stt.state = 'error'; session.stt.error = 'Deepgram key missing';
     log('no DEEPGRAM_API_KEY, skipping STT');
     return;
   }
 
-  const params = new URLSearchParams({
-    encoding: 'mulaw',
-    sample_rate: '8000',
-    channels: '1',
-    model: session.config.sttModel,
-    smart_format: 'true',
-    punctuate: 'true',
-    interim_results: 'true',
-    endpointing: '300',
-    vad_events: 'true',
-  });
+  // Flux uses /v2/listen with model-integrated turn detection (TurnInfo/EndOfTurn events).
+  // Nova uses /v1/listen with VAD + endpointing (speech_final events).
+  let params, endpoint;
+  if (isFlux) {
+    params = new URLSearchParams({ encoding: 'mulaw', sample_rate: '8000', channels: '1', model: sttModel });
+    endpoint = 'v2/listen';
+  } else {
+    params = new URLSearchParams({
+      encoding: 'mulaw', sample_rate: '8000', channels: '1', model: sttModel,
+      smart_format: 'true', punctuate: 'true', interim_results: 'true',
+      endpointing: '300', vad_events: 'true',
+    });
+    endpoint = 'v1/listen';
+  }
 
-  const dgWs = new WebSocket(`wss://api.deepgram.com/v1/listen?${params}`, {
+  const dgWs = new WebSocket(`wss://api.deepgram.com/${endpoint}?${params}`, {
     headers: { Authorization: `Token ${DEEPGRAM_API_KEY}` },
   });
 
-  dgWs.on('open', () => { session.stt.state = 'connected'; session.stt.at = new Date().toISOString(); log('deepgram connected', streamSid, session.config.sttModel); });
+  dgWs.on('open', () => { session.stt.state = 'connected'; session.stt.at = new Date().toISOString(); log('deepgram connected', streamSid, sttModel); });
 
   dgWs.on('message', (raw) => {
     let msg;
@@ -526,21 +531,35 @@ function openDeepgram(session, streamSid) {
       session.stt.state = 'accepted'; session.stt.at = new Date().toISOString();
       const modelInfo = Object.values(msg.metadata?.model_info || {})[0];
       if (modelInfo?.name) session.stt.providerModel = modelInfo.name;
-      const transcript = msg.channel?.alternatives?.[0]?.transcript || '';
+      // Nova: use VAD + speech_final for turn detection
+      if (!isFlux) {
+        const transcript = msg.channel?.alternatives?.[0]?.transcript || '';
+        if (msg.vad?.speech_start && session.state === 'speaking') {
+          log('barge-in detected, gen', session.generation);
+          session.generation++;
+          sendToTwilio(session.ws, { event: 'clear', streamSid });
+          session.state = 'listening';
+          return;
+        }
+        if (msg.speech_final && transcript.trim() && session.state === 'listening') {
+          log('speech_final:', transcript);
+          handleUtterance(streamSid, transcript);
+        }
+      }
+    }
 
-      // Barge-in: caller speaks during AI playback → interrupt
-      if (msg.vad?.speech_start && session.state === 'speaking') {
-        log('barge-in detected, gen', session.generation);
-        session.generation++; // invalidate current playback
+    // Flux: use TurnInfo events for model-integrated turn detection
+    if (isFlux && msg.type === 'TurnInfo') {
+      if (msg.event === 'StartOfTurn' && session.state === 'speaking') {
+        log('flux barge-in (StartOfTurn), gen', session.generation);
+        session.generation++;
         sendToTwilio(session.ws, { event: 'clear', streamSid });
         session.state = 'listening';
         return;
       }
-
-      // On speech_final, process the complete utterance
-      if (msg.speech_final && transcript.trim() && session.state === 'listening') {
-        log('speech_final:', transcript);
-        handleUtterance(streamSid, transcript);
+      if (msg.event === 'EndOfTurn' && msg.transcript && msg.transcript.trim() && session.state === 'listening') {
+        log('flux EndOfTurn:', msg.transcript);
+        handleUtterance(streamSid, msg.transcript);
       }
     }
   });
