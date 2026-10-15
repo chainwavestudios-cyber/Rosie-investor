@@ -99,16 +99,6 @@ function holdGatherTwiML(holdAudioUrl: string, actionUrl: string): string {
   return `<Response><Gather input="speech" action="${escAction}" timeout="60" speechTimeout="auto" hints="appointment" language="en-US">${playTag}<Say voice="Polly.Joanna-Neural">Please wait. Say appointment to schedule an appointment.</Say></Gather><Redirect>${escAction}&amp;timeout=1</Redirect></Response>`;
 }
 
-// ── Build hold-music-only TwiML (no Gather — used after appointment is booked) ──
-// After booking, the customer waits for the agent merge to complete. They hear
-// hold music only — no "say appointment" prompt, since they already booked.
-function holdMusicOnlyTwiML(holdAudioUrl: string): string {
-  const escHold = holdAudioUrl ? xmlEscape(holdAudioUrl) : '';
-  const playTag = escHold ? `<Play loop="0">${escHold}</Play>` : '';
-  if (!playTag) return `<Response><Say voice="Polly.Joanna-Neural">Please stay on the line. An agent will be with you shortly.</Say><Pause length="30"/><Redirect>${xmlEscape(BASE_URL + '/functions/appointmentVoiceHandler?step=wait')}</Redirect></Response>`;
-  return `<Response>${playTag}</Response>`;
-}
-
 // ── Build TTS TwiML (Flex voice via <Play>, fallback to <Say>) ──
 function ttsTwiML(ttsUrl: string, fallbackText: string): string {
   if (ttsUrl) return `<Play>${ttsUrl}</Play>`;
@@ -291,11 +281,11 @@ Return JSON:
       } catch {}
 
       if (!eventCreated) {
-        // Calendar booking failed — apologize, then hold music only (no Gather)
-        const ttsText = "I'm sorry, I couldn't book the appointment right now. Please stay on the line and an agent will be with you shortly.";
+        // Calendar booking failed — apologize and return to hold+Gather so they can try again
+        const ttsText = "I'm sorry, I couldn't book the appointment right now. Please stay on the line and try saying appointment again.";
         const ttsUrl = await generateFlexTTS(ttsText, base44);
         return new Response(
-          `<Response>${ttsTwiML(ttsUrl, ttsText)}${holdMusicOnlyTwiML(holdAudioUrl)}</Response>`,
+          `<Response>${ttsTwiML(ttsUrl, ttsText)}<Redirect>${xmlEscape(gatherUrl)}</Redirect></Response>`,
           { headers: { 'Content-Type': 'text/xml' } }
         );
       }
@@ -322,15 +312,15 @@ Return JSON:
         });
       } catch {}
 
-      // Generate confirmation TTS with Flex voice
+      // Generate confirmation TTS with Flex voice, then hang up
       const confirmText = wasRescheduled
-        ? `Great! I've scheduled your appointment for ${resolvedTime}. That time was taken so I moved it to the next available slot. We'll send a reminder to your email. Please stay on the line and an agent will be with you shortly.`
-        : `Great! I've scheduled your appointment for ${resolvedTime}. We'll send a reminder to your email. Please stay on the line and an agent will be with you shortly.`;
+        ? `Great! I've scheduled your appointment for ${resolvedTime}. That time was taken so I moved it to the next available slot. We'll send a reminder to your email. Thank you and have a great day!`
+        : `Great! I've scheduled your appointment for ${resolvedTime}. We'll send a reminder to your email. Thank you and have a great day!`;
       const ttsUrl = await generateFlexTTS(confirmText, base44);
 
-      // Return to hold after confirmation
+      // Appointment booked — hang up the customer
       return new Response(
-        `<Response>${ttsTwiML(ttsUrl, confirmText)}<Redirect>${xmlEscape(gatherUrl)}</Redirect></Response>`,
+        `<Response>${ttsTwiML(ttsUrl, confirmText)}<Hangup/></Response>`,
         { headers: { 'Content-Type': 'text/xml' } }
       );
     }
