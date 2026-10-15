@@ -1,0 +1,44 @@
+{
+  "name": "Appointment Reminders",
+  "description": "Checks DebtLead appointments every 15 minutes and sends reminder emails via Gmail: night-before email (with credential links + confirm/change buttons) and 1-hour-before email. Both emails include tracking pixels and link tracking.",
+  "definition": {
+    "document": {
+      "dsl": "1.0.0",
+      "name": "appointment_reminders",
+      "version": "1.0",
+      "namespace": "base44"
+    },
+    "do": [
+      {
+        "send_reminders": {
+          "call": "invoke_backend_function",
+          "with": {
+            "function_name": "sendAppointmentReminders"
+          },
+          "then": "end",
+          "x-base44": {
+            "title": "Send appointment reminders",
+            "description": "Check and send night-before + 1-hour-before appointment reminder emails"
+          }
+        }
+      }
+    ]
+  },
+  "trigger": {
+    "condition": null,
+    "config": {
+      "trigger_type": "scheduled",
+      "events": [],
+      "schedule_mode": "recurring",
+      "cron_expression": "*/15 * * * *",
+      "one_time_date": null,
+      "timezone": "America/New_York",
+      "interval_value": null,
+      "interval_unit": null,
+      "interval_anchor": null,
+      "ends_type": "never",
+      "ends_on_date": null,
+      "ends_after_count": null
+    }
+  }
+}

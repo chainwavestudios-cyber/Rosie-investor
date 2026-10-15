@@ -110,6 +110,27 @@ export default function LeadActivityTab({ lead }) {
 
   useEffect(() => { syncGoogleEvents(); }, [syncGoogleEvents]);
 
+  // Listen for AI Populate appointment extraction — auto-fill the calendar form
+  useEffect(() => {
+    const handler = (e) => {
+      const appt = e.detail;
+      if (appt && appt.appointmentDate) {
+        const dt = new Date(appt.appointmentDate);
+        const date = `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
+        const time = `${String(dt.getHours()).padStart(2, '0')}:${String(dt.getMinutes()).padStart(2, '0')}`;
+        setCalEvent(prev => ({
+          ...prev,
+          title: appt.appointmentTitle || 'Follow-up call',
+          date,
+          time,
+        }));
+        setShowCalendar(true);
+      }
+    };
+    window.addEventListener('ai_populate_appointment', handler);
+    return () => window.removeEventListener('ai_populate_appointment', handler);
+  }, []);
+
   // Realtime subscription
   useEffect(() => {
     if (!lead.id) return;
@@ -167,6 +188,24 @@ export default function LeadActivityTab({ lead }) {
         activityText: `📅 ${calEvent.title} — ${calEvent.date} at ${calEvent.time} (${calEvent.duration}min)`,
         createdBy: coachUser?.username || '',
         metadataJson: JSON.stringify({ date: calEvent.date, time: calEvent.time, duration: calEvent.duration, eventId: result.eventId, htmlLink: result.htmlLink }),
+      });
+      // Store appointment data on the DebtLead so reminder emails can be sent
+      await base44.entities.DebtLead.update(lead.id, {
+        appointmentDate: startDt.toISOString(),
+        appointmentTitle: calEvent.title,
+        appointmentEventId: result.eventId,
+        appointmentEventHtmlLink: result.htmlLink,
+        appointmentConfirmed: false,
+        appointmentConfirmedAt: null,
+        appointmentChangeRequested: false,
+        appointmentChangeRequestedAt: null,
+        nightBeforeReminderSentAt: null,
+        hourBeforeReminderSentAt: null,
+        apptEmailOpenedAt: null,
+        apptBbbClickedAt: null,
+        apptTrustpilotClickedAt: null,
+        apptWebsiteClickedAt: null,
+        apptHourReminderOpenedAt: null,
       });
       // Auto-register 1-hour and 5-minute popup reminders
       setEventReminders(lead, startDt.toISOString(), calEvent.title);

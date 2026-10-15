@@ -23,6 +23,23 @@ Deno.serve(async (req) => {
     } catch (e) {
       console.error('[emailTrackOpen] Failed to log:', e.message);
     }
+
+    // Update DebtLead appointment tracking fields if the sendId matches
+    try {
+      const lead = await base44.asServiceRole.entities.DebtLead.get(leadId);
+      if (lead) {
+        const updates: any = {};
+        if (sendId && sendId === lead.apptNightBeforeSendId && !lead.apptEmailOpenedAt) {
+          updates.apptEmailOpenedAt = new Date().toISOString();
+        }
+        if (sendId && sendId === lead.apptHourBeforeSendId && !lead.apptHourReminderOpenedAt) {
+          updates.apptHourReminderOpenedAt = new Date().toISOString();
+        }
+        if (Object.keys(updates).length > 0) {
+          await base44.asServiceRole.entities.DebtLead.update(leadId, updates);
+        }
+      }
+    } catch {}
   }
 
   // Return the 1x1 transparent GIF

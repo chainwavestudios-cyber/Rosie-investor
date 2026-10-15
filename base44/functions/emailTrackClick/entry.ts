@@ -22,6 +22,27 @@ Deno.serve(async (req) => {
     } catch (e) {
       console.error('[emailTrackClick] Failed to log:', e.message);
     }
+
+    // Update DebtLead appointment tracking fields based on clicked URL
+    try {
+      const lead = await base44.asServiceRole.entities.DebtLead.get(leadId);
+      if (lead) {
+        const decodedUrl = decodeURIComponent(targetUrl);
+        const updates: any = {};
+        if (decodedUrl.includes('trustpilot.com') && !lead.apptTrustpilotClickedAt) {
+          updates.apptTrustpilotClickedAt = new Date().toISOString();
+        }
+        if (decodedUrl.includes('bbb.org') && !lead.apptBbbClickedAt) {
+          updates.apptBbbClickedAt = new Date().toISOString();
+        }
+        if (decodedUrl.includes('debtadvisorsofamerica.com') && !lead.apptWebsiteClickedAt) {
+          updates.apptWebsiteClickedAt = new Date().toISOString();
+        }
+        if (Object.keys(updates).length > 0) {
+          await base44.asServiceRole.entities.DebtLead.update(leadId, updates);
+        }
+      }
+    } catch {}
   }
 
   // Redirect to the original URL

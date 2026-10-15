@@ -312,8 +312,13 @@ export default function HotLeadsTab({ onOpenLead, onOpenHeatMap }) {
           </div>
         ) : (
           <div style={{ maxHeight: '600px', overflowY: 'auto' }}>
-            {filtered.map(lead => (
-              <div key={lead.id} style={{ padding: '12px 18px', borderBottom: '1px solid rgba(255,255,255,0.04)', display: 'flex', alignItems: 'center', gap: '12px' }}>
+            {filtered.map(lead => {
+              const credClicks = [lead.apptBbbClickedAt, lead.apptTrustpilotClickedAt, lead.apptWebsiteClickedAt].filter(Boolean).length;
+              const fireHighlight = lead.apptEmailOpenedAt && credClicks >= 2;
+              const neonGreen = !!lead.apptHourReminderOpenedAt;
+              const highlightClass = fireHighlight ? 'hot-lead-fire-border' : neonGreen ? 'hot-lead-neon-green-border' : '';
+              return (
+              <div key={lead.id} className={highlightClass} style={{ padding: '12px 18px', borderBottom: '1px solid rgba(255,255,255,0.04)', display: 'flex', alignItems: 'center', gap: '12px', margin: '2px 4px', borderRadius: highlightClass ? '6px' : '0' }}>
                 <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: `linear-gradient(135deg,${RED},#f97316)`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: DARK, fontSize: '13px', fontWeight: 'bold', flexShrink: 0, textTransform: 'uppercase' }}>
                   {(lead.firstName?.[0] || '?')}{(lead.lastName?.[0] || '')}
                 </div>
@@ -322,6 +327,9 @@ export default function HotLeadsTab({ onOpenLead, onOpenHeatMap }) {
                     <span style={{ color: '#e8e0d0', fontSize: '13px', fontWeight: 'bold' }}>{lead.firstName} {lead.lastName}</span>
                     <span style={{ padding: '1px 7px', borderRadius: '8px', fontSize: '8px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.5px', background: `${RED}15`, color: RED, border: `1px solid ${RED}33` }}>🔥 Hot</span>
                     {lead.status && <span style={{ padding: '1px 7px', borderRadius: '8px', fontSize: '8px', fontWeight: 'bold', textTransform: 'uppercase', background: 'rgba(138,154,184,0.12)', color: '#8a9ab8' }}>{lead.status}</span>}
+                    {fireHighlight && <span style={{ padding: '1px 7px', borderRadius: '8px', fontSize: '8px', fontWeight: 'bold', textTransform: 'uppercase', background: 'rgba(239,68,68,0.15)', color: RED, border: `1px solid ${RED}44`, animation: 'pulse 1s infinite' }}>🔥 2/3 Links</span>}
+                    {neonGreen && <span style={{ padding: '1px 7px', borderRadius: '8px', fontSize: '8px', fontWeight: 'bold', textTransform: 'uppercase', background: 'rgba(16,185,129,0.15)', color: GOLD, border: `1px solid ${GOLD}44` }}>⏰ 1hr Opened</span>}
+                    {lead.appointmentConfirmed && <span style={{ padding: '1px 7px', borderRadius: '8px', fontSize: '8px', fontWeight: 'bold', textTransform: 'uppercase', background: 'rgba(16,185,129,0.15)', color: GOLD, border: `1px solid ${GOLD}44` }}>✅ Confirmed</span>}
                   </div>
                   <div style={{ color: '#6b7280', fontSize: '11px', marginTop: '2px', display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
                     {lead.phone && <span>📞 {lead.phone}</span>}
@@ -337,7 +345,8 @@ export default function HotLeadsTab({ onOpenLead, onOpenHeatMap }) {
                   <button onClick={() => removeHotTag(lead)} title="Remove hot lead tag" style={{ background: 'rgba(239,68,68,0.1)', color: RED, border: `1px solid ${RED}33`, borderRadius: '4px', padding: '5px 10px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>✕</button>
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

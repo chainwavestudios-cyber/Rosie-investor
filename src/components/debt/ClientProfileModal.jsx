@@ -15,6 +15,7 @@ import DebtCallBar from '@/components/debt/DebtCallBar';
 import { usePopOutPanel } from '@/hooks/usePopOutPanel';
 import LiveProfileAgent from '@/components/debt/LiveProfileAgent';
 import AIPopulateTab from '@/components/shared/AIPopulateTab';
+import ApptTrackingBadges from '@/components/debt/ApptTrackingBadges';
 
 const GOLD = '#10b981';
 const ls = { display: 'block', color: '#8a9ab8', fontSize: '9px', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '3px' };
@@ -304,7 +305,22 @@ export default function ClientProfileModal({ lead, username, onClose, onSave }) 
       {/* Content */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '16px' }}>
         <LiveProfileAgent local={local} update={update} onSave={save} lead={local} username={username} />
-        {tab === 'activity' && <LeadActivityTab lead={local} />}
+        {tab === 'activity' && (
+          <div>
+            {(local.appointmentDate || local.nightBeforeReminderSentAt || local.apptEmailOpenedAt) && (
+              <div style={{ marginBottom: '14px', padding: '10px 12px', background: 'rgba(0,0,0,0.2)', borderRadius: '6px', border: '1px solid rgba(16,185,129,0.15)' }}>
+                <div style={{ color: GOLD, fontSize: '9px', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '8px' }}>📧 Appointment Email Tracking</div>
+                <ApptTrackingBadges lead={local} />
+                {local.appointmentDate && (
+                  <div style={{ color: '#8a9ab8', fontSize: '11px', marginTop: '6px' }}>
+                    📅 Appointment: {new Date(local.appointmentDate).toLocaleString('en-US', { timeZone: 'America/New_York', weekday: 'long', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
+                  </div>
+                )}
+              </div>
+            )}
+            <LeadActivityTab lead={local} />
+          </div>
+        )}
 
         {tab === 'hardship' && (
           <div>
@@ -329,6 +345,20 @@ export default function ClientProfileModal({ lead, username, onClose, onSave }) 
 
         {tab === 'overview' && (
           <div>
+            {/* Appointment tracking badges */}
+            {(local.appointmentDate || local.apptEmailOpenedAt || local.nightBeforeReminderSentAt || local.hourBeforeReminderSentAt) && (
+              <div style={{ marginBottom: '16px', padding: '10px 12px', background: 'rgba(0,0,0,0.2)', borderRadius: '6px', border: '1px solid rgba(16,185,129,0.15)' }}>
+                <div style={{ color: GOLD, fontSize: '9px', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '8px' }}>📧 Appointment Email Tracking</div>
+                <ApptTrackingBadges lead={local} />
+                {local.appointmentDate && (
+                  <div style={{ color: '#8a9ab8', fontSize: '11px', marginTop: '6px' }}>
+                    📅 {new Date(local.appointmentDate).toLocaleString('en-US', { timeZone: 'America/New_York', weekday: 'long', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
+                    {local.appointmentConfirmed && ' ✅ Confirmed'}
+                    {local.appointmentChangeRequested && ' 🔄 Change Requested'}
+                  </div>
+                )}
+              </div>
+            )}
             {/* Contact Info */}
             <div style={{ color: GOLD, fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '10px' }}>Contact Information</div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px', marginBottom: '16px' }}>

@@ -1784,7 +1784,11 @@ ${recentText}`,
   // Called from EndCallDialog — always saves transcript + logs call; optionally soft-deletes lead
   const handleEndChoice = useCallback(async (shouldDelete) => {
     setShowEndDialog(false);
-    await stopCall();
+    try {
+      await stopCall();
+    } catch (e) {
+      console.error('stopCall error:', e);
+    }
     if (shouldDelete && leadRef.current?.id) {
       try {
         await base44.entities.DebtLead.update(leadRef.current.id, {

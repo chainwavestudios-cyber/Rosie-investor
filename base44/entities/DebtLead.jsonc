@@ -251,6 +251,86 @@
     "deletedBy": {
       "type": "string",
       "title": "Soft-Deleted By (username)"
+    },
+    "appointmentDate": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Appointment Date/Time (Google Calendar event start)"
+    },
+    "appointmentTitle": {
+      "type": "string",
+      "title": "Appointment Title"
+    },
+    "appointmentEventId": {
+      "type": "string",
+      "title": "Google Calendar Event ID"
+    },
+    "appointmentEventHtmlLink": {
+      "type": "string",
+      "title": "Google Calendar Event HTML Link"
+    },
+    "appointmentConfirmed": {
+      "type": "boolean",
+      "title": "Appointment Confirmed by Client",
+      "default": false
+    },
+    "appointmentConfirmedAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Appointment Confirmed At"
+    },
+    "appointmentChangeRequested": {
+      "type": "boolean",
+      "title": "Client Requested Appointment Change",
+      "default": false
+    },
+    "appointmentChangeRequestedAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Appointment Change Requested At"
+    },
+    "nightBeforeReminderSentAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Night-Before Reminder Email Sent At"
+    },
+    "hourBeforeReminderSentAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "1-Hour Reminder Email Sent At"
+    },
+    "apptNightBeforeSendId": {
+      "type": "string",
+      "title": "Night-Before Email Send ID (for tracking)"
+    },
+    "apptHourBeforeSendId": {
+      "type": "string",
+      "title": "1-Hour Email Send ID (for tracking)"
+    },
+    "apptEmailOpenedAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Reminder Email Opened At (night-before)"
+    },
+    "apptBbbClickedAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "BBB Link Clicked At"
+    },
+    "apptTrustpilotClickedAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Trustpilot Link Clicked At"
+    },
+    "apptWebsiteClickedAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Company Website Link Clicked At"
+    },
+    "apptHourReminderOpenedAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "1-Hour Reminder Email Opened At"
     }
   },
   "required": [

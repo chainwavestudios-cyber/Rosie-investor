@@ -49,6 +49,12 @@ const DEBT_FIELDS = `Extract these fields (only what the CUSTOMER explicitly sta
 - hardshipWhy (string): Why the hardship happened
 - hardshipHow (string): How the hardship impacted finances
 
+APPOINTMENT EXTRACTION (only for debt leads):
+- If the customer agreed to a specific date and time for a follow-up/consultation call, extract it.
+- appointmentDate (string): ISO 8601 date-time string (e.g. "2026-01-15T14:00:00"). Use the current year (2026) if not specified. Convert relative dates ("tomorrow", "next Tuesday") to absolute dates. Assume the timezone is America/New_York if not specified.
+- appointmentTitle (string): A short title for the appointment (e.g. "Follow-up call", "Consultation call", "Debt review call")
+- Only extract if the customer EXPLICITLY agreed to a specific date AND time. Do not extract vague statements like "call me next week" without a specific day and time.
+
 IMPORTANT FIELDS TO CHECK (report as missingFields if still empty/null AND not mentioned in transcript):
 - email, address, city, state, zip, dateOfBirth, debtAmount, employmentStatus, monthlyIncome, hardshipWhen, hardshipWhy`;
 
@@ -147,8 +153,11 @@ Return ONLY this JSON (no markdown):
     { "fieldName": "email", "oldValue": "old@email.com", "newValue": "new@email.com" },
     ...
   ],
-  "missingFields": ["fieldName1", "fieldName2", ...]
-}`;
+  "missingFields": ["fieldName1", "fieldName2", ...],
+  "appointment": { "appointmentDate": "2026-01-15T14:00:00", "appointmentTitle": "Follow-up call" } | null
+}
+
+If no appointment was discussed or agreed upon, set "appointment" to null.`;
 
     // Use platform InvokeLLM directly with claude-sonnet-5 for reliable extraction.
     // The direct Anthropic API rejects 'claude-sonnet-5' as a model ID (400 error)
@@ -175,6 +184,7 @@ Return ONLY this JSON (no markdown):
         updates: result.updates || {},
         overwrites: result.overwrites || [],
         missingFields: result.missingFields || [],
+        appointment: result.appointment || null,
       });
     } catch {
       return Response.json({ updates: {}, overwrites: [], missingFields: [] });

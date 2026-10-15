@@ -1,0 +1,46 @@
+<mjml>
+  <mj-head>
+    <mj-title>Reminder: Your call tomorrow at {{timeofappointment}}</mj-title>
+    <mj-preview>Reminder from Debt Advisors of America — call tomorrow at {{timeofappointment}}</mj-preview>
+    <mj-attributes>
+      <mj-all font-family="Arial, Helvetica, sans-serif" />
+      <mj-section background-color="#ffffff" padding="0 36px" />
+      <mj-text color="#0d1117" font-size="15px" line-height="1.6" padding="0" />
+      <mj-button background-color="#10b981" border-radius="8px" font-weight="700" inner-padding="14px 28px" align="left" />
+    </mj-attributes>
+  </mj-head>
+  <mj-body background-color="#f4f4f5">
+    <mj-section padding="40px 36px 12px">
+      <mj-column>
+        <mj-text font-size="24px" font-weight="bold" color="#0a1c42">Good evening {{firstname}},</mj-text>
+      </mj-column>
+    </mj-section>
+    <mj-section padding="0 36px 20px">
+      <mj-column>
+        <mj-text>Just wanted to remind you of our scheduled phone call tomorrow at <strong>{{timeofappointment}}</strong>.</mj-text>
+        <mj-text>I look forward to helping you explore options to get debt free and eliminate your high interest rates, and any future interest.</mj-text>
+      </mj-column>
+    </mj-section>
+    <mj-section padding="0 36px 20px" background-color="#f0f7ff">
+      <mj-column>
+        <mj-text font-weight="bold" color="#0a1c42" font-size="14px">Below are links to our company website, the BBB and our Trust Pilot Reviews:</mj-text>
+        <mj-text padding="8px 0">
+          <a href="https://www.trustpilot.com/review/debtadvisorsofamerica.com" style="color:#10b981;text-decoration:underline;font-weight:bold;">Trust Pilot Reviews - Debt Advisors of America</a><br>
+          <a href="https://www.bbb.org/us/ca/san-diego/profile/debt-relief-services/debt-advisors-of-america-1126-1000064078" style="color:#10b981;text-decoration:underline;font-weight:bold;">BBB Credentials: Better Business Bureau - Debt Advisors of America</a><br>
+          <a href="https://www.debtadvisorsofamerica.com/" style="color:#10b981;text-decoration:underline;font-weight:bold;">Our website: Debt Advisors of America Website</a>
+        </mj-text>
+      </mj-column>
+    </mj-section>
+    <mj-section padding="12px 36px 24px">
+      <mj-column>
+        <mj-button href="{{confirm_url}}" background-color="#10b981" color="#ffffff">Confirm Appointment</mj-button>
+        <mj-button href="{{change_url}}" background-color="#6b7280" color="#ffffff" padding-top="8px">Change Appointment Time</mj-button>
+      </mj-column>
+    </mj-section>
+    <mj-section padding="0 36px 40px">
+      <mj-column>
+        <mj-raw>{{email_signature}}</mj-raw>
+      </mj-column>
+    </mj-section>
+  </mj-body>
+</mjml>

@@ -110,6 +110,11 @@ export default function AIPopulateTab({ lead, leadType = 'debt', onUpdate }) {
           const updates = data?.updates || {};
           const overwrites = data?.overwrites || [];
 
+          // Dispatch appointment info so the Activity tab can auto-fill the calendar form
+          if (data?.appointment && data.appointment.appointmentDate) {
+            window.dispatchEvent(new CustomEvent('ai_populate_appointment', { detail: data.appointment }));
+          }
+
           const updateCount = Object.keys(updates).length;
           totalUpdates += updateCount;
 

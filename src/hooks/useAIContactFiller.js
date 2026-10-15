@@ -44,6 +44,12 @@ export function useAIContactFiller({ leadId, leadType, transcript, isActive }) {
       const data = res?.data || res;
       const updates = data?.updates || {};
       const newOverwrites = data?.overwrites || [];
+      const appointment = data?.appointment || null;
+
+      // Dispatch appointment info so the Activity tab can auto-fill the calendar form
+      if (appointment && appointment.appointmentDate) {
+        window.dispatchEvent(new CustomEvent('ai_populate_appointment', { detail: appointment }));
+      }
 
       if (Object.keys(updates).length === 0) {
         setLastRunAt(new Date().toISOString());
