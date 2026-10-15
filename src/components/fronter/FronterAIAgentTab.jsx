@@ -11,6 +11,7 @@ import AIAgentVoiceSection from './aiagent/AIAgentVoiceSection';
 import AIAgentKnowledgeSection from './aiagent/AIAgentKnowledgeSection';
 import AIAgentPromptSection, { DEFAULT_GREETING, DEFAULT_SYSTEM_PROMPT, DEFAULT_SCRIPT_FLOW, DEFAULT_REBUTTALS, DEFAULT_QA_TUNING } from './aiagent/AIAgentPromptSection';
 import AIAgentDialer from './AIAgentDialer';
+import AIAgentLiveConfig from './aiagent/AIAgentLiveConfig';
 
 const GOLD = '#10b981';
 const DARK = '#0a0f1e';
@@ -154,6 +155,9 @@ export default function FronterAIAgentTab({ adminUsername }) {
       )}
 
       {error && <div style={{ color: RED, fontSize: '12px', marginBottom: '12px' }}>⚠ {error}</div>}
+
+      {/* Live Config — shows what's actually being used on calls */}
+      <AIAgentLiveConfig config={config} />
 
       {/* Telephony */}
       <div style={{ background: '#0d1b2a', border: '1px solid rgba(16,185,129,0.15)', borderRadius: '6px', padding: '18px', marginBottom: '16px' }}>

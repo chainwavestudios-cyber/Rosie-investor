@@ -30,16 +30,20 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.52';
 import { xmlEscape, toE164 } from '../../shared/twilioHelpers.ts';
 import { callLLM } from '../../shared/llmHelper.ts';
+import { getPollyVoice } from '../../shared/aiVoiceMap.ts';
 import { extractDebtData, extractContactData, generateCallSummary, sendCredentialsEmail, FRONTER_SCRIPT_SYSTEM_PROMPT } from '../../shared/aiAgentHelpers.ts';
 
 const BASE_URL = 'https://rosieai-investorpage.base44.app';
 
+// Map config LLM names to valid InvokeLLM model names (the Anthropic direct
+// call in llmHelper will fail for these and fall back to InvokeLLM, which
+// recognizes these exact names).
 const MODEL_MAP: Record<string, string> = {
   'claude-sonnet-5': 'claude-sonnet-5',
-  'claude-opus-5': 'claude_opus_5_5',
-  'claude-sonnet-4-6': 'claude-sonnet-5',
-  'gpt-5-4': 'gpt_6_sol',
-  'gemini-3-1-pro': 'gemini_3_8_flash',
+  'claude-opus-5': 'claude_opus_5',
+  'claude-sonnet-4-6': 'claude_sonnet_4_6',
+  'gpt-5-4': 'gpt_5_4',
+  'gemini-3-1-pro': 'gemini_3_1_pro',
 };
 
 function twimlResponse(twiml: string) {
@@ -91,8 +95,13 @@ export default async function(req: Request): Promise<Response> {
     const leadData = lead.status === 'fulfilled' ? lead.value : null;
     const config = configs.status === 'fulfilled' && configs.value?.[0] ? configs.value[0] : {};
 
+    // Resolve the TTS voice from config — maps to a Twilio Polly voice
+    const pollyVoice = getPollyVoice(config.ttsVoiceModel || 'aura-2-thalia-en');
+    const llmModel = MODEL_MAP[config.llmModel] || 'claude-sonnet-5';
+    console.log('[aiAgentRespond] Voice:', pollyVoice, '| LLM:', llmModel, '| TTS config:', config.ttsVoiceModel, '| LLM config:', config.llmModel);
+
     if (!leadData) {
-      return twimlResponse(`<Response><Say voice="Polly.Joanna-Neural">There was an error. Goodbye.</Say><Hangup/></Response>`);
+      return twimlResponse(`<Response><Say voice="${pollyVoice}">There was an error. Goodbye.</Say><Hangup/></Response>`);
     }
 
     // ── Load conversation history from notes field ──
@@ -114,9 +123,9 @@ export default async function(req: Request): Promise<Response> {
     if (!speechResult) {
       const respondUrl = `${BASE_URL}/functions/aiAgentRespond?leadId=${encodeURIComponent(leadId)}`;
       return twimlResponse(`<Response>
-  <Say voice="Polly.Joanna-Neural">Are you still there?</Say>
+  <Say voice="${pollyVoice}">Are you still there?</Say>
   <Gather input="speech" speechTimeout="auto" action="${respondUrl}" method="POST" language="en-US" enhanced="true" speechModel="conversational" />
-  <Say voice="Polly.Joanna-Neural">I'll try again later. Have a good day. Goodbye.</Say>
+  <Say voice="${pollyVoice}">I'll try again later. Have a good day. Goodbye.</Say>
   <Hangup/>
 </Response>`);
     }
@@ -149,8 +158,7 @@ Respond as the Agent. Keep your response to 1-3 sentences since it will be spoke
 
     let llmResponse = 'I see, can you tell me more about that?';
     try {
-      const model = MODEL_MAP[config.llmModel] || 'claude-sonnet-5';
-      const data = await callLLM(req, { model, max_tokens: 300, system: filledPrompt, messages: [{ role: 'user', content: conversationText }] });
+      const data = await callLLM(req, { model: llmModel, max_tokens: 300, system: filledPrompt, messages: [{ role: 'user', content: conversationText }] });
       llmResponse = data?.content?.[0]?.text || '';
       if (llmResponse.length > 500) llmResponse = llmResponse.slice(0, 497) + '...';
     } catch (e) {
@@ -188,7 +196,7 @@ Respond as the Agent. Keep your response to 1-3 sentences since it will be spoke
         });
       } catch {}
       return twimlResponse(`<Response>
-  <Say voice="Polly.Joanna-Neural">${xmlEscape(spokenResponse)}</Say>
+  <Say voice="${pollyVoice}">${xmlEscape(spokenResponse)}</Say>
   <Hangup/>
 </Response>`);
     }
@@ -201,16 +209,16 @@ Respond as the Agent. Keep your response to 1-3 sentences since it will be spoke
     // ── Continue the conversation ──
     const respondUrl = `${BASE_URL}/functions/aiAgentRespond?leadId=${encodeURIComponent(leadId)}`;
     return twimlResponse(`<Response>
-  <Say voice="Polly.Joanna-Neural">${xmlEscape(spokenResponse)}</Say>
+  <Say voice="${pollyVoice}">${xmlEscape(spokenResponse)}</Say>
   <Gather input="speech" speechTimeout="auto" action="${respondUrl}" method="POST" language="en-US" enhanced="true" speechModel="conversational" />
-  <Say voice="Polly.Joanna-Neural">I didn't catch that. Can you repeat that?</Say>
+  <Say voice="${pollyVoice}">I didn't catch that. Can you repeat that?</Say>
   <Gather input="speech" speechTimeout="auto" action="${respondUrl}" method="POST" language="en-US" enhanced="true" speechModel="conversational" />
-  <Say voice="Polly.Joanna-Neural">I'll try again later. Goodbye.</Say>
+  <Say voice="${pollyVoice}">I'll try again later. Goodbye.</Say>
   <Hangup/>
 </Response>`);
   } catch (error) {
     console.error('[aiAgentRespond] Fatal error:', error?.message);
-    return twimlResponse(`<Response><Say voice="Polly.Joanna-Neural">I am sorry, there was an error. Goodbye.</Say><Hangup/></Response>`);
+    return twimlResponse(`<Response><Say voice="${pollyVoice}">I am sorry, there was an error. Goodbye.</Say><Hangup/></Response>`);
   }
 }
 
@@ -315,7 +323,7 @@ async function executeTransfer(req: Request, base44: any, leadData: any, config:
   const transferMessage = spokenResponse || 'Great! Let me connect you with one of our senior debt advisors. Please hold for just a moment.';
 
   return twimlResponse(`<Response>
-  <Say voice="Polly.Joanna-Neural">${xmlEscape(transferMessage)}</Say>
+  <Say voice="${pollyVoice}">${xmlEscape(transferMessage)}</Say>
   <Dial callerId="${xmlEscape(callerId)}" timeout="30" action="${xmlEscape(fallbackUrl)}" method="POST">
     <Number>${xmlEscape(primaryNumber)}</Number>
   </Dial>
@@ -337,12 +345,13 @@ async function handleTransferFallback(req: Request, leadId: string): Promise<Res
   } catch {}
 
   const secondaryNumber = config.transferPhoneNumber2 || '+12162586934';
+  const pollyVoice = getPollyVoice(config.ttsVoiceModel || 'aura-2-thalia-en');
   const noConnectUrl = `${BASE_URL}/functions/aiAgentRespond?transferNoConnect=1&leadId=${encodeURIComponent(leadId)}`;
 
   console.log('[aiAgentRespond] → Transfer fallback: dialing 2nd line', secondaryNumber);
 
   return twimlResponse(`<Response>
-  <Say voice="Polly.Joanna-Neural">Let me try connecting you to another advisor. Please hold.</Say>
+  <Say voice="${pollyVoice}">Let me try connecting you to another advisor. Please hold.</Say>
   <Dial callerId="${xmlEscape(callerId)}" timeout="30" action="${xmlEscape(noConnectUrl)}" method="POST">
     <Number>${xmlEscape(secondaryNumber)}</Number>
   </Dial>
@@ -356,6 +365,7 @@ async function handleTransferFallback(req: Request, leadId: string): Promise<Res
 async function handleTransferNoConnect(req: Request, leadId: string): Promise<Response> {
   const base44 = createClientFromRequest(req).asServiceRole;
   const now = new Date().toISOString();
+  const pollyVoice = getPollyVoice('aura-2-thalia-en');
 
   console.log('[aiAgentRespond] → Transfer NO CONNECT: both lines failed for lead', leadId);
 
@@ -370,7 +380,7 @@ async function handleTransferNoConnect(req: Request, leadId: string): Promise<Re
   }
 
   return twimlResponse(`<Response>
-  <Say voice="Polly.Joanna-Neural">I'm sorry, our senior advisors are currently assisting other clients. We will call you back shortly to connect you with an advisor. Thank you for your patience. Have a great day.</Say>
+  <Say voice="${pollyVoice}">I'm sorry, our senior advisors are currently assisting other clients. We will call you back shortly to connect you with an advisor. Thank you for your patience. Have a great day.</Say>
   <Hangup/>
 </Response>`);
 }

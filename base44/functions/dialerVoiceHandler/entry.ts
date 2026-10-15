@@ -14,6 +14,7 @@ import { xmlEscape } from '../../shared/twilioHelpers.ts';
 import twilioVoiceParams from '../../shared/twilioVoiceParams.ts';
 import { checkCallCutoff } from '../../shared/phoneTimeZone.ts';
 import { verifyCallCutoffOverride } from '../../shared/callCutoffOverride.ts';
+import { getPollyVoice } from '../../shared/aiVoiceMap.ts';
 
 export default async function(req) {
   // ── Always return valid TwiML — never let Twilio see a 5xx ──────────
@@ -39,6 +40,7 @@ export default async function(req) {
       const leadId = url.searchParams.get('LeadId') || '';
       let greeting = 'Hi, may I speak with {{first_name}} please?';
       let leadData: any = null;
+      let pollyVoice = 'Polly.Joanna-Neural';
       try {
         const { createClientFromRequest } = await import('npm:@base44/sdk@0.8.52');
         const base44 = createClientFromRequest(req).asServiceRole;
@@ -49,6 +51,7 @@ export default async function(req) {
           // Default to Step 1 of the 5-step fronter script
           greeting = 'Hi, may I speak with {{first_name}} please?';
         }
+        pollyVoice = getPollyVoice(configs?.[0]?.ttsVoiceModel || 'aura-2-thalia-en');
         if (leadId) {
           try { leadData = await base44.entities.FronterLead.get(leadId); } catch {}
         }
@@ -71,9 +74,9 @@ export default async function(req) {
       const respondUrl = `https://rosieai-investorpage.base44.app/functions/aiAgentRespond?leadId=${encodeURIComponent(leadId)}`;
       const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Say voice="Polly.Joanna-Neural">${xmlEscape(greeting)}</Say>
+  <Say voice="${pollyVoice}">${xmlEscape(greeting)}</Say>
   <Gather input="speech" speechTimeout="auto" action="${respondUrl}" method="POST" language="en-US" enhanced="true" speechModel="conversational" />
-  <Say voice="Polly.Joanna-Neural">I didn't catch that. I'll try again later. Goodbye.</Say>
+  <Say voice="${pollyVoice}">I didn't catch that. I'll try again later. Goodbye.</Say>
   <Hangup/>
 </Response>`;
       console.log('[dialerVoiceHandler] → Mode AI Agent outbound, leadId:', leadId);
