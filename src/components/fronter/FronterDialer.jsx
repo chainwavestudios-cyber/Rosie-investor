@@ -65,6 +65,7 @@ export default function FronterDialer({ lead, username, lineKey, lineNumber, onC
   useEffect(() => {
     if (hangupSignal > 0 && callRef.current) {
       try { callRef.current.disconnect(); } catch {}
+      callRef.current = null;
       stopTimer();
       if (saveIntervalRef.current) { clearInterval(saveIntervalRef.current); saveIntervalRef.current = null; }
       try { deepgram.stop(); } catch {}
@@ -322,6 +323,7 @@ Provide your analysis as JSON with these fields:
       if (mergeStepRef.current === 'connected' && conferenceNameRef.current) {
         try { await base44.functions.invoke('fronterCall', { action: 'mergeConnect', conferenceName: conferenceNameRef.current, fronterCallSid: callRef.current?.parameters?.CallSid }); } catch {}
       }
+      callRef.current = null;
       stopTimer();
       if (saveIntervalRef.current) { clearInterval(saveIntervalRef.current); saveIntervalRef.current = null; }
       deepgram.stop();
@@ -380,6 +382,7 @@ Provide your analysis as JSON with these fields:
     });
     call.on('cancel', () => {
       stopRingback();
+      callRef.current = null;
       stopTimer();
       if (saveIntervalRef.current) { clearInterval(saveIntervalRef.current); saveIntervalRef.current = null; }
       deepgram.stop();
@@ -388,7 +391,11 @@ Provide your analysis as JSON with these fields:
     });
     call.on('error', (e) => {
       stopRingback();
-      setError(e.message); stopTimer();
+      callRef.current = null;
+      // 31000 "Call is no longer valid" fires when the call already ended — not actionable, suppress it
+      const isStaleCall = (e?.code === 31000 || /31000|no longer valid/i.test(e?.message || ''));
+      if (!isStaleCall) setError(e.message);
+      stopTimer();
       if (saveIntervalRef.current) { clearInterval(saveIntervalRef.current); saveIntervalRef.current = null; }
       deepgram.stop();
       recorderRef.current.cancel();
@@ -433,6 +440,7 @@ Provide your analysis as JSON with these fields:
   };
 
   const toggleMute = () => {
+    if (!callRef.current) return;
     setMuted(prev => {
       const next = !prev;
       try { callRef.current?.mute(next); } catch {}
@@ -530,6 +538,7 @@ Provide your analysis as JSON with these fields:
 
   const disconnect = () => {
     try { callRef.current?.disconnect(); } catch {}
+    callRef.current = null;
     stopTimer();
   };
 
