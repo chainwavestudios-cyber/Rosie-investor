@@ -95,10 +95,15 @@ export default function HotLeadsTab({ onOpenLead, onOpenHeatMap }) {
   useEffect(() => {
     loadLeads();
     loadCalendar();
-    const interval = setInterval(loadCalendar, 60000);
+    // Auto-refresh hot leads every 30s — catches new tags even if realtime misses
+    const leadInterval = setInterval(loadLeads, 30000);
+    const calInterval = setInterval(loadCalendar, 60000);
     // Realtime: refresh hot leads immediately when any DebtLead changes (tag/untag)
     const unsubscribe = base44.entities.DebtLead.subscribe(() => { loadLeads(); });
-    return () => { clearInterval(interval); unsubscribe?.(); };
+    // Refresh when the page becomes visible (switching back to this tab)
+    const onVisibility = () => { if (!document.hidden) { loadLeads(); loadCalendar(); } };
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => { clearInterval(leadInterval); clearInterval(calInterval); unsubscribe?.(); document.removeEventListener('visibilitychange', onVisibility); };
   }, [loadLeads, loadCalendar]);
 
   const removeHotTag = async (lead) => {
@@ -134,6 +139,68 @@ export default function HotLeadsTab({ onOpenLead, onOpenHeatMap }) {
       }
     } catch (e) {
       alert('Failed to send reschedule email: ' + (e?.message || String(e)));
+    }
+    setRescheduling(prev => ({ ...prev, [ev.id]: false }));
+  };
+
+  // Rebook a missed appointment — searches ALL leads (not just hot leads) by
+  // attendee email or name from the event title. If found with an email, sends
+  // the reschedule email. If no lead found, opens the Google Calendar link.
+  const rebookAppointment = async (ev) => {
+    setRescheduling(prev => ({ ...prev, [ev.id]: true }));
+    try {
+      let foundLead = null;
+
+      // 1. Try matching by attendee email
+      if (ev.attendees?.length > 0) {
+        for (const email of ev.attendees) {
+          if (!email || !email.includes('@')) continue;
+          try {
+            const page = await base44.entities.DebtLead.filter(
+              { email: { $regex: email, $options: 'i' } },
+              { limit: 1 }
+            );
+            const items = page?.items || page || [];
+            if (items[0]) { foundLead = items[0]; break; }
+          } catch {}
+        }
+      }
+
+      // 2. Try matching by name from the event title
+      if (!foundLead) {
+        const title = (ev.title || '').trim();
+        // Strip phone numbers and common suffixes to get the name
+        const namePart = title.replace(/\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}/g, '').replace(/[-–—].*$/, '').trim();
+        const nameMatch = namePart.match(/^([A-Za-z]+)\s+([A-Za-z]+)/);
+        if (nameMatch) {
+          const [, firstName, lastName] = nameMatch;
+          try {
+            const page = await base44.entities.DebtLead.filter(
+              { firstName: { $regex: `^${firstName}$`, $options: 'i' }, lastName: { $regex: `^${lastName}$`, $options: 'i' } },
+              { limit: 1 }
+            );
+            const items = page?.items || page || [];
+            if (items[0]) foundLead = items[0];
+          } catch {}
+        }
+      }
+
+      // 3. If found with email, send the reschedule email
+      if (foundLead?.email) {
+        const res = await base44.functions.invoke('sendMissedApptReschedule', { leadId: foundLead.id });
+        const data = res?.data || res;
+        if (data?.success) {
+          setRescheduleSent(prev => ({ ...prev, [ev.id]: true }));
+        } else {
+          alert('Failed to send reschedule email: ' + (data?.error || 'Unknown error'));
+        }
+      } else {
+        // No lead found or no email — open the Google Calendar booking link
+        window.open('https://calendar.app.google/c9kk3wXrzPH21ARW7', '_blank');
+        setRescheduleSent(prev => ({ ...prev, [ev.id]: true }));
+      }
+    } catch (e) {
+      alert('Failed to rebook: ' + (e?.message || String(e)));
     }
     setRescheduling(prev => ({ ...prev, [ev.id]: false }));
   };
@@ -293,20 +360,20 @@ export default function HotLeadsTab({ onOpenLead, onOpenHeatMap }) {
                           >
                             {isDone ? '✓ Completed' : '◯ Mark Done'}
                           </button>
-                          {isMissed && matchedLead?.email && (
+                          {isMissed && (
                             <button
-                              onClick={() => sendReschedule(ev, matchedLead)}
+                              onClick={() => matchedLead?.email ? sendReschedule(ev, matchedLead) : rebookAppointment(ev)}
                               disabled={rescheduling[ev.id]}
-                              title="Send reschedule email with time slots"
+                              title="Send reschedule email with booking link"
                               style={{
-                                background: rescheduleSent[ev.id] ? `${GOLD}20` : `${BLUE}12`,
-                                color: rescheduleSent[ev.id] ? GOLD : BLUE,
-                                border: `1px solid ${rescheduleSent[ev.id] ? GOLD + '66' : BLUE + '33'}`,
+                                background: rescheduleSent[ev.id] ? `${GOLD}20` : `${RED}15`,
+                                color: rescheduleSent[ev.id] ? GOLD : RED,
+                                border: `1px solid ${rescheduleSent[ev.id] ? GOLD + '66' : RED + '44'}`,
                                 borderRadius: '3px', padding: '3px 8px', cursor: rescheduling[ev.id] ? 'not-allowed' : 'pointer',
                                 fontSize: '9px', fontWeight: 'bold', whiteSpace: 'nowrap',
                               }}
                             >
-                              {rescheduling[ev.id] ? '⏳ Sending…' : rescheduleSent[ev.id] ? '✓ Sent' : '📅 Reschedule'}
+                              {rescheduling[ev.id] ? '⏳ Rebooking…' : rescheduleSent[ev.id] ? '✓ Sent' : '📅 Rebook'}
                             </button>
                           )}
                         </div>
