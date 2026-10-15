@@ -37,6 +37,15 @@ export default async function(req) {
     //   to a Media Stream for the AI conversation (STT → LLM → TTS loop).
     const aiMode = params.get('Mode') === 'aiAgent';
     if (aiMode) {
+      // NOTE: Call-hours cutoff is enforced by aiAgentDial BEFORE placing the
+      // call. This handler runs AFTER the prospect answers — hanging up here
+      // would be worse than not calling. The transfer path dials internal
+      // advisor numbers, not prospects, so the cutoff doesn't apply there.
+      //
+      // GREETING OWNERSHIP: When the bridge URL exists, the greeting is NOT
+      // spoken by this handler — mediaStreamRelay generates it via
+      // ElevenLabs/Deepgram TTS and pushes it through the bridge. The greeting
+      // loaded below is only used in the no-bridge fallback path.
       const leadId = params.get('LeadId') || '';
       let greeting = 'Hi, may I speak with {{first_name}} please?';
       let leadData: any = null;
@@ -47,15 +56,15 @@ export default async function(req) {
         const configs = await base44.entities.AIAgentConfig.filter({ configName: 'default' });
         if (configs?.[0]?.greeting) {
           greeting = configs[0].greeting;
-        } else {
-          // Default to Step 1 of the 5-step fronter script
-          greeting = 'Hi, may I speak with {{first_name}} please?';
         }
         pollyVoice = getPollyVoice(configs?.[0]?.ttsVoiceModel || 'aura-2-thalia-en');
         if (leadId) {
-          try { leadData = await base44.entities.FronterLead.get(leadId); } catch {}
+          try { leadData = await base44.entities.FronterLead.get(leadId); }
+          catch (e) { console.warn('[dialerVoiceHandler] Failed to load lead:', leadId, e?.message); }
         }
-      } catch {}
+      } catch (e) {
+        console.warn('[dialerVoiceHandler] Failed to load AI agent config:', e?.message);
+      }
       // Substitute all {{...}} variables from the lead record
       if (leadData) {
         const vars: Record<string, string> = {
@@ -148,10 +157,22 @@ export default async function(req) {
         const base44 = createClientFromRequest(req).asServiceRole;
         const configs = await base44.entities.AIAgentConfig.filter({ configName: 'default' });
         config = configs?.[0] || {};
-      } catch {}
+      } catch (e) {
+        console.warn('[dialerVoiceHandler] Failed to load AI agent config for transfer:', e?.message);
+      }
       const pollyVoice = getPollyVoice(config.ttsVoiceModel || 'aura-2-thalia-en');
       const primaryNumber = config.transferPhoneNumber || '+16193530919';
       const callerId = Deno.env.get('TWILIO_FROM_NUMBER') || '';
+
+      // Validate transfer number — must be valid E.164
+      if (!/^\+[1-9]\d{7,14}$/.test(primaryNumber)) {
+        console.error('[dialerVoiceHandler] Invalid transfer phone number:', primaryNumber);
+        return new Response(
+          `<?xml version="1.0" encoding="UTF-8"?><Response><Say voice="${pollyVoice}">I'm sorry, I'm unable to connect you right now. Please try again later.</Say><Hangup/></Response>`,
+          { headers: { 'Content-Type': 'text/xml' } }
+        );
+      }
+
       const appUrl = req.headers.get('X-Base44-App-Url') || 'https://rosieai-investorpage.base44.app';
       const fallbackUrl = `${appUrl}/functions/aiAgentRespond?transferFallback=1&leadId=${encodeURIComponent(leadId)}`;
 
@@ -175,7 +196,9 @@ export default async function(req) {
         const base44 = createClientFromRequest(req).asServiceRole;
         const configs = await base44.entities.AIAgentConfig.filter({ configName: 'default' });
         config = configs?.[0] || {};
-      } catch {}
+      } catch (e) {
+        console.warn('[dialerVoiceHandler] Failed to load AI agent config for end call:', e?.message);
+      }
       const pollyVoice = getPollyVoice(config.ttsVoiceModel || 'aura-2-thalia-en');
 
       const twiml = `<?xml version="1.0" encoding="UTF-8"?>
@@ -222,12 +245,9 @@ export default async function(req) {
       return new Response(twiml, { headers: { 'Content-Type': 'text/xml' } });
     }
 
-    const appId        = Deno.env.get('BASE44_APP_ID') || '';
+    // vmWebhookBase uses the X-Base44-App-Url header (injected by the platform),
+    // not BASE44_APP_ID — the webhook URL is valid regardless of that env var.
     const vmWebhookBase = `${req.headers.get('X-Base44-App-Url') || 'https://rosieai-investorpage.base44.app'}/functions/voicemailWebhook`;
-
-    if (!appId) {
-      console.error('[dialerVoiceHandler] BASE44_APP_ID env var is not set — voicemail webhook URL will be invalid!');
-    }
 
     // Detect inbound: To matches our own Twilio number (not a dial target)
     const ownNumbers = [

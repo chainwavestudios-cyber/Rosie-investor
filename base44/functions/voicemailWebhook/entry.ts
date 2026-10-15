@@ -127,8 +127,11 @@ export default async function(req) {
             const { callerName, leadId, investorId } = await resolveCallerName(APP_ID, TOKEN, from);
             const existing = (await b44List(APP_ID, TOKEN, 'CallLog', { callSid }).catch(() => []))[0] || null;
             if (existing) {
+              // Don't overwrite a more terminal status (completed/voicemail) with "answered"
+              const terminalStatuses = ['completed', 'voicemail'];
+              const newStatus = terminalStatuses.includes(existing.status) ? existing.status : 'answered';
               await b44Update(APP_ID, TOKEN, 'CallLog', existing.id, {
-                status: 'answered',
+                status: newStatus,
                 durationSeconds: duration || existing.durationSeconds || 0,
                 answeredAt: now,
                 callerName: callerName || existing.callerName || '',

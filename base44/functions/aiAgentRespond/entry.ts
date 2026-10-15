@@ -337,11 +337,31 @@ async function handleTransferFallback(req: Request, leadId: string): Promise<Res
   const base44 = createClientFromRequest(req).asServiceRole;
   const callerId = Deno.env.get('TWILIO_FROM_NUMBER') || '';
 
+  // Check the primary dial result — only dial secondary if primary failed.
+  // Twilio sends DialCallStatus in the action callback form data.
+  let dialStatus = '';
+  try {
+    const form = await req.formData();
+    dialStatus = (form.get('DialCallStatus') || '').toString();
+  } catch (e) {
+    console.warn('[aiAgentRespond] Failed to read DialCallStatus from fallback:', e?.message);
+  }
+
+  console.log('[aiAgentRespond] → Transfer fallback: primary DialCallStatus:', dialStatus);
+
+  // Primary dial succeeded — transfer was completed, hang up gracefully
+  if (dialStatus === 'completed' || dialStatus === 'answered') {
+    console.log('[aiAgentRespond] → Primary transfer succeeded, hanging up');
+    return twimlResponse(`<Response><Hangup/></Response>`);
+  }
+
   let config: any = {};
   try {
     const configs = await base44.entities.AIAgentConfig.filter({ configName: 'default' });
     config = configs?.[0] || {};
-  } catch {}
+  } catch (e) {
+    console.warn('[aiAgentRespond] Failed to load config for fallback:', e?.message);
+  }
 
   const secondaryNumber = config.transferPhoneNumber2 || '+12162586934';
   const pollyVoice = getPollyVoice(config.ttsVoiceModel || 'aura-2-thalia-en');
