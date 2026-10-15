@@ -5,6 +5,8 @@ Deno.serve(async (req) => {
   const url = new URL(req.url);
   const leadId = url.searchParams.get('leadId') || '';
   const sendId = url.searchParams.get('sendId') || '';
+  const templateId = url.searchParams.get('templateId') || '';
+  const templateName = url.searchParams.get('templateName') || '';
   const targetUrl = url.searchParams.get('url') || '';
 
   // Log the click event (fire-and-forget)
@@ -13,6 +15,8 @@ Deno.serve(async (req) => {
       await base44.asServiceRole.entities.EmailTrackingEvent.create({
         leadId,
         sendId,
+        templateId: templateId || undefined,
+        templateName: templateName || undefined,
         eventType: 'click',
         url: decodeURIComponent(targetUrl),
         userAgent: req.headers.get('user-agent') || '',

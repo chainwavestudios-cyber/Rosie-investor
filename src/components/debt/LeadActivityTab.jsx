@@ -51,7 +51,9 @@ export default function LeadActivityTab({ lead }) {
   const [noteText, setNoteText] = useState('');
   const [saving, setSaving] = useState(false);
   const [showCalendar, setShowCalendar] = useState(false);
-  const [calEvent, setCalEvent] = useState({ title: '', date: '', time: '09:00', duration: 30, description: '' });
+  const [calEvent, setCalEvent] = useState({ title: '', date: '', time: '09:00', duration: 30, description: '', nightBefore: true, hourBefore: true });
+  const [testSending, setTestSending] = useState(null);
+  const [testMsg, setTestMsg] = useState('');
   const [calendarLink, setCalendarLink] = useState('');
   const [calSaving, setCalSaving] = useState(false);
 
@@ -206,15 +208,34 @@ export default function LeadActivityTab({ lead }) {
         apptTrustpilotClickedAt: null,
         apptWebsiteClickedAt: null,
         apptHourReminderOpenedAt: null,
+        nightBeforeReminderEnabled: calEvent.nightBefore,
+        hourBeforeReminderEnabled: calEvent.hourBefore,
       });
       // Auto-register 1-hour and 5-minute popup reminders
       setEventReminders(lead, startDt.toISOString(), calEvent.title);
       if (result.htmlLink) setCalendarLink(result.htmlLink);
-      setCalEvent({ title: '', date: '', time: '09:00', duration: 30, description: '' });
+      setCalEvent({ title: '', date: '', time: '09:00', duration: 30, description: '', nightBefore: true, hourBefore: true });
       setShowCalendar(false);
       loadActivities();
     } catch (e) { alert('Failed to create calendar event: ' + (e?.message || String(e))); }
     setCalSaving(false);
+  };
+
+  const sendTestEmail = async (type) => {
+    if (!lead.id || !lead.email) { alert('Lead needs an email address to send a test email'); return; }
+    setTestSending(type);
+    setTestMsg('');
+    try {
+      const res = await base44.functions.invoke('sendDebtEmail', { leadId: lead.id, forceTemplateType: type, testMode: true });
+      const data = res?.data || res;
+      if (data?.error) throw new Error(data.error);
+      setTestMsg(`✓ ${data.templateName} sent to ${lead.email}`);
+      setTimeout(() => setTestMsg(''), 5000);
+    } catch (e) {
+      setTestMsg('✗ Failed: ' + (e?.message || String(e)));
+      setTimeout(() => setTestMsg(''), 5000);
+    }
+    setTestSending(null);
   };
 
   return (
@@ -242,6 +263,17 @@ export default function LeadActivityTab({ lead }) {
               <div><label style={ls}>Duration (min)</label><input type="number" value={calEvent.duration} onChange={e => setCalEvent(p => ({ ...p, duration: Number(e.target.value) || 30 }))} style={inp} /></div>
               <div style={{ gridColumn: '1 / -1' }}><label style={ls}>Description</label><textarea value={calEvent.description} onChange={e => setCalEvent(p => ({ ...p, description: e.target.value }))} rows={2} style={{ ...inp, resize: 'vertical' }} placeholder="Agenda, notes…" /></div>
             </div>
+            {/* Reminder checkboxes */}
+            <div style={{ display: 'flex', gap: '16px', marginBottom: '10px', padding: '8px 0', borderTop: '1px solid rgba(255,255,255,0.06)', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', color: calEvent.nightBefore ? BLUE : '#6b7280', fontSize: '11px', fontWeight: 'bold' }}>
+                <input type="checkbox" checked={calEvent.nightBefore} onChange={e => setCalEvent(p => ({ ...p, nightBefore: e.target.checked }))} style={{ cursor: 'pointer' }} />
+                🌙 Night-Before Reminder Email
+              </label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', color: calEvent.hourBefore ? AMBER : '#6b7280', fontSize: '11px', fontWeight: 'bold' }}>
+                <input type="checkbox" checked={calEvent.hourBefore} onChange={e => setCalEvent(p => ({ ...p, hourBefore: e.target.checked }))} style={{ cursor: 'pointer' }} />
+                ⏰ 1-Hour Reminder Email
+              </label>
+            </div>
             <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
               <button onClick={createCalendarEvent} disabled={calSaving || !calEvent.title.trim() || !calEvent.date || !lead.id} style={{ background: 'linear-gradient(135deg,#10b981,#22c55e)', color: DARK, border: 'none', borderRadius: '4px', padding: '8px 16px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', opacity: calSaving || !calEvent.title.trim() || !calEvent.date || !lead.id ? 0.5 : 1 }}>{calSaving ? '⏳ Creating…' : '📅 Create Event'}</button>
               <button onClick={() => setShowCalendar(false)} style={{ background: 'rgba(255,255,255,0.05)', color: '#6b7280', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '4px', padding: '8px 14px', cursor: 'pointer', fontSize: '11px' }}>Cancel</button>
@@ -252,6 +284,22 @@ export default function LeadActivityTab({ lead }) {
           </div>
         )}
       </div>
+
+      {/* Test send buttons — send reminder emails immediately */}
+      {lead.appointmentDate && lead.email && (
+        <div style={{ marginBottom: '16px', padding: '12px', background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(96,165,250,0.15)', borderRadius: '4px' }}>
+          <div style={{ color: BLUE, fontSize: '9px', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '8px' }}>🧪 Test Send Reminder Emails</div>
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+            <button onClick={() => sendTestEmail('night_before')} disabled={testSending === 'night_before'} style={{ background: 'rgba(96,165,250,0.15)', color: BLUE, border: '1px solid rgba(96,165,250,0.3)', borderRadius: '4px', padding: '6px 14px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', opacity: testSending === 'night_before' ? 0.5 : 1 }}>
+              {testSending === 'night_before' ? '⏳ Sending…' : '📧 Send Night-Before Now'}
+            </button>
+            <button onClick={() => sendTestEmail('hour_before')} disabled={testSending === 'hour_before'} style={{ background: 'rgba(245,158,11,0.15)', color: AMBER, border: '1px solid rgba(245,158,11,0.3)', borderRadius: '4px', padding: '6px 14px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', opacity: testSending === 'hour_before' ? 0.5 : 1 }}>
+              {testSending === 'hour_before' ? '⏳ Sending…' : '📧 Send 1-Hour Now'}
+            </button>
+            {testMsg && <span style={{ color: testMsg.startsWith('✓') ? GOLD : RED, fontSize: '11px' }}>{testMsg}</span>}
+          </div>
+        </div>
+      )}
 
       {/* Chronological activity history */}
       <div>

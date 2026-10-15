@@ -4,10 +4,11 @@
  */
 export const TRACKING_BASE = 'https://rosieai-investorpage.base44.app/functions';
 
-export function injectTracking(html: string, leadId: string, sendId: string): string {
+export function injectTracking(html: string, leadId: string, sendId: string, templateId?: string): string {
   if (!html) return html;
-  const trackOpenUrl = `${TRACKING_BASE}/emailTrackOpen?leadId=${encodeURIComponent(leadId)}&sendId=${sendId}`;
-  const trackClickBase = `${TRACKING_BASE}/emailTrackClick?leadId=${encodeURIComponent(leadId)}&sendId=${sendId}&url=`;
+  const templateParam = templateId ? `&templateId=${encodeURIComponent(templateId)}` : '';
+  const trackOpenUrl = `${TRACKING_BASE}/emailTrackOpen?leadId=${encodeURIComponent(leadId)}&sendId=${sendId}${templateParam}`;
+  const trackClickBase = `${TRACKING_BASE}/emailTrackClick?leadId=${encodeURIComponent(leadId)}&sendId=${sendId}${templateParam}&url=`;
 
   // 1. Rewrite existing <a href="..."> links to go through the click tracker
   let result = html.replace(/(<a\s+[^>]*?href=")(https?:\/\/[^"]+)"/gi, (match, prefix, url) => {

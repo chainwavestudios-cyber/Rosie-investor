@@ -331,6 +331,16 @@
       "type": "string",
       "format": "date-time",
       "title": "1-Hour Reminder Email Opened At"
+    },
+    "nightBeforeReminderEnabled": {
+      "type": "boolean",
+      "title": "Night-Before Reminder Enabled",
+      "default": true
+    },
+    "hourBeforeReminderEnabled": {
+      "type": "boolean",
+      "title": "1-Hour Reminder Enabled",
+      "default": true
     }
   },
   "required": [

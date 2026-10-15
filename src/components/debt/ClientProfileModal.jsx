@@ -73,6 +73,9 @@ export default function ClientProfileModal({ lead, username, onClose, onSave }) 
   const [locationResearching, setLocationResearching] = useState(false);
   const [dobResearch, setDobResearch] = useState(null);
   const [dobResearching, setDobResearching] = useState(false);
+  const [emailTemplates, setEmailTemplates] = useState([]);
+  const [emailOpens, setEmailOpens] = useState(new Set());
+  const [emailSending, setEmailSending] = useState(null);
   const panel = usePopOutPanel('client_profile', { width: 900, height: 700 }, username, 15000);
 
   // Load Q&A history for this lead
@@ -98,6 +101,29 @@ export default function ClientProfileModal({ lead, username, onClose, onSave }) 
       .then(rows => setInsights(rows || []))
       .catch(() => setInsights([]));
   }, [lead?.id]);
+
+  // Load email templates with contact card buttons + open tracking
+  useEffect(() => {
+    if (!lead?.id) { setEmailTemplates([]); setEmailOpens(new Set()); return; }
+    Promise.all([
+      base44.entities.DebtEmailTemplate.filter({ attachToContactCard: true }, { sort: 'sortOrder', limit: 50 }),
+      base44.entities.EmailTrackingEvent.filter({ leadId: lead.id, eventType: 'open' }, '-trackedAt', 200),
+    ]).then(([tplPage, opens]) => {
+      setEmailTemplates(tplPage?.items || tplPage || []);
+      setEmailOpens(new Set((opens || []).map(e => e.templateId).filter(Boolean)));
+    }).catch(() => { setEmailTemplates([]); setEmailOpens(new Set()); });
+  }, [lead?.id]);
+
+  const sendEmailFromCard = async (tpl) => {
+    if (!lead?.id || !local.email) { alert('Lead needs an email address to send'); return; }
+    setEmailSending(tpl.id);
+    try {
+      const res = await base44.functions.invoke('sendDebtEmail', { templateId: tpl.id, leadId: lead.id });
+      const data = res?.data || res;
+      if (data?.error) throw new Error(data.error);
+    } catch (e) { alert('Send failed: ' + (e?.message || String(e))); }
+    setEmailSending(null);
+  };
 
   // Parse the auto-saved live transcript from the lead record
   const liveTranscriptLines = useMemo(() => {
@@ -357,6 +383,45 @@ export default function ClientProfileModal({ lead, username, onClose, onSave }) 
                     {local.appointmentChangeRequested && ' 🔄 Change Requested'}
                   </div>
                 )}
+              </div>
+            )}
+            {/* Email template buttons — manual send from contact card */}
+            {emailTemplates.length > 0 && (
+              <div style={{ marginBottom: '16px' }}>
+                <div style={{ color: GOLD, fontSize: '9px', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '8px' }}>📧 Quick Send Emails</div>
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                  {emailTemplates.map(tpl => {
+                    const isOpened = emailOpens.has(tpl.id);
+                    const sending = emailSending === tpl.id;
+                    const color = tpl.buttonColor || '#10b981';
+                    return (
+                      <button
+                        key={tpl.id}
+                        onClick={() => sendEmailFromCard(tpl)}
+                        disabled={sending || !local.email}
+                        style={{
+                          background: isOpened ? `${color}25` : `${color}15`,
+                          color: color,
+                          border: `1px solid ${isOpened ? color : color + '55'}`,
+                          borderRadius: '4px',
+                          padding: '6px 14px',
+                          cursor: sending || !local.email ? 'not-allowed' : 'pointer',
+                          fontSize: '11px',
+                          fontWeight: 'bold',
+                          whiteSpace: 'nowrap',
+                          opacity: sending || !local.email ? 0.5 : 1,
+                          boxShadow: isOpened ? `0 0 10px ${color}44` : 'none',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '5px',
+                        }}
+                      >
+                        {sending ? '⏳ Sending…' : (isOpened ? `✓ ${tpl.buttonLabel || tpl.name}` : `📧 ${tpl.buttonLabel || tpl.name}`)}
+                      </button>
+                    );
+                  })}
+                </div>
+                {!local.email && <div style={{ color: '#6b7280', fontSize: '10px', marginTop: '4px' }}>Add an email address to enable quick send</div>}
               </div>
             )}
             {/* Contact Info */}

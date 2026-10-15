@@ -10,6 +10,14 @@
       "type": "string",
       "title": "Send ID (unique per email send)"
     },
+    "templateId": {
+      "type": "string",
+      "title": "Email Template ID (for matching opens to templates)"
+    },
+    "templateName": {
+      "type": "string",
+      "title": "Email Template Name (for display)"
+    },
     "eventType": {
       "type": "string",
       "title": "Event Type",

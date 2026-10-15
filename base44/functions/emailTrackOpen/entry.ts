@@ -8,6 +8,8 @@ Deno.serve(async (req) => {
   const url = new URL(req.url);
   const leadId = url.searchParams.get('leadId') || '';
   const sendId = url.searchParams.get('sendId') || '';
+  const templateId = url.searchParams.get('templateId') || '';
+  const templateName = url.searchParams.get('templateName') || '';
 
   // Log the open event (fire-and-forget)
   if (leadId) {
@@ -15,6 +17,8 @@ Deno.serve(async (req) => {
       await base44.asServiceRole.entities.EmailTrackingEvent.create({
         leadId,
         sendId,
+        templateId: templateId || undefined,
+        templateName: templateName || undefined,
         eventType: 'open',
         userAgent: req.headers.get('user-agent') || '',
         ipAddress: req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || '',
