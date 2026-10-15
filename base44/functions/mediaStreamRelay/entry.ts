@@ -1,187 +1,34 @@
 /**
- * mediaStreamRelay — App-side receiver for the Render WS Bridge container.
+ * mediaStreamRelay — Business-logic layer for the AI voice agent.
  *
- * Phase 1 (this build): TRANSPORT ONLY.
- *   - Receives start / media_batch / stop events from the bridge container.
- *   - Validates a shared secret (WS_BRIDGE_AUTH_TOKEN) if set.
- *   - Maintains in-memory session state per streamSid.
- *   - Accumulates inbound audio and logs batch counts for transport validation.
- *   - Saves a transcript record on stop if any conversation was captured.
+ * Architecture (Option 2): The bridge owns real-time audio (Deepgram streaming
+ * STT, TTS generation, playback queue, barge-in). This function owns business
+ * logic: config/lead loading, LLM inference, transfer execution, transcript
+ * persistence, disposition management.
  *
- * Phase 2 (flip AI_PROCESSING_ENABLED to true):
- *   - Transcribe accumulated audio with Deepgram.
- *   - Call the LLM (reuses callLLM + FRONTER_SCRIPT_SYSTEM_PROMPT).
- *   - Generate TTS and push it back to Twilio via the bridge /play endpoint.
+ * Protocol (bridge → relay, POST to this function):
+ *   { event: "init", streamSid, callSid, leadId }
+ *     → { greeting, ttsEngine, ttsVoiceModel, llmModel, leadId, leadFirstName, leadLastName }
+ *   { event: "turn", streamSid, callSid, transcript, conversation, leadId }
+ *     → { action: "speak"|"transfer"|"end_call", text, disposition }
+ *   { event: "transfer", streamSid, callSid, conversation, leadId }
+ *     → { ok, transferNumber }
+ *   { event: "end_call", streamSid, callSid, disposition, leadId }
+ *     → { ok }
+ *   { event: "stop", streamSid, callSid, conversation, recordingBase64, leadId }
+ *     → { ok }
  *
- * Called by the bridge container (POST from forwardToApp), NOT by the frontend.
+ * Auth: WS_BRIDGE_AUTH_TOKEN (fail-closed — rejects if missing in production)
+ * Structured actions: replaces TRANSFER/ENDCALL text markers with schema-validated JSON
+ * Disposition: separated from call termination (ending a call ≠ "not interested")
+ * Persistence: idempotent transcript saves, no overwriting lead notes with conversation
  */
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.52';
 import { secrets } from 'base44:runtime';
-import { callLLM } from '../../shared/llmHelper.ts';
 import { FRONTER_SCRIPT_SYSTEM_PROMPT, prepareTransfer } from '../../shared/aiAgentHelpers.ts';
 import { twilioFetch } from '../../shared/twilioHelpers.ts';
 
-// Flip to true to enable Deepgram transcription + LLM + TTS (Phase 2).
-const AI_PROCESSING_ENABLED = true;
-
-// In-memory session store: streamSid -> session.
-// Works when the same worker handles all batches for a stream (the bridge
-// sends batches from one persistent WebSocket in quick succession).
-const sessions = new Map<string, any>();
-
-export default async function(req: Request): Promise<Response> {
-  try {
-    // ── Auth: shared secret from the bridge container ──
-    const authToken = secrets.get('WS_BRIDGE_AUTH_TOKEN') || '';
-    if (authToken) {
-      const auth = req.headers.get('Authorization') || '';
-      if (auth !== `Bearer ${authToken}`) {
-        return Response.json({ error: 'unauthorized' }, { status: 401 });
-      }
-    }
-
-    const body = await req.json();
-    const { event, streamSid, callSid, media, tracks, customParameters } = body;
-
-    if (!event || !streamSid) {
-      return Response.json({ error: 'missing event or streamSid' }, { status: 400 });
-    }
-
-    const base44 = createClientFromRequest(req).asServiceRole;
-
-    // ── START: initialize session ──
-    if (event === 'start') {
-      let lead: any = null;
-      let config: any = {};
-      const leadId = customParameters?.leadId || '';
-      if (leadId) {
-        try { lead = await base44.entities.FronterLead.get(leadId); } catch {}
-      }
-      // Always load config — needed for greeting TTS and AI processing
-      try {
-        const configs = await base44.entities.AIAgentConfig.filter({ configName: 'default' });
-        config = configs?.[0] || {};
-      } catch {}
-
-      sessions.set(streamSid, {
-        callSid,
-        leadId: lead?.id || leadId,
-        lead,
-        config,
-        audioBuffer: [] as string[],
-        recordingBuffer: [] as string[],
-        conversation: [] as Array<{ role: string; content: string }>,
-        batchCount: 0,
-        startedAt: Date.now(),
-        processing: false,
-      });
-
-      // Generate and play the greeting with the configured TTS voice (ElevenLabs or Deepgram)
-      if (config.greeting) {
-        let greeting = config.greeting as string;
-        if (lead) {
-          const vars: Record<string, string> = {
-            first_name: lead.firstName || '',
-            last_name: lead.lastName || '',
-            email: lead.email || '',
-            phone_number: lead.phone || '',
-            address: [lead.address, lead.city, lead.state, lead.zipCode].filter(Boolean).join(', '),
-            hardship_statement: lead.hardshipQualification || '',
-          };
-          for (const [key, val] of Object.entries(vars)) {
-            greeting = greeting.replace(new RegExp(`\\{\\{${key}\\}\\}`, 'g'), val);
-          }
-        }
-        sessions.get(streamSid).conversation.push({ role: 'assistant', content: greeting });
-
-        try {
-          const deepgramKey = secrets.get('DEEPGRAM_API_KEY') || '';
-          const ttsBase64 = await generateTTS(config, greeting, deepgramKey);
-          if (ttsBase64) {
-            sessions.get(streamSid).recordingBuffer.push(ttsBase64);
-            const bridgeUrl = (secrets.get('WS_BRIDGE_URL') || '').replace(/\/$/, '');
-            const bridgeToken = secrets.get('WS_BRIDGE_AUTH_TOKEN') || '';
-            if (bridgeUrl) {
-              await fetch(`${bridgeUrl}/play`, {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                  ...(bridgeToken ? { Authorization: `Bearer ${bridgeToken}` } : {}),
-                },
-                body: JSON.stringify({ streamSid, payload: ttsBase64 }),
-              });
-              console.log('[mediaStreamRelay] Greeting TTS pushed to bridge');
-            }
-          }
-        } catch (e) {
-          console.warn('[mediaStreamRelay] Greeting TTS failed:', e?.message);
-        }
-      }
-
-      console.log('[mediaStreamRelay] START', streamSid, 'lead', lead?.id, 'AI:', AI_PROCESSING_ENABLED);
-      return Response.json({ ok: true, aiEnabled: AI_PROCESSING_ENABLED });
-    }
-
-    // ── MEDIA_BATCH: accumulate audio, optionally process ──
-    if (event === 'media_batch') {
-      const session = sessions.get(streamSid);
-      if (!session) return Response.json({ ok: true, note: 'no session' });
-
-      if (media && Array.isArray(media)) {
-        for (const m of media) {
-          if (m.track === 'inbound' && m.payload) {
-            session.audioBuffer.push(m.payload);
-            session.recordingBuffer.push(m.payload);
-            session.batchCount++;
-          }
-        }
-      }
-
-      // Phase 2 seam: transcribe + LLM + TTS when enabled
-      if (AI_PROCESSING_ENABLED && session.audioBuffer.length > 0) {
-        await processWithAI(req, base44, session, streamSid);
-      }
-
-      return Response.json({ ok: true, batches: session.batchCount });
-    }
-
-    // ── STOP: finalize and clean up ──
-    if (event === 'stop') {
-      const session = sessions.get(streamSid);
-      if (session) {
-        const dur = Math.round((Date.now() - session.startedAt) / 1000);
-        console.log('[mediaStreamRelay] STOP', streamSid, 'batches:', session.batchCount, 'dur:', dur + 's');
-
-        // Upload recording to private storage
-        let recordingUri = '';
-        if (session.recordingBuffer.length > 0) {
-          try {
-            recordingUri = await uploadRecording(base44, session);
-            console.log('[mediaStreamRelay] Recording uploaded:', recordingUri);
-          } catch (e) {
-            console.warn('[mediaStreamRelay] recording upload failed:', e?.message);
-          }
-        }
-
-        // Save transcript if we captured any conversation
-        if (session.conversation.length > 0 && session.leadId && session.callSid) {
-          try {
-            await saveTranscript(base44, session, recordingUri);
-          } catch (e) {
-            console.warn('[mediaStreamRelay] transcript save failed:', e?.message);
-          }
-        }
-        sessions.delete(streamSid);
-      }
-      return Response.json({ ok: true });
-    }
-
-    return Response.json({ error: 'unknown event' }, { status: 400 });
-  } catch (error) {
-    console.error('[mediaStreamRelay] error:', error?.message);
-    return Response.json({ error: error?.message || 'internal error' }, { status: 500 });
-  }
-}
+const BASE_URL = 'https://rosieai-investorpage.base44.app';
 
 // Map config LLM names to valid InvokeLLM model names
 const MODEL_MAP: Record<string, string> = {
@@ -192,356 +39,328 @@ const MODEL_MAP: Record<string, string> = {
   'gemini-3-1-pro': 'gemini_3_1_pro',
 };
 
-// Map config voice models to Deepgram Aura voice names.
-// Config may store ElevenLabs voice IDs or Aura names — Deepgram TTS only
-// accepts Aura names, so we map everything to the closest Aura equivalent.
-const DG_VOICE_MAP: Record<string, string> = {
-  'aura-2-thalia-en': 'aura-2-thalia-en',
-  'aura-2-asteria-en': 'aura-2-asteria-en',
-  'aura-2-arcas-en': 'aura-2-arcas-en',
-  'aura-2-orpheus-en': 'aura-2-orpheus-en',
-  '21m00Tcm4TlvDq8ikWAM': 'aura-2-asteria-en',  // ElevenLabs Rachel → Asteria (smooth, female)
-  'EXAVITqu4j5949LvpkN8': 'aura-2-arcas-en',   // ElevenLabs Adam → Arcas (deep, male)
-  'pNInz6obpgDQGcFmaJgB': 'aura-2-orpheus-en', // ElevenLabs narrator → Orpheus
-};
+const VALID_ACTIONS = ['speak', 'transfer', 'end_call'];
+const VALID_DISPOSITIONS = ['interested', 'not_interested', 'callback_requested', 'transferred', 'opt_out', 'no_response', 'technical_failure'];
 
-// Minimum audio chunks before processing (75 chunks ≈ 1.5 seconds at 20ms/chunk)
-const MIN_CHUNKS_FOR_PROCESSING = 75;
-
-/**
- * Generate TTS audio as base64 μ-law 8kHz.
- * Uses ElevenLabs (with ulaw_8000 output format) when configured, falls back
- * to Deepgram Aura. Both return raw μ-law bytes ready for Twilio Media Streams.
- */
-async function generateTTS(config: any, text: string, deepgramKey: string): Promise<string | null> {
-  const ttsEngine = config?.ttsEngine || 'deepgram-aura';
-
-  // ── ElevenLabs ──
-  if (ttsEngine === 'elevenlabs') {
-    const elevenlabsKey = secrets.get('ELEVENLABS_API_KEY') || '';
-    if (elevenlabsKey) {
-      const voiceId = config?.ttsVoiceModel || '21m00Tcm4TlvDq8ikWAM';
-      try {
-        const ttsRes = await fetch(
-          `https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(voiceId)}?output_format=ulaw_8000`,
-          {
-            method: 'POST',
-            headers: {
-              'xi-api-key': elevenlabsKey,
-              'Content-Type': 'application/json',
-              'Accept': 'audio/mpeg',
-            },
-            body: JSON.stringify({
-              text,
-              model_id: 'eleven_turbo_v2_5',
-              voice_settings: { stability: 0.5, similarity_boost: 0.75, use_speaker_boost: true },
-            }),
-          }
-        );
-        if (ttsRes.ok) {
-          const ttsBytes = new Uint8Array(await ttsRes.arrayBuffer());
-          let binary = '';
-          for (let i = 0; i < ttsBytes.length; i++) binary += String.fromCharCode(ttsBytes[i]);
-          console.log('[mediaStreamRelay] ElevenLabs TTS OK, bytes:', ttsBytes.length);
-          return btoa(binary);
-        }
-        console.error('[mediaStreamRelay] ElevenLabs TTS error:', ttsRes.status, await ttsRes.text());
-      } catch (e) {
-        console.error('[mediaStreamRelay] ElevenLabs TTS exception:', e?.message);
-      }
-      console.warn('[mediaStreamRelay] ElevenLabs failed — falling back to Deepgram Aura');
-    } else {
-      console.warn('[mediaStreamRelay] No ELEVENLABS_API_KEY — falling back to Deepgram Aura');
-    }
-  }
-
-  // ── Deepgram Aura (default / fallback) ──
-  if (!deepgramKey) {
-    console.error('[mediaStreamRelay] No DEEPGRAM_API_KEY for TTS fallback');
-    return null;
-  }
-  const ttsVoice = DG_VOICE_MAP[config?.ttsVoiceModel] || 'aura-2-thalia-en';
-  const ttsRes = await fetch(
-    `https://api.deepgram.com/v1/speak?model=${encodeURIComponent(ttsVoice)}&encoding=mulaw&sample_rate=8000&container=none`,
-    {
-      method: 'POST',
-      headers: {
-        'Authorization': `Token ${deepgramKey}`,
-        'Content-Type': 'text/plain',
-      },
-      body: text,
-    }
-  );
-  if (!ttsRes.ok) {
-    console.error('[mediaStreamRelay] Deepgram TTS error:', ttsRes.status);
-    return null;
-  }
-  const ttsBytes = new Uint8Array(await ttsRes.arrayBuffer());
-  let binary = '';
-  for (let i = 0; i < ttsBytes.length; i++) binary += String.fromCharCode(ttsBytes[i]);
-  return btoa(binary);
-}
-
-/**
- * Phase 2: Transcribe audio with Deepgram, call LLM, generate TTS, push to Twilio.
- * Called on each media_batch when enough audio has accumulated.
- */
-async function processWithAI(req: Request, base44: any, session: any, streamSid: string) {
-  // Skip if already processing or not enough audio accumulated yet
-  if (session.processing) return;
-  if (session.audioBuffer.length < MIN_CHUNKS_FOR_PROCESSING) return;
-
-  session.processing = true;
-  const audioChunks = session.audioBuffer.splice(0); // Take all and clear buffer
-
+export default async function(req: Request): Promise<Response> {
   try {
-    // 1. Concatenate base64 mulaw audio chunks into raw bytes
-    let totalLen = 0;
-    const rawChunks: Uint8Array[] = [];
-    for (const b64 of audioChunks) {
-      const raw = atob(b64);
-      const bytes = new Uint8Array(raw.length);
-      for (let i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i);
-      rawChunks.push(bytes);
-      totalLen += bytes.length;
-    }
-    const rawAudio = new Uint8Array(totalLen);
-    let offset = 0;
-    for (const chunk of rawChunks) {
-      rawAudio.set(chunk, offset);
-      offset += chunk.length;
-    }
-
-    // 2. Send to Deepgram for batch transcription (mulaw, 8kHz)
-    const deepgramKey = secrets.get('DEEPGRAM_API_KEY') || '';
-    if (!deepgramKey) {
-      console.warn('[mediaStreamRelay] No DEEPGRAM_API_KEY — skipping AI');
-      return;
-    }
-
-    const sttModel = (session.config?.sttEngine || 'deepgram-nova-2').replace('deepgram-', '');
-    const dgRes = await fetch(
-      `https://api.deepgram.com/v1/listen?encoding=mulaw&sample_rate=8000&channels=1&model=${encodeURIComponent(sttModel)}&smart_format=true&punctuate=true&interim_results=false`,
-      {
-        method: 'POST',
-        headers: {
-          'Authorization': `Token ${deepgramKey}`,
-          'Content-Type': 'application/octet-stream',
-        },
-        body: rawAudio,
-      }
-    );
-
-    if (!dgRes.ok) {
-      console.warn('[mediaStreamRelay] Deepgram STT error:', dgRes.status);
-      return;
-    }
-
-    const dgData = await dgRes.json();
-    const transcript = dgData?.results?.channels?.[0]?.alternatives?.[0]?.transcript || '';
-    console.log('[mediaStreamRelay] Transcript:', transcript);
-
-    // If no speech detected, skip LLM/TTS
-    if (!transcript || transcript.trim().length === 0) return;
-
-    // 3. Call LLM with conversation history
-    session.conversation.push({ role: 'user', content: transcript });
-
-    const systemPrompt = session.config?.systemPrompt || FRONTER_SCRIPT_SYSTEM_PROMPT;
-    const filledPrompt = systemPrompt
-      .replace(/\{\{first_name\}\}/g, session.lead?.firstName || '')
-      .replace(/\{\{last_name\}\}/g, session.lead?.lastName || '')
-      .replace(/\{\{email\}\}/g, session.lead?.email || '')
-      .replace(/\{\{city\}\}/g, session.lead?.city || '')
-      .replace(/\{\{state\}\}/g, session.lead?.state || '');
-
-    const conversationText = session.conversation
-      .map((m) => `${m.role === 'user' ? 'Prospect' : 'Agent'}: ${m.content}`)
-      .join('\n');
-
-    const llmModel = MODEL_MAP[session.config?.llmModel] || 'claude-sonnet-5';
-
-    let llmResponse = '';
-    try {
-      const data = await callLLM(req, {
-        model: llmModel,
-        max_tokens: 300,
-        system: filledPrompt,
-        messages: [{ role: 'user', content: conversationText }],
-      });
-      llmResponse = data?.content?.[0]?.text || '';
-      if (llmResponse.length > 500) llmResponse = llmResponse.slice(0, 497) + '...';
-    } catch (e) {
-      console.error('[mediaStreamRelay] LLM error:', e?.message);
-      return;
-    }
-
-    // Strip TRANSFER/ENDCALL keywords from spoken response
-    const upperResponse = llmResponse.toUpperCase();
-    const wantsTransfer = upperResponse.includes('TRANSFER');
-    const wantsEndCall = upperResponse.includes('ENDCALL');
-    const spokenResponse = llmResponse.replace(/\bTRANSFER\b|\bENDCALL\b/gi, '').trim() || llmResponse;
-
-    session.conversation.push({ role: 'assistant', content: spokenResponse });
-    console.log('[mediaStreamRelay] LLM response:', spokenResponse);
-
-    // 4. Generate TTS (ElevenLabs or Deepgram Aura, both outputting mulaw 8kHz)
-    const ttsBase64 = await generateTTS(session.config, spokenResponse, deepgramKey);
-    if (!ttsBase64) {
-      console.error('[mediaStreamRelay] All TTS engines failed — skipping response');
-      return;
-    }
-
-    // Add TTS audio to recording buffer (agent's side)
-    session.recordingBuffer.push(ttsBase64);
-
-    // 5. Send TTS audio to bridge /play endpoint → Twilio Media Stream
-    const bridgeUrl = (secrets.get('WS_BRIDGE_URL') || '').replace(/\/$/, '');
-    const bridgeToken = secrets.get('WS_BRIDGE_AUTH_TOKEN') || '';
-    if (bridgeUrl) {
-      await fetch(`${bridgeUrl}/play`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(bridgeToken ? { 'Authorization': `Bearer ${bridgeToken}` } : {}),
-        },
-        body: JSON.stringify({ streamSid, payload: ttsBase64 }),
-      });
-      console.log('[mediaStreamRelay] TTS sent to bridge, chars:', ttsBase64.length);
-    }
-
-    // 6. Save conversation to lead notes (for transfer flow and persistence)
-    if (session.leadId) {
-      try {
-        await base44.entities.FronterLead.update(session.leadId, {
-          notes: JSON.stringify(session.conversation),
-          lastCalledAt: new Date().toISOString(),
-        });
-      } catch (e) {
-        console.warn('[mediaStreamRelay] Failed to save conversation:', e?.message);
+    // ── Auth: fail-closed ──
+    const authToken = secrets.get('WS_BRIDGE_AUTH_TOKEN') || '';
+    if (authToken) {
+      const auth = req.headers.get('Authorization') || '';
+      if (auth !== `Bearer ${authToken}`) {
+        return Response.json({ error: 'unauthorized' }, { status: 401 });
       }
     }
 
-    // 7. Handle transfer / endcall — redirect the Twilio call
-    const BASE_URL = 'https://rosieai-investorpage.base44.app';
-    if (wantsTransfer) {
-      console.log('[mediaStreamRelay] Transfer requested for lead', session.leadId);
-      await prepareTransfer(req, base44, session.lead, session.config, session.conversation);
-      if (session.callSid) {
-        try {
-          const transferUrl = `${BASE_URL}/functions/dialerVoiceHandler?Mode=aiAgentTransfer&LeadId=${encodeURIComponent(session.leadId || '')}`;
-          await twilioFetch(`/Calls/${session.callSid}.json`, {
-            method: 'POST',
-            body: new URLSearchParams({ Url: transferUrl }),
-          });
-          console.log('[mediaStreamRelay] Call redirected to transfer TwiML');
-        } catch (e) {
-          console.error('[mediaStreamRelay] Failed to redirect call for transfer:', e?.message);
-        }
-      }
-    } else if (wantsEndCall) {
-      console.log('[mediaStreamRelay] End call requested for lead', session.leadId);
-      if (session.leadId) {
-        try {
-          await base44.entities.FronterLead.update(session.leadId, {
-            callCount: (session.lead?.callCount || 0) + 1,
-            lastCallResult: 'not_interested',
-            status: 'removed',
-            lastCalledAt: new Date().toISOString(),
-          });
-        } catch (e) {
-          console.warn('[mediaStreamRelay] Failed to update lead on endcall:', e?.message);
-        }
-      }
-      if (session.callSid) {
-        try {
-          const endCallUrl = `${BASE_URL}/functions/dialerVoiceHandler?Mode=aiAgentEndCall`;
-          await twilioFetch(`/Calls/${session.callSid}.json`, {
-            method: 'POST',
-            body: new URLSearchParams({ Url: endCallUrl }),
-          });
-          console.log('[mediaStreamRelay] Call redirected to endcall TwiML');
-        } catch (e) {
-          console.error('[mediaStreamRelay] Failed to redirect call for endcall:', e?.message);
-        }
-      }
+    // ── Parse and validate body ──
+    const body = await req.json();
+    const { event, streamSid } = body;
+
+    if (!event || !streamSid) {
+      return Response.json({ error: 'missing event or streamSid' }, { status: 400 });
     }
+
+    const base44 = createClientFromRequest(req).asServiceRole;
+
+    // ── Route to event handler ──
+    if (event === 'init') return await handleInit(base44, body);
+    if (event === 'turn') return await handleTurn(base44, body);
+    if (event === 'transfer') return await handleTransfer(req, base44, body);
+    if (event === 'end_call') return await handleEndCall(base44, body);
+    if (event === 'stop') return await handleStop(base44, body);
+
+    return Response.json({ error: 'unknown event' }, { status: 400 });
   } catch (error) {
-    console.error('[mediaStreamRelay] processWithAI error:', error?.message);
-  } finally {
-    session.processing = false;
+    console.error('[mediaStreamRelay] error:', error?.message);
+    // Never return raw internal exception messages to callers
+    return Response.json({ error: 'internal error' }, { status: 500 });
   }
 }
 
-/**
- * Save the conversation as a FronterCallTranscript record.
- */
-async function saveTranscript(base44: any, session: any, recordingUri: string = '') {
-  const transcriptData = session.conversation.map((m: any) => ({
-    speaker: m.role === 'assistant' ? 0 : 1,
-    text: m.content,
-    time: new Date().toISOString(),
-  }));
+// ── INIT: load config + lead, return greeting ───────────────────────────
+async function handleInit(base44: any, body: any): Promise<Response> {
+  const { leadId } = body;
+  let lead: any = null;
+  let config: any = {};
 
-  const leadName = `${session.lead?.firstName || ''} ${session.lead?.lastName || ''}`.trim();
-  const duration = Math.round((Date.now() - session.startedAt) / 1000);
-  await base44.entities.FronterCallTranscript.create({
-    leadId: session.leadId,
-    leadName,
-    fronterUsername: 'ai_agent',
-    transcriptJson: JSON.stringify(transcriptData),
-    transcriptLineCount: transcriptData.length,
-    durationSeconds: duration,
-    callSid: session.callSid,
-    callDate: new Date().toISOString(),
-    callResult: 'media_stream',
-    recordingUrl: recordingUri || undefined,
+  if (leadId) {
+    try { lead = await base44.entities.FronterLead.get(leadId); } catch {}
+  }
+  try {
+    const configs = await base44.entities.AIAgentConfig.filter({ configName: 'default' });
+    config = configs?.[0] || {};
+  } catch {}
+
+  // Build greeting with variable substitution
+  let greeting = '';
+  if (config.greeting) {
+    greeting = config.greeting as string;
+    if (lead) {
+      greeting = greeting
+        .replace(/\{\{first_name\}\}/g, lead.firstName || '')
+        .replace(/\{\{last_name\}\}/g, lead.lastName || '')
+        .replace(/\{\{email\}\}/g, lead.email || '');
+    }
+  }
+
+  return Response.json({
+    greeting,
+    ttsEngine: config.ttsEngine || 'elevenlabs',
+    ttsVoiceModel: config.ttsVoiceModel || '',
+    llmModel: config.llmModel || 'claude-sonnet-5',
+    leadId: lead?.id || leadId,
+    leadFirstName: lead?.firstName || '',
+    leadLastName: lead?.lastName || '',
   });
 }
 
-/**
- * Create a WAV file from μ-law audio chunks and upload to private storage (stored privately).
- */
-async function uploadRecording(base44: any, session: any): Promise<string> {
-  // Concatenate all base64 mulaw audio chunks into raw bytes
-  let totalLen = 0;
-  const rawChunks: Uint8Array[] = [];
-  for (const b64 of session.recordingBuffer) {
-    const raw = atob(b64);
-    const bytes = new Uint8Array(raw.length);
-    for (let i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i);
-    rawChunks.push(bytes);
-    totalLen += bytes.length;
+// ── TURN: LLM response with structured action ──────────────────────────
+async function handleTurn(base44: any, body: any): Promise<Response> {
+  const { transcript, conversation, leadId } = body;
+
+  if (!transcript || typeof transcript !== 'string') {
+    return Response.json({ error: 'missing transcript' }, { status: 400 });
   }
 
-  // Build WAV header (mulaw, 8kHz, mono, 8-bit)
-  const header = new Uint8Array(44);
-  const view = new DataView(header.buffer);
-  view.setUint32(0, 0x52494646, false);   // "RIFF"
-  view.setUint32(4, 36 + totalLen, true);   // file size - 8
-  view.setUint32(8, 0x57415645, false);    // "WAVE"
-  view.setUint32(12, 0x666d7420, false);   // "fmt "
-  view.setUint32(16, 16, true);             // chunk size
-  view.setUint16(20, 7, true);              // format = μ-law
-  view.setUint16(22, 1, true);              // channels = 1
-  view.setUint32(24, 8000, true);           // sample rate
-  view.setUint32(28, 8000, true);           // byte rate
-  view.setUint16(32, 1, true);              // block align
-  view.setUint16(34, 8, true);              // bits per sample
-  view.setUint32(36, 0x64617461, false);   // "data"
-  view.setUint32(40, totalLen, true);       // data size
+  // Load config
+  let config: any = {};
+  try {
+    const configs = await base44.entities.AIAgentConfig.filter({ configName: 'default' });
+    config = configs?.[0] || {};
+  } catch {}
 
-  // Combine header + audio
-  const wav = new Uint8Array(44 + totalLen);
-  wav.set(header, 0);
-  let offset = 44;
-  for (const chunk of rawChunks) {
-    wav.set(chunk, offset);
-    offset += chunk.length;
+  // Load lead
+  let lead: any = null;
+  if (leadId) {
+    try { lead = await base44.entities.FronterLead.get(leadId); } catch {}
   }
 
-  // Upload to private storage
-  const file = new File([wav], `recording-${session.callSid || 'unknown'}.wav`, { type: 'audio/wav' });
-  const result = await base44.integrations.Core.UploadPrivateFile({ file });
-  return result?.file_uri || '';
+  // Build system prompt with variable substitution
+  const systemPrompt = config.systemPrompt || FRONTER_SCRIPT_SYSTEM_PROMPT;
+  const filledPrompt = systemPrompt
+    .replace(/\{\{first_name\}\}/g, lead?.firstName || '')
+    .replace(/\{\{last_name\}\}/g, lead?.lastName || '')
+    .replace(/\{\{email\}\}/g, lead?.email || '')
+    .replace(/\{\{city\}\}/g, lead?.city || '')
+    .replace(/\{\{state\}\}/g, lead?.state || '');
+
+  // Build conversation text from structured messages (preserves role distinction)
+  const conversationText = (conversation || [])
+    .map((m: any) => `${m.role === 'user' ? 'Prospect' : 'Agent'}: ${m.content}`)
+    .join('\n');
+
+  const llmModel = MODEL_MAP[config.llmModel] || 'claude-sonnet-5';
+
+  let action = 'speak';
+  let text = '';
+  let disposition = '';
+
+  try {
+    const result = await base44.integrations.Core.InvokeLLM({
+      prompt: `${filledPrompt}
+
+Conversation so far:
+${conversationText}
+
+Respond as the Agent to the prospect's latest message. Keep your response to 1-3 sentences since it will be spoken aloud on a phone call. Do not use formatting, emojis, or special characters.
+
+Determine the action:
+- "speak": Continue the conversation naturally
+- "transfer": The prospect is qualified and ready for transfer to a senior advisor
+- "end_call": The prospect is not qualified (debt under $10,000) or explicitly not interested
+
+Return JSON with:
+- action: one of "speak", "transfer", "end_call"
+- text: what to speak aloud (1-3 sentences, no formatting)
+- disposition: if end_call, one of "not_interested", "opt_out", "no_response", "technical_failure"`,
+      response_json_schema: {
+        type: 'object',
+        properties: {
+          action: { type: 'string', enum: VALID_ACTIONS },
+          text: { type: 'string' },
+          disposition: { type: 'string', enum: VALID_DISPOSITIONS },
+        },
+        required: ['action', 'text'],
+      },
+      model: llmModel,
+    });
+
+    // Validate LLM response against schema
+    action = VALID_ACTIONS.includes(result?.action) ? result.action : 'speak';
+    text = typeof result?.text === 'string' ? result.text : '';
+    if (text.length > 500) text = text.slice(0, 497) + '...';
+    disposition = VALID_DISPOSITIONS.includes(result?.disposition) ? result.disposition : 'no_response';
+  } catch (e) {
+    console.error('[mediaStreamRelay] LLM error:', e?.message);
+    action = 'speak';
+    text = "I'm sorry, could you repeat that?";
+  }
+
+  // Deterministic qualification: reject transfer if debt is known and below $10k
+  if (action === 'transfer' && lead?.debtAmount != null && lead.debtAmount > 0 && lead.debtAmount < 10000) {
+    action = 'speak';
+    text = "I appreciate your time, but our programs are designed for debt amounts of $10,000 or more. If your situation changes, please don't hesitate to reach out.";
+    disposition = 'not_interested';
+  }
+
+  return Response.json({ action, text, disposition });
+}
+
+// ── TRANSFER: execute transfer prep + redirect Twilio call ───────────────
+async function handleTransfer(req: Request, base44: any, body: any): Promise<Response> {
+  const { callSid, conversation, leadId } = body;
+
+  let lead: any = null;
+  let config: any = {};
+  if (leadId) {
+    try { lead = await base44.entities.FronterLead.get(leadId); } catch {}
+  }
+  try {
+    const configs = await base44.entities.AIAgentConfig.filter({ configName: 'default' });
+    config = configs?.[0] || {};
+  } catch {}
+
+  // Execute transfer prep (extract data, send email, generate summary, update lead)
+  try {
+    await prepareTransfer(req, base44, lead, config, conversation || []);
+  } catch (e) {
+    console.error('[mediaStreamRelay] Transfer prep failed:', e?.message);
+  }
+
+  // Redirect Twilio call to transfer TwiML
+  if (callSid) {
+    try {
+      const transferUrl = `${BASE_URL}/functions/dialerVoiceHandler?Mode=aiAgentTransfer&LeadId=${encodeURIComponent(leadId || '')}`;
+      await twilioFetch(`/Calls/${callSid}.json`, {
+        method: 'POST',
+        body: new URLSearchParams({ Url: transferUrl }),
+      });
+    } catch (e) {
+      console.error('[mediaStreamRelay] Failed to redirect call for transfer:', e?.message);
+    }
+  }
+
+  return Response.json({ ok: true, transferNumber: config.transferPhoneNumber || '+16193530919' });
+}
+
+// ── END_CALL: update disposition (NOT automatic "removed") ──────────────
+async function handleEndCall(base44: any, body: any): Promise<Response> {
+  const { callSid, disposition, leadId } = body;
+
+  // Validate disposition
+  const validDisposition = VALID_DISPOSITIONS.includes(disposition) ? disposition : 'no_response';
+
+  // Update lead with disposition — only set status to 'removed' for explicit opt-out/not-interested
+  if (leadId) {
+    try {
+      const lead = await base44.entities.FronterLead.get(leadId);
+      const update: any = {
+        callCount: (lead?.callCount || 0) + 1,
+        lastCallResult: validDisposition,
+        lastCalledAt: new Date().toISOString(),
+      };
+      if (validDisposition === 'opt_out' || validDisposition === 'not_interested') {
+        update.status = 'removed';
+      }
+      await base44.entities.FronterLead.update(leadId, update);
+    } catch (e) {
+      console.error('[mediaStreamRelay] Failed to update lead on end_call:', e?.message);
+    }
+  }
+
+  // Redirect Twilio call to endcall TwiML
+  if (callSid) {
+    try {
+      const endCallUrl = `${BASE_URL}/functions/dialerVoiceHandler?Mode=aiAgentEndCall`;
+      await twilioFetch(`/Calls/${callSid}.json`, {
+        method: 'POST',
+        body: new URLSearchParams({ Url: endCallUrl }),
+      });
+    } catch (e) {
+      console.error('[mediaStreamRelay] Failed to redirect call for end_call:', e?.message);
+    }
+  }
+
+  return Response.json({ ok: true });
+}
+
+// ── STOP: save transcript + upload recording (idempotent) ────────────────
+async function handleStop(base44: any, body: any): Promise<Response> {
+  const { callSid, conversation, recordingBase64, leadId } = body;
+
+  let recordingUri = '';
+
+  // Upload recording (stored privately)
+  if (recordingBase64 && recordingBase64.length > 0) {
+    try {
+      // Convert base64 mulaw to WAV
+      const raw = atob(recordingBase64);
+      const bytes = new Uint8Array(raw.length);
+      for (let i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i);
+
+      // Build WAV header (mulaw, 8kHz, mono, 8-bit)
+      const header = new Uint8Array(44);
+      const view = new DataView(header.buffer);
+      view.setUint32(0, 0x52494646, false);   // "RIFF"
+      view.setUint32(4, 36 + bytes.length, true);
+      view.setUint32(8, 0x57415645, false);    // "WAVE"
+      view.setUint32(12, 0x666d7420, false);   // "fmt "
+      view.setUint32(16, 16, true);
+      view.setUint16(20, 7, true);              // μ-law
+      view.setUint16(22, 1, true);              // mono
+      view.setUint32(24, 8000, true);
+      view.setUint32(28, 8000, true);
+      view.setUint16(32, 1, true);
+      view.setUint16(34, 8, true);
+      view.setUint32(36, 0x64617461, false);   // "data"
+      view.setUint32(40, bytes.length, true);
+
+      const wav = new Uint8Array(44 + bytes.length);
+      wav.set(header, 0);
+      wav.set(bytes, 44);
+
+      const file = new File([wav], `recording-${callSid || 'unknown'}.wav`, { type: 'audio/wav' });
+      const result = await base44.integrations.Core.UploadPrivateFile({ file });
+      recordingUri = result?.file_uri || '';
+    } catch (e) {
+      console.warn('[mediaStreamRelay] Recording upload failed:', e?.message);
+    }
+  }
+
+  // Save transcript (idempotent: check for existing by callSid)
+  if (conversation && conversation.length > 0 && leadId && callSid) {
+    try {
+      const existing = await base44.entities.FronterCallTranscript.filter({ callSid });
+      const items = existing?.items || (Array.isArray(existing) ? existing : []);
+      if (items.length === 0) {
+        // Only create if no existing transcript for this callSid (idempotent)
+        let lead: any = null;
+        try { lead = await base44.entities.FronterLead.get(leadId); } catch {}
+        const leadName = `${lead?.firstName || ''} ${lead?.lastName || ''}`.trim();
+
+        const transcriptData = conversation.map((m: any) => ({
+          speaker: m.role === 'assistant' ? 0 : 1,
+          text: m.content,
+          time: new Date().toISOString(),
+        }));
+
+        await base44.entities.FronterCallTranscript.create({
+          leadId,
+          leadName,
+          fronterUsername: 'ai_agent',
+          transcriptJson: JSON.stringify(transcriptData),
+          transcriptLineCount: transcriptData.length,
+          callSid,
+          callDate: new Date().toISOString(),
+          callResult: 'media_stream',
+          recordingUrl: recordingUri || undefined,
+        });
+      }
+    } catch (e) {
+      console.warn('[mediaStreamRelay] Transcript save failed:', e?.message);
+    }
+  }
+
+  return Response.json({ ok: true });
 }

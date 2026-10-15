@@ -35,6 +35,16 @@ export default async function(req) {
     //   When the AI agent dials a lead (via aiAgentDial), the call connects
     //   here. We read the AIAgentConfig for the greeting, say it, then connect
     //   to a Media Stream for the AI conversation (STT → LLM → TTS loop).
+    //
+    //   AUTH BOUNDARIES (3 separate trust boundaries — never mix):
+    //   1. STREAM_AUTH_TOKEN  — Twilio → Bridge: validated in start.customParameters
+    //   2. APP_AUTH_TOKEN     — Bridge → Relay: Bearer header on HTTP forward
+    //   3. PLAY_AUTH_TOKEN    — Relay → Bridge /play: Bearer header on playback
+    //   The stream token is never forwarded to the app backend or logged.
+    //
+    //   RETRY: retry counter prevents infinite WebSocket reconnect loops.
+    //   Each attempt increments the counter; max 2 retries before hangup.
+    //   Retries do NOT redial the lead — they only retry the stream connection.
     const aiMode = params.get('Mode') === 'aiAgent';
     if (aiMode) {
       // NOTE: Call-hours cutoff is enforced by aiAgentDial BEFORE placing the
@@ -43,9 +53,9 @@ export default async function(req) {
       // advisor numbers, not prospects, so the cutoff doesn't apply there.
       //
       // GREETING OWNERSHIP: When the bridge URL exists, the greeting is NOT
-      // spoken by this handler — mediaStreamRelay generates it via
-      // ElevenLabs/Deepgram TTS and pushes it through the bridge. The greeting
-      // loaded below is only used in the no-bridge fallback path.
+      // spoken by this handler — the bridge generates it via ElevenLabs/Deepgram
+      // TTS and plays it through the Media Stream. The greeting loaded below
+      // is only used in the no-bridge fallback path.
       const leadId = params.get('LeadId') || '';
       let greeting = 'Hi, may I speak with {{first_name}} please?';
       let leadData: any = null;
