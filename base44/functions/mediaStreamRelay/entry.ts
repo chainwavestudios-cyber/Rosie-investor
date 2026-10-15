@@ -134,8 +134,6 @@ async function handleInit(base44: any, body: any): Promise<Response> {
     ...pipeline,
     pipeline,
     configUpdatedAt: config.updated_date || null,
-    elevenLabsVoiceId: ttsEngine === 'elevenlabs' ? ttsVoiceModel : '',
-    deepgramTtsVoice: ttsEngine === 'deepgram-aura' ? ttsVoiceModel : '',
     leadId: lead?.id || leadId,
     leadFirstName: lead?.firstName || '',
     leadLastName: lead?.lastName || '',

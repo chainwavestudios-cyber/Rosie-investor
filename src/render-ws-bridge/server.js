@@ -242,7 +242,7 @@ async function handleStreamStart(ws, streamSid, start) {
     if (session.stopping) return;
     if (!initResp.pipeline?.valid || initResp.pipeline.version !== PIPELINE_VERSION) throw new Error('Relay pipeline is missing or outdated; update the relay.');
     session.leadId = initResp.leadId || leadId;
-    session.config = { ...initResp.pipeline, configUpdatedAt: initResp.configUpdatedAt };
+    session.config = { ...initResp.pipeline, elevenLabsVoiceId: initResp.elevenLabsVoiceId || ELEVENLABS_VOICE_ID, deepgramTtsVoice: initResp.deepgramTtsVoice || DEEPGRAM_TTS_VOICE, configUpdatedAt: initResp.configUpdatedAt };
     session.state = 'listening';
     openDeepgram(session, streamSid);
 
@@ -466,15 +466,15 @@ async function handleUtterance(streamSid, transcript) {
 // ── TTS generation (ElevenLabs preferred, Deepgram Aura fallback) ──────
 async function generateTTS(text, config = {}, session = null) {
   const engine = config.ttsEngine || TTS_ENGINE;
-  const elevenLabsVoiceId = engine === 'elevenlabs' ? (config.ttsVoiceModel || ELEVENLABS_VOICE_ID) : ELEVENLABS_VOICE_ID;
-  const deepgramVoice = engine === 'deepgram-aura' ? (config.ttsVoiceModel || DEEPGRAM_TTS_VOICE) : DEEPGRAM_TTS_VOICE;
+  const elevenLabsVoiceId = engine === 'elevenlabs' ? (config.elevenLabsVoiceId || config.ttsVoiceModel || ELEVENLABS_VOICE_ID) : ELEVENLABS_VOICE_ID;
+  const deepgramVoice = engine === 'deepgram-aura' ? (config.deepgramTtsVoice || config.ttsVoiceModel || DEEPGRAM_TTS_VOICE) : DEEPGRAM_TTS_VOICE;
   const synthesisModel = config.ttsSynthesisModel || 'eleven_turbo_v2_5';
   const startedAt = Date.now();
   let fallback = null;
   const record = (provider, model, voice, state, error = null) => {
     if (session) session.tts = { engine: provider, model, voice, state, fallback, error, ms: Date.now() - startedAt, at: new Date().toISOString() };
   };
-  record(engine, engine === 'elevenlabs' ? synthesisModel : deepgramVoice, config.ttsVoiceModel, 'requested');
+  record(engine, engine === 'elevenlabs' ? synthesisModel : deepgramVoice, engine === 'elevenlabs' ? elevenLabsVoiceId : deepgramVoice, 'requested');
 
   // Try ElevenLabs first when selected and configured.
   if (engine === 'elevenlabs' && ELEVENLABS_API_KEY) {

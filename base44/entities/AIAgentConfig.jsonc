@@ -51,7 +51,16 @@
     },
     "ttsVoiceModel": {
       "type": "string",
-      "title": "TTS Voice Model / Voice ID",
+      "title": "TTS Voice Model / Voice ID (legacy fallback \u2014 use elevenLabsVoiceId or deepgramTtsVoice)",
+      "default": "aura-2-thalia-en"
+    },
+    "elevenLabsVoiceId": {
+      "type": "string",
+      "title": "ElevenLabs Voice ID (separate from Deepgram voice)"
+    },
+    "deepgramTtsVoice": {
+      "type": "string",
+      "title": "Deepgram Aura TTS Voice ID (separate from ElevenLabs voice)",
       "default": "aura-2-thalia-en"
     },
     "ttsSynthesisModel": {
@@ -61,7 +70,7 @@
         "eleven_turbo_v2_5",
         "eleven_flash_v2_5"
       ],
-      "default": "eleven_turbo_v2_5"
+      "default": "eleven_flash_v2_5"
     },
     "llmModel": {
       "type": "string",

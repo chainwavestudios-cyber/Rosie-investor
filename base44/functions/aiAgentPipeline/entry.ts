@@ -21,7 +21,7 @@ export default async function(req) {
       if (!pipeline.valid) return Response.json({ error: pipeline.errors.join(' ') }, { status: 400 });
       const existing = await loadAgentConfig(service);
       // Never accept system fields or a caller-chosen singleton name.
-      const fields = ['isActive', 'twilioLineKey', 'transferPhoneNumber', 'transferPhoneNumber2', 'queueTimeoutSeconds', 'sttEngine', 'ttsEngine', 'ttsVoiceModel', 'ttsSynthesisModel', 'llmModel', 'kbPrimary', 'kbSecondary', 'greeting', 'systemPrompt', 'scriptFlow', 'dynamicRebuttals', 'qaTuning', 'callbackBookingEnabled', 'preTransferEmailEnabled'];
+      const fields = ['isActive', 'twilioLineKey', 'transferPhoneNumber', 'transferPhoneNumber2', 'queueTimeoutSeconds', 'sttEngine', 'ttsEngine', 'ttsVoiceModel', 'elevenLabsVoiceId', 'deepgramTtsVoice', 'ttsSynthesisModel', 'llmModel', 'kbPrimary', 'kbSecondary', 'greeting', 'systemPrompt', 'scriptFlow', 'dynamicRebuttals', 'qaTuning', 'callbackBookingEnabled', 'preTransferEmailEnabled'];
       const payload = Object.fromEntries(fields.filter(key => body.config[key] !== undefined).map(key => [key, body.config[key]]));
       const config = existing ? await service.entities.AIAgentConfig.update(existing.id, { ...payload, updatedBy: actor.username || actor.full_name }) : await service.entities.AIAgentConfig.create({ ...payload, configName: 'default', updatedBy: actor.username || actor.full_name });
       return Response.json({ config, pipeline });

@@ -19,7 +19,7 @@ export default function AIAgentLiveConfig({ config }) {
       <dl className="grid grid-cols-1 gap-2 text-xs sm:grid-cols-3">
         <div className="min-w-0 rounded bg-muted p-3"><dt className="font-semibold">LLM</dt><dd className="break-all">{pipeline.llmModel} → {pipeline.llmRequestModel || 'Unsupported'}</dd></div>
         <div className="min-w-0 rounded bg-muted p-3"><dt className="font-semibold">STT</dt><dd>{pipeline.sttEngine} → {pipeline.sttModel || 'Unsupported'}</dd></div>
-        <div className="min-w-0 rounded bg-muted p-3"><dt className="font-semibold">TTS / voice</dt><dd className="break-all">{pipeline.ttsEngine} · {pipeline.ttsSynthesisModel} · {pipeline.ttsVoiceModel || 'No voice selected'}</dd></div>
+        <div className="min-w-0 rounded bg-muted p-3"><dt className="font-semibold">TTS / voice</dt><dd className="break-all">{pipeline.ttsEngine} · {pipeline.ttsSynthesisModel} · {pipeline.ttsEngine === 'elevenlabs' ? (pipeline.elevenLabsVoiceId || 'No voice selected') : (pipeline.deepgramTtsVoice || 'No voice selected')}</dd></div>
       </dl>{pipeline.errors.map(message => <p key={message} className="mt-2 text-xs text-destructive">{message}</p>)}
       {pipeline.warnings?.map(message => <p key={message} className="mt-2 text-xs text-muted-foreground">{message}</p>)}</>}
     {bridge && <p role="status" className="mt-3 text-sm">{bridge.state === 'connected' ? `Bridge connected · ${bridge.version}` : `NOT VERIFIED: ${bridge.message}`}</p>}
