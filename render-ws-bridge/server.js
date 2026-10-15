@@ -352,7 +352,7 @@ function openDeepgram(session, streamSid) {
     smart_format: 'true',
     punctuate: 'true',
     interim_results: 'true',
-    endpointing: '300',
+    endpointing: '200',
     vad_events: 'true',
   });
 
