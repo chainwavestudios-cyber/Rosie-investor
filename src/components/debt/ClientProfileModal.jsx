@@ -16,6 +16,8 @@ import { usePopOutPanel } from '@/hooks/usePopOutPanel';
 import LiveProfileAgent from '@/components/debt/LiveProfileAgent';
 import AIPopulateTab from '@/components/shared/AIPopulateTab';
 import ApptTrackingBadges from '@/components/debt/ApptTrackingBadges';
+import { useQueryClient } from '@tanstack/react-query';
+import { HOT_LEADS_KEY } from '@/lib/hotLeads';
 
 const GOLD = '#10b981';
 const ls = { display: 'block', color: '#8a9ab8', fontSize: '9px', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '3px' };
@@ -53,6 +55,7 @@ const TABS = [
 ];
 
 export default function ClientProfileModal({ lead, username, onClose, onSave }) {
+  const queryClient = useQueryClient();
   const [tab, setTab] = useState('overview');
   const [local, setLocal] = useState(lead || {});
   const [saving, setSaving] = useState(false);
@@ -227,7 +230,7 @@ export default function ClientProfileModal({ lead, username, onClose, onSave }) 
 
   // Toggle the Hot Lead tag on this lead
   const toggleHotLead = async () => {
-    if (!local.id) return;
+    if (!local.id || togglingHot) return;
     setTogglingHot(true);
     try {
       const newVal = !local.isHotLead;
@@ -235,10 +238,13 @@ export default function ClientProfileModal({ lead, username, onClose, onSave }) 
         isHotLead: newVal,
         hotLeadTaggedAt: newVal ? new Date().toISOString() : null,
         hotLeadTaggedBy: newVal ? (username || '') : null,
+        // Explicitly reactivating a lead must remove an old deletion marker.
+        ...(newVal ? { deletedAt: null, deletedBy: null } : {}),
       };
       await base44.entities.DebtLead.update(local.id, patch);
       setLocal(prev => ({ ...prev, ...patch }));
       onSave?.({ ...local, ...patch });
+      await queryClient.invalidateQueries({ queryKey: HOT_LEADS_KEY });
     } catch (e) {
       alert('Failed to toggle hot lead: ' + (e?.message || String(e)));
     }
@@ -252,7 +258,7 @@ export default function ClientProfileModal({ lead, username, onClose, onSave }) 
     if (!merged.id) return;
     setSaving(true);
     try {
-      await base44.entities.DebtLead.update(merged.id, {
+      const persisted = await base44.entities.DebtLead.update(merged.id, {
         firstName: merged.firstName, lastName: merged.lastName, phone: merged.phone, email: merged.email,
         address: merged.address, city: merged.city, state: merged.state, zip: merged.zip, dateOfBirth: merged.dateOfBirth,
         debtAmount: merged.debtAmount, creditorCount: merged.creditorCount, creditors: merged.creditors,
@@ -262,10 +268,20 @@ export default function ClientProfileModal({ lead, username, onClose, onSave }) 
         monthsBehind: merged.monthsBehind, notes: merged.notes,
         hardshipWhen: merged.hardshipWhen, hardshipWhy: merged.hardshipWhy, hardshipHow: merged.hardshipHow,
         cosignersJson: merged.cosignersJson,
-        isHotLead: merged.isHotLead, hotLeadTaggedAt: merged.hotLeadTaggedAt, hotLeadTaggedBy: merged.hotLeadTaggedBy,
+        // The dedicated tag action owns Hot Lead fields; a stale profile save
+        // must never overwrite a tag changed in another open card.
       });
+      const tag = {
+        isHotLead: persisted.isHotLead,
+        hotLeadTaggedAt: persisted.hotLeadTaggedAt,
+        hotLeadTaggedBy: persisted.hotLeadTaggedBy,
+        deletedAt: persisted.deletedAt,
+        deletedBy: persisted.deletedBy,
+      };
+      setLocal(prev => ({ ...prev, ...tag }));
       setSaved(true); setTimeout(() => setSaved(false), 2000);
-      onSave?.(merged);
+      onSave?.({ ...merged, ...tag });
+      await queryClient.invalidateQueries({ queryKey: HOT_LEADS_KEY });
     } catch (e) { alert('Save failed: ' + (e?.message || String(e))); }
     setSaving(false);
   };

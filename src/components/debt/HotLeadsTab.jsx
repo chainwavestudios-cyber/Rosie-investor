@@ -13,7 +13,7 @@
  */
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
-import { useDebtCoachValue, getDebtCoachValue, setDebtCoachValue } from '@/lib/debtCoachStorage';
+import useHotLeads from '@/hooks/useHotLeads';
 
 const GOLD = '#10b981';
 const RED = '#ef4444';
@@ -46,12 +46,11 @@ function isToday(dateStr) {
 }
 
 export default function HotLeadsTab({ onOpenLead, onOpenHeatMap }) {
-  const [leads, setLeads] = useState([]);
   const [events, setEvents] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [calLoading, setCalLoading] = useState(true);
   const [calError, setCalError] = useState('');
   const [search, setSearch] = useState('');
+  const { leads, total, loading, refreshing, error: leadError, hasMore, loadingMore, loadMore, refresh: loadLeads } = useHotLeads(search);
   const [todayOnly, setTodayOnly] = useState(false);
   const [completed, setCompleted] = useState(() => {
     try { return JSON.parse(localStorage.getItem('appt_completed') || '{}'); } catch { return {}; }
@@ -63,20 +62,7 @@ export default function HotLeadsTab({ onOpenLead, onOpenHeatMap }) {
   const [rescheduling, setRescheduling] = useState({});
   const [rescheduleSent, setRescheduleSent] = useState({});
 
-  const loadLeads = useCallback(async () => {
-    setLoading(true);
-    try {
-      const page = await base44.entities.DebtLead.filter(
-        { isHotLead: true },
-        { sort: '-hotLeadTaggedAt', limit: 200 }
-      );
-      const all = page?.items || page || [];
-      setLeads(all.filter(l => !l.deletedAt));
-    } catch (e) {
-      console.error('Hot leads load failed:', e);
-    }
-    setLoading(false);
-  }, []);
+
 
   const loadCalendar = useCallback(async () => {
     setCalLoading(true);
@@ -93,18 +79,15 @@ export default function HotLeadsTab({ onOpenLead, onOpenHeatMap }) {
   }, []);
 
   useEffect(() => {
-    loadLeads();
     loadCalendar();
-    // Auto-refresh hot leads every 30s — catches new tags even if realtime misses
-    const leadInterval = setInterval(loadLeads, 30000);
     const calInterval = setInterval(loadCalendar, 60000);
-    // Realtime: refresh hot leads immediately when any DebtLead changes (tag/untag)
-    const unsubscribe = base44.entities.DebtLead.subscribe(() => { loadLeads(); });
-    // Refresh when the page becomes visible (switching back to this tab)
-    const onVisibility = () => { if (!document.hidden) { loadLeads(); loadCalendar(); } };
+    const onVisibility = () => { if (!document.hidden) loadCalendar(); };
     document.addEventListener('visibilitychange', onVisibility);
-    return () => { clearInterval(leadInterval); clearInterval(calInterval); unsubscribe?.(); document.removeEventListener('visibilitychange', onVisibility); };
-  }, [loadLeads, loadCalendar]);
+    return () => {
+      clearInterval(calInterval);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
+  }, [loadCalendar]);
 
   const removeHotTag = async (lead) => {
     if (!window.confirm(`Remove "Hot Lead" tag from ${lead.firstName} ${lead.lastName}?`)) return;
@@ -246,9 +229,7 @@ export default function HotLeadsTab({ onOpenLead, onOpenHeatMap }) {
     eventsByDay[ev.dayLabel].push(ev);
   });
 
-  const filtered = search
-    ? leads.filter(l => `${l.firstName} ${l.lastName} ${l.phone || ''} ${l.email || ''}`.toLowerCase().includes(search.toLowerCase()))
-    : leads;
+  const filtered = leads;
 
   // Calendar panel content (shared between docked and popped-out)
   const calendarPanel = (
@@ -396,9 +377,10 @@ export default function HotLeadsTab({ onOpenLead, onOpenHeatMap }) {
         <div style={{ padding: '14px 18px', borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
           <div>
             <span style={{ color: RED, fontSize: '15px', fontWeight: 'bold' }}>🔥 Hot Leads</span>
-            <span style={{ color: '#6b7280', fontSize: '11px', marginLeft: '8px' }}>{leads.length} tagged</span>
+            <span style={{ color: '#8a9ab8', fontSize: '11px', marginLeft: '8px' }} aria-live="polite">{total ?? '…'} {search.trim() ? 'matching tagged leads' : 'tagged'}</span>
           </div>
-          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+            <button onClick={() => loadLeads()} disabled={refreshing} style={{ background: `${GOLD}18`, color: GOLD, border: `1px solid ${GOLD}44`, borderRadius: '4px', padding: '5px 10px', cursor: refreshing ? 'not-allowed' : 'pointer', fontSize: '11px' }}>{refreshing ? 'Updating…' : 'Refresh Hot Leads'}</button>
             {onOpenHeatMap && (
               <button onClick={onOpenHeatMap} title="Pop out the Deal Heat Map" style={{ background: `${RED}18`, color: RED, border: `1px solid ${RED}44`, borderRadius: '4px', padding: '5px 12px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', whiteSpace: 'nowrap', fontFamily: 'Georgia, serif' }}>🔥 Heat Meter</button>
             )}
@@ -406,9 +388,10 @@ export default function HotLeadsTab({ onOpenLead, onOpenHeatMap }) {
           </div>
         </div>
 
+        {leadError && <div role="alert" style={{ padding: '12px 18px', color: RED, fontSize: '12px' }}>Hot Leads could not update. {leads.length > 0 ? 'Your last loaded leads are still shown. ' : ''}Please press Refresh Hot Leads to retry.</div>}
         {loading ? (
           <div style={{ padding: '40px', textAlign: 'center', color: '#6b7280', fontSize: '13px' }}>Loading hot leads…</div>
-        ) : filtered.length === 0 ? (
+        ) : filtered.length === 0 && !leadError ? (
           <div style={{ padding: '40px', textAlign: 'center', color: '#4a5568', fontSize: '13px' }}>
             {search ? 'No hot leads match your search.' : 'No hot leads yet. Tag a lead as "Hot Lead" from the contact card header.'}
           </div>
@@ -451,6 +434,7 @@ export default function HotLeadsTab({ onOpenLead, onOpenHeatMap }) {
             })}
           </div>
         )}
+        {hasMore && <div style={{ padding: '12px 18px', textAlign: 'center' }}><button onClick={loadMore} disabled={loadingMore} style={{ background: `${GOLD}18`, color: GOLD, border: `1px solid ${GOLD}44`, borderRadius: '4px', padding: '7px 16px', cursor: loadingMore ? 'not-allowed' : 'pointer', fontSize: '12px' }}>{loadingMore ? 'Loading…' : 'Load more hot leads'}</button></div>}
       </div>
 
       {/* Docked Calendar */}
