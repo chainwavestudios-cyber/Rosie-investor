@@ -12,6 +12,7 @@
  */
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.52';
 import { lineNumber, toE164, xmlEscape, twilioFetch, confTwiML, findConferenceSid, waitForConference } from '../../shared/twilioHelpers.ts';
+import { queueFronterCustomer } from '../../shared/queueFronterCustomer.js';
 
 const BASE_URL = 'https://rosieai-investorpage.base44.app';
 
@@ -86,7 +87,7 @@ async function moveIntoConference(fronterCallSid: string, confName: string, hold
   return customerCallSid;
 }
 
-Deno.serve(async (req) => {
+export default async function(req) {
   try {
     // Parse body — JSON for app calls, form-encoded for Twilio callbacks
     const contentType = req.headers.get('content-type') || '';
@@ -203,10 +204,11 @@ Deno.serve(async (req) => {
 
       const existingConf = await findConferenceSid(confName);
       const fronterSid = fronterCallSid || fronterSidFromConf(confName);
+      let customerCallSid = body.customerCallSid || '';
 
       if (!existingConf) {
         // Create conference: move customer + fronter into it together
-        const customerCallSid = await moveIntoConference(fronterSid, confName, holdAudioUrl);
+        customerCallSid = await moveIntoConference(fronterSid, confName, holdAudioUrl) || '';
 
         if (customerCallSid && leadId) {
           try {
@@ -231,6 +233,7 @@ Deno.serve(async (req) => {
         const participants = await twilioFetch(`/Conferences/${confSid}/Participants.json`);
         for (const p of participants.participants || []) {
           if (p.call_sid !== fronterSid && !p.hold) {
+            customerCallSid = p.call_sid;
             const holdUrl = `${BASE_URL}/functions/appointmentVoiceHandler?step=hold&leadId=${encodeURIComponent(leadId || '')}`;
             await twilioFetch(`/Calls/${p.call_sid}.json`, {
               method: 'POST',
@@ -262,7 +265,7 @@ Deno.serve(async (req) => {
         }),
       });
 
-      return Response.json({ ok: true, conferenceName: confName, agentCallSid: agentCall?.sid || '' });
+      return Response.json({ ok: true, conferenceName: confName, agentCallSid: agentCall?.sid || '', customerCallSid });
     }
 
     // ── MERGE CONNECT: unhold customer, remove fronter from conference ──
@@ -329,79 +332,14 @@ Deno.serve(async (req) => {
     //   agent's leg are removed from the conference; the customer stays on hold
     //   in the queue with hold music. The fronter is free to dial the next prospect.
     if (action === 'noConnect') {
-      const { conferenceName, fronterCallSid, agentCallSid, leadId, leadName, leadPhone, leadEmail, fronterUsername, lineKey } = body;
+      const { conferenceName, leadId } = body;
       if (!conferenceName) return Response.json({ error: 'conferenceName required' }, { status: 400 });
-
-      // Cancel the agent's call if it's still ringing (not yet a conference participant)
-      if (agentCallSid) {
-        try {
-          await twilioFetch(`/Calls/${agentCallSid}.json`, {
-            method: 'POST',
-            body: new URLSearchParams({ Status: 'completed' }),
-          });
-        } catch (e) { console.warn('Cancel agent call failed:', e.message); }
-      }
-
-      const confSid = await findConferenceSid(conferenceName);
-      if (!confSid) return Response.json({ error: 'Conference not found' }, { status: 404 });
-
-      const fronterSid = fronterCallSid || fronterSidFromConf(conferenceName);
-      const participants = await twilioFetch(`/Conferences/${confSid}/Participants.json`);
-      for (const p of participants.participants || []) {
-        if (p.call_sid === fronterSid) {
-          // Remove the fronter's browser leg
-          try {
-            await twilioFetch(`/Conferences/${confSid}/Participants/${p.call_sid}.json`, {
-              method: 'POST',
-              body: new URLSearchParams({ Status: 'completed' }),
-            });
-          } catch (e) { console.warn('Remove fronter failed:', e.message); }
-        } else if (!p.hold) {
-          // Non-held, non-fronter participant = the agent (if already joined) — remove it
-          try {
-            await twilioFetch(`/Conferences/${confSid}/Participants/${p.call_sid}.json`, {
-              method: 'POST',
-              body: new URLSearchParams({ Status: 'completed' }),
-            });
-          } catch (e) { console.warn('Remove agent participant failed:', e.message); }
-        }
-        // Held participant = the customer → keep them in the queue
-      }
-
-      // Explicitly hang up the fronter's browser call so the Twilio device disconnects immediately
-      if (fronterSid) {
-        try {
-          await twilioFetch(`/Calls/${fronterSid}.json`, {
-            method: 'POST',
-            body: new URLSearchParams({ Status: 'completed' }),
-          });
-        } catch (e) { console.warn('Fronter call hangup failed:', e.message); }
-      }
-
-      // Create/update FronterHeadsUp so the queued customer shows in the monitor
-      if (leadId) {
-        try {
-          const b44 = createClientFromRequest(req).asServiceRole;
-          const headsUps = await b44.entities.FronterHeadsUp.filter({ leadId, status: 'active' });
-          if (headsUps?.[0]) {
-            await b44.entities.FronterHeadsUp.update(headsUps[0].id, { conferenceName, status: 'active' });
-          } else {
-            await b44.entities.FronterHeadsUp.create({
-              fronterUsername: fronterUsername || '',
-              leadId,
-              leadName: leadName || '',
-              leadPhone: leadPhone || '',
-              leadEmail: leadEmail || '',
-              conferenceName,
-              lineKey: lineKey || '',
-              status: 'active',
-              createdAt: new Date().toISOString(),
-            });
-          }
-        } catch (e) { console.warn('HeadsUp create failed:', e.message); }
-      }
-
-      return Response.json({ ok: true });
+      const base44 = createClientFromRequest(req).asServiceRole;
+      const holdUrl = `${BASE_URL}/functions/appointmentVoiceHandler?step=hold&leadId=${encodeURIComponent(leadId || '')}`;
+      const result = await queueFronterCustomer({
+        body, entities: base44.entities, twilioFetch, findConferenceSid, holdUrl,
+      });
+      return Response.json(result);
     }
 
     // ── GRAB QUEUED CALL: Chris joins the conference unmuted, customer is unholded ──
@@ -786,6 +724,6 @@ Deno.serve(async (req) => {
 
     return Response.json({ error: 'Unknown action' }, { status: 400 });
   } catch (error) {
-    return Response.json({ error: error.message }, { status: 500 });
+    return Response.json({ error: error.message }, { status: error.status || 500 });
   }
-});
+}

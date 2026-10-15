@@ -7,7 +7,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
 import { substituteScriptVars } from '@/lib/scriptSubstitute';
-import { renderFormatted } from '@/components/debt/ScriptRichText';
+import FronterContactScript from '@/components/fronter/FronterContactScript';
 import FronterCardAudioControls from './FronterCardAudioControls';
 import FronterMeetingScheduler from './FronterMeetingScheduler';
 import FronterCardActions from './FronterCardActions';
@@ -227,7 +227,8 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
   };
 
   const onScriptDragStart = (e) => {
-    scriptDragRef.current = { startX: e.clientX - scriptPos.x, startY: e.clientY - scriptPos.y };
+    const bounds = e.currentTarget.parentElement.getBoundingClientRect();
+    scriptDragRef.current = { startX: e.clientX - bounds.left, startY: e.clientY - bounds.top };
     const onMove = (ev) => { if (scriptDragRef.current) setScriptPos({ x: ev.clientX - scriptDragRef.current.startX, y: ev.clientY - scriptDragRef.current.startY }); };
     const onUp = () => { scriptDragRef.current = null; document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); };
     document.addEventListener('mousemove', onMove);
@@ -616,79 +617,20 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
   const interactiveSegments = mainScriptPart.split(/@@(DEBT_CONFIRM|AI_INPUT|SEND_EMAIL)@@/i);
 
   const scriptContent = (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-      {scripts.length > 1 && (
-        <div style={{ display: 'flex', gap: '2px', borderBottom: '1px solid rgba(255,255,255,0.07)', overflowX: 'auto', flexShrink: 0 }}>
-          {scripts.map(s => (
-            <button key={s.id} onClick={() => setActiveScript(s)} style={{ padding: '6px 10px', background: 'none', border: 'none', borderBottom: `2px solid ${activeScript?.id === s.id ? GOLD : 'transparent'}`, color: activeScript?.id === s.id ? GOLD : '#6b7280', cursor: 'pointer', fontSize: '10px', whiteSpace: 'nowrap', fontWeight: activeScript?.id === s.id ? 'bold' : 'normal' }}>{s.name}</button>
-          ))}
-        </div>
-      )}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '14px' }}>
-        {!activeScript ? (
-          <div style={{ color: '#4a5568', textAlign: 'center', padding: '40px 0', fontSize: '13px' }}>No scripts yet. Ask your admin to add a script.</div>
-        ) : (
-          <div style={{ color: '#e8e0d0', fontSize: '14px', lineHeight: 1.8, fontFamily: 'Georgia, serif', whiteSpace: 'pre-wrap' }}>
-            {interactiveSegments.map((seg, i) => {
-              if (seg.toUpperCase() === 'DEBT_CONFIRM') {
-                return (
-                  <div key={i} style={{ margin: '12px 0', display: 'flex', justifyContent: 'center' }}>
-                    <button
-                      onClick={runDebtConfirm}
-                      disabled={debtConfirming}
-                      style={{ background: `${GOLD}18`, color: GOLD, border: `2px solid ${GOLD}55`, borderRadius: '8px', padding: '10px 24px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold', fontFamily: 'Georgia, serif', boxShadow: `0 0 12px ${GOLD}33` }}
-                    >
-                      {debtConfirming ? '⏳ Confirming…' : '💰 Confirm Debt'}
-                    </button>
-                  </div>
-                );
-              }
-              if (seg.toUpperCase() === 'AI_INPUT') {
-                return (
-                  <div key={i} style={{ margin: '12px 0', display: 'flex', justifyContent: 'center' }}>
-                    <button
-                      onClick={runAiInput}
-                      disabled={aiInputRunning}
-                      style={{ background: 'rgba(167,139,250,0.18)', color: '#a78bfa', border: '2px solid rgba(167,139,250,0.55)', borderRadius: '8px', padding: '10px 24px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold', fontFamily: 'Georgia, serif', boxShadow: '0 0 12px rgba(167,139,250,0.33)' }}
-                    >
-                      {aiInputRunning ? '⏳ Summarizing…' : '🤖 AI Input'}
-                    </button>
-                  </div>
-                );
-              }
-              if (seg.toUpperCase() === 'SEND_EMAIL') {
-                return (
-                  <div key={i} style={{ margin: '12px 0', display: 'flex', justifyContent: 'center' }}>
-                    <button
-                      onClick={() => setShowCredsEmail(true)}
-                      style={{ background: 'rgba(96,165,250,0.18)', color: BLUE, border: '2px solid rgba(96,165,250,0.55)', borderRadius: '8px', padding: '10px 24px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold', fontFamily: 'Georgia, serif', boxShadow: '0 0 12px rgba(96,165,250,0.33)' }}
-                    >
-                      📧 Send Credentials Email
-                    </button>
-                  </div>
-                );
-              }
-              return <span key={i}>{renderFormatted(seg)}</span>;
-            })}
-            {hasCompletedSteps && (
-              <div style={{ margin: '12px 0', display: 'flex', justifyContent: 'center' }}>
-                <button
-                  onClick={() => { setTransferScript(remainingScriptPart); setShowMergePopup(true); }}
-                  style={{ background: 'linear-gradient(135deg,#10b981,#22c55e)', color: DARK, border: 'none', borderRadius: '8px', padding: '12px 32px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold', fontFamily: 'Georgia, serif', boxShadow: '0 0 16px rgba(16,185,129,0.4)' }}
-                >
-                  ✅ Completed Steps → Transfer
-                </button>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-      {(aiInputMsg || debtConfirmMsg) && (
-        <div style={{ padding: '8px 14px', color: GOLD, fontSize: '10px' }}>
-          {aiInputMsg || debtConfirmMsg}
-        </div>
-      )}
-    </div>
+    <FronterContactScript
+      scripts={scripts}
+      activeScript={activeScript}
+      onSelectScript={setActiveScript}
+      segments={interactiveSegments}
+      hasCompletedSteps={hasCompletedSteps}
+      onComplete={() => { setTransferScript(remainingScriptPart); setShowMergePopup(true); }}
+      onDebtConfirm={runDebtConfirm}
+      debtConfirming={debtConfirming}
+      onAiInput={runAiInput}
+      aiInputRunning={aiInputRunning}
+      onSendEmail={() => setShowCredsEmail(true)}
+      message={aiInputMsg || debtConfirmMsg}
+    />
   );
 
   const initials = `${(local.firstName?.[0] || '?')}${(local.lastName?.[0] || '')}`;
@@ -847,7 +789,7 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
         </div>
 
         {/* Content */}
-        <div style={{ flex: 1, overflowY: 'auto', padding: '16px' }}>
+        <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '16px' }}>
           {cardTab === 'contact' && (
             <div>
               {/* Audio controls */}
@@ -1050,13 +992,13 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
 
       {/* Script popout — clean floating window, no header name, just script content + drag/close/save */}
       {scriptPoppedOut && (
-        <div style={{ position: 'fixed', left: scriptPos.x, top: scriptPos.y, width: scriptSize.w, height: scriptSize.h, background: '#0d1b2a', border: `1px solid ${GOLD}44`, borderRadius: '8px', boxShadow: '0 16px 64px rgba(0,0,0,0.8)', zIndex: 10001, display: 'flex', flexDirection: 'column' }}>
+        <div data-testid="fronter-script-popout" style={{ position: 'fixed', left: `clamp(8px, ${scriptPos.x}px, calc(100vw - min(${scriptSize.w}px, calc(100vw - 16px)) - 8px))`, top: `clamp(8px, ${scriptPos.y}px, calc(100vh - min(${scriptSize.h}px, calc(100vh - 16px)) - 8px))`, width: `min(${scriptSize.w}px, calc(100vw - 16px))`, height: `min(${scriptSize.h}px, calc(100vh - 16px))`, background: '#0d1b2a', border: `1px solid ${GOLD}44`, borderRadius: '8px', boxShadow: '0 16px 64px rgba(0,0,0,0.8)', zIndex: 10001, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           <div onMouseDown={onScriptDragStart} style={{ padding: '4px 10px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '6px', cursor: 'move', userSelect: 'none', flexShrink: 0, background: 'linear-gradient(135deg, rgba(16,185,129,0.06), transparent)' }}>
             <button onClick={() => { const layout = loadFronterLayout(username); layout.script = { ...scriptPos, ...scriptSize }; saveFronterLayout(username, layout); savedLayoutRef.current = layout; setScriptSaveMsg(true); setTimeout(() => setScriptSaveMsg(false), 2000); }} style={{ background: scriptSaveMsg ? 'rgba(74,222,128,0.15)' : 'rgba(255,255,255,0.05)', color: scriptSaveMsg ? '#4ade80' : '#6b7280', border: `1px solid ${scriptSaveMsg ? 'rgba(74,222,128,0.4)' : 'rgba(255,255,255,0.1)'}`, borderRadius: '3px', padding: '2px 10px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>{scriptSaveMsg ? '✓ Saved' : '📐 Save Size'}</button>
             <button onClick={() => setScriptPoppedOut(false)} style={{ background: 'none', border: 'none', color: '#6b7280', cursor: 'pointer', fontSize: '18px', padding: '0 4px' }}>×</button>
           </div>
-          <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          <div style={{ flex: 1, minHeight: 0, display: 'flex', overflow: 'hidden' }}>
+            <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
               {scriptContent}
             </div>
           </div>

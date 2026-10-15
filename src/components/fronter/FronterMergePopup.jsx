@@ -45,6 +45,8 @@ export default function FronterMergePopup({ lead, username, fronterFirstName, is
   const [mergeState, setMergeState] = useState('idle'); // idle | dialing | connected | merging | done | failed | no_answer
   const [conferenceName, setConferenceName] = useState('');
   const [agentCallSid, setAgentCallSid] = useState('');
+  const [customerCallSid, setCustomerCallSid] = useState('');
+  const [noConnectRunning, setNoConnectRunning] = useState(false);
   const [currentNumberIdx, setCurrentNumberIdx] = useState(0);
   const [error, setError] = useState('');
   const [dialingMsg, setDialingMsg] = useState('');
@@ -105,6 +107,8 @@ export default function FronterMergePopup({ lead, username, fronterFirstName, is
       const res = await base44.functions.invoke('fronterCall', {
         action: 'mergeDial',
         fronterCallSid: callSid,
+        conferenceName: conferenceName || undefined,
+        customerCallSid: customerCallSid || undefined,
         agentPhone: number,
         lineKey,
         leadId: lead?.id,
@@ -114,6 +118,7 @@ export default function FronterMergePopup({ lead, username, fronterFirstName, is
       if (data?.conferenceName) {
         setConferenceName(data.conferenceName);
         setAgentCallSid(data.agentCallSid || '');
+        if (data.customerCallSid) setCustomerCallSid(data.customerCallSid);
         setDialingMsg(`Dialing Chris on ${label}… waiting for answer`);
 
         // Poll the agent call status to detect when Chris answers.
@@ -210,14 +215,19 @@ export default function FronterMergePopup({ lead, username, fronterFirstName, is
 
   // ── NO CONNECT: leave customer in queue, disconnect fronter ──
   const handleNoConnect = async () => {
+    if (noConnectRunning) return;
     clearPoll();
     setError('');
+    setNoConnectRunning(true);
     try {
-      await base44.functions.invoke('fronterCall', { action: 'noConnect', conferenceName, fronterCallSid: callSid, agentCallSid, leadId: lead?.id, leadName: `${lead?.firstName || ''} ${lead?.lastName || ''}`.trim(), leadPhone: lead?.phone || '', leadEmail: lead?.email || '', fronterUsername: username, lineKey });
+      const res = await base44.functions.invoke('fronterCall', { action: 'noConnect', conferenceName, fronterCallSid: callSid, agentCallSid, customerCallSid, leadId: lead?.id, leadName: `${lead?.firstName || ''} ${lead?.lastName || ''}`.trim(), leadPhone: lead?.phone || '', leadEmail: lead?.email || '', fronterUsername: username, lineKey });
+      if (!res?.data?.ok) throw new Error(res?.data?.error || 'The customer could not be queued.');
       setMergeState('done');
       onNoConnect?.();
     } catch (e) {
-      setError('NO CONNECT failed: ' + (e?.message || String(e)));
+      setError('NO CONNECT failed: ' + (e?.response?.data?.error || e?.message || String(e)));
+    } finally {
+      setNoConnectRunning(false);
     }
   };
 
@@ -230,9 +240,9 @@ export default function FronterMergePopup({ lead, username, fronterFirstName, is
   const mergeSegments = displayMergeScript.split(/@@(DEBT_CONFIRM|AI_INPUT|SEND_EMAIL)@@/i);
 
   const canDial = mergeState === 'idle' && callSid && callActive && lineKey;
-  const canMerge = mergeState === 'connected';
-  const canNoConnect = mergeState === 'connected' || mergeState === 'dialing' || mergeState === 'no_answer';
-  const canTryNext = (mergeState === 'connected' || mergeState === 'no_answer') && currentNumberIdx < CHRIS_NUMBERS.length - 1;
+  const canMerge = !noConnectRunning && mergeState === 'connected';
+  const canNoConnect = !noConnectRunning && (mergeState === 'connected' || mergeState === 'dialing' || mergeState === 'no_answer');
+  const canTryNext = !noConnectRunning && (mergeState === 'connected' || mergeState === 'no_answer') && currentNumberIdx < CHRIS_NUMBERS.length - 1;
   const isLastNumber = currentNumberIdx >= CHRIS_NUMBERS.length - 1;
 
   return (
@@ -423,7 +433,7 @@ export default function FronterMergePopup({ lead, username, fronterFirstName, is
                 opacity: canNoConnect ? 1 : 0.5,
               }}
             >
-              🚫 NO CONNECT
+              {noConnectRunning ? 'Queuing customer…' : '🚫 NO CONNECT'}
             </button>
             <button
               onClick={onClose}
