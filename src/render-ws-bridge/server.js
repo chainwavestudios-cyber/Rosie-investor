@@ -468,13 +468,20 @@ async function generateTTS(text, config = {}, session = null) {
   const engine = config.ttsEngine || TTS_ENGINE;
   const elevenLabsVoiceId = engine === 'elevenlabs' ? (config.elevenLabsVoiceId || config.ttsVoiceModel || ELEVENLABS_VOICE_ID) : ELEVENLABS_VOICE_ID;
   const deepgramVoice = engine === 'deepgram-aura' ? (config.deepgramTtsVoice || config.ttsVoiceModel || DEEPGRAM_TTS_VOICE) : DEEPGRAM_TTS_VOICE;
-  const synthesisModel = config.ttsSynthesisModel || 'eleven_turbo_v2_5';
+  const synthesisModel = config.ttsSynthesisModel || 'eleven_flash_v2_5';
   const startedAt = Date.now();
   let fallback = null;
+  let elevenLabsError = null;
   const record = (provider, model, voice, state, error = null) => {
     if (session) session.tts = { engine: provider, model, voice, state, fallback, error, ms: Date.now() - startedAt, at: new Date().toISOString() };
   };
   record(engine, engine === 'elevenlabs' ? synthesisModel : deepgramVoice, engine === 'elevenlabs' ? elevenLabsVoiceId : deepgramVoice, 'requested');
+
+  // Diagnostic: log provider selection before the request
+  log('[TTS] Provider selected:', engine);
+  log('[TTS] ElevenLabs key present:', !!ELEVENLABS_API_KEY);
+  log('[TTS] ElevenLabs voice ID:', elevenLabsVoiceId);
+  log('[TTS] ElevenLabs model:', synthesisModel);
 
   // Try ElevenLabs first when selected and configured.
   if (engine === 'elevenlabs' && ELEVENLABS_API_KEY) {
@@ -509,21 +516,23 @@ async function generateTTS(text, config = {}, session = null) {
           return audio.toString('base64');
         }
 
+        elevenLabsError = 'ElevenLabs returned empty audio';
         log('elevenlabs TTS returned empty audio');
       } else {
         const details = await res.text();
-        log(
-          'elevenlabs TTS error',
-          res.status,
-          details.slice(0, 1000)
-        );
+        elevenLabsError = `HTTP ${res.status}: ${details.slice(0, 500)}`;
+        log('elevenlabs TTS error', res.status, details.slice(0, 1000));
       }
     } catch (e) {
+      elevenLabsError = e?.message || 'Request failed';
       log('elevenlabs TTS failed', e?.message);
     }
+  } else if (engine === 'elevenlabs') {
+    elevenLabsError = 'ELEVENLABS_API_KEY not set on bridge';
+    log('[TTS] ElevenLabs selected but API key is missing');
   }
 
-  if (engine === 'elevenlabs') fallback = 'ElevenLabs failed or its key is missing; using Deepgram Aura.';
+  if (engine === 'elevenlabs') fallback = `ElevenLabs failed (${elevenLabsError}); using Deepgram Aura.`;
   // Deepgram Aura fallback, or primary provider if selected.
   if (DEEPGRAM_API_KEY) {
     try {
@@ -546,18 +555,15 @@ async function generateTTS(text, config = {}, session = null) {
 
         if (audio.length > 0) {
           log('deepgram TTS success; bytes', audio.length);
-          record('deepgram-aura', deepgramVoice, deepgramVoice, 'accepted');
+          // Preserve the ElevenLabs error in the diagnostic even when Deepgram succeeds
+          record('deepgram-aura', deepgramVoice, deepgramVoice, 'accepted', elevenLabsError);
           return audio.toString('base64');
         }
 
         log('deepgram TTS returned empty audio');
       } else {
         const details = await res.text();
-        log(
-          'deepgram TTS error',
-          res.status,
-          details.slice(0, 1000)
-        );
+        log('deepgram TTS error', res.status, details.slice(0, 1000));
       }
     } catch (e) {
       log('deepgram TTS failed', e?.message);
@@ -566,7 +572,7 @@ async function generateTTS(text, config = {}, session = null) {
     log('Deepgram fallback unavailable: missing DEEPGRAM_API_KEY');
   }
 
-  record(engine, engine === 'elevenlabs' ? synthesisModel : deepgramVoice, config.ttsVoiceModel, 'error', 'No provider returned audio.');
+  record(engine, engine === 'elevenlabs' ? synthesisModel : deepgramVoice, engine === 'elevenlabs' ? elevenLabsVoiceId : deepgramVoice, 'error', elevenLabsError || 'No provider returned audio.');
   log('TTS failed: no provider returned audio');
   return null;
 }
