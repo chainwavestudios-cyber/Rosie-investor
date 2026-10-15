@@ -22,6 +22,7 @@ import FronterContactCard from '@/components/fronter/FronterContactCard';
 import FronterActivityLogTab from '@/components/fronter/FronterActivityLogTab';
 import FronterAdminHRTab from '@/components/fronter/FronterAdminHRTab';
 import LeadVaultTab from '@/components/fronter/LeadVaultTab';
+import FronterKBTab from '@/components/fronter/FronterKBTab';
 import { renderFormatted } from '@/components/debt/ScriptRichText';
 
 const GOLD = '#10b981';
@@ -253,6 +254,7 @@ export default function FronterAdminTab({ adminUsername, onOpenLead }) {
     { id: 'hr', label: '🕐 HR' },
     { id: 'users', label: '👥 Users' },
     { id: 'scripts', label: '📜 Scripts' },
+    { id: 'kb', label: '📚 Knowledge Base' },
     { id: 'quotes', label: '💬 Quotes' },
     { id: 'bobcalls', label: '🤖 Bob Calls' },
     { id: 'activity', label: '📊 Activity Log' },
@@ -477,6 +479,11 @@ export default function FronterAdminTab({ adminUsername, onOpenLead }) {
       {/* ── USERS ── */}
       {subtab === 'users' && !loading && (
         <FronterUsersTab adminUsername={adminUsername} />
+      )}
+
+      {/* ── KNOWLEDGE BASE ── */}
+      {subtab === 'kb' && !loading && (
+        <FronterKBTab />
       )}
 
       {/* ── QUOTES ── */}
