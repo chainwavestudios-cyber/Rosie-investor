@@ -51,7 +51,7 @@ const PLAY_AUTH_TOKEN = process.env.PLAY_AUTH_TOKEN || '';
 const DEEPGRAM_API_KEY = process.env.DEEPGRAM_API_KEY || '';
 const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY || '';
 const TTS_ENGINE = process.env.TTS_ENGINE || 'elevenlabs';
-const ELEVENLABS_VOICE_ID = process.env.ELEVENLABS_VOICE_ID || '21m00Tcm4TlvDq8ikWAM';
+const ELEVENLABS_VOICE_ID = process.env.ELEVENLABS_VOICE_ID || '1SM7GgM6IMuvQlz2BwM3';
 const DEEPGRAM_TTS_VOICE = process.env.DEEPGRAM_TTS_VOICE || 'aura-2-thalia-en';
 const DEEPGRAM_STT_MODEL = process.env.DEEPGRAM_STT_MODEL || 'nova-2';
 const PING_INTERVAL_MS = Number(process.env.PING_INTERVAL_MS || 30000);
@@ -223,7 +223,17 @@ async function handleStreamStart(ws, streamSid, start) {
     session.leadId = initResp.leadId || leadId;
     session.config = {
       ttsEngine: initResp.ttsEngine || TTS_ENGINE,
+
+      // Only use this field when it is an actual Deepgram voice/model ID.
       ttsVoiceModel: initResp.ttsVoiceModel || '',
+
+      // These provider-specific fields are optional.
+      elevenLabsVoiceId:
+        initResp.elevenLabsVoiceId || ELEVENLABS_VOICE_ID,
+
+      deepgramTtsVoice:
+        initResp.deepgramTtsVoice || DEEPGRAM_TTS_VOICE,
+
       llmModel: initResp.llmModel || 'claude-sonnet-5',
     };
 
@@ -435,59 +445,106 @@ async function handleUtterance(streamSid, transcript) {
 }
 
 // ── TTS generation (ElevenLabs preferred, Deepgram Aura fallback) ──────
-async function generateTTS(text, config) {
+async function generateTTS(text, config = {}) {
   const engine = config.ttsEngine || TTS_ENGINE;
 
-  // ElevenLabs (preferred — produces μ-law 8kHz directly)
+  // Keep each provider's voice ID separate.
+  const elevenLabsVoiceId =
+    config.elevenLabsVoiceId || ELEVENLABS_VOICE_ID;
+
+  const deepgramVoice =
+    config.deepgramTtsVoice ||
+    (engine === 'deepgram-aura' ? config.ttsVoiceModel : '') ||
+    DEEPGRAM_TTS_VOICE;
+
+  // Try ElevenLabs first when selected and configured.
   if (engine === 'elevenlabs' && ELEVENLABS_API_KEY) {
     try {
-      const voiceId = config.ttsVoiceModel || ELEVENLABS_VOICE_ID;
       const res = await fetch(
-        `https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(voiceId)}?output_format=ulaw_8000`,
+        `https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(elevenLabsVoiceId)}?output_format=ulaw_8000`,
         {
           method: 'POST',
-          headers: { 'xi-api-key': ELEVENLABS_API_KEY, 'Content-Type': 'application/json' },
+          headers: {
+            'xi-api-key': ELEVENLABS_API_KEY,
+            'Content-Type': 'application/json',
+            'Accept': 'audio/*',
+          },
           body: JSON.stringify({
             text,
             model_id: 'eleven_turbo_v2_5',
-            voice_settings: { stability: 0.5, similarity_boost: 0.75 },
+            voice_settings: {
+              stability: 0.5,
+              similarity_boost: 0.75,
+            },
           }),
-          signal: AbortSignal.timeout(10000),
+          signal: AbortSignal.timeout(15000),
         }
       );
+
       if (res.ok) {
-        const bytes = new Uint8Array(await res.arrayBuffer());
-        return Buffer.from(bytes).toString('base64');
+        const audio = Buffer.from(await res.arrayBuffer());
+
+        if (audio.length > 0) {
+          log('elevenlabs TTS success; bytes', audio.length);
+          return audio.toString('base64');
+        }
+
+        log('elevenlabs TTS returned empty audio');
+      } else {
+        const details = await res.text();
+        log(
+          'elevenlabs TTS error',
+          res.status,
+          details.slice(0, 1000)
+        );
       }
-      log('elevenlabs TTS error', res.status);
     } catch (e) {
       log('elevenlabs TTS failed', e?.message);
     }
   }
 
-  // Deepgram Aura fallback
+  // Deepgram Aura fallback, or primary provider if selected.
   if (DEEPGRAM_API_KEY) {
     try {
-      const voice = config.ttsVoiceModel || DEEPGRAM_TTS_VOICE;
       const res = await fetch(
-        `https://api.deepgram.com/v1/speak?model=${encodeURIComponent(voice)}&encoding=mulaw&sample_rate=8000&container=none`,
+        `https://api.deepgram.com/v1/speak?model=${encodeURIComponent(deepgramVoice)}&encoding=mulaw&sample_rate=8000&container=none`,
         {
           method: 'POST',
-          headers: { 'Authorization': `Token ${DEEPGRAM_API_KEY}`, 'Content-Type': 'text/plain' },
-          body: text,
-          signal: AbortSignal.timeout(10000),
+          headers: {
+            'Authorization': `Token ${DEEPGRAM_API_KEY}`,
+            'Content-Type': 'application/json',
+            'Accept': 'audio/*',
+          },
+          body: JSON.stringify({ text }),
+          signal: AbortSignal.timeout(15000),
         }
       );
+
       if (res.ok) {
-        const bytes = new Uint8Array(await res.arrayBuffer());
-        return Buffer.from(bytes).toString('base64');
+        const audio = Buffer.from(await res.arrayBuffer());
+
+        if (audio.length > 0) {
+          log('deepgram TTS success; bytes', audio.length);
+          return audio.toString('base64');
+        }
+
+        log('deepgram TTS returned empty audio');
+      } else {
+        const details = await res.text();
+        log(
+          'deepgram TTS error',
+          res.status,
+          details.slice(0, 1000)
+        );
       }
-      log('deepgram TTS error', res.status);
     } catch (e) {
       log('deepgram TTS failed', e?.message);
     }
+  } else {
+    log('Deepgram fallback unavailable: missing DEEPGRAM_API_KEY');
   }
 
+  log('TTS failed: no provider returned audio');
   return null;
 }
 
