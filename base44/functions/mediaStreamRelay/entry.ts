@@ -159,6 +159,19 @@ const MODEL_MAP: Record<string, string> = {
   'gemini-3-1-pro': 'gemini_3_1_pro',
 };
 
+// Map config voice models to Deepgram Aura voice names.
+// Config may store ElevenLabs voice IDs or Aura names — Deepgram TTS only
+// accepts Aura names, so we map everything to the closest Aura equivalent.
+const DG_VOICE_MAP: Record<string, string> = {
+  'aura-2-thalia-en': 'aura-2-thalia-en',
+  'aura-2-asteria-en': 'aura-2-asteria-en',
+  'aura-2-arcas-en': 'aura-2-arcas-en',
+  'aura-2-orpheus-en': 'aura-2-orpheus-en',
+  '21m00Tcm4TlvDq8ikWAM': 'aura-2-asteria-en',  // ElevenLabs Rachel → Asteria (smooth, female)
+  'EXAVITqu4j5949LvpkN8': 'aura-2-arcas-en',   // ElevenLabs Adam → Arcas (deep, male)
+  'pNInz6obpgDQGcFmaJgB': 'aura-2-orpheus-en', // ElevenLabs narrator → Orpheus
+};
+
 // Minimum audio chunks before processing (75 chunks ≈ 1.5 seconds at 20ms/chunk)
 const MIN_CHUNKS_FOR_PROCESSING = 75;
 
@@ -199,8 +212,9 @@ async function processWithAI(req: Request, base44: any, session: any, streamSid:
       return;
     }
 
+    const sttModel = (session.config?.sttEngine || 'deepgram-nova-2').replace('deepgram-', '');
     const dgRes = await fetch(
-      'https://api.deepgram.com/v1/listen?encoding=mulaw&sample_rate=8000&channels=1&model=nova-2&smart_format=true&punctuate=true&interim_results=false',
+      `https://api.deepgram.com/v1/listen?encoding=mulaw&sample_rate=8000&channels=1&model=${encodeURIComponent(sttModel)}&smart_format=true&punctuate=true&interim_results=false`,
       {
         method: 'POST',
         headers: {
@@ -265,7 +279,7 @@ async function processWithAI(req: Request, base44: any, session: any, streamSid:
     console.log('[mediaStreamRelay] LLM response:', spokenResponse);
 
     // 4. Generate TTS using Deepgram Aura (mulaw, 8kHz for Twilio Media Streams)
-    const ttsVoice = session.config?.ttsVoiceModel || 'aura-2-thalia-en';
+    const ttsVoice = DG_VOICE_MAP[session.config?.ttsVoiceModel] || 'aura-2-thalia-en';
     const ttsRes = await fetch(
       `https://api.deepgram.com/v1/speak?model=${encodeURIComponent(ttsVoice)}&encoding=mulaw&sample_rate=8000&container=none`,
       {
