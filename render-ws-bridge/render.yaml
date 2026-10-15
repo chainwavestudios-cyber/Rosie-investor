@@ -10,15 +10,32 @@ services:
     autoDeploy: true
     envVars:
       - key: APP_WEBHOOK_URL
-        # Base44 function URL that receives media batches, e.g.
+        # Base44 function URL that receives events:
         # https://rosieai-investorpage.base44.app/functions/mediaStreamRelay
       - key: APP_AUTH_TOKEN
         sync: false
       - key: STREAM_AUTH_TOKEN
         sync: false
-      - key: AUDIO_BATCH_MS
-        value: "250"
-      - key: PING_INTERVAL_MS
-        value: "30000"
+      - key: PLAY_AUTH_TOKEN
+        # Dedicated credential for /play endpoint (separate from stream token)
+        sync: false
+      - key: DEEPGRAM_API_KEY
+        sync: false
+      - key: ELEVENLABS_API_KEY
+        sync: false
+      - key: TTS_ENGINE
+        value: "elevenlabs"
+      - key: ELEVENLABS_VOICE_ID
+        sync: false
+      - key: DEEPGRAM_TTS_VOICE
+        value: "aura-2-thalia-en"
+      - key: DEEPGRAM_STT_MODEL
+        value: "nova-2"
+      - key: NODE_ENV
+        value: "production"
       - key: LOG_LEVEL
         value: "info"
+      - key: HTTP_TIMEOUT_MS
+        value: "15000"
+      - key: PING_INTERVAL_MS
+        value: "30000"
