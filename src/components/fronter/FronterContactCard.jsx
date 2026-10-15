@@ -61,6 +61,7 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
   const [scriptSize, setScriptSize] = useState(() => ({ w: savedLayoutRef.current.script.w, h: savedLayoutRef.current.script.h }));
   const [callKey, setCallKey] = useState(0);
   const [layoutSavedMsg, setLayoutSavedMsg] = useState(false);
+  const [layoutMode, setLayoutMode] = useState(false);
   const qaLayoutRef = useRef(null);
   const transcriptLayoutRef = useRef(null);
   const [scriptSaveMsg, setScriptSaveMsg] = useState(false);
@@ -184,6 +185,43 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
     const onUp = () => { dragRef.current = null; document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); };
     document.addEventListener('mousemove', onMove);
     document.addEventListener('mouseup', onUp);
+  };
+
+  // ── Layout Mode: open all 3 popouts for arrangement, then save ──
+  // Lets the fronter set their preferred window layout without a live call.
+  // The saved layout is restored automatically on every future call connect.
+  const enterLayoutMode = () => {
+    const layout = loadFronterLayout(username);
+    savedLayoutRef.current = layout;
+    setScriptPos(layout.script);
+    setScriptSize({ w: layout.script.w, h: layout.script.h });
+    setScriptPoppedOut(true);
+    setQaPoppedOut(true);
+    setTranscriptPoppedOut(true);
+    setLayoutMode(true);
+  };
+
+  const saveLayoutAndExit = () => {
+    const layout = {
+      qa: qaLayoutRef.current || savedLayoutRef.current.qa,
+      script: { x: scriptPos.x, y: scriptPos.y, w: scriptSize.w, h: scriptSize.h },
+      transcript: transcriptLayoutRef.current || savedLayoutRef.current.transcript,
+    };
+    saveFronterLayout(username, layout);
+    savedLayoutRef.current = layout;
+    setScriptPoppedOut(false);
+    setQaPoppedOut(false);
+    setTranscriptPoppedOut(false);
+    setLayoutMode(false);
+    setLayoutSavedMsg(true);
+    setTimeout(() => setLayoutSavedMsg(false), 2000);
+  };
+
+  const cancelLayoutMode = () => {
+    setScriptPoppedOut(false);
+    setQaPoppedOut(false);
+    setTranscriptPoppedOut(false);
+    setLayoutMode(false);
   };
 
   const onScriptDragStart = (e) => {
@@ -709,20 +747,29 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
               </div>
             </div>
           </div>
-          <FronterCardActions
-            status={local.status || 'prospect'}
-            isAdmin={isAdmin}
-            headsUpSent={headsUpSent}
-            headsUpSending={headsUpSending}
-            onHeadsUp={sendHeadsUp}
-            onInterested={() => { setMeetingDisposition('interested'); setShowMeetingScheduler(true); }}
-            onTransferred={markTransferred}
-            onEmailSent={markEmailSent}
-            onClosedDeal={markClosedDeal}
-            onNext={onNext}
-            onClose={onClose}
-            onQA={() => { setQaPoppedOut(p => !p); onOpenQA?.(); }}
-          />
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <button
+              onClick={enterLayoutMode}
+              title="Save Layout — arrange all 3 windows, then save for future calls"
+              style={{ background: `${GOLD}18`, color: GOLD, border: `1px solid ${GOLD}44`, borderRadius: '4px', padding: '5px 10px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold', whiteSpace: 'nowrap' }}
+            >
+              📐 Save Layout
+            </button>
+            <FronterCardActions
+              status={local.status || 'prospect'}
+              isAdmin={isAdmin}
+              headsUpSent={headsUpSent}
+              headsUpSending={headsUpSending}
+              onHeadsUp={sendHeadsUp}
+              onInterested={() => { setMeetingDisposition('interested'); setShowMeetingScheduler(true); }}
+              onTransferred={markTransferred}
+              onEmailSent={markEmailSent}
+              onClosedDeal={markClosedDeal}
+              onNext={onNext}
+              onClose={onClose}
+              onQA={() => { setQaPoppedOut(p => !p); onOpenQA?.(); }}
+            />
+          </div>
         </div>
 
         {/* Green screen — embedded dialer with real call controls */}
@@ -1080,6 +1127,18 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
           layoutRef={qaLayoutRef}
           onSave={(l) => { const layout = loadFronterLayout(username); layout.qa = l; saveFronterLayout(username, layout); savedLayoutRef.current = layout; setLayoutSavedMsg(true); setTimeout(() => setLayoutSavedMsg(false), 2000); }}
         />
+      )}
+
+      {/* Layout mode popup — arrange 3 windows, then save */}
+      {layoutMode && (
+        <div style={{ position: 'fixed', bottom: '24px', left: '50%', transform: 'translateX(-50%)', background: '#0d1b2a', border: `2px solid ${GOLD}55`, borderRadius: '10px', padding: '16px 24px', boxShadow: '0 12px 48px rgba(0,0,0,0.8)', zIndex: 50000, display: 'flex', flexDirection: 'column', gap: '10px', alignItems: 'center', maxWidth: '420px' }}>
+          <div style={{ color: GOLD, fontSize: '14px', fontWeight: 'bold', textAlign: 'center' }}>📐 Arrange Your Call Layout</div>
+          <div style={{ color: '#8a9ab8', fontSize: '11px', textAlign: 'center', lineHeight: 1.5 }}>Move and resize the Script, Q&A, and Transcript windows to your preferred positions. This layout will be restored automatically on every future live call.</div>
+          <div style={{ display: 'flex', gap: '10px' }}>
+            <button onClick={saveLayoutAndExit} style={{ background: 'linear-gradient(135deg,#10b981,#22c55e)', color: DARK, border: 'none', borderRadius: '6px', padding: '10px 28px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}>💾 Save Layout</button>
+            <button onClick={cancelLayoutMode} style={{ background: 'rgba(255,255,255,0.05)', color: '#8a9ab8', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', padding: '10px 20px', cursor: 'pointer', fontSize: '13px' }}>Cancel</button>
+          </div>
+        </div>
       )}
 
       {/* Layout saved confirmation toast */}
