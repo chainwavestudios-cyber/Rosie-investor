@@ -176,6 +176,80 @@ const DG_VOICE_MAP: Record<string, string> = {
 const MIN_CHUNKS_FOR_PROCESSING = 75;
 
 /**
+ * Generate TTS audio as base64 μ-law 8kHz.
+ * Uses ElevenLabs (with ulaw_8000 output format) when configured, falls back
+ * to Deepgram Aura. Both return raw μ-law bytes ready for Twilio Media Streams.
+ */
+async function generateTTS(config: any, text: string, deepgramKey: string): Promise<string | null> {
+  const ttsEngine = config?.ttsEngine || 'deepgram-aura';
+
+  // ── ElevenLabs ──
+  if (ttsEngine === 'elevenlabs') {
+    const elevenlabsKey = secrets.get('ELEVENLABS_API_KEY') || '';
+    if (elevenlabsKey) {
+      const voiceId = config?.ttsVoiceModel || '21m00Tcm4TlvDq8ikWAM';
+      try {
+        const ttsRes = await fetch(
+          `https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(voiceId)}?output_format=ulaw_8000`,
+          {
+            method: 'POST',
+            headers: {
+              'xi-api-key': elevenlabsKey,
+              'Content-Type': 'application/json',
+              'Accept': 'audio/mpeg',
+            },
+            body: JSON.stringify({
+              text,
+              model_id: 'eleven_turbo_v2_5',
+              voice_settings: { stability: 0.5, similarity_boost: 0.75, use_speaker_boost: true },
+            }),
+          }
+        );
+        if (ttsRes.ok) {
+          const ttsBytes = new Uint8Array(await ttsRes.arrayBuffer());
+          let binary = '';
+          for (let i = 0; i < ttsBytes.length; i++) binary += String.fromCharCode(ttsBytes[i]);
+          console.log('[mediaStreamRelay] ElevenLabs TTS OK, bytes:', ttsBytes.length);
+          return btoa(binary);
+        }
+        console.error('[mediaStreamRelay] ElevenLabs TTS error:', ttsRes.status, await ttsRes.text());
+      } catch (e) {
+        console.error('[mediaStreamRelay] ElevenLabs TTS exception:', e?.message);
+      }
+      console.warn('[mediaStreamRelay] ElevenLabs failed — falling back to Deepgram Aura');
+    } else {
+      console.warn('[mediaStreamRelay] No ELEVENLABS_API_KEY — falling back to Deepgram Aura');
+    }
+  }
+
+  // ── Deepgram Aura (default / fallback) ──
+  if (!deepgramKey) {
+    console.error('[mediaStreamRelay] No DEEPGRAM_API_KEY for TTS fallback');
+    return null;
+  }
+  const ttsVoice = DG_VOICE_MAP[config?.ttsVoiceModel] || 'aura-2-thalia-en';
+  const ttsRes = await fetch(
+    `https://api.deepgram.com/v1/speak?model=${encodeURIComponent(ttsVoice)}&encoding=mulaw&sample_rate=8000&container=none`,
+    {
+      method: 'POST',
+      headers: {
+        'Authorization': `Token ${deepgramKey}`,
+        'Content-Type': 'text/plain',
+      },
+      body: text,
+    }
+  );
+  if (!ttsRes.ok) {
+    console.error('[mediaStreamRelay] Deepgram TTS error:', ttsRes.status);
+    return null;
+  }
+  const ttsBytes = new Uint8Array(await ttsRes.arrayBuffer());
+  let binary = '';
+  for (let i = 0; i < ttsBytes.length; i++) binary += String.fromCharCode(ttsBytes[i]);
+  return btoa(binary);
+}
+
+/**
  * Phase 2: Transcribe audio with Deepgram, call LLM, generate TTS, push to Twilio.
  * Called on each media_batch when enough audio has accumulated.
  */
@@ -278,31 +352,12 @@ async function processWithAI(req: Request, base44: any, session: any, streamSid:
     session.conversation.push({ role: 'assistant', content: spokenResponse });
     console.log('[mediaStreamRelay] LLM response:', spokenResponse);
 
-    // 4. Generate TTS using Deepgram Aura (mulaw, 8kHz for Twilio Media Streams)
-    const ttsVoice = DG_VOICE_MAP[session.config?.ttsVoiceModel] || 'aura-2-thalia-en';
-    const ttsRes = await fetch(
-      `https://api.deepgram.com/v1/speak?model=${encodeURIComponent(ttsVoice)}&encoding=mulaw&sample_rate=8000&container=none`,
-      {
-        method: 'POST',
-        headers: {
-          'Authorization': `Token ${deepgramKey}`,
-          'Content-Type': 'text/plain',
-        },
-        body: spokenResponse,
-      }
-    );
-
-    if (!ttsRes.ok) {
-      console.error('[mediaStreamRelay] Deepgram TTS error:', ttsRes.status);
+    // 4. Generate TTS (ElevenLabs or Deepgram Aura, both outputting mulaw 8kHz)
+    const ttsBase64 = await generateTTS(session.config, spokenResponse, deepgramKey);
+    if (!ttsBase64) {
+      console.error('[mediaStreamRelay] All TTS engines failed — skipping response');
       return;
     }
-
-    const ttsAudio = await ttsRes.arrayBuffer();
-    const ttsBytes = new Uint8Array(ttsAudio);
-    // Base64 encode the mulaw audio for the bridge /play endpoint
-    let binary = '';
-    for (let i = 0; i < ttsBytes.length; i++) binary += String.fromCharCode(ttsBytes[i]);
-    const ttsBase64 = btoa(binary);
 
     // Add TTS audio to recording buffer (agent's side)
     session.recordingBuffer.push(ttsBase64);
