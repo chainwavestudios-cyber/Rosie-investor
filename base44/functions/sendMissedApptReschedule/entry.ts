@@ -69,22 +69,9 @@ function generateTimeSlots(): Array<{ startISO: string; label: string; dayLabel:
   return slots;
 }
 
-function buildEmailHtml(lead: any, slots: any[], token: string): string {
-  const rescheduleBase = `${APP_BASE}/reschedule?leadId=${lead.id}&token=${token}`;
-
-  const todaySlots = slots.filter(s => s.dayLabel === 'Today').map((s) => {
-    const idx = slots.indexOf(s);
-    const link = `${rescheduleBase}&slot=${idx}`;
-    return `<a href="${link}" style="display:inline-block;background:#0ea5e9;color:#000000;text-decoration:none;font-weight:bold;padding:10px 20px;border-radius:6px;font-size:14px;margin:4px 6px 4px 0;">${s.label}</a>`;
-  }).join('');
-
-  const tomorrowSlots = slots.filter(s => s.dayLabel === 'Tomorrow').map((s) => {
-    const idx = slots.indexOf(s);
-    const link = `${rescheduleBase}&slot=${idx}`;
-    return `<a href="${link}" style="display:inline-block;background:#0ea5e9;color:#000000;text-decoration:none;font-weight:bold;padding:10px 20px;border-radius:6px;font-size:14px;margin:4px 6px 4px 0;">${s.label}</a>`;
-  }).join('');
-
-  const customLink = `${rescheduleBase}&custom=1`;
+function buildEmailHtml(lead: any): string {
+  // Google Calendar appointment scheduler — customer picks a time directly
+  const bookingLink = 'https://calendar.app.google/c9kk3wXrzPH21ARW7';
 
   return `<!DOCTYPE html><html><body style="margin:0;padding:0;background:#f4f4f5;font-family:'DM Sans',Arial,Helvetica,sans-serif;">
 <div style="max-width:600px;margin:0 auto;background:#ffffff;padding:40px 36px;">
@@ -93,15 +80,14 @@ function buildEmailHtml(lead: any, slots: any[], token: string): string {
     Looks like we did not connect today at our arranged time, are you free later today or tomorrow. I really would a chance to connect about helping you eliminate all future interest on your unsecured debts, reduce your payments by 30-40% and get you debt free in the next few years. Our program has zero up front fees and we don't get paid until we settle all of your debts fully. We also do not handle your monies, as all payments made by consumers who enroll in our program specifically goto a escrow account that you control. There is no early termination or program exit fee's either, as a consumer you can choose to leave the program and withdraw your funds at any time without penalty. I look forward to showing you options to becoming debt free.
   </p>
 
-  <p style="font-size:16px;font-weight:bold;color:#0a1c42;margin:24px 0 12px 0;">Pick a time that works for you:</p>
+  <p style="font-size:16px;font-weight:bold;color:#0a1c42;margin:24px 0 16px 0;">Pick a time that works for you:</p>
 
-  ${todaySlots ? `<p style="font-size:13px;font-weight:bold;color:#6b7280;margin:0 0 8px 0;text-transform:uppercase;letter-spacing:1px;">Today</p><div style="margin:0 0 16px 0;">${todaySlots}</div>` : ''}
+  <div style="text-align:center;margin:0 0 24px 0;">
+    <a href="${bookingLink}" style="display:inline-block;background:#0ea5e9;color:#000000;text-decoration:none;font-weight:bold;padding:16px 40px;border-radius:8px;font-size:17px;font-family:'DM Sans',Arial,Helvetica,sans-serif;">📅 Book Your New Time</a>
+  </div>
 
-  <p style="font-size:13px;font-weight:bold;color:#6b7280;margin:0 0 8px 0;text-transform:uppercase;letter-spacing:1px;">Tomorrow</p>
-  <div style="margin:0 0 16px 0;">${tomorrowSlots}</div>
-
-  <p style="font-size:14px;margin:16px 0 0 0;">
-    <a href="${customLink}" style="color:#0ea5e9;text-decoration:underline;font-weight:bold;">Or request a specific time that works for you</a>
+  <p style="font-size:14px;margin:0 0 0 0;color:#6b7280;">
+    Or call us at <a href="tel:+16193530919" style="color:#0ea5e9;text-decoration:none;font-weight:bold;">(619) 353-0919</a> and we'll get you scheduled right away.
   </p>
 
   <p style="font-size:15px;margin:24px 0 0 0;color:#0d1117;">Best Regards,</p>
@@ -128,13 +114,9 @@ export default async function (req: Request): Promise<Response> {
     if (!lead) return Response.json({ error: 'Lead not found' }, { status: 404 });
     if (!lead.email) return Response.json({ error: 'Lead has no email address' }, { status: 400 });
 
-    // Generate 6 time slots + security token
-    const slots = generateTimeSlots();
-    const token = `${Date.now()}_${Math.random().toString(36).slice(2, 14)}`;
-
     // Build + send the email
     const subject = "We missed connecting today - let's reschedule your free consultation";
-    let html = buildEmailHtml(lead, slots, token);
+    let html = buildEmailHtml(lead);
 
     const sendId = `${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
     html = injectTracking(html, lead.id, sendId);
@@ -151,11 +133,9 @@ export default async function (req: Request): Promise<Response> {
       throw new Error(`Gmail API error: ${errorText}`);
     }
 
-    // Store slots + token on the lead
+    // Mark reschedule email as sent
     const now = new Date().toISOString();
     await base44.asServiceRole.entities.DebtLead.update(lead.id, {
-      rescheduleSlotsJson: JSON.stringify(slots),
-      rescheduleToken: token,
       rescheduleSentAt: now,
       rescheduleBookedAt: null,
     });
@@ -166,17 +146,15 @@ export default async function (req: Request): Promise<Response> {
         leadId: lead.id,
         leadName: `${lead.firstName || ''} ${lead.lastName || ''}`.trim(),
         activityType: 'note',
-        activityText: '📧 Sent missed-appointment reschedule email with 6 time slots',
+        activityText: '📧 Sent missed-appointment reschedule email with Google Calendar booking link',
         createdBy: 'email_automation',
-        metadataJson: JSON.stringify({ sendId, slotCount: slots.length }),
+        metadataJson: JSON.stringify({ sendId }),
       });
     } catch {}
 
     return Response.json({
       success: true,
       sendId,
-      slotCount: slots.length,
-      slots: slots.map(s => ({ label: s.label, dayLabel: s.dayLabel })),
       sentAt: now,
     });
   } catch (error) {
