@@ -52,6 +52,51 @@ function twimlResponse(twiml: string) {
   });
 }
 
+/**
+ * Save the AI agent conversation to a FronterCallTranscript record.
+ * Creates on first turn, updates on subsequent turns, finalizes with callResult.
+ * Converts the internal conversation format [{role, content}] to the transcript
+ * format [{speaker, text, time}] where speaker 0=agent, 1=customer.
+ */
+async function saveAiAgentTranscript(base44: any, callSid: string, leadId: string, leadName: string, conversation: any[], callResult?: string) {
+  if (!callSid || !leadId) return null;
+
+  const transcriptData = conversation.map(m => ({
+    speaker: m.role === 'assistant' ? 0 : 1,
+    text: m.content,
+    time: new Date().toISOString(),
+  }));
+
+  // Look up existing transcript by callSid
+  let existing: any = null;
+  try {
+    const results = await base44.entities.FronterCallTranscript.filter({ callSid });
+    const items = results?.items || (Array.isArray(results) ? results : []);
+    existing = items[0] || null;
+  } catch {}
+
+  const payload: any = {
+    leadId,
+    leadName,
+    fronterUsername: 'ai_agent',
+    transcriptJson: JSON.stringify(transcriptData),
+    transcriptLineCount: transcriptData.length,
+    callSid,
+  };
+  if (callResult) payload.callResult = callResult;
+
+  if (existing) {
+    await base44.entities.FronterCallTranscript.update(existing.id, payload);
+    return existing.id;
+  } else {
+    const rec = await base44.entities.FronterCallTranscript.create({
+      ...payload,
+      callDate: new Date().toISOString(),
+    });
+    return rec?.id || null;
+  }
+}
+
 export default async function(req: Request): Promise<Response> {
   try {
     const url = new URL(req.url);
@@ -73,10 +118,12 @@ export default async function(req: Request): Promise<Response> {
     // Twilio sends form-encoded SpeechResult
     let speechResult = '';
     let confidence = '';
+    let callSid = '';
     try {
       const form = await req.formData();
       speechResult = (form.get('SpeechResult') || '').toString().trim();
       confidence = (form.get('Confidence') || '').toString();
+      callSid = (form.get('CallSid') || '').toString();
     } catch {}
 
     console.log('[aiAgentRespond] leadId:', leadId, 'speech:', speechResult, 'conf:', confidence);
@@ -174,7 +221,7 @@ Respond as the Agent. Keep your response to 1-3 sentences since it will be spoke
     // Add agent response to conversation
     conversation.push({ role: 'assistant', content: spokenResponse });
 
-    // Save conversation back to lead
+    // Save conversation back to lead (lightweight state buffer for Gather flow)
     try {
       await base44.entities.FronterLead.update(leadId, {
         notes: JSON.stringify(conversation),
@@ -182,6 +229,15 @@ Respond as the Agent. Keep your response to 1-3 sentences since it will be spoke
       });
     } catch (e) {
       console.warn('[aiAgentRespond] Failed to save conversation:', e?.message);
+    }
+
+    // Save transcript to FronterCallTranscript entity (proper storage)
+    if (callSid) {
+      try {
+        await saveAiAgentTranscript(base44, callSid, leadId, `${leadData.firstName || ''} ${leadData.lastName || ''}`.trim(), conversation);
+      } catch (e) {
+        console.warn('[aiAgentRespond] Failed to save transcript:', e?.message);
+      }
     }
 
     // ── ENDCALL: prospect is unqualified or not interested ──
@@ -195,6 +251,12 @@ Respond as the Agent. Keep your response to 1-3 sentences since it will be spoke
           status: 'removed',
         });
       } catch {}
+      // Finalize transcript with call result
+      if (callSid) {
+        try {
+          await saveAiAgentTranscript(base44, callSid, leadId, `${leadData.firstName || ''} ${leadData.lastName || ''}`.trim(), conversation, 'not_interested');
+        } catch {}
+      }
       return twimlResponse(`<Response>
   <Say voice="${pollyVoice}">${xmlEscape(spokenResponse)}</Say>
   <Hangup/>
@@ -203,7 +265,7 @@ Respond as the Agent. Keep your response to 1-3 sentences since it will be spoke
 
     // ── TRANSFER: prospect is qualified → execute the full transfer sequence ──
     if (wantsTransfer) {
-      return await executeTransfer(req, base44, leadData, config, conversation, spokenResponse);
+      return await executeTransfer(req, base44, leadData, config, conversation, spokenResponse, callSid);
     }
 
     // ── Continue the conversation ──
@@ -233,7 +295,7 @@ Respond as the Agent. Keep your response to 1-3 sentences since it will be spoke
  * 5. Return TwiML: <Say> transfer message → <Dial> primary number
  *    The <Dial> action callback hits ?transferFallback=1 for 2nd line fallback.
  */
-async function executeTransfer(req: Request, base44: any, leadData: any, config: any, conversation: any[], spokenResponse: string): Promise<Response> {
+async function executeTransfer(req: Request, base44: any, leadData: any, config: any, conversation: any[], spokenResponse: string, callSid: string = ''): Promise<Response> {
   const leadId = leadData.id;
   const now = new Date().toISOString();
   const callerId = Deno.env.get('TWILIO_FROM_NUMBER') || '';
@@ -317,6 +379,15 @@ async function executeTransfer(req: Request, base44: any, leadData: any, config:
     console.warn('[aiAgentRespond] Failed to update lead on transfer:', e?.message);
   }
 
+  // Finalize transcript with transfer result
+  if (callSid) {
+    try {
+      await saveAiAgentTranscript(base44, callSid, leadId, `${leadData.firstName || ''} ${leadData.lastName || ''}`.trim(), conversation, 'transferred');
+    } catch (e) {
+      console.warn('[aiAgentRespond] Failed to finalize transcript:', e?.message);
+    }
+  }
+
   // ── 5. Return TwiML: transfer message → dial primary number ──
   // The Dial action callback hits ?transferFallback=1 → dials 2nd line
   const fallbackUrl = `${BASE_URL}/functions/aiAgentRespond?transferFallback=1&leadId=${encodeURIComponent(leadId)}`;
@@ -367,6 +438,14 @@ async function handleTransferNoConnect(req: Request, leadId: string): Promise<Re
   const now = new Date().toISOString();
   const pollyVoice = getPollyVoice('aura-2-thalia-en');
 
+  // Parse CallSid from the Dial action callback form data
+  let callSid = '';
+  let leadName = '';
+  try {
+    const form = await req.formData();
+    callSid = (form.get('CallSid') || '').toString();
+  } catch {}
+
   console.log('[aiAgentRespond] → Transfer NO CONNECT: both lines failed for lead', leadId);
 
   try {
@@ -377,6 +456,24 @@ async function handleTransferNoConnect(req: Request, leadId: string): Promise<Re
     });
   } catch (e) {
     console.warn('[aiAgentRespond] Failed to update lead on no-connect:', e?.message);
+  }
+
+  // Finalize transcript with no-connect result
+  if (callSid) {
+    try {
+      // Load lead for the name
+      const lead = await base44.entities.FronterLead.get(leadId);
+      leadName = `${lead?.firstName || ''} ${lead?.lastName || ''}`.trim();
+      // Load the conversation from notes (last saved state)
+      let conversation: any[] = [];
+      try {
+        const parsed = JSON.parse(lead?.notes || '[]');
+        if (Array.isArray(parsed)) conversation = parsed;
+      } catch {}
+      await saveAiAgentTranscript(base44, callSid, leadId, leadName, conversation, 'queued_no_connect');
+    } catch (e) {
+      console.warn('[aiAgentRespond] Failed to finalize transcript on no-connect:', e?.message);
+    }
   }
 
   return twimlResponse(`<Response>

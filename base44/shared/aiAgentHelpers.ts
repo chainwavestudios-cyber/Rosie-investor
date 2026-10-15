@@ -186,9 +186,10 @@ export async function sendCredentialsEmail(base44: any, leadData: any, sentBy: s
   if (!leadData?.email) return { sent: false, reason: 'no_email' };
 
   try {
-    // Load the first email template
-    const templates = await base44.entities.FronterEmailTemplate.list('sortOrder', 10);
-    const template = (templates || [])[0];
+    // Load the first email template — list() returns a page object {items, ...}, not an array
+    const templatesRes = await base44.entities.FronterEmailTemplate.list('sortOrder', 10);
+    const templateList = templatesRes?.items || (Array.isArray(templatesRes) ? templatesRes : []);
+    const template = templateList[0];
     if (!template) return { sent: false, reason: 'no_template' };
 
     // Fill template variables
