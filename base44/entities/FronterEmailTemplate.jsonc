@@ -15,6 +15,54 @@
       "title": "Email Body (HTML)",
       "format": "textarea"
     },
+    "templateType": {
+      "type": "string",
+      "title": "Template Type",
+      "enum": [
+        "manual",
+        "follow_up",
+        "custom_automation"
+      ],
+      "default": "manual"
+    },
+    "triggerOffsetHours": {
+      "type": "number",
+      "title": "Trigger Offset (hours relative to event; negative = before)",
+      "default": 0
+    },
+    "triggerTimeOfDay": {
+      "type": "string",
+      "title": "Trigger Time of Day (HH:MM 24h, optional)"
+    },
+    "enabled": {
+      "type": "boolean",
+      "title": "Automation Enabled",
+      "default": true
+    },
+    "attachToContactCard": {
+      "type": "boolean",
+      "title": "Show as Button on Contact Card",
+      "default": false
+    },
+    "buttonLabel": {
+      "type": "string",
+      "title": "Contact Card Button Label"
+    },
+    "buttonColor": {
+      "type": "string",
+      "title": "Button Color (hex)",
+      "default": "#10b981"
+    },
+    "trackingEnabled": {
+      "type": "boolean",
+      "title": "Track Opens & Clicks",
+      "default": true
+    },
+    "includeSignature": {
+      "type": "boolean",
+      "title": "Include Email Signature",
+      "default": true
+    },
     "sortOrder": {
       "type": "number",
       "title": "Sort Order",
@@ -24,6 +72,10 @@
       "type": "boolean",
       "title": "Is a Built-in Default",
       "default": false
+    },
+    "updatedBy": {
+      "type": "string",
+      "title": "Last Updated By (username)"
     }
   },
   "required": [

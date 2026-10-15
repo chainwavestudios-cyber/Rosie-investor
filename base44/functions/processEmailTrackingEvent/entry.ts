@@ -93,6 +93,7 @@ async function sendFollowUpEmail(base44: any, lead: any) {
   const templates = Array.isArray(raw) ? raw : (raw?.items || []);
   const template = templates[0];
   if (!template) throw new Error('No follow-up email template found');
+  if (template.enabled === false) throw new Error('Follow-up template is disabled');
 
   const fillName = lead.firstName || '';
   const fillEmail = lead.email || '';

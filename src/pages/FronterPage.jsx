@@ -27,6 +27,7 @@ import FronterEmailTrackingNotifications from '@/components/fronter/FronterEmail
 import FronterContactCard from '@/components/fronter/FronterContactCard';
 import FronterAIReportsTab from '@/components/fronter/FronterAIReportsTab';
 import FronterReportPopup from '@/components/fronter/FronterReportPopup';
+import FronterEmailsTab from '@/components/fronter/FronterEmailsTab';
 import DualClockBar from '@/components/shared/DualClockBar';
 import TimezonePrompt from '@/components/shared/TimezonePrompt';
 import EasternTimeReminder from '@/components/shared/EasternTimeReminder';
@@ -101,7 +102,7 @@ export default function FronterPage() {
   // Fronter sees leads + scripts; admin sees admin + leads + scripts
   const TABS = [
     ...(isAdmin
-      ? [{ id: 'scripts', label: 'Scripts' }, { id: 'admin', label: '⚙️ Admin' }, { id: 'ai_agent', label: '🤖 AI Agent' }, { id: 'prospects', label: '📋 Prospects' }, { id: 'leads', label: '📋 Leads' }, { id: 'queued_no_connect', label: '📋 Queued No Connect' }, { id: 'closed_deals', label: '💎 Closed Deals' }, { id: 'reports', label: '📊 Reports' }, { id: 'feedback', label: '💬 Feedback' }, { id: 'bob', label: '🤖 BOB Training' }, { id: 'hr', label: '🕐 HR' }, { id: 'settings', label: '🔧 Settings' }]
+      ? [{ id: 'scripts', label: 'Scripts' }, { id: 'admin', label: '⚙️ Admin' }, { id: 'ai_agent', label: '🤖 AI Agent' }, { id: 'emails', label: '📧 Emails' }, { id: 'prospects', label: '📋 Prospects' }, { id: 'leads', label: '📋 Leads' }, { id: 'queued_no_connect', label: '📋 Queued No Connect' }, { id: 'closed_deals', label: '💎 Closed Deals' }, { id: 'reports', label: '📊 Reports' }, { id: 'feedback', label: '💬 Feedback' }, { id: 'bob', label: '🤖 BOB Training' }, { id: 'hr', label: '🕐 HR' }, { id: 'settings', label: '🔧 Settings' }]
       : [{ id: 'prospects', label: '📋 Prospects' }, { id: 'leads', label: '📋 Leads' }, { id: 'queued_no_connect', label: '📋 Queued No Connect' }, { id: 'closed_deals', label: '💎 Closed Deals' }, { id: 'reports', label: '📊 Reports' }, { id: 'feedback', label: '💬 Feedback' }, { id: 'bob', label: '🤖 BOB Training' }, { id: 'hr', label: '🕐 HR' }, { id: 'settings', label: '🔧 Settings' }]),
   ];
 
@@ -474,6 +475,8 @@ export default function FronterPage() {
         {tab === 'hr' && <FronterHRTab username={user.username} />}
 
         {isAdmin && <FronterScriptsTab active={tab === 'scripts'} fronterFirstName={user?.firstName} username={user.username} />}
+
+        {tab === 'emails' && isAdmin && <FronterEmailsTab username={user.username} />}
 
         {tab === 'settings' && <FronterSettingsTab />}
       </div>
