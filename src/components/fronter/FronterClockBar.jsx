@@ -54,10 +54,22 @@ function sumSessions(entry) {
   return archivedSessions(entry).reduce((s, x) => s + (x.totalSeconds || 0), 0);
 }
 
+// Retry a DB operation a few times — transient MongoDB timeouts (network blips,
+// cluster failovers) resolve within a few seconds and shouldn't fail a clock-in.
+async function withRetry(fn, retries = 3) {
+  let lastErr;
+  for (let i = 0; i < retries; i++) {
+    try { return await fn(); }
+    catch (e) { lastErr = e; await new Promise(r => setTimeout(r, 1500)); }
+  }
+  throw lastErr;
+}
+
 export default function FronterClockBar({ username }) {
   const [entry, setEntry] = useState(null);
   const [now, setNow] = useState(new Date());
   const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
 
   const today = getETDate();
 
@@ -81,40 +93,48 @@ export default function FronterClockBar({ username }) {
   }, []);
 
   const clockIn = async () => {
+    if (busy) return;
+    setBusy(true);
     try {
       const nowIso = new Date().toISOString();
-      if (entry?.id && entry.clockIn && entry.clockOut) {
-        // Archive the completed session, then start a fresh one
-        const sessions = [...archivedSessions(entry), { clockIn: entry.clockIn, clockOut: entry.clockOut, totalSeconds: calcTotal(entry, entry.clockOut) }];
-        await base44.entities.FronterTimeEntry.update(entry.id, {
-          sessionsJson: JSON.stringify(sessions),
-          clockIn: nowIso, clockOut: null,
-          lunchOut: null, lunchIn: null,
-          amBreakOut: null, amBreakIn: null,
-          pmBreakOut: null, pmBreakIn: null,
-        });
-      } else if (entry?.id) {
-        await base44.entities.FronterTimeEntry.update(entry.id, { clockIn: nowIso, clockOut: null });
-      } else {
-        await base44.entities.FronterTimeEntry.create({ username, date: today, clockIn: nowIso });
-      }
+      await withRetry(async () => {
+        if (entry?.id && entry.clockIn && entry.clockOut) {
+          const sessions = [...archivedSessions(entry), { clockIn: entry.clockIn, clockOut: entry.clockOut, totalSeconds: calcTotal(entry, entry.clockOut) }];
+          await base44.entities.FronterTimeEntry.update(entry.id, {
+            sessionsJson: JSON.stringify(sessions),
+            clockIn: nowIso, clockOut: null,
+            lunchOut: null, lunchIn: null,
+            amBreakOut: null, amBreakIn: null,
+            pmBreakOut: null, pmBreakIn: null,
+          });
+        } else if (entry?.id) {
+          await base44.entities.FronterTimeEntry.update(entry.id, { clockIn: nowIso, clockOut: null });
+        } else {
+          await base44.entities.FronterTimeEntry.create({ username, date: today, clockIn: nowIso });
+        }
+      });
       load();
     } catch (e) { alert('Clock in failed: ' + (e?.message || String(e))); }
+    setBusy(false);
   };
 
   const stamp = async (field) => {
-    if (!entry?.id) return;
+    if (!entry?.id || busy) return;
+    setBusy(true);
     try {
-      await base44.entities.FronterTimeEntry.update(entry.id, { [field]: new Date().toISOString() });
+      await withRetry(() => base44.entities.FronterTimeEntry.update(entry.id, { [field]: new Date().toISOString() }));
       load();
     } catch (e) { alert('Failed: ' + (e?.message || String(e))); }
+    setBusy(false);
   };
 
   const clockOut = async () => {
-    if (!entry?.id) return;
+    if (!entry?.id || busy) return;
+    setBusy(true);
     const nowIso = new Date().toISOString();
     const total = sumSessions(entry) + calcTotal(entry, nowIso);
-    try { await base44.entities.FronterTimeEntry.update(entry.id, { clockOut: nowIso, totalSeconds: total }); load(); } catch {}
+    try { await withRetry(() => base44.entities.FronterTimeEntry.update(entry.id, { clockOut: nowIso, totalSeconds: total })); load(); } catch (e) { alert('Clock out failed: ' + (e?.message || String(e))); }
+    setBusy(false);
   };
 
   const isClockedIn = !!entry?.clockIn && !entry?.clockOut;
@@ -149,7 +169,7 @@ export default function FronterClockBar({ username }) {
       </span>
       {isClockedIn && !onBreak && <span style={{ color: GREEN, fontSize: '11px', fontFamily: 'monospace', fontWeight: 'bold' }}>{fmtDur(liveTotal)}</span>}
       {!isClockedIn && (
-        <button onClick={clockIn} style={btn('rgba(74,222,128,0.15)', GREEN)}>🕐 {isClockedOut ? 'Clock In Again' : 'Clock In'}</button>
+        <button onClick={clockIn} disabled={busy} style={{ ...btn('rgba(74,222,128,0.15)', GREEN), opacity: busy ? 0.5 : 1, cursor: busy ? 'wait' : 'pointer' }}>{busy ? '⏳ …' : '🕐'} {isClockedOut ? 'Clock In Again' : 'Clock In'}</button>
       )}
       {isClockedIn && !onBreak && !entry?.lunchOut && (
         <button onClick={() => stamp('lunchOut')} style={btn('rgba(245,158,11,0.15)', AMBER)}>🍽️ Lunch Out</button>
