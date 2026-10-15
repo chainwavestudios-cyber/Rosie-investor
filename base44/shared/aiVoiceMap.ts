@@ -18,6 +18,7 @@ const POLLY_VOICE_MAP: Record<string, string> = {
   '21m00Tcm4TlvDq8ikWAM': 'Polly.Kendra-Neural',  // Rachel (calm, female)
   'EXAVITqu4j5949LvpkN8': 'Polly.Matthew-Neural', // Adam (deep, male)
   'pNInz6obpgDQGcFmaJgB': 'Polly.Brian-Neural',   // Adam (narrator)
+  '1SM7GgM6IMuvQlz2BwM3': 'Polly.Matthew-Neural', // Conversational Mark (natural, male)
 };
 
 // Config voice → human-readable label (for UI display)
@@ -29,6 +30,7 @@ const VOICE_LABEL_MAP: Record<string, string> = {
   '21m00Tcm4TlvDq8ikWAM': 'Kendra (calm, female)',
   'EXAVITqu4j5949LvpkN8': 'Matthew (deep, male)',
   'pNInz6obpgDQGcFmaJgB': 'Brian (narrator, male)',
+  '1SM7GgM6IMuvQlz2BwM3': 'Conversational Mark (natural, male)',
 };
 
 export function getPollyVoice(ttsVoiceModel: string): string {

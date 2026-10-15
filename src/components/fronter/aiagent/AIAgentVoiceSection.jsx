@@ -32,6 +32,7 @@ const VOICE_PRESETS = {
     { value: '21m00Tcm4TlvDq8ikWAM', label: 'Rachel (calm, female)' },
     { value: 'EXAVITqu4j5949LvpkN8', label: 'Adam (deep, male)' },
     { value: 'pNInz6obpgDQGcFmaJgB', label: 'Adam (narrator)' },
+    { value: '1SM7GgM6IMuvQlz2BwM3', label: 'Conversational Mark (natural, male)' },
   ],
 };
 
