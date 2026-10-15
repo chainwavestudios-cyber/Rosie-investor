@@ -22,19 +22,28 @@ export function useFronterDeepgram() {
   const openSource = (audioCtx, stream, token, speaker) => {
     const source = audioCtx.createMediaStreamSource(stream);
     const processor = audioCtx.createScriptProcessor(4096, 1, 1);
-    // Silent gain node — processor must reach a destination to fire, without playing audio
-    const silentGain = audioCtx.createGain();
-    silentGain.gain.value = 0;
     // For the mic (speaker 0), insert a muteable gain node so toggleMute can
     // silence the mic feed to Deepgram independently of Twilio's own mute.
     let micGain = null;
+    // Destination the processor connects to so onaudioprocess fires.
+    // Mic (speaker 0): silent gain → audioCtx.destination is fine (mic isn't
+    //   played by any other element, so no interference).
+    // Remote (speaker 1): use a MediaStreamAudioDestinationNode instead of
+    //   audioCtx.destination. Routing the remote stream through audioCtx.destination
+    //   can cause Chrome to send the customer's audio through this silent graph
+    //   instead of the Twilio SDK's own <audio> element — one-way audio.
+    let silentGain = null;
+    let silentDest = null;
     if (speaker === 0) {
+      silentGain = audioCtx.createGain();
+      silentGain.gain.value = 0;
       micGain = audioCtx.createGain();
       micGain.gain.value = 1;
       micGainRef.current = micGain;
       nodesRef.current.push(source, micGain, processor, silentGain);
     } else {
-      nodesRef.current.push(source, processor, silentGain);
+      silentDest = audioCtx.createMediaStreamDestination();
+      nodesRef.current.push(source, processor, silentDest);
     }
 
     const params = new URLSearchParams({
@@ -56,8 +65,12 @@ export function useFronterDeepgram() {
       } else {
         source.connect(processor);
       }
-      processor.connect(silentGain);
-      silentGain.connect(audioCtx.destination);
+      if (silentGain) {
+        processor.connect(silentGain);
+        silentGain.connect(audioCtx.destination);
+      } else {
+        processor.connect(silentDest);
+      }
       processor.onaudioprocess = (e) => {
         if (ws.readyState !== WebSocket.OPEN) return;
         const data = e.inputBuffer.getChannelData(0);
