@@ -117,6 +117,55 @@ export default async function(req) {
       return new Response(twiml, { headers: { 'Content-Type': 'text/xml' } });
     }
 
+    // ── Mode AI Transfer: redirect from Media Stream when LLM says TRANSFER ─
+    const aiTransferMode = url.searchParams.get('Mode') === 'aiAgentTransfer';
+    if (aiTransferMode) {
+      const leadId = url.searchParams.get('LeadId') || '';
+      let config: any = {};
+      try {
+        const { createClientFromRequest } = await import('npm:@base44/sdk@0.8.52');
+        const base44 = createClientFromRequest(req).asServiceRole;
+        const configs = await base44.entities.AIAgentConfig.filter({ configName: 'default' });
+        config = configs?.[0] || {};
+      } catch {}
+      const pollyVoice = getPollyVoice(config.ttsVoiceModel || 'aura-2-thalia-en');
+      const primaryNumber = config.transferPhoneNumber || '+16193530919';
+      const callerId = Deno.env.get('TWILIO_FROM_NUMBER') || '';
+      const appUrl = req.headers.get('X-Base44-App-Url') || 'https://rosieai-investorpage.base44.app';
+      const fallbackUrl = `${appUrl}/functions/aiAgentRespond?transferFallback=1&leadId=${encodeURIComponent(leadId)}`;
+
+      const twiml = `<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Say voice="${pollyVoice}">Let me connect you with one of our senior debt advisors. Please hold for just a moment.</Say>
+  <Dial callerId="${xmlEscape(callerId)}" timeout="30" action="${xmlEscape(fallbackUrl)}" method="POST">
+    <Number>${xmlEscape(primaryNumber)}</Number>
+  </Dial>
+</Response>`;
+      console.log('[dialerVoiceHandler] → Mode AI Transfer, leadId:', leadId);
+      return new Response(twiml, { headers: { 'Content-Type': 'text/xml' } });
+    }
+
+    // ── Mode AI End Call: redirect from Media Stream when LLM says ENDCALL ──
+    const aiEndCallMode = url.searchParams.get('Mode') === 'aiAgentEndCall';
+    if (aiEndCallMode) {
+      let config: any = {};
+      try {
+        const { createClientFromRequest } = await import('npm:@base44/sdk@0.8.52');
+        const base44 = createClientFromRequest(req).asServiceRole;
+        const configs = await base44.entities.AIAgentConfig.filter({ configName: 'default' });
+        config = configs?.[0] || {};
+      } catch {}
+      const pollyVoice = getPollyVoice(config.ttsVoiceModel || 'aura-2-thalia-en');
+
+      const twiml = `<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Say voice="${pollyVoice}">Thank you for your time. Have a great day. Goodbye.</Say>
+  <Hangup/>
+</Response>`;
+      console.log('[dialerVoiceHandler] → Mode AI End Call');
+      return new Response(twiml, { headers: { 'Content-Type': 'text/xml' } });
+    }
+
     // ── Mode 2: Lead leg — hold lead in conference ──────────────────────
     const isLeadLeg = url.searchParams.get('LeadLeg') === 'true';
     if (conferenceName && isLeadLeg) {

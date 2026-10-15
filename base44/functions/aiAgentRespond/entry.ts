@@ -31,7 +31,7 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.52';
 import { xmlEscape, toE164 } from '../../shared/twilioHelpers.ts';
 import { callLLM } from '../../shared/llmHelper.ts';
 import { getPollyVoice } from '../../shared/aiVoiceMap.ts';
-import { extractDebtData, extractContactData, generateCallSummary, sendCredentialsEmail, FRONTER_SCRIPT_SYSTEM_PROMPT } from '../../shared/aiAgentHelpers.ts';
+import { prepareTransfer, FRONTER_SCRIPT_SYSTEM_PROMPT } from '../../shared/aiAgentHelpers.ts';
 
 const BASE_URL = 'https://rosieai-investorpage.base44.app';
 
@@ -304,80 +304,8 @@ async function executeTransfer(req: Request, base44: any, leadData: any, config:
 
   console.log('[aiAgentRespond] → TRANSFER sequence for lead', leadId);
 
-  // ── 1. Extract debt data + contact data from the conversation ──
-  const [debtData, contactData] = await Promise.all([
-    extractDebtData(req, conversation),
-    extractContactData(req, conversation, leadData),
-  ]);
-
-  // Build lead updates from extracted data
-  const leadUpdates: any = {
-    status: 'transferred',
-    lastCallResult: 'transferred',
-    transferredAt: now,
-    transferredTo: `Chris Bongiorno (${primaryNumber})`,
-    lastCalledAt: now,
-  };
-
-  // Apply contact data updates (email, address, etc.)
-  if (contactData.updates && Object.keys(contactData.updates).length > 0) {
-    Object.assign(leadUpdates, contactData.updates);
-  }
-
-  // Apply debt data updates
-  if (debtData.confirmed) {
-    if (debtData.debtAmount != null) leadUpdates.debtAmount = debtData.debtAmount;
-    if (debtData.debtTypesJson) leadUpdates.debtTypesJson = debtData.debtTypesJson;
-    if (debtData.debtAmountsJson) leadUpdates.debtAmountsJson = debtData.debtAmountsJson;
-  }
-
-  // ── 2. Send credentials email (if enabled and email available) ──
-  let emailSent = false;
-  if (config.preTransferEmailEnabled !== false) {
-    // Re-fetch lead data with contact updates applied for the email
-    const emailLeadData = { ...leadData, ...contactData.updates };
-    const emailResult = await sendCredentialsEmail(base44, emailLeadData, 'ai_agent');
-    emailSent = emailResult.sent;
-    if (emailSent) {
-      leadUpdates.credsSentAt = now;
-      leadUpdates.credsSentTemplate = emailResult.templateLabel || 'credentials';
-      if (leadData.status === 'prospect') {
-        leadUpdates.status = 'lead';
-      }
-    }
-    console.log('[aiAgentRespond] Email sent:', emailSent, emailResult.reason || '');
-  }
-
-  // ── 3. Generate AI input summary and save to notes ──
-  const summary = await generateCallSummary(req, conversation);
-  if (summary) {
-    try {
-      let notesLog: any[] = [];
-      try { notesLog = JSON.parse(leadData.notesLogJson || '[]'); } catch {}
-      notesLog.push({
-        text: `🤖 AI Input Summary: ${summary}`,
-        timestamp: now,
-        author: 'AI',
-        type: 'ai_input',
-      });
-      if (debtData.confirmed && debtData.summary) {
-        notesLog.push({
-          text: `💰 Debt Confirm: ${debtData.summary}`,
-          timestamp: now,
-          author: 'AI',
-          type: 'debt_confirm',
-        });
-      }
-      leadUpdates.notesLogJson = JSON.stringify(notesLog);
-    } catch {}
-  }
-
-  // ── 4. Update lead with all extracted data + status ──
-  try {
-    await base44.entities.FronterLead.update(leadId, leadUpdates);
-  } catch (e) {
-    console.warn('[aiAgentRespond] Failed to update lead on transfer:', e?.message);
-  }
+  // 1-4. Prep transfer (extract data, send email, generate summary, update lead)
+  await prepareTransfer(req, base44, leadData, config, conversation);
 
   // Finalize transcript with transfer result
   if (callSid) {
@@ -388,8 +316,8 @@ async function executeTransfer(req: Request, base44: any, leadData: any, config:
     }
   }
 
-  // ── 5. Return TwiML: transfer message → dial primary number ──
-  // The Dial action callback hits ?transferFallback=1 → dials 2nd line
+  // 5. Return TwiML: transfer message → dial primary number
+  const pollyVoice = getPollyVoice(config.ttsVoiceModel || 'aura-2-thalia-en');
   const fallbackUrl = `${BASE_URL}/functions/aiAgentRespond?transferFallback=1&leadId=${encodeURIComponent(leadId)}`;
   const transferMessage = spokenResponse || 'Great! Let me connect you with one of our senior debt advisors. Please hold for just a moment.';
 

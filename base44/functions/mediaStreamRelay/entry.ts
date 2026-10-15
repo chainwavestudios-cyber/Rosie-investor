@@ -18,7 +18,8 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.52';
 import { secrets } from 'base44:runtime';
 import { callLLM } from '../../shared/llmHelper.ts';
-import { FRONTER_SCRIPT_SYSTEM_PROMPT } from '../../shared/aiAgentHelpers.ts';
+import { FRONTER_SCRIPT_SYSTEM_PROMPT, prepareTransfer } from '../../shared/aiAgentHelpers.ts';
+import { twilioFetch } from '../../shared/twilioHelpers.ts';
 
 // Flip to true to enable Deepgram transcription + LLM + TTS (Phase 2).
 const AI_PROCESSING_ENABLED = true;
@@ -303,11 +304,49 @@ async function processWithAI(req: Request, base44: any, session: any, streamSid:
       }
     }
 
-    // 7. Handle transfer / endcall (log for now — full call control in future phase)
+    // 7. Handle transfer / endcall — redirect the Twilio call
+    const BASE_URL = 'https://rosieai-investorpage.base44.app';
     if (wantsTransfer) {
       console.log('[mediaStreamRelay] Transfer requested for lead', session.leadId);
+      await prepareTransfer(req, base44, session.lead, session.config, session.conversation);
+      if (session.callSid) {
+        try {
+          const transferUrl = `${BASE_URL}/functions/dialerVoiceHandler?Mode=aiAgentTransfer&LeadId=${encodeURIComponent(session.leadId || '')}`;
+          await twilioFetch(`/Calls/${session.callSid}.json`, {
+            method: 'POST',
+            body: new URLSearchParams({ Url: transferUrl }),
+          });
+          console.log('[mediaStreamRelay] Call redirected to transfer TwiML');
+        } catch (e) {
+          console.error('[mediaStreamRelay] Failed to redirect call for transfer:', e?.message);
+        }
+      }
     } else if (wantsEndCall) {
       console.log('[mediaStreamRelay] End call requested for lead', session.leadId);
+      if (session.leadId) {
+        try {
+          await base44.entities.FronterLead.update(session.leadId, {
+            callCount: (session.lead?.callCount || 0) + 1,
+            lastCallResult: 'not_interested',
+            status: 'removed',
+            lastCalledAt: new Date().toISOString(),
+          });
+        } catch (e) {
+          console.warn('[mediaStreamRelay] Failed to update lead on endcall:', e?.message);
+        }
+      }
+      if (session.callSid) {
+        try {
+          const endCallUrl = `${BASE_URL}/functions/dialerVoiceHandler?Mode=aiAgentEndCall`;
+          await twilioFetch(`/Calls/${session.callSid}.json`, {
+            method: 'POST',
+            body: new URLSearchParams({ Url: endCallUrl }),
+          });
+          console.log('[mediaStreamRelay] Call redirected to endcall TwiML');
+        } catch (e) {
+          console.error('[mediaStreamRelay] Failed to redirect call for endcall:', e?.message);
+        }
+      }
     }
   } catch (error) {
     console.error('[mediaStreamRelay] processWithAI error:', error?.message);

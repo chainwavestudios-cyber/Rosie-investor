@@ -240,6 +240,78 @@ export async function sendCredentialsEmail(base44: any, leadData: any, sentBy: s
 }
 
 /**
+ * Prepare a lead for transfer — extract debt/contact data, send credentials
+ * email, generate AI input summary, and update the lead record.
+ * Shared by aiAgentRespond (Gather flow) and mediaStreamRelay (Media Stream flow).
+ */
+export async function prepareTransfer(req: Request, base44: any, leadData: any, config: any, conversation: Array<{ role: string; content: string }>) {
+  const leadId = leadData.id;
+  const now = new Date().toISOString();
+  const primaryNumber = config.transferPhoneNumber || '+16193530919';
+
+  // 1. Extract debt data + contact data
+  const [debtData, contactData] = await Promise.all([
+    extractDebtData(req, conversation),
+    extractContactData(req, conversation, leadData),
+  ]);
+
+  const leadUpdates: any = {
+    status: 'transferred',
+    lastCallResult: 'transferred',
+    transferredAt: now,
+    transferredTo: `Chris Bongiorno (${primaryNumber})`,
+    lastCalledAt: now,
+  };
+
+  if (contactData.updates && Object.keys(contactData.updates).length > 0) {
+    Object.assign(leadUpdates, contactData.updates);
+  }
+
+  if (debtData.confirmed) {
+    if (debtData.debtAmount != null) leadUpdates.debtAmount = debtData.debtAmount;
+    if (debtData.debtTypesJson) leadUpdates.debtTypesJson = debtData.debtTypesJson;
+    if (debtData.debtAmountsJson) leadUpdates.debtAmountsJson = debtData.debtAmountsJson;
+  }
+
+  // 2. Send credentials email
+  let emailSent = false;
+  if (config.preTransferEmailEnabled !== false) {
+    const emailLeadData = { ...leadData, ...contactData.updates };
+    const emailResult = await sendCredentialsEmail(base44, emailLeadData, 'ai_agent');
+    emailSent = emailResult.sent;
+    if (emailSent) {
+      leadUpdates.credsSentAt = now;
+      leadUpdates.credsSentTemplate = emailResult.templateLabel || 'credentials';
+      if (leadData.status === 'prospect') {
+        leadUpdates.status = 'lead';
+      }
+    }
+    console.log('[prepareTransfer] Email sent:', emailSent, emailResult.reason || '');
+  }
+
+  // 3. Generate AI input summary
+  const summary = await generateCallSummary(req, conversation);
+  if (summary) {
+    let notesLog: any[] = [];
+    try { notesLog = JSON.parse(leadData.notesLogJson || '[]'); } catch {}
+    notesLog.push({ text: `🤖 AI Input Summary: ${summary}`, timestamp: now, author: 'AI', type: 'ai_input' });
+    if (debtData.confirmed && debtData.summary) {
+      notesLog.push({ text: `💰 Debt Confirm: ${debtData.summary}`, timestamp: now, author: 'AI', type: 'debt_confirm' });
+    }
+    leadUpdates.notesLogJson = JSON.stringify(notesLog);
+  }
+
+  // 4. Update lead
+  try {
+    await base44.entities.FronterLead.update(leadId, leadUpdates);
+  } catch (e) {
+    console.warn('[prepareTransfer] Failed to update lead:', e?.message);
+  }
+
+  return { leadUpdates, emailSent, summary, debtData, contactData };
+}
+
+/**
  * The full 5-step AI agent script as a system prompt.
  * This mirrors the fronter's script exactly, with instructions for the LLM
  * to follow it conversationally.
