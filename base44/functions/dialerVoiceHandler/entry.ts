@@ -35,9 +35,9 @@ export default async function(req) {
     //   When the AI agent dials a lead (via aiAgentDial), the call connects
     //   here. We read the AIAgentConfig for the greeting, say it, then connect
     //   to a Media Stream for the AI conversation (STT → LLM → TTS loop).
-    const aiMode = url.searchParams.get('Mode') === 'aiAgent';
+    const aiMode = params.get('Mode') === 'aiAgent';
     if (aiMode) {
-      const leadId = url.searchParams.get('LeadId') || '';
+      const leadId = params.get('LeadId') || '';
       let greeting = 'Hi, may I speak with {{first_name}} please?';
       let leadData: any = null;
       let pollyVoice = 'Polly.Joanna-Neural';
@@ -76,15 +76,19 @@ export default async function(req) {
       // Phase 2: flip AI_PROCESSING_ENABLED in mediaStreamRelay to enable
       // Deepgram STT → LLM → TTS responses back through the bridge.
       let streamUrl = '';
+      let streamToken = '';
       try {
         const { secrets } = await import('base44:runtime');
-        const bridgeUrl = (secrets.get('WS_BRIDGE_URL') || '').replace(/\/$/, '');
-        const streamToken = secrets.get('STREAM_AUTH_TOKEN') || '';
+        const bridgeUrl = secrets.get('WS_BRIDGE_URL') || '';
+        streamToken = secrets.get('STREAM_AUTH_TOKEN') || '';
         if (bridgeUrl) {
-          let wssUrl = bridgeUrl.replace(/^https:\/\//, 'wss://').replace(/^http:\/\//, 'ws://');
-          if (!wssUrl.endsWith('/ws')) wssUrl += '/ws';
-          if (streamToken) wssUrl += `?token=${encodeURIComponent(streamToken)}`;
-          streamUrl = wssUrl;
+          const wsUrl = new URL(bridgeUrl);
+          wsUrl.protocol = 'wss:';
+          wsUrl.search = '';
+          wsUrl.hash = '';
+          wsUrl.pathname = wsUrl.pathname.replace(/\/$/, '');
+          if (!wsUrl.pathname.endsWith('/ws')) wsUrl.pathname += '/ws';
+          streamUrl = wsUrl.toString();
         }
       } catch (e) {
         console.warn('[dialerVoiceHandler] Failed to read bridge secrets:', e?.message);
@@ -97,6 +101,7 @@ export default async function(req) {
   <Connect>
     <Stream url="${xmlEscape(streamUrl)}" name="rosie-ai-agent">
       <Parameter name="leadId" value="${xmlEscape(leadId)}" />
+      ${streamToken ? `<Parameter name="streamToken" value="${xmlEscape(streamToken)}" />` : ''}
     </Stream>
   </Connect>
 </Response>`;

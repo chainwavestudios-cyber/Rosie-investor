@@ -28,7 +28,7 @@ docker push <your-registry>/rosie-ws-bridge:latest
 | `WS_PATH` | `/ws` | no | WebSocket path |
 | `APP_WEBHOOK_URL` | — | yes | Base44 function URL receiving audio batches |
 | `APP_AUTH_TOKEN` | — | no | Bearer token sent to `APP_WEBHOOK_URL` |
-| `STREAM_AUTH_TOKEN` | — | no | If set, Twilio must connect with `?token=` |
+| `STREAM_AUTH_TOKEN` | — | no | Validated against `start.customParameters.streamToken` before audio is accepted |
 | `AUDIO_BATCH_MS` | `250` | no | Inbound audio flush cadence |
 | `PING_INTERVAL_MS` | `30000` | no | Keepalive ping cadence |
 | `LOG_LEVEL` | `info` | no | `info` / `debug` / `silent` |
@@ -37,10 +37,15 @@ docker push <your-registry>/rosie-ws-bridge:latest
 In your Twilio TwiML, point `<Connect><Stream>` at the Render wss URL:
 ```xml
 <Connect>
-  <Stream url="wss://<your-service>.onrender.com/ws" />
+  <Stream url="wss://<your-service>.onrender.com/ws">
+    <Parameter name="leadId" value="YOUR_LEAD_ID" />
+    <Parameter name="streamToken" value="YOUR_STREAM_AUTH_TOKEN" />
+  </Stream>
 </Connect>
 ```
-If `STREAM_AUTH_TOKEN` is set, append `?token=<value>` to the URL.
+Twilio does not support query strings in the Stream URL. Send the stream credential as a nested Parameter instead. The bridge upgrades the connection, then validates Twilio's nested `start.customParameters.streamToken` before relaying anything. Invalid or missing credentials close the socket with code 1008; a connection without a start message closes after five seconds.
+
+After changing the bridge, rebuild and push the container image and redeploy the Render service. Publish the app's updated voice handler too. Both sides must use this parameter-based contract before making another call.
 
 ## App-side contract (Base44 function)
 Create a function (e.g. `mediaStreamRelay`) that accepts the batch JSON:

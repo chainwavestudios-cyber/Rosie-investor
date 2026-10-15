@@ -19,7 +19,7 @@
  *   WS_PATH            (default /ws)     WebSocket path Twilio connects to
  *   APP_WEBHOOK_URL    (required to relay) Base44 function URL that receives batches
  *   APP_AUTH_TOKEN     (optional)        Bearer token sent to APP_WEBHOOK_URL
- *   STREAM_AUTH_TOKEN  (optional)        If set, Twilio must connect with ?token=
+ *   STREAM_AUTH_TOKEN  (optional)        Checked in start.customParameters.streamToken
  *   AUDIO_BATCH_MS     (default 250)     How often to flush inbound audio to the app
  *   PING_INTERVAL_MS   (default 30000)  WebSocket keepalive ping cadence
  *   LOG_LEVEL          (default info)    info | debug | silent
@@ -70,26 +70,24 @@ app.post('/play', async (req, res) => {
 
 // ── HTTP server + WebSocket server ────────────────────────────────────────
 const server = http.createServer(app);
-const wss = new WebSocketServer({ server, path: WS_PATH, verifyClient: verifyTwilio });
-
-function verifyTwilio(info, cb) {
-  if (!STREAM_AUTH_TOKEN) return cb(true);
-  try {
-    const url = new URL(info.req.url, 'http://x');
-    if (url.searchParams.get('token') === STREAM_AUTH_TOKEN) return cb(true);
-  } catch {}
-  cb(false, 401, 'Unauthorized');
-}
+// Twilio does not support query strings in <Stream> URLs. Upgrade first,
+// then authenticate its start.customParameters before accepting any audio.
+const wss = new WebSocketServer({ server, path: WS_PATH });
 
 wss.on('connection', (ws) => {
   let streamSid = null;
   let batchTimer = null;
+  let authenticated = false;
+  let startReady = Promise.resolve();
   const batch = { media: [] };
+  const authTimer = setTimeout(() => {
+    if (!authenticated) ws.close(1008, 'Stream authentication required');
+  }, 5000);
 
   const flush = () => {
     if (!streamSid || batch.media.length === 0) return;
     const payload = { event: 'media_batch', streamSid, callSid: streams.get(streamSid)?.callSid, media: batch.media.splice(0, batch.media.length) };
-    forwardToApp(payload).catch((e) => debug('forward error', e?.message));
+    startReady.then(() => forwardToApp(payload)).catch((e) => log('forward error', e?.message));
   };
 
   ws.isAlive = true;
@@ -103,18 +101,35 @@ wss.on('connection', (ws) => {
     if (msg.event === 'connected') return; // Twilio handshake ack
 
     if (msg.event === 'start') {
-      streamSid = msg.streamSid;
-      const rec = { ws, callSid: msg.callSid, tracks: msg.tracks || [], startedAt: Date.now() };
+      if (authenticated) return;
+      const start = msg.start;
+      if (!start?.streamSid || !start.callSid ||
+          (STREAM_AUTH_TOKEN && start.customParameters?.streamToken !== STREAM_AUTH_TOKEN)) {
+        clearTimeout(authTimer);
+        ws.close(1008, 'Unauthorized stream');
+        return;
+      }
+      authenticated = true;
+      clearTimeout(authTimer);
+      streamSid = start.streamSid;
+      const rec = { ws, callSid: start.callSid, tracks: start.tracks || [], startedAt: Date.now() };
       streams.set(streamSid, rec);
-      log('stream start', streamSid, 'call', msg.callSid);
+      log('stream start', streamSid, 'call', start.callSid);
+      // Only pass lead context onward; never forward the stream credential.
+      startReady = forwardToApp({ event: 'start', streamSid, callSid: start.callSid,
+        tracks: rec.tracks, customParameters: { leadId: start.customParameters?.leadId || '' } });
+      startReady.catch((e) => log('start relay failed', e?.message));
       batchTimer = setInterval(flush, AUDIO_BATCH_MS);
-      forwardToApp({ event: 'start', streamSid, callSid: msg.callSid, tracks: msg.tracks, customParameters: msg.customParameters }).catch(() => {});
       return;
     }
 
+    if (!authenticated || !streamSid || msg.streamSid !== streamSid) return;
+
     if (msg.event === 'media') {
-      if (!streamSid) streamSid = msg.streamSid;
-      batch.media.push({ track: msg.track, chunk: msg.chunk, timestamp: msg.timestamp, payload: msg.payload });
+      const media = msg.media;
+      if (media?.track === 'inbound' && media.payload) {
+        batch.media.push({ track: media.track, chunk: media.chunk, timestamp: media.timestamp, payload: media.payload });
+      }
       return;
     }
 
@@ -129,14 +144,15 @@ wss.on('connection', (ws) => {
     }
   });
 
-  ws.on('close', () => {
+  ws.on('close', (code, reason) => {
+    clearTimeout(authTimer);
     if (batchTimer) clearInterval(batchTimer);
     flush();
     if (streamSid) {
       forwardToApp({ event: 'stop', streamSid, callSid: streams.get(streamSid)?.callSid }).catch(() => {});
       streams.delete(streamSid);
     }
-    log('stream closed', streamSid);
+    log('stream closed', streamSid, 'code', code, 'reason', reason.toString());
   });
 
   ws.on('error', (e) => log('ws error', e?.message));
@@ -152,6 +168,7 @@ async function forwardToApp(payload) {
   const headers = { 'Content-Type': 'application/json' };
   if (APP_AUTH_TOKEN) headers['Authorization'] = `Bearer ${APP_AUTH_TOKEN}`;
   const res = await fetch(APP_WEBHOOK_URL, { method: 'POST', headers, body: JSON.stringify(payload) });
+  if (!res.ok) throw new Error(`App relay returned HTTP ${res.status} for ${payload.event}`);
   // The app may return audio to play inline (optional, phase-2 convenience).
   const ct = res.headers.get('content-type') || '';
   if (ct.includes('application/json')) {
