@@ -6,61 +6,206 @@
  * follow-up call. It checks Chris's Google Calendar for conflicts and proposes
  * alternative times if needed.
  *
- * Conversation flow:
- *   1. "Chris is currently on another call, what time today works for a follow-up?"
- *   2. If not today → "Is tomorrow better?" → "What time?"
- *   3. If time given → check calendar → book or propose alternatives
- *   4. "An email reminder will be sent. Have a great day!"
- *
- * Appointments are 15 minutes. The duration is never mentioned to the caller.
+ * Security: Twilio signature verification, business-hours enforcement,
+ * 14-day booking horizon, idempotent booking, per-call state that preserves
+ * existing lead notes, and validated LLM output.
  */
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.52';
 import { xmlEscape } from '../../shared/twilioHelpers.ts';
 import { ET_TZ, listEvents, hasConflict } from '../../shared/googleCalendarHelpers.ts';
+import { verifyTwilioSignature } from '../../shared/verifyTwilioSignature.ts';
 
 const BASE_URL = 'https://rosieai-investorpage.base44.app';
 const APPOINTMENT_DURATION_MIN = 15;
-const BUSINESS_HOURS_START = 8;
-const BUSINESS_HOURS_END = 18;
+const BUSINESS_HOURS_START = 8;  // 8 AM ET
+const BUSINESS_HOURS_END = 18;   // 6 PM ET
 const MAX_RETRIES = 2;
+const MAX_BOOKING_HORIZON_DAYS = 14;
+const VALID_INTENTS = ['provide_time', 'not_today', 'yes', 'no', 'pick_alternative', 'another_day', 'unclear'];
 
+// State delimiters — scheduling state is stored at the end of the notes field,
+// preserving any existing human-authored notes above it.
+const STATE_DELIM_START = '\n---SCHEDULE_STATE---\n';
+const STATE_DELIM_END = '\n---END_SCHEDULE_STATE---\n';
+
+// ── TwiML helpers ──────────────────────────────────────────────────
 function twimlResponse(twiml: string) {
   return new Response(`<?xml version="1.0" encoding="UTF-8"?>\n${twiml}`, {
     headers: { 'Content-Type': 'text/xml' },
   });
 }
 
-// Convert an ET date+time string to UTC Date
-function etToUTC(dateStr: string, timeStr: string): Date {
-  const utcInput = new Date(`${dateStr}T${timeStr}:00.000Z`);
-  const etStr = utcInput.toLocaleString('en-US', { timeZone: ET_TZ });
-  const utcStr = utcInput.toLocaleString('en-US', { timeZone: 'UTC' });
-  const etDate = new Date(etStr);
-  const utcDate = new Date(utcStr);
-  const offsetMs = utcDate.getTime() - etDate.getTime();
-  return new Date(utcInput.getTime() + offsetMs);
+function gatherSay(agentMsg: string, respondUrl: string, fallbackMsg = "I didn't catch that. I'll try again later. Have a great day!"): Response {
+  return twimlResponse(`<Response>
+  <Say voice="Polly.Joanna-Neural">${xmlEscape(agentMsg)}</Say>
+  <Gather input="speech" speechTimeout="auto" action="${respondUrl}" method="POST" language="en-US" enhanced="true" speechModel="conversational" />
+  <Say voice="Polly.Joanna-Neural">${xmlEscape(fallbackMsg)}</Say>
+  <Hangup/>
+</Response>`);
 }
 
-// Get today's date in ET as YYYY-MM-DD
+function goodbye(msg = "No problem, we'll try again another time. Have a great day!"): Response {
+  return twimlResponse(`<Response><Say voice="Polly.Joanna-Neural">${xmlEscape(msg)}</Say><Hangup/></Response>`);
+}
+
+// ── DST-aware timezone conversion ─────────────────────────────────
+// Uses Intl.DateTimeFormat with timeZone: 'America/New_York' to compute
+// the UTC offset for any given ET wall-clock time, correctly handling
+// daylight-saving transitions. Business hours (8 AM–6 PM) never overlap
+// with the 2 AM DST transition, so this is safe for scheduling.
+
+function etToUTC(dateStr: string, timeStr: string): Date {
+  const [year, month, day] = dateStr.split('-').map(Number);
+  const [hour, minute] = timeStr.split(':').map(Number);
+
+  // Create a UTC instant representing the intended ET wall-clock time
+  const wallClock = new Date(Date.UTC(year, month - 1, day, hour, minute, 0, 0));
+
+  // Use Intl to find what ET actually shows for this UTC instant
+  const etFormatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: ET_TZ,
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false,
+  });
+  const parts = etFormatter.formatToParts(wallClock);
+  const get = (type: string) => parseInt(parts.find(p => p.type === type)?.value || '0');
+
+  // What ET thinks this UTC instant is (as a UTC value for comparison)
+  const etAsUTC = Date.UTC(get('year'), get('month') - 1, get('day'), get('hour') % 24, get('minute'), get('second'));
+
+  // Offset = how far off our guess was from the intended ET time
+  const offset = wallClock.getTime() - etAsUTC;
+
+  // Corrected UTC instant
+  return new Date(wallClock.getTime() + offset);
+}
+
 function getETDate(offsetDays = 0): string {
   const now = new Date();
-  const etStr = now.toLocaleString('en-US', { timeZone: ET_TZ });
-  const etDate = new Date(etStr);
-  etDate.setDate(etDate.getDate() + offsetDays);
-  return etDate.toISOString().split('T')[0];
+  const etFormatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: ET_TZ,
+    year: 'numeric', month: '2-digit', day: '2-digit',
+  });
+  const parts = etFormatter.formatToParts(now);
+  const get = (type: string) => parts.find(p => p.type === type)?.value || '0';
+  const dateStr = `${get('year')}-${get('month')}-${get('day')}`;
+
+  if (offsetDays === 0) return dateStr;
+
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const date = new Date(Date.UTC(y, m - 1, d));
+  date.setUTCDate(date.getUTCDate() + offsetDays);
+  return date.toISOString().split('T')[0];
 }
 
-// Get the day label for a date (e.g., "today", "tomorrow", "Monday")
+function getETNow(): Date {
+  // Current time in ET as a Date (for comparison purposes)
+  const now = new Date();
+  const etFormatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: ET_TZ,
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false,
+  });
+  const parts = etFormatter.formatToParts(now);
+  const get = (type: string) => parseInt(parts.find(p => p.type === type)?.value || '0');
+  return new Date(Date.UTC(get('year'), get('month') - 1, get('day'), get('hour') % 24, get('minute'), get('second')));
+}
+
+// ── Validation helpers ──────────────────────────────────────────────
+function isValidDateStr(dateStr: string): boolean {
+  const match = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return false;
+  const [, y, m, d] = match;
+  const date = new Date(Date.UTC(parseInt(y), parseInt(m) - 1, parseInt(d)));
+  return date.getUTCFullYear() === parseInt(y) && date.getUTCMonth() === parseInt(m) - 1 && date.getUTCDate() === parseInt(d);
+}
+
+function isValidTimeStr(timeStr: string): boolean {
+  const match = timeStr.match(/^(\d{2}):(\d{2})$/);
+  if (!match) return false;
+  const [, h, m] = match;
+  return parseInt(h) >= 0 && parseInt(h) < 24 && parseInt(m) >= 0 && parseInt(m) < 60;
+}
+
+function isWeekend(dateStr: string): boolean {
+  const match = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return true; // invalid date — treat as non-bookable
+  const [, y, m, d] = match.map(Number);
+  const date = new Date(Date.UTC(y, m - 1, d));
+  const dow = date.getUTCDay();
+  return dow === 0 || dow === 6;
+}
+
+function isWithinBusinessHours(dateStr: string, timeStr: string): boolean {
+  if (!isValidDateStr(dateStr) || !isValidTimeStr(timeStr)) return false;
+  const [hour] = timeStr.split(':').map(Number);
+  if (hour < BUSINESS_HOURS_START || hour >= BUSINESS_HOURS_END) return false;
+  if (isWeekend(dateStr)) return false;
+  return true;
+}
+
+function isWithinBookingHorizon(dateStr: string): boolean {
+  if (!isValidDateStr(dateStr)) return false;
+  const target = new Date(dateStr + 'T00:00:00Z');
+  const etNow = getETNow();
+  const maxDate = new Date(etNow);
+  maxDate.setUTCDate(maxDate.getUTCDate() + MAX_BOOKING_HORIZON_DAYS);
+  return target <= maxDate;
+}
+
+function validateParsedSpeech(parsed: any): any {
+  const intent = typeof parsed?.intent === 'string' && VALID_INTENTS.includes(parsed.intent) ? parsed.intent : 'unclear';
+  const date_str = typeof parsed?.date_str === 'string' && isValidDateStr(parsed.date_str) ? parsed.date_str : null;
+  const time_str = typeof parsed?.time_str === 'string' && isValidTimeStr(parsed.time_str) ? parsed.time_str : null;
+  const picked_slot_index = typeof parsed?.picked_slot_index === 'number' && parsed.picked_slot_index > 0 ? Math.floor(parsed.picked_slot_index) : null;
+  return { intent, date_str, time_str, picked_slot_index };
+}
+
+// ── State management (preserves existing notes) ────────────────────
+function extractScheduleState(notes: string): { state: any; prefix: string } {
+  if (!notes) return { state: null, prefix: '' };
+  const startIdx = notes.indexOf(STATE_DELIM_START);
+  if (startIdx === -1) return { state: null, prefix: notes };
+  const endIdx = notes.indexOf(STATE_DELIM_END, startIdx);
+  if (endIdx === -1) return { state: null, prefix: notes };
+  const json = notes.substring(startIdx + STATE_DELIM_START.length, endIdx).trim();
+  const prefix = notes.substring(0, startIdx);
+  try {
+    const state = JSON.parse(json);
+    if (state?.type === 'schedule_conversation') return { state, prefix };
+    return { state: null, prefix: notes };
+  } catch {
+    return { state: null, prefix: notes };
+  }
+}
+
+function buildNotesWithState(prefix: string, state: any): string {
+  const cleanPrefix = prefix.replace(/\n+$/, '');
+  const stateJson = JSON.stringify(state);
+  return `${cleanPrefix}${STATE_DELIM_START}${stateJson}${STATE_DELIM_END}`;
+}
+
+// ── Idempotency: check for existing meeting ─────────────────────────
+async function findExistingMeeting(base44: any, leadId: string, startISO: string): Promise<any | null> {
+  try {
+    const results = await base44.entities.FronterMeeting.filter({ leadId, meetingStartISO: startISO });
+    const items = results?.items || (Array.isArray(results) ? results : []);
+    return items[0] || null;
+  } catch {
+    return null;
+  }
+}
+
+// ── Calendar helpers ───────────────────────────────────────────────
 function getDayLabel(dateStr: string): string {
   const today = getETDate(0);
   const tomorrow = getETDate(1);
   if (dateStr === today) return 'today';
   if (dateStr === tomorrow) return 'tomorrow';
-  const date = new Date(dateStr + 'T12:00:00');
-  return date.toLocaleDateString('en-US', { weekday: 'long' });
+  const [y, m, d] = dateStr.split('-').map(Number);
+  return new Date(Date.UTC(y, m - 1, d, 12, 0, 0)).toLocaleDateString('en-US', { weekday: 'long', timeZone: 'UTC' });
 }
 
-// Format a time string (e.g., "14:00") to a human-readable label (e.g., "2:00 PM")
 function formatTimeLabel(timeStr: string): string {
   const [hour, min] = timeStr.split(':').map(Number);
   const period = hour >= 12 ? 'PM' : 'AM';
@@ -68,7 +213,6 @@ function formatTimeLabel(timeStr: string): string {
   return `${displayHour}:${String(min).padStart(2, '0')} ${period}`;
 }
 
-// Find free 15-minute slots on a given date
 function findFreeSlots(events: any[], dateStr: string, maxSlots = 3): Array<{ start: Date; end: Date; timeStr: string }> {
   const slots: Array<{ start: Date; end: Date; timeStr: string }> = [];
   const now = Date.now();
@@ -87,9 +231,13 @@ function findFreeSlots(events: any[], dateStr: string, maxSlots = 3): Array<{ st
   return slots;
 }
 
-// Parse caller's speech using LLM
+// ── LLM speech parsing ─────────────────────────────────────────────
 async function parseSpeech(base44: any, speech: string, previousQuestion: string, proposedSlots: any[]): Promise<any> {
-  const nowET = new Date().toLocaleString('en-US', { timeZone: ET_TZ });
+  const nowET = new Intl.DateTimeFormat('en-US', {
+    timeZone: ET_TZ,
+    dateStyle: 'full', timeStyle: 'short',
+  }).format(new Date());
+
   const slotsDesc = proposedSlots.length > 0
     ? `\nThe proposed alternative times were: ${proposedSlots.map((s, i) => `(${i + 1}) ${formatTimeLabel(s.timeStr)}`).join(', ')}`
     : '';
@@ -143,15 +291,33 @@ Return JSON:
   return result;
 }
 
-// Book a 15-minute appointment on Google Calendar
-async function bookAppointment(base44: any, start: Date, leadName: string, leadId: string, leadPhone: string, leadEmail: string) {
+// ── Booking ────────────────────────────────────────────────────────
+async function bookAppointment(base44: any, start: Date, leadName: string, leadId: string, leadPhone: string, leadEmail: string): Promise<{ eventId: string; start: Date; end: Date }> {
   const end = new Date(start.getTime() + APPOINTMENT_DURATION_MIN * 60 * 1000);
+  const startISO = start.toISOString();
+
+  // ── Idempotency: return existing meeting if one exists for this slot ──
+  const existing = await findExistingMeeting(base44, leadId, startISO);
+  if (existing?.eventId) {
+    console.log('[aiScheduleAgent] Idempotent: existing meeting found for', leadId, startISO);
+    return { eventId: existing.eventId, start, end };
+  }
+
   const { accessToken } = await base44.connectors.getConnection('googlecalendar');
   const authHeader = { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' };
 
   const title = `Follow-up Call — ${leadName || 'Client'}`;
   const description = `Auto-scheduled by AI Scheduling Agent\nLead ID: ${leadId}\nLead Phone: ${leadPhone}\nLead Email: ${leadEmail || 'N/A'}`;
 
+  // ── Recheck availability immediately before creating the event ──
+  const timeMin = new Date(start.getTime() - 60 * 60 * 1000).toISOString();
+  const timeMax = new Date(end.getTime() + 60 * 60 * 1000).toISOString();
+  const events = await listEvents(authHeader, timeMin, timeMax);
+  if (hasConflict(events, start, end)) {
+    throw new Error('SLOT_TAKEN');
+  }
+
+  // ── Create the Google Calendar event ──
   const createRes = await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events?sendUpdates=none', {
     method: 'POST',
     headers: authHeader,
@@ -168,83 +334,92 @@ async function bookAppointment(base44: any, start: Date, leadName: string, leadI
     throw new Error(createData.error?.message || 'Failed to create event');
   }
 
-  // Store meeting for reminders
-  try {
-    await base44.entities.FronterMeeting.create({
-      leadId,
-      leadName,
-      leadPhone,
-      leadEmail,
-      fronterUsername: 'ai_schedule_agent',
-      meetingStartISO: start.toISOString(),
-      meetingEndISO: end.toISOString(),
-      customerTimezone: ET_TZ,
-      customerReminder: true,
-      nightBeforeReminderSent: false,
-      hourBeforeReminderSent: false,
-      eventId: createData.id,
-      meetingNotes: 'Auto-scheduled by AI Scheduling Agent when Chris was on another call',
-      status: 'scheduled',
-    });
-  } catch (e) {
-    console.warn('[aiScheduleAgent] Failed to store meeting:', e?.message);
+  // ── Store meeting record for reminders (with retry) ──
+  let meetingRecord: any = null;
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      meetingRecord = await base44.entities.FronterMeeting.create({
+        leadId,
+        leadName,
+        leadPhone,
+        leadEmail,
+        fronterUsername: 'ai_schedule_agent',
+        meetingStartISO: start.toISOString(),
+        meetingEndISO: end.toISOString(),
+        customerTimezone: ET_TZ,
+        customerReminder: true,
+        nightBeforeReminderSent: false,
+        hourBeforeReminderSent: false,
+        eventId: createData.id,
+        meetingNotes: 'Auto-scheduled by AI Scheduling Agent when Chris was on another call',
+        status: 'scheduled',
+      });
+      break;
+    } catch (e) {
+      console.error(`[aiScheduleAgent] Meeting record creation attempt ${attempt} failed:`, e?.message);
+      if (attempt < 3) await new Promise(r => setTimeout(r, 500 * attempt));
+    }
+  }
+
+  if (!meetingRecord) {
+    // Calendar event exists but meeting record failed — log prominently
+    console.error(`[aiScheduleAgent] CRITICAL: Calendar event ${createData.id} created but FronterMeeting record failed for lead ${leadId}. Reminders will NOT fire.`);
   }
 
   return { eventId: createData.id, start, end };
 }
 
-// Save conversation state to lead
-async function saveState(base44: any, leadId: string, state: any) {
+// ── Save state (preserves existing notes) ──────────────────────────
+async function saveState(base44: any, leadId: string, currentNotes: string, state: any) {
   try {
-    await base44.entities.FronterLead.update(leadId, { notes: JSON.stringify(state) });
+    const { prefix } = extractScheduleState(currentNotes);
+    const newNotes = buildNotesWithState(prefix, state);
+    await base44.entities.FronterLead.update(leadId, { notes: newNotes });
   } catch (e) {
     console.warn('[aiScheduleAgent] Failed to save state:', e?.message);
   }
 }
 
-// Build a Gather TwiML response
-function gatherSay(agentMsg: string, respondUrl: string, fallbackMsg = "I didn't catch that. I'll try again later. Have a great day!"): Response {
-  return twimlResponse(`<Response>
-  <Say voice="Polly.Joanna-Neural">${xmlEscape(agentMsg)}</Say>
-  <Gather input="speech" speechTimeout="auto" action="${respondUrl}" method="POST" language="en-US" enhanced="true" speechModel="conversational" />
-  <Say voice="Polly.Joanna-Neural">${xmlEscape(fallbackMsg)}</Say>
-  <Hangup/>
-</Response>`);
-}
-
-// Goodbye TwiML
-function goodbye(msg = "No problem, we'll try again another time. Have a great day!"): Response {
-  return twimlResponse(`<Response><Say voice="Polly.Joanna-Neural">${xmlEscape(msg)}</Say><Hangup/></Response>`);
-}
-
+// ── Main handler ───────────────────────────────────────────────────
 export default async function(req: Request): Promise<Response> {
   try {
+    // ── Read raw body once for signature verification ──
+    const rawBody = await req.text();
+
+    // ── Verify Twilio signature ──
+    if (!await verifyTwilioSignature(req, rawBody)) {
+      console.warn('[aiScheduleAgent] Twilio signature verification failed');
+      return Response.json({ error: 'unauthorized' }, { status: 401 });
+    }
+
     const url = new URL(req.url);
     const leadIdParam = url.searchParams.get('leadId') || '';
 
-    // Twilio sends form-encoded SpeechResult; tests send JSON
+    // ── Parse body (form-encoded for Twilio, JSON for tests) ──
     let speechResult = '';
     let fromNumber = '';
+    let callSid = '';
     const contentType = req.headers.get('content-type') || '';
     if (contentType.includes('application/json')) {
       try {
-        const body = await req.json();
+        const body = JSON.parse(rawBody);
         speechResult = (body.SpeechResult || body.speechResult || '').toString().trim();
         fromNumber = (body.From || body.from || '').toString();
+        callSid = (body.CallSid || body.callSid || '').toString();
       } catch {}
     } else {
       try {
-        const form = await req.formData();
+        const form = new URLSearchParams(rawBody);
         speechResult = (form.get('SpeechResult') || '').toString().trim();
         fromNumber = (form.get('From') || '').toString();
+        callSid = (form.get('CallSid') || '').toString();
       } catch {}
     }
 
-    console.log('[aiScheduleAgent] leadId:', leadIdParam, 'from:', fromNumber, 'speech:', speechResult);
+    console.log('[aiScheduleAgent] leadId:', leadIdParam, 'from:', fromNumber, 'callSid:', callSid, 'speech:', speechResult);
 
     const base44 = createClientFromRequest(req).asServiceRole;
 
-    // Calendar auth — base44 is already the service role, so access connectors directly
     const getAuthHeader = async () => {
       const { accessToken } = await base44.connectors.getConnection('googlecalendar');
       return { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' };
@@ -277,7 +452,7 @@ export default async function(req: Request): Promise<Response> {
           assignedAt: new Date().toISOString(),
           assignedBy: 'ai_schedule_agent',
           uploadedBy: 'ai_schedule_agent',
-          notes: JSON.stringify({ type: 'schedule_conversation', step: 'ask_today', history: [], retryCount: 0, proposedSlots: [] }),
+          notes: '',
         });
       } catch (e) {
         console.error('[aiScheduleAgent] Failed to create lead:', e?.message);
@@ -290,21 +465,20 @@ export default async function(req: Request): Promise<Response> {
 
     const currentLeadId = lead.id;
     const respondUrl = `${BASE_URL}/functions/aiScheduleAgent?leadId=${encodeURIComponent(currentLeadId)}`;
+    const leadNotes = lead.notes || '';
 
-    // ── Load conversation state ──
-    let state: any = { type: 'schedule_conversation', step: 'ask_today', history: [], retryCount: 0, proposedSlots: [] };
-    try {
-      const parsed = JSON.parse(lead.notes || '{}');
-      if (parsed?.type === 'schedule_conversation') state = parsed;
-    } catch {}
+    // ── Load conversation state (preserves existing notes) ──
+    let state: any = { type: 'schedule_conversation', step: 'ask_today', history: [], retryCount: 0, proposedSlots: [], callSid };
+    const { state: savedState } = extractScheduleState(leadNotes);
+    if (savedState) state = { ...savedState, callSid };
 
     // ── If no speech (Gather timed out), retry or say goodbye ──
     if (!speechResult) {
       if ((state.retryCount || 0) >= MAX_RETRIES) {
-        await saveState(base44, currentLeadId, { ...state, step: 'done' });
+        await saveState(base44, currentLeadId, leadNotes, { ...state, step: 'done' });
         return goodbye();
       }
-      await saveState(base44, currentLeadId, { ...state, retryCount: (state.retryCount || 0) + 1 });
+      await saveState(base44, currentLeadId, leadNotes, { ...state, retryCount: (state.retryCount || 0) + 1 });
       return gatherSay("Are you still there?", respondUrl);
     }
 
@@ -312,13 +486,14 @@ export default async function(req: Request): Promise<Response> {
     const lastAgentMsg = [...(state.history || [])].reverse().find((m: any) => m.role === 'agent');
     const previousQuestion = lastAgentMsg?.content || "What time today would be a good time to follow up?";
 
-    // ── Parse the caller's speech ──
+    // ── Parse and validate the caller's speech ──
     let parsed: any;
     try {
-      parsed = await parseSpeech(base44, speechResult, previousQuestion, state.proposedSlots || []);
+      const rawParsed = await parseSpeech(base44, speechResult, previousQuestion, state.proposedSlots || []);
+      parsed = validateParsedSpeech(rawParsed);
     } catch (e) {
       console.error('[aiScheduleAgent] LLM parse error:', e?.message);
-      parsed = { intent: 'unclear' };
+      parsed = { intent: 'unclear', date_str: null, time_str: null, picked_slot_index: null };
     }
 
     console.log('[aiScheduleAgent] parsed intent:', parsed?.intent, 'date:', parsed?.date_str, 'time:', parsed?.time_str);
@@ -328,34 +503,84 @@ export default async function(req: Request): Promise<Response> {
 
     const step = state.step;
 
-    // ── Helper: check calendar and book or propose alternatives ──
+    // ── Helper: validate slot, check calendar, book or propose ──
     async function tryBookOrPropose(dateStr: string, timeStr: string): Promise<Response> {
-      const start = etToUTC(dateStr, timeStr);
-      const end = new Date(start.getTime() + APPOINTMENT_DURATION_MIN * 60 * 1000);
+      // ── Validate date and time formats ──
+      if (!isValidDateStr(dateStr) || !isValidTimeStr(timeStr)) {
+        console.warn('[aiScheduleAgent] Invalid date/time:', dateStr, timeStr);
+        return await proposeAlternatives(getETDate(0));
+      }
 
+      // ── Enforce business hours (8 AM–6 PM ET, Mon–Fri) ──
+      if (!isWithinBusinessHours(dateStr, timeStr)) {
+        const [hour] = timeStr.split(':').map(Number);
+        if (isWeekend(dateStr)) {
+          const agentMsg = "I'm sorry, we're only available Monday through Friday. Could we schedule a time during the business week?";
+          state.history = [...(state.history || []), { role: 'agent', content: agentMsg }].slice(-20);
+          state.step = 'ask_another_day';
+          state.retryCount = 0;
+          await saveState(base44, currentLeadId, leadNotes, state);
+          return gatherSay(agentMsg, respondUrl);
+        }
+        if (hour < BUSINESS_HOURS_START) {
+          const agentMsg = "I'm sorry, the earliest we can schedule is 8 AM. Could you pick a time between 8 AM and 6 PM?";
+          state.history = [...(state.history || []), { role: 'agent', content: agentMsg }].slice(-20);
+          state.retryCount = 0;
+          await saveState(base44, currentLeadId, leadNotes, state);
+          return gatherSay(agentMsg, respondUrl);
+        }
+        const agentMsg = "I'm sorry, the latest we can schedule is 6 PM. Could you pick a time between 8 AM and 6 PM?";
+        state.history = [...(state.history || []), { role: 'agent', content: agentMsg }].slice(-20);
+        state.retryCount = 0;
+        await saveState(base44, currentLeadId, leadNotes, state);
+        return gatherSay(agentMsg, respondUrl);
+      }
+
+      // ── Enforce 14-day booking horizon ──
+      if (!isWithinBookingHorizon(dateStr)) {
+        const agentMsg = `I'm sorry, I can only schedule up to ${MAX_BOOKING_HORIZON_DAYS} days out. Could we pick a sooner date?`;
+        state.history = [...(state.history || []), { role: 'agent', content: agentMsg }].slice(-20);
+        state.step = 'ask_another_day';
+        state.retryCount = 0;
+        await saveState(base44, currentLeadId, leadNotes, state);
+        return gatherSay(agentMsg, respondUrl);
+      }
+
+      const start = etToUTC(dateStr, timeStr);
+
+      // ── Reject past times ──
       if (start.getTime() < Date.now()) {
         return await proposeAlternatives(dateStr);
       }
 
       try {
+        // ── Query calendar covering the requested date ──
         const authHeader = await getAuthHeader();
-        const timeMin = new Date().toISOString();
-        const timeMax = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString();
-        const events = await listEvents(authHeader, timeMin, timeMax);
+        const queryStart = new Date(start.getTime() - 60 * 60 * 1000);
+        const queryEnd = new Date(start.getTime() + APPOINTMENT_DURATION_MIN * 60 * 1000 + 60 * 60 * 1000);
+        const events = await listEvents(authHeader, queryStart.toISOString(), queryEnd.toISOString());
 
-        if (!hasConflict(events, start, end)) {
-          // Slot is free — book it
+        if (!hasConflict(events, start, new Date(start.getTime() + APPOINTMENT_DURATION_MIN * 60 * 1000))) {
+          // ── Slot is free — book it (idempotent) ──
           const leadName = `${lead.firstName || ''} ${lead.lastName || ''}`.trim() || 'Client';
           await bookAppointment(base44, start, leadName, currentLeadId, fromNumber, lead.email || '');
           const dayLabel = getDayLabel(dateStr);
           const timeLabel = formatTimeLabel(timeStr);
-          await saveState(base44, currentLeadId, { ...state, step: 'done' });
+
+          // ── Only mention email reminder if lead has an email ──
+          const hasEmail = lead.email && lead.email.includes('@');
+          const reminderMsg = hasEmail ? ' An email reminder will be sent as well.' : '';
+
+          await saveState(base44, currentLeadId, leadNotes, { ...state, step: 'done' });
           try { await base44.entities.FronterLead.update(currentLeadId, { lastCallResult: 'appointment_scheduled' }); } catch {}
-          return twimlResponse(`<Response><Say voice="Polly.Joanna-Neural">Great, I've scheduled your follow-up call with Chris for ${dayLabel} at ${timeLabel}. An email reminder will be sent as well. Have a great day!</Say><Hangup/></Response>`);
+          return twimlResponse(`<Response><Say voice="Polly.Joanna-Neural">Great, I've scheduled your follow-up call with Chris for ${dayLabel} at ${timeLabel}.${reminderMsg} Have a great day!</Say><Hangup/></Response>`);
         } else {
           return await proposeAlternatives(dateStr);
         }
-      } catch (e) {
+      } catch (e: any) {
+        if (e?.message === 'SLOT_TAKEN') {
+          return await proposeAlternatives(dateStr);
+        }
         console.error('[aiScheduleAgent] Calendar check/booking failed:', e?.message);
         return await proposeAlternatives(dateStr);
       }
@@ -384,7 +609,7 @@ export default async function(req: Request): Promise<Response> {
         }
 
         if (slots.length === 0) {
-          await saveState(base44, currentLeadId, { ...state, step: 'done' });
+          await saveState(base44, currentLeadId, leadNotes, { ...state, step: 'done' });
           return goodbye("I'm sorry, Chris's schedule is full for the next few days. We'll reach out to you soon to find a time. Have a great day!");
         }
 
@@ -398,11 +623,11 @@ export default async function(req: Request): Promise<Response> {
         state.proposedSlots = slots.map(s => ({ dateStr: proposedDate, timeStr: s.timeStr, startISO: s.start.toISOString() }));
         state.retryCount = 0;
 
-        await saveState(base44, currentLeadId, state);
+        await saveState(base44, currentLeadId, leadNotes, state);
         return gatherSay(agentMsg, respondUrl);
       } catch (e) {
         console.error('[aiScheduleAgent] proposeAlternatives failed:', e?.message);
-        await saveState(base44, currentLeadId, { ...state, step: 'done' });
+        await saveState(base44, currentLeadId, leadNotes, { ...state, step: 'done' });
         return goodbye("I'm sorry, I'm having trouble accessing Chris's calendar right now. We'll call you back soon to schedule. Have a great day!");
       }
     }
@@ -414,14 +639,14 @@ export default async function(req: Request): Promise<Response> {
       }
       if (parsed.intent === 'not_today') {
         const agentMsg = "Is tomorrow a better time?";
-        state.history = [...state.history, { role: 'agent', content: agentMsg }].slice(-20);
+        state.history = [...(state.history || []), { role: 'agent', content: agentMsg }].slice(-20);
         state.step = 'ask_tomorrow';
         state.retryCount = 0;
-        await saveState(base44, currentLeadId, state);
+        await saveState(base44, currentLeadId, leadNotes, state);
         return gatherSay(agentMsg, respondUrl);
       }
       if (parsed.intent === 'no') {
-        await saveState(base44, currentLeadId, { ...state, step: 'done' });
+        await saveState(base44, currentLeadId, leadNotes, { ...state, step: 'done' });
         return goodbye();
       }
       if (parsed.intent === 'another_day' && parsed.date_str && parsed.time_str) {
@@ -430,22 +655,21 @@ export default async function(req: Request): Promise<Response> {
       if (parsed.intent === 'another_day' && parsed.date_str) {
         const dayLabel = getDayLabel(parsed.date_str);
         const agentMsg = `What time on ${dayLabel} works best for you?`;
-        state.history = [...state.history, { role: 'agent', content: agentMsg }].slice(-20);
+        state.history = [...(state.history || []), { role: 'agent', content: agentMsg }].slice(-20);
         state.step = 'ask_another_day_time';
         state.targetDate = parsed.date_str;
         state.retryCount = 0;
-        await saveState(base44, currentLeadId, state);
+        await saveState(base44, currentLeadId, leadNotes, state);
         return gatherSay(agentMsg, respondUrl);
       }
-      // Unclear — repeat
       if ((state.retryCount || 0) >= MAX_RETRIES) {
-        await saveState(base44, currentLeadId, { ...state, step: 'done' });
+        await saveState(base44, currentLeadId, leadNotes, { ...state, step: 'done' });
         return goodbye();
       }
       const agentMsg = "I'm sorry, I didn't catch that. What time today would work for a follow-up call?";
-      state.history = [...state.history, { role: 'agent', content: agentMsg }].slice(-20);
+      state.history = [...(state.history || []), { role: 'agent', content: agentMsg }].slice(-20);
       state.retryCount = (state.retryCount || 0) + 1;
-      await saveState(base44, currentLeadId, state);
+      await saveState(base44, currentLeadId, leadNotes, state);
       return gatherSay(agentMsg, respondUrl);
     }
 
@@ -453,18 +677,18 @@ export default async function(req: Request): Promise<Response> {
     if (step === 'ask_tomorrow') {
       if (parsed.intent === 'yes') {
         const agentMsg = "What time works best for you tomorrow?";
-        state.history = [...state.history, { role: 'agent', content: agentMsg }].slice(-20);
+        state.history = [...(state.history || []), { role: 'agent', content: agentMsg }].slice(-20);
         state.step = 'ask_tomorrow_time';
         state.retryCount = 0;
-        await saveState(base44, currentLeadId, state);
+        await saveState(base44, currentLeadId, leadNotes, state);
         return gatherSay(agentMsg, respondUrl);
       }
       if (parsed.intent === 'no') {
         const agentMsg = "What day works best for you then?";
-        state.history = [...state.history, { role: 'agent', content: agentMsg }].slice(-20);
+        state.history = [...(state.history || []), { role: 'agent', content: agentMsg }].slice(-20);
         state.step = 'ask_another_day';
         state.retryCount = 0;
-        await saveState(base44, currentLeadId, state);
+        await saveState(base44, currentLeadId, leadNotes, state);
         return gatherSay(agentMsg, respondUrl);
       }
       if (parsed.intent === 'provide_time' && parsed.date_str && parsed.time_str) {
@@ -473,18 +697,14 @@ export default async function(req: Request): Promise<Response> {
       if (parsed.intent === 'another_day' && parsed.date_str && parsed.time_str) {
         return await tryBookOrPropose(parsed.date_str, parsed.time_str);
       }
-      if (parsed.intent === 'no') {
-        await saveState(base44, currentLeadId, { ...state, step: 'done' });
-        return goodbye();
-      }
       if ((state.retryCount || 0) >= MAX_RETRIES) {
-        await saveState(base44, currentLeadId, { ...state, step: 'done' });
+        await saveState(base44, currentLeadId, leadNotes, { ...state, step: 'done' });
         return goodbye();
       }
       const agentMsg = "I'm sorry, I didn't catch that. Is tomorrow a better time for a follow-up call?";
-      state.history = [...state.history, { role: 'agent', content: agentMsg }].slice(-20);
+      state.history = [...(state.history || []), { role: 'agent', content: agentMsg }].slice(-20);
       state.retryCount = (state.retryCount || 0) + 1;
-      await saveState(base44, currentLeadId, state);
+      await saveState(base44, currentLeadId, leadNotes, state);
       return gatherSay(agentMsg, respondUrl);
     }
 
@@ -494,17 +714,17 @@ export default async function(req: Request): Promise<Response> {
         return await tryBookOrPropose(parsed.date_str, parsed.time_str);
       }
       if (parsed.intent === 'no') {
-        await saveState(base44, currentLeadId, { ...state, step: 'done' });
+        await saveState(base44, currentLeadId, leadNotes, { ...state, step: 'done' });
         return goodbye();
       }
       if ((state.retryCount || 0) >= MAX_RETRIES) {
-        await saveState(base44, currentLeadId, { ...state, step: 'done' });
+        await saveState(base44, currentLeadId, leadNotes, { ...state, step: 'done' });
         return goodbye();
       }
       const agentMsg = "I'm sorry, I didn't catch that. What time tomorrow works best for you?";
-      state.history = [...state.history, { role: 'agent', content: agentMsg }].slice(-20);
+      state.history = [...(state.history || []), { role: 'agent', content: agentMsg }].slice(-20);
       state.retryCount = (state.retryCount || 0) + 1;
-      await saveState(base44, currentLeadId, state);
+      await saveState(base44, currentLeadId, leadNotes, state);
       return gatherSay(agentMsg, respondUrl);
     }
 
@@ -516,25 +736,25 @@ export default async function(req: Request): Promise<Response> {
       if (parsed.intent === 'another_day' && parsed.date_str) {
         const dayLabel = getDayLabel(parsed.date_str);
         const agentMsg = `What time on ${dayLabel} works best for you?`;
-        state.history = [...state.history, { role: 'agent', content: agentMsg }].slice(-20);
+        state.history = [...(state.history || []), { role: 'agent', content: agentMsg }].slice(-20);
         state.step = 'ask_another_day_time';
         state.targetDate = parsed.date_str;
         state.retryCount = 0;
-        await saveState(base44, currentLeadId, state);
+        await saveState(base44, currentLeadId, leadNotes, state);
         return gatherSay(agentMsg, respondUrl);
       }
       if (parsed.intent === 'no') {
-        await saveState(base44, currentLeadId, { ...state, step: 'done' });
+        await saveState(base44, currentLeadId, leadNotes, { ...state, step: 'done' });
         return goodbye();
       }
       if ((state.retryCount || 0) >= MAX_RETRIES) {
-        await saveState(base44, currentLeadId, { ...state, step: 'done' });
+        await saveState(base44, currentLeadId, leadNotes, { ...state, step: 'done' });
         return goodbye();
       }
       const agentMsg = "I'm sorry, I didn't catch that. What day works best for a follow-up call?";
-      state.history = [...state.history, { role: 'agent', content: agentMsg }].slice(-20);
+      state.history = [...(state.history || []), { role: 'agent', content: agentMsg }].slice(-20);
       state.retryCount = (state.retryCount || 0) + 1;
-      await saveState(base44, currentLeadId, state);
+      await saveState(base44, currentLeadId, leadNotes, state);
       return gatherSay(agentMsg, respondUrl);
     }
 
@@ -545,30 +765,28 @@ export default async function(req: Request): Promise<Response> {
         return await tryBookOrPropose(dateStr, parsed.time_str);
       }
       if (parsed.intent === 'no') {
-        await saveState(base44, currentLeadId, { ...state, step: 'done' });
+        await saveState(base44, currentLeadId, leadNotes, { ...state, step: 'done' });
         return goodbye();
       }
       if ((state.retryCount || 0) >= MAX_RETRIES) {
-        await saveState(base44, currentLeadId, { ...state, step: 'done' });
+        await saveState(base44, currentLeadId, leadNotes, { ...state, step: 'done' });
         return goodbye();
       }
       const dayLabel = state.targetDate ? getDayLabel(state.targetDate) : 'that day';
       const agentMsg = `I'm sorry, I didn't catch that. What time on ${dayLabel} works best for you?`;
-      state.history = [...state.history, { role: 'agent', content: agentMsg }].slice(-20);
+      state.history = [...(state.history || []), { role: 'agent', content: agentMsg }].slice(-20);
       state.retryCount = (state.retryCount || 0) + 1;
-      await saveState(base44, currentLeadId, state);
+      await saveState(base44, currentLeadId, leadNotes, state);
       return gatherSay(agentMsg, respondUrl);
     }
 
     // ── Step: propose_alternatives ──
     if (step === 'propose_alternatives') {
-      // Caller picks one of the proposed alternatives
       if (parsed.intent === 'pick_alternative' && parsed.picked_slot_index && state.proposedSlots?.[parsed.picked_slot_index - 1]) {
         const slot = state.proposedSlots[parsed.picked_slot_index - 1];
         return await tryBookOrPropose(slot.dateStr, slot.timeStr);
       }
       if (parsed.intent === 'provide_time' && parsed.time_str) {
-        // Try to match the time to one of the proposed slots
         const match = state.proposedSlots?.find((s: any) => s.timeStr === parsed.time_str);
         if (match) {
           return await tryBookOrPropose(match.dateStr, match.timeStr);
@@ -587,34 +805,33 @@ export default async function(req: Request): Promise<Response> {
         }
         const dayLabel = getDayLabel(parsed.date_str);
         const agentMsg = `What time on ${dayLabel} works best for you?`;
-        state.history = [...state.history, { role: 'agent', content: agentMsg }].slice(-20);
+        state.history = [...(state.history || []), { role: 'agent', content: agentMsg }].slice(-20);
         state.step = 'ask_another_day_time';
         state.targetDate = parsed.date_str;
         state.retryCount = 0;
-        await saveState(base44, currentLeadId, state);
+        await saveState(base44, currentLeadId, leadNotes, state);
         return gatherSay(agentMsg, respondUrl);
       }
       if (parsed.intent === 'no') {
-        await saveState(base44, currentLeadId, { ...state, step: 'done' });
+        await saveState(base44, currentLeadId, leadNotes, { ...state, step: 'done' });
         return goodbye();
       }
       if ((state.retryCount || 0) >= MAX_RETRIES) {
-        await saveState(base44, currentLeadId, { ...state, step: 'done' });
+        await saveState(base44, currentLeadId, leadNotes, { ...state, step: 'done' });
         return goodbye();
       }
-      // Repeat the alternatives
       const slotTimes = (state.proposedSlots || []).map((s: any) => formatTimeLabel(s.timeStr));
       const slotList = slotTimes.length === 1 ? slotTimes[0] : slotTimes.slice(0, -1).join(', ') + ' or ' + slotTimes[slotTimes.length - 1];
       const dayLabel = state.proposedSlots?.[0] ? getDayLabel(state.proposedSlots[0].dateStr) : 'today';
       const agentMsg = `I'm sorry, I didn't catch that. Chris is available ${dayLabel} at ${slotList}. Which works for you?`;
-      state.history = [...state.history, { role: 'agent', content: agentMsg }].slice(-20);
+      state.history = [...(state.history || []), { role: 'agent', content: agentMsg }].slice(-20);
       state.retryCount = (state.retryCount || 0) + 1;
-      await saveState(base44, currentLeadId, state);
+      await saveState(base44, currentLeadId, leadNotes, state);
       return gatherSay(agentMsg, respondUrl);
     }
 
     // Default — say goodbye
-    await saveState(base44, currentLeadId, { ...state, step: 'done' });
+    await saveState(base44, currentLeadId, leadNotes, { ...state, step: 'done' });
     return goodbye("Thank you for calling. Have a great day!");
 
   } catch (error) {
