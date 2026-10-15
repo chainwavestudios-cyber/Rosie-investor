@@ -93,6 +93,18 @@ export default async function(req) {
         console.warn('[dialerVoiceHandler] Failed to read bridge secrets:', e?.message);
       }
 
+      // Gather-based fallback — used both when the bridge URL is not configured
+      // AND as a safety net after </Connect>. If the Media Stream WebSocket fails
+      // (auth mismatch, bridge cold start, or connection error), Twilio falls
+      // through to these verbs so the call survives and the AI agent can still
+      // converse via Twilio's built-in speech recognition instead of hanging up.
+      const respondUrl = `https://rosieai-investorpage.base44.app/functions/aiAgentRespond?leadId=${encodeURIComponent(leadId)}`;
+      const gatherFallback = `
+  <Say voice="${pollyVoice}">${xmlEscape(greeting)}</Say>
+  <Gather input="speech" speechTimeout="auto" action="${respondUrl}" method="POST" language="en-US" enhanced="true" speechModel="conversational" />
+  <Say voice="${pollyVoice}">I didn't catch that. I'll try again later. Goodbye.</Say>
+  <Hangup/>`;
+
       if (streamUrl) {
         const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
@@ -101,22 +113,17 @@ export default async function(req) {
       <Parameter name="leadId" value="${xmlEscape(leadId)}" />
       ${streamToken ? `<Parameter name="streamToken" value="${xmlEscape(streamToken)}" />` : ''}
     </Stream>
-  </Connect>
+  </Connect>${gatherFallback}
 </Response>`;
-        console.log('[dialerVoiceHandler] → Mode AI Agent → Media Stream bridge, leadId:', leadId);
+        console.log('[dialerVoiceHandler] → Mode AI Agent → Media Stream bridge (with Gather fallback), leadId:', leadId);
         return new Response(twiml, { headers: { 'Content-Type': 'text/xml' } });
       }
 
-      // Fallback: Gather-based flow (if bridge URL not configured)
-      const respondUrl = `https://rosieai-investorpage.base44.app/functions/aiAgentRespond?leadId=${encodeURIComponent(leadId)}`;
+      // No bridge URL configured — Gather-only flow
       const twiml = `<?xml version="1.0" encoding="UTF-8"?>
-<Response>
-  <Say voice="${pollyVoice}">${xmlEscape(greeting)}</Say>
-  <Gather input="speech" speechTimeout="auto" action="${respondUrl}" method="POST" language="en-US" enhanced="true" speechModel="conversational" />
-  <Say voice="${pollyVoice}">I didn't catch that. I'll try again later. Goodbye.</Say>
-  <Hangup/>
+<Response>${gatherFallback}
 </Response>`;
-      console.log('[dialerVoiceHandler] → Mode AI Agent outbound (Gather fallback), leadId:', leadId);
+      console.log('[dialerVoiceHandler] → Mode AI Agent outbound (Gather only), leadId:', leadId);
       return new Response(twiml, { headers: { 'Content-Type': 'text/xml' } });
     }
 
