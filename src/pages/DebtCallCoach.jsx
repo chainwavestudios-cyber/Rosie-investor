@@ -33,7 +33,6 @@ import WCRChecklist from '@/components/debt/WCRChecklist';
 import ProfileTimerWatcher from '@/components/debt/ProfileTimerWatcher';
 import ClientProfileModal from '@/components/debt/ClientProfileModal';
 import CreditAlertPopup from '@/components/debt/CreditAlertPopup';
-import UpcomingCallEventsPopup from '@/components/debt/UpcomingCallEventsPopup';
 import DealMonitorPopout from '@/components/debt/DealMonitorPopout';
 import HeatMapPopout from '@/components/debt/HeatMapPopout';
 import PipelineTab from '@/components/debt/PipelineTab';
@@ -195,7 +194,6 @@ export default function DebtCallCoach() {
       {/* Popup notification when a new lead is assigned to this user */}
       <LeadAssignmentPopup onGoToLeads={() => setTab('newleads')} />
       <CreditAlertPopup />
-      <UpcomingCallEventsPopup />
 
       {/* Alt+D Deal Monitor — floating popout, not docked */}
       <DealMonitorPopout visible={dealMonitorVisible} username={user?.username} onOpenLead={(lead) => setPipelineLead(lead)} onClose={() => setDealMonitorVisible(false)} />

@@ -28,6 +28,7 @@ import FronterContactCard from '@/components/fronter/FronterContactCard';
 import FronterAIReportsTab from '@/components/fronter/FronterAIReportsTab';
 import FronterReportPopup from '@/components/fronter/FronterReportPopup';
 import FronterEmailsTab from '@/components/fronter/FronterEmailsTab';
+import UpcomingCallEventsPopup from '@/components/debt/UpcomingCallEventsPopup';
 import DualClockBar from '@/components/shared/DualClockBar';
 import TimezonePrompt from '@/components/shared/TimezonePrompt';
 import EasternTimeReminder from '@/components/shared/EasternTimeReminder';
@@ -496,6 +497,9 @@ export default function FronterPage() {
 
       {/* Email tracking notifications — real-time open/click popups */}
       <FronterEmailTrackingNotifications />
+
+      {/* Upcoming fronter call events — super admin only (fronter auth system) */}
+      {isAdmin && <UpcomingCallEventsPopup />}
 
       {/* Heads Up alerts — super admin only */}
       {isAdmin && (
