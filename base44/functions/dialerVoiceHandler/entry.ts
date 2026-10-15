@@ -185,10 +185,12 @@ export default async function(req) {
 
       const appUrl = req.headers.get('X-Base44-App-Url') || 'https://rosieai-investorpage.base44.app';
       const fallbackUrl = `${appUrl}/functions/aiAgentRespond?transferFallback=1&leadId=${encodeURIComponent(leadId)}`;
+      const skipSay = url.searchParams.get('SkipSay') === 'true';
+      const sayTag = skipSay ? '' : `<Say voice="${pollyVoice}">Let me connect you with one of our senior debt advisors. Please hold for just a moment.</Say>`;
 
       const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Say voice="${pollyVoice}">Let me connect you with one of our senior debt advisors. Please hold for just a moment.</Say>
+  ${sayTag}
   <Dial callerId="${xmlEscape(callerId)}" timeout="30" action="${xmlEscape(fallbackUrl)}" method="POST">
     <Number>${xmlEscape(primaryNumber)}</Number>
   </Dial>
@@ -211,9 +213,11 @@ export default async function(req) {
       }
       const pollyVoice = getPollyVoice(config.ttsVoiceModel || 'aura-2-thalia-en');
 
+      const skipSay = url.searchParams.get('SkipSay') === 'true';
+      const sayTag = skipSay ? '' : `<Say voice="${pollyVoice}">Thank you for your time. Have a great day. Goodbye.</Say>`;
       const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Say voice="${pollyVoice}">Thank you for your time. Have a great day. Goodbye.</Say>
+  ${sayTag}
   <Hangup/>
 </Response>`;
       console.log('[dialerVoiceHandler] → Mode AI End Call');

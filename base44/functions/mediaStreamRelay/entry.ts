@@ -42,6 +42,95 @@ const MODEL_MAP: Record<string, string> = {
 const VALID_ACTIONS = ['speak', 'transfer', 'end_call'];
 const VALID_DISPOSITIONS = ['interested', 'not_interested', 'callback_requested', 'transferred', 'opt_out', 'no_response', 'technical_failure'];
 
+// ── Bridge /play helper (authenticated with PLAY_AUTH_TOKEN) ──────────
+async function playToBridge(streamSid: string, body: any): Promise<any> {
+  const bridgeUrl = secrets.get('WS_BRIDGE_URL') || '';
+  const playToken = secrets.get('PLAY_AUTH_TOKEN') || '';
+  if (!bridgeUrl || !playToken || !streamSid) return null;
+  try {
+    const url = bridgeUrl.replace(/\/$/, '') + '/play';
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${playToken}`,
+      },
+      body: JSON.stringify({ streamSid, ...body }),
+      signal: AbortSignal.timeout(10000),
+    });
+    if (!res.ok) { console.warn('[mediaStreamRelay] /play failed:', res.status); return null; }
+    return await res.json();
+  } catch (e) {
+    console.warn('[mediaStreamRelay] /play error:', e?.message);
+    return null;
+  }
+}
+
+// Generate TTS audio (base64 mulaw 8kHz) via ElevenLabs, fallback Deepgram Aura
+async function generateTTS(text: string, config: any): Promise<string> {
+  const elevenlabsKey = secrets.get('ELEVENLABS_API_KEY') || '';
+  const deepgramKey = secrets.get('DEEPGRAM_API_KEY') || '';
+  const engine = config.ttsEngine || 'elevenlabs';
+
+  if (engine === 'elevenlabs' && elevenlabsKey) {
+    try {
+      const voiceId = config.ttsVoiceModel || '21m00Tcm4TlvDq8ikWAM';
+      const res = await fetch(
+        `https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(voiceId)}?output_format=ulaw_8000`,
+        {
+          method: 'POST',
+          headers: { 'xi-api-key': elevenlabsKey, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            text,
+            model_id: 'eleven_turbo_v2_5',
+            voice_settings: { stability: 0.5, similarity_boost: 0.75 },
+          }),
+          signal: AbortSignal.timeout(10000),
+        }
+      );
+      if (res.ok) {
+        const bytes = new Uint8Array(await res.arrayBuffer());
+        let binary = '';
+        for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+        return btoa(binary);
+      }
+      console.warn('[mediaStreamRelay] ElevenLabs TTS error:', res.status);
+    } catch (e) {
+      console.warn('[mediaStreamRelay] ElevenLabs TTS failed:', e?.message);
+    }
+  }
+
+  if (deepgramKey) {
+    try {
+      const voice = config.ttsVoiceModel || 'aura-2-thalia-en';
+      const res = await fetch(
+        `https://api.deepgram.com/v1/speak?model=${encodeURIComponent(voice)}&encoding=mulaw&sample_rate=8000&container=none`,
+        {
+          method: 'POST',
+          headers: { 'Authorization': `Token ${deepgramKey}`, 'Content-Type': 'text/plain' },
+          body: text,
+          signal: AbortSignal.timeout(10000),
+        }
+      );
+      if (res.ok) {
+        const bytes = new Uint8Array(await res.arrayBuffer());
+        let binary = '';
+        for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+        return btoa(binary);
+      }
+      console.warn('[mediaStreamRelay] Deepgram TTS error:', res.status);
+    } catch (e) {
+      console.warn('[mediaStreamRelay] Deepgram TTS failed:', e?.message);
+    }
+  }
+  return '';
+}
+
+// Estimate playback duration: ~12 chars/sec, min 2s, plus 500ms buffer
+function estimatePlaybackMs(text: string): number {
+  return Math.max(2000, Math.ceil(text.length / 12) * 1000) + 500;
+}
+
 export default async function(req: Request): Promise<Response> {
   try {
     // ── Auth: fail-closed ──
@@ -228,10 +317,19 @@ async function handleTransfer(req: Request, base44: any, body: any): Promise<Res
     console.error('[mediaStreamRelay] Transfer prep failed:', e?.message);
   }
 
-  // Redirect Twilio call to transfer TwiML
+  // Play transfer announcement via bridge (ElevenLabs/Deepgram) before redirect
+  const transferMsg = "Let me connect you with one of our senior debt advisors. Please hold for just a moment.";
+  const ttsAudio = await generateTTS(transferMsg, config);
+  if (ttsAudio) {
+    await playToBridge(body.streamSid, { clear: true });
+    await playToBridge(body.streamSid, { payload: ttsAudio });
+    await new Promise(r => setTimeout(r, estimatePlaybackMs(transferMsg)));
+  }
+
+  // Redirect Twilio call to transfer TwiML (SkipSay since message already played via bridge)
   if (callSid) {
     try {
-      const transferUrl = `${BASE_URL}/functions/dialerVoiceHandler?Mode=aiAgentTransfer&LeadId=${encodeURIComponent(leadId || '')}`;
+      const transferUrl = `${BASE_URL}/functions/dialerVoiceHandler?Mode=aiAgentTransfer&LeadId=${encodeURIComponent(leadId || '')}&SkipSay=true`;
       await twilioFetch(`/Calls/${callSid}.json`, {
         method: 'POST',
         body: new URLSearchParams({ Url: transferUrl }),
@@ -246,7 +344,14 @@ async function handleTransfer(req: Request, base44: any, body: any): Promise<Res
 
 // ── END_CALL: update disposition (NOT automatic "removed") ──────────────
 async function handleEndCall(base44: any, body: any): Promise<Response> {
-  const { callSid, disposition, leadId } = body;
+  const { callSid, disposition, leadId, streamSid } = body;
+
+  // Load config for TTS voice
+  let config: any = {};
+  try {
+    const configs = await base44.entities.AIAgentConfig.filter({ configName: 'default' });
+    config = configs?.[0] || {};
+  } catch {}
 
   // Validate disposition
   const validDisposition = VALID_DISPOSITIONS.includes(disposition) ? disposition : 'no_response';
@@ -269,10 +374,19 @@ async function handleEndCall(base44: any, body: any): Promise<Response> {
     }
   }
 
-  // Redirect Twilio call to endcall TwiML
+  // Play goodbye via bridge (ElevenLabs/Deepgram) before redirect
+  const endMsg = "Thank you for your time. Have a great day. Goodbye.";
+  const ttsAudio = await generateTTS(endMsg, config);
+  if (ttsAudio) {
+    await playToBridge(streamSid, { clear: true });
+    await playToBridge(streamSid, { payload: ttsAudio });
+    await new Promise(r => setTimeout(r, estimatePlaybackMs(endMsg)));
+  }
+
+  // Redirect Twilio call to endcall TwiML (SkipSay since message already played via bridge)
   if (callSid) {
     try {
-      const endCallUrl = `${BASE_URL}/functions/dialerVoiceHandler?Mode=aiAgentEndCall`;
+      const endCallUrl = `${BASE_URL}/functions/dialerVoiceHandler?Mode=aiAgentEndCall&SkipSay=true`;
       await twilioFetch(`/Calls/${callSid}.json`, {
         method: 'POST',
         body: new URLSearchParams({ Url: endCallUrl }),
