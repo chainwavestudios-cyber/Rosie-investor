@@ -82,6 +82,7 @@ const debug = (...a) => {
 // ── State: streamSid → session ──────────────────────────────────────────
 const streams = new Map();
 const PIPELINE_VERSION = 'selector-runtime-v1';
+const TTS_DIAGNOSTICS_VERSION = 'tts-diagnostics-v2';
 let lastCall = null;
 const runtimeSnapshot = session => ({
   callSid: session.callSid, state: session.state,
@@ -114,7 +115,7 @@ app.get('/ready', (req, res) => {
 app.get('/runtime', (req, res) => {
   if (!PLAY_AUTH_TOKEN || req.headers.authorization !== `Bearer ${PLAY_AUTH_TOKEN}`) return res.status(401).json({ error: 'unauthorized' });
   res.set('Cache-Control', 'no-store');
-  return res.json({ version: PIPELINE_VERSION, checkedAt: new Date().toISOString(),
+  return res.json({ version: PIPELINE_VERSION, diagnosticsVersion: TTS_DIAGNOSTICS_VERSION, checkedAt: new Date().toISOString(),
     credentials: { deepgram: !!DEEPGRAM_API_KEY, elevenlabs: !!ELEVENLABS_API_KEY },
     calls: Array.from(streams.values(), runtimeSnapshot), lastCall,
   });
@@ -466,107 +467,92 @@ async function handleUtterance(streamSid, transcript) {
 // ── TTS generation (ElevenLabs preferred, Deepgram Aura fallback) ──────
 async function generateTTS(text, config = {}, session = null) {
   const engine = config.ttsEngine || TTS_ENGINE;
-  const elevenLabsVoiceId = engine === 'elevenlabs' ? (config.ttsVoiceModel || ELEVENLABS_VOICE_ID) : ELEVENLABS_VOICE_ID;
-  const deepgramVoice = engine === 'deepgram-aura' ? (config.ttsVoiceModel || DEEPGRAM_TTS_VOICE) : DEEPGRAM_TTS_VOICE;
-  const synthesisModel = config.ttsSynthesisModel || 'eleven_turbo_v2_5';
+  const elevenLabsVoiceId = config.elevenLabsVoiceId || (engine === 'elevenlabs' ? config.ttsVoiceModel : '') || ELEVENLABS_VOICE_ID;
+  const deepgramVoice = config.deepgramTtsVoice || (engine === 'deepgram-aura' ? config.ttsVoiceModel : '') || DEEPGRAM_TTS_VOICE;
+  const synthesisModel = config.ttsSynthesisModel || 'eleven_flash_v2_5';
   const startedAt = Date.now();
   let fallback = null;
-  const record = (provider, model, voice, state, error = null) => {
-    if (session) session.tts = { engine: provider, model, voice, state, fallback, error, ms: Date.now() - startedAt, at: new Date().toISOString() };
+  let elevenLabsFailure = null;
+  const safeError = value => {
+    let message = String(value || '');
+    for (const key of [ELEVENLABS_API_KEY, DEEPGRAM_API_KEY]) {
+      if (key) message = message.split(key).join('[redacted]');
+    }
+    return message.slice(0, 1000);
   };
-  record(engine, engine === 'elevenlabs' ? synthesisModel : deepgramVoice, config.ttsVoiceModel, 'requested');
+  const failEleven = (kind, message, status = null, body = null) => {
+    elevenLabsFailure = { provider: 'elevenlabs', keyPresent: !!ELEVENLABS_API_KEY, model: synthesisModel, voice: elevenLabsVoiceId, kind, status, body: body == null ? null : safeError(body), message: safeError(message) };
+    log('[TTS] ElevenLabs failure:', JSON.stringify(elevenLabsFailure));
+  };
+  const record = (provider, model, voice, state, error = null) => {
+    if (session) session.tts = { engine: provider, model, voice, state, fallback, error: error || elevenLabsFailure?.message || null, failure: elevenLabsFailure, ms: Date.now() - startedAt, at: new Date().toISOString() };
+  };
+  record(engine, engine === 'elevenlabs' ? synthesisModel : deepgramVoice, engine === 'elevenlabs' ? elevenLabsVoiceId : deepgramVoice, 'requested');
+  log('[TTS] Provider selected:', engine);
+  log('[TTS] ElevenLabs key present:', !!ELEVENLABS_API_KEY);
+  log('[TTS] ElevenLabs voice ID:', elevenLabsVoiceId);
+  log('[TTS] ElevenLabs model:', synthesisModel);
 
-  // Try ElevenLabs first when selected and configured.
   if (engine === 'elevenlabs' && ELEVENLABS_API_KEY) {
     try {
       const res = await fetch(
         `https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(elevenLabsVoiceId)}?output_format=ulaw_8000`,
         {
           method: 'POST',
-          headers: {
-            'xi-api-key': ELEVENLABS_API_KEY,
-            'Content-Type': 'application/json',
-            'Accept': 'audio/*',
-          },
-          body: JSON.stringify({
-            text,
-            model_id: synthesisModel,
-            voice_settings: {
-              stability: 0.5,
-              similarity_boost: 0.75,
-            },
-          }),
+          headers: { 'xi-api-key': ELEVENLABS_API_KEY, 'Content-Type': 'application/json', 'Accept': 'audio/*' },
+          body: JSON.stringify({ text, model_id: synthesisModel, voice_settings: { stability: 0.5, similarity_boost: 0.75 } }),
           signal: AbortSignal.timeout(15000),
         }
       );
-
       if (res.ok) {
         const audio = Buffer.from(await res.arrayBuffer());
-
         if (audio.length > 0) {
-          log('elevenlabs TTS success; bytes', audio.length);
+          log('[TTS] ElevenLabs accepted:', res.status, 'bytes:', audio.length);
           record('elevenlabs', synthesisModel, elevenLabsVoiceId, 'accepted');
           return audio.toString('base64');
         }
-
-        log('elevenlabs TTS returned empty audio');
+        failEleven('empty_audio', 'ElevenLabs returned empty audio', res.status);
       } else {
-        const details = await res.text();
-        log(
-          'elevenlabs TTS error',
-          res.status,
-          details.slice(0, 1000)
-        );
+        const details = safeError(await res.text());
+        failEleven('http_error', `HTTP ${res.status}: ${details}`, res.status, details);
       }
     } catch (e) {
-      log('elevenlabs TTS failed', e?.message);
+      failEleven('request_error', e?.message || 'ElevenLabs request failed');
     }
+  } else if (engine === 'elevenlabs') {
+    failEleven('missing_key', 'ELEVENLABS_API_KEY not set on bridge');
   }
 
-  if (engine === 'elevenlabs') fallback = 'ElevenLabs failed or its key is missing; using Deepgram Aura.';
-  // Deepgram Aura fallback, or primary provider if selected.
+  if (engine === 'elevenlabs') fallback = `ElevenLabs failed (${elevenLabsFailure?.message}); using Deepgram Aura.`;
   if (DEEPGRAM_API_KEY) {
     try {
       const res = await fetch(
         `https://api.deepgram.com/v1/speak?model=${encodeURIComponent(deepgramVoice)}&encoding=mulaw&sample_rate=8000&container=none`,
         {
           method: 'POST',
-          headers: {
-            'Authorization': `Token ${DEEPGRAM_API_KEY}`,
-            'Content-Type': 'application/json',
-            'Accept': 'audio/*',
-          },
+          headers: { 'Authorization': `Token ${DEEPGRAM_API_KEY}`, 'Content-Type': 'application/json', 'Accept': 'audio/*' },
           body: JSON.stringify({ text }),
           signal: AbortSignal.timeout(15000),
         }
       );
-
       if (res.ok) {
         const audio = Buffer.from(await res.arrayBuffer());
-
         if (audio.length > 0) {
           log('deepgram TTS success; bytes', audio.length);
           record('deepgram-aura', deepgramVoice, deepgramVoice, 'accepted');
           return audio.toString('base64');
         }
-
         log('deepgram TTS returned empty audio');
       } else {
-        const details = await res.text();
-        log(
-          'deepgram TTS error',
-          res.status,
-          details.slice(0, 1000)
-        );
+        log('deepgram TTS error', res.status, safeError(await res.text()));
       }
     } catch (e) {
-      log('deepgram TTS failed', e?.message);
+      log('deepgram TTS failed', safeError(e?.message));
     }
   } else {
     log('Deepgram fallback unavailable: missing DEEPGRAM_API_KEY');
   }
-
-  record(engine, engine === 'elevenlabs' ? synthesisModel : deepgramVoice, config.ttsVoiceModel, 'error', 'No provider returned audio.');
+  record(engine, engine === 'elevenlabs' ? synthesisModel : deepgramVoice, engine === 'elevenlabs' ? elevenLabsVoiceId : deepgramVoice, 'error', `No provider returned audio.${elevenLabsFailure ? ` ${elevenLabsFailure.message}` : ''}`);
   log('TTS failed: no provider returned audio');
   return null;
 }

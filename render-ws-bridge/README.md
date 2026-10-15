@@ -45,7 +45,9 @@ In your Twilio TwiML, point `<Connect><Stream>` at the Render wss URL:
 ```
 Twilio does not support query strings in the Stream URL. Send the stream credential as a nested Parameter instead. The bridge upgrades the connection, then validates Twilio's nested `start.customParameters.streamToken` before relaying anything. Invalid or missing credentials close the socket with code 1008; a connection without a start message closes after five seconds.
 
-After changing the bridge, rebuild and push the container image and redeploy the Render service. Publish the app's updated voice handler too. Both sides must use this parameter-based contract before making another call.
+Build the container from the root `render-ws-bridge/` directory: its Dockerfile packages `render-ws-bridge/server.js`, not `src/render-ws-bridge/server.js`. After changing the bridge, rebuild and push the container image, then redeploy the Render service using that new image; restarting the existing image does not include source changes. Confirm the authenticated `/runtime` response includes `diagnosticsVersion: "tts-diagnostics-v2"` before making a new test call. TTS fallback evidence retains the original ElevenLabs HTTP status, redacted response body, selected model and voice under `tts.failure`, and a readable explanation under `tts.error`. The pipeline protocol remains `selector-runtime-v1`.
+
+If the app's voice handler changes, publish that too. Both sides must use this parameter-based contract before making another call.
 
 ## App-side contract (Base44 function)
 Create a function (e.g. `mediaStreamRelay`) that accepts the batch JSON:
