@@ -60,6 +60,8 @@ export default function HotLeadsTab({ onOpenLead, onOpenHeatMap }) {
   const [calPos, setCalPos] = useState({ x: 760, y: 80 });
   const [calSize, setCalSize] = useState({ w: 380, h: 600 });
   const calDragRef = useRef(null);
+  const [rescheduling, setRescheduling] = useState({});
+  const [rescheduleSent, setRescheduleSent] = useState({});
 
   const loadLeads = useCallback(async () => {
     setLoading(true);
@@ -117,6 +119,23 @@ export default function HotLeadsTab({ onOpenLead, onOpenHeatMap }) {
     const next = { ...completed, [ev.id]: !completed[ev.id] };
     setCompleted(next);
     localStorage.setItem('appt_completed', JSON.stringify(next));
+  };
+
+  const sendReschedule = async (ev, lead) => {
+    if (!lead?.id || !lead?.email) return;
+    setRescheduling(prev => ({ ...prev, [ev.id]: true }));
+    try {
+      const res = await base44.functions.invoke('sendMissedApptReschedule', { leadId: lead.id });
+      const data = res?.data || res;
+      if (data?.success) {
+        setRescheduleSent(prev => ({ ...prev, [ev.id]: true }));
+      } else {
+        alert('Failed to send reschedule email: ' + (data?.error || 'Unknown error'));
+      }
+    } catch (e) {
+      alert('Failed to send reschedule email: ' + (e?.message || String(e)));
+    }
+    setRescheduling(prev => ({ ...prev, [ev.id]: false }));
   };
 
   // Calendar drag
@@ -274,6 +293,22 @@ export default function HotLeadsTab({ onOpenLead, onOpenHeatMap }) {
                           >
                             {isDone ? '✓ Completed' : '◯ Mark Done'}
                           </button>
+                          {isMissed && matchedLead?.email && (
+                            <button
+                              onClick={() => sendReschedule(ev, matchedLead)}
+                              disabled={rescheduling[ev.id]}
+                              title="Send reschedule email with time slots"
+                              style={{
+                                background: rescheduleSent[ev.id] ? `${GOLD}20` : `${BLUE}12`,
+                                color: rescheduleSent[ev.id] ? GOLD : BLUE,
+                                border: `1px solid ${rescheduleSent[ev.id] ? GOLD + '66' : BLUE + '33'}`,
+                                borderRadius: '3px', padding: '3px 8px', cursor: rescheduling[ev.id] ? 'not-allowed' : 'pointer',
+                                fontSize: '9px', fontWeight: 'bold', whiteSpace: 'nowrap',
+                              }}
+                            >
+                              {rescheduling[ev.id] ? '⏳ Sending…' : rescheduleSent[ev.id] ? '✓ Sent' : '📅 Reschedule'}
+                            </button>
+                          )}
                         </div>
                       </div>
                     </div>

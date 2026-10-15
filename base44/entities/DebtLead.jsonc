@@ -341,6 +341,25 @@
       "type": "boolean",
       "title": "1-Hour Reminder Enabled",
       "default": true
+    },
+    "rescheduleSlotsJson": {
+      "type": "string",
+      "title": "Reschedule Slots (JSON array of {startISO, label, dayLabel})",
+      "format": "textarea"
+    },
+    "rescheduleToken": {
+      "type": "string",
+      "title": "Reschedule Security Token (for public rebooking link)"
+    },
+    "rescheduleSentAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Reschedule Email Sent At"
+    },
+    "rescheduleBookedAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Reschedule Booked At (customer selected a new slot)"
     }
   },
   "required": [
