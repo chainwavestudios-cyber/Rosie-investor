@@ -1,0 +1,44 @@
+{
+  "description": "Pings the Render WS Bridge every 10 minutes to prevent free-tier spin-down that causes AI agent calls to disconnect on answer",
+  "name": "Bridge Keepalive",
+  "definition": {
+    "document": {
+      "dsl": "1.0.0",
+      "name": "bridge_keepalive",
+      "version": "1.0",
+      "namespace": "base44"
+    },
+    "do": [
+      {
+        "ping_bridge": {
+          "call": "invoke_backend_function",
+          "with": {
+            "function_name": "bridgeKeepalive"
+          },
+          "then": "end",
+          "x-base44": {
+            "title": "Ping Render bridge",
+            "description": "Keep WebSocket bridge warm"
+          }
+        }
+      }
+    ]
+  },
+  "trigger": {
+    "condition": null,
+    "config": {
+      "trigger_type": "scheduled",
+      "events": [],
+      "schedule_mode": "recurring",
+      "cron_expression": "*/10 * * * *",
+      "one_time_date": null,
+      "timezone": "America/New_York",
+      "interval_value": null,
+      "interval_unit": null,
+      "interval_anchor": null,
+      "ends_type": "never",
+      "ends_on_date": null,
+      "ends_after_count": null
+    }
+  }
+}
