@@ -56,15 +56,17 @@
     },
     "llmModel": {
       "type": "string",
-      "title": "LLM Model",
+      "title": "LLM Model (gemini-3-flash = fastest for real-time voice)",
       "enum": [
+        "gemini-3-flash",
+        "gpt-5-mini",
         "claude-sonnet-5",
         "claude-opus-5",
         "claude-sonnet-4-6",
         "gpt-5-4",
         "gemini-3-1-pro"
       ],
-      "default": "claude-sonnet-5"
+      "default": "gemini-3-flash"
     },
     "kbPrimary": {
       "type": "string",

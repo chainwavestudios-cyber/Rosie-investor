@@ -32,6 +32,8 @@ const BASE_URL = 'https://rosieai-investorpage.base44.app';
 
 // Map config LLM names to valid InvokeLLM model names
 const MODEL_MAP: Record<string, string> = {
+  'gemini-3-flash': 'gemini_3_flash',
+  'gpt-5-mini': 'gpt_5_mini',
   'claude-sonnet-5': 'claude-sonnet-5',
   'claude-opus-5': 'claude_opus_5',
   'claude-sonnet-4-6': 'claude_sonnet_4_6',
@@ -173,13 +175,12 @@ async function handleInit(base44: any, body: any): Promise<Response> {
   let lead: any = null;
   let config: any = {};
 
-  if (leadId) {
-    try { lead = await base44.entities.FronterLead.get(leadId); } catch {}
-  }
-  try {
-    const configs = await base44.entities.AIAgentConfig.filter({ configName: 'default' });
-    config = configs?.[0] || {};
-  } catch {}
+  const [leadResult, configResult] = await Promise.allSettled([
+    leadId ? base44.entities.FronterLead.get(leadId) : Promise.resolve(null),
+    base44.entities.AIAgentConfig.filter({ configName: 'default' }),
+  ]);
+  lead = leadResult.status === 'fulfilled' ? leadResult.value : null;
+  config = configResult.status === 'fulfilled' ? (configResult.value?.[0] || {}) : {};
 
   // Build greeting with variable substitution
   let greeting = '';
@@ -193,11 +194,18 @@ async function handleInit(base44: any, body: any): Promise<Response> {
     }
   }
 
+  const ttsEngine = config.ttsEngine || 'elevenlabs';
+  const ttsVoiceModel = config.ttsVoiceModel || '';
+
   return Response.json({
     greeting,
-    ttsEngine: config.ttsEngine || 'elevenlabs',
-    ttsVoiceModel: config.ttsVoiceModel || '',
-    llmModel: config.llmModel || 'claude-sonnet-5',
+    ttsEngine,
+    ttsVoiceModel,
+    // Route the voice ID to the correct provider so the bridge never
+    // sends a Deepgram voice name to ElevenLabs or vice versa.
+    elevenLabsVoiceId: ttsEngine === 'elevenlabs' ? ttsVoiceModel : '',
+    deepgramTtsVoice: ttsEngine === 'deepgram-aura' ? ttsVoiceModel : '',
+    llmModel: config.llmModel || 'gemini-3-flash',
     leadId: lead?.id || leadId,
     leadFirstName: lead?.firstName || '',
     leadLastName: lead?.lastName || '',
@@ -212,18 +220,13 @@ async function handleTurn(base44: any, body: any): Promise<Response> {
     return Response.json({ error: 'missing transcript' }, { status: 400 });
   }
 
-  // Load config
-  let config: any = {};
-  try {
-    const configs = await base44.entities.AIAgentConfig.filter({ configName: 'default' });
-    config = configs?.[0] || {};
-  } catch {}
-
-  // Load lead
-  let lead: any = null;
-  if (leadId) {
-    try { lead = await base44.entities.FronterLead.get(leadId); } catch {}
-  }
+  // Load config + lead in parallel (saves ~100-200ms per turn)
+  const [configResult, leadResult] = await Promise.allSettled([
+    base44.entities.AIAgentConfig.filter({ configName: 'default' }),
+    leadId ? base44.entities.FronterLead.get(leadId) : Promise.resolve(null),
+  ]);
+  const config = configResult.status === 'fulfilled' ? (configResult.value?.[0] || {}) : {};
+  const lead = leadResult.status === 'fulfilled' ? leadResult.value : null;
 
   // Build system prompt with variable substitution
   const systemPrompt = config.systemPrompt || FRONTER_SCRIPT_SYSTEM_PROMPT;
@@ -239,7 +242,7 @@ async function handleTurn(base44: any, body: any): Promise<Response> {
     .map((m: any) => `${m.role === 'user' ? 'Prospect' : 'Agent'}: ${m.content}`)
     .join('\n');
 
-  const llmModel = MODEL_MAP[config.llmModel] || 'claude-sonnet-5';
+  const llmModel = MODEL_MAP[config.llmModel] || 'gemini-3-flash';
 
   let action = 'speak';
   let text = '';
