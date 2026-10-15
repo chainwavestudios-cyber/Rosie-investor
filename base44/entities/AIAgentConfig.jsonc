@@ -45,6 +45,7 @@
       "title": "TTS Engine",
       "enum": [
         "deepgram-aura",
+        "flux",
         "elevenlabs"
       ],
       "default": "deepgram-aura"
@@ -60,7 +61,7 @@
     },
     "deepgramTtsVoice": {
       "type": "string",
-      "title": "Deepgram Aura TTS Voice ID (separate from ElevenLabs voice)",
+      "title": "Deepgram TTS Voice ID (Aura-2 or Flux \u2014 e.g. aura-2-thalia-en or flux-alexis-en)",
       "default": "aura-2-thalia-en"
     },
     "ttsSynthesisModel": {

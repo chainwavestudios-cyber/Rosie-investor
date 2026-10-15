@@ -217,6 +217,113 @@ wss.on('connection', (ws) => {
   ws.on('error', (e) => log('ws error', e?.message));
 });
 
+// ── Streaming TTS via Deepgram Flux /v2/speak (turn-based, cross-turn voice consistency) ──
+async function streamFluxTTS(text, streamSid, session, generation) {
+  const voice = session.config.fluxVoiceId || session.config.deepgramTtsVoice || session.config.ttsVoiceModel || 'flux-alexis-en';
+  const startedAt = Date.now();
+  session.tts = { engine: 'flux', model: voice, voice, state: 'streaming', ms: 0, at: new Date().toISOString() };
+
+  return new Promise((resolve) => {
+    let played = false;
+    let chunkCount = 0;
+    let resolved = false;
+    const params = new URLSearchParams({ model: voice, encoding: 'mulaw', sample_rate: '8000' });
+    const ws = new WebSocket(`wss://api.deepgram.com/v2/speak?${params}`, {
+      headers: { Authorization: `Token ${DEEPGRAM_API_KEY}` },
+    });
+
+    const finish = (result) => {
+      if (resolved) return;
+      resolved = true;
+      session.tts.ms = Date.now() - startedAt;
+      session.tts.state = result;
+      resolve(result === 'accepted');
+    };
+
+    ws.on('open', () => {
+      ws.send(JSON.stringify({ type: 'Speak', text }));
+      ws.send(JSON.stringify({ type: 'Flush' }));
+    });
+
+    ws.on('message', (data, isBinary) => {
+      if (isBinary) {
+        if (generation !== session.generation) { try { ws.send(JSON.stringify({ type: 'Interrupt' })); } catch {} ws.close(); finish('interrupted'); return; }
+        const chunk = data.toString('base64');
+        if (chunk.length > 0) {
+          chunkCount++;
+          if (!played) { sendToTwilio(session.ws, { event: 'clear', streamSid }); played = true; }
+          sendToTwilio(session.ws, { event: 'media', streamSid, media: { payload: chunk } });
+          session.recordingBuffer.push(chunk);
+        }
+      } else {
+        try {
+          const msg = JSON.parse(data.toString());
+          if (msg.type === 'SpeechMetadata') {
+            if (played && generation === session.generation) {
+              sendToTwilio(session.ws, { event: 'mark', streamSid, mark: { name: `gen-${generation}` } });
+            }
+            ws.close();
+            finish(chunkCount > 0 ? 'accepted' : 'empty');
+          }
+        } catch {}
+      }
+    });
+
+    ws.on('close', () => finish(chunkCount > 0 ? 'accepted' : 'empty'));
+    ws.on('error', (e) => { log('[streamFluxTTS] error:', e?.message); finish('error'); });
+    setTimeout(() => { if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) ws.close(); }, 8000);
+  });
+}
+
+// ── Streaming TTS via Deepgram Aura /v1/speak (plays audio chunks as they arrive) ──
+async function streamDeepgramTTS(text, streamSid, session, generation) {
+  const voice = session.config.deepgramTtsVoice || session.config.ttsVoiceModel || DEEPGRAM_TTS_VOICE;
+  const startedAt = Date.now();
+  session.tts = { engine: 'deepgram-aura', model: voice, voice, state: 'streaming', ms: 0, at: new Date().toISOString() };
+
+  return new Promise((resolve) => {
+    let played = false;
+    let chunkCount = 0;
+    const params = new URLSearchParams({ model: voice, encoding: 'mulaw', sample_rate: '8000', container: 'none' });
+    const ws = new WebSocket(`wss://api.deepgram.com/v1/speak?${params}`, {
+      headers: { Authorization: `Token ${DEEPGRAM_API_KEY}` },
+    });
+
+    const cleanup = (result) => {
+      session.tts.ms = Date.now() - startedAt;
+      session.tts.state = result;
+      resolve(result === 'accepted');
+    };
+
+    ws.on('open', () => {
+      ws.send(JSON.stringify({ text }));
+      ws.send(JSON.stringify({ type: 'CloseStream' }));
+    });
+
+    ws.on('message', (data, isBinary) => {
+      if (!isBinary) return;
+      if (generation !== session.generation) { ws.close(); cleanup('interrupted'); return; }
+      const chunk = data.toString('base64');
+      if (chunk.length > 0) {
+        chunkCount++;
+        if (!played) { sendToTwilio(session.ws, { event: 'clear', streamSid }); played = true; }
+        sendToTwilio(session.ws, { event: 'media', streamSid, media: { payload: chunk } });
+        session.recordingBuffer.push(chunk);
+      }
+    });
+
+    ws.on('close', () => {
+      if (played && generation === session.generation) {
+        sendToTwilio(session.ws, { event: 'mark', streamSid, mark: { name: `gen-${generation}` } });
+      }
+      cleanup(chunkCount > 0 ? 'accepted' : 'empty');
+    });
+
+    ws.on('error', (e) => { log('[streamTTS] Deepgram stream error:', e?.message); cleanup('error'); });
+    setTimeout(() => { if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) { ws.close(); } }, 8000);
+  });
+}
+
 // ── Stream lifecycle ────────────────────────────────────────────────────
 async function handleStreamStart(ws, streamSid, start) {
   const leadId = start.customParameters?.leadId || '';
@@ -247,17 +354,24 @@ async function handleStreamStart(ws, streamSid, start) {
     session.state = 'listening';
     openDeepgram(session, streamSid);
 
-    // Generate and play greeting
+    // Generate and play greeting — stream via Flux/Aura for lowest latency
     if (initResp.greeting) {
       session.conversation.push({ role: 'assistant', content: initResp.greeting });
       session.state = 'speaking';
       session.generation++;
       const gen = session.generation;
-      const tts = await generateTTS(initResp.greeting, session.config, session);
-      if (tts && session.generation === gen) {
-        session.recordingBuffer.push(tts);
-        playAudio(streamSid, tts, gen);
-      } else {
+      const ttsEngine = session.config.ttsEngine || TTS_ENGINE;
+      let ok = false;
+      if (ttsEngine === 'flux' && DEEPGRAM_API_KEY) {
+        ok = await streamFluxTTS(initResp.greeting, streamSid, session, gen);
+      } else if (ttsEngine === 'deepgram-aura' && DEEPGRAM_API_KEY) {
+        ok = await streamDeepgramTTS(initResp.greeting, streamSid, session, gen);
+      }
+      if (!ok) {
+        const tts = await generateTTS(initResp.greeting, session.config, session);
+        if (tts && session.generation === gen) { session.recordingBuffer.push(tts); playAudio(streamSid, tts, gen); }
+        else { session.state = 'listening'; }
+      } else if (session.generation !== gen) {
         session.state = 'listening';
       }
     }
@@ -443,16 +557,23 @@ async function handleUtterance(streamSid, transcript) {
       return;
     }
 
-    // action === 'speak': generate TTS and play
+    // action === 'speak': stream TTS via Flux/Aura for lowest latency, fall back to batch
     if (text) {
       session.state = 'speaking';
       session.generation++;
       const gen = session.generation;
-      const tts = await generateTTS(text, session.config, session);
-      if (tts && session.generation === gen) {
-        session.recordingBuffer.push(tts);
-        playAudio(streamSid, tts, gen);
-      } else {
+      const ttsEngine = session.config.ttsEngine || TTS_ENGINE;
+      let ok = false;
+      if (ttsEngine === 'flux' && DEEPGRAM_API_KEY) {
+        ok = await streamFluxTTS(text, streamSid, session, gen);
+      } else if (ttsEngine === 'deepgram-aura' && DEEPGRAM_API_KEY) {
+        ok = await streamDeepgramTTS(text, streamSid, session, gen);
+      }
+      if (!ok) {
+        const tts = await generateTTS(text, session.config, session);
+        if (tts && session.generation === gen) { session.recordingBuffer.push(tts); playAudio(streamSid, tts, gen); }
+        else { session.state = 'listening'; }
+      } else if (session.generation !== gen) {
         session.state = 'listening';
       }
     } else {
