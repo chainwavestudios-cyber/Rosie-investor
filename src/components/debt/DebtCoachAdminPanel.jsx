@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useDebtCoachAuth } from '@/lib/DebtCoachAuthContext';
 import AdminFlagsTab from '@/components/debt/manager/AdminFlagsTab';
+import QAReviewTab from '@/components/debt/QAReviewTab';
 
 const GOLD = '#10b981';
 const DARK = '#0a0f1e';
@@ -91,9 +92,11 @@ export default function DebtCoachAdminPanel() {
       <div style={{ display: 'flex', gap: '2px', marginBottom: '16px', borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
         <button onClick={() => setAdminTab('users')} style={{ padding: '10px 18px', background: 'none', border: 'none', borderBottom: `2px solid ${adminTab === 'users' ? GOLD : 'transparent'}`, color: adminTab === 'users' ? GOLD : '#6b7280', cursor: 'pointer', fontSize: '13px', fontWeight: adminTab === 'users' ? 'bold' : 'normal' }}>👥 User Management</button>
         <button onClick={() => setAdminTab('flags')} style={{ padding: '10px 18px', background: 'none', border: 'none', borderBottom: `2px solid ${adminTab === 'flags' ? GOLD : 'transparent'}`, color: adminTab === 'flags' ? GOLD : '#6b7280', cursor: 'pointer', fontSize: '13px', fontWeight: adminTab === 'flags' ? 'bold' : 'normal' }}>🚩 Feature Flags</button>
+        <button onClick={() => setAdminTab('qareview')} style={{ padding: '10px 18px', background: 'none', border: 'none', borderBottom: `2px solid ${adminTab === 'qareview' ? GOLD : 'transparent'}`, color: adminTab === 'qareview' ? GOLD : '#6b7280', cursor: 'pointer', fontSize: '13px', fontWeight: adminTab === 'qareview' ? 'bold' : 'normal' }}>📚 Q&A Learning</button>
       </div>
 
       {adminTab === 'flags' && <AdminFlagsTab />}
+      {adminTab === 'qareview' && <QAReviewTab />}
 
       {adminTab === 'users' && (
         <>

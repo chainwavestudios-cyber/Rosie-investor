@@ -1,0 +1,65 @@
+{
+  "name": "HistoricalQAExample",
+  "type": "object",
+  "properties": {
+    "leadId": {
+      "type": "string",
+      "title": "Lead ID"
+    },
+    "leadName": {
+      "type": "string",
+      "title": "Lead Name (for display)"
+    },
+    "transcriptId": {
+      "type": "string",
+      "title": "Call Transcript ID"
+    },
+    "question": {
+      "type": "string",
+      "title": "Question (customer asked this)"
+    },
+    "answer": {
+      "type": "string",
+      "title": "Answer (agent gave this response)",
+      "format": "textarea"
+    },
+    "status": {
+      "type": "string",
+      "title": "Review Status",
+      "enum": [
+        "pending_review",
+        "approved",
+        "rejected"
+      ],
+      "default": "pending_review"
+    },
+    "extractedAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Extracted At"
+    },
+    "reviewedBy": {
+      "type": "string",
+      "title": "Reviewed By (username)"
+    },
+    "reviewedAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Reviewed At"
+    },
+    "kbEntryId": {
+      "type": "string",
+      "title": "KnowledgeBase Entry ID (created on approval)"
+    }
+  },
+  "required": [
+    "question",
+    "answer"
+  ],
+  "rls": {
+    "create": null,
+    "read": null,
+    "update": null,
+    "delete": null
+  }
+}

@@ -1773,6 +1773,18 @@ ${recentText}`,
       try { await base44.functions.invoke('noMissedMeetings', { todayOnly: true }); } catch (e) { console.error('No Missed Meetings scan failed:', e); }
     }
 
+    // Extract Q&A pairs from the completed transcript for admin review (learning loop)
+    if (transcriptRef.current.length >= 4 && leadRef.current?.id) {
+      try {
+        await base44.functions.invoke('processTranscriptLearning', {
+          transcript: transcriptRef.current,
+          leadId: leadRef.current.id,
+          leadName: `${leadRef.current.firstName || ''} ${leadRef.current.lastName || ''}`.trim(),
+          transcriptId: transcriptRecordIdRef.current || '',
+        });
+      } catch (e) { console.error('Transcript learning extraction failed:', e); }
+    }
+
     loadLeads();
   }, [kbEntries, loadLeads, coachUser, callType, handleDebtExtract, handleHardshipExtract, handleBillsExtract, handleCosignerExtract, recorder]);
 
