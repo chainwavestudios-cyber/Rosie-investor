@@ -86,8 +86,7 @@ export default async function(req) {
           wsUrl.protocol = 'wss:';
           wsUrl.search = '';
           wsUrl.hash = '';
-          wsUrl.pathname = wsUrl.pathname.replace(/\/$/, '');
-          if (!wsUrl.pathname.endsWith('/ws')) wsUrl.pathname += '/ws';
+          wsUrl.pathname = '/ws';
           streamUrl = wsUrl.toString();
         }
       } catch (e) {
@@ -97,7 +96,6 @@ export default async function(req) {
       if (streamUrl) {
         const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Say voice="${pollyVoice}">${xmlEscape(greeting)}</Say>
   <Connect>
     <Stream url="${xmlEscape(streamUrl)}" name="rosie-ai-agent">
       <Parameter name="leadId" value="${xmlEscape(leadId)}" />

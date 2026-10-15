@@ -57,12 +57,11 @@ export default async function(req: Request): Promise<Response> {
       if (leadId) {
         try { lead = await base44.entities.FronterLead.get(leadId); } catch {}
       }
-      if (lead) {
-        try {
-          const configs = await base44.entities.AIAgentConfig.filter({ configName: 'default' });
-          config = configs?.[0] || {};
-        } catch {}
-      }
+      // Always load config — needed for greeting TTS and AI processing
+      try {
+        const configs = await base44.entities.AIAgentConfig.filter({ configName: 'default' });
+        config = configs?.[0] || {};
+      } catch {}
 
       sessions.set(streamSid, {
         callSid,
@@ -77,12 +76,46 @@ export default async function(req: Request): Promise<Response> {
         processing: false,
       });
 
-      // Seed conversation with greeting if available
-      if (lead && config.greeting) {
-        const greeting = (config.greeting as string)
-          .replace(/\{\{first_name\}\}/g, lead.firstName || '')
-          .replace(/\{\{last_name\}\}/g, lead.lastName || '');
+      // Generate and play the greeting with the configured TTS voice (ElevenLabs or Deepgram)
+      if (config.greeting) {
+        let greeting = config.greeting as string;
+        if (lead) {
+          const vars: Record<string, string> = {
+            first_name: lead.firstName || '',
+            last_name: lead.lastName || '',
+            email: lead.email || '',
+            phone_number: lead.phone || '',
+            address: [lead.address, lead.city, lead.state, lead.zipCode].filter(Boolean).join(', '),
+            hardship_statement: lead.hardshipQualification || '',
+          };
+          for (const [key, val] of Object.entries(vars)) {
+            greeting = greeting.replace(new RegExp(`\\{\\{${key}\\}\\}`, 'g'), val);
+          }
+        }
         sessions.get(streamSid).conversation.push({ role: 'assistant', content: greeting });
+
+        try {
+          const deepgramKey = secrets.get('DEEPGRAM_API_KEY') || '';
+          const ttsBase64 = await generateTTS(config, greeting, deepgramKey);
+          if (ttsBase64) {
+            sessions.get(streamSid).recordingBuffer.push(ttsBase64);
+            const bridgeUrl = (secrets.get('WS_BRIDGE_URL') || '').replace(/\/$/, '');
+            const bridgeToken = secrets.get('WS_BRIDGE_AUTH_TOKEN') || '';
+            if (bridgeUrl) {
+              await fetch(`${bridgeUrl}/play`, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  ...(bridgeToken ? { Authorization: `Bearer ${bridgeToken}` } : {}),
+                },
+                body: JSON.stringify({ streamSid, payload: ttsBase64 }),
+              });
+              console.log('[mediaStreamRelay] Greeting TTS pushed to bridge');
+            }
+          }
+        } catch (e) {
+          console.warn('[mediaStreamRelay] Greeting TTS failed:', e?.message);
+        }
       }
 
       console.log('[mediaStreamRelay] START', streamSid, 'lead', lead?.id, 'AI:', AI_PROCESSING_ENABLED);
