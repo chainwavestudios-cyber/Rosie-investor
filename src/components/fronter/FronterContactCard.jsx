@@ -19,6 +19,7 @@ import FronterClosedDealCelebration from './FronterClosedDealCelebration';
 import FronterDialer from './FronterDialer';
 import FronterMergePopup from './FronterMergePopup';
 import FronterCredsEmailPopup from './FronterCredsEmailPopup';
+import FronterExportToCoachPopup from './FronterExportToCoachPopup';
 import QAPopOutPanel from '@/components/leads/QAPopOutPanel';
 import FronterTranscriptPopout from './FronterTranscriptPopout';
 import AIPopulateTab from '@/components/shared/AIPopulateTab';
@@ -89,6 +90,7 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
   const [aiReviewMsg, setAiReviewMsg] = useState('');
   const [showMergePopup, setShowMergePopup] = useState(false);
   const [showCredsEmail, setShowCredsEmail] = useState(false);
+  const [showExportPopup, setShowExportPopup] = useState(false);
   const [debtConfirming, setDebtConfirming] = useState(false);
   const [debtConfirmMsg, setDebtConfirmMsg] = useState('');
   const [transferScript, setTransferScript] = useState('');
@@ -756,6 +758,15 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
             >
               📐 Save Layout
             </button>
+            {isAdmin && (
+              <button
+                onClick={() => setShowExportPopup(true)}
+                title="Export this lead to Debt Call Coach"
+                style={{ background: 'rgba(167,139,250,0.18)', color: '#a78bfa', border: '1px solid rgba(167,139,250,0.44)', borderRadius: '4px', padding: '5px 10px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold', whiteSpace: 'nowrap' }}
+              >
+                📤 Export
+              </button>
+            )}
             <FronterCardActions
               status={local.status || 'prospect'}
               isAdmin={isAdmin}
@@ -1092,6 +1103,23 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
             setShowCredsEmail(false);
             setLocal(prev => ({ ...prev, credsSentAt: data?.credsSentAt || new Date().toISOString(), credsSentTemplate: data?.credsSentTemplate }));
             onSave?.({ ...local, credsSentAt: data?.credsSentAt || new Date().toISOString(), credsSentTemplate: data?.credsSentTemplate });
+          }}
+        />
+      )}
+
+      {/* Export to Debt Call Coach popup — super admin only */}
+      {showExportPopup && (
+        <FronterExportToCoachPopup
+          lead={local}
+          username={username}
+          onClose={() => setShowExportPopup(false)}
+          onExported={(debtLead) => {
+            setShowExportPopup(false);
+            try {
+              const log = JSON.parse(local.notesLogJson || '[]');
+              log.push({ text: `📤 Exported to Debt Call Coach by ${username}`, timestamp: new Date().toISOString(), author: username, type: 'export' });
+              setNotesLog(log);
+            } catch {}
           }}
         />
       )}

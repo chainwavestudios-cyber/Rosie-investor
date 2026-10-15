@@ -64,6 +64,9 @@ export default function MeetingAlertPopup() {
         const now = Date.now();
         for (const ev of events) {
           if (dismissed[ev.id]) continue;
+          // Skip fronter-originated auto-scheduled events — /fronter is the
+          // enrollment center; those leads should not trigger alerts here.
+          if ((ev.title || '').includes('Follow-Up Opened')) continue;
           const startMs = new Date(ev.start?.dateTime || ev.start?.date || ev.startTime || '').getTime();
           if (isNaN(startMs)) continue;
           const diffMin = (startMs - now) / 60000;

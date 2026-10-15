@@ -49,7 +49,22 @@ export default function UpcomingCallEventsPopup() {
         const all = Array.isArray(raw) ? raw : (raw?.items || []);
         const cutoff = Date.now() - 15 * 60 * 1000; // 15 min grace after start
         const upcoming = all.filter(m => new Date(m.meetingStartISO).getTime() > cutoff);
-        setMeetings(upcoming);
+
+        // Only show meetings for leads that have been exported to Debt Call Coach.
+        // Fronter-only leads (not yet exported) should NOT appear here — /fronter
+        // is the enrollment center; leads appear in Debt Call Coach only after export.
+        const emails = upcoming.map(m => m.leadEmail).filter(Boolean);
+        if (emails.length > 0) {
+          const debtLeadPage = await base44.entities.DebtLead.filter(
+            { email: { $in: emails } },
+            { limit: 100, fields: ['email'] }
+          );
+          const debtLeadEmails = new Set((debtLeadPage?.items || debtLeadPage || []).map(l => (l.email || '').toLowerCase()));
+          const exported = upcoming.filter(m => m.leadEmail && debtLeadEmails.has(m.leadEmail.toLowerCase()));
+          setMeetings(exported);
+        } else {
+          setMeetings([]);
+        }
       } catch {}
     };
     load();
