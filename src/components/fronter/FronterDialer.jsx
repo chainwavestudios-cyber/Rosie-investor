@@ -276,6 +276,7 @@ Provide your analysis as JSON with these fields:
       }).catch(e => console.error('Deepgram start failed:', e));
 
       // Update DialerSession to on_call (non-blocking)
+      const callSidForSession = call.parameters?.CallSid || callRef.current?.parameters?.CallSid || '';
       base44.entities.DialerSession.filter({ username }).then(sessions => {
         if (sessions?.[0]) {
           base44.entities.DialerSession.update(sessions[0].id, {
@@ -283,6 +284,7 @@ Provide your analysis as JSON with these fields:
             currentCallLeadId: lead?.id || '',
             currentCallLeadName: `${lead?.firstName || ''} ${lead?.lastName || ''}`.trim(),
             currentCallStartedAt: new Date().toISOString(),
+            currentCallConferenceName: callSidForSession ? `fronter_conf_${callSidForSession}` : '',
           });
         }
       }).catch(() => {});
@@ -337,6 +339,7 @@ Provide your analysis as JSON with these fields:
             currentCallLeadId: '',
             currentCallLeadName: '',
             currentCallStartedAt: null,
+            currentCallConferenceName: '',
           });
         }
       } catch {}

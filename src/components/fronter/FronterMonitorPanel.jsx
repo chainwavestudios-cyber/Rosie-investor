@@ -302,7 +302,7 @@ export default function FronterMonitorPanel({ onClose, adminUsername, onOpenLead
   // Listen / Barge / End
   const handleListen = async (username) => {
     const session = getSession(username);
-    if (!session?.currentCallConferenceName) { alert('No active conference for this fronter. The fronter must merge or hold the call first.'); return; }
+    if (!session?.currentCallConferenceName) { alert('No active call for this fronter.'); return; }
     const assignment = lineAssignments.find(a => a.username === username);
     try {
       await base44.functions.invoke('fronterCall', {
@@ -317,7 +317,7 @@ export default function FronterMonitorPanel({ onClose, adminUsername, onOpenLead
 
   const handleBarge = async (username) => {
     const session = getSession(username);
-    if (!session?.currentCallConferenceName) { alert('No active conference for this fronter. The fronter must merge or hold the call first.'); return; }
+    if (!session?.currentCallConferenceName) { alert('No active call for this fronter.'); return; }
     const assignment = lineAssignments.find(a => a.username === username);
     try {
       await base44.functions.invoke('fronterCall', {

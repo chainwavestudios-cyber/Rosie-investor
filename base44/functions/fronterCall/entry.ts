@@ -553,6 +553,11 @@ export default async function(req) {
     }
 
     // ── LISTEN: admin joins conference muted ──
+    //   BARGE: admin joins conference unmuted (can speak).
+    //   If the conference doesn't exist yet (fresh 1:1 call, fronter hasn't
+    //   held/merged), auto-convert the 1:1 call into a conference first so
+    //   the admin can join. The fronter's CallSid is encoded in the conference
+    //   name (fronter_conf_<CallSid>).
     if (action === 'listen' || action === 'barge') {
       const { conferenceName, adminUsername, lineKey } = body;
       if (!conferenceName) return Response.json({ error: 'conferenceName required' }, { status: 400 });
@@ -561,13 +566,28 @@ export default async function(req) {
       const fromNumber = lineNumber(lineKey);
       const muted = action === 'listen';
 
-      // Wait briefly for conference to exist, then add admin as participant
+      // Wait briefly for conference to exist
       let confSid: string | null = null;
       for (let i = 0; i < 10; i++) {
         confSid = await findConferenceSid(conferenceName);
         if (confSid) break;
         await new Promise(r => setTimeout(r, 500));
       }
+
+      // Conference doesn't exist yet — the call is still 1:1 (fronter browser ↔ customer).
+      // Auto-convert it to a conference so the admin can join.
+      if (!confSid) {
+        const fronterCallSid = fronterSidFromConf(conferenceName);
+        if (!fronterCallSid) return Response.json({ error: 'Conference not found and no fronter CallSid to create one' }, { status: 404 });
+        const holdAudioUrl = await getHoldAudioUrl(req);
+        await moveIntoConference(fronterCallSid, conferenceName, holdAudioUrl);
+        for (let i = 0; i < 10; i++) {
+          confSid = await findConferenceSid(conferenceName);
+          if (confSid) break;
+          await new Promise(r => setTimeout(r, 500));
+        }
+      }
+
       if (!confSid) return Response.json({ error: 'Conference not found' }, { status: 404 });
 
       const adminIdentity = `client:${adminUsername.replace(/[^a-zA-Z0-9_]/g, '_')}`;
