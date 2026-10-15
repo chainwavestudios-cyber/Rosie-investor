@@ -374,7 +374,7 @@ async function processWithAI(req: Request, base44: any, session: any, streamSid:
         },
         body: JSON.stringify({ streamSid, payload: ttsBase64 }),
       });
-      console.log('[mediaStreamRelay] TTS sent to bridge, bytes:', ttsBytes.length);
+      console.log('[mediaStreamRelay] TTS sent to bridge, chars:', ttsBase64.length);
     }
 
     // 6. Save conversation to lead notes (for transfer flow and persistence)
