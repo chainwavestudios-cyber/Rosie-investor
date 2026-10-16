@@ -360,6 +360,16 @@
       "type": "string",
       "format": "date-time",
       "title": "Reschedule Booked At (customer selected a new slot)"
+    },
+    "personalMessageClickedAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Personal Message Audio Link Clicked At"
+    },
+    "personalMessageAudioPlayedAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Personal Message Audio Playback Completed At (set by external audio site callback)"
     }
   },
   "required": [

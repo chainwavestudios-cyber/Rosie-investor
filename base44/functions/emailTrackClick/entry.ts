@@ -42,6 +42,23 @@ Deno.serve(async (req) => {
         if (decodedUrl.includes('debtadvisorsofamerica.com') && !lead.apptWebsiteClickedAt) {
           updates.apptWebsiteClickedAt = new Date().toISOString();
         }
+
+        // Personal Message audio link tracking — check if the clicked URL matches
+        // the template's personalMessageUrl pattern (domain match)
+        if (!lead.personalMessageClickedAt && templateId) {
+          try {
+            const tpl = await base44.asServiceRole.entities.DebtEmailTemplate.get(templateId);
+            if (tpl?.personalMessageUrl) {
+              // Extract hostname from the template's personalMessageUrl for matching
+              let pmHost = '';
+              try { pmHost = new URL(tpl.personalMessageUrl).hostname; } catch {}
+              if (pmHost && decodedUrl.includes(pmHost)) {
+                updates.personalMessageClickedAt = new Date().toISOString();
+              }
+            }
+          } catch {}
+        }
+
         if (Object.keys(updates).length > 0) {
           await base44.asServiceRole.entities.DebtLead.update(leadId, updates);
         }

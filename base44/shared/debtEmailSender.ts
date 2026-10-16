@@ -27,6 +27,20 @@ export async function sendTemplateEmail(
       })
     : '';
 
+  // Build the personal message URL (substitute variables in the template's personalMessageUrl)
+  let personalMessageUrl = template.personalMessageUrl || '';
+  if (personalMessageUrl) {
+    for (const [key, val] of Object.entries({
+      leadId: lead.id || '',
+      firstName: lead.firstName || '',
+      lastName: lead.lastName || '',
+      phone: lead.phone || '',
+      email: lead.email || '',
+    })) {
+      personalMessageUrl = personalMessageUrl.replace(new RegExp(`\\{\\{${key}\\}\\}`, 'g'), val);
+    }
+  }
+
   const vars: Record<string, string> = {
     firstName: lead.firstName || '',
     lastName: lead.lastName || '',
@@ -36,6 +50,7 @@ export async function sendTemplateEmail(
     debtAmount: lead.debtAmount ? '$' + Number(lead.debtAmount).toLocaleString() : '',
     confirmUrl: `${TRACKING_BASE}/confirmAppointment?leadId=${lead.id}`,
     changeUrl: `${TRACKING_BASE}/requestApptChange?leadId=${lead.id}`,
+    personalMessageUrl,
   };
 
   let subject = template.subject || '';

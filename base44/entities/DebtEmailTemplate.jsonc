@@ -23,7 +23,7 @@
     },
     "bodyHtml": {
       "type": "string",
-      "title": "Email Body (HTML \u2014 supports {{firstName}}, {{lastName}}, {{appointmentDate}}, {{debtAmount}})",
+      "title": "Email Body (HTML \u2014 supports {{firstName}}, {{lastName}}, {{appointmentDate}}, {{debtAmount}}, {{personalMessageUrl}})",
       "format": "textarea"
     },
     "triggerOffsetHours": {
@@ -58,6 +58,10 @@
       "type": "boolean",
       "title": "Track Opens & Clicks",
       "default": true
+    },
+    "personalMessageUrl": {
+      "type": "string",
+      "title": "Personal Message Audio URL (tracks clicks for the contact card badge; supports {{leadId}}, {{firstName}})"
     },
     "includeSignature": {
       "type": "boolean",
