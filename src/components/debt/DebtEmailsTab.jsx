@@ -192,7 +192,7 @@ export default function DebtEmailsTab({ username }) {
                 >
                   <div style={{ color: GOLD, fontSize: '9px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.5px', textAlign: 'center' }}>Image Size</div>
                   <div style={{ display: 'flex', gap: '4px' }}>
-                    {[['25%', 'S'], ['50%', 'M'], ['75%', 'L'], ['100%', 'XL']].map(([w, label]) => (
+                    {[['15%', 'XS'], ['25%', 'S'], ['50%', 'M'], ['75%', 'L'], ['100%', 'XL']].map(([w, label]) => (
                       <button key={w} type="button" onClick={() => applyImgWidth(w)} style={{ background: `${GOLD}18`, color: GOLD, border: `1px solid ${GOLD}44`, borderRadius: '3px', padding: '4px 8px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>{label}</button>
                     ))}
                   </div>
