@@ -57,6 +57,14 @@ export default function ApptTrackingBadges({ lead }) {
       timestamp: lead.apptHourReminderOpenedAt,
       color: PURPLE,
     },
+    {
+      label: 'Personal Message',
+      icon: '🎙️',
+      active: !!lead.personalMessageClickedAt,
+      timestamp: lead.personalMessageClickedAt,
+      color: GOLD,
+      pulse: true,
+    },
   ];
 
   // Count how many of the 3 credential URLs were clicked
@@ -69,6 +77,7 @@ export default function ApptTrackingBadges({ lead }) {
         <div
           key={b.label}
           title={b.active && b.timestamp ? `${b.label} — ${new Date(b.timestamp).toLocaleString('en-US', { timeZone: 'America/New_York', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}` : b.label}
+          className={b.active && b.pulse ? 'pulse-green-badge' : ''}
           style={{
             display: 'flex',
             alignItems: 'center',

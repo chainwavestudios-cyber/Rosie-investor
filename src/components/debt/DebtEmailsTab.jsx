@@ -4,10 +4,11 @@
  * rich text editor (react-quill), and configures automation rules + contact
  * card button settings + tracking options.
  */
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
 import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
+import { registerImageResizeBlot } from '@/utils/quillImageResize';
 
 const GOLD = '#10b981';
 const DARK = '#0a0f1e';
@@ -37,7 +38,7 @@ const quillModules = {
   ],
 };
 
-const quillFormats = ['font', 'size', 'bold', 'italic', 'underline', 'strike', 'color', 'background', 'align', 'list', 'link', 'image'];
+const quillFormats = ['font', 'size', 'bold', 'italic', 'underline', 'strike', 'color', 'background', 'align', 'list', 'link', 'image', 'width'];
 
 export default function DebtEmailsTab({ username }) {
   const [templates, setTemplates] = useState([]);
@@ -45,6 +46,33 @@ export default function DebtEmailsTab({ username }) {
   const [editing, setEditing] = useState(null);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [showHtmlSource, setShowHtmlSource] = useState(false);
+  const [selectedImg, setSelectedImg] = useState(null);
+
+  // Register the custom Quill image blot once on mount so width styles persist
+  useEffect(() => { registerImageResizeBlot(); }, []);
+
+  // Close the image resize panel when clicking outside the editor
+  useEffect(() => {
+    if (!selectedImg) return;
+    const close = () => setSelectedImg(null);
+    window.addEventListener('click', close);
+    return () => window.removeEventListener('click', close);
+  }, [selectedImg]);
+
+  const handleEditorClick = (e) => {
+    if (e.target.tagName === 'IMG') {
+      e.stopPropagation();
+      setSelectedImg(e.target);
+    }
+  };
+
+  const applyImgWidth = (width) => {
+    if (!selectedImg) return;
+    selectedImg.style.width = width;
+    selectedImg.style.height = 'auto';
+    setSelectedImg(null);
+  };
 
   const loadTemplates = useCallback(async () => {
     setLoading(true);
@@ -63,6 +91,7 @@ export default function DebtEmailsTab({ username }) {
       triggerOffsetHours: -18, triggerTimeOfDay: '', enabled: true,
       attachToContactCard: false, buttonLabel: '', buttonColor: '#10b981',
       trackingEnabled: true, includeSignature: true, sortOrder: templates.length + 1,
+      personalMessageUrl: '',
     });
   };
 
@@ -129,17 +158,53 @@ export default function DebtEmailsTab({ username }) {
         </div>
 
         <div style={{ marginBottom: '16px' }}>
-          <label style={ls}>Email Body — Full Editor</label>
-          <div style={{ background: '#fff', borderRadius: '4px', overflow: 'hidden' }}>
-            <ReactQuill
-              value={editing.bodyHtml || ''}
-              onChange={(val) => update('bodyHtml', val)}
-              modules={quillModules}
-              formats={quillFormats}
-              theme="snow"
-              style={{ height: '300px', marginBottom: '42px' }}
-            />
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '5px' }}>
+            <label style={{ ...ls, marginBottom: 0 }}>Email Body — Full Editor</label>
+            <button
+              type="button"
+              onClick={() => setShowHtmlSource(s => !s)}
+              style={{ background: showHtmlSource ? `${PURPLE}22` : 'rgba(255,255,255,0.05)', color: showHtmlSource ? PURPLE : '#8a9ab8', border: `1px solid ${showHtmlSource ? PURPLE + '44' : 'rgba(255,255,255,0.1)'}`, borderRadius: '4px', padding: '3px 10px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}
+            >
+              {showHtmlSource ? '👁 Rich Text' : '</> HTML Source'}
+            </button>
           </div>
+          {showHtmlSource ? (
+            <textarea
+              value={editing.bodyHtml || ''}
+              onChange={e => update('bodyHtml', e.target.value)}
+              style={{ width: '100%', minHeight: '300px', background: '#0a0f1e', color: '#e8e0d0', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '4px', padding: '12px', fontSize: '12px', fontFamily: 'monospace', outline: 'none', boxSizing: 'border-box', resize: 'vertical' }}
+              placeholder="<html>...</html>"
+            />
+          ) : (
+            <div style={{ position: 'relative', background: '#fff', borderRadius: '4px', overflow: 'hidden' }} onClick={handleEditorClick}>
+              <ReactQuill
+                value={editing.bodyHtml || ''}
+                onChange={(val) => update('bodyHtml', val)}
+                modules={quillModules}
+                formats={quillFormats}
+                theme="snow"
+                style={{ height: '300px', marginBottom: '42px' }}
+              />
+              {selectedImg && (
+                <div
+                  onClick={e => e.stopPropagation()}
+                  style={{ position: 'absolute', top: 8, right: 8, zIndex: 100, background: '#0a0f1e', border: '1px solid rgba(16,185,129,0.4)', borderRadius: '6px', padding: '8px', boxShadow: '0 4px 20px rgba(0,0,0,0.6)', display: 'flex', flexDirection: 'column', gap: '6px' }}
+                >
+                  <div style={{ color: GOLD, fontSize: '9px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.5px', textAlign: 'center' }}>Image Size</div>
+                  <div style={{ display: 'flex', gap: '4px' }}>
+                    {[['25%', 'S'], ['50%', 'M'], ['75%', 'L'], ['100%', 'XL']].map(([w, label]) => (
+                      <button key={w} type="button" onClick={() => applyImgWidth(w)} style={{ background: `${GOLD}18`, color: GOLD, border: `1px solid ${GOLD}44`, borderRadius: '3px', padding: '4px 8px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>{label}</button>
+                    ))}
+                  </div>
+                  <div style={{ display: 'flex', gap: '4px' }}>
+                    <input type="text" placeholder="e.g. 300px" onKeyDown={e => { if (e.key === 'Enter') { applyImgWidth(e.target.value); } }} style={{ width: '80px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '3px', padding: '4px 6px', color: '#e8e0d0', fontSize: '10px', outline: 'none' }} />
+                    <button type="button" onClick={e => { const inp = e.target.previousSibling; applyImgWidth(inp.value); }} style={{ background: `${GOLD}18`, color: GOLD, border: `1px solid ${GOLD}44`, borderRadius: '3px', padding: '4px 8px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>Set</button>
+                  </div>
+                  <button type="button" onClick={() => { selectedImg.style.width = ''; selectedImg.style.height = ''; setSelectedImg(null); }} style={{ background: 'rgba(239,68,68,0.1)', color: RED, border: '1px solid rgba(239,68,68,0.3)', borderRadius: '3px', padding: '3px 6px', cursor: 'pointer', fontSize: '9px', fontWeight: 'bold' }}>↺ Reset</button>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Automation Rules */}
@@ -178,6 +243,14 @@ export default function DebtEmailsTab({ username }) {
           )}
         </div>
 
+        {/* Personal Message Audio URL */}
+        <div style={{ background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '6px', padding: '16px', marginBottom: '16px' }}>
+          <div style={{ color: GOLD, fontSize: '11px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '12px' }}>🎙️ Personal Message Audio Link</div>
+          <label style={ls}>Personal Message URL <span style={{ color: '#4a5568', textTransform: 'none', letterSpacing: '0' }}>(supports {'{{leadId}}'}, {'{{firstName}}'} — use {'{{personalMessageUrl}}'} in the email body)</span></label>
+          <input value={editing.personalMessageUrl || ''} onChange={e => update('personalMessageUrl', e.target.value)} placeholder="https://your-audio-site.com/message/{{leadId}}" style={inp} />
+          <div style={{ color: '#4a5568', fontSize: '10px', marginTop: '6px' }}>When a prospect clicks this link in the email, the 🎙️ Personal Message badge on the contact card pulses neon green.</div>
+        </div>
+
         {/* Tracking & Signature */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '16px' }}>
           <div style={{ background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '6px', padding: '14px' }}>
@@ -200,7 +273,7 @@ export default function DebtEmailsTab({ username }) {
         <div style={{ background: 'rgba(167,139,250,0.06)', border: '1px solid rgba(167,139,250,0.15)', borderRadius: '4px', padding: '12px', marginBottom: '16px' }}>
           <div style={{ color: PURPLE, fontSize: '10px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '6px' }}>Available Variables</div>
           <div style={{ color: '#8a9ab8', fontSize: '11px', lineHeight: 1.8 }}>
-            {'{{firstName}}'} · {'{{lastName}}'} · {'{{phone}}'} · {'{{email}}'} · {'{{appointmentDate}}'} · {'{{debtAmount}}'} · {'{{confirmUrl}}'} · {'{{changeUrl}}'}
+            {'{{firstName}}'} · {'{{lastName}}'} · {'{{phone}}'} · {'{{email}}'} · {'{{appointmentDate}}'} · {'{{debtAmount}}'} · {'{{confirmUrl}}'} · {'{{changeUrl}}'} · {'{{personalMessageUrl}}'}
           </div>
         </div>
 
