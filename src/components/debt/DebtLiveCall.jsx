@@ -123,10 +123,13 @@ export default function DebtLiveCall({ onCallStart, onCallEnd }) {
   const [customerMicId, setCustomerMicId, customerMicLoaded] = useDebtCoachValue(coachUser?.username, 'defaultCustomerMicId', '');
   const [outputDevices, setOutputDevices] = useState([]);
   const [outputDeviceId, setOutputDeviceId, outputLoaded] = useDebtCoachValue(coachUser?.username, 'defaultOutputDeviceId', '');
+  const [agentGain, setAgentGain] = useDebtCoachValue(coachUser?.username, 'agentMicGain', 1);
+  const [customerGain, setCustomerGain] = useDebtCoachValue(coachUser?.username, 'customerMicGain', 1);
   const [phase, setPhase] = useState('idle');
   const [error, setError] = useState('');
   const [dgStatus, setDgStatus] = useState('idle');
-  const [testingAudio, setTestingAudio] = useState(false);
+  const [testingAgent, setTestingAgent] = useState(false);
+  const [testingCustomer, setTestingCustomer] = useState(false);
   const [testMode, setTestMode] = useState(false);
   const [statsPaused, setStatsPaused] = useDebtCoachValue(coachUser?.username, 'statsPaused', true);
   const [agentLevel, setAgentLevel] = useState(0);
@@ -375,10 +378,12 @@ Agent line: "${firstAgentLines}"`,
   const transferAgentDetectedRef = useRef(false); // true once regex extracts data from transfer agent's intro
   const callStartRef = useRef(null);
   const intentHistoryRef = useRef([]);
-  const testCtxRef = useRef(null);
+  const testAgentCtxRef = useRef(null);
   const testAgentStreamRef = useRef(null);
+  const testAgentAnimRef = useRef(null);
+  const testCustomerCtxRef = useRef(null);
   const testCustomerStreamRef = useRef(null);
-  const testAnimRef = useRef(null);
+  const testCustomerAnimRef = useRef(null);
   const customerBufferRef = useRef([]);
   const bufferTimeoutRef = useRef(null);
   const monitorPcRef = useRef(null);
@@ -1376,9 +1381,15 @@ ${recentText}`,
         // speak over the customer when needed (no auto-muting gate).
         const agentSrc = ctx.createMediaStreamSource(agentStream);
         const customerSrc = ctx.createMediaStreamSource(customerStream);
+        const agentGainNode = ctx.createGain();
+        agentGainNode.gain.value = agentGain;
+        const customerGainNode = ctx.createGain();
+        customerGainNode.gain.value = customerGain;
         const merger = ctx.createChannelMerger(2);
-        agentSrc.connect(merger, 0, 0);
-        customerSrc.connect(merger, 0, 1);
+        agentSrc.connect(agentGainNode);
+        agentGainNode.connect(merger, 0, 0);
+        customerSrc.connect(customerGainNode);
+        customerGainNode.connect(merger, 0, 1);
         const processor = ctx.createScriptProcessor(4096, 2, 2);
         processorRef.current = processor;
         processor.onaudioprocess = (ev) => {
@@ -1398,6 +1409,8 @@ ${recentText}`,
       } else {
         // Single mic with diarization
         const source = ctx.createMediaStreamSource(agentStream);
+        const agentGainNode = ctx.createGain();
+        agentGainNode.gain.value = agentGain;
         const processor = ctx.createScriptProcessor(4096, 1, 1);
         processorRef.current = processor;
         processor.onaudioprocess = (ev) => {
@@ -1407,7 +1420,8 @@ ${recentText}`,
           for (let i = 0; i < input.length; i++) { const s = Math.max(-1, Math.min(1, input[i])); int16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF; }
           ws.send(int16.buffer);
         };
-        source.connect(processor);
+        source.connect(agentGainNode);
+        agentGainNode.connect(processor);
         const silence = ctx.createGain(); silence.gain.value = 0;
         processor.connect(silence); silence.connect(ctx.destination);
       }
@@ -1501,7 +1515,7 @@ ${recentText}`,
       setError('Deepgram connection error — check API key.');
       if (!wsEverOpen) notifyCreditExhaustion('deepgram', 'WebSocket failed to connect — credits may be exhausted or API key invalid.');
     };
-  }, [micDeviceId, customerMicId, processNewEntry, updateInterimLine, lead, loadLeads, coachUser, autoQA, autoCoach, autoIntent]);
+  }, [micDeviceId, customerMicId, agentGain, customerGain, processNewEntry, updateInterimLine, lead, loadLeads, coachUser, autoQA, autoCoach, autoIntent]);
 
   const stopCall = useCallback(async () => {
     // Clear the 45-second auto-save timer
@@ -1883,56 +1897,79 @@ ${recentText}`,
     return () => clearInterval(interval);
   }, [phase, coachUser?.username]);
 
-  // ── Audio Test — level meters for both inputs ──────────────────────────
-  const startAudioTest = useCallback(async () => {
+  // ── Audio Test — independent level meter per input ─────────────────────
+  const startAgentTest = useCallback(async () => {
     try {
       const ctx = new (window.AudioContext || window.webkitAudioContext)();
       if (ctx.state === 'suspended') await ctx.resume();
-      testCtxRef.current = ctx;
-      const agentStream = await navigator.mediaDevices.getUserMedia({ audio: micDeviceId ? { deviceId: { ideal: micDeviceId }, echoCancellation: true, noiseSuppression: true, autoGainControl: true } : { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
-      testAgentStreamRef.current = agentStream;
-      const agentAnalyser = ctx.createAnalyser();
-      agentAnalyser.fftSize = 256;
-      ctx.createMediaStreamSource(agentStream).connect(agentAnalyser);
-      let customerAnalyser = null;
-      if (customerMicId) {
-        const customerStream = await navigator.mediaDevices.getUserMedia({ audio: { deviceId: { ideal: customerMicId } } });
-        testCustomerStreamRef.current = customerStream;
-        customerAnalyser = ctx.createAnalyser();
-        customerAnalyser.fftSize = 256;
-        ctx.createMediaStreamSource(customerStream).connect(customerAnalyser);
-      }
-      const agentData = new Uint8Array(agentAnalyser.frequencyBinCount);
-      const customerData = customerAnalyser ? new Uint8Array(customerAnalyser.frequencyBinCount) : null;
+      testAgentCtxRef.current = ctx;
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: micDeviceId ? { deviceId: { ideal: micDeviceId }, echoCancellation: true, noiseSuppression: true, autoGainControl: true } : { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
+      testAgentStreamRef.current = stream;
+      const analyser = ctx.createAnalyser();
+      analyser.fftSize = 256;
+      const gain = ctx.createGain();
+      gain.gain.value = agentGain;
+      ctx.createMediaStreamSource(stream).connect(gain);
+      gain.connect(analyser);
+      const data = new Uint8Array(analyser.frequencyBinCount);
       const tick = () => {
-        agentAnalyser.getByteTimeDomainData(agentData);
-        let aMax = 0;
-        for (let i = 0; i < agentData.length; i++) { const v = Math.abs(agentData[i] - 128) / 128; if (v > aMax) aMax = v; }
-        setAgentLevel(Math.round(aMax * 100));
-        if (customerAnalyser) {
-          customerAnalyser.getByteTimeDomainData(customerData);
-          let cMax = 0;
-          for (let i = 0; i < customerData.length; i++) { const v = Math.abs(customerData[i] - 128) / 128; if (v > cMax) cMax = v; }
-          setCustomerLevel(Math.round(cMax * 100));
-        }
-        testAnimRef.current = requestAnimationFrame(tick);
+        analyser.getByteTimeDomainData(data);
+        let mx = 0;
+        for (let i = 0; i < data.length; i++) { const v = Math.abs(data[i] - 128) / 128; if (v > mx) mx = v; }
+        setAgentLevel(Math.round(mx * 100));
+        testAgentAnimRef.current = requestAnimationFrame(tick);
       };
       tick();
-      setTestingAudio(true);
-    } catch (e) { setError('Audio test failed: ' + (e?.message || String(e))); }
-  }, [micDeviceId, customerMicId]);
+      setTestingAgent(true);
+    } catch (e) { setError('Agent mic test failed: ' + (e?.message || String(e))); }
+  }, [micDeviceId, agentGain]);
 
-  const stopAudioTest = useCallback(() => {
-    if (testAnimRef.current) cancelAnimationFrame(testAnimRef.current);
-    testAnimRef.current = null;
+  const stopAgentTest = useCallback(() => {
+    if (testAgentAnimRef.current) cancelAnimationFrame(testAgentAnimRef.current);
+    testAgentAnimRef.current = null;
     if (testAgentStreamRef.current) testAgentStreamRef.current.getTracks().forEach(t => t.stop());
-    if (testCustomerStreamRef.current) testCustomerStreamRef.current.getTracks().forEach(t => t.stop());
-    if (testCtxRef.current) { try { testCtxRef.current.close(); } catch {} }
-    testCtxRef.current = null; testAgentStreamRef.current = null; testCustomerStreamRef.current = null;
-    setTestingAudio(false); setAgentLevel(0); setCustomerLevel(0);
+    if (testAgentCtxRef.current) { try { testAgentCtxRef.current.close(); } catch {} }
+    testAgentCtxRef.current = null; testAgentStreamRef.current = null;
+    setTestingAgent(false); setAgentLevel(0);
   }, []);
 
-  useEffect(() => () => stopAudioTest(), [stopAudioTest]);
+  const startCustomerTest = useCallback(async () => {
+    if (!customerMicId) return;
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      if (ctx.state === 'suspended') await ctx.resume();
+      testCustomerCtxRef.current = ctx;
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: { deviceId: { ideal: customerMicId } } });
+      testCustomerStreamRef.current = stream;
+      const analyser = ctx.createAnalyser();
+      analyser.fftSize = 256;
+      const gain = ctx.createGain();
+      gain.gain.value = customerGain;
+      ctx.createMediaStreamSource(stream).connect(gain);
+      gain.connect(analyser);
+      const data = new Uint8Array(analyser.frequencyBinCount);
+      const tick = () => {
+        analyser.getByteTimeDomainData(data);
+        let mx = 0;
+        for (let i = 0; i < data.length; i++) { const v = Math.abs(data[i] - 128) / 128; if (v > mx) mx = v; }
+        setCustomerLevel(Math.round(mx * 100));
+        testCustomerAnimRef.current = requestAnimationFrame(tick);
+      };
+      tick();
+      setTestingCustomer(true);
+    } catch (e) { setError('Customer input test failed: ' + (e?.message || String(e))); }
+  }, [customerMicId, customerGain]);
+
+  const stopCustomerTest = useCallback(() => {
+    if (testCustomerAnimRef.current) cancelAnimationFrame(testCustomerAnimRef.current);
+    testCustomerAnimRef.current = null;
+    if (testCustomerStreamRef.current) testCustomerStreamRef.current.getTracks().forEach(t => t.stop());
+    if (testCustomerCtxRef.current) { try { testCustomerCtxRef.current.close(); } catch {} }
+    testCustomerCtxRef.current = null; testCustomerStreamRef.current = null;
+    setTestingCustomer(false); setCustomerLevel(0);
+  }, []);
+
+  useEffect(() => () => { stopAgentTest(); stopCustomerTest(); }, [stopAgentTest, stopCustomerTest]);
 
   const phaseColor = { idle: '#6b7280', live: '#ef4444', ended: '#8a9ab8' }[phase];
   const phaseLabel = { idle: 'Ready', live: '● LIVE', ended: 'Ended' }[phase];
@@ -1947,6 +1984,14 @@ ${recentText}`,
             {micDevices.length === 0 && <option>Default microphone</option>}
             {micDevices.map(m => <option key={m.deviceId} value={m.deviceId}>{m.label || `Mic ${m.deviceId.slice(0, 6)}`}</option>)}
           </select>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <span style={{ color: '#6b7280', fontSize: '9px', whiteSpace: 'nowrap' }}>Gain</span>
+            <input type="range" min="0" max="3" step="0.1" value={agentGain} onChange={e => setAgentGain(Number(e.target.value))} disabled={phase === 'live'} style={{ flex: 1, cursor: 'pointer', accentColor: '#60a5fa' }} />
+            <span style={{ color: '#60a5fa', fontSize: '9px', fontWeight: 'bold', minWidth: '28px' }}>{Math.round(agentGain * 100)}%</span>
+            <button onClick={testingAgent ? stopAgentTest : startAgentTest} disabled={phase === 'live'} title="Test agent mic only" style={{ background: testingAgent ? 'rgba(96,165,250,0.15)' : 'rgba(255,255,255,0.05)', color: testingAgent ? '#60a5fa' : '#8a9ab8', border: `1px solid ${testingAgent ? 'rgba(96,165,250,0.3)' : 'rgba(255,255,255,0.12)'}`, borderRadius: '4px', padding: '4px 8px', cursor: phase === 'live' ? 'not-allowed' : 'pointer', fontSize: '9px', fontWeight: 'bold', whiteSpace: 'nowrap', opacity: phase === 'live' ? 0.5 : 1 }}>
+              {testingAgent ? '⏹ Stop' : '🔊 Test'}
+            </button>
+          </div>
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
@@ -1955,6 +2000,14 @@ ${recentText}`,
             <option value="">— None (use diarization) —</option>
             {micDevices.map(m => <option key={m.deviceId} value={m.deviceId}>{m.label || `Input ${m.deviceId.slice(0, 6)}`}</option>)}
           </select>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <span style={{ color: '#6b7280', fontSize: '9px', whiteSpace: 'nowrap' }}>Gain</span>
+            <input type="range" min="0" max="3" step="0.1" value={customerGain} onChange={e => setCustomerGain(Number(e.target.value))} disabled={phase === 'live' || !customerMicId} style={{ flex: 1, cursor: 'pointer', accentColor: '#f59e0b', opacity: !customerMicId ? 0.4 : 1 }} />
+            <span style={{ color: '#f59e0b', fontSize: '9px', fontWeight: 'bold', minWidth: '28px' }}>{Math.round(customerGain * 100)}%</span>
+            <button onClick={testingCustomer ? stopCustomerTest : startCustomerTest} disabled={phase === 'live' || !customerMicId} title="Test customer input only" style={{ background: testingCustomer ? 'rgba(245,158,11,0.15)' : 'rgba(255,255,255,0.05)', color: testingCustomer ? '#f59e0b' : '#8a9ab8', border: `1px solid ${testingCustomer ? 'rgba(245,158,11,0.3)' : 'rgba(255,255,255,0.12)'}`, borderRadius: '4px', padding: '4px 8px', cursor: phase === 'live' || !customerMicId ? 'not-allowed' : 'pointer', fontSize: '9px', fontWeight: 'bold', whiteSpace: 'nowrap', opacity: phase === 'live' || !customerMicId ? 0.5 : 1 }}>
+              {testingCustomer ? '⏹ Stop' : '🔊 Test'}
+            </button>
+          </div>
         </div>
 
         {outputDevices.length > 0 && (
@@ -1971,10 +2024,6 @@ ${recentText}`,
         ) : customerMicId && micDeviceId ? (
           <span style={{ padding: '4px 10px', background: 'rgba(96,165,250,0.12)', border: '1px solid rgba(96,165,250,0.3)', borderRadius: '4px', color: '#60a5fa', fontSize: '10px', fontWeight: 'bold', letterSpacing: '1px' }}>DUAL CHANNEL</span>
         ) : null}
-
-        <button onClick={testingAudio ? stopAudioTest : startAudioTest} disabled={phase === 'live'} style={{ background: testingAudio ? 'rgba(245,158,11,0.15)' : 'rgba(255,255,255,0.05)', color: testingAudio ? '#f59e0b' : '#8a9ab8', border: `1px solid ${testingAudio ? 'rgba(245,158,11,0.3)' : 'rgba(255,255,255,0.12)'}`, borderRadius: '4px', padding: '8px 14px', cursor: phase === 'live' ? 'not-allowed' : 'pointer', fontSize: '11px', fontWeight: 'bold', whiteSpace: 'nowrap', opacity: phase === 'live' ? 0.5 : 1 }}>
-          {testingAudio ? '⏹ Stop Test' : '🔊 Test Audio'}
-        </button>
 
         <button onClick={() => setStatsPaused(p => !p)} title="Pause/resume auto customer stats extraction during calls" style={{ padding: '8px 14px', borderRadius: '4px', border: `1px solid ${statsPaused ? 'rgba(107,113,128,0.2)' : 'rgba(16,185,129,0.3)'}`, background: statsPaused ? 'rgba(255,255,255,0.03)' : `${GOLD}18`, color: statsPaused ? '#6b7280' : GOLD, cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', whiteSpace: 'nowrap' }}>
           {statsPaused ? '⏸ Stats Paused' : '▶ Stats On'}
@@ -2151,22 +2200,24 @@ ${recentText}`,
         </div>
       )}
 
-      {testingAudio && (
+      {(testingAgent || testingCustomer) && (
         <div style={{ marginBottom: '12px', padding: '14px 18px', background: '#0d1b2a', border: '1px solid rgba(245,158,11,0.2)', borderRadius: '6px', display: 'flex', gap: '24px', alignItems: 'center' }}>
-          <div style={{ flex: 1 }}>
-            <div style={{ color: '#60a5fa', fontSize: '10px', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '6px' }}>🎙 Agent Mic</div>
-            <div style={{ height: '8px', background: 'rgba(255,255,255,0.06)', borderRadius: '4px', overflow: 'hidden' }}>
-              <div style={{ width: `${agentLevel}%`, height: '100%', background: 'linear-gradient(90deg,#60a5fa,#3b82f6)', borderRadius: '4px', transition: 'width 0.05s' }} />
-            </div>
-            <div style={{ color: '#6b7280', fontSize: '10px', marginTop: '4px' }}>{agentLevel > 2 ? '✅ Audio detected' : '🔇 No audio'}</div>
-          </div>
-          {customerMicId && (
+          {testingAgent && (
             <div style={{ flex: 1 }}>
-              <div style={{ color: '#f59e0b', fontSize: '10px', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '6px' }}>🎧 Customer (Rodecaster)</div>
+              <div style={{ color: '#60a5fa', fontSize: '10px', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '6px' }}>🎙 Agent Mic — {micDevices.find(m => m.deviceId === micDeviceId)?.label || 'Default'}</div>
+              <div style={{ height: '8px', background: 'rgba(255,255,255,0.06)', borderRadius: '4px', overflow: 'hidden' }}>
+                <div style={{ width: `${agentLevel}%`, height: '100%', background: 'linear-gradient(90deg,#60a5fa,#3b82f6)', borderRadius: '4px', transition: 'width 0.05s' }} />
+              </div>
+              <div style={{ color: '#6b7280', fontSize: '10px', marginTop: '4px' }}>{agentLevel > 2 ? '✅ Audio detected' : '🔇 No audio'} · Gain {Math.round(agentGain * 100)}%</div>
+            </div>
+          )}
+          {testingCustomer && (
+            <div style={{ flex: 1 }}>
+              <div style={{ color: '#f59e0b', fontSize: '10px', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '6px' }}>🎧 Customer — {micDevices.find(m => m.deviceId === customerMicId)?.label || 'Rodecaster'}</div>
               <div style={{ height: '8px', background: 'rgba(255,255,255,0.06)', borderRadius: '4px', overflow: 'hidden' }}>
                 <div style={{ width: `${customerLevel}%`, height: '100%', background: 'linear-gradient(90deg,#f59e0b,#f97316)', borderRadius: '4px', transition: 'width 0.05s' }} />
               </div>
-              <div style={{ color: '#6b7280', fontSize: '10px', marginTop: '4px' }}>{customerLevel > 2 ? '✅ Audio detected' : '🔇 No audio'}</div>
+              <div style={{ color: '#6b7280', fontSize: '10px', marginTop: '4px' }}>{customerLevel > 2 ? '✅ Audio detected' : '🔇 No audio'} · Gain {Math.round(customerGain * 100)}%</div>
             </div>
           )}
         </div>
