@@ -82,20 +82,20 @@ export default function DualClockBar({ userTimezone, isSuperAdmin }) {
       gap: '32px',
       padding: '6px 24px',
       background: 'rgba(0,0,0,0.25)',
-      borderBottom: '1px solid rgba(255,255,255,0.06)',
-      fontFamily: 'Georgia, serif',
-      fontSize: '12px',
+      borderBottom: '1px solid rgba(255,255,255,0.1)',
+      fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, sans-serif',
+      fontSize: '13px',
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-        <span style={{ color: BLUE, fontSize: '10px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase' }}>🇺🇸 Eastern {etOffset}</span>
-        <span style={{ color: '#e8e0d0', fontWeight: 'bold', fontVariantNumeric: 'tabular-nums', minWidth: '180px', textAlign: 'center' }}>{etTime}</span>
+        <span style={{ color: BLUE, fontSize: '11px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase' }}>🇺🇸 Eastern {etOffset}</span>
+        <span style={{ color: '#f0ece0', fontWeight: 'bold', fontVariantNumeric: 'tabular-nums', minWidth: '180px', textAlign: 'center' }}>{etTime}</span>
       </div>
       <span style={{ color: '#4a5568' }}>|</span>
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-        <span style={{ color: isSuperAdmin ? PURPLE : GOLD, fontSize: '10px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase' }}>
+        <span style={{ color: isSuperAdmin ? PURPLE : GOLD, fontSize: '11px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase' }}>
           {isSuperAdmin ? '🇵🇭' : '🌐'} {secondLabel} {secondOffset}
         </span>
-        <span style={{ color: '#e8e0d0', fontWeight: 'bold', fontVariantNumeric: 'tabular-nums', minWidth: '180px', textAlign: 'center' }}>{secondTime}</span>
+        <span style={{ color: '#f0ece0', fontWeight: 'bold', fontVariantNumeric: 'tabular-nums', minWidth: '180px', textAlign: 'center' }}>{secondTime}</span>
       </div>
     </div>
   );

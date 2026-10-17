@@ -198,4 +198,18 @@
   .pulse-green-badge {
     animation: pulse-green 1.5s ease-in-out infinite;
   }
+
+  /* Debt Call Coach — crisp font rendering on dark background.
+     Without antialiasing, subpixel rendering on #0a0f1e makes text
+     and icons look hazy/soft. This sharpens everything. */
+  [data-debt-coach] {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  }
+  [data-debt-coach] * {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
 }
