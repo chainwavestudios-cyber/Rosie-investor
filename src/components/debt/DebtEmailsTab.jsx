@@ -48,17 +48,42 @@ export default function DebtEmailsTab({ username }) {
   const [saved, setSaved] = useState(false);
   const [showHtmlSource, setShowHtmlSource] = useState(false);
   const [selectedImg, setSelectedImg] = useState(null);
+  const [imgRect, setImgRect] = useState(null);
+  const editorWrapRef = useRef(null);
+  const dragStateRef = useRef(null);
 
   // Register the custom Quill image blot once on mount so width styles persist
   useEffect(() => { registerImageResizeBlot(); }, []);
 
+  const refreshImgRect = useCallback(() => {
+    if (!selectedImg || !editorWrapRef.current) return;
+    const wrapRect = editorWrapRef.current.getBoundingClientRect();
+    const r = selectedImg.getBoundingClientRect();
+    setImgRect({ left: r.left - wrapRect.left, top: r.top - wrapRect.top, width: r.width, height: r.height });
+  }, [selectedImg]);
+
   // Close the image resize panel when clicking outside the editor
   useEffect(() => {
     if (!selectedImg) return;
-    const close = () => setSelectedImg(null);
+    const close = (e) => {
+      if (editorWrapRef.current && editorWrapRef.current.contains(e.target)) return;
+      setSelectedImg(null);
+    };
     window.addEventListener('click', close);
     return () => window.removeEventListener('click', close);
   }, [selectedImg]);
+
+  // Track image position while selected
+  useEffect(() => {
+    if (!selectedImg) { setImgRect(null); return; }
+    refreshImgRect();
+    const ro = new ResizeObserver(refreshImgRect);
+    ro.observe(selectedImg);
+    const onScroll = () => refreshImgRect();
+    editorWrapRef.current?.addEventListener('scroll', onScroll);
+    window.addEventListener('resize', onScroll);
+    return () => { ro.disconnect(); editorWrapRef.current?.removeEventListener('scroll', onScroll); window.removeEventListener('resize', onScroll); };
+  }, [selectedImg, refreshImgRect]);
 
   const handleEditorClick = (e) => {
     if (e.target.tagName === 'IMG') {
@@ -71,7 +96,35 @@ export default function DebtEmailsTab({ username }) {
     if (!selectedImg) return;
     selectedImg.style.width = width;
     selectedImg.style.height = 'auto';
-    setSelectedImg(null);
+    refreshImgRect();
+  };
+
+  const startCornerDrag = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!selectedImg) return;
+    const startX = e.clientX;
+    const startW = selectedImg.getBoundingClientRect().width;
+    const naturalW = selectedImg.naturalWidth || startW;
+    dragStateRef.current = { startX, startW, naturalW };
+    const onMove = (ev) => {
+      const ds = dragStateRef.current;
+      if (!ds) return;
+      const delta = ev.clientX - ds.startX;
+      let newW = ds.startW + delta;
+      if (newW < 20) newW = 20;
+      if (newW > ds.naturalW) newW = ds.naturalW;
+      selectedImg.style.width = `${newW}px`;
+      selectedImg.style.height = 'auto';
+      refreshImgRect();
+    };
+    const onUp = () => {
+      dragStateRef.current = null;
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
   };
 
   const loadTemplates = useCallback(async () => {
@@ -176,7 +229,7 @@ export default function DebtEmailsTab({ username }) {
               placeholder="<html>...</html>"
             />
           ) : (
-            <div style={{ position: 'relative', background: '#fff', borderRadius: '4px', overflow: 'hidden' }} onClick={handleEditorClick}>
+            <div ref={editorWrapRef} style={{ position: 'relative', background: '#fff', borderRadius: '4px', overflow: 'hidden' }} onClick={handleEditorClick}>
               <ReactQuill
                 value={editing.bodyHtml || ''}
                 onChange={(val) => update('bodyHtml', val)}
@@ -185,6 +238,12 @@ export default function DebtEmailsTab({ username }) {
                 theme="snow"
                 style={{ height: '300px', marginBottom: '42px' }}
               />
+              {selectedImg && imgRect && [
+                <div key="outline" style={{ position: 'absolute', left: imgRect.left, top: imgRect.top, width: imgRect.width, height: imgRect.height, border: '2px solid #10b981', pointerEvents: 'none', zIndex: 50, boxSizing: 'border-box' }} />,
+                ...[['nw', 0, 0, 'nwse-resize'], ['ne', 1, 0, 'nesw-resize'], ['sw', 0, 1, 'nwse-resize'], ['se', 1, 1, 'nesw-resize']].map(([id, hx, hy, cursor]) => (
+                  <div key={id} onMouseDown={startCornerDrag} onClick={e => e.stopPropagation()} style={{ position: 'absolute', left: imgRect.left + hx * imgRect.width - 6, top: imgRect.top + hy * imgRect.height - 6, width: 12, height: 12, background: '#10b981', border: '2px solid #fff', borderRadius: '2px', cursor, zIndex: 60, boxShadow: '0 1px 4px rgba(0,0,0,0.4)' }} />
+                )),
+              ]}
               {selectedImg && (
                 <div
                   onClick={e => e.stopPropagation()}
