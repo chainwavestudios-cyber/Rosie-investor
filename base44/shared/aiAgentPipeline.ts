@@ -4,6 +4,7 @@ const option = (value, label, model = value) => ({ value, label, model });
 export const pipelineCatalog = {
   llm: [
     option('automatic', 'Automatic (provider model not disclosed)'),
+    option('gemini_3_flash', 'Gemini 3 Flash (fast, low cost)'),
     ...['gemini_3_8_flash', 'gpt_6_luna', 'claude-sonnet-5', 'claude_opus_5_5', 'gpt_6_sol', 'gpt_6_astra', 'claude_fable_5_1', 'glm_5_2'].map(id => option(id, id)),
   ],
   stt: [option('deepgram-nova-2', 'Deepgram Nova-2', 'nova-2'), option('deepgram-nova-3', 'Deepgram Nova-3', 'nova-3'), option('flux', 'Deepgram Flux (v2 — conversational turn-taking)', 'flux-general-en')],
