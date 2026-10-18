@@ -8,7 +8,7 @@ export const pipelineCatalog = {
   ],
   stt: [option('deepgram-nova-2', 'Deepgram Nova-2', 'nova-2'), option('deepgram-nova-3', 'Deepgram Nova-3', 'nova-3'), option('flux', 'Deepgram Flux (v2 — conversational turn-taking)', 'flux-general-en')],
   tts: [option('elevenlabs', 'ElevenLabs'), option('deepgram-aura', 'Deepgram Aura-2'), option('flux', 'Deepgram Flux (v2 — streaming-first)')],
-  synthesis: [option('eleven_flash_v2_5', 'ElevenLabs Flash v2.5'), option('eleven_turbo_v2_5', 'ElevenLabs Turbo v2.5 (legacy)')],
+  synthesis: [option('eleven_v3', 'ElevenLabs v3 (highest quality)'), option('eleven_multilingual_v2', 'ElevenLabs Multilingual v2 (high quality)'), option('eleven_turbo_v2_5', 'ElevenLabs Turbo v2.5'), option('eleven_flash_v2_5', 'ElevenLabs Flash v2.5 (fastest)')],
   voices: {
     'deepgram-aura': ['thalia', 'asteria', 'arcas', 'orpheus'].map(name => option(`aura-2-${name}-en`, name)),
     flux: [
