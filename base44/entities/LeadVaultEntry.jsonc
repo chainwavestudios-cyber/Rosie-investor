@@ -14,9 +14,13 @@
       "type": "string",
       "title": "Last Name"
     },
+    "companyName": {
+      "type": "string",
+      "title": "Company Name"
+    },
     "phone": {
       "type": "string",
-      "title": "Primary Phone"
+      "title": "Primary Phone (raw input or Tracerfy-appended mobile/landline)"
     },
     "phone2": {
       "type": "string",
@@ -46,14 +50,91 @@
       "type": "number",
       "title": "Debt Amount ($)"
     },
+    "estimatedDebt": {
+      "type": "number",
+      "title": "Estimated Debt ($)",
+      "default": 20000
+    },
     "notes": {
       "type": "string",
       "title": "Notes",
       "format": "textarea"
     },
+    "pipelineStatus": {
+      "type": "string",
+      "title": "Pipeline Status",
+      "enum": [
+        "raw",
+        "tracing",
+        "traced",
+        "validating",
+        "ready",
+        "dialed",
+        "transferred",
+        "dead"
+      ],
+      "default": "raw"
+    },
+    "tracerfyStatus": {
+      "type": "string",
+      "title": "Tracerfy Phone-Append Status",
+      "enum": [
+        "pending",
+        "processing",
+        "completed",
+        "failed",
+        "skipped"
+      ],
+      "default": "pending"
+    },
+    "tracerfyBatchId": {
+      "type": "string",
+      "title": "Tracerfy Batch ID"
+    },
+    "tracerfyHit": {
+      "type": "boolean",
+      "title": "Tracerfy Hit (match found)"
+    },
+    "tracerfyCreditsUsed": {
+      "type": "number",
+      "title": "Tracerfy Credits Used"
+    },
+    "tracerfyProcessedAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Tracerfy Processed At"
+    },
+    "rawPhone": {
+      "type": "string",
+      "title": "Raw Phone (original input before Tracerfy append)"
+    },
+    "mobilePhone": {
+      "type": "string",
+      "title": "Mobile Phone (Tracerfy-appended)"
+    },
+    "landlinePhone": {
+      "type": "string",
+      "title": "Landline Phone (Tracerfy-appended)"
+    },
+    "carrierName": {
+      "type": "string",
+      "title": "Carrier Name (Tracerfy)"
+    },
+    "lineType": {
+      "type": "string",
+      "title": "Line Type",
+      "enum": [
+        "mobile",
+        "landline",
+        "voip",
+        "invalid",
+        "unverified"
+      ],
+      "default": "unverified"
+    },
     "validationStatus": {
       "type": "string",
-      "title": "Validation Status",
+      "title": "Twilio/Omkar Validation Status",
       "enum": [
         "pending",
         "validated",
@@ -67,7 +148,7 @@
     },
     "phoneLineType": {
       "type": "string",
-      "title": "Primary Phone Line Type",
+      "title": "Primary Phone Line Type (Twilio/Omkar verified)",
       "enum": [
         "mobile",
         "landline",
@@ -151,8 +232,7 @@
   },
   "required": [
     "firstName",
-    "lastName",
-    "phone"
+    "lastName"
   ],
   "rls": {
     "create": null,

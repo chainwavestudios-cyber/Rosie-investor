@@ -6,6 +6,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { base44 } from '@/api/base44Client';
 import VaultUploadSection from './VaultUploadSection';
+import VaultTracerfyPanel from './VaultTracerfyPanel';
 import VaultValidationPanel from './VaultValidationPanel';
 import VaultDistributionPanel from './VaultDistributionPanel';
 import VaultEntryTable from './VaultEntryTable';
@@ -29,7 +30,7 @@ export default function LeadVaultTab({ adminUsername }) {
         base44.entities.LeadVaultEntry.filter({}, { sort: '-created_date', limit: 500 }),
         base44.entities.DebtCoachUser.list('-created_date', 500).catch(() => []),
         base44.entities.LeadVaultEntry.aggregate({
-          groupBy: ['validationStatus', 'phoneValid', 'phoneLineType', 'destination'],
+          groupBy: ['validationStatus', 'phoneValid', 'phoneLineType', 'destination', 'tracerfyStatus'],
           limit: 1000,
         }).catch(() => ({ rows: [] })),
       ]);
@@ -42,9 +43,10 @@ export default function LeadVaultTab({ adminUsername }) {
       let pending = 0, validated = 0, failed = 0, distributed = 0;
       let mobileCount = 0, landlineCount = 0, voipCount = 0;
       let availableCount = 0;
+      let tracerfyPending = 0, tracerfyCompleted = 0, tracerfyFailed = 0;
       for (const r of rows) {
         const count = r.count || 0;
-        const { validationStatus, phoneValid, phoneLineType, destination } = r;
+        const { validationStatus, phoneValid, phoneLineType, destination, tracerfyStatus } = r;
         if (validationStatus === 'pending' && destination === 'none') pending += count;
         if (validationStatus === 'validated') validated += count;
         if (validationStatus === 'failed') failed += count;
@@ -56,8 +58,12 @@ export default function LeadVaultTab({ adminUsername }) {
         if (validationStatus === 'validated' && phoneValid === true && phoneLineType && phoneLineType !== 'voip' && destination === 'none') {
           availableCount += count;
         }
+        // Tracerfy pipeline counts
+        if (tracerfyStatus === 'pending') tracerfyPending += count;
+        if (tracerfyStatus === 'completed') tracerfyCompleted += count;
+        if (tracerfyStatus === 'failed') tracerfyFailed += count;
       }
-      setServerStats({ pending, validated, failed, distributed, mobileCount, landlineCount, voipCount, availableCount, total: pending + validated + failed });
+      setServerStats({ pending, validated, failed, distributed, mobileCount, landlineCount, voipCount, availableCount, tracerfyPending, tracerfyCompleted, tracerfyFailed, total: pending + validated + failed });
 
       // Compute usage from PhoneValidationUsage
       const now = new Date();
@@ -130,9 +136,10 @@ export default function LeadVaultTab({ adminUsername }) {
         </div>
       </div>
 
-      {/* Top row: Upload + Validation + Distribution */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '14px' }}>
+      {/* Top row: Upload → Tracerfy Append → Validate → Distribute */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '14px' }}>
         <VaultUploadSection adminUsername={adminUsername} onUploaded={load} />
+        <VaultTracerfyPanel stats={serverStats} onTracerfyDone={load} />
         <VaultValidationPanel stats={stats} onValidated={load} />
         <VaultDistributionPanel adminUsername={adminUsername} fronters={fronters} availableCount={availableCount} onDistributed={load} />
       </div>
