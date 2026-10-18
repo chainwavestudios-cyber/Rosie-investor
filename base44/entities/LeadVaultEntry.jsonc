@@ -193,6 +193,45 @@
       "format": "date-time",
       "title": "Validated At"
     },
+    "dncScrubStatus": {
+      "type": "string",
+      "title": "DNC/Litigator Scrub Status (LandlineRemover)",
+      "enum": [
+        "pending",
+        "scrubbed",
+        "failed"
+      ],
+      "default": "pending"
+    },
+    "dncFederal": {
+      "type": "boolean",
+      "title": "On Federal DNC Registry"
+    },
+    "dncState": {
+      "type": "boolean",
+      "title": "On State DNC Registry"
+    },
+    "litigator": {
+      "type": "boolean",
+      "title": "Known TCPA Litigator"
+    },
+    "llrClean": {
+      "type": "boolean",
+      "title": "Clean / Callable (not DNC, not litigator)"
+    },
+    "llrLineType": {
+      "type": "string",
+      "title": "Line Type (LandlineRemover)"
+    },
+    "llrCarrier": {
+      "type": "string",
+      "title": "Carrier (LandlineRemover)"
+    },
+    "llrScrubbedAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "DNC Scrubbed At (LandlineRemover)"
+    },
     "destination": {
       "type": "string",
       "title": "Distribution Destination",
