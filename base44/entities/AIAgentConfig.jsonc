@@ -81,6 +81,7 @@
       "title": "LLM selection (exact request ID shown in runtime cross-check)",
       "enum": [
         "automatic",
+        "gemini-2.5-flash",
         "gemini_3_flash",
         "gemini_3_8_flash",
         "gpt_6_luna",
