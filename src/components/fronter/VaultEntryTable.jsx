@@ -79,6 +79,7 @@ export default function VaultEntryTable({ entries, serverStats }) {
               <th style={{ padding: '8px 12px', textAlign: 'center', color: '#6b7280', fontSize: '9px', textTransform: 'uppercase', letterSpacing: '1px' }}>Status</th>
               <th style={{ padding: '8px 12px', textAlign: 'center', color: '#6b7280', fontSize: '9px', textTransform: 'uppercase', letterSpacing: '1px' }}>Line Type</th>
               <th style={{ padding: '8px 12px', textAlign: 'left', color: '#6b7280', fontSize: '9px', textTransform: 'uppercase', letterSpacing: '1px' }}>Carrier</th>
+              <th style={{ padding: '8px 12px', textAlign: 'center', color: '#6b7280', fontSize: '9px', textTransform: 'uppercase', letterSpacing: '1px' }}>DNC/Litigator</th>
               <th style={{ padding: '8px 12px', textAlign: 'left', color: '#6b7280', fontSize: '9px', textTransform: 'uppercase', letterSpacing: '1px' }}>Destination</th>
             </tr>
           </thead>
@@ -104,6 +105,20 @@ export default function VaultEntryTable({ entries, serverStats }) {
                   ) : <span style={{ color: '#4a5568', fontSize: '10px' }}>—</span>}
                 </td>
                 <td style={{ padding: '6px 12px', color: '#8a9ab8', fontSize: '11px', whiteSpace: 'nowrap' }}>{e.phoneCarrier || '—'}</td>
+                <td style={{ padding: '6px 12px', textAlign: 'center', whiteSpace: 'nowrap' }}>
+                  {e.dncScrubStatus === 'scrubbed' ? (
+                    <div style={{ display: 'flex', gap: '3px', justifyContent: 'center', flexWrap: 'wrap' }}>
+                      {e.dncFederal && <span style={{ padding: '1px 6px', borderRadius: '8px', fontSize: '8px', fontWeight: 'bold', background: 'rgba(239,68,68,0.15)', color: '#ef4444' }}>DNC-Fed</span>}
+                      {e.dncState && <span style={{ padding: '1px 6px', borderRadius: '8px', fontSize: '8px', fontWeight: 'bold', background: 'rgba(239,68,68,0.15)', color: '#ef4444' }}>DNC-State</span>}
+                      {e.litigator && <span style={{ padding: '1px 6px', borderRadius: '8px', fontSize: '8px', fontWeight: 'bold', background: 'rgba(239,68,68,0.15)', color: '#ef4444' }}>Litigator</span>}
+                      {e.llrClean && !e.dncFederal && !e.dncState && !e.litigator && <span style={{ padding: '1px 6px', borderRadius: '8px', fontSize: '8px', fontWeight: 'bold', background: 'rgba(16,185,129,0.15)', color: '#10b981' }}>Clean</span>}
+                    </div>
+                  ) : e.dncScrubStatus === 'failed' ? (
+                    <span style={{ padding: '2px 8px', borderRadius: '8px', fontSize: '9px', fontWeight: 'bold', background: 'rgba(245,158,11,0.15)', color: '#f59e0b' }}>Failed</span>
+                  ) : (
+                    <span style={{ color: '#4a5568', fontSize: '10px' }}>—</span>
+                  )}
+                </td>
                 <td style={{ padding: '6px 12px', whiteSpace: 'nowrap' }}>
                   {e.destination === 'fronter' ? <span style={{ color: GOLD, fontSize: '10px' }}>👤 {e.assignedTo}</span> :
                    e.destination === 'ai_dialer' ? <span style={{ color: PURPLE, fontSize: '10px' }}>🤖 AI Dialer</span> :

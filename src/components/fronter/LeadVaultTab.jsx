@@ -8,6 +8,7 @@ import { base44 } from '@/api/base44Client';
 import VaultUploadSection from './VaultUploadSection';
 import VaultTracerfyPanel from './VaultTracerfyPanel';
 import VaultValidationPanel from './VaultValidationPanel';
+import VaultDncScrubPanel from './VaultDncScrubPanel';
 import VaultDistributionPanel from './VaultDistributionPanel';
 import VaultEntryTable from './VaultEntryTable';
 
@@ -30,7 +31,7 @@ export default function LeadVaultTab({ adminUsername }) {
         base44.entities.LeadVaultEntry.filter({}, { sort: '-created_date', limit: 500 }),
         base44.entities.DebtCoachUser.list('-created_date', 500).catch(() => []),
         base44.entities.LeadVaultEntry.aggregate({
-          groupBy: ['validationStatus', 'phoneValid', 'phoneLineType', 'destination', 'tracerfyStatus'],
+          groupBy: ['validationStatus', 'phoneValid', 'phoneLineType', 'destination', 'tracerfyStatus', 'dncScrubStatus', 'dncFederal', 'dncState', 'litigator'],
           limit: 1000,
         }).catch(() => ({ rows: [] })),
       ]);
@@ -44,9 +45,10 @@ export default function LeadVaultTab({ adminUsername }) {
       let mobileCount = 0, landlineCount = 0, voipCount = 0;
       let availableCount = 0;
       let tracerfyPending = 0, tracerfyCompleted = 0, tracerfyFailed = 0;
+      let dncPending = 0, dncClean = 0, dncBlocked = 0, dncFailed = 0;
       for (const r of rows) {
         const count = r.count || 0;
-        const { validationStatus, phoneValid, phoneLineType, destination, tracerfyStatus } = r;
+        const { validationStatus, phoneValid, phoneLineType, destination, tracerfyStatus, dncScrubStatus, dncFederal, dncState, litigator } = r;
         if (validationStatus === 'pending' && destination === 'none') pending += count;
         if (validationStatus === 'validated') validated += count;
         if (validationStatus === 'failed') failed += count;
@@ -54,16 +56,22 @@ export default function LeadVaultTab({ adminUsername }) {
         if (phoneLineType === 'mobile') mobileCount += count;
         if (phoneLineType === 'landline') landlineCount += count;
         if (phoneLineType === 'voip') voipCount += count;
-        // Available = validated + phoneValid + non-VoIP + undistributed
-        if (validationStatus === 'validated' && phoneValid === true && phoneLineType && phoneLineType !== 'voip' && destination === 'none') {
+        // Available = validated + phoneValid + non-VoIP + undistributed + NOT DNC/litigator blocked
+        const isBlocked = dncFederal === true || dncState === true || litigator === true;
+        if (validationStatus === 'validated' && phoneValid === true && phoneLineType && phoneLineType !== 'voip' && destination === 'none' && !isBlocked) {
           availableCount += count;
         }
         // Tracerfy pipeline counts
         if (tracerfyStatus === 'pending') tracerfyPending += count;
         if (tracerfyStatus === 'completed') tracerfyCompleted += count;
         if (tracerfyStatus === 'failed') tracerfyFailed += count;
+        // DNC scrub counts
+        if (dncScrubStatus === 'pending' || !dncScrubStatus) dncPending += count;
+        if (dncScrubStatus === 'scrubbed' && !isBlocked) dncClean += count;
+        if (dncScrubStatus === 'scrubbed' && isBlocked) dncBlocked += count;
+        if (dncScrubStatus === 'failed') dncFailed += count;
       }
-      setServerStats({ pending, validated, failed, distributed, mobileCount, landlineCount, voipCount, availableCount, tracerfyPending, tracerfyCompleted, tracerfyFailed, total: pending + validated + failed });
+      setServerStats({ pending, validated, failed, distributed, mobileCount, landlineCount, voipCount, availableCount, tracerfyPending, tracerfyCompleted, tracerfyFailed, dncPending, dncClean, dncBlocked, dncFailed, total: pending + validated + failed });
 
       // Compute usage from PhoneValidationUsage
       const now = new Date();
@@ -109,7 +117,8 @@ export default function LeadVaultTab({ adminUsername }) {
   };
 
   const availableCount = serverStats ? serverStats.availableCount : entries.filter(e =>
-    e.validationStatus === 'validated' && e.phoneValid && e.phoneLineType !== 'voip' && e.destination === 'none'
+    e.validationStatus === 'validated' && e.phoneValid && e.phoneLineType !== 'voip' && e.destination === 'none' &&
+    e.dncFederal !== true && e.dncState !== true && e.litigator !== true
   ).length;
 
   if (loading) {
@@ -136,11 +145,12 @@ export default function LeadVaultTab({ adminUsername }) {
         </div>
       </div>
 
-      {/* Top row: Upload → Tracerfy Append → Validate → Distribute */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '14px' }}>
+      {/* Top row: Upload → Tracerfy Append → Validate → DNC Scrub → Distribute */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '12px' }}>
         <VaultUploadSection adminUsername={adminUsername} onUploaded={load} />
         <VaultTracerfyPanel stats={serverStats} onTracerfyDone={load} />
         <VaultValidationPanel stats={stats} onValidated={load} />
+        <VaultDncScrubPanel stats={serverStats} onScrubDone={load} />
         <VaultDistributionPanel adminUsername={adminUsername} fronters={fronters} availableCount={availableCount} onDistributed={load} />
       </div>
 

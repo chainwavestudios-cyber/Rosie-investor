@@ -33,12 +33,15 @@ export default async function(req: Request): Promise<Response> {
       return Response.json({ error: 'No entries found' }, { status: 404 });
     }
 
-    // ── Filter: only validated, non-VoIP, not already distributed ──
+    // ── Filter: only validated, non-VoIP, not DNC/litigator, not already distributed ──
     const distributable = entries.filter(e =>
       e.validationStatus === 'validated' &&
       e.phoneValid === true &&
       e.phoneLineType !== 'voip' &&
-      e.destination === 'none'
+      e.destination === 'none' &&
+      e.dncFederal !== true &&
+      e.dncState !== true &&
+      e.litigator !== true
     );
 
     if (distributable.length === 0) {
