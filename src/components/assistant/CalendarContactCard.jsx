@@ -56,6 +56,13 @@ export default function CalendarContactCard({ lead, username, onClose, onSave })
   const [holdAudio, setHoldAudio] = useState(null);
   const [holdPreview, setHoldPreview] = useState('');
 
+  // ── Credentials email state ──
+  const [credsTemplate, setCredsTemplate] = useState(null);
+  const [credsSending, setCredsSending] = useState(false);
+  const [credsSent, setCredsSent] = useState(false);
+  const [credsOpened, setCredsOpened] = useState(false);
+  const [credsErr, setCredsErr] = useState('');
+
   const callActive = ['calling', 'ringing', 'connected'].includes(callStatus);
   const callSid = callRef.current?.parameters?.CallSid || '';
 
@@ -78,6 +85,50 @@ export default function CalendarContactCard({ lead, username, onClose, onSave })
       }
     }).catch(() => {});
   }, []);
+
+  // ── Load the "credentials" email template + open tracking for this lead ──
+  useEffect(() => {
+    if (!lead?.id) return;
+    setCredsSent(false); setCredsOpened(false); setCredsErr(''); setCredsTemplate(null);
+    (async () => {
+      try {
+        const page = await base44.entities.DebtEmailTemplate.filter({}, { sort: 'sortOrder', limit: 100, fields: ['name', 'subject', 'bodyHtml', 'attachToContactCard', 'buttonLabel'] });
+        const all = page?.items || page || [];
+        const match = all.find(t => (t.name || '').trim().toLowerCase() === 'credentials');
+        if (match) setCredsTemplate(match);
+      } catch {}
+      try {
+        const evs = await base44.entities.EmailTrackingEvent.filter({ leadId: lead.id }, '-trackedAt', 50);
+        const arr = evs?.items || evs || [];
+        const credEv = arr.find(e => (e.templateName || '').toLowerCase() === 'credentials' || (e.templateId && credsTemplate?.id === e.templateId));
+        if (arr.some(e => e.eventType === 'open' && ((e.templateName || '').toLowerCase() === 'credentials' || (credsTemplate && e.templateId === credsTemplate.id)))) setCredsOpened(true);
+        if (arr.some(e => ((e.templateName || '').toLowerCase() === 'credentials' || (credsTemplate && e.templateId === credsTemplate.id)))) setCredsSent(true);
+      } catch {}
+    })();
+  }, [lead?.id]);
+
+  const sendCredentialsEmail = async () => {
+    if (!lead?.id) { setCredsErr('No lead loaded.'); return; }
+    if (!lead?.email) { setCredsErr('Lead has no email address.'); return; }
+    let tpl = credsTemplate;
+    if (!tpl) {
+      try {
+        const page = await base44.entities.DebtEmailTemplate.filter({}, { sort: 'sortOrder', limit: 100 });
+        const all = page?.items || page || [];
+        tpl = all.find(t => (t.name || '').trim().toLowerCase() === 'credentials') || null;
+        if (tpl) setCredsTemplate(tpl);
+      } catch {}
+    }
+    if (!tpl) { setCredsErr('No email template named "credentials" found. Create one in Debt Emails and name it "credentials".'); return; }
+    setCredsSending(true); setCredsErr('');
+    try {
+      const res = await base44.functions.invoke('sendDebtEmail', { templateId: tpl.id, leadId: lead.id });
+      const data = res?.data || res;
+      if (data?.error) throw new Error(data.error);
+      setCredsSent(true);
+    } catch (e) { setCredsErr('Send failed: ' + (e?.message || String(e))); }
+    setCredsSending(false);
+  };
 
   // ── Cleanup on unmount ──
   useEffect(() => () => {
@@ -261,6 +312,25 @@ export default function CalendarContactCard({ lead, username, onClose, onSave })
               </div>
               {lead?.callbackAt && <div style={{ background: `${PURPLE}10`, border: `1px solid ${PURPLE}33`, borderRadius: '6px', padding: '12px', color: PURPLE, fontSize: '12px' }}>📞 Callback scheduled: {fmtAppt(lead.callbackAt)}</div>}
               {lead?.isHotLead && <div style={{ background: `${ORANGE}10`, border: `1px solid ${ORANGE}33`, borderRadius: '6px', padding: '12px', color: ORANGE, fontSize: '12px' }}>🔥 Hot lead — priority follow-up</div>}
+
+              {/* Send Credentials Email */}
+              <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '6px', padding: '14px' }}>
+                <div style={{ color: GOLD, fontSize: '10px', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '8px' }}>🔑 Credentials Email</div>
+                <div style={{ color: '#8a9ab8', fontSize: '11px', marginBottom: '10px', lineHeight: 1.5 }}>
+                  Sends the email template named <strong style={{ color: GOLD }}>“credentials”</strong> (the one with the welcome message). Tracked for opens & clicks.
+                </div>
+                {credsErr && <div style={{ color: RED, fontSize: '11px', marginBottom: '8px' }}>⚠ {credsErr}</div>}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                  <span style={{ fontSize: '11px', color: credsSent ? (credsOpened ? GOLD : AMBER) : '#6b7280' }}>
+                    {credsSent ? (credsOpened ? '✓ Sent & Opened' : '✓ Sent (not opened yet)') : 'Not sent yet'}
+                  </span>
+                </div>
+                <button onClick={sendCredentialsEmail} disabled={credsSending || !lead?.email} style={{ width: '100%', background: `linear-gradient(135deg,${GOLD},#22c55e)`, color: DARK, border: 'none', borderRadius: '6px', padding: '11px', cursor: (credsSending || !lead?.email) ? 'not-allowed' : 'pointer', fontSize: '13px', fontWeight: 'bold', opacity: (credsSending || !lead?.email) ? 0.5 : 1 }}>
+                  {credsSending ? '⏳ Sending…' : '🔑 Send Credentials Email'}
+                </button>
+                {!lead?.email && <div style={{ color: AMBER, fontSize: '10px', textAlign: 'center', marginTop: '6px' }}>Lead has no email address</div>}
+              </div>
+
               <button onClick={() => setTab('calltrans')} style={{ background: `linear-gradient(135deg,${GOLD},#22c55e)`, color: DARK, border: 'none', borderRadius: '6px', padding: '12px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}>📞 Go to Call & Transfer</button>
             </div>
           )}
