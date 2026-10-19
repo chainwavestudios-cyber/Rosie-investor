@@ -427,36 +427,70 @@ I will go ahead and add you to his call queue, and he will answer shortly…
                 </div>
               </div>
 
-              {/* Merge & Transfer */}
+              {/* Merge & Transfer — matches FronterMergePopup flow */}
               <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '6px', padding: '14px' }}>
-                <div style={{ color: GOLD, fontSize: '10px', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '10px' }}>🔀 Merge & Transfer to Advisor</div>
-                <div style={{ color: '#8a9ab8', fontSize: '11px', marginBottom: '10px', lineHeight: 1.5 }}>Call the client first, then dial the senior advisor. The client is placed on hold and hears the welcome / hold audio until you merge.</div>
+                <div style={{ color: GOLD, fontSize: '10px', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '10px' }}>🔀 Merge & Transfer to Chris Bongiorno</div>
+
+                {/* Compact status strip — call active + Chris status */}
+                <div style={{ display: 'flex', gap: '8px', marginBottom: '10px' }}>
+                  <div style={{ flex: 1, padding: '8px 12px', background: callActive ? 'rgba(16,185,129,0.08)' : 'rgba(255,255,255,0.03)', border: `1px solid ${callActive ? GOLD + '33' : 'rgba(255,255,255,0.08)'}`, borderRadius: '6px' }}>
+                    <div style={{ color: callActive ? GOLD : '#6b7280', fontSize: '10px', fontWeight: 'bold' }}>{callActive ? '📞 Call Active' : '📞 No Call'}</div>
+                    {callActive && <div style={{ color: '#e8e0d0', fontSize: '16px', fontWeight: 'bold', fontFamily: 'monospace' }}>{callStatus === 'connected' ? fmtDur(duration) : '--:--'}</div>}
+                  </div>
+                  <div style={{ flex: 1, padding: '8px 12px', background: mergeState === 'no_answer' ? 'rgba(239,68,68,0.08)' : mergeState === 'dialing' ? 'rgba(96,165,250,0.06)' : mergeState === 'connected' ? 'rgba(16,185,129,0.08)' : 'rgba(255,255,255,0.03)', border: `1px solid ${mergeState === 'no_answer' ? 'rgba(239,68,68,0.3)' : mergeState === 'dialing' ? 'rgba(96,165,250,0.25)' : mergeState === 'connected' ? GOLD + '33' : 'rgba(255,255,255,0.08)'}`, borderRadius: '6px' }}>
+                    <div style={{ color: GOLD, fontSize: '10px', fontWeight: 'bold' }}>Chris Bongiorno</div>
+                    <div style={{ color: '#6b7280', fontSize: '9px', marginTop: '2px' }}>
+                      {mergeState === 'dialing' ? `📞 ${CHRIS_LABELS[currentNumberIdx]}` : mergeState === 'connected' ? '✓ Connected' : mergeState === 'no_answer' ? '⚠ Unavailable' : `${CHRIS_LABELS.join(' · ')}`}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Transfer script — read to customer before dialing */}
+                <div style={{ marginBottom: '10px' }}>
+                  <div style={{ color: GOLD, fontSize: '11px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '6px' }}>📜 Transfer Script — Read to Customer</div>
+                  <div style={{ background: 'rgba(0,0,0,0.15)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '4px', padding: '12px', maxHeight: '120px', overflowY: 'auto' }}>
+                    <div style={{ color: '#e8e0d0', fontSize: '14px', lineHeight: 1.8, fontFamily: 'Georgia, serif', whiteSpace: 'pre-wrap' }}>
+                      <span style={{ color: '#6b7280', fontStyle: 'italic' }}>(ring ring)</span>{'\n\n'}
+                      Hello, this is Michie. I am calling in regards to your appointment in the next few min from the offices of Chris Bongiorno and Debt Advisors of America.{'\n\n'}
+                      I will go ahead and add you to his call queue, and he will answer shortly…
+                    </div>
+                  </div>
+                </div>
+
                 {mergeErr && <div style={{ color: RED, fontSize: '11px', marginBottom: '8px' }}>⚠ {mergeErr}</div>}
                 {mergeMsg && <div style={{ color: BLUE, fontSize: '11px', marginBottom: '8px' }}>⏳ {mergeMsg}</div>}
 
-                {mergeState === 'idle' && (
-                  <button onClick={handleDialAdvisor} disabled={!canDialAdvisor} style={{ width: '100%', background: canDialAdvisor ? `linear-gradient(135deg,${GOLD},#22c55e)` : 'rgba(255,255,255,0.05)', color: canDialAdvisor ? DARK : '#6b7280', border: 'none', borderRadius: '6px', padding: '13px', cursor: canDialAdvisor ? 'pointer' : 'not-allowed', fontSize: '14px', fontWeight: 'bold', opacity: canDialAdvisor ? 1 : 0.5 }}>📞 Dial Advisor ({CHRIS_LABELS[0]})</button>
-                )}
-                {mergeState === 'dialing' && (
-                  <button disabled style={{ width: '100%', background: `${BLUE}15`, color: BLUE, border: `1px solid ${BLUE}44`, borderRadius: '6px', padding: '13px', fontSize: '14px', fontWeight: 'bold', cursor: 'wait' }}>⏳ Dialing advisor on {CHRIS_LABELS[currentNumberIdx]}…</button>
-                )}
-                {(mergeState === 'connected' || mergeState === 'merging') && (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                    <button onClick={handleMergeTransfer} disabled={!canMerge} style={{ width: '100%', background: canMerge ? `linear-gradient(135deg,${GOLD},#22c55e)` : 'rgba(255,255,255,0.05)', color: canMerge ? DARK : '#6b7280', border: 'none', borderRadius: '6px', padding: '13px', cursor: canMerge ? 'pointer' : 'not-allowed', fontSize: '14px', fontWeight: 'bold', opacity: canMerge ? 1 : 0.5 }}>{mergeState === 'merging' ? '⏳ Bridging…' : '🔀 Merge & Transfer'}</button>
-                    {canTryNext && <button onClick={handleHangupTryNext} style={{ width: '100%', background: 'rgba(245,158,11,0.15)', color: AMBER, border: '1px solid rgba(245,158,11,0.4)', borderRadius: '6px', padding: '11px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}>📞 Hangup & Try 2nd Line ({CHRIS_LABELS[currentNumberIdx + 1]})</button>}
-                  </div>
-                )}
-                {mergeState === 'done' && <div style={{ width: '100%', textAlign: 'center', background: 'rgba(16,185,129,0.12)', color: GOLD, border: `1px solid ${GOLD}44`, borderRadius: '6px', padding: '13px', fontSize: '14px', fontWeight: 'bold' }}>✓ Transfer Complete</div>}
+                {/* Chris isn't available — shown when all numbers exhausted */}
                 {mergeState === 'no_answer' && isLastNumber && (
-                  <div style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '6px', padding: '12px', textAlign: 'center' }}>
-                    <div style={{ color: RED, fontSize: '13px', fontWeight: 'bold', marginBottom: '4px' }}>⚠ Advisor Isn't Available</div>
-                    <div style={{ color: '#8a9ab8', fontSize: '11px' }}>Both numbers tried. The client is still on hold.</div>
+                  <div style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '6px', padding: '12px', marginBottom: '10px', textAlign: 'center' }}>
+                    <div style={{ color: RED, fontSize: '13px', fontWeight: 'bold', marginBottom: '4px' }}>⚠ Chris Isn't Available</div>
+                    <div style={{ color: '#8a9ab8', fontSize: '11px' }}>Both numbers have been tried. The client is still on hold in the queue.</div>
                   </div>
                 )}
-                <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
-                  <button onClick={handleNoConnect} disabled={!canNoConnect} style={{ flex: 1, background: 'rgba(239,68,68,0.15)', color: RED, border: '1px solid rgba(239,68,68,0.4)', borderRadius: '6px', padding: '11px', cursor: canNoConnect ? 'pointer' : 'not-allowed', fontSize: '12px', fontWeight: 'bold', opacity: canNoConnect ? 1 : 0.5 }}>{noConnectBusy ? 'Queuing…' : '🚫 NO CONNECT'}</button>
+
+                {/* Phone controls — same flow as FronterMergePopup */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {mergeState === 'idle' && (
+                    <button onClick={handleDialAdvisor} disabled={!canDialAdvisor} style={{ width: '100%', background: canDialAdvisor ? `linear-gradient(135deg,${GOLD},#22c55e)` : 'rgba(255,255,255,0.05)', color: canDialAdvisor ? DARK : '#6b7280', border: 'none', borderRadius: '6px', padding: '14px', cursor: canDialAdvisor ? 'pointer' : 'not-allowed', fontSize: '15px', fontWeight: 'bold', opacity: canDialAdvisor ? 1 : 0.5 }}>📞 Dial Chris Bongiorno</button>
+                  )}
+                  {mergeState === 'dialing' && (
+                    <button disabled style={{ width: '100%', background: 'rgba(96,165,250,0.15)', color: BLUE, border: `1px solid ${BLUE}44`, borderRadius: '6px', padding: '14px', fontSize: '15px', fontWeight: 'bold', cursor: 'wait' }}>⏳ Dialing Chris on {CHRIS_LABELS[currentNumberIdx]}…</button>
+                  )}
+                  {(mergeState === 'connected' || mergeState === 'merging') && (
+                    <>
+                      <button onClick={handleMergeTransfer} disabled={!canMerge} style={{ width: '100%', background: canMerge ? `linear-gradient(135deg,${GOLD},#22c55e)` : 'rgba(255,255,255,0.05)', color: canMerge ? DARK : '#6b7280', border: 'none', borderRadius: '6px', padding: '14px', cursor: canMerge ? 'pointer' : 'not-allowed', fontSize: '15px', fontWeight: 'bold', opacity: canMerge ? 1 : 0.5 }}>{mergeState === 'merging' ? '⏳ Bridging…' : '🔀 Merge & Transfer'}</button>
+                      {canTryNext && <button onClick={handleHangupTryNext} style={{ width: '100%', background: 'rgba(245,158,11,0.15)', color: AMBER, border: '1px solid rgba(245,158,11,0.4)', borderRadius: '6px', padding: '12px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}>📞 Hangup & Try 2nd Line ({CHRIS_LABELS[currentNumberIdx + 1]})</button>}
+                    </>
+                  )}
+                  {mergeState === 'done' && <div style={{ width: '100%', textAlign: 'center', background: 'rgba(16,185,129,0.12)', color: GOLD, border: `1px solid ${GOLD}44`, borderRadius: '6px', padding: '14px', fontSize: '15px', fontWeight: 'bold' }}>✓ Transfer Complete</div>}
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <button onClick={handleNoConnect} disabled={!canNoConnect} style={{ flex: 1, background: 'rgba(239,68,68,0.15)', color: RED, border: '1px solid rgba(239,68,68,0.4)', borderRadius: '6px', padding: '12px', cursor: canNoConnect ? 'pointer' : 'not-allowed', fontSize: '13px', fontWeight: 'bold', opacity: canNoConnect ? 1 : 0.5 }}>{noConnectBusy ? 'Queuing client…' : '🚫 NO CONNECT'}</button>
+                  </div>
+                  {mergeState === 'idle' && !canDialAdvisor && <div style={{ color: AMBER, fontSize: '11px', textAlign: 'center' }}>{!callActive ? 'Start a call to the client first.' : 'Waiting for call details…'}</div>}
+                  {mergeState === 'connected' && !isLastNumber && <div style={{ color: GOLD, fontSize: '11px', textAlign: 'center' }}>✓ Chris is connected on {CHRIS_LABELS[currentNumberIdx]}. Merge & Transfer, or Hangup & Try 2nd Line if this is voicemail.</div>}
+                  {mergeState === 'connected' && isLastNumber && <div style={{ color: GOLD, fontSize: '11px', textAlign: 'center' }}>✓ Chris is connected on {CHRIS_LABELS[currentNumberIdx]}. Merge & Transfer or NO CONNECT.</div>}
+                  {mergeState === 'no_answer' && canTryNext && <div style={{ color: AMBER, fontSize: '11px', textAlign: 'center' }}>No answer on {CHRIS_LABELS[currentNumberIdx]}. Try the 2nd line or NO CONNECT.</div>}
                 </div>
-                {mergeState === 'idle' && !canDialAdvisor && <div style={{ color: AMBER, fontSize: '11px', textAlign: 'center', marginTop: '6px' }}>{!callActive ? 'Start a call to the client first.' : 'Waiting for call details…'}</div>}
               </div>
             </div>
           )}
