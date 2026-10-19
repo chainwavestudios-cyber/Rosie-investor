@@ -303,8 +303,14 @@ export default function CalendarContactCard({ lead, username, onClose, onSave })
               </div>
               <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '6px', padding: '14px' }}>
                 <div style={{ color: GOLD, fontSize: '10px', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '10px' }}>Contact</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ color: '#6b7280', fontSize: '9px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Phone</div>
+                    <div style={{ color: BLUE, fontSize: '16px', fontWeight: 'bold', marginTop: '2px' }}>{lead?.phone || '—'}</div>
+                  </div>
+                  <button onClick={() => { setTab('calltrans'); setTimeout(dial, 200); }} disabled={!lead?.phone} style={{ background: `linear-gradient(135deg,${GOLD},#22c55e)`, color: DARK, border: 'none', borderRadius: '6px', padding: '10px 16px', cursor: lead?.phone ? 'pointer' : 'not-allowed', fontSize: '13px', fontWeight: 'bold', opacity: lead?.phone ? 1 : 0.4, whiteSpace: 'nowrap' }}>📞 Quick Dial</button>
+                </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-                  <Field label="Phone" value={lead?.phone || '—'} />
                   <Field label="Email" value={lead?.email || '—'} />
                   <Field label="City" value={lead?.city || '—'} />
                   <Field label="State" value={lead?.state || '—'} />
