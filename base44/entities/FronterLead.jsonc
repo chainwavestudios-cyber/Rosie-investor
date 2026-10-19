@@ -63,6 +63,26 @@
       "type": "number",
       "title": "Annual Income ($)"
     },
+    "age": {
+      "type": "number",
+      "title": "Age"
+    },
+    "householdIncome": {
+      "type": "number",
+      "title": "Household Income ($)"
+    },
+    "homeValue": {
+      "type": "number",
+      "title": "Home Value ($)"
+    },
+    "homeEquity": {
+      "type": "number",
+      "title": "Home Equity ($)"
+    },
+    "tradelines": {
+      "type": "number",
+      "title": "Tradelines (count)"
+    },
     "hardshipQualification": {
       "type": "string",
       "title": "Hardship Qualification",
@@ -105,7 +125,8 @@
         "transferred",
         "booked",
         "closed_deal",
-        "removed"
+        "removed",
+        "migrated"
       ],
       "default": "prospect"
     },
@@ -149,6 +170,15 @@
       "type": "string",
       "format": "date-time",
       "title": "Transferred At"
+    },
+    "migratedAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Migrated At (moved to Debt Call Coach)"
+    },
+    "migratedDebtLeadId": {
+      "type": "string",
+      "title": "Migrated DebtLead ID (link to created DebtLead)"
     },
     "bookedAt": {
       "type": "string",

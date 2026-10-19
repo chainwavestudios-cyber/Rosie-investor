@@ -90,6 +90,26 @@
       "type": "number",
       "title": "Credit Score"
     },
+    "age": {
+      "type": "number",
+      "title": "Age"
+    },
+    "householdIncome": {
+      "type": "number",
+      "title": "Household Income ($)"
+    },
+    "homeValue": {
+      "type": "number",
+      "title": "Home Value ($)"
+    },
+    "homeEquity": {
+      "type": "number",
+      "title": "Home Equity ($)"
+    },
+    "tradelines": {
+      "type": "number",
+      "title": "Tradelines (count)"
+    },
     "behindOnPayments": {
       "type": "boolean",
       "title": "Behind on Payments",
@@ -136,6 +156,20 @@
     "hotLeadTaggedBy": {
       "type": "string",
       "title": "Hot Lead Tagged By (username)"
+    },
+    "migratedFromFronter": {
+      "type": "boolean",
+      "title": "Migrated From Fronter (auto-created on successful transfer)",
+      "default": false
+    },
+    "migratedAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Migrated At (when fronter transferred this lead)"
+    },
+    "migratedBy": {
+      "type": "string",
+      "title": "Migrated By (fronter username)"
     },
     "notes": {
       "type": "string",

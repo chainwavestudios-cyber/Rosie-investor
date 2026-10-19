@@ -344,11 +344,50 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
   const markTransferred = async (skipConfirm = false) => {
     if (!skipConfirm && !confirm(`Mark ${local.firstName || 'this contact'} as Transferred? The card becomes a Lead.`)) return;
     const now = new Date().toISOString();
-    const updates = { status: 'transferred', lastCallResult: 'transferred', transferredAt: now, lastCalledAt: now };
+    const updates = { status: 'migrated', lastCallResult: 'transferred', transferredAt: now, migratedAt: now, lastCalledAt: now };
     try {
-      await base44.entities.FronterLead.update(lead.id, updates);
-      setLocal(prev => ({ ...prev, ...updates }));
-      onSave?.({ ...local, ...updates });
+      // Auto-migrate: create a DebtLead prospect in Debt Call Coach
+      let migratedDebtLeadId = null;
+      try {
+        let notesParts = [];
+        if (local.notes) notesParts.push(local.notes);
+        try {
+          const log = JSON.parse(local.notesLogJson || '[]');
+          const logSummary = log.filter(n => n.text).slice(-5).map(n => `[${new Date(n.timestamp).toLocaleDateString()}] ${n.text}`).join('\n');
+          if (logSummary) notesParts.push(`Fronter Notes:\n${logSummary}`);
+        } catch {}
+        notesParts.push(`Migrated from Fronter by ${username} on ${new Date().toLocaleString('en-US', { timeZone: 'America/New_York' })}`);
+        const debtLeadData = {
+          firstName: local.firstName || '',
+          lastName: local.lastName || '',
+          phone: local.phone || '',
+          email: local.email || '',
+          address: local.address || '',
+          city: local.city || '',
+          state: local.state || '',
+          zip: local.zipCode || '',
+          debtAmount: local.debtAmount || undefined,
+          employmentStatus: local.employmentStatus && local.employmentStatus !== 'unknown' ? (local.employmentStatus === 'self_employed' ? 'self-employed' : local.employmentStatus) : undefined,
+          age: local.age || undefined,
+          householdIncome: local.householdIncome || undefined,
+          homeValue: local.homeValue || undefined,
+          homeEquity: local.homeEquity || undefined,
+          tradelines: local.tradelines || undefined,
+          status: 'new',
+          notes: notesParts.join('\n\n'),
+          migratedFromFronter: true,
+          migratedAt: now,
+          migratedBy: username,
+        };
+        Object.keys(debtLeadData).forEach(k => debtLeadData[k] === undefined && delete debtLeadData[k]);
+        const created = await base44.entities.DebtLead.create(debtLeadData);
+        migratedDebtLeadId = created?.id || null;
+      } catch (e) { console.warn('Auto-migration to DebtLead failed:', e.message); }
+
+      const fullUpdates = { ...updates, migratedDebtLeadId };
+      await base44.entities.FronterLead.update(lead.id, fullUpdates);
+      setLocal(prev => ({ ...prev, ...fullUpdates }));
+      onSave?.({ ...local, ...fullUpdates });
 
       // Transfer credit: if call duration >= 30s, credit the agent and send congrats
       if (callDuration >= 30) {
@@ -405,6 +444,7 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
         email: local.email, address: local.address, city: local.city, state: local.state, zipCode: local.zipCode,
         preferredCallTime: local.preferredCallTime, employmentStatus: local.employmentStatus,
         debtAmount: local.debtAmount, debtTypesJson: local.debtTypesJson, debtAmountsJson: local.debtAmountsJson,
+        age: local.age, householdIncome: local.householdIncome, homeValue: local.homeValue, homeEquity: local.homeEquity, tradelines: local.tradelines,
         notesLogJson: JSON.stringify(notesLog),
       };
       // Only super admins can save hardship, lead source, and timezone override
@@ -634,9 +674,9 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
   );
 
   const initials = `${(local.firstName?.[0] || '?')}${(local.lastName?.[0] || '')}`;
-  const leadTypeColor = local.status === 'lead' ? GOLD : local.status === 'transferred' ? '#a78bfa' : local.status === 'booked' ? '#f59e0b' : local.status === 'closed_deal' ? '#c084fc' : '#60a5fa';
-  const leadTypeLabel = local.status === 'lead' ? 'LEAD CONTACT' : local.status === 'transferred' ? 'LEAD CONTACT · TRANSFERRED' : local.status === 'booked' ? 'BOOKED CONTACT' : local.status === 'closed_deal' ? 'CLOSED DEAL' : 'PROSPECT CONTACT';
-  const animalEmoji = local.status === 'closed_deal' ? '💎' : local.status === 'booked' ? '📗' : local.status === 'transferred' ? '🦄' : local.status === 'lead' ? '🐄' : '🦆';
+  const leadTypeColor = local.status === 'lead' ? GOLD : local.status === 'transferred' ? '#a78bfa' : local.status === 'migrated' ? '#22d3ee' : local.status === 'booked' ? '#f59e0b' : local.status === 'closed_deal' ? '#c084fc' : '#60a5fa';
+  const leadTypeLabel = local.status === 'lead' ? 'LEAD CONTACT' : local.status === 'transferred' ? 'LEAD CONTACT · TRANSFERRED' : local.status === 'migrated' ? 'LEAD CONTACT · MIGRATED' : local.status === 'booked' ? 'BOOKED CONTACT' : local.status === 'closed_deal' ? 'CLOSED DEAL' : 'PROSPECT CONTACT';
+  const animalEmoji = local.status === 'closed_deal' ? '💎' : local.status === 'booked' ? '📗' : local.status === 'migrated' ? '🚀' : local.status === 'transferred' ? '🦄' : local.status === 'lead' ? '🐄' : '🦆';
 
   const outerStyle = embedded
     ? { position: 'relative', flex: 1, display: 'flex', flexDirection: 'column', width: '100%', height: '100%', background: '#0d1b2a', border: `1px solid ${leadTypeColor}33`, borderRadius: '6px', overflow: 'hidden' }
@@ -687,7 +727,7 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
               <div style={{ color: '#e8e0d0', fontSize: '15px', fontWeight: 'bold' }}>{local.firstName || 'New'} {local.lastName || 'Lead'}</div>
               <div style={{ display: 'flex', gap: '6px', alignItems: 'center', marginTop: '2px' }}>
                 {local.leadNumber && <span style={{ color: '#6b7280', fontSize: '10px' }}>{local.leadNumber}</span>}
-                <span style={{ padding: '1px 7px', borderRadius: '8px', fontSize: '8px', fontWeight: 'bold', textTransform: 'uppercase', background: local.status === 'lead' ? 'rgba(16,185,129,0.15)' : local.status === 'transferred' ? 'rgba(167,139,250,0.15)' : 'rgba(96,165,250,0.15)', color: local.status === 'lead' ? GOLD : local.status === 'transferred' ? '#a78bfa' : BLUE }}>{local.status || 'prospect'}</span>
+                <span style={{ padding: '1px 7px', borderRadius: '8px', fontSize: '8px', fontWeight: 'bold', textTransform: 'uppercase', background: local.status === 'lead' ? 'rgba(16,185,129,0.15)' : local.status === 'transferred' ? 'rgba(167,139,250,0.15)' : local.status === 'migrated' ? 'rgba(34,211,238,0.15)' : 'rgba(96,165,250,0.15)', color: local.status === 'lead' ? GOLD : local.status === 'transferred' ? '#a78bfa' : local.status === 'migrated' ? '#22d3ee' : BLUE }}>{local.status || 'prospect'}</span>
                 {local.callCount > 0 && <span style={{ color: '#6b7280', fontSize: '9px' }}>· {local.callCount}/3 calls</span>}
               </div>
             </div>
@@ -843,6 +883,15 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
                       <label style={ls}>Best Time to Call</label>
                       <input value={local.preferredCallTime || ''} onChange={e => update('preferredCallTime', e.target.value)} style={inp} placeholder="After 5pm" />
                     </div>
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '6px', marginBottom: '6px' }}>
+                    <div><label style={ls}>Age</label><input type="number" value={local.age ?? ''} onChange={e => update('age', e.target.value ? Number(e.target.value) : null)} style={inp} placeholder="0" /></div>
+                    <div><label style={ls}>Household Inc ($)</label><input type="number" value={local.householdIncome ?? ''} onChange={e => update('householdIncome', e.target.value ? Number(e.target.value) : null)} style={inp} placeholder="0" /></div>
+                    <div><label style={ls}>Tradelines</label><input type="number" value={local.tradelines ?? ''} onChange={e => update('tradelines', e.target.value ? Number(e.target.value) : null)} style={inp} placeholder="0" /></div>
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px', marginBottom: '6px' }}>
+                    <div><label style={ls}>Home Value ($)</label><input type="number" value={local.homeValue ?? ''} onChange={e => update('homeValue', e.target.value ? Number(e.target.value) : null)} style={inp} placeholder="0" /></div>
+                    <div><label style={ls}>Home Equity ($)</label><input type="number" value={local.homeEquity ?? ''} onChange={e => update('homeEquity', e.target.value ? Number(e.target.value) : null)} style={inp} placeholder="0" /></div>
                   </div>
                   <div style={{ marginBottom: '6px' }}>
                     <label style={ls}>Type of Debt</label>
