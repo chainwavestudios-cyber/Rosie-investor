@@ -19,7 +19,7 @@ export default function CalendarCallBar({ lead, call }) {
       <div className="flex flex-wrap items-center gap-2">
         {call.active && <span role="status" className="text-sm font-semibold text-assistant-primary">{call.status} · {time}</span>}
         {!call.active ? <>
-          <button onClick={call.dial} disabled={!lead.phone || call.loading || !call.lineKey} className="calendar-button"><Phone size={16} />Call Client</button>
+          <button onClick={() => call.dial()} disabled={!lead.phone || call.loading || !call.lineKey} className="calendar-button"><Phone size={16} />Call Client</button>
           <button onClick={() => call.dialNumber(CHRIS_OFFICE)} disabled={call.loading || !call.lineKey} className="calendar-secondary"><Phone size={15} />Chris · Office</button>
           <button onClick={() => call.dialNumber(CHRIS_CELL)} disabled={call.loading || !call.lineKey} className="calendar-secondary"><Phone size={15} />Chris · Cell</button>
         </> : <>
