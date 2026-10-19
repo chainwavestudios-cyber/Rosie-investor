@@ -25,6 +25,7 @@
   .calendar-secondary { @apply inline-flex items-center justify-center gap-2 rounded-md border border-assistant-border bg-assistant-elevated px-3 py-2 text-sm font-medium text-assistant-ink disabled:cursor-not-allowed disabled:opacity-50; }
   .calendar-field { @apply w-full min-w-0 rounded-md border border-assistant-border bg-assistant-canvas px-3 py-2.5 text-sm text-assistant-ink outline-none focus:border-assistant-primary; color-scheme: dark; }
   .calendar-error { @apply text-sm leading-relaxed text-assistant-danger; }
+  .fast-dial-btn { @apply inline-flex items-center justify-center gap-1.5 rounded-md border border-assistant-border bg-assistant-elevated px-3 py-2 text-sm font-semibold text-assistant-ink transition hover:border-assistant-primary disabled:cursor-not-allowed disabled:opacity-50; }
 }
 
 @layer base {

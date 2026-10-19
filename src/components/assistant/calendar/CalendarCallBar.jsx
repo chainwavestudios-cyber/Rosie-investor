@@ -1,4 +1,5 @@
 import { Phone, PhoneOff, Mic, MicOff } from 'lucide-react';
+import { CHRIS_OFFICE, CHRIS_CELL } from '@/components/assistant/ChrisFastDial';
 
 export default function CalendarCallBar({ lead, call }) {
   const time = `${Math.floor(call.seconds / 60).toString().padStart(2, '0')}:${(call.seconds % 60).toString().padStart(2, '0')}`;
@@ -17,7 +18,11 @@ export default function CalendarCallBar({ lead, call }) {
       </label>
       <div className="flex flex-wrap items-center gap-2">
         {call.active && <span role="status" className="text-sm font-semibold text-assistant-primary">{call.status} · {time}</span>}
-        {!call.active ? <button onClick={call.dial} disabled={!lead.phone || call.loading || !call.lineKey} className="calendar-button"><Phone size={16} />Call Client</button> : <>
+        {!call.active ? <>
+          <button onClick={call.dial} disabled={!lead.phone || call.loading || !call.lineKey} className="calendar-button"><Phone size={16} />Call Client</button>
+          <button onClick={() => call.dialNumber(CHRIS_OFFICE)} disabled={call.loading || !call.lineKey} className="calendar-secondary"><Phone size={15} />Chris · Office</button>
+          <button onClick={() => call.dialNumber(CHRIS_CELL)} disabled={call.loading || !call.lineKey} className="calendar-secondary"><Phone size={15} />Chris · Cell</button>
+        </> : <>
           {call.status === 'connected' && <button onClick={call.toggleMute} className="calendar-secondary">{call.muted ? <MicOff size={16} /> : <Mic size={16} />}{call.muted ? 'Unmute' : 'Mute'}</button>}
           <button onClick={call.hangup} className="calendar-secondary text-assistant-danger"><PhoneOff size={16} />Hang Up</button>
         </>}

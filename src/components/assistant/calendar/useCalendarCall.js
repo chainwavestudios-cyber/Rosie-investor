@@ -17,11 +17,11 @@ export default function useCalendarCall(lead, username) {
     return () => { attempt.current += 1; clearInterval(timer.current); call.current?.disconnect(); device.current?.destroy(); };
   }, []);
   const finish = () => { clearInterval(timer.current); call.current = null; setStatus('idle'); setMuted(false); setCallSid(''); };
-  const dial = async () => {
+  const dial = async (target) => {
     if (active || starting.current) return;
-    const raw = String(lead?.phone || '').trim(), digits = raw.replace(/\D/g, '');
+    const raw = String(target || lead?.phone || '').trim(), digits = raw.replace(/\D/g, '');
     const to = digits.length === 10 ? `+1${digits}` : digits.length === 11 && digits.startsWith('1') ? `+${digits}` : raw;
-    if (!/^\+[1-9]\d{7,14}$/.test(to)) { setError('This client needs a valid phone number.'); return; }
+    if (!/^\+[1-9]\d{7,14}$/.test(to)) { setError(target ? 'Enter a valid phone number.' : 'This client needs a valid phone number.'); return; }
     const line = lines.find(l => l.key === lineKey);
     if (!line) { setError('Select an outbound line first.'); return; }
     const dialAttempt = ++attempt.current;
@@ -45,7 +45,8 @@ export default function useCalendarCall(lead, username) {
     } catch (e) { setError(e.message || 'Call failed.'); device.current?.destroy(); device.current = null; finish(); }
     finally { starting.current = false; }
   };
+  const dialNumber = (target) => dial(target);
   const hangup = () => { attempt.current += 1; call.current?.disconnect(); finish(); };
   const toggleMute = () => { if (call.current) { call.current.mute(!muted); setMuted(!muted); } };
-  return { lines, lineKey, setLineKey, loading, status, seconds, muted, error, active, callSid, dial, hangup, toggleMute };
+  return { lines, lineKey, setLineKey, loading, status, seconds, muted, error, active, callSid, dial, dialNumber, hangup, toggleMute };
 }
