@@ -6,9 +6,11 @@
  * rewrites {{personalMessageUrl}} into a per-lead tracked URL at send time,
  * so clicks light up the 🎙️ Personal Message badge on the contact card.
  *
- * Uses Quill's native format API (not raw DOM manipulation) so the editor's
- * internal delta stays in sync and the controlled onChange never overwrites
- * the link with a sanitized/stale version.
+ * Uses Quill's native format API and lets the editor's own onChange
+ * propagate the new HTML to React state — we must NOT call updateField
+ * manually because that triggers a second state update whose HTML
+ * serialization can differ from the editor's internal content, causing
+ * ReactQuill to re-parse and strip the {{...}} href.
  */
 import Quill from 'quill';
 
@@ -38,7 +40,7 @@ function patchLinkBlot() {
   }
 }
 
-export function insertWelcomeTracker(quillRef, selectedImg, onSelectImg, updateField) {
+export function insertWelcomeTracker(quillRef, selectedImg, onSelectImg) {
   patchLinkBlot();
   const quill = quillRef.current?.getEditor?.();
   if (!quill) return;
@@ -51,25 +53,23 @@ export function insertWelcomeTracker(quillRef, selectedImg, onSelectImg, updateF
         const offset = blot.offset(quill.scroll);
         quill.formatText(offset, 1, 'link', TRACK_HREF, 'user');
         if (onSelectImg) onSelectImg(null);
-        updateField(quill.root.innerHTML);
-        return;
+        return; // onChange syncs to React state — do NOT update manually
       }
     } catch {
       /* fall through to text/append cases */
     }
   }
 
-  // Case 2 — a text selection inside the editor: link the selected range
+  // Case 2 — a text selection inside the editor: link the current selection
   const range = quill.getSelection();
   if (range && range.length > 0) {
-    quill.formatText(range.index, range.length, 'link', TRACK_HREF, 'user');
-    updateField(quill.root.innerHTML);
-    return;
+    quill.format('link', TRACK_HREF, 'user');
+    return; // onChange syncs to React state
   }
 
   // Case 3 — nothing selected: append a default linked text at the end
   const end = quill.getLength();
   quill.insertText(end, DEFAULT_LINKED_TEXT, { link: TRACK_HREF }, 'user');
   quill.insertText(end + DEFAULT_LINKED_TEXT.length, '\n', 'user');
-  updateField(quill.root.innerHTML);
+  // onChange syncs to React state
 }

@@ -211,7 +211,7 @@ export default function DebtEmailsTab({ username }) {
                 <button
                   type="button"
                   onMouseDown={e => e.preventDefault()}
-                  onClick={() => insertWelcomeTracker(quillRef, selectedImg, setSelectedImg, (html) => update('bodyHtml', html))}
+                  onClick={() => insertWelcomeTracker(quillRef, selectedImg, setSelectedImg)}
                   title="Wrap the selected image or text in a trackable {{personalMessageUrl}} link"
                   style={{ background: `${GOLD}18`, color: GOLD, border: `1px solid ${GOLD}44`, borderRadius: '4px', padding: '3px 10px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}
                 >

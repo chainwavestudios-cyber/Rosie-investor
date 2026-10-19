@@ -129,7 +129,7 @@ export default function FronterEmailsTab({ username }) {
             <button
               type="button"
               onMouseDown={e => e.preventDefault()}
-              onClick={() => insertWelcomeTracker(quillRef, null, null, (html) => update('body', html))}
+              onClick={() => insertWelcomeTracker(quillRef, null, null)}
               title="Wrap the selected text in a trackable {{personalMessageUrl}} link"
               style={{ background: `${GOLD}18`, color: GOLD, border: `1px solid ${GOLD}44`, borderRadius: '4px', padding: '3px 10px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}
             >
