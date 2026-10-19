@@ -283,7 +283,7 @@ export default function CalendarContactCard({ lead, username, onClose, onSave })
 
         {/* Tabs */}
         <div style={{ display: 'flex', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-          {[['overview', '📋 Overview'], ['calltrans', '📞 Call & Trans']].map(([id, label]) => (
+          {[['overview', '📋 Overview'], ['scripts', '📝 Scripts'], ['calltrans', '📞 Call & Trans']].map(([id, label]) => (
             <button key={id} onClick={() => setTab(id)} style={{ flex: 1, background: tab === id ? `${GOLD}12` : 'transparent', border: 'none', borderBottom: tab === id ? `2px solid ${GOLD}` : '2px solid transparent', color: tab === id ? GOLD : '#6b7280', padding: '11px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}>{label}</button>
           ))}
         </div>
@@ -338,6 +338,46 @@ export default function CalendarContactCard({ lead, username, onClose, onSave })
               </div>
 
               <button onClick={() => setTab('calltrans')} style={{ background: `linear-gradient(135deg,${GOLD},#22c55e)`, color: DARK, border: 'none', borderRadius: '6px', padding: '12px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}>📞 Go to Call & Transfer</button>
+            </div>
+          )}
+
+          {/* ── SCRIPTS ── */}
+          {tab === 'scripts' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              {/* Script 1: 1-Hour Reminder Call */}
+              <div style={{ background: `${BLUE}08`, border: `1px solid ${BLUE}33`, borderRadius: '6px', padding: '14px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
+                  <span style={{ fontSize: '16px' }}>📞</span>
+                  <div>
+                    <div style={{ color: BLUE, fontSize: '13px', fontWeight: 'bold' }}>Script 1 — 1-Hour Reminder Call</div>
+                    <div style={{ color: '#6b7280', fontSize: '10px' }}>Use 1 hour before the appointment</div>
+                  </div>
+                </div>
+                <div style={{ background: 'rgba(0,0,0,0.25)', borderRadius: '4px', padding: '12px', color: '#e8e0d0', fontSize: '12px', lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>
+{lead?.firstName || '{{firstname}}'},{`\n\n`}
+This is Chris Bongiorno's assistant from Debt Advisors of America. I just wanted to remind you of your upcoming appointment with Chris Bongiorno in 1 hour. Did you get a chance to review the email he sent, and watch his welcome message?{`\n\n`}
+<span style={{ color: GOLD, fontWeight: 'bold' }}>If they did:</span> Great! I'll be calling back in one hour to connect you with Chris.{`\n\n`}
+<span style={{ color: AMBER, fontWeight: 'bold' }}>If no:</span> Would you like me to send that email again to you at this email address {lead?.email || '{{Email}}'}?
+                </div>
+                <button onClick={() => { setTab('calltrans'); setTimeout(dial, 200); }} disabled={!lead?.phone} style={{ width: '100%', marginTop: '10px', background: `linear-gradient(135deg,${BLUE},#3b82f6)`, color: '#fff', border: 'none', borderRadius: '6px', padding: '10px', cursor: lead?.phone ? 'pointer' : 'not-allowed', fontSize: '12px', fontWeight: 'bold', opacity: lead?.phone ? 1 : 0.4 }}>📞 Call Now</button>
+              </div>
+
+              {/* Script 2: Transfer / Connect at Appointment Time */}
+              <div style={{ background: `${GOLD}08`, border: `1px solid ${GOLD}33`, borderRadius: '6px', padding: '14px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
+                  <span style={{ fontSize: '16px' }}>🔀</span>
+                  <div>
+                    <div style={{ color: GOLD, fontSize: '13px', fontWeight: 'bold' }}>Script 2 — Connect & Transfer to Chris</div>
+                    <div style={{ color: '#6b7280', fontSize: '10px' }}>Use at the appointment time</div>
+                  </div>
+                </div>
+                <div style={{ background: 'rgba(0,0,0,0.25)', borderRadius: '4px', padding: '12px', color: '#e8e0d0', fontSize: '12px', lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>
+<span style={{ color: '#6b7280', fontStyle: 'italic' }}>(ring ring)</span>{`\n\n`}
+Hello, this is Michie. I am calling in regards to your appointment in the next few min from the offices of Chris Bongiorno and Debt Advisors of America.{`\n\n`}
+I will go ahead and add you to his call queue, and he will answer shortly…
+                </div>
+                <button onClick={() => { setTab('calltrans'); setTimeout(dial, 200); }} disabled={!lead?.phone} style={{ width: '100%', marginTop: '10px', background: `linear-gradient(135deg,${GOLD},#22c55e)`, color: DARK, border: 'none', borderRadius: '6px', padding: '10px', cursor: lead?.phone ? 'pointer' : 'not-allowed', fontSize: '12px', fontWeight: 'bold', opacity: lead?.phone ? 1 : 0.4 }}>📞 Call & Transfer Now</button>
+              </div>
             </div>
           )}
 

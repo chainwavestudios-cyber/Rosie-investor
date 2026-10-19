@@ -7,6 +7,7 @@ import SystemGuide from '@/components/assistant/SystemGuide';
 import AssistantCalendar from '@/components/assistant/AssistantCalendar';
 import FronterTeam from '@/components/assistant/FronterTeam';
 import AssistantDialer from '@/components/assistant/AssistantDialer';
+import AppointmentReminders from '@/components/assistant/AppointmentReminders';
 
 const GOLD = '#10b981';
 const DARK = '#0a0f1e';
@@ -94,6 +95,8 @@ export default function AssistantPortal() {
         {tab === 'dialer' && <AssistantDialer username={user?.username} prefilledNumber={dialLead?.phone} prefilledName={dialLead ? `${dialLead.firstName || ''} ${dialLead.lastName || ''}`.trim() : ''} />}
         {tab === 'guide' && <SystemGuide />}
       </div>
+
+      <AppointmentReminders username={user?.username} onDialLead={(l) => { setDialLead(l); setTab('dialer'); }} />
     </div>
   );
 }
