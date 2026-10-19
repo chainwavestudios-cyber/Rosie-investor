@@ -111,7 +111,7 @@ export default function AssistantCalendar({ onDialLead, username }) {
 
   const EventChip = ({ e, compact }) => (
     <div
-      onClick={(ev) => { ev.stopPropagation(); if (e.lead) setOpenLead(e.lead); }}
+      onClick={(ev) => { ev.stopPropagation(); if (e.lead) setCalCardLead(e.lead); }}
       title={e.kind === 'gcal' ? e.name : `${e.label} · ${e.name}`}
       style={{ background: `${e.color}1a`, border: `1px solid ${e.color}44`, borderLeft: `3px solid ${e.color}`, borderRadius: '3px', padding: compact ? '3px 5px' : '5px 7px', cursor: 'pointer', marginBottom: '3px' }}
     >
@@ -153,7 +153,7 @@ export default function AssistantCalendar({ onDialLead, username }) {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '10px' }}>
         <div>
           <div style={{ color: GOLD, fontSize: '20px', fontWeight: 'bold' }}>📅 Calendar</div>
-          <div style={{ color: '#6b7280', fontSize: '12px', marginTop: '2px' }}>Appointments, hot leads & callbacks. Click any card to open the contact profile.</div>
+          <div style={{ color: '#6b7280', fontSize: '12px', marginTop: '2px' }}>Appointments, hot leads & callbacks. Click any event to open the calendar contact card (rebook, send credentials, notes).</div>
         </div>
         <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
           {/* View toggle */}
@@ -248,7 +248,7 @@ export default function AssistantCalendar({ onDialLead, username }) {
                     return (
                       <div key={e.id} style={{ background: 'rgba(255,255,255,0.03)', border: `1px solid ${e.color}44`, borderLeft: `4px solid ${e.color}`, borderRadius: '5px', padding: '12px 14px' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '10px' }}>
-                          <div style={{ cursor: 'pointer', flex: 1 }} onClick={() => l && setOpenLead(l)}>
+                          <div style={{ cursor: 'pointer', flex: 1 }} onClick={() => l && setCalCardLead(l)}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                               <span style={{ color: e.color, fontSize: '10px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{e.label}</span>
                               <span style={{ color: '#8a9ab8', fontSize: '11px' }}>{fmtTime(e.date)}</span>
@@ -259,8 +259,7 @@ export default function AssistantCalendar({ onDialLead, username }) {
                           </div>
                           {l && (
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '5px', flexShrink: 0 }}>
-                              <button onClick={() => setCalCardLead(l)} style={{ background: `${PURPLE}18`, color: PURPLE, border: `1px solid ${PURPLE}55`, borderRadius: '4px', padding: '5px 10px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>📅 Calendar Card</button>
-                              <button onClick={() => setOpenLead(l)} style={{ background: `${GOLD}15`, color: GOLD, border: `1px solid ${GOLD}44`, borderRadius: '4px', padding: '5px 10px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>👤 Contact Card</button>
+                              <button onClick={() => setOpenLead(l)} style={{ background: `${GOLD}15`, color: GOLD, border: `1px solid ${GOLD}44`, borderRadius: '4px', padding: '5px 10px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>👤 Full Profile</button>
                               {e.kind === 'appointment' && !l.appointmentConfirmed && <button onClick={() => confirm(l)} disabled={busy === l.id} style={{ background: GOLD, color: '#0a0f1e', border: 'none', borderRadius: '4px', padding: '5px 10px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>{busy === l.id ? '⏳' : '✓ Confirm'}</button>}
                               <button onClick={() => onDialLead?.(l)} style={{ background: `${BLUE}22`, color: BLUE, border: `1px solid ${BLUE}55`, borderRadius: '4px', padding: '5px 10px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>📞 Call</button>
                             </div>
