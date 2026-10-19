@@ -45,7 +45,9 @@ export default function AssistantCalendar({ onDialLead, username }) {
       const evs = [];
       for (const l of rows) {
         if (l.appointmentDate) {
-          evs.push({ id: l.id + '-appt', kind: 'appointment', lead: l, date: new Date(l.appointmentDate), color: l.appointmentConfirmed ? GOLD : AMBER, label: 'Appt', name: `${l.firstName} ${l.lastName}` });
+          const apptDate = new Date(l.appointmentDate);
+          const isCompleted = l.status === 'completed' || (l.appointmentConfirmed && apptDate < new Date());
+          evs.push({ id: l.id + '-appt', kind: 'appointment', lead: l, date: apptDate, color: isCompleted ? '#22c55e' : l.appointmentConfirmed ? GOLD : AMBER, label: isCompleted ? '✓ Done' : 'Appt', name: `${l.firstName} ${l.lastName}`, completed: isCompleted });
         }
         if (l.callbackAt) {
           evs.push({ id: l.id + '-cb', kind: 'callback', lead: l, date: new Date(l.callbackAt), color: PURPLE, label: 'Callback', name: `${l.firstName} ${l.lastName}` });
@@ -71,6 +73,7 @@ export default function AssistantCalendar({ onDialLead, username }) {
     if (filter === 'appointment') evs = evs.filter(e => e.kind === 'appointment');
     else if (filter === 'hot') evs = evs.filter(e => e.kind === 'hot');
     else if (filter === 'callback') evs = evs.filter(e => e.kind === 'callback');
+    else if (filter === 'completed') evs = evs.filter(e => e.completed);
     else if (filter === 'gcal') evs = gcal;
     else evs = [...evs, ...gcal];
     return evs;
@@ -168,7 +171,7 @@ export default function AssistantCalendar({ onDialLead, username }) {
 
       {/* Filter pills */}
       <div style={{ display: 'flex', gap: '6px', marginBottom: '14px', flexWrap: 'wrap' }}>
-        {[['all', 'All'], ['appointment', '📅 Appointments'], ['hot', '🔥 Hot Leads'], ['callback', '📞 Callbacks'], ['gcal', '🗓️ Google']].map(([id, label]) => (
+        {[['all', 'All'], ['appointment', '📅 Appointments'], ['completed', '✓ Completed'], ['hot', '🔥 Hot Leads'], ['callback', '📞 Callbacks'], ['gcal', '🗓️ Google']].map(([id, label]) => (
           <button key={id} onClick={() => setFilter(id)} style={{ background: filter === id ? `${GOLD}15` : 'transparent', border: `1px solid ${filter === id ? GOLD : 'rgba(255,255,255,0.1)'}`, color: filter === id ? GOLD : '#6b7280', borderRadius: '4px', padding: '4px 10px', cursor: 'pointer', fontSize: '11px' }}>{label}</button>
         ))}
       </div>
