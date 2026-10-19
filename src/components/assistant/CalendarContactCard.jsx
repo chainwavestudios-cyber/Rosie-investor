@@ -18,7 +18,7 @@ export default function CalendarContactCard({ lead, username, onClose, onSave })
   useEffect(() => { const original = document.body.style.overflow; document.body.style.overflow = 'hidden'; return () => { document.body.style.overflow = original; }; }, []);
   return <div className="fixed inset-0 z-[30000] flex items-center justify-center bg-assistant-canvas/90 p-0 font-assistant antialiased sm:p-4">
     <section role="dialog" aria-modal="true" aria-labelledby="calendar-card-name" data-calendar-card className={expanded ? 'flex h-[100dvh] w-full min-w-0 flex-col overflow-hidden bg-assistant-canvas text-assistant-ink' : 'flex h-[100dvh] w-full min-w-0 max-w-[1120px] flex-col overflow-hidden border border-assistant-border bg-assistant-canvas text-assistant-ink shadow-2xl sm:h-[94dvh] sm:rounded-lg'}>
-      <CalendarCardHeader lead={client} expanded={expanded} onExpand={() => setExpanded(p => !p)} onProfile={() => setProfile(true)} onClose={onClose} />
+      <CalendarCardHeader lead={client} profileReady={!!record.data} expanded={expanded} onExpand={() => setExpanded(p => !p)} onProfile={() => setProfile(true)} onClose={onClose} />
       <CalendarCallBar lead={client} call={call} />
       {record.isPending ? <p role="status" className="p-6 text-assistant-muted">Loading full calendar contact…</p> : record.isError ? <div role="alert" className="p-6"><p className="calendar-error">Could not load this client: {record.error.message}</p><button onClick={() => record.refetch()} className="calendar-secondary mt-3">Retry</button></div> : <CalendarCardWorkspace lead={client} username={username} call={call} onSave={save} />}
     </section>

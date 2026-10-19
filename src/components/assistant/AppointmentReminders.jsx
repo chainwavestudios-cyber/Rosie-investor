@@ -126,8 +126,8 @@ export default function AppointmentReminders({ username, onDialLead }) {
           </div>
 
           <div style={{ display: 'flex', gap: '8px' }}>
-            <button onClick={callNow} disabled={!lead.phone} style={{ flex: 1, background: `linear-gradient(135deg,${GOLD},#22c55e)`, color: DARK, border: 'none', borderRadius: '4px', padding: '10px', cursor: lead.phone ? 'pointer' : 'not-allowed', fontSize: '13px', fontWeight: 'bold', opacity: lead.phone ? 1 : 0.4 }}>
-              📞 Call Now
+            <button onClick={callNow} disabled={!lead.id} style={{ flex: 1, background: `linear-gradient(135deg,${GOLD},#22c55e)`, color: DARK, border: 'none', borderRadius: '4px', padding: '10px', cursor: lead.phone ? 'pointer' : 'not-allowed', fontSize: '13px', fontWeight: 'bold', opacity: lead.phone ? 1 : 0.4 }}>
+              Open Calendar Contact Card
             </button>
             <button onClick={dismiss} style={{ background: 'rgba(255,255,255,0.05)', color: '#8a9ab8', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '4px', padding: '10px 14px', cursor: 'pointer', fontSize: '13px' }}>Dismiss</button>
           </div>
