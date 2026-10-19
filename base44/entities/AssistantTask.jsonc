@@ -1,0 +1,87 @@
+{
+  "name": "AssistantTask",
+  "type": "object",
+  "properties": {
+    "title": {
+      "type": "string",
+      "title": "Task Title"
+    },
+    "description": {
+      "type": "string",
+      "title": "Description / Notes",
+      "format": "textarea"
+    },
+    "status": {
+      "type": "string",
+      "title": "Status",
+      "enum": [
+        "todo",
+        "in_progress",
+        "done",
+        "blocked"
+      ],
+      "default": "todo"
+    },
+    "priority": {
+      "type": "string",
+      "title": "Priority",
+      "enum": [
+        "low",
+        "medium",
+        "high",
+        "urgent"
+      ],
+      "default": "medium"
+    },
+    "category": {
+      "type": "string",
+      "title": "Category",
+      "enum": [
+        "appointment",
+        "fronter",
+        "customer",
+        "compliance",
+        "system",
+        "admin",
+        "other"
+      ],
+      "default": "other"
+    },
+    "dueDate": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Due Date"
+    },
+    "assignedTo": {
+      "type": "string",
+      "title": "Assigned To (username)",
+      "default": "msxyc"
+    },
+    "relatedLeadId": {
+      "type": "string",
+      "title": "Related Lead ID (optional)"
+    },
+    "relatedLeadName": {
+      "type": "string",
+      "title": "Related Lead Name (display)"
+    },
+    "completedAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Completed At"
+    },
+    "createdBy": {
+      "type": "string",
+      "title": "Created By (username)"
+    }
+  },
+  "required": [
+    "title"
+  ],
+  "rls": {
+    "create": null,
+    "read": null,
+    "update": null,
+    "delete": null
+  }
+}
