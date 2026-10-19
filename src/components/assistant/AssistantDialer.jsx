@@ -8,7 +8,7 @@ const AMBER = '#f59e0b';
 const BLUE = '#60a5fa';
 const PURPLE = '#a78bfa';
 
-export default function AssistantDialer({ username, prefilledNumber, prefilledName }) {
+export default function AssistantDialer({ username, prefilledNumber, prefilledName, autoDial }) {
   const [number, setNumber] = useState('');
   const [lines, setLines] = useState([]);
   const [selectedLine, setSelectedLine] = useState('');
@@ -34,6 +34,7 @@ export default function AssistantDialer({ username, prefilledNumber, prefilledNa
   }, []);
 
   useEffect(() => { if (prefilledNumber) setNumber(prefilledNumber); }, [prefilledNumber]);
+  useEffect(() => { if (autoDial && prefilledNumber && callStatus === 'idle') { const t = setTimeout(dial, 300); return () => clearTimeout(t); } }, [autoDial, prefilledNumber]);
 
   useEffect(() => () => {
     clearInterval(timerRef.current);

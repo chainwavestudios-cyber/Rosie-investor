@@ -9,6 +9,7 @@ import FronterTeam from '@/components/assistant/FronterTeam';
 import AssistantDialer from '@/components/assistant/AssistantDialer';
 import AppointmentReminders from '@/components/assistant/AppointmentReminders';
 import CalendarContactCard from '@/components/assistant/CalendarContactCard';
+import ChrisFastDial from '@/components/assistant/ChrisFastDial';
 
 const GOLD = '#10b981';
 const DARK = '#0a0f1e';
@@ -19,6 +20,7 @@ export default function AssistantPortal() {
   const [tab, setTab] = useState('alerts');
   const [dialLead, setDialLead] = useState(null);
   const [reminderLead, setReminderLead] = useState(null);
+  const [fastDial, setFastDial] = useState({ number: '', name: '', autoDial: false });
   const [pwForm, setPwForm] = useState({ a: '', b: '' });
   const [pwErr, setPwErr] = useState('');
   const [pwBusy, setPwBusy] = useState(false);
@@ -73,6 +75,10 @@ export default function AssistantPortal() {
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <div style={{ display: 'flex', gap: '6px' }}>
+            <button onClick={() => setFastDial({ number: '+16193530919', name: 'Chris Bongiorno — Office', autoDial: true })} style={{ background: 'linear-gradient(135deg,#10b981,#22c55e)', color: DARK, border: 'none', borderRadius: '4px', padding: '7px 12px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', whiteSpace: 'nowrap' }}>📞 Chris · Office</button>
+            <button onClick={() => setFastDial({ number: '+12162589389', name: 'Chris Bongiorno — Cell', autoDial: true })} style={{ background: 'linear-gradient(135deg,#3b82f6,#60a5fa)', color: DARK, border: 'none', borderRadius: '4px', padding: '7px 12px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', whiteSpace: 'nowrap' }}>📞 Chris · Cell</button>
+          </div>
           <div style={{ textAlign: 'right' }}>
             <div style={{ color: '#e8e0d0', fontSize: '13px', fontWeight: 'bold' }}>{user?.username}</div>
             <span style={{ padding: '2px 8px', borderRadius: '2px', background: 'rgba(16,185,129,0.15)', color: GOLD, fontSize: '9px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '1px' }}>{user?.role === 'super_admin' ? 'Super Admin' : 'Admin'}</span>
@@ -90,11 +96,11 @@ export default function AssistantPortal() {
       </div>
 
       <div style={{ maxWidth: '900px' }}>
-        {tab === 'alerts' && <AlertCenter onOpenLead={(a) => { if (a.leadId) { setDialLead(a); setTab('dialer'); } }} />}
+        {tab === 'alerts' && <AlertCenter onOpenLead={(a) => { if (a.leadId) { setDialLead(a); setFastDial({ number: '', name: '', autoDial: false }); setTab('dialer'); } }} />}
         {tab === 'tasks' && <AssistantTasks username={user?.username} />}
-        {tab === 'calendar' &&             <AssistantCalendar username={user?.username} onDialLead={(l) => { setDialLead(l); setTab('dialer'); }} />}
+        {tab === 'calendar' &&             <AssistantCalendar username={user?.username} onDialLead={(l) => { setDialLead(l); setFastDial({ number: '', name: '', autoDial: false }); setTab('dialer'); }} />}
         {tab === 'fronter' && <FronterTeam />}
-        {tab === 'dialer' && <AssistantDialer username={user?.username} prefilledNumber={dialLead?.phone} prefilledName={dialLead ? `${dialLead.firstName || ''} ${dialLead.lastName || ''}`.trim() : ''} />}
+        {tab === 'dialer' && <AssistantDialer username={user?.username} prefilledNumber={fastDial.number || dialLead?.phone} prefilledName={fastDial.name || (dialLead ? `${dialLead.firstName || ''} ${dialLead.lastName || ''}`.trim() : '')} autoDial={fastDial.autoDial} />}
         {tab === 'guide' && <SystemGuide />}
       </div>
 
