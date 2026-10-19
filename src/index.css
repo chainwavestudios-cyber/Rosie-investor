@@ -2,6 +2,31 @@
 @tailwind components;
 @tailwind utilities;
 
+:root, .dark {
+  --assistant-canvas: 225 50% 8%;
+  --assistant-surface: 209 53% 11%;
+  --assistant-elevated: 213 40% 15%;
+  --assistant-ink: 42 34% 87%;
+  --assistant-muted: 218 25% 68%;
+  --assistant-border: 217 29% 25%;
+  --assistant-primary: 160 84% 39%;
+  --assistant-on-primary: 225 50% 8%;
+  --assistant-info: 213 94% 68%;
+  --assistant-warning: 38 92% 60%;
+  --assistant-danger: 0 91% 71%;
+  --font-assistant: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+@layer components {
+  .calendar-panel { @apply rounded-lg border border-assistant-border bg-assistant-surface p-5 sm:p-6; }
+  .calendar-title { @apply mb-3 text-lg font-semibold text-assistant-ink; }
+  .calendar-label { @apply mb-1 block text-xs font-semibold tracking-wide text-assistant-muted; }
+  .calendar-button { @apply inline-flex items-center justify-center gap-2 rounded-md border border-assistant-primary bg-assistant-primary px-4 py-2.5 text-sm font-semibold text-assistant-on-primary disabled:cursor-not-allowed disabled:opacity-50; }
+  .calendar-secondary { @apply inline-flex items-center justify-center gap-2 rounded-md border border-assistant-border bg-assistant-elevated px-3 py-2 text-sm font-medium text-assistant-ink disabled:cursor-not-allowed disabled:opacity-50; }
+  .calendar-field { @apply w-full min-w-0 rounded-md border border-assistant-border bg-assistant-canvas px-3 py-2.5 text-sm text-assistant-ink outline-none focus:border-assistant-primary; color-scheme: dark; }
+  .calendar-error { @apply text-sm leading-relaxed text-assistant-danger; }
+}
+
 @layer base {
   :root {
     --background: 0 0% 100%;

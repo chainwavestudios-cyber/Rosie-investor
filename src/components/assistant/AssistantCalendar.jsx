@@ -143,10 +143,10 @@ export default function AssistantCalendar({ onDialLead, username }) {
   return (
     <div style={{ fontFamily: 'Georgia, serif' }}>
       {openLead && (
-        <ClientProfileModal lead={openLead} onClose={() => setOpenLead(null)} onSave={(u) => { setOpenLead(u); load(); }} />
+        <ClientProfileModal lead={openLead} username={username} onClose={() => setOpenLead(null)} onSave={(u) => { setOpenLead(u); load(); }} />
       )}
       {calCardLead && (
-        <CalendarContactCard lead={calCardLead} username={username} onClose={() => setCalCardLead(null)} onSave={(u) => { setCalCardLead(u); load(); }} />
+        <CalendarContactCard key={calCardLead.id} lead={calCardLead} username={username} onClose={() => setCalCardLead(null)} onSave={(u) => { setCalCardLead(u); load(); }} />
       )}
 
       {/* Header */}

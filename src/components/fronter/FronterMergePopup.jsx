@@ -35,7 +35,7 @@ const CHRIS_LABELS = ['619-353-0919', '216-258-6934'];
 
 const DEFAULT_MERGE_SCRIPT = `Alright {{first name}}, I've got a senior debt advisor ready to help you through this. I'm going to connect you now — stay on the line and they'll be right with you.`;
 
-export default function FronterMergePopup({ lead, username, fronterFirstName, isAdmin, callActive, callDuration, callSid, lineKey, onMerge, onNoConnect, onClose, transferScript, onAiInput, onDebtConfirm, onSendEmail }) {
+export default function FronterMergePopup({ lead, username, fronterFirstName, isAdmin, callActive, callDuration, callSid, lineKey, onMerge, onNoConnect, onClose, transferScript, onAiInput, onDebtConfirm, onSendEmail, popupProps = {} }) {
   const [script, setScript] = useState(null);
   const [loading, setLoading] = useState(true);
   const [editMode, setEditMode] = useState(false);
@@ -246,7 +246,7 @@ export default function FronterMergePopup({ lead, username, fronterFirstName, is
   const isLastNumber = currentNumberIdx >= CHRIS_NUMBERS.length - 1;
 
   return (
-    <FronterPopup title="🔀 Merge Call" subtitle="Complete the steps, then connect" accent={GOLD} onClose={onClose} initialSize={{ w: 520, h: 680 }} minW={380} minH={480} zIndex={21000}>
+    <FronterPopup title="🔀 Merge Call" subtitle="Complete the steps, then connect" accent={GOLD} onClose={onClose} initialSize={{ w: 520, h: 680 }} minW={380} minH={480} zIndex={21000} {...popupProps}>
       <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', height: '100%' }}>
         {/* Compact call + Chris status strip */}
         <div style={{ marginBottom: '10px', display: 'flex', gap: '8px' }}>

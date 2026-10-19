@@ -4,12 +4,26 @@ module.exports = {
     content: ["./index.html", "./src/**/*.{ts,tsx,js,jsx}"],
   theme: {
   	extend: {
+      fontFamily: { assistant: ['var(--font-assistant)'] },
   		borderRadius: {
   			lg: 'var(--radius)',
   			md: 'calc(var(--radius) - 2px)',
   			sm: 'calc(var(--radius) - 4px)'
   		},
   		colors: {
+        assistant: {
+          canvas: 'hsl(var(--assistant-canvas) / <alpha-value>)',
+          surface: 'hsl(var(--assistant-surface) / <alpha-value>)',
+          elevated: 'hsl(var(--assistant-elevated) / <alpha-value>)',
+          ink: 'hsl(var(--assistant-ink) / <alpha-value>)',
+          muted: 'hsl(var(--assistant-muted) / <alpha-value>)',
+          border: 'hsl(var(--assistant-border) / <alpha-value>)',
+          primary: 'hsl(var(--assistant-primary) / <alpha-value>)',
+          'on-primary': 'hsl(var(--assistant-on-primary) / <alpha-value>)',
+          info: 'hsl(var(--assistant-info) / <alpha-value>)',
+          warning: 'hsl(var(--assistant-warning) / <alpha-value>)',
+          danger: 'hsl(var(--assistant-danger) / <alpha-value>)'
+        },
   			background: 'hsl(var(--background))',
   			foreground: 'hsl(var(--foreground))',
   			card: {

@@ -8,6 +8,7 @@ import AssistantCalendar from '@/components/assistant/AssistantCalendar';
 import FronterTeam from '@/components/assistant/FronterTeam';
 import AssistantDialer from '@/components/assistant/AssistantDialer';
 import AppointmentReminders from '@/components/assistant/AppointmentReminders';
+import CalendarContactCard from '@/components/assistant/CalendarContactCard';
 
 const GOLD = '#10b981';
 const DARK = '#0a0f1e';
@@ -17,6 +18,7 @@ export default function AssistantPortal() {
   const navigate = useNavigate();
   const [tab, setTab] = useState('alerts');
   const [dialLead, setDialLead] = useState(null);
+  const [reminderLead, setReminderLead] = useState(null);
   const [pwForm, setPwForm] = useState({ a: '', b: '' });
   const [pwErr, setPwErr] = useState('');
   const [pwBusy, setPwBusy] = useState(false);
@@ -96,7 +98,8 @@ export default function AssistantPortal() {
         {tab === 'guide' && <SystemGuide />}
       </div>
 
-      <AppointmentReminders username={user?.username} onDialLead={(l) => { setDialLead(l); setTab('dialer'); }} />
+      {user?.username?.toLowerCase() === 'msxyc' && <AppointmentReminders username={user.username} onDialLead={setReminderLead} />}
+      {reminderLead && <CalendarContactCard key={reminderLead.id} lead={reminderLead} username={user?.username} onClose={() => setReminderLead(null)} onSave={setReminderLead} />}
     </div>
   );
 }
