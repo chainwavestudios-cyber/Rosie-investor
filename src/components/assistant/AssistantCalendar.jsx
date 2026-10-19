@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { base44 } from '@/api/base44Client';
 import ClientProfileModal from '@/components/debt/ClientProfileModal';
+import CalendarContactCard from '@/components/assistant/CalendarContactCard';
 
 const GOLD = '#10b981';
 const RED = '#ef4444';
@@ -15,7 +16,7 @@ const sameDay = (a, b) => a.toDateString() === b.toDateString();
 
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
-export default function AssistantCalendar({ onDialLead }) {
+export default function AssistantCalendar({ onDialLead, username }) {
   const [view, setView] = useState('month'); // 'month' | 'week' | 'day'
   const [cursor, setCursor] = useState(() => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; });
   const [events, setEvents] = useState([]);
@@ -23,6 +24,7 @@ export default function AssistantCalendar({ onDialLead }) {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all');
   const [openLead, setOpenLead] = useState(null);
+  const [calCardLead, setCalCardLead] = useState(null);
   const [busy, setBusy] = useState('');
   const [msg, setMsg] = useState('');
 
@@ -140,6 +142,9 @@ export default function AssistantCalendar({ onDialLead }) {
       {openLead && (
         <ClientProfileModal lead={openLead} onClose={() => setOpenLead(null)} onSave={(u) => { setOpenLead(u); load(); }} />
       )}
+      {calCardLead && (
+        <CalendarContactCard lead={calCardLead} username={username} onClose={() => setCalCardLead(null)} onSave={(u) => { setCalCardLead(u); load(); }} />
+      )}
 
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '10px' }}>
@@ -251,6 +256,7 @@ export default function AssistantCalendar({ onDialLead }) {
                           </div>
                           {l && (
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '5px', flexShrink: 0 }}>
+                              <button onClick={() => setCalCardLead(l)} style={{ background: `${PURPLE}18`, color: PURPLE, border: `1px solid ${PURPLE}55`, borderRadius: '4px', padding: '5px 10px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>📅 Calendar Card</button>
                               <button onClick={() => setOpenLead(l)} style={{ background: `${GOLD}15`, color: GOLD, border: `1px solid ${GOLD}44`, borderRadius: '4px', padding: '5px 10px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>👤 Contact Card</button>
                               {e.kind === 'appointment' && !l.appointmentConfirmed && <button onClick={() => confirm(l)} disabled={busy === l.id} style={{ background: GOLD, color: '#0a0f1e', border: 'none', borderRadius: '4px', padding: '5px 10px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>{busy === l.id ? '⏳' : '✓ Confirm'}</button>}
                               <button onClick={() => onDialLead?.(l)} style={{ background: `${BLUE}22`, color: BLUE, border: `1px solid ${BLUE}55`, borderRadius: '4px', padding: '5px 10px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>📞 Call</button>

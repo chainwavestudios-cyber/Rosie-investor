@@ -89,7 +89,7 @@ export default function AssistantPortal() {
       <div style={{ maxWidth: '900px' }}>
         {tab === 'alerts' && <AlertCenter onOpenLead={(a) => { if (a.leadId) { setDialLead(a); setTab('dialer'); } }} />}
         {tab === 'tasks' && <AssistantTasks username={user?.username} />}
-        {tab === 'calendar' && <AssistantCalendar onDialLead={(l) => { setDialLead(l); setTab('dialer'); }} />}
+        {tab === 'calendar' &&             <AssistantCalendar username={user?.username} onDialLead={(l) => { setDialLead(l); setTab('dialer'); }} />}
         {tab === 'fronter' && <FronterTeam />}
         {tab === 'dialer' && <AssistantDialer username={user?.username} prefilledNumber={dialLead?.phone} prefilledName={dialLead ? `${dialLead.firstName || ''} ${dialLead.lastName || ''}`.trim() : ''} />}
         {tab === 'guide' && <SystemGuide />}
