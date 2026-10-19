@@ -67,8 +67,24 @@ export default function DebtUserProfile({ debtCoachUser }) {
 
   const profile = selected?.profileJson ? (() => { try { return JSON.parse(selected.profileJson); } catch { return null; } })() : null;
 
+  if (subView === 'migrated') {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+        <div style={{ display: 'flex', gap: '2px', borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
+          <button onClick={() => setSubView('all')} style={{ padding: '8px 16px', background: 'none', border: 'none', borderBottom: `2px solid ${GOLD}`, color: GOLD, cursor: 'pointer', fontSize: '12px', fontWeight: 'bold', letterSpacing: '1px' }}>👤 All Prospects</button>
+          <button onClick={() => setSubView('migrated')} style={{ padding: '8px 16px', background: 'none', border: 'none', borderBottom: `2px solid #22d3ee`, color: '#22d3ee', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold', letterSpacing: '1px' }}>🚀 Migrated from Fronter</button>
+        </div>
+        <MigratedLeadsPanel debtCoachUser={debtCoachUser} />
+      </div>
+    );
+  }
+
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '340px 1fr', gap: '20px', alignItems: 'start' }}>
+      <div style={{ gridColumn: '1 / -1', display: 'flex', gap: '2px', borderBottom: '1px solid rgba(255,255,255,0.07)', paddingBottom: '12px' }}>
+        <button onClick={() => setSubView('all')} style={{ padding: '8px 16px', background: 'none', border: 'none', borderBottom: `2px solid ${subView === 'all' ? GOLD : 'transparent'}`, color: subView === 'all' ? GOLD : '#8a9ab8', cursor: 'pointer', fontSize: '12px', fontWeight: subView === 'all' ? 'bold' : 'normal', letterSpacing: '1px' }}>👤 All Prospects</button>
+        <button onClick={() => setSubView('migrated')} style={{ padding: '8px 16px', background: 'none', border: 'none', borderBottom: `2px solid ${subView === 'migrated' ? '#22d3ee' : 'transparent'}`, color: subView === 'migrated' ? '#22d3ee' : '#8a9ab8', cursor: 'pointer', fontSize: '12px', fontWeight: subView === 'migrated' ? 'bold' : 'normal', letterSpacing: '1px' }}>🚀 Migrated from Fronter</button>
+      </div>
       {/* Lead list */}
       <div style={{ background: '#0d1b2a', border: '1px solid rgba(16,185,129,0.2)', borderRadius: '6px' }}>
         <div style={{ padding: '14px 18px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
