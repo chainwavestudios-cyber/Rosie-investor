@@ -6,62 +6,70 @@
  * rewrites {{personalMessageUrl}} into a per-lead tracked URL at send time,
  * so clicks light up the 🎙️ Personal Message badge on the contact card.
  *
- * We manipulate the Quill DOM directly (instead of quill.format('link', ...))
- * because Quill's built-in Link blot sanitizes non-URL values and would
- * replace {{personalMessageUrl}} with '#'.
- *
- * Usage:
- *   import { insertWelcomeTracker } from '@/utils/quillWelcomeTracker';
- *   insertWelcomeTracker(quillRef, selectedImg, setSelectedImg, (html) => update('bodyHtml', html));
+ * Uses Quill's native format API (not raw DOM manipulation) so the editor's
+ * internal delta stays in sync and the controlled onChange never overwrites
+ * the link with a sanitized/stale version.
  */
+import Quill from 'quill';
+
 export const TRACK_HREF = '{{personalMessageUrl}}';
 export const DEFAULT_LINKED_TEXT = '▶ Listen to my personal message';
 
+let linkPatched = false;
+
+/**
+ * Patch Quill's Link blot once so it accepts mustache placeholders like
+ * {{personalMessageUrl}} instead of sanitizing them to '#'.
+ */
+function patchLinkBlot() {
+  if (linkPatched) return;
+  try {
+    const Link = Quill.import('formats/link');
+    const originalSanitize = Link.sanitize;
+    Link.sanitize = function (url) {
+      if (typeof url === 'string' && /\{\{.*\}\}/.test(url)) {
+        return url;
+      }
+      return originalSanitize.call(this, url);
+    };
+    linkPatched = true;
+  } catch {
+    /* Quill not loaded yet — will retry on next call */
+  }
+}
+
 export function insertWelcomeTracker(quillRef, selectedImg, onSelectImg, updateField) {
+  patchLinkBlot();
   const quill = quillRef.current?.getEditor?.();
   if (!quill) return;
-  const root = quill.root;
 
-  // Case 1 — a selected image: wrap it (or re-point an existing anchor)
-  if (selectedImg) {
-    const parent = selectedImg.parentNode;
-    if (parent && parent.tagName === 'A') {
-      parent.setAttribute('href', TRACK_HREF);
-      parent.setAttribute('target', '_blank');
-    } else if (parent) {
-      const anchor = document.createElement('a');
-      anchor.href = TRACK_HREF;
-      anchor.target = '_blank';
-      parent.insertBefore(anchor, selectedImg);
-      anchor.appendChild(selectedImg);
+  // Case 1 — a selected image: apply the link format to the image embed
+  if (selectedImg && quill.root.contains(selectedImg)) {
+    try {
+      const blot = Quill.find(selectedImg);
+      if (blot) {
+        const offset = blot.offset(quill.scroll);
+        quill.formatText(offset, 1, 'link', TRACK_HREF, 'user');
+        if (onSelectImg) onSelectImg(null);
+        updateField(quill.root.innerHTML);
+        return;
+      }
+    } catch {
+      /* fall through to text/append cases */
     }
-    if (onSelectImg) onSelectImg(null);
-    updateField(root.innerHTML);
+  }
+
+  // Case 2 — a text selection inside the editor: link the selected range
+  const range = quill.getSelection();
+  if (range && range.length > 0) {
+    quill.formatText(range.index, range.length, 'link', TRACK_HREF, 'user');
+    updateField(quill.root.innerHTML);
     return;
   }
 
-  // Case 2 — a text selection inside the editor: wrap the selected range
-  const sel = window.getSelection();
-  if (sel && sel.rangeCount > 0 && root.contains(sel.anchorNode)) {
-    const range = sel.getRangeAt(0);
-    if (!range.collapsed) {
-      const anchor = document.createElement('a');
-      anchor.href = TRACK_HREF;
-      anchor.target = '_blank';
-      anchor.appendChild(range.extractContents());
-      range.insertNode(anchor);
-      sel.removeAllRanges();
-      updateField(root.innerHTML);
-      return;
-    }
-  }
-
   // Case 3 — nothing selected: append a default linked text at the end
-  const anchor = document.createElement('a');
-  anchor.href = TRACK_HREF;
-  anchor.target = '_blank';
-  anchor.textContent = DEFAULT_LINKED_TEXT;
-  root.appendChild(anchor);
-  root.appendChild(document.createElement('br'));
-  updateField(root.innerHTML);
+  const end = quill.getLength();
+  quill.insertText(end, DEFAULT_LINKED_TEXT, { link: TRACK_HREF }, 'user');
+  quill.insertText(end + DEFAULT_LINKED_TEXT.length, '\n', 'user');
+  updateField(quill.root.innerHTML);
 }
