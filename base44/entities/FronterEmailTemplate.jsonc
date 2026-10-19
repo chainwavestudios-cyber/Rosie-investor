@@ -8,12 +8,14 @@
     },
     "subject": {
       "type": "string",
-      "title": "Default Subject"
+      "title": "Default Subject",
+      "maxLength": 2000
     },
     "body": {
       "type": "string",
       "title": "Email Body (HTML)",
-      "format": "textarea"
+      "format": "textarea",
+      "maxLength": 500000
     },
     "templateType": {
       "type": "string",

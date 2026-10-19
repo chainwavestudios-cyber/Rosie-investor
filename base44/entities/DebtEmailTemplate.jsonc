@@ -19,12 +19,14 @@
     },
     "subject": {
       "type": "string",
-      "title": "Email Subject (supports {{firstName}}, {{lastName}}, {{appointmentDate}}, {{debtAmount}})"
+      "title": "Email Subject (supports {{firstName}}, {{lastName}}, {{appointmentDate}}, {{debtAmount}})",
+      "maxLength": 2000
     },
     "bodyHtml": {
       "type": "string",
       "title": "Email Body (HTML \u2014 supports {{firstName}}, {{lastName}}, {{appointmentDate}}, {{debtAmount}}, {{personalMessageUrl}})",
-      "format": "textarea"
+      "format": "textarea",
+      "maxLength": 500000
     },
     "triggerOffsetHours": {
       "type": "number",
