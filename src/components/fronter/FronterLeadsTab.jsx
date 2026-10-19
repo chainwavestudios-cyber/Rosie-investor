@@ -50,6 +50,8 @@ export default function FronterLeadsTab({ username, lineKey, lineNumber, isAdmin
         ? all.filter(l => l.lastCallResult === 'queued_no_connect')
         : mode === 'leads'
         ? all.filter(l => l.status === 'lead' || l.status === 'transferred' || l.status === 'booked')
+        : mode === 'migrated'
+        ? all.filter(l => l.status === 'migrated')
         : all.filter(l => l.status === 'prospect' && (l.callCount || 0) < 3);
       // Admin fronter filter (case-insensitive)
       if (isAdmin && fronterFilter) {
@@ -213,17 +215,21 @@ export default function FronterLeadsTab({ username, lineKey, lineNumber, isAdmin
   const statusCounts = mode === 'queued_no_connect'
     ? { all: leads.length }
     : mode === 'leads'
-    ? { all: leads.length, booked: leads.filter(l => l.status === 'booked').length, transferred: leads.filter(l => l.status === 'transferred').length, interested: leads.filter(l => l.lastCallResult === 'interested').length, appointment: leads.filter(l => l.lastCallResult === 'appointment').length }
+    ? { all: leads.length, booked: leads.filter(l => l.status === 'booked').length, transferred: leads.filter(l => l.status === 'transferred').length, migrated: leads.filter(l => l.status === 'migrated').length, interested: leads.filter(l => l.lastCallResult === 'interested').length, appointment: leads.filter(l => l.lastCallResult === 'appointment').length }
+    : mode === 'migrated'
+    ? { all: leads.length }
     : { all: leads.length, never_called: leads.filter(l => !l.lastCalledAt).length, called: leads.filter(l => l.lastCalledAt).length };
   const FILTER_TABS = mode === 'queued_no_connect'
     ? [{ id: 'all', label: 'All Queued' }]
+    : mode === 'migrated'
+    ? [{ id: 'all', label: 'All Migrated' }]
     : mode === 'leads'
-    ? [{ id: 'all', label: 'All Leads' }, { id: 'booked', label: 'Booked' }, { id: 'transferred', label: 'Transferred' }, { id: 'interested', label: 'Interested' }, { id: 'appointment', label: 'Appointment' }]
+    ? [{ id: 'all', label: 'All Leads' }, { id: 'booked', label: 'Booked' }, { id: 'transferred', label: 'Transferred' }, { id: 'migrated', label: 'Migrated' }, { id: 'interested', label: 'Interested' }, { id: 'appointment', label: 'Appointment' }]
     : [{ id: 'all', label: 'All Prospects' }, { id: 'never_called', label: 'Never Called' }, { id: 'called', label: 'Called' }];
   let displayLeads = leads;
   if (statusFilter !== 'all') {
     if (mode === 'leads') {
-      if (statusFilter === 'transferred' || statusFilter === 'booked') displayLeads = leads.filter(l => l.status === statusFilter);
+      if (statusFilter === 'transferred' || statusFilter === 'booked' || statusFilter === 'migrated') displayLeads = leads.filter(l => l.status === statusFilter);
       else displayLeads = leads.filter(l => l.lastCallResult === statusFilter);
     } else {
       if (statusFilter === 'never_called') displayLeads = leads.filter(l => !l.lastCalledAt);
@@ -240,7 +246,7 @@ export default function FronterLeadsTab({ username, lineKey, lineNumber, isAdmin
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px', flexWrap: 'wrap', gap: '12px' }}>
         <div>
-          <h2 style={{ color: '#e8e0d0', margin: '0 0 4px', fontSize: '20px', fontWeight: 'normal' }}>{mode === 'queued_no_connect' ? 'Queued Not Connected' : mode === 'leads' ? 'Leads' : 'Prospects'}</h2>
+          <h2 style={{ color: '#e8e0d0', margin: '0 0 4px', fontSize: '20px', fontWeight: 'normal' }}>{mode === 'queued_no_connect' ? 'Queued Not Connected' : mode === 'leads' ? 'Leads' : mode === 'migrated' ? 'Migrated to Debt Call Coach' : 'Prospects'}</h2>
           <p style={{ color: '#6b7280', fontSize: '13px', margin: 0 }}>
             Never-called {mode === 'leads' ? 'leads' : 'prospects'} appear first · Auto-refreshes every 10s
             <span style={{ marginLeft: '8px', display: 'inline-block', width: '6px', height: '6px', borderRadius: '50%', background: '#4ade80', boxShadow: '0 0 6px #4ade80', verticalAlign: 'middle' }} />
@@ -273,7 +279,7 @@ export default function FronterLeadsTab({ username, lineKey, lineNumber, isAdmin
       {/* Lead list */}
       <div style={{ background: '#0d1b2a', border: '1px solid rgba(16,185,129,0.2)', borderRadius: '6px' }}>
         <div style={{ padding: '14px 16px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
-          <div style={{ color: GOLD, fontSize: '11px', letterSpacing: '2px', textTransform: 'uppercase' }}>📋 {mode === 'queued_no_connect' ? (isAdmin ? 'All Queued' : 'My Queued') : mode === 'leads' ? (isAdmin ? 'All Leads' : 'My Leads') : (isAdmin ? 'All Prospects' : 'My Prospects')} — {displayLeads.length} {mode === 'leads' ? 'total' : 'remaining'}</div>
+          <div style={{ color: GOLD, fontSize: '11px', letterSpacing: '2px', textTransform: 'uppercase' }}>📋 {mode === 'queued_no_connect' ? (isAdmin ? 'All Queued' : 'My Queued') : mode === 'leads' ? (isAdmin ? 'All Leads' : 'My Leads') : mode === 'migrated' ? (isAdmin ? 'All Migrated' : 'My Migrated') : (isAdmin ? 'All Prospects' : 'My Prospects')} — {displayLeads.length} {mode === 'leads' ? 'total' : 'remaining'}</div>
           <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
             {isAdmin && (
               <select value={fronterFilter} onChange={e => setFronterFilter(e.target.value)} style={{ ...inp, width: 'auto', fontSize: '10px', padding: '4px 8px' }}>

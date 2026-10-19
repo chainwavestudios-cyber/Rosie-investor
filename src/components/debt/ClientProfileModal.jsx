@@ -265,6 +265,7 @@ export default function ClientProfileModal({ lead, username, onClose, onSave }) 
         debtLedgerJson: merged.debtLedgerJson, billsJson: merged.billsJson,
         employmentStatus: merged.employmentStatus, monthlyIncome: merged.monthlyIncome,
         creditScore: merged.creditScore, behindOnPayments: merged.behindOnPayments,
+        age: merged.age, householdIncome: merged.householdIncome, homeValue: merged.homeValue, homeEquity: merged.homeEquity, tradelines: merged.tradelines,
         monthsBehind: merged.monthsBehind, notes: merged.notes,
         hardshipWhen: merged.hardshipWhen, hardshipWhy: merged.hardshipWhy, hardshipHow: merged.hardshipHow,
         cosignersJson: merged.cosignersJson,
@@ -491,6 +492,11 @@ export default function ClientProfileModal({ lead, username, onClose, onSave }) 
               </div>
               <div><label style={ls}>Monthly Income ($)</label><input type="number" value={local.monthlyIncome ?? ''} onChange={e => update('monthlyIncome', e.target.value ? Number(e.target.value) : null)} style={inp} /></div>
               <div><label style={ls}>Credit Score</label><input type="number" value={local.creditScore ?? ''} onChange={e => update('creditScore', e.target.value ? Number(e.target.value) : null)} style={inp} /></div>
+              <div><label style={ls}>Age</label><input type="number" value={local.age ?? ''} onChange={e => update('age', e.target.value ? Number(e.target.value) : null)} style={inp} /></div>
+              <div><label style={ls}>Household Income ($)</label><input type="number" value={local.householdIncome ?? ''} onChange={e => update('householdIncome', e.target.value ? Number(e.target.value) : null)} style={inp} /></div>
+              <div><label style={ls}>Home Value ($)</label><input type="number" value={local.homeValue ?? ''} onChange={e => update('homeValue', e.target.value ? Number(e.target.value) : null)} style={inp} /></div>
+              <div><label style={ls}>Home Equity ($)</label><input type="number" value={local.homeEquity ?? ''} onChange={e => update('homeEquity', e.target.value ? Number(e.target.value) : null)} style={inp} /></div>
+              <div><label style={ls}>Tradelines</label><input type="number" value={local.tradelines ?? ''} onChange={e => update('tradelines', e.target.value ? Number(e.target.value) : null)} style={inp} /></div>
               <div>
                 <label style={ls}>Behind on Payments</label>
                 <select value={local.behindOnPayments ? 'yes' : 'no'} onChange={e => update('behindOnPayments', e.target.value === 'yes')} style={inp}>

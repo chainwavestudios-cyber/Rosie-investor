@@ -103,8 +103,8 @@ export default function FronterPage() {
   // Fronter sees leads + scripts; admin sees admin + leads + scripts
   const TABS = [
     ...(isAdmin
-      ? [{ id: 'scripts', label: 'Scripts' }, { id: 'admin', label: '⚙️ Admin' }, { id: 'ai_agent', label: '🤖 AI Agent' }, { id: 'emails', label: '📧 Emails' }, { id: 'prospects', label: '📋 Prospects' }, { id: 'leads', label: '📋 Leads' }, { id: 'queued_no_connect', label: '📋 Queued No Connect' }, { id: 'closed_deals', label: '💎 Closed Deals' }, { id: 'reports', label: '📊 Reports' }, { id: 'feedback', label: '💬 Feedback' }, { id: 'bob', label: '🤖 BOB Training' }, { id: 'hr', label: '🕐 HR' }, { id: 'settings', label: '🔧 Settings' }]
-      : [{ id: 'prospects', label: '📋 Prospects' }, { id: 'leads', label: '📋 Leads' }, { id: 'queued_no_connect', label: '📋 Queued No Connect' }, { id: 'closed_deals', label: '💎 Closed Deals' }, { id: 'reports', label: '📊 Reports' }, { id: 'feedback', label: '💬 Feedback' }, { id: 'bob', label: '🤖 BOB Training' }, { id: 'hr', label: '🕐 HR' }, { id: 'settings', label: '🔧 Settings' }]),
+      ? [{ id: 'scripts', label: 'Scripts' }, { id: 'admin', label: '⚙️ Admin' }, { id: 'ai_agent', label: '🤖 AI Agent' }, { id: 'emails', label: '📧 Emails' }, { id: 'prospects', label: '📋 Prospects' }, { id: 'leads', label: '📋 Leads' }, { id: 'queued_no_connect', label: '📋 Queued No Connect' }, { id: 'migrated', label: '🚀 Migrated' }, { id: 'closed_deals', label: '💎 Closed Deals' }, { id: 'reports', label: '📊 Reports' }, { id: 'feedback', label: '💬 Feedback' }, { id: 'bob', label: '🤖 BOB Training' }, { id: 'hr', label: '🕐 HR' }, { id: 'settings', label: '🔧 Settings' }]
+      : [{ id: 'prospects', label: '📋 Prospects' }, { id: 'leads', label: '📋 Leads' }, { id: 'queued_no_connect', label: '📋 Queued No Connect' }, { id: 'migrated', label: '🚀 Migrated' }, { id: 'closed_deals', label: '💎 Closed Deals' }, { id: 'reports', label: '📊 Reports' }, { id: 'feedback', label: '💬 Feedback' }, { id: 'bob', label: '🤖 BOB Training' }, { id: 'hr', label: '🕐 HR' }, { id: 'settings', label: '🔧 Settings' }]),
   ];
 
   const loadLine = useCallback(async () => {
@@ -408,7 +408,7 @@ export default function FronterPage() {
 
         {tab === 'ai_agent' && isAdmin && <FronterAIAgentTab adminUsername={user.username} />}
 
-        {['prospects', 'leads', 'queued_no_connect'].includes(tab) && (
+        {['prospects', 'leads', 'queued_no_connect', 'migrated'].includes(tab) && (
           isFronter ? (
             assignedLiveLine ? (
               <FronterLeadsTab

@@ -7,6 +7,7 @@ import { base44 } from '@/api/base44Client';
 import KeyFactsPanel from '@/components/debt/KeyFactsPanel';
 import ClientProfileModal from '@/components/debt/ClientProfileModal';
 import NextCallBriefing from '@/components/debt/NextCallBriefing';
+import MigratedLeadsPanel from '@/components/debt/MigratedLeadsPanel';
 
 const GOLD = '#10b981';
 const ls = { display: 'block', color: '#8a9ab8', fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '6px' };
@@ -20,6 +21,7 @@ export default function DebtUserProfile({ debtCoachUser }) {
   const [selected, setSelected] = useState(null);
   const [showProfile, setShowProfile] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [subView, setSubView] = useState('all'); // 'all' | 'migrated'
 
   const load = useCallback(async () => {
     setLoading(true);
