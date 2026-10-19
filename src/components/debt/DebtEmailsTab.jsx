@@ -10,6 +10,7 @@ import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
 import { registerImageResizeBlot } from '@/utils/quillImageResize';
 import { useQuillImageModules } from '@/utils/quillImageUpload';
+import { insertWelcomeTracker } from '@/utils/quillWelcomeTracker';
 
 const GOLD = '#10b981';
 const DARK = '#0a0f1e';
@@ -205,13 +206,25 @@ export default function DebtEmailsTab({ username }) {
         <div style={{ marginBottom: '16px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '5px' }}>
             <label style={{ ...ls, marginBottom: 0 }}>Email Body — Full Editor</label>
-            <button
-              type="button"
-              onClick={() => setShowHtmlSource(s => !s)}
-              style={{ background: showHtmlSource ? `${PURPLE}22` : 'rgba(255,255,255,0.05)', color: showHtmlSource ? PURPLE : '#8a9ab8', border: `1px solid ${showHtmlSource ? PURPLE + '44' : 'rgba(255,255,255,0.1)'}`, borderRadius: '4px', padding: '3px 10px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}
-            >
-              {showHtmlSource ? '👁 Rich Text' : '</> HTML Source'}
-            </button>
+            <div style={{ display: 'flex', gap: '6px' }}>
+              {!showHtmlSource && (
+                <button
+                  type="button"
+                  onClick={() => insertWelcomeTracker(quillRef, selectedImg, setSelectedImg, (html) => update('bodyHtml', html))}
+                  title="Wrap the selected image or text in a trackable {{personalMessageUrl}} link"
+                  style={{ background: `${GOLD}18`, color: GOLD, border: `1px solid ${GOLD}44`, borderRadius: '4px', padding: '3px 10px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}
+                >
+                  🎙️ Insert Welcome Tracker
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => setShowHtmlSource(s => !s)}
+                style={{ background: showHtmlSource ? `${PURPLE}22` : 'rgba(255,255,255,0.05)', color: showHtmlSource ? PURPLE : '#8a9ab8', border: `1px solid ${showHtmlSource ? PURPLE + '44' : 'rgba(255,255,255,0.1)'}`, borderRadius: '4px', padding: '3px 10px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}
+              >
+                {showHtmlSource ? '👁 Rich Text' : '</> HTML Source'}
+              </button>
+            </div>
           </div>
           {showHtmlSource ? (
             <textarea

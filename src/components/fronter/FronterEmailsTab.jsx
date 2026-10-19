@@ -13,6 +13,7 @@ import { base44 } from '@/api/base44Client';
 import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
 import { useQuillImageModules } from '@/utils/quillImageUpload';
+import { insertWelcomeTracker } from '@/utils/quillWelcomeTracker';
 
 const GOLD = '#10b981';
 const DARK = '#0a0f1e';
@@ -123,7 +124,17 @@ export default function FronterEmailsTab({ username }) {
         </div>
 
         <div style={{ marginBottom: '16px' }}>
-          <label style={ls}>Email Body — Full Editor</label>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '5px' }}>
+            <label style={{ ...ls, marginBottom: 0 }}>Email Body — Full Editor</label>
+            <button
+              type="button"
+              onClick={() => insertWelcomeTracker(quillRef, null, null, (html) => update('body', html))}
+              title="Wrap the selected text in a trackable {{personalMessageUrl}} link"
+              style={{ background: `${GOLD}18`, color: GOLD, border: `1px solid ${GOLD}44`, borderRadius: '4px', padding: '3px 10px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}
+            >
+              🎙️ Insert Welcome Tracker
+            </button>
+          </div>
           <div style={{ background: '#fff', borderRadius: '4px', overflow: 'hidden' }}>
             <ReactQuill
               ref={quillRef}
