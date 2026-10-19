@@ -9,6 +9,7 @@ import { base44 } from '@/api/base44Client';
 import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
 import { registerImageResizeBlot } from '@/utils/quillImageResize';
+import { useQuillImageModules } from '@/utils/quillImageUpload';
 
 const GOLD = '#10b981';
 const DARK = '#0a0f1e';
@@ -27,20 +28,11 @@ const TYPE_LABELS = {
   custom_automation: { label: '⚙️ Custom Automation', color: PURPLE },
 };
 
-const quillModules = {
-  toolbar: [
-    [{ font: [] }, { size: ['small', false, 'large', 'huge'] }],
-    ['bold', 'italic', 'underline', 'strike'],
-    [{ color: [] }, { background: [] }],
-    [{ align: [] }, { list: 'bullet' }, { list: 'ordered' }],
-    ['link', 'image'],
-    ['clean'],
-  ],
-};
-
 const quillFormats = ['font', 'size', 'bold', 'italic', 'underline', 'strike', 'color', 'background', 'align', 'list', 'link', 'image', 'width'];
 
 export default function DebtEmailsTab({ username }) {
+  const quillRef = useRef(null);
+  const quillModules = useQuillImageModules(quillRef);
   const [templates, setTemplates] = useState([]);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(null);
@@ -231,6 +223,7 @@ export default function DebtEmailsTab({ username }) {
           ) : (
             <div ref={editorWrapRef} style={{ position: 'relative', background: '#fff', borderRadius: '4px', overflow: 'hidden' }} onClick={handleEditorClick}>
               <ReactQuill
+                ref={quillRef}
                 value={editing.bodyHtml || ''}
                 onChange={(val) => update('bodyHtml', val)}
                 modules={quillModules}
