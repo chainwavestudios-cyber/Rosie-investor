@@ -28,6 +28,9 @@ export const pipelineCatalog = {
   },
 };
 const legacyLlmAliases = { 'gemini-3-flash': 'gemini_3_flash', 'gpt-5-mini': 'gpt_5_mini', 'claude-opus-5': 'claude_opus_5', 'claude-sonnet-4-6': 'claude_sonnet_4_6', 'gpt-5-4': 'gpt_5_4', 'gemini-3-1-pro': 'gemini_3_1_pro' };
+// Catalog models that InvokeLLM doesn't directly accept — map to the closest supported model.
+// Without this, every LLM call fails and the agent loops "I'm sorry, could you repeat that?"
+const catalogLlmAliases = { 'gemini-2.5-flash-lite': 'gemini_3_flash', 'gemini-2.5-flash': 'gemini_3_flash', 'gemini_3_8_flash': 'gemini_3_flash', 'gpt_6_luna': 'gpt_5_6_luna', 'claude_opus_5_5': 'claude_opus_5', 'gpt_6_sol': 'gpt_5_6_sol', 'gpt_6_astra': 'gpt_5_4', 'claude_fable_5_1': 'claude-sonnet-5', 'glm_5_2': 'automatic' };
 export function resolvePipeline(config = {}) {
   const errors = [];
   const warnings = [];
@@ -45,7 +48,7 @@ export function resolvePipeline(config = {}) {
   const elevenLabsVoiceId = config.elevenLabsVoiceId || (ttsEngine === 'elevenlabs' ? ttsVoiceModel : '');
   const deepgramTtsVoice = config.deepgramTtsVoice || (ttsEngine === 'deepgram-aura' ? ttsVoiceModel : '');
   // Preserve an existing legacy selection without advertising old IDs as new choices.
-  const llmRequestModel = legacyLlmAliases[llmModel] || resolve('llm', llmModel);
+  const llmRequestModel = legacyLlmAliases[llmModel] || catalogLlmAliases[llmModel] || resolve('llm', llmModel);
   if (legacyLlmAliases[llmModel]) warnings.push(`Saved legacy LLM alias: ${llmModel} → ${llmRequestModel}. Choose a current catalog model when changing it; actual acceptance is verified only on a call.`);
   const sttModel = resolve('stt', sttEngine);
   resolve('tts', ttsEngine);

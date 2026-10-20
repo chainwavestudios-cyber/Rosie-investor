@@ -171,9 +171,30 @@ export default function FronterDialer({ lead, username, lineKey, lineNumber, onC
       device.once('error', reject);
       device.register();
     });
+    // ── Incoming call handler: auto-accept and wire up (unless already on a call)
+    device.on('incoming', (call) => {
+      if (callRef.current) { try { call.reject(); } catch {} return; }
+      callRef.current = call;
+      call.accept();
+      setCallStatus('connected');
+      startTimer();
+      onCallStarted?.(lead);
+      wireCall(call);
+    });
     deviceRef.current = device;
     return device;
   };
+
+  // ── Create device on mount so incoming calls can be received before any
+  //    outbound call is made. Without this, the device only exists after the
+  //    fronter's first manual dial, so inbound calls silently fail.
+  useEffect(() => {
+    if (!username) return;
+    let destroyed = false;
+    getDevice().catch(e => console.warn('Fronter device init failed:', e?.message));
+    return () => { destroyed = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [username]);
 
   // ── Post-call report generation ──
   const generatePostCallReport = async (finalLines, callDur) => {
