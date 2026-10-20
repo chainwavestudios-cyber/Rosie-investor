@@ -12,8 +12,7 @@ import { base44 } from '@/api/base44Client';
 import FronterCallMetricsTab from '@/components/fronter/FronterCallMetricsTab';
 import FronterReportsTab from '@/components/fronter/FronterReportsTab';
 import FronterAdminCallsTab from '@/components/fronter/FronterAdminCallsTab';
-import FronterHoldAudioTab from '@/components/fronter/FronterHoldAudioTab';
-import FronterInboundAudioTab from '@/components/fronter/FronterInboundAudioTab';
+import FronterCustomHoldMusicTab from '@/components/fronter/audio/FronterCustomHoldMusicTab';
 import FronterUsersTab from '@/components/fronter/FronterUsersTab';
 import FronterLeadImportModal from '@/components/fronter/FronterLeadImportModal';
 import FronterScriptEditor from '@/components/fronter/FronterScriptEditor';
@@ -251,8 +250,7 @@ export default function FronterAdminTab({ adminUsername, onOpenLead }) {
     { id: 'reports', label: '📊 Reports' },
     { id: 'metrics', label: '📊 Metrics' },
     { id: 'monitor', label: '🎧 Monitor' },
-    { id: 'holdaudio', label: '🔊 Hold Audio' },
-    { id: 'inboundaudio', label: '🎵 Inbound Audio' },
+    { id: 'holdmusic', label: '🔊 Custom Hold Music' },
     { id: 'hr', label: '🕐 HR' },
     { id: 'users', label: '👥 Users' },
     { id: 'scripts', label: '📜 Scripts' },
@@ -468,13 +466,9 @@ export default function FronterAdminTab({ adminUsername, onOpenLead }) {
         </div>
       )}
 
-      {/* ── HOLD AUDIO ── */}
-      {subtab === 'holdaudio' && !loading && (
-        <FronterHoldAudioTab adminUsername={adminUsername} />
-      )}
-
-      {subtab === 'inboundaudio' && !loading && (
-        <FronterInboundAudioTab adminUsername={adminUsername} />
+      {/* ── CUSTOM HOLD MUSIC — #1, #2, Incoming Call Recording #1 ── */}
+      {subtab === 'holdmusic' && !loading && (
+        <FronterCustomHoldMusicTab adminUsername={adminUsername} />
       )}
 
       {/* ── HR (time card management) ── */}

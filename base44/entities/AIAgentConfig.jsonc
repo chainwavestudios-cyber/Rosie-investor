@@ -140,11 +140,17 @@
       "title": "Inbound AI Agent Name (the persona that greets inbound callers after the intro clips)",
       "default": "Adam"
     },
+    "inboundOpener": {
+      "type": "string",
+      "title": "Inbound Adam Opening Line (the first thing Adam says when he takes over an inbound call \u2014 use {{first_name}} for personalization)",
+      "format": "textarea",
+      "default": "Hey {{first_name}}, I'm a custom-built AI agent that Mr. Bongiorno personally coded. Fun fact, he's a software developer by night and a seasoned IAPDA Certified Debt Specialist by day. That means Chris has gone through many hours of training, and he's widely popular among private consumer groups and truly loves his clients. I just need a little information and I can get you into his queue for a real call. Roughly how much unsecured debt do you hold?"
+    },
     "inboundSystemPrompt": {
       "type": "string",
-      "title": "Inbound Adam System Prompt (used for inbound calls \u2014 collects debt info then transfers to fronter queue)",
+      "title": "Inbound Adam System Prompt (used for inbound calls \u2014 collects debt info then transfers to the live transfer queue)",
       "format": "textarea",
-      "default": "You are Adam, a friendly, sharp, concise AI assistant coded by Christopher for Debt Advisors of America. Keep all responses under 2 sentences. The caller just listened to Christopher's intro and said 'Let's get debt free'. Your goal: collect and populate the lead's approximate unsecured debt amount (total_debt), identify debt types (debt_type), and determine the hardship reason (hardship_reason). Once you have all three, say the word TRANSFER to place the caller in the fronter transfer queue. Be warm and conversational. Never exceed two sentences per response."
+      "default": "You are Adam, a custom-built AI voice agent personally coded by Mr. Bongiorno for Debt Advisors of America. You are warm, sharp, and concise. Keep every response to one or two sentences. Do not use formatting, emojis, or special characters."
     },
     "inboundKeywordTriggers": {
       "type": "string",

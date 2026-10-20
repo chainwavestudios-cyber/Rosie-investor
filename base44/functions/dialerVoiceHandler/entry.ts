@@ -206,12 +206,13 @@ export default async function(req) {
             leadPhone: lead.phone || '',
             leadEmail: lead.email || '',
             conferenceName,
+            customerCallSid: params.get('CallSid') || '',
             status: 'active',
             createdAt: new Date().toISOString(),
           });
           await base44.entities.FronterLead.update(leadId, {
             callStatus: 'queue_hold',
-            assignedQueue: 'Incoming AI - validated through process',
+            assignedQueue: 'Incoming Live Call Transfer - AI Agent',
             transferredAt: new Date().toISOString(),
             transferredTo: 'Adam → Fronter Queue',
           });
@@ -436,7 +437,7 @@ export default async function(req) {
                 callStatus: 'inbound_adam',
                 inboundAdamCall: true,
                 inboundRegion: region,
-                assignedQueue: 'Incoming AI - validated through process',
+                assignedQueue: 'Incoming Live Call Transfer - AI Agent',
                 notes: `Inbound call from ${callerPhone} on ${new Date().toISOString()}. Awaiting Adam qualification.`,
               });
               inboundLeadId = created?.id || '';
@@ -448,7 +449,7 @@ export default async function(req) {
                 callStatus: 'inbound_adam',
                 inboundAdamCall: true,
                 inboundRegion: region,
-                assignedQueue: 'Incoming AI - validated through process',
+                assignedQueue: 'Incoming Live Call Transfer - AI Agent',
               });
             } catch (e) { console.warn('[dialerVoiceHandler] Failed to tag inbound lead:', e?.message); }
           }

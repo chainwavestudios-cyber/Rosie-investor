@@ -1,17 +1,16 @@
 /**
- * FronterInboundAudioTab.jsx — Admin controls for the two inbound call audio
- * assets (Prompt 5):
- *   Option 1: Inbound Call Initial Message — played when prospects first call in
- *             (Clip C in the greeting pipeline, after the name + regional clips).
- *   Option 2: Adam Transfer Queue Hold Message — played when Adam transfers the
- *             prospect into the live fronter queue (replaces standard hold music).
+ * InboundHoldAssetManager.jsx — Admin manager for one InboundCallAudio asset slot.
  *
- * Admins can record from the browser mic or upload pre-recorded .wav/.mp3 files.
- * Files are stored publicly so Twilio <Play> can fetch them.
+ * Used by the Custom Hold Music tab for:
+ *   • adam_transfer_hold      → "Custom Hold Recording / Music #2"
+ *   • inbound_initial_message → "Incoming Call Recording #1"
+ *
+ * Admins can record from the browser mic or upload a pre-recorded .wav/.mp3.
+ * Files are stored publicly so Twilio <Play> can fetch them for playback.
  */
 import { useState, useRef, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
-import FronterHoldAudioRecorder from './FronterHoldAudioRecorder';
+import FronterHoldAudioRecorder from '../FronterHoldAudioRecorder';
 
 const GOLD = '#10b981';
 const DARK = '#0a0f1e';
@@ -19,27 +18,12 @@ const BLUE = '#60a5fa';
 const RED = '#ef4444';
 const ls = { display: 'block', color: '#8a9ab8', fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '6px' };
 
-const ASSET_TYPES = [
-  {
-    key: 'inbound_initial_message',
-    title: '📞 Inbound Call Initial Message',
-    description: 'Played when prospects first call in, right after the personalized name greeting and regional phrase. This is Christopher\'s master intro / the "Inbound Call" hold message.',
-  },
-  {
-    key: 'adam_transfer_hold',
-    title: '🔄 Adam Transfer Queue Hold Message',
-    description: 'Custom audio played when Adam transfers the prospect into the live fronter queue, replacing standard hold music. Fronters hear this while picking up.',
-  },
-];
-
-function AssetManager({ assetType, adminUsername }) {
+export default function InboundHoldAssetManager({ assetType, title, description, adminUsername }) {
   const [active, setActive] = useState(null);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [status, setStatus] = useState('');
   const fileRef = useRef(null);
-
-  const meta = ASSET_TYPES.find(a => a.key === assetType);
 
   const load = async () => {
     try {
@@ -82,7 +66,7 @@ function AssetManager({ assetType, adminUsername }) {
         uploadedAt: new Date().toISOString(),
         isActive: true,
       });
-      setStatus(`✓ "${file.name}" is now the active ${meta.title}`);
+      setStatus(`✓ "${file.name}" is now the active ${title}`);
       setTimeout(() => setStatus(''), 5000);
       load();
     } catch (e) {
@@ -110,8 +94,8 @@ function AssetManager({ assetType, adminUsername }) {
 
   return (
     <div style={{ background: '#0d1b2a', border: `1px solid rgba(16,185,129,0.2)`, borderRadius: '6px', padding: '18px', marginBottom: '16px' }}>
-      <div style={{ color: GOLD, fontSize: '12px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '8px' }}>{meta.title}</div>
-      <div style={{ color: '#8a9ab8', fontSize: '11px', lineHeight: 1.5, marginBottom: '14px' }}>{meta.description}</div>
+      <div style={{ color: GOLD, fontSize: '12px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '8px' }}>{title}</div>
+      <div style={{ color: '#8a9ab8', fontSize: '11px', lineHeight: 1.5, marginBottom: '14px' }}>{description}</div>
 
       <input ref={fileRef} type="file" accept=".mp3,.wav,audio/mpeg,audio/wav" style={{ display: 'none' }} onChange={e => { const f = e.target.files?.[0]; if (f) handleUpload(f); e.target.value = ''; }} />
       <button
@@ -156,20 +140,6 @@ function AssetManager({ assetType, adminUsername }) {
           <div style={{ color: '#4a5568', fontSize: '12px' }}>No audio configured. Upload or record above.</div>
         </div>
       )}
-    </div>
-  );
-}
-
-export default function FronterInboundAudioTab({ adminUsername }) {
-  return (
-    <div>
-      <div style={{ color: GOLD, fontSize: '11px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '12px' }}>🔊 Custom Hold Music & Inbound Audio</div>
-      <div style={{ background: 'rgba(96,165,250,0.06)', border: '1px solid rgba(96,165,250,0.2)', borderRadius: '4px', padding: '12px', marginBottom: '16px', color: '#8a9ab8', fontSize: '11px', lineHeight: 1.5 }}>
-        Manage the two audio assets that play during inbound calls. The <strong style={{ color: GOLD }}>Inbound Call Initial Message</strong> plays after the personalized name greeting and regional phrase. The <strong style={{ color: GOLD }}>Adam Transfer Queue Hold Message</strong> replaces standard hold music when Adam transfers a prospect to the fronter queue. Record from your microphone or upload a .wav/.mp3 file.
-      </div>
-      {ASSET_TYPES.map(a => (
-        <AssetManager key={a.key} assetType={a.key} adminUsername={adminUsername} />
-      ))}
     </div>
   );
 }

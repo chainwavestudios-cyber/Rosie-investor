@@ -126,12 +126,15 @@ async function handleInit(base44: any, body: any): Promise<Response> {
   }
 
   // Inbound Adam calls: the greeting clips already played via TwiML before the
-  // stream connected. Use a brief Adam opener to start the qualification dialog.
+  // stream connected. Adam opens with his configured opener line.
   const isInboundAdam = lead?.inboundAdamCall || lead?.callStatus === 'inbound_adam';
   if (isInboundAdam) {
-    const agentName = config.inboundAgentName || 'Adam';
-    const firstName = lead?.firstName && lead.firstName !== 'Inbound' ? ' ' + lead.firstName : '';
-    greeting = `Hi${firstName}, I'm ${agentName} with Debt Advisors of America. Let's get you on the path to debt freedom. Roughly how much unsecured debt are you carrying right now?`;
+    const firstName = lead?.firstName && lead.firstName !== 'Inbound' ? lead.firstName : 'there';
+    const opener = config.inboundOpener
+      || `Hey ${firstName}, I'm a custom-built AI agent that Mr. Bongiorno personally coded. Fun fact, he's a software developer by night and a seasoned IAPDA Certified Debt Specialist by day. I just need a little information and I can get you into his queue for a real call. Roughly how much unsecured debt do you hold?`;
+    greeting = opener
+      .replace(/\{\{first_name\}\}/g, firstName)
+      .replace(/\{\{last_name\}\}/g, lead?.lastName || '');
   }
 
   const pipeline = resolvePipeline(config);
@@ -278,11 +281,16 @@ async function handleTransfer(req: Request, base44: any, body: any): Promise<Res
     console.error('[mediaStreamRelay] Transfer prep failed:', e?.message);
   }
 
-  // Play transfer announcement via bridge (ElevenLabs/Deepgram) before redirect
-  const transferMsg = "Let me connect you with one of our senior debt advisors. Please hold for just a moment.";
-  // The bridge uses this call's pinned TTS selections and records actual audio evidence.
-  const playback = await playToBridge(body.streamSid, { clear: true, text: transferMsg });
-  if (playback?.ok) await new Promise(r => setTimeout(r, estimatePlaybackMs(transferMsg)));
+  // Play transfer announcement via bridge (ElevenLabs/Deepgram) before redirect.
+  // Inbound Adam calls skip it — Adam already said "I am putting you in the queue now.",
+  // so the caller goes straight into the queue with Custom Hold Music #2.
+  const isInboundTransfer = lead?.inboundAdamCall || lead?.callStatus === 'inbound_adam';
+  if (!isInboundTransfer) {
+    const transferMsg = "Let me connect you with one of our senior debt advisors. Please hold for just a moment.";
+    // The bridge uses this call's pinned TTS selections and records actual audio evidence.
+    const playback = await playToBridge(body.streamSid, { clear: true, text: transferMsg });
+    if (playback?.ok) await new Promise(r => setTimeout(r, estimatePlaybackMs(transferMsg)));
+  }
 
   // Redirect Twilio call to transfer TwiML (SkipSay since message already played via bridge)
   if (callSid) {

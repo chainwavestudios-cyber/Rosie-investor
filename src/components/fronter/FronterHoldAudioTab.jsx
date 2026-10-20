@@ -13,7 +13,7 @@ const BLUE = '#60a5fa';
 const RED = '#ef4444';
 const ls = { display: 'block', color: '#8a9ab8', fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '6px' };
 
-export default function FronterHoldAudioTab({ adminUsername }) {
+export default function FronterHoldAudioTab({ adminUsername, title = '🔊 Merge Hold Audio', description }) {
   const [activeAudio, setActiveAudio] = useState(null);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
@@ -123,11 +123,13 @@ export default function FronterHoldAudioTab({ adminUsername }) {
 
   return (
     <div>
-      <div style={{ color: GOLD, fontSize: '11px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '12px' }}>🔊 Merge Hold Audio</div>
+      <div style={{ color: GOLD, fontSize: '11px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '12px' }}>{title}</div>
 
       <div style={{ background: 'rgba(96,165,250,0.06)', border: '1px solid rgba(96,165,250,0.2)', borderRadius: '4px', padding: '12px', marginBottom: '14px', color: '#8a9ab8', fontSize: '11px', lineHeight: 1.5 }}>
-        When a fronter presses <strong style={{ color: GOLD }}>Merge</strong>, the customer hears this audio while the agent is being connected.
-        Upload an MP3 or WAV file below. The most recently uploaded file becomes the active hold audio.
+        {description
+          ? description
+          : <>When a fronter presses <strong style={{ color: GOLD }}>Merge</strong>, the customer hears this audio while the agent is being connected.</>}
+        {' '}Upload an MP3 or WAV file below. The most recently uploaded file becomes the active hold audio.
       </div>
 
       {/* Upload button */}

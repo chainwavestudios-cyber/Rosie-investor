@@ -6,24 +6,36 @@ const ta = { width: '100%', background: 'rgba(0,0,0,0.2)', border: '1px solid rg
 
 export const DEFAULT_GREETING = `Hi, may I speak with {{first_name}} please?`;
 
-export const DEFAULT_INBOUND_PROMPT = `You are Adam, a friendly, sharp, concise AI assistant coded by Christopher for Debt Advisors of America. Keep all responses under 2 sentences.
+export const DEFAULT_INBOUND_OPENER = `Hey {{first_name}}, I'm a custom-built AI agent that Mr. Bongiorno personally coded. Fun fact, he's a software developer by night and a seasoned IAPDA Certified Debt Specialist by day. That means Chris has gone through many hours of training, and he's widely popular among private consumer groups and truly loves his clients. I just need a little information and I can get you into his queue for a real call. Roughly how much unsecured debt do you hold?`;
 
-The caller just listened to Christopher's intro and said "Let's get debt free."
+export const DEFAULT_INBOUND_PROMPT = `You are Adam, a custom-built AI voice agent personally coded by Mr. Bongiorno for Debt Advisors of America. You are warm, sharp, and concise. Keep every response to one or two sentences. Do not use formatting, emojis, or special characters.
 
-Your goal: collect and populate the following fields on the lead record:
-1. Confirm their approximate unsecured debt amount (total_debt).
-2. Identify debt types (debt_type) — e.g. credit cards, personal loans, or both.
-3. Determine the hardship reason (hardship_reason) — what caused the debt to build up.
+CONTEXT
+The caller just listened to Christopher's recorded intro and said "let's get debt free."
+You have already delivered your opening line: you introduced yourself as Mr. Bongiorno's custom-built AI agent, explained he is a software developer by night and an IAPDA Certified Debt Specialist by day, and asked roughly how much unsecured debt they are carrying.
 
-Ask one question at a time. Be warm and conversational. Never exceed two sentences per response.
+Track which step you are on from the conversation history. Say only the line for the current step, then wait for the caller to respond.
 
-Once you have captured all three pieces of information, say the word TRANSFER to place the caller into the standard fronter transfer queue. The caller will hear a custom hold message while waiting for a senior debt advisor.
+STEP 1 — Debt type confirmation
+- After the caller gives you an amount, ask: "OK, does that amount include any personal loans, or is it just credit cards?"
+- Capture the total unsecured debt (debtAmount) and the debt type breakdown (debtTypesJson) as they answer.
 
-Rules:
-- Never say "robot" or "AI". You are Adam, a specialist with Debt Advisors of America.
-- If the caller asks a question you cannot answer, say: "That's a great question — let me connect you with a senior advisor who can answer that in detail." Then continue collecting info.
+STEP 2 — Program disclosure and queue handoff
+- Once you have the amount and the debt types, say exactly: "These federally regulated programs reduce interest rates to 0%, eliminate all future interest, and FTC rules disallow any upfront fees."
+- Then say exactly: "Please hang tight while Chris puts you into his live call queue. It may be 15 seconds or up to 90 seconds. At any time while in the queue, or now, you may say appointment and we will get you on his calendar and send you a reminder email."
+- Then say: "One hour before the call, his admin Miche will give you a call to confirm, and connect you at the set meeting time by phone."
+- Then say exactly: "I am putting you in the queue now."
+- Then say the single word TRANSFER to hand the caller into the live transfer queue.
+
+SPECIAL CASES
+- If the caller says "appointment" at any time, say TRANSFER.
 - If the caller is not interested, politely thank them and say ENDCALL.
-- Do not use formatting, emojis, or special characters.`;
+- If the caller asks a question you cannot answer, say: "That's a great question. Let me connect you with a senior advisor who can answer that in detail." Then continue with the script.
+
+RULES
+- Never say "robot". You may say you are a custom-built AI agent.
+- Never make up information about the caller. Only use what they tell you.
+- Sound warm, confident, and genuinely helpful.`;
 
 export const DEFAULT_SYSTEM_PROMPT = `You are a debt relief fronting agent named Alex calling on behalf of Debt Solutions.
 
@@ -201,6 +213,19 @@ export default function AIAgentPromptSection({ config, update }) {
           placeholder="Adam"
           style={{ width: '100%', background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '4px', padding: '8px 10px', color: '#e8e0d0', fontSize: '12px', outline: 'none', boxSizing: 'border-box', fontFamily: 'Georgia, serif' }}
         />
+        <label style={{ ...ls, color: '#a78bfa', marginTop: '8px' }}>🗣 Adam Opening Line (the first thing Adam says when he takes over an inbound call — use {'{{first_name}}'} for personalization)</label>
+        <textarea
+          value={config.inboundOpener || ''}
+          onChange={e => update('inboundOpener', e.target.value)}
+          rows={5}
+          placeholder={DEFAULT_INBOUND_OPENER}
+          style={{ width: '100%', background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '4px', padding: '8px 10px', color: '#e8e0d0', fontSize: '12px', outline: 'none', boxSizing: 'border-box', fontFamily: 'Georgia, serif', lineHeight: 1.5, resize: 'vertical' }}
+        />
+        <div style={{ marginTop: '4px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <span style={{ color: '#4a5568', fontSize: '10px' }}>Leave empty to use the default opener.</span>
+          <button onClick={() => update('inboundOpener', DEFAULT_INBOUND_OPENER)} style={{ background: 'rgba(255,255,255,0.05)', color: '#8a9ab8', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '4px', padding: '3px 8px', cursor: 'pointer', fontSize: '10px' }}>↺ Default</button>
+        </div>
+
         <label style={{ ...ls, color: '#a78bfa', marginTop: '8px' }}>🔑 Inbound Keyword Triggers (comma-separated phrases that skip the greeting and hand off to Adam early)</label>
         <input
           value={config.inboundKeywordTriggers || ''}
