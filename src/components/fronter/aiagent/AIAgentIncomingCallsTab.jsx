@@ -7,6 +7,7 @@
 import { useState } from 'react';
 import { INBOUND_LEAD_TAGS } from './inboundLeadTags';
 import { DEFAULT_INBOUND_OPENER, DEFAULT_INBOUND_PROMPT } from './AIAgentPromptSection';
+import AIAgentTestIncomingCall from './AIAgentTestIncomingCall';
 
 const GOLD = '#10b981';
 const PURPLE = '#a78bfa';
@@ -35,6 +36,9 @@ export default function AIAgentIncomingCallsTab({ config, update }) {
 
   return (
     <div>
+      {/* Ring your own phone through the live incoming path */}
+      <AIAgentTestIncomingCall config={config} />
+
       {/* How an incoming call flows */}
       <div style={{ ...CARD, background: 'rgba(96,165,250,0.05)', borderColor: 'rgba(96,165,250,0.2)' }}>
         <label style={{ ...LABEL, color: '#60a5fa' }}>📞 How an incoming call flows</label>
