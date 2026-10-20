@@ -330,8 +330,12 @@ export default async function(req) {
         } catch (e) { console.warn('[dialerVoiceHandler] Bridge secret read failed:', e?.message); }
 
         if (streamUrl) {
+          const greetingPlay = aiConfig.inboundGreetingAudioUrl
+            ? `<Play>${xmlEscape(aiConfig.inboundGreetingAudioUrl)}</Play>`
+            : '';
           const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
+  ${greetingPlay}
   <Connect>
     <Stream url="${xmlEscape(streamUrl)}" name="rosie-ai-agent">
       <Parameter name="leadId" value="" />
@@ -339,7 +343,7 @@ export default async function(req) {
     </Stream>
   </Connect>
 </Response>`;
-          console.log('[dialerVoiceHandler] → Mode 4 Inbound → AI Agent Media Stream (line:', calledNumber, ')');
+          console.log('[dialerVoiceHandler] → Mode 4 Inbound → greeting + AI Agent Media Stream (line:', calledNumber, ')');
           return new Response(twiml, { headers: { 'Content-Type': 'text/xml' } });
         }
         console.warn('[dialerVoiceHandler] AI agent active but no bridge URL — falling back to fronter routing');

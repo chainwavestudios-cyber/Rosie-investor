@@ -120,6 +120,10 @@
       ],
       "default": "debtcallcoach"
     },
+    "inboundGreetingAudioUrl": {
+      "type": "string",
+      "title": "Inbound Greeting Audio URL (pre-recorded human greeting played before the AI agent connects \u2014 leave empty to skip)"
+    },
     "greeting": {
       "type": "string",
       "title": "Opening Greeting (spoken aloud when the prospect answers \u2014 NOT the system prompt)",

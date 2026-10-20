@@ -53,6 +53,12 @@ export default function AIAgentTelephonySection({ config, update, availableLines
           <span style={{ color: '#e8e0d0', fontSize: '12px' }}>Send pre-transfer credential email (DAA credentials, BBB, Ethics Award) when email is confirmed</span>
         </label>
       </div>
+
+      {/* Inbound Greeting Audio */}
+      <div style={{ gridColumn: '1 / -1' }}>
+        <label style={ls}>Inbound Greeting Audio URL (pre-recorded human greeting played before AI agent connects — leave empty to skip)</label>
+        <input value={config.inboundGreetingAudioUrl || ''} onChange={e => update('inboundGreetingAudioUrl', e.target.value)} style={inp} placeholder="https://...greeting.mp3" />
+      </div>
     </div>
   );
 }
