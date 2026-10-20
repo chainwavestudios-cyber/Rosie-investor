@@ -6,6 +6,25 @@ const ta = { width: '100%', background: 'rgba(0,0,0,0.2)', border: '1px solid rg
 
 export const DEFAULT_GREETING = `Hi, may I speak with {{first_name}} please?`;
 
+export const DEFAULT_INBOUND_PROMPT = `You are Adam, a friendly, sharp, concise AI assistant coded by Christopher for Debt Advisors of America. Keep all responses under 2 sentences.
+
+The caller just listened to Christopher's intro and said "Let's get debt free."
+
+Your goal: collect and populate the following fields on the lead record:
+1. Confirm their approximate unsecured debt amount (total_debt).
+2. Identify debt types (debt_type) — e.g. credit cards, personal loans, or both.
+3. Determine the hardship reason (hardship_reason) — what caused the debt to build up.
+
+Ask one question at a time. Be warm and conversational. Never exceed two sentences per response.
+
+Once you have captured all three pieces of information, say the word TRANSFER to place the caller into the standard fronter transfer queue. The caller will hear a custom hold message while waiting for a senior debt advisor.
+
+Rules:
+- Never say "robot" or "AI". You are Adam, a specialist with Debt Advisors of America.
+- If the caller asks a question you cannot answer, say: "That's a great question — let me connect you with a senior advisor who can answer that in detail." Then continue collecting info.
+- If the caller is not interested, politely thank them and say ENDCALL.
+- Do not use formatting, emojis, or special characters.`;
+
 export const DEFAULT_SYSTEM_PROMPT = `You are a debt relief fronting agent named Alex calling on behalf of Debt Solutions.
 
 CRITICAL — STRICT SCRIPT ADHERENCE:
@@ -150,6 +169,7 @@ export default function AIAgentPromptSection({ config, update }) {
 
   const EDITORS = [
     { id: 'system', label: 'System Prompt', field: 'systemPrompt', default: DEFAULT_SYSTEM_PROMPT },
+    { id: 'inbound', label: '🤖 Adam (Inbound)', field: 'inboundSystemPrompt', default: DEFAULT_INBOUND_PROMPT },
     { id: 'flow', label: 'Script Flow', field: 'scriptFlow', default: DEFAULT_SCRIPT_FLOW },
     { id: 'rebuttals', label: 'Rebuttals', field: 'dynamicRebuttals', default: DEFAULT_REBUTTALS },
     { id: 'qa', label: 'Q&A Tuning', field: 'qaTuning', default: DEFAULT_QA_TUNING },
@@ -170,6 +190,25 @@ export default function AIAgentPromptSection({ config, update }) {
           style={{ width: '100%', background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '4px', padding: '8px 10px', color: '#e8e0d0', fontSize: '12px', outline: 'none', boxSizing: 'border-box', fontFamily: 'Georgia, serif' }}
         />
         <div style={{ color: '#4a5568', fontSize: '10px', marginTop: '3px' }}>This is what the prospect hears first. The system prompt below is instructions for the AI — never read aloud.</div>
+      </div>
+
+      {/* Inbound Adam config — agent name + keyword triggers */}
+      <div style={{ marginBottom: '14px', padding: '10px 12px', background: 'rgba(167,139,250,0.05)', border: '1px solid rgba(167,139,250,0.2)', borderRadius: '4px' }}>
+        <label style={{ ...ls, color: '#a78bfa' }}>🤖 Inbound Adam — Agent Name</label>
+        <input
+          value={config.inboundAgentName || 'Adam'}
+          onChange={e => update('inboundAgentName', e.target.value)}
+          placeholder="Adam"
+          style={{ width: '100%', background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '4px', padding: '8px 10px', color: '#e8e0d0', fontSize: '12px', outline: 'none', boxSizing: 'border-box', fontFamily: 'Georgia, serif' }}
+        />
+        <label style={{ ...ls, color: '#a78bfa', marginTop: '8px' }}>🔑 Inbound Keyword Triggers (comma-separated phrases that skip the greeting and hand off to Adam early)</label>
+        <input
+          value={config.inboundKeywordTriggers || ''}
+          onChange={e => update('inboundKeywordTriggers', e.target.value)}
+          placeholder="let's get debt free, get debt free, let's do it"
+          style={{ width: '100%', background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '4px', padding: '8px 10px', color: '#e8e0d0', fontSize: '12px', outline: 'none', boxSizing: 'border-box', fontFamily: 'Georgia, serif' }}
+        />
+        <div style={{ color: '#4a5568', fontSize: '10px', marginTop: '3px' }}>Edit the "Adam (Inbound)" tab above to customize Adam's system prompt for inbound calls.</div>
       </div>
 
       {/* Editor tabs */}

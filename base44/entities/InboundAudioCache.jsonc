@@ -1,0 +1,33 @@
+{
+  "name": "InboundAudioCache",
+  "type": "object",
+  "properties": {
+    "cacheKey": {
+      "type": "string",
+      "title": "Cache Key (name:<lowercase> or region:<region>)"
+    },
+    "audioUrl": {
+      "type": "string",
+      "title": "Public Audio URL (generated TTS clip)"
+    },
+    "voiceId": {
+      "type": "string",
+      "title": "ElevenLabs Voice ID used to generate this clip"
+    },
+    "generatedAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Generated At"
+    }
+  },
+  "required": [
+    "cacheKey",
+    "audioUrl"
+  ],
+  "rls": {
+    "create": null,
+    "read": null,
+    "update": null,
+    "delete": null
+  }
+}

@@ -130,6 +130,29 @@
       ],
       "default": "prospect"
     },
+    "callStatus": {
+      "type": "string",
+      "title": "Call Status (inbound_adam, outbound, transferred, queue_hold, etc.)"
+    },
+    "assignedQueue": {
+      "type": "string",
+      "title": "Assigned Queue (fronter transfer queue label)"
+    },
+    "inboundRegion": {
+      "type": "string",
+      "title": "Inbound Detected Region (riverside, san_bernardino, honolulu, fallback)",
+      "enum": [
+        "riverside",
+        "san_bernardino",
+        "honolulu",
+        "fallback"
+      ]
+    },
+    "inboundAdamCall": {
+      "type": "boolean",
+      "title": "Inbound AI Adam Call (set when caller came in via Adam inbound pipeline)",
+      "default": false
+    },
     "assignedTo": {
       "type": "string",
       "title": "Assigned To (fronter username)"

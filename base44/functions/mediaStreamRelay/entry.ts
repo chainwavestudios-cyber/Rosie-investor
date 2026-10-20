@@ -125,6 +125,15 @@ async function handleInit(base44: any, body: any): Promise<Response> {
     }
   }
 
+  // Inbound Adam calls: the greeting clips already played via TwiML before the
+  // stream connected. Use a brief Adam opener to start the qualification dialog.
+  const isInboundAdam = lead?.inboundAdamCall || lead?.callStatus === 'inbound_adam';
+  if (isInboundAdam) {
+    const agentName = config.inboundAgentName || 'Adam';
+    const firstName = lead?.firstName && lead.firstName !== 'Inbound' ? ' ' + lead.firstName : '';
+    greeting = `Hi${firstName}, I'm ${agentName} with Debt Advisors of America. Let's get you on the path to debt freedom. Roughly how much unsecured debt are you carrying right now?`;
+  }
+
   const pipeline = resolvePipeline(config);
   if (!pipeline.valid) return Response.json({ error: pipeline.errors.join(' ') }, { status: 400 });
   const { ttsEngine, ttsVoiceModel } = pipeline;
@@ -133,6 +142,7 @@ async function handleInit(base44: any, body: any): Promise<Response> {
     greeting,
     ...pipeline,
     pipeline,
+    inboundMode: !!isInboundAdam,
     configUpdatedAt: config.updated_date || null,
     leadId: lead?.id || leadId,
     leadFirstName: lead?.firstName || '',
@@ -157,7 +167,11 @@ async function handleTurn(base44: any, body: any): Promise<Response> {
   const lead = leadResult.status === 'fulfilled' ? leadResult.value : null;
 
   // Build system prompt with variable substitution
-  const systemPrompt = config.systemPrompt || FRONTER_SCRIPT_SYSTEM_PROMPT;
+  // Inbound Adam calls use the dedicated inbound system prompt (Prompt 4)
+  const isInboundAdam = lead?.inboundAdamCall || lead?.callStatus === 'inbound_adam';
+  const systemPrompt = (isInboundAdam && config.inboundSystemPrompt)
+    ? config.inboundSystemPrompt
+    : (config.systemPrompt || FRONTER_SCRIPT_SYSTEM_PROMPT);
   const filledPrompt = systemPrompt
     .replace(/\{\{first_name\}\}/g, lead?.firstName || '')
     .replace(/\{\{last_name\}\}/g, lead?.lastName || '')

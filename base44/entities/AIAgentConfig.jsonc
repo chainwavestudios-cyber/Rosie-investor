@@ -122,7 +122,7 @@
     },
     "inboundGreetingAudioUrl": {
       "type": "string",
-      "title": "Inbound Greeting Audio URL (pre-recorded human greeting played before the AI agent connects \u2014 leave empty to skip)"
+      "title": "Inbound Greeting Audio URL (legacy single-file greeting \u2014 superseded by the dynamic clip pipeline; leave empty to use the pipeline)"
     },
     "greeting": {
       "type": "string",
@@ -134,6 +134,22 @@
       "type": "string",
       "title": "System Prompt (full agent instructions \u2014 never read aloud)",
       "format": "textarea"
+    },
+    "inboundAgentName": {
+      "type": "string",
+      "title": "Inbound AI Agent Name (the persona that greets inbound callers after the intro clips)",
+      "default": "Adam"
+    },
+    "inboundSystemPrompt": {
+      "type": "string",
+      "title": "Inbound Adam System Prompt (used for inbound calls \u2014 collects debt info then transfers to fronter queue)",
+      "format": "textarea",
+      "default": "You are Adam, a friendly, sharp, concise AI assistant coded by Christopher for Debt Advisors of America. Keep all responses under 2 sentences. The caller just listened to Christopher's intro and said 'Let's get debt free'. Your goal: collect and populate the lead's approximate unsecured debt amount (total_debt), identify debt types (debt_type), and determine the hardship reason (hardship_reason). Once you have all three, say the word TRANSFER to place the caller in the fronter transfer queue. Be warm and conversational. Never exceed two sentences per response."
+    },
+    "inboundKeywordTriggers": {
+      "type": "string",
+      "title": "Inbound Keyword Triggers (comma-separated phrases that skip the greeting and hand off to Adam early \u2014 e.g. 'let's get debt free, get debt free, let's do it')",
+      "default": "let's get debt free, get debt free, let's do it"
     },
     "scriptFlow": {
       "type": "string",

@@ -15,6 +15,7 @@ import twilioVoiceParams from '../../shared/twilioVoiceParams.ts';
 import { checkCallCutoff } from '../../shared/phoneTimeZone.ts';
 import { verifyCallCutoffOverride } from '../../shared/callCutoffOverride.ts';
 import { getPollyVoice } from '../../shared/aiVoiceMap.ts';
+import { lookupInboundLead, resolveInboundClips, clipsToTwiml } from '../../shared/inboundGreeting.ts';
 
 export default async function(req) {
   // ── Always return valid TwiML — never let Twilio see a 5xx ──────────
@@ -162,19 +163,80 @@ export default async function(req) {
     if (aiTransferMode) {
       const leadId = url.searchParams.get('LeadId') || '';
       let config: any = {};
+      let lead: any = null;
+      let adamHoldUrl = '';
       try {
         const { createClientFromRequest } = await import('npm:@base44/sdk@0.8.52');
         const base44 = createClientFromRequest(req).asServiceRole;
         const configs = await base44.entities.AIAgentConfig.filter({ configName: 'default' });
         config = configs?.[0] || {};
+        if (leadId) {
+          try { lead = await base44.entities.FronterLead.get(leadId); } catch {}
+        }
+        // Load Adam Transfer Queue Hold Message (Prompt 5, Option 2)
+        try {
+          const holdAudio = await base44.entities.InboundCallAudio.filter(
+            { assetType: 'adam_transfer_hold', isActive: true }, '-uploadedAt', 1,
+          );
+          adamHoldUrl = holdAudio?.[0]?.fileUrl || '';
+        } catch {}
       } catch (e) {
         console.warn('[dialerVoiceHandler] Failed to load AI agent config for transfer:', e?.message);
       }
       const pollyVoice = getPollyVoice(config.ttsVoiceModel || 'aura-2-thalia-en');
+      const appUrl = req.headers.get('X-Base44-App-Url') || 'https://rosieai-investorpage.base44.app';
+
+      // ── Inbound Adam calls → fronter transfer queue (Prompt 4) ──
+      // Place the caller in a conference with the Adam Transfer Queue Hold Message
+      // and create a FronterHeadsUp so fronters see the queued call.
+      if (lead?.inboundAdamCall || lead?.callStatus === 'inbound_adam') {
+        const conferenceName = `adam_queue_${leadId || Date.now()}`;
+        const holdWaitUrl = adamHoldUrl
+          ? `${appUrl}/functions/dialerVoiceHandler?Mode=inboundHoldMusic`
+          : 'https://twimlets.com/holdmusic?Bucket=com.twilio.music.classical';
+
+        // Create FronterHeadsUp so fronter monitor shows the queued call
+        try {
+          const { createClientFromRequest } = await import('npm:@base44/sdk@0.8.52');
+          const base44 = createClientFromRequest(req).asServiceRole;
+          await base44.entities.FronterHeadsUp.create({
+            fronterUsername: 'queue',
+            leadId: leadId,
+            leadName: (lead.firstName || '') + ' ' + (lead.lastName || ''),
+            leadPhone: lead.phone || '',
+            leadEmail: lead.email || '',
+            conferenceName,
+            status: 'active',
+            createdAt: new Date().toISOString(),
+          });
+          await base44.entities.FronterLead.update(leadId, {
+            callStatus: 'queue_hold',
+            assignedQueue: 'Incoming AI - validated through process',
+            transferredAt: new Date().toISOString(),
+            transferredTo: 'Adam → Fronter Queue',
+          });
+        } catch (e) { console.warn('[dialerVoiceHandler] Failed to create heads-up:', e?.message); }
+
+        const skipSay = url.searchParams.get('SkipSay') === 'true';
+        const sayTag = skipSay ? '' : `<Say voice="${pollyVoice}">I'm transferring you to one of our senior debt advisors. Please hold for just a moment.</Say>`;
+        const twiml = `<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  ${sayTag}
+  <Dial>
+    <Conference startConferenceOnEnter="false" endConferenceOnExit="true" beep="false"
+      waitUrl="${xmlEscape(holdWaitUrl)}" waitMethod="GET">
+      ${conferenceName}
+    </Conference>
+  </Dial>
+</Response>`;
+        console.log('[dialerVoiceHandler] → Mode AI Transfer (Adam → Queue), leadId:', leadId, 'conf:', conferenceName);
+        return new Response(twiml, { headers: { 'Content-Type': 'text/xml' } });
+      }
+
+      // ── Standard transfer: direct dial to primary number (existing path) ──
       const primaryNumber = config.transferPhoneNumber || '+16193530919';
       const callerId = Deno.env.get('TWILIO_FROM_NUMBER') || '';
 
-      // Validate transfer number — must be valid E.164
       if (!/^\+[1-9]\d{7,14}$/.test(primaryNumber)) {
         console.error('[dialerVoiceHandler] Invalid transfer phone number:', primaryNumber);
         return new Response(
@@ -183,7 +245,6 @@ export default async function(req) {
         );
       }
 
-      const appUrl = req.headers.get('X-Base44-App-Url') || 'https://rosieai-investorpage.base44.app';
       const fallbackUrl = `${appUrl}/functions/aiAgentRespond?transferFallback=1&leadId=${encodeURIComponent(leadId)}`;
       const skipSay = url.searchParams.get('SkipSay') === 'true';
       const sayTag = skipSay ? '' : `<Say voice="${pollyVoice}">Let me connect you with one of our senior debt advisors. Please hold for just a moment.</Say>`;
@@ -197,6 +258,33 @@ export default async function(req) {
 </Response>`;
       console.log('[dialerVoiceHandler] → Mode AI Transfer, leadId:', leadId);
       return new Response(twiml, { headers: { 'Content-Type': 'text/xml' } });
+    }
+
+    // ── Mode: Inbound Hold Music loop (Adam Transfer Queue Hold Message) ──
+    const inboundHoldMode = url.searchParams.get('Mode') === 'inboundHoldMusic';
+    if (inboundHoldMode) {
+      let holdUrl = '';
+      try {
+        const { createClientFromRequest } = await import('npm:@base44/sdk@0.8.52');
+        const base44 = createClientFromRequest(req).asServiceRole;
+        const holdAudio = await base44.entities.InboundCallAudio.filter(
+          { assetType: 'adam_transfer_hold', isActive: true }, '-uploadedAt', 1,
+        );
+        holdUrl = holdAudio?.[0]?.fileUrl || '';
+      } catch {}
+      if (holdUrl) {
+        const twiml = `<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Play>${xmlEscape(holdUrl)}</Play>
+  <Redirect>https://rosieai-investorpage.base44.app/functions/dialerVoiceHandler?Mode=inboundHoldMusic</Redirect>
+</Response>`;
+        return new Response(twiml, { headers: { 'Content-Type': 'text/xml' } });
+      }
+      // Fallback to classical hold music
+      return new Response(
+        `<?xml version="1.0" encoding="UTF-8"?><Response><Play>https://twimlets.com/holdmusic?Bucket=com.twilio.music.classical</Play></Response>`,
+        { headers: { 'Content-Type': 'text/xml' } },
+      );
     }
 
     // ── Mode AI End Call: redirect from Media Stream when LLM says ENDCALL ──
@@ -309,7 +397,9 @@ export default async function(req) {
       const { createClientFromRequest } = await import('npm:@base44/sdk@0.8.52');
       const base44 = createClientFromRequest(req).asServiceRole;
 
-      // If the AI agent is active, route ALL inbound calls to the Media Stream
+      // If the AI agent is active, route ALL inbound calls through the greeting
+      // pipeline (Prompt 1-2): lead lookup → dynamic audio clips (name + regional +
+      // admin master) → connect Adam AI agent Media Stream.
       const configs = await base44.entities.AIAgentConfig.filter({ configName: 'default' });
       const aiConfig = configs?.[0];
       if (aiConfig?.isActive) {
@@ -330,20 +420,61 @@ export default async function(req) {
         } catch (e) { console.warn('[dialerVoiceHandler] Bridge secret read failed:', e?.message); }
 
         if (streamUrl) {
-          const greetingPlay = aiConfig.inboundGreetingAudioUrl
-            ? `<Play>${xmlEscape(aiConfig.inboundGreetingAudioUrl)}</Play>`
-            : '';
+          // ── Prompt 1: Lead lookup by caller ID ──
+          const callerPhone = params.get('From') || '';
+          const { client_name, region, leadId: foundLeadId, lead: foundLead } = await lookupInboundLead(base44, callerPhone);
+
+          // Ensure a FronterLead exists for the inbound caller (Adam will populate it)
+          let inboundLeadId = foundLeadId || '';
+          if (!inboundLeadId && callerPhone) {
+            try {
+              const created = await base44.entities.FronterLead.create({
+                firstName: 'Inbound',
+                lastName: 'Caller',
+                phone: callerPhone,
+                status: 'prospect',
+                callStatus: 'inbound_adam',
+                inboundAdamCall: true,
+                inboundRegion: region,
+                assignedQueue: 'Incoming AI - validated through process',
+                notes: `Inbound call from ${callerPhone} on ${new Date().toISOString()}. Awaiting Adam qualification.`,
+              });
+              inboundLeadId = created?.id || '';
+            } catch (e) { console.warn('[dialerVoiceHandler] Failed to create inbound lead:', e?.message); }
+          } else if (foundLeadId && foundLead) {
+            // Mark existing lead as an inbound Adam call
+            try {
+              await base44.entities.FronterLead.update(foundLeadId, {
+                callStatus: 'inbound_adam',
+                inboundAdamCall: true,
+                inboundRegion: region,
+                assignedQueue: 'Incoming AI - validated through process',
+              });
+            } catch (e) { console.warn('[dialerVoiceHandler] Failed to tag inbound lead:', e?.message); }
+          }
+
+          // ── Prompt 2: Resolve dynamic audio clips (A: name, B: regional, C: admin master) ──
+          let clipsTwiml = '';
+          try {
+            const clips = await resolveInboundClips(base44, client_name, region, aiConfig);
+            clipsTwiml = clipsToTwiml(clips);
+          } catch (e) { console.warn('[dialerVoiceHandler] Clip resolution failed:', e?.message); }
+
+          // Keyword triggers passed to the bridge for early Adam handoff (Prompt 3)
+          const keywordTriggers = (aiConfig.inboundKeywordTriggers || '').trim();
+
           const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  ${greetingPlay}
+  ${clipsTwiml}
   <Connect>
     <Stream url="${xmlEscape(streamUrl)}" name="rosie-ai-agent">
-      <Parameter name="leadId" value="" />
+      <Parameter name="leadId" value="${xmlEscape(inboundLeadId)}" />
       ${streamToken ? `<Parameter name="streamToken" value="${xmlEscape(streamToken)}" />` : ''}
+      ${keywordTriggers ? `<Parameter name="keywordTriggers" value="${xmlEscape(keywordTriggers)}" />` : ''}
     </Stream>
   </Connect>
 </Response>`;
-          console.log('[dialerVoiceHandler] → Mode 4 Inbound → greeting + AI Agent Media Stream (line:', calledNumber, ')');
+          console.log('[dialerVoiceHandler] → Mode 4 Inbound → greeting pipeline (name:', client_name, 'region:', region, 'lead:', inboundLeadId, ') → Adam Media Stream');
           return new Response(twiml, { headers: { 'Content-Type': 'text/xml' } });
         }
         console.warn('[dialerVoiceHandler] AI agent active but no bridge URL — falling back to fronter routing');

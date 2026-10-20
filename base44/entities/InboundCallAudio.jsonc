@@ -1,0 +1,56 @@
+{
+  "name": "InboundCallAudio",
+  "type": "object",
+  "properties": {
+    "assetType": {
+      "type": "string",
+      "title": "Asset Type",
+      "enum": [
+        "inbound_initial_message",
+        "adam_transfer_hold"
+      ]
+    },
+    "fileName": {
+      "type": "string",
+      "title": "File Name"
+    },
+    "fileType": {
+      "type": "string",
+      "title": "File Type (mp3, wav)",
+      "enum": [
+        "mp3",
+        "wav"
+      ]
+    },
+    "fileUrl": {
+      "type": "string",
+      "title": "Public File URL (served to Twilio for playback)"
+    },
+    "uploadedBy": {
+      "type": "string",
+      "title": "Uploaded By (admin username)"
+    },
+    "uploadedAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Uploaded At"
+    },
+    "isActive": {
+      "type": "boolean",
+      "title": "Active (currently in use)",
+      "default": true
+    }
+  },
+  "required": [
+    "assetType",
+    "fileName",
+    "fileUrl",
+    "uploadedBy"
+  ],
+  "rls": {
+    "create": null,
+    "read": null,
+    "update": null,
+    "delete": null
+  }
+}

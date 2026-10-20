@@ -13,6 +13,7 @@ import FronterCallMetricsTab from '@/components/fronter/FronterCallMetricsTab';
 import FronterReportsTab from '@/components/fronter/FronterReportsTab';
 import FronterAdminCallsTab from '@/components/fronter/FronterAdminCallsTab';
 import FronterHoldAudioTab from '@/components/fronter/FronterHoldAudioTab';
+import FronterInboundAudioTab from '@/components/fronter/FronterInboundAudioTab';
 import FronterUsersTab from '@/components/fronter/FronterUsersTab';
 import FronterLeadImportModal from '@/components/fronter/FronterLeadImportModal';
 import FronterScriptEditor from '@/components/fronter/FronterScriptEditor';
@@ -251,6 +252,7 @@ export default function FronterAdminTab({ adminUsername, onOpenLead }) {
     { id: 'metrics', label: '📊 Metrics' },
     { id: 'monitor', label: '🎧 Monitor' },
     { id: 'holdaudio', label: '🔊 Hold Audio' },
+    { id: 'inboundaudio', label: '🎵 Inbound Audio' },
     { id: 'hr', label: '🕐 HR' },
     { id: 'users', label: '👥 Users' },
     { id: 'scripts', label: '📜 Scripts' },
@@ -469,6 +471,10 @@ export default function FronterAdminTab({ adminUsername, onOpenLead }) {
       {/* ── HOLD AUDIO ── */}
       {subtab === 'holdaudio' && !loading && (
         <FronterHoldAudioTab adminUsername={adminUsername} />
+      )}
+
+      {subtab === 'inboundaudio' && !loading && (
+        <FronterInboundAudioTab adminUsername={adminUsername} />
       )}
 
       {/* ── HR (time card management) ── */}
