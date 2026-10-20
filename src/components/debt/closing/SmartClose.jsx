@@ -20,7 +20,7 @@ import { base44 } from '@/api/base44Client';
 import { CLOSING_MODULES } from './ClosingModules';
 import ClosingChecklist from './ClosingChecklist';
 import ClosingScriptView from './ClosingScriptView';
-import SkippedStepPopup from './SkippedStepPopup';
+import SkippedStepsNotice from './SkippedStepsNotice';
 import ClosingPhoneNumbersTab from './ClosingPhoneNumbersTab';
 import { logAIUsage, CREDIT_ESTIMATES } from '@/lib/aiCreditLog';
 
@@ -319,7 +319,7 @@ ${recentText}`,
       const newSkips = (result.skippedSteps || [])
         .filter(s => s.key && !dismissedRef.current[s.key] && !manualRef.current[s.key] && !savedNotesRef.current.find(n => n.key === s.key))
         .map(s => ({ ...s, label: labelForKey(s.key, scriptModulesRef.current) }));
-      if (newSkips.length > 0) setSkippedQueue(prev => [...prev, ...newSkips]);
+      if (newSkips.length > 0) setSkippedQueue(prev => [...prev, ...newSkips.filter(s => !prev.some(p => p.key === s.key))]);
       lastAnalyzedLinesRef.current = transcript.length;
     } catch (e) { setError('Smart Close analysis failed: ' + (e?.message || String(e))); }
     setAnalyzing(false);
@@ -369,9 +369,10 @@ ${recentText}`,
     setSaving(false);
   };
 
+  const removeSkip = (key) => setSkippedQueue(prev => prev.filter(s => s.key !== key));
   const handleSkipIgnore = (key) => {
     setDismissedSkips(prev => ({ ...prev, [key]: true }));
-    setSkippedQueue(prev => prev.slice(1));
+    removeSkip(key);
   };
   const handleSkipSave = async (skip) => {
     try {
@@ -383,11 +384,11 @@ ${recentText}`,
       });
     } catch {}
     setSavedNotes(prev => [...prev, { key: skip.key, reason: skip.reason }]);
-    setSkippedQueue(prev => prev.slice(1));
+    removeSkip(skip.key);
   };
   const handleSkipConfirm = (skip) => {
     setManualDone(prev => ({ ...prev, [skip.key]: true }));
-    setSkippedQueue(prev => prev.slice(1));
+    removeSkip(skip.key);
   };
 
   const currentStage = analysis?.currentStage ? scriptModules.find(m => m.id === analysis.currentStage) : null;
@@ -496,6 +497,14 @@ ${recentText}`,
 
       {error && <div style={{ marginBottom: '10px', padding: '8px 12px', background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '4px', color: '#ef4444', fontSize: '11px' }}>⚠ {error}</div>}
 
+      {/* Skipped steps — inline list, never a popup */}
+      <SkippedStepsNotice
+        skips={skippedQueue}
+        onIgnore={handleSkipIgnore}
+        onSave={handleSkipSave}
+        onConfirm={handleSkipConfirm}
+      />
+
       {/* The checklist — controlled by Smart Close when smartOn */}
       <ClosingChecklist
         leadId={leadId}
@@ -544,15 +553,6 @@ ${recentText}`,
         </div>
       )}
 
-      {/* Skipped step popup */}
-      {skippedQueue.length > 0 && (
-        <SkippedStepPopup
-          skip={skippedQueue[0]}
-          onIgnore={handleSkipIgnore}
-          onSave={handleSkipSave}
-          onConfirm={handleSkipConfirm}
-        />
-      )}
     </div>
   );
 }
