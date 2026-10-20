@@ -299,44 +299,38 @@ export default async function(req) {
       return new Response(twiml, { headers: { 'Content-Type': 'text/xml' } });
     }
 
-    // ── Mode 4: Inbound call → AI agent Media Stream or browser client ──
-    // 1. If the AI agent is active on this line → route to Media Stream (same as Mode AI)
-    // 2. If a fronter is assigned to this line → route to their browser client identity
-    // 3. Fall back to 'agent' client identity
+    // ── Mode 4: Inbound call → AI agent (all lines) or browser client fallback ──
+    // All incoming calls route to the AI agent Media Stream when the agent is active.
+    // Falls back to the assigned fronter's browser client only if the AI agent is off
+    // or the bridge is not configured.
     const calledNumber = (called || to || '').replace(/\s/g, '');
 
-    let clientIdentity = 'agent';
-    let routedToAIAgent = false;
     try {
       const { createClientFromRequest } = await import('npm:@base44/sdk@0.8.52');
       const base44 = createClientFromRequest(req).asServiceRole;
 
-      // Check AI agent first — if active on this line, route to Media Stream
+      // If the AI agent is active, route ALL inbound calls to the Media Stream
       const configs = await base44.entities.AIAgentConfig.filter({ configName: 'default' });
       const aiConfig = configs?.[0];
-      if (aiConfig?.isActive && aiConfig.twilioLineKey) {
-        const aiLineNumber = (Deno.env.get(aiConfig.twilioLineKey) || '').replace(/\s/g, '');
-        if (aiLineNumber && aiLineNumber === calledNumber) {
-          // Route to AI agent Media Stream (same TwiML as Mode AI)
-          let streamUrl = '';
-          let streamToken = '';
-          try {
-            const { secrets } = await import('base44:runtime');
-            const bridgeUrl = secrets.get('WS_BRIDGE_URL') || '';
-            streamToken = secrets.get('STREAM_AUTH_TOKEN') || '';
-            if (bridgeUrl) {
-              const wsUrl = new URL(bridgeUrl);
-              wsUrl.protocol = 'wss:';
-              wsUrl.search = '';
-              wsUrl.hash = '';
-              wsUrl.pathname = '/ws';
-              streamUrl = wsUrl.toString();
-            }
-          } catch (e) { console.warn('[dialerVoiceHandler] Bridge secret read failed:', e?.message); }
+      if (aiConfig?.isActive) {
+        let streamUrl = '';
+        let streamToken = '';
+        try {
+          const { secrets } = await import('base44:runtime');
+          const bridgeUrl = secrets.get('WS_BRIDGE_URL') || '';
+          streamToken = secrets.get('STREAM_AUTH_TOKEN') || '';
+          if (bridgeUrl) {
+            const wsUrl = new URL(bridgeUrl);
+            wsUrl.protocol = 'wss:';
+            wsUrl.search = '';
+            wsUrl.hash = '';
+            wsUrl.pathname = '/ws';
+            streamUrl = wsUrl.toString();
+          }
+        } catch (e) { console.warn('[dialerVoiceHandler] Bridge secret read failed:', e?.message); }
 
-          if (streamUrl) {
-            const pollyVoice = getPollyVoice(aiConfig.ttsVoiceModel || 'aura-2-thalia-en');
-            const twiml = `<?xml version="1.0" encoding="UTF-8"?>
+        if (streamUrl) {
+          const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Connect>
     <Stream url="${xmlEscape(streamUrl)}" name="rosie-ai-agent">
@@ -345,32 +339,25 @@ export default async function(req) {
     </Stream>
   </Connect>
 </Response>`;
-            console.log('[dialerVoiceHandler] → Mode 4 Inbound → AI Agent Media Stream (line:', calledNumber, ')');
-            return new Response(twiml, { headers: { 'Content-Type': 'text/xml' } });
-          }
-          // No bridge configured — fall through to fronter routing
+          console.log('[dialerVoiceHandler] → Mode 4 Inbound → AI Agent Media Stream (line:', calledNumber, ')');
+          return new Response(twiml, { headers: { 'Content-Type': 'text/xml' } });
         }
+        console.warn('[dialerVoiceHandler] AI agent active but no bridge URL — falling back to fronter routing');
       }
 
-      // Look up fronter assigned to this line
+      // Fallback: route to the fronter assigned to this line
+      let clientIdentity = 'agent';
       const assignments = await base44.entities.FronterLineAssignment.filter({ twilioNumber: calledNumber });
       const assignment = assignments?.items?.[0] || assignments?.[0];
       if (assignment?.username) {
         clientIdentity = assignment.username.replace(/[^a-zA-Z0-9_]/g, '_');
       }
-    } catch (e) {
-      console.warn('[dialerVoiceHandler] Inbound routing lookup failed:', e?.message);
-    }
 
-    // statusCallback fires on ringing/answered/completed so every inbound call
-    // gets a CallLog entry regardless of whether the agent picks up.
-    // action fires after <Dial> ends: if agent answered → log as "answered",
-    // if no answer → play greeting and record voicemail.
-    const statusCallbackUrl =
-      `${vmWebhookBase}?statusCb=true` +
-      `&StatusCallbackEvent=initiated+ringing+answered+completed`;
+      const statusCallbackUrl =
+        `${vmWebhookBase}?statusCb=true` +
+        `&StatusCallbackEvent=initiated+ringing+answered+completed`;
 
-    const twiml = `<?xml version="1.0" encoding="UTF-8"?>
+      const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Dial timeout="20"
     action="${vmWebhookBase}?noAnswer=true" method="POST"
@@ -379,8 +366,11 @@ export default async function(req) {
       statusCallbackEvent="initiated ringing answered completed">${xmlEscape(clientIdentity)}</Client>
   </Dial>
 </Response>`;
-    console.log('[dialerVoiceHandler] → Mode 4 Inbound → routing to browser client:', clientIdentity, '(to:', to, 'called:', called, ')');
-    return new Response(twiml, { headers: { 'Content-Type': 'text/xml' } });
+      console.log('[dialerVoiceHandler] → Mode 4 Inbound → fallback to browser client:', clientIdentity, '(to:', to, 'called:', called, ')');
+      return new Response(twiml, { headers: { 'Content-Type': 'text/xml' } });
+    } catch (e) {
+      console.warn('[dialerVoiceHandler] Inbound routing failed:', e?.message);
+    }
 
   } catch (fatalErr) {
     console.error('[dialerVoiceHandler] Fatal unhandled error:', fatalErr?.message);
