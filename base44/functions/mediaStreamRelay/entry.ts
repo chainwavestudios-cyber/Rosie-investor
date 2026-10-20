@@ -31,6 +31,7 @@ import { twilioFetch } from '../../shared/twilioHelpers.ts';
 const BASE_URL = 'https://rosieai-investorpage.base44.app';
 
 import { resolvePipeline } from '../../shared/aiAgentPipeline.ts';
+import { renderLeadTemplate } from '../../shared/leadTemplate.ts';
 
 const VALID_ACTIONS = ['speak', 'transfer', 'end_call'];
 const VALID_DISPOSITIONS = ['interested', 'not_interested', 'callback_requested', 'transferred', 'opt_out', 'no_response', 'technical_failure'];
@@ -129,12 +130,13 @@ async function handleInit(base44: any, body: any): Promise<Response> {
   // stream connected. Adam opens with his configured opener line.
   const isInboundAdam = lead?.inboundAdamCall || lead?.callStatus === 'inbound_adam';
   if (isInboundAdam) {
-    const firstName = lead?.firstName && lead.firstName !== 'Inbound' ? lead.firstName : 'there';
     const opener = config.inboundOpener
-      || `Hey ${firstName}, I'm a custom-built AI agent that Mr. Bongiorno personally coded. Fun fact, he's a software developer by night and a seasoned IAPDA Certified Debt Specialist by day. I just need a little information and I can get you into his queue for a real call. Roughly how much unsecured debt do you hold?`;
-    greeting = opener
-      .replace(/\{\{first_name\}\}/g, firstName)
-      .replace(/\{\{last_name\}\}/g, lead?.lastName || '');
+      || `Hey {{first_name}}, I'm a custom-built AI agent that Mr. Bongiorno personally coded. Fun fact, he's a software developer by night and a seasoned IAPDA Certified Debt Specialist by day. I just need a little information and I can get you into his queue for a real call. Roughly how much unsecured debt do you hold?`;
+    greeting = renderLeadTemplate(opener, lead, {
+      agentName: config.inboundAgentName,
+      region: lead?.inboundRegion,
+      fallbackFirstName: 'there',
+    });
   }
 
   const pipeline = resolvePipeline(config);
@@ -175,12 +177,15 @@ async function handleTurn(base44: any, body: any): Promise<Response> {
   const systemPrompt = (isInboundAdam && config.inboundSystemPrompt)
     ? config.inboundSystemPrompt
     : (config.systemPrompt || FRONTER_SCRIPT_SYSTEM_PROMPT);
-  const filledPrompt = systemPrompt
-    .replace(/\{\{first_name\}\}/g, lead?.firstName || '')
-    .replace(/\{\{last_name\}\}/g, lead?.lastName || '')
-    .replace(/\{\{email\}\}/g, lead?.email || '')
-    .replace(/\{\{city\}\}/g, lead?.city || '')
-    .replace(/\{\{state\}\}/g, lead?.state || '');
+  // Inbound calls render the full contact-card tag set; outbound keeps its original substitutions.
+  const filledPrompt = isInboundAdam
+    ? renderLeadTemplate(systemPrompt, lead, { agentName: config.inboundAgentName, region: lead?.inboundRegion })
+    : systemPrompt
+      .replace(/\{\{first_name\}\}/g, lead?.firstName || '')
+      .replace(/\{\{last_name\}\}/g, lead?.lastName || '')
+      .replace(/\{\{email\}\}/g, lead?.email || '')
+      .replace(/\{\{city\}\}/g, lead?.city || '')
+      .replace(/\{\{state\}\}/g, lead?.state || '');
 
   // Append script flow, dynamic rebuttals, and Q&A tuning (configured but previously never sent to the LLM)
   const promptSections = [filledPrompt];

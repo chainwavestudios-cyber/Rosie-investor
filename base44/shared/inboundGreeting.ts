@@ -156,7 +156,8 @@ export async function resolveInboundClips(base44: any, clientName: string, regio
   if (clientName && clientName !== 'there') {
     const nameText = `Hey ${clientName},`;
     if (voiceId) {
-      const cacheKey = `name:${clientName.toLowerCase()}`;
+      // Voice ID is part of the key so switching voices regenerates the clip
+      const cacheKey = `name:${clientName.toLowerCase()}:${voiceId.slice(0, 8)}`;
       const url = await generateElevenLabsClip(base44, nameText, voiceId, cacheKey);
       if (url) clips.push({ type: 'play', content: url });
       else clips.push({ type: 'say', content: nameText, voice: pollyVoice });
@@ -169,7 +170,7 @@ export async function resolveInboundClips(base44: any, clientName: string, regio
   const regionalText = REGIONAL_PHRASES[region];
   if (regionalText) {
     if (voiceId) {
-      const cacheKey = `region:${region}`;
+      const cacheKey = `region:${region}:${voiceId.slice(0, 8)}`;
       const url = await generateElevenLabsClip(base44, regionalText, voiceId, cacheKey);
       if (url) clips.push({ type: 'play', content: url });
       else clips.push({ type: 'say', content: regionalText, voice: pollyVoice });

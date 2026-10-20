@@ -12,12 +12,18 @@ import AIAgentKnowledgeSection from './aiagent/AIAgentKnowledgeSection';
 import AIAgentPromptSection, { DEFAULT_GREETING, DEFAULT_SYSTEM_PROMPT, DEFAULT_SCRIPT_FLOW, DEFAULT_REBUTTALS, DEFAULT_QA_TUNING } from './aiagent/AIAgentPromptSection';
 import AIAgentDialer from './AIAgentDialer';
 import AIAgentLiveConfig from './aiagent/AIAgentLiveConfig';
+import AIAgentIncomingCallsTab from './aiagent/AIAgentIncomingCallsTab';
 import useAIAgentPipeline from '@/hooks/useAIAgentPipeline';
 
 const GOLD = '#10b981';
 const DARK = '#0a0f1e';
 const RED = '#ef4444';
 const BLUE = '#60a5fa';
+
+const SECTIONS = [
+  { id: 'config', label: '⚙️ Agent Configuration' },
+  { id: 'incoming', label: '📞 Incoming Calls' },
+];
 
 const SECTION_LABEL = { display: 'block', color: GOLD, fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '10px', paddingBottom: '4px', borderBottom: '1px solid rgba(16,185,129,0.15)' };
 
@@ -54,6 +60,7 @@ export default function FronterAIAgentTab({ adminUsername }) {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState('');
+  const [section, setSection] = useState('config');
 
   const load = useCallback(async () => {
     try {
@@ -155,6 +162,17 @@ export default function FronterAIAgentTab({ adminUsername }) {
       {/* Live Config — shows what's actually being used on calls */}
       <AIAgentLiveConfig config={config} />
 
+      {/* Section tabs */}
+      <div role="tablist" aria-label="AI agent sections" style={{ display: 'flex', gap: '2px', borderBottom: '1px solid rgba(255,255,255,0.07)', marginBottom: '16px' }}>
+        {SECTIONS.map(s => (
+          <button role="tab" aria-selected={section === s.id} key={s.id} onClick={() => setSection(s.id)} style={{ padding: '10px 16px', background: 'none', border: 'none', borderBottom: `2px solid ${section === s.id ? GOLD : 'transparent'}`, color: section === s.id ? GOLD : '#6b7280', cursor: 'pointer', fontSize: '12px', fontWeight: section === s.id ? 'bold' : 'normal' }}>{s.label}</button>
+        ))}
+      </div>
+
+      {section === 'incoming' && <AIAgentIncomingCallsTab config={config} update={update} />}
+
+      {section === 'config' && (
+      <>
       {/* Telephony */}
       <div style={{ background: '#0d1b2a', border: '1px solid rgba(16,185,129,0.15)', borderRadius: '6px', padding: '18px', marginBottom: '16px' }}>
         <label style={SECTION_LABEL}>📞 Telephony & Transfer Config</label>
@@ -181,6 +199,8 @@ export default function FronterAIAgentTab({ adminUsername }) {
 
       {/* Lead Dialer */}
       <AIAgentDialer adminUsername={adminUsername} />
+      </>
+      )}
     </div>
   );
 }

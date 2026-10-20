@@ -181,7 +181,6 @@ export default function AIAgentPromptSection({ config, update }) {
 
   const EDITORS = [
     { id: 'system', label: 'System Prompt', field: 'systemPrompt', default: DEFAULT_SYSTEM_PROMPT },
-    { id: 'inbound', label: '🤖 Adam (Inbound)', field: 'inboundSystemPrompt', default: DEFAULT_INBOUND_PROMPT },
     { id: 'flow', label: 'Script Flow', field: 'scriptFlow', default: DEFAULT_SCRIPT_FLOW },
     { id: 'rebuttals', label: 'Rebuttals', field: 'dynamicRebuttals', default: DEFAULT_REBUTTALS },
     { id: 'qa', label: 'Q&A Tuning', field: 'qaTuning', default: DEFAULT_QA_TUNING },
@@ -202,38 +201,6 @@ export default function AIAgentPromptSection({ config, update }) {
           style={{ width: '100%', background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '4px', padding: '8px 10px', color: '#e8e0d0', fontSize: '12px', outline: 'none', boxSizing: 'border-box', fontFamily: 'Georgia, serif' }}
         />
         <div style={{ color: '#4a5568', fontSize: '10px', marginTop: '3px' }}>This is what the prospect hears first. The system prompt below is instructions for the AI — never read aloud.</div>
-      </div>
-
-      {/* Inbound Adam config — agent name + keyword triggers */}
-      <div style={{ marginBottom: '14px', padding: '10px 12px', background: 'rgba(167,139,250,0.05)', border: '1px solid rgba(167,139,250,0.2)', borderRadius: '4px' }}>
-        <label style={{ ...ls, color: '#a78bfa' }}>🤖 Inbound Adam — Agent Name</label>
-        <input
-          value={config.inboundAgentName || 'Adam'}
-          onChange={e => update('inboundAgentName', e.target.value)}
-          placeholder="Adam"
-          style={{ width: '100%', background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '4px', padding: '8px 10px', color: '#e8e0d0', fontSize: '12px', outline: 'none', boxSizing: 'border-box', fontFamily: 'Georgia, serif' }}
-        />
-        <label style={{ ...ls, color: '#a78bfa', marginTop: '8px' }}>🗣 Adam Opening Line (the first thing Adam says when he takes over an inbound call — use {'{{first_name}}'} for personalization)</label>
-        <textarea
-          value={config.inboundOpener || ''}
-          onChange={e => update('inboundOpener', e.target.value)}
-          rows={5}
-          placeholder={DEFAULT_INBOUND_OPENER}
-          style={{ width: '100%', background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '4px', padding: '8px 10px', color: '#e8e0d0', fontSize: '12px', outline: 'none', boxSizing: 'border-box', fontFamily: 'Georgia, serif', lineHeight: 1.5, resize: 'vertical' }}
-        />
-        <div style={{ marginTop: '4px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <span style={{ color: '#4a5568', fontSize: '10px' }}>Leave empty to use the default opener.</span>
-          <button onClick={() => update('inboundOpener', DEFAULT_INBOUND_OPENER)} style={{ background: 'rgba(255,255,255,0.05)', color: '#8a9ab8', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '4px', padding: '3px 8px', cursor: 'pointer', fontSize: '10px' }}>↺ Default</button>
-        </div>
-
-        <label style={{ ...ls, color: '#a78bfa', marginTop: '8px' }}>🔑 Inbound Keyword Triggers (comma-separated phrases that skip the greeting and hand off to Adam early)</label>
-        <input
-          value={config.inboundKeywordTriggers || ''}
-          onChange={e => update('inboundKeywordTriggers', e.target.value)}
-          placeholder="let's get debt free, get debt free, let's do it"
-          style={{ width: '100%', background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '4px', padding: '8px 10px', color: '#e8e0d0', fontSize: '12px', outline: 'none', boxSizing: 'border-box', fontFamily: 'Georgia, serif' }}
-        />
-        <div style={{ color: '#4a5568', fontSize: '10px', marginTop: '3px' }}>Edit the "Adam (Inbound)" tab above to customize Adam's system prompt for inbound calls.</div>
       </div>
 
       {/* Editor tabs */}
