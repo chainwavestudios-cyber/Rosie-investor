@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import ApptTrackingBadges from '@/components/debt/ApptTrackingBadges';
+import useSuperAdminConfig, { contactCardValues } from '@/hooks/useSuperAdminConfig';
 
 export default function CalendarEmailPanel({ lead }) {
   const [sending, setSending] = useState(''), [message, setMessage] = useState(''), [error, setError] = useState('');
@@ -13,10 +14,13 @@ export default function CalendarEmailPanel({ lead }) {
     catch (e) { setError(e.message); } finally { setSending(''); }
   };
   const opened = useQuery({ queryKey: ['calendar-email-opens', lead.id], queryFn: () => base44.entities.EmailTrackingEvent.count({ leadId: lead.id, eventType: 'open', templateName: { $regex: '^credentials$', $options: 'i' } }), refetchInterval: 30000 });
+  const { config } = useSuperAdminConfig();
+  const welcomeMessage = contactCardValues(config).welcomeMessage;
   return <section className="calendar-panel">
     <h3 className="calendar-title">Credentials & welcome email</h3>
     <p className="mb-4 text-sm leading-relaxed text-assistant-muted">Send or resend the “credentials” template, including Chris’s welcome message, through the existing tracked email flow.</p>
     <p className="mb-4 break-all text-sm text-assistant-info">To: {lead.email || 'No email on file. Open the Lead Contact Card to add one.'}</p>
+    {welcomeMessage && <div className="mb-5 rounded-md border border-assistant-border bg-assistant-canvas p-4"><div className="calendar-label">Welcome message</div><p className="mt-2 whitespace-pre-wrap break-words text-sm leading-relaxed text-assistant-ink">{welcomeMessage}</p></div>}
     {templates.isPending && <p className="text-assistant-muted">Loading email buttons…</p>}
     {templates.isError && <p role="alert" className="calendar-error">Could not load email templates.</p>}
     <div className="mb-5 flex flex-wrap gap-3">{templates.data?.items.map(t => <button key={t.id} onClick={() => send(t)} disabled={!!sending || !lead.email} className="calendar-button">{sending === t.id ? 'Sending…' : (t.name.trim().toLowerCase() === 'credentials' ? 'Send Credentials & Welcome Email' : t.buttonLabel || t.name)}</button>)}</div>

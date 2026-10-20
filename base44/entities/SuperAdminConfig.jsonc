@@ -1,0 +1,102 @@
+{
+  "name": "SuperAdminConfig",
+  "type": "object",
+  "properties": {
+    "configName": {
+      "type": "string",
+      "title": "Config Name (singleton key)",
+      "default": "default"
+    },
+    "transferScript": {
+      "type": "string",
+      "title": "Appointment Transfer Script (assistant portal contact card)",
+      "format": "textarea"
+    },
+    "reminderScript": {
+      "type": "string",
+      "title": "1-Hour Reminder Script ({{firstname}}, {{Email}} supported)",
+      "format": "textarea"
+    },
+    "mergeScript": {
+      "type": "string",
+      "title": "Merge & Transfer Script (contact card merge popup)",
+      "format": "textarea"
+    },
+    "welcomeMessage": {
+      "type": "string",
+      "title": "Welcome Message (shown in the assistant portal contact card)",
+      "format": "textarea"
+    },
+    "transferPhoneNumber": {
+      "type": "string",
+      "title": "Merge & Transfer Number 1 (E.164)"
+    },
+    "transferPhoneNumber2": {
+      "type": "string",
+      "title": "Merge & Transfer Number 2 (E.164)"
+    },
+    "transferLabel": {
+      "type": "string",
+      "title": "Merge & Transfer Label 1 (display only)"
+    },
+    "transferLabel2": {
+      "type": "string",
+      "title": "Merge & Transfer Label 2 (display only)"
+    },
+    "chrisOfficePhone": {
+      "type": "string",
+      "title": "Fast-Dial \u2014 Office (E.164)"
+    },
+    "chrisCellPhone": {
+      "type": "string",
+      "title": "Fast-Dial \u2014 Cell (E.164)"
+    },
+    "workspacePlan": {
+      "type": "string",
+      "title": "Base44 Plan (snapshot)"
+    },
+    "messageCreditsLeft": {
+      "type": "number",
+      "title": "Message Credits Left (snapshot)"
+    },
+    "messageCreditsTotal": {
+      "type": "number",
+      "title": "Message Credits Total (snapshot)"
+    },
+    "integrationCreditsUsed": {
+      "type": "number",
+      "title": "Integration Credits Used (snapshot)"
+    },
+    "integrationCreditsTotal": {
+      "type": "number",
+      "title": "Integration Credits Total (snapshot)"
+    },
+    "creditsResetDate": {
+      "type": "string",
+      "title": "Credits Reset Date (YYYY-MM-DD)"
+    },
+    "snapshotAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Snapshot Taken At"
+    },
+    "updatedBy": {
+      "type": "string",
+      "title": "Last Updated By (username)"
+    },
+    "updatedAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Last Updated At"
+    }
+  },
+  "required": [
+    "configName"
+  ],
+  "rls": {
+    "create": null,
+    "read": null,
+    "update": null,
+    "delete": null
+  }
+}

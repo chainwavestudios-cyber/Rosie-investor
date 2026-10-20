@@ -35,7 +35,13 @@ const CHRIS_LABELS = ['619-353-0919', '216-258-6934'];
 
 const DEFAULT_MERGE_SCRIPT = `Alright {{first name}}, I've got a senior debt advisor ready to help you through this. I'm going to connect you now — stay on the line and they'll be right with you.`;
 
-export default function FronterMergePopup({ lead, username, fronterFirstName, isAdmin, callActive, callDuration, callSid, lineKey, onMerge, onNoConnect, onClose, transferScript, onAiInput, onDebtConfirm, onSendEmail, popupProps = {} }) {
+export default function FronterMergePopup({ lead, username, fronterFirstName, isAdmin, callActive, callDuration, callSid, lineKey, onMerge, onNoConnect, onClose, transferScript, onAiInput, onDebtConfirm, onSendEmail, mergeNumbers, mergeLabels, popupProps = {} }) {
+  // Merge / transfer numbers are mastered by the super admin; anything left empty
+  // falls back to the built-in defaults.
+  const overrideNumbers = (mergeNumbers || []).filter(Boolean);
+  const overrideLabels = (mergeLabels || []).filter(Boolean);
+  const numbers = [overrideNumbers[0] || CHRIS_NUMBERS[0], overrideNumbers[1] || CHRIS_NUMBERS[1]];
+  const labels = [overrideLabels[0] || CHRIS_LABELS[0], overrideLabels[1] || CHRIS_LABELS[1]];
   const [script, setScript] = useState(null);
   const [loading, setLoading] = useState(true);
   const [editMode, setEditMode] = useState(false);
@@ -99,8 +105,8 @@ export default function FronterMergePopup({ lead, username, fronterFirstName, is
     if (!callSid || !callActive || !lineKey) { setError('No active call. Start a call from the contact card first.'); return; }
     setMergeState('dialing');
     setError('');
-    const number = CHRIS_NUMBERS[numberIdx];
-    const label = CHRIS_LABELS[numberIdx];
+    const number = numbers[numberIdx];
+    const label = labels[numberIdx];
     setDialingMsg(`Dialing Chris on ${label}…`);
 
     try {
@@ -180,9 +186,9 @@ export default function FronterMergePopup({ lead, username, fronterFirstName, is
     }
 
     const nextIdx = currentNumberIdx + 1;
-    if (nextIdx < CHRIS_NUMBERS.length) {
+    if (nextIdx < numbers.length) {
       setCurrentNumberIdx(nextIdx);
-      setDialingMsg(`Hanging up ${CHRIS_LABELS[currentNumberIdx]} — trying ${CHRIS_LABELS[nextIdx]}…`);
+      setDialingMsg(`Hanging up ${labels[currentNumberIdx]} — trying ${labels[nextIdx]}…`);
       setMergeState('idle');
       setTimeout(() => dialChris(nextIdx), 1000);
     } else {
@@ -242,8 +248,8 @@ export default function FronterMergePopup({ lead, username, fronterFirstName, is
   const canDial = mergeState === 'idle' && callSid && callActive && lineKey;
   const canMerge = !noConnectRunning && mergeState === 'connected';
   const canNoConnect = !noConnectRunning && (mergeState === 'connected' || mergeState === 'dialing' || mergeState === 'no_answer');
-  const canTryNext = !noConnectRunning && (mergeState === 'connected' || mergeState === 'no_answer') && currentNumberIdx < CHRIS_NUMBERS.length - 1;
-  const isLastNumber = currentNumberIdx >= CHRIS_NUMBERS.length - 1;
+  const canTryNext = !noConnectRunning && (mergeState === 'connected' || mergeState === 'no_answer') && currentNumberIdx < numbers.length - 1;
+  const isLastNumber = currentNumberIdx >= numbers.length - 1;
 
   return (
     <FronterPopup title="🔀 Merge Call" subtitle="Complete the steps, then connect" accent={GOLD} onClose={onClose} initialSize={{ w: 520, h: 680 }} minW={380} minH={480} zIndex={21000} {...popupProps}>
