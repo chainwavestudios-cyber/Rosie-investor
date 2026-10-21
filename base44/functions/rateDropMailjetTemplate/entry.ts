@@ -99,11 +99,17 @@ export default async function (req: Request): Promise<Response> {
       }
     }
 
+    // Mailjet hides templates without a purpose from its template galleries.
+    const purposes = ['marketing', 'transactional'];
     if (!templateId) {
-      const made = await mjFetch(auth, '/template', { method: 'POST', body: JSON.stringify({ Name: templateName }) });
+      const made = await mjFetch(auth, '/template', { method: 'POST', body: JSON.stringify({ Name: templateName, Purposes: purposes }) });
       templateId = clean(made?.Data?.[0]?.ID);
       if (!templateId) throw new Error('Mailjet did not return a template ID');
       created = true;
+    } else {
+      await mjFetch(auth, `/template/${templateId}`, {
+        method: 'PUT', body: JSON.stringify({ Purposes: purposes }),
+      });
     }
 
     await mjFetch(auth, `/template/${templateId}/detailcontent`, {
