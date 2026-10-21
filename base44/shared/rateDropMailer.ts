@@ -92,6 +92,25 @@ export const DEFAULT_RATE_DROP_TEMPLATE = {
   fieldMapJson: JSON.stringify(DEFAULT_FIELD_MAP),
 };
 
+/**
+ * Sample contact card for the vault's test mailer. It is never stored: the
+ * preview renders the mailer from it so the field map and copy can be checked
+ * before a real card exists.
+ */
+export const MOCK_CARD = {
+  firstName: 'Sample',
+  lastName: 'Homeowner',
+  address: '1428 Sample Ave',
+  city: 'Riverside',
+  state: 'CA',
+  zipCode: '92503',
+  debtAmount: 20000,
+  noticeId: 'NFS-99999-999',
+  leadNumber: '#F0000',
+  email: 'sample@example.com',
+  phone: '5555555555',
+};
+
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
 export function escapeHtml(value: any): string {

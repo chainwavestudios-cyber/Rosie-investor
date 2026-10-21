@@ -55,6 +55,52 @@
       "title": "Estimated Debt ($)",
       "default": 20000
     },
+    "age": {
+      "type": "number",
+      "title": "Age"
+    },
+    "employmentStatus": {
+      "type": "string",
+      "title": "Employment Status",
+      "enum": [
+        "employed",
+        "self_employed",
+        "unemployed",
+        "retired",
+        "disabled",
+        "unknown"
+      ],
+      "default": "unknown"
+    },
+    "annualIncome": {
+      "type": "number",
+      "title": "Annual Income ($)"
+    },
+    "householdIncome": {
+      "type": "number",
+      "title": "Household Income ($)"
+    },
+    "homeValue": {
+      "type": "number",
+      "title": "Home Value ($)"
+    },
+    "homeEquity": {
+      "type": "number",
+      "title": "Home Equity ($)"
+    },
+    "tradelines": {
+      "type": "number",
+      "title": "Tradelines (count)"
+    },
+    "preferredCallTime": {
+      "type": "string",
+      "title": "Best Time to Call"
+    },
+    "hardshipQualification": {
+      "type": "string",
+      "title": "Hardship Qualification",
+      "format": "textarea"
+    },
     "notes": {
       "type": "string",
       "title": "Notes",

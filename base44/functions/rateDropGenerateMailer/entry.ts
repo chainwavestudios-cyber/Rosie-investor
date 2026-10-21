@@ -21,6 +21,7 @@ import {
   resolveInboundPhone,
   MAILER_SLOTS,
   CONTACT_FIELD_SOURCES,
+  MOCK_CARD,
 } from '../../shared/rateDropMailer.ts';
 
 export default async function (req: Request): Promise<Response> {
@@ -41,14 +42,17 @@ export default async function (req: Request): Promise<Response> {
     }
 
     if (action === 'preview') {
+      // mock: true renders a test mailer from sample card data — nothing is read
+      // off a real card and nothing is stored.
+      const mock = !!body?.mock;
       const leadId = body?.leadId;
-      if (!leadId) return Response.json({ error: 'leadId is required' }, { status: 400 });
-      const card = await base44.asServiceRole.entities.FronterLead.get(leadId);
+      if (!mock && !leadId) return Response.json({ error: 'leadId is required' }, { status: 400 });
+      const card = mock ? MOCK_CARD : await base44.asServiceRole.entities.FronterLead.get(leadId);
       if (!card) return Response.json({ error: 'Contact card not found' }, { status: 404 });
       const template = body?.template ? { ...(await getRateDropTemplate(base44)), ...body.template } : await getRateDropTemplate(base44);
       const phone = await resolveInboundPhone(base44);
       const html = buildMailerHtml(template, card, buildMailerContext(phone, template));
-      return Response.json({ html, phone, leadNumber: card.leadNumber || '', noticeId: card.noticeId || '' });
+      return Response.json({ html, phone, mock, leadNumber: card.leadNumber || '', noticeId: card.noticeId || '' });
     }
 
     if (action === 'get') {

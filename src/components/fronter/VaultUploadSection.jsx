@@ -22,8 +22,21 @@ const FIELDS = [
   { key: 'state', label: 'State' },
   { key: 'zipCode', label: 'Zip Code' },
   { key: 'debtAmount', label: 'Debt Amount ($)' },
+  { key: 'estimatedDebt', label: 'Estimated Debt ($)' },
+  { key: 'companyName', label: 'Company Name' },
+  { key: 'age', label: 'Age' },
+  { key: 'employmentStatus', label: 'Employment Status' },
+  { key: 'annualIncome', label: 'Annual Income ($)' },
+  { key: 'householdIncome', label: 'Household Income ($)' },
+  { key: 'homeValue', label: 'Home Value ($)' },
+  { key: 'homeEquity', label: 'Home Equity ($)' },
+  { key: 'tradelines', label: 'Tradelines' },
+  { key: 'preferredCallTime', label: 'Best Time to Call' },
+  { key: 'hardshipQualification', label: 'Hardship Qualification' },
   { key: 'notes', label: 'Notes' },
 ];
+
+const NUMERIC_FIELDS = new Set(['debtAmount', 'estimatedDebt', 'age', 'annualIncome', 'householdIncome', 'homeValue', 'homeEquity', 'tradelines']);
 
 function parseCSVLine(line) {
   const result = [];
@@ -49,7 +62,18 @@ function autoMatch(header) {
   if (['city', 'town', 'municipality'].some(p => h === p || h.includes(p))) return 'city';
   if (['state', 'province', 'region'].some(p => h === p || h.includes(p))) return 'state';
   if (['zip', 'zip code', 'postal', 'postcode'].some(p => h === p || h.includes(p))) return 'zipCode';
+  if (['estimated debt', 'est debt', 'estimate'].some(p => h === p || h.includes(p))) return 'estimatedDebt';
   if (['debt', 'amount', 'balance', 'debt amount', 'debt balance', 'total debt'].some(p => h === p || h.includes(p))) return 'debtAmount';
+  if (['company', 'business', 'employer'].some(p => h === p || h.includes(p))) return 'companyName';
+  if (['age'].some(p => h === p || h.includes(p))) return 'age';
+  if (['employment', 'job status', 'work status'].some(p => h === p || h.includes(p))) return 'employmentStatus';
+  if (['household income'].some(p => h === p || h.includes(p))) return 'householdIncome';
+  if (['income', 'salary', 'earnings'].some(p => h === p || h.includes(p))) return 'annualIncome';
+  if (['home value', 'house value', 'property value'].some(p => h === p || h.includes(p))) return 'homeValue';
+  if (['home equity', 'equity'].some(p => h === p || h.includes(p))) return 'homeEquity';
+  if (['tradeline', 'tradelines', 'open accounts', 'number of cards'].some(p => h === p || h.includes(p))) return 'tradelines';
+  if (['best time', 'preferred call', 'call time', 'time to call'].some(p => h === p || h.includes(p))) return 'preferredCallTime';
+  if (['hardship'].some(p => h === p || h.includes(p))) return 'hardshipQualification';
   if (['note', 'notes', 'comment', 'comments', 'remark', 'description', 'desc'].some(p => h === p || h.includes(p))) return 'notes';
   return '';
 }
@@ -102,7 +126,7 @@ export default function VaultUploadSection({ adminUsername, onUploaded }) {
           const field = mapping[i];
           if (!field) return;
           let val = (row[i] || '').trim();
-          if (field === 'debtAmount') val = parseFloat(val.replace(/[^0-9.]/g, '')) || 0;
+          if (NUMERIC_FIELDS.has(field)) val = parseFloat(val.replace(/[^0-9.]/g, '')) || 0;
           rec[field] = val;
         });
         if (rec.firstName && rec.lastName && rec.phone) { records.push(rec); success++; }

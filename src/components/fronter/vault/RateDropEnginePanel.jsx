@@ -48,6 +48,7 @@ export default function RateDropEnginePanel({ adminUsername }) {
   const [leads, setLeads] = useState([]);
   const [leadId, setLeadId] = useState('');
   const [html, setHtml] = useState('');
+  const [sample, setSample] = useState(false);
   const [msg, setMsg] = useState('');
   const [busy, setBusy] = useState('');
 
@@ -83,12 +84,16 @@ export default function RateDropEnginePanel({ adminUsername }) {
     ctaPhoneOverride: tpl.ctaPhoneOverride || '', fieldMapJson: JSON.stringify(fieldMap),
   });
 
-  const preview = async () => {
-    if (!leadId) { setMsg('Pick an available lead first — the preview is built from a real contact card.'); return; }
+  // mock = true renders the mailer from sample card data, so the field map can be
+  // tuned into shape before a real card is used.
+  const preview = async (mock = false) => {
+    if (!mock && !leadId) { setMsg('Pick an available lead, or use the test mailer to preview with sample data.'); return; }
     setBusy('preview'); setMsg('');
     try {
-      const res = await base44.functions.invoke('rateDropGenerateMailer', { action: 'preview', leadId, template: draftPayload() });
+      const res = await base44.functions.invoke('rateDropGenerateMailer', { action: 'preview', leadId, mock, template: draftPayload() });
       setHtml(res?.data?.html || '');
+      setSample(!!res?.data?.mock);
+      setMsg(mock ? 'Test mailer built from sample card data (Sample Homeowner · NFS-99999-999 · $20,000). Nothing was stored.' : '');
     } catch (e) { setMsg('Preview failed: ' + (e?.message || 'unknown error')); }
     setBusy('');
   };
@@ -204,13 +209,19 @@ export default function RateDropEnginePanel({ adminUsername }) {
                 ))}
               </select>
             </div>
-            <button onClick={preview} disabled={!!busy} style={{ background: `linear-gradient(135deg,#3b82f6,${BLUE})`, color: DARK, border: 'none', borderRadius: '4px', padding: '8px 14px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', whiteSpace: 'nowrap' }}>
+            <button onClick={() => preview(true)} disabled={!!busy} style={{ background: 'rgba(167,139,250,0.15)', color: PURPLE, border: `1px solid ${PURPLE}55`, borderRadius: '4px', padding: '8px 12px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', whiteSpace: 'nowrap' }}>
+              🧪 Test mailer
+            </button>
+            <button onClick={() => preview(false)} disabled={!!busy} style={{ background: `linear-gradient(135deg,#3b82f6,${BLUE})`, color: DARK, border: 'none', borderRadius: '4px', padding: '8px 14px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', whiteSpace: 'nowrap' }}>
               {busy === 'preview' ? 'Building…' : '👁 Preview'}
             </button>
           </div>
           {html
-            ? <iframe title="Rate Drop mailer preview" srcDoc={html} style={{ width: '100%', height: '900px', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '4px', background: '#ffffff' }} />
-            : <div style={{ border: '1px dashed rgba(255,255,255,0.12)', borderRadius: '4px', height: '320px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#4b5563', fontSize: '12px' }}>Select an available lead and press Preview</div>}
+            ? <>
+                <div style={{ color: sample ? PURPLE : '#4b5563', fontSize: '10px' }}>{sample ? 'Test mailer — sample card data, nothing stored' : 'Preview — from the selected contact card'}</div>
+                <iframe title="Rate Drop mailer preview" srcDoc={html} style={{ width: '100%', height: '900px', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '4px', background: '#ffffff' }} />
+              </>
+            : <div style={{ border: '1px dashed rgba(255,255,255,0.12)', borderRadius: '4px', height: '320px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#4b5563', fontSize: '12px', textAlign: 'center', padding: '20px' }}>Press 🧪 Test mailer to build one from sample data, or pick a lead and press 👁 Preview</div>}
         </div>
       </div>
     </div>
