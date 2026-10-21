@@ -10,6 +10,7 @@ import AssistantDialer from '@/components/assistant/AssistantDialer';
 import AppointmentReminders from '@/components/assistant/AppointmentReminders';
 import CalendarContactCard from '@/components/assistant/CalendarContactCard';
 import ChrisFastDial from '@/components/assistant/ChrisFastDial';
+import Next3HoursWindow from '@/components/assistant/Next3HoursWindow';
 
 const GOLD = '#10b981';
 const DARK = '#0a0f1e';
@@ -71,7 +72,6 @@ export default function AssistantPortal() {
           <img src="https://media.base44.com/images/public/69cd2741578c9b5ce655395b/cad8ccab3_UntitledOvalStickerLandscape.png" alt="Settlement IQ" style={{ width: '130px', height: 'auto', objectFit: 'contain' }} />
           <div>
             <div style={{ color: GOLD, fontSize: '18px', fontWeight: 'bold' }}>Admin Assistant Command Center</div>
-            <div style={{ color: '#6b7280', fontSize: '11px' }}>Right-hand operations · alerts · appointments · fronter team · dialer</div>
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
