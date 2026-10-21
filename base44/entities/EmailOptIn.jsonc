@@ -1,0 +1,121 @@
+{
+  "name": "EmailOptIn",
+  "type": "object",
+  "properties": {
+    "email": {
+      "type": "string",
+      "title": "Email Address"
+    },
+    "firstName": {
+      "type": "string",
+      "title": "First Name"
+    },
+    "lastName": {
+      "type": "string",
+      "title": "Last Name"
+    },
+    "phone": {
+      "type": "string",
+      "title": "Phone"
+    },
+    "source": {
+      "type": "string",
+      "title": "Consent Source",
+      "enum": [
+        "form",
+        "vault",
+        "verbal",
+        "manual"
+      ],
+      "default": "manual"
+    },
+    "status": {
+      "type": "string",
+      "title": "Status (pending = awaiting the double opt-in confirmation)",
+      "enum": [
+        "pending",
+        "confirmed",
+        "unsubscribed"
+      ],
+      "default": "pending"
+    },
+    "consentText": {
+      "type": "string",
+      "title": "Consent Wording Agreed To (compliance record)",
+      "format": "textarea"
+    },
+    "optedInAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Opted In At"
+    },
+    "confirmationSentAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Confirmation Email Sent At"
+    },
+    "confirmedAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Confirmed At (double opt-in link clicked)"
+    },
+    "confirmationToken": {
+      "type": "string",
+      "title": "Confirmation Token (single-use link)"
+    },
+    "ipAddress": {
+      "type": "string",
+      "title": "IP Address (form submissions)"
+    },
+    "leadId": {
+      "type": "string",
+      "title": "Matched Fronter Lead ID"
+    },
+    "noticeId": {
+      "type": "string",
+      "title": "Notice ID"
+    },
+    "vaultEntryId": {
+      "type": "string",
+      "title": "Lead Vault Entry ID"
+    },
+    "batchLabel": {
+      "type": "string",
+      "title": "Vault Batch Label"
+    },
+    "recordedBy": {
+      "type": "string",
+      "title": "Recorded By (admin username or 'form')"
+    },
+    "unsubscribedAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Unsubscribed At"
+    }
+  },
+  "required": [
+    "email"
+  ],
+  "rls": {
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "read": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}

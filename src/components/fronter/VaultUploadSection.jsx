@@ -207,6 +207,11 @@ export default function VaultUploadSection({ adminUsername, onUploaded }) {
       }
       setResult({ success, failed, total: rows.length });
       if (success > 0) onUploaded?.();
+      // These leads gave their verbal opt-in on the call, so log an email opt-in
+      // for any of them (and any earlier lead) still missing one.
+      if (success > 0) {
+        base44.functions.invoke('emailOptIn', { action: 'generate', vault: true, loggedBy: adminUsername }).catch(() => {});
+      }
     } catch (e) {
       alert('Upload error: ' + (e?.message || String(e)));
     }

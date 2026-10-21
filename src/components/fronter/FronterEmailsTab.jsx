@@ -14,6 +14,7 @@ import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
 import { useQuillImageModules } from '@/utils/quillImageUpload';
 import { insertWelcomeTracker } from '@/utils/quillWelcomeTracker';
+import EmailOptInPanel from './EmailOptInPanel';
 
 const GOLD = '#10b981';
 const DARK = '#0a0f1e';
@@ -230,6 +231,8 @@ export default function FronterEmailsTab({ username }) {
         <div style={{ color: GOLD, fontSize: '18px', fontWeight: 'bold' }}>📧 Email Templates & Automation</div>
         <button onClick={startNew} style={{ background: 'linear-gradient(135deg,#10b981,#22c55e)', color: DARK, border: 'none', borderRadius: '4px', padding: '8px 18px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}>+ New Email Template</button>
       </div>
+
+      <EmailOptInPanel username={username} />
 
       <div style={{ background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '6px', padding: '14px', marginBottom: '20px', color: '#8a9ab8', fontSize: '12px', lineHeight: 1.6 }}>
         Central hub for all fronter email templates and automation rules. Each template can be:

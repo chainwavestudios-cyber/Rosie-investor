@@ -29,6 +29,7 @@ import AdminLogin from './pages/AdminLogin';
 import Offering from './pages/Offering';
 import OptIn from './pages/OptIn';
 import OptInScreenshot from './pages/OptInScreenshot';
+import EmailOptInPage from './pages/EmailOptInPage';
 import PrivacyPolicy from './pages/PrivacyPolicy';
 import Terms from './pages/Terms';
 import RequestAccess from './pages/RequestAccess';
@@ -40,7 +41,7 @@ import { PortalAuthProvider } from '@/lib/PortalAuthContext';
 import { TwilioDeviceProvider } from '@/lib/TwilioDeviceContext';
 import AgentConsole from '@/components/agent/AgentConsole';
 
-const PUBLIC_PATHS = ['/optin', '/optin/screenshot', '/privacy', '/terms', '/portal-login', '/admin-login', '/request-access', '/debt-call-coach-login', '/aboutdebt', '/debt-call-coach', '/manager-portal', '/compliance-portal', '/fronter', '/interviews', '/training', '/log', '/work-report', '/reschedule', '/growth-plan', '/assistant-portal', '/superadmin-portal'];
+const PUBLIC_PATHS = ['/optin', '/optin/screenshot', '/email-optin', '/privacy', '/terms', '/portal-login', '/admin-login', '/request-access', '/debt-call-coach-login', '/aboutdebt', '/debt-call-coach', '/manager-portal', '/compliance-portal', '/fronter', '/interviews', '/training', '/log', '/work-report', '/reschedule', '/growth-plan', '/assistant-portal', '/superadmin-portal'];
 
 // Wraps protected routes — applies AuthProvider and its loading/error guards.
 // Public routes bypass this entirely so they never trigger auth redirects.
@@ -88,6 +89,7 @@ function App() {
               {/* Public — no auth required */}
               <Route path="/optin" element={<OptIn />} />
               <Route path="/optin/screenshot" element={<OptInScreenshot />} />
+              <Route path="/email-optin" element={<EmailOptInPage />} />
               <Route path="/privacy" element={<PrivacyPolicy />} />
               <Route path="/terms" element={<Terms />} />
               <Route path="/portal-login" element={<PortalLogin />} />
