@@ -8,6 +8,7 @@ export default function useCalendarCall(lead, username) {
   const [muted, setMuted] = useState(false), [error, setError] = useState('');
   const [loading, setLoading] = useState(true), [callSid, setCallSid] = useState('');
   const device = useRef(null), call = useRef(null), timer = useRef(null), starting = useRef(false), attempt = useRef(0);
+  const answeredAt = useRef(0), answeredSid = useRef('');
   const active = ['calling', 'ringing', 'connected'].includes(status);
   useEffect(() => {
     base44.functions.invoke('twilioGetLines', {}).then(({ data }) => {
@@ -22,7 +23,27 @@ export default function useCalendarCall(lead, username) {
     }).catch(e => setError('Could not load outbound lines: ' + e.message)).finally(() => setLoading(false));
     return () => { attempt.current += 1; clearInterval(timer.current); call.current?.disconnect(); device.current?.destroy(); };
   }, []);
-  const finish = () => { clearInterval(timer.current); call.current = null; setStatus('idle'); setMuted(false); setCallSid(''); };
+  // Ending a call writes its length onto the client's history so every call placed from
+  // the calendar card is logged alongside the rest of the client's activity.
+  const finish = () => {
+    clearInterval(timer.current); call.current = null;
+    const started = answeredAt.current;
+    answeredAt.current = 0;
+    if (started && lead?.id) {
+      const seconds = Math.max(1, Math.round((Date.now() - started) / 1000));
+      const durationMin = Math.max(1, Math.round(seconds / 60));
+      base44.entities.DebtLeadActivity.create({
+        leadId: lead.id,
+        leadName: `${lead.firstName || ''} ${lead.lastName || ''}`.trim(),
+        activityType: 'call',
+        activityText: `Outbound call from the calendar card — ${durationMin} min`,
+        createdBy: username,
+        metadataJson: JSON.stringify({ scope: 'assistant_calendar', durationMin, durationSeconds: seconds, callSid: answeredSid.current }),
+      }).catch(() => {});
+    }
+    answeredSid.current = '';
+    setStatus('idle'); setMuted(false); setCallSid('');
+  };
   const dial = async (target) => {
     if (active || starting.current) return;
     const raw = String(target || lead?.phone || '').trim(), digits = raw.replace(/\D/g, '');
@@ -45,7 +66,7 @@ export default function useCalendarCall(lead, username) {
       if (attempt.current !== dialAttempt) { next.disconnect(); return; }
       call.current = next;
       next.on('ringing', () => { setStatus('ringing'); setCallSid(next.parameters?.CallSid || ''); });
-      next.on('accept', () => { setStatus('connected'); setCallSid(next.parameters?.CallSid || ''); const start = Date.now(); clearInterval(timer.current); timer.current = setInterval(() => setSeconds(Math.floor((Date.now() - start) / 1000)), 1000); });
+      next.on('accept', () => { setStatus('connected'); setCallSid(next.parameters?.CallSid || ''); answeredAt.current = Date.now(); answeredSid.current = next.parameters?.CallSid || ''; const start = answeredAt.current; clearInterval(timer.current); timer.current = setInterval(() => setSeconds(Math.floor((Date.now() - start) / 1000)), 1000); });
       next.on('disconnect', finish); next.on('cancel', finish);
       next.on('error', e => { setError(e.message); finish(); });
     } catch (e) { setError(e.message || 'Call failed.'); device.current?.destroy(); device.current = null; finish(); }

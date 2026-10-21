@@ -5,12 +5,13 @@ import CalendarScriptPanel from '@/components/assistant/calendar/CalendarScriptP
 import CalendarScriptTabPanel from '@/components/assistant/calendar/CalendarScriptTabPanel';
 import CalendarEmailPanel from '@/components/assistant/calendar/CalendarEmailPanel';
 import CalendarFollowUpNotes from '@/components/assistant/calendar/CalendarFollowUpNotes';
+import CalendarHistoryPanel from '@/components/assistant/calendar/CalendarHistoryPanel';
 import CalendarHoldAudio from '@/components/assistant/calendar/CalendarHoldAudio';
 import FronterMergePopup from '@/components/fronter/FronterMergePopup';
 import { TRANSFER_SCRIPT } from '@/components/assistant/calendar/calendarScripts';
 import useSuperAdminConfig, { contactCardValues, DEFAULT_CONTACT_CARD, assistantScriptTabs } from '@/hooks/useSuperAdminConfig';
 
-const BASE_TABS = [['appointment', 'Appointment & Follow-up'], ['rebook', 'Rebook Appointment'], ['reminder', '1-Hour Call Script'], ['calltrans', 'Call & Transfer'], ['emails', 'Credentials & Welcome'], ['notes', 'Calendar Notes']];
+const BASE_TABS = [['appointment', 'Appointment & Follow-up'], ['rebook', 'Rebook Appointment'], ['reminder', '1-Hour Call Script'], ['calltrans', 'Call & Transfer'], ['emails', 'Credentials & Welcome'], ['notes', 'Calendar Notes'], ['history', 'Client History']];
 
 export default function CalendarCardWorkspace({ lead, username, call, onSave }) {
   const [tab, setTab] = useState('appointment'), [mergeOpen, setMergeOpen] = useState(false), [outcome, setOutcome] = useState('');
@@ -38,6 +39,7 @@ export default function CalendarCardWorkspace({ lead, username, call, onSave }) 
       {active === 'calltrans' && <><CalendarScriptPanel lead={lead} call={call} onMerge={() => { setOutcome(''); setMergeOpen(true); }} outcome={outcome} /><CalendarHoldAudio /></>}
       {active === 'emails' && <CalendarEmailPanel lead={lead} />}
       {active === 'notes' && <CalendarFollowUpNotes lead={lead} username={username} />}
+      {active === 'history' && <CalendarHistoryPanel lead={lead} />}
       {customTab && <CalendarScriptTabPanel tab={customTab} lead={lead} call={call} username={username} onSave={onSave} onMerge={() => { setOutcome(''); setMergeOpen(true); }} />}
     </div>
     {mergeOpen && <FronterMergePopup lead={lead} username={username} fronterFirstName="Michie" isAdmin={false} callActive={call.status === 'connected'} callDuration={call.seconds} callSid={call.callSid} lineKey={call.lineKey} transferScript={mergeScript} mergeNumbers={mergeNumbers} mergeLabels={mergeLabels} onClose={() => setMergeOpen(false)} onMerge={() => { setOutcome('Transfer complete. Client connected with Chris.'); setMergeOpen(false); }} onNoConnect={() => { setOutcome('Client left in the queue on hold.'); setMergeOpen(false); }} popupProps={{ zIndex: 35000, initialPos: { x: Math.max(10, (window.innerWidth - width) / 2), y: 12 }, initialSize: { w: width, h: height }, minW: Math.min(380, width), minH: Math.min(480, height) }} />}
