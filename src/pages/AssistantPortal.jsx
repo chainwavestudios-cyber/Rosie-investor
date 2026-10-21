@@ -7,6 +7,7 @@ import SystemGuide from '@/components/assistant/SystemGuide';
 import AssistantCalendar from '@/components/assistant/AssistantCalendar';
 import FronterTeam from '@/components/assistant/FronterTeam';
 import AssistantDialer from '@/components/assistant/AssistantDialer';
+import AssistantLineBroadcast from '@/components/assistant/AssistantLineBroadcast';
 import AppointmentReminders from '@/components/assistant/AppointmentReminders';
 import CalendarContactCard from '@/components/assistant/CalendarContactCard';
 import ChrisFastDial from '@/components/assistant/ChrisFastDial';
@@ -98,6 +99,9 @@ export default function AssistantPortal() {
           <button onClick={logout} style={navBtn()}>Logout</button>
         </div>
       </div>
+
+      {/* Broadcast my line status to the fronter workspace */}
+      <AssistantLineBroadcast username={user?.username} />
 
       <div style={{ display: 'flex', gap: '2px', marginBottom: '20px', borderBottom: '1px solid rgba(255,255,255,0.06)', flexWrap: 'wrap' }}>
         {TABS.map(t => (

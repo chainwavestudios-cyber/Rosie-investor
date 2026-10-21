@@ -26,8 +26,9 @@ export default function AssistantDialer({ username, prefilledNumber, prefilledNa
   const timerRef = useRef(null);
   const startRef = useRef(null);
 
-  // Publish this dialpad's status to the fronter workspace (available / on a call / offline).
-  const broadcast = useAssistantLineStatus(username);
+  // Publish this dialpad's call status to the fronter workspace. autoRegister: false keeps the
+  // dialpad from overriding a status the assistant set by hand on the broadcast control.
+  const broadcast = useAssistantLineStatus(username, { autoRegister: false });
 
   useEffect(() => {
     base44.functions.invoke('twilioGetLines', {}).then(res => {
