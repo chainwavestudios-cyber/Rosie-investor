@@ -73,9 +73,11 @@ export default async function (req: Request): Promise<Response> {
     const user = await base44.auth.me().catch(() => null);
     if (user && user.role !== 'admin') return Response.json({ error: 'Forbidden' }, { status: 403 });
 
-    const key = Deno.env.get('MAILJET_API_KEY');
-    const secret = Deno.env.get('MAILJET_API_SECRET');
-    if (!key || !secret) return Response.json({ error: 'Mailjet credentials not configured' }, { status: 500 });
+    // The Rate Drop mailers have their own Mailjet account, separate from the
+    // account the rest of the app's email sends through.
+    const key = Deno.env.get('MAILJET_2_API_KEY');
+    const secret = Deno.env.get('MAILJET_2_API_SECRET');
+    if (!key || !secret) return Response.json({ error: 'Rate Drop Mailjet credentials not configured (MAILJET_2_API_KEY, MAILJET_2_API_SECRET)' }, { status: 500 });
     const auth = `Basic ${btoa(`${key}:${secret}`)}`;
 
     const rows = await base44.asServiceRole.entities.RateDropTemplate.filter({ configName: 'default' });
@@ -84,6 +86,18 @@ export default async function (req: Request): Promise<Response> {
 
     let templateId = clean(config?.mailjetTemplateId);
     let created = false;
+
+    // A stored ID can belong to the other Mailjet account (or have been deleted),
+    // so reuse it only when this account really holds that template.
+    if (templateId) {
+      const probe = await fetch(`${MJ_BASE}/template/${templateId}`, { headers: { Authorization: auth }, signal: AbortSignal.timeout(15000) });
+      if (probe.status === 404) {
+        console.log(`[rateDropMailjetTemplate] template ${templateId} is not in this account — creating a new one`);
+        templateId = '';
+      } else if (!probe.ok) {
+        throw new Error(`Mailjet ${probe.status} while checking template ${templateId}`);
+      }
+    }
 
     if (!templateId) {
       const made = await mjFetch(auth, '/template', { method: 'POST', body: JSON.stringify({ Name: templateName }) });

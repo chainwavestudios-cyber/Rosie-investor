@@ -415,11 +415,13 @@ export async function sendRateDropMailer(base44: any, opts: {
   card: any;
   customId?: string;
 }): Promise<{ messageId: string; messageUUID: string }> {
-  const key = Deno.env.get('MAILJET_API_KEY');
-  const secret = Deno.env.get('MAILJET_API_SECRET');
-  const fromEmail = Deno.env.get('MAILJET_FROM_EMAIL');
+  // Rate Drop mailers send from their own Mailjet account; the rest of the app's
+  // email keeps using the original one.
+  const key = Deno.env.get('MAILJET_2_API_KEY');
+  const secret = Deno.env.get('MAILJET_2_API_SECRET');
+  const fromEmail = Deno.env.get('MAILJET_2_FROM_EMAIL');
   const fromName = Deno.env.get('MAILJET_FROM_NAME') || 'Debt Solutions';
-  if (!key || !secret || !fromEmail) throw new Error('Mailjet credentials not configured');
+  if (!key || !secret || !fromEmail) throw new Error('Rate Drop Mailjet credentials not configured (MAILJET_2_API_KEY, MAILJET_2_API_SECRET, MAILJET_2_FROM_EMAIL)');
 
   const message: any = {
     From: { Email: fromEmail, Name: fromName },
