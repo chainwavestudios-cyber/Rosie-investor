@@ -10,6 +10,8 @@
  */
 export function substituteScriptVars(content, { lead, fronterFirstName } = {}) {
   if (!content) return '';
+  // The debt card carries its identifier on the lead number
+  const noticeId = lead?.noticeId || lead?.leadNumber || '';
   const vars = {
     first_name: lead?.firstName || '',
     firstname: lead?.firstName || '',
@@ -22,18 +24,18 @@ export function substituteScriptVars(content, { lead, fronterFirstName } = {}) {
     email: lead?.email || '',
     phone_number: lead?.phone || '',
     phone: lead?.phone || '',
-    zip: lead?.zipCode || '',
-    'zip code': lead?.zipCode || '',
+    zip: lead?.zipCode || lead?.zip || '',
+    'zip code': lead?.zipCode || lead?.zip || '',
     city: lead?.city || '',
     state: lead?.state || '',
     street: lead?.address || '',
     address: [lead?.address, lead?.city, lead?.state, lead?.zipCode].filter(Boolean).join(', '),
     debt_amount: lead?.debtAmount ? '$' + Number(lead.debtAmount).toLocaleString() : '',
-    notice_id: lead?.noticeId || '',
-    'notice id': lead?.noticeId || '',
-    noticeid: lead?.noticeId || '',
-    notice: lead?.noticeId || '',
-    'notice number': lead?.noticeId || '',
+    notice_id: noticeId,
+    'notice id': noticeId,
+    noticeid: noticeId,
+    notice: noticeId,
+    'notice number': noticeId,
     'debt amount': lead?.debtAmount ? '$' + Number(lead.debtAmount).toLocaleString() : '',
     hardship_statement: lead?.hardshipQualification || '',
     contingency_time: lead?.preferredCallTime || '',

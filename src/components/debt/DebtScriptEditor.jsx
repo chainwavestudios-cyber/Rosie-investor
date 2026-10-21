@@ -9,6 +9,7 @@ import ScriptTeleprompter, { CUE_CATEGORIES } from '@/components/debt/ScriptTele
 import ScriptFormatToolbar from '@/components/debt/ScriptFormatToolbar';
 import ScriptWysiwygEditor from '@/components/debt/ScriptWysiwygEditor';
 import { htmlToBbcode } from '@/components/debt/ScriptRichText';
+import { DEBT_CONTACT_TABS } from '@/lib/debtContactFields';
 
 const GOLD = '#10b981';
 const DARK = '#0a0f1e';
@@ -34,6 +35,20 @@ const TEXT_COLORS = [
 
 const FONT_SIZES = [12, 13, 14, 15, 16, 18, 20];
 
+// Contact card tokens — filled from the live debtor's card while the script runs
+const VARIABLES = [
+  { token: '{{first name}}', desc: 'First name from the contact card' },
+  { token: '{{last name}}', desc: 'Last name from the contact card' },
+  { token: '{{phone}}', desc: 'Phone number from the contact card' },
+  { token: '{{zip}}', desc: 'Zip code from the contact card' },
+  { token: '{{city}}', desc: 'City from the contact card' },
+  { token: '{{state}}', desc: 'State from the contact card' },
+  { token: '{{email}}', desc: 'Email from the contact card' },
+  { token: '{{address}}', desc: 'Mailing address from the contact card' },
+  { token: '{{notice id}}', desc: 'Notice / lead number from the contact card' },
+  { token: '{{debt amount}}', desc: 'Debt amount from the contact card' },
+];
+
 const AGENT_CATEGORIES = {
   debt_open_scenario: { label: '📞 Open Scenarios', color: '#60a5fa' },
   debt_close_scenario: { label: '🎯 Close Scenarios', color: '#a78bfa' },
@@ -58,7 +73,7 @@ export default function DebtScriptEditor() {
 }
 
 // ─── My Scripts Tab ──────────────────────────────────────────────────────────
-function MyScriptsTab({ liveTranscript, phase, clientFirstName, clientLastName, micLabel, onScriptPositionChange, username }) {
+function MyScriptsTab({ liveTranscript, phase, clientFirstName, clientLastName, micLabel, onScriptPositionChange, username, lead }) {
   const [scripts, setScripts] = useState([]);
   const [activeId, setActiveId] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -68,6 +83,11 @@ function MyScriptsTab({ liveTranscript, phase, clientFirstName, clientLastName, 
   const [newName, setNewName] = useState('');
   const [newType, setNewType] = useState('custom');
   const [deleting, setDeleting] = useState(false);
+  // Inline script button state
+  const [actionMsg, setActionMsg] = useState('');
+  const [debtConfirming, setDebtConfirming] = useState(false);
+  const [sendingEmail, setSendingEmail] = useState(false);
+  const [aiInputRunning, setAiInputRunning] = useState(false);
 
   const autoSaveTimer = useRef(null);
   const activeRef = useRef(null);
@@ -151,23 +171,101 @@ function MyScriptsTab({ liveTranscript, phase, clientFirstName, clientLastName, 
     scheduleAutoSave();
   };
 
-  const insertCueAtCursor = (category) => {
+  // Everything below inserts at the caret and saves through the same path
+  const insertAtCursor = (html) => {
     const ce = textareaRef.current;
     if (!ce || !active) return;
     ce.focus();
-    const cue = `<br>@@CUE:${category}:New ${CUE_CATEGORIES[category].label.toLowerCase()}@@<br>`;
-    document.execCommand('insertHTML', false, cue);
-    const bbcode = htmlToBbcode(ce.innerHTML);
-    updateAndSave({ content: bbcode });
+    document.execCommand('insertHTML', false, html);
+    updateAndSave({ content: htmlToBbcode(ce.innerHTML) });
   };
 
-  const insertAiInputAtCursor = () => {
-    const ce = textareaRef.current;
-    if (!ce || !active) return;
-    ce.focus();
-    document.execCommand('insertHTML', false, '<br>[[AI INPUT]]<br>');
-    const bbcode = htmlToBbcode(ce.innerHTML);
-    updateAndSave({ content: bbcode });
+  const insertCueAtCursor = (category) => insertAtCursor(`<br>@@CUE:${category}:New ${CUE_CATEGORIES[category].label.toLowerCase()}@@<br>`);
+  const insertVariableAtCursor = (token) => insertAtCursor(token);
+  const insertAiFieldTag = (fieldName) => { if (fieldName) insertAtCursor(` [[AI:${fieldName}]] `); };
+  const insertAiInputAtCursor = () => insertAtCursor('<br>[[AI INPUT]]<br>');
+  const insertDebtConfirmTag = () => insertAtCursor('<br>@@DEBT_CONFIRM@@<br>');
+  const insertCompletedStepsTag = () => insertAtCursor('<br>@@COMPLETED_STEPS@@<br>');
+  const insertSendEmailTag = () => insertAtCursor('<br>@@SEND_EMAIL@@<br>');
+
+  // ── Inline script buttons (pressed during the call, read by the teleprompter) ──
+
+  // 💰 Debt Confirm — reads the call for the debt type + total + per-type amounts
+  // and writes the confirmed figures onto the card (total + ledger entries).
+  const runDebtConfirm = async () => {
+    if (!lead?.id || debtConfirming) return;
+    setDebtConfirming(true); setActionMsg('💰 Reading the call for the debt figures…');
+    try {
+      const res = await base44.functions.invoke('debtConfirm', {
+        transcript: liveTranscript || [],
+        currentLeadData: lead,
+        scriptContent: activeRef.current?.content || '',
+      });
+      const data = res?.data || res || {};
+      const updates = {};
+      if (data.debtAmount) updates.debtAmount = data.debtAmount;
+      if (Array.isArray(data.debtAmounts) && data.debtAmounts.length > 0) {
+        const ledger = (() => { try { return JSON.parse(lead.debtLedgerJson || '[]'); } catch { return []; } })();
+        const next = [...ledger];
+        for (const a of data.debtAmounts) {
+          const i = next.findIndex(c => String(c.creditor || '').toLowerCase() === String(a.type || '').toLowerCase());
+          if (i >= 0) next[i] = { ...next[i], balance: a.amount };
+          else next.push({ creditor: a.type, balance: a.amount, paymentSchedule: 'monthly' });
+        }
+        updates.debtLedgerJson = JSON.stringify(next);
+        updates.creditorCount = next.length;
+      }
+      if (Object.keys(updates).length === 0) {
+        setActionMsg(data.message || 'No debt figures in the call yet — the customer has to state the debt and the amount.');
+      } else {
+        await base44.entities.DebtLead.update(lead.id, updates);
+        window.dispatchEvent(new CustomEvent('lead_autosaved', { detail: Object.keys(updates) }));
+        const parts = (data.debtAmounts || []).map(a => `${a.type}: $${Number(a.amount).toLocaleString()}`);
+        setActionMsg(`💰 Confirmed — ${parts.length > 0 ? parts.join(' · ') : '$' + Number(data.debtAmount || 0).toLocaleString()}`);
+      }
+    } catch (e) { setActionMsg('Debt confirm failed: ' + (e?.message || String(e))); }
+    setDebtConfirming(false);
+  };
+
+  // ✅ Completed Steps — hands off to the Closing Flow for the rest of the close
+  const openClosingFlow = () => {
+    if (!lead?.id) return;
+    window.dispatchEvent(new CustomEvent('debt_open_closing', { detail: { leadId: lead.id } }));
+    setActionMsg('✅ Closing Flow opened — the steps below this marker run there.');
+  };
+
+  // 📧 Send Credentials & Welcome Message — emails the card's address
+  const sendCredsEmail = async () => {
+    if (!lead?.id || sendingEmail) return;
+    if (!lead.email) { setActionMsg('Add an email to the contact card first.'); return; }
+    setSendingEmail(true); setActionMsg('📧 Sending the credentials & welcome message…');
+    try {
+      const page = await base44.entities.DebtEmailTemplate.filter({ name: { $regex: 'cred', $options: 'i' } }, { limit: 5 });
+      const items = page?.items || page || [];
+      const template = items.find(t => /creds and welcome/i.test(t.name || '')) || items[0];
+      if (!template) { setActionMsg('No credentials email template found — add it in the Emails tab.'); setSendingEmail(false); return; }
+      const res = await base44.functions.invoke('sendDebtEmail', { leadId: lead.id, templateId: template.id });
+      if (res?.data?.error) throw new Error(res.data.error);
+      setActionMsg(`📧 ${template.name} sent to ${lead.email}`);
+    } catch (e) { setActionMsg('Email failed: ' + (e?.message || String(e))); }
+    setSendingEmail(false);
+  };
+
+  // 🤖 AI Input — summarizes the call so far into the card's notes
+  const runAiInputSummary = async () => {
+    if (!lead?.id || aiInputRunning) return;
+    setAiInputRunning(true); setActionMsg('🤖 Summarizing the call…');
+    try {
+      const res = await base44.functions.invoke('aiInputSummary', { transcript: liveTranscript || [] });
+      const summary = (res?.data || res)?.summary || '';
+      if (!summary) { setActionMsg('No summary generated yet.'); }
+      else {
+        await base44.entities.DebtLead.update(lead.id, { notes: [lead.notes, `🤖 AI Input Summary: ${summary}`].filter(Boolean).join('\n\n') });
+        window.dispatchEvent(new CustomEvent('lead_autosaved', { detail: ['notes'] }));
+        setActionMsg('🤖 Summary added to the card notes');
+      }
+    } catch (e) { setActionMsg('Summary failed: ' + (e?.message || String(e))); }
+    setAiInputRunning(false);
   };
 
   const saveActive = async () => {

@@ -88,6 +88,16 @@ export default function DebtCallCoach() {
     return () => window.removeEventListener('keydown', handler);
   }, []);
 
+  // The script's "Completed Steps" button opens the Closing Flow for that lead
+  useEffect(() => {
+    const handler = (e) => {
+      if (e.detail?.leadId) setClosingLeadId(e.detail.leadId);
+      setTab('closing');
+    };
+    window.addEventListener('debt_open_closing', handler);
+    return () => window.removeEventListener('debt_open_closing', handler);
+  }, []);
+
   if (loading) return (
     <div data-debt-coach style={{ fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, sans-serif', minHeight: '100vh', background: DARK, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
       <div style={{ color: '#6b7280', fontSize: '14px' }}>Loading…</div>

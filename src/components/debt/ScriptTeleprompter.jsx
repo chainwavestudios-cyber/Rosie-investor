@@ -8,6 +8,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { renderFormatted, stripFormatTags } from '@/components/debt/ScriptRichText';
 import { stripAiTags } from '@/lib/fronterContactFields';
+import { substituteScriptVars } from '@/lib/scriptSubstitute';
 
 const GOLD = '#10b981';
 
@@ -18,6 +19,15 @@ export const CUE_REGEX = /^@@CUE:(reminder|objection|tone):(.*)@@$/;
 // [[AI INPUT]] — marks a spot where the agent will collect info from the customer.
 // The AI sees this and aggressively extracts + saves what the customer says to the profile.
 export const AI_INPUT_REGEX = /\[\[AI\s*INPUT\]\]/i;
+
+// Action tags — inline buttons. The host renders the ones it passes a handler
+// for (live call, training); anywhere else they stay invisible and unspoken.
+export const ACTION_TAGS = {
+  '@@DEBT_CONFIRM@@': 'debtConfirm',
+  '@@COMPLETED_STEPS@@': 'completedSteps',
+  '@@AI_INPUT@@': 'aiInput',
+  '@@SEND_EMAIL@@': 'sendEmail',
+};
 
 export const CUE_CATEGORIES = {
   reminder:  { label: 'Reminder',  icon: '💡', color: '#60a5fa', bg: 'rgba(96,165,250,0.1)',  border: 'rgba(96,165,250,0.35)' },
@@ -42,9 +52,9 @@ export function parseScriptElements(content) {
       elements.push({ id: `cue-${i}`, type: 'cue_block', category: m[1], content: m[2], origLine: i });
     } else if (AI_INPUT_REGEX.test(stripped)) {
       elements.push({ id: `ai-${i}`, type: 'ai_input', origLine: i });
-    } else if (stripped === '@@DEBT_CONFIRM@@' || stripped === '@@COMPLETED_STEPS@@' || stripped === '@@AI_INPUT@@' || stripped === '@@SEND_EMAIL@@') {
-      // Interactive buttons — not spoken, skip in teleprompt mode
-      continue;
+    } else if (ACTION_TAGS[stripped]) {
+      // Interactive buttons — never spoken; rendered by the host that supplies a handler
+      elements.push({ id: `action-${i}`, type: 'action', action: ACTION_TAGS[stripped], origLine: i });
     } else if (stripped === '') {
       continue;
     } else {
@@ -139,8 +149,13 @@ export function substituteClientName(text, clientFirstName, clientLastName) {
 }
 
 // ─── Teleprompter Component ────────────────────────────────────────────────────
-export default function ScriptTeleprompter({ content, color = '#e8e0d0', fontSize = 14, liveTranscript, phase, clientFirstName, clientLastName, micLabel, onPositionChange }) {
-  const displayContent = useMemo(() => substituteClientName(content, clientFirstName, clientLastName), [content, clientFirstName, clientLastName]);
+export default function ScriptTeleprompter({ content, color = '#e8e0d0', fontSize = 14, liveTranscript, phase, clientFirstName, clientLastName, lead, micLabel, onPositionChange, actions = {}, actionMsg }) {
+  // Contact-card tokens ({{phone}}, {{zip}}, {{notice id}}, {{debt amount}}, …) resolve
+  // from the live lead; without one, the legacy name tokens are still swapped.
+  const displayContent = useMemo(() => {
+    const named = substituteClientName(content, clientFirstName, clientLastName);
+    return lead ? substituteScriptVars(named, { lead }) : named;
+  }, [content, lead, clientFirstName, clientLastName]);
   const elements = useMemo(() => parseScriptElements(displayContent), [displayContent]);
   const scriptLines = useMemo(() => elements.filter(e => e.type === 'script'), [elements]);
 
@@ -315,6 +330,29 @@ export default function ScriptTeleprompter({ content, color = '#e8e0d0', fontSiz
 
   const kbdStyle = { background: 'rgba(255,255,255,0.08)', padding: '1px 5px', borderRadius: '3px', fontFamily: 'monospace', fontSize: '10px' };
 
+  // Inline script buttons — each appears only where the host wired its handler
+  const actionButtons = {
+    debtConfirm: { label: '💰 Debt Confirm', busy: '⏳ Confirming…', color: GOLD, bg: `${GOLD}18`, border: `${GOLD}55`, onClick: actions.onDebtConfirm, isBusy: actions.debtConfirming },
+    completedSteps: { label: '✅ Completed Steps', busy: '⏳', color: '#22c55e', bg: 'rgba(34,197,94,0.18)', border: 'rgba(34,197,94,0.55)', onClick: actions.onCompletedSteps, isBusy: false },
+    aiInput: { label: '🤖 AI Input', busy: '⏳ Summarizing…', color: '#a78bfa', bg: 'rgba(167,139,250,0.18)', border: 'rgba(167,139,250,0.55)', onClick: actions.onAiInput, isBusy: actions.aiInputRunning },
+    sendEmail: { label: '📧 Send Credentials & Welcome Message', busy: '⏳ Sending…', color: '#60a5fa', bg: 'rgba(96,165,250,0.18)', border: 'rgba(96,165,250,0.55)', onClick: actions.onSendEmail, isBusy: actions.sendingEmail },
+  };
+
+  const renderActionButton = (action) => {
+    const cfg = actionButtons[action];
+    if (!cfg || !cfg.onClick) return null;
+    return (
+      <button
+        type="button"
+        onClick={cfg.onClick}
+        disabled={!!cfg.isBusy}
+        style={{ background: cfg.bg, color: cfg.color, border: `2px solid ${cfg.border}`, borderRadius: '8px', padding: '10px 24px', cursor: cfg.isBusy ? 'progress' : 'pointer', fontSize: '13px', fontWeight: 'bold', fontFamily: 'Georgia, serif' }}
+      >
+        {cfg.isBusy ? cfg.busy : cfg.label}
+      </button>
+    );
+  };
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
       {/* Controls bar */}
@@ -361,6 +399,11 @@ export default function ScriptTeleprompter({ content, color = '#e8e0d0', fontSiz
           if (el.type === 'ai_input') {
             return <AiInputBlockView key={el.id} />;
           }
+          if (el.type === 'action') {
+            const button = renderActionButton(el.action);
+            if (!button) return null;
+            return <div key={el.id} style={{ margin: '10px 0', display: 'flex', justifyContent: 'center' }}>{button}</div>;
+          }
           const scriptIdx = scriptLines.indexOf(el);
           const isActive = scriptIdx === activeIdx;
           const isPast = scriptIdx < activeIdx;
@@ -390,6 +433,7 @@ export default function ScriptTeleprompter({ content, color = '#e8e0d0', fontSiz
             </div>
           );
         })}
+        {actionMsg && <div style={{ color: GOLD, fontSize: '11px', padding: '8px 0' }}>{actionMsg}</div>}
         {/* Bottom spacer so last line can scroll to center */}
         <div style={{ height: '200px' }} />
       </div>

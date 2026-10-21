@@ -22,7 +22,7 @@ export default function LiveScriptsPanel({ transcript, phase, panel, lead, micLa
 
   const renderScripts = () => (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden', padding: '14px 16px' }}>
-      <MyScriptsTab liveTranscript={transcript} phase={phase} clientFirstName={lead?.firstName} clientLastName={lead?.lastName} micLabel={micLabel} onScriptPositionChange={onScriptPositionChange} username={username} />
+      <MyScriptsTab liveTranscript={transcript} phase={phase} lead={lead} clientFirstName={lead?.firstName} clientLastName={lead?.lastName} micLabel={micLabel} onScriptPositionChange={onScriptPositionChange} username={username} />
     </div>
   );
 
