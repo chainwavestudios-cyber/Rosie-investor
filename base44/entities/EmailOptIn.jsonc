@@ -63,6 +63,11 @@
       "type": "string",
       "title": "Confirmation Token (single-use link)"
     },
+    "listSubscribedAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Subscribed To The Debt Solutions Email List At"
+    },
     "ipAddress": {
       "type": "string",
       "title": "IP Address (form submissions)"

@@ -27,7 +27,7 @@ const STATUS_LABELS = {
 const fmt = (iso) => (iso ? new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—');
 
 export default function EmailOptInPanel({ username }) {
-  const [counts, setCounts] = useState({ total: 0, confirmed: 0, pending: 0 });
+  const [counts, setCounts] = useState({ total: 0, confirmed: 0, pending: 0, onList: 0 });
   const [rows, setRows] = useState([]);
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState(null);
@@ -37,13 +37,14 @@ export default function EmailOptInPanel({ username }) {
 
   const load = useCallback(async () => {
     try {
-      const [total, confirmed, pending, page] = await Promise.all([
+      const [total, confirmed, pending, onList, page] = await Promise.all([
         base44.entities.EmailOptIn.count({}),
         base44.entities.EmailOptIn.count({ status: 'confirmed' }),
         base44.entities.EmailOptIn.count({ status: 'pending' }),
+        base44.entities.EmailOptIn.count({ status: 'confirmed', listSubscribedAt: { $ne: null } }),
         base44.entities.EmailOptIn.list('-optedInAt', 12),
       ]);
-      setCounts({ total, confirmed, pending });
+      setCounts({ total, confirmed, pending, onList });
       setRows(page?.items || page || []);
     } catch { /* list unavailable */ }
   }, []);
@@ -65,6 +66,33 @@ export default function EmailOptInPanel({ username }) {
     setBusy(false);
   };
 
+  const subscribeAll = async () => {
+    if (!confirm('Add every confirmed opt-in to the Debt Solutions email list in Mailjet?')) return;
+    setBusy(true);
+    setResult(null);
+    try {
+      let done = 0;
+      let failed = 0;
+      let remaining = 1;
+      let listName = 'Debt Solutions';
+      for (let round = 0; round < 12 && remaining > 0; round++) {
+        const res = await base44.functions.invoke('emailOptIn', { action: 'subscribeList' });
+        if (res?.data?.error) throw new Error(res.data.error);
+        const d = res?.data || {};
+        done += d.subscribed || 0;
+        failed += d.failed || 0;
+        remaining = d.remaining || 0;
+        listName = d.listName || listName;
+        if (remaining) setResult(`⏳ Subscribing… ${done} added, ${remaining} to go`);
+      }
+      setResult(`✓ Subscribed ${done} contact${done === 1 ? '' : 's'} to the “${listName}” email list${failed ? ` · ${failed} could not be added` : ''}.`);
+      await load();
+    } catch (e) {
+      setResult('⚠ ' + (e?.response?.data?.error || e?.message || 'Could not subscribe the email list.'));
+    }
+    setBusy(false);
+  };
+
   const copyLink = async () => {
     try {
       await navigator.clipboard.writeText(formUrl);
@@ -79,12 +107,13 @@ export default function EmailOptInPanel({ username }) {
         <div style={{ color: GOLD, fontSize: '13px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase' }}>✉️ Email Opt-Ins</div>
         <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
           <button onClick={copyLink} style={{ background: 'rgba(96,165,250,0.14)', color: BLUE, border: `1px solid ${BLUE}55`, borderRadius: '4px', padding: '7px 14px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>{copied ? '✓ Link Copied' : '🔗 Copy Form Link'}</button>
-          <button onClick={generate} disabled={busy} style={{ background: `${GOLD}18`, color: GOLD, border: `1px solid ${GOLD}55`, borderRadius: '4px', padding: '7px 14px', cursor: busy ? 'not-allowed' : 'pointer', fontSize: '11px', fontWeight: 'bold', opacity: busy ? 0.6 : 1 }}>{busy ? '⏳ Logging…' : '⚡ Log Verbal Opt-Ins For Current Leads'}</button>
+          <button onClick={generate} disabled={busy} style={{ background: `${GOLD}18`, color: GOLD, border: `1px solid ${GOLD}55`, borderRadius: '4px', padding: '7px 14px', cursor: busy ? 'not-allowed' : 'pointer', fontSize: '11px', fontWeight: 'bold', opacity: busy ? 0.6 : 1 }}>{busy ? '⏳ Working…' : '⚡ Log Verbal Opt-Ins For Current Leads'}</button>
+          <button onClick={subscribeAll} disabled={busy} style={{ background: `${PURPLE}18`, color: PURPLE, border: `1px solid ${PURPLE}55`, borderRadius: '4px', padding: '7px 14px', cursor: busy ? 'not-allowed' : 'pointer', fontSize: '11px', fontWeight: 'bold', opacity: busy ? 0.6 : 1 }}>{busy ? '⏳ Working…' : '📮 Subscribe All To Email List'}</button>
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px', marginBottom: '12px' }}>
-        {[['Total', counts.total, GOLD], ['Confirmed', counts.confirmed, BLUE], ['Awaiting Confirm', counts.pending, '#f59e0b']].map(([label, value, color]) => (
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px', marginBottom: '12px' }}>
+        {[['Total', counts.total, GOLD], ['Confirmed', counts.confirmed, BLUE], ['On Email List', counts.onList, PURPLE], ['Awaiting Confirm', counts.pending, '#f59e0b']].map(([label, value, color]) => (
           <div key={label} style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: '4px', padding: '8px', textAlign: 'center' }}>
             <div style={{ color, fontSize: '18px', fontWeight: 'bold' }}>{value}</div>
             <div style={{ color: '#6b7280', fontSize: '9px', textTransform: 'uppercase', letterSpacing: '1px' }}>{label}</div>
@@ -93,7 +122,7 @@ export default function EmailOptInPanel({ username }) {
       </div>
 
       <div style={{ color: '#8a9ab8', fontSize: '11px', lineHeight: 1.6, marginBottom: '10px' }}>
-        Public form: <span style={{ color: '#e8e0d0' }}>{formUrl}</span> — double opt-in, so a new subscriber only counts once they click the confirmation link in their email. Leads who opted in verbally are logged as confirmed.
+        Public form: <span style={{ color: '#e8e0d0' }}>{formUrl}</span> — single opt-in: the consent box on the form is the recorded consent, and a submission joins the email list straight away. Leads who opted in verbally are logged as confirmed. Confirmed contacts are subscribed to the “Debt Solutions” list in Mailjet.
       </div>
 
       {result && <div style={{ color: result.startsWith('✓') ? GOLD : '#f59e0b', fontSize: '12px', marginBottom: '10px' }}>{result}</div>}

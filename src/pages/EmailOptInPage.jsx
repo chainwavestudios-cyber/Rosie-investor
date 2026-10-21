@@ -1,11 +1,10 @@
 /**
  * EmailOptInPage — public email opt-in form (no login).
- * Double opt-in, following Mailjet's subscription form practice: the visitor
- * consents, receives a confirmation email, and only then is the consent
- * confirmed. A confirmation link (?token=…) lands back here.
+ * Single opt-in: the visitor ticks a consent box that names the subscription
+ * topic, and the submission itself is the recorded consent — the contact goes
+ * straight onto the Debt Solutions email list.
  */
-import { useState, useEffect } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useState } from 'react';
 import { base44 } from '@/api/base44Client';
 
 const BLUE = '#0ea5e9';
@@ -19,28 +18,14 @@ const field = { width: '100%', border: `1px solid ${BORDER}`, borderRadius: '12p
 const label = { display: 'block', fontSize: '11px', fontWeight: 'bold', color: '#374151', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.5px' };
 
 export default function EmailOptInPage() {
-  const [urlParams] = useSearchParams();
-  const token = urlParams.get('token') || '';
-
-  const [stage, setStage] = useState(token ? 'confirming' : 'form');
+  const [stage, setStage] = useState('form');
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
   const [agreed, setAgreed] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-  const [confirmedEmail, setConfirmedEmail] = useState('');
-
-  useEffect(() => {
-    if (!token) return;
-    base44.functions.invoke('emailOptIn', { action: 'confirm', token })
-      .then((res) => {
-        if (res?.data?.error) { setError(res.data.error); setStage('invalid'); return; }
-        setConfirmedEmail(res?.data?.email || '');
-        setStage('confirmed');
-      })
-      .catch((e) => { setError(e?.response?.data?.error || 'This confirmation link could not be verified.'); setStage('invalid'); });
-  }, [token]);
+  const [joinedEmail, setJoinedEmail] = useState('');
 
   const submit = async (e) => {
     e.preventDefault();
@@ -55,11 +40,10 @@ export default function EmailOptInPage() {
         firstName: firstName.trim(),
         lastName: lastName.trim(),
         consent: true,
-        origin: window.location.origin,
       });
       if (res?.data?.error) { setError(res.data.error); setBusy(false); return; }
-      setStage(res?.data?.alreadyConfirmed ? 'confirmed' : 'pending');
-      setConfirmedEmail(email.trim().toLowerCase());
+      setJoinedEmail(email.trim().toLowerCase());
+      setStage('subscribed');
     } catch (err) {
       setError(err?.response?.data?.error || 'Something went wrong. Please try again.');
     }
@@ -77,42 +61,15 @@ export default function EmailOptInPage() {
     </div>
   );
 
-  if (stage === 'confirming') {
-    return shell(<div style={{ color: MUTED, fontSize: '14px', textAlign: 'center', padding: '24px 0' }}>Confirming your subscription…</div>);
-  }
-
-  if (stage === 'confirmed') {
+  if (stage === 'subscribed') {
     return shell(
       <div style={{ textAlign: 'center', padding: '8px 0' }}>
         <div style={{ fontSize: '44px', marginBottom: '14px' }}>✅</div>
         <h1 style={{ fontFamily: "'Playfair Display', Georgia, serif", color: INK, fontSize: '24px', margin: '0 0 10px' }}>You're subscribed</h1>
         <p style={{ color: MUTED, fontSize: '14px', lineHeight: 1.7, margin: 0 }}>
-          {confirmedEmail ? <><strong>{confirmedEmail}</strong> is confirmed. </> : 'Your email is confirmed. '}
+          {joinedEmail ? <><strong>{joinedEmail}</strong> is on our email list. </> : 'Your email is on our list. '}
           You'll receive our updates, and you can unsubscribe at any time using the link in any email.
         </p>
-      </div>
-    );
-  }
-
-  if (stage === 'pending') {
-    return shell(
-      <div style={{ textAlign: 'center', padding: '8px 0' }}>
-        <div style={{ fontSize: '44px', marginBottom: '14px' }}>📬</div>
-        <h1 style={{ fontFamily: "'Playfair Display', Georgia, serif", color: INK, fontSize: '24px', margin: '0 0 10px' }}>Check your inbox</h1>
-        <p style={{ color: MUTED, fontSize: '14px', lineHeight: 1.7, margin: 0 }}>
-          We sent a confirmation email to <strong>{confirmedEmail}</strong>. Click the button in that email to finish subscribing. Nothing is sent until you confirm.
-        </p>
-      </div>
-    );
-  }
-
-  if (stage === 'invalid') {
-    return shell(
-      <div style={{ textAlign: 'center', padding: '8px 0' }}>
-        <div style={{ fontSize: '44px', marginBottom: '14px' }}>⚠️</div>
-        <h1 style={{ fontFamily: "'Playfair Display', Georgia, serif", color: INK, fontSize: '24px', margin: '0 0 10px' }}>Link not valid</h1>
-        <p style={{ color: MUTED, fontSize: '14px', lineHeight: 1.7, marginBottom: '20px' }}>{error || 'This confirmation link has already been used.'}</p>
-        <a href="/email-optin" style={{ display: 'inline-block', background: BLUE, color: INK, fontWeight: 'bold', fontSize: '14px', textDecoration: 'none', padding: '12px 24px', borderRadius: '24px' }}>Subscribe again</a>
       </div>
     );
   }
@@ -121,7 +78,7 @@ export default function EmailOptInPage() {
     <>
       <h1 style={{ fontFamily: "'Playfair Display', Georgia, serif", color: INK, fontSize: '26px', margin: '0 0 8px' }}>Get our email updates</h1>
       <p style={{ color: MUTED, fontSize: '14px', lineHeight: 1.7, margin: '0 0 24px' }}>
-        Enter your details and confirm the email we send you to start receiving updates and important communications from Debt Solutions.
+        Enter your details to join our email list and start receiving updates and important communications from Debt Solutions.
       </p>
 
       <form onSubmit={submit}>
@@ -151,12 +108,12 @@ export default function EmailOptInPage() {
         )}
 
         <button type="submit" disabled={busy} style={{ width: '100%', background: BLUE, color: INK, border: 'none', borderRadius: '24px', padding: '14px', fontSize: '15px', fontWeight: 'bold', cursor: busy ? 'not-allowed' : 'pointer', opacity: busy ? 0.6 : 1, fontFamily: 'inherit' }}>
-          {busy ? 'Sending…' : 'Subscribe'}
+          {busy ? 'Subscribing…' : 'Subscribe'}
         </button>
       </form>
 
       <p style={{ color: '#9ca3af', fontSize: '11px', lineHeight: 1.6, marginTop: '18px', marginBottom: 0 }}>
-        We use a double opt-in: you'll get one email asking you to confirm, and nothing else until you do. You can unsubscribe at any time.
+        Submitting this form adds you to our email list. You can unsubscribe at any time.
       </p>
     </>
   );
