@@ -1,0 +1,47 @@
+{
+  "name": "Nightly AI Cost Report",
+  "description": "Builds the exact AI cost report for the day that just ended (Eastern Time) every night at 3am \u2014 one record per day in AI Cost Reports, broken down per call with real token counts and dollar cost.",
+  "trigger": {
+    "condition": null,
+    "config": {
+      "trigger_type": "scheduled",
+      "events": [],
+      "schedule_mode": "recurring",
+      "cron_expression": "0 3 * * *",
+      "one_time_date": null,
+      "timezone": "America/New_York",
+      "interval_value": null,
+      "interval_unit": null,
+      "interval_anchor": null,
+      "ends_type": "never",
+      "ends_on_date": null,
+      "ends_after_count": null
+    }
+  },
+  "definition": {
+    "document": {
+      "dsl": "1.0.0",
+      "name": "nightly_ai_cost_report",
+      "version": "1.0",
+      "namespace": "base44"
+    },
+    "do": [
+      {
+        "build_cost_report": {
+          "call": "invoke_backend_function",
+          "with": {
+            "function_name": "aiCostReport",
+            "args": {
+              "source": "workflow"
+            }
+          },
+          "then": "end",
+          "x-base44": {
+            "title": "Build AI cost report",
+            "description": "Yesterday's exact AI cost per call"
+          }
+        }
+      }
+    ]
+  }
+}

@@ -18,6 +18,9 @@ import DebtEmailsTab from '@/components/debt/DebtEmailsTab';
 import DebtBobTrainer from '@/components/debt/DebtBobTrainer';
 import CallsTab from '@/components/debt/CallsTab';
 import AICreditsTab from '@/components/debt/AICreditsTab';
+import AICostReportsTab from '@/components/debt/AICostReportsTab';
+import CoachTabBar from '@/components/debt/CoachTabBar';
+import useCoachTabOrder from '@/hooks/useCoachTabOrder';
 import HotCallAnalytics from '@/components/debt/HotCallAnalytics';
 import LeadGenTab from '@/components/debt/LeadGenTab';
 import NewLeadsTab from '@/components/debt/NewLeadsTab';
@@ -56,6 +59,11 @@ export default function DebtCallCoach() {
   const [heatMapVisible, setHeatMapVisible] = useState(false);
   const [pipelineLead, setPipelineLead] = useState(null);
 
+  // Two-row tab bar — each user can drag tabs into any order/row; saved per user
+  const { rows: tabRows, tabMap, moveTab, reset: resetTabOrder } = useCoachTabOrder({
+    username: user?.username, isAdmin, isSuperAdmin, isSuperManager, isDialerRole,
+  });
+
   // Alt+D hotkey → toggle Deal Monitor popout
   useEffect(() => {
     const handler = (e) => {
@@ -79,29 +87,6 @@ export default function DebtCallCoach() {
   );
   if (!isAuthenticated) return <Navigate to="/debt-call-coach-login" replace />;
   if (mustResetPassword) return <Navigate to="/debt-call-coach-login" replace />;
-
-  const TABS = [
-    { id: 'live', label: '📞 Live Call' },
-    { id: 'scripts', label: '📜 Scripts' },
-    { id: 'closing', label: '🏁 Closing' },
-    { id: 'calls', label: '📋 Calls' },
-    ...(isAdmin ? [{ id: 'leadgen', label: '🎯 Lead Gen' }] : []),
-    ...(isAdmin ? [{ id: 'smartleads', label: '🧠 Smart Leads' }] : []),
-    { id: 'newleads', label: '📥 New Leads' },
-    { id: 'hotleads', label: '🔥 Hot Leads' },
-    { id: 'pipeline', label: '📊 Pipeline' },
-    { id: 'bob', label: '🤖 BOB Training' },
-    { id: 'pitches', label: '🎤 Pitches' },
-    { id: 'emails', label: '📧 Emails' },
-    { id: 'objections', label: '🛡️ Objections' },
-    { id: 'kb', label: '🧠 Knowledge Base' },
-    ...(isDialerRole ? [] : [{ id: 'kbchat', label: '💬 AI KB Chat' }]),
-    { id: 'profile', label: '👤 Prospects' },
-    ...(isDialerRole ? [{ id: 'stats', label: '📊 My Stats' }] : []),
-    ...(isSuperManager ? [{ id: 'compliance', label: '🛡 Compliance' }] : []),
-    ...(isSuperAdmin ? [{ id: 'aicredits', label: '💳 AI Credits' }] : []),
-    ...(isAdmin ? [{ id: 'admin', label: '⚙️ Admin' }] : []),
-  ];
 
   return (
     <div data-debt-coach style={{ fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, sans-serif', minHeight: '100vh', background: DARK, color: '#e8e0d0', padding: '24px 32px' }}>
@@ -130,12 +115,8 @@ export default function DebtCallCoach() {
         </div>
       </div>
 
-      {/* Tabs */}
-      <div style={{ display: 'flex', gap: '2px', marginBottom: '20px', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
-        {TABS.map(t => (
-          <button key={t.id} onClick={() => setTab(t.id)} style={{ padding: '10px 18px', background: tab === t.id ? `${GOLD}12` : 'transparent', border: 'none', borderBottom: `2px solid ${tab === t.id ? GOLD : 'transparent'}`, color: tab === t.id ? GOLD : '#8a9ab8', cursor: 'pointer', fontSize: '13px', fontWeight: tab === t.id ? 'bold' : 'normal', whiteSpace: 'nowrap' }}>{t.label}</button>
-        ))}
-      </div>
+      {/* Tabs — two rows; drag any tab to reorder (saved per user) */}
+      <CoachTabBar rows={tabRows} tabMap={tabMap} active={tab} onSelect={setTab} onMove={moveTab} onReset={resetTabOrder} />
 
       {tab === 'live' && <DebtLiveCall debtCoachUser={user} onCallStart={(callLead) => { setLiveCallActive(true); if (callLead?.id) setClosingLeadId(callLead.id); }} onCallEnd={() => setLiveCallActive(false)} />}
       <PopOutTab storageKey="debt_scripts_tab" title="Scripts" icon="📜" active={tab === 'scripts'} autoPopOut={liveCallActive} defaultSize={{ width: 520, height: 720 }} zIndex={14600}>
@@ -169,6 +150,7 @@ export default function DebtCallCoach() {
       {tab === 'compliance' && <CompliancePortal onBack={() => setTab('live')} />}
       {tab === 'admin' && isAdmin && <DebtCoachAdminPanel />}
       {tab === 'aicredits' && isSuperAdmin && <AICreditsTab />}
+      {tab === 'aireports' && isAdmin && <AICostReportsTab />}
 
       {/* Floating WCR Checklist — available on all tabs */}
       <WCRChecklist />

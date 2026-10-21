@@ -1,4 +1,42 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.52';
+import { waitUntil } from 'base44:runtime';
+import { computeCostUsd } from '../../shared/aiCost.ts';
+
+// Records the exact token usage and dollar cost of one Anthropic call. Runs
+// after the response is sent (waitUntil) so live-call latency is untouched.
+// The app passes _ctx (lead, agent, call type, callId) with every request, so
+// this row lines up with the app's own log row for the same AI call.
+function logExactUsage(req: Request, model: string, usage: any) {
+  if (!usage) return;
+  const ctx = (req as any).__aiCtx || {};
+  const inputTokens = usage.input_tokens || 0;
+  const outputTokens = usage.output_tokens || 0;
+  const cacheReadTokens = usage.cache_read_input_tokens || 0;
+  const cacheWriteTokens = usage.cache_creation_input_tokens || 0;
+  try {
+    const client = createClientFromRequest(req);
+    waitUntil(client.asServiceRole.entities.AICreditUsage.create({
+      callId: ctx.callId || '',
+      callType: ctx.callType || 'llm',
+      provider: 'anthropic',
+      model: model || 'claude-haiku-4-5-20251001',
+      agentUsername: ctx.agentUsername || '',
+      leadId: ctx.leadId || '',
+      leadName: ctx.leadName || '',
+      leadNumber: ctx.leadNumber || '',
+      transcriptId: ctx.transcriptId || '',
+      estimatedCredits: 0,
+      costUsd: computeCostUsd({ model, inputTokens, outputTokens, cacheReadTokens, cacheWriteTokens }),
+      inputTokens,
+      outputTokens,
+      cacheReadTokens,
+      cacheWriteTokens,
+      calledAt: new Date().toISOString(),
+    })).catch(() => {});
+  } catch (e) {
+    console.log('[logExactUsage] failed:', (e as any)?.message || String(e));
+  }
+}
 
 // ── Platform LLM helper ────────────────────────────────────────────────────
 // Routes all AI features through the platform InvokeLLM integration (platform
@@ -32,10 +70,13 @@ async function callLLM(req: Request, body: any): Promise<any> {
         }),
       });
       if (!response.ok) {
+        const detail = await response.text().catch(() => '');
+        console.log('[callLLM] Anthropic error', response.status, detail.slice(0, 300));
         if ([401, 402, 403, 429].includes(response.status)) throw new Error(`CREDIT_EXHAUSTED:anthropic:${response.status}`);
         throw new Error(`Anthropic API ${response.status}`);
       }
       const data = await response.json();
+      logExactUsage(req, model, data.usage);
       return { content: [{ type: 'text', text: data.content?.[0]?.text || '' }], usage: data.usage };
     } catch (e: any) {
       if (e?.message?.includes('CREDIT_EXHAUSTED')) throw e;
@@ -100,6 +141,7 @@ async function callLLMCached(req: Request, opts: {
       if (data.usage) {
         console.log(`[callLLMCached] usage: input=${data.usage.input_tokens} output=${data.usage.output_tokens} cache_read=${data.usage.cache_read_input_tokens || 0} cache_write=${data.usage.cache_creation_input_tokens || 0}`);
       }
+      logExactUsage(req, opts.model || 'claude-haiku-4-5-20251001', data.usage);
       return { content: [{ type: 'text', text: data.content?.[0]?.text || '' }], usage: data.usage };
     } catch (e) {
       console.log('[callLLMCached] Anthropic failed, falling back to InvokeLLM:', e?.message || String(e));
@@ -234,6 +276,9 @@ function buildScriptRedirect(scriptPosition: any): string {
 Deno.serve(async (req) => {
   try {
     const body = await req.json();
+    // Lead / agent / call context sent by the app so exact AI usage can be
+    // logged against the same AI call the app recorded.
+    (req as any).__aiCtx = body?._ctx || {};
     const { question, transcript, kbEntries, mode, existingProfile,
             intentRules, coachRules, qaHistory, engagementScore,
             kbName, previousAnswer, internetQuery,

@@ -80,9 +80,19 @@ const DEBT_KEYTERMS = [
 
 // Wrapper for liveAssistantAI calls — detects credit exhaustion in responses/errors
 // and triggers the CreditAlertPopup automatically.
+// Context for the next liveAssistantAI call — stamped by logAI so the backend
+// records exact token usage and cost against the same AI call (matched by callId).
+let nextAICallContext = null;
+function takeAICallContext() {
+  const ctx = nextAICallContext;
+  nextAICallContext = null;
+  return ctx;
+}
+
 async function invokeAI(functionName, payload) {
+  const ctx = takeAICallContext();
   try {
-    const res = await base44.functions.invoke(functionName, payload);
+    const res = await base44.functions.invoke(functionName, ctx ? { ...payload, _ctx: ctx } : payload);
     const creditErr = checkAIResponseForCreditError(res);
     if (creditErr) notifyCreditExhaustion(creditErr.service, creditErr.detail);
     return res;
@@ -559,13 +569,21 @@ Agent line: "${firstAgentLines}"`,
 
   // Log an AI call to AICreditUsage for the super-admin AI Credits tab (fire-and-forget).
   const logAI = useCallback((callType) => {
-    logAIUsage({
-      agentUsername: coachUser?.username,
-      leadId: leadRef.current?.id,
+    const callId = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+    const context = {
+      callId,
+      callType,
+      agentUsername: coachUser?.username || '',
+      leadId: leadRef.current?.id || '',
       leadName: `${leadRef.current?.firstName || ''} ${leadRef.current?.lastName || ''}`.trim(),
       leadNumber: leadRef.current?.leadNumber || '',
-      transcriptId: transcriptRecordIdRef.current,
-      callType,
+      transcriptId: transcriptRecordIdRef.current || '',
+    };
+    // Hand the same context to the next liveAssistantAI call so its exact token
+    // usage and cost attach to this AI call in the AI Reports breakdown.
+    nextAICallContext = context;
+    logAIUsage({
+      ...context,
       estimatedCredits: CREDIT_ESTIMATES[callType] ?? 1,
     });
   }, [coachUser]);

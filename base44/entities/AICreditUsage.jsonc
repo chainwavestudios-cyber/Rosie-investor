@@ -22,9 +22,21 @@
       "type": "string",
       "title": "Call Transcript ID"
     },
+    "callId": {
+      "type": "string",
+      "title": "AI Call ID (links the app's log row to its exact-usage row)"
+    },
     "callType": {
       "type": "string",
       "title": "AI Call Type (qa, coach, intent, profile, contact, handoff, hardship, cosigners, credit, budget, debt_extract, intent_final, full_report, call_analysis, extract_facts, compliance, cold_call_name, etc.)"
+    },
+    "provider": {
+      "type": "string",
+      "title": "Provider (set to 'anthropic' by the exact-usage tracker; empty = platform InvokeLLM credits)",
+      "enum": [
+        "anthropic",
+        "base44"
+      ]
     },
     "model": {
       "type": "string",
@@ -35,6 +47,11 @@
       "type": "number",
       "title": "Estimated Integration Credits",
       "default": 1
+    },
+    "costUsd": {
+      "type": "number",
+      "title": "Exact Cost (USD, computed from token counts)",
+      "default": 0
     },
     "inputTokens": {
       "type": "number",
@@ -49,6 +66,11 @@
     "cacheReadTokens": {
       "type": "number",
       "title": "Cache Read Tokens (90% discount applied)",
+      "default": 0
+    },
+    "cacheWriteTokens": {
+      "type": "number",
+      "title": "Cache Write Tokens (prompt caching)",
       "default": 0
     },
     "calledAt": {

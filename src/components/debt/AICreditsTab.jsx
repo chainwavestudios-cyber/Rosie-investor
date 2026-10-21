@@ -41,7 +41,9 @@ export default function AICreditsTab() {
     setLoading(true);
     try {
       const all = await base44.entities.AICreditUsage.list('-calledAt', 2000);
-      setRecords(all || []);
+      // Exact-usage rows written by the backend tracker are the token twins of the
+      // app's own log rows — keep this tab's counts on the app rows only.
+      setRecords((all || []).filter(r => !r.provider));
     } catch { setRecords([]); }
     setLoading(false);
   }, []);
