@@ -57,6 +57,9 @@ const PING_INTERVAL_MS = Number(process.env.PING_INTERVAL_MS || 30000);
 const LOG_LEVEL = process.env.LOG_LEVEL || 'info';
 const NODE_ENV = process.env.NODE_ENV || 'development';
 const HTTP_TIMEOUT_MS = Number(process.env.HTTP_TIMEOUT_MS || 15000);
+// Voice pacing. A conversational phone agent reads slower than ElevenLabs' 1.0
+// default, which callers hear as rushed. 0.9 is unhurried but still natural.
+const ELEVENLABS_SPEED = Number(process.env.ELEVENLABS_SPEED || 0.9);
 
 // ── Fail-closed: refuse to start without required secrets in production ──
 if (NODE_ENV === 'production') {
@@ -109,6 +112,34 @@ function armSpeakingWatchdog(session, streamSid) {
 }
 function clearSpeakingWatchdog(session) {
   if (session.speakingTimer) { clearTimeout(session.speakingTimer); session.speakingTimer = null; }
+}
+
+// ── Barge-in grace window ───────────────────────────────────────────────
+// Callers make small sounds while the agent talks — a cough, "mm-hmm", a chair
+// creak. Cutting the agent off on the first blip is what makes the call feel
+// jumpy. Caller speech only interrupts once it is still going after this window;
+// a blip cancels the pending interrupt and the agent finishes her sentence.
+const BARGE_IN_GRACE_MS = Number(process.env.BARGE_IN_GRACE_MS || 600);
+// Short acknowledgements are agreement sounds, not a change of turn.
+const BACKCHANNEL_RE = /^(yeah|yep|yup|yes|no|nope|ok|okay|k|sure|right|correct|exactly|uh[- ]?huh|mm[- ]?hmm|mhm|hm+|mm+|ah+|oh+|ha+|aha|wow|really|gotcha|got it|i see|alright|interesting|understood|thanks)[.!,?\s]*$/i;
+function isBackchannel(transcript) {
+  return BACKCHANNEL_RE.test(String(transcript || '').trim());
+}
+function cancelPendingBarge(session) {
+  if (session.bargeTimer) { clearTimeout(session.bargeTimer); session.bargeTimer = null; }
+}
+function scheduleBargeIn(session, streamSid) {
+  if (session.bargeTimer) return;
+  session.bargeTimer = setTimeout(() => {
+    session.bargeTimer = null;
+    // She finished first, or the caller already stopped: she keeps talking.
+    if (session.state !== 'speaking' || !session.callerSpeaking) return;
+    log('barge-in confirmed after grace window, gen', session.generation);
+    session.generation++;
+    sendToTwilio(session.ws, { event: 'clear', streamSid });
+    clearSpeakingWatchdog(session);
+    session.state = 'listening';
+  }, BARGE_IN_GRACE_MS);
 }
 
 // ── Express ──────────────────────────────────────────────────────────────
@@ -247,6 +278,8 @@ async function handleStreamStart(ws, streamSid, start) {
     leadId,
     dgWs: null,
     generation: 0,        // increments on each AI response (barge-in tracking)
+    callerSpeaking: false, // true from caller speech start until it ends
+    bargeTimer: null,      // pending barge-in confirmation (grace window)
     state: 'initializing', // pipeline is loaded before opening STT
     conversation: [],
     recordingBuffer: [],
@@ -410,32 +443,56 @@ function openDeepgram(session, streamSid) {
       // Nova: use VAD + speech_final for turn detection
       if (!isFlux) {
         const transcript = msg.channel?.alternatives?.[0]?.transcript || '';
-        if (msg.vad?.speech_start && session.state === 'speaking') {
-          log('barge-in detected, gen', session.generation);
-          session.generation++;
-          sendToTwilio(session.ws, { event: 'clear', streamSid });
-          session.state = 'listening';
-          return;
+        if (msg.vad?.speech_start) {
+          session.callerSpeaking = true;
+          if (session.state === 'speaking') scheduleBargeIn(session, streamSid);
         }
-        if (msg.speech_final && transcript.trim() && session.state === 'listening') {
-          log('speech_final:', transcript);
-          handleUtterance(streamSid, transcript);
+        if (msg.vad?.speech_end) {
+          session.callerSpeaking = false;
+          cancelPendingBarge(session);
+        }
+        if (msg.speech_final && transcript.trim()) {
+          session.callerSpeaking = false;
+          cancelPendingBarge(session);
+          // A finished, meaningful sentence cuts her off; a backchannel is
+          // agreement, so she keeps her train of thought and keeps talking.
+          if (session.state === 'speaking' && !isBackchannel(transcript)) {
+            log('barge-in (complete utterance), gen', session.generation);
+            session.generation++;
+            sendToTwilio(session.ws, { event: 'clear', streamSid });
+            clearSpeakingWatchdog(session);
+            session.state = 'listening';
+          }
+          if (session.state === 'listening') {
+            log('speech_final:', transcript);
+            handleUtterance(streamSid, transcript);
+          }
         }
       }
     }
 
     // Flux: use TurnInfo events for model-integrated turn detection
     if (isFlux && msg.type === 'TurnInfo') {
-      if (msg.event === 'StartOfTurn' && session.state === 'speaking') {
-        log('flux barge-in (StartOfTurn), gen', session.generation);
-        session.generation++;
-        sendToTwilio(session.ws, { event: 'clear', streamSid });
-        session.state = 'listening';
-        return;
+      if (msg.event === 'StartOfTurn') {
+        session.callerSpeaking = true;
+        if (session.state === 'speaking') scheduleBargeIn(session, streamSid);
       }
-      if (msg.event === 'EndOfTurn' && msg.transcript && msg.transcript.trim() && session.state === 'listening') {
-        log('flux EndOfTurn:', msg.transcript);
-        handleUtterance(streamSid, msg.transcript);
+      if (msg.event === 'EndOfTurn' && msg.transcript && msg.transcript.trim()) {
+        session.callerSpeaking = false;
+        cancelPendingBarge(session);
+        // A finished, meaningful sentence cuts her off; a backchannel is
+        // agreement, so she keeps her train of thought and keeps talking.
+        if (session.state === 'speaking' && !isBackchannel(msg.transcript)) {
+          log('flux barge-in (complete utterance), gen', session.generation);
+          session.generation++;
+          sendToTwilio(session.ws, { event: 'clear', streamSid });
+          clearSpeakingWatchdog(session);
+          session.state = 'listening';
+        }
+        if (session.state === 'listening') {
+          log('flux EndOfTurn:', msg.transcript);
+          handleUtterance(streamSid, msg.transcript);
+        }
       }
     }
   });
@@ -623,7 +680,7 @@ async function generateTTS(text, config = {}, session = null) {
         {
           method: 'POST',
           headers: { 'xi-api-key': ELEVENLABS_API_KEY, 'Content-Type': 'application/json', 'Accept': 'audio/*' },
-          body: JSON.stringify({ text, model_id: synthesisModel, voice_settings: { stability: 0.5, similarity_boost: 0.75 } }),
+          body: JSON.stringify({ text, model_id: synthesisModel, voice_settings: { stability: 0.5, similarity_boost: 0.75, style: 0.0, use_speaker_boost: true, speed: ELEVENLABS_SPEED } }),
           signal: AbortSignal.timeout(15000),
         }
       );

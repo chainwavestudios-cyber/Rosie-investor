@@ -7,6 +7,12 @@
  * transfer simulation.
  */
 
+// Same voice pacing as the live agent: a rushed greeting is the first thing a
+// caller notices. Model and speed are part of the cache key, so retuning either
+// regenerates the clip instead of replaying the old one.
+const CLIP_MODEL = 'eleven_turbo_v2_5';
+const CLIP_SPEED = 0.9;
+
 /** Cheap content fingerprint so a cached clip never outlives a wording change. */
 export function textFingerprint(text: string): string {
   let hash = 0;
@@ -24,7 +30,7 @@ export interface TtsClipInput {
 /** Resolve (or generate + cache) the public MP3 URL for a spoken line. */
 export async function getTtsClip(base44: any, { text, voiceId, keyPrefix }: TtsClipInput): Promise<string | null> {
   if (!text || !voiceId) return null;
-  const cacheKey = `${keyPrefix}:${voiceId.slice(0, 8)}:${textFingerprint(text)}`;
+  const cacheKey = `${keyPrefix}:${voiceId.slice(0, 8)}:${textFingerprint(`${text}|${CLIP_MODEL}|${CLIP_SPEED}`)}`;
 
   // Check cache first
   try {
@@ -42,8 +48,8 @@ export async function getTtsClip(base44: any, { text, voiceId, keyPrefix }: TtsC
       headers: { 'xi-api-key': apiKey, 'Content-Type': 'application/json', 'Accept': 'audio/mpeg' },
       body: JSON.stringify({
         text,
-        model_id: 'eleven_flash_v2_5',
-        voice_settings: { stability: 0.5, similarity_boost: 0.75, style: 0.0, use_speaker_boost: true },
+        model_id: CLIP_MODEL,
+        voice_settings: { stability: 0.5, similarity_boost: 0.75, style: 0.0, use_speaker_boost: true, speed: CLIP_SPEED },
       }),
       signal: AbortSignal.timeout(15000),
     });
