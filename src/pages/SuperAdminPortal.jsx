@@ -11,12 +11,14 @@ import { useDebtCoachAuth } from '@/lib/DebtCoachAuthContext';
 import DualClockBar from '@/components/shared/DualClockBar';
 import CoachBoard from '@/components/superadmin/CoachBoard';
 import FronterBoard from '@/components/superadmin/FronterBoard';
+import MarketingTab from '@/components/marketing/MarketingTab';
 import { C } from '@/components/superadmin/kit';
 
 const TABS = [
   { id: 'coach', label: '🔵 Debt Call Coach' },
   { id: 'fronter', label: '🟢 Fronter' },
   { id: 'split', label: '⚡ Split Screen' },
+  { id: 'marketing', label: '📣 Marketing' },
 ];
 
 const navBtn = {
@@ -99,6 +101,7 @@ export default function SuperAdminPortal() {
 
       {tab === 'coach' && <CoachBoard username={user?.username} columns={3} />}
       {tab === 'fronter' && <FronterBoard username={user?.username} columns={3} />}
+      {tab === 'marketing' && <MarketingTab username={user?.username} />}
 
       {tab === 'split' && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(520px, 100%), 1fr))', gap: '16px', alignItems: 'start' }}>

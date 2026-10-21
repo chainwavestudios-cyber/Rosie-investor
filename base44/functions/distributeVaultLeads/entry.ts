@@ -5,6 +5,7 @@
  */
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.52';
 import { assignNoticeIds } from '../../shared/noticeId.ts';
+import { ensureMailers } from '../../shared/rateDropMailer.ts';
 
 export default async function(req: Request): Promise<Response> {
   try {
@@ -94,6 +95,14 @@ export default async function(req: Request): Promise<Response> {
     for (let i = 0; i < records.length; i += 400) {
       const batch = await base44.asServiceRole.entities.FronterLead.bulkCreate(records.slice(i, i + 400));
       created = created.concat(batch || []);
+    }
+
+    // ── Generate the Rate Drop digital mailer for every new contact card ──
+    // A mailer failure must never undo a distribution that already happened.
+    try {
+      await ensureMailers(base44, created.map((c: any) => c?.id).filter(Boolean));
+    } catch (mailerError: any) {
+      console.error('[distributeVaultLeads] mailer generation failed:', mailerError?.message || String(mailerError));
     }
 
     // ── Mark vault entries as distributed ──

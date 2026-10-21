@@ -11,6 +11,7 @@ import AppointmentReminders from '@/components/assistant/AppointmentReminders';
 import CalendarContactCard from '@/components/assistant/CalendarContactCard';
 import ChrisFastDial from '@/components/assistant/ChrisFastDial';
 import Next3HoursWindow from '@/components/assistant/Next3HoursWindow';
+import MarketingTab from '@/components/marketing/MarketingTab';
 
 const GOLD = '#10b981';
 const DARK = '#0a0f1e';
@@ -63,6 +64,7 @@ export default function AssistantPortal() {
     { id: 'fronter', label: '👥 Fronter Team' },
     { id: 'dialer', label: '☎️ Dialer' },
     { id: 'guide', label: '📚 System Guide' },
+    { id: 'marketing', label: '📣 Marketing' },
   ];
 
   return (
@@ -102,6 +104,7 @@ export default function AssistantPortal() {
         {tab === 'fronter' && <FronterTeam />}
         {tab === 'dialer' && <AssistantDialer username={user?.username} prefilledNumber={fastDial.number || dialLead?.phone} prefilledName={fastDial.name || (dialLead ? `${dialLead.firstName || ''} ${dialLead.lastName || ''}`.trim() : '')} autoDial={fastDial.autoDial} />}
         {tab === 'guide' && <SystemGuide />}
+        {tab === 'marketing' && <MarketingTab username={user?.username} />}
       </div>
 
       {user?.username?.toLowerCase() === 'msxyc' && <AppointmentReminders username={user.username} onDialLead={setReminderLead} />}

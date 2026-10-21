@@ -11,6 +11,7 @@ import VaultValidationPanel from './VaultValidationPanel';
 import VaultDncScrubPanel from './VaultDncScrubPanel';
 import VaultDistributionPanel from './VaultDistributionPanel';
 import VaultEntryTable from './VaultEntryTable';
+import RateDropEnginePanel from './vault/RateDropEnginePanel';
 
 const GOLD = '#10b981';
 const DARK = '#0a0f1e';
@@ -23,6 +24,7 @@ export default function LeadVaultTab({ adminUsername }) {
   const [usage, setUsage] = useState({ used: 0, limit: 100, remaining: 100 });
   const [serverStats, setServerStats] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [vaultView, setVaultView] = useState('vault');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -145,6 +147,17 @@ export default function LeadVaultTab({ adminUsername }) {
         </div>
       </div>
 
+      {/* Vault sections */}
+      <div style={{ display: 'flex', gap: '4px', borderBottom: '1px solid rgba(255,255,255,0.06)', flexWrap: 'wrap' }}>
+        {[{ id: 'vault', label: '🗄 Lead Vault' }, { id: 'engine', label: '📨 Rate Drop Engine' }].map(v => (
+          <button key={v.id} onClick={() => setVaultView(v.id)} style={{ padding: '9px 16px', background: vaultView === v.id ? `${GOLD}12` : 'transparent', border: 'none', borderBottom: `2px solid ${vaultView === v.id ? GOLD : 'transparent'}`, color: vaultView === v.id ? GOLD : '#6b7280', cursor: 'pointer', fontSize: '12px', fontWeight: vaultView === v.id ? 'bold' : 'normal', whiteSpace: 'nowrap' }}>{v.label}</button>
+        ))}
+      </div>
+
+      {vaultView === 'engine' ? (
+        <RateDropEnginePanel adminUsername={adminUsername} />
+      ) : (
+        <>
       {/* Top row: Upload → Tracerfy Append → Validate → DNC Scrub → Distribute */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '12px' }}>
         <VaultUploadSection adminUsername={adminUsername} onUploaded={load} />
@@ -156,6 +169,8 @@ export default function LeadVaultTab({ adminUsername }) {
 
       {/* Entry table */}
       <VaultEntryTable entries={entries} serverStats={serverStats} />
+        </>
+      )}
     </div>
   );
 }

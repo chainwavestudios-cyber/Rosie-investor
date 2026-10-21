@@ -26,6 +26,7 @@ import AIPopulateTab from '@/components/shared/AIPopulateTab';
 import PhoneVerifyBadge from './PhoneVerifyBadge';
 import DebtBadge from './DebtBadge';
 import FronterCallHistoryTab from './FronterCallHistoryTab';
+import RateDropMailerTab from './RateDropMailerTab';
 import { loadFronterLayout, saveFronterLayout } from '@/lib/fronterPopoutLayout';
 
 const GOLD = '#10b981';
@@ -826,6 +827,7 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
           <button onClick={() => setCardTab('call_history')} style={{ padding: '8px 16px', background: 'none', border: 'none', borderBottom: `2px solid ${cardTab === 'call_history' ? BLUE : 'transparent'}`, color: cardTab === 'call_history' ? BLUE : '#6b7280', cursor: 'pointer', fontSize: '11px', fontWeight: cardTab === 'call_history' ? 'bold' : 'normal' }}>📋 Transcripts</button>
           <button onClick={() => setCardTab('checklist')} style={{ padding: '8px 16px', background: 'none', border: 'none', borderBottom: `2px solid ${cardTab === 'checklist' ? GOLD : 'transparent'}`, color: cardTab === 'checklist' ? GOLD : '#6b7280', cursor: 'pointer', fontSize: '11px', fontWeight: cardTab === 'checklist' ? 'bold' : 'normal' }}>✅ Checklist</button>
           <button onClick={() => setCardTab('ai_populate')} style={{ padding: '8px 16px', background: 'none', border: 'none', borderBottom: `2px solid ${cardTab === 'ai_populate' ? '#a78bfa' : 'transparent'}`, color: cardTab === 'ai_populate' ? '#a78bfa' : '#6b7280', cursor: 'pointer', fontSize: '11px', fontWeight: cardTab === 'ai_populate' ? 'bold' : 'normal' }}>🤖 AI Populate</button>
+          <button onClick={() => setCardTab('mailer')} style={{ padding: '8px 16px', background: 'none', border: 'none', borderBottom: `2px solid ${cardTab === 'mailer' ? GOLD : 'transparent'}`, color: cardTab === 'mailer' ? GOLD : '#6b7280', cursor: 'pointer', fontSize: '11px', fontWeight: cardTab === 'mailer' ? 'bold' : 'normal' }}>📨 Mailer</button>
         </div>
 
         {/* Content */}
@@ -1015,6 +1017,10 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
 
           {cardTab === 'ai_populate' && (
             <AIPopulateTab lead={local} leadType="fronter" />
+          )}
+
+          {cardTab === 'mailer' && (
+            <RateDropMailerTab lead={local} />
           )}
         </div>
 

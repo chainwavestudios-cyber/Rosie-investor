@@ -1,0 +1,75 @@
+{
+  "name": "RateDropSend",
+  "type": "object",
+  "properties": {
+    "campaignId": {
+      "type": "string",
+      "title": "Campaign ID"
+    },
+    "campaignName": {
+      "type": "string",
+      "title": "Campaign Name (for display)"
+    },
+    "leadId": {
+      "type": "string",
+      "title": "Contact Card ID"
+    },
+    "leadName": {
+      "type": "string",
+      "title": "Prospect Name"
+    },
+    "email": {
+      "type": "string",
+      "title": "Recipient Email"
+    },
+    "noticeId": {
+      "type": "string",
+      "title": "Notice ID"
+    },
+    "mailerId": {
+      "type": "string",
+      "title": "Digital Mailer ID (RateDropMailer record used)"
+    },
+    "sendAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Scheduled Send Time"
+    },
+    "status": {
+      "type": "string",
+      "title": "Status",
+      "enum": [
+        "pending",
+        "sent",
+        "failed",
+        "skipped"
+      ],
+      "default": "pending"
+    },
+    "sentAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Sent At"
+    },
+    "error": {
+      "type": "string",
+      "title": "Error / Skip Reason",
+      "format": "textarea"
+    },
+    "mailjetMessageId": {
+      "type": "string",
+      "title": "Mailjet Message ID"
+    }
+  },
+  "required": [
+    "campaignId",
+    "leadId",
+    "sendAt"
+  ],
+  "rls": {
+    "create": null,
+    "read": null,
+    "update": null,
+    "delete": null
+  }
+}

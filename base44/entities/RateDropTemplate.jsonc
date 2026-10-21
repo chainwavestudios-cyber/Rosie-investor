@@ -1,0 +1,103 @@
+{
+  "name": "RateDropTemplate",
+  "type": "object",
+  "properties": {
+    "configName": {
+      "type": "string",
+      "title": "Config Name (singleton key)",
+      "default": "default"
+    },
+    "name": {
+      "type": "string",
+      "title": "Template Name",
+      "default": "DEBT Solutions Rate Drop Mailer"
+    },
+    "companyName": {
+      "type": "string",
+      "title": "Company Name",
+      "default": "DEBT SOLUTIONS"
+    },
+    "headerBanner": {
+      "type": "string",
+      "title": "Black Header Banner Text",
+      "format": "textarea",
+      "default": "DEBT SOLUTIONS RATE DROP ENGINE \u2014 DELINQUENT CREDIT CARD ACCOUNT ASSISTANCE. PLEASE REVIEW ENTIRE DOCUMENT."
+    },
+    "introText": {
+      "type": "string",
+      "title": "Introductory Paragraph",
+      "format": "textarea",
+      "default": "Your File Number {{plan_number}} has been included to participate in The Debt Solutions Rate Drop Engine due to the recent delinquent payments filed against you and shown on your tri-bureau credit report. It is imperative that you contact Customer Service Immediately at {{phone}} to take advantage of The Rate Drop Engine. Respond by {{respond_by_date}} by 5PM to ensure eligibility into one of the four available hardship programs."
+    },
+    "importantNotice": {
+      "type": "string",
+      "title": "Important Notice (bold + italic)",
+      "format": "textarea",
+      "default": "Enrollment is limited. To ensure your eligibility status, you must call now. No further notices will be sent."
+    },
+    "summaryBanner": {
+      "type": "string",
+      "title": "Data Box Top Banner",
+      "format": "textarea",
+      "default": "RDE Debt Benefits and Savings of {{savings_amount}} exclusively for {{recipient_name}}"
+    },
+    "benefitsJson": {
+      "type": "string",
+      "title": "Benefits Grid (JSON array of strings)",
+      "format": "textarea"
+    },
+    "warningText": {
+      "type": "string",
+      "title": "Warning Line (uppercase)",
+      "format": "textarea",
+      "default": "FAILURE TO RESPOND TO THIS NOTICE WILL AFFECT YOUR ELIGIBILITY"
+    },
+    "bottomTitle": {
+      "type": "string",
+      "title": "Bottom Title",
+      "default": "The Debt Solutions Rate Drop Engine"
+    },
+    "legalText": {
+      "type": "string",
+      "title": "Small-Print Legal Disclaimer",
+      "format": "textarea"
+    },
+    "savingsPercent": {
+      "type": "number",
+      "title": "Savings Percent (debt reduction shown as savings)",
+      "default": 60
+    },
+    "respondByDays": {
+      "type": "number",
+      "title": "Respond-By Window (days from notice date)",
+      "default": 30
+    },
+    "ctaPhoneOverride": {
+      "type": "string",
+      "title": "Phone Override (leave empty to use the incoming AI agent line)"
+    },
+    "fieldMapJson": {
+      "type": "string",
+      "title": "Field Map (JSON array of {slot, source})",
+      "format": "textarea"
+    },
+    "updatedBy": {
+      "type": "string",
+      "title": "Last Updated By (username)"
+    },
+    "updatedAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Last Updated At"
+    }
+  },
+  "required": [
+    "configName"
+  ],
+  "rls": {
+    "create": null,
+    "read": null,
+    "update": null,
+    "delete": null
+  }
+}

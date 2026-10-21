@@ -1,0 +1,117 @@
+{
+  "name": "RateDropCampaign",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "title": "Campaign Name"
+    },
+    "mailjetTemplateId": {
+      "type": "string",
+      "title": "Mailjet Template ID (the template the mailer is injected into)"
+    },
+    "fronterUsername": {
+      "type": "string",
+      "title": "Fronter / Owner (whose prospects are being mailed)"
+    },
+    "leadIdsJson": {
+      "type": "string",
+      "title": "Selected Prospects (JSON array of contact card IDs)",
+      "format": "textarea"
+    },
+    "scheduleMode": {
+      "type": "string",
+      "title": "Schedule Mode",
+      "enum": [
+        "all_at_once",
+        "stagger",
+        "repetitive"
+      ],
+      "default": "all_at_once"
+    },
+    "startAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Start Time"
+    },
+    "batchSize": {
+      "type": "number",
+      "title": "Stagger \u2014 Emails per Burst",
+      "default": 1
+    },
+    "intervalMinutes": {
+      "type": "number",
+      "title": "Minutes Between Sends / Bursts",
+      "default": 5
+    },
+    "dailyLimit": {
+      "type": "number",
+      "title": "Repetitive \u2014 Emails Per Day",
+      "default": 50
+    },
+    "windowStart": {
+      "type": "string",
+      "title": "Repetitive \u2014 Daily Window Start (HH:MM)",
+      "default": "08:00"
+    },
+    "windowEnd": {
+      "type": "string",
+      "title": "Repetitive \u2014 Daily Window End (HH:MM)",
+      "default": "20:00"
+    },
+    "timezone": {
+      "type": "string",
+      "title": "Schedule Timezone",
+      "default": "America/New_York"
+    },
+    "status": {
+      "type": "string",
+      "title": "Status",
+      "enum": [
+        "running",
+        "paused",
+        "completed",
+        "cancelled"
+      ],
+      "default": "running"
+    },
+    "totalSends": {
+      "type": "number",
+      "title": "Total Scheduled Sends",
+      "default": 0
+    },
+    "sentCount": {
+      "type": "number",
+      "title": "Sent",
+      "default": 0
+    },
+    "failedCount": {
+      "type": "number",
+      "title": "Failed",
+      "default": 0
+    },
+    "skippedCount": {
+      "type": "number",
+      "title": "Skipped (no email / no mailer)",
+      "default": 0
+    },
+    "lastRunAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Last Engine Tick"
+    },
+    "createdBy": {
+      "type": "string",
+      "title": "Created By (username)"
+    }
+  },
+  "required": [
+    "name"
+  ],
+  "rls": {
+    "create": null,
+    "read": null,
+    "update": null,
+    "delete": null
+  }
+}

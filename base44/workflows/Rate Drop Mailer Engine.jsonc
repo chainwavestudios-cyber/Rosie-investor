@@ -1,0 +1,45 @@
+{
+  "definition": {
+    "document": {
+      "dsl": "1.0.0",
+      "name": "rate_drop_mailer_engine",
+      "version": "1.0",
+      "namespace": "base44"
+    },
+    "do": [
+      {
+        "run_mailer_engine": {
+          "call": "invoke_backend_function",
+          "with": {
+            "function_name": "rateDropCampaignRun",
+            "args": {}
+          },
+          "then": "end",
+          "x-base44": {
+            "title": "Send due Rate Drop mailers",
+            "description": "Mailjet \u2192 injected digital mailer"
+          }
+        }
+      }
+    ]
+  },
+  "description": "Sends due Rate Drop digital mailers on a 5-minute tick, injecting each into its campaign's Mailjet template.",
+  "name": "Rate Drop Mailer Engine",
+  "trigger": {
+    "condition": null,
+    "config": {
+      "trigger_type": "scheduled",
+      "events": [],
+      "schedule_mode": "recurring",
+      "cron_expression": "*/5 * * * *",
+      "one_time_date": null,
+      "timezone": "America/New_York",
+      "interval_value": null,
+      "interval_unit": null,
+      "interval_anchor": null,
+      "ends_type": "never",
+      "ends_on_date": null,
+      "ends_after_count": null
+    }
+  }
+}
