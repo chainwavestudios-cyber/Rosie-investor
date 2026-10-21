@@ -24,6 +24,7 @@ import FronterActivityLogTab from '@/components/fronter/FronterActivityLogTab';
 import FronterAdminHRTab from '@/components/fronter/FronterAdminHRTab';
 import LeadVaultTab from '@/components/fronter/LeadVaultTab';
 import FronterKBTab from '@/components/fronter/FronterKBTab';
+import FronterQuickDialEditor from '@/components/fronter/FronterQuickDialEditor';
 import { renderFormatted } from '@/components/debt/ScriptRichText';
 
 const GOLD = '#10b981';
@@ -279,6 +280,7 @@ export default function FronterAdminTab({ adminUsername, onOpenLead }) {
       {/* ── LINE ASSIGNMENT ── */}
       {subtab === 'lines' && !loading && (
         <div>
+          <FronterQuickDialEditor username={adminUsername} />
           <div style={{ color: GOLD, fontSize: '11px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '12px' }}>📞 Assign Twilio Lines to Fronters</div>
           {fronters.length === 0 ? (
             <div style={{ color: '#4a5568', padding: '20px', textAlign: 'center', fontSize: '13px' }}>No fronter users yet. Create fronter users from the Manager Portal → Employees tab.</div>

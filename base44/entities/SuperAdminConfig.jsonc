@@ -59,11 +59,21 @@
     },
     "chrisOfficePhone": {
       "type": "string",
-      "title": "Fast-Dial \u2014 Office (E.164)"
+      "title": "Fast-Dial \u2014 Office Number (E.164)"
+    },
+    "chrisOfficeLabel": {
+      "type": "string",
+      "title": "Fast-Dial \u2014 Office Tag (button text shown to every user)",
+      "default": "Chris \u00b7 Office"
     },
     "chrisCellPhone": {
       "type": "string",
-      "title": "Fast-Dial \u2014 Cell (E.164)"
+      "title": "Fast-Dial \u2014 Mobile Number (E.164)"
+    },
+    "chrisMobileLabel": {
+      "type": "string",
+      "title": "Fast-Dial \u2014 Mobile Tag (button text shown to every user)",
+      "default": "Chris \u00b7 Mobile"
     },
     "workspacePlan": {
       "type": "string",

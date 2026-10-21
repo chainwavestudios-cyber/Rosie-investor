@@ -23,7 +23,7 @@ const PHONE_FIELDS = [
   ['transferPhoneNumber2', 'Merge / transfer number 2'],
   ['transferLabel2', 'Label 2'],
   ['chrisOfficePhone', 'Fast-dial · office'],
-  ['chrisCellPhone', 'Fast-dial · cell'],
+  ['chrisCellPhone', 'Fast-dial · mobile'],
 ];
 
 export default function ContactCardEditorCard({ username }) {

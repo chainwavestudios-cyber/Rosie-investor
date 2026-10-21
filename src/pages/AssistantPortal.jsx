@@ -13,6 +13,7 @@ import ChrisFastDial from '@/components/assistant/ChrisFastDial';
 import Next3HoursWindow from '@/components/assistant/Next3HoursWindow';
 import MarketingTab from '@/components/marketing/MarketingTab';
 import ContactCardEditorCard from '@/components/superadmin/cards/ContactCardEditorCard';
+import useSuperAdminConfig, { fastDialButtons } from '@/hooks/useSuperAdminConfig';
 
 const GOLD = '#10b981';
 const DARK = '#0a0f1e';
@@ -20,6 +21,9 @@ const DARK = '#0a0f1e';
 export default function AssistantPortal() {
   const { user, loading, isAuthenticated, isAdmin, isSuperAdmin, logout, mustResetPassword, resetMyPassword } = useDebtCoachAuth();
   const navigate = useNavigate();
+  // Quick-dial buttons are mastered by the admin (Fronter admin → Lines) and update live.
+  const { config } = useSuperAdminConfig();
+  const fastDials = fastDialButtons(config);
   const [tab, setTab] = useState('alerts');
   const [dialLead, setDialLead] = useState(null);
   const [reminderLead, setReminderLead] = useState(null);
@@ -81,8 +85,9 @@ export default function AssistantPortal() {
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <div style={{ display: 'flex', gap: '6px' }}>
-            <button onClick={() => setFastDial({ number: '+16193530919', name: 'Chris Bongiorno — Office', autoDial: true })} style={{ background: 'linear-gradient(135deg,#10b981,#22c55e)', color: DARK, border: 'none', borderRadius: '4px', padding: '7px 12px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', whiteSpace: 'nowrap' }}>📞 Chris · Office</button>
-            <button onClick={() => setFastDial({ number: '+12162589389', name: 'Chris Bongiorno — Cell', autoDial: true })} style={{ background: 'linear-gradient(135deg,#3b82f6,#60a5fa)', color: DARK, border: 'none', borderRadius: '4px', padding: '7px 12px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', whiteSpace: 'nowrap' }}>📞 Chris · Cell</button>
+            {fastDials.map((d, i) => (
+              <button key={d.key} onClick={() => setFastDial({ number: d.number, name: d.label, autoDial: true })} style={{ background: i === 0 ? 'linear-gradient(135deg,#10b981,#22c55e)' : 'linear-gradient(135deg,#3b82f6,#60a5fa)', color: DARK, border: 'none', borderRadius: '4px', padding: '7px 12px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', whiteSpace: 'nowrap' }}>📞 {d.label}</button>
+            ))}
           </div>
           <div style={{ textAlign: 'right' }}>
             <div style={{ color: '#e8e0d0', fontSize: '13px', fontWeight: 'bold' }}>{user?.username}</div>

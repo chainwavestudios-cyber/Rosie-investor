@@ -25,7 +25,9 @@ I will go ahead and add you to his call queue, and he will answer shortly…`,
   transferLabel: '619-353-0919',
   transferLabel2: '216-258-6934',
   chrisOfficePhone: '+16193530919',
+  chrisOfficeLabel: 'Chris · Office',
   chrisCellPhone: '+12162586934',
+  chrisMobileLabel: 'Chris · Mobile',
 };
 
 export default function useSuperAdminConfig() {
@@ -77,6 +79,18 @@ export default function useSuperAdminConfig() {
 
 /** Contact-card values with defaults applied — safe to read before the record loads. */
 export const contactCardValues = (config) => ({ ...DEFAULT_CONTACT_CARD, ...(config || {}) });
+
+/**
+ * The quick-dial buttons at the top of the portal — a number plus the tag the admin
+ * gave it. Read by every user; the master lives on the shared config record.
+ */
+export const fastDialButtons = (config) => {
+  const m = contactCardValues(config);
+  return [
+    { key: 'office', number: m.chrisOfficePhone, label: m.chrisOfficeLabel || 'Chris · Office' },
+    { key: 'mobile', number: m.chrisCellPhone, label: m.chrisMobileLabel || 'Chris · Mobile' },
+  ].filter((d) => String(d.number || '').trim());
+};
 
 /** Raw editor rows (including half-typed ones) behind the extra script tabs. */
 export const parseScriptTabRows = (json) => {
