@@ -6,6 +6,7 @@
  */
 import { injectTracking, buildMime, TRACKING_BASE } from './emailTracking.ts';
 import { getEmailSignature } from './emailSignature.ts';
+import { sendViaGmail } from './gmailSend.ts';
 
 export interface SendResult {
   sendId: string;
@@ -70,19 +71,8 @@ export async function sendTemplateEmail(
     trackedHtml = injectTracking(html, lead.id, sendId, template.id);
   }
 
-  const { accessToken } = await base44.asServiceRole.connectors.getConnection('gmail');
   const mimeMessage = buildMime(lead.email, subject, trackedHtml);
-
-  const response = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ raw: toBase64Url(mimeMessage) }),
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Gmail API error: ${errorText}`);
-  }
+  await sendViaGmail(base44, lead.email, mimeMessage);
 
   return { sendId, subject };
 }
@@ -135,10 +125,4 @@ export const DEFAULT_HOUR_BEFORE = {
   sortOrder: 2,
 };
 
-function toBase64Url(str: string): string {
-  const bytes = new TextEncoder().encode(str);
-  let binary = '';
-  for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
-  const base64 = btoa(binary);
-  return base64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-}
+// MIME encoding + Gmail transport now live in shared/gmailSend.ts (one implementation).

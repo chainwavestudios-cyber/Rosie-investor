@@ -11,6 +11,8 @@
  */
 import { useState, useRef, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
+import { useAgentVoice } from '@/hooks/useAgentVoice';
+import AgentVoiceBar from '@/components/debt/agent/AgentVoiceBar';
 
 const GOLD = '#10b981';
 const BLUE = '#60a5fa';
@@ -31,16 +33,24 @@ export default function LiveProfileAgent({ local, update, onSave, lead, username
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
   const [messages, setMessages] = useState([
-    { role: 'assistant', text: 'Hi! I can fill profile fields or schedule appointments. Try: "set income to 4000" or "schedule a follow-up for tomorrow at 2pm".' },
+    { role: 'assistant', text: 'Hi! I can fill profile fields, save notes, set status, tag hot leads, and book appointments. Type it, or hit 🎙 Talk to Agent and just say it. Try: "note: he lost his job in January" or "book a callback tomorrow at 2pm".' },
   ]);
   const scrollRef = useRef(null);
+
+  const voice = useAgentVoice({ onUtterance: (spoken) => send(spoken) });
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
   }, [messages, busy]);
 
-  const send = async () => {
-    const text = input.trim();
+  // Never leave the mic hot after the panel closes
+  useEffect(() => {
+    if (!open && voice.status !== 'off') voice.stop();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
+  const send = async (spoken) => {
+    const text = (spoken ?? input).trim();
     if (!text || busy) return;
     setInput('');
     setBusy(true);
@@ -66,10 +76,14 @@ Return JSON with these keys:
 - fieldUpdates: object of fieldName → newValue, ONLY for simple fields the agent asked to change. Use proper types (numbers for numeric fields, booleans for behindOnPayments, YYYY-MM-DD for dateOfBirth, one of employed/self-employed/unemployed/retired/disabled for employmentStatus).
 - jsonUpdates: object of jsonFieldName → COMPLETE updated JSON array/object (existing + changes). Only for debtLedgerJson, billsJson, or cosignersJson if mentioned.
 - appointment: { requested: boolean, startISO: string|null, summary: string }. If the agent asked to schedule/book a callback or follow-up, set requested=true and convert the requested time to an ISO 8601 UTC string (convert from America/New_York). Use 10:00 AM ET for "morning/AM", 2:00 PM ET for "afternoon/PM", 5:00 PM ET for "evening". summary = 1-sentence agenda. If no appointment requested, set { requested: false, startISO: null, summary: "" }.
-- reply: a friendly 1-sentence confirmation of what you did (e.g. "Done — set monthly income to $4,000 and scheduled a follow-up for tomorrow at 2:00 PM ET.").
+- note: string|null. When the agent dictates something to remember about this client ("note: he lost his job in January", "she wants a callback after payday"), put the note text here. null when there is no note.
+- status: string|null. Only when the agent explicitly asks to change the lead's pipeline status. One of: new, contacted, qualified, enrolled, declined, completed, callback. null otherwise.
+- hotLead: boolean|null. true only when the agent says the client is a hot lead or ready to close. null otherwise.
+- reply: a friendly 1-sentence confirmation of what you did (e.g. "Done — set monthly income to $4,000 and scheduled a follow-up for tomorrow at 2:00 PM ET."), or the answer when the agent asked a question.
 
 Rules:
 - Only include fields the agent actually asked to change. Do not echo unchanged fields.
+- If the agent asked a QUESTION ("what does he owe?", "when did he last pay?"), leave fieldUpdates/jsonUpdates empty and appointment.requested=false, and answer it in reply using only the field values above. Say plainly when the data isn't on file.
 - If the command is unclear or doesn't map to any action, set empty fieldUpdates/jsonUpdates and appointment.requested=false, and explain in reply.`;
 
       const result = await base44.integrations.Core.InvokeLLM({
@@ -81,6 +95,9 @@ Rules:
             fieldUpdates: { type: 'object' },
             jsonUpdates: { type: 'object' },
             appointment: { type: 'object' },
+            note: { type: 'string' },
+            status: { type: 'string' },
+            hotLead: { type: 'boolean' },
             reply: { type: 'string' },
           },
         },
@@ -118,8 +135,31 @@ Rules:
         }
       });
 
-      if (fieldCount + jsonCount > 0) {
-        actions.push(`Updated ${fieldCount + jsonCount} field(s)`);
+      // Whatever else the agent was told to do: a dictated note, a status change, a hot-lead tag
+      if (data.note && String(data.note).trim()) {
+        const noteText = String(data.note).trim();
+        let log = [];
+        try { log = JSON.parse(local.notesLogJson || '[]'); } catch { log = []; }
+        if (!Array.isArray(log)) log = [];
+        const noteStr = JSON.stringify([...log, { text: noteText, timestamp: new Date().toISOString(), author: username || 'agent', type: 'ai_agent' }]);
+        update('notesLogJson', noteStr);
+        applied.notesLogJson = noteStr;
+        actions.push('Note saved');
+      }
+      if (data.status && String(data.status).trim()) {
+        const nextStatus = String(data.status).trim();
+        update('status', nextStatus);
+        applied.status = nextStatus;
+        actions.push(`Status → ${nextStatus}`);
+      }
+      if (data.hotLead === true) {
+        update('isHotLead', true);
+        applied.isHotLead = true;
+        actions.push('Tagged hot lead');
+      }
+
+      if (Object.keys(applied).length > 0) {
+        actions.unshift(`${Object.keys(applied).length} field(s) updated`);
         onSave?.(applied);
       }
 
@@ -150,8 +190,11 @@ Rules:
 
       const fullReply = actions.length > 0 ? `${reply} (${actions.join('; ')}.)` : reply;
       setMessages(prev => [...prev, { role: 'assistant', text: fullReply }]);
+      voice.speakIfActive(fullReply);
     } catch (e) {
       setMessages(prev => [...prev, { role: 'assistant', text: `⚠ Error: ${e?.message || String(e)}`, error: true }]);
+      voice.speakIfActive('Sorry, that command did not work.');
+      voice.idle();
     }
     setBusy(false);
   };
@@ -188,6 +231,9 @@ Rules:
               <div style={{ alignSelf: 'flex-start', color: PURPLE, fontSize: '11px', fontStyle: 'italic' }}>🤖 Working…</div>
             )}
           </div>
+          {/* Voice in / voice out */}
+          <AgentVoiceBar voice={voice} />
+
           {/* Input */}
           <div style={{ display: 'flex', gap: '6px', padding: '8px 10px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
             <input
