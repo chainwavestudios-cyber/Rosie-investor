@@ -3,6 +3,7 @@ import { base44 } from '@/api/base44Client';
 import { useDebtCoachAuth } from '@/lib/DebtCoachAuthContext';
 import AdminFlagsTab from '@/components/debt/manager/AdminFlagsTab';
 import QAReviewTab from '@/components/debt/QAReviewTab';
+import AIScriptBuilderTab from '@/components/debt/AIScriptBuilderTab';
 
 const GOLD = '#10b981';
 const DARK = '#0a0f1e';
@@ -93,10 +94,12 @@ export default function DebtCoachAdminPanel() {
         <button onClick={() => setAdminTab('users')} style={{ padding: '10px 18px', background: 'none', border: 'none', borderBottom: `2px solid ${adminTab === 'users' ? GOLD : 'transparent'}`, color: adminTab === 'users' ? GOLD : '#6b7280', cursor: 'pointer', fontSize: '13px', fontWeight: adminTab === 'users' ? 'bold' : 'normal' }}>👥 User Management</button>
         <button onClick={() => setAdminTab('flags')} style={{ padding: '10px 18px', background: 'none', border: 'none', borderBottom: `2px solid ${adminTab === 'flags' ? GOLD : 'transparent'}`, color: adminTab === 'flags' ? GOLD : '#6b7280', cursor: 'pointer', fontSize: '13px', fontWeight: adminTab === 'flags' ? 'bold' : 'normal' }}>🚩 Feature Flags</button>
         <button onClick={() => setAdminTab('qareview')} style={{ padding: '10px 18px', background: 'none', border: 'none', borderBottom: `2px solid ${adminTab === 'qareview' ? GOLD : 'transparent'}`, color: adminTab === 'qareview' ? GOLD : '#6b7280', cursor: 'pointer', fontSize: '13px', fontWeight: adminTab === 'qareview' ? 'bold' : 'normal' }}>📚 Q&A Learning</button>
+        <button onClick={() => setAdminTab('aibuilder')} style={{ padding: '10px 18px', background: 'none', border: 'none', borderBottom: `2px solid ${adminTab === 'aibuilder' ? GOLD : 'transparent'}`, color: adminTab === 'aibuilder' ? GOLD : '#6b7280', cursor: 'pointer', fontSize: '13px', fontWeight: adminTab === 'aibuilder' ? 'bold' : 'normal' }}>🧠 AI Script Builder</button>
       </div>
 
       {adminTab === 'flags' && <AdminFlagsTab />}
       {adminTab === 'qareview' && <QAReviewTab />}
+      {adminTab === 'aibuilder' && <AIScriptBuilderTab />}
 
       {adminTab === 'users' && (
         <>

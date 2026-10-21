@@ -5,6 +5,7 @@
 const PURPLE = '#a78bfa';
 const GOLD = '#10b981';
 const RED = '#ef4444';
+const BLUE = '#60a5fa';
 
 const LABELS = {
   off: { text: 'Voice off', color: '#6b7280', dot: '○' },
@@ -33,6 +34,21 @@ export default function AgentVoiceBar({ voice, hint }) {
         {live ? '⏹ Stop Voice' : '🎙 Talk to Agent'}
       </button>
 
+      {/* Replies come back as text by default — switch this on to hear them */}
+      <button
+        onClick={() => voice.setSpeakReplies?.(!voice.speakReplies)}
+        title={voice.speakReplies ? 'Answers are read out loud' : 'Answers come back as text only'}
+        style={{
+          background: voice.speakReplies ? `${BLUE}22` : 'rgba(255,255,255,0.05)',
+          color: voice.speakReplies ? BLUE : '#8a9ab8',
+          border: `1px solid ${voice.speakReplies ? `${BLUE}55` : 'rgba(255,255,255,0.12)'}`,
+          borderRadius: '4px', padding: '7px 12px', cursor: 'pointer', fontSize: '11px',
+          fontWeight: 'bold', whiteSpace: 'nowrap',
+        }}
+      >
+        {voice.speakReplies ? '🔊 Voice replies' : '💬 Text replies'}
+      </button>
+
       <span style={{ color: meta.color, fontSize: '11px', fontWeight: 'bold', whiteSpace: 'nowrap' }}>
         {meta.dot} {meta.text}
       </span>
@@ -45,7 +61,7 @@ export default function AgentVoiceBar({ voice, hint }) {
 
       {!voice.interim && !live && (
         <span style={{ color: '#6b7280', fontSize: '10px', flex: 1, minWidth: '120px' }}>
-          {hint || 'Speak commands and questions — the agent answers out loud.'}
+          {hint || 'Speak commands and questions — the agent answers in text and fills the fields.'}
         </span>
       )}
 

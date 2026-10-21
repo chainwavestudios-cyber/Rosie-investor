@@ -1,7 +1,8 @@
 /**
  * useAgentVoice.js — Hands-free voice for the contact-card AI agent.
  *   Mic  → Deepgram live transcription; one spoken utterance = one command.
- *   Reply → Deepgram Aura voice, played through the speakers.
+ *   Reply → text in the chat by default; the mic opens straight back up.
+ *           Optional: 🔊 Voice replies reads the answer out with Deepgram Aura.
  * The mic feed is muted while the agent thinks or talks so it never transcribes
  * its own voice. Browser support: Chrome/Edge/Safari desktop.
  */
@@ -15,9 +16,11 @@ export function useAgentVoice({ onUtterance }) {
   const [status, setStatus] = useState('off'); // off | connecting | listening | thinking | speaking | error
   const [interim, setInterim] = useState('');
   const [error, setError] = useState('');
+  const [speakReplies, setSpeakRepliesState] = useState(false); // text replies by default
 
   const statusRef = useRef('off');
   const keyRef = useRef('');
+  const speakRepliesRef = useRef(false);
   const wsRef = useRef(null);
   const ctxRef = useRef(null);
   const streamRef = useRef(null);
@@ -31,6 +34,12 @@ export function useAgentVoice({ onUtterance }) {
   useEffect(() => { onUtteranceRef.current = onUtterance; }, [onUtterance]);
 
   const setPhase = useCallback((next) => { statusRef.current = next; setStatus(next); }, []);
+
+  /** Replies are text by default — this turns the spoken replies back on. */
+  const setSpeakReplies = useCallback((on) => {
+    speakRepliesRef.current = !!on;
+    setSpeakRepliesState(!!on);
+  }, []);
 
   const setMicMuted = useCallback((muted) => {
     if (micGainRef.current) micGainRef.current.gain.value = muted ? 0 : 1;
@@ -196,12 +205,6 @@ export function useAgentVoice({ onUtterance }) {
     }
   }, [setMicMuted, setPhase]);
 
-  /** Speak only when voice mode is live (used by the agent after each reply). */
-  const speakIfActive = useCallback((text) => {
-    if (statusRef.current === 'off') return;
-    speak(text);
-  }, [speak]);
-
   /** Called by the agent when a reply is ready — keeps the loop moving. */
   const idle = useCallback(() => {
     if (statusRef.current === 'off' || statusRef.current === 'error') return;
@@ -210,9 +213,20 @@ export function useAgentVoice({ onUtterance }) {
     setPhase('listening');
   }, [setMicMuted, setPhase]);
 
+  /**
+   * Reply after each command. Text is the default: the answer lands in the chat
+   * and the mic opens straight back up so the agent can keep talking. With
+   * 🔊 Voice replies on, the answer is read out loud instead.
+   */
+  const speakIfActive = useCallback((text) => {
+    if (statusRef.current === 'off') return;
+    if (!speakRepliesRef.current) { idle(); return; }
+    speak(text);
+  }, [speak, idle]);
+
   useEffect(() => () => stop(), [stop]);
 
-  return { status, interim, error, start, stop, speak, speakIfActive, idle };
+  return { status, interim, error, start, stop, speak, speakIfActive, idle, speakReplies, setSpeakReplies };
 }
 
 export default useAgentVoice;
