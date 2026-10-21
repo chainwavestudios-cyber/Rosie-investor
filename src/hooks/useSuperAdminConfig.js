@@ -96,15 +96,26 @@ export const fastDialButtons = (config) => {
 export const parseScriptTabRows = (json) => {
   try {
     const parsed = JSON.parse(json || '[]');
-    return Array.isArray(parsed) ? parsed.map((row) => ({ label: row?.label || '', script: row?.script || '' })) : [];
+    return Array.isArray(parsed) ? parsed.map((row) => ({
+      label: row?.label || '',
+      script: row?.script || '',
+      callClient: !!row?.callClient,
+      merge: !!row?.merge,
+    })) : [];
   } catch { return []; }
 };
 
 /**
  * The extra script tabs the super admin added, in order, ready for the assistant's
- * calendar contact card. Rows still being typed (no label or no script) are skipped,
- * so a blank tab never reaches the assistant.
+ * calendar contact card. Rows still being typed (no label, and neither a script nor a
+ * button) are skipped, so a blank tab never reaches the assistant.
  */
 export const assistantScriptTabs = (config) => parseScriptTabRows(contactCardValues(config).assistantScriptTabsJson)
-  .filter((row) => String(row.label).trim() && String(row.script).trim())
-  .map((row, index) => ({ id: `custom-${index}`, label: String(row.label).trim(), script: row.script }));
+  .filter((row) => String(row.label).trim() && (String(row.script).trim() || row.callClient || row.merge))
+  .map((row, index) => ({
+    id: `custom-${index}`,
+    label: String(row.label).trim(),
+    script: row.script,
+    callClient: row.callClient,
+    merge: row.merge,
+  }));
