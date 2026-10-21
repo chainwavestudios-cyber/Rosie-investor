@@ -1062,7 +1062,11 @@ ${recentText}`,
     // This prevents one statement from appearing as 10 separate lines.
     // Also remove any interim (live preview) line for this speaker — the final
     // text is replacing it.
-    setTranscript(prev => {
+    // Build the next transcript from the ref (authoritative + synchronous) so any
+    // save made right after this call — including the flush on socket close —
+    // already contains the line just committed.
+    const nextTranscript = (() => {
+      const prev = transcriptRef.current;
       const withoutInterim = prev.filter(l => !(l.interim && l.speaker === entry.speaker));
       // Reverse bleed: if this is a clean customer line and the last committed
       // line was an agent line with near-identical text, that agent line was
@@ -1123,7 +1127,9 @@ ${recentText}`,
         }
       }
       return [...withoutInterim, entry];
-    });
+    })();
+    transcriptRef.current = nextTranscript;
+    setTranscript(nextTranscript);
     const text = entry.text || '';
 
     // Cold call: extract name from opening "May I speak with X" + detect interest to auto-save
@@ -1241,7 +1247,7 @@ ${recentText}`,
       } catch (e) { alert('Failed to start call: ' + (e?.message || String(e))); return; }
     }
 
-    setError(''); setTranscript([]); setQaItems([]); setCoachTips([]); setIntentScore(null); setProfileData(null); setReport('');
+    setError(''); setTranscript([]); transcriptRef.current = []; setQaItems([]); setCoachTips([]); setIntentScore(null); setProfileData(null); setReport('');
     intentHistoryRef.current = [];
     handoffAttemptsRef.current = 0;
     transferAgentDoneRef.current = false;
