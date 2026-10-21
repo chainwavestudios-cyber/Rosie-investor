@@ -38,15 +38,23 @@ Dialer shall receive a base compensation of $300 per month, ${basePaySchedule}.
 2. BONUSES
 ${bonusPayNote}
 
-a) Sales Bonus: To qualify for a sales bonus, a transferred prospect must convert into a sale. All sales will be updated in the leads tab daily. A bonus of $10 per converted sale will be paid.
+a) Team Gate: The team must collectively enroll $300,000 in debt within the calendar month before any bonus below pays. Until the gate is cleared, every bonus pays $0.
 
-b) Daily Volume Bonus:
-   - 10 successful transfers in one day = $10 bonus
-   - 15 successful transfers in one day = $20 bonus
+b) Daily Deal Bonus (paid per deal closed that day):
+   - 1-2 deals closed in one day = $10 per deal
+   - 3 or more deals closed in one day = $12 per deal
 
-c) Weekly Volume Bonus:
-   - 45 transfers in one week = $10 bonus
-   - 65 transfers in one week = $20 bonus
+c) Daily Volume Bonus (paid from Dialer's own valid transfers that day):
+   - 10 valid transfers in one day = $5 bonus
+   - 15 valid transfers in one day = $10 bonus
+   - 20 or more valid transfers in one day = $15 bonus
+
+d) Weekly Deal Bonus (paid per deal closed that week, Sunday through Saturday):
+   - 1-4 deals closed in one week = $5 per deal
+   - 5-9 deals closed in one week = $10 per deal
+   - 10 or more deals closed in one week = $15 per deal
+
+A valid transfer means the prospect was transferred to a Sr. Debt Specialist and spent at least 30 seconds on the phone with that specialist. Only valid transfers count toward the daily volume bonus.
 
 3. WORK HOURS
 Dialer is expected to work 40 hours per week, 8 hours per day, excluding the lunch period. If Dialer takes a 30-minute lunch, Dialer must work 8.5 hours to account for 8 working hours.
@@ -96,11 +104,14 @@ function buildSignedAgreementHtml(fullName, dateStr, username) {
 
 <h2>2. Bonuses</h2>
 <p>${bonusPayNote}</p>
-<p><strong>a) Sales Bonus:</strong> To qualify for a sales bonus, a transferred prospect must convert into a sale. All sales will be updated in the leads tab daily. A bonus of $10 per converted sale will be paid.</p>
-<p><strong>b) Daily Volume Bonus:</strong></p>
-<ul><li>10 successful transfers in one day = $10 bonus</li><li>15 successful transfers in one day = $20 bonus</li></ul>
-<p><strong>c) Weekly Volume Bonus:</strong></p>
-<ul><li>45 transfers in one week = $10 bonus</li><li>65 transfers in one week = $20 bonus</li></ul>
+<p><strong>a) Team Gate:</strong> The team must collectively enroll $300,000 in debt within the calendar month before any bonus below pays. Until the gate is cleared, every bonus pays $0.</p>
+<p><strong>b) Daily Deal Bonus:</strong> paid per deal closed that day.</p>
+<ul><li>1-2 deals closed in one day = $10 per deal</li><li>3 or more deals closed in one day = $12 per deal</li></ul>
+<p><strong>c) Daily Volume Bonus:</strong> paid from Dialer's own valid transfers that day.</p>
+<ul><li>10 valid transfers in one day = $5 bonus</li><li>15 valid transfers in one day = $10 bonus</li><li>20 or more valid transfers in one day = $15 bonus</li></ul>
+<p><strong>d) Weekly Deal Bonus:</strong> paid per deal closed that week, Sunday through Saturday.</p>
+<ul><li>1-4 deals closed in one week = $5 per deal</li><li>5-9 deals closed in one week = $10 per deal</li><li>10 or more deals closed in one week = $15 per deal</li></ul>
+<p>A valid transfer means the prospect was transferred to a Sr. Debt Specialist and spent at least 30 seconds on the phone with that specialist. Only valid transfers count toward the daily volume bonus.</p>
 
 <h2>3. Work Hours</h2>
 <p>Dialer is expected to work 40 hours per week, 8 hours per day, excluding the lunch period. If Dialer takes a 30-minute lunch, Dialer must work 8.5 hours to account for 8 working hours.</p>
@@ -162,7 +173,12 @@ export default function FronterOnboarding({ username, onDone, mustResetPassword:
   const [pwForm, setPwForm] = useState({ newPassword: '', confirm: '' });
   const [pwSaving, setPwSaving] = useState(false);
   const [pwError, setPwError] = useState('');
-  const [form, setForm] = useState({ fullName: '', address: '', phone: '', email: '' });
+  const [form, setForm] = useState({
+    fullName: [authUser?.firstName, authUser?.lastName].filter(Boolean).join(' '),
+    address: authUser?.address || '',
+    phone: authUser?.phone || '',
+    email: authUser?.email || '',
+  });
   const [signature, setSignature] = useState('');
   const [agreed, setAgreed] = useState(false);
   const [saving, setSaving] = useState(false);

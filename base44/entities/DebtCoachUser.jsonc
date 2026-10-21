@@ -18,6 +18,15 @@
       "type": "string",
       "title": "Email"
     },
+    "phone": {
+      "type": "string",
+      "title": "Phone"
+    },
+    "address": {
+      "type": "string",
+      "title": "Address (pre-fills the agreement on onboarding)",
+      "format": "textarea"
+    },
     "passwordHash": {
       "type": "string",
       "title": "Password Hash (salt:hash)"

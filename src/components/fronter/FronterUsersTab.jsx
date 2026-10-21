@@ -17,7 +17,7 @@ export default function FronterUsersTab({ adminUsername }) {
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
-  const [form, setForm] = useState({ firstName: '', lastName: '', username: '', password: '', confirmPassword: '', email: '', contractRequired: true, timezone: 'America/New_York' });
+  const [form, setForm] = useState({ firstName: '', lastName: '', username: '', password: '', confirmPassword: '', email: '', phone: '', address: '', contractRequired: true, timezone: 'America/New_York' });
   const [resetPasswordId, setResetPasswordId] = useState(null);
   const [newPassword, setNewPassword] = useState('');
   const [confirmNewPassword, setConfirmNewPassword] = useState('');
@@ -35,7 +35,7 @@ export default function FronterUsersTab({ adminUsername }) {
   useEffect(() => { load(); }, [load]);
 
   const resetForm = () => {
-    setForm({ firstName: '', lastName: '', username: '', password: '', confirmPassword: '', email: '', contractRequired: true, timezone: 'America/New_York' });
+    setForm({ firstName: '', lastName: '', username: '', password: '', confirmPassword: '', email: '', phone: '', address: '', contractRequired: true, timezone: 'America/New_York' });
     setEditingId(null);
     setShowForm(false);
   };
@@ -57,6 +57,8 @@ export default function FronterUsersTab({ adminUsername }) {
           firstName: form.firstName.trim(),
           lastName: form.lastName.trim(),
           email: form.email.trim(),
+          phone: form.phone.trim(),
+          address: form.address.trim(),
           contractRequired: form.contractRequired !== false,
           timezone: form.timezone || 'America/New_York',
         });
@@ -86,6 +88,8 @@ export default function FronterUsersTab({ adminUsername }) {
           firstName: form.firstName.trim(),
           lastName: form.lastName.trim(),
           email: form.email.trim(),
+          phone: form.phone.trim(),
+          address: form.address.trim(),
           passwordHash: hash,
           role: 'fronter',
           isActive: true,
@@ -120,7 +124,7 @@ export default function FronterUsersTab({ adminUsername }) {
 
   const startEdit = (user) => {
     setEditingId(user.id);
-    setForm({ firstName: user.firstName || '', lastName: user.lastName || '', username: user.username, password: '', confirmPassword: '', email: user.email || '', contractRequired: user.contractRequired !== false, timezone: user.timezone || 'America/New_York' });
+    setForm({ firstName: user.firstName || '', lastName: user.lastName || '', username: user.username, password: '', confirmPassword: '', email: user.email || '', phone: user.phone || '', address: user.address || '', contractRequired: user.contractRequired !== false, timezone: user.timezone || 'America/New_York' });
     setShowForm(true);
   };
 
@@ -148,7 +152,7 @@ export default function FronterUsersTab({ adminUsername }) {
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
         <div style={{ color: GOLD, fontSize: '11px', letterSpacing: '2px', textTransform: 'uppercase' }}>👥 Fronter Users</div>
-        {!showForm && <button onClick={() => { setShowForm(true); setEditingId(null); setForm({ firstName: '', lastName: '', username: '', password: '', confirmPassword: '', email: '' }); }} style={{ background: 'linear-gradient(135deg,#10b981,#22c55e)', color: DARK, border: 'none', borderRadius: '4px', padding: '8px 18px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>+ Add User</button>}
+        {!showForm && <button onClick={() => { setShowForm(true); setEditingId(null); setForm({ firstName: '', lastName: '', username: '', password: '', confirmPassword: '', email: '', phone: '', address: '', contractRequired: true, timezone: 'America/New_York' }); }} style={{ background: 'linear-gradient(135deg,#10b981,#22c55e)', color: DARK, border: 'none', borderRadius: '4px', padding: '8px 18px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>+ Add User</button>}
       </div>
 
       {/* Create / Edit form */}
@@ -162,6 +166,10 @@ export default function FronterUsersTab({ adminUsername }) {
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '10px' }}>
             <div><label style={ls}>Username * {editingId && <span style={{ color: '#4a5568', fontSize: '9px' }}>(cannot change)</span>}</label><input value={form.username} onChange={e => setForm(p => ({ ...p, username: e.target.value }))} disabled={!!editingId} style={{ ...inp, opacity: editingId ? 0.5 : 1 }} /></div>
             <div><label style={ls}>Email *</label><input value={form.email} onChange={e => setForm(p => ({ ...p, email: e.target.value }))} style={inp} placeholder="name@example.com" /></div>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '10px' }}>
+            <div><label style={ls}>Phone</label><input value={form.phone} onChange={e => setForm(p => ({ ...p, phone: e.target.value }))} style={inp} placeholder="+1 555 000 0000" /></div>
+            <div><label style={ls}>Address</label><input value={form.address} onChange={e => setForm(p => ({ ...p, address: e.target.value }))} style={inp} placeholder="Street, City, Country" /></div>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '12px' }}>
             <div>
