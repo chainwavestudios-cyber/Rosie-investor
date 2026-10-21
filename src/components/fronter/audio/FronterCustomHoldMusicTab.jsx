@@ -29,7 +29,7 @@ export default function FronterCustomHoldMusicTab({ adminUsername }) {
       <InboundHoldAssetManager
         assetType="adam_transfer_hold"
         title="Custom Hold Recording / Music #2"
-        description="Played to a caller the AI agent is transferring into the live transfer queue (marked Incoming AI - validated through process)."
+        description="Optional — your own hold message for a caller the AI agent is transferring into the live transfer queue (marked Incoming AI - validated through process). Leave it empty until you have one; the queue plays Music #1 above."
         adminUsername={adminUsername}
       />
 
