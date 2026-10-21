@@ -9,6 +9,12 @@ const PURPLE = '#a78bfa';
 const GOLD = '#10b981';
 
 const OBJECTIONS = [
+  "Who is this?",
+  "Why are you calling me?",
+  "What is this about?",
+  "I didn't get any notice",
+  "I don't have $20,000 in debt",
+  "Did you pull my credit?",
   "I'm not interested",
   "I don't have time right now",
   "How did you get my number?",
