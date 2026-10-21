@@ -11,6 +11,7 @@ const SUGGESTIONS = [
   'Take me to the Calls tab',
   'Which fronters are on the clock?',
   'Leads I have not called in 3 days?',
+  'Send the welcome emails to today’s prospects',
 ];
 
 // Marketing / visitor pages have no staff session, so the console stays hidden there.

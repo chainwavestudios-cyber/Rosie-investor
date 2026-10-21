@@ -1,0 +1,52 @@
+{
+  "name": "AIAgentScript",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "title": "Script Name (shown as the current AI script for its direction)"
+    },
+    "direction": {
+      "type": "string",
+      "title": "Direction",
+      "enum": [
+        "incoming",
+        "outgoing"
+      ],
+      "default": "outgoing"
+    },
+    "content": {
+      "type": "string",
+      "title": "Script Content",
+      "format": "textarea"
+    },
+    "sourceLabel": {
+      "type": "string",
+      "title": "Built From (uploaded script name)"
+    },
+    "isActive": {
+      "type": "boolean",
+      "title": "Current Script For This Direction",
+      "default": true
+    },
+    "updatedBy": {
+      "type": "string",
+      "title": "Last Updated By (username)"
+    },
+    "updatedAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Last Updated At"
+    }
+  },
+  "required": [
+    "name",
+    "direction"
+  ],
+  "rls": {
+    "create": null,
+    "read": null,
+    "update": null,
+    "delete": null
+  }
+}

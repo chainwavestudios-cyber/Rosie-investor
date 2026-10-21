@@ -93,6 +93,21 @@ const SECTION_SCHEMAS: Record<string, any> = {
       },
     },
   },
+  counterpart: {
+    type: 'object',
+    properties: {
+      name: STR,
+      direction: STR,
+      script: STR,
+      config: {
+        type: 'object',
+        properties: {
+          greeting: STR, scriptFlow: STR, dynamicRebuttals: STR, qaTuning: STR, systemPrompt: STR,
+          inboundAgentName: STR, inboundOpener: STR, inboundSystemPrompt: STR, inboundKeywordTriggers: STR,
+        },
+      },
+    },
+  },
 };
 
 // ── Session ────────────────────────────────────────────────────────────────
@@ -259,6 +274,34 @@ SOURCE SCRIPT:
 ${src}
 """`,
   },
+  counterpart: {
+    prompt: (src, label, extra) => `Turn the source script below ("${label}") into the MIRROR script for the opposite call direction, and rewrite the AI voice agent's script sections for that direction — grounded in the knowledge base.
+
+CONTEXT (source direction, the direction you must write, that direction's current script and config, and the knowledge base):
+${extra}
+
+Rules:
+- The source is an OUTGOING script (our agent or fronter dials the prospect): write the INCOMING version — the prospect calls us or is called back and reaches the AI desk. Same offer, same voice, same facts, reversed flow: greet the caller, reference the notice and the credit flags, confirm the debt amount and the debt types, then hand off to the live transfer queue.
+- The source is an INCOMING script: write the OUTGOING version — our agent dials the prospect, opens with the reason for the call, qualifies, handles the objections and closes to the transfer.
+- name: a short NEW name for this direction's AI script, e.g. "INCOMING — rate-drop AI script (v2)". Match the style of the current name given in CONTEXT and bump its version marker.
+- script: the complete script for that direction, in the same order and wording style as the source, written to be spoken aloud word for word, no markdown. Use {{first_name}}, {{state}} and {{debt_amount}} where personalisation belongs.
+- config: only the fields for THAT direction.
+  - incoming: inboundOpener, inboundSystemPrompt, scriptFlow, dynamicRebuttals, qaTuning, and inboundAgentName (keep the current agent name).
+  - outgoing: greeting, systemPrompt, scriptFlow, dynamicRebuttals, qaTuning.
+- System Prompt = the full operating brief for that direction: role, tone, pacing, qualification order, compliance guardrails, what it must never say, and when to hand off.
+- Script Flow = the call phases in order, each with the exact lines to say and the condition for moving on.
+- Rebuttals = objection handling written for a voice agent: the objection, what the customer is really worried about, and the exact spoken response.
+- Q&A Tuning = the questions people actually ask on these calls, each with a tight spoken answer.
+- Ground every answer, rebuttal and Q&A in the KNOWLEDGE BASE from CONTEXT — reuse its facts, processes, timelines and compliance language. Never invent products, fees, prices or promises.
+- Every field is plain spoken text, no markdown.
+
+Return JSON: {"name":"","direction":"incoming","script":"","config":{"greeting":"","systemPrompt":"","scriptFlow":"","dynamicRebuttals":"","qaTuning":"","inboundOpener":"","inboundSystemPrompt":""}}
+
+SOURCE SCRIPT ("${label}" — the script that already exists for the OTHER direction):
+"""
+${src}
+"""`,
+  },
 };
 
 async function currentAgentConfig(base44: any) {
@@ -274,6 +317,52 @@ async function currentAgentConfig(base44: any) {
   }
 }
 
+/**
+ * The direction the uploaded script is NOT: what that direction's AI script says
+ * today, its live agent config, and the knowledge base both directions answer from.
+ */
+async function counterpartContext(base44: any, sourceDirection: string) {
+  const target = sourceDirection === 'incoming' ? 'outgoing' : 'incoming';
+  const ctx: any = {
+    sourceDirection,
+    writeThisDirection: target,
+    currentTargetScript: '(none saved yet)',
+    currentTargetConfig: {},
+    knowledgeBase: [],
+  };
+
+  try {
+    const page = await base44.asServiceRole.entities.AIAgentScript.filter({ direction: target }, { limit: 5 });
+    const rows = page?.items || page || [];
+    if (rows[0]) ctx.currentTargetScript = { name: rows[0].name, content: String(rows[0].content || '').slice(0, 6000) };
+  } catch { /* no script on file yet */ }
+
+  try {
+    const rows = await base44.asServiceRole.entities.AIAgentConfig.filter({ configName: 'default' });
+    const cfg = Array.isArray(rows) ? rows[0] : (rows?.items || [])[0];
+    if (cfg) {
+      const fields = target === 'incoming'
+        ? ['inboundAgentName', 'inboundOpener', 'inboundSystemPrompt', 'scriptFlow', 'dynamicRebuttals', 'qaTuning']
+        : ['greeting', 'systemPrompt', 'scriptFlow', 'dynamicRebuttals', 'qaTuning'];
+      fields.forEach(f => { if (cfg[f]) ctx.currentTargetConfig[f] = String(cfg[f]).slice(0, 1200); });
+    }
+  } catch { /* defaults are fine */ }
+
+  try {
+    const [fronter, main] = await Promise.all([
+      base44.asServiceRole.entities.FronterKnowledgeBase.list({ limit: 60 }),
+      base44.asServiceRole.entities.KnowledgeBase.filter({ kbName: KB_NAME }, { limit: 60 }),
+    ]);
+    const pick = (row: any) => ({ q: String(row?.question || '').slice(0, 200), a: String(row?.answer || '').slice(0, 600) });
+    ctx.knowledgeBase = [
+      ...((fronter?.items || []).map(pick)),
+      ...((main?.items || []).map(pick)),
+    ].filter((e: any) => e.q && e.a).slice(0, 90);
+  } catch { /* script alone is enough */ }
+
+  return JSON.stringify(ctx, null, 2).slice(0, 18000);
+}
+
 // ── Apply the approved proposal ────────────────────────────────────────────
 async function applyProposal(base44: any, proposal: any, meta: { sourceLabel: string; username: string }) {
   const counts = {
@@ -282,6 +371,7 @@ async function applyProposal(base44: any, proposal: any, meta: { sourceLabel: st
     objections: { created: 0, updated: 0 },
     commonQuestions: { created: 0, updated: 0 },
     kbEntries: { created: 0, updated: 0 },
+    aiScript: null,
   };
 
   // 1 — Fronter outbound scripts: same name updates in place, new name is added
@@ -419,6 +509,32 @@ async function applyProposal(base44: any, proposal: any, meta: { sourceLabel: st
     await runBatched(tasks);
   }
 
+  // 6 — The AI script for one direction: renamed and rewritten in place
+  const cp = proposal?.counterpart || {};
+  const cpName = String(cp?.name || '').trim();
+  const cpContent = String(cp?.script || '').trim();
+  if (cpName && cpContent) {
+    const cpDirection = cp?.direction === 'incoming' ? 'incoming' : 'outgoing';
+    const page = await base44.asServiceRole.entities.AIAgentScript.filter({ direction: cpDirection }, { limit: 10 });
+    const rows = page?.items || page || [];
+    const payload = {
+      name: cpName,
+      content: cpContent,
+      direction: cpDirection,
+      isActive: true,
+      sourceLabel: meta.sourceLabel,
+      updatedBy: meta.username,
+      updatedAt: new Date().toISOString(),
+    };
+    if (rows[0]) {
+      await base44.asServiceRole.entities.AIAgentScript.update(rows[0].id, payload);
+      counts.aiScript = { direction: cpDirection, name: cpName, action: 'updated' };
+    } else {
+      await base44.asServiceRole.entities.AIAgentScript.create(payload);
+      counts.aiScript = { direction: cpDirection, name: cpName, action: 'created' };
+    }
+  }
+
   return counts;
 }
 
@@ -463,7 +579,11 @@ export default async function (req: Request): Promise<Response> {
     if (!spec) return Response.json({ error: `Unknown section: ${section}` }, { status: 400 });
     if (!sourceText) return Response.json({ error: 'A script is required.' }, { status: 400 });
 
-    const extra = section === 'agent_config' ? await currentAgentConfig(base44) : '';
+    const extra = section === 'agent_config'
+      ? await currentAgentConfig(base44)
+      : section === 'counterpart'
+        ? await counterpartContext(base44, body?.sourceDirection === 'incoming' ? 'incoming' : 'outgoing')
+        : '';
     const data = await askAI(base44, `${SYSTEM}\n\n${spec.prompt(sourceText, label, extra)}`, SECTION_SCHEMAS[section]);
 
     return Response.json({ section, data });

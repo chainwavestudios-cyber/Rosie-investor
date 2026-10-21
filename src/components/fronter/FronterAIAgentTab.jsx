@@ -13,6 +13,7 @@ import AIAgentPromptSection, { DEFAULT_GREETING, DEFAULT_SYSTEM_PROMPT, DEFAULT_
 import AIAgentDialer from './AIAgentDialer';
 import AIAgentLiveConfig from './aiagent/AIAgentLiveConfig';
 import AIAgentIncomingCallsTab from './aiagent/AIAgentIncomingCallsTab';
+import AIAgentScriptBuilderSection from './aiagent/AIAgentScriptBuilderSection';
 import useAIAgentPipeline from '@/hooks/useAIAgentPipeline';
 
 const GOLD = '#10b981';
@@ -23,6 +24,7 @@ const BLUE = '#60a5fa';
 const SECTIONS = [
   { id: 'config', label: '⚙️ Agent Configuration' },
   { id: 'incoming', label: '📞 Incoming Calls' },
+  { id: 'builder', label: '🧠 AI Script Builder' },
 ];
 
 const SECTION_LABEL = { display: 'block', color: GOLD, fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '10px', paddingBottom: '4px', borderBottom: '1px solid rgba(16,185,129,0.15)' };
@@ -170,6 +172,8 @@ export default function FronterAIAgentTab({ adminUsername }) {
       </div>
 
       {section === 'incoming' && <AIAgentIncomingCallsTab config={config} update={update} />}
+
+      {section === 'builder' && <AIAgentScriptBuilderSection />}
 
       {section === 'config' && (
       <>

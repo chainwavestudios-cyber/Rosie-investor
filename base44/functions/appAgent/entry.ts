@@ -68,7 +68,141 @@ const TOOLS = [
       required: ['function_name'],
     },
   },
+  {
+    name: 'send_welcome_emails',
+    description:
+      'Send the welcome & login-info email (the fronter credential template) to prospects from calls. Use this ONLY when the user explicitly asks to send welcome / credentials emails. With no lead_ids it targets FronterLead records that have an email, were called within since_hours, and have not been sent credentials yet. Fronters and dialers can only email their own leads. It sends real email, so report exactly who was emailed and who was skipped.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        lead_ids: { type: 'array', items: { type: 'string' }, description: 'Specific FronterLead ids to email (optional)' },
+        since_hours: { type: 'number', description: 'Only leads called within this many hours (default 24)' },
+        limit: { type: 'number', description: 'Maximum emails this run (default 20)' },
+      },
+    },
+  },
 ];
+
+// The welcome email falls back to this when no credential template is saved yet.
+const WELCOME_FALLBACK = {
+  label: '👋 Welcome & Login Info',
+  subject: 'Welcome to Rosie AI — Your Login Information',
+  body: `<div style="font-family:Georgia,serif;font-size:14px;color:#333;">
+<p>Hi {{firstName}},</p>
+<p>Welcome to the Rosie AI family! We are excited to have you on board.</p>
+<p><strong>Your Login Information:</strong><br/>
+Portal: https://rosieai-investorpage.base44.app/portal-login<br/>
+Email: {{email}}</p>
+<p>You will receive a separate email with your temporary password. Please log in and complete your profile at your earliest convenience.</p>
+<p>Best regards,<br/>Rosie AI Team</p>
+</div>`,
+};
+
+function fillTemplate(text: string, lead: any) {
+  return String(text || '')
+    .replace(/{{firstName}}/g, lead?.firstName || 'there')
+    .replace(/{{lastName}}/g, lead?.lastName || '')
+    .replace(/{{email}}/g, lead?.email || '');
+}
+
+async function welcomeTemplate(base44: any) {
+  try {
+    const page = await base44.asServiceRole.entities.FronterEmailTemplate.list({ limit: 100 });
+    const rows = page?.items || page || [];
+    const hit = rows.find((t: any) => /welcome/i.test(t.label || ''))
+      || rows.find((t: any) => /credential|login/i.test(t.label || ''))
+      || rows[0];
+    if (hit?.subject && hit?.body) return hit;
+  } catch { /* fall through to the built-in welcome */ }
+  return WELCOME_FALLBACK;
+}
+
+// Welcome & credential emails to the prospects that came out of calls.
+async function sendWelcomeEmails(base44: any, who: any, input: any) {
+  const leadIds = Array.isArray(input?.lead_ids)
+    ? input.lead_ids.filter((v: any) => typeof v === 'string' && v.trim()).slice(0, 40)
+    : [];
+  const hours = Math.min(Math.max(Number(input?.since_hours) || 24, 1), 720);
+  const limit = Math.min(Math.max(Number(input?.limit) || 20, 1), 40);
+  const ownOnly = ['fronter', 'dialer'].includes(String(who?.role || '').toLowerCase()) ? who.username : null;
+  const leads = base44.asServiceRole.entities.FronterLead;
+  const since = new Date(Date.now() - hours * 3600 * 1000).toISOString();
+
+  let targets: any[] = [];
+  if (leadIds.length) {
+    const rows = await Promise.all(leadIds.map((id: string) => leads.get(id).catch(() => null)));
+    targets = rows.filter(Boolean);
+    if (ownOnly) {
+      const mine = String(ownOnly).toLowerCase();
+      targets = targets.filter((l: any) => String(l.assignedTo || '').toLowerCase() === mine);
+    }
+  } else {
+    // one query per status, merged here — compound filters are unreliable in this SDK
+    const collected: any[] = [];
+    for (const status of ['prospect', 'lead']) {
+      const filter: Record<string, any> = { status, lastCalledAt: { $gte: since } };
+      if (ownOnly) filter.assignedTo = ownOnly;
+      const page = await leads.filter(filter, '-lastCalledAt', limit);
+      collected.push(...(page?.items || []));
+    }
+    const seen = new Set<string>();
+    targets = collected
+      .filter((l: any) => (seen.has(l.id) ? false : (seen.add(l.id), true)))
+      .sort((a: any, b: any) => String(b.lastCalledAt || '').localeCompare(String(a.lastCalledAt || '')))
+      .slice(0, limit);
+  }
+
+  if (!targets.length) {
+    return {
+      ok: true,
+      text: ownOnly
+        ? `No prospects assigned to ${ownOnly} were called in the last ${hours}h. Nobody was emailed.`
+        : `No prospects with a call in the last ${hours}h matched. Nobody was emailed.`,
+    };
+  }
+
+  const template = await welcomeTemplate(base44);
+  const emailed: string[] = [];
+  const skipped: string[] = [];
+
+  for (const lead of targets) {
+    const email = String(lead?.email || '').trim();
+    const name = `${lead?.firstName || ''} ${lead?.lastName || ''}`.trim() || lead?.id;
+    if (!email) { skipped.push(`${name} (no email on the card)`); continue; }
+    if (lead?.credsSentAt) { skipped.push(`${name} (already welcomed)`); continue; }
+    try {
+      const res = await base44.asServiceRole.functions.invoke('sendGmailEmail', {
+        to: email,
+        subject: fillTemplate(template.subject, lead),
+        html: fillTemplate(template.body, lead),
+        leadId: lead.id,
+        sentBy: who?.username || 'ACE',
+      });
+      if (res?.data?.error || res?.error) throw new Error(res?.data?.error || res?.error);
+
+      const now = new Date().toISOString();
+      const updates: Record<string, any> = { credsSentAt: now, credsSentTemplate: template.label || 'Welcome' };
+      if (lead.status === 'prospect') updates.status = 'lead';
+      try {
+        const log = JSON.parse(lead?.notesLogJson || '[]');
+        log.push({ text: `👋 Welcome & login email sent to ${email} from ACE`, timestamp: now, author: who?.username || 'ACE', type: 'creds' });
+        updates.notesLogJson = JSON.stringify(log);
+      } catch { /* the send already happened */ }
+      await leads.update(lead.id, updates);
+      emailed.push(`${name} <${email}>`);
+    } catch (e: any) {
+      skipped.push(`${name} (send failed: ${e?.message || String(e)})`);
+    }
+  }
+
+  return {
+    ok: true,
+    text: [
+      emailed.length ? `Emailed ${emailed.length} — ${emailed.join('; ')}` : 'Nobody was emailed.',
+      skipped.length ? `Skipped ${skipped.length} — ${skipped.join('; ')}` : '',
+    ].filter(Boolean).join('\n').slice(0, MAX_TOOL_CHARS),
+  };
+}
 
 function slim(rows: any[]) {
   return rows.map((row) => {
@@ -149,7 +283,7 @@ async function resolveIdentity(base44: any, body: any) {
   return null;
 }
 
-async function runTool(base44: any, toolUse: any) {
+async function runTool(base44: any, toolUse: any, who: any) {
   const input = toolUse?.input || {};
   try {
     if (toolUse.name === 'query_entity') {
@@ -184,6 +318,10 @@ async function runTool(base44: any, toolUse: any) {
       }
       const res = await base44.asServiceRole.functions.invoke(input.function_name, input.args || {});
       return { ok: true, text: JSON.stringify(res?.data ?? res).slice(0, MAX_TOOL_CHARS) };
+    }
+
+    if (toolUse.name === 'send_welcome_emails') {
+      return await sendWelcomeEmails(base44, who, input);
     }
 
     return { ok: false, text: `Unknown tool "${toolUse.name}".` };
@@ -249,7 +387,7 @@ Deno.serve(async (req) => {
       messages.push({ role: 'assistant', content });
       const results: any[] = [];
       for (const toolUse of toolUses) {
-        const result = await runTool(base44, toolUse);
+        const result = await runTool(base44, toolUse, who);
         toolLog.push({ name: toolUse.name, input: toolUse.input, ok: result.ok });
         results.push({ type: 'tool_result', tool_use_id: toolUse.id, content: result.text });
       }
