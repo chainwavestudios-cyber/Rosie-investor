@@ -16,7 +16,7 @@ export default async function(req: Request): Promise<Response> {
     try { await base44.auth.me(); } catch {}
 
     const body = await req.json();
-    const { entryIds, destination, assignedTo, assignedBy } = body || {};
+    const { entryIds, destination, assignedTo, assignedBy, skipMailer } = body || {};
 
     if (!entryIds || !Array.isArray(entryIds) || entryIds.length === 0) {
       return Response.json({ error: 'No entry IDs provided' }, { status: 400 });
@@ -115,10 +115,13 @@ export default async function(req: Request): Promise<Response> {
 
     // ── Generate the Rate Drop digital mailer for every new contact card ──
     // A mailer failure must never undo a distribution that already happened.
-    try {
-      await ensureMailers(base44, created.map((c: any) => c?.id).filter(Boolean));
-    } catch (mailerError: any) {
-      console.error('[distributeVaultLeads] mailer generation failed:', mailerError?.message || String(mailerError));
+    // skipMailer = distribute + assign Notice IDs only; mailers can be built later.
+    if (!skipMailer) {
+      try {
+        await ensureMailers(base44, created.map((c: any) => c?.id).filter(Boolean));
+      } catch (mailerError: any) {
+        console.error('[distributeVaultLeads] mailer generation failed:', mailerError?.message || String(mailerError));
+      }
     }
 
     // ── Mark vault entries as distributed ──
@@ -138,6 +141,7 @@ export default async function(req: Request): Promise<Response> {
     return Response.json({
       distributed: created.length,
       skipped: entries.length - distributable.length,
+      mailersCreated: !skipMailer,
       destination,
       assignedTo: destination === 'fronter' ? assignedTo : 'ai_dialer',
     });

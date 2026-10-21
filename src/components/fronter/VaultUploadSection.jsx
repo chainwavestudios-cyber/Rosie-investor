@@ -88,6 +88,7 @@ export default function VaultUploadSection({ adminUsername, onUploaded }) {
   const [rows, setRows] = useState([]);
   const [mapping, setMapping] = useState({});
   const [batchLabel, setBatchLabel] = useState('');
+  const [preset, setPreset] = useState({ dnc: false, validated: false, appended: false });
   const [uploading, setUploading] = useState(false);
   const [result, setResult] = useState(null);
   const fileRef = useRef(null);
@@ -124,6 +125,7 @@ export default function VaultUploadSection({ adminUsername, onUploaded }) {
     let success = 0, failed = 0;
     try {
       const records = [];
+      const stamp = new Date().toISOString();
       for (const row of rows) {
         const rec = { batchLabel: batchLabel || 'Upload', uploadedBy: adminUsername };
         headers.forEach((h, i) => {
@@ -133,6 +135,27 @@ export default function VaultUploadSection({ adminUsername, onUploaded }) {
           if (NUMERIC_FIELDS.has(field)) val = parseFloat(val.replace(/[^0-9.]/g, '')) || 0;
           rec[field] = val;
         });
+        // Steps already done before upload — mark them complete so the batch is ready to distribute.
+        if (preset.appended) {
+          rec.tracerfyStatus = 'completed';
+          rec.tracerfyHit = true;
+          rec.tracerfyProcessedAt = stamp;
+        }
+        if (preset.validated) {
+          rec.validationStatus = 'validated';
+          rec.phoneValid = true;
+          rec.phoneLineType = rec.phoneLineType || 'unknown';
+          rec.validatedAt = stamp;
+          rec.pipelineStatus = 'ready';
+        }
+        if (preset.dnc) {
+          rec.dncScrubStatus = 'scrubbed';
+          rec.dncFederal = false;
+          rec.dncState = false;
+          rec.litigator = false;
+          rec.llrClean = true;
+          rec.llrScrubbedAt = stamp;
+        }
         if (rec.firstName && rec.lastName && rec.phone) { records.push(rec); success++; }
         else failed++;
       }
@@ -150,6 +173,17 @@ export default function VaultUploadSection({ adminUsername, onUploaded }) {
   return (
     <div style={{ background: '#0d1b2a', border: '1px solid rgba(16,185,129,0.2)', borderRadius: '8px', padding: '20px' }}>
       <div style={{ color: GOLD, fontSize: '13px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '12px' }}>📁 Upload to Vault</div>
+
+      <div style={{ marginBottom: '12px', padding: '9px 10px', background: `${BLUE}0d`, border: `1px solid ${BLUE}33`, borderRadius: '6px' }}>
+        <div style={{ color: BLUE, fontSize: '9px', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '6px' }}>Already Done On This File</div>
+        {[['dnc', 'DNC Scrubbed'], ['validated', 'Validated'], ['appended', 'Appended']].map(([k, label]) => (
+          <label key={k} style={{ display: 'flex', alignItems: 'center', gap: '7px', color: '#e8e0d0', fontSize: '12px', marginBottom: '4px', cursor: 'pointer' }}>
+            <input type="checkbox" checked={preset[k]} onChange={e => setPreset(p => ({ ...p, [k]: e.target.checked }))} style={{ accentColor: GOLD, cursor: 'pointer' }} />
+            {label}
+          </label>
+        ))}
+        <div style={{ color: '#4a5568', fontSize: '9px', lineHeight: 1.4 }}>Ticked = marked complete for every lead in this file, so they land ready to distribute. Unticked steps still need to be run in their panels.</div>
+      </div>
 
       {!hasParsed && !result && (
         <div>
