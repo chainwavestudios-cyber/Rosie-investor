@@ -1,13 +1,12 @@
 import { renderFormatted } from '@/components/debt/ScriptRichText';
 
-// Keep transfer beside AI Input; let the script itself scroll in every host.
+// Preserve the editor's sequence; completion belongs at the end of the main script.
 export default function FronterContactScript({ scripts, activeScript, onSelectScript, segments, hasCompletedSteps, onComplete, onDebtConfirm, debtConfirming, onAiInput, aiInputRunning, onSendEmail, message }) {
   const completeButton = hasCompletedSteps && (
     <div style={{ margin: '12px 0', display: 'flex', justifyContent: 'center' }}>
       <button type="button" onClick={onComplete} style={{ background: 'linear-gradient(135deg,#10b981,#22c55e)', color: '#0a0f1e', border: 'none', borderRadius: '8px', padding: '12px 32px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold', fontFamily: 'Georgia, serif', boxShadow: '0 0 16px rgba(16,185,129,0.4)' }}>✅ Completed Steps → Transfer</button>
     </div>
   );
-  const hasAiInput = segments.some(segment => segment.toUpperCase() === 'AI_INPUT');
   return (
     <div data-testid="fronter-contact-script" style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflow: 'hidden' }}>
       {scripts.length > 1 && (
@@ -27,7 +26,6 @@ export default function FronterContactScript({ scripts, activeScript, onSelectSc
               if (segment.toUpperCase() === 'AI_INPUT') return (
                 <div key={index} style={{ margin: '12px 0', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                   <button onClick={onAiInput} disabled={aiInputRunning} style={{ background: 'rgba(167,139,250,0.18)', color: '#a78bfa', border: '2px solid rgba(167,139,250,0.55)', borderRadius: '8px', padding: '10px 24px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold', fontFamily: 'Georgia, serif', boxShadow: '0 0 12px rgba(167,139,250,0.33)' }}>{aiInputRunning ? '⏳ Summarizing…' : '🤖 AI Input'}</button>
-                  {completeButton}
                 </div>
               );
               if (segment.toUpperCase() === 'SEND_EMAIL') return (
@@ -37,7 +35,7 @@ export default function FronterContactScript({ scripts, activeScript, onSelectSc
               );
               return <span key={index}>{renderFormatted(segment)}</span>;
             })}
-            {!hasAiInput && completeButton}
+            {completeButton}
           </div>
         )}
       </div>

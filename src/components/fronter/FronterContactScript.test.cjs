@@ -26,18 +26,24 @@ function loadJsx(relativePath) {
   return instance.exports;
 }
 const View = loadJsx('src/components/fronter/FronterContactScript.jsx').default;
-const base = { scripts: [{ id: 'test', name: 'Test script' }], activeScript: { id: 'test' }, segments: ['Opening', 'AI_INPUT', 'Text after AI input'], hasCompletedSteps: true };
+const base = { scripts: [{ id: 'test', name: 'Test script' }], activeScript: { id: 'test' }, segments: ['Opening', 'DEBT_CONFIRM', 'AI_INPUT', 'Text after AI input', 'SEND_EMAIL', 'Final instructions'], hasCompletedSteps: true };
 
-test('Complete follows AI Input immediately, before the rest of the script', () => {
+test('editor order is preserved with Completed Steps last, after email and all main script text', () => {
   const html = renderToStaticMarkup(React.createElement(View, base));
-  const ai = html.indexOf('🤖 AI Input');
-  const complete = html.indexOf('✅ Completed Steps');
-  const trailing = html.indexOf('Text after AI input');
-  assert.ok(ai >= 0 && complete > ai && trailing > complete);
+  const ordered = ['Opening', '💰 Confirm Debt', '🤖 AI Input', 'Text after AI input', '📧 Send Credentials', 'Final instructions', '✅ Completed Steps'].map(text => html.indexOf(text));
+  assert.ok(ordered.every((position, index) => position >= 0 && (index === 0 || position > ordered[index - 1])));
   assert.equal((html.match(/✅ Completed Steps/g) || []).length, 1);
   assert.ok(html.includes('min-height:0'));
   assert.ok(html.includes('overflow-y:auto'));
   assert.equal(/position:(sticky|fixed)/.test(html), false);
+});
+
+test('multiple AI Input markers do not duplicate or move Completed Steps', () => {
+  const html = renderToStaticMarkup(React.createElement(View, { ...base, segments: ['AI_INPUT', 'Middle', 'ai_input', 'SEND_EMAIL', 'Final instructions'] }));
+  assert.equal((html.match(/✅ Completed Steps/g) || []).length, 1);
+  assert.equal((html.match(/🤖 AI Input/g) || []).length, 2);
+  assert.ok(html.indexOf('✅ Completed Steps') > html.indexOf('Final instructions'));
+  assert.ok(html.indexOf('✅ Completed Steps') > html.indexOf('📧 Send Credentials'));
 });
 
 test('scripts without AI Input retain the inline transfer action', () => {
