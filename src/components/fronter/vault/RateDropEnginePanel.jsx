@@ -46,7 +46,8 @@ export default function RateDropEnginePanel({ adminUsername }) {
   const [sources, setSources] = useState([]);
   const [inboundPhone, setInboundPhone] = useState('');
   const [leads, setLeads] = useState([]);
-  const [leadId, setLeadId] = useState('');
+  const [vaultLeads, setVaultLeads] = useState([]);
+  const [pick, setPick] = useState('');
   const [html, setHtml] = useState('');
   const [sample, setSample] = useState(false);
   const [msg, setMsg] = useState('');
@@ -63,6 +64,18 @@ export default function RateDropEnginePanel({ adminUsername }) {
       setInboundPhone(data.inboundPhone || '');
       const page = await base44.entities.FronterLead.filter({ status: 'prospect' }, { sort: '-created_date', limit: 200 });
       setLeads(page?.items || page || []);
+      // Leads still in the vault that can be distributed: validated, callable,
+      // undistributed, not DNC/litigator blocked.
+      const vaultPage = await base44.entities.LeadVaultEntry.filter({
+        validationStatus: 'validated',
+        phoneValid: true,
+        phoneLineType: { $ne: 'voip' },
+        destination: 'none',
+        dncFederal: { $ne: true },
+        dncState: { $ne: true },
+        litigator: { $ne: true },
+      }, { sort: '-created_date', limit: 500 });
+      setVaultLeads(vaultPage?.items || vaultPage || []);
     } catch (e) {
       setMsg('Could not load the engine: ' + (e?.message || 'unknown error'));
     }
@@ -87,10 +100,13 @@ export default function RateDropEnginePanel({ adminUsername }) {
   // mock = true renders the mailer from sample card data, so the field map can be
   // tuned into shape before a real card is used.
   const preview = async (mock = false) => {
-    if (!mock && !leadId) { setMsg('Pick an available lead, or use the test mailer to preview with sample data.'); return; }
+    if (!mock && !pick) { setMsg('Pick an available lead, or use the test mailer to preview with sample data.'); return; }
+    const [source, id] = pick.split(':');
+    const target = source === 'vault' ? { vaultEntryId: id } : { leadId: id };
     setBusy('preview'); setMsg('');
     try {
-      const res = await base44.functions.invoke('rateDropGenerateMailer', { action: 'preview', leadId, mock, template: draftPayload() });
+      const res = await base44.functions.invoke('rateDropGenerateMailer',
+        mock ? { action: 'preview', mock: true, template: draftPayload() } : { action: 'preview', ...target, template: draftPayload() });
       setHtml(res?.data?.html || '');
       setSample(!!res?.data?.mock);
       setMsg(mock ? 'Test mailer built from sample card data (Sample Homeowner · NFS-99999-999 · $20,000). Nothing was stored.' : '');
@@ -200,13 +216,26 @@ export default function RateDropEnginePanel({ adminUsername }) {
           <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-end' }}>
             <div style={{ flex: 1 }}>
               <div style={{ color: '#6b7280', fontSize: '9px', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '3px' }}>Preview against an available lead</div>
-              <select value={leadId} onChange={e => setLeadId(e.target.value)} style={inputStyle}>
+              <select value={pick} onChange={e => setPick(e.target.value)} style={inputStyle}>
                 <option value="">— select an available lead —</option>
-                {leads.map(l => (
-                  <option key={l.id} value={l.id}>
-                    {l.leadNumber ? `${l.leadNumber} · ` : ''}{l.firstName} {l.lastName}{l.noticeId ? ` · ${l.noticeId}` : ''}{l.city ? ` · ${l.city}, ${l.state}` : ''}
-                  </option>
-                ))}
+                {vaultLeads.length > 0 && (
+                  <optgroup label={`Available in vault (${vaultLeads.length})`}>
+                    {vaultLeads.map(e => (
+                      <option key={e.id} value={`vault:${e.id}`}>
+                        {e.firstName} {e.lastName}{e.city ? ` · ${e.city}, ${e.state}` : ''}{e.estimatedDebt ? ` · $${Number(e.estimatedDebt).toLocaleString('en-US')}` : ''}
+                      </option>
+                    ))}
+                  </optgroup>
+                )}
+                {leads.length > 0 && (
+                  <optgroup label={`Prospect contact cards (${leads.length})`}>
+                    {leads.map(l => (
+                      <option key={l.id} value={`card:${l.id}`}>
+                        {l.leadNumber ? `${l.leadNumber} · ` : ''}{l.firstName} {l.lastName}{l.noticeId ? ` · ${l.noticeId}` : ''}{l.city ? ` · ${l.city}, ${l.state}` : ''}
+                      </option>
+                    ))}
+                  </optgroup>
+                )}
               </select>
             </div>
             <button onClick={() => preview(true)} disabled={!!busy} style={{ background: 'rgba(167,139,250,0.15)', color: PURPLE, border: `1px solid ${PURPLE}55`, borderRadius: '4px', padding: '8px 12px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', whiteSpace: 'nowrap' }}>

@@ -22,6 +22,7 @@ import {
   MAILER_SLOTS,
   CONTACT_FIELD_SOURCES,
   MOCK_CARD,
+  vaultEntryToMailerCard,
 } from '../../shared/rateDropMailer.ts';
 
 export default async function (req: Request): Promise<Response> {
@@ -44,10 +45,22 @@ export default async function (req: Request): Promise<Response> {
     if (action === 'preview') {
       // mock: true renders a test mailer from sample card data — nothing is read
       // off a real card and nothing is stored.
+      // mock: true renders a test mailer from sample card data — nothing is read
+      // off a real card and nothing is stored. vaultEntryId previews a lead that
+      // is still in the vault (no contact card exists yet).
       const mock = !!body?.mock;
       const leadId = body?.leadId;
-      if (!mock && !leadId) return Response.json({ error: 'leadId is required' }, { status: 400 });
-      const card = mock ? MOCK_CARD : await base44.asServiceRole.entities.FronterLead.get(leadId);
+      const vaultEntryId = body?.vaultEntryId;
+      if (!mock && !leadId && !vaultEntryId) {
+        return Response.json({ error: 'leadId or vaultEntryId is required' }, { status: 400 });
+      }
+      let card: any = mock ? MOCK_CARD : null;
+      if (!card && vaultEntryId) {
+        const entry = await base44.asServiceRole.entities.LeadVaultEntry.get(vaultEntryId);
+        if (!entry) return Response.json({ error: 'Vault lead not found' }, { status: 404 });
+        card = vaultEntryToMailerCard(entry);
+      }
+      if (!card && leadId) card = await base44.asServiceRole.entities.FronterLead.get(leadId);
       if (!card) return Response.json({ error: 'Contact card not found' }, { status: 404 });
       const template = body?.template ? { ...(await getRateDropTemplate(base44)), ...body.template } : await getRateDropTemplate(base44);
       const phone = await resolveInboundPhone(base44);

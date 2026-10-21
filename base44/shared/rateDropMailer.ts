@@ -159,6 +159,28 @@ function cardDebt(card: any): number {
   return isFinite(n) && n > 0 ? n : 0;
 }
 
+/**
+ * A vault lead as a mailer card — the same fields distribution writes onto the
+ * contact card, so previewing an undistributed vault lead matches the mailer it
+ * will be issued with. Notice IDs are issued at distribution, so an
+ * undistributed lead carries a placeholder instead of a number.
+ */
+export function vaultEntryToMailerCard(entry: any): any {
+  return {
+    firstName: entry?.firstName || '',
+    lastName: entry?.lastName || '',
+    address: [entry?.address, entry?.apt].filter(Boolean).join(', '),
+    city: entry?.city || '',
+    state: entry?.state || '',
+    zipCode: entry?.zipCode || '',
+    debtAmount: Number(entry?.debtAmount) || Number(entry?.estimatedDebt) || 0,
+    noticeId: entry?.noticeId || '(assigned at distribution)',
+    leadNumber: entry?.batchLabel || '',
+    email: entry?.email || '',
+    phone: entry?.phoneE164 || entry?.mobilePhone || entry?.phone || '',
+  };
+}
+
 /** The incoming line the AI agent answers — the number printed on the mailer. */
 export async function resolveInboundPhone(base44: any): Promise<string> {
   try {

@@ -77,7 +77,7 @@ export default async function(req: Request): Promise<Response> {
         city: entry.city || '',
         state: entry.state || '',
         zipCode: entry.zipCode || '',
-        debtAmount: entry.debtAmount || 0,
+        debtAmount: entry.debtAmount || entry.estimatedDebt || 0,
         companyName: entry.companyName || '',
         age: entry.age || ageFromDob(entry.dob),
         employmentStatus: entry.employmentStatus || 'unknown',
