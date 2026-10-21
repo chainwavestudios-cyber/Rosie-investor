@@ -17,16 +17,23 @@ const FIVE_MINUTES = 5 * 60 * 1000;
 
 export function useAIContactFiller({ leadId, leadType, transcript, isActive }) {
   const transcriptRef = useRef([]);
+  const cursorRef = useRef(0); // lines already analyzed by an earlier tick
   const intervalRef = useRef(null);
   const runningRef = useRef(false);
   const [lastRunAt, setLastRunAt] = useState(null);
 
   useEffect(() => { transcriptRef.current = transcript || []; }, [transcript]);
+  // New call — start the analysis window over.
+  useEffect(() => { cursorRef.current = 0; }, [leadId]);
 
   const runFiller = useCallback(async (isFinal = false, transcriptOverride = null) => {
     if (!leadId || !leadType) return;
     if (runningRef.current) return; // Prevent overlapping runs
-    const lines = transcriptOverride || transcriptRef.current;
+    const allLines = transcriptOverride || transcriptRef.current || [];
+    // Mid-call ticks analyze only the lines added since the last tick, so a long
+    // call is covered as it grows instead of re-reading its opening every time.
+    // The final pass reads the whole call.
+    const lines = isFinal ? allLines : allLines.slice(cursorRef.current);
     if (!lines || lines.length < 3) return; // Not enough transcript yet
 
     runningRef.current = true;
@@ -41,6 +48,8 @@ export function useAIContactFiller({ leadId, leadType, transcript, isActive }) {
         leadType,
         currentLeadData: currentLead,
       });
+      // Only advance once the analysis actually ran, so a failed tick is retried.
+      cursorRef.current = allLines.length;
       const data = res?.data || res;
       const updates = data?.updates || {};
       const newOverwrites = data?.overwrites || [];

@@ -11,6 +11,7 @@
  * validated updates — the model's own missingFields list is discarded.
  */
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.52';
+import { formatTranscriptLines, chunkTranscript, runChunks } from '../../shared/transcriptAnalysis.ts';
 
 // ── Field Schemas ──────────────────────────────────────────────────
 interface FieldDef {
@@ -171,27 +172,30 @@ function calculateMissingFields(schema: Record<string, FieldDef>, currentLeadDat
   return missing;
 }
 
-// ── Transcript Normalization ──────────────────────────────────────
-function normalizeTranscript(transcript: any[], customerSpeakerId: number, agentSpeakerId: number): string {
-  const lines = transcript.map((t: any) => {
-    let label: string;
-    if (typeof t.speaker === 'number') {
-      label = t.speaker === customerSpeakerId ? 'CUSTOMER' : t.speaker === agentSpeakerId ? 'AGENT' : 'UNKNOWN';
-    } else if (t.role) {
-      const r = String(t.role).toLowerCase();
-      label = r === 'user' || r === 'customer' || r === 'human' ? 'CUSTOMER' : r === 'assistant' || r === 'agent' ? 'AGENT' : 'UNKNOWN';
-    } else {
-      label = 'UNKNOWN';
-    }
-    return `[${label}]: ${t.text || ''}`;
-  }).join('\n');
+// ── Chunk Merge ───────────────────────────────────────────────────
+// The whole call is analyzed in chunks (oldest first). A later chunk wins for the
+// same field, so a correction made later in the call overrides the earlier mention,
+// and a chunk that found nothing never erases what an earlier chunk found.
+function mergeExtractions(results: any[], schema: Record<string, FieldDef>, currentLeadData: any, now: Date) {
+  const updates: Record<string, any> = {};
+  const overwrites: Array<{ fieldName: string; oldValue: string; newValue: any }> = [];
+  let appointment: any = null;
 
-  // Latest-prioritized truncation: keep head for context + tail for recent corrections
-  const maxLen = 8000;
-  if (lines.length <= maxLen) return lines;
-  const headLen = 2000;
-  const tailLen = maxLen - headLen - 60;
-  return lines.slice(0, headLen) + '\n[...earlier conversation truncated...]\n' + lines.slice(lines.length - tailLen);
+  for (const result of results) {
+    if (!result) continue;
+
+    Object.assign(updates, validateUpdates(result.updates, schema));
+
+    for (const entry of validateOverwrites(result.overwrites, schema, currentLeadData)) {
+      const existing = overwrites.findIndex((o) => o.fieldName === entry.fieldName);
+      if (existing >= 0) overwrites[existing] = entry; else overwrites.push(entry);
+    }
+
+    const appt = validateAppointment(result.appointment, now);
+    if (appt) appointment = appt;
+  }
+
+  return { updates, overwrites, appointment };
 }
 
 // ── Prompt Builders ────────────────────────────────────────────────
@@ -285,10 +289,11 @@ export default async function(req: Request): Promise<Response> {
     const schema = SCHEMAS[leadType];
     const entityName = leadType === 'fronter' ? 'FronterLead' : 'DebtLead';
 
-    // ── Normalize transcript with configurable speaker IDs ──
+    // ── Format the WHOLE transcript and split it into chunks ──
     const custId = typeof customerSpeakerId === 'number' ? customerSpeakerId : 1;
     const agentId = typeof agentSpeakerId === 'number' ? agentSpeakerId : 0;
-    const transcriptStr = normalizeTranscript(transcript, custId, agentId);
+    const transcriptText = formatTranscriptLines(transcript, { customerSpeakerId: custId, agentSpeakerId: agentId });
+    const chunks = chunkTranscript(transcriptText);
 
     // ── Clean current lead data — only send schema-relevant fields ──
     const cleanLead: any = {};
@@ -325,55 +330,61 @@ ${cleaned.slice(0, 4000)}
     const now = new Date();
     const system = buildSystemPrompt(entityName, schema, now, scriptContext);
 
-    const prompt = `${system}
+    const base44 = createClientFromRequest(req);
+
+    // ── Analyze every chunk of the call, oldest first ──
+    let creditError = false;
+    const results = await runChunks(chunks, async (chunk) => {
+      const prompt = `${system}
 
 <UNTRUSTED_CURRENT_LEAD_DATA>
 ${JSON.stringify(cleanLead)}
 </UNTRUSTED_CURRENT_LEAD_DATA>
 
 <UNTRUSTED_CALL_TRANSCRIPT>
-${transcriptStr}
+${chunk}
 </UNTRUSTED_CALL_TRANSCRIPT>`;
 
-    // ── Call LLM ──
-    const base44 = createClientFromRequest(req);
-    let text = '{}';
-    try {
-      const res: any = await base44.asServiceRole.integrations.Core.InvokeLLM({
-        prompt,
-        model: 'claude-sonnet-5',
-      });
-      text = typeof res === 'string' ? res : (res?.text || res?.content?.[0]?.text || '{}');
-    } catch (e: any) {
-      const msg = e?.message || String(e);
-      if (msg.includes('quota') || msg.includes('credit') || msg.includes('429') || msg.includes('402') || msg.includes('limit') || msg.includes('exhausted')) {
-        return Response.json({ error: 'CREDIT_EXHAUSTED', creditError: true }, { status: 500 });
+      let text = '{}';
+      try {
+        const res: any = await base44.asServiceRole.integrations.Core.InvokeLLM({
+          prompt,
+          model: 'claude-sonnet-5',
+        });
+        text = typeof res === 'string' ? res : (res?.text || res?.content?.[0]?.text || '{}');
+      } catch (e: any) {
+        const msg = e?.message || String(e);
+        if (msg.includes('quota') || msg.includes('credit') || msg.includes('429') || msg.includes('402') || msg.includes('limit') || msg.includes('exhausted')) {
+          creditError = true;
+          return null;
+        }
+        throw e;
       }
-      throw e;
-    }
 
-    // ── Parse and validate LLM output ──
-    let parsed: any;
-    try {
-      parsed = JSON.parse(text.replace(/```json|```/g, '').trim());
-    } catch {
-      console.error('[aiContactFiller] LLM returned non-JSON output. Length:', text.length);
+      try {
+        return JSON.parse(text.replace(/```json|```/g, '').trim());
+      } catch {
+        console.error('[aiContactFiller] LLM returned non-JSON output. Length:', text.length);
+        return null;
+      }
+    });
+
+    if (creditError) return Response.json({ error: 'CREDIT_EXHAUSTED', creditError: true }, { status: 500 });
+    if (results.every((r) => r === null)) {
       return Response.json({ error: 'EXTRACTION_FAILED', updates: {}, overwrites: [], missingFields: [], appointment: null });
     }
 
-    // Validate every field against the schema — discard invalid ones
-    const validatedUpdates = validateUpdates(parsed.updates, schema);
-    const validatedOverwrites = validateOverwrites(parsed.overwrites, schema, currentLeadData);
-    const validatedAppointment = validateAppointment(parsed.appointment, now);
+    // ── Merge the per-chunk extractions, then validate as before ──
+    const merged = mergeExtractions(results, schema, currentLeadData, now);
 
     // Calculate missingFields deterministically — ignore the model's list
-    const missingFields = calculateMissingFields(schema, currentLeadData, validatedUpdates);
+    const missingFields = calculateMissingFields(schema, currentLeadData, merged.updates);
 
     return Response.json({
-      updates: validatedUpdates,
-      overwrites: validatedOverwrites,
+      updates: merged.updates,
+      overwrites: merged.overwrites,
       missingFields,
-      appointment: validatedAppointment,
+      appointment: merged.appointment,
     });
 
   } catch (e: any) {

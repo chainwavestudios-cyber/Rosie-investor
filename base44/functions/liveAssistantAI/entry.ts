@@ -1,6 +1,7 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.52';
 import { waitUntil } from 'base44:runtime';
 import { computeCostUsd } from '../../shared/aiCost.ts';
+import { formatTranscriptLines, formatNumberedLines, chunkTranscript, groupLines, runChunks } from '../../shared/transcriptAnalysis.ts';
 
 // Records the exact token usage and dollar cost of one Anthropic call. Runs
 // after the response is sent (waitUntil) so live-call latency is untouched.
@@ -447,9 +448,11 @@ Return ONLY this JSON (no markdown):
 - Hesitation markers detected: ${hesitationCount}
 - Total transcript lines: ${allEntries.length}`;
 
-      // The engine reviews as much of the call as possible: the opening AND the
-      // close (the last minutes carry the buying signals), trimming only the middle.
-      const headTail = (s: string, max = 18000) => s.length <= max ? s : `${s.slice(0, Math.floor(max * 0.35))}\n\n[... middle of the call omitted for length ...]\n\n${s.slice(-Math.floor(max * 0.65))}`;
+      // The engine reviews the whole call. 40,000 characters is about two hours of
+      // call (~300 characters per minute), so a normal call is read end to end; only
+      // a call longer than that has its middle trimmed, keeping the opening and the
+      // close (the last minutes carry the buying signals).
+      const headTail = (s: string, max = 40000) => s.length <= max ? s : `${s.slice(0, Math.floor(max * 0.35))}\n\n[... middle of the call omitted for length ...]\n\n${s.slice(-Math.floor(max * 0.65))}`;
       const transcriptForIntent = headTail(fullTranscript);
       // Knowledge base excerpts so the playbook's word-for-word lines follow the company script.
       let kbExcerpts = '';
@@ -643,11 +646,14 @@ ${kbExcerpts || 'None loaded for this call.'}`,
 
     // ── EXTRACT KEY FACTS / MEMORIES FROM CALL ────────────────────────
     if (mode === 'extract_facts') {
-      const fullTranscript = (transcript || []).map((t: any) => `[${t.speaker === 0 ? 'AGENT' : 'PROSPECT'}]: ${t.text}`).join('\n');
       const existingFacts = body.existingFacts || [];
       const existingFactTexts = existingFacts.map((f: any) => (f.factText || '').toLowerCase());
+      // The WHOLE call is read, in chunks, so facts mentioned late in a long call
+      // are still captured.
+      const chunks = chunkTranscript(formatTranscriptLines(transcript || []));
 
-      const data = await callLLM(req, {
+      const chunkResults = await runChunks(chunks, async (chunk) => {
+        const data = await callLLM(req, {
           model: 'claude-haiku-4-5-20251001',
           max_tokens: 800,
           system: `You are a sales CRM assistant extracting KEY FACTS and personal details from a debt settlement sales call that the agent should remember for future follow-up calls. Extract:
@@ -664,15 +670,29 @@ Return ONLY this JSON (no markdown):
 
 EXISTING FACTS ALREADY STORED (do not duplicate these):
 ${existingFactTexts.length > 0 ? existingFactTexts.join('\n') : 'None yet'}`,
-          messages: [{ role: 'user', content: `Call transcript:\n${fullTranscript.slice(0, 5000)}` }],
+          messages: [{ role: 'user', content: `Call transcript:\n${chunk}` }],
+        });
+        const text = data?.content?.[0]?.text || '{}';
+        try {
+          const result = JSON.parse(text.replace(/```json|```/g, '').trim());
+          return result.facts || [];
+        } catch {
+          return [];
+        }
       });
-      const text = data?.content?.[0]?.text || '{}';
-      try {
-        const result = JSON.parse(text.replace(/```json|```/g, '').trim());
-        return Response.json({ facts: result.facts || [] });
-      } catch {
-        return Response.json({ facts: [] });
+
+      // Merge in call order, dropping anything already stored
+      const seenFacts = new Set(existingFactTexts);
+      const facts: any[] = [];
+      for (const list of chunkResults) {
+        for (const fact of (list || [])) {
+          const key = String(fact?.fact || '').toLowerCase().trim();
+          if (!key || seenFacts.has(key)) continue;
+          seenFacts.add(key);
+          facts.push(fact);
+        }
       }
+      return Response.json({ facts });
     }
 
     // ── HARDSHIP EXTRACTION ────────────────────────────────────────────
@@ -877,12 +897,15 @@ ${openingLines}`,
     // ── EXTRACT PERSONAL INSIGHTS (location, occupation, hobbies, etc.) ──
     if (mode === 'extract_insights') {
       const allLines = transcript || [];
-      // Scan the FULL transcript (capped at 8000 chars) so early mentions of
-      // location/occupation aren't missed when the conversation has moved on.
-      const transcriptStr = allLines.map((t: any, i: number) => `[LINE ${i}] [${t.speaker === 0 ? 'AGENT' : 'CUSTOMER'}]: ${t.text}`).join('\n').slice(0, 8000);
       const existingInsights = (body.existingInsights || []).map((ins: any) => `${ins.insightType}:${(ins.insightText || '').toLowerCase()}`);
+      // The WHOLE call is scanned, in chunks, so an early mention of a location or
+      // job isn't missed once the conversation has moved on. Line numbers stay the
+      // real transcript indices because each chunk is numbered from its own offset.
+      const groups = groupLines(allLines);
 
-      const data = await callLLM(req, {
+      const chunkResults = await runChunks(groups, async (group) => {
+        const transcriptStr = formatNumberedLines(group.lines, group.start);
+        const data = await callLLM(req, {
           model: 'claude-haiku-4-5-20251001',
           max_tokens: 800,
           system: `You are a sales assistant listening to a live debt settlement call. Extract personal insights the CUSTOMER mentions about themselves — things that would help the agent build rapport and make small talk on follow-up calls.
@@ -907,14 +930,28 @@ Return ONLY this JSON (no markdown):
 EXISTING INSIGHTS ALREADY CAPTURED (do not duplicate):
 ${existingInsights.length > 0 ? existingInsights.join('\n') : 'None yet'}`,
           messages: [{ role: 'user', content: `Recent transcript:\n${transcriptStr}` }],
+        });
+        const text = data?.content?.[0]?.text || '{}';
+        try {
+          const result = JSON.parse(text.replace(/```json|```/g, '').trim());
+          return result.insights || [];
+        } catch {
+          return [];
+        }
       });
-      const text = data?.content?.[0]?.text || '{}';
-      try {
-        const result = JSON.parse(text.replace(/```json|```/g, '').trim());
-        return Response.json({ insights: result.insights || [] });
-      } catch {
-        return Response.json({ insights: [] });
+
+      // Merge in call order, dropping duplicates and anything already stored
+      const seenInsights = new Set(existingInsights);
+      const insights: any[] = [];
+      for (const list of chunkResults) {
+        for (const insight of (list || [])) {
+          const key = `${insight?.insightType}:${String(insight?.insightText || '').toLowerCase().trim()}`;
+          if (!insight?.insightText || seenInsights.has(key)) continue;
+          seenInsights.add(key);
+          insights.push(insight);
+        }
       }
+      return Response.json({ insights });
     }
 
     // ── DOB / BIRTH YEAR RESEARCH (auto internet search for birth-year facts) ──

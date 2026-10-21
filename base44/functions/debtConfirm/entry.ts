@@ -14,6 +14,51 @@
  *     if the customer only stated a total)
  */
 import { callLLM } from '../../shared/llmHelper.ts';
+import { formatTranscriptLines, chunkTranscript, runChunks } from '../../shared/transcriptAnalysis.ts';
+
+// Merges the per-chunk confirmations, oldest chunk first. A later chunk that
+// states a debt figure overrides an earlier one (the customer's latest word wins),
+// and a chunk that found nothing never erases what an earlier chunk confirmed.
+function mergeConfirmResults(results: any[]) {
+  let confirmed = false;
+  let debtAmount: number | null = null;
+  let debtTypes: string[] = [];
+  let debtAmounts: Array<{ type: string; amount: number }> = [];
+  let lastSummary = '';
+  let confirmedSummary = '';
+
+  for (const result of results) {
+    if (!result) continue;
+    if (result.summary) lastSummary = result.summary;
+
+    if (result.confirmed) {
+      confirmed = true;
+      if (result.summary) confirmedSummary = result.summary;
+      if (result.debtAmount != null) debtAmount = result.debtAmount;
+      if (result.debtTypes?.length) debtTypes = result.debtTypes;
+      if (result.debtAmounts?.length) debtAmounts = result.debtAmounts;
+    } else {
+      if (debtAmount == null && result.debtAmount != null) debtAmount = result.debtAmount;
+      if (debtTypes.length === 0 && result.debtTypes?.length) debtTypes = result.debtTypes;
+      if (debtAmounts.length === 0 && result.debtAmounts?.length) debtAmounts = result.debtAmounts;
+    }
+  }
+
+  if (!confirmed && debtAmount == null && debtTypes.length === 0) return null;
+
+  if (debtTypes.length === 0 && debtAmounts.length > 0) debtTypes = debtAmounts.map((a) => a.type);
+
+  return {
+    confirmed: confirmed || debtAmount != null || debtTypes.length > 0,
+    debtAmount,
+    debtTypes,
+    debtTypesJson: debtTypes.length > 0 ? JSON.stringify(debtTypes) : null,
+    debtAmountsJson: debtAmounts.length > 0 ? JSON.stringify(debtAmounts) : null,
+    // The latest part of the call that actually confirmed the debt, so the note
+    // describes the same figures the card was just updated with.
+    summary: confirmedSummary || lastSummary,
+  };
+}
 
 export default async function(req: Request): Promise<Response> {
   try {
@@ -24,10 +69,9 @@ export default async function(req: Request): Promise<Response> {
       return Response.json({ confirmed: false, message: 'No transcript available' });
     }
 
-    const transcriptStr = (transcript || []).map((t: any) => {
-      const speaker = t.speaker === 0 ? 'AGENT' : t.speaker === 1 ? 'CUSTOMER' : (t.role || 'UNKNOWN').toUpperCase();
-      return `[${speaker}]: ${t.text}`;
-    }).join('\n').slice(0, 8000);
+    // The WHOLE call is read, not just its opening: the transcript is split into
+    // chunks, every chunk is analyzed, and the results are merged below.
+    const chunks = chunkTranscript(formatTranscriptLines(transcript));
 
     // Extract the tagged script sections so the LLM knows exactly where in
     // the script the debt amount, debt type, and per-type amounts are discussed.
@@ -99,29 +143,26 @@ Return ONLY this JSON (no markdown):
   "summary": "Brief summary of what the customer said about their debt"
 }`;
 
-    const data = await callLLM(req, {
-      model: 'claude-sonnet-5',
-      max_tokens: 1000,
-      system,
-      messages: [{ role: 'user', content: `Current lead data:\n  debtAmount: ${currentDebtAmount}\n  debtTypes: ${JSON.stringify(currentDebtTypes)}\n\nCall transcript:\n${transcriptStr}` }],
+    const results = await runChunks(chunks, async (chunk) => {
+      const data = await callLLM(req, {
+        model: 'claude-sonnet-5',
+        max_tokens: 1000,
+        system,
+        messages: [{ role: 'user', content: `Current lead data:\n  debtAmount: ${currentDebtAmount}\n  debtTypes: ${JSON.stringify(currentDebtTypes)}\n\nCall transcript:\n${chunk}` }],
+      });
+
+      const text = data?.content?.[0]?.text || '{}';
+      try {
+        return JSON.parse(text.replace(/```json|```/g, '').trim());
+      } catch {
+        console.error('[debtConfirm] Chunk returned non-JSON output. Length:', text.length);
+        return null;
+      }
     });
 
-    const text = data?.content?.[0]?.text || '{}';
-    try {
-      const result = JSON.parse(text.replace(/```json|```/g, '').trim());
-      const debtAmounts = result.debtAmounts || [];
-      const debtTypes = result.debtTypes || debtAmounts.map((a: any) => a.type);
-      return Response.json({
-        confirmed: result.confirmed || false,
-        debtAmount: result.debtAmount ?? null,
-        debtTypes,
-        debtTypesJson: debtTypes.length > 0 ? JSON.stringify(debtTypes) : null,
-        debtAmountsJson: debtAmounts.length > 0 ? JSON.stringify(debtAmounts) : null,
-        summary: result.summary || '',
-      });
-    } catch {
-      return Response.json({ confirmed: false, message: 'Failed to parse AI response' });
-    }
+    const merged = mergeConfirmResults(results);
+    if (!merged) return Response.json({ confirmed: false, message: 'Failed to parse AI response' });
+    return Response.json(merged);
   } catch (e: any) {
     const msg = e?.message || String(e);
     if (msg.includes('CREDIT_EXHAUSTED')) {
