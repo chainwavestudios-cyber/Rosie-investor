@@ -15,6 +15,7 @@ import CreditReportUpload from './pages/CreditReportUpload';
 import ManagerPortal from './pages/ManagerPortal';
 import CompliancePortal from './pages/CompliancePortal';
 import FronterPage from './pages/FronterPage';
+import FronterErrorBoundary from '@/components/fronter/FronterErrorBoundary';
 import InterviewPage from './pages/InterviewPage';
 import TrainingPage from './pages/TrainingPage';
 import AssistantPortal from './pages/AssistantPortal';
@@ -110,7 +111,7 @@ function App() {
               <Route path="/credit" element={<CreditReportUpload />} />
               <Route path="/manager-portal" element={<DebtCoachAuthProvider><ManagerPortal /></DebtCoachAuthProvider>} />
               <Route path="/compliance-portal" element={<DebtCoachAuthProvider><CompliancePortal /></DebtCoachAuthProvider>} />
-              <Route path="/fronter" element={<DebtCoachAuthProvider><FronterPage /></DebtCoachAuthProvider>} />
+              <Route path="/fronter" element={<FronterErrorBoundary><DebtCoachAuthProvider><FronterPage /></DebtCoachAuthProvider></FronterErrorBoundary>} />
               <Route path="/interviews" element={<DebtCoachAuthProvider><InterviewPage /></DebtCoachAuthProvider>} />
               <Route path="/training" element={<DebtCoachAuthProvider><TrainingPage /></DebtCoachAuthProvider>} />
               <Route path="/assistant-portal" element={<DebtCoachAuthProvider><AssistantPortal /></DebtCoachAuthProvider>} />
