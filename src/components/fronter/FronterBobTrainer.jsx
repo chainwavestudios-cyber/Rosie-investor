@@ -10,11 +10,12 @@ import { base44 } from '@/api/base44Client';
 import { useDebtBobVoice } from '@/hooks/useDebtBobVoice';
 import { BOB_CHARACTERS, getCharacter, DEFAULT_CHARACTER_ID, BOB_THINK_MODELS, DEFAULT_THINK_MODEL } from '@/components/debt/bob/BobCharacters';
 import FronterAIPanel from '@/components/fronter/FronterAIPanel';
-import { substituteScriptVars } from '@/lib/scriptSubstitute';
-import { renderFormatted } from '@/components/debt/ScriptRichText';
+import useSuperAdminConfig from '@/hooks/useSuperAdminConfig';
 import FronterBobScenarioBuilder from './FronterBobScenarioBuilder';
 import FronterBobOpeningScenarios from './FronterBobOpeningScenarios';
 import FronterBobObjectionsPopup from './FronterBobObjectionsPopup';
+import FronterBobScriptPanel from './FronterBobScriptPanel';
+import FronterBobTransferSim from './FronterBobTransferSim';
 
 const GOLD = '#10b981';
 const DARK = '#0a0f1e';
@@ -150,6 +151,15 @@ export default function FronterBobTrainer({ username, fronterFirstName }) {
   const [showOpeningScenarios, setShowOpeningScenarios] = useState(false);
   const [manualObjections, setManualObjections] = useState(false);
   const [showObjectionsPopup, setShowObjectionsPopup] = useState(false);
+  const [debtConfirming, setDebtConfirming] = useState(false);
+  const [debtConfirmMsg, setDebtConfirmMsg] = useState('');
+  const [aiInputRunning, setAiInputRunning] = useState(false);
+  const [aiInputMsg, setAiInputMsg] = useState('');
+  const [emailMsg, setEmailMsg] = useState('');
+  const [showTransferSim, setShowTransferSim] = useState(false);
+  const [transferScript, setTransferScript] = useState('');
+  const [simOutcome, setSimOutcome] = useState('');
+  const { config: masterConfig } = useSuperAdminConfig();
   const transcriptRef = useRef([]);
   const callStartRef = useRef(null);
   const sessionRecIdRef = useRef(null);
@@ -197,6 +207,74 @@ export default function FronterBobTrainer({ username, fronterFirstName }) {
       if (manualObjectionsRef.current) setShowObjectionsPopup(true);
     }
   }, [phase]);
+
+  // ── Simulated contact-card steps ─────────────────────────────────────────
+  // The same script and the same backend functions the live prospect contact
+  // card uses, with BOB's transcript standing in for the live call transcript.
+  const simTranscript = useCallback(
+    () => (transcriptRef.current || []).map(e => ({ speaker: e.role === 'bob' ? 1 : 0, text: e.text, time: e.time })),
+    [],
+  );
+
+  const runDebtConfirm = useCallback(async () => {
+    if (debtConfirming) return;
+    const lines = simTranscript();
+    if (lines.length < 2) { setDebtConfirmMsg('Talk to BOB first — there is nothing to confirm yet.'); setTimeout(() => setDebtConfirmMsg(''), 5000); return; }
+    setDebtConfirming(true); setDebtConfirmMsg('');
+    try {
+      const res = await base44.functions.invoke('debtConfirm', { transcript: lines, scriptContent: scripts[0]?.content || '' });
+      const data = res?.data || res;
+      if (data?.confirmed && data.debtAmount != null) {
+        const types = (() => { try { return JSON.parse(data.debtTypesJson || '[]'); } catch { return []; } })();
+        setDebtConfirmMsg(`✓ Confirmed — $${Number(data.debtAmount).toLocaleString()}${types.length ? ' · ' + types.join(' · ') : ''}`);
+      } else {
+        setDebtConfirmMsg(data?.message || 'Debt not confirmed yet — BOB has to state the debt type and amount.');
+      }
+      setTimeout(() => setDebtConfirmMsg(''), 9000);
+    } catch (e) {
+      setDebtConfirmMsg('⚠ Debt Confirm failed: ' + (e?.message || String(e)));
+    }
+    setDebtConfirming(false);
+  }, [debtConfirming, simTranscript, scripts]);
+
+  const runAiInput = useCallback(async () => {
+    if (aiInputRunning) return;
+    const lines = simTranscript();
+    if (lines.length < 2) { setAiInputMsg('Talk to BOB first — there is nothing to summarize yet.'); setTimeout(() => setAiInputMsg(''), 5000); return; }
+    setAiInputRunning(true); setAiInputMsg('');
+    try {
+      const res = await base44.functions.invoke('aiInputSummary', { transcript: lines });
+      const data = res?.data || res;
+      if (data?.error) throw new Error(data.error);
+      setAiInputMsg(data?.summary ? '✓ Summary added to notes' : 'No summary generated');
+      setTimeout(() => setAiInputMsg(''), 7000);
+    } catch (e) {
+      setAiInputMsg('⚠ AI Input failed: ' + (e?.message || String(e)));
+    }
+    setAiInputRunning(false);
+  }, [aiInputRunning, simTranscript]);
+
+  // No real customer on the other end of a training call — the send is simulated.
+  const handleSendEmail = useCallback(() => {
+    setEmailMsg('✓ Credentials & Welcome Message Email sent to BOB (simulated in training)');
+    setTimeout(() => setEmailMsg(''), 8000);
+  }, []);
+
+  const handleCompletedSteps = useCallback((activeScript) => {
+    const display = ((activeScript || scripts[0])?.content || '').replace(/\[\[AI:\w+\]\]/gi, '');
+    const idx = display.indexOf('@@COMPLETED_STEPS@@');
+    setTransferScript(idx === -1 ? '' : display.slice(idx + '@@COMPLETED_STEPS@@'.length).trim());
+    setSimOutcome('');
+    setShowTransferSim(true);
+  }, [scripts]);
+
+  const handleSimMerge = useCallback(() => {
+    setShowTransferSim(false); setTransferScript(''); setSimOutcome('merged'); hangup();
+  }, [hangup]);
+
+  const handleSimNoConnect = useCallback(() => {
+    setShowTransferSim(false); setTransferScript(''); setSimOutcome('no_connect'); hangup();
+  }, [hangup]);
 
   // Session persistence
   const metaRef = useRef({});
@@ -330,6 +408,8 @@ You are in MANUAL OBJECTIONS mode. You will NOT raise any objections, questions,
     const character = getCharacter(characterId);
     setSessionId(character.name);
     setTranscript([]);
+    setSimOutcome(''); setDebtConfirmMsg(''); setAiInputMsg(''); setEmailMsg('');
+    setShowTransferSim(false); setTransferScript('');
     sessionRecIdRef.current = null; callStartRef.current = null;
     setVoiceModel(character.voiceModel);
 
@@ -361,6 +441,9 @@ You are in MANUAL OBJECTIONS mode. You will NOT raise any objections, questions,
   const sliderColor = sliderValue < 33 ? '#ef4444' : sliderValue < 67 ? '#f59e0b' : '#4ade80';
   const phaseColor = { idle: '#4a5568', ringing: '#f59e0b', connecting: '#f59e0b', active: '#4ade80', error: '#ef4444' }[phase] || '#4a5568';
   const phaseLabel = { idle: 'Idle', ringing: '📳 Dialing…', connecting: 'Connecting…', active: '🔴 LIVE', error: 'Error' }[phase] || phase;
+  // The two merge lines mastered by the super admin — the same ones the live merge dials
+  const simNumbers = [masterConfig?.transferPhoneNumber || '+16193530919', masterConfig?.transferPhoneNumber2 || '+12162586934'];
+  const simLabels = [masterConfig?.transferLabel || '619-353-0919', masterConfig?.transferLabel2 || '216-258-6934'];
 
   return (
     <div>
@@ -377,7 +460,7 @@ You are in MANUAL OBJECTIONS mode. You will NOT raise any objections, questions,
                 <div style={{ color: GOLD, fontSize: '9px', letterSpacing: '1px', textTransform: 'uppercase' }}>Fronter Cold Call Simulator</div>
               </div>
             </div>
-            <div style={{ color: '#6b7280', fontSize: '10px', marginTop: '6px' }}>BOB simulates a fresh customer with $10K+ in credit card debt. Practice your open script and qualifying flow.</div>
+            <div style={{ color: '#6b7280', fontSize: '10px', marginTop: '6px' }}>BOB simulates a fresh customer with $10K+ in credit card debt. Practice the whole call — the open, the qualifying, the script steps, and the merge &amp; transfer to Chris.</div>
           </div>
 
           {/* Call controls */}
@@ -448,6 +531,15 @@ You are in MANUAL OBJECTIONS mode. You will NOT raise any objections, questions,
                 <span style={{ color: phaseColor, fontSize: '10px', fontWeight: 'bold' }}>{paused ? '⏸ Paused' : phaseLabel}</span>
               </span>
             </div>
+
+            {simOutcome && (
+              <div style={{ marginTop: '8px', padding: '8px 10px', background: simOutcome === 'merged' ? 'rgba(16,185,129,0.1)' : 'rgba(239,68,68,0.08)', border: `1px solid ${simOutcome === 'merged' ? GOLD + '44' : 'rgba(239,68,68,0.3)'}`, borderRadius: '4px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
+                <span style={{ color: simOutcome === 'merged' ? GOLD : '#ef4444', fontSize: '11px', fontWeight: 'bold' }}>
+                  {simOutcome === 'merged' ? '✓ Transfer complete — BOB is connected with Chris. Dial again for the next BOB.' : '🚫 NO CONNECT — BOB stays on hold in the queue. Dial again to keep training.'}
+                </span>
+                <button onClick={() => setSimOutcome('')} style={{ background: 'none', border: 'none', color: '#6b7280', cursor: 'pointer', fontSize: '14px' }}>×</button>
+              </div>
+            )}
 
             {phase === 'active' && isRecording && (
               <div style={{ marginTop: '8px', display: 'flex', gap: '6px', alignItems: 'center', padding: '5px 10px', background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '4px' }}>
@@ -571,9 +663,42 @@ You are in MANUAL OBJECTIONS mode. You will NOT raise any objections, questions,
         </div>
       )}
 
-      {/* Auto-popout: Scripts */}
+      {/* Auto-popout: Script — same script and step buttons as the prospect contact card */}
       {showScripts && (
-        <FloatingScripts scripts={scripts} fronterFirstName={fronterFirstName} onClose={() => setShowScripts(false)} />
+        <FronterBobScriptPanel
+          scripts={scripts}
+          customerName={scenario.customerName || 'Bob'}
+          fronterFirstName={fronterFirstName}
+          onComplete={handleCompletedSteps}
+          onDebtConfirm={runDebtConfirm}
+          debtConfirming={debtConfirming}
+          onAiInput={runAiInput}
+          aiInputRunning={aiInputRunning}
+          onSendEmail={handleSendEmail}
+          message={aiInputMsg || debtConfirmMsg || emailMsg}
+          onClose={() => setShowScripts(false)}
+        />
+      )}
+
+      {/* Merge & transfer simulation — opens from "Completed Steps → Transfer" */}
+      {showTransferSim && (
+        <FronterBobTransferSim
+          remainingScript={transferScript}
+          customerName={scenario.customerName || 'Bob'}
+          fronterFirstName={fronterFirstName}
+          numbers={simNumbers}
+          labels={simLabels}
+          callActive={phase === 'active'}
+          onDebtConfirm={runDebtConfirm}
+          debtConfirming={debtConfirming}
+          onAiInput={runAiInput}
+          aiInputRunning={aiInputRunning}
+          onSendEmail={handleSendEmail}
+          message={aiInputMsg || debtConfirmMsg || emailMsg}
+          onMerge={handleSimMerge}
+          onNoConnect={handleSimNoConnect}
+          onClose={() => { setShowTransferSim(false); setTransferScript(''); }}
+        />
       )}
 
       {/* AI Scenario Builder */}
@@ -600,53 +725,6 @@ You are in MANUAL OBJECTIONS mode. You will NOT raise any objections, questions,
   );
 }
 
-// ─── Floating Scripts Panel (auto-pops out on BOB connect) ──────────────────
-function FloatingScripts({ scripts, fronterFirstName, onClose }) {
-  const [activeScript, setActiveScript] = useState(null);
-  const [pos, setPos] = useState({ x: 500, y: 60 });
-  const [size, setSize] = useState({ w: 380, h: 480 });
-  const dragRef = useRef(null);
-
-  useEffect(() => {
-    if (scripts.length > 0 && !activeScript) setActiveScript(scripts[0]);
-  }, [scripts]);
-
-  const onDragStart = (e) => {
-    dragRef.current = { startX: e.clientX - pos.x, startY: e.clientY - pos.y };
-    const onMove = (ev) => { if (dragRef.current) setPos({ x: ev.clientX - dragRef.current.startX, y: ev.clientY - dragRef.current.startY }); };
-    const onUp = () => { dragRef.current = null; document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); };
-    document.addEventListener('mousemove', onMove);
-    document.addEventListener('mouseup', onUp);
-  };
-
-  return (
-    <div style={{ position: 'fixed', left: pos.x, top: pos.y, width: size.w, height: size.h, background: '#0d1b2a', border: '1px solid rgba(16,185,129,0.3)', borderRadius: '8px', boxShadow: '0 16px 64px rgba(0,0,0,0.8)', zIndex: 10000, display: 'flex', flexDirection: 'column' }}>
-      <div onMouseDown={onDragStart} style={{ padding: '9px 14px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'move', userSelect: 'none', flexShrink: 0 }}>
-        <span style={{ color: GOLD, fontSize: '11px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase' }}>📜 Scripts</span>
-        <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#6b7280', cursor: 'pointer', fontSize: '18px' }}>×</button>
-      </div>
-      {scripts.length > 1 && (
-        <div style={{ display: 'flex', gap: '2px', borderBottom: '1px solid rgba(255,255,255,0.07)', overflowX: 'auto', flexShrink: 0 }}>
-          {scripts.map(s => (
-            <button key={s.id} onClick={() => setActiveScript(s)} style={{ padding: '6px 10px', background: 'none', border: 'none', borderBottom: `2px solid ${activeScript?.id === s.id ? GOLD : 'transparent'}`, color: activeScript?.id === s.id ? GOLD : '#6b7280', cursor: 'pointer', fontSize: '10px', whiteSpace: 'nowrap', fontWeight: activeScript?.id === s.id ? 'bold' : 'normal' }}>{s.name}</button>
-          ))}
-        </div>
-      )}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '14px' }}>
-        {!activeScript ? (
-          <div style={{ color: '#4a5568', textAlign: 'center', padding: '40px 0', fontSize: '13px' }}>No scripts yet.</div>
-        ) : (
-          <div style={{ color: '#e8e0d0', fontSize: '14px', lineHeight: 1.8, fontFamily: 'Georgia, serif', whiteSpace: 'pre-wrap' }}>{renderFormatted(substituteScriptVars(activeScript.content, { fronterFirstName }))}</div>
-        )}
-      </div>
-      <div onMouseDown={(e) => {
-        e.stopPropagation();
-        const startX = e.clientX, startY = e.clientY, startW = size.w, startH = size.h;
-        const onMove = (ev) => setSize({ w: Math.max(280, startW + ev.clientX - startX), h: Math.max(250, startH + ev.clientY - startY) });
-        const onUp = () => { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); };
-        document.addEventListener('mousemove', onMove);
-        document.addEventListener('mouseup', onUp);
-      }} style={{ position: 'absolute', bottom: 0, right: 0, width: '16px', height: '16px', cursor: 'nwse-resize', color: '#4a5568', textAlign: 'right', paddingRight: '2px' }}>⌟</div>
-    </div>
-  );
-}
+// The floating script panel lives in FronterBobScriptPanel — it renders the same
+// script and the same step buttons (Debt Confirm / AI Input / Send Email /
+// Completed Steps → Transfer) as the prospect contact card.

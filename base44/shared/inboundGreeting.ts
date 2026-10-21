@@ -11,6 +11,7 @@
  * from the lead's city/state/zip since no explicit county field exists.
  */
 import { getPollyVoice } from './aiVoiceMap.ts';
+import { getTtsClip } from './elevenLabsTts.ts';
 
 export type Region = 'riverside' | 'san_bernardino' | 'honolulu' | 'fallback';
 
@@ -110,55 +111,6 @@ export async function lookupInboundLead(base44: any, rawPhone: string) {
   return { client_name, region, leadId: lead.id, lead, leadType };
 }
 
-// Cheap content fingerprint so a cached clip never outlives a wording change.
-function textFingerprint(text: string): string {
-  let hash = 0;
-  for (let i = 0; i < text.length; i++) hash = (hash * 31 + text.charCodeAt(i)) % 1000000007;
-  return hash.toString(36).slice(0, 6);
-}
-
-// ── ElevenLabs TTS clip generation + cache (Prompt 2, Clip A/B) ─────────
-async function generateElevenLabsClip(base44: any, text: string, voiceId: string, cacheKey: string): Promise<string | null> {
-  // Check cache first
-  try {
-    const cached = await base44.entities.InboundAudioCache.filter({ cacheKey }, '-generatedAt', 1);
-    if (cached?.[0]?.audioUrl) return cached[0].audioUrl;
-  } catch {}
-
-  const apiKey = Deno.env.get('ELEVENLABS_API_KEY');
-  if (!apiKey) return null;
-
-  try {
-    const res = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
-      method: 'POST',
-      headers: { 'xi-api-key': apiKey, 'Content-Type': 'application/json', 'Accept': 'audio/mpeg' },
-      body: JSON.stringify({
-        text,
-        model_id: 'eleven_flash_v2_5',
-        voice_settings: { stability: 0.5, similarity_boost: 0.75, style: 0.0, use_speaker_boost: true },
-      }),
-      signal: AbortSignal.timeout(15000),
-    });
-    if (!res.ok) {
-      console.warn('[inboundGreeting] ElevenLabs TTS failed:', res.status);
-      return null;
-    }
-    const audioBuffer = await res.arrayBuffer();
-    const file = new File([audioBuffer], `${cacheKey.replace(/[^a-zA-Z0-9]/g, '_')}.mp3`, { type: 'audio/mpeg' });
-    const upRes = await base44.integrations.Core.UploadPublicFile({ file });
-    const audioUrl = upRes?.file_url;
-    if (audioUrl) {
-      try {
-        await base44.entities.InboundAudioCache.create({ cacheKey, audioUrl, voiceId, generatedAt: new Date().toISOString() });
-      } catch {}
-    }
-    return audioUrl || null;
-  } catch (e) {
-    console.warn('[inboundGreeting] ElevenLabs clip error:', e?.message);
-    return null;
-  }
-}
-
 // ── Resolve the sequential playback queue (Prompt 2) ──────────────────
 export async function resolveInboundClips(base44: any, clientName: string, region: Region, config: any): Promise<InboundClip[]> {
   const clips: InboundClip[] = [];
@@ -173,8 +125,7 @@ export async function resolveInboundClips(base44: any, clientName: string, regio
     const nameText = `Hi ${clientName}? Hey ${clientName}, this is ${agentName} with the Debt Verification Desk—thanks for calling back!`;
     if (voiceId) {
       // Voice ID and wording are both in the key, so either change regenerates the clip
-      const cacheKey = `name:${clientName.toLowerCase()}:${voiceId.slice(0, 8)}:${textFingerprint(nameText)}`;
-      const url = await generateElevenLabsClip(base44, nameText, voiceId, cacheKey);
+      const url = await getTtsClip(base44, { text: nameText, voiceId, keyPrefix: `name:${clientName.toLowerCase()}` });
       if (url) clips.push({ type: 'play', content: url });
       else clips.push({ type: 'say', content: nameText, voice: pollyVoice });
     } else {
@@ -186,8 +137,7 @@ export async function resolveInboundClips(base44: any, clientName: string, regio
   const regionalText = REGIONAL_PHRASES[region];
   if (regionalText) {
     if (voiceId) {
-      const cacheKey = `region:${region}:${voiceId.slice(0, 8)}:${textFingerprint(regionalText)}`;
-      const url = await generateElevenLabsClip(base44, regionalText, voiceId, cacheKey);
+      const url = await getTtsClip(base44, { text: regionalText, voiceId, keyPrefix: `region:${region}` });
       if (url) clips.push({ type: 'play', content: url });
       else clips.push({ type: 'say', content: regionalText, voice: pollyVoice });
     } else {
