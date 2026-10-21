@@ -87,6 +87,61 @@ async function moveIntoConference(fronterCallSid: string, confName: string, hold
   return customerCallSid;
 }
 
+// The queue record for a call: match the conference first (unique per call), then the
+// lead, newest first — a stale row from an earlier attempt must never win.
+async function findQueueRecord(entities: any, conferenceName?: string, leadId?: string): Promise<any> {
+  if (conferenceName) {
+    const byConf = await entities.FronterHeadsUp.filter({ conferenceName, status: 'active' }, { sort: '-created_date', limit: 1 });
+    const hit = (Array.isArray(byConf) ? byConf : byConf?.items || [])[0];
+    if (hit) return hit;
+  }
+  if (!leadId) return null;
+  const byLead = await entities.FronterHeadsUp.filter({ leadId, status: 'active' }, { sort: '-created_date', limit: 1 });
+  return (Array.isArray(byLead) ? byLead : byLead?.items || [])[0] || null;
+}
+
+// Remember the customer's call leg for this conference. mergeConnect pulls the
+// customer back out of the hold queue with the SID recorded here, so the record
+// must exist for every warm merge. Calls that started from a card which never
+// flagged a heads-up (the assistant calendar card) had no record at all and the
+// customer stayed on hold forever — so create it here instead of losing the leg.
+async function rememberCustomerLeg(req: Request, leg: {
+  leadId?: string; leadName?: string; leadPhone?: string; leadEmail?: string;
+  fronterUsername?: string; lineKey?: string; conferenceName?: string; customerCallSid?: string;
+}): Promise<void> {
+  if (!leg.customerCallSid || !leg.conferenceName) return;
+  try {
+    const entities = createClientFromRequest(req).asServiceRole.entities;
+    const existing = await findQueueRecord(entities, leg.conferenceName, leg.leadId);
+    const patch = { customerCallSid: leg.customerCallSid, conferenceName: leg.conferenceName };
+    if (existing) {
+      await entities.FronterHeadsUp.update(existing.id, patch);
+      return;
+    }
+    if (!leg.leadId) return; // leadId is required on the record — the child-call fallback covers this call
+    await entities.FronterHeadsUp.create({
+      fronterUsername: leg.fronterUsername || 'assistant_portal',
+      leadId: leg.leadId,
+      leadName: leg.leadName || '',
+      leadPhone: leg.leadPhone || '',
+      leadEmail: leg.leadEmail || '',
+      lineKey: leg.lineKey || '',
+      status: 'active',
+      createdAt: new Date().toISOString(),
+      ...patch,
+    });
+  } catch (e) { console.warn('Remember customer leg failed:', e.message); }
+}
+
+// Last resort: the customer is a child leg of the fronter's own call.
+async function customerLegFromFronter(fronterSid: string): Promise<string> {
+  if (!fronterSid) return '';
+  try {
+    const childCalls = await twilioFetch(`/Calls.json?ParentCallSid=${fronterSid}&Status=in-progress`);
+    return childCalls.calls?.[0]?.sid || '';
+  } catch (e) { console.warn('Child call lookup failed:', e.message); return ''; }
+}
+
 export default async function(req) {
   try {
     // Parse body — JSON for app calls, form-encoded for Twilio callbacks
@@ -194,7 +249,7 @@ export default async function(req) {
     //   Two-step warm merge: Step 1 — fronter talks to agent while customer is on hold.
     //   The fronter's browser leg stays in the conference so the call doesn't drop.
     if (action === 'mergeDial') {
-      const { fronterCallSid, agentPhone, lineKey, conferenceName, leadId, leadEmail } = body;
+      const { fronterCallSid, agentPhone, lineKey, conferenceName, leadId, leadEmail, leadName, leadPhone, fronterUsername } = body;
       if (!fronterCallSid && !conferenceName) return Response.json({ error: 'fronterCallSid or conferenceName required' }, { status: 400 });
       if (!agentPhone) return Response.json({ error: 'agentPhone required' }, { status: 400 });
 
@@ -210,15 +265,10 @@ export default async function(req) {
         // Create conference: move customer + fronter into it together
         customerCallSid = await moveIntoConference(fronterSid, confName, holdAudioUrl) || '';
 
-        if (customerCallSid && leadId) {
-          try {
-            const b44 = createClientFromRequest(req).asServiceRole;
-            const headsUps = await b44.entities.FronterHeadsUp.filter({ leadId, status: 'active' });
-            if (headsUps?.[0]) {
-              await b44.entities.FronterHeadsUp.update(headsUps[0].id, { customerCallSid, conferenceName: confName });
-            }
-          } catch {}
-        }
+        await rememberCustomerLeg(req, {
+          leadId, leadName, leadPhone, leadEmail, fronterUsername, lineKey,
+          conferenceName: confName, customerCallSid,
+        });
       }
 
       const confSid = await waitForConference(confName);
@@ -239,16 +289,11 @@ export default async function(req) {
               method: 'POST',
               body: new URLSearchParams({ Url: holdUrl }),
             });
-            // Store customer call SID in FronterHeadsUp for mergeConnect/noConnect/grab
-            if (leadId) {
-              try {
-                const b44 = createClientFromRequest(req).asServiceRole;
-                const headsUps = await b44.entities.FronterHeadsUp.filter({ leadId, status: 'active' });
-                if (headsUps?.[0]) {
-                  await b44.entities.FronterHeadsUp.update(headsUps[0].id, { customerCallSid: p.call_sid, conferenceName: confName });
-                }
-              } catch {}
-            }
+            // Store customer call SID for mergeConnect/noConnect/grab
+            await rememberCustomerLeg(req, {
+              leadId, leadName, leadPhone, leadEmail, fronterUsername, lineKey,
+              conferenceName: confName, customerCallSid: p.call_sid,
+            });
           }
         }
       } catch (e) { console.warn('Redirect customer to hold failed:', e.message); }
@@ -271,13 +316,14 @@ export default async function(req) {
     // ── MERGE CONNECT: unhold customer, remove fronter from conference ──
     //   Step 2 — bridge customer + agent, drop the fronter's browser leg.
     if (action === 'mergeConnect') {
-      const { conferenceName } = body;
+      const { conferenceName, leadId } = body;
       if (!conferenceName) return Response.json({ error: 'conferenceName required' }, { status: 400 });
 
       const confSid = await findConferenceSid(conferenceName);
       if (!confSid) return Response.json({ error: 'Conference not found' }, { status: 404 });
 
       const fronterSid = body.fronterCallSid || fronterSidFromConf(conferenceName);
+      const agentCallSid = body.agentCallSid || '';
       const participants = await twilioFetch(`/Conferences/${confSid}/Participants.json`);
       // Unhold any held participants in the conference (legacy Hold API flow)
       for (const p of participants.participants || []) {
@@ -290,19 +336,43 @@ export default async function(req) {
           } catch (e) { console.warn('Unhold failed:', e.message); }
         }
       }
-      // Redirect customer from appointmentVoiceHandler back into the conference
-      // (new flow — customer was redirected to hold, not held in the conference)
+
+      // Find the customer's call leg — the SID saved when the agent was dialed
+      // (queue record, or the popup's own copy), then the fronter's child call.
+      // The customer sits in the hold flow as their own leg, so this SID is the
+      // only way back into the conversation.
+      let customerCallSid = body.customerCallSid || '';
+      let queueRecordId = '';
       try {
-        const b44 = createClientFromRequest(req).asServiceRole;
-        const headsUps = await b44.entities.FronterHeadsUp.filter({ conferenceName, status: 'active' });
-        const customerCallSid = headsUps?.[0]?.customerCallSid;
-        if (customerCallSid) {
-          await twilioFetch(`/Calls/${customerCallSid}.json`, {
-            method: 'POST',
-            body: new URLSearchParams({ Twiml: confTwiML(conferenceName, false, '') }),
-          });
+        const record = await findQueueRecord(createClientFromRequest(req).asServiceRole.entities, conferenceName, leadId);
+        if (record) {
+          queueRecordId = record.id;
+          customerCallSid = customerCallSid || record.customerCallSid || '';
         }
-      } catch (e) { console.warn('Redirect customer from hold failed:', e.message); }
+      } catch (e) { console.warn('Queue record lookup failed:', e.message); }
+      if (!customerCallSid) customerCallSid = await customerLegFromFronter(fronterSid);
+
+      if (!customerCallSid) {
+        // Nothing to pull back. The customer may already be in the conference (a
+        // retry) — otherwise say so instead of leaving them on hold unheard.
+        const others = (participants.participants || []).filter((p: any) => p.call_sid !== fronterSid && p.call_sid !== agentCallSid);
+        if (!others.length) {
+          return Response.json({ error: "Could not find the customer's call to bring them back out of the hold queue. Use NO CONNECT, or call them again." }, { status: 409 });
+        }
+      } else {
+        // Redirect the customer from appointmentVoiceHandler into the conference
+        await twilioFetch(`/Calls/${customerCallSid}.json`, {
+          method: 'POST',
+          body: new URLSearchParams({ Twiml: confTwiML(conferenceName, false, '') }),
+        });
+      }
+
+      // The customer is with the agent now — the queue row is no longer waiting.
+      if (queueRecordId) {
+        try {
+          await createClientFromRequest(req).asServiceRole.entities.FronterHeadsUp.update(queueRecordId, { status: 'closed' });
+        } catch (e) { console.warn('Queue close failed:', e.message); }
+      }
       // Remove fronter's browser leg from conference + explicitly hang up their call
       for (const p of participants.participants || []) {
         if (fronterSid && p.call_sid === fronterSid) {

@@ -113,11 +113,14 @@ export default function FronterMergePopup({ lead, username, fronterFirstName, is
       const res = await base44.functions.invoke('fronterCall', {
         action: 'mergeDial',
         fronterCallSid: callSid,
+        fronterUsername: username,
         conferenceName: conferenceName || undefined,
         customerCallSid: customerCallSid || undefined,
         agentPhone: number,
         lineKey,
         leadId: lead?.id,
+        leadName: `${lead?.firstName || ''} ${lead?.lastName || ''}`.trim(),
+        leadPhone: lead?.phone || '',
         leadEmail: lead?.email,
       });
       const data = res?.data || res;
@@ -210,7 +213,7 @@ export default function FronterMergePopup({ lead, username, fronterFirstName, is
     setMergeState('merging');
     setError('');
     try {
-      await base44.functions.invoke('fronterCall', { action: 'mergeConnect', conferenceName, fronterCallSid: callSid });
+      await base44.functions.invoke('fronterCall', { action: 'mergeConnect', conferenceName, fronterCallSid: callSid, customerCallSid, agentCallSid, leadId: lead?.id });
       setMergeState('done');
       onMerge?.();
     } catch (e) {
