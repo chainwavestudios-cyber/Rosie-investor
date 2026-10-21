@@ -51,10 +51,14 @@ export default async function (req: Request): Promise<Response> {
       const mock = !!body?.mock;
       const leadId = body?.leadId;
       const vaultEntryId = body?.vaultEntryId;
-      if (!mock && !leadId && !vaultEntryId) {
-        return Response.json({ error: 'leadId or vaultEntryId is required' }, { status: 400 });
+      // A training card (BOB's simulated customer) rides over the sample card, so
+      // the trainer only has to send the fields its scenario knows.
+      const simCard = body?.card && typeof body.card === 'object' ? body.card : null;
+      if (!mock && !leadId && !vaultEntryId && !simCard) {
+        return Response.json({ error: 'leadId, vaultEntryId or card is required' }, { status: 400 });
       }
       let card: any = mock ? MOCK_CARD : null;
+      if (!card && simCard) card = { ...MOCK_CARD, ...simCard };
       if (!card && vaultEntryId) {
         const entry = await base44.asServiceRole.entities.LeadVaultEntry.get(vaultEntryId);
         if (!entry) return Response.json({ error: 'Vault lead not found' }, { status: 404 });

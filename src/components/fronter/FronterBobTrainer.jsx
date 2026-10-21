@@ -13,6 +13,7 @@ import FronterAIPanel from '@/components/fronter/FronterAIPanel';
 import useSuperAdminConfig from '@/hooks/useSuperAdminConfig';
 import FronterBobScenarioBuilder from './FronterBobScenarioBuilder';
 import FronterBobOpeningScenarios from './FronterBobOpeningScenarios';
+import FronterBobMailerSim from './FronterBobMailerSim';
 import FronterBobObjectionsPopup from './FronterBobObjectionsPopup';
 import FronterBobScriptPanel from './FronterBobScriptPanel';
 import FronterBobTransferSim from './FronterBobTransferSim';
@@ -107,6 +108,10 @@ STEP 5 — If the fronter qualifies you and wants to transfer you to a specialis
 Do NOT reveal you are an AI. You are a real person named Bob.`,
 };
 
+// The file number printed on the simulated notice — the same one BOB can confirm
+// when the fronter practices the Notice ID verification step.
+const SIM_NOTICE_ID = 'NFS-99999-999';
+
 const PRESET_SCENARIOS = [
   { label: '😰 Overwhelmed', data: { customerName: 'Bob', debtAmount: '35000', creditorCount: '5', creditors: 'Chase, Capital One, Discover, Amex, Citi', monthlyIncome: '3200', monthsBehind: '3', hardship: 'I lost my job last year and had to rely on credit cards. Even after finding new work, the interest rates keep me from getting ahead.' } },
   { label: '🤔 Skeptical', data: { customerName: 'Bob', debtAmount: '15000', creditorCount: '3', creditors: 'Chase, Capital One, Discover', monthlyIncome: '4500', monthsBehind: '0', hardship: 'I went through a divorce and got stuck with the balances. Between legal fees and starting over, I have not been able to get ahead of the interest.' } },
@@ -157,6 +162,7 @@ export default function FronterBobTrainer({ username, fronterFirstName }) {
   const [aiInputMsg, setAiInputMsg] = useState('');
   const [emailMsg, setEmailMsg] = useState('');
   const [showTransferSim, setShowTransferSim] = useState(false);
+  const [showMailerSim, setShowMailerSim] = useState(false);
   const [transferScript, setTransferScript] = useState('');
   const [simOutcome, setSimOutcome] = useState('');
   const { config: masterConfig } = useSuperAdminConfig();
@@ -358,6 +364,7 @@ ${scenario.customerAddress ? `- Address: ${scenario.customerAddress}` : ''}
 - Monthly Income: $${scenario.monthlyIncome || 'unspecified'}
 - Months Behind: ${scenario.monthsBehind || '0'}
 - Hardship: ${scenario.hardship || 'I lost my job and had to rely on credit cards. Even after finding new work, the interest rates keep me from getting ahead.'}
+- NOTICE IN THE MAIL: a "Debt Solutions Rate Drop Engine" notice was mailed to you with File Number ${SIM_NOTICE_ID} — the same one shown in the training mailer. You DID receive it. If the fronter asks about the notice, confirm you got it (you might say you almost threw it away or didn't understand it) and confirm the file number matches. NEVER mention the notice on your own.
 ${scenario.openingLine ? `- OPENING LINE: When you answer the phone, say exactly: "${scenario.openingLine}" Then wait for the fronter to respond.` : ''}
 - Use these details when discussing your financial situation. Be specific when asked.` : '';
 
@@ -444,6 +451,18 @@ You are in MANUAL OBJECTIONS mode. You will NOT raise any objections, questions,
   // The two merge lines mastered by the super admin — the same ones the live merge dials
   const simNumbers = [masterConfig?.transferPhoneNumber || '+16193530919', masterConfig?.transferPhoneNumber2 || '+12162586934'];
   const simLabels = [masterConfig?.transferLabel || '619-353-0919', masterConfig?.transferLabel2 || '216-258-6934'];
+  // The simulated notice is built from the current scenario, so the name, address
+  // and debt on the mailer match what BOB says on the call.
+  const simAddressParts = String(scenario.customerAddress || '').split(',').map(s => s.trim()).filter(Boolean);
+  const simStateZip = (simAddressParts[2] || '').match(/^([A-Za-z.]{2,})\s*(\d{5})?$/) || [];
+  const simCustomer = {
+    firstName: scenario.customerName || 'Bob',
+    address: simAddressParts[0] || '',
+    city: simAddressParts[1] || '',
+    state: simStateZip[1] || '',
+    zipCode: simStateZip[2] || '',
+    debtAmount: Number(scenario.debtAmount) || 0,
+  };
 
   return (
     <div>
@@ -594,6 +613,7 @@ You are in MANUAL OBJECTIONS mode. You will NOT raise any objections, questions,
               <button onClick={() => setShowScenarioBuilder(true)} style={{ flex: 1, padding: '7px 8px', borderRadius: '4px', border: '1px solid rgba(167,139,250,0.4)', background: 'rgba(167,139,250,0.1)', color: PURPLE, cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>🤖 AI Builder</button>
               <button onClick={() => setShowOpeningScenarios(true)} style={{ flex: 1, padding: '7px 8px', borderRadius: '4px', border: '1px solid rgba(96,165,250,0.4)', background: 'rgba(96,165,250,0.1)', color: BLUE, cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>📞 Real Openings</button>
             </div>
+            <button onClick={() => setShowMailerSim(true)} style={{ width: '100%', marginBottom: '10px', padding: '7px 8px', borderRadius: '4px', border: `1px solid ${GOLD}44`, background: `${GOLD}12`, color: GOLD, cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>📨 Simulated Mailer — the notice this customer received</button>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px', marginBottom: '6px' }}>
               <div><label style={ls}>Customer Name</label><input value={scenario.customerName || ''} onChange={e => setScenario(p => ({ ...p, customerName: e.target.value }))} style={inp} placeholder="Bob" /></div>
               <div><label style={ls}>Total Debt $</label><input type="number" value={scenario.debtAmount} onChange={e => setScenario(p => ({ ...p, debtAmount: e.target.value }))} style={inp} /></div>
@@ -699,6 +719,11 @@ You are in MANUAL OBJECTIONS mode. You will NOT raise any objections, questions,
           onNoConnect={handleSimNoConnect}
           onClose={() => { setShowTransferSim(false); setTransferScript(''); }}
         />
+      )}
+
+      {/* Simulated digital mailer — the notice the customer received, as on a real call */}
+      {showMailerSim && (
+        <FronterBobMailerSim {...simCustomer} noticeId={SIM_NOTICE_ID} onClose={() => setShowMailerSim(false)} />
       )}
 
       {/* AI Scenario Builder */}
