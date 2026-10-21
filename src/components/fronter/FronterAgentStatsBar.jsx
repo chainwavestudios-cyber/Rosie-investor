@@ -9,6 +9,16 @@ import { base44 } from '@/api/base44Client';
 const GOLD = '#10b981';
 const DARK = '#0a0f1e';
 
+// A session with no activity for this long is treated as gone (the dialer
+// auto-logs fronters out after 45 minutes of inactivity).
+const STALE_MS = 45 * 60 * 1000;
+
+const activityAt = (s) => Math.max(
+  new Date(s.lastActivityAt || 0).getTime(),
+  new Date(s.fronterStatusAt || 0).getTime(),
+  new Date(s.loginAt || 0).getTime(),
+);
+
 export default function FronterAgentStatsBar() {
   const [activeFronters, setActiveFronters] = useState([]);
   const [metrics, setMetrics] = useState({});
@@ -16,8 +26,18 @@ export default function FronterAgentStatsBar() {
   const load = useCallback(async () => {
     try {
       const sessions = await base44.entities.DialerSession.filter({ fronterStatus: 'dialing' });
-      // Only show fronters who are logged in or on call (clocked in)
-      const clockedIn = (sessions || []).filter(s => s.status === 'logged_in' || s.status === 'on_call');
+      // Only show fronters who are logged in or on call (clocked in) — one row per
+      // fronter, and only sessions that are still alive. A session left behind by a
+      // closed browser would otherwise sit here showing "Dialing" for days.
+      const cutoff = Date.now() - STALE_MS;
+      const byUser = new Map();
+      for (const s of sessions || []) {
+        if (s.status !== 'logged_in' && s.status !== 'on_call') continue;
+        const key = String(s.username || '').toLowerCase();
+        const prev = byUser.get(key);
+        if (!prev || activityAt(s) > activityAt(prev)) byUser.set(key, s);
+      }
+      const clockedIn = [...byUser.values()].filter(s => activityAt(s) >= cutoff);
       if (clockedIn.length === 0) { setActiveFronters([]); setMetrics({}); return; }
 
       setActiveFronters(clockedIn.map(s => ({ username: s.username, status: s.status, currentCallLeadName: s.currentCallLeadName })));

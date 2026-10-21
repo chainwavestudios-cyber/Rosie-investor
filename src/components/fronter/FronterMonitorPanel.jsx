@@ -8,6 +8,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { Device } from '@twilio/voice-sdk';
 import { base44 } from '@/api/base44Client';
 import FronterMonitorAIAgent from './FronterMonitorAIAgent';
+import useSuperAdminConfig, { fastDialButtons } from '@/hooks/useSuperAdminConfig';
 
 const GOLD = '#10b981';
 const DARK = '#0a0f1e';
@@ -58,6 +59,9 @@ export default function FronterMonitorPanel({ onClose, adminUsername, onOpenLead
   const [viewTab, setViewTab] = useState('monitor');
   const [transferQueue, setTransferQueue] = useState([]);
   const [takeoverStatus, setTakeoverStatus] = useState({}); // {headsUpId: 'taking_over' | 'done' | ''}
+  const [officeStatus, setOfficeStatus] = useState({}); // {headsUpId: 'sending' | 'sent' | ''}
+  const { config: superAdminConfig } = useSuperAdminConfig();
+  const officeLine = fastDialButtons(superAdminConfig).find(d => d.key === 'office') || null;
   const [deviceReady, setDeviceReady] = useState(false);
   // Email alert: { [username]: { leadName, leadId, type, blinkKey, shownAt } }
   const [emailAlerts, setEmailAlerts] = useState({});
@@ -363,6 +367,28 @@ export default function FronterMonitorPanel({ onClose, adminUsername, onOpenLead
     }
   };
 
+  // Send the client waiting in the queue to the admin's office line instead of
+  // joining from the browser — the client is dialed straight to that number.
+  const handleOfficeTransfer = async (item) => {
+    if (!officeLine?.number) { alert('No office number set. Add one in the Super Admin contact card settings.'); return; }
+    if (!confirm(`Transfer ${item.leadName || 'this client'} to ${officeLine.label} (${officeLine.number})? The fronter drops off the call.`)) return;
+    setOfficeStatus(prev => ({ ...prev, [item.id]: 'sending' }));
+    try {
+      await base44.functions.invoke('fronterCall', {
+        action: 'transferQueuedCall',
+        conferenceName: item.conferenceName,
+        leadId: item.leadId,
+        transferTo: officeLine.number,
+        adminUsername: adminUsername || 'admin',
+        lineKey: item.lineKey || 'TWILIO_FROM_NUMBER',
+      });
+      setOfficeStatus(prev => ({ ...prev, [item.id]: 'sent' }));
+    } catch (e) {
+      alert('Transfer to office failed: ' + (e?.message || String(e)));
+      setOfficeStatus(prev => ({ ...prev, [item.id]: '' }));
+    }
+  };
+
   return (
     <div style={{ position: 'fixed', left: pos.x, top: pos.y, width: size.w, height: size.h, background: '#0d1b2a', border: '1px solid rgba(96,165,250,0.3)', borderRadius: '8px', boxShadow: '0 16px 64px rgba(0,0,0,0.8)', zIndex: 10000, display: 'flex', flexDirection: 'column' }}>
       <style>{`@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}@keyframes emailAlertBlink{0%,100%{border-color:rgba(16,185,129,0.3);box-shadow:0 0 4px rgba(16,185,129,0.1)}50%{border-color:#10b981;box-shadow:0 0 20px rgba(16,185,129,0.6)}}`}</style>
@@ -430,7 +456,24 @@ export default function FronterMonitorPanel({ onClose, adminUsername, onOpenLead
                         {item.leadPhone && <span style={{ color: '#4a5568', fontSize: '11px' }}>· {item.leadPhone}</span>}
                       </div>
                     </div>
-                    {/* Takeover button */}
+                    {/* Patch in from the app, or send the client to the office line */}
+                    <button
+                      onClick={() => handleOfficeTransfer(item)}
+                      disabled={officeStatus[item.id] === 'sending' || officeStatus[item.id] === 'sent'}
+                      style={{
+                        background: officeStatus[item.id] === 'sent' ? 'rgba(74,222,128,0.15)' : 'rgba(96,165,250,0.12)',
+                        color: officeStatus[item.id] === 'sent' ? '#4ade80' : '#60a5fa',
+                        border: `1px solid ${officeStatus[item.id] === 'sent' ? 'rgba(74,222,128,0.3)' : 'rgba(96,165,250,0.4)'}`,
+                        borderRadius: '4px',
+                        padding: '8px 14px',
+                        cursor: (officeStatus[item.id] === 'sending' || officeStatus[item.id] === 'sent') ? 'not-allowed' : 'pointer',
+                        fontSize: '12px',
+                        fontWeight: 'bold',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {officeStatus[item.id] === 'sending' ? '⏳ Sending…' : officeStatus[item.id] === 'sent' ? '✓ Sent to Office' : `📞 Transfer to ${officeLine?.label || 'Office'}`}
+                    </button>
                     <button
                       onClick={() => handleTakeover(item)}
                       disabled={!hasConf || status === 'taking_over' || status === 'done'}

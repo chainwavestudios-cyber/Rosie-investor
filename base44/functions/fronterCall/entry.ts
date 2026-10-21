@@ -552,6 +552,83 @@ export default async function(req) {
       return Response.json({ ok: true });
     }
 
+    // ── TRANSFER QUEUED CALL: send the client waiting in the queue to a phone
+    //   number (e.g. the admin's office line) instead of patching in from the
+    //   browser. Pulls the client off the hold flow / conference and dials them
+    //   straight to that number, then closes the queue entry.
+    if (action === 'transferQueuedCall') {
+      const { conferenceName, leadId, transferTo, lineKey, adminUsername } = body;
+      if (!transferTo) return Response.json({ error: 'transferTo required' }, { status: 400 });
+      if (!conferenceName && !leadId) return Response.json({ error: 'conferenceName or leadId required' }, { status: 400 });
+
+      const b44 = createClientFromRequest(req).asServiceRole;
+      let headsUp: any = null;
+      try {
+        if (leadId) {
+          const rows = await b44.entities.FronterHeadsUp.filter({ leadId, status: 'active' });
+          headsUp = rows?.[0] || null;
+        }
+        if (!headsUp && conferenceName) {
+          const rows = await b44.entities.FronterHeadsUp.filter({ conferenceName, status: 'active' });
+          headsUp = rows?.[0] || null;
+        }
+      } catch (e) { console.warn('Queue lookup failed:', e.message); }
+
+      const confName = conferenceName || headsUp?.conferenceName || '';
+      const fromNumber = lineNumber(lineKey || headsUp?.lineKey || 'TWILIO_FROM_NUMBER');
+      const transferTwiML = `<Response><Dial callerId="${fromNumber}"><Number>${toE164(transferTo)}</Number></Dial></Response>`;
+
+      // The client waits on the hold flow, so the stored call SID is the reliable
+      // way to reach them; fall back to the conference participant.
+      let clientCallSid = headsUp?.customerCallSid || '';
+      if (!clientCallSid && confName) {
+        const confSid = await findConferenceSid(confName);
+        if (confSid) {
+          const participants = await twilioFetch(`/Conferences/${confSid}/Participants.json`);
+          clientCallSid = (participants.participants || [])
+            .find((p: any) => !String(p.to || '').startsWith('client:'))?.call_sid || '';
+        }
+      }
+      if (!clientCallSid) return Response.json({ error: 'Could not find the caller — they may have hung up' }, { status: 404 });
+
+      await twilioFetch(`/Calls/${clientCallSid}.json`, {
+        method: 'POST',
+        body: new URLSearchParams({ Twiml: transferTwiML }),
+      });
+
+      // Drop the browser legs (fronter/admin) still in the conference — never the
+      // client leg we just redirected to the office number.
+      if (confName) {
+        const confSid = await findConferenceSid(confName);
+        if (confSid) {
+          const participants = await twilioFetch(`/Conferences/${confSid}/Participants.json`);
+          for (const p of participants.participants || []) {
+            if (p.call_sid === clientCallSid) continue;
+            if (!String(p.to || '').startsWith('client:')) continue;
+            try {
+              await twilioFetch(`/Conferences/${confSid}/Participants/${p.call_sid}.json`, {
+                method: 'POST',
+                body: new URLSearchParams({ Status: 'completed' }),
+              });
+            } catch (e) { console.warn('Remove browser leg failed:', e.message); }
+          }
+        }
+      }
+
+      // Clear it out of the queue so the caller isn't shown waiting any more.
+      if (leadId) {
+        try {
+          const headsUps = await b44.entities.FronterHeadsUp.filter({ leadId, status: 'active' });
+          for (const hu of headsUps || []) {
+            await b44.entities.FronterHeadsUp.update(hu.id, { status: 'closed' });
+          }
+        } catch (e) { console.warn('Queue close failed:', e.message); }
+      }
+
+      console.log('transferQueuedCall: client', clientCallSid, '→', toE164(transferTo), 'by', adminUsername);
+      return Response.json({ ok: true, transferredTo: toE164(transferTo) });
+    }
+
     // ── LISTEN: admin joins conference muted ──
     //   BARGE: admin joins conference unmuted (can speak).
     //   If the conference doesn't exist yet (fresh 1:1 call, fronter hasn't
