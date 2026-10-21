@@ -6,14 +6,22 @@ export default async function(req) {
   try {
     const client = createClientFromRequest(req);
     const body = await req.json();
-    let actor;
+    // A stale portal token must not take the cross-check down with it: fall back to
+    // the app login below, and say plainly when the portal session was the problem.
+    let actor = null;
+    let portalSessionRejected = false;
     if (body.sessionUserId && body.sessionToken) {
-      const session = await client.functions.invoke('debtCoachAuth', { action: 'me', sessionUserId: body.sessionUserId, sessionToken: body.sessionToken });
-      actor = session.data?.user;
-      if (actor?.role !== 'super_admin') return Response.json({ error: 'Super Admin access required.' }, { status: 403 });
-    } else {
-      actor = await client.auth.me();
-      if (actor?.role !== 'admin') return Response.json({ error: 'Admin access required.' }, { status: 403 });
+      try {
+        const session = await client.functions.invoke('debtCoachAuth', { action: 'me', sessionUserId: body.sessionUserId, sessionToken: body.sessionToken });
+        actor = session.data?.user || null;
+      } catch { actor = null; }
+      if (!actor) portalSessionRejected = true;
+    }
+    if (actor?.role !== 'super_admin') {
+      const appUser = await client.auth.me().catch(() => null);
+      if (appUser?.role === 'admin') actor = appUser;
+      else if (portalSessionRejected) return Response.json({ error: 'Portal session expired — sign in to the portal again to run the cross-check.' }, { status: 401 });
+      else return Response.json({ error: 'Admin access required.' }, { status: 403 });
     }
     const service = client.asServiceRole;
     if (body.action === 'save') {

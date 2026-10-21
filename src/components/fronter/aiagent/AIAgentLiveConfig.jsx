@@ -13,7 +13,7 @@ export default function AIAgentLiveConfig({ config }) {
       <button type="button" onClick={() => refetch()} disabled={isFetching} className="rounded border border-input px-3 py-2 text-xs disabled:opacity-50">{isFetching ? 'Checking…' : 'Refresh cross-check'}</button>
     </div>
     {dirty && <p role="status" className="my-2 font-semibold">Unsaved selections — not used by calls yet.</p>}
-    {error && <p role="alert" className="mt-2 text-destructive">Cross-check failed. Previously displayed evidence is not current.</p>}
+    {error && <p role="alert" className="mt-2 text-destructive">Cross-check failed. Previously displayed evidence is not current. {error?.response?.data?.error || error?.message || ''}</p>}
     {!data && !error && <p className="mt-2 text-sm text-muted-foreground">Loading saved settings and querying the running bridge…</p>}
     {pipeline && <><p className="my-2 text-xs text-muted-foreground">Saved / next call (not runtime proof) · checked {new Date(data.checkedAt).toLocaleTimeString()}</p>
       <dl className="grid grid-cols-1 gap-2 text-xs sm:grid-cols-3">
