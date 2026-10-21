@@ -1606,53 +1606,14 @@ ${recentText}`,
           setProfileData(prev => ({ ...prev, ...intent }));
           setLead(prev => ({ ...prev, intentScore: intent.intentScore, animalType: intent.animalType, profileJson: JSON.stringify({ ...prev, ...intent }) }));
 
-          // Save keyFacts from intent engine to LeadMemory
-          if (intent.keyFacts && intent.keyFacts.length > 0) {
-            const leadName = `${leadRef.current.firstName || ''} ${leadRef.current.lastName || ''}`.trim();
-            const nowISO = new Date().toISOString();
-            const factsToCreate = intent.keyFacts.map(f => ({
-              leadId: leadRef.current.id,
-              leadName,
-              factType: f.type || 'personal',
-              factText: f.fact || '',
-              context: f.context || '',
-              importance: f.importance || 'medium',
-              callDate: nowISO,
-              followUpDate: f.followUpDate || null,
-            })).filter(f => f.factText);
-            if (factsToCreate.length > 0) {
-              try { await base44.entities.LeadMemory.bulkCreate(factsToCreate); } catch {}
-            }
-          }
         }
-        await base44.entities.DebtLead.update(leadRef.current.id, {
-          lastCallAt: new Date().toISOString(),
-          callCount: (leadRef.current.callCount || 0) + 1,
-          transcriptJson: JSON.stringify(transcriptRef.current),
-          intentScore: (intent && typeof intent.intentScore === 'number' && !Number.isNaN(intent.intentScore)) ? intent.intentScore : null,
-          animalType: intent?.animalType || null,
-        });
 
         // ── Intent engine → full report + next-call playbook ───────────────
         // Saved here, immediately after the engine returns, so the report never
         // depends on the slower report/analysis calls further down. The empty
         // acknowledged stamp is what makes it pop up the next time the card opens.
-        if (intent) {
-          const intentReportText = buildIntentReport(intent);
-          try {
-            if (transcriptRecordIdRef.current) {
-              await base44.entities.DebtCallTranscript.update(transcriptRecordIdRef.current, {
-                intentReport: intentReportText,
-                intentPlaybookJson: JSON.stringify(intent),
-                reportAcknowledgedAt: null,
-              });
-            }
-            await base44.entities.DebtLead.update(leadRef.current.id, {
-              nextCallBriefing: intentReportText,
-              nextCallBriefingAt: new Date().toISOString(),
-            });
-          } catch (e) { console.error('Intent report save failed:', e); }
-        }
+        // The report, the briefing, the notes and the intent trail are all written
+        // by saveCallOutcome below — in one server-side pass that cannot be lost.
 
         // Log call + AI synopsis to activity history
         try {
@@ -1729,91 +1690,33 @@ ${recentText}`,
           if (analysis) callAnalysisJson = JSON.stringify(analysis);
         } catch {}
 
-        // Save transcript + report to DebtCallTranscript entity
-        const durationSeconds = callStartRef.current ? Math.round((Date.now() - callStartRef.current.getTime()) / 1000) : 0;
-        const leadName = `${leadRef.current.firstName || ''} ${leadRef.current.lastName || ''}`.trim();
-        const agentId = coachUser?.username || '';
-        let transcriptRecord = null;
+        // One server-side pass writes the whole call record: transcript, intent
+        // report, follow-up report, call analysis, notes, key facts and the intent
+        // trail. Running it as the service role means no browser hiccup can drop it.
+        let intentReportText = '';
+        try { intentReportText = intent ? buildIntentReport(intent) : ''; } catch { intentReportText = ''; }
         try {
-          const transcriptData = {
-            leadName,
-            leadNumber: leadRef.current.leadNumber || '',
-            transcriptJson: JSON.stringify(transcriptRef.current),
-            transcriptLineCount: transcriptRef.current.length,
-            durationSeconds,
-            intentScore: (intent && typeof intent.intentScore === 'number' && !Number.isNaN(intent.intentScore)) ? intent.intentScore : (intentScoreRef.current ?? null),
-            animalType: intent?.animalType || leadRef.current.animalType || null,
-            intentReport: intent ? buildIntentReport(intent) : '',
-            ...(intent ? { intentPlaybookJson: JSON.stringify(intent) } : {}),
+          const saved = await base44.functions.invoke('saveCallOutcome', {
+            leadId: leadRef.current.id,
+            transcriptRecordId: transcriptRecordIdRef.current || '',
+            transcript: transcriptRef.current,
+            intent,
+            intentReport: intentReportText,
             followUpReport: fullReport,
             callAnalysisJson,
-          };
-          if (transcriptRecordIdRef.current) {
-            // Update the live transcript record created at call start
-            transcriptRecord = await base44.entities.DebtCallTranscript.update(transcriptRecordIdRef.current, transcriptData);
-            transcriptRecord = { id: transcriptRecordIdRef.current, ...transcriptRecord, ...transcriptData };
-          } else {
-            // Fallback: create if the live record was never created
-            transcriptRecord = await base44.entities.DebtCallTranscript.create({
-              leadId: leadRef.current.id,
-              leadName,
-              leadNumber: leadRef.current.leadNumber || '',
-              agentId,
-              agentName: agentId,
-              callMode,
-              callType,
-              callDate: new Date().toISOString(),
-              ...transcriptData,
-            });
-          }
-
-          // Persist Q&A history for this call
-          if (qaItemsRef.current.length > 0 && transcriptRecord?.id) {
-            const qaRecords = qaItemsRef.current.filter(q => q.question && q.answer).map(q => ({
-              leadId: leadRef.current.id,
-              leadName,
-              agentId,
-              transcriptId: transcriptRecord.id,
-              question: q.question,
-              answer: q.answer,
-              askedAt: new Date().toISOString(),
-              source: 'auto',
-            }));
-            if (qaRecords.length > 0) {
-              try { await base44.entities.DebtQAHistory.bulkCreate(qaRecords); } catch (e) { console.error('Q&A history save failed:', e); }
-            }
-          }
-
-          // Persist coaching tips for this call
-          if (coachTipsRef.current.length > 0 && transcriptRecord?.id) {
-            const tipRecords = coachTipsRef.current.map(t => ({
-              agentId,
-              agentName: agentId,
-              transcriptId: transcriptRecord.id,
-              leadId: leadRef.current.id,
-              leadName,
-              tip: t.tip,
-              tipTime: t.time ? t.time.toISOString() : new Date().toISOString(),
-            }));
-            try { await base44.entities.DebtCoachTip.bulkCreate(tipRecords); } catch (e) { console.error('Coach tips save failed:', e); }
-          }
-
-          // Persist intent snapshots for this call
-          if (intentHistoryRef.current.length > 0 && transcriptRecord?.id) {
-            const snapshotRecords = intentHistoryRef.current.map(s => ({
-              agentId,
-              agentName: agentId,
-              transcriptId: transcriptRecord.id,
-              leadId: leadRef.current.id,
-              leadName,
-              intentScore: s.score,
-              animalType: s.animalType || null,
-              report: s.report || '',
-              snapshotTime: s.time,
-            }));
-            try { await base44.entities.DebtIntentSnapshot.bulkCreate(snapshotRecords); } catch (e) { console.error('Intent snapshot save failed:', e); }
-          }
-        } catch {}
+            agentId: coachUser?.username || '',
+            durationSeconds: callStartRef.current ? Math.round((Date.now() - callStartRef.current.getTime()) / 1000) : 0,
+            callMode,
+            callType,
+            coachTips: coachTipsRef.current.map(t => ({ tip: t.tip, time: t.time ? t.time.toISOString() : null })),
+            qaItems: qaItemsRef.current.map(q => ({ question: q.question, answer: q.answer })),
+            intentHistory: intentHistoryRef.current,
+          });
+          const steps = saved?.data?.steps || {};
+          const failed = Object.entries(steps).filter(([, v]) => String(v).startsWith('error'));
+          console.log('Call record saved:', steps);
+          if (failed.length > 0) console.error('Call record — steps that failed:', failed);
+        } catch (e) { console.error('Call record save failed:', e); }
       } catch { setReport('Failed to generate report.'); }
       setGeneratingReport(false);
     }
