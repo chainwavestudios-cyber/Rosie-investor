@@ -49,6 +49,9 @@ const VARIABLES = [
   { token: '{{city}}', desc: 'City from contact card' },
   { token: '{{state}}', desc: 'State from contact card' },
   { token: '{{email}}', desc: 'Email from contact card' },
+  { token: '{{address}}', desc: 'Mailing address from contact card' },
+  { token: '{{notice id}}', desc: 'Notice ID from contact card' },
+  { token: '{{debt amount}}', desc: 'Debt amount from contact card' },
   { token: '{{frontername}}', desc: 'Fronter first name (from admin panel)' },
 ];
 
@@ -455,7 +458,7 @@ function FronterScriptsContent({ fronterFirstName, username }) {
                 }}
               />
               <div style={{ marginTop: '6px', color: '#4a5568', fontSize: '10px', flexShrink: 0 }}>
-                Tokens: <span style={{ color: GOLD, fontFamily: 'monospace' }}>{'{{first name}} {{last name}} {{phone}} {{zip}} {{city}} {{state}} {{email}}'}</span>
+                Tokens: <span style={{ color: GOLD, fontFamily: 'monospace' }}>{'{{first name}} {{last name}} {{phone}} {{zip}} {{city}} {{state}} {{email}} {{address}} {{notice id}} {{debt amount}}'}</span>
                 <span style={{ marginLeft: '12px' }}>Format: <span style={{ color: '#a78bfa', fontFamily: 'monospace' }}>[b]..[/b] [i]..[/i] [c=#hex]..[/c] [bg=#hex]..[/bg] [s=18]..[/s] [f=Arial]..[/f]</span></span>
                 <span style={{ marginLeft: '12px' }}>Cue: <span style={{ color: '#60a5fa', fontFamily: 'monospace' }}>@@CUE:reminder:text@@</span></span>
                 <span style={{ marginLeft: '12px' }}>AI Tag: <span style={{ color: GOLD, fontFamily: 'monospace' }}>[[AI:fieldName]]</span> / <span style={{ color: GOLD, fontFamily: 'monospace' }}>[[AI:tab_contact]]</span> <span style={{ color: '#4a5568' }}>— cues the AI that these transcript lines hold that contact card field, or a whole card tab (editor only — never shown while calling)</span></span>

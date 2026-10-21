@@ -16,6 +16,7 @@ import { checkCallCutoff } from '../../shared/phoneTimeZone.ts';
 import { verifyCallCutoffOverride } from '../../shared/callCutoffOverride.ts';
 import { getPollyVoice } from '../../shared/aiVoiceMap.ts';
 import { lookupInboundLead, resolveInboundClips, clipsToTwiml } from '../../shared/inboundGreeting.ts';
+import { assignNoticeIds } from '../../shared/noticeId.ts';
 
 // ── Advisor brief (spoken to the advisor before the caller is merged in) ──
 const STATE_NAMES: Record<string, string> = {
@@ -565,7 +566,9 @@ export default async function(req) {
           let inboundLeadId = leadType === 'fronter' && foundLeadId ? foundLeadId : '';
           if (!inboundLeadId && callerPhone) {
             try {
+              const [inboundNoticeId] = await assignNoticeIds(base44, 1);
               const created = await base44.entities.FronterLead.create({
+                noticeId: inboundNoticeId,
                 firstName: 'Inbound',
                 lastName: 'Caller',
                 phone: callerPhone,

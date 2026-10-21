@@ -10,6 +10,7 @@ import FronterContactCard from './FronterContactCard';
 import FronterLeadImportModal from './FronterLeadImportModal';
 import FronterAgentStatsBar from './FronterAgentStatsBar';
 import { getTzLabel, getLocalTimeString, checkCallCutoff } from '@/lib/phoneTimeZone';
+import { fetchNoticeIds } from '@/lib/noticeIds';
 
 const GOLD = '#10b981';
 const DARK = '#0a0f1e';
@@ -87,8 +88,10 @@ export default function FronterLeadsTab({ username, lineKey, lineNumber, isAdmin
     try {
       const count = await base44.entities.FronterLead.list('-created_date', 1);
       const num = count?.[0]?.leadNumber ? parseInt(count[0].leadNumber.replace(/\D/g, '')) + 1 : 1;
+      const [noticeId] = await fetchNoticeIds(1);
       await base44.entities.FronterLead.create({
         leadNumber: `#F${String(num).padStart(4, '0')}`,
+        noticeId,
         firstName: leadForm.firstName.trim(), lastName: leadForm.lastName.trim(), phone: leadForm.phone.trim(),
         status: 'prospect', assignedTo: leadForm.assignedTo, assignedAt: new Date().toISOString(),
         assignedBy: username, uploadedBy: username, notes: leadForm.notes,
@@ -105,6 +108,8 @@ export default function FronterLeadsTab({ username, lineKey, lineNumber, isAdmin
     const existing = await base44.entities.FronterLead.list('-created_date', 1);
     let num = existing?.[0]?.leadNumber ? parseInt(existing[0].leadNumber.replace(/\D/g, '')) + 1 : 1;
     let fronterIdx = 0;
+    const bulkNoticeIds = await fetchNoticeIds(lines.filter(l => l.split(',').map(p => p.trim()).length >= 3).length);
+    let noticeIdx = 0;
     for (const line of lines) {
       const parts = line.split(',').map(p => p.trim());
       if (parts.length >= 3) {
@@ -112,6 +117,7 @@ export default function FronterLeadsTab({ username, lineKey, lineNumber, isAdmin
           const debtAmount = parts[3] ? parseFloat(parts[3].replace(/[^0-9.]/g, '')) || 0 : 0;
           await base44.entities.FronterLead.create({
             leadNumber: `#F${String(num++).padStart(4, '0')}`,
+            noticeId: bulkNoticeIds[noticeIdx++],
             firstName: parts[0], lastName: parts[1], phone: parts[2],
             debtAmount: debtAmount || undefined,
             status: 'prospect', assignedTo: leadForm.assignedTos[fronterIdx % leadForm.assignedTos.length], assignedAt: new Date().toISOString(),

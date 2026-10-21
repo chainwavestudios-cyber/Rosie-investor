@@ -6,6 +6,10 @@
       "type": "string",
       "title": "Lead Number (e.g. #F0001)"
     },
+    "noticeId": {
+      "type": "string",
+      "title": "Notice ID (unique per contact card \u2014 NFS-99999-999 series)"
+    },
     "firstName": {
       "type": "string",
       "title": "First Name"

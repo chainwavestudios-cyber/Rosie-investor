@@ -68,6 +68,7 @@ export function leadTagValues(lead: any, options: LeadTemplateOptions = {}): Rec
     home_equity: money(card.homeEquity),
     tradelines: text(card.tradelines),
     lead_number: text(card.leadNumber),
+    notice_id: text(card.noticeId),
     agent_name: text(options.agentName),
   };
 }

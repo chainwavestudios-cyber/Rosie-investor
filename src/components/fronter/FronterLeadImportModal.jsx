@@ -5,6 +5,7 @@
  */
 import { useState, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
+import { fetchNoticeIds } from '@/lib/noticeIds';
 
 const GOLD = '#10b981';
 const DARK = '#0a0f1e';
@@ -135,6 +136,10 @@ export default function FronterLeadImportModal({ assignedTos, assignedBy, onClos
 
       // Round-robin assign across selected fronters (split evenly)
       records.forEach((rec, i) => { rec.assignedTo = assignedTos[i % assignedTos.length]; });
+
+      // One unique Notice ID per contact card
+      const noticeIds = await fetchNoticeIds(records.length);
+      records.forEach((rec, i) => { rec.noticeId = noticeIds[i] || ''; });
 
       // Bulk create in batches of 400
       for (let i = 0; i < records.length; i += 400) {

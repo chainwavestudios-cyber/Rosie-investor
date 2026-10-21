@@ -7,6 +7,10 @@
       "title": "Config Name (singleton key)",
       "default": "default"
     },
+    "noticeIdSeq": {
+      "type": "number",
+      "title": "Notice ID Sequence (last Notice ID number issued \u2014 NFS-99999-999 series)"
+    },
     "transferScript": {
       "type": "string",
       "title": "Appointment Transfer Script (assistant portal contact card)",

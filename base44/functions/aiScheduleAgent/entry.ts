@@ -14,6 +14,7 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.52';
 import { xmlEscape } from '../../shared/twilioHelpers.ts';
 import { ET_TZ, listEvents, hasConflict } from '../../shared/googleCalendarHelpers.ts';
 import { verifyTwilioSignature } from '../../shared/verifyTwilioSignature.ts';
+import { assignNoticeIds } from '../../shared/noticeId.ts';
 
 const BASE_URL = 'https://rosieai-investorpage.base44.app';
 const APPOINTMENT_DURATION_MIN = 15;
@@ -442,8 +443,10 @@ export default async function(req: Request): Promise<Response> {
         const countRes = await base44.entities.FronterLead.list('-created_date', 1);
         const countItems = Array.isArray(countRes) ? countRes : (countRes?.items || []);
         const num = countItems[0]?.leadNumber ? parseInt(countItems[0].leadNumber.replace(/\D/g, '')) + 1 : 1;
+        const [noticeId] = await assignNoticeIds(base44, 1);
         lead = await base44.entities.FronterLead.create({
           leadNumber: `#F${String(num).padStart(4, '0')}`,
+          noticeId,
           firstName: 'Unknown',
           lastName: '',
           phone: fromNumber,

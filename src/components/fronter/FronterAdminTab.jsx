@@ -10,6 +10,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import FronterCallMetricsTab from '@/components/fronter/FronterCallMetricsTab';
+import { fetchNoticeIds } from '@/lib/noticeIds';
 import FronterReportsTab from '@/components/fronter/FronterReportsTab';
 import FronterAdminCallsTab from '@/components/fronter/FronterAdminCallsTab';
 import FronterCustomHoldMusicTab from '@/components/fronter/audio/FronterCustomHoldMusicTab';
@@ -125,8 +126,10 @@ export default function FronterAdminTab({ adminUsername, onOpenLead }) {
     try {
       const count = await base44.entities.FronterLead.list('-created_date', 1);
       const num = count?.[0]?.leadNumber ? parseInt(count[0].leadNumber.replace(/\D/g, '')) + 1 : 1;
+      const [noticeId] = await fetchNoticeIds(1);
       await base44.entities.FronterLead.create({
         leadNumber: `#F${String(num).padStart(4, '0')}`,
+        noticeId,
         firstName: leadForm.firstName.trim(),
         lastName: leadForm.lastName.trim(),
         phone: leadForm.phone.trim(),
@@ -149,6 +152,8 @@ export default function FronterAdminTab({ adminUsername, onOpenLead }) {
     const existing = await base44.entities.FronterLead.list('-created_date', 1);
     let num = existing?.[0]?.leadNumber ? parseInt(existing[0].leadNumber.replace(/\D/g, '')) + 1 : 1;
     let fronterIdx = 0;
+    const bulkNoticeIds = await fetchNoticeIds(lines.filter(l => l.split(',').map(p => p.trim()).length >= 3).length);
+    let noticeIdx = 0;
     for (const line of lines) {
       const parts = line.split(',').map(p => p.trim());
       if (parts.length >= 3) {
@@ -156,6 +161,7 @@ export default function FronterAdminTab({ adminUsername, onOpenLead }) {
           const debtAmount = parts[3] ? parseFloat(parts[3].replace(/[^0-9.]/g, '')) || 0 : 0;
           await base44.entities.FronterLead.create({
             leadNumber: `#F${String(num++).padStart(4, '0')}`,
+            noticeId: bulkNoticeIds[noticeIdx++],
             firstName: parts[0], lastName: parts[1], phone: parts[2],
             debtAmount: debtAmount || undefined,
             status: 'prospect', assignedTo: leadForm.assignedTos[fronterIdx % leadForm.assignedTos.length],

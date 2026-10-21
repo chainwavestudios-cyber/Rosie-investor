@@ -4,6 +4,7 @@
  * VoIP numbers are excluded from distribution.
  */
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.52';
+import { assignNoticeIds } from '../../shared/noticeId.ts';
 
 export default async function(req: Request): Promise<Response> {
   try {
@@ -54,10 +55,12 @@ export default async function(req: Request): Promise<Response> {
 
     // ── Create FronterLead records ──
     const now = new Date().toISOString();
-    const records = distributable.map(entry => {
+    const noticeIds = await assignNoticeIds(base44, distributable.length);
+    const records = distributable.map((entry, i) => {
       const leadNumber = `#F${String(num++).padStart(4, '0')}`;
       const rec: any = {
         leadNumber,
+        noticeId: noticeIds[i] || '',
         firstName: entry.firstName,
         lastName: entry.lastName,
         phone: entry.phone,
@@ -70,7 +73,7 @@ export default async function(req: Request): Promise<Response> {
         debtAmount: entry.debtAmount || 0,
         notes: entry.notes || '',
         status: 'prospect',
-        uploadedBy: assignedBy || user.username,
+        uploadedBy: assignedBy || 'admin',
         phoneValid: entry.phoneValid,
         phoneLineType: entry.phoneLineType,
         phoneCarrier: entry.phoneCarrier,
@@ -81,7 +84,7 @@ export default async function(req: Request): Promise<Response> {
       if (destination === 'fronter') {
         rec.assignedTo = assignedTo;
         rec.assignedAt = now;
-        rec.assignedBy = assignedBy || user.username;
+        rec.assignedBy = assignedBy || 'admin';
       }
       return rec;
     });
@@ -100,7 +103,7 @@ export default async function(req: Request): Promise<Response> {
       assignedTo: destination === 'fronter' ? assignedTo : '',
       assignedAt: now,
       distributedAt: now,
-      distributedBy: assignedBy || user.username,
+      distributedBy: assignedBy || 'admin',
       fronterLeadId: created[i]?.id || '',
     }));
     if (vaultUpdates.length > 0) {

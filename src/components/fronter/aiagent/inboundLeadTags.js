@@ -29,5 +29,6 @@ export const INBOUND_LEAD_TAGS = [
   { tag: 'home_equity', label: 'Home Equity', example: '$120,000' },
   { tag: 'tradelines', label: 'Tradelines', example: '6' },
   { tag: 'lead_number', label: 'Lead Number', example: '#F0001' },
+  { tag: 'notice_id', label: 'Notice ID', example: 'NFS-99999-999' },
   { tag: 'agent_name', label: 'AI Agent Name', example: 'Adam' },
 ];

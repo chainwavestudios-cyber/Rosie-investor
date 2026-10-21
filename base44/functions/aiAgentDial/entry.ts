@@ -10,6 +10,7 @@
  */
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.52';
 import { lineNumber, toE164, xmlEscape, twilioFetch } from '../../shared/twilioHelpers.ts';
+import { assignNoticeIds } from '../../shared/noticeId.ts';
 import { checkCallCutoff, getTzLabel } from '../../shared/phoneTimeZone.ts';
 
 const BASE_URL = 'https://rosieai-investorpage.base44.app';
@@ -74,8 +75,10 @@ export default async function(req) {
         try {
           const count = await base44.asServiceRole.entities.FronterLead.list('-created_date', 1);
           const num = count?.[0]?.leadNumber ? parseInt(count[0].leadNumber.replace(/\D/g, '')) + 1 : 1;
+          const [noticeId] = await assignNoticeIds(base44, 1);
           leadRecord = await base44.asServiceRole.entities.FronterLead.create({
             leadNumber: `#F${String(num).padStart(4, '0')}`,
+            noticeId,
             firstName: firstName || 'Unknown',
             lastName: lastName || '',
             phone: phone,
