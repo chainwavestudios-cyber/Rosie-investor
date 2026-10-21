@@ -9,8 +9,13 @@ import { parseScriptTabRows } from '@/hooks/useSuperAdminConfig';
 
 const ACTIONS = [
   ['callClient', '📞 Call client', C.coach, 'Dials the client on this tab with the assistant\'s assigned Twilio line.'],
-  ['merge', '🔀 Merge & transfer', C.fronter, 'Adds a Merge & Transfer button that opens the popup with the numbers and script below.'],
+  ['bookAppointment', '📅 Book appointment', C.coach, 'Opens the booking form for this client on the tab, so the assistant can book or rebook without switching tabs.'],
+  ['credentials', '📧 Send credentials & welcome email', C.purple, 'Sends the “credentials” template, with the welcome message, to the client on this tab.'],
+  ['followUpNote', '📝 Add follow-up note', C.warn, 'Lets the assistant write and save a calendar follow-up note on this tab.'],
+  ['merge', '🔀 Merge & transfer', C.fronter, 'Adds a Merge & Transfer button that opens the popup with the numbers and script below. The transfer dials out on a free line that isn\'t assigned to anyone.'],
 ];
+
+const newRow = () => ({ label: '', script: '', callClient: false, bookAppointment: false, credentials: false, followUpNote: false, merge: false });
 
 export default function AssistantTabsEditor({ value, onChange }) {
   const rows = parseScriptTabRows(value);
@@ -23,10 +28,10 @@ export default function AssistantTabsEditor({ value, onChange }) {
       <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
         <div style={{ color: C.muted, fontSize: '9px', letterSpacing: '1px', textTransform: 'uppercase' }}>Extra assistant script tabs</div>
         <div style={{ flex: 1 }} />
-        <button onClick={() => write([...rows, { label: '', script: '', callClient: false, merge: false }])} style={btn(C.fronter)}>+ Add script tab</button>
+        <button onClick={() => write([...rows, newRow()])} style={btn(C.fronter)}>+ Add script tab</button>
       </div>
       <div style={{ color: C.dim, fontSize: '10px', marginBottom: '10px' }}>
-        Each tab appears on every contact card the assistant opens, right after the built-in tabs (Appointment, Rebook, 1-Hour Call, Call &amp; Transfer, Credentials, Notes). Scripts support {'{{firstname}}'}, {'{{Email}}'} and {'{{appointment}}'}. Switch on <b>Call client</b> and/or <b>Merge &amp; transfer</b> to put those buttons on the tab too — the merge popup uses the merge / transfer numbers and the merge &amp; transfer script below. A row with no label, or with neither a script nor a button, stays off the assistant's card.
+        Each tab appears on every contact card the assistant opens, right after the built-in tabs (Appointment, Rebook, 1-Hour Call, Call &amp; Transfer, Credentials, Notes). Scripts support {'{{firstname}}'}, {'{{Email}}'} and {'{{appointment}}'}. Switch on any of the five action buttons to put them on the tab — they can be added to <b>any</b> tab, even one that already has that action on the built-in card, and any combination works on a single tab. The merge popup uses the merge / transfer numbers and the merge &amp; transfer script below. A row with no label, or with neither a script nor a button, stays off the assistant's card.
       </div>
       {!rows.length && <div style={emptyStyle}>No extra tabs yet. Use “Add script tab” for anything new the assistant should read or do.</div>}
       {rows.map((row, index) => (

@@ -14,9 +14,11 @@ export default function useCalendarCall(lead, username) {
       if (data.error) throw new Error(data.error);
       const ls = data.lines || [];
       setLines(ls);
-      // Default to the line assigned to this user (Fronter admin → Lines).
+      // Default to the line assigned to this user (Fronter admin → Lines). With no
+      // assignment, take a line nobody owns rather than someone else's number.
       const mine = ls.find(l => (l.assignedTo || '').toLowerCase() === String(username || '').toLowerCase());
-      setLineKey(mine?.key || ls[0]?.key || '');
+      const unowned = ls.find(l => !l.assignedTo);
+      setLineKey(mine?.key || unowned?.key || ls[0]?.key || '');
     }).catch(e => setError('Could not load outbound lines: ' + e.message)).finally(() => setLoading(false));
     return () => { attempt.current += 1; clearInterval(timer.current); call.current?.disconnect(); device.current?.destroy(); };
   }, []);

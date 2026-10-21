@@ -99,6 +99,9 @@ export const parseScriptTabRows = (json) => {
     return Array.isArray(parsed) ? parsed.map((row) => ({
       label: row?.label || '',
       script: row?.script || '',
+      bookAppointment: !!row?.bookAppointment,
+      credentials: !!row?.credentials,
+      followUpNote: !!row?.followUpNote,
       callClient: !!row?.callClient,
       merge: !!row?.merge,
     })) : [];
@@ -111,11 +114,14 @@ export const parseScriptTabRows = (json) => {
  * button) are skipped, so a blank tab never reaches the assistant.
  */
 export const assistantScriptTabs = (config) => parseScriptTabRows(contactCardValues(config).assistantScriptTabsJson)
-  .filter((row) => String(row.label).trim() && (String(row.script).trim() || row.callClient || row.merge))
+  .filter((row) => String(row.label).trim() && (String(row.script).trim() || row.bookAppointment || row.credentials || row.followUpNote || row.callClient || row.merge))
   .map((row, index) => ({
     id: `custom-${index}`,
     label: String(row.label).trim(),
     script: row.script,
+    bookAppointment: row.bookAppointment,
+    credentials: row.credentials,
+    followUpNote: row.followUpNote,
     callClient: row.callClient,
     merge: row.merge,
   }));

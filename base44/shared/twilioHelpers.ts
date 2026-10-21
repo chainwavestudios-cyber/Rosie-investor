@@ -63,3 +63,46 @@ export async function waitForConference(name: string): Promise<string | null> {
   }
   return null;
 }
+
+/** Env-var outbound slots the dialer can place a call from. */
+export const FROM_KEYS = [
+  'TWILIO_FROM_NUMBER', 'TWILIO_FROM_NUMBER_2', 'TWILIO_FROM_NUMBER_3',
+  'TWILIO_FROM_NUMBER_4', 'TWILIO_FROM_NUMBER_5', 'TWILIO_FROM_NUMBER_6',
+];
+
+export function envFromLines(): { key: string; number: string }[] {
+  return FROM_KEYS
+    .map((key) => ({ key, number: Deno.env.get(key) || '' }))
+    .filter((l) => /^\+\d{10,}$/.test(l.number));
+}
+
+/** Every voice-capable number on the Twilio account (in case one has no env slot yet). */
+export async function twilioVoiceNumbers(): Promise<string[]> {
+  try {
+    const data = await twilioFetch('/IncomingPhoneNumbers.json?PageSize=100');
+    return (data.incoming_phone_numbers || []).filter((n: any) => n.capabilities?.voice).map((n: any) => n.phone_number);
+  } catch { return []; }
+}
+
+/** Numbers currently carrying a live call, so a transfer leg never lands on a busy line. */
+export async function twilioActiveFromNumbers(): Promise<string[]> {
+  try {
+    const data = await twilioFetch('/Calls.json?Status=in-progress&PageSize=200');
+    return (data.calls || []).map((c: any) => c.from).filter(Boolean);
+  } catch { return []; }
+}
+
+/**
+ * Picks the line for a transfer / merge leg: a line no one is assigned to that is
+ * not already on a call. Falls back to any unowned line, then to the preferred key.
+ */
+export function pickFreeLineKey(owned: string[], busy: string[], preferredKey: string, extraNumbers: string[] = []): string {
+  const ownedSet = new Set(owned.map((v) => String(v).trim()).filter(Boolean));
+  const busySet = new Set(busy.map((v) => String(v).trim()).filter(Boolean));
+  const envLines = envFromLines();
+  const known = new Set(envLines.map((l) => l.number));
+  const candidates = [...envLines, ...extraNumbers.filter((n) => n && !known.has(n)).map((n) => ({ key: n, number: n }))];
+  const free = candidates.find((l) => !ownedSet.has(l.number) && !ownedSet.has(l.key) && !busySet.has(l.number));
+  const unowned = candidates.find((l) => !ownedSet.has(l.number) && !ownedSet.has(l.key));
+  return free?.key || unowned?.key || preferredKey;
+}

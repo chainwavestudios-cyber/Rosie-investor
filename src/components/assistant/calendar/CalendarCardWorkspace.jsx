@@ -38,7 +38,7 @@ export default function CalendarCardWorkspace({ lead, username, call, onSave }) 
       {active === 'calltrans' && <><CalendarScriptPanel lead={lead} call={call} onMerge={() => { setOutcome(''); setMergeOpen(true); }} outcome={outcome} /><CalendarHoldAudio /></>}
       {active === 'emails' && <CalendarEmailPanel lead={lead} />}
       {active === 'notes' && <CalendarFollowUpNotes lead={lead} username={username} />}
-      {customTab && <CalendarScriptTabPanel tab={customTab} lead={lead} call={call} onMerge={() => { setOutcome(''); setMergeOpen(true); }} />}
+      {customTab && <CalendarScriptTabPanel tab={customTab} lead={lead} call={call} username={username} onSave={onSave} onMerge={() => { setOutcome(''); setMergeOpen(true); }} />}
     </div>
     {mergeOpen && <FronterMergePopup lead={lead} username={username} fronterFirstName="Michie" isAdmin={false} callActive={call.status === 'connected'} callDuration={call.seconds} callSid={call.callSid} lineKey={call.lineKey} transferScript={mergeScript} mergeNumbers={mergeNumbers} mergeLabels={mergeLabels} onClose={() => setMergeOpen(false)} onMerge={() => { setOutcome('Transfer complete. Client connected with Chris.'); setMergeOpen(false); }} onNoConnect={() => { setOutcome('Client left in the queue on hold.'); setMergeOpen(false); }} popupProps={{ zIndex: 35000, initialPos: { x: Math.max(10, (window.innerWidth - width) / 2), y: 12 }, initialSize: { w: width, h: height }, minW: Math.min(380, width), minH: Math.min(480, height) }} />}
   </>;
