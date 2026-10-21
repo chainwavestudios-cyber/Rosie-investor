@@ -34,6 +34,10 @@
       "type": "string",
       "title": "Address"
     },
+    "apt": {
+      "type": "string",
+      "title": "Apt / Unit (appended to the mailing address on distribution)"
+    },
     "city": {
       "type": "string",
       "title": "City"
@@ -54,6 +58,10 @@
       "type": "number",
       "title": "Estimated Debt ($)",
       "default": 20000
+    },
+    "dob": {
+      "type": "string",
+      "title": "Date of Birth (YYYY-MM-DD \u2014 used for Age when Age is blank)"
     },
     "age": {
       "type": "number",

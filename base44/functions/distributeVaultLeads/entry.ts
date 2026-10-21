@@ -56,6 +56,12 @@ export default async function(req: Request): Promise<Response> {
 
     // ── Create FronterLead records ──
     const now = new Date().toISOString();
+    const ageFromDob = (dob: string) => {
+      if (!dob) return 0;
+      const t = new Date(dob).getTime();
+      if (!t) return 0;
+      return Math.max(0, Math.floor((Date.now() - t) / 31557600000));
+    };
     const noticeIds = await assignNoticeIds(base44, distributable.length);
     const records = distributable.map((entry, i) => {
       const leadNumber = `#F${String(num++).padStart(4, '0')}`;
@@ -67,13 +73,13 @@ export default async function(req: Request): Promise<Response> {
         phone: entry.phone,
         phone2: entry.phone2 || '',
         email: entry.email || '',
-        address: entry.address || '',
+        address: [entry.address, entry.apt].filter(Boolean).join(', '),
         city: entry.city || '',
         state: entry.state || '',
         zipCode: entry.zipCode || '',
         debtAmount: entry.debtAmount || 0,
         companyName: entry.companyName || '',
-        age: entry.age || 0,
+        age: entry.age || ageFromDob(entry.dob),
         employmentStatus: entry.employmentStatus || 'unknown',
         annualIncome: entry.annualIncome || 0,
         householdIncome: entry.householdIncome || 0,

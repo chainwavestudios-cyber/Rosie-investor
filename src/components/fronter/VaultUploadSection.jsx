@@ -18,12 +18,14 @@ const FIELDS = [
   { key: 'phone2', label: 'Secondary Phone' },
   { key: 'email', label: 'Email' },
   { key: 'address', label: 'Address' },
+  { key: 'apt', label: 'Apt / Unit' },
   { key: 'city', label: 'City' },
   { key: 'state', label: 'State' },
   { key: 'zipCode', label: 'Zip Code' },
   { key: 'debtAmount', label: 'Debt Amount ($)' },
   { key: 'estimatedDebt', label: 'Estimated Debt ($)' },
   { key: 'companyName', label: 'Company Name' },
+  { key: 'dob', label: 'Date of Birth' },
   { key: 'age', label: 'Age' },
   { key: 'employmentStatus', label: 'Employment Status' },
   { key: 'annualIncome', label: 'Annual Income ($)' },
@@ -58,6 +60,7 @@ function autoMatch(header) {
   if (['phone', 'phone number', 'tel', 'mobile', 'cell', 'cell phone', 'telephone'].some(p => h === p || h.includes(p))) return 'phone';
   if (['phone2', 'secondary phone', 'alt phone', 'alternate phone', 'second phone'].some(p => h === p || h.includes(p))) return 'phone2';
   if (['email', 'e-mail', 'email address'].some(p => h === p || h.includes(p))) return 'email';
+  if (['apt', 'apartment', 'unit', 'suite', 'ste '].some(p => h === p || h.includes(p))) return 'apt';
   if (['address', 'street', 'addr', 'mailing'].some(p => h === p || h.includes(p))) return 'address';
   if (['city', 'town', 'municipality'].some(p => h === p || h.includes(p))) return 'city';
   if (['state', 'province', 'region'].some(p => h === p || h.includes(p))) return 'state';
@@ -67,11 +70,12 @@ function autoMatch(header) {
   if (['company', 'business', 'employer'].some(p => h === p || h.includes(p))) return 'companyName';
   if (['age'].some(p => h === p || h.includes(p))) return 'age';
   if (['employment', 'job status', 'work status'].some(p => h === p || h.includes(p))) return 'employmentStatus';
+  if (['dob', 'd.o.b', 'date of birth', 'birthdate', 'birth date', 'birth'].some(p => h === p || h.includes(p))) return 'dob';
   if (['household income'].some(p => h === p || h.includes(p))) return 'householdIncome';
   if (['income', 'salary', 'earnings'].some(p => h === p || h.includes(p))) return 'annualIncome';
   if (['home value', 'house value', 'property value'].some(p => h === p || h.includes(p))) return 'homeValue';
   if (['home equity', 'equity'].some(p => h === p || h.includes(p))) return 'homeEquity';
-  if (['tradeline', 'tradelines', 'open accounts', 'number of cards'].some(p => h === p || h.includes(p))) return 'tradelines';
+  if (['tradeline', 'tradelines', 'open accounts', 'number of cards', 'credit line', 'credit_line', 'credit lines', 'lines of credit', 'credit cards'].some(p => h === p || h.includes(p))) return 'tradelines';
   if (['best time', 'preferred call', 'call time', 'time to call'].some(p => h === p || h.includes(p))) return 'preferredCallTime';
   if (['hardship'].some(p => h === p || h.includes(p))) return 'hardshipQualification';
   if (['note', 'notes', 'comment', 'comments', 'remark', 'description', 'desc'].some(p => h === p || h.includes(p))) return 'notes';
