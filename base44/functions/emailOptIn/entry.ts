@@ -132,6 +132,22 @@ async function addToList(contacts: { email: string; name?: string }[]): Promise<
 
 const contactOf = (r: any) => ({ email: clean(r.email).toLowerCase(), name: clean(`${r.firstName || ''} ${r.lastName || ''}`) });
 
+// ── Super-admin visibility switch for the mass opt-in buttons ─────────────
+const SETTINGS_KEY = 'default';
+
+/** True while a super admin has hidden the opt-in action buttons from every view. */
+async function readControlsHidden(db: any): Promise<boolean> {
+  const rows = await db.SuperAdminConfig.filter({ configName: SETTINGS_KEY });
+  return !!(rows || [])[0]?.optInControlsHidden;
+}
+
+async function writeControlsHidden(db: any, hidden: boolean, by: string) {
+  const rows = await db.SuperAdminConfig.filter({ configName: SETTINGS_KEY });
+  const record = (rows || [])[0];
+  const patch = { optInControlsHidden: hidden, updatedBy: by || 'super admin', updatedAt: new Date().toISOString() };
+  return record ? db.SuperAdminConfig.update(record.id, patch) : db.SuperAdminConfig.create({ configName: SETTINGS_KEY, ...patch });
+}
+
 export default async function (req: Request): Promise<Response> {
   try {
     const base44 = createClientFromRequest(req);
@@ -214,6 +230,7 @@ export default async function (req: Request): Promise<Response> {
       console.log(`[emailOptIn] roster: ${(page?.items || []).length} rows of ${matching} matching (${total} total)`);
       return Response.json({
         total, confirmed, pending, onList, matching,
+        hidden: await readControlsHidden(db),
         items: page?.items || [],
         next_cursor: page?.next_cursor || null,
       });
@@ -309,6 +326,19 @@ export default async function (req: Request): Promise<Response> {
         failed: failed.length,
         remaining: waiting.length - batch.length,
       });
+    }
+
+    // ── CONTROL VISIBILITY (super admin hides the mass opt-in buttons) ────
+    if (action === 'uiState') {
+      return Response.json({ ok: true, hidden: await readControlsHidden(db) });
+    }
+
+    if (action === 'setUiHidden') {
+      const hidden = body.hidden === true;
+      const by = clean(body.adminUsername);
+      await writeControlsHidden(db, hidden, by);
+      console.log(`[emailOptIn] opt-in action buttons ${hidden ? 'hidden' : 'shown'} by ${by || 'super admin'}`);
+      return Response.json({ ok: true, hidden });
     }
 
     return Response.json({ error: 'Unknown action' }, { status: 400 });

@@ -75,6 +75,11 @@
       "title": "Fast-Dial \u2014 Mobile Tag (button text shown to every user)",
       "default": "Chris \u00b7 Mobile"
     },
+    "optInControlsHidden": {
+      "type": "boolean",
+      "title": "Hide The Opt-In Action Buttons Everywhere (super admin toggle \u2014 Spread over days, Opt In Every Lead, Subscribe All To Email List)",
+      "default": false
+    },
     "workspacePlan": {
       "type": "string",
       "title": "Base44 Plan (snapshot)"

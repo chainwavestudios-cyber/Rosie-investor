@@ -46,6 +46,7 @@ export default function EmailOptInPanel({ username }) {
   const [spreadDays, setSpreadDays] = useState(5);
   const [result, setResult] = useState(null);
   const [copied, setCopied] = useState(false);
+  const [controlsHidden, setControlsHidden] = useState(false);
 
   const formUrl = `${window.location.origin}/email-optin`;
 
@@ -60,6 +61,7 @@ export default function EmailOptInPanel({ username }) {
     try {
       const d = await fetchPage(null);
       setCounts({ total: d.total || 0, confirmed: d.confirmed || 0, pending: d.pending || 0, onList: d.onList || 0, matching: d.matching || 0 });
+      setControlsHidden(Boolean(d.hidden));
       setRows(d.items || []);
       setCursor(d.next_cursor || null);
     } catch { /* list unavailable */ }
@@ -69,6 +71,13 @@ export default function EmailOptInPanel({ username }) {
     const t = setTimeout(load, search ? 350 : 0);
     return () => clearTimeout(t);
   }, [load, search]);
+
+  // The super admin's Hide switch lives in the header — follow it live.
+  useEffect(() => {
+    const onVisibility = (e) => setControlsHidden(Boolean(e.detail?.hidden));
+    window.addEventListener('optin-controls-visibility', onVisibility);
+    return () => window.removeEventListener('optin-controls-visibility', onVisibility);
+  }, []);
 
   const loadMore = async () => {
     if (!cursor || loadingMore) return;
@@ -138,20 +147,24 @@ export default function EmailOptInPanel({ username }) {
         <div style={{ color: GOLD, fontSize: '13px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase' }}>✉️ Email Opt-Ins</div>
         <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
           <button onClick={copyLink} style={{ background: 'rgba(96,165,250,0.14)', color: BLUE, border: `1px solid ${BLUE}55`, borderRadius: '4px', padding: '7px 14px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>{copied ? '✓ Link Copied' : '🔗 Copy Form Link'}</button>
-          <label style={{ display: 'flex', alignItems: 'center', gap: '6px', background: `${GOLD}10`, border: `1px solid ${GOLD}44`, borderRadius: '4px', padding: '4px 8px', color: '#8a9ab8', fontSize: '11px' }}>
-            Spread over
-            <input
-              type="number"
-              min="1"
-              max="30"
-              value={spreadDays}
-              onChange={(e) => setSpreadDays(Math.min(30, Math.max(1, Number(e.target.value) || 5)))}
-              style={{ width: '46px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '3px', padding: '4px 6px', color: GOLD, fontSize: '11px', textAlign: 'center', outline: 'none' }}
-            />
-            days
-          </label>
-          <button onClick={generate} disabled={busy} style={{ background: `${GOLD}18`, color: GOLD, border: `1px solid ${GOLD}55`, borderRadius: '4px', padding: '7px 14px', cursor: busy ? 'not-allowed' : 'pointer', fontSize: '11px', fontWeight: 'bold', opacity: busy ? 0.6 : 1 }}>{busy ? '⏳ Working…' : '⚡ Opt In Every Lead'}</button>
-          <button onClick={subscribeAll} disabled={busy} style={{ background: `${PURPLE}18`, color: PURPLE, border: `1px solid ${PURPLE}55`, borderRadius: '4px', padding: '7px 14px', cursor: busy ? 'not-allowed' : 'pointer', fontSize: '11px', fontWeight: 'bold', opacity: busy ? 0.6 : 1 }}>{busy ? '⏳ Working…' : '📮 Subscribe All To Email List'}</button>
+          {!controlsHidden && (
+            <>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '6px', background: `${GOLD}10`, border: `1px solid ${GOLD}44`, borderRadius: '4px', padding: '4px 8px', color: '#8a9ab8', fontSize: '11px' }}>
+                Spread over
+                <input
+                  type="number"
+                  min="1"
+                  max="30"
+                  value={spreadDays}
+                  onChange={(e) => setSpreadDays(Math.min(30, Math.max(1, Number(e.target.value) || 5)))}
+                  style={{ width: '46px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '3px', padding: '4px 6px', color: GOLD, fontSize: '11px', textAlign: 'center', outline: 'none' }}
+                />
+                days
+              </label>
+              <button onClick={generate} disabled={busy} style={{ background: `${GOLD}18`, color: GOLD, border: `1px solid ${GOLD}55`, borderRadius: '4px', padding: '7px 14px', cursor: busy ? 'not-allowed' : 'pointer', fontSize: '11px', fontWeight: 'bold', opacity: busy ? 0.6 : 1 }}>{busy ? '⏳ Working…' : '⚡ Opt In Every Lead'}</button>
+              <button onClick={subscribeAll} disabled={busy} style={{ background: `${PURPLE}18`, color: PURPLE, border: `1px solid ${PURPLE}55`, borderRadius: '4px', padding: '7px 14px', cursor: busy ? 'not-allowed' : 'pointer', fontSize: '11px', fontWeight: 'bold', opacity: busy ? 0.6 : 1 }}>{busy ? '⏳ Working…' : '📮 Subscribe All To Email List'}</button>
+            </>
+          )}
         </div>
       </div>
 
@@ -162,15 +175,6 @@ export default function EmailOptInPanel({ username }) {
             <div style={{ color: '#6b7280', fontSize: '9px', textTransform: 'uppercase', letterSpacing: '1px' }}>{label}</div>
           </div>
         ))}
-      </div>
-
-      <div style={{ color: '#8a9ab8', fontSize: '11px', lineHeight: 1.6, marginBottom: '10px' }}>
-        Public form: <span style={{ color: '#e8e0d0' }}>{formUrl}</span> — single opt-in: the consent box on the form is the recorded consent, and a submission joins the email list straight away. Every lead on file is logged as a confirmed form opt-in, each with its own opt-in time. Confirmed contacts are subscribed to the “Debt Solutions” list in Mailjet.
-        {counts.confirmed - counts.onList > 0 && (
-          <div style={{ color: '#f59e0b', marginTop: '4px' }}>
-            {counts.confirmed - counts.onList} confirmed {counts.confirmed - counts.onList === 1 ? 'contact is' : 'contacts are'} not on the email list yet — use “Subscribe All To Email List” above.
-          </div>
-        )}
       </div>
 
       {result && <div style={{ color: result.startsWith('✓') ? GOLD : '#f59e0b', fontSize: '12px', marginBottom: '10px' }}>{result}</div>}

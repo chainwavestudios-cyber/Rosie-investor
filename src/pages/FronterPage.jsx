@@ -15,6 +15,7 @@ import FronterSettingsTab from '@/components/fronter/FronterSettingsTab';
 import FronterMonitorPanel from '@/components/fronter/FronterMonitorPanel';
 import FronterBobTrainer from '@/components/fronter/FronterBobTrainer';
 import FronterTimeCardButton from '@/components/fronter/FronterTimeCardButton';
+import OptInControlsToggle from '@/components/fronter/OptInControlsToggle';
 import FronterHRTab from '@/components/fronter/FronterHRTab';
 import AssistantLineStrip from '@/components/fronter/AssistantLineStrip';
 import FronterHeadsUpPopup from '@/components/fronter/FronterHeadsUpPopup';
@@ -361,6 +362,7 @@ export default function FronterPage() {
         </div>
         <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
           <FronterTimeCardButton username={user.username} />
+          {isAdmin && <OptInControlsToggle username={user.username} />}
           {(isFronter || isSuperAdmin) && (
             <select value={fronterStatus} onChange={e => handleFronterStatusChange(e.target.value)} title="My Status" style={{ background: `${statusColor}18`, border: `1px solid ${statusColor}44`, borderRadius: '4px', padding: '5px 8px', color: statusColor, fontSize: '11px', cursor: 'pointer', fontFamily: 'Georgia, serif' }}>
               <option value="dialing">📞 Dialing</option>
