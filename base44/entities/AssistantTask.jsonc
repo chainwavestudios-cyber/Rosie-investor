@@ -13,12 +13,15 @@
     },
     "status": {
       "type": "string",
-      "title": "Status",
+      "title": "Status (rebooked, not_interested and unavailable are the calendar close-out outcomes)",
       "enum": [
         "todo",
         "in_progress",
         "done",
-        "blocked"
+        "blocked",
+        "rebooked",
+        "not_interested",
+        "unavailable"
       ],
       "default": "todo"
     },
@@ -64,6 +67,11 @@
     "relatedLeadName": {
       "type": "string",
       "title": "Related Lead Name (display)"
+    },
+    "sourceKey": {
+      "type": "string",
+      "title": "Calendar Source Key (dedupe key for imported calendar events)",
+      "description": "Set when the task was imported from the calendar, e.g. <leadId>-appt. Keeps an event from being imported twice."
     },
     "completedAt": {
       "type": "string",

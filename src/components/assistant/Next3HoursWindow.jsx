@@ -39,7 +39,8 @@ export default function Next3HoursWindow() {
       const [apptPage, cbPage, taskPage] = await Promise.all([
         base44.entities.DebtLead.filter({ appointmentDate: { $ne: null } }, { limit: 200, fields: LEAD_FIELDS }),
         base44.entities.DebtLead.filter({ callbackAt: { $ne: null } }, { limit: 200, fields: LEAD_FIELDS }),
-        base44.entities.AssistantTask.filter({ status: { $ne: 'done' } }, { limit: 200, fields: TASK_FIELDS }),
+        // Closed-out tasks (done, rebooked, not interested, unavailable) stay off the board.
+        base44.entities.AssistantTask.filter({ status: { $nin: ['done', 'rebooked', 'not_interested', 'unavailable'] } }, { limit: 200, fields: TASK_FIELDS }),
       ]);
       const byId = new Map();
       for (const l of (apptPage.items || apptPage || [])) byId.set(l.id, l);
