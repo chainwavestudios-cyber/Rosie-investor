@@ -122,8 +122,19 @@ function clearSpeakingWatchdog(session) {
 const BARGE_IN_GRACE_MS = Number(process.env.BARGE_IN_GRACE_MS || 600);
 // Short acknowledgements are agreement sounds, not a change of turn.
 const BACKCHANNEL_RE = /^(yeah|yep|yup|yes|no|nope|ok|okay|k|sure|right|correct|exactly|uh[- ]?huh|mm[- ]?hmm|mhm|hm+|mm+|ah+|oh+|ha+|aha|wow|really|gotcha|got it|i see|alright|interesting|understood|thanks)[.!,?\s]*$/i;
-function isBackchannel(transcript) {
+function isBackchannel(transcript, session) {
+  // A short reply to the agent's own question ("yes", "speaking", "ok") is an
+  // answer, not agreement noise — she must stop and listen to it, otherwise the
+  // caller answers the greeting and then hears nothing back.
+  if (agentAskedQuestion(session)) return false;
   return BACKCHANNEL_RE.test(String(transcript || '').trim());
+}
+function agentAskedQuestion(session) {
+  const conversation = session?.conversation || [];
+  for (let i = conversation.length - 1; i >= 0; i--) {
+    if (conversation[i].role === 'assistant') return /\?\s*$/.test(String(conversation[i].content || '').trim());
+  }
+  return false;
 }
 function cancelPendingBarge(session) {
   if (session.bargeTimer) { clearTimeout(session.bargeTimer); session.bargeTimer = null; }
@@ -581,7 +592,7 @@ function openDeepgram(session, streamSid) {
           cancelPendingBarge(session);
           // A finished, meaningful sentence cuts her off; a backchannel is
           // agreement, so she keeps her train of thought and keeps talking.
-          if (transcript.trim() && session.state === 'speaking' && !isBackchannel(transcript)) {
+          if (transcript.trim() && session.state === 'speaking' && !isBackchannel(transcript, session)) {
             log('barge-in (complete utterance), gen', session.generation);
             session.generation++;
             sendToTwilio(session.ws, { event: 'clear', streamSid });
@@ -608,7 +619,7 @@ function openDeepgram(session, streamSid) {
         const said = (msg.transcript || '').trim();
         // A finished, meaningful sentence cuts her off; a backchannel is
         // agreement, so she keeps her train of thought and keeps talking.
-        if (said && session.state === 'speaking' && !isBackchannel(said)) {
+        if (said && session.state === 'speaking' && !isBackchannel(said, session)) {
           log('flux barge-in (complete utterance), gen', session.generation);
           session.generation++;
           sendToTwilio(session.ws, { event: 'clear', streamSid });
