@@ -49,10 +49,9 @@ c) Daily Volume Bonus (paid from Dialer's own valid transfers that day):
    - 15 valid transfers in one day = $10 bonus
    - 20 or more valid transfers in one day = $15 bonus
 
-d) Weekly Deal Bonus (paid per deal closed that week, Sunday through Saturday):
-   - 1-4 deals closed in one week = $5 per deal
-   - 5-9 deals closed in one week = $10 per deal
-   - 10 or more deals closed in one week = $15 per deal
+d) Weekly Deal Bonus: Details for the weekly deal bonus are coming within the next 48 hours.
+
+e) Weekly Volume Bonus: Details for the weekly volume bonus are coming within the next 48 hours.
 
 A valid transfer means the prospect was transferred to a Sr. Debt Specialist and spent at least 30 seconds on the phone with that specialist. Only valid transfers count toward the daily volume bonus.
 
@@ -109,8 +108,8 @@ function buildSignedAgreementHtml(fullName, dateStr, username) {
 <ul><li>1-2 deals closed in one day = $10 per deal</li><li>3 or more deals closed in one day = $12 per deal</li></ul>
 <p><strong>c) Daily Volume Bonus:</strong> paid from Dialer's own valid transfers that day.</p>
 <ul><li>10 valid transfers in one day = $5 bonus</li><li>15 valid transfers in one day = $10 bonus</li><li>20 or more valid transfers in one day = $15 bonus</li></ul>
-<p><strong>d) Weekly Deal Bonus:</strong> paid per deal closed that week, Sunday through Saturday.</p>
-<ul><li>1-4 deals closed in one week = $5 per deal</li><li>5-9 deals closed in one week = $10 per deal</li><li>10 or more deals closed in one week = $15 per deal</li></ul>
+<p><strong>d) Weekly Deal Bonus:</strong> details for the weekly deal bonus are coming within the next 48 hours.</p>
+<p><strong>e) Weekly Volume Bonus:</strong> details for the weekly volume bonus are coming within the next 48 hours.</p>
 <p>A valid transfer means the prospect was transferred to a Sr. Debt Specialist and spent at least 30 seconds on the phone with that specialist. Only valid transfers count toward the daily volume bonus.</p>
 
 <h2>3. Work Hours</h2>
