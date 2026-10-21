@@ -73,6 +73,16 @@
       "title": "Intent Report",
       "format": "textarea"
     },
+    "intentPlaybookJson": {
+      "type": "string",
+      "title": "Intent Engine Result (JSON \u2014 full analysis + next-call playbook)",
+      "format": "textarea"
+    },
+    "reportAcknowledgedAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Intent Report Acknowledged At (set when the agent confirms and saves the report; empty means it still pops up on open)"
+    },
     "followUpReport": {
       "type": "string",
       "title": "Follow-Up Report",

@@ -6,7 +6,7 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
 import DoNothingCalculator from '@/components/debt/DoNothingCalculator';
-import NextCallBriefing from '@/components/debt/NextCallBriefing';
+import IntentReportModal from '@/components/debt/IntentReportModal';
 import CallAnalysisDiagram from '@/components/debt/CallAnalysisDiagram';
 import ClosingTab from '@/components/debt/closing/ClosingTab';
 import { setProfileTimer, cancelProfileTimer, getActiveTimer } from '@/components/debt/ProfileTimerWatcher';
@@ -79,6 +79,7 @@ export default function ClientProfileModal({ lead, username, onClose, onSave }) 
   const [emailTemplates, setEmailTemplates] = useState([]);
   const [emailOpens, setEmailOpens] = useState(new Set());
   const [emailSending, setEmailSending] = useState(null);
+  const [intentReport, setIntentReport] = useState(null);
   const panel = usePopOutPanel('client_profile', { width: 900, height: 700 }, username, 15000);
 
   // Load Q&A history for this lead
@@ -95,6 +96,21 @@ export default function ClientProfileModal({ lead, username, onClose, onSave }) 
     base44.entities.DebtCallTranscript.filter({ leadId: lead.id }, '-callDate', 100)
       .then(rows => setCallTranscripts(rows || []))
       .catch(() => setCallTranscripts([]));
+  }, [lead?.id]);
+
+  // Intent Report — pops up unread the next time this profile is opened after a call.
+  // Only reports from the new intent engine qualify (older short summaries don't).
+  useEffect(() => {
+    if (!lead?.id) { setIntentReport(null); return; }
+    let cancelled = false;
+    base44.entities.DebtCallTranscript.filter({ leadId: lead.id }, '-callDate', 5)
+      .then(rows => {
+        if (cancelled) return;
+        const unread = (rows || []).find(r => r.intentPlaybookJson && r.intentReport && !r.reportAcknowledgedAt);
+        setIntentReport(unread || null);
+      })
+      .catch(() => setIntentReport(null));
+    return () => { cancelled = true; };
   }, [lead?.id]);
 
   // Load customer insights for this lead
@@ -631,6 +647,12 @@ export default function ClientProfileModal({ lead, username, onClose, onSave }) 
                               <CallAnalysisDiagram analysisJson={ct.callAnalysisJson} durationSeconds={ct.durationSeconds} />
                             </div>
                           )}
+                          {ct.intentReport && (
+                            <div style={{ borderTop: '1px solid rgba(255,255,255,0.05)', padding: '12px 14px' }}>
+                              <div style={{ color: GOLD, fontSize: '9px', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '6px' }}>🎯 Intent Report — Next Call Playbook</div>
+                              <div style={{ color: '#c4cdd8', fontSize: '12px', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{ct.intentReport}</div>
+                            </div>
+                          )}
                           {ct.followUpReport && (
                             <div style={{ borderTop: '1px solid rgba(255,255,255,0.05)', padding: '12px 14px', background: 'rgba(0,0,0,0.15)' }}>
                               <div style={{ color: GOLD, fontSize: '9px', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '6px' }}>📋 Follow-Up Report</div>
@@ -682,6 +704,21 @@ export default function ClientProfileModal({ lead, username, onClose, onSave }) 
         )}
       </div>
       {panel.resizeHandles}
+      {intentReport && (
+        <IntentReportModal
+          report={intentReport.intentReport}
+          callDate={intentReport.callDate}
+          leadName={`${local.firstName || ''} ${local.lastName || ''}`.trim()}
+          onAcknowledge={async () => {
+            try {
+              await base44.entities.DebtCallTranscript.update(intentReport.id, { reportAcknowledgedAt: new Date().toISOString() });
+            } catch (e) { console.error('Report acknowledge failed:', e); }
+            setIntentReport(null);
+            onClose?.();
+          }}
+          onDismiss={() => setIntentReport(null)}
+        />
+      )}
     </div>
   );
 }
@@ -704,7 +741,6 @@ function InsightsTab({ insights, expandedInsight, setExpandedInsight, lead }) {
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
         <div style={{ color: GOLD, fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase' }}>🔍 Customer Insights — {insights.length} captured</div>
-        <NextCallBriefing lead={lead} compact />
       </div>
 
       {/* Summary stats */}

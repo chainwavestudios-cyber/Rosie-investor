@@ -402,9 +402,29 @@ Return ONLY this JSON (no markdown):
 - Hesitation markers detected: ${hesitationCount}
 - Total transcript lines: ${allEntries.length}`;
 
+      // The engine reviews as much of the call as possible: the opening AND the
+      // close (the last minutes carry the buying signals), trimming only the middle.
+      const headTail = (s: string, max = 18000) => s.length <= max ? s : `${s.slice(0, Math.floor(max * 0.35))}\n\n[... middle of the call omitted for length ...]\n\n${s.slice(-Math.floor(max * 0.65))}`;
+      const transcriptForIntent = headTail(fullTranscript);
+      // Knowledge base excerpts so the playbook's word-for-word lines follow the company script.
+      let kbExcerpts = '';
+      try {
+        const entries = Array.isArray(kbEntries) ? kbEntries : [];
+        const objections = entries.filter((e: any) => e.category === 'debt_objections');
+        const others = entries.filter((e: any) => e.category !== 'debt_objections');
+        const parts: string[] = [];
+        for (const e of [...objections, ...others]) {
+          const a = getAnswers(e).join(' / ');
+          if (!e.question || !a) continue;
+          parts.push(`- ${e.question}: ${a}`);
+          if (parts.join('\n').length > 4500) break;
+        }
+        kbExcerpts = parts.join('\n').slice(0, 4500);
+      } catch {}
+
       const data = await callLLM(req, {
           model: 'claude-haiku-4-5-20251001',
-          max_tokens: 1500,
+          max_tokens: 2600,
           system: `You are an expert sales call analyst running a comprehensive INTENT ENGINE that measures many dimensions of a prospect's behavior, engagement, and intent on a debt settlement sales call. Also extract key facts from the conversation to auto-populate the CRM and build a persistent memory for follow-up calls.
 
 DEEPGRAM SENTIMENT ANALYSIS: ${sentimentSummary}
@@ -416,6 +436,8 @@ DUCK: ${intentRules?.duckDefinition || 'Skeptical, argumentative, raises objecti
 COW: ${intentRules?.cowDefinition || 'Curious, agreeable, asks genuine buying questions, positive tone'}
 POSITIVE SIGNALS TO DETECT: ${intentRules?.positiveSignals || 'that sounds amazing, I love that, so what would I need to do, how do I sign up, I\'m ready, let\'s do it, what\'s the minimum again, send me the portal, I want to move forward, is this a good investment, that makes sense, I like the sound of that, I\'ve had money sitting, I\'m in, tell me more, really?, wow'}
 NEGATIVE SIGNALS TO DETECT: ${intentRules?.negativeSignals || 'not interested, call me later, I need to think about it, talk to my spouse, too risky, too expensive, I need more time, I\'ve been burned before, sounds like a pitch, I\'ll let you know, I\'m going to pass, what\'s the guarantee, I doubt that, prove it, that won\'t work, sounds too good to be true, what\'s the catch'}
+PLAYBOOK RULES: the playbook is what the agent reads right before dialing back. Write every sayThisVerbatim, openingLinesToRead and closingLinesToRead in the agent's own first-person voice, word for word ready to read aloud — never a description of what to say. Ground them in the KNOWLEDGE BASE EXCERPTS when they apply, and predict objections only from what actually happened on this call.
+
 Respond ONLY with this exact JSON (no markdown):
 {
   "intentScore": 0-100,
@@ -450,6 +472,17 @@ Respond ONLY with this exact JSON (no markdown):
   "buyingSignals": ["signal1","signal2"],
   "objections": ["objection1","objection2"],
   "recommendedNextStep": "specific actionable next step",
+  "personalityProfile": "how this person thinks and decides (analytical, emotional, skeptical, decisive, passive, relationship-driven) and what that means for how to sell to them",
+  "engagementReadOut": "1-2 sentences on how they engaged — depth of participation, initiative, responsiveness, tonality and pace signals, and what those reveal about their real intent",
+  "playbook": {
+    "nextCallObjective": "the single outcome to drive on the next call",
+    "nextCallPlan": ["ordered step 1","ordered step 2","ordered step 3"],
+    "objectionsExpected": [{"objection":"the objection they will raise","whyItIsComing":"what in this call predicts it","sayThisVerbatim":"exact words the agent says back — 2-3 sentences, first person, ready to read aloud","kbTopic":"the knowledge base topic that backs this answer"}],
+    "openingLinesToRead": ["exact opening line(s) the agent can read aloud to start the next call"],
+    "closingLinesToRead": ["exact words that move them to enroll on the next call — first person, ready to read aloud"],
+    "pointers": ["one specific tactical pointer for the next call"],
+    "kbTopicsToLoad": ["knowledge base topics to pull up before dialing"]
+  },
   "keyFacts": [
     {"type":"personal|family|financial|preference|life_event|follow_up|hot_button","fact":"the key fact mentioned","context":"how it came up","importance":"high|medium|low","followUpDate":"ISO date if time-sensitive like a birthday next week, else null"}
   ],
@@ -463,7 +496,7 @@ Respond ONLY with this exact JSON (no markdown):
     "extractedNotes": "1-2 sentence summary of key facts worth noting on the contact card, or null"
   }
 }`,
-          messages: [{ role: 'user', content: `Full call transcript:\n${fullTranscript.slice(0, 6000)}` }],
+          messages: [{ role: 'user', content: `Full call transcript:\n${transcriptForIntent}\n\nKNOWLEDGE BASE EXCERPTS (ground the playbook lines in these when they apply):\n${kbExcerpts || 'None loaded for this call.'}` }],
       });
       const text = data?.content?.[0]?.text || '{}';
       let result: any = null;
@@ -489,10 +522,13 @@ COW: ${intentRules?.cowDefinition || 'Curious, agreeable, asks genuine buying qu
 POSITIVE SIGNALS TO DETECT: ${intentRules?.positiveSignals || 'that sounds amazing, I love that, how do I sign up, I\'m ready, let\'s do it, what\'s the minimum, send me the portal, I want to move forward, that makes sense, tell me more'}
 NEGATIVE SIGNALS TO DETECT: ${intentRules?.negativeSignals || 'not interested, call me later, I need to think about it, talk to my spouse, too risky, too expensive, I\'ve been burned before, what\'s the guarantee, I doubt that, prove it, what\'s the catch'}
 
-Analyze the transcript and return a JSON object with: intentScore (0-100), tonality (positive|neutral|negative|mixed), tonalityNotes, interestLevel (high|medium|low), interestReason, animalType (duck|cow|unknown), animalConfidence (0-100), sentimentArc (warming|cooling|flat|volatile), sentimentArcNotes, engagementScore (0-100), engagementNotes, excitementLevel (low|medium|high), excitementNotes, emotionalState (stressed|hopeful|skeptical|desperate|confident|overwhelmed|neutral), emotionalNotes, commitmentLevel (none|soft|firm), commitmentDetails, pace (rushed|steady|deliberate), paceNotes, rapportLevel (0-100), rapportNotes, questionCount, talkRatioProspect, callDurationSeconds, hesitationCount, objectionCount, buyingSignalCount, keyMoments (array of strings), buyingSignals (array of strings), objections (array of strings), recommendedNextStep, keyFacts (array of {type, fact, context, importance, followUpDate}), and extractedData ({mentionedAmount, accountType, iraDetails, bestTimeToCall, positiveSignals, negativeSignals, extractedNotes}).
+Analyze the transcript and return a JSON object with: intentScore (0-100), tonality (positive|neutral|negative|mixed), tonalityNotes, interestLevel (high|medium|low), interestReason, animalType (duck|cow|unknown), animalConfidence (0-100), sentimentArc (warming|cooling|flat|volatile), sentimentArcNotes, engagementScore (0-100), engagementNotes, excitementLevel (low|medium|high), excitementNotes, emotionalState (stressed|hopeful|skeptical|desperate|confident|overwhelmed|neutral), emotionalNotes, commitmentLevel (none|soft|firm), commitmentDetails, pace (rushed|steady|deliberate), paceNotes, rapportLevel (0-100), rapportNotes, questionCount, talkRatioProspect, callDurationSeconds, hesitationCount, objectionCount, buyingSignalCount, keyMoments (array of strings), buyingSignals (array of strings), objections (array of strings), recommendedNextStep, personalityProfile, engagementReadOut, keyFacts (array of {type, fact, context, importance, followUpDate}), extractedData ({mentionedAmount, accountType, iraDetails, bestTimeToCall, positiveSignals, negativeSignals, extractedNotes}), and a playbook object ({nextCallObjective, nextCallPlan (array of steps), objectionsExpected (array of {objection, whyItIsComing, sayThisVerbatim, kbTopic}), openingLinesToRead (array), closingLinesToRead (array), pointers (array), kbTopicsToLoad (array)}). Write every sayThisVerbatim/openingLinesToRead/closingLinesToRead in first person, word for word ready to read aloud, grounded in the knowledge base excerpts.
 
 Full call transcript:
-${fullTranscript.slice(0, 6000)}`,
+${transcriptForIntent}
+
+KNOWLEDGE BASE EXCERPTS (ground the playbook lines in these when they apply):
+${kbExcerpts || 'None loaded for this call.'}`,
             response_json_schema: {
               type: 'object',
               properties: {
@@ -527,6 +563,20 @@ ${fullTranscript.slice(0, 6000)}`,
                 buyingSignals: { type: 'array', items: { type: 'string' } },
                 objections: { type: 'array', items: { type: 'string' } },
                 recommendedNextStep: { type: 'string' },
+                personalityProfile: { type: 'string' },
+                engagementReadOut: { type: 'string' },
+                playbook: {
+                  type: 'object',
+                  properties: {
+                    nextCallObjective: { type: 'string' },
+                    nextCallPlan: { type: 'array', items: { type: 'string' } },
+                    objectionsExpected: { type: 'array', items: { type: 'object', properties: { objection: { type: 'string' }, whyItIsComing: { type: 'string' }, sayThisVerbatim: { type: 'string' }, kbTopic: { type: 'string' } } } },
+                    openingLinesToRead: { type: 'array', items: { type: 'string' } },
+                    closingLinesToRead: { type: 'array', items: { type: 'string' } },
+                    pointers: { type: 'array', items: { type: 'string' } },
+                    kbTopicsToLoad: { type: 'array', items: { type: 'string' } },
+                  },
+                },
                 keyFacts: { type: 'array', items: { type: 'object', properties: { type: { type: 'string' }, fact: { type: 'string' }, context: { type: 'string' }, importance: { type: 'string' }, followUpDate: { type: 'string' } } } },
                 extractedData: { type: 'object' },
               },

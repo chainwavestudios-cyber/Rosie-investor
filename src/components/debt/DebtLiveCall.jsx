@@ -14,7 +14,7 @@ import DoNothingCalculator from '@/components/debt/DoNothingCalculator';
 import ClientProfileModal from '@/components/debt/ClientProfileModal';
 import LiveComplianceWidget from '@/components/compliance/LiveComplianceWidget';
 import CustomerStatsPopup from '@/components/debt/CustomerStatsPopup';
-import NextCallBriefing from '@/components/debt/NextCallBriefing';
+import { buildIntentReport } from '@/components/debt/intentReport';
 import NoMissedMeetingsButton from '@/components/debt/NoMissedMeetingsButton';
 import AppointmentPreviewModal from '@/components/debt/AppointmentPreviewModal';
 import { usePopOutPanel } from '@/hooks/usePopOutPanel';
@@ -1615,6 +1615,27 @@ ${recentText}`,
           animalType: intent?.animalType || null,
         });
 
+        // ── Intent engine → full report + next-call playbook ───────────────
+        // Saved here, immediately after the engine returns, so the report never
+        // depends on the slower report/analysis calls further down. The empty
+        // acknowledged stamp is what makes it pop up the next time the card opens.
+        if (intent) {
+          const intentReportText = buildIntentReport(intent);
+          try {
+            if (transcriptRecordIdRef.current) {
+              await base44.entities.DebtCallTranscript.update(transcriptRecordIdRef.current, {
+                intentReport: intentReportText,
+                intentPlaybookJson: JSON.stringify(intent),
+                reportAcknowledgedAt: null,
+              });
+            }
+            await base44.entities.DebtLead.update(leadRef.current.id, {
+              nextCallBriefing: intentReportText,
+              nextCallBriefingAt: new Date().toISOString(),
+            });
+          } catch (e) { console.error('Intent report save failed:', e); }
+        }
+
         // Log call + AI synopsis to activity history
         try {
           const actLeadName = `${leadRef.current.firstName || ''} ${leadRef.current.lastName || ''}`.trim();
@@ -1704,7 +1725,8 @@ ${recentText}`,
             durationSeconds,
             intentScore: (intent && typeof intent.intentScore === 'number' && !Number.isNaN(intent.intentScore)) ? intent.intentScore : (intentScoreRef.current ?? null),
             animalType: intent?.animalType || leadRef.current.animalType || null,
-            intentReport: intent?.report || (intent && typeof intent.intentScore === 'number' && !Number.isNaN(intent.intentScore) ? `Intent Score: ${intent.intentScore}/100\nAnimal: ${intent.animalType || 'unknown'}` : ''),
+            intentReport: intent ? buildIntentReport(intent) : '',
+            ...(intent ? { intentPlaybookJson: JSON.stringify(intent) } : {}),
             followUpReport: fullReport,
             callAnalysisJson,
           };
@@ -2413,12 +2435,6 @@ ${recentText}`,
         paused={statsPaused}
       />
 
-      {/* Ready for Next Call briefing — available after call ends */}
-      {phase === 'ended' && lead.id && (
-        <div style={{ marginTop: '16px', display: 'flex', justifyContent: 'center' }}>
-          <NextCallBriefing lead={lead} agentUsername={coachUser?.username} />
-        </div>
-      )}
 
       {/* Appointment Preview — shows parsed callback info for approval */}
       {apptPreview && lead.id && (
