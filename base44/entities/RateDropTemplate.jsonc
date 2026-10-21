@@ -81,6 +81,10 @@
       "title": "Field Map (JSON array of {slot, source})",
       "format": "textarea"
     },
+    "mailjetTemplateId": {
+      "type": "string",
+      "title": "Mailjet Template ID (the template each digital mailer is injected into \u2014 created by 'Create in Mailjet')"
+    },
     "updatedBy": {
       "type": "string",
       "title": "Last Updated By (username)"

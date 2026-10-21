@@ -90,6 +90,7 @@ export const DEFAULT_RATE_DROP_TEMPLATE = {
   respondByDays: 30,
   ctaPhoneOverride: '',
   fieldMapJson: JSON.stringify(DEFAULT_FIELD_MAP),
+  mailjetTemplateId: '',
 };
 
 /**
