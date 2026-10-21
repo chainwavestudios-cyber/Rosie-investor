@@ -26,9 +26,30 @@ const STATUS_LABELS = {
 
 const fmt = (iso) => (iso ? new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—');
 
+const PAGE_SIZE = 50;
+
+const buildQuery = (search, listFilter) => {
+  const q = {};
+  if (listFilter === 'on') q.listSubscribedAt = { $ne: null };
+  if (listFilter === 'not') q.listSubscribedAt = null;
+  const term = search.trim();
+  if (term) {
+    q.$or = [
+      { email: { $regex: term, $options: 'i' } },
+      { firstName: { $regex: term, $options: 'i' } },
+      { lastName: { $regex: term, $options: 'i' } },
+    ];
+  }
+  return q;
+};
+
 export default function EmailOptInPanel({ username }) {
-  const [counts, setCounts] = useState({ total: 0, confirmed: 0, pending: 0, onList: 0 });
+  const [counts, setCounts] = useState({ total: 0, confirmed: 0, pending: 0, onList: 0, matching: 0 });
   const [rows, setRows] = useState([]);
+  const [cursor, setCursor] = useState(null);
+  const [listFilter, setListFilter] = useState('all');
+  const [search, setSearch] = useState('');
+  const [loadingMore, setLoadingMore] = useState(false);
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState(null);
   const [copied, setCopied] = useState(false);
@@ -37,19 +58,38 @@ export default function EmailOptInPanel({ username }) {
 
   const load = useCallback(async () => {
     try {
-      const [total, confirmed, pending, onList, page] = await Promise.all([
+      const q = buildQuery(search, listFilter);
+      const [total, confirmed, pending, onList, matching, page] = await Promise.all([
         base44.entities.EmailOptIn.count({}),
         base44.entities.EmailOptIn.count({ status: 'confirmed' }),
         base44.entities.EmailOptIn.count({ status: 'pending' }),
         base44.entities.EmailOptIn.count({ status: 'confirmed', listSubscribedAt: { $ne: null } }),
-        base44.entities.EmailOptIn.list('-optedInAt', 12),
+        base44.entities.EmailOptIn.count(q),
+        base44.entities.EmailOptIn.filter(q, { sort: '-optedInAt', limit: PAGE_SIZE }),
       ]);
-      setCounts({ total, confirmed, pending, onList });
-      setRows(page?.items || page || []);
+      setCounts({ total, confirmed, pending, onList, matching });
+      const items = page?.items || page || [];
+      setRows(items);
+      setCursor(page?.next_cursor || null);
     } catch { /* list unavailable */ }
-  }, []);
+  }, [search, listFilter]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    const t = setTimeout(load, search ? 350 : 0);
+    return () => clearTimeout(t);
+  }, [load, search]);
+
+  const loadMore = async () => {
+    if (!cursor || loadingMore) return;
+    setLoadingMore(true);
+    try {
+      const page = await base44.entities.EmailOptIn.filter(buildQuery(search, listFilter), { sort: '-optedInAt', limit: PAGE_SIZE, cursor });
+      const items = page?.items || [];
+      setRows((prev) => [...prev, ...items]);
+      setCursor(page?.next_cursor || null);
+    } catch { /* paging unavailable */ }
+    setLoadingMore(false);
+  };
 
   const generate = async () => {
     if (!confirm('Log an email opt-in for every lead on file (vault list and lead records) that has an email and no opt-in yet?')) return;
@@ -123,14 +163,41 @@ export default function EmailOptInPanel({ username }) {
 
       <div style={{ color: '#8a9ab8', fontSize: '11px', lineHeight: 1.6, marginBottom: '10px' }}>
         Public form: <span style={{ color: '#e8e0d0' }}>{formUrl}</span> — single opt-in: the consent box on the form is the recorded consent, and a submission joins the email list straight away. Leads who opted in verbally are logged as confirmed. Confirmed contacts are subscribed to the “Debt Solutions” list in Mailjet.
+        {counts.confirmed - counts.onList > 0 && (
+          <div style={{ color: '#f59e0b', marginTop: '4px' }}>
+            {counts.confirmed - counts.onList} confirmed {counts.confirmed - counts.onList === 1 ? 'contact is' : 'contacts are'} not on the email list yet — use “Subscribe All To Email List” above.
+          </div>
+        )}
       </div>
 
       {result && <div style={{ color: result.startsWith('✓') ? GOLD : '#f59e0b', fontSize: '12px', marginBottom: '10px' }}>{result}</div>}
 
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', marginBottom: '8px' }}>
+        <input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search by email or name…"
+          style={{ flex: 1, minWidth: '200px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '4px', padding: '7px 10px', color: '#e8e0d0', fontSize: '12px', outline: 'none', boxSizing: 'border-box' }}
+        />
+        {[['all', `All Opt-Ins (${counts.total})`], ['on', `On Email List (${counts.onList})`], ['not', `Not On List (${counts.confirmed - counts.onList})`]].map(([key, label]) => (
+          <button
+            key={key}
+            onClick={() => setListFilter(key)}
+            style={{ background: listFilter === key ? `${GOLD}22` : 'rgba(255,255,255,0.04)', color: listFilter === key ? GOLD : '#8a9ab8', border: `1px solid ${listFilter === key ? `${GOLD}66` : 'rgba(255,255,255,0.12)'}`, borderRadius: '4px', padding: '7px 12px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', whiteSpace: 'nowrap' }}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      <div style={{ color: '#4a5568', fontSize: '10px', marginBottom: '6px' }}>
+        Showing {rows.length} of {counts.matching}{search.trim() ? ` match${counts.matching === 1 ? '' : 'es'} for “${search.trim()}”` : ''}
+      </div>
+
       {rows.length === 0 ? (
-        <div style={{ color: '#4a5568', fontSize: '12px', padding: '10px 0' }}>No opt-ins yet.</div>
+        <div style={{ color: '#4a5568', fontSize: '12px', padding: '10px 0' }}>{search.trim() || listFilter !== 'all' ? 'No opt-ins match this search.' : 'No opt-ins yet.'}</div>
       ) : (
-        <div style={{ maxHeight: '220px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '5px' }}>
+        <div style={{ maxHeight: '420px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '5px' }}>
           {rows.map((r) => {
             const src = SOURCE_LABELS[r.source] || SOURCE_LABELS.manual;
             const st = STATUS_LABELS[r.status] || STATUS_LABELS.pending;
@@ -141,14 +208,27 @@ export default function EmailOptInPanel({ username }) {
                     {r.email}
                     {r.firstName ? <span style={{ color: '#6b7280' }}> · {r.firstName} {r.lastName || ''}</span> : null}
                   </div>
-                  <div style={{ color: '#4a5568', fontSize: '10px' }}>Opted in {fmt(r.optedInAt)}{r.confirmedAt ? ` · confirmed ${fmt(r.confirmedAt)}` : ''}{r.batchLabel ? ` · ${r.batchLabel}` : ''}</div>
+                  <div style={{ color: '#4a5568', fontSize: '10px' }}>
+                    Opted in {fmt(r.optedInAt)}{r.confirmedAt ? ` · confirmed ${fmt(r.confirmedAt)}` : ''}{r.recordedBy ? ` · logged by ${r.recordedBy}` : ''}{r.batchLabel ? ` · ${r.batchLabel}` : ''}{r.listSubscribedAt ? ` · on list ${fmt(r.listSubscribedAt)}` : ''}
+                  </div>
                 </div>
+                <span style={{ color: r.listSubscribedAt ? GOLD : '#f59e0b', fontSize: '10px', fontWeight: 'bold', whiteSpace: 'nowrap' }}>{r.listSubscribedAt ? '✓ On List' : '⚠ Not On List'}</span>
                 <span style={{ color: src.color, fontSize: '10px', fontWeight: 'bold', whiteSpace: 'nowrap' }}>{src.label}</span>
                 <span style={{ color: st.color, fontSize: '10px', fontWeight: 'bold', whiteSpace: 'nowrap' }}>{st.label}</span>
               </div>
             );
           })}
         </div>
+      )}
+
+      {cursor && (
+        <button
+          onClick={loadMore}
+          disabled={loadingMore}
+          style={{ marginTop: '8px', width: '100%', background: 'rgba(255,255,255,0.04)', color: '#8a9ab8', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '4px', padding: '8px', cursor: loadingMore ? 'not-allowed' : 'pointer', fontSize: '11px', fontWeight: 'bold' }}
+        >
+          {loadingMore ? 'Loading…' : `Load more (${counts.matching - rows.length} left)`}
+        </button>
       )}
     </div>
   );
