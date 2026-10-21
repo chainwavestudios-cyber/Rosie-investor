@@ -62,7 +62,9 @@ export default function AssistantCalendar({ onDialLead, username }) {
         // visible under All, so the calendar is never selective about history.
         const g = await base44.functions.invoke('listCalendarEvents', { days: 365, pastDays: 730 });
         const items = g?.data?.events || g?.events || [];
-        setGcal(Array.isArray(items) ? items.map((e, i) => ({ id: 'gcal-' + i, kind: 'gcal', date: new Date(e.start || e.startDateTime || e.created), color: BLUE, label: 'GCal', name: e.summary || '(no title)', raw: e, htmlLink: e.htmlLink })) : []);
+        setGcal(Array.isArray(items) ? items
+          .map((e, i) => ({ id: 'gcal-' + i, kind: 'gcal', date: new Date(e.startISO || e.start || e.startDateTime || e.created), color: BLUE, label: 'GCal', name: e.title || e.summary || '(No title)', raw: e, htmlLink: e.htmlLink }))
+          .filter(e => !isNaN(e.date.getTime())) : []);
       } catch (e) { /* gcal optional */ }
     } catch (e) { console.error('cal load', e); }
     setLoading(false);

@@ -59,9 +59,9 @@ export default function Next3HoursWindow() {
         const g = await base44.functions.invoke('listCalendarEvents', { days: 1 });
         const gevs = g?.data?.events || g?.events || [];
         gevs.forEach((e, i) => {
-          const d = new Date(e.start || e.startDateTime);
+          const d = new Date(e.startISO || e.start || e.startDateTime);
           if (isNaN(d.getTime())) return;
-          evs.push({ id: `gcal-${i}`, kind: 'gcal', icon: '🗓️', label: e.summary || 'Calendar event', name: '', date: d, color: BLUE, htmlLink: e.htmlLink });
+          evs.push({ id: `gcal-${i}`, kind: 'gcal', icon: '🗓️', label: e.title || e.summary || 'Calendar event', name: '', date: d, color: BLUE, htmlLink: e.htmlLink });
         });
       } catch { /* Google Calendar is optional */ }
 
