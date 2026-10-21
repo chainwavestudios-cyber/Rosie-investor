@@ -10,12 +10,54 @@
  * call (ringing, missed, no-answer) gets a CallLog entry via voicemailWebhook,
  * not just calls that go to voicemail.
  */
-import { xmlEscape } from '../../shared/twilioHelpers.ts';
+import { xmlEscape, lineNumber, toE164, twilioFetch } from '../../shared/twilioHelpers.ts';
 import twilioVoiceParams from '../../shared/twilioVoiceParams.ts';
 import { checkCallCutoff } from '../../shared/phoneTimeZone.ts';
 import { verifyCallCutoffOverride } from '../../shared/callCutoffOverride.ts';
 import { getPollyVoice } from '../../shared/aiVoiceMap.ts';
 import { lookupInboundLead, resolveInboundClips, clipsToTwiml } from '../../shared/inboundGreeting.ts';
+
+// ── Advisor brief (spoken to the advisor before the caller is merged in) ──
+const STATE_NAMES: Record<string, string> = {
+  AL: 'Alabama', AK: 'Alaska', AZ: 'Arizona', AR: 'Arkansas', CA: 'California', CO: 'Colorado',
+  CT: 'Connecticut', DE: 'Delaware', DC: 'Washington DC', FL: 'Florida', GA: 'Georgia', HI: 'Hawaii',
+  ID: 'Idaho', IL: 'Illinois', IN: 'Indiana', IA: 'Iowa', KS: 'Kansas', KY: 'Kentucky',
+  LA: 'Louisiana', ME: 'Maine', MD: 'Maryland', MA: 'Massachusetts', MI: 'Michigan', MN: 'Minnesota',
+  MS: 'Mississippi', MO: 'Missouri', MT: 'Montana', NE: 'Nebraska', NV: 'Nevada', NH: 'New Hampshire',
+  NJ: 'New Jersey', NM: 'New Mexico', NY: 'New York', NC: 'North Carolina', ND: 'North Dakota', OH: 'Ohio',
+  OK: 'Oklahoma', OR: 'Oregon', PA: 'Pennsylvania', RI: 'Rhode Island', SC: 'South Carolina', SD: 'South Dakota',
+  TN: 'Tennessee', TX: 'Texas', UT: 'Utah', VT: 'Vermont', VA: 'Virginia', WA: 'Washington',
+  WV: 'West Virginia', WI: 'Wisconsin', WY: 'Wyoming', PR: 'Puerto Rico',
+};
+
+function stateName(raw: string): string {
+  const s = String(raw || '').trim();
+  return s.length === 2 ? (STATE_NAMES[s.toUpperCase()] || s) : s;
+}
+
+function debtTypePhrase(lead: any): string {
+  let types: string[] = [];
+  try {
+    const parsed = JSON.parse(lead?.debtTypesJson || '[]');
+    if (Array.isArray(parsed)) types = parsed.map(t => String(t || '').trim()).filter(Boolean);
+  } catch {}
+  if (types.length <= 1) return types[0] || '';
+  if (types.length === 2) return `${types[0]} and ${types[1]}`;
+  return `${types.slice(0, -1).join(', ')} and ${types[types.length - 1]}`;
+}
+
+function buildMergeBrief(lead: any): string {
+  const first = String(lead?.firstName || '').trim() || 'a new caller';
+  const where = [String(lead?.city || '').trim(), stateName(lead?.state)].filter(Boolean).join(', ');
+  const types = debtTypePhrase(lead);
+  const amount = Number(lead?.debtAmount || 0);
+  const amountPhrase = amount > 0 ? ` about ${amount.toLocaleString('en-US')} dollars` : '';
+  let load = '';
+  if (types && amountPhrase) load = ` with a total debt load of mostly ${types},${amountPhrase}`;
+  else if (amountPhrase) load = ` with a total debt load of${amountPhrase}`;
+  else if (types) load = ` with a debt load of mostly ${types}`;
+  return `${where ? `You have ${first} from ${where}` : `You have ${first}`}${load}. I am going to merge him in now.`;
+}
 
 export default async function(req) {
   // ── Always return valid TwiML — never let Twilio see a 5xx ──────────
@@ -159,12 +201,11 @@ export default async function(req) {
     }
 
     // ── Mode AI Transfer: redirect from Media Stream when LLM says TRANSFER ─
-    const aiTransferMode = url.searchParams.get('Mode') === 'aiAgentTransfer';
+    const aiTransferMode = params.get('Mode') === 'aiAgentTransfer';
     if (aiTransferMode) {
-      const leadId = url.searchParams.get('LeadId') || '';
+      const leadId = params.get('LeadId') || '';
       let config: any = {};
       let lead: any = null;
-      let adamHoldUrl = '';
       try {
         const { createClientFromRequest } = await import('npm:@base44/sdk@0.8.52');
         const base44 = createClientFromRequest(req).asServiceRole;
@@ -173,27 +214,21 @@ export default async function(req) {
         if (leadId) {
           try { lead = await base44.entities.FronterLead.get(leadId); } catch {}
         }
-        // Load Adam Transfer Queue Hold Message (Prompt 5, Option 2)
-        try {
-          const holdAudio = await base44.entities.InboundCallAudio.filter(
-            { assetType: 'adam_transfer_hold', isActive: true }, '-uploadedAt', 1,
-          );
-          adamHoldUrl = holdAudio?.[0]?.fileUrl || '';
-        } catch {}
       } catch (e) {
         console.warn('[dialerVoiceHandler] Failed to load AI agent config for transfer:', e?.message);
       }
       const pollyVoice = getPollyVoice(config.ttsVoiceModel || 'aura-2-thalia-en');
       const appUrl = req.headers.get('X-Base44-App-Url') || 'https://rosieai-investorpage.base44.app';
 
-      // ── Inbound Adam calls → fronter transfer queue (Prompt 4) ──
-      // Place the caller in a conference with the Adam Transfer Queue Hold Message
-      // and create a FronterHeadsUp so fronters see the queued call.
+      // ── Inbound AI calls → transfer queue + merge to the advisor ──
+      // The same handoff the transfer popup drives: the caller waits in the queue
+      // conference on the queue hold recording, the advisor is dialed on the merge
+      // number, hears who is waiting, and joins the conference — that join starts
+      // it, so the caller comes off hold and the two are connected.
       if (lead?.inboundAdamCall || lead?.callStatus === 'inbound_adam') {
         const conferenceName = `adam_queue_${leadId || Date.now()}`;
-        const holdWaitUrl = adamHoldUrl
-          ? `${appUrl}/functions/dialerVoiceHandler?Mode=inboundHoldMusic`
-          : 'https://twimlets.com/holdmusic?Bucket=com.twilio.music.classical';
+        const customerCallSid = params.get('CallSid') || '';
+        const holdWaitUrl = `${appUrl}/functions/dialerVoiceHandler?Mode=inboundHoldMusic`;
 
         // Create FronterHeadsUp so fronter monitor shows the queued call
         try {
@@ -206,7 +241,8 @@ export default async function(req) {
             leadPhone: lead.phone || '',
             leadEmail: lead.email || '',
             conferenceName,
-            customerCallSid: params.get('CallSid') || '',
+            customerCallSid,
+            lineKey: config.twilioLineKey || '',
             status: 'active',
             createdAt: new Date().toISOString(),
           });
@@ -217,6 +253,30 @@ export default async function(req) {
             transferredTo: 'Incoming AI Agent → Fronter Queue',
           });
         } catch (e) { console.warn('[dialerVoiceHandler] Failed to create heads-up:', e?.message); }
+
+        // Dial the advisor on the merge number — the popup's "Dial Chris" step.
+        // When he answers he hears the brief, then joins the queue conference.
+        const mergeNumber = config.transferPhoneNumber || '';
+        const mergeFrom = lineNumber(config.twilioLineKey) || Deno.env.get('TWILIO_FROM_NUMBER') || '';
+        if (/^\+[1-9]\d{7,14}$/.test(mergeNumber) && mergeFrom) {
+          const briefUrl = `${appUrl}/functions/dialerVoiceHandler?Mode=aiQueueBrief` +
+            `&LeadId=${encodeURIComponent(leadId)}&Conf=${encodeURIComponent(conferenceName)}`;
+          try {
+            await twilioFetch('/Calls.json', {
+              method: 'POST',
+              body: new URLSearchParams({
+                To: toE164(mergeNumber),
+                From: mergeFrom,
+                Url: briefUrl,
+                Method: 'GET',
+                Timeout: '25',
+              }),
+            });
+            console.log('[dialerVoiceHandler] → AI transfer: advisor dialed', toE164(mergeNumber), 'conf:', conferenceName);
+          } catch (e) { console.warn('[dialerVoiceHandler] Advisor dial failed:', e?.message); }
+        } else {
+          console.warn('[dialerVoiceHandler] No valid advisor merge number — caller stays in the queue');
+        }
 
         const skipSay = url.searchParams.get('SkipSay') === 'true';
         const sayTag = skipSay ? '' : `<Say voice="${pollyVoice}">I'm transferring you to one of our senior debt advisors. Please hold for just a moment.</Say>`;
@@ -261,8 +321,73 @@ export default async function(req) {
       return new Response(twiml, { headers: { 'Content-Type': 'text/xml' } });
     }
 
-    // ── Mode: Inbound Hold Music loop (Adam Transfer Queue Hold Message) ──
-    const inboundHoldMode = url.searchParams.get('Mode') === 'inboundHoldMusic';
+    // ── Mode: AI Queue Brief — the advisor's leg when the AI hands a caller over ──
+    // Twilio fetches this the moment the merge number answers: the advisor hears
+    // who is waiting on the line, then joins the queue conference. His join starts
+    // the conference, so the caller comes off hold and the two are connected — the
+    // same merge the transfer popup performs, driven by the AI instead of a fronter.
+    if (params.get('Mode') === 'aiQueueBrief') {
+      const briefLeadId = params.get('LeadId') || '';
+      const conf = params.get('Conf') || '';
+      let briefConfig: any = {};
+      let lead: any = null;
+      try {
+        const { createClientFromRequest } = await import('npm:@base44/sdk@0.8.52');
+        const base44 = createClientFromRequest(req).asServiceRole;
+        const configs = await base44.entities.AIAgentConfig.filter({ configName: 'default' });
+        briefConfig = configs?.[0] || {};
+        if (briefLeadId) {
+          try { lead = await base44.entities.FronterLead.get(briefLeadId); } catch {}
+        }
+      } catch (e) { console.warn('[dialerVoiceHandler] Brief load failed:', e?.message); }
+
+      const pollyVoice = getPollyVoice(briefConfig.ttsVoiceModel || 'aura-2-thalia-en');
+      const baseUrl = req.headers.get('X-Base44-App-Url') || 'https://rosieai-investorpage.base44.app';
+      const mergeStatusUrl = `${baseUrl}/functions/dialerVoiceHandler?Mode=aiQueueMerged` +
+        `&LeadId=${encodeURIComponent(briefLeadId)}&Conf=${encodeURIComponent(conf)}`;
+      const twiml = `<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Say voice="${pollyVoice}">${xmlEscape(buildMergeBrief(lead))}</Say>
+  <Dial>
+    <Conference startConferenceOnEnter="true" endConferenceOnExit="true" beep="false"
+      statusCallback="${xmlEscape(mergeStatusUrl)}" statusCallbackEvent="start">
+      ${xmlEscape(conf)}
+    </Conference>
+  </Dial>
+</Response>`;
+      console.log('[dialerVoiceHandler] → AI Queue Brief to advisor, conf:', conf);
+      return new Response(twiml, { headers: { 'Content-Type': 'text/xml' } });
+    }
+
+    // ── Mode: AI Queue Merged — advisor + caller are now connected ──
+    // Fired by the conference's start event: close the queue alert and mark the
+    // lead transferred so fronters no longer see it as waiting.
+    if (params.get('Mode') === 'aiQueueMerged') {
+      const mergedLeadId = params.get('LeadId') || '';
+      if (mergedLeadId) {
+        try {
+          const { createClientFromRequest } = await import('npm:@base44/sdk@0.8.52');
+          const base44 = createClientFromRequest(req).asServiceRole;
+          await base44.entities.FronterLead.update(mergedLeadId, {
+            status: 'transferred',
+            lastCallResult: 'transferred',
+            callStatus: 'transferred',
+            transferredAt: new Date().toISOString(),
+            transferredTo: 'Incoming AI Agent → Senior Advisor',
+          });
+          const headsUps = await base44.entities.FronterHeadsUp.filter({ leadId: mergedLeadId, status: 'active' });
+          for (const hu of headsUps || []) {
+            await base44.entities.FronterHeadsUp.update(hu.id, { status: 'closed' });
+          }
+        } catch (e) { console.warn('[dialerVoiceHandler] Merge status update failed:', e?.message); }
+      }
+      return new Response('<?xml version="1.0" encoding="UTF-8"?><Response/>', { headers: { 'Content-Type': 'text/xml' } });
+    }
+
+    // ── Mode: Queue Hold Music loop ──────────────────────────────────────────
+    // Plays the AI queue hold message, falling back to the standard queue hold
+    // recording (the same one the merge popup plays) when nothing is uploaded.
+    const inboundHoldMode = params.get('Mode') === 'inboundHoldMusic';
     if (inboundHoldMode) {
       let holdUrl = '';
       try {
@@ -272,6 +397,14 @@ export default async function(req) {
           { assetType: 'adam_transfer_hold', isActive: true }, '-uploadedAt', 1,
         );
         holdUrl = holdAudio?.[0]?.fileUrl || '';
+        if (!holdUrl) {
+          const queueHold = await base44.entities.FronterHoldAudio.filter({ isActive: true }, '-uploadedAt', 1);
+          const fileUri = queueHold?.[0]?.fileUri || '';
+          if (fileUri) {
+            const signed = await base44.integrations.Core.CreateFileSignedUrl({ file_uri: fileUri, expires_in: 3600 });
+            holdUrl = signed?.signed_url || '';
+          }
+        }
       } catch {}
       if (holdUrl) {
         const twiml = `<?xml version="1.0" encoding="UTF-8"?>
