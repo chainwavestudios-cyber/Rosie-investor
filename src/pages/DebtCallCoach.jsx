@@ -3,7 +3,7 @@
  * Tabs: Live Call (headset coaching + lead card) | Knowledge Base | User Profiles.
  */
 import { useState, useEffect } from 'react';
-import { Navigate, useNavigate } from 'react-router-dom';
+import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { useDebtCoachAuth } from '@/lib/DebtCoachAuthContext';
 import { base44 } from '@/api/base44Client';
 import DualClockBar from '@/components/shared/DualClockBar';
@@ -63,6 +63,13 @@ export default function DebtCallCoach() {
   const { rows: tabRows, tabMap, moveTab, reset: resetTabOrder } = useCoachTabOrder({
     username: user?.username, isAdmin, isSuperAdmin, isSuperManager, isDialerRole,
   });
+
+  // Deep link — the ⌘A console (and any link) can open an exact tab: ?tab=<id>
+  const location = useLocation();
+  useEffect(() => {
+    const requested = new URLSearchParams(location.search).get('tab');
+    if (requested && tabMap[requested]) setTab(requested);
+  }, [location.search, tabMap]);
 
   // Alt+D hotkey → toggle Deal Monitor popout
   useEffect(() => {

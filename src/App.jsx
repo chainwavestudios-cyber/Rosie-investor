@@ -37,6 +37,7 @@ import ReschedulePage from './pages/ReschedulePage';
 import GrowthPlan120Day from './pages/GrowthPlan120Day';
 import { PortalAuthProvider } from '@/lib/PortalAuthContext';
 import { TwilioDeviceProvider } from '@/lib/TwilioDeviceContext';
+import AgentConsole from '@/components/agent/AgentConsole';
 
 const PUBLIC_PATHS = ['/optin', '/optin/screenshot', '/privacy', '/terms', '/portal-login', '/admin-login', '/request-access', '/debt-call-coach-login', '/aboutdebt', '/debt-call-coach', '/manager-portal', '/compliance-portal', '/fronter', '/interviews', '/training', '/log', '/work-report', '/reschedule', '/growth-plan', '/assistant-portal', '/superadmin-portal'];
 
@@ -117,6 +118,7 @@ function App() {
               <Route path="*" element={<PageNotFound />} />
             </Routes>
           </ProtectedShell>
+          <AgentConsole />
         </Router>
       </PortalAuthProvider>
       <Toaster />
