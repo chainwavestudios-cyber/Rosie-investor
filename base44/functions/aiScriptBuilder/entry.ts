@@ -218,8 +218,8 @@ Rules:
 - qaTuning: the questions leads actually ask on these calls, each with a tight spoken answer.
 - systemPrompt: the full operating brief for the outbound agent — role, tone, pacing, compliance guardrails, what it must never say, and when to transfer.
 - inboundAgentName: keep the current agent name unless the source names someone else.
-- inboundOpener: the first line the inbound agent says after the intro clips, personalised with {{first_name}} and {{state}}.
-- inboundSystemPrompt: the operating brief for the inbound agent — greet, confirm the debt notice, qualify, then hand off to the live transfer queue.
+- inboundOpener: the first line the inbound agent says after the intro clips, personalised with {{first_name}} and {{state}} — reference the notice, the roughly $20,000 in high-interest credit card debt and the state rate-drop update.
+- inboundSystemPrompt: the MINIMAL inbound script — greet, hold the caller on the roughly $20,000 in high-interest debt and the state rate-drop notice, confirm the debt, then hand off to the live transfer queue. Short spoken lines, never a long brief.
 - inboundKeywordTriggers: comma-separated phrases from the source that skip straight to the agent hand-off.
 - Every field is plain spoken text, no markdown. Leave a field out only when the source truly says nothing about it.
 
@@ -282,11 +282,12 @@ ${extra}
 
 Rules:
 - The source is an OUTGOING script (our agent or fronter dials the prospect): write the INCOMING version — the prospect calls us or is called back and reaches the AI desk. Same offer, same voice, same facts, reversed flow: greet the caller, reference the notice and the credit flags, confirm the debt amount and the debt types, then hand off to the live transfer queue.
+- The incoming direction is MINIMAL: the shortest version that still works, a few short spoken lines per step and no rabbit holes. Every step holds the caller on two facts — they are carrying about $20,000 in high-interest debt and they qualify for the state rate-drop notice (interest frozen at 0%). Acknowledge in a few words, then come straight back to the $20,000 and the rate-drop.
 - The source is an INCOMING script: write the OUTGOING version — our agent dials the prospect, opens with the reason for the call, qualifies, handles the objections and closes to the transfer.
 - name: a short NEW name for this direction's AI script, e.g. "INCOMING — rate-drop AI script (v2)". Match the style of the current name given in CONTEXT and bump its version marker.
 - script: the complete script for that direction, in the same order and wording style as the source, written to be spoken aloud word for word, no markdown. Use {{first_name}}, {{state}} and {{debt_amount}} where personalisation belongs.
 - config: only the fields for THAT direction.
-  - incoming: inboundOpener, inboundSystemPrompt, scriptFlow, dynamicRebuttals, qaTuning, and inboundAgentName (keep the current agent name).
+  - incoming: inboundOpener, inboundSystemPrompt, scriptFlow, dynamicRebuttals, qaTuning, and inboundAgentName (keep the current agent name). The inbound opener and inbound system prompt must be the minimal, $20k-anchored script described above — never a long operating brief.
   - outgoing: greeting, systemPrompt, scriptFlow, dynamicRebuttals, qaTuning.
 - System Prompt = the full operating brief for that direction: role, tone, pacing, qualification order, compliance guardrails, what it must never say, and when to hand off.
 - Script Flow = the call phases in order, each with the exact lines to say and the condition for moving on.
