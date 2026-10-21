@@ -1,0 +1,47 @@
+{
+  "name": "AssistantLineStatus",
+  "type": "object",
+  "properties": {
+    "username": {
+      "type": "string",
+      "title": "Assistant Username (one live row per assistant)"
+    },
+    "status": {
+      "type": "string",
+      "title": "Dialpad Status",
+      "enum": [
+        "available",
+        "on_call",
+        "offline"
+      ],
+      "default": "offline"
+    },
+    "clientName": {
+      "type": "string",
+      "title": "Client / Number Being Called"
+    },
+    "clientPhone": {
+      "type": "string",
+      "title": "Dialed Number"
+    },
+    "callStartedAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Call Started At (drives the live timer on the fronter strip)"
+    },
+    "updatedAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Last Broadcast At (heartbeat \u2014 an old row is treated as offline)"
+    }
+  },
+  "required": [
+    "username"
+  ],
+  "rls": {
+    "create": null,
+    "read": null,
+    "update": null,
+    "delete": null
+  }
+}

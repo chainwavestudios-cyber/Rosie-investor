@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import { Device } from '@twilio/voice-sdk';
+import useAssistantLineStatus from '@/components/assistant/useAssistantLineStatus';
 
 const GOLD = '#10b981';
 const RED = '#ef4444';
@@ -24,6 +25,9 @@ export default function AssistantDialer({ username, prefilledNumber, prefilledNa
   const callRef = useRef(null);
   const timerRef = useRef(null);
   const startRef = useRef(null);
+
+  // Publish this dialpad's status to the fronter workspace (available / on a call / offline).
+  const broadcast = useAssistantLineStatus(username);
 
   useEffect(() => {
     base44.functions.invoke('twilioGetLines', {}).then(res => {
@@ -62,10 +66,10 @@ export default function AssistantDialer({ username, prefilledNumber, prefilledNa
 
   const wireCall = (call) => {
     call.on('ringing', () => setCallStatus('ringing'));
-    call.on('accept', () => { setCallStatus('connected'); startTimer(); });
-    call.on('disconnect', () => { callRef.current = null; stopTimer(); setCallStatus('idle'); setMuted(false); setShowTransfer(false); });
-    call.on('cancel', () => { callRef.current = null; stopTimer(); setCallStatus('idle'); });
-    call.on('error', (e) => { if (e?.code !== 31000) setError(e.message); callRef.current = null; stopTimer(); setCallStatus('idle'); });
+    call.on('accept', () => { setCallStatus('connected'); startTimer(); broadcast.markOnCall(prefilledName || number, number); });
+    call.on('disconnect', () => { callRef.current = null; stopTimer(); setCallStatus('idle'); setMuted(false); setShowTransfer(false); broadcast.markAvailable(); });
+    call.on('cancel', () => { callRef.current = null; stopTimer(); setCallStatus('idle'); broadcast.markAvailable(); });
+    call.on('error', (e) => { if (e?.code !== 31000) setError(e.message); callRef.current = null; stopTimer(); setCallStatus('idle'); broadcast.markAvailable(); });
   };
 
   const dial = async () => {

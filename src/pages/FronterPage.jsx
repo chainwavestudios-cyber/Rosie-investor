@@ -16,6 +16,7 @@ import FronterMonitorPanel from '@/components/fronter/FronterMonitorPanel';
 import FronterBobTrainer from '@/components/fronter/FronterBobTrainer';
 import FronterTimeCardButton from '@/components/fronter/FronterTimeCardButton';
 import FronterHRTab from '@/components/fronter/FronterHRTab';
+import AssistantLineStrip from '@/components/fronter/AssistantLineStrip';
 import FronterHeadsUpPopup from '@/components/fronter/FronterHeadsUpPopup';
 import FronterFeedbackTab from '@/components/fronter/FronterFeedbackTab';
 import FronterOnboarding from '@/components/fronter/FronterOnboarding';
@@ -395,6 +396,9 @@ export default function FronterPage() {
           <button onClick={() => { if (user?.username) localStorage.setItem(`fronter_logout_${user.username}`, new Date().toISOString()); logout(); navigate('/debt-call-coach-login', { replace: true }); }} style={{ background: 'rgba(239,68,68,0.1)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.2)', borderRadius: '4px', padding: '6px 14px', cursor: 'pointer', fontSize: '11px' }}>Logout</button>
         </div>
       </div>
+
+      {/* Admin assistant's live dialpad line — so fronters know when the assistant is on a call */}
+      <AssistantLineStrip />
 
       {/* Tabs */}
       <div role="tablist" aria-label="Fronter workspace" style={{ padding: '0 24px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', gap: '2px', overflowX: 'auto' }}>
