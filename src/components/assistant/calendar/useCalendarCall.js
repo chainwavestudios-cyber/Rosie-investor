@@ -12,7 +12,11 @@ export default function useCalendarCall(lead, username) {
   useEffect(() => {
     base44.functions.invoke('twilioGetLines', {}).then(({ data }) => {
       if (data.error) throw new Error(data.error);
-      setLines(data.lines || []); setLineKey(data.lines?.[0]?.key || '');
+      const ls = data.lines || [];
+      setLines(ls);
+      // Default to the line assigned to this user (Fronter admin → Lines).
+      const mine = ls.find(l => (l.assignedTo || '').toLowerCase() === String(username || '').toLowerCase());
+      setLineKey(mine?.key || ls[0]?.key || '');
     }).catch(e => setError('Could not load outbound lines: ' + e.message)).finally(() => setLoading(false));
     return () => { attempt.current += 1; clearInterval(timer.current); call.current?.disconnect(); device.current?.destroy(); };
   }, []);

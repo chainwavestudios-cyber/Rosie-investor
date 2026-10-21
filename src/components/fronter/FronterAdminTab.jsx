@@ -35,6 +35,7 @@ const inp = { width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px 
 export default function FronterAdminTab({ adminUsername, onOpenLead }) {
   const [subtab, setSubtab] = useState('lines');
   const [fronters, setFronters] = useState([]);
+  const [admins, setAdmins] = useState([]);
   const [allUsers, setAllUsers] = useState([]);
   const [lineAssignments, setLineAssignments] = useState([]);
   const [lines, setLines] = useState([]);
@@ -64,6 +65,7 @@ export default function FronterAdminTab({ adminUsername, onOpenLead }) {
       const allU = users || [];
       setAllUsers(allU);
       setFronters(allU.filter(u => u.role === 'fronter' && u.isActive));
+      setAdmins(allU.filter(u => ['admin', 'super_admin'].includes(u.role) && u.isActive));
       setLineAssignments(assignments || []);
       setLines(ls?.data?.lines || ls?.lines || []);
       setLeads(allLeads || []);
@@ -281,17 +283,18 @@ export default function FronterAdminTab({ adminUsername, onOpenLead }) {
       {subtab === 'lines' && !loading && (
         <div>
           <FronterQuickDialEditor username={adminUsername} />
-          <div style={{ color: GOLD, fontSize: '11px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '12px' }}>📞 Assign Twilio Lines to Fronters</div>
-          {fronters.length === 0 ? (
-            <div style={{ color: '#4a5568', padding: '20px', textAlign: 'center', fontSize: '13px' }}>No fronter users yet. Create fronter users from the Manager Portal → Employees tab.</div>
+          <div style={{ color: GOLD, fontSize: '11px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '12px' }}>📞 Assign Twilio Lines to Fronters & Admins</div>
+          {fronters.length + admins.length === 0 ? (
+            <div style={{ color: '#4a5568', padding: '20px', textAlign: 'center', fontSize: '13px' }}>No fronter or admin users yet. Create users from the Manager Portal → Employees tab.</div>
           ) : (
             <>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: '10px', marginBottom: '16px', alignItems: 'end' }}>
                 <div>
-                  <label style={ls}>Fronter</label>
+                  <label style={ls}>Fronter / Admin</label>
                   <select value={assignForm.username} onChange={e => setAssignForm(p => ({ ...p, username: e.target.value }))} style={inp}>
-                    <option value="">— Select fronter —</option>
-                    {fronters.map(f => <option key={f.id} value={f.username}>{f.username}</option>)}
+                    <option value="">— Select fronter or admin —</option>
+                    {fronters.length > 0 && <optgroup label="Fronters">{fronters.map(f => <option key={f.id} value={f.username}>{f.username}</option>)}</optgroup>}
+                    {admins.length > 0 && <optgroup label="Admins">{admins.map(a => <option key={a.id} value={a.username}>{a.username}</option>)}</optgroup>}
                   </select>
                 </div>
                 <div>

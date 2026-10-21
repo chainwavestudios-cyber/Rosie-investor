@@ -29,9 +29,12 @@ export default function AssistantDialer({ username, prefilledNumber, prefilledNa
     base44.functions.invoke('twilioGetLines', {}).then(res => {
       const l = res?.data?.lines || res?.lines || [];
       setLines(l);
-      if (l[0]) setSelectedLine(l[0].number);
+      // Default to the line assigned to this user (Fronter admin → Lines).
+      const mine = l.find(x => (x.assignedTo || '').toLowerCase() === String(username || '').toLowerCase());
+      const pick = mine || l[0];
+      if (pick) setSelectedLine(pick.number);
     }).catch(e => setError('Could not load Twilio lines: ' + e.message));
-  }, []);
+  }, [username]);
 
   useEffect(() => { if (prefilledNumber) setNumber(prefilledNumber); }, [prefilledNumber]);
   useEffect(() => { if (autoDial && prefilledNumber && callStatus === 'idle') { const t = setTimeout(dial, 300); return () => clearTimeout(t); } }, [autoDial, prefilledNumber]);
