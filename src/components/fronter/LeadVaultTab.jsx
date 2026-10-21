@@ -12,6 +12,7 @@ import VaultDncScrubPanel from './VaultDncScrubPanel';
 import VaultDistributionPanel from './VaultDistributionPanel';
 import VaultEntryTable from './VaultEntryTable';
 import RateDropEnginePanel from './vault/RateDropEnginePanel';
+import ManualLeadModal from './vault/ManualLeadModal';
 
 const GOLD = '#10b981';
 const DARK = '#0a0f1e';
@@ -25,6 +26,7 @@ export default function LeadVaultTab({ adminUsername }) {
   const [serverStats, setServerStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [vaultView, setVaultView] = useState('vault');
+  const [showManual, setShowManual] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -135,7 +137,8 @@ export default function LeadVaultTab({ adminUsername }) {
           <div style={{ color: GOLD, fontSize: '16px', fontWeight: 'bold' }}>🏦 Lead Validation Vault</div>
           <div style={{ color: '#6b7280', fontSize: '11px', marginTop: '2px' }}>Upload leads → validate phone numbers → strip VoIP → distribute to fronters or AI dialer</div>
         </div>
-        <div style={{ display: 'flex', gap: '10px' }}>
+        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+          <button onClick={() => setShowManual(true)} style={{ background: `${GOLD}18`, color: GOLD, border: `1px solid ${GOLD}44`, borderRadius: '6px', padding: '9px 14px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold', whiteSpace: 'nowrap' }}>＋ Add Single Lead</button>
           <div style={{ padding: '6px 14px', background: `${GOLD}12`, border: `1px solid ${GOLD}33`, borderRadius: '6px', textAlign: 'center' }}>
             <div style={{ color: '#6b7280', fontSize: '8px', textTransform: 'uppercase', letterSpacing: '1px' }}>Available</div>
             <div style={{ color: GOLD, fontSize: '18px', fontWeight: 'bold' }}>{availableCount}</div>
@@ -170,6 +173,14 @@ export default function LeadVaultTab({ adminUsername }) {
       {/* Entry table */}
       <VaultEntryTable entries={entries} serverStats={serverStats} />
         </>
+      )}
+
+      {showManual && (
+        <ManualLeadModal
+          adminUsername={adminUsername}
+          onClose={() => setShowManual(false)}
+          onAdded={() => { setShowManual(false); load(); }}
+        />
       )}
     </div>
   );
