@@ -58,7 +58,9 @@ export default function AssistantCalendar({ onDialLead, username }) {
       }
       setEvents(evs);
       try {
-        const g = await base44.functions.invoke('listCalendarEvents', { days: 75 });
+        // Wide window on purpose: pastDays keeps every appointment that already happened
+        // visible under All, so the calendar is never selective about history.
+        const g = await base44.functions.invoke('listCalendarEvents', { days: 365, pastDays: 730 });
         const items = g?.data?.events || g?.events || [];
         setGcal(Array.isArray(items) ? items.map((e, i) => ({ id: 'gcal-' + i, kind: 'gcal', date: new Date(e.start || e.startDateTime || e.created), color: BLUE, label: 'GCal', name: e.summary || '(no title)', raw: e, htmlLink: e.htmlLink })) : []);
       } catch (e) { /* gcal optional */ }

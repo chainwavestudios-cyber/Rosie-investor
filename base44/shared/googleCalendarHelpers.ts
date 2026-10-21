@@ -9,12 +9,20 @@ export async function getCalendarAuth(base44: any) {
   return { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' };
 }
 
-export async function listEvents(authHeader: any, timeMin: string, timeMax: string): Promise<any[]> {
-  const url = `https://www.googleapis.com/calendar/v3/calendars/primary/events?timeMin=${encodeURIComponent(timeMin)}&timeMax=${encodeURIComponent(timeMax)}&singleEvents=true&maxResults=100&orderBy=startTime`;
-  const res = await fetch(url, { headers: authHeader });
-  if (!res.ok) return [];
-  const data = await res.json();
-  return data.items || [];
+export async function listEvents(authHeader: any, timeMin: string, timeMax: string, maxEvents = 100): Promise<any[]> {
+  const items: any[] = [];
+  let pageToken = '';
+  while (items.length < maxEvents) {
+    const page = `&maxResults=${Math.min(250, maxEvents - items.length)}${pageToken ? `&pageToken=${encodeURIComponent(pageToken)}` : ''}`;
+    const url = `https://www.googleapis.com/calendar/v3/calendars/primary/events?timeMin=${encodeURIComponent(timeMin)}&timeMax=${encodeURIComponent(timeMax)}&singleEvents=true&orderBy=startTime${page}`;
+    const res = await fetch(url, { headers: authHeader });
+    if (!res.ok) break;
+    const data = await res.json();
+    items.push(...(data.items || []));
+    pageToken = data.nextPageToken || '';
+    if (!pageToken) break;
+  }
+  return items.slice(0, maxEvents);
 }
 
 export function hasConflict(events: any[], start: Date, end: Date): boolean {

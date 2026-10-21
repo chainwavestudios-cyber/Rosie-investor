@@ -10,16 +10,20 @@ export default async function(req: Request): Promise<Response> {
   try {
     const base44 = createClientFromRequest(req);
     const body = await req.json().catch(() => ({}));
-    const days = Math.min(Math.max(1, body?.days || 3), 14);
+    const days = Math.min(Math.max(1, body?.days || 3), 400);
+    // pastDays = how far back to look. 0 keeps the original "from today onwards" behaviour
+    // used by the hot-lead / alert windows; the calendar asks for a wide past window so
+    // appointments that already happened stay visible under the All filter.
+    const pastDays = Math.min(Math.max(0, body?.pastDays || 0), 730);
 
     // Start from midnight ET today so past appointments for the current day are included
     const nowET = new Date(new Date().toLocaleString('en-US', { timeZone: ET_TZ }));
     nowET.setHours(0, 0, 0, 0);
-    const timeMin = nowET.toISOString();
+    const timeMin = new Date(nowET.getTime() - pastDays * 24 * 60 * 60 * 1000).toISOString();
     const timeMax = new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString();
 
     const authHeader = await getCalendarAuth(base44);
-    const events = await listEvents(authHeader, timeMin, timeMax);
+    const events = await listEvents(authHeader, timeMin, timeMax, 500);
 
     const formatted = events
       .filter((ev: any) => ev.start?.dateTime || ev.start?.date)
@@ -40,7 +44,7 @@ export default async function(req: Request): Promise<Response> {
         };
       });
 
-    return Response.json({ events: formatted, days, count: formatted.length });
+    return Response.json({ events: formatted, days, pastDays, count: formatted.length });
   } catch (error) {
     return Response.json({ error: (error as Error).message, events: [] }, { status: 500 });
   }
