@@ -492,38 +492,6 @@ export default function ClientProfileModal({ lead, username, onClose, onSave }) 
               </div>
             )}
 
-            {/* Financial Info */}
-            <div style={{ color: GOLD, fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '10px' }}>Financial Information</div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px', marginBottom: '16px' }}>
-              <div>
-                <label style={ls}>Employment Status</label>
-                <select value={local.employmentStatus || ''} onChange={e => update('employmentStatus', e.target.value)} style={inp}>
-                  <option value="">—</option>
-                  <option value="employed">Employed</option>
-                  <option value="self-employed">Self-Employed</option>
-                  <option value="unemployed">Unemployed</option>
-                  <option value="retired">Retired</option>
-                  <option value="disabled">Disabled</option>
-                </select>
-              </div>
-              <div><label style={ls}>Monthly Income ($)</label><input type="number" value={local.monthlyIncome ?? ''} onChange={e => update('monthlyIncome', e.target.value ? Number(e.target.value) : null)} style={inp} /></div>
-              <div><label style={ls}>Credit Score</label><input type="number" value={local.creditScore ?? ''} onChange={e => update('creditScore', e.target.value ? Number(e.target.value) : null)} style={inp} /></div>
-              <div><label style={ls}>Age</label><input type="number" value={local.age ?? ''} onChange={e => update('age', e.target.value ? Number(e.target.value) : null)} style={inp} /></div>
-              <div><label style={ls}>Household Income ($)</label><input type="number" value={local.householdIncome ?? ''} onChange={e => update('householdIncome', e.target.value ? Number(e.target.value) : null)} style={inp} /></div>
-              <div><label style={ls}>Home Value ($)</label><input type="number" value={local.homeValue ?? ''} onChange={e => update('homeValue', e.target.value ? Number(e.target.value) : null)} style={inp} /></div>
-              <div><label style={ls}>Home Equity ($)</label><input type="number" value={local.homeEquity ?? ''} onChange={e => update('homeEquity', e.target.value ? Number(e.target.value) : null)} style={inp} /></div>
-              <div><label style={ls}>Tradelines</label><input type="number" value={local.tradelines ?? ''} onChange={e => update('tradelines', e.target.value ? Number(e.target.value) : null)} style={inp} /></div>
-              <div>
-                <label style={ls}>Behind on Payments</label>
-                <select value={local.behindOnPayments ? 'yes' : 'no'} onChange={e => update('behindOnPayments', e.target.value === 'yes')} style={inp}>
-                  <option value="no">No — Current</option>
-                  <option value="yes">Yes — Behind</option>
-                </select>
-              </div>
-              <div><label style={ls}>Months Behind</label><input type="number" value={local.monthsBehind ?? ''} onChange={e => update('monthsBehind', e.target.value ? Number(e.target.value) : null)} style={inp} /></div>
-              <div><label style={ls}>Total Debt ($)</label><input type="number" value={local.debtAmount ?? ''} onChange={e => update('debtAmount', e.target.value ? Number(e.target.value) : null)} style={inp} /></div>
-            </div>
-
             {/* Quick Stats */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px', marginBottom: '16px' }}>
               <StatBox label="Mo. Payments" value={`$${totalMonthlyPayments.toLocaleString()}`} color="#60a5fa" />
@@ -945,6 +913,38 @@ function DebtTab({ ledger, totalBalance, totalLimit, utilization, totalMonthlyPa
 
   return (
     <div>
+      {/* Financial Info */}
+      <div style={{ color: GOLD, fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '10px' }}>Financial Information</div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px', marginBottom: '16px' }}>
+        <div>
+          <label style={ls}>Employment Status</label>
+          <select value={local.employmentStatus || ''} onChange={e => update('employmentStatus', e.target.value)} style={inp}>
+            <option value="">—</option>
+            <option value="employed">Employed</option>
+            <option value="self-employed">Self-Employed</option>
+            <option value="unemployed">Unemployed</option>
+            <option value="retired">Retired</option>
+            <option value="disabled">Disabled</option>
+          </select>
+        </div>
+        <div><label style={ls}>Monthly Income ($)</label><input type="number" value={local.monthlyIncome ?? ''} onChange={e => update('monthlyIncome', e.target.value ? Number(e.target.value) : null)} style={inp} /></div>
+        <div><label style={ls}>Credit Score</label><input type="number" value={local.creditScore ?? ''} onChange={e => update('creditScore', e.target.value ? Number(e.target.value) : null)} style={inp} /></div>
+        <div><label style={ls}>Age</label><input type="number" value={local.age ?? ''} onChange={e => update('age', e.target.value ? Number(e.target.value) : null)} style={inp} /></div>
+        <div><label style={ls}>Household Income ($)</label><input type="number" value={local.householdIncome ?? ''} onChange={e => update('householdIncome', e.target.value ? Number(e.target.value) : null)} style={inp} /></div>
+        <div><label style={ls}>Home Value ($)</label><input type="number" value={local.homeValue ?? ''} onChange={e => update('homeValue', e.target.value ? Number(e.target.value) : null)} style={inp} /></div>
+        <div><label style={ls}>Home Equity ($)</label><input type="number" value={local.homeEquity ?? ''} onChange={e => update('homeEquity', e.target.value ? Number(e.target.value) : null)} style={inp} /></div>
+        <div><label style={ls}>Tradelines</label><input type="number" value={local.tradelines ?? ''} onChange={e => update('tradelines', e.target.value ? Number(e.target.value) : null)} style={inp} /></div>
+        <div>
+          <label style={ls}>Behind on Payments</label>
+          <select value={local.behindOnPayments ? 'yes' : 'no'} onChange={e => update('behindOnPayments', e.target.value === 'yes')} style={inp}>
+            <option value="no">No — Current</option>
+            <option value="yes">Yes — Behind</option>
+          </select>
+        </div>
+        <div><label style={ls}>Months Behind</label><input type="number" value={local.monthsBehind ?? ''} onChange={e => update('monthsBehind', e.target.value ? Number(e.target.value) : null)} style={inp} /></div>
+        <div><label style={ls}>Total Debt ($)</label><input type="number" value={local.debtAmount ?? ''} onChange={e => update('debtAmount', e.target.value ? Number(e.target.value) : null)} style={inp} /></div>
+      </div>
+
       {/* Credit Utilization */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '10px', marginBottom: '16px' }}>
         <div style={{ background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: '4px', padding: '14px', textAlign: 'center' }}>

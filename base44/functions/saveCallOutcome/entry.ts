@@ -59,6 +59,7 @@ export default async function (req) {
     const durationSeconds: number = Number(body?.durationSeconds) || 0;
     const callMode: string = body?.callMode || '';
     const callType: string = body?.callType || '';
+    const direction: string = body?.direction || '';
     const coachTips = Array.isArray(body?.coachTips) ? body.coachTips : [];
     const qaItems = Array.isArray(body?.qaItems) ? body.qaItems : [];
     const intentHistory = Array.isArray(body?.intentHistory) ? body.intentHistory : [];
@@ -73,6 +74,8 @@ export default async function (req) {
     const lineCount = transcript.length;
     const score = intent && typeof intent.intentScore === 'number' && !Number.isNaN(intent.intentScore) ? intent.intentScore : null;
     const animal = (intent && intent.animalType) || null;
+    // Both directions are logged: every incoming and every outgoing call
+    const callPrefix = direction === 'inbound' ? 'Incoming call — ' : direction === 'outbound' ? 'Outgoing call — ' : '';
 
     // 1 ── the lead: last call, intent score, brief the next call
     await note('lead', async () => {
@@ -133,7 +136,7 @@ export default async function (req) {
         leadId,
         leadName,
         activityType: 'call',
-        activityText: `${label} (${callMode === 'close' ? 'close' : 'open'}) — ${durationMin} min, ${lineCount} lines${score != null ? `, intent ${score}/100` : ''}`,
+        activityText: `📞 ${callPrefix}${label} (${callMode === 'close' ? 'close' : 'open'}) — ${durationMin} min, ${lineCount} lines${score != null ? `, intent ${score}/100` : ''}`,
         createdBy: agentId,
         metadataJson: JSON.stringify({ durationMin, mode: callMode, callType, intentScore: score, animalType: animal }),
       }];

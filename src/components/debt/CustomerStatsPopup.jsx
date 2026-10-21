@@ -141,7 +141,7 @@ export default function CustomerStatsPopup({ lead, transcript, isActive, agentUs
           transcript,
           existingInsights: insights.map(ins => ({ insightType: ins.insightType, insightText: ins.insightText })),
         });
-        const newInsights = res?.insights || [];
+        const newInsights = (res?.data || res)?.insights || [];
         if (newInsights.length > 0) {
           const leadName = `${lead.firstName || ''} ${lead.lastName || ''}`.trim();
           const flashKeys = new Set();

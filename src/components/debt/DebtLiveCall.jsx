@@ -1615,31 +1615,8 @@ ${recentText}`,
         // The report, the briefing, the notes and the intent trail are all written
         // by saveCallOutcome below — in one server-side pass that cannot be lost.
 
-        // Log call + AI synopsis to activity history
-        try {
-          const actLeadName = `${leadRef.current.firstName || ''} ${leadRef.current.lastName || ''}`.trim();
-          const actAgentId = coachUser?.username || '';
-          const durationMin = callStartRef.current ? Math.round((Date.now() - callStartRef.current.getTime()) / 60000) : 0;
-          await base44.entities.DebtLeadActivity.create({
-            leadId: leadRef.current.id,
-            leadName: actLeadName,
-            activityType: 'call',
-            activityText: `${callType === 'front_to_back' ? 'Front→Back' : callType === 'open_only' ? 'Open Only' : callType === 'cold_call' ? 'Cold Call' : callType === 'closer_call' ? 'Closer Call' : 'Call'} (${callMode === 'close' ? 'close' : 'open'}) — ${durationMin} min, ${transcriptRef.current.length} lines${intent?.intentScore != null ? `, intent ${intent.intentScore}/100` : ''}`,
-            createdBy: actAgentId,
-            metadataJson: JSON.stringify({ durationMin, mode: callMode, callType, intentScore: intent?.intentScore, animalType: intent?.animalType }),
-          });
-          // AI synopsis — 1-2 sentence summary of the intent report
-          if (intent?.report) {
-            const synopsis = intent.report.split(/[.!?]/).filter(s => s.trim()).slice(0, 2).join('. ').trim() + '.';
-            await base44.entities.DebtLeadActivity.create({
-              leadId: leadRef.current.id,
-              leadName: actLeadName,
-              activityType: 'ai_synopsis',
-              activityText: synopsis,
-              createdBy: actAgentId,
-            });
-          }
-        } catch {}
+        // The call row + AI synopsis are written by saveCallOutcome below — one
+        // server-side pass, so they can never be lost to a browser-side failure.
 
         // Also run dedicated fact extraction for any memories the intent engine missed
         try {
@@ -1708,6 +1685,7 @@ ${recentText}`,
             durationSeconds: callStartRef.current ? Math.round((Date.now() - callStartRef.current.getTime()) / 1000) : 0,
             callMode,
             callType,
+            direction: isInbound ? 'inbound' : 'outbound',
             coachTips: coachTipsRef.current.map(t => ({ tip: t.tip, time: t.time ? t.time.toISOString() : null })),
             qaItems: qaItemsRef.current.map(q => ({ question: q.question, answer: q.answer })),
             intentHistory: intentHistoryRef.current,

@@ -25,6 +25,8 @@ const ACTIVITY_CONFIG = {
   status_change: { icon: '🔄', color: AMBER, label: 'Status Change' },
   calendar_event: { icon: '📅', color: GOLD, label: 'Calendar Event' },
   lead_assigned: { icon: '🎯', color: GOLD, label: 'Lead Assigned' },
+  email_open: { icon: '📬', color: '#4ade80', label: 'Email Opened' },
+  link_click: { icon: '🔗', color: '#f472b6', label: 'Link Clicked' },
 };
 
 function formatTimeAgo(iso) {
@@ -61,8 +63,27 @@ export default function LeadActivityTab({ lead }) {
     if (!lead.id) { setActivities([]); setLoading(false); return; }
     setLoading(true);
     try {
-      const rows = await base44.entities.DebtLeadActivity.filter({ leadId: lead.id }, '-created_date', 200);
-      setActivities(rows || []);
+      const [rows, emailEvents] = await Promise.all([
+        base44.entities.DebtLeadActivity.filter({ leadId: lead.id }, '-created_date', 200),
+        base44.entities.EmailTrackingEvent.filter({ leadId: lead.id }, '-trackedAt', 200),
+      ]);
+      // One timeline for every tracked action: notes, calls, AI synopsis, emails
+      // sent, and each open / link click the email tracking recorded.
+      const unified = [...(rows || [])];
+      for (const ev of (emailEvents || [])) {
+        const clicked = ev.eventType === 'click';
+        const host = (() => { try { return new URL(ev.url).hostname.replace(/^www\./, ''); } catch { return ''; } })();
+        unified.push({
+          id: `track-${ev.id}`,
+          activityType: clicked ? 'link_click' : 'email_open',
+          activityText: clicked
+            ? `Link clicked — ${host || ev.templateName || 'link'}${ev.templateName ? ` (${ev.templateName})` : ''}`
+            : `Email opened${ev.templateName ? ` — ${ev.templateName}` : ''}`,
+          created_date: ev.trackedAt || ev.created_date,
+        });
+      }
+      unified.sort((a, b) => new Date(b.created_date || 0) - new Date(a.created_date || 0));
+      setActivities(unified);
     } catch { setActivities([]); }
     setLoading(false);
   }, [lead.id]);
@@ -307,7 +328,7 @@ export default function LeadActivityTab({ lead }) {
         {loading ? (
           <div style={{ color: '#4a5568', textAlign: 'center', padding: '20px', fontSize: '12px' }}>Loading…</div>
         ) : activities.length === 0 ? (
-          <div style={{ color: '#4a5568', textAlign: 'center', padding: '20px', fontSize: '12px' }}>{lead.id ? 'No activity yet. Add a note or schedule an event above.' : 'Save the lead to start logging activity, calls, and AI synopsis.'}</div>
+          <div style={{ color: '#4a5568', textAlign: 'center', padding: '20px', fontSize: '12px' }}>{lead.id ? 'Nothing tracked yet. Every incoming and outgoing call, email sent, email open and link click lands here automatically — plus notes and the AI synopsis.' : 'Save the lead to start logging calls, emails, opens, clicks and AI synopsis.'}</div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
             {activities.map(a => {
