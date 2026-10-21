@@ -226,10 +226,11 @@ ${conversationText}
 
 Respond as the Agent to the prospect's latest message. Keep your response to 1-3 sentences since it will be spoken aloud on a phone call. Do not use formatting, emojis, or special characters.
 
-Determine the action:
-- "speak": Continue the conversation naturally
-- "transfer": The prospect is qualified and ready for transfer to a senior advisor
-- "end_call": The prospect is not qualified (debt under $10,000) or explicitly not interested
+Determine the action — apply these rules exactly:
+- "speak": the default for every reply until the script's hand-off step is reached. A greeting, an acknowledgement or a short answer ("ok", "yes", "hello", "speaking", "who's this", "fine", "sure") is NOT qualification: keep the action "speak" and deliver the next line of the script.
+- "transfer": only once the hand-off step has actually been reached — the prospect has confirmed the debt load and you have just delivered the hand-off line — or when the prospect themselves asks for a person, an appointment or a callback. Never transfer on your first substantive reply, and never transfer merely because the prospect said "ok", "yes" or "hello".
+- "end_call": the prospect is not qualified (debt under $10,000) or explicitly not interested
+Always include the words to speak aloud in "text" — never return "text" empty.
 
 Return JSON with:
 - action: one of "speak", "transfer", "end_call"
