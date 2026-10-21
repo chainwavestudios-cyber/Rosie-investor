@@ -451,19 +451,19 @@ function openDeepgram(session, streamSid) {
           session.callerSpeaking = false;
           cancelPendingBarge(session);
         }
-        if (msg.speech_final && transcript.trim()) {
+        if (msg.speech_final) {
           session.callerSpeaking = false;
           cancelPendingBarge(session);
           // A finished, meaningful sentence cuts her off; a backchannel is
           // agreement, so she keeps her train of thought and keeps talking.
-          if (session.state === 'speaking' && !isBackchannel(transcript)) {
+          if (transcript.trim() && session.state === 'speaking' && !isBackchannel(transcript)) {
             log('barge-in (complete utterance), gen', session.generation);
             session.generation++;
             sendToTwilio(session.ws, { event: 'clear', streamSid });
             clearSpeakingWatchdog(session);
             session.state = 'listening';
           }
-          if (session.state === 'listening') {
+          if (transcript.trim() && session.state === 'listening') {
             log('speech_final:', transcript);
             handleUtterance(streamSid, transcript);
           }
@@ -477,21 +477,22 @@ function openDeepgram(session, streamSid) {
         session.callerSpeaking = true;
         if (session.state === 'speaking') scheduleBargeIn(session, streamSid);
       }
-      if (msg.event === 'EndOfTurn' && msg.transcript && msg.transcript.trim()) {
+      if (msg.event === 'EndOfTurn') {
         session.callerSpeaking = false;
         cancelPendingBarge(session);
+        const said = (msg.transcript || '').trim();
         // A finished, meaningful sentence cuts her off; a backchannel is
         // agreement, so she keeps her train of thought and keeps talking.
-        if (session.state === 'speaking' && !isBackchannel(msg.transcript)) {
+        if (said && session.state === 'speaking' && !isBackchannel(said)) {
           log('flux barge-in (complete utterance), gen', session.generation);
           session.generation++;
           sendToTwilio(session.ws, { event: 'clear', streamSid });
           clearSpeakingWatchdog(session);
           session.state = 'listening';
         }
-        if (session.state === 'listening') {
-          log('flux EndOfTurn:', msg.transcript);
-          handleUtterance(streamSid, msg.transcript);
+        if (said && session.state === 'listening') {
+          log('flux EndOfTurn:', said);
+          handleUtterance(streamSid, said);
         }
       }
     }
