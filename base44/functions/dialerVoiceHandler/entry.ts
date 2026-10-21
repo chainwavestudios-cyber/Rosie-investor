@@ -423,10 +423,13 @@ export default async function(req) {
         if (streamUrl) {
           // ── Prompt 1: Lead lookup by caller ID ──
           const callerPhone = params.get('From') || '';
-          const { client_name, region, leadId: foundLeadId, lead: foundLead } = await lookupInboundLead(base44, callerPhone);
+          const { client_name, region, leadId: foundLeadId, lead: foundLead, leadType } = await lookupInboundLead(base44, callerPhone);
 
-          // Ensure a FronterLead exists for the inbound caller (Adam will populate it)
-          let inboundLeadId = foundLeadId || '';
+          // Ensure a FronterLead exists for the inbound caller (Adam will populate it).
+          // Only a FronterLead match may be reused: a Debt Call Coach (or no) match gets
+          // a fresh card, otherwise the agent has no inbound card to work from and
+          // falls back to the outbound language.
+          let inboundLeadId = leadType === 'fronter' && foundLeadId ? foundLeadId : '';
           if (!inboundLeadId && callerPhone) {
             try {
               const created = await base44.entities.FronterLead.create({
@@ -442,10 +445,10 @@ export default async function(req) {
               });
               inboundLeadId = created?.id || '';
             } catch (e) { console.warn('[dialerVoiceHandler] Failed to create inbound lead:', e?.message); }
-          } else if (foundLeadId && foundLead) {
+          } else if (inboundLeadId && foundLead) {
             // Mark existing lead as an inbound Adam call
             try {
-              await base44.entities.FronterLead.update(foundLeadId, {
+              await base44.entities.FronterLead.update(inboundLeadId, {
                 callStatus: 'inbound_adam',
                 inboundAdamCall: true,
                 inboundRegion: region,

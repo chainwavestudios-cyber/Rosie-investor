@@ -55,15 +55,17 @@ export function detectRegion(lead: any): Region {
 export async function lookupInboundLead(base44: any, rawPhone: string) {
   if (!rawPhone) return { client_name: 'there', region: 'fallback' as Region, leadId: null, lead: null, leadType: null };
 
-  // Normalize: try raw, +1-stripped, and +1-prefixed
+  // Normalize: raw, spaced, E.164, and the bare 10-digit form. Twilio sends
+  // "+12162586934" while contact cards are often stored as "2162586934".
   const digits = rawPhone.replace(/\D/g, '');
+  const nationalDigits = digits.length === 11 && digits.startsWith('1') ? digits.slice(1) : digits;
   const candidates = Array.from(new Set([
     rawPhone,
     rawPhone.replace(/\s/g, ''),
     '+' + digits,
-    '+1' + digits,
     digits,
-    digits.length === 11 ? '+' + digits : digits,
+    nationalDigits,
+    nationalDigits.length === 10 ? '+1' + nationalDigits : digits,
   ]));
 
   let lead: any = null;
@@ -101,6 +103,10 @@ export async function lookupInboundLead(base44: any, rawPhone: string) {
 
   const client_name = lead.firstName || 'there';
   const region = detectRegion(lead);
+  // Only a FronterLead id may travel downstream as the inbound contact card.
+  // A Debt Call Coach match still personalizes the greeting by name and region,
+  // but its id does not exist in FronterLead — the caller then gets a fresh card.
+  if (leadType !== 'fronter') return { client_name, region, leadId: null, lead, leadType };
   return { client_name, region, leadId: lead.id, lead, leadType };
 }
 
