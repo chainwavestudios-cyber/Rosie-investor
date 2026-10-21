@@ -43,7 +43,10 @@ export default function MarketingCampaignsList({ campaigns, onChanged }) {
                 return (
                   <tr key={c.id}>
                     <td style={td}>{c.name}</td>
-                    <td style={td}>{c.emailTemplateName || '—'}</td>
+                    <td style={td}>
+                      {c.emailTemplateName || '—'}
+                      {c.intro2TemplateName && <div style={{ color: '#8a9ab8', fontSize: '10px' }}>Intro 2: {c.intro2TemplateName}</div>}
+                    </td>
                     <td style={td}>
                       {(c.startAt || '').slice(0, 10)} → {(c.endAt || '').slice(0, 10)}
                       <div style={{ color: '#8a9ab8', fontSize: '10px' }}>{c.windowStart}–{c.windowEnd} · every {c.intervalMinutes}m · {c.emailsPerSend}/send</div>

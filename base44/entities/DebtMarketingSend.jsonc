@@ -26,6 +26,23 @@
       "type": "string",
       "title": "Recipient State"
     },
+    "kind": {
+      "type": "string",
+      "title": "Send Kind (intro = the campaign's own email, intro2 = the Introduction 2 follow-up)",
+      "enum": [
+        "intro",
+        "intro2"
+      ],
+      "default": "intro"
+    },
+    "templateId": {
+      "type": "string",
+      "title": "Saved Email ID Used For This Send (blank = the campaign's email)"
+    },
+    "templateName": {
+      "type": "string",
+      "title": "Saved Email Name (for display)"
+    },
     "sendAt": {
       "type": "string",
       "format": "date-time",
@@ -55,6 +72,73 @@
     "mailjetMessageId": {
       "type": "string",
       "title": "Mailjet Message ID"
+    },
+    "linkHostsJson": {
+      "type": "string",
+      "title": "Link Hosts In This Email (JSON array \u2014 the only links the tracker will forward to)",
+      "format": "textarea"
+    },
+    "openCount": {
+      "type": "number",
+      "title": "Times Opened",
+      "default": 0
+    },
+    "firstOpenedAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "First Opened At"
+    },
+    "lastOpenedAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Last Opened At"
+    },
+    "clickedUrlsJson": {
+      "type": "string",
+      "title": "Links Clicked (JSON array of {url, at})",
+      "format": "textarea"
+    },
+    "firstClickedAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "First Link Clicked At"
+    },
+    "lastClickedAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Last Link Clicked At"
+    },
+    "welcomeViewedAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Welcome Message Opened At (the email's welcome / personal message link)"
+    },
+    "intro2QueuedAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Introduction 2 Queued At (welcome watched + 2/3 links clicked)"
+    },
+    "chainReason": {
+      "type": "string",
+      "title": "Why The Follow-Up Fired (e.g. welcome watched + trustpilot.com, bbb.org)"
+    },
+    "intro2SentAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Introduction 2 Sent At"
+    },
+    "callEventId": {
+      "type": "string",
+      "title": "Call Calendar Event ID (Google Calendar)"
+    },
+    "callEventAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Scheduled Call Time"
+    },
+    "callMeetingId": {
+      "type": "string",
+      "title": "Call Reminder Record ID (FronterMeeting shown in the coach popup)"
     }
   },
   "required": [

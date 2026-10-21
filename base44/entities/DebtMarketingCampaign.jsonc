@@ -14,6 +14,18 @@
       "type": "string",
       "title": "Saved Email Name (for display)"
     },
+    "intro2TemplateId": {
+      "type": "string",
+      "title": "Introduction 2 Email ID (auto-sent when the welcome message is watched + 2/3 links clicked)"
+    },
+    "intro2TemplateName": {
+      "type": "string",
+      "title": "Introduction 2 Email Name (for display)"
+    },
+    "welcomeLinkUrl": {
+      "type": "string",
+      "title": "Welcome Message Link (where the email's welcome / personal message link points \u2014 a click on it counts as watching the welcome message)"
+    },
     "subject": {
       "type": "string",
       "title": "Email Subject (supports {{firstName}} etc.)"

@@ -8,6 +8,7 @@
 import { useMemo, useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { buildSchedule, scheduleSummary, slotsPerDay } from '@/lib/debtMarketingSchedule';
+import { detectWelcomeLink } from '@/lib/welcomeLink';
 
 const GOLD = '#10b981';
 const BLUE = '#60a5fa';
@@ -21,6 +22,8 @@ export default function MarketingCampaignBuilder({ availableLeads, templates, us
   const [form, setForm] = useState({
     name: '',
     templateId: '',
+    intro2TemplateId: '',
+    welcomeLinkUrl: '',
     startDate: today(),
     startTime: '09:00',
     endDate: plusDays(7),
@@ -35,6 +38,17 @@ export default function MarketingCampaignBuilder({ availableLeads, templates, us
 
   const set = (key, value) => setForm((prev) => ({ ...prev, [key]: value }));
   const template = templates.find((t) => t.id === form.templateId);
+  const intro2 = templates.find((t) => t.id === form.intro2TemplateId);
+
+  // Picking the email also finds its welcome / personal message link.
+  const chooseTemplate = (id) => {
+    const chosen = templates.find((t) => t.id === id);
+    setForm((prev) => ({
+      ...prev,
+      templateId: id,
+      welcomeLinkUrl: chosen ? (detectWelcomeLink(chosen.bodyHtml) || prev.welcomeLinkUrl) : '',
+    }));
+  };
 
   const { times, summary } = useMemo(() => {
     const built = buildSchedule({
@@ -57,6 +71,7 @@ export default function MarketingCampaignBuilder({ availableLeads, templates, us
     if (saving) return;
     if (!form.name.trim()) { alert('Give the campaign a name.'); return; }
     if (!template) { alert('Choose the saved email to send.'); return; }
+    if (!form.intro2TemplateId) { alert('Choose the Introduction 2 email — that is what goes out automatically when a lead watches the welcome message and clicks 2 of the 3 links.'); return; }
     if (toSend === 0) { alert('No emails can be scheduled — check the dates, window and the leads available in the group.'); return; }
     setSaving(true);
     try {
@@ -64,6 +79,9 @@ export default function MarketingCampaignBuilder({ availableLeads, templates, us
         name: form.name.trim(),
         emailTemplateId: template.id,
         emailTemplateName: template.name || '',
+        intro2TemplateId: form.intro2TemplateId,
+        intro2TemplateName: intro2?.name || '',
+        welcomeLinkUrl: form.welcomeLinkUrl.trim(),
         subject: template.subject || '',
         startAt: `${form.startDate}T${form.startTime}:00`,
         endAt: `${form.endDate}T${form.endTime}:00`,
@@ -149,8 +167,20 @@ export default function MarketingCampaignBuilder({ availableLeads, templates, us
         </div>
         <div style={{ gridColumn: '1 / -1' }}>
           <label style={ls}>Saved email from Debt Call Coach</label>
-          <select value={form.templateId} onChange={(e) => set('templateId', e.target.value)} style={inp}>
+          <select value={form.templateId} onChange={(e) => chooseTemplate(e.target.value)} style={inp}>
             <option value="">— Select a saved email —</option>
+            {templates.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+          </select>
+        </div>
+        <div style={{ gridColumn: '1 / -1' }}>
+          <label style={ls}>Welcome message link (where “listen to my welcome message” points)</label>
+          <input value={form.welcomeLinkUrl} onChange={(e) => set('welcomeLinkUrl', e.target.value)} placeholder="https://…" style={inp} />
+          <div style={{ color: '#8a9ab8', fontSize: '10px', marginTop: '4px' }}>A click on this link is what counts as watching the welcome message.</div>
+        </div>
+        <div style={{ gridColumn: '1 / -1' }}>
+          <label style={ls}>Introduction 2 email (auto-sent when the welcome message is watched + 2 of the 3 links are clicked)</label>
+          <select value={form.intro2TemplateId} onChange={(e) => set('intro2TemplateId', e.target.value)} style={inp}>
+            <option value="">— Select the Introduction 2 email —</option>
             {templates.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
           </select>
         </div>
@@ -161,6 +191,11 @@ export default function MarketingCampaignBuilder({ availableLeads, templates, us
         <div style={{ marginTop: '4px' }}>
           This campaign needs <strong style={{ color: GOLD }}>{times.length}</strong> leads; the group has <strong>{availableLeads.length}</strong> available →
           {' '}<strong>{toSend}</strong> will be scheduled{shortBy > 0 ? ` (short by ${shortBy} leads)` : ''}.
+        </div>
+        <div style={{ marginTop: '4px' }}>
+          Auto-chain: {intro2
+            ? <><strong style={{ color: GOLD }}>{intro2.name}</strong> goes out when the welcome message is watched + 2 of the 3 links are clicked, then a call event is booked 4 hours later (or 12:30pm the next day).</>
+            : <span style={{ color: '#f59e0b' }}>choose an Introduction 2 email to switch the auto-send on.</span>}
         </div>
       </div>
 

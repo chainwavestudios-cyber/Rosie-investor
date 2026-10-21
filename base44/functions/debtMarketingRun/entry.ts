@@ -8,6 +8,8 @@
  */
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.54';
 import { MAILJET_FROM_NAME } from '../../shared/mailjetSender.ts';
+import { injectDccTracking, linkHostsFromHtml } from '../../shared/debtMarketingTracking.ts';
+import { scheduleIntro2Call } from '../../shared/debtMarketingEngage.ts';
 
 const MAX_CAMPAIGNS_PER_TICK = 5;
 const MAX_SENDS_PER_CAMPAIGN = 25;
@@ -53,16 +55,23 @@ export default async function (req: Request): Promise<Response> {
       );
       const due = duePage?.items || duePage || [];
 
-      const template = campaign.emailTemplateId
-        ? await base44.asServiceRole.entities.DebtEmailTemplate.get(campaign.emailTemplateId).catch(() => null)
-        : null;
-
+      // Introduction 2 rows carry their own saved email; everything else uses
+      // the campaign's email.
+      const templateCache: Record<string, any> = {};
+      const templateById = async (id: string) => {
+        if (!id) return null;
+        if (!(id in templateCache)) {
+          templateCache[id] = await base44.asServiceRole.entities.DebtEmailTemplate.get(id).catch(() => null);
+        }
+        return templateCache[id];
+      };
       let sent = 0;
       let failed = 0;
       let skipped = 0;
 
       for (const send of due) {
         try {
+          const template = await templateById(send.templateId || campaign.emailTemplateId);
           if (!template?.bodyHtml) {
             await base44.asServiceRole.entities.DebtMarketingSend.update(send.id, {
               status: 'skipped',
@@ -95,11 +104,22 @@ export default async function (req: Request): Promise<Response> {
             state: lead?.state || '',
             appointmentDate: '',
             debtAmount: lead?.debtAmount ? `$${Number(lead.debtAmount).toLocaleString()}` : '',
-            personalMessageUrl: '',
+            personalMessageUrl: campaign.welcomeLinkUrl || template.personalMessageUrl || '',
           };
           const subject = render(campaign.subject || template.subject || 'Debt Solutions', vars);
-          const html = render(template.bodyHtml, vars);
-          const text = html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+          const rendered = render(template.bodyHtml, vars);
+          // Opens, welcome-message views and link clicks come back through the
+          // campaign tracker (see debtMarketingTrack).
+          const trackable = template.trackingEnabled !== false;
+          const html = trackable
+            ? injectDccTracking(rendered, {
+              campaignId: campaign.id,
+              sendId: send.id,
+              vaultEntryId: send.vaultEntryId || '',
+            })
+            : rendered;
+          const text = rendered.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+          const linkHostsJson = trackable ? JSON.stringify(linkHostsFromHtml(rendered)) : '';
 
           const res = await fetch('https://api.mailjet.com/v3.1/send', {
             method: 'POST',
@@ -123,12 +143,25 @@ export default async function (req: Request): Promise<Response> {
             throw new Error(`Mailjet rejected the send (${res.status}): ${detail}`);
           }
 
+          const sentAtIso = new Date().toISOString();
           await base44.asServiceRole.entities.DebtMarketingSend.update(send.id, {
             status: 'sent',
-            sentAt: new Date().toISOString(),
+            sentAt: sentAtIso,
             email: to,
+            linkHostsJson,
             mailjetMessageId: String(payload?.Messages?.[0]?.To?.[0]?.MessageID || ''),
           });
+
+          // Introduction 2 has gone out — book the call that engagement earned:
+          // 4 hours later, or 12:30pm the next day when that is outside hours.
+          if (send.kind === 'intro2') {
+            await base44.asServiceRole.entities.DebtMarketingSend.update(send.id, { intro2SentAt: sentAtIso });
+            try {
+              await scheduleIntro2Call(base44, { ...send, intro2SentAt: sentAtIso }, campaign);
+            } catch (err: any) {
+              console.error(`[debtMarketingRun] call event failed for send ${send.id}:`, err?.message || String(err));
+            }
+          }
           sent++;
         } catch (err: any) {
           await base44.asServiceRole.entities.DebtMarketingSend.update(send.id, {

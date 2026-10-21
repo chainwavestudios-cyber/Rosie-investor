@@ -9,6 +9,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import MarketingGroupRoster from './MarketingGroupRoster';
 import MarketingCampaignBuilder from './MarketingCampaignBuilder';
+import MarketingEngagementReport from './MarketingEngagementReport';
 import MarketingCampaignsList from './MarketingCampaignsList';
 
 const GOLD = '#10b981';
@@ -58,6 +59,8 @@ export default function DccMarketingTab({ username }) {
         username={username}
         onCreated={load}
       />
+
+      <MarketingEngagementReport />
 
       <MarketingCampaignsList campaigns={campaigns} onChanged={load} />
 
