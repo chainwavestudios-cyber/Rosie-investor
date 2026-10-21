@@ -317,9 +317,11 @@ export default async function(req: Request): Promise<Response> {
       if (tagMatches.length > 0) {
         const taggedFields = [...new Set(tagMatches.map(m => m[1]))];
         scriptContext = `\n\nSCRIPT COLLECTION MARKERS:
-The agent's script contains collection markers in the format [[AI:fieldName]]. Each marker indicates that at that point in the script, the agent is collecting the specified field.
+The agent's script contains collection markers in the format [[AI:fieldName]] for a single contact card field, and [[AI:tab_<section>]] for a whole section of the contact card. Each marker indicates that at that point in the call, the agent is collecting that information.
 
 Tagged fields in this script: ${taggedFields.join(', ')}
+
+A marker starting with tab_ covers an entire card section: extract every contact card field that belongs to that section (for example tab_contact covers first name, last name, both phones, email and address; tab_debt covers the total debt amount, the debt type and the per-type amounts; tab_financials covers employment, income, age, tradelines, home value and home equity).
 
 <UNTRUSTED_SCRIPT>
 ${cleaned.slice(0, 4000)}

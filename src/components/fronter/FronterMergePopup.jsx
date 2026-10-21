@@ -329,7 +329,7 @@ export default function FronterMergePopup({ lead, username, fronterFirstName, is
                     if (!onSendEmail) return null;
                     return (
                       <div key={i} style={{ margin: '12px 0', display: 'flex', justifyContent: 'center' }}>
-                        <button onClick={onSendEmail} style={{ background: 'rgba(96,165,250,0.18)', color: BLUE, border: '2px solid rgba(96,165,250,0.55)', borderRadius: '8px', padding: '10px 24px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold', fontFamily: 'Georgia, serif', boxShadow: '0 0 12px rgba(96,165,250,0.33)' }}>📧 Send Credentials Email</button>
+                        <button onClick={onSendEmail} style={{ background: 'rgba(96,165,250,0.18)', color: BLUE, border: '2px solid rgba(96,165,250,0.55)', borderRadius: '8px', padding: '10px 24px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold', fontFamily: 'Georgia, serif', boxShadow: '0 0 12px rgba(96,165,250,0.33)' }}>📧 Send Credentials &amp; Welcome Message Email</button>
                       </div>
                     );
                   }

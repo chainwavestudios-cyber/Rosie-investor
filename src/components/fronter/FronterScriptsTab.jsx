@@ -15,7 +15,7 @@ import ScriptTeleprompter, { CUE_CATEGORIES } from '@/components/debt/ScriptTele
 import ScriptFormatToolbar from '@/components/debt/ScriptFormatToolbar';
 import ScriptWysiwygEditor from '@/components/debt/ScriptWysiwygEditor';
 import { htmlToBbcode } from '@/components/debt/ScriptRichText';
-import { FRONTER_CONTACT_FIELDS } from '@/lib/fronterContactFields';
+import { FRONTER_CONTACT_TABS } from '@/lib/fronterContactFields';
 
 const GOLD = '#10b981';
 const DARK = '#0a0f1e';
@@ -420,18 +420,23 @@ function FronterScriptsContent({ fronterFirstName, username }) {
                 <select
                   onChange={(e) => { if (e.target.value) insertAiFieldTag(e.target.value); e.target.selectedIndex = 0; }}
                   defaultValue=""
-                  title="Insert a field tag — when AI Review runs, it knows the transcript lines near this tag belong to this contact card field"
+                  title="Insert an AI field tag — a cue for the AI (never shown during the call) that the transcript lines near it belong to this contact card field, or to a whole tab of the card"
                   style={{ padding: '4px 8px', borderRadius: '4px', border: `1px solid ${GOLD}55`, background: `${GOLD}15`, color: GOLD, cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', fontFamily: 'Georgia, serif' }}
                 >
                   <option value="" disabled>🤖 AI Field Tag…</option>
-                  {FRONTER_CONTACT_FIELDS.map(f => (
-                    <option key={f.field} value={f.field} style={{ color: '#0a0f1e', background: '#fff' }}>{f.label}</option>
+                  {FRONTER_CONTACT_TABS.map(tab => (
+                    <optgroup key={tab.key} label={tab.label}>
+                      <option value={tab.tag} style={{ color: '#0a0f1e', background: '#fff' }}>🆔 Whole tab — {tab.label}</option>
+                      {tab.fields.map(f => (
+                        <option key={f.field} value={f.field} style={{ color: '#0a0f1e', background: '#fff' }}>{f.label}</option>
+                      ))}
+                    </optgroup>
                   ))}
                 </select>
                 <button onClick={insertDebtConfirmTag} title="Insert Debt Confirm button — fronter presses this to confirm debt type + total + per-type amounts from the transcript. Add [[AI:debtAmount]], [[AI:debtTypesJson]], and [[AI:debtAmountsJson]] tags where each is discussed." style={{ padding: '4px 10px', borderRadius: '4px', border: `1px solid ${GOLD}55`, background: `${GOLD}15`, color: GOLD, cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>💰 Debt Confirm</button>
                 <button onClick={insertCompletedStepsTag} title="Insert Completed Steps button — everything below this marker becomes the transfer script shown in the merge popup" style={{ padding: '4px 10px', borderRadius: '4px', border: `1px solid #22c55e55`, background: 'rgba(34,197,94,0.15)', color: '#22c55e', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>✅ Completed Steps</button>
                 <button onClick={insertAiInputTag} title="Insert AI Input button — fronter presses this to summarize the transcript so far into the notes" style={{ padding: '4px 10px', borderRadius: '4px', border: `1px solid #a78bfa55`, background: 'rgba(167,139,250,0.15)', color: '#a78bfa', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>🤖 AI Input</button>
-                <button onClick={insertSendEmailTag} title="Insert Send Email button — fronter presses this to automatically email the lead using the email from the contact card" style={{ padding: '4px 10px', borderRadius: '4px', border: `1px solid #60a5fa55`, background: 'rgba(96,165,250,0.15)', color: '#60a5fa', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>📧 Send Email</button>
+                <button onClick={insertSendEmailTag} title="Insert the Send Credentials & Welcome Message Email button — the fronter presses it inside the script to email the lead their portal credentials and welcome message, using the email on the contact card" style={{ padding: '4px 10px', borderRadius: '4px', border: `1px solid #60a5fa55`, background: 'rgba(96,165,250,0.15)', color: '#60a5fa', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>📧 Send Credentials &amp; Welcome Email</button>
               </div>
               {/* Inline formatting toolbar */}
               <div style={{ marginBottom: '8px', flexShrink: 0 }}>
@@ -453,7 +458,7 @@ function FronterScriptsContent({ fronterFirstName, username }) {
                 Tokens: <span style={{ color: GOLD, fontFamily: 'monospace' }}>{'{{first name}} {{last name}} {{phone}} {{zip}} {{city}} {{state}} {{email}}'}</span>
                 <span style={{ marginLeft: '12px' }}>Format: <span style={{ color: '#a78bfa', fontFamily: 'monospace' }}>[b]..[/b] [i]..[/i] [c=#hex]..[/c] [bg=#hex]..[/bg] [s=18]..[/s] [f=Arial]..[/f]</span></span>
                 <span style={{ marginLeft: '12px' }}>Cue: <span style={{ color: '#60a5fa', fontFamily: 'monospace' }}>@@CUE:reminder:text@@</span></span>
-                <span style={{ marginLeft: '12px' }}>AI Tag: <span style={{ color: GOLD, fontFamily: 'monospace' }}>[[AI:fieldName]]</span> <span style={{ color: '#4a5568' }}>— marks transcript lines for that contact card field (used by AI Review)</span></span>
+                <span style={{ marginLeft: '12px' }}>AI Tag: <span style={{ color: GOLD, fontFamily: 'monospace' }}>[[AI:fieldName]]</span> / <span style={{ color: GOLD, fontFamily: 'monospace' }}>[[AI:tab_contact]]</span> <span style={{ color: '#4a5568' }}>— cues the AI that these transcript lines hold that contact card field, or a whole card tab (editor only — never shown while calling)</span></span>
                 <span style={{ marginLeft: '12px' }}>Debt Confirm: <span style={{ color: GOLD, fontFamily: 'monospace' }}>@@DEBT_CONFIRM@@</span> <span style={{ color: '#4a5568' }}>— renders a button the fronter presses to confirm debt type + total + per-type amounts (reads [[AI:debtAmount]], [[AI:debtTypesJson]], [[AI:debtAmountsJson]] tags)</span></span>
                 <span style={{ marginLeft: '12px' }}>Completed Steps: <span style={{ color: '#22c55e', fontFamily: 'monospace' }}>@@COMPLETED_STEPS@@</span> <span style={{ color: '#4a5568' }}>— renders a button that opens the transfer popup with the script below it</span></span>
                 <span style={{ marginLeft: '12px' }}>AI Input: <span style={{ color: '#a78bfa', fontFamily: 'monospace' }}>@@AI_INPUT@@</span> <span style={{ color: '#4a5568' }}>— renders a button that summarizes the transcript so far into the notes</span></span>

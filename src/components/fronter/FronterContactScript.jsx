@@ -32,7 +32,7 @@ export default function FronterContactScript({ scripts, activeScript, onSelectSc
               );
               if (segment.toUpperCase() === 'SEND_EMAIL') return (
                 <div key={index} style={{ margin: '12px 0', display: 'flex', justifyContent: 'center' }}>
-                  <button onClick={onSendEmail} style={{ background: 'rgba(96,165,250,0.18)', color: '#60a5fa', border: '2px solid rgba(96,165,250,0.55)', borderRadius: '8px', padding: '10px 24px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold', fontFamily: 'Georgia, serif', boxShadow: '0 0 12px rgba(96,165,250,0.33)' }}>📧 Send Credentials Email</button>
+                  <button onClick={onSendEmail} style={{ background: 'rgba(96,165,250,0.18)', color: '#60a5fa', border: '2px solid rgba(96,165,250,0.55)', borderRadius: '8px', padding: '10px 24px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold', fontFamily: 'Georgia, serif', boxShadow: '0 0 12px rgba(96,165,250,0.33)' }}>📧 Send Credentials &amp; Welcome Message Email</button>
                 </div>
               );
               return <span key={index}>{renderFormatted(segment)}</span>;

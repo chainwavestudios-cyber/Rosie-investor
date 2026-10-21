@@ -7,6 +7,7 @@
  */
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { renderFormatted, stripFormatTags } from '@/components/debt/ScriptRichText';
+import { stripAiTags } from '@/lib/fronterContactFields';
 
 const GOLD = '#10b981';
 
@@ -47,7 +48,8 @@ export function parseScriptElements(content) {
     } else if (stripped === '') {
       continue;
     } else {
-      elements.push({ id: `script-${i}`, type: 'script', content: line, origLine: i });
+      // AI field tags are cues for the AI only — never shown while viewing or using the script
+      elements.push({ id: `script-${i}`, type: 'script', content: stripAiTags(line), origLine: i });
     }
   }
   return elements;
