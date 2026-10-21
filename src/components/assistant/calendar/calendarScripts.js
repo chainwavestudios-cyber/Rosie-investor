@@ -11,3 +11,14 @@ export const TRANSFER_SCRIPT = `Hello, this is Michie. I am calling in regards t
 I will go ahead and add you to his call queue, and he will answer shortly…`;
 
 export const appointmentLabel = (value) => value ? new Date(value).toLocaleString('en-US', { timeZone: 'America/New_York', weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZoneName: 'short' }) : 'Not scheduled';
+
+/** Built-in rebook wording — replaced by the super admin's script once they save one. */
+export const REBOOK_SCRIPT = (lead) => `Hi ${lead?.firstName || '{{firstname}}'}, this is Michie — Chris Bongiorno's assistant.
+
+I'm calling about your appointment set for ${appointmentLabel(lead?.appointmentDate)}. If that time no longer works for you, I can move it right now — what day and time works best?`;
+
+/** Fill {{firstname}}, {{Email}} and {{appointment}} in any assistant script. */
+export const fillScriptTokens = (text, lead) => String(text || '')
+  .replace(/\{\{firstname\}\}/gi, lead?.firstName || '')
+  .replace(/\{\{Email\}\}/gi, lead?.email || '')
+  .replace(/\{\{appointment\}\}/gi, appointmentLabel(lead?.appointmentDate));

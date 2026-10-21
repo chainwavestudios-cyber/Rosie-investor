@@ -12,6 +12,7 @@ import CalendarContactCard from '@/components/assistant/CalendarContactCard';
 import ChrisFastDial from '@/components/assistant/ChrisFastDial';
 import Next3HoursWindow from '@/components/assistant/Next3HoursWindow';
 import MarketingTab from '@/components/marketing/MarketingTab';
+import ContactCardEditorCard from '@/components/superadmin/cards/ContactCardEditorCard';
 
 const GOLD = '#10b981';
 const DARK = '#0a0f1e';
@@ -65,6 +66,8 @@ export default function AssistantPortal() {
     { id: 'dialer', label: '☎️ Dialer' },
     { id: 'guide', label: '📚 System Guide' },
     { id: 'marketing', label: '📣 Marketing' },
+    // Super admins master the assistant's contact card scripts from right here.
+    ...(isSuperAdmin ? [{ id: 'contactcard', label: '🗂 Contact Card Editor' }] : []),
   ];
 
   return (
@@ -105,6 +108,7 @@ export default function AssistantPortal() {
         {tab === 'dialer' && <AssistantDialer username={user?.username} prefilledNumber={fastDial.number || dialLead?.phone} prefilledName={fastDial.name || (dialLead ? `${dialLead.firstName || ''} ${dialLead.lastName || ''}`.trim() : '')} autoDial={fastDial.autoDial} />}
         {tab === 'guide' && <SystemGuide />}
         {tab === 'marketing' && <MarketingTab username={user?.username} />}
+        {tab === 'contactcard' && isSuperAdmin && <ContactCardEditorCard username={user?.username} />}
       </div>
 
       {user?.username?.toLowerCase() === 'msxyc' && <AppointmentReminders username={user.username} onDialLead={setReminderLead} />}

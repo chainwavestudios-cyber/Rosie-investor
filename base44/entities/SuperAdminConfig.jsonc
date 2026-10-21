@@ -21,6 +21,16 @@
       "title": "1-Hour Reminder Script ({{firstname}}, {{Email}} supported)",
       "format": "textarea"
     },
+    "rebookScript": {
+      "type": "string",
+      "title": "Rebook Appointment Script (read on the contact card's Rebook tab \u2014 {{firstname}}, {{Email}}, {{appointment}} supported)",
+      "format": "textarea"
+    },
+    "assistantScriptTabsJson": {
+      "type": "string",
+      "title": "Assistant Script Tabs (JSON array of {label, script} \u2014 extra tabs the super admin adds to every calendar contact card)",
+      "format": "textarea"
+    },
     "mergeScript": {
       "type": "string",
       "title": "Merge & Transfer Script (contact card merge popup)",

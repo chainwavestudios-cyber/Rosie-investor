@@ -7,10 +7,12 @@
 import { useEffect, useState } from 'react';
 import useSuperAdminConfig, { contactCardValues } from '@/hooks/useSuperAdminConfig';
 import { C, lbl, inputStyle, emptyStyle } from '@/components/superadmin/kit';
+import AssistantTabsEditor from '@/components/superadmin/cards/AssistantTabsEditor';
 
 const TEXT_FIELDS = [
   ['transferScript', 'Appointment transfer script', 'Spoken while the assistant adds the client to the queue.'],
   ['reminderScript', '1-hour reminder script', 'Supports {{firstname}} and {{Email}}.'],
+  ['rebookScript', 'Rebook appointment script', 'Read on the Rebook Appointment tab. Supports {{firstname}}, {{Email}} and {{appointment}} — leave empty to use the built-in wording.'],
   ['mergeScript', 'Merge & transfer script', 'Shown in the Merge & Transfer popup. Supports {{first name}}.'],
   ['welcomeMessage', 'Welcome message', 'The welcome the assistant sends clients; shown on their contact card.'],
 ];
@@ -94,6 +96,8 @@ export default function ContactCardEditorCard({ username }) {
           ))}
         </div>
       </div>
+
+      <AssistantTabsEditor value={draft.assistantScriptTabsJson || '[]'} onChange={(value) => set('assistantScriptTabsJson', value)} />
     </div>
   );
 }

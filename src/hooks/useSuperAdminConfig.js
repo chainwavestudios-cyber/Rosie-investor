@@ -17,6 +17,9 @@ I will go ahead and add you to his call queue, and he will answer shortly…`,
   reminderScript: '{{firstname}},\n\nThis is Chris Bongiorno\'s assistant from Debt Advisors of America. I just wanted to remind you of your upcoming appointment with Chris Bongiorno in 1 hour. Did you get a chance to review the email he sent, and watch his welcome message?\n\nIf they did: Great! I\'ll be calling back in one hour to connect you with Chris.\n\nIf no: Would you like me to send that email again to you at this email address {{Email}}?',
   mergeScript: "Alright {{first name}}, I've got a senior debt advisor ready to help you through this. I'm going to connect you now — stay on the line and they'll be right with you.",
   welcomeMessage: '',
+  // Empty = the built-in wording from calendarScripts.js is used instead.
+  rebookScript: '',
+  assistantScriptTabsJson: '[]',
   transferPhoneNumber: '+16193530919',
   transferPhoneNumber2: '+12162586934',
   transferLabel: '619-353-0919',
@@ -74,3 +77,20 @@ export default function useSuperAdminConfig() {
 
 /** Contact-card values with defaults applied — safe to read before the record loads. */
 export const contactCardValues = (config) => ({ ...DEFAULT_CONTACT_CARD, ...(config || {}) });
+
+/** Raw editor rows (including half-typed ones) behind the extra script tabs. */
+export const parseScriptTabRows = (json) => {
+  try {
+    const parsed = JSON.parse(json || '[]');
+    return Array.isArray(parsed) ? parsed.map((row) => ({ label: row?.label || '', script: row?.script || '' })) : [];
+  } catch { return []; }
+};
+
+/**
+ * The extra script tabs the super admin added, in order, ready for the assistant's
+ * calendar contact card. Rows still being typed (no label or no script) are skipped,
+ * so a blank tab never reaches the assistant.
+ */
+export const assistantScriptTabs = (config) => parseScriptTabRows(contactCardValues(config).assistantScriptTabsJson)
+  .filter((row) => String(row.label).trim() && String(row.script).trim())
+  .map((row, index) => ({ id: `custom-${index}`, label: String(row.label).trim(), script: row.script }));
