@@ -5,7 +5,7 @@
  * Prompt 2: Audio asset resolution → Clip A (name TTS), Clip B (regional phrase),
  *           Clip C (admin-recorded inbound initial message). Returned as ordered
  *           TwiML fragments (Play or Say) for sequential playback before the AI
- *           agent (Adam) connects.
+ *           agent connects.
  *
  * Region detection: riverside, san_bernardino, honolulu, or fallback — inferred
  * from the lead's city/state/zip since no explicit county field exists.
@@ -21,8 +21,8 @@ export interface InboundClip {
 }
 
 const REGIONAL_PHRASES: Record<Region, string | null> = {
-  riverside: "I hope the Inland Empire commute isn't too terrible today... for years I commuted the 91 to Corona daily, so I get it!",
-  san_bernardino: "I hope the Inland Empire commute isn't too terrible today... for years I commuted the 91 to Corona daily, so I get it!",
+  riverside: "I hope that 91 commute into Corona isn't beating you up too bad today—I did that drive for years, so I get it!",
+  san_bernardino: "I hope that 91 commute into Corona isn't beating you up too bad today—I did that drive for years, so I get it!",
   honolulu: "I hope that H-1 crawl isn't treating you too rough today...",
   fallback: null,
 };
@@ -110,6 +110,13 @@ export async function lookupInboundLead(base44: any, rawPhone: string) {
   return { client_name, region, leadId: lead.id, lead, leadType };
 }
 
+// Cheap content fingerprint so a cached clip never outlives a wording change.
+function textFingerprint(text: string): string {
+  let hash = 0;
+  for (let i = 0; i < text.length; i++) hash = (hash * 31 + text.charCodeAt(i)) % 1000000007;
+  return hash.toString(36).slice(0, 6);
+}
+
 // ── ElevenLabs TTS clip generation + cache (Prompt 2, Clip A/B) ─────────
 async function generateElevenLabsClip(base44: any, text: string, voiceId: string, cacheKey: string): Promise<string | null> {
   // Check cache first
@@ -160,12 +167,13 @@ export async function resolveInboundClips(base44: any, clientName: string, regio
   const voiceId = config?.inboundIntroVoiceId || config?.elevenLabsVoiceId || '';
   const pollyVoice = getPollyVoice(config?.ttsVoiceModel || 'aura-2-thalia-en');
 
-  // Clip A: Name greeting — "Hey {name},"
+  // Clip A: Name greeting + persona intro
   if (clientName && clientName !== 'there') {
-    const nameText = `Hey ${clientName},`;
+    const agentName = config?.inboundAgentName || 'Sarah';
+    const nameText = `Hi ${clientName}? Hey ${clientName}, this is ${agentName} with the Debt Verification Desk—thanks for calling back!`;
     if (voiceId) {
-      // Voice ID is part of the key so switching voices regenerates the clip
-      const cacheKey = `name:${clientName.toLowerCase()}:${voiceId.slice(0, 8)}`;
+      // Voice ID and wording are both in the key, so either change regenerates the clip
+      const cacheKey = `name:${clientName.toLowerCase()}:${voiceId.slice(0, 8)}:${textFingerprint(nameText)}`;
       const url = await generateElevenLabsClip(base44, nameText, voiceId, cacheKey);
       if (url) clips.push({ type: 'play', content: url });
       else clips.push({ type: 'say', content: nameText, voice: pollyVoice });
@@ -178,7 +186,7 @@ export async function resolveInboundClips(base44: any, clientName: string, regio
   const regionalText = REGIONAL_PHRASES[region];
   if (regionalText) {
     if (voiceId) {
-      const cacheKey = `region:${region}:${voiceId.slice(0, 8)}`;
+      const cacheKey = `region:${region}:${voiceId.slice(0, 8)}:${textFingerprint(regionalText)}`;
       const url = await generateElevenLabsClip(base44, regionalText, voiceId, cacheKey);
       if (url) clips.push({ type: 'play', content: url });
       else clips.push({ type: 'say', content: regionalText, voice: pollyVoice });

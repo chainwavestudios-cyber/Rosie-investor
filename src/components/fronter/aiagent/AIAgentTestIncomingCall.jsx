@@ -1,6 +1,6 @@
 /**
  * AIAgentTestIncomingCall.jsx — Rings the admin's own phone through the live
- * incoming-call path, so the greeting pipeline and Adam handoff can be heard
+ * incoming-call path, so the greeting pipeline and the agent handoff can be heard
  * without needing an outside phone to call the business line.
  */
 import { useState } from 'react';
@@ -41,7 +41,7 @@ export default function AIAgentTestIncomingCall({ config }) {
     <div style={{ background: 'rgba(16,185,129,0.06)', border: `1px solid ${GOLD}44`, borderRadius: '4px', padding: '14px', marginBottom: '14px' }}>
       <label style={{ display: 'block', color: GOLD, fontSize: '9px', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '4px' }}>🔊 Test an incoming call</label>
       <div style={{ color: '#8a9ab8', fontSize: '11px', lineHeight: 1.6, marginBottom: '10px' }}>
-        Your phone rings from the agent's own line and the call runs the real incoming path — caller-ID lookup, the intro clips, then Adam taking over. It creates a contact card for the number you enter, exactly like a real caller would.
+        Your phone rings from the agent's own line and the call runs the real incoming path — caller-ID lookup, the intro clips, then the agent taking over. It creates a contact card for the number you enter, exactly like a real caller would.
       </div>
 
       {!config?.twilioLineKey && (
@@ -51,7 +51,7 @@ export default function AIAgentTestIncomingCall({ config }) {
       )}
       {config?.twilioLineKey && config?.isActive === false && (
         <div style={{ color: AMBER, fontSize: '11px', marginBottom: '8px' }}>
-          ⚠ The AI agent is currently switched off, so a test call will ring a fronter rather than Adam.
+          ⚠ The AI agent is currently switched off, so a test call will ring a fronter rather than the agent.
         </div>
       )}
 

@@ -19,9 +19,9 @@ const CARD = { background: 'rgba(167,139,250,0.05)', border: '1px solid rgba(167
 
 const FLOW = [
   'Caller-ID reverse lookup matches the caller to their contact card (a new card is created for unknown callers).',
-  "Christopher's recorded intro plays, then the caller hears the opening line below.",
-  'A keyword trigger — or the end of the intro — hands the caller to the agent.',
-  'The agent collects the debt amount and type, reads the program disclosure, then queues the caller for a live transfer.',
+  'The caller hears their name greeting plus the regional commute line, then any recorded intro you have uploaded.',
+  'The agent opens with the bureau notice and the rate-drop question below, then works the pivots and confirms the debt amount and type.',
+  'The agent hands the caller to Chris and drops them into the live transfer queue with the queue hold message.',
 ];
 
 export default function AIAgentIncomingCallsTab({ config, update }) {
@@ -60,7 +60,7 @@ export default function AIAgentIncomingCallsTab({ config, update }) {
       {/* Persona */}
       <div style={CARD}>
         <label style={LABEL}>🤖 Incoming Agent Name</label>
-        <input value={config.inboundAgentName || 'Adam'} onChange={e => update('inboundAgentName', e.target.value)} placeholder="Adam" style={FIELD} />
+        <input value={config.inboundAgentName || 'Sarah'} onChange={e => update('inboundAgentName', e.target.value)} placeholder="Sarah" style={FIELD} />
         <div style={{ color: '#4a5568', fontSize: '10px', marginTop: '3px' }}>Use {'{{agent_name}}'} in the language below to have the agent say its own name.</div>
       </div>
 

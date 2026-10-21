@@ -1,8 +1,8 @@
 /**
  * leadTemplate.ts — Contact-card (FronterLead) tag substitution for the AI agent.
  *
- * Used by mediaStreamRelay for incoming-call language: Adam's opening line and
- * the inbound system prompt are rendered against the card the caller-ID reverse
+ * Used by mediaStreamRelay for incoming-call language: the inbound agent's opening
+ * line and the inbound system prompt are rendered against the card the caller-ID reverse
  * lookup produced. Unknown tags are left untouched so script markers such as
  * {{contingency_time}} are never stripped.
  *

@@ -126,12 +126,12 @@ async function handleInit(base44: any, body: any): Promise<Response> {
     }
   }
 
-  // Inbound Adam calls: the greeting clips already played via TwiML before the
-  // stream connected. Adam opens with his configured opener line.
+  // Inbound AI-agent calls: the greeting clips already played via TwiML before the
+  // stream connected. The agent opens with its configured opener line.
   const isInboundAdam = lead?.inboundAdamCall || lead?.callStatus === 'inbound_adam';
   if (isInboundAdam) {
     const opener = config.inboundOpener
-      || `Hey {{first_name}}, I'm a custom-built AI agent that Mr. Bongiorno personally coded. Fun fact, he's a software developer by night and a seasoned IAPDA Certified Debt Specialist by day. I just need a little information and I can get you into his queue for a real call. Roughly how much unsecured debt do you hold?`;
+      || `Quick question for you—we recently sent a notice to your address regarding active credit flags across Experian, TransUnion, and Equifax in {{state}}. It shows you're carrying around $20,000 in high-interest credit card debt, and that you qualify for the state rate-drop update. Did you happen to receive that notice in the mail yet, or are you still paying those high rates?`;
     greeting = renderLeadTemplate(opener, lead, {
       agentName: config.inboundAgentName,
       region: lead?.inboundRegion,
@@ -172,7 +172,7 @@ async function handleTurn(base44: any, body: any): Promise<Response> {
   const lead = leadResult.status === 'fulfilled' ? leadResult.value : null;
 
   // Build system prompt with variable substitution
-  // Inbound Adam calls use the dedicated inbound system prompt (Prompt 4)
+  // Inbound AI-agent calls use the dedicated inbound system prompt.
   const isInboundAdam = lead?.inboundAdamCall || lead?.callStatus === 'inbound_adam';
   const systemPrompt = (isInboundAdam && config.inboundSystemPrompt)
     ? config.inboundSystemPrompt
@@ -187,11 +187,15 @@ async function handleTurn(base44: any, body: any): Promise<Response> {
       .replace(/\{\{city\}\}/g, lead?.city || '')
       .replace(/\{\{state\}\}/g, lead?.state || '');
 
-  // Append script flow, dynamic rebuttals, and Q&A tuning (configured but previously never sent to the LLM)
+  // Script flow, dynamic rebuttals, and Q&A tuning are written for the outbound
+  // pitch — they contradict the inbound script, so inbound calls get the inbound
+  // prompt on its own.
   const promptSections = [filledPrompt];
-  if (config.scriptFlow) promptSections.push(`CALL EXECUTION FLOW:\n${config.scriptFlow}`);
-  if (config.dynamicRebuttals) promptSections.push(`OBJECTION HANDLING:\n${config.dynamicRebuttals}`);
-  if (config.qaTuning) promptSections.push(`TONE & Q&A GUIDANCE:\n${config.qaTuning}`);
+  if (!isInboundAdam) {
+    if (config.scriptFlow) promptSections.push(`CALL EXECUTION FLOW:\n${config.scriptFlow}`);
+    if (config.dynamicRebuttals) promptSections.push(`OBJECTION HANDLING:\n${config.dynamicRebuttals}`);
+    if (config.qaTuning) promptSections.push(`TONE & Q&A GUIDANCE:\n${config.qaTuning}`);
+  }
   const fullSystemPrompt = promptSections.join('\n\n---\n\n');
 
   // Build conversation text from structured messages (preserves role distinction)
@@ -287,7 +291,7 @@ async function handleTransfer(req: Request, base44: any, body: any): Promise<Res
   }
 
   // Play transfer announcement via bridge (ElevenLabs/Deepgram) before redirect.
-  // Inbound Adam calls skip it — Adam already said "I am putting you in the queue now.",
+  // Inbound AI-agent calls skip it — the agent already said "Hold on one second!",
   // so the caller goes straight into the queue with Custom Hold Music #2.
   const isInboundTransfer = lead?.inboundAdamCall || lead?.callStatus === 'inbound_adam';
   if (!isInboundTransfer) {

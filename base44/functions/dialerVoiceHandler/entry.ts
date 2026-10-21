@@ -212,9 +212,9 @@ export default async function(req) {
           });
           await base44.entities.FronterLead.update(leadId, {
             callStatus: 'queue_hold',
-            assignedQueue: 'Incoming Live Call Transfer - AI Agent',
+            assignedQueue: 'Incoming AI - validated through process',
             transferredAt: new Date().toISOString(),
-            transferredTo: 'Adam → Fronter Queue',
+            transferredTo: 'Incoming AI Agent → Fronter Queue',
           });
         } catch (e) { console.warn('[dialerVoiceHandler] Failed to create heads-up:', e?.message); }
 
@@ -440,8 +440,8 @@ export default async function(req) {
                 callStatus: 'inbound_adam',
                 inboundAdamCall: true,
                 inboundRegion: region,
-                assignedQueue: 'Incoming Live Call Transfer - AI Agent',
-                notes: `Inbound call from ${callerPhone} on ${new Date().toISOString()}. Awaiting Adam qualification.`,
+                assignedQueue: 'Incoming AI - validated through process',
+                notes: `Inbound call from ${callerPhone} on ${new Date().toISOString()}. Awaiting AI agent qualification.`,
               });
               inboundLeadId = created?.id || '';
             } catch (e) { console.warn('[dialerVoiceHandler] Failed to create inbound lead:', e?.message); }
@@ -452,7 +452,7 @@ export default async function(req) {
                 callStatus: 'inbound_adam',
                 inboundAdamCall: true,
                 inboundRegion: region,
-                assignedQueue: 'Incoming Live Call Transfer - AI Agent',
+                assignedQueue: 'Incoming AI - validated through process',
               });
             } catch (e) { console.warn('[dialerVoiceHandler] Failed to tag inbound lead:', e?.message); }
           }

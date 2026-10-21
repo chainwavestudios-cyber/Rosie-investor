@@ -62,7 +62,7 @@
     },
     "inboundIntroVoiceId": {
       "type": "string",
-      "title": "Inbound Intro Voice ID (ElevenLabs \u2014 speaks the name greeting and regional line before Adam; empty falls back to the agent voice)"
+      "title": "Inbound Intro Voice ID (ElevenLabs \u2014 speaks the name greeting and regional line before the agent connects; empty falls back to the agent voice)"
     },
     "deepgramTtsVoice": {
       "type": "string",
@@ -142,38 +142,38 @@
     "inboundAgentName": {
       "type": "string",
       "title": "Inbound AI Agent Name (the persona that greets inbound callers after the intro clips)",
-      "default": "Adam"
+      "default": "Sarah"
     },
     "inboundOpener": {
       "type": "string",
-      "title": "Inbound Adam Opening Line (the first thing Adam says when he takes over an inbound call \u2014 use {{first_name}} for personalization)",
+      "title": "Inbound Opening Line (the first thing the agent says when it takes over an inbound call \u2014 use {{first_name}} and {{state}} for personalization)",
       "format": "textarea",
-      "default": "Hey {{first_name}}, I'm a custom-built AI agent that Mr. Bongiorno personally coded. Fun fact, he's a software developer by night and a seasoned IAPDA Certified Debt Specialist by day. That means Chris has gone through many hours of training, and he's widely popular among private consumer groups and truly loves his clients. I just need a little information and I can get you into his queue for a real call. Roughly how much unsecured debt do you hold?"
+      "default": "Quick question for you\u2014we recently sent a notice to your address regarding active credit flags across Experian, TransUnion, and Equifax in {{state}}. It shows you're carrying around $20,000 in high-interest credit card debt, and that you qualify for the state rate-drop update. Did you happen to receive that notice in the mail yet, or are you still paying those high rates?"
     },
     "inboundSystemPrompt": {
       "type": "string",
-      "title": "Inbound Adam System Prompt (used for inbound calls \u2014 collects debt info then transfers to the live transfer queue)",
+      "title": "Inbound System Prompt (used for inbound calls \u2014 pivots, debt confirmation, then transfer into the live transfer queue)",
       "format": "textarea",
-      "default": "You are Adam, a custom-built AI voice agent personally coded by Mr. Bongiorno for Debt Advisors of America. You are warm, sharp, and concise. Keep every response to one or two sentences. Do not use formatting, emojis, or special characters."
+      "default": "You are {{agent_name}} \u2014 the female voice agent on the Debt Verification Desk for Debt Advisors of America. You are natural, professional, warm, and authoritative. Keep every response to one or two sentences. Do not use formatting, emojis, or special characters."
     },
     "inboundKeywordTriggers": {
       "type": "string",
-      "title": "Inbound Keyword Triggers (comma-separated phrases that skip the greeting and hand off to Adam early \u2014 e.g. 'let's get debt free, get debt free, let's do it')",
+      "title": "Inbound Keyword Triggers (comma-separated phrases that skip the greeting and hand off to the agent early \u2014 e.g. 'let's get debt free, get debt free, let's do it')",
       "default": "let's get debt free, get debt free, let's do it"
     },
     "scriptFlow": {
       "type": "string",
-      "title": "Script Flow (call execution phases)",
+      "title": "Script Flow (call execution phases \u2014 outbound calls only)",
       "format": "textarea"
     },
     "dynamicRebuttals": {
       "type": "string",
-      "title": "Dynamic Rebuttals & Objection Handling",
+      "title": "Dynamic Rebuttals & Objection Handling (outbound calls only)",
       "format": "textarea"
     },
     "qaTuning": {
       "type": "string",
-      "title": "Q&A Fine-Tuning Notes",
+      "title": "Q&A Fine-Tuning Notes (outbound calls only)",
       "format": "textarea"
     },
     "callbackBookingEnabled": {
