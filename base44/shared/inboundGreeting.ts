@@ -155,7 +155,9 @@ async function generateElevenLabsClip(base44: any, text: string, voiceId: string
 // ── Resolve the sequential playback queue (Prompt 2) ──────────────────
 export async function resolveInboundClips(base44: any, clientName: string, region: Region, config: any): Promise<InboundClip[]> {
   const clips: InboundClip[] = [];
-  const voiceId = config?.elevenLabsVoiceId || '';
+  // The intro voice is its own setting: the name greeting and regional line are
+  // spoken by the inbound intro voice, falling back to the agent's voice.
+  const voiceId = config?.inboundIntroVoiceId || config?.elevenLabsVoiceId || '';
   const pollyVoice = getPollyVoice(config?.ttsVoiceModel || 'aura-2-thalia-en');
 
   // Clip A: Name greeting — "Hey {name},"

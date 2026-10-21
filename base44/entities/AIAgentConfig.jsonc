@@ -60,6 +60,10 @@
       "type": "string",
       "title": "ElevenLabs Voice ID (separate from Deepgram voice)"
     },
+    "inboundIntroVoiceId": {
+      "type": "string",
+      "title": "Inbound Intro Voice ID (ElevenLabs \u2014 speaks the name greeting and regional line before Adam; empty falls back to the agent voice)"
+    },
     "deepgramTtsVoice": {
       "type": "string",
       "title": "Deepgram TTS Voice ID (Aura-2 or Flux \u2014 e.g. aura-2-thalia-en or flux-alexis-en)",

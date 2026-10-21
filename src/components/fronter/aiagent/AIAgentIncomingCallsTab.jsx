@@ -50,6 +50,13 @@ export default function AIAgentIncomingCallsTab({ config, update }) {
         </div>
       </div>
 
+      {/* Intro voice */}
+      <div style={CARD}>
+        <label style={LABEL}>🎙 Intro Voice ID (ElevenLabs — speaks the name greeting and the regional line)</label>
+        <input value={config.inboundIntroVoiceId || ''} onChange={e => update('inboundIntroVoiceId', e.target.value)} placeholder="ogwqBH5bbF03DSbNiRNN" style={FIELD} />
+        <div style={{ color: '#4a5568', fontSize: '10px', marginTop: '3px' }}>Leave empty to use the agent voice from 🎙 Voice & Audio Pipeline. Changing it regenerates the clips.</div>
+      </div>
+
       {/* Persona */}
       <div style={CARD}>
         <label style={LABEL}>🤖 Incoming Agent Name</label>
