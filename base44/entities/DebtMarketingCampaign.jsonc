@@ -1,0 +1,109 @@
+{
+  "name": "DebtMarketingCampaign",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "title": "Campaign Name"
+    },
+    "emailTemplateId": {
+      "type": "string",
+      "title": "Saved Email Used (Debt Call Coach email template ID)"
+    },
+    "emailTemplateName": {
+      "type": "string",
+      "title": "Saved Email Name (for display)"
+    },
+    "subject": {
+      "type": "string",
+      "title": "Email Subject (supports {{firstName}} etc.)"
+    },
+    "startAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "First Send Allowed (start date + time)"
+    },
+    "endAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Last Send Allowed (finish date + time)"
+    },
+    "windowStart": {
+      "type": "string",
+      "title": "Daily Window Start (HH:MM)"
+    },
+    "windowEnd": {
+      "type": "string",
+      "title": "Daily Window Stop (HH:MM)"
+    },
+    "intervalMinutes": {
+      "type": "number",
+      "title": "Minutes Between Sends",
+      "default": 5
+    },
+    "emailsPerSend": {
+      "type": "number",
+      "title": "Addresses Per Send",
+      "default": 1
+    },
+    "timezone": {
+      "type": "string",
+      "title": "Schedule Timezone",
+      "default": "America/New_York"
+    },
+    "leadsNeeded": {
+      "type": "number",
+      "title": "Leads This Schedule Requires",
+      "default": 0
+    },
+    "totalSends": {
+      "type": "number",
+      "title": "Total Scheduled Emails",
+      "default": 0
+    },
+    "sentCount": {
+      "type": "number",
+      "title": "Sent",
+      "default": 0
+    },
+    "failedCount": {
+      "type": "number",
+      "title": "Failed",
+      "default": 0
+    },
+    "skippedCount": {
+      "type": "number",
+      "title": "Skipped (no email on file)",
+      "default": 0
+    },
+    "status": {
+      "type": "string",
+      "title": "Status",
+      "enum": [
+        "running",
+        "paused",
+        "completed",
+        "cancelled"
+      ],
+      "default": "running"
+    },
+    "lastRunAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Last Engine Tick"
+    },
+    "createdBy": {
+      "type": "string",
+      "title": "Created By (username)"
+    }
+  },
+  "required": [
+    "name"
+  ],
+  "rls": {
+    "create": null,
+    "read": null,
+    "update": null,
+    "delete": null
+  }
+}

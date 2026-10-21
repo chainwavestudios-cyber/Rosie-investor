@@ -251,6 +251,9 @@ export default async function (req: Request): Promise<Response> {
       if (includeVault) {
         const vault = await db.LeadVaultEntry.list('-created_date', 3000);
         for (const v of vault || []) {
+          // Leads distributed to the Debt Call Coach marketing group are for
+          // outreach campaigns only — they never enter the Mailjet opt-in list.
+          if (v.destination === 'debt_marketing') continue;
           const email = clean(v.email).toLowerCase();
           if (!isEmail(email) || known.has(email)) continue;
           known.add(email);

@@ -29,7 +29,7 @@ export default function DistributionCard() {
   useEffect(() => { load(); const t = setInterval(load, 45000); return () => clearInterval(t); }, [load]);
 
   const total = pipeline.reduce((sum, r) => sum + (r.count || 0), 0);
-  const DIST_COLOR = { fronter: C.fronter, ai_dialer: C.purple, none: C.muted };
+  const DIST_COLOR = { fronter: C.fronter, ai_dialer: C.purple, debt_marketing: C.fronter, none: C.muted };
 
   return (
     <div>

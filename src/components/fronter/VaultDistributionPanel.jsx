@@ -73,6 +73,7 @@ export default function VaultDistributionPanel({ adminUsername, fronters, availa
       <div style={{ display: 'flex', gap: '6px', marginBottom: '14px' }}>
         <button onClick={() => setDestination('fronter')} style={{ flex: 1, padding: '10px', background: destination === 'fronter' ? `${GOLD}15` : 'rgba(255,255,255,0.03)', border: `1px solid ${destination === 'fronter' ? GOLD + '44' : 'rgba(255,255,255,0.08)'}`, borderRadius: '4px', color: destination === 'fronter' ? GOLD : '#6b7280', cursor: 'pointer', fontSize: '12px', fontWeight: destination === 'fronter' ? 'bold' : 'normal' }}>👤 To Fronter</button>
         <button onClick={() => setDestination('ai_dialer')} style={{ flex: 1, padding: '10px', background: destination === 'ai_dialer' ? `${PURPLE}15` : 'rgba(255,255,255,0.03)', border: `1px solid ${destination === 'ai_dialer' ? PURPLE + '44' : 'rgba(255,255,255,0.08)'}`, borderRadius: '4px', color: destination === 'ai_dialer' ? PURPLE : '#6b7280', cursor: 'pointer', fontSize: '12px', fontWeight: destination === 'ai_dialer' ? 'bold' : 'normal' }}>🤖 To AI Dialer</button>
+        <button onClick={() => setDestination('debt_marketing')} style={{ flex: 1, padding: '10px', background: destination === 'debt_marketing' ? `${BLUE}15` : 'rgba(255,255,255,0.03)', border: `1px solid ${destination === 'debt_marketing' ? BLUE + '44' : 'rgba(255,255,255,0.08)'}`, borderRadius: '4px', color: destination === 'debt_marketing' ? BLUE : '#6b7280', cursor: 'pointer', fontSize: '12px', fontWeight: destination === 'debt_marketing' ? 'bold' : 'normal' }}>📣 To DCC Marketing</button>
       </div>
 
       {/* Fronter selector */}
@@ -112,12 +113,12 @@ export default function VaultDistributionPanel({ adminUsername, fronters, availa
       </label>
 
       <button onClick={handleDistribute} disabled={distributing || availableCount === 0 || (destination === 'fronter' && !selectedFronter)} style={{ width: '100%', background: 'linear-gradient(135deg,#a78bfa,#8b5cf6)', color: DARK, border: 'none', borderRadius: '4px', padding: '12px', cursor: (distributing || availableCount === 0 || (destination === 'fronter' && !selectedFronter)) ? 'not-allowed' : 'pointer', fontSize: '13px', fontWeight: 'bold', opacity: (distributing || availableCount === 0 || (destination === 'fronter' && !selectedFronter)) ? 0.5 : 1 }}>
-        {distributing ? '⏳ Distributing…' : `📤 Distribute ${Math.min(quantity, availableCount)} Leads → ${destination === 'fronter' ? selectedFronter || 'select fronter' : 'AI Dialer'}`}
+        {distributing ? '⏳ Distributing…' : `📤 Distribute ${Math.min(quantity, availableCount)} Leads → ${destination === 'fronter' ? selectedFronter || 'select fronter' : destination === 'debt_marketing' ? 'DCC Marketing' : 'AI Dialer'}`}
       </button>
 
       {lastResult && !lastResult.error && (
         <div style={{ marginTop: '10px', padding: '10px', background: 'rgba(16,185,129,0.08)', borderRadius: '4px', color: GOLD, fontSize: '11px' }}>
-          ✓ {lastResult.distributed} leads distributed to {lastResult.destination === 'fronter' ? lastResult.assignedTo : 'AI Dialer'}
+          ✓ {lastResult.distributed} leads distributed to {lastResult.destination === 'fronter' ? lastResult.assignedTo : lastResult.destination === 'debt_marketing' ? 'Debt Call Coach Marketing' : 'AI Dialer'}
           {lastResult.skipped > 0 && <span style={{ color: '#f59e0b' }}> · {lastResult.skipped} skipped (VoIP, DNC or already assigned)</span>}
           {lastResult.mailersCreated === false && <span style={{ color: '#f59e0b' }}> · mailers skipped — Notice IDs assigned</span>}
         </div>

@@ -122,6 +122,7 @@ export default function VaultEntryTable({ entries, serverStats }) {
                 <td style={{ padding: '6px 12px', whiteSpace: 'nowrap' }}>
                   {e.destination === 'fronter' ? <span style={{ color: GOLD, fontSize: '10px' }}>👤 {e.assignedTo}</span> :
                    e.destination === 'ai_dialer' ? <span style={{ color: PURPLE, fontSize: '10px' }}>🤖 AI Dialer</span> :
+                   e.destination === 'debt_marketing' ? <span style={{ color: '#60a5fa', fontSize: '10px' }}>📣 DCC Marketing</span> :
                    <span style={{ color: '#4a5568', fontSize: '10px' }}>—</span>}
                 </td>
               </tr>

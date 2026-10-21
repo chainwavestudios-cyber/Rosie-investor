@@ -21,7 +21,7 @@ export default async function(req: Request): Promise<Response> {
     if (!entryIds || !Array.isArray(entryIds) || entryIds.length === 0) {
       return Response.json({ error: 'No entry IDs provided' }, { status: 400 });
     }
-    if (!destination || !['fronter', 'ai_dialer'].includes(destination)) {
+    if (!destination || !['fronter', 'ai_dialer', 'debt_marketing'].includes(destination)) {
       return Response.json({ error: 'Invalid destination' }, { status: 400 });
     }
     if (destination === 'fronter' && !assignedTo) {
@@ -62,6 +62,28 @@ export default async function(req: Request): Promise<Response> {
       if (!t) return 0;
       return Math.max(0, Math.floor((Date.now() - t) / 31557600000));
     };
+    // Debt Call Coach marketing leads stay in the vault as a marketing pool:
+    // no contact card, no digital mailer — just the group assignment. They are
+    // also excluded from the Mailjet opt-in roster (see emailOptIn).
+    if (destination === 'debt_marketing') {
+      const marketingNow = new Date().toISOString();
+      await base44.asServiceRole.entities.LeadVaultEntry.bulkUpdate(distributable.map((entry) => ({
+        id: entry.id,
+        destination,
+        assignedTo: '',
+        assignedAt: marketingNow,
+        distributedAt: marketingNow,
+        distributedBy: assignedBy || 'admin',
+      })));
+      return Response.json({
+        distributed: distributable.length,
+        skipped: entries.length - distributable.length,
+        mailersCreated: false,
+        destination,
+        assignedTo: 'Debt Call Coach Marketing',
+      });
+    }
+
     const noticeIds = await assignNoticeIds(base44, distributable.length);
     const records = distributable.map((entry, i) => {
       const leadNumber = `#F${String(num++).padStart(4, '0')}`;

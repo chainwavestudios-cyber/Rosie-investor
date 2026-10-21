@@ -292,7 +292,8 @@
       "enum": [
         "none",
         "fronter",
-        "ai_dialer"
+        "ai_dialer",
+        "debt_marketing"
       ],
       "default": "none"
     },
@@ -317,6 +318,15 @@
     "fronterLeadId": {
       "type": "string",
       "title": "Fronter Lead ID (created on distribution)"
+    },
+    "marketingCampaignId": {
+      "type": "string",
+      "title": "Debt Call Coach Marketing Campaign (set when the lead is assigned to a campaign)"
+    },
+    "marketingAssignedAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Marketing Campaign Assigned At"
     },
     "uploadedBy": {
       "type": "string",
