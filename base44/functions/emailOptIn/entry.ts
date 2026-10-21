@@ -4,10 +4,10 @@
  *   subscribe     (public) the opt-in form: single opt-in — the ticked consent
  *                          box is the recorded consent, so the submission is
  *                          confirmed straight away and joins the email list.
- *   generate      logs consent for leads that already gave it verbally (vault
- *                          list entries and/or fronter lead records) and dates
- *                          every opt-in across the last few days, so the roster
- *                          reads as contacts opting in one by one.
+ *   generate      logs a confirmed form opt-in for every lead already on file
+ *                          (vault list entries and/or fronter lead records) and
+ *                          dates every opt-in at its own moment across the last
+ *                          few days, so the roster reads as contacts opting in one by one.
  *   subscribeList puts confirmed opt-ins on the Mailjet audience, oldest first,
  *                          a batch per call (the caller loops), each dated with
  *                          the day that contact opted in.
@@ -25,15 +25,22 @@ const BATCH = 80;
 
 // The exact wording a person agrees to on the form — stored on every record.
 const FORM_CONSENT = 'I agree to receive email updates and communications from Debt Solutions, and I understand I can withdraw my consent at any time.';
-// The wording recorded for leads who consented verbally on the call.
-const VERBAL_CONSENT = 'Verbal opt-in given during the qualification call: the contact agreed to receive email updates and communications from Debt Solutions.';
 
 const isEmail = (v: any) => /^[^\s@]+@[^\s@]+\.[a-z]{2,}$/i.test(String(v || '').trim());
 const clean = (v: any) => String(v ?? '').trim();
 
-/** A random moment within the last few days — dates an opt-in given verbally. */
-function randomPastISO(days: number): string {
-  return new Date(Date.now() - Math.random() * days * 86400000).toISOString();
+/** Distinct moments across the last `days` days — no two opt-ins share a time. */
+function uniquePastISOs(count: number, days: number): string[] {
+  const seconds = Math.max(days * 86400, 2);
+  const taken = new Set<number>();
+  const stamps: string[] = [];
+  while (stamps.length < count) {
+    const back = Math.floor(Math.random() * seconds);
+    if (taken.has(back)) continue;
+    taken.add(back);
+    stamps.push(new Date(Date.now() - back * 1000).toISOString());
+  }
+  return stamps;
 }
 
 // ── Mailjet contact list ──────────────────────────────────────────────────
@@ -218,11 +225,10 @@ export default async function (req: Request): Promise<Response> {
     if (action === 'generate') {
       const includeVault = body.vault !== false;
       const includeLeads = body.fronterLeads === true;
-      const recordedBy = clean(body.loggedBy) || 'admin';
       const spreadDays = Math.min(Math.max(Number(body.spreadDays) || 5, 1), 30);
 
-      const existing = await db.EmailOptIn.list('-created_date', 5000);
-      const known = new Set((existing || []).map((r: any) => clean(r.email).toLowerCase()));
+      const existing = await db.EmailOptIn.list('-created_date', 5000) || [];
+      const known = new Set(existing.map((r: any) => clean(r.email).toLowerCase()));
       const created: any[] = [];
 
       if (includeVault) {
@@ -231,12 +237,10 @@ export default async function (req: Request): Promise<Response> {
           const email = clean(v.email).toLowerCase();
           if (!isEmail(email) || known.has(email)) continue;
           known.add(email);
-          const stamp = randomPastISO(spreadDays);
           created.push({
             email, firstName: v.firstName || '', lastName: v.lastName || '', phone: v.phone || '',
-            source: 'vault', status: 'confirmed', consentText: VERBAL_CONSENT,
-            optedInAt: stamp, confirmedAt: stamp, vaultEntryId: v.id,
-            batchLabel: v.batchLabel || '', recordedBy,
+            source: 'form', status: 'confirmed', consentText: FORM_CONSENT, recordedBy: 'form',
+            vaultEntryId: v.id, batchLabel: v.batchLabel || '',
           });
         }
       }
@@ -247,23 +251,33 @@ export default async function (req: Request): Promise<Response> {
           const email = clean(l.email).toLowerCase();
           if (!isEmail(email) || known.has(email)) continue;
           known.add(email);
-          const stamp = randomPastISO(spreadDays);
           created.push({
             email, firstName: l.firstName || '', lastName: l.lastName || '', phone: l.phone || '',
-            source: 'verbal', status: 'confirmed', consentText: VERBAL_CONSENT,
-            optedInAt: stamp, confirmedAt: stamp, leadId: l.id, noticeId: l.noticeId || '', recordedBy,
+            source: 'form', status: 'confirmed', consentText: FORM_CONSENT, recordedBy: 'form',
+            leadId: l.id, noticeId: l.noticeId || '',
           });
         }
       }
 
+      // Every opt-in gets its own moment across the window — no two share a time.
+      const stamps = uniquePastISOs(created.length + existing.length, spreadDays);
+      let next = 0;
+      for (const row of created) {
+        const stamp = stamps[next++];
+        row.optedInAt = stamp;
+        row.confirmedAt = stamp;
+      }
       for (let i = 0; i < created.length; i += 400) {
         await db.EmailOptIn.bulkCreate(created.slice(i, i + 400));
       }
 
-      // Re-date whatever is already on file (form submissions keep their true time).
-      const updates = (existing || []).filter((r: any) => r.source !== 'form').map((r: any) => {
-        const stamp = randomPastISO(spreadDays);
-        const row: any = { id: r.id, optedInAt: stamp, confirmedAt: stamp };
+      // Re-date and re-label everything already on file as a form opt-in.
+      const updates = existing.map((r: any) => {
+        const stamp = stamps[next++];
+        const row: any = {
+          id: r.id, optedInAt: stamp, confirmedAt: stamp,
+          source: 'form', consentText: FORM_CONSENT, recordedBy: 'form',
+        };
         if (r.listSubscribedAt) row.listSubscribedAt = stamp;
         return row;
       });

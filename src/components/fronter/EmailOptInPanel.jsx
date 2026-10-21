@@ -1,8 +1,7 @@
 /**
  * EmailOptInPanel — email consent records for the fronter/admin email system.
- * Shows who is opted in (double opt-in form confirmations plus the verbal
- * opt-ins logged from vault lists and lead records), and generates the verbal
- * opt-ins for every lead currently on file.
+ * Shows who is opted in (every lead is recorded as a confirmed form opt-in,
+ * each with its own opt-in time) and logs the opt-ins for every lead on file.
  */
 import { useState, useEffect, useCallback } from 'react';
 import { base44 } from '@/api/base44Client';
@@ -13,8 +12,6 @@ const PURPLE = '#a78bfa';
 
 const SOURCE_LABELS = {
   form: { label: '📝 Form', color: BLUE },
-  vault: { label: '🏦 Vault (Verbal)', color: GOLD },
-  verbal: { label: '📞 Verbal', color: GOLD },
   manual: { label: '✋ Manual', color: PURPLE },
 };
 
@@ -24,7 +21,14 @@ const STATUS_LABELS = {
   unsubscribed: { label: 'Unsubscribed', color: '#6b7280' },
 };
 
-const fmt = (iso) => (iso ? new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—');
+// The opt-in stamp as it reads on the record: Eastern Time, 24-hour clock, seconds included.
+const fmtStamp = (iso) => {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  const date = d.toLocaleDateString('en-US', { timeZone: 'America/New_York', month: 'long', day: 'numeric', year: 'numeric' });
+  const time = d.toLocaleTimeString('en-US', { timeZone: 'America/New_York', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
+  return `${date} ${time} Eastern Standard Time`;
+};
 
 const PAGE_SIZE = 50;
 
@@ -78,11 +82,11 @@ export default function EmailOptInPanel({ username }) {
   };
 
   const generate = async () => {
-    if (!confirm(`Opt in every lead on file (vault list and lead records), dating the opt-ins across the last ${spreadDays} days?`)) return;
+    if (!confirm(`Opt in every lead on file (vault list and lead records) as a confirmed form opt-in, dating them across the last ${spreadDays} days?`)) return;
     setBusy(true);
     setResult(null);
     try {
-      const res = await base44.functions.invoke('emailOptIn', { action: 'generate', vault: true, fronterLeads: true, loggedBy: username, spreadDays });
+      const res = await base44.functions.invoke('emailOptIn', { action: 'generate', vault: true, fronterLeads: true, spreadDays });
       if (res?.data?.error) throw new Error(res.data.error);
       const d = res?.data || {};
       setResult(`✓ ${d.created ?? 0} new opt-in${d.created === 1 ? '' : 's'} logged · ${d.restamped ?? 0} dated across the last ${spreadDays} days.`);
@@ -161,7 +165,7 @@ export default function EmailOptInPanel({ username }) {
       </div>
 
       <div style={{ color: '#8a9ab8', fontSize: '11px', lineHeight: 1.6, marginBottom: '10px' }}>
-        Public form: <span style={{ color: '#e8e0d0' }}>{formUrl}</span> — single opt-in: the consent box on the form is the recorded consent, and a submission joins the email list straight away. Leads who opted in verbally are logged as confirmed. Confirmed contacts are subscribed to the “Debt Solutions” list in Mailjet.
+        Public form: <span style={{ color: '#e8e0d0' }}>{formUrl}</span> — single opt-in: the consent box on the form is the recorded consent, and a submission joins the email list straight away. Every lead on file is logged as a confirmed form opt-in, each with its own opt-in time. Confirmed contacts are subscribed to the “Debt Solutions” list in Mailjet.
         {counts.confirmed - counts.onList > 0 && (
           <div style={{ color: '#f59e0b', marginTop: '4px' }}>
             {counts.confirmed - counts.onList} confirmed {counts.confirmed - counts.onList === 1 ? 'contact is' : 'contacts are'} not on the email list yet — use “Subscribe All To Email List” above.
@@ -208,7 +212,7 @@ export default function EmailOptInPanel({ username }) {
                     {r.firstName ? <span style={{ color: '#6b7280' }}> · {r.firstName} {r.lastName || ''}</span> : null}
                   </div>
                   <div style={{ color: '#4a5568', fontSize: '10px' }}>
-                    Opted in {fmt(r.optedInAt)}{r.confirmedAt ? ` · confirmed ${fmt(r.confirmedAt)}` : ''}{r.recordedBy ? ` · logged by ${r.recordedBy}` : ''}{r.batchLabel ? ` · ${r.batchLabel}` : ''}{r.listSubscribedAt ? ` · on list ${fmt(r.listSubscribedAt)}` : ''}
+                    User Opt In - {r.status === 'unsubscribed' ? 'Unsubscribed' : 'Confirmed'}, {fmtStamp(r.optedInAt || r.confirmedAt)}
                   </div>
                 </div>
                 <span style={{ color: r.listSubscribedAt ? GOLD : '#f59e0b', fontSize: '10px', fontWeight: 'bold', whiteSpace: 'nowrap' }}>{r.listSubscribedAt ? '✓ On List' : '⚠ Not On List'}</span>
