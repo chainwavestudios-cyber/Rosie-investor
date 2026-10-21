@@ -12,14 +12,13 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.52';
 const MJ_KEY = Deno.env.get('MAILJET_API_KEY') || '';
 const MJ_SECRET = Deno.env.get('MAILJET_API_SECRET') || '';
 const MJ_FROM_EMAIL = Deno.env.get('MAILJET_FROM_EMAIL') || '';
-const MJ_FROM_NAME = Deno.env.get('MAILJET_FROM_NAME') || 'Debt Advisors of America';
-const LOGO = 'https://media.base44.com/images/public/69cd2741578c9b5ce655395b/edc3cdbee_logo.png';
+const MJ_FROM_NAME = Deno.env.get('MAILJET_FROM_NAME') || 'Debt Solutions';
 const APP_URL = 'https://rosieai-investorpage.base44.app';
 
 // The exact wording a person agrees to on the form — stored on every record.
-const FORM_CONSENT = 'I agree to receive email updates and communications from Debt Advisors of America, and I understand I can withdraw my consent at any time.';
+const FORM_CONSENT = 'I agree to receive email updates and communications from Debt Solutions, and I understand I can withdraw my consent at any time.';
 // The wording recorded for leads who consented verbally on the call.
-const VERBAL_CONSENT = 'Verbal opt-in given during the qualification call: the contact agreed to receive email updates and communications from Debt Advisors of America.';
+const VERBAL_CONSENT = 'Verbal opt-in given during the qualification call: the contact agreed to receive email updates and communications from Debt Solutions.';
 
 const isEmail = (v: any) => /^[^\s@]+@[^\s@]+\.[a-z]{2,}$/i.test(String(v || '').trim());
 const clean = (v: any) => String(v ?? '').trim();
@@ -30,12 +29,7 @@ function confirmationHtml(firstName: string, link: string) {
 <html><body style="margin:0;padding:0;background:#ffffff;">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#ffffff;"><tr><td align="center" style="padding:24px 12px;">
 <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="width:600px;max-width:100%;background:#ffffff;border:1px solid #e5e7eb;border-radius:24px;overflow:hidden;">
-  <tr><td style="background:#0ea5e9;padding:20px 28px;">
-    <table role="presentation" cellpadding="0" cellspacing="0"><tr>
-      <td style="padding-right:12px;"><img src="${LOGO}" alt="Rosie AI" width="44" height="44" style="display:block;border-radius:12px;" /></td>
-      <td style="font-family:'DM Sans',Arial,sans-serif;font-size:16px;font-weight:700;color:#0d1117;">Rosie AI</td>
-    </tr></table>
-  </td></tr>
+  <tr><td style="background:#0ea5e9;padding:20px 28px;font-family:'DM Sans',Arial,sans-serif;font-size:16px;font-weight:700;letter-spacing:0.5px;color:#0d1117;">Debt Solutions</td></tr>
   <tr><td style="padding:32px 28px 10px;font-family:'Playfair Display',Georgia,serif;font-size:26px;line-height:1.25;color:#0d1117;">Confirm your email${greeting}</td></tr>
   <tr><td style="padding:0 28px;font-family:'DM Sans',Arial,sans-serif;font-size:15px;line-height:1.65;color:#0d1117;">
     You asked to receive email updates from us. Click the button below to confirm your subscription. If you did not request this, ignore this email and nothing further will be sent.
@@ -47,7 +41,7 @@ function confirmationHtml(firstName: string, link: string) {
     Or paste this link into your browser:<br /><span style="word-break:break-all;">${link}</span>
   </td></tr>
   <tr><td style="background:#0ea5e9;padding:16px 28px;font-family:'DM Sans',Arial,sans-serif;font-size:12px;color:#0d1117;">
-    Debt Advisors of America · You can unsubscribe at any time.
+    Debt Solutions · You can unsubscribe at any time.
   </td></tr>
 </table>
 </td></tr></table>

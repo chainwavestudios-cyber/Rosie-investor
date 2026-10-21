@@ -12,9 +12,8 @@ const BLUE = '#0ea5e9';
 const INK = '#0d1117';
 const MUTED = '#4b5563';
 const BORDER = '#e5e7eb';
-const LOGO = 'https://media.base44.com/images/public/69cd2741578c9b5ce655395b/edc3cdbee_logo.png';
 
-const CONSENT_TEXT = 'I agree to receive email updates and communications from Debt Advisors of America, and I understand I can withdraw my consent at any time.';
+const CONSENT_TEXT = 'I agree to receive email updates and communications from Debt Solutions, and I understand I can withdraw my consent at any time.';
 
 const field = { width: '100%', border: `1px solid ${BORDER}`, borderRadius: '12px', padding: '12px 14px', fontSize: '15px', outline: 'none', boxSizing: 'border-box', color: INK, background: '#fff' };
 const label = { display: 'block', fontSize: '11px', fontWeight: 'bold', color: '#374151', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.5px' };
@@ -70,9 +69,8 @@ export default function EmailOptInPage() {
   const shell = (children) => (
     <div style={{ minHeight: '100vh', background: '#f8f9fa', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px', fontFamily: "'DM Sans', Arial, sans-serif" }}>
       <div style={{ background: '#fff', borderRadius: '24px', border: `1px solid ${BORDER}`, boxShadow: '0 10px 40px rgba(0,0,0,0.07)', maxWidth: '520px', width: '100%', overflow: 'hidden' }}>
-        <div style={{ background: BLUE, padding: '18px 32px', display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <img src={LOGO} alt="Rosie AI" style={{ width: '40px', height: '40px', borderRadius: '10px', display: 'block' }} />
-          <div style={{ color: INK, fontSize: '16px', fontWeight: 'bold' }}>Rosie AI</div>
+        <div style={{ background: BLUE, padding: '20px 32px' }}>
+          <div style={{ color: INK, fontSize: '18px', fontWeight: 'bold', letterSpacing: '0.5px' }}>Debt Solutions</div>
         </div>
         <div style={{ padding: '32px' }}>{children}</div>
       </div>
@@ -123,7 +121,7 @@ export default function EmailOptInPage() {
     <>
       <h1 style={{ fontFamily: "'Playfair Display', Georgia, serif", color: INK, fontSize: '26px', margin: '0 0 8px' }}>Get our email updates</h1>
       <p style={{ color: MUTED, fontSize: '14px', lineHeight: 1.7, margin: '0 0 24px' }}>
-        Enter your details and confirm the email we send you to start receiving updates and important communications from Debt Advisors of America.
+        Enter your details and confirm the email we send you to start receiving updates and important communications from Debt Solutions.
       </p>
 
       <form onSubmit={submit}>
