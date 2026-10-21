@@ -15,6 +15,9 @@ const FIELDS = [
   { key: 'firstName', label: 'First Name', required: true },
   { key: 'lastName', label: 'Last Name', required: true },
   { key: 'phone', label: 'Phone', required: true },
+  { key: 'phoneLineType', label: 'Line Type' },
+  { key: 'phoneCarrier', label: 'Carrier' },
+  { key: 'dncFlag', label: 'DNC' },
   { key: 'phone2', label: 'Secondary Phone' },
   { key: 'email', label: 'Email' },
   { key: 'address', label: 'Address' },
@@ -40,6 +43,25 @@ const FIELDS = [
 
 const NUMERIC_FIELDS = new Set(['debtAmount', 'estimatedDebt', 'age', 'annualIncome', 'householdIncome', 'homeValue', 'homeEquity', 'tradelines']);
 
+/** Normalise a Line Type cell to the vault's enum (mobile | landline | voip | unknown). */
+function normalizeLineType(v) {
+  const s = String(v || '').toLowerCase().trim();
+  if (!s) return '';
+  if (/(voip|voice over|internet|virtual|google voice)/.test(s)) return 'voip';
+  if (/(mobile|cell|wireless|gsm|sms)/.test(s)) return 'mobile';
+  if (/(land|wire|fixed|residential|home)/.test(s)) return 'landline';
+  return 'unknown';
+}
+
+/** True when a DNC cell means the lead is on the Do-Not-Call list. */
+function isDncFlag(v) {
+  const s = String(v || '').toLowerCase().trim();
+  if (!s) return false;
+  if (/do not call/.test(s)) return true;
+  if (/\b(n|no|none|not|false|0|clean|clear|exempt|n\/a)\b/.test(s)) return false;
+  return /\b(y|yes|true|1|dnc|listed|registered|on)\b/.test(s);
+}
+
 function parseCSVLine(line) {
   const result = [];
   let current = '', inQuotes = false;
@@ -55,6 +77,9 @@ function parseCSVLine(line) {
 
 function autoMatch(header) {
   const h = header.toLowerCase().trim();
+  if (['line type', 'linetype', 'line_type', 'phone type', 'phonetype', 'phone_type', 'type of line'].some(p => h === p || h.includes(p))) return 'phoneLineType';
+  if (['dnc', 'do not call', 'dnc status', 'dnc flag', 'dnc listed'].some(p => h === p || h.includes(p))) return 'dncFlag';
+  if (['carrier', 'carrier name', 'phone carrier', 'network'].some(p => h === p || h.includes(p))) return 'phoneCarrier';
   if (['first name', 'first', 'fname', 'first_name', 'given name'].some(p => h === p || h.includes(p))) return 'firstName';
   if (['last name', 'last', 'lname', 'last_name', 'surname', 'family name'].some(p => h === p || h.includes(p))) return 'lastName';
   if (['phone', 'phone number', 'tel', 'mobile', 'cell', 'cell phone', 'telephone'].some(p => h === p || h.includes(p))) return 'phone';
@@ -155,6 +180,24 @@ export default function VaultUploadSection({ adminUsername, onUploaded }) {
           rec.litigator = false;
           rec.llrClean = true;
           rec.llrScrubbedAt = stamp;
+        }
+        // Values from the file's own columns win over the "already done" presets.
+        if (rec.phoneLineType !== undefined) {
+          const lt = normalizeLineType(rec.phoneLineType);
+          if (lt) rec.phoneLineType = lt; else delete rec.phoneLineType;
+        }
+        if (rec.phoneCarrier !== undefined) {
+          rec.phoneCarrier = String(rec.phoneCarrier || '').trim();
+          if (!rec.phoneCarrier) delete rec.phoneCarrier;
+        }
+        if (rec.dncFlag !== undefined) {
+          if (isDncFlag(rec.dncFlag)) {
+            rec.dncFederal = true;
+            rec.dncScrubStatus = 'scrubbed';
+            rec.llrClean = false;
+            rec.llrScrubbedAt = stamp;
+          }
+          delete rec.dncFlag;
         }
         if (rec.firstName && rec.lastName && rec.phone) { records.push(rec); success++; }
         else failed++;
