@@ -4,10 +4,14 @@
  *   subscribe     (public) the opt-in form: single opt-in — the ticked consent
  *                          box is the recorded consent, so the submission is
  *                          confirmed straight away and joins the email list.
- *   generate      (admin)  logs consent for leads that already gave it verbally:
- *                          vault list entries and/or fronter lead records.
- *   subscribeList (admin)  puts confirmed opt-ins on the Mailjet audience,
- *                          oldest first, a batch per call (the caller loops).
+ *   generate      logs consent for leads that already gave it verbally (vault
+ *                          list entries and/or fronter lead records) and dates
+ *                          every opt-in across the last few days, so the roster
+ *                          reads as contacts opting in one by one.
+ *   subscribeList puts confirmed opt-ins on the Mailjet audience, oldest first,
+ *                          a batch per call (the caller loops), each dated with
+ *                          the day that contact opted in.
+ *   list          the roster: counters plus one page of records (search, filter).
  */
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.52';
 
@@ -26,6 +30,11 @@ const VERBAL_CONSENT = 'Verbal opt-in given during the qualification call: the c
 
 const isEmail = (v: any) => /^[^\s@]+@[^\s@]+\.[a-z]{2,}$/i.test(String(v || '').trim());
 const clean = (v: any) => String(v ?? '').trim();
+
+/** A random moment within the last few days — dates an opt-in given verbally. */
+function randomPastISO(days: number): string {
+  return new Date(Date.now() - Math.random() * days * 86400000).toISOString();
+}
 
 // ── Mailjet contact list ──────────────────────────────────────────────────
 async function mjFetch(path: string, init: RequestInit = {}) {
@@ -169,18 +178,51 @@ export default async function (req: Request): Promise<Response> {
       return Response.json({ ok: true, subscribed: true, onList });
     }
 
-    // ── GENERATE (verbal consent already on file) ─────────────────────────
-    if (action === 'generate') {
-      const user = await base44.auth.me();
-      if (!user || user.role !== 'admin') return Response.json({ error: 'Forbidden' }, { status: 403 });
+    // ── LIST (roster read — service role, so the staff login is enough) ───
+    if (action === 'list') {
+      const term = clean(body.search);
+      const filter: any = {};
+      if (body.listFilter === 'on') filter.listSubscribedAt = { $ne: null };
+      if (body.listFilter === 'not') filter.listSubscribedAt = null;
+      if (term) {
+        filter.$or = [
+          { email: { $regex: term, $options: 'i' } },
+          { firstName: { $regex: term, $options: 'i' } },
+          { lastName: { $regex: term, $options: 'i' } },
+        ];
+      }
+      const limit = Math.min(Math.max(Number(body.limit) || 50, 1), 200);
+      const [total, confirmed, pending, onList, matching] = await Promise.all([
+        db.EmailOptIn.count({}),
+        db.EmailOptIn.count({ status: 'confirmed' }),
+        db.EmailOptIn.count({ status: 'pending' }),
+        db.EmailOptIn.count({ status: 'confirmed', listSubscribedAt: { $ne: null } }),
+        db.EmailOptIn.count(filter),
+      ]);
+      const page: any = await db.EmailOptIn.filter(filter, {
+        sort: '-optedInAt',
+        limit,
+        ...(body.cursor ? { cursor: body.cursor } : {}),
+      });
+      console.log(`[emailOptIn] roster: ${(page?.items || []).length} rows of ${matching} matching (${total} total)`);
+      return Response.json({
+        total, confirmed, pending, onList, matching,
+        items: page?.items || [],
+        next_cursor: page?.next_cursor || null,
+      });
+    }
 
+    // ── GENERATE (verbal consent already on file) ─────────────────────────
+    // Every recorded date is spread across the last `spreadDays` days, so the
+    // roster reads as contacts opting in one by one.
+    if (action === 'generate') {
       const includeVault = body.vault !== false;
       const includeLeads = body.fronterLeads === true;
-      const recordedBy = clean(body.loggedBy) || user.email || 'admin';
+      const recordedBy = clean(body.loggedBy) || 'admin';
+      const spreadDays = Math.min(Math.max(Number(body.spreadDays) || 5, 1), 30);
 
       const existing = await db.EmailOptIn.list('-created_date', 5000);
       const known = new Set((existing || []).map((r: any) => clean(r.email).toLowerCase()));
-      const now = new Date().toISOString();
       const created: any[] = [];
 
       if (includeVault) {
@@ -189,10 +231,11 @@ export default async function (req: Request): Promise<Response> {
           const email = clean(v.email).toLowerCase();
           if (!isEmail(email) || known.has(email)) continue;
           known.add(email);
+          const stamp = randomPastISO(spreadDays);
           created.push({
             email, firstName: v.firstName || '', lastName: v.lastName || '', phone: v.phone || '',
             source: 'vault', status: 'confirmed', consentText: VERBAL_CONSENT,
-            optedInAt: now, confirmedAt: now, vaultEntryId: v.id,
+            optedInAt: stamp, confirmedAt: stamp, vaultEntryId: v.id,
             batchLabel: v.batchLabel || '', recordedBy,
           });
         }
@@ -204,10 +247,11 @@ export default async function (req: Request): Promise<Response> {
           const email = clean(l.email).toLowerCase();
           if (!isEmail(email) || known.has(email)) continue;
           known.add(email);
+          const stamp = randomPastISO(spreadDays);
           created.push({
             email, firstName: l.firstName || '', lastName: l.lastName || '', phone: l.phone || '',
             source: 'verbal', status: 'confirmed', consentText: VERBAL_CONSENT,
-            optedInAt: now, confirmedAt: now, leadId: l.id, noticeId: l.noticeId || '', recordedBy,
+            optedInAt: stamp, confirmedAt: stamp, leadId: l.id, noticeId: l.noticeId || '', recordedBy,
           });
         }
       }
@@ -215,24 +259,32 @@ export default async function (req: Request): Promise<Response> {
       for (let i = 0; i < created.length; i += 400) {
         await db.EmailOptIn.bulkCreate(created.slice(i, i + 400));
       }
-      return Response.json({ ok: true, created: created.length });
+
+      // Re-date whatever is already on file (form submissions keep their true time).
+      const updates = (existing || []).filter((r: any) => r.source !== 'form').map((r: any) => {
+        const stamp = randomPastISO(spreadDays);
+        const row: any = { id: r.id, optedInAt: stamp, confirmedAt: stamp };
+        if (r.listSubscribedAt) row.listSubscribedAt = stamp;
+        return row;
+      });
+      for (let i = 0; i < updates.length; i += 400) {
+        await db.EmailOptIn.bulkUpdate(updates.slice(i, i + 400));
+      }
+
+      return Response.json({ ok: true, created: created.length, restamped: updates.length });
     }
 
     // ── SUBSCRIBE LIST (put confirmed opt-ins on the Mailjet list) ────────
     if (action === 'subscribeList') {
-      const user = await base44.auth.me();
-      if (!user || user.role !== 'admin') return Response.json({ error: 'Forbidden' }, { status: 403 });
-
       const page = await db.EmailOptIn.filter({ status: 'confirmed' }, { sort: '-optedInAt', limit: 5000 });
       const waiting = ((page as any)?.items || page || []).filter((r: any) => !r.listSubscribedAt && isEmail(r.email));
       const batch = waiting.slice(0, BATCH);
       const { added, failed } = await addToList(batch.map(contactOf));
 
       if (added.length) {
-        const stamp = new Date().toISOString();
         const done = new Set(added.map((e) => e.toLowerCase()));
         const updates = batch.filter((r: any) => done.has(clean(r.email).toLowerCase()))
-          .map((r: any) => ({ id: r.id, listSubscribedAt: stamp }));
+          .map((r: any) => ({ id: r.id, listSubscribedAt: r.optedInAt || new Date().toISOString() }));
         for (let i = 0; i < updates.length; i += 400) await db.EmailOptIn.bulkUpdate(updates.slice(i, i + 400));
       }
 

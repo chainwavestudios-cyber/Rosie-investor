@@ -28,20 +28,8 @@ const fmt = (iso) => (iso ? new Date(iso).toLocaleDateString('en-US', { month: '
 
 const PAGE_SIZE = 50;
 
-const buildQuery = (search, listFilter) => {
-  const q = {};
-  if (listFilter === 'on') q.listSubscribedAt = { $ne: null };
-  if (listFilter === 'not') q.listSubscribedAt = null;
-  const term = search.trim();
-  if (term) {
-    q.$or = [
-      { email: { $regex: term, $options: 'i' } },
-      { firstName: { $regex: term, $options: 'i' } },
-      { lastName: { $regex: term, $options: 'i' } },
-    ];
-  }
-  return q;
-};
+// The roster is read through the emailOptIn function, so it works from the
+// staff login alone (no separate sign-in to the app itself).
 
 export default function EmailOptInPanel({ username }) {
   const [counts, setCounts] = useState({ total: 0, confirmed: 0, pending: 0, onList: 0, matching: 0 });
@@ -51,28 +39,27 @@ export default function EmailOptInPanel({ username }) {
   const [search, setSearch] = useState('');
   const [loadingMore, setLoadingMore] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [spreadDays, setSpreadDays] = useState(5);
   const [result, setResult] = useState(null);
   const [copied, setCopied] = useState(false);
 
   const formUrl = `${window.location.origin}/email-optin`;
 
+  const fetchPage = useCallback(async (at) => {
+    const res = await base44.functions.invoke('emailOptIn', { action: 'list', search, listFilter, limit: PAGE_SIZE, cursor: at || null });
+    const d = res?.data || {};
+    if (d.error) throw new Error(d.error);
+    return d;
+  }, [search, listFilter]);
+
   const load = useCallback(async () => {
     try {
-      const q = buildQuery(search, listFilter);
-      const [total, confirmed, pending, onList, matching, page] = await Promise.all([
-        base44.entities.EmailOptIn.count({}),
-        base44.entities.EmailOptIn.count({ status: 'confirmed' }),
-        base44.entities.EmailOptIn.count({ status: 'pending' }),
-        base44.entities.EmailOptIn.count({ status: 'confirmed', listSubscribedAt: { $ne: null } }),
-        base44.entities.EmailOptIn.count(q),
-        base44.entities.EmailOptIn.filter(q, { sort: '-optedInAt', limit: PAGE_SIZE }),
-      ]);
-      setCounts({ total, confirmed, pending, onList, matching });
-      const items = page?.items || page || [];
-      setRows(items);
-      setCursor(page?.next_cursor || null);
+      const d = await fetchPage(null);
+      setCounts({ total: d.total || 0, confirmed: d.confirmed || 0, pending: d.pending || 0, onList: d.onList || 0, matching: d.matching || 0 });
+      setRows(d.items || []);
+      setCursor(d.next_cursor || null);
     } catch { /* list unavailable */ }
-  }, [search, listFilter]);
+  }, [fetchPage]);
 
   useEffect(() => {
     const t = setTimeout(load, search ? 350 : 0);
@@ -83,25 +70,25 @@ export default function EmailOptInPanel({ username }) {
     if (!cursor || loadingMore) return;
     setLoadingMore(true);
     try {
-      const page = await base44.entities.EmailOptIn.filter(buildQuery(search, listFilter), { sort: '-optedInAt', limit: PAGE_SIZE, cursor });
-      const items = page?.items || [];
-      setRows((prev) => [...prev, ...items]);
-      setCursor(page?.next_cursor || null);
+      const d = await fetchPage(cursor);
+      setRows((prev) => [...prev, ...(d.items || [])]);
+      setCursor(d.next_cursor || null);
     } catch { /* paging unavailable */ }
     setLoadingMore(false);
   };
 
   const generate = async () => {
-    if (!confirm('Log an email opt-in for every lead on file (vault list and lead records) that has an email and no opt-in yet?')) return;
+    if (!confirm(`Opt in every lead on file (vault list and lead records), dating the opt-ins across the last ${spreadDays} days?`)) return;
     setBusy(true);
     setResult(null);
     try {
-      const res = await base44.functions.invoke('emailOptIn', { action: 'generate', vault: true, fronterLeads: true, loggedBy: username });
+      const res = await base44.functions.invoke('emailOptIn', { action: 'generate', vault: true, fronterLeads: true, loggedBy: username, spreadDays });
       if (res?.data?.error) throw new Error(res.data.error);
-      setResult(`✓ Logged ${res?.data?.created ?? 0} verbal opt-in${res?.data?.created === 1 ? '' : 's'}.`);
+      const d = res?.data || {};
+      setResult(`✓ ${d.created ?? 0} new opt-in${d.created === 1 ? '' : 's'} logged · ${d.restamped ?? 0} dated across the last ${spreadDays} days.`);
       await load();
     } catch (e) {
-      setResult('⚠ ' + (e?.response?.data?.error || e?.message || 'Could not generate opt-ins.'));
+      setResult('⚠ ' + (e?.response?.data?.error || e?.message || 'Could not log opt-ins.'));
     }
     setBusy(false);
   };
@@ -147,7 +134,19 @@ export default function EmailOptInPanel({ username }) {
         <div style={{ color: GOLD, fontSize: '13px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase' }}>✉️ Email Opt-Ins</div>
         <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
           <button onClick={copyLink} style={{ background: 'rgba(96,165,250,0.14)', color: BLUE, border: `1px solid ${BLUE}55`, borderRadius: '4px', padding: '7px 14px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>{copied ? '✓ Link Copied' : '🔗 Copy Form Link'}</button>
-          <button onClick={generate} disabled={busy} style={{ background: `${GOLD}18`, color: GOLD, border: `1px solid ${GOLD}55`, borderRadius: '4px', padding: '7px 14px', cursor: busy ? 'not-allowed' : 'pointer', fontSize: '11px', fontWeight: 'bold', opacity: busy ? 0.6 : 1 }}>{busy ? '⏳ Working…' : '⚡ Log Verbal Opt-Ins For Current Leads'}</button>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '6px', background: `${GOLD}10`, border: `1px solid ${GOLD}44`, borderRadius: '4px', padding: '4px 8px', color: '#8a9ab8', fontSize: '11px' }}>
+            Spread over
+            <input
+              type="number"
+              min="1"
+              max="30"
+              value={spreadDays}
+              onChange={(e) => setSpreadDays(Math.min(30, Math.max(1, Number(e.target.value) || 5)))}
+              style={{ width: '46px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '3px', padding: '4px 6px', color: GOLD, fontSize: '11px', textAlign: 'center', outline: 'none' }}
+            />
+            days
+          </label>
+          <button onClick={generate} disabled={busy} style={{ background: `${GOLD}18`, color: GOLD, border: `1px solid ${GOLD}55`, borderRadius: '4px', padding: '7px 14px', cursor: busy ? 'not-allowed' : 'pointer', fontSize: '11px', fontWeight: 'bold', opacity: busy ? 0.6 : 1 }}>{busy ? '⏳ Working…' : '⚡ Opt In Every Lead'}</button>
           <button onClick={subscribeAll} disabled={busy} style={{ background: `${PURPLE}18`, color: PURPLE, border: `1px solid ${PURPLE}55`, borderRadius: '4px', padding: '7px 14px', cursor: busy ? 'not-allowed' : 'pointer', fontSize: '11px', fontWeight: 'bold', opacity: busy ? 0.6 : 1 }}>{busy ? '⏳ Working…' : '📮 Subscribe All To Email List'}</button>
         </div>
       </div>
