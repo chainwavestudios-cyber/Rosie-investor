@@ -420,7 +420,9 @@ export async function sendRateDropMailer(base44: any, opts: {
   const key = Deno.env.get('MAILJET_2_API_KEY');
   const secret = Deno.env.get('MAILJET_2_API_SECRET');
   const fromEmail = Deno.env.get('MAILJET_2_FROM_EMAIL');
-  const fromName = Deno.env.get('MAILJET_FROM_NAME') || 'Debt Solutions';
+  // Mailjet sends only — every Rate Drop mailer goes out under this sender name.
+  // Gmail-connected sends keep the Chris Bongiorno / DAAA signature (shared/emailSignature.ts).
+  const fromName = 'Stephani Sterling - RateDrop Credit Systems';
   if (!key || !secret || !fromEmail) throw new Error('Rate Drop Mailjet credentials not configured (MAILJET_2_API_KEY, MAILJET_2_API_SECRET, MAILJET_2_FROM_EMAIL)');
 
   const message: any = {
