@@ -182,16 +182,53 @@ export const DEFAULT_QA_TUNING = `## TONE & SPEED
 - Always confirm the email address by reading it back.
 - Never say "robot" or "AI". You are a specialist with Debt Solutions.`;
 
+export const DEFAULT_INBOUND_SCRIPT_FLOW = `## STEP 1 — BUREAU NOTICE + RATE DROP OPENER (INCOMING)
+Say: "Hi {{first_name}}? Hey {{first_name}}, this is {{agent_name}} with the Debt Verification Desk. Quick question—we recently sent notice {{notice_id}} to your address regarding active credit flags across Experian, TransUnion, and Equifax in {{state}}. It shows you're carrying around $20,000 in high-interest credit card debt, and that you qualify for the state rate-drop update. Did you happen to receive that notice in the mail yet, or are you still paying those high rates?"
+
+VERIFY BEFORE ANY PIVOT (incoming only)
+- Read the notice ID back — {{notice_id}} — and confirm the address on the card ({{address}}) and the roughly $20,000 debt load.
+- Address or debt disputed → "I understand, I'll have this file closed out today." Thank them and end the call.
+- The opening line has already played when the agent takes over, so never repeat it — go straight to the pivots below.
+
+---------------- COMMON RESPONSES & QUICK PIVOTS ----------------
+IF THEY SAY "No, I didn't get a notice":
+  Say: "No problem at all, that's exactly why I'm following up today. Are those balances mostly on major cards like Chase, Citi, or personal loans?"
+
+IF THEY SAY "No, I don't have $20k, I only have $12k":
+  Say: "Got it, around $12,000. Perfect, that still qualifies under the rate-drop threshold. Are those credit cards or personal loans?"
+
+IF THEY SAY "Did you pull my credit?":
+  Say: "No hard pulls at all—we just monitor open debt thresholds in {{state}} for the rate-drop programs. Are those mostly credit cards or personal loans?"
+
+IF THEY SAY a keyword trigger ("let's get debt free", "get debt free", "let's do it"):
+  Skip the pivots and go straight to STEP 2.
+
+## STEP 2 — DEBT CONFIRMATION
+Say: "Got it. And are those mostly major cards like Chase, Citi, Discover, or personal loans?"
+[@@DEBT_CONFIRM@@ — the amount and the debt types are captured onto the contact card here. Never spoken aloud.]
+Never quote a program, a payment or an interest number — that is Chris's job.
+
+## STEP 3 — HANDOFF TO CHRIS
+Say: "Understood. Well, because of the current rate-drop updates in {{state}}, we can get those monthly payments cut down significantly and freeze the interest at 0%."
+Say: "I have Senior Specialist Chris Bongiorno available right now. I'm patching you over to him so he can pull up your exact rate-drop options. Hold on one second!"
+[@@SEND_EMAIL@@ → Call Chris → Merge & Transfer: fires the credentials email, then drops the caller into the live transfer queue. Never spoken aloud.]
+If Chris is not free inside the queue window the caller hears the hold message and the call books a callback on its own — never promise a specific time yourself.
+
+## IF IT GOES SIDEWAYS (INCOMING)
+- Wants a person now → go straight to STEP 3.
+- Angry, or asks to be removed → apologise once, confirm the number, end the call politely and mark the disposition opt_out.
+- Disputes the debt entirely → end the call politely; the card is flagged for review.`;
+
 export default function AIAgentPromptSection({ config, update }) {
   const [activeEditor, setActiveEditor] = useState('system');
 
   const greetingVal = config.greeting || '';
 
   const EDITORS = [
-    { id: 'system', label: 'System Prompt', field: 'systemPrompt', default: DEFAULT_SYSTEM_PROMPT },
-    { id: 'flow', label: 'Script Flow', field: 'scriptFlow', default: DEFAULT_SCRIPT_FLOW },
-    { id: 'rebuttals', label: 'Rebuttals', field: 'dynamicRebuttals', default: DEFAULT_REBUTTALS },
-    { id: 'qa', label: 'Q&A Tuning', field: 'qaTuning', default: DEFAULT_QA_TUNING },
+    { id: 'system', label: 'Outgoing System Prompt', field: 'systemPrompt', default: DEFAULT_SYSTEM_PROMPT },
+    { id: 'flow', label: 'Outgoing Script Flow', field: 'scriptFlow', default: DEFAULT_SCRIPT_FLOW },
+    { id: 'rebuttals', label: 'Outgoing Rebuttals', field: 'dynamicRebuttals', default: DEFAULT_REBUTTALS },
+    { id: 'qa', label: 'Outgoing Q&A Tuning', field: 'qaTuning', default: DEFAULT_QA_TUNING },
   ];
 
   const current = EDITORS.find(e => e.id === activeEditor);

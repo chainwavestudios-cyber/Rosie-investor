@@ -6,7 +6,7 @@
  */
 import { useState } from 'react';
 import { INBOUND_LEAD_TAGS } from './inboundLeadTags';
-import { DEFAULT_INBOUND_OPENER, DEFAULT_INBOUND_PROMPT } from './AIAgentPromptSection';
+import { DEFAULT_INBOUND_OPENER, DEFAULT_INBOUND_PROMPT, DEFAULT_INBOUND_SCRIPT_FLOW } from './AIAgentPromptSection';
 import AIAgentTestIncomingCall from './AIAgentTestIncomingCall';
 
 const GOLD = '#10b981';
@@ -88,6 +88,16 @@ export default function AIAgentIncomingCallsTab({ config, update }) {
         </div>
         <textarea value={config.inboundSystemPrompt || ''} onChange={e => update('inboundSystemPrompt', e.target.value)} rows={26} placeholder={DEFAULT_INBOUND_PROMPT} style={{ ...FIELD, lineHeight: 1.6, resize: 'vertical' }} />
         <div style={{ color: '#4a5568', fontSize: '10px', marginTop: '4px' }}>{(config.inboundSystemPrompt || '').length} characters · Leave empty to use the default script.</div>
+      </div>
+
+      {/* Incoming script flow */}
+      <div style={CARD}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+          <label style={{ ...LABEL, marginBottom: 0 }}>🧭 Incoming Script Flow (call execution phases for incoming calls)</label>
+          <button onClick={() => { if (confirm('Reset the incoming script flow to the default incoming script? Current edits will be lost.')) update('inboundScriptFlow', DEFAULT_INBOUND_SCRIPT_FLOW); }} style={SMALL_BTN}>↺ Reset to Default</button>
+        </div>
+        <textarea value={config.inboundScriptFlow || ''} onChange={e => update('inboundScriptFlow', e.target.value)} rows={26} placeholder={DEFAULT_INBOUND_SCRIPT_FLOW} style={{ ...FIELD, lineHeight: 1.6, resize: 'vertical' }} />
+        <div style={{ color: '#4a5568', fontSize: '10px', marginTop: '4px' }}>{(config.inboundScriptFlow || '').length} characters · Incoming calls only. Outgoing dials run the Script Flow in the ⚙️ Agent Configuration tab.</div>
       </div>
 
       {/* Contact-card tags */}

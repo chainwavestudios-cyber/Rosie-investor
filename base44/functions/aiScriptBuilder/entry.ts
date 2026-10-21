@@ -25,7 +25,7 @@ const SYSTEM = `You are the lead script architect for an American debt-settlemen
 
 const CFG_FIELDS = [
   'greeting', 'scriptFlow', 'dynamicRebuttals', 'qaTuning', 'systemPrompt',
-  'inboundAgentName', 'inboundOpener', 'inboundSystemPrompt', 'inboundKeywordTriggers',
+  'inboundAgentName', 'inboundOpener', 'inboundSystemPrompt', 'inboundScriptFlow', 'inboundKeywordTriggers',
 ];
 
 const SCRIPT_TYPES = ['open', 'discovery', 'rebuttal', 'close', 'custom'];
@@ -52,7 +52,7 @@ const SECTION_SCHEMAS: Record<string, any> = {
     type: 'object',
     properties: {
       greeting: STR, scriptFlow: STR, dynamicRebuttals: STR, qaTuning: STR, systemPrompt: STR,
-      inboundAgentName: STR, inboundOpener: STR, inboundSystemPrompt: STR, inboundKeywordTriggers: STR,
+      inboundAgentName: STR, inboundOpener: STR, inboundSystemPrompt: STR, inboundScriptFlow: STR, inboundKeywordTriggers: STR,
     },
   },
   objections: {
@@ -103,7 +103,7 @@ const SECTION_SCHEMAS: Record<string, any> = {
         type: 'object',
         properties: {
           greeting: STR, scriptFlow: STR, dynamicRebuttals: STR, qaTuning: STR, systemPrompt: STR,
-          inboundAgentName: STR, inboundOpener: STR, inboundSystemPrompt: STR, inboundKeywordTriggers: STR,
+          inboundAgentName: STR, inboundOpener: STR, inboundSystemPrompt: STR, inboundScriptFlow: STR, inboundKeywordTriggers: STR,
         },
       },
     },
@@ -220,10 +220,11 @@ Rules:
 - inboundAgentName: keep the current agent name unless the source names someone else.
 - inboundOpener: the first line the inbound agent says after the intro clips, personalised with {{first_name}} and {{state}} — reference the notice, the roughly $20,000 in high-interest credit card debt and the state rate-drop update.
 - inboundSystemPrompt: the MINIMAL inbound script — greet, hold the caller on the roughly $20,000 in high-interest debt and the state rate-drop notice, confirm the debt, then hand off to the live transfer queue. Short spoken lines, never a long brief.
+- inboundScriptFlow: the INCOMING call flow only — the phases in order, the notice-ID/address verification, the debt confirmation, and the handoff to the live transfer queue. Never the outbound phases.
 - inboundKeywordTriggers: comma-separated phrases from the source that skip straight to the agent hand-off.
 - Every field is plain spoken text, no markdown. Leave a field out only when the source truly says nothing about it.
 
-Return JSON: {"greeting":"","scriptFlow":"","dynamicRebuttals":"","qaTuning":"","systemPrompt":"","inboundAgentName":"","inboundOpener":"","inboundSystemPrompt":"","inboundKeywordTriggers":""}`,
+Return JSON: {"greeting":"","scriptFlow":"","dynamicRebuttals":"","qaTuning":"","systemPrompt":"","inboundAgentName":"","inboundOpener":"","inboundSystemPrompt":"","inboundScriptFlow":"","inboundKeywordTriggers":""}`,
   },
   objections: {
     prompt: (src, label) => `Write the complete rebuttal set for the live calls that follow this script ("${label}"). Produce between 12 and 20 objections.
@@ -287,7 +288,7 @@ Rules:
 - name: a short NEW name for this direction's AI script, e.g. "INCOMING — rate-drop AI script (v2)". Match the style of the current name given in CONTEXT and bump its version marker.
 - script: the complete script for that direction, in the same order and wording style as the source, written to be spoken aloud word for word, no markdown. Use {{first_name}}, {{state}} and {{debt_amount}} where personalisation belongs.
 - config: only the fields for THAT direction.
-  - incoming: inboundOpener, inboundSystemPrompt, scriptFlow, dynamicRebuttals, qaTuning, and inboundAgentName (keep the current agent name). The inbound opener and inbound system prompt must be the minimal, $20k-anchored script described above — never a long operating brief.
+  - incoming: inboundOpener, inboundSystemPrompt, inboundScriptFlow, and inboundAgentName (keep the current agent name). The inbound opener, inbound system prompt and inbound script flow must be the minimal, $20k-anchored incoming script described above — never a long operating brief.
   - outgoing: greeting, systemPrompt, scriptFlow, dynamicRebuttals, qaTuning.
 - System Prompt = the full operating brief for that direction: role, tone, pacing, qualification order, compliance guardrails, what it must never say, and when to hand off.
 - Script Flow = the call phases in order, each with the exact lines to say and the condition for moving on.
@@ -296,7 +297,7 @@ Rules:
 - Ground every answer, rebuttal and Q&A in the KNOWLEDGE BASE from CONTEXT — reuse its facts, processes, timelines and compliance language. Never invent products, fees, prices or promises.
 - Every field is plain spoken text, no markdown.
 
-Return JSON: {"name":"","direction":"incoming","script":"","config":{"greeting":"","systemPrompt":"","scriptFlow":"","dynamicRebuttals":"","qaTuning":"","inboundOpener":"","inboundSystemPrompt":""}}
+Return JSON: {"name":"","direction":"incoming","script":"","config":{"greeting":"","systemPrompt":"","scriptFlow":"","dynamicRebuttals":"","qaTuning":"","inboundOpener":"","inboundSystemPrompt":"","inboundScriptFlow":""}}
 
 SOURCE SCRIPT ("${label}" — the script that already exists for the OTHER direction):
 """
@@ -343,7 +344,7 @@ async function counterpartContext(base44: any, sourceDirection: string) {
     const cfg = Array.isArray(rows) ? rows[0] : (rows?.items || [])[0];
     if (cfg) {
       const fields = target === 'incoming'
-        ? ['inboundAgentName', 'inboundOpener', 'inboundSystemPrompt', 'scriptFlow', 'dynamicRebuttals', 'qaTuning']
+        ? ['inboundAgentName', 'inboundOpener', 'inboundSystemPrompt', 'inboundScriptFlow', 'inboundKeywordTriggers']
         : ['greeting', 'systemPrompt', 'scriptFlow', 'dynamicRebuttals', 'qaTuning'];
       fields.forEach(f => { if (cfg[f]) ctx.currentTargetConfig[f] = String(cfg[f]).slice(0, 1200); });
     }

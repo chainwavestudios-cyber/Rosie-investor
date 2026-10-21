@@ -197,7 +197,8 @@ export default function FronterAIAgentTab({ adminUsername }) {
 
       {/* Prompt Workbench */}
       <div style={{ background: '#0d1b2a', border: '1px solid rgba(16,185,129,0.15)', borderRadius: '6px', padding: '18px', marginBottom: '16px' }}>
-        <label style={SECTION_LABEL}>✏️ Prompt & Script Tuning Workbench</label>
+        <label style={SECTION_LABEL}>✏️ Prompt & Script Tuning Workbench — Outgoing AI dialer</label>
+        <div style={{ color: '#4a5568', fontSize: '10px', marginBottom: '10px' }}>These four sections drive the outgoing AI dials only. Incoming calls use their own prompt and script flow in the 📞 Incoming Calls tab.</div>
         <AIAgentPromptSection config={config} update={update} />
       </div>
 

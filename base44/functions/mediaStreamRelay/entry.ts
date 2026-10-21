@@ -187,11 +187,14 @@ async function handleTurn(base44: any, body: any): Promise<Response> {
       .replace(/\{\{city\}\}/g, lead?.city || '')
       .replace(/\{\{state\}\}/g, lead?.state || '');
 
-  // Script flow, dynamic rebuttals, and Q&A tuning are written for the outbound
-  // pitch — they contradict the inbound script, so inbound calls get the inbound
-  // prompt on its own.
+  // Each direction runs its own flow: incoming calls use the inbound script flow,
+  // outgoing dials use the outbound flow with its rebuttals and Q&A notes.
   const promptSections = [filledPrompt];
-  if (!isInboundAdam) {
+  if (isInboundAdam) {
+    if (config.inboundScriptFlow) {
+      promptSections.push(`INBOUND CALL EXECUTION FLOW:\n${renderLeadTemplate(config.inboundScriptFlow, lead, { agentName: config.inboundAgentName, region: lead?.inboundRegion })}`);
+    }
+  } else {
     if (config.scriptFlow) promptSections.push(`CALL EXECUTION FLOW:\n${config.scriptFlow}`);
     if (config.dynamicRebuttals) promptSections.push(`OBJECTION HANDLING:\n${config.dynamicRebuttals}`);
     if (config.qaTuning) promptSections.push(`TONE & Q&A GUIDANCE:\n${config.qaTuning}`);

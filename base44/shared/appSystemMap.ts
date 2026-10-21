@@ -319,7 +319,7 @@ export const HEAVY_FIELDS = new Set([
   'transcriptJson', 'bodyHtml', 'body', 'layoutDataJson', 'modulesJson', 'callsJson', 'byAgentJson',
   'byTypeJson', 'callAnalysisJson', 'intentPlaybookJson', 'profileJson', 'aiPopulateLogJson',
   'notesLogJson', 'debtLedgerJson', 'billsJson', 'rescheduleSlotsJson', 'recordingUrl', 'credentialReportJson',
-  'scriptText', 'content', 'systemPrompt', 'inboundSystemPrompt', 'dynamicRebuttals', 'qaTuning', 'scriptFlow',
+  'scriptText', 'content', 'systemPrompt', 'inboundSystemPrompt', 'inboundScriptFlow', 'dynamicRebuttals', 'qaTuning', 'scriptFlow',
 ]);
 
 export function buildAppAgentSystemPrompt(who: any, ctx: any) {

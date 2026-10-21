@@ -130,13 +130,13 @@
     },
     "greeting": {
       "type": "string",
-      "title": "Opening Greeting (spoken aloud when the prospect answers \u2014 NOT the system prompt)",
+      "title": "Opening Greeting \u2014 Outgoing (spoken aloud when the prospect answers \u2014 NOT the system prompt)",
       "format": "textarea",
       "default": "Hi, may I speak with {{first_name}} please?"
     },
     "systemPrompt": {
       "type": "string",
-      "title": "System Prompt (full agent instructions \u2014 never read aloud)",
+      "title": "System Prompt \u2014 Outgoing (full agent instructions for outbound dials \u2014 never read aloud)",
       "format": "textarea"
     },
     "inboundAgentName": {
@@ -152,9 +152,14 @@
     },
     "inboundSystemPrompt": {
       "type": "string",
-      "title": "Inbound System Prompt (used for inbound calls \u2014 pivots, debt confirmation, then transfer into the live transfer queue)",
+      "title": "Inbound System Prompt (used for inbound calls only \u2014 pivots, debt confirmation, then transfer into the live transfer queue)",
       "format": "textarea",
       "default": "You are {{agent_name}} \u2014 the female voice agent on the Debt Verification Desk for Debt Advisors of America. You are natural, professional, warm, and authoritative. Keep every response to one or two sentences. Do not use formatting, emojis, or special characters."
+    },
+    "inboundScriptFlow": {
+      "type": "string",
+      "title": "Inbound Script Flow (call execution phases for incoming calls only \u2014 separate from the outgoing Script Flow)",
+      "format": "textarea"
     },
     "inboundKeywordTriggers": {
       "type": "string",
@@ -163,17 +168,17 @@
     },
     "scriptFlow": {
       "type": "string",
-      "title": "Script Flow (call execution phases \u2014 outbound calls only)",
+      "title": "Script Flow \u2014 Outgoing (call execution phases for outbound dials)",
       "format": "textarea"
     },
     "dynamicRebuttals": {
       "type": "string",
-      "title": "Dynamic Rebuttals & Objection Handling (outbound calls only)",
+      "title": "Dynamic Rebuttals & Objection Handling \u2014 Outgoing (outbound calls only)",
       "format": "textarea"
     },
     "qaTuning": {
       "type": "string",
-      "title": "Q&A Fine-Tuning Notes (outbound calls only)",
+      "title": "Q&A Fine-Tuning Notes \u2014 Outgoing (outbound calls only)",
       "format": "textarea"
     },
     "callbackBookingEnabled": {
