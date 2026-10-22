@@ -13,18 +13,18 @@ const LOGO_URL = 'https://media.base44.com/images/public/69cd2741578c9b5ce655395
 export default function HomeHeader() {
   return (
     <header style={{ background: 'linear-gradient(180deg, #061d3f 0%, #04101f 100%)', padding: '37px 20px 41px' }}>
-      <div style={{ maxWidth: '960px', margin: '0 auto', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '16px', flexWrap: 'wrap' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+      <div style={{ maxWidth: '1650px', margin: '0 auto', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '16px', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flex: '1 1 100%' }}>
           <img
             src={LOGO_URL}
             alt="Debt Solutions"
-            style={{ width: '330px', maxWidth: '100%', height: 'auto', display: 'block', flex: '0 1 auto' }}
+            style={{ width: '100%', maxWidth: '1650px', height: 'auto', display: 'block' }}
           />
         </div>
 
         <address
           className="text-left sm:text-right"
-          style={{ fontStyle: 'normal', color: 'rgba(255,255,255,0.85)', fontFamily: "'DM Sans', sans-serif", fontSize: '12.5px', lineHeight: 1.6 }}
+          style={{ fontStyle: 'normal', color: 'rgba(255,255,255,0.85)', fontFamily: "'DM Sans', sans-serif", fontSize: '12.5px', lineHeight: 1.6, marginLeft: 'auto' }}
         >
           <span style={{ display: 'block', color: '#ffffff', fontWeight: 700, fontSize: '13.5px' }}>{COMPANY.name}</span>
           <span style={{ display: 'block' }}>{COMPANY.street}</span>
