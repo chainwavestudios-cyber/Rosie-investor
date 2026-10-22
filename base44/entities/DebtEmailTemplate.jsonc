@@ -70,6 +70,10 @@
       "title": "Include Email Signature",
       "default": true
     },
+    "mailjetTemplateId": {
+      "type": "string",
+      "title": "Mailjet Template ID (set when the email is also created in Mailjet)"
+    },
     "sortOrder": {
       "type": "number",
       "title": "Sort Order",
