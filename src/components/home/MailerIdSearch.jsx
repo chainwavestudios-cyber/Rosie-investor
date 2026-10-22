@@ -78,34 +78,34 @@ export default function MailerIdSearch({ onFound }) {
 
   return (
     <div className="flex w-full flex-col items-end gap-2 sm:w-auto">
-      <div className="flex items-center gap-2 rounded-xl border border-white/15 bg-white/5 px-2 py-1.5">
-        <Search className="h-3.5 w-3.5 shrink-0 text-sky-300" />
+      <div className="flex items-center gap-2 rounded-full border border-white/15 bg-black/40 px-2 py-1.5 backdrop-blur-xl">
+        <Search className="h-3.5 w-3.5 shrink-0 text-white/45" />
         <input
           value={value}
           onChange={(event) => setValue(event.target.value)}
           onKeyDown={(event) => event.key === 'Enter' && runScan()}
           placeholder="Mailer ID"
-          className="w-24 bg-transparent text-xs text-slate-100 placeholder:text-slate-500 focus:outline-none sm:w-32"
+          className="w-24 bg-transparent text-xs text-white placeholder:text-white/40 focus:outline-none sm:w-32"
         />
         <button
           type="button"
           onClick={runScan}
           disabled={!value.trim() || !!scan}
-          className="inline-flex items-center justify-center rounded-lg bg-sky-500 px-2.5 py-1 text-[11px] font-semibold text-[#0b1220] transition disabled:opacity-40"
+          className="inline-flex items-center justify-center rounded-full bg-white px-3 py-1 text-[11px] font-semibold text-[#160b28] transition hover:bg-white/85 disabled:opacity-40"
         >
           {scanning ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Search'}
         </button>
       </div>
 
       {scan && (
-        <div className="w-[300px] max-w-[86vw] overflow-hidden rounded-xl border border-sky-400/30 bg-[#0b1220]/95 p-3 shadow-[0_24px_60px_rgba(0,0,0,0.5)]">
+        <div className="w-[300px] max-w-[86vw] overflow-hidden rounded-2xl border border-white/15 bg-[#0d0a17]/90 p-3 shadow-[0_24px_60px_rgba(0,0,0,0.5)] backdrop-blur-xl">
           <div className="flex items-start justify-between gap-2">
-            <span className="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[1.5px] text-sky-300">
-              <span className={`h-1.5 w-1.5 rounded-full ${scanning ? 'animate-pulse bg-sky-400' : scan.status === 'found' ? 'bg-emerald-400' : 'bg-amber-400'}`} />
+            <span className="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[1.5px] text-teal-300">
+              <span className={`h-1.5 w-1.5 rounded-full ${scanning ? 'animate-pulse bg-teal-400' : scan.status === 'found' ? 'bg-emerald-400' : 'bg-amber-400'}`} />
               {scanning ? 'Scanning records' : scan.status === 'found' ? 'Match found' : 'No match'}
             </span>
             {!scanning && (
-              <button type="button" onClick={() => setScan(null)} className="text-slate-500 transition hover:text-slate-200">
+              <button type="button" onClick={() => setScan(null)} className="text-white/40 transition hover:text-white">
                 <X className="h-3.5 w-3.5" />
               </button>
             )}
@@ -113,9 +113,9 @@ export default function MailerIdSearch({ onFound }) {
 
           {scanning ? (
             <>
-              <p className="mt-2 text-xs text-sky-100">{scan.source}…</p>
+              <p className="mt-2 text-xs text-white/85">{scan.source}…</p>
               <div className="mt-2 h-1 w-full overflow-hidden rounded-full bg-white/10">
-                <div className="h-1 rounded-full bg-sky-400 transition-all duration-200" style={{ width: `${scan.progress}%` }} />
+                <div className="h-1 rounded-full bg-gradient-to-r from-fuchsia-400 to-teal-400 transition-all duration-200" style={{ width: `${scan.progress}%` }} />
               </div>
               <div className="mt-3 grid grid-cols-2 gap-x-2 gap-y-1.5">
                 {SOURCES.map((source, index) => {
@@ -126,20 +126,20 @@ export default function MailerIdSearch({ onFound }) {
                     <span
                       key={source}
                       className={`inline-flex items-center gap-1 text-[10px] ${
-                        done ? 'text-emerald-300' : current ? 'text-sky-200' : 'text-slate-500'
+                        done ? 'text-emerald-300' : current ? 'text-teal-200' : 'text-white/35'
                       }`}
                     >
                       {done ? (
                         <Check className="h-3 w-3 shrink-0" />
                       ) : (
-                        <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${current ? 'animate-pulse bg-sky-400' : 'bg-slate-600'}`} />
+                        <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${current ? 'animate-pulse bg-teal-400' : 'bg-white/20'}`} />
                       )}
                       {source}
                     </span>
                   );
                 })}
               </div>
-              <p className="mt-3 text-[10px] text-slate-500">
+              <p className="mt-3 text-[10px] text-white/40">
                 Records reviewed: {scan.hits.toLocaleString()} · pass {Math.floor(scan.step / SOURCES.length) + 1}
               </p>
             </>

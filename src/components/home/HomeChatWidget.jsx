@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { MessagesSquare } from 'lucide-react';
+import { Sparkles } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import HomeChatMessages from '@/components/home/HomeChatMessages';
 import HomeChatComposer from '@/components/home/HomeChatComposer';
@@ -154,12 +154,20 @@ export default function HomeChatWidget({ leadProfile, onLeadFound }) {
   ].filter(Boolean);
 
   return (
-    <section id="chat" className="mx-auto mt-10 w-full max-w-3xl" style={{ scrollMarginTop: '20px' }}>
-      <div className="overflow-hidden rounded-2xl border border-sky-400/20 bg-[#0b1220] shadow-[0_30px_80px_rgba(0,0,0,0.25)]">
-        <header className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 px-4 py-3">
-          <span className="inline-flex items-center gap-2 text-sm font-medium text-slate-100">
-            <MessagesSquare className="h-4 w-4 text-sky-300" />
-            State Rate Reduction Qualification
+    <section id="chat" className="mx-auto w-full max-w-3xl" style={{ scrollMarginTop: '20px' }}>
+      <div className="overflow-hidden rounded-3xl border border-white/15 bg-white/[0.07] shadow-[0_40px_90px_rgba(0,0,0,0.55)] backdrop-blur-2xl">
+        <header className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 px-4 py-3.5 sm:px-5">
+          <span className="inline-flex items-center gap-3">
+            <span className="inline-flex h-9 w-9 flex-none items-center justify-center rounded-full bg-white text-[#1a0b2e]">
+              <Sparkles className="h-4 w-4" />
+            </span>
+            <span className="leading-tight">
+              <span className="block text-[15px] font-bold text-white">State Rate Reduction Qualification</span>
+              <span className="mt-0.5 block text-[11px] font-medium text-white/55">
+                <span className="mr-1.5 inline-block h-1.5 w-1.5 rounded-full bg-teal-400 align-middle" />
+                Online · Live
+              </span>
+            </span>
           </span>
           <MailerIdSearch onFound={onLeadFound} />
         </header>
@@ -167,7 +175,7 @@ export default function HomeChatWidget({ leadProfile, onLeadFound }) {
         {facts.length > 0 && (
           <div className="flex flex-wrap gap-2 border-b border-white/10 px-4 py-2.5">
             {facts.map((fact) => (
-              <span key={fact} className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[11px] text-slate-300">
+              <span key={fact} className="rounded-full border border-white/15 bg-white/[0.07] px-3 py-1 text-[11px] text-white/75">
                 {fact}
               </span>
             ))}
