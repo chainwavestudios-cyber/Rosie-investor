@@ -10,57 +10,67 @@
     "name": {
       "type": "string",
       "title": "Template Name",
-      "default": "DEBT Solutions Rate Drop Mailer"
+      "default": "DEBT Solutions Rate Drop Notice"
     },
-    "companyName": {
+    "documentTitle": {
       "type": "string",
-      "title": "Company Name",
-      "default": "DEBT SOLUTIONS"
+      "title": "Masthead Title (black band across the top)",
+      "default": "THE DEBT SOLUTIONS RATE DROP ENGINE"
     },
-    "headerBanner": {
+    "noticeTitle": {
       "type": "string",
-      "title": "Black Header Banner Text",
+      "title": "Notice Title (under the masthead)",
+      "default": "OFFICIAL NOTICE OF ELIGIBILITY"
+    },
+    "deadlineTime": {
+      "type": "string",
+      "title": "Response Deadline Time (printed after the respond-by date)",
+      "default": "5:00 PM PST"
+    },
+    "addresseeStatus": {
+      "type": "string",
+      "title": "Account Status (line in the addressee box)",
       "format": "textarea",
-      "default": "DEBT SOLUTIONS RATE DROP ENGINE \u2014 DELINQUENT CREDIT CARD ACCOUNT ASSISTANCE. PLEASE REVIEW ENTIRE DOCUMENT."
+      "default": "PENDING REVIEW, UNSECURED REVOLVING CREDIT ACCOUNTS"
     },
-    "introText": {
+    "overviewText": {
       "type": "string",
-      "title": "Introductory Paragraph",
+      "title": "Notice Details & Program Overview \u2014 First Paragraph",
       "format": "textarea",
-      "default": "Your File Number {{plan_number}} has been included to participate in The Debt Solutions Rate Drop Engine due to the recent delinquent payments filed against you and shown on your tri-bureau credit report. It is imperative that you contact Customer Service Immediately at {{phone}} to take advantage of The Rate Drop Engine. Respond by {{respond_by_date}} by 5PM to ensure eligibility into one of the four available hardship programs."
+      "default": "Our system has flagged your file regarding active credit card accounts carrying high interest rates. You have been selected to participate in the Debt Solutions Rate Drop Engine, a program engineered to assist high-balance cardholders in {{state}} in restructuring high-interest unsecured debt. Your File Number {{plan_number}} is on record for this notice."
     },
-    "importantNotice": {
+    "qualifyText": {
       "type": "string",
-      "title": "Important Notice (bold + italic)",
+      "title": "Notice Details & Program Overview \u2014 Second Paragraph",
       "format": "textarea",
-      "default": "Enrollment is limited. To ensure your eligibility status, you must call now. No further notices will be sent."
-    },
-    "summaryBanner": {
-      "type": "string",
-      "title": "Data Box Top Banner",
-      "format": "textarea",
-      "default": "RDE Debt Benefits and Savings of {{savings_amount}} exclusively for {{recipient_name}}"
+      "default": "If you are currently carrying 3 or more active credit card balances, you may qualify for immediate rate reduction strategies designed to target 0% interest terms and significantly lower your monthly outlay, with zero upfront fees."
     },
     "benefitsJson": {
       "type": "string",
-      "title": "Benefits Grid (JSON array of strings)",
+      "title": "Key Program Benefits (JSON array of {title, text})",
       "format": "textarea"
     },
-    "warningText": {
+    "eligibilityJson": {
       "type": "string",
-      "title": "Warning Line (uppercase)",
+      "title": "Summary of Eligibility (JSON array of {label, value} \u2014 {{slots}} allowed in the value)",
+      "format": "textarea"
+    },
+    "nextStepsText": {
+      "type": "string",
+      "title": "Required Next Steps \u2014 Intro Line",
       "format": "textarea",
-      "default": "FAILURE TO RESPOND TO THIS NOTICE WILL AFFECT YOUR ELIGIBILITY"
+      "default": "Enrollment spots are limited by regional quotas in Riverside, San Bernardino, and Los Angeles counties. To lock in your eligibility and review your real numbers with a specialist:"
     },
-    "bottomTitle": {
+    "nextStepsJson": {
       "type": "string",
-      "title": "Bottom Title",
-      "default": "The Debt Solutions Rate Drop Engine"
-    },
-    "legalText": {
-      "type": "string",
-      "title": "Small-Print Legal Disclaimer",
+      "title": "Required Next Steps (JSON array of strings \u2014 numbered automatically)",
       "format": "textarea"
+    },
+    "disclaimerText": {
+      "type": "string",
+      "title": "Confidentiality & Disclaimer (small print at the foot of the notice)",
+      "format": "textarea",
+      "default": "This notice is confidential and intended solely for {{recipient_name}}. Debt Solutions Inc. is a private company that negotiates directly with credit card issuers on behalf of enrolled consumers. This is not a government program, credit repair service, or loan offer. Services may not be available in all states. Savings shown are estimates based on the balances on file and are not guaranteed; individual results vary with creditor cooperation, program length and the ability to fund a dedicated account. To stop receiving mail from us, call {{phone}}."
     },
     "savingsPercent": {
       "type": "number",
@@ -83,7 +93,7 @@
     },
     "mailjetTemplateId": {
       "type": "string",
-      "title": "Mailjet Template ID (the template each digital mailer is injected into \u2014 created by 'Create in Mailjet')"
+      "title": "Mailjet Template ID (the template each digital notice is injected into \u2014 created by 'Create in Mailjet')"
     },
     "updatedBy": {
       "type": "string",

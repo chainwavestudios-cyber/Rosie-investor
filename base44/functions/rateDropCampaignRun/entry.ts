@@ -14,6 +14,7 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.54';
 import {
   ensureMailers,
   findMailer,
+  getRateDropTemplate,
   sendRateDropMailer,
   cardFullName,
 } from '../../shared/rateDropMailer.ts';
@@ -40,6 +41,8 @@ export default async function (req: Request): Promise<Response> {
     const campaigns = Array.isArray(campaignPage) ? campaignPage : campaignPage?.items || [];
 
     const summary: any[] = [];
+    // The notice template supplies the plain-text side of each send.
+    const template = await getRateDropTemplate(base44);
 
     for (const campaign of campaigns) {
       const duePage = await base44.asServiceRole.entities.RateDropSend.filter(
@@ -85,6 +88,7 @@ export default async function (req: Request): Promise<Response> {
             mailjetTemplateId: campaign.mailjetTemplateId,
             mailer,
             card,
+            template,
             customId: `rd:${campaign.id}:${send.id}`,
           });
 

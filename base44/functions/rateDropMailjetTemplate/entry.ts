@@ -15,7 +15,7 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.54';
 
 const MJ_BASE = 'https://api.mailjet.com/v3/REST';
 const DEFAULT_TEMPLATE_NAME = 'Debt Solutions Rate Drop Mailer';
-const SUBJECT = 'Debt Solutions Rate Drop Engine — Please Review Your Notice';
+const SUBJECT = 'Debt Solutions Rate Drop Engine: Official Notice of Eligibility';
 
 const clean = (v: any) => String(v ?? '').trim();
 
@@ -51,16 +51,40 @@ function templateHtml(): string {
 }
 
 function templateText(): string {
-  return `DEBT SOLUTIONS RATE DROP ENGINE
+  return `{{var:document_title}}
+{{var:notice_title}}
 
-{{var:recipient_name}}
-{{var:address}}
+Notice Date: {{var:notice_date}}    File Number: {{var:plan_number}}
+Response Deadline: {{var:respond_by_date}} ({{var:deadline_time}})
+Toll-Free Direct Line: {{var:phone}}
 
-Your file number {{var:plan_number}} has been included in The Debt Solutions Rate Drop Engine. Our records show {{var:debt_amount}} in past-due credit card balances, and your preapproved reduction savings total {{var:savings_amount}}.
+ADDRESSEE INFORMATION
+Recipient: {{var:recipient_name}}
+Property / Mailing Address: {{var:address}}
+Account Status: {{var:addressee_status}}
 
-Call customer service immediately at {{var:phone}} to take advantage of the Rate Drop Engine. Enrollment is limited and no further notices will be sent.
+Our system has flagged your file regarding active credit card accounts carrying high interest rates. You have been selected to participate in the Debt Solutions Rate Drop Engine, a program engineered to assist high-balance cardholders in {{var:state}} in restructuring high-interest unsecured debt. Your File Number {{var:plan_number}} is on record for this notice.
 
-To stop receiving mail from us, call {{var:phone}}.`;
+KEY PROGRAM BENEFITS
+- Target 0% Interest Rates: Shift your monthly payments away from finance charges and directly toward principal balance reduction.
+- Single Monthly Payment: Consolidate multiple credit card obligations into one manageable monthly transfer.
+- Zero Upfront Fees: No out-of-pocket costs, application fees, or setup charges to review your custom numbers.
+- Flexible Resolution Timelines: Structured program terms ranging from 12 to 36 months.
+- Third-Party Collector Relief: Stop harassing calls and endless minimum payment cycles.
+
+SUMMARY OF ELIGIBILITY
+Estimated Balance Range: ~{{var:debt_amount}}
+Upfront Fee Obligation: $0.00 (Zero Out-of-Pocket)
+Eligibility Window: Active until {{var:respond_by_date}}
+
+REQUIRED NEXT STEPS
+{{var:next_steps_text}}
+1. Locate your File Number: {{var:plan_number}}.
+2. Call Customer Service immediately at {{var:phone}}.
+3. Speak with a specialist for a 5-minute review with no cost and no obligation to enroll.
+
+CONFIDENTIALITY & DISCLAIMER
+This notice is confidential and intended solely for {{var:recipient_name}}. Debt Solutions Inc. is a private company that negotiates directly with credit card issuers on behalf of enrolled consumers. This is not a government program, credit repair service, or loan offer. Services may not be available in all states. To stop receiving mail from us, call {{var:phone}}.`;
 }
 
 export default async function (req: Request): Promise<Response> {

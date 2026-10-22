@@ -13,14 +13,40 @@
  */
 
 export const DEFAULT_BENEFITS = [
-  'Reduce Overall Debt by up to 60%',
-  'Avoid Costly Debt Management Programs',
-  'Alternative To Bankruptcy',
-  'Avoid Negative Public Record',
-  'Immediate Reduction of Payments up to 60%',
-  'Settle Credit Card Debt 12 to 36 Months',
-  'Make Only 1 Payment per Month',
-  'Minimize Harassing Calls From Collectors',
+  {
+    title: 'Target 0% Interest Rates',
+    text: 'Shift your monthly payments away from finance charges and directly toward principal balance reduction.',
+  },
+  {
+    title: 'Single Monthly Payment',
+    text: 'Consolidate multiple credit card obligations into one manageable monthly transfer.',
+  },
+  {
+    title: 'Zero Upfront Fees',
+    text: 'No out-of-pocket costs, application fees, or setup charges to review your custom numbers.',
+  },
+  {
+    title: 'Flexible Resolution Timelines',
+    text: 'Structured program terms ranging from 12 to 36 months.',
+  },
+  {
+    title: 'Third-Party Collector Relief',
+    text: 'Stop harassing calls and endless minimum payment cycles.',
+  },
+];
+
+export const DEFAULT_ELIGIBILITY = [
+  { label: 'Identified Account Type', value: 'Unsecured Credit Cards (3 Active Accounts)' },
+  { label: 'Minimum Required Debt', value: '$5,000+ ($10,000+ Preferred for Optimal Restructuring)' },
+  { label: 'Estimated Balance Range', value: '~{{debt_amount}}' },
+  { label: 'Upfront Fee Obligation', value: '$0.00 (Zero Out-of-Pocket)' },
+  { label: 'Eligibility Window', value: 'Active until {{respond_by_date}}' },
+];
+
+export const DEFAULT_NEXT_STEPS = [
+  'Locate your File Number: {{plan_number}}.',
+  'Call Customer Service immediately at {{phone}}.',
+  'Speak with a specialist for a 5-minute review with no cost and no obligation to enroll.',
 ];
 
 export const MAILER_SLOTS = [
@@ -72,20 +98,22 @@ export const DEFAULT_FIELD_MAP = {
 
 export const DEFAULT_RATE_DROP_TEMPLATE = {
   configName: 'default',
-  name: 'DEBT Solutions Rate Drop Mailer',
-  companyName: 'DEBT SOLUTIONS',
-  headerBanner:
-    'DEBT SOLUTIONS RATE DROP ENGINE — DELINQUENT CREDIT CARD ACCOUNT ASSISTANCE. PLEASE REVIEW ENTIRE DOCUMENT.',
-  introText:
-    'Your File Number {{plan_number}} has been included to participate in The Debt Solutions Rate Drop Engine due to the recent delinquent payments filed against you and shown on your tri-bureau credit report. It is imperative that you contact Customer Service Immediately at {{phone}} to take advantage of The Rate Drop Engine. Respond by {{respond_by_date}} by 5PM to ensure eligibility into one of the four available hardship programs.',
-  importantNotice:
-    'Enrollment is limited. To ensure your eligibility status, you must call now. No further notices will be sent.',
-  summaryBanner: 'RDE Debt Benefits and Savings of {{savings_amount}} exclusively for {{recipient_name}}',
+  name: 'DEBT Solutions Rate Drop Notice',
+  documentTitle: 'THE DEBT SOLUTIONS RATE DROP ENGINE',
+  noticeTitle: 'OFFICIAL NOTICE OF ELIGIBILITY',
+  deadlineTime: '5:00 PM PST',
+  addresseeStatus: 'PENDING REVIEW, UNSECURED REVOLVING CREDIT ACCOUNTS',
+  overviewText:
+    'Our system has flagged your file regarding active credit card accounts carrying high interest rates. You have been selected to participate in the Debt Solutions Rate Drop Engine, a program engineered to assist high-balance cardholders in {{state}} in restructuring high-interest unsecured debt. Your File Number {{plan_number}} is on record for this notice.',
+  qualifyText:
+    'If you are currently carrying 3 or more active credit card balances, you may qualify for immediate rate reduction strategies designed to target 0% interest terms and significantly lower your monthly outlay, with zero upfront fees.',
   benefitsJson: JSON.stringify(DEFAULT_BENEFITS),
-  warningText: 'FAILURE TO RESPOND TO THIS NOTICE WILL AFFECT YOUR ELIGIBILITY',
-  bottomTitle: 'The Debt Solutions Rate Drop Engine',
-  legalText:
-    'This notice is a debt relief program solicitation and is not a guarantee of results. Debt Solutions is not a law firm and does not provide legal, tax or accounting advice. Savings shown are estimates based on the balances on file and the program range, and are not guaranteed; individual results vary based on creditor cooperation, program length and the ability to fund a dedicated account. Please read and understand all program materials before enrolling. To stop receiving mail from us, call {{phone}}.',
+  eligibilityJson: JSON.stringify(DEFAULT_ELIGIBILITY),
+  nextStepsText:
+    'Enrollment spots are limited by regional quotas in Riverside, San Bernardino, and Los Angeles counties. To lock in your eligibility and review your real numbers with a specialist:',
+  nextStepsJson: JSON.stringify(DEFAULT_NEXT_STEPS),
+  disclaimerText:
+    'This notice is confidential and intended solely for {{recipient_name}}. Debt Solutions Inc. is a private company that negotiates directly with credit card issuers on behalf of enrolled consumers. This is not a government program, credit repair service, or loan offer. Services may not be available in all states. Savings shown are estimates based on the balances on file and are not guaranteed; individual results vary with creditor cooperation, program length and the ability to fund a dedicated account. To stop receiving mail from us, call {{phone}}.',
   savingsPercent: 60,
   respondByDays: 30,
   ctaPhoneOverride: '',
@@ -201,12 +229,41 @@ export async function getRateDropTemplate(base44: any): Promise<any> {
   return { ...DEFAULT_RATE_DROP_TEMPLATE, ...stored };
 }
 
-export function benefitsOf(template: any): string[] {
+function parseList(raw: any, fallback: any[]): any[] {
   try {
-    const parsed = JSON.parse(template?.benefitsJson || '[]');
-    if (Array.isArray(parsed) && parsed.length) return parsed.map((b: any) => String(b));
+    const parsed = JSON.parse(raw || '[]');
+    if (Array.isArray(parsed) && parsed.length) return parsed;
   } catch {}
-  return DEFAULT_BENEFITS;
+  return fallback;
+}
+
+/** Key Program Benefits as {title, text} pairs (a bare string is kept as a title). */
+export function benefitsOf(template: any): { title: string; text: string }[] {
+  return parseList(template?.benefitsJson, DEFAULT_BENEFITS)
+    .map((b: any) =>
+      typeof b === 'string'
+        ? { title: b, text: '' }
+        : { title: String(b?.title || ''), text: String(b?.text || '') }
+    )
+    .filter((b: any) => b.title || b.text);
+}
+
+/** Summary of Eligibility as {label, value} rows (values may carry {{slots}}). */
+export function eligibilityOf(template: any): { label: string; value: string }[] {
+  return parseList(template?.eligibilityJson, DEFAULT_ELIGIBILITY)
+    .map((r: any) =>
+      Array.isArray(r)
+        ? { label: String(r[0] || ''), value: String(r[1] || '') }
+        : { label: String(r?.label || ''), value: String(r?.value || '') }
+    )
+    .filter((r: any) => r.label || r.value);
+}
+
+/** Required Next Steps as numbered lines ({{slots}} allowed). */
+export function nextStepsOf(template: any): string[] {
+  return parseList(template?.nextStepsJson, DEFAULT_NEXT_STEPS)
+    .map((s: any) => String(typeof s === 'string' ? s : s?.text || ''))
+    .filter(Boolean);
 }
 
 export function fieldMapOf(template: any): Record<string, string> {
@@ -262,75 +319,111 @@ function fill(text: any, values: Record<string, string>): string {
   return String(text || '').replace(/\{\{\s*([a-z_]+)\s*\}\}/gi, (_m, key) => values[String(key).toLowerCase()] ?? '');
 }
 
-function benefitRows(benefits: string[]): string {
-  const cell = (text: string, last: boolean, right: boolean) =>
-    `<td width="50%" style="border-right:${right ? '1px solid #000000' : 'none'};border-bottom:${last ? 'none' : '1px solid #000000'};padding:8px 10px;font-family:Arial,Helvetica,sans-serif;font-size:11px;line-height:1.35;vertical-align:top;">${escapeHtml(text)}</td>`;
+/** The black section bar that opens every block of the notice. */
+function sectionHeader(title: string): string {
+  return `<tr><td colspan="2" style="background:#000000;color:#ffffff;font-family:Arial,Helvetica,sans-serif;font-size:11px;font-weight:bold;letter-spacing:0.6px;text-transform:uppercase;text-align:center;padding:8px 10px;">${escapeHtml(title)}</td></tr>`;
+}
+
+/** Label / value rows, two to a line, inside a bordered box. */
+function twoColRows(pairs: { label: string; value: string }[]): string {
+  const cell = (right: boolean) =>
+    `width:50%;font-family:Arial,Helvetica,sans-serif;font-size:11px;line-height:1.45;padding:7px 10px;border-bottom:1px solid #000000;${right ? 'border-right:1px solid #000000;' : ''}vertical-align:top;`;
   let html = '';
-  for (let i = 0; i < benefits.length; i += 2) {
-    const isLast = i + 2 >= benefits.length;
-    const left = benefits[i] || '';
-    const right = benefits[i + 1];
+  for (let i = 0; i < pairs.length; i += 2) {
+    const left = pairs[i];
+    const right = pairs[i + 1];
     html +=
-      `<tr>${cell(left, isLast, true)}` +
-      (right !== undefined
-        ? cell(right, isLast, false)
-        : `<td width="50%" style="border-bottom:none;padding:8px 10px;">&nbsp;</td>`) +
+      `<tr><td style="${cell(true)}"><b>${escapeHtml(left.label)}:</b> ${left.value}</td>` +
+      (right
+        ? `<td style="${cell(false)}"><b>${escapeHtml(right.label)}:</b> ${right.value}</td>`
+        : `<td style="${cell(false)}">&nbsp;</td>`) +
       `</tr>`;
   }
   return html;
 }
 
-/** Builds the complete, email-safe digital mailer for one contact card. */
+function benefitRows(benefits: { title: string; text: string }[], values: Record<string, string>): string {
+  return benefits
+    .map((b, i) => {
+      const last = i === benefits.length - 1;
+      const title = fill(b.title, values);
+      return `<tr><td style="padding:9px 12px;${last ? '' : 'border-bottom:1px solid #000000;'}font-size:12px;line-height:1.55;vertical-align:top;">${title ? `<b>${title}:</b> ` : ''}${fill(b.text, values)}</td></tr>`;
+    })
+    .join('');
+}
+
+function eligibilityRows(rows: { label: string; value: string }[], values: Record<string, string>): string {
+  const head =
+    'font-family:Arial,Helvetica,sans-serif;font-size:10px;font-weight:bold;text-transform:uppercase;letter-spacing:0.5px;padding:6px 10px;border-bottom:1px solid #000000;';
+  return (
+    `<tr><td width="42%" style="${head}border-right:1px solid #000000;">Parameter</td><td style="${head}">Status / Value</td></tr>` +
+    rows
+      .map((r, i) => {
+        const last = i === rows.length - 1;
+        const border = last ? '' : 'border-bottom:1px solid #000000;';
+        return `<tr><td width="42%" style="font-family:Arial,Helvetica,sans-serif;font-size:11px;line-height:1.45;padding:7px 10px;border-right:1px solid #000000;${border}vertical-align:top;"><b>${fill(r.label, values)}</b></td><td style="font-family:Arial,Helvetica,sans-serif;font-size:11px;line-height:1.45;padding:7px 10px;${border}vertical-align:top;">${fill(r.value, values)}</td></tr>`;
+      })
+      .join('')
+  );
+}
+
+function nextStepRows(steps: string[], values: Record<string, string>): string {
+  return steps
+    .map((step, i) => {
+      const last = i === steps.length - 1;
+      const pad = last ? '14px' : '2px';
+      return `<tr><td width="26" style="font-family:Arial,Helvetica,sans-serif;font-size:12px;font-weight:bold;padding:4px 0 ${pad} 12px;vertical-align:top;">${i + 1}.</td><td style="font-family:Arial,Helvetica,sans-serif;font-size:12px;line-height:1.55;padding:4px 12px ${pad} 0;vertical-align:top;">${fill(step, values)}</td></tr>`;
+    })
+    .join('');
+}
+
+/** Builds the complete, email-safe digital notice for one contact card. */
 export function buildMailerHtml(template: any, card: any, ctx: any): string {
   const values = resolveMailerSlots(template, card, ctx);
   const benefits = benefitsOf(template);
+  const eligibility = eligibilityOf(template);
+  const nextSteps = nextStepsOf(template);
   const phoneText = escapeHtml(String(template?.ctaPhoneOverride || '').trim() || ctx.phone || '');
+  const deadline = escapeHtml(String(template?.deadlineTime || '').trim());
+
+  const meta = [
+    { label: 'Notice Date', value: values.notice_date },
+    { label: 'File Number', value: values.plan_number },
+    { label: 'Response Deadline', value: `${values.respond_by_date}${deadline ? ` (${deadline})` : ''}` },
+    { label: 'Toll-Free Direct Line', value: values.phone },
+  ];
+  const addressee = [
+    { label: 'Recipient', value: values.recipient_name },
+    { label: 'Property / Mailing Address', value: values.address_line },
+    { label: 'Account Status', value: fill(template.addresseeStatus, values) },
+  ];
+
+  const box = (inner: string) =>
+    `<tr><td style="padding:16px 22px 0 22px;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border:1px solid #000000;">${inner}</table></td></tr>`;
 
   return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#ffffff;margin:0;padding:0;">
 <tr><td align="center" style="padding:0;">
 <table role="presentation" width="680" cellpadding="0" cellspacing="0" border="0" style="width:680px;max-width:100%;background:#ffffff;color:#000000;font-family:Georgia,'Times New Roman',serif;">
-<tr><td style="background:#000000;color:#ffffff;font-family:Arial,Helvetica,sans-serif;font-size:15px;font-weight:bold;letter-spacing:0.4px;text-transform:uppercase;text-align:center;padding:14px 18px;">${escapeHtml(template.headerBanner)}</td></tr>
-<tr><td style="padding:14px 22px 0 22px;font-family:Arial,Helvetica,sans-serif;font-size:11px;color:#000000;">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
-<td align="left">Notice Date: ${values.notice_date}</td>
-<td align="right">Confidential Information. For Addressees Only</td>
-</tr></table>
-</td></tr>
-<tr><td style="padding:16px 22px 0 22px;font-size:15px;">${values.recipient_name}</td></tr>
-<tr><td style="padding:10px 22px 0 22px;font-size:13px;line-height:1.55;text-align:justify;">${fill(template.introText, values)}</td></tr>
-<tr><td style="padding:12px 22px 0 22px;font-size:13px;line-height:1.5;"><span style="font-weight:bold;text-decoration:underline;">Important Notice:</span> <span style="font-style:italic;">${escapeHtml(template.importantNotice)}</span></td></tr>
-<tr><td style="padding:18px 22px 0 22px;">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border:1px solid #000000;">
-<tr><td style="background:#000000;color:#ffffff;font-family:Arial,Helvetica,sans-serif;font-size:12px;font-weight:bold;text-align:center;padding:9px 10px;">${fill(template.summaryBanner, values)}</td></tr>
-<tr><td style="padding:0;">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
-<tr>
-<td width="50%" style="border-right:1px solid #000000;border-bottom:1px solid #000000;padding:8px 10px;font-size:12px;">RDE Benefits Recipient: ${values.recipient_name}</td>
-<td width="50%" style="border-bottom:1px solid #000000;padding:8px 10px;font-family:Arial,Helvetica,sans-serif;font-size:12px;font-weight:bold;">RDE PLAN NUMBER: ${values.plan_number}</td>
-</tr>
-<tr>
-<td style="border-right:1px solid #000000;border-bottom:1px solid #000000;padding:8px 10px;font-size:12px;">Recipient Address: ${values.address_line}</td>
-<td style="border-bottom:1px solid #000000;padding:8px 10px;font-size:12px;">Recipient State: ${values.state}</td>
-</tr>
-<tr>
-<td style="border-right:1px solid #000000;padding:8px 10px;font-size:12px;">Total Past Due, Debt Amount: ${values.debt_amount}</td>
-<td style="padding:8px 10px;font-size:12px;">Total Debt Reduction To: ${values.reduction_to}</td>
-</tr>
-</table>
-</td></tr>
-<tr><td style="background:#000000;color:#ffffff;font-family:Arial,Helvetica,sans-serif;font-size:12px;font-weight:bold;text-align:center;padding:9px 10px;">RDE Preapproved Debt Reduction Savings: ${values.savings_amount}</td></tr>
-</table>
-</td></tr>
-<tr><td style="padding:18px 22px 0 22px;">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border:1px solid #000000;">
-<tr><td colspan="2" style="background:#000000;color:#ffffff;font-family:Arial,Helvetica,sans-serif;font-size:12px;font-weight:bold;text-align:center;padding:9px 10px;">RDE Benefits for ${values.recipient_name}</td></tr>
-${benefitRows(benefits)}
-</table>
-</td></tr>
-<tr><td style="text-align:center;padding:22px 22px 0 22px;font-family:Arial,Helvetica,sans-serif;font-size:30px;font-weight:bold;letter-spacing:0.5px;">${phoneText}</td></tr>
-<tr><td style="text-align:center;padding:10px 22px 0 22px;font-family:Arial,Helvetica,sans-serif;font-size:13px;font-weight:bold;">${escapeHtml(template.warningText)}</td></tr>
-<tr><td style="text-align:center;padding:10px 22px 0 22px;font-size:19px;font-weight:bold;">${escapeHtml(template.bottomTitle)}</td></tr>
-<tr><td style="padding:16px 22px 24px 22px;font-size:9px;line-height:1.45;text-align:justify;color:#111111;">${fill(template.legalText, values)}</td></tr>
+<tr><td style="background:#000000;color:#ffffff;font-family:Arial,Helvetica,sans-serif;font-size:15px;font-weight:bold;letter-spacing:0.6px;text-transform:uppercase;text-align:center;padding:13px 18px;">${escapeHtml(template.documentTitle)}</td></tr>
+<tr><td style="text-align:center;font-family:Arial,Helvetica,sans-serif;font-size:16px;font-weight:bold;letter-spacing:1px;text-transform:uppercase;padding:16px 22px 0 22px;">${escapeHtml(template.noticeTitle)}</td></tr>
+<tr><td style="text-align:center;font-family:Arial,Helvetica,sans-serif;font-size:10px;color:#444444;padding:5px 22px 0 22px;">Confidential Information. For Addressees Only.</td></tr>
+${box(twoColRows(meta))}
+${box(sectionHeader('Addressee Information') + twoColRows(addressee))}
+${box(
+    sectionHeader('Notice Details & Program Overview') +
+      `<tr><td colspan="2" style="padding:10px 12px 0 12px;font-size:12px;line-height:1.6;text-align:justify;">${fill(template.overviewText, values)}</td></tr>` +
+      `<tr><td colspan="2" style="padding:10px 12px 12px 12px;font-size:12px;line-height:1.6;text-align:justify;">${fill(template.qualifyText, values)}</td></tr>`
+  )}
+${box(sectionHeader('Key Program Benefits') + benefitRows(benefits, values))}
+${box(sectionHeader('Summary Of Eligibility') + eligibilityRows(eligibility, values))}
+${box(
+    sectionHeader('Required Next Steps') +
+      `<tr><td colspan="2" style="padding:10px 12px 2px 12px;font-size:12px;line-height:1.6;text-align:justify;">${fill(template.nextStepsText, values)}</td></tr>` +
+      nextStepRows(nextSteps, values)
+  )}
+<tr><td style="text-align:center;padding:20px 22px 0 22px;font-family:Arial,Helvetica,sans-serif;font-size:26px;font-weight:bold;letter-spacing:0.5px;">${phoneText}</td></tr>
+<tr><td style="text-align:center;padding:6px 22px 0 22px;font-family:Arial,Helvetica,sans-serif;font-size:10px;text-transform:uppercase;letter-spacing:1px;">Toll-Free Direct Line</td></tr>
+<tr><td style="padding:16px 22px 24px 22px;font-family:Arial,Helvetica,sans-serif;font-size:9px;line-height:1.45;text-align:justify;color:#111111;"><b>CONFIDENTIALITY &amp; DISCLAIMER:</b> ${fill(template.disclaimerText, values)}</td></tr>
 </table>
 </td></tr>
 </table>`;
@@ -413,6 +506,7 @@ export async function sendRateDropMailer(base44: any, opts: {
   mailjetTemplateId: string | number;
   mailer: any;
   card: any;
+  template?: any;
   customId?: string;
 }): Promise<{ messageId: string; messageUUID: string }> {
   // Rate Drop mailers send from their own Mailjet account; the rest of the app's
@@ -425,6 +519,11 @@ export async function sendRateDropMailer(base44: any, opts: {
   const fromName = 'Stephani Sterling - RateDrop Credit Systems';
   if (!key || !secret || !fromEmail) throw new Error('Rate Drop Mailjet credentials not configured (MAILJET_2_API_KEY, MAILJET_2_API_SECRET, MAILJET_2_FROM_EMAIL)');
 
+  // The plain-text fallback is rendered from the same resolved notice values as
+  // the HTML, so both versions of the notice say the same thing.
+  const template = opts.template || DEFAULT_RATE_DROP_TEMPLATE;
+  const notice = resolveMailerSlots(template, opts.card, buildMailerContext(opts.mailer?.phone || '', template));
+
   const message: any = {
     From: { Email: fromEmail, Name: fromName },
     To: [{ Email: opts.to, Name: opts.toName || '' }],
@@ -432,6 +531,8 @@ export async function sendRateDropMailer(base44: any, opts: {
     TemplateLanguage: true,
     Variables: {
       mailer_html: opts.mailer?.html || '',
+      document_title: template.documentTitle || '',
+      notice_title: template.noticeTitle || '',
       notice_id: opts.mailer?.noticeId || '',
       plan_number: opts.mailer?.noticeId || '',
       first_name: opts.card?.firstName || '',
@@ -441,6 +542,11 @@ export async function sendRateDropMailer(base44: any, opts: {
       state: opts.card?.state || '',
       debt_amount: money(opts.card?.debtAmount),
       savings_amount: money(opts.mailer?.savingsAmount),
+      notice_date: notice.notice_date || '',
+      respond_by_date: notice.respond_by_date || '',
+      deadline_time: template.deadlineTime || '',
+      addressee_status: fill(template.addresseeStatus, notice),
+      next_steps_text: fill(template.nextStepsText, notice),
       phone: opts.mailer?.phone || '',
     },
   };
