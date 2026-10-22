@@ -65,6 +65,28 @@ function estimatePlaybackMs(text: string): number {
   return Math.max(2000, Math.ceil(text.length / 12) * 1000) + 500;
 }
 
+// A spoken turn has to leave room for the prospect to answer. The script is
+// delivered a beat at a time — one or two short sentences, cut on a sentence
+// boundary — instead of the whole script block coming out in one breath.
+const MAX_SPOKEN_WORDS = 45;
+const MAX_SPOKEN_SENTENCES = 2;
+function capSpokenText(text: string): string {
+  const clean = String(text || '').trim();
+  if (!clean) return clean;
+  const sentences = (clean.match(/[^.!?]+[.!?]*/g) || [clean]).map((s: string) => s.trim()).filter(Boolean);
+  const kept: string[] = [];
+  let words = 0;
+  for (const sentence of sentences) {
+    const count = sentence.split(/\s+/).filter(Boolean).length;
+    // The first sentence always lands, however long it is — never speak silence.
+    if (kept.length && (kept.length >= MAX_SPOKEN_SENTENCES || words + count > MAX_SPOKEN_WORDS)) break;
+    kept.push(sentence);
+    words += count;
+    if (words >= MAX_SPOKEN_WORDS || kept.length >= MAX_SPOKEN_SENTENCES) break;
+  }
+  return kept.join(' ').trim() || clean;
+}
+
 // The agent's opening line: the outbound greeting, or — for inbound calls whose
 // greeting clips already played — the configured inbound opener.
 function buildOpeningLine(config: any, lead: any): string {
@@ -238,7 +260,8 @@ async function handleTurn(base44: any, body: any): Promise<Response> {
 Conversation so far:
 ${conversationText}
 
-Respond as the Agent to the prospect's latest message. Keep your response to 1-3 sentences since it will be spoken aloud on a phone call. Do not use formatting, emojis, or special characters.
+Respond as the Agent to the prospect's latest message with ONE short beat — at most 2 sentences, about 30 words — because it is spoken aloud on a phone call and the prospect must get their turn to answer. Do not use formatting, emojis, or special characters.
+If the prospect is only acknowledging or answering the greeting ("yes", "speaking", "this is him"), reply with the short courtesy and identity line only, then stop and listen. Never roll the notice or the pitch into that same reply — deliver it on your next turn, once they have answered.
 
 Determine the action — apply these rules exactly:
 - "speak": the default for every reply until the script's hand-off step is reached. A greeting, an acknowledgement or a short answer ("ok", "yes", "hello", "speaking", "who's this", "fine", "sure") is NOT qualification: keep the action "speak" and deliver the next line of the script.
@@ -248,7 +271,7 @@ Always include the words to speak aloud in "text" — never return "text" empty.
 
 Return JSON with:
 - action: one of "speak", "transfer", "end_call"
-- text: what to speak aloud (1-3 sentences, no formatting)
+- text: what to speak aloud (at most 2 short sentences, no formatting)
 - disposition: if end_call, one of "not_interested", "opt_out", "no_response", "technical_failure"`,
       response_json_schema: {
         type: 'object',
@@ -267,6 +290,9 @@ Return JSON with:
     // Validate LLM response against schema
     action = VALID_ACTIONS.includes(result?.action) ? result.action : 'speak';
     text = typeof result?.text === 'string' ? result.text : '';
+    // One short beat per turn, so she pauses for the prospect instead of
+    // monologuing the next script block at them.
+    text = capSpokenText(text);
     if (text.length > 500) text = text.slice(0, 497) + '...';
     disposition = VALID_DISPOSITIONS.includes(result?.disposition) ? result.disposition : 'no_response';
   } catch (e) {
