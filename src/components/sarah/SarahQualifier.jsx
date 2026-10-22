@@ -28,7 +28,7 @@ function toE164(raw) {
   return '';
 }
 
-export default function SarahQualifier({ token = '', source = 'landing_page' }) {
+export default function SarahQualifier({ token = '', source = 'landing_page', videoOnly = false }) {
   const [config, setConfig] = useState(null);
   const [phase, setPhase] = useState('loading');
   const [messages, setMessages] = useState([]);
@@ -181,7 +181,7 @@ export default function SarahQualifier({ token = '', source = 'landing_page' }) 
 
   if (phase === 'loading') {
     return (
-      <div className="flex min-h-[420px] items-center justify-center rounded-2xl border border-white/10 bg-[#0b1220]">
+      <div className={`flex w-full items-center justify-center rounded-2xl border border-white/10 bg-[#0b1220] ${videoOnly ? 'aspect-video' : 'min-h-[420px]'}`}>
         <Loader2 className="h-6 w-6 animate-spin text-sky-300" />
       </div>
     );
@@ -202,7 +202,7 @@ export default function SarahQualifier({ token = '', source = 'landing_page' }) 
         </p>
       )}
 
-      <div className="grid gap-5 md:grid-cols-[1.4fr_1fr]">
+      <div className={videoOnly ? 'space-y-3' : 'grid gap-5 md:grid-cols-[1.4fr_1fr]'}>
         {embedId ? (
           <SarahProtofaceStage
             embedId={embedId}
@@ -224,40 +224,44 @@ export default function SarahQualifier({ token = '', source = 'landing_page' }) 
         )}
 
         <div className="flex flex-col gap-3">
-          <SarahChatPanel
-            agentName={agentName}
-            messages={messages}
-            quickReplies={quickReplies}
-            onReply={answerText}
-            onSend={answerText}
-            awaitingPhone={awaitingPhone}
-            disabled={busy || phase === 'live' || phase === 'unavailable'}
-            placeholder={phase === 'live' ? `Talking with ${agentName}…` : undefined}
-          />
+          {!videoOnly && (
+            <>
+              <SarahChatPanel
+                agentName={agentName}
+                messages={messages}
+                quickReplies={quickReplies}
+                onReply={answerText}
+                onSend={answerText}
+                awaitingPhone={awaitingPhone}
+                disabled={busy || phase === 'live' || phase === 'unavailable'}
+                placeholder={phase === 'live' ? `Talking with ${agentName}…` : undefined}
+              />
 
-          {phase === 'ready' && (
-            <button
-              type="button"
-              onClick={openTextFlow}
-              className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/15 px-4 py-3 text-sm text-slate-200 hover:bg-white/5"
-            >
-              <Keyboard className="h-4 w-4" />
-              Type instead
-            </button>
-          )}
+              {phase === 'ready' && (
+                <button
+                  type="button"
+                  onClick={openTextFlow}
+                  className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/15 px-4 py-3 text-sm text-slate-200 hover:bg-white/5"
+                >
+                  <Keyboard className="h-4 w-4" />
+                  Type instead
+                </button>
+              )}
 
-          {phase === 'text' && embedId && (
-            <button
-              type="button"
-              onClick={() => {
-                setPhase('ready');
-                setStartSignal((value) => value + 1);
-              }}
-              className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/15 px-4 py-3 text-sm text-slate-200 hover:bg-white/5"
-            >
-              <Mic className="h-4 w-4" />
-              Use my voice instead
-            </button>
+              {phase === 'text' && embedId && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPhase('ready');
+                    setStartSignal((value) => value + 1);
+                  }}
+                  className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/15 px-4 py-3 text-sm text-slate-200 hover:bg-white/5"
+                >
+                  <Mic className="h-4 w-4" />
+                  Use my voice instead
+                </button>
+              )}
+            </>
           )}
 
           {(phase === 'routing' || phase === 'routed') && (

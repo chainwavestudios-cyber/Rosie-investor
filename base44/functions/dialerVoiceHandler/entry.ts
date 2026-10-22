@@ -696,6 +696,15 @@ export default async function(req) {
           // Keyword triggers passed to the bridge for early Adam handoff (Prompt 3)
           const keywordTriggers = (aiConfig.inboundKeywordTriggers || '').trim();
 
+          // Ring twice, then the agent answers on the third ring: Twilio keeps the
+          // caller on ringback while this response is pending, so it is held for the
+          // two rings — never longer, whatever the greeting work above already took
+          // counts toward them.
+          const ringRemaining = INBOUND_RING_DELAY_MS - (Date.now() - ringStartedAt);
+          if (ringRemaining > 0) {
+            await new Promise(r => setTimeout(r, ringRemaining));
+          }
+
           const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   ${clipsTwiml}
