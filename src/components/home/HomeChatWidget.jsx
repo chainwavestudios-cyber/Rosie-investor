@@ -4,6 +4,7 @@ import { base44 } from '@/api/base44Client';
 import HomeChatMessages from '@/components/home/HomeChatMessages';
 import HomeChatComposer from '@/components/home/HomeChatComposer';
 import HomeChatCallForm from '@/components/home/HomeChatCallForm';
+import HomeChatDebtSlider from '@/components/home/HomeChatDebtSlider';
 import MailerIdSearch from '@/components/home/MailerIdSearch';
 
 const OPENING = "Let's see what you may qualify for. First, what is your first and last name?";
@@ -40,7 +41,9 @@ function visitorToken() {
 }
 
 export default function HomeChatWidget({ leadProfile, onLeadFound }) {
-  const [messages, setMessages] = useState([{ role: 'assistant', text: OPENING }]);
+  const [messages, setMessages] = useState([]);
+  const [stage, setStage] = useState('debt');
+  const [opening, setOpening] = useState(OPENING);
   const [widget, setWidget] = useState({ title: WIDGET_TITLE, status: WIDGET_STATUS });
   const [quickReplies, setQuickReplies] = useState([]);
   const [collected, setCollected] = useState({});
@@ -95,11 +98,7 @@ export default function HomeChatWidget({ leadProfile, onLeadFound }) {
         const data = response?.data || {};
         if (!alive || !data.widgetTitle) return;
         setWidget({ title: data.widgetTitle, status: data.widgetStatusText || WIDGET_STATUS });
-        if (data.openingMessage) {
-          setMessages((prev) =>
-            prev.length === 1 && prev[0].role === 'assistant' ? [{ role: 'assistant', text: data.openingMessage }] : prev,
-          );
-        }
+        if (data.openingMessage) setOpening(data.openingMessage);
       })
       .catch(() => {
         /* keep the built-in wording */
@@ -168,6 +167,7 @@ export default function HomeChatWidget({ leadProfile, onLeadFound }) {
 
   /** A successful Mailer ID search opens the visitor's file — show it, then carry on qualifying. */
   const openPulledFile = async (profile) => {
+    setStage('chat');
     const fields = fileFields(profile);
     const record = {
       role: 'record',
@@ -187,6 +187,17 @@ export default function HomeChatWidget({ leadProfile, onLeadFound }) {
     setMessages(next);
     setQuickReplies([]);
     await turn(clean, next);
+  };
+
+  /** The slider answer lands in the chat, then the bot asks for their name. */
+  const startWithDebt = (amount) => {
+    const formatted = `$${Number(amount).toLocaleString()}`;
+    setStage('chat');
+    setMessages([
+      { role: 'user', text: `My total debt is about ${formatted}.` },
+      { role: 'assistant', text: opening },
+    ]);
+    setQuickReplies([]);
   };
 
   const requestCall = async ({ phone, consent }) => {
@@ -273,32 +284,38 @@ export default function HomeChatWidget({ leadProfile, onLeadFound }) {
           </div>
         )}
 
-        <HomeChatMessages messages={messages} quickReplies={quickReplies} onReply={send} sending={sending} />
+        {stage === 'debt' ? (
+          <HomeChatDebtSlider onSubmit={startWithDebt} />
+        ) : (
+          <>
+            <HomeChatMessages messages={messages} quickReplies={quickReplies} onReply={send} sending={sending} />
 
-        {readyForCall && callState.status !== 'placed' && (
-          <HomeChatCallForm
-            onRequestCall={requestCall}
-            calling={callState.status === 'calling'}
-            state={callState}
-            defaultPhone={collected.phone || ''}
-          />
+            {readyForCall && callState.status !== 'placed' && (
+              <HomeChatCallForm
+                onRequestCall={requestCall}
+                calling={callState.status === 'calling'}
+                state={callState}
+                defaultPhone={collected.phone || ''}
+              />
+            )}
+
+            {!readyForCall && callState.status === 'error' && (
+              <p className="border-t border-home-line bg-home-canvas px-4 py-3 text-xs text-amber-700">{callState.message}</p>
+            )}
+
+            {specialistMode && (
+              <p className="border-t border-home-line bg-home-canvas px-4 py-2.5 text-xs text-home-muted-ink">
+                A Debt Solutions specialist has joined the chat.
+              </p>
+            )}
+
+            <HomeChatComposer
+              onSend={send}
+              disabled={sending}
+              placeholder={specialistMode ? 'Message the specialist' : 'Ask a question or answer here'}
+            />
+          </>
         )}
-
-        {!readyForCall && callState.status === 'error' && (
-          <p className="border-t border-home-line bg-home-canvas px-4 py-3 text-xs text-amber-700">{callState.message}</p>
-        )}
-
-        {specialistMode && (
-          <p className="border-t border-home-line bg-home-canvas px-4 py-2.5 text-xs text-home-muted-ink">
-            A Debt Solutions specialist has joined the chat.
-          </p>
-        )}
-
-        <HomeChatComposer
-          onSend={send}
-          disabled={sending}
-          placeholder={specialistMode ? 'Message the specialist' : 'Ask a question or answer here'}
-        />
         </div>
       </div>
     </section>
