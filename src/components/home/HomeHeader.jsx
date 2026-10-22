@@ -12,15 +12,16 @@ const LOGO_URL = 'https://media.base44.com/images/public/69cd2741578c9b5ce655395
 
 export default function HomeHeader() {
   return (
-    <header style={{ background: 'linear-gradient(180deg, #061d3f 0%, #04101f 100%)', padding: '37px 20px 41px' }}>
-      <div style={{ maxWidth: '1020px', margin: '0 auto', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '20px', flexWrap: 'wrap' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-          <img
-            src={LOGO_URL}
-            alt="Debt Solutions"
-            style={{ width: '600px', maxWidth: '100%', height: 'auto', display: 'block' }}
-          />
-        </div>
+    <header className="px-5 py-6 md:py-0" style={{ background: 'linear-gradient(180deg, #061d3f 0%, #04101f 100%)' }}>
+      <div className="mx-auto flex max-w-[1120px] flex-col gap-5 sm:flex-row sm:items-center sm:justify-between md:min-h-[208px]">
+        <svg
+          viewBox="462.75 339 528 132"
+          className="block h-auto w-full shrink-0 overflow-hidden sm:w-[50vw] sm:max-w-[660px]"
+          role="img"
+          aria-label="Debt Solutions"
+        >
+          <image href={LOGO_URL} x="0" y="0" width="1440" height="810" />
+        </svg>
 
         <address
           className="text-left sm:text-right"
