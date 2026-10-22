@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { MessageSquare, Send } from 'lucide-react';
 
 export default function SarahChatPanel({
-  agentName = 'Sarah',
+  agentName = 'Stephani',
   messages = [],
   quickReplies = [],
   onReply,

@@ -42,7 +42,7 @@ export default function SarahQualifier({ token = '', source = 'landing_page' }) 
   const tierRef = useRef('');
   const routedRef = useRef(false);
 
-  const agentName = config?.agentName || 'Sarah';
+  const agentName = config?.agentName || 'Stephani';
   const name = config?.lead?.firstName || 'there';
   const stateName = config?.lead?.state || 'your area';
   const embedId = config?.protofaceEmbedId || '';

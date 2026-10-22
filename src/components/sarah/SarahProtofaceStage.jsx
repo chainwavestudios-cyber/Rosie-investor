@@ -31,7 +31,7 @@ function resolveAssetUrl(url) {
 
 export default function SarahProtofaceStage({
   embedId,
-  agentName = 'Sarah',
+  agentName = 'Stephani',
   leadName,
   startSignal = 0,
   endSignal = 0,

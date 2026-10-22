@@ -18,7 +18,7 @@ export default function SarahQualifyPage() {
             You're one step from relief
           </h1>
           <p className="mt-3 max-w-xl text-sm text-slate-400">
-            Sarah will confirm a few details and connect you with a specialist on the phone right now.
+            Stephani will confirm a few details and connect you with a specialist on the phone right now.
           </p>
         </header>
 

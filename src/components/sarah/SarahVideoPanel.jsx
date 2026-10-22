@@ -3,14 +3,14 @@ import { Loader2, Mic, PhoneCall, Volume2 } from 'lucide-react';
 
 const PHASE_LABEL = {
   ready: 'Ready when you are',
-  connecting: 'Connecting to Sarah',
+  connecting: 'Connecting to Stephani',
   routing: 'Patching you through',
   routed: 'Connecting your phone call',
   text: 'Typing instead of talking',
   done: 'Session complete',
 };
 
-export default function SarahVideoPanel({ agentName = 'Sarah', speaking, phase, embedUrl, leadName, note }) {
+export default function SarahVideoPanel({ agentName = 'Stephani', speaking, phase, embedUrl, leadName, note }) {
   const live = phase === 'live';
   const speakingNow = live && !!speaking;
   const label = live ? (speakingNow ? 'Speaking' : 'Listening') : PHASE_LABEL[phase] || 'Ready';
