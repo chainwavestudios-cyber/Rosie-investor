@@ -64,6 +64,13 @@ export async function waitForConference(name: string): Promise<string | null> {
   return null;
 }
 
+/**
+ * App lines that have no env slot yet. Their inbound calls must still be
+ * recognised as our own (not an out-of-app dial), and they ring the /fronter
+ * inbound dialer directly instead of going to the AI agent.
+ */
+export const FRONTER_DIRECT_NUMBERS = ['+18662908994'];
+
 /** Env-var outbound slots the dialer can place a call from. */
 export const FROM_KEYS = [
   'TWILIO_FROM_NUMBER', 'TWILIO_FROM_NUMBER_2', 'TWILIO_FROM_NUMBER_3',

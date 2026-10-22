@@ -18,6 +18,7 @@ import FronterTimeCardButton from '@/components/fronter/FronterTimeCardButton';
 import OptInControlsToggle from '@/components/fronter/OptInControlsToggle';
 import FronterHRTab from '@/components/fronter/FronterHRTab';
 import AssistantLineStrip from '@/components/fronter/AssistantLineStrip';
+import InboundLineBar from '@/components/fronter/InboundLineBar';
 import FronterHeadsUpPopup from '@/components/fronter/FronterHeadsUpPopup';
 import FronterFeedbackTab from '@/components/fronter/FronterFeedbackTab';
 import FronterOnboarding from '@/components/fronter/FronterOnboarding';
@@ -401,6 +402,9 @@ export default function FronterPage() {
 
       {/* Admin assistant's live dialpad line — so fronters know when the assistant is on a call */}
       <AssistantLineStrip />
+
+      {/* Shared inbound line — rings here so a super admin can answer it */}
+      {isAdmin && <InboundLineBar username={user.username} />}
 
       {/* Tabs */}
       <div role="tablist" aria-label="Fronter workspace" style={{ padding: '0 24px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', gap: '2px', overflowX: 'auto' }}>

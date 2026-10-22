@@ -13,7 +13,7 @@ const STORIES = [
   {
     category: 'Articles',
     date: 'June 25, 2026',
-    title: 'CNBC Select highlights National Debt Relief expertise on debt settlement costs',
+    title: 'CNBC Select highlights Debt Solutions expertise on debt settlement costs',
     url: 'https://www.nationaldebtrelief.com/news-media/cnbc-select-highlights-national-debt-relief-expertise-on-debt-settlement-costs/',
     image: 'https://www.nationaldebtrelief.com/wp-content/uploads/2026/08/CNBC-How-much-does-debt-settlement-cost-480x308.png',
     alt: 'Older couple reviewing finances on a laptop with the CNBC Select logo overlaid',
@@ -43,7 +43,7 @@ export default function HomeNews() {
         News &amp; Media
       </h2>
 
-      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 md:grid-cols-4">
         {STORIES.map((story) => (
           <a
             key={story.url}

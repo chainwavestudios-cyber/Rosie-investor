@@ -10,7 +10,7 @@
  * call (ringing, missed, no-answer) gets a CallLog entry via voicemailWebhook,
  * not just calls that go to voicemail.
  */
-import { xmlEscape, lineNumber, toE164, twilioFetch } from '../../shared/twilioHelpers.ts';
+import { xmlEscape, lineNumber, toE164, twilioFetch, FRONTER_DIRECT_NUMBERS } from '../../shared/twilioHelpers.ts';
 import twilioVoiceParams from '../../shared/twilioVoiceParams.ts';
 import { checkCallCutoff } from '../../shared/phoneTimeZone.ts';
 import { verifyCallCutoffOverride } from '../../shared/callCutoffOverride.ts';
@@ -573,6 +573,7 @@ export default async function(req) {
       Deno.env.get('TWILIO_FROM_NUMBER_4') || '',
       Deno.env.get('TWILIO_FROM_NUMBER_5') || '',
       Deno.env.get('TWILIO_FROM_NUMBER_6') || '',
+      ...FRONTER_DIRECT_NUMBERS,
     ].filter(Boolean);
     const toNormalized = to.replace(/\s/g, '');
     const isInboundToOurNumber = ownNumbers.includes(toNormalized) || (called && ownNumbers.includes(called.replace(/\s/g, '')));
@@ -606,6 +607,8 @@ export default async function(req) {
     // Falls back to the assigned fronter's browser client only if the AI agent is off
     // or the bridge is not configured.
     const calledNumber = (called || to || '').replace(/\s/g, '');
+    // Lines that must ring the /fronter dialer instead of being answered by the AI agent
+    const ringFronterDialer = FRONTER_DIRECT_NUMBERS.includes(calledNumber);
 
     try {
       const { createClientFromRequest } = await import('npm:@base44/sdk@0.8.52');
@@ -616,7 +619,7 @@ export default async function(req) {
       // admin master) → connect Adam AI agent Media Stream.
       const configs = await base44.entities.AIAgentConfig.filter({ configName: 'default' });
       const aiConfig = configs?.[0];
-      if (aiConfig?.isActive) {
+      if (aiConfig?.isActive && !ringFronterDialer) {
         let streamUrl = '';
         let streamToken = '';
         try {
@@ -699,28 +702,39 @@ export default async function(req) {
         console.warn('[dialerVoiceHandler] AI agent active but no bridge URL — falling back to fronter routing');
       }
 
-      // Fallback: route to the fronter assigned to this line
-      let clientIdentity = 'agent';
+      // Fallback: ring the browser dialer(s) in /fronter.
+      // An assigned line rings that fronter's own dialer; a direct-ring line that
+      // is not assigned yet rings the inbound dialer the super admins keep on screen.
+      let clientIdentities: string[] = [];
       const assignments = await base44.entities.FronterLineAssignment.filter({ twilioNumber: calledNumber });
       const assignment = assignments?.items?.[0] || assignments?.[0];
       if (assignment?.username) {
-        clientIdentity = assignment.username.replace(/[^a-zA-Z0-9_]/g, '_');
+        clientIdentities = [assignment.username];
+      } else if (ringFronterDialer) {
+        const admins = await base44.entities.DebtCoachUser.filter({ role: 'super_admin', isActive: true });
+        clientIdentities = (admins || []).map((a: any) => `${a.username}_inbound`);
       }
+      clientIdentities = [...new Set(clientIdentities
+        .filter(Boolean)
+        .map((u: string) => u.replace(/[^a-zA-Z0-9_]/g, '_')))].slice(0, 10);
+      if (!clientIdentities.length) clientIdentities = ['agent'];
 
       const statusCallbackUrl =
         `${vmWebhookBase}?statusCb=true` +
         `&StatusCallbackEvent=initiated+ringing+answered+completed`;
-
+      const clientNouns = clientIdentities
+        .map((id: string) => `<Client statusCallback="${xmlEscape(statusCallbackUrl)}" statusCallbackMethod="POST"
+      statusCallbackEvent="initiated ringing answered completed">${xmlEscape(id)}</Client>`)
+        .join('\n    ');
       const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Dial timeout="20"
     action="${vmWebhookBase}?noAnswer=true" method="POST"
     >
-    <Client statusCallback="${xmlEscape(statusCallbackUrl)}" statusCallbackMethod="POST"
-      statusCallbackEvent="initiated ringing answered completed">${xmlEscape(clientIdentity)}</Client>
+    ${clientNouns}
   </Dial>
 </Response>`;
-      console.log('[dialerVoiceHandler] → Mode 4 Inbound → fallback to browser client:', clientIdentity, '(to:', to, 'called:', called, ')');
+      console.log('[dialerVoiceHandler] → Mode 4 Inbound → ringing browser dialers:', clientIdentities.join(', '), '(to:', to, 'called:', called, ')');
       return new Response(twiml, { headers: { 'Content-Type': 'text/xml' } });
     } catch (e) {
       console.warn('[dialerVoiceHandler] Inbound routing failed:', e?.message);
