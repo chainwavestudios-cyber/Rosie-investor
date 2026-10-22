@@ -5,6 +5,7 @@
  */
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.52';
 import { assignNoticeIds } from '../../shared/noticeId.ts';
+import { assignProtofaceIds } from '../../shared/protofaceId.ts';
 import { ensureMailers } from '../../shared/rateDropMailer.ts';
 
 export default async function(req: Request): Promise<Response> {
@@ -67,13 +68,14 @@ export default async function(req: Request): Promise<Response> {
     // also excluded from the Mailjet opt-in roster (see emailOptIn).
     if (destination === 'debt_marketing') {
       const marketingNow = new Date().toISOString();
-      await base44.asServiceRole.entities.LeadVaultEntry.bulkUpdate(distributable.map((entry) => ({
+      await base44.asServiceRole.entities.LeadVaultEntry.bulkUpdate(distributable.map((entry, i) => ({
         id: entry.id,
         destination,
         assignedTo: '',
         assignedAt: marketingNow,
         distributedAt: marketingNow,
         distributedBy: assignedBy || 'admin',
+        protofaceId: protofaceIds[i] || '',
       })));
       return Response.json({
         distributed: distributable.length,
@@ -85,11 +87,15 @@ export default async function(req: Request): Promise<Response> {
     }
 
     const noticeIds = await assignNoticeIds(base44, distributable.length);
+    // Every distributed lead also gets its own Protoface ID, so a per-lead video
+    // link can be built for it before any call happens.
+    const protofaceIds = assignProtofaceIds(distributable.length);
     const records = distributable.map((entry, i) => {
       const leadNumber = `#F${String(num++).padStart(4, '0')}`;
       const rec: any = {
         leadNumber,
         noticeId: noticeIds[i] || '',
+        protofaceId: protofaceIds[i] || '',
         firstName: entry.firstName,
         lastName: entry.lastName,
         phone: entry.phone,
@@ -155,6 +161,7 @@ export default async function(req: Request): Promise<Response> {
       distributedAt: now,
       distributedBy: assignedBy || 'admin',
       fronterLeadId: created[i]?.id || '',
+      protofaceId: protofaceIds[i] || '',
     }));
     if (vaultUpdates.length > 0) {
       await base44.asServiceRole.entities.LeadVaultEntry.bulkUpdate(vaultUpdates);

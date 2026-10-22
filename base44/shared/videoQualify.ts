@@ -5,6 +5,7 @@
  */
 import { secrets } from 'base44:runtime';
 import { toE164, twilioFetch, xmlEscape } from './twilioHelpers.ts';
+import { PROTOFACE_ID_RE } from './protofaceId.ts';
 
 export const FALLBACK_APP_URL = 'https://rosieai-investorpage.base44.app';
 export const VAPI_API = 'https://api.vapi.ai';
@@ -101,10 +102,21 @@ export async function loadConfig(base44: any): Promise<any> {
   return await base44.asServiceRole.entities.VideoQualifyConfig.create({ configName: 'default' });
 }
 
-/** The email link carries the vault entry id (or the Notice ID printed on the notice). */
+/**
+ * The email link carries the lead's Protoface ID, a vault entry id, or the
+ * Notice ID printed on the notice.
+ */
 export async function resolveVaultLead(base44: any, token: string): Promise<any> {
   const t = String(token || '').trim();
   if (!t) return null;
+
+  if (PROTOFACE_ID_RE.test(t)) {
+    const vault = await base44.asServiceRole.entities.LeadVaultEntry.filter({ protofaceId: t }, { limit: 1 });
+    if (vault?.items && vault.items[0]) return vault.items[0];
+    const card = await base44.asServiceRole.entities.FronterLead.filter({ protofaceId: t }, { limit: 1 });
+    return (card?.items && card.items[0]) || null;
+  }
+
   if (!NOTICE_ID_RE.test(t)) {
     try {
       const rec = await base44.asServiceRole.entities.LeadVaultEntry.get(t);

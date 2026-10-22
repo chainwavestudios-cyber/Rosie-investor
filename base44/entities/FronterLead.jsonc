@@ -10,6 +10,10 @@
       "type": "string",
       "title": "Notice ID (unique per contact card \u2014 NFS-99999-999 series)"
     },
+    "protofaceId": {
+      "type": "string",
+      "title": "Protoface ID (stamped at distribution; the token this lead's video qualification link carries)"
+    },
     "firstName": {
       "type": "string",
       "title": "First Name"
