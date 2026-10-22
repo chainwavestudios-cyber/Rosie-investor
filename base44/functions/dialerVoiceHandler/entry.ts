@@ -60,6 +60,40 @@ function buildMergeBrief(lead: any): string {
   return `${where ? `You have ${first} from ${where}` : `You have ${first}`}${load}. I am going to merge him in now.`;
 }
 
+function queueWaitPhrase(seconds: number): string {
+  const s = Math.max(0, Math.round(Number(seconds) || 0));
+  if (s < 8) return 'just a few seconds';
+  if (s < 45) return `${s} seconds`;
+  if (s < 90) return 'about a minute';
+  const mins = Math.round(s / 60);
+  return `about ${mins} minutes`;
+}
+
+// Spoken to the closer when he answers the transfer call: who is waiting, their
+// debt load, how long they have been on hold — then the approval question.
+function buildQueueBrief(lead: any, secondsInQueue: number): string {
+  const name = [String(lead?.firstName || '').trim(), String(lead?.lastName || '').trim()]
+    .filter(Boolean).join(' ') || 'a new caller';
+  const amount = Number(lead?.debtAmount || 0) || 20000;
+  return `Hey, I have ${name} on the line with approximately ${amount.toLocaleString('en-US')} dollars ` +
+    `of unsecured debt, and they have been in the queue ${queueWaitPhrase(secondsInQueue)}. ` +
+    `Say "patch him through", or press 1, and I will connect you both.`;
+}
+
+// The closer's leg joins the queue conference; his join starts it, so the
+// caller comes off hold and the two are connected.
+function queueMergeTwiml(conf: string, mergeStatusUrl: string): string {
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Dial>
+    <Conference startConferenceOnEnter="true" endConferenceOnExit="true" beep="false"
+      statusCallback="${xmlEscape(mergeStatusUrl)}" statusCallbackEvent="start">
+      ${xmlEscape(conf)}
+    </Conference>
+  </Dial>
+</Response>`;
+}
+
 export default async function(req) {
   // ── Always return valid TwiML — never let Twilio see a 5xx ──────────
   try {
@@ -221,12 +255,12 @@ export default async function(req) {
       const pollyVoice = getPollyVoice(config.ttsVoiceModel || 'aura-2-thalia-en');
       const appUrl = req.headers.get('X-Base44-App-Url') || 'https://rosieai-investorpage.base44.app';
 
-      // ── Inbound AI calls → transfer queue + merge to the advisor ──
+      // ── AI calls (inbound + outbound) → transfer queue + merge to the advisor ──
       // The same handoff the transfer popup drives: the caller waits in the queue
       // conference on the queue hold recording, the advisor is dialed on the merge
-      // number, hears who is waiting, and joins the conference — that join starts
-      // it, so the caller comes off hold and the two are connected.
-      if (lead?.inboundAdamCall || lead?.callStatus === 'inbound_adam') {
+      // number, hears who is waiting, says "patch him through", and his join starts
+      // the conference — the caller comes off hold and the two are connected.
+      if (leadId) {
         const conferenceName = `adam_queue_${leadId || Date.now()}`;
         const customerCallSid = params.get('CallSid') || '';
         const holdWaitUrl = `${appUrl}/functions/dialerVoiceHandler?Mode=inboundHoldMusic`;
@@ -261,7 +295,9 @@ export default async function(req) {
         const mergeFrom = lineNumber(config.twilioLineKey) || Deno.env.get('TWILIO_FROM_NUMBER') || '';
         if (/^\+[1-9]\d{7,14}$/.test(mergeNumber) && mergeFrom) {
           const briefUrl = `${appUrl}/functions/dialerVoiceHandler?Mode=aiQueueBrief` +
-            `&LeadId=${encodeURIComponent(leadId)}&Conf=${encodeURIComponent(conferenceName)}`;
+            `&LeadId=${encodeURIComponent(leadId)}&Conf=${encodeURIComponent(conferenceName)}` +
+            `&QueuedAt=${encodeURIComponent(new Date().toISOString())}` +
+            (customerCallSid ? `&CallerCallSid=${encodeURIComponent(customerCallSid)}` : '');
           try {
             await twilioFetch('/Calls.json', {
               method: 'POST',
@@ -342,22 +378,65 @@ export default async function(req) {
         }
       } catch (e) { console.warn('[dialerVoiceHandler] Brief load failed:', e?.message); }
 
+      const queuedAt = params.get('QueuedAt') || '';
+      const queuedAtMs = queuedAt ? new Date(queuedAt).getTime() : 0;
+      const queuedSeconds = queuedAtMs ? Math.max(0, (Date.now() - queuedAtMs) / 1000) : 0;
+      const callerCallSid = params.get('CallerCallSid') || '';
       const pollyVoice = getPollyVoice(briefConfig.ttsVoiceModel || 'aura-2-thalia-en');
       const baseUrl = req.headers.get('X-Base44-App-Url') || 'https://rosieai-investorpage.base44.app';
       const mergeStatusUrl = `${baseUrl}/functions/dialerVoiceHandler?Mode=aiQueueMerged` +
         `&LeadId=${encodeURIComponent(briefLeadId)}&Conf=${encodeURIComponent(conf)}`;
+      const approveUrl = `${baseUrl}/functions/dialerVoiceHandler?Mode=aiQueueApprove` +
+        `&LeadId=${encodeURIComponent(briefLeadId)}&Conf=${encodeURIComponent(conf)}` +
+        (callerCallSid ? `&CallerCallSid=${encodeURIComponent(callerCallSid)}` : '');
+      // Brief the closer, then listen for his approval before merging anything.
       const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Say voice="${pollyVoice}">${xmlEscape(buildMergeBrief(lead))}</Say>
-  <Dial>
-    <Conference startConferenceOnEnter="true" endConferenceOnExit="true" beep="false"
-      statusCallback="${xmlEscape(mergeStatusUrl)}" statusCallbackEvent="start">
-      ${xmlEscape(conf)}
-    </Conference>
-  </Dial>
+  <Gather input="speech dtmf" numDigits="1" timeout="6" speechTimeout="auto" action="${xmlEscape(approveUrl)}" method="GET">
+    <Say voice="${pollyVoice}">${xmlEscape(buildQueueBrief(lead, queuedSeconds))}</Say>
+  </Gather>
+  <Redirect method="GET">${xmlEscape(approveUrl)}</Redirect>
 </Response>`;
       console.log('[dialerVoiceHandler] → AI Queue Brief to advisor, conf:', conf);
       return new Response(twiml, { headers: { 'Content-Type': 'text/xml' } });
+    }
+
+    // ── Mode: AI Queue Approve — the closer answered the transfer call ──────
+    // He heard the brief and either said "patch him through" / pressed 1, or
+    // asked to hold off. Approve → his leg joins the queue conference (the merge).
+    // Anything else → his leg ends and the caller stays queued for a fronter.
+    if (params.get('Mode') === 'aiQueueApprove') {
+      const okLeadId = params.get('LeadId') || '';
+      const okConf = params.get('Conf') || '';
+      let okConfig: any = {};
+      try {
+        const { createClientFromRequest } = await import('npm:@base44/sdk@0.8.52');
+        const base44 = createClientFromRequest(req).asServiceRole;
+        const configs = await base44.entities.AIAgentConfig.filter({ configName: 'default' });
+        okConfig = configs?.[0] || {};
+      } catch (e) { console.warn('[dialerVoiceHandler] Approve config load failed:', e?.message); }
+
+      const speech = (params.get('SpeechResult') || '').toLowerCase();
+      const digits = (params.get('Digits') || '').trim();
+      const APPROVE = /(patch|through|connect|go ahead|bring (him|her|them) in|send (him|her|them|it)|yes|yeah|yep|sure|sounds good|okay|ok\b|do it|i got (him|her|them))/;
+      const DECLINE = /(not now|not yet|can'?t|cannot|no thanks|no thank|busy|hold on|hold up|\bwait\b|call back|later|\bno\b)/;
+      const approved = digits ? digits === '1'
+        : (APPROVE.test(speech) ? true : (DECLINE.test(speech) ? false : true));
+
+      const okVoice = getPollyVoice(okConfig.ttsVoiceModel || 'aura-2-thalia-en');
+      if (!approved) {
+        console.log('[dialerVoiceHandler] → Closer declined the merge:', speech || digits || 'no input');
+        return new Response(
+          `<?xml version="1.0" encoding="UTF-8"?><Response><Say voice="${okVoice}">No problem. They will stay in the queue for the next available specialist. Thanks.</Say><Hangup/></Response>`,
+          { headers: { 'Content-Type': 'text/xml' } }
+        );
+      }
+
+      const okBase = req.headers.get('X-Base44-App-Url') || 'https://rosieai-investorpage.base44.app';
+      const okStatusUrl = `${okBase}/functions/dialerVoiceHandler?Mode=aiQueueMerged` +
+        `&LeadId=${encodeURIComponent(okLeadId)}&Conf=${encodeURIComponent(okConf)}`;
+      console.log('[dialerVoiceHandler] → Closer approved the merge:', speech || digits || 'no input');
+      return new Response(queueMergeTwiml(okConf, okStatusUrl), { headers: { 'Content-Type': 'text/xml' } });
     }
 
     // ── Mode: AI Queue Merged — advisor + caller are now connected ──
