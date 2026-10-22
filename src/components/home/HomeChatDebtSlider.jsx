@@ -11,8 +11,8 @@ export default function HomeChatDebtSlider({ onSubmit }) {
   const [amount, setAmount] = useState(START);
 
   return (
-    <div className="flex h-72 flex-col justify-center gap-6 bg-home-canvas px-5 py-6">
-      <p className="text-center font-home-display text-[26px] leading-tight text-home-ink sm:text-[30px]">
+    <div className="flex min-h-72 flex-col justify-center gap-4 bg-home-canvas px-5 pb-6 pt-5">
+      <p className="text-center font-home-display text-[24px] leading-tight text-home-ink sm:text-[28px]">
         Welcome, I&apos;m Simon! Let&apos;s get you Debt Free!
       </p>
 
