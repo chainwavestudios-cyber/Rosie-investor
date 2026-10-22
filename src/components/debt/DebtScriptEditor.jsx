@@ -2,7 +2,7 @@
  * DebtScriptEditor.jsx — Script editor for the Debt Call Coach.
  * Two tabs: My Scripts (CRUD on DebtScript entity) and Agent Scripts (read-only KB imports).
  */
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useDebtCoachValue, getDebtCoachValue, setDebtCoachValue } from '@/lib/debtCoachStorage';
 import ScriptTeleprompter from '@/components/debt/ScriptTeleprompter';
@@ -96,6 +96,13 @@ function MyScriptsTab({ liveTranscript, phase, clientFirstName, clientLastName, 
   const [mode, setMode] = useDebtCoachValue(username, 'popout_script_mode', 'edit'); // 'edit' | 'teleprompt'
   const textareaRef = useRef(null);
   const insertionRangeRef = useRef(null);
+  const [editRequest, setEditRequest] = useState(0);
+  const editScript = () => { setMode('edit'); setEditRequest(n => n + 1); };
+  useLayoutEffect(() => {
+    if (!editRequest || mode !== 'edit') return;
+    textareaRef.current?.focus({ preventScroll: true });
+    textareaRef.current?.scrollIntoView({ block: 'nearest' });
+  }, [mode, editRequest]);
   const { user: coachUser } = useDebtCoachAuth();
   const skipActiveIdSave = useRef(true);
 
@@ -339,7 +346,7 @@ function MyScriptsTab({ liveTranscript, phase, clientFirstName, clientLastName, 
   if (loading) return <div style={{ color: '#6b7280', textAlign: 'center', padding: '40px' }}>Loading scripts…</div>;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflowY: 'auto' }}>
       {/* Script tabs */}
       <div style={{ display: 'flex', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.07)', marginBottom: '12px', overflowX: 'auto', flexShrink: 0, gap: 0 }}>
         {scripts.map(s => (
@@ -390,7 +397,7 @@ function MyScriptsTab({ liveTranscript, phase, clientFirstName, clientLastName, 
           {/* Mode toggle + formatting toolbar — single line */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px', flexWrap: 'wrap', flexShrink: 0 }}>
             <div style={{ display: 'flex', gap: '3px' }}>
-              <button onClick={() => setMode('edit')} style={{ padding: '4px 10px', borderRadius: '4px', border: `1px solid ${mode === 'edit' ? GOLD + '66' : 'rgba(255,255,255,0.1)'}`, background: mode === 'edit' ? `${GOLD}18` : 'transparent', color: mode === 'edit' ? GOLD : '#6b7280', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>✏️ Edit</button>
+              <button type="button" onClick={editScript} style={{ padding: '4px 10px', borderRadius: '4px', border: `1px solid ${mode === 'edit' ? GOLD + '66' : 'rgba(255,255,255,0.1)'}`, background: mode === 'edit' ? `${GOLD}18` : 'transparent', color: mode === 'edit' ? GOLD : '#6b7280', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>✏️ Edit</button>
               <button onClick={() => setMode('teleprompt')} style={{ padding: '4px 10px', borderRadius: '4px', border: `1px solid ${mode === 'teleprompt' ? '#f59e0b66' : 'rgba(255,255,255,0.1)'}`, background: mode === 'teleprompt' ? 'rgba(245,158,11,0.15)' : 'transparent', color: mode === 'teleprompt' ? '#f59e0b' : '#6b7280', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>📍 Teleprompt</button>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>

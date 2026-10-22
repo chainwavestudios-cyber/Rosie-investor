@@ -6,7 +6,7 @@
  *
  * Uses FronterScript entity (shared with admin-created scripts).
  */
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useDebtCoachValue, getDebtCoachValue, setDebtCoachValue } from '@/lib/debtCoachStorage';
 import { usePopOutPanel } from '@/hooks/usePopOutPanel';
@@ -16,6 +16,7 @@ import ScriptFormatToolbar from '@/components/debt/ScriptFormatToolbar';
 import ScriptWysiwygEditor from '@/components/debt/ScriptWysiwygEditor';
 import { htmlToBbcode } from '@/components/debt/ScriptRichText';
 import { FRONTER_CONTACT_TABS } from '@/lib/fronterContactFields';
+import FronterScriptFieldPicker from '@/components/fronter/FronterScriptFieldPicker';
 
 const GOLD = '#10b981';
 const DARK = '#0a0f1e';
@@ -146,6 +147,13 @@ function FronterScriptsContent({ fronterFirstName, username }) {
   const activeRef = useRef(null);
   const [mode, setMode] = useDebtCoachValue(username, 'fronter_script_mode', 'edit');
   const textareaRef = useRef(null);
+  const [editRequest, setEditRequest] = useState(0);
+  const editScript = () => { setMode('edit'); setEditRequest(n => n + 1); };
+  useLayoutEffect(() => {
+    if (!editRequest || mode !== 'edit') return;
+    textareaRef.current?.focus({ preventScroll: true });
+    textareaRef.current?.scrollIntoView({ block: 'nearest' });
+  }, [mode, editRequest]);
   const skipActiveIdSave = useRef(true);
 
   const loadScripts = useCallback(async () => {
@@ -270,6 +278,8 @@ function FronterScriptsContent({ fronterFirstName, username }) {
     updateAndSave({ content: bbcode });
   };
 
+  const insertCardField = (field) => insertVariableAtCursor(`@@FIELD:${field}@@`);
+
   const insertVariableAtCursor = (token) => {
     const ce = textareaRef.current;
     if (!ce || !active) return;
@@ -328,7 +338,7 @@ function FronterScriptsContent({ fronterFirstName, username }) {
   if (loading) return <div style={{ color: '#6b7280', textAlign: 'center', padding: '40px' }}>Loading scripts…</div>;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, padding: '14px 16px' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, padding: '14px 16px', overflowY: 'auto' }}>
       {/* Script tabs */}
       <div style={{ display: 'flex', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.07)', marginBottom: '12px', overflowX: 'auto', flexShrink: 0, gap: 0 }}>
         {scripts.map(s => (
@@ -379,7 +389,7 @@ function FronterScriptsContent({ fronterFirstName, username }) {
           {/* Mode toggle + formatting toolbar — single line */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px', flexWrap: 'wrap', flexShrink: 0 }}>
             <div style={{ display: 'flex', gap: '3px' }}>
-              <button onClick={() => setMode('edit')} style={{ padding: '4px 10px', borderRadius: '4px', border: `1px solid ${mode === 'edit' ? GOLD + '66' : 'rgba(255,255,255,0.1)'}`, background: mode === 'edit' ? `${GOLD}18` : 'transparent', color: mode === 'edit' ? GOLD : '#6b7280', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>✏️ Edit</button>
+              <button type="button" onClick={editScript} style={{ padding: '4px 10px', borderRadius: '4px', border: `1px solid ${mode === 'edit' ? GOLD + '66' : 'rgba(255,255,255,0.1)'}`, background: mode === 'edit' ? `${GOLD}18` : 'transparent', color: mode === 'edit' ? GOLD : '#6b7280', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>✏️ Edit</button>
               <button onClick={() => setMode('teleprompt')} style={{ padding: '4px 10px', borderRadius: '4px', border: `1px solid ${mode === 'teleprompt' ? '#f59e0b66' : 'rgba(255,255,255,0.1)'}`, background: mode === 'teleprompt' ? 'rgba(245,158,11,0.15)' : 'transparent', color: mode === 'teleprompt' ? '#f59e0b' : '#6b7280', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>📍 Teleprompt</button>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
@@ -440,6 +450,7 @@ function FronterScriptsContent({ fronterFirstName, username }) {
                 <button onClick={insertCompletedStepsTag} title="Insert Completed Steps button — everything below this marker becomes the transfer script shown in the merge popup" style={{ padding: '4px 10px', borderRadius: '4px', border: `1px solid #22c55e55`, background: 'rgba(34,197,94,0.15)', color: '#22c55e', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>✅ Completed Steps</button>
                 <button onClick={insertAiInputTag} title="Insert AI Input button — fronter presses this to summarize the transcript so far into the notes" style={{ padding: '4px 10px', borderRadius: '4px', border: `1px solid #a78bfa55`, background: 'rgba(167,139,250,0.15)', color: '#a78bfa', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>🤖 AI Input</button>
                 <button onClick={insertSendEmailTag} title="Insert the Send Credentials & Welcome Message Email button — the fronter presses it inside the script to email the lead their portal credentials and welcome message, using the email on the contact card" style={{ padding: '4px 10px', borderRadius: '4px', border: `1px solid #60a5fa55`, background: 'rgba(96,165,250,0.15)', color: '#60a5fa', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>📧 Send Credentials &amp; Welcome Email</button>
+                <FronterScriptFieldPicker onInsert={insertCardField} />
               </div>
               {/* Inline formatting toolbar */}
               <div style={{ marginBottom: '8px', flexShrink: 0 }}>
@@ -465,6 +476,7 @@ function FronterScriptsContent({ fronterFirstName, username }) {
                 <span style={{ marginLeft: '12px' }}>Debt Confirm: <span style={{ color: GOLD, fontFamily: 'monospace' }}>@@DEBT_CONFIRM@@</span> <span style={{ color: '#4a5568' }}>— renders a button the fronter presses to confirm debt type + total + per-type amounts (reads [[AI:debtAmount]], [[AI:debtTypesJson]], [[AI:debtAmountsJson]] tags)</span></span>
                 <span style={{ marginLeft: '12px' }}>Completed Steps: <span style={{ color: '#22c55e', fontFamily: 'monospace' }}>@@COMPLETED_STEPS@@</span> <span style={{ color: '#4a5568' }}>— renders a button that opens the transfer popup with the script below it</span></span>
                 <span style={{ marginLeft: '12px' }}>AI Input: <span style={{ color: '#a78bfa', fontFamily: 'monospace' }}>@@AI_INPUT@@</span> <span style={{ color: '#4a5568' }}>— renders a button that summarizes the transcript so far into the notes</span></span>
+                <span style={{ marginLeft: '12px' }}>Contact Field: <span style={{ fontFamily: 'monospace' }}>@@FIELD:email@@</span> — edit and update the contact card inside the script</span>
                 <span style={{ marginLeft: '12px' }}>Send Email: <span style={{ color: '#60a5fa', fontFamily: 'monospace' }}>@@SEND_EMAIL@@</span> <span style={{ color: '#4a5568' }}>— renders a button that emails the lead using the email from the contact card</span></span>
               </div>
             </>

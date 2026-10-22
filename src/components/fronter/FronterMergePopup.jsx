@@ -22,7 +22,8 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
 import { substituteScriptVars } from '@/lib/scriptSubstitute';
 import { renderFormatted } from '@/components/debt/ScriptRichText';
-import FronterPopup from './FronterPopup';
+import FronterPopup from '@/components/fronter/FronterPopup';
+import FronterInlineField from '@/components/fronter/FronterInlineField';
 
 const GOLD = '#10b981';
 const DARK = '#0a0f1e';
@@ -35,7 +36,7 @@ const CHRIS_LABELS = ['619-353-0919', '216-258-6934'];
 
 const DEFAULT_MERGE_SCRIPT = `Alright {{first name}}, I've got a senior debt advisor ready to help you through this. I'm going to connect you now — stay on the line and they'll be right with you.`;
 
-export default function FronterMergePopup({ lead, username, fronterFirstName, isAdmin, callActive, callDuration, callSid, lineKey, onMerge, onNoConnect, onClose, transferScript, onAiInput, onDebtConfirm, onSendEmail, mergeNumbers, mergeLabels, popupProps = {} }) {
+export default function FronterMergePopup({ lead, username, fronterFirstName, isAdmin, callActive, callDuration, callSid, lineKey, onMerge, onNoConnect, onClose, transferScript, onAiInput, onDebtConfirm, onSendEmail, onFieldSaved, mergeNumbers, mergeLabels, popupProps = {} }) {
   // Merge / transfer numbers are mastered by the super admin; anything left empty
   // falls back to the built-in defaults.
   const overrideNumbers = (mergeNumbers || []).filter(Boolean);
@@ -246,7 +247,7 @@ export default function FronterMergePopup({ lead, username, fronterFirstName, is
   const rawMergeScript = transferScript || script?.content || DEFAULT_MERGE_SCRIPT;
   const substitutedMergeScript = substituteScriptVars(rawMergeScript, { lead, fronterFirstName });
   const displayMergeScript = substitutedMergeScript.replace(/\[\[AI:\w+\]\]/gi, '');
-  const mergeSegments = displayMergeScript.split(/@@(DEBT_CONFIRM|AI_INPUT|SEND_EMAIL)@@/i);
+  const mergeSegments = displayMergeScript.split(/@@(DEBT_CONFIRM|AI_INPUT|SEND_EMAIL|FIELD:[A-Za-z0-9_]+)@@/i);
 
   const canDial = mergeState === 'idle' && callSid && callActive && lineKey;
   const canMerge = !noConnectRunning && mergeState === 'connected';
@@ -255,7 +256,7 @@ export default function FronterMergePopup({ lead, username, fronterFirstName, is
   const isLastNumber = currentNumberIdx >= numbers.length - 1;
 
   return (
-    <FronterPopup title="🔀 Merge Call" subtitle="Complete the steps, then connect" accent={GOLD} onClose={onClose} initialSize={{ w: 520, h: 680 }} minW={380} minH={480} zIndex={21000} {...popupProps}>
+    <FronterPopup portal title="🔀 Merge Call" subtitle="Complete the steps, then connect" accent={GOLD} onClose={onClose} initialSize={{ w: 520, h: 680 }} minW={380} minH={480} zIndex={21000} {...popupProps}>
       <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', height: '100%' }}>
         {/* Compact call + Chris status strip */}
         <div style={{ marginBottom: '10px', display: 'flex', gap: '8px' }}>
@@ -336,6 +337,7 @@ export default function FronterMergePopup({ lead, username, fronterFirstName, is
                       </div>
                     );
                   }
+                  if (/^FIELD:/i.test(seg)) return <FronterInlineField key={i} field={seg.slice(6)} lead={lead} onSaved={onFieldSaved} />;
                   return <span key={i}>{renderFormatted(seg)}</span>;
                 })}
               </div>

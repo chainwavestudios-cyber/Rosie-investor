@@ -286,7 +286,7 @@ export default function FronterCredsEmailPopup({ lead, username, onClose, onSent
         sentBy: username,
         inlineImages: inlineImages.map(({ contentId, base64, mimeType }) => ({ contentId, base64, mimeType })),
       });
-      if (res?.error) throw new Error(res.error);
+      if (res?.data?.error || res?.error) throw new Error(res?.data?.error || res.error);
 
       const now = new Date().toISOString();
       const templateLabel = templates.find(t => t.id === selectedTemplateId)?.label || selectedTemplateId;
@@ -316,7 +316,19 @@ export default function FronterCredsEmailPopup({ lead, username, onClose, onSent
   };
 
   return (
-    <FronterPopup title="🔑 Email Company Credentials" subtitle="Sends from connected Gmail · auto-graduates to lead" accent={BLUE} onClose={onClose} initialSize={{ w: 560, h: 640 }} minW={400} minH={320} zIndex={26000}>
+    <FronterPopup portal title="🔑 Email Company Credentials" subtitle="Sends from connected Gmail · auto-graduates to lead" accent={BLUE} onClose={onClose} initialSize={{ w: 560, h: 640 }} minW={400} minH={320} zIndex={26000} footer={
+      <div style={{ padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px' }}>
+        {status === 'success' && <span style={{ color: '#4ade80', fontSize: '12px', fontWeight: 'bold' }}>✓ Credentials sent! Lead graduated.</span>}
+        {status === 'template_saved' && <span style={{ color: GOLD, fontSize: '12px', fontWeight: 'bold' }}>✓ Template updated!</span>}
+        {status.startsWith('error') && <span style={{ color: '#ef4444', fontSize: '11px' }}>{status}</span>}
+        {!status && (missing
+          ? <span style={{ color: '#f59e0b', fontSize: '11px', fontWeight: 'bold' }}>{missing}</span>
+          : <span style={{ color: '#6b7280', fontSize: '10px' }}>Sending credentials auto-graduates prospect to lead</span>)}
+        <button onClick={send} disabled={sending || !canSend} style={{ background: 'linear-gradient(135deg,#60a5fa,#3b82f6)', color: '#fff', border: 'none', borderRadius: '4px', padding: '9px 24px', cursor: sending || !canSend ? 'not-allowed' : 'pointer', fontSize: '12px', fontWeight: 'bold', opacity: sending || !canSend ? 0.5 : 1, marginLeft: 'auto' }}>
+          {sending ? '⏳ Sending…' : '🔑 Send Credentials'}
+        </button>
+      </div>
+    }>
       <div style={{ padding: '16px' }}>
           {/* Recipient — editable here, and savable straight onto the card */}
           <div style={{ marginBottom: '12px' }}>
@@ -439,17 +451,6 @@ export default function FronterCredsEmailPopup({ lead, username, onClose, onSent
           )}
       </div>
 
-      <div style={{ padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px' }}>
-        {status === 'success' && <span style={{ color: '#4ade80', fontSize: '12px', fontWeight: 'bold' }}>✓ Credentials sent! Lead graduated.</span>}
-        {status === 'template_saved' && <span style={{ color: GOLD, fontSize: '12px', fontWeight: 'bold' }}>✓ Template updated!</span>}
-        {status.startsWith('error') && <span style={{ color: '#ef4444', fontSize: '11px' }}>{status}</span>}
-        {!status && (missing
-          ? <span style={{ color: '#f59e0b', fontSize: '11px', fontWeight: 'bold' }}>{missing}</span>
-          : <span style={{ color: '#6b7280', fontSize: '10px' }}>Sending credentials auto-graduates prospect to lead</span>)}
-        <button onClick={send} disabled={sending || !canSend} style={{ background: 'linear-gradient(135deg,#60a5fa,#3b82f6)', color: '#fff', border: 'none', borderRadius: '4px', padding: '9px 24px', cursor: sending || !canSend ? 'not-allowed' : 'pointer', fontSize: '12px', fontWeight: 'bold', opacity: sending || !canSend ? 0.5 : 1, marginLeft: 'auto' }}>
-          {sending ? '⏳ Sending…' : '🔑 Send Credentials'}
-        </button>
-      </div>
     </FronterPopup>
   );
 }

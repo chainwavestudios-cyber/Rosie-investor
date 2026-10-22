@@ -1105,11 +1105,10 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
           lead={local}
           username={username}
           onClose={() => setShowCredsEmail(false)}
-          onLeadUpdated={(patch) => { setLocal(prev => ({ ...prev, ...patch })); }}
+          onLeadUpdated={handleFieldSaved}
           onSent={(data) => {
             setShowCredsEmail(false);
-            setLocal(prev => ({ ...prev, credsSentAt: data?.credsSentAt || new Date().toISOString(), credsSentTemplate: data?.credsSentTemplate }));
-            onSave?.({ ...local, credsSentAt: data?.credsSentAt || new Date().toISOString(), credsSentTemplate: data?.credsSentTemplate });
+            handleFieldSaved(data);
           }}
         />
       )}
@@ -1146,6 +1145,7 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
           onAiInput={runAiInput}
           onDebtConfirm={runDebtConfirm}
           onSendEmail={() => setShowCredsEmail(true)}
+          onFieldSaved={handleFieldSaved}
           onMerge={() => { setScriptPoppedOut(false); setQaPoppedOut(false); setTranscriptPoppedOut(false); setShowMergePopup(false); setTransferScript(''); setHangupSignal(s => s + 1); markTransferred(true); }}
           onNoConnect={() => { setScriptPoppedOut(false); setQaPoppedOut(false); setTranscriptPoppedOut(false); setHangupSignal(s => s + 1); handleNoConnect(); }}
           onClose={() => { setShowMergePopup(false); setTransferScript(''); }}

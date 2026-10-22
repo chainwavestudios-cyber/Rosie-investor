@@ -4,6 +4,7 @@
  * emergency script, and any button-generated popup.
  */
 import { useState, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 
 const HANDLES = [
   { dir: 'n', style: { top: -3, left: 8, right: 8, height: 7, cursor: 'ns-resize' } },
@@ -16,7 +17,7 @@ const HANDLES = [
   { dir: 'sw', style: { bottom: -4, left: -4, width: 14, height: 14, cursor: 'nesw-resize' } },
 ];
 
-export default function FronterPopup({ title, subtitle, accent = '#10b981', children, footer, onClose, initialPos = { x: 140, y: 80 }, initialSize = { w: 520, h: 560 }, minW = 320, minH = 240, zIndex = 10050, headerChildren }) {
+export default function FronterPopup({ title, subtitle, accent = '#10b981', children, footer, onClose, initialPos = { x: 140, y: 80 }, initialSize = { w: 520, h: 560 }, minW = 320, minH = 240, zIndex = 10050, headerChildren, portal = false }) {
   const [pos, setPos] = useState(initialPos);
   const [size, setSize] = useState(initialSize);
   const dragRef = useRef(null);
@@ -46,8 +47,12 @@ export default function FronterPopup({ title, subtitle, accent = '#10b981', chil
     document.addEventListener('mouseup', onUp);
   }, [pos, size, minW, minH]);
 
-  return (
-    <div style={{ position: 'fixed', left: pos.x, top: pos.y, width: size.w, height: size.h, background: '#0d1b2a', border: `1px solid ${accent}66`, borderRadius: '10px', boxShadow: '0 24px 72px rgba(0,0,0,0.85)', zIndex, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+  const width = portal ? `min(${size.w}px, calc(100vw - 16px))` : size.w;
+  const height = portal ? `min(${size.h}px, calc(100dvh - 16px))` : size.h;
+  const left = portal ? `max(8px, min(${pos.x}px, calc(100vw - min(${size.w}px, calc(100vw - 16px)) - 8px)))` : pos.x;
+  const top = portal ? `max(8px, min(${pos.y}px, calc(100dvh - min(${size.h}px, calc(100dvh - 16px)) - 8px)))` : pos.y;
+  const popup = (
+    <div role={portal ? 'dialog' : undefined} aria-label={title} style={{ position: 'fixed', left, top, width, height, background: '#0d1b2a', border: `1px solid ${accent}66`, borderRadius: '10px', boxShadow: '0 24px 72px rgba(0,0,0,0.85)', zIndex, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       <div onMouseDown={startDrag} style={{ padding: '10px 14px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px', cursor: 'move', userSelect: 'none', flexShrink: 0, background: `linear-gradient(135deg, ${accent}14, transparent)` }}>
         <div style={{ minWidth: 0 }}>
           {title && <div style={{ color: accent, fontSize: '13px', fontWeight: 'bold', letterSpacing: '0.5px' }}>{title}</div>}
@@ -63,4 +68,5 @@ export default function FronterPopup({ title, subtitle, accent = '#10b981', chil
       ))}
     </div>
   );
+  return portal ? createPortal(popup, document.body) : popup;
 }

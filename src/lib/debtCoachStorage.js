@@ -12,7 +12,7 @@
  *   // Imperative (fire-and-forget save):
  *   await setDebtCoachValue(username, 'myKey', { x: 10, y: 20 });
  */
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
 
 // In-memory cache: username -> { data: {}, id: string|null, loaded: boolean }
@@ -178,19 +178,25 @@ export async function setAllDebtCoachValues(username, values) {
 export function useDebtCoachValue(username, key, defaultValue = null) {
   const [value, setValue] = useState(defaultValue);
   const [loaded, setLoaded] = useState(false);
+  const revision = useRef(0);
 
   // Load from DB on mount / when username or key changes
   useEffect(() => {
     if (!username) return;
     let cancelled = false;
     setLoaded(false);
+    const loadRevision = revision.current;
     getDebtCoachValue(username, key, defaultValue).then(v => {
-      if (!cancelled) { setValue(v); setLoaded(true); }
+      if (!cancelled) {
+        // A delayed saved preference must never undo a click or a newer update.
+        if (revision.current === loadRevision) setValue(v);
+        setLoaded(true);
+      }
     });
     // Listen for cross-component updates
     const fullKey = `${username}:${key}`;
     if (!listeners[fullKey]) listeners[fullKey] = new Set();
-    const handler = (newVal) => { if (!cancelled) setValue(newVal); };
+    const handler = (newVal) => { if (!cancelled) { revision.current += 1; setValue(newVal); } };
     listeners[fullKey].add(handler);
     return () => {
       cancelled = true;
@@ -200,6 +206,7 @@ export function useDebtCoachValue(username, key, defaultValue = null) {
   }, [username, key]);
 
   const update = (newVal) => {
+    revision.current += 1;
     setValue(newVal);
     if (username) setDebtCoachValue(username, key, newVal);
   };

@@ -24,13 +24,14 @@ const FIELD_SPEC = Object.fromEntries(INLINE_CARD_FIELDS.map((f) => [f.key, f]))
 
 export default function FronterInlineField({ field, lead, onSaved }) {
   const spec = FIELD_SPEC[field] || { key: field, label: field, type: 'text' };
-  const cardValue = lead?.[field] || '';
+  const cardValue = String(lead?.[field] ?? '');
   const [value, setValue] = useState(cardValue);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState('');
 
   // A different lead pulled up on the card — show that lead's value.
-  useEffect(() => { setValue(lead?.[field] || ''); setMsg(''); }, [lead?.id, field]);
+  useEffect(() => { setValue(cardValue); }, [lead?.id, field, cardValue]);
+  useEffect(() => { setMsg(''); }, [lead?.id, field]);
 
   const dirty = value.trim() !== cardValue.trim();
 
@@ -54,6 +55,7 @@ export default function FronterInlineField({ field, lead, onSaved }) {
       <span style={{ color: '#22d3ee', fontSize: '10px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase' }}>{spec.label}</span>
       <input
         type={spec.type}
+        aria-label={spec.label}
         value={value}
         onChange={(e) => setValue(e.target.value)}
         placeholder={`Enter ${spec.label.toLowerCase()}…`}
