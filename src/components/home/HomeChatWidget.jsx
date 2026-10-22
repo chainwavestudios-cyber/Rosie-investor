@@ -154,16 +154,16 @@ export default function HomeChatWidget({ leadProfile, onLeadFound }) {
   ].filter(Boolean);
 
   return (
-    <section id="chat" className="mx-auto w-full max-w-3xl" style={{ scrollMarginTop: '20px' }}>
+    <section id="chat" className="mx-auto w-full max-w-xl" style={{ scrollMarginTop: '20px' }}>
       <div className="overflow-hidden rounded-3xl border border-white/15 bg-white/[0.07] shadow-[0_40px_90px_rgba(0,0,0,0.55)] backdrop-blur-2xl">
-        <header className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 px-4 py-3.5 sm:px-5">
-          <span className="inline-flex items-center gap-3">
-            <span className="inline-flex h-9 w-9 flex-none items-center justify-center rounded-full bg-white text-[#1a0b2e]">
-              <Sparkles className="h-4 w-4" />
+        <header className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 px-4 py-3">
+          <span className="inline-flex items-center gap-2.5">
+            <span className="inline-flex h-8 w-8 flex-none items-center justify-center rounded-full bg-white text-[#1a0b2e]">
+              <Sparkles className="h-3.5 w-3.5" />
             </span>
             <span className="leading-tight">
-              <span className="block text-[15px] font-bold text-white">State Rate Reduction Qualification</span>
-              <span className="mt-0.5 block text-[11px] font-medium text-white/55">
+              <span className="block text-sm font-bold text-white">State Rate Reduction Qualification</span>
+              <span className="mt-0.5 block text-[10px] font-medium text-white/55">
                 <span className="mr-1.5 inline-block h-1.5 w-1.5 rounded-full bg-teal-400 align-middle" />
                 Online · Live
               </span>

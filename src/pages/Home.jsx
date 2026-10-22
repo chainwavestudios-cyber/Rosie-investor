@@ -104,7 +104,7 @@ export default function Home() {
         {leadProfile && <HomeLeadConfirm profile={leadProfile} />}
 
         <div
-          className="relative mt-8 overflow-hidden rounded-[32px] px-3 py-7 sm:px-8 sm:py-12"
+          className="relative mt-8 overflow-hidden rounded-[28px] px-3 py-5 sm:px-6 sm:py-7"
           style={{ background: 'radial-gradient(120% 100% at 50% 0%, #2d1b4e 0%, #1a0b2e 45%, #0a0a0e 100%)' }}
         >
           <div className="pointer-events-none absolute -left-20 -top-10 h-64 w-64 rounded-full bg-fuchsia-500/25 blur-3xl" />
