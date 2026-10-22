@@ -5,11 +5,13 @@
  */
 import { useState } from 'react';
 import RateDropMailersTab from './RateDropMailersTab';
+import TemplateTestSender from './TemplateTestSender';
 
 const GOLD = '#10b981';
 
 const SUB_TABS = [
   { id: 'rate_drop_mailers', label: '📨 Rate Drop Mailers' },
+  { id: 'test_emails', label: '🧪 Test Emails' },
 ];
 
 export default function MarketingTab({ username }) {
@@ -42,6 +44,7 @@ export default function MarketingTab({ username }) {
       </div>
 
       {sub === 'rate_drop_mailers' && <RateDropMailersTab username={username} />}
+      {sub === 'test_emails' && <TemplateTestSender system="fronter" username={username} />}
     </div>
   );
 }

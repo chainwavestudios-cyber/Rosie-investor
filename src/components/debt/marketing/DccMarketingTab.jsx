@@ -11,6 +11,7 @@ import MarketingGroupRoster from './MarketingGroupRoster';
 import MarketingCampaignBuilder from './MarketingCampaignBuilder';
 import MarketingEngagementReport from './MarketingEngagementReport';
 import MarketingCampaignsList from './MarketingCampaignsList';
+import TemplateTestSender from '@/components/marketing/TemplateTestSender';
 
 const GOLD = '#10b981';
 const BLUE = '#60a5fa';
@@ -59,6 +60,8 @@ export default function DccMarketingTab({ username }) {
         username={username}
         onCreated={load}
       />
+
+      <TemplateTestSender system="coach" username={username} />
 
       <MarketingEngagementReport />
 
