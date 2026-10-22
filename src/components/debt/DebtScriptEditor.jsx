@@ -99,10 +99,16 @@ function MyScriptsTab({ liveTranscript, phase, clientFirstName, clientLastName, 
   const { user: coachUser } = useDebtCoachAuth();
   const skipActiveIdSave = useRef(true);
 
-  // Auto-switch to teleprompter mode when a live call starts
+  // Auto-switch to teleprompter mode when a call BEGINS — only on the transition into
+  // 'live', so this never re-fires on the constant re-renders during a call (which used to
+  // force the mode back to the teleprompter and make the ✏️ Edit button do nothing).
+  const prevPhaseRef = useRef(phase);
   useEffect(() => {
-    if (phase === 'live') setMode('teleprompt');
-  }, [phase, setMode]);
+    const wasLive = prevPhaseRef.current === 'live';
+    prevPhaseRef.current = phase;
+    if (phase === 'live' && !wasLive) setMode('teleprompt');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase]);
 
   const loadScripts = useCallback(async () => {
     setLoading(true);
