@@ -39,7 +39,7 @@ export default function HomeChatMessages({ messages = [], quickReplies = [], onR
       {sending && <p className="text-xs text-slate-500">Typing…</p>}
 
       {!sending && quickReplies.length > 0 && (
-        <div className="flex flex-wrap gap-2 pt-1">
+        <div className="flex flex-wrap justify-center gap-2 pt-1">
           {quickReplies.map((reply) => (
             <button
               key={reply}

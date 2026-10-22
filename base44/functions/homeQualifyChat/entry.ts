@@ -99,6 +99,96 @@ async function addMessage(service: any, token: string, role: string, text: strin
   return await service.entities.HomeChatMessage.create({ sessionToken: token, role, text: clean, authorName });
 }
 
+function isCardId(value: string): boolean {
+  return /^[a-f0-9]{16,32}$/i.test(value);
+}
+
+/** The fields the visitor is asked to confirm, read off their contact card. */
+function cardProfile(card: any, source: string) {
+  const apt = String(card?.apt || '').trim();
+  const street = String(card?.address || '').trim();
+  const address = [
+    street,
+    apt && apt.toUpperCase() !== 'N/A' ? apt : '',
+    card?.city,
+    [card?.state, card?.zipCode].filter(Boolean).join(' '),
+  ].filter(Boolean).join(', ');
+
+  return {
+    id: card?.id || '',
+    source,
+    firstName: card?.firstName || '',
+    lastName: card?.lastName || '',
+    phone: card?.phone || '',
+    address,
+    state: card?.state || '',
+    homeValue: typeof card?.homeValue === 'number' ? card.homeValue : null,
+    linesOfCredit: typeof card?.tradelines === 'number' ? card.tradelines : null,
+    noticeId: card?.noticeId || '',
+    leadNumber: card?.leadNumber || '',
+  };
+}
+
+/** Resolve whatever an email link carried (id, notice id, phone or email) to the visitor's card. */
+async function findContactCard(service: any, candidates: string[]): Promise<any | null> {
+  const first = async (entityName: string, query: any, source: string) => {
+    try {
+      const rows = await service.entities[entityName].filter(query, '-created_date', 3);
+      if (rows?.length) return { card: rows[0], source };
+    } catch {
+      /* try the next shape */
+    }
+    return null;
+  };
+
+  for (const candidate of candidates) {
+    const value = String(candidate || '').trim();
+    if (!value) continue;
+
+    if (isCardId(value)) {
+      try {
+        const card = await service.entities.FronterLead.get(value);
+        if (card) return { card, source: 'contact_card' };
+      } catch {
+        /* not a contact card id */
+      }
+    }
+
+    if (/^NFS-/i.test(value)) {
+      const hit = await first('FronterLead', { noticeId: value.toUpperCase() }, 'contact_card');
+      if (hit) return hit;
+    }
+
+    if (value.includes('@')) {
+      const hit = await first('FronterLead', { email: value }, 'contact_card')
+        || await first('FronterLead', { email: value.toLowerCase() }, 'contact_card')
+        || await first('LeadVaultEntry', { email: value.toLowerCase() }, 'vault');
+      if (hit) return hit;
+    }
+
+    const digitsOnly = value.replace(/\D/g, '');
+    if (digitsOnly.length >= 10) {
+      const last10 = digitsOnly.slice(-10);
+      const hit = await first('FronterLead', { phone: last10 }, 'contact_card')
+        || await first('FronterLead', { phone: `+1${last10}` }, 'contact_card')
+        || await first('LeadVaultEntry', { phone: last10 }, 'vault')
+        || await first('LeadVaultEntry', { phone: `+1${last10}` }, 'vault');
+      if (hit) return hit;
+    }
+
+    if (isCardId(value)) {
+      try {
+        const entry = await service.entities.LeadVaultEntry.get(value);
+        if (entry) return { card: entry, source: 'vault' };
+      } catch {
+        /* not a vault id */
+      }
+    }
+  }
+
+  return null;
+}
+
 function readMessage(row: any) {
   return {
     id: row.id,
@@ -354,6 +444,52 @@ export default async function (req: Request): Promise<Response> {
         await service.entities.HomeChatSession.update(session.id, { status: 'closed', closedAt: new Date().toISOString() });
         return Response.json({ ok: true, status: 'closed' });
       }
+    }
+
+    // ── lead_profile: who is this, if they came in from an email link? ────────
+    if (action === 'lead_profile') {
+      const candidates = Array.isArray(body?.candidates)
+        ? body.candidates.map((value: any) => String(value || '').trim()).filter(Boolean).slice(0, 8)
+        : [];
+      if (candidates.length === 0) return Response.json({ found: false });
+
+      const hit = await findContactCard(service, candidates);
+      if (!hit) return Response.json({ found: false });
+      return Response.json({ found: true, profile: cardProfile(hit.card, hit.source) });
+    }
+
+    // ── confirm_profile: note on the card that the visitor agreed to it ───────
+    if (action === 'confirm_profile') {
+      const cardId = String(body?.leadId || '').trim();
+      const source = body?.source === 'vault' ? 'vault' : 'contact_card';
+      const name = String(body?.name || '').trim().slice(0, 80);
+      if (!cardId) return Response.json({ error: 'leadId is required' }, { status: 400 });
+
+      const line = `Confirmed their details on the website${name ? ` (${name})` : ''}`;
+      try {
+        if (source === 'vault') {
+          const entry: any = await service.entities.LeadVaultEntry.get(cardId);
+          const notes = String(entry?.notes || '').trim();
+          await service.entities.LeadVaultEntry.update(cardId, {
+            notes: notes ? `${notes}\n${line}` : line,
+          });
+        } else {
+          const card: any = await service.entities.FronterLead.get(cardId);
+          let log: any[] = [];
+          try {
+            log = JSON.parse(card?.notesLogJson || '[]');
+            if (!Array.isArray(log)) log = [];
+          } catch {
+            log = [];
+          }
+          log.push({ text: `✅ ${line}`, timestamp: new Date().toISOString(), author: 'website', type: 'confirm' });
+          await service.entities.FronterLead.update(cardId, { notesLogJson: JSON.stringify(log.slice(-100)) });
+        }
+      } catch (error: any) {
+        console.error('[homeQualifyChat] Could not note the confirmation:', error?.message);
+        return Response.json({ error: 'We could not save that just now — your advisor can confirm it on your call.' });
+      }
+      return Response.json({ ok: true });
     }
 
     // ── chat: answer from the KB and qualify ─────────────────────────────────

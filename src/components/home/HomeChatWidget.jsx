@@ -6,8 +6,7 @@ import HomeChatComposer from '@/components/home/HomeChatComposer';
 import HomeChatCallForm from '@/components/home/HomeChatCallForm';
 
 const TIERS = ['Less than $20,000', '$20,000 - $40,000', 'More than $40,000'];
-const GREETING =
-  "Hi, I'm the Debt Solutions assistant. I can answer anything about how the program works and get you set up with a free evaluation. How much credit card debt are you carrying right now?";
+const OPENING = 'How much credit card debt are you carrying right now?';
 const TOKEN_KEY = 'home_chat_session_token';
 const POLL_MS = 4000;
 
@@ -23,8 +22,8 @@ function visitorToken() {
   return token;
 }
 
-export default function HomeChatWidget() {
-  const [messages, setMessages] = useState([{ role: 'assistant', text: GREETING }]);
+export default function HomeChatWidget({ leadProfile }) {
+  const [messages, setMessages] = useState([{ role: 'assistant', text: OPENING }]);
   const [quickReplies, setQuickReplies] = useState(TIERS);
   const [collected, setCollected] = useState({});
   const [readyForCall, setReadyForCall] = useState(false);
@@ -65,6 +64,17 @@ export default function HomeChatWidget() {
       clearInterval(timer);
     };
   }, [sessionToken]);
+
+  // The visitor's contact card tells us who they are before they type anything.
+  useEffect(() => {
+    if (!leadProfile?.firstName) return;
+    setCollected((prev) => ({
+      ...prev,
+      firstName: prev.firstName || leadProfile.firstName || '',
+      lastName: prev.lastName || leadProfile.lastName || '',
+      state: prev.state || leadProfile.state || '',
+    }));
+  }, [leadProfile?.firstName, leadProfile?.lastName, leadProfile?.state]);
 
   const send = async (text) => {
     const clean = String(text || '').trim();

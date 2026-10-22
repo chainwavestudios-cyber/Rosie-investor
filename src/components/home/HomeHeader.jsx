@@ -22,14 +22,6 @@ export default function HomeHeader() {
         </button>
       </div>
 
-      <div style={{ maxWidth: '960px', margin: '20px auto 0', textAlign: 'center' }}>
-        <p style={{ color: 'rgba(255,255,255,0.88)', fontSize: '14px', margin: '0 0 14px' }}>
-          Hi! I&apos;m Stephani, your Consolidation Specialist.
-        </p>
-        <div style={{ width: '76px', height: '76px', margin: '0 auto', borderRadius: '999px', background: 'linear-gradient(135deg, #38bdf8, #0ea5e9)', border: '3px solid rgba(255,255,255,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#002a52', fontSize: '30px', fontWeight: 700 }}>
-          S
-        </div>
-      </div>
     </header>
   );
 }

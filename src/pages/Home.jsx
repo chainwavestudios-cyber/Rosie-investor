@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 import { base44 } from '@/api/base44Client';
 import HomeHeader from '@/components/home/HomeHeader';
 import HomeChatWidget from '@/components/home/HomeChatWidget';
+import HomeLeadConfirm from '@/components/home/HomeLeadConfirm';
 import StephaniAccessPopup from '@/components/home/StephaniAccessPopup';
 import HomeTrust from '@/components/home/HomeTrust';
 
@@ -14,6 +15,7 @@ const SESSION_USER_KEY = "home_access_user";
 export default function Home() {
   const navigate = useNavigate();
   const [unlocked] = useState(() => sessionStorage.getItem(SESSION_KEY) === 'true');
+  const [leadProfile, setLeadProfile] = useState(null);
 
   // If already unlocked, go straight to investor page
   useEffect(() => {
@@ -22,14 +24,35 @@ export default function Home() {
     }
   }, []);
 
-  // On mount — check URL for ?code=username or ?username=username
+  // On mount — a link in an email may carry the contact card's identity, so we show
+  // the visitor what we already have and ask them to confirm it — and we still honour
+  // the ?code= portal link for investors.
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
+    const candidates = ['lead', 'leadId', 'lid', 'id', 'notice', 'noticeId', 'code', 'c', 'ref']
+      .map((key) => params.get(key))
+      .filter(Boolean);
+
+    if (candidates.length > 0) locateContactCard(candidates);
+
     const code = params.get('code') || params.get('username');
     if (code && !unlocked) {
       autoUnlockWithCode(code.trim().toLowerCase());
     }
   }, []);
+
+  const locateContactCard = async (candidates) => {
+    try {
+      const response = await base44.functions.invoke('homeQualifyChat', {
+        action: 'lead_profile',
+        candidates,
+      });
+      const profile = response?.data?.profile;
+      if (profile) setLeadProfile(profile);
+    } catch (e) {
+      console.error('[Home] contact card lookup error:', e);
+    }
+  };
 
   const autoUnlockWithCode = async (code) => {
     try {
@@ -78,7 +101,9 @@ export default function Home() {
       <HomeHeader />
 
       <main style={{ width: '100%', maxWidth: '960px', margin: '0 auto', padding: '32px 16px 64px', boxSizing: 'border-box' }}>
-        <HomeChatWidget />
+        {leadProfile && <HomeLeadConfirm profile={leadProfile} />}
+
+        <HomeChatWidget leadProfile={leadProfile} />
 
         <StephaniAccessPopup />
 
