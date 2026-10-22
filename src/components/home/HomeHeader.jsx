@@ -8,13 +8,34 @@ const COMPANY = {
   phoneHref: 'tel:+18662908994',
 };
 
+const LOGO_URL = 'https://media.base44.com/images/public/69cd2741578c9b5ce655395b/8fa3e9a78_Gemini_Generated_Image_rboe84rboe84rboe.jpeg';
+
 export default function HomeHeader() {
   return (
     <header style={{ background: '#003366', padding: '18px 20px 22px' }}>
       <div style={{ maxWidth: '960px', margin: '0 auto', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '16px', flexWrap: 'wrap' }}>
-        <span style={{ color: '#ffffff', fontFamily: "'Playfair Display', serif", fontSize: '24px', fontWeight: 700 }}>
-          Debt Solutions
-        </span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+          <span
+            style={{
+              position: 'relative',
+              width: '64px',
+              height: '64px',
+              borderRadius: '50%',
+              overflow: 'hidden',
+              background: '#0f1e35',
+              flex: '0 0 auto',
+            }}
+          >
+            <img
+              src={LOGO_URL}
+              alt="Debt Solutions emblem"
+              style={{ position: 'absolute', width: '84px', height: '84px', left: '-10px', top: '-5px' }}
+            />
+          </span>
+          <span style={{ color: '#ffffff', fontFamily: "'Playfair Display', serif", fontSize: '24px', fontWeight: 700 }}>
+            Debt Solutions
+          </span>
+        </div>
 
         <address
           className="text-left sm:text-right"
