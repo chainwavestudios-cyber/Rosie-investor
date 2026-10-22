@@ -2,11 +2,11 @@ import React from 'react';
 import { Check } from 'lucide-react';
 
 const BENEFITS = [
-  "Zero Up front fees, we don't get paid until clients approve settlements, and accounts are paid off",
+  'Zero upfront fees: we only get paid after you approve your settlements and your accounts are paid off',
   'Eliminate all future interest at 0%',
-  'All settlement funds in a FDIC insured escrow account only YOU control',
+  'All settlement funds held in an FDIC-insured escrow account only you control',
   'No early termination or exit fees',
-  'Average enrollment graduates in 12-36 months',
+  'The average enrollment graduates in 12–36 months',
 ];
 
 export default function HomeTrust() {

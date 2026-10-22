@@ -112,10 +112,10 @@ export default function Home() {
       <main style={{ width: '100%', maxWidth: '1120px', margin: '0 auto', padding: '40px 16px 64px', boxSizing: 'border-box' }}>
         {leadProfile && <HomeLeadConfirm profile={leadProfile} />}
 
-        <div className="mt-8 flex w-full flex-col gap-10 md:flex-row md:items-center md:gap-9">
+        <div className="mt-8 flex w-full flex-col gap-10 md:flex-row md:items-center md:justify-center md:gap-8">
           <HomeTrust />
 
-          <div className="w-full md:min-w-0 md:flex-1">
+          <div className="w-full md:min-w-0 md:max-w-[614px] md:flex-1">
             <HomeChatWidget leadProfile={leadProfile} onLeadFound={setLeadProfile} />
           </div>
         </div>
