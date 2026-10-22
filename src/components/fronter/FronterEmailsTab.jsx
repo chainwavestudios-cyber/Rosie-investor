@@ -14,6 +14,9 @@ import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
 import { useQuillImageModules } from '@/utils/quillImageUpload';
 import { insertWelcomeTracker } from '@/utils/quillWelcomeTracker';
+import { registerImageResizeBlot } from '@/utils/quillImageResize';
+import QuillImageSizeControls from '@/components/fronter/marketing/QuillImageSizeControls';
+registerImageResizeBlot();
 
 const GOLD = '#10b981';
 const DARK = '#0a0f1e';
@@ -31,7 +34,7 @@ const TYPE_LABELS = {
   custom_automation: { label: '⚙️ Custom Automation', color: PURPLE },
 };
 
-const quillFormats = ['font', 'size', 'bold', 'italic', 'underline', 'strike', 'color', 'background', 'align', 'list', 'link', 'image'];
+const quillFormats = ['font', 'size', 'bold', 'italic', 'underline', 'strike', 'color', 'background', 'align', 'list', 'link', 'image', 'width'];
 
 export default function FronterEmailsTab({ username }) {
   const quillRef = useRef(null);
@@ -45,7 +48,7 @@ export default function FronterEmailsTab({ username }) {
   const loadTemplates = useCallback(async () => {
     setLoading(true);
     try {
-      const page = await base44.entities.FronterEmailTemplate.list('sortOrder', 100);
+      const page = await base44.entities.FronterEmailTemplate.filter({ emailProvider: { $ne: 'mailjet' } }, { sort: 'sortOrder', limit: 100 });
       setTemplates(page?.items || page || []);
     } catch { setTemplates([]); }
     setLoading(false);
@@ -66,7 +69,7 @@ export default function FronterEmailsTab({ username }) {
     if (!editing?.label?.trim()) { alert('Template label is required'); return; }
     setSaving(true);
     try {
-      const payload = { ...editing, updatedBy: username };
+      const payload = { ...editing, emailProvider: 'gmail', updatedBy: username };
       if (editing.id) {
         await base44.entities.FronterEmailTemplate.update(editing.id, payload);
       } else {
@@ -147,6 +150,7 @@ export default function FronterEmailsTab({ username }) {
               style={{ height: '300px', marginBottom: '42px' }}
             />
           </div>
+          <QuillImageSizeControls quillRef={quillRef} />
         </div>
 
         {/* Automation Rules */}
@@ -227,12 +231,12 @@ export default function FronterEmailsTab({ username }) {
   return (
     <div style={{ maxWidth: '900px', margin: '0 auto' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-        <div style={{ color: GOLD, fontSize: '18px', fontWeight: 'bold' }}>📧 Email Templates & Automation</div>
+        <div style={{ color: GOLD, fontSize: '18px', fontWeight: 'bold' }}>Google Email Templates & Automation</div>
         <button onClick={startNew} style={{ background: 'linear-gradient(135deg,#10b981,#22c55e)', color: DARK, border: 'none', borderRadius: '4px', padding: '8px 18px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}>+ New Email Template</button>
       </div>
 
       <div style={{ background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '6px', padding: '14px', marginBottom: '20px', color: '#8a9ab8', fontSize: '12px', lineHeight: 1.6 }}>
-        Central hub for all fronter email templates and automation rules. Each template can be:
+        Google / Gmail email only. Mailjet account 2 templates, including Stephani and the HTML mailer, are in Marketing. Each Google template can be:
         <br />• <span style={{ color: GOLD }}>Manual</span> — sent on demand from the credentials popup or a contact card button
         <br />• <span style={{ color: BLUE }}>Follow-Up (Auto)</span> — auto-sent when a lead opens their credentials email + clicks 2/3 tracked links
         <br />• <span style={{ color: PURPLE }}>Tracked</span> — opens and link clicks are recorded; triggers the follow-up automation

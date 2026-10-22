@@ -108,8 +108,9 @@ export default function FronterPage() {
   const isAdmin = isSuperAdmin;
   // Fronter sees leads + scripts; admin sees admin + leads + scripts
   const TABS = [
+    { id: 'marketing', label: 'Marketing · Mailjet 2' },
     ...(isAdmin
-      ? [{ id: 'scripts', label: 'Scripts' }, { id: 'admin', label: '⚙️ Admin' }, { id: 'ai_agent', label: '🤖 AI Agent' }, { id: 'emails', label: '📧 Emails' }, { id: 'optin', label: '✉️ Email Opt-In' }, { id: 'marketing', label: '📣 Marketing' }, { id: 'prospects', label: '📋 Prospects' }, { id: 'leads', label: '📋 Leads' }, { id: 'queued_no_connect', label: '📋 Queued No Connect' }, { id: 'migrated', label: '🚀 Migrated' }, { id: 'closed_deals', label: '💎 Closed Deals' }, { id: 'reports', label: '📊 Reports' }, { id: 'feedback', label: '💬 Feedback' }, { id: 'bob', label: '🤖 BOB Training' }, { id: 'hr', label: '🕐 HR' }, { id: 'settings', label: '🔧 Settings' }]
+      ? [{ id: 'scripts', label: 'Scripts' }, { id: 'admin', label: '⚙️ Admin' }, { id: 'ai_agent', label: '🤖 AI Agent' }, { id: 'emails', label: '📧 Emails' }, { id: 'optin', label: '✉️ Email Opt-In' }, { id: 'prospects', label: '📋 Prospects' }, { id: 'leads', label: '📋 Leads' }, { id: 'queued_no_connect', label: '📋 Queued No Connect' }, { id: 'migrated', label: '🚀 Migrated' }, { id: 'closed_deals', label: '💎 Closed Deals' }, { id: 'reports', label: '📊 Reports' }, { id: 'feedback', label: '💬 Feedback' }, { id: 'bob', label: '🤖 BOB Training' }, { id: 'hr', label: '🕐 HR' }, { id: 'settings', label: '🔧 Settings' }]
       : [{ id: 'prospects', label: '📋 Prospects' }, { id: 'leads', label: '📋 Leads' }, { id: 'queued_no_connect', label: '📋 Queued No Connect' }, { id: 'migrated', label: '🚀 Migrated' }, { id: 'closed_deals', label: '💎 Closed Deals' }, { id: 'reports', label: '📊 Reports' }, { id: 'feedback', label: '💬 Feedback' }, { id: 'bob', label: '🤖 BOB Training' }, { id: 'hr', label: '🕐 HR' }, { id: 'settings', label: '🔧 Settings' }]),
   ];
 
@@ -497,7 +498,7 @@ export default function FronterPage() {
 
         {tab === 'optin' && isAdmin && <EmailOptInTab username={user.username} />}
 
-        {tab === 'marketing' && isAdmin && <FronterMarketingTab username={user.username} />}
+        {tab === 'marketing' && <FronterMarketingTab username={user.username} />}
 
         {tab === 'settings' && <FronterSettingsTab />}
       </div>

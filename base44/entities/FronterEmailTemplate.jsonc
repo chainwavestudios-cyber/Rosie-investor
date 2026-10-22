@@ -17,6 +17,19 @@
       "format": "textarea",
       "maxLength": 500000
     },
+    "emailProvider": {
+      "type": "string",
+      "enum": [
+        "gmail",
+        "mailjet"
+      ],
+      "default": "gmail",
+      "title": "Email Provider"
+    },
+    "mailjetTemplateId": {
+      "type": "string",
+      "title": "Mailjet Account 2 Template ID"
+    },
     "templateType": {
       "type": "string",
       "title": "Template Type",
