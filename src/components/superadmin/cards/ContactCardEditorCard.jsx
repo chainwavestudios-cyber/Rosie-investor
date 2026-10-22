@@ -85,6 +85,19 @@ export default function ContactCardEditorCard({ username }) {
         ))}
       </div>
 
+      <div style={{ marginBottom: '16px' }}>
+        <label style={lbl}>Welcome message link</label>
+        <input
+          value={draft.welcomeMessageUrl || ''}
+          onChange={(e) => set('welcomeMessageUrl', e.target.value)}
+          placeholder="https://… the video or audio the credentials email links to"
+          style={inputStyle}
+        />
+        <div style={{ color: C.dim, fontSize: '10px', marginTop: '3px' }}>
+          Used by the credentials email the fronters send. Clicks on it are tracked with the BBB, Trustpilot and website links.
+        </div>
+      </div>
+
       <div style={{ paddingTop: '12px', borderTop: `1px solid ${C.border}` }}>
         <div style={{ color: C.muted, fontSize: '9px', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '8px' }}>Numbers the assistant and fronters dial</div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: '10px' }}>

@@ -55,6 +55,10 @@ export default function FronterMergePopup({ lead, username, fronterFirstName, is
   const [customerCallSid, setCustomerCallSid] = useState('');
   const [noConnectRunning, setNoConnectRunning] = useState(false);
   const [currentNumberIdx, setCurrentNumberIdx] = useState(0);
+  // The card doesn't always know the browser leg's SID (inbound calls, fronters
+  // without a line). The fronter's live session still names the conference the
+  // customer is sitting in, and that is all the dial needs.
+  const [sessionConference, setSessionConference] = useState('');
   const [error, setError] = useState('');
   const [dialingMsg, setDialingMsg] = useState('');
   const pollTimerRef = useRef(null);
@@ -86,6 +90,19 @@ export default function FronterMergePopup({ lead, username, fronterFirstName, is
     if (pollTimerRef.current) clearInterval(pollTimerRef.current);
   }, []);
 
+  // Fall back to the live session's conference name when the card has no call SID.
+  useEffect(() => {
+    if (callSid || conferenceName || !username) return;
+    let dead = false;
+    base44.entities.DialerSession.filter({ username })
+      .then(rows => {
+        const s = Array.isArray(rows) ? rows[0] : rows?.items?.[0];
+        if (!dead && s?.currentCallConferenceName) setSessionConference(s.currentCallConferenceName);
+      })
+      .catch(() => {});
+    return () => { dead = true; };
+  }, [callSid, conferenceName, username]);
+
   const handleSave = async () => {
     if (!script) return;
     setSaving(true);
@@ -103,7 +120,8 @@ export default function FronterMergePopup({ lead, username, fronterFirstName, is
 
   // ── Dial Chris on a specific number index ──
   const dialChris = async (numberIdx) => {
-    if (!callSid || !callActive || !lineKey) { setError('No active call. Start a call from the contact card first.'); return; }
+    const conf = conferenceName || sessionConference;
+    if (!callActive || (!callSid && !conf)) { setError('No active call. Start a call from the contact card first.'); return; }
     setMergeState('dialing');
     setError('');
     const number = numbers[numberIdx];
@@ -115,7 +133,7 @@ export default function FronterMergePopup({ lead, username, fronterFirstName, is
         action: 'mergeDial',
         fronterCallSid: callSid,
         fronterUsername: username,
-        conferenceName: conferenceName || undefined,
+        conferenceName: conf || undefined,
         customerCallSid: customerCallSid || undefined,
         agentPhone: number,
         lineKey,
@@ -249,7 +267,10 @@ export default function FronterMergePopup({ lead, username, fronterFirstName, is
   const displayMergeScript = substitutedMergeScript.replace(/\[\[AI:\w+\]\]/gi, '');
   const mergeSegments = displayMergeScript.split(/@@(DEBT_CONFIRM|AI_INPUT|SEND_EMAIL|FIELD:[A-Za-z0-9_]+)@@/i);
 
-  const canDial = mergeState === 'idle' && callSid && callActive && lineKey;
+  const activeConference = conferenceName || sessionConference;
+  // Chris is dialled on a free line by the server, so an unassigned line must not
+  // blank this button out — it stays live for any active call.
+  const canDial = mergeState === 'idle' && callActive && (!!callSid || !!activeConference);
   const canMerge = !noConnectRunning && mergeState === 'connected';
   const canNoConnect = !noConnectRunning && (mergeState === 'connected' || mergeState === 'dialing' || mergeState === 'no_answer');
   const canTryNext = !noConnectRunning && (mergeState === 'connected' || mergeState === 'no_answer') && currentNumberIdx < numbers.length - 1;
@@ -267,7 +288,7 @@ export default function FronterMergePopup({ lead, username, fronterFirstName, is
           <div style={{ flex: 1, padding: '8px 12px', background: mergeState === 'no_answer' ? 'rgba(239,68,68,0.08)' : mergeState === 'dialing' ? 'rgba(96,165,250,0.06)' : mergeState === 'connected' ? 'rgba(16,185,129,0.08)' : 'rgba(255,255,255,0.03)', border: `1px solid ${mergeState === 'no_answer' ? 'rgba(239,68,68,0.3)' : mergeState === 'dialing' ? 'rgba(96,165,250,0.25)' : mergeState === 'connected' ? GOLD + '33' : 'rgba(255,255,255,0.08)'}`, borderRadius: '6px' }}>
             <div style={{ color: GOLD, fontSize: '10px', fontWeight: 'bold' }}>Chris Bongiorno</div>
             <div style={{ color: '#6b7280', fontSize: '9px', marginTop: '2px' }}>
-              {mergeState === 'dialing' ? `📞 ${CHRIS_LABELS[currentNumberIdx]}` : mergeState === 'connected' ? '✓ Connected' : mergeState === 'no_answer' ? '⚠ Unavailable' : `${CHRIS_LABELS.join(' · ')}`}
+              {mergeState === 'dialing' ? `📞 ${labels[currentNumberIdx]}` : mergeState === 'connected' ? '✓ Connected' : mergeState === 'no_answer' ? '⚠ Unavailable' : `${labels.join(' · ')}`}
             </div>
           </div>
         </div>
@@ -380,7 +401,7 @@ export default function FronterMergePopup({ lead, username, fronterFirstName, is
           )}
           {mergeState === 'dialing' && (
             <button disabled style={{ width: '100%', background: 'rgba(96,165,250,0.15)', color: BLUE, border: `1px solid ${BLUE}44`, borderRadius: '6px', padding: '14px', fontSize: '15px', fontWeight: 'bold', cursor: 'wait' }}>
-              ⏳ Dialing Chris on {CHRIS_LABELS[currentNumberIdx]}…
+              ⏳ Dialing Chris on {labels[currentNumberIdx]}…
             </button>
           )}
           {(mergeState === 'connected' || mergeState === 'merging') && (
@@ -419,7 +440,7 @@ export default function FronterMergePopup({ lead, username, fronterFirstName, is
                     fontWeight: 'bold',
                   }}
                 >
-                  📞 Hangup & Try 2nd Line ({CHRIS_LABELS[currentNumberIdx + 1]})
+                  📞 Hangup & Try 2nd Line ({labels[currentNumberIdx + 1]})
                 </button>
               )}
             </>
@@ -469,13 +490,13 @@ export default function FronterMergePopup({ lead, username, fronterFirstName, is
             </div>
           )}
           {mergeState === 'connected' && !isLastNumber && (
-            <div style={{ color: GOLD, fontSize: '11px', textAlign: 'center' }}>✓ Chris is connected on {CHRIS_LABELS[currentNumberIdx]}. Merge & Transfer, or Hangup & Try 2nd Line if this is voicemail.</div>
+            <div style={{ color: GOLD, fontSize: '11px', textAlign: 'center' }}>✓ Chris is connected on {labels[currentNumberIdx]}. Merge & Transfer, or Hangup & Try 2nd Line if this is voicemail.</div>
           )}
           {mergeState === 'connected' && isLastNumber && (
-            <div style={{ color: GOLD, fontSize: '11px', textAlign: 'center' }}>✓ Chris is connected on {CHRIS_LABELS[currentNumberIdx]}. Merge & Transfer or NO CONNECT.</div>
+            <div style={{ color: GOLD, fontSize: '11px', textAlign: 'center' }}>✓ Chris is connected on {labels[currentNumberIdx]}. Merge & Transfer or NO CONNECT.</div>
           )}
           {mergeState === 'no_answer' && canTryNext && (
-            <div style={{ color: AMBER, fontSize: '11px', textAlign: 'center' }}>No answer on {CHRIS_LABELS[currentNumberIdx]}. Try the 2nd line or NO CONNECT.</div>
+            <div style={{ color: AMBER, fontSize: '11px', textAlign: 'center' }}>No answer on {labels[currentNumberIdx]}. Try the 2nd line or NO CONNECT.</div>
           )}
         </div>
       </div>

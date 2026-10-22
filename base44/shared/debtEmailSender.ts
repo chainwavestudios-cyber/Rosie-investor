@@ -38,7 +38,7 @@ export async function sendTemplateEmail(
       phone: lead.phone || '',
       email: lead.email || '',
     })) {
-      personalMessageUrl = personalMessageUrl.replace(new RegExp(`\\{\\{${key}\\}\\}`, 'g'), val);
+      personalMessageUrl = personalMessageUrl.replace(new RegExp(`\\{\\{${key}\\}\\}`, 'gi'), val);
     }
   }
 
@@ -57,8 +57,9 @@ export async function sendTemplateEmail(
   let subject = template.subject || '';
   let html = template.bodyHtml || '';
   for (const [key, val] of Object.entries(vars)) {
-    subject = subject.replace(new RegExp(`\\{\\{${key}\\}\\}`, 'g'), val);
-    html = html.replace(new RegExp(`\\{\\{${key}\\}\\}`, 'g'), val);
+    // Templates are written by hand, so {{FirstName}} and {{firstName}} both fill.
+    subject = subject.replace(new RegExp(`\\{\\{${key}\\}\\}`, 'gi'), val);
+    html = html.replace(new RegExp(`\\{\\{${key}\\}\\}`, 'gi'), val);
   }
 
   if (template.includeSignature) {

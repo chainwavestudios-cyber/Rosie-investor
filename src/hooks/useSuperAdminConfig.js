@@ -17,6 +17,8 @@ I will go ahead and add you to his call queue, and he will answer shortly…`,
   reminderScript: '{{firstname}},\n\nThis is Chris Bongiorno\'s assistant from Debt Advisors of America. I just wanted to remind you of your upcoming appointment with Chris Bongiorno in 1 hour. Did you get a chance to review the email he sent, and watch his welcome message?\n\nIf they did: Great! I\'ll be calling back in one hour to connect you with Chris.\n\nIf no: Would you like me to send that email again to you at this email address {{Email}}?',
   mergeScript: "Alright {{first name}}, I've got a senior debt advisor ready to help you through this. I'm going to connect you now — stay on the line and they'll be right with you.",
   welcomeMessage: '',
+  // Where “listen to my personal welcome message” points in the credentials email.
+  welcomeMessageUrl: '',
   // Empty = the built-in wording from calendarScripts.js is used instead.
   rebookScript: '',
   assistantScriptTabsJson: '[]',

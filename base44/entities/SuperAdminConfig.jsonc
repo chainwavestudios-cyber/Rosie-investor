@@ -41,6 +41,10 @@
       "title": "Welcome Message (shown in the assistant portal contact card)",
       "format": "textarea"
     },
+    "welcomeMessageUrl": {
+      "type": "string",
+      "title": "Welcome Message Link (where \u201clisten to my personal welcome message\u201d points in the credentials email \u2014 its clicks are tracked on the contact card and the Prospect Tracking tab)"
+    },
     "transferPhoneNumber": {
       "type": "string",
       "title": "Merge & Transfer Number 1 (E.164)"

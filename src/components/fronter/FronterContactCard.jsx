@@ -19,7 +19,6 @@ import FronterLeadConfirmedChecklist from './FronterLeadConfirmedChecklist';
 import FronterClosedDealCelebration from './FronterClosedDealCelebration';
 import FronterDialer from './FronterDialer';
 import FronterMergePopup from './FronterMergePopup';
-import FronterCredsEmailPopup from './FronterCredsEmailPopup';
 import FronterExportToCoachPopup from './FronterExportToCoachPopup';
 import QAPopOutPanel from '@/components/leads/QAPopOutPanel';
 import FronterTranscriptPopout from './FronterTranscriptPopout';
@@ -91,7 +90,8 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
   const [aiReviewing, setAiReviewing] = useState(false);
   const [aiReviewMsg, setAiReviewMsg] = useState('');
   const [showMergePopup, setShowMergePopup] = useState(false);
-  const [showCredsEmail, setShowCredsEmail] = useState(false);
+  const [credsEmailSending, setCredsEmailSending] = useState(false);
+  const [credsEmailMsg, setCredsEmailMsg] = useState('');
   const [showExportPopup, setShowExportPopup] = useState(false);
   const [debtConfirming, setDebtConfirming] = useState(false);
   const [debtConfirmMsg, setDebtConfirmMsg] = useState('');
@@ -641,6 +641,30 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
   };
 
   // An inline script field was edited (@@FIELD:email@@ & co.) — keep the card in sync.
+  // 📧 Send Credentials & Welcome Message — the Debt Call Coach email, sent on
+  // the spot (no compose box) so the open and every link click are tracked.
+  const sendCredsEmail = async () => {
+    if (credsEmailSending || !lead?.id) return;
+    if (!local.email) {
+      setCredsEmailMsg('Add an email to the contact card first.');
+      setTimeout(() => setCredsEmailMsg(''), 6000);
+      return;
+    }
+    setCredsEmailSending(true);
+    setCredsEmailMsg('📧 Sending the credentials & welcome message…');
+    try {
+      const res = await base44.functions.invoke('sendFronterCredsEmail', { leadId: lead.id, sentBy: username });
+      const data = res?.data || res;
+      if (data?.error) throw new Error(data.error);
+      setCredsEmailMsg(`📧 ${data.templateName || 'Credentials & welcome message'} sent to ${local.email}`);
+      handleFieldSaved({ credsSentAt: new Date().toISOString(), status: local.status === 'prospect' ? 'lead' : local.status });
+    } catch (e) {
+      setCredsEmailMsg('Email failed: ' + (e?.message || String(e)));
+    }
+    setCredsEmailSending(false);
+    setTimeout(() => setCredsEmailMsg(''), 9000);
+  };
+
   const handleFieldSaved = (patch) => {
     setLocal(prev => ({ ...prev, ...patch }));
     onSave?.({ ...local, ...patch });
@@ -677,10 +701,10 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
       debtConfirming={debtConfirming}
       onAiInput={runAiInput}
       aiInputRunning={aiInputRunning}
-      onSendEmail={() => setShowCredsEmail(true)}
+      onSendEmail={sendCredsEmail}
       lead={local}
       onFieldSaved={handleFieldSaved}
-      message={aiInputMsg || debtConfirmMsg}
+      message={aiInputMsg || debtConfirmMsg || credsEmailMsg}
     />
   );
 
@@ -1099,20 +1123,6 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
         />
       )}
 
-      {/* Credentials email popup — triggered by @@SEND_EMAIL@@ in the script */}
-      {showCredsEmail && (
-        <FronterCredsEmailPopup
-          lead={local}
-          username={username}
-          onClose={() => setShowCredsEmail(false)}
-          onLeadUpdated={handleFieldSaved}
-          onSent={(data) => {
-            setShowCredsEmail(false);
-            handleFieldSaved(data);
-          }}
-        />
-      )}
-
       {/* Export to Debt Call Coach popup — super admin only */}
       {showExportPopup && (
         <FronterExportToCoachPopup
@@ -1144,7 +1154,7 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
           transferScript={transferScript}
           onAiInput={runAiInput}
           onDebtConfirm={runDebtConfirm}
-          onSendEmail={() => setShowCredsEmail(true)}
+          onSendEmail={sendCredsEmail}
           onFieldSaved={handleFieldSaved}
           onMerge={() => { setScriptPoppedOut(false); setQaPoppedOut(false); setTranscriptPoppedOut(false); setShowMergePopup(false); setTransferScript(''); setHangupSignal(s => s + 1); markTransferred(true); }}
           onNoConnect={() => { setScriptPoppedOut(false); setQaPoppedOut(false); setTranscriptPoppedOut(false); setHangupSignal(s => s + 1); handleNoConnect(); }}
