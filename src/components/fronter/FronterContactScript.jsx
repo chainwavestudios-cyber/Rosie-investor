@@ -1,7 +1,8 @@
 import { renderFormatted } from '@/components/debt/ScriptRichText';
+import FronterInlineField from '@/components/fronter/FronterInlineField';
 
 // Preserve the editor's sequence; completion belongs at the end of the main script.
-export default function FronterContactScript({ scripts, activeScript, onSelectScript, segments, hasCompletedSteps, onComplete, onDebtConfirm, debtConfirming, onAiInput, aiInputRunning, onSendEmail, message }) {
+export default function FronterContactScript({ scripts, activeScript, onSelectScript, segments, hasCompletedSteps, onComplete, onDebtConfirm, debtConfirming, onAiInput, aiInputRunning, onSendEmail, lead, onFieldSaved, message }) {
   const completeButton = hasCompletedSteps && (
     <div style={{ margin: '12px 0', display: 'flex', justifyContent: 'center' }}>
       <button type="button" onClick={onComplete} style={{ background: 'linear-gradient(135deg,#10b981,#22c55e)', color: '#0a0f1e', border: 'none', borderRadius: '8px', padding: '12px 32px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold', fontFamily: 'Georgia, serif', boxShadow: '0 0 16px rgba(16,185,129,0.4)' }}>✅ Completed Steps → Transfer</button>
@@ -32,6 +33,10 @@ export default function FronterContactScript({ scripts, activeScript, onSelectSc
                 <div key={index} style={{ margin: '12px 0', display: 'flex', justifyContent: 'center' }}>
                   <button onClick={onSendEmail} style={{ background: 'rgba(96,165,250,0.18)', color: '#60a5fa', border: '2px solid rgba(96,165,250,0.55)', borderRadius: '8px', padding: '10px 24px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold', fontFamily: 'Georgia, serif', boxShadow: '0 0 12px rgba(96,165,250,0.33)' }}>📧 Send Credentials &amp; Welcome Message Email</button>
                 </div>
+              );
+              // Editable contact-card field — @@FIELD:email@@ & co.
+              if (/^FIELD:/i.test(segment)) return (
+                <FronterInlineField key={index} field={segment.slice(6)} lead={lead} onSaved={onFieldSaved} />
               );
               return <span key={index}>{renderFormatted(segment)}</span>;
             })}

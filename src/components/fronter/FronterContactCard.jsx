@@ -640,6 +640,12 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
     setAiInputRunning(false);
   };
 
+  // An inline script field was edited (@@FIELD:email@@ & co.) — keep the card in sync.
+  const handleFieldSaved = (patch) => {
+    setLocal(prev => ({ ...prev, ...patch }));
+    onSave?.({ ...local, ...patch });
+  };
+
 
   // ── Script parsing: split at @@COMPLETED_STEPS@@ and handle @@DEBT_CONFIRM@@ ──
   const rawScript = activeScript?.content || '';
@@ -657,7 +663,7 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
 
   // Split main script at all interactive markers for inline button rendering.
   // The capturing group includes the marker name in the result array.
-  const interactiveSegments = mainScriptPart.split(/@@(DEBT_CONFIRM|AI_INPUT|SEND_EMAIL)@@/i);
+  const interactiveSegments = mainScriptPart.split(/@@(DEBT_CONFIRM|AI_INPUT|SEND_EMAIL|FIELD:[A-Za-z0-9_]+)@@/i);
 
   const scriptContent = (
     <FronterContactScript
@@ -672,6 +678,8 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
       onAiInput={runAiInput}
       aiInputRunning={aiInputRunning}
       onSendEmail={() => setShowCredsEmail(true)}
+      lead={local}
+      onFieldSaved={handleFieldSaved}
       message={aiInputMsg || debtConfirmMsg}
     />
   );
@@ -1097,6 +1105,7 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
           lead={local}
           username={username}
           onClose={() => setShowCredsEmail(false)}
+          onLeadUpdated={(patch) => { setLocal(prev => ({ ...prev, ...patch })); }}
           onSent={(data) => {
             setShowCredsEmail(false);
             setLocal(prev => ({ ...prev, credsSentAt: data?.credsSentAt || new Date().toISOString(), credsSentTemplate: data?.credsSentTemplate }));

@@ -79,7 +79,7 @@ function fillTemplate(text, lead, to) {
   return (text || '').replace(/{{firstName}}/g, fillName).replace(/{{email}}/g, fillEmail);
 }
 
-export default function FronterCredsEmailPopup({ lead, username, onClose, onSent }) {
+export default function FronterCredsEmailPopup({ lead, username, onClose, onSent, onLeadUpdated }) {
   const [to, setTo] = useState(lead?.email || '');
   const [templates, setTemplates] = useState([]);
   const [selectedTemplateId, setSelectedTemplateId] = useState('');
@@ -249,9 +249,32 @@ export default function FronterCredsEmailPopup({ lead, username, onClose, onSent
     } catch (e) { alert('Failed to delete: ' + (e?.message || String(e))); }
   };
 
+  // Save a corrected recipient onto the contact card — the fronter fixes the
+  // email right here instead of closing the script and editing the card.
+  const [cardSaving, setCardSaving] = useState(false);
+  const [cardMsg, setCardMsg] = useState('');
+  const updateCardEmail = async () => {
+    if (!lead?.id || !to.trim()) return;
+    setCardSaving(true);
+    setCardMsg('');
+    try {
+      await base44.entities.FronterLead.update(lead.id, { email: to.trim() });
+      onLeadUpdated?.({ email: to.trim() });
+      setCardMsg('✓ Saved to contact card');
+    } catch (e) {
+      setCardMsg('Update failed: ' + (e?.message || String(e)));
+    }
+    setCardSaving(false);
+    setTimeout(() => setCardMsg(''), 4000);
+  };
+
   // ── Send ──
+  // Say exactly what is missing rather than leaving a dead button.
+  const missing = !to.trim() ? 'Add a recipient email to send.' : !subject.trim() ? 'Add a subject to send.' : !body.trim() ? 'Add an email body to send.' : '';
+  const canSend = !missing;
+
   const send = async () => {
-    if (!to.trim() || !subject.trim() || !body.trim()) return;
+    if (!canSend) return;
     setSending(true);
     setStatus('');
     try {
@@ -271,6 +294,8 @@ export default function FronterCredsEmailPopup({ lead, username, onClose, onSent
         credsSentAt: now,
         credsSentTemplate: templateLabel,
       };
+      // A corrected recipient is saved to the card along with the send.
+      if (lead?.email !== to.trim()) updates.email = to.trim();
       if (lead?.status === 'prospect') {
         updates.status = 'lead';
       }
@@ -291,12 +316,16 @@ export default function FronterCredsEmailPopup({ lead, username, onClose, onSent
   };
 
   return (
-    <FronterPopup title="🔑 Email Company Credentials" subtitle="Sends from connected Gmail · auto-graduates to lead" accent={BLUE} onClose={onClose} initialSize={{ w: 560, h: 640 }} minW={400} minH={320} zIndex={10060}>
+    <FronterPopup title="🔑 Email Company Credentials" subtitle="Sends from connected Gmail · auto-graduates to lead" accent={BLUE} onClose={onClose} initialSize={{ w: 560, h: 640 }} minW={400} minH={320} zIndex={26000}>
       <div style={{ padding: '16px' }}>
-          {/* Recipient */}
+          {/* Recipient — editable here, and savable straight onto the card */}
           <div style={{ marginBottom: '12px' }}>
             <label style={ls}>Customer Email {lead?.email ? '(auto-filled from contact card)' : '(enter email)'}</label>
-            <input value={to} onChange={e => setTo(e.target.value)} placeholder="customer@email.com" style={inp} />
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <input value={to} onChange={e => setTo(e.target.value)} placeholder="customer@email.com" style={{ ...inp, flex: 1 }} />
+              <button onClick={updateCardEmail} disabled={!to.trim() || cardSaving || !lead?.id} title="Save this email on the contact card" style={{ background: `${GOLD}18`, color: GOLD, border: `1px solid ${GOLD}44`, borderRadius: '3px', padding: '7px 12px', cursor: !to.trim() || cardSaving || !lead?.id ? 'not-allowed' : 'pointer', fontSize: '10px', fontWeight: 'bold', whiteSpace: 'nowrap', flexShrink: 0, opacity: !to.trim() || cardSaving || !lead?.id ? 0.5 : 1 }}>{cardSaving ? '⏳' : '💾 Update Card'}</button>
+            </div>
+            {cardMsg && <div style={{ marginTop: '4px', fontSize: '10px', fontWeight: 'bold', color: cardMsg.startsWith('✓') ? '#4ade80' : RED }}>{cardMsg}</div>}
           </div>
 
           {/* Template selector + manage button */}
@@ -414,8 +443,10 @@ export default function FronterCredsEmailPopup({ lead, username, onClose, onSent
         {status === 'success' && <span style={{ color: '#4ade80', fontSize: '12px', fontWeight: 'bold' }}>✓ Credentials sent! Lead graduated.</span>}
         {status === 'template_saved' && <span style={{ color: GOLD, fontSize: '12px', fontWeight: 'bold' }}>✓ Template updated!</span>}
         {status.startsWith('error') && <span style={{ color: '#ef4444', fontSize: '11px' }}>{status}</span>}
-        {!status && <span style={{ color: '#6b7280', fontSize: '10px' }}>Sending credentials auto-graduates prospect to lead</span>}
-        <button onClick={send} disabled={sending || !to.trim() || !subject.trim() || !body.trim()} style={{ background: 'linear-gradient(135deg,#60a5fa,#3b82f6)', color: '#fff', border: 'none', borderRadius: '4px', padding: '9px 24px', cursor: sending || !to.trim() || !subject.trim() || !body.trim() ? 'not-allowed' : 'pointer', fontSize: '12px', fontWeight: 'bold', opacity: sending || !to.trim() || !subject.trim() || !body.trim() ? 0.5 : 1, marginLeft: 'auto' }}>
+        {!status && (missing
+          ? <span style={{ color: '#f59e0b', fontSize: '11px', fontWeight: 'bold' }}>{missing}</span>
+          : <span style={{ color: '#6b7280', fontSize: '10px' }}>Sending credentials auto-graduates prospect to lead</span>)}
+        <button onClick={send} disabled={sending || !canSend} style={{ background: 'linear-gradient(135deg,#60a5fa,#3b82f6)', color: '#fff', border: 'none', borderRadius: '4px', padding: '9px 24px', cursor: sending || !canSend ? 'not-allowed' : 'pointer', fontSize: '12px', fontWeight: 'bold', opacity: sending || !canSend ? 0.5 : 1, marginLeft: 'auto' }}>
           {sending ? '⏳ Sending…' : '🔑 Send Credentials'}
         </button>
       </div>
