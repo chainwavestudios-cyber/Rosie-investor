@@ -11,6 +11,8 @@
  * editor and stripped everywhere the script is read or used (stripAiTags) —
  * the live script, the teleprompter and the closing view.
  */
+import { DEBT_DETAIL_TABS, DEBT_LEDGER_FIELDS, DEBT_NONACCEPTED_FIELDS } from '@/lib/debtContactDetailFields';
+
 export const DEBT_CONTACT_TABS = [
   {
     key: 'contact',
@@ -50,7 +52,8 @@ export const DEBT_CONTACT_TABS = [
     label: 'Debt Ledger',
     tag: 'tab_ledger',
     fields: [
-      { field: 'debtLedgerJson', label: 'Debt Ledger (accepted creditors + balances, rates, payments)' },
+      { field: 'debtLedgerJson', label: 'Debt Ledger (all creditor details)' },
+      ...DEBT_LEDGER_FIELDS,
     ],
   },
   {
@@ -59,18 +62,24 @@ export const DEBT_CONTACT_TABS = [
     tag: 'tab_nonaccepted',
     fields: [
       { field: 'nonAcceptedCreditorsJson', label: 'Non-Accepted Creditors (with reasons)' },
+      ...DEBT_NONACCEPTED_FIELDS,
     ],
   },
   {
     key: 'financials',
-    label: 'Employment',
+    label: 'Debt / Financial Information',
     tag: 'tab_financials',
     fields: [
       { field: 'employmentStatus', label: 'Employment Status' },
       { field: 'monthlyIncome', label: 'Monthly Income' },
       { field: 'creditScore', label: 'Credit Score' },
+      { field: 'householdIncome', label: 'Household Income' },
+      { field: 'homeValue', label: 'Home Value' },
+      { field: 'homeEquity', label: 'Home Equity' },
+      { field: 'tradelines', label: 'Number of Tradelines' },
     ],
   },
+  ...DEBT_DETAIL_TABS,
   {
     key: 'hardship',
     label: 'Hardship',

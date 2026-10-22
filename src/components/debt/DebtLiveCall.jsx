@@ -120,7 +120,7 @@ function textSimilarity(a, b) {
   return common / Math.min(wa.size, wb.size);
 }
 
-export default function DebtLiveCall({ onCallStart, onCallEnd }) {
+export default function DebtLiveCall({ onCallStart, onCallEnd, onScriptContextChange }) {
   const { user: coachUser, can } = useDebtCoachAuth();
   const recorder = useCallRecorder();
   const aiSettings = (() => { try { return JSON.parse(coachUser?.aiSettingsJson || '{}'); } catch { return {}; } })();
@@ -167,6 +167,9 @@ export default function DebtLiveCall({ onCallStart, onCallEnd }) {
   // Lead
   const [leads, setLeads] = useState([]);
   const [lead, setLead] = useState({ firstName: '', lastName: '', status: 'new' });
+  useEffect(() => {
+    onScriptContextChange?.({ lead, liveTranscript: transcript, phase });
+  }, [lead, transcript, phase, onScriptContextChange]);
   const [showLeadPicker, setShowLeadPicker] = useState(false);
   const [profileData, setProfileData] = useState(null);
   const [memories, setMemories] = useState([]);
@@ -352,7 +355,18 @@ Agent line: "${firstAgentLines}"`,
   const processorRef = useRef(null);
   const transcriptRef = useRef([]);
   const leadRef = useRef(lead);
-  const { runFiller: runContactFiller } = useAIContactFiller({ leadId: lead?.id, leadType: 'debt', transcript, isActive: phase === 'live' });
+  useEffect(() => {
+    const refresh = async (event) => {
+      const id = leadRef.current?.id;
+      const fields = Array.isArray(event.detail) ? event.detail : [];
+      if (!id || !fields.length) return;
+      const savedLead = await base44.entities.DebtLead.get(id);
+      setLead(current => current.id === id ? { ...current, ...Object.fromEntries(fields.filter(field => field in savedLead).map(field => [field, savedLead[field]])) } : current);
+    };
+    window.addEventListener('lead_autosaved', refresh);
+    return () => window.removeEventListener('lead_autosaved', refresh);
+  }, []);
+  const { runFiller: runContactFiller } = useAIContactFiller({ leadId: lead?.id, leadType: 'debt', transcript, isActive: phase === 'live', getScriptContent: () => scriptPositionRef.current?.content || '' });
   const runContactFillerRef = useRef(runContactFiller);
   useEffect(() => { runContactFillerRef.current = runContactFiller; }, [runContactFiller]);
   const lastCoachTime = useRef(0);

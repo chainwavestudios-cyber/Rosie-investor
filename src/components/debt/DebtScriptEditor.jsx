@@ -5,11 +5,12 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useDebtCoachValue, getDebtCoachValue, setDebtCoachValue } from '@/lib/debtCoachStorage';
-import ScriptTeleprompter, { CUE_CATEGORIES } from '@/components/debt/ScriptTeleprompter';
+import ScriptTeleprompter from '@/components/debt/ScriptTeleprompter';
 import ScriptFormatToolbar from '@/components/debt/ScriptFormatToolbar';
 import ScriptWysiwygEditor from '@/components/debt/ScriptWysiwygEditor';
 import { htmlToBbcode } from '@/components/debt/ScriptRichText';
-import { DEBT_CONTACT_TABS } from '@/lib/debtContactFields';
+import DebtScriptInsertToolbar from '@/components/debt/DebtScriptInsertToolbar';
+import { useDebtCoachAuth } from '@/lib/DebtCoachAuthContext';
 
 const GOLD = '#10b981';
 const DARK = '#0a0f1e';
@@ -47,6 +48,7 @@ const VARIABLES = [
   { token: '{{address}}', desc: 'Mailing address from the contact card' },
   { token: '{{notice id}}', desc: 'Notice / lead number from the contact card' },
   { token: '{{debt amount}}', desc: 'Debt amount from the contact card' },
+  { token: '{{frontername}}', desc: 'The signed-in agent’s first name' },
 ];
 
 const AGENT_CATEGORIES = {
@@ -93,6 +95,8 @@ function MyScriptsTab({ liveTranscript, phase, clientFirstName, clientLastName, 
   const activeRef = useRef(null);
   const [mode, setMode] = useDebtCoachValue(username, 'popout_script_mode', 'edit'); // 'edit' | 'teleprompt'
   const textareaRef = useRef(null);
+  const insertionRangeRef = useRef(null);
+  const { user: coachUser } = useDebtCoachAuth();
   const skipActiveIdSave = useRef(true);
 
   // Auto-switch to teleprompter mode when a live call starts
@@ -172,40 +176,49 @@ function MyScriptsTab({ liveTranscript, phase, clientFirstName, clientLastName, 
   };
 
   // Everything below inserts at the caret and saves through the same path
+  const captureInsertionRange = () => {
+    const selection = window.getSelection();
+    if (selection?.rangeCount && textareaRef.current?.contains(selection.anchorNode)) {
+      insertionRangeRef.current = selection.getRangeAt(0).cloneRange();
+    }
+  };
   const insertAtCursor = (html) => {
     const ce = textareaRef.current;
     if (!ce || !active) return;
     ce.focus();
+    const selection = window.getSelection();
+    const saved = insertionRangeRef.current;
+    const range = saved && ce.contains(saved.commonAncestorContainer) ? saved : document.createRange();
+    if (range !== saved) { range.selectNodeContents(ce); range.collapse(false); }
+    selection.removeAllRanges();
+    selection.addRange(range);
     document.execCommand('insertHTML', false, html);
+    captureInsertionRange();
     updateAndSave({ content: htmlToBbcode(ce.innerHTML) });
   };
 
-  const insertCueAtCursor = (category) => insertAtCursor(`<br>@@CUE:${category}:New ${CUE_CATEGORIES[category].label.toLowerCase()}@@<br>`);
-  const insertVariableAtCursor = (token) => insertAtCursor(token);
-  const insertAiFieldTag = (fieldName) => { if (fieldName) insertAtCursor(` [[AI:${fieldName}]] `); };
-  const insertAiInputAtCursor = () => insertAtCursor('<br>[[AI INPUT]]<br>');
-  const insertDebtConfirmTag = () => insertAtCursor('<br>@@DEBT_CONFIRM@@<br>');
-  const insertCompletedStepsTag = () => insertAtCursor('<br>@@COMPLETED_STEPS@@<br>');
-  const insertSendEmailTag = () => insertAtCursor('<br>@@SEND_EMAIL@@<br>');
+
 
   // ── Inline script buttons (pressed during the call, read by the teleprompter) ──
 
   // 💰 Debt Confirm — reads the call for the debt type + total + per-type amounts
   // and writes the confirmed figures onto the card (total + ledger entries).
   const runDebtConfirm = async () => {
-    if (!lead?.id || debtConfirming) return;
+    if (debtConfirming) return;
+    if (!lead?.id) { setActionMsg('Select a contact in Live Call before confirming debt.'); return; }
     setDebtConfirming(true); setActionMsg('💰 Reading the call for the debt figures…');
     try {
+      const freshLead = await base44.entities.DebtLead.get(lead.id);
       const res = await base44.functions.invoke('debtConfirm', {
         transcript: liveTranscript || [],
-        currentLeadData: lead,
+        currentLeadData: freshLead,
         scriptContent: activeRef.current?.content || '',
       });
       const data = res?.data || res || {};
       const updates = {};
       if (data.debtAmount) updates.debtAmount = data.debtAmount;
       if (Array.isArray(data.debtAmounts) && data.debtAmounts.length > 0) {
-        const ledger = (() => { try { return JSON.parse(lead.debtLedgerJson || '[]'); } catch { return []; } })();
+        const ledger = (() => { try { return JSON.parse(freshLead.debtLedgerJson || '[]'); } catch { return []; } })();
         const next = [...ledger];
         for (const a of data.debtAmounts) {
           const i = next.findIndex(c => String(c.creditor || '').toLowerCase() === String(a.type || '').toLowerCase());
@@ -229,14 +242,15 @@ function MyScriptsTab({ liveTranscript, phase, clientFirstName, clientLastName, 
 
   // ✅ Completed Steps — hands off to the Closing Flow for the rest of the close
   const openClosingFlow = () => {
-    if (!lead?.id) return;
+    if (!lead?.id) { setActionMsg('Select a contact in Live Call before opening Closing Flow.'); return; }
     window.dispatchEvent(new CustomEvent('debt_open_closing', { detail: { leadId: lead.id } }));
-    setActionMsg('✅ Closing Flow opened — the steps below this marker run there.');
+    setActionMsg('✅ Closing Flow opened for this contact.');
   };
 
   // 📧 Send Credentials & Welcome Message — emails the card's address
   const sendCredsEmail = async () => {
-    if (!lead?.id || sendingEmail) return;
+    if (sendingEmail) return;
+    if (!lead?.id) { setActionMsg('Select a contact in Live Call before sending an email.'); return; }
     if (!lead.email) { setActionMsg('Add an email to the contact card first.'); return; }
     setSendingEmail(true); setActionMsg('📧 Sending the credentials & welcome message…');
     try {
@@ -253,14 +267,16 @@ function MyScriptsTab({ liveTranscript, phase, clientFirstName, clientLastName, 
 
   // 🤖 AI Input — summarizes the call so far into the card's notes
   const runAiInputSummary = async () => {
-    if (!lead?.id || aiInputRunning) return;
+    if (aiInputRunning) return;
+    if (!lead?.id) { setActionMsg('Select a contact in Live Call before adding an AI summary.'); return; }
     setAiInputRunning(true); setActionMsg('🤖 Summarizing the call…');
     try {
       const res = await base44.functions.invoke('aiInputSummary', { transcript: liveTranscript || [] });
       const summary = (res?.data || res)?.summary || '';
       if (!summary) { setActionMsg('No summary generated yet.'); }
       else {
-        await base44.entities.DebtLead.update(lead.id, { notes: [lead.notes, `🤖 AI Input Summary: ${summary}`].filter(Boolean).join('\n\n') });
+        const freshLead = await base44.entities.DebtLead.get(lead.id);
+        await base44.entities.DebtLead.update(lead.id, { notes: [freshLead.notes, `🤖 AI Input Summary: ${summary}`].filter(Boolean).join('\n\n') });
         window.dispatchEvent(new CustomEvent('lead_autosaved', { detail: ['notes'] }));
         setActionMsg('🤖 Summary added to the card notes');
       }
@@ -396,14 +412,7 @@ function MyScriptsTab({ liveTranscript, phase, clientFirstName, clientLastName, 
 
           {mode === 'edit' ? (
             <>
-              {/* Cue block insertion toolbar */}
-              <div style={{ display: 'flex', gap: '6px', marginBottom: '8px', flexShrink: 0, flexWrap: 'wrap', alignItems: 'center' }}>
-                <span style={{ color: '#4a5568', fontSize: '10px', letterSpacing: '1px', textTransform: 'uppercase' }}>Insert Cue:</span>
-                {Object.entries(CUE_CATEGORIES).map(([key, cat]) => (
-                  <button key={key} onClick={() => insertCueAtCursor(key)} style={{ padding: '4px 10px', borderRadius: '4px', border: `1px solid ${cat.color}44`, background: `${cat.color}12`, color: cat.color, cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>{cat.icon} {cat.label}</button>
-                ))}
-                <button onClick={insertAiInputAtCursor} title="Mark this spot — AI will aggressively capture and save whatever the customer says next to their profile" style={{ padding: '4px 10px', borderRadius: '4px', border: `1px solid ${GOLD}55`, background: `${GOLD}15`, color: GOLD, cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>🤖 AI Input</button>
-              </div>
+              <DebtScriptInsertToolbar variables={VARIABLES} onInsert={insertAtCursor} onCaptureSelection={captureInsertionRange} accent={GOLD} />
               {/* Inline formatting toolbar */}
               <div style={{ marginBottom: '8px', flexShrink: 0 }}>
                 <ScriptFormatToolbar editorRef={textareaRef} onChange={v => updateAndSave({ content: v })} />
@@ -421,14 +430,14 @@ function MyScriptsTab({ liveTranscript, phase, clientFirstName, clientLastName, 
                 }}
               />
               <div style={{ marginTop: '6px', color: '#4a5568', fontSize: '10px', flexShrink: 0 }}>
-                Tokens: <span style={{ color: GOLD, fontFamily: 'monospace' }}>{'{{firstname}}'}</span> · <span style={{ color: GOLD, fontFamily: 'monospace' }}>{'{{lastname}}'}</span>
+                Tokens: <span style={{ color: GOLD, fontFamily: 'monospace' }}>{VARIABLES.map(v => v.token).join(' · ')}</span>
                 <span style={{ marginLeft: '12px' }}>Format: <span style={{ color: '#a78bfa', fontFamily: 'monospace' }}>[b]..[/b] [i]..[/i] [c=#hex]..[/c] [bg=#hex]..[/bg] [s=18]..[/s] [f=Arial]..[/f]</span></span>
                 <span style={{ marginLeft: '12px' }}>Cue: <span style={{ color: '#60a5fa', fontFamily: 'monospace' }}>@@CUE:reminder:text@@</span></span>
-                <span style={{ marginLeft: '12px' }}>AI: <span style={{ color: GOLD, fontFamily: 'monospace' }}>[[AI INPUT]]</span> <span style={{ color: '#4a5568' }}>— auto-capture zone</span></span>
+                <span style={{ marginLeft: '12px' }}>AI: <span style={{ color: GOLD, fontFamily: 'monospace' }}>[[AI:fieldName]]</span> — capture into that field · <span style={{ color: GOLD, fontFamily: 'monospace' }}>@@AI_INPUT@@</span> — add call summary to notes</span>
               </div>
             </>
           ) : (
-            <ScriptTeleprompter content={active.content || ''} color={active.color || '#e8e0d0'} fontSize={active.fontSize || 14} liveTranscript={liveTranscript} phase={phase} clientFirstName={clientFirstName} clientLastName={clientLastName} micLabel={micLabel} onPositionChange={onScriptPositionChange} />
+            <ScriptTeleprompter content={active.content || ''} color={active.color || '#e8e0d0'} fontSize={active.fontSize || 14} liveTranscript={liveTranscript} phase={phase} clientFirstName={clientFirstName} clientLastName={clientLastName} lead={lead} fronterFirstName={coachUser?.firstName || username || coachUser?.username} micLabel={micLabel} onPositionChange={onScriptPositionChange} actionMsg={actionMsg} actions={{ onDebtConfirm: runDebtConfirm, debtConfirming, onCompletedSteps: openClosingFlow, onAiInput: runAiInputSummary, aiInputRunning, onSendEmail: sendCredsEmail, sendingEmail }} />
           )}
         </div>
       ) : (

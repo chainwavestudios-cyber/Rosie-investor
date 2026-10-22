@@ -9,7 +9,7 @@ import { MyScriptsTab } from '@/components/debt/DebtScriptEditor';
 
 const GOLD = '#10b981';
 
-export default function DebtScriptsPanel({ username }) {
+export default function DebtScriptsPanel({ username, lead, liveTranscript, phase }) {
   const [tab, setTab] = useState('scripts');
 
   return (
@@ -44,7 +44,7 @@ export default function DebtScriptsPanel({ username }) {
       </div>
       <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
         {tab === 'scripts'
-          ? <MyScriptsTab username={username} />
+          ? <MyScriptsTab username={username} lead={lead} liveTranscript={liveTranscript} phase={phase} clientFirstName={lead?.firstName} clientLastName={lead?.lastName} />
           : <DebtPitchPanel />}
       </div>
     </div>

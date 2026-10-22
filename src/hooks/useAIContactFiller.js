@@ -12,11 +12,14 @@
  */
 import { useRef, useEffect, useCallback, useState } from 'react';
 import { base44 } from '@/api/base44Client';
+import coachSessionPayload from '@/lib/coachSessionPayload';
 
 const FIVE_MINUTES = 5 * 60 * 1000;
 
-export function useAIContactFiller({ leadId, leadType, transcript, isActive }) {
+export function useAIContactFiller({ leadId, leadType, transcript, isActive, getScriptContent }) {
   const transcriptRef = useRef([]);
+  const scriptContentRef = useRef(getScriptContent);
+  scriptContentRef.current = getScriptContent;
   const cursorRef = useRef(0); // lines already analyzed by an earlier tick
   const intervalRef = useRef(null);
   const runningRef = useRef(false);
@@ -47,10 +50,13 @@ export function useAIContactFiller({ leadId, leadType, transcript, isActive }) {
         transcript: lines,
         leadType,
         currentLeadData: currentLead,
+        scriptContent: scriptContentRef.current?.() || '',
+        ...coachSessionPayload(),
       });
-      // Only advance once the analysis actually ran, so a failed tick is retried.
-      cursorRef.current = allLines.length;
       const data = res?.data || res;
+      if (data?.error) throw new Error(data.error);
+      // Advance only after extraction succeeds, so failed windows are retried.
+      cursorRef.current = allLines.length;
       const updates = data?.updates || {};
       const newOverwrites = data?.overwrites || [];
       const appointment = data?.appointment || null;
@@ -88,7 +94,7 @@ export function useAIContactFiller({ leadId, leadType, transcript, isActive }) {
         updatePayload.aiPopulateLogJson = JSON.stringify(updatedLog);
       }
       await entity.update(leadId, updatePayload);
-
+      window.dispatchEvent(new CustomEvent('lead_autosaved', { detail: Object.keys(updates) }));
       setLastRunAt(now);
     } catch (e) {
       console.error('AIContactFiller failed:', e?.message || String(e));

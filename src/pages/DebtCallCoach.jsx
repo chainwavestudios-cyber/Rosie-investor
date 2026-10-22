@@ -56,6 +56,7 @@ export default function DebtCallCoach() {
   const [closingLeadId, setClosingLeadId] = useState(null);
   const [showCompliance, setShowCompliance] = useState(false);
   const [liveCallActive, setLiveCallActive] = useState(false);
+  const [scriptCallContext, setScriptCallContext] = useState({});
   const [dealMonitorVisible, setDealMonitorVisible] = useState(false);
   const [heatMapVisible, setHeatMapVisible] = useState(false);
   const [pipelineLead, setPipelineLead] = useState(null);
@@ -136,9 +137,9 @@ export default function DebtCallCoach() {
       {/* Tabs — two rows; drag any tab to reorder (saved per user) */}
       <CoachTabBar rows={tabRows} tabMap={tabMap} active={tab} onSelect={setTab} onMove={moveTab} onReset={resetTabOrder} />
 
-      {tab === 'live' && <DebtLiveCall debtCoachUser={user} onCallStart={(callLead) => { setLiveCallActive(true); if (callLead?.id) setClosingLeadId(callLead.id); }} onCallEnd={() => setLiveCallActive(false)} />}
+      {tab === 'live' && <DebtLiveCall debtCoachUser={user} onScriptContextChange={setScriptCallContext} onCallStart={(callLead) => { setLiveCallActive(true); if (callLead?.id) setClosingLeadId(callLead.id); }} onCallEnd={() => setLiveCallActive(false)} />}
       <PopOutTab storageKey="debt_scripts_tab" title="Scripts" icon="📜" active={tab === 'scripts'} autoPopOut={liveCallActive} defaultSize={{ width: 520, height: 720 }} zIndex={14600}>
-        <DebtScriptsPanel username={user?.username} />
+        <DebtScriptsPanel username={user?.username} {...scriptCallContext} />
       </PopOutTab>
       <PopOutTab storageKey="closing_tab" title="Closing Flow" icon="🏁" active={tab === 'closing'} defaultSize={{ width: 460, height: 720 }} autoPopOut={liveCallActive} zIndex={14500}>
         <SmartClose leadId={closingLeadId} canEditPhones={!isDialerRole} canEditScripts={!isDialerRole} />

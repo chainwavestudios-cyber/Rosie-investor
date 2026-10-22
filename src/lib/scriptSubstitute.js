@@ -29,7 +29,7 @@ export function substituteScriptVars(content, { lead, fronterFirstName } = {}) {
     city: lead?.city || '',
     state: lead?.state || '',
     street: lead?.address || '',
-    address: [lead?.address, lead?.city, lead?.state, lead?.zipCode].filter(Boolean).join(', '),
+    address: [lead?.address, lead?.city, lead?.state, lead?.zipCode || lead?.zip].filter(Boolean).join(', '),
     debt_amount: lead?.debtAmount ? '$' + Number(lead.debtAmount).toLocaleString() : '',
     notice_id: noticeId,
     'notice id': noticeId,

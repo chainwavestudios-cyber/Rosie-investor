@@ -12,10 +12,12 @@
  */
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.52';
 import { formatTranscriptLines, chunkTranscript, runChunks } from '../../shared/transcriptAnalysis.ts';
+import { DEBT_COLLECTIONS, validateDebtCollection, mergeDebtCollection } from '../../shared/debtFieldCollections.ts';
 
 // ── Field Schemas ──────────────────────────────────────────────────
 interface FieldDef {
-  type: 'string' | 'number' | 'boolean' | 'date' | 'enum';
+  type: 'string' | 'number' | 'boolean' | 'date' | 'enum' | 'json';
+  description?: string;
   enumValues?: string[];
   min?: number;
   max?: number;
@@ -61,6 +63,21 @@ const DEBT_SCHEMA: Record<string, FieldDef> = {
   hardshipWhen: { type: 'string', important: true },
   hardshipWhy: { type: 'string', important: true },
   hardshipHow: { type: 'string' },
+  leadNumber: { type: 'string', description: 'Existing notice / lead number only when explicitly confirmed' },
+  age: { type: 'number', min: 0, max: 120, integer: true },
+  householdIncome: { type: 'number', min: 0 },
+  homeValue: { type: 'number', min: 0 },
+  homeEquity: { type: 'number', min: 0 },
+  tradelines: { type: 'number', min: 0, integer: true },
+  programEnrolled: { type: 'boolean', description: 'Only an explicitly confirmed existing enrollment, never infer from interest' },
+  enrollmentDate: { type: 'date' },
+  status: { type: 'enum', enumValues: ['new', 'contacted', 'qualified', 'enrolled', 'declined', 'completed', 'callback'], description: 'Only an explicitly stated status; never infer qualification, completion or enrollment' },
+  callbackAt: { type: 'date' },
+  notes: { type: 'string', description: 'Customer-stated notes; preserve existing notes and append new facts only' },
+  debtLedgerJson: { type: 'json', description: 'Array of creditors: creditor, balance, creditLimit, interestRate, monthlyPayment, paymentSchedule (monthly/biweekly/weekly/irregular/past_due), accountLast4, notes' },
+  nonAcceptedCreditorsJson: { type: 'json', description: 'Array of explicitly identified non-accepted creditors: creditor, balance, accountLast4, notes. Never decide acceptance from a tag alone.' },
+  billsJson: { type: 'json', description: 'Object of monthly expense amounts by key: rent, auto, autoInsurance, gas, groceries, utilities, phone, internet, studentLoans, healthInsurance, childcare, misc; custom expenses use camelCase keys' },
+  cosignersJson: { type: 'json', description: 'Array of co-signers: name, relationship, phone, email, accounts, employed, notes' },
 };
 
 const SCHEMAS: Record<string, Record<string, FieldDef>> = {
@@ -74,6 +91,8 @@ function validateFieldValue(fieldName: string, value: any, schema: Record<string
   if (!def) return { valid: false, cleaned: null };
 
   switch (def.type) {
+    case 'json':
+      return validateDebtCollection(fieldName, value);
     case 'string':
       if (typeof value !== 'string') return { valid: false, cleaned: null };
       const trimmed = value.trim();
@@ -184,9 +203,17 @@ function mergeExtractions(results: any[], schema: Record<string, FieldDef>, curr
   for (const result of results) {
     if (!result) continue;
 
-    Object.assign(updates, validateUpdates(result.updates, schema));
+    const chunkUpdates = validateUpdates(result.updates, schema);
+    for (const [field, value] of Object.entries(chunkUpdates)) {
+      updates[field] = schema[field]?.type === 'json'
+        ? mergeDebtCollection(field, updates[field] ?? currentLeadData?.[field], value)
+        : value;
+    }
 
     for (const entry of validateOverwrites(result.overwrites, schema, currentLeadData)) {
+      updates[entry.fieldName] = schema[entry.fieldName]?.type === 'json'
+        ? mergeDebtCollection(entry.fieldName, updates[entry.fieldName] ?? currentLeadData?.[entry.fieldName], entry.newValue)
+        : entry.newValue;
       const existing = overwrites.findIndex((o) => o.fieldName === entry.fieldName);
       if (existing >= 0) overwrites[existing] = entry; else overwrites.push(entry);
     }
@@ -206,6 +233,7 @@ function buildFieldList(schema: Record<string, FieldDef>): string {
     if (def.enumValues) desc += `: one of ${def.enumValues.join(', ')}`;
     if (def.type === 'number') desc += def.integer ? ', integer only' : ', number only';
     desc += ')';
+    if (def.description) desc += ` — ${def.description}`;
     lines.push(desc);
   }
   return lines.join('\n');
@@ -275,6 +303,13 @@ If no appointment was discussed or agreed upon, set "appointment" to null.`;
 export default async function(req: Request): Promise<Response> {
   try {
     const body = await req.json();
+    const base44 = createClientFromRequest(req);
+    let caller = await base44.auth.me().catch(() => null);
+    if (!caller && body.sessionUserId && body.sessionToken) {
+      const session = await base44.asServiceRole.functions.invoke('debtCoachAuth', { action: 'me', sessionUserId: body.sessionUserId, sessionToken: body.sessionToken });
+      caller = session?.data?.user || null;
+    }
+    if (!caller) return Response.json({ error: 'Unauthorized' }, { status: 401 });
     const { transcript, leadType, currentLeadData, scriptContent, customerSpeakerId, agentSpeakerId } = body;
 
     // ── Strict leadType validation ──
@@ -321,6 +356,10 @@ The agent's script contains collection markers in the format [[AI:fieldName]] fo
 
 Tagged fields in this script: ${taggedFields.join(', ')}
 
+For DebtLead, child markers such as [[AI:billsJson_rent]], [[AI:debtLedgerJson_interestRate]] or [[AI:cosignersJson_phone]] identify ONE property within the root collection. Return the root field (billsJson, debtLedgerJson, cosignersJson, nonAcceptedCreditorsJson), NOT the underscore marker name. Account and co-signer entries must include the customer-confirmed creditor/name so updates attach to the right person/account; never guess which one.
+DebtLead section mapping: tab_contact = contact information; tab_debt and tab_financials = debt totals, payment status, employment, income, credit score, age, household income, home value/equity, tradelines, existing enrollment; tab_ledger = debtLedgerJson; tab_nonaccepted = nonAcceptedCreditorsJson; tab_bills = billsJson; tab_cosigners = cosignersJson; tab_hardship = hardshipWhen/Why/How; tab_notes = notes; tab_appointment = appointment/callbackAt.
+Only return customer-provided changes. Never erase existing collection entries. Collection data structures: ${leadType === 'debt' ? JSON.stringify(DEBT_COLLECTIONS) : 'Use the FronterLead field list.'}
+
 A marker starting with tab_ covers an entire card section: extract every contact card field that belongs to that section (for example tab_contact covers first name, last name, both phones, email and address; tab_debt covers the total debt amount, the debt type and the per-type amounts; tab_financials covers employment, income, age, tradelines, home value and home equity).
 
 <UNTRUSTED_SCRIPT>
@@ -331,8 +370,6 @@ ${cleaned.slice(0, 4000)}
 
     const now = new Date();
     const system = buildSystemPrompt(entityName, schema, now, scriptContext);
-
-    const base44 = createClientFromRequest(req);
 
     // ── Analyze every chunk of the call, oldest first ──
     let creditError = false;

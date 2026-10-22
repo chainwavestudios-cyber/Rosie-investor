@@ -149,13 +149,13 @@ export function substituteClientName(text, clientFirstName, clientLastName) {
 }
 
 // ─── Teleprompter Component ────────────────────────────────────────────────────
-export default function ScriptTeleprompter({ content, color = '#e8e0d0', fontSize = 14, liveTranscript, phase, clientFirstName, clientLastName, lead, micLabel, onPositionChange, actions = {}, actionMsg }) {
+export default function ScriptTeleprompter({ content, color = '#e8e0d0', fontSize = 14, liveTranscript, phase, clientFirstName, clientLastName, lead, fronterFirstName, micLabel, onPositionChange, actions = {}, actionMsg }) {
   // Contact-card tokens ({{phone}}, {{zip}}, {{notice id}}, {{debt amount}}, …) resolve
   // from the live lead; without one, the legacy name tokens are still swapped.
   const displayContent = useMemo(() => {
     const named = substituteClientName(content, clientFirstName, clientLastName);
-    return lead ? substituteScriptVars(named, { lead }) : named;
-  }, [content, lead, clientFirstName, clientLastName]);
+    return substituteScriptVars(named, { lead: lead || { firstName: clientFirstName, lastName: clientLastName }, fronterFirstName });
+  }, [content, lead, clientFirstName, clientLastName, fronterFirstName]);
   const elements = useMemo(() => parseScriptElements(displayContent), [displayContent]);
   const scriptLines = useMemo(() => elements.filter(e => e.type === 'script'), [elements]);
 
@@ -320,7 +320,7 @@ export default function ScriptTeleprompter({ content, color = '#e8e0d0', fontSiz
     }
   }, [activeIdx, scriptLines, content, onPositionChange]);
 
-  if (scriptLines.length === 0) {
+  if (elements.length === 0) {
     return (
       <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#4a5568', fontSize: '13px', padding: '40px' }}>
         No script lines yet. Switch to <strong style={{ color: GOLD, margin: '0 4px' }}>Edit</strong> mode to add content.
@@ -335,7 +335,7 @@ export default function ScriptTeleprompter({ content, color = '#e8e0d0', fontSiz
     debtConfirm: { label: '💰 Debt Confirm', busy: '⏳ Confirming…', color: GOLD, bg: `${GOLD}18`, border: `${GOLD}55`, onClick: actions.onDebtConfirm, isBusy: actions.debtConfirming },
     completedSteps: { label: '✅ Completed Steps', busy: '⏳', color: '#22c55e', bg: 'rgba(34,197,94,0.18)', border: 'rgba(34,197,94,0.55)', onClick: actions.onCompletedSteps, isBusy: false },
     aiInput: { label: '🤖 AI Input', busy: '⏳ Summarizing…', color: '#a78bfa', bg: 'rgba(167,139,250,0.18)', border: 'rgba(167,139,250,0.55)', onClick: actions.onAiInput, isBusy: actions.aiInputRunning },
-    sendEmail: { label: '📧 Send Credentials & Welcome Message', busy: '⏳ Sending…', color: '#60a5fa', bg: 'rgba(96,165,250,0.18)', border: 'rgba(96,165,250,0.55)', onClick: actions.onSendEmail, isBusy: actions.sendingEmail },
+    sendEmail: { label: '📧 Send Credentials & Welcome Email', busy: '⏳ Sending…', color: '#60a5fa', bg: 'rgba(96,165,250,0.18)', border: 'rgba(96,165,250,0.55)', onClick: actions.onSendEmail, isBusy: actions.sendingEmail },
   };
 
   const renderActionButton = (action) => {
@@ -378,7 +378,7 @@ export default function ScriptTeleprompter({ content, color = '#e8e0d0', fontSiz
           <button onClick={() => setActiveIdx(p => Math.min(p + 1, scriptLines.length - 1))} style={{ padding: '6px 12px', borderRadius: '4px', border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.05)', color: '#8a9ab8', cursor: 'pointer', fontSize: '11px' }}>▼ Next</button>
         </div>
         <span style={{ color: '#4a5568', fontSize: '10px', marginLeft: 'auto' }}>
-          Line {activeIdx + 1} / {scriptLines.length}
+          Line {scriptLines.length ? activeIdx + 1 : 0} / {scriptLines.length}
           {liveSync && <span style={{ color: GOLD, marginLeft: '8px' }}>· 📡 synced to {micLabel || 'live call mic'}</span>}
           {!speechSupported && !liveSync && <span style={{ color: '#ef4444', marginLeft: '8px' }}>(voice sync not supported in this browser)</span>}
           {speechOn && interimText && <span style={{ color: '#f59e0b', marginLeft: '8px' }}>🎤 "{interimText.slice(0, 40)}…"</span>}

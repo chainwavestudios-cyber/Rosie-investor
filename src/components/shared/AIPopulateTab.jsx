@@ -7,6 +7,7 @@
  */
 import { useState, useEffect, useCallback } from 'react';
 import { base44 } from '@/api/base44Client';
+import coachSessionPayload from '@/lib/coachSessionPayload';
 
 const GOLD = '#10b981';
 const BLUE = '#60a5fa';
@@ -105,6 +106,7 @@ export default function AIPopulateTab({ lead, leadType = 'debt', onUpdate }) {
             transcript: t.lines,
             leadType,
             currentLeadData: currentLead,
+            ...coachSessionPayload(),
           });
           const data = res?.data || res;
           const updates = data?.updates || {};

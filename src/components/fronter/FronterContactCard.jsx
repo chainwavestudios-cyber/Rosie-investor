@@ -7,6 +7,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
 import { substituteScriptVars } from '@/lib/scriptSubstitute';
+import coachSessionPayload from '@/lib/coachSessionPayload';
 import FronterContactScript from '@/components/fronter/FronterContactScript';
 import FronterCardAudioControls from './FronterCardAudioControls';
 import FronterMeetingScheduler from './FronterMeetingScheduler';
@@ -492,6 +493,7 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
         leadType: 'fronter',
         currentLeadData: local,
         scriptContent,
+        ...coachSessionPayload(),
       });
       const data = res?.data || res;
       const updates = data?.updates || {};
