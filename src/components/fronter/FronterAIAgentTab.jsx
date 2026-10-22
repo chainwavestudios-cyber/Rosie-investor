@@ -12,6 +12,7 @@ import AIAgentKnowledgeSection from './aiagent/AIAgentKnowledgeSection';
 import AIAgentPromptSection, { DEFAULT_GREETING, DEFAULT_SYSTEM_PROMPT, DEFAULT_SCRIPT_FLOW, DEFAULT_REBUTTALS, DEFAULT_QA_TUNING } from './aiagent/AIAgentPromptSection';
 import AIAgentDialer from './AIAgentDialer';
 import AIAgentLiveConfig from './aiagent/AIAgentLiveConfig';
+import AIAgentLatencyDashboard from './aiagent/AIAgentLatencyDashboard';
 import AIAgentIncomingCallsTab from './aiagent/AIAgentIncomingCallsTab';
 import AIAgentScriptBuilderSection from './aiagent/AIAgentScriptBuilderSection';
 import useAIAgentPipeline from '@/hooks/useAIAgentPipeline';
@@ -25,6 +26,7 @@ const SECTIONS = [
   { id: 'config', label: '⚙️ Agent Configuration' },
   { id: 'incoming', label: '📞 Incoming Calls' },
   { id: 'builder', label: '🧠 AI Script Builder' },
+  { id: 'latency', label: '⚡ Turn Latency' },
 ];
 
 const SECTION_LABEL = { display: 'block', color: GOLD, fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '10px', paddingBottom: '4px', borderBottom: '1px solid rgba(16,185,129,0.15)' };
@@ -174,6 +176,8 @@ export default function FronterAIAgentTab({ adminUsername }) {
       {section === 'incoming' && <AIAgentIncomingCallsTab config={config} update={update} />}
 
       {section === 'builder' && <AIAgentScriptBuilderSection />}
+
+      {section === 'latency' && <AIAgentLatencyDashboard />}
 
       {section === 'config' && (
       <>

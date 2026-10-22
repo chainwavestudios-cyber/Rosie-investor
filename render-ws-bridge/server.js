@@ -91,6 +91,7 @@ const runtimeSnapshot = session => ({
   callSid: session.callSid, state: session.state,
   startedAt: new Date(session.startedAt).toISOString(), observedAt: new Date().toISOString(),
   selected: session.config, stt: session.stt, tts: session.tts, llm: session.llm, error: session.error,
+  turn: session.turn || null, turnSamples: session.turnSamples || [],
 });
 
 // ── Speaking watchdog ───────────────────────────────────────────────────
@@ -522,6 +523,16 @@ async function handleUtterance(streamSid, transcript) {
   const session = streams.get(streamSid);
   if (!session) return;
 
+  // The caller's turn just ended — start this turn's response clock. The
+  // end-of-turn engine (Flux or Nova) and the TTS engine that will answer are
+  // recorded with it so Flux turns can be measured against the latency target.
+  session.turn = {
+    engine: String(session.stt?.model || '').startsWith('flux') ? 'flux' : 'nova',
+    tts: session.config?.ttsEngine || null,
+    startAt: Date.now(),
+    at: new Date().toISOString(),
+  };
+
   session.state = 'thinking';
   session.conversation.push({ role: 'user', content: transcript });
 
@@ -638,7 +649,7 @@ async function streamFluxTTS(text, streamSid, session, generation) {
         const chunk = data.toString('base64');
         if (chunk.length > 0) {
           chunkCount++;
-          if (!played) { sendToTwilio(session.ws, { event: 'clear', streamSid }); played = true; }
+          if (!played) { sendToTwilio(session.ws, { event: 'clear', streamSid }); noteAudioOut(session); played = true; }
           sendToTwilio(session.ws, { event: 'media', streamSid, media: { payload: chunk } });
           session.recordingBuffer.push(chunk);
         }
@@ -698,7 +709,7 @@ async function streamDeepgramTTS(text, streamSid, session, generation) {
       const chunk = data.toString('base64');
       if (chunk.length > 0) {
         chunkCount++;
-        if (!played) { sendToTwilio(session.ws, { event: 'clear', streamSid }); played = true; }
+        if (!played) { sendToTwilio(session.ws, { event: 'clear', streamSid }); noteAudioOut(session); played = true; }
         sendToTwilio(session.ws, { event: 'media', streamSid, media: { payload: chunk } });
         session.recordingBuffer.push(chunk);
       }
@@ -822,6 +833,19 @@ async function generateTTS(text, config = {}, session = null) {
   return null;
 }
 
+// ── Turn response latency (caller stopped → agent's first audio out) ────
+// Closes the clock opened in handleUtterance on the first audio of the reply,
+// so the dashboard can score each turn against the low-latency target.
+function noteAudioOut(session) {
+  if (!session?.turn || session.turn.ms != null) return;
+  const ms = Date.now() - session.turn.startAt;
+  session.turn = { ...session.turn, ms };
+  session.turnSamples = [
+    ...(session.turnSamples || []),
+    { ms, stt: session.turn.engine, tts: session.turn.tts, at: new Date().toISOString() },
+  ].slice(-20);
+}
+
 // ── Playback with generation-aware interruption prevention ─────────────
 function playAudio(streamSid, audioBase64, generation) {
   const session = streams.get(streamSid);
@@ -831,6 +855,7 @@ function playAudio(streamSid, audioBase64, generation) {
     debug('stale audio dropped, gen', generation, 'current', session.generation);
     return;
   }
+  noteAudioOut(session);
   // Clear any queued audio first (safety — prevents overlap)
   sendToTwilio(session.ws, { event: 'clear', streamSid });
   // Send audio
