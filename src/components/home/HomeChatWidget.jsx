@@ -7,6 +7,8 @@ import HomeChatCallForm from '@/components/home/HomeChatCallForm';
 import MailerIdSearch from '@/components/home/MailerIdSearch';
 
 const OPENING = "Let's see what you may qualify for. First, what is your first and last name?";
+const WIDGET_TITLE = 'State Rate Reduction Qualification';
+const WIDGET_STATUS = 'Online · Live';
 const TOKEN_KEY = 'home_chat_session_token';
 const POLL_MS = 4000;
 
@@ -39,6 +41,7 @@ function visitorToken() {
 
 export default function HomeChatWidget({ leadProfile, onLeadFound }) {
   const [messages, setMessages] = useState([{ role: 'assistant', text: OPENING }]);
+  const [widget, setWidget] = useState({ title: WIDGET_TITLE, status: WIDGET_STATUS });
   const [quickReplies, setQuickReplies] = useState([]);
   const [collected, setCollected] = useState({});
   const [readyForCall, setReadyForCall] = useState(false);
@@ -82,6 +85,29 @@ export default function HomeChatWidget({ leadProfile, onLeadFound }) {
       clearInterval(timer);
     };
   }, [sessionToken]);
+
+  // The front-page admin sets the widget's title, status line and opening message.
+  useEffect(() => {
+    let alive = true;
+    base44.functions
+      .invoke('homeQualifyChat', { action: 'widget_config' })
+      .then((response) => {
+        const data = response?.data || {};
+        if (!alive || !data.widgetTitle) return;
+        setWidget({ title: data.widgetTitle, status: data.widgetStatusText || WIDGET_STATUS });
+        if (data.openingMessage) {
+          setMessages((prev) =>
+            prev.length === 1 && prev[0].role === 'assistant' ? [{ role: 'assistant', text: data.openingMessage }] : prev,
+          );
+        }
+      })
+      .catch(() => {
+        /* keep the built-in wording */
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   // The visitor's contact card tells us who they are before they type anything.
   useEffect(() => {
@@ -219,10 +245,10 @@ export default function HomeChatWidget({ leadProfile, onLeadFound }) {
               <Sparkles className="h-4 w-4" />
             </span>
             <span className="leading-tight">
-              <span className="block text-[15px] font-bold text-white">State Rate Reduction Qualification</span>
+              <span className="block text-[15px] font-bold text-white">{widget.title}</span>
               <span className="mt-0.5 block text-[11px] font-medium text-white/55">
                 <span className="mr-1.5 inline-block h-1.5 w-1.5 rounded-full bg-teal-400 align-middle" />
-                Online · Live
+                {widget.status}
               </span>
             </span>
           </span>

@@ -1,0 +1,80 @@
+{
+  "name": "HomeChatConfig",
+  "type": "object",
+  "properties": {
+    "configName": {
+      "type": "string",
+      "title": "Config Name (singleton key)",
+      "default": "default"
+    },
+    "widgetTitle": {
+      "type": "string",
+      "title": "Widget Title",
+      "default": "State Rate Reduction Qualification"
+    },
+    "widgetStatusText": {
+      "type": "string",
+      "title": "Widget Status Line (shown under the title)",
+      "default": "Online \u00b7 Live"
+    },
+    "openingMessage": {
+      "type": "string",
+      "title": "Opening Message (the first thing the visitor sees)",
+      "format": "textarea",
+      "default": "Let's see what you may qualify for. First, what is your first and last name?"
+    },
+    "questionsJson": {
+      "type": "string",
+      "title": "Qualification Questions (JSON array of {field, question, guidance} \u2014 asked in this order)",
+      "format": "textarea"
+    },
+    "debtRangesJson": {
+      "type": "string",
+      "title": "Debt Ranges (JSON array of {label, amount} \u2014 the labels the assistant records and the estimate written on the contact card)",
+      "format": "textarea"
+    },
+    "eligibilityLine": {
+      "type": "string",
+      "title": "Eligibility Line (said once, after the last question is answered)",
+      "format": "textarea"
+    },
+    "callOfferText": {
+      "type": "string",
+      "title": "Call Offer (how the assistant offers the live call)",
+      "format": "textarea"
+    },
+    "factsJson": {
+      "type": "string",
+      "title": "Facts The Assistant May State (JSON array)",
+      "format": "textarea"
+    },
+    "prohibitionsJson": {
+      "type": "string",
+      "title": "Never Rules (JSON array \u2014 what the assistant must never do)",
+      "format": "textarea"
+    },
+    "readyFieldsJson": {
+      "type": "string",
+      "title": "Answers Required Before The Call Offer (JSON array of question fields)",
+      "format": "textarea"
+    },
+    "updatedBy": {
+      "type": "string",
+      "title": "Last Updated By (username)"
+    },
+    "updatedAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Last Updated At"
+    }
+  },
+  "required": [
+    "configName"
+  ],
+  "rls": {
+    "create": null,
+    "read": null,
+    "update": null,
+    "delete": null
+  }
+}
