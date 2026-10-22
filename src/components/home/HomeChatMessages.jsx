@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { Coins, CreditCard, Landmark } from 'lucide-react';
+import { Coins, CreditCard, FileText, Landmark } from 'lucide-react';
 
 const TILES = ['from-pink-500 to-pink-600', 'from-violet-500 to-violet-600', 'from-teal-500 to-teal-600'];
 const ICONS = [Coins, CreditCard, Landmark];
@@ -22,6 +22,26 @@ export default function HomeChatMessages({ messages = [], quickReplies = [], onR
       {messages.map((message, index) => {
         const isVisitor = message.role === 'user';
         const isSpecialist = message.role === 'specialist';
+        if (message.role === 'record') {
+          return (
+            <div key={index} className="w-full">
+              <div className="rounded-2xl border border-teal-400/30 bg-[#0b1220]/80 p-3 backdrop-blur-md">
+                <p className="mb-2 inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.14em] text-teal-300">
+                  <FileText className="h-3 w-3" />
+                  File on record
+                </p>
+                <div className="space-y-1.5">
+                  {(message.fields || []).map((field) => (
+                    <div key={field.label} className="flex items-baseline justify-between gap-3">
+                      <span className="text-[10px] uppercase tracking-[0.1em] text-white/45">{field.label}</span>
+                      <span className="text-right text-[12px] font-medium text-white">{field.value}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          );
+        }
         return (
           <div key={index} className={isVisitor ? 'flex justify-end' : 'flex justify-start'}>
             <div className="max-w-[88%]">

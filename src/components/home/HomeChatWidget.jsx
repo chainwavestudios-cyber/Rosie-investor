@@ -12,6 +12,21 @@ const TOKEN_KEY = 'home_chat_session_token';
 const POLL_MS = 4000;
 const CHAT_BG_VIDEO = 'https://media.base44.com/videos/public/69cd2741578c9b5ce655395b/072b46cf3_AdobeStock_106264b3-f122-4a5c-8159-040c64131bb6.mp4';
 
+/** Everything we hold on the visitor's file, ready for the chat card. */
+function fileFields(profile) {
+  const name = [profile.firstName, profile.lastName].filter(Boolean).join(' ');
+  return [
+    name && { label: 'Name', value: name },
+    profile.address && { label: 'Address', value: profile.address },
+    profile.phone && { label: 'Phone', value: profile.phone },
+    profile.state && { label: 'State', value: profile.state },
+    profile.noticeId && { label: 'Notice ID', value: profile.noticeId },
+    profile.leadNumber && { label: 'Lead No.', value: profile.leadNumber },
+    typeof profile.homeValue === 'number' && profile.homeValue > 0 && { label: 'Home Value', value: `$${profile.homeValue.toLocaleString()}` },
+    typeof profile.linesOfCredit === 'number' && { label: 'Tradelines', value: String(profile.linesOfCredit) },
+  ].filter(Boolean);
+}
+
 /** One token per browser tab — the command center sees one tab per visitor. */
 function visitorToken() {
   let token = sessionStorage.getItem(TOKEN_KEY);
@@ -33,7 +48,10 @@ export default function HomeChatWidget({ leadProfile, onLeadFound }) {
   const [callState, setCallState] = useState({ status: 'idle', message: '' });
   const [specialistMode, setSpecialistMode] = useState(false);
   const [sessionToken] = useState(visitorToken);
+  const [pulled, setPulled] = useState(null);
   const seenSpecialist = useRef(new Set());
+  const messagesRef = useRef(messages);
+  const pulledRef = useRef('');
 
   // Watch for a specialist joining the chat from the command center.
   useEffect(() => {
@@ -78,20 +96,29 @@ export default function HomeChatWidget({ leadProfile, onLeadFound }) {
     }));
   }, [leadProfile?.firstName, leadProfile?.lastName, leadProfile?.state]);
 
-  const send = async (text) => {
-    const clean = String(text || '').trim();
-    if (!clean || sending) return;
-    const next = [...messages, { role: 'user', text: clean }];
-    setMessages(next);
-    setQuickReplies([]);
+  // Keep the latest messages within reach of the pulled-file flow.
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
+
+  // A file came up in the search — put it in the chat and keep the questions going.
+  useEffect(() => {
+    if (!pulled?.id || pulledRef.current === pulled.id) return;
+    pulledRef.current = pulled.id;
+    openPulledFile(pulled);
+  }, [pulled]);
+
+  // One turn with the qualification bot — shared by the visitor's messages and the
+  // moment their file is pulled up.
+  const turn = async (userText, history) => {
     setSending(true);
     try {
       const response = await base44.functions.invoke('homeQualifyChat', {
         action: 'chat',
-        message: clean,
+        message: userText,
         sessionToken,
         pagePath: window.location.pathname,
-        history: next.slice(-12).map((m) => ({ role: m.role === 'user' ? 'user' : 'assistant', content: m.text })),
+        history: history.slice(-12).map((m) => ({ role: m.role === 'user' ? 'user' : 'assistant', content: m.text })),
         collected,
       });
       const data = response?.data || {};
@@ -113,6 +140,29 @@ export default function HomeChatWidget({ leadProfile, onLeadFound }) {
       ]);
     }
     setSending(false);
+  };
+
+  /** A successful Mailer ID search opens the visitor's file — show it, then carry on qualifying. */
+  const openPulledFile = async (profile) => {
+    const fields = fileFields(profile);
+    const record = {
+      role: 'record',
+      text: `The file on record: ${fields.map((field) => `${field.label}: ${field.value}`).join('; ')}.`,
+      fields,
+    };
+    const next = [...messagesRef.current, record];
+    setMessages(next);
+    setQuickReplies([]);
+    await turn('I just searched my Mailer ID and my file came up. Please go ahead with the questions.', next);
+  };
+
+  const send = async (text) => {
+    const clean = String(text || '').trim();
+    if (!clean || sending) return;
+    const next = [...messages, { role: 'user', text: clean }];
+    setMessages(next);
+    setQuickReplies([]);
+    await turn(clean, next);
   };
 
   const requestCall = async ({ phone, consent }) => {
@@ -152,6 +202,8 @@ export default function HomeChatWidget({ leadProfile, onLeadFound }) {
     collected.firstName && `Name: ${collected.firstName}`,
     collected.state && `State: ${collected.state}`,
     collected.debtTier && `Debt: ${collected.debtTier}`,
+    pulled?.noticeId && `File: ${pulled.noticeId}`,
+    pulled?.phone && `Phone: ${pulled.phone}`,
   ].filter(Boolean);
 
   return (
@@ -181,7 +233,12 @@ export default function HomeChatWidget({ leadProfile, onLeadFound }) {
               </span>
             </span>
           </span>
-          <MailerIdSearch onFound={onLeadFound} />
+          <MailerIdSearch
+            onFound={(profile) => {
+              setPulled(profile);
+              onLeadFound?.(profile);
+            }}
+          />
         </header>
 
         {facts.length > 0 && (
