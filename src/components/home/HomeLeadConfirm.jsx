@@ -46,7 +46,11 @@ export default function HomeLeadConfirm({ profile }) {
   ];
 
   return (
-    <section className="mx-auto mt-8 w-full max-w-3xl rounded-2xl border border-[#d7e6f5] bg-white p-6 text-left">
+    <section
+      id="lead-confirm"
+      className="mx-auto mt-8 w-full max-w-3xl rounded-2xl border border-[#d7e6f5] bg-white p-6 text-left"
+      style={{ scrollMarginTop: '20px' }}
+    >
       <p className="text-[10px] font-bold uppercase tracking-[4px] text-[#0ea5e9]">Your file</p>
       <h2 className="mt-2 text-lg font-bold text-[#003366]">
         Welcome back{profile.firstName ? `, ${profile.firstName}` : ''} — is this still correct?

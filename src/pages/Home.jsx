@@ -103,7 +103,7 @@ export default function Home() {
       <main style={{ width: '100%', maxWidth: '960px', margin: '0 auto', padding: '32px 16px 64px', boxSizing: 'border-box' }}>
         {leadProfile && <HomeLeadConfirm profile={leadProfile} />}
 
-        <HomeChatWidget leadProfile={leadProfile} />
+        <HomeChatWidget leadProfile={leadProfile} onLeadFound={setLeadProfile} />
 
         <StephaniAccessPopup />
 

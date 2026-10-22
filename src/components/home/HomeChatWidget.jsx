@@ -1,9 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { MessagesSquare, ShieldCheck } from 'lucide-react';
+import { MessagesSquare } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import HomeChatMessages from '@/components/home/HomeChatMessages';
 import HomeChatComposer from '@/components/home/HomeChatComposer';
 import HomeChatCallForm from '@/components/home/HomeChatCallForm';
+import MailerIdSearch from '@/components/home/MailerIdSearch';
 
 const TIERS = ['Less than $20,000', '$20,000 - $40,000', 'More than $40,000'];
 const OPENING = 'How much credit card debt are you carrying right now?';
@@ -22,7 +23,7 @@ function visitorToken() {
   return token;
 }
 
-export default function HomeChatWidget({ leadProfile }) {
+export default function HomeChatWidget({ leadProfile, onLeadFound }) {
   const [messages, setMessages] = useState([{ role: 'assistant', text: OPENING }]);
   const [quickReplies, setQuickReplies] = useState(TIERS);
   const [collected, setCollected] = useState({});
@@ -155,15 +156,12 @@ export default function HomeChatWidget({ leadProfile }) {
   return (
     <section id="chat" className="mx-auto mt-10 w-full max-w-3xl" style={{ scrollMarginTop: '20px' }}>
       <div className="overflow-hidden rounded-2xl border border-sky-400/20 bg-[#0b1220] shadow-[0_30px_80px_rgba(0,0,0,0.25)]">
-        <header className="flex flex-wrap items-center justify-between gap-2 border-b border-white/10 px-4 py-3">
+        <header className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 px-4 py-3">
           <span className="inline-flex items-center gap-2 text-sm font-medium text-slate-100">
             <MessagesSquare className="h-4 w-4 text-sky-300" />
-            Debt Solutions Assistant
+            State Rate Reduction Qualification
           </span>
-          <span className="inline-flex items-center gap-1.5 text-[11px] text-slate-400">
-            <ShieldCheck className="h-3.5 w-3.5 text-emerald-300" />
-            Answers come from our own program knowledge base
-          </span>
+          <MailerIdSearch onFound={onLeadFound} />
         </header>
 
         {facts.length > 0 && (
