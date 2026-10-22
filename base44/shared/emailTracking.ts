@@ -4,11 +4,14 @@
  */
 export const TRACKING_BASE = 'https://rosieai-investorpage.base44.app/functions';
 
-export function injectTracking(html: string, leadId: string, sendId: string, templateId?: string): string {
+export function injectTracking(html: string, leadId: string, sendId: string, templateId?: string, templateName?: string): string {
   if (!html) return html;
   const templateParam = templateId ? `&templateId=${encodeURIComponent(templateId)}` : '';
-  const trackOpenUrl = `${TRACKING_BASE}/emailTrackOpen?leadId=${encodeURIComponent(leadId)}&sendId=${sendId}${templateParam}`;
-  const trackClickBase = `${TRACKING_BASE}/emailTrackClick?leadId=${encodeURIComponent(leadId)}&sendId=${sendId}${templateParam}&url=`;
+  // The template's name rides along so every recorded event says WHICH email was
+  // opened or clicked (the Super Admin engagement panels read these events).
+  const nameParam = templateName ? `&templateName=${encodeURIComponent(templateName)}` : '';
+  const trackOpenUrl = `${TRACKING_BASE}/emailTrackOpen?leadId=${encodeURIComponent(leadId)}&sendId=${sendId}${templateParam}${nameParam}`;
+  const trackClickBase = `${TRACKING_BASE}/emailTrackClick?leadId=${encodeURIComponent(leadId)}&sendId=${sendId}${templateParam}${nameParam}&url=`;
 
   // 1. Rewrite existing <a href="..."> links to go through the click tracker
   let result = html.replace(/(<a\s+[^>]*?href=")(https?:\/\/[^"]+)"/gi, (match, prefix, url) => {
