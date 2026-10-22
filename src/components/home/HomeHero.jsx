@@ -23,10 +23,7 @@ export default function HomeHero() {
             </span>
           </div>
 
-          <h1 style={{ margin: '20px 0 0', color: '#0b2b4a', fontFamily: "'DM Sans', sans-serif", fontSize: 'clamp(46px, 7vw, 78px)', fontWeight: 800, lineHeight: 0.92, letterSpacing: '-0.02em' }}>
-            New
-          </h1>
-          <p style={{ margin: '8px 0 0', color: '#0b2b4a', fontFamily: "'DM Sans', sans-serif", fontSize: 'clamp(17px, 2.3vw, 25px)', fontWeight: 600, letterSpacing: '0.18em', textTransform: 'uppercase' }}>
+          <p style={{ margin: '20px 0 0', color: '#0b2b4a', fontFamily: "'DM Sans', sans-serif", fontSize: 'clamp(17px, 2.3vw, 25px)', fontWeight: 600, letterSpacing: '0.18em', textTransform: 'uppercase' }}>
             Landing Design
           </p>
 
