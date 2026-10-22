@@ -8,36 +8,18 @@ const COMPANY = {
   phoneHref: 'tel:+18662908994',
 };
 
-const LOGO_URL = 'https://media.base44.com/images/public/69cd2741578c9b5ce655395b/ffe18aaa0_Untitleddesign24.png';
+const LOGO_URL = 'https://media.base44.com/images/public/69cd2741578c9b5ce655395b/5483f2dfa_Yourparagraphtext.svg';
 
 export default function HomeHeader() {
   return (
     <header style={{ background: 'linear-gradient(180deg, #061d3f 0%, #04101f 100%)', padding: '37px 20px 41px' }}>
       <div style={{ maxWidth: '960px', margin: '0 auto', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '16px', flexWrap: 'wrap' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-          <span
-            style={{
-              position: 'relative',
-              width: '114px',
-              height: '114px',
-              overflow: 'hidden',
-              flex: '0 0 auto',
-            }}
-          >
-            <img
-              src={LOGO_URL}
-              alt="Debt Solutions"
-              style={{
-                position: 'absolute',
-                width: '119px',
-                height: '119px',
-                left: '-2px',
-                top: '-2px',
-                maxWidth: 'none',
-                mixBlendMode: 'lighten',
-              }}
-            />
-          </span>
+          <img
+            src={LOGO_URL}
+            alt="Debt Solutions"
+            style={{ width: '330px', maxWidth: '100%', height: 'auto', display: 'block', flex: '0 1 auto' }}
+          />
         </div>
 
         <address
