@@ -33,6 +33,7 @@ import FronterAIReportsTab from '@/components/fronter/FronterAIReportsTab';
 import FronterReportPopup from '@/components/fronter/FronterReportPopup';
 import FronterEmailsTab from '@/components/fronter/FronterEmailsTab';
 import EmailOptInTab from '@/components/fronter/EmailOptInTab';
+import FronterMarketingTab from '@/components/fronter/marketing/FronterMarketingTab';
 import UpcomingCallEventsPopup from '@/components/debt/UpcomingCallEventsPopup';
 import DualClockBar from '@/components/shared/DualClockBar';
 import TimezonePrompt from '@/components/shared/TimezonePrompt';
@@ -108,7 +109,7 @@ export default function FronterPage() {
   // Fronter sees leads + scripts; admin sees admin + leads + scripts
   const TABS = [
     ...(isAdmin
-      ? [{ id: 'scripts', label: 'Scripts' }, { id: 'admin', label: '⚙️ Admin' }, { id: 'ai_agent', label: '🤖 AI Agent' }, { id: 'emails', label: '📧 Emails' }, { id: 'optin', label: '✉️ Email Opt-In' }, { id: 'prospects', label: '📋 Prospects' }, { id: 'leads', label: '📋 Leads' }, { id: 'queued_no_connect', label: '📋 Queued No Connect' }, { id: 'migrated', label: '🚀 Migrated' }, { id: 'closed_deals', label: '💎 Closed Deals' }, { id: 'reports', label: '📊 Reports' }, { id: 'feedback', label: '💬 Feedback' }, { id: 'bob', label: '🤖 BOB Training' }, { id: 'hr', label: '🕐 HR' }, { id: 'settings', label: '🔧 Settings' }]
+      ? [{ id: 'scripts', label: 'Scripts' }, { id: 'admin', label: '⚙️ Admin' }, { id: 'ai_agent', label: '🤖 AI Agent' }, { id: 'emails', label: '📧 Emails' }, { id: 'optin', label: '✉️ Email Opt-In' }, { id: 'marketing', label: '📣 Marketing' }, { id: 'prospects', label: '📋 Prospects' }, { id: 'leads', label: '📋 Leads' }, { id: 'queued_no_connect', label: '📋 Queued No Connect' }, { id: 'migrated', label: '🚀 Migrated' }, { id: 'closed_deals', label: '💎 Closed Deals' }, { id: 'reports', label: '📊 Reports' }, { id: 'feedback', label: '💬 Feedback' }, { id: 'bob', label: '🤖 BOB Training' }, { id: 'hr', label: '🕐 HR' }, { id: 'settings', label: '🔧 Settings' }]
       : [{ id: 'prospects', label: '📋 Prospects' }, { id: 'leads', label: '📋 Leads' }, { id: 'queued_no_connect', label: '📋 Queued No Connect' }, { id: 'migrated', label: '🚀 Migrated' }, { id: 'closed_deals', label: '💎 Closed Deals' }, { id: 'reports', label: '📊 Reports' }, { id: 'feedback', label: '💬 Feedback' }, { id: 'bob', label: '🤖 BOB Training' }, { id: 'hr', label: '🕐 HR' }, { id: 'settings', label: '🔧 Settings' }]),
   ];
 
@@ -495,6 +496,8 @@ export default function FronterPage() {
         {tab === 'emails' && isAdmin && <FronterEmailsTab username={user.username} />}
 
         {tab === 'optin' && isAdmin && <EmailOptInTab username={user.username} />}
+
+        {tab === 'marketing' && isAdmin && <FronterMarketingTab username={user.username} />}
 
         {tab === 'settings' && <FronterSettingsTab />}
       </div>
