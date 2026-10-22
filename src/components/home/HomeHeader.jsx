@@ -12,7 +12,7 @@ const LOGO_URL = 'https://media.base44.com/images/public/69cd2741578c9b5ce655395
 
 export default function HomeHeader() {
   return (
-    <header style={{ background: 'linear-gradient(180deg, #061d3f 0%, #04101f 100%)', padding: '18px 20px 22px' }}>
+    <header style={{ background: 'linear-gradient(180deg, #061d3f 0%, #04101f 100%)', padding: '37px 20px 41px' }}>
       <div style={{ maxWidth: '960px', margin: '0 auto', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '16px', flexWrap: 'wrap' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
           <span
