@@ -8,7 +8,7 @@ const COMPANY = {
   phoneHref: 'tel:+18662908994',
 };
 
-const LOGO_URL = 'https://media.base44.com/images/public/69cd2741578c9b5ce655395b/8fa3e9a78_Gemini_Generated_Image_rboe84rboe84rboe.jpeg';
+const LOGO_URL = 'https://media.base44.com/images/public/69cd2741578c9b5ce655395b/6deeb3572_Untitleddesign23.png';
 
 export default function HomeHeader() {
   return (
@@ -18,8 +18,8 @@ export default function HomeHeader() {
           <span
             style={{
               position: 'relative',
-              width: '107px',
-              height: '120px',
+              width: '116px',
+              height: '116px',
               overflow: 'hidden',
               flex: '0 0 auto',
             }}
@@ -27,7 +27,15 @@ export default function HomeHeader() {
             <img
               src={LOGO_URL}
               alt="Debt Solutions"
-              style={{ position: 'absolute', width: '137px', height: '137px', left: '-15px', top: '-9px' }}
+              style={{
+                position: 'absolute',
+                width: '149px',
+                height: '149px',
+                left: '-16px',
+                top: '-16px',
+                maxWidth: 'none',
+                mixBlendMode: 'lighten',
+              }}
             />
           </span>
         </div>
