@@ -178,9 +178,22 @@ export function cardFullName(card: any): string {
   return [card?.firstName, card?.lastName].filter(Boolean).join(' ').trim() || 'Homeowner';
 }
 
+/** Placeholder text that must never be printed as part of a mailing address. */
+const ADDRESS_PLACEHOLDER = /^(n\/?a\.?|none|unknown|-+)$/i;
+
+function addressParts(values: any[]): string[] {
+  return values
+    .flatMap(v => String(v ?? '').split(','))
+    .map(v => v.trim())
+    .filter(v => v && !ADDRESS_PLACEHOLDER.test(v));
+}
+
 export function cardFullAddress(card: any): string {
-  const cityState = [card?.city, card?.state].filter(Boolean).join(', ');
-  return [card?.address, cityState, card?.zipCode].filter(Boolean).join(', ');
+  return addressParts([
+    card?.address,
+    [card?.city, card?.state].map(v => String(v || '').trim()).filter(Boolean).join(', '),
+    card?.zipCode,
+  ]).join(', ');
 }
 
 function cardDebt(card: any): number {
@@ -198,7 +211,7 @@ export function vaultEntryToMailerCard(entry: any): any {
   return {
     firstName: entry?.firstName || '',
     lastName: entry?.lastName || '',
-    address: [entry?.address, entry?.apt].filter(Boolean).join(', '),
+    address: addressParts([entry?.address, entry?.apt]).join(', '),
     city: entry?.city || '',
     state: entry?.state || '',
     zipCode: entry?.zipCode || '',
@@ -226,7 +239,12 @@ export async function getRateDropTemplate(base44: any): Promise<any> {
   const rows = await base44.asServiceRole.entities.RateDropTemplate.filter({ configName: 'default' });
   const stored = (Array.isArray(rows) ? rows : rows?.items || [])[0];
   if (!stored) return { ...DEFAULT_RATE_DROP_TEMPLATE };
-  return { ...DEFAULT_RATE_DROP_TEMPLATE, ...stored };
+  // A blank stored value means "never set", so the built-in copy still shows in
+  // the engine and in the editor instead of an empty field.
+  const filled = Object.fromEntries(
+    Object.entries(stored).filter(([, v]) => v !== '' && v !== null && v !== undefined)
+  );
+  return { ...DEFAULT_RATE_DROP_TEMPLATE, ...filled };
 }
 
 function parseList(raw: any, fallback: any[]): any[] {
