@@ -18,7 +18,7 @@ export default function HomeHero() {
             flex: '1 1 420px',
             minWidth: '280px',
             maxWidth: '620px',
-            aspectRatio: '1.13 / 1',
+            aspectRatio: '4.5 / 1',
             backgroundImage: `url(${HERO_BANNER})`,
             backgroundRepeat: 'no-repeat',
             maskImage: 'linear-gradient(to right, transparent 0%, rgba(0,0,0,1) 14%)',
