@@ -15,7 +15,7 @@ const SUGGESTIONS = [
 ];
 
 // Marketing / visitor pages have no staff session, so the console stays hidden there.
-const VISITOR_PATHS = ['/investor-page', '/optin', '/privacy', '/terms', '/request-access', '/aboutdebt', '/reschedule'];
+const VISITOR_PATHS = ['/', '/stories', '/investor-page', '/optin', '/privacy', '/terms', '/request-access', '/aboutdebt', '/reschedule'];
 
 function hasSession() {
   try {

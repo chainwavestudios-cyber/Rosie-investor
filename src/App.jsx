@@ -41,6 +41,7 @@ import ReschedulePage from './pages/ReschedulePage';
 import GrowthPlan120Day from './pages/GrowthPlan120Day';
 import { PortalAuthProvider } from '@/lib/PortalAuthContext';
 import { TwilioDeviceProvider } from '@/lib/TwilioDeviceContext';
+import StoryDetail from '@/pages/StoryDetail';
 import AgentConsole from '@/components/agent/AgentConsole';
 
 const PUBLIC_PATHS = ['/optin', '/optin/screenshot', '/email-optin', '/privacy', '/terms', '/portal-login', '/admin-login', '/request-access', '/debt-call-coach-login', '/aboutdebt', '/qualify', '/debt-call-coach', '/manager-portal', '/compliance-portal', '/fronter', '/interviews', '/training', '/log', '/work-report', '/reschedule', '/growth-plan', '/assistant-portal', '/superadmin-portal', '/adminfrontpage'];
@@ -103,6 +104,7 @@ function App() {
               <Route path="/growth-plan" element={<GrowthPlan120Day />} />
               <Route path="/aboutdebt" element={<AboutDebt />} />
               <Route path="/qualify" element={<SarahQualifyPage />} />
+              <Route path="/stories/:slug" element={<StoryDetail />} />
               {/* Protected */}
               <Route path="/" element={<Home />} />
               <Route path="/portal" element={<InvestorPortal />} />
