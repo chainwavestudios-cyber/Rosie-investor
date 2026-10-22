@@ -10,13 +10,18 @@
  * call (ringing, missed, no-answer) gets a CallLog entry via voicemailWebhook,
  * not just calls that go to voicemail.
  */
-import { xmlEscape, lineNumber, toE164, twilioFetch, FRONTER_DIRECT_NUMBERS } from '../../shared/twilioHelpers.ts';
+import { xmlEscape, lineNumber, toE164, twilioFetch, FRONTER_DIRECT_NUMBERS, pickTransferLineKey } from '../../shared/twilioHelpers.ts';
 import twilioVoiceParams from '../../shared/twilioVoiceParams.ts';
 import { checkCallCutoff } from '../../shared/phoneTimeZone.ts';
 import { verifyCallCutoffOverride } from '../../shared/callCutoffOverride.ts';
 import { getPollyVoice } from '../../shared/aiVoiceMap.ts';
 import { lookupInboundLead, resolveInboundClips, clipsToTwiml } from '../../shared/inboundGreeting.ts';
 import { assignNoticeIds } from '../../shared/noticeId.ts';
+
+// Incoming calls ring twice before the AI picks up: Twilio holds the caller on
+// ringback while this handler is still working, so the caller hears two rings and
+// the agent answers on the third.
+const INBOUND_RING_DELAY_MS = 6000;
 
 // ── Advisor brief (spoken to the advisor before the caller is merged in) ──
 const STATE_NAMES: Record<string, string> = {
@@ -241,13 +246,14 @@ export default async function(req) {
       const leadId = params.get('LeadId') || '';
       let config: any = {};
       let lead: any = null;
+      let service: any = null;
       try {
         const { createClientFromRequest } = await import('npm:@base44/sdk@0.8.52');
-        const base44 = createClientFromRequest(req).asServiceRole;
-        const configs = await base44.entities.AIAgentConfig.filter({ configName: 'default' });
+        service = createClientFromRequest(req).asServiceRole;
+        const configs = await service.entities.AIAgentConfig.filter({ configName: 'default' });
         config = configs?.[0] || {};
         if (leadId) {
-          try { lead = await base44.entities.FronterLead.get(leadId); } catch {}
+          try { lead = await service.entities.FronterLead.get(leadId); } catch {}
         }
       } catch (e) {
         console.warn('[dialerVoiceHandler] Failed to load AI agent config for transfer:', e?.message);
@@ -267,9 +273,7 @@ export default async function(req) {
 
         // Create FronterHeadsUp so fronter monitor shows the queued call
         try {
-          const { createClientFromRequest } = await import('npm:@base44/sdk@0.8.52');
-          const base44 = createClientFromRequest(req).asServiceRole;
-          await base44.entities.FronterHeadsUp.create({
+          await service.entities.FronterHeadsUp.create({
             fronterUsername: 'queue',
             leadId: leadId,
             leadName: (lead.firstName || '') + ' ' + (lead.lastName || ''),
@@ -281,7 +285,7 @@ export default async function(req) {
             status: 'active',
             createdAt: new Date().toISOString(),
           });
-          await base44.entities.FronterLead.update(leadId, {
+          await service.entities.FronterLead.update(leadId, {
             callStatus: 'queue_hold',
             assignedQueue: 'Incoming AI - validated through process',
             transferredAt: new Date().toISOString(),
@@ -292,7 +296,12 @@ export default async function(req) {
         // Dial the advisor on the merge number — the popup's "Dial Chris" step.
         // When he answers he hears the brief, then joins the queue conference.
         const mergeNumber = config.transferPhoneNumber || '';
-        const mergeFrom = lineNumber(config.twilioLineKey) || Deno.env.get('TWILIO_FROM_NUMBER') || '';
+        // Dial the advisor from a FREE, unassigned line. The line carrying this call
+        // cannot place another one, which is why a dial from the AI line never rings
+        // the advisor. This is the same free-line dial the merge/transfer popup uses.
+        const mergeFrom = service
+          ? await pickTransferLineKey(service, config.twilioLineKey || 'TWILIO_FROM_NUMBER')
+          : (lineNumber(config.twilioLineKey) || Deno.env.get('TWILIO_FROM_NUMBER') || '');
         if (/^\+[1-9]\d{7,14}$/.test(mergeNumber) && mergeFrom) {
           const briefUrl = `${appUrl}/functions/dialerVoiceHandler?Mode=aiQueueBrief` +
             `&LeadId=${encodeURIComponent(leadId)}&Conf=${encodeURIComponent(conferenceName)}` +
@@ -310,7 +319,7 @@ export default async function(req) {
               }),
             });
             console.log('[dialerVoiceHandler] → AI transfer: advisor dialed', toE164(mergeNumber), 'conf:', conferenceName);
-          } catch (e) { console.warn('[dialerVoiceHandler] Advisor dial failed:', e?.message); }
+          } catch (e) { console.warn('[dialerVoiceHandler] Advisor dial failed:', e?.message, (e as any)?.twilioCode || ''); }
         } else {
           console.warn('[dialerVoiceHandler] No valid advisor merge number — caller stays in the queue');
         }
@@ -637,6 +646,8 @@ export default async function(req) {
         } catch (e) { console.warn('[dialerVoiceHandler] Bridge secret read failed:', e?.message); }
 
         if (streamUrl) {
+          const ringStartedAt = Date.now();
+
           // ── Prompt 1: Lead lookup by caller ID ──
           const callerPhone = params.get('From') || '';
           const { client_name, region, leadId: foundLeadId, lead: foundLead, leadType } = await lookupInboundLead(base44, callerPhone);

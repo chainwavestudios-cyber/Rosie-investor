@@ -103,6 +103,32 @@ export async function twilioActiveFromNumbers(): Promise<string[]> {
  * Picks the line for a transfer / merge leg: a line no one is assigned to that is
  * not already on a call. Falls back to any unowned line, then to the preferred key.
  */
+/**
+ * The line an advisor/transfer leg dials out on: a number nobody owns and that is
+ * not already on a call. A line that is carrying a call cannot place another one,
+ * so every advisor dial — the merge popup and the AI agent hand-off alike — must
+ * pick a free line or the call never reaches the advisor.
+ */
+export async function pickTransferLineKey(b44: any, preferredKey: string): Promise<string> {
+  try {
+    const [assignments, busyFrom, inventory] = await Promise.all([
+      b44.entities.FronterLineAssignment.list('-assignedAt', 200).catch(() => []),
+      twilioActiveFromNumbers(),
+      twilioVoiceNumbers(),
+    ]);
+    const owned = (assignments || [])
+      .flatMap((a: any) => [a.twilioLineKey, a.twilioNumber])
+      .filter(Boolean)
+      .map((v: any) => String(v));
+    const key = pickFreeLineKey(owned, busyFrom, preferredKey, inventory);
+    console.log('[twilioHelpers] transfer leg dials on:', preferredKey, '→', key);
+    return key;
+  } catch (e: any) {
+    console.warn('[twilioHelpers] Free-line lookup failed, using the caller line:', e?.message);
+    return preferredKey;
+  }
+}
+
 export function pickFreeLineKey(owned: string[], busy: string[], preferredKey: string, extraNumbers: string[] = []): string {
   const ownedSet = new Set(owned.map((v) => String(v).trim()).filter(Boolean));
   const busySet = new Set(busy.map((v) => String(v).trim()).filter(Boolean));

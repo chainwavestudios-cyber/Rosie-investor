@@ -11,7 +11,7 @@
  *   getConference — Fetch conference status + participants by name.
  */
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.52';
-import { lineNumber, toE164, xmlEscape, twilioFetch, confTwiML, findConferenceSid, waitForConference, twilioActiveFromNumbers, twilioVoiceNumbers, pickFreeLineKey } from '../../shared/twilioHelpers.ts';
+import { lineNumber, toE164, xmlEscape, twilioFetch, confTwiML, findConferenceSid, waitForConference, pickTransferLineKey } from '../../shared/twilioHelpers.ts';
 import { queueFronterCustomer } from '../../shared/queueFronterCustomer.js';
 
 const BASE_URL = 'https://rosieai-investorpage.base44.app';
@@ -36,28 +36,6 @@ function holdParams(holdAudioUrl: string): Record<string, string> {
 // Fronter's browser call SID is encoded in the conference name (fronter_conf_<CallSid>)
 function fronterSidFromConf(name: string): string {
   return (name || '').startsWith('fronter_conf_') ? name.slice('fronter_conf_'.length) : '';
-}
-
-// Transfer / merge legs dial out on a line nobody owns and that isn't already on a
-// call, so the assistant's own assigned line stays free for the client.
-async function transferLineKey(b44: any, preferredKey: string): Promise<string> {
-  try {
-    const [assignments, busyFrom, inventory] = await Promise.all([
-      b44.entities.FronterLineAssignment.list('-assignedAt', 200).catch(() => []),
-      twilioActiveFromNumbers(),
-      twilioVoiceNumbers(),
-    ]);
-    const owned = (assignments || [])
-      .flatMap((a: any) => [a.twilioLineKey, a.twilioNumber])
-      .filter(Boolean)
-      .map((v: any) => String(v));
-    const key = pickFreeLineKey(owned, busyFrom, preferredKey, inventory);
-    console.log('transferLineKey:', preferredKey, '→', key);
-    return key;
-  } catch (e: any) {
-    console.warn('Free-line lookup failed, using the caller line:', e?.message);
-    return preferredKey;
-  }
 }
 
 // Move customer (child) into the conference FIRST, then the fronter (parent).
@@ -276,7 +254,7 @@ export default async function(req) {
       if (!agentPhone) return Response.json({ error: 'agentPhone required' }, { status: 400 });
 
       // Dial the agent in on a free, unassigned line so the fronter's own line stays free.
-      const mergeLineKey = await transferLineKey(createClientFromRequest(req).asServiceRole, lineKey);
+      const mergeLineKey = await pickTransferLineKey(createClientFromRequest(req).asServiceRole, lineKey);
       const fromNumber = lineNumber(mergeLineKey);
       const confName = conferenceName || `fronter_conf_${fronterCallSid}`;
       const holdAudioUrl = await getHoldAudioUrl(req);
@@ -608,7 +586,7 @@ export default async function(req) {
       if (!transferTo) return Response.json({ error: 'transferTo required' }, { status: 400 });
 
       // Cold transfer also dials out on a free, unassigned line.
-      const transferFromKey = await transferLineKey(createClientFromRequest(req).asServiceRole, lineKey);
+      const transferFromKey = await pickTransferLineKey(createClientFromRequest(req).asServiceRole, lineKey);
       const fromNumber = lineNumber(transferFromKey);
       const transferTwiML = `<Response><Dial callerId="${fromNumber}"><Number>${toE164(transferTo)}</Number></Dial></Response>`;
 

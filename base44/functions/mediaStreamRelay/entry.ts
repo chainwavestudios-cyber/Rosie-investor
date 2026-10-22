@@ -65,6 +65,29 @@ function estimatePlaybackMs(text: string): number {
   return Math.max(2000, Math.ceil(text.length / 12) * 1000) + 500;
 }
 
+// The agent's opening line: the outbound greeting, or — for inbound calls whose
+// greeting clips already played — the configured inbound opener.
+function buildOpeningLine(config: any, lead: any): string {
+  const isInbound = lead?.inboundAdamCall || lead?.callStatus === 'inbound_adam';
+  if (isInbound) {
+    const opener = config.inboundOpener
+      || `Quick question for you—we recently sent a notice to your address regarding active credit flags across Experian, TransUnion, and Equifax in {{state}}. It shows you're carrying around $20,000 in high-interest credit card debt, and that you qualify for the state rate-drop update. Did you happen to receive that notice in the mail yet, or are you still paying those high rates?`;
+    return renderLeadTemplate(opener, lead, {
+      agentName: config.inboundAgentName,
+      region: lead?.inboundRegion,
+      fallbackFirstName: 'there',
+    });
+  }
+  let greeting = String(config.greeting || '');
+  if (lead) {
+    greeting = greeting
+      .replace(/\{\{first_name\}\}/g, lead.firstName || '')
+      .replace(/\{\{last_name\}\}/g, lead.lastName || '')
+      .replace(/\{\{email\}\}/g, lead.email || '');
+  }
+  return greeting;
+}
+
 export default async function(req: Request): Promise<Response> {
   try {
     // ── Auth: fail-closed ──
@@ -114,37 +137,17 @@ async function handleInit(base44: any, body: any): Promise<Response> {
   lead = leadResult.status === 'fulfilled' ? leadResult.value : null;
   config = configResult.status === 'fulfilled' ? (configResult.value?.[0] || {}) : {};
 
-  // Build greeting with variable substitution
-  let greeting = '';
-  if (config.greeting) {
-    greeting = config.greeting as string;
-    if (lead) {
-      greeting = greeting
-        .replace(/\{\{first_name\}\}/g, lead.firstName || '')
-        .replace(/\{\{last_name\}\}/g, lead.lastName || '')
-        .replace(/\{\{email\}\}/g, lead.email || '');
-    }
-  }
-
-  // Inbound AI-agent calls: the greeting clips already played via TwiML before the
-  // stream connected. The agent opens with its configured opener line.
+  // The agent never speaks first: it waits for the person on the call to say
+  // something — their "Hello" — and opens the script on that first turn instead
+  // (see handleTurn). Nothing is spoken here, so there is no talking over them.
   const isInboundAdam = lead?.inboundAdamCall || lead?.callStatus === 'inbound_adam';
-  if (isInboundAdam) {
-    const opener = config.inboundOpener
-      || `Quick question for you—we recently sent a notice to your address regarding active credit flags across Experian, TransUnion, and Equifax in {{state}}. It shows you're carrying around $20,000 in high-interest credit card debt, and that you qualify for the state rate-drop update. Did you happen to receive that notice in the mail yet, or are you still paying those high rates?`;
-    greeting = renderLeadTemplate(opener, lead, {
-      agentName: config.inboundAgentName,
-      region: lead?.inboundRegion,
-      fallbackFirstName: 'there',
-    });
-  }
 
   const pipeline = resolvePipeline(config);
   if (!pipeline.valid) return Response.json({ error: pipeline.errors.join(' ') }, { status: 400 });
   const { ttsEngine, ttsVoiceModel } = pipeline;
 
   return Response.json({
-    greeting,
+    greeting: '',
     ...pipeline,
     pipeline,
     inboundMode: !!isInboundAdam,
@@ -170,6 +173,17 @@ async function handleTurn(base44: any, body: any): Promise<Response> {
   ]);
   const config = configResult.status === 'fulfilled' ? (configResult.value?.[0] || {}) : {};
   const lead = leadResult.status === 'fulfilled' ? leadResult.value : null;
+
+  // Wait for the person to speak first. Nothing the agent has said is in the call
+  // so far, so this turn is their "Hello": the agent answers it with its opening
+  // line rather than starting the script before they have said a word.
+  const turns = Array.isArray(conversation) ? conversation : [];
+  const agentHasSpoken = turns.some((m: any) => m?.role !== 'user' && String(m?.content || '').trim());
+  const callerTurns = turns.filter((m: any) => m?.role === 'user').length;
+  if (!agentHasSpoken && callerTurns <= 1) {
+    const opening = buildOpeningLine(config, lead);
+    if (opening) return Response.json({ action: 'speak', text: opening, disposition: '' });
+  }
 
   // Build system prompt with variable substitution
   // Inbound AI-agent calls use the dedicated inbound system prompt.
