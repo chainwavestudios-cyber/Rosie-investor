@@ -1,0 +1,56 @@
+{
+  "name": "HomeChatMessage",
+  "type": "object",
+  "properties": {
+    "sessionToken": {
+      "type": "string",
+      "title": "Session Token (the visitor's browser session)"
+    },
+    "role": {
+      "type": "string",
+      "title": "Who Sent It",
+      "enum": [
+        "visitor",
+        "assistant",
+        "specialist"
+      ],
+      "default": "visitor"
+    },
+    "text": {
+      "type": "string",
+      "title": "Message",
+      "format": "textarea"
+    },
+    "authorName": {
+      "type": "string",
+      "title": "Author Name (admin username on specialist messages)"
+    }
+  },
+  "required": [
+    "sessionToken",
+    "role",
+    "text"
+  ],
+  "rls": {
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "read": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}

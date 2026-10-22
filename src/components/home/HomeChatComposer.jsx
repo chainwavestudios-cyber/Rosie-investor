@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Send } from 'lucide-react';
 
-export default function HomeChatComposer({ onSend, disabled }) {
+export default function HomeChatComposer({ onSend, disabled, placeholder = 'Ask a question or answer here' }) {
   const [draft, setDraft] = useState('');
 
   const submit = (event) => {
@@ -18,7 +18,7 @@ export default function HomeChatComposer({ onSend, disabled }) {
         type="text"
         value={draft}
         onChange={(event) => setDraft(event.target.value)}
-        placeholder="Ask a question or answer here"
+        placeholder={placeholder}
         className="flex-1 rounded-xl border border-white/10 bg-[#0d1117] px-3 py-2.5 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:border-sky-400/40"
       />
       <button

@@ -1,11 +1,21 @@
 /**
  * homeQualifyChat — the public website assistant on the homepage.
  *
- *   chat         — answers the visitor from the knowledge base and qualifies them
- *                  (first name, state, debt range).
- *   request_call — saves the prospect on a contact card, then dials the outbound
- *                  AI agent (aiAgentDial → dialerVoiceHandler Mode=aiAgent), which
- *                  drops them into the welcome/queue hold and merges the advisor in.
+ *   chat             — answers the visitor from the knowledge base and qualifies them
+ *                      (first name, state, debt range). Every message is stored so the
+ *                      command center can watch the conversation live.
+ *   request_call     — saves the prospect on a contact card, then dials the outbound
+ *                      AI agent (aiAgentDial → dialerVoiceHandler Mode=aiAgent), which
+ *                      drops them into the welcome/queue hold and merges the advisor in.
+ *   poll             — the visitor's browser asks whether a specialist has written.
+ *   admin_overview   — the command center lists the live visitor chats.
+ *   admin_transcript — the command center reads one visitor's conversation.
+ *   takeover         — a specialist takes the chat over from the bot.
+ *   agent_reply      — a specialist writes into the visitor's chat.
+ *   handback / close — hand the chat back to the bot, or end the session.
+ *
+ * The command-center actions are gated on a live Debt Coach admin session
+ * (DebtCoachUser.sessionToken), never on a username.
  */
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.52';
 import { assignNoticeIds } from '../../shared/noticeId.ts';
@@ -15,6 +25,10 @@ const KB_NAME = 'Debt Settlement';
 const KB_LIMIT = 400;
 const TOP_MATCHES = 6;
 const DIAL_COOLDOWN_MINUTES = 10;
+const TRANSCRIPT_LIMIT = 120;
+const MAX_SESSIONS = 20;
+const ADMIN_ROLES = ['admin', 'super_admin'];
+const ADMIN_ACTIONS = ['admin_overview', 'admin_transcript', 'takeover', 'agent_reply', 'handback', 'close'];
 
 const TIERS = ['Less than $20,000', '$20,000 - $40,000', 'More than $40,000'];
 
@@ -30,6 +44,69 @@ function normalizePhone(raw: any): string {
   if (digits.length === 11 && digits.startsWith('1')) return `+${digits}`;
   if (/^\+[1-9]\d{7,14}$/.test(String(raw || '').trim())) return String(raw).trim();
   return '';
+}
+
+function cleanToken(raw: any): string {
+  return String(raw || '').replace(/[^A-Za-z0-9-]/g, '').slice(0, 64);
+}
+
+function sessionLabel(firstName: any, lastName: any, token: string): string {
+  const name = `${firstName || ''} ${lastName || ''}`.trim();
+  if (name) return name;
+  const short = cleanToken(token).slice(0, 4).toUpperCase();
+  return short ? `Visitor ${short}` : 'New visitor';
+}
+
+async function verifyAdmin(service: any, userId: any, token: any): Promise<any | null> {
+  if (!userId || !token) return null;
+  try {
+    const user = await service.entities.DebtCoachUser.get(String(userId));
+    if (!user || !user.isActive || user.sessionToken !== token) return null;
+    if (!ADMIN_ROLES.includes(user.role)) return null;
+    return user;
+  } catch {
+    return null;
+  }
+}
+
+async function findSession(service: any, token: string): Promise<any | null> {
+  if (!token) return null;
+  try {
+    const rows = await service.entities.HomeChatSession.filter({ sessionToken: token }, '-created_date', 1);
+    return (rows || [])[0] || null;
+  } catch {
+    return null;
+  }
+}
+
+async function ensureSession(service: any, token: string, pagePath: string): Promise<any> {
+  const existing = await findSession(service, token);
+  if (existing) return existing;
+  return await service.entities.HomeChatSession.create({
+    sessionToken: token,
+    status: 'bot',
+    visitorLabel: sessionLabel('', '', token),
+    pagePath: pagePath || '/',
+    messageCount: 0,
+    lastMessageAt: new Date().toISOString(),
+    lastPreview: '',
+  });
+}
+
+async function addMessage(service: any, token: string, role: string, text: string, authorName = ''): Promise<any> {
+  const clean = String(text || '').trim().slice(0, 2000);
+  if (!clean) return null;
+  return await service.entities.HomeChatMessage.create({ sessionToken: token, role, text: clean, authorName });
+}
+
+function readMessage(row: any) {
+  return {
+    id: row.id,
+    role: row.role,
+    text: row.text || '',
+    authorName: row.authorName || '',
+    createdAt: row.created_date,
+  };
 }
 
 async function kbContext(service: any, question: string): Promise<string> {
@@ -158,12 +235,165 @@ export default async function (req: Request): Promise<Response> {
       }
     }
 
+    // ── poll: the visitor's browser asks whether a specialist has written ─────
+    if (action === 'poll') {
+      const token = cleanToken(body?.sessionToken);
+      if (!token) return Response.json({ status: 'bot', messages: [] });
+      const session = await findSession(service, token);
+      let rows: any[] = [];
+      try {
+        rows = (await service.entities.HomeChatMessage.filter({ sessionToken: token, role: 'specialist' }, 'created_date', 40)) || [];
+      } catch {
+        rows = [];
+      }
+      return Response.json({
+        status: session?.status || 'bot',
+        takenOverBy: session?.takenOverBy || '',
+        messages: rows.map(readMessage),
+      });
+    }
+
+    // ── the command center's live chat console ───────────────────────────────
+    if (ADMIN_ACTIONS.includes(action)) {
+      const admin = await verifyAdmin(service, body?.adminUserId, body?.adminToken);
+      if (!admin) return Response.json({ error: 'Your admin session has expired — sign in again.' }, { status: 403 });
+
+      if (action === 'admin_overview') {
+        let rows: any[] = [];
+        try {
+          rows = (await service.entities.HomeChatSession.list('-lastMessageAt', 30)) || [];
+        } catch {
+          rows = [];
+        }
+        const sessions = (rows || [])
+          .filter((s: any) => s.status !== 'closed')
+          .slice(0, MAX_SESSIONS)
+          .map((s: any) => ({
+            sessionToken: s.sessionToken,
+            visitorLabel: s.visitorLabel || sessionLabel(s.firstName, s.lastName, s.sessionToken),
+            status: s.status || 'bot',
+            firstName: s.firstName || '',
+            lastName: s.lastName || '',
+            state: s.state || '',
+            debtTier: s.debtTier || '',
+            messageCount: s.messageCount || 0,
+            lastPreview: s.lastPreview || '',
+            lastMessageAt: s.lastMessageAt || s.created_date,
+            takenOverBy: s.takenOverBy || '',
+          }));
+        return Response.json({ sessions });
+      }
+
+      const token = cleanToken(body?.sessionToken);
+      const session = await findSession(service, token);
+      if (!session) return Response.json({ error: 'That visitor chat is no longer available.' }, { status: 404 });
+
+      if (action === 'admin_transcript') {
+        let rows: any[] = [];
+        try {
+          rows = (await service.entities.HomeChatMessage.filter({ sessionToken: token }, 'created_date', TRANSCRIPT_LIMIT)) || [];
+        } catch {
+          rows = [];
+        }
+        return Response.json({
+          session: {
+            sessionToken: session.sessionToken,
+            visitorLabel: session.visitorLabel || '',
+            status: session.status || 'bot',
+            firstName: session.firstName || '',
+            state: session.state || '',
+            debtTier: session.debtTier || '',
+            takenOverBy: session.takenOverBy || '',
+            takenOverAt: session.takenOverAt || '',
+            lastMessageAt: session.lastMessageAt || '',
+          },
+          messages: rows.map(readMessage),
+        });
+      }
+
+      if (action === 'takeover') {
+        await addMessage(
+          service,
+          token,
+          'specialist',
+          `Hi${session.firstName ? ` ${session.firstName}` : ''}, this is ${admin.username} with Debt Solutions. I have your details in front of me, so go ahead and ask me anything.`,
+          admin.username,
+        );
+        await service.entities.HomeChatSession.update(session.id, {
+          status: 'human',
+          takenOverBy: admin.username,
+          takenOverAt: new Date().toISOString(),
+          lastMessageAt: new Date().toISOString(),
+          lastPreview: `${admin.username} joined the chat`,
+          messageCount: (session.messageCount || 0) + 1,
+        });
+        return Response.json({ ok: true, status: 'human' });
+      }
+
+      if (action === 'agent_reply') {
+        const text = String(body?.text || '').trim().slice(0, 1500);
+        if (!text) return Response.json({ error: 'Type a message first.' }, { status: 400 });
+        await addMessage(service, token, 'specialist', text, admin.username);
+        await service.entities.HomeChatSession.update(session.id, {
+          status: 'human',
+          takenOverBy: session.takenOverBy || admin.username,
+          takenOverAt: session.takenOverAt || new Date().toISOString(),
+          lastMessageAt: new Date().toISOString(),
+          lastPreview: text.slice(0, 140),
+          messageCount: (session.messageCount || 0) + 1,
+        });
+        return Response.json({ ok: true });
+      }
+
+      if (action === 'handback') {
+        await service.entities.HomeChatSession.update(session.id, { status: 'bot', takenOverBy: '', takenOverAt: '' });
+        return Response.json({ ok: true, status: 'bot' });
+      }
+
+      if (action === 'close') {
+        await service.entities.HomeChatSession.update(session.id, { status: 'closed', closedAt: new Date().toISOString() });
+        return Response.json({ ok: true, status: 'closed' });
+      }
+    }
+
     // ── chat: answer from the KB and qualify ─────────────────────────────────
     const message = String(body?.message || '').trim().slice(0, 1200);
     if (!message) return Response.json({ error: 'message required' }, { status: 400 });
 
-    const history = Array.isArray(body?.history) ? body.history.slice(-12) : [];
+    const token = cleanToken(body?.sessionToken)
+      || `v${crypto.randomUUID().replace(/-/g, '').slice(0, 24)}`;
+    const pagePath = String(body?.pagePath || '/').slice(0, 200);
     const prior = body?.collected || {};
+    const session = await ensureSession(service, token, pagePath);
+    const now = new Date().toISOString();
+
+    // The visitor's message is always recorded, so a specialist can read it.
+    await addMessage(service, token, 'visitor', message);
+
+    // A specialist has the chat — the bot stays quiet until they hand it back.
+    if (session.status === 'human') {
+      await service.entities.HomeChatSession.update(session.id, {
+        status: 'human',
+        firstName: prior.firstName || session.firstName || '',
+        lastName: prior.lastName || session.lastName || '',
+        state: prior.state || session.state || '',
+        debtTier: prior.debtTier || session.debtTier || '',
+        visitorLabel: sessionLabel(prior.firstName || session.firstName, prior.lastName || session.lastName, token),
+        lastMessageAt: now,
+        lastPreview: message.slice(0, 140),
+        messageCount: (session.messageCount || 0) + 1,
+      });
+      return Response.json({
+        humanTakeover: true,
+        reply: '',
+        quickReplies: [],
+        collected: prior,
+        readyForCall: false,
+        sessionToken: token,
+      });
+    }
+
+    const history = Array.isArray(body?.history) ? body.history.slice(-12) : [];
     const context = await kbContext(service, message);
 
     const result = await service.integrations.Core.InvokeLLM({
@@ -234,12 +464,27 @@ Return JSON with:
     else if (prior.interested !== undefined) collected.interested = prior.interested;
 
     const readyForCall = !!(collected.firstName && collected.debtTier && collected.interested !== false);
+    const replyText = String(data.reply || 'Could you tell me that again?');
+
+    await addMessage(service, token, 'assistant', replyText);
+    await service.entities.HomeChatSession.update(session.id, {
+      status: 'bot',
+      firstName: collected.firstName || '',
+      lastName: collected.lastName || '',
+      state: collected.state || '',
+      debtTier: collected.debtTier || '',
+      visitorLabel: sessionLabel(collected.firstName, collected.lastName, token),
+      lastMessageAt: new Date().toISOString(),
+      lastPreview: replyText.slice(0, 140),
+      messageCount: (session.messageCount || 0) + 2,
+    });
 
     return Response.json({
-      reply: String(data.reply || 'Could you tell me that again?'),
+      reply: replyText,
       quickReplies: Array.isArray(data.quickReplies) ? data.quickReplies.filter((q: any) => typeof q === 'string' && q.trim()).slice(0, 3) : [],
       collected,
       readyForCall,
+      sessionToken: token,
     });
   } catch (error: any) {
     console.error('[homeQualifyChat] Error:', error?.message);

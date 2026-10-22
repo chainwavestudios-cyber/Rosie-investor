@@ -3,7 +3,7 @@ import { PhoneCall } from 'lucide-react';
 
 export default function HomeHeader() {
   const goToQuestion = () => {
-    document.getElementById('debt-amount')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    document.getElementById('chat')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
   return (

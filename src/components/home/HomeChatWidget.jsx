@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { MessagesSquare, ShieldCheck } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import HomeChatMessages from '@/components/home/HomeChatMessages';
@@ -8,6 +8,20 @@ import HomeChatCallForm from '@/components/home/HomeChatCallForm';
 const TIERS = ['Less than $20,000', '$20,000 - $40,000', 'More than $40,000'];
 const GREETING =
   "Hi, I'm the Debt Solutions assistant. I can answer anything about how the program works and get you set up with a free evaluation. How much credit card debt are you carrying right now?";
+const TOKEN_KEY = 'home_chat_session_token';
+const POLL_MS = 4000;
+
+/** One token per browser tab — the command center sees one tab per visitor. */
+function visitorToken() {
+  let token = sessionStorage.getItem(TOKEN_KEY);
+  if (!token) {
+    token = window.crypto?.randomUUID
+      ? window.crypto.randomUUID()
+      : `v${Date.now()}${Math.random().toString(16).slice(2)}`;
+    sessionStorage.setItem(TOKEN_KEY, token);
+  }
+  return token;
+}
 
 export default function HomeChatWidget() {
   const [messages, setMessages] = useState([{ role: 'assistant', text: GREETING }]);
@@ -16,6 +30,41 @@ export default function HomeChatWidget() {
   const [readyForCall, setReadyForCall] = useState(false);
   const [sending, setSending] = useState(false);
   const [callState, setCallState] = useState({ status: 'idle', message: '' });
+  const [specialistMode, setSpecialistMode] = useState(false);
+  const [sessionToken] = useState(visitorToken);
+  const seenSpecialist = useRef(new Set());
+
+  // Watch for a specialist joining the chat from the command center.
+  useEffect(() => {
+    let alive = true;
+    const tick = async () => {
+      try {
+        const response = await base44.functions.invoke('homeQualifyChat', {
+          action: 'poll',
+          sessionToken,
+        });
+        const data = response?.data || {};
+        if (!alive) return;
+        if (data.status === 'human') setSpecialistMode(true);
+        const fresh = (data.messages || []).filter((m) => m?.id && !seenSpecialist.current.has(m.id));
+        if (fresh.length === 0) return;
+        fresh.forEach((m) => seenSpecialist.current.add(m.id));
+        setQuickReplies([]);
+        setMessages((prev) => [
+          ...prev,
+          ...fresh.map((m) => ({ role: 'specialist', text: m.text, authorName: m.authorName || '' })),
+        ]);
+      } catch {
+        /* the browser retries on the next tick */
+      }
+    };
+    tick();
+    const timer = setInterval(tick, POLL_MS);
+    return () => {
+      alive = false;
+      clearInterval(timer);
+    };
+  }, [sessionToken]);
 
   const send = async (text) => {
     const clean = String(text || '').trim();
@@ -28,11 +77,19 @@ export default function HomeChatWidget() {
       const response = await base44.functions.invoke('homeQualifyChat', {
         action: 'chat',
         message: clean,
-        history: next.slice(-12).map((m) => ({ role: m.role, content: m.text })),
+        sessionToken,
+        pagePath: window.location.pathname,
+        history: next.slice(-12).map((m) => ({ role: m.role === 'user' ? 'user' : 'assistant', content: m.text })),
         collected,
       });
       const data = response?.data || {};
       if (data.error) throw new Error(data.error);
+      // A specialist has the chat — their reply arrives on the next poll.
+      if (data.humanTakeover) {
+        setSpecialistMode(true);
+        setSending(false);
+        return;
+      }
       setMessages((prev) => [...prev, { role: 'assistant', text: data.reply }]);
       setCollected(data.collected || collected);
       setReadyForCall(!!data.readyForCall);
@@ -119,7 +176,17 @@ export default function HomeChatWidget() {
           <p className="border-t border-white/10 px-4 py-3 text-xs text-amber-200">{callState.message}</p>
         )}
 
-        <HomeChatComposer onSend={send} disabled={sending} />
+        {specialistMode && (
+          <p className="border-t border-emerald-400/20 bg-emerald-400/10 px-4 py-2.5 text-xs text-emerald-100">
+            A Debt Solutions specialist has joined the chat.
+          </p>
+        )}
+
+        <HomeChatComposer
+          onSend={send}
+          disabled={sending}
+          placeholder={specialistMode ? 'Message the specialist' : 'Ask a question or answer here'}
+        />
       </div>
     </section>
   );

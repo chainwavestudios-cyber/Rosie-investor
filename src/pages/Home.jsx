@@ -2,8 +2,6 @@ import { useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
 import { base44 } from '@/api/base44Client';
 import HomeHeader from '@/components/home/HomeHeader';
-import HomeStepper from '@/components/home/HomeStepper';
-import DebtAmountStep from '@/components/home/DebtAmountStep';
 import HomeChatWidget from '@/components/home/HomeChatWidget';
 import StephaniAccessPopup from '@/components/home/StephaniAccessPopup';
 import HomeTrust from '@/components/home/HomeTrust';
@@ -80,10 +78,6 @@ export default function Home() {
       <HomeHeader />
 
       <main style={{ width: '100%', maxWidth: '960px', margin: '0 auto', padding: '32px 16px 64px', boxSizing: 'border-box' }}>
-        <HomeStepper activeIndex={0} />
-
-        <DebtAmountStep />
-
         <HomeChatWidget />
 
         <StephaniAccessPopup />

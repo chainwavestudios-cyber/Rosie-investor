@@ -1,0 +1,98 @@
+{
+  "name": "HomeChatSession",
+  "type": "object",
+  "properties": {
+    "sessionToken": {
+      "type": "string",
+      "title": "Session Token (the visitor's browser session)"
+    },
+    "visitorLabel": {
+      "type": "string",
+      "title": "Visitor Label (shown on the console tab)"
+    },
+    "firstName": {
+      "type": "string",
+      "title": "First Name (collected in the chat)"
+    },
+    "lastName": {
+      "type": "string",
+      "title": "Last Name (collected in the chat)"
+    },
+    "state": {
+      "type": "string",
+      "title": "State (collected in the chat)"
+    },
+    "debtTier": {
+      "type": "string",
+      "title": "Debt Range (collected in the chat)"
+    },
+    "status": {
+      "type": "string",
+      "title": "Who Is Answering",
+      "enum": [
+        "bot",
+        "human",
+        "closed"
+      ],
+      "default": "bot"
+    },
+    "messageCount": {
+      "type": "number",
+      "title": "Messages In This Chat",
+      "default": 0
+    },
+    "lastMessageAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Last Message At"
+    },
+    "lastPreview": {
+      "type": "string",
+      "title": "Last Message Preview",
+      "format": "textarea"
+    },
+    "pagePath": {
+      "type": "string",
+      "title": "Page The Visitor Started On"
+    },
+    "takenOverBy": {
+      "type": "string",
+      "title": "Taken Over By (admin username)"
+    },
+    "takenOverAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Taken Over At"
+    },
+    "closedAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Closed At"
+    }
+  },
+  "required": [
+    "sessionToken"
+  ],
+  "rls": {
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "read": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}
