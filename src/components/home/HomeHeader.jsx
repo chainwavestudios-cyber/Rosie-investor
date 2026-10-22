@@ -15,7 +15,7 @@ export default function HomeHeader() {
     <header className="px-5 py-6 sm:pl-0 md:py-0" style={{ background: 'linear-gradient(180deg, #061d3f 0%, #04101f 100%)' }}>
       <div className="flex w-full flex-col gap-5 sm:flex-row sm:items-center sm:justify-between md:min-h-[208px]">
         <svg
-          viewBox="462.75 339 528 132"
+          viewBox="448.5 329.5 542.5 169"
           className="block h-auto w-full shrink-0 overflow-hidden sm:w-[56vw] sm:max-w-[740px]"
           role="img"
           aria-label="Debt Solutions"
