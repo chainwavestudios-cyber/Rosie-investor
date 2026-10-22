@@ -549,6 +549,8 @@ NEVER
 - Never promise a specific reduction, approval or savings amount.
 - Never ask for a Social Security number, bank login or card number.
 - Never give legal, tax or credit-repair advice.
+- Never state, guess or suggest a name for the visitor. Do not use their first name until they have told it to you themselves, and never write a suggestion like "My name is Sarah" — you do not know their name.
+- Never use a name for yourself. You are the Debt Solutions website assistant.
 
 MOVING TO A CALL
 Once you know their first name and their debt range and they have not said they are not interested, tell them a specialist can call them right now and set "interested" to true. If they decline, set "interested" to false and keep helping them with questions.
@@ -568,7 +570,7 @@ VISITOR JUST SAID: ${message}
 
 Return JSON with:
 - reply: your next message to the visitor
-- quickReplies: 2-3 very short suggested replies for the visitor, or an empty array
+- quickReplies: 2-3 very short suggested replies written in the visitor's own voice, for example "Yes, more than $5,000" or "How does it work?", never containing a name, or an empty array
 - firstName: their first name if now known, otherwise empty string
 - lastName: their last name if known, otherwise empty string
 - state: their US state if known, otherwise empty string
@@ -589,9 +591,20 @@ Return JSON with:
     });
 
     const data = result || {};
+    // The model invents names: it has offered "My name is Sarah" as a suggestion and returned
+    // first names nobody typed. Only a name the visitor actually wrote is treated as real, and
+    // a suggestion never carries a name.
+    const visitorSaid = (value: any) => {
+      const typed = String(value || '').trim().toLowerCase();
+      return !!typed && message.toLowerCase().includes(typed);
+    };
+    const suggestions = (Array.isArray(data.quickReplies) ? data.quickReplies : [])
+      .filter((q: any) => typeof q === 'string' && q.trim())
+      .filter((q: string) => !/(my name(?:'s| is)|this is)\s+[a-z]/i.test(q))
+      .slice(0, 3);
     const collected: Record<string, any> = {
-      firstName: String(data.firstName || '').trim() || prior.firstName || '',
-      lastName: String(data.lastName || '').trim() || prior.lastName || '',
+      firstName: visitorSaid(data.firstName) ? String(data.firstName).trim() : (prior.firstName || ''),
+      lastName: visitorSaid(data.lastName) ? String(data.lastName).trim() : (prior.lastName || ''),
       state: String(data.state || '').trim().toUpperCase() || prior.state || '',
       debtTier: TIERS.includes(data.debtTier) ? data.debtTier : (prior.debtTier && TIERS.includes(prior.debtTier) ? prior.debtTier : ''),
     };
@@ -617,7 +630,7 @@ Return JSON with:
 
     return Response.json({
       reply: replyText,
-      quickReplies: Array.isArray(data.quickReplies) ? data.quickReplies.filter((q: any) => typeof q === 'string' && q.trim()).slice(0, 3) : [],
+      quickReplies: suggestions,
       collected,
       readyForCall,
       sessionToken: token,
