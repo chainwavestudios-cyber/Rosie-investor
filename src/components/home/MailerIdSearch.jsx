@@ -37,9 +37,9 @@ export default function MailerIdSearch({ onFound }) {
         return {
           ...prev,
           step,
-          source: SOURCES[Math.min(step, SOURCES.length - 1)],
-          progress: Math.min(5 + step * 7, 94),
-          hits: prev.hits + 131 + step * 47,
+          source: SOURCES[step % SOURCES.length],
+          progress: Math.min(5 + step * 1.5, 95),
+          hits: prev.hits + 137 + (step % 9) * 211,
         };
       });
     }, 240);
@@ -50,7 +50,7 @@ export default function MailerIdSearch({ onFound }) {
         .invoke('homeQualifyChat', { action: 'lead_profile', candidates: [mailerId] })
         .then((response) => response?.data?.profile || null)
         .catch(() => null);
-      [profile] = await Promise.all([lookup, new Promise((resolve) => setTimeout(resolve, 2600))]);
+      [profile] = await Promise.all([lookup, new Promise((resolve) => setTimeout(resolve, 15000))]);
     } catch {
       profile = null;
     }
@@ -119,9 +119,9 @@ export default function MailerIdSearch({ onFound }) {
               </div>
               <div className="mt-3 grid grid-cols-2 gap-x-2 gap-y-1.5">
                 {SOURCES.map((source, index) => {
-                  const reached = Math.min(scan.step, SOURCES.length - 1);
-                  const done = index < reached;
-                  const current = index === reached;
+                  const position = scan.step % SOURCES.length;
+                  const done = index < position;
+                  const current = index === position;
                   return (
                     <span
                       key={source}
@@ -139,7 +139,9 @@ export default function MailerIdSearch({ onFound }) {
                   );
                 })}
               </div>
-              <p className="mt-3 text-[10px] text-slate-500">Records reviewed: {scan.hits.toLocaleString()}</p>
+              <p className="mt-3 text-[10px] text-slate-500">
+                Records reviewed: {scan.hits.toLocaleString()} · pass {Math.floor(scan.step / SOURCES.length) + 1}
+              </p>
             </>
           ) : scan.status === 'found' ? (
             <p className="mt-2 inline-flex items-center gap-2 text-xs font-medium text-emerald-200">
