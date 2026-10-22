@@ -16,14 +16,14 @@ const PURPLE = '#a78bfa';
 
 const COPY_FIELDS = [
   { key: 'name', label: 'Template Name', rows: 1 },
-  { key: 'companyName', label: 'Company Name', rows: 1 },
-  { key: 'headerBanner', label: 'Black Header Banner', rows: 2 },
-  { key: 'introText', label: 'Introductory Paragraph', rows: 5 },
-  { key: 'importantNotice', label: 'Important Notice (bold + italic)', rows: 2 },
-  { key: 'summaryBanner', label: 'Data Box Top Banner', rows: 2 },
-  { key: 'warningText', label: 'Warning Line', rows: 1 },
-  { key: 'bottomTitle', label: 'Bottom Title', rows: 1 },
-  { key: 'legalText', label: 'Small-Print Legal Disclaimer', rows: 4 },
+  { key: 'documentTitle', label: 'Masthead Title (black band)', rows: 1 },
+  { key: 'noticeTitle', label: 'Notice Title', rows: 1 },
+  { key: 'deadlineTime', label: 'Response Deadline Time', rows: 1 },
+  { key: 'addresseeStatus', label: 'Account Status (addressee box)', rows: 2 },
+  { key: 'overviewText', label: 'Notice Details & Program Overview (Paragraph 1)', rows: 5 },
+  { key: 'qualifyText', label: 'Notice Details & Program Overview (Paragraph 2)', rows: 4 },
+  { key: 'nextStepsText', label: 'Required Next Steps (intro line)', rows: 3 },
+  { key: 'disclaimerText', label: 'Confidentiality & Disclaimer (small print)', rows: 5 },
 ];
 
 const inputStyle = {
@@ -88,12 +88,32 @@ export default function RateDropEnginePanel({ adminUsername }) {
   const fieldMap = tpl ? parseJson(tpl.fieldMapJson, {}) : {};
   const setMapping = (slot, source) => set('fieldMapJson', JSON.stringify({ ...fieldMap, [slot]: source }));
   const benefits = tpl ? parseJson(tpl.benefitsJson, []) : [];
+  const eligibility = tpl ? parseJson(tpl.eligibilityJson, []) : [];
+  const nextSteps = tpl ? parseJson(tpl.nextStepsJson, []) : [];
+
+  // Lists edit as one line per entry: "Title: description" / "Label: Value".
+  const asLines = (rows, first, second) => rows
+    .map(r => (typeof r === 'string' ? r : [r?.[first], r?.[second]].filter(Boolean).join(': ')))
+    .join('\n');
+
+  const setPairs = (key, text, first, second) => set(key, JSON.stringify(
+    text.split('\n').map(s => s.trim()).filter(Boolean).map(line => {
+      const i = line.indexOf(':');
+      return {
+        [first]: i === -1 ? line : line.slice(0, i).trim(),
+        [second]: i === -1 ? '' : line.slice(i + 1).trim(),
+      };
+    })
+  ));
 
   const draftPayload = () => ({
-    name: tpl.name, companyName: tpl.companyName, headerBanner: tpl.headerBanner, introText: tpl.introText,
-    importantNotice: tpl.importantNotice, summaryBanner: tpl.summaryBanner,
-    benefitsJson: JSON.stringify(benefits), warningText: tpl.warningText, bottomTitle: tpl.bottomTitle,
-    legalText: tpl.legalText, savingsPercent: tpl.savingsPercent, respondByDays: tpl.respondByDays,
+    name: tpl.name, documentTitle: tpl.documentTitle, noticeTitle: tpl.noticeTitle,
+    deadlineTime: tpl.deadlineTime || '', addresseeStatus: tpl.addresseeStatus || '',
+    overviewText: tpl.overviewText || '', qualifyText: tpl.qualifyText || '',
+    benefitsJson: JSON.stringify(benefits), eligibilityJson: JSON.stringify(eligibility),
+    nextStepsText: tpl.nextStepsText || '', nextStepsJson: JSON.stringify(nextSteps),
+    disclaimerText: tpl.disclaimerText || '',
+    savingsPercent: tpl.savingsPercent, respondByDays: tpl.respondByDays,
     ctaPhoneOverride: tpl.ctaPhoneOverride || '', fieldMapJson: JSON.stringify(fieldMap),
   });
 
@@ -191,8 +211,16 @@ export default function RateDropEnginePanel({ adminUsername }) {
               <input value={tpl.ctaPhoneOverride || ''} onChange={e => set('ctaPhoneOverride', e.target.value)} placeholder={inboundPhone} style={inputStyle} />
             </div>
             <div>
-              <div style={{ color: '#6b7280', fontSize: '9px', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '3px' }}>Benefits Grid (one per line)</div>
-              <textarea value={benefits.join('\n')} onChange={e => set('benefitsJson', JSON.stringify(e.target.value.split('\n').map(s => s.trim()).filter(Boolean)))} rows={8} style={inputStyle} />
+              <div style={{ color: '#6b7280', fontSize: '9px', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '3px' }}>Key Program Benefits (one per line — Title: description)</div>
+              <textarea value={asLines(benefits, 'title', 'text')} onChange={e => setPairs('benefitsJson', e.target.value, 'title', 'text')} rows={7} style={inputStyle} />
+            </div>
+            <div>
+              <div style={{ color: '#6b7280', fontSize: '9px', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '3px' }}>Summary of Eligibility (one per line — Label: Value)</div>
+              <textarea value={asLines(eligibility, 'label', 'value')} onChange={e => setPairs('eligibilityJson', e.target.value, 'label', 'value')} rows={5} style={inputStyle} />
+            </div>
+            <div>
+              <div style={{ color: '#6b7280', fontSize: '9px', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '3px' }}>Required Next Steps (one per line — numbered automatically)</div>
+              <textarea value={nextSteps.join('\n')} onChange={e => set('nextStepsJson', JSON.stringify(e.target.value.split('\n').map(s => s.trim()).filter(Boolean)))} rows={4} style={inputStyle} />
             </div>
           </div>
 
