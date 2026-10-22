@@ -14,7 +14,7 @@ export default function HomeChatComposer({ onSend, disabled, placeholder = 'Ask 
 
   return (
     <form onSubmit={submit} className="border-t border-white/10 px-3 py-3 sm:px-4">
-      <div className="flex items-center gap-2 rounded-full border border-white/15 bg-[#0b1220]/80 px-3 py-2 backdrop-blur-md focus-within:border-white/30">
+      <div className="flex items-center gap-2 rounded-full border border-white/15 bg-[#1a1626]/80 px-3 py-2 backdrop-blur-md focus-within:border-[#9d4dff]/60">
         <Sparkles className="h-4 w-4 flex-none text-white/35" />
         <input
           type="text"
@@ -27,7 +27,7 @@ export default function HomeChatComposer({ onSend, disabled, placeholder = 'Ask 
           type="submit"
           disabled={disabled}
           aria-label="Send message"
-          className="flex h-9 w-9 flex-none items-center justify-center rounded-full bg-white text-[#160b28] transition hover:bg-white/85 disabled:opacity-40"
+          className="flex h-9 w-9 flex-none items-center justify-center rounded-full bg-white text-[#1a0b2e] transition hover:bg-white/85 disabled:opacity-40"
         >
           <ArrowUp className="h-4 w-4" />
         </button>

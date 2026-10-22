@@ -16,14 +16,14 @@ export default function HomeChatCallForm({ onRequestCall, calling, state, defaul
   };
 
   return (
-    <form onSubmit={submit} className="border-t border-white/10 bg-[#0b1220]/70 px-4 py-4 backdrop-blur-md">
+    <form onSubmit={submit} className="border-t border-white/10 bg-[#241b3d]/60 px-4 py-4 backdrop-blur-md">
       <p className="mb-3 text-sm font-semibold text-white">Have a specialist call you now</p>
       <input
         type="tel"
         value={phone}
         onChange={(event) => setPhone(event.target.value)}
         placeholder="Your phone number"
-        className="mb-3 w-full rounded-full border border-white/15 bg-[#0b1220]/80 px-4 py-2.5 text-sm text-white outline-none placeholder:text-white/40 focus:border-white/30"
+        className="mb-3 w-full rounded-full border border-white/15 bg-[#1a1626]/80 px-4 py-2.5 text-sm text-white outline-none placeholder:text-white/40 focus:border-[#9d4dff]/60"
       />
       <label className="mb-3 flex items-start gap-2 text-xs text-white/70">
         <input
@@ -40,7 +40,7 @@ export default function HomeChatCallForm({ onRequestCall, calling, state, defaul
       <button
         type="submit"
         disabled={!canSubmit}
-        className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-white px-4 py-3 text-sm font-semibold text-[#160b28] transition hover:bg-white/85 disabled:opacity-50"
+        className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-white px-4 py-3 text-sm font-semibold text-[#1a0b2e] transition hover:bg-white/85 disabled:opacity-50"
       >
         <PhoneCall className="h-4 w-4" />
         {calling ? 'Placing your call…' : 'Call me now'}

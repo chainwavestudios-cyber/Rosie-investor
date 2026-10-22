@@ -1,7 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { Coins, CreditCard, FileText, Landmark } from 'lucide-react';
 
-const TILES = ['from-pink-500 to-pink-600', 'from-violet-500 to-violet-600', 'from-teal-500 to-teal-600'];
+const TILES = ['from-[#ff4d94] to-[#e0337c]', 'from-[#9d4dff] to-[#7c22e0]', 'from-[#4d94ff] to-[#2b6fe0]'];
 const ICONS = [Coins, CreditCard, Landmark];
 
 const TIER_CARDS = {
@@ -25,8 +25,8 @@ export default function HomeChatMessages({ messages = [], quickReplies = [], onR
         if (message.role === 'record') {
           return (
             <div key={index} className="w-full">
-              <div className="rounded-2xl border border-teal-400/30 bg-[#0b1220]/80 p-3 backdrop-blur-md">
-                <p className="mb-2 inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.14em] text-teal-300">
+              <div className="rounded-2xl border border-[#00e6a1]/30 bg-[#221a38]/80 p-3 backdrop-blur-md">
+                <p className="mb-2 inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.14em] text-[#00e6a1]">
                   <FileText className="h-3 w-3" />
                   File on record
                 </p>
@@ -53,10 +53,10 @@ export default function HomeChatMessages({ messages = [], quickReplies = [], onR
               <p
                 className={`rounded-2xl border px-4 py-2.5 text-sm leading-relaxed ${
                   isVisitor
-                    ? 'border-white/20 bg-white/85 text-[#160b28]'
+                    ? 'border-white/20 bg-white/85 text-[#1a0b2e]'
                     : isSpecialist
                       ? 'border-emerald-400/30 bg-emerald-500/20 text-emerald-50 backdrop-blur-md'
-                      : 'border-white/15 bg-[#0b1220]/75 text-white/95 backdrop-blur-md'
+                      : 'border-white/15 bg-[#221a38]/75 text-white/95 backdrop-blur-md'
                 }`}
               >
                 {message.text}
@@ -79,7 +79,7 @@ export default function HomeChatMessages({ messages = [], quickReplies = [], onR
                 key={reply}
                 type="button"
                 onClick={() => onReply?.(reply)}
-                className="flex items-start gap-3 rounded-2xl border border-white/15 bg-[#0b1220]/75 p-3 text-left backdrop-blur-md transition hover:border-white/30 hover:bg-[#0b1220]/90"
+                className="flex items-start gap-3 rounded-2xl border border-white/15 bg-[#1a1626]/75 p-3 text-left backdrop-blur-md transition hover:border-[#9d4dff]/45 hover:bg-[#241b3d]/90"
               >
                 <span className={`flex h-8 w-8 flex-none items-center justify-center rounded-lg bg-gradient-to-br ${tile} text-white`}>
                   <Icon className="h-4 w-4" />
