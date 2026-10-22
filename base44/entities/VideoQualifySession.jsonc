@@ -1,0 +1,113 @@
+{
+  "name": "VideoQualifySession",
+  "type": "object",
+  "properties": {
+    "sessionToken": {
+      "type": "string",
+      "title": "Session Token (matches the live video call)"
+    },
+    "vaultLeadId": {
+      "type": "string",
+      "title": "Lead Vault Entry ID"
+    },
+    "leadName": {
+      "type": "string",
+      "title": "Lead Name (for display)"
+    },
+    "state": {
+      "type": "string",
+      "title": "State"
+    },
+    "estimatedDebt": {
+      "type": "number",
+      "title": "Debt Shown To Sarah ($)"
+    },
+    "source": {
+      "type": "string",
+      "title": "How The Visitor Arrived",
+      "enum": [
+        "email_link",
+        "landing_page"
+      ],
+      "default": "landing_page"
+    },
+    "mode": {
+      "type": "string",
+      "title": "Qualification Mode (voice = Sarah on video, text = typed fallback)",
+      "enum": [
+        "voice",
+        "text"
+      ],
+      "default": "voice"
+    },
+    "vapiCallId": {
+      "type": "string",
+      "title": "Vapi Call ID"
+    },
+    "verifiedPhone": {
+      "type": "string",
+      "title": "Verified Phone (E.164)"
+    },
+    "debtTier": {
+      "type": "string",
+      "title": "Debt Tier Collected (5k-10k, 10k-20k, 20k+)"
+    },
+    "status": {
+      "type": "string",
+      "title": "Status",
+      "enum": [
+        "started",
+        "in_progress",
+        "routing",
+        "bridged",
+        "no_answer",
+        "failed"
+      ],
+      "default": "started"
+    },
+    "twilioCallSid": {
+      "type": "string",
+      "title": "Twilio Call SID (the rep leg)"
+    },
+    "routedAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Call Routing Started At"
+    },
+    "bridgedAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Bridge Completed At"
+    },
+    "error": {
+      "type": "string",
+      "title": "Error / Failure Reason",
+      "format": "textarea"
+    }
+  },
+  "required": [
+    "sessionToken"
+  ],
+  "rls": {
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "read": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}

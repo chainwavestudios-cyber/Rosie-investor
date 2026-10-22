@@ -1,0 +1,105 @@
+{
+  "name": "VideoQualifyConfig",
+  "type": "object",
+  "properties": {
+    "configName": {
+      "type": "string",
+      "title": "Config Name (singleton key)",
+      "default": "default"
+    },
+    "isActive": {
+      "type": "boolean",
+      "title": "Widget Live",
+      "default": true
+    },
+    "agentName": {
+      "type": "string",
+      "title": "Agent Name (shown in the widget)",
+      "default": "Sarah"
+    },
+    "assistantId": {
+      "type": "string",
+      "title": "Vapi Assistant ID (filled by the assistant sync)"
+    },
+    "firstMessage": {
+      "type": "string",
+      "title": "First Message ({{name}} and {{state}} are filled per visitor)",
+      "format": "textarea",
+      "default": "Hey {{name}}! I'm Sarah. I was just reviewing your profile inside the system. I noticed you're navigating some tough credit card balances over in {{state}}, and I wanted to see if we can help you wipe them out. To make sure you qualify for our programmatic relief, do you currently owe more than $5,000 across your accounts?"
+    },
+    "systemPrompt": {
+      "type": "string",
+      "title": "System Prompt (Sarah's full qualification instructions)",
+      "format": "textarea",
+      "default": "You are Sarah, an empathetic, clear, and highly professional financial assistant qualifying leads for a debt relief program. Your tone must be warm and human\u2014never rigid or legalistic. You already know the user's name is {{name}} and their location is {{state}}.\n\nStrict Execution Path:\n1. Confirm total debt is over $5,000. If yes, validate their response empathetically ('I know how heavy that can feel, but you're in the right place') and move forward.\n2. Ask them to narrow down their total card balance range ($5k-$10k, $10k-$20k, or $20k+).\n3. Confirm their best contact phone number. Say: 'Perfect. Let me verify the best phone number to connect you to our team right now.'\n\nOperational Rules:\n- Keep your spoken answers strictly under 2 short sentences. Short phrases keep the Protoface real-time video rendering buffer running flawlessly under 300ms latency.\n- Never break character.\n- Once the user explicitly speaks or types their phone number, immediately invoke the tool function trigger_sales_call to pass their record to our Twilio router. Conclude by saying: 'Awesome, hold on just one second while I patch you straight through to us!'"
+    },
+    "elevenLabsVoiceId": {
+      "type": "string",
+      "title": "ElevenLabs Voice ID",
+      "default": "21m00Tcm4TlvDq8ikWAM"
+    },
+    "llmModel": {
+      "type": "string",
+      "title": "LLM Model (OpenAI)",
+      "default": "gpt-4o"
+    },
+    "temperature": {
+      "type": "number",
+      "title": "LLM Temperature",
+      "default": 0.6
+    },
+    "salesLine": {
+      "type": "string",
+      "title": "Primary Sales Line To Bridge To (E.164)",
+      "default": "+16193530919"
+    },
+    "bridgeWhisper": {
+      "type": "string",
+      "title": "Rep Whisper Line (spoken to the rep just before the client joins)",
+      "default": "Live transfer from Sarah. A qualified client is on the line. Connecting you now."
+    },
+    "protofaceEmbedUrl": {
+      "type": "string",
+      "title": "Protoface Embed URL ({{avatar}} and {{name}} are substituted \u2014 leave empty to show the built-in Sarah frame)",
+      "format": "textarea"
+    },
+    "protofaceAvatarId": {
+      "type": "string",
+      "title": "Protoface Avatar ID"
+    },
+    "updatedBy": {
+      "type": "string",
+      "title": "Last Updated By"
+    },
+    "updatedAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Last Updated At"
+    }
+  },
+  "required": [
+    "configName"
+  ],
+  "rls": {
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "read": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}

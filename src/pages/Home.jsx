@@ -1,6 +1,7 @@
 import { useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
 import { base44 } from '@/api/base44Client';
+import SarahQualifySection from '@/components/sarah/SarahQualifySection';
 
 const APP_BASE_URL = window.location.origin;
 
@@ -96,7 +97,7 @@ export default function Home() {
   };
 
   return (
-    <div style={{ minHeight: '100vh', background: '#0d1117', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'DM Sans', sans-serif" }}>
+    <div style={{ minHeight: '100vh', background: '#0d1117', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start', gap: '48px', padding: '56px 16px', boxSizing: 'border-box', fontFamily: "'DM Sans', sans-serif" }}>
       <div style={{ background: '#161b22', border: '1px solid rgba(56,189,248,0.25)', borderRadius: '14px', padding: '40px 32px', maxWidth: '420px', width: '100%', boxShadow: '0 40px 100px rgba(0,0,0,0.8), 0 0 60px rgba(56,189,248,0.05)' }}>
         <div style={{ textAlign: 'center', marginBottom: '36px' }}>
           <img src="https://media.base44.com/images/public/69cd2741578c9b5ce655395b/39a31f9b9_Untitleddesign3.png" alt="Rosie AI" style={{ height: '52px', marginBottom: '24px' }} />
@@ -118,6 +119,7 @@ export default function Home() {
           </button>
         </form>
       </div>
+      <SarahQualifySection />
     </div>
   );
 }

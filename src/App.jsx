@@ -21,6 +21,7 @@ import TrainingPage from './pages/TrainingPage';
 import AssistantPortal from './pages/AssistantPortal';
 import SuperAdminPortal from './pages/SuperAdminPortal';
 import AboutDebt from './pages/AboutDebt';
+import SarahQualifyPage from './pages/SarahQualifyPage';
 import Home from './pages/Home';
 import PortalLogin from './pages/PortalLogin';
 import InvestorPortal from './pages/InvestorPortal';
@@ -41,7 +42,7 @@ import { PortalAuthProvider } from '@/lib/PortalAuthContext';
 import { TwilioDeviceProvider } from '@/lib/TwilioDeviceContext';
 import AgentConsole from '@/components/agent/AgentConsole';
 
-const PUBLIC_PATHS = ['/optin', '/optin/screenshot', '/email-optin', '/privacy', '/terms', '/portal-login', '/admin-login', '/request-access', '/debt-call-coach-login', '/aboutdebt', '/debt-call-coach', '/manager-portal', '/compliance-portal', '/fronter', '/interviews', '/training', '/log', '/work-report', '/reschedule', '/growth-plan', '/assistant-portal', '/superadmin-portal'];
+const PUBLIC_PATHS = ['/optin', '/optin/screenshot', '/email-optin', '/privacy', '/terms', '/portal-login', '/admin-login', '/request-access', '/debt-call-coach-login', '/aboutdebt', '/qualify', '/debt-call-coach', '/manager-portal', '/compliance-portal', '/fronter', '/interviews', '/training', '/log', '/work-report', '/reschedule', '/growth-plan', '/assistant-portal', '/superadmin-portal'];
 
 // Wraps protected routes — applies AuthProvider and its loading/error guards.
 // Public routes bypass this entirely so they never trigger auth redirects.
@@ -100,6 +101,7 @@ function App() {
               <Route path="/reschedule" element={<ReschedulePage />} />
               <Route path="/growth-plan" element={<GrowthPlan120Day />} />
               <Route path="/aboutdebt" element={<AboutDebt />} />
+              <Route path="/qualify" element={<SarahQualifyPage />} />
               {/* Protected */}
               <Route path="/" element={<Home />} />
               <Route path="/portal" element={<InvestorPortal />} />
