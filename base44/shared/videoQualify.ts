@@ -10,6 +10,7 @@ export const FALLBACK_APP_URL = 'https://rosieai-investorpage.base44.app';
 export const VAPI_API = 'https://api.vapi.ai';
 export const ASSISTANT_NAME = 'Sarah - Debt Video Qualifier';
 export const DEFAULT_VOICE_ID = '21m00Tcm4TlvDq8ikWAM';
+export const DEFAULT_CARTESIA_VOICE_ID = '9626c31c-bec5-4cca-baa8-f8ba9e84c8bc';
 export const TRIGGER_TOOL_NAME = 'trigger_sales_call';
 export const NOTICE_ID_RE = /^[A-Za-z]{2,5}-\d{5}-\d{3}$/;
 
@@ -53,6 +54,14 @@ export function appBaseUrl(req: Request): string {
   return (req.headers.get('X-Base44-App-Url') || FALLBACK_APP_URL).replace(/\/+$/, '');
 }
 
+/** Cartesia (Sonic) is the default voice; ElevenLabs stays available as a fallback. */
+function buildVoice(cfg: any) {
+  if (String(cfg?.voiceProvider || 'cartesia') === 'cartesia') {
+    return { provider: 'cartesia', voiceId: cfg?.cartesiaVoiceId || DEFAULT_CARTESIA_VOICE_ID };
+  }
+  return { provider: '11labs', voiceId: cfg?.elevenLabsVoiceId || DEFAULT_VOICE_ID };
+}
+
 /** The assistant definition pushed to Vapi — the script content comes from the app's own config. */
 export function buildAssistantPayload(cfg: any, baseUrl: string) {
   return {
@@ -66,7 +75,7 @@ export function buildAssistantPayload(cfg: any, baseUrl: string) {
       messages: [{ role: 'system', content: cfg?.systemPrompt || SYSTEM_PROMPT }],
       tools: [TRIGGER_TOOL],
     },
-    voice: { provider: '11labs', voiceId: cfg?.elevenLabsVoiceId || DEFAULT_VOICE_ID },
+    voice: buildVoice(cfg),
     server: { url: `${baseUrl}/functions/vapiWebhook`, secret: secrets.get('VAPI_WEBHOOK_SECRET') || '' },
   };
 }
