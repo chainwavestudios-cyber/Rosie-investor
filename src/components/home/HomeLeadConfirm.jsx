@@ -48,24 +48,24 @@ export default function HomeLeadConfirm({ profile }) {
   return (
     <section
       id="lead-confirm"
-      className="mx-auto mt-8 w-full max-w-3xl rounded-2xl border border-[#d7e6f5] bg-white p-6 text-left"
+      className="mx-auto w-full max-w-3xl rounded-3xl border border-home-line bg-home-card p-6 text-left"
       style={{ scrollMarginTop: '20px' }}
     >
-      <p className="text-[10px] font-bold uppercase tracking-[4px] text-[#0ea5e9]">Your file</p>
-      <h2 className="mt-2 text-lg font-bold text-[#003366]">
+      <p className="text-[10px] font-bold uppercase tracking-[4px] text-home-navy">Your file</p>
+      <h2 className="mt-2 font-home-display text-2xl leading-tight text-home-navy">
         Welcome back{profile.firstName ? `, ${profile.firstName}` : ''} — is this still correct?
       </h2>
-      <p className="mt-1 text-sm text-[#475569]">
+      <p className="mt-1 text-sm text-home-muted-ink">
         This is what we have on file for you{profile.noticeId ? ` (file ${profile.noticeId})` : ''}. Please confirm it, or tell us what changed.
       </p>
 
       <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
         {rows.map((row) => (
-          <div key={row.label} className="flex items-start gap-3 rounded-xl border border-[#e6eef7] bg-[#f7fbff] px-4 py-3">
-            <row.icon className="mt-0.5 h-4 w-4 shrink-0 text-[#0ea5e9]" />
+          <div key={row.label} className="flex items-start gap-3 rounded-xl border border-home-line bg-home-canvas px-4 py-3">
+            <row.icon className="mt-0.5 h-4 w-4 shrink-0 text-home-navy" />
             <div>
-              <p className="text-[10px] font-semibold uppercase tracking-[1.5px] text-[#64748b]">{row.label}</p>
-              <p className="text-sm font-medium text-[#003366]">{row.value}</p>
+              <p className="text-[10px] font-semibold uppercase tracking-[1.5px] text-home-muted-ink">{row.label}</p>
+              <p className="text-sm font-medium text-home-ink">{row.value}</p>
             </div>
           </div>
         ))}
@@ -83,7 +83,7 @@ export default function HomeLeadConfirm({ profile }) {
               type="button"
               onClick={confirm}
               disabled={state.status === 'saving'}
-              className="inline-flex items-center gap-2 rounded-xl bg-[#003366] px-5 py-3 text-sm font-semibold text-white disabled:opacity-60"
+              className="inline-flex items-center gap-2 rounded-full bg-home-navy px-5 py-3 text-sm font-semibold text-home-navy-ink transition-opacity hover:opacity-90 disabled:opacity-60"
             >
               {state.status === 'saving' ? 'Saving…' : 'Yes, this is me'}
             </button>
@@ -93,13 +93,13 @@ export default function HomeLeadConfirm({ profile }) {
                 setState({ status: 'changed', message: '' });
                 document.getElementById('chat')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
               }}
-              className="inline-flex items-center gap-2 rounded-xl border border-[#003366] px-5 py-3 text-sm font-semibold text-[#003366]"
+              className="inline-flex items-center gap-2 rounded-full border border-home-navy px-5 py-3 text-sm font-semibold text-home-navy"
             >
               Something has changed
             </button>
           </div>
           {state.status === 'changed' && (
-            <p className="mt-3 text-sm text-[#475569]">
+            <p className="mt-3 text-sm text-home-muted-ink">
               No problem — type the correct details in the chat below and your advisor will update your file before your call.
             </p>
           )}

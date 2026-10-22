@@ -4,7 +4,11 @@ module.exports = {
     content: ["./index.html", "./src/**/*.{ts,tsx,js,jsx}"],
   theme: {
   	extend: {
-      fontFamily: { assistant: ['var(--font-assistant)'] },
+      fontFamily: {
+        assistant: ['var(--font-assistant)'],
+        'home-sans': ['"DM Sans"', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+        'home-display': ['"Instrument Serif"', 'Georgia', 'serif']
+      },
   		borderRadius: {
   			lg: 'var(--radius)',
   			md: 'calc(var(--radius) - 2px)',
@@ -23,6 +27,18 @@ module.exports = {
           info: 'hsl(var(--assistant-info) / <alpha-value>)',
           warning: 'hsl(var(--assistant-warning) / <alpha-value>)',
           danger: 'hsl(var(--assistant-danger) / <alpha-value>)'
+        },
+        home: {
+          navy: 'var(--home-navy)',
+          'navy-ink': 'var(--home-navy-ink)',
+          silver: 'var(--home-silver)',
+          accent: 'var(--home-accent)',
+          canvas: 'var(--home-canvas)',
+          ink: 'var(--home-ink)',
+          card: 'var(--home-card)',
+          muted: 'var(--home-muted)',
+          'muted-ink': 'var(--home-muted-ink)',
+          line: 'var(--home-line)'
         },
   			background: 'hsl(var(--background))',
   			foreground: 'hsl(var(--foreground))',

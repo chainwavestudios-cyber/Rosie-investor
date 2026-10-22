@@ -78,34 +78,35 @@ export default function MailerIdSearch({ onFound }) {
 
   return (
     <div className="flex w-full flex-col items-end gap-2 sm:w-auto">
-      <div className="flex items-center gap-2 rounded-full border border-white/15 bg-[#1a1626]/60 px-2 py-1.5 backdrop-blur-xl">
-        <Search className="h-3.5 w-3.5 shrink-0 text-white/45" />
+      <div className="flex w-full items-center gap-2 rounded-full bg-home-muted py-1 pl-3 pr-1 focus-within:ring-2 focus-within:ring-home-accent sm:w-auto">
+        <Search className="h-4 w-4 shrink-0 text-home-muted-ink" aria-hidden="true" />
         <input
           value={value}
           onChange={(event) => setValue(event.target.value)}
           onKeyDown={(event) => event.key === 'Enter' && runScan()}
           placeholder="Mailer ID"
-          className="w-24 bg-transparent text-xs text-white placeholder:text-white/40 focus:outline-none sm:w-32"
+          aria-label="Mailer ID"
+          className="w-full min-w-0 bg-transparent text-sm text-home-ink placeholder:text-home-muted-ink focus:outline-none sm:w-28"
         />
         <button
           type="button"
           onClick={runScan}
           disabled={!value.trim() || !!scan}
-          className="inline-flex items-center justify-center rounded-full bg-white px-3 py-1 text-[11px] font-semibold text-[#1a0b2e] transition hover:bg-white/85 disabled:opacity-40"
+          className="inline-flex shrink-0 items-center justify-center rounded-full bg-home-navy px-3 py-1.5 text-xs font-semibold text-home-navy-ink transition-opacity hover:opacity-90 disabled:opacity-40"
         >
           {scanning ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Search'}
         </button>
       </div>
 
       {scan && (
-        <div className="w-[300px] max-w-[86vw] overflow-hidden rounded-2xl border border-white/15 bg-[#150f22]/90 p-3 shadow-[0_24px_60px_rgba(0,0,0,0.5)] backdrop-blur-xl">
+        <div className="w-[300px] max-w-[86vw] overflow-hidden rounded-2xl border border-home-line bg-home-card p-3 shadow-xl">
           <div className="flex items-start justify-between gap-2">
-            <span className="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[1.5px] text-teal-300">
-              <span className={`h-1.5 w-1.5 rounded-full ${scanning ? 'animate-pulse bg-teal-400' : scan.status === 'found' ? 'bg-emerald-400' : 'bg-amber-400'}`} />
+            <span className="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[1.5px] text-home-navy">
+              <span className={`h-1.5 w-1.5 rounded-full ${scanning ? 'animate-pulse bg-home-accent' : scan.status === 'found' ? 'bg-emerald-500' : 'bg-amber-500'}`} />
               {scanning ? 'Scanning records' : scan.status === 'found' ? 'Match found' : 'No match'}
             </span>
             {!scanning && (
-              <button type="button" onClick={() => setScan(null)} className="text-white/40 transition hover:text-white">
+              <button type="button" onClick={() => setScan(null)} className="text-home-muted-ink transition hover:text-home-ink">
                 <X className="h-3.5 w-3.5" />
               </button>
             )}
@@ -113,9 +114,9 @@ export default function MailerIdSearch({ onFound }) {
 
           {scanning ? (
             <>
-              <p className="mt-2 text-xs text-white/85">{scan.source}…</p>
-              <div className="mt-2 h-1 w-full overflow-hidden rounded-full bg-white/10">
-                <div className="h-1 rounded-full bg-gradient-to-r from-[#4d94ff] to-[#00e6a1] transition-all duration-200" style={{ width: `${scan.progress}%` }} />
+              <p className="mt-2 text-xs text-home-ink">{scan.source}…</p>
+              <div className="mt-2 h-1 w-full overflow-hidden rounded-full bg-home-muted">
+                <div className="h-1 rounded-full bg-home-navy transition-all duration-200" style={{ width: `${scan.progress}%` }} />
               </div>
               <div className="mt-3 grid grid-cols-2 gap-x-2 gap-y-1.5">
                 {SOURCES.map((source, index) => {
@@ -126,30 +127,30 @@ export default function MailerIdSearch({ onFound }) {
                     <span
                       key={source}
                       className={`inline-flex items-center gap-1 text-[10px] ${
-                        done ? 'text-emerald-300' : current ? 'text-teal-200' : 'text-white/35'
+                        done ? 'text-emerald-600' : current ? 'font-semibold text-home-navy' : 'text-home-muted-ink'
                       }`}
                     >
                       {done ? (
                         <Check className="h-3 w-3 shrink-0" />
                       ) : (
-                        <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${current ? 'animate-pulse bg-teal-400' : 'bg-white/20'}`} />
+                        <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${current ? 'animate-pulse bg-home-accent' : 'bg-home-line'}`} />
                       )}
                       {source}
                     </span>
                   );
                 })}
               </div>
-              <p className="mt-3 text-[10px] text-white/40">
+              <p className="mt-3 text-[10px] text-home-muted-ink">
                 Records reviewed: {scan.hits.toLocaleString()} · pass {Math.floor(scan.step / SOURCES.length) + 1}
               </p>
             </>
           ) : scan.status === 'found' ? (
-            <p className="mt-2 inline-flex items-center gap-2 text-xs font-medium text-emerald-200">
+            <p className="mt-2 inline-flex items-center gap-2 text-xs font-medium text-emerald-700">
               <ShieldCheck className="h-3.5 w-3.5" />
               {scan.message}
             </p>
           ) : (
-            <p className="mt-2 text-xs text-amber-200">
+            <p className="mt-2 text-xs text-amber-700">
               {scan.message}. Check the number printed on the front of your notice, or just ask below.
             </p>
           )}

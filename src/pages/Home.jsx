@@ -1,12 +1,13 @@
 import { useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
 import { base44 } from '@/api/base44Client';
-import HomeHeader from '@/components/home/HomeHeader';
-import HomeChatWidget from '@/components/home/HomeChatWidget';
+import SiteHeader from '@/components/home/SiteHeader';
+import HomeHero from '@/components/home/HomeHero';
 import HomeLeadConfirm from '@/components/home/HomeLeadConfirm';
 import StephaniAccessPopup from '@/components/home/StephaniAccessPopup';
 import HomeTrust from '@/components/home/HomeTrust';
 import HomeNews from '@/components/home/HomeNews';
+import SiteFooter from '@/components/home/SiteFooter';
 
 const APP_BASE_URL = window.location.origin;
 
@@ -106,25 +107,25 @@ export default function Home() {
   };
 
   return (
-    <div style={{ minHeight: '100vh', background: '#f0f7ff', fontFamily: "'DM Sans', sans-serif" }}>
-      <HomeHeader />
+    <div className="home-theme min-h-screen bg-home-canvas font-home-sans text-home-ink">
+      <SiteHeader />
 
-      <main style={{ width: '100%', maxWidth: '1120px', margin: '0 auto', padding: '40px 16px 64px', boxSizing: 'border-box' }}>
-        {leadProfile && <HomeLeadConfirm profile={leadProfile} />}
+      <main>
+        <HomeHero leadProfile={leadProfile} onLeadFound={setLeadProfile} />
 
-        <div className="mt-8 flex w-full flex-col gap-10">
-          <HomeTrust />
-
-          <div className="w-full md:mx-auto md:max-w-[768px]">
-            <HomeChatWidget leadProfile={leadProfile} onLeadFound={setLeadProfile} />
+        {leadProfile && (
+          <div className="mx-auto max-w-7xl px-5 pt-10 md:px-8">
+            <HomeLeadConfirm profile={leadProfile} />
           </div>
-        </div>
+        )}
 
-        <StephaniAccessPopup hasToken={hasToken || !!leadProfile} />
-
+        <HomeTrust />
         <HomeNews />
-
       </main>
+
+      <SiteFooter />
+
+      <StephaniAccessPopup hasToken={hasToken || !!leadProfile} />
     </div>
   );
 }

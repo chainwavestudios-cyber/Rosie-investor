@@ -12,20 +12,26 @@ const BENEFITS = [
 
 export default function HomeTrust() {
   return (
-    <section className="w-full">
-      <h2 style={{ color: '#003366', fontSize: '23px', fontWeight: 800, margin: '0 0 16px', fontFamily: "'DM Sans', sans-serif" }}>
-        Why Choose Debt Solutions Inc?
-      </h2>
-      <ul className="grid gap-x-10 gap-y-3 sm:grid-cols-2" style={{ listStyle: 'none', margin: 0, padding: 0 }}>
-        {BENEFITS.map((benefit) => (
-          <li key={benefit} style={{ display: 'flex', alignItems: 'flex-start', gap: '9px', color: '#334155', fontSize: '15px', fontWeight: 700, lineHeight: 1.5 }}>
-            <span style={{ flex: '0 0 auto', marginTop: '2px', width: '20px', height: '20px', borderRadius: '999px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#2d8ebf' }}>
-              <Check size={12} color="#ffffff" />
-            </span>
-            {benefit}
-          </li>
-        ))}
-      </ul>
+    <section aria-labelledby="why-heading" className="mx-auto max-w-7xl px-5 py-20 md:px-8 lg:py-28">
+      <div className="grid gap-12 lg:grid-cols-12">
+        <h2
+          id="why-heading"
+          className="font-home-display text-4xl leading-none tracking-tight text-home-ink sm:text-5xl md:text-6xl lg:sticky lg:top-12 lg:col-span-5 lg:self-start"
+        >
+          Why Choose <span className="italic">Debt Solutions Inc?</span>
+        </h2>
+
+        <ul className="flex flex-col lg:col-span-7">
+          {BENEFITS.map((benefit) => (
+            <li key={benefit} className="flex gap-5 border-t border-home-line py-6 last:border-b">
+              <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-home-navy text-home-accent">
+                <Check className="h-4 w-4" strokeWidth={3} aria-hidden="true" />
+              </span>
+              <p className="text-lg font-semibold leading-snug text-home-ink">{benefit}</p>
+            </li>
+          ))}
+        </ul>
+      </div>
     </section>
   );
 }

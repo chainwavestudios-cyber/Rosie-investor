@@ -2,6 +2,31 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ---- Landing page (home) theme: navy ink, porcelain, engraved silver ---- */
+.home-theme {
+  --home-navy: #061d3f;
+  --home-navy-ink: #eef3f9;
+  --home-silver: #c6d0dc;
+  --home-accent: #5bb6ec;
+  --home-canvas: #f3f6fa;
+  --home-ink: #0a1f3d;
+  --home-card: #ffffff;
+  --home-muted: #e6ecf3;
+  --home-muted-ink: #4f6380;
+  --home-line: #d9e1ea;
+}
+
+@keyframes home-rise {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.home-rise { animation: home-rise 0.8s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+
+@media (prefers-reduced-motion: reduce) {
+  .home-rise { animation: none; }
+}
+
 :root, .dark {
   --assistant-canvas: 225 50% 8%;
   --assistant-surface: 209 53% 11%;

@@ -13,21 +13,21 @@ export default function HomeChatComposer({ onSend, disabled, placeholder = 'Ask 
   };
 
   return (
-    <form onSubmit={submit} className="border-t border-white/10 px-3 py-3 sm:px-4">
-      <div className="flex items-center gap-2 rounded-full border border-white/15 bg-[#1a1626]/80 px-3 py-2 backdrop-blur-md focus-within:border-[#9d4dff]/60">
-        <Sparkles className="h-4 w-4 flex-none text-white/35" />
+    <form onSubmit={submit} className="border-t border-home-line p-3">
+      <div className="flex items-center gap-2 rounded-full bg-home-muted py-1.5 pl-4 pr-1.5 focus-within:ring-2 focus-within:ring-home-accent">
+        <Sparkles className="h-4 w-4 flex-none text-home-muted-ink" aria-hidden="true" />
         <input
           type="text"
           value={draft}
           onChange={(event) => setDraft(event.target.value)}
           placeholder={placeholder}
-          className="min-w-0 flex-1 bg-transparent text-sm text-white outline-none placeholder:text-white/40"
+          className="min-w-0 flex-1 bg-transparent py-1.5 text-sm text-home-ink outline-none placeholder:text-home-muted-ink"
         />
         <button
           type="submit"
           disabled={disabled}
           aria-label="Send message"
-          className="flex h-9 w-9 flex-none items-center justify-center rounded-full bg-white text-[#1a0b2e] transition hover:bg-white/85 disabled:opacity-40"
+          className="flex h-9 w-9 flex-none items-center justify-center rounded-full bg-home-navy text-home-navy-ink transition-opacity hover:opacity-90 disabled:opacity-40"
         >
           <ArrowUp className="h-4 w-4" />
         </button>

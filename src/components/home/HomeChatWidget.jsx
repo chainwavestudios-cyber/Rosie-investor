@@ -236,22 +236,21 @@ export default function HomeChatWidget({ leadProfile, onLeadFound }) {
   ].filter(Boolean);
 
   return (
-    <section id="chat" className="mx-auto w-full max-w-[768px]" style={{ scrollMarginTop: '20px' }}>
-      <div className="relative flex min-h-[208px] flex-col overflow-hidden rounded-3xl border border-white/15 bg-[#1a1626]/80 shadow-[0_20px_50px_rgba(46,36,77,0.5)] backdrop-blur-xl md:min-h-[232px]">
-        <div
-          className="pointer-events-none absolute inset-0"
-          style={{ background: 'radial-gradient(130% 120% at 50% 0%, rgba(157,77,255,0.3) 0%, rgba(46,36,77,0.18) 45%, rgba(15,14,26,0) 100%)' }}
-        />
-        <div className="relative z-10 flex flex-1 flex-col">
-        <header className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 bg-[#241b3d]/55 px-4 py-3.5 backdrop-blur-md sm:px-5">
+    <section id="chat" className="w-full" style={{ scrollMarginTop: '20px' }}>
+      <div className="flex flex-col overflow-hidden rounded-3xl bg-home-card text-home-ink shadow-2xl ring-1 ring-home-line">
+        <div className="flex flex-1 flex-col">
+        <header className="flex flex-col gap-3 border-b border-home-line px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
           <span className="inline-flex items-center gap-3">
-            <span className="inline-flex h-9 w-9 flex-none items-center justify-center rounded-full bg-gradient-to-br from-[#9d4dff] to-[#5b21b6] text-white shadow-[0_0_18px_rgba(157,77,255,0.5)]">
-              <Sparkles className="h-4 w-4" />
+            <span className="inline-flex h-10 w-10 flex-none items-center justify-center rounded-full bg-home-navy text-home-accent">
+              <Sparkles className="h-5 w-5" />
             </span>
             <span className="leading-tight">
-              <span className="block text-[15px] font-bold text-white">{widget.title}</span>
-              <span className="mt-0.5 block text-[11px] font-medium text-white/55">
-                <span className="mr-1.5 inline-block h-1.5 w-1.5 rounded-full bg-[#00f5ff] align-middle shadow-[0_0_8px_rgba(0,245,255,0.85)]" />
+              <span className="block text-base font-semibold text-home-ink">{widget.title}</span>
+              <span className="mt-0.5 flex items-center gap-1.5 text-xs text-home-muted-ink">
+                <span className="relative flex h-2 w-2">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-home-accent opacity-60" />
+                  <span className="relative inline-flex h-2 w-2 rounded-full bg-home-accent" />
+                </span>
                 {widget.status}
               </span>
             </span>
@@ -265,9 +264,9 @@ export default function HomeChatWidget({ leadProfile, onLeadFound }) {
         </header>
 
         {facts.length > 0 && (
-          <div className="flex flex-wrap gap-2 border-b border-white/10 bg-[#241b3d]/45 px-4 py-2.5 backdrop-blur-sm">
+          <div className="flex flex-wrap gap-2 border-b border-home-line bg-home-canvas px-4 py-2.5">
             {facts.map((fact) => (
-              <span key={fact} className="rounded-full border border-white/15 bg-white/[0.07] px-3 py-1 text-[11px] text-white/75">
+              <span key={fact} className="rounded-full border border-home-line bg-home-card px-3 py-1 text-[11px] text-home-muted-ink">
                 {fact}
               </span>
             ))}
@@ -286,11 +285,11 @@ export default function HomeChatWidget({ leadProfile, onLeadFound }) {
         )}
 
         {!readyForCall && callState.status === 'error' && (
-          <p className="border-t border-white/10 bg-[#241b3d]/60 px-4 py-3 text-xs text-amber-200 backdrop-blur-sm">{callState.message}</p>
+          <p className="border-t border-home-line bg-home-canvas px-4 py-3 text-xs text-amber-700">{callState.message}</p>
         )}
 
         {specialistMode && (
-          <p className="border-t border-emerald-400/20 bg-emerald-400/10 px-4 py-2.5 text-xs text-emerald-100">
+          <p className="border-t border-home-line bg-home-canvas px-4 py-2.5 text-xs text-home-muted-ink">
             A Debt Solutions specialist has joined the chat.
           </p>
         )}

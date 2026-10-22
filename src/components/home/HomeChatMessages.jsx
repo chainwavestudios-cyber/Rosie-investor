@@ -1,7 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { Coins, CreditCard, FileText, Landmark } from 'lucide-react';
 
-const TILES = ['from-[#ff4d94] to-[#e0337c]', 'from-[#9d4dff] to-[#7c22e0]', 'from-[#4d94ff] to-[#2b6fe0]'];
+const TILES = ['bg-home-navy text-home-accent', 'bg-home-accent text-home-navy', 'bg-home-silver text-home-navy'];
 const ICONS = [Coins, CreditCard, Landmark];
 
 const TIER_CARDS = {
@@ -18,23 +18,23 @@ export default function HomeChatMessages({ messages = [], quickReplies = [], onR
   }, [messages.length, quickReplies.length, sending]);
 
   return (
-    <div className="flex-1 space-y-3 overflow-y-auto px-4 py-4 sm:px-5">
+    <div className="flex h-72 flex-col gap-3 overflow-y-auto bg-home-canvas px-4 py-5 sm:px-5" role="log" aria-live="polite">
       {messages.map((message, index) => {
         const isVisitor = message.role === 'user';
         const isSpecialist = message.role === 'specialist';
         if (message.role === 'record') {
           return (
             <div key={index} className="w-full">
-              <div className="rounded-2xl border border-[#00e6a1]/30 bg-[#221a38]/80 p-3 backdrop-blur-md">
-                <p className="mb-2 inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.14em] text-[#00e6a1]">
+              <div className="rounded-2xl border border-home-line bg-home-card p-3">
+                <p className="mb-2 inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.14em] text-home-muted-ink">
                   <FileText className="h-3 w-3" />
                   File on record
                 </p>
                 <div className="space-y-1.5">
                   {(message.fields || []).map((field) => (
                     <div key={field.label} className="flex items-baseline justify-between gap-3">
-                      <span className="text-[10px] uppercase tracking-[0.1em] text-white/45">{field.label}</span>
-                      <span className="text-right text-[12px] font-medium text-white">{field.value}</span>
+                      <span className="text-[10px] uppercase tracking-[0.1em] text-home-muted-ink">{field.label}</span>
+                      <span className="text-right text-[12px] font-medium text-home-ink">{field.value}</span>
                     </div>
                   ))}
                 </div>
@@ -46,17 +46,17 @@ export default function HomeChatMessages({ messages = [], quickReplies = [], onR
           <div key={index} className={isVisitor ? 'flex justify-end' : 'flex justify-start'}>
             <div className="max-w-[88%]">
               {isSpecialist && (
-                <p className="mb-1 text-[10px] uppercase tracking-[0.12em] text-emerald-300">
+                <p className="mb-1 text-[10px] uppercase tracking-[0.12em] text-home-muted-ink">
                   {message.authorName || 'Debt Solutions specialist'}
                 </p>
               )}
               <p
-                className={`rounded-2xl border px-4 py-2.5 text-sm leading-relaxed ${
+                className={`rounded-2xl px-4 py-3 text-sm leading-relaxed ${
                   isVisitor
-                    ? 'border-white/20 bg-white/85 text-[#1a0b2e]'
+                    ? 'rounded-tr-sm bg-home-accent text-home-navy'
                     : isSpecialist
-                      ? 'border-emerald-400/30 bg-emerald-500/20 text-emerald-50 backdrop-blur-md'
-                      : 'border-white/15 bg-[#221a38]/75 text-white/95 backdrop-blur-md'
+                      ? 'rounded-tl-sm bg-home-silver text-home-navy'
+                      : 'rounded-tl-sm bg-home-navy text-home-navy-ink'
                 }`}
               >
                 {message.text}
@@ -66,7 +66,7 @@ export default function HomeChatMessages({ messages = [], quickReplies = [], onR
         );
       })}
 
-      {sending && <p className="text-xs text-white/70">Typing…</p>}
+      {sending && <p className="text-xs text-home-muted-ink">Typing…</p>}
 
       {!sending && quickReplies.length > 0 && (
         <div className="grid grid-cols-1 gap-2 pt-1 sm:grid-cols-3">
@@ -79,14 +79,14 @@ export default function HomeChatMessages({ messages = [], quickReplies = [], onR
                 key={reply}
                 type="button"
                 onClick={() => onReply?.(reply)}
-                className="flex items-start gap-3 rounded-2xl border border-white/15 bg-[#1a1626]/75 p-3 text-left backdrop-blur-md transition hover:border-[#9d4dff]/45 hover:bg-[#241b3d]/90"
+                className="flex items-start gap-3 rounded-2xl border border-home-line bg-home-card p-3 text-left transition hover:border-home-accent"
               >
-                <span className={`flex h-8 w-8 flex-none items-center justify-center rounded-lg bg-gradient-to-br ${tile} text-white`}>
+                <span className={`flex h-8 w-8 flex-none items-center justify-center rounded-lg ${tile}`}>
                   <Icon className="h-4 w-4" />
                 </span>
                 <span className="min-w-0">
-                  <span className="block text-xs font-semibold text-white">{reply}</span>
-                  {tier?.subtitle && <span className="mt-0.5 block text-[10px] text-white/55">{tier.subtitle}</span>}
+                  <span className="block text-xs font-semibold text-home-ink">{reply}</span>
+                  {tier?.subtitle && <span className="mt-0.5 block text-[10px] text-home-muted-ink">{tier.subtitle}</span>}
                 </span>
               </button>
             );
