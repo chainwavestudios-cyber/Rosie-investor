@@ -68,7 +68,7 @@ export async function sendTemplateEmail(
   const sendId = `${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
   let trackedHtml = html;
   if (template.trackingEnabled) {
-    trackedHtml = injectTracking(html, lead.id, sendId, template.id);
+    trackedHtml = injectTracking(html, lead.id, sendId, template.id, template.name);
   }
 
   const mimeMessage = buildMime(lead.email, subject, trackedHtml);
