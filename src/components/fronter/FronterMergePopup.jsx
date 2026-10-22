@@ -90,18 +90,34 @@ export default function FronterMergePopup({ lead, username, fronterFirstName, is
     if (pollTimerRef.current) clearInterval(pollTimerRef.current);
   }, []);
 
-  // Fall back to the live session's conference name when the card has no call SID.
+  // Fall back to the conference the customer is already sitting in when the card
+  // has no call SID: the fronter's live session names it, and the card's heads-up
+  // recorded it when the call started.
   useEffect(() => {
-    if (callSid || conferenceName || !username) return;
+    if (callSid || conferenceName) return;
     let dead = false;
-    base44.entities.DialerSession.filter({ username })
-      .then(rows => {
-        const s = Array.isArray(rows) ? rows[0] : rows?.items?.[0];
-        if (!dead && s?.currentCallConferenceName) setSessionConference(s.currentCallConferenceName);
-      })
-      .catch(() => {});
+    (async () => {
+      if (username) {
+        try {
+          const rows = await base44.entities.DialerSession.filter({ username });
+          const s = Array.isArray(rows) ? rows[0] : rows?.items?.[0];
+          if (!dead && s?.currentCallConferenceName) { setSessionConference(s.currentCallConferenceName); return; }
+        } catch {}
+      }
+      if (lead?.id) {
+        try {
+          const rows = await base44.entities.FronterHeadsUp.filter({ leadId: lead.id, status: 'active' });
+          const list = Array.isArray(rows) ? rows : (rows?.items || []);
+          const h = list.find(r => r.conferenceName);
+          if (!dead && h) {
+            setSessionConference(h.conferenceName);
+            if (h.customerCallSid) setCustomerCallSid(prev => prev || h.customerCallSid);
+          }
+        } catch {}
+      }
+    })();
     return () => { dead = true; };
-  }, [callSid, conferenceName, username]);
+  }, [callSid, conferenceName, username, lead?.id]);
 
   const handleSave = async () => {
     if (!script) return;
