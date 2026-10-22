@@ -207,7 +207,7 @@ export default function HomeChatWidget({ leadProfile, onLeadFound }) {
   ].filter(Boolean);
 
   return (
-    <section id="chat" className="mx-auto w-full max-w-md" style={{ scrollMarginTop: '20px' }}>
+    <section id="chat" className="mx-auto w-full max-w-xl" style={{ scrollMarginTop: '20px' }}>
       <div className="relative flex min-h-[520px] flex-col overflow-hidden rounded-3xl border border-white/10 bg-[#0b1220] shadow-[0_20px_50px_rgba(11,18,32,0.28)] md:min-h-[580px]">
         <video
           className="pointer-events-none absolute inset-0 z-0 h-full w-full object-cover opacity-50"
@@ -218,16 +218,15 @@ export default function HomeChatWidget({ leadProfile, onLeadFound }) {
           playsInline
           aria-hidden="true"
         />
-        <div className="pointer-events-none absolute inset-0 z-0 bg-[#0b1220]/20" />
         <div className="relative z-10 flex flex-1 flex-col">
-        <header className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 bg-[#0b1220]/70 px-4 py-3 backdrop-blur-md">
-          <span className="inline-flex items-center gap-2.5">
-            <span className="inline-flex h-8 w-8 flex-none items-center justify-center rounded-full bg-white text-[#1a0b2e]">
-              <Sparkles className="h-3.5 w-3.5" />
+        <header className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 bg-[#0b1220]/70 px-4 py-3.5 backdrop-blur-md sm:px-5">
+          <span className="inline-flex items-center gap-3">
+            <span className="inline-flex h-9 w-9 flex-none items-center justify-center rounded-full bg-white text-[#1a0b2e]">
+              <Sparkles className="h-4 w-4" />
             </span>
             <span className="leading-tight">
-              <span className="block text-sm font-bold text-white">State Rate Reduction Qualification</span>
-              <span className="mt-0.5 block text-[10px] font-medium text-white/55">
+              <span className="block text-[15px] font-bold text-white">State Rate Reduction Qualification</span>
+              <span className="mt-0.5 block text-[11px] font-medium text-white/55">
                 <span className="mr-1.5 inline-block h-1.5 w-1.5 rounded-full bg-teal-400 align-middle" />
                 Online · Live
               </span>
