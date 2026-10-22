@@ -2,6 +2,10 @@ import { useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
 import { base44 } from '@/api/base44Client';
 import SarahQualifySection from '@/components/sarah/SarahQualifySection';
+import HomeHeader from '@/components/home/HomeHeader';
+import HomeStepper from '@/components/home/HomeStepper';
+import DebtAmountStep from '@/components/home/DebtAmountStep';
+import HomeTrust from '@/components/home/HomeTrust';
 
 const APP_BASE_URL = window.location.origin;
 
@@ -97,29 +101,42 @@ export default function Home() {
   };
 
   return (
-    <div style={{ minHeight: '100vh', background: '#0d1117', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start', gap: '48px', padding: '56px 16px', boxSizing: 'border-box', fontFamily: "'DM Sans', sans-serif" }}>
-      <div style={{ background: '#161b22', border: '1px solid rgba(56,189,248,0.25)', borderRadius: '14px', padding: '40px 32px', maxWidth: '420px', width: '100%', boxShadow: '0 40px 100px rgba(0,0,0,0.8), 0 0 60px rgba(56,189,248,0.05)' }}>
-        <div style={{ textAlign: 'center', marginBottom: '36px' }}>
-          <img src="https://media.base44.com/images/public/69cd2741578c9b5ce655395b/39a31f9b9_Untitleddesign3.png" alt="Rosie AI" style={{ height: '52px', marginBottom: '24px' }} />
-          <p style={{ color: '#0ea5e9', fontSize: '10px', letterSpacing: '4px', textTransform: 'uppercase', margin: '0 0 10px', fontWeight: 700 }}>Restricted Access</p>
-          <h2 style={{ color: '#f1f5f9', fontSize: '22px', fontWeight: 600, margin: 0, fontFamily: "'Playfair Display', serif" }}>{checking ? 'Verifying access…' : 'Enter Your Access Code'}</h2>
+    <div style={{ minHeight: '100vh', background: '#f0f7ff', fontFamily: "'DM Sans', sans-serif" }}>
+      <HomeHeader />
+
+      <main style={{ width: '100%', maxWidth: '960px', margin: '0 auto', padding: '32px 16px 64px', boxSizing: 'border-box' }}>
+        <HomeStepper activeIndex={0} />
+
+        <DebtAmountStep />
+
+        <div id="qualify" style={{ scrollMarginTop: '20px', marginTop: '44px', background: '#0b1220', border: '1px solid rgba(56,189,248,0.2)', borderRadius: '20px', padding: '28px 20px', display: 'flex', justifyContent: 'center' }}>
+          <SarahQualifySection />
         </div>
-        <form onSubmit={handleSubmit}>
-          <input
-            type="text"
-            value={input}
-            onChange={e => { setInput(e.target.value); setError(''); }}
-            placeholder="Your personal access code"
-            autoFocus
-            style={{ width: '100%', background: '#0d1117', border: '1px solid rgba(56,189,248,0.20)', borderRadius: '8px', padding: '13px 16px', color: '#e2e8f0', fontSize: '14px', outline: 'none', boxSizing: 'border-box', fontFamily: "'DM Sans', sans-serif", marginBottom: '12px' }}
-          />
-          {error && <p style={{ color: '#ef4444', fontSize: '12px', margin: '0 0 12px', textAlign: 'center' }}>{error}</p>}
-          <button type="submit" style={{ width: '100%', background: 'linear-gradient(135deg, #0ea5e9, #38bdf8)', color: '#0d1117', border: 'none', borderRadius: '8px', padding: '13px', cursor: 'pointer', fontWeight: '700', fontSize: '11px', letterSpacing: '2px', textTransform: 'uppercase', fontFamily: "'DM Sans', sans-serif" }}>
-            {checking ? 'Checking…' : 'Access Investor Site'}
-          </button>
-        </form>
-      </div>
-      <SarahQualifySection />
+
+        <HomeTrust />
+
+        <section style={{ maxWidth: '620px', margin: '44px auto 0', background: '#ffffff', border: '1px solid #d7e6f5', borderRadius: '14px', padding: '24px 22px', boxSizing: 'border-box' }}>
+          <p style={{ color: '#0ea5e9', fontSize: '10px', letterSpacing: '4px', textTransform: 'uppercase', margin: '0 0 8px', fontWeight: 700, textAlign: 'center' }}>
+            Investor Access
+          </p>
+          <h2 style={{ color: '#003366', fontSize: '18px', fontWeight: 700, margin: '0 0 16px', textAlign: 'center', fontFamily: "'DM Sans', sans-serif" }}>
+            Already have an access code?
+          </h2>
+          <form onSubmit={handleSubmit}>
+            <input
+              type="text"
+              value={input}
+              onChange={e => { setInput(e.target.value); setError(''); }}
+              placeholder="Your personal access code"
+              style={{ width: '100%', background: '#f8fbff', border: '1px solid #cfdff0', borderRadius: '8px', padding: '13px 16px', color: '#0f172a', fontSize: '14px', outline: 'none', boxSizing: 'border-box', fontFamily: "'DM Sans', sans-serif", marginBottom: '10px' }}
+            />
+            {error && <p style={{ color: '#b91c1c', fontSize: '12px', margin: '0 0 10px', textAlign: 'center' }}>{error}</p>}
+            <button type="submit" style={{ width: '100%', background: '#003366', color: '#ffffff', border: 'none', borderRadius: '8px', padding: '13px', cursor: 'pointer', fontWeight: 700, fontSize: '11px', letterSpacing: '2px', textTransform: 'uppercase', fontFamily: "'DM Sans', sans-serif" }}>
+              {checking ? 'Checking…' : 'Access Investor Site'}
+            </button>
+          </form>
+        </section>
+      </main>
     </div>
   );
 }
