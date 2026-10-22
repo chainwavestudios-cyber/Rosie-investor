@@ -10,7 +10,6 @@ const TIERS = ['Less than $20,000', '$20,000 - $40,000', 'More than $40,000'];
 const OPENING = 'How much credit card debt are you carrying right now?';
 const TOKEN_KEY = 'home_chat_session_token';
 const POLL_MS = 4000;
-const CHAT_BG_IMAGE = 'https://media.base44.com/images/public/69cd2741578c9b5ce655395b/2551a3672_AdobeStock_507310715.jpeg';
 
 /** Everything we hold on the visitor's file, ready for the chat card. */
 function fileFields(profile) {
@@ -209,12 +208,6 @@ export default function HomeChatWidget({ leadProfile, onLeadFound }) {
   return (
     <section id="chat" className="mx-auto w-full max-w-3xl" style={{ scrollMarginTop: '20px' }}>
       <div className="relative flex min-h-[520px] flex-col overflow-hidden rounded-3xl border border-white/10 bg-[#0b1220] shadow-[0_20px_50px_rgba(11,18,32,0.28)] md:min-h-[580px]">
-        <img
-          className="pointer-events-none absolute inset-0 z-0 h-full w-full object-cover"
-          src={CHAT_BG_IMAGE}
-          alt=""
-          aria-hidden="true"
-        />
         <div className="relative z-10 flex flex-1 flex-col">
         <header className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 bg-[#0b1220]/70 px-4 py-3.5 backdrop-blur-md sm:px-5">
           <span className="inline-flex items-center gap-3">

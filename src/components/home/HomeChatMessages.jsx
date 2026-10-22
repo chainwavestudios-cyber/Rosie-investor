@@ -66,11 +66,7 @@ export default function HomeChatMessages({ messages = [], quickReplies = [], onR
         );
       })}
 
-      {sending && (
-        <p className="w-fit rounded-full border border-white/10 bg-[#0b1220]/80 px-3 py-1.5 text-xs text-white/80 backdrop-blur-md">
-          Typing…
-        </p>
-      )}
+      {sending && <p className="text-xs text-white/70">Typing…</p>}
 
       {!sending && quickReplies.length > 0 && (
         <div className="grid grid-cols-1 gap-2 pt-1 sm:grid-cols-3">
