@@ -23,6 +23,9 @@ services:
         sync: false
       - key: ELEVENLABS_API_KEY
         sync: false
+      - key: CARTESIA_API_KEY
+        # Cartesia Sonic voice engine — set the value in the Render dashboard
+        sync: false
       - key: TTS_ENGINE
         value: "elevenlabs"
       - key: ELEVENLABS_VOICE_ID
