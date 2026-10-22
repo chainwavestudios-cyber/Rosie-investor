@@ -18,6 +18,14 @@
       "type": "string",
       "title": "Last Name (collected in the chat)"
     },
+    "email": {
+      "type": "string",
+      "title": "Email (collected in the chat)"
+    },
+    "phone": {
+      "type": "string",
+      "title": "Phone (collected in the chat)"
+    },
     "state": {
       "type": "string",
       "title": "State (collected in the chat)"
@@ -25,6 +33,18 @@
     "debtTier": {
       "type": "string",
       "title": "Debt Range (collected in the chat)"
+    },
+    "monthlyPayment": {
+      "type": "string",
+      "title": "Monthly Payment Across All Cards (ballpark figure they gave)"
+    },
+    "cardholderStatus": {
+      "type": "string",
+      "title": "Cards Held (In their name or Co-signer)"
+    },
+    "hardship": {
+      "type": "string",
+      "title": "Hardship (job loss, injury, illness, divorce, childcare)"
     },
     "status": {
       "type": "string",

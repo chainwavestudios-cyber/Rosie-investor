@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { PhoneCall } from 'lucide-react';
 
-export default function HomeChatCallForm({ onRequestCall, calling, state }) {
-  const [phone, setPhone] = useState('');
+export default function HomeChatCallForm({ onRequestCall, calling, state, defaultPhone = '' }) {
+  const [phone, setPhone] = useState(defaultPhone);
   const [consent, setConsent] = useState(false);
 
   const digits = phone.replace(/\D/g, '');

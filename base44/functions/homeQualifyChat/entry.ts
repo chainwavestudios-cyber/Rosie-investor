@@ -228,6 +228,10 @@ export default async function (req: Request): Promise<Response> {
       const lastName = String(body?.lastName || '').trim().slice(0, 60);
       const state = String(body?.state || '').trim().slice(0, 20).toUpperCase();
       const debtTier = TIERS.includes(body?.debtTier) ? body.debtTier : '';
+      const email = String(body?.email || '').trim().slice(0, 120);
+      const monthlyPayment = String(body?.monthlyPayment || '').trim().slice(0, 40);
+      const cardholderStatus = String(body?.cardholderStatus || '').trim().slice(0, 40);
+      const hardship = String(body?.hardship || '').trim().slice(0, 300);
       const notes = String(body?.notes || '').slice(0, 3000);
       const phone = normalizePhone(body?.phone);
 
@@ -252,7 +256,18 @@ export default async function (req: Request): Promise<Response> {
       }
 
       const debtAmount = debtTier ? TIER_DEBT[debtTier] : undefined;
-      const summary = `Requested a call from the website chat on ${new Date().toLocaleString('en-US', { timeZone: 'America/New_York' })} ET.\nDebt range given: ${debtTier || 'not given'}\nPhone consent given: yes\n\nChat:\n${notes}`;
+      const summary = [
+        `Requested a call from the website chat on ${new Date().toLocaleString('en-US', { timeZone: 'America/New_York' })} ET.`,
+        `Email given: ${email || 'not given'}`,
+        `Debt range given: ${debtTier || 'not given'}`,
+        `Monthly payment across all cards: ${monthlyPayment || 'not given'}`,
+        `Cards: ${cardholderStatus || 'not given'}`,
+        `Hardship: ${hardship || 'not given'}`,
+        'Phone consent given: yes',
+        '',
+        'Chat:',
+        notes,
+      ].join('\n');
 
       let lead = (existing || [])[0] || null;
       try {
@@ -260,8 +275,10 @@ export default async function (req: Request): Promise<Response> {
           lead = await service.entities.FronterLead.update(lead.id, {
             firstName: firstName || lead.firstName,
             lastName: lastName || lead.lastName,
+            email: email || lead.email,
             state: state || lead.state,
             debtAmount: debtAmount || lead.debtAmount,
+            hardshipQualification: hardship || lead.hardshipQualification,
             status: 'prospect',
             callStatus: 'web_chat_call',
             notes: summary,
@@ -276,8 +293,10 @@ export default async function (req: Request): Promise<Response> {
             firstName,
             lastName,
             phone,
+            email,
             state,
             debtAmount,
+            hardshipQualification: hardship,
             status: 'prospect',
             callStatus: 'web_chat_call',
             referralSource: 'Website chat',
@@ -512,8 +531,13 @@ export default async function (req: Request): Promise<Response> {
         status: 'human',
         firstName: prior.firstName || session.firstName || '',
         lastName: prior.lastName || session.lastName || '',
+        email: prior.email || session.email || '',
+        phone: prior.phone || session.phone || '',
         state: prior.state || session.state || '',
         debtTier: prior.debtTier || session.debtTier || '',
+        monthlyPayment: prior.monthlyPayment || session.monthlyPayment || '',
+        cardholderStatus: prior.cardholderStatus || session.cardholderStatus || '',
+        hardship: prior.hardship || session.hardship || '',
         visitorLabel: sessionLabel(prior.firstName || session.firstName, prior.lastName || session.lastName, token),
         lastMessageAt: now,
         lastPreview: message.slice(0, 140),
@@ -537,7 +561,20 @@ export default async function (req: Request): Promise<Response> {
 
 TWO JOBS
 1. Answer the visitor's questions using the knowledge base excerpts below as your primary source. If the knowledge base does not cover it, say a specialist will cover it on their call — do not invent program details.
-2. Qualify them: find out their first name, their state, and roughly how much credit card debt they have. Ask for ONE missing detail per message, conversationally.
+2. Qualify them by working through the order below, one question per message.
+
+QUALIFICATION ORDER — ask for ONE thing per message, in exactly this order. Never ask for two things in the same message, and never jump ahead.
+1. Their first and last name.
+2. Their email address.
+3. The phone number they want to be called on.
+4. The state they live in.
+5. Roughly how much credit card debt they are carrying. If they give a number, place it in the range it falls into: "Less than $20,000", "$20,000 - $40,000" or "More than $40,000".
+6. What they pay in total each month across all their cards. Tell them a ballpark figure is fine.
+7. Whether the cards are in their name or there is a co-signer on the accounts.
+8. Whether they have had a hardship, such as a loss of a job, an injury, an illness, a divorce or childcare costs.
+
+THE ELIGIBILITY LINE — once all eight are answered, say this once, close to word for word:
+"It looks like you would be eligible for a federal program that can help you reduce your overall debt load, increase your cash flow, and make sure your payments go toward reducing the principal balance."
 
 FACTS YOU MAY STATE
 - The program is for people carrying $10k to $250k of credit card debt.
@@ -553,12 +590,21 @@ NEVER
 - Never use a name for yourself. You are the Debt Solutions website assistant.
 
 MOVING TO A CALL
-Once you know their first name and their debt range and they have not said they are not interested, tell them a specialist can call them right now and set "interested" to true. If they decline, set "interested" to false and keep helping them with questions.
+Only after the eligibility line has been delivered, tell them a specialist can call them right now and set "interested" to true. Never set "interested" to true before that line. If they decline, set "interested" to false and keep helping them with questions.
+
+ALREADY ANSWERED — DO NOT ASK AGAIN
+Anything shown as known below, or already in the conversation, is answered: do not ask for it again. If a phone number or an email is already on their file, confirm it with them instead of asking from scratch. Always ask about the first item on the list you do not have yet, and if they volunteer something out of order, take it and move on.
 
 ALREADY KNOWN ABOUT THIS VISITOR
 first name: ${prior.firstName || 'unknown'}
+last name: ${prior.lastName || 'unknown'}
+email: ${prior.email || 'unknown'}
+phone: ${prior.phone || 'unknown'}
 state: ${prior.state || 'unknown'}
 debt range: ${prior.debtTier || 'unknown'}
+monthly payment: ${prior.monthlyPayment || 'unknown'}
+cards: ${prior.cardholderStatus || 'unknown'}
+hardship: ${prior.hardship || 'unknown'}
 
 KNOWLEDGE BASE EXCERPTS
 ${context || '(nothing matched this question)'}
@@ -573,9 +619,14 @@ Return JSON with:
 - quickReplies: 2-3 very short suggested replies written in the visitor's own voice, for example "Yes, more than $5,000" or "How does it work?", never containing a name, or an empty array
 - firstName: their first name if now known, otherwise empty string
 - lastName: their last name if known, otherwise empty string
+- email: their email address if they gave it, otherwise empty string
+- phone: the phone number they gave, otherwise empty string
 - state: their US state if known, otherwise empty string
 - debtTier: exactly one of "Less than $20,000", "$20,000 - $40,000", "More than $40,000" if known, otherwise empty string
-- interested: true only if they have not declined a call and you have their name and debt range`,
+- monthlyPayment: what they pay each month across all the cards, in their own words, e.g. "$450" - otherwise empty string
+- cardholderStatus: "In their name" or "Co-signer" if known, otherwise empty string
+- hardship: the hardship they described in a few words, e.g. "Lost job", otherwise empty string
+- interested: true only after the eligibility line has been delivered, and only if they have not declined a call`,
       response_json_schema: {
         type: 'object',
         properties: {
@@ -583,8 +634,13 @@ Return JSON with:
           quickReplies: { type: 'array', items: { type: 'string' } },
           firstName: { type: 'string' },
           lastName: { type: 'string' },
+          email: { type: 'string' },
+          phone: { type: 'string' },
           state: { type: 'string' },
           debtTier: { type: 'string' },
+          monthlyPayment: { type: 'string' },
+          cardholderStatus: { type: 'string' },
+          hardship: { type: 'string' },
           interested: { type: 'boolean' },
         },
       },
@@ -598,6 +654,22 @@ Return JSON with:
       const typed = String(value || '').trim().toLowerCase();
       return !!typed && message.toLowerCase().includes(typed);
     };
+    // Same protection for the details they type: a phone, an email or a figure is only
+    // recorded when it actually appears in what the visitor wrote this turn.
+    const digitsSaid = (value: any) => {
+      const tail = String(value || '').replace(/\D/g, '').slice(-10);
+      return tail.length === 10 && message.replace(/\D/g, '').includes(tail);
+    };
+    const amountSaid = (value: any) => {
+      const digits = String(value || '').replace(/\D/g, '');
+      return !!digits && message.replace(/\D/g, '').includes(digits);
+    };
+    const cardholderLabel = (value: any) => {
+      const raw = String(value || '');
+      if (/co-?\s?sign/i.test(raw)) return 'Co-signer';
+      if (/name/i.test(raw)) return 'In their name';
+      return '';
+    };
     const suggestions = (Array.isArray(data.quickReplies) ? data.quickReplies : [])
       .filter((q: any) => typeof q === 'string' && q.trim())
       .filter((q: string) => !/(my name(?:'s| is)|this is)\s+[a-z]/i.test(q))
@@ -607,6 +679,11 @@ Return JSON with:
       lastName: visitorSaid(data.lastName) ? String(data.lastName).trim() : (prior.lastName || ''),
       state: String(data.state || '').trim().toUpperCase() || prior.state || '',
       debtTier: TIERS.includes(data.debtTier) ? data.debtTier : (prior.debtTier && TIERS.includes(prior.debtTier) ? prior.debtTier : ''),
+      email: visitorSaid(data.email) ? String(data.email).trim().slice(0, 120) : (prior.email || ''),
+      phone: digitsSaid(data.phone) ? normalizePhone(data.phone) : (prior.phone || ''),
+      monthlyPayment: amountSaid(data.monthlyPayment) ? String(data.monthlyPayment).trim().slice(0, 40) : (prior.monthlyPayment || ''),
+      cardholderStatus: cardholderLabel(data.cardholderStatus) || prior.cardholderStatus || '',
+      hardship: String(data.hardship || '').trim().slice(0, 200) || prior.hardship || '',
     };
     if (data.interested === false) collected.interested = false;
     else if (data.interested === true) collected.interested = true;
@@ -620,8 +697,13 @@ Return JSON with:
       status: 'bot',
       firstName: collected.firstName || '',
       lastName: collected.lastName || '',
+      email: collected.email || '',
+      phone: collected.phone || '',
       state: collected.state || '',
       debtTier: collected.debtTier || '',
+      monthlyPayment: collected.monthlyPayment || '',
+      cardholderStatus: collected.cardholderStatus || '',
+      hardship: collected.hardship || '',
       visitorLabel: sessionLabel(collected.firstName, collected.lastName, token),
       lastMessageAt: new Date().toISOString(),
       lastPreview: replyText.slice(0, 140),

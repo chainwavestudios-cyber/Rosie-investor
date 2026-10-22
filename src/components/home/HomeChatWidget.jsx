@@ -6,8 +6,7 @@ import HomeChatComposer from '@/components/home/HomeChatComposer';
 import HomeChatCallForm from '@/components/home/HomeChatCallForm';
 import MailerIdSearch from '@/components/home/MailerIdSearch';
 
-const TIERS = ['Less than $20,000', '$20,000 - $40,000', 'More than $40,000'];
-const OPENING = 'How much credit card debt are you carrying right now?';
+const OPENING = "Let's see what you may qualify for. First, what is your first and last name?";
 const TOKEN_KEY = 'home_chat_session_token';
 const POLL_MS = 4000;
 
@@ -40,7 +39,7 @@ function visitorToken() {
 
 export default function HomeChatWidget({ leadProfile, onLeadFound }) {
   const [messages, setMessages] = useState([{ role: 'assistant', text: OPENING }]);
-  const [quickReplies, setQuickReplies] = useState(TIERS);
+  const [quickReplies, setQuickReplies] = useState([]);
   const [collected, setCollected] = useState({});
   const [readyForCall, setReadyForCall] = useState(false);
   const [sending, setSending] = useState(false);
@@ -173,8 +172,13 @@ export default function HomeChatWidget({ leadProfile, onLeadFound }) {
         consent,
         firstName: collected.firstName || '',
         lastName: collected.lastName || '',
+        email: collected.email || '',
+        phone: collected.phone || '',
         state: collected.state || '',
         debtTier: collected.debtTier || '',
+        monthlyPayment: collected.monthlyPayment || '',
+        cardholderStatus: collected.cardholderStatus || '',
+        hardship: collected.hardship || '',
         notes: messages.map((m) => `${m.role === 'user' ? 'Visitor' : 'Assistant'}: ${m.text}`).join('\n'),
       });
       const data = response?.data || {};
@@ -243,7 +247,12 @@ export default function HomeChatWidget({ leadProfile, onLeadFound }) {
         <HomeChatMessages messages={messages} quickReplies={quickReplies} onReply={send} sending={sending} />
 
         {readyForCall && callState.status !== 'placed' && (
-          <HomeChatCallForm onRequestCall={requestCall} calling={callState.status === 'calling'} state={callState} />
+          <HomeChatCallForm
+            onRequestCall={requestCall}
+            calling={callState.status === 'calling'}
+            state={callState}
+            defaultPhone={collected.phone || ''}
+          />
         )}
 
         {!readyForCall && callState.status === 'error' && (
