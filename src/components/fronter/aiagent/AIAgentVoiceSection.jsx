@@ -25,6 +25,9 @@ export default function AIAgentVoiceSection({ config, update }) {
 
   const elevenLabsValue = config.elevenLabsVoiceId || config.ttsVoiceModel || '';
   const deepgramValue = config.deepgramTtsVoice || config.ttsVoiceModel || '';
+  // Flux voices live on /v2/speak and are rejected by the Aura endpoint, so the
+  // preset list has to follow the selected engine.
+  const deepgramPresets = catalog?.voices?.[config.ttsEngine === 'flux' ? 'flux' : 'deepgram-aura'];
 
   return (
     <div className="dark grid grid-cols-1 gap-4 text-foreground sm:grid-cols-2">
@@ -57,7 +60,7 @@ export default function AIAgentVoiceSection({ config, update }) {
         </>
       ) : (
         <>
-          <AIAgentPipelineField label="Deepgram Voice Presets" field="deepgramTtsVoice" value={deepgramValue} options={catalog?.voices['deepgram-aura']} update={(_f, v) => selectDeepgramVoice(v)} />
+          <AIAgentPipelineField label="Deepgram Voice Presets" field="deepgramTtsVoice" value={deepgramValue} options={deepgramPresets} update={(_f, v) => selectDeepgramVoice(v)} />
           <label className="block min-w-0 text-xs text-muted-foreground">Exact Deepgram Voice ID
             <input aria-label="Exact Deepgram Voice ID" className="mt-1 w-full rounded border border-input bg-background p-2 text-sm text-foreground" value={deepgramValue} onChange={event => selectDeepgramVoice(event.target.value.trim())} />
           </label>

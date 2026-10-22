@@ -321,7 +321,9 @@ async function handleStreamStart(ws, streamSid, start) {
       armSpeakingWatchdog(session, streamSid);
       const ttsEngine = session.config.ttsEngine || TTS_ENGINE;
       let ok = false;
-      if (ttsEngine === 'deepgram-aura' && DEEPGRAM_API_KEY) {
+      if (ttsEngine === 'flux' && DEEPGRAM_API_KEY) {
+        ok = await streamFluxTTS(initResp.greeting, streamSid, session, gen);
+      } else if (ttsEngine === 'deepgram-aura' && DEEPGRAM_API_KEY) {
         ok = await streamDeepgramTTS(initResp.greeting, streamSid, session, gen);
       }
       if (!ok) {
@@ -570,7 +572,9 @@ async function handleUtterance(streamSid, transcript) {
       armSpeakingWatchdog(session, streamSid);
       const ttsEngine = session.config.ttsEngine || TTS_ENGINE;
       let ok = false;
-      if (ttsEngine === 'deepgram-aura' && DEEPGRAM_API_KEY) {
+      if (ttsEngine === 'flux' && DEEPGRAM_API_KEY) {
+        ok = await streamFluxTTS(text, streamSid, session, gen);
+      } else if (ttsEngine === 'deepgram-aura' && DEEPGRAM_API_KEY) {
         ok = await streamDeepgramTTS(text, streamSid, session, gen);
       }
       if (!ok) {
@@ -588,6 +592,72 @@ async function handleUtterance(streamSid, transcript) {
     log('utterance handling failed', e?.message);
     session.state = 'listening';
   }
+}
+
+// ── Streaming TTS via Deepgram Flux /v2/speak (turn-based, cross-turn voice consistency) ──
+async function streamFluxTTS(text, streamSid, session, generation) {
+  const voice = session.config.fluxVoiceId || session.config.deepgramTtsVoice || session.config.ttsVoiceModel || 'flux-alexis-en';
+  const startedAt = Date.now();
+  session.tts = { engine: 'flux', model: voice, voice, state: 'streaming', ms: 0, at: new Date().toISOString() };
+
+  return new Promise((resolve) => {
+    let played = false;
+    let markSent = false;
+    let chunkCount = 0;
+    let resolved = false;
+    const params = new URLSearchParams({ model: voice, encoding: 'mulaw', sample_rate: '8000' });
+    const ws = new WebSocket(`wss://api.deepgram.com/v2/speak?${params}`, {
+      headers: { Authorization: `Token ${DEEPGRAM_API_KEY}` },
+    });
+
+    const finish = (result) => {
+      if (resolved) return;
+      resolved = true;
+      session.tts.ms = Date.now() - startedAt;
+      session.tts.state = result;
+      resolve(result === 'accepted');
+    };
+
+    // Always send the mark when audio was played, even if SpeechMetadata never
+    // arrives (timeout/error) — otherwise the speaking state sticks and the AI
+    // goes deaf to the caller's response.
+    const ensureMark = () => {
+      if (markSent || !played || generation !== session.generation) return;
+      markSent = true;
+      sendToTwilio(session.ws, { event: 'mark', streamSid, mark: { name: `gen-${generation}` } });
+    };
+
+    ws.on('open', () => {
+      ws.send(JSON.stringify({ type: 'Speak', text }));
+      ws.send(JSON.stringify({ type: 'Flush' }));
+    });
+
+    ws.on('message', (data, isBinary) => {
+      if (isBinary) {
+        if (generation !== session.generation) { try { ws.send(JSON.stringify({ type: 'Interrupt' })); } catch {} ws.close(); finish('interrupted'); return; }
+        const chunk = data.toString('base64');
+        if (chunk.length > 0) {
+          chunkCount++;
+          if (!played) { sendToTwilio(session.ws, { event: 'clear', streamSid }); played = true; }
+          sendToTwilio(session.ws, { event: 'media', streamSid, media: { payload: chunk } });
+          session.recordingBuffer.push(chunk);
+        }
+      } else {
+        try {
+          const msg = JSON.parse(data.toString());
+          if (msg.type === 'SpeechMetadata') {
+            ensureMark();
+            ws.close();
+            finish(chunkCount > 0 ? 'accepted' : 'empty');
+          }
+        } catch {}
+      }
+    });
+
+    ws.on('close', () => { ensureMark(); finish(chunkCount > 0 ? 'accepted' : 'empty'); });
+    ws.on('error', (e) => { log('[streamFluxTTS] error:', e?.message); ensureMark(); finish('error'); });
+    setTimeout(() => { if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) ws.close(); }, 8000);
+  });
 }
 
 // ── Streaming TTS via Deepgram WebSocket (plays audio chunks as they arrive) ──
@@ -661,6 +731,9 @@ async function generateTTS(text, config = {}, session = null) {
   const engine = config.ttsEngine || TTS_ENGINE;
   const elevenLabsVoiceId = config.elevenLabsVoiceId || (engine === 'elevenlabs' ? config.ttsVoiceModel : '') || ELEVENLABS_VOICE_ID;
   const deepgramVoice = config.deepgramTtsVoice || (engine === 'deepgram-aura' ? config.ttsVoiceModel : '') || DEEPGRAM_TTS_VOICE;
+  // /v1/speak rejects Flux model strings, so a Flux selection must batch through
+  // an Aura voice — otherwise a failed Flux stream leaves the agent silent.
+  const batchVoice = engine === 'flux' ? DEEPGRAM_TTS_VOICE : deepgramVoice;
   const synthesisModel = config.ttsSynthesisModel || 'eleven_flash_v2_5';
   const startedAt = Date.now();
   let fallback = null;
@@ -719,7 +792,7 @@ async function generateTTS(text, config = {}, session = null) {
   if (DEEPGRAM_API_KEY) {
     try {
       const res = await fetch(
-        `https://api.deepgram.com/v1/speak?model=${encodeURIComponent(deepgramVoice)}&encoding=mulaw&sample_rate=8000&container=none`,
+        `https://api.deepgram.com/v1/speak?model=${encodeURIComponent(batchVoice)}&encoding=mulaw&sample_rate=8000&container=none`,
         {
           method: 'POST',
           headers: { 'Authorization': `Token ${DEEPGRAM_API_KEY}`, 'Content-Type': 'application/json', 'Accept': 'audio/*' },
@@ -731,7 +804,7 @@ async function generateTTS(text, config = {}, session = null) {
         const audio = Buffer.from(await res.arrayBuffer());
         if (audio.length > 0) {
           log('deepgram TTS success; bytes', audio.length);
-          record('deepgram-aura', deepgramVoice, deepgramVoice, 'accepted');
+          record('deepgram-aura', batchVoice, batchVoice, 'accepted');
           return audio.toString('base64');
         }
         log('deepgram TTS returned empty audio');
