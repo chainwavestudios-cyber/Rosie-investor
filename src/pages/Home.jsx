@@ -2,7 +2,6 @@ import { useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
 import { base44 } from '@/api/base44Client';
 import HomeHeader from '@/components/home/HomeHeader';
-import HomeHero from '@/components/home/HomeHero';
 import HomeChatWidget from '@/components/home/HomeChatWidget';
 import HomeLeadConfirm from '@/components/home/HomeLeadConfirm';
 import StephaniAccessPopup from '@/components/home/StephaniAccessPopup';
@@ -101,17 +100,15 @@ export default function Home() {
     <div style={{ minHeight: '100vh', background: '#f0f7ff', fontFamily: "'DM Sans', sans-serif" }}>
       <HomeHeader />
 
-      <HomeHero />
-
-      <main style={{ width: '100%', maxWidth: '960px', margin: '0 auto', padding: '32px 16px 64px', boxSizing: 'border-box' }}>
+      <main style={{ width: '100%', maxWidth: '1120px', margin: '0 auto', padding: '40px 16px 64px', boxSizing: 'border-box' }}>
         {leadProfile && <HomeLeadConfirm profile={leadProfile} />}
 
-        <div className="mt-10">
-          <HomeChatWidget leadProfile={leadProfile} onLeadFound={setLeadProfile} />
-        </div>
-
-        <div className="mt-12 flex justify-center">
+        <div className="mt-8 flex w-full flex-col gap-10 md:flex-row md:items-center md:gap-9">
           <HomeTrust />
+
+          <div className="w-full md:min-w-0 md:flex-1">
+            <HomeChatWidget leadProfile={leadProfile} onLeadFound={setLeadProfile} />
+          </div>
         </div>
 
         <StephaniAccessPopup />

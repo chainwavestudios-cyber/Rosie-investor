@@ -1,5 +1,5 @@
 import React from 'react';
-import { Award, Check, ShieldCheck } from 'lucide-react';
+import { Check } from 'lucide-react';
 
 const BENEFITS = [
   "Zero Up front fees, we don't get paid until clients approve settlements, and accounts are paid off",
@@ -9,14 +9,9 @@ const BENEFITS = [
   'Average enrollment graduates in 12-36 months',
 ];
 
-const BADGES = [
-  { icon: ShieldCheck, title: 'BBB Accredited Business', subtitle: 'A+ Rating' },
-  { icon: Award, title: '2025 Torch Ethics Award', subtitle: 'Runner-Up' },
-];
-
 export default function HomeTrust() {
   return (
-    <section style={{ maxWidth: '520px', margin: 0 }}>
+    <section className="w-full md:w-[330px] md:flex-none">
       <h2 style={{ color: '#003366', fontSize: '22px', fontWeight: 700, margin: '0 0 18px', fontFamily: "'DM Sans', sans-serif" }}>
         Why Choose Debt Solutions?
       </h2>
@@ -30,26 +25,6 @@ export default function HomeTrust() {
           </li>
         ))}
       </ul>
-
-      <div style={{ marginTop: '26px', display: 'flex', flexWrap: 'wrap', gap: '12px' }}>
-        {BADGES.map((badge) => {
-          const Icon = badge.icon;
-          return (
-            <div
-              key={badge.title}
-              style={{ display: 'flex', alignItems: 'center', gap: '10px', background: '#ffffff', border: '1px solid #d7e6f5', borderRadius: '12px', padding: '12px 16px', textAlign: 'left' }}
-            >
-              <Icon size={22} color="#003366" />
-              <span>
-                <span style={{ display: 'block', color: '#003366', fontSize: '13px', fontWeight: 700 }}>{badge.title}</span>
-                <span style={{ display: 'block', color: '#64748b', fontSize: '12px' }}>{badge.subtitle}</span>
-              </span>
-            </div>
-          );
-        })}
-      </div>
-
-      <p style={{ color: '#7c8798', fontSize: '12px', margin: '18px 0 0' }}>Individual results may vary.</p>
     </section>
   );
 }

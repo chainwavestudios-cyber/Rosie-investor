@@ -206,8 +206,8 @@ export default function HomeChatWidget({ leadProfile, onLeadFound }) {
   ].filter(Boolean);
 
   return (
-    <section id="chat" className="mx-auto w-full max-w-3xl" style={{ scrollMarginTop: '20px' }}>
-      <div className="relative flex min-h-[520px] flex-col overflow-hidden rounded-3xl border border-white/10 bg-[#0b1220] shadow-[0_20px_50px_rgba(11,18,32,0.28)] md:min-h-[580px]">
+    <section id="chat" className="mx-auto w-full max-w-[614px]" style={{ scrollMarginTop: '20px' }}>
+      <div className="relative flex min-h-[260px] flex-col overflow-hidden rounded-3xl border border-white/10 bg-[#0b1220] shadow-[0_20px_50px_rgba(11,18,32,0.28)] md:min-h-[290px]">
         <div className="relative z-10 flex flex-1 flex-col">
         <header className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 bg-[#0b1220]/70 px-4 py-3.5 backdrop-blur-md sm:px-5">
           <span className="inline-flex items-center gap-3">
