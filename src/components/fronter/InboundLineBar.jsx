@@ -16,7 +16,8 @@ const RED = '#ef4444';
 const AMBER = '#f59e0b';
 
 export default function InboundLineBar({ username, lineNumber = '+18662908994' }) {
-  const [status, setStatus] = useState('idle'); // idle | connected
+  const [status, setStatus] = useState('idle'); // idle | ringing | connected
+  const [from, setFrom] = useState('');
   const [duration, setDuration] = useState(0);
   const [muted, setMuted] = useState(false);
   const [error, setError] = useState('');
@@ -38,6 +39,7 @@ export default function InboundLineBar({ username, lineNumber = '+18662908994' }
       stopTimer();
       callRef.current = null;
       setStatus('idle');
+      setFrom('');
       setDuration(0);
       setMuted(false);
     };
@@ -51,6 +53,7 @@ export default function InboundLineBar({ username, lineNumber = '+18662908994' }
       });
       call.on('disconnect', endCall);
       call.on('cancel', endCall);
+      call.on('reject', endCall);
       call.on('error', (e) => {
         // 31000 fires when a call already ended — not actionable
         const stale = e?.code === 31000 || /31000|no longer valid/i.test(e?.message || '');
@@ -68,7 +71,8 @@ export default function InboundLineBar({ username, lineNumber = '+18662908994' }
         device.on('incoming', (call) => {
           if (callRef.current) { try { call.reject(); } catch {} return; }
           callRef.current = call;
-          call.accept();
+          setFrom(call.parameters?.From || '');
+          setStatus('ringing');
           wire(call);
         });
         device.on('error', (e) => setError(e?.message || 'Dialer error'));
@@ -90,6 +94,7 @@ export default function InboundLineBar({ username, lineNumber = '+18662908994' }
 
   const fmt = (s) => `${Math.floor(s / 60).toString().padStart(2, '0')}:${(s % 60).toString().padStart(2, '0')}`;
   const active = status === 'connected';
+  const ringing = status === 'ringing';
   const tone = active ? GOLD : AMBER;
 
   const toggleMute = () => {
@@ -110,13 +115,29 @@ export default function InboundLineBar({ username, lineNumber = '+18662908994' }
     setMuted(false);
   };
 
+  const answer = () => {
+    try { callRef.current?.accept(); } catch {}
+  };
+
+  const decline = () => {
+    try { callRef.current?.reject(); } catch {}
+  };
+
   return (
     <div style={{ padding: '8px 24px', borderBottom: '1px solid rgba(255,255,255,0.07)', background: 'rgba(0,0,0,0.25)', display: 'flex', alignItems: 'center', gap: '14px', flexWrap: 'wrap', fontFamily: 'Georgia, serif' }}>
       <span style={{ width: 8, height: 8, borderRadius: '50%', background: active ? tone : GOLD, animation: active ? 'pulse 1s infinite' : 'none' }} />
-      <span style={{ color: active ? tone : '#8a9ab8', fontSize: '11px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase' }}>
-        {active ? 'In call' : 'Inbound line ready'}
+      <span style={{ color: active ? tone : ringing ? AMBER : '#8a9ab8', fontSize: '11px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase' }}>
+        {active ? 'In call' : ringing ? 'Incoming call' : 'Inbound line ready'}
       </span>
-      <span style={{ color: '#8a9ab8', fontSize: '12px' }}>{lineNumber}</span>
+      <span style={{ color: ringing ? AMBER : '#8a9ab8', fontSize: '12px' }}>
+        {ringing && from ? `from ${from}` : lineNumber}
+      </span>
+      {ringing && (
+        <>
+          <button onClick={answer} style={btn(GOLD, true)}>📞 Answer</button>
+          <button onClick={decline} style={btn(RED, false)}>✖ Decline</button>
+        </>
+      )}
       {active && (
         <span style={{ color: tone, fontSize: '13px', fontFamily: 'monospace', fontWeight: 'bold' }}>{fmt(duration)}</span>
       )}

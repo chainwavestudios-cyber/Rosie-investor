@@ -15,6 +15,7 @@ import WebChatBoard from '@/components/superadmin/WebChatBoard';
 import MarketingTab from '@/components/marketing/MarketingTab';
 import FronterMonitorPanel from '@/components/fronter/FronterMonitorPanel';
 import PortalNavButtons from '@/components/shared/PortalNavButtons';
+import FloatingInboundPhone from '@/components/superadmin/FloatingInboundPhone';
 import { C } from '@/components/superadmin/kit';
 
 const TABS = [
@@ -120,6 +121,8 @@ export default function SuperAdminPortal() {
           </div>
         </div>
       )}
+
+      <FloatingInboundPhone username={user?.username} />
     </div>
   );
 }

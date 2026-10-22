@@ -628,7 +628,54 @@ export default async function(req) {
       // admin master) → connect Adam AI agent Media Stream.
       const configs = await base44.entities.AIAgentConfig.filter({ configName: 'default' });
       const aiConfig = configs?.[0];
-      if (aiConfig?.isActive && !ringFronterDialer) {
+
+      // ── First ring: the super admin's own phone ─────────────────────────
+      // A call to a fronter-direct line rings the admin's browser handset and
+      // keeps the caller on ringback for two rings. If nobody answers, the Dial
+      // action re-enters this handler in takeover mode and the AI agent answers
+      // on the third ring.
+      const aiTakeover = params.get('Mode') === 'inboundAiTakeover';
+      if (aiConfig?.isActive && ringFronterDialer && !aiTakeover) {
+        let firstRingIds: string[] = [];
+        try {
+          const assignments = await base44.entities.FronterLineAssignment.filter({ twilioNumber: calledNumber });
+          const assignment = assignments?.items?.[0] || assignments?.[0];
+          if (assignment?.username) {
+            firstRingIds = [assignment.username];
+          } else {
+            const admins = await base44.entities.DebtCoachUser.filter({ role: 'super_admin', isActive: true });
+            firstRingIds = (admins || []).map((a: any) => `${a.username}_inbound`);
+          }
+        } catch (e) { console.warn('[dialerVoiceHandler] First-ring lookup failed:', e?.message); }
+        firstRingIds = [...new Set(firstRingIds
+          .filter(Boolean)
+          .map((u: string) => u.replace(/[^a-zA-Z0-9_]/g, '_')))].slice(0, 10);
+
+        if (firstRingIds.length) {
+          const takeoverUrl =
+            `${req.headers.get('X-Base44-App-Url') || 'https://rosieai-investorpage.base44.app'}` +
+            `/functions/dialerVoiceHandler?Mode=inboundAiTakeover`;
+          const ringStatusUrl = `${vmWebhookBase}?statusCb=true&StatusCallbackEvent=initiated+ringing+answered+completed`;
+          const ringNouns = firstRingIds
+            .map((id: string) => `<Client statusCallback="${xmlEscape(ringStatusUrl)}" statusCallbackMethod="POST"
+      statusCallbackEvent="initiated ringing answered completed">${xmlEscape(id)}</Client>`)
+            .join('\n    ');
+          const ringTwiml = `<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Dial timeout="12" answerOnBridge="true" action="${xmlEscape(takeoverUrl)}" method="POST">
+    ${ringNouns}
+  </Dial>
+</Response>`;
+          console.log('[dialerVoiceHandler] → Mode 4 Inbound → super-admin first ring:', firstRingIds.join(', '), '— AI agent takes the call on the third ring');
+          return new Response(ringTwiml, { headers: { 'Content-Type': 'text/xml' } });
+        }
+      }
+
+      // If the AI agent is active, route ALL inbound calls through the greeting
+      // pipeline (Prompt 1-2): lead lookup → dynamic audio clips (name + regional +
+      // admin master) → connect Adam AI agent Media Stream. Takeover mode is the
+      // third-ring fallback after the admin's phone rang twice.
+      if (aiConfig?.isActive && (!ringFronterDialer || aiTakeover)) {
         let streamUrl = '';
         let streamToken = '';
         try {
@@ -700,7 +747,7 @@ export default async function(req) {
           // caller on ringback while this response is pending, so it is held for the
           // two rings — never longer, whatever the greeting work above already took
           // counts toward them.
-          const ringRemaining = INBOUND_RING_DELAY_MS - (Date.now() - ringStartedAt);
+          const ringRemaining = aiTakeover ? 0 : INBOUND_RING_DELAY_MS - (Date.now() - ringStartedAt);
           if (ringRemaining > 0) {
             await new Promise(r => setTimeout(r, ringRemaining));
           }
