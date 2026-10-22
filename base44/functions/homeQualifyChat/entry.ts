@@ -805,9 +805,14 @@ ${history.map((h: any) => `${h.role === 'user' ? 'Visitor' : 'Assistant'}: ${h.c
 
 VISITOR JUST SAID: ${message}
 
+WHAT YOU SAY, AND WHICH QUESTION IS ASKED
+- answer: what you say back to the visitor — your reply to their question, the eligibility line, or the call offer. Never write a qualification question here: every qualification question is asked by the portal, word for word, in the order above.
+- askField: the field key of the qualification question this message asks, or an empty string when it asks none. Ask at most one per message.
+
 Return JSON with:
-- reply: your next message to the visitor
-- quickReplies: 2-3 very short suggested replies written in the visitor's own voice, for example "Yes, more than $5,000" or "How does it work?", never containing a name, or an empty array
+- answer: your own wording, or an empty string when you have nothing to add
+- askField: one field key from the order above, or an empty string
+- quickReplies: only when this message asks how much debt they are carrying, the range labels above; otherwise an empty array
 - firstName: their first name if now known, otherwise empty string
 - lastName: their last name if known, otherwise empty string
 - email: their email address if they gave it, otherwise empty string
@@ -821,7 +826,8 @@ Return JSON with:
       response_json_schema: {
         type: 'object',
         properties: {
-          reply: { type: 'string' },
+          answer: { type: 'string' },
+          askField: { type: 'string' },
           quickReplies: { type: 'array', items: { type: 'string' } },
           firstName: { type: 'string' },
           lastName: { type: 'string' },
@@ -861,9 +867,10 @@ Return JSON with:
       if (/name/i.test(raw)) return 'In their name';
       return '';
     };
+    // A suggestion is only ever one of the debt ranges the portal offers — the bot never
+    // writes a line for the visitor to click.
     const suggestions = (Array.isArray(data.quickReplies) ? data.quickReplies : [])
-      .filter((q: any) => typeof q === 'string' && q.trim())
-      .filter((q: string) => !/(my name(?:'s| is)|this is)\s+[a-z]/i.test(q))
+      .filter((q: any) => typeof q === 'string' && cfg.tiers.includes(q.trim()))
       .slice(0, 3);
     const collected: Record<string, any> = {
       firstName: visitorSaid(data.firstName) ? String(data.firstName).trim() : (prior.firstName || ''),
@@ -882,7 +889,19 @@ Return JSON with:
 
     const hasField = (field: string) => (field === 'name' ? !!collected.firstName : !!String(collected[field] || '').trim());
     const readyForCall = cfg.readyFields.every(hasField) && collected.interested !== false;
-    const replyText = String(data.reply || 'Could you tell me that again?');
+    // Every qualification question is the portal's own wording, asked exactly as the portal
+    // wrote it — so any question sentence the bot wrote itself is dropped rather than repeated.
+    const askedQuestion = cfg.questions.find((question: any) => question.field === String(data.askField || '').trim());
+    const wording = askedQuestion ? askedQuestion.question : '';
+    const spoken = String(data.answer || data.reply || '').trim();
+    const spokenOnly = wording
+      ? spoken
+          .split(/(?<=[.!?])\s+/)
+          .filter((sentence: string) => !!sentence.trim() && !sentence.trim().endsWith('?'))
+          .join(' ')
+          .trim()
+      : spoken;
+    const replyText = [spokenOnly, wording].filter(Boolean).join(' ').trim() || 'Could you tell me that again?';
 
     await addMessage(service, token, 'assistant', replyText);
     await service.entities.HomeChatSession.update(session.id, {
