@@ -6,15 +6,24 @@ import HomeChatWidget from '@/components/home/HomeChatWidget';
 import HomeLeadConfirm from '@/components/home/HomeLeadConfirm';
 import StephaniAccessPopup from '@/components/home/StephaniAccessPopup';
 import HomeTrust from '@/components/home/HomeTrust';
+import HomeNews from '@/components/home/HomeNews';
 
 const APP_BASE_URL = window.location.origin;
 
 const SESSION_KEY = "home_access_granted";
 const SESSION_USER_KEY = "home_access_user";
 
+// A link from an email carries a token (mailer / notice / contact card id) — the video
+// session is only offered to a visitor who arrived on one of those links.
+const TOKEN_KEYS = ['lead', 'leadId', 'lid', 'id', 'notice', 'noticeId', 'code', 'c', 'ref'];
+
 export default function Home() {
   const navigate = useNavigate();
   const [unlocked] = useState(() => sessionStorage.getItem(SESSION_KEY) === 'true');
+  const [hasToken] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    return TOKEN_KEYS.some((key) => params.get(key));
+  });
   const [leadProfile, setLeadProfile] = useState(null);
 
   // If already unlocked, go straight to investor page
@@ -111,7 +120,9 @@ export default function Home() {
           </div>
         </div>
 
-        <StephaniAccessPopup />
+        <StephaniAccessPopup hasToken={hasToken || !!leadProfile} />
+
+        <HomeNews />
 
       </main>
     </div>

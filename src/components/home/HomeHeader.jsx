@@ -1,27 +1,33 @@
 import React from 'react';
-import { PhoneCall } from 'lucide-react';
+
+const COMPANY = {
+  name: 'Debt Solutions Inc',
+  street: '325 North St. Paul Street',
+  cityLine: 'Dallas, TX 7501',
+  phone: '(866) 290-8994',
+  phoneHref: 'tel:+18662908994',
+};
 
 export default function HomeHeader() {
-  const goToQuestion = () => {
-    document.getElementById('chat')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  };
-
   return (
-    <header style={{ background: '#003366', padding: '18px 20px 28px' }}>
-      <div style={{ maxWidth: '960px', margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px', flexWrap: 'wrap' }}>
+    <header style={{ background: '#003366', padding: '18px 20px 22px' }}>
+      <div style={{ maxWidth: '960px', margin: '0 auto', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '16px', flexWrap: 'wrap' }}>
         <span style={{ color: '#ffffff', fontFamily: "'Playfair Display', serif", fontSize: '24px', fontWeight: 700 }}>
           Debt Solutions
         </span>
-        <button
-          type="button"
-          onClick={goToQuestion}
-          style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', background: 'transparent', border: '1px solid rgba(255,255,255,0.6)', color: '#ffffff', borderRadius: '999px', padding: '10px 18px', fontSize: '13px', fontWeight: 600, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}
-        >
-          <PhoneCall size={15} />
-          Talk to a Specialist
-        </button>
-      </div>
 
+        <address
+          className="text-left sm:text-right"
+          style={{ fontStyle: 'normal', color: 'rgba(255,255,255,0.85)', fontFamily: "'DM Sans', sans-serif", fontSize: '12.5px', lineHeight: 1.6 }}
+        >
+          <span style={{ display: 'block', color: '#ffffff', fontWeight: 700, fontSize: '13.5px' }}>{COMPANY.name}</span>
+          <span style={{ display: 'block' }}>{COMPANY.street}</span>
+          <span style={{ display: 'block' }}>{COMPANY.cityLine}</span>
+          <a href={COMPANY.phoneHref} style={{ display: 'block', color: '#7ec8f0', fontWeight: 600, textDecoration: 'none' }}>
+            {COMPANY.phone}
+          </a>
+        </address>
+      </div>
     </header>
   );
 }
