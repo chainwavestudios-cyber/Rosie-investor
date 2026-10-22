@@ -47,18 +47,24 @@
       "enum": [
         "deepgram-aura",
         "flux",
-        "elevenlabs"
+        "elevenlabs",
+        "cartesia"
       ],
       "default": "deepgram-aura"
     },
     "ttsVoiceModel": {
       "type": "string",
-      "title": "TTS Voice Model / Voice ID (legacy fallback \u2014 use elevenLabsVoiceId or deepgramTtsVoice)",
+      "title": "TTS Voice Model / Voice ID (legacy fallback \u2014 use elevenLabsVoiceId, cartesiaVoiceId or deepgramTtsVoice)",
       "default": "aura-2-thalia-en"
     },
     "elevenLabsVoiceId": {
       "type": "string",
       "title": "ElevenLabs Voice ID (separate from Deepgram voice)"
+    },
+    "cartesiaVoiceId": {
+      "type": "string",
+      "title": "Cartesia Voice ID (Sonic voice from your Cartesia voice library \u2014 the bridge needs CARTESIA_API_KEY)",
+      "default": "7b3c5c22-9561-425b-8e7a-63dbf1262e35"
     },
     "inboundIntroVoiceId": {
       "type": "string",

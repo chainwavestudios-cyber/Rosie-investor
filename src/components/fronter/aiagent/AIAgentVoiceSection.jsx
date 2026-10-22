@@ -25,6 +25,9 @@ export default function AIAgentVoiceSection({ config, update }) {
 
   const elevenLabsValue = config.elevenLabsVoiceId || config.ttsVoiceModel || '';
   const deepgramValue = config.deepgramTtsVoice || config.ttsVoiceModel || '';
+  const cartesiaValue = config.cartesiaVoiceId || '';
+
+  const selectCartesiaVoice = (voiceId) => update('cartesiaVoiceId', voiceId);
   // Flux voices live on /v2/speak and are rejected by the Aura endpoint, so the
   // preset list has to follow the selected engine.
   const deepgramPresets = catalog?.voices?.[config.ttsEngine === 'flux' ? 'flux' : 'deepgram-aura'];
@@ -57,6 +60,13 @@ export default function AIAgentVoiceSection({ config, update }) {
           <label className="block min-w-0 text-xs text-muted-foreground">Exact ElevenLabs Voice ID (custom voices supported)
             <input aria-label="Exact ElevenLabs Voice ID" className="mt-1 w-full rounded border border-input bg-background p-2 text-sm text-foreground" value={elevenLabsValue} onChange={event => selectElevenLabsVoice(event.target.value.trim())} />
           </label>
+        </>
+      ) : config.ttsEngine === 'cartesia' ? (
+        <>
+          <label className="block min-w-0 text-xs text-muted-foreground">Cartesia Voice ID (from your Cartesia voice library)
+            <input aria-label="Cartesia Voice ID" className="mt-1 w-full rounded border border-input bg-background p-2 text-sm text-foreground" value={cartesiaValue} onChange={event => selectCartesiaVoice(event.target.value.trim())} placeholder="7b3c5c22-9561-425b-8e7a-63dbf1262e35" />
+          </label>
+          <p className="min-w-0 text-xs text-muted-foreground">Sonic streams µ-law at 8kHz, so it drops straight into the same call audio. The bridge needs CARTESIA_API_KEY in its environment; without it a Cartesia selection falls back to the other providers.</p>
         </>
       ) : (
         <>

@@ -11,7 +11,7 @@
  * Inter-service protocol (versioned):
  *   Bridge → Relay events (POST to APP_WEBHOOK_URL):
  *     { event: "init", streamSid, callSid, leadId }
- *       → { greeting, ttsEngine, ttsVoiceModel, llmModel, leadId, leadFirstName, leadLastName }
+ *       → { greeting, ttsEngine, ttsVoiceModel, cartesiaVoiceId, llmModel, leadId, leadFirstName, leadLastName }
  *     { event: "turn", streamSid, callSid, transcript, conversation, leadId }
  *       → { action: "speak"|"transfer"|"end_call", text, disposition }
  *     { event: "transfer", streamSid, callSid, conversation, leadId }
@@ -33,7 +33,7 @@
  *   PLAY_AUTH_TOKEN (required in production, authenticates /play),
  *   DEEPGRAM_API_KEY (required for streaming STT + TTS fallback),
  *   ELEVENLABS_API_KEY (optional, for TTS),
- *   TTS_ENGINE (elevenlabs|deepgram-aura, default elevenlabs),
+ *   TTS_ENGINE (elevenlabs|deepgram-aura|flux|cartesia, default elevenlabs),
  *   ELEVENLABS_VOICE_ID, DEEPGRAM_TTS_VOICE, DEEPGRAM_STT_MODEL,
  *   PING_INTERVAL_MS, LOG_LEVEL, NODE_ENV, HTTP_TIMEOUT_MS
  */
@@ -53,6 +53,11 @@ const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY || '';
 const TTS_ENGINE = process.env.TTS_ENGINE || 'elevenlabs';
 const ELEVENLABS_VOICE_ID = process.env.ELEVENLABS_VOICE_ID || '1SM7GgM6IMuvQlz2BwM3';
 const DEEPGRAM_TTS_VOICE = process.env.DEEPGRAM_TTS_VOICE || 'aura-2-thalia-en';
+const CARTESIA_API_KEY = process.env.CARTESIA_API_KEY || '';
+const CARTESIA_VOICE_ID = process.env.CARTESIA_VOICE_ID || '7b3c5c22-9561-425b-8e7a-63dbf1262e35';
+const CARTESIA_MODEL = process.env.CARTESIA_MODEL || 'sonic-3.6';
+// Cartesia asks each request to carry the date the integration was tested.
+const CARTESIA_VERSION = process.env.CARTESIA_VERSION || '2026-03-01';
 const PING_INTERVAL_MS = Number(process.env.PING_INTERVAL_MS || 30000);
 const LOG_LEVEL = process.env.LOG_LEVEL || 'info';
 const NODE_ENV = process.env.NODE_ENV || 'development';
@@ -180,7 +185,7 @@ app.get('/runtime', (req, res) => {
   if (!PLAY_AUTH_TOKEN || req.headers.authorization !== `Bearer ${PLAY_AUTH_TOKEN}`) return res.status(401).json({ error: 'unauthorized' });
   res.set('Cache-Control', 'no-store');
   return res.json({ version: PIPELINE_VERSION, diagnosticsVersion: TTS_DIAGNOSTICS_VERSION, checkedAt: new Date().toISOString(),
-    credentials: { deepgram: !!DEEPGRAM_API_KEY, elevenlabs: !!ELEVENLABS_API_KEY },
+    credentials: { deepgram: !!DEEPGRAM_API_KEY, elevenlabs: !!ELEVENLABS_API_KEY, cartesia: !!CARTESIA_API_KEY },
     calls: Array.from(streams.values(), runtimeSnapshot), lastCall,
   });
 });
@@ -326,6 +331,8 @@ async function handleStreamStart(ws, streamSid, start) {
         ok = await streamFluxTTS(initResp.greeting, streamSid, session, gen);
       } else if (ttsEngine === 'deepgram-aura' && DEEPGRAM_API_KEY) {
         ok = await streamDeepgramTTS(initResp.greeting, streamSid, session, gen);
+      } else if (ttsEngine === 'cartesia' && CARTESIA_API_KEY) {
+        ok = await streamCartesiaTTS(initResp.greeting, streamSid, session, gen);
       }
       if (!ok) {
         const tts = await generateTTS(initResp.greeting, session.config, session);
@@ -587,6 +594,8 @@ async function handleUtterance(streamSid, transcript) {
         ok = await streamFluxTTS(text, streamSid, session, gen);
       } else if (ttsEngine === 'deepgram-aura' && DEEPGRAM_API_KEY) {
         ok = await streamDeepgramTTS(text, streamSid, session, gen);
+      } else if (ttsEngine === 'cartesia' && CARTESIA_API_KEY) {
+        ok = await streamCartesiaTTS(text, streamSid, session, gen);
       }
       if (!ok) {
         const tts = await generateTTS(text, session.config, session);
@@ -737,11 +746,89 @@ async function streamDeepgramTTS(text, streamSid, session, generation) {
   });
 }
 
-// ── TTS generation (ElevenLabs preferred, Deepgram Aura fallback) ──────
+// ── Streaming TTS via Cartesia Sonic (µ-law chunks streamed as generated) ──
+// Cartesia's /tts/bytes endpoint streams the audio as it is synthesized, so the
+// first chunk reaches Twilio in ~90ms of model time instead of after a full
+// render. Same barge-in rules as the Deepgram streamers: a bumped generation
+// abandons the stream and never re-speaks stale text.
+async function streamCartesiaTTS(text, streamSid, session, generation) {
+  const voice = session.config.cartesiaVoiceId || CARTESIA_VOICE_ID;
+  const startedAt = Date.now();
+  session.tts = { engine: 'cartesia', model: CARTESIA_MODEL, voice, state: 'streaming', ms: 0, at: new Date().toISOString() };
+
+  let played = false;
+  let chunkCount = 0;
+  let markSent = false;
+  const clean = value => {
+    let message = String(value || '');
+    if (CARTESIA_API_KEY) message = message.split(CARTESIA_API_KEY).join('[redacted]');
+    return message.slice(0, 500);
+  };
+  const ensureMark = () => {
+    if (markSent || !played || generation !== session.generation) return;
+    markSent = true;
+    sendToTwilio(session.ws, { event: 'mark', streamSid, mark: { name: `gen-${generation}` } });
+  };
+  const finish = (state, error = null) => {
+    session.tts = { ...session.tts, state, error, ms: Date.now() - startedAt };
+  };
+
+  try {
+    const res = await fetch('https://api.cartesia.ai/tts/bytes', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${CARTESIA_API_KEY}`,
+        'Cartesia-Version': CARTESIA_VERSION,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model_id: CARTESIA_MODEL,
+        transcript: text,
+        voice: { mode: 'id', id: voice },
+        output_format: { container: 'raw', encoding: 'pcm_mulaw', sample_rate: 8000 },
+        language: 'en',
+      }),
+      signal: AbortSignal.timeout(HTTP_TIMEOUT_MS),
+    });
+
+    if (!res.ok) {
+      const details = clean(await res.text());
+      log('[streamCartesiaTTS] HTTP', res.status, details);
+      finish('error', `HTTP ${res.status}: ${details}`);
+      return false;
+    }
+
+    const reader = res.body.getReader();
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (generation !== session.generation) { await reader.cancel().catch(() => {}); break; }
+      const payload = Buffer.from(value).toString('base64');
+      if (!payload.length) continue;
+      chunkCount++;
+      if (!played) { sendToTwilio(session.ws, { event: 'clear', streamSid }); noteAudioOut(session); played = true; }
+      sendToTwilio(session.ws, { event: 'media', streamSid, media: { payload } });
+      session.recordingBuffer.push(payload);
+    }
+    ensureMark();
+    finish(chunkCount > 0 ? 'accepted' : 'empty');
+    return chunkCount > 0;
+  } catch (e) {
+    ensureMark();
+    const message = clean(e?.message || e);
+    log('[streamCartesiaTTS] failed', message);
+    finish('error', message);
+    // Audio already played counts as success — a barge-in must not trigger a re-speak.
+    return chunkCount > 0;
+  }
+}
+
+// ── TTS generation (Cartesia / ElevenLabs preferred, Deepgram Aura fallback) ──
 async function generateTTS(text, config = {}, session = null) {
   const engine = config.ttsEngine || TTS_ENGINE;
   const elevenLabsVoiceId = config.elevenLabsVoiceId || (engine === 'elevenlabs' ? config.ttsVoiceModel : '') || ELEVENLABS_VOICE_ID;
   const deepgramVoice = config.deepgramTtsVoice || (engine === 'deepgram-aura' ? config.ttsVoiceModel : '') || DEEPGRAM_TTS_VOICE;
+  const cartesiaVoice = config.cartesiaVoiceId || CARTESIA_VOICE_ID;
   // /v1/speak rejects Flux model strings, so a Flux selection must batch through
   // an Aura voice — otherwise a failed Flux stream leaves the agent silent.
   const batchVoice = engine === 'flux' ? DEEPGRAM_TTS_VOICE : deepgramVoice;
@@ -751,7 +838,7 @@ async function generateTTS(text, config = {}, session = null) {
   let elevenLabsFailure = null;
   const safeError = value => {
     let message = String(value || '');
-    for (const key of [ELEVENLABS_API_KEY, DEEPGRAM_API_KEY]) {
+    for (const key of [ELEVENLABS_API_KEY, DEEPGRAM_API_KEY, CARTESIA_API_KEY]) {
       if (key) message = message.split(key).join('[redacted]');
     }
     return message.slice(0, 1000);
@@ -763,11 +850,45 @@ async function generateTTS(text, config = {}, session = null) {
   const record = (provider, model, voice, state, error = null) => {
     if (session) session.tts = { engine: provider, model, voice, state, fallback, error: error || elevenLabsFailure?.message || null, failure: elevenLabsFailure, ms: Date.now() - startedAt, at: new Date().toISOString() };
   };
-  record(engine, engine === 'elevenlabs' ? synthesisModel : deepgramVoice, engine === 'elevenlabs' ? elevenLabsVoiceId : deepgramVoice, 'requested');
+  record(engine, engine === 'elevenlabs' ? synthesisModel : engine === 'cartesia' ? CARTESIA_MODEL : deepgramVoice, engine === 'elevenlabs' ? elevenLabsVoiceId : engine === 'cartesia' ? cartesiaVoice : deepgramVoice, 'requested');
   log('[TTS] Provider selected:', engine);
   log('[TTS] ElevenLabs key present:', !!ELEVENLABS_API_KEY);
   log('[TTS] ElevenLabs voice ID:', elevenLabsVoiceId);
   log('[TTS] ElevenLabs model:', synthesisModel);
+
+  if (engine === 'cartesia' && CARTESIA_API_KEY) {
+    try {
+      const res = await fetch('https://api.cartesia.ai/tts/bytes', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${CARTESIA_API_KEY}`, 'Cartesia-Version': CARTESIA_VERSION, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model_id: CARTESIA_MODEL,
+          transcript: text,
+          voice: { mode: 'id', id: cartesiaVoice },
+          output_format: { container: 'raw', encoding: 'pcm_mulaw', sample_rate: 8000 },
+          language: 'en',
+        }),
+        signal: AbortSignal.timeout(HTTP_TIMEOUT_MS),
+      });
+      if (res.ok) {
+        const audio = Buffer.from(await res.arrayBuffer());
+        if (audio.length > 0) {
+          log('[TTS] Cartesia accepted:', res.status, 'bytes:', audio.length);
+          record('cartesia', CARTESIA_MODEL, cartesiaVoice, 'accepted');
+          return audio.toString('base64');
+        }
+        log('[TTS] Cartesia returned empty audio');
+      } else {
+        log('[TTS] Cartesia error', res.status, safeError(await res.text()));
+      }
+    } catch (e) {
+      log('[TTS] Cartesia failed', safeError(e?.message));
+    }
+    fallback = 'Cartesia failed; using the other providers.';
+  } else if (engine === 'cartesia') {
+    log('[TTS] Cartesia selected but CARTESIA_API_KEY is not set on the bridge');
+    fallback = 'Cartesia key missing on bridge; using the other providers.';
+  }
 
   if (engine === 'elevenlabs' && ELEVENLABS_API_KEY) {
     try {
@@ -828,7 +949,7 @@ async function generateTTS(text, config = {}, session = null) {
   } else {
     log('Deepgram fallback unavailable: missing DEEPGRAM_API_KEY');
   }
-  record(engine, engine === 'elevenlabs' ? synthesisModel : deepgramVoice, engine === 'elevenlabs' ? elevenLabsVoiceId : deepgramVoice, 'error', `No provider returned audio.${elevenLabsFailure ? ` ${elevenLabsFailure.message}` : ''}`);
+  record(engine, engine === 'elevenlabs' ? synthesisModel : engine === 'cartesia' ? CARTESIA_MODEL : deepgramVoice, engine === 'elevenlabs' ? elevenLabsVoiceId : engine === 'cartesia' ? cartesiaVoice : deepgramVoice, 'error', `No provider returned audio.${elevenLabsFailure ? ` ${elevenLabsFailure.message}` : ''}`);
   log('TTS failed: no provider returned audio');
   return null;
 }

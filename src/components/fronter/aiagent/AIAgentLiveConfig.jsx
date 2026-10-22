@@ -3,7 +3,7 @@ import AIAgentRuntimeCall from '@/components/fronter/aiagent/AIAgentRuntimeCall'
 
 export default function AIAgentLiveConfig({ config }) {
   const { data, error, isFetching, refetch } = useAIAgentPipeline();
-  const fields = ['llmModel', 'sttEngine', 'ttsEngine', 'ttsVoiceModel', 'ttsSynthesisModel'];
+  const fields = ['llmModel', 'sttEngine', 'ttsEngine', 'ttsVoiceModel', 'ttsSynthesisModel', 'cartesiaVoiceId'];
   const defaults = { ttsSynthesisModel: 'eleven_turbo_v2_5' };
   const dirty = !!(config && data?.config && fields.some(field => (config[field] ?? defaults[field] ?? '') !== (data.config[field] ?? defaults[field] ?? '')));
   const pipeline = data?.pipeline;
@@ -19,11 +19,11 @@ export default function AIAgentLiveConfig({ config }) {
       <dl className="grid grid-cols-1 gap-2 text-xs sm:grid-cols-3">
         <div className="min-w-0 rounded bg-muted p-3"><dt className="font-semibold">LLM</dt><dd className="break-all">{pipeline.llmModel} → {pipeline.llmRequestModel || 'Unsupported'}</dd></div>
         <div className="min-w-0 rounded bg-muted p-3"><dt className="font-semibold">STT</dt><dd>{pipeline.sttEngine} → {pipeline.sttModel || 'Unsupported'}</dd></div>
-        <div className="min-w-0 rounded bg-muted p-3"><dt className="font-semibold">TTS / voice</dt><dd className="break-all">{pipeline.ttsEngine} · {pipeline.ttsSynthesisModel} · {pipeline.ttsEngine === 'elevenlabs' ? (pipeline.elevenLabsVoiceId || 'No voice selected') : (pipeline.deepgramTtsVoice || 'No voice selected')}</dd></div>
+        <div className="min-w-0 rounded bg-muted p-3"><dt className="font-semibold">TTS / voice</dt><dd className="break-all">{pipeline.ttsEngine} · {pipeline.ttsSynthesisModel} · {pipeline.ttsEngine === 'elevenlabs' ? (pipeline.elevenLabsVoiceId || 'No voice selected') : pipeline.ttsEngine === 'cartesia' ? (pipeline.cartesiaVoiceId || 'No voice selected') : (pipeline.deepgramTtsVoice || 'No voice selected')}</dd></div>
       </dl>{pipeline.errors.map(message => <p key={message} className="mt-2 text-xs text-destructive">{message}</p>)}
       {pipeline.warnings?.map(message => <p key={message} className="mt-2 text-xs text-muted-foreground">{message}</p>)}</>}
     {bridge && <p role="status" className="mt-3 text-sm">{bridge.state === 'connected' ? `Bridge connected · ${bridge.version}` : `NOT VERIFIED: ${bridge.message}`}</p>}
-    {bridge?.state === 'connected' && <><p className="mt-1 text-xs text-muted-foreground">{bridge.credentials?.deepgram ? 'Deepgram key present' : 'Deepgram key missing'} · {bridge.credentials?.elevenlabs ? 'ElevenLabs key present' : 'ElevenLabs key missing'} (presence does not verify account access)</p>
+    {bridge?.state === 'connected' && <><p className="mt-1 text-xs text-muted-foreground">{bridge.credentials?.deepgram ? 'Deepgram key present' : 'Deepgram key missing'} · {bridge.credentials?.elevenlabs ? 'ElevenLabs key present' : 'ElevenLabs key missing'} · {bridge.credentials?.cartesia ? 'Cartesia key present' : 'Cartesia key missing'} (presence does not verify account access)</p>
       {!bridge.calls?.length && <p className="mt-2 text-sm">No active call. Runtime models are unverified until a call produces evidence.</p>}
       {bridge.calls?.map(call => <AIAgentRuntimeCall key={call.callSid} call={call} expected={pipeline} />)}
       {bridge.lastCall && <AIAgentRuntimeCall call={bridge.lastCall} expected={pipeline} historical />}

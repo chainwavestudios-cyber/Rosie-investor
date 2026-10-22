@@ -31,7 +31,7 @@ export default async function(req) {
       // Never accept system fields or a caller-chosen singleton name.
       // Incoming calls carry their own prompt, flow, persona and triggers — saved
       // here alongside the outgoing dialer set.
-      const fields = ['isActive', 'twilioLineKey', 'transferPhoneNumber', 'transferPhoneNumber2', 'queueTimeoutSeconds', 'sttEngine', 'ttsEngine', 'ttsVoiceModel', 'elevenLabsVoiceId', 'deepgramTtsVoice', 'ttsSynthesisModel', 'llmModel', 'kbPrimary', 'kbSecondary', 'greeting', 'systemPrompt', 'scriptFlow', 'dynamicRebuttals', 'qaTuning', 'inboundAgentName', 'inboundOpener', 'inboundSystemPrompt', 'inboundScriptFlow', 'inboundKeywordTriggers', 'inboundIntroVoiceId', 'callbackBookingEnabled', 'preTransferEmailEnabled'];
+      const fields = ['isActive', 'twilioLineKey', 'transferPhoneNumber', 'transferPhoneNumber2', 'queueTimeoutSeconds', 'sttEngine', 'ttsEngine', 'ttsVoiceModel', 'elevenLabsVoiceId', 'deepgramTtsVoice', 'cartesiaVoiceId', 'ttsSynthesisModel', 'llmModel', 'kbPrimary', 'kbSecondary', 'greeting', 'systemPrompt', 'scriptFlow', 'dynamicRebuttals', 'qaTuning', 'inboundAgentName', 'inboundOpener', 'inboundSystemPrompt', 'inboundScriptFlow', 'inboundKeywordTriggers', 'inboundIntroVoiceId', 'callbackBookingEnabled', 'preTransferEmailEnabled'];
       const payload = Object.fromEntries(fields.filter(key => body.config[key] !== undefined).map(key => [key, body.config[key]]));
       const config = existing ? await service.entities.AIAgentConfig.update(existing.id, { ...payload, updatedBy: actor.username || actor.full_name }) : await service.entities.AIAgentConfig.create({ ...payload, configName: 'default', updatedBy: actor.username || actor.full_name });
       return Response.json({ config, pipeline });
