@@ -7,6 +7,7 @@
  * Output: { mode: 'answer'|'ingest', response: string, entries: [...], savedCount?: number }
  */
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.52';
+import { formatAnswers, findRelevantKB, findSimilarQuestion, getAnswers } from '../../shared/kbSearch.ts';
 
 const KB_CATEGORIES = [
   { id: 'debt_agent', label: 'Agent Script', desc: 'Openers, rebuttals, qualifying questions, closing language' },
@@ -16,68 +17,6 @@ const KB_CATEGORIES = [
   { id: 'debt_faq', label: 'FAQ', desc: 'Frequently asked questions about the program' },
   { id: 'debt_kb', label: 'General KB', desc: 'General knowledge that does not fit other categories' },
 ];
-
-// ── KB search helpers ──────────────────────────────────────────────────
-function getAnswers(e: any): string[] {
-  const out: string[] = [];
-  if (e?.answersJson) {
-    try { const arr = JSON.parse(e.answersJson); if (Array.isArray(arr)) for (const a of arr) { if (typeof a === 'string' && a.trim()) out.push(a); } } catch {}
-  }
-  if (out.length === 0 && e?.answer && String(e.answer).trim()) out.push(String(e.answer));
-  return out;
-}
-
-function formatAnswers(e: any): string {
-  const answers = getAnswers(e);
-  if (answers.length <= 1) return answers[0] || '';
-  return answers.map((a, i) => `${i + 1}. ${a}`).join('\n');
-}
-
-function scoreEntry(qLower: string, words: string[], e: any): number {
-  const haystack = `${e.question||''} ${e.answer||''} ${e.answersJson||''} ${e.keywords||''} ${e.variations||''}`.toLowerCase();
-  let score = 0;
-  for (const w of words) {
-    if (haystack.includes(w)) score += 1;
-    if ((e.question||'').toLowerCase().includes(w)) score += 0.8;
-    if ((e.keywords||'').toLowerCase().includes(w)) score += 0.5;
-    if ((e.variations||'').toLowerCase().includes(w)) score += 0.6;
-  }
-  const phrases = qLower.match(/\b\w{4,}\s+\w{4,}\b/g) || [];
-  for (const phrase of phrases) { if (haystack.includes(phrase)) score += 3; }
-  return score;
-}
-
-function findRelevantKB(question: string, kbEntries: any[], topN = 10): any[] {
-  if (!kbEntries?.length) return [];
-  const qLower = question.toLowerCase();
-  const words = qLower.split(/\W+/).filter((w: string) => w.length >= 3);
-  return kbEntries
-    .filter((e: any) => e.category !== 'raw_document' && e.category !== 'raw_chunk')
-    .map((e: any) => ({ ...e, score: scoreEntry(qLower, words, e) }))
-    .filter((e: any) => e.score > 0)
-    .sort((a: any, b: any) => b.score - a.score)
-    .slice(0, topN);
-}
-
-// Find an existing KB entry with a question similar enough to be a duplicate.
-// Uses word-overlap on significant words (excluding common stop words): if >= 80%
-// of the new question's significant words appear in an existing question, it's
-// considered a duplicate.
-const STOP_WORDS_Q = new Set(['the','and','for','are','was','were','have','has','had','you','your','our','this','that','from','with','will','can','would','could','should','does','did','not','but','they','them','their','what','when','where','which','how']);
-
-function findSimilarQuestion(question: string, kbEntries: any[]): any | null {
-  const qLower = question.toLowerCase().trim();
-  const allWords = qLower.split(/\W+/).filter((w: string) => w.length >= 3);
-  const sigWords = allWords.filter(w => !STOP_WORDS_Q.has(w));
-  if (sigWords.length < 2) return null;
-  for (const e of kbEntries) {
-    const eqLower = (e.question || '').toLowerCase();
-    const matchCount = sigWords.filter(w => eqLower.includes(w)).length;
-    const coverage = matchCount / sigWords.length;
-    if (coverage >= 0.8) return e;
-  }
-  return null;
-}
 
 // ── Question detection ─────────────────────────────────────────────────
 function isQuestion(message: string): boolean {

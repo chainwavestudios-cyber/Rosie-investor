@@ -1,10 +1,11 @@
 import { useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
 import { base44 } from '@/api/base44Client';
-import SarahQualifySection from '@/components/sarah/SarahQualifySection';
 import HomeHeader from '@/components/home/HomeHeader';
 import HomeStepper from '@/components/home/HomeStepper';
 import DebtAmountStep from '@/components/home/DebtAmountStep';
+import HomeChatWidget from '@/components/home/HomeChatWidget';
+import StephaniAccessPopup from '@/components/home/StephaniAccessPopup';
 import HomeTrust from '@/components/home/HomeTrust';
 
 const APP_BASE_URL = window.location.origin;
@@ -109,9 +110,9 @@ export default function Home() {
 
         <DebtAmountStep />
 
-        <div id="qualify" style={{ scrollMarginTop: '20px', marginTop: '44px', background: '#0b1220', border: '1px solid rgba(56,189,248,0.2)', borderRadius: '20px', padding: '28px 20px', display: 'flex', justifyContent: 'center' }}>
-          <SarahQualifySection />
-        </div>
+        <HomeChatWidget />
+
+        <StephaniAccessPopup />
 
         <HomeTrust />
 

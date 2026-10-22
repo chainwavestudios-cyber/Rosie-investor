@@ -7,7 +7,7 @@ export default function DebtAmountStep() {
 
   const choose = (option) => {
     setSelected(option);
-    document.getElementById('qualify')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    document.getElementById('chat')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
   return (
