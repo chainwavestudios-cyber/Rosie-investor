@@ -61,6 +61,7 @@ export const MAILER_SLOTS = [
   { slot: 'notice_date', label: 'Notice Date' },
   { slot: 'respond_by_date', label: 'Respond By Date' },
   { slot: 'phone', label: 'Call-To-Action Phone' },
+  { slot: 'protoface_id', label: 'Protoface ID (per-lead video token)' },
 ];
 
 export const CONTACT_FIELD_SOURCES = [
@@ -73,6 +74,7 @@ export const CONTACT_FIELD_SOURCES = [
   { value: 'state', label: 'Contact card — State' },
   { value: 'zip_code', label: 'Contact card — Zip code' },
   { value: 'notice_id', label: 'Contact card — Notice ID' },
+  { value: 'protoface_id', label: 'Contact card — Protoface ID (per-lead video token)' },
   { value: 'lead_number', label: 'Contact card — Lead number' },
   { value: 'debt_amount', label: 'Contact card — Debt amount' },
   { value: 'email', label: 'Contact card — Email' },
@@ -89,6 +91,7 @@ export const DEFAULT_FIELD_MAP = {
   address_line: 'full_address',
   state: 'state',
   plan_number: 'notice_id',
+  protoface_id: 'protoface_id',
   debt_amount: 'debt_amount',
   reduction_to: 'reduction_to',
   savings_amount: 'savings_amount',
@@ -305,6 +308,7 @@ function resolveSource(card: any, source: string, ctx: any): any {
     case 'state': return card?.state || '';
     case 'zip_code': return card?.zipCode || '';
     case 'notice_id': return card?.noticeId || '';
+    case 'protoface_id': return card?.protofaceId || '';
     case 'lead_number': return card?.leadNumber || '';
     case 'debt_amount': return money(debt);
     case 'email': return card?.email || '';

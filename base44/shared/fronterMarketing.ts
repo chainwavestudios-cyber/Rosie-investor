@@ -57,7 +57,7 @@ export async function saveMarketingTemplate(base44, id, draft, user) {
 }
 
 export async function renderMarketingEmail(base44, template, card) {
-  const variables = { firstName: card.firstName || '', lastName: card.lastName || '', first_name: card.firstName || '', last_name: card.lastName || '', email: card.email || '', phone: card.phone || '', state: card.state || '', leadId: card.id || '', debtAmount: card.debtAmount ? `$${Number(card.debtAmount).toLocaleString()}` : '' };
+  const variables = { firstName: card.firstName || '', lastName: card.lastName || '', protoface_id: card.protofaceId || '', protofaceId: card.protofaceId || '', first_name: card.firstName || '', last_name: card.lastName || '', email: card.email || '', phone: card.phone || '', state: card.state || '', leadId: card.id || '', debtAmount: card.debtAmount ? `$${Number(card.debtAmount).toLocaleString()}` : '' };
   if (/mailer_html/.test(template.html)) {
     const [config, phone] = await Promise.all([getRateDropTemplate(base44), resolveInboundPhone(base44)]);
     const context = buildMailerContext(phone, config);

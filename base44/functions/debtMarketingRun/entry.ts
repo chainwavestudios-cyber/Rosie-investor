@@ -96,6 +96,8 @@ export default async function (req: Request): Promise<Response> {
             state: lead?.state || '',
             appointmentDate: '',
             debtAmount: lead?.debtAmount ? `$${Number(lead.debtAmount).toLocaleString()}` : '',
+            protoface_id: lead?.protofaceId || '',
+            protofaceId: lead?.protofaceId || '',
             personalMessageUrl: campaign.welcomeLinkUrl || template.personalMessageUrl || '',
           };
           const subject = render(campaign.subject || template.subject || 'Debt Solutions', vars);
