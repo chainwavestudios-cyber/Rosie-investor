@@ -13,6 +13,7 @@ import FronterScriptsTab from '@/components/fronter/FronterScriptsTab';
 import FronterAdminTab from '@/components/fronter/FronterAdminTab';
 import FronterSettingsTab from '@/components/fronter/FronterSettingsTab';
 import FronterMonitorPanel from '@/components/fronter/FronterMonitorPanel';
+import PortalNavButtons from '@/components/shared/PortalNavButtons';
 import FronterBobTrainer from '@/components/fronter/FronterBobTrainer';
 import FronterTimeCardButton from '@/components/fronter/FronterTimeCardButton';
 import OptInControlsToggle from '@/components/fronter/OptInControlsToggle';
@@ -336,6 +337,9 @@ export default function FronterPage() {
       {autoLoggedOutMsg && (
         <div style={{ position: 'fixed', top: '20px', left: '50%', transform: 'translateX(-50%)', background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.4)', borderRadius: '8px', padding: '12px 24px', color: '#ef4444', fontSize: '13px', fontWeight: 'bold', zIndex: 50000, boxShadow: '0 8px 32px rgba(0,0,0,0.6)' }}>⏰ {autoLoggedOutMsg}</div>
       )}
+
+      {/* Cross-portal switcher */}
+      <PortalNavButtons current="fronter" isAdmin={isAdmin} />
 
       {/* Dual clock bar — Eastern Time + user's timezone (or PHT for super admins) */}
       <DualClockBar userTimezone={userTz} isSuperAdmin={isAdmin} />

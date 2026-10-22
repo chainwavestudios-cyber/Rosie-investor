@@ -7,6 +7,7 @@ import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { useDebtCoachAuth } from '@/lib/DebtCoachAuthContext';
 import { base44 } from '@/api/base44Client';
 import DualClockBar from '@/components/shared/DualClockBar';
+import PortalNavButtons from '@/components/shared/PortalNavButtons';
 import { isComplianceManager } from '@/lib/complianceRoles';
 import DebtLiveCall from '@/components/debt/DebtLiveCall';
 import DebtCoachAdminPanel from '@/components/debt/DebtCoachAdminPanel';
@@ -133,6 +134,9 @@ export default function DebtCallCoach() {
           <button onClick={logout} style={{ background: 'rgba(255,255,255,0.08)', color: '#a8b8d0', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '4px', padding: '6px 14px', cursor: 'pointer', fontSize: '11px' }}>Logout</button>
         </div>
       </div>
+
+      {/* Cross-portal switcher */}
+      <PortalNavButtons current="coach" isAdmin={isAdmin || isSuperAdmin} />
 
       {/* Tabs — two rows; drag any tab to reorder (saved per user) */}
       <CoachTabBar rows={tabRows} tabMap={tabMap} active={tab} onSelect={setTab} onMove={moveTab} onReset={resetTabOrder} />

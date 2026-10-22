@@ -13,11 +13,14 @@ import CoachBoard from '@/components/superadmin/CoachBoard';
 import FronterBoard from '@/components/superadmin/FronterBoard';
 import WebChatBoard from '@/components/superadmin/WebChatBoard';
 import MarketingTab from '@/components/marketing/MarketingTab';
+import FronterMonitorPanel from '@/components/fronter/FronterMonitorPanel';
+import PortalNavButtons from '@/components/shared/PortalNavButtons';
 import { C } from '@/components/superadmin/kit';
 
 const TABS = [
   { id: 'coach', label: '🔵 Debt Call Coach' },
   { id: 'fronter', label: '🟢 Fronter' },
+  { id: 'monitor', label: '📡 Fronter Monitor' },
   { id: 'webchat', label: '💬 Website Chat' },
   { id: 'split', label: '⚡ Split Screen' },
   { id: 'marketing', label: '📣 Marketing' },
@@ -71,14 +74,14 @@ export default function SuperAdminPortal() {
           </span>
         </div>
         <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-          <button onClick={() => navigate('/assistant-portal')} style={navBtn}>Assistant Portal</button>
-          <button onClick={() => navigate('/debt-call-coach')} style={navBtn}>Coach</button>
-          <button onClick={() => navigate('/fronter')} style={navBtn}>Fronter</button>
           <button onClick={() => navigate('/manager-portal')} style={navBtn}>Manager</button>
           <button onClick={() => navigate('/compliance-portal')} style={navBtn}>Compliance</button>
           <button onClick={logout} style={navBtn}>Logout</button>
         </div>
       </header>
+
+      {/* Cross-portal switcher */}
+      <PortalNavButtons current="superadmin" isAdmin={isSuperAdmin || isAdmin} />
 
       <nav style={{ display: 'flex', gap: '2px', marginBottom: '16px', borderBottom: '1px solid rgba(255,255,255,0.06)', flexWrap: 'wrap' }}>
         {TABS.map((t) => (
@@ -103,6 +106,7 @@ export default function SuperAdminPortal() {
 
       {tab === 'coach' && <CoachBoard username={user?.username} columns={3} />}
       {tab === 'fronter' && <FronterBoard username={user?.username} columns={3} />}
+      {tab === 'monitor' && <FronterMonitorPanel embedded adminUsername={user?.username} />}
       {tab === 'webchat' && <WebChatBoard username={user?.username} adminUserId={user?.id} adminToken={sessionToken} />}
       {tab === 'marketing' && <MarketingTab username={user?.username} />}
 

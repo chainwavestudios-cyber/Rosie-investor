@@ -14,6 +14,7 @@ import ChrisFastDial from '@/components/assistant/ChrisFastDial';
 import Next3HoursWindow from '@/components/assistant/Next3HoursWindow';
 import MarketingTab from '@/components/marketing/MarketingTab';
 import ContactCardEditorCard from '@/components/superadmin/cards/ContactCardEditorCard';
+import PortalNavButtons from '@/components/shared/PortalNavButtons';
 import useSuperAdminConfig, { fastDialButtons } from '@/hooks/useSuperAdminConfig';
 
 const GOLD = '#10b981';
@@ -95,10 +96,12 @@ export default function AssistantPortal() {
             <span style={{ padding: '2px 8px', borderRadius: '2px', background: 'rgba(16,185,129,0.15)', color: GOLD, fontSize: '9px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '1px' }}>{user?.role === 'super_admin' ? 'Super Admin' : 'Admin'}</span>
           </div>
           <button onClick={() => navigate('/manager-portal')} style={navBtn()}>Manager</button>
-          <button onClick={() => navigate('/debt-call-coach')} style={navBtn()}>Coach</button>
           <button onClick={logout} style={navBtn()}>Logout</button>
         </div>
       </div>
+
+      {/* Cross-portal switcher */}
+      <PortalNavButtons current="assistant" isAdmin={isSuperAdmin || isAdmin} />
 
       {/* Broadcast my line status to the fronter workspace */}
       <AssistantLineBroadcast username={user?.username} />

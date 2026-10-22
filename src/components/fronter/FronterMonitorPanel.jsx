@@ -38,7 +38,7 @@ function fmtCallDur(s) {
   return `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, '0')}`;
 }
 
-export default function FronterMonitorPanel({ onClose, adminUsername, onOpenLead }) {
+export default function FronterMonitorPanel({ onClose, adminUsername, onOpenLead, embedded = false }) {
   const [fronters, setFronters] = useState([]);
   const [sessions, setSessions] = useState([]);
   const [selected, setSelected] = useState([]);
@@ -389,11 +389,16 @@ export default function FronterMonitorPanel({ onClose, adminUsername, onOpenLead
     }
   };
 
+  // Embedded (Super Admin tab) fills the page; floating keeps the draggable window.
+  const frame = embedded
+    ? { position: 'relative', width: '100%', height: 'calc(100vh - 260px)', minHeight: '640px', background: '#0d1b2a', border: '1px solid rgba(96,165,250,0.3)', borderRadius: '8px', display: 'flex', flexDirection: 'column' }
+    : { position: 'fixed', left: pos.x, top: pos.y, width: size.w, height: size.h, background: '#0d1b2a', border: '1px solid rgba(96,165,250,0.3)', borderRadius: '8px', boxShadow: '0 16px 64px rgba(0,0,0,0.8)', zIndex: 10000, display: 'flex', flexDirection: 'column' };
+
   return (
-    <div style={{ position: 'fixed', left: pos.x, top: pos.y, width: size.w, height: size.h, background: '#0d1b2a', border: '1px solid rgba(96,165,250,0.3)', borderRadius: '8px', boxShadow: '0 16px 64px rgba(0,0,0,0.8)', zIndex: 10000, display: 'flex', flexDirection: 'column' }}>
+    <div style={frame}>
       <style>{`@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}@keyframes emailAlertBlink{0%,100%{border-color:rgba(16,185,129,0.3);box-shadow:0 0 4px rgba(16,185,129,0.1)}50%{border-color:#10b981;box-shadow:0 0 20px rgba(16,185,129,0.6)}}`}</style>
       {/* Header — draggable */}
-      <div onMouseDown={onDragStart} style={{ padding: '10px 16px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'move', userSelect: 'none', flexShrink: 0 }}>
+      <div onMouseDown={embedded ? undefined : onDragStart} style={{ padding: '10px 16px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: embedded ? 'default' : 'move', userSelect: 'none', flexShrink: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <span style={{ color: BLUE, fontSize: '12px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase' }}>📡 Fronter Monitor</span>
           <div style={{ display: 'flex', gap: '2px', marginLeft: '4px' }}>
@@ -406,7 +411,9 @@ export default function FronterMonitorPanel({ onClose, adminUsername, onOpenLead
         </div>
         <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
           {viewTab === 'monitor' && <button onClick={() => setShowCheckboxes(p => !p)} style={{ background: 'rgba(255,255,255,0.05)', color: '#8a9ab8', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '3px', padding: '3px 10px', cursor: 'pointer', fontSize: '10px' }}>{showCheckboxes ? 'Hide' : 'Show'} Fronters</button>}
-          <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#6b7280', cursor: 'pointer', fontSize: '20px', padding: 0, lineHeight: 1 }}>×</button>
+          {!embedded && (
+            <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#6b7280', cursor: 'pointer', fontSize: '20px', padding: 0, lineHeight: 1 }}>×</button>
+          )}
         </div>
       </div>
 
