@@ -115,7 +115,7 @@ export default function MailerIdSearch({ onFound }) {
             <>
               <p className="mt-2 text-xs text-white/85">{scan.source}…</p>
               <div className="mt-2 h-1 w-full overflow-hidden rounded-full bg-white/10">
-                <div className="h-1 rounded-full bg-gradient-to-r from-fuchsia-400 to-teal-400 transition-all duration-200" style={{ width: `${scan.progress}%` }} />
+                <div className="h-1 rounded-full bg-gradient-to-r from-sky-400 to-teal-400 transition-all duration-200" style={{ width: `${scan.progress}%` }} />
               </div>
               <div className="mt-3 grid grid-cols-2 gap-x-2 gap-y-1.5">
                 {SOURCES.map((source, index) => {
