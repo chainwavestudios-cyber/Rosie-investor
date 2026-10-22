@@ -28,6 +28,7 @@ import { useObjectionEngine } from '@/hooks/useObjectionEngine';
 import ObjectionPopup from '@/components/debt/ObjectionPopup';
 import EmergencyScripts from '@/components/debt/EmergencyScripts';
 import { logAIUsage, CREDIT_ESTIMATES } from '@/lib/aiCreditLog';
+import { isSameSentence, mergeFragments, trailingTurn } from '@/lib/transcriptTurn';
 import { useAIContactFiller } from '@/hooks/useAIContactFiller';
 
 const GOLD = '#10b981';
@@ -410,6 +411,9 @@ Agent line: "${firstAgentLines}"`,
   const testCustomerAnimRef = useRef(null);
   const customerBufferRef = useRef([]);
   const bufferTimeoutRef = useRef(null);
+  // The caller's turn as last asked in Q&A — lets a turn that was flushed
+  // mid-sentence and then continued ask only the new part.
+  const lastAskedQuestionRef = useRef('');
   const monitorPcRef = useRef(null);
   const stopCallRef = useRef(null);
 
@@ -657,17 +661,29 @@ Agent line: "${firstAgentLines}"`,
     }
   }, [flushAgentQuestion]);
 
-  // Flush buffered customer lines as a single combined question to Q&A
+  // Flush the caller's buffered turn as ONE complete question. The buffer holds
+  // the transcript's merged trailing turn, so Q&A gets whole sentences instead
+  // of the last Deepgram fragment.
   const flushCustomerBuffer = useCallback(() => {
     if (bufferTimeoutRef.current) { clearTimeout(bufferTimeoutRef.current); bufferTimeoutRef.current = null; }
     if (customerBufferRef.current.length === 0) return;
-    const combined = customerBufferRef.current.join(' ').trim();
+    const settled = customerBufferRef.current.join(' ').replace(/\s+/g, ' ').trim();
     customerBufferRef.current = [];
-    if (combined.length < 12) return;
-    // Send all customer statements to QA — the Sonnet model detects implied
-    // questions/concerns/objections and returns needs_answer=false for small
-    // talk, so non-questions are filtered server-side instead of by regex here.
-    handleQa(combined);
+    if (settled.length < 12) return;
+    // The caller paused mid-sentence and then carried on: ask only the new part,
+    // so the agent doesn't get the same half sentence twice.
+    const previous = lastAskedQuestionRef.current;
+    let question = settled;
+    if (previous && settled.toLowerCase().startsWith(previous.toLowerCase())) {
+      const remainder = settled.slice(previous.length).trim();
+      if (remainder.length < 12) return;
+      question = remainder;
+    }
+    lastAskedQuestionRef.current = settled;
+    // Send the caller's turn to QA — the model detects implied questions,
+    // concerns and objections, and returns needs_answer=false for small talk,
+    // so non-questions are filtered server-side instead of by regex here.
+    handleQa(question);
   }, [handleQa]);
 
   const handleCoach = useCallback(() => {
@@ -1149,11 +1165,11 @@ ${recentText}`,
         //  • if the last line has no terminal punctuation (mid-sentence fragment), or
         //  • if the two segments were emitted within 3s (rapid bursts in the same turn).
         // This prevents sentences from being broken into many tiny lines.
-        if (!/[.?!…]["']?$/.test(lastText) || gap < 3000) {
+        if (isSameSentence(lastText, entryText, gap)) {
           const merged = [...withoutInterim];
           merged[merged.length - 1] = {
             ...lastLine,
-            text: lastText + ' ' + entry.text,
+            text: mergeFragments(lastText, entryText),
           };
           return merged;
         }
@@ -1173,7 +1189,8 @@ ${recentText}`,
 
     // Agent Question mode: capture agent lines, auto-answer on silence / customer speech / question mark
     if (agentQuestionActiveRef.current && entry.speaker === 0) {
-      agentQuestionBufferRef.current.push(text);
+      // Ask the whole merged agent turn, not the last Deepgram fragment.
+      agentQuestionBufferRef.current = [trailingTurn(nextTranscript, 'agent')];
       if (text.trim().endsWith('?') || text.trim().endsWith('!')) {
         flushAgentQuestion();
       } else {
@@ -1186,20 +1203,23 @@ ${recentText}`,
       flushAgentQuestion();
     }
 
-    // Q&A: buffer consecutive customer lines, flush as one combined question
+    // Q&A: hold the caller's turn as the transcript has merged it, so the
+    // question asked is whole sentences rather than the latest fragment.
     if (qaActiveRef.current && entry.speaker === 1) {
-      customerBufferRef.current.push(text);
+      customerBufferRef.current = [trailingTurn(nextTranscript, 'customer')];
       if (bufferTimeoutRef.current) clearTimeout(bufferTimeoutRef.current);
       // If this utterance ends with ? or !, flush immediately — question is complete
       if (text.trim().endsWith('?') || text.trim().endsWith('!')) {
         flushCustomerBuffer();
       } else {
-        // Wait for more lines — flush after 3s of silence if no new customer line arrives
-        bufferTimeoutRef.current = setTimeout(() => flushCustomerBuffer(), 1500);
+        // Wait for the sentence to finish — flush after 2.5s of silence
+        bufferTimeoutRef.current = setTimeout(() => flushCustomerBuffer(), 2500);
       }
     } else if (entry.speaker === 0) {
-      // Agent started speaking — flush any pending customer question
+      // Agent started speaking — flush any pending customer question, then treat
+      // the next one as a fresh turn so it is asked in full.
       flushCustomerBuffer();
+      lastAskedQuestionRef.current = '';
     }
 
     const objWords = ['prove', 'doubt', 'skeptical', 'risky', 'guarantee', 'fail', 'burned', 'scam', 'catch', 'cost', 'fee', 'how much', 'too much', "can't afford", 'credit score', 'trust'];
@@ -1322,6 +1342,7 @@ ${recentText}`,
       transcriptRecordIdRef.current = tr?.id || null;
     } catch (e) { console.error('Failed to create live transcript record:', e); }
     customerBufferRef.current = []; if (bufferTimeoutRef.current) { clearTimeout(bufferTimeoutRef.current); bufferTimeoutRef.current = null; }
+    lastAskedQuestionRef.current = '';
     setMicMuted(false);
     setTestMode(testModeArg);
     setPhase('live'); setDgStatus('connecting');

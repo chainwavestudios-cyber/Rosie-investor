@@ -7,6 +7,7 @@
  */
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { base44 } from '@/api/base44Client';
+import { isStrongWord, matchPhrase, parsePhrases } from '@/lib/objectionMatch';
 
 const PRIO_RANK = { high: 0, medium: 1, low: 2 };
 
@@ -17,6 +18,8 @@ export function useObjectionEngine(transcript) {
   const [recentMatches, setRecentMatches] = useState([]);
   const lastCheckedKeyRef = useRef('');
   const dismissedKeyRef = useRef('');
+  // When each objection last fired, so the same one can't pop up over and over.
+  const firedAtRef = useRef({});
 
   // Load enabled objections; reload when the management tab saves changes.
   useEffect(() => {
@@ -58,19 +61,36 @@ export function useObjectionEngine(transcript) {
     // Don't re-trigger an objection the user already dismissed for this line
     if (key === dismissedKeyRef.current) return;
 
-    const text = (latest.text || '').toLowerCase();
-    const matched = objections
-      .filter(o => o.enabled !== false)
-      .filter(o => {
-        try {
-          const phrases = JSON.parse(o.triggerPhrases || '[]');
-          return phrases.some(p => p && text.includes(String(p).toLowerCase()));
-        } catch { return false; }
-      })
-      .sort((a, b) => (PRIO_RANK[a.priority] ?? 1) - (PRIO_RANK[b.priority] ?? 1));
+    // What the caller just said — the last few lines, so an objection that
+    // arrives in pieces is still read as one statement.
+    const window = customerLines.slice(-4).map(l => l.text || '').join(' ');
+
+    // Triggers are written as whole sentences while callers say it their own way
+    // (and the transcript arrives in fragments), so phrases are matched on their
+    // words: two of the phrase's words said together, in order, one of them a
+    // real content word. A single trigger word on its own identifies the few
+    // objections written as one phrase ("this is a scam").
+    const now = Date.now();
+    const matched = [];
+    for (const o of objections) {
+      if (o.enabled === false) continue;
+      // Give the agent time with an objection before it can fire again.
+      if (now - (firedAtRef.current[o.id] || 0) < 90000) continue;
+      let best = null;
+      for (const phrase of parsePhrases(o.triggerPhrases)) {
+        const m = matchPhrase(window, phrase);
+        if (!m) continue;
+        const strong = m.needed === 1 ? m.words.some(isStrongWord) : String(m.pair || '').split(' ').some(isStrongWord);
+        if (!strong) continue;
+        if (!best || m.score > best.score) best = m;
+      }
+      if (best) matched.push({ objection: o, ...best });
+    }
+    matched.sort((a, b) => (PRIO_RANK[a.objection.priority] ?? 1) - (PRIO_RANK[b.objection.priority] ?? 1) || b.score - a.score);
 
     if (matched.length === 0) return;
-    const top = matched[0];
+    const top = matched[0].objection;
+    firedAtRef.current[top.id] = now;
 
     setRecentMatches(prev => {
       if (prev.some(m => m.objectionId === top.id)) return prev;
@@ -82,14 +102,17 @@ export function useObjectionEngine(transcript) {
       // Cross-reference the KB for recorded-call answers to this objection.
       // If the KB answer differs from the engine's response, include it as an
       // alternative option so the agent can choose which to read back.
-      const phrases = (() => { try { return JSON.parse(top.triggerPhrases || '[]').map(p => String(p).toLowerCase()); } catch { return []; } })();
+      const phrases = parsePhrases(top.triggerPhrases);
       const objectionResponse = (top.responseText || '').trim();
       const kbOptions = [];
       const seen = new Set([objectionResponse]);
       for (const kb of kbEntries) {
         const q = (kb.question || '').toLowerCase();
         const v = (kb.variations || '').toLowerCase();
-        if (!phrases.some(p => q.includes(p) || v.includes(p))) continue;
+        // Word-level too, so a KB entry worded differently from the trigger still
+        // lines up with the objection that just fired.
+        const kbText = `${q} ${v}`;
+        if (!phrases.some(p => { const m = matchPhrase(kbText, p); return m && (m.pair || m.words.length >= 2); })) continue;
         const allAnswers = [];
         if (kb.answer) allAnswers.push(kb.answer);
         try {

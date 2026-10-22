@@ -25,6 +25,17 @@ const STOP = new Set([
   'sure', 'one', 'two', 'lot', 'look', 'looking', 'mean', 'means', 'call', 'calls', 'called',
 ]);
 
+// Words that say agreement or courtesy, not an objection — they may sit in a
+// trigger phrase but they can never be the word that fires it.
+const WEAK = new Set([
+  'good', 'great', 'fine', 'nice', 'sound', 'sounds', 'okay', 'right', 'sure', 'thanks',
+  'much', 'many', 'very', 'really', 'just', 'actually', 'maybe', 'probably', 'guess',
+  'suppose', 'understand', 'mean', 'think', 'thought', 'know', 'knew', 'want', 'need',
+  'going', 'gonna', 'coming', 'talking', 'talked', 'told', 'call', 'called', 'hear',
+]);
+
+export const isStrongWord = (w) => String(w || '').length >= 5 && !WEAK.has(String(w).toLowerCase());
+
 export function significantWords(text) {
   return String(text || '')
     .toLowerCase()
