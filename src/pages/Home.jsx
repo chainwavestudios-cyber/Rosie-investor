@@ -2,13 +2,13 @@ import { useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
 import { base44 } from '@/api/base44Client';
 import HomeHeader from '@/components/home/HomeHeader';
+import HomeHero from '@/components/home/HomeHero';
 import HomeChatWidget from '@/components/home/HomeChatWidget';
 import HomeLeadConfirm from '@/components/home/HomeLeadConfirm';
 import StephaniAccessPopup from '@/components/home/StephaniAccessPopup';
 import HomeTrust from '@/components/home/HomeTrust';
 
 const APP_BASE_URL = window.location.origin;
-const HERO_IMAGE = 'https://media.base44.com/images/public/69cd2741578c9b5ce655395b/2551a3672_AdobeStock_507310715.jpeg';
 
 const SESSION_KEY = "home_access_granted";
 const SESSION_USER_KEY = "home_access_user";
@@ -101,7 +101,7 @@ export default function Home() {
     <div style={{ minHeight: '100vh', background: '#f0f7ff', fontFamily: "'DM Sans', sans-serif" }}>
       <HomeHeader />
 
-      <img src={HERO_IMAGE} alt="Debt Solutions" style={{ display: 'block', width: '100%', height: 'auto' }} />
+      <HomeHero />
 
       <main style={{ width: '100%', maxWidth: '960px', margin: '0 auto', padding: '32px 16px 64px', boxSizing: 'border-box' }}>
         {leadProfile && <HomeLeadConfirm profile={leadProfile} />}
