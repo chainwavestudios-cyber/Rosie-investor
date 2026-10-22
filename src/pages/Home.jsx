@@ -103,11 +103,16 @@ export default function Home() {
       <main style={{ width: '100%', maxWidth: '960px', margin: '0 auto', padding: '32px 16px 64px', boxSizing: 'border-box' }}>
         {leadProfile && <HomeLeadConfirm profile={leadProfile} />}
 
-        <HomeChatWidget leadProfile={leadProfile} onLeadFound={setLeadProfile} />
+        <div className="mt-8 grid grid-cols-1 gap-8 md:grid-cols-2 md:items-start">
+          <div className="order-2 md:order-1">
+            <HomeTrust />
+          </div>
+          <div className="order-1 md:order-2">
+            <HomeChatWidget leadProfile={leadProfile} onLeadFound={setLeadProfile} />
+          </div>
+        </div>
 
         <StephaniAccessPopup />
-
-        <HomeTrust />
 
       </main>
     </div>

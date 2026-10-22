@@ -35,8 +35,8 @@ export default function HomeChatMessages({ messages = [], quickReplies = [], onR
                   isVisitor
                     ? 'border-white/20 bg-white/85 text-[#160b28]'
                     : isSpecialist
-                      ? 'border-emerald-400/25 bg-emerald-400/10 text-emerald-50'
-                      : 'border-white/10 bg-white/[0.08] text-white/90'
+                      ? 'border-emerald-400/30 bg-emerald-500/20 text-emerald-50 backdrop-blur-md'
+                      : 'border-white/15 bg-[#0b1220]/75 text-white/95 backdrop-blur-md'
                 }`}
               >
                 {message.text}
@@ -46,7 +46,7 @@ export default function HomeChatMessages({ messages = [], quickReplies = [], onR
         );
       })}
 
-      {sending && <p className="text-xs text-white/40">Typing…</p>}
+      {sending && <p className="text-xs text-white/70">Typing…</p>}
 
       {!sending && quickReplies.length > 0 && (
         <div className="grid grid-cols-1 gap-2 pt-1 sm:grid-cols-3">
@@ -59,7 +59,7 @@ export default function HomeChatMessages({ messages = [], quickReplies = [], onR
                 key={reply}
                 type="button"
                 onClick={() => onReply?.(reply)}
-                className="flex items-start gap-2.5 rounded-2xl border border-white/15 bg-black/30 p-2.5 text-left transition hover:border-white/30 hover:bg-black/45"
+                className="flex items-start gap-2.5 rounded-2xl border border-white/15 bg-[#0b1220]/75 p-2.5 text-left backdrop-blur-md transition hover:border-white/30 hover:bg-[#0b1220]/90"
               >
                 <span className={`flex h-7 w-7 flex-none items-center justify-center rounded-lg bg-gradient-to-br ${tile} text-white`}>
                   <Icon className="h-3.5 w-3.5" />

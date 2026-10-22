@@ -10,6 +10,7 @@ const TIERS = ['Less than $20,000', '$20,000 - $40,000', 'More than $40,000'];
 const OPENING = 'How much credit card debt are you carrying right now?';
 const TOKEN_KEY = 'home_chat_session_token';
 const POLL_MS = 4000;
+const CHAT_BG_VIDEO = 'https://media.base44.com/videos/public/69cd2741578c9b5ce655395b/072b46cf3_AdobeStock_106264b3-f122-4a5c-8159-040c64131bb6.mp4';
 
 /** One token per browser tab — the command center sees one tab per visitor. */
 function visitorToken() {
@@ -154,9 +155,20 @@ export default function HomeChatWidget({ leadProfile, onLeadFound }) {
   ].filter(Boolean);
 
   return (
-    <section id="chat" className="mx-auto mt-8 w-full max-w-xl" style={{ scrollMarginTop: '20px' }}>
-      <div className="overflow-hidden rounded-3xl border border-white/10 bg-[#0b1220] shadow-[0_20px_50px_rgba(11,18,32,0.28)]">
-        <header className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 px-4 py-3">
+    <section id="chat" className="mx-auto w-full max-w-md" style={{ scrollMarginTop: '20px' }}>
+      <div className="relative flex min-h-[520px] flex-col overflow-hidden rounded-3xl border border-white/10 bg-[#0b1220] shadow-[0_20px_50px_rgba(11,18,32,0.28)] md:min-h-[580px]">
+        <video
+          className="pointer-events-none absolute inset-0 z-0 h-full w-full object-cover opacity-50"
+          src={CHAT_BG_VIDEO}
+          autoPlay
+          loop
+          muted
+          playsInline
+          aria-hidden="true"
+        />
+        <div className="pointer-events-none absolute inset-0 z-0 bg-[#0b1220]/20" />
+        <div className="relative z-10 flex flex-1 flex-col">
+        <header className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 bg-[#0b1220]/70 px-4 py-3 backdrop-blur-md">
           <span className="inline-flex items-center gap-2.5">
             <span className="inline-flex h-8 w-8 flex-none items-center justify-center rounded-full bg-white text-[#1a0b2e]">
               <Sparkles className="h-3.5 w-3.5" />
@@ -173,7 +185,7 @@ export default function HomeChatWidget({ leadProfile, onLeadFound }) {
         </header>
 
         {facts.length > 0 && (
-          <div className="flex flex-wrap gap-2 border-b border-white/10 px-4 py-2.5">
+          <div className="flex flex-wrap gap-2 border-b border-white/10 bg-[#0b1220]/60 px-4 py-2.5 backdrop-blur-sm">
             {facts.map((fact) => (
               <span key={fact} className="rounded-full border border-white/15 bg-white/[0.07] px-3 py-1 text-[11px] text-white/75">
                 {fact}
@@ -203,6 +215,7 @@ export default function HomeChatWidget({ leadProfile, onLeadFound }) {
           disabled={sending}
           placeholder={specialistMode ? 'Message the specialist' : 'Ask a question or answer here'}
         />
+        </div>
       </div>
     </section>
   );
