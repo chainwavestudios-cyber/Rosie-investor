@@ -21,6 +21,7 @@ import FronterHRTab from '@/components/fronter/FronterHRTab';
 import AssistantLineStrip from '@/components/fronter/AssistantLineStrip';
 import InboundLineBar from '@/components/fronter/InboundLineBar';
 import FronterHeadsUpPopup from '@/components/fronter/FronterHeadsUpPopup';
+import FronterDirectMessagePopup from '@/components/fronter/FronterDirectMessagePopup';
 import FronterFeedbackTab from '@/components/fronter/FronterFeedbackTab';
 import FronterOnboarding from '@/components/fronter/FronterOnboarding';
 import FronterClosedDealsTab from '@/components/fronter/FronterClosedDealsTab';
@@ -515,6 +516,9 @@ export default function FronterPage() {
 
       {/* Congrats popup — shows when a deal is closed */}
       {isFronter && <FronterCongratsPopup username={user.username} fronterFirstName={user?.firstName} />}
+
+      {/* One-time popup messages an admin sends to this fronter */}
+      {isFronter && <FronterDirectMessagePopup username={user.username} />}
 
       {/* Email tracking notifications — real-time open/click popups */}
       <FronterEmailTrackingNotifications />

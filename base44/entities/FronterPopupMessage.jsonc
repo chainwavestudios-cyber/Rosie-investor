@@ -1,0 +1,48 @@
+{
+  "name": "FronterPopupMessage",
+  "type": "object",
+  "properties": {
+    "recipientUsername": {
+      "type": "string",
+      "title": "Recipient Username (fronter who sees the popup)"
+    },
+    "message": {
+      "type": "string",
+      "title": "Message Shown In The Popup",
+      "format": "textarea"
+    },
+    "sentBy": {
+      "type": "string",
+      "title": "Sent By (admin username)"
+    },
+    "sentAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Sent At"
+    },
+    "status": {
+      "type": "string",
+      "title": "Status (active = still on screen, closed = acknowledged)",
+      "enum": [
+        "active",
+        "closed"
+      ],
+      "default": "active"
+    },
+    "closedAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Closed At"
+    }
+  },
+  "required": [
+    "recipientUsername",
+    "message"
+  ],
+  "rls": {
+    "create": null,
+    "read": null,
+    "update": null,
+    "delete": null
+  }
+}
