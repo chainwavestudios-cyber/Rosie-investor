@@ -8,7 +8,7 @@ const COMPANY = {
   phoneHref: 'tel:+18662908994',
 };
 
-const LOGO_URL = 'https://media.base44.com/images/public/69cd2741578c9b5ce655395b/6deeb3572_Untitleddesign23.png';
+const LOGO_URL = 'https://media.base44.com/images/public/69cd2741578c9b5ce655395b/ffe18aaa0_Untitleddesign24.png';
 
 export default function HomeHeader() {
   return (
@@ -18,8 +18,8 @@ export default function HomeHeader() {
           <span
             style={{
               position: 'relative',
-              width: '116px',
-              height: '116px',
+              width: '114px',
+              height: '114px',
               overflow: 'hidden',
               flex: '0 0 auto',
             }}
@@ -29,10 +29,10 @@ export default function HomeHeader() {
               alt="Debt Solutions"
               style={{
                 position: 'absolute',
-                width: '149px',
-                height: '149px',
-                left: '-16px',
-                top: '-16px',
+                width: '119px',
+                height: '119px',
+                left: '-2px',
+                top: '-2px',
                 maxWidth: 'none',
                 mixBlendMode: 'lighten',
               }}
