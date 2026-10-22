@@ -4,18 +4,30 @@ const STEPS = ['Basic Info', 'Contact Details', 'Verify Identity', 'Your Quote']
 
 export default function HomeStepper({ activeIndex = 0 }) {
   return (
-    <ol style={{ display: 'flex', alignItems: 'flex-start', gap: '6px', listStyle: 'none', margin: '0 auto', padding: 0, maxWidth: '620px' }}>
-      {STEPS.map((label, index) => (
-        <React.Fragment key={label}>
-          {index > 0 && (
-            <li
-              aria-hidden="true"
-              style={{ flex: '1 1 0', height: '2px', marginTop: '15px', background: index <= activeIndex ? '#003366' : '#cbd5e1' }}
-            />
-          )}
-          <li style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px', width: '74px' }}>
+    <ol style={{ display: 'flex', alignItems: 'flex-start', listStyle: 'none', margin: '0 auto', padding: 0, maxWidth: '620px' }}>
+      {STEPS.map((label, index) => {
+        const isActive = index === activeIndex;
+        return (
+          <li
+            key={label}
+            style={{ position: 'relative', flex: '1 1 0', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}
+          >
+            {index > 0 && (
+              <span
+                aria-hidden="true"
+                style={{
+                  position: 'absolute',
+                  top: '15px',
+                  right: '50%',
+                  width: '100%',
+                  height: '2px',
+                  background: index <= activeIndex ? '#003366' : '#cbd5e1',
+                }}
+              />
+            )}
             <span
               style={{
+                position: 'relative',
                 width: '30px',
                 height: '30px',
                 borderRadius: '999px',
@@ -24,9 +36,9 @@ export default function HomeStepper({ activeIndex = 0 }) {
                 justifyContent: 'center',
                 fontSize: '13px',
                 fontWeight: 700,
-                background: index === activeIndex ? '#003366' : '#ffffff',
-                color: index === activeIndex ? '#ffffff' : '#64748b',
-                border: index === activeIndex ? '2px solid #003366' : '2px solid #cbd5e1',
+                background: isActive ? '#003366' : '#ffffff',
+                color: isActive ? '#ffffff' : '#64748b',
+                border: isActive ? '2px solid #003366' : '2px solid #cbd5e1',
               }}
             >
               {index + 1}
@@ -34,8 +46,8 @@ export default function HomeStepper({ activeIndex = 0 }) {
             <span
               style={{
                 fontSize: '11px',
-                fontWeight: index === activeIndex ? 700 : 500,
-                color: index === activeIndex ? '#003366' : '#64748b',
+                fontWeight: isActive ? 700 : 500,
+                color: isActive ? '#003366' : '#64748b',
                 lineHeight: 1.2,
                 textAlign: 'center',
               }}
@@ -43,8 +55,8 @@ export default function HomeStepper({ activeIndex = 0 }) {
               {label}
             </span>
           </li>
-        </React.Fragment>
-      ))}
+        );
+      })}
     </ol>
   );
 }
