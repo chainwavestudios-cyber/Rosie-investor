@@ -202,7 +202,7 @@ export default function SarahQualifier({ token = '', source = 'landing_page' }) 
         </p>
       )}
 
-      <div className="grid gap-5 lg:grid-cols-[1.4fr_1fr]">
+      <div className="grid gap-5 md:grid-cols-[1.4fr_1fr]">
         {embedId ? (
           <SarahProtofaceStage
             embedId={embedId}
