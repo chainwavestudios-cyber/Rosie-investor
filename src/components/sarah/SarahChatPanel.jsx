@@ -9,6 +9,7 @@ export default function SarahChatPanel({
   onSend,
   awaitingPhone,
   disabled,
+  placeholder,
 }) {
   const [draft, setDraft] = useState('');
   const endRef = useRef(null);
@@ -73,7 +74,7 @@ export default function SarahChatPanel({
           onChange={(event) => setDraft(event.target.value)}
           disabled={disabled}
           inputMode={awaitingPhone ? 'tel' : 'text'}
-          placeholder={disabled ? 'Connecting…' : awaitingPhone ? 'Type your best phone number' : 'Type your answer'}
+          placeholder={placeholder || (disabled ? 'Connecting…' : awaitingPhone ? 'Type your best phone number' : 'Type your answer')}
           className="flex-1 rounded-lg border border-white/10 bg-[#0d1117] px-3 py-2 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:border-sky-400/40 disabled:opacity-60"
         />
         <button

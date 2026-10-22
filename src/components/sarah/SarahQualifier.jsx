@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import Vapi from '@vapi-ai/web';
 import { Keyboard, Loader2, Mic, PhoneCall } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
+import SarahProtofaceStage from './SarahProtofaceStage';
 import SarahVideoPanel from './SarahVideoPanel';
 import SarahChatPanel from './SarahChatPanel';
 
@@ -32,18 +32,21 @@ export default function SarahQualifier({ token = '', source = 'landing_page' }) 
   const [config, setConfig] = useState(null);
   const [phase, setPhase] = useState('loading');
   const [messages, setMessages] = useState([]);
-  const [speaking, setSpeaking] = useState(false);
   const [quickReplies, setQuickReplies] = useState([]);
   const [awaitingPhone, setAwaitingPhone] = useState(false);
   const [error, setError] = useState('');
+  const [startSignal, setStartSignal] = useState(0);
+  const [endSignal, setEndSignal] = useState(0);
 
-  const vapiRef = useRef(null);
   const stepRef = useRef('debt');
   const tierRef = useRef('');
+  const routedRef = useRef(false);
 
   const agentName = config?.agentName || 'Sarah';
   const name = config?.lead?.firstName || 'there';
   const stateName = config?.lead?.state || 'your area';
+  const embedId = config?.protofaceEmbedId || '';
+  const sessionToken = config?.sessionToken;
 
   useEffect(() => {
     let alive = true;
@@ -64,23 +67,10 @@ export default function SarahQualifier({ token = '', source = 'landing_page' }) 
     };
   }, [token, source]);
 
-  const stopVoice = useCallback(() => {
-    try {
-      vapiRef.current?.stop();
-    } catch {
-      // the call is already closed
-    }
-    vapiRef.current = null;
-  }, []);
-
-  useEffect(() => stopVoice, [stopVoice]);
-
-  const say = (text) => setMessages((current) => [...current, { role: 'agent', text }]);
-  const hear = (text) => setMessages((current) => [...current, { role: 'user', text }]);
+  const say = useCallback((text) => setMessages((current) => [...current, { role: 'agent', text }]), []);
+  const hear = useCallback((text) => setMessages((current) => [...current, { role: 'user', text }]), []);
 
   const openTextFlow = useCallback(() => {
-    stopVoice();
-    setSpeaking(false);
     setError('');
     stepRef.current = 'debt';
     tierRef.current = '';
@@ -90,74 +80,55 @@ export default function SarahQualifier({ token = '', source = 'landing_page' }) 
     say(
       `Hey ${name}! I'm ${agentName}. I was just reviewing your profile inside the system — I noticed you're navigating some tough credit card balances over in ${stateName}, and I wanted to see if we can help you wipe them out. To make sure you qualify, do you currently owe more than $5,000 across your accounts?`,
     );
-  }, [agentName, name, stateName, stopVoice]);
+  }, [agentName, name, say, stateName]);
 
-  const routeToTeam = async (phone, tier) => {
-    setPhase('routing');
-    try {
-      const res = await base44.functions.invoke('vapiQualify', {
-        action: 'routeCall',
-        sessionToken: config?.sessionToken,
-        phone,
-        debtTier: tier || '',
-      });
-      if (res.data?.ok) {
-        say('Awesome, hold on just one second while I patch you straight through to us!');
-        setPhase('routed');
-      } else {
-        setError(res.data?.error || 'We could not start the call.');
+  const routeToTeam = useCallback(
+    async (phone, tier) => {
+      setPhase('routing');
+      try {
+        const res = await base44.functions.invoke('vapiQualify', {
+          action: 'routeCall',
+          sessionToken,
+          phone,
+          debtTier: tier || '',
+        });
+        if (res.data?.ok) {
+          say('Awesome, hold on just one second while I patch you straight through to us!');
+          setPhase('routed');
+        } else {
+          setError(res.data?.error || 'We could not start the call.');
+          setPhase('text');
+        }
+      } catch (err) {
+        setError(err?.response?.data?.error || err?.message || 'We could not start the call.');
         setPhase('text');
       }
-    } catch (err) {
-      setError(err?.response?.data?.error || err?.message || 'We could not start the call.');
-      setPhase('text');
-    }
-  };
+    },
+    [say, sessionToken],
+  );
 
-  const startVoice = async () => {
-    if (!config?.assistantId || !config?.publicKey) {
-      openTextFlow();
-      return;
-    }
-    setError('');
-    setPhase('connecting');
+  // Sarah's face is the Protoface conversation; her words land in the same transcript log,
+  // and a phone number spoken to her is handed straight to the sales-line bridge.
+  const handleStageLine = useCallback(
+    ({ role, text }) => {
+      setMessages((current) => [...current, { role, text }]);
+      if (role !== 'user' || routedRef.current) return;
+      const phone = toE164(text);
+      if (!phone) return;
+      routedRef.current = true;
+      setEndSignal((value) => value + 1);
+      void routeToTeam(phone, tierRef.current);
+    },
+    [routeToTeam],
+  );
 
-    const vapi = new Vapi(config.publicKey);
-    vapiRef.current = vapi;
-
-    vapi.on('call-start', () => setPhase('live'));
-    vapi.on('speech-start', () => setSpeaking(true));
-    vapi.on('speech-end', () => setSpeaking(false));
-    vapi.on('message', (msg) => {
-      if (msg?.type !== 'transcript' || msg?.transcriptType !== 'final') return;
-      const text = String(msg.transcript || '').trim();
-      if (!text) return;
-      setMessages((current) => [...current, { role: msg.role === 'user' ? 'user' : 'agent', text }]);
-    });
-    vapi.on('tool-calls', () => setPhase('routing'));
-    vapi.on('call-end', () => {
-      setSpeaking(false);
+  const handleStageStatus = useCallback((status) => {
+    if (status === 'live' || status === 'waiting_for_avatar') setPhase('live');
+    else if (status === 'joining' || status === 'requesting_device_access' || status === 'confirming_consent') setPhase('connecting');
+    else if (status === 'ended' || status === 'failed') {
       setPhase((current) => (current === 'routing' || current === 'routed' ? current : 'ready'));
-    });
-    vapi.on('error', () => {
-      setSpeaking(false);
-      openTextFlow();
-    });
-
-    try {
-      const call = await vapi.start(config.assistantId, {
-        variableValues: { name, state: stateName },
-        metadata: { sessionToken: config?.sessionToken },
-      });
-      if (call?.id) {
-        base44.functions
-          .invoke('vapiQualify', { action: 'attachCall', sessionToken: config?.sessionToken, vapiCallId: call.id })
-          .catch(() => {});
-      }
-    } catch {
-      openTextFlow();
     }
-  };
+  }, []);
 
   const answerText = (text) => {
     const value = String(text || '').trim();
@@ -208,19 +179,6 @@ export default function SarahQualifier({ token = '', source = 'landing_page' }) 
     say('No problem at all — do you currently owe more than $5,000 across your accounts?');
   };
 
-  const sendTyped = (text) => {
-    if (phase === 'live' && vapiRef.current?.send) {
-      hear(text);
-      try {
-        vapiRef.current.send({ type: 'add-message', message: { role: 'user', content: text } });
-      } catch {
-        // Vapi will pick the typed line up on the next turn
-      }
-      return;
-    }
-    answerText(text);
-  };
-
   if (phase === 'loading') {
     return (
       <div className="flex min-h-[420px] items-center justify-center rounded-2xl border border-white/10 bg-[#0b1220]">
@@ -230,7 +188,6 @@ export default function SarahQualifier({ token = '', source = 'landing_page' }) 
   }
 
   const busy = phase === 'connecting' || phase === 'routing';
-  const canTalk = !!config?.assistantId && !!config?.publicKey;
 
   return (
     <div className="space-y-4">
@@ -246,14 +203,25 @@ export default function SarahQualifier({ token = '', source = 'landing_page' }) 
       )}
 
       <div className="grid gap-5 lg:grid-cols-[1.4fr_1fr]">
-        <SarahVideoPanel
-          agentName={agentName}
-          speaking={speaking}
-          phase={phase}
-          embedUrl={config?.protofaceEmbedUrl}
-          leadName={config?.lead?.firstName}
-          note={config?.protofaceEmbedUrl ? '' : 'voice live now'}
-        />
+        {embedId ? (
+          <SarahProtofaceStage
+            embedId={embedId}
+            agentName={agentName}
+            leadName={config?.lead?.firstName}
+            startSignal={startSignal}
+            endSignal={endSignal}
+            onLine={handleStageLine}
+            onStatus={handleStageStatus}
+          />
+        ) : (
+          <SarahVideoPanel
+            agentName={agentName}
+            speaking={false}
+            phase={phase}
+            embedUrl={config?.protofaceEmbedUrl}
+            leadName={config?.lead?.firstName}
+          />
+        )}
 
         <div className="flex flex-col gap-3">
           <SarahChatPanel
@@ -261,43 +229,30 @@ export default function SarahQualifier({ token = '', source = 'landing_page' }) 
             messages={messages}
             quickReplies={quickReplies}
             onReply={answerText}
-            onSend={sendTyped}
+            onSend={answerText}
             awaitingPhone={awaitingPhone}
-            disabled={busy || phase === 'unavailable'}
+            disabled={busy || phase === 'live' || phase === 'unavailable'}
+            placeholder={phase === 'live' ? `Talking with ${agentName}…` : undefined}
           />
 
           {phase === 'ready' && (
-            <div className="flex flex-col gap-2 sm:flex-row">
-              <button
-                type="button"
-                onClick={startVoice}
-                className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-gradient-to-br from-sky-400 to-sky-600 px-4 py-3 text-sm font-semibold text-[#0b1220]"
-              >
-                <Mic className="h-4 w-4" />
-                Start video call with {agentName}
-              </button>
-              <button
-                type="button"
-                onClick={openTextFlow}
-                className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/15 px-4 py-3 text-sm text-slate-200 hover:bg-white/5"
-              >
-                <Keyboard className="h-4 w-4" />
-                Type instead
-              </button>
-            </div>
-          )}
-
-          {phase === 'connecting' && (
-            <div className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 px-4 py-3 text-sm text-slate-300">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              Connecting {agentName}…
-            </div>
-          )}
-
-          {phase === 'text' && canTalk && (
             <button
               type="button"
-              onClick={startVoice}
+              onClick={openTextFlow}
+              className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/15 px-4 py-3 text-sm text-slate-200 hover:bg-white/5"
+            >
+              <Keyboard className="h-4 w-4" />
+              Type instead
+            </button>
+          )}
+
+          {phase === 'text' && embedId && (
+            <button
+              type="button"
+              onClick={() => {
+                setPhase('ready');
+                setStartSignal((value) => value + 1);
+              }}
               className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/15 px-4 py-3 text-sm text-slate-200 hover:bg-white/5"
             >
               <Mic className="h-4 w-4" />

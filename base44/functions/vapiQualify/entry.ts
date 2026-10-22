@@ -42,6 +42,7 @@ export default async function (req: Request) {
         assistantId: cfg.assistantId || '',
         publicKey: secrets.get('VAPI_PUBLIC_KEY') || '',
         protofaceEmbedUrl: embedUrl,
+        protofaceEmbedId: cfg.protofaceEmbedId || '',
         sessionToken: session.sessionToken,
         matched: !!lead,
         lead: leadView(lead),
