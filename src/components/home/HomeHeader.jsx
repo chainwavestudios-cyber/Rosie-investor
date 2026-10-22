@@ -32,9 +32,6 @@ export default function HomeHeader() {
               style={{ position: 'absolute', width: '84px', height: '84px', left: '-10px', top: '-5px' }}
             />
           </span>
-          <span style={{ color: '#ffffff', fontFamily: "'Playfair Display', serif", fontSize: '24px', fontWeight: 700 }}>
-            Debt Solutions
-          </span>
         </div>
 
         <address
