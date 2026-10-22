@@ -33,14 +33,14 @@ export const TRIGGER_TOOL = {
     name: TRIGGER_TOOL_NAME,
     description: 'Triggers a Twilio bridge call to patch the qualified lead directly to the primary rep line once the phone number is collected.',
     parameters: {
-      type: 'OBJECT',
+      type: 'object',
       properties: {
         verified_phone: {
-          type: 'STRING',
+          type: 'string',
           description: 'The validated phone number provided by the user.',
         },
         debt_tier: {
-          type: 'STRING',
+          type: 'string',
           description: 'The selected range of debt: 5k-10k, 10k-20k, or 20k+',
         },
       },
@@ -66,7 +66,7 @@ export function buildAssistantPayload(cfg: any, baseUrl: string) {
       messages: [{ role: 'system', content: cfg?.systemPrompt || SYSTEM_PROMPT }],
       tools: [TRIGGER_TOOL],
     },
-    voice: { provider: 'elevenlabs', voiceId: cfg?.elevenLabsVoiceId || DEFAULT_VOICE_ID },
+    voice: { provider: '11labs', voiceId: cfg?.elevenLabsVoiceId || DEFAULT_VOICE_ID },
     server: { url: `${baseUrl}/functions/vapiWebhook`, secret: secrets.get('VAPI_WEBHOOK_SECRET') || '' },
   };
 }
