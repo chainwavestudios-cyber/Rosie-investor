@@ -48,7 +48,7 @@ export default function FronterEmailsTab({ username }) {
   const loadTemplates = useCallback(async () => {
     setLoading(true);
     try {
-      const page = await base44.entities.FronterEmailTemplate.filter({ emailProvider: { $ne: 'mailjet' } }, { sort: 'sortOrder', limit: 100 });
+      const page = await base44.entities.FronterEmailTemplate.filter({ emailProvider: { $ne: 'smtpfast' } }, { sort: 'sortOrder', limit: 100 });
       setTemplates(page?.items || page || []);
     } catch { setTemplates([]); }
     setLoading(false);

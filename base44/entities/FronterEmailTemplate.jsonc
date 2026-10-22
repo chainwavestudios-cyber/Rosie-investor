@@ -21,14 +21,10 @@
       "type": "string",
       "enum": [
         "gmail",
-        "mailjet"
+        "smtpfast"
       ],
       "default": "gmail",
-      "title": "Email Provider"
-    },
-    "mailjetTemplateId": {
-      "type": "string",
-      "title": "Mailjet Account 2 Template ID"
+      "title": "Email Provider (gmail = the connected Google account, smtpfast = outreach sending)"
     },
     "templateType": {
       "type": "string",

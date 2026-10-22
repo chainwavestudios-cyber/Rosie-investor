@@ -7,7 +7,7 @@
  * a precomputed send time), so this tick can never double-send.
  */
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.54';
-import { MAILJET_FROM_NAME } from '../../shared/mailjetSender.ts';
+import { OUTREACH_FROM_NAME, smtpfastSend } from '../../shared/smtpfastSender.ts';
 import { injectDccTracking, linkHostsFromHtml } from '../../shared/debtMarketingTracking.ts';
 import { scheduleIntro2Call } from '../../shared/debtMarketingEngage.ts';
 
@@ -28,14 +28,6 @@ export default async function (req: Request): Promise<Response> {
     const user = await base44.auth.me();
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
     if (user.role !== 'admin') return Response.json({ error: 'Forbidden' }, { status: 403 });
-
-    const key = Deno.env.get('MAILJET_2_API_KEY');
-    const secret = Deno.env.get('MAILJET_2_API_SECRET');
-    const fromEmail = Deno.env.get('MAILJET_2_FROM_EMAIL');
-    if (!key || !secret || !fromEmail) {
-      throw new Error('Mailjet credentials not configured (MAILJET_2_API_KEY, MAILJET_2_API_SECRET, MAILJET_2_FROM_EMAIL)');
-    }
-    const auth = btoa(`${key}:${secret}`);
 
     const body = await req.json().catch(() => ({}));
     const campaignId = body?.campaignId || null;
@@ -121,27 +113,15 @@ export default async function (req: Request): Promise<Response> {
           const text = rendered.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
           const linkHostsJson = trackable ? JSON.stringify(linkHostsFromHtml(rendered)) : '';
 
-          const res = await fetch('https://api.mailjet.com/v3.1/send', {
-            method: 'POST',
-            headers: { Authorization: `Basic ${auth}`, 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              Messages: [{
-                From: { Email: fromEmail, Name: MAILJET_FROM_NAME },
-                To: [{ Email: to, Name: fullName || to }],
-                Subject: subject,
-                HTMLPart: html,
-                TextPart: text,
-                CustomID: `dm:${campaign.id}:${send.id}`,
-              }],
-            }),
-            signal: AbortSignal.timeout(25000),
+          const delivered = await smtpfastSend({
+            to,
+            subject,
+            html,
+            text,
+            fromName: OUTREACH_FROM_NAME,
+            category: 'marketing',
+            customId: `dm:${campaign.id}:${send.id}`,
           });
-          const payload = await res.json().catch(() => ({}));
-          const status = payload?.Messages?.[0]?.Status;
-          if (!res.ok || status !== 'success') {
-            const detail = JSON.stringify(payload?.Messages?.[0]?.Errors || payload?.ErrorMessages || payload || {}).slice(0, 300);
-            throw new Error(`Mailjet rejected the send (${res.status}): ${detail}`);
-          }
 
           const sentAtIso = new Date().toISOString();
           await base44.asServiceRole.entities.DebtMarketingSend.update(send.id, {
@@ -149,7 +129,7 @@ export default async function (req: Request): Promise<Response> {
             sentAt: sentAtIso,
             email: to,
             linkHostsJson,
-            mailjetMessageId: String(payload?.Messages?.[0]?.To?.[0]?.MessageID || ''),
+            mailjetMessageId: delivered.id,
           });
 
           // Introduction 2 has gone out — book the call that engagement earned:

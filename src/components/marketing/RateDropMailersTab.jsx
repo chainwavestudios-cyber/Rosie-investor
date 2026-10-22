@@ -38,10 +38,9 @@ export default function RateDropMailersTab({ username }) {
   const [sends, setSends] = useState([]);
   const [busy, setBusy] = useState('');
   const [msg, setMsg] = useState('');
-  const [mailjetTemplateId, setMailjetTemplateId] = useState('');
   const [form, setForm] = useState({
     name: '',
-    mailjetTemplateId: '',
+    subject: 'Debt Solutions Rate Drop Engine: Official Notice of Eligibility',
     fronterUsername: '',
     leadIds: [],
     scheduleMode: 'all_at_once',
@@ -55,17 +54,12 @@ export default function RateDropMailersTab({ username }) {
 
   const load = useCallback(async () => {
     try {
-      const [users, camps, tplRows] = await Promise.all([
+      const [users, camps] = await Promise.all([
         base44.entities.DebtCoachUser.list('-created_date', 500).catch(() => []),
         base44.entities.RateDropCampaign.list('-created_date', 50).catch(() => []),
-        base44.entities.RateDropTemplate.filter({ configName: 'default' }).catch(() => []),
       ]);
       setFronters((users || []).filter(u => (u.role === 'fronter' || u.role === 'super_admin') && u.isActive));
       setCampaigns(camps?.items || camps || []);
-      // The Mailjet template the engine injects into — already pushed, or empty.
-      const stored = String(((tplRows?.items || tplRows || [])[0] || {}).mailjetTemplateId || '');
-      setMailjetTemplateId(stored);
-      setForm(prev => ({ ...prev, mailjetTemplateId: prev.mailjetTemplateId || stored }));
     } catch {}
   }, []);
 
@@ -99,7 +93,7 @@ export default function RateDropMailersTab({ username }) {
 
   const create = async () => {
     if (!form.name.trim()) { setMsg('Give the campaign a name.'); return; }
-    if (!form.mailjetTemplateId.trim()) { setMsg('Enter the Mailjet template ID the mailer is injected into.'); return; }
+    if (!form.subject.trim()) { setMsg('Enter the subject line this notice goes out under.'); return; }
     if (!form.leadIds.length) { setMsg('Select at least one prospect.'); return; }
     setBusy('create'); setMsg('');
     try {
@@ -120,7 +114,7 @@ export default function RateDropMailersTab({ username }) {
 
       const campaign = await base44.entities.RateDropCampaign.create({
         name: form.name.trim(),
-        mailjetTemplateId: form.mailjetTemplateId.trim(),
+        subject: form.subject.trim(),
         fronterUsername: form.fronterUsername,
         leadIdsJson: JSON.stringify(ids),
         scheduleMode: form.scheduleMode,
@@ -156,23 +150,6 @@ export default function RateDropMailersTab({ username }) {
       await load();
     } catch (e) {
       setMsg('Could not create the campaign: ' + (e?.message || 'unknown error'));
-    }
-    setBusy('');
-  };
-
-  // Builds the template inside the Mailjet account with the injection slot
-  // already in place, so nothing has to be assembled by hand in Mailjet.
-  const pushTemplate = async () => {
-    setBusy('template'); setMsg('');
-    try {
-      const res = await base44.functions.invoke('rateDropMailjetTemplate', { action: 'push', adminUsername: username });
-      const d = res?.data || {};
-      if (d.error) throw new Error(d.error);
-      setMailjetTemplateId(String(d.templateId));
-      setForm(prev => ({ ...prev, mailjetTemplateId: String(d.templateId) }));
-      setMsg(`${d.created ? 'Created' : 'Updated'} Mailjet template ${d.templateId} — the mailer slot is in place, so it is ready for a campaign.`);
-    } catch (e) {
-      setMsg('Mailjet template push failed: ' + (e?.message || 'unknown error'));
     }
     setBusy('');
   };
@@ -217,15 +194,8 @@ export default function RateDropMailersTab({ username }) {
             <input value={form.name} onChange={e => set('name', e.target.value)} placeholder="October Rate Drop — Riverside" style={inputStyle} />
           </div>
           <div>
-            <div style={labelStyle}>Mailjet Template ID</div>
-            <input value={form.mailjetTemplateId} onChange={e => set('mailjetTemplateId', e.target.value)} placeholder="1234567" style={inputStyle} />
-            <button
-              onClick={pushTemplate}
-              disabled={!!busy}
-              style={{ ...btn('rgba(96,165,250,0.15)', BLUE), marginTop: '6px', width: '100%', border: `1px solid ${BLUE}55` }}
-            >
-              {busy === 'template' ? 'Pushing…' : mailjetTemplateId ? '↻ Update in Mailjet' : '☁ Create in Mailjet'}
-            </button>
+            <div style={labelStyle}>Email Subject</div>
+            <input value={form.subject} onChange={e => set('subject', e.target.value)} placeholder="Debt Solutions Rate Drop Engine: Official Notice of Eligibility" style={inputStyle} />
           </div>
           <div>
             <div style={labelStyle}>Fronter</div>
@@ -237,7 +207,7 @@ export default function RateDropMailersTab({ username }) {
         </div>
 
         <div style={{ color: '#6b7280', fontSize: '10px' }}>
-          “Create in Mailjet” builds that template for you with the <span style={{ color: BLUE, fontFamily: 'monospace' }}>{'{{var:mailer_html}}'}</span> slot already in place and fills in its ID here — or paste the ID of a template you built yourself, as long as it holds that same slot. It sends from your Mailjet domain — never from the connected Google account.
+          The notice itself is built by the Rate Drop Engine and sent as the email body, so nothing has to be assembled in a template anywhere. This subject line is what lands in the prospect's inbox, and the notice goes out from your outreach sending domain — never from the connected Google account.
         </div>
 
         {/* Prospects */}
@@ -340,7 +310,7 @@ export default function RateDropMailersTab({ username }) {
                 <div>
                   <div style={{ color: '#e8e0d0', fontSize: '12px', fontWeight: 'bold' }}>{c.name}</div>
                   <div style={{ color: '#6b7280', fontSize: '10px', marginTop: '2px' }}>
-                    {c.fronterUsername || '—'} · template {c.mailjetTemplateId} · {c.scheduleMode?.replace('_', ' ')} · {total} mailers · <span style={{ color: statusColor, textTransform: 'uppercase' }}>{c.status}</span>
+                    {c.fronterUsername || '—'} · {c.scheduleMode?.replace('_', ' ')} · {total} mailers · <span style={{ color: statusColor, textTransform: 'uppercase' }}>{c.status}</span>
                   </div>
                 </div>
                 <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>

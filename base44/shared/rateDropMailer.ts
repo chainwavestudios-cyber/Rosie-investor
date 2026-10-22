@@ -3,14 +3,15 @@
  *
  * One place that turns a contact card into a "DEBT Solutions" digital mailer
  * (black banner, formal serif body, bordered data box, benefits grid, big CTA
- * phone) and one place that emails it through Mailjet. The mailer HTML is
- * injected into the campaign's Mailjet template as the `mailer_html` variable,
- * never attached.
+ * phone) and one place that emails it through the app's outreach sender. The
+ * mailer HTML IS the email body — nothing is assembled at the provider.
  *
  * The phone printed on the mailer is the incoming line the AI agent answers
  * (AIAgentConfig.twilioLineKey), so the mailer and the scripts point at the
  * same number.
  */
+
+import { smtpfastSend } from './smtpfastSender.ts';
 
 export const DEFAULT_BENEFITS = [
   {
@@ -118,7 +119,6 @@ export const DEFAULT_RATE_DROP_TEMPLATE = {
   respondByDays: 30,
   ctaPhoneOverride: '',
   fieldMapJson: JSON.stringify(DEFAULT_FIELD_MAP),
-  mailjetTemplateId: '',
 };
 
 /**
@@ -514,76 +514,43 @@ export async function findMailer(base44: any, leadId: string): Promise<any | nul
   return rows[0] || null;
 }
 
-/**
- * Sends one digital mailer through Mailjet: the campaign's template carries the
- * layout and the mailer HTML is injected as the `mailer_html` variable.
- */
+/** The notice subject the Rate Drop engine sends under. */
+export const DEFAULT_RATE_DROP_SUBJECT = 'Debt Solutions Rate Drop Engine: Official Notice of Eligibility';
+
 export async function sendRateDropMailer(base44: any, opts: {
   to: string;
   toName: string;
-  mailjetTemplateId: string | number;
+  subject?: string;
   mailer: any;
   card: any;
   template?: any;
   customId?: string;
 }): Promise<{ messageId: string; messageUUID: string }> {
-  // Rate Drop mailers send from their own Mailjet account; the rest of the app's
-  // email keeps using the original one.
-  const key = Deno.env.get('MAILJET_2_API_KEY');
-  const secret = Deno.env.get('MAILJET_2_API_SECRET');
-  const fromEmail = Deno.env.get('MAILJET_2_FROM_EMAIL');
-  // Mailjet sends only — every Rate Drop mailer goes out under this sender name.
-  // Gmail-connected sends keep the Chris Bongiorno / DAAA signature (shared/emailSignature.ts).
+  // Every Rate Drop mailer goes out under this sender name; Gmail-connected sends
+  // keep the Chris Bongiorno / DAAA signature (shared/emailSignature.ts) instead.
   const fromName = 'Stephani Sterling - RateDrop Credit Systems';
-  if (!key || !secret || !fromEmail) throw new Error('Rate Drop Mailjet credentials not configured (MAILJET_2_API_KEY, MAILJET_2_API_SECRET, MAILJET_2_FROM_EMAIL)');
 
-  // The plain-text fallback is rendered from the same resolved notice values as
-  // the HTML, so both versions of the notice say the same thing.
+  const to = String(opts.to || '').trim();
+  if (!to) throw new Error('No email address on the contact card.');
   const template = opts.template || DEFAULT_RATE_DROP_TEMPLATE;
-  const notice = resolveMailerSlots(template, opts.card, buildMailerContext(opts.mailer?.phone || '', template));
+  const mailerHtml = String(opts.mailer?.html || '');
+  // The plain-text fallback says the same thing as the notice itself.
+  const text = mailerHtml
+    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/\s+/g, ' ')
+    .trim();
 
-  const message: any = {
-    From: { Email: fromEmail, Name: fromName },
-    To: [{ Email: opts.to, Name: opts.toName || '' }],
-    TemplateID: Number(opts.mailjetTemplateId),
-    TemplateLanguage: true,
-    Variables: {
-      mailer_html: opts.mailer?.html || '',
-      document_title: template.documentTitle || '',
-      notice_title: template.noticeTitle || '',
-      notice_id: opts.mailer?.noticeId || '',
-      plan_number: opts.mailer?.noticeId || '',
-      first_name: opts.card?.firstName || '',
-      last_name: opts.card?.lastName || '',
-      recipient_name: opts.mailer?.recipientName || '',
-      address: cardFullAddress(opts.card),
-      state: opts.card?.state || '',
-      debt_amount: money(opts.card?.debtAmount),
-      savings_amount: money(opts.mailer?.savingsAmount),
-      notice_date: notice.notice_date || '',
-      respond_by_date: notice.respond_by_date || '',
-      deadline_time: template.deadlineTime || '',
-      addressee_status: fill(template.addresseeStatus, notice),
-      next_steps_text: fill(template.nextStepsText, notice),
-      phone: opts.mailer?.phone || '',
-    },
-  };
-  if (opts.customId) message.CustomID = opts.customId;
-
-  const res = await fetch('https://api.mailjet.com/v3.1/send', {
-    method: 'POST',
-    headers: { Authorization: `Basic ${btoa(`${key}:${secret}`)}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ Messages: [message] }),
-    signal: AbortSignal.timeout(20000),
+  const delivered = await smtpfastSend({
+    to,
+    subject: String(opts.subject || '').trim() || DEFAULT_RATE_DROP_SUBJECT,
+    html: mailerHtml,
+    text: `${text}\n\n${opts.mailer?.phone || ''}`.trim(),
+    fromName,
+    category: 'marketing',
+    customId: opts.customId || '',
   });
-
-  const data: any = await res.json().catch(() => ({}));
-  const info = data?.Messages?.[0];
-  if (!res.ok || info?.Status !== 'success') {
-    throw new Error(`Mailjet: ${JSON.stringify(info?.Errors || data).slice(0, 300)}`);
-  }
-  return {
-    messageId: String(info?.To?.[0]?.MessageID || ''),
-    messageUUID: info?.To?.[0]?.MessageUUID || '',
-  };
+  return { messageId: delivered.id, messageUUID: '' };
 }

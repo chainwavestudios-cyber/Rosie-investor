@@ -1,9 +1,8 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 
-const MJ_KEY        = Deno.env.get('MAILJET_API_KEY');
-const MJ_SECRET     = Deno.env.get('MAILJET_API_SECRET');
-const MJ_FROM_EMAIL = Deno.env.get('MAILJET_FROM_EMAIL');
-const MJ_FROM_NAME  = Deno.env.get('MAILJET_FROM_NAME') || 'Rosie AI';
+import { smtpfastSend, toSmtpfastAttachments } from '../../shared/smtpfastSender.ts';
+
+const DEFAULT_FROM_EMAIL = Deno.env.get('SMTPFAST_FROM_EMAIL') || '';
 
 Deno.serve(async (req) => {
   const base44 = createClientFromRequest(req);
@@ -25,55 +24,32 @@ Deno.serve(async (req) => {
   if (!toEmail || !subject || !bodyHtml) {
     return Response.json({ error: 'Missing toEmail, subject, or bodyHtml' }, { status: 400 });
   }
-  if (!MJ_KEY || !MJ_SECRET || !MJ_FROM_EMAIL) {
-    return Response.json({ error: 'Mailjet credentials not configured' }, { status: 500 });
-  }
-
-  const auth = btoa(`${MJ_KEY}:${MJ_SECRET}`);
-
-  // CustomID lets the webhook route opens/clicks back to the right record
+  // CustomID rides along as a provider tag so a send can be traced to its record
   const customId = leadId ? `${leadId}:custom` : investorId ? `inv:${investorId}:custom` : '';
 
-  // Resolve sender — allow override, fall back to env defaults
-  const senderEmail = fromEmail || MJ_FROM_EMAIL;
-  const senderName  = fromName  || MJ_FROM_NAME;
+  // Resolve sender — allow override, fall back to the configured sender
+  const senderEmail = fromEmail || DEFAULT_FROM_EMAIL;
+  const senderName  = fromName  || '';
 
-  const message = {
-    From: { Email: senderEmail, Name: senderName },
-    To:   [{ Email: toEmail, Name: toName || '' }],
-    Subject: subject,
-    HTMLPart: bodyHtml,
-    TextPart: bodyText || bodyHtml.replace(/<[^>]+>/g, ''),
-    ...(customId ? { CustomID: customId } : {}),
-
-  };
-
-  // Attach files if provided
-  if (attachments && attachments.length > 0) {
-    message.Attachments = attachments.map(a => ({
-      ContentType: a.mime || 'application/octet-stream',
-      Filename: a.name,
-      Base64Content: a.base64,
-    }));
+  let sent;
+  try {
+    sent = await smtpfastSend({
+      to: toEmail,
+      subject,
+      html: bodyHtml,
+      text: bodyText || bodyHtml.replace(/<[^>]+>/g, ''),
+      from: senderEmail,
+      ...(senderName ? { fromName: senderName } : {}),
+      customId,
+      attachments: attachments && attachments.length ? toSmtpfastAttachments(attachments) : undefined,
+    });
+  } catch (error: any) {
+    console.error('[sendCustomEmail] send failed:', error?.message || String(error));
+    return Response.json({ error: 'Email send failed', details: error?.message || String(error) }, { status: 500 });
   }
 
-  const payload = { Messages: [message] };
-
-  const res  = await fetch('https://api.mailjet.com/v3.1/send', {
-    method: 'POST',
-    headers: { 'Authorization': `Basic ${auth}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  });
-
-  const data = await res.json();
-  if (!res.ok || data.Messages?.[0]?.Status !== 'success') {
-    console.error('[sendCustomEmail] Mailjet error:', JSON.stringify(data));
-    return Response.json({ error: 'Mailjet send failed', details: data }, { status: 500 });
-  }
-
-  const msgInfo     = data.Messages[0];
-  const messageId   = String(msgInfo.To?.[0]?.MessageID || '');
-  const messageUUID = msgInfo.To?.[0]?.MessageUUID || '';
+  const messageId   = sent.id;
+  const messageUUID = '';
 
   // ── Log to EmailLog ────────────────────────────────────────────────────
   await base44.asServiceRole.entities.EmailLog.create({

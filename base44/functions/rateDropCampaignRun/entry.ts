@@ -85,7 +85,7 @@ export default async function (req: Request): Promise<Response> {
           const result = await sendRateDropMailer(base44, {
             to,
             toName: cardFullName(card),
-            mailjetTemplateId: campaign.mailjetTemplateId,
+            subject: campaign.subject,
             mailer,
             card,
             template,

@@ -6,9 +6,10 @@
       "type": "string",
       "title": "Campaign Name"
     },
-    "mailjetTemplateId": {
+    "subject": {
       "type": "string",
-      "title": "Mailjet Template ID (the template the mailer is injected into)"
+      "title": "Email Subject (the subject line each notice goes out under)",
+      "default": "Debt Solutions Rate Drop Engine: Official Notice of Eligibility"
     },
     "fronterUsername": {
       "type": "string",

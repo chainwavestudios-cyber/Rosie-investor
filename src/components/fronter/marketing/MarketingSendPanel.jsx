@@ -16,10 +16,10 @@ export default function MarketingSendPanel({ template, call }) {
       for (let index = 0; index < ids.length; index += 25) {
         const result = await call('send', { templateId: template.id, leadIds: ids.slice(index, index + 25) });
         sent += result.sent.length; failed.push(...result.failed); successful.push(...result.sent.map(item => item.leadId));
-        setStatus(`${sent} accepted by Mailjet account 2 so far.`);
+        setStatus(`${sent} accepted so far.`);
       }
       recipients.setSelected(previous => previous.filter(id => !successful.includes(id)));
-      setStatus(`${sent} email${sent === 1 ? '' : 's'} accepted by Mailjet account 2${failed.length ? `; ${failed.length} failed and remain selected` : ''}.`);
+      setStatus(`${sent} email${sent === 1 ? '' : 's'} accepted${failed.length ? `; ${failed.length} failed and remain selected` : ''}.`);
       setFailures(failed.map(item => item.error));
     } catch (error) {
       recipients.setSelected(previous => previous.filter(id => !successful.includes(id)));
@@ -29,7 +29,7 @@ export default function MarketingSendPanel({ template, call }) {
   };
   return <div className="space-y-3">
     <MarketingRecipientPicker recipients={recipients} />
-    <button type="button" className="calendar-button" disabled={!template || !recipients.selected.length || busy} onClick={send}>{busy ? 'Sending via Mailjet 2…' : `Send via Mailjet 2 to ${recipients.selected.length} selected`}</button>
+    <button type="button" className="calendar-button" disabled={!template || !recipients.selected.length || busy} onClick={send}>{busy ? 'Sending…' : `Send to ${recipients.selected.length} selected`}</button>
     {status && <p role="status" className="text-sm text-assistant-primary">{status}</p>}
     {failures.map((failure, index) => <p key={index} role="alert" className="calendar-error">{failure}</p>)}
   </div>;

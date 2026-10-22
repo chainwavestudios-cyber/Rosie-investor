@@ -7,11 +7,10 @@
  *   https://<function-url>/dataRoomAccessRequest?email={{var:email}}&name={{var:name}}&lead_id={{var:lead_id}}
  */
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
+import { smtpfastSend } from '../../shared/smtpfastSender.ts';
 
-const MJ_KEY      = Deno.env.get('MAILJET_API_KEY');
-const MJ_SECRET   = Deno.env.get('MAILJET_API_SECRET');
-const ADMIN_EMAIL = Deno.env.get('MAILJET_FROM_EMAIL');
-const FROM_NAME   = Deno.env.get('MAILJET_FROM_NAME') || 'Rosie AI';
+// The inbox this notice goes to (the company address the emails send from).
+const ADMIN_EMAIL = Deno.env.get('SMTPFAST_FROM_EMAIL') || Deno.env.get('MAILJET_FROM_EMAIL');
 
 const THANK_YOU_HTML = (firstName, email, leadId) => `<!DOCTYPE html>
 <html lang="en">
@@ -155,8 +154,7 @@ async function processRequest(base44, email, name, leadId) {
     sentAt: now,
   }).catch(() => {});
 
-  if (MJ_KEY && MJ_SECRET && ADMIN_EMAIL) {
-    const auth = btoa(`${MJ_KEY}:${MJ_SECRET}`);
+  if (ADMIN_EMAIL) {
     const html = `
       <div style="font-family:Georgia,serif;max-width:560px;margin:0 auto;padding:32px;background:#f9f8f6;border-radius:8px;">
         <div style="color:#b8933a;font-size:11px;letter-spacing:3px;text-transform:uppercase;margin-bottom:24px;">Rosie AI · Investor Relations</div>
@@ -170,18 +168,13 @@ async function processRequest(base44, email, name, leadId) {
         <p style="color:#4a5568;font-size:14px;line-height:1.6;">Log in to the admin dashboard to review this lead and grant data room access if appropriate.</p>
       </div>
     `;
-    await fetch('https://api.mailjet.com/v3.1/send', {
-      method: 'POST',
-      headers: { 'Authorization': `Basic ${auth}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        Messages: [{
-          From: { Email: ADMIN_EMAIL, Name: FROM_NAME },
-          To: [{ Email: ADMIN_EMAIL, Name: 'Admin' }],
-          Subject: `🔐 Data Room Access Request — ${displayName}`,
-          HTMLPart: html,
-          TextPart: `Data Room Access Request from ${displayName} (${email})`,
-        }],
-      }),
+    await smtpfastSend({
+      to: ADMIN_EMAIL,
+      subject: `🔐 Data Room Access Request — ${displayName}`,
+      html,
+      text: `Data Room Access Request from ${displayName} (${email})`,
+      category: 'transactional',
+      customId: leadId ? `${leadId}:dataroom` : '',
     }).catch(() => {});
   }
 }
