@@ -383,7 +383,7 @@ export default function ClientProfileModal({ lead, username, onClose, onSave }) 
                 )}
               </div>
             )}
-            <LeadActivityTab lead={local} />
+            <LeadActivityTab lead={local} onLeadPatch={(patch) => setLocal(prev => ({ ...prev, ...patch }))} />
           </div>
         )}
 

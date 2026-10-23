@@ -46,7 +46,7 @@ function formatGoogleCalendarDate(dateStr, timeStr) {
   return dt.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
 }
 
-export default function LeadActivityTab({ lead }) {
+export default function LeadActivityTab({ lead, onLeadPatch }) {
   const { user: coachUser } = useDebtCoachAuth();
   const [activities, setActivities] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -58,6 +58,8 @@ export default function LeadActivityTab({ lead }) {
   const [testMsg, setTestMsg] = useState('');
   const [calendarLink, setCalendarLink] = useState('');
   const [calSaving, setCalSaving] = useState(false);
+  const [loggingNoAnswer, setLoggingNoAnswer] = useState(false);
+  const [loggedNoAnswer, setLoggedNoAnswer] = useState('');
 
   const loadActivities = useCallback(async () => {
     if (!lead.id) { setActivities([]); setLoading(false); return; }
@@ -182,6 +184,32 @@ export default function LeadActivityTab({ lead }) {
     setSaving(false);
   };
 
+  // One click while the phone is ringing out — logs the failed call on the
+  // timeline and stamps the lead's last-call time and count.
+  const logNoAnswer = async () => {
+    if (!lead.id || loggingNoAnswer) return;
+    setLoggingNoAnswer(true);
+    try {
+      const nowISO = new Date().toISOString();
+      const at = new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+      await base44.entities.DebtLeadActivity.create({
+        leadId: lead.id,
+        leadName: `${lead.firstName || ''} ${lead.lastName || ''}`.trim(),
+        activityType: 'call',
+        activityText: `📞 Outgoing call — No answer (${at})`,
+        createdBy: coachUser?.username || '',
+        metadataJson: JSON.stringify({ result: 'no_answer' }),
+      });
+      const patch = { lastCallAt: nowISO, callCount: Number(lead.callCount || 0) + 1 };
+      await base44.entities.DebtLead.update(lead.id, patch);
+      onLeadPatch?.(patch);
+      setLoggedNoAnswer('✓ No answer logged');
+      setTimeout(() => setLoggedNoAnswer(''), 4000);
+      loadActivities();
+    } catch (e) { alert('Failed to log no answer: ' + (e?.message || String(e))); }
+    setLoggingNoAnswer(false);
+  };
+
   const createCalendarEvent = async () => {
     if (!calEvent.title.trim() || !calEvent.date || !lead.id) return;
     setCalSaving(true);
@@ -261,6 +289,22 @@ export default function LeadActivityTab({ lead }) {
 
   return (
     <div>
+      {/* Quick call log — one tap when the call isn't picked up */}
+      <div style={{ marginBottom: '16px' }}>
+        <label style={ls}>Quick Log</label>
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+          <button
+            onClick={logNoAnswer}
+            disabled={loggingNoAnswer || !lead.id}
+            title="Log a call that wasn't answered"
+            style={{ background: 'rgba(138,154,184,0.15)', color: '#8a9ab8', border: '1px solid rgba(138,154,184,0.35)', borderRadius: '4px', padding: '8px 16px', cursor: lead.id ? 'pointer' : 'not-allowed', fontSize: '11px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase', opacity: loggingNoAnswer || !lead.id ? 0.5 : 1 }}
+          >
+            {loggingNoAnswer ? '⏳ Logging…' : '🚫 No Answer'}
+          </button>
+          {loggedNoAnswer && <span style={{ color: GOLD, fontSize: '11px', fontWeight: 'bold' }}>{loggedNoAnswer}</span>}
+        </div>
+      </div>
+
       {/* Quick note input */}
       <div style={{ marginBottom: '16px' }}>
         <label style={ls}>Quick Note</label>
