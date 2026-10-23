@@ -6,6 +6,10 @@
       "type": "string",
       "title": "Lead Number (e.g. #00001)"
     },
+    "protofaceId": {
+      "type": "string",
+      "title": "Stephani Video Link Token (pf_... \u2014 stamped when the card's video link is created; the token that link carries)"
+    },
     "firstName": {
       "type": "string",
       "title": "First Name"

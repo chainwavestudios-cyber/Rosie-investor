@@ -116,7 +116,10 @@ export async function resolveVaultLead(base44: any, token: string): Promise<any>
     const vault = await base44.asServiceRole.entities.LeadVaultEntry.filter({ protofaceId: t }, { limit: 1 });
     if (vault?.items && vault.items[0]) return vault.items[0];
     const card = await base44.asServiceRole.entities.FronterLead.filter({ protofaceId: t }, { limit: 1 });
-    return (card?.items && card.items[0]) || null;
+    if (card?.items && card.items[0]) return card.items[0];
+    // A Debt Call Coach contact card carries its own token too (minted from the card).
+    const coach = await base44.asServiceRole.entities.DebtLead.filter({ protofaceId: t }, { limit: 1 });
+    return (coach?.items && coach.items[0]) || null;
   }
 
   if (!NOTICE_ID_RE.test(t)) {

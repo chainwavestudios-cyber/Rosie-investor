@@ -29,3 +29,11 @@ export function assignProtofaceIds(count = 1): string[] {
   while (ids.size < total) ids.add(formatProtofaceId());
   return [...ids];
 }
+
+/** Where a per-lead video link points — the public domain the mailed links already use. */
+export const QUALIFY_LINK_BASE = 'https://debtsolutions.cc';
+
+/** The link a lead opens to start a video qualification call with the video agent. */
+export function qualifyLink(protofaceId: string): string {
+  return `${QUALIFY_LINK_BASE}/qualify?token=${encodeURIComponent(String(protofaceId || ''))}`;
+}
