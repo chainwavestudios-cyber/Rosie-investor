@@ -1,4 +1,7 @@
-/** EngagementKpis.jsx — the top strip of the Email Engagement console, per system. */
+/**
+ * EngagementKpis.jsx — the top strip of the Email Engagement console, per system.
+ * Every tile is click-through: click a number and the people behind it are listed.
+ */
 import { C } from '@/components/superadmin/kit';
 
 const TILES = {
@@ -24,17 +27,31 @@ const TILES = {
   ],
 };
 
-export default function EngagementKpis({ summary, system = 'coach' }) {
+export default function EngagementKpis({ summary, system = 'coach', activeKey, onSelect }) {
   if (!summary) return null;
   const tiles = TILES[system] || TILES.coach;
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(112px, 1fr))', gap: '8px' }}>
-      {tiles.map((tile) => (
-        <div key={tile.key} style={{ background: 'rgba(0,0,0,0.25)', border: `1px solid ${C.border}`, borderRadius: '6px', padding: '9px 10px' }}>
-          <div style={{ color: C.muted, fontSize: '9px', letterSpacing: '0.6px', textTransform: 'uppercase' }}>{tile.label}</div>
-          <div style={{ color: tile.color, fontSize: '19px', fontWeight: 'bold', marginTop: '3px' }}>{summary[tile.key] ?? 0}</div>
-        </div>
-      ))}
+      {tiles.map((tile) => {
+        const active = tile.key === activeKey;
+        return (
+          <button
+            key={tile.key}
+            type="button"
+            onClick={() => onSelect?.(tile)}
+            title={`Who is behind ${tile.label}`}
+            style={{
+              background: active ? `${tile.color}1f` : 'rgba(0,0,0,0.25)',
+              border: `1px solid ${active ? `${tile.color}88` : C.border}`,
+              borderRadius: '6px', padding: '9px 10px', textAlign: 'left', fontFamily: 'inherit',
+              cursor: onSelect ? 'pointer' : 'default',
+            }}
+          >
+            <div style={{ color: active ? tile.color : C.muted, fontSize: '9px', letterSpacing: '0.6px', textTransform: 'uppercase' }}>{tile.label}</div>
+            <div style={{ color: tile.color, fontSize: '19px', fontWeight: 'bold', marginTop: '3px' }}>{summary[tile.key] ?? 0}</div>
+          </button>
+        );
+      })}
     </div>
   );
 }

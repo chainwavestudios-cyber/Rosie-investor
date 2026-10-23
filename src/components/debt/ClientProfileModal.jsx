@@ -11,6 +11,7 @@ import CallAnalysisDiagram from '@/components/debt/CallAnalysisDiagram';
 import ClosingTab from '@/components/debt/closing/ClosingTab';
 import { setProfileTimer, cancelProfileTimer, getActiveTimer } from '@/components/debt/ProfileTimerWatcher';
 import LeadActivityTab from '@/components/debt/LeadActivityTab';
+import { fullStateName } from '@/lib/usStates';
 import DebtCallBar from '@/components/debt/DebtCallBar';
 import { usePopOutPanel } from '@/hooks/usePopOutPanel';
 import LiveProfileAgent from '@/components/debt/LiveProfileAgent';
@@ -62,7 +63,8 @@ const TABS = [
 export default function ClientProfileModal({ lead, username, onClose, onSave }) {
   const queryClient = useQueryClient();
   const [tab, setTab] = useState('overview');
-  const [local, setLocal] = useState(lead || {});
+  // The card reads the state in full — a stored "CA" opens as "California".
+  const [local, setLocal] = useState(() => (lead ? { ...lead, state: fullStateName(lead.state) } : {}));
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [togglingHot, setTogglingHot] = useState(false);
@@ -281,7 +283,7 @@ export default function ClientProfileModal({ lead, username, onClose, onSave }) 
     try {
       const persisted = await base44.entities.DebtLead.update(merged.id, {
         firstName: merged.firstName, lastName: merged.lastName, phone: merged.phone, email: merged.email,
-        address: merged.address, city: merged.city, state: merged.state, zip: merged.zip, dateOfBirth: merged.dateOfBirth,
+        address: merged.address, city: merged.city, state: fullStateName(merged.state), zip: merged.zip, dateOfBirth: merged.dateOfBirth,
         debtAmount: merged.debtAmount, creditorCount: merged.creditorCount, creditors: merged.creditors,
         debtLedgerJson: merged.debtLedgerJson, billsJson: merged.billsJson,
         employmentStatus: merged.employmentStatus, monthlyIncome: merged.monthlyIncome,
@@ -472,7 +474,7 @@ export default function ClientProfileModal({ lead, username, onClose, onSave }) 
               <div><label style={ls}>Email</label><input value={local.email || ''} onChange={e => update('email', e.target.value)} style={inp} /></div>
               <div style={{ gridColumn: '1 / -1' }}><label style={ls}>Address</label><input value={local.address || ''} onChange={e => update('address', e.target.value)} style={inp} /></div>
               <div><label style={ls}>City</label><input value={local.city || ''} onChange={e => update('city', e.target.value)} style={inp} /></div>
-              <div><label style={ls}>State</label><input value={local.state || ''} onChange={e => update('state', e.target.value)} style={inp} /></div>
+              <div><label style={ls}>State</label><input value={local.state || ''} onChange={e => update('state', e.target.value)} onBlur={e => update('state', fullStateName(e.target.value))} placeholder="California" style={inp} /></div>
               <div style={{ display: 'flex', gap: '4px', alignItems: 'flex-end' }}>
                 <div style={{ flex: 1 }}><label style={ls}>Zip</label><input value={local.zip || ''} onChange={e => update('zip', e.target.value)} style={inp} /></div>
                 <button onClick={handleLocationResearch} disabled={!local.city || locationResearching} title="Search the internet for landmarks, restaurants, sports teams near this city" style={{ background: `${GOLD}18`, color: GOLD, border: `1px solid ${GOLD}44`, borderRadius: '4px', padding: '6px 12px', cursor: (!local.city || locationResearching) ? 'not-allowed' : 'pointer', fontSize: '10px', fontWeight: 'bold', whiteSpace: 'nowrap', opacity: (!local.city || locationResearching) ? 0.5 : 1 }}>

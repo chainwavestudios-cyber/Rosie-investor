@@ -150,6 +150,8 @@ async function buildReport(base44: any, body: any) {
     systems[system] = result;
     result.leadIds.slice(0, TOP_LEADS).forEach((leadId: string) => wanted.add(leadId));
     result.hotLeadIds.forEach((leadId: string) => wanted.add(leadId));
+    // Anyone a tile counts must resolve to a name, or the click-through has nothing to show.
+    Object.values(result.metricLeads || {}).flat().forEach((leadId: any) => wanted.add(String(leadId)));
     systemEvents.slice(0, RECENT).forEach((event: any) => wanted.add(String(event.leadId)));
   });
 
@@ -173,18 +175,19 @@ async function buildReport(base44: any, body: any) {
 
   SYSTEMS.forEach((system) => {
     const result = systems[system];
-    result.leads = result.leadIds.slice(0, TOP_LEADS).map((leadId: string) => {
-      const entry = result.scoreOf[leadId];
+    const rowIds = [...new Set([...result.leadIds.slice(0, TOP_LEADS), ...Object.values(result.metricLeads || {}).flat()])] as string[];
+    result.leads = rowIds.map((leadId: string) => {
+      const entry = result.scoreOf[leadId] || {};
       return {
         id: leadId,
         leadId,
         ...describe(leadId),
-        score: entry.score,
-        tier: entry.tier,
-        tierLabel: entry.tierLabel,
-        hotLead: entry.hotLead,
-        action: entry.action,
-        reasons: entry.reasons,
+        score: entry.score ?? 0,
+        tier: entry.tier || 'cold',
+        tierLabel: entry.tierLabel || '',
+        hotLead: !!entry.hotLead,
+        action: entry.action || '',
+        reasons: entry.reasons || [],
         opens: entry.signals?.opens ?? 0,
         clicks: entry.signals?.clicks ?? 0,
         linkKeys: entry.signals?.linkKeys ?? [],
@@ -304,24 +307,40 @@ function buildSystem({ system, events, sends, now }: any) {
     // Named campaigns first: the unattributed bucket must never read as the winner.
     .sort((a, b) => (Number(b.attributed) - Number(a.attributed)) || (b.avgScore - a.avgScore) || (b.engagedLeads - a.engagedLeads));
 
+  // Who is behind each number — every tile in the console is click-through, so each
+  // metric carries the ids of the people it counted and the summary is their length.
+  const leadsWhere = (keep: (entry: any) => boolean) => scored.filter(keep).map((entry: any) => entry.leadId);
+  const metricLeads: Record<string, string[]> = {
+    emailsSent: [...new Set(sends.map((log: any) => String(log.leadId || '')).filter(Boolean))],
+    leadsEngaged: leadsWhere(() => true),
+    uniqueOpeners: leadsWhere((entry) => (entry.signals?.opens || 0) > 0),
+    uniqueClickers: leadsWhere((entry) => (entry.signals?.clicks || 0) > 0),
+    welcomeViews: leadsWhere((entry) => !!entry.signals?.welcomeAudioAt),
+    qualifyVisits: leadsWhere((entry) => !!entry.signals?.qualifyAt),
+    hotLeads: leadsWhere((entry) => !!entry.hotLead),
+    engagedLeads: leadsWhere((entry) => entry.tier === 'hot' || entry.tier === 'engaged'),
+    avgScore: leadsWhere(() => true),
+  };
+
   const summary = {
     emailsSent: sends.length,
-    leadsEmailed: new Set(sends.map((log: any) => String(log.leadId || '')).filter(Boolean)).size,
-    leadsEngaged: scored.length,
+    leadsEmailed: metricLeads.emailsSent.length,
+    leadsEngaged: metricLeads.leadsEngaged.length,
     opens: events.filter((event: any) => event.eventType === 'open').length,
-    uniqueOpeners: scored.filter((entry) => (entry.signals?.opens || 0) > 0).length,
+    uniqueOpeners: metricLeads.uniqueOpeners.length,
     clicks: events.filter((event: any) => event.eventType === 'click').length,
-    uniqueClickers: scored.filter((entry) => (entry.signals?.clicks || 0) > 0).length,
-    welcomeViews: scored.filter((entry) => entry.signals?.welcomeAudioAt).length,
-    qualifyVisits: scored.filter((entry) => entry.signals?.qualifyAt).length,
-    hotLeads: scored.filter((entry) => entry.hotLead).length,
-    engagedLeads: scored.filter((entry) => entry.tier === 'hot' || entry.tier === 'engaged').length,
+    uniqueClickers: metricLeads.uniqueClickers.length,
+    welcomeViews: metricLeads.welcomeViews.length,
+    qualifyVisits: metricLeads.qualifyVisits.length,
+    hotLeads: metricLeads.hotLeads.length,
+    engagedLeads: metricLeads.engagedLeads.length,
     avgScore: scored.length ? Math.round(scored.reduce((sum, entry) => sum + entry.score, 0) / scored.length) : 0,
   };
 
   return {
     system,
     summary,
+    metricLeads,
     campaigns: campaignRows,
     hot: scored.filter((entry) => entry.hotLead).slice(0, 10).map((entry) => ({ leadId: entry.leadId, score: entry.score, action: entry.action, reasons: entry.reasons })),
     hotLeadIds: scored.filter((entry) => entry.hotLead).map((entry) => entry.leadId),

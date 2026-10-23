@@ -16,6 +16,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useDebtCoachAuth } from '@/lib/DebtCoachAuthContext';
 import useEngagementReport from '@/hooks/useEngagementReport';
 import EngagementKpis from '@/components/engagement/EngagementKpis';
+import EngagementMetricList from '@/components/engagement/EngagementMetricList';
 import CampaignEffectivenessTable from '@/components/engagement/CampaignEffectivenessTable';
 import EngagedLeadList from '@/components/engagement/EngagedLeadList';
 import EngagementFeed from '@/components/engagement/EngagementFeed';
@@ -36,6 +37,7 @@ export default function EmailEngagementPage() {
   const [system, setSystem] = useState('coach');
   const { report, loading, error, refresh, markHandled, handlingId } = useEngagementReport(days);
   const [card, setCard] = useState(null);
+  const [metric, setMetric] = useState(null);
   const [arrivals, setArrivals] = useState([]);
   const [soundOn, setSoundOn] = useState(() => {
     try { return localStorage.getItem(SOUND_KEY) !== 'off'; } catch { return true; }
@@ -107,7 +109,7 @@ export default function EmailEngagementPage() {
           const active = key === system;
           const tone = key === 'coach' ? C.coach : C.fronter;
           return (
-            <button key={key} onClick={() => setSystem(key)} style={{
+            <button key={key} onClick={() => { setSystem(key); setMetric(null); }} style={{
               background: active ? `${tone}1f` : 'rgba(255,255,255,0.04)',
               color: active ? tone : C.muted,
               border: `1px solid ${active ? `${tone}66` : C.border}`,
@@ -148,7 +150,23 @@ export default function EmailEngagementPage() {
             onViewRecord={viewRecord}
           />
 
-          <EngagementKpis summary={data.summary} system={system} />
+          <EngagementKpis
+            summary={data.summary}
+            system={system}
+            activeKey={metric?.key}
+            onSelect={(tile) => setMetric((prev) => (prev?.key === tile.key ? null : tile))}
+          />
+
+          {metric && (
+            <EngagementMetricList
+              metric={metric}
+              system={system}
+              leads={data.leads}
+              ids={(data.metricLeads || {})[metric.key] || []}
+              onOpenLead={openLead}
+              onClose={() => setMetric(null)}
+            />
+          )}
 
           <div ref={recordRef}>
             <HotLeadRecord
