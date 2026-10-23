@@ -122,6 +122,7 @@ export function assistantList(cfg: any): any[] {
       name: String(entry?.name || '').trim().slice(0, 40),
       avatarId: String(entry?.avatarId || '').trim().slice(0, 80),
       blurb: String(entry?.blurb || '').trim().slice(0, 120),
+      voiceId: String(entry?.voiceId || '').trim().slice(0, 60),
     }))
     .filter((entry: any) => entry.key && entry.avatarId && entry.name);
   if (cleaned.length) return cleaned;
@@ -141,6 +142,18 @@ export function resolveAssistant(cfg: any, key: string): any {
   const list = assistantList(cfg);
   const wanted = String(key || '').trim().toLowerCase();
   return list.find((entry: any) => entry.key === wanted) || list[0] || null;
+}
+
+/**
+ * The voice an assistant speaks with — their own ElevenLabs voice when the assistant
+ * carries one (matched by key or by the name stamped on the session), otherwise empty
+ * so the widget's single voice is used.
+ */
+export function voiceForAssistant(cfg: any, keyOrName: string): string {
+  const wanted = String(keyOrName || '').trim().toLowerCase();
+  if (!wanted) return '';
+  const entry = assistantList(cfg).find((a: any) => a.key === wanted || String(a.name || '').toLowerCase() === wanted);
+  return String(entry?.voiceId || '').trim();
 }
 
 /**

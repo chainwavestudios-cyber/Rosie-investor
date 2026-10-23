@@ -24,13 +24,13 @@
     },
     "assistantsJson": {
       "type": "string",
-      "title": "Choose Your Assistant (JSON array of {key, name, avatarId, blurb} \u2014 the faces a visitor picks between; the invitation links carry ?assistant=<key>. Leave empty to use the single Protoface Avatar ID below)",
+      "title": "Choose Your Assistant (JSON array of {key, name, avatarId, blurb, voiceId} \u2014 the faces a visitor picks between, each with their own voice; the invitation links carry ?assistant=<key>. Leave empty to use the single Protoface Avatar ID below)",
       "format": "textarea",
-      "default": "[{\"key\":\"rosie\",\"name\":\"Rosie\",\"avatarId\":\"av_01M5MYDVN230MXY5H4NYZCKC49\",\"blurb\":\"Your friendly AI assistant\"},{\"key\":\"chris\",\"name\":\"Digital Chris\",\"avatarId\":\"av_01M5MZXZJDKAR05CBTRJ88TM3J\",\"blurb\":\"Chris's AI counterpart, not him live\"}]"
+      "default": "[{\"key\":\"rosie\",\"name\":\"Rosie\",\"avatarId\":\"av_01M5MYDVN230MXY5H4NYZCKC49\",\"blurb\":\"Your friendly AI assistant\"},{\"key\":\"chris\",\"name\":\"Digital Chris\",\"avatarId\":\"av_01M5MZXZJDKAR05CBTRJ88TM3J\",\"blurb\":\"Chris's AI counterpart, not him live\",\"voiceId\":\"Eplk91Ni9sYpeRifZStQ\"}]"
     },
     "agentVoiceId": {
       "type": "string",
-      "title": "Her Voice \u2014 ElevenLabs Voice ID (used by the agent-driven avatar)",
+      "title": "Her Voice \u2014 ElevenLabs Voice ID (the default voice; an assistant with its own voiceId speaks in that one instead)",
       "default": "ogwqBH5bbF03DSbNiRNN"
     },
     "agentName": {

@@ -18,7 +18,7 @@ import { mintRoomPass } from '../../shared/livekitToken.ts';
 import { getSpeechPcmBase64, PCM_SAMPLE_RATE } from '../../shared/elevenLabsTts.ts';
 import { findRelevantKB, formatAnswers } from '../../shared/kbSearch.ts';
 import { toE164 } from '../../shared/twilioHelpers.ts';
-import { SYSTEM_PROMPT, findSession, leadView, loadConfig, resolveAssistant } from '../../shared/videoQualify.ts';
+import { SYSTEM_PROMPT, findSession, leadView, loadConfig, resolveAssistant, voiceForAssistant } from '../../shared/videoQualify.ts';
 
 const PROTOFACE_API = 'https://api.protoface.com';
 const DEFAULT_VOICE_ID = 'ogwqBH5bbF03DSbNiRNN';
@@ -144,7 +144,7 @@ export default async function (req: Request): Promise<Response> {
         avatarId,
         assistantName,
         agentName: assistantName,
-        voiceId: clean(cfg.agentVoiceId, 60) || clean(cfg.elevenLabsVoiceId, 60) || DEFAULT_VOICE_ID,
+        voiceId: voiceForAssistant(cfg, assistant?.key) || clean(cfg.agentVoiceId, 60) || clean(cfg.elevenLabsVoiceId, 60) || DEFAULT_VOICE_ID,
         kbName: clean(cfg.kbName, 60) || DEFAULT_KB,
         opening: openingLine(cfg, lead, session),
         lead: leadView(lead),
@@ -211,7 +211,8 @@ export default async function (req: Request): Promise<Response> {
     if (action === 'speak') {
       const text = clean(body.text, 600);
       if (!text) return Response.json({ error: 'text is required.' }, { status: 400 });
-      const voiceId = clean(cfg.agentVoiceId, 60) || clean(cfg.elevenLabsVoiceId, 60) || DEFAULT_VOICE_ID;
+      // The visitor's chosen assistant speaks with their own voice when one is set on them.
+      const voiceId = voiceForAssistant(cfg, session.assistant) || clean(cfg.agentVoiceId, 60) || clean(cfg.elevenLabsVoiceId, 60) || DEFAULT_VOICE_ID;
       const speech = await getSpeechPcmBase64(text, voiceId);
       if (!speech) return Response.json({ error: 'Her voice is unavailable right now.' }, { status: 502 });
       return Response.json({ ok: true, audio: speech.audio, sampleRate: speech.sampleRate || PCM_SAMPLE_RATE });

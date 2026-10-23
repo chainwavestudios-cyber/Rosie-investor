@@ -9,7 +9,9 @@ import { base44 } from '@/api/base44Client';
 import { Btn, Card, DIM, Field, GOLD, MUTED, SURFACE, BORDER, inputStyle } from './kit';
 import { templateTags } from './templateTags';
 
-const CATEGORIES = ['invitation', 'intro', 'follow_up', 'notice', 'other'];
+const CATEGORIES = ['invitation', 'intro', 'follow_up', 'warm_lead', 'notice', 'other'];
+const CATEGORY_LABELS = { warm_lead: 'Warm Lead' };
+const categoryLabel = (value) => CATEGORY_LABELS[value] || String(value || 'other').replace('_', ' ');
 const BLANK = { name: '', category: 'invitation', subject: '', previewText: '', bodyHtml: '', bodyText: '', notes: '' };
 
 export default function TemplateLibrary({ username, onBack }) {
@@ -105,7 +107,7 @@ export default function TemplateLibrary({ username, onBack }) {
             </Field>
             <Field label="Category">
               <select style={inputStyle} value={draft.category} onChange={(e) => setDraft({ ...draft, category: e.target.value })}>
-                {CATEGORIES.map((option) => <option key={option} value={option}>{option.replace('_', ' ')}</option>)}
+                {CATEGORIES.map((option) => <option key={option} value={option}>{categoryLabel(option)}</option>)}
               </select>
             </Field>
             <Field label="Subject line">
@@ -140,7 +142,7 @@ export default function TemplateLibrary({ username, onBack }) {
               <div key={template.id} style={{ background: SURFACE, border: `1px solid ${BORDER}`, borderRadius: '5px', padding: '11px 13px' }}>
                 <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
                   <span style={{ color: '#e8e0d0', fontSize: '12px', fontWeight: 'bold' }}>{template.name}</span>
-                  <span style={{ color: MUTED, fontSize: '10px', textTransform: 'uppercase', letterSpacing: '1px' }}>{String(template.category || 'other').replace('_', ' ')}</span>
+                  <span style={{ color: MUTED, fontSize: '10px', textTransform: 'uppercase', letterSpacing: '1px' }}>{categoryLabel(template.category)}</span>
                   <span style={{ color: DIM, fontSize: '10px' }}>v{template.version || 1}</span>
                 </div>
                 <div style={{ color: MUTED, fontSize: '11px', marginTop: '5px' }}>{template.subject || '(no subject)'}</div>
