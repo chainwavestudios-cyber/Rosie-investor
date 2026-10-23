@@ -17,15 +17,6 @@
       ],
       "default": "manual"
     },
-    "emailProvider": {
-      "type": "string",
-      "title": "Sending Lane (gmail = the company Google account; smtpfast = outreach, never sent from the Gmail account)",
-      "enum": [
-        "gmail",
-        "smtpfast"
-      ],
-      "default": "gmail"
-    },
     "subject": {
       "type": "string",
       "title": "Email Subject (supports {{firstName}}, {{lastName}}, {{appointmentDate}}, {{debtAmount}})",
@@ -62,7 +53,7 @@
     },
     "buttonColor": {
       "type": "string",
-      "title": "Button Color (hex)",
+      "title": "Contact Card Button Color (hex)",
       "default": "#10b981"
     },
     "trackingEnabled": {

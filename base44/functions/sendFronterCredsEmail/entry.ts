@@ -6,8 +6,7 @@
  * the same copy. Tracking is injected, so the card and the Prospect Tracking tab
  * light up on: email opened, welcome-message link, BBB, Trustpilot, website.
  *
- * It leaves through SMTPfast, never the company Gmail account: everything a
- * fronter sends is outreach, and no fronter email goes out of Gmail.
+ * It leaves through the company Gmail account, like every credentials email.
  */
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.54';
 import { sendTemplateEmail } from '../../shared/debtEmailSender.ts';
@@ -55,7 +54,7 @@ export default async function (req: Request): Promise<Response> {
       bodyHtml,
       personalMessageUrl: welcomeUrl,
       trackingEnabled: true,
-    }, lead, { transport: 'smtpfast' });
+    }, lead);
 
     const now = new Date().toISOString();
     const updates: any = { credsSentAt: now, credsSentTemplate: template.name };
@@ -82,7 +81,7 @@ export default async function (req: Request): Promise<Response> {
       sentAt: now,
       sentBy: sentBy || 'fronter',
       isCustomEmail: true,
-      fromEmail: 'smtpfast',
+      fromEmail: 'gmail',
     }).catch(() => {});
 
     return Response.json({

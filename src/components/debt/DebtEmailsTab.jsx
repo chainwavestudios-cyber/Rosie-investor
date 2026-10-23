@@ -133,7 +133,7 @@ export default function DebtEmailsTab({ username }) {
 
   const startNew = () => {
     setEditing({
-      name: '', templateType: 'manual', emailProvider: 'gmail', subject: '', bodyHtml: '',
+      name: '', templateType: 'manual', subject: '', bodyHtml: '',
       triggerOffsetHours: -18, triggerTimeOfDay: '', enabled: true,
       attachToContactCard: false, buttonLabel: '', buttonColor: '#10b981',
       trackingEnabled: true, includeSignature: true, sortOrder: templates.length + 1,
@@ -185,7 +185,7 @@ export default function DebtEmailsTab({ username }) {
           </div>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px', marginBottom: '16px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '16px' }}>
           <div><label style={ls}>Template Name</label><input value={editing.name} onChange={e => update('name', e.target.value)} placeholder="e.g. Welcome Email, Follow-up Reminder" style={inp} /></div>
           <div>
             <label style={ls}>Template Type</label>
@@ -194,13 +194,6 @@ export default function DebtEmailsTab({ username }) {
               <option value="night_before">🌙 Night-Before (automated)</option>
               <option value="hour_before">⏰ 1-Hour Before (automated)</option>
               <option value="custom_automation">⚙️ Custom Automation</option>
-            </select>
-          </div>
-          <div>
-            <label style={ls}>Sending Lane</label>
-            <select value={editing.emailProvider || 'gmail'} onChange={e => update('emailProvider', e.target.value)} style={{ ...inp, cursor: 'pointer' }}>
-              <option value="gmail">📮 Company Gmail</option>
-              <option value="smtpfast">✉️ SMTPfast (outreach — never sent from Gmail)</option>
             </select>
           </div>
         </div>
@@ -389,7 +382,6 @@ export default function DebtEmailsTab({ username }) {
                     {tpl.enabled ? <span style={{ color: GOLD, fontSize: '9px' }}>● Active</span> : <span style={{ color: '#6b7280', fontSize: '9px' }}>⏸ Disabled</span>}
                     {tpl.attachToContactCard && <span style={{ padding: '1px 6px', borderRadius: '3px', background: `${GOLD}15`, color: GOLD, fontSize: '8px', fontWeight: 'bold' }}>🔘 Card Button</span>}
                     {tpl.trackingEnabled && <span style={{ padding: '1px 6px', borderRadius: '3px', background: `${PURPLE}15`, color: PURPLE, fontSize: '8px', fontWeight: 'bold' }}>📊 Tracked</span>}
-                    {tpl.emailProvider === 'smtpfast' && <span style={{ padding: '1px 6px', borderRadius: '3px', background: `${BLUE}15`, color: BLUE, fontSize: '8px', fontWeight: 'bold' }}>✉️ SMTPfast</span>}
                   </div>
                   <div style={{ color: '#6b7280', fontSize: '11px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{tpl.subject || '(no subject)'}</div>
                   {tpl.templateType === 'custom_automation' && tpl.triggerOffsetHours != null && (

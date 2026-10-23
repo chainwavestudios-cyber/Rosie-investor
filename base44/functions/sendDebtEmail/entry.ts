@@ -4,6 +4,7 @@
  */
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.54';
 import { sendTemplateEmail } from '../../shared/debtEmailSender.ts';
+import { PROTOFACE_ID_RE, formatProtofaceId } from '../../shared/protofaceId.ts';
 
 export default async function (req: Request): Promise<Response> {
   try {
@@ -30,6 +31,15 @@ export default async function (req: Request): Promise<Response> {
       template = items[0] || null;
     }
     if (!template) return Response.json({ error: 'Template not found' }, { status: 404 });
+
+    // The AI invitation email carries this card's video token. Mint it here so one
+    // click on the card's Send AI Invite button also creates the token — no need to
+    // press the AI invitation-links button first.
+    if (/\{\{\s*protoface_?id\s*\}\}/i.test(String(template.bodyHtml || '')) && !PROTOFACE_ID_RE.test(String(lead.protofaceId || ''))) {
+      const protofaceId = formatProtofaceId();
+      await base44.asServiceRole.entities.DebtLead.update(lead.id, { protofaceId });
+      lead.protofaceId = protofaceId;
+    }
 
     const { sendId } = await sendTemplateEmail(base44, template, lead);
 
