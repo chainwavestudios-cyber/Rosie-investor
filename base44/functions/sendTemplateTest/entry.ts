@@ -13,6 +13,7 @@ import { sendViaGmail, normalizeEmail, assertValidEmail } from '../../shared/gma
 import { getEmailSignature } from '../../shared/emailSignature.ts';
 import { companyMergeVars } from '../../shared/companyInfo.ts';
 import { renderMarketingEmail, sendMarketingEmail } from '../../shared/fronterMarketing.ts';
+import { fillMergeTags } from '../../shared/mergeTags.ts';
 
 export default async function (req: Request): Promise<Response> {
   try {
@@ -67,8 +68,7 @@ export default async function (req: Request): Promise<Response> {
       const appointmentDate = new Date(Date.now() + 86400000).toLocaleString('en-US', {
         timeZone: 'America/New_York', weekday: 'long', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit',
       });
-      const samplePersonalMessage = String(template.personalMessageUrl || '')
-        .replace(/{{leadId}}/g, 'test').replace(/{{firstName}}/g, 'Test');
+      const samplePersonalMessage = fillMergeTags(template.personalMessageUrl || '', { leadId: 'test', firstName: 'Test' });
 
       const vars: Record<string, string> = {
         firstName: 'Test',
@@ -83,13 +83,9 @@ export default async function (req: Request): Promise<Response> {
         personalMessageUrl: samplePersonalMessage,
       };
 
-      subject = String(template.subject || '');
-      html = String(template.bodyHtml || '');
-      for (const [key, val] of Object.entries(vars)) {
-        // Templates are written by hand, so {{FirstName}} and {{firstName}} both fill.
-        subject = subject.replace(new RegExp(`\\{\\{${key}\\}\\}`, 'gi'), () => val);
-        html = html.replace(new RegExp(`\\{\\{${key}\\}\\}`, 'gi'), () => val);
-      }
+      // Templates are written by hand, so {{FirstName}} and {{firstName}} both fill.
+      subject = fillMergeTags(template.subject || '', vars);
+      html = fillMergeTags(template.bodyHtml || '', vars);
       if (template.includeSignature) html += getEmailSignature();
     }
 

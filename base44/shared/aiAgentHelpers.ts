@@ -6,6 +6,7 @@
  */
 import { callLLM } from './llmHelper.ts';
 import { injectTracking } from './emailTracking.ts';
+import { fillMergeTags } from './mergeTags.ts';
 
 /**
  * Extract debt data (amount, types, per-type amounts) from the conversation.
@@ -193,11 +194,10 @@ export async function sendCredentialsEmail(base44: any, leadData: any, sentBy: s
     const template = templateList[0];
     if (!template) return { sent: false, reason: 'no_template' };
 
-    // Fill template variables
-    const fillName = leadData.firstName || '';
-    const fillEmail = leadData.email || '';
-    const subject = (template.subject || '').replace(/{{firstName}}/g, fillName).replace(/{{email}}/g, fillEmail);
-    const html = (template.body || '').replace(/{{firstName}}/g, fillName).replace(/{{email}}/g, fillEmail);
+    // Fill template variables — {{FirstName}} and {{firstName}} both resolve
+    const vars = { firstName: leadData.firstName || '', email: leadData.email || '' };
+    const subject = fillMergeTags(template.subject || '', vars);
+    const html = fillMergeTags(template.body || '', vars);
 
     // Get Gmail access token
     const { accessToken } = await base44.connectors.getConnection('gmail');

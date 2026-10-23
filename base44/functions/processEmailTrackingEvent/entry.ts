@@ -13,6 +13,7 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.53';
 import { getCalendarAuth, listEvents, hasConflict } from '../../shared/googleCalendarHelpers.ts';
 import { injectTracking, buildMime } from '../../shared/emailTracking.ts';
+import { fillMergeTags } from '../../shared/mergeTags.ts';
 
 const TRACKED_DOMAINS = ['trustpilot.com', 'bbb.org', 'debtadvisorsofamerica.com'];
 const BOT_FILTER_MS = 30_000;
@@ -95,10 +96,10 @@ async function sendFollowUpEmail(base44: any, lead: any) {
   if (!template) throw new Error('No follow-up email template found');
   if (template.enabled === false) throw new Error('Follow-up template is disabled');
 
-  const fillName = lead.firstName || '';
-  const fillEmail = lead.email || '';
-  const subject = (template.subject || '').replace(/{{firstName}}/g, fillName).replace(/{{email}}/g, fillEmail);
-  const html = (template.body || '').replace(/{{firstName}}/g, fillName).replace(/{{email}}/g, fillEmail);
+  // {{FirstName}} and {{firstName}} both resolve.
+  const vars = { firstName: lead.firstName || '', email: lead.email || '' };
+  const subject = fillMergeTags(template.subject || '', vars);
+  const html = fillMergeTags(template.body || '', vars);
 
   const followUpSendId = `${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
   const trackedHtml = injectTracking(html, lead.id, followUpSendId, template.id, template.name);

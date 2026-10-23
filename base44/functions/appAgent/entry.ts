@@ -10,6 +10,7 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.54';
 import { waitUntil } from 'base44:runtime';
 import { computeCostUsd } from '../../shared/aiCost.ts';
+import { fillMergeTags } from '../../shared/mergeTags.ts';
 import {
   buildAppAgentSystemPrompt,
   READABLE_ENTITIES,
@@ -99,10 +100,12 @@ Email: {{email}}</p>
 };
 
 function fillTemplate(text: string, lead: any) {
-  return String(text || '')
-    .replace(/{{firstName}}/g, lead?.firstName || 'there')
-    .replace(/{{lastName}}/g, lead?.lastName || '')
-    .replace(/{{email}}/g, lead?.email || '');
+  // {{FirstName}} and {{firstName}} both resolve.
+  return fillMergeTags(text, {
+    firstName: lead?.firstName || 'there',
+    lastName: lead?.lastName || '',
+    email: lead?.email || '',
+  });
 }
 
 async function welcomeTemplate(base44: any) {
