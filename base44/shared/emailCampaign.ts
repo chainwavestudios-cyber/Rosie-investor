@@ -21,7 +21,7 @@ export { isEmailUnsubscribed };
 export const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
 /** Fields a CSV row may write onto a contact card. */
-export const CARD_FIELDS = ['firstName', 'lastName', 'phone', 'city', 'state', 'email'];
+export const CARD_FIELDS = ['firstName', 'lastName', 'phone', 'address', 'city', 'state', 'zip', 'email'];
 
 /** Fields the recipient row keeps for its own display and personalization. */
 export const RECIPIENT_FIELDS = ['firstName', 'lastName', 'phone', 'company', 'city', 'state', 'source', 'status'];
@@ -172,8 +172,10 @@ export function cardForRow(row: any, listName: string) {
     lastName: clean(row?.lastName),
     email: clean(row?.email).toLowerCase(),
     phone: clean(row?.phone),
+    address: clean(row?.address),
     city: clean(row?.city),
     state: clean(row?.state),
+    zip: clean(row?.zip),
     status: 'new',
     notes: `Added by the Email Campaign Manager${listName ? ` (list: ${listName})` : ''}.`,
   };

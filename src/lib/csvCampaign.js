@@ -10,12 +10,16 @@
 /** The Settlement IQ fields a CSV column can be mapped onto. */
 export const CAMPAIGN_FIELDS = [
   { key: 'email', label: 'Email address', required: true },
+  { key: 'fullName', label: 'Full name (split into first / last)', derived: true },
   { key: 'firstName', label: 'First name' },
   { key: 'lastName', label: 'Last name' },
   { key: 'phone', label: 'Phone' },
   { key: 'company', label: 'Company' },
+  { key: 'fullAddress', label: 'Full address (split into street / city / state / ZIP)', derived: true },
+  { key: 'address', label: 'Street address' },
   { key: 'city', label: 'City' },
   { key: 'state', label: 'State' },
+  { key: 'zip', label: 'ZIP' },
   { key: 'source', label: 'Lead source' },
   { key: 'status', label: 'Status' },
 ];
@@ -23,12 +27,16 @@ export const CAMPAIGN_FIELDS = [
 /** Header spellings seen in the wild, per field. */
 const SYNONYMS = {
   email: ['email', 'e-mail', 'emailaddress', 'emailaddress1', 'mail', 'workemail', 'primaryemail', 'contactemail'],
+  fullName: ['fullname', 'name', 'contactname', 'customername', 'clientname', 'ownername', 'displayname', 'leadname', 'full'],
   firstName: ['firstname', 'first', 'fname', 'givenname', 'firstnm', 'contactfirstname', 'ownerfirstname'],
   lastName: ['lastname', 'last', 'lname', 'surname', 'familyname', 'lastnm', 'contactlastname'],
   phone: ['phone', 'phonenumber', 'mobile', 'cell', 'cellphone', 'telephone', 'tel', 'phone1', 'primaryphone', 'contactphone'],
   company: ['company', 'companyname', 'business', 'businessname', 'organization', 'org', 'employer'],
+  fullAddress: ['fulladdress', 'completeaddress', 'mailingaddress', 'addressfull', 'fulladdressline', 'propertyaddress'],
+  address: ['address', 'street', 'streetaddress', 'addressline1', 'address1', 'homeaddress', 'addr', 'mailingline'],
   city: ['city', 'town', 'municipality'],
   state: ['state', 'st', 'province', 'region'],
+  zip: ['zip', 'zipcode', 'postalcode', 'postcode', 'zip5', 'zipcode5'],
   source: ['leadsource', 'source', 'referral', 'referralsource', 'campaign', 'channel', 'origin', 'leadorigin'],
   status: ['status', 'leadstatus', 'stage', 'pipeline', 'disposition'],
 };
@@ -93,13 +101,117 @@ export function suggestMapping(headers) {
   return mapping;
 }
 
+/** The US states a written-out state name is shortened to. */
+const US_STATES = {
+  alabama: 'AL', alaska: 'AK', arizona: 'AZ', arkansas: 'AR', california: 'CA', colorado: 'CO',
+  connecticut: 'CT', delaware: 'DE', 'district of columbia': 'DC', florida: 'FL', georgia: 'GA',
+  hawaii: 'HI', idaho: 'ID', illinois: 'IL', indiana: 'IN', iowa: 'IA', kansas: 'KS', kentucky: 'KY',
+  louisiana: 'LA', maine: 'ME', maryland: 'MD', massachusetts: 'MA', michigan: 'MI', minnesota: 'MN',
+  mississippi: 'MS', missouri: 'MO', montana: 'MT', nebraska: 'NE', nevada: 'NV',
+  'new hampshire': 'NH', 'new jersey': 'NJ', 'new mexico': 'NM', 'new york': 'NY',
+  'north carolina': 'NC', 'north dakota': 'ND', ohio: 'OH', oklahoma: 'OK', oregon: 'OR',
+  pennsylvania: 'PA', 'rhode island': 'RI', 'south carolina': 'SC', 'south dakota': 'SD',
+  tennessee: 'TN', texas: 'TX', utah: 'UT', vermont: 'VT', virginia: 'VA', washington: 'WA',
+  'west virginia': 'WV', wisconsin: 'WI', wyoming: 'WY', 'puerto rico': 'PR',
+};
+const STATE_CODES = new Set(Object.values(US_STATES));
+
+const HONORIFIC = /^(mr|mrs|ms|miss|dr|prof|sir|madam)\.?\s+/i;
+
+/** One "Full name" cell split into its two halves. */
+export function splitFullName(value) {
+  let text = String(value ?? '').replace(/\s+/g, ' ').trim();
+  if (!text) return { firstName: '', lastName: '' };
+  text = text.replace(HONORIFIC, '');
+  // "Smith, John" and surname-first exports read the same way once the comma is honored.
+  const comma = text.indexOf(',');
+  if (comma > 0) {
+    const last = text.slice(0, comma).trim();
+    const first = text.slice(comma + 1).replace(/\s+/g, ' ').trim();
+    if (first) return { firstName: first, lastName: last };
+  }
+  const parts = text.split(' ').filter(Boolean);
+  if (parts.length === 1) return { firstName: parts[0], lastName: '' };
+  return { firstName: parts[0], lastName: parts.slice(1).join(' ') };
+}
+
+/** A state cell that is either "CA", "ca." or "California". */
+function stateCode(piece) {
+  const text = String(piece ?? '').replace(/[.\s]+$/, '').trim();
+  if (!text) return '';
+  const upper = text.toUpperCase();
+  if (upper.length === 2 && STATE_CODES.has(upper)) return upper;
+  const key = text.toLowerCase().replace(/[^a-z\s]/g, '').replace(/\s+/g, ' ').trim();
+  return US_STATES[key] || '';
+}
+
+/**
+ * One "Full address" cell split into street, city, state and ZIP. Handles the
+ * shapes real lists carry: "123 Main St, Riverside, CA 92501", the same without a
+ * ZIP, a state written out in full, an apartment on its own comma, "Riverside, CA
+ * 92501" with no street at all, and a bare street address that splits into
+ * nothing but itself.
+ */
+export function parseAddressLine(value) {
+  const text = String(value ?? '').replace(/\s+/g, ' ').trim();
+  const out = { address: '', city: '', state: '', zip: '' };
+  if (!text) return out;
+
+  let parts = text.split(',').map((part) => part.trim()).filter(Boolean);
+
+  const zipAt = parts.findIndex((part) => /\b\d{5}(?:-\d{4})?\b/.test(part));
+  if (zipAt >= 0) {
+    out.zip = (parts[zipAt].match(/\b(\d{5}(?:-\d{4})?)\b/) || [])[1] || '';
+    parts[zipAt] = parts[zipAt].replace(/\b\d{5}(?:-\d{4})?\b/, '').trim();
+    if (!parts[zipAt]) parts.splice(zipAt, 1);
+  }
+
+  // The state is the piece that names one — never the first piece, which is the street.
+  const stateAt = parts.findIndex((part, index) => index > 0 && stateCode(part));
+  if (stateAt >= 0) {
+    out.state = stateCode(parts[stateAt]);
+    parts.splice(stateAt, 1);
+  }
+
+  // With a state or ZIP present, the last piece left is the city even when the list
+  // carried no street at all ("Riverside, CA 92501").
+  if (parts.length > 1 || (parts.length === 1 && (out.state || out.zip))) {
+    out.city = parts[parts.length - 1];
+    parts = parts.slice(0, -1);
+  }
+  out.address = parts.join(', ');
+  return out;
+}
+
 /** A row as the plain object the importer expects, using the confirmed mapping. */
 export function applyMapping(row, mapping) {
   const mapped = {};
   for (const field of CAMPAIGN_FIELDS) {
+    if (field.derived) continue;
     const column = mapping[field.key];
     if (column) mapped[field.key] = String(row[column] ?? '').trim();
   }
+
+  // A combined column is split for the operator; nothing it produces overwrites a
+  // field that was mapped to a column of its own.
+  if (mapping.fullName) {
+    const split = splitFullName(row[mapping.fullName]);
+    if (!mapped.firstName) mapped.firstName = split.firstName;
+    if (!mapped.lastName) mapped.lastName = split.lastName;
+  }
+  const addressColumn = mapping.fullAddress || mapping.address;
+  if (addressColumn) {
+    // A street-address column that turns out to hold commas is really a full address.
+    const text = String(row[addressColumn] ?? '');
+    if (mapping.fullAddress || text.includes(',')) {
+      const parsed = parseAddressLine(text);
+      if (!mapped.address) mapped.address = parsed.address;
+      if (!mapped.city) mapped.city = parsed.city;
+      if (!mapped.state) mapped.state = parsed.state;
+      if (!mapped.zip) mapped.zip = parsed.zip;
+    }
+  }
+
   const used = new Set(Object.values(mapping).filter(Boolean));
   const extra = {};
   for (const [column, value] of Object.entries(row)) {

@@ -187,6 +187,53 @@ export async function resolveMessageToken(base44: any, token: string): Promise<a
 }
 
 /**
+ * A campaign send has a row per recipient as well as a message record, and the
+ * campaign monitor counts the emails opened, clicked and unsubscribed. They all
+ * roll up from the same event, so one open shows on the recipient, on the campaign
+ * and on the contact card at once.
+ */
+async function rollUpCampaignActivity(base44: any, message: any, ev: any, stamp: string) {
+  if (String(message?.source || '') !== 'campaign') return;
+  const found = message.sendId
+    ? await base44.asServiceRole.entities.EmailCampaignRecipient.filter({ sendId: message.sendId }, { limit: 1 }).catch(() => null)
+    : null;
+  const recipient = (found?.items || [])[0];
+  if (!recipient) return;
+
+  const patch: any = {};
+  if (ev.eventType === 'open') {
+    patch.openedAt = recipient.openedAt || stamp;
+    patch.openCount = Number(recipient.openCount || 0) + 1;
+  } else if (ev.eventType === 'click') {
+    const clicks = safeArray(recipient.clickedUrlsJson);
+    clicks.push({ url: ev.url, at: stamp });
+    patch.clickedAt = recipient.clickedAt || stamp;
+    patch.clickedUrlsJson = JSON.stringify(clicks);
+  } else if (ev.eventType === 'unsubscribe') {
+    patch.unsubscribedAt = stamp;
+  }
+  if (!Object.keys(patch).length) return;
+
+  await base44.asServiceRole.entities.EmailCampaignRecipient.update(recipient.id, patch)
+    .catch((e: any) => console.error('[emailMessageEngine] campaign recipient update failed:', e?.message));
+
+  // The monitor counts emails, not events: only a recipient's first open, first
+  // click and first unsubscribe move its numbers.
+  const first = (ev.eventType === 'open' && !recipient.openedAt)
+    || (ev.eventType === 'click' && !recipient.clickedAt)
+    || (ev.eventType === 'unsubscribe' && !recipient.unsubscribedAt);
+  if (!first || !recipient.campaignId) return;
+
+  const campaign = await base44.asServiceRole.entities.EmailCampaignJob.get(recipient.campaignId).catch(() => null);
+  if (!campaign) return;
+  await base44.asServiceRole.entities.EmailCampaignJob.update(recipient.campaignId, {
+    openCount: Number(campaign.openCount || 0) + (ev.eventType === 'open' ? 1 : 0),
+    clickCount: Number(campaign.clickCount || 0) + (ev.eventType === 'click' ? 1 : 0),
+    unsubscribedCount: Number(campaign.unsubscribedCount || 0) + (ev.eventType === 'unsubscribe' ? 1 : 0),
+  }).catch((e: any) => console.error('[emailMessageEngine] campaign update failed:', e?.message));
+}
+
+/**
  * Files one piece of activity against its message and contact. Existing reports
  * keep reading EmailTrackingEvent, so that record is still written; the message
  * record carries the rollups the contact card's Email Activity timeline shows.
@@ -248,6 +295,8 @@ export async function recordTrackedEvent(base44: any, ev: any): Promise<{ record
     await base44.asServiceRole.entities.EmailMessage.update(message.id, patch)
       .catch((e: any) => console.error('[emailMessageEngine] message update failed:', e?.message));
   }
+
+  if (ev.eventType !== 'unsubscribe') await rollUpCampaignActivity(base44, message, ev, stamp);
 
   return { recorded: true };
 }

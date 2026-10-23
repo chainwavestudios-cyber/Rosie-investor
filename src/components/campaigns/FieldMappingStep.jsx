@@ -6,13 +6,13 @@
  * is a second, explicit action — it creates the contact cards and the recipient
  * rows, and still sends nothing.
  */
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { Btn, Card, DIM, Field, GOLD, MUTED, Stat, SURFACE, BORDER, inputStyle } from './kit';
 import { CAMPAIGN_FIELDS, applyMapping, downloadCsv, looksLikeEmail, rejectionCsv } from '@/lib/csvCampaign';
 
 const CHUNK = 400;
-const CHUNK_FIELDS = ['email', 'firstName', 'lastName', 'phone', 'company', 'city', 'state', 'source', 'status'];
+const CHUNK_FIELDS = ['email', 'firstName', 'lastName', 'phone', 'company', 'address', 'city', 'state', 'zip', 'source', 'status'];
 
 /** The rows the server will be asked about, in chunks, with file-level duplicates removed first. */
 function chunksFor(rows, mapping) {
@@ -83,6 +83,22 @@ export default function FieldMappingStep({ campaign, csv, mapping, setMapping, r
     setBusy('');
   };
 
+  // The first row as it will actually be saved, so the split is visible before anything is written.
+  const preview = useMemo(() => {
+    const row = csv?.rows?.[0];
+    if (!row || !(mapping.fullName || mapping.fullAddress || mapping.address)) return null;
+    const mapped = applyMapping(row, mapping);
+    const parts = [
+      mapped.firstName && `first name “${mapped.firstName}”`,
+      mapped.lastName && `last name “${mapped.lastName}”`,
+      mapped.address && `street “${mapped.address}”`,
+      mapped.city && `city “${mapped.city}”`,
+      mapped.state && `state “${mapped.state}”`,
+      mapped.zip && `ZIP “${mapped.zip}”`,
+    ].filter(Boolean);
+    return parts.join(' · ');
+  }, [csv, mapping]);
+
   const reasons = report?.excluded?.reduce((acc, row) => {
     const key = row.reason || 'Excluded';
     acc[key] = (acc[key] || 0) + 1;
@@ -95,7 +111,7 @@ export default function FieldMappingStep({ campaign, csv, mapping, setMapping, r
     <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
       <Card
         title="Step 2 — Map the columns"
-        hint="Suggested from the header line. Change anything that landed on the wrong field; anything mapped nowhere is still kept on the recipient as an extra column."
+        hint="Suggested from the header line. A single Full name or Full address column is split for you — first and last, street, city, state and ZIP — and anything mapped nowhere is still kept on the recipient as an extra column."
       >
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(220px,1fr))', gap: '10px' }}>
           {CAMPAIGN_FIELDS.map((field) => (
@@ -107,6 +123,12 @@ export default function FieldMappingStep({ campaign, csv, mapping, setMapping, r
             </Field>
           ))}
         </div>
+        {preview && (
+          <div style={{ marginTop: '12px', background: SURFACE, border: `1px solid ${BORDER}`, borderRadius: '5px', padding: '9px 11px', fontSize: '11px', color: '#c4cdd8' }}>
+            <span style={{ color: GOLD, fontWeight: 'bold' }}>First row splits into — </span>
+            {preview || 'nothing yet — check the columns above'}
+          </div>
+        )}
         <div style={{ display: 'flex', gap: '8px', marginTop: '14px', flexWrap: 'wrap', alignItems: 'center' }}>
           <Btn tone="blue" onClick={() => run('dry_run')} disabled={!!busy}>{busy === 'dry_run' ? 'Checking…' : '🔍 Check the list (no changes)'}</Btn>
           <Btn tone="gold" onClick={() => run('commit')} disabled={!!busy || !report}>{busy === 'commit' ? 'Importing…' : '✅ Commit import'}</Btn>

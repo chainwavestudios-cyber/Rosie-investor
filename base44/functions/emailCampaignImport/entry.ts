@@ -60,8 +60,10 @@ export default async function (req: Request): Promise<Response> {
         lastName: clean(raw?.lastName),
         phone: clean(raw?.phone),
         company: clean(raw?.company),
+        address: clean(raw?.address),
         city: clean(raw?.city),
         state: clean(raw?.state),
+        zip: clean(raw?.zip),
         source: clean(raw?.source),
         customJson: raw?.custom && typeof raw.custom === 'object' ? JSON.stringify(raw.custom) : '{}',
       });

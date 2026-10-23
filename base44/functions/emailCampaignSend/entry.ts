@@ -14,8 +14,9 @@
  */
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.54';
 import { campaignAssistants, normalizeAddress, recipientVars, renderEmail, sendingWindow, zonedDayStart, clean } from '../../shared/emailCampaign.ts';
-import { injectTracking, buildMime } from '../../shared/emailTracking.ts';
+import { buildMime } from '../../shared/emailTracking.ts';
 import { sendViaGmail } from '../../shared/gmailSend.ts';
+import { sendTrackedEmail } from '../../shared/emailMessageEngine.ts';
 
 export default async function (req: Request): Promise<Response> {
   try {
@@ -156,6 +157,18 @@ export default async function (req: Request): Promise<Response> {
       return Response.json({ ok: true, done: true, sent: 0, failed: 0, remaining: 0 });
     }
 
+    // One opt-out query for the whole batch: whatever the list said at import time,
+    // anyone who has unsubscribed since is skipped and marked on their own row.
+    const queueAddresses = queue.map((row: any) => normalizeAddress(row.email)).filter(Boolean);
+    const optOutPage = queueAddresses.length
+      ? await base44.asServiceRole.entities.EmailOptIn.filter({ email: { $in: queueAddresses } }, { limit: 500 }).catch(() => null)
+      : null;
+    const suppressed = new Set(
+      (optOutPage?.items || [])
+        .filter((row: any) => String(row?.status || '').toLowerCase() === 'unsubscribed')
+        .map((row: any) => clean(row.email).toLowerCase()),
+    );
+
     let sent = 0;
     let failed = 0;
     let skipped = 0;
@@ -179,21 +192,38 @@ export default async function (req: Request): Promise<Response> {
       const templateName = clean(campaign.templateName) || clean(template.name);
 
       try {
-        if (String(recipient.unsubscribedAt || '')) {
+        if (String(recipient.unsubscribedAt || '') || suppressed.has(address)) {
           await base44.asServiceRole.entities.EmailCampaignRecipient.update(recipient.id, {
             status: 'skipped',
             reason: 'Unsubscribed — do not email',
+            unsubscribedAt: recipient.unsubscribedAt || new Date().toISOString(),
           }).catch(() => {});
           skipped += 1;
           continue;
         }
 
-        // The recipient's own card carries the tracking identity, so every open,
-        // click and qualification-page visit lands on the right person.
-        const tracked = recipient.leadId
-          ? injectTracking(rendered.html, recipient.leadId, sendId, template.id, templateName)
-          : rendered.html;
-        const { messageId } = await sendViaGmail(base44, address, buildMime(address, rendered.subject, tracked, rendered.text));
+        // Every campaign email goes through the same tracked-send engine as a
+        // contact-card send: its own opaque token, embedded images hosted, one
+        // message record, and the duplicate guard. The recipient's card carries the
+        // identity, so its opens, clicks and unsubscribes land on that person and on
+        // this campaign's own counters.
+        const trackedSend = await sendTrackedEmail(base44, {
+          to: address,
+          subject: rendered.subject,
+          html: rendered.html,
+          text: rendered.text,
+          contactId: recipient.leadId || '',
+          contactKind: 'lead',
+          contactName: `${clean(recipient.firstName)} ${clean(recipient.lastName)}`.trim(),
+          templateId: template.id,
+          templateName,
+          senderEmail: clean(campaign.senderEmail),
+          senderName: clean(campaign.senderName),
+          sentBy: clean(campaign.createdBy) || 'campaign',
+          source: 'campaign',
+          sendId,
+        });
+        const messageId = trackedSend.messageId;
 
         await base44.asServiceRole.entities.EmailCampaignRecipient.update(recipient.id, {
           status: 'sent',
