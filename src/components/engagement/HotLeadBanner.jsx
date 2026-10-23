@@ -6,7 +6,8 @@ import { C, chip } from '@/components/superadmin/kit';
 import { tierStyle } from '@/lib/engagementTiers';
 
 export default function HotLeadBanner({ hot, leads, system }) {
-  const rows = hot || [];
+  // Only leads still on file can be called: stale tracker rows are not a cue.
+  const rows = (hot || []).filter((row) => (leads || []).find((lead) => lead.leadId === row.leadId)?.onFile !== false);
   if (!rows.length) return null;
 
   const tone = system === 'coach' ? C.danger : C.warn;

@@ -148,7 +148,10 @@ async function buildReport(base44: any, body: any) {
     systemEvents.slice(0, RECENT).forEach((event: any) => wanted.add(String(event.leadId)));
   });
 
-  const describe = await buildDescribe(base44, [...wanted]);
+  // Names captured at send time, so an event whose lead lives outside either CRM still reads as a person.
+  const sentNames = new Map<string, string>();
+  sends.forEach((log: any) => { if (log.leadId && log.toName) sentNames.set(String(log.leadId), String(log.toName)); });
+  const describe = await buildDescribe(base44, [...wanted], sentNames);
 
   SYSTEMS.forEach((system) => {
     const result = systems[system];
@@ -173,16 +176,19 @@ async function buildReport(base44: any, body: any) {
         lastAt: entry.lastAt,
       };
     });
-    result.recent = result.recentEvents.map((event: any) => ({
-      id: event.id,
-      leadId: String(event.leadId),
-      leadName: describe(String(event.leadId)).name,
-      eventType: event.eventType,
-      url: event.url || '',
-      categoryLabel: event.categoryLabel || '',
-      templateName: event.templateName || '',
-      trackedAt: event.trackedAt || event.created_date,
-    }));
+    result.recent = result.recentEvents.map((event: any) => {
+      const who = describe(String(event.leadId));
+      return {
+        id: event.id,
+        leadId: String(event.leadId),
+        leadName: who.name || (who.onFile === false ? 'Contact card removed' : 'Lead'),
+        eventType: event.eventType,
+        url: event.url || '',
+        categoryLabel: event.categoryLabel || '',
+        templateName: event.templateName || '',
+        trackedAt: event.trackedAt || event.created_date,
+      };
+    });
     delete result.scoreOf;
     delete result.leadIds;
     delete result.recentEvents;
@@ -302,7 +308,7 @@ function buildSystem({ system, events, sends, now }: any) {
 }
 
 /** Names for every lead id we are about to show — fronter cards first, coach leads after. */
-async function buildDescribe(base44: any, ids: string[]) {
+async function buildDescribe(base44: any, ids: string[], sentNames?: Map<string, string>) {
   const leadById = new Map<string, any>();
   const chunks: string[][] = [];
   for (let index = 0; index < ids.length; index += LEAD_CHUNK) chunks.push(ids.slice(index, index + LEAD_CHUNK));
@@ -326,7 +332,7 @@ async function buildDescribe(base44: any, ids: string[]) {
 
   return (leadId: string) => {
     const lead = leadById.get(leadId);
-    if (!lead) return { name: '', phone: '', email: '', assignedTo: '', status: '', source: 'fronter' };
+    if (!lead) return { name: sentNames?.get(leadId) || '', phone: '', email: '', assignedTo: '', status: '', source: 'fronter', onFile: false };
     return {
       name: `${lead.firstName || ''} ${lead.lastName || ''}`.trim(),
       phone: lead.phone || '',
@@ -334,6 +340,7 @@ async function buildDescribe(base44: any, ids: string[]) {
       assignedTo: lead.coachLead ? (lead.debtCoachOwner || '') : (lead.assignedTo || ''),
       status: lead.status || '',
       source: lead.coachLead ? 'coach' : 'fronter',
+      onFile: true,
     };
   };
 }

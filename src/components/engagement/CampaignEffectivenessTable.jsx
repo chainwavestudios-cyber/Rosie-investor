@@ -7,7 +7,9 @@ import { C, ago } from '@/components/superadmin/kit';
 
 const HEAD = ['Campaign', 'Email type', 'Sent', 'Engaged', 'Opened', 'Clicked', 'Welcome', 'Qual page', 'Hot', 'Avg score', 'Last'];
 
-const pct = (part, total) => (total ? `${Math.round((part / total) * 100)}%` : '—');
+// More openers than logged sends means the send log is incomplete for that email:
+// a rate there would be nonsense, so it reads as no rate at all.
+const pct = (part, total) => (total && part <= total ? `${Math.round((part / total) * 100)}%` : '—');
 
 export default function CampaignEffectivenessTable({ campaigns }) {
   if (!campaigns?.length) {

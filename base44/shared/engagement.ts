@@ -292,9 +292,11 @@ export function scoreSignals(signals: LeadSignals, system: SystemKey, nowMs: num
   const floor = system === 'coach' ? MIGRATION_START_SCORE : 0;
   score = Math.max(floor, Math.min(100, Math.round(score)));
 
-  const tier = score >= HOT_SCORE ? 'hot' : score >= ENGAGED_SCORE ? 'engaged' : score >= WARMING_SCORE ? 'warming' : 'cold';
+  // The pattern rule outranks the number: a lead the credential/welcome behaviour
+  // has tagged hot reads hot on the badge, the banner and the leaderboard alike.
+  const hotLead = score >= HOT_SCORE || forcedHot;
+  const tier = hotLead ? 'hot' : score >= ENGAGED_SCORE ? 'engaged' : score >= WARMING_SCORE ? 'warming' : 'cold';
   const tierLabel = { hot: 'Hot', engaged: 'Engaged', warming: 'Warming', cold: 'Cold' }[tier];
-  const hotLead = tier === 'hot' || forcedHot;
 
   if (signals.lastAt) {
     const hours = (nowMs - new Date(signals.lastAt).getTime()) / 3_600_000;

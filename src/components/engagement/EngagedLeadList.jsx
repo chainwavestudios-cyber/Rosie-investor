@@ -40,8 +40,9 @@ export default function EngagedLeadList({ leads, system = 'coach' }) {
             <span style={{ color: C.dim, fontSize: '11px', fontWeight: 'bold', width: '20px', paddingTop: '2px' }}>{index + 1}</span>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ display: 'flex', gap: '7px', alignItems: 'baseline', flexWrap: 'wrap' }}>
-                <span style={{ color: C.ink, fontSize: '13px', fontWeight: 'bold' }}>{lead.name || 'Unknown lead'}</span>
+                <span style={{ color: C.ink, fontSize: '13px', fontWeight: 'bold' }}>{lead.name || (lead.onFile === false ? 'Contact card removed' : 'Unknown lead')}</span>
                 <span style={chip(style.color)}>{style.icon} {style.label}</span>
+                {lead.onFile === false && <span style={chip(C.muted)}>🗑 no card on file</span>}
                 {lead.hotLead && <span style={chip(C.danger)}>🚨 {system === 'coach' ? 'HOT LEAD' : 'HOT PROSPECT'}</span>}
                 {lead.assignedTo && <span style={chip(C.coach)}>◉ {lead.assignedTo}</span>}
                 {lead.status && lead.status !== 'prospect' && <span style={chip(C.muted)}>{lead.status.replace('_', ' ')}</span>}
