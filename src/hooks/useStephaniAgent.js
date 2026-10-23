@@ -51,7 +51,6 @@ export default function useStephaniAgent({
   room,
   opening,
   enabled = false,
-  speakLocally = false,
   onLine,
   onStatus,
   onEnded,
@@ -78,8 +77,6 @@ export default function useStephaniAgent({
   const stopMicRef = useRef(null);
   const streamRef = useRef(null);
   const playbackRef = useRef({ ctx: null, node: null });
-  const speakLocallyRef = useRef(speakLocally);
-  speakLocallyRef.current = speakLocally;
 
   const stopPlayback = () => {
     try {
@@ -90,9 +87,8 @@ export default function useStephaniAgent({
     playbackRef.current.node = null;
   };
 
-  /** When the avatar's room does not carry her voice back, play the line we just sent. */
+  /** Her voice is ours: the line goes to the avatar for the face and is played here for the ears. */
   const playHere = (bytes, sampleRate) => {
-    if (!speakLocallyRef.current) return;
     try {
       const Ctx = window.AudioContext || window.webkitAudioContext;
       if (!Ctx) return;

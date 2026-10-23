@@ -31,14 +31,12 @@ export default function StephaniAgentStage({
   onEnded,
 }) {
   const videoRef = useRef(null);
-  const audioRef = useRef(null);
   const tokenRef = useRef(sessionToken);
   tokenRef.current = sessionToken;
 
   const [room, setRoom] = useState(null);
   const [status, setStatus] = useState('idle');
   const [setupError, setSetupError] = useState('');
-  const [speakLocally, setSpeakLocally] = useState(false);
   const startSignalRef = useRef(startSignal);
   const endSignalRef = useRef(endSignal);
   const clientStartedRef = useRef(null);
@@ -75,7 +73,6 @@ export default function StephaniAgentStage({
     metadata: { sessionToken },
     apiClient: apiClientRef.current,
     videoRef,
-    audioRef,
   });
 
   const report = useCallback(
@@ -93,7 +90,6 @@ export default function StephaniAgentStage({
     room,
     opening: room?.opening,
     enabled: !!room,
-    speakLocally,
     onLine,
     onStatus: report,
     onEnded,
@@ -103,7 +99,7 @@ export default function StephaniAgentStage({
   const startClient = useCallback(async () => {
     if (!room || !client || clientStartedRef.current === client) return;
     clientStartedRef.current = client;
-    client.setMediaElements({ videoElement: videoRef.current, audioElement: audioRef.current });
+    client.setMediaElements({ videoElement: videoRef.current });
     try {
       await client.start();
     } catch (err) {
@@ -115,17 +111,6 @@ export default function StephaniAgentStage({
   useEffect(() => {
     void startClient();
   }, [startClient]);
-
-  // Her voice comes back through the room when the avatar carries audio; if it does not,
-  // the widget plays the same line itself so the visitor always hears her.
-  useEffect(() => {
-    if (clientStatus !== 'started') return undefined;
-    const timer = setTimeout(() => {
-      const tracks = audioRef.current?.srcObject?.getAudioTracks?.().length || 0;
-      setSpeakLocally(tracks === 0);
-    }, 3000);
-    return () => clearTimeout(timer);
-  }, [clientStatus]);
 
   // A room that never comes up tells the visitor so, and lets them try again.
   useEffect(() => {
@@ -180,7 +165,6 @@ export default function StephaniAgentStage({
     <div className="overflow-hidden rounded-2xl border border-sky-400/20 bg-[#0b1220] shadow-[0_30px_80px_rgba(0,0,0,0.55)]">
       <div className="relative aspect-video w-full">
         <video ref={videoRef} autoPlay playsInline className="absolute inset-0 h-full w-full object-cover" />
-        <audio ref={audioRef} autoPlay />
 
         {!onStage && (
           <div className="absolute inset-0 flex items-center justify-center bg-[radial-gradient(circle_at_50%_35%,rgba(14,165,233,0.28),#0b1220_68%)] px-6 text-center">
