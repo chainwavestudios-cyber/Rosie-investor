@@ -37,6 +37,7 @@ export default function SarahProtofaceStage({
   endSignal = 0,
   onLine,
   onStatus,
+  onEnded,
 }) {
   const conversation = useProtofaceConversation({ embedId });
   const [startRequested, setStartRequested] = useState(false);
@@ -89,6 +90,11 @@ export default function SarahProtofaceStage({
     const off = conversation.on('microphone_changed', (payload) => setMicEnabled(!!payload?.enabled));
     return () => off?.();
   }, [conversation]);
+
+  useEffect(() => {
+    const off = conversation.on('ended', (payload) => onEnded?.(payload));
+    return () => off?.();
+  }, [conversation, onEnded]);
 
   const begin = useCallback(async () => {
     if (advancingRef.current) return;

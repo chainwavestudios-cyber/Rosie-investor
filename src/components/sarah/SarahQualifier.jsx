@@ -9,15 +9,27 @@ const TIERS = ['$5k–$10k', '$10k–$20k', '$20k+'];
 const YES_RE = /\b(yes|yeah|yep|yup|sure|correct|more|over|above)\b/i;
 const NO_RE = /\b(no|nope|not|never|under|less|below|none|don'?t|can'?t)\b/i;
 
+const SPOKEN_NUMBERS = {
+  one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9,
+  ten: 10, eleven: 11, twelve: 12, thirteen: 13, fourteen: 14, fifteen: 15, sixteen: 16,
+  seventeen: 17, eighteen: 18, nineteen: 19, twenty: 20, thirty: 30, forty: 40, fifty: 50,
+  sixty: 60, seventy: 70, eighty: 80, ninety: 90,
+};
+
 function tierFromText(text) {
-  // "$10k–$20k", "$10k to $20k" and "10,000" all normalise to comparable tokens first.
+  // "$10k–$20k", "$10k to $20k", "10,000" and "twenty thousand" all normalise to comparable tokens first.
   const value = String(text || '')
     .toLowerCase()
+    .replace(/\b([a-z]+)\s+thousand\b/g, (match, word) => (SPOKEN_NUMBERS[word] ? `${SPOKEN_NUMBERS[word]} 000` : match))
     .replace(/[^a-z0-9+]+/g, ' ')
     .trim();
   if (/20k ?\+|20 ?000 ?\+|over 20|more than 20/.test(value)) return '20k+';
   if (/10k ?20k|between 10|10 000|10k to 20k/.test(value)) return '10k-20k';
   if (/5k ?10k|between 5|5 000|5k to 10k/.test(value)) return '5k-10k';
+  const amount = Number((value.match(/\b(\d{1,3}) 000\b/) || [])[1] || 0) * 1000 || Number((value.match(/\b(\d{4,6})\b/) || [])[1] || 0);
+  if (amount >= 20000) return '20k+';
+  if (amount >= 10000) return '10k-20k';
+  if (amount >= 5000) return '5k-10k';
   return '';
 }
 
@@ -26,6 +38,14 @@ function toE164(raw) {
   if (digits.length === 10) return `+1${digits}`;
   if (digits.length === 11 && digits.startsWith('1')) return `+${digits}`;
   return '';
+}
+
+function formatFollowUp(iso) {
+  try {
+    return `${new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', weekday: 'long', hour: 'numeric', minute: '2-digit' }).format(new Date(iso))} ET`;
+  } catch {
+    return '';
+  }
 }
 
 export default function SarahQualifier({ token = '', source = 'landing_page', videoOnly = false }) {
@@ -37,10 +57,14 @@ export default function SarahQualifier({ token = '', source = 'landing_page', vi
   const [error, setError] = useState('');
   const [startSignal, setStartSignal] = useState(0);
   const [endSignal, setEndSignal] = useState(0);
+  const [outcome, setOutcome] = useState(null);
 
   const stepRef = useRef('debt');
   const tierRef = useRef('');
   const routedRef = useRef(false);
+  const phoneRef = useRef('');
+  const transcriptRef = useRef([]);
+  const finishedRef = useRef(false);
 
   const agentName = config?.agentName || 'Stephani';
   const name = config?.lead?.firstName || 'there';
@@ -112,9 +136,14 @@ export default function SarahQualifier({ token = '', source = 'landing_page', vi
   const handleStageLine = useCallback(
     ({ role, text }) => {
       setMessages((current) => [...current, { role, text }]);
-      if (role !== 'user' || routedRef.current) return;
+      transcriptRef.current.push({ role, text });
+      if (role !== 'user') return;
+      const spokenTier = tierFromText(text);
+      if (spokenTier) tierRef.current = spokenTier;
+      if (routedRef.current) return;
       const phone = toE164(text);
       if (!phone) return;
+      phoneRef.current = phone;
       routedRef.current = true;
       setEndSignal((value) => value + 1);
       void routeToTeam(phone, tierRef.current);
@@ -126,9 +155,37 @@ export default function SarahQualifier({ token = '', source = 'landing_page', vi
     if (status === 'live' || status === 'waiting_for_avatar') setPhase('live');
     else if (status === 'joining' || status === 'requesting_device_access' || status === 'confirming_consent') setPhase('connecting');
     else if (status === 'ended' || status === 'failed') {
-      setPhase((current) => (current === 'routing' || current === 'routed' ? current : 'ready'));
+      setPhase((current) => (['routing', 'routed', 'saving', 'saved'].includes(current) ? current : 'ready'));
     }
   }, []);
+
+  // When the video call ends, whatever Stephani captured becomes a contact card in the
+  // Debt Call Coach, and — unless the prospect was patched through live — a booked call.
+  const handleStageEnded = useCallback(async () => {
+    if (finishedRef.current) return;
+    finishedRef.current = true;
+    if (!phoneRef.current && !tierRef.current && transcriptRef.current.length === 0) return;
+    setPhase((current) => (['routing', 'routed'].includes(current) ? current : 'saving'));
+    try {
+      const res = await base44.functions.invoke('vapiQualify', {
+        action: 'finishCall',
+        sessionToken,
+        phone: phoneRef.current,
+        debtTier: tierRef.current,
+        bridged: routedRef.current,
+        transcript: transcriptRef.current,
+      });
+      const appointment = res.data?.appointment || null;
+      setOutcome({
+        bridged: routedRef.current,
+        appointmentLabel: appointment?.startISO ? formatFollowUp(appointment.startISO) : '',
+      });
+      setPhase((current) => (['routing', 'routed'].includes(current) ? current : 'saved'));
+    } catch (err) {
+      setPhase('ready');
+      setError(err?.response?.data?.error || err?.message || 'We could not save your details.');
+    }
+  }, [sessionToken]);
 
   const answerText = (text) => {
     const value = String(text || '').trim();
@@ -212,6 +269,7 @@ export default function SarahQualifier({ token = '', source = 'landing_page', vi
             endSignal={endSignal}
             onLine={handleStageLine}
             onStatus={handleStageStatus}
+            onEnded={handleStageEnded}
           />
         ) : (
           <SarahVideoPanel
@@ -262,6 +320,28 @@ export default function SarahQualifier({ token = '', source = 'landing_page', vi
                 </button>
               )}
             </>
+          )}
+
+          {phase === 'saving' && <p className="text-sm text-slate-300">Saving your details…</p>}
+
+          {outcome && (
+            <div className="rounded-xl border border-emerald-400/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-50">
+              <p>
+                {outcome.bridged
+                  ? "You're all set — a specialist is picking up your call now."
+                  : `Saved — your details are with our team${outcome.appointmentLabel ? `, and your call is booked for ${outcome.appointmentLabel}` : ''}.`}
+              </p>
+              {!outcome.bridged && phoneRef.current && (
+                <button
+                  type="button"
+                  onClick={() => routeToTeam(phoneRef.current, tierRef.current)}
+                  className="mt-3 inline-flex items-center justify-center gap-2 rounded-xl border border-emerald-300/40 bg-emerald-500/15 px-4 py-2 text-sm font-medium text-emerald-50 hover:bg-emerald-500/25"
+                >
+                  <PhoneCall className="h-4 w-4" />
+                  Talk to a specialist now
+                </button>
+              )}
+            </div>
           )}
 
           {(phase === 'routing' || phase === 'routed') && (

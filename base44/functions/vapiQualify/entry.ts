@@ -14,6 +14,7 @@ import {
   buildAssistantPayload,
   contactCardForToken,
   findSession,
+  finishQualification,
   leadView,
   loadConfig,
   recordQualifyVisit,
@@ -75,6 +76,26 @@ export default async function (req: Request) {
         baseUrl: base,
       });
       return Response.json({ ok: true, ...result });
+    }
+
+    if (action === 'finishCall') {
+      const session = await findSession(base44, { sessionToken: body.sessionToken });
+      if (!session) return Response.json({ ok: false, error: 'Session not found.' }, { status: 404 });
+      const result = await finishQualification(base44, session, {
+        phone: body.phone,
+        debtTier: body.debtTier,
+        transcript: body.transcript,
+        bridged: !!body.bridged,
+        agentName: cfg.agentName || 'Stephani',
+        actor: 'stephani-video',
+      });
+      const tier = String(body.debtTier || '').trim();
+      await base44.asServiceRole.entities.VideoQualifySession.update(session.id, {
+        ...(result.phone ? { verifiedPhone: result.phone } : {}),
+        ...(tier ? { debtTier: tier } : {}),
+        status: body.bridged ? 'bridged' : 'completed',
+      });
+      return Response.json({ ok: true, skipped: !!result.skipped, appointment: result.appointment || null });
     }
 
     if (action === 'syncAssistant') {

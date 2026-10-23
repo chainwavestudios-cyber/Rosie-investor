@@ -6,6 +6,8 @@
 import { secrets } from 'base44:runtime';
 import { toE164, twilioFetch, xmlEscape } from './twilioHelpers.ts';
 import { PROTOFACE_ID_RE } from './protofaceId.ts';
+import { getCalendarAuth, hasConflict, listEvents, nextBusinessSlot } from './googleCalendarHelpers.ts';
+import saveCalendarAppointment from './saveCalendarAppointment.ts';
 
 export const FALLBACK_APP_URL = 'https://rosieai-investorpage.base44.app';
 export const VAPI_API = 'https://api.vapi.ai';
@@ -280,6 +282,135 @@ const SESSION_STATUS_BY_CALL: Record<string, string> = {
 
 export function sessionStatusForCallStatus(callStatus: string): string {
   return SESSION_STATUS_BY_CALL[String(callStatus || '').toLowerCase()] || 'bridged';
+}
+
+/** The coach's copy of the conversation. Capped — a long call must stay inside the record limit. */
+export const TRANSCRIPT_LIMIT = 12000;
+
+export function transcriptText(transcript: any): string {
+  if (typeof transcript === 'string') return transcript.trim().slice(0, TRANSCRIPT_LIMIT);
+  if (!Array.isArray(transcript)) return '';
+  return transcript
+    .map((line) => `${line?.role === 'user' ? 'Prospect' : line?.role === 'agent' ? 'Agent' : 'Note'}: ${String(line?.text || '').trim()}`)
+    .filter((line) => line.length > 8)
+    .join('\n')
+    .slice(0, TRANSCRIPT_LIMIT);
+}
+
+const TIER_DEBT: Record<string, number> = { '5k-10k': 7500, '10k-20k': 15000, '20k+': 25000 };
+
+/** The Debt Call Coach contact card already on file for this phone or email. */
+export async function findCoachCard(base44: any, opts: { phone?: string; email?: string }): Promise<any> {
+  const phone = String(opts.phone || '').trim();
+  if (phone) {
+    const { items } = await base44.asServiceRole.entities.DebtLead.filter({ phone }, { limit: 1 });
+    if (items && items[0]) return items[0];
+  }
+  const email = String(opts.email || '').trim();
+  if (email) {
+    const { items } = await base44.asServiceRole.entities.DebtLead.filter({ email }, { limit: 1 });
+    if (items && items[0]) return items[0];
+  }
+  return null;
+}
+
+/**
+ * What a finished video qualification leaves behind: a contact card in the Debt
+ * Call Coach, the transcript on it, and — unless the prospect was already patched
+ * through to a specialist live — the follow-up call on the calendar.
+ */
+export async function finishQualification(
+  base44: any,
+  session: any,
+  args: { phone?: string; debtTier?: string; transcript?: any; bridged?: boolean; agentName?: string; actor?: string },
+): Promise<any> {
+  if (!session) throw new Error('This qualification session has expired.');
+  const vault = session.vaultLeadId
+    ? await base44.asServiceRole.entities.LeadVaultEntry.get(session.vaultLeadId).catch(() => null)
+    : null;
+
+  const phone = toE164(args.phone || vault?.phone || session.verifiedPhone || '');
+  const debtTier = String(args.debtTier || session.debtTier || '').trim();
+  const transcript = transcriptText(args.transcript);
+  if (!phone && !debtTier && !transcript) return { skipped: true, reason: 'Nothing was captured on this call.' };
+
+  const agent = String(args.agentName || 'Stephani');
+  const nameParts = String(vault?.firstName || session.leadName || '').trim().split(/\s+/).filter(Boolean);
+  const firstName = nameParts[0] || 'Video';
+  const lastName = nameParts.slice(1).join(' ') || 'Prospect';
+  const fullName = `${firstName} ${lastName}`;
+  const now = new Date().toISOString();
+  const existing = await findCoachCard(base44, { phone, email: vault?.email });
+  const estimate = TIER_DEBT[debtTier] || Number(vault?.debtAmount || vault?.estimatedDebt || session.estimatedDebt || 0) || 0;
+  const notes = [
+    `Video qualification with ${agent} (debt range ${debtTier || 'not captured'}).`,
+    phone ? `Best number: ${phone}` : '',
+    args.bridged ? 'Patched straight through to a specialist during the call.' : 'Follow-up call booked on the calendar.',
+    vault?.noticeId ? `Notice ${vault.noticeId}` : '',
+  ].filter(Boolean).join('\n');
+  const transcriptJson = transcript
+    ? JSON.stringify({ at: now, source: 'video_qualification', lines: transcript })
+    : existing?.transcriptJson || '';
+
+  const card = existing
+    ? await base44.asServiceRole.entities.DebtLead.update(existing.id, {
+        phone: existing.phone || phone,
+        email: existing.email || vault?.email || '',
+        state: existing.state || vault?.state || session.state || '',
+        status: existing.status === 'enrolled' ? existing.status : 'qualified',
+        notes: existing.notes || notes,
+        debtAmount: existing.debtAmount || estimate || undefined,
+        transcriptJson,
+        lastCallAt: now,
+        callCount: Number(existing.callCount || 0) + 1,
+      })
+    : await base44.asServiceRole.entities.DebtLead.create({
+        firstName,
+        lastName,
+        phone,
+        email: vault?.email || '',
+        state: vault?.state || session.state || '',
+        debtAmount: estimate || undefined,
+        status: 'qualified',
+        notes,
+        transcriptJson,
+        lastCallAt: now,
+        callCount: 1,
+      });
+
+  await base44.asServiceRole.entities.DebtLeadActivity.create({
+    leadId: card.id,
+    leadName: fullName,
+    activityType: 'call',
+    activityText: `${agent} video qualification — debt ${debtTier || 'range not captured'}${args.bridged ? ', patched through live' : ''}`,
+    createdBy: args.actor || 'stephani-video',
+    metadataJson: JSON.stringify({ sessionId: session.id, bridged: !!args.bridged, phone }),
+  });
+
+  let appointment: any = null;
+  if (!args.bridged && (phone || card.phone)) {
+    try {
+      const authHeader = await getCalendarAuth(base44);
+      const from = new Date(Date.now() + 30 * 60 * 1000);
+      const events = await listEvents(authHeader, from.toISOString(), new Date(from.getTime() + 21 * 24 * 3600 * 1000).toISOString(), 250);
+      const slot = nextBusinessSlot(events, from);
+      if (slot) {
+        const saved = await saveCalendarAppointment(
+          base44,
+          { leadId: card.id, startISO: slot.start.toISOString(), title: `Debt relief follow-up — ${fullName}`, duration: 30 },
+          authHeader,
+          args.actor || 'stephani-video',
+        );
+        const savedBody = await saved.json().catch(() => ({}));
+        if (saved.ok) appointment = { startISO: slot.start.toISOString(), htmlLink: savedBody?.lead?.appointmentEventHtmlLink || '' };
+        else console.error('[videoQualify] appointment not booked:', savedBody?.error || saved.status);
+      }
+    } catch (error) {
+      console.error('[videoQualify] appointment not booked:', (error as Error).message);
+    }
+  }
+
+  return { ok: true, cardId: card.id, phone, appointment };
 }
 
 /** The rep's leg: whisper the context, then join the prospect into the same call. */

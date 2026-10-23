@@ -34,6 +34,23 @@ export function hasConflict(events: any[], start: Date, end: Date): boolean {
   return false;
 }
 
+/** The next free half-hour slot inside business hours (weekdays, 8am–6pm ET). */
+export function nextBusinessSlot(events: any[], from: Date = new Date(), maxAttempts = 96): { start: Date; end: Date } | null {
+  const slotStart = new Date(from.getTime());
+  slotStart.setUTCSeconds(0, 0);
+  slotStart.setUTCMinutes(slotStart.getUTCMinutes() > 30 ? 60 : 30);
+  for (let i = 0; i < maxAttempts; i++) {
+    const end = new Date(slotStart.getTime() + 30 * 60 * 1000);
+    const parts = new Intl.DateTimeFormat('en-US', { timeZone: ET_TZ, hour: '2-digit', hour12: false, weekday: 'short' }).formatToParts(slotStart);
+    const hour = Number(parts.find((p) => p.type === 'hour')?.value || '0');
+    const weekday = parts.find((p) => p.type === 'weekday')?.value || '';
+    const open = hour >= 8 && hour < 18 && weekday !== 'Sat' && weekday !== 'Sun';
+    if (open && !hasConflict(events, slotStart, end)) return { start: new Date(slotStart), end };
+    slotStart.setTime(slotStart.getTime() + 30 * 60 * 1000);
+  }
+  return null;
+}
+
 export function formatInTz(iso: string, tz: string): string {
   return new Intl.DateTimeFormat('en-US', {
     timeZone: tz,
