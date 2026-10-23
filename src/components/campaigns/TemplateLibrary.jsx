@@ -81,7 +81,7 @@ export default function TemplateLibrary({ username, onBack }) {
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ color: GOLD, fontSize: '15px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase' }}>📚 Email Template Library</div>
           <div style={{ color: MUTED, fontSize: '11px', marginTop: '3px' }}>
-            Self-contained HTML with hosted images. Personalization tags are filled per recipient at send time — {{FirstName}}, {{RosieInviteLink}}, {{ChrisInviteLink}}, {{UnsubscribeUrl}} and {{CompanyMailingAddress}} all resolve.
+            Self-contained HTML with hosted images. Personalization tags are filled per recipient at send time — {'{{FirstName}}'}, {'{{RosieInviteLink}}'}, {'{{ChrisInviteLink}}'}, {'{{UnsubscribeUrl}}'} and {'{{CompanyMailingAddress}}'} all resolve.
           </div>
         </div>
         <Btn tone="gold" onClick={() => edit(null)}>＋ New template</Btn>
