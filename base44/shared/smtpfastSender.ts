@@ -6,8 +6,9 @@
  *
  * The provider is Resend-compatible: POST /emails with a Bearer key. Opens and
  * clicks stay this app's own (shared/emailTracking.ts rewrites the links and
- * injects the pixel), so provider-side tracking is always off — that keeps the
- * links exactly as this app wrote them and avoids a second open pixel.
+ * injects the pixel). Outreach marketing sends instead let the provider track
+ * opens and clicks (providerTracking) — a message is never counted twice, and a
+ * link marked data-smtpfast-track="off" is left exactly as it was written.
  */
 import { secrets } from 'base44:runtime';
 
@@ -35,6 +36,8 @@ type SendOptions = {
   category?: 'marketing' | 'transactional';
   /** Kept as a provider tag so a send can be traced back to its record. */
   customId?: string;
+  /** Lets SMTPfast track opens and clicks for this send (outreach marketing). */
+  providerTracking?: boolean;
   attachments?: SmtpfastAttachment[];
 };
 
@@ -51,8 +54,8 @@ export async function smtpfastSend(opts: SendOptions): Promise<{ id: string; to:
     to: Array.isArray(opts.to) ? opts.to : [opts.to],
     subject: opts.subject,
     category: opts.category || 'marketing',
-    track_opens: false,
-    track_clicks: false,
+    track_opens: !!opts.providerTracking,
+    track_clicks: !!opts.providerTracking,
   };
   if (opts.html) payload.html = opts.html;
   if (opts.text) payload.text = opts.text;

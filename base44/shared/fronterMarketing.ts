@@ -1,5 +1,4 @@
 import { OUTREACH_FROM_NAME, smtpfastSend } from './smtpfastSender.ts';
-import { injectTracking } from './emailTracking.ts';
 import { getRateDropTemplate, resolveInboundPhone, buildMailerContext, buildMailerHtml, resolveMailerSlots } from './rateDropMailer.ts';
 
 /**
@@ -78,17 +77,19 @@ export async function sendMarketingEmail(base44, template, card, { test = false 
   if (!/^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(to) || /[\r\n]/.test(to)) throw new Error('Enter a valid recipient email address.');
   const rendered = await renderMarketingEmail(base44, template, { ...card, email: to });
   const sendId = crypto.randomUUID();
-  // The saved template is the authoritative content; it is rendered here so each
-  // contact gets their own tracked links without altering the shared copy.
-  const html = !test && card.id ? injectTracking(rendered.html, card.id, sendId, template.localId || template.id, template.name) : rendered.html;
+  // The saved template is the authoritative content: it goes out exactly as
+  // saved. SMTPfast adds its own tracking pixel and rewrites its own eligible
+  // links, so nothing is rewritten again here — and a link carrying
+  // data-smtpfast-track="off" (the qualification-token CTA) stays untouched.
   const sent = await smtpfastSend({
     to,
     subject: rendered.subject,
-    html,
+    html: rendered.html,
     text: rendered.text,
     fromName: OUTREACH_FROM_NAME,
     category: 'marketing',
     customId: `fronter:${sendId}`,
+    providerTracking: !test,
   });
   return { to, sendId, subject: rendered.subject, messageId: sent.id, provider: 'smtpfast', templateId: template.id };
 }

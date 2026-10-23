@@ -236,7 +236,7 @@ export default function FronterEmailsTab({ username }) {
       </div>
 
       <div style={{ background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '6px', padding: '14px', marginBottom: '20px', color: '#8a9ab8', fontSize: '12px', lineHeight: 1.6 }}>
-        Google / Gmail email only. Mailjet account 2 templates, including Stephani and the HTML mailer, are in Marketing. Each Google template can be:
+        Google / Gmail email only — the outreach templates (SMTPfast) live in Marketing. Each Google template can be:
         <br />• <span style={{ color: GOLD }}>Manual</span> — sent on demand from the credentials popup or a contact card button
         <br />• <span style={{ color: BLUE }}>Follow-Up (Auto)</span> — auto-sent when a lead opens their credentials email + clicks 2/3 tracked links
         <br />• <span style={{ color: PURPLE }}>Tracked</span> — opens and link clicks are recorded; triggers the follow-up automation
