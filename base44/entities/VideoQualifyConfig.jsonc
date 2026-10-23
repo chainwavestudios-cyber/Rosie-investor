@@ -12,6 +12,21 @@
       "title": "Widget Live",
       "default": true
     },
+    "agentDrivenMode": {
+      "type": "boolean",
+      "title": "Drive The Avatar With Our Own Agent (our LLM + knowledge base decide every line, our voice speaks it \u2014 the embed is ignored)",
+      "default": false
+    },
+    "kbName": {
+      "type": "string",
+      "title": "Knowledge Base She Answers From (the KnowledgeBase set to search, plus everything in the Fronter knowledge base)",
+      "default": "Debt Settlement"
+    },
+    "agentVoiceId": {
+      "type": "string",
+      "title": "Her Voice \u2014 ElevenLabs Voice ID (used by the agent-driven avatar)",
+      "default": "ogwqBH5bbF03DSbNiRNN"
+    },
     "agentName": {
       "type": "string",
       "title": "Agent Name (shown in the widget)",
@@ -73,7 +88,7 @@
     },
     "protofaceEmbedId": {
       "type": "string",
-      "title": "Protoface Embed ID (the live video avatar conversation \u2014 emb_...; leave empty to show the plain frame instead)"
+      "title": "Protoface Embed ID (the live video avatar conversation \u2014 emb_...; used when the widget is not agent-driven)"
     },
     "protofaceEmbedUrl": {
       "type": "string",
@@ -82,7 +97,7 @@
     },
     "protofaceAvatarId": {
       "type": "string",
-      "title": "Protoface Avatar ID"
+      "title": "Protoface Avatar ID (av_... \u2014 the avatar the agent-driven widget brings into the call)"
     },
     "updatedBy": {
       "type": "string",

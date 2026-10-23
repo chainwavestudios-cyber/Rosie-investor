@@ -72,3 +72,50 @@ export async function getTtsClip(base44: any, { text, voiceId, keyPrefix }: TtsC
     return null;
   }
 }
+
+// ── Live avatar speech ────────────────────────────────────────────────────────
+// The avatar's face is lip-synced from raw audio, so these lines are synthesized as
+// PCM16 mono at 16 kHz (what sendAudioData takes) instead of an MP3 file.
+const LIVE_MODEL = 'eleven_turbo_v2_5';
+export const PCM_SAMPLE_RATE = 16000;
+const MAX_SPEECH_CHARS = 600;
+
+function base64FromBytes(bytes: Uint8Array): string {
+  let binary = '';
+  const size = 0x8000;
+  for (let i = 0; i < bytes.length; i += size) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + size));
+  }
+  return btoa(binary);
+}
+
+/** One spoken line as base64 PCM16 16 kHz mono, ready to stream to the avatar. */
+export async function getSpeechPcmBase64(text: string, voiceId: string): Promise<{ audio: string; sampleRate: number } | null> {
+  const clean = String(text || '').trim().slice(0, MAX_SPEECH_CHARS);
+  if (!clean || !voiceId) return null;
+  const apiKey = Deno.env.get('ELEVENLABS_API_KEY');
+  if (!apiKey) return null;
+
+  try {
+    const res = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}?output_format=pcm_${PCM_SAMPLE_RATE}`, {
+      method: 'POST',
+      headers: { 'xi-api-key': apiKey, 'Content-Type': 'application/json', 'Accept': 'audio/pcm' },
+      body: JSON.stringify({
+        text: clean,
+        model_id: LIVE_MODEL,
+        voice_settings: { stability: 0.5, similarity_boost: 0.75, style: 0.0, use_speaker_boost: true, speed: 1.0 },
+      }),
+      signal: AbortSignal.timeout(20000),
+    });
+    if (!res.ok) {
+      console.warn('[elevenLabsTts] live speech failed:', res.status);
+      return null;
+    }
+    const bytes = new Uint8Array(await res.arrayBuffer());
+    if (bytes.length < 2) return null;
+    return { audio: base64FromBytes(bytes), sampleRate: PCM_SAMPLE_RATE };
+  } catch (e: any) {
+    console.warn('[elevenLabsTts] live speech error:', e?.message);
+    return null;
+  }
+}
