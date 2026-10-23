@@ -19,6 +19,11 @@ export default function SarahQualifyPage() {
               <p className="max-w-md text-base leading-relaxed text-home-silver">
                 Choose your AI assistant, and they will confirm a few details before connecting you with a specialist on the phone.
               </p>
+              <img
+                src="https://media.base44.com/images/public/69cd2741578c9b5ce655395b/1ca18c6fc_Screenshot2026-10-23at22713PM.png"
+                alt="Chris Bongiorno, Senior Certified Debt Specialist"
+                className="w-full max-w-md rounded-2xl shadow-2xl"
+              />
             </div>
 
             <div className="home-rise lg:col-span-7" style={{ animationDelay: '160ms' }}>
@@ -30,12 +35,6 @@ export default function SarahQualifyPage() {
               />
             </div>
           </div>
-        </section>
-
-        <section className="mx-auto max-w-7xl px-5 py-10 md:px-8">
-          <p className="text-xs text-home-muted-ink">
-            Your answers stay with our team only. Rate drop program eligibility review.
-          </p>
         </section>
       </main>
     </div>
