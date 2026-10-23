@@ -34,8 +34,11 @@ export default async function (req: Request): Promise<Response> {
 
     // The AI invitation email carries this card's video token. Mint it here so one
     // click on the card's Send AI Invite button also creates the token — no need to
-    // press the AI invitation-links button first.
-    if (/\{\{\s*protoface_?id\s*\}\}/i.test(String(template.bodyHtml || '')) && !PROTOFACE_ID_RE.test(String(lead.protofaceId || ''))) {
+    // press the AI invitation-links button first. The invitation's two buttons carry
+    // that same token, so a body with either of those links needs it just as much.
+    const needsVideoToken = /\{\{\s*protoface_?id\s*\}\}/i.test(String(template.bodyHtml || ''))
+      || /\{\{\s*(rosie|chris)invitelink\s*\}\}/i.test(String(template.bodyHtml || ''));
+    if (needsVideoToken && !PROTOFACE_ID_RE.test(String(lead.protofaceId || ''))) {
       const protofaceId = formatProtofaceId();
       await base44.asServiceRole.entities.DebtLead.update(lead.id, { protofaceId });
       lead.protofaceId = protofaceId;

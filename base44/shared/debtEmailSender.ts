@@ -5,6 +5,7 @@
  * Handles variable substitution, signature injection, tracking, and Gmail sending.
  */
 import { TRACKING_BASE } from './emailTracking.ts';
+import { qualifyLink } from './protofaceId.ts';
 import { sendTrackedEmail } from './emailMessageEngine.ts';
 import { getEmailSignature } from './emailSignature.ts';
 import { companyMergeVars, isEmailUnsubscribed } from './companyInfo.ts';
@@ -57,6 +58,10 @@ export async function sendTemplateEmail(
     // The video qualification invitation link carries the contact's own Protoface token.
     protofaceId: lead.protofaceId || '',
     protoface_id: lead.protofaceId || '',
+    // The AI invitation email offers one button per assistant face — same per-lead
+    // token, only the assistant it opens with differs.
+    rosieInviteLink: qualifyLink(lead.protofaceId || '', 'rosie'),
+    chrisInviteLink: qualifyLink(lead.protofaceId || '', 'chris'),
     appointmentDate: apptDateStr,
     debtAmount: lead.debtAmount ? '$' + Number(lead.debtAmount).toLocaleString() : '',
     confirmUrl: `${TRACKING_BASE}/confirmAppointment?leadId=${lead.id}`,
