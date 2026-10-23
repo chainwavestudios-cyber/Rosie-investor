@@ -11,9 +11,11 @@ import { base44 } from '@/api/base44Client';
 import { WebAudioPcmSource } from 'protoface-client';
 
 const SAMPLE_RATE = 16000;
-const PCM_CHUNK_BYTES = 3200; // 100 ms of 16 kHz mono audio
-const CHUNK_PAUSE_MS = 80;
 const TRANSCRIBE_MODEL = 'nova-2';
+// How her voice is handed to the avatar: 100 ms of audio, then the next slice 100 ms later. That
+// is true speaking speed, so the face never drifts ahead of the words. voiceDelayMs is how long
+// her voice waits before the visitor hears it — the number that lines the words up with the lips.
+const DEFAULT_TUNING = { chunkMs: 100, gapMs: 100, voiceDelayMs: 400 };
 
 function base64ToBytes(base64) {
   const binary = atob(base64);
@@ -50,6 +52,7 @@ export default function useStephaniAgent({
   sessionToken,
   room,
   opening,
+  tuning,
   enabled = false,
   onLine,
   onStatus,
@@ -77,8 +80,16 @@ export default function useStephaniAgent({
   const stopMicRef = useRef(null);
   const streamRef = useRef(null);
   const playbackRef = useRef({ ctx: null, node: null });
+  const voiceTimerRef = useRef(null);
+  const tuningRef = useRef(DEFAULT_TUNING);
+  tuningRef.current = {
+    chunkMs: Number(tuning?.chunkMs) > 0 ? Number(tuning.chunkMs) : DEFAULT_TUNING.chunkMs,
+    gapMs: Number(tuning?.gapMs) >= 0 ? Number(tuning.gapMs) : DEFAULT_TUNING.gapMs,
+    voiceDelayMs: Number(tuning?.voiceDelayMs) >= 0 ? Number(tuning.voiceDelayMs) : DEFAULT_TUNING.voiceDelayMs,
+  };
 
   const stopPlayback = () => {
+    clearTimeout(voiceTimerRef.current);
     try {
       playbackRef.current.node?.stop();
     } catch {
@@ -130,11 +141,20 @@ export default function useStephaniAgent({
         const audio = res?.data?.audio;
         if (!audio || ticket !== speakTicketRef.current) return;
         const bytes = base64ToBytes(audio);
-        playHere(bytes, res?.data?.sampleRate || SAMPLE_RATE);
-        for (let offset = 0; offset < bytes.length; offset += PCM_CHUNK_BYTES) {
+        const { chunkMs, gapMs, voiceDelayMs } = tuningRef.current;
+        const chunkBytes = Math.max(2, Math.round((SAMPLE_RATE * 2 * (chunkMs / 1000)) / 2) * 2);
+        // The audio goes to the avatar at speaking speed, and the visitor's own playback waits
+        // the beat the avatar needs to bring the face up — so the words land on the lips.
+        voiceTimerRef.current = setTimeout(() => {
+          if (ticket === speakTicketRef.current) playHere(bytes, res?.data?.sampleRate || SAMPLE_RATE);
+        }, voiceDelayMs);
+        for (let offset = 0; offset < bytes.length; offset += chunkBytes) {
           if (ticket !== speakTicketRef.current) return;
-          await clientRef.current.sendAudioData(bytes.subarray(offset, offset + PCM_CHUNK_BYTES));
-          await new Promise((resolve) => setTimeout(resolve, CHUNK_PAUSE_MS));
+          const startedAt = performance.now();
+          await clientRef.current.sendAudioData(bytes.subarray(offset, offset + chunkBytes));
+          if (ticket !== speakTicketRef.current) return;
+          const wait = gapMs - (performance.now() - startedAt);
+          if (wait > 0 && offset + chunkBytes < bytes.length) await new Promise((resolve) => setTimeout(resolve, wait));
         }
       } catch (err) {
         setError(err?.response?.data?.error || err?.message || 'Her voice dropped out.');

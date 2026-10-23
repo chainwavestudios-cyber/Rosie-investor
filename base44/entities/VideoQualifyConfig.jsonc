@@ -24,9 +24,9 @@
     },
     "assistantsJson": {
       "type": "string",
-      "title": "Choose Your Assistant (JSON array of {key, name, avatarId, blurb, voiceId} \u2014 the faces a visitor picks between, each with their own voice; the invitation links carry ?assistant=<key>. Leave empty to use the single Protoface Avatar ID below)",
+      "title": "Choose Your Assistant (JSON array of {key, name, avatarId, blurb, voiceId, firstMessage} \u2014 the faces a visitor picks between, each with their own voice and opening line; the invitation links carry ?assistant=<key>. Leave empty to use the single Protoface Avatar ID below)",
       "format": "textarea",
-      "default": "[{\"key\":\"rosie\",\"name\":\"Rosie\",\"avatarId\":\"av_01M5MYDVN230MXY5H4NYZCKC49\",\"blurb\":\"Your friendly AI assistant\"},{\"key\":\"chris\",\"name\":\"Digital Chris\",\"avatarId\":\"av_01M5MZXZJDKAR05CBTRJ88TM3J\",\"blurb\":\"Chris's AI counterpart, not him live\",\"voiceId\":\"Eplk91Ni9sYpeRifZStQ\"}]"
+      "default": "[{\"key\":\"rosie\",\"name\":\"Rosie\",\"avatarId\":\"av_01M5N7PGPXZGT4PCGSCHNAK33P\",\"blurb\":\"Your friendly AI assistant\",\"voiceId\":\"\",\"firstMessage\":\"Hey {{name}}! I'm Rosie. I was just reviewing your profile inside the system. I noticed you're navigating some tough credit card balances over in {{state}}, and I wanted to see if we can help you wipe them out. To make sure you qualify for our programmatic relief, do you currently owe more than $5,000 across your accounts?\"},{\"key\":\"chris\",\"name\":\"Digital Chris\",\"avatarId\":\"av_01M5N7Z7NNZ3SMQRSH5DHWEK2D\",\"blurb\":\"Chris's AI counterpart, not him live\",\"voiceId\":\"Eplk91Ni9sYpeRifZStQ\",\"firstMessage\":\"Hey {{name}}! I'm Digital Chris, Chris's AI counterpart. I was just reviewing your profile inside the system. I noticed you're navigating some tough credit card balances over in {{state}}, and I wanted to see if we can help you wipe them out. To make sure you qualify for our programmatic relief, do you currently owe more than $5,000 across your accounts?\"}]"
     },
     "agentVoiceId": {
       "type": "string",
@@ -36,7 +36,7 @@
     "agentName": {
       "type": "string",
       "title": "Agent Name (fallback name when no assistant list is set)",
-      "default": "Sarah"
+      "default": "Rosie"
     },
     "assistantId": {
       "type": "string",
@@ -44,15 +44,15 @@
     },
     "firstMessage": {
       "type": "string",
-      "title": "First Message ({{name}} and {{state}} are filled per visitor)",
+      "title": "First Message (the fallback opening line, used for any assistant without its own; {{name}} and {{state}} are filled per visitor)",
       "format": "textarea",
-      "default": "Hey {{name}}! I'm Sarah. I was just reviewing your profile inside the system. I noticed you're navigating some tough credit card balances over in {{state}}, and I wanted to see if we can help you wipe them out. To make sure you qualify for our programmatic relief, do you currently owe more than $5,000 across your accounts?"
+      "default": "Hey {{name}}! I'm Rosie. I was just reviewing your profile inside the system. I noticed you're navigating some tough credit card balances over in {{state}}, and I wanted to see if we can help you wipe them out. To make sure you qualify for our programmatic relief, do you currently owe more than $5,000 across your accounts?"
     },
     "systemPrompt": {
       "type": "string",
-      "title": "System Prompt (Sarah's full qualification instructions)",
+      "title": "System Prompt (the assistant's full qualification instructions \u2014 this is where the debt floor and the execution path live)",
       "format": "textarea",
-      "default": "You are Sarah, an empathetic, clear, and highly professional financial assistant qualifying leads for a debt relief program. Your tone must be warm and human \u2014 never rigid or legalistic."
+      "default": "You are an empathetic, clear, and highly professional financial assistant qualifying leads for a debt relief program. Your tone must be warm and human \u2014 never rigid or legalistic."
     },
     "voiceProvider": {
       "type": "string",
@@ -82,6 +82,21 @@
       "title": "LLM Temperature",
       "default": 0.6
     },
+    "speechChunkMs": {
+      "type": "number",
+      "title": "Lip Sync \u2014 Voice Chunk (ms of audio handed to the avatar at a time)",
+      "default": 100
+    },
+    "speechGapMs": {
+      "type": "number",
+      "title": "Lip Sync \u2014 Gap Between Chunks (ms; keep equal to the chunk length for true speaking speed)",
+      "default": 100
+    },
+    "voiceDelayMs": {
+      "type": "number",
+      "title": "Lip Sync \u2014 Voice Delay (ms before the visitor hears her, so the words land with the lips)",
+      "default": 400
+    },
     "salesLine": {
       "type": "string",
       "title": "Primary Sales Line To Bridge To (E.164)",
@@ -103,7 +118,8 @@
     },
     "protofaceAvatarId": {
       "type": "string",
-      "title": "Protoface Avatar ID (av_... \u2014 the single avatar used when no assistant list is set)"
+      "title": "Protoface Avatar ID (av_... \u2014 the single avatar used when no assistant list is set)",
+      "default": "av_01M5N7PGPXZGT4PCGSCHNAK33P"
     },
     "updatedBy": {
       "type": "string",

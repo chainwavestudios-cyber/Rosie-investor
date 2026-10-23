@@ -123,6 +123,7 @@ export function assistantList(cfg: any): any[] {
       avatarId: String(entry?.avatarId || '').trim().slice(0, 80),
       blurb: String(entry?.blurb || '').trim().slice(0, 120),
       voiceId: String(entry?.voiceId || '').trim().slice(0, 60),
+      firstMessage: String(entry?.firstMessage || '').trim().slice(0, 1200),
     }))
     .filter((entry: any) => entry.key && entry.avatarId && entry.name);
   if (cleaned.length) return cleaned;
@@ -154,6 +155,25 @@ export function voiceForAssistant(cfg: any, keyOrName: string): string {
   if (!wanted) return '';
   const entry = assistantList(cfg).find((a: any) => a.key === wanted || String(a.name || '').toLowerCase() === wanted);
   return String(entry?.voiceId || '').trim();
+}
+
+/**
+ * The lip-sync pacing the widget runs on: how much audio is handed to the avatar at a time,
+ * how long between chunks, and how long her voice waits before the visitor hears it.
+ */
+export const SPEECH_DEFAULTS = { chunkMs: 100, gapMs: 100, voiceDelayMs: 400 };
+
+export function speechTuning(cfg: any) {
+  const num = (value: any, fallback: number, min: number, max: number) => {
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed)) return fallback;
+    return Math.min(max, Math.max(min, Math.round(parsed)));
+  };
+  return {
+    chunkMs: num(cfg?.speechChunkMs, SPEECH_DEFAULTS.chunkMs, 20, 500),
+    gapMs: num(cfg?.speechGapMs, SPEECH_DEFAULTS.gapMs, 0, 500),
+    voiceDelayMs: num(cfg?.voiceDelayMs, SPEECH_DEFAULTS.voiceDelayMs, 0, 3000),
+  };
 }
 
 /**

@@ -27,6 +27,7 @@ export const COACH_TABS = [
   { id: 'compliance', label: '🛡 Compliance', row: 0, show: (c) => c.isSuperManager },
   { id: 'aicredits', label: '💳 AI Credits', row: 0, show: (c) => c.isSuperAdmin },
   { id: 'aireports', label: '🧾 AI Reports', row: 0, show: (c) => c.isAdmin },
+  { id: 'protoface', label: '🎥 ProtoFace', row: 0, show: (c) => c.isAdmin },
   { id: 'admin', label: '⚙️ Admin', row: 0, show: (c) => c.isAdmin },
 ];
 

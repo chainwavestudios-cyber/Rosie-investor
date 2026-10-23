@@ -91,6 +91,7 @@ export default function StephaniAgentStage({
     sessionToken,
     room,
     opening: room?.opening,
+    tuning: room?.tuning,
     enabled: !!room,
     onLine,
     onStatus: report,

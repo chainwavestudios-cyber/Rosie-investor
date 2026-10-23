@@ -18,7 +18,7 @@ import { mintRoomPass } from '../../shared/livekitToken.ts';
 import { getSpeechPcmBase64, PCM_SAMPLE_RATE } from '../../shared/elevenLabsTts.ts';
 import { findRelevantKB, formatAnswers } from '../../shared/kbSearch.ts';
 import { toE164 } from '../../shared/twilioHelpers.ts';
-import { SYSTEM_PROMPT, findSession, leadView, loadConfig, resolveAssistant, voiceForAssistant } from '../../shared/videoQualify.ts';
+import { SYSTEM_PROMPT, findSession, leadView, loadConfig, resolveAssistant, speechTuning, voiceForAssistant } from '../../shared/videoQualify.ts';
 
 const PROTOFACE_API = 'https://api.protoface.com';
 const DEFAULT_VOICE_ID = 'ogwqBH5bbF03DSbNiRNN';
@@ -35,10 +35,10 @@ function clean(value: any, max: number): string {
 }
 
 /** The one line she opens with, personalised from the lead's own record. */
-function openingLine(cfg: any, lead: any, session: any): string {
+function openingLine(cfg: any, lead: any, session: any, assistant: any): string {
   const firstName = lead?.firstName || String(session?.leadName || '').split(' ')[0] || 'there';
   const stateName = lead?.state || session?.state || 'your area';
-  return String(cfg?.firstMessage || '')
+  return String(assistant?.firstMessage || cfg?.firstMessage || '')
     .replace(/\{\{\s*name\s*\}\}/gi, firstName)
     .replace(/\{\{\s*state\s*\}\}/gi, stateName)
     .trim();
@@ -146,7 +146,8 @@ export default async function (req: Request): Promise<Response> {
         agentName: assistantName,
         voiceId: voiceForAssistant(cfg, assistant?.key) || clean(cfg.agentVoiceId, 60) || clean(cfg.elevenLabsVoiceId, 60) || DEFAULT_VOICE_ID,
         kbName: clean(cfg.kbName, 60) || DEFAULT_KB,
-        opening: openingLine(cfg, lead, session),
+        opening: openingLine(cfg, lead, session, assistant),
+        tuning: speechTuning(cfg),
         lead: leadView(lead),
       });
     }
