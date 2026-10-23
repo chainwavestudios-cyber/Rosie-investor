@@ -264,3 +264,19 @@
     -moz-osx-font-smoothing: grayscale;
   }
 }
+/* Debt Solutions premium homepage: visual-only styles scoped to /home */
+.home-theme { --home-navy:#071729; --home-navy-ink:#fffaf0; --home-silver:#e8d8bd; --home-accent:#caa465; --home-canvas:#f7f5f1; --home-ink:#15263a; --home-muted:#f3f0ea; --home-muted-ink:#647080; --home-line:#e9e3d9; }
+.home-premium-hero { background:radial-gradient(ellipse at 18% 35%,#17334b 0%,#081a2b 47%,#040b13 100%); }
+.home-premium-banner-wrap { background:#040d17; border-bottom:1px solid #b89254; box-shadow:0 10px 35px #0005; }
+.home-premium-banner { display:block;width:100%;height:auto;max-height:480px;object-fit:contain; }
+.home-premium-content { position:relative; }
+.home-premium-eyebrow { display:inline-block; font-size:11px; font-weight:750; letter-spacing:.2em; color:#e4c58b; border-bottom:1px solid #a7834e; padding-bottom:12px; }
+.home-premium-gold { color:#e7c68c; }
+.home-premium-hero #chat > div { border:1px solid #d3b77f; border-radius:22px; box-shadow:0 28px 85px #0008,0 0 0 5px #ffffff09; }
+.home-premium-hero #chat header { background:linear-gradient(115deg,#fffdf9,#f7f1e7); padding-top:20px; padding-bottom:20px; }
+.home-premium-hero #chat header > span > span:first-child { background:linear-gradient(135deg,#102c43,#071423); color:#e7c68c; box-shadow:0 0 0 3px #d9bd8a55; }
+.home-premium-hero #chat [role="log"] { min-height:320px; background:#fcfbf8; }
+.home-premium-hero #chat button { transition:transform .18s ease,box-shadow .18s ease,background-color .18s ease; }
+.home-premium-hero #chat button:hover:not(:disabled) { transform:translateY(-1px); box-shadow:0 4px 12px #081b2b25; }
+.home-premium-hero #chat input:focus-visible { outline-offset:3px; }
+@media(max-width:640px) { .home-premium-banner { max-height:none; } .home-premium-content { padding-top:35px; } }
