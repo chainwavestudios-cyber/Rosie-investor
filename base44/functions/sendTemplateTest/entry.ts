@@ -11,6 +11,7 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.54';
 import { buildMime, TRACKING_BASE } from '../../shared/emailTracking.ts';
 import { sendViaGmail, normalizeEmail, assertValidEmail } from '../../shared/gmailSend.ts';
 import { getEmailSignature } from '../../shared/emailSignature.ts';
+import { companyMergeVars } from '../../shared/companyInfo.ts';
 
 export default async function (req: Request): Promise<Response> {
   try {
@@ -57,14 +58,16 @@ export default async function (req: Request): Promise<Response> {
         debtAmount: '$20,000',
         confirmUrl: `${TRACKING_BASE}/confirmAppointment?leadId=test`,
         changeUrl: `${TRACKING_BASE}/requestApptChange?leadId=test`,
+        ...companyMergeVars(TRACKING_BASE, { email: recipient }),
         personalMessageUrl: samplePersonalMessage,
       };
 
       subject = String(template.subject || '');
       html = String(template.bodyHtml || '');
       for (const [key, val] of Object.entries(vars)) {
-        subject = subject.replace(new RegExp(`\\{\\{${key}\\}\\}`, 'g'), val);
-        html = html.replace(new RegExp(`\\{\\{${key}\\}\\}`, 'g'), val);
+        // Templates are written by hand, so {{FirstName}} and {{firstName}} both fill.
+        subject = subject.replace(new RegExp(`\\{\\{${key}\\}\\}`, 'gi'), () => val);
+        html = html.replace(new RegExp(`\\{\\{${key}\\}\\}`, 'gi'), () => val);
       }
       if (template.includeSignature) html += getEmailSignature();
     }

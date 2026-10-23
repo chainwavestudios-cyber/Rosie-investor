@@ -9,6 +9,8 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.54';
 import { OUTREACH_FROM_NAME, smtpfastSend } from '../../shared/smtpfastSender.ts';
 import { injectDccTracking, linkHostsFromHtml } from '../../shared/debtMarketingTracking.ts';
+import { TRACKING_BASE } from '../../shared/emailTracking.ts';
+import { companyMergeVars, isEmailUnsubscribed } from '../../shared/companyInfo.ts';
 import { scheduleIntro2Call } from '../../shared/debtMarketingEngage.ts';
 
 const MAX_CAMPAIGNS_PER_TICK = 5;
@@ -17,7 +19,8 @@ const MAX_SENDS_PER_CAMPAIGN = 25;
 function render(text: string, vars: Record<string, string>) {
   let out = String(text || '');
   for (const [key, value] of Object.entries(vars)) {
-    out = out.split(`{{${key}}}`).join(value);
+    // Templates are written by hand, so {{FirstName}} and {{firstName}} both fill.
+    out = out.replace(new RegExp(`\\{\\{${key}\\}\\}`, 'gi'), () => value);
   }
   return out;
 }
@@ -86,6 +89,15 @@ export default async function (req: Request): Promise<Response> {
             continue;
           }
 
+          if (await isEmailUnsubscribed(base44, to)) {
+            await base44.asServiceRole.entities.DebtMarketingSend.update(send.id, {
+              status: 'skipped',
+              error: 'This contact has unsubscribed from email',
+            });
+            skipped++;
+            continue;
+          }
+
           const fullName = `${lead?.firstName || ''} ${lead?.lastName || ''}`.trim();
           const vars: Record<string, string> = {
             firstName: lead?.firstName || '',
@@ -99,6 +111,7 @@ export default async function (req: Request): Promise<Response> {
             protoface_id: lead?.protofaceId || '',
             protofaceId: lead?.protofaceId || '',
             personalMessageUrl: campaign.welcomeLinkUrl || template.personalMessageUrl || '',
+            ...companyMergeVars(TRACKING_BASE, { email: to }),
           };
           const subject = render(campaign.subject || template.subject || 'Debt Solutions', vars);
           const rendered = render(template.bodyHtml, vars);

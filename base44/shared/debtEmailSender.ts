@@ -7,6 +7,7 @@
 import { injectTracking, buildMime, TRACKING_BASE } from './emailTracking.ts';
 import { getEmailSignature } from './emailSignature.ts';
 import { sendViaGmail } from './gmailSend.ts';
+import { companyMergeVars, isEmailUnsubscribed } from './companyInfo.ts';
 
 export interface SendResult {
   sendId: string;
@@ -19,6 +20,12 @@ export async function sendTemplateEmail(
   lead: any
 ): Promise<SendResult> {
   if (!lead.email) throw new Error('Lead has no email address');
+
+  // One click on the unsubscribe link in any email takes the address out of every send path.
+  if (await isEmailUnsubscribed(base44, lead.email)) {
+    console.log(`[debtEmailSender] Blocked send to unsubscribed address: ${lead.email}`);
+    throw new Error('This contact has unsubscribed from email');
+  }
 
   const apptDateStr = lead.appointmentDate
     ? new Date(lead.appointmentDate).toLocaleString('en-US', {
@@ -51,6 +58,7 @@ export async function sendTemplateEmail(
     debtAmount: lead.debtAmount ? '$' + Number(lead.debtAmount).toLocaleString() : '',
     confirmUrl: `${TRACKING_BASE}/confirmAppointment?leadId=${lead.id}`,
     changeUrl: `${TRACKING_BASE}/requestApptChange?leadId=${lead.id}`,
+    ...companyMergeVars(TRACKING_BASE, { leadId: lead.id, email: lead.email }),
     personalMessageUrl,
   };
 
