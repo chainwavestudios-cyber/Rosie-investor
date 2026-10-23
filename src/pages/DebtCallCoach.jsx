@@ -16,6 +16,7 @@ import DebtKBChat from '@/components/debt/DebtKBChat';
 import DebtUserProfile from '@/components/debt/DebtUserProfile';
 import DebtPitchTab from '@/components/debt/DebtPitchTab';
 import DebtEmailsTab from '@/components/debt/DebtEmailsTab';
+import EmailCampaignManagerTab from '@/components/campaigns/EmailCampaignManagerTab';
 import DebtBobTrainer from '@/components/debt/DebtBobTrainer';
 import CallsTab from '@/components/debt/CallsTab';
 import AICreditsTab from '@/components/debt/AICreditsTab';
@@ -166,6 +167,7 @@ export default function DebtCallCoach() {
       {tab === 'bob' && <DebtBobTrainer debtCoachUser={user} />}
       {tab === 'pitches' && <DebtPitchTab canDelete={!isDialerRole} />}
       {tab === 'emails' && <DebtEmailsTab username={user?.username} />}
+      {tab === 'campaigns' && isAdmin && <EmailCampaignManagerTab username={user?.username} />}
       {tab === 'objections' && <ObjectionsEngineTab readOnly={isDialerRole} />}
       {tab === 'kb' && <DebtKBManager readOnly={isDialerRole} />}
       {tab === 'kbchat' && <DebtKBChat />}

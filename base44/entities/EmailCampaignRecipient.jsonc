@@ -1,0 +1,150 @@
+{
+  "name": "EmailCampaignRecipient",
+  "type": "object",
+  "properties": {
+    "campaignId": {
+      "type": "string",
+      "title": "Campaign ID"
+    },
+    "campaignName": {
+      "type": "string",
+      "title": "Campaign Name (for display)"
+    },
+    "email": {
+      "type": "string",
+      "title": "Email Address (normalized)"
+    },
+    "firstName": {
+      "type": "string",
+      "title": "First Name"
+    },
+    "lastName": {
+      "type": "string",
+      "title": "Last Name"
+    },
+    "phone": {
+      "type": "string",
+      "title": "Phone"
+    },
+    "company": {
+      "type": "string",
+      "title": "Company"
+    },
+    "city": {
+      "type": "string",
+      "title": "City"
+    },
+    "state": {
+      "type": "string",
+      "title": "State"
+    },
+    "source": {
+      "type": "string",
+      "title": "Lead Source (as mapped from the CSV)"
+    },
+    "customJson": {
+      "type": "string",
+      "title": "Extra CSV Columns (JSON of column name to value)",
+      "format": "textarea"
+    },
+    "status": {
+      "type": "string",
+      "title": "Status",
+      "enum": [
+        "pending",
+        "sent",
+        "failed",
+        "skipped"
+      ],
+      "default": "pending"
+    },
+    "reason": {
+      "type": "string",
+      "title": "Why It Was Skipped (duplicate, unsubscribed, invalid, not approved)"
+    },
+    "leadId": {
+      "type": "string",
+      "title": "Contact Card ID (the Settlement IQ card this recipient maps to)"
+    },
+    "cardMatched": {
+      "type": "boolean",
+      "title": "Matched An Existing Contact Card",
+      "default": false
+    },
+    "inviteToken": {
+      "type": "string",
+      "title": "Invitation Token (pf_ \u2014 the token this recipient's Rosie / Chris links carry)"
+    },
+    "rosieInviteLink": {
+      "type": "string",
+      "title": "Rosie Invitation Link"
+    },
+    "chrisInviteLink": {
+      "type": "string",
+      "title": "Digital Chris Invitation Link"
+    },
+    "subject": {
+      "type": "string",
+      "title": "Subject Actually Sent"
+    },
+    "sendId": {
+      "type": "string",
+      "title": "Send ID (the tracking identifier embedded in this email)"
+    },
+    "messageId": {
+      "type": "string",
+      "title": "Gmail Message ID"
+    },
+    "sentAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Sent At"
+    },
+    "error": {
+      "type": "string",
+      "title": "Failure Reason",
+      "format": "textarea"
+    },
+    "openedAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "First Opened At"
+    },
+    "openCount": {
+      "type": "number",
+      "title": "Times Opened",
+      "default": 0
+    },
+    "clickedAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "First Link Clicked At"
+    },
+    "clickedUrlsJson": {
+      "type": "string",
+      "title": "Links Clicked (JSON array of {url, at})",
+      "format": "textarea"
+    },
+    "qualifyVisitAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Qualification Page Visited At (their invitation link was opened)"
+    },
+    "unsubscribedAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Unsubscribed At"
+    }
+  },
+  "required": [
+    "campaignId",
+    "email",
+    "status"
+  ],
+  "rls": {
+    "create": null,
+    "read": null,
+    "update": null,
+    "delete": null
+  }
+}

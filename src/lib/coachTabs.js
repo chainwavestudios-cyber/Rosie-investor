@@ -18,6 +18,7 @@ export const COACH_TABS = [
   { id: 'pipeline', label: '📊 Pipeline', row: 0, show: () => true },
   { id: 'pitches', label: '🎤 Pitches', row: 0, show: () => true },
   { id: 'emails', label: '📧 Emails', row: 0, show: () => true },
+  { id: 'campaigns', label: '📮 Email Campaigns', row: 0, show: (c) => c.isAdmin },
   { id: 'objections', label: '🛡️ Objections', row: 0, show: () => true },
   { id: 'kb', label: '🧠 Knowledge Base', row: 0, show: () => true },
   { id: 'kbchat', label: '💬 AI KB Chat', row: 0, show: (c) => !c.isDialerRole },

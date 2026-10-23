@@ -1,0 +1,112 @@
+/**
+ * CsvUploadStep.jsx — step 1: take the file and read it.
+ *
+ * The file is parsed in the browser; nothing leaves the page until a mapping is
+ * confirmed. A campaign never starts sending from this step, or any step, on
+ * its own.
+ */
+import { useRef, useState } from 'react';
+import { Btn, Card, DIM, Field, GOLD, MUTED, SURFACE, BORDER, inputStyle } from './kit';
+import { readCsv } from '@/lib/csvCampaign';
+
+export default function CsvUploadStep({ campaign, csv, setCsv, save, username }) {
+  const inputRef = useRef(null);
+  const [listName, setListName] = useState(campaign?.listName || '');
+  const [error, setError] = useState('');
+  const [saved, setSaved] = useState('');
+
+  const pick = async (file) => {
+    setError('');
+    setSaved('');
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const { headers, rows } = readCsv(text);
+      if (!headers.length || !rows.length) {
+        setError('That file has no rows under its header line — export it again and check the first line holds the column names.');
+        return;
+      }
+      setCsv({ fileName: file.name, headers, rows });
+      if (!listName) setListName(file.name.replace(/\.csv$/i, ''));
+    } catch (e) {
+      setError(e?.message || 'That file could not be read.');
+    }
+  };
+
+  const saveDraft = async () => {
+    await save({
+      listName: listName || csv?.fileName || 'Uploaded list',
+      sourceFile: csv?.fileName || '',
+      importedCount: 0,
+    });
+    setSaved('Saved to this draft.');
+  };
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+      <Card
+        title="Step 1 — Upload the contacts file"
+        hint="CSV exported from Excel, Google Sheets, a CRM or a lead vendor. Quoted commas, blank cells and a UTF-8 BOM are all handled."
+      >
+        <div
+          onDragOver={(e) => e.preventDefault()}
+          onDrop={(e) => { e.preventDefault(); pick(e.dataTransfer.files?.[0]); }}
+          style={{ border: `1px dashed ${csv ? `${GOLD}66` : BORDER}`, borderRadius: '6px', padding: '22px', textAlign: 'center', background: SURFACE }}
+        >
+          <div style={{ color: csv ? GOLD : MUTED, fontSize: '13px', fontWeight: 'bold' }}>
+            {csv ? `✓ ${csv.fileName}` : 'Drop the CSV here, or choose it'}
+          </div>
+          <div style={{ color: DIM, fontSize: '11px', marginTop: '6px' }}>
+            {csv
+              ? `${csv.rows.length.toLocaleString()} rows · ${csv.headers.length} columns detected`
+              : 'The file is read in the browser — nothing is imported until you confirm the mapping.'}
+          </div>
+          <input ref={inputRef} type="file" accept=".csv,.txt,text/csv" style={{ display: 'none' }} onChange={(e) => pick(e.target.files?.[0])} />
+          <div style={{ marginTop: '14px' }}>
+            <Btn tone={csv ? 'ghost' : 'gold'} onClick={() => inputRef.current?.click()}>{csv ? 'Choose a different file' : '📁 Choose CSV file'}</Btn>
+          </div>
+        </div>
+        {error && <div style={{ color: '#ef4444', fontSize: '11px', marginTop: '10px' }}>{error}</div>}
+      </Card>
+
+      {csv && (
+        <Card
+          title="What was found"
+          hint="The first rows exactly as they were read — check that the header line landed in the header row, not as data."
+          actions={<Btn tone="ghost" onClick={saveDraft}>💾 Save draft</Btn>}
+        >
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(220px,1fr))', gap: '10px', marginBottom: '12px' }}>
+            <Field label="List / batch label" hint="Named on the campaign and in the contact card notes.">
+              <input style={inputStyle} value={listName} onChange={(e) => setListName(e.target.value)} placeholder="March Facebook leads" />
+            </Field>
+            <Field label="Imported by">
+              <input style={{ ...inputStyle, color: MUTED }} value={username || 'admin'} readOnly />
+            </Field>
+          </div>
+          <div style={{ overflowX: 'auto', border: `1px solid ${BORDER}`, borderRadius: '5px' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px' }}>
+              <thead>
+                <tr>
+                  {csv.headers.map((header) => (
+                    <th key={header} style={{ textAlign: 'left', padding: '7px 9px', color: GOLD, borderBottom: `1px solid ${BORDER}`, whiteSpace: 'nowrap' }}>{header}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {csv.rows.slice(0, 5).map((row, i) => (
+                  <tr key={i}>
+                    {csv.headers.map((header) => (
+                      <td key={header} style={{ padding: '6px 9px', color: '#c4cdd8', borderBottom: `1px solid rgba(255,255,255,0.04)`, whiteSpace: 'nowrap' }}>{row[header] || '—'}</td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div style={{ color: DIM, fontSize: '10px', marginTop: '8px' }}>Showing the first {Math.min(5, csv.rows.length)} of {csv.rows.length.toLocaleString()} rows.</div>
+          {saved && <div style={{ color: GOLD, fontSize: '11px', marginTop: '8px' }}>{saved}</div>}
+        </Card>
+      )}
+    </div>
+  );
+}

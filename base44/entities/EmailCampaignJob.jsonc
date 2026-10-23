@@ -1,0 +1,183 @@
+{
+  "name": "EmailCampaignJob",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "title": "Campaign Name"
+    },
+    "status": {
+      "type": "string",
+      "title": "Status",
+      "enum": [
+        "draft",
+        "ready",
+        "running",
+        "paused",
+        "completed",
+        "cancelled"
+      ],
+      "default": "draft"
+    },
+    "templateId": {
+      "type": "string",
+      "title": "Email Template Used"
+    },
+    "templateName": {
+      "type": "string",
+      "title": "Email Template Name (for display)"
+    },
+    "subject": {
+      "type": "string",
+      "title": "Subject Override (leave empty to use the template's own subject)"
+    },
+    "senderEmail": {
+      "type": "string",
+      "title": "Sending Gmail Account (the connected account the queue sends through)"
+    },
+    "senderName": {
+      "type": "string",
+      "title": "From Name Shown To Recipients"
+    },
+    "listName": {
+      "type": "string",
+      "title": "List / Batch Label (what this upload is called)"
+    },
+    "sourceFile": {
+      "type": "string",
+      "title": "Source File Name"
+    },
+    "mappingJson": {
+      "type": "string",
+      "title": "Column Mapping (JSON of Settlement IQ field to CSV column)",
+      "format": "textarea"
+    },
+    "importedCount": {
+      "type": "number",
+      "title": "Rows Imported",
+      "default": 0
+    },
+    "eligibleCount": {
+      "type": "number",
+      "title": "Eligible To Send",
+      "default": 0
+    },
+    "excludedCount": {
+      "type": "number",
+      "title": "Excluded (invalid, duplicate or unsubscribed)",
+      "default": 0
+    },
+    "contactCreatedCount": {
+      "type": "number",
+      "title": "Contact Cards Created",
+      "default": 0
+    },
+    "contactUpdatedCount": {
+      "type": "number",
+      "title": "Contact Cards Updated",
+      "default": 0
+    },
+    "sentCount": {
+      "type": "number",
+      "title": "Emails Sent",
+      "default": 0
+    },
+    "failedCount": {
+      "type": "number",
+      "title": "Emails Failed",
+      "default": 0
+    },
+    "skippedCount": {
+      "type": "number",
+      "title": "Emails Skipped",
+      "default": 0
+    },
+    "openCount": {
+      "type": "number",
+      "title": "Emails Opened",
+      "default": 0
+    },
+    "clickCount": {
+      "type": "number",
+      "title": "Emails With A Link Clicked",
+      "default": 0
+    },
+    "unsubscribedCount": {
+      "type": "number",
+      "title": "Unsubscribed After This Campaign",
+      "default": 0
+    },
+    "batchSize": {
+      "type": "number",
+      "title": "Emails Per Batch",
+      "default": 25
+    },
+    "intervalSeconds": {
+      "type": "number",
+      "title": "Seconds Between Batches",
+      "default": 60
+    },
+    "dailyLimit": {
+      "type": "number",
+      "title": "Daily Send Limit",
+      "default": 500
+    },
+    "windowStart": {
+      "type": "string",
+      "title": "Daily Window Start (HH:MM)",
+      "default": "08:00"
+    },
+    "windowEnd": {
+      "type": "string",
+      "title": "Daily Window End (HH:MM)",
+      "default": "20:00"
+    },
+    "timezone": {
+      "type": "string",
+      "title": "Sending Timezone",
+      "default": "America/New_York"
+    },
+    "approvedAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Recipients Approved At (nothing sends before this)"
+    },
+    "approvedBy": {
+      "type": "string",
+      "title": "Recipients Approved By"
+    },
+    "startedAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Queue Started At"
+    },
+    "lastRunAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Last Queue Tick"
+    },
+    "completedAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Queue Finished At"
+    },
+    "createdBy": {
+      "type": "string",
+      "title": "Created By (username)"
+    },
+    "notes": {
+      "type": "string",
+      "title": "Notes",
+      "format": "textarea"
+    }
+  },
+  "required": [
+    "name"
+  ],
+  "rls": {
+    "create": null,
+    "read": null,
+    "update": null,
+    "delete": null
+  }
+}

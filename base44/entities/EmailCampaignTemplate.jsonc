@@ -1,0 +1,85 @@
+{
+  "name": "EmailCampaignTemplate",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "title": "Template Name"
+    },
+    "category": {
+      "type": "string",
+      "title": "Category",
+      "enum": [
+        "invitation",
+        "intro",
+        "follow_up",
+        "notice",
+        "other"
+      ],
+      "default": "other"
+    },
+    "subject": {
+      "type": "string",
+      "title": "Subject Line (supports {{FirstName}} and the other merge tags)",
+      "maxLength": 2000
+    },
+    "previewText": {
+      "type": "string",
+      "title": "Preview Text (the line an inbox shows beside the subject)"
+    },
+    "bodyHtml": {
+      "type": "string",
+      "title": "Email Body (self-contained HTML, hosted images only)",
+      "format": "textarea",
+      "maxLength": 500000
+    },
+    "bodyText": {
+      "type": "string",
+      "title": "Plain-Text Alternative",
+      "format": "textarea",
+      "maxLength": 500000
+    },
+    "requiredVarsJson": {
+      "type": "string",
+      "title": "Personalization The Body Uses (JSON array of merge tags it needs)",
+      "format": "textarea"
+    },
+    "version": {
+      "type": "number",
+      "title": "Version (raised on every save)",
+      "default": 1
+    },
+    "source": {
+      "type": "string",
+      "title": "Where It Came From",
+      "enum": [
+        "library",
+        "debt_coach",
+        "fronter"
+      ],
+      "default": "library"
+    },
+    "sourceTemplateId": {
+      "type": "string",
+      "title": "Original Template ID (when copied in from an existing mailer)"
+    },
+    "updatedBy": {
+      "type": "string",
+      "title": "Last Updated By (username)"
+    },
+    "notes": {
+      "type": "string",
+      "title": "Notes",
+      "format": "textarea"
+    }
+  },
+  "required": [
+    "name"
+  ],
+  "rls": {
+    "create": null,
+    "read": null,
+    "update": null,
+    "delete": null
+  }
+}
