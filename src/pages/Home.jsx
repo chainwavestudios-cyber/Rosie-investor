@@ -108,7 +108,7 @@ export default function Home() {
 
   return (
     <div className="home-theme min-h-screen bg-home-canvas font-home-sans text-home-ink">
-      <SiteHeader />
+      <SiteHeader showBrand={false} showAddress={false} />
 
       <main>
         <HomeHero leadProfile={leadProfile} onLeadFound={setLeadProfile} />
