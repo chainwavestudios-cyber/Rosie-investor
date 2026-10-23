@@ -5,6 +5,7 @@
  * @@DEBT_CONFIRM@@, @@SEND_EMAIL@@, and @@AI_INPUT@@ markers.
  */
 import { callLLM } from './llmHelper.ts';
+import { injectTracking } from './emailTracking.ts';
 
 /**
  * Extract debt data (amount, types, per-type amounts) from the conversation.
@@ -202,6 +203,13 @@ export async function sendCredentialsEmail(base44: any, leadData: any, sentBy: s
     const { accessToken } = await base44.connectors.getConnection('gmail');
     if (!accessToken) return { sent: false, reason: 'no_gmail_token' };
 
+    // The AI fronting agent's credentials email gets its own sendId and the same
+    // per-recipient tracking every other send gets (only when we know the lead).
+    const sendId = `${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+    const trackedHtml = leadData.id
+      ? injectTracking(html, leadData.id, sendId, template.id, template.label || 'credentials')
+      : html;
+
     // Build simple RFC 2822 MIME message
     const mimeMessage = [
       `To: ${leadData.email}`,
@@ -209,7 +217,7 @@ export async function sendCredentialsEmail(base44: any, leadData: any, sentBy: s
       'Content-Type: text/html; charset=UTF-8',
       'MIME-Version: 1.0',
       '',
-      html,
+      trackedHtml,
     ].join('\r\n');
 
     const bytes = new TextEncoder().encode(mimeMessage);

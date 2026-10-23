@@ -26,6 +26,14 @@
       "type": "string",
       "title": "Template ID"
     },
+    "templateName": {
+      "type": "string",
+      "title": "Template Name (the email this send came from)"
+    },
+    "sendId": {
+      "type": "string",
+      "title": "Send ID (the tracking identifier embedded in this email's links and pixel)"
+    },
     "messageId": {
       "type": "string",
       "title": "Mailjet Message ID"

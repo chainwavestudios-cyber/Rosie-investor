@@ -5,7 +5,7 @@ import { sendViaGmail } from '../../shared/gmailSend.ts';
 Deno.serve(async (req) => {
   const base44 = createClientFromRequest(req);
 
-  const { to, subject, html, text, leadId, sentBy, inlineImages } = await req.json();
+  const { to, subject, html, text, leadId, sentBy, inlineImages, templateId, templateName } = await req.json();
 
   if (!to || !subject) {
     return Response.json({ error: 'Recipient and subject are required' }, { status: 400 });
@@ -15,8 +15,11 @@ Deno.serve(async (req) => {
     // Generate a unique send ID for tracking
     const sendId = `${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
 
-    // Inject open-tracking pixel and rewrite links for click tracking
-    const trackedHtml = leadId ? injectTracking(html, leadId, sendId) : html;
+    // Inject the open-tracking pixel and rewrite the links for click tracking.
+    // The template the body came from rides along, so every open and click this
+    // message produces is attributed to it (not left as an unknown email).
+    const emailName = templateName || 'Custom Gmail email';
+    const trackedHtml = leadId ? injectTracking(html, leadId, sendId, templateId, emailName) : html;
 
     // Build RFC 2822 MIME message (with inline images if provided)
     const mimeMessage = buildMime(to, subject, trackedHtml, text, inlineImages);
@@ -31,7 +34,9 @@ Deno.serve(async (req) => {
         leadId,
         toEmail: to,
         subject,
-        templateId: 'gmail',
+        templateId: templateId || 'gmail',
+        templateName: emailName,
+        sendId,
         messageId: messageId || '',
         status: 'sent',
         sentAt: new Date().toISOString(),

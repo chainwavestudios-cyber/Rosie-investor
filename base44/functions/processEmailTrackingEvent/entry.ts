@@ -101,7 +101,7 @@ async function sendFollowUpEmail(base44: any, lead: any) {
   const html = (template.body || '').replace(/{{firstName}}/g, fillName).replace(/{{email}}/g, fillEmail);
 
   const followUpSendId = `${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
-  const trackedHtml = injectTracking(html, lead.id, followUpSendId);
+  const trackedHtml = injectTracking(html, lead.id, followUpSendId, template.id, template.name);
   const mimeMessage = buildMime(lead.email, subject, trackedHtml);
 
   const { accessToken } = await base44.asServiceRole.connectors.getConnection('gmail');

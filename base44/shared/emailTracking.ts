@@ -1,8 +1,34 @@
 /**
  * emailTracking.ts — Shared email tracking and MIME building utilities.
- * Used by sendGmailEmail and processEmailTrackingEvent.
+ * Used by sendGmailEmail, debtEmailSender and processEmailTrackingEvent.
+ *
+ * The sending app is the only place tracking is applied: templates are stored
+ * with clean destination URLs, and every send gets its own sendId, its own
+ * per-recipient tracking URLs, and the template it came from.
  */
 export const TRACKING_BASE = 'https://rosieai-investorpage.base44.app/functions';
+
+/** Matches a tracking URL this app built itself (click tracker or open pixel). */
+const OWN_TRACKER_URL = /\/functions\/(?:emailTrackClick|emailTrackOpen|debtMarketingTrack)/i;
+
+/**
+ * The real destination of a link. When the markup already carries one of our own
+ * tracking URLs (a template saved with tracked links, or a body being re-sent),
+ * the destination inside it is returned untouched — its own query parameters
+ * included — so it can be re-tracked for the current send rather than left
+ * pointing at an older send, a different lead, or nested inside itself.
+ */
+export function unwrapTrackedUrl(raw: string): string {
+  const value = String(raw || '').replace(/&amp;/gi, '&');
+  if (!OWN_TRACKER_URL.test(value)) return value;
+  try {
+    const inner = new URL(value).searchParams.get('url');
+    if (inner && /^https?:\/\//i.test(inner)) return inner;
+  } catch {
+    // Not a URL we can take apart — hand back exactly what we were given.
+  }
+  return value;
+}
 
 export function injectTracking(html: string, leadId: string, sendId: string, templateId?: string, templateName?: string): string {
   if (!html) return html;
@@ -13,10 +39,18 @@ export function injectTracking(html: string, leadId: string, sendId: string, tem
   const trackOpenUrl = `${TRACKING_BASE}/emailTrackOpen?leadId=${encodeURIComponent(leadId)}&sendId=${sendId}${templateParam}${nameParam}`;
   const trackClickBase = `${TRACKING_BASE}/emailTrackClick?leadId=${encodeURIComponent(leadId)}&sendId=${sendId}${templateParam}${nameParam}&url=`;
 
-  // 1. Rewrite existing <a href="..."> links to go through the click tracker
-  let result = html.replace(/(<a\s+[^>]*?href=")(https?:\/\/[^"]+)"/gi, (match, prefix, url) => {
-    if (url.includes('emailTrackClick')) return match;
-    return `${prefix}${trackClickBase}${encodeURIComponent(url)}"`;
+  // 0. Drop any tracking pixel an earlier send left in this markup, so one email
+  //    can never report its opens twice.
+  let result = html.replace(/<img\b[^>]*src="[^"]*\/functions\/(?:emailTrackOpen|debtMarketingTrack)[^"]*"[^>]*>/gi, '');
+
+  // 1. Rewrite every http(s) link for THIS send. A link that already points at one
+  //    of our trackers is normalized back to its real destination first, so it is
+  //    re-tracked for this send (right lead, right send, right template) and can
+  //    never nest inside the old one.
+  result = result.replace(/(<a\s+[^>]*?href=")([^"]+)"/gi, (match, prefix, href) => {
+    const destination = unwrapTrackedUrl(href);
+    if (!/^https?:\/\//i.test(destination)) return match; // mailto:, tel:, #anchor stay exactly as they are
+    return `${prefix}${trackClickBase}${encodeURIComponent(destination)}"`;
   });
 
   // 2. Protect <a>...</a> blocks so we don't double-wrap URLs in their display text
@@ -29,7 +63,7 @@ export function injectTracking(html: string, leadId: string, sendId: string, tem
 
   // 3. Wrap bare URLs (plain-text URLs not inside <a> tags) in tracked links.
   result = result.replace(/(?<!=["'=])https?:\/\/[^\s<"'<>]+/gi, (url) => {
-    if (url.includes('emailTrackClick') || url.includes('emailTrackOpen')) return url;
+    if (OWN_TRACKER_URL.test(url)) return url;
     return `<a href="${trackClickBase}${encodeURIComponent(url)}" style="color:#3b82f6;text-decoration:underline;">${url}</a>`;
   });
 

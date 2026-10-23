@@ -119,7 +119,7 @@ export default async function (req: Request): Promise<Response> {
     let html = buildEmailHtml(lead);
 
     const sendId = `${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
-    html = injectTracking(html, lead.id, sendId);
+    html = injectTracking(html, lead.id, sendId, '', 'Missed appointment reschedule');
 
     const { accessToken } = await base44.asServiceRole.connectors.getConnection('gmail');
     const mimeMessage = buildMime(lead.email, subject, html);

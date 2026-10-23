@@ -176,6 +176,8 @@ async function sendWelcomeEmails(base44: any, who: any, input: any) {
         subject: fillTemplate(template.subject, lead),
         html: fillTemplate(template.body, lead),
         leadId: lead.id,
+        templateId: template.id,
+        templateName: template.label,
         sentBy: who?.username || 'ACE',
       });
       if (res?.data?.error || res?.error) throw new Error(res?.data?.error || res?.error);
