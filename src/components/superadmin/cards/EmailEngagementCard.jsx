@@ -45,7 +45,7 @@ export default function EmailEngagementCard({ system }) {
   const opens = events.filter((e) => e.eventType === 'open').length;
   const clicks = events.filter((e) => e.eventType === 'click').length;
   const uniqueLeads = new Set(events.map((e) => e.leadId).filter(Boolean)).size;
-  const openRate = events.length ? Math.round((opens / events.length) * 100) : 0;
+  const openRate = opens + clicks ? Math.round((opens / (opens + clicks)) * 100) : 0;
 
   const perTemplate = Object.values(
     events.reduce((acc, e) => {
@@ -94,8 +94,8 @@ export default function EmailEngagementCard({ system }) {
           <div style={{ color: C.muted, fontSize: '9px', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '6px' }}>Live open & click feed</div>
           {events.slice(0, 8).map((e) => (
             <div key={e.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '3px 0', fontSize: '11px' }}>
-              <span style={{ color: e.eventType === 'click' ? C.coach : C.fronter }}>{e.eventType === 'click' ? '🖱' : '👁'}</span>
-              <span style={{ flex: 1, color: C.muted, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{e.templateName || 'Email'}</span>
+              <span style={{ color: e.eventType === 'click' ? C.coach : e.eventType === 'qualify_visit' ? C.purple : C.fronter }}>{e.eventType === 'click' ? '🖱' : e.eventType === 'qualify_visit' ? '🎥' : '👁'}</span>
+              <span style={{ flex: 1, color: C.muted, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{e.eventType === 'qualify_visit' ? 'Qualification page visited' : (e.templateName || 'Email')}</span>
               <span style={{ color: C.dim, fontSize: '10px' }}>{ago(e.trackedAt)}</span>
             </div>
           ))}

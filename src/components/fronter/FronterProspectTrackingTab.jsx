@@ -52,7 +52,7 @@ export default function FronterProspectTrackingTab({ isAdmin = false, username =
       const cutoff = Date.now() - BOT_FILTER_MS;
       const tracked = new Map();
       const entryFor = (leadId) => {
-        if (!tracked.has(leadId)) tracked.set(leadId, { leadId, openedAt: null, audioAt: null, links: {} });
+        if (!tracked.has(leadId)) tracked.set(leadId, { leadId, openedAt: null, audioAt: null, qualifyAt: null, links: {} });
         return tracked.get(leadId);
       };
 
@@ -62,6 +62,7 @@ export default function FronterProspectTrackingTab({ isAdmin = false, username =
         if (!at || new Date(at).getTime() > cutoff) continue;
         const entry = entryFor(e.leadId);
         if (e.eventType === 'open') { if (!entry.openedAt) entry.openedAt = at; continue; }
+        if (e.eventType === 'qualify_visit') { if (!entry.qualifyAt) entry.qualifyAt = at; continue; }
         if (e.eventType === 'click' && e.url) {
           const hit = LINKS.find(l => e.url.includes(l.match));
           if (hit) { if (!entry.links[hit.key]) entry.links[hit.key] = at; }
@@ -85,10 +86,10 @@ export default function FronterProspectTrackingTab({ isAdmin = false, username =
       const list = [...tracked.values()]
         .map(r => {
           const lead = byId.get(r.leadId);
-          const stamps = [r.openedAt, r.audioAt, ...Object.values(r.links)].filter(Boolean).map(s => new Date(s).getTime());
+          const stamps = [r.openedAt, r.audioAt, r.qualifyAt, ...Object.values(r.links)].filter(Boolean).map(s => new Date(s).getTime());
           return { ...r, lead, lastAt: stamps.length ? new Date(Math.max(...stamps)).toISOString() : null };
         })
-        .filter(r => r.lead && (r.openedAt || r.audioAt || Object.keys(r.links).length > 0))
+        .filter(r => r.lead && (r.openedAt || r.audioAt || r.qualifyAt || Object.keys(r.links).length > 0))
         .sort((a, b) => new Date(b.lastAt || 0) - new Date(a.lastAt || 0));
       setRows(list);
     } catch (e) {
@@ -123,14 +124,14 @@ export default function FronterProspectTrackingTab({ isAdmin = false, username =
         <div>
           <div style={{ color: GOLD, fontSize: '11px', letterSpacing: '2px', textTransform: 'uppercase' }}>📬 {isAdmin ? 'All' : 'My'} Prospects — Opened Welcome / Links</div>
           <div style={{ color: '#6b7280', fontSize: '11px', marginTop: '3px' }}>
-            Prospects who opened the credentials &amp; welcome message or clicked a credential link. Opens and clicks are tracked automatically; the contact card's “+” buttons mark them by hand.
+            Prospects who opened the credentials &amp; welcome message, clicked a credential link, or reached the qualification page. Opens, clicks and the qualification visit are tracked automatically; the contact card's “+” buttons mark links by hand.
           </div>
         </div>
         <button onClick={load} style={{ background: `${GOLD}18`, color: GOLD, border: `1px solid ${GOLD}44`, borderRadius: '4px', padding: '4px 10px', cursor: 'pointer', fontSize: '10px' }}>↻ Refresh</button>
       </div>
 
       <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '12px' }}>
-        {[{ label: 'Activity', value: rows.length }, { label: '📬 Welcome', value: count(r => r.openedAt || r.audioAt) }, { label: '🌐 Website', value: count(r => r.links.website) }, { label: '🏛️ BBB', value: count(r => r.links.bbb) }, { label: '⭐ Trustpilot', value: count(r => r.links.trustpilot) }].map(m => (
+        {[{ label: 'Activity', value: rows.length }, { label: '📬 Welcome', value: count(r => r.openedAt || r.audioAt) }, { label: '🎥 Qualification', value: count(r => r.qualifyAt) }, { label: '🌐 Website', value: count(r => r.links.website) }, { label: '🏛️ BBB', value: count(r => r.links.bbb) }, { label: '⭐ Trustpilot', value: count(r => r.links.trustpilot) }].map(m => (
           <div key={m.label} style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '4px', padding: '5px 10px' }}>
             <span style={{ color: '#6b7280', fontSize: '9px', letterSpacing: '1px', textTransform: 'uppercase' }}>{m.label}</span>
             <span style={{ color: '#e8e0d0', fontSize: '12px', fontWeight: 'bold', marginLeft: '6px' }}>{m.value}</span>
@@ -149,7 +150,7 @@ export default function FronterProspectTrackingTab({ isAdmin = false, username =
           <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '820px' }}>
             <thead>
               <tr>
-                {['Prospect', '📬 Welcome Message', '🌐 Company Website', '🏛️ BBB', '⭐ Trustpilot', 'Last Activity'].map(h => (
+                {['Prospect', '📬 Welcome Message', '🌐 Company Website', '🏛️ BBB', '⭐ Trustpilot', '🎥 Qualification Page', 'Last Activity'].map(h => (
                   <th key={h} style={{ textAlign: 'left', color: '#8a9ab8', fontSize: '9px', letterSpacing: '1px', textTransform: 'uppercase', padding: '6px 8px', borderBottom: '1px solid rgba(255,255,255,0.08)', whiteSpace: 'nowrap' }}>{h}</th>
                 ))}
               </tr>
@@ -171,6 +172,9 @@ export default function FronterProspectTrackingTab({ isAdmin = false, username =
                       <Cell on={!!r.links[l.key]} at={r.links[l.key]} icon={l.icon} label={l.label} />
                     </td>
                   ))}
+                  <td style={{ padding: '8px', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                    <Cell on={!!r.qualifyAt} at={r.qualifyAt} icon="🎥" label="Qualification page visited" />
+                  </td>
                   <td style={{ padding: '8px', borderBottom: '1px solid rgba(255,255,255,0.05)', color: '#8a9ab8', fontSize: '10px', whiteSpace: 'nowrap' }}>{ago(r.lastAt)}</td>
                 </tr>
               ))}

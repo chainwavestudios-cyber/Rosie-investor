@@ -23,7 +23,8 @@
       "title": "Event Type",
       "enum": [
         "open",
-        "click"
+        "click",
+        "qualify_visit"
       ]
     },
     "url": {

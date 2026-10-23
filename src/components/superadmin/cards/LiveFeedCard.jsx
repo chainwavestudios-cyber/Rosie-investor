@@ -7,6 +7,13 @@ import { useEffect, useRef, useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { C, emptyStyle, ago, asArray } from '@/components/superadmin/kit';
 
+/** One line per tracking event — a qualification-page visit is not a link click. */
+const eventText = (who) => (r) => {
+  if (r.eventType === 'click') return `${who} clicked a link in ${r.templateName || 'an email'}`;
+  if (r.eventType === 'qualify_visit') return `${who} reached the qualification page`;
+  return `${who} opened ${r.templateName || 'an email'}`;
+};
+
 const SOURCES = {
   coach: [
     {
@@ -15,7 +22,7 @@ const SOURCES = {
     },
     {
       entity: 'EmailTrackingEvent', sort: '-trackedAt', limit: 8,
-      map: (r) => ({ ts: r.trackedAt || r.created_date, color: C.warn, text: `Client ${r.eventType === 'click' ? 'clicked a link in' : 'opened'} ${r.templateName || 'an email'}` }),
+      map: (r) => ({ ts: r.trackedAt || r.created_date, color: C.warn, text: eventText('Client')(r) }),
     },
     {
       entity: 'DebtLead', sort: '-updated_date', limit: 8,
@@ -33,7 +40,7 @@ const SOURCES = {
     },
     {
       entity: 'EmailTrackingEvent', sort: '-trackedAt', limit: 8,
-      map: (r) => ({ ts: r.trackedAt || r.created_date, color: C.warn, text: `Lead ${r.eventType === 'click' ? 'clicked a link in' : 'opened'} ${r.templateName || 'an email'}` }),
+      map: (r) => ({ ts: r.trackedAt || r.created_date, color: C.warn, text: eventText('Lead')(r) }),
     },
     {
       entity: 'FronterActivityLog', sort: '-created_date', limit: 8,

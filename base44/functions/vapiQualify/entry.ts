@@ -12,9 +12,11 @@ import { secrets } from 'base44:runtime';
 import {
   appBaseUrl,
   buildAssistantPayload,
+  contactCardForToken,
   findSession,
   leadView,
   loadConfig,
+  recordQualifyVisit,
   resolveVaultLead,
   routeToSalesLine,
   startSession,
@@ -32,6 +34,9 @@ export default async function (req: Request) {
     if (action === 'client') {
       const lead = await resolveVaultLead(base44, body.token);
       const session = await startSession(base44, lead, body.source);
+      // The email's video CTA is untracked by the provider, so the visit to this
+      // page is what marks "Qualification Page Visited" on the contact card.
+      await recordQualifyVisit(base44, await contactCardForToken(base44, body.token), req);
       const embedUrl = String(cfg.protofaceEmbedUrl || '')
         .replace('{{avatar}}', cfg.protofaceAvatarId || '')
         .replace('{{name}}', encodeURIComponent((lead && lead.firstName) || 'there'));

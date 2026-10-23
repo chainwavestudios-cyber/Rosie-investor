@@ -129,6 +129,45 @@ export async function resolveVaultLead(base44: any, token: string): Promise<any>
   return (items && items[0]) || null;
 }
 
+/**
+ * The contact card behind an email link token. The video CTA is deliberately kept
+ * out of the email provider's link tracking, so nothing reports it as a click —
+ * the visit itself is what gets recorded, and this is how it finds its card.
+ */
+export async function contactCardForToken(base44: any, token: string): Promise<any> {
+  const t = String(token || '').trim();
+  if (!t) return null;
+  if (PROTOFACE_ID_RE.test(t)) {
+    const { items } = await base44.asServiceRole.entities.FronterLead.filter({ protofaceId: t }, { limit: 1 });
+    if (items && items[0]) return items[0];
+  }
+  try {
+    const card = await base44.asServiceRole.entities.FronterLead.get(t);
+    if (card && card.id) return card;
+  } catch {
+    // the token is not a contact card id
+  }
+  return null;
+}
+
+/** Records that a prospect reached the qualification page. Never breaks the visitor's flow. */
+export async function recordQualifyVisit(base44: any, card: any, req: Request): Promise<boolean> {
+  if (!card?.id) return false;
+  try {
+    await base44.asServiceRole.entities.EmailTrackingEvent.create({
+      leadId: card.id,
+      eventType: 'qualify_visit',
+      userAgent: req.headers.get('user-agent') || '',
+      ipAddress: req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || '',
+      trackedAt: new Date().toISOString(),
+    });
+    return true;
+  } catch (error) {
+    console.error('[videoQualify] qualification visit not recorded:', (error as Error).message);
+    return false;
+  }
+}
+
 /** Only what the widget needs — never the lead's email, address or phone. */
 export function leadView(lead: any) {
   if (!lead) return null;

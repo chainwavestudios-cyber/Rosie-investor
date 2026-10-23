@@ -9,6 +9,7 @@ import { base44 } from '@/api/base44Client';
 
 const GOLD = '#10b981';
 const BLUE = '#60a5fa';
+const VIOLET = '#a78bfa';
 
 const TRACKED_LINKS = [
   { match: 'trustpilot.com', label: 'Trustpilot Reviews' },
@@ -48,6 +49,7 @@ export default function FronterEmailTrackingNotifications() {
         const toast = {
           id: eventId,
           type: ev.eventType,
+          visit: ev.eventType === 'qualify_visit',
           leadName,
           url: ev.url,
           time: new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
@@ -71,7 +73,7 @@ export default function FronterEmailTrackingNotifications() {
       {toasts.map(t => (
         <div key={t.id} style={{
           background: '#0d1b2a',
-          border: `2px solid ${t.type === 'open' ? GOLD : BLUE}`,
+          border: `2px solid ${t.visit ? VIOLET : t.type === 'open' ? GOLD : BLUE}`,
           borderRadius: '8px',
           padding: '12px 16px',
           boxShadow: '0 8px 32px rgba(0,0,0,0.6)',
@@ -80,10 +82,10 @@ export default function FronterEmailTrackingNotifications() {
           gap: '10px',
           animation: 'slideIn 0.3s ease-out',
         }}>
-          <span style={{ fontSize: '24px', flexShrink: 0 }}>{t.type === 'open' ? '📧' : '🖱️'}</span>
+          <span style={{ fontSize: '24px', flexShrink: 0 }}>{t.visit ? '🎥' : t.type === 'open' ? '📧' : '🖱️'}</span>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ color: t.type === 'open' ? GOLD : BLUE, fontSize: '12px', fontWeight: 'bold' }}>
-              {t.type === 'open' ? 'Email Opened!' : 'Link Clicked!'}
+            <div style={{ color: t.visit ? VIOLET : t.type === 'open' ? GOLD : BLUE, fontSize: '12px', fontWeight: 'bold' }}>
+              {t.visit ? 'Qualification Page Visited!' : t.type === 'open' ? 'Email Opened!' : 'Link Clicked!'}
             </div>
             <div style={{ color: '#e8e0d0', fontSize: '13px', marginTop: '2px' }}>
               {t.leadName}

@@ -8,6 +8,7 @@ import { base44 } from '@/api/base44Client';
 
 const GOLD = '#10b981';
 const BLUE = '#60a5fa';
+const VIOLET = '#a78bfa';
 
 const TRACKED_LINKS = [
   { match: 'trustpilot.com', url: 'https://www.trustpilot.com/review/debtadvisorsofamerica.com', label: 'Trustpilot', icon: '⭐' },
@@ -56,6 +57,10 @@ export default function FronterEmailTrackingBadges({ lead, username, onManualUpd
 
   const isLinkClicked = (match) => [...clickedUrls].some(u => u.includes(match));
 
+  // The email's video CTA is deliberately kept out of the provider's link tracking,
+  // so reaching the qualification page is recorded as its own event — never a click.
+  const qualifyVisitAt = confirmedEvents.filter(e => e.eventType === 'qualify_visit').map(e => e.trackedAt).sort().pop() || null;
+
   const manualMarkOpened = async () => {
     if (!lead?.id) return;
     try {
@@ -81,6 +86,9 @@ export default function FronterEmailTrackingBadges({ lead, username, onManualUpd
         <span style={{ padding: '3px 10px', borderRadius: '10px', background: 'rgba(16,185,129,0.15)', color: GOLD, border: `1px solid ${GOLD}44`, fontSize: '10px', fontWeight: 'bold', whiteSpace: 'nowrap' }}>📧 Email Opened</span>
       ) : (
         <button onClick={manualMarkOpened} title="Manually mark email as opened" style={{ padding: '3px 10px', borderRadius: '10px', background: 'rgba(255,255,255,0.05)', color: '#6b7280', border: '1px solid rgba(255,255,255,0.1)', fontSize: '10px', cursor: 'pointer', whiteSpace: 'nowrap' }}>+ 📧 Opened</button>
+      )}
+      {qualifyVisitAt && (
+        <span title={`Qualification page visited — ${new Date(qualifyVisitAt).toLocaleString()}`} style={{ padding: '3px 10px', borderRadius: '10px', background: 'rgba(167,139,250,0.15)', color: VIOLET, border: `1px solid ${VIOLET}44`, fontSize: '10px', fontWeight: 'bold', whiteSpace: 'nowrap' }}>🎥 Qualification Page Visited</span>
       )}
       {TRACKED_LINKS.map(t => {
         const clicked = isLinkClicked(t.match);
