@@ -1,7 +1,8 @@
 /**
  * useEngagementReport — the report behind the Email Engagement page.
- * One call returns the campaign table, the ranked leads and the activity tail;
- * a new tracked event re-reads it (throttled, and after the crawler filter).
+ * One call returns the campaign table, the ranked leads, the activity tail and the
+ * permanent hot-lead record; a new tracked event re-reads it (throttled, and after
+ * the crawler filter).
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { base44 } from '@/api/base44Client';
@@ -12,6 +13,7 @@ export default function useEngagementReport(days = 30) {
   const [report, setReport] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [handlingId, setHandlingId] = useState('');
   const timer = useRef(null);
 
   const load = useCallback(async () => {
@@ -28,12 +30,34 @@ export default function useEngagementReport(days = 30) {
   useEffect(() => { setLoading(true); load(); }, [load]);
 
   useEffect(() => {
-    const unsubscribe = base44.entities.EmailTrackingEvent.subscribe(() => {
-      clearTimeout(timer.current);
-      timer.current = setTimeout(load, 15000);
-    });
-    return () => { clearTimeout(timer.current); try { unsubscribe(); } catch { /* ignore */ } };
+    let unsubscribe = null;
+    try {
+      unsubscribe = base44.entities.EmailTrackingEvent.subscribe(() => {
+        clearTimeout(timer.current);
+        timer.current = setTimeout(load, 15000);
+      });
+    } catch { /* live tail is a bonus — the report still loads on demand */ }
+    return () => { clearTimeout(timer.current); try { unsubscribe?.(); } catch { /* already gone */ } };
   }, [load]);
 
-  return { report, loading, error, refresh: load };
+  // "A person has worked this one" — the only write the console makes.
+  const markHandled = useCallback(async (recordId, handled, system) => {
+    setHandlingId(recordId);
+    try {
+      const response = await base44.functions.invoke('engagementReport', {
+        action: 'handleHotLead', recordId, handled, system, sessionUserId, sessionToken,
+      });
+      const history = response.data?.history;
+      if (history) {
+        setReport((prev) => (prev ? {
+          ...prev,
+          systems: { ...prev.systems, [system]: { ...prev.systems[system], hotHistory: history } },
+        } : prev));
+      }
+    } finally {
+      setHandlingId('');
+    }
+  }, [sessionUserId, sessionToken]);
+
+  return { report, loading, error, refresh: load, markHandled, handlingId };
 }

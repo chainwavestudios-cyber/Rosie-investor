@@ -1,0 +1,118 @@
+{
+  "name": "EngagementHotLead",
+  "type": "object",
+  "properties": {
+    "leadId": {
+      "type": "string",
+      "title": "Contact Card ID (the lead this record belongs to)"
+    },
+    "system": {
+      "type": "string",
+      "title": "System",
+      "enum": [
+        "coach",
+        "fronter"
+      ],
+      "default": "coach"
+    },
+    "source": {
+      "type": "string",
+      "title": "Contact Card Kind (coach = Debt Call Coach lead, fronter = prospect)"
+    },
+    "name": {
+      "type": "string",
+      "title": "Lead Name"
+    },
+    "phone": {
+      "type": "string",
+      "title": "Phone Number"
+    },
+    "email": {
+      "type": "string",
+      "title": "Email"
+    },
+    "firstHotAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "First Time They Went Hot"
+    },
+    "lastEnteredAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Last Time They Entered The Hot List"
+    },
+    "lastHotAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Last Time They Were On The Hot List"
+    },
+    "cooledAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Cooled At (they dropped off the live list)"
+    },
+    "hotSessions": {
+      "type": "number",
+      "title": "Times They Have Gone Hot",
+      "default": 1
+    },
+    "peakScore": {
+      "type": "number",
+      "title": "Best Engagement Score Ever"
+    },
+    "lastScore": {
+      "type": "number",
+      "title": "Latest Engagement Score"
+    },
+    "wasHot": {
+      "type": "boolean",
+      "title": "On The Live Hot List Right Now",
+      "default": true
+    },
+    "action": {
+      "type": "string",
+      "title": "What To Do Next",
+      "format": "textarea"
+    },
+    "reasonsJson": {
+      "type": "string",
+      "title": "Why They Went Hot (JSON array)",
+      "format": "textarea"
+    },
+    "handledAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Worked At (marked handled by a person)"
+    },
+    "handledBy": {
+      "type": "string",
+      "title": "Worked By (username)"
+    }
+  },
+  "required": [
+    "leadId",
+    "system"
+  ],
+  "rls": {
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "read": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}

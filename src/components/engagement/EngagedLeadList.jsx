@@ -5,6 +5,7 @@
 import { useState } from 'react';
 import { C, chip, emptyStyle } from '@/components/superadmin/kit';
 import { tierStyle } from '@/lib/engagementTiers';
+import LeadNameButton from '@/components/engagement/LeadNameButton';
 
 const FILTERS = [
   { id: 'engaged+', label: '⚡ Engaged +', keep: (lead) => lead.tier === 'hot' || lead.tier === 'engaged' },
@@ -12,7 +13,7 @@ const FILTERS = [
   { id: 'all', label: 'All activity', keep: () => true },
 ];
 
-export default function EngagedLeadList({ leads, system = 'coach' }) {
+export default function EngagedLeadList({ leads, system = 'coach', onOpenLead }) {
   const [filter, setFilter] = useState('engaged+');
   const active = FILTERS.find((f) => f.id === filter) || FILTERS[0];
   const rows = (leads || []).filter(active.keep);
@@ -40,7 +41,7 @@ export default function EngagedLeadList({ leads, system = 'coach' }) {
             <span style={{ color: C.dim, fontSize: '11px', fontWeight: 'bold', width: '20px', paddingTop: '2px' }}>{index + 1}</span>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ display: 'flex', gap: '7px', alignItems: 'baseline', flexWrap: 'wrap' }}>
-                <span style={{ color: C.ink, fontSize: '13px', fontWeight: 'bold' }}>{lead.name || (lead.onFile === false ? 'Contact card removed' : 'Unknown lead')}</span>
+                <LeadNameButton lead={lead} onOpenLead={onOpenLead} />
                 <span style={chip(style.color)}>{style.icon} {style.label}</span>
                 {lead.onFile === false && <span style={chip(C.muted)}>🗑 no card on file</span>}
                 {lead.hotLead && <span style={chip(C.danger)}>🚨 {system === 'coach' ? 'HOT LEAD' : 'HOT PROSPECT'}</span>}

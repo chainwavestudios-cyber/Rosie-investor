@@ -36,6 +36,7 @@ import PopOutTab from '@/components/debt/PopOutTab';
 import SmartClose from '@/components/debt/closing/SmartClose';
 import ObjectionsEngineTab from '@/components/debt/ObjectionsEngineTab';
 import CompliancePortal from '@/pages/CompliancePortal';
+import EmailEngagementPage from '@/pages/EmailEngagementPage';
 import WCRChecklist from '@/components/debt/WCRChecklist';
 import ProfileTimerWatcher from '@/components/debt/ProfileTimerWatcher';
 import ClientProfileModal from '@/components/debt/ClientProfileModal';
@@ -170,6 +171,7 @@ export default function DebtCallCoach() {
       {tab === 'emails' && <DebtEmailsTab username={user?.username} />}
       {tab === 'protoface' && isAdmin && <ProtoFaceTab />}
       {tab === 'campaigns' && isAdmin && <EmailCampaignManagerTab username={user?.username} />}
+      {tab === 'engagement' && isAdmin && <EmailEngagementPage />}
       {tab === 'objections' && <ObjectionsEngineTab readOnly={isDialerRole} />}
       {tab === 'kb' && <DebtKBManager readOnly={isDialerRole} />}
       {tab === 'kbchat' && <DebtKBChat />}

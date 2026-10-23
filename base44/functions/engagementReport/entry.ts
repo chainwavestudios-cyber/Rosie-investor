@@ -33,7 +33,11 @@ export default async function (req: Request): Promise<Response> {
   try {
     const body: any = await req.json().catch(() => ({}));
     const base44 = createClientFromRequest(req);
-    await marketingUser(base44, body); // platform admin, or a fronter / admin session
+    const user = await marketingUser(base44, body); // platform admin, or a fronter / admin session
+
+    // Marking a hot lead worked is the one write this console makes: it records who
+    // picked it up, and it clears by itself if that lead heats up again.
+    if (body.action === 'handleHotLead') return Response.json(await markHandled(base44, user, body));
 
     if (body.leadId) return Response.json({ lead: await scoreOne(base44, String(body.leadId)) });
     return Response.json(await buildReport(base44, body));
@@ -145,6 +149,7 @@ async function buildReport(base44: any, body: any) {
     const result = buildSystem({ system, events: systemEvents, sends: systemSends, now });
     systems[system] = result;
     result.leadIds.slice(0, TOP_LEADS).forEach((leadId: string) => wanted.add(leadId));
+    result.hotLeadIds.forEach((leadId: string) => wanted.add(leadId));
     systemEvents.slice(0, RECENT).forEach((event: any) => wanted.add(String(event.leadId)));
   });
 
@@ -152,6 +157,19 @@ async function buildReport(base44: any, body: any) {
   const sentNames = new Map<string, string>();
   sends.forEach((log: any) => { if (log.leadId && log.toName) sentNames.set(String(log.leadId), String(log.toName)); });
   const describe = await buildDescribe(base44, [...wanted], sentNames);
+
+  // ── The permanent hot-lead record ──
+  // The cue at the top of the console only shows who is hot this minute and clears
+  // itself. Everyone who has ever crossed into hot is written down here instead, with
+  // when they first appeared, when they were last on the list and how often they came back.
+  await Promise.all(SYSTEMS.map(async (system) => {
+    const result = systems[system];
+    const entries = result.hotLeadIds
+      .map((leadId: string) => ({ leadId, ...(result.scoreOf[leadId] || {}) }))
+      .filter((entry: any) => typeof entry.score === 'number');
+    await recordHotLeads(base44, system, entries, describe);
+    result.hotHistory = await readHotHistory(base44, system);
+  }));
 
   SYSTEMS.forEach((system) => {
     const result = systems[system];
@@ -182,6 +200,10 @@ async function buildReport(base44: any, body: any) {
         id: event.id,
         leadId: String(event.leadId),
         leadName: who.name || (who.onFile === false ? 'Contact card removed' : 'Lead'),
+        phone: who.phone || '',
+        email: who.email || '',
+        source: who.source || '',
+        onFile: who.onFile !== false,
         eventType: event.eventType,
         url: event.url || '',
         categoryLabel: event.categoryLabel || '',
@@ -191,6 +213,7 @@ async function buildReport(base44: any, body: any) {
     });
     delete result.scoreOf;
     delete result.leadIds;
+    delete result.hotLeadIds;
     delete result.recentEvents;
   });
 
@@ -301,6 +324,7 @@ function buildSystem({ system, events, sends, now }: any) {
     summary,
     campaigns: campaignRows,
     hot: scored.filter((entry) => entry.hotLead).slice(0, 10).map((entry) => ({ leadId: entry.leadId, score: entry.score, action: entry.action, reasons: entry.reasons })),
+    hotLeadIds: scored.filter((entry) => entry.hotLead).map((entry) => entry.leadId),
     leadIds: scored.map((entry) => entry.leadId),
     scoreOf,
     recentEvents: events.slice(0, RECENT),
@@ -343,4 +367,154 @@ async function buildDescribe(base44: any, ids: string[], sentNames?: Map<string,
       onFile: true,
     };
   };
+}
+
+const pageRows = (page: any) => (Array.isArray(page) ? page : (page?.items || []));
+
+/** How often an untouched record's heartbeat is re-stamped while it stays hot. */
+const HOT_REFRESH_MS = 5 * 60 * 1000;
+
+/**
+ * Write down everyone who is hot, and keep writing them down. A lead who cools keeps
+ * their record (the live flag just drops); a lead who heats up again counts another visit
+ * on the same record. Writes happen only when something actually changed.
+ */
+async function recordHotLeads(base44: any, system: string, entries: any[], describe: (leadId: string) => any) {
+  const entity = base44.asServiceRole.entities.EngagementHotLead;
+  const nowIso = new Date().toISOString();
+  const now = Date.now();
+  const hot = new Map<string, any>(entries.map((entry: any) => [String(entry.leadId), entry]));
+
+  const live = pageRows(await entity.filter({ system, wasHot: true }, { limit: 200 }).catch(() => []));
+  const liveIds = new Set(live.map((row: any) => String(row.leadId)));
+  const backOnTheList = [...hot.keys()].filter((leadId) => !liveIds.has(leadId));
+  const returning = backOnTheList.length
+    ? new Map<string, any>(pageRows(await entity.filter({ system, leadId: { $in: backOnTheList } }, { limit: 200 }).catch(() => []))
+      .map((row: any) => [String(row.leadId), row]))
+    : new Map<string, any>();
+
+  const writes: Promise<any>[] = [];
+  const save = (id: string, patch: any) => writes.push(entity.update(id, patch).catch(() => null));
+
+  // 1. Records already on the live list: refresh them, or close the ones that cooled.
+  for (const record of live) {
+    const entry = hot.get(String(record.leadId));
+    if (!entry) {
+      save(record.id, { wasHot: false, cooledAt: nowIso });
+      continue;
+    }
+    hot.delete(String(record.leadId));
+    const patch = recordPatch(record, entry, describe(String(record.leadId)) || {}, { nowIso, reenter: false });
+    const lastHot = record.lastHotAt ? new Date(record.lastHotAt).getTime() : 0;
+    if (!lastHot || now - lastHot > HOT_REFRESH_MS) patch.lastHotAt = nowIso;
+    if (Object.keys(patch).length) save(record.id, patch);
+  }
+
+  // 2. A lead who comes back to the list: same record, another visit.
+  for (const record of returning.values()) {
+    const entry = hot.get(String(record.leadId));
+    if (!entry) continue;
+    hot.delete(String(record.leadId));
+    const patch = recordPatch(record, entry, describe(String(record.leadId)) || {}, { nowIso, reenter: true });
+    patch.lastHotAt = nowIso;
+    save(record.id, patch);
+  }
+
+  // 3. Anyone new to the list is written down the first time they appear.
+  for (const entry of hot.values()) {
+    const fresh = describe(String(entry.leadId)) || {};
+    writes.push(entity.create({
+      leadId: String(entry.leadId),
+      system,
+      source: fresh.source || system,
+      name: fresh.name || '',
+      phone: fresh.phone || '',
+      email: fresh.email || '',
+      firstHotAt: nowIso,
+      lastEnteredAt: nowIso,
+      lastHotAt: nowIso,
+      cooledAt: null,
+      hotSessions: 1,
+      peakScore: Number(entry.score || 0),
+      lastScore: Number(entry.score || 0),
+      wasHot: true,
+      action: entry.action || '',
+      reasonsJson: JSON.stringify(entry.reasons || []),
+      handledAt: null,
+      handledBy: '',
+    }).catch(() => null));
+  }
+
+  await Promise.all(writes);
+}
+
+/** What changed on a record since the last pass — empty when nothing did. */
+function recordPatch(record: any, entry: any, fresh: any, { nowIso, reenter }: { nowIso: string; reenter: boolean }) {
+  const patch: any = {};
+  if (!record.name && fresh.name) patch.name = fresh.name;
+  if (!record.phone && fresh.phone) patch.phone = fresh.phone;
+  if (!record.email && fresh.email) patch.email = fresh.email;
+  if (reenter) {
+    patch.wasHot = true;
+    patch.cooledAt = null;
+    patch.hotSessions = Number(record.hotSessions || 0) + 1;
+    patch.lastEnteredAt = nowIso;
+    patch.handledAt = null;
+    patch.handledBy = '';
+  }
+  if (Number(entry.score || 0) > Number(record.peakScore || 0)) patch.peakScore = Number(entry.score || 0);
+  if (Number(record.lastScore || 0) !== Number(entry.score || 0)) patch.lastScore = Number(entry.score || 0);
+  if ((record.action || '') !== (entry.action || '')) patch.action = entry.action || '';
+  const reasons = JSON.stringify(entry.reasons || []);
+  if ((record.reasonsJson || '') !== reasons) patch.reasonsJson = reasons;
+  return patch;
+}
+
+/** The record, newest arrival first, with whether each lead is on the live list right now. */
+async function readHotHistory(base44: any, system: string) {
+  const rows = pageRows(await base44.asServiceRole.entities.EngagementHotLead
+    .filter({ system }, { sort: '-lastEnteredAt', limit: 200 })
+    .catch(() => []));
+  return rows.map((row: any) => ({
+    id: row.id,
+    leadId: String(row.leadId),
+    system: row.system,
+    name: row.name || '',
+    phone: row.phone || '',
+    email: row.email || '',
+    source: row.source || row.system,
+    firstHotAt: row.firstHotAt || row.created_date,
+    lastEnteredAt: row.lastEnteredAt || row.firstHotAt || row.created_date,
+    lastHotAt: row.lastHotAt || row.lastEnteredAt || row.created_date,
+    hotSessions: Number(row.hotSessions || 1),
+    peakScore: Number(row.peakScore || 0),
+    lastScore: Number(row.lastScore || 0),
+    stillHot: row.wasHot === true,
+    handledAt: row.handledAt || null,
+    handledBy: row.handledBy || '',
+    action: row.action || '',
+    reasons: safeReasons(row.reasonsJson),
+  }));
+}
+
+function safeReasons(value: any): string[] {
+  try {
+    const parsed = JSON.parse(String(value || '[]'));
+    return Array.isArray(parsed) ? parsed.filter((reason) => typeof reason === 'string') : [];
+  } catch { return []; }
+}
+
+/** A person worked the record — or put it back on the queue. */
+async function markHandled(base44: any, user: any, body: any) {
+  const id = String(body.recordId || '');
+  const system = String(body.system || 'coach');
+  if (!id) throw new Error('Choose a hot lead record.');
+  const record = await base44.asServiceRole.entities.EngagementHotLead.get(id).catch(() => null);
+  if (!record) throw new Error('That hot lead record no longer exists.');
+  const handled = body.handled !== false;
+  await base44.asServiceRole.entities.EngagementHotLead.update(id, {
+    handledAt: handled ? new Date().toISOString() : null,
+    handledBy: handled ? (user?.username || '') : '',
+  });
+  return { ok: true, system, history: await readHotHistory(base44, system) };
 }
