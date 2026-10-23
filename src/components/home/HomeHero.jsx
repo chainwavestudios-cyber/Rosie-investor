@@ -1,9 +1,18 @@
 import React from 'react';
+import { Phone } from 'lucide-react';
 import HomeChatWidget from '@/components/home/HomeChatWidget';
+import { COMPANY } from '@/components/home/SiteHeader';
 
 export default function HomeHero({ leadProfile, onLeadFound }) {
   return (
     <section id="top" className="home-premium-hero relative overflow-hidden text-white">
+      <a
+        href={COMPANY.phoneHref}
+        className="absolute right-4 top-2 z-20 flex items-center gap-2 whitespace-nowrap rounded-full border border-home-accent bg-home-navy px-3 py-2 text-xs font-semibold text-home-navy-ink no-underline shadow-lg transition-colors hover:bg-home-accent hover:text-home-navy sm:right-6 sm:top-3 sm:px-4 sm:text-sm"
+      >
+        <Phone className="h-4 w-4" aria-hidden="true" />
+        {COMPANY.phone}
+      </a>
       <div className="home-premium-banner-wrap">
         <img src="/images/debt-solutions-premium-banner.png" alt="Debt Solutions Inc. — Stronger Partnerships, Better Solutions. Established 2019." className="home-premium-banner" />
       </div>

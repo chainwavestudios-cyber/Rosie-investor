@@ -1,7 +1,6 @@
 import { useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
 import { base44 } from '@/api/base44Client';
-import SiteHeader from '@/components/home/SiteHeader';
 import HomeHero from '@/components/home/HomeHero';
 import HomeLeadConfirm from '@/components/home/HomeLeadConfirm';
 import StephaniAccessPopup from '@/components/home/StephaniAccessPopup';
@@ -108,8 +107,6 @@ export default function Home() {
 
   return (
     <div className="home-theme min-h-screen bg-home-canvas font-home-sans text-home-ink">
-      <SiteHeader showBrand={false} showAddress={false} />
-
       <main>
         <HomeHero leadProfile={leadProfile} onLeadFound={setLeadProfile} />
 
