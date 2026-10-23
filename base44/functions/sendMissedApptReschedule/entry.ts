@@ -8,7 +8,7 @@
  */
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.54';
 import { ET_TZ } from '../../shared/googleCalendarHelpers.ts';
-import { injectTracking, buildMime } from '../../shared/emailTracking.ts';
+import { sendTrackedEmail } from '../../shared/emailMessageEngine.ts';
 import { getEmailSignature } from '../../shared/emailSignature.ts';
 
 const APP_BASE = 'https://rosieai-investorpage.base44.app';
@@ -118,20 +118,18 @@ export default async function (req: Request): Promise<Response> {
     const subject = "We missed connecting today - let's reschedule your free consultation";
     let html = buildEmailHtml(lead);
 
-    const sendId = `${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
-    html = injectTracking(html, lead.id, sendId, '', 'Missed appointment reschedule');
-
-    const { accessToken } = await base44.asServiceRole.connectors.getConnection('gmail');
-    const mimeMessage = buildMime(lead.email, subject, html);
-    const response = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ raw: toBase64Url(mimeMessage) }),
+    const sendResult = await sendTrackedEmail(base44, {
+      to: lead.email,
+      subject,
+      html,
+      contactId: lead.id,
+      contactKind: 'debt_lead',
+      contactName: `${lead.firstName || ''} ${lead.lastName || ''}`.trim(),
+      templateName: 'Missed appointment reschedule',
+      sentBy: 'automation',
+      source: 'automation',
     });
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Gmail API error: ${errorText}`);
-    }
+    const sendId = sendResult.sendId;
 
     // Mark reschedule email as sent
     const now = new Date().toISOString();

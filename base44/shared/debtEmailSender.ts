@@ -4,9 +4,9 @@
  *
  * Handles variable substitution, signature injection, tracking, and Gmail sending.
  */
-import { injectTracking, buildMime, TRACKING_BASE } from './emailTracking.ts';
+import { TRACKING_BASE } from './emailTracking.ts';
+import { sendTrackedEmail } from './emailMessageEngine.ts';
 import { getEmailSignature } from './emailSignature.ts';
-import { sendViaGmail } from './gmailSend.ts';
 import { companyMergeVars, isEmailUnsubscribed } from './companyInfo.ts';
 
 export interface SendResult {
@@ -77,16 +77,23 @@ export async function sendTemplateEmail(
     html += getEmailSignature();
   }
 
-  const sendId = `${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
-  let trackedHtml = html;
-  if (template.trackingEnabled) {
-    trackedHtml = injectTracking(html, lead.id, sendId, template.id, template.name);
-  }
+  // One tracked send: this records the EmailMessage, gives the body its own opaque
+  // token, hosts any embedded image and files the activity against the contact.
+  const result = await sendTrackedEmail(base44, {
+    to: lead.email,
+    subject,
+    html,
+    contactId: lead.id,
+    contactKind: 'debt_lead',
+    contactName: `${lead.firstName || ''} ${lead.lastName || ''}`.trim(),
+    templateId: template.id,
+    templateName: template.name,
+    sentBy: 'debt_coach',
+    source: 'contact_card',
+    track: template.trackingEnabled !== false,
+  });
 
-  const mimeMessage = buildMime(lead.email, subject, trackedHtml);
-  await sendViaGmail(base44, lead.email, mimeMessage);
-
-  return { sendId, subject };
+  return { sendId: result.sendId, subject };
 }
 
 /** Default templates — used when no DebtEmailTemplate records exist yet */

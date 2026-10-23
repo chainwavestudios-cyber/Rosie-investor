@@ -20,6 +20,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { HOT_LEADS_KEY } from '@/lib/hotLeads';
 import AiInviteLinksButton from '@/components/debt/AiInviteLinksButton';
 import RosieAiTab from '@/components/debt/RosieAiTab';
+import EmailActivityTimeline from '@/components/email/EmailActivityTimeline';
 
 const GOLD = '#10b981';
 const ls = { display: 'block', color: '#8a9ab8', fontSize: '9px', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '3px' };
@@ -50,6 +51,7 @@ const TABS = [
   { id: 'hardship', label: '⚠️ Hardship' },
   { id: 'qa', label: '❓ Q&A' },
   { id: 'transcripts', label: '📝 Transcripts' },
+  { id: 'email_activity', label: '📧 Email Activity' },
   { id: 'rosie_ai', label: '🤖 Rosie AI' },
   { id: 'credit_report', label: '📷 Credit Report' },
   { id: 'closing', label: '🏁 Closing' },
@@ -672,6 +674,10 @@ export default function ClientProfileModal({ lead, username, onClose, onSave }) 
               </div>
             )}
           </div>
+        )}
+
+        {tab === 'email_activity' && (
+          <EmailActivityTimeline contactId={local.id} />
         )}
 
         {tab === 'closing' && (

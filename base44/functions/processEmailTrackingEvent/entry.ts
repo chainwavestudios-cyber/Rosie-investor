@@ -12,7 +12,7 @@
  */
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.53';
 import { getCalendarAuth, listEvents, hasConflict } from '../../shared/googleCalendarHelpers.ts';
-import { injectTracking, buildMime } from '../../shared/emailTracking.ts';
+import { sendTrackedEmail } from '../../shared/emailMessageEngine.ts';
 import { fillMergeTags } from '../../shared/mergeTags.ts';
 
 const TRACKED_DOMAINS = ['trustpilot.com', 'bbb.org', 'debtadvisorsofamerica.com'];
@@ -101,27 +101,21 @@ async function sendFollowUpEmail(base44: any, lead: any) {
   const subject = fillMergeTags(template.subject || '', vars);
   const html = fillMergeTags(template.body || '', vars);
 
-  const followUpSendId = `${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
-  const trackedHtml = injectTracking(html, lead.id, followUpSendId, template.id, template.name);
-  const mimeMessage = buildMime(lead.email, subject, trackedHtml);
-
-  const { accessToken } = await base44.asServiceRole.connectors.getConnection('gmail');
-  const bytes = new TextEncoder().encode(mimeMessage);
-  let binary = '';
-  for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
-  const base64 = btoa(binary);
-  const base64url = base64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-
-  const response = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ raw: base64url }),
+  // One tracked send through the shared engine — the follow-up's opens and clicks
+  // land on this contact's Email Activity timeline like every other email.
+  const sent = await sendTrackedEmail(base44, {
+    to: lead.email,
+    subject,
+    html,
+    contactId: lead.id,
+    contactKind: 'fronter_lead',
+    contactName: `${lead.firstName || ''} ${lead.lastName || ''}`.trim(),
+    templateId: template.id,
+    templateName: template.name,
+    sentBy: 'auto_followup',
+    source: 'automation',
   });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Gmail API error: ${errorText}`);
-  }
+  const followUpSendId = sent.sendId;
 
   const now = new Date().toISOString();
   await base44.asServiceRole.entities.FronterLead.update(lead.id, {

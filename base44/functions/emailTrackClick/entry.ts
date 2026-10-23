@@ -1,11 +1,17 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.53';
+import { recordTrackedEvent, resolveMessageToken } from '../../shared/emailMessageEngine.ts';
 
 /**
  * emailTrackClick — the click tracker every tracked email link points at.
  *
- * It records the click against the lead, the send and the template that carried
- * it, then forwards the visitor to the ORIGINAL destination, byte for byte
- * (query parameters included — the URL parser has already decoded it once).
+ * The public URL carries only the message's opaque token (m=...), so nothing
+ * about the contact is exposed in it; the message record behind that token holds
+ * the contact, template, sender and Gmail account the click belongs to. Sends
+ * made before the token existed still pass leadId/sendId and keep working.
+ *
+ * It records the click, then forwards the visitor to the ORIGINAL destination,
+ * byte for byte (query parameters included — the URL parser has already decoded
+ * it once).
  *
  * Open-redirect protection: only a plain http(s) address on a real host is
  * forwarded. javascript:, data:, file:, localhost and private-network addresses
@@ -38,33 +44,38 @@ Deno.serve(async (req) => {
   // exercised directly.
   const body = await req.json().catch(() => ({} as any));
   const pick = (key: string) => url.searchParams.get(key) || (body?.[key] != null ? String(body[key]) : '');
-  const leadId = pick('leadId');
-  const sendId = pick('sendId');
-  const templateId = pick('templateId');
-  const templateName = pick('templateName');
   // Already decoded once by the URL parser — decoding again would corrupt a
   // destination that legitimately contains %2F, %20 or an encoded query value.
   const destination = safeDestination(pick('url'));
 
-  // Log the click event (fire-and-forget)
-  if (leadId && destination) {
+  const token = pick('m');
+  const message = token ? await resolveMessageToken(base44, token) : null;
+  const leadId = message?.contactId || pick('leadId');
+  const sendId = message?.sendId || pick('sendId');
+  const templateId = message?.templateId || pick('templateId');
+  const templateName = message?.templateName || pick('templateName');
+
+  if (destination && (message || leadId)) {
     try {
-      await base44.asServiceRole.entities.EmailTrackingEvent.create({
+      await recordTrackedEvent(base44, {
+        message,
         leadId,
         sendId,
-        templateId: templateId || undefined,
-        templateName: templateName || undefined,
+        templateId,
+        templateName,
         eventType: 'click',
         url: destination,
         userAgent: req.headers.get('user-agent') || '',
         ipAddress: req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || '',
-        trackedAt: new Date().toISOString(),
       });
-    } catch (e) {
-      console.error('[emailTrackClick] Failed to log:', e.message);
+    } catch (e: any) {
+      console.error('[emailTrackClick] Failed to log:', e?.message);
     }
+  }
 
-    // Update DebtLead appointment tracking fields based on clicked URL
+  // Appointment and personal-message click stamps on the contact card, unchanged.
+  // Only a Debt Call Coach contact carries those fields.
+  if (leadId && destination && (!message || message.contactKind === 'debt_lead')) {
     try {
       const lead = await base44.asServiceRole.entities.DebtLead.get(leadId);
       if (lead) {

@@ -24,7 +24,7 @@
  */
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.54';
 import { ET_TZ, getCalendarAuth, listEvents, hasConflict, formatInTz } from '../../shared/googleCalendarHelpers.ts';
-import { buildMime, injectTracking } from '../../shared/emailTracking.ts';
+import { sendTrackedEmail } from '../../shared/emailMessageEngine.ts';
 import { getEmailSignature } from '../../shared/emailSignature.ts';
 
 const APPT_DURATION_MIN = 15;
@@ -237,20 +237,18 @@ export default async function (req: Request): Promise<Response> {
 </div></body></html>`;
 
     try {
-      const { accessToken } = await base44.asServiceRole.connectors.getConnection('gmail');
-      // This confirmation was the one Gmail send with no tracking identity: give it
-      // its own sendId and the same per-recipient tracking every other send gets.
-      const sendId = `${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
-      const trackedHtml = injectTracking(confirmHtml, lead.id, sendId, '', 'Appointment reschedule confirmation');
-      const mimeMessage = buildMime(lead.email, `Your call is rescheduled — ${apptLabel}`, trackedHtml);
-      const sendRes = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ raw: toBase64Url(mimeMessage) }),
+      // Recorded against this contact with its own opaque token, like every other send.
+      await sendTrackedEmail(base44, {
+        to: lead.email,
+        subject: `Your call is rescheduled — ${apptLabel}`,
+        html: confirmHtml,
+        contactId: lead.id,
+        contactKind: 'debt_lead',
+        contactName: `${lead.firstName || ''} ${lead.lastName || ''}`.trim(),
+        templateName: 'Appointment reschedule confirmation',
+        sentBy: 'automation',
+        source: 'automation',
       });
-      if (!sendRes.ok) {
-        console.error('[bookReschedule] Gmail send failed:', await sendRes.text());
-      }
     } catch (e) {
       console.warn('[bookReschedule] Confirmation email failed:', (e as Error).message);
     }

@@ -82,3 +82,27 @@ export async function sendViaGmail(base44, to, rawMime) {
   const data = await response.json().catch(() => ({}));
   return { messageId: data.id || '', recipient };
 }
+
+/**
+ * The address of the Gmail account actually doing the sending (so every recorded
+ * send can name it). Resolved once per running function instance.
+ */
+let cachedGmailIdentity = '';
+
+export async function getGmailIdentity(base44): Promise<string> {
+  if (cachedGmailIdentity) return cachedGmailIdentity;
+  try {
+    const accessToken = await gmailAccessToken(base44);
+    const response = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/profile', {
+      headers: { Authorization: `Bearer ${accessToken}` },
+      signal: AbortSignal.timeout(8000),
+    });
+    if (response.ok) {
+      const data = await response.json().catch(() => ({}));
+      cachedGmailIdentity = data.emailAddress || '';
+    }
+  } catch (e) {
+    console.warn('[gmailSend] Could not read the sending address:', e?.message || String(e));
+  }
+  return cachedGmailIdentity;
+}

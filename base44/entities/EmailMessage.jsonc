@@ -1,0 +1,207 @@
+{
+  "name": "EmailMessage",
+  "type": "object",
+  "properties": {
+    "token": {
+      "type": "string",
+      "title": "Tracking Token (opaque public id \u2014 the only thing the tracking URLs reveal)"
+    },
+    "dedupeKey": {
+      "type": "string",
+      "title": "Duplicate Guard Key (contact + template + subject; blocks an accidental double send)"
+    },
+    "sendId": {
+      "type": "string",
+      "title": "Send ID (the legacy per-send id the appointment and engagement fields match on)"
+    },
+    "contactId": {
+      "type": "string",
+      "title": "Contact Card ID (the contact this email was sent to)"
+    },
+    "contactKind": {
+      "type": "string",
+      "title": "Contact Type",
+      "enum": [
+        "debt_lead",
+        "fronter_lead",
+        "vault",
+        "investor",
+        "lead",
+        "other"
+      ],
+      "default": "other"
+    },
+    "contactName": {
+      "type": "string",
+      "title": "Contact Name"
+    },
+    "contactEmail": {
+      "type": "string",
+      "title": "Recipient Email"
+    },
+    "organization": {
+      "type": "string",
+      "title": "Organization (the sender's company/org this send belongs to)"
+    },
+    "subject": {
+      "type": "string",
+      "title": "Subject Line Actually Sent",
+      "maxLength": 2000
+    },
+    "templateId": {
+      "type": "string",
+      "title": "Email Template ID"
+    },
+    "templateName": {
+      "type": "string",
+      "title": "Email Template Name"
+    },
+    "senderEmail": {
+      "type": "string",
+      "title": "Sending Gmail Account"
+    },
+    "senderName": {
+      "type": "string",
+      "title": "From Name Shown To The Recipient"
+    },
+    "sentBy": {
+      "type": "string",
+      "title": "Sent By (username)"
+    },
+    "source": {
+      "type": "string",
+      "title": "Where The Send Came From",
+      "enum": [
+        "contact_card",
+        "automation",
+        "campaign",
+        "test",
+        "api"
+      ],
+      "default": "contact_card"
+    },
+    "status": {
+      "type": "string",
+      "title": "Gmail Send Status",
+      "enum": [
+        "sending",
+        "sent",
+        "failed",
+        "skipped_duplicate"
+      ],
+      "default": "sending"
+    },
+    "error": {
+      "type": "string",
+      "title": "Failure Reason",
+      "format": "textarea"
+    },
+    "messageId": {
+      "type": "string",
+      "title": "Gmail Message ID"
+    },
+    "sentAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Sent At"
+    },
+    "openedAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "First Opened At (open pixel)"
+    },
+    "lastOpenedAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Last Opened At"
+    },
+    "openCount": {
+      "type": "number",
+      "title": "Times Opened",
+      "default": 0
+    },
+    "clickedAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "First Link Clicked At"
+    },
+    "lastClickedAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Last Link Clicked At"
+    },
+    "clickCount": {
+      "type": "number",
+      "title": "Links Clicked",
+      "default": 0
+    },
+    "clickedUrlsJson": {
+      "type": "string",
+      "title": "Links Clicked (JSON array of {url, at})",
+      "format": "textarea"
+    },
+    "unsubscribedAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Unsubscribed At"
+    },
+    "repliedAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Replied At (filled once Gmail read access is connected)"
+    },
+    "bouncedAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Bounced At (filled once Gmail read access is connected)"
+    },
+    "bounceReason": {
+      "type": "string",
+      "title": "Bounce Reason",
+      "format": "textarea"
+    }
+  },
+  "required": [
+    "token"
+  ],
+  "rls": {
+    "create": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "user"
+          }
+        }
+      ]
+    },
+    "read": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "user"
+          }
+        }
+      ]
+    },
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}

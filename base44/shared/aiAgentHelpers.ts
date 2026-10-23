@@ -5,7 +5,7 @@
  * @@DEBT_CONFIRM@@, @@SEND_EMAIL@@, and @@AI_INPUT@@ markers.
  */
 import { callLLM } from './llmHelper.ts';
-import { injectTracking } from './emailTracking.ts';
+import { sendTrackedEmail } from './emailMessageEngine.ts';
 import { fillMergeTags } from './mergeTags.ts';
 
 /**
@@ -203,44 +203,23 @@ export async function sendCredentialsEmail(base44: any, leadData: any, sentBy: s
     const { accessToken } = await base44.connectors.getConnection('gmail');
     if (!accessToken) return { sent: false, reason: 'no_gmail_token' };
 
-    // The AI fronting agent's credentials email gets its own sendId and the same
-    // per-recipient tracking every other send gets (only when we know the lead).
-    const sendId = `${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
-    const trackedHtml = leadData.id
-      ? injectTracking(html, leadData.id, sendId, template.id, template.label || 'credentials')
-      : html;
-
-    // Build simple RFC 2822 MIME message
-    const mimeMessage = [
-      `To: ${leadData.email}`,
-      `Subject: ${subject}`,
-      'Content-Type: text/html; charset=UTF-8',
-      'MIME-Version: 1.0',
-      '',
-      trackedHtml,
-    ].join('\r\n');
-
-    const bytes = new TextEncoder().encode(mimeMessage);
-    let binary = '';
-    for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
-    const base64 = btoa(binary);
-    const base64url = base64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-
-    const response = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ raw: base64url }),
+    // One tracked send through the shared engine: it records the EmailMessage, gives
+    // the body its own opaque token, hosts any embedded image, and files every open
+    // and click back against this contact and template.
+    const result = await sendTrackedEmail(base44, {
+      to: leadData.email,
+      subject,
+      html,
+      contactId: leadData.id || '',
+      contactKind: leadData.id ? 'fronter_lead' : 'other',
+      contactName: `${leadData.firstName || ''} ${leadData.lastName || ''}`.trim(),
+      templateId: template.id,
+      templateName: template.label || 'credentials',
+      sentBy: 'ai_agent',
+      source: 'automation',
     });
 
-    if (!response.ok) {
-      console.error('[aiAgentHelpers] Gmail API error:', await response.text());
-      return { sent: false, reason: 'gmail_api_error' };
-    }
-
-    return { sent: true, templateLabel: template.label || 'credentials' };
+    return { sent: true, templateLabel: template.label || 'credentials', sendId: result.sendId };
   } catch (e) {
     console.error('[aiAgentHelpers] Email send failed:', e?.message || String(e));
     return { sent: false, reason: 'exception', error: e?.message || String(e) };

@@ -8,6 +8,19 @@
  */
 export const TRACKING_BASE = 'https://rosieai-investorpage.base44.app/functions';
 
+/**
+ * The opaque public identifier one sent message carries. It is the ONLY thing a
+ * tracking URL reveals — no contact id, no email address, no name — and it is
+ * unguessable, so a link from one recipient can never expose or reach another's.
+ */
+export function mintToken(): string {
+  const bytes = new Uint8Array(18);
+  crypto.getRandomValues(bytes);
+  let binary = '';
+  for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+  return 'm_' + btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
 /** Matches a tracking URL this app built itself (click tracker or open pixel). */
 const OWN_TRACKER_URL = /\/functions\/(?:emailTrackClick|emailTrackOpen|debtMarketingTrack)/i;
 
@@ -30,14 +43,20 @@ export function unwrapTrackedUrl(raw: string): string {
   return value;
 }
 
-export function injectTracking(html: string, leadId: string, sendId: string, templateId?: string, templateName?: string): string {
+export function injectTracking(html: string, leadId: string, sendId: string, templateId?: string, templateName?: string, token?: string): string {
   if (!html) return html;
   const templateParam = templateId ? `&templateId=${encodeURIComponent(templateId)}` : '';
   // The template's name rides along so every recorded event says WHICH email was
   // opened or clicked (the Super Admin engagement panels read these events).
   const nameParam = templateName ? `&templateName=${encodeURIComponent(templateName)}` : '';
-  const trackOpenUrl = `${TRACKING_BASE}/emailTrackOpen?leadId=${encodeURIComponent(leadId)}&sendId=${sendId}${templateParam}${nameParam}`;
-  const trackClickBase = `${TRACKING_BASE}/emailTrackClick?leadId=${encodeURIComponent(leadId)}&sendId=${sendId}${templateParam}${nameParam}&url=`;
+  // A send carrying an opaque token puts NOTHING about the contact in the public
+  // URL — the message record behind the token holds every association (contact,
+  // template, sender, Gmail account). Sends without one keep the original shape.
+  const identity = token
+    ? `m=${encodeURIComponent(token)}`
+    : `leadId=${encodeURIComponent(leadId)}&sendId=${sendId}${templateParam}${nameParam}`;
+  const trackOpenUrl = `${TRACKING_BASE}/emailTrackOpen?${identity}`;
+  const trackClickBase = `${TRACKING_BASE}/emailTrackClick?${identity}&url=`;
 
   // 0. Drop any tracking pixel an earlier send left in this markup, so one email
   //    can never report its opens twice.

@@ -1,0 +1,48 @@
+{
+  "name": "EmailImageAsset",
+  "type": "object",
+  "properties": {
+    "hash": {
+      "type": "string",
+      "title": "Image Hash (content hash \u2014 the same picture is hosted once)"
+    },
+    "fileUrl": {
+      "type": "string",
+      "title": "Hosted URL (public \u2014 mail clients must fetch it without signing in)"
+    },
+    "mimeType": {
+      "type": "string",
+      "title": "MIME Type"
+    },
+    "byteSize": {
+      "type": "number",
+      "title": "Size In Bytes"
+    }
+  },
+  "required": [
+    "hash",
+    "fileUrl"
+  ],
+  "rls": {
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "read": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}

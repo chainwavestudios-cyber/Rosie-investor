@@ -15,6 +15,7 @@ import FronterCardActions from './FronterCardActions';
 import FronterHardshipField from './FronterHardshipField';
 import FronterNotesSection from './FronterNotesSection';
 import FronterEmailTrackingBadges from './FronterEmailTrackingBadges';
+import EmailActivityTimeline from '@/components/email/EmailActivityTimeline';
 import EngagementScoreBadge from '@/components/engagement/EngagementScoreBadge';
 import FronterLeadConfirmedChecklist from './FronterLeadConfirmedChecklist';
 import FronterClosedDealCelebration from './FronterClosedDealCelebration';
@@ -866,6 +867,7 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
           <button onClick={() => setCardTab('checklist')} style={{ padding: '8px 16px', background: 'none', border: 'none', borderBottom: `2px solid ${cardTab === 'checklist' ? GOLD : 'transparent'}`, color: cardTab === 'checklist' ? GOLD : '#6b7280', cursor: 'pointer', fontSize: '11px', fontWeight: cardTab === 'checklist' ? 'bold' : 'normal' }}>✅ Checklist</button>
           <button onClick={() => setCardTab('ai_populate')} style={{ padding: '8px 16px', background: 'none', border: 'none', borderBottom: `2px solid ${cardTab === 'ai_populate' ? '#a78bfa' : 'transparent'}`, color: cardTab === 'ai_populate' ? '#a78bfa' : '#6b7280', cursor: 'pointer', fontSize: '11px', fontWeight: cardTab === 'ai_populate' ? 'bold' : 'normal' }}>🤖 AI Populate</button>
           <button onClick={() => setCardTab('mailer')} style={{ padding: '8px 16px', background: 'none', border: 'none', borderBottom: `2px solid ${cardTab === 'mailer' ? GOLD : 'transparent'}`, color: cardTab === 'mailer' ? GOLD : '#6b7280', cursor: 'pointer', fontSize: '11px', fontWeight: cardTab === 'mailer' ? 'bold' : 'normal' }}>📨 Mailer</button>
+          <button onClick={() => setCardTab('email_activity')} style={{ padding: '8px 16px', background: 'none', border: 'none', borderBottom: `2px solid ${cardTab === 'email_activity' ? BLUE : 'transparent'}`, color: cardTab === 'email_activity' ? BLUE : '#6b7280', cursor: 'pointer', fontSize: '11px', fontWeight: cardTab === 'email_activity' ? 'bold' : 'normal' }}>📧 Email Activity</button>
         </div>
 
         {/* Content */}
@@ -1055,6 +1057,10 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
 
           {cardTab === 'ai_populate' && (
             <AIPopulateTab lead={local} leadType="fronter" />
+          )}
+
+          {cardTab === 'email_activity' && (
+            <EmailActivityTimeline contactId={local?.id} />
           )}
 
           {cardTab === 'mailer' && (
