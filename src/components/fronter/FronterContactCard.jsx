@@ -15,6 +15,7 @@ import FronterCardActions from './FronterCardActions';
 import FronterHardshipField from './FronterHardshipField';
 import FronterNotesSection from './FronterNotesSection';
 import FronterEmailTrackingBadges from './FronterEmailTrackingBadges';
+import EngagementScoreBadge from '@/components/engagement/EngagementScoreBadge';
 import FronterLeadConfirmedChecklist from './FronterLeadConfirmedChecklist';
 import FronterClosedDealCelebration from './FronterClosedDealCelebration';
 import FronterDialer from './FronterDialer';
@@ -849,7 +850,10 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
 
         {/* Email tracking badges + Lead Confirmed button */}
         <div style={{ padding: '8px 18px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px', flexShrink: 0, flexWrap: 'wrap' }}>
-          <FronterEmailTrackingBadges lead={local} username={username} onManualUpdate={(upd) => setLocal(prev => ({ ...prev, ...upd }))} />
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', minWidth: 0 }}>
+            <EngagementScoreBadge leadId={local?.id} />
+            <FronterEmailTrackingBadges lead={local} username={username} onManualUpdate={(upd) => setLocal(prev => ({ ...prev, ...upd }))} />
+          </div>
           <button onClick={() => setCardTab('checklist')} style={{ background: 'rgba(16,185,129,0.15)', color: GOLD, border: `1px solid ${GOLD}44`, borderRadius: '4px', padding: '4px 12px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold', whiteSpace: 'nowrap' }}>✅ Lead Confirmed</button>
         </div>
 

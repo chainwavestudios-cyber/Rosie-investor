@@ -13,6 +13,7 @@ import CoachBoard from '@/components/superadmin/CoachBoard';
 import FronterBoard from '@/components/superadmin/FronterBoard';
 import WebChatBoard from '@/components/superadmin/WebChatBoard';
 import MarketingTab from '@/components/marketing/MarketingTab';
+import EmailEngagementPage from './EmailEngagementPage';
 import FronterMonitorPanel from '@/components/fronter/FronterMonitorPanel';
 import PortalNavButtons from '@/components/shared/PortalNavButtons';
 import FloatingInboundPhone from '@/components/superadmin/FloatingInboundPhone';
@@ -25,6 +26,7 @@ const TABS = [
   { id: 'webchat', label: '💬 Website Chat' },
   { id: 'split', label: '⚡ Split Screen' },
   { id: 'marketing', label: '📣 Marketing' },
+  { id: 'engagement', label: '📈 Email Engagement' },
 ];
 
 const navBtn = {
@@ -110,6 +112,7 @@ export default function SuperAdminPortal() {
       {tab === 'monitor' && <FronterMonitorPanel embedded adminUsername={user?.username} />}
       {tab === 'webchat' && <WebChatBoard username={user?.username} adminUserId={user?.id} adminToken={sessionToken} />}
       {tab === 'marketing' && <MarketingTab username={user?.username} />}
+      {tab === 'engagement' && <EmailEngagementPage />}
 
       {tab === 'split' && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(520px, 100%), 1fr))', gap: '16px', alignItems: 'start' }}>
