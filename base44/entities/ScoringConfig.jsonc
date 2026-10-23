@@ -1,0 +1,85 @@
+{
+  "name": "ScoringConfig",
+  "type": "object",
+  "properties": {
+    "configName": {
+      "type": "string",
+      "title": "Config Name (singleton key \u2014 engagement)",
+      "default": "engagement"
+    },
+    "hotScore": {
+      "type": "number",
+      "title": "Hot at (score this or above)",
+      "default": 70
+    },
+    "engagedScore": {
+      "type": "number",
+      "title": "Engaged at (score this or above)",
+      "default": 45
+    },
+    "warmingScore": {
+      "type": "number",
+      "title": "Warming at (score this or above)",
+      "default": 20
+    },
+    "migrationStartScore": {
+      "type": "number",
+      "title": "Score a lead starts on when it migrates into Debt Call Coach",
+      "default": 20
+    },
+    "botFilterSeconds": {
+      "type": "number",
+      "title": "Ignore activity in the first N seconds (mail preview crawlers open instantly)",
+      "default": 30
+    },
+    "followUpLinksRequired": {
+      "type": "number",
+      "title": "Vetted links required before the follow-up email auto-sends",
+      "default": 2
+    },
+    "weightsJson": {
+      "type": "string",
+      "title": "What each email family's behaviour is worth (JSON array of {key, open, repeat, click, depth, welcome, qualify, site})",
+      "format": "textarea"
+    },
+    "patternsJson": {
+      "type": "string",
+      "title": "Pattern bonuses (JSON: bothReminders, followUpTwoLinks, credsRepeatPattern, credsRepeatOpens, credsOpensWithSite, credsQualifyIsHot, goldenAvatar, fronterClick, fronterRepeatOpens)",
+      "format": "textarea"
+    },
+    "updatedBy": {
+      "type": "string",
+      "title": "Last Updated By (username)"
+    },
+    "updatedAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Last Updated At"
+    }
+  },
+  "required": [
+    "configName"
+  ],
+  "rls": {
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "read": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}

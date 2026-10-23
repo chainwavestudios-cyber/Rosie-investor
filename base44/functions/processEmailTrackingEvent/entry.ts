@@ -14,6 +14,7 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.53';
 import { getCalendarAuth, listEvents, hasConflict } from '../../shared/googleCalendarHelpers.ts';
 import { sendTrackedEmail } from '../../shared/emailMessageEngine.ts';
 import { fillMergeTags } from '../../shared/mergeTags.ts';
+import { readScoringRules } from '../../shared/scoringConfig.ts';
 
 const TRACKED_DOMAINS = ['trustpilot.com', 'bbb.org', 'debtadvisorsofamerica.com'];
 const BOT_FILTER_MS = 30_000;
@@ -52,7 +53,11 @@ export default async function (req: Request): Promise<Response> {
       const events = Array.isArray(raw) ? raw : (raw?.items || []);
 
       const now = Date.now();
-      const confirmed = events.filter((e: any) => now - new Date(e.trackedAt).getTime() > BOT_FILTER_MS);
+      // Both of these are editable on the Automations & Scoring screen.
+      const rules = await readScoringRules(base44);
+      const botFilterMs = rules.botFilterSeconds * 1000;
+      const requiredLinks = rules.followUpLinksRequired;
+      const confirmed = events.filter((e: any) => now - new Date(e.trackedAt).getTime() > botFilterMs);
 
       const hasOpen = confirmed.some((e: any) => e.eventType === 'open') || !!lead.emailOpenedAt;
 
@@ -67,7 +72,7 @@ export default async function (req: Request): Promise<Response> {
         [...clickedUrls].some((u) => u.includes(d))
       );
 
-      if (hasOpen && clickedDomains.length >= 2) {
+      if (hasOpen && clickedDomains.length >= requiredLinks) {
         try {
           await sendFollowUpEmail(base44, lead);
           results.followUpSent = true;

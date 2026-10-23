@@ -97,6 +97,122 @@ const ALL_CATEGORIES = [...CATEGORIES, FRONTER_CATEGORY];
 export const categoryByKey = (key: string): EmailCategory =>
   ALL_CATEGORIES.find((category) => category.key === key) || FRONTER_CATEGORY;
 
+// ── The editable rule set ────────────────────────────────────────────────────
+// Every number above is a built-in default. The Automations & Scoring screen
+// stores its own values in the ScoringConfig record, and the whole model is
+// resolved here from that record — an unset (or missing) value keeps its default.
+
+export interface PatternRules {
+  /** Opened both the night-before and the reminder email. */
+  bothReminders: number;
+  /** Follow-up introduction: 2+ links clicked. */
+  followUpTwoLinks: number;
+  /** Credentials email opened again and again — the hot pattern. */
+  credsRepeatPattern: number;
+  /** Opens on the credentials email that count as the repeat pattern. */
+  credsRepeatOpens: number;
+  /** Opens that count when they also visited our own site. */
+  credsOpensWithSite: number;
+  /** Reaching the qualification page off the credentials email makes them hot. */
+  credsQualifyIsHot: boolean;
+  /** Golden Boy opened and the avatar watched. */
+  goldenAvatar: number;
+  /** Fronter: clicked a link in the cold outreach. */
+  fronterClick: number;
+  /** Fronter: opened the cold outreach more than once. */
+  fronterRepeatOpens: number;
+}
+
+export interface ScoreRules {
+  hotScore: number;
+  engagedScore: number;
+  warmingScore: number;
+  migrationStartScore: number;
+  botFilterSeconds: number;
+  weights: Record<string, Weights>;
+  patterns: PatternRules;
+}
+
+const DEFAULT_PATTERNS: PatternRules = {
+  bothReminders: 18,
+  followUpTwoLinks: 20,
+  credsRepeatPattern: 12,
+  credsRepeatOpens: 3,
+  credsOpensWithSite: 2,
+  credsQualifyIsHot: true,
+  goldenAvatar: 12,
+  fronterClick: 8,
+  fronterRepeatOpens: 6,
+};
+
+export const DEFAULT_SCORING: ScoreRules = {
+  hotScore: HOT_SCORE,
+  engagedScore: ENGAGED_SCORE,
+  warmingScore: WARMING_SCORE,
+  migrationStartScore: MIGRATION_START_SCORE,
+  botFilterSeconds: BOT_FILTER_MS / 1000,
+  weights: Object.fromEntries(ALL_CATEGORIES.map((category) => [category.key, { ...category.weights }])),
+  patterns: DEFAULT_PATTERNS,
+};
+
+const num = (value: any, fallback: number) => (Number.isFinite(Number(value)) ? Number(value) : fallback);
+const flag = (value: any, fallback: boolean) => (typeof value === 'boolean' ? value : fallback);
+
+function parseJson(raw: any, fallback: any) {
+  try {
+    const parsed = JSON.parse(String(raw || ''));
+    return parsed && typeof parsed === 'object' ? parsed : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+/** Merge a stored ScoringConfig record (or raw weights/patterns) over the built-in model. */
+export function resolveScoring(raw?: any): ScoreRules {
+  const record = Array.isArray(raw) ? raw[0] : raw;
+  if (!record) return DEFAULT_SCORING;
+
+  const weightsJson = parseJson(record.weightsJson, []);
+  const stored: Record<string, any> = Array.isArray(weightsJson)
+    ? Object.fromEntries(weightsJson.filter((row: any) => row && row.key).map((row: any) => [String(row.key), row]))
+    : weightsJson;
+  const patterns = parseJson(record.patternsJson, {});
+
+  const weights: Record<string, Weights> = {};
+  for (const [key, fallback] of Object.entries(DEFAULT_SCORING.weights)) {
+    const given = stored[key] || {};
+    weights[key] = {
+      open: num(given.open, fallback.open),
+      repeat: num(given.repeat, fallback.repeat),
+      click: num(given.click, fallback.click),
+      depth: num(given.depth, fallback.depth),
+      welcome: num(given.welcome, fallback.welcome),
+      qualify: num(given.qualify, fallback.qualify),
+      site: num(given.site, fallback.site),
+    };
+  }
+
+  return {
+    hotScore: num(record.hotScore, HOT_SCORE),
+    engagedScore: num(record.engagedScore, ENGAGED_SCORE),
+    warmingScore: num(record.warmingScore, WARMING_SCORE),
+    migrationStartScore: num(record.migrationStartScore, MIGRATION_START_SCORE),
+    botFilterSeconds: Math.max(0, num(record.botFilterSeconds, BOT_FILTER_MS / 1000)),
+    weights,
+    patterns: {
+      bothReminders: num(patterns.bothReminders, DEFAULT_PATTERNS.bothReminders),
+      followUpTwoLinks: num(patterns.followUpTwoLinks, DEFAULT_PATTERNS.followUpTwoLinks),
+      credsRepeatPattern: num(patterns.credsRepeatPattern, DEFAULT_PATTERNS.credsRepeatPattern),
+      credsRepeatOpens: num(patterns.credsRepeatOpens, DEFAULT_PATTERNS.credsRepeatOpens),
+      credsOpensWithSite: num(patterns.credsOpensWithSite, DEFAULT_PATTERNS.credsOpensWithSite),
+      credsQualifyIsHot: flag(patterns.credsQualifyIsHot, DEFAULT_PATTERNS.credsQualifyIsHot),
+      goldenAvatar: num(patterns.goldenAvatar, DEFAULT_PATTERNS.goldenAvatar),
+      fronterClick: num(patterns.fronterClick, DEFAULT_PATTERNS.fronterClick),
+      fronterRepeatOpens: num(patterns.fronterRepeatOpens, DEFAULT_PATTERNS.fronterRepeatOpens),
+    },
+  };
+}
+
 /** Which family an email belongs to, from its name (or its subject as a fallback). */
 export function categoryFor(templateName?: string, fallbackName?: string): EmailCategory {
   const hay = `${templateName || ''} ${fallbackName || ''}`.toLowerCase();

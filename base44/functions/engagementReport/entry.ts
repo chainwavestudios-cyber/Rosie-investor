@@ -18,7 +18,8 @@
  */
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.54';
 import { marketingUser } from '../../shared/fronterMarketing.ts';
-import { BOT_FILTER_MS, MIGRATION_START_SCORE, categoryFor, scoreForSystem } from '../../shared/engagement.ts';
+import { categoryFor, scoreForSystem } from '../../shared/engagement.ts';
+import { readScoringRules } from '../../shared/scoringConfig.ts';
 
 const PAGE = 200;
 const MAX_EVENTS = 1000;
@@ -39,8 +40,11 @@ export default async function (req: Request): Promise<Response> {
     // picked it up, and it clears by itself if that lead heats up again.
     if (body.action === 'handleHotLead') return Response.json(await markHandled(base44, user, body));
 
-    if (body.leadId) return Response.json({ lead: await scoreOne(base44, String(body.leadId)) });
-    return Response.json(await buildReport(base44, body));
+    // The rules an admin saved on the Automations & Scoring screen, over the built-in model.
+    const rules = await readScoringRules(base44);
+
+    if (body.leadId) return Response.json({ lead: await scoreOne(base44, String(body.leadId), rules) });
+    return Response.json(await buildReport(base44, body, rules));
   } catch (error: any) {
     const forbidden = error?.message === 'Forbidden' || error?.message === 'Unauthorized';
     console.error('[engagementReport] Error:', error?.message);
@@ -65,7 +69,7 @@ async function readAll(entity: any, query: any, max: number, sort: string) {
 }
 
 /** One contact card: its score in each system, and what to do next. */
-async function scoreOne(base44: any, leadId: string) {
+async function scoreOne(base44: any, leadId: string, rules: any) {
   const page = await base44.asServiceRole.entities.EmailTrackingEvent.filter({ leadId }, { sort: '-trackedAt', limit: 200 });
   const events = (Array.isArray(page) ? page : (page?.items || [])).filter((event: any) => EVENT_TYPES.includes(String(event.eventType)));
 
@@ -75,8 +79,8 @@ async function scoreOne(base44: any, leadId: string) {
   if (!lead) lead = await base44.asServiceRole.entities.DebtLead.get(leadId).catch(() => null);
   const live = fronterLead ? 'fronter' : 'coach';
 
-  const coach = scoreForSystem(leadId, events, 'coach', Date.now());
-  const fronter = scoreForSystem(leadId, events, 'fronter', Date.now());
+  const coach = scoreForSystem(leadId, events, 'coach', Date.now(), rules);
+  const fronter = scoreForSystem(leadId, events, 'fronter', Date.now(), rules);
 
   return {
     id: leadId,
@@ -96,14 +100,14 @@ async function scoreOne(base44: any, leadId: string) {
   };
 }
 
-const isConfirmed = (event: any, now: number) => {
+const isConfirmed = (event: any, now: number, rules: any) => {
   const at = event?.trackedAt || event?.created_date;
-  return !at || now - new Date(at).getTime() > BOT_FILTER_MS;
+  return !at || now - new Date(at).getTime() > rules.botFilterSeconds * 1000;
 };
 
 const templateKey = (templateId: any, templateName: any) => (templateId ? `id:${templateId}` : `name:${templateName || ''}`);
 
-async function buildReport(base44: any, body: any) {
+async function buildReport(base44: any, body: any, rules: any) {
   const now = Date.now();
   const days = Math.max(1, Math.min(180, Number(body.days) || 30));
   const since = new Date(now - days * 86_400_000).toISOString();
@@ -126,7 +130,7 @@ async function buildReport(base44: any, body: any) {
 
   // Each event is labelled with its family up front, so the shared scorer reads one name.
   const events = rawEvents
-    .filter((event: any) => EVENT_TYPES.includes(String(event.eventType)) && event.leadId && isConfirmed(event, now))
+    .filter((event: any) => EVENT_TYPES.includes(String(event.eventType)) && event.leadId && isConfirmed(event, now, rules))
     .map((event: any) => {
       const known = templates.get(String(event.templateId || ''));
       const name = known?.name || event.templateName || '';
@@ -146,7 +150,7 @@ async function buildReport(base44: any, body: any) {
   SYSTEMS.forEach((system) => {
     const systemEvents = events.filter((event: any) => event.system === system);
     const systemSends = sendingRows.filter((row: any) => row.system === system);
-    const result = buildSystem({ system, events: systemEvents, sends: systemSends, now });
+    const result = buildSystem({ system, events: systemEvents, sends: systemSends, now, rules });
     systems[system] = result;
     result.leadIds.slice(0, TOP_LEADS).forEach((leadId: string) => wanted.add(leadId));
     result.hotLeadIds.forEach((leadId: string) => wanted.add(leadId));
@@ -223,14 +227,14 @@ async function buildReport(base44: any, body: any) {
   return {
     windowDays: days,
     generatedAt: new Date().toISOString(),
-    migrationStartScore: MIGRATION_START_SCORE,
+    migrationStartScore: rules.migrationStartScore,
     truncated: { events: rawEvents.length >= MAX_EVENTS, sends: sends.length >= MAX_SENDS },
     systems,
   };
 }
 
 /** One system's whole report — its own summary, campaigns, ranking and feed. */
-function buildSystem({ system, events, sends, now }: any) {
+function buildSystem({ system, events, sends, now, rules }: any) {
   const byLead = new Map<string, any[]>();
   events.forEach((event: any) => {
     const leadId = String(event.leadId);
@@ -239,7 +243,7 @@ function buildSystem({ system, events, sends, now }: any) {
   });
 
   const scored = [...byLead.entries()]
-    .map(([leadId, rows]) => ({ leadId, ...scoreForSystem(leadId, rows, system, now) }))
+    .map(([leadId, rows]) => ({ leadId, ...scoreForSystem(leadId, rows, system, now, rules) }))
     .sort((a, b) => (b.score - a.score) || (new Date(b.lastAt || 0).getTime() - new Date(a.lastAt || 0).getTime()));
   const scoreOf: Record<string, any> = Object.fromEntries(scored.map((entry) => [entry.leadId, entry]));
 

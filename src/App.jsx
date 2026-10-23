@@ -21,6 +21,7 @@ import TrainingPage from './pages/TrainingPage';
 import AssistantPortal from './pages/AssistantPortal';
 import SuperAdminPortal from './pages/SuperAdminPortal';
 import EmailEngagementPage from './pages/EmailEngagementPage';
+import AutomationCenter from './pages/AutomationCenter';
 import AdminFrontPage from './pages/AdminFrontPage';
 import AboutDebt from './pages/AboutDebt';
 import SarahQualifyPage from './pages/SarahQualifyPage';
@@ -126,6 +127,7 @@ function App() {
               <Route path="/superadmin-portal" element={<DebtCoachAuthProvider><SuperAdminPortal /></DebtCoachAuthProvider>} />
               <Route path="/adminfrontpage" element={<DebtCoachAuthProvider><AdminFrontPage /></DebtCoachAuthProvider>} />
               <Route path="/email-engagement" element={<DebtCoachAuthProvider><EmailEngagementPage /></DebtCoachAuthProvider>} />
+              <Route path="/automations" element={<DebtCoachAuthProvider><AutomationCenter /></DebtCoachAuthProvider>} />
               <Route path="*" element={<PageNotFound />} />
             </Routes>
           </ProtectedShell>

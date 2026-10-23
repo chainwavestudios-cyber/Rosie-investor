@@ -10,6 +10,7 @@ const ITEMS = [
   { key: 'fronter', label: 'Fronter', icon: '🎯', path: '/fronter', accent: '#10b981', adminOnly: false },
   { key: 'assistant', label: 'Assistant Portal', icon: '🗂', path: '/assistant-portal', accent: '#60a5fa', adminOnly: true },
   { key: 'coach', label: 'Debt Call Coach', icon: '🎧', path: '/debt-call-coach', accent: '#a78bfa', adminOnly: false },
+  { key: 'automations', label: 'Automations & Scoring', icon: '⚙️', path: '/automations', accent: '#38bdf8', adminOnly: true },
 ];
 
 export default function PortalNavButtons({ current, isAdmin = false }) {
