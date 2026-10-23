@@ -17,6 +17,15 @@
       ],
       "default": "manual"
     },
+    "emailProvider": {
+      "type": "string",
+      "title": "Sending Lane (gmail = the company Google account; smtpfast = outreach, never sent from the Gmail account)",
+      "enum": [
+        "gmail",
+        "smtpfast"
+      ],
+      "default": "gmail"
+    },
     "subject": {
       "type": "string",
       "title": "Email Subject (supports {{firstName}}, {{lastName}}, {{appointmentDate}}, {{debtAmount}})",
@@ -24,7 +33,7 @@
     },
     "bodyHtml": {
       "type": "string",
-      "title": "Email Body (HTML \u2014 supports {{firstName}}, {{lastName}}, {{appointmentDate}}, {{debtAmount}}, {{personalMessageUrl}})",
+      "title": "Email Body (HTML \u2014 supports {{firstName}}, {{lastName}}, {{appointmentDate}}, {{debtAmount}}, {{personalMessageUrl}}, {{protofaceId}})",
       "format": "textarea",
       "maxLength": 500000
     },

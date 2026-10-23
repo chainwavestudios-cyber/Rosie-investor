@@ -7,6 +7,7 @@
 import { injectTracking, buildMime, TRACKING_BASE } from './emailTracking.ts';
 import { getEmailSignature } from './emailSignature.ts';
 import { sendViaGmail } from './gmailSend.ts';
+import { smtpfastSend } from './smtpfastSender.ts';
 import { companyMergeVars, isEmailUnsubscribed } from './companyInfo.ts';
 
 export interface SendResult {
@@ -14,10 +15,16 @@ export interface SendResult {
   subject: string;
 }
 
+/** 'smtpfast' keeps a send out of the company Gmail account — fronter mail uses it. */
+export interface SendOptions {
+  transport?: 'gmail' | 'smtpfast';
+}
+
 export async function sendTemplateEmail(
   base44: any,
   template: any,
-  lead: any
+  lead: any,
+  options: SendOptions = {}
 ): Promise<SendResult> {
   if (!lead.email) throw new Error('Lead has no email address');
 
@@ -83,8 +90,17 @@ export async function sendTemplateEmail(
     trackedHtml = injectTracking(html, lead.id, sendId, template.id, template.name);
   }
 
-  const mimeMessage = buildMime(lead.email, subject, trackedHtml);
-  await sendViaGmail(base44, lead.email, mimeMessage);
+  // The template's own lane decides the transport; a caller can override it, so a
+  // fronter send never leaves through the company Gmail account.
+  const transport = options.transport || (template.emailProvider === 'smtpfast' ? 'smtpfast' : 'gmail');
+  if (transport === 'smtpfast') {
+    // This app's own pixel and link tracking stay (providerTracking off), so the
+    // contact card badges keep lighting up.
+    await smtpfastSend({ to: lead.email, subject, html: trackedHtml, customId: `coach:${sendId}`, category: 'marketing' });
+  } else {
+    const mimeMessage = buildMime(lead.email, subject, trackedHtml);
+    await sendViaGmail(base44, lead.email, mimeMessage);
+  }
 
   return { sendId, subject };
 }
